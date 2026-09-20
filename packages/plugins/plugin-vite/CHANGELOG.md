@@ -1,0 +1,116 @@
+# Changelog
+
+All notable changes to `@vetta-org/plugin-vite` are documented in this file.
+
+## [Unreleased]
+
+### Added
+
+- Package installable plugins as `.vettapkg` files while retaining the ZIP container and manifest layout. The dedicated extension lets Desktop register double-click installation without claiming ordinary ZIP files.
+
+- Bind `@vetta-org/plugin-sdk/logger` to the current plugin's validated manifest identity in both production builds and the development server. The generated facade keeps plugin code free from `ctx` plumbing without using a mutable shared-SDK identity; this release requires `@vetta-org/plugin-sdk >=0.3.7`.
+
+### Fixed
+
+- Make the host design-system primitives explicitly opt-in through `hostUi: true`, so plugins that do not import `@vetta-org/ui` no longer need to install it. The uninstalled legacy names `@vetta/ui` and `@vetta/theme-ui/plugin-ui` are no longer default build-time shared dependencies; opted-in legacy UI source imports remain externalized to the Desktop host, and Desktop continues serving both legacy share keys for already-built plugins.
+
+## [0.2.2] — 2026-09-14
+
+### Fixed
+
+- Externalize and share the host component surface under both `@vetta-org/theme-ui/plugin-ui` and its former name `@vetta/theme-ui/plugin-ui`, for the same reason as `@vetta-org/ui` in 0.2.1: the specifier doubles as the Module Federation share key, so knowing only one of them makes a plugin bundle its own copy instead of reusing the host singleton.
+
+## [0.2.1] — 2026-09-14
+
+### Fixed
+
+- Externalize and share the host design system under **both** `@vetta-org/ui` and its former name `@vetta/ui`. The package name doubles as the Module Federation share key, so a build that only knew one of them bundled the whole component library into the plugin instead of reusing the host singleton — two React component instances, and a ~10x larger artifact. Desktop now serves both names from the same module, so plugins built against either name keep resolving to the host instance.
+
+## [0.2.0] — 2026-09-14
+
+### Breaking Changes
+
+- Narrowed the `@vetta-org/plugin-sdk` peer range to `>=0.3.0 <0.4.0`. The 0.3.0 SDK carries breaking contract changes (plugin private storage, owned model providers, plugin-drawn configuration), so a project cannot stay on 0.2.x while packaging against this builder.
+
+### Fixed
+
+- Pin the development server origin to the advertised loopback endpoint so Module Federation does not infer a different hostname on Windows and fail to load the virtual entry.
+
+## [0.1.0] — 2026-09-01
+
+### Breaking Changes
+
+- Plugin packaging now accepts only the Module Federation contract: `plugin.json#runtime` was removed,
+  `moduleFederation` is required, and archive collection always follows the federation manifest and remote entry.
+
+### Added
+
+- Added a build- and pack-time permission contract check that rejects plugin runtime capabilities whose required permissions are missing from `plugin.json`.
+- Included the Vite reload reason, affected path, and triggering module in development lifecycle events so Desktop can diagnose cache-affecting plugin reloads.
+- Added opt-in npm distribution packaging that validates `package.json#vetta` identity and writes a stable `release/vetta-plugin.zip` beside the existing versioned archive.
+- Added `vetta-plugin dev`, React Fast Refresh, development CSS scoping, and versioned lifecycle events for Desktop plugin hot reload without changing production package output.
+- Added automatic injection of the public plugin-sdk Tailwind theme contract so plugins can use host semantic color utilities without importing Desktop CSS or repeating `@theme` mappings.
+
+### Fixed
+
+- Suppressed Rollup's harmless `MODULE_LEVEL_DIRECTIVE` warnings for `"use client"` inside bundled third-party
+  browser modules; plugin-source directives, `"use server"`, and all other Rollup warnings remain visible.
+- Made the host `@vetta-org/theme-ui/plugin-ui` share explicitly opt-in through `hostThemeUi`, so plugins that do not use host-built Theme UI components no longer emit missing-dependency warnings or inherit an unnecessary build-time dependency.
+- Raised production `assetsInlineLimit` so small plugin assets (for example package `icon.png`) stay data-URL inlined; absolute `/…` asset URLs resolve against the host origin and can pick up desktop `public/icon.png` by mistake.
+- Kept CSS resource-module requests such as `?raw`, `?url`, and `?inline` out of the development PostCSS scoping pipeline, while preserving scoping for normal, direct, and HMR stylesheet requests.
+- Made the development ready handshake transform the plugin-local module graph before publishing the source overlay, so entry dependency compilation failures retain the stable plugin instead of surfacing later in Renderer.
+- Exposed the project-local `vetta-plugin` CLI through the stable `@vetta-org/plugin-vite/cli` subpath so ESM-only package exports can be resolved by Desktop without pretending the package has a CommonJS entry.
+- Stopped the resource watcher's initial scan from blocking the development server ready handshake after Vite was already serving the plugin entry.
+- Preserved valid React bindings when transitive CommonJS dependencies are bundled against the host-provided React singleton.
+- Kept validated Iconify mask rules available outside plugin CSS scopes so icons render inside portalled UI components.
+- Wrapped those globally hoisted Iconify rules in a nested `vetta-plugin-icons` cascade layer so their `1em` fallback size no longer overrides the host's explicit `w-*` / `h-*` utilities, which had shrunk shared icons and misaligned neighbouring labels.
+
+## [0.0.5] — 2026-08-04
+
+### Added
+
+- Added the `vetta-plugin validate` and `vetta-plugin pack` CLI so external projects and the plugin workbench use the same manifest parser and archive implementation as Vite builds.
+- **宿主共享 `@vetta-org/ui`**：`vettaPluginFederation` 默认将 `@vetta-org/ui` 设为 MF `singleton + import:false`，并 rollup external 到 `vetta-host://ui`，与 desktop 的 share scope / host shim 对齐；插件可选用宿主 primitives 而不打进 bundle。
+- **打包纳入能力详情**：根目录存在 `ability.json` 时随 zip 分发，并连带约定的 `presentation/` 展示资源目录；打包期校验 `schemaVersion` / `type` / `slug` / `version` 与 `plugin.json` 身份一致，不一致直接报错。`ability.json` 缺省时行为不变。
+
+### Changed
+
+- Removed the obsolete Worker/WASM packaging branch; packaging accepts only ESM and Module Federation plugin manifests.
+- Plugin packaging now validates `plugin.json` through `@vetta-org/plugin-sdk/manifest` and only replaces the target archive instead of deleting the entire `release/` directory.
+
+## [0.0.4] — 2026-07-31
+
+### Fixed
+
+- **打包纳入 `plugin.json` 的包内图标**：`icon` 为包内相对路径（png/jpg/webp/gif/svg）时，图标文件此前不会进 zip，导致安装后宿主 `vetta-plugin://` 取图 404、上传能力市场被服务端以「压缩包内缺少 icon 文件」拒绝。判定与宿主 / 服务端一致：Iconify 名与 `http(s)://` 外链不落包；声明的图标文件缺失时打包直接报错。
+
+## [0.0.3] — 2026-07-23
+
+### Added
+
+- 插件 CSS 构建产物自动通过原生 `@scope` 限定到当前插件根节点，`:root` / `:host` 自动映射为 `:scope`，插件作者无需手写选择器前缀或 cascade layer。
+
+## [0.0.2] — 2026-07-15
+
+### Added
+
+- **`VETTA_PLUGIN_DEV_WATCH=1` 跳过打包**：宿主 dev 热更新的 `vite build --watch` 只需要 dist，watch 模式下不再每轮增量构建都重打 zip。
+- **打包始终纳入 `scripts/` 与 `agent/docs/`**（若存在），便于工作台脚本与内嵌手册随 zip 分发；MCP 声明时仍额外纳入 `mcp/`。
+- **插件打包包含 MCP 资源**：声明 `agent.mcpServers` 时将配置文件（路径形式）及约定目录 `mcp/`、`scripts/` 打入 zip。
+
+## [0.0.1] — 2026-07-14
+
+### Changed
+
+- **npm 包名**：由 `@vetta/plugin-vite` 更名为 `@vetta-org/plugin-vite`（发布 scope 与 org `vetta-org` 对齐）；构建时 external 的 SDK 名为 `@vetta-org/plugin-sdk`。
+
+### Added
+
+- Added Vite helpers for building Vetta Module Federation plugins with host-provided React shared dependencies.
+- Added a plugin package helper that creates runtime-only install archives without Module Federation type and build metadata.
+- Added automatic runtime-only zip packaging after Vite production builds.
+- Added shared Rollup defaults for plugin entry points, host-provided SDK imports, and collision-safe asset names.
+
+### Fixed
+
+- Disabled unused Module Federation DTS output to avoid Windows output-directory cleanup races, and skip packaging failed builds.

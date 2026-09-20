@@ -1,0 +1,11 @@
+export * from "./adapter-registry.js";
+export * from "./default-adapter-registry.js";
+export * from "./language-model-adapter.js";
+export { normalizeAssistantMessageError } from "./legacy-error-classifier.js";
+export * from "./model-call-result.js";
+export * from "./model-capabilities.js";
+export * from "./model-identity.js";
+export * from "./model-middleware.js";
+export * from "./model-router.js";
+export * from "./registry-simple-stream.js";
+export * from "./stream-model.js";

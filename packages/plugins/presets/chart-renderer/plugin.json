@@ -1,0 +1,27 @@
+{
+	"id": "chart-renderer",
+	"name": "%plugin.name%",
+	"icon": "icon.png",
+	"version": "0.1.22",
+	"defaultLocale": "zh",
+	"pluginApiVersion": "^2.0.0",
+	"entry": "dist/mf-manifest.json",
+	"moduleFederation": {
+		"remoteName": "chart_renderer",
+		"expose": "./plugin"
+	},
+	"styles": ["dist/style.css"],
+	"permissions": ["ui.slot.tool-call", "agent.skills.control", "agent.tools.register", "agent.toolHandler.execute"],
+	"description": "%plugin.description%",
+	"author": "Vetta",
+	"guidingWords": [
+		"%guiding.chart%",
+		"%guiding.bar%",
+		"%guiding.line%",
+		"%guiding.pie%",
+		"%guiding.dataviz%"
+	],
+	"agent": {
+		"skillPaths": ["skills/"]
+	}
+}

@@ -1,0 +1,244 @@
+import { AI_ERROR_CODES, type Api, isAIError, type Model } from "@vetta/ai";
+import { describe, expect, it, vi } from "vitest";
+import {
+	RuntimeModel,
+	type RuntimeModelCatalog,
+	type RuntimeModelCredentialResolver,
+} from "../../src/runtime-host/index.js";
+
+describe("RuntimeModel", () => {
+	it.each(["gpt-5.6", "gpt-6", "custom-gpt-alias"])(
+		"preserves xhigh for %s on initialization, selection and turn binding",
+		async (id) => {
+			const selected: Model<Api> = {
+				...model("proxy", id, true),
+				api: "openai-responses",
+				reasoningLevels: ["low", "high", "xhigh"],
+			};
+			const runtime = new RuntimeModel({
+				initialModel: selected,
+				initialThinkingLevel: "xhigh",
+				catalog: catalog([selected]),
+				credentials: { resolve: async () => "test-key", refreshAuth: async () => {} },
+			});
+			expect(runtime.readThinkingLevel()).toBe("xhigh");
+			await runtime.selectModel(`proxy/${id}`, "always");
+			runtime.setThinkingLevel("xhigh");
+			expect(runtime.readThinkingLevel()).toBe("xhigh");
+			const binding = await runtime.bind({
+				sessionId: "session-1",
+				operationId: "turn-1",
+				reason: "turn",
+				signal: new AbortController().signal,
+				request: { payload: "hello", displayText: "hello", model: { reasoning: "xhigh" } },
+			});
+			expect(binding.reasoning).toBe("xhigh");
+		},
+	);
+	it("resolves available models before fallback and preserves model ids containing slashes", async () => {
+		const available = model("available", "model/with/slash", true);
+		const fallback = model("fallback", "fallback-model", true);
+		const find = vi.fn((provider: string, modelId: string) =>
+			provider === fallback.provider && modelId === fallback.id ? fallback : undefined,
+		);
+		const runtime = createRuntime({
+			catalog: {
+				refresh() {},
+				listAvailable: () => [INITIAL_MODEL, available],
+				find,
+			},
+		});
+
+		await runtime.selectModel("available/model/with/slash", "always");
+		expect(runtime.readCurrentModel()).toBe(available);
+		expect(find).not.toHaveBeenCalled();
+
+		await runtime.selectModel("fallback/fallback-model", "always");
+		expect(runtime.readCurrentModel()).toBe(fallback);
+		expect(find).toHaveBeenCalledWith("fallback", "fallback-model");
+	});
+
+	it("keeps selection behavior and credential validation compatible with the legacy controller", async () => {
+		const alternate = model("test", "alternate", true);
+		const resolve = vi.fn(async (candidate: Model<Api>) => (candidate.id === "without-key" ? undefined : "test-key"));
+		const withoutKey = model("test", "without-key", true);
+		const runtime = createRuntime({
+			catalog: catalog([INITIAL_MODEL, alternate, withoutKey]),
+			credentials: { resolve, refreshAuth: async () => {} },
+		});
+
+		await expect(runtime.selectModel("missing/model", "always")).rejects.toMatchObject({
+			code: AI_ERROR_CODES.MODEL_NOT_FOUND,
+			provider: "missing",
+			modelId: "model",
+			retryable: false,
+		});
+		expect(runtime.readCurrentModel()).toBe(INITIAL_MODEL);
+		await expect(
+			runtime.bind({
+				sessionId: "session-1",
+				operationId: "turn-1",
+				reason: "turn",
+				signal: new AbortController().signal,
+				request: { payload: "hello", displayText: "hello", model: { key: "missing/model" } },
+			}),
+		).rejects.toMatchObject({ code: AI_ERROR_CODES.MODEL_NOT_FOUND, provider: "missing", modelId: "model" });
+
+		await runtime.selectModel("test/initial", "if-changed");
+		expect(resolve).not.toHaveBeenCalled();
+
+		await runtime.selectModel("test/initial", "always");
+		expect(resolve).toHaveBeenCalledOnce();
+
+		const result = runtime.selectModel("test/without-key", "always");
+		await expect(result).rejects.toMatchObject({
+			code: AI_ERROR_CODES.AUTHENTICATION_FAILED,
+			provider: "test",
+			modelId: "without-key",
+			phase: "resolve",
+			retryable: false,
+		});
+		try {
+			await result;
+			throw new Error("Expected model selection to reject");
+		} catch (error) {
+			expect(isAIError(error)).toBe(true);
+		}
+		expect(runtime.readCurrentModel()).toBe(INITIAL_MODEL);
+	});
+
+	it("disables reasoning for plain models and preserves provider-native effort values", async () => {
+		const reasoning = model("test", "reasoning", true);
+		const xhigh = model("openai", "gpt-5.3-test", true);
+		const runtime = createRuntime({
+			initialThinkingLevel: "high",
+			catalog: catalog([INITIAL_MODEL, reasoning, xhigh]),
+		});
+
+		expect(runtime.readThinkingLevel()).toBe("off");
+		runtime.setThinkingLevel("custom-max");
+		expect(runtime.readThinkingLevel()).toBe("off");
+
+		await runtime.selectModel("test/reasoning", "always");
+		runtime.setThinkingLevel("xhigh");
+		expect(runtime.readThinkingLevel()).toBe("xhigh");
+
+		await runtime.selectModel("openai/gpt-5.3-test", "always");
+		runtime.setThinkingLevel("xhigh");
+		expect(runtime.readThinkingLevel()).toBe("xhigh");
+	});
+
+	it("shares view state and returns stable immutable bindings for active turns", async () => {
+		const alternate = model("test", "alternate", true);
+		const refresh = vi.fn();
+		const refreshAuth = vi.fn(async () => {});
+		const runtime = createRuntime({
+			catalog: {
+				refresh,
+				listAvailable: () => [INITIAL_MODEL, alternate],
+				find: () => undefined,
+			},
+			credentials: { resolve: async () => "test-key", refreshAuth },
+		});
+
+		const available = runtime.readAvailableModels();
+		expect(available).toEqual([INITIAL_MODEL, alternate]);
+		expect(available).not.toBe(runtime.readAvailableModels());
+		runtime.refreshAvailableModels();
+		await runtime.refreshAuth("token");
+		expect(refresh).toHaveBeenCalledOnce();
+		expect(refreshAuth).toHaveBeenCalledWith("token");
+
+		const firstBinding = await runtime.bind();
+		expect(Object.isFrozen(firstBinding)).toBe(true);
+		expect(firstBinding).toMatchObject({ model: INITIAL_MODEL, reasoning: undefined });
+		expect(await firstBinding.credential?.resolve()).toBe("test-key");
+
+		await runtime.selectModel("test/alternate", "always");
+		runtime.setThinkingLevel("medium");
+		const secondBinding = await runtime.bind();
+
+		expect(firstBinding).toMatchObject({ model: INITIAL_MODEL, reasoning: undefined });
+		expect(secondBinding).toMatchObject({ model: alternate, reasoning: "medium" });
+		expect(await firstBinding.credential?.resolve()).toBe("test-key");
+		expect(await secondBinding.credential?.resolve()).toBe("test-key");
+	});
+
+	it("captures thinking policy before asynchronous credential resolution yields", async () => {
+		let releaseCredential: () => void = () => {};
+		const credentialBarrier = new Promise<void>((resolve) => {
+			releaseCredential = resolve;
+		});
+		const runtime = createRuntime({
+			credentials: {
+				resolve: async () => {
+					await credentialBarrier;
+					return "test-key";
+				},
+				refreshAuth: async () => {},
+			},
+		});
+
+		const firstBinding = runtime.bind();
+		runtime.setThinkingLevel("custom-max");
+		releaseCredential();
+
+		const bound = await firstBinding;
+		expect(bound).toMatchObject({ model: INITIAL_MODEL, reasoning: undefined });
+		expect(await bound.credential?.resolve()).toBe("test-key");
+	});
+
+	it("invalidates admitted credentials when authentication is explicitly revoked", async () => {
+		const runtime = createRuntime();
+		const binding = await runtime.bind();
+		expect(await binding.credential?.resolve()).toBe("test-key");
+
+		await runtime.refreshAuth(undefined);
+
+		expect(await binding.credential?.resolve()).toBeUndefined();
+	});
+});
+
+function createRuntime(
+	options: {
+		readonly initialThinkingLevel?: "off" | "high";
+		readonly catalog?: RuntimeModelCatalog;
+		readonly credentials?: RuntimeModelCredentialResolver;
+	} = {},
+): RuntimeModel {
+	return new RuntimeModel({
+		initialModel: INITIAL_MODEL,
+		initialThinkingLevel: options.initialThinkingLevel ?? "off",
+		catalog: options.catalog ?? catalog([INITIAL_MODEL]),
+		credentials: options.credentials ?? {
+			resolve: async () => "test-key",
+			refreshAuth: async () => {},
+		},
+	});
+}
+
+function catalog(models: readonly Model<Api>[]): RuntimeModelCatalog {
+	return {
+		refresh() {},
+		listAvailable: () => models,
+		find: (provider, modelId) =>
+			models.find((candidate) => candidate.provider === provider && candidate.id === modelId),
+	};
+}
+
+function model(provider: string, id: string, reasoning: boolean): Model<Api> {
+	return {
+		id,
+		name: id,
+		api: "openai-responses",
+		provider,
+		baseUrl: "https://example.test",
+		reasoning,
+		input: ["text"],
+		cost: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0 },
+		contextWindow: 8_000,
+		maxTokens: 1_000,
+	};
+}
+
+const INITIAL_MODEL = model("test", "initial", false);

@@ -1,0 +1,40 @@
+{
+	"id": "global-slot-demo",
+	"name": "Global Slot Demo",
+	"version": "0.1.1",
+	"pluginApiVersion": "^2.0.0",
+	"entry": "dist/mf-manifest.json",
+	"moduleFederation": {
+		"remoteName": "global_slot_demo",
+		"expose": "./plugin"
+	},
+	"styles": [
+		"dist/style.css"
+	],
+	"permissions": [
+		"ui.slot.global",
+		"agent.systemPrompt.write",
+		"agent.systemPrompt.fullControl",
+		"agent.skills.control",
+		"agent.tools.control",
+		"agent.tools.register",
+		"agent.toolHandler.execute",
+		"agent.continuation.register",
+		"fs.read",
+		"fs.write",
+		"storage.read",
+		"storage.write"
+	],
+	"agent": {
+		"skillPaths": [
+			"agent/skills/fiction-outline"
+		],
+		"toolPolicy": {
+			"deny": [
+				"doc_to_pdf"
+			]
+		}
+	},
+	"description": "Demonstrates UI slots plus agent prompt, skill, tool policy, tool registration, and continuation contributions.",
+	"author": "Vetta"
+}

@@ -1,0 +1,17 @@
+{
+	"id": "office-viewer",
+	"name": "%plugin.name%",
+	"icon": "icon.png",
+	"version": "0.1.5",
+	"pluginApiVersion": "^2.0.0",
+	"entry": "dist/mf-manifest.json",
+	"moduleFederation": {
+		"remoteName": "office_viewer",
+		"expose": "./plugin"
+	},
+	"styles": ["dist/style.css"],
+	"permissions": ["ui.slot.file-preview"],
+	"description": "%plugin.description%",
+	"author": "Vetta",
+	"defaultLocale": "zh"
+}

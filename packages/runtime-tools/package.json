@@ -1,0 +1,34 @@
+{
+	"name": "@vetta/runtime-tools",
+	"version": "0.0.1",
+	"description": "Platform-neutral coding tool protocols and catalog logic for Vetta runtimes",
+	"type": "module",
+	"main": "./dist/index.js",
+	"types": "./dist/index.d.ts",
+	"exports": {
+		".": {
+			"types": "./dist/index.d.ts",
+			"import": "./dist/index.js"
+		},
+		"./coding": {
+			"types": "./dist/coding/index.d.ts",
+			"import": "./dist/coding/index.js"
+		}
+	},
+	"files": ["dist"],
+	"scripts": {
+		"clean": "rm -rf dist",
+		"build": "tsgo -p tsconfig.build.json",
+		"test": "bun ../../scripts/quality/run-vitest.mjs --run --config vitest.config.ts"
+	},
+	"dependencies": {
+		"@sinclair/typebox": "^0.34.41",
+		"@vetta/ai": "workspace:*",
+		"@vetta/runtime-core": "workspace:*"
+	},
+	"devDependencies": {
+		"@types/node": "^22.10.5",
+		"typescript": "^5.9.2",
+		"vitest": "^3.2.4"
+	}
+}

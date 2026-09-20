@@ -1,0 +1,2139 @@
+import {
+	AGENT_TEAM_PUBLICATION_LIFECYCLE,
+	type AgentTeamExtensionRegistry,
+	createAgentTeamExtensionRegistry,
+	createAgentTeamFixture,
+	createLegacyTeamMemberDelegationEvent,
+	createLegacyTeamMemberResultEvent,
+	createLegacyTeamUserMessageEvent,
+	isTeamMessageDelivery,
+	isTeamWorkItem,
+	type TeamContextProjectionPolicy,
+	type TeamMessageDelivery,
+	type TeamSessionDocument,
+	type TeamWorkItem,
+} from "@vetta/agent-team";
+import { createAssistantMessage, providerModelNotFoundError } from "@vetta/ai";
+import type { CodingAgentPinnedModelContext } from "@vetta/coding-agent/runtime";
+import {
+	type ConversationDocument,
+	createEmptyConversationDocument,
+	type RuntimeFailure,
+	type RuntimeHost,
+	type RuntimeObservationContext,
+	type RuntimeSessionContextDeliveryMode,
+} from "@vetta/runtime-core";
+import type { ConversationMessageRecord } from "@vetta/runtime-core/conversation";
+import type { SessionContextRecord } from "@vetta/runtime-core/kernel";
+import { createRuntimeObservationPublisher, type RuntimeObservationRecord } from "@vetta/runtime-core/observation";
+import { beforeEach, describe, expect, it, vi } from "vitest";
+import type { DesktopCodingAgentSessionConfig } from "../conversations/resolve-session-config.js";
+import { registerPresetPluginBlueprints } from "./preset-plugin-blueprints.testing.js";
+import { AgentTeamSessionService } from "./team-session-service.js";
+
+vi.mock("../conversations/resolve-session-config.js", () => ({
+	resolveDesktopSessionConfig: vi.fn(async (config: DesktopCodingAgentSessionConfig) => ({ config })),
+}));
+vi.mock("../logger.js", () => ({
+	getAppLogger: () => ({ debug: vi.fn(), info: vi.fn(), warn: vi.fn(), error: vi.fn() }),
+}));
+vi.mock("../runtime.js", () => ({ getSharedRuntime: vi.fn() }));
+vi.mock("../ipc/fs.js", () => ({ readDesktopConfig: vi.fn(async () => ({})) }));
+
+describe("Team member concurrency", () => {
+	// 装机团队的队长是插件智能体，注册表空着就取不到人设。
+	beforeEach(() => registerPresetPluginBlueprints());
+
+	it("leaves durable Team task scheduling as the only automatic retry owner", async () => {
+		const fixture = await createFixture();
+		for (const memberId of fixture.members) {
+			const sessionId = fixture.session.memberRuntime[memberId]!.sessionId;
+			expect(fixture.sessionConfigs.get(sessionId)?.automaticRetry).toBe(false);
+		}
+	});
+
+	it("restores policy-specific deltas without rerunning a changed policy after restart", async () => {
+		let text = "admitted";
+		const project = vi.fn<TeamContextProjectionPolicy["project"]>(({ session, targetMemberId }) => [
+			{
+				eventId: `delta-${targetMemberId}`,
+				type: "agent-team.user-message.v1",
+				text: `${text}:${targetMemberId}`,
+				timestamp: 1,
+				metadata: { teamSessionId: session.id, requestId: "policy-delta" },
+			},
+		]);
+		const extensions = createAgentTeamExtensionRegistry([
+			{
+				contextPolicies: new Map([
+					[
+						"public-results-v1",
+						{
+							id: "public-results-v1",
+							project,
+						},
+					],
+				]),
+			},
+		]);
+		const fixture = await createFixture(extensions);
+		const [memberId] = fixture.members;
+		const turn = fixture.turn(memberId, "custom context");
+		const send = fixture.service.send(fixture.session.id, {
+			requestId: "custom-context",
+			text: "custom context",
+			targetMemberIds: [memberId],
+		});
+		await turn.started.promise;
+		turn.finish.resolve();
+		await send;
+		const sessionId = fixture.session.memberRuntime[memberId]!.sessionId;
+		const previous = fixture.pinnedContexts.get(sessionId);
+		text = "new policy";
+		project.mockClear();
+		fixture.stopRuntime();
+		await fixture.restartService().read(fixture.session.id, fixture.session.coordinationRuntime!.sessionPath);
+		const restored = await fixture.sessionConfigs.get(sessionId)?.bindPinnedModelContext?.({
+			sessionId,
+			operationId: "restored-manual",
+			reason: "manual_compaction",
+			signal: new AbortController().signal,
+		});
+		expect(restored).toEqual(previous);
+		expect(restored?.records[0]?.content).toContain(`admitted:${memberId}`);
+		expect(project).not.toHaveBeenCalled();
+	});
+
+	it("does not advance the member context reference until its receipt is durable and can retry admission", async () => {
+		const fixture = await createFixture();
+		const [memberId] = fixture.members;
+		const append = fixture.runtime.appendSessionMetadataEntry;
+		let failReceipt = true;
+		vi.spyOn(fixture.runtime, "appendSessionMetadataEntry").mockImplementation(async (id, type, data) => {
+			if (type === "agent-team.context-receipt.v1" && failReceipt) {
+				failReceipt = false;
+				throw new Error("receipt unavailable");
+			}
+			await append(id, type, data);
+		});
+		const input = { requestId: "receipt-retry", text: "retry admission", targetMemberIds: [memberId] };
+		await expect(fixture.service.send(fixture.session.id, input)).rejects.toThrow("receipt unavailable");
+		expect(
+			(await fixture.service.read(fixture.session.id)).memberRuntime[memberId]?.sharedCheckpointId,
+		).toBeUndefined();
+		expect(fixture.runtime.prompt).not.toHaveBeenCalled();
+		const turn = fixture.turn(memberId, input.text);
+		const retry = fixture.service.send(fixture.session.id, input);
+		await turn.started.promise;
+		turn.finish.resolve();
+		await retry;
+		expect(
+			fixture.pinnedContexts.get(fixture.session.memberRuntime[memberId]!.sessionId)?.records[0]?.content,
+		).toContain("Earlier public context");
+	});
+
+	it("restores admitted context after Runtime and Team restart without executing a member", async () => {
+		const fixture = await createFixture();
+		const [memberId] = fixture.members;
+		const turn = fixture.turn(memberId, "before restart");
+		const send = fixture.service.send(fixture.session.id, {
+			requestId: "restart-context",
+			text: "before restart",
+			targetMemberIds: [memberId],
+		});
+		await turn.started.promise;
+		turn.finish.resolve();
+		await send;
+		const sessionId = fixture.session.memberRuntime[memberId]!.sessionId;
+		const previous = fixture.pinnedContexts.get(sessionId);
+		fixture.stopRuntime();
+		const restored = fixture.restartService();
+		await restored.read(fixture.session.id, fixture.session.coordinationRuntime!.sessionPath);
+		const pinned = await fixture.sessionConfigs.get(sessionId)?.bindPinnedModelContext?.({
+			sessionId,
+			operationId: "restored-manual",
+			reason: "manual_compaction",
+			signal: new AbortController().signal,
+		});
+		expect(pinned).toEqual(previous);
+		expect(pinned?.records[0]?.content).toContain("Earlier public context");
+		expect(fixture.runtime.prompt).toHaveBeenCalledTimes(1);
+	});
+
+	it("completes a prepared publication after restart without running the member again", async () => {
+		const fixture = await createFixture();
+		const [member] = fixture.members;
+		const turn = fixture.turn(member, "publish-before-crash");
+		fixture.failNextPublicAppend();
+		const send = fixture.service.send(fixture.session.id, {
+			requestId: "publish-before-crash",
+			text: "publish-before-crash",
+			targetMemberIds: [member],
+		});
+		await turn.started.promise;
+		turn.finish.resolve();
+		await expect(send).rejects.toThrow("simulated publication crash");
+		expect((await fixture.service.readCollaborationState(fixture.session.id)).workItems[0]?.state).toBe("waiting");
+
+		const restored = fixture.restartService();
+		await restored.read(fixture.session.id, fixture.session.coordinationRuntime!.sessionPath);
+		await fixture.flushObservations();
+		const state = await restored.readCollaborationState(fixture.session.id);
+		expect(state.workItems[0]).toMatchObject({ state: "completed", resultMessageId: expect.any(String) });
+		expect(state.attempts[0]?.state).toBe("completed");
+		expect(state.publications[0]?.state).toBe("completed");
+		expect(fixture.runtime.prompt).toHaveBeenCalledTimes(1);
+		const publications = fixture.observationRecords.filter(
+			(record) => record.token === AGENT_TEAM_PUBLICATION_LIFECYCLE,
+		);
+		expect(publications.map(({ payload }) => payload)).toEqual([
+			expect.objectContaining({ phase: "prepared", recovered: false }),
+			expect.objectContaining({ phase: "message-published", recovered: true }),
+			expect.objectContaining({ phase: "completed", recovered: true }),
+		]);
+	});
+
+	it("migrates a restored legacy event log once and resumes from ordinary Conversation state", async () => {
+		const fixture = await createFixture();
+		const [leader, reviewer] = fixture.members;
+		const user = createLegacyTeamUserMessageEvent({
+			teamSessionId: fixture.session.id,
+			requestId: "legacy-user",
+			text: "Legacy request",
+			targetMemberIds: [leader],
+			timestamp: 10,
+		});
+		const delegation = createLegacyTeamMemberDelegationEvent({
+			teamSessionId: fixture.session.id,
+			requestId: "legacy-review",
+			sourceMemberId: leader,
+			targetMemberId: reviewer,
+			objective: "Legacy review",
+			timestamp: 20,
+		});
+		const result = createLegacyTeamMemberResultEvent({
+			teamSessionId: fixture.session.id,
+			requestId: "legacy-review",
+			memberId: reviewer,
+			sourceTurnId: "legacy-review-turn",
+			text: "Legacy review complete",
+			timestamp: 30,
+		});
+		fixture.saved.set(fixture.session.id, { ...fixture.session, events: [user, delegation, result] });
+		fixture.stopRuntime();
+
+		const restored = fixture.restartService();
+		const migrated = await restored.read(fixture.session.id);
+		expect(migrated.events).toEqual([]);
+		const snapshot = await restored.readSnapshot(fixture.session.id);
+		expect(snapshot.messages.filter((message) => message.id === user.id || message.id === result.id)).toEqual([
+			expect.objectContaining({ id: user.id, kind: "user" }),
+			expect.objectContaining({
+				id: result.id,
+				kind: "agent",
+				author: expect.objectContaining({ kind: "agent", id: reviewer }),
+			}),
+		]);
+		expect(snapshot.activities).toContainEqual(
+			expect.objectContaining({
+				requestId: "legacy-review",
+				sourceMemberId: leader,
+				targetMemberId: reviewer,
+				state: "completed",
+			}),
+		);
+		const entryCount = fixture.conversations.get(fixture.session.coordinationRuntime!.sessionId)!.entries.length;
+		fixture.stopRuntime();
+		await fixture.restartService().read(fixture.session.id, fixture.session.coordinationRuntime!.sessionPath);
+		expect(fixture.conversations.get(fixture.session.coordinationRuntime!.sessionId)!.entries).toHaveLength(
+			entryCount,
+		);
+	});
+
+	it("recovers an orphaned running attempt after restart", async () => {
+		const fixture = await createFixture();
+		const [member] = fixture.members;
+		const coordinationId = fixture.session.coordinationRuntime!.sessionId;
+		const workItemId = `work:orphan:${member}`;
+		const attemptId = `attempt:${workItemId}:1`;
+		await fixture.runtime.appendSessionMetadataEntry(coordinationId, "agent-team.work-item.v1", {
+			id: workItemId,
+			requestTurnId: "orphan",
+			createdByParticipantId: fixture.session.leaderMemberId,
+			assignedToParticipantId: member,
+			objective: "orphan objective",
+			contextEntryIds: [],
+			state: "running",
+			currentAttemptId: attemptId,
+			createdAt: 1,
+			updatedAt: 1,
+			revision: 1,
+		});
+		await fixture.runtime.appendSessionMetadataEntry(coordinationId, "agent-team.member-attempt.v1", {
+			id: attemptId,
+			workItemId,
+			participantConversationId: fixture.session.memberRuntime[member]!.sessionId,
+			sourceTurnId: "orphan-source",
+			attempt: 1,
+			mode: "initial",
+			state: "running",
+			lastProgressAt: 1,
+		});
+		const retry = fixture.turn(member, "retry");
+		const restored = fixture.restartService();
+		await restored.read(fixture.session.id, fixture.session.coordinationRuntime!.sessionPath);
+		await retry.started.promise;
+		const completed = fixture.workState(workItemId, "completed");
+		retry.finish.resolve();
+		await completed;
+		const state = await restored.readCollaborationState(fixture.session.id);
+		expect(state.attempts.map((attempt) => attempt.state)).toEqual(["waiting-retry", "completed"]);
+		expect(state.workItems[0]?.state).toBe("completed");
+	});
+
+	it("backfills public assistant steps from legacy member history once", async () => {
+		const fixture = await createFixture();
+		const [leader, member] = fixture.members;
+		const coordinationId = fixture.session.coordinationRuntime!.sessionId;
+		const workItemId = `work:legacy-public:${member}`;
+		const attemptId = `attempt:${workItemId}:1`;
+		const runtimeSessionId = fixture.session.memberRuntime[member]!.sessionId;
+		const assistant = {
+			...createAssistantMessage({ api: "openai-responses", provider: "openai", model: "test" }),
+			content: [
+				{
+					type: "toolCall" as const,
+					id: "legacy-tool",
+					name: "progress",
+					arguments: { label: "恢复旧进度" },
+				},
+			],
+			stopReason: "toolUse" as const,
+		};
+		const laterAssistant = {
+			...assistant,
+			content: [
+				{
+					type: "toolCall" as const,
+					id: "later-tool",
+					name: "progress",
+					arguments: { label: "不得混入的后续进度" },
+				},
+			],
+		};
+		fixture.history.set(runtimeSessionId, [
+			{
+				type: "message",
+				entryId: "legacy-user-1",
+				message: { role: "user", content: [{ type: "text", text: "legacy public trail" }], timestamp: 1 },
+			},
+			{ type: "message", entryId: "legacy-assistant-1", message: assistant },
+			{
+				type: "message",
+				entryId: "later-user",
+				message: { role: "user", content: [{ type: "text", text: "later work" }], timestamp: 3 },
+			},
+			{ type: "message", entryId: "later-assistant", message: laterAssistant },
+		]);
+		await fixture.runtime.appendSessionMetadataEntry(coordinationId, "agent-team.work-item.v1", {
+			id: workItemId,
+			requestTurnId: "legacy-public-request",
+			createdByParticipantId: leader,
+			assignedToParticipantId: member,
+			objective: "legacy public trail",
+			contextEntryIds: [],
+			state: "cancelled",
+			currentAttemptId: attemptId,
+			createdAt: 1,
+			updatedAt: 2,
+			revision: 2,
+		});
+		await fixture.runtime.appendSessionMetadataEntry(coordinationId, "agent-team.member-attempt.v1", {
+			id: attemptId,
+			workItemId,
+			participantConversationId: runtimeSessionId,
+			sourceTurnId: "legacy-source-turn",
+			attempt: 1,
+			mode: "initial",
+			state: "cancelled",
+			lastProgressAt: 2,
+		});
+
+		fixture.stopRuntime();
+		const restored = fixture.restartService();
+		await restored.read(fixture.session.id, fixture.session.coordinationRuntime!.sessionPath);
+		const first = await restored.readSnapshot(fixture.session.id);
+		const publication = (await restored.readCollaborationState(fixture.session.id)).publications[0];
+		const recovered = first.messages.filter((message) => message.id === publication?.publicMessageEntryId);
+		expect(recovered).toHaveLength(1);
+		expect(recovered[0]).toMatchObject({
+			kind: "agent",
+			author: { id: member },
+			message: { content: [{ type: "toolCall", name: "progress" }] },
+		});
+		expect(JSON.stringify(recovered[0])).not.toContain("不得混入的后续进度");
+
+		await restored.read(fixture.session.id, fixture.session.coordinationRuntime!.sessionPath);
+		const second = await restored.readSnapshot(fixture.session.id);
+		expect(second.messages.filter((message) => message.id === publication?.publicMessageEntryId)).toHaveLength(1);
+		expect((await restored.readCollaborationState(fixture.session.id)).publications[0]).toMatchObject({
+			workItemId,
+			purpose: "terminal-partial",
+			state: "completed",
+		});
+	});
+
+	it("recovers a pending question delivery after restart", async () => {
+		const fixture = await createFixture();
+		const [leader, member] = fixture.members;
+		const controller = new AbortController();
+		fixture.abortAfterPendingDelivery(controller);
+		const prompt = `Answer this public question from @${fixture.session.memberHandles[leader]}: Resume the review?`;
+		const turn = fixture.turn(member, prompt);
+		await expect(
+			fixture.service.messageControls(fixture.session.id).sendMessage({
+				...taskCaller(fixture, leader),
+				signal: controller.signal,
+				requestId: "pending-question",
+				recipientHandles: [fixture.session.memberHandles[member]!],
+				intent: "question",
+				text: "Resume the review?",
+				modelIdentity: { api: "openai-responses", provider: "openai", model: "test" },
+			}),
+		).rejects.toThrow();
+		expect((await fixture.service.readCollaborationState(fixture.session.id)).deliveries[0]?.state).toBe("pending");
+
+		const restored = fixture.restartService();
+		await restored.read(fixture.session.id, fixture.session.coordinationRuntime!.sessionPath);
+		await turn.started.promise;
+		const deliveryId = (await restored.readCollaborationState(fixture.session.id)).deliveries[0]!.id;
+		const responded = fixture.deliveryState(deliveryId, "responded");
+		turn.finish.resolve();
+		await responded;
+		expect((await restored.readCollaborationState(fixture.session.id)).deliveries[0]).toMatchObject({
+			state: "responded",
+			replyMessageId: expect.any(String),
+		});
+	});
+
+	it("publishes inform deliveries without starting recipients and injects the message on their next turn", async () => {
+		const fixture = await createFixture();
+		const [leader, member] = fixture.members;
+		const controls = fixture.service.messageControls(fixture.session.id);
+		const sent = await controls.sendMessage({
+			...taskCaller(fixture, leader),
+			requestId: "notice",
+			recipientHandles: [fixture.session.memberHandles[member]!],
+			intent: "inform",
+			text: "Use the revised API",
+			modelIdentity: { api: "openai-responses", provider: "openai", model: "test" },
+		});
+		expect(fixture.runtime.prompt).not.toHaveBeenCalled();
+		expect((await fixture.service.readCollaborationState(fixture.session.id)).deliveries).toMatchObject([
+			{
+				id: sent.deliveryIds[0],
+				messageId: sent.messageId,
+				fromParticipantId: leader,
+				toParticipantId: member,
+				intent: "inform",
+				state: "delivered",
+			},
+		]);
+		const later = fixture.turn(member, "Continue");
+		const completed = fixture.service.send(fixture.session.id, {
+			requestId: "later",
+			text: "Continue",
+			targetMemberIds: [member],
+		});
+		await later.started.promise;
+		expect(fixture.pinnedContexts.get(fixture.session.memberRuntime[member]!.sessionId)?.records).toEqual(
+			expect.arrayContaining([expect.objectContaining({ content: expect.stringContaining("Use the revised API") })]),
+		);
+		expect(JSON.stringify(vi.mocked(fixture.runtime.deliverSessionContext).mock.calls)).not.toContain(
+			"Use the revised API",
+		);
+		later.finish.resolve();
+		await completed;
+	});
+
+	it("creates independent question deliveries and runs all addressed members in parallel", async () => {
+		const fixture = await createFixture();
+		const [leader, first] = fixture.members;
+		const second = fixture.team.members[2]?.id;
+		if (!second) throw new Error("Team fixture requires three members");
+		const prompt = `Answer this public question from @${fixture.session.memberHandles[leader]}: Which risks remain?`;
+		const firstTurn = fixture.turn(first, prompt);
+		const secondTurn = fixture.turn(second, prompt);
+		const controls = fixture.service.messageControls(fixture.session.id);
+		const caller = taskCaller(fixture, leader);
+		const sent = await controls.sendMessage({
+			...caller,
+			requestId: "review",
+			recipientHandles: [fixture.session.memberHandles[first]!, fixture.session.memberHandles[second]!],
+			intent: "question",
+			text: "Which risks remain?",
+			modelIdentity: { api: "openai-responses", provider: "openai", model: "test" },
+		});
+		await Promise.all([firstTurn.started.promise, secondTurn.started.promise]);
+		expect(fixture.running.size).toBe(2);
+		const responded = sent.deliveryIds.map((id) => fixture.deliveryState(id, "responded"));
+		const completedWork = sent.deliveryIds.map((id, index) =>
+			fixture.workState(`work:question:${id}:${[first, second][index]}`, "completed"),
+		);
+		firstTurn.finish.resolve();
+		secondTurn.finish.resolve();
+		await Promise.all(completedWork);
+		await Promise.all(responded);
+		const state = await fixture.service.readCollaborationState(fixture.session.id);
+		expect(state.deliveries).toHaveLength(2);
+		expect(state.workItems.every((item) => item.originToolCallId === caller.toolCallId)).toBe(true);
+		expect(state.deliveries.every((delivery) => delivery.state === "responded" && !!delivery.replyMessageId)).toBe(
+			true,
+		);
+		expect(state.workItems.filter((item) => item.kind === "question").map((item) => item.state)).toEqual([
+			"completed",
+			"completed",
+		]);
+		for (const member of [first, second]) {
+			expect((await fixture.service.read(fixture.session.id)).memberRuntime[member]?.deliveredEventIds).toContain(
+				sent.messageId,
+			);
+		}
+	});
+
+	it("delegates durable tasks without waiting and observes completion through task state", async () => {
+		const fixture = await createFixture();
+		const [leader, member] = fixture.members;
+		const turn = fixture.turn(member, "Build the feature");
+		const tasks = fixture.service.taskControls(fixture.session.id);
+		const caller = taskCaller(fixture, leader);
+		const admitted = await tasks.delegateTask({
+			...caller,
+			requestId: "build",
+			targetHandle: fixture.session.memberHandles[member]!,
+			objective: "Build the feature",
+		});
+		const duplicate = await tasks.delegateTask({
+			...caller,
+			requestId: "build",
+			targetHandle: fixture.session.memberHandles[member]!,
+			objective: "Build the feature",
+		});
+		expect(duplicate.teamTaskId).toBe(admitted.teamTaskId);
+		expect(admitted).toMatchObject({
+			teamTaskId: expect.stringContaining("work:task:"),
+			workItem: {
+				assignedToParticipantId: member,
+				createdByParticipantId: leader,
+				originToolCallId: caller.toolCallId,
+				state: "queued",
+			},
+		});
+		await turn.started.promise;
+		expect(fixture.runtime.prompt).toHaveBeenCalledTimes(1);
+		const running = await tasks.waitTasks({ ...caller, teamTaskIds: [admitted.teamTaskId], timeoutMs: 0 });
+		expect(running).toMatchObject({ reason: "timeout", tasks: [{ workItem: { state: "running" } }] });
+		const completedWait = tasks.waitTasks({ ...caller, teamTaskIds: [admitted.teamTaskId], timeoutMs: 1_000 });
+		turn.finish.resolve();
+		const completed = await completedWait;
+		expect(completed).toMatchObject({
+			reason: "state-changed",
+			tasks: [
+				{
+					workItem: { state: "completed", resultMessageId: expect.any(String) },
+					result: { authorId: member, text: "Build the feature" },
+				},
+			],
+		});
+		expect(await tasks.getTask({ ...caller, teamTaskId: admitted.teamTaskId })).toEqual(completed.tasks[0]);
+	});
+
+	it("continues an interrupted leader inside a Team attempt when its delegated task completes", async () => {
+		const fixture = await createFixture();
+		const [leader, member] = fixture.members;
+		const leaderRuntime = fixture.session.memberRuntime[leader]!.sessionId;
+		const tasks = fixture.service.taskControls(fixture.session.id);
+		const leaderTurn = fixture.turn(leader, "report");
+		leaderTurn.failure = {
+			code: "provider_unauthorized",
+			message: "unauthorized",
+			retryable: false,
+			origin: "provider",
+		};
+		leaderTurn.partial = {
+			...createAssistantMessage({ api: "openai-responses", provider: "openai", model: "test" }),
+			stopReason: "error",
+			content: [{ type: "toolCall", id: "delegate-build", name: "team_delegate_task", arguments: {} }],
+		};
+		const memberTurn = fixture.turn(member, "Build the feature");
+		continueLeaderWith(fixture, leaderRuntime, "Integrated report");
+		const leaderCompleted = fixture.workState(`work:report:${leader}`, "completed");
+		const send = fixture.service.send(fixture.session.id, {
+			requestId: "report",
+			text: "report",
+			targetMemberIds: [leader],
+		});
+		await leaderTurn.started.promise;
+		const caller = taskCaller(fixture, leader);
+		const task = await tasks.delegateTask({
+			...caller,
+			requestId: "build",
+			targetHandle: fixture.session.memberHandles[member]!,
+			objective: "Build the feature",
+		});
+		await memberTurn.started.promise;
+		memberTurn.finish.resolve();
+		await tasks.waitTasks({ ...caller, teamTaskIds: [task.teamTaskId], timeoutMs: 1_000 });
+		// The leader still owns its lane, so the completion must not start a Runtime turn beside it.
+		expect(fixture.runtime.deliverSessionContext).not.toHaveBeenCalledWith(
+			leaderRuntime,
+			expect.anything(),
+			"triggerTurn",
+		);
+
+		leaderTurn.finish.resolve();
+		await send;
+		await leaderCompleted;
+
+		expect(fixture.runtime.deliverSessionContext).toHaveBeenCalledWith(
+			leaderRuntime,
+			[expect.objectContaining({ type: "agent-team.task-completed.v1" })],
+			"triggerTurn",
+		);
+		const leaderMessages = publicAgentMessagesBy(fixture, leader);
+		expect(leaderMessages.map((entry) => entry.turnId)).toEqual(["report", "report"]);
+		expect(JSON.stringify(leaderMessages[0])).toContain("delegate-build");
+		expect(JSON.stringify(leaderMessages[1])).toContain("Integrated report");
+	});
+
+	it("publishes a leader continuation as follow-up work after the leader request already completed", async () => {
+		const fixture = await createFixture();
+		const [leader, member] = fixture.members;
+		const leaderRuntime = fixture.session.memberRuntime[leader]!.sessionId;
+		const tasks = fixture.service.taskControls(fixture.session.id);
+		const leaderTurn = fixture.turn(leader, "plan");
+		const send = fixture.service.send(fixture.session.id, {
+			requestId: "plan",
+			text: "plan",
+			targetMemberIds: [leader],
+		});
+		await leaderTurn.started.promise;
+		leaderTurn.finish.resolve();
+		await send;
+		continueLeaderWith(fixture, leaderRuntime, "Wrap-up after review");
+		const followUpCompleted = fixture.workState(`work:plan:continuation:1:${leader}`, "completed");
+		const memberTurn = fixture.turn(member, "Review the plan");
+		const caller = taskCaller(fixture, leader);
+		await tasks.delegateTask({
+			...caller,
+			requestId: "review",
+			targetHandle: fixture.session.memberHandles[member]!,
+			objective: "Review the plan",
+		});
+		await memberTurn.started.promise;
+		memberTurn.finish.resolve();
+		await followUpCompleted;
+
+		const leaderMessages = publicAgentMessagesBy(fixture, leader);
+		expect(leaderMessages.map((entry) => entry.turnId)).toEqual(["plan", "plan:continuation:1"]);
+		expect(JSON.stringify(leaderMessages[1])).toContain("Wrap-up after review");
+	});
+
+	it("lets the leader delegate fresh work to the same member after an earlier task completed", async () => {
+		const fixture = await createFixture();
+		const [leader, member] = fixture.members;
+		const tasks = fixture.service.taskControls(fixture.session.id);
+		const caller = taskCaller(fixture, leader);
+		const notificationStarted = deferred();
+		const finishNotification = deferred();
+		vi.mocked(fixture.runtime.deliverSessionContext).mockImplementation(async (_sessionId, _records, mode) => {
+			if (mode !== "triggerTurn") return;
+			notificationStarted.resolve();
+			await finishNotification.promise;
+		});
+		const firstTurn = fixture.turn(member, "First assignment");
+		const first = await tasks.delegateTask({
+			...caller,
+			requestId: "first-assignment",
+			targetHandle: fixture.session.memberHandles[member]!,
+			objective: "First assignment",
+		});
+		await firstTurn.started.promise;
+		firstTurn.finish.resolve();
+		await tasks.waitTasks({ ...caller, teamTaskIds: [first.teamTaskId], timeoutMs: 1_000 });
+		await notificationStarted.promise;
+
+		const secondTurn = fixture.turn(member, "Second assignment");
+		const second = await tasks.delegateTask({
+			...caller,
+			requestId: "second-assignment",
+			targetHandle: fixture.session.memberHandles[member]!,
+			objective: "Second assignment",
+		});
+		let startFailure: unknown;
+		try {
+			await vi.waitFor(() => expect(fixture.runtime.prompt).toHaveBeenCalledTimes(2), {
+				timeout: 500,
+				interval: 5,
+			});
+		} catch (error) {
+			startFailure = error;
+		} finally {
+			finishNotification.resolve();
+		}
+		await secondTurn.started.promise;
+		secondTurn.finish.resolve();
+		const completed = await tasks.waitTasks({ ...caller, teamTaskIds: [second.teamTaskId], timeoutMs: 1_000 });
+
+		expect(startFailure).toBeUndefined();
+		expect(completed.tasks[0]?.workItem.state).toBe("completed");
+		expect(second.teamTaskId).not.toBe(first.teamTaskId);
+		expect(fixture.runtime.prompt).toHaveBeenCalledTimes(2);
+	});
+
+	it("cancels only a task wait while the accepted task continues", async () => {
+		const fixture = await createFixture();
+		const [leader, member] = fixture.members;
+		const turn = fixture.turn(member, "Long task");
+		const tasks = fixture.service.taskControls(fixture.session.id);
+		const caller = taskCaller(fixture, leader);
+		const admitted = await tasks.delegateTask({
+			...caller,
+			requestId: "long",
+			targetHandle: fixture.session.memberHandles[member]!,
+			objective: "Long task",
+		});
+		await turn.started.promise;
+		const waitController = new AbortController();
+		const wait = tasks.waitTasks({
+			...caller,
+			signal: waitController.signal,
+			teamTaskIds: [admitted.teamTaskId],
+			timeoutMs: 1_000,
+		});
+		const rejected = expect(wait).rejects.toThrow("Stop waiting");
+		waitController.abort(new Error("Stop waiting"));
+		await rejected;
+		expect((await tasks.getTask({ ...caller, teamTaskId: admitted.teamTaskId })).workItem.state).toBe("running");
+		turn.finish.resolve();
+		const completed = await tasks.waitTasks({ ...caller, teamTaskIds: [admitted.teamTaskId], timeoutMs: 1_000 });
+		expect(completed.tasks[0]?.workItem.state).toBe("completed");
+	});
+
+	it("refuses new delegations and durable recovery once the session was stopped", async () => {
+		const fixture = await createFixture();
+		const [leader, member] = fixture.members;
+		const turn = fixture.turn(member, "Long task");
+		const tasks = fixture.service.taskControls(fixture.session.id);
+		const caller = taskCaller(fixture, leader);
+		const admitted = await tasks.delegateTask({
+			...caller,
+			requestId: "long",
+			targetHandle: fixture.session.memberHandles[member]!,
+			objective: "Long task",
+		});
+		await turn.started.promise;
+
+		await fixture.service.abort(fixture.session.id);
+
+		// A leader turn still winding down after the stop must not admit more work.
+		await expect(
+			tasks.delegateTask({
+				...caller,
+				requestId: "after-stop",
+				targetHandle: fixture.session.memberHandles[member]!,
+				objective: "Sneaks in after the stop",
+			}),
+		).rejects.toThrow("stopped");
+		const state = await fixture.service.readCollaborationState(fixture.session.id);
+		expect(state.workItems.find((item) => item.id === admitted.teamTaskId)?.state).not.toBe("queued");
+		// The work item is durably cancelled, so even a restart cannot resurrect it.
+		await fixture.restartService().read(fixture.session.id, fixture.session.coordinationRuntime!.sessionPath);
+		expect(fixture.runtime.prompt).toHaveBeenCalledTimes(1);
+	});
+
+	it("durably cancels an orphaned running member before restart and only resumes on a new user turn", async () => {
+		const fixture = await createFixture();
+		const [member] = fixture.members;
+		const coordinationId = fixture.session.coordinationRuntime!.sessionId;
+		const workItemId = `work:paused:${member}`;
+		const attemptId = `attempt:${workItemId}:1`;
+		await fixture.runtime.appendSessionMetadataEntry(coordinationId, "agent-team.work-item.v1", {
+			id: workItemId,
+			requestTurnId: "paused-before-restart",
+			createdByParticipantId: fixture.session.leaderMemberId,
+			assignedToParticipantId: member,
+			objective: "must not resume after stop",
+			contextEntryIds: [],
+			state: "running",
+			currentAttemptId: attemptId,
+			createdAt: 1,
+			updatedAt: 1,
+			revision: 1,
+		});
+		await fixture.runtime.appendSessionMetadataEntry(coordinationId, "agent-team.member-attempt.v1", {
+			id: attemptId,
+			workItemId,
+			participantConversationId: fixture.session.memberRuntime[member]!.sessionId,
+			sourceTurnId: "paused-source",
+			attempt: 1,
+			mode: "initial",
+			state: "running",
+			lastProgressAt: 1,
+		});
+
+		await fixture.service.abort(fixture.session.id);
+
+		const stopped = await fixture.service.readCollaborationState(fixture.session.id);
+		expect(stopped.workItems[0]?.state).toBe("cancelled");
+		expect(stopped.attempts[0]?.state).toBe("cancelled");
+		fixture.stopRuntime();
+		const restored = fixture.restartService();
+		await restored.read(fixture.session.id, fixture.session.coordinationRuntime!.sessionPath);
+		expect(fixture.runtime.prompt).not.toHaveBeenCalled();
+
+		const next = fixture.turn(member, "Explicitly resume with a new user turn");
+		const send = restored.send(fixture.session.id, {
+			requestId: "explicit-resume",
+			text: "Explicitly resume with a new user turn",
+			targetMemberIds: [member],
+		});
+		await next.started.promise;
+		next.finish.resolve();
+		await send;
+		expect(fixture.runtime.prompt).toHaveBeenCalledTimes(1);
+	});
+
+	it("keeps a leader/member partial assistant message and tool call after Team stop", async () => {
+		const fixture = await createFixture();
+		const [member] = fixture.members;
+		const turn = fixture.turn(member, "partial before stop");
+		turn.partial = {
+			...createAssistantMessage({ api: "openai-responses", provider: "openai", model: "test" }),
+			stopReason: "aborted",
+			content: [
+				{ type: "text", text: "I started the analysis" },
+				{ type: "toolCall", id: "tool-1", name: "team_delegate_task", arguments: { objective: "review" } },
+			],
+		};
+		const send = fixture.service.send(fixture.session.id, {
+			requestId: "partial-stop",
+			text: "partial before stop",
+			targetMemberIds: [member],
+		});
+		await turn.started.promise;
+		await fixture.service.abort(fixture.session.id);
+		await send;
+
+		const coordinationId = fixture.session.coordinationRuntime!.sessionId;
+		const publicMessages = fixture.conversations
+			.get(coordinationId)!
+			.entries.filter((entry) => entry.type === "message" && entry.kind === "agent");
+		expect(publicMessages).toHaveLength(1);
+		expect(publicMessages[0]).toMatchObject({
+			message: expect.objectContaining({
+				stopReason: "aborted",
+				content: expect.arrayContaining([
+					expect.objectContaining({ type: "text", text: "I started the analysis" }),
+					expect.objectContaining({ type: "toolCall", id: "tool-1" }),
+				]),
+			}),
+		});
+		expect((await fixture.service.readCollaborationState(fixture.session.id)).workItems[0]?.state).toBe("cancelled");
+
+		fixture.stopRuntime();
+		const restored = fixture.restartService();
+		await restored.read(fixture.session.id, fixture.session.coordinationRuntime!.sessionPath);
+		const snapshot = await restored.readSnapshot(fixture.session.id);
+		expect(snapshot.messages.filter((message) => message.kind === "agent")).toHaveLength(1);
+		expect(snapshot.messages.find((message) => message.kind === "agent")?.message.content).toEqual(
+			expect.arrayContaining([
+				expect.objectContaining({ type: "text", text: "I started the analysis" }),
+				expect.objectContaining({ type: "toolCall", id: "tool-1" }),
+			]),
+		);
+	});
+
+	it("keeps a leader/member partial assistant message and tool call after the attempt fails", async () => {
+		const fixture = await createFixture();
+		const [member] = fixture.members;
+		const turn = fixture.turn(member, "partial before failure");
+		turn.partial = {
+			...createAssistantMessage({ api: "openai-responses", provider: "openai", model: "test" }),
+			stopReason: "error",
+			content: [
+				{ type: "thinking", thinking: "private reasoning" },
+				{ type: "text", text: "I started the analysis" },
+				{ type: "toolCall", id: "tool-1", name: "read", arguments: { path: "README.md" } },
+			],
+		};
+		turn.failure = {
+			code: "provider_invalid_request",
+			message: "provider rejected the request",
+			retryable: false,
+			origin: "provider",
+		};
+		const send = fixture.service.send(fixture.session.id, {
+			requestId: "partial-failure",
+			text: "partial before failure",
+			targetMemberIds: [member],
+		});
+		await turn.started.promise;
+		turn.finish.resolve();
+		await expect(send).rejects.toMatchObject({ message: "provider rejected the request" });
+
+		const collaboration = await fixture.service.readCollaborationState(fixture.session.id);
+		expect(collaboration.workItems[0]?.state).toBe("failed");
+		expect(collaboration.attempts[0]?.state).toBe("non-retryable-failure");
+		const coordinationId = fixture.session.coordinationRuntime!.sessionId;
+		const publicMessages = fixture.conversations
+			.get(coordinationId)!
+			.entries.filter((entry) => entry.type === "message" && entry.kind === "agent");
+		expect(publicMessages).toHaveLength(1);
+		expect(publicMessages[0]).toMatchObject({
+			message: expect.objectContaining({
+				stopReason: "error",
+				content: expect.arrayContaining([
+					expect.objectContaining({ type: "text", text: "I started the analysis" }),
+					expect.objectContaining({ type: "toolCall", id: "tool-1" }),
+				]),
+			}),
+		});
+		expect(publicMessages[0]?.message.content).not.toEqual(
+			expect.arrayContaining([expect.objectContaining({ type: "thinking" })]),
+		);
+
+		fixture.stopRuntime();
+		const restored = fixture.restartService();
+		await restored.read(fixture.session.id, fixture.session.coordinationRuntime!.sessionPath);
+		const snapshot = await restored.readSnapshot(fixture.session.id);
+		expect(snapshot.messages.filter((message) => message.kind === "agent")).toHaveLength(1);
+		expect(snapshot.messages.find((message) => message.kind === "agent")?.message.content).toEqual(
+			expect.arrayContaining([
+				expect.objectContaining({ type: "text", text: "I started the analysis" }),
+				expect.objectContaining({ type: "toolCall", id: "tool-1" }),
+			]),
+		);
+	});
+
+	it("recovers a failed attempt partial publication without completing the work item", async () => {
+		const fixture = await createFixture();
+		const [member] = fixture.members;
+		const turn = fixture.turn(member, "failed publication before crash");
+		turn.partial = {
+			...createAssistantMessage({ api: "openai-responses", provider: "openai", model: "test" }),
+			stopReason: "error",
+			content: [{ type: "text", text: "durable partial" }],
+		};
+		turn.failure = {
+			code: "provider_invalid_request",
+			message: "provider rejected the request",
+			retryable: false,
+			origin: "provider",
+		};
+		fixture.failNextPublicAppend();
+		const send = fixture.service.send(fixture.session.id, {
+			requestId: "failed-publication-before-crash",
+			text: "failed publication before crash",
+			targetMemberIds: [member],
+		});
+		await turn.started.promise;
+		turn.finish.resolve();
+		await expect(send).rejects.toMatchObject({ message: "provider rejected the request" });
+		const beforeRestart = await fixture.service.readCollaborationState(fixture.session.id);
+		expect(beforeRestart.workItems[0]?.state).toBe("failed");
+		expect(beforeRestart.publications[0]).toMatchObject({ purpose: "terminal-partial", state: "prepared" });
+
+		const restored = fixture.restartService();
+		await restored.read(fixture.session.id, fixture.session.coordinationRuntime!.sessionPath);
+		const state = await restored.readCollaborationState(fixture.session.id);
+		expect(state.workItems[0]?.state).toBe("failed");
+		expect(state.attempts[0]?.state).toBe("non-retryable-failure");
+		expect(state.publications[0]).toMatchObject({ purpose: "terminal-partial", state: "completed" });
+		expect((await restored.readSnapshot(fixture.session.id)).messages).toEqual(
+			expect.arrayContaining([
+				expect.objectContaining({
+					kind: "agent",
+					message: expect.objectContaining({ content: [{ type: "text", text: "durable partial" }] }),
+				}),
+			]),
+		);
+	});
+
+	it("interrupts member runtimes without waiting for durable stop cleanup", async () => {
+		const fixture = await createFixture();
+		const [member] = fixture.members;
+		const coordinationId = fixture.session.coordinationRuntime!.sessionId;
+		await fixture.runtime.appendSessionMetadataEntry(coordinationId, "agent-team.work-item.v1", {
+			id: `work:queued:${member}`,
+			requestTurnId: "queued-before-stop",
+			createdByParticipantId: fixture.session.leaderMemberId,
+			assignedToParticipantId: member,
+			objective: "queued work",
+			contextEntryIds: [],
+			state: "queued",
+			createdAt: 1,
+			updatedAt: 1,
+			revision: 0,
+		});
+		const append = fixture.runtime.appendSessionMetadataEntry;
+		const cleanupStarted = deferred();
+		const releaseCleanup = deferred();
+		vi.spyOn(fixture.runtime, "appendSessionMetadataEntry").mockImplementation(async (id, type, data) => {
+			if (type === "agent-team.work-item.v1" && isTeamWorkItem(data) && data.state === "cancelled") {
+				cleanupStarted.resolve();
+				await releaseCleanup.promise;
+			}
+			await append(id, type, data);
+		});
+
+		const stopping = fixture.service.abort(fixture.session.id);
+		await cleanupStarted.promise;
+		expect(fixture.runtime.abort).toHaveBeenCalledWith(fixture.session.memberRuntime[member]!.sessionId);
+		expect(fixture.runtime.abort).toHaveBeenCalledWith(coordinationId);
+		releaseCleanup.resolve();
+		await stopping;
+	});
+
+	it("enforces leader ownership and cancels one task without affecting its sibling", async () => {
+		const fixture = await createFixture();
+		const [leader, first] = fixture.members;
+		const second = fixture.team.members[2]?.id;
+		if (!second) throw new Error("Team fixture requires three members");
+		const firstTurn = fixture.turn(first, "First task");
+		const secondTurn = fixture.turn(second, "Second task");
+		const tasks = fixture.service.taskControls(fixture.session.id);
+		const leaderCall = taskCaller(fixture, leader);
+		await expect(
+			tasks.delegateTask({
+				...taskCaller(fixture, first),
+				requestId: "forbidden",
+				targetHandle: fixture.session.memberHandles[second]!,
+				objective: "Transfer ownership",
+			}),
+		).rejects.toThrow("not permitted");
+		const firstTask = await tasks.delegateTask({
+			...leaderCall,
+			requestId: "first-task",
+			targetHandle: fixture.session.memberHandles[first]!,
+			objective: "First task",
+		});
+		const secondTask = await tasks.delegateTask({
+			...leaderCall,
+			requestId: "second-task",
+			targetHandle: fixture.session.memberHandles[second]!,
+			objective: "Second task",
+		});
+		await Promise.all([firstTurn.started.promise, secondTurn.started.promise]);
+		await tasks.cancelTask({ ...leaderCall, teamTaskId: firstTask.teamTaskId });
+		const firstSettled = await tasks.waitTasks({
+			...leaderCall,
+			teamTaskIds: [firstTask.teamTaskId],
+			timeoutMs: 1_000,
+		});
+		expect(firstSettled.tasks[0]?.workItem.state).toBe("cancelled");
+		expect(fixture.running.has(fixture.session.memberRuntime[second]!.sessionId)).toBe(true);
+		secondTurn.finish.resolve();
+		const secondSettled = await tasks.waitTasks({
+			...leaderCall,
+			teamTaskIds: [secondTask.teamTaskId],
+			timeoutMs: 1_000,
+		});
+		expect(secondSettled.tasks[0]?.workItem.state).toBe("completed");
+	});
+
+	it("releases the durable attempt if context projection fails before the runtime starts", async () => {
+		const fixture = await createFixture(
+			createAgentTeamExtensionRegistry([
+				{
+					contextPolicies: new Map([
+						[
+							"public-results-v1",
+							{
+								id: "public-results-v1",
+								project: () => {
+									throw new Error("Context extension unavailable");
+								},
+							},
+						],
+					]),
+				},
+			]),
+		);
+		await expect(
+			fixture.service.send(fixture.session.id, {
+				requestId: "projection-error",
+				text: "inspect",
+				targetMemberIds: [fixture.members[0]],
+			}),
+		).rejects.toThrow("Context extension unavailable");
+		const state = await fixture.service.readCollaborationState(fixture.session.id);
+		expect(state.workItems[0]?.state).toBe("waiting");
+		expect(state.attempts[0]?.state).toBe("interrupted");
+		expect(fixture.runtime.prompt).not.toHaveBeenCalled();
+	});
+
+	it("surfaces an unclassified context delivery interruption instead of silently completing the send", async () => {
+		const fixture = await createFixture();
+		vi.mocked(fixture.runtime.deliverSessionContext).mockRejectedValueOnce(
+			new Error("Session already has an active turn"),
+		);
+
+		await expect(
+			fixture.service.send(fixture.session.id, {
+				requestId: "busy-context",
+				text: "follow up",
+				targetMemberIds: [fixture.members[0]],
+			}),
+		).rejects.toThrow("Session already has an active turn");
+		const state = await fixture.service.readCollaborationState(fixture.session.id);
+
+		expect(state.workItems[0]?.state).toBe("waiting");
+		expect(state.attempts[0]?.state).toBe("interrupted");
+		expect(fixture.runtime.prompt).not.toHaveBeenCalled();
+	});
+
+	it("publishes a failed attempt's delegation without completing its work item, even after restart", async () => {
+		const fixture = await createFixture();
+		const [member] = fixture.members;
+		const turn = fixture.turn(member, "delegate then fail");
+		turn.failure = {
+			code: "provider_unauthorized",
+			message: "unauthorized",
+			retryable: false,
+			origin: "provider",
+		};
+		turn.partial = {
+			...createAssistantMessage({ api: "openai-responses", provider: "openai", model: "test" }),
+			stopReason: "error",
+			content: [
+				{ type: "toolCall", id: "delegate-1", name: "team_delegate_task", arguments: { objective: "review" } },
+			],
+		};
+		const send = fixture.service.send(fixture.session.id, {
+			requestId: "delegate-then-fail",
+			text: "delegate then fail",
+			targetMemberIds: [member],
+		});
+		await turn.started.promise;
+		turn.finish.resolve();
+		await send;
+
+		const publicAgentMessages = () =>
+			fixture.conversations
+				.get(fixture.session.coordinationRuntime!.sessionId)!
+				.entries.filter((entry) => entry.type === "message" && entry.kind === "agent");
+		expect(publicAgentMessages()).toHaveLength(1);
+		expect(JSON.stringify(publicAgentMessages()[0])).toContain("delegate-1");
+		expect((await fixture.service.readCollaborationState(fixture.session.id)).workItems[0]?.state).toBe(
+			"attention-required",
+		);
+
+		fixture.stopRuntime();
+		const restored = fixture.restartService();
+		await restored.read(fixture.session.id, fixture.session.coordinationRuntime!.sessionPath);
+		const state = await restored.readCollaborationState(fixture.session.id);
+		expect(state.workItems[0]?.state).toBe("attention-required");
+		expect(state.attempts[0]?.state).toBe("awaiting-resource");
+		expect(state.publications.every((publication) => publication.state !== "completed")).toBe(true);
+		expect(publicAgentMessages()).toHaveLength(1);
+		expect(fixture.runtime.prompt).toHaveBeenCalledTimes(1);
+	});
+
+	it("recovers an interrupted member while its sibling is running and joins duplicate recovery", async () => {
+		const fixture = await createFixture();
+		const [first, second] = fixture.members;
+		const interrupted = fixture.turn(first, "initial");
+		interrupted.failure = {
+			code: "provider_network_timeout",
+			message: "timeout",
+			retryable: true,
+			origin: "provider",
+		};
+		const sibling = fixture.turn(second, "initial");
+		const retry = fixture.turn(first, "retry");
+		const waiting = fixture.workState(`work:initial:${first}`, "waiting");
+		const initial = fixture.service.send(fixture.session.id, {
+			requestId: "initial",
+			text: "initial",
+			targetMemberIds: [first, second],
+		});
+		await Promise.all([interrupted.started.promise, sibling.started.promise]);
+		interrupted.finish.resolve();
+		await waiting;
+		const recovery = fixture.service.recoverWorkItem(fixture.session.id, `work:initial:${first}`, "retry");
+		const duplicate = fixture.service.recoverWorkItem(fixture.session.id, `work:initial:${first}`, "retry");
+		await retry.started.promise;
+		expect(fixture.running.size).toBe(2);
+		retry.finish.resolve();
+		await Promise.all([recovery, duplicate]);
+		expect(fixture.runtime.retry).toHaveBeenCalledTimes(1);
+		sibling.finish.resolve();
+		await initial;
+		const state = await fixture.service.readCollaborationState(fixture.session.id);
+		expect(state.workItems.map((item) => item.state)).toEqual(["completed", "completed"]);
+		expect(state.attempts).toHaveLength(3);
+	});
+
+	it("retries an attention-required member only after a matching provider access change", async () => {
+		const fixture = await createFixture();
+		const [member] = fixture.members;
+		const initial = fixture.turn(member, "auth-task");
+		initial.failure = {
+			code: "provider_unauthorized",
+			message: "unauthorized",
+			retryable: false,
+			origin: "provider",
+			details: { provider: "openai", modelId: "gpt-5" },
+		};
+		const retry = fixture.turn(member, "retry");
+		const send = fixture.service.send(fixture.session.id, {
+			requestId: "auth-task",
+			text: "auth-task",
+			targetMemberIds: [member],
+		});
+		await initial.started.promise;
+		initial.finish.resolve();
+		await send;
+		expect((await fixture.service.readCollaborationState(fixture.session.id)).workItems[0]?.state).toBe(
+			"attention-required",
+		);
+
+		await expect(
+			fixture.service.notifyExternalConditionChanged({ category: "authentication", provider: "anthropic" }),
+		).resolves.toBe(0);
+		await expect(
+			fixture.service.notifyExternalConditionChanged({ category: "authentication", provider: "openai" }),
+		).resolves.toBe(1);
+		await retry.started.promise;
+		const completed = fixture.workState(`work:auth-task:${member}`, "completed");
+		retry.finish.resolve();
+		await completed;
+
+		const state = await fixture.service.readCollaborationState(fixture.session.id);
+		expect(state.workItems[0]?.state).toBe("completed");
+		expect(state.attempts.map((attempt) => attempt.state)).toEqual(["awaiting-resource", "completed"]);
+		expect(fixture.runtime.retry).toHaveBeenCalledTimes(1);
+	});
+
+	it("remembers an external change during a running attempt and retries after that attempt settles", async () => {
+		const fixture = await createFixture();
+		const [member] = fixture.members;
+		const initial = fixture.turn(member, "auth-race");
+		initial.failure = {
+			code: "provider_unauthorized",
+			message: "unauthorized",
+			retryable: false,
+			origin: "provider",
+			details: { provider: "openai" },
+		};
+		const retry = fixture.turn(member, "retry");
+		const send = fixture.service.send(fixture.session.id, {
+			requestId: "auth-race",
+			text: "auth-race",
+			targetMemberIds: [member],
+		});
+		await initial.started.promise;
+		await expect(
+			fixture.service.notifyExternalConditionChanged({ category: "authentication", provider: "openai" }),
+		).resolves.toBe(0);
+		initial.finish.resolve();
+		await retry.started.promise;
+		const completed = fixture.workState(`work:auth-race:${member}`, "completed");
+		retry.finish.resolve();
+		await send;
+		await completed;
+
+		const state = await fixture.service.readCollaborationState(fixture.session.id);
+		expect(state.attempts.map((attempt) => attempt.state)).toEqual(["awaiting-resource", "completed"]);
+		expect(fixture.runtime.retry).toHaveBeenCalledTimes(1);
+	});
+
+	it("automatically retries a transient provider failure after its persisted retry deadline", async () => {
+		const fixture = await createFixture();
+		const [member] = fixture.members;
+		const initial = fixture.turn(member, "network-task");
+		initial.failure = {
+			code: "provider_network_timeout",
+			message: "timeout",
+			retryable: true,
+			origin: "provider",
+			details: { provider: "openai", retryAfterMs: 0 },
+		};
+		const retry = fixture.turn(member, "retry");
+		const send = fixture.service.send(fixture.session.id, {
+			requestId: "network-task",
+			text: "network-task",
+			targetMemberIds: [member],
+		});
+		await initial.started.promise;
+		initial.finish.resolve();
+		await retry.started.promise;
+		const completed = fixture.workState(`work:network-task:${member}`, "completed");
+		retry.finish.resolve();
+		await send;
+		await completed;
+
+		const state = await fixture.service.readCollaborationState(fixture.session.id);
+		expect(state.attempts.map((attempt) => attempt.state)).toEqual(["waiting-retry", "completed"]);
+		expect(fixture.runtime.retry).toHaveBeenCalledTimes(1);
+	});
+
+	it("keeps a failed Runtime outcome pending and completes after its automatic retry", async () => {
+		const fixture = await createFixture();
+		const [member] = fixture.members;
+		const initial = fixture.turn(member, "temporary server failure");
+		initial.failedOutcome = {
+			code: "AI_TRANSPORT_FAILED",
+			message: "Retryable HTTP Error: Internal Server Error",
+			retryable: true,
+			origin: "provider",
+			details: { statusCode: 500, retryAfterMs: 0 },
+		};
+		const retry = fixture.turn(member, "retry");
+		const send = fixture.service.send(fixture.session.id, {
+			requestId: "temporary-server-failure",
+			text: "temporary server failure",
+			targetMemberIds: [member],
+		});
+		await initial.started.promise;
+		initial.finish.resolve();
+		await retry.started.promise;
+		retry.finish.resolve();
+		await expect(send).resolves.toBeDefined();
+		const state = await fixture.service.readCollaborationState(fixture.session.id);
+		expect(state.workItems[0]?.state).toBe("completed");
+		expect(state.attempts.map((attempt) => attempt.state)).toEqual(["waiting-retry", "completed"]);
+		expect(fixture.runtime.retry).toHaveBeenCalledTimes(1);
+	});
+
+	it("drops a scheduled automatic retry when the user stops and reopens the team", async () => {
+		vi.useFakeTimers();
+		try {
+			const fixture = await createFixture();
+			const [member] = fixture.members;
+			const initial = fixture.turn(member, "scheduled-before-stop");
+			initial.failure = {
+				code: "provider_network_timeout",
+				message: "timeout",
+				retryable: true,
+				origin: "provider",
+				details: { provider: "openai", retryAfterMs: 1_000 },
+			};
+			const send = fixture.service.send(fixture.session.id, {
+				requestId: "scheduled-before-stop",
+				text: "scheduled-before-stop",
+				targetMemberIds: [member],
+			});
+			await initial.started.promise;
+			initial.finish.resolve();
+			await send;
+			expect((await fixture.service.readCollaborationState(fixture.session.id)).workItems[0]?.state).toBe("waiting");
+
+			await fixture.service.abort(fixture.session.id);
+			fixture.stopRuntime();
+			const restored = fixture.restartService();
+			await restored.read(fixture.session.id, fixture.session.coordinationRuntime!.sessionPath);
+			await vi.advanceTimersByTimeAsync(1_000);
+
+			expect(fixture.runtime.retry).not.toHaveBeenCalled();
+			expect((await restored.readCollaborationState(fixture.session.id)).workItems[0]?.state).toBe("cancelled");
+		} finally {
+			vi.useRealTimers();
+		}
+	});
+
+	it("does not let an external provider change revive stopped work after reopen", async () => {
+		const fixture = await createFixture();
+		const [member] = fixture.members;
+		const initial = fixture.turn(member, "external-wake-before-stop");
+		initial.failure = {
+			code: "provider_unauthorized",
+			message: "unauthorized",
+			retryable: false,
+			origin: "provider",
+			details: { provider: "openai" },
+		};
+		const send = fixture.service.send(fixture.session.id, {
+			requestId: "external-wake-before-stop",
+			text: "external-wake-before-stop",
+			targetMemberIds: [member],
+		});
+		await initial.started.promise;
+		initial.finish.resolve();
+		await send;
+		expect((await fixture.service.readCollaborationState(fixture.session.id)).workItems[0]?.state).toBe(
+			"attention-required",
+		);
+
+		await fixture.service.abort(fixture.session.id);
+		fixture.stopRuntime();
+		const restored = fixture.restartService();
+		await restored.read(fixture.session.id, fixture.session.coordinationRuntime!.sessionPath);
+
+		await expect(
+			restored.notifyExternalConditionChanged({ category: "authentication", provider: "openai" }),
+		).resolves.toBe(0);
+		expect(fixture.runtime.retry).not.toHaveBeenCalled();
+		expect((await restored.readCollaborationState(fixture.session.id)).workItems[0]?.state).toBe("cancelled");
+	});
+
+	it("persists a queued second request without starting a second turn in the same member", async () => {
+		const fixture = await createFixture();
+		const [member] = fixture.members;
+		const firstTurn = fixture.turn(member, "first");
+		const nextTurn = fixture.turn(member, "next");
+		const firstSend = fixture.service.send(fixture.session.id, {
+			requestId: "first",
+			text: "first",
+			targetMemberIds: [member],
+		});
+		await firstTurn.started.promise;
+		const queued = fixture.workState(`work:next:${member}`, "queued");
+		const nextSend = fixture.service.send(fixture.session.id, {
+			requestId: "next",
+			text: "next",
+			targetMemberIds: [member],
+		});
+		await queued;
+		expect(fixture.runtime.prompt).toHaveBeenCalledTimes(1);
+		firstTurn.finish.resolve();
+		await firstSend;
+		await nextTurn.started.promise;
+		nextTurn.finish.resolve();
+		await nextSend;
+		expect(fixture.runtime.prompt).toHaveBeenCalledTimes(2);
+		expect(
+			(await fixture.service.readCollaborationState(fixture.session.id)).workItems.map((item) => item.state),
+		).toEqual(["completed", "completed"]);
+	});
+
+	it("keeps steer requests independently attributable when the member already owns a Team turn", async () => {
+		const fixture = await createFixture();
+		const [member] = fixture.members;
+		const firstTurn = fixture.turn(member, "first");
+		const nextTurn = fixture.turn(member, "steer-next");
+		const firstSend = fixture.service.send(fixture.session.id, {
+			requestId: "steer-first",
+			text: "first",
+			targetMemberIds: [member],
+		});
+		await firstTurn.started.promise;
+		const nextSend = fixture.service.send(fixture.session.id, {
+			requestId: "steer-next",
+			text: "steer-next",
+			targetMemberIds: [member],
+			streamingBehavior: "steer",
+		});
+		await fixture.workState(`work:steer-next:${member}`, "queued");
+		expect(fixture.runtime.queuePromptIfRunning).not.toHaveBeenCalled();
+		firstTurn.finish.resolve();
+		await firstSend;
+		await nextTurn.started.promise;
+		nextTurn.finish.resolve();
+		await nextSend;
+		const state = await fixture.service.readCollaborationState(fixture.session.id);
+		expect(state.workItems).toEqual(
+			expect.arrayContaining([
+				expect.objectContaining({ requestTurnId: "steer-first", state: "completed" }),
+				expect.objectContaining({ requestTurnId: "steer-next", state: "completed" }),
+			]),
+		);
+		expect(
+			(await fixture.service.readSnapshot(fixture.session.id)).messages.filter(
+				(message) => message.turnId === "steer-first" || message.turnId === "steer-next",
+			),
+		).toHaveLength(4);
+	});
+
+	it("joins duplicate requests without executing the member twice", async () => {
+		const fixture = await createFixture();
+		const [member] = fixture.members;
+		const turn = fixture.turn(member, "same");
+		const request = { requestId: "same", text: "same", targetMemberIds: [member] };
+		const first = fixture.service.send(fixture.session.id, request);
+		await turn.started.promise;
+		const duplicate = fixture.service.send(fixture.session.id, request);
+		turn.finish.resolve();
+		await Promise.all([first, duplicate]);
+		expect(fixture.runtime.prompt).toHaveBeenCalledTimes(1);
+		expect((await fixture.service.readCollaborationState(fixture.session.id)).attempts).toHaveLength(1);
+		expect(
+			(await fixture.service.readSnapshot(fixture.session.id)).messages.filter(
+				(message) => message.turnId === request.requestId,
+			),
+		).toHaveLength(2);
+	});
+
+	it("cancels running and queued requests without starting the queued member turn", async () => {
+		const fixture = await createFixture();
+		const [first, second] = fixture.members;
+		const firstTurn = fixture.turn(first, "active");
+		const secondTurn = fixture.turn(second, "active");
+		fixture.turn(first, "queued");
+		const active = fixture.service.send(fixture.session.id, {
+			requestId: "active",
+			text: "active",
+			targetMemberIds: [first, second],
+		});
+		await Promise.all([firstTurn.started.promise, secondTurn.started.promise]);
+		const queued = fixture.workState(`work:queued:${first}`, "queued");
+		const next = fixture.service.send(fixture.session.id, {
+			requestId: "queued",
+			text: "queued",
+			targetMemberIds: [first],
+		});
+		const settled = Promise.allSettled([active, next]);
+		await queued;
+		await fixture.service.abort(fixture.session.id);
+		expect((await settled).every((result) => result.status === "fulfilled")).toBe(true);
+		expect(fixture.runtime.prompt).toHaveBeenCalledTimes(2);
+		// Stopping is unconditional: every member runtime and the coordination runtime are
+		// interrupted, so a member parked inside a tool call also comes down.
+		const aborted = new Set(vi.mocked(fixture.runtime.abort).mock.calls.map(([id]) => id));
+		expect(aborted).toEqual(
+			new Set([
+				...Object.values(fixture.session.memberRuntime).map((state) => state.sessionId),
+				fixture.session.coordinationRuntime!.sessionId,
+			]),
+		);
+		const state = await fixture.service.readCollaborationState(fixture.session.id);
+		expect(state.workItems.map((item) => item.state)).toEqual(["cancelled", "cancelled", "cancelled"]);
+		expect(state.attempts).toHaveLength(2);
+		// Cancelling the active request must not erase the already-admitted user
+		// messages; reopening the coordination conversation sees the same durable
+		// timeline and cancelled work items.
+		const snapshot = await fixture.service.readSnapshot(fixture.session.id);
+		expect(snapshot.messages.filter((message) => message.kind === "user").map((message) => message.turnId)).toEqual(
+			expect.arrayContaining(["active", "queued"]),
+		);
+		const reopened = fixture.restartService();
+		await reopened.read(fixture.session.id, fixture.session.coordinationRuntime!.sessionPath);
+		expect(await reopened.readSnapshot(fixture.session.id)).toEqual(snapshot);
+	});
+
+	it("keeps a user message when stop races with Team admission", async () => {
+		const fixture = await createFixture();
+		const [member] = fixture.members;
+		const originalAppend = fixture.runtime.appendConversationMessage;
+		const appendStarted = deferred();
+		const releaseAppend = deferred();
+		vi.spyOn(fixture.runtime, "appendConversationMessage").mockImplementation(async (id, record) => {
+			if (record.kind === "user" && record.turnId === "racing-stop") {
+				appendStarted.resolve();
+				await releaseAppend.promise;
+			}
+			return originalAppend(id, record);
+		});
+
+		const send = fixture.service.send(fixture.session.id, {
+			requestId: "racing-stop",
+			text: "keep this submitted message",
+			targetMemberIds: [member],
+		});
+		await appendStarted.promise;
+		await fixture.service.abort(fixture.session.id);
+		releaseAppend.resolve();
+		await expect(send).resolves.toBeDefined();
+		const snapshot = await fixture.service.readSnapshot(fixture.session.id);
+		expect(snapshot.messages).toContainEqual(expect.objectContaining({ kind: "user", turnId: "racing-stop" }));
+		expect((await fixture.service.readCollaborationState(fixture.session.id)).workItems).toHaveLength(0);
+	});
+
+	it("runs different members together and retains both publications and delivery receipts", async () => {
+		const fixture = await createFixture();
+		const [first, second] = fixture.members;
+		const firstTurn = fixture.turn(first, "parallel");
+		const secondTurn = fixture.turn(second, "parallel");
+		const completed = fixture.service.send(fixture.session.id, {
+			requestId: "parallel",
+			text: "parallel",
+			targetMemberIds: [first, second],
+		});
+		try {
+			await Promise.all([firstTurn.started.promise, secondTurn.started.promise]);
+			expect(fixture.running.size).toBe(2);
+			secondTurn.finish.resolve();
+			firstTurn.finish.resolve();
+			await completed;
+			const saved = await fixture.service.read(fixture.session.id);
+			const collaboration = await fixture.service.readCollaborationState(saved.id);
+			expect(
+				(await fixture.service.readSnapshot(saved.id)).messages
+					.filter((message) => message.kind === "agent" && message.turnId === "parallel")
+					.map((message) => message.author.id)
+					.sort(),
+			).toEqual([first, second].sort());
+			for (const member of [first, second]) {
+				expect(saved.memberRuntime[member]?.deliveredEventIds).toContain("earlier-message");
+			}
+			const reopened = fixture.restartService();
+			expect(await reopened.read(saved.id, saved.coordinationRuntime!.sessionPath)).toEqual(saved);
+			expect(collaboration.workItems.map((item) => item.state)).toEqual(["completed", "completed"]);
+			expect(collaboration.checkpoints).toHaveLength(1);
+			expect(collaboration.contextGenerations).toHaveLength(1);
+			expect(collaboration.contextReceipts).toHaveLength(2);
+			const checkpoint = collaboration.checkpoints[0];
+			const generation = collaboration.contextGenerations[0];
+			if (!checkpoint || !generation) throw new Error("Expected one shared Team context generation");
+			expect(new Set(collaboration.contextReceipts.map((receipt) => receipt.generationId))).toEqual(
+				new Set([generation.id]),
+			);
+			expect(new Set(collaboration.contextReceipts.map((receipt) => receipt.checkpointId))).toEqual(
+				new Set([checkpoint.id]),
+			);
+			const delivered = new Map(
+				vi.mocked(fixture.runtime.deliverSessionContext).mock.calls.map((call) => [call[0], call[1]]),
+			);
+			const visiblePrefix = (memberId: string) =>
+				fixture.pinnedContexts.get(saved.memberRuntime[memberId]!.sessionId)?.records;
+			expect(visiblePrefix(first)).toEqual(visiblePrefix(second));
+			expect(visiblePrefix(first)).toHaveLength(1);
+			expect(visiblePrefix(first)?.[0]?.content).toContain("Earlier public context");
+			for (const memberId of [first, second]) {
+				const sessionId = saved.memberRuntime[memberId]!.sessionId;
+				const idleContext = await fixture.sessionConfigs.get(sessionId)?.bindPinnedModelContext?.({
+					sessionId,
+					operationId: "manual-after-turn",
+					reason: "manual_compaction",
+					signal: new AbortController().signal,
+				});
+				expect(idleContext?.records).toEqual(visiblePrefix(memberId));
+			}
+			const firstConfig = fixture.sessionConfigs.get(saved.memberRuntime[first]!.sessionId)!;
+			const secondConfig = fixture.sessionConfigs.get(saved.memberRuntime[second]!.sessionId)!;
+			expect(firstConfig.promptCacheKey).toBe(secondConfig.promptCacheKey);
+			expect(firstConfig.systemPromptCachePrefixAddon).toBe(secondConfig.systemPromptCachePrefixAddon);
+			expect(firstConfig.systemPromptCachePrefixAddon).toContain("<agent_team_operating_context>");
+			expect(firstConfig.systemPromptVolatileAddon).toContain("<agent_team_member_identity>");
+			expect(secondConfig.systemPromptVolatileAddon).toContain("<agent_team_member_identity>");
+			expect(firstConfig.systemPromptVolatileAddon).not.toBe(secondConfig.systemPromptVolatileAddon);
+			const expectedReference = JSON.stringify({
+				sharedCheckpointId: checkpoint.id,
+				throughConversationRevision: checkpoint.throughConversationRevision,
+				sourceFingerprint: checkpoint.sourceFingerprint,
+				projectionPolicyId: checkpoint.policyVersion,
+			});
+			for (const member of [first, second]) {
+				expect(delivered.get(saved.memberRuntime[member]!.sessionId)?.every((record) => !record.modelVisible)).toBe(
+					true,
+				);
+				expect(delivered.get(saved.memberRuntime[member]!.sessionId)).toEqual(
+					expect.arrayContaining([
+						expect.objectContaining({
+							type: "agent-team.compaction-reference.v1",
+							content: expectedReference,
+							modelVisible: false,
+						}),
+					]),
+				);
+			}
+		} finally {
+			firstTurn.finish.resolve();
+			secondTurn.finish.resolve();
+			await completed.catch(() => undefined);
+		}
+	});
+
+	it("reads only caller-authorized public history through a stable bounded cursor", async () => {
+		const fixture = await createFixture();
+		const [first, second] = fixture.members;
+		const coordinationId = fixture.session.coordinationRuntime!.sessionId;
+		await fixture.runtime.appendConversationMessage(coordinationId, {
+			id: "first-public",
+			turnId: "first-turn",
+			kind: "agent",
+			author: { kind: "agent", id: first },
+			message: {
+				...createAssistantMessage({ api: "openai-responses", provider: "openai", model: "test" }),
+				content: [{ type: "text", text: "private-to-author-but-publicly-published" }],
+			},
+			timestamp: 2,
+		});
+		await fixture.runtime.appendConversationMessage(coordinationId, {
+			id: "second-public",
+			turnId: "second-turn",
+			kind: "agent",
+			author: { kind: "agent", id: second },
+			message: {
+				...createAssistantMessage({ api: "openai-responses", provider: "openai", model: "test" }),
+				content: [{ type: "text", text: "visible teammate result" }],
+			},
+			timestamp: 3,
+		});
+		const port = fixture.service.sharedHistoryControls(fixture.session.id);
+		const firstConfig = fixture.sessionConfigs.get(fixture.session.memberRuntime[first]!.sessionId);
+		expect(firstConfig?.sessionRuntimeTools?.map(({ tool }) => tool.name)).toContain("team_read_shared_history");
+		const signal = new AbortController().signal;
+		const firstPage = await port.readSharedHistory({
+			sourceRuntimeSessionId: fixture.session.memberRuntime[first]!.sessionId,
+			signal,
+			maxRecords: 1,
+		});
+		expect(firstPage.records.map(({ sourceEntryId }) => sourceEntryId)).toEqual(["earlier-message"]);
+		await fixture.runtime.appendConversationMessage(coordinationId, {
+			id: "later-public",
+			turnId: "later-turn",
+			kind: "user",
+			author: { kind: "user", id: "local-user" },
+			message: { role: "user", content: "newer public message", timestamp: 4 },
+			timestamp: 4,
+		});
+		const secondPage = await port.readSharedHistory({
+			sourceRuntimeSessionId: fixture.session.memberRuntime[first]!.sessionId,
+			signal,
+			cursor: firstPage.nextCursor,
+		});
+		expect(secondPage.records.map(({ sourceEntryId }) => sourceEntryId)).toEqual(["second-public"]);
+		expect(JSON.stringify(secondPage)).not.toContain("private-to-author-but-publicly-published");
+		expect(JSON.stringify(secondPage)).not.toContain("newer public message");
+		await expect(port.readSharedHistory({ sourceRuntimeSessionId: "outside-runtime", signal })).rejects.toThrow(
+			/active persistent member/,
+		);
+	});
+
+	it("does not block a different member behind another user request", async () => {
+		const fixture = await createFixture();
+		const [first, second] = fixture.members;
+		const firstTurn = fixture.turn(first, "first");
+		const secondTurn = fixture.turn(second, "second");
+		const firstSend = fixture.service.send(fixture.session.id, {
+			requestId: "first",
+			text: "first",
+			targetMemberIds: [first],
+		});
+		await firstTurn.started.promise;
+		const secondSend = fixture.service.send(fixture.session.id, {
+			requestId: "second",
+			text: "second",
+			targetMemberIds: [second],
+		});
+		try {
+			await secondTurn.started.promise;
+			expect(fixture.running.size).toBe(2);
+		} finally {
+			firstTurn.finish.resolve();
+			secondTurn.finish.resolve();
+			await Promise.all([firstSend, secondSend]);
+		}
+		const messages = (await fixture.service.readSnapshot(fixture.session.id)).messages.filter(
+			(message) => message.turnId === "first" || message.turnId === "second",
+		);
+		expect(messages).toHaveLength(4);
+	});
+
+	it("uses a fixed member model while another member follows the changed conversation model", async () => {
+		const preferences = new Map<string, { agentProfileId: string; modelKey: string; reasoning?: string }>();
+		const readPreference = async (_teamId: string, memberId: string) => preferences.get(memberId);
+		const fixture = await createFixture(undefined, readPreference);
+		const [pinnedMember, inheritingMember] = fixture.members;
+		preferences.set(pinnedMember, {
+			agentProfileId: fixture.session.memberRuntime[pinnedMember]!.agentProfileId!,
+			modelKey: "provider/fixed",
+			reasoning: "medium",
+		});
+		await fixture.service.updateModelSettings(fixture.session.id, {
+			modelKey: "provider/conversation",
+			reasoning: "high",
+		});
+		vi.mocked(fixture.runtime.updateSettings).mockClear();
+		const first = fixture.turn(pinnedMember, "Use both models");
+		const second = fixture.turn(inheritingMember, "Use both models");
+		const send = fixture.service.send(fixture.session.id, {
+			requestId: "two-models",
+			text: "Use both models",
+			targetMemberIds: [pinnedMember, inheritingMember],
+			modelKey: "provider/conversation",
+			reasoning: "high",
+		});
+		try {
+			await Promise.all([first.started.promise, second.started.promise]);
+			expect(fixture.runtime.updateSettings).toHaveBeenCalledWith(
+				fixture.session.memberRuntime[pinnedMember]!.sessionId,
+				{ modelKey: "provider/fixed", thinkingLevel: "medium" },
+			);
+			expect(fixture.runtime.updateSettings).toHaveBeenCalledWith(
+				fixture.session.memberRuntime[inheritingMember]!.sessionId,
+				{ modelKey: "provider/conversation", thinkingLevel: "high" },
+			);
+		} finally {
+			first.finish.resolve();
+			second.finish.resolve();
+			await send;
+		}
+	});
+
+	it("surfaces an unavailable model from a reopened Team instead of completing the send as interrupted", async () => {
+		const fixture = await createFixture();
+		const [member] = fixture.members;
+		const modelKey = "cli-proxy-api.google/gemini-3.8-flash-high";
+		await fixture.service.updateModelSettings(fixture.session.id, { modelKey });
+		fixture.stopRuntime();
+		const restored = fixture.restartService();
+		await restored.read(fixture.session.id, fixture.session.coordinationRuntime!.sessionPath);
+		vi.mocked(fixture.runtime.updateSettings).mockRejectedValueOnce(
+			providerModelNotFoundError("cli-proxy-api.google", "gemini-3.8-flash-high"),
+		);
+
+		await expect(
+			restored.send(fixture.session.id, {
+				requestId: "stale-model-after-reopen",
+				text: "Use the saved model",
+				targetMemberIds: [member],
+			}),
+		).rejects.toMatchObject({
+			code: "AI_MODEL_NOT_FOUND",
+			message: `Model ${modelKey} is not available`,
+			retryable: false,
+		});
+		const collaboration = await restored.readCollaborationState(fixture.session.id);
+		expect(collaboration.workItems[0]).toMatchObject({
+			assignedToParticipantId: member,
+			state: "failed",
+			lastIssue: {
+				category: "provider-unavailable",
+				retryability: "never",
+				code: "AI_MODEL_NOT_FOUND",
+				provider: "cli-proxy-api.google",
+				modelId: "gemini-3.8-flash-high",
+			},
+		});
+		expect(collaboration.attempts[0]).toMatchObject({
+			state: "non-retryable-failure",
+			issue: { code: "AI_MODEL_NOT_FOUND" },
+		});
+		expect(fixture.runtime.prompt).not.toHaveBeenCalled();
+	});
+
+	it("lets healthy members finish when one member rejects an unavailable model and fails the overall send", async () => {
+		const fixture = await createFixture();
+		const [unavailableMember, healthyMember] = fixture.members;
+		const unavailableRuntimeId = fixture.session.memberRuntime[unavailableMember]!.sessionId;
+		vi.mocked(fixture.runtime.updateSettings).mockImplementation(async (sessionId) => {
+			if (sessionId === unavailableRuntimeId) {
+				throw providerModelNotFoundError("removed-provider", "removed-model");
+			}
+		});
+		const healthyTurn = fixture.turn(healthyMember, "mixed-model-availability");
+		const send = fixture.service.send(fixture.session.id, {
+			requestId: "mixed-model-availability",
+			text: "mixed-model-availability",
+			targetMemberIds: [unavailableMember, healthyMember],
+			modelKey: "removed-provider/removed-model",
+		});
+		await healthyTurn.started.promise;
+		healthyTurn.finish.resolve();
+
+		await expect(send).rejects.toMatchObject({ code: "AI_MODEL_NOT_FOUND" });
+		const collaboration = await fixture.service.readCollaborationState(fixture.session.id);
+		expect(
+			Object.fromEntries(collaboration.workItems.map((item) => [item.assignedToParticipantId, item.state])),
+		).toEqual({
+			[unavailableMember]: "failed",
+			[healthyMember]: "completed",
+		});
+	});
+});
+
+async function createFixture(
+	extensions?: AgentTeamExtensionRegistry,
+	readMemberModelPreference?: (
+		teamId: string,
+		memberId: string,
+	) => Promise<{ agentProfileId: string; modelKey: string; reasoning?: string } | undefined>,
+) {
+	const document = createAgentTeamFixture();
+	const team = document.teams[0];
+	if (!team || team.members.length < 2) throw new Error("Team fixture requires two members");
+	const members: [string, string] = [team.members[0]!.id, team.members[1]!.id];
+	const saved = new Map<string, TeamSessionDocument>();
+	const conversations = new Map<string, ConversationDocument>();
+	const history = new Map<string, ReturnType<RuntimeHost["getFullHistory"]>>();
+	const turns = new Map<string, TestMemberTurn>();
+	const workStates = new Map<string, ReturnType<typeof deferred>>();
+	const deliveryStates = new Map<string, ReturnType<typeof deferred>>();
+	const activeTurns = new Map<string, { finish: ReturnType<typeof deferred>; aborted: boolean }>();
+	const running = new Set<string>();
+	const sessionConfigs = new Map<string, DesktopCodingAgentSessionConfig>();
+	const pinnedContexts = new Map<string, CodingAgentPinnedModelContext>();
+	const observationRecords: RuntimeObservationRecord[] = [];
+	const observationPublisher = createRuntimeObservationPublisher({
+		port: {
+			record: (record) => {
+				observationRecords.push(record);
+			},
+		},
+	});
+	let sequence = 0;
+	let failNextPublicAppend = false;
+	let pendingDeliveryAbort: AbortController | undefined;
+	const append: RuntimeHost["appendSessionMetadataEntry"] = async (sessionId, customType, data) => {
+		const current = conversations.get(sessionId)!;
+		const id = `entry-${++sequence}`;
+		conversations.set(sessionId, {
+			...current,
+			entries: [
+				...current.entries,
+				{
+					id,
+					parentId: current.activeLeafId,
+					type: "custom",
+					customType,
+					data,
+					timestamp: new Date(sequence).toISOString(),
+				},
+			],
+			activeLeafId: id,
+		});
+		if (customType === "agent-team.work-item.v1" && isTeamWorkItem(data)) {
+			workStates.get(`${data.id}:${data.state}`)?.resolve();
+		}
+		if (customType === "agent-team.message-delivery.v1" && isTeamMessageDelivery(data)) {
+			deliveryStates.get(`${data.id}:${data.state}`)?.resolve();
+			if (data.state === "pending") {
+				pendingDeliveryAbort?.abort();
+				pendingDeliveryAbort = undefined;
+			}
+		}
+	};
+	const activeSessions = new Set<string>();
+	const runtime = {
+		createSession: vi.fn(async (config: DesktopCodingAgentSessionConfig) => {
+			const sessionId = config.sessionPath
+				? /([^/]+)\.jsonl$/.exec(config.sessionPath)?.[1]
+				: (config.sessionId ?? `runtime-${++sequence}`);
+			if (!sessionId) throw new Error("Invalid fixture session path");
+			activeSessions.add(sessionId);
+			sessionConfigs.set(sessionId, config);
+			if (!conversations.has(sessionId))
+				conversations.set(sessionId, createEmptyConversationDocument({ sessionId, createdAt: 1 }));
+			return { sessionId };
+		}),
+		getSessionPath: (id: string) => (activeSessions.has(id) ? `C:/runtime/${id}.jsonl` : undefined),
+		setExecutionMode: vi.fn(async () => undefined),
+		updateSettings: vi.fn(async () => undefined),
+		createObservationScope: (context: RuntimeObservationContext) => observationPublisher.scope(context),
+		disposeSession: vi.fn(async () => undefined),
+		subscribe: () => () => undefined,
+		readSessionDocument: (id: string) => conversations.get(id),
+		appendSessionMetadataEntry: append,
+		appendConversationMessage: vi.fn(async (id: string, record: ConversationMessageRecord) => {
+			const current = conversations.get(id)!;
+			if (!current.entries.some((entry) => entry.id === record.id)) {
+				conversations.set(id, {
+					...current,
+					entries: [
+						...current.entries,
+						{
+							...record,
+							type: "message",
+							parentId: current.activeLeafId,
+							timestamp: new Date(record.timestamp).toISOString(),
+						},
+					],
+					activeLeafId: record.id,
+				});
+			}
+			if (record.kind === "agent" && failNextPublicAppend) {
+				failNextPublicAppend = false;
+				throw new Error("simulated publication crash");
+			}
+			return { entryId: record.id };
+		}),
+		deliverSessionContext: vi.fn(
+			async (
+				_sessionId: string,
+				_records: readonly SessionContextRecord[],
+				_mode: RuntimeSessionContextDeliveryMode,
+			) => undefined,
+		),
+		getFullHistory: (id: string) => history.get(id) ?? [],
+		retry: vi.fn(async (id: string) => runtime.prompt(id, { text: "retry" })),
+		queuePromptIfRunning: vi.fn(async () => ({ status: "idle" as const })),
+		prompt: vi.fn(async (id: string, input: { text: string }) => {
+			const turn = turns.get(`${id}:${input.text}`);
+			if (!turn) throw new Error(`Unexpected member prompt: ${id}:${input.text}`);
+			if (running.has(id)) throw new Error("Concurrent prompts in one member conversation");
+			const pinned = await sessionConfigs.get(id)?.bindPinnedModelContext?.({
+				sessionId: id,
+				operationId: input.text,
+				reason: "turn",
+				signal: new AbortController().signal,
+			});
+			if (pinned) pinnedContexts.set(id, pinned);
+			running.add(id);
+			const active = { finish: turn.finish, aborted: false };
+			activeTurns.set(id, active);
+			turn.started.resolve();
+			await turn.finish.promise;
+			running.delete(id);
+			activeTurns.delete(id);
+			if (turn.partial && (active.aborted || turn.failure)) {
+				const entryId = `partial-answer-${++sequence}`;
+				history.set(id, [...(history.get(id) ?? []), { type: "message", entryId, message: turn.partial }]);
+			}
+			if (active.aborted) throw new Error("Member execution aborted");
+			if (turn.failure) throw turn.failure;
+			if (turn.failedOutcome) return { status: "failed" as const, error: turn.failedOutcome };
+			const entryId = `answer-${++sequence}`;
+			const message = {
+				...createAssistantMessage({ api: "openai-responses", provider: "openai", model: "test" }),
+				content: [{ type: "text" as const, text: input.text }],
+			};
+			history.set(id, [...(history.get(id) ?? []), { type: "message", entryId, message }]);
+			const current = conversations.get(id)!;
+			conversations.set(id, {
+				...current,
+				entries: [
+					...current.entries,
+					{
+						type: "message",
+						id: entryId,
+						parentId: current.activeLeafId,
+						timestamp: new Date(sequence).toISOString(),
+						message,
+					},
+				],
+			});
+		}),
+		abort: vi.fn(async (id: string) => {
+			const active = activeTurns.get(id);
+			if (active) {
+				active.aborted = true;
+				active.finish.resolve();
+			}
+		}),
+	} as unknown as RuntimeHost;
+	const service = new AgentTeamSessionService({
+		runtime,
+		extensions,
+		readDocument: async () => document,
+		readMemberModelPreference,
+		repository: {
+			read: async (id) => saved.get(id)!,
+		},
+	});
+	const session = await service.create(team, document, {
+		kind: "project",
+		id: "project:workspace",
+		cwd: "C:/workspace",
+	});
+	const coordination = conversations.get(session.coordinationRuntime!.sessionId)!;
+	conversations.set(session.coordinationRuntime!.sessionId, {
+		...coordination,
+		entries: [
+			{
+				type: "message",
+				kind: "user",
+				id: "earlier-message",
+				turnId: "earlier",
+				parentId: null,
+				timestamp: new Date(1).toISOString(),
+				author: { kind: "user", id: "local-user" },
+				message: { role: "user", content: "Earlier public context", timestamp: 1 },
+			},
+			...coordination.entries,
+		],
+	});
+	return {
+		team,
+		service,
+		session,
+		members,
+		saved,
+		conversations,
+		history,
+		running,
+		sessionConfigs,
+		pinnedContexts,
+		observationRecords,
+		runtime,
+		flushObservations: () => observationPublisher.flush(),
+		stopRuntime() {
+			if (running.size > 0) throw new Error("Cannot stop fixture Runtime while a member is running");
+			activeSessions.clear();
+			sessionConfigs.clear();
+			pinnedContexts.clear();
+		},
+		failNextPublicAppend() {
+			failNextPublicAppend = true;
+		},
+		appendHistory(sessionId: string, message: ReturnType<typeof createAssistantMessage>) {
+			const entryId = `continued-answer-${++sequence}`;
+			history.set(sessionId, [...(history.get(sessionId) ?? []), { type: "message", entryId, message }]);
+		},
+		abortAfterPendingDelivery(controller: AbortController) {
+			pendingDeliveryAbort = controller;
+		},
+		restartService() {
+			return new AgentTeamSessionService({
+				runtime,
+				extensions,
+				readDocument: async () => document,
+				readMemberModelPreference,
+				repository: {
+					read: async (id) => saved.get(id)!,
+				},
+			});
+		},
+		workState(id: string, state: TeamWorkItem["state"]) {
+			const reached = deferred();
+			workStates.set(`${id}:${state}`, reached);
+			return reached.promise;
+		},
+		deliveryState(id: string, state: TeamMessageDelivery["state"]) {
+			const reached = deferred();
+			deliveryStates.set(`${id}:${state}`, reached);
+			return reached.promise;
+		},
+		turn(member: string, text: string) {
+			const turn: TestMemberTurn = { started: deferred(), finish: deferred() };
+			turns.set(`${session.memberRuntime[member]!.sessionId}:${text}`, turn);
+			return turn;
+		},
+	};
+}
+
+/** Makes the leader's next Runtime continuation end with a final public answer. */
+function continueLeaderWith(fixture: Awaited<ReturnType<typeof createFixture>>, leaderRuntime: string, text: string) {
+	vi.mocked(fixture.runtime.deliverSessionContext).mockImplementation(async (sessionId, _records, mode) => {
+		if (mode !== "triggerTurn" || sessionId !== leaderRuntime) return;
+		fixture.appendHistory(sessionId, {
+			...createAssistantMessage({ api: "openai-responses", provider: "openai", model: "test" }),
+			content: [{ type: "text", text }],
+		});
+	});
+}
+
+function publicAgentMessagesBy(fixture: Awaited<ReturnType<typeof createFixture>>, authorId: string) {
+	return fixture.conversations
+		.get(fixture.session.coordinationRuntime!.sessionId)!
+		.entries.flatMap((entry) =>
+			entry.type === "message" && entry.kind === "agent" && entry.author.id === authorId ? [entry] : [],
+		);
+}
+
+function taskCaller(fixture: Awaited<ReturnType<typeof createFixture>>, memberId: string) {
+	return {
+		sourceRuntimeSessionId: fixture.session.memberRuntime[memberId]!.sessionId,
+		sourceTurnId: "leader-turn",
+		toolCallId: crypto.randomUUID(),
+		signal: new AbortController().signal,
+	};
+}
+
+interface TestMemberTurn {
+	readonly started: ReturnType<typeof deferred>;
+	readonly finish: ReturnType<typeof deferred>;
+	failure?: unknown;
+	failedOutcome?: RuntimeFailure;
+	partial?: ReturnType<typeof createAssistantMessage>;
+}
+
+function deferred() {
+	let resolve!: () => void;
+	const promise = new Promise<void>((done) => {
+		resolve = done;
+	});
+	return { promise, resolve };
+}

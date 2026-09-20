@@ -1,0 +1,23 @@
+{
+	"title": "使用指南",
+	"pages": [
+		"overview",
+		"models",
+		"abilities",
+		"mcp",
+		"browser",
+		"knowledge-base",
+		"design",
+		"agent-teams",
+		"batch-tasks",
+		"automation",
+		"claw",
+		"im",
+		"remote-control",
+		"webhook",
+		"application-environment",
+		"app-snapshot",
+		"desktop-pet",
+		"settings"
+	]
+}

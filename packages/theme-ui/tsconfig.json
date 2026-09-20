@@ -1,0 +1,19 @@
+{
+	"extends": "../../tsconfig.base.json",
+	"compilerOptions": {
+		"lib": ["ES2022", "DOM", "DOM.Iterable"],
+		"module": "ESNext",
+		"moduleResolution": "bundler",
+		"jsx": "react-jsx",
+		"noEmit": true,
+		"types": ["react"],
+		"paths": {
+			"@vetta-org/theme-sdk": ["../theme-sdk/src/index.ts"],
+			"@vetta-org/theme-sdk/*": ["../theme-sdk/src/*"],
+			"@vetta-org/ui": ["../ui/src/index.ts"],
+			"@vetta-org/ui/*": ["../ui/src/*"]
+		}
+	},
+	"include": ["src/**/*.ts", "src/**/*.tsx"],
+	"exclude": ["node_modules", "dist"]
+}

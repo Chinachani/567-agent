@@ -1,0 +1,223 @@
+import { DetailDrawerEnter } from "@vetta-org/theme-ui/overlays";
+import { AnimatePresence, motion, useReducedMotion } from "motion/react";
+import { Button } from "@vetta-org/ui";
+import { useMemo, useState } from "react";
+import { useTranslation } from "react-i18next";
+import { resolveAbilityDetailContent } from "../../lib/ability-presentation";
+import type { AbilitiesModel, AbilityItem } from "../../types";
+import { AbilityDetailBlocks } from "./AbilityDetailBlocks";
+import { AbilityDetailHeader } from "./AbilityDetailHeader";
+import { AbilityMarkdownBody } from "./AbilityMarkdownBody";
+import { AbilityMetaList } from "./AbilityMetaList";
+import { AbilityShowcaseList } from "./AbilityShowcaseList";
+import { BundleInstallDialog } from "./BundleInstallDialog";
+import { BundleMembersSection } from "./BundleMembersSection";
+import { BundleUninstallDialog } from "./BundleUninstallDialog";
+import { McpAbilitySection } from "./McpAbilitySection";
+import { McpAbilitySettingsView } from "./McpAbilitySettingsView";
+import { PluginAbilitySection } from "./PluginAbilitySection";
+import { PluginAbilityDetailSlotHost } from "./PluginAbilityDetailSlotHost";
+import { PluginAbilityHeaderActions } from "./PluginAbilityHeaderActions";
+import { PluginPermissionsView } from "./PluginPermissionsView";
+
+interface DetailPageTransition {
+	direction: 1 | -1;
+	reduceMotion: boolean;
+}
+
+const DETAIL_PAGE_VARIANTS = {
+	enter: ({ direction, reduceMotion }: DetailPageTransition) =>
+		reduceMotion ? { opacity: 0, x: 0 } : { opacity: 0, x: direction > 0 ? "100%" : "-24%" },
+	center: { opacity: 1, x: 0 },
+	exit: ({ direction, reduceMotion }: DetailPageTransition) =>
+		reduceMotion ? { opacity: 0, x: 0 } : { opacity: 0, x: direction > 0 ? "-24%" : "100%" },
+};
+
+/** 通用壳层 + markdown 正文 + showcases + type 专属区块。 */
+export function AbilityDetailView({
+	item,
+	model,
+	onBack,
+}: {
+	item: AbilityItem;
+	model: AbilitiesModel;
+	onBack: () => void;
+}): JSX.Element {
+	const { t, i18n } = useTranslation("abilities");
+	// raw.detail.i18n[locale] 覆盖块的取值语言，与界面语言一致。
+	const language = i18n.language;
+	const [bundleDialogOpen, setBundleDialogOpen] = useState(false);
+	const [bundleInstallDialogOpen, setBundleInstallDialogOpen] = useState(false);
+	const [page, setPage] = useState<"detail" | "permissions" | "mcp-settings">("detail");
+	const reduceMotion = useReducedMotion();
+
+	const detail = useMemo(
+		() => resolveAbilityDetailContent(item.detail ?? item.market?.detail, language),
+		[item.detail, item.market?.detail, language],
+	);
+
+	const handlePrimary = (): void => {
+		if (!item.installed || item.needsUpdate) {
+			if (item.type === "bundle") {
+				setBundleInstallDialogOpen(true);
+				return;
+			}
+			model.install(item);
+			return;
+		}
+		if (item.type === "mcp" && item.setupRequired) {
+			model.setup(item);
+			return;
+		}
+		if (!item.enabled) model.toggle(item);
+	};
+
+	const handleSecondary = (kind: "disable" | "configure" | "remove"): void => {
+		if (kind === "disable") {
+			if (item.enabled) model.toggle(item);
+			return;
+		}
+		if (kind === "configure" && item.type === "mcp") {
+			if (item.canConfigure) model.configure(item);
+			else if (item.usesOAuth) {
+				if (item.authorized) model.revokeAuthorization(item);
+				else model.setup(item);
+			}
+			return;
+		}
+		if (kind === "remove") {
+			if (item.type === "bundle") {
+				setBundleDialogOpen(true);
+				return;
+			}
+			model.uninstall(item);
+			onBack();
+		}
+	};
+
+	// 主 CTA 右侧的次要入口：插件进入权限页，受管 MCP 进入能力专属连接设置页。
+	const primaryAside = ((): JSX.Element | undefined => {
+		if (item.type === "plugin") {
+			return (
+				<PluginAbilityHeaderActions
+					item={item}
+					onReload={() => model.reloadPlugin(item)}
+					onOpenPermissions={() => setPage("permissions")}
+				/>
+			);
+		}
+		if (item.type === "mcp" && item.installed && item.postInstallSetup) {
+			return (
+				<Button variant="secondary" size="lg" disabled={item.busy} onClick={() => setPage("mcp-settings")}>
+					<span className="icon-[solar--settings-linear] h-4 w-4" />
+					{t("mcp.connectionConfig")}
+				</Button>
+			);
+		}
+		return undefined;
+	})();
+
+	const detailPage = (
+		<div className="flex w-full flex-col gap-8">
+			<DetailDrawerEnter index={0}>
+				<AbilityDetailHeader
+					item={item}
+					onPrimary={handlePrimary}
+					onSecondary={handleSecondary}
+					primaryAside={primaryAside}
+				/>
+			</DetailDrawerEnter>
+
+			{model.detailErrors.length > 0 ? (
+				<div className="rounded-lg bg-muted/60 px-3 py-2 text-[12px] text-muted-foreground/70">
+					{t("error.partial", { error: model.detailErrors.join(" / ") })}
+				</div>
+			) : null}
+
+			<PluginAbilityDetailSlotHost item={item} onOpenPermissions={() => setPage("permissions")} />
+
+			{detail.blocks.length > 0 ? (
+				<DetailDrawerEnter index={1}>
+					<AbilityDetailBlocks blocks={detail.blocks} abilityType={item.type} abilityIcon={item.icon} />
+				</DetailDrawerEnter>
+			) : (
+				<>
+					{detail.showcases.length > 0 ? (
+						<DetailDrawerEnter index={1}>
+							<AbilityShowcaseList showcases={detail.showcases} />
+						</DetailDrawerEnter>
+					) : null}
+
+					<DetailDrawerEnter index={2}>
+						{detail.content ? (
+							<AbilityMarkdownBody content={detail.content} />
+						) : (
+							<p className="text-[13px] leading-relaxed text-muted-foreground">{t("detail.noContent")}</p>
+						)}
+					</DetailDrawerEnter>
+				</>
+			)}
+
+			{/* 页尾附属信息：与正文之间只用一条分隔线 */}
+			<div className="mt-1 flex flex-col gap-6 border-t border-border/50 pt-6">
+				<DetailDrawerEnter index={3}>
+					{item.type === "plugin" ? <PluginAbilitySection item={item} model={model} /> : null}
+					{item.type === "mcp" ? <McpAbilitySection item={item} model={model} /> : null}
+					{item.type === "bundle" ? <BundleMembersSection item={item} /> : null}
+				</DetailDrawerEnter>
+
+				{/* 元信息表固定在页尾 */}
+				<DetailDrawerEnter index={4}>
+					<AbilityMetaList meta={detail.meta} item={item} model={model} />
+				</DetailDrawerEnter>
+			</div>
+
+			{item.type === "bundle" ? (
+				<BundleInstallDialog
+					bundle={item}
+					open={bundleInstallDialogOpen}
+					onOpenChange={setBundleInstallDialogOpen}
+					onConfirm={(members) => model.installBundleMembers(item, members)}
+				/>
+			) : null}
+
+			{item.type === "bundle" ? (
+				<BundleUninstallDialog
+					bundle={item}
+					open={bundleDialogOpen}
+					onOpenChange={setBundleDialogOpen}
+					onConfirm={(members) => model.uninstallBundleMembers(members)}
+				/>
+			) : null}
+		</div>
+	);
+
+	const transition: DetailPageTransition = {
+		direction: page === "detail" ? -1 : 1,
+		reduceMotion: Boolean(reduceMotion),
+	};
+	return (
+		<div className="relative h-full overflow-hidden">
+			<AnimatePresence initial={false} custom={transition}>
+				<motion.div
+					key={page}
+					custom={transition}
+					className="absolute inset-0 overflow-y-auto overflow-x-hidden px-5 pb-8 pt-8"
+					variants={DETAIL_PAGE_VARIANTS}
+					initial="enter"
+					animate="center"
+					exit="exit"
+					transition={{ duration: reduceMotion ? 0.12 : 0.32, ease: [0.22, 1, 0.36, 1] }}
+				>
+					{page === "permissions" && item.type === "plugin" ? (
+						<PluginPermissionsView item={item} model={model} onBack={() => setPage("detail")} />
+					) : page === "mcp-settings" && item.type === "mcp" ? (
+						<McpAbilitySettingsView item={item} model={model} onBack={() => setPage("detail")} />
+					) : (
+						detailPage
+					)}
+				</motion.div>
+			</AnimatePresence>
+		</div>
+	);
+}

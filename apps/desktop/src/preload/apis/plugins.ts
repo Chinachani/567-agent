@@ -1,0 +1,540 @@
+import type { IpcRenderer, IpcRendererEvent, WebUtils } from "electron";
+import { PLUGIN_CAPABILITY_CHANNELS, PLUGIN_SYSTEM_CHANNELS } from "../../shared/plugin-capability-ipc.js";
+import {
+	PLUGIN_CONTRIBUTION_CHANNELS,
+	PLUGIN_EXECUTION_CHANNELS,
+	PLUGIN_MANAGEMENT_CHANNELS,
+	PLUGIN_MEDIA_CHANNELS,
+	PLUGIN_OCR_CHANNELS,
+} from "../../shared/plugin-ipc.js";
+import type { DesktopApi } from "../api.js";
+import { onIpcEvent } from "./helper.js";
+
+type SecretsChangedListener = Parameters<DesktopApi["plugins"]["onSecretsChanged"]>[0];
+type SecretsChangedPayload = Parameters<SecretsChangedListener>[0];
+type AiStreamListener = Parameters<DesktopApi["plugins"]["internalCapabilities"]["ai"]["onStreamEvent"]>[0];
+type AiStreamPayload = Parameters<AiStreamListener>[0];
+
+export function createPluginsApi(ipc: IpcRenderer, webUtils: WebUtils): Pick<DesktopApi, "plugins"> {
+	const secretsChangedSubscriptions = new Set<{ readonly listener: SecretsChangedListener }>();
+	const handleSecretsChanged = (_event: IpcRendererEvent, payload: SecretsChangedPayload): void => {
+		for (const subscription of [...secretsChangedSubscriptions]) subscription.listener(payload);
+	};
+	const onSecretsChanged = (listener: SecretsChangedListener): (() => void) => {
+		const subscription = { listener };
+		secretsChangedSubscriptions.add(subscription);
+		if (secretsChangedSubscriptions.size === 1) {
+			ipc.on(PLUGIN_EXECUTION_CHANNELS.SECRETS_CHANGED, handleSecretsChanged);
+		}
+		let subscribed = true;
+		return () => {
+			if (!subscribed) return;
+			subscribed = false;
+			secretsChangedSubscriptions.delete(subscription);
+			if (secretsChangedSubscriptions.size === 0) {
+				ipc.removeListener(PLUGIN_EXECUTION_CHANNELS.SECRETS_CHANGED, handleSecretsChanged);
+			}
+		};
+	};
+	const aiStreamSubscriptions = new Set<{ readonly listener: AiStreamListener }>();
+	const handleAiStreamEvent = (_event: IpcRendererEvent, payload: AiStreamPayload): void => {
+		for (const subscription of [...aiStreamSubscriptions]) subscription.listener(payload);
+	};
+	const onAiStreamEvent = (listener: AiStreamListener): (() => void) => {
+		const subscription = { listener };
+		aiStreamSubscriptions.add(subscription);
+		if (aiStreamSubscriptions.size === 1) {
+			ipc.on(PLUGIN_CAPABILITY_CHANNELS.AI_STREAM_EVENT, handleAiStreamEvent);
+		}
+		let subscribed = true;
+		return () => {
+			if (!subscribed) return;
+			subscribed = false;
+			aiStreamSubscriptions.delete(subscription);
+			if (aiStreamSubscriptions.size === 0) {
+				ipc.removeListener(PLUGIN_CAPABILITY_CHANNELS.AI_STREAM_EVENT, handleAiStreamEvent);
+			}
+		};
+	};
+
+	return {
+		plugins: {
+			internalCapabilities: {
+				openSession: (pluginId) => ipc.invoke(PLUGIN_CAPABILITY_CHANNELS.OPEN_SESSION, pluginId),
+				closeSession: (sessionId) => ipc.invoke(PLUGIN_CAPABILITY_CHANNELS.CLOSE_SESSION, sessionId),
+				browser: {
+					runtimeStatus: (sessionId) => ipc.invoke(PLUGIN_CAPABILITY_CHANNELS.BROWSER_RUNTIME_STATUS, sessionId),
+					runtimeInstall: (sessionId, step) =>
+						ipc.invoke(PLUGIN_CAPABILITY_CHANNELS.BROWSER_RUNTIME_INSTALL, sessionId, step),
+					createSession: (sessionId, options) =>
+						ipc.invoke(PLUGIN_CAPABILITY_CHANNELS.BROWSER_SESSION_CREATE, sessionId, options),
+					getSession: (sessionId, browserSessionId) =>
+						ipc.invoke(PLUGIN_CAPABILITY_CHANNELS.BROWSER_SESSION_GET, sessionId, browserSessionId),
+					closeSession: (sessionId, browserSessionId) =>
+						ipc.invoke(PLUGIN_CAPABILITY_CHANNELS.BROWSER_SESSION_CLOSE, sessionId, browserSessionId),
+					navigate: (sessionId, browserSessionId, url) =>
+						ipc.invoke(PLUGIN_CAPABILITY_CHANNELS.BROWSER_NAVIGATE, sessionId, browserSessionId, url),
+					snapshot: (sessionId, browserSessionId, options) =>
+						ipc.invoke(PLUGIN_CAPABILITY_CHANNELS.BROWSER_SNAPSHOT, sessionId, browserSessionId, options),
+					readText: (sessionId, browserSessionId, options) =>
+						ipc.invoke(PLUGIN_CAPABILITY_CHANNELS.BROWSER_READ_TEXT, sessionId, browserSessionId, options),
+					screenshot: (sessionId, browserSessionId, options) =>
+						ipc.invoke(PLUGIN_CAPABILITY_CHANNELS.BROWSER_SCREENSHOT, sessionId, browserSessionId, options),
+					act: (sessionId, browserSessionId, action, options) =>
+						ipc.invoke(PLUGIN_CAPABILITY_CHANNELS.BROWSER_ACT, sessionId, browserSessionId, action, options),
+				},
+				artifacts: {
+					persist: (sessionId, input) => ipc.invoke(PLUGIN_CAPABILITY_CHANNELS.ARTIFACT_PERSIST, sessionId, input),
+					release: (sessionId, artifactId) =>
+						ipc.invoke(PLUGIN_CAPABILITY_CHANNELS.ARTIFACT_RELEASE, sessionId, artifactId),
+				},
+				ai: {
+					listModels: (sessionId) => ipc.invoke(PLUGIN_CAPABILITY_CHANNELS.AI_MODEL_LIST, sessionId),
+					complete: (sessionId, input) => ipc.invoke(PLUGIN_CAPABILITY_CHANNELS.AI_COMPLETE, sessionId, input),
+					stream: (sessionId, requestId, input) =>
+						ipc.invoke(PLUGIN_CAPABILITY_CHANNELS.AI_STREAM, sessionId, requestId, input),
+					cancelStream: (sessionId, requestId) =>
+						ipc.invoke(PLUGIN_CAPABILITY_CHANNELS.AI_STREAM_CANCEL, sessionId, requestId),
+					onStreamEvent: onAiStreamEvent,
+					chat: (sessionId, input) => ipc.invoke(PLUGIN_CAPABILITY_CHANNELS.AI_CHAT, sessionId, input),
+				},
+				agentSettings: {
+					getExperimental: (sessionId) =>
+						ipc.invoke(PLUGIN_CAPABILITY_CHANNELS.AGENT_SETTINGS_EXPERIMENTAL_GET, sessionId),
+					setExperimental: (sessionId, input) =>
+						ipc.invoke(PLUGIN_CAPABILITY_CHANNELS.AGENT_SETTINGS_EXPERIMENTAL_SET, sessionId, input),
+					getImageGeneration: (sessionId) =>
+						ipc.invoke(PLUGIN_CAPABILITY_CHANNELS.AGENT_SETTINGS_IMAGE_GENERATION_GET, sessionId),
+					setImageGeneration: (sessionId, input) =>
+						ipc.invoke(PLUGIN_CAPABILITY_CHANNELS.AGENT_SETTINGS_IMAGE_GENERATION_SET, sessionId, input),
+				},
+				generalSettings: {
+					get: (sessionId) => ipc.invoke(PLUGIN_CAPABILITY_CHANNELS.GENERAL_SETTINGS_GET, sessionId),
+					setNotifications: (sessionId, enabled) =>
+						ipc.invoke(PLUGIN_CAPABILITY_CHANNELS.GENERAL_SETTINGS_NOTIFICATIONS_SET, sessionId, enabled),
+					setDefaultExecutionMode: (sessionId, mode) =>
+						ipc.invoke(PLUGIN_CAPABILITY_CHANNELS.GENERAL_SETTINGS_DEFAULT_EXECUTION_MODE_SET, sessionId, mode),
+					setWorkspace: (sessionId, path) =>
+						ipc.invoke(PLUGIN_CAPABILITY_CHANNELS.GENERAL_SETTINGS_WORKSPACE_SET, sessionId, path),
+				},
+				im: {
+					getStatus: (sessionId) => ipc.invoke(PLUGIN_CAPABILITY_CHANNELS.IM_STATUS_GET, sessionId),
+					listLogs: (sessionId, limit) => ipc.invoke(PLUGIN_CAPABILITY_CHANNELS.IM_LOG_LIST, sessionId, limit),
+					setEnabled: (sessionId, enabled) =>
+						ipc.invoke(PLUGIN_CAPABILITY_CHANNELS.IM_ENABLED_SET, sessionId, enabled),
+					restart: (sessionId) => ipc.invoke(PLUGIN_CAPABILITY_CHANNELS.IM_RESTART, sessionId),
+					setAgentModel: (sessionId, modelKey, reasoningLevel) =>
+						ipc.invoke(PLUGIN_CAPABILITY_CHANNELS.IM_AGENT_MODEL_SET, sessionId, modelKey, reasoningLevel),
+				},
+				models: {
+					replaceOwnedProviders: (sessionId, providers) =>
+						ipc.invoke(PLUGIN_CAPABILITY_CHANNELS.MODEL_OWNED_PROVIDERS_REPLACE, sessionId, providers),
+					listOwnedProviders: (sessionId) =>
+						ipc.invoke(PLUGIN_CAPABILITY_CHANNELS.MODEL_OWNED_PROVIDERS_LIST, sessionId),
+					list: (sessionId) => ipc.invoke(PLUGIN_CAPABILITY_CHANNELS.MODEL_LIST, sessionId),
+					getConfig: (sessionId) => ipc.invoke(PLUGIN_CAPABILITY_CHANNELS.MODEL_CONFIG_GET, sessionId),
+					getProvider: (sessionId, provider) =>
+						ipc.invoke(PLUGIN_CAPABILITY_CHANNELS.MODEL_PROVIDER_GET, sessionId, provider),
+					probe: (sessionId, provider, model) =>
+						ipc.invoke(PLUGIN_CAPABILITY_CHANNELS.MODEL_PROBE, sessionId, provider, model),
+					validateModelKey: (sessionId, modelKey, operation) =>
+						ipc.invoke(PLUGIN_CAPABILITY_CHANNELS.MODEL_KEY_VALIDATE, sessionId, modelKey, operation),
+					setDefault: (sessionId, modelKey) =>
+						ipc.invoke(PLUGIN_CAPABILITY_CHANNELS.MODEL_DEFAULT_SET, sessionId, modelKey),
+					upsertProvider: (sessionId, provider, data) =>
+						ipc.invoke(PLUGIN_CAPABILITY_CHANNELS.MODEL_PROVIDER_UPSERT, sessionId, provider, data),
+					removeProvider: (sessionId, provider) =>
+						ipc.invoke(PLUGIN_CAPABILITY_CHANNELS.MODEL_PROVIDER_REMOVE, sessionId, provider),
+				},
+				media: {
+					listProviders: (sessionId) => ipc.invoke(PLUGIN_CAPABILITY_CHANNELS.MEDIA_PROVIDER_LIST, sessionId),
+					submit: (sessionId, input) => ipc.invoke(PLUGIN_CAPABILITY_CHANNELS.MEDIA_SUBMIT, sessionId, input),
+				},
+				ocr: {
+					listProviders: (sessionId) => ipc.invoke(PLUGIN_CAPABILITY_CHANNELS.OCR_PROVIDER_LIST, sessionId),
+					recognize: (sessionId, input) => ipc.invoke(PLUGIN_CAPABILITY_CHANNELS.OCR_RECOGNIZE, sessionId, input),
+				},
+				jobs: {
+					get: (sessionId, id) => ipc.invoke(PLUGIN_CAPABILITY_CHANNELS.JOB_GET, sessionId, id),
+					cancel: (sessionId, id) => ipc.invoke(PLUGIN_CAPABILITY_CHANNELS.JOB_CANCEL, sessionId, id),
+				},
+				mcp: {
+					list: (sessionId) => ipc.invoke(PLUGIN_CAPABILITY_CHANNELS.MCP_SERVER_LIST, sessionId),
+					get: (sessionId, name) => ipc.invoke(PLUGIN_CAPABILITY_CHANNELS.MCP_SERVER_GET, sessionId, name),
+					upsert: (sessionId, name, data) =>
+						ipc.invoke(PLUGIN_CAPABILITY_CHANNELS.MCP_SERVER_UPSERT, sessionId, name, data),
+					setEnabled: (sessionId, name, enabled) =>
+						ipc.invoke(PLUGIN_CAPABILITY_CHANNELS.MCP_SERVER_SET_ENABLED, sessionId, name, enabled),
+					remove: (sessionId, name) => ipc.invoke(PLUGIN_CAPABILITY_CHANNELS.MCP_SERVER_REMOVE, sessionId, name),
+				},
+				batchTasks: {
+					listProjects: (sessionId) => ipc.invoke(PLUGIN_CAPABILITY_CHANNELS.BATCH_PROJECT_LIST, sessionId),
+					getProject: (sessionId, projectId) =>
+						ipc.invoke(PLUGIN_CAPABILITY_CHANNELS.BATCH_PROJECT_GET, sessionId, projectId),
+					createProject: (sessionId, data) =>
+						ipc.invoke(PLUGIN_CAPABILITY_CHANNELS.BATCH_PROJECT_CREATE, sessionId, data),
+					updateProject: (sessionId, projectId, data) =>
+						ipc.invoke(PLUGIN_CAPABILITY_CHANNELS.BATCH_PROJECT_UPDATE, sessionId, projectId, data),
+					deleteProject: (sessionId, projectId) =>
+						ipc.invoke(PLUGIN_CAPABILITY_CHANNELS.BATCH_PROJECT_DELETE, sessionId, projectId),
+					runTask: (sessionId, projectId, taskId) =>
+						ipc.invoke(PLUGIN_CAPABILITY_CHANNELS.BATCH_TASK_RUN, sessionId, projectId, taskId),
+					retryTask: (sessionId, projectId, taskId) =>
+						ipc.invoke(PLUGIN_CAPABILITY_CHANNELS.BATCH_TASK_RETRY, sessionId, projectId, taskId),
+					stopTask: (sessionId, projectId, taskId) =>
+						ipc.invoke(PLUGIN_CAPABILITY_CHANNELS.BATCH_TASK_STOP, sessionId, projectId, taskId),
+					deleteTask: (sessionId, projectId, taskId) =>
+						ipc.invoke(PLUGIN_CAPABILITY_CHANNELS.BATCH_TASK_DELETE, sessionId, projectId, taskId),
+					resumeTask: (sessionId, projectId, taskId) =>
+						ipc.invoke(PLUGIN_CAPABILITY_CHANNELS.BATCH_TASK_RESUME, sessionId, projectId, taskId),
+					resumeTaskWithText: (sessionId, projectId, taskId, text) =>
+						ipc.invoke(
+							PLUGIN_CAPABILITY_CHANNELS.BATCH_TASK_RESUME_WITH_TEXT,
+							sessionId,
+							projectId,
+							taskId,
+							text,
+						),
+					deleteTaskSession: (sessionId, projectId, taskId) =>
+						ipc.invoke(PLUGIN_CAPABILITY_CHANNELS.BATCH_TASK_SESSION_DELETE, sessionId, projectId, taskId),
+					deleteAllTasks: (sessionId, projectId) =>
+						ipc.invoke(PLUGIN_CAPABILITY_CHANNELS.BATCH_PROJECT_TASK_DELETE_ALL, sessionId, projectId),
+					startProject: (sessionId, projectId) =>
+						ipc.invoke(PLUGIN_CAPABILITY_CHANNELS.BATCH_PROJECT_START, sessionId, projectId),
+					stopProject: (sessionId, projectId) =>
+						ipc.invoke(PLUGIN_CAPABILITY_CHANNELS.BATCH_PROJECT_STOP, sessionId, projectId),
+					resetProject: (sessionId, projectId) =>
+						ipc.invoke(PLUGIN_CAPABILITY_CHANNELS.BATCH_PROJECT_RESET, sessionId, projectId),
+					resetFailedTasks: (sessionId, projectId, taskIds) =>
+						ipc.invoke(PLUGIN_CAPABILITY_CHANNELS.BATCH_PROJECT_FAILED_TASK_RESET, sessionId, projectId, taskIds),
+				},
+				filesystem: {
+					readDirectory: (sessionId, path) =>
+						ipc.invoke(PLUGIN_CAPABILITY_CHANNELS.FS_READ_DIRECTORY, sessionId, path),
+					readFile: (sessionId, path) => ipc.invoke(PLUGIN_CAPABILITY_CHANNELS.FS_READ_FILE, sessionId, path),
+					readBinaryFile: (sessionId, path) =>
+						ipc.invoke(PLUGIN_CAPABILITY_CHANNELS.FS_READ_BINARY_FILE, sessionId, path),
+					writeFile: (sessionId, path, content, encoding) =>
+						ipc.invoke(PLUGIN_CAPABILITY_CHANNELS.FS_WRITE_FILE, sessionId, path, content, encoding),
+					stat: (sessionId, path) => ipc.invoke(PLUGIN_CAPABILITY_CHANNELS.FS_STAT, sessionId, path),
+					rename: (sessionId, oldPath, newPath) =>
+						ipc.invoke(PLUGIN_CAPABILITY_CHANNELS.FS_RENAME, sessionId, oldPath, newPath),
+					delete: (sessionId, path) => ipc.invoke(PLUGIN_CAPABILITY_CHANNELS.FS_DELETE, sessionId, path),
+					move: (sessionId, sourcePath, destinationDirectory) =>
+						ipc.invoke(PLUGIN_CAPABILITY_CHANNELS.FS_MOVE, sessionId, sourcePath, destinationDirectory),
+					createDirectory: (sessionId, path) =>
+						ipc.invoke(PLUGIN_CAPABILITY_CHANNELS.FS_CREATE_DIRECTORY, sessionId, path),
+					listFilesRecursive: (sessionId, path) =>
+						ipc.invoke(PLUGIN_CAPABILITY_CHANNELS.FS_LIST_FILES_RECURSIVE, sessionId, path),
+				},
+				downloads: {
+					list: (sessionId) => ipc.invoke(PLUGIN_CAPABILITY_CHANNELS.DOWNLOAD_LIST, sessionId),
+					cancel: (sessionId, id) => ipc.invoke(PLUGIN_CAPABILITY_CHANNELS.DOWNLOAD_CANCEL, sessionId, id),
+				},
+				updater: {
+					getState: (sessionId) => ipc.invoke(PLUGIN_CAPABILITY_CHANNELS.UPDATER_STATE_GET, sessionId),
+					getCurrentVersion: (sessionId) =>
+						ipc.invoke(PLUGIN_CAPABILITY_CHANNELS.UPDATER_CURRENT_VERSION_GET, sessionId),
+					check: (sessionId) => ipc.invoke(PLUGIN_CAPABILITY_CHANNELS.UPDATER_CHECK, sessionId),
+					download: (sessionId) => ipc.invoke(PLUGIN_CAPABILITY_CHANNELS.UPDATER_DOWNLOAD, sessionId),
+					install: (sessionId) => ipc.invoke(PLUGIN_CAPABILITY_CHANNELS.UPDATER_INSTALL, sessionId),
+					dismiss: (sessionId) => ipc.invoke(PLUGIN_CAPABILITY_CHANNELS.UPDATER_DISMISS, sessionId),
+					cancel: (sessionId) => ipc.invoke(PLUGIN_CAPABILITY_CHANNELS.UPDATER_CANCEL, sessionId),
+				},
+				knowledge: {
+					listBases: (sessionId) => ipc.invoke(PLUGIN_CAPABILITY_CHANNELS.KNOWLEDGE_BASE_LIST, sessionId),
+					listFileStatuses: (sessionId) =>
+						ipc.invoke(PLUGIN_CAPABILITY_CHANNELS.KNOWLEDGE_FILE_STATUS_LIST, sessionId),
+					isProcessing: (sessionId) =>
+						ipc.invoke(PLUGIN_CAPABILITY_CHANNELS.KNOWLEDGE_PROCESSING_STATUS_GET, sessionId),
+					getProcessing: (sessionId) =>
+						ipc.invoke(PLUGIN_CAPABILITY_CHANNELS.KNOWLEDGE_PROCESSING_SETTINGS_GET, sessionId),
+					createBase: (sessionId, name) =>
+						ipc.invoke(PLUGIN_CAPABILITY_CHANNELS.KNOWLEDGE_BASE_CREATE, sessionId, name),
+					renameBase: (sessionId, name, newName) =>
+						ipc.invoke(PLUGIN_CAPABILITY_CHANNELS.KNOWLEDGE_BASE_RENAME, sessionId, name, newName),
+					deleteBase: (sessionId, name) =>
+						ipc.invoke(PLUGIN_CAPABILITY_CHANNELS.KNOWLEDGE_BASE_DELETE, sessionId, name),
+					addFiles: (sessionId, kbId, paths, move) =>
+						ipc.invoke(PLUGIN_CAPABILITY_CHANNELS.KNOWLEDGE_ENTRY_ADD_FILES, sessionId, kbId, paths, move),
+					deleteEntry: (sessionId, kbId, relPath) =>
+						ipc.invoke(PLUGIN_CAPABILITY_CHANNELS.KNOWLEDGE_ENTRY_DELETE, sessionId, kbId, relPath),
+					scanNow: (sessionId) => ipc.invoke(PLUGIN_CAPABILITY_CHANNELS.KNOWLEDGE_PROCESSING_SCAN, sessionId),
+					retryFailed: (sessionId) =>
+						ipc.invoke(PLUGIN_CAPABILITY_CHANNELS.KNOWLEDGE_PROCESSING_RETRY_FAILED, sessionId),
+					setProcessing: (sessionId, data) =>
+						ipc.invoke(PLUGIN_CAPABILITY_CHANNELS.KNOWLEDGE_PROCESSING_SETTINGS_SET, sessionId, data),
+				},
+				projects: {
+					list: (sessionId) => ipc.invoke(PLUGIN_CAPABILITY_CHANNELS.PROJECT_LIST, sessionId),
+					create: (sessionId, name, path) =>
+						ipc.invoke(PLUGIN_CAPABILITY_CHANNELS.PROJECT_CREATE, sessionId, name, path),
+					open: (sessionId, path, name) =>
+						ipc.invoke(PLUGIN_CAPABILITY_CHANNELS.PROJECT_OPEN, sessionId, path, name),
+					rename: (sessionId, path, name) =>
+						ipc.invoke(PLUGIN_CAPABILITY_CHANNELS.PROJECT_RENAME, sessionId, path, name),
+					archive: (sessionId, path) => ipc.invoke(PLUGIN_CAPABILITY_CHANNELS.PROJECT_ARCHIVE, sessionId, path),
+					unarchive: (sessionId, path) =>
+						ipc.invoke(PLUGIN_CAPABILITY_CHANNELS.PROJECT_UNARCHIVE, sessionId, path),
+					remove: (sessionId, path) => ipc.invoke(PLUGIN_CAPABILITY_CHANNELS.PROJECT_REMOVE, sessionId, path),
+				},
+				sessions: {
+					list: (sessionId, cwd) => ipc.invoke(PLUGIN_CAPABILITY_CHANNELS.SESSION_LIST, sessionId, cwd),
+					listRuntimeProjects: (sessionId) =>
+						ipc.invoke(PLUGIN_CAPABILITY_CHANNELS.SESSION_LIST_RUNTIME_PROJECTS, sessionId),
+				},
+				skills: {
+					list: (sessionId, cwd) => ipc.invoke(PLUGIN_CAPABILITY_CHANNELS.SKILL_LIST, sessionId, cwd),
+					listInstalled: (sessionId) => ipc.invoke(PLUGIN_CAPABILITY_CHANNELS.SKILL_INSTALLED_LIST, sessionId),
+					setEnabled: (sessionId, name, enabled) =>
+						ipc.invoke(PLUGIN_CAPABILITY_CHANNELS.SKILL_INSTALLED_SET_ENABLED, sessionId, name, enabled),
+					uninstall: (sessionId, name, type) =>
+						ipc.invoke(PLUGIN_CAPABILITY_CHANNELS.SKILL_INSTALLED_UNINSTALL, sessionId, name, type),
+				},
+				pluginSystem: {
+					list: (sessionId) => ipc.invoke(PLUGIN_SYSTEM_CHANNELS.LIST, sessionId),
+					installFromUrl: (sessionId, url, options) =>
+						ipc.invoke(PLUGIN_SYSTEM_CHANNELS.INSTALL_FROM_URL, sessionId, url, options),
+					installFromPath: (sessionId, path, options) =>
+						ipc.invoke(PLUGIN_SYSTEM_CHANNELS.INSTALL_FROM_PATH, sessionId, path, options),
+					uninstall: (sessionId, id) => ipc.invoke(PLUGIN_SYSTEM_CHANNELS.UNINSTALL, sessionId, id),
+					setEnabled: (sessionId, id, enabled) =>
+						ipc.invoke(PLUGIN_SYSTEM_CHANNELS.SET_ENABLED, sessionId, id, enabled),
+					reload: (sessionId, id) => ipc.invoke(PLUGIN_SYSTEM_CHANNELS.RELOAD, sessionId, id),
+				},
+				shortcuts: {
+					getSettings: (sessionId) => ipc.invoke(PLUGIN_CAPABILITY_CHANNELS.SHORTCUT_SETTINGS_GET, sessionId),
+					setBinding: (sessionId, id, shortcut) =>
+						ipc.invoke(PLUGIN_CAPABILITY_CHANNELS.SHORTCUT_BINDING_SET, sessionId, id, shortcut),
+					resetBinding: (sessionId, id) =>
+						ipc.invoke(PLUGIN_CAPABILITY_CHANNELS.SHORTCUT_BINDING_RESET, sessionId, id),
+					resetAllBindings: (sessionId) =>
+						ipc.invoke(PLUGIN_CAPABILITY_CHANNELS.SHORTCUT_BINDING_RESET_ALL, sessionId),
+					setQuickPanelTrigger: (sessionId, trigger) =>
+						ipc.invoke(PLUGIN_CAPABILITY_CHANNELS.QUICK_PANEL_TRIGGER_SET, sessionId, trigger),
+					setQuickPanelPostSendBehavior: (sessionId, behavior) =>
+						ipc.invoke(PLUGIN_CAPABILITY_CHANNELS.QUICK_PANEL_POST_SEND_BEHAVIOR_SET, sessionId, behavior),
+				},
+				scheduler: {
+					listTasks: (sessionId) => ipc.invoke(PLUGIN_CAPABILITY_CHANNELS.SCHEDULER_TASK_LIST, sessionId),
+					getTask: (sessionId, taskId) =>
+						ipc.invoke(PLUGIN_CAPABILITY_CHANNELS.SCHEDULER_TASK_GET, sessionId, taskId),
+					listHistory: (sessionId, taskId) =>
+						ipc.invoke(PLUGIN_CAPABILITY_CHANNELS.SCHEDULER_TASK_HISTORY_LIST, sessionId, taskId),
+					createTask: (sessionId, data) =>
+						ipc.invoke(PLUGIN_CAPABILITY_CHANNELS.SCHEDULER_TASK_CREATE, sessionId, data),
+					updateTask: (sessionId, taskId, data) =>
+						ipc.invoke(PLUGIN_CAPABILITY_CHANNELS.SCHEDULER_TASK_UPDATE, sessionId, taskId, data),
+					deleteTask: (sessionId, taskId) =>
+						ipc.invoke(PLUGIN_CAPABILITY_CHANNELS.SCHEDULER_TASK_DELETE, sessionId, taskId),
+					setEnabled: (sessionId, taskId, enabled) =>
+						ipc.invoke(PLUGIN_CAPABILITY_CHANNELS.SCHEDULER_TASK_SET_ENABLED, sessionId, taskId, enabled),
+					runTask: (sessionId, taskId) =>
+						ipc.invoke(PLUGIN_CAPABILITY_CHANNELS.SCHEDULER_TASK_RUN, sessionId, taskId),
+					abortTask: (sessionId, taskId) =>
+						ipc.invoke(PLUGIN_CAPABILITY_CHANNELS.SCHEDULER_TASK_ABORT, sessionId, taskId),
+				},
+				webhook: {
+					listEndpoints: (sessionId) => ipc.invoke(PLUGIN_CAPABILITY_CHANNELS.WEBHOOK_ENDPOINT_LIST, sessionId),
+					listProviders: (sessionId) => ipc.invoke(PLUGIN_CAPABILITY_CHANNELS.WEBHOOK_PROVIDER_LIST, sessionId),
+					createEndpoint: (sessionId, data) =>
+						ipc.invoke(PLUGIN_CAPABILITY_CHANNELS.WEBHOOK_ENDPOINT_CREATE, sessionId, data),
+					updateEndpoint: (sessionId, id, data) =>
+						ipc.invoke(PLUGIN_CAPABILITY_CHANNELS.WEBHOOK_ENDPOINT_UPDATE, sessionId, id, data),
+					deleteEndpoint: (sessionId, id) =>
+						ipc.invoke(PLUGIN_CAPABILITY_CHANNELS.WEBHOOK_ENDPOINT_DELETE, sessionId, id),
+					setEnabled: (sessionId, id, enabled) =>
+						ipc.invoke(PLUGIN_CAPABILITY_CHANNELS.WEBHOOK_ENDPOINT_SET_ENABLED, sessionId, id, enabled),
+					testEndpoint: (sessionId, id) =>
+						ipc.invoke(PLUGIN_CAPABILITY_CHANNELS.WEBHOOK_ENDPOINT_TEST, sessionId, id),
+					sendMessage: (sessionId, id, message) =>
+						ipc.invoke(PLUGIN_CAPABILITY_CHANNELS.WEBHOOK_ENDPOINT_SEND, sessionId, id, message),
+				},
+			},
+			list: () => ipc.invoke(PLUGIN_MANAGEMENT_CHANNELS.LIST),
+			listAll: () => ipc.invoke(PLUGIN_MANAGEMENT_CHANNELS.LIST_ALL),
+			installFromArchive: (archiveBuffer, options) =>
+				ipc.invoke(PLUGIN_MANAGEMENT_CHANNELS.INSTALL_FROM_ARCHIVE, archiveBuffer, options),
+			installFromUrl: (url, options) => ipc.invoke(PLUGIN_MANAGEMENT_CHANNELS.INSTALL_FROM_URL, url, options),
+			installFromPath: (path, options) => ipc.invoke(PLUGIN_MANAGEMENT_CHANNELS.INSTALL_FROM_PATH, path, options),
+			uninstall: (id) => ipc.invoke(PLUGIN_MANAGEMENT_CHANNELS.UNINSTALL, id),
+			setEnabled: (id, enabled) => ipc.invoke(PLUGIN_MANAGEMENT_CHANNELS.SET_ENABLED, id, enabled),
+			grantPermissions: (id, permissions) =>
+				ipc.invoke(PLUGIN_MANAGEMENT_CHANNELS.GRANT_PERMISSIONS, id, permissions),
+			revokePermissions: (id, permissions) =>
+				ipc.invoke(PLUGIN_MANAGEMENT_CHANNELS.REVOKE_PERMISSIONS, id, permissions),
+			grantCommands: (id, names) => ipc.invoke(PLUGIN_MANAGEMENT_CHANNELS.GRANT_COMMANDS, id, names),
+			revokeCommands: (id, names) => ipc.invoke(PLUGIN_MANAGEMENT_CHANNELS.REVOKE_COMMANDS, id, names),
+			applySetup: (id, input) => ipc.invoke(PLUGIN_MANAGEMENT_CHANNELS.APPLY_SETUP, id, input),
+			getCliProviderStatus: (pluginId, providerId) =>
+				ipc.invoke(PLUGIN_EXECUTION_CHANNELS.CLI_PROVIDER_STATUS_GET, pluginId, providerId),
+			retryCliProvider: (pluginId, providerId) =>
+				ipc.invoke(PLUGIN_EXECUTION_CHANNELS.CLI_PROVIDER_RETRY, pluginId, providerId),
+			runCliProvider: (pluginId, providerId, args, options) =>
+				ipc.invoke(PLUGIN_EXECUTION_CHANNELS.CLI_PROVIDER_RUN, pluginId, providerId, args, options),
+			spawnCliProvider: (pluginId, providerId, args, options) =>
+				ipc.invoke(PLUGIN_EXECUTION_CHANNELS.CLI_PROVIDER_SPAWN, pluginId, providerId, args, options),
+			stopCliProviderSpawn: (pluginId, spawnId) =>
+				ipc.invoke(PLUGIN_EXECUTION_CHANNELS.CLI_PROVIDER_SPAWN_STOP, pluginId, spawnId),
+			getCliProviderSpawnStatus: (pluginId, spawnId) =>
+				ipc.invoke(PLUGIN_EXECUTION_CHANNELS.CLI_PROVIDER_SPAWN_STATUS, pluginId, spawnId),
+			onCliProviderStatusChanged: (handler) =>
+				onIpcEvent(ipc, PLUGIN_EXECUTION_CHANNELS.CLI_PROVIDER_STATUS, handler),
+			onCliProviderSpawnExit: (handler) =>
+				onIpcEvent(ipc, PLUGIN_EXECUTION_CHANNELS.CLI_PROVIDER_SPAWN_EXIT, handler),
+			getServiceStatus: (sessionId, serviceId) =>
+				ipc.invoke(PLUGIN_EXECUTION_CHANNELS.SERVICE_STATUS_GET, sessionId, serviceId),
+			getServicePlatform: (sessionId) => ipc.invoke(PLUGIN_EXECUTION_CHANNELS.SERVICE_PLATFORM_GET, sessionId),
+			installService: (sessionId, serviceId, artifacts) =>
+				ipc.invoke(PLUGIN_EXECUTION_CHANNELS.SERVICE_INSTALL, sessionId, serviceId, artifacts),
+			startService: (sessionId, serviceId) =>
+				ipc.invoke(PLUGIN_EXECUTION_CHANNELS.SERVICE_START, sessionId, serviceId),
+			stopService: (sessionId, serviceId) =>
+				ipc.invoke(PLUGIN_EXECUTION_CHANNELS.SERVICE_STOP, sessionId, serviceId),
+			restartService: (sessionId, serviceId) =>
+				ipc.invoke(PLUGIN_EXECUTION_CHANNELS.SERVICE_RESTART, sessionId, serviceId),
+			getServiceConnection: (sessionId, serviceId, credentialId) =>
+				ipc.invoke(PLUGIN_EXECUTION_CHANNELS.SERVICE_CONNECTION, sessionId, serviceId, credentialId),
+			requestService: (sessionId, serviceId, request) =>
+				ipc.invoke(PLUGIN_EXECUTION_CHANNELS.SERVICE_REQUEST, sessionId, serviceId, request),
+			readServiceDataFile: (sessionId, serviceId, path, encoding) =>
+				ipc.invoke(PLUGIN_EXECUTION_CHANNELS.SERVICE_DATA_READ, sessionId, serviceId, path, encoding),
+			writeServiceDataFile: (sessionId, serviceId, path, data, encoding) =>
+				ipc.invoke(PLUGIN_EXECUTION_CHANNELS.SERVICE_DATA_WRITE, sessionId, serviceId, path, data, encoding),
+			reportServiceReady: (sessionId, serviceId, ready) =>
+				ipc.invoke(PLUGIN_EXECUTION_CHANNELS.SERVICE_READY_REPORT, sessionId, serviceId, ready),
+			onServiceStatusChanged: (handler) => onIpcEvent(ipc, PLUGIN_EXECUTION_CHANNELS.SERVICE_STATUS, handler),
+			runCommand: (sessionId, file, args, options) =>
+				ipc.invoke(PLUGIN_EXECUTION_CHANNELS.COMMAND_RUN, sessionId, file, args, options),
+			spawnCommand: (sessionId, file, args, options) =>
+				ipc.invoke(PLUGIN_EXECUTION_CHANNELS.COMMAND_SPAWN, sessionId, file, args, options),
+			stopCommandSpawn: (sessionId, spawnId) =>
+				ipc.invoke(PLUGIN_EXECUTION_CHANNELS.COMMAND_SPAWN_STOP, sessionId, spawnId),
+			getCommandSpawnStatus: (sessionId, spawnId) =>
+				ipc.invoke(PLUGIN_EXECUTION_CHANNELS.COMMAND_SPAWN_STATUS, sessionId, spawnId),
+			onCommandSpawnExit: (handler) => onIpcEvent(ipc, PLUGIN_EXECUTION_CHANNELS.COMMAND_SPAWN_EXIT, handler),
+			offscreenCapture: (pluginId, options) =>
+				ipc.invoke(PLUGIN_EXECUTION_CHANNELS.OFFSCREEN_CAPTURE, pluginId, options),
+			offscreenRelease: (pluginId, sessionKey) =>
+				ipc.invoke(PLUGIN_EXECUTION_CHANNELS.OFFSCREEN_RELEASE, pluginId, sessionKey),
+			reload: (id) => ipc.invoke(PLUGIN_MANAGEMENT_CHANNELS.RELOAD, id),
+			startDevWatch: (sessionId, id, projectDir) =>
+				ipc.invoke(PLUGIN_MANAGEMENT_CHANNELS.DEV_WATCH_START, sessionId, id, projectDir),
+			stopDevWatch: (sessionId, id) => ipc.invoke(PLUGIN_MANAGEMENT_CHANNELS.DEV_WATCH_STOP, sessionId, id),
+			registerModeGate: (pluginId) => ipc.invoke(PLUGIN_MANAGEMENT_CHANNELS.REGISTER_MODE_GATE, pluginId),
+			setContributionMode: (pluginId, active) =>
+				ipc.invoke(PLUGIN_MANAGEMENT_CHANNELS.SET_CONTRIBUTION_MODE, pluginId, active),
+			reportAgentContributionHostReady: () => ipc.invoke(PLUGIN_CONTRIBUTION_CHANNELS.HOST_READY),
+			beginAgentContributionsLoad: (pluginId, activationId) =>
+				ipc.invoke(PLUGIN_CONTRIBUTION_CHANNELS.BEGIN_LOAD, pluginId, activationId),
+			commitAgentContributionsLoad: (pluginId, activationId) =>
+				ipc.invoke(PLUGIN_CONTRIBUTION_CHANNELS.COMMIT_LOAD, pluginId, activationId),
+			registerAgentTool: (pluginId, registration) =>
+				ipc.invoke(PLUGIN_CONTRIBUTION_CHANNELS.TOOL_REGISTER, pluginId, registration),
+			unregisterAgentTool: (pluginId, toolId, activationId) =>
+				ipc.invoke(PLUGIN_CONTRIBUTION_CHANNELS.TOOL_UNREGISTER, pluginId, toolId, activationId),
+			registerAgentHook: (pluginId, registration) =>
+				ipc.invoke(PLUGIN_CONTRIBUTION_CHANNELS.HOOK_REGISTER, pluginId, registration),
+			unregisterAgentHook: (pluginId, hookId, activationId) =>
+				ipc.invoke(PLUGIN_CONTRIBUTION_CHANNELS.HOOK_UNREGISTER, pluginId, hookId, activationId),
+			clearAgentContributions: (pluginId, activationId) =>
+				ipc.invoke(PLUGIN_CONTRIBUTION_CHANNELS.CLEAR, pluginId, activationId),
+			onAgentToolRequest: (handler) => onIpcEvent(ipc, PLUGIN_CONTRIBUTION_CHANNELS.TOOL_REQUEST, handler),
+			respondAgentTool: (requestId, result) =>
+				ipc.invoke(PLUGIN_CONTRIBUTION_CHANNELS.TOOL_RESPONSE, requestId, result),
+			onAgentHookRequest: (handler) => onIpcEvent(ipc, PLUGIN_CONTRIBUTION_CHANNELS.HOOK_REQUEST, handler),
+			onAgentHandlerReleased: (handler) => onIpcEvent(ipc, PLUGIN_CONTRIBUTION_CHANNELS.HANDLER_RELEASE, handler),
+			respondAgentHook: (requestId, result) =>
+				ipc.invoke(PLUGIN_CONTRIBUTION_CHANNELS.HOOK_RESPONSE, requestId, result),
+			registerAppAction: (pluginId, registration) =>
+				ipc.invoke(PLUGIN_CONTRIBUTION_CHANNELS.APP_ACTION_REGISTER, pluginId, registration),
+			commitAppActionActivation: (pluginId, activationId) =>
+				ipc.invoke(PLUGIN_CONTRIBUTION_CHANNELS.APP_ACTION_COMMIT, pluginId, activationId),
+			abortAppActionActivation: (pluginId, activationId) =>
+				ipc.invoke(PLUGIN_CONTRIBUTION_CHANNELS.APP_ACTION_ABORT, pluginId, activationId),
+			unregisterAppAction: (pluginId, actionId, activationId) =>
+				ipc.invoke(PLUGIN_CONTRIBUTION_CHANNELS.APP_ACTION_UNREGISTER, pluginId, actionId, activationId),
+			onAppActionRequest: (handler) => onIpcEvent(ipc, PLUGIN_CONTRIBUTION_CHANNELS.APP_ACTION_REQUEST, handler),
+			onAppActionCancel: (handler) => onIpcEvent(ipc, PLUGIN_CONTRIBUTION_CHANNELS.APP_ACTION_CANCEL, handler),
+			respondAppAction: (requestId, result) =>
+				ipc.invoke(PLUGIN_CONTRIBUTION_CHANNELS.APP_ACTION_RESPONSE, requestId, result),
+			registerContinuationProvider: (pluginId, registration) =>
+				ipc.invoke(PLUGIN_CONTRIBUTION_CHANNELS.CONTINUATION_REGISTER, pluginId, registration),
+			unregisterContinuationProvider: (pluginId, providerId, activationId) =>
+				ipc.invoke(PLUGIN_CONTRIBUTION_CHANNELS.CONTINUATION_UNREGISTER, pluginId, providerId, activationId),
+			onContinuationRequest: (handler) =>
+				onIpcEvent(ipc, PLUGIN_CONTRIBUTION_CHANNELS.CONTINUATION_REQUEST, handler),
+			respondContinuation: (requestId, result) =>
+				ipc.invoke(PLUGIN_CONTRIBUTION_CHANNELS.CONTINUATION_RESPONSE, requestId, result),
+			registerSystemPromptProvider: (pluginId, registration) =>
+				ipc.invoke(PLUGIN_CONTRIBUTION_CHANNELS.SYSTEM_PROMPT_REGISTER, pluginId, registration),
+			unregisterSystemPromptProvider: (pluginId, providerId, activationId) =>
+				ipc.invoke(PLUGIN_CONTRIBUTION_CHANNELS.SYSTEM_PROMPT_UNREGISTER, pluginId, providerId, activationId),
+			onSystemPromptRequest: (handler) =>
+				onIpcEvent(ipc, PLUGIN_CONTRIBUTION_CHANNELS.SYSTEM_PROMPT_REQUEST, handler),
+			respondSystemPrompt: (requestId, result) =>
+				ipc.invoke(PLUGIN_CONTRIBUTION_CHANNELS.SYSTEM_PROMPT_RESPONSE, requestId, result),
+			registerMediaProvider: (pluginId, registration) =>
+				ipc.invoke(PLUGIN_MEDIA_CHANNELS.REGISTER, pluginId, registration),
+			unregisterMediaProvider: (pluginId, providerId, activationId) =>
+				ipc.invoke(PLUGIN_MEDIA_CHANNELS.UNREGISTER, pluginId, providerId, activationId),
+			onMediaProvidersChanged: (handler) => onIpcEvent(ipc, PLUGIN_MEDIA_CHANNELS.CHANGED, handler),
+			onOcrProvidersChanged: (handler) => onIpcEvent(ipc, PLUGIN_OCR_CHANNELS.CHANGED, handler),
+			onMediaProviderRequest: (handler) => onIpcEvent(ipc, PLUGIN_MEDIA_CHANNELS.REQUEST, handler),
+			respondMediaProvider: (requestId, result) => ipc.invoke(PLUGIN_MEDIA_CHANNELS.RESPONSE, requestId, result),
+			uploadMediaProviderInput: (requestId, inputId, request) =>
+				ipc.invoke(PLUGIN_MEDIA_CHANNELS.UPLOAD_INPUT, requestId, inputId, request),
+			readMediaProviderInput: (requestId, inputId) =>
+				ipc.invoke(PLUGIN_MEDIA_CHANNELS.READ_INPUT, requestId, inputId),
+			registerOcrProvider: (pluginId, registration) =>
+				ipc.invoke(PLUGIN_OCR_CHANNELS.REGISTER, pluginId, registration),
+			unregisterOcrProvider: (pluginId, providerId, activationId) =>
+				ipc.invoke(PLUGIN_OCR_CHANNELS.UNREGISTER, pluginId, providerId, activationId),
+			onOcrProviderRequest: (handler) => onIpcEvent(ipc, PLUGIN_OCR_CHANNELS.REQUEST, handler),
+			onOcrProviderCancel: (handler) => onIpcEvent(ipc, PLUGIN_OCR_CHANNELS.CANCEL, handler),
+			respondOcrProvider: (requestId, result) => ipc.invoke(PLUGIN_OCR_CHANNELS.RESPONSE, requestId, result),
+			reportOcrProviderProgress: (requestId, event) => ipc.invoke(PLUGIN_OCR_CHANNELS.PROGRESS, requestId, event),
+			getOcrProviderInputUrl: (requestId, inputId) =>
+				ipc.invoke(PLUGIN_OCR_CHANNELS.GET_INPUT_URL, requestId, inputId),
+			uploadOcrProviderInput: (requestId, inputId, request) =>
+				ipc.invoke(PLUGIN_OCR_CHANNELS.UPLOAD_INPUT, requestId, inputId, request),
+			secretsGet: (sessionId, key) => ipc.invoke(PLUGIN_EXECUTION_CHANNELS.SECRETS_GET, sessionId, key),
+			secretsHas: (sessionId, key) => ipc.invoke(PLUGIN_EXECUTION_CHANNELS.SECRETS_HAS, sessionId, key),
+			secretsKeys: (sessionId) => ipc.invoke(PLUGIN_EXECUTION_CHANNELS.SECRETS_KEYS, sessionId),
+			secretsSet: (sessionId, key, value) =>
+				ipc.invoke(PLUGIN_EXECUTION_CHANNELS.SECRETS_SET, sessionId, key, value),
+			secretsDelete: (sessionId, key) => ipc.invoke(PLUGIN_EXECUTION_CHANNELS.SECRETS_DELETE, sessionId, key),
+			networkRequest: (sessionId, request) =>
+				ipc.invoke(PLUGIN_EXECUTION_CHANNELS.NETWORK_REQUEST, sessionId, request),
+			gatewayRequest: (sessionId, request) =>
+				ipc.invoke(PLUGIN_EXECUTION_CHANNELS.GATEWAY_REQUEST, sessionId, request),
+			storageList: (sessionId, prefix) => ipc.invoke(PLUGIN_EXECUTION_CHANNELS.STORAGE_LIST, sessionId, prefix),
+			storageReadFile: (sessionId, path, encoding) =>
+				ipc.invoke(PLUGIN_EXECUTION_CHANNELS.STORAGE_READ_FILE, sessionId, path, encoding),
+			storageReadSnapshot: (sessionId, paths, encoding) =>
+				ipc.invoke(PLUGIN_EXECUTION_CHANNELS.STORAGE_READ_SNAPSHOT, sessionId, paths, encoding),
+			storageCommit: (sessionId, changes, expectedRevision) =>
+				ipc.invoke(PLUGIN_EXECUTION_CHANNELS.STORAGE_COMMIT, sessionId, changes, expectedRevision),
+			storagePutBlob: (sessionId, input) => ipc.invoke(PLUGIN_EXECUTION_CHANNELS.STORAGE_PUT_BLOB, sessionId, input),
+			storagePutBlobFromFile: (sessionId, input) => {
+				const path = webUtils.getPathForFile(input.file);
+				if (!path) return Promise.reject(new Error("Plugin blob import requires a filesystem-backed File"));
+				return ipc.invoke(PLUGIN_EXECUTION_CHANNELS.STORAGE_PUT_BLOB_FROM_FILE, sessionId, {
+					...(input.id === undefined ? {} : { id: input.id }),
+					path,
+					mimeType: input.mimeType,
+				});
+			},
+			storageReadBlob: (sessionId, id) => ipc.invoke(PLUGIN_EXECUTION_CHANNELS.STORAGE_READ_BLOB, sessionId, id),
+			storageGetBlobRef: (sessionId, id) =>
+				ipc.invoke(PLUGIN_EXECUTION_CHANNELS.STORAGE_GET_BLOB_REF, sessionId, id),
+			storageDeleteBlob: (sessionId, id) => ipc.invoke(PLUGIN_EXECUTION_CHANNELS.STORAGE_DELETE_BLOB, sessionId, id),
+			onSecretsChanged,
+			onPluginsChanged: (listener) => {
+				const handler = (_event: IpcRendererEvent, payload?: Parameters<typeof listener>[0]) => listener(payload);
+				ipc.on(PLUGIN_CONTRIBUTION_CHANNELS.PLUGINS_CHANGED, handler);
+				return () => ipc.removeListener(PLUGIN_CONTRIBUTION_CHANNELS.PLUGINS_CHANGED, handler);
+			},
+		},
+	};
+}

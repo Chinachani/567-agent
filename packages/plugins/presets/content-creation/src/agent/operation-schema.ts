@@ -1,0 +1,259 @@
+import {
+	CONTENT_GENERATION_SOURCE_ROLES,
+	CONTENT_VIDEO_GENERATION_INTENTS,
+} from "../generation/generation-intent";
+import type { ContentNodeKind, ContentWorkflowDeliverable } from "../project/types";
+import { VIDEO_PROMPT_PLAN_SCHEMA } from "./generation-prompt-plan";
+import { KEYFRAME_PROMPT_PLAN_SCHEMA } from "./keyframe-prompt-plan";
+import {
+	CONTENT_VIDEO_REFERENCE_SEMANTIC_ROLES,
+} from "./video-shot-plan";
+import {
+	CONTENT_VIDEO_SHOT_STRATEGIES,
+	contentVideoShotStrategyDescription,
+} from "./video-shot-methods";
+
+const TARGET_INPUT = {
+	type: "string",
+	description:
+		"Semantic target input. Use promptSources, referenceImages, contentSources, or mediaSources; never use internal port handles.",
+} as const;
+
+const MODEL_SELECTION_PROPERTIES = {
+	modelSelection: { type: "string", enum: ["automatic", "specific"] },
+	providerId: { type: "string" },
+	modelId: { type: "string" },
+	modeId: { type: "string" },
+} as const;
+
+const NODE_DATA_PROPERTIES = {
+	prompt: { type: "string" },
+	aspectRatio: { type: "string" },
+	quality: { type: "string" },
+	resolution: { type: "string" },
+	duration: { type: "number" },
+	assetIds: { type: "array", items: { type: "string" } },
+	...MODEL_SELECTION_PROPERTIES,
+} as const;
+
+const LOW_LEVEL_SOURCE_SCHEMA = {
+	type: "object",
+	properties: {
+		sourceNodeId: { type: "string", minLength: 1 },
+		assetIds: { type: "array", items: { type: "string" } },
+		role: { type: "string", enum: CONTENT_GENERATION_SOURCE_ROLES },
+	},
+	required: ["sourceNodeId"],
+	additionalProperties: false,
+} as const;
+
+const HIGH_LEVEL_SOURCE_SCHEMA = {
+	type: "object",
+	properties: {
+		sourceNodeId: { type: "string", minLength: 1 },
+		assetIds: { type: "array", items: { type: "string" } },
+		alias: { type: "string", minLength: 1 },
+		semanticRole: { type: "string", enum: CONTENT_VIDEO_REFERENCE_SEMANTIC_ROLES },
+		instruction: { type: "string", minLength: 1 },
+	},
+	required: ["sourceNodeId"],
+	additionalProperties: false,
+} as const;
+
+const KEYFRAME_SCHEMA = {
+	type: "object",
+	properties: {
+		nodeId: { type: "string", minLength: 1 },
+		promptPlan: KEYFRAME_PROMPT_PLAN_SCHEMA,
+	},
+	required: ["nodeId", "promptPlan"],
+	additionalProperties: false,
+} as const;
+
+export const CONTENT_AGENT_OPERATION_TYPES = [
+	"update_workflow",
+	"add_node",
+	"rename_node",
+	"set_node_purpose",
+	"update_node",
+	"duplicate_node",
+	"bind_assets",
+	"configure_generation",
+	"configure_video_shot",
+	"delete_node",
+	"connect_nodes",
+	"delete_edge",
+] as const;
+
+type ContentAgentOperationType = (typeof CONTENT_AGENT_OPERATION_TYPES)[number];
+
+const OPERATION_DESCRIPTIONS: Readonly<Record<ContentAgentOperationType, string>> = {
+	update_workflow: "Update workflow-level title, objective, or deliverables without changing graph nodes.",
+	add_node:
+		"Add one semantic workflow node. Keep single-use prompts on their generator; add a prompt node only for intentional verbatim reuse by multiple consumers.",
+	rename_node: "Change one existing node's display name without changing its purpose or generation configuration.",
+	set_node_purpose: "Set the semantic role of one existing node so later inspection and planning can explain it.",
+	update_node: "Update editable data on one existing node without replacing the node or its connections.",
+	duplicate_node: "Duplicate one existing node's current semantic configuration under a new or generated ID.",
+	bind_assets:
+		"Bind concrete imported asset IDs to an image-generator. Execute the assets operation first; video media belongs in configure_video_shot.",
+	configure_generation:
+		"Low-level compatibility or media-role repair for an existing video-generator. Prefer configure_video_shot for Agent-authored video work.",
+	configure_video_shot:
+		"Configure Agent-authored video work with an explicit creative strategy, method-specific prompt plan, and semantic media authorities.",
+	delete_node: "Delete one node; its incident connections are removed by the atomic project command.",
+	connect_nodes:
+		"Connect ordinary prompt or workflow topology. Do not use this operation for video media roles or imported image asset bindings.",
+	delete_edge: "Delete one existing connection by the edge ID returned from the inspect operation.",
+};
+
+function operation(
+	type: ContentAgentOperationType,
+	properties: Record<string, unknown>,
+	required: readonly string[],
+) {
+	return {
+		type: "object",
+		description: OPERATION_DESCRIPTIONS[type],
+		properties: { type: { const: type }, ...properties },
+		required: ["type", ...required],
+		additionalProperties: false,
+	} as const;
+}
+
+export function createContentAgentOperationSchema(
+	nodeKinds: readonly ContentNodeKind[],
+	deliverableTypes: readonly ContentWorkflowDeliverable["type"][],
+) {
+	const deliverables = {
+		type: "array",
+		items: {
+			type: "object",
+			properties: {
+				type: { type: "string", enum: deliverableTypes },
+				fromNode: { type: "string", minLength: 1 },
+				description: { type: "string", minLength: 1 },
+			},
+			required: ["type", "fromNode", "description"],
+			additionalProperties: false,
+		},
+	} as const;
+	const videoShot = operation("configure_video_shot", {
+			targetNodeId: {
+				type: "string",
+				minLength: 1,
+				description: "Receiving video-generator node. Media inputs belong in sources or keyframes.",
+			},
+			strategy: {
+				type: "string",
+				enum: CONTENT_VIDEO_SHOT_STRATEGIES,
+				description:
+					`Generation method. Use automatic only after expressing the intended method through promptPlan and media controls.\n${contentVideoShotStrategyDescription()}`,
+			},
+			controlRequirements: {
+				type: "object",
+				properties: {
+					exactOpening: { type: "boolean" },
+					exactEnding: {
+						type: "boolean",
+						description:
+							"Hard final-frame anchor. Set true only when distinct first and last keyframe plans are supplied; a stable finalState alone does not require this.",
+					},
+					requiresSceneReference: { type: "boolean" },
+				},
+				additionalProperties: false,
+			},
+			sources: {
+				type: "array",
+				description:
+					"High-level semantic media sources. Do not add raw media connect_nodes operations and do not send low-level role fields.",
+				items: HIGH_LEVEL_SOURCE_SCHEMA,
+			},
+			keyframes: {
+				type: "object",
+				description:
+					"Endpoint plans for first-last-frame only. The host preserves the first generator's own valid source authorities, edits its generated image into last as image-to-image, and binds both to a video interpolation mode. Do not connect these nodes manually or generate last independently.",
+				properties: { first: KEYFRAME_SCHEMA, last: KEYFRAME_SCHEMA },
+				additionalProperties: false,
+			},
+			promptPlan: VIDEO_PROMPT_PLAN_SCHEMA,
+			aspectRatio: { type: "string" },
+			duration: { type: "number" },
+			...MODEL_SELECTION_PROPERTIES,
+		}, ["targetNodeId", "promptPlan"]);
+
+	return {
+		type: "array",
+		minItems: 1,
+		maxItems: 50,
+		items: {
+			oneOf: [
+				{
+					...operation("update_workflow", {
+						title: { type: "string" },
+						objective: { type: "string" },
+						deliverables,
+					}, []),
+					minProperties: 2,
+				},
+				operation("add_node", {
+					id: { type: "string", minLength: 1 },
+					kind: {
+						type: "string",
+						enum: nodeKinds,
+						description:
+							"Prompt is optional and only for one verbatim prompt fragment intentionally shared by at least two consumers. Put single-use prompts directly on image-generator or video-generator nodes.",
+					},
+					afterNodeId: { type: "string", minLength: 1 },
+					name: { type: "string" },
+					purpose: { type: "string" },
+					...NODE_DATA_PROPERTIES,
+				}, ["kind"]),
+				operation("rename_node", {
+					nodeId: { type: "string", minLength: 1 },
+					name: { type: "string", minLength: 1 },
+				}, ["nodeId", "name"]),
+				operation("set_node_purpose", {
+					nodeId: { type: "string", minLength: 1 },
+					purpose: { type: "string", minLength: 1 },
+				}, ["nodeId", "purpose"]),
+				{
+					...operation("update_node", {
+						nodeId: { type: "string", minLength: 1 },
+						...NODE_DATA_PROPERTIES,
+					}, ["nodeId"]),
+					minProperties: 3,
+				},
+				operation("duplicate_node", {
+					nodeId: { type: "string", minLength: 1 },
+					id: { type: "string", minLength: 1 },
+				}, ["nodeId"]),
+				operation("bind_assets", {
+					sourceNodeId: { type: "string", minLength: 1 },
+					targetNodeId: { type: "string", minLength: 1 },
+					assetIds: { type: "array", minItems: 1, items: { type: "string", minLength: 1 } },
+					targetInput: TARGET_INPUT,
+				}, ["sourceNodeId", "targetNodeId", "assetIds", "targetInput"]),
+				operation("configure_generation", {
+					targetNodeId: { type: "string", minLength: 1 },
+					generationIntent: { type: "string", enum: CONTENT_VIDEO_GENERATION_INTENTS },
+					sources: { type: "array", items: LOW_LEVEL_SOURCE_SCHEMA },
+					...MODEL_SELECTION_PROPERTIES,
+				}, ["targetNodeId", "generationIntent"]),
+				videoShot,
+				operation("delete_node", {
+					nodeId: { type: "string", minLength: 1 },
+				}, ["nodeId"]),
+				operation("connect_nodes", {
+					edgeId: { type: "string", minLength: 1 },
+					sourceNodeId: { type: "string", minLength: 1 },
+					targetNodeId: { type: "string", minLength: 1 },
+					targetInput: TARGET_INPUT,
+				}, ["sourceNodeId", "targetNodeId"]),
+				operation("delete_edge", {
+					edgeId: { type: "string", minLength: 1 },
+				}, ["edgeId"]),
+			],
+		},
+	} as const;
+}

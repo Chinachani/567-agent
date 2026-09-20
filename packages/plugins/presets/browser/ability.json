@@ -1,0 +1,134 @@
+{
+	"schemaVersion": 1,
+	"type": "plugin",
+	"slug": "browser",
+	"version": "0.1.1",
+	"detail": {
+		"blocks": [
+			{
+				"type": "hero",
+				"eyebrow": "真实浏览器自动化",
+				"title": "让 Agent 在你看得见的浏览器里工作",
+				"description": "复用你的登录态，读取真实页面并完成多步骤操作；涉及提交、发送或删除时始终停下来确认。",
+				"badges": ["可见窗口", "会话隔离", "提交前确认"]
+			},
+			{
+				"type": "stats",
+				"title": "适合哪些网页任务",
+				"items": [
+					{ "value": "真实", "label": "页面环境", "description": "不是静态 HTML 或模拟器" },
+					{ "value": "多步", "label": "任务流程", "description": "导航、填写、等待与校验" },
+					{ "value": "可控", "label": "关键动作", "description": "提交前保留人工确认" }
+				]
+			},
+			{
+				"type": "comparison",
+				"title": "从“查资料”到“完成任务”",
+				"left": {
+					"title": "只做网页搜索",
+					"items": ["只能返回搜索结果", "遇到登录态和复杂表单就会中断", "无法复用当前页面上下文"]
+				},
+				"right": {
+					"title": "使用 Browser",
+					"tone": "accent",
+					"items": ["打开你正在使用的真实网站", "读取页面结构并执行多步操作", "高风险动作交还给你确认"]
+				}
+			},
+			{
+				"type": "feature-grid",
+				"title": "让 Agent 真正操作网页",
+				"items": [
+					{
+						"title": "读取真实页面",
+						"description": "导航到网页并通过无障碍树快照定位内容，比传整页 HTML 更节省上下文。",
+						"icon": "solar:browser-linear"
+					},
+					{
+						"title": "点击与填写",
+						"description": "支持点击、输入、选择、滚动和等待页面元素，可完成多步骤网页任务。",
+						"icon": "solar:cursor-square-linear"
+					},
+					{
+						"title": "登录态复用",
+						"description": "登录和二次验证由你在可见窗口完成，后续任务可按 profile 安全复用状态。",
+						"icon": "solar:shield-user-linear"
+					},
+					{
+						"title": "任务与账号隔离",
+						"description": "不同 Agent 任务使用独立 session，同一任务的多个账号也可分别保存状态。",
+						"icon": "solar:layers-minimalistic-linear"
+					}
+				]
+			},
+			{
+				"type": "markdown",
+				"path": "presentation/README.md"
+			}
+		],
+		"i18n": {
+			"en": {
+				"blocks": [
+					{
+						"type": "hero",
+						"eyebrow": "REAL BROWSER AUTOMATION",
+						"title": "Let the agent work in a browser you can see",
+						"description": "Reuse your sign-in state, read real pages and complete multi-step tasks. The agent always pauses before submitting, sending or deleting.",
+						"badges": ["Visible window", "Isolated sessions", "Confirm before submit"]
+					},
+					{
+						"type": "stats",
+						"title": "What it is built for",
+						"items": [
+							{ "value": "Real", "label": "Page environment", "description": "Not static HTML or a simulator" },
+							{ "value": "Multi-step", "label": "Task flows", "description": "Navigate, fill, wait and verify" },
+							{ "value": "Controlled", "label": "Critical actions", "description": "Keep human confirmation before submit" }
+						]
+					},
+					{
+						"type": "comparison",
+						"title": "From finding information to completing work",
+						"left": {
+							"title": "Web search only",
+							"items": ["Returns search results only", "Stops at sign-in and complex forms", "Cannot reuse the current page context"]
+						},
+						"right": {
+							"title": "With Browser",
+							"tone": "accent",
+							"items": ["Open the real site you use", "Read structure and execute multi-step actions", "Hand high-risk actions back for confirmation"]
+						}
+					},
+					{
+						"type": "feature-grid",
+						"title": "Let the agent operate the real web",
+						"items": [
+							{
+								"title": "Read real pages",
+								"description": "Navigate and locate content through accessibility-tree snapshots with less context than full HTML.",
+								"icon": "solar:browser-linear"
+							},
+							{
+								"title": "Click and fill",
+								"description": "Click, type, select, scroll and wait for elements across multi-step web tasks.",
+								"icon": "solar:cursor-square-linear"
+							},
+							{
+								"title": "Reuse sign-in state",
+								"description": "Handle sign-in and 2FA in a visible window, then safely reuse state through profiles.",
+								"icon": "solar:shield-user-linear"
+							},
+							{
+								"title": "Task and account isolation",
+								"description": "Agent tasks use separate sessions, and multiple accounts within one task can keep separate state.",
+								"icon": "solar:layers-minimalistic-linear"
+							}
+						]
+					},
+					{
+						"type": "markdown",
+						"path": "presentation/README.en.md"
+					}
+				]
+			}
+		}
+	}
+}

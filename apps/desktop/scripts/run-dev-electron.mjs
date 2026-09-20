@@ -1,0 +1,129 @@
+import { spawn } from "node:child_process";
+import { Socket } from "node:net";
+import { homedir } from "node:os";
+import { join, resolve } from "node:path";
+import { pathToFileURL } from "node:url";
+import electronPath from "electron";
+import { resolveSystemPluginSelection } from "./stage-system-plugins.mjs";
+
+const projectRoot = join(import.meta.dirname, "..");
+
+function resolveRendererPort() {
+	const rawPort = process.env.VETTA_DESKTOP_DEV_PORT ?? "3020";
+	const port = Number(rawPort);
+	if (!Number.isInteger(port) || port < 1 || port > 65_535) {
+		throw new Error(`Invalid VETTA_DESKTOP_DEV_PORT: ${rawPort}`);
+	}
+	return port;
+}
+
+function waitForExit(child) {
+	return new Promise((resolve, reject) => {
+		child.once("error", reject);
+		child.once("exit", (code, signal) => resolve({ code, signal }));
+	});
+}
+
+export async function waitForRendererPort(
+	port,
+	{ timeoutMs = 120_000, retryIntervalMs = 100 } = {},
+) {
+	const startedAt = Date.now();
+	while (Date.now() - startedAt < timeoutMs) {
+		if (await canConnect(port)) return;
+		await new Promise((resolve) => setTimeout(resolve, retryIntervalMs));
+	}
+	throw new Error(`Timed out after ${timeoutMs}ms waiting for renderer port 127.0.0.1:${port}`);
+}
+
+function canConnect(port) {
+	return new Promise((resolve) => {
+		const socket = new Socket();
+		const finish = (connected) => {
+			socket.removeAllListeners();
+			socket.destroy();
+			resolve(connected);
+		};
+		socket.setTimeout(1_000);
+		socket.once("connect", () => finish(true));
+		socket.once("error", () => finish(false));
+		socket.once("timeout", () => finish(false));
+		socket.connect(port, "127.0.0.1");
+	});
+}
+
+export function resolveDevLaunchEnvironment(environment = process.env, homeDirectory = homedir()) {
+	const verificationEnabled = environment.VETTA_UI_VERIFICATION === "1";
+	const configDir =
+		environment.VETTA_CONFIG_DIR?.trim() || (verificationEnabled ? ".vetta-ui-verify" : ".vetta-dev");
+	const configuredUserDataDir = environment.VETTA_DESKTOP_USER_DATA_DIR?.trim();
+	const userDataDir = configuredUserDataDir
+		? resolve(configuredUserDataDir)
+		: join(homeDirectory, configDir, "electron-user-data");
+	return { configDir, userDataDir };
+}
+
+export function resolveDevPluginIds(
+	environment = process.env,
+	tenantResolver = resolveSystemPluginSelection,
+) {
+	if (Object.hasOwn(environment, "VETTA_PLUGIN_DEV")) {
+		return environment.VETTA_PLUGIN_DEV ?? "";
+	}
+	const tenant = tenantResolver(environment.VETTA_TENANT, "development");
+	return tenant.pluginIds ? Array.from(tenant.pluginIds).sort().join(",") : "";
+}
+
+export function resolveDevProcessEnvironment(environment = process.env) {
+	return {
+		...environment,
+		// Keep local action/plugin iteration frictionless without weakening packaged builds.
+		// Set to "0" when manually testing the approval flow in development.
+		VETTA_DEV_AUTO_APPROVE_ACTIONS: environment.VETTA_DEV_AUTO_APPROVE_ACTIONS ?? "1",
+	};
+}
+
+async function main() {
+	const rendererPort = resolveRendererPort();
+	const rendererUrl = `http://127.0.0.1:${rendererPort}`;
+	await waitForRendererPort(rendererPort);
+
+	const { configDir, userDataDir } = resolveDevLaunchEnvironment();
+	const pluginIds = resolveDevPluginIds();
+	const electronArgs = [];
+	if (process.env.VETTA_UI_VERIFICATION === "1") {
+		if (process.env.VETTA_DESKTOP_RUNTIME_CANARY === "1") {
+			electronArgs.push("--disable-gpu");
+			electronArgs.push("--no-sandbox");
+		}
+	}
+	if (process.platform === "linux") {
+		electronArgs.push("--ozone-platform-hint=auto");
+		electronArgs.push("--enable-wayland-ime");
+		electronArgs.push("--wayland-text-input-version=3");
+	}
+	electronArgs.push(`--user-data-dir=${userDataDir}`);
+	electronArgs.push(join(projectRoot, "dist", "main", "index.js"));
+
+	const electronProcess = spawn(electronPath, electronArgs, {
+		cwd: projectRoot,
+		env: {
+			...resolveDevProcessEnvironment(),
+			VETTA_CONFIG_DIR: configDir,
+			VETTA_DESKTOP_DEV_URL: rendererUrl,
+			VETTA_PLUGIN_DEV: pluginIds,
+		},
+		stdio: "inherit",
+	});
+	for (const signal of ["SIGINT", "SIGTERM"]) {
+		process.once(signal, () => electronProcess.kill(signal));
+	}
+	const electronResult = await waitForExit(electronProcess);
+	if (electronResult.signal) {
+		process.exitCode = 1;
+		return;
+	}
+	process.exitCode = electronResult.code ?? 1;
+}
+
+if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) await main();

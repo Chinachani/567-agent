@@ -1,0 +1,47 @@
+{
+	"name": "@vetta/agent-core",
+	"version": "0.0.1",
+	"description": "General-purpose agent with transport abstraction, state management, and attachment support",
+	"type": "module",
+	"main": "./dist/index.js",
+	"types": "./dist/index.d.ts",
+	"files": [
+		"dist",
+		"README.md"
+	],
+	"scripts": {
+		"clean": "rm -rf dist",
+		"build": "tsgo -p tsconfig.build.json",
+		"dev": "tsgo -p tsconfig.build.json --watch --preserveWatchOutput",
+		"test": "bun ../../scripts/quality/run-vitest.mjs --run --config vitest.config.ts",
+		"test:unit": "bun ../../scripts/quality/run-vitest.mjs --run --config vitest.config.ts",
+		"test:live": "bun ../../scripts/quality/run-vitest.mjs --run --config vitest.live.config.ts",
+		"test:all": "bun ../../scripts/quality/run-vitest.mjs --run --config vitest.all.config.ts",
+		"prepublishOnly": "bun run clean && bun run build"
+	},
+	"dependencies": {
+		"@vetta/ai": "workspace:*",
+		"@sinclair/typebox": "^0.34.41"
+	},
+	"keywords": [
+		"ai",
+		"agent",
+		"llm",
+		"transport",
+		"state-management"
+	],
+	"author": "Mario Zechner",
+	"license": "MIT",
+	"repository": {
+		"type": "git",
+		"url": "git+https://github.com/badlogic/pi-mono.git",
+		"directory": "packages/agent"
+	},
+	"engines": {
+		"node": ">=20.0.0"
+	},
+	"devDependencies": {
+		"@types/node": "^24.3.0",
+		"typescript": "^5.7.3"
+	}
+}

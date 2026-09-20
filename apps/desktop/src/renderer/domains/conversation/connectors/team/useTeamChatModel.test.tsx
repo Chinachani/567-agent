@@ -1,0 +1,1570 @@
+// @vitest-environment jsdom
+
+import {
+	createAgentTeamFixture,
+	type TeamSessionDocument,
+	type TeamSessionSnapshot,
+} from "@vetta/agent-team";
+import type { DesktopTeamSessionStreamEvent, DesktopTeamSessionSnapshot } from "@preload/api-types/team-conversation-display";
+import { createAssistantMessage } from "@vetta/ai";
+import type { ContextCompositionReport } from "@vetta/runtime-core";
+import { reasoningByModelAtom, selectedModelAtom } from "@shared/store/atoms";
+import { act, renderHook, waitFor } from "@testing-library/react";
+import { createStore, Provider } from "jotai";
+import { StrictMode, type ReactNode } from "react";
+import { beforeEach, describe, expect, it, vi } from "vitest";
+import { TEAM_SESSIONS_CHANGED_EVENT } from "../../../../shared/agent-teams/team-session-events";
+import { useTeamChatModel } from "./useTeamChatModel";
+import {
+	createReservedTeamChatSession,
+	createTeamChatSession,
+	loadTeamChatBootstrap,
+	loadTeamChatSession,
+} from "./team-chat-session-service";
+import { peekTeamSessionHandoff, stageTeamSessionHandoff, takeTeamSessionHandoff } from "./team-session-handoff";
+import { waitForCommittedPaint } from "@shared/lib/committed-paint";
+import { writeCachedContextComposition } from "../../services/context-composition-cache";
+
+const translate = vi.hoisted(
+	() => (key: string, values?: Record<string, string>) =>
+		values ? `${key}:${Object.values(values).join(":")}` : key,
+);
+
+vi.mock("@shared/hooks/useRendererMarkdownModel", () => ({
+	useRendererMarkdownModel: () => ({
+		theme: "light",
+		labels: { copy: "Copy", copied: "Copied" },
+		getFileIconClass: () => "icon",
+		onOpenFile: vi.fn(),
+		onOpenUrl: vi.fn(),
+	}),
+}));
+vi.mock("react-i18next", () => ({
+	useTranslation: () => ({
+		t: translate,
+	}),
+}));
+vi.mock("./team-chat-session-service", async (importOriginal) => ({
+	...(await importOriginal<Record<string, unknown>>()),
+	loadTeamChatSession: vi.fn(),
+	loadTeamChatBootstrap: vi.fn(),
+	createTeamChatSession: vi.fn(),
+	createReservedTeamChatSession: vi.fn(),
+}));
+vi.mock("@shared/lib/committed-paint", () => ({
+	waitForCommittedPaint: vi.fn(),
+}));
+
+const document = createAgentTeamFixture();
+const team = document.teams[0];
+if (!team) throw new Error("built-in Agent Team fixture is missing");
+const leader = team.members.find((member) => member.id === team.leaderMemberId);
+if (!leader) throw new Error("built-in Agent Team leader fixture is missing");
+
+const baseSession: TeamSessionDocument = {
+	schemaVersion: 1,
+	revision: 0,
+	id: "team-session",
+	teamId: team.id,
+	name: team.name,
+	cwd: "C:/workspace",
+	orchestrationPolicyId: team.orchestrationPolicyId,
+	contextPolicyId: team.contextPolicyId,
+	leaderMemberId: leader.id,
+	memberHandles: Object.fromEntries(team.members.map((member) => [member.id, member.handle])),
+	createdAt: 1,
+	updatedAt: 1,
+	events: [],
+	memberRuntime: {},
+};
+const baseSnapshot: DesktopTeamSessionSnapshot = {
+	session: baseSession,
+	conversationRevision: 0,
+	messages: [],
+	activities: [],
+};
+
+function streamEvent(sequence: number, delta: string, turnId = "request"): DesktopTeamSessionStreamEvent {
+	const partial = {
+		...createAssistantMessage(
+			{ api: "agent-team-test", provider: "agent-team-test", model: "fixture" },
+			{ timestamp: sequence },
+		),
+		content: [{ type: "text" as const, text: delta }],
+	};
+	return {
+		type: "conversation.agent-message-event",
+		conversationId: baseSession.id,
+		messageId: "result",
+		turnId,
+		author: { kind: "agent", id: team.leaderMemberId },
+		sequence,
+		timestamp: sequence,
+		event: { type: "text_delta", contentIndex: 0, delta, partial },
+	};
+}
+
+describe("useTeamChatModel streaming flow", () => {
+	let streamListener: ((event: DesktopTeamSessionStreamEvent) => void) | undefined;
+
+	beforeEach(() => {
+		vi.clearAllMocks();
+		streamListener = undefined;
+		vi.mocked(waitForCommittedPaint).mockResolvedValue("painted");
+		vi.mocked(loadTeamChatBootstrap).mockResolvedValue({ document, sessions: [] });
+		vi.mocked(loadTeamChatSession).mockResolvedValue({
+			document,
+			snapshot: baseSnapshot,
+			sessions: [
+				{
+					id: baseSession.id,
+					coordinationSessionPath: "C:/sessions/team.conversation.jsonl",
+					title: baseSession.name,
+					createdAt: baseSession.createdAt,
+					updatedAt: baseSession.updatedAt,
+				},
+			],
+		});
+		vi.mocked(createTeamChatSession).mockResolvedValue({
+			document,
+			snapshot: baseSnapshot,
+			sessions: [],
+		});
+		vi.mocked(createReservedTeamChatSession).mockResolvedValue({
+			document,
+			snapshot: baseSnapshot,
+			sessions: [],
+		});
+		Object.defineProperty(window, "vetta", {
+			configurable: true,
+			value: {
+				agentTeams: {
+					subscribe: vi.fn(
+						async (_sessionId: string, listener: (event: DesktopTeamSessionStreamEvent) => void) => {
+						streamListener = listener;
+						return () => undefined;
+						},
+					),
+					sendMessage: vi.fn(async () => baseSnapshot),
+					updateModelSettings: vi.fn(async (_id, settings) => ({
+						...baseSnapshot,
+						session: { ...baseSession, modelSettings: settings },
+					})),
+					setExecutionMode: vi.fn(async () => baseSnapshot),
+					abort: vi.fn(),
+				},
+				dialog: {
+					selectFiles: vi.fn(async () => ["C:/workspace/brief.md"]),
+					selectImages: vi.fn(async () => []),
+				},
+			},
+		});
+	});
+
+	it("distinguishes target runtime loading from waiting for the model response", async () => {
+		let resolveSend: ((value: DesktopTeamSessionSnapshot) => void) | undefined;
+		vi.mocked(window.vetta.agentTeams.sendMessage).mockReturnValueOnce(
+			new Promise((resolve) => {
+				resolveSend = resolve;
+			}),
+		);
+		const { result } = renderHook(() => useTeamChatModel(team.id));
+		await waitFor(() => expect(result.current.model.status).toBe("ready"));
+		await waitFor(() => expect(streamListener).toBeTypeOf("function"));
+
+		act(() => result.current.actions.setDraft("hello team"));
+		let sendPromise: Promise<void> | undefined;
+		act(() => {
+			sendPromise = result.current.actions.send();
+		});
+		await waitFor(() => expect(window.vetta.agentTeams.sendMessage).toHaveBeenCalledTimes(1));
+		expect(result.current.model.pendingLabel).toBe("chat.teamLoading");
+		const requestId = vi.mocked(window.vetta.agentTeams.sendMessage).mock.calls[0]?.[1].requestId;
+		if (!requestId) throw new Error("send request id is missing");
+
+		act(() => {
+			streamListener?.({
+				type: "session-updated",
+				teamSessionId: baseSession.id,
+				snapshot: {
+					...baseSnapshot,
+					session: {
+						...baseSession,
+						revision: 1,
+						memberRuntime: {
+							[leader.id]: {
+								sessionId: "leader-runtime",
+								sessionPath: "C:/sessions/leader.jsonl",
+								agentProfileRevision: 1,
+								deliveredEventIds: [],
+							},
+						},
+					},
+				},
+			});
+		});
+		await waitFor(() => expect(result.current.model.pendingLabel).toBe("chat.waitingModel"));
+
+		act(() => streamListener?.(streamEvent(1, "partial", requestId)));
+		expect(result.current.model.pendingLabel).toBeUndefined();
+
+		await act(async () => {
+			resolveSend?.(baseSnapshot);
+			await sendPromise;
+		});
+	});
+
+	it("keeps feed, workspace and session slices stable while editing the draft", async () => {
+		const { result } = renderHook(() => useTeamChatModel(team.id));
+		await waitFor(() => expect(result.current.model.status).toBe("ready"));
+		const before = result.current.model;
+
+		act(() => result.current.actions.setDraft("next question"));
+
+		expect(result.current.model).not.toBe(before);
+		expect(result.current.model.feedItems).toBe(before.feedItems);
+		expect(result.current.model.members).toBe(before.members);
+		expect(result.current.model.workspace).toBe(before.workspace);
+		expect(result.current.model.runtimeSessionIds).toBe(before.runtimeSessionIds);
+		expect(result.current.model.sessions).toBe(before.sessions);
+	});
+
+	it("refreshes Team conversation lists when the automatic title arrives", async () => {
+		const changed = vi.fn();
+		window.addEventListener(TEAM_SESSIONS_CHANGED_EVENT, changed);
+		try {
+			const { result } = renderHook(() => useTeamChatModel(team.id));
+			await waitFor(() => expect(streamListener).toBeTypeOf("function"));
+
+			act(() => {
+				streamListener?.({
+					type: "session-updated",
+					teamSessionId: baseSession.id,
+					snapshot: {
+						...baseSnapshot,
+						session: { ...baseSession, revision: 1, title: "Review deployment plan" },
+					},
+				});
+			});
+
+			expect(changed).toHaveBeenCalledOnce();
+			expect((changed.mock.calls[0]?.[0] as CustomEvent).detail).toEqual({ teamId: team.id });
+			expect(result.current.model.sessions).toContainEqual({ id: baseSession.id, label: "Review deployment plan" });
+		} finally {
+			window.removeEventListener(TEAM_SESSIONS_CHANGED_EVENT, changed);
+		}
+	});
+
+	it("发送结果已带自动标题时，即使错过标题事件也更新会话列表", async () => {
+		vi.mocked(window.vetta.agentTeams.sendMessage).mockResolvedValueOnce({
+			...baseSnapshot,
+			session: { ...baseSession, revision: 2, title: "Review deployment plan" },
+		});
+		const { result } = renderHook(() => useTeamChatModel(team.id));
+		await waitFor(() => expect(result.current.model.status).toBe("ready"));
+		act(() => result.current.actions.setDraft("review deployment"));
+		await act(async () => result.current.actions.send());
+
+		expect(result.current.model.sessions).toContainEqual({
+			id: baseSession.id,
+			label: "Review deployment plan",
+		});
+	});
+
+	it("新建团队会话的旧列表回填不会覆盖刚生成的标题", async () => {
+		let finishBootstrap: ((value: Awaited<ReturnType<typeof loadTeamChatBootstrap>>) => void) | undefined;
+		vi.mocked(loadTeamChatBootstrap).mockReturnValueOnce(new Promise((resolve) => {
+			finishBootstrap = resolve;
+		}));
+		const snapshot = {
+			...baseSnapshot,
+			session: {
+				...baseSession,
+				coordinationRuntime: { sessionId: baseSession.id, sessionPath: "C:/sessions/team.conversation.jsonl" },
+			},
+		};
+		const oldItem = {
+			id: baseSession.id,
+			coordinationSessionPath: "C:/sessions/team.conversation.jsonl",
+			title: "",
+			createdAt: baseSession.createdAt,
+			updatedAt: baseSession.updatedAt,
+		};
+		vi.mocked(createTeamChatSession).mockResolvedValueOnce({ document, snapshot, sessions: [oldItem] });
+		const { result } = renderHook(() => useTeamChatModel(team.id, undefined, undefined, true));
+		await waitFor(() => expect(streamListener).toBeTypeOf("function"));
+		act(() => streamListener?.({
+			type: "session-updated",
+			teamSessionId: baseSession.id,
+			snapshot: {
+				...snapshot,
+				session: { ...snapshot.session, revision: 2, updatedAt: 3, title: "Review deployment plan" },
+			},
+		}));
+		expect(result.current.model.sessions).toContainEqual({ id: baseSession.id, label: "Review deployment plan" });
+		await act(async () => finishBootstrap?.({ document, sessions: [oldItem] }));
+		expect(result.current.model.sessions).toContainEqual({ id: baseSession.id, label: "Review deployment plan" });
+	});
+
+	it("shows ordered partial text and keeps the persisted final result after the stream closes", async () => {
+		const { result } = renderHook(() => useTeamChatModel(team.id));
+		await waitFor(() => expect(result.current.model.status).toBe("ready"));
+		await waitFor(() => expect(streamListener).toBeTypeOf("function"));
+
+		act(() => {
+			streamListener?.(streamEvent(1, "partial "));
+			streamListener?.(streamEvent(2, "answer"));
+		});
+
+		expect(result.current.model.status).toBe("streaming");
+		expect(result.current.model.members.find((member) => member.id === leader.id)?.status).toBe("working");
+		expect(result.current.model.feedItems).toEqual([
+			expect.objectContaining({
+				kind: "agent",
+				phase: "streaming",
+				blocks: [expect.objectContaining({ type: "text", text: "partial answer" })],
+			}),
+		]);
+
+		const finalSession: TeamSessionDocument = {
+			...baseSession,
+			revision: 1,
+			updatedAt: 5,
+		};
+		const finalSnapshot: DesktopTeamSessionSnapshot = {
+			session: finalSession,
+			conversationRevision: 1,
+			messages: [
+				{
+					kind: "agent",
+					id: "result",
+					turnId: "request",
+					author: { kind: "agent", id: leader.id },
+					message: {
+						...createAssistantMessage(
+							{ api: "agent-team-test", provider: "agent-team-test", model: "fixture" },
+							{ timestamp: 5 },
+						),
+						content: [{ type: "text", text: "partial answer" }],
+					},
+					timestamp: 5,
+				},
+			],
+			activities: [],
+		};
+		act(() => {
+			streamListener?.({
+				type: "session-updated",
+				teamSessionId: baseSession.id,
+				snapshot: finalSnapshot,
+			});
+			streamListener?.({
+				type: "conversation.agent-message-discard",
+				conversationId: baseSession.id,
+				messageId: "result",
+				turnId: "request",
+				author: { kind: "agent", id: leader.id },
+				sequence: 3,
+				reason: "completed",
+				timestamp: 5,
+			});
+		});
+
+		expect(result.current.model.status).toBe("ready");
+		expect(result.current.model.members.find((member) => member.id === leader.id)?.status).toBe("idle");
+		expect(result.current.model.feedItems).toEqual([
+			expect.objectContaining({
+				kind: "agent",
+				phase: "completed",
+				blocks: [expect.objectContaining({ type: "text", text: "partial answer" })],
+			}),
+		]);
+	});
+
+	it("restores the running session and member state from durable work before live replay arrives", async () => {
+		const runningSnapshot: DesktopTeamSessionSnapshot = {
+			...baseSnapshot,
+			display: {
+				memberConversations: [],
+				workingMemberIds: [leader.id],
+			},
+		};
+		vi.mocked(loadTeamChatSession).mockResolvedValueOnce({
+			document,
+			snapshot: runningSnapshot,
+			sessions: [],
+		});
+
+		const { result } = renderHook(() => useTeamChatModel(team.id));
+
+		await waitFor(() => expect(result.current.model.status).toBe("streaming"));
+		expect(result.current.model.members.find((member) => member.id === leader.id)?.status).toBe("working");
+
+		act(() => {
+			streamListener?.({
+				type: "session-updated",
+				teamSessionId: baseSession.id,
+				snapshot: { ...baseSnapshot, session: { ...baseSession, revision: 1 } },
+			});
+		});
+		await waitFor(() => expect(result.current.model.status).toBe("ready"));
+		expect(result.current.model.members.find((member) => member.id === leader.id)?.status).toBe("idle");
+	});
+
+	it("keeps one visible turn when a tool-only stream overlaps its persisted snapshot", async () => {
+		const { result } = renderHook(() => useTeamChatModel(team.id));
+		await waitFor(() => expect(result.current.model.status).toBe("ready"));
+		await waitFor(() => expect(streamListener).toBeTypeOf("function"));
+
+		const toolMessage = {
+			...createAssistantMessage(
+				{ api: "agent-team-test", provider: "agent-team-test", model: "fixture" },
+				{ timestamp: 2 },
+			),
+			content: [
+				{
+					type: "toolCall" as const,
+					id: "delegate-call",
+					name: "team_delegate_task",
+					arguments: { memberId: "executor" },
+				},
+			],
+		};
+		act(() => {
+			streamListener?.({
+				type: "conversation.agent-message-event",
+				conversationId: baseSession.id,
+				messageId: "public-tool-step",
+				turnId: "request",
+				author: { kind: "agent", id: leader.id },
+				sequence: 1,
+				timestamp: 2,
+				event: { type: "text_delta", contentIndex: 1, delta: "", partial: toolMessage },
+			});
+		});
+		expect(result.current.model.feedItems.filter((item) => item.kind === "agent")).toHaveLength(1);
+
+		act(() => {
+			streamListener?.({
+				type: "session-updated",
+				teamSessionId: baseSession.id,
+				snapshot: {
+					...baseSnapshot,
+					session: { ...baseSession, revision: 1 },
+					conversationRevision: 1,
+					messages: [
+						{
+							kind: "agent",
+							id: "public-tool-step",
+							turnId: "request",
+							author: { kind: "agent", id: leader.id },
+							message: { ...toolMessage, stopReason: "toolUse" },
+							timestamp: 2,
+						},
+					],
+					display: {
+						memberConversations: [
+							{
+								memberId: leader.id,
+								runtimeSessionId: "leader-runtime",
+								history: [
+									{
+										type: "message",
+										entryId: "runtime-tool-step",
+										message: toolMessage,
+									},
+								],
+							},
+						],
+					},
+				},
+			});
+		});
+
+		expect(result.current.model.feedItems.filter((item) => item.kind === "agent")).toEqual([
+			expect.objectContaining({
+				id: "public-tool-step",
+				renderKey: `team:agent-turn:${leader.id}:request`,
+			}),
+		]);
+	});
+
+	it("keeps the member page stable while a native tool turn is persisted and after reopening", async () => {
+		const { result, unmount } = renderHook(() => useTeamChatModel(team.id, baseSession.id, leader.id));
+		await waitFor(() => expect(result.current.model.status).toBe("ready"));
+		await waitFor(() => expect(streamListener).toBeTypeOf("function"));
+
+		const toolMessage = {
+			...createAssistantMessage(
+				{ api: "agent-team-test", provider: "agent-team-test", model: "fixture" },
+				{ timestamp: 2 },
+			),
+			content: [
+				{
+					type: "toolCall" as const,
+					id: "delegate-call",
+					name: "team_delegate_task",
+					arguments: { memberId: "executor" },
+				},
+			],
+		};
+		const persistedSnapshot: DesktopTeamSessionSnapshot = {
+			...baseSnapshot,
+			session: { ...baseSession, revision: 1 },
+			conversationRevision: 1,
+			display: {
+				memberConversations: [
+					{
+						memberId: leader.id,
+						runtimeSessionId: "leader-runtime",
+						history: [
+							{
+								type: "message",
+								entryId: "runtime-prompt",
+								message: { role: "user", content: "delegate the task", timestamp: 1 },
+							},
+							{ type: "message", entryId: "runtime-tool-step", message: toolMessage },
+						],
+					},
+				],
+			},
+		};
+
+		act(() => {
+			streamListener?.({
+				type: "desktop.team-tool-execution",
+				conversationId: baseSession.id,
+				messageId: "live-member-turn",
+				turnId: "team-request",
+				author: { kind: "agent", id: leader.id },
+				sequence: 1,
+				timestamp: 2,
+				event: {
+					type: "start",
+					toolCallId: "delegate-call",
+					toolName: "team_delegate_task",
+					args: { memberId: "executor" },
+					startedAt: 2,
+				},
+			});
+			streamListener?.({
+				type: "session-updated",
+				teamSessionId: baseSession.id,
+				snapshot: persistedSnapshot,
+			});
+		});
+
+		const runningItems = result.current.model.feedItems.filter((item) => item.kind === "agent");
+		expect(runningItems).toHaveLength(1);
+		expect(runningItems[0]).toMatchObject({ phase: "streaming" });
+		const runningKey = runningItems[0]?.renderKey;
+
+		unmount();
+		vi.mocked(loadTeamChatSession).mockResolvedValueOnce({
+			document,
+			snapshot: persistedSnapshot,
+			sessions: [],
+		});
+		const reopened = renderHook(() => useTeamChatModel(team.id, baseSession.id, leader.id));
+		await waitFor(() => expect(reopened.result.current.model.status).toBe("ready"));
+		const reopenedItems = reopened.result.current.model.feedItems.filter((item) => item.kind === "agent");
+		expect(reopenedItems).toHaveLength(1);
+		expect(reopenedItems[0]?.renderKey).toBe(runningKey);
+	});
+
+	it("keeps a failed member visible until that member starts replying again", async () => {
+		const { result } = renderHook(() => useTeamChatModel(team.id));
+		await waitFor(() => expect(result.current.model.status).toBe("ready"));
+		await waitFor(() => expect(streamListener).toBeTypeOf("function"));
+
+		act(() => {
+			streamListener?.(streamEvent(1, "partial"));
+			streamListener?.({
+				type: "conversation.agent-message-discard",
+				conversationId: baseSession.id,
+				messageId: "result",
+				turnId: "request",
+				author: { kind: "agent", id: leader.id },
+				sequence: 2,
+				reason: "failed",
+				error: "provider failed",
+				timestamp: 2,
+			});
+		});
+		expect(result.current.model.members.find((member) => member.id === leader.id)?.status).toBe("error");
+
+		act(() => streamListener?.(streamEvent(3, "retry")));
+		expect(result.current.model.members.find((member) => member.id === leader.id)?.status).toBe("working");
+	});
+
+	it("keeps attachment tokens and structured request data in sync", async () => {
+		const { result } = renderHook(() => useTeamChatModel(team.id));
+		await waitFor(() => expect(result.current.model.status).toBe("ready"));
+
+		await act(async () => result.current.actions.selectFiles());
+		expect(result.current.model.canSend).toBe(true);
+		await act(async () => result.current.actions.send());
+
+		expect(window.vetta.agentTeams.sendMessage).toHaveBeenCalledWith(
+			baseSession.id,
+			expect.objectContaining({
+				text: "@C:/workspace/brief.md",
+				attachments: [{ kind: "file", path: "C:/workspace/brief.md" }],
+			}),
+		);
+	});
+
+	it("routes and persists only structured member tokens, not plain @handle text", async () => {
+		const { result } = renderHook(() => useTeamChatModel(team.id));
+		await waitFor(() => expect(result.current.model.status).toBe("ready"));
+
+		act(() => result.current.actions.setDraft(`plain @${leader.handle}`));
+		await act(async () => result.current.actions.send());
+		expect(window.vetta.agentTeams.sendMessage).toHaveBeenLastCalledWith(
+			baseSession.id,
+			expect.objectContaining({ targetMemberIds: [], memberMentions: [] }),
+		);
+
+		const text = `**ask** @${leader.handle}`;
+		act(() =>
+			result.current.actions.setDraft(text, [
+				{ kind: "text", text: "**ask** " },
+				{ kind: "member", memberId: leader.id, handle: leader.handle, label: leader.handle },
+			]),
+		);
+		await act(async () => result.current.actions.send());
+		expect(window.vetta.agentTeams.sendMessage).toHaveBeenLastCalledWith(
+			baseSession.id,
+			expect.objectContaining({
+				text,
+				targetMemberIds: [leader.id],
+				memberMentions: [
+					{ participantId: leader.id, handle: leader.handle, start: 8, end: 8 + leader.handle.length + 1 },
+				],
+			}),
+		);
+	});
+
+	it("persists model configuration on the active Team session and uses it for prompts", async () => {
+		const { result } = renderHook(() => useTeamChatModel(team.id));
+		await waitFor(() => expect(result.current.model.status).toBe("ready"));
+
+		await act(async () => result.current.actions.selectModel("openai/gpt-5"));
+		expect(window.vetta.agentTeams.updateModelSettings).toHaveBeenCalledWith(
+			baseSession.id,
+			expect.objectContaining({ modelKey: "openai/gpt-5" }),
+		);
+		expect(result.current.model.modelKey).toBe("openai/gpt-5");
+
+		act(() => result.current.actions.setDraft("Ship it"));
+		await act(async () => result.current.actions.selectReasoning("high"));
+		await act(async () => result.current.actions.send());
+		expect(window.vetta.agentTeams.sendMessage).toHaveBeenCalledWith(
+			baseSession.id,
+			expect.objectContaining({
+				modelKey: "openai/gpt-5",
+				reasoning: "high",
+			}),
+		);
+	});
+
+	it("snapshots the global default into an unconfigured Team session", async () => {
+		const store = createStore();
+		store.set(selectedModelAtom, "openai/default");
+		store.set(reasoningByModelAtom, { "openai/default": "medium" });
+		const wrapper = ({ children }: { children: ReactNode }) => <Provider store={store}>{children}</Provider>;
+
+		renderHook(() => useTeamChatModel(team.id), { wrapper });
+
+		await waitFor(() =>
+			expect(window.vetta.agentTeams.updateModelSettings).toHaveBeenCalledWith(baseSession.id, {
+				modelKey: "openai/default",
+				reasoning: "medium",
+			}),
+		);
+	});
+
+	it("shows context usage for the selected member runtime", async () => {
+		const secondMember = team.members.find((member) => member.id !== leader.id);
+		if (!secondMember) throw new Error("built-in Agent Team second member fixture is missing");
+		const scopedSession: TeamSessionDocument = {
+			...baseSession,
+			memberRuntime: {
+				[leader.id]: {
+					sessionId: "leader-runtime",
+					sessionPath: "C:/sessions/leader.jsonl",
+					agentProfileRevision: 1,
+					deliveredEventIds: [],
+				},
+				[secondMember.id]: {
+					sessionId: "second-runtime",
+					sessionPath: "C:/sessions/second.jsonl",
+					agentProfileRevision: 1,
+					deliveredEventIds: [],
+				},
+			},
+		};
+		vi.mocked(loadTeamChatSession).mockResolvedValue({
+			document,
+			snapshot: { ...baseSnapshot, session: scopedSession },
+			sessions: [],
+		});
+
+		const { result } = renderHook(() => useTeamChatModel(team.id));
+		await waitFor(() => expect(result.current.model.status).toBe("ready"));
+		await waitFor(() => expect(streamListener).toBeTypeOf("function"));
+
+		act(() => {
+			streamListener?.({
+				type: "desktop.team-context-usage",
+				conversationId: scopedSession.id,
+				memberId: leader.id,
+				runtimeSessionId: "leader-runtime",
+				contextUsage: { percent: 15, contextTokens: 15, contextWindow: 100 },
+			});
+		});
+		expect(result.current.model.contextUsage?.percent).toBe(15);
+		expect(result.current.model.contextUsagesByRuntime?.["leader-runtime"]?.percent).toBe(15);
+
+		act(() =>
+			result.current.actions.setDraft(`@${secondMember.handle} `, [
+				{
+					kind: "member",
+					memberId: secondMember.id,
+					handle: secondMember.handle,
+					label: secondMember.handle,
+				},
+			]),
+		);
+		// A selected member can be idle and have no usage event yet. Keep the
+		// shared ContextRing mounted with the latest known team runtime usage.
+		expect(result.current.model.contextUsage?.percent).toBe(15);
+
+		act(() => {
+			streamListener?.({
+				type: "desktop.team-context-usage",
+				conversationId: scopedSession.id,
+				memberId: secondMember.id,
+				runtimeSessionId: "second-runtime",
+				contextUsage: { percent: 70, contextTokens: 70, contextWindow: 100 },
+			});
+		});
+		expect(result.current.model.contextUsage?.percent).toBe(70);
+		expect(result.current.model.contextUsagesByRuntime?.["second-runtime"]?.percent).toBe(70);
+	});
+
+	it("restores each member's cached composition when reopening a team session", async () => {
+		const scopedSession: TeamSessionDocument = {
+			...baseSession,
+			memberRuntime: {
+				[leader.id]: {
+					sessionId: "leader-runtime",
+					sessionPath: "C:/sessions/leader.jsonl",
+					agentProfileRevision: 1,
+					deliveredEventIds: [],
+				},
+			},
+		};
+		const cachedReport = contextCompositionReport("cached-leader");
+		localStorage.clear();
+		writeCachedContextComposition("C:/sessions/leader.jsonl", cachedReport);
+		vi.mocked(loadTeamChatSession).mockResolvedValue({
+			document,
+			snapshot: {
+				...baseSnapshot,
+				session: scopedSession,
+				display: {
+					memberConversations: [],
+					contextUsages: [
+						{ runtimeSessionId: "leader-runtime", percent: 20, contextWindow: 1_000 },
+					],
+				},
+			},
+			sessions: [],
+		});
+
+		const { result } = renderHook(() => useTeamChatModel(team.id));
+		await waitFor(() => expect(result.current.model.status).toBe("ready"));
+
+		expect(result.current.model.contextUsagesByRuntime?.["leader-runtime"]?.composition?.callId).toBe("cached-leader");
+	});
+
+	it("does not reload the same session when the route is canonicalized", async () => {
+		const { result, rerender } = renderHook(
+			({ preferredSessionId }: { preferredSessionId?: string }) =>
+				useTeamChatModel(team.id, preferredSessionId),
+			{ initialProps: {} },
+		);
+		await waitFor(() => expect(result.current.model.status).toBe("ready"));
+		const loadCalls = vi.mocked(loadTeamChatSession).mock.calls.length;
+
+		rerender({ preferredSessionId: baseSession.id });
+
+		expect(vi.mocked(loadTeamChatSession).mock.calls.length).toBe(loadCalls);
+	});
+
+	it("sends a staged new Team conversation to its reserved session after another session was open", async () => {
+		const nextSessionId = "team-session-next";
+		const nextSnapshot = {
+			...baseSnapshot,
+			session: { ...baseSession, id: nextSessionId },
+		};
+		vi.mocked(createReservedTeamChatSession).mockResolvedValueOnce({
+			document,
+			snapshot: nextSnapshot,
+			sessions: [],
+		});
+		vi.mocked(window.vetta.agentTeams.sendMessage).mockResolvedValueOnce(nextSnapshot);
+		const { result, rerender } = renderHook(
+			({ preferredSessionId }: { preferredSessionId: string }) =>
+				useTeamChatModel(team.id, preferredSessionId),
+			{ initialProps: { preferredSessionId: baseSession.id } },
+		);
+		await waitFor(() => expect(result.current.model.activeSessionId).toBe(baseSession.id));
+
+		stageTeamSessionHandoff({
+			sessionId: nextSessionId,
+			document,
+			requestId: "next-session-request",
+			text: "start a separate conversation",
+			memberMentions: [],
+			attachments: [],
+			timestamp: 20,
+			executionMode: "full-access",
+		});
+		rerender({ preferredSessionId: nextSessionId });
+
+		await waitFor(() =>
+			expect(window.vetta.agentTeams.sendMessage).toHaveBeenCalledWith(
+				nextSessionId,
+				expect.objectContaining({ requestId: "next-session-request" }),
+			),
+		);
+		expect(createReservedTeamChatSession).toHaveBeenCalledWith(
+			expect.objectContaining({ teamId: team.id, sessionId: nextSessionId }),
+		);
+		expect(window.vetta.agentTeams.sendMessage).not.toHaveBeenCalledWith(
+			baseSession.id,
+			expect.objectContaining({ requestId: "next-session-request" }),
+		);
+	});
+
+	it("continues a staged first message after the new-session route handoff", async () => {
+		let releasePaint: (() => void) | undefined;
+		vi.mocked(waitForCommittedPaint).mockReturnValue(
+			new Promise((resolve) => {
+				releasePaint = () => resolve("painted");
+			}),
+		);
+		stageTeamSessionHandoff({
+			sessionId: baseSession.id,
+			document,
+			requestId: "handoff-request",
+			text: "send after navigation",
+			memberMentions: [],
+			attachments: [{ kind: "file", path: "C:/workspace/brief.md" }],
+			timestamp: 10,
+			executionMode: "full-access",
+		});
+
+		const { result } = renderHook(() => useTeamChatModel(team.id, baseSession.id), {
+			wrapper: ({ children }: { children: ReactNode }) => <StrictMode>{children}</StrictMode>,
+		});
+		expect(result.current.model.feedItems).toEqual([
+			expect.objectContaining({ kind: "user", text: "send after navigation" }),
+			expect.objectContaining({ kind: "agent", phase: "pending" }),
+		]);
+		expect(result.current.model.workspace).toEqual({ id: `agent-team:${team.id}`, cwd: null, runtimeIds: [] });
+		expect(result.current.model.editorEnabled).toBe(true);
+		expect(createReservedTeamChatSession).not.toHaveBeenCalled();
+		expect(loadTeamChatBootstrap).not.toHaveBeenCalled();
+		expect(window.vetta.agentTeams.sendMessage).not.toHaveBeenCalled();
+
+		await act(async () => releasePaint?.());
+		await waitFor(() =>
+			expect(window.vetta.agentTeams.sendMessage).toHaveBeenCalledWith(
+				baseSession.id,
+				expect.objectContaining({
+					requestId: "handoff-request",
+					text: "send after navigation",
+					attachments: [{ kind: "file", path: "C:/workspace/brief.md" }],
+				}),
+			),
+		);
+		expect(createReservedTeamChatSession).toHaveBeenCalledWith({
+			teamId: team.id,
+			sessionId: baseSession.id,
+			executionMode: "full-access",
+			document,
+		});
+		expect(takeTeamSessionHandoff(baseSession.id)).toBeUndefined();
+	});
+
+	it("persists the new-session composer model instead of the global default so delegated tasks inherit it", async () => {
+		const store = createStore();
+		store.set(selectedModelAtom, "vetta-go/stale-global");
+		const wrapper = ({ children }: { children: ReactNode }) => <Provider store={store}>{children}</Provider>;
+		// 真实后端的 send 快照带着已持久化的 modelSettings。
+		vi.mocked(window.vetta.agentTeams.updateModelSettings).mockImplementation(async (_id, settings) => {
+			const configured = { ...baseSnapshot, session: { ...baseSession, modelSettings: settings } };
+			vi.mocked(window.vetta.agentTeams.sendMessage).mockResolvedValue(configured);
+			return configured;
+		});
+		stageTeamSessionHandoff({
+			sessionId: baseSession.id,
+			document,
+			requestId: "handoff-model-request",
+			text: "delegate this",
+			memberMentions: [],
+			attachments: [],
+			timestamp: 10,
+			modelKey: "cli-proxy-api.google/gemini-flash",
+			reasoning: "medium",
+			executionMode: "full-access",
+		});
+
+		renderHook(() => useTeamChatModel(team.id, baseSession.id), { wrapper });
+
+		await waitFor(() => expect(window.vetta.agentTeams.sendMessage).toHaveBeenCalled());
+		await act(async () => undefined);
+		expect(window.vetta.agentTeams.updateModelSettings).toHaveBeenCalledWith(baseSession.id, {
+			modelKey: "cli-proxy-api.google/gemini-flash",
+			reasoning: "medium",
+		});
+		expect(window.vetta.agentTeams.updateModelSettings).not.toHaveBeenCalledWith(
+			baseSession.id,
+			expect.objectContaining({ modelKey: "vetta-go/stale-global" }),
+		);
+	});
+
+	it("keeps the submitted turn through StrictMode replay and empty setup snapshots until the send settles", async () => {
+		let resolveCreation: ((value: Awaited<ReturnType<typeof createReservedTeamChatSession>>) => void) | undefined;
+		vi.mocked(createReservedTeamChatSession).mockReturnValue(
+			new Promise((resolve) => {
+				resolveCreation = resolve;
+			}),
+		);
+		let resolveSend: ((value: DesktopTeamSessionSnapshot) => void) | undefined;
+		vi.mocked(window.vetta.agentTeams.sendMessage).mockReturnValueOnce(
+			new Promise((resolve) => {
+				resolveSend = resolve;
+			}),
+		);
+		const requestId = "strict-handoff-request";
+		const submittedText = "keep this submitted message";
+		stageTeamSessionHandoff({
+			sessionId: baseSession.id,
+			document,
+			requestId,
+			text: submittedText,
+			memberMentions: [],
+			attachments: [],
+			timestamp: 10,
+			executionMode: "full-access",
+		});
+
+		const { result } = renderHook(() => useTeamChatModel(team.id, baseSession.id), {
+			wrapper: ({ children }: { children: ReactNode }) => <StrictMode>{children}</StrictMode>,
+		});
+		await waitFor(() => expect(createReservedTeamChatSession).toHaveBeenCalledTimes(1));
+		const initialFeedKey = result.current.model.feedKey;
+		const initialRenderKeys = result.current.model.feedItems.map((item) => item.renderKey);
+		act(() => result.current.actions.setDraft("a new draft during setup"));
+		expect(result.current.model.editorEnabled).toBe(true);
+
+		await act(async () => resolveCreation?.({ document, snapshot: baseSnapshot, sessions: [] }));
+		await waitFor(() => expect(window.vetta.agentTeams.sendMessage).toHaveBeenCalledTimes(1));
+		expect(peekTeamSessionHandoff(baseSession.id)).toBeUndefined();
+		expect(result.current.model.feedKey).toBe(initialFeedKey);
+		expect(result.current.model.feedItems.map((item) => item.renderKey)).toEqual(initialRenderKeys);
+		expect(result.current.model.feedItems).toEqual([
+			expect.objectContaining({ kind: "user", text: submittedText }),
+			expect.objectContaining({ kind: "agent", phase: "pending" }),
+		]);
+		expect(result.current.model.status).toBe("sending");
+		expect(result.current.model.draft).toBe("a new draft during setup");
+
+		// Main is still running the initial member turns. Setup can publish an empty
+		// snapshot after the route handoff has been removed, before a user record lands.
+		await waitFor(() => expect(streamListener).toBeTypeOf("function"));
+		act(() => {
+			streamListener?.({
+				type: "session-updated",
+				teamSessionId: baseSession.id,
+				snapshot: baseSnapshot,
+			});
+			streamListener?.({
+				type: "session-snapshot",
+				teamSessionId: baseSession.id,
+				snapshot: baseSnapshot,
+				activeMessageEvents: [],
+			});
+			result.current.actions.setDraft("the next message");
+		});
+		expect(result.current.model.feedItems.map((item) => item.renderKey)).toEqual(initialRenderKeys);
+		expect(result.current.model.feedItems).toEqual([
+			expect.objectContaining({ kind: "user", text: submittedText }),
+			expect.objectContaining({ kind: "agent", phase: "pending" }),
+		]);
+		expect(result.current.model.editorEnabled).toBe(true);
+		expect(result.current.model.status).toBe("sending");
+		expect(result.current.model.draft).toBe("the next message");
+		expect(result.current.model.canSend).toBe(false);
+		await act(async () => result.current.actions.send());
+		expect(window.vetta.agentTeams.sendMessage).toHaveBeenCalledTimes(1);
+		expect(window.vetta.agentTeams.sendMessage).toHaveBeenCalledWith(
+			baseSession.id,
+			expect.objectContaining({ requestId, text: submittedText }),
+		);
+
+		const finalSnapshot: DesktopTeamSessionSnapshot = {
+			...baseSnapshot,
+			conversationRevision: 2,
+			messages: [
+				{
+					kind: "user",
+					id: "persisted-user",
+					turnId: requestId,
+					author: { kind: "user", id: "local-user" },
+					message: { role: "user", content: submittedText, timestamp: 10 },
+					timestamp: 10,
+				},
+				{
+					kind: "agent",
+					id: "persisted-reply",
+					turnId: requestId,
+					author: { kind: "agent", id: leader.id },
+					message: {
+						...createAssistantMessage(
+							{ api: "agent-team-test", provider: "agent-team-test", model: "fixture" },
+							{ timestamp: 11 },
+						),
+						content: [{ type: "text", text: "received" }],
+					},
+					timestamp: 11,
+				},
+			],
+		};
+		act(() => {
+			streamListener?.({
+				type: "session-updated",
+				teamSessionId: baseSession.id,
+				snapshot: finalSnapshot,
+			});
+		});
+		// A published member result does not release the request's cancellation scope.
+		// sendMessage settles only after Main has joined all initial member turns.
+		expect(result.current.model.canSend).toBe(false);
+		await act(async () => resolveSend?.(finalSnapshot));
+		expect(result.current.model.status).toBe("ready");
+		expect(result.current.model.canSend).toBe(true);
+		expect(result.current.model.draft).toBe("the next message");
+		expect(result.current.model.feedItems).toEqual([
+			expect.objectContaining({ kind: "user", text: submittedText }),
+			expect.objectContaining({ kind: "agent", phase: "completed" }),
+		]);
+		vi.mocked(window.vetta.agentTeams.sendMessage).mockResolvedValue(finalSnapshot);
+		await act(async () => result.current.actions.send());
+		expect(window.vetta.agentTeams.sendMessage).toHaveBeenCalledTimes(2);
+		expect(window.vetta.agentTeams.sendMessage).toHaveBeenLastCalledWith(
+			baseSession.id,
+			expect.objectContaining({ text: "the next message" }),
+		);
+	});
+
+	it("aborts a team that is still streaming after the send request already resolved", async () => {
+		const { result } = renderHook(() => useTeamChatModel(team.id));
+		await waitFor(() => expect(result.current.model.status).toBe("ready"));
+		await waitFor(() => expect(streamListener).toBeTypeOf("function"));
+		act(() => result.current.actions.setDraft("dispatch the team"));
+		// The leader's own turn finishes and the IPC resolves, but the members it
+		// dispatched keep streaming — this is the state the stop button must still cover.
+		await act(async () => result.current.actions.send());
+		act(() => streamListener?.(streamEvent(1, "member still working")));
+		await waitFor(() => expect(result.current.model.status).toBe("streaming"));
+
+		await act(async () => result.current.actions.abort());
+		expect(window.vetta.agentTeams.abort).toHaveBeenCalledWith(baseSession.id);
+		expect(result.current.model.feedItems).toEqual([
+			expect.objectContaining({ kind: "agent", phase: "aborted", text: "member still working" }),
+		]);
+	});
+
+	it("immediately marks an in-flight tool cancelled when the user stops the Team", async () => {
+		const { result } = renderHook(() => useTeamChatModel(team.id));
+		await waitFor(() => expect(result.current.model.status).toBe("ready"));
+		await waitFor(() => expect(streamListener).toBeTypeOf("function"));
+		const persistedTool = {
+			...createAssistantMessage(
+				{ api: "agent-team-test", provider: "agent-team-test", model: "fixture" },
+				{ timestamp: 1 },
+			),
+			content: [{ type: "toolCall" as const, id: "wait-call", name: "team_wait_tasks", arguments: {} }],
+			stopReason: "toolUse" as const,
+		};
+		act(() => {
+			streamListener?.({
+				type: "session-updated",
+				teamSessionId: baseSession.id,
+				snapshot: {
+					...baseSnapshot,
+					session: { ...baseSession, revision: 1 },
+					conversationRevision: 1,
+					messages: [
+						{
+							kind: "agent",
+							id: "persisted-tool-step",
+							turnId: "request",
+							author: { kind: "agent", id: leader.id },
+							message: persistedTool,
+							timestamp: 1,
+						},
+					],
+					display: { memberConversations: [], workingMemberIds: [leader.id] },
+				},
+			});
+			streamListener?.({
+				type: "desktop.team-tool-execution",
+				conversationId: baseSession.id,
+				messageId: "live-tool-step",
+				turnId: "request",
+				author: { kind: "agent", id: leader.id },
+				sequence: 1,
+				timestamp: 1,
+				event: {
+					type: "start",
+					toolCallId: "wait-call",
+					toolName: "team_wait_tasks",
+					args: {},
+					startedAt: 1,
+				},
+			});
+		});
+		await waitFor(() => expect(result.current.model.status).toBe("streaming"));
+
+		await act(async () => result.current.actions.abort());
+
+		const tool = result.current.model.feedItems
+			.flatMap((item) => (item.kind === "agent" ? item.blocks : []))
+			.find((block) => block.type === "tool_call" && block.toolCallId === "wait-call");
+		expect(tool).toMatchObject({ status: "cancelled", currentPhase: undefined });
+		expect(result.current.model.status).toBe("ready");
+	});
+
+	it("keeps a terminal tool status when continuing after stopping the Team", async () => {
+		const { result } = renderHook(() => useTeamChatModel(team.id));
+		await waitFor(() => expect(result.current.model.status).toBe("ready"));
+		await waitFor(() => expect(streamListener).toBeTypeOf("function"));
+		const toolMessage = {
+			...createAssistantMessage(
+				{ api: "agent-team-test", provider: "agent-team-test", model: "fixture" },
+				{ timestamp: 1 },
+			),
+			content: [{ type: "toolCall" as const, id: "delegate-call", name: "team_delegate_task", arguments: {} }],
+			stopReason: "toolUse" as const,
+		};
+		const baseToolEvent: DesktopTeamSessionStreamEvent = {
+			type: "desktop.team-tool-execution",
+			conversationId: baseSession.id,
+			messageId: "live-tool-step",
+			turnId: "delegation-request",
+			author: { kind: "agent", id: leader.id },
+			sequence: 1,
+			timestamp: 1,
+			event: {
+				type: "start",
+				toolCallId: "delegate-call",
+				toolName: "team_delegate_task",
+				args: {},
+				startedAt: 1,
+			},
+		};
+		act(() => {
+			streamListener?.({
+				type: "session-updated",
+				teamSessionId: baseSession.id,
+				snapshot: {
+					...baseSnapshot,
+					session: { ...baseSession, revision: 1 },
+					conversationRevision: 1,
+					messages: [
+						{
+							kind: "agent",
+							id: "persisted-tool-step",
+							turnId: "delegation-request",
+							author: { kind: "agent", id: leader.id },
+							message: toolMessage,
+							timestamp: 1,
+						},
+					],
+					display: { memberConversations: [], workingMemberIds: [leader.id] },
+				},
+			});
+			streamListener?.(baseToolEvent);
+			streamListener?.({
+				...baseToolEvent,
+				sequence: 2,
+				timestamp: 2,
+				event: {
+					type: "end",
+					toolCallId: "delegate-call",
+					toolName: "team_delegate_task",
+					result: { content: [{ type: "text", text: "delegated" }] },
+					isError: false,
+					startedAt: 1,
+					durationMs: 1,
+					phases: [],
+				},
+			});
+		});
+		await act(async () => result.current.actions.abort());
+		act(() =>
+			streamListener?.({
+				type: "session-updated",
+				teamSessionId: baseSession.id,
+				snapshot: {
+					...baseSnapshot,
+					session: { ...baseSession, revision: 1 },
+					conversationRevision: 1,
+					messages: [
+						{
+							kind: "agent",
+							id: "live-tool-step",
+							turnId: "delegation-request",
+							author: { kind: "agent", id: leader.id },
+							message: toolMessage,
+							timestamp: 1,
+						},
+					],
+				},
+			}),
+		);
+		const getStatus = () =>
+			result.current.model.feedItems
+				.flatMap((item) => (item.kind === "agent" ? item.blocks : []))
+				.flatMap((block) => (block.type === "tool_call" ? [block] : []))
+				.find((block) => block.toolCallId === "delegate-call")?.status;
+		expect(getStatus()).toBe("success");
+
+		let resolveContinue: ((value: DesktopTeamSessionSnapshot) => void) | undefined;
+		vi.mocked(window.vetta.agentTeams.sendMessage).mockReturnValueOnce(
+			new Promise((resolve) => {
+				resolveContinue = resolve;
+			}),
+		);
+		act(() => result.current.actions.setDraft("continue"));
+		let continuation: Promise<void> | undefined;
+		act(() => {
+			continuation = result.current.actions.send();
+		});
+		await waitFor(() => expect(window.vetta.agentTeams.sendMessage).toHaveBeenCalledTimes(1));
+		expect(getStatus()).toBe("success");
+		resolveContinue?.(baseSnapshot);
+		await act(async () => {
+			await continuation;
+		});
+	});
+
+	it("does not restore a cancelled tool to pending when its durable snapshot arrives after stop", async () => {
+		const { result } = renderHook(() => useTeamChatModel(team.id));
+		await waitFor(() => expect(result.current.model.status).toBe("ready"));
+		await waitFor(() => expect(streamListener).toBeTypeOf("function"));
+		const toolMessage = {
+			...createAssistantMessage(
+				{ api: "agent-team-test", provider: "agent-team-test", model: "fixture" },
+				{ timestamp: 1 },
+			),
+			content: [{ type: "toolCall" as const, id: "wait-call-after-stop", name: "team_wait_tasks", arguments: {} }],
+			stopReason: "toolUse" as const,
+		};
+		const toolStart: DesktopTeamSessionStreamEvent = {
+			type: "desktop.team-tool-execution",
+			conversationId: baseSession.id,
+			messageId: "live-tool-step-after-stop",
+			turnId: "waiting-request",
+			author: { kind: "agent", id: leader.id },
+			sequence: 1,
+			timestamp: 1,
+			event: {
+				type: "start",
+				toolCallId: "wait-call-after-stop",
+				toolName: "team_wait_tasks",
+				args: {},
+				startedAt: 1,
+			},
+		};
+		act(() => {
+			streamListener?.(toolStart);
+		});
+		await waitFor(() => expect(result.current.model.status).toBe("streaming"));
+
+		await act(async () => result.current.actions.abort());
+		act(() =>
+			streamListener?.({
+				...toolStart,
+				sequence: 2,
+				timestamp: 2,
+				event: {
+					type: "end",
+					toolCallId: "wait-call-after-stop",
+					toolName: "team_wait_tasks",
+					result: { content: [{ type: "text", text: "tasks completed" }] },
+					isError: false,
+					startedAt: 1,
+					durationMs: 1,
+					phases: [],
+				},
+			}),
+		);
+		const persistedAfterStop = {
+			...baseSnapshot,
+			session: { ...baseSession, revision: 1 },
+			conversationRevision: 1,
+			messages: [
+				{
+					kind: "agent" as const,
+					id: "live-tool-step-after-stop",
+					turnId: "waiting-request",
+					author: { kind: "agent" as const, id: leader.id },
+					message: toolMessage,
+					timestamp: 1,
+				},
+			],
+		};
+		act(() => streamListener?.({ type: "session-updated", teamSessionId: baseSession.id, snapshot: persistedAfterStop }));
+
+		const getStatus = () =>
+			result.current.model.feedItems
+				.flatMap((item) => (item.kind === "agent" ? item.blocks : []))
+				.flatMap((block) => (block.type === "tool_call" ? [block] : []))
+				.find((block) => block.toolCallId === "wait-call-after-stop")?.status;
+		expect(getStatus()).toBe("cancelled");
+
+		let resolveContinue: ((value: DesktopTeamSessionSnapshot) => void) | undefined;
+		vi.mocked(window.vetta.agentTeams.sendMessage).mockReturnValueOnce(
+			new Promise((resolve) => {
+				resolveContinue = resolve;
+			}),
+		);
+		act(() => result.current.actions.setDraft("continue"));
+		let continuation: Promise<void> | undefined;
+		act(() => {
+			continuation = result.current.actions.send();
+		});
+		await waitFor(() => expect(window.vetta.agentTeams.sendMessage).toHaveBeenCalledTimes(1));
+		// The wait was cancelled with the leader. Its durable historical tool-call
+		// record is still `toolUse`, so the terminal live overlay must win after continue.
+		expect(getStatus()).toBe("cancelled");
+		resolveContinue?.(persistedAfterStop);
+		await act(async () => {
+			await continuation;
+		});
+	});
+
+	it("keeps showing a member turn that restarts after a stop", async () => {
+		const { result } = renderHook(() => useTeamChatModel(team.id));
+		await waitFor(() => expect(result.current.model.status).toBe("ready"));
+		await waitFor(() => expect(streamListener).toBeTypeOf("function"));
+		act(() => result.current.actions.setDraft("dispatch the team"));
+		await act(async () => result.current.actions.send());
+		act(() => streamListener?.(streamEvent(1, "first answer")));
+		await waitFor(() => expect(result.current.model.status).toBe("streaming"));
+
+		await act(async () => result.current.actions.abort());
+
+		// The retry keeps its send in flight, so the composer stays in the waiting state
+		// the user sees as "已等待 · n秒" while the member starts streaming again.
+		let resolveRetry: ((value: DesktopTeamSessionSnapshot) => void) | undefined;
+		vi.mocked(window.vetta.agentTeams.sendMessage).mockReturnValueOnce(
+			new Promise((resolve) => {
+				resolveRetry = resolve;
+			}),
+		);
+		act(() => result.current.actions.setDraft("try again"));
+		let retry: Promise<void> | undefined;
+		act(() => {
+			retry = result.current.actions.send();
+		});
+		await waitFor(() => expect(window.vetta.agentTeams.sendMessage).toHaveBeenCalledTimes(2));
+
+		act(() => streamListener?.(streamEvent(1, "second answer")));
+		await waitFor(() => expect(result.current.model.status).toBe("streaming"));
+		expect(
+			result.current.model.feedItems.some((item) => item.kind === "agent" && item.phase === "streaming"),
+		).toBe(true);
+		resolveRetry?.(baseSnapshot);
+		await act(async () => {
+			await retry;
+		});
+	});
+
+	it("does not drop a streamed reply when the snapshot carrying it is rejected as stale", async () => {
+		// The send response advances the local snapshot revisions.
+		vi.mocked(window.vetta.agentTeams.sendMessage).mockResolvedValueOnce({
+			...baseSnapshot,
+			session: { ...baseSession, revision: 5 },
+			conversationRevision: 5,
+		});
+		const { result } = renderHook(() => useTeamChatModel(team.id));
+		await waitFor(() => expect(result.current.model.status).toBe("ready"));
+		await waitFor(() => expect(streamListener).toBeTypeOf("function"));
+		act(() => result.current.actions.setDraft("dispatch the team"));
+		await act(async () => result.current.actions.send());
+
+		act(() => streamListener?.(streamEvent(1, "the answer")));
+		await waitFor(() => expect(result.current.model.status).toBe("streaming"));
+		expect(result.current.model.feedItems.some((item) => item.kind === "agent")).toBe(true);
+
+		// A session-updated whose revisions are behind the local ones is rejected as
+		// stale — but it still reports the message as persisted. Pruning the stream on
+		// a snapshot we refuse to adopt erases the reply from both places at once.
+		act(() =>
+			streamListener?.({
+				type: "session-updated",
+				teamSessionId: baseSession.id,
+				snapshot: {
+					...baseSnapshot,
+					session: { ...baseSession, revision: 1 },
+					conversationRevision: 1,
+					messages: [{ id: "result" } as never],
+				},
+			}),
+		);
+
+		expect(result.current.model.feedItems.some((item) => item.kind === "agent")).toBe(true);
+	});
+
+	it("shows the in-flight turn from a session-snapshot even when its revisions look stale", async () => {
+		vi.mocked(window.vetta.agentTeams.sendMessage).mockResolvedValueOnce({
+			...baseSnapshot,
+			session: { ...baseSession, revision: 5 },
+			conversationRevision: 5,
+		});
+		const { result } = renderHook(() => useTeamChatModel(team.id));
+		await waitFor(() => expect(result.current.model.status).toBe("ready"));
+		await waitFor(() => expect(streamListener).toBeTypeOf("function"));
+		act(() => result.current.actions.setDraft("dispatch the team"));
+		await act(async () => result.current.actions.send());
+
+		// A session-snapshot rebuilds the stream from activeMessageEvents — it is the
+		// first frame of a turn already under way. Its revisions trail the ones the send
+		// response just installed, but skipping it hides the running turn until some
+		// later event happens to be accepted.
+		act(() =>
+			streamListener?.({
+				type: "session-snapshot",
+				teamSessionId: baseSession.id,
+				snapshot: { ...baseSnapshot, session: { ...baseSession, revision: 1 }, conversationRevision: 1 },
+				activeMessageEvents: [streamEvent(1, "already working")] as never,
+			}),
+		);
+
+		await waitFor(() => expect(result.current.model.status).toBe("streaming"));
+		expect(result.current.model.feedItems.some((item) => item.kind === "agent")).toBe(true);
+	});
+
+	it.each(["failed", "aborted"] as const)("releases a %s send without overwriting a newer draft", async (outcome) => {
+		let rejectSend: ((reason: Error) => void) | undefined;
+		vi.mocked(window.vetta.agentTeams.sendMessage).mockReturnValueOnce(
+			new Promise((_resolve, reject) => {
+				rejectSend = reject;
+			}),
+		);
+		const { result } = renderHook(() => useTeamChatModel(team.id));
+		await waitFor(() => expect(result.current.model.status).toBe("ready"));
+		act(() => result.current.actions.setDraft("first message"));
+		let sendPromise: Promise<void> | undefined;
+		act(() => {
+			sendPromise = result.current.actions.send();
+		});
+		act(() => result.current.actions.setDraft("edited while sending"));
+		expect(result.current.model.editorEnabled).toBe(true);
+		expect(result.current.model.canSend).toBe(false);
+		if (outcome === "aborted") {
+			await act(async () => result.current.actions.abort());
+			expect(window.vetta.agentTeams.abort).toHaveBeenCalledWith(baseSession.id);
+		}
+		await act(async () => {
+			rejectSend?.(new Error("send stopped"));
+			await sendPromise;
+		});
+		expect(result.current.model.status).toBe(outcome === "aborted" ? "ready" : "error");
+		expect(result.current.model.feedItems.some((item) =>
+			item.kind === "agent" && item.blocks.some((block) => block.type === "error" && block.text === "send stopped"),
+		)).toBe(outcome !== "aborted");
+		expect(result.current.model.draft).toBe("edited while sending");
+		expect(result.current.model.editorEnabled).toBe(true);
+		expect(result.current.model.canSend).toBe(true);
+		expect(result.current.model.feedItems.some((item) => item.kind === "agent" && item.phase === "pending")).toBe(false);
+		await act(async () => result.current.actions.send());
+		expect(window.vetta.agentTeams.sendMessage).toHaveBeenCalledTimes(2);
+		expect(window.vetta.agentTeams.sendMessage).toHaveBeenLastCalledWith(
+			baseSession.id,
+			expect.objectContaining({ text: "edited while sending" }),
+		);
+	});
+
+	it("commits the new Team shell before starting runtime-backed session creation", async () => {
+		let releasePaint: (() => void) | undefined;
+		vi.mocked(waitForCommittedPaint).mockReturnValue(
+			new Promise((resolve) => {
+				releasePaint = () => resolve("painted");
+			}),
+		);
+
+		const { result } = renderHook(() => useTeamChatModel(team.id, undefined, undefined, true));
+
+		expect(result.current.model.activeSessionId).toBeNull();
+		expect(result.current.model.editorEnabled).toBe(true);
+		expect(createTeamChatSession).not.toHaveBeenCalled();
+		expect(loadTeamChatBootstrap).not.toHaveBeenCalled();
+
+		await act(async () => releasePaint?.());
+		await waitFor(() => expect(result.current.model.status).toBe("ready"));
+		expect(createTeamChatSession).toHaveBeenCalledWith(team.id);
+		expect(loadTeamChatBootstrap).toHaveBeenCalledWith(team.id);
+	});
+
+	it("shows a submitted message and leader while the new session record is still preparing", async () => {
+		let resolveCreation: ((value: Awaited<ReturnType<typeof createTeamChatSession>>) => void) | undefined;
+		vi.mocked(createTeamChatSession).mockReturnValue(
+			new Promise((resolve) => {
+				resolveCreation = resolve;
+			}),
+		);
+		const { result } = renderHook(() => useTeamChatModel(team.id, undefined, undefined, true));
+		await waitFor(() => expect(createTeamChatSession).toHaveBeenCalledWith(team.id));
+
+		act(() => result.current.actions.setDraft("Start immediately"));
+		let sendPromise: Promise<void> | undefined;
+		act(() => {
+			sendPromise = result.current.actions.send();
+		});
+		expect(result.current.model.feedItems).toEqual([
+			expect.objectContaining({ kind: "user", text: "Start immediately" }),
+			expect.objectContaining({ kind: "agent", authorId: team.leaderMemberId, phase: "pending" }),
+		]);
+
+		await act(async () => {
+			resolveCreation?.({ document, snapshot: baseSnapshot, sessions: [] });
+			await sendPromise;
+		});
+		expect(window.vetta.agentTeams.sendMessage).toHaveBeenCalledWith(
+			baseSession.id,
+			expect.objectContaining({ text: "Start immediately" }),
+		);
+	});
+});
+
+function contextCompositionReport(callId: string): ContextCompositionReport {
+	return {
+		version: 1,
+		callId,
+		snapshotId: `${callId}-snapshot`,
+		phase: "completed",
+		createdAt: 1,
+		model: { provider: "test", modelId: "fixture", contextWindow: 1_000 },
+		estimate: { tokens: 200, knownTokens: 200, coverage: "complete" },
+		sections: [],
+	};
+}

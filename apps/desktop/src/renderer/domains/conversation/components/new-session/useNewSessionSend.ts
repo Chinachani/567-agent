@@ -1,0 +1,81 @@
+import { perfSendBegin, perfSendMark } from "@shared/lib/perf-send";
+import type { OpenSessionOptions, SendMessageOptions, SessionExecutionMode } from "@shared/store/atoms";
+import { chatMessagesAtom, pendingSessionSendAtom } from "@shared/store/atoms";
+import { getDefaultStore } from "jotai";
+import { useCallback, useRef } from "react";
+import { startAssistantTurn } from "../../services/chat-service";
+import { restoreStagedNewSessionSend, stageNewSessionSend } from "../../services/staged-new-session-send";
+import type { SendInteractionContext } from "../input-bar/types";
+
+interface NewSessionSendOptions {
+	readonly cwd: string;
+	readonly executionMode: SessionExecutionMode;
+	/**
+	 * 发送前必须先跑完的一步，返回真正的目标 cwd（新会话页用它把待创建的项目落盘）。
+	 * 返回 null 表示放弃本次发送——重复发送闸门会随之释放，输入内容留在原地。
+	 * 不传则直接用 {@link NewSessionSendOptions.cwd}。
+	 */
+	readonly prepareCwd?: () => Promise<string | null>;
+	readonly openSession: (
+		cwd: string,
+		sessionPath?: string,
+		executionMode?: SessionExecutionMode,
+		options?: OpenSessionOptions,
+	) => Promise<void>;
+	readonly sendMessage: (overrideText?: string, options?: SendMessageOptions) => Promise<unknown>;
+	/**
+	 * 选中单个智能体时带上它的身份。只传身份不传能力：主进程按身份查表裁剪
+	 * 技能 / MCP / 插件白名单，渲染层不经手任何能力字段。
+	 */
+	readonly agentProfileId?: string;
+}
+
+export function useNewSessionSend(options: NewSessionSendOptions): {
+	readonly send: (overrideText?: string, context?: SendInteractionContext) => Promise<void>;
+} {
+	const sendingRef = useRef(false);
+	const { cwd, executionMode, prepareCwd, openSession, sendMessage, agentProfileId } = options;
+
+	const send = useCallback(
+		async (overrideText?: string, context?: SendInteractionContext): Promise<void> => {
+			if (sendingRef.current) return;
+			sendingRef.current = true;
+			const interactionId = context?.interactionId ?? perfSendBegin("new-session-programmatic");
+			perfSendMark("new-session-submit", interactionId);
+			try {
+				// 准备阶段也在闸门内：连点两下发送不会创建出两个项目。
+				const targetCwd = prepareCwd ? await prepareCwd() : cwd;
+				if (!targetCwd) return;
+				const stagedInput = stageNewSessionSend(overrideText, interactionId);
+				if (!stagedInput) return;
+				getDefaultStore().set(pendingSessionSendAtom, {
+					messageId: stagedInput.optimisticMessage.id,
+					interactionId,
+				});
+				// 发送意图确认后立即建立 assistant 草稿，头像/名称与暂停按钮同帧出现；
+				// 后续 session.create、订阅和 prompt 只负责让该草稿进入正式流式生命周期。
+				getDefaultStore().set(chatMessagesAtom, (prev) => startAssistantTurn(prev, Date.now()));
+				await openSession(targetCwd, undefined, executionMode, {
+					interactionId,
+					...(agentProfileId ? { agentProfileId } : {}),
+					navigateBeforeCreate: true,
+					preserveMessagesBeforeCreate: true,
+					onCreateError: () => {
+						getDefaultStore().set(pendingSessionSendAtom, null);
+						restoreStagedNewSessionSend(stagedInput);
+					},
+					onPromptReady: async () => {
+						await sendMessage(undefined, { interactionId, stagedInput }).catch((error: unknown) => {
+							console.error("[useNewSessionSend] prompt-ready send failed", error);
+						});
+					},
+				});
+			} finally {
+				sendingRef.current = false;
+			}
+		},
+		[agentProfileId, cwd, executionMode, prepareCwd, openSession, sendMessage],
+	);
+
+	return { send };
+}

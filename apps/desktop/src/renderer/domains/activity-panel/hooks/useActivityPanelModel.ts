@@ -1,0 +1,497 @@
+import { withPluginTabVisibility } from "@domains/plugins/runtime/attached-tabs";
+import type { TabBarItem } from "@shared/components/ui/tab-bar";
+import { useNarrowScreen, useWindowWidth } from "@shared/hooks/useNarrowScreen";
+import { type ActivityTabKey, useProjectProfile } from "@shared/lib/project-profile";
+import {
+	ACTIVITY_PANEL_MIN_CHAT_AREA,
+	ACTIVITY_PANEL_MIN_WIDTH,
+	activityPanelMaxWidth,
+	activityPanelOpenAtom,
+	activityPanelResizingAtom,
+	activityPanelTabByProjectAtom,
+	activityPanelWidthAtom,
+	activityPanelWidthModeAtom,
+	activityTabOrderAtom,
+	attachedPluginTabsAtom,
+	type FloatingActivityTabPlacement,
+	hiddenActivityTabsAtom,
+	resolveActivityPanelWidth,
+	sidebarCollapsedAtom,
+	sidebarWidthAtom,
+	syncActivityPanelPreviewAvailabilityAtom,
+	syncActivityPanelWidthToWindowAtom,
+} from "@shared/store/atoms";
+import { useAtom, useAtomValue, useSetAtom } from "jotai";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import type { ActivityPanelActions, ActivityPanelModel } from "../components/activity-panel/types";
+import { resolveActivityTabs } from "../registry/resolve-activity-tabs";
+import type { ActivityTabDefinition, ActivityTabId, ActivityTabMeta, ResolvedActivityTab } from "../registry/types";
+import { mergeDockedTabOrder } from "../services/floating-activity-tab";
+import { useActivityTabResidency } from "./useActivityTabResidency";
+import { useFloatingActivityTabs } from "./useFloatingActivityTabs";
+
+const NON_HIDEABLE_TABS = new Set<string>(["file", "knowledge-history"]);
+const EMPTY_FLOATING_TABS: readonly FloatingActivityTabPlacement[] = [];
+
+function toTabBarItem(tab: ResolvedActivityTab): TabBarItem<ActivityTabKey> {
+	return {
+		key: tab.id as ActivityTabKey,
+		label: tab.label,
+		icon: tab.icon,
+		badge: tab.badge,
+		removable: tab.removable,
+	};
+}
+
+export interface UseActivityPanelModelInput {
+	definitions: readonly ActivityTabDefinition[];
+	metaById: ReadonlyMap<ActivityTabId, ActivityTabMeta | null>;
+	knowledgeHistory?: boolean;
+	/** 已由外层解析的 cwd（与 Context 一致）。 */
+	cwd: string | null;
+	workspaceId: string;
+}
+
+export function useActivityPanelModel({
+	cwd,
+	workspaceId,
+	definitions,
+	metaById,
+	knowledgeHistory = false,
+}: UseActivityPanelModelInput): { actions: ActivityPanelActions; model: ActivityPanelModel } {
+	const [isOpen, setOpen] = useAtom(activityPanelOpenAtom);
+	const narrow = useNarrowScreen();
+	const [attachedPluginTabsMap, setAttachedPluginTabsMap] = useAtom(attachedPluginTabsAtom);
+	const [width, setWidth] = useAtom(activityPanelWidthAtom);
+	const [isResizing, setIsResizing] = useAtom(activityPanelResizingAtom);
+	const syncPreviewAvailability = useSetAtom(syncActivityPanelPreviewAvailabilityAtom);
+	const syncWidthToWindow = useSetAtom(syncActivityPanelWidthToWindowAtom);
+	const widthMode = useAtomValue(activityPanelWidthModeAtom);
+	const [overflowKeys, setOverflowKeys] = useState<ActivityTabKey[]>([]);
+	const [tabByProject, setTabByProject] = useAtom(activityPanelTabByProjectAtom);
+	const windowWidth = useWindowWidth();
+	const sidebarWidth = useAtomValue(sidebarWidthAtom);
+	const maxWidth = activityPanelMaxWidth(windowWidth);
+	const [sidebarCollapsed, setSidebarCollapsed] = useAtom(sidebarCollapsedAtom);
+	const widthCollapsedSidebarRef = useRef<boolean | null>(null);
+	const prevSidebarCollapsedRef = useRef(sidebarCollapsed);
+	const liveWidthRef = useRef(width);
+	const { profile } = useProjectProfile(cwd);
+	const mainTabListRef = useRef<HTMLDivElement | null>(null);
+	const panelRef = useRef<HTMLDivElement | null>(null);
+
+	const tabVisibilityRecords = useMemo(
+		() => attachedPluginTabsMap.get(workspaceId) ?? [],
+		[attachedPluginTabsMap, workspaceId],
+	);
+	const [hiddenTabsMap, setHiddenTabsMap] = useAtom(hiddenActivityTabsAtom);
+	const [tabOrderMap, setTabOrderMap] = useAtom(activityTabOrderAtom);
+	const hiddenKeys = useMemo(() => hiddenTabsMap.get(workspaceId) ?? [], [workspaceId, hiddenTabsMap]);
+	const tabOrder = useMemo(() => tabOrderMap.get(workspaceId) ?? [], [workspaceId, tabOrderMap]);
+
+	const resolved = useMemo(
+		() =>
+			resolveActivityTabs({
+				definitions,
+				metaById,
+				tabVisibilityRecords,
+				hiddenKeys,
+				tabOrder,
+			}),
+		[definitions, metaById, tabVisibilityRecords, hiddenKeys, tabOrder],
+	);
+
+	const tabItems = useMemo(() => resolved.onBar.map(toTabBarItem), [resolved.onBar]);
+	const restorableTabs = useMemo(
+		() =>
+			resolved.restorable.map((item) => ({
+				key: item.id,
+				label: item.label,
+				icon: item.icon,
+			})),
+		[resolved.restorable],
+	);
+	const availablePluginTabs = useMemo(
+		() =>
+			resolved.availablePlugins.map((item) => ({
+				key: item.id,
+				label: item.label,
+				icon: item.icon,
+				subtitle: item.pluginName,
+			})),
+		[resolved.availablePlugins],
+	);
+
+	const definitionById = useMemo(() => {
+		const map = new Map<string, ActivityTabDefinition>();
+		for (const def of definitions) map.set(def.id, def);
+		return map;
+	}, [definitions]);
+	const onTabChange = useCallback(
+		(next: ActivityTabKey) => {
+			setTabByProject((previous) => {
+				const map = new Map(previous);
+				map.set(workspaceId, next);
+				return map;
+			});
+		},
+		[workspaceId, setTabByProject],
+	);
+	const onTabOrderChange = useCallback(
+		(keys: ActivityTabKey[]) => {
+			const next = new Map(tabOrderMap);
+			next.set(workspaceId, keys);
+			setTabOrderMap(next);
+		},
+		[workspaceId, setTabOrderMap, tabOrderMap],
+	);
+	const allTabKeys = useMemo(() => tabItems.map((item) => item.key), [tabItems]);
+	const floating = useFloatingActivityTabs({
+		allTabKeys,
+		mainTabListRef,
+		onActiveTabChange: onTabChange,
+		onTabOrderChange,
+		panelRef,
+		panelWidth: width,
+		scopeKey: workspaceId,
+	});
+	const floatingKeys = useMemo(
+		() => (narrow ? new Set<ActivityTabKey>() : floating.model.floatingKeys),
+		[narrow, floating.model.floatingKeys],
+	);
+	const dockedTabItems = useMemo(
+		() => tabItems.filter((item) => !floatingKeys.has(item.key)),
+		[tabItems, floatingKeys],
+	);
+
+	const reconcileSidebarForWidth = useCallback(
+		(liveWidth: number): void => {
+			const openLimit = Math.max(
+				ACTIVITY_PANEL_MIN_WIDTH,
+				windowWidth - sidebarWidth - ACTIVITY_PANEL_MIN_CHAT_AREA,
+			);
+			const shouldCollapse = isOpen && liveWidth > openLimit;
+			if (shouldCollapse) {
+				if (widthCollapsedSidebarRef.current === null) {
+					widthCollapsedSidebarRef.current = sidebarCollapsed;
+					setSidebarCollapsed(true);
+				}
+			} else if (widthCollapsedSidebarRef.current !== null) {
+				const restore = widthCollapsedSidebarRef.current;
+				widthCollapsedSidebarRef.current = null;
+				setSidebarCollapsed(restore);
+			}
+		},
+		[isOpen, setSidebarCollapsed, sidebarCollapsed, sidebarWidth, windowWidth],
+	);
+	const onResizeStart = useCallback(() => {
+		liveWidthRef.current = width;
+		setIsResizing(true);
+	}, [setIsResizing, width]);
+	const onResize = useCallback(
+		(liveWidth: number) => {
+			liveWidthRef.current = liveWidth;
+			syncPreviewAvailability(liveWidth);
+			reconcileSidebarForWidth(liveWidth);
+		},
+		[reconcileSidebarForWidth, syncPreviewAvailability],
+	);
+	const onResizeEnd = useCallback(
+		(finalWidth: number) => {
+			liveWidthRef.current = finalWidth;
+			setWidth(finalWidth);
+			setIsResizing(false);
+		},
+		[setIsResizing, setWidth],
+	);
+	const onClose = useCallback(() => setOpen(false), [setOpen]);
+	useEffect(() => () => setIsResizing(false), [setIsResizing]);
+
+	// 窗口尺寸变化时按宽度意图重解析：拉满态跟着窗口一起变宽，固定像素则夹紧/回弹。
+	useEffect(() => {
+		syncWidthToWindow(windowWidth);
+	}, [windowWidth, syncWidthToWindow]);
+
+	/**
+	 * 打开面板时按**当下**的窗口宽度再解析一次。
+	 *
+	 * 像素宽度是在写入那一刻用 window.innerWidth 算出来的，而上面那次同步只在面板挂载
+	 * 期间跑。面板关着时窗口若变过尺寸（或宽度意图是「拉满」而上次解析用的是更窄的窗口），
+	 * 重新打开就会沿用过期宽度：面板比该占的位置窄，右侧露出一条空白，直到用户拖一下分隔条
+	 * 才恢复。这里直接读 window.innerWidth 而不是 windowWidth——后者本身可能就是那个过期值。
+	 * 宽度没变时 atom 内部会跳过写入，因此重复触发无代价。
+	 */
+	useEffect(() => {
+		if (!isOpen) return;
+		syncWidthToWindow(window.innerWidth);
+	}, [isOpen, syncWidthToWindow]);
+
+	/**
+	 * 当前窗口宽度下面板**应有**的宽度。侧边栏联动必须用它而不是 `width`：`width` 由上面的
+	 * effect 异步写回，窗口刚变宽的那一轮里它还是旧值，用旧宽度会误判成「面板不再过宽」而
+	 * 展开侧边栏，下一轮又把面板压回 openLimit——拉满态会因此被打回固定宽度。
+	 */
+	const effectiveWidth = resolveActivityPanelWidth(widthMode, windowWidth);
+
+	useEffect(() => {
+		const openLimit = Math.max(ACTIVITY_PANEL_MIN_WIDTH, windowWidth - sidebarWidth - ACTIVITY_PANEL_MIN_CHAT_AREA);
+		const collapsedChanged = prevSidebarCollapsedRef.current !== sidebarCollapsed;
+		prevSidebarCollapsedRef.current = sidebarCollapsed;
+		if (collapsedChanged && !sidebarCollapsed && isOpen && effectiveWidth > openLimit) {
+			widthCollapsedSidebarRef.current = null;
+			setWidth(openLimit);
+			return;
+		}
+
+		const sidebarDecisionWidth = isResizing ? liveWidthRef.current : effectiveWidth;
+		const shouldCollapse = isOpen && sidebarDecisionWidth > openLimit;
+		if (shouldCollapse) {
+			if (widthCollapsedSidebarRef.current === null) {
+				widthCollapsedSidebarRef.current = sidebarCollapsed;
+				setSidebarCollapsed(true);
+			}
+		} else if (widthCollapsedSidebarRef.current !== null) {
+			const restore = widthCollapsedSidebarRef.current;
+			widthCollapsedSidebarRef.current = null;
+			setSidebarCollapsed(restore);
+		}
+	}, [effectiveWidth, windowWidth, sidebarWidth, isOpen, isResizing, sidebarCollapsed, setSidebarCollapsed, setWidth]);
+
+	const activeTab = useMemo<ActivityTabKey>(() => {
+		if (knowledgeHistory && dockedTabItems.some((item) => item.key === "knowledge-history")) {
+			return "knowledge-history";
+		}
+		{
+			const remembered = tabByProject.get(workspaceId);
+			if (remembered && dockedTabItems.some((item) => item.key === remembered)) return remembered;
+			// Keep plugin tab sticky while contributions briefly disappear (reload / hot reload).
+			// Falling back to "file" mounts FileTabContent and its unmount cleanup can reset width.
+			if (remembered?.startsWith("plugin:") && !tabItems.some((item) => item.key === remembered)) {
+				return remembered;
+			}
+		}
+		const fallback = profile?.defaultActivityTab ?? "file";
+		if (dockedTabItems.some((item) => item.key === fallback)) return fallback;
+		return dockedTabItems[0]?.key ?? fallback;
+	}, [knowledgeHistory, workspaceId, tabByProject, profile, dockedTabItems, tabItems]);
+	useEffect(() => {
+		console.debug(
+			`[activity-tab-debug] resolved ${JSON.stringify({
+				cwd,
+				workspaceId,
+				panelOpen: isOpen,
+				remembered: tabByProject.get(workspaceId) ?? null,
+				activeTab,
+				visibilityRecords: tabVisibilityRecords,
+				hiddenKeys,
+				tabOrder,
+				definitions: definitions.map((definition) => ({
+					id: definition.id,
+					source: definition.source,
+					pluginId: definition.pluginId ?? null,
+					initiallyVisible: definition.initiallyVisible ?? true,
+					metaAvailable: metaById.get(definition.id) != null,
+				})),
+				candidates: resolved.candidates.map((tab) => tab.id),
+				onBar: resolved.onBar.map((tab) => tab.id),
+				availablePlugins: resolved.availablePlugins.map((tab) => tab.id),
+				docked: dockedTabItems.map((tab) => tab.key),
+			})}`,
+		);
+	}, [
+		activeTab,
+		cwd,
+		workspaceId,
+		definitions,
+		dockedTabItems,
+		hiddenKeys,
+		isOpen,
+		metaById,
+		resolved.availablePlugins,
+		resolved.candidates,
+		resolved.onBar,
+		tabByProject,
+		tabOrder,
+		tabVisibilityRecords,
+	]);
+	// 程序切到某 tab 时若它在 hidden 列表，自动恢复（与旧行为一致）。
+	useEffect(() => {
+		const remembered = tabByProject.get(workspaceId);
+		if (!remembered || !hiddenKeys.includes(remembered)) return;
+		if (!resolved.candidates.some((item) => item.id === remembered)) return;
+		const next = new Map(hiddenTabsMap);
+		next.set(
+			workspaceId,
+			(next.get(workspaceId) ?? []).filter((key) => key !== remembered),
+		);
+		setHiddenTabsMap(next);
+	}, [workspaceId, tabByProject, hiddenKeys, resolved.candidates, hiddenTabsMap, setHiddenTabsMap]);
+
+	const onTabDragStart = useCallback<ActivityPanelActions["onTabDragStart"]>(
+		(event) => {
+			floating.actions.onDockedTabDragStart(event);
+			onTabChange(event.key);
+		},
+		[onTabChange, floating.actions.onDockedTabDragStart],
+	);
+
+	const mountedTabs = useActivityTabResidency({
+		activeTab,
+		candidates: resolved.candidates,
+		floatingKeys: floating.model.floatingKeys,
+		scopeKey: workspaceId,
+		warmEligibleTabs: resolved.onBar,
+	});
+
+	const onRemoveTab = useCallback(
+		(key: ActivityTabKey) => {
+			if (NON_HIDEABLE_TABS.has(key)) return;
+			const def = definitionById.get(key);
+			if (def && def.removable === false) return;
+			floating.actions.clearFloatingTab(key);
+
+			// 插件 tab：写显式下栏，回到「+」可添加池（不进 hidden 列表）。
+			if (key.startsWith("plugin:")) {
+				const attachKey = key.slice("plugin:".length);
+				const nextAttached = withPluginTabVisibility(attachedPluginTabsMap, workspaceId, attachKey, false);
+				if (nextAttached) setAttachedPluginTabsMap(nextAttached);
+				if (activeTab === key) {
+					onTabChange(dockedTabItems.find((item) => item.key !== key)?.key ?? "file");
+				}
+				return;
+			}
+			const next = new Map(hiddenTabsMap);
+			const current = next.get(workspaceId) ?? [];
+			if (!current.includes(key)) next.set(workspaceId, [...current, key]);
+			setHiddenTabsMap(next);
+			if (activeTab === key) {
+				onTabChange(dockedTabItems.find((item) => item.key !== key)?.key ?? "file");
+			}
+		},
+		[
+			workspaceId,
+			definitionById,
+			attachedPluginTabsMap,
+			setAttachedPluginTabsMap,
+			hiddenTabsMap,
+			setHiddenTabsMap,
+			activeTab,
+			dockedTabItems,
+			onTabChange,
+			floating.actions.clearFloatingTab,
+		],
+	);
+	const onRestoreTab = useCallback(
+		(key: string) => {
+			const next = new Map(hiddenTabsMap);
+			next.set(
+				workspaceId,
+				(next.get(workspaceId) ?? []).filter((hiddenKey) => hiddenKey !== key),
+			);
+			setHiddenTabsMap(next);
+			onTabChange(key as ActivityTabKey);
+		},
+		[workspaceId, hiddenTabsMap, setHiddenTabsMap, onTabChange],
+	);
+	/** 从可添加池显式上栏插件 tab 并切过去（与 openActivityTab 同语义，不强制改宽度）。 */
+	const onAttachPluginTab = useCallback(
+		(key: string) => {
+			if (!key.startsWith("plugin:")) return;
+			const attachKey = key.slice("plugin:".length);
+			const nextAttached = withPluginTabVisibility(attachedPluginTabsMap, workspaceId, attachKey, true);
+			if (nextAttached) setAttachedPluginTabsMap(nextAttached);
+			onTabChange(key as ActivityTabKey);
+			setOpen(true);
+		},
+		[workspaceId, attachedPluginTabsMap, setAttachedPluginTabsMap, onTabChange, setOpen],
+	);
+	const onReorderTabs = useCallback(
+		(keys: ActivityTabKey[]) => {
+			const merged = mergeDockedTabOrder(allTabKeys, floatingKeys, keys);
+			onTabOrderChange(merged);
+		},
+		[allTabKeys, floatingKeys, onTabOrderChange],
+	);
+	const overflowTabs = useMemo(
+		() =>
+			tabItems
+				.filter((item) => overflowKeys.includes(item.key))
+				.map((item) => ({ key: item.key, label: item.label, icon: item.icon })),
+		[tabItems, overflowKeys],
+	);
+	const showTabPicker =
+		!knowledgeHistory &&
+		cwd !== null &&
+		(restorableTabs.length > 0 || overflowTabs.length > 0 || availablePluginTabs.length > 0);
+
+	const actions = useMemo<ActivityPanelActions>(
+		() => ({
+			onAttachPluginTab,
+			onClose,
+			onFloatingResize: floating.actions.onFloatingResize,
+			onFloatingResizeEnd: floating.actions.onFloatingResizeEnd,
+			onFloatingTabDragEnd: floating.actions.onFloatingTabDragEnd,
+			onFloatingTabDragMove: floating.actions.onFloatingTabDragMove,
+			onFloatingTabDragStart: floating.actions.onFloatingTabDragStart,
+			onFloatingTabFocus: floating.actions.onFloatingTabFocus,
+			onOverflowChange: setOverflowKeys,
+			onRemoveTab,
+			onReorderTabs,
+			onResizeStart,
+			onResize,
+			onResizeEnd,
+			onRestoreTab,
+			onTabChange,
+			onTabDragEnd: floating.actions.onDockedTabDragEnd,
+			onTabDragMove: floating.actions.onDockedTabDragMove,
+			onTabDragStart,
+		}),
+		[
+			onAttachPluginTab,
+			onClose,
+			floating.actions.onDockedTabDragEnd,
+			floating.actions.onDockedTabDragMove,
+			floating.actions.onFloatingResize,
+			floating.actions.onFloatingResizeEnd,
+			floating.actions.onFloatingTabDragEnd,
+			floating.actions.onFloatingTabDragMove,
+			floating.actions.onFloatingTabDragStart,
+			floating.actions.onFloatingTabFocus,
+			onRemoveTab,
+			onReorderTabs,
+			onResizeStart,
+			onResize,
+			onResizeEnd,
+			onRestoreTab,
+			onTabChange,
+			onTabDragStart,
+		],
+	);
+
+	return {
+		actions,
+		model: {
+			activeTab,
+			availablePluginTabs,
+			bottomSheet: narrow && isOpen,
+			cwd,
+			workspaceId,
+			dockPreviewBounds: narrow ? null : floating.model.dockPreviewBounds,
+			floatingTabs: narrow ? EMPTY_FLOATING_TABS : floating.model.floatingTabs,
+			isOpen,
+			isResizing,
+			knowledgeHistory,
+			maxWidth,
+			mainTabListRef,
+			minWidth: ACTIVITY_PANEL_MIN_WIDTH,
+			mountedTabs,
+			narrowSheet: narrow,
+			overflowTabs,
+			panelRef,
+			restorableTabs,
+			showTabPicker,
+			tabItems: dockedTabItems,
+			width,
+		},
+	};
+}

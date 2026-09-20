@@ -1,0 +1,735 @@
+name: desktop-release
+
+on:
+  push:
+    tags:
+      - "v*"
+  workflow_dispatch:
+    inputs:
+      cloud_enabled:
+        description: "Desktop edition. default = release target (GitHub=open-source, R2=commercial)."
+        type: choice
+        options: [default, "true", "false"]
+        default: default
+      server_url:
+        description: "VETTA_SERVER_URL override. Required for a commercial build."
+        type: string
+        required: false
+      site_url:
+        description: "VETTA_SITE_URL override. Empty keeps Environment / repo value."
+        type: string
+        required: false
+      marketplace_repository:
+        description: "Optional GitHub marketplace source for either edition. Empty keeps Environment / repo value."
+        type: string
+        required: false
+      marketplace_ref:
+        description: "Optional marketplace Git ref. Empty keeps Environment / repo value, then main."
+        type: string
+        required: false
+      tenant:
+        description: "VETTA_TENANT override (packages/plugins/tenants.json)."
+        type: string
+        required: false
+      speech_input:
+        description: "VETTA_SPEECH_INPUT_ENABLED. default = Environment / repo variable."
+        type: choice
+        options: [default, "true", "false"]
+        default: default
+      channel:
+        description: "Rewrite update URL / R2 prefix to stable or test when those path segments exist. Dedicated VETTA_*_TEST / _STABLE vars win."
+        type: choice
+        options: [default, stable, test]
+        default: default
+      build_version:
+        description: "Test channel only. Semver override for an upgrade candidate, for example 0.5.47."
+        type: string
+        required: false
+      update_url:
+        description: "VETTA_UPDATE_URL override."
+        type: string
+        required: false
+      r2_prefix:
+        description: "VETTA_R2_PREFIX override (publish job only)."
+        type: string
+        required: false
+      release_target:
+        description: "Where a matching tag or stable/test dispatch publishes. default = VETTA_RELEASE_TARGET or github."
+        type: choice
+        options: [default, r2, github]
+        default: default
+      notes:
+        description: "Shown on the run summary. Not a secret; do not paste keys."
+        type: string
+        required: false
+
+permissions:
+  contents: read
+
+jobs:
+  prepare:
+    name: resolve desktop release scope
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    environment: ${{ github.event_name == 'workflow_dispatch' && github.event.inputs.channel == 'test' && 'desktop-test' || 'desktop-production' }}
+    outputs:
+      should-build: ${{ steps.scope.outputs.should-build }}
+      should-publish: ${{ steps.config.outputs.should_publish }}
+      build-version: ${{ steps.config.outputs.build_version }}
+      channel: ${{ steps.config.outputs.channel }}
+      cloud_enabled: ${{ steps.config.outputs.cloud_enabled }}
+      marketplace_repository: ${{ steps.config.outputs.marketplace_repository }}
+      marketplace_ref: ${{ steps.config.outputs.marketplace_ref }}
+      notes: ${{ steps.config.outputs.notes }}
+      r2_bucket: ${{ steps.config.outputs.r2_bucket }}
+      r2_prefix: ${{ steps.config.outputs.r2_prefix }}
+      release_target: ${{ steps.config.outputs.release_target }}
+      server_url: ${{ steps.config.outputs.server_url }}
+      site_url: ${{ steps.config.outputs.site_url }}
+      speech_input: ${{ steps.config.outputs.speech_input }}
+      tenant: ${{ steps.config.outputs.tenant }}
+      update_provider: ${{ steps.config.outputs.update_provider }}
+      update_url: ${{ steps.config.outputs.update_url }}
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Match workflow event to desktop version
+        id: scope
+        shell: bash
+        env:
+          EVENT_NAME: ${{ github.event_name }}
+          REF_TYPE: ${{ github.ref_type }}
+          REF_NAME: ${{ github.ref_name }}
+        run: |
+          if [[ "${EVENT_NAME}" == "workflow_dispatch" ]]; then
+            echo "should-build=true" >> "${GITHUB_OUTPUT}"
+            exit 0
+          fi
+          VERSION="$(node -p "require('./apps/desktop/package.json').version")"
+          if [[ "${REF_NAME}" == "v${VERSION}" ]]; then
+            echo "should-build=true" >> "${GITHUB_OUTPUT}"
+          else
+            echo "::notice::Ignoring ${REF_NAME}; desktop package version is ${VERSION}."
+            echo "should-build=false" >> "${GITHUB_OUTPUT}"
+          fi
+
+      - name: Resolve release configuration
+        if: steps.scope.outputs.should-build == 'true'
+        id: config
+        env:
+          EVENT_NAME: ${{ github.event_name }}
+          REF_TYPE: ${{ github.ref_type }}
+          INPUT_BUILD_VERSION: ${{ github.event.inputs.build_version }}
+          INPUT_CHANNEL: ${{ github.event.inputs.channel }}
+          INPUT_CLOUD_ENABLED: ${{ github.event.inputs.cloud_enabled }}
+          INPUT_MARKETPLACE_REPOSITORY: ${{ github.event.inputs.marketplace_repository }}
+          INPUT_MARKETPLACE_REF: ${{ github.event.inputs.marketplace_ref }}
+          INPUT_NOTES: ${{ github.event.inputs.notes }}
+          INPUT_R2_PREFIX: ${{ github.event.inputs.r2_prefix }}
+          INPUT_RELEASE_TARGET: ${{ github.event.inputs.release_target }}
+          INPUT_SERVER_URL: ${{ github.event.inputs.server_url }}
+          INPUT_SITE_URL: ${{ github.event.inputs.site_url }}
+          INPUT_SPEECH_INPUT: ${{ github.event.inputs.speech_input }}
+          INPUT_TENANT: ${{ github.event.inputs.tenant }}
+          INPUT_UPDATE_URL: ${{ github.event.inputs.update_url }}
+          VAR_CLOUD_ENABLED: ${{ vars.VETTA_CLOUD_ENABLED }}
+          VAR_MARKETPLACE_REPOSITORY: ${{ vars.VETTA_OPEN_MARKETPLACE_REPOSITORY }}
+          VAR_MARKETPLACE_REF: ${{ vars.VETTA_OPEN_MARKETPLACE_REF }}
+          VAR_R2_BUCKET: ${{ vars.VETTA_R2_BUCKET }}
+          VAR_R2_PREFIX: ${{ vars.VETTA_R2_PREFIX }}
+          VAR_R2_PREFIX_STABLE: ${{ vars.VETTA_R2_PREFIX_STABLE }}
+          VAR_R2_PREFIX_TEST: ${{ vars.VETTA_R2_PREFIX_TEST }}
+          VAR_RELEASE_CHANNEL: ${{ vars.VETTA_RELEASE_CHANNEL }}
+          VAR_TEST_BUILD_VERSION: ${{ vars.VETTA_TEST_BUILD_VERSION }}
+          VAR_RELEASE_TARGET: ${{ vars.VETTA_RELEASE_TARGET }}
+          VAR_SERVER_URL: ${{ vars.VETTA_SERVER_URL }}
+          VAR_SITE_URL: ${{ vars.VETTA_SITE_URL }}
+          VAR_SPEECH_INPUT: ${{ vars.VETTA_SPEECH_INPUT_ENABLED }}
+          VAR_TENANT: ${{ vars.VETTA_TENANT }}
+          VAR_UPDATE_URL: ${{ vars.VETTA_UPDATE_URL }}
+          VAR_UPDATE_URL_STABLE: ${{ vars.VETTA_UPDATE_URL_STABLE }}
+          VAR_UPDATE_URL_TEST: ${{ vars.VETTA_UPDATE_URL_TEST }}
+        run: node scripts/release/resolve-desktop-release-config.mjs --github-output >> "${GITHUB_OUTPUT}"
+
+      - name: Write resolved config to the job summary
+        if: steps.scope.outputs.should-build == 'true'
+        env:
+          OUTPUT_BUILD_VERSION: ${{ steps.config.outputs.build_version }}
+          OUTPUT_CHANNEL: ${{ steps.config.outputs.channel }}
+          OUTPUT_CLOUD_ENABLED: ${{ steps.config.outputs.cloud_enabled }}
+          OUTPUT_MARKETPLACE_REPOSITORY: ${{ steps.config.outputs.marketplace_repository }}
+          OUTPUT_MARKETPLACE_REF: ${{ steps.config.outputs.marketplace_ref }}
+          OUTPUT_NOTES: ${{ steps.config.outputs.notes }}
+          OUTPUT_R2_BUCKET: ${{ steps.config.outputs.r2_bucket }}
+          OUTPUT_R2_PREFIX: ${{ steps.config.outputs.r2_prefix }}
+          OUTPUT_RELEASE_TARGET: ${{ steps.config.outputs.release_target }}
+          OUTPUT_SHOULD_PUBLISH: ${{ steps.config.outputs.should_publish }}
+          OUTPUT_SERVER_URL: ${{ steps.config.outputs.server_url }}
+          OUTPUT_SITE_URL: ${{ steps.config.outputs.site_url }}
+          OUTPUT_SPEECH_INPUT: ${{ steps.config.outputs.speech_input }}
+          OUTPUT_TENANT: ${{ steps.config.outputs.tenant }}
+          OUTPUT_UPDATE_PROVIDER: ${{ steps.config.outputs.update_provider }}
+          OUTPUT_UPDATE_URL: ${{ steps.config.outputs.update_url }}
+        run: node scripts/release/resolve-desktop-release-config.mjs --from-outputs --summary >> "${GITHUB_STEP_SUMMARY}"
+
+  quality:
+    name: validate and test Desktop release
+    needs: prepare
+    if: needs.prepare.outputs.should-build == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Bun
+        uses: oven-sh/setup-bun@v2
+        with:
+          bun-version-file: package.json
+
+      - name: Install dependencies
+        uses: ./.github/actions/install-bun-dependencies
+
+      # im-gateway 的 Go 测试不在 `bun run check` 覆盖范围内，而 im-gateway.yml
+      # 只在改动命中 apps/im-gateway/** 时触发、且与本流水线没有 needs 依赖。
+      # 缺了这一步，一个测试失败的 sidecar 依然会被 prepare-pack.js 交叉编译进
+      # 发布包。lint 留在 im-gateway.yml 管：风格问题不该拦发版，行为回归该拦。
+      - name: Set up Go for IM gateway
+        uses: actions/setup-go@v5
+        with:
+          go-version-file: apps/im-gateway/go.mod
+          cache-dependency-path: apps/im-gateway/go.sum
+
+      - name: Test IM gateway sidecar
+        working-directory: apps/im-gateway
+        run: go test ./...
+
+      # 发布说明就是 GitHub Release 的正文。放在这里失败，而不是等四个平台
+      # 签名公证跑完两小时后才发现没有正文可发。
+      - name: Verify release notes exist
+        run: node scripts/release/release-notes.mjs --check
+
+      - name: Run repository checks
+        run: bun run check
+
+      - name: Test quality and release configuration
+        run: bun run test:quality
+
+      - name: Verify Desktop packaging contract
+        run: bun run verify:desktop:contracts
+
+      - name: Test Desktop packaging helpers
+        run: bun run test:desktop:packaging
+
+  build:
+    name: build ${{ matrix.platform }}
+    needs: [prepare, quality]
+    if: needs.prepare.outputs.should-build == 'true'
+    runs-on: ${{ matrix.runner }}
+    # macOS 发布构建要对内置 node/python 运行时和各个 sidecar 二进制逐个签名再上传
+    # 公证，比未签名构建多出 10~30 分钟，托管 runner 上还要叠加 packaged E2E。
+    timeout-minutes: 120
+    environment: ${{ needs.prepare.outputs.channel == 'test' && 'desktop-test' || 'desktop-production' }}
+    strategy:
+      fail-fast: false
+      matrix: &release-platforms
+        include:
+          - platform: windows
+            runner: windows-latest
+            command: dist:win
+            verify: verify:updates:windows
+            macArch: ""
+          # arm64 与 x64 必须分两次构建：内置的 node/python 运行时按
+          # VETTA_VENDOR_PLATFORM 单架构落盘，一次构建出不了两套。两次都会写同名的
+          # latest-mac.yml，因此各自重命名后上传，由发布任务合并回单一元数据。
+          # 两个架构各自使用匹配的 GitHub-hosted runner：签名与公证凭据来自 CI Secret，
+          # notarytool 只需要网络，不依赖任何一台固定的签名机。
+          - platform: macos-arm64
+            runner: macos-15
+            command: dist:mac:arm64
+            verify: verify:updates:mac
+            macArch: arm64
+          - platform: macos-x64
+            runner: macos-15-intel
+            command: dist:mac:x64
+            verify: verify:updates:mac
+            macArch: x64
+          - platform: linux
+            runner: ubuntu-latest
+            command: dist:linux
+            verify: verify:updates:linux:release
+            macArch: ""
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Bun
+        uses: oven-sh/setup-bun@v2
+        with:
+          bun-version-file: package.json
+
+      - name: Set up Go for IM gateway
+        uses: actions/setup-go@v5
+        with:
+          go-version-file: apps/im-gateway/go.mod
+          cache-dependency-path: apps/im-gateway/go.sum
+
+      - name: Restore packaging tool downloads
+        id: download-cache
+        uses: ./.github/actions/desktop-download-cache
+
+      - name: Install dependencies
+        uses: ./.github/actions/install-bun-dependencies
+
+      - name: Install Linux packaging dependencies
+        if: runner.os == 'Linux'
+        run: |
+          sudo apt-get update
+          sudo apt-get install --no-install-recommends -y build-essential libcap-dev meson ninja-build pkg-config xz-utils rpm
+
+      - name: Configure macOS signing and notarization
+        if: matrix.macArch != ''
+        shell: bash
+        env:
+          # 一律加 SECRET_ 前缀：runner 环境可能自带同名的 APPLE_* 变量（自持签名机
+          # 场景），未配置的 Secret 会展开成空串并把它们盖掉。
+          SECRET_MACOS_CERTIFICATE_P12_BASE64: ${{ secrets.MACOS_CERTIFICATE_P12_BASE64 }}
+          SECRET_MACOS_CERTIFICATE_PASSWORD: ${{ secrets.MACOS_CERTIFICATE_PASSWORD }}
+          SECRET_APPLE_API_KEY_P8_BASE64: ${{ secrets.APPLE_API_KEY_P8_BASE64 }}
+          SECRET_APPLE_API_KEY_ID: ${{ secrets.APPLE_API_KEY_ID }}
+          SECRET_APPLE_API_ISSUER: ${{ secrets.APPLE_API_ISSUER }}
+          SECRET_APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+          REQUIRE_RELEASE_SIGNATURE: ${{ needs.prepare.outputs.should-publish == 'true' }}
+        run: |
+          # 托管 runner 上凭据全部来自下面的 CI Secret。这个分支只在 runner 自身环境
+          # 已经提供凭据时生效（自持签名机把它们放在 runner 目录的 .env 里）。
+          if [[ -n "${CSC_LINK:-}${CSC_NAME:-}" && -n "${APPLE_TEAM_ID:-}" ]]; then
+            HAS_API_KEY=0
+            HAS_APPLE_ID=0
+            [[ -n "${APPLE_API_KEY:-}" && -n "${APPLE_API_KEY_ID:-}" && -n "${APPLE_API_ISSUER:-}" ]] && HAS_API_KEY=1
+            [[ -n "${APPLE_ID:-}" && -n "${APPLE_APP_SPECIFIC_PASSWORD:-}" ]] && HAS_APPLE_ID=1
+            if [[ "${HAS_API_KEY}" -eq 0 && "${HAS_APPLE_ID}" -eq 0 ]]; then
+              echo "Runner-provided macOS signing configuration is missing notarization credentials." >&2
+              exit 1
+            fi
+            echo "VETTA_REQUIRE_MAC_SIGNATURE=1" >> "${GITHUB_ENV}"
+            echo "Using macOS signing credentials provided by the runner environment."
+            exit 0
+          fi
+
+          REQUIRED=(
+            SECRET_MACOS_CERTIFICATE_P12_BASE64
+            SECRET_MACOS_CERTIFICATE_PASSWORD
+            SECRET_APPLE_API_KEY_P8_BASE64
+            SECRET_APPLE_API_KEY_ID
+            SECRET_APPLE_API_ISSUER
+            SECRET_APPLE_TEAM_ID
+          )
+          PROVIDED=0
+          MISSING=()
+          for NAME in "${REQUIRED[@]}"; do
+            if [[ -n "${!NAME}" ]]; then
+              PROVIDED=$((PROVIDED + 1))
+            else
+              MISSING+=("${NAME}")
+            fi
+          done
+          if [[ "${PROVIDED}" -eq 0 ]]; then
+            # 任何会进入发布 job 的构建都必须使用生产级签名；只有不发布的
+            # workflow_dispatch 构建才允许生成未签名包供本地调试。
+            if [[ "${REQUIRE_RELEASE_SIGNATURE}" == "true" ]]; then
+              echo "A published macOS build requires signing and notarization credentials." >&2
+              exit 1
+            fi
+            echo "No macOS signing credentials configured; this non-publishing workflow_dispatch will build an unsigned package."
+            exit 0
+          fi
+          if [[ "${#MISSING[@]}" -ne 0 ]]; then
+            echo "Incomplete macOS signing configuration: ${MISSING[*]}" >&2
+            exit 1
+          fi
+
+          CERTIFICATE_PATH="${RUNNER_TEMP}/vetta-developer-id.p12"
+          API_KEY_PATH="${RUNNER_TEMP}/AuthKey_${SECRET_APPLE_API_KEY_ID}.p8"
+          PAYLOAD="${SECRET_MACOS_CERTIFICATE_P12_BASE64}" OUTPUT_PATH="${CERTIFICATE_PATH}" \
+            node -e 'require("node:fs").writeFileSync(process.env.OUTPUT_PATH, Buffer.from(process.env.PAYLOAD, "base64"))'
+          PAYLOAD="${SECRET_APPLE_API_KEY_P8_BASE64}" OUTPUT_PATH="${API_KEY_PATH}" \
+            node -e 'require("node:fs").writeFileSync(process.env.OUTPUT_PATH, Buffer.from(process.env.PAYLOAD, "base64"))'
+          chmod 600 "${CERTIFICATE_PATH}" "${API_KEY_PATH}"
+          {
+            echo "CSC_LINK=${CERTIFICATE_PATH}"
+            echo "CSC_KEY_PASSWORD=${SECRET_MACOS_CERTIFICATE_PASSWORD}"
+            echo "APPLE_API_KEY=${API_KEY_PATH}"
+            echo "APPLE_API_KEY_ID=${SECRET_APPLE_API_KEY_ID}"
+            echo "APPLE_API_ISSUER=${SECRET_APPLE_API_ISSUER}"
+            echo "APPLE_TEAM_ID=${SECRET_APPLE_TEAM_ID}"
+            echo "VETTA_REQUIRE_MAC_SIGNATURE=1"
+          } >> "${GITHUB_ENV}"
+
+      # release/ 不在版本控制里，actions/checkout 清不掉。复用工作目录的 runner 上
+      # 残留的旧版本 latest*.yml 会让合并与发布脚本读到多个版本直接失败。
+      - name: Clean previous release artifacts
+        shell: bash
+        run: rm -rf apps/desktop/release
+
+      - name: Apply resolved release configuration
+        shell: bash
+        env:
+          OUTPUT_BUILD_VERSION: ${{ needs.prepare.outputs.build-version }}
+          OUTPUT_CHANNEL: ${{ needs.prepare.outputs.channel }}
+          OUTPUT_CLOUD_ENABLED: ${{ needs.prepare.outputs.cloud_enabled }}
+          OUTPUT_MARKETPLACE_REPOSITORY: ${{ needs.prepare.outputs.marketplace_repository }}
+          OUTPUT_MARKETPLACE_REF: ${{ needs.prepare.outputs.marketplace_ref }}
+          OUTPUT_NOTES: ${{ needs.prepare.outputs.notes }}
+          OUTPUT_R2_BUCKET: ${{ needs.prepare.outputs.r2_bucket }}
+          OUTPUT_R2_PREFIX: ${{ needs.prepare.outputs.r2_prefix }}
+          OUTPUT_RELEASE_TARGET: ${{ needs.prepare.outputs.release_target }}
+          OUTPUT_SHOULD_PUBLISH: ${{ needs.prepare.outputs.should-publish }}
+          OUTPUT_SERVER_URL: ${{ needs.prepare.outputs.server_url }}
+          OUTPUT_SITE_URL: ${{ needs.prepare.outputs.site_url }}
+          OUTPUT_SPEECH_INPUT: ${{ needs.prepare.outputs.speech_input }}
+          OUTPUT_TENANT: ${{ needs.prepare.outputs.tenant }}
+          OUTPUT_UPDATE_PROVIDER: ${{ needs.prepare.outputs.update_provider }}
+          OUTPUT_UPDATE_URL: ${{ needs.prepare.outputs.update_url }}
+        run: node scripts/release/resolve-desktop-release-config.mjs --from-outputs --export-env >> "${GITHUB_ENV}"
+
+      - name: Prepare cached release resources
+        uses: ./.github/actions/prepare-desktop-resources
+
+      - name: Build updater artifacts
+        working-directory: apps/desktop
+        env:
+          # 由 prepare 解析：dispatch 表单 > desktop-production Environment/仓库 Variables。
+          # fork 不配任何值就得到开源版。空 optional 键不会写入 GITHUB_ENV。
+          VETTA_UPDATE_GITHUB_OWNER: ${{ github.repository_owner }}
+          VETTA_UPDATE_GITHUB_REPO: ${{ github.event.repository.name }}
+        run: bun run ${{ matrix.command }}
+
+      # Archive before verification so an E2E/install failure never discards a signed build.
+      # tar preserves executable modes and macOS bundle symlinks across artifact transfer.
+      - name: Archive build checkpoint
+        shell: bash
+        run: |
+          echo "${VETTA_REQUIRE_MAC_SIGNATURE:-0}" > apps/desktop/release/require-mac-signature.txt
+          (cd "${RUNNER_TEMP}" && tar --exclude=builder-debug.yml --exclude=builder-effective-config.yaml -cf release-build.tar -C "${GITHUB_WORKSPACE}/apps/desktop" release)
+
+      - name: Upload build checkpoint
+        uses: actions/upload-artifact@v4
+        with:
+          name: release-build-${{ matrix.platform }}
+          path: ${{ runner.temp }}/release-build.tar
+          if-no-files-found: error
+          retention-days: 30
+          compression-level: 0
+          overwrite: true
+
+      - name: Save packaging tool downloads
+        if: ${{ !cancelled() && steps.download-cache.outputs.tools-key != '' && steps.download-cache.outputs.tools-cache-hit != 'true' }}
+        uses: actions/cache/save@v4
+        with:
+          path: ${{ steps.download-cache.outputs.tools-path }}
+          key: ${{ steps.download-cache.outputs.tools-key }}
+
+  verify:
+    name: verify ${{ matrix.platform }}
+    needs: [prepare, build]
+    runs-on: ${{ matrix.runner }}
+    timeout-minutes: 30
+    strategy:
+      fail-fast: false
+      matrix: *release-platforms
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Bun
+        uses: oven-sh/setup-bun@v2
+        with:
+          bun-version-file: package.json
+
+      - name: Install dependencies
+        uses: ./.github/actions/install-bun-dependencies
+
+      - name: Install Linux Electron runtime dependencies
+        if: runner.os == 'Linux'
+        run: |
+          sudo apt-get update
+          sudo apt-get install --no-install-recommends -y rpm libasound2t64
+
+      - name: Download build checkpoint
+        uses: actions/download-artifact@v4
+        with:
+          name: release-build-${{ matrix.platform }}
+          path: ${{ runner.temp }}/release-checkpoint
+
+      - name: Restore build checkpoint
+        shell: bash
+        env:
+          BUILD_VERSION: ${{ needs.prepare.outputs.build-version }}
+        run: |
+          rm -rf apps/desktop/release
+          (cd "${RUNNER_TEMP}/release-checkpoint" && tar -xf release-build.tar -C "${GITHUB_WORKSPACE}/apps/desktop")
+          SIGNATURE="$(cat apps/desktop/release/require-mac-signature.txt)"
+          case "${SIGNATURE}" in 0|1) ;; *) echo "Invalid signature requirement" >&2; exit 1 ;; esac
+          echo "VETTA_REQUIRE_MAC_SIGNATURE=${SIGNATURE}" >> "${GITHUB_ENV}"
+          # WDIO's update fixture and Linux AppImage path must use the dispatched candidate version.
+          node --input-type=module -e '
+            import { readFileSync, writeFileSync } from "node:fs";
+            if (process.env.BUILD_VERSION) {
+              if (!/^\d+\.\d+\.\d+$/.test(process.env.BUILD_VERSION)) throw new Error("Invalid build version");
+              const file = "apps/desktop/package.json";
+              const pkg = JSON.parse(readFileSync(file, "utf8"));
+              pkg.version = process.env.BUILD_VERSION;
+              writeFileSync(file, JSON.stringify(pkg));
+            }
+          '
+
+      - name: Verify platform updater artifacts
+        if: matrix.verify != ''
+        working-directory: apps/desktop
+        run: bun run ${{ matrix.verify }}
+
+      # latest.yml 仍只描述自定义 Inno 更新包；MSI/ZIP 是额外下载格式，单独解包
+      # 检查它们是否保留 launcher + versions/<version> 的可更新目录布局。
+      - name: Verify supplemental Windows packages
+        if: matrix.platform == 'windows'
+        working-directory: apps/desktop
+        run: bun run verify:packages:windows
+
+      # 包内清单校验能捕获元数据和路径错误；容器安装再覆盖 dpkg/dnf 的真实事务、
+      # desktop entry 与 electron-updater 用于选择 deb/rpm 的 package-type 标记。
+      - name: Verify native Linux package installation
+        if: matrix.platform == 'linux'
+        working-directory: apps/desktop
+        shell: bash
+        run: |
+          docker run --rm --volume "${PWD}/release:/release:ro" ubuntu:24.04 bash -euo pipefail -c '
+            apt-get update
+            apt-get install --yes /release/*.deb
+            test -x /opt/Vetta/Vetta
+            test "$(cat /opt/Vetta/resources/package-type)" = "deb"
+            find /usr/share/applications -maxdepth 1 -type f -iname "*vetta*.desktop" -print -quit | grep -q .
+          '
+          docker run --rm --volume "${PWD}/release:/release:ro" fedora:latest bash -euo pipefail -c '
+            dnf install --assumeyes --nogpgcheck /release/*.rpm
+            test -x /opt/Vetta/Vetta
+            test "$(cat /opt/Vetta/resources/package-type)" = "rpm"
+            find /usr/share/applications -maxdepth 1 -type f -iname "*vetta*.desktop" -print -quit | grep -q .
+          '
+
+      - name: Run packaged app and updater E2E
+        working-directory: apps/desktop
+        env:
+          VETTA_E2E_PACKAGED: "1"
+          VETTA_E2E_UPDATE_FEED: "1"
+          VETTA_SPEECH_INPUT_ENABLED: "false"
+        shell: bash
+        run: |
+          if [[ "${{ matrix.platform }}" == "linux" ]]; then
+            xvfb-run --auto-servernum bun run test:e2e:packaged
+          else
+            bun run test:e2e:packaged
+          fi
+
+      - name: Re-verify platform updater artifacts after packaged E2E
+        if: matrix.verify != ''
+        working-directory: apps/desktop
+        run: bun run ${{ matrix.verify }}
+
+      - name: Name macOS update metadata per architecture
+        if: matrix.macArch != ''
+        working-directory: apps/desktop
+        shell: bash
+        run: mv release/latest-mac.yml "release/latest-mac-${{ matrix.macArch }}.yml"
+
+      - name: Upload updater artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: desktop-${{ matrix.platform }}
+          if-no-files-found: error
+          retention-days: 30
+          compression-level: 0
+          overwrite: true
+          path: |
+            apps/desktop/release/*.AppImage
+            apps/desktop/release/*.blockmap
+            apps/desktop/release/*.deb
+            apps/desktop/release/*.dmg
+            apps/desktop/release/*.exe
+            apps/desktop/release/*.msi
+            apps/desktop/release/*.rpm
+            apps/desktop/release/*.zip
+            apps/desktop/release/latest*.yml
+
+  publish-r2:
+    name: publish R2
+    if: needs.prepare.outputs.should-build == 'true' && needs.prepare.outputs.should-publish == 'true' && needs.prepare.outputs.release_target == 'r2'
+    needs: [prepare, quality, build, verify]
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    environment: ${{ needs.prepare.outputs.channel == 'test' && 'desktop-test' || 'desktop-production' }}
+    concurrency:
+      group: desktop-${{ needs.prepare.outputs.channel }}-publish
+      cancel-in-progress: false
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Bun
+        uses: oven-sh/setup-bun@v2
+        with:
+          bun-version-file: package.json
+
+      - name: Install dependencies
+        uses: ./.github/actions/install-bun-dependencies
+
+      - name: Download updater artifacts
+        uses: actions/download-artifact@v4
+        with:
+          pattern: desktop-*
+          merge-multiple: true
+          path: apps/desktop/release
+
+      - name: Merge macOS update metadata
+        working-directory: apps/desktop
+        run: bun run merge:updates:mac
+
+      - name: Apply resolved release configuration
+        shell: bash
+        env:
+          OUTPUT_BUILD_VERSION: ${{ needs.prepare.outputs.build-version }}
+          OUTPUT_CHANNEL: ${{ needs.prepare.outputs.channel }}
+          OUTPUT_CLOUD_ENABLED: ${{ needs.prepare.outputs.cloud_enabled }}
+          OUTPUT_MARKETPLACE_REPOSITORY: ${{ needs.prepare.outputs.marketplace_repository }}
+          OUTPUT_MARKETPLACE_REF: ${{ needs.prepare.outputs.marketplace_ref }}
+          OUTPUT_NOTES: ${{ needs.prepare.outputs.notes }}
+          OUTPUT_R2_BUCKET: ${{ needs.prepare.outputs.r2_bucket }}
+          OUTPUT_R2_PREFIX: ${{ needs.prepare.outputs.r2_prefix }}
+          OUTPUT_RELEASE_TARGET: ${{ needs.prepare.outputs.release_target }}
+          OUTPUT_SHOULD_PUBLISH: ${{ needs.prepare.outputs.should-publish }}
+          OUTPUT_SERVER_URL: ${{ needs.prepare.outputs.server_url }}
+          OUTPUT_SITE_URL: ${{ needs.prepare.outputs.site_url }}
+          OUTPUT_SPEECH_INPUT: ${{ needs.prepare.outputs.speech_input }}
+          OUTPUT_TENANT: ${{ needs.prepare.outputs.tenant }}
+          OUTPUT_UPDATE_PROVIDER: ${{ needs.prepare.outputs.update_provider }}
+          OUTPUT_UPDATE_URL: ${{ needs.prepare.outputs.update_url }}
+        run: node scripts/release/resolve-desktop-release-config.mjs --from-outputs --export-env >> "${GITHUB_ENV}"
+
+      - name: Publish artifacts before metadata
+        working-directory: apps/desktop
+        env:
+          VETTA_R2_ACCOUNT_ID: ${{ secrets.VETTA_R2_ACCOUNT_ID }}
+          VETTA_R2_ACCESS_KEY_ID: ${{ secrets.VETTA_R2_ACCESS_KEY_ID }}
+          VETTA_R2_SECRET_ACCESS_KEY: ${{ secrets.VETTA_R2_SECRET_ACCESS_KEY }}
+        run: bun run publish:updates:r2
+
+  # R2 目标也要发 GitHub Release：R2 是更新源，GitHub Release 是对外的下载入口和
+  # 版本说明归档，两者同时发布。test 渠道除外——它的构建不该出现在正式 Release 列表里。
+  publish-github:
+    name: publish GitHub Release
+    if: needs.prepare.outputs.should-build == 'true' && needs.prepare.outputs.should-publish == 'true' && needs.prepare.outputs.channel != 'test'
+    needs: [prepare, quality, build, verify]
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    environment: desktop-production
+    concurrency:
+      group: desktop-production-publish
+      cancel-in-progress: false
+    permissions:
+      contents: write
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Bun
+        uses: oven-sh/setup-bun@v2
+        with:
+          bun-version-file: package.json
+
+      - name: Install dependencies
+        uses: ./.github/actions/install-bun-dependencies
+
+      - name: Download updater artifacts
+        uses: actions/download-artifact@v4
+        with:
+          pattern: desktop-*
+          merge-multiple: true
+          path: apps/desktop/release
+
+      - name: Merge macOS update metadata
+        working-directory: apps/desktop
+        run: bun run merge:updates:mac
+
+      - name: Publish release after all assets are ready
+        env:
+          GH_TOKEN: ${{ github.token }}
+          BUILD_VERSION: ${{ needs.prepare.outputs.build-version }}
+        shell: bash
+        run: |
+          VERSION="${BUILD_VERSION:-$(node -p "require('./apps/desktop/package.json').version")}"
+          TAG="v${VERSION}"
+          NOTES_FILE="$(node scripts/release/release-notes.mjs --version "${VERSION}")"
+          if gh release view "${TAG}" >/dev/null 2>&1; then
+            IS_DRAFT="$(gh release view "${TAG}" --json isDraft --jq .isDraft)"
+            if [[ "${IS_DRAFT}" != "true" ]]; then
+              echo "Refusing to modify published release ${TAG}." >&2
+              exit 1
+            fi
+            echo "Resuming draft release ${TAG}"
+            gh release edit "${TAG}" --notes-file "${NOTES_FILE}"
+          else
+            gh release create "${TAG}" --draft --notes-file "${NOTES_FILE}" --title "Vetta ${VERSION}" --target "${GITHUB_SHA}"
+          fi
+          find apps/desktop/release -maxdepth 1 -type f -print0 \
+            | xargs -0 gh release upload "${TAG}" --clobber
+          gh release edit "${TAG}" --draft=false
+
+  verify-feed-r2:
+    name: verify published r2 feed
+    needs: [prepare, publish-r2]
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - name: Set up Bun
+        uses: oven-sh/setup-bun@v2
+        with:
+          bun-version-file: package.json
+      - name: Install dependencies
+        uses: ./.github/actions/install-bun-dependencies
+      - name: Verify published update feed
+        working-directory: apps/desktop
+        shell: bash
+        env:
+          BUILD_VERSION: ${{ needs.prepare.outputs.build-version }}
+          VETTA_UPDATE_PROVIDER: generic
+          VETTA_UPDATE_URL: ${{ needs.prepare.outputs.update_url }}
+        run: |
+          export VETTA_DESKTOP_RELEASE_VERSION="${BUILD_VERSION:-$(node -p "require('./package.json').version")}"
+          node scripts/verify-update-feed.mjs
+
+  verify-feed-github:
+    name: verify published github feed
+    needs: [prepare, publish-github]
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - name: Set up Bun
+        uses: oven-sh/setup-bun@v2
+        with:
+          bun-version-file: package.json
+      - name: Install dependencies
+        uses: ./.github/actions/install-bun-dependencies
+      - name: Verify published update feed
+        working-directory: apps/desktop
+        shell: bash
+        env:
+          BUILD_VERSION: ${{ needs.prepare.outputs.build-version }}
+          VETTA_UPDATE_PROVIDER: github
+          VETTA_UPDATE_GITHUB_OWNER: ${{ github.repository_owner }}
+          VETTA_UPDATE_GITHUB_REPO: ${{ github.event.repository.name }}
+        run: |
+          export VETTA_DESKTOP_RELEASE_VERSION="${BUILD_VERSION:-$(node -p "require('./package.json').version")}"
+          node scripts/verify-update-feed.mjs

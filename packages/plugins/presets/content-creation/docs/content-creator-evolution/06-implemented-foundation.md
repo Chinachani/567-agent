@@ -1,0 +1,59 @@
+# 已实施基础
+
+本轮落地的是路线图 Phase 1、Phase 2 和 Phase 4 的可独立交付部分，目标是减少近义工具和工具选择错误，并把“如何做好内容”变成按任务加载的专业方法。没有在同一轮修改项目持久化协议或引入尚未验证的自动评审状态机。
+
+## 贡献与路由
+
+- 插件启用后以固定顺序贡献 Skill 和 `content_creation_search`、`content_creation_execute` 两个模型 Tool；输入栏不再提供“内容创作”开关。
+- 插件通过静态 prompt path 固定贡献一段工作流路由提示，只申请 `agent.systemPrompt.write`；不注册逐轮执行的动态 System Prompt Provider，也不申请 `agent.tools.control`。
+- 模型先按稳定路由提示区分工作流生产与简单直接生成，再通过 Skill 索引调用宿主 `invoke_skill`；Skill 正文作为工具结果进入消息历史，并按任务读取必要 reference。
+
+结果：用户措辞和工作流阶段不会改写静态 system prompt 内容；模型面对的工具名称与顺序保持稳定，领域 Schema 与方法知识都在固定路由之后按需进入历史。
+
+## 渐进式领域工具面
+
+原有四套领域 Schema 进一步收敛为两个固定工具：
+
+| 工具 | 职责 |
+| --- | --- |
+| `content_creation_search` | 返回紧凑操作索引；按 query 或精确 ID 返回 `inspect` / `assets` / `edit.*` / `run` 的必要 Schema |
+| `content_creation_execute` | 用轻量 envelope 执行 `inspect`、`assets`、`edit` 或 `run`，并在插件边界再次校验按需发现的嵌套输入 |
+
+`edit` 仍将节点、连接和素材绑定作为一个批次完成校验与提交；revision 冲突或任一命令失败时不会产生部分修改。Agent 使用稳定的 `targetInput` 语义输入，领域层负责解析真实端口，并为端口缺失、类型不匹配、端口占用和成环返回不同错误代码。
+
+`inspect` 的 graph/readiness 视图提供语义连接、连通分量、孤立节点、可运行/阻塞节点和工作流状态，使 Agent 能在创建后确定性复查实际图结构。仅已配置凭据并满足必要 endpoint/model 配置的 Provider 模型会进入 capability registry。
+
+## Skill 资源图
+
+新增或重构 6 个 Skill：
+
+1. `develop-creative-concept`：把模糊需求发展为可评审的策略、创意 territory、treatment 和 beat spine。
+2. `operate-content-workflow`：检查、编辑、运行、revision 冲突和确认边界。
+3. `direct-image-creation`：图片 brief、模型 Prompt Profile、提示词骨架、视觉拆解、编辑/连续性、文字信息设计、多面板和行业配方。
+4. `direct-video-creation`：镜头戏剧性、导演/编剧/剪辑模式、模型 Prompt Profile、镜头卡、Animatic、编辑/延长、速度场景和失败修复。
+5. `review-content-quality`：基于实际像素/帧的 must-pass gate、分维 rubric、候选比较和最小修复策略。
+6. `create-content-campaign`：产品发布、电影感产品片、广告变体、社媒套装、UGC、角色故事和分镜转视频配方。
+
+每个 `SKILL.md` 只保留触发、路由和关键阶段；细节位于一层 `references/` 中，由具体任务决定是否读取。内容为 Vetta 重新组织和撰写的方法，参考了 Generative-Media-Skills（MIT）、visual-skills（CC BY 4.0）和 ViMax（MIT），相关 Skill 内保留来源说明。
+
+## 已验证合同
+
+- 工具注册面固定为 2 个渐进披露工具；插件只有静态路由提示所需的 System Prompt 写权限，没有工具控制权限或动态路由 Provider。
+- 只读诊断、工作流规划和端到端生成请求复用同一工具集合，通过 `invoke_skill` 和必要 reference 获取不同方法知识。
+- 创建、编辑、删除、语义连线和素材绑定都直接原子应用，revision conflict 不得覆盖并发修改。
+- 生成准备不消耗额度，用户必须在全局弹窗确认；运行仍按依赖排序。
+- 端口解析、成环诊断、工作流 readiness、凭据模型过滤与全局运行弹窗都有定向测试。
+- 所有 Skill 均通过官方 `skill-creator` 快速校验器。
+
+## 尚未实施
+
+以下能力需要公共持久化合同、迁移和更完整的 UI/评测设计，本轮没有伪装成 Prompt 能力：
+
+- 版本化 `CreativeBrief`、`ContinuityBible`、`ProductionPlan`；
+- recipe registry 与确定性 graph compiler；
+- stage/stale dependency propagation 和 artifact authority 的领域状态；
+- candidate group、用户选片卡和持久化 `Evaluation` artifact；
+- 对实际图片像素、视频抽帧和音频的自动评审执行器；
+- 可重复的 context/tool/task/cost/quality benchmark 报告。
+
+这些工作仍按 [实施路线](./05-implementation-roadmap.md) 的 Phase 3、Phase 5、Phase 6 推进。当前 Skill 已经定义相应的人工判断方法和阶段边界，但不会声称系统已自动保存或执行这些状态。

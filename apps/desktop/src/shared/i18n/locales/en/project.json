@@ -1,0 +1,222 @@
+{
+	"sidebar": {
+		"nav": {
+			"newSession": "New Session",
+			"automation": "Automation",
+			"batchTasks": "Batch Tasks",
+			"knowledge": "Knowledge",
+			"skills": "Capabilities",
+			"agents": "Agents",
+			"scenes": "Scenes",
+			"plugins": "Plugins",
+			"modelSettings": "Model Settings",
+			"agentSettings": "Agent Settings",
+			"appearance": "Appearance",
+			"extensions": "More options",
+			"more": "More",
+			"betaBadge": "BETA",
+			"pin": "Pin",
+			"unpin": "Unpin",
+			"pinFull": "Up to 5 pinned entries (including New session)",
+			"reset": "Reset order",
+			"customize": "Customize navigation"
+		},
+		"clawConnected": "Claw connected",
+		"hide": "Hide sidebar",
+		"empty": {
+			"title": "No projects yet",
+			"description": "Click + above to create a project"
+		},
+		"projects": {
+			"noSessions": "No sessions",
+			"collapseSessions": "Collapse sessions",
+			"expandMore": "Show more ({{count}})",
+			"scrollToTop": "Scroll to top",
+			"scrollToBottom": "Scroll to bottom"
+		},
+		"defaultConversation": {
+			"noConversations": "No conversations",
+			"emptyTitle": "No conversations yet",
+			"emptyDescription": "Start a new chat and it will show up here",
+			"emptyAction": "Start a chat",
+			"emptyClawTitle": "No Claw records yet",
+			"emptyTagTitle": "No conversations with this tag",
+			"emptyTagDescription": "Tag a conversation from its context menu",
+			"emptyClawDescription": "Chat with Claw via WeChat, Feishu, and other channels to see records here"
+		},
+		"teams": {
+			"title": "Teams",
+			"new": "New team",
+			"empty": "No teams yet; click to create one"
+		},
+		"session": {
+			"forkedTooltip": "Forked from another session",
+			"untitledTeam": "New team conversation"
+		},
+		"dialogs": {
+			"deleteSessionTitle": "Delete session",
+			"deleteSessionMessage": "Permanently delete the session \"{{name}}\"? This cannot be undone.",
+			"deleteBatchTitle": "Delete batch project",
+			"deleteBatchMessage": "Delete batch project \"{{name}}\"? This cannot be undone.",
+			"deleteConfirm": "Delete",
+			"removeTitle": "Remove from list",
+			"removeMessage": "Remove \"{{name}}\" from the project list? This will not delete files on disk.",
+			"removeConfirm": "Remove",
+			"deleteProjectTitle": "Delete project",
+			"deleteProjectMessage": "Permanently delete \"{{name}}\"? This will delete the project folder from disk and cannot be undone.",
+			"clearConversationTitle": "Clear sessions",
+			"clearConversationMessage": "This will delete {{count}} conversation session(s) under Chat while keeping artifacts. Claw sessions are not affected. This cannot be undone.",
+			"clearClawTitle": "Clear Claw records",
+			"clearClawMessage": "This will delete {{count}} Claw record(s) while keeping artifacts. This cannot be undone.",
+			"clearConfirm": "Clear"
+		},
+		"time": {
+			"justNow": "now",
+			"minutes": "{{n}}m",
+			"hours": "{{n}}h",
+			"days": "{{n}}d",
+			"weeks": "{{n}}w",
+			"months": "{{n}}mo",
+			"years": "{{n}}y"
+		}
+	},
+	"filterTabs": {
+		"all": "All",
+		"normal": "Normal",
+		"batch": "Batch",
+		"conversation": "Chat",
+		"team": "Teams",
+		"claw": "Claw"
+	},
+	"actions": {
+		"newProject": "New Project",
+		"openProject": "Open Project",
+		"importProject": "Import Project",
+		"more": "More"
+	},
+	"contextMenu": {
+		"openInFinder": "Reveal in Finder",
+		"openInExplorer": "Show in Explorer",
+		"clearConversation": "Clear sessions",
+		"clearConversationDisabled": "Stop the running session first",
+		"clearClaw": "Clear records",
+		"clearClawDisabled": "Stop the running Claw session first",
+		"clawSettings": "Claw settings",
+		"archiveProject": "Archive project",
+		"removeFromList": "Remove from list",
+		"deleteProject": "Delete project",
+		"rename": "Rename",
+		"pin": "Pin conversation",
+		"unpin": "Unpin",
+		"openArtifactDir": "Open artifact folder",
+		"delete": "Delete",
+		"tags": {
+			"label": "Tags",
+			"new": "New tag…",
+			"manage": "Manage tags…"
+		}
+	},
+	"tagEditor": {
+		"createTitle": "New tag",
+		"manageTitle": "Manage tags",
+		"namePlaceholder": "Tag name",
+		"colorLabel": "Tag color",
+		"customColor": "Custom color",
+		"emptyNameError": "Enter a tag name",
+		"cancel": "Cancel",
+		"create": "Create",
+		"done": "Done",
+		"newTag": "New tag",
+		"remove": "Delete tag",
+		"empty": "No tags yet",
+		"removeHint": "Removes it from {{count}} conversation(s)"
+	},
+	"importDialog": {
+		"failedTitle": "Import failed",
+		"failedConfirm": "OK",
+		"partialTitle": "Import done (some source paths missing)",
+		"partialMessage": "Project \"{{name}}\" was imported, but {{count}} batch source path(s) don't exist on this machine:\n\n{{list}}\n\nThe metadata for these tasks is preserved; you can re-link or delete them manually after opening the project.",
+		"partialMore": "\n…and {{count}} more",
+		"doneTitle": "Import done",
+		"doneMessage": "Project \"{{name}}\" has been imported into the workspace.",
+		"viewProject": "View project",
+		"gotIt": "Got it"
+	},
+	"detail": {
+		"typeBatch": "Batch Task",
+		"showInFinder": "Reveal in Finder",
+		"showInExplorer": "Show in Explorer",
+		"finder": "Finder",
+		"explorer": "Explorer",
+		"export": "Export",
+		"exportTitle": "Export project (with session history)",
+		"newSession": "New session",
+		"closeActivityPanel": "Close activity panel",
+		"openActivityPanel": "Open activity panel",
+		"sessionCount": "{{count}} sessions",
+		"taskCount": "{{count}} tasks",
+		"persona": "Project persona",
+		"unsavedChanges": "Unsaved changes",
+		"saved": "Saved",
+		"saveFailed": "Save failed",
+		"save": "Save",
+		"editorPlaceholder": "Write AGENTS.md project instructions here...",
+		"agentsMdHint": "AGENTS.md defines project-level AI instructions; every session loads this file automatically.",
+		"quickSave": "Quick save"
+	},
+	"exportDialog": {
+		"title": "Export project",
+		"message": "Export project \"{{name}}\"?\n\nThis will package all files under the current project directory, including .vetta/sessions history and batch task working directories and state. File locks (*.lock) are excluded.",
+		"confirm": "Export",
+		"failedTitle": "Export failed",
+		"failedConfirm": "OK"
+	},
+	"newProjectDialog": {
+		"title": "New Project",
+		"description": "A new project folder will be created in the workspace directory.",
+		"placeholder": "Enter project name",
+		"cancel": "Cancel",
+		"create": "Create",
+		"emptyError": "Please enter a project name",
+		"invalidError": "Project name cannot contain special characters",
+		"duplicateError": "A project with this name already exists"
+	},
+	"update": {
+		"newVersion": "New version {{version}} available — click to download in the background",
+		"downloading": "Downloading {{version}} ({{pct}}%)",
+		"ready": "Update {{version}} is ready — click to restart",
+		"checkFailed": "Update check failed, click to retry",
+		"downloadProgress": "Download progress",
+		"bannerReady": "Version {{version}} is ready",
+		"bannerRestart": "Restart",
+		"bannerDismiss": "Dismiss"
+	},
+	"tabPicker": {
+		"moreTabs": "More tabs",
+		"hiddenPanels": "Hidden panels",
+		"availablePlugins": "Add plugin panels",
+		"hideTab": "Hide tab",
+		"menu": "Tab menu"
+	},
+	"tour": {
+		"sidebar": {
+			"projects": {
+				"title": "Projects",
+				"description": "Manage your work projects here. Expand a project to see its sessions, or use the buttons above to create or import a project."
+			},
+			"conversations": {
+				"title": "Conversations",
+				"description": "Your default conversation list lives here. Recent sessions are ordered by time — click one to continue."
+			},
+			"skills": {
+				"title": "Capabilities",
+				"description": "Open the Capabilities page to install skills and connectors that give Vetta more expertise."
+			}
+		}
+	},
+	"workspaceView": {
+		"loading": "Loading plugins…",
+		"missing": "This workspace view no longer exists. Returning to home.",
+		"failed": "This workspace view failed to render. Check DevTools for details."
+	}
+}

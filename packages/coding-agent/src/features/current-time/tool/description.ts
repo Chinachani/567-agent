@@ -1,0 +1,2 @@
+export const CURRENT_TIME_TOOL_DESCRIPTION =
+	"Get the host system's current local date and time in YYYY-MM-DD HH:mm:ss format. Use this instead of shell date/time commands when the current local clock is required, such as for timestamps or deadline checks. The result does not include a timezone identifier and must not be presented as the time in another timezone; use an appropriate conversion source for timezone conversion or date arithmetic.";

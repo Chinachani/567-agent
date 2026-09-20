@@ -1,0 +1,166 @@
+// @vitest-environment jsdom
+
+import type { MarketplaceSource } from "@preload/api";
+import { cleanup, render, screen, waitFor } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+
+vi.mock("react-i18next", () => ({
+	useTranslation: () => ({ t: (key: string, options?: Record<string, unknown>) => options?.error ?? key }),
+}));
+
+import { MarketplaceSourcesDialog } from "./MarketplaceSourcesDialog";
+
+function source(overrides: Partial<MarketplaceSource>): MarketplaceSource {
+	return {
+		id: "custom-1",
+		name: "my-abilities",
+		type: "github",
+		repository: "https://github.com/me/my-abilities",
+		archiveUrl: "https://github.com/me/my-abilities/archive/refs/heads/main.zip",
+		ref: "main",
+		enabled: true,
+		builtin: false,
+		autoUpdate: true,
+		priority: 200,
+		createdAt: "2026-01-01T00:00:00.000Z",
+		updatedAt: "2026-01-01T00:00:00.000Z",
+		...overrides,
+	};
+}
+
+describe("MarketplaceSourcesDialog", () => {
+	const onAdd = vi.fn(async () => undefined);
+	const onUpdate = vi.fn(async () => undefined);
+	const onRemove = vi.fn(async () => undefined);
+	const onClose = vi.fn();
+	const onRefresh = vi.fn(async () => undefined);
+
+	beforeEach(() => {
+		vi.clearAllMocks();
+	});
+	afterEach(cleanup);
+
+	function renderDialog(sources: MarketplaceSource[]): void {
+		render(
+			<MarketplaceSourcesDialog
+				sources={sources}
+				onAdd={onAdd}
+				onUpdate={onUpdate}
+				onRemove={onRemove}
+				onClose={onClose}
+				onRefresh={onRefresh}
+			/>,
+		);
+	}
+
+	it("官方内置来源不可停用也不可删除，自定义来源仍可管理", async () => {
+		const user = userEvent.setup();
+		renderDialog([
+			source({ id: "vetta-official", name: "Vetta Official", builtin: true }),
+			source({ name: "my-abilities" }),
+		]);
+
+		expect(screen.getByText("abilities:sources.builtinBadge")).toBeTruthy();
+		expect(screen.getByRole("img", { name: "abilities:sources.lockedHint" })).toBeTruthy();
+		expect(screen.getAllByTitle("abilities:sources.actions.remove")).toHaveLength(1);
+
+		const toggles = screen.getAllByRole("switch", { name: "abilities:sources.actions.toggle" });
+		expect(toggles).toHaveLength(1);
+		await user.click(toggles[0] as HTMLElement);
+		await waitFor(() => expect(onUpdate).toHaveBeenCalledWith("custom-1", { enabled: false }));
+		expect(onUpdate).toHaveBeenCalledTimes(1);
+	});
+
+	it("切换启停开关会调用 onUpdate(id, { enabled })", async () => {
+		const user = userEvent.setup();
+		renderDialog([source({ enabled: true })]);
+
+		await user.click(screen.getByRole("switch", { name: "abilities:sources.actions.toggle" }));
+
+		await waitFor(() => expect(onUpdate).toHaveBeenCalledWith("custom-1", { enabled: false }));
+	});
+
+	it("refreshes only the selected source and supports per-source auto update", async () => {
+		const user = userEvent.setup();
+		renderDialog([source({})]);
+		await user.click(screen.getByRole("button", { name: "abilities:sources.actions.refresh" }));
+		await waitFor(() => expect(onRefresh).toHaveBeenCalledWith("custom-1"));
+		await user.click(screen.getByRole("switch", { name: "abilities:sources.actions.autoUpdate" }));
+		await waitFor(() => expect(onUpdate).toHaveBeenCalledWith("custom-1", { autoUpdate: false }));
+	});
+
+	it("shows a sync failure and prevents refreshing disabled sources", () => {
+		const enabled = source({});
+		const disabled = source({ id: "disabled", enabled: false });
+		render(<MarketplaceSourcesDialog sources={[enabled, disabled]}
+			catalog={{ sources: [enabled, disabled], snapshots: [], abilities: [], failedSourceIds: [enabled.id] }}
+			onAdd={onAdd} onUpdate={onUpdate} onRemove={onRemove} onClose={onClose} onRefresh={onRefresh} />);
+		expect(screen.getByText("abilities:sources.status.failed")).toBeTruthy();
+		expect(screen.getByText("abilities:sources.status.disabled")).toBeTruthy();
+		const buttons = screen.getAllByRole<HTMLButtonElement>("button", { name: "abilities:sources.actions.refresh" });
+		expect(buttons.map((button) => button.disabled)).toEqual([false, true]);
+	});
+
+	it("删除来源需要行内二次确认", async () => {
+		const user = userEvent.setup();
+		renderDialog([source({})]);
+
+		await user.click(screen.getByTitle("abilities:sources.actions.remove"));
+		expect(onRemove).not.toHaveBeenCalled();
+
+		await user.click(screen.getByText("abilities:sources.actions.confirmRemove"));
+		await waitFor(() => expect(onRemove).toHaveBeenCalledWith("custom-1"));
+	});
+
+	it("添加来源：填写仓库后提交调用 onAdd", async () => {
+		const user = userEvent.setup();
+		renderDialog([]);
+
+		await user.click(screen.getByText("abilities:sources.actions.add"));
+		await user.type(
+			screen.getByPlaceholderText("abilities:sources.form.repositoryPlaceholder"),
+			"openvetta/vetta-official-marketplace",
+		);
+		await user.type(screen.getByPlaceholderText("abilities:sources.form.credentialPlaceholder"), "github-token");
+		await user.click(screen.getByText("abilities:sources.form.submitAdd"));
+
+		await waitFor(() =>
+			expect(onAdd).toHaveBeenCalledWith({
+				repository: "openvetta/vetta-official-marketplace",
+				ref: "main",
+				credential: "github-token",
+		}),
+		);
+	});
+
+	it("编辑来源：仓库地址锁定，改分支后提交调用 onUpdate", async () => {
+		const user = userEvent.setup();
+		renderDialog([source({})]);
+
+		await user.click(screen.getByTitle("abilities:sources.actions.edit"));
+		const repositoryInput = screen.getByPlaceholderText<HTMLInputElement>(
+			"abilities:sources.form.repositoryPlaceholder",
+		);
+		expect(repositoryInput.disabled).toBe(true);
+
+		const refInput = screen.getByPlaceholderText("abilities:sources.form.refPlaceholder");
+		await user.clear(refInput);
+		await user.type(refInput, "release");
+		await user.click(screen.getByText("abilities:sources.form.submitEdit"));
+
+		await waitFor(() => expect(onUpdate).toHaveBeenCalledWith("custom-1", { name: "my-abilities", ref: "release" }));
+	});
+
+	it("操作失败时展示错误并保持对话框打开", async () => {
+		const user = userEvent.setup();
+		onRemove.mockRejectedValueOnce(new Error("network down"));
+		renderDialog([source({})]);
+
+		await user.click(screen.getByTitle("abilities:sources.actions.remove"));
+		await user.click(screen.getByText("abilities:sources.actions.confirmRemove"));
+
+		expect(await screen.findByText("network down")).toBeTruthy();
+		expect(onClose).not.toHaveBeenCalled();
+	});
+});

@@ -1,0 +1,17 @@
+{
+	"id": "svg-viewer",
+	"name": "%plugin.name%",
+	"icon": "icon.png",
+	"version": "0.1.2",
+	"defaultLocale": "zh",
+	"pluginApiVersion": "^2.0.0",
+	"entry": "dist/mf-manifest.json",
+	"moduleFederation": {
+		"remoteName": "svg_viewer",
+		"expose": "./plugin"
+	},
+	"styles": ["dist/style.css"],
+	"permissions": ["ui.slot.file-preview"],
+	"description": "%plugin.description%",
+	"author": "Vetta"
+}

@@ -1,0 +1,23 @@
+import { readAgentSettingsDocument, updateAgentSettingsDocument } from "../agent-settings/settings-document-store.js";
+import { getDesktopOcrProviderRegistry } from "../capabilities/ocr-providers.js";
+import { getAppLogger } from "../logger.js";
+import { DesktopRuntimeConfigurationService } from "./runtime-configuration-service.js";
+
+let desktopRuntimeConfigurationService: DesktopRuntimeConfigurationService | undefined;
+
+/** Desktop 进程唯一装配点；领域存储通过 Adapter 注入 Runtime Core 配置控制面。 */
+export function getDesktopRuntimeConfigurationService(): DesktopRuntimeConfigurationService {
+	desktopRuntimeConfigurationService ??= new DesktopRuntimeConfigurationService({
+		readAgentSettings: readAgentSettingsDocument,
+		updateAgentSettings: updateAgentSettingsDocument,
+		logger: getAppLogger("runtime-configuration"),
+		listOcrProviders: () => {
+			try {
+				return getDesktopOcrProviderRegistry().listProviders();
+			} catch {
+				return [];
+			}
+		},
+	});
+	return desktopRuntimeConfigurationService;
+}

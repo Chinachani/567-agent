@@ -1,0 +1,1338 @@
+import {
+	AGENT_TEAM_MEMBER_TOOL_EXECUTION,
+	AGENT_TEAM_PUBLICATION_LIFECYCLE,
+	createAgentTeamExtensionRegistry,
+	createAgentTeamFixture,
+	type TeamSessionDocument,
+} from "@vetta/agent-team";
+import { createAssistantMessage } from "@vetta/ai";
+import type {
+	RuntimeContextSummaryRequest,
+	RuntimeHost,
+	RuntimeSessionExecutionObservation,
+	SessionConfig,
+	SessionEvent,
+} from "@vetta/runtime-core";
+import type { ConversationMessageRecord } from "@vetta/runtime-core/conversation";
+import {
+	createRuntimeObservationPublisher,
+	type RuntimeObservationContext,
+	type RuntimeObservationRecord,
+} from "@vetta/runtime-core/observation";
+import { beforeEach, describe, expect, it, vi } from "vitest";
+import type { DesktopTeamSessionStreamEvent } from "../../preload/api-types/team-conversation-display.js";
+import type {
+	ConversationOwnershipCatalogPort,
+	ConversationOwnershipRecord,
+} from "../conversations/conversation-ownership-catalog.js";
+import { registerPresetPluginBlueprints } from "./preset-plugin-blueprints.testing.js";
+import { readTeamConversationDocument, readTeamConversationHistory } from "./team-session-file-reader.js";
+import type { LegacyTeamSessionRepository } from "./team-session-repository.js";
+import { AgentTeamSessionService } from "./team-session-service.js";
+
+vi.mock("../conversations/resolve-session-config.js", () => ({
+	resolveDesktopSessionConfig: vi.fn(async (config: SessionConfig) => ({ config })),
+}));
+vi.mock("../logger.js", () => ({
+	getAppLogger: () => ({ debug: vi.fn(), info: vi.fn(), warn: vi.fn(), error: vi.fn() }),
+}));
+vi.mock("../ipc/fs.js", () => ({ readDesktopConfig: vi.fn(async () => ({})) }));
+vi.mock("../sandbox/capability.js", () => ({ assertSandboxAvailableForMode: vi.fn(async () => undefined) }));
+vi.mock("../runtime.js", () => ({ getSharedRuntime: vi.fn() }));
+vi.mock("./team-session-file-reader.js", async (importOriginal) => {
+	const original = await importOriginal<typeof import("./team-session-file-reader.js")>();
+	return {
+		...original,
+		readTeamConversationDocument: vi.fn(original.readTeamConversationDocument),
+		readTeamConversationHistory: vi.fn(async () => []),
+	};
+});
+
+describe("AgentTeamSessionService streaming contract", () => {
+	// 装机团队的队长是插件智能体，注册表空着就取不到人设。
+	beforeEach(() => registerPresetPluginBlueprints());
+
+	beforeEach(() => vi.clearAllMocks());
+
+	it("uses the Conversation id encoded by the coordination path during bootstrap", async () => {
+		const conversationSessionId = "legacy-coordination-runtime";
+		const path = `C:/sessions/${Buffer.from(conversationSessionId, "utf8").toString("base64url")}.conversation.jsonl`;
+		const reader = vi.mocked(readTeamConversationDocument);
+		reader.mockRejectedValueOnce(new Error("stop after reader invocation"));
+		const service = new AgentTeamSessionService({
+			runtime: {} as RuntimeHost,
+			repository: { read: vi.fn(), list: vi.fn(async () => []) },
+			readDocument: vi.fn(),
+		});
+
+		await expect(service.readSnapshot("team-session", path)).rejects.toThrow("stop after reader invocation");
+		expect(reader).toHaveBeenCalledWith(conversationSessionId, path);
+	});
+
+	it("does not query runtime state for persisted members that are not active", async () => {
+		const runtime = {
+			getSessionPath: vi.fn(() => undefined),
+			getState: vi.fn(() => {
+				throw { code: "SESSION_NOT_FOUND", message: "Session not found", retryable: false, origin: "runtime" };
+			}),
+		} as unknown as RuntimeHost;
+		const service = new AgentTeamSessionService({
+			runtime,
+			repository: { read: vi.fn(), list: vi.fn(async () => []) },
+			readDocument: vi.fn(),
+		});
+		const display = await service.displayProjection({
+			memberRuntime: {
+				member: { sessionId: "member-session", sessionPath: "C:/sessions/member.jsonl" },
+			},
+		} as unknown as TeamSessionDocument);
+
+		expect(display.memberConversations).toHaveLength(1);
+		expect(runtime.getState).not.toHaveBeenCalled();
+	});
+
+	it("recovers publication-linked tool evidence while reopening an inactive Team session", async () => {
+		const runtime = {
+			getSessionPath: vi.fn(() => undefined),
+			getState: vi.fn(() => {
+				throw new Error("inactive sessions do not have runtime state");
+			}),
+		} as unknown as RuntimeHost;
+		const service = new AgentTeamSessionService({
+			runtime,
+			repository: { read: vi.fn(), list: vi.fn(async () => []) },
+			readDocument: vi.fn(),
+		});
+		vi.mocked(readTeamConversationDocument).mockResolvedValueOnce({
+			identity: { sessionId: "coordination", createdAt: 1 },
+			journalVersion: 1,
+			revision: 1,
+			entries: [
+				{
+					type: "custom",
+					id: "work-item-entry",
+					parentId: null,
+					timestamp: "1",
+					customType: "agent-team.work-item.v1",
+					data: {
+						id: "work-item",
+						requestTurnId: "request",
+						createdByParticipantId: "local-user",
+						assignedToParticipantId: "reviewer",
+						objective: "Review",
+						contextEntryIds: [],
+						state: "running",
+						createdAt: 1,
+						updatedAt: 1,
+						revision: 1,
+					},
+				},
+				{
+					type: "custom",
+					id: "publication-entry",
+					parentId: null,
+					timestamp: "1",
+					customType: "agent-team.publication-operation.v1",
+					data: {
+						customType: "agent-team.publication-operation.v1",
+						operationId: "publication",
+						workItemId: "work-item",
+						sourceParticipantConversationId: "member-runtime",
+						sourceTurnId: "member-turn",
+						sourceMessageEntryId: "private-final",
+						publicMessageEntryId: "public-result",
+						state: "completed",
+						generation: 1,
+					},
+				},
+			],
+			activeLeafId: "publication-entry",
+		});
+		const assistant = createAssistantMessage(
+			{ api: "openai-responses", provider: "test", model: "fixture" },
+			{ timestamp: 1 },
+		);
+		vi.mocked(readTeamConversationHistory).mockResolvedValueOnce([
+			{
+				type: "message",
+				entryId: "tool-call",
+				message: {
+					...assistant,
+					content: [{ type: "toolCall", id: "read-call", name: "read", arguments: { path: "brief.md" } }],
+				},
+			},
+			{
+				type: "message",
+				entryId: "tool-result",
+				message: {
+					role: "toolResult",
+					toolCallId: "read-call",
+					toolName: "read",
+					content: [{ type: "text", text: "contents" }],
+					isError: false,
+					timestamp: 2,
+				},
+			},
+			{
+				type: "message",
+				entryId: "private-final",
+				message: { ...assistant, content: [{ type: "text", text: "Done" }] },
+			},
+		]);
+
+		const display = await service.displayProjection({
+			coordinationRuntime: { sessionId: "coordination", sessionPath: "C:/sessions/coordination.jsonl" },
+			memberRuntime: {
+				reviewer: { sessionId: "member-runtime", sessionPath: "C:/sessions/member.jsonl" },
+			},
+		} as unknown as TeamSessionDocument);
+
+		expect(display.toolExecutions).toEqual([
+			expect.objectContaining({ messageId: "public-result", toolCallId: "read-call" }),
+		]);
+		expect(display.workingMemberIds).toEqual(["reviewer"]);
+		expect(runtime.getState).not.toHaveBeenCalled();
+	});
+
+	it("backfills legacy ownership before listing Team sessions", async () => {
+		const document = createAgentTeamFixture();
+		const team = document.teams[0];
+		const member = team?.members[0];
+		if (!team || !member) throw new Error("built-in Agent Team fixture is missing");
+		const session = (id: string, coordination: boolean): TeamSessionDocument => ({
+			schemaVersion: 1,
+			revision: 0,
+			id,
+			teamId: team.id,
+			name: team.name,
+			cwd: "C:/legacy-workspace",
+			leaderMemberId: member.id,
+			activeMemberIds: [member.id],
+			memberHandles: { [member.id]: member.handle },
+			createdAt: 1,
+			updatedAt: id === "visible" ? 3 : 2,
+			...(coordination
+				? { coordinationRuntime: { sessionId: `${id}-coordination`, sessionPath: `C:/sessions/${id}.jsonl` } }
+				: {}),
+			events: [],
+			memberRuntime: {
+				[member.id]: {
+					sessionId: `${id}-member`,
+					sessionPath: `C:/sessions/${id}-member.jsonl`,
+					agentProfileRevision: 1,
+					deliveredEventIds: [],
+				},
+			},
+		});
+		const legacySessions = [session("visible", true), session("members-only", false)];
+		const listLegacySessions = vi.fn(async () => legacySessions);
+		const records: ConversationOwnershipRecord[] = [];
+		const ownershipCatalog: ConversationOwnershipCatalogPort = {
+			register: async (next) => {
+				records.push(...next);
+			},
+			listByTeam: async (teamId) => records.filter((record) => record.owner.teamId === teamId),
+			getOwner: async () => undefined,
+			filterUserSessions: async (sessions) => [...sessions],
+		};
+		const service = new AgentTeamSessionService({
+			repository: { read: async () => legacySessions[0] as TeamSessionDocument, list: listLegacySessions },
+			ownershipCatalog,
+			readDocument: async () => document,
+		});
+
+		await expect(service.listSessions(team.id)).resolves.toEqual([
+			{
+				id: "visible",
+				coordinationSessionPath: "C:/sessions/visible.jsonl",
+				title: "",
+				createdAt: 1,
+				updatedAt: 3,
+				workspaceKind: "team-default",
+				workspaceId: `agent-team:${team.id}`,
+				cwd: "C:/legacy-workspace",
+			},
+		]);
+		await service.listSessions(team.id);
+		expect(listLegacySessions).toHaveBeenCalledTimes(1);
+		expect(records.map((record) => record.sessionPath).sort()).toEqual([
+			"C:/sessions/members-only-member.jsonl",
+			"C:/sessions/visible-member.jsonl",
+			"C:/sessions/visible.jsonl",
+		]);
+	});
+
+	it("returns the session record before warming the leader first and the remaining members in parallel", async () => {
+		const document = createAgentTeamFixture();
+		const team = document.teams[0];
+		if (!team) throw new Error("built-in Agent Team fixture is missing");
+		let releaseLeader: (() => void) | undefined;
+		const leaderGate = new Promise<void>((resolve) => {
+			releaseLeader = resolve;
+		});
+		let memberSequence = 0;
+		const createSession = vi.fn(async (config?: SessionConfig) => {
+			if (config?.sessionId) return { sessionId: config.sessionId };
+			memberSequence += 1;
+			if (memberSequence === 1) await leaderGate;
+			return { sessionId: `member-runtime-${memberSequence}` };
+		});
+		const runtime = {
+			createSession,
+			getSessionPath: (sessionId: string) => `C:/runtime/${sessionId}.jsonl`,
+			disposeSession: vi.fn(async () => undefined),
+			subscribe: () => () => undefined,
+			appendSessionMetadataEntry: vi.fn(async () => undefined),
+			readSessionDocument: () => ({ entries: [], activeLeafId: null, revision: 0 }),
+			selectSessionModel: vi.fn(async () => undefined),
+			invokeSessionExtension: vi.fn(async () => null),
+		} as unknown as RuntimeHost;
+		const service = new AgentTeamSessionService({ runtime, readDocument: async () => document });
+
+		const reservedSessionId = "11111111-1111-4111-8111-111111111111";
+		const record = await service.createRecord(
+			team,
+			document,
+			{ id: "project:workspace", cwd: "C:/workspace", kind: "project" },
+			{
+				sessionId: reservedSessionId,
+				executionMode: "sandbox",
+			},
+		);
+		expect(record.id).toBe(reservedSessionId);
+		expect(record.runtimeStatus).toBe("preparing");
+		expect(record.executionMode).toBe("sandbox");
+		expect(record.workspaceId).toBe("project:workspace");
+		expect(record.cwd).toBe("C:/workspace");
+		expect(record.memberRuntime).toEqual({});
+		await vi.waitFor(() => expect(createSession).toHaveBeenCalledTimes(team.members.length + 1));
+		expect(JSON.stringify(createSession.mock.calls[1]?.[0])).toContain(team.leaderMemberId);
+		const coordinator = (
+			service as unknown as {
+				readonly turnCoordinator: { send: (sessionId: string, input: unknown) => Promise<TeamSessionDocument> };
+			}
+		).turnCoordinator;
+		const admitted = vi.spyOn(coordinator, "send").mockResolvedValue(record);
+		const send = service.send(record.id, { requestId: "during-warmup", text: "hello", targetMemberIds: [] });
+		await vi.waitFor(() => expect(admitted).not.toHaveBeenCalled());
+		await expect(
+			service.updateModelSettings(record.id, { modelKey: "openai/test", reasoning: "low" }),
+		).resolves.toMatchObject({ modelSettings: { modelKey: "openai/test", reasoning: "low" } });
+
+		releaseLeader?.();
+		await service.warmup(record.id, team, document);
+		await send;
+		expect(admitted).toHaveBeenCalledWith(record.id, expect.objectContaining({ requestId: "during-warmup" }));
+		expect(createSession).toHaveBeenCalledTimes(team.members.length + 1);
+		const warmed = await service.read(record.id);
+		expect(warmed.runtimeStatus).toBe("ready");
+		expect(Object.keys(warmed.memberRuntime)).toHaveLength(team.members.length);
+		expect(runtime.selectSessionModel).toHaveBeenCalledWith(record.id, "openai/test", "if-changed");
+	});
+
+	it("admits a leader message without waiting for unrelated member runtimes", async () => {
+		const document = createAgentTeamFixture();
+		const team = document.teams[0];
+		if (!team) throw new Error("built-in Agent Team fixture is missing");
+		let releaseLeader: (() => void) | undefined;
+		let releaseSibling: (() => void) | undefined;
+		const leaderGate = new Promise<void>((resolve) => {
+			releaseLeader = resolve;
+		});
+		const siblingGate = new Promise<void>((resolve) => {
+			releaseSibling = resolve;
+		});
+		let memberSequence = 0;
+		const createSession = vi.fn(async (config?: SessionConfig) => {
+			if (config?.sessionId) return { sessionId: config.sessionId };
+			memberSequence += 1;
+			if (memberSequence === 1) await leaderGate;
+			if (memberSequence === 2) await siblingGate;
+			return { sessionId: `member-runtime-${memberSequence}` };
+		});
+		const runtime = {
+			createSession,
+			getSessionPath: (sessionId: string) => `C:/runtime/${sessionId}.jsonl`,
+			disposeSession: vi.fn(async () => undefined),
+			subscribe: () => () => undefined,
+			appendSessionMetadataEntry: vi.fn(async () => undefined),
+			readSessionDocument: () => ({ entries: [], activeLeafId: null, revision: 0 }),
+		} as unknown as RuntimeHost;
+		const service = new AgentTeamSessionService({ runtime, readDocument: async () => document });
+		const record = await service.createRecord(team, document, {
+			kind: "project",
+			id: "project:workspace",
+			cwd: "C:/workspace",
+		});
+		const coordinator = (
+			service as unknown as {
+				readonly turnCoordinator: { send: (sessionId: string, input: unknown) => Promise<TeamSessionDocument> };
+			}
+		).turnCoordinator;
+		const admitted = vi.spyOn(coordinator, "send").mockResolvedValue(record);
+		const send = service.send(record.id, { requestId: "leader-first", text: "hello", targetMemberIds: [] });
+
+		releaseLeader?.();
+		await vi.waitFor(() =>
+			expect(admitted).toHaveBeenCalledWith(record.id, expect.objectContaining({ requestId: "leader-first" })),
+		);
+		releaseSibling?.();
+		await send;
+	});
+
+	it("names a new Team session with its selected model and retries using the first task", async () => {
+		const document = createAgentTeamFixture();
+		const team = document.teams[0];
+		if (!team) throw new Error("built-in Agent Team fixture is missing");
+		const entries: Array<Record<string, unknown>> = [];
+		const ownershipRecords = new Map<string, ConversationOwnershipRecord>();
+		const ownershipCatalog: ConversationOwnershipCatalogPort = {
+			register: async (records) => {
+				for (const record of records) ownershipRecords.set(record.sessionPath, record);
+			},
+			listByTeam: async (teamId) =>
+				[...ownershipRecords.values()].filter((record) => record.owner.teamId === teamId),
+			getOwner: async (path) => ownershipRecords.get(path)?.owner,
+			filterUserSessions: async (sessions) => [...sessions],
+		};
+		let memberSequence = 0;
+		let titleModel: string | undefined;
+		let omitNextTitle = false;
+		const runtime = {
+			createSession: vi.fn(async (config?: SessionConfig) => ({
+				sessionId: config?.sessionId ?? `member-runtime-${++memberSequence}`,
+			})),
+			getSessionPath: (sessionId: string) => `C:/runtime/${sessionId}.jsonl`,
+			readSessionDocument: (sessionId: string) => ({
+				entries: entries.filter((entry) => entry.sessionId === sessionId),
+				activeLeafId: null,
+				revision: entries.length,
+			}),
+			appendSessionMetadataEntry: vi.fn(async (sessionId: string, customType: string, data: unknown) => {
+				entries.push({ type: "custom", sessionId, customType, data });
+			}),
+			appendConversationMessage: vi.fn(async (sessionId: string, record: ConversationMessageRecord) => {
+				entries.push({ type: "message", sessionId, ...record });
+				return { entryId: record.id };
+			}),
+			selectSessionModel: vi.fn(async (_id: string, modelKey: string) => {
+				titleModel = modelKey;
+			}),
+			invokeSessionExtension: vi.fn(async () => {
+				if (omitNextTitle) {
+					omitNextTitle = false;
+					return null;
+				}
+				return titleModel === "openai/gpt-test" ? "团队标题已生成" : null;
+			}),
+			subscribe: () => () => undefined,
+			prompt: vi.fn(async () => ({})),
+			getFullHistory: () => [],
+			deliverSessionContext: vi.fn(async () => undefined),
+			updateSettings: vi.fn(async () => undefined),
+			disposeSession: vi.fn(async () => undefined),
+			abort: vi.fn(async () => undefined),
+		} as unknown as RuntimeHost;
+		const service = new AgentTeamSessionService({
+			runtime,
+			ownershipCatalog,
+			repository: { read: vi.fn(), list: vi.fn(async () => []) },
+			readDocument: async () => document,
+		});
+		const created = await service.createRecord(team, document, {
+			kind: "project",
+			id: "project:workspace",
+			cwd: "C:/workspace",
+		});
+		await service.updateModelSettings(created.id, { modelKey: "openai/gpt-test" });
+		await service.send(created.id, { requestId: "first-task", text: "制定发布计划", targetMemberIds: [] });
+		await vi.waitFor(async () => {
+			expect((await service.listSessions(team.id)).find((item) => item.id === created.id)?.title).toBe(
+				"团队标题已生成",
+			);
+		});
+		const restored = await service.read(created.id);
+		expect(restored.title).toBe("团队标题已生成");
+		expect(runtime.selectSessionModel).toHaveBeenCalledWith(created.id, "openai/gpt-test", "if-changed");
+
+		const retrySession = await service.createRecord(team, document, {
+			kind: "project",
+			id: "project:workspace",
+			cwd: "C:/workspace",
+		});
+		await service.updateModelSettings(retrySession.id, { modelKey: "openai/gpt-test" });
+		omitNextTitle = true;
+		await service.send(retrySession.id, {
+			requestId: "retry-first-task",
+			text: "检查账户权限",
+			targetMemberIds: [],
+		});
+		expect((await service.read(retrySession.id)).title).toBeUndefined();
+		await service.send(retrySession.id, {
+			requestId: "retry-second-task",
+			text: "继续执行",
+			targetMemberIds: [],
+		});
+		await vi.waitFor(async () => {
+			expect((await service.read(retrySession.id)).title).toBe("团队标题已生成");
+		});
+		expect(runtime.invokeSessionExtension).toHaveBeenLastCalledWith(retrySession.id, expect.anything(), {
+			userText: "检查账户权限",
+			assistantText: "",
+		});
+	});
+
+	it("publishes ordered deltas and persists the same non-empty final answer", async () => {
+		const document = createAgentTeamFixture();
+		const team = document.teams[0];
+		if (!team) throw new Error("built-in Agent Team fixture is missing");
+		const sessions = new Map<string, TeamSessionDocument>();
+		const repository: LegacyTeamSessionRepository = {
+			read: async (id) => {
+				const session = sessions.get(id);
+				if (!session) throw new Error(`missing session: ${id}`);
+				return session;
+			},
+		};
+
+		let runtimeSequence = 0;
+		let prompted = false;
+		const runtimeListeners = new Map<string, (event: SessionEvent) => void>();
+		const executionListeners = new Map<
+			string,
+			(observation: RuntimeSessionExecutionObservation) => Promise<void> | void
+		>();
+		const observationRecords: RuntimeObservationRecord[] = [];
+		const observationPublisher = createRuntimeObservationPublisher({
+			port: {
+				record: (record) => {
+					observationRecords.push(record);
+				},
+			},
+		});
+		const conversationEntries: Array<Record<string, unknown>> = [
+			{
+				type: "message",
+				kind: "user",
+				id: "public-1",
+				turnId: "public-turn-1",
+				timestamp: new Date(1).toISOString(),
+				author: { kind: "user", id: "local-user" },
+				message: { role: "user", content: "First public decision", timestamp: 1 },
+			},
+			{
+				type: "message",
+				kind: "agent",
+				id: "public-2",
+				turnId: "public-turn-2",
+				timestamp: new Date(2).toISOString(),
+				author: { kind: "agent", id: team.leaderMemberId },
+				message: { role: "assistant", content: [{ type: "text", text: "Second public result" }], timestamp: 2 },
+			},
+		];
+		const assistantText = "partial answer";
+		const createSession = vi.fn(async (config?: SessionConfig) => ({
+			sessionId: config?.sessionId ?? `runtime-${++runtimeSequence}`,
+		}));
+		const runtime = {
+			createSession,
+			setExecutionMode: vi.fn(async () => undefined),
+			getState: vi.fn(() => ({
+				contextPercent: 35,
+				contextTokens: 35,
+				contextWindow: 100,
+				executionMode: "full-access",
+			})),
+			getSessionPath: (sessionId: string) => `C:/runtime/${sessionId}.jsonl`,
+			disposeSession: vi.fn(async () => undefined),
+			subscribe: (sessionId: string, listener: (event: SessionEvent) => void) => {
+				runtimeListeners.set(sessionId, listener);
+				return () => runtimeListeners.delete(sessionId);
+			},
+			prompt: vi.fn(async (sessionId: string) => {
+				const listener = runtimeListeners.get(sessionId);
+				const partial = {
+					...createAssistantMessage(
+						{ api: "openai-responses", provider: "openai", model: "model" },
+						{ timestamp: 2 },
+					),
+					content: [
+						{ type: "thinking" as const, thinking: "private execution reasoning" },
+						{ type: "text" as const, text: "partial answer" },
+						{ type: "toolCall" as const, id: "private-call", name: "read", arguments: { path: "secret" } },
+					],
+				};
+				const assistantEvent = (event: Record<string, unknown>, sequence: number): SessionEvent =>
+					({
+						schemaVersion: 1,
+						channel: "assistant",
+						sessionId,
+						eventId: `assistant-${sequence}`,
+						timestamp: sequence,
+						source: "agent",
+						sequence,
+						turnId: "runtime-turn-1",
+						modelCallIndex: 0,
+						...event,
+					}) as SessionEvent;
+				listener?.({
+					schemaVersion: 1,
+					channel: "runtime",
+					sessionId,
+					eventId: "usage-1",
+					timestamp: 2,
+					source: "runtime-core",
+					type: "usage.update",
+					input: 20,
+					output: 4,
+					cacheRead: 0,
+					cacheWrite: 0,
+					costTotal: 0,
+					contextPercent: 35,
+					contextTokens: 35,
+					contextWindow: 100,
+				} as SessionEvent);
+				listener?.(assistantEvent({ type: "thinking_delta", contentIndex: 0, delta: "private", partial }, 1));
+				listener?.(assistantEvent({ type: "text_delta", contentIndex: 1, delta: "partial ", partial }, 2));
+				listener?.(assistantEvent({ type: "toolcall_start", contentIndex: 2, partial }, 3));
+				listener?.(assistantEvent({ type: "text_delta", contentIndex: 1, delta: "answer", partial }, 4));
+				await executionListeners.get(sessionId)?.({
+					turnId: "runtime-turn-1",
+					timestamp: 3,
+					event: {
+						type: "tool.execution.start",
+						toolCallId: "tool-call-1",
+						toolName: "read",
+						args: { path: "C:/workspace/private.txt" },
+						startedAt: 2,
+					},
+				});
+				await executionListeners.get(sessionId)?.({
+					turnId: "runtime-turn-1",
+					timestamp: 4,
+					event: {
+						type: "tool.execution.end",
+						toolCallId: "tool-call-1",
+						toolName: "read",
+						result: { content: [{ type: "text", text: "private result" }] },
+						isError: false,
+						startedAt: 2,
+						durationMs: 2,
+						phases: [],
+					},
+				});
+				prompted = true;
+				return {};
+			}),
+			subscribeExecutionObservations: (
+				sessionId: string,
+				listener: (observation: RuntimeSessionExecutionObservation) => Promise<void> | void,
+			) => {
+				executionListeners.set(sessionId, listener);
+				return () => executionListeners.delete(sessionId);
+			},
+			createObservationScope: (context: RuntimeObservationContext) => observationPublisher.scope(context),
+			getFullHistory: () =>
+				prompted
+					? [
+							{
+								type: "message",
+								entryId: "assistant-tool-entry",
+								message: {
+									...createAssistantMessage(
+										{ api: "openai-responses", provider: "openai", model: "model" },
+										{ timestamp: 2 },
+									),
+									content: [
+										{ type: "thinking", thinking: "private execution reasoning" },
+										{
+											type: "toolCall",
+											id: "private-call",
+											name: "read",
+											arguments: { path: "C:/workspace/private.txt" },
+										},
+									],
+								},
+							},
+							{
+								type: "message",
+								entryId: "tool-result-entry",
+								message: {
+									role: "toolResult",
+									toolCallId: "private-call",
+									toolName: "read",
+									content: [{ type: "text", text: "private result" }],
+									isError: false,
+									timestamp: 2,
+								},
+							},
+							{
+								type: "message",
+								entryId: "assistant-entry",
+								message: {
+									...createAssistantMessage(
+										{ api: "openai-responses", provider: "openai", model: "model" },
+										{ timestamp: 3 },
+									),
+									content: [{ type: "text", text: assistantText }],
+								},
+							},
+						]
+					: [],
+			appendConversationMessage: vi.fn(async (_sessionId: string, record: ConversationMessageRecord) => {
+				conversationEntries.push({
+					type: "message",
+					id: record.id,
+					turnId: record.turnId,
+					kind: record.kind,
+					author: record.author,
+					message: record.message,
+					...(record.kind === "user" && record.attachments?.length ? { attachments: record.attachments } : {}),
+				});
+				return { entryId: record.id };
+			}),
+			deliverSessionContext: vi.fn(async () => undefined),
+			summarizeSessionContext: vi.fn(async (_sessionId: string, request: RuntimeContextSummaryRequest) => {
+				expect(request.records).toHaveLength(2);
+				expect(request.records.every((record) => record.modelVisible)).toBe(true);
+				expect(JSON.stringify(request.records)).not.toContain("private execution reasoning");
+				expect(JSON.stringify(request.records)).not.toContain("C:/workspace/private.txt");
+				return { summary: "Shared public decisions summary", tokensBefore: 20 };
+			}),
+			appendSessionMetadataEntry: vi.fn(async (_sessionId: string, customType: string, data: unknown) => {
+				conversationEntries.push({ type: "custom", customType, data });
+			}),
+			readSessionDocument: () => ({
+				entries: conversationEntries,
+				activeLeafId: "assistant-entry",
+				revision: conversationEntries.length,
+			}),
+			abort: vi.fn(async () => undefined),
+			updateSettings: vi.fn(async () => undefined),
+		} as unknown as RuntimeHost;
+		const service = new AgentTeamSessionService({
+			runtime,
+			repository,
+			readDocument: async () => document,
+			sharedContextCompaction: { maxCharacters: 1, keepRecentCharacters: 0 },
+		});
+		const created = await service.create(team, document, {
+			kind: "project",
+			id: "project:workspace",
+			cwd: "C:/workspace",
+		});
+		const sandboxed = await service.setExecutionMode(created.id, "sandbox");
+		expect(sandboxed.executionMode).toBe("sandbox");
+		expect(runtime.setExecutionMode).toHaveBeenCalledTimes(Object.keys(created.memberRuntime).length + 1);
+		expect(runtime.setExecutionMode).toHaveBeenLastCalledWith(expect.any(String), "sandbox");
+		expect(createSession.mock.calls.every(([config]) => config === undefined || !("sessionDir" in config))).toBe(
+			true,
+		);
+		const configured = await service.updateModelSettings(created.id, {
+			modelKey: "openai/gpt-test",
+			reasoning: "high",
+		});
+		expect(configured.modelSettings).toEqual({ modelKey: "openai/gpt-test", reasoning: "high" });
+		const events: DesktopTeamSessionStreamEvent[] = [];
+		const subscription = service.subscribe(created.id, (event) => events.push(event));
+
+		const completed = await service.send(created.id, {
+			requestId: "request",
+			text: "question",
+			targetMemberIds: [team.leaderMemberId],
+			attachments: [{ kind: "file", path: "C:/workspace/brief.md" }],
+		});
+		await observationPublisher.flush();
+		subscription.unsubscribe();
+
+		const messageEvents = events.filter((event) => event.type === "conversation.agent-message-event");
+		expect(
+			messageEvents.map((event) => (event.event.type === "text_delta" ? event.event.delta : event.event.type)),
+		).toEqual(["partial ", "toolcall_start", "answer"]);
+		expect(messageEvents.map((event) => event.sequence)).toEqual([1, 2, 3]);
+		expect(completed.events).toEqual([]);
+		const completedSnapshot = service.snapshot(completed);
+		expect(completedSnapshot.messages.at(-1)).toMatchObject({
+			kind: "agent",
+			author: { id: team.leaderMemberId },
+			message: {
+				content: [
+					{
+						type: "toolCall",
+						id: "private-call",
+						name: "read",
+						arguments: { path: "C:/workspace/private.txt" },
+					},
+					{ type: "text", text: assistantText },
+				],
+			},
+		});
+		const display = await service.displayProjection(completed);
+		expect(display.memberConversations).toEqual(
+			expect.arrayContaining([
+				expect.objectContaining({
+					memberId: team.leaderMemberId,
+					history: expect.arrayContaining([
+						expect.objectContaining({ type: "message", message: expect.objectContaining({ role: "assistant" }) }),
+					]),
+				}),
+			]),
+		);
+		expect(display.toolExecutions).toEqual([
+			expect.objectContaining({
+				messageId: expect.any(String),
+				toolCallId: "private-call",
+				toolName: "read",
+				result: expect.objectContaining({
+					content: [{ type: "text", text: "private result" }],
+					isError: false,
+				}),
+			}),
+		]);
+		expect(events).toContainEqual(
+			expect.objectContaining({
+				type: "desktop.team-context-usage",
+				memberId: team.leaderMemberId,
+				contextUsage: { percent: 35, contextTokens: 35, contextWindow: 100 },
+			}),
+		);
+		expect(events.at(-1)).toMatchObject({
+			type: "conversation.agent-message-discard",
+			reason: "completed",
+			sequence: 6,
+		});
+		expect(events.filter((event) => event.type === "desktop.team-tool-execution")).toEqual([
+			expect.objectContaining({
+				event: expect.objectContaining({
+					type: "start",
+					toolCallId: "tool-call-1",
+					toolName: "read",
+				}),
+			}),
+			expect.objectContaining({
+				event: expect.objectContaining({
+					type: "end",
+					toolCallId: "tool-call-1",
+					result: { content: [{ type: "text", text: "private result" }] },
+				}),
+			}),
+		]);
+		expect(runtime.prompt).toHaveBeenCalledWith(
+			expect.any(String),
+			expect.objectContaining({
+				attachments: [{ kind: "file", path: "C:/workspace/brief.md" }],
+				modelKey: "openai/gpt-test",
+				reasoning: "high",
+			}),
+		);
+		expect(runtime.updateSettings).toHaveBeenCalledWith(expect.any(String), {
+			modelKey: "openai/gpt-test",
+			thinkingLevel: "high",
+		});
+		expect(runtime.appendConversationMessage).toHaveBeenCalledTimes(2);
+		expect(runtime.appendConversationMessage).toHaveBeenNthCalledWith(
+			2,
+			expect.any(String),
+			expect.objectContaining({
+				kind: "agent",
+				message: expect.objectContaining({
+					content: [
+						{
+							type: "toolCall",
+							id: "private-call",
+							name: "read",
+							arguments: { path: "C:/workspace/private.txt" },
+						},
+						{ type: "text", text: assistantText },
+					],
+				}),
+			}),
+		);
+		expect(runtime.summarizeSessionContext).toHaveBeenCalledOnce();
+		const toolObservations = observationRecords.filter((record) => record.token === AGENT_TEAM_MEMBER_TOOL_EXECUTION);
+		expect(toolObservations).toHaveLength(2);
+		expect(toolObservations.map(({ payload }) => payload)).toEqual([
+			expect.objectContaining({
+				participantId: team.leaderMemberId,
+				requestTurnId: "request",
+				runtimeTurnId: "runtime-turn-1",
+				toolCallId: "tool-call-1",
+				toolName: "read",
+				phase: "started",
+				inputFieldCount: 1,
+				workItemId: expect.any(String),
+				attemptId: expect.any(String),
+			}),
+			expect.objectContaining({
+				phase: "completed",
+				contentItemCount: 1,
+				hasDetails: false,
+				durationMs: 2,
+				isError: false,
+			}),
+		]);
+		expect(JSON.stringify(toolObservations)).not.toContain("C:/workspace/private.txt");
+		expect(JSON.stringify(toolObservations)).not.toContain("private result");
+		const publicationObservations = observationRecords.filter(
+			(record) => record.token === AGENT_TEAM_PUBLICATION_LIFECYCLE,
+		);
+		expect(publicationObservations.map(({ payload }) => payload)).toEqual([
+			expect.objectContaining({
+				phase: "prepared",
+				participantId: team.leaderMemberId,
+				requestTurnId: "request",
+				workItemId: expect.any(String),
+				attemptId: expect.any(String),
+				sourceParticipantConversationId: expect.stringMatching(/^runtime-/),
+				sourceMessageEntryId: "assistant-entry",
+				generation: 1,
+				recovered: false,
+			}),
+			expect.objectContaining({ phase: "message-published", recovered: false }),
+			expect.objectContaining({
+				phase: "completed",
+				resultMessageId: expect.any(String),
+				recovered: false,
+			}),
+		]);
+		expect(
+			conversationEntries.find(
+				(entry) => entry.type === "custom" && entry.customType === "agent-team.shared-checkpoint.v1",
+			)?.data,
+		).toMatchObject({
+			sourceEntryIds: ["public-1", "public-2"],
+			summarizedSourceEntryIds: ["public-1", "public-2"],
+			summaryRecords: [
+				{
+					kind: "summary",
+					content: expect.stringContaining('"summary":"Shared public decisions summary"'),
+				},
+			],
+		});
+	});
+
+	it("reconciles cached sessions after members are added or removed", async () => {
+		let document = createAgentTeamFixture();
+		const originalTeam = document.teams[0];
+		if (!originalTeam) throw new Error("built-in Agent Team fixture is missing");
+		const removedMember = originalTeam.members.at(-1);
+		const sourceMember = originalTeam.members[1];
+		if (!removedMember || !sourceMember) throw new Error("built-in Agent Team member fixture is missing");
+		const sessions = new Map<string, TeamSessionDocument>();
+		const repository: LegacyTeamSessionRepository = {
+			read: async (id) => {
+				const session = sessions.get(id);
+				if (!session) throw new Error(`missing session: ${id}`);
+				return session;
+			},
+		};
+		let runtimeSequence = 0;
+		const runtime = {
+			createSession: vi.fn(async (config?: SessionConfig) => ({
+				sessionId: config?.sessionId ?? `runtime-${++runtimeSequence}`,
+			})),
+			getSessionPath: (sessionId: string) => `C:/runtime/${sessionId}.jsonl`,
+			disposeSession: vi.fn(async () => undefined),
+			subscribe: () => () => undefined,
+			appendConversationMessage: vi.fn(async () => ({ entryId: "entry" })),
+			appendSessionMetadataEntry: vi.fn(async () => undefined),
+			readSessionDocument: () => ({ entries: [], activeLeafId: null, revision: 0 }),
+		} as unknown as RuntimeHost;
+		const service = new AgentTeamSessionService({
+			runtime,
+			repository,
+			readDocument: async () => document,
+		});
+		const created = await service.create(originalTeam, document, {
+			id: "project:workspace",
+			cwd: "C:/workspace",
+			kind: "project",
+		});
+		const addedMember = {
+			...sourceMember,
+			id: "member-added",
+			handle: "additional-reviewer",
+		};
+		const nextTeam = {
+			...originalTeam,
+			revision: originalTeam.revision + 1,
+			members: [...originalTeam.members.filter((member) => member.id !== removedMember.id), addedMember],
+		};
+		document = {
+			...document,
+			revision: document.revision + 1,
+			teams: document.teams.map((team) => (team.id === nextTeam.id ? nextTeam : team)),
+		};
+
+		const reconciled = await service.read(created.id);
+
+		expect(reconciled.teamRevision).toBe(nextTeam.revision);
+		expect(reconciled.activeMemberIds).toEqual(nextTeam.members.map((member) => member.id));
+		expect(reconciled.memberRuntime[removedMember.id]).toBeUndefined();
+		expect(reconciled.memberRuntime[addedMember.id]?.sessionId).toBe(`runtime-${originalTeam.members.length + 1}`);
+		expect(reconciled.memberHandles[removedMember.id]).toBe(removedMember.handle);
+		expect(runtime.disposeSession).toHaveBeenCalledWith(`runtime-${originalTeam.members.length}`);
+	});
+
+	it("keeps a work item waiting when a member turn has no publishable final message", async () => {
+		const document = createAgentTeamFixture();
+		const team = document.teams[0];
+		if (!team) throw new Error("built-in Agent Team fixture is missing");
+		const sessions = new Map<string, TeamSessionDocument>();
+		const entries: Array<Record<string, unknown>> = [];
+		const repository: LegacyTeamSessionRepository = {
+			read: async (id) => {
+				const session = sessions.get(id);
+				if (!session) throw new Error(`missing session: ${id}`);
+				return session;
+			},
+		};
+		let sequence = 0;
+		const runtime = {
+			createSession: vi.fn(async (config?: SessionConfig) => ({
+				sessionId: config?.sessionId ?? `runtime-${++sequence}`,
+			})),
+			getSessionPath: (sessionId: string) => `C:/runtime/${sessionId}.jsonl`,
+			disposeSession: vi.fn(async () => undefined),
+			subscribe: () => () => undefined,
+			prompt: vi.fn(async () => ({})),
+			invokeSessionExtension: vi.fn(async () => "Plan the work"),
+			getMessages: () => [
+				{
+					role: "assistant",
+					content: [{ type: "text", text: "result from an earlier turn" }],
+				},
+			],
+			getFullHistory: () => [],
+			appendConversationMessage: vi.fn(async () => ({ entryId: "entry" })),
+			deliverSessionContext: vi.fn(async () => undefined),
+			appendSessionMetadataEntry: vi.fn(async (_sessionId: string, customType: string, data: unknown) => {
+				entries.push({ type: "custom", customType, data });
+			}),
+			readSessionDocument: () => ({ entries, activeLeafId: null }),
+			abort: vi.fn(async () => undefined),
+		} as unknown as RuntimeHost;
+		const service = new AgentTeamSessionService({
+			runtime,
+			repository,
+			readDocument: async () => document,
+		});
+		const created = await service.create(team, document, {
+			kind: "project",
+			id: "project:workspace",
+			cwd: "C:/workspace",
+		});
+		const stream: DesktopTeamSessionStreamEvent[] = [];
+		service.subscribe(created.id, (event) => stream.push(event));
+
+		const result = await service.send(created.id, {
+			requestId: "request-no-final",
+			text: "do work",
+			targetMemberIds: [team.leaderMemberId],
+		});
+		await vi.waitFor(async () => {
+			expect((await service.read(created.id)).title).toBe("Plan the work");
+		});
+		const collaboration = await service.readCollaborationState(created.id);
+
+		expect(result.events.some((event) => event.type === "member-result")).toBe(false);
+		expect(collaboration.workItems).toHaveLength(1);
+		expect(collaboration.workItems[0]?.state).toBe("waiting");
+		expect(collaboration.attempts[0]?.state).toBe("interrupted");
+		expect(stream.at(-1)).toMatchObject({
+			type: "conversation.agent-message-discard",
+			reason: "waiting",
+		});
+		expect(runtime.invokeSessionExtension).toHaveBeenCalledWith(
+			created.coordinationRuntime?.sessionId,
+			expect.anything(),
+			{ userText: "do work", assistantText: "" },
+		);
+	});
+
+	it("publishes the leader's visible progress when a later model call fails after tool calls", async () => {
+		const document = createAgentTeamFixture();
+		const team = document.teams[0];
+		if (!team) throw new Error("built-in Agent Team fixture is missing");
+		const entries: Array<Record<string, unknown>> = [];
+		let prompted = false;
+		let sequence = 0;
+		const model = { api: "openai-responses", provider: "openai", model: "model" } as const;
+		const runtime = {
+			createSession: vi.fn(async (config?: SessionConfig) => ({
+				sessionId: config?.sessionId ?? `runtime-${++sequence}`,
+			})),
+			getSessionPath: (sessionId: string) => `C:/runtime/${sessionId}.jsonl`,
+			disposeSession: vi.fn(async () => undefined),
+			subscribe: () => () => undefined,
+			prompt: vi.fn(async () => {
+				prompted = true;
+				return {};
+			}),
+			getFullHistory: () =>
+				prompted
+					? [
+							{
+								type: "message",
+								entryId: "leader-delegate",
+								message: {
+									...createAssistantMessage(model, { timestamp: 2 }),
+									stopReason: "toolUse",
+									content: [
+										{
+											type: "toolCall",
+											id: "call-delegate",
+											name: "team_delegate_task",
+											arguments: { description: "research" },
+										},
+									],
+								},
+							},
+							{
+								type: "message",
+								entryId: "leader-delegate-result",
+								message: {
+									role: "toolResult",
+									toolCallId: "call-delegate",
+									toolName: "team_delegate_task",
+									content: [{ type: "text", text: "delegated" }],
+									isError: false,
+									timestamp: 3,
+								},
+							},
+							{
+								type: "message",
+								entryId: "leader-transport-error",
+								message: {
+									...createAssistantMessage(model, { timestamp: 4 }),
+									stopReason: "error",
+									errorMessage: "EOF",
+									content: [],
+								},
+							},
+						]
+					: [],
+			appendConversationMessage: vi.fn(async (_sessionId: string, record: ConversationMessageRecord) => {
+				entries.push({
+					type: "message",
+					id: record.id,
+					kind: record.kind,
+					author: record.author,
+					message: record.message,
+				});
+				return { entryId: record.id };
+			}),
+			deliverSessionContext: vi.fn(async () => undefined),
+			appendSessionMetadataEntry: vi.fn(async (_sessionId: string, customType: string, data: unknown) => {
+				entries.push({ type: "custom", customType, data });
+			}),
+			readSessionDocument: () => ({ entries, activeLeafId: null }),
+			abort: vi.fn(async () => undefined),
+		} as unknown as RuntimeHost;
+		const service = new AgentTeamSessionService({
+			runtime,
+			repository: { read: vi.fn(), list: vi.fn(async () => []) },
+			readDocument: async () => document,
+		});
+		const created = await service.create(team, document, {
+			kind: "project",
+			id: "project:workspace",
+			cwd: "C:/workspace",
+		});
+
+		await service.send(created.id, {
+			requestId: "request-transport-eof",
+			text: "do work",
+			targetMemberIds: [team.leaderMemberId],
+		});
+
+		const leaderMessages = entries.filter(
+			(entry) =>
+				entry.type === "message" &&
+				entry.kind === "agent" &&
+				(entry.author as { id: string }).id === team.leaderMemberId,
+		);
+		expect(leaderMessages).toHaveLength(1);
+		expect(JSON.stringify(leaderMessages[0])).toContain("call-delegate");
+		const collaboration = await service.readCollaborationState(created.id);
+		expect(collaboration.workItems[0]?.state).toBe("waiting");
+	});
+
+	it("surfaces a failed Runtime prompt instead of silently treating it as an interruption", async () => {
+		const document = createAgentTeamFixture();
+		const team = document.teams[0];
+		if (!team) throw new Error("built-in Agent Team fixture is missing");
+		const entries: Array<Record<string, unknown>> = [];
+		let sequence = 0;
+		const runtime = {
+			createSession: vi.fn(async (config?: SessionConfig) => ({
+				sessionId: config?.sessionId ?? `runtime-${++sequence}`,
+			})),
+			getSessionPath: (sessionId: string) => `C:/runtime/${sessionId}.jsonl`,
+			disposeSession: vi.fn(async () => undefined),
+			subscribe: () => () => undefined,
+			prompt: vi.fn(async () => ({
+				status: "failed" as const,
+				error: {
+					code: "AI_AUTHENTICATION_FAILED",
+					message: "provider authentication failed",
+					retryable: false,
+					origin: "provider" as const,
+				},
+			})),
+			getFullHistory: () => [],
+			appendConversationMessage: vi.fn(async () => ({ entryId: "entry" })),
+			deliverSessionContext: vi.fn(async () => undefined),
+			appendSessionMetadataEntry: vi.fn(async (_sessionId: string, customType: string, data: unknown) => {
+				entries.push({ type: "custom", customType, data });
+			}),
+			readSessionDocument: () => ({ entries, activeLeafId: null }),
+			abort: vi.fn(async () => undefined),
+		} as unknown as RuntimeHost;
+		const service = new AgentTeamSessionService({
+			runtime,
+			repository: { read: vi.fn(), list: vi.fn(async () => []) },
+			readDocument: async () => document,
+		});
+		const created = await service.create(team, document, {
+			kind: "project",
+			id: "project:workspace",
+			cwd: "C:/workspace",
+		});
+		const stream: DesktopTeamSessionStreamEvent[] = [];
+		service.subscribe(created.id, (event) => stream.push(event));
+
+		await expect(
+			service.send(created.id, {
+				requestId: "request-provider-failure",
+				text: "do work",
+				targetMemberIds: [team.leaderMemberId],
+			}),
+		).rejects.toThrow("provider authentication failed");
+		const collaboration = await service.readCollaborationState(created.id);
+		expect(collaboration.workItems[0]?.state).toBe("attention-required");
+		expect(collaboration.attempts[0]).toMatchObject({
+			state: "awaiting-resource",
+			issue: { category: "authentication", code: "AI_AUTHENTICATION_FAILED" },
+		});
+		expect(stream.at(-1)).toMatchObject({
+			type: "conversation.agent-message-discard",
+			reason: "failed",
+			error: "provider authentication failed",
+		});
+	});
+
+	it.each([true, false])(
+		"honors the context policy before delivery and handles network interruption (allowed=%s)",
+		async (allowed) => {
+			const document = createAgentTeamFixture();
+			const team = document.teams[0];
+			if (!team) throw new Error("built-in Agent Team fixture is missing");
+			const sessions = new Map<string, TeamSessionDocument>();
+			const entries: Array<Record<string, unknown>> = [
+				{
+					type: "message",
+					kind: "user",
+					id: "earlier-user-message",
+					turnId: "earlier-request",
+					timestamp: new Date(1).toISOString(),
+					author: { kind: "user", id: "local-user" },
+					message: { role: "user", content: "Earlier public context", timestamp: 1 },
+				},
+			];
+			const repository: LegacyTeamSessionRepository = {
+				read: async (id) => {
+					const session = sessions.get(id);
+					if (!session) throw new Error(`missing session: ${id}`);
+					return session;
+				},
+			};
+			let sequence = 0;
+			const runtime = {
+				createSession: vi.fn(async (config?: SessionConfig) => ({
+					sessionId: config?.sessionId ?? `runtime-${++sequence}`,
+				})),
+				getSessionPath: (sessionId: string) => `C:/runtime/${sessionId}.jsonl`,
+				disposeSession: vi.fn(async () => undefined),
+				subscribe: () => () => undefined,
+				prompt: vi.fn(async () => ({})),
+				getMessages: () => [],
+				getFullHistory: () => [],
+				appendConversationMessage: vi.fn(async () => ({ entryId: "entry" })),
+				appendSessionMetadataEntry: vi.fn(async (_sessionId: string, customType: string, data: unknown) => {
+					entries.push({ type: "custom", customType, data });
+				}),
+				readSessionDocument: () => ({ entries, activeLeafId: null, revision: 1 }),
+				deliverSessionContext: vi.fn(async () => {
+					throw {
+						code: "provider_network_timeout",
+						message: "network timeout",
+						retryable: true,
+						origin: "provider",
+					};
+				}),
+				abort: vi.fn(async () => undefined),
+			} as unknown as RuntimeHost;
+			const service = new AgentTeamSessionService({
+				runtime,
+				repository,
+				readDocument: async () => document,
+				extensions: allowed
+					? undefined
+					: createAgentTeamExtensionRegistry([
+							{
+								contextPolicies: new Map([
+									["public-results-v1", { id: "public-results-v1", project: () => [] }],
+								]),
+							},
+						]),
+			});
+			const created = await service.create(team, document, {
+				kind: "project",
+				id: "project:workspace",
+				cwd: "C:/workspace",
+			});
+			await expect(
+				service.send(created.id, {
+					requestId: "request-context-failure",
+					text: "continue the work",
+					targetMemberIds: [team.leaderMemberId],
+				}),
+			).resolves.toBeDefined();
+			const collaboration = await service.readCollaborationState(created.id);
+
+			if (!allowed) {
+				expect(runtime.deliverSessionContext).toHaveBeenCalledWith(
+					expect.any(String),
+					[
+						expect.objectContaining({
+							type: "agent-team.compaction-reference.v1",
+							modelVisible: false,
+						}),
+					],
+					"record",
+				);
+			} else {
+				expect(runtime.deliverSessionContext).toHaveBeenCalledWith(
+					expect.any(String),
+					[
+						expect.objectContaining({
+							type: "agent-team.compaction-reference.v1",
+							modelVisible: false,
+						}),
+					],
+					"record",
+				);
+			}
+			expect(runtime.prompt).not.toHaveBeenCalled();
+			expect(collaboration.workItems[0]).toMatchObject({
+				state: "waiting",
+				lastIssue: { category: "network", retryability: "automatic" },
+			});
+			expect(collaboration.attempts[0]).toMatchObject({
+				state: "waiting-retry",
+				issue: { category: "network", retryability: "automatic" },
+			});
+		},
+	);
+});

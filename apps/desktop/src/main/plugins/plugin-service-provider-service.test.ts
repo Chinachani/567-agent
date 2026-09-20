@@ -1,0 +1,381 @@
+import { ChildProcess } from "node:child_process";
+import { mkdir, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
+import type { PluginServiceProviderManifest, PluginServiceRuntimeKind } from "@vetta-org/plugin-sdk";
+import { afterEach, describe, expect, it, vi } from "vitest";
+import type { InstalledPlugin } from "../../preload/api-types/plugins.js";
+import { PluginServiceProviderService } from "./plugin-service-provider-service.js";
+
+vi.mock("./plugin-catalog.js", () => ({ listPlugins: () => [] }));
+vi.mock("electron", () => ({ webContents: { getAllWebContents: () => [] } }));
+const { logWarn } = vi.hoisted(() => ({ logWarn: vi.fn() }));
+vi.mock("../logger.js", () => ({ getAppLogger: () => ({ warn: logWarn }) }));
+
+const directories: string[] = [];
+afterEach(async () => {
+	vi.useRealTimers();
+	logWarn.mockClear();
+	await Promise.all(directories.splice(0).map((path) => rm(path, { recursive: true, force: true })));
+});
+
+async function fixture() {
+	const root = await mkdtemp(join(tmpdir(), "vetta-service-lifecycle-"));
+	directories.push(root);
+	const dataDirectory = join(root, "data");
+	const cacheDirectory = join(root, "cache");
+	await mkdir(dataDirectory);
+	await mkdir(cacheDirectory);
+	await writeFile(
+		join(root, "config.tpl"),
+		`port=\${VETTA_SERVICE_PORT}\nruntime=\${VETTA_SERVICE_RUNTIME_DIR}\nkey=\${VETTA_SERVICE_SECRET_API_KEY}`,
+	);
+	const manifest: PluginServiceProviderManifest = {
+		id: "bridge",
+		runtime: { version: "1.0.0", platforms: {} },
+		credentials: [{ id: "api-key" }],
+		templates: [
+			{ source: "config.tpl", destination: "generated.conf", mode: "render" },
+			{ source: "config.tpl", destination: "user.conf", mode: "create" },
+		],
+		process: { args: ["--config", `\${VETTA_SERVICE_CACHE_DIR}/generated.conf`] },
+		health: { path: "/health", credentialId: "api-key" },
+	};
+	const plugin: InstalledPlugin = {
+		id: "managed-bridge",
+		name: "Managed Bridge",
+		version: "1.0.0",
+		activeVersion: "1.0.0",
+		pluginApiVersion: "^2.0.0",
+		entryUrl: "vetta-plugin://managed-bridge/index.js",
+		moduleFederation: { remoteName: "managed_bridge", expose: "./plugin" },
+		styleUrls: [],
+		permissions: [],
+		grantedPermissions: [],
+		allowedNetworkHosts: [],
+		allowedBrowserHosts: [],
+		declaredCommands: [],
+		grantedCommandNames: [],
+		defaultLocale: "en",
+		locales: {},
+		enabled: true,
+		required: false,
+		installedAt: "2026-09-03T00:00:00Z",
+		updatedAt: "2026-09-03T00:00:00Z",
+		source: "remote",
+		trustLevel: "community",
+		rootPath: root,
+		serviceProviders: [manifest],
+	};
+	const paths = () => ({
+		rootDirectory: root,
+		runtimeDirectory: join(root, manifest.runtime.version),
+		dataDirectory,
+		cacheDirectory,
+		executable: join(root, "bridge.exe"),
+		runtimeKind: "managed-binary" as PluginServiceRuntimeKind,
+	});
+	const resolveRuntime = vi.fn(async () => paths());
+	const installRuntime = vi.fn(async () => paths());
+	const children: ChildProcess[] = [];
+	const spawnProcess = vi.fn(() => {
+		const child = new ChildProcess();
+		children.push(child);
+		return child;
+	});
+	const killProcess = vi.fn((child: ChildProcess) => {
+		child.emit("exit", 0, null);
+	});
+	const fetchClient = vi.fn(async (_url: string, _init?: RequestInit) => new Response("{}", { status: 200 }));
+	let port = 19000;
+	const service = new PluginServiceProviderService({
+		listPlugins: () => [plugin],
+		installer: { getPlatform: () => ({ tag: "win32-x64" }), install: installRuntime, resolve: resolveRuntime },
+		fetchClient,
+		spawnProcess,
+		resolveHostNodeExecutable: () => "C:/vetta/node.exe",
+		killProcess,
+		allocatePort: async () => ++port,
+		broadcast: vi.fn(),
+	});
+	return {
+		service,
+		manifest,
+		plugin,
+		paths,
+		resolveRuntime,
+		installRuntime,
+		spawnProcess,
+		children,
+		fetchClient,
+		killProcess,
+	};
+}
+
+describe("PluginServiceProviderService", () => {
+	it("regenerates the current port and runtime while preserving data and credentials across restarts and upgrades", async () => {
+		const f = await fixture();
+		await f.service.start(f.plugin.id, "bridge");
+		const firstConnection = f.service.connection(f.plugin.id, "bridge", "api-key");
+		await writeFile(join(f.paths().dataDirectory, "user.conf"), "user-owned");
+		f.plugin.serviceProviders = [{ ...f.manifest, runtime: { ...f.manifest.runtime, version: "2.0.0" } }];
+		await f.service.restart(f.plugin.id, "bridge");
+		const next = f.service.connection(f.plugin.id, "bridge", "api-key");
+		const config = await readFile(join(f.paths().cacheDirectory, "generated.conf"), "utf8");
+		expect(next.baseUrl).not.toBe(firstConnection.baseUrl);
+		expect(next.credential).toBe(firstConnection.credential);
+		expect(config).toContain(`port=${new URL(next.baseUrl).port}`);
+		expect(config).toContain(f.paths().runtimeDirectory);
+		expect(await readFile(join(f.paths().dataDirectory, "user.conf"), "utf8")).toBe("user-owned");
+		expect((await f.service.getStatus(f.plugin.id, "bridge")).version).toBe("2.0.0");
+		f.service.stopAll();
+	});
+
+	it("cancels startup while installation is pending and allows a later restart", async () => {
+		const f = await fixture();
+		let release!: () => void;
+		f.resolveRuntime.mockImplementationOnce(async () => {
+			await new Promise<void>((resolve) => {
+				release = resolve;
+			});
+			return f.paths();
+		});
+		const starting = f.service.start(f.plugin.id, "bridge");
+		await f.service.stop(f.plugin.id, "bridge");
+		release();
+		await starting;
+		expect(f.spawnProcess).not.toHaveBeenCalled();
+		expect((await f.service.getStatus(f.plugin.id, "bridge")).phase).toBe("stopped");
+		await f.service.start(f.plugin.id, "bridge");
+		expect((await f.service.getStatus(f.plugin.id, "bridge")).phase).toBe("ready");
+		f.service.stopAll();
+	});
+
+	it("ignores late exits from a disabled process after re-enabling", async () => {
+		const f = await fixture();
+		await f.service.start(f.plugin.id, "bridge");
+		f.killProcess.mockImplementation(() => undefined);
+		f.service.disablePlugin(f.plugin.id);
+		await f.service.start(f.plugin.id, "bridge");
+		f.children[0]?.emit("exit", 0, null);
+		expect((await f.service.getStatus(f.plugin.id, "bridge")).phase).toBe("ready");
+		expect(f.service.connection(f.plugin.id, "bridge").baseUrl).toBe("http://127.0.0.1:19002");
+	});
+
+	it("enforces ownership, credential declarations, same-origin requests and disabled services", async () => {
+		const f = await fixture();
+		await f.service.start(f.plugin.id, "bridge");
+		await expect(f.service.request(f.plugin.id, "bridge", { path: "//example.com" })).rejects.toThrow(
+			"root-relative",
+		);
+		await expect(f.service.request(f.plugin.id, "bridge", { path: "/\\example.com" })).rejects.toThrow(
+			"loopback origin",
+		);
+		expect(() => f.service.connection("other", "bridge")).toThrow("Plugin not found");
+		expect(() => f.service.connection(f.plugin.id, "bridge", "unknown")).toThrow("not declared");
+		await f.service.request(f.plugin.id, "bridge", { path: "/models", credentialId: "api-key" });
+		const init = f.fetchClient.mock.calls.at(-1)?.[1];
+		expect(init?.redirect).toBe("manual");
+		expect(new Headers(init?.headers).get("Authorization")).toBe(
+			`Bearer ${f.service.connection(f.plugin.id, "bridge", "api-key").credential}`,
+		);
+		f.plugin.enabled = false;
+		expect(() => f.service.connection(f.plugin.id, "bridge")).toThrow("Plugin disabled");
+		f.service.stopAll();
+	});
+
+	it("allows the five-minute timeout required by long-running media generation", async () => {
+		const f = await fixture();
+		await f.service.start(f.plugin.id, "bridge");
+
+		await expect(
+			f.service.request(f.plugin.id, "bridge", {
+				path: "/images/generate",
+				method: "POST",
+				timeoutMs: 300_000,
+			}),
+		).resolves.toMatchObject({ ok: true, status: 200 });
+		f.service.stopAll();
+	});
+
+	it("reports the plugin and service when a request times out without logging credentials", async () => {
+		const f = await fixture();
+		await f.service.start(f.plugin.id, "bridge");
+		f.fetchClient.mockImplementationOnce(
+			(_url, init) =>
+				new Promise<Response>((_resolve, reject) => {
+					init?.signal?.addEventListener(
+						"abort",
+						() => reject(new DOMException("This operation was aborted", "AbortError")),
+						{ once: true },
+					);
+				}),
+		);
+
+		vi.useFakeTimers();
+		const request = f.service.request(f.plugin.id, "bridge", {
+			path: "/slow?token=must-not-be-logged",
+			timeoutMs: 1_000,
+		});
+		const rejected = expect(request).rejects.toMatchObject({
+			name: "PluginServiceRequestTimeoutError",
+			code: "PLUGIN_SERVICE_REQUEST_TIMEOUT",
+			message: "Plugin service request timed out: managed-bridge/bridge GET /slow after 1000ms",
+		});
+		await vi.advanceTimersByTimeAsync(1_000);
+
+		await rejected;
+		expect(logWarn).toHaveBeenCalledWith("Plugin service request timed out", {
+			pluginId: "managed-bridge",
+			serviceId: "bridge",
+			method: "GET",
+			path: "/slow",
+			timeoutMs: 1_000,
+			durationMs: expect.any(Number),
+			phase: "ready",
+		});
+		expect(JSON.stringify(logWarn.mock.calls)).not.toContain("must-not-be-logged");
+		f.service.stopAll();
+	});
+
+	it("does not rotate malformed persisted credentials or spawn with a broken secret store", async () => {
+		const f = await fixture();
+		await writeFile(join(f.paths().dataDirectory, "service-secrets.json"), "broken");
+		expect((await f.service.start(f.plugin.id, "bridge")).phase).toBe("failed");
+		expect(f.spawnProcess).not.toHaveBeenCalled();
+		expect(await readFile(join(f.paths().dataDirectory, "service-secrets.json"), "utf8")).toBe("broken");
+	});
+
+	it("accepts only plugin-supplied runtime bytes and reports the host platform", async () => {
+		const f = await fixture();
+		expect(f.service.getPlatform()).toEqual({ tag: "win32-x64" });
+		const payloads = [{ destination: "core", data: "YmluYXJ5" }];
+		expect((await f.service.install(f.plugin.id, "bridge", payloads)).installed).toBe(true);
+		expect(f.installRuntime).toHaveBeenCalledWith(f.plugin.id, f.manifest, payloads);
+	});
+
+	it("launches host-node services with the host Node executable and entry script", async () => {
+		const f = await fixture();
+		f.manifest.runtime = {
+			...f.manifest.runtime,
+			kind: "host-node",
+			entry: "service/main.mjs",
+		};
+		f.resolveRuntime.mockImplementation(async () => ({
+			...f.paths(),
+			runtimeKind: "host-node",
+			entry: join(f.paths().runtimeDirectory, "service", "main.mjs"),
+		}));
+		await f.service.start(f.plugin.id, "bridge");
+		expect(f.spawnProcess).toHaveBeenCalledWith(
+			"C:/vetta/node.exe",
+			expect.arrayContaining([join(f.paths().runtimeDirectory, "service", "main.mjs")]),
+			expect.any(Object),
+		);
+		f.service.stopAll();
+	});
+
+	it("requires the plugin to provision a newly declared runtime version after reload", async () => {
+		const f = await fixture();
+		await f.service.start(f.plugin.id, "bridge");
+		f.service.disablePlugin(f.plugin.id);
+		f.plugin.serviceProviders = [{ ...f.manifest, runtime: { ...f.manifest.runtime, version: "2.0.0" } }];
+		f.resolveRuntime.mockRejectedValueOnce(new Error("missing v2"));
+		const status = await f.service.getStatus(f.plugin.id, "bridge");
+		expect(status).toMatchObject({ version: "2.0.0", phase: "stopped", installed: false });
+	});
+
+	it("keeps plugin-declared services starting until semantic readiness is reported", async () => {
+		const f = await fixture();
+		f.manifest.health = { ...f.manifest.health, readiness: { mode: "plugin" } };
+
+		const status = await f.service.start(f.plugin.id, "bridge");
+		expect(status.phase).toBe("starting");
+		expect((await f.service.getStatus(f.plugin.id, "bridge")).phase).toBe("starting");
+		expect(f.service.connection(f.plugin.id, "bridge").baseUrl).toBe("http://127.0.0.1:19001");
+		await expect(f.service.reportReady(f.plugin.id, "bridge", true)).resolves.toMatchObject({ phase: "ready" });
+		await expect(f.service.reportReady(f.plugin.id, "bridge", false)).resolves.toMatchObject({ phase: "starting" });
+		f.service.stopAll();
+	});
+
+	it("waits for transport readiness when reportReady races child startup", async () => {
+		const f = await fixture();
+		f.manifest.health = { ...f.manifest.health, readiness: { mode: "plugin" } };
+		let releaseHealth!: () => void;
+		f.fetchClient.mockImplementationOnce(
+			() =>
+				new Promise<Response>((resolveResponse) => {
+					releaseHealth = () => resolveResponse(new Response("{}", { status: 200 }));
+				}),
+		);
+		const starting = f.service.start(f.plugin.id, "bridge");
+		await vi.waitFor(() => expect(f.spawnProcess).toHaveBeenCalledOnce());
+		const reported = f.service.reportReady(f.plugin.id, "bridge", true);
+		let settled = false;
+		reported.finally(() => {
+			settled = true;
+		});
+		await Promise.resolve();
+		expect(settled).toBe(false);
+		releaseHealth();
+		await expect(starting).resolves.toMatchObject({ phase: "starting" });
+		await expect(reported).resolves.toMatchObject({ phase: "ready" });
+		f.service.stopAll();
+	});
+
+	it("accepts reportReady issued before the start operation exposes its child", async () => {
+		const f = await fixture();
+		f.manifest.health = { ...f.manifest.health, readiness: { mode: "plugin" } };
+		const starting = f.service.start(f.plugin.id, "bridge");
+		const reported = f.service.reportReady(f.plugin.id, "bridge", true);
+		const reportedStatus = await reported;
+		expect(reportedStatus.phase).toBe("ready");
+		await starting;
+		expect((await f.service.getStatus(f.plugin.id, "bridge")).phase).toBe("ready");
+		f.service.stopAll();
+	});
+
+	it("waits for the service record when reportReady beats start registration", async () => {
+		const f = await fixture();
+		f.manifest.health = { ...f.manifest.health, readiness: { mode: "plugin" } };
+		const originalStart = f.service.start.bind(f.service);
+		const starting = (async () => {
+			await new Promise((resolveDelay) => setTimeout(resolveDelay, 10));
+			return originalStart(f.plugin.id, "bridge");
+		})();
+		const reported = f.service.reportReady(f.plugin.id, "bridge", true);
+		await expect(reported).resolves.toMatchObject({ phase: "ready" });
+		await starting;
+		f.service.stopAll();
+	});
+
+	it("waits for transport readiness when a plugin probes during child startup", async () => {
+		const f = await fixture();
+		f.manifest.health = { ...f.manifest.health, readiness: { mode: "plugin" } };
+		let releaseHealth!: () => void;
+		f.fetchClient.mockImplementationOnce(
+			() =>
+				new Promise<Response>((resolveResponse) => {
+					releaseHealth = () => resolveResponse(new Response("{}", { status: 200 }));
+				}),
+		);
+		const starting = f.service.start(f.plugin.id, "bridge");
+		await vi.waitFor(() => expect(f.spawnProcess).toHaveBeenCalledOnce());
+		const request = f.service.request(f.plugin.id, "bridge", { path: "/models" });
+		await Promise.resolve();
+		expect(f.fetchClient).toHaveBeenCalledOnce();
+		releaseHealth();
+		await expect(starting).resolves.toMatchObject({ phase: "starting" });
+		await expect(request).resolves.toMatchObject({ ok: true });
+		f.service.stopAll();
+	});
+
+	it("reads and atomically writes plugin-owned service data files", async () => {
+		const f = await fixture();
+		const path = "session/cookies.json";
+		await f.service.writeDataFile(f.plugin.id, "bridge", path, '{"version":2}');
+		expect(await f.service.readDataFile(f.plugin.id, "bridge", path)).toBe('{"version":2}');
+		await expect(f.service.readDataFile(f.plugin.id, "bridge", "../escape")).rejects.toThrow("escapes");
+		await expect(f.service.writeDataFile(f.plugin.id, "bridge", "../escape", "x")).rejects.toThrow("escapes");
+	});
+});

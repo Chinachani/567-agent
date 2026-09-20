@@ -1,0 +1,155 @@
+import type { AgentMessage } from "@vetta/agent-core";
+import type { Api, AssistantMessage, Message, Model } from "@vetta/ai";
+import type { EcosystemHookRuntime } from "@vetta/ecosystem-adapter/hooks";
+import type {
+	ContextCompositionReport,
+	RuntimeDocumentParticipant,
+	RuntimeObservationPublisher,
+} from "@vetta/runtime-core";
+import type {
+	ContextCompositionPublisher,
+	ContextStrategy,
+	ContextSummaryStrategy,
+	ManualContextCompactionRuntime,
+	ManualContextCompactionStrategy,
+	ModelCallContextTransformer,
+	RuntimeSnapshotAcquireContext,
+	SessionContextRecord,
+	TurnObserver,
+} from "@vetta/runtime-core/kernel";
+import type { CompactionPreparation, CompactionResult, CompactionSettings } from "../compaction/index.js";
+import type { CompactionWorkStateSnapshot } from "../compaction/work-state-recovery.js";
+import type { CodingAgentMemoryCompactionPolicy } from "../memory/index.js";
+import type { CodingAgentCompactionEntry, CodingAgentSessionEntry } from "../sessions/index.js";
+
+export type ContextHookRuntime = Pick<EcosystemHookRuntime, "markSessionStart" | "runPostCompact" | "runPreCompact">;
+
+export interface CodingAgentModelCallFailureRecoveryInput {
+	readonly messages: readonly Message[];
+	readonly assistantMessage: AssistantMessage;
+	readonly recoveryAttempt: number;
+}
+
+export interface CodingAgentModelCallFailureRecoveryResult {
+	readonly messages: readonly Message[];
+}
+
+export interface CodingAgentModelCallFailureRecovery {
+	recover(
+		input: CodingAgentModelCallFailureRecoveryInput,
+		signal: AbortSignal,
+	): Promise<CodingAgentModelCallFailureRecoveryResult | undefined>;
+}
+
+export type CodingAgentPinnedConversationProjection = {
+	readonly entryId: string;
+	readonly kind: "omit-entry" | "omit-assistant-text";
+};
+
+/** Immutable, host-provided prefix captured with the Turn generation. */
+export interface CodingAgentPinnedModelContext {
+	readonly id: string;
+	readonly records: readonly SessionContextRecord[];
+	/** Model-only projections for content already represented by the prefix; storage is unchanged. */
+	readonly conversationProjections?: readonly CodingAgentPinnedConversationProjection[];
+}
+
+export type CodingAgentPinnedModelContextBinder = (
+	context: RuntimeSnapshotAcquireContext,
+) => CodingAgentPinnedModelContext | undefined | Promise<CodingAgentPinnedModelContext | undefined>;
+
+export interface CodingAgentContextRuntimeOptions {
+	readonly hookRuntime: ContextHookRuntime;
+	readonly resolveApiKey: (model: Model<Api>) => Promise<string | undefined> | string | undefined;
+	readonly resolveSettings?: () => CompactionSettings;
+	readonly generateCompaction?: (
+		preparation: CompactionPreparation,
+		model: Model<Api>,
+		apiKey: string,
+		customInstructions: string | undefined,
+		signal: AbortSignal,
+	) => Promise<CompactionResult>;
+	readonly extensionRuntime?: CodingAgentCompactionExtensionRuntime;
+	readonly memoryRollover?: CodingAgentMemoryCompactionPolicy;
+	readonly transformAgentContext?: (
+		messages: readonly AgentMessage[],
+		signal: AbortSignal,
+	) => Promise<readonly AgentMessage[]>;
+	readonly bindTransformAgentContext?: (context: RuntimeSnapshotAcquireContext) => {
+		transform(messages: readonly AgentMessage[], signal: AbortSignal): Promise<readonly AgentMessage[]>;
+		release(): Promise<void> | void;
+	};
+	readonly bindPinnedModelContext?: CodingAgentPinnedModelContextBinder;
+	readonly failureRecovery?: CodingAgentModelCallFailureRecovery;
+	readonly now?: () => number;
+	readonly readCompactionWorkState?: () => CompactionWorkStateSnapshot;
+	/** Receives privacy-safe Context/Compaction diagnostics; failures are isolated by the publisher. */
+	readonly observationPublisher?: RuntimeObservationPublisher;
+}
+
+export interface CodingAgentContextUsage {
+	readonly tokens: number;
+	readonly contextWindow: number;
+	readonly percent: number;
+	readonly composition?: ContextCompositionReport;
+}
+
+export type CodingAgentBoundContextRuntime = Omit<ContextStrategy, "bindForTurn" | "releaseTurnBinding"> &
+	Omit<ContextSummaryStrategy, "bindForTurn" | "releaseTurnBinding"> &
+	Omit<ManualContextCompactionStrategy, "bindForTurn" | "releaseTurnBinding"> &
+	Omit<ModelCallContextTransformer, "bindForTurn" | "releaseTurnBinding"> & {
+		releaseTurnBinding?(): Promise<void> | void;
+	};
+
+/** Session-local Coding Agent context capability consumed through Runtime Core ports. */
+export type CodingAgentContextRuntime = Omit<ContextStrategy, "bindForTurn" | "releaseTurnBinding"> &
+	Omit<ContextSummaryStrategy, "bindForTurn" | "releaseTurnBinding"> &
+	Omit<ManualContextCompactionRuntime, "bindForTurn" | "releaseTurnBinding"> &
+	Omit<ModelCallContextTransformer, "bindForTurn" | "releaseTurnBinding"> &
+	TurnObserver &
+	ContextCompositionPublisher &
+	RuntimeDocumentParticipant & {
+		readonly id: string;
+		bindForTurn?(
+			context: RuntimeSnapshotAcquireContext,
+		): Promise<CodingAgentBoundContextRuntime> | CodingAgentBoundContextRuntime;
+		releaseTurnBinding?(): Promise<void> | void;
+		readUsage(contextWindow: number): CodingAgentContextUsage;
+		dispose(): void;
+	};
+
+export type CodingAgentContextRuntimeFactory = (options: CodingAgentContextRuntimeOptions) => CodingAgentContextRuntime;
+
+export interface CodingAgentCompactionExtensionRuntime {
+	bindForTurn?(
+		context: RuntimeSnapshotAcquireContext,
+	): CodingAgentCompactionExtensionRuntime | Promise<CodingAgentCompactionExtensionRuntime>;
+	releaseTurnBinding?(): Promise<void> | void;
+	beforeCompaction(input: {
+		readonly preparation: CompactionPreparation;
+		readonly branchEntries: readonly CodingAgentSessionEntry[];
+		readonly customInstructions?: string;
+		readonly signal: AbortSignal;
+	}): Promise<
+		| {
+				readonly cancel?: boolean;
+				readonly compaction?: CompactionResult;
+		  }
+		| undefined
+	>;
+	afterCompaction(input: {
+		readonly compactionEntry: CodingAgentCompactionEntry;
+		readonly fromExtension: boolean;
+	}): Promise<void>;
+}
+
+export interface CodingAgentCompactionRuntimeOptions {
+	readonly resolveSettings?: () => CompactionSettings;
+	readonly generateCompaction?: (
+		preparation: CompactionPreparation,
+		model: Model<Api>,
+		apiKey: string,
+		customInstructions: string | undefined,
+		signal: AbortSignal,
+	) => Promise<CompactionResult>;
+}

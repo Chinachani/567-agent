@@ -1,0 +1,335 @@
+import type { Api, Message, Model } from "@vetta/ai";
+import type {
+	ModelCallFrameCompositionContext,
+	RuntimeSnapshotAcquireContext,
+	RuntimeToolDefinition,
+} from "@vetta/runtime-core/kernel";
+import type {
+	McpClientHandle,
+	McpResourceReadResult,
+	McpServerConfig,
+	McpToolCallResult,
+	McpToolResultPolicy,
+	RuntimeMcpClientFactory,
+} from "@vetta/runtime-mcp";
+import { EMPTY_MCP_CONFIG_SOURCE } from "@vetta/runtime-mcp";
+import { createNodeMcpSupervisor } from "@vetta/runtime-node/mcp";
+import { describe, expect, it, vi } from "vitest";
+import type { EcosystemHookAwareRuntimeTool } from "../src/adapters/ecosystem/tool-interceptor-adapter.js";
+import type { AgentPluginRuntimeConfig } from "../src/model-context/index.js";
+import { createCodingAgentPluginMcpRuntime } from "../src/plugins/runtime/mcp-runtime.js";
+
+describe("CodingAgentPluginMcpRuntime", () => {
+	it("isolates dynamic servers and preserves metadata", async () => {
+		const clients = new FakeClientFactory();
+		const first = await createTestPluginMcpRuntime(clients);
+		const second = await createTestPluginMcpRuntime(clients);
+
+		await first.reconfigure(pluginConfig("alpha"));
+		await second.reconfigure(pluginConfig("beta"));
+
+		expect(first.snapshot().tools.map(({ name }) => name)).toEqual(["mcp_plugin-alpha-docs_lookup"]);
+		expect(second.snapshot().tools.map(({ name }) => name)).toEqual(["mcp_plugin-beta-docs_lookup"]);
+		expect(first.isManagedTool("mcp_plugin-beta-docs_lookup")).toBe(false);
+		expect(second.isManagedTool("mcp_plugin-alpha-docs_lookup")).toBe(false);
+
+		const visible = first.compose(compositionContext(), new Map(), {
+			isToolVisible: () => true,
+		});
+		const tool = visible.frame.tools.get("mcp_plugin-alpha-docs_lookup") as EcosystemHookAwareRuntimeTool | undefined;
+
+		expect(tool?.ecosystemHook).toEqual({
+			hostName: "mcp_plugin-alpha-docs_lookup",
+			kind: "mcp",
+			source: { ecosystem: "mcp", serverName: "plugin-alpha-docs", originalName: "lookup" },
+		});
+		// 可见性是硬闸（与工作模式无关，ADR-0071）。
+		const invisible = first.compose(compositionContext(), new Map(), {
+			isToolVisible: () => false,
+		});
+		expect(invisible.frame.tools.has("mcp_plugin-alpha-docs_lookup")).toBe(false);
+
+		await first.dispose();
+		expect(clients.first("plugin-alpha-docs").closeCalls).toBe(1);
+		expect(clients.first("plugin-beta-docs").closeCalls).toBe(0);
+		await second.dispose();
+		expect(clients.first("plugin-beta-docs").closeCalls).toBe(1);
+	});
+
+	it("keeps plugin MCP tool order at registration order, repeatably (ADR-0071)", async () => {
+		const clients = new FakeClientFactory();
+		const runtime = await createTestPluginMcpRuntime(clients);
+		await runtime.reconfigure({
+			mcpServerContributions: [
+				...(pluginConfig("alpha").mcpServerContributions ?? []),
+				...(pluginConfig("beta").mcpServerContributions ?? []),
+				...(pluginConfig("gamma").mcpServerContributions ?? []),
+			],
+		});
+
+		const compose = () => [
+			...runtime.compose(compositionContext(), new Map(), { isToolVisible: () => true }).frame.tools.keys(),
+		];
+
+		const first = compose();
+		expect(first).toEqual([
+			"mcp_plugin-alpha-docs_lookup",
+			"mcp_plugin-beta-docs_lookup",
+			"mcp_plugin-gamma-docs_lookup",
+		]);
+		expect(compose()).toEqual(first);
+		await runtime.dispose();
+	});
+
+	it("reconciles only real changes and lets a session plugin server override a base tool", async () => {
+		const clients = new FakeClientFactory();
+		const runtime = await createTestPluginMcpRuntime(clients);
+		const initial = pluginConfig("alpha", "alpha");
+
+		expect(await runtime.reconfigure(initial)).toBe(true);
+		expect(await runtime.reconfigure(initial)).toBe(false);
+		expect(clients.named("plugin-alpha-docs")).toHaveLength(1);
+
+		const changed = pluginConfig("alpha", "alpha-v2");
+		expect(await runtime.reconfigure(changed)).toBe(true);
+		expect(clients.named("plugin-alpha-docs")).toHaveLength(2);
+		expect(clients.first("plugin-alpha-docs").closeCalls).toBe(1);
+
+		const name = "mcp_plugin-alpha-docs_lookup";
+		const base = runtimeTool(name, "base");
+		const context = compositionContext(new Map([[name, base]]));
+		const surface = runtime.compose(context, context.frame.tools, {
+			isToolVisible: () => true,
+		});
+		expect(surface.frame.tools.get(name)?.description).toBe("plugin-alpha-docs");
+
+		expect(await runtime.reconfigure(undefined)).toBe(true);
+		expect(clients.latest("plugin-alpha-docs").closeCalls).toBe(1);
+		expect(runtime.snapshot().tools).toEqual([]);
+		await runtime.dispose();
+	});
+
+	it("keeps a Turn-bound plugin MCP catalog stable across ordinary reconfiguration", async () => {
+		const clients = new FakeClientFactory();
+		const runtime = await createTestPluginMcpRuntime(clients);
+		await runtime.reconfigure(pluginConfig("alpha"));
+		const admitted = runtime.bindForTurn(acquireContext());
+
+		await runtime.reconfigure(pluginConfig("beta"));
+		const admittedSurface = admitted.compose(compositionContext(), new Map(), {
+			isToolVisible: () => true,
+		});
+		const nextSurface = runtime.compose(compositionContext(), new Map(), {
+			isToolVisible: () => true,
+		});
+
+		expect([...admittedSurface.frame.tools.keys()]).toEqual(["mcp_plugin-alpha-docs_lookup"]);
+		expect([...nextSurface.frame.tools.keys()]).toEqual(["mcp_plugin-beta-docs_lookup"]);
+		expect(clients.first("plugin-alpha-docs").closeCalls).toBe(0);
+		await admitted.releaseTurnBinding?.();
+		expect(clients.first("plugin-alpha-docs").closeCalls).toBe(1);
+		await runtime.dispose();
+		expect(clients.first("plugin-beta-docs").closeCalls).toBe(1);
+	});
+
+	it("applies the configured result policy to dynamic plugin MCP tools", async () => {
+		const clients = new FakeClientFactory();
+		const resultPolicy: McpToolResultPolicy = {
+			project: vi.fn(async (_result, context) => ({
+				content: [{ type: "text" as const, text: `projected:${context.serverName}:${context.toolName}` }],
+				details: { projected: true },
+			})),
+		};
+		const runtime = await createTestPluginMcpRuntime(clients, resultPolicy);
+		await runtime.reconfigure(pluginConfig("alpha"));
+		const surface = runtime.compose(compositionContext(), new Map(), {
+			isToolVisible: () => true,
+		});
+		const tool = surface.frame.tools.get("mcp_plugin-alpha-docs_lookup");
+
+		await expect(
+			tool?.execute({
+				sessionId: "session",
+				turnId: "turn",
+				toolCallId: "call",
+				input: {},
+				signal: new AbortController().signal,
+			}),
+		).resolves.toEqual({
+			content: [{ type: "text", text: "projected:plugin-alpha-docs:lookup" }],
+			details: { projected: true },
+		});
+		expect(resultPolicy.project).toHaveBeenCalledOnce();
+		await runtime.dispose();
+	});
+});
+
+function createTestPluginMcpRuntime(clients: FakeClientFactory, resultPolicy?: McpToolResultPolicy) {
+	return createCodingAgentPluginMcpRuntime({
+		supervisor: createNodeMcpSupervisor({
+			projectRoot: "C:/plugin-mcp-project",
+			agentDir: "C:/plugin-mcp-agent",
+			clientVersion: "test",
+			configSource: EMPTY_MCP_CONFIG_SOURCE,
+			clientFactory: clients.create,
+			includeBuiltinServers: false,
+		}).supervisor,
+		resultPolicy,
+	});
+}
+
+function acquireContext(): RuntimeSnapshotAcquireContext {
+	return {
+		sessionId: "session",
+		operationId: "turn",
+		reason: "turn",
+		signal: new AbortController().signal,
+	};
+}
+
+function pluginConfig(name: string, command = name): AgentPluginRuntimeConfig {
+	return {
+		mcpServerContributions: [
+			{
+				pluginId: `plugin-${name}`,
+				localName: "docs",
+				runtimeName: `plugin-${name}-docs`,
+				config: { command },
+			},
+		],
+	};
+}
+
+function compositionContext(
+	tools: ReadonlyMap<string, RuntimeToolDefinition> = new Map(),
+): ModelCallFrameCompositionContext {
+	return {
+		sessionId: "session",
+		turnId: "turn",
+		signal: new AbortController().signal,
+		messages: [userMessage("inspect")],
+		modelBinding: { model: MODEL },
+		frame: { instructions: [], tools },
+	};
+}
+
+function runtimeTool(name: string, description: string): RuntimeToolDefinition {
+	return {
+		name,
+		label: name,
+		description,
+		inputSchema: { type: "object" },
+		execute: async () => ({ content: [] }),
+	};
+}
+
+class FakeClientFactory {
+	readonly clients: FakeMcpClient[] = [];
+	readonly create: RuntimeMcpClientFactory = (name, config) => {
+		const client = new FakeMcpClient(name, config);
+		this.clients.push(client);
+		return client;
+	};
+
+	named(name: string): FakeMcpClient[] {
+		return this.clients.filter((client) => client.name === name);
+	}
+
+	first(name: string): FakeMcpClient {
+		const client = this.named(name)[0];
+		if (!client) throw new Error(`Missing fake client: ${name}`);
+		return client;
+	}
+
+	latest(name: string): FakeMcpClient {
+		const clients = this.named(name);
+		const client = clients[clients.length - 1];
+		if (!client) throw new Error(`Missing fake client: ${name}`);
+		return client;
+	}
+}
+
+class FakeMcpClient implements McpClientHandle {
+	closeCalls = 0;
+
+	constructor(
+		readonly name: string,
+		private readonly config: McpServerConfig,
+	) {}
+
+	async initialize() {
+		return {
+			protocolVersion: "test",
+			serverInfo: { name: this.name, version: "1" },
+			capabilities: { tools: {} },
+		};
+	}
+
+	async listTools() {
+		return {
+			tools: [
+				{
+					name: "lookup",
+					description: this.name,
+					inputSchema: { type: "object" as const },
+				},
+			],
+		};
+	}
+
+	async callTool(): Promise<McpToolCallResult> {
+		return {
+			content: [
+				{
+					type: "text",
+					text: this.config.type === "http" ? this.config.url : this.config.command,
+				},
+			],
+		};
+	}
+
+	async listResources() {
+		return { resources: [] };
+	}
+
+	async readResource(): Promise<McpResourceReadResult> {
+		return { contents: [] };
+	}
+
+	async listPrompts() {
+		return { prompts: [] };
+	}
+
+	async close(): Promise<void> {
+		this.closeCalls += 1;
+	}
+
+	getName(): string {
+		return this.name;
+	}
+
+	getPid(): number | undefined {
+		return undefined;
+	}
+
+	isClientInitialized(): boolean {
+		return true;
+	}
+}
+
+function userMessage(text: string): Extract<Message, { role: "user" }> {
+	return { role: "user", content: text, timestamp: 1 };
+}
+
+const MODEL: Model<Api> = {
+	id: "model",
+	name: "Model",
+	api: "openai-responses",
+	provider: "test",
+	baseUrl: "https://example.test",
+	reasoning: true,
+	input: ["text"],
+	cost: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0 },
+	contextWindow: 8_000,
+	maxTokens: 1_000,
+};

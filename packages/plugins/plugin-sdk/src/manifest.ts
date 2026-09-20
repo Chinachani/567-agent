@@ -1,0 +1,645 @@
+import { type Static, type TSchema } from "@sinclair/typebox";
+import type { ValueError } from "@sinclair/typebox/errors";
+import { Value } from "@sinclair/typebox/value";
+import {
+	PluginCommandNameSchema,
+	PluginCommandNamesSchema,
+	PluginCliProviderManifestSchema,
+	PluginServiceProviderManifestSchema,
+	PluginIdSchema,
+	PluginManifestSchema,
+	PluginMcpServerConfigSchema,
+	PluginMcpServiceServerConfigSchema,
+	PluginSkillPresentationRuleSchema,
+	PluginSkillPresentationSchema,
+	PluginVersionSchema,
+	type PluginAgentManifest,
+	type PluginAgentProfileManifest,
+	type PluginAgentTeamManifest,
+	type PluginAgentTeamMemberManifest,
+	type PluginBrowserManifest,
+	type PluginCliProviderManifest,
+	type PluginServiceProviderManifest,
+	type PluginServiceRuntimeKind,
+	type PluginManifest,
+	type PluginManifestInput,
+	type PluginMcpServerConfig,
+	type PluginSkillPresentation,
+	type PluginSkillPresentationRule,
+	type PluginNetworkManifest,
+} from "./manifest-schema.js";
+import { PLUGIN_PERMISSIONS, type PluginPermission } from "./permissions.js";
+
+export {
+	PluginAgentManifestSchema,
+	PluginAgentProfileManifestSchema,
+	PluginAgentTeamManifestSchema,
+	PluginAgentTeamMemberManifestSchema,
+	PluginAgentRoleSchema,
+	BUILTIN_PLUGIN_AGENT_ROLES,
+	PluginBrowserManifestSchema,
+	PluginCommandNameSchema,
+	PluginCommandNamesSchema,
+	PluginCliProviderManifestSchema,
+	PluginServiceArtifactSchema,
+	PluginServicePlatformSchema,
+	PluginServiceProviderManifestSchema,
+	PluginIdSchema,
+	PluginManifestSchema,
+	PluginMcpHttpServerConfigSchema,
+	PluginMcpServerConfigSchema,
+	PluginMcpStdioServerConfigSchema,
+	PluginMcpServiceServerConfigSchema,
+	PluginSkillPresentationRuleSchema,
+	PluginSkillPresentationSchema,
+	PluginModuleFederationManifestSchema,
+	PluginNetworkManifestSchema,
+	PluginProvidersManifestSchema,
+	PluginPermissionSchema,
+	PluginVersionSchema,
+} from "./manifest-schema.js";
+export type {
+	PluginAgentManifest,
+	PluginAgentProfileManifest,
+	PluginAgentTeamManifest,
+	PluginAgentTeamMemberManifest,
+	BuiltinPluginAgentRole,
+	PluginBrowserManifest,
+	PluginCliProviderManifest,
+	PluginServiceArtifact,
+	PluginServicePlatform,
+	PluginServiceProviderManifest,
+	PluginServiceRuntimeKind,
+	PluginManifest,
+	PluginManifestInput,
+	PluginMcpServerConfig,
+	PluginSkillPresentation,
+	PluginSkillPresentationRule,
+	PluginNetworkManifest,
+} from "./manifest-schema.js";
+export { PLUGIN_PERMISSIONS } from "./permissions.js";
+export type { PluginPermission } from "./permissions.js";
+
+export interface PluginManifestResourceReference {
+	field: string;
+	path: string;
+	kind: "file" | "file-or-directory";
+}
+
+function schemaErrorPath(path: string): string {
+	if (!path) return "";
+	return path
+		.split("/")
+		.slice(1)
+		.map((segment) => segment.replace(/~1/g, "/").replace(/~0/g, "~"))
+		.map((segment) => {
+			if (segment === "") return '[""]';
+			return /^\d+$/.test(segment) ? `[${segment}]` : `.${segment}`;
+		})
+		.join("");
+}
+
+function mostSpecificSchemaError(issue: ValueError): ValueError {
+	const nested = issue.errors.flatMap((iterator) =>
+		[...iterator].map((child) => mostSpecificSchemaError(child)),
+	);
+	const deeper = nested.filter((child) => child.path.length > issue.path.length);
+	if (deeper.length === 0) return issue;
+	return deeper.reduce((best, child) => (child.path.length > best.path.length ? child : best));
+}
+
+function assertSchema<Schema extends TSchema>(
+	schema: Schema,
+	value: unknown,
+	fieldName: string,
+): asserts value is Static<Schema> {
+	if (Value.Check(schema, value)) return;
+	const firstIssue = Value.Errors(schema, value).First();
+	const issue = firstIssue ? mostSpecificSchemaError(firstIssue) : undefined;
+	const location = `${fieldName}${schemaErrorPath(issue?.path ?? "")}`;
+	throw new Error(`Invalid plugin ${location}: ${issue?.message ?? "schema validation failed"}`);
+}
+
+function trimString(value: string): string {
+	return value.trim();
+}
+
+function normalizeStringArray(values: string[] | undefined): string[] {
+	return (values ?? []).map(trimString);
+}
+
+function normalizeOptionalAgentModes(value: string | string[] | undefined): string | string[] | undefined {
+	if (value === undefined) return undefined;
+	return Array.isArray(value) ? normalizeStringArray(value) : trimString(value);
+}
+
+function normalizePermissions(permissions: PluginPermission[] | undefined): PluginPermission[] {
+	return Array.from(new Set(permissions ?? []));
+}
+
+function normalizeAllowedHost(value: string, fieldName: "network" | "browser"): string {
+	const raw = trimString(value).toLowerCase();
+	if (raw === "*") return raw;
+	const wildcard = raw.startsWith("*.");
+	const candidate = wildcard ? raw.slice(2) : raw;
+	if (!candidate || candidate.includes("*") || /[\\/?#@]/.test(candidate)) {
+		throw new Error(`Invalid plugin ${fieldName}.allowedHosts entry: ${value}`);
+	}
+	const unwrapped = candidate.startsWith("[") && candidate.endsWith("]") ? candidate.slice(1, -1) : candidate;
+	if (wildcard && unwrapped.includes(":")) {
+		throw new Error(`Invalid plugin ${fieldName}.allowedHosts entry: ${value}`);
+	}
+	try {
+		const parsed = new URL(`http://${unwrapped.includes(":") ? `[${unwrapped}]` : unwrapped}`);
+		const hostname = parsed.hostname.replace(/^\[|\]$/g, "").replace(/\.$/, "").toLowerCase();
+		if (!hostname || parsed.port || parsed.username || parsed.password) throw new Error("invalid host");
+		return wildcard ? `*.${hostname}` : hostname;
+	} catch {
+		throw new Error(`Invalid plugin ${fieldName}.allowedHosts entry: ${value}`);
+	}
+}
+
+function normalizeNetworkManifest(network: PluginNetworkManifest | undefined): PluginNetworkManifest | undefined {
+	if (!network) return undefined;
+	return { allowedHosts: Array.from(new Set(network.allowedHosts.map((host) => normalizeAllowedHost(host, "network")))) };
+}
+
+function normalizeBrowserManifest(browser: PluginBrowserManifest | undefined): PluginBrowserManifest | undefined {
+	if (!browser) return undefined;
+	return { allowedHosts: Array.from(new Set(browser.allowedHosts.map((host) => normalizeAllowedHost(host, "browser")))) };
+}
+
+function normalizeModuleFederation(
+	moduleFederation: PluginManifestInput["moduleFederation"],
+): PluginManifest["moduleFederation"] {
+	return {
+		remoteName: trimString(moduleFederation.remoteName),
+		expose: trimString(moduleFederation.expose),
+	};
+}
+
+function normalizeToolPolicy(
+	toolPolicy: PluginAgentManifest["toolPolicy"],
+): PluginAgentManifest["toolPolicy"] {
+	if (!toolPolicy) return undefined;
+	return {
+		allow: normalizeStringArray(toolPolicy.allow),
+		deny: normalizeStringArray(toolPolicy.deny),
+	};
+}
+
+function normalizeMcpServers(
+	mcpServers: PluginAgentManifest["mcpServers"],
+): PluginAgentManifest["mcpServers"] {
+	if (mcpServers === undefined) return undefined;
+	if (typeof mcpServers === "string") {
+		return validatePluginRelativePath(trimString(mcpServers), "agent.mcpServers");
+	}
+	const result: Record<string, PluginMcpServerConfig> = {};
+	for (const [name, config] of Object.entries(mcpServers)) {
+		result[trimString(name)] = normalizePluginMcpServerConfig(config);
+	}
+	return result;
+}
+
+function normalizeAgentManifest(agent: PluginAgentManifest | undefined): PluginAgentManifest | undefined {
+	if (!agent) return undefined;
+	return {
+		systemPrompt: agent.systemPrompt
+			? {
+					promptPaths: normalizeStringArray(agent.systemPrompt.promptPaths).map((path) =>
+						validatePluginRelativePath(path, "agent.systemPrompt.promptPaths"),
+					),
+				}
+			: undefined,
+		skillPaths: normalizeStringArray(agent.skillPaths).map((path) =>
+			validatePluginRelativePath(path, "agent.skillPaths"),
+		),
+		skillPresentation: normalizeSkillPresentation(agent.skillPresentation),
+		mcpServers: normalizeMcpServers(agent.mcpServers),
+		toolPolicy: normalizeToolPolicy(agent.toolPolicy),
+		agents: agent.agents?.map((profile) => ({
+			...profile,
+			// 路径都要过越界校验：manifest 里写 `../` 不该能读到插件目录之外。
+			avatar: profile.avatar ? validatePluginRelativePath(profile.avatar, "agent.agents.avatar") : undefined,
+			systemPromptPath: profile.systemPromptPath
+				? validatePluginRelativePath(profile.systemPromptPath, "agent.agents.systemPromptPath")
+				: undefined,
+			roles: normalizeAgentRoles(profile.roles),
+		})),
+		teams: agent.teams?.map((team) => ({
+			...team,
+			workflowPath: team.workflowPath
+				? validatePluginRelativePath(team.workflowPath, "agent.teams.workflowPath")
+				: undefined,
+			members: team.members.map((member, index) => normalizeTeamMember(member, index, team.id)),
+		})),
+	};
+}
+
+function normalizeAgentRoles(roles: readonly string[] | undefined): string[] | undefined {
+	if (!roles || roles.length === 0) return undefined;
+	return [...new Set(roles.map((role) => role.trim()))];
+}
+
+/** `<pluginId>/<agentId>` 的跨插件实体引用；本插件的引用不带斜杠。 */
+const CROSS_PLUGIN_AGENT_REF = /^([a-z0-9][a-z0-9-]{0,63})\/([a-z0-9][a-z0-9-]{0,63})$/;
+const OWN_PLUGIN_AGENT_REF = /^[a-z0-9][a-z0-9-]{0,63}$/;
+
+function normalizeTeamMember(
+	member: PluginAgentTeamMemberManifest,
+	index: number,
+	teamId: string,
+): PluginAgentTeamMemberManifest {
+	const where = `agent.teams[${teamId}].members[${index}]`;
+	const agent = member.agent?.trim();
+	const role = member.role?.trim();
+	if ((agent ? 1 : 0) + (role ? 1 : 0) !== 1) {
+		throw new Error(`Invalid ${where}: write exactly one of "agent" or "role"`);
+	}
+	if (member.instructions !== undefined && member.instructionsPath !== undefined) {
+		throw new Error(`Invalid ${where}: write at most one of "instructions" or "instructionsPath"`);
+	}
+	if (index === 0 && (member.instructions !== undefined || member.instructionsPath !== undefined)) {
+		// 队长的任务书是团队级的流水线，写在 teams[].workflow 上。两处都写就没人说得清哪份生效。
+		throw new Error(`Invalid ${where}: the leader's brief belongs in the team's "workflow"`);
+	}
+	if (agent && !CROSS_PLUGIN_AGENT_REF.test(agent) && !OWN_PLUGIN_AGENT_REF.test(agent)) {
+		throw new Error(`Invalid ${where}.agent: expected "<agentId>" or "<pluginId>/<agentId>", got "${agent}"`);
+	}
+	if (index === 0 && (!agent || !OWN_PLUGIN_AGENT_REF.test(agent))) {
+		// 队长是用户在团队会话里唯一的对话入口。允许它落在别的插件上，那个插件一卸载，这支
+		// 团队就成了打不开的壳——比少一名队员严重得多，所以队长只能是本插件自己的智能体。
+		throw new Error(`Invalid ${where}: the team leader must be one of this plugin's own agents`);
+	}
+	return {
+		...member,
+		...(agent ? { agent } : {}),
+		...(role ? { role } : {}),
+		...(member.instructionsPath
+			? { instructionsPath: validatePluginRelativePath(member.instructionsPath, `${where}.instructionsPath`) }
+			: {}),
+	};
+}
+
+function normalizeSkillPresentation(
+	presentation: PluginSkillPresentation | undefined,
+): PluginSkillPresentation | undefined {
+	if (!presentation) return undefined;
+	const normalizeRule = (rule: PluginSkillPresentationRule): PluginSkillPresentationRule => ({
+		defaultVisibility: rule.defaultVisibility,
+		surfaces: rule.surfaces ? { ...rule.surfaces } : undefined,
+		displayName: rule.displayName?.trim(),
+		displayDescription: rule.displayDescription?.trim(),
+	});
+	return {
+		defaultVisibility: presentation.defaultVisibility,
+		surfaces: presentation.surfaces ? { ...presentation.surfaces } : undefined,
+		skills: presentation.skills
+			? Object.fromEntries(
+					Object.entries(presentation.skills).map(([name, rule]) => [name.trim(), normalizeRule(rule)]),
+				)
+			: undefined,
+	};
+}
+
+function normalizeCliProviders(providers: PluginCliProviderManifest[] | undefined): PluginCliProviderManifest[] | undefined {
+	if (!providers || providers.length === 0) return undefined;
+	const ids = new Set<string>();
+	return providers.map((provider) => {
+		if (ids.has(provider.id)) throw new Error(`Duplicate CLI provider id: ${provider.id}`);
+		ids.add(provider.id);
+		return {
+			id: provider.id,
+			command: provider.command,
+			probe: provider.probe
+				? { args: provider.probe.args ? [...provider.probe.args] : undefined, timeoutMs: provider.probe.timeoutMs }
+				: undefined,
+			install: {
+				command: provider.install.command,
+				args: provider.install.args ? [...provider.install.args] : undefined,
+				timeoutMs: provider.install.timeoutMs,
+			},
+		};
+	});
+}
+
+function normalizeServiceProviders(
+	providers: PluginServiceProviderManifest[] | undefined,
+): PluginServiceProviderManifest[] | undefined {
+	if (!providers || providers.length === 0) return undefined;
+	const ids = new Set<string>();
+	return providers.map((provider) => {
+		if (ids.has(provider.id)) throw new Error(`Duplicate service provider id: ${provider.id}`);
+		ids.add(provider.id);
+		const runtimeKind: PluginServiceRuntimeKind = provider.runtime.kind ?? "managed-binary";
+		const entry = provider.runtime.entry
+			? validatePluginRelativePath(provider.runtime.entry, `providers.services.${provider.id}.runtime.entry`)
+			: undefined;
+		if (runtimeKind === "host-node" && !entry) {
+			throw new Error(`Host-node service must declare runtime.entry: ${provider.id}`);
+		}
+		const platforms: PluginServiceProviderManifest["runtime"]["platforms"] = {};
+		for (const [platformTag, platform] of Object.entries(provider.runtime.platforms)) {
+			const destinations = new Set<string>();
+			platforms[platformTag] = {
+				executable: validatePluginRelativePath(platform.executable, `providers.services.${provider.id}.executable`),
+				artifacts: platform.artifacts.map((artifact) => {
+					const destination = validatePluginRelativePath(
+						artifact.destination,
+						`providers.services.${provider.id}.artifacts.destination`,
+					);
+					if (destinations.has(destination)) {
+						throw new Error(`Duplicate service artifact destination: ${provider.id}/${platformTag}/${destination}`);
+					}
+					destinations.add(destination);
+					return { ...artifact, destination };
+				}),
+			};
+		}
+		if (Object.keys(platforms).length === 0) {
+			throw new Error(`Service provider must declare at least one platform: ${provider.id}`);
+		}
+		const credentialIds = new Set<string>();
+		const credentials = provider.credentials?.map((credential) => {
+			if (credentialIds.has(credential.id)) throw new Error(`Duplicate service credential id: ${provider.id}/${credential.id}`);
+			credentialIds.add(credential.id);
+			return { id: credential.id, bytes: credential.bytes };
+		});
+		if (provider.health.credentialId && !credentialIds.has(provider.health.credentialId)) {
+			throw new Error(`Unknown service health credential: ${provider.id}/${provider.health.credentialId}`);
+		}
+		const templateDestinations = new Set<string>();
+		const templates = provider.templates?.map((template) => {
+			const source = validatePluginRelativePath(template.source, `providers.services.${provider.id}.templates.source`);
+			const destination = validatePluginRelativePath(
+				template.destination,
+				`providers.services.${provider.id}.templates.destination`,
+			);
+			if (templateDestinations.has(destination)) throw new Error(`Duplicate service template destination: ${provider.id}/${destination}`);
+			templateDestinations.add(destination);
+			return { source, destination, mode: template.mode };
+		});
+		const normalizedRuntime: PluginServiceProviderManifest["runtime"] = {
+			version: provider.runtime.version,
+			platforms,
+			...(runtimeKind === "host-node" ? { kind: runtimeKind, entry } : provider.runtime.kind ? { kind: runtimeKind } : {}),
+		};
+		return {
+			id: provider.id,
+			runtime: normalizedRuntime,
+			credentials,
+			templates,
+			process: {
+				args: provider.process.args ? [...provider.process.args] : undefined,
+				env: provider.process.env ? { ...provider.process.env } : undefined,
+			},
+			health: { ...provider.health },
+		};
+	});
+}
+
+function normalizePluginMcpServerConfig(config: PluginMcpServerConfig): PluginMcpServerConfig {
+	const common = {
+		disabled: config.disabled,
+		autoApprove: config.autoApprove?.map(trimString),
+		startupTimeout: config.startupTimeout,
+		debug: config.debug,
+		displayName: config.displayName,
+		description: config.description,
+		agent_mode: normalizeOptionalAgentModes(config.agent_mode),
+	};
+	if (config.type === "service") {
+		return {
+			type: "service",
+			serviceId: trimString(config.serviceId),
+			path: trimString(config.path),
+			...common,
+		};
+	}
+	if (config.type === "http") {
+		return {
+			type: "http",
+			url: trimString(config.url),
+			headers: config.headers ? { ...config.headers } : undefined,
+			oauthClientId: config.oauthClientId,
+			oauthDeviceFlow: config.oauthDeviceFlow,
+			oauthScopes: config.oauthScopes,
+			...common,
+		};
+	}
+	return {
+		type: config.type,
+		command: trimString(config.command),
+		args: config.args ? [...config.args] : undefined,
+		env: config.env ? { ...config.env } : undefined,
+		cwd: config.cwd,
+		...common,
+	};
+}
+
+export function validatePluginId(id: string): void {
+	if (!Value.Check(PluginIdSchema, id)) {
+		throw new Error("Plugin id must be 1-64 chars: lowercase letters, numbers, dot, underscore, or dash");
+	}
+}
+
+export function validatePluginVersion(version: string): void {
+	if (!Value.Check(PluginVersionSchema, version)) {
+		throw new Error("Plugin version must be 1-64 chars and cannot contain path separators");
+	}
+}
+
+export function validatePluginRelativePath(value: string, fieldName: string): string {
+	if (value.startsWith("/") || /^[a-zA-Z]:/.test(value)) {
+		throw new Error(`Invalid plugin ${fieldName}`);
+	}
+	const parts: string[] = [];
+	for (const part of value.replace(/\\/g, "/").split("/")) {
+		if (part === "" || part === ".") continue;
+		if (part === "..") {
+			if (parts.length === 0) throw new Error(`Invalid plugin ${fieldName}`);
+			parts.pop();
+			continue;
+		}
+		parts.push(part);
+	}
+	const normalized = parts.join("/");
+	if (!normalized) throw new Error(`Invalid plugin ${fieldName}`);
+	return normalized;
+}
+
+export function parsePluginCommandNames(value: unknown): string[] {
+	if (value === undefined) return [];
+	assertSchema(PluginCommandNamesSchema, value, "commands");
+	return Array.from(new Set(value));
+}
+
+/** @deprecated agent_mode 已无任何运行时语义（ADR-0071），保留仅为容忍既有 manifest。 */
+export function normalizePluginAgentModes(value: unknown): string[] | undefined {
+	if (value === undefined || value === null) return undefined;
+	const values = Array.isArray(value) ? value : [value];
+	const modes = values.map((item) => String(item).trim()).filter(Boolean);
+	return modes.length > 0 ? modes : undefined;
+}
+
+export function parsePluginMcpServerConfig(name: string, raw: unknown): PluginMcpServerConfig {
+	assertSchema(PluginMcpServerConfigSchema, raw, `MCP server '${name}'`);
+	return normalizePluginMcpServerConfig(raw);
+}
+
+export function isPluginPassthroughIconRef(icon: string): boolean {
+	return (
+		icon.startsWith("http://") ||
+		icon.startsWith("https://") ||
+		/^[a-z0-9]+(?:-[a-z0-9]+)*:[a-z0-9]+(?:-[a-z0-9]+)*$/.test(icon)
+	);
+}
+
+export function isPluginPackagedIconPath(icon: string): boolean {
+	return !isPluginPassthroughIconRef(icon);
+}
+
+export function parsePluginManifest(raw: unknown): PluginManifest {
+	if (typeof raw === "object" && raw !== null && "runtime" in raw) {
+		throw new Error(
+			'Invalid plugin manifest.runtime: runtime selection is unsupported; plugins use Module Federation.',
+		);
+	}
+	assertSchema(PluginManifestSchema, raw, "manifest");
+	const commands = parsePluginCommandNames(raw.commands);
+	const icon = raw.icon === undefined ? undefined : trimString(raw.icon);
+	const permissions = normalizePermissions(raw.permissions);
+	const network = normalizeNetworkManifest(raw.network);
+	const browser = normalizeBrowserManifest(raw.browser);
+	if (permissions.includes("network.fetch") && !network) {
+		throw new Error("Plugin network.allowedHosts is required with network.fetch");
+	}
+	const browserPermissions = permissions.filter((permission) => permission.startsWith("browser."));
+	if (browserPermissions.length > 0 && !browser) {
+		throw new Error("Plugin browser.allowedHosts is required with browser permissions");
+	}
+	if (permissions.includes("browser.interact") && !permissions.includes("browser.read")) {
+		throw new Error("Plugin browser.interact requires browser.read");
+	}
+	const normalizedServices = raw.providers ? normalizeServiceProviders(raw.providers.services) : undefined;
+	for (const [name, server] of Object.entries(raw.agent?.mcpServers && typeof raw.agent.mcpServers !== "string" ? raw.agent.mcpServers : {})) {
+		if (server.type === "service" && !normalizedServices?.some((service) => service.id === server.serviceId)) {
+			throw new Error(`Plugin MCP server '${name}' references unknown service '${server.serviceId}'`);
+		}
+	}
+	return {
+		id: raw.id,
+		name: trimString(raw.name),
+		version: raw.version,
+		pluginApiVersion: trimString(raw.pluginApiVersion),
+		entry: validatePluginRelativePath(trimString(raw.entry), "entry"),
+		moduleFederation: normalizeModuleFederation(raw.moduleFederation),
+		agent: normalizeAgentManifest(raw.agent),
+		providers: raw.providers
+			? {
+					cli: normalizeCliProviders(raw.providers.cli),
+					services: normalizedServices,
+				}
+			: undefined,
+		styles: normalizeStringArray(raw.styles).map((style) => validatePluginRelativePath(style, "styles")),
+		permissions,
+		network,
+		browser,
+		commands: commands.length > 0 ? commands : undefined,
+		description: raw.description,
+		author: raw.author,
+		icon:
+			icon === undefined || isPluginPassthroughIconRef(icon)
+				? icon
+				: validatePluginRelativePath(icon, "icon"),
+		guidingWords: raw.guidingWords?.map(trimString),
+		defaultLocale: raw.defaultLocale ?? "zh",
+		contributionMode: raw.contributionMode
+			? { hardIsolation: raw.contributionMode.hardIsolation === true }
+			: undefined,
+		agent_mode: normalizePluginAgentModes(raw.agent_mode),
+	};
+}
+
+export function listPluginManifestResources(
+	manifest: PluginManifest,
+): PluginManifestResourceReference[] {
+	const resources: PluginManifestResourceReference[] = [
+		{ field: "entry", path: manifest.entry, kind: "file" },
+	];
+	for (const stylePath of manifest.styles ?? []) {
+		resources.push({ field: "styles", path: stylePath, kind: "file" });
+	}
+	if (manifest.icon && isPluginPackagedIconPath(manifest.icon)) {
+		resources.push({ field: "icon", path: manifest.icon, kind: "file" });
+	}
+	for (const promptPath of manifest.agent?.systemPrompt?.promptPaths ?? []) {
+		resources.push({ field: "agent.systemPrompt.promptPaths", path: promptPath, kind: "file-or-directory" });
+	}
+	for (const skillPath of manifest.agent?.skillPaths ?? []) {
+		resources.push({ field: "agent.skillPaths", path: skillPath, kind: "file-or-directory" });
+	}
+	for (const agent of manifest.agent?.agents ?? []) {
+		// 人设与头像是插件包里的真实文件：不登记就不会被打进包，装到用户机器上时这个
+		// 智能体会因为「提示词读不出来」被整个跳过。
+		if (agent.avatar) resources.push({ field: "agent.agents.avatar", path: agent.avatar, kind: "file" });
+		if (agent.systemPromptPath) {
+			resources.push({ field: "agent.agents.systemPromptPath", path: agent.systemPromptPath, kind: "file" });
+		}
+	}
+	for (const team of manifest.agent?.teams ?? []) {
+		if (team.workflowPath) {
+			resources.push({ field: "agent.teams.workflowPath", path: team.workflowPath, kind: "file" });
+		}
+		for (const member of team.members) {
+			// 任务书也是插件包里的真实文件：不登记就不会被打进包，装到用户机器上时这名成员会
+			// 悄悄退化成「只有职责摘要」。
+			if (member.instructionsPath) {
+				resources.push({
+					field: "agent.teams.members.instructionsPath",
+					path: member.instructionsPath,
+					kind: "file",
+				});
+			}
+		}
+	}
+	if (typeof manifest.agent?.mcpServers === "string") {
+		resources.push({ field: "agent.mcpServers", path: manifest.agent.mcpServers, kind: "file" });
+	}
+	for (const service of manifest.providers?.services ?? []) {
+		for (const template of service.templates ?? []) {
+			resources.push({ field: `providers.services.${service.id}.templates.source`, path: template.source, kind: "file" });
+		}
+	}
+	return resources;
+}
+
+function parseApiVersion(value: string): readonly [number, number, number] | undefined {
+	const match = /^(\d+)\.(\d+)\.(\d+)$/.exec(value);
+	if (!match) return undefined;
+	return [Number(match[1]), Number(match[2]), Number(match[3])];
+}
+
+function compareApiVersions(
+	left: readonly [number, number, number],
+	right: readonly [number, number, number],
+): number {
+	for (let index = 0; index < left.length; index += 1) {
+		if (left[index] !== right[index]) return left[index] - right[index];
+	}
+	return 0;
+}
+
+export function isPluginApiCompatible(hostVersion: string, range: string): boolean {
+	const host = parseApiVersion(hostVersion);
+	if (!host) return false;
+	const normalized = range.trim();
+	const exact = parseApiVersion(normalized);
+	if (exact) return exact[0] === host[0] && compareApiVersions(host, exact) >= 0;
+	const caret = normalized.startsWith("^") ? parseApiVersion(normalized.slice(1)) : undefined;
+	if (caret) return caret[0] === host[0] && compareApiVersions(host, caret) >= 0;
+	if (normalized === `^${host[0]}` || normalized === `${host[0]}.x`) return true;
+	const minimum = normalized.startsWith(">=") ? parseApiVersion(normalized.slice(2)) : undefined;
+	return minimum !== undefined && compareApiVersions(host, minimum) >= 0;
+}

@@ -1,0 +1,510 @@
+import { randomUUID } from "node:crypto";
+import { dirname, join, resolve } from "node:path";
+import type { Api, Model } from "@vetta/ai";
+import { resolveCodingAgentSessionDir } from "@vetta/coding-agent/bootstrap";
+import {
+	type CodingAgentRuntimeComposition,
+	type CodingAgentRuntimeCompositionOptions,
+	type CodingAgentRuntimeSessionOptions,
+	createCodingAgentRuntimeComposition,
+	createCodingAgentRuntimeSessionAgentSelection,
+	DEFAULT_CODING_AGENT_RUNTIME_ID,
+	parseCodingAgentRuntimeSessionConfiguration,
+} from "@vetta/coding-agent/composition";
+import { createCodingAgentNodeSettingsRuntime } from "@vetta/coding-agent/host-services";
+import { detectWorkspaceFacts, probeWorkspaceSignals } from "@vetta/coding-agent/model-context";
+import {
+	type ConversationScenario,
+	DEFAULT_SCENARIO,
+	shouldEnableCodingAgentSubagents,
+} from "@vetta/coding-agent/profile";
+import type {
+	RuntimeHostSessionAssembly,
+	RuntimeHostSessionBackend,
+	RuntimeObservationPublisher,
+	RuntimeSessionCreateRequest,
+} from "@vetta/runtime-core";
+import { RetryableCleanup, RetryableCloseController } from "@vetta/runtime-core";
+import type { McpRuntimeToolSource } from "@vetta/runtime-mcp";
+import { nodeModelInputImageProcessor, nodeWorkspaceFactsFileSource } from "@vetta/runtime-node/coding";
+import { createFileConversationPersistence, resolveSessionIdFromPath } from "@vetta/runtime-node/conversation";
+import type { CodingToolResultPolicy } from "@vetta/runtime-tools";
+import {
+	createDesktopCodingAgentSessionExecutionEnvironment,
+	createDesktopCodingAgentToolEnvironment,
+} from "./coding-agent-tool-environment.js";
+
+type CompositionFixedOption =
+	| "agentDir"
+	| "createSessionExecutionEnvironment"
+	| "createToolEnvironment"
+	| "createConversationPersistence"
+	| "conversationDir"
+	| "cwd"
+	| "enableSubagents"
+	| "initialModel"
+	| "initialThinkingLevel"
+	| "scenario"
+	| "runtimeHostRetrySettings"
+	| "workspaceFacts";
+
+export type DesktopCodingAgentRuntimeCompositionDefaults = Omit<
+	CodingAgentRuntimeCompositionOptions,
+	CompositionFixedOption
+> &
+	Partial<
+		Pick<
+			CodingAgentRuntimeCompositionOptions,
+			"createConversationPersistence" | "initialModel" | "initialThinkingLevel"
+		>
+	>;
+
+export interface DesktopRuntimeBackendPoolOptions {
+	readonly compositionDefaults: DesktopCodingAgentRuntimeCompositionDefaults;
+	/**
+	 * RuntimeHost-scoped publisher used by product observations and retry diagnostics.
+	 * When provided, it is the sole upstream and overrides a default observationHub parent while preserving local Hub behavior.
+	 */
+	readonly observationPublisher?: RuntimeObservationPublisher;
+	readonly createHookAdapterFactories?: (
+		scope: DesktopRuntimeHookScope,
+	) => NonNullable<CodingAgentRuntimeCompositionOptions["additionalHookAdapterFactories"]>;
+	readonly createSessionHookAdapterFactories?: (
+		scope: DesktopRuntimeHookScope,
+		context: Parameters<NonNullable<CodingAgentRuntimeCompositionOptions["createSessionHookAdapterFactories"]>>[0],
+	) => NonNullable<CodingAgentRuntimeCompositionOptions["additionalHookAdapterFactories"]>;
+	readonly createComposition?: (
+		options: CodingAgentRuntimeCompositionOptions,
+	) => Promise<CodingAgentRuntimeComposition>;
+	readonly createMcpRuntimeSource?: (scope: DesktopMcpRuntimeScope) => Promise<DesktopManagedMcpRuntimeSource>;
+	readonly resolveMcpRuntimeScope?: (scope: DesktopMcpRuntimeScope) => DesktopMcpRuntimeScope;
+	readonly createCodingToolResultPolicy?: (scope: DesktopMcpRuntimeScope) => CodingToolResultPolicy;
+}
+
+export interface DesktopRuntimeHookScope {
+	readonly cwd: string;
+	readonly agentDir?: string;
+	readonly scenario: ConversationScenario;
+}
+
+export interface DesktopMcpRuntimeScope {
+	readonly cwd: string;
+	readonly agentDir?: string;
+}
+
+export interface DesktopManagedMcpRuntimeSource {
+	readonly source: McpRuntimeToolSource;
+	dispose(): Promise<void>;
+}
+
+interface DesktopRuntimeScope extends DesktopMcpRuntimeScope {
+	readonly conversationDir: string;
+	readonly scenario: ConversationScenario;
+	readonly enableSubagents: boolean;
+	readonly serverUrl?: string;
+}
+
+interface DesktopRuntimeBackendEntry {
+	readonly composition: CodingAgentRuntimeComposition;
+	readonly mcpKey: string | undefined;
+	liveAssemblies: number;
+}
+
+/**
+ * Desktop 进程级 Runtime Backend 池。
+ *
+ * RuntimeHost 仍然只有一个；本对象只按 Composition 固定参数复用工作区后端，
+ * 不持有第二套宿主会话状态。会话级模型、thinking、插件和执行模式继续由
+ * RuntimeSessionCreateRequest 传给对应 Session。
+ */
+export class DesktopRuntimeBackendPool implements RuntimeHostSessionBackend {
+	private readonly entries = new Map<string, Promise<DesktopRuntimeBackendEntry>>();
+	private readonly resolvedEntries = new Map<string, DesktopRuntimeBackendEntry>();
+	private readonly mcpSources = new Map<string, Promise<DesktopManagedMcpRuntimeSource>>();
+	private readonly mcpCompositionCounts = new Map<string, number>();
+	private readonly createComposition: (
+		options: CodingAgentRuntimeCompositionOptions,
+	) => Promise<CodingAgentRuntimeComposition>;
+	private readonly cleanup = new RetryableCleanup();
+	private readonly closeController: RetryableCloseController;
+	private readonly agentId: string;
+	private cleanupPrepared = false;
+	private disposed = false;
+
+	constructor(private readonly options: DesktopRuntimeBackendPoolOptions) {
+		this.createComposition = options.createComposition ?? createCodingAgentRuntimeComposition;
+		this.agentId =
+			options.compositionDefaults.agentRuntime?.agentId ??
+			options.compositionDefaults.agentRuntime?.definition?.id ??
+			DEFAULT_CODING_AGENT_RUNTIME_ID;
+		this.closeController = new RetryableCloseController({
+			cleanup: () => this.cleanup.run("Desktop Runtime backend pool disposal failed"),
+			onCompleted: () => {
+				this.entries.clear();
+				this.resolvedEntries.clear();
+				this.mcpSources.clear();
+				this.mcpCompositionCounts.clear();
+			},
+		});
+	}
+
+	async createAssembly(request: RuntimeSessionCreateRequest): Promise<RuntimeHostSessionAssembly> {
+		if (this.disposed) throw new Error("Desktop Runtime backend pool is disposed");
+		if (request.agent && request.agent.id !== this.agentId) {
+			throw new Error(
+				`Desktop Coding Agent backend pool cannot execute Agent ${request.agent.id}; expected ${this.agentId}`,
+			);
+		}
+		const scope = resolveRuntimeScope(request);
+		const scopeKey = runtimeScopeKey(scope);
+		const entry = await this.getOrCreateEntry(scope, request);
+		if (this.disposed) throw new Error("Desktop Runtime backend pool is disposed");
+		entry.liveAssemblies += 1;
+		try {
+			const assembly = await entry.composition.runtimeHostBackend.createAssembly(
+				toCodingAgentRuntimeSessionRequest(entry.composition, scope, request),
+			);
+			return attachAssemblyRelease(assembly, () => this.releaseAssembly(scopeKey, entry));
+		} catch (error) {
+			await this.releaseAssembly(scopeKey, entry);
+			throw error;
+		}
+	}
+
+	readScopeCount(): number {
+		return this.resolvedEntries.size;
+	}
+
+	readMcpScopeCount(): number {
+		return this.mcpSources.size;
+	}
+
+	async prewarmMcp(scope: DesktopMcpRuntimeScope): Promise<void> {
+		if (this.disposed) throw new Error("Desktop Runtime backend pool is disposed");
+		await this.getOrCreateMcpRuntimeSource(scope);
+	}
+
+	dispose(): Promise<void> {
+		if (!this.disposed) {
+			this.disposed = true;
+			this.prepareCleanup();
+		}
+		return this.closeController.run();
+	}
+
+	private prepareCleanup(): void {
+		if (this.cleanupPrepared) return;
+		this.cleanupPrepared = true;
+		for (const [index, entry] of [...this.entries.values()].entries()) {
+			this.cleanup.add({
+				id: `composition:${index}`,
+				phase: 0,
+				cleanup: async () => {
+					const resolved = await entry.catch(() => undefined);
+					await resolved?.composition.dispose();
+				},
+			});
+		}
+		for (const [index, source] of [...this.mcpSources.values()].entries()) {
+			this.cleanup.add({
+				id: `mcp-source:${index}`,
+				phase: 1,
+				cleanup: async () => {
+					const resolved = await source.catch(() => undefined);
+					await resolved?.dispose();
+				},
+			});
+		}
+	}
+
+	private getOrCreateEntry(
+		scope: DesktopRuntimeScope,
+		request: RuntimeSessionCreateRequest,
+	): Promise<DesktopRuntimeBackendEntry> {
+		const key = runtimeScopeKey(scope);
+		const existing = this.entries.get(key);
+		if (existing) return existing;
+
+		const created = this.createEntry(scope, request).then(
+			(entry) => {
+				this.resolvedEntries.set(key, entry);
+				this.retainMcpComposition(entry.mcpKey);
+				return entry;
+			},
+			(error: unknown) => {
+				this.entries.delete(key);
+				throw error;
+			},
+		);
+		this.entries.set(key, created);
+		return created;
+	}
+
+	private async createEntry(
+		scope: DesktopRuntimeScope,
+		request: RuntimeSessionCreateRequest,
+	): Promise<DesktopRuntimeBackendEntry> {
+		const initialModel = resolveInitialModel(request, this.options.compositionDefaults);
+		const initialThinkingLevel =
+			request.thinkingLevel ?? this.options.compositionDefaults.initialThinkingLevel ?? "off";
+		const mcpScope = {
+			cwd: scope.cwd,
+			agentDir: scope.agentDir,
+		};
+		const managedMcpSource = await this.getOrCreateMcpRuntimeSource(mcpScope);
+		const mcpKey = this.options.createMcpRuntimeSource ? this.mcpKeyFor(mcpScope) : undefined;
+		const observationOptions = resolveCompositionObservationOptions(this.options);
+		const composition = await this.createComposition({
+			...this.options.compositionDefaults,
+			...observationOptions,
+			modelInputImageProcessor:
+				this.options.compositionDefaults.modelInputImageProcessor ?? nodeModelInputImageProcessor,
+			ocrMaxConcurrent:
+				this.options.compositionDefaults.ocrMaxConcurrent ??
+				resolvePositiveInteger(process.env.VETTA_KB_OCR_CONCURRENCY),
+			createConversationPersistence:
+				this.options.compositionDefaults.createConversationPersistence ??
+				(({ conversationDir }) => createFileConversationPersistence(conversationDir)),
+			createToolEnvironment: createDesktopCodingAgentToolEnvironment,
+			createSessionExecutionEnvironment: createDesktopCodingAgentSessionExecutionEnvironment,
+			codingToolResultPolicy:
+				this.options.createCodingToolResultPolicy?.({
+					cwd: scope.cwd,
+					agentDir: scope.agentDir,
+				}) ?? this.options.compositionDefaults.codingToolResultPolicy,
+			additionalHookAdapterFactories: [
+				...(this.options.compositionDefaults.additionalHookAdapterFactories ?? []),
+				...(this.options.createHookAdapterFactories?.(scope) ?? []),
+			],
+			createSessionHookAdapterFactories: (context) => [
+				...(this.options.compositionDefaults.createSessionHookAdapterFactories?.(context) ?? []),
+				...(this.options.createSessionHookAdapterFactories?.(scope, context) ?? []),
+			],
+			...(managedMcpSource ? { mcpSource: managedMcpSource.source } : {}),
+			conversationDir: scope.conversationDir,
+			cwd: scope.cwd,
+			workspaceFacts: detectWorkspaceFacts(scope.cwd, (cwd) =>
+				probeWorkspaceSignals(cwd, nodeWorkspaceFactsFileSource),
+			),
+			agentDir: scope.agentDir,
+			scenario: scope.scenario,
+			enableSubagents: scope.enableSubagents,
+			createSubagentId: randomUUID,
+			subagentPathPort: { dirname, join },
+			initialModel,
+			initialThinkingLevel,
+			runtimeHostRetrySettings: createCodingAgentNodeSettingsRuntime(scope.cwd, scope.agentDir),
+		});
+		return { composition, mcpKey, liveAssemblies: 0 };
+	}
+
+	private async releaseAssembly(scopeKey: string, entry: DesktopRuntimeBackendEntry): Promise<void> {
+		if (this.disposed) return;
+		if (entry.liveAssemblies > 0) entry.liveAssemblies -= 1;
+		if (entry.liveAssemblies > 0) return;
+		// 先摘 key 再销毁：销毁是异步的，这段窗口里同 scope 的新会话必须拿到一套
+		// 新 composition，不能复用正在关闭的这套。
+		const owned = this.resolvedEntries.get(scopeKey) === entry;
+		if (owned) {
+			this.entries.delete(scopeKey);
+			this.resolvedEntries.delete(scopeKey);
+		}
+		try {
+			await entry.composition.dispose();
+		} catch (error) {
+			// 销毁失败：没有新 entry 顶上就放回去，让 RuntimeHost 的重试释放能再找到它；
+			// 已被顶上时旧 composition 由重试直接关闭，不再回到池里。
+			if (owned && !this.resolvedEntries.has(scopeKey)) {
+				this.entries.set(scopeKey, Promise.resolve(entry));
+				this.resolvedEntries.set(scopeKey, entry);
+			}
+			throw error;
+		}
+		await this.releaseMcpComposition(entry.mcpKey);
+	}
+
+	private retainMcpComposition(mcpKey: string | undefined): void {
+		if (!mcpKey) return;
+		this.mcpCompositionCounts.set(mcpKey, (this.mcpCompositionCounts.get(mcpKey) ?? 0) + 1);
+	}
+
+	private async releaseMcpComposition(mcpKey: string | undefined): Promise<void> {
+		if (!mcpKey || this.disposed) return;
+		const remaining = (this.mcpCompositionCounts.get(mcpKey) ?? 1) - 1;
+		if (remaining > 0) {
+			this.mcpCompositionCounts.set(mcpKey, remaining);
+			return;
+		}
+		this.mcpCompositionCounts.delete(mcpKey);
+		const source = this.mcpSources.get(mcpKey);
+		this.mcpSources.delete(mcpKey);
+		if (!source) return;
+		const resolved = await source.catch(() => undefined);
+		await resolved?.dispose();
+	}
+
+	private mcpKeyFor(scope: DesktopMcpRuntimeScope): string {
+		const resolvedScope = this.options.resolveMcpRuntimeScope?.(scope) ?? scope;
+		return mcpRuntimeScopeKey({
+			cwd: resolve(resolvedScope.cwd),
+			agentDir: resolvedScope.agentDir ? resolve(resolvedScope.agentDir) : undefined,
+		});
+	}
+
+	private getOrCreateMcpRuntimeSource(
+		scope: DesktopMcpRuntimeScope,
+	): Promise<DesktopManagedMcpRuntimeSource> | undefined {
+		if (!this.options.createMcpRuntimeSource) return undefined;
+		const resolvedScope = this.options.resolveMcpRuntimeScope?.(scope) ?? scope;
+		const normalizedScope = {
+			cwd: resolve(resolvedScope.cwd),
+			agentDir: resolvedScope.agentDir ? resolve(resolvedScope.agentDir) : undefined,
+		};
+		const key = mcpRuntimeScopeKey(normalizedScope);
+		const existing = this.mcpSources.get(key);
+		if (existing) return existing;
+
+		const created = this.options.createMcpRuntimeSource(normalizedScope).catch((error: unknown) => {
+			this.mcpSources.delete(key);
+			throw error;
+		});
+		this.mcpSources.set(key, created);
+		return created;
+	}
+}
+
+function attachAssemblyRelease(
+	assembly: RuntimeHostSessionAssembly,
+	release: () => Promise<void>,
+): RuntimeHostSessionAssembly {
+	const lifecycle = assembly.lifecycle;
+	let released = false;
+	return {
+		...assembly,
+		lifecycle: {
+			get sessionId() {
+				return lifecycle.sessionId;
+			},
+			get agentId() {
+				return lifecycle.agentId;
+			},
+			get sessionDirectory() {
+				return lifecycle.sessionDirectory;
+			},
+			get sessionPath() {
+				return lifecycle.sessionPath;
+			},
+			async dispose() {
+				await lifecycle.dispose();
+				if (released) return;
+				await release();
+				released = true;
+			},
+		},
+	};
+}
+
+function toCodingAgentRuntimeSessionRequest(
+	composition: CodingAgentRuntimeComposition,
+	scope: DesktopRuntimeScope,
+	request: RuntimeSessionCreateRequest,
+): RuntimeSessionCreateRequest {
+	const sessionPath = request.sessionPath?.trim();
+	const sessionId = sessionPath
+		? resolveSessionIdFromPath(scope.conversationDir, sessionPath)
+		: request.sessionId?.trim() || randomUUID();
+	if (!sessionId) {
+		throw new Error(`Session path is invalid: ${request.sessionPath}`);
+	}
+	const configuredOptions = readCodingAgentRequestConfiguration(request);
+	const sessionOptions: CodingAgentRuntimeSessionOptions = {
+		...configuredOptions,
+		sessionId,
+		cwd: request.cwd ?? scope.cwd,
+		model: request.model,
+		thinkingLevel: request.thinkingLevel,
+		executionMode: request.executionMode,
+		env: request.env,
+		sandboxHostPath: request.sandboxHostPath,
+		linuxBubblewrapPath: request.linuxBubblewrapPath,
+		macosSandboxExecPath: request.macosSandboxExecPath,
+	};
+	return {
+		...request,
+		agent: createCodingAgentRuntimeSessionAgentSelection(composition.agentRuntime, sessionOptions),
+	};
+}
+
+function resolveCompositionObservationOptions(
+	options: DesktopRuntimeBackendPoolOptions,
+): Pick<CodingAgentRuntimeCompositionOptions, "observationHub" | "observationPublisher"> {
+	const observationPublisher = options.observationPublisher ?? options.compositionDefaults.observationPublisher;
+	const observationHub = options.compositionDefaults.observationHub;
+	if (!options.observationPublisher || !observationHub?.parent) {
+		return {
+			...(observationPublisher ? { observationPublisher } : {}),
+			...(observationHub ? { observationHub } : {}),
+		};
+	}
+	const { parent: _overriddenParent, ...localHubOptions } = observationHub;
+	return { observationPublisher: options.observationPublisher, observationHub: localHubOptions };
+}
+
+function resolveRuntimeScope(request: RuntimeSessionCreateRequest): DesktopRuntimeScope {
+	const sessionOptions = readCodingAgentRequestConfiguration(request);
+	const cwd = resolve(request.cwd ?? process.cwd());
+	const sessionPath = request.sessionPath?.trim();
+	// 缺省落点是 agent 目录下按 cwd 编码分片的全局目录，**不是** `<cwd>/.vetta/sessions`：
+	// 会话产物是宿主状态，不该在用户工程里长出未跟踪文件（还会被 `git add -A` 误提交）。
+	// 需要落在项目里的场景（批量任务、宿主自有 conversation 根）自己传 sessionDir。
+	const conversationDir = resolve(
+		sessionPath ? dirname(sessionPath) : resolveCodingAgentSessionDir(cwd, request.sessionDir),
+	);
+	return {
+		cwd,
+		conversationDir,
+		agentDir: request.agentDir ? resolve(request.agentDir) : undefined,
+		scenario: sessionOptions.scenario ?? DEFAULT_SCENARIO,
+		enableSubagents: shouldEnableCodingAgentSubagents(sessionOptions.scenario ?? DEFAULT_SCENARIO),
+		serverUrl: request.serverUrl,
+	};
+}
+
+function readCodingAgentRequestConfiguration(
+	request: RuntimeSessionCreateRequest,
+): Omit<CodingAgentRuntimeSessionOptions, "sessionId"> & { readonly sessionId?: string } {
+	const configuration = request.agent?.sessionConfiguration;
+	if (configuration === undefined) return {};
+	return parseCodingAgentRuntimeSessionConfiguration(configuration);
+}
+
+function resolveInitialModel(
+	request: RuntimeSessionCreateRequest,
+	defaults: DesktopCodingAgentRuntimeCompositionDefaults,
+): Model<Api> {
+	const model = request.model ?? defaults.initialModel ?? defaults.modelRegistry.getAvailable()[0];
+	if (!model) {
+		throw new Error("Desktop Runtime requires at least one available model");
+	}
+	return model;
+}
+
+function resolvePositiveInteger(value: string | undefined): number | undefined {
+	const parsed = Number.parseInt(value ?? "", 10);
+	return Number.isInteger(parsed) && parsed >= 1 ? parsed : undefined;
+}
+
+function runtimeScopeKey(scope: DesktopRuntimeScope): string {
+	return JSON.stringify([
+		scope.cwd,
+		scope.conversationDir,
+		scope.agentDir ?? null,
+		scope.scenario,
+		scope.enableSubagents,
+		scope.serverUrl ?? null,
+	]);
+}
+
+function mcpRuntimeScopeKey(scope: DesktopMcpRuntimeScope): string {
+	return JSON.stringify([scope.cwd, scope.agentDir ?? null]);
+}

@@ -1,0 +1,1374 @@
+import {
+	type ConversationAgentMessageViewModel,
+	createConversationAgentMessage,
+	createConversationUserMessage,
+} from "@shared/conversation";
+import { isAttachmentPath, isImagePath } from "@shared/lib/input-tokens";
+import { pathBasename } from "@shared/lib/utils";
+import type {
+	AskUserQuestionResolution,
+	ChatConversationItem,
+	ChatErrorDetails,
+	ContentBlock,
+	KnowledgeToolUiDetails,
+	PlanReviewResolution,
+	ToolAudioPreview,
+	ToolCallBlock,
+	ToolCallUiDetails,
+	ToolImagePreview,
+} from "@shared/store/atoms";
+import type { Usage } from "@vetta/ai";
+import type { HistoryEntry, PromptAttachmentRef, PromptResourceRef } from "@vetta/runtime-core";
+import { readMcpAppAttachment, selectMcpMediaCandidates } from "@vetta/runtime-mcp/browser";
+import type { CardDescriptor } from "@vetta-org/plugin-sdk";
+import { classifyChatError } from "./classifyChatError";
+
+export function toChatErrorDetails(
+	error:
+		| {
+				code?: unknown;
+				origin?: unknown;
+				retryable?: unknown;
+				details?: unknown;
+				provider?: unknown;
+				modelId?: unknown;
+		  }
+		| null
+		| undefined,
+): ChatErrorDetails | undefined {
+	const details = error?.details && typeof error.details === "object" ? error.details : undefined;
+	const source = details && !Array.isArray(details) ? (details as Record<string, unknown>) : {};
+	const result: ChatErrorDetails = {};
+	if (typeof error?.code === "string" && error.code.trim()) result.code = error.code.trim();
+	if (
+		error?.origin === "runtime" ||
+		error?.origin === "provider" ||
+		error?.origin === "tool" ||
+		error?.origin === "extension"
+	) {
+		result.origin = error.origin;
+	}
+	if (typeof error?.retryable === "boolean") result.retryable = error.retryable;
+	if (typeof error?.provider === "string" && error.provider.trim()) result.provider = error.provider.trim();
+	if (typeof error?.modelId === "string" && error.modelId.trim()) result.modelId = error.modelId.trim();
+	if (typeof source.statusCode === "number" && Number.isFinite(source.statusCode))
+		result.statusCode = source.statusCode;
+	if (typeof source.provider === "string" && source.provider.trim()) result.provider = source.provider.trim();
+	if (typeof source.modelId === "string" && source.modelId.trim()) result.modelId = source.modelId.trim();
+	if (typeof source.requestId === "string" && source.requestId.trim()) result.requestId = source.requestId.trim();
+	if (typeof source.providerCode === "string" && source.providerCode.trim())
+		result.providerCode = source.providerCode.trim();
+	if (
+		source.phase === "resolve" ||
+		source.phase === "request" ||
+		source.phase === "response" ||
+		source.phase === "stream" ||
+		source.phase === "decode"
+	) {
+		result.phase = source.phase;
+	}
+	if (typeof source.retryAfterMs === "number" && Number.isFinite(source.retryAfterMs))
+		result.retryAfterMs = source.retryAfterMs;
+	return Object.keys(result).length > 0 ? result : undefined;
+}
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// Message conversion helpers
+// ═══════════════════════════════════════════════════════════════════════════════
+
+/** Extract plain text from a message content (string or content-part array). */
+export function extractText(content: unknown): string {
+	if (typeof content === "string") return content;
+	if (!Array.isArray(content)) return "";
+	return (content as Array<{ type: string; text?: string }>)
+		.filter((p) => p.type === "text" && typeof p.text === "string")
+		.map((p) => p.text!)
+		.join("");
+}
+
+/** Extract text from an array of result content blocks. */
+export function extractResultText(result: unknown): string {
+	if (typeof result === "string") return result;
+	if (result && typeof result === "object" && "content" in result) {
+		const r = result as { content?: Array<{ type: string; text?: string }> };
+		return (r.content ?? [])
+			.filter((c) => c.type === "text" && c.text)
+			.map((c) => c.text!)
+			.join("\n");
+	}
+	return "";
+}
+
+/**
+ * Attachment prefixes written by the client always use absolute paths:
+ * - @panel / drag-drop / explorer → absolute workspace path
+ * - persistImages / appshot → absolute path under image-cache
+ * Hand-typed "@foo" or "@src/bar.ts" (relative / non-path) must stay in the body.
+ */
+export const isUserMessageAttachmentPath = isAttachmentPath;
+
+/** System-injected attachment paths (images / appshot), not panel file badges. */
+export function isSystemAttachmentPath(path: string): boolean {
+	return /[/\\]image-cache[/\\]/.test(path);
+}
+
+export const isUserImageFile = isImagePath;
+
+/**
+ * Parse prefixes from user message text: /skill:<name>, /scene:<name>, and @<path> lines.
+ * Each @ line must end with a literal newline AND look like an absolute attachment path;
+ * hand-typed "@something" / "@rel/path" is kept in the body (not a file badge).
+ */
+export function parseUserPrefixes(text: string): {
+	skillName: string | null;
+	skillType: "skill" | "scene" | null;
+	files: string[];
+	body: string;
+} {
+	let remaining = text;
+	let skillName: string | null = null;
+	let skillType: "skill" | "scene" | null = null;
+	const files: string[] = [];
+
+	const skillMatch = remaining.match(/^\/(skill|scene):([^\n]+)\n?([\s\S]*)$/);
+	if (skillMatch) {
+		skillType = skillMatch[1] as "skill" | "scene";
+		skillName = skillMatch[2].trim();
+		remaining = skillMatch[3];
+	}
+
+	while (true) {
+		const fileMatch = remaining.match(/^@([^\n]+)\n([\s\S]*)$/);
+		if (!fileMatch) break;
+		const path = fileMatch[1].trim();
+		// Stop at first non-attachment @ line so hand-typed multi-line text stays in body.
+		if (!isUserMessageAttachmentPath(path)) break;
+		files.push(path);
+		remaining = fileMatch[2];
+	}
+
+	return { skillName, skillType, files, body: remaining };
+}
+
+/** Panel-selected files only (exclude image-cache / appshot system attachments). */
+export function toMentionedFilesFromPrefixes(files: string[]): Array<{
+	path: string;
+	name: string;
+	isDirectory: boolean;
+}> {
+	return files
+		.filter((p) => !isSystemAttachmentPath(p))
+		.map((p) => ({
+			path: p,
+			name: pathBasename(p),
+			isDirectory: false,
+		}));
+}
+
+function asRecord(value: unknown): Record<string, unknown> | null {
+	return value && typeof value === "object" ? (value as Record<string, unknown>) : null;
+}
+
+function asFiniteNumber(value: unknown): number | undefined {
+	return typeof value === "number" && Number.isFinite(value) ? value : undefined;
+}
+
+function base64SizeBytes(data: string): number {
+	const padding = data.endsWith("==") ? 2 : data.endsWith("=") ? 1 : 0;
+	return Math.max(0, Math.floor((data.length * 3) / 4) - padding);
+}
+
+export function extractToolImagePreview(result: unknown, details: unknown): ToolImagePreview | undefined {
+	return extractToolImagePreviews(result, details)[0];
+}
+
+export function extractToolImagePreviews(result: unknown, details: unknown): ToolImagePreview[] {
+	const resultRecord = asRecord(result);
+	const content = Array.isArray(resultRecord?.content) ? resultRecord.content : Array.isArray(result) ? result : [];
+	const images = selectMcpMediaCandidates(
+		content.filter((part): part is { type: "image"; data: string; mimeType: string } => {
+			const record = asRecord(part);
+			return record?.type === "image" && typeof record.data === "string" && typeof record.mimeType === "string";
+		}),
+	);
+
+	const detailsRecord = asRecord(details) ?? asRecord(resultRecord?.details);
+	const imageDetails = asRecord(detailsRecord?.image);
+	return images.map((image) => ({
+		data: image.data,
+		mimeType: image.mimeType,
+		originalPath: typeof imageDetails?.originalPath === "string" ? imageDetails.originalPath : undefined,
+		originalMimeType: typeof imageDetails?.originalMimeType === "string" ? imageDetails.originalMimeType : undefined,
+		originalSizeBytes: asFiniteNumber(imageDetails?.originalSizeBytes),
+		originalWidth: asFiniteNumber(imageDetails?.originalWidth),
+		originalHeight: asFiniteNumber(imageDetails?.originalHeight),
+		processedSizeBytes: asFiniteNumber(imageDetails?.processedSizeBytes) ?? base64SizeBytes(image.data),
+		processedWidth: asFiniteNumber(imageDetails?.processedWidth),
+		processedHeight: asFiniteNumber(imageDetails?.processedHeight),
+		wasResized: typeof imageDetails?.wasResized === "boolean" ? imageDetails.wasResized : undefined,
+	}));
+}
+
+export function extractToolAudioPreviews(result: unknown, details: unknown): ToolAudioPreview[] {
+	const resultRecord = asRecord(result);
+	const detailsRecord = asRecord(details) ?? asRecord(resultRecord?.details);
+	const sources = [
+		Array.isArray(resultRecord?.content) ? resultRecord.content : [],
+		Array.isArray(detailsRecord?.content) ? detailsRecord.content : [],
+		Array.isArray(detailsRecord?.media) ? detailsRecord.media : [],
+	].flat();
+	const candidates = sources.flatMap((part) => {
+		const record = asRecord(part);
+		return record?.type === "audio" && typeof record.data === "string" && typeof record.mimeType === "string"
+			? [{ data: record.data, mimeType: record.mimeType }]
+			: [];
+	});
+	return selectMcpMediaCandidates(candidates.map((candidate) => ({ ...candidate, type: "audio" as const }))).map(
+		({ data, mimeType }) => ({ data, mimeType }),
+	);
+}
+
+export function extractToolMcpApp(result: unknown, details: unknown) {
+	const resultRecord = asRecord(result);
+	return readMcpAppAttachment(details ?? resultRecord?.details);
+}
+
+export function extractToolUiDetails(result: unknown, details: unknown): ToolCallUiDetails | undefined {
+	const resultRecord = asRecord(result);
+	const detailsRecord = asRecord(details) ?? asRecord(resultRecord?.details);
+	if (!detailsRecord) return undefined;
+
+	const diff = typeof detailsRecord.diff === "string" ? detailsRecord.diff : undefined;
+	const firstChangedLine = asFiniteNumber(detailsRecord.firstChangedLine);
+	const askUserQuestion = extractAskUserQuestion(detailsRecord);
+	const knowledge = extractKnowledge(detailsRecord);
+	const planReview = extractPlanReview(detailsRecord);
+	if (
+		diff === undefined &&
+		firstChangedLine === undefined &&
+		askUserQuestion === undefined &&
+		knowledge === undefined &&
+		planReview === undefined
+	)
+		return undefined;
+
+	return {
+		...(diff !== undefined ? { diff } : {}),
+		...(firstChangedLine !== undefined ? { firstChangedLine } : {}),
+		...(askUserQuestion !== undefined ? { askUserQuestion } : {}),
+		...(planReview !== undefined ? { planReview } : {}),
+		...(knowledge !== undefined ? { knowledge } : {}),
+	};
+}
+
+/** 从知识库工具的 details 里识别结构（按字段形状判别工具种类）。 */
+function extractKnowledge(details: Record<string, unknown>): KnowledgeToolUiDetails | undefined {
+	if (Array.isArray(details.pages)) {
+		const pages = details.pages
+			.map((p) => asRecord(p))
+			.filter((p): p is Record<string, unknown> => p !== undefined)
+			.map((p) => ({
+				id: typeof p.id === "string" ? p.id : "",
+				absolutePath: typeof p.absolutePath === "string" ? p.absolutePath : "",
+				title: typeof p.title === "string" ? p.title : "",
+				summary: typeof p.summary === "string" ? p.summary : "",
+				tags: Array.isArray(p.tags) ? p.tags.filter((t): t is string => typeof t === "string") : [],
+			}));
+		const count = asFiniteNumber(details.count) ?? pages.length;
+		return { kind: "filter", count, pages };
+	}
+	if (Array.isArray(details.tags)) {
+		const tags = details.tags
+			.map((t) => asRecord(t))
+			.filter((t): t is Record<string, unknown> => t !== undefined)
+			.map((t) => ({
+				tag: typeof t.tag === "string" ? t.tag : "",
+				count: asFiniteNumber(t.count) ?? 0,
+			}));
+		return { kind: "tags", tags };
+	}
+	if (typeof details.action === "string" && typeof details.id === "string") {
+		return {
+			kind: "write",
+			action: details.action,
+			id: details.id,
+			absolutePath: typeof details.absolutePath === "string" ? details.absolutePath : "",
+			...(typeof details.movedFrom === "string" ? { movedFrom: details.movedFrom } : {}),
+		};
+	}
+	return undefined;
+}
+
+/**
+ * Parse card descriptors a tool emitted on its out-of-band `details.cards`.
+ * Each is `{ type, key?, payload?, title?, icon? }`; `type` selects a plugin
+ * card renderer host-side. Model-invisible — `details` never reaches the LLM.
+ */
+export function extractToolCards(result: unknown, details: unknown): CardDescriptor[] | undefined {
+	const resultRecord = asRecord(result);
+	const detailsRecord = asRecord(details) ?? asRecord(resultRecord?.details);
+	const raw = detailsRecord?.cards;
+	if (!Array.isArray(raw)) return undefined;
+	const cards: CardDescriptor[] = [];
+	for (const entry of raw) {
+		const record = asRecord(entry);
+		if (!record || typeof record.type !== "string" || record.type.length === 0) continue;
+		cards.push({
+			type: record.type,
+			...(typeof record.key === "string" ? { key: record.key } : {}),
+			...("payload" in record ? { payload: record.payload } : {}),
+			...(typeof record.title === "string" ? { title: record.title } : {}),
+			...(typeof record.icon === "string" ? { icon: record.icon } : {}),
+		});
+	}
+	return cards.length > 0 ? cards : undefined;
+}
+
+/** exit_plan_mode 的 details（{decision, plan?}）→ 计划卡片上的审批结论。 */
+function extractPlanReview(detailsRecord: Record<string, unknown>): PlanReviewResolution | undefined {
+	const { decision, plan } = detailsRecord;
+	if (decision !== "approve" && decision !== "revise" && decision !== "cancelled") return undefined;
+	return { decision, ...(typeof plan === "string" ? { plan } : {}) };
+}
+
+/** ask_user_question 的 details（{cancelled, answers}）→ transcript 富视图用的 resolution。 */
+function extractAskUserQuestion(detailsRecord: Record<string, unknown>): AskUserQuestionResolution | undefined {
+	if (typeof detailsRecord.cancelled !== "boolean" || !Array.isArray(detailsRecord.answers)) return undefined;
+	const answers = (detailsRecord.answers as Array<Record<string, unknown>>)
+		.filter((a) => a && typeof a.question === "string" && Array.isArray(a.answers))
+		.map((a) => ({
+			question: a.question as string,
+			answers: (a.answers as unknown[]).filter((x): x is string => typeof x === "string"),
+		}));
+	return { cancelled: detailsRecord.cancelled, answers };
+}
+
+/**
+ * Convert a stored assistant message's content array into ContentBlock[].
+ * Used for history loading only — tool_call blocks get status "success"
+ * because history messages are already complete.
+ */
+export function messageToBlocks(content: unknown, toolStatus: ToolCallBlock["status"] = "success"): ContentBlock[] {
+	if (typeof content === "string") {
+		return content ? [{ type: "text", id: nextId("blk"), text: content }] : [];
+	}
+	if (!Array.isArray(content)) return [];
+	const blocks: ContentBlock[] = [];
+	for (const part of content as Array<Record<string, unknown>>) {
+		if (part.type === "text" && typeof part.text === "string") {
+			blocks.push({ type: "text", id: nextId("blk"), text: part.text });
+		} else if (part.type === "thinking" && typeof part.thinking === "string") {
+			blocks.push({ type: "thinking", id: nextId("blk"), text: part.thinking });
+		} else if (part.type === "toolCall" && typeof part.name === "string" && part.name !== "") {
+			// Skip empty-name toolCall parts left behind by old provider parser bugs
+			// (OpenAI-compat placeholder frames produced ghost {id:"", name:""} blocks
+			// in some sessions). Showing them as unnamed tool blocks is meaningless
+			// and confuses users.
+			blocks.push({
+				type: "tool_call",
+				toolCallId: String(part.id ?? ""),
+				toolName: String(part.name),
+				args: (part.arguments as Record<string, unknown>) ?? {},
+				status: toolStatus,
+			});
+		}
+	}
+	return blocks;
+}
+
+/**
+ * 往历史回放的块列表里追加一条错误，连续同类的合并成一条并累加 repeated。
+ *
+ * 会话文件保留了自动重试期间每一次失败的 assistant message（见 coding-agent
+ * retry-controller「keep in session for history」），直译就是重开会话后一次限流
+ * 变成四五个一模一样的错误卡。live 链路那边由 runtime-core 的延迟发射解决，
+ * 历史这条路只能在这里折叠。
+ */
+function pushHistoryError(
+	blocks: ContentBlock[],
+	errorMessage: string,
+	turnId?: string,
+	details?: ChatErrorDetails,
+): void {
+	if (turnId) {
+		const existing = blocks.find((block) => block.type === "error" && block.turnId === turnId);
+		if (existing?.type === "error") {
+			existing.text = errorMessage;
+			if (details) existing.details = { ...existing.details, ...details };
+			return;
+		}
+		// The durable assistant error message is projected before turn.failed and
+		// cannot carry turnId in the shared Message contract. Bind the following
+		// durable turn failure to that immediately preceding error instead of
+		// counting the same provider failure twice on session restore.
+		const pending = blocks.at(-1);
+		if (pending?.type === "error" && pending.turnId === undefined && pending.text === errorMessage) {
+			pending.turnId = turnId;
+			if (details) pending.details = { ...pending.details, ...details };
+			return;
+		}
+	}
+	const kind = classifyChatError(errorMessage);
+	const last = blocks.at(-1);
+	if (last?.type === "error" && last.kind === kind) {
+		last.repeated = (last.repeated ?? 1) + 1;
+		// 末次错误往往信息最全（例如带上了配额重置时间），以它为准。
+		last.text = errorMessage;
+		if (details) last.details = { ...last.details, ...details };
+		return;
+	}
+	blocks.push({
+		type: "error",
+		id: nextId("blk"),
+		text: errorMessage,
+		kind,
+		...(turnId ? { turnId } : {}),
+		...(details ? { details } : {}),
+	});
+}
+
+interface DeferredHistoryError {
+	readonly target: ConversationAgentMessageViewModel;
+	readonly message: string;
+	readonly details?: ChatErrorDetails;
+}
+
+/**
+ * 历史里失败的 assistant 尝试先暂存：同一轮随后有正常结束的 assistant（自动重试成功、
+ * 上下文溢出压缩后重试成功）就丢弃，与 live 链路 runtime-core 延迟发射的表现一致；
+ * 到用户消息、持久化的 turn 失败或历史结尾仍未恢复，才落成错误卡。
+ */
+function createDeferredHistoryErrors() {
+	let pending: DeferredHistoryError[] = [];
+	return {
+		defer(error: DeferredHistoryError): void {
+			pending.push(error);
+		},
+		recover(): void {
+			pending = [];
+		},
+		flush(): void {
+			for (const { target, message, details } of pending) {
+				pushHistoryError(target.blocks!, message, undefined, details);
+				if (!target.text) target.text = message;
+			}
+			pending = [];
+		},
+	};
+}
+
+/**
+ * Convert history messages (user, assistant, toolResult) into ChatMessages.
+ * Tool results are merged into their corresponding tool_call blocks.
+ */
+export function historyToChat(
+	history: Array<{
+		role: string;
+		content: unknown;
+		timestamp?: number;
+		toolCallId?: string;
+		toolName?: string;
+		isError?: boolean;
+		errorMessage?: string;
+		stopReason?: string;
+		details?: unknown;
+		provider?: string;
+		model?: string;
+		usage?: Usage;
+	}>,
+): ChatConversationItem[] {
+	const messages: ChatConversationItem[] = [];
+	const toolCallIndex = new Map<string, ToolCallBlock>();
+	const historyErrors = createDeferredHistoryErrors();
+
+	/** Get or create the current assistant message to accumulate blocks into. */
+	function currentAssistant(): ConversationAgentMessageViewModel {
+		const last = messages.at(-1);
+		if (last?.kind === "agent") return last;
+		const msg = createConversationAgentMessage({
+			id: `hist-asst-${messages.length}`,
+			text: "",
+			blocks: [],
+		});
+		messages.push(msg);
+		return msg;
+	}
+
+	for (const m of history) {
+		if (m.role === "user") {
+			historyErrors.flush();
+			const text = extractText(m.content);
+			const parsedUser = parseUserPrefixes(text);
+			const legacyPromptRef: PromptResourceRef | undefined =
+				parsedUser.skillName && parsedUser.skillType
+					? { kind: parsedUser.skillType, name: parsedUser.skillName }
+					: undefined;
+			const userMsg = createConversationUserMessage({
+				id: `hist-user-${messages.length}`,
+				text,
+				promptRef: legacyPromptRef,
+				// Only absolute (panel/system) prefixes; hand-typed @text stays in body.
+				// Exclude image-cache so system images/appshot don't become file badges.
+				mentionedFiles: toMentionedFilesFromPrefixes(parsedUser.files),
+				timestamp: m.timestamp,
+			});
+			messages.push(userMsg);
+		} else if (m.role === "assistant") {
+			if (m.stopReason !== "error" && m.stopReason !== "aborted") historyErrors.recover();
+			// Merge consecutive assistant messages into one (same agent turn)
+			const target = currentAssistant();
+			if (target.timestamp === undefined) target.timestamp = m.timestamp;
+			if (m.usage) target.usages = [...(target.usages ?? []), m.usage];
+			const blocks = messageToBlocks(m.content, m.stopReason === "aborted" ? "cancelled" : "success");
+			for (const b of blocks) {
+				if (b.type === "tool_call") toolCallIndex.set(b.toolCallId, b);
+			}
+			target.blocks!.push(...blocks);
+			// Accumulate text
+			const text = extractText(m.content);
+			if (text) target.text = target.text ? `${target.text}\n${text}` : text;
+			// Handle error messages (e.g. provider 404)
+			if (m.stopReason === "error" && m.errorMessage) {
+				historyErrors.defer({
+					target,
+					message: m.errorMessage,
+					details: toChatErrorDetails({ details: m.details, provider: m.provider, modelId: m.model }),
+				});
+			}
+		} else if (m.role === "toolResult" && m.toolCallId) {
+			const block = toolCallIndex.get(String(m.toolCallId));
+			if (block) {
+				block.result = extractText(m.content);
+				block.imagePreviews = extractToolImagePreviews(m.content, m.details);
+				block.imagePreview = block.imagePreviews[0];
+				block.audioPreviews = extractToolAudioPreviews(m.content, m.details);
+				block.mcpApp = extractToolMcpApp(m.content, m.details);
+				block.uiDetails = extractToolUiDetails(m.content, m.details);
+				block.cards = extractToolCards(m.content, m.details);
+				block.isError = m.isError === true;
+				block.status = m.isError ? "error" : "success";
+			}
+		}
+	}
+	historyErrors.flush();
+	return messages;
+}
+
+/**
+ * Convert full history entries (including compaction boundaries) into ChatMessages.
+ * Unlike historyToChat, this preserves the complete conversation across compactions.
+ */
+export function fullHistoryToChat(entries: HistoryEntry[]): ChatConversationItem[] {
+	const messages: ChatConversationItem[] = [];
+	const toolCallIndex = new Map<string, ToolCallBlock>();
+	const historyErrors = createDeferredHistoryErrors();
+
+	function currentAssistant(): ConversationAgentMessageViewModel {
+		const last = messages.at(-1);
+		if (last?.kind === "agent") return last;
+		const msg = createConversationAgentMessage({
+			id: `hist-asst-${messages.length}`,
+			text: "",
+			blocks: [],
+		});
+		messages.push(msg);
+		return msg;
+	}
+
+	/** Next user message follows a settings-assist model-only instruction. */
+	let pendingSettingsAssistTabId: string | undefined;
+	/** Next user message follows a Skill / Scene expansion marker. */
+	let pendingPromptRef: PromptResourceRef | undefined;
+	/** Next user message carries structured filesystem attachments. */
+	let pendingAttachments: PromptAttachmentRef[] | undefined;
+
+	for (const entry of entries) {
+		if (entry.type === "compaction") {
+			pendingSettingsAssistTabId = undefined;
+			pendingPromptRef = undefined;
+			pendingAttachments = undefined;
+			messages.push({
+				kind: "event",
+				id: entry.entryId ?? `hist-compact-${messages.length}`,
+				entryId: entry.entryId,
+				event: { kind: "compaction", summary: entry.summary },
+				timestamp: new Date(entry.timestamp).getTime(),
+			});
+			continue;
+		}
+
+		if (entry.type === "custom_marker" && entry.customType === "settings_assist_instruction") {
+			const details = entry.details;
+			const tabId =
+				details && typeof details === "object" && !Array.isArray(details) && "tabId" in details
+					? details.tabId
+					: undefined;
+			pendingSettingsAssistTabId = typeof tabId === "string" ? tabId.trim() || "unknown" : "unknown";
+			continue;
+		}
+		if (entry.type === "custom_marker") continue;
+
+		if (entry.type === "prompt_ref_marker") {
+			pendingPromptRef = entry.promptRef;
+			continue;
+		}
+
+		if (entry.type === "prompt_attachments_marker") {
+			pendingAttachments = entry.attachments;
+			continue;
+		}
+
+		if (entry.type === "assistant_turn_timing") {
+			const { startedAt, endedAt, durationMs } = entry.timing;
+			let patchedAssistant = false;
+			for (let i = messages.length - 1; i >= 0; i--) {
+				const message = messages[i];
+				if (!patchedAssistant && message.kind === "agent") {
+					messages[i] = {
+						...message,
+						startedAt,
+						endedAt,
+						durationSeconds: durationMs / 1000,
+					};
+					patchedAssistant = true;
+					continue;
+				}
+				// 用户消息无独立持久化时间戳，用本轮开始时间近似其发送时刻。
+				if (message.kind === "user" && message.timestamp === undefined) {
+					messages[i] = { ...message, timestamp: startedAt };
+					break;
+				}
+			}
+			continue;
+		}
+
+		if (entry.type === "tool_timing") {
+			// Attach out-of-band timing to its matching tool_call block. UI-only;
+			// never round-trips into LLM context (see ADR 0001).
+			const block = toolCallIndex.get(entry.toolCallId);
+			if (block) {
+				block.startedAt = entry.startedAt;
+				block.durationMs = entry.durationMs;
+				block.phases = entry.phases.map((p) => ({ label: p.label, atMs: p.atMs }));
+			}
+			continue;
+		}
+
+		if (entry.type === "error") {
+			historyErrors.flush();
+			const target = currentAssistant();
+			pushHistoryError(
+				target.blocks!,
+				entry.message,
+				entry.turnId,
+				toChatErrorDetails({
+					code: entry.code,
+					origin: entry.origin,
+					retryable: entry.retryable,
+					details: entry.details,
+				}),
+			);
+			if (!target.text) target.text = entry.message;
+			if (target.timestamp === undefined) target.timestamp = new Date(entry.timestamp).getTime();
+			continue;
+		}
+
+		const m = entry.message as {
+			role: string;
+			content: unknown;
+			toolCallId?: string;
+			toolName?: string;
+			isError?: boolean;
+			errorMessage?: string;
+			stopReason?: string;
+			details?: unknown;
+			provider?: string;
+			model?: string;
+			usage?: Usage;
+			timestamp?: number;
+		};
+
+		if (m.role === "user") {
+			historyErrors.flush();
+			const text = extractText(m.content);
+			const parsedUser = parseUserPrefixes(text);
+			const legacyPromptRef: PromptResourceRef | undefined =
+				parsedUser.skillName && parsedUser.skillType
+					? { kind: parsedUser.skillType, name: parsedUser.skillName }
+					: undefined;
+			const entryId = entry.type === "message" ? entry.entryId : undefined;
+			const parentId = entry.type === "message" ? entry.parentId : undefined;
+			const branch = entry.type === "message" ? entry.branch : undefined;
+			const userMsg = createConversationUserMessage({
+				id: entryId ?? `hist-user-${messages.length}`,
+				entryId,
+				parentId,
+				branch: branch ? { siblings: branch.siblings, index: branch.index } : undefined,
+				text,
+				promptRef: pendingPromptRef ?? legacyPromptRef,
+				attachments: pendingAttachments,
+				timestamp: m.timestamp,
+				// Only absolute (panel/system) prefixes; hand-typed @text stays in body.
+				// Exclude image-cache so system images/appshot don't become file badges.
+				mentionedFiles: toMentionedFilesFromPrefixes(parsedUser.files),
+			});
+			if (pendingSettingsAssistTabId) {
+				userMsg.settingsAssistTabId = pendingSettingsAssistTabId;
+				pendingSettingsAssistTabId = undefined;
+			}
+			pendingPromptRef = undefined;
+			pendingAttachments = undefined;
+			messages.push(userMsg);
+		} else if (m.role === "assistant") {
+			if (m.stopReason !== "error" && m.stopReason !== "aborted") historyErrors.recover();
+			pendingSettingsAssistTabId = undefined;
+			pendingPromptRef = undefined;
+			pendingAttachments = undefined;
+			const entryId = entry.type === "message" ? entry.entryId : undefined;
+			const target = currentAssistant();
+			if (m.usage) target.usages = [...(target.usages ?? []), m.usage];
+			if (target.timestamp === undefined && m.timestamp !== undefined) target.timestamp = m.timestamp;
+			// Prefer first assistant entry id for the merged bubble when not set yet.
+			if (entryId && !target.entryId) {
+				target.entryId = entryId;
+				target.id = entryId;
+			}
+			const blocks = messageToBlocks(m.content, m.stopReason === "aborted" ? "cancelled" : "success");
+			for (const b of blocks) {
+				if (b.type === "tool_call") toolCallIndex.set(b.toolCallId, b);
+			}
+			target.blocks!.push(...blocks);
+			const text = extractText(m.content);
+			if (text) target.text = target.text ? `${target.text}\n${text}` : text;
+			if (m.stopReason === "error" && m.errorMessage) {
+				historyErrors.defer({
+					target,
+					message: m.errorMessage,
+					details: toChatErrorDetails({ details: m.details, provider: m.provider, modelId: m.model }),
+				});
+			}
+			// 回填本轮 user 消息实际使用的模型：从末尾向前找到第一条尚未标注 model 的 user 消息。
+			if (m.provider && m.model) {
+				for (let i = messages.length - 1; i >= 0; i--) {
+					const message = messages[i];
+					if (message.kind === "user" && message.model === undefined) {
+						messages[i] = { ...message, model: { provider: m.provider, id: m.model } };
+						break;
+					}
+				}
+			}
+		} else if (m.role === "toolResult" && m.toolCallId) {
+			const block = toolCallIndex.get(String(m.toolCallId));
+			if (block) {
+				block.result = extractText(m.content);
+				block.imagePreviews = extractToolImagePreviews(m.content, m.details);
+				block.imagePreview = block.imagePreviews[0];
+				block.audioPreviews = extractToolAudioPreviews(m.content, m.details);
+				block.mcpApp = extractToolMcpApp(m.content, m.details);
+				block.uiDetails = extractToolUiDetails(m.content, m.details);
+				block.cards = extractToolCards(m.content, m.details);
+				block.isError = m.isError === true;
+				block.status = m.isError ? "error" : "success";
+			}
+		}
+	}
+	historyErrors.flush();
+	return messages;
+}
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// Streaming state — module-level to survive React StrictMode double-invoke
+// ═══════════════════════════════════════════════════════════════════════════════
+
+export let currentUnsubscribe: (() => void) | null = null;
+export function setCurrentUnsubscribe(fn: (() => void) | null): void {
+	currentUnsubscribe = fn;
+}
+
+// 谁「拥有」全局唯一的聊天消息流（chatMessagesAtom）。
+// 必须是模块级：生产路径只在 RootLayout 挂一份 useSessionManager，但打开过程中
+// 仍可能有旧订阅尾事件；每份实例的 activeSessionRef 只记得「它自己最后打开的会话」，
+// 代表不了用户当前看到的会话。
+// openSession 一进入就置空，直到新会话真正接管；这段窗口里上一个会话仍在飞的事件
+// （订阅拆除前的路由切换、已排期的 delta flush）就不会写进新会话的消息流。
+let chatStreamOwner: string | null = null;
+export function getChatStreamOwner(): string | null {
+	return chatStreamOwner;
+}
+export function setChatStreamOwner(runtimeId: string | null): void {
+	chatStreamOwner = runtimeId;
+}
+
+// 调用令牌：openSession 是一段串行 await，期间用户可能再次切换 session，
+// 第二个 openSession 会在第一个尚未把 unsub 写入 currentUnsubscribe 时就完成
+// 自己的 teardown（teardown 时 currentUnsubscribe 还是 null，什么都拆不掉），
+// 然后两个 subscribe 都成功 → 后者覆盖前者，前者的 IPC 监听器永远泄漏。
+// 每次进入 openSession 调用 bumpOpenSessionToken() 拿到自己的 token，在 await
+// 完 subscribe() 后再校验一次 token，发现被超越就立刻 unsub 自己创建的订阅。
+let openSessionToken = 0;
+export function bumpOpenSessionToken(): number {
+	return ++openSessionToken;
+}
+export function getOpenSessionToken(): number {
+	return openSessionToken;
+}
+
+function requireAgentMessage(item: ChatConversationItem | undefined): ConversationAgentMessageViewModel {
+	if (item?.kind !== "agent") throw new Error("Expected an Agent conversation message");
+	return item;
+}
+
+/**
+ * ID of the current "draft" assistant message being streamed.
+ * - Set when the first delta (text or thinking) of a turn arrives.
+ * - Cleared when message.final finalizes the message.
+ */
+let draftId: string | null = null;
+
+/** Monotonically increasing counter for unique message IDs. */
+let idCounter = 0;
+export function nextId(prefix: string): string {
+	return `${prefix}-${++idCounter}-${Date.now()}`;
+}
+
+/** Per-session cache for turn stats (survives session switching). Key = sessionPath. */
+export const turnStatsCache = new Map<string, { outputSpeed: number; durationSeconds: number }>();
+
+/** Reset streaming state (when switching sessions). */
+export function resetStreamState(): void {
+	draftId = null;
+}
+
+function activateAssistantTurn(
+	prev: ChatConversationItem[],
+	startedAt: number,
+	restorePendingTools: boolean,
+): ChatConversationItem[] {
+	const last = prev.at(-1);
+	if (last?.kind !== "agent") {
+		return ensureDraft(prev, startedAt)[0];
+	}
+	// The renderer may create the assistant draft before runtime agent_start.
+	// The later event adopts that draft; it must not reset the visible timer.
+	if (last.phase === "streaming" && last.endedAt === undefined) {
+		draftId = last.id;
+		return prev;
+	}
+
+	draftId = last.id;
+	const blocks = restorePendingTools
+		? last.blocks?.map((block) =>
+				block.type === "tool_call" && block.result === undefined ? { ...block, status: "pending" as const } : block,
+			)
+		: last.blocks;
+	const copy = [...prev];
+	copy[copy.length - 1] = {
+		...last,
+		phase: "streaming",
+		startedAt,
+		timestamp: last.timestamp ?? startedAt,
+		endedAt: undefined,
+		durationSeconds: undefined,
+		blocks,
+	};
+	return copy;
+}
+
+/** Project agent_start into the message list before the provider emits its first content event. */
+export function startAssistantTurn(prev: ChatConversationItem[], startedAt: number): ChatConversationItem[] {
+	return activateAssistantTurn(prev, startedAt, false);
+}
+
+/** Restore the live assistant draft and unresolved tool state after switching back to a running session. */
+export function restoreAssistantTurn(prev: ChatConversationItem[], startedAt: number): ChatConversationItem[] {
+	return activateAssistantTurn(prev, startedAt, true);
+}
+
+/** Absolute start time for the assistant draft that currently owns the tail of the conversation. */
+export function getActiveAssistantTurnStartedAt(messages: ChatConversationItem[]): number | undefined {
+	const last = messages.at(-1);
+	return last?.kind === "agent" && last.endedAt === undefined ? last.startedAt : undefined;
+}
+
+/** Finish the current assistant turn using its message-owned absolute start time. */
+export function finishAssistantTurn(prev: ChatConversationItem[], endedAt: number): ChatConversationItem[] {
+	for (let index = prev.length - 1; index >= 0; index--) {
+		const message = prev[index];
+		if (message.kind !== "agent" || message.startedAt === undefined || message.endedAt !== undefined) continue;
+		const copy = [...prev];
+		copy[index] = {
+			...message,
+			phase: message.blocks.some((block) => block.type === "error") ? "failed" : "completed",
+			endedAt,
+			durationSeconds: Math.max(0, endedAt - message.startedAt) / 1000,
+		};
+		return copy;
+	}
+	return prev;
+}
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// Immutable state update helpers
+// ═══════════════════════════════════════════════════════════════════════════════
+
+/**
+ * Ensure a draft assistant message exists for the current turn.
+ * Returns [newMessages, draftIndex]. Creates a new draft if needed.
+ */
+export function ensureDraft(
+	prev: ChatConversationItem[],
+	startedAt: number = Date.now(),
+): [ChatConversationItem[], number] {
+	if (draftId) {
+		// Find existing draft
+		for (let i = prev.length - 1; i >= 0; i--) {
+			if (prev[i].id === draftId) {
+				return [[...prev], i];
+			}
+		}
+		// Draft ID is stale — fall through to create new
+	}
+
+	// Create new draft
+	const id = nextId("draft");
+	draftId = id;
+	const draftTimestamp = startedAt;
+	const draft = createConversationAgentMessage({
+		id,
+		phase: "streaming",
+		text: "",
+		blocks: [],
+		timestamp: draftTimestamp,
+		startedAt: draftTimestamp,
+	});
+	const copy = [...prev, draft];
+	return [copy, copy.length - 1];
+}
+
+/**
+ * Append a text delta to a draft message's last text block (or create one).
+ */
+export function appendTextDelta(prev: ChatConversationItem[], delta: string): ChatConversationItem[] {
+	const [msgs, idx] = ensureDraft(prev);
+	const msg = requireAgentMessage(msgs[idx]);
+	const blocks = [...msg.blocks];
+	const last = blocks.at(-1);
+
+	if (last?.type === "text") {
+		blocks[blocks.length - 1] = { ...last, text: last.text + delta };
+	} else {
+		blocks.push({ type: "text", id: nextId("blk"), text: delta });
+	}
+
+	msgs[idx] = { ...msg, text: `${msg.text ?? ""}${delta}`, blocks };
+	return msgs;
+}
+
+/**
+ * Append a thinking delta to a draft message's last thinking block (or create one).
+ */
+export function appendThinkingDelta(prev: ChatConversationItem[], delta: string): ChatConversationItem[] {
+	const [msgs, idx] = ensureDraft(prev);
+	const msg = requireAgentMessage(msgs[idx]);
+	const blocks = [...msg.blocks];
+	const last = blocks.at(-1);
+
+	if (last?.type === "thinking") {
+		blocks[blocks.length - 1] = { ...last, text: last.text + delta };
+	} else {
+		blocks.push({ type: "thinking", id: nextId("blk"), text: delta });
+	}
+
+	msgs[idx] = { ...msg, blocks };
+	return msgs;
+}
+
+/**
+ * Finalize the current draft with the complete message content.
+ *
+ * An agent turn can produce multiple message.final events (one per LLM call
+ * in the agent loop). All content accumulates into a single assistant message.
+ *
+ * Strategy:
+ * - Keep ALL existing blocks on the message (from previous LLM calls in this turn).
+ * - The current LLM call's content was already streamed via deltas, so the
+ *   blocks are already present. We use the final message to ensure tool_call
+ *   blocks exist with correct args.
+ * - draftId is NOT cleared here — it persists until resetStreamState() at agent_end.
+ */
+export function finalizeMessage(prev: ChatConversationItem[], content: unknown, usage?: Usage): ChatConversationItem[] {
+	const copy = [...prev];
+
+	// Parse tool calls from the final message
+	const finalToolCalls: Array<{ id: string; name: string; args: Record<string, unknown> }> = [];
+	if (Array.isArray(content)) {
+		for (const part of content as Array<Record<string, unknown>>) {
+			if (part.type === "toolCall" && typeof part.name === "string") {
+				finalToolCalls.push({
+					id: String(part.id ?? ""),
+					name: String(part.name),
+					args: (part.arguments as Record<string, unknown>) ?? {},
+				});
+			}
+		}
+	}
+
+	// Find the target message (draft or last assistant)
+	let targetIdx = -1;
+	if (draftId) {
+		for (let i = copy.length - 1; i >= 0; i--) {
+			if (copy[i].id === draftId) {
+				targetIdx = i;
+				break;
+			}
+		}
+	}
+	if (targetIdx === -1) {
+		// No draft — find last assistant message or create one
+		for (let i = copy.length - 1; i >= 0; i--) {
+			if (copy[i].kind === "agent") {
+				targetIdx = i;
+				break;
+			}
+		}
+		if (targetIdx === -1) {
+			const id = nextId("final");
+			draftId = id;
+			const draftTimestamp = Date.now();
+			copy.push(
+				createConversationAgentMessage({
+					id,
+					phase: "streaming",
+					text: "",
+					blocks: [],
+					timestamp: draftTimestamp,
+					startedAt: draftTimestamp,
+				}),
+			);
+			targetIdx = copy.length - 1;
+		}
+	}
+
+	const msg = requireAgentMessage(copy[targetIdx]);
+	const blocks = [...msg.blocks];
+
+	// Collect existing tool_call IDs
+	const existingToolIds = new Set<string>();
+	for (const b of blocks) {
+		if (b.type === "tool_call") existingToolIds.add(b.toolCallId);
+	}
+
+	// Merge tool calls: update existing or add new
+	for (const tc of finalToolCalls) {
+		if (existingToolIds.has(tc.id)) {
+			const idx = blocks.findIndex((b) => b.type === "tool_call" && b.toolCallId === tc.id);
+			if (idx !== -1) {
+				const existing = blocks[idx] as ToolCallBlock;
+				if (Object.keys(existing.args).length === 0 && Object.keys(tc.args).length > 0) {
+					blocks[idx] = { ...existing, args: tc.args };
+				}
+			}
+		} else {
+			blocks.push({
+				type: "tool_call",
+				toolCallId: tc.id,
+				toolName: tc.name,
+				args: tc.args,
+				status: "pending",
+			});
+		}
+	}
+
+	// Update text from all text blocks
+	const text = blocks
+		.filter((b) => b.type === "text")
+		.map((b) => (b as { text: string }).text)
+		.join("");
+
+	copy[targetIdx] = {
+		...msg,
+		text,
+		blocks,
+		...(usage ? { usages: [...(msg.usages ?? []), usage] } : {}),
+	};
+
+	// Do NOT clear draftId — the agent turn may continue with more LLM calls.
+	// draftId is cleared by resetStreamState() at agent_start/agent_end.
+	return copy;
+}
+
+/**
+ * Handle tool.start: find or create a tool_call block on the last assistant message.
+ */
+export function handleToolStart(
+	prev: ChatConversationItem[],
+	toolCallId: string,
+	toolName: string,
+	args: Record<string, unknown>,
+	startedAt?: number,
+): ChatConversationItem[] {
+	// First: search for a finalized message from the current turn (not a draft)
+	// or the current draft. We only want to attach to the LAST assistant message
+	// that belongs to the current turn, not older history messages.
+	const lastMsg = prev.length > 0 ? prev[prev.length - 1] : null;
+
+	// If the last message is an assistant message, attach to it
+	if (lastMsg?.kind === "agent") {
+		const blocks = [...lastMsg.blocks];
+
+		// Check if this tool_call block already exists (from toolcall.start or message.final)
+		const existing = blocks.findIndex((b) => b.type === "tool_call" && b.toolCallId === toolCallId);
+		if (existing !== -1) {
+			const block = blocks[existing] as ToolCallBlock;
+			const argsChanged = Object.keys(args).length > 0 && block.args !== args;
+			const startedAtChanged = startedAt !== undefined && block.startedAt === undefined;
+			if (argsChanged || startedAtChanged) {
+				blocks[existing] = {
+					...block,
+					args: argsChanged ? args : block.args,
+					startedAt: startedAtChanged ? startedAt : block.startedAt,
+				};
+				const copy = [...prev];
+				copy[copy.length - 1] = { ...lastMsg, blocks };
+				return copy;
+			}
+			return prev;
+		}
+
+		blocks.push({
+			type: "tool_call",
+			toolCallId,
+			toolName,
+			args,
+			status: "pending",
+			startedAt,
+		});
+
+		const copy = [...prev];
+		copy[copy.length - 1] = { ...lastMsg, blocks };
+		return copy;
+	}
+
+	// No recent assistant message — use ensureDraft to keep one turn = one message
+	const [msgs, idx] = ensureDraft(prev);
+	const msg = requireAgentMessage(msgs[idx]);
+	const blocks = [...msg.blocks];
+	blocks.push({
+		type: "tool_call",
+		toolCallId,
+		toolName,
+		args,
+		status: "pending",
+		startedAt,
+	});
+	msgs[idx] = { ...msg, blocks };
+	return msgs;
+}
+
+/**
+ * Handle tool.end: find the matching tool_call block and update it with the result.
+ */
+export function handleToolEnd(
+	prev: ChatConversationItem[],
+	toolCallId: string,
+	result: unknown,
+	isError: boolean,
+	timing?: { startedAt: number; durationMs: number; phases: Array<{ label: string; atMs: number }> },
+): ChatConversationItem[] {
+	const resultText = extractResultText(result);
+	const imagePreviews = extractToolImagePreviews(result, undefined);
+	const imagePreview = imagePreviews[0];
+	const audioPreviews = extractToolAudioPreviews(result, undefined);
+	const mcpApp = extractToolMcpApp(result, undefined);
+	const uiDetails = extractToolUiDetails(result, undefined);
+	const cards = extractToolCards(result, undefined);
+
+	// Search backwards for the matching tool_call block
+	for (let i = prev.length - 1; i >= 0; i--) {
+		const msg = prev[i];
+		if (msg.kind !== "agent") continue;
+
+		const blockIdx = msg.blocks.findIndex((b) => b.type === "tool_call" && b.toolCallId === toolCallId);
+		if (blockIdx === -1) continue;
+
+		const copy = [...prev];
+		const blocks = [...msg.blocks];
+		const block = blocks[blockIdx] as ToolCallBlock;
+		blocks[blockIdx] = {
+			...block,
+			status: isError ? "error" : "success",
+			result: resultText,
+			imagePreview,
+			imagePreviews,
+			audioPreviews,
+			mcpApp,
+			uiDetails,
+			cards,
+			isError,
+			startedAt: timing?.startedAt ?? block.startedAt,
+			durationMs: timing?.durationMs ?? block.durationMs,
+			phases: timing?.phases ?? block.phases,
+			// Clear currentPhase — execution is over, the badge is no longer "live".
+			currentPhase: undefined,
+		};
+		copy[i] = { ...msg, blocks };
+		return copy;
+	}
+
+	return prev;
+}
+
+/**
+ * Handle tool.phase: append a phase boundary to the matching tool_call block
+ * while it's still streaming, and mark it as the live "currentPhase" for header
+ * display. Both are out-of-band metadata — never sent to the LLM.
+ */
+export function handleToolPhase(
+	prev: ChatConversationItem[],
+	toolCallId: string,
+	label: string,
+	atMs: number,
+): ChatConversationItem[] {
+	for (let i = prev.length - 1; i >= 0; i--) {
+		const msg = prev[i];
+		if (msg.kind !== "agent") continue;
+
+		const blockIdx = msg.blocks.findIndex((b) => b.type === "tool_call" && b.toolCallId === toolCallId);
+		if (blockIdx === -1) continue;
+
+		const copy = [...prev];
+		const blocks = [...msg.blocks];
+		const block = blocks[blockIdx] as ToolCallBlock;
+		blocks[blockIdx] = {
+			...block,
+			phases: [...(block.phases ?? []), { label, atMs }],
+			currentPhase: label,
+		};
+		copy[i] = { ...msg, blocks };
+		return copy;
+	}
+
+	return prev;
+}
+
+/**
+ * Append an error block to the current draft assistant message.
+ *
+ * @param attempts 这条错误发出前自动重试过的次数（runtime-core 随 error 事件带出）。
+ */
+export function appendError(
+	prev: ChatConversationItem[],
+	errorMessage: string,
+	attempts?: number,
+	turnId?: string,
+	details?: ChatErrorDetails,
+): ChatConversationItem[] {
+	const [msgs, idx] = ensureDraft(prev);
+	const msg = requireAgentMessage(msgs[idx]);
+	const blocks = [...msg.blocks];
+	if (turnId) {
+		const existingIndex = blocks.findIndex((block) => block.type === "error" && block.turnId === turnId);
+		const existing = existingIndex >= 0 ? blocks[existingIndex] : undefined;
+		if (existing?.type === "error") {
+			blocks[existingIndex] = {
+				...existing,
+				text: errorMessage,
+				...(attempts ? { attempts } : {}),
+				...(details ? { details: { ...existing.details, ...details } } : {}),
+			};
+			msgs[idx] = { ...msg, text: msg.text || errorMessage, blocks };
+			return msgs;
+		}
+	}
+	blocks.push({
+		type: "error",
+		id: nextId("blk"),
+		...(turnId ? { turnId } : {}),
+		text: errorMessage,
+		kind: classifyChatError(errorMessage),
+		...(attempts ? { attempts } : {}),
+		...(details ? { details } : {}),
+	});
+	msgs[idx] = { ...msg, text: msg.text || errorMessage, blocks };
+	return msgs;
+}
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// Ref-based variants (for components that manage their own draft state)
+// ═══════════════════════════════════════════════════════════════════════════════
+
+function ensureDraftWithRef(
+	prev: ChatConversationItem[],
+	draftIdRef: { current: string | null },
+): [ChatConversationItem[], number] {
+	if (draftIdRef.current) {
+		for (let i = prev.length - 1; i >= 0; i--) {
+			if (prev[i].id === draftIdRef.current) {
+				return [[...prev], i];
+			}
+		}
+	}
+	const id = nextId("draft");
+	draftIdRef.current = id;
+	const draftTimestamp = Date.now();
+	const draft = createConversationAgentMessage({
+		id,
+		phase: "streaming",
+		text: "",
+		blocks: [],
+		timestamp: draftTimestamp,
+		startedAt: draftTimestamp,
+	});
+	const copy = [...prev, draft];
+	return [copy, copy.length - 1];
+}
+
+export function clearDraftMessage(
+	prev: ChatConversationItem[],
+	draftIdRef: { current: string | null },
+): ChatConversationItem[] {
+	const did = draftIdRef.current;
+	if (!did) return prev;
+	const idx = prev.findIndex((m) => m.id === did);
+	if (idx === -1) return prev;
+	const copy = [...prev];
+	copy.splice(idx, 1);
+	draftIdRef.current = null;
+	return copy;
+}
+
+export function appendTextDeltaWithRef(
+	prev: ChatConversationItem[],
+	delta: string,
+	draftIdRef: { current: string | null },
+): ChatConversationItem[] {
+	const [msgs, idx] = ensureDraftWithRef(prev, draftIdRef);
+	const msg = requireAgentMessage(msgs[idx]);
+	const blocks = [...msg.blocks];
+	const last = blocks.at(-1);
+	if (last?.type === "text") {
+		blocks[blocks.length - 1] = { ...last, text: last.text + delta };
+	} else {
+		blocks.push({ type: "text", id: nextId("blk"), text: delta });
+	}
+	msgs[idx] = { ...msg, text: `${msg.text ?? ""}${delta}`, blocks };
+	return msgs;
+}
+
+export function appendThinkingDeltaWithRef(
+	prev: ChatConversationItem[],
+	delta: string,
+	draftIdRef: { current: string | null },
+): ChatConversationItem[] {
+	const [msgs, idx] = ensureDraftWithRef(prev, draftIdRef);
+	const msg = requireAgentMessage(msgs[idx]);
+	const blocks = [...msg.blocks];
+	const last = blocks.at(-1);
+	if (last?.type === "thinking") {
+		blocks[blocks.length - 1] = { ...last, text: last.text + delta };
+	} else {
+		blocks.push({ type: "thinking", id: nextId("blk"), text: delta });
+	}
+	msgs[idx] = { ...msg, blocks };
+	return msgs;
+}

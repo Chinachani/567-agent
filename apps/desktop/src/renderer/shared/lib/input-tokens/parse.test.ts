@@ -1,0 +1,272 @@
+import { describe, expect, it } from "vitest";
+import { parseInputSegments } from "./parse";
+import { MultipleSceneReferencesError, prepareInputPrompt } from "./prepare";
+import {
+	deriveAttachments,
+	deriveSceneNames,
+	deriveSkillNames,
+	pathTokenText,
+	segmentsToText,
+	serializeInputSegments,
+} from "./serialize";
+import type { InputSegment } from "./types";
+
+describe("parseInputSegments", () => {
+	it("成员 Token 保持 Markdown 正文并产出稳定身份与精确区间", () => {
+		const serialized = serializeInputSegments([
+			{ kind: "text", text: "**请** " },
+			{ kind: "member", memberId: "member-2", handle: "research", label: "Research" },
+			{ kind: "text", text: " 核查" },
+		]);
+		expect(serialized).toEqual({
+			text: "**请** @research 核查",
+			memberMentions: [{ participantId: "member-2", handle: "research", start: 6, end: 15 }],
+			tokens: [
+				{
+					kind: "member",
+					participantId: "member-2",
+					handle: "research",
+					start: 6,
+					end: 15,
+				},
+			],
+		});
+		expect(parseInputSegments(serialized.text).segments).toEqual([{ kind: "text", text: "**请** @research 核查" }]);
+	});
+
+	it("穿插在文本流里的 skill 与文件 token 各自成段", () => {
+		const { segments, legacyRef } = parseInputSegments("@skill:review 你好，帮我检查 @/Users/a/b.ts 有没有问题");
+		expect(legacyRef).toBeNull();
+		expect(segments).toEqual([
+			{ kind: "skill", name: "review" },
+			{ kind: "text", text: " 你好，帮我检查 " },
+			{ kind: "file", path: "/Users/a/b.ts" },
+			{ kind: "text", text: " 有没有问题" },
+		]);
+	});
+
+	it("同一条消息里可以有多个 skill token", () => {
+		const { segments } = parseInputSegments("@skill:review 检查完就 @skill:upload 上传");
+		expect(deriveSkillNames(segments)).toEqual(["review", "upload"]);
+	});
+
+	it("scene 使用独立命名空间并保留在文本流结构中", () => {
+		const { segments } = parseInputSegments("@scene:review 审查这些材料");
+		expect(deriveSceneNames(segments)).toEqual(["review"]);
+		expect(segments).toEqual([
+			{ kind: "scene", name: "review" },
+			{ kind: "text", text: " 审查这些材料" },
+		]);
+	});
+
+	it("连接器走 @mcp: 命名空间，与手敲的 @词 区分开", () => {
+		const { segments } = parseInputSegments("用 @mcp:notion 查一下 @notion 这个词");
+		expect(segments).toEqual([
+			{ kind: "text", text: "用 " },
+			{ kind: "connector", name: "notion" },
+			{ kind: "text", text: " 查一下 @notion 这个词" },
+		]);
+		expect(segmentsToText(segments)).toBe("用 @mcp:notion 查一下 @notion 这个词");
+	});
+
+	it("中文名与带空格的路径用引号包裹", () => {
+		const { segments } = parseInputSegments('@skill:"审查文件" 看 @"/Users/a/my file.ts"');
+		expect(segments).toEqual([
+			{ kind: "skill", name: "审查文件" },
+			{ kind: "text", text: " 看 " },
+			{ kind: "file", path: "/Users/a/my file.ts" },
+		]);
+	});
+
+	it("图片扩展名归为 image 段", () => {
+		const { segments } = parseInputSegments("@/tmp/shot.PNG");
+		expect(segments).toEqual([{ kind: "image", path: "/tmp/shot.PNG" }]);
+	});
+
+	it("裸路径末尾的句读留给句子，不算进路径", () => {
+		const { segments } = parseInputSegments("看下 @/Users/a/b.ts。还有别的吗？");
+		expect(segments).toEqual([
+			{ kind: "text", text: "看下 " },
+			{ kind: "file", path: "/Users/a/b.ts" },
+			{ kind: "text", text: "。还有别的吗？" },
+		]);
+	});
+
+	it("非绝对路径与词中的 @ 一律保持文本", () => {
+		const text = "联系 a@b.com 或看 @relative/path 以及 arr@idx";
+		const { segments } = parseInputSegments(text);
+		expect(segments).toEqual([{ kind: "text", text }]);
+	});
+
+	it("Windows 盘符与 UNC 路径识别为文件", () => {
+		const { segments } = parseInputSegments("@C:/tmp/a.txt 和 @//share/b.txt");
+		expect(segments.filter((s) => s.kind === "file")).toEqual([
+			{ kind: "file", path: "C:/tmp/a.txt" },
+			{ kind: "file", path: "//share/b.txt" },
+		]);
+	});
+
+	it("旧会话的行首前缀还原成 legacyRef 与开头的 token", () => {
+		const { segments, legacyRef } = parseInputSegments("/scene:release\n@/Users/a/b.ts\n@/tmp/shot.png\n帮我发版");
+		expect(legacyRef).toEqual({ kind: "scene", name: "release" });
+		expect(segments).toEqual([
+			{ kind: "file", path: "/Users/a/b.ts" },
+			{ kind: "image", path: "/tmp/shot.png" },
+			{ kind: "text", text: "帮我发版" },
+		]);
+	});
+
+	it("旧格式里手敲的 @ 行不当附件，留在正文", () => {
+		const { segments, legacyRef } = parseInputSegments("/skill:review\n@这不是路径\n继续");
+		expect(legacyRef).toEqual({ kind: "skill", name: "review" });
+		expect(segments).toEqual([{ kind: "text", text: "@这不是路径\n继续" }]);
+	});
+});
+
+describe("segmentsToText", () => {
+	it("往返后 segments 不变；只在含空白时才加引号", () => {
+		const text = '@skill:"审查文件" 检查 @/Users/a/b.ts 然后 @skill:upload 上传 @"/Users/a/my file.ts"';
+		const { segments } = parseInputSegments(text);
+		const roundTripped = segmentsToText(segments);
+		// 中文名不含空白，回写时不再需要引号；语义等价即可，不要求字面相同。
+		expect(roundTripped).toBe('@skill:审查文件 检查 @/Users/a/b.ts 然后 @skill:upload 上传 @"/Users/a/my file.ts"');
+		expect(parseInputSegments(roundTripped).segments).toEqual(segments);
+	});
+
+	it("scene token 可以往返序列化", () => {
+		const segments: InputSegment[] = [
+			{ kind: "scene", name: "review" },
+			{ kind: "text", text: " 开始审查" },
+		];
+		const text = segmentsToText(segments);
+		expect(parseInputSegments(text).segments).toEqual(segments);
+	});
+
+	it("scene token 与紧随其后的正文补出边界，正文不会并入场景名称", () => {
+		const text = segmentsToText([
+			{ kind: "scene", name: "review" },
+			{ kind: "text", text: "看到我的东西了吗" },
+		]);
+		expect(parseInputSegments(text).segments).toEqual([
+			{ kind: "scene", name: "review" },
+			{ kind: "text", text: " 看到我的东西了吗" },
+		]);
+	});
+
+	it("紧邻的 token 之间补空格，保证能被回读", () => {
+		const segments: InputSegment[] = [
+			{ kind: "skill", name: "review" },
+			{ kind: "file", path: "/a/b.ts" },
+			{ kind: "image", path: "/a/c.png" },
+		];
+		const text = segmentsToText(segments);
+		expect(text).toBe("@skill:review @/a/b.ts @/a/c.png");
+		// 补出来的空格是真实文本，回读时如实出现在段之间。
+		expect(parseInputSegments(text).segments).toEqual([
+			segments[0],
+			{ kind: "text", text: " " },
+			segments[1],
+			{ kind: "text", text: " " },
+			segments[2],
+		]);
+	});
+
+	it("Windows 反斜杠路径写成正斜杠，避免 markdown 吃掉 \\.", () => {
+		const path = "C:\\Users\\foo\\.vetta\\image-cache\\s\\a.png";
+		expect(pathTokenText(path)).toBe("@C:/Users/foo/.vetta/image-cache/s/a.png");
+		const text = segmentsToText([{ kind: "image", path }]);
+		expect(text).toBe("@C:/Users/foo/.vetta/image-cache/s/a.png");
+		expect(parseInputSegments(text).segments).toEqual([
+			{ kind: "image", path: "C:/Users/foo/.vetta/image-cache/s/a.png" },
+		]);
+	});
+});
+
+describe("prepareInputPrompt", () => {
+	it("发送时优先保留编辑器快照，不把普通 png 文件重新猜成图片", () => {
+		const segments: InputSegment[] = [
+			{ kind: "text", text: "  检查 " },
+			{ kind: "file", path: "C:/workspace/screenshot.png" },
+			{ kind: "text", text: "然后调整间距  " },
+		];
+		const text = segmentsToText(segments);
+
+		expect(prepareInputPrompt(text.trim(), segments)).toEqual({
+			text: text.trim(),
+			segments: [
+				{ kind: "text", text: "检查 " },
+				{ kind: "file", path: "C:/workspace/screenshot.png" },
+				{ kind: "text", text: "然后调整间距" },
+			],
+		});
+	});
+
+	it("结构化快照保留目录、成员与能力展示元数据", () => {
+		const segments: InputSegment[] = [
+			{ kind: "scene", name: "review", alias: "审查", icon: "scene.svg" },
+			{ kind: "skill", name: "legal", alias: "法务", icon: "skill.svg" },
+			{ kind: "connector", name: "notion", label: "Notion", iconUrl: "notion.svg" },
+			{ kind: "file", path: "C:/workspace/assets", isDirectory: true },
+			{
+				kind: "member",
+				memberId: "member-1",
+				handle: "architect",
+				label: "Architect",
+				avatar: "architect.webp",
+			},
+			{ kind: "text", text: "\n开始" },
+		];
+		const prepared = prepareInputPrompt(segmentsToText(segments), segments);
+
+		expect(prepared.segments).toEqual(segments);
+		expect(prepared.sceneName).toBe("review");
+		expect(prepared.text).toBe("@skill:legal @mcp:notion @C:/workspace/assets @architect\n开始");
+	});
+
+	it("文本与快照不匹配时安全回退文本解析", () => {
+		const staleSegments: InputSegment[] = [{ kind: "file", path: "C:/workspace/screenshot.png" }];
+		const prepared = prepareInputPrompt("@C:/workspace/other.png", staleSegments);
+
+		expect(prepared.segments).toEqual([{ kind: "image", path: "C:/workspace/other.png" }]);
+	});
+
+	it("发送时移除 scene 展示 token，并返回结构化场景引用", () => {
+		expect(prepareInputPrompt("@scene:review 检查 @skill:legal 这份材料")).toMatchObject({
+			text: "检查 @skill:legal 这份材料",
+			sceneName: "review",
+		});
+	});
+
+	it("没有 scene 时保持原始文本不变", () => {
+		const prepared = prepareInputPrompt("  @skill:review 检查  ");
+		expect(prepared.text).toBe("  @skill:review 检查  ");
+		expect(prepared.sceneName).toBeUndefined();
+	});
+
+	it("兼容旧的 /scene: 前缀", () => {
+		expect(prepareInputPrompt("/scene:review\n检查材料")).toMatchObject({
+			text: "检查材料",
+			sceneName: "review",
+		});
+	});
+
+	it("拒绝在一条消息中选择多个 scene", () => {
+		expect(() => prepareInputPrompt("@scene:first @scene:second 检查")).toThrow(MultipleSceneReferencesError);
+	});
+});
+
+describe("deriveAttachments", () => {
+	it("按出现顺序去重并区分目录与图片", () => {
+		const segments: InputSegment[] = [
+			{ kind: "file", path: "/a/dir", isDirectory: true },
+			{ kind: "image", path: "/a/c.png" },
+			{ kind: "file", path: "/a/b.ts" },
+			{ kind: "file", path: "/a/b.ts" },
+		];
+		expect(deriveAttachments(segments)).toEqual([
+			{ kind: "directory", path: "/a/dir" },
+			{ kind: "image", path: "/a/c.png" },
+			{ kind: "file", path: "/a/b.ts" },
+		]);
+	});
+});

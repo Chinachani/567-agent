@@ -1,0 +1,30 @@
+{
+	"id": "comfyui-media-provider",
+	"name": "%plugin.name%",
+	"icon": "solar:video-frame-play-horizontal-linear",
+	"version": "0.1.1",
+	"pluginApiVersion": "^2.0.0",
+	"entry": "dist/mf-manifest.json",
+	"moduleFederation": {
+		"remoteName": "comfyui_media_provider",
+		"expose": "./plugin"
+	},
+	"permissions": [
+		"ui.slot.workspace-view",
+		"media.provider.register",
+		"network.fetch",
+		"storage.read",
+		"storage.write"
+	],
+	"network": {
+		"allowedHosts": [
+			"*"
+		]
+	},
+	"description": "%plugin.description%",
+	"author": "Vetta",
+	"defaultLocale": "zh",
+	"styles": [
+		"dist/style.css"
+	]
+}

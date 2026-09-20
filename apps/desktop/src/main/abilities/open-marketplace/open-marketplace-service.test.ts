@@ -1,0 +1,1137 @@
+import { cp, mkdtemp, readdir, readFile, rm, utimes, writeFile } from "node:fs/promises";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
+import AdmZip from "adm-zip";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import type { GitHubMarketplaceOrigin, OpenMarketplaceDetail } from "../../../preload/api-types/abilities";
+import { OpenMarketplaceService } from "./open-marketplace-service";
+
+const { marketplaceLog } = vi.hoisted(() => ({
+	marketplaceLog: { error: vi.fn(), warn: vi.fn(), info: vi.fn() },
+}));
+
+vi.mock("../../logger", () => ({ getAppLogger: () => marketplaceLog }));
+
+const temporaryRoots: string[] = [];
+const APP_VERSION = "0.5.11";
+const originalRepository = process.env.VETTA_OPEN_MARKETPLACE_REPOSITORY;
+const originalRef = process.env.VETTA_OPEN_MARKETPLACE_REF;
+const originalArchiveUrl = process.env.VETTA_OPEN_MARKETPLACE_ARCHIVE_URL;
+
+function restoreEnvironment(name: string, value: string | undefined): void {
+	if (value === undefined) delete process.env[name];
+	else process.env[name] = value;
+}
+
+async function temporaryRoot(): Promise<string> {
+	const root = await mkdtemp(join(tmpdir(), "vetta-open-marketplace-test-"));
+	temporaryRoots.push(root);
+	return root;
+}
+
+function archive(options?: {
+	marketplaceVersion?: string;
+	packageVersion?: string;
+	description?: string;
+	minAppVersion?: string;
+	withPresentation?: boolean;
+	detail?: OpenMarketplaceDetail;
+	presentationDetail?: Record<string, unknown>;
+	categoryI18n?: Record<string, string>;
+}): Buffer {
+	const marketplaceVersion = options?.marketplaceVersion ?? "2026.07.1";
+	const packageVersion = options?.packageVersion ?? "1.0.0";
+	const description = options?.description ?? "Demo ability";
+	const manifest = {
+		schemaVersion: 1,
+		name: "vetta-open-abilities",
+		marketplaceVersion,
+		repository: "https://github.com/example/vetta-abilities",
+		minAppVersion: options?.minAppVersion ?? APP_VERSION,
+		abilities: [
+			{
+				type: "skill",
+				slug: "demo-skill",
+				name: "Demo Skill",
+				description,
+				version: "1.0.0",
+				configVersion: 2,
+				license: "MIT",
+				category: "Documents",
+				categoryI18n: options?.categoryI18n,
+				detail: options?.detail,
+				source: { path: "abilities/skills/demo-skill" },
+			},
+		],
+	};
+	const zip = new AdmZip();
+	zip.addFile("vetta-abilities-main/.vetta/marketplace.json", Buffer.from(JSON.stringify(manifest)));
+	zip.addFile(
+		"vetta-abilities-main/abilities/skills/demo-skill/SKILL.md",
+		Buffer.from(`---\nname: demo-skill\ndescription: Demo ability\nversion: ${packageVersion}\n---\n\n# Demo\n`),
+	);
+	if (options?.withPresentation) {
+		zip.addFile(
+			"vetta-abilities-main/abilities/skills/demo-skill/ability.json",
+			Buffer.from(
+				JSON.stringify({
+					schemaVersion: 1,
+					type: "skill",
+					slug: "demo-skill",
+					version: packageVersion,
+					icon: "icon.svg",
+					detail: options?.presentationDetail,
+				}),
+			),
+		);
+		zip.addFile(
+			"vetta-abilities-main/abilities/skills/demo-skill/icon.svg",
+			Buffer.from('<svg xmlns="http://www.w3.org/2000/svg"/>'),
+		);
+	}
+	return zip.toBuffer();
+}
+
+function pluginBundleArchive(pluginId = "demo-plugin"): Buffer {
+	const manifest = {
+		schemaVersion: 1,
+		name: "vetta-open-abilities",
+		marketplaceVersion: "2026.07.3",
+		repository: "https://github.com/example/vetta-abilities",
+		minAppVersion: APP_VERSION,
+		abilities: [
+			{
+				type: "plugin",
+				slug: "demo-plugin",
+				name: "Demo Plugin",
+				description: "Open plugin",
+				version: "1.0.0",
+				configVersion: 2,
+				source: { path: "abilities/plugins/demo-plugin" },
+			},
+			{
+				type: "mcp",
+				slug: "context7",
+				name: "Context7",
+				description: "Open MCP server",
+				version: "1.0.0",
+				configVersion: 3,
+				source: { path: "abilities/mcp/context7" },
+			},
+			{
+				type: "bundle",
+				slug: "starter-bundle",
+				name: "Starter Bundle",
+				version: "1.0.0",
+				config: {
+					members: [
+						{ type: "plugin", slug: "demo-plugin" },
+						{ type: "mcp", slug: "context7" },
+					],
+				},
+			},
+		],
+	};
+	const pluginManifest = {
+		id: pluginId,
+		name: "Demo Plugin",
+		version: "1.0.0",
+		pluginApiVersion: "2.0.0",
+		entry: "dist/index.js",
+		permissions: ["storage.read"],
+		commands: ["git"],
+	};
+	const zip = new AdmZip();
+	zip.addFile("vetta-abilities-main/.vetta/marketplace.json", Buffer.from(JSON.stringify(manifest)));
+	zip.addFile(
+		"vetta-abilities-main/abilities/plugins/demo-plugin/plugin.json",
+		Buffer.from(JSON.stringify(pluginManifest)),
+	);
+	zip.addFile("vetta-abilities-main/abilities/plugins/demo-plugin/dist/index.js", Buffer.from("export default {};\n"));
+	zip.addFile(
+		"vetta-abilities-main/abilities/mcp/context7/mcp.json",
+		Buffer.from(
+			JSON.stringify({
+				schemaVersion: 1,
+				slug: "context7",
+				version: "1.0.0",
+				server: { type: "http", url: "https://mcp.context7.com/mcp" },
+			}),
+		),
+	);
+	return zip.toBuffer();
+}
+
+function versionedPluginArchive(bundleOnly = false): Buffer {
+	const releases = [
+		{
+			version: "1.0.0",
+			minAppVersion: "0.5.57",
+			pluginApiVersion: "^2.4.0",
+			artifact: { url: "https://example.com/demo-1.0.0.zip", sha256: "a".repeat(64) },
+		},
+		{
+			version: "1.2.0",
+			minAppVersion: "0.5.58",
+			pluginApiVersion: "^2.5.0",
+			artifact: { url: "https://example.com/demo-1.2.0.zip", sha256: "b".repeat(64) },
+		},
+	];
+	const manifest = {
+		schemaVersion: 3,
+		name: "vetta-open-abilities",
+		marketplaceVersion: "2026.09.18-2",
+		repository: "https://github.com/example/vetta-abilities",
+		minAppVersion: "0.5.57",
+		abilities: [
+			...(!bundleOnly
+				? [
+						{
+							type: "plugin",
+							slug: "demo-plugin",
+							name: "Demo Plugin",
+							version: "1.2.0",
+							source: { path: "abilities/plugins/demo-plugin" },
+							releases,
+						},
+					]
+				: []),
+			{
+				type: "bundle",
+				slug: "starter",
+				name: "Starter",
+				version: "1.0.0",
+				config: {
+					members: [
+						{
+							type: "plugin",
+							slug: "demo-plugin",
+							...(bundleOnly ? { source: { path: "abilities/plugins/demo-plugin" }, releases } : {}),
+						},
+					],
+				},
+			},
+		],
+	};
+	const zip = new AdmZip();
+	zip.addFile("vetta-abilities-main/.vetta/marketplace.json", Buffer.from(JSON.stringify(manifest)));
+	zip.addFile("vetta-abilities-main/abilities/plugins/demo-plugin/README.md", Buffer.from("Demo"));
+	if (bundleOnly)
+		zip.addFile(
+			"vetta-abilities-main/abilities/plugins/demo-plugin/ability.json",
+			Buffer.from(
+				JSON.stringify({
+					schemaVersion: 1,
+					type: "plugin",
+					slug: "demo-plugin",
+					name: "Demo Plugin",
+					version: "1.2.0",
+				}),
+			),
+		);
+	return zip.toBuffer();
+}
+
+function response(buffer: Buffer): Response {
+	return new Response(new Uint8Array(buffer), {
+		status: 200,
+		headers: { "content-type": "application/zip", "content-length": String(buffer.byteLength) },
+	});
+}
+
+/**
+ * 按块吐出归档的响应，模拟真实下载：`stallAfterChunk` 之后不再推进也不结束，
+ * 只有调用方 abort 才会让流出错——跟 Chromium/undici 中断 body 的行为一致。
+ */
+function streamingResponse(
+	buffer: Buffer,
+	options: { chunkCount: number; chunkIntervalMs: number; stallAfterChunk?: number; signal?: AbortSignal },
+): Response {
+	const chunkSize = Math.ceil(buffer.byteLength / options.chunkCount);
+	let sent = 0;
+	let timer: ReturnType<typeof setTimeout> | undefined;
+	const body = new ReadableStream<Uint8Array>({
+		start(controller) {
+			const abort = (): void => {
+				if (timer) clearTimeout(timer);
+				controller.error(new Error("The operation was aborted"));
+			};
+			if (options.signal?.aborted) return abort();
+			options.signal?.addEventListener("abort", abort, { once: true });
+			const push = (): void => {
+				if (options.stallAfterChunk !== undefined && sent >= options.stallAfterChunk) return;
+				if (sent * chunkSize >= buffer.byteLength) {
+					controller.close();
+					return;
+				}
+				controller.enqueue(new Uint8Array(buffer.subarray(sent * chunkSize, (sent + 1) * chunkSize)));
+				sent += 1;
+				timer = setTimeout(push, options.chunkIntervalMs);
+			};
+			timer = setTimeout(push, options.chunkIntervalMs);
+		},
+		cancel() {
+			if (timer) clearTimeout(timer);
+		},
+	});
+	return new Response(body, {
+		status: 200,
+		headers: { "content-type": "application/zip", "content-length": String(buffer.byteLength) },
+	});
+}
+
+function manifestResponse(buffer: Buffer): Response {
+	const entry = new AdmZip(buffer).getEntry("vetta-abilities-main/.vetta/marketplace.json");
+	if (!entry) throw new Error("Marketplace manifest fixture is missing");
+	const body = entry.getData();
+	return new Response(new Uint8Array(body), {
+		status: 200,
+		headers: { "content-type": "application/json", "content-length": String(body.byteLength) },
+	});
+}
+
+function githubManifestResponse(buffer: Buffer): Response {
+	const entry = new AdmZip(buffer).getEntry("vetta-abilities-main/.vetta/marketplace.json");
+	if (!entry) throw new Error("Marketplace manifest fixture is missing");
+	const content = entry.getData().toString("base64");
+	const body = JSON.stringify({ content, encoding: "base64" });
+	return new Response(body, {
+		status: 200,
+		headers: { "content-type": "application/vnd.github+json", "content-length": String(Buffer.byteLength(body)) },
+	});
+}
+
+beforeEach(() => {
+	marketplaceLog.error.mockClear();
+	process.env.VETTA_OPEN_MARKETPLACE_REPOSITORY = "https://github.com/example/vetta-abilities";
+	process.env.VETTA_OPEN_MARKETPLACE_REF = "main";
+	delete process.env.VETTA_OPEN_MARKETPLACE_ARCHIVE_URL;
+});
+
+afterEach(async () => {
+	await Promise.all(temporaryRoots.splice(0).map((root) => rm(root, { recursive: true, force: true })));
+	restoreEnvironment("VETTA_OPEN_MARKETPLACE_REPOSITORY", originalRepository);
+	restoreEnvironment("VETTA_OPEN_MARKETPLACE_REF", originalRef);
+	restoreEnvironment("VETTA_OPEN_MARKETPLACE_ARCHIVE_URL", originalArchiveUrl);
+});
+
+describe("OpenMarketplaceService", () => {
+	it("lists and installs the compatible plugin release from a catalog without committed build output", async () => {
+		const source = versionedPluginArchive();
+		const installed: string[] = [];
+		for (const [appVersion, hostApiVersion, expected] of [
+			["0.5.57", "2.4.0", "1.0.0"],
+			["0.5.58", "2.5.0", "1.2.0"],
+		] as const) {
+			const rootDir = await temporaryRoot();
+			const service = new OpenMarketplaceService({
+				appVersion,
+				hostApiVersion,
+				rootDir,
+				fetchArchive: async () => response(source),
+				installAbility: async (_root, ability) => {
+					installed.push(ability.version);
+				},
+			});
+			const snapshot = await service.refresh();
+			expect(snapshot.error).toBeUndefined();
+			expect(snapshot.abilities.find((ability) => ability.slug === "demo-plugin")?.version).toBe(expected);
+			expect(snapshot.abilities.find((ability) => ability.slug === "starter")?.config.members?.[0]?.version).toBe(
+				expected,
+			);
+			await service.install("plugin", "demo-plugin");
+		}
+		expect(installed).toEqual(["1.0.0", "1.2.0"]);
+	});
+	it("resolves a bundle-only plugin from the same versioned artifact contract", async () => {
+		const rootDir = await temporaryRoot();
+		const service = new OpenMarketplaceService({
+			appVersion: "0.5.57",
+			hostApiVersion: "2.4.0",
+			rootDir,
+			fetchArchive: async () => response(versionedPluginArchive(true)),
+		});
+		const snapshot = await service.refresh();
+		expect(snapshot.error).toBeUndefined();
+		expect(snapshot.abilities.find((ability) => ability.slug === "demo-plugin")?.version).toBe("1.0.0");
+		expect(snapshot.abilities.find((ability) => ability.slug === "starter")?.config.members?.[0]).toMatchObject({
+			slug: "demo-plugin",
+			version: "1.0.0",
+		});
+	});
+	it("uses a GitHub token for the REST archive request and lets Electron follow the signed redirect", async () => {
+		const rootDir = await temporaryRoot();
+		const zip = archive();
+		const fetchArchive = vi.fn(async (_url: string, init?: RequestInit) => {
+			expect(init?.headers).toMatchObject({ Authorization: "Bearer secret-token" });
+			expect(init?.redirect).toBe("follow");
+			return response(zip);
+		});
+		const service = new OpenMarketplaceService({
+			appVersion: APP_VERSION,
+			rootDir,
+			getAccessToken: () => "secret-token",
+			fetchArchive,
+		});
+		const snapshot = await service.refresh();
+		expect(snapshot.error).toBeUndefined();
+		expect(fetchArchive).toHaveBeenCalledWith(
+			"https://api.github.com/repos/example/vetta-abilities/zipball/main",
+			expect.anything(),
+		);
+	});
+
+	it("uses the GitHub Contents API and decodes its base64 manifest payload", async () => {
+		const rootDir = await temporaryRoot();
+		const zip = archive();
+		const initial = new OpenMarketplaceService({
+			appVersion: APP_VERSION,
+			rootDir,
+			fetchArchive: async () => response(zip),
+		});
+		await initial.refresh();
+		const fetchManifest = vi.fn(async (_url: string, init?: RequestInit) => {
+			expect(init?.headers).toMatchObject({ Authorization: "Bearer secret-token" });
+			return githubManifestResponse(zip);
+		});
+		const service = new OpenMarketplaceService({
+			appVersion: APP_VERSION,
+			rootDir,
+			getAccessToken: () => "secret-token",
+			fetchManifest,
+		});
+
+		const snapshot = await service.list();
+
+		expect(snapshot.marketplaceVersion).toBe("2026.07.1");
+		await vi.waitFor(() => expect(fetchManifest).toHaveBeenCalledOnce());
+		expect(fetchManifest).toHaveBeenCalledWith(
+			"https://api.github.com/repos/example/vetta-abilities/contents/.vetta/marketplace.json?ref=main",
+			expect.objectContaining({ redirect: "follow" }),
+		);
+	});
+
+	it.each([
+		[401, "auth-required"],
+		[403, "forbidden"],
+		[404, "not-found"],
+		[429, "rate-limited"],
+	] as const)("maps GitHub status %s to %s", async (status, error) => {
+		const rootDir = await temporaryRoot();
+		const service = new OpenMarketplaceService({
+			appVersion: APP_VERSION,
+			rootDir,
+			getAccessToken: () => "secret-token",
+			fetchArchive: async () => new Response(null, { status }),
+		});
+		expect((await service.refresh()).error).toBe(error);
+	});
+
+	it("returns category translations from fresh and cached snapshots", async () => {
+		const rootDir = await temporaryRoot();
+		const options = {
+			appVersion: APP_VERSION,
+			rootDir,
+			fetchArchive: async () => response(archive({ categoryI18n: { zh: "文档", en: "Documents" } })),
+		};
+		const fresh = await new OpenMarketplaceService(options).refresh();
+		const cached = await new OpenMarketplaceService(options).listCached();
+		for (const snapshot of [fresh, cached]) {
+			expect(snapshot.abilities[0]).toMatchObject({
+				category: "Documents",
+				categoryI18n: { zh: "文档", en: "Documents" },
+			});
+		}
+	});
+
+	it.each(["inline", "referenced"])(
+		"preserves catalog translations alongside %s package details, including cached reads",
+		async (format) => {
+			const rootDir = await temporaryRoot();
+			const blocks = [{ type: "hero", title: "中文详情" }];
+			const zip = new AdmZip(
+				archive({
+					withPresentation: true,
+					detail: {
+						i18n: {
+							zh: { name: "示例技能", description: "中文简介", meta: [{ label: "来源", value: "目录" }] },
+							ja: { name: "サンプル" },
+						},
+					},
+					presentationDetail:
+						format === "inline"
+							? { content: "English detail", i18n: { zh: { blocks } } }
+							: {
+									format: "markdown",
+									path: "README.md",
+									i18n: { zh: { format: "blocks", path: "detail.zh.json" } },
+								},
+				}),
+			);
+			zip.addFile("vetta-abilities-main/abilities/skills/demo-skill/README.md", Buffer.from("English detail"));
+			zip.addFile(
+				"vetta-abilities-main/abilities/skills/demo-skill/detail.zh.json",
+				Buffer.from(JSON.stringify({ schemaVersion: 1, blocks })),
+			);
+			const options = { appVersion: APP_VERSION, rootDir, fetchArchive: async () => response(zip.toBuffer()) };
+			const service = new OpenMarketplaceService(options);
+			const fresh = await service.refresh();
+			expect(fresh.error).toBeUndefined();
+			const restarted = new OpenMarketplaceService({
+				...options,
+				fetchArchive: async () => {
+					throw new Error("offline");
+				},
+			});
+			for (const snapshot of [fresh, await restarted.listCached(), await restarted.refresh()]) {
+				expect(snapshot.abilities[0]?.detail).toMatchObject({
+					content: "English detail",
+					i18n: {
+						zh: { name: "示例技能", description: "中文简介", meta: [{ label: "来源", value: "目录" }], blocks },
+						ja: { name: "サンプル" },
+					},
+				});
+			}
+		},
+	);
+
+	it("keeps waiting while a slow archive download is still making progress", async () => {
+		// 早先的实现用一个覆盖整个 body 的总超时，稳定推进的慢下载也会被掐断。
+		const body = archive();
+		const service = new OpenMarketplaceService({
+			appVersion: APP_VERSION,
+			rootDir: await temporaryRoot(),
+			archiveDownload: { headerTimeoutMs: 200, stallTimeoutMs: 200, totalTimeoutMs: 10_000 },
+			fetchArchive: async (_url, init) =>
+				streamingResponse(body, { chunkCount: 12, chunkIntervalMs: 60, signal: init?.signal ?? undefined }),
+		});
+
+		const snapshot = await service.refresh();
+
+		expect(snapshot).toMatchObject({ marketplaceVersion: "2026.07.1", stale: false });
+		expect(snapshot.abilities.length).toBeGreaterThan(0);
+	});
+
+	it("aborts a stalled archive download and retries once", async () => {
+		const body = archive();
+		const fetchArchive = vi
+			.fn<(url: string, init?: RequestInit) => Promise<Response>>()
+			.mockImplementationOnce(async (_url, init) =>
+				streamingResponse(body, {
+					chunkCount: 12,
+					chunkIntervalMs: 10,
+					stallAfterChunk: 2,
+					signal: init?.signal ?? undefined,
+				}),
+			)
+			.mockImplementation(async () => response(body));
+		const service = new OpenMarketplaceService({
+			appVersion: APP_VERSION,
+			rootDir: await temporaryRoot(),
+			archiveDownload: { stallTimeoutMs: 150, retryDelayMs: 1 },
+			fetchArchive,
+		});
+
+		const snapshot = await service.refresh();
+
+		expect(snapshot).toMatchObject({ marketplaceVersion: "2026.07.1", stale: false });
+		expect(fetchArchive).toHaveBeenCalledTimes(2);
+	});
+
+	it("does not retry an archive download that failed with an HTTP status", async () => {
+		const fetchArchive = vi.fn(async () => new Response("", { status: 404 }));
+		const service = new OpenMarketplaceService({
+			appVersion: APP_VERSION,
+			rootDir: await temporaryRoot(),
+			archiveDownload: { retryDelayMs: 1 },
+			fetchArchive,
+		});
+
+		expect(await service.refresh()).toMatchObject({ error: "not-found", abilities: [] });
+		expect(fetchArchive).toHaveBeenCalledOnce();
+	});
+
+	it("shares concurrent refreshes and permits a subsequent retry", async () => {
+		const rootDir = await temporaryRoot();
+		let release!: (value: Response) => void;
+		const pending = new Promise<Response>((resolve) => {
+			release = resolve;
+		});
+		const fetchArchive = vi
+			.fn()
+			.mockReturnValueOnce(pending)
+			.mockImplementation(async () => response(archive()));
+		const service = new OpenMarketplaceService({ appVersion: APP_VERSION, rootDir, fetchArchive });
+		const first = service.refresh();
+		const second = service.refresh();
+		release(response(archive()));
+		const snapshots = await Promise.all([first, second]);
+		expect(snapshots.every((snapshot) => !snapshot.error)).toBe(true);
+		expect(fetchArchive).toHaveBeenCalledTimes(1);
+		await service.refresh();
+		expect(fetchArchive).toHaveBeenCalledTimes(2);
+	});
+	it("prepares an MCP from the active validated snapshot", async () => {
+		const rootDir = await temporaryRoot();
+		const prepareMcpAbility = vi.fn(async (_snapshotRoot: string, _ability: unknown, _sourceId: string) => ({
+			type: "http" as const,
+			url: "https://mcp.example.com",
+		}));
+		const service = new OpenMarketplaceService({
+			appVersion: APP_VERSION,
+			rootDir,
+			fetchArchive: async () => response(pluginBundleArchive()),
+			prepareMcpAbility,
+		});
+		await service.refresh();
+
+		await expect(service.prepareMcp("context7")).resolves.toEqual({
+			type: "http",
+			url: "https://mcp.example.com",
+		});
+		expect(prepareMcpAbility).toHaveBeenCalledOnce();
+		expect(prepareMcpAbility.mock.calls[0]?.[0]).toContain(join("snapshots", "2026.07.3"));
+		expect(prepareMcpAbility.mock.calls[0]?.[1]).toMatchObject({ type: "mcp", slug: "context7" });
+		expect(prepareMcpAbility.mock.calls[0]?.[2]).toBe("vetta-official");
+	});
+
+	it("validates and activates a GitHub repository snapshot", async () => {
+		const rootDir = await temporaryRoot();
+		const service = new OpenMarketplaceService({
+			appVersion: APP_VERSION,
+			rootDir,
+			fetchArchive: async () => response(archive()),
+			now: () => new Date("2026-07-28T00:00:00.000Z"),
+		});
+
+		const snapshot = await service.refresh();
+
+		expect(snapshot.error).toBeUndefined();
+		expect(snapshot.sourceId).toBe("vetta-official");
+		expect(snapshot.marketplaceVersion).toBe("2026.07.1");
+		expect(snapshot.abilities[0]).toMatchObject({
+			slug: "demo-skill",
+			configVersion: 2,
+			origin: { kind: "github-marketplace", marketplace: "vetta-open-abilities", ref: "main" },
+		});
+		const stored = await readFile(
+			join(rootDir, "snapshots", "2026.07.1", "abilities", "skills", "demo-skill", "SKILL.md"),
+			"utf-8",
+		);
+		expect(stored).toContain("name: demo-skill");
+		const state: unknown = JSON.parse(await readFile(join(rootDir, "state.json"), "utf-8"));
+		expect(state).toMatchObject({
+			schemaVersion: 1,
+			sourceId: "vetta-official",
+			ref: "main",
+			marketplaceVersion: "2026.07.1",
+		});
+	});
+	it("prunes old marketplace caches after reopening while keeping offline installs available", async () => {
+		const rootDir = await temporaryRoot();
+		const activeVersion = "2026.07.4";
+		const activeDir = join(rootDir, "snapshots", activeVersion);
+		const initial = new OpenMarketplaceService({
+			appVersion: APP_VERSION,
+			rootDir,
+			fetchArchive: async () => response(archive({ marketplaceVersion: activeVersion })),
+		});
+		await initial.refresh();
+
+		for (const [index, version] of ["2026.07.1", "2026.07.2", "2026.07.3"].entries()) {
+			const historicalDir = join(rootDir, "snapshots", version);
+			await cp(activeDir, historicalDir, { recursive: true });
+			const manifestPath = join(historicalDir, ".vetta", "marketplace.json");
+			const manifest = JSON.parse(await readFile(manifestPath, "utf-8")) as Record<string, unknown>;
+			await writeFile(manifestPath, JSON.stringify({ ...manifest, marketplaceVersion: version }));
+			const age = new Date(Date.now() - [96, 12, 6][index]! * 60 * 60 * 1000);
+			await utimes(historicalDir, age, age);
+		}
+		await writeFile(join(rootDir, "snapshots", "unrelated.txt"), "keep");
+		const installAbility = vi.fn(
+			async (_root: string, _ability: object, _origin: GitHubMarketplaceOrigin) => undefined,
+		);
+		const nextArchive = archive({ marketplaceVersion: "2026.07.5" });
+		const reopened = new OpenMarketplaceService({
+			appVersion: APP_VERSION,
+			rootDir,
+			fetchArchive: async () => response(nextArchive),
+			fetchManifest: async () => {
+				throw new Error("offline");
+			},
+			installAbility,
+		});
+
+		expect((await reopened.listCached()).marketplaceVersion).toBe(activeVersion);
+		await vi.waitFor(async () => {
+			expect((await readdir(join(rootDir, "snapshots"))).sort()).toEqual([
+				"2026.07.2",
+				"2026.07.3",
+				activeVersion,
+				"unrelated.txt",
+			]);
+		});
+		await reopened.install("skill", "demo-skill");
+		expect(installAbility.mock.calls[0]?.[0]).toBe(activeDir);
+
+		for (const version of ["2026.07.2", "2026.07.3"]) {
+			const aged = new Date(Date.now() - 48 * 60 * 60 * 1000);
+			await utimes(join(rootDir, "snapshots", version), aged, aged);
+		}
+		const refreshed = await reopened.refresh();
+		expect(refreshed.marketplaceVersion).toBe("2026.07.5");
+		await vi.waitFor(async () => {
+			expect((await readdir(join(rootDir, "snapshots"))).sort()).toEqual([
+				activeVersion,
+				"2026.07.5",
+				"unrelated.txt",
+			]);
+		});
+	});
+
+	it("returns local presentation icons from the active snapshot directory", async () => {
+		const rootDir = await temporaryRoot();
+		const service = new OpenMarketplaceService({
+			appVersion: APP_VERSION,
+			rootDir,
+			fetchArchive: async () => response(archive({ withPresentation: true })),
+		});
+
+		const snapshot = await service.refresh();
+		const icon = snapshot.abilities[0]?.icon;
+
+		expect(icon).toContain("/snapshots/2026.07.1/abilities/skills/demo-skill/icon.svg?v=2026.07.1");
+		expect(icon).not.toContain("/sync-");
+	});
+
+	it("serves repeated list() from in-memory snapshot without re-reading disk packages", async () => {
+		const rootDir = await temporaryRoot();
+		const service = new OpenMarketplaceService({
+			appVersion: APP_VERSION,
+			rootDir,
+			fetchArchive: async () => response(archive()),
+			// 避免后台更新抢跑影响断言
+			updateCheckIntervalMs: 60_000,
+			now: () => new Date("2026-07-28T00:00:00.000Z"),
+		});
+
+		await service.refresh();
+		const first = await service.list();
+		// 删掉落地快照：若仍走磁盘校验，第二次 list 会失败/空。
+		await rm(join(rootDir, "snapshots"), { recursive: true, force: true });
+		const second = await service.list();
+
+		expect(second).toEqual(first);
+		expect(second.abilities).toHaveLength(1);
+	});
+
+	it("does not reuse state after the configured source identity changes", async () => {
+		const rootDir = await temporaryRoot();
+		const first = new OpenMarketplaceService({
+			appVersion: APP_VERSION,
+			rootDir,
+			sourceId: "source",
+			sourceRef: "main",
+			repository: "https://github.com/example/first",
+			archiveUrl: "https://github.com/example/first/archive/refs/heads/main.zip",
+			fetchArchive: async () => response(archive({ description: "First" })),
+		});
+		await first.refresh();
+		const second = new OpenMarketplaceService({
+			appVersion: APP_VERSION,
+			rootDir,
+			sourceId: "source",
+			sourceRef: "next",
+			repository: "https://github.com/example/second",
+			archiveUrl: "https://github.com/example/second/archive/refs/heads/next.zip",
+			fetchArchive: async () => response(archive({ description: "Second" })),
+		});
+
+		expect(await second.listCached()).toMatchObject({
+			abilities: [],
+			marketplaceVersion: null,
+			stale: true,
+		});
+		const snapshot = await second.refresh();
+		expect(snapshot.abilities[0]?.description).toBe("Second");
+		const state: unknown = JSON.parse(await readFile(join(rootDir, "state.json"), "utf-8"));
+		expect(state).toMatchObject({
+			repository: "https://github.com/example/second",
+			ref: "next",
+		});
+	});
+
+	it("validates and lists MCP, plugin and bundle entries", async () => {
+		const rootDir = await temporaryRoot();
+		const installAbility = vi.fn(
+			async (_snapshotRoot: string, _ability: object, _origin: GitHubMarketplaceOrigin) => undefined,
+		);
+		const service = new OpenMarketplaceService({
+			appVersion: APP_VERSION,
+			rootDir,
+			fetchArchive: async () => response(pluginBundleArchive()),
+			installAbility,
+		});
+
+		const snapshot = await service.refresh();
+		const plugin = snapshot.abilities.find((ability) => ability.type === "plugin");
+		const mcp = snapshot.abilities.find((ability) => ability.type === "mcp");
+		const bundle = snapshot.abilities.find((ability) => ability.type === "bundle");
+		expect(plugin?.config).toEqual({
+			api_version: "2.0.0",
+			permissions: ["storage.read"],
+			commands: ["git"],
+		});
+		expect(mcp).toMatchObject({
+			slug: "context7",
+			configVersion: 3,
+			config: { mcp: { type: "http", url: "https://mcp.context7.com/mcp" } },
+			origin: { kind: "github-marketplace", sourceId: "vetta-official" },
+		});
+		expect(bundle?.config.members).toEqual([
+			{
+				type: "plugin",
+				slug: "demo-plugin",
+				exists: true,
+				name: "Demo Plugin",
+				icon: "",
+				version: "1.0.0",
+			},
+			{
+				type: "mcp",
+				slug: "context7",
+				exists: true,
+				name: "Context7",
+				icon: "",
+				version: "1.0.0",
+			},
+		]);
+
+		await service.install("plugin", "demo-plugin");
+		expect(installAbility).toHaveBeenCalledOnce();
+		expect(installAbility.mock.calls[0]?.[1]).toMatchObject({ type: "plugin", slug: "demo-plugin" });
+	}, 10_000);
+
+	it("rejects a plugin package whose manifest identity does not match", async () => {
+		const service = new OpenMarketplaceService({
+			appVersion: APP_VERSION,
+			rootDir: await temporaryRoot(),
+			fetchArchive: async () => response(pluginBundleArchive("other-plugin")),
+		});
+
+		expect(await service.refresh()).toMatchObject({
+			abilities: [],
+			marketplaceVersion: null,
+			error: "sync-failed",
+		});
+		expect(marketplaceLog.error).toHaveBeenCalledWith(
+			"marketplace sync failed",
+			expect.objectContaining({
+				sourceId: "vetta-official",
+				repository: "https://github.com/example/vetta-abilities",
+				ref: "main",
+				operation: "refresh",
+				errorCode: "sync-failed",
+				usedCachedSnapshot: false,
+			}),
+			expect.objectContaining({ message: expect.stringContaining("does not match ability slug") }),
+		);
+	});
+
+	it("keeps the last usable snapshot when content changes without a marketplace version bump", async () => {
+		const rootDir = await temporaryRoot();
+		let body = archive({ description: "First" });
+		const service = new OpenMarketplaceService({
+			appVersion: APP_VERSION,
+			rootDir,
+			fetchArchive: async () => response(body),
+		});
+		await service.refresh();
+		body = archive({ description: "Changed without version bump" });
+
+		const fallback = await service.refresh();
+
+		expect(fallback.error).toBe("sync-failed");
+		expect(fallback.stale).toBe(true);
+		expect(fallback.abilities[0]?.description).toBe("First");
+		expect(marketplaceLog.error).toHaveBeenCalledWith(
+			"marketplace sync failed",
+			expect.objectContaining({ operation: "refresh", usedCachedSnapshot: true }),
+			expect.objectContaining({
+				message: "Marketplace content changed without a marketplaceVersion update",
+			}),
+		);
+	});
+
+	it("activates a catalog when the desktop app meets minAppVersion", async () => {
+		const service = new OpenMarketplaceService({
+			rootDir: await temporaryRoot(),
+			appVersion: APP_VERSION,
+			fetchArchive: async () => response(archive({ minAppVersion: "0.5.11" })),
+		});
+
+		const snapshot = await service.refresh();
+
+		expect(snapshot).toMatchObject({ marketplaceVersion: "2026.07.1", stale: false });
+	});
+
+	it("keeps the last compatible snapshot when a newer catalog requires a newer app", async () => {
+		const rootDir = await temporaryRoot();
+		let body = archive({ marketplaceVersion: "2026.07.1", description: "Compatible" });
+		const service = new OpenMarketplaceService({
+			rootDir,
+			appVersion: APP_VERSION,
+			fetchArchive: async () => response(body),
+		});
+		await service.refresh();
+		body = archive({ marketplaceVersion: "2026.08.1", description: "Future", minAppVersion: "0.6.0" });
+
+		const fallback = await service.refresh();
+
+		expect(fallback).toMatchObject({
+			marketplaceVersion: "2026.07.1",
+			stale: true,
+			error: "app-outdated",
+			requiredAppVersion: "0.6.0",
+		});
+		expect(fallback.abilities[0]?.description).toBe("Compatible");
+	});
+
+	it("rejects an incompatible catalog when no compatible snapshot exists", async () => {
+		const service = new OpenMarketplaceService({
+			rootDir: await temporaryRoot(),
+			appVersion: APP_VERSION,
+			fetchArchive: async () => response(archive({ minAppVersion: "0.6.0" })),
+		});
+
+		const snapshot = await service.refresh();
+
+		// 版本不达标必须和网络故障区分开，否则界面只会说「同步失败」，用户永远不知道要升级。
+		expect(snapshot).toMatchObject({
+			abilities: [],
+			marketplaceVersion: null,
+			stale: true,
+			error: "app-outdated",
+			requiredAppVersion: "0.6.0",
+		});
+		expect(marketplaceLog.error).toHaveBeenCalledWith(
+			"marketplace sync failed",
+			expect.objectContaining({ operation: "refresh", errorCode: "app-outdated" }),
+			expect.objectContaining({
+				message: "Marketplace 2026.07.1 requires desktop app 0.6.0 or newer",
+			}),
+		);
+	});
+
+	it("does not activate a catalog when SKILL.md version disagrees with the catalog", async () => {
+		const rootDir = await temporaryRoot();
+		const service = new OpenMarketplaceService({
+			appVersion: APP_VERSION,
+			rootDir,
+			fetchArchive: async () => response(archive({ packageVersion: "2.0.0" })),
+		});
+
+		const snapshot = await service.refresh();
+
+		expect(snapshot).toMatchObject({ abilities: [], marketplaceVersion: null, error: "sync-failed" });
+	});
+
+	it("returns cached data immediately and skips the archive when the remote version is unchanged", async () => {
+		const rootDir = await temporaryRoot();
+		const initial = new OpenMarketplaceService({
+			appVersion: APP_VERSION,
+			rootDir,
+			fetchArchive: async () => response(archive()),
+		});
+		await initial.refresh();
+		const fetchArchive = vi.fn(async () => response(archive()));
+		const fetchManifest = vi.fn(async () => manifestResponse(archive()));
+		const service = new OpenMarketplaceService({
+			appVersion: APP_VERSION,
+			rootDir,
+			fetchArchive,
+			fetchManifest,
+		});
+
+		const snapshot = await service.list();
+
+		expect(snapshot.marketplaceVersion).toBe("2026.07.1");
+		expect(snapshot.error).toBeUndefined();
+		await vi.waitFor(() => expect(fetchManifest).toHaveBeenCalledOnce());
+		expect(fetchManifest).toHaveBeenCalledWith(
+			"https://github.com/example/vetta-abilities/raw/refs/heads/main/.vetta/marketplace.json",
+			expect.objectContaining({ redirect: "follow" }),
+		);
+		expect(fetchArchive).not.toHaveBeenCalled();
+	});
+
+	it("updates the cache in the background and exposes it on the next list", async () => {
+		const rootDir = await temporaryRoot();
+		const initial = new OpenMarketplaceService({
+			appVersion: APP_VERSION,
+			rootDir,
+			fetchArchive: async () => response(archive({ marketplaceVersion: "2026.07.1", description: "Old" })),
+		});
+		await initial.refresh();
+		const updatedArchive = archive({ marketplaceVersion: "2026.07.2", description: "Updated" });
+		const fetchArchive = vi.fn(async () => response(updatedArchive));
+		const onBackgroundUpdate = vi.fn();
+		const service = new OpenMarketplaceService({
+			appVersion: APP_VERSION,
+			rootDir,
+			fetchArchive,
+			fetchManifest: async () => manifestResponse(updatedArchive),
+			onBackgroundUpdate,
+		});
+
+		const current = await service.list();
+
+		expect(current).toMatchObject({ marketplaceVersion: "2026.07.1" });
+		await vi.waitFor(() =>
+			expect(onBackgroundUpdate).toHaveBeenCalledWith(expect.objectContaining({ marketplaceVersion: "2026.07.2" })),
+		);
+		const state: unknown = JSON.parse(await readFile(join(rootDir, "state.json"), "utf-8"));
+		expect(state).toMatchObject({ marketplaceVersion: "2026.07.2" });
+		expect(fetchArchive).toHaveBeenCalledOnce();
+		const next = await service.list();
+		expect(next).toMatchObject({ marketplaceVersion: "2026.07.2" });
+		expect(next.abilities[0]?.description).toBe("Updated");
+	});
+
+	it("keeps cached data without surfacing background update failures", async () => {
+		const rootDir = await temporaryRoot();
+		const initial = new OpenMarketplaceService({
+			appVersion: APP_VERSION,
+			rootDir,
+			fetchArchive: async () => response(archive()),
+		});
+		await initial.refresh();
+		const fetchManifest = vi.fn(async () => {
+			throw new Error("offline");
+		});
+		const service = new OpenMarketplaceService({
+			appVersion: APP_VERSION,
+			rootDir,
+			fetchManifest,
+		});
+
+		const snapshot = await service.list();
+
+		expect(snapshot).toMatchObject({ marketplaceVersion: "2026.07.1", stale: false });
+		expect(snapshot.error).toBeUndefined();
+		await vi.waitFor(() => expect(fetchManifest).toHaveBeenCalledOnce());
+		await vi.waitFor(() =>
+			expect(marketplaceLog.error).toHaveBeenCalledWith(
+				"marketplace sync failed",
+				expect.objectContaining({
+					operation: "background-update",
+					errorCode: "sync-failed",
+					usedCachedSnapshot: true,
+				}),
+				expect.objectContaining({ message: "offline" }),
+			),
+		);
+	});
+
+	it("can read cached data without triggering a download", async () => {
+		const rootDir = await temporaryRoot();
+		const fetchArchive = vi.fn(async () => response(archive()));
+		const service = new OpenMarketplaceService({ appVersion: APP_VERSION, rootDir, fetchArchive });
+
+		const empty = await service.listCached();
+
+		expect(empty).toMatchObject({ sourceId: "vetta-official", abilities: [], stale: true });
+		expect(fetchArchive).not.toHaveBeenCalled();
+	});
+
+	it("installs the current version even when the cached catalog is behind", async () => {
+		const rootDir = await temporaryRoot();
+		const initial = new OpenMarketplaceService({
+			appVersion: APP_VERSION,
+			rootDir,
+			fetchArchive: async () => response(archive({ marketplaceVersion: "2026.07.1", description: "Old" })),
+		});
+		await initial.refresh();
+		const updatedArchive = archive({ marketplaceVersion: "2026.07.2", description: "Updated" });
+		const installAbility = vi.fn(
+			async (_snapshotRoot: string, _ability: object, _origin: GitHubMarketplaceOrigin) => undefined,
+		);
+		const service = new OpenMarketplaceService({
+			appVersion: APP_VERSION,
+			rootDir,
+			fetchArchive: async () => response(updatedArchive),
+			fetchManifest: async () => manifestResponse(updatedArchive),
+			installAbility,
+		});
+
+		// The catalog on screen is deliberately stale-while-revalidate, so an install
+		// that trusts it would fetch a version the user never chose — and the freshly
+		// installed ability would immediately report an update.
+		expect(await service.list()).toMatchObject({ marketplaceVersion: "2026.07.1" });
+		await service.install("skill", "demo-skill");
+
+		expect(installAbility).toHaveBeenCalledOnce();
+		expect(installAbility.mock.calls[0]?.[1]).toMatchObject({ description: "Updated" });
+		expect(installAbility.mock.calls[0]?.[2]).toMatchObject({ marketplaceVersion: "2026.07.2" });
+	});
+
+	it("still installs from the cached snapshot when the source cannot be reached", async () => {
+		const rootDir = await temporaryRoot();
+		const initial = new OpenMarketplaceService({
+			appVersion: APP_VERSION,
+			rootDir,
+			fetchArchive: async () => response(archive()),
+		});
+		await initial.refresh();
+		const installAbility = vi.fn(
+			async (_snapshotRoot: string, _ability: object, _origin: GitHubMarketplaceOrigin) => undefined,
+		);
+		const service = new OpenMarketplaceService({
+			appVersion: APP_VERSION,
+			rootDir,
+			fetchArchive: async () => {
+				throw new Error("offline");
+			},
+			fetchManifest: async () => {
+				throw new Error("offline");
+			},
+			installAbility,
+		});
+
+		await service.install("skill", "demo-skill");
+
+		// Installing offline from what is already on disk beats refusing to install.
+		expect(installAbility).toHaveBeenCalledOnce();
+		expect(installAbility.mock.calls[0]?.[2]).toMatchObject({ marketplaceVersion: "2026.07.1" });
+		expect(marketplaceLog.error).toHaveBeenCalledWith(
+			"marketplace sync failed",
+			expect.objectContaining({ operation: "install-update-check", usedCachedSnapshot: true }),
+			expect.objectContaining({ message: "offline" }),
+		);
+	});
+
+	it("installs only from the active validated snapshot", async () => {
+		const rootDir = await temporaryRoot();
+		const installAbility = vi.fn(
+			async (_snapshotRoot: string, _ability: object, _origin: GitHubMarketplaceOrigin) => undefined,
+		);
+		const service = new OpenMarketplaceService({
+			appVersion: APP_VERSION,
+			rootDir,
+			fetchArchive: async () => response(archive()),
+			installAbility,
+		});
+		await service.refresh();
+
+		await service.install("skill", "demo-skill");
+
+		expect(installAbility).toHaveBeenCalledOnce();
+		expect(installAbility.mock.calls[0]?.[0]).toBe(join(rootDir, "snapshots", "2026.07.1"));
+		expect(installAbility.mock.calls[0]?.[1]).toMatchObject({ slug: "demo-skill", configVersion: 2 });
+		expect(installAbility.mock.calls[0]?.[2]).toMatchObject({
+			kind: "github-marketplace",
+			marketplaceVersion: "2026.07.1",
+			ref: "main",
+		});
+	});
+});

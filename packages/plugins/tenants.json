@@ -1,0 +1,40 @@
+{
+  "default": "common",
+  "defaultProfile": "development",
+  "profiles": {
+    "development": {
+      "common": [
+        "vetta-actions",
+        "preset-agent",
+        "vetta-ui-design",
+        "image-gen",
+        "media-viewer",
+        "office-viewer",
+        "svg-viewer",
+        "chart-renderer",
+        "git",
+        "plugin-workbench",
+        "comfyui-media-provider",
+        "content-creation",
+        "browser",
+        "build-apple-apps"
+      ]
+    },
+    "production": {
+      "common": [
+        "vetta-actions",
+        "preset-agent",
+        "vetta-ui-design",
+        "image-gen",
+        "media-viewer",
+        "office-viewer",
+        "svg-viewer",
+        "chart-renderer",
+        "git",
+        "plugin-workbench",
+        "browser",
+        "build-apple-apps"
+      ]
+    }
+  }
+}

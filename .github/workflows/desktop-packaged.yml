@@ -1,0 +1,131 @@
+name: desktop-packaged
+
+on:
+  push:
+    branches:
+      - dev
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  contract:
+    name: Desktop packaging contract
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Verify packaging contract
+        run: node apps/desktop/scripts/verify-packaging-contract.mjs
+
+      - name: Test packaging contract helpers
+        run: node --test apps/desktop/scripts/desktop-packaging-layout.test.mjs apps/desktop/scripts/electron-e2e-service-options.node-test.mjs apps/desktop/scripts/packaged-e2e-binary.node-test.mjs apps/desktop/scripts/packaged-native-dependencies.test.mjs
+
+  scope:
+    name: Detect packaged smoke scope
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    outputs:
+      packaged-smoke: ${{ steps.detect.outputs.packaged-smoke }}
+
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Detect packaging-sensitive changes
+        id: detect
+        env:
+          GITHUB_EVENT_NAME: ${{ github.event_name }}
+          GITHUB_BASE_REF: ${{ github.base_ref }}
+          GITHUB_EVENT_BEFORE: ${{ github.event.before }}
+          GITHUB_SHA: ${{ github.sha }}
+        run: node scripts/quality/desktop-packaging-scope.mjs
+
+  smoke:
+    name: ${{ matrix.platform }} packaged E2E
+    needs: scope
+    if: needs.scope.outputs.packaged-smoke == 'true'
+    runs-on: ${{ matrix.runner }}
+    timeout-minutes: 90
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - platform: Windows
+            runner: windows-latest
+            build-command: pack:win:test
+          - platform: macOS
+            runner: macos-latest
+            build-command: dist:mac:test
+          - platform: Linux
+            runner: ubuntu-latest
+            build-command: dist:linux:test
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Bun
+        uses: oven-sh/setup-bun@v2
+        with:
+          bun-version-file: package.json
+
+      - name: Set up Go for IM gateway
+        uses: actions/setup-go@v5
+        with:
+          go-version-file: apps/im-gateway/go.mod
+          cache-dependency-path: apps/im-gateway/go.sum
+
+      - name: Install dependencies
+        uses: ./.github/actions/install-bun-dependencies
+
+      - name: Install Linux packaging dependencies
+        if: runner.os == 'Linux'
+        run: |
+          sudo apt-get update
+          sudo apt-get install --no-install-recommends -y build-essential libcap-dev meson ninja-build pkg-config xz-utils
+
+      - name: Install Linux Electron runtime dependencies
+        if: runner.os == 'Linux'
+        # Ubuntu 24.04's libasound2t64 provides the libasound.so.2 linked by Electron.
+        run: sudo apt-get install --no-install-recommends -y libasound2t64
+
+      - name: Build unpacked Desktop package
+        working-directory: apps/desktop
+        env:
+          VETTA_BUILD_ENV: test
+          VETTA_CLOUD_ENABLED: "false"
+          VETTA_OPEN_MARKETPLACE_REPOSITORY: openvetta/vetta-official-marketplace
+          VETTA_SPEECH_INPUT_ENABLED: "false"
+          VETTA_UPDATE_GITHUB_OWNER: openvetta
+          VETTA_UPDATE_GITHUB_REPO: open-vetta
+          VETTA_UPDATE_PROVIDER: github
+        run: bun run ${{ matrix.build-command }}
+
+      - name: Run packaged Electron smoke and updater E2E
+        working-directory: apps/desktop
+        env:
+          VETTA_E2E_PACKAGED: "1"
+          VETTA_BUILD_ENV: test
+          VETTA_SPEECH_INPUT_ENABLED: "false"
+        shell: bash
+        run: |
+          if [[ "${{ matrix.platform }}" == "Linux" ]]; then
+            xvfb-run --auto-servernum bun run test:e2e:packaged
+          else
+            bun run test:e2e:packaged
+          fi
+
+      - name: Upload packaged diagnostics on failure
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: desktop-${{ matrix.platform }}-packaged-e2e-diagnostics
+          if-no-files-found: ignore
+          retention-days: 7
+          path: |
+            apps/desktop/release/**
+            apps/desktop/.wdio-electron-user-data/**

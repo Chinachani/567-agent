@@ -1,0 +1,44 @@
+{
+	"name": "@vetta-org/capability-sdk",
+	"version": "0.1.2",
+	"type": "module",
+	"main": "./dist/index.js",
+	"types": "./dist/index.d.ts",
+	"exports": {
+		".": {
+			"types": "./dist/index.d.ts",
+			"import": "./dist/index.js"
+		},
+		"./access": {
+			"types": "./dist/access.d.ts",
+			"import": "./dist/access.js"
+		},
+		"./foundation": {
+			"types": "./dist/foundation.d.ts",
+			"import": "./dist/foundation.js"
+		},
+		"./domain": {
+			"types": "./dist/domain.d.ts",
+			"import": "./dist/domain.js"
+		}
+	},
+	"files": ["dist"],
+	"publishConfig": {
+		"access": "public",
+		"registry": "https://registry.npmjs.org/"
+	},
+	"scripts": {
+		"catalog:check": "bun run scripts/generate-catalog.ts --check",
+		"catalog:generate": "bun run scripts/generate-catalog.ts",
+		"clean": "rm -rf dist",
+		"build": "tsgo -p tsconfig.build.json",
+		"test": "bun ../../scripts/quality/run-vitest.mjs --run"
+	},
+	"dependencies": {
+		"@sinclair/typebox": "^0.34.41"
+	},
+	"devDependencies": {
+		"@types/node": "^22.10.5",
+		"typescript": "^5.9.2"
+	}
+}

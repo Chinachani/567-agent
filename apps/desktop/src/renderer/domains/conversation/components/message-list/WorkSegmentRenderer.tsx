@@ -1,0 +1,291 @@
+import type { ThinkingBlock, ToolCallBlock } from "@shared/store/atoms";
+import type { ChatToolCallPresentationViewModel } from "@shared/store/atoms";
+import { languageAtom, pluginAgentToolLabelsAtom, pluginI18nByIdAtom } from "@shared/store/atoms";
+import { LiveThinkingView, ProgressGroup, SegmentShell } from "@vetta-org/theme-ui/chat";
+import { useAtomValue } from "jotai";
+import { memo } from "react";
+import { useTranslation } from "react-i18next";
+import { ErrorBlockView } from "../blocks/ErrorBlock";
+import { TextBlockView } from "../blocks/TextBlock";
+import { ConciseThinkingBlockView } from "../blocks/ThinkingBlock";
+import { EmbeddedToolCallBlockView, ToolCallBlockView } from "../blocks/ToolCallBlock";
+import { toolLabel } from "../blocks/tool-views/shared/parse-tool";
+import { useExpansion } from "./expansionStore";
+import type { GroupBlock, ProgressGroupSegment, WorkSegment } from "./progressGroupModel";
+import { isProgressGroupDone } from "./progressGroupModel";
+import { compactWorkActivityText, selectWorkGroupActivity } from "./workActivityModel";
+import { ToolCallPresentation } from "./ToolCallPresentation";
+import { ContentRenderer } from "./ContentRendering";
+
+function useToolLabelInputs(): void {
+	// toolLabel reads these stores outside React; subscribe here so live titles and rows
+	// are recomputed when the language or a plugin-provided label changes.
+	useAtomValue(languageAtom);
+	useAtomValue(pluginAgentToolLabelsAtom);
+	useAtomValue(pluginI18nByIdAtom);
+}
+
+/** Row text: prefer the agent-authored per-call reason, fall back to tool name + main arg. */
+function rowText(block: ToolCallBlock): string {
+	const description = block.args.description;
+	if (typeof description === "string" && description.trim()) return description.trim();
+	const { name, detail } = toolLabel(block, true);
+	return detail ? `${name} · ${detail}` : name;
+}
+
+interface StageRowProps {
+	block: ToolCallBlock;
+	exportMode: boolean;
+}
+
+const StageRow = memo(function StageRow({ block, exportMode }: StageRowProps) {
+	const [expanded, toggle] = useExpansion(`row:${block.toolCallId}`);
+	useToolLabelInputs();
+	const text = rowText(block);
+	return (
+		<ProgressGroup.RowRoot exportMode={exportMode} expanded={expanded} onToggle={toggle}>
+			<ProgressGroup.RowFrame>
+				<ProgressGroup.RowTrigger>
+					<ProgressGroup.RowStatus status={block.status} />
+					<ProgressGroup.RowText title={text}>{text}</ProgressGroup.RowText>
+					<ProgressGroup.RowChevron />
+				</ProgressGroup.RowTrigger>
+				<ProgressGroup.RowContent>
+					<ContentRenderer block={block} exportMode={exportMode}>
+						<EmbeddedToolCallBlockView block={block} exportMode={exportMode} aliased />
+					</ContentRenderer>
+				</ProgressGroup.RowContent>
+			</ProgressGroup.RowFrame>
+		</ProgressGroup.RowRoot>
+	);
+});
+
+interface StageGroupProps {
+	segment: ProgressGroupSegment;
+	fallbackTitle: string;
+	exportMode: boolean;
+	isLiveActivity: boolean;
+	liveThinkingId?: string | null;
+}
+
+const StageGroup = memo(function StageGroup({
+	segment,
+	fallbackTitle,
+	exportMode,
+	isLiveActivity,
+	liveThinkingId,
+}: StageGroupProps) {
+	const [expanded, toggle] = useExpansion(`stage:${segment.id}`);
+	const { t } = useTranslation("chat");
+	useToolLabelInputs();
+	const done = isProgressGroupDone(segment);
+	const activity = isLiveActivity && !done ? selectWorkGroupActivity(segment.blocks) : null;
+	let liveTitle: string | null = null;
+	if (activity?.type === "thinking") {
+		liveTitle = t("messageList.progressGroup.thinkingActivity", { text: activity.preview });
+	} else if (activity?.type === "tool") {
+		const phase = compactWorkActivityText(activity.block.currentPhase ?? "");
+		const description = compactWorkActivityText(
+			typeof activity.block.args.description === "string" ? activity.block.args.description : "",
+		);
+		liveTitle = phase || description || toolLabel(activity.block, true).name;
+	}
+	return (
+		<ProgressGroup.Root
+			blockCount={segment.blocks.length}
+			done={done}
+			exportMode={exportMode}
+			expanded={expanded}
+			onToggle={toggle}
+		>
+			<ProgressGroup.Frame>
+				<ProgressGroup.Trigger>
+					<ProgressGroup.Status />
+					<ProgressGroup.Title>
+						{liveTitle ?? segment.summary ?? segment.label ?? fallbackTitle}
+					</ProgressGroup.Title>
+					<ProgressGroup.Chevron />
+				</ProgressGroup.Trigger>
+				<ProgressGroup.Content>
+					{/* thinking 与工具调用按原顺序同列，展开阶段后才可见。 */}
+					{segment.blocks.map((block) =>
+						block.type === "tool_call" ? (
+							<StageRow key={block.toolCallId} block={block} exportMode={exportMode} />
+						) : (
+							<ContentRenderer key={block.id} block={block} exportMode={exportMode}>
+								{liveThinkingId === block.id ? (
+									// 进行中的思考就地展示实时滚动卡片，不脱离所属阶段组。
+									<LiveThinkingView key={`thinking-${block.id}`} text={block.text} />
+								) : (
+									<ConciseThinkingBlockView
+										key={`thinking-${block.id}`}
+										text={block.text}
+										exportMode={exportMode}
+										title={t("messageList.progressGroup.thinkingLabel")}
+									/>
+								)}
+							</ContentRenderer>
+						),
+					)}
+				</ProgressGroup.Content>
+			</ProgressGroup.Frame>
+		</ProgressGroup.Root>
+	);
+});
+
+interface WorkSegmentRendererProps {
+	segment: WorkSegment;
+	presentation?: ChatToolCallPresentationViewModel;
+	onTeamMemberOpen?: (memberId: string) => void;
+	isStreamingTail?: boolean;
+	/** This is the last process segment in the currently streaming assistant turn. */
+	isLiveActivity?: boolean;
+	/** 仍在追加的 thinking block id：就地换成实时滚动卡片。 */
+	liveThinkingId?: string | null;
+	animateIn?: boolean;
+	exportMode?: boolean;
+}
+
+function areBlocksEqual(previous: GroupBlock[], next: GroupBlock[]): boolean {
+	return previous.length === next.length && previous.every((block, index) => block === next[index]);
+}
+
+function arePropsEqual(previous: WorkSegmentRendererProps, next: WorkSegmentRendererProps): boolean {
+	if (
+		previous.isStreamingTail !== next.isStreamingTail ||
+		previous.isLiveActivity !== next.isLiveActivity ||
+		previous.liveThinkingId !== next.liveThinkingId ||
+		previous.animateIn !== next.animateIn ||
+		previous.exportMode !== next.exportMode ||
+		previous.presentation !== next.presentation ||
+		previous.onTeamMemberOpen !== next.onTeamMemberOpen
+	) {
+		return false;
+	}
+	const a = previous.segment;
+	const b = next.segment;
+	if (a.type !== b.type) return false;
+	if (a.type === "single") return b.type === "single" && a.block === b.block;
+	if (a.type === "tool_group") return b.type === "tool_group" && areBlocksEqual(a.blocks, b.blocks as GroupBlock[]);
+	if (a.type === "progress_divider") return b.type === "progress_divider" && a.block === b.block;
+	const other = b as ProgressGroupSegment;
+	return (
+		a.label === other.label &&
+		a.summary === other.summary &&
+		a.closed === other.closed &&
+		areBlocksEqual(a.blocks, other.blocks)
+	);
+}
+
+/**
+ * Work-mode segment renderer. Completed stages carry agent-authored titles;
+ * the active stage projects its latest tool/thinking activity while keeping
+ * the full rows folded. Errors and plugin tool cards were already bubbled out
+ * by `groupBlocksForWork`.
+ */
+export const WorkSegmentRenderer = memo(function WorkSegmentRenderer({
+	segment,
+	presentation,
+	onTeamMemberOpen,
+	isStreamingTail = false,
+	isLiveActivity = false,
+	liveThinkingId,
+	animateIn = false,
+	exportMode = false,
+}: WorkSegmentRendererProps) {
+	const { t } = useTranslation("chat");
+	let content: JSX.Element | null;
+
+	if (segment.type === "progress_divider") {
+		// Work 渲染下 progress 本身不成卡片，标题已由所属阶段承载。
+		content = null;
+	} else if (segment.type === "progress_group") {
+		content = (
+			<StageGroup
+				segment={segment}
+				fallbackTitle={t("messageList.progressGroup.fallbackTitle")}
+				exportMode={exportMode}
+				isLiveActivity={isLiveActivity}
+				liveThinkingId={liveThinkingId}
+			/>
+		);
+	} else if (segment.type === "tool_group") {
+		// No progress call in this message: heuristic grouping with a generic title.
+		const blocks = segment.blocks as (ToolCallBlock | ThinkingBlock)[];
+		const toolBlocks = blocks.filter((block): block is ToolCallBlock => block.type === "tool_call");
+		const done = toolBlocks.every((block) => block.status !== "pending");
+		const firstThinking = blocks.find((block): block is ThinkingBlock => block.type === "thinking");
+		content = (
+			<StageGroup
+				segment={{
+					type: "progress_group",
+					// 兜底组没有 progress 调用可依附，用首个 block 的 id 保证展开态 key 稳定且不串。
+					id: `heuristic-${toolBlocks[0]?.toolCallId ?? firstThinking?.id ?? "empty"}`,
+					stageId: "heuristic",
+					closed: done && !isLiveActivity,
+					blocks,
+				}}
+				fallbackTitle={
+					// 纯 thinking 的兜底组不该说「完成了 0 步操作」。
+					toolBlocks.length === 0
+						? t(isLiveActivity ? "messageList.progressGroup.thinking" : "messageList.progressGroup.thinkingLabel")
+						: done
+							? t("messageList.progressGroup.genericDone", { count: toolBlocks.length })
+							: t("messageList.progressGroup.genericRunning")
+				}
+				exportMode={exportMode}
+				isLiveActivity={isLiveActivity}
+				liveThinkingId={liveThinkingId}
+			/>
+		);
+	} else {
+		switch (segment.block.type) {
+			case "text":
+				content = <TextBlockView text={segment.block.text} isStreamingTail={isStreamingTail} />;
+				break;
+			case "thinking":
+				// 正在追加的那条就地展示实时滚动卡片，结束后回到折叠条。
+				content =
+					liveThinkingId === segment.block.id ? (
+						<LiveThinkingView text={segment.block.text} />
+					) : (
+						<ConciseThinkingBlockView
+							text={segment.block.text}
+							exportMode={exportMode}
+							title={t("messageList.progressGroup.thinkingLabel")}
+						/>
+					);
+				break;
+			case "tool_call":
+				content = presentation ? (
+					<ToolCallPresentation
+						block={segment.block}
+						presentation={presentation}
+						exportMode={exportMode}
+						aliased
+						onTeamMemberOpen={onTeamMemberOpen}
+					/>
+				) : (
+					<ToolCallBlockView block={segment.block} exportMode={exportMode} aliased />
+				);
+				break;
+			case "error":
+				content = <ErrorBlockView block={segment.block} exportMode={exportMode} />;
+				break;
+			default:
+				content = null;
+		}
+	}
+
+	return (
+		<SegmentShell animateIn={animateIn}>
+			{segment.type === "single" || segment.type === "progress_divider" ? (
+				<ContentRenderer block={segment.block} isStreamingTail={isStreamingTail} exportMode={exportMode}>
+					{content}
+				</ContentRenderer>
+			) : (
+				content
+			)}
+		</SegmentShell>
+	);
+}, arePropsEqual);

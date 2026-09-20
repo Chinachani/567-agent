@@ -1,0 +1,125 @@
+import type { InstalledPlugin } from "@preload/api";
+import { defaultAgentModeAtom } from "@shared/store/atoms";
+import type { PluginContext, PluginSecretsApi } from "@vetta-org/plugin-sdk";
+import { getDefaultStore } from "jotai";
+import { createPluginAgentApi, createPluginAppActionsApi } from "./plugin-agent-context";
+import { createPluginAiApi } from "./plugin-ai";
+import { createPluginCliProviderApi } from "./plugin-cli-provider-api";
+import { createPluginFileExplorerApi } from "./plugin-file-explorer-context";
+import {
+	createArtifactsApi,
+	createBrowserApi,
+	createCaptureApi,
+	createCommandApi,
+	createConversationApi,
+	createFsApi,
+	createGatewayApi,
+	createI18nApi,
+	createJobsApi,
+	createMediaApi,
+	createOcrApi,
+	createStorageApi,
+} from "./plugin-host-apis";
+import type { PluginLocalContributions } from "./plugin-local-contributions";
+import { createPluginModelsApi } from "./plugin-models-api";
+import { createPluginNetworkApi } from "./plugin-network-api";
+import { createPluginOfficialApi } from "./plugin-official-api";
+import { createPluginPermissionApi as createPermissionApi } from "./plugin-permissions";
+import { createPluginServiceApi } from "./plugin-service-api";
+import { createPluginUiApi } from "./plugin-ui-context";
+
+export interface CreatePluginContextOptions {
+	plugin: InstalledPlugin;
+	contributions: PluginLocalContributions;
+	secretsApi: PluginSecretsApi;
+	onChanged: () => void;
+	disposers: Array<() => void>;
+	pendingRuntimeRegistrations: Promise<void>[];
+	activationId: string;
+	capabilitySessionId: string;
+}
+
+export function createPluginContext({
+	plugin,
+	contributions,
+	secretsApi,
+	onChanged,
+	disposers,
+	pendingRuntimeRegistrations,
+	activationId,
+	capabilitySessionId,
+}: CreatePluginContextOptions): PluginContext {
+	const { toolCallSlots } = contributions;
+	/**
+	 * 已注册的 agent 工具负载，按 toolName 索引。用于「工具先注册、自渲染槽后注册」时回补
+	 * `rendersCard`——同一次激活内两者顺序不固定，靠重推让状态收敛（主进程按 tool.id 覆盖，幂等）。
+	 */
+	const fs = createFsApi(plugin, capabilitySessionId);
+	const conversation = createConversationApi(plugin, disposers);
+	const agentContributions = createPluginAgentApi({
+		plugin,
+		activationId,
+		fs,
+		conversation,
+		toolCallSlots,
+		pendingRuntimeRegistrations,
+	});
+	const ui = createPluginUiApi({
+		plugin,
+		contributions,
+		onChanged,
+		disposers,
+		agentContributions,
+		capabilitySessionId,
+	});
+	const permissions = createPermissionApi(plugin);
+	return {
+		plugin: {
+			id: plugin.id,
+			version: plugin.activeVersion,
+			...(plugin.iconUrl ? { iconUrl: plugin.iconUrl } : {}),
+		},
+		permissions,
+		ui,
+		fileExplorer: createPluginFileExplorerApi({
+			plugin,
+			contributions,
+			onChanged,
+			disposers,
+		}),
+		conversation,
+		fs,
+		command: createCommandApi(plugin, capabilitySessionId, disposers),
+		cliProviders: createPluginCliProviderApi(plugin, disposers),
+		services: createPluginServiceApi(plugin, capabilitySessionId, disposers),
+		models: createPluginModelsApi(permissions, capabilitySessionId),
+		media: createMediaApi(plugin, capabilitySessionId, activationId, disposers, pendingRuntimeRegistrations),
+		ocr: createOcrApi(plugin, capabilitySessionId, disposers, activationId, pendingRuntimeRegistrations),
+		jobs: createJobsApi(plugin, capabilitySessionId),
+		artifacts: createArtifactsApi(plugin, capabilitySessionId),
+		capture: createCaptureApi(plugin, disposers),
+		browser: createBrowserApi(plugin, capabilitySessionId),
+		agent: agentContributions.api,
+		appActions: createPluginAppActionsApi({
+			plugin,
+			activationId,
+			disposers,
+			pendingRuntimeRegistrations,
+		}),
+		ai: createPluginAiApi(permissions, capabilitySessionId),
+		official: createPluginOfficialApi(capabilitySessionId),
+		network: createPluginNetworkApi(plugin, capabilitySessionId),
+		gateway: plugin.trustLevel === "official" ? createGatewayApi(capabilitySessionId) : undefined,
+		storage: createStorageApi(plugin, capabilitySessionId),
+		secrets: secretsApi,
+		i18n: createI18nApi(plugin),
+		// 模式已不再过滤任何插件能力：插件面板、命令、hook 在所有模式下都常驻。这里给出的是
+		// 「新会话默认模式」，只适合做展示层的软性定制，不要用它隐藏功能入口。
+		getAgentMode: () => getDefaultStore().get(defaultAgentModeAtom),
+		onAgentModeChanged: (listener) => {
+			const store = getDefaultStore();
+			const unsub = store.sub(defaultAgentModeAtom, () => listener(store.get(defaultAgentModeAtom)));
+			return { dispose: unsub };
+		},
+	};
+}

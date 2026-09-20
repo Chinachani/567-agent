@@ -1,0 +1,5 @@
+dist/
+release/
+node_modules/
+# 构建期从 plugin-cli 的产物内置进来（scripts/bundle-cli.mjs）
+agent/cli/

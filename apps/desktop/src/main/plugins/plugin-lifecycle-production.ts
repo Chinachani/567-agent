@@ -1,0 +1,69 @@
+import { logAbilityInstallFailed, logAbilityInstallStarted } from "../abilities/ability-lifecycle-log.js";
+import { recordAppMonitorEvent } from "../app-monitor/app-monitor-service.js";
+import { stopAllSpawnsForPlugin } from "./command-spawner.js";
+import { destroyOffscreenSessionsForPlugin } from "./offscreen-capture-service.js";
+import type { PluginActionService } from "./plugin-action-service.js";
+import {
+	applyPluginSetup,
+	grantPluginCommands,
+	grantPluginPermissions,
+	installPluginFromArchive,
+	installPluginFromPath,
+	installPluginFromUrl,
+	listPlugins,
+	pluginAgentContributionService,
+	reloadPlugin,
+	revokePluginCommands,
+	revokePluginPermissions,
+	setPluginEnabled,
+	uninstallPlugin,
+} from "./plugin-catalog.js";
+import { pluginCliProviderService } from "./plugin-cli-provider-service.js";
+import { stopPluginDevWatch } from "./plugin-dev-watch.js";
+import { type PluginLifecycleDependencies, PluginLifecycleService } from "./plugin-lifecycle-service.js";
+import { refreshAgentPlugins } from "./plugin-runtime-service.js";
+import { pluginServiceProviderService } from "./plugin-service-provider-service.js";
+
+pluginAgentContributionService.setServiceMcpResolver((plugin, serviceId, path) => {
+	try {
+		return pluginServiceProviderService.connection(plugin.id, serviceId).baseUrl + path;
+	} catch {
+		return undefined;
+	}
+});
+
+pluginServiceProviderService.onStatusChange(() => {
+	refreshAgentPlugins({ reason: "plugin-service-status" });
+});
+
+const dependencies: PluginLifecycleDependencies = {
+	listPlugins,
+	installFromArchive: installPluginFromArchive,
+	installFromUrl: installPluginFromUrl,
+	installFromPath: installPluginFromPath,
+	uninstall: uninstallPlugin,
+	setEnabled: setPluginEnabled,
+	grantPermissions: grantPluginPermissions,
+	revokePermissions: revokePluginPermissions,
+	grantCommands: grantPluginCommands,
+	revokeCommands: revokePluginCommands,
+	applySetup: applyPluginSetup,
+	reload: reloadPlugin,
+	stopDevWatch: stopPluginDevWatch,
+	stopSpawns: stopAllSpawnsForPlugin,
+	ensureCliProviders: (id) => pluginCliProviderService.ensurePlugin(id),
+	stopCliProviders: (id) => pluginCliProviderService.disablePlugin(id),
+	stopServices: (id) => pluginServiceProviderService.disablePlugin(id),
+	destroyOffscreenSessions: destroyOffscreenSessionsForPlugin,
+	hardRevokeAgentHandlers: (id, reason, kinds) => {
+		pluginAgentContributionService.hardRevokeHandlers(id, reason, kinds);
+	},
+	refreshRuntime: refreshAgentPlugins,
+	recordEvent: recordAppMonitorEvent,
+	logInstallStarted: logAbilityInstallStarted,
+	logInstallFailed: logAbilityInstallFailed,
+};
+
+export function createPluginLifecycleService(pluginActionService: PluginActionService): PluginLifecycleService {
+	return new PluginLifecycleService(pluginActionService, dependencies);
+}

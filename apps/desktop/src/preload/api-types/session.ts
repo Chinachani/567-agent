@@ -1,0 +1,296 @@
+import type { Message } from "@vetta/ai";
+import type {
+	CodingAgentPlanReviewRequest,
+	CodingAgentPlanReviewResult,
+	CodingAgentQuestionFunctionRequest,
+	CodingAgentQuestionResult,
+	CodingAgentSandboxAuthorizationDecision,
+	CodingAgentSandboxAuthorizationFunctionRequest,
+} from "@vetta/coding-agent/function-extensions";
+import type { ConversationScenario } from "@vetta/coding-agent/profile";
+import type { CodingAgentPermissionMode, CodingAgentPlanModeState } from "@vetta/coding-agent/session-extensions";
+import type {
+	HistoryEntry,
+	ProjectInfo,
+	PromptRequest,
+	RuntimeSandboxGrantInfo,
+	RuntimeSessionQueueStateView,
+	RuntimeTurnPromptOutcome,
+	SessionConfig,
+	SessionEvent,
+	SessionExecutionMode,
+	SessionStateSnapshot,
+	SettingsPatch,
+} from "@vetta/runtime-core";
+import type { DesktopMcpAppResourceRead, DesktopMcpAppSurface, DesktopMcpAppToolCall } from "../../shared/mcp-app.js";
+import type {
+	DesktopMcpElicitationRequest,
+	DesktopMcpElicitationResolvedEvent,
+	DesktopMcpElicitationResponse,
+} from "../../shared/mcp-interaction.js";
+import type { DesktopMcpTask, DesktopMcpTasksChangedEvent } from "../../shared/mcp-task.js";
+import type { DesktopSessionHistoryInfo } from "../../shared/session-access.js";
+import type { DesktopSessionSearchEvent, DesktopSessionSearchRequest } from "../../shared/session-search.js";
+
+export type {
+	DesktopMcpAppAttachment,
+	DesktopMcpAppResourceRead,
+	DesktopMcpAppSurface,
+	DesktopMcpAppToolCall,
+} from "../../shared/mcp-app.js";
+export type {
+	DesktopMcpElicitationField,
+	DesktopMcpElicitationOption,
+	DesktopMcpElicitationRequest,
+	DesktopMcpElicitationResolvedEvent,
+	DesktopMcpElicitationResponse,
+	DesktopMcpElicitationValue,
+} from "../../shared/mcp-interaction.js";
+export type { DesktopMcpTask, DesktopMcpTaskStatus, DesktopMcpTasksChangedEvent } from "../../shared/mcp-task.js";
+export type {
+	DesktopSessionSearchMatch,
+	DesktopSessionSearchRequest,
+	DesktopSessionSearchResult,
+	DesktopSessionSearchSourceKind,
+} from "../../shared/session-search.js";
+
+/**
+ * 工作模式 id（agent_mode 轴）。会话创建时固化，会话内不可变。
+ * 合法值由主进程的模式注册表定义（ADR-0071），经 getAgentModes() 下发；
+ * preload 层不复刻注册表，故放宽为 string，主进程写入前校验。
+ */
+export type AgentMode = string;
+
+/** Desktop 在 Runtime 基础状态上组合的 Coding Agent 产品状态。 */
+export interface DesktopSessionStateSnapshot extends SessionStateSnapshot {
+	readonly scenario: ConversationScenario;
+	readonly agentMode?: AgentMode;
+}
+
+export interface DesktopCodingAgentSessionConfig extends SessionConfig {
+	readonly scenario?: ConversationScenario;
+	readonly agentMode?: AgentMode;
+	/**
+	 * 本会话绑定的 Agent Profile 身份。刻意只传身份不传能力：人格与
+	 * 技能 / MCP / 插件白名单一律由主进程查表折算，渲染层无从自述能力。
+	 * 恢复既有会话不必传，主进程从会话目录旁挂的绑定记录读回。
+	 */
+	readonly agentProfileId?: string;
+	readonly appendSystemPrompt?: string;
+	readonly enableBackgroundTasks?: boolean;
+	readonly includeAgentSkills?: boolean;
+}
+
+/** 工作模式选项（由主进程模式注册表下发，不含提示词正文）。 */
+export interface AgentModeOption {
+	id: AgentMode;
+	label: string;
+	description: string;
+	/** iconify class，如 icon-[solar--code-linear]。 */
+	icon: string;
+	/** 渲染层能力位：staged = 会话流按 progress 阶段折叠；inline = 工具行内联展示。 */
+	narration: "staged" | "inline";
+}
+
+/** 个性化人设选项（由 coding-agent 注册表下发，不含提示词正文）。 */
+export interface PersonaOption {
+	id: string;
+	label: string;
+	description: string;
+}
+
+/** 个性化配置：选中的人设 id + 自定义指令文本。 */
+export interface PersonalizationConfig {
+	personaId: string;
+	customPrompt: string;
+}
+
+export type DesktopSessionKind = "conversation" | "other";
+
+/** Privacy-safe correlation only; never forwarded into Prompt metadata or model context. */
+export interface DesktopSessionTraceContext {
+	interactionId: string;
+}
+
+export type DesktopUserQuestionRequest = CodingAgentQuestionFunctionRequest;
+
+export interface DesktopUserQuestionResolvedEvent {
+	requestId: string;
+	sessionId: string;
+}
+
+export interface DesktopPlanReviewResolvedEvent {
+	requestId: string;
+	sessionId: string;
+}
+
+export interface DesktopSessionApi {
+	create(
+		config: DesktopCodingAgentSessionConfig | undefined,
+		kind: DesktopSessionKind,
+		traceContext?: DesktopSessionTraceContext,
+	): Promise<{ sessionId: string; sessionPath: string; cwd?: string; agentProfileId?: string }>;
+	listProjects(): Promise<ProjectInfo[]>;
+	listSessions(cwd: string): Promise<DesktopSessionHistoryInfo[]>;
+	searchSessions(
+		request: DesktopSessionSearchRequest,
+		onEvent: (event: DesktopSessionSearchEvent) => void,
+	): () => void;
+	onSessionsChanged(
+		handler: (payload: {
+			cwd: string;
+			sessionPath: string;
+			session?: { id: string; cwd: string; firstMessage: string; modifiedAt: number };
+		}) => void,
+	): () => void;
+	/** 回执（ADR-0060）：streaming 中带 streamingBehavior 的请求入 kernel 队列并立即返回 queued。 */
+	prompt(
+		sessionId: string,
+		request: PromptRequest,
+		traceContext?: DesktopSessionTraceContext,
+	): Promise<RuntimeTurnPromptOutcome>;
+	continue(sessionId: string): Promise<void>;
+	abort(sessionId: string): Promise<void>;
+	/** kernel 输入队列快照（ADR-0060）。 */
+	getQueueState(sessionId: string): Promise<RuntimeSessionQueueStateView>;
+	/** 在当前回复自然结束后压缩上下文；空闲时立即从队列执行。 */
+	queueContextCompaction(sessionId: string): Promise<{ status: "queued"; id?: string; pendingCount: number }>;
+	removeQueuedMessage(sessionId: string, itemId: string): Promise<boolean>;
+	reorderQueuedMessages(sessionId: string, itemIds: string[]): Promise<void>;
+	/** streaming 中打断当前回合并立刻以该条目开新回合；空闲时直接开新回合。不等待回合结束。 */
+	sendQueuedMessageNow(sessionId: string, itemId: string): Promise<"promoted" | "started" | "missing">;
+	/** 解除 abort/error 后的队列暂停并继续逐条发送。 */
+	resumeQueue(sessionId: string): Promise<void>;
+	clearQueue(sessionId: string): Promise<void>;
+	/** 清空 session 的 todo 列表（被 scene 等 lock 时返回 false）。 */
+	clearTodos(sessionId: string): Promise<boolean>;
+	subscribe(sessionId: string, handler: (event: SessionEvent) => void): Promise<() => void>;
+	/** ask_user_question：监听主进程发来的提问请求（携 sessionId + questions）。 */
+	onQuestionRequest(handler: (request: CodingAgentQuestionFunctionRequest) => void): () => void;
+	/** 当前仍等待回答的问题快照，供 Renderer 初始化或重载后恢复真实状态。 */
+	listPendingQuestions(): Promise<CodingAgentQuestionFunctionRequest[]>;
+	/** 问题由用户、Agent、取消或中断解决后统一通知 Renderer 清理面板。 */
+	onQuestionResolved(handler: (event: DesktopUserQuestionResolvedEvent) => void): () => void;
+	/** 回传用户对某次提问的答案 / 取消。 */
+	respondToQuestion(requestId: string, result: CodingAgentQuestionResult): Promise<void>;
+	/** Plan 模式：读取会话当前的权限模式与最近一份计划。 */
+	getPlanModeState(sessionId: string): Promise<CodingAgentPlanModeState>;
+	/** Plan 模式：用户手势切换权限模式；收紧从下一轮生效，放宽立即生效。 */
+	setPermissionMode(sessionId: string, permissionMode: CodingAgentPermissionMode): Promise<CodingAgentPlanModeState>;
+	/** exit_plan_mode：监听主进程发来的计划审批请求。 */
+	onPlanReviewRequest(handler: (request: CodingAgentPlanReviewRequest) => void): () => void;
+	/** 当前仍等待审批的计划快照，供 Renderer 初始化或重载后恢复真实状态。 */
+	listPendingPlanReviews(): Promise<CodingAgentPlanReviewRequest[]>;
+	onPlanReviewResolved(handler: (event: DesktopPlanReviewResolvedEvent) => void): () => void;
+	/** 回传用户对计划的审批结论（批准 / 退回修改 / 未决定）。 */
+	respondToPlanReview(requestId: string, result: CodingAgentPlanReviewResult): Promise<void>;
+	onMcpElicitationRequest(handler: (request: DesktopMcpElicitationRequest) => void): () => void;
+	listPendingMcpElicitations(): Promise<DesktopMcpElicitationRequest[]>;
+	onMcpElicitationResolved(handler: (event: DesktopMcpElicitationResolvedEvent) => void): () => void;
+	respondToMcpElicitation(requestId: string, result: DesktopMcpElicitationResponse): Promise<void>;
+	onMcpTasksChanged(handler: (event: DesktopMcpTasksChangedEvent) => void): () => void;
+	listMcpTasks(sessionId?: string): Promise<DesktopMcpTask[]>;
+	cancelMcpTask(id: string): Promise<boolean>;
+	clearFinishedMcpTasks(sessionId: string): Promise<number>;
+	getMcpAppSurface(id: string): Promise<DesktopMcpAppSurface | undefined>;
+	callMcpAppTool(request: DesktopMcpAppToolCall): Promise<unknown>;
+	readMcpAppResource(request: DesktopMcpAppResourceRead): Promise<unknown>;
+	releaseMcpAppSurface(id: string): Promise<boolean>;
+	onSandboxGrantRequest(handler: (request: CodingAgentSandboxAuthorizationFunctionRequest) => void): () => void;
+	respondToSandboxGrant(requestId: string, decision: CodingAgentSandboxAuthorizationDecision): Promise<void>;
+	listSandboxGrants(sessionId: string): Promise<RuntimeSandboxGrantInfo[]>;
+	revokeSandboxGrant(sessionId: string, grantId: string): Promise<boolean>;
+	revokeAllSandboxGrants(sessionId: string): Promise<number>;
+	/** 清除指定 session 中所有已结束的后台任务，返回清除数量。 */
+	clearFinishedBackgroundTasks(sessionId: string): Promise<number>;
+	/** 用户从 UI 手动终止运行中的后台任务；成功后 agent 会收到 task-notification。 */
+	killBackgroundTask(sessionId: string, taskId: string): Promise<boolean>;
+	/** 中断运行中的子代理（explorer 等）。 */
+	interruptSubagent(sessionId: string, target: string): Promise<boolean>;
+	getSessionPath(sessionId: string): Promise<string | undefined>;
+	updateSettings(sessionId: string, partialSettings: SettingsPatch): Promise<void>;
+	setExecutionMode(sessionId: string, mode: SessionExecutionMode): Promise<void>;
+	setGlobalExecutionMode(mode: SessionExecutionMode): Promise<void>;
+	/**
+	 * 写入「新会话默认工作模式」（desktop-config 的 defaultAgentMode）。
+	 * 通道名保留历史名字；它不影响任何已存在的会话。
+	 */
+	setGlobalAgentMode(mode: AgentMode): Promise<void>;
+	/** 订阅默认工作模式变更广播：仅用于多窗口新会话页 toggle 同步显示。 */
+	onAgentModeChanged(handler: (mode: AgentMode) => void): () => void;
+	setGlobalThinkingLevel(level: string): Promise<void>;
+	getGlobalThinkingLevel(): Promise<string>;
+	getPersonas(): Promise<PersonaOption[]>;
+	/** 工作模式注册表（ADR-0071）：新会话页 toggle 遍历渲染，新增模式无需改 UI。 */
+	getAgentModes(): Promise<AgentModeOption[]>;
+	getPersonalization(): Promise<PersonalizationConfig>;
+	setPersonalization(input: PersonalizationConfig): Promise<void>;
+	getState(sessionId: string): Promise<DesktopSessionStateSnapshot>;
+	getMessages(sessionId: string): Promise<Message[]>;
+	getFullHistory(sessionId: string): Promise<HistoryEntry[]>;
+	/** Prepare re-edit: set leaf to parent of user entry; returns text. Call before prompt. */
+	navigateForEdit(sessionId: string, entryId: string): Promise<{ text: string; cancelled: boolean }>;
+	/** Switch leaf to tip of subtree at entryId (sibling branch view). */
+	switchBranch(sessionId: string, entryId: string): Promise<{ leafId: string }>;
+	/** Permanently delete one message while preserving subsequent messages. */
+	deleteMessage(sessionId: string, entryId: string): Promise<{ leafId: string | null }>;
+	/** Remove the last user turn before sending its edited replacement. */
+	replaceLastUserMessage(sessionId: string, entryId: string): Promise<{ leafId: string | null }>;
+	/** Export fork as new session file; current session unchanged. */
+	forkSession(sessionId: string, entryId: string): Promise<{ path: string; text: string }>;
+	delete(sessionPath: string): Promise<void>;
+	/**
+	 * 清空某个项目 cwd 名下的全部会话存储，用于项目硬删除。
+	 *
+	 * 会话文件在按 cwd 算出的全局分片目录里，不随项目目录删除而消失；不清理的话，
+	 * 同路径重建项目会把旧会话带回侧边栏。内置「对话」/Claw/知识库 cwd 会被拒绝。
+	 */
+	deleteAllForCwd(cwd: string): Promise<{ deleted: number; failed: string[] }>;
+	rename(sessionPath: string, name: string): Promise<void>;
+	autoTitle(sessionId: string, userText: string, assistantText: string): Promise<string | null>;
+	/**
+	 * 输入预测：基于最近几轮对话文本，预测用户下一个可能输入的 prompt，返回 0-3 条
+	 * 建议。模型/key 不可用、出错或对话已收尾时返回空数组。
+	 */
+	nextPromptSuggestions(sessionId: string, conversation: string): Promise<string[]>;
+	dispose(sessionId: string): Promise<void>;
+	/** Snapshot of session paths currently in the agent loop. */
+	listRunning(): Promise<string[]>;
+	/**
+	 * 当前有会话在跑的项目 cwd（去重）。会话文件路径无法反推所属项目（默认落在
+	 * 按 cwd 编码的分片目录里，编码不可逆），需要项目粒度的运行态时用这个。
+	 */
+	listRunningCwds(): Promise<string[]>;
+	/** Subscribe to running-set changes. Fires for each toggle (running=true|false). */
+	onRunningChanged(
+		handler: (payload: {
+			sessionPath: string;
+			running: boolean;
+			sessionId?: string;
+			reason?: "agent_end" | "aborted" | "error";
+		}) => void,
+	): () => void;
+	/**
+	 * 清空默认「对话」或 Claw 项目的全部会话（保留产物），按 scope 分流（物理 cwd 分家，ADR-0005）：
+	 * - "conversation"：清桌面「对话」cwd 的 .vetta/sessions
+	 * - "claw"：清 IM cwd 的 .vetta/sessions
+	 * 主进程会先 dispose 本 scope 涉及的 session handle；若该 scope 仍有运行中的会话则抛错拒绝。
+	 */
+	clearDefaultConversation(scope: "conversation" | "claw"): Promise<void>;
+	/**
+	 * 清空默认「对话」或 Claw 项目 cwd 下的产物文件（保留 .vetta 目录，会话不受影响）。
+	 */
+	clearDefaultArtifacts(scope: "conversation" | "claw"): Promise<void>;
+	/**
+	 * Open a session for read-only viewing. Does NOT acquire the
+	 * session-file lock, so IM-owned sessions (sidecar may be actively
+	 * writing) can be viewed live without conflict.
+	 */
+	openViewer(path: string, options?: { tailTurns?: number }): Promise<{ history: HistoryEntry[] }>;
+	/**
+	 * Subscribe to live updates for a viewer-mode session. Handler fires
+	 * whenever the underlying .jsonl is written. Returns an unsubscribe
+	 * function — caller MUST call it on unmount to release the fs.watch.
+	 */
+	subscribeViewer(path: string, handler: (snapshot: { history: HistoryEntry[] }) => void): Promise<() => void>;
+}

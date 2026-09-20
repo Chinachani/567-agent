@@ -1,0 +1,111 @@
+---
+title: 使用指南概览
+description: 按任务选择模型、能力、知识库、批量任务、自动化与扩展。
+---
+
+<Takeaways>
+  <li>先跑通一次普通会话</li>
+  <li>按目标选择执行方式，而不是按功能菜单</li>
+  <li>能力、知识和自动化是一次成功任务的延伸</li>
+</Takeaways>
+
+Vetta 桌面端将 Agent、项目上下文和本机工具整合在一个工作空间中。以下按「要完成什么」组织，不要求先理解内部架构。
+
+第一次使用时，先阅读[理解 Vetta 的工作方式](/core/overview/)；它解释工作区、会话、工具和结果之间的关系，避免把 Vetta 当成只生成答案的聊天框。
+
+## 开始工作
+
+<Steps>
+  <Step>
+    ### 配置模型
+
+    在 [模型配置](/product/models/) 添加服务商与模型，并设为默认。
+  </Step>
+  <Step>
+    ### 运行第一个任务
+
+    按 [运行第一个任务](/getting-started/first-task/) 选择工作目录，写清目标与验收条件。
+  </Step>
+  <Step>
+    ### 按需接入能力与资料
+
+    需要外部工具时在 [能力](/product/abilities/) 中添加 MCP 或技能；需要长期资料时使用 [知识库](/product/knowledge-base/)。
+  </Step>
+</Steps>
+
+## 选择执行方式
+
+<Entries>
+  <Entry href="/getting-started/first-task/" kicker="01 / SESSION" title="普通会话">
+    单个开放式目标，在项目会话中执行。适合第一次跑通方法和需要交互决策的工作。
+  </Entry>
+  <Entry href="/product/batch-tasks/" kicker="02 / BATCH" title="批量任务">
+    同一提示处理多个文件夹，可设并发与产物校验。每个目录必须能独立验收。
+  </Entry>
+  <Entry href="/product/automation/" kicker="03 / SCHEDULE" title="自动化">
+    单次、每天或按小时间隔调度任务；需保持应用运行。
+  </Entry>
+  <Entry href="/product/claw/" kicker="04 / CHANNEL" title="Claw / IM">
+    在已配置的 IM 渠道中继续对话，桌面端保持运行。
+  </Entry>
+  <Entry href="/product/webhook/" kicker="05 / SIGNAL" title="消息推送">
+    飞书/钉钉 Webhook，供批量任务等推送通知。
+  </Entry>
+  <Entry href="/product/remote-control/" kicker="06 / PREVIEW" title="远程连接">
+    从 Android 查看 Windows Desktop，并按授权执行远程输入。
+  </Entry>
+  <Entry href="/product/settings/" kicker="07 / CONFIG" title="设置参考">
+    按入口查找模型、权限、快捷键、环境和集成配置。
+  </Entry>
+</Entries>
+
+## 管理一次任务
+
+<Entries>
+  <Entry href="/core/workspaces-and-sessions/" kicker="BOUNDARY" title="项目、工作区与会话">
+    选择文件边界，管理历史、分叉和项目指令。
+  </Entry>
+  <Entry href="/core/context-tools-and-permissions/" kicker="CONTROL" title="上下文、工具与权限">
+    引用材料、选择执行模式并处理权限请求。
+  </Entry>
+  <Entry href="/core/progress-results-and-recovery/" kicker="EVIDENCE" title="进度、结果与恢复">
+    检查待办、工具、后台任务和真实产物。
+  </Entry>
+</Entries>
+
+## 从指南进入完整示例
+
+指南解释入口、状态和边界；实战示例把这些能力组合成可以直接运行、可以验收的任务。第一次尝试某类工作时，先复制最接近的示例，再替换目录、输入来源和产物名称。
+
+<Entries>
+  <Entry href="/examples/review-and-fix-code/" kicker="CODE" title="审查并修复代码">
+    用基线、最小修改、定向测试和最终差异完成一次安全的代码修复。
+  </Entry>
+  <Entry href="/examples/document-to-brief/" kicker="DOCS" title="资料生成决策简报">
+    从指定材料提取事实，区分证据与推断，生成可复核的 Markdown 产物。
+  </Entry>
+  <Entry href="/examples/batch-project-audit/" kicker="BATCH" title="批量审计多个项目">
+    同一任务扇出到多个目录，用固定产物规则和抽样复核控制质量。
+  </Entry>
+  <Entry href="/examples/scheduled-project-report/" kicker="SCHEDULE" title="定期生成项目报告">
+    先立即试跑，再按时间执行，并通过历史与真实文件判断成功。
+  </Entry>
+</Entries>
+
+## 扩展能力
+
+侧栏 **能力** 统一管理技能、场景、MCP、插件与套装。场景也可在独立路由 `/scenes` 中浏览（未必有侧栏一级入口）。开发向扩展见插件与主题文档。
+
+<Continue>
+	<ContinueLink href="/examples/" title="浏览实战示例" description="从完整起始状态、任务输入和验收步骤开始。" />
+  <ContinueLink href="/product/abilities/" title="能力市场" description="发现 / 我的、导入技能与插件、手动 MCP、外置仓库。" />
+  <ContinueLink href="/product/agent-teams/" title="智能体团队" description="用有负责人和分工的常驻团队完成一次任务。" />
+  <ContinueLink href="/product/design/" title="用 Vetta 做设计" description="在设计画布上生成真实界面，选中改稿、预览与导出。" />
+  <ContinueLink href="/product/mcp/" title="MCP 连接器" description="推荐连接、凭证与手动 STDIO/HTTP 配置。" />
+  <ContinueLink href="/product/browser/" title="浏览器操作" description="在真实浏览器里读页、填表、复用登录态。" />
+  <ContinueLink href="/product/settings/" title="设置参考" description="按平台和构建模式查找所有主要设置入口。" />
+  <ContinueLink href="/product/remote-control/" title="远程连接与移动端" description="了解配对、屏幕查看、远程输入和恢复路径。" />
+  <ContinueLink href="/plugins/overview/" title="插件开发" description="扩展界面、消息卡片与 Agent 工具。" />
+  <ContinueLink href="/themes/overview/" title="主题开发" description="外观、组件与主题页面。" />
+  <ContinueLink href="/troubleshooting/" title="故障排查" description="登录、模型、文件访问与插件加载。" />
+</Continue>

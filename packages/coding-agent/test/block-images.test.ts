@@ -1,0 +1,92 @@
+import { createReadTool } from "@vetta/runtime-node/coding";
+import { mkdirSync, rmSync, writeFileSync } from "fs";
+import { tmpdir } from "os";
+import { join } from "path";
+import { afterEach, beforeEach, describe, expect, it } from "vitest";
+import { SettingsRuntime } from "../src/settings/index.js";
+
+// 1x1 red PNG image as base64 (smallest valid PNG)
+const TINY_PNG_BASE64 =
+	"iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8DwHwAFBQIAX8jx0gAAAABJRU5ErkJggg==";
+
+describe("blockImages setting", () => {
+	describe("SettingsRuntime", () => {
+		it("should default blockImages to false", () => {
+			const manager = SettingsRuntime.inMemory({});
+			expect(manager.getBlockImages()).toBe(false);
+		});
+
+		it("should return true when blockImages is set to true", () => {
+			const manager = SettingsRuntime.inMemory({ images: { blockImages: true } });
+			expect(manager.getBlockImages()).toBe(true);
+		});
+
+		it("should persist blockImages setting via setBlockImages", () => {
+			const manager = SettingsRuntime.inMemory({});
+			expect(manager.getBlockImages()).toBe(false);
+
+			manager.setBlockImages(true);
+			expect(manager.getBlockImages()).toBe(true);
+
+			manager.setBlockImages(false);
+			expect(manager.getBlockImages()).toBe(false);
+		});
+
+		it("should handle blockImages alongside autoResize", () => {
+			const manager = SettingsRuntime.inMemory({
+				images: { autoResize: true, blockImages: true },
+			});
+			expect(manager.getImageAutoResize()).toBe(true);
+			expect(manager.getBlockImages()).toBe(true);
+		});
+	});
+
+	describe("Read tool", () => {
+		let testDir: string;
+
+		beforeEach(() => {
+			testDir = join(tmpdir(), `block-images-test-${Date.now()}`);
+			mkdirSync(testDir, { recursive: true });
+		});
+
+		afterEach(() => {
+			rmSync(testDir, { recursive: true, force: true });
+		});
+
+		it("should always read images (filtering happens at convertToLlm layer)", async () => {
+			// Create test image
+			const imagePath = join(testDir, "test.png");
+			writeFileSync(imagePath, Buffer.from(TINY_PNG_BASE64, "base64"));
+
+			const result = await executeRead(testDir, "test-1", imagePath);
+
+			// Should have text note + image content
+			expect(result.content.length).toBeGreaterThanOrEqual(1);
+			const hasImage = result.content.some((c) => c.type === "image");
+			expect(hasImage).toBe(true);
+		});
+
+		it("should read text files normally", async () => {
+			// Create test text file
+			const textPath = join(testDir, "test.txt");
+			writeFileSync(textPath, "Hello, world!");
+
+			const result = await executeRead(testDir, "test-2", textPath);
+
+			expect(result.content).toHaveLength(1);
+			expect(result.content[0].type).toBe("text");
+			const textContent = result.content[0] as { type: "text"; text: string };
+			expect(textContent.text).toContain("Hello, world!");
+		});
+	});
+});
+
+function executeRead(cwd: string, toolCallId: string, path: string) {
+	return createReadTool(cwd).execute({
+		sessionId: "test-session",
+		turnId: "test-turn",
+		toolCallId,
+		input: { path },
+		signal: new AbortController().signal,
+	});
+}

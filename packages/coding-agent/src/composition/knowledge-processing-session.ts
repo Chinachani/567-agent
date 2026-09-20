@@ -1,0 +1,198 @@
+import type { Api, Model } from "@vetta/ai";
+import { RuntimeHost, type RuntimeHostSession, type SessionEvent } from "@vetta/runtime-core";
+import type { CodingAgentKnowledgeRuntime, CodingAgentKnowledgeWriteOperations } from "../features/knowledge/index.js";
+import type { CodingAgentRuntimeModelSource } from "../runtime-contracts/index.js";
+import type {
+	CodingAgentConversationPersistenceFactory,
+	CodingAgentRuntimeComposition,
+	CodingAgentRuntimeCompositionOptions,
+	CodingAgentRuntimeSessionOptions,
+	CodingAgentSessionExecutionEnvironmentFactory,
+	CodingAgentToolEnvironmentFactory,
+} from "./contracts/index.js";
+import type {
+	KnowledgeProcessingPageWriter,
+	KnowledgeProcessingSession,
+	KnowledgeProcessingSessionFactory,
+	KnowledgeProcessingSessionRequest,
+	KnowledgeProcessingUsage,
+} from "./knowledge-processing-contract.js";
+import { createCodingAgentRuntimeComposition } from "./runtime-composition.js";
+import { createCodingAgentRuntimeHostSessionConfig } from "./runtime-host-session-config.js";
+
+export interface KnowledgeProcessingSessionFactoryOptions {
+	readonly getModelRegistry: () => CodingAgentRuntimeModelSource;
+	/** 由宿主选择平台持久化实现；知识处理产品层只转发 Port。 */
+	readonly createConversationPersistence: CodingAgentConversationPersistenceFactory;
+	readonly createToolEnvironment: CodingAgentToolEnvironmentFactory;
+	readonly createSessionExecutionEnvironment: CodingAgentSessionExecutionEnvironmentFactory;
+	readonly codingToolResultPolicy?: CodingAgentRuntimeCompositionOptions["codingToolResultPolicy"];
+	readonly modelInputImageProcessor?: CodingAgentRuntimeCompositionOptions["modelInputImageProcessor"];
+	readonly knowledgeRuntime: CodingAgentKnowledgeRuntime;
+	/** 由最终宿主探测工作区事实；产品组合不直接读取文件系统。 */
+	readonly resolveWorkspaceFacts?: (cwd: string) => string | undefined;
+	readonly createSessionId?: () => string;
+	readonly createComposition?: (
+		options: CodingAgentRuntimeCompositionOptions,
+	) => Promise<CodingAgentRuntimeComposition>;
+}
+
+/**
+ * 在 Knowledge Processing Port 后组合独占的 Coding Agent Runtime。
+ *
+ * Writer 与 Todo 锁都停留在 Coding Agent 产品层；通用 RuntimeHost 无需认识
+ * Knowledge、KbWriteSession 或可写 TodoStore。
+ */
+export function createKnowledgeProcessingSessionFactory(
+	options: KnowledgeProcessingSessionFactoryOptions,
+): KnowledgeProcessingSessionFactory {
+	const createSessionId = options.createSessionId ?? (() => globalThis.crypto.randomUUID());
+	const createComposition = options.createComposition ?? createCodingAgentRuntimeComposition;
+
+	return {
+		async create(request) {
+			const modelRuntime = options.getModelRegistry();
+			modelRuntime.refresh();
+			const initialModel = readInitialModel(modelRuntime);
+			const composition = await createComposition({
+				conversationDir: request.sessionDir,
+				createConversationPersistence: options.createConversationPersistence,
+				createToolEnvironment: options.createToolEnvironment,
+				createSessionExecutionEnvironment: options.createSessionExecutionEnvironment,
+				codingToolResultPolicy: options.codingToolResultPolicy,
+				modelInputImageProcessor: options.modelInputImageProcessor,
+				modelRegistry: modelRuntime,
+				initialModel,
+				initialThinkingLevel: "off",
+				cwd: request.cwd,
+				workspaceFacts: options.resolveWorkspaceFacts?.(request.cwd),
+				scenario: "kb-processing",
+				knowledgeRuntime: options.knowledgeRuntime,
+				enableSubagents: false,
+			});
+			const runtimeHost = new RuntimeHost({
+				sessionBackend: composition.runtimeHostBackend,
+				observationPublisher: composition.observations.publisher(),
+				// 知识处理入口迁移到 RuntimeHost 前默认直接执行工具；保持该兼容合同。
+				getDefaultExecutionMode: () => "full-access",
+			});
+			let runtimeSession: RuntimeHostSession;
+			try {
+				const sessionOptions: CodingAgentRuntimeSessionOptions = {
+					sessionId: createSessionId(),
+					scenario: composition.scenario,
+					cwd: request.cwd,
+					model: initialModel,
+					env: request.env,
+					enableBackgroundTasks: false,
+					systemPromptAddon: request.appendSystemPrompt,
+					initialTodos: request.todoItems,
+					initialTodoLockSource: request.todoItems.length > 0 ? "scene" : undefined,
+					knowledgePageWriter: adaptKnowledgePageWriter(
+						request.writer,
+						options.knowledgeRuntime.write.resolveAbsolutePath,
+					),
+				};
+				const created = await runtimeHost.createSession(
+					createCodingAgentRuntimeHostSessionConfig(composition.agentRuntime, sessionOptions),
+				);
+				runtimeSession = runtimeHost.getSessionView(created.sessionId);
+			} catch (error) {
+				await runtimeHost.close();
+				await composition.dispose();
+				throw error;
+			}
+
+			return createKnowledgeProcessingSession(runtimeSession, runtimeHost, composition, request, modelRuntime);
+		},
+	};
+}
+
+function createKnowledgeProcessingSession(
+	runtimeSession: RuntimeHostSession,
+	runtimeHost: RuntimeHost,
+	composition: CodingAgentRuntimeComposition,
+	request: KnowledgeProcessingSessionRequest,
+	modelRuntime: CodingAgentRuntimeModelSource,
+): KnowledgeProcessingSession {
+	let disposePromise: Promise<void> | undefined;
+	return {
+		async run(prompt) {
+			const modelKey = parseModelKey(request.modelKey);
+			if (modelKey) {
+				await modelRuntime.loadRemoteModels();
+				const model = modelRuntime.find(modelKey.provider, modelKey.modelId);
+				if (!model) {
+					throw new Error(`知识库加工模型未找到：${request.modelKey}（请在知识库设置里重新选择加工模型）`);
+				}
+			}
+			const result = await runtimeSession.prompt({
+				text: prompt,
+				modelKey: modelKey ? request.modelKey : undefined,
+				reasoning: modelKey ? request.reasoningLevel : undefined,
+			});
+			if (result.status === "failed") {
+				throw new Error(result.error?.message ?? "Knowledge Processing turn failed");
+			}
+		},
+		abort: () => runtimeSession.abort(),
+		subscribeUsage: (listener) =>
+			runtimeSession.subscribe((event) => {
+				const usage = projectUsage(event);
+				if (usage) listener(usage);
+			}),
+		dispose() {
+			disposePromise ??= disposeRuntimeSession(runtimeHost, composition);
+			return disposePromise;
+		},
+	};
+}
+
+async function disposeRuntimeSession(
+	runtimeHost: RuntimeHost,
+	composition: CodingAgentRuntimeComposition,
+): Promise<void> {
+	try {
+		await runtimeHost.close();
+	} finally {
+		await composition.dispose();
+	}
+}
+
+function readInitialModel(modelRuntime: CodingAgentRuntimeModelSource): Model<Api> {
+	const model = modelRuntime.getAvailable()[0];
+	if (!model) {
+		throw new Error("Knowledge Processing requires at least one available model");
+	}
+	return model;
+}
+
+function parseModelKey(modelKey: string): { readonly provider: string; readonly modelId: string } | undefined {
+	const slash = modelKey.indexOf("/");
+	if (slash <= 0) return undefined;
+	return {
+		provider: modelKey.slice(0, slash),
+		modelId: modelKey.slice(slash + 1),
+	};
+}
+
+function adaptKnowledgePageWriter(
+	writer: KnowledgeProcessingPageWriter,
+	resolveAbsolutePath: CodingAgentKnowledgeWriteOperations["resolveAbsolutePath"],
+): CodingAgentKnowledgeWriteOperations {
+	return {
+		write: (request, now) => writer.write(request, now),
+		resolveAbsolutePath,
+	};
+}
+
+function projectUsage(event: SessionEvent): KnowledgeProcessingUsage | undefined {
+	if (event.type !== "usage.update") return undefined;
+	return {
+		inputTokens: event.input,
+		outputTokens: event.output,
+		cacheReadTokens: event.cacheRead,
+		cacheWriteTokens: event.cacheWrite,
+		costTotal: event.costTotal,
+	};
+}

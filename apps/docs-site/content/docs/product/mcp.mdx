@@ -1,0 +1,109 @@
+---
+title: 配置 MCP 连接器
+description: 在能力页添加推荐或自定义 MCP，并管理凭证与自动批准。
+---
+
+MCP 让 Agent 调用外部工具与数据源。在桌面端，MCP 通过侧栏 **能力** 管理（「连接」分组、推荐项，以及 **添加能力 → 手动添加 MCP**）。设置页侧栏不再单独挂载 MCP 页签。
+
+配置文件：`~/.vetta/agent/mcp.json`（全局）。OAuth 凭证可能额外保存在 `~/.vetta/agent/mcp-auth/`。
+
+## 添加推荐 / 发现中的 MCP
+
+发现列表中的推荐连接器来自内置预设与市场数据。当前代码中标记为可在发现列表展示的内置示例包括（以你安装的客户端版本为准）：
+
+- **Notion**（远程 HTTP，浏览器 OAuth）
+- **Figma**（stdio + API Key）
+- **GitHub**（远程 HTTP + Personal Access Token）
+
+其它预设可能已内置匹配逻辑但未在发现列表展示。
+
+<Steps>
+  <Step>
+    ### 选择连接器
+
+    在 **能力 → 发现** 中打开 MCP 详情。
+  </Step>
+  <Step>
+    ### 完成凭证或授权
+
+    按提示填写密钥，或完成浏览器授权 / 设备码流程。未完成配置前状态为 **需配置**。
+  </Step>
+  <Step>
+    ### 在会话中验证
+
+    保存并启用后，在对话中让 Agent 列出或调用相关工具。
+  </Step>
+</Steps>
+
+## 手动添加 MCP
+
+**添加能力 → 手动添加 MCP**，传输类型：
+
+<Tabs items={["STDIO", "HTTP"]}>
+  <Tab value="STDIO">
+    本地进程：填写 **命令**、**参数**，可选环境变量与工作目录。
+
+    配置落盘形态示例（键名即服务名）：
+
+    ```json
+    {
+      "mcpServers": {
+        "my-tools": {
+          "command": "node",
+          "args": ["./tools/server.mjs"],
+          "env": {
+            "TOKEN": "..."
+          }
+        }
+      }
+    }
+    ```
+  </Tab>
+  <Tab value="HTTP">
+    远程服务：填写 URL，可选 Headers、OAuth 相关字段（如预注册 `oauthClientId`、设备码流等，以表单为准）。
+
+    ```json
+    {
+      "mcpServers": {
+        "my-api": {
+          "type": "http",
+          "url": "https://example.com/mcp",
+          "headers": {
+            "Authorization": "Bearer ..."
+          }
+        }
+      }
+    }
+    ```
+  </Tab>
+</Tabs>
+
+## 自动批准与排错
+
+- **自动批准工具**：手动/高级配置中可按工具名（逗号分隔）写入自动批准列表，跳过对应工具的逐次确认。只应对行为可预测、输入范围受控的工具启用。
+- 连接失败时检查：命令是否可执行、工作目录、环境变量、HTTP URL、认证状态、启动超时。
+- 可对已添加项 **编辑配置**、**连接账户 / 断开账户**（OAuth）、**停用** 或 **移除**。
+
+第一次验证连接时先使用只读工具，并让 Agent 报告它实际看到的工具名和结果：
+
+<Plate no="01" title="MCP 最小验证">
+
+```text
+先列出当前会话中来自 [连接器名称] 的可用工具，不执行任何写操作。
+选择一个只读工具做最小调用，并报告工具名、关键参数和结果摘要。
+如果没有发现工具、需要额外授权或只有写入工具，请停止并说明当前连接状态。
+```
+
+</Plate>
+
+连接成功不等于每个工具都应自动批准。确认工具行为、参数范围和数据边界后，再考虑对稳定的只读调用启用自动批准。
+
+<Callout title="安全" type="warn">
+  不要把令牌写入会提交到仓库的项目文件。优先在应用表单中填写；需要共享配置时使用环境变量或本机密钥管理，并脱敏后再排错。
+</Callout>
+
+<Continue>
+  <ContinueLink href="/product/abilities/" title="管理能力" description="查看发现、我的、启用状态和其它能力类型。" />
+  <ContinueLink href="/core/context-tools-and-permissions/" title="工具与权限" description="理解工具调用、确认请求和完全访问的边界。" />
+  <ContinueLink href="/troubleshooting/" title="连接器不可用" description="按连接状态、进程、网络与认证逐层排查。" />
+</Continue>

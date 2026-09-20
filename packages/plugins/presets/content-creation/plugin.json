@@ -1,0 +1,57 @@
+{
+	"id": "content-creation",
+	"name": "%plugin.name%",
+	"version": "0.1.3",
+	"icon": "icon.png",
+	"defaultLocale": "zh",
+	"pluginApiVersion": "^2.0.0",
+	"entry": "dist/mf-manifest.json",
+	"moduleFederation": {
+		"remoteName": "content_creation",
+		"expose": "./plugin"
+	},
+	"styles": [
+		"dist/style.css"
+	],
+	"permissions": [
+		"ui.slot.activity-tab",
+		"ui.slot.input-action",
+		"ui.slot.global",
+		"ui.slot.workspace-view",
+		"ui.shortcuts.register",
+		"agent.systemPrompt.write",
+		"agent.skills.control",
+		"agent.tools.register",
+		"agent.toolHandler.execute",
+		"ai.models.list",
+		"ai.complete",
+		"media.generate",
+		"network.fetch",
+		"fs.read",
+		"fs.write",
+		"storage.read",
+		"storage.write",
+		"secrets.read",
+		"secrets.write"
+	],
+	"agent": {
+		"systemPrompt": {
+			"promptPaths": [
+				"agent/prompts/content-workflow-routing.md"
+			]
+		},
+		"skillPaths": [
+			"agent/skills"
+		],
+		"skillPresentation": {
+			"defaultVisibility": "hidden"
+		}
+	},
+	"network": {
+		"allowedHosts": [
+			"*"
+		]
+	},
+	"description": "%plugin.description%",
+	"author": "Vetta"
+}

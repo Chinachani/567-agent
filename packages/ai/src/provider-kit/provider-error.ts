@@ -1,0 +1,334 @@
+import {
+	AI_ERROR_CODES,
+	AIError,
+	type AIErrorOptions,
+	type Api,
+	type AssistantMessage,
+	createAssistantMessage,
+	isAIError,
+	isProviderBillingFailure,
+	isRetryableProviderFailure,
+} from "../protocol/index.js";
+import type { Model } from "../types.js";
+import { isContextOverflow } from "../utils/overflow.js";
+
+const RESPONSE_BODY_PREVIEW_LIMIT = 1_000;
+const SAFE_RESPONSE_HEADERS = new Set([
+	"content-type",
+	"retry-after",
+	"x-request-id",
+	"request-id",
+	"trace-id",
+	"cf-ray",
+]);
+
+/**
+ * Converts arbitrary SDK/fetch failures into the one provider error contract used by AI,
+ * Agent and Runtime. Raw request bodies and causes remain on the internal error only.
+ */
+export function normalizeProviderError<TApi extends Api>(error: unknown, model: Model<TApi>): AIError {
+	if (isAIError(error)) return error;
+
+	const structuredError = readStructuredProviderError(error);
+	const statusCode = readStatusCode(error) ?? structuredError?.statusCode;
+	const message = structuredError?.message ?? readMessage(error);
+	const providerCode = structuredError?.providerCode ?? readProviderCode(error);
+	const responseHeaders = readResponseHeaders(error);
+	const requestId = readRequestId(error, responseHeaders);
+	const retryAfterMs = readRetryAfterMs(error, responseHeaders);
+	const responseBodyPreview = readResponseBodyPreview(error) ?? structuredError?.responseBodyPreview;
+	const url = readUrl(error);
+	const phase = readPhase(error);
+	const retryableOverride = readRetryableOverride(error);
+	const options: AIErrorOptions = {
+		provider: model.provider,
+		modelId: model.id,
+		statusCode,
+		requestId,
+		providerCode,
+		phase,
+		url,
+		responseHeaders,
+		responseBodyPreview,
+		retryAfterMs,
+		cause: error,
+	};
+
+	if (isContextOverflow(createErrorMessage(model, message, statusCode), model.contextWindow)) {
+		return new AIError(AI_ERROR_CODES.CONTEXT_OVERFLOW, message, { ...options, retryable: false });
+	}
+	if (isProviderBillingFailure(message, statusCode, providerCode)) {
+		return new AIError(AI_ERROR_CODES.BILLING_REQUIRED, message, { ...options, retryable: false });
+	}
+	if (statusCode === 401)
+		return new AIError(AI_ERROR_CODES.AUTHENTICATION_FAILED, message, { ...options, retryable: false });
+	if (statusCode === 403)
+		return new AIError(AI_ERROR_CODES.PERMISSION_DENIED, message, { ...options, retryable: false });
+	if (statusCode === 404 && /model|deployment|engine/i.test(`${message} ${providerCode ?? ""}`)) {
+		return new AIError(AI_ERROR_CODES.MODEL_NOT_FOUND, message, { ...options, retryable: false });
+	}
+	if (statusCode === 429) {
+		return new AIError(AI_ERROR_CODES.RATE_LIMITED, message, {
+			...options,
+			retryable: isRetryableProviderFailure(message, statusCode),
+		});
+	}
+	if (statusCode === 408) return new AIError(AI_ERROR_CODES.TIMEOUT, message, { ...options, retryable: true });
+	if (statusCode === 400 || statusCode === 404 || statusCode === 409 || statusCode === 422) {
+		return new AIError(AI_ERROR_CODES.INVALID_REQUEST, message, { ...options, retryable: false });
+	}
+	return new AIError(AI_ERROR_CODES.TRANSPORT_FAILED, message, {
+		...options,
+		retryable:
+			retryableOverride ??
+			isKnownNetworkFailure(error) ??
+			(/^Retryable HTTP Error:/i.test(message) || isRetryableProviderFailure(message, statusCode)),
+	});
+}
+
+function createErrorMessage<TApi extends Api>(
+	model: Model<TApi>,
+	message: string,
+	statusCode?: number,
+): AssistantMessage {
+	return createAssistantMessage(
+		{ api: model.api, provider: model.provider, model: model.id },
+		{
+			stopReason: "error",
+			errorMessage: statusCode === undefined ? message : `${statusCode} status code: ${message}`,
+		},
+	);
+}
+
+function asRecord(value: unknown): Record<string, unknown> | undefined {
+	return typeof value === "object" && value !== null ? (value as Record<string, unknown>) : undefined;
+}
+
+interface StructuredProviderError {
+	readonly message?: string;
+	readonly providerCode?: string;
+	readonly statusCode?: number;
+	readonly responseBodyPreview: string;
+}
+
+function readStructuredProviderError(error: unknown): StructuredProviderError | undefined {
+	const record = asRecord(error);
+	if (!record) return undefined;
+	const candidates = [
+		record.responseBody,
+		record.body,
+		asRecord(record.response)?.body,
+		record.data,
+		record.error,
+		record.message,
+	];
+	for (const candidate of candidates) {
+		const parsed = parseStructuredErrorCandidate(candidate);
+		if (parsed) return parsed;
+	}
+	return undefined;
+}
+
+function parseStructuredErrorCandidate(value: unknown, depth = 0): StructuredProviderError | undefined {
+	let parsed: unknown = value;
+	let responseBodyPreview: string;
+	if (typeof value === "string") {
+		const trimmed = value.trim();
+		if (!trimmed.startsWith("{")) return undefined;
+		try {
+			parsed = JSON.parse(trimmed);
+		} catch {
+			return undefined;
+		}
+		responseBodyPreview = truncateResponseBodyPreview(trimmed);
+	} else {
+		const record = asRecord(value);
+		if (!record) return undefined;
+		try {
+			responseBodyPreview = truncateResponseBodyPreview(JSON.stringify(record));
+		} catch {
+			return undefined;
+		}
+	}
+
+	const root = asRecord(parsed);
+	if (!root) return undefined;
+	const body = asRecord(root.error) ?? root;
+	const message = typeof body.message === "string" && body.message.length > 0 ? body.message : undefined;
+	const details = Array.isArray(body.details) ? body.details : [];
+	const reason = details
+		.map((detail) => asRecord(detail)?.reason)
+		.find((candidate): candidate is string => typeof candidate === "string" && candidate.length > 0);
+	const fallbackCode = [body.code, body.type, body.status].find(
+		(candidate): candidate is string => typeof candidate === "string" && candidate.length > 0,
+	);
+	const numericCode = typeof body.code === "number" ? body.code : undefined;
+	const statusCode = numericCode !== undefined && numericCode >= 100 && numericCode <= 599 ? numericCode : undefined;
+	const nested =
+		depth < 2 && typeof body.message === "string"
+			? parseStructuredErrorCandidate(body.message, depth + 1)
+			: undefined;
+	if (nested) {
+		return {
+			message: nested.message,
+			providerCode: nested.providerCode ?? reason ?? fallbackCode,
+			statusCode: statusCode ?? nested.statusCode,
+			responseBodyPreview,
+		};
+	}
+	if (!message && !reason && !fallbackCode && statusCode === undefined) return undefined;
+	return {
+		message,
+		providerCode: reason ?? fallbackCode,
+		statusCode,
+		responseBodyPreview,
+	};
+}
+
+function readStatusCode(error: unknown): number | undefined {
+	const record = asRecord(error);
+	if (!record) return undefined;
+	for (const key of ["status", "statusCode"]) {
+		if (typeof record[key] === "number") return record[key];
+	}
+	const response = asRecord(record.response);
+	if (response && typeof response.status === "number") return response.status;
+	const metadata = asRecord(record.$metadata);
+	if (metadata && typeof metadata.httpStatusCode === "number") return metadata.httpStatusCode;
+	return readStatusCode(record.cause);
+}
+
+function readMessage(error: unknown): string {
+	const record = asRecord(error);
+	if (record && typeof record.message === "string" && record.message.length > 0) return record.message;
+	if (record && typeof record.error === "string" && record.error.length > 0) return record.error;
+	return typeof error === "string" && error.length > 0 ? error : "Language model provider failed";
+}
+
+function readProviderCode(error: unknown): string | undefined {
+	const record = asRecord(error);
+	if (!record) return undefined;
+	for (const key of ["code", "type", "errorCode", "error_type"]) {
+		if (typeof record[key] === "string") return record[key];
+	}
+	const data = asRecord(record.data);
+	if (data && typeof data.code === "string") return data.code;
+	const body = asRecord(record.error);
+	if (body && typeof body.code === "string") return body.code;
+	if (
+		typeof record.name === "string" &&
+		record.name.length > 0 &&
+		!/^(?:Error|TypeError|RangeError|AbortError|FetchError|APIError|ApiError|APIConnectionError|APITimeoutError)$/u.test(
+			record.name,
+		)
+	) {
+		return record.name;
+	}
+	return undefined;
+}
+
+function readResponseHeaders(error: unknown): Readonly<Record<string, string>> | undefined {
+	const record = asRecord(error);
+	const source = record?.responseHeaders ?? asRecord(record?.response)?.headers ?? record?.headers;
+	if (source instanceof Headers) {
+		const safe: Record<string, string> = {};
+		source.forEach((value, key) => {
+			if (SAFE_RESPONSE_HEADERS.has(key.toLowerCase())) safe[key.toLowerCase()] = value;
+		});
+		return Object.keys(safe).length === 0 ? undefined : safe;
+	}
+	const headers = asRecord(source);
+	if (!headers) return undefined;
+	const safe: Record<string, string> = {};
+	for (const [key, value] of Object.entries(headers)) {
+		if (SAFE_RESPONSE_HEADERS.has(key.toLowerCase()) && typeof value === "string") safe[key.toLowerCase()] = value;
+	}
+	return Object.keys(safe).length === 0 ? undefined : safe;
+}
+
+function readRequestId(error: unknown, headers?: Readonly<Record<string, string>>): string | undefined {
+	const record = asRecord(error);
+	for (const key of ["requestId", "request_id", "_request_id"]) {
+		if (typeof record?.[key] === "string") return record[key] as string;
+	}
+	return headers?.["x-request-id"] ?? headers?.["request-id"] ?? headers?.["trace-id"];
+}
+
+function readResponseBodyPreview(error: unknown): string | undefined {
+	const record = asRecord(error);
+	const value = record?.responseBody ?? record?.body ?? asRecord(record?.response)?.body ?? record?.data;
+	if (value === undefined) return undefined;
+	let text: string;
+	if (typeof value === "string") text = value;
+	else {
+		try {
+			text = JSON.stringify(value) ?? String(value);
+		} catch {
+			text = "[unserializable response body]";
+		}
+	}
+	return truncateResponseBodyPreview(text);
+}
+
+function truncateResponseBodyPreview(text: string): string {
+	return text.length > RESPONSE_BODY_PREVIEW_LIMIT ? `${text.slice(0, RESPONSE_BODY_PREVIEW_LIMIT)}…` : text;
+}
+
+function readRetryAfterMs(error: unknown, headers?: Readonly<Record<string, string>>): number | undefined {
+	const record = asRecord(error);
+	const direct = record?.retryAfterMs;
+	if (typeof direct === "number" && direct >= 0) return direct;
+	const retryAfter = headers?.["retry-after"];
+	if (!retryAfter) return undefined;
+	const seconds = Number(retryAfter);
+	if (Number.isFinite(seconds)) return Math.max(0, seconds * 1_000);
+	const date = Date.parse(retryAfter);
+	return Number.isFinite(date) ? Math.max(0, date - Date.now()) : undefined;
+}
+
+function readUrl(error: unknown): string | undefined {
+	const record = asRecord(error);
+	const value = record?.url ?? asRecord(record?.request)?.url;
+	if (typeof value !== "string") return undefined;
+	try {
+		const url = new URL(value);
+		url.username = "";
+		url.password = "";
+		url.search = "";
+		url.hash = "";
+		return url.toString();
+	} catch {
+		return undefined;
+	}
+}
+
+function readPhase(error: unknown): AIErrorOptions["phase"] {
+	const record = asRecord(error);
+	return record &&
+		(record.phase === "resolve" ||
+			record.phase === "request" ||
+			record.phase === "response" ||
+			record.phase === "stream" ||
+			record.phase === "decode")
+		? record.phase
+		: undefined;
+}
+
+function readRetryableOverride(error: unknown): boolean | undefined {
+	const record = asRecord(error);
+	return typeof record?.retryable === "boolean" ? record.retryable : undefined;
+}
+
+function isKnownNetworkFailure(error: unknown): boolean | undefined {
+	const record = asRecord(error);
+	const name = typeof record?.name === "string" ? record.name : "";
+	const code = typeof record?.code === "string" ? record.code : "";
+	const message = readMessage(error);
+	if (/^(?:APIConnectionError|APITimeoutError|FetchError)$/u.test(name)) return true;
+	if (/^(?:ECONNRESET|ECONNREFUSED|EPIPE|ENETUNREACH|EHOSTUNREACH|ETIMEDOUT|UND_ERR_CONNECT_TIMEOUT)$/u.test(code)) {
+		return true;
+	}
+	if (/^fetch failed$/iu.test(message)) return true;
+	const cause = record?.cause;
+	return cause === undefined ? undefined : isKnownNetworkFailure(cause);
+}

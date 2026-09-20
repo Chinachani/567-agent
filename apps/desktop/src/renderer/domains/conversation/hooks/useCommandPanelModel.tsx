@@ -1,0 +1,263 @@
+import type { SkillInfo } from "@preload/api";
+import { useShortcutScope, type ShortcutBinding } from "@shared/shortcuts";
+import { activeSessionAtom, contextCompactionEligibilityAtom } from "@shared/store/atoms";
+import { getQueueForSession, messageQueueBySessionAtom } from "@shared/store/message-queue-atoms";
+import { showToast } from "@shared/store/toast-atoms";
+import { useAtomValue } from "jotai";
+import { type RefObject, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
+import { useTranslation } from "react-i18next";
+import type {
+	CommandPanelLabels,
+	CommandPanelOperationItem,
+	CommandPanelProps,
+} from "../components/command-panel/types";
+import type { ConnectorGridItem } from "./useConnectorGrid";
+import { useConnectorGrid } from "./useConnectorGrid";
+import { useInputActionBarModel } from "../components/useInputActionBarModel";
+import { skillIconOf, useSkillIconMap } from "./useSkillIconMap";
+import { useSkillList } from "./useSkillList";
+import { useDefaultContextRingModel } from "./useContextRingModel";
+import { focusInputEditor, removeInputTrigger } from "../components/input-bar/editor/inputEditorHandle";
+
+export interface CommandPanelModelInput {
+	open: boolean;
+	onClose: () => void;
+	onSelect: (skill: SkillInfo, icon?: string) => void;
+	onSelectConnector: (connector: ConnectorGridItem) => void;
+	/** 触发词原文（含 `/`）。 */
+	filter: string;
+	cwd?: string;
+	className?: string;
+	/** 会话级操作仅在已绑定 Runtime 的聊天输入框中可用。 */
+	allowCompaction?: boolean;
+}
+
+export interface CommandPanelModel {
+	viewProps: CommandPanelProps;
+}
+
+export function useCommandPanelModel({
+	open,
+	onClose,
+	onSelect,
+	onSelectConnector,
+	filter,
+	cwd,
+	className,
+	allowCompaction = true,
+}: CommandPanelModelInput): CommandPanelModel {
+	const { t } = useTranslation("chat");
+	const normalizedFilter = filter.startsWith("/") ? filter.slice(1) : filter;
+	const activeSession = useAtomValue(activeSessionAtom);
+	const compactionEligibility = useAtomValue(contextCompactionEligibilityAtom);
+	const queueMap = useAtomValue(messageQueueBySessionAtom);
+	const contextRing = useDefaultContextRingModel(false);
+	const [queueingCompaction, setQueueingCompaction] = useState(false);
+	const queuedCompaction = activeSession
+		? getQueueForSession(queueMap, activeSession.runtimeId).some((item) => item.kind === "context_compaction")
+		: false;
+	const operationMatches =
+		normalizedFilter.length === 0 ||
+		["compact", "compaction", "context", "压缩", "上下文"].some((term) =>
+			term.includes(normalizedFilter.toLocaleLowerCase()),
+		);
+	// 预取：命令区第一次展开时不必再等扫盘，避免与高度动画抢主线程。
+	const { items } = useSkillList({
+		open,
+		cwd,
+		filter: normalizedFilter,
+		surface: "commandPalette",
+		prefetch: true,
+	});
+	const { items: connectors, columns } = useConnectorGrid(open, true);
+	const iconMap = useSkillIconMap(open, true);
+	const resolveIcon = useCallback((skill: SkillInfo) => skillIconOf(iconMap, skill), [iconMap]);
+	// 选中时把解析好的图标一起带出去：行内胶囊要和列表里显示的是同一张图。
+	const selectSkill = useCallback(
+		(skill: SkillInfo) => onSelect(skill, resolveIcon(skill)),
+		[onSelect, resolveIcon],
+	);
+	const actionBar = useInputActionBarModel();
+	const [activeIndex, setActiveIndex] = useState(0);
+	const panelRef = useRef<HTMLDivElement>(null);
+	// 仅键盘导航需要把高亮滚进视口；鼠标 hover 只改高亮，不抢滚动位置。
+	const shouldScrollActiveIntoViewRef = useRef(false);
+
+	// 过滤词一变就把高亮拉回首项，否则会指向一个已被过滤掉的位置。
+	// biome-ignore lint/correctness/useExhaustiveDependencies: 依赖是「重置时机」而非读取值
+	useEffect(() => {
+		setActiveIndex(0);
+	}, [normalizedFilter]);
+
+	useLayoutEffect(() => {
+		if (!open || !shouldScrollActiveIntoViewRef.current) return;
+		shouldScrollActiveIntoViewRef.current = false;
+		panelRef.current?.querySelector(`[data-index="${activeIndex}"]`)?.scrollIntoView({ block: "nearest" });
+	}, [activeIndex, open]);
+
+	const selectCompaction = useCallback(() => {
+		if (!activeSession || queueingCompaction || queuedCompaction || contextRing?.isCompacting) return;
+		setQueueingCompaction(true);
+		removeInputTrigger();
+		onClose();
+		focusInputEditor();
+		void window.vetta.session.queueContextCompaction(activeSession.runtimeId).catch((error) => {
+			console.warn("[useCommandPanelModel] queue context compaction failed", error);
+			showToast({
+				variant: "error",
+				title: t("slashPanel.compaction.errorTitle"),
+				message: error instanceof Error ? error.message : t("slashPanel.compaction.errorMessage"),
+			});
+		}).finally(() => setQueueingCompaction(false));
+	}, [activeSession, contextRing?.isCompacting, onClose, queuedCompaction, queueingCompaction, t]);
+
+	const operation = useMemo<CommandPanelOperationItem | undefined>(() => {
+		if (!allowCompaction || !activeSession || !operationMatches || compactionEligibility.status === "ineligible") return undefined;
+		const percent = contextRing ? Math.round(Math.min(100, Math.max(0, contextRing.percent))) : null;
+		const description = contextRing?.isCompacting
+			? t("slashPanel.compaction.compacting")
+			: queuedCompaction || queueingCompaction
+				? t("slashPanel.compaction.queued")
+				: percent === null
+					? t("slashPanel.compaction.descriptionUnknown")
+					: t("slashPanel.compaction.description", { percent });
+		return {
+			id: "__builtin_context_compaction__",
+			label: t("slashPanel.compaction.label"),
+			description,
+			contextRing: contextRing
+				? {
+						percent: contextRing.percent,
+						offset: contextRing.offset,
+						color: contextRing.color,
+						isCompacting: contextRing.isCompacting,
+						tooltip: contextRing.tooltip,
+					}
+				: null,
+			disabled: queuedCompaction || queueingCompaction || Boolean(contextRing?.isCompacting),
+			onSelect: selectCompaction,
+		};
+	}, [activeSession, allowCompaction, compactionEligibility.status, contextRing, operationMatches, queuedCompaction, queueingCompaction, selectCompaction, t]);
+
+	const keyBindings = useMemo((): ShortcutBinding[] => {
+		const itemCount = items.length + (operation ? 1 : 0);
+		return [
+			{
+				key: "arrowdown",
+				run: () => {
+					if (itemCount === 0) return;
+					shouldScrollActiveIntoViewRef.current = true;
+					setActiveIndex((index) => (index + 1) % itemCount);
+				},
+			},
+			{
+				key: "arrowup",
+				run: () => {
+					if (itemCount === 0) return;
+					shouldScrollActiveIntoViewRef.current = true;
+					setActiveIndex((index) => (index - 1 + itemCount) % itemCount);
+				},
+			},
+			{
+				key: "enter",
+				run: () => {
+					if (operation && activeIndex === 0) {
+						operation.onSelect();
+						return;
+					}
+					const target = items[activeIndex - (operation ? 1 : 0)];
+					if (target) selectSkill(target);
+				},
+			},
+			{
+				key: "escape",
+				run: () => onClose(),
+			},
+		];
+	}, [activeIndex, items, onClose, operation, selectSkill]);
+
+	useShortcutScope({
+		id: "overlay:command-panel",
+		kind: "overlay",
+		active: open,
+		exclusive: false,
+		bindings: keyBindings,
+	});
+
+	useEffect(() => {
+		if (!open) return;
+		function handleClick(event: MouseEvent): void {
+			const target = event.target as Node;
+			if (!panelRef.current || panelRef.current.contains(target)) return;
+			// 「+」按钮自己负责开合，别让这里先把它关掉（否则它永远只能开、不能收）。
+			// keep-open 是展开态才出现的「插图 / 附件」：mousedown 就收面板会把按钮连带卸载，
+			// 后续的 click 落不到元素上，文件选择器根本弹不出来。
+			if (
+				target instanceof Element &&
+				target.closest("[data-command-panel-toggle],[data-command-panel-keep-open]")
+			) {
+				return;
+			}
+			onClose();
+		}
+		// 延后一帧再挂：打开面板的那次 mousedown 否则会立刻把它关掉。
+		const timer = setTimeout(() => document.addEventListener("mousedown", handleClick), 0);
+		return () => {
+			clearTimeout(timer);
+			document.removeEventListener("mousedown", handleClick);
+		};
+	}, [onClose, open]);
+
+	const labels: CommandPanelLabels = useMemo(
+		() => ({
+			header: t("slashPanel.header"),
+			resultCount: t("slashPanel.resultCount", { count: items.length }),
+			connectorsSection: t("slashPanel.connectorsSection"),
+			emptyNoMatch: t("slashPanel.emptyNoMatch"),
+			emptyNoMatchHint: t("slashPanel.emptyNoMatchHint"),
+			emptyNoSkills: t("slashPanel.emptyNoSkills"),
+			emptyNoSkillsHint: t("slashPanel.emptyNoSkillsHint"),
+		}),
+		[items.length, t],
+	);
+
+	const actions = useMemo(
+		() => [
+			...actionBar.builtins.map((builtin) => ({
+				id: builtin.id,
+				label: builtin.label,
+				icon: <span className={`${builtin.iconClass} flex h-3.5 w-3.5 items-center justify-center`} />,
+				active: builtin.active,
+				onToggle: builtin.onToggle,
+			})),
+			...actionBar.items.map((item) => ({
+				id: item.id,
+				label: item.label,
+				icon: item.icon,
+				active: item.active,
+				onToggle: () => actionBar.actions.toggleItem(item.id),
+			})),
+		],
+		[actionBar],
+	);
+
+	return {
+		viewProps: {
+			open,
+			filter: normalizedFilter,
+			items,
+			activeIndex,
+			operation,
+			connectors,
+			connectorColumns: columns,
+			actions,
+			labels,
+			resolveIcon,
+			panelRef: panelRef as RefObject<HTMLDivElement | null>,
+			className,
+			onHoverItem: setActiveIndex,
+			onSelectItem: selectSkill,
+			onSelectConnector,
+		},
+	};
+}

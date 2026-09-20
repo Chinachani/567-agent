@@ -1,0 +1,46 @@
+import {
+	type AiChatResult,
+	type AiCompleteEvent,
+	type AiCompleteResult,
+	type AiModelListResult,
+	DOMAIN_AI_CAPABILITIES,
+} from "@vetta-org/capability-sdk";
+import { PLUGIN_CAPABILITY_PERMISSIONS, type PluginCapabilitySessionAccess } from "../types.js";
+
+export const pluginAiMethods = {
+	listAiModels(this: PluginCapabilitySessionAccess, sessionId: string): Promise<AiModelListResult> {
+		return this.client(sessionId, { permission: PLUGIN_CAPABILITY_PERMISSIONS.AI_MODELS_LIST }).invoke(
+			DOMAIN_AI_CAPABILITIES.LIST_MODELS,
+			{},
+		);
+	},
+
+	completeAi(this: PluginCapabilitySessionAccess, sessionId: string, input: unknown): Promise<AiCompleteResult> {
+		return this.client(sessionId, { permission: PLUGIN_CAPABILITY_PERMISSIONS.AI_COMPLETE }).invoke(
+			DOMAIN_AI_CAPABILITIES.COMPLETE,
+			DOMAIN_AI_CAPABILITIES.COMPLETE.parseInput(input),
+		);
+	},
+
+	streamAi(
+		this: PluginCapabilitySessionAccess,
+		sessionId: string,
+		input: unknown,
+		options: { readonly signal: AbortSignal; readonly onEvent: (event: AiCompleteEvent) => void },
+	): Promise<AiCompleteResult> {
+		return this.client(sessionId, { permission: PLUGIN_CAPABILITY_PERMISSIONS.AI_COMPLETE }).invoke(
+			DOMAIN_AI_CAPABILITIES.COMPLETE,
+			DOMAIN_AI_CAPABILITIES.COMPLETE.parseInput(input),
+			options,
+		);
+	},
+
+	chatAi(this: PluginCapabilitySessionAccess, sessionId: string, input: unknown): Promise<AiChatResult> {
+		return this.client(sessionId, { permission: PLUGIN_CAPABILITY_PERMISSIONS.AI_COMPLETE }).invoke(
+			DOMAIN_AI_CAPABILITIES.CHAT,
+			DOMAIN_AI_CAPABILITIES.CHAT.parseInput(input),
+		);
+	},
+};
+
+export type PluginAiMethods = typeof pluginAiMethods;

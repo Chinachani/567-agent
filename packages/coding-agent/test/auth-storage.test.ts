@@ -1,0 +1,555 @@
+import { existsSync, mkdirSync, readFileSync, rmSync, statSync, writeFileSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
+import { registerOAuthProvider } from "@vetta/ai";
+import { clearNodeConfigurationValueCache } from "@vetta/runtime-node/host";
+import lockfile from "proper-lockfile";
+import { afterEach, beforeEach, describe, expect, test, vi } from "vitest";
+import type { AuthStorage } from "../src/auth/index.js";
+import { createFileAuthStorage } from "./fixtures/file-auth-storage.js";
+
+describe("AuthStorage", () => {
+	let tempDir: string;
+	let authJsonPath: string;
+	let authStorage: AuthStorage;
+
+	beforeEach(() => {
+		tempDir = join(tmpdir(), `pi-test-auth-storage-${Date.now()}-${Math.random().toString(36).slice(2)}`);
+		mkdirSync(tempDir, { recursive: true });
+		authJsonPath = join(tempDir, "auth.json");
+	});
+
+	afterEach(() => {
+		if (tempDir && existsSync(tempDir)) {
+			rmSync(tempDir, { recursive: true });
+		}
+		clearNodeConfigurationValueCache();
+		vi.restoreAllMocks();
+	});
+
+	function writeAuthJson(data: Record<string, unknown>) {
+		writeFileSync(authJsonPath, JSON.stringify(data));
+	}
+
+	function createAuthStorage(): AuthStorage {
+		return createFileAuthStorage(authJsonPath);
+	}
+
+	describe("API key resolution", () => {
+		test("literal API key is returned directly", async () => {
+			writeAuthJson({
+				anthropic: { type: "api_key", key: "sk-ant-literal-key" },
+			});
+
+			authStorage = createAuthStorage();
+			const apiKey = await authStorage.getApiKey("anthropic");
+
+			expect(apiKey).toBe("sk-ant-literal-key");
+		});
+
+		test("apiKey with ! prefix executes command and uses stdout", async () => {
+			writeAuthJson({
+				anthropic: { type: "api_key", key: "!echo test-api-key-from-command" },
+			});
+
+			authStorage = createAuthStorage();
+			const apiKey = await authStorage.getApiKey("anthropic");
+
+			expect(apiKey).toBe("test-api-key-from-command");
+		});
+
+		test("apiKey with ! prefix trims whitespace from command output", async () => {
+			writeAuthJson({
+				anthropic: { type: "api_key", key: nodeCommand("process.stdout.write('  spaced-key  ')") },
+			});
+
+			authStorage = createAuthStorage();
+			const apiKey = await authStorage.getApiKey("anthropic");
+
+			expect(apiKey).toBe("spaced-key");
+		});
+
+		test("apiKey with ! prefix handles multiline output (uses trimmed result)", async () => {
+			writeAuthJson({
+				anthropic: { type: "api_key", key: nodeCommand("process.stdout.write('line1\\nline2')") },
+			});
+
+			authStorage = createAuthStorage();
+			const apiKey = await authStorage.getApiKey("anthropic");
+
+			expect(apiKey).toBe("line1\nline2");
+		});
+
+		test("apiKey with ! prefix returns undefined on command failure", async () => {
+			writeAuthJson({
+				anthropic: { type: "api_key", key: "!exit 1" },
+			});
+
+			authStorage = createAuthStorage();
+			const apiKey = await authStorage.getApiKey("anthropic");
+
+			expect(apiKey).toBeUndefined();
+		});
+
+		test("apiKey with ! prefix returns undefined on nonexistent command", async () => {
+			writeAuthJson({
+				anthropic: { type: "api_key", key: "!nonexistent-command-12345" },
+			});
+
+			authStorage = createAuthStorage();
+			const apiKey = await authStorage.getApiKey("anthropic");
+
+			expect(apiKey).toBeUndefined();
+		});
+
+		test("apiKey with ! prefix returns undefined on empty output", async () => {
+			writeAuthJson({
+				anthropic: { type: "api_key", key: "!printf ''" },
+			});
+
+			authStorage = createAuthStorage();
+			const apiKey = await authStorage.getApiKey("anthropic");
+
+			expect(apiKey).toBeUndefined();
+		});
+
+		test("apiKey as environment variable name resolves to env value", async () => {
+			const originalEnv = process.env.TEST_AUTH_API_KEY_12345;
+			process.env.TEST_AUTH_API_KEY_12345 = "env-api-key-value";
+
+			try {
+				writeAuthJson({
+					anthropic: { type: "api_key", key: "TEST_AUTH_API_KEY_12345" },
+				});
+
+				authStorage = createAuthStorage();
+				const apiKey = await authStorage.getApiKey("anthropic");
+
+				expect(apiKey).toBe("env-api-key-value");
+			} finally {
+				if (originalEnv === undefined) {
+					delete process.env.TEST_AUTH_API_KEY_12345;
+				} else {
+					process.env.TEST_AUTH_API_KEY_12345 = originalEnv;
+				}
+			}
+		});
+
+		test("apiKey as literal value is used directly when not an env var", async () => {
+			// Make sure this isn't an env var
+			delete process.env.literal_api_key_value;
+
+			writeAuthJson({
+				anthropic: { type: "api_key", key: "literal_api_key_value" },
+			});
+
+			authStorage = createAuthStorage();
+			const apiKey = await authStorage.getApiKey("anthropic");
+
+			expect(apiKey).toBe("literal_api_key_value");
+		});
+
+		test("apiKey command can use shell features like pipes", async () => {
+			writeAuthJson({
+				anthropic: {
+					key: `!echo hello-world | ${[process.execPath, "-e", "process.stdin.pipe(process.stdout)"]
+						.map(quoteShellArgument)
+						.join(" ")}`,
+					type: "api_key",
+				},
+			});
+
+			authStorage = createAuthStorage();
+			const apiKey = await authStorage.getApiKey("anthropic");
+
+			expect(apiKey).toBe("hello-world");
+		});
+
+		describe("caching", () => {
+			test("command is only executed once per process", async () => {
+				// Use a command that writes to a file to count invocations
+				const counterFile = join(tempDir, "counter");
+				writeFileSync(counterFile, "0");
+
+				const command = counterCommand(counterFile);
+				writeAuthJson({
+					anthropic: { type: "api_key", key: command },
+				});
+
+				authStorage = createAuthStorage();
+
+				// Call multiple times
+				await authStorage.getApiKey("anthropic");
+				await authStorage.getApiKey("anthropic");
+				await authStorage.getApiKey("anthropic");
+
+				// Command should have only run once
+				const count = parseInt(readFileSync(counterFile, "utf-8").trim(), 10);
+				expect(count).toBe(1);
+			});
+
+			test("cache persists across AuthStorage instances", async () => {
+				const counterFile = join(tempDir, "counter");
+				writeFileSync(counterFile, "0");
+
+				const command = counterCommand(counterFile);
+				writeAuthJson({
+					anthropic: { type: "api_key", key: command },
+				});
+
+				// Create multiple AuthStorage instances
+				const storage1 = createAuthStorage();
+				await storage1.getApiKey("anthropic");
+
+				const storage2 = createAuthStorage();
+				await storage2.getApiKey("anthropic");
+
+				// Command should still have only run once
+				const count = parseInt(readFileSync(counterFile, "utf-8").trim(), 10);
+				expect(count).toBe(1);
+			});
+
+			test("clearNodeConfigurationValueCache allows command to run again", async () => {
+				const counterFile = join(tempDir, "counter");
+				writeFileSync(counterFile, "0");
+
+				const command = counterCommand(counterFile);
+				writeAuthJson({
+					anthropic: { type: "api_key", key: command },
+				});
+
+				authStorage = createAuthStorage();
+				await authStorage.getApiKey("anthropic");
+
+				// Clear cache and call again
+				clearNodeConfigurationValueCache();
+				await authStorage.getApiKey("anthropic");
+
+				// Command should have run twice
+				const count = parseInt(readFileSync(counterFile, "utf-8").trim(), 10);
+				expect(count).toBe(2);
+			});
+
+			test("different commands are cached separately", async () => {
+				writeAuthJson({
+					anthropic: { type: "api_key", key: "!echo key-anthropic" },
+					openai: { type: "api_key", key: "!echo key-openai" },
+				});
+
+				authStorage = createAuthStorage();
+
+				const keyA = await authStorage.getApiKey("anthropic");
+				const keyB = await authStorage.getApiKey("openai");
+
+				expect(keyA).toBe("key-anthropic");
+				expect(keyB).toBe("key-openai");
+			});
+
+			test("failed commands are cached (not retried)", async () => {
+				const counterFile = join(tempDir, "counter");
+				writeFileSync(counterFile, "0");
+
+				const command = counterCommand(counterFile, true);
+				writeAuthJson({
+					anthropic: { type: "api_key", key: command },
+				});
+
+				authStorage = createAuthStorage();
+
+				// Call multiple times - all should return undefined
+				const key1 = await authStorage.getApiKey("anthropic");
+				const key2 = await authStorage.getApiKey("anthropic");
+
+				expect(key1).toBeUndefined();
+				expect(key2).toBeUndefined();
+
+				// Command should have only run once despite failures
+				const count = parseInt(readFileSync(counterFile, "utf-8").trim(), 10);
+				expect(count).toBe(1);
+			});
+
+			test("environment variables are not cached (changes are picked up)", async () => {
+				const envVarName = "TEST_AUTH_KEY_CACHE_TEST_98765";
+				const originalEnv = process.env[envVarName];
+
+				try {
+					process.env[envVarName] = "first-value";
+
+					writeAuthJson({
+						anthropic: { type: "api_key", key: envVarName },
+					});
+
+					authStorage = createAuthStorage();
+
+					const key1 = await authStorage.getApiKey("anthropic");
+					expect(key1).toBe("first-value");
+
+					// Change env var
+					process.env[envVarName] = "second-value";
+
+					const key2 = await authStorage.getApiKey("anthropic");
+					expect(key2).toBe("second-value");
+				} finally {
+					if (originalEnv === undefined) {
+						delete process.env[envVarName];
+					} else {
+						process.env[envVarName] = originalEnv;
+					}
+				}
+			});
+		});
+	});
+
+	describe("oauth lock compromise handling", () => {
+		test("returns undefined on compromised lock and allows a later retry", async () => {
+			const providerId = `test-oauth-provider-${Date.now()}-${Math.random().toString(36).slice(2)}`;
+			registerOAuthProvider({
+				id: providerId,
+				name: "Test OAuth Provider",
+				async login() {
+					throw new Error("Not used in this test");
+				},
+				async refreshToken(credentials) {
+					return {
+						...credentials,
+						access: "refreshed-access-token",
+						expires: Date.now() + 60_000,
+					};
+				},
+				getApiKey(credentials) {
+					return `Bearer ${credentials.access}`;
+				},
+			});
+
+			writeAuthJson({
+				[providerId]: {
+					type: "oauth",
+					refresh: "refresh-token",
+					access: "expired-access-token",
+					expires: Date.now() - 10_000,
+				},
+			});
+
+			authStorage = createAuthStorage();
+
+			const realLock = lockfile.lock.bind(lockfile);
+			const lockSpy = vi.spyOn(lockfile, "lock");
+			lockSpy.mockImplementationOnce(async (file, options) => {
+				options?.onCompromised?.(new Error("Unable to update lock within the stale threshold"));
+				return realLock(file, options);
+			});
+
+			const firstTry = await authStorage.getApiKey(providerId);
+			expect(firstTry).toBeUndefined();
+
+			lockSpy.mockRestore();
+
+			const secondTry = await authStorage.getApiKey(providerId);
+			expect(secondTry).toBe("Bearer refreshed-access-token");
+		});
+	});
+
+	describe("credential document boundary", () => {
+		test("rejects invalid credential shapes without overwriting the source", () => {
+			const invalidDocument = JSON.stringify({ anthropic: { type: "api_key", key: 42 } });
+			writeFileSync(authJsonPath, invalidDocument, "utf-8");
+
+			authStorage = createAuthStorage();
+			authStorage.set("openai", { type: "api_key", key: "openai-key" });
+
+			expect(authStorage.get("anthropic")).toBeUndefined();
+			expect(authStorage.drainErrors()).toEqual([expect.any(Error)]);
+			expect(readFileSync(authJsonPath, "utf-8")).toBe(invalidDocument);
+		});
+
+		test("preserves provider-specific OAuth fields", () => {
+			writeAuthJson({
+				custom: {
+					type: "oauth",
+					refresh: "refresh-token",
+					access: "access-token",
+					expires: Date.now() + 60_000,
+					projectId: "project-1",
+				},
+			});
+
+			authStorage = createAuthStorage();
+
+			expect(authStorage.get("custom")).toMatchObject({
+				type: "oauth",
+				projectId: "project-1",
+			});
+		});
+
+		test("observes OAuth providers registered after storage creation", async () => {
+			const providerId = `dynamic-oauth-provider-${Date.now()}-${Math.random().toString(36).slice(2)}`;
+			authStorage = createAuthStorage();
+			registerOAuthProvider({
+				id: providerId,
+				name: "Dynamic OAuth Provider",
+				async login() {
+					return {
+						refresh: "dynamic-refresh",
+						access: "dynamic-access",
+						expires: Date.now() + 60_000,
+					};
+				},
+				async refreshToken(credentials) {
+					return credentials;
+				},
+				getApiKey(credentials) {
+					return credentials.access;
+				},
+			});
+
+			await authStorage.login(providerId, {
+				onAuth: () => {},
+				onPrompt: async () => "",
+				onProgress: () => {},
+			});
+
+			expect(authStorage.getOAuthProviders()).toContainEqual(expect.objectContaining({ id: providerId }));
+			expect(await authStorage.getApiKey(providerId)).toBe("dynamic-access");
+		});
+
+		test.runIf(process.platform !== "win32")("creates the credential file with owner-only permissions", () => {
+			authStorage = createAuthStorage();
+
+			expect(statSync(authJsonPath).mode & 0o777).toBe(0o600);
+		});
+	});
+
+	describe("persistence semantics", () => {
+		test("set preserves unrelated external edits", () => {
+			writeAuthJson({
+				anthropic: { type: "api_key", key: "old-anthropic" },
+				openai: { type: "api_key", key: "openai-key" },
+			});
+
+			authStorage = createAuthStorage();
+
+			// Simulate external edit while process is running
+			writeAuthJson({
+				anthropic: { type: "api_key", key: "old-anthropic" },
+				openai: { type: "api_key", key: "openai-key" },
+				google: { type: "api_key", key: "google-key" },
+			});
+
+			authStorage.set("anthropic", { type: "api_key", key: "new-anthropic" });
+
+			const updated = JSON.parse(readFileSync(authJsonPath, "utf-8")) as Record<string, { key: string }>;
+			expect(updated.anthropic.key).toBe("new-anthropic");
+			expect(updated.openai.key).toBe("openai-key");
+			expect(updated.google.key).toBe("google-key");
+		});
+
+		test("remove preserves unrelated external edits", () => {
+			writeAuthJson({
+				anthropic: { type: "api_key", key: "anthropic-key" },
+				openai: { type: "api_key", key: "openai-key" },
+			});
+
+			authStorage = createAuthStorage();
+
+			// Simulate external edit while process is running
+			writeAuthJson({
+				anthropic: { type: "api_key", key: "anthropic-key" },
+				openai: { type: "api_key", key: "openai-key" },
+				google: { type: "api_key", key: "google-key" },
+			});
+
+			authStorage.remove("anthropic");
+
+			const updated = JSON.parse(readFileSync(authJsonPath, "utf-8")) as Record<string, { key: string }>;
+			expect(updated.anthropic).toBeUndefined();
+			expect(updated.openai.key).toBe("openai-key");
+			expect(updated.google.key).toBe("google-key");
+		});
+
+		test("does not overwrite malformed auth file after load error", () => {
+			writeAuthJson({
+				anthropic: { type: "api_key", key: "anthropic-key" },
+			});
+
+			authStorage = createAuthStorage();
+			writeFileSync(authJsonPath, "{invalid-json", "utf-8");
+
+			authStorage.reload();
+			authStorage.set("openai", { type: "api_key", key: "openai-key" });
+
+			const raw = readFileSync(authJsonPath, "utf-8");
+			expect(raw).toBe("{invalid-json");
+		});
+
+		test("reload records parse errors and drainErrors clears buffer", () => {
+			writeAuthJson({
+				anthropic: { type: "api_key", key: "anthropic-key" },
+			});
+
+			authStorage = createAuthStorage();
+			writeFileSync(authJsonPath, "{invalid-json", "utf-8");
+
+			authStorage.reload();
+
+			// Keeps previous in-memory data on reload failure
+			expect(authStorage.get("anthropic")).toEqual({ type: "api_key", key: "anthropic-key" });
+
+			const firstDrain = authStorage.drainErrors();
+			expect(firstDrain.length).toBeGreaterThan(0);
+			expect(firstDrain[0]).toBeInstanceOf(Error);
+
+			const secondDrain = authStorage.drainErrors();
+			expect(secondDrain).toHaveLength(0);
+		});
+	});
+
+	describe("runtime overrides", () => {
+		test("runtime override takes priority over auth.json", async () => {
+			writeAuthJson({
+				anthropic: { type: "api_key", key: "!echo stored-key" },
+			});
+
+			authStorage = createAuthStorage();
+			authStorage.setRuntimeApiKey("anthropic", "runtime-key");
+
+			const apiKey = await authStorage.getApiKey("anthropic");
+
+			expect(apiKey).toBe("runtime-key");
+		});
+
+		test("removing runtime override falls back to auth.json", async () => {
+			writeAuthJson({
+				anthropic: { type: "api_key", key: "!echo stored-key" },
+			});
+
+			authStorage = createAuthStorage();
+			authStorage.setRuntimeApiKey("anthropic", "runtime-key");
+			authStorage.removeRuntimeApiKey("anthropic");
+
+			const apiKey = await authStorage.getApiKey("anthropic");
+
+			expect(apiKey).toBe("stored-key");
+		});
+	});
+});
+
+function nodeCommand(script: string, args: readonly string[] = []): string {
+	return `!${[process.execPath, "-e", script, ...args].map(quoteShellArgument).join(" ")}`;
+}
+
+function quoteShellArgument(value: string): string {
+	if (process.platform === "win32") return `"${value.replaceAll('"', '""')}"`;
+	return `'${value.replaceAll("'", `'\\''`)}'`;
+}
+
+function counterCommand(counterFile: string, fail = false): string {
+	const script = [
+		"const fs=require('node:fs')",
+		"const path=process.argv[1]",
+		"const count=Number(fs.readFileSync(path,'utf8'))",
+		"fs.writeFileSync(path,String(count+1))",
+		"process.stdout.write('key-value')",
+		...(fail ? ["process.exitCode=1"] : []),
+	].join(";");
+	return nodeCommand(script, [counterFile]);
+}

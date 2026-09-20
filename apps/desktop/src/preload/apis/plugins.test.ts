@@ -1,0 +1,168 @@
+import type { IpcRenderer, IpcRendererEvent, WebUtils } from "electron";
+import { describe, expect, it, vi } from "vitest";
+import { createPluginsApi } from "./plugins";
+
+const SECRETS_CHANGED_CHANNEL = "vetta:plugins:secrets:changed";
+const AI_STREAM_EVENT_CHANNEL = "vetta:plugins:capabilities:ai:stream:event";
+type IpcListener = Parameters<IpcRenderer["on"]>[1];
+const webUtils = { getPathForFile: vi.fn() } as unknown as WebUtils;
+
+describe("createPluginsApi settings events", () => {
+	it("reports renderer contribution host readiness through the dedicated IPC channel", async () => {
+		const harness = createIpcHarness();
+		const plugins = createPluginsApi(harness.ipc, webUtils).plugins;
+
+		await plugins.reportAgentContributionHostReady();
+
+		expect(harness.invoke).toHaveBeenCalledWith("vetta:plugins:agent-contribution-host-ready");
+	});
+
+	it("passes capability sessions to identity-sensitive plugin IPC", async () => {
+		const harness = createIpcHarness();
+		const plugins = createPluginsApi(harness.ipc, webUtils).plugins;
+
+		await plugins.runCommand("session", "node", ["--version"]);
+		await plugins.spawnCommand("session", "node", ["server.js"]);
+		await plugins.stopCommandSpawn("session", "spawn-id");
+		await plugins.getCommandSpawnStatus("session", "spawn-id");
+		await plugins.startDevWatch("official-session", "target", "C:/plugin-project");
+		await plugins.stopDevWatch("official-session", "target");
+
+		expect(harness.invoke).toHaveBeenNthCalledWith(
+			1,
+			"vetta:plugins:command-run",
+			"session",
+			"node",
+			["--version"],
+			undefined,
+		);
+		expect(harness.invoke).toHaveBeenNthCalledWith(
+			2,
+			"vetta:plugins:command-spawn",
+			"session",
+			"node",
+			["server.js"],
+			undefined,
+		);
+		expect(harness.invoke).toHaveBeenNthCalledWith(3, "vetta:plugins:command-spawn-stop", "session", "spawn-id");
+		expect(harness.invoke).toHaveBeenNthCalledWith(4, "vetta:plugins:command-spawn-status", "session", "spawn-id");
+		expect(harness.invoke).toHaveBeenNthCalledWith(
+			5,
+			"vetta:plugins:dev-watch-start",
+			"official-session",
+			"target",
+			"C:/plugin-project",
+		);
+		expect(harness.invoke).toHaveBeenNthCalledWith(6, "vetta:plugins:dev-watch-stop", "official-session", "target");
+	});
+
+	it("multiplexes more than ten subscribers through one IPC listener", () => {
+		const harness = createIpcHarness();
+		const plugins = createPluginsApi(harness.ipc, webUtils).plugins;
+		const listeners = Array.from({ length: 12 }, () => vi.fn());
+		const unsubscribers = listeners.map((listener) => plugins.onSecretsChanged(listener));
+		const payload = { pluginId: "plugin", keys: ["token"] };
+
+		expect(harness.listenerCount(SECRETS_CHANGED_CHANNEL)).toBe(1);
+		expect(harness.on).toHaveBeenCalledTimes(1);
+
+		harness.emit(SECRETS_CHANGED_CHANNEL, payload);
+		for (const listener of listeners) expect(listener).toHaveBeenCalledOnce();
+
+		for (const unsubscribe of unsubscribers) unsubscribe();
+	});
+
+	it("detaches the shared IPC listener after the final subscriber leaves", () => {
+		const harness = createIpcHarness();
+		const plugins = createPluginsApi(harness.ipc, webUtils).plugins;
+		const first = vi.fn();
+		const second = vi.fn();
+		const unsubscribeFirst = plugins.onSecretsChanged(first);
+		const unsubscribeSecond = plugins.onSecretsChanged(second);
+
+		unsubscribeFirst();
+		harness.emit(SECRETS_CHANGED_CHANNEL, { pluginId: "plugin", keys: [] });
+		expect(first).not.toHaveBeenCalled();
+		expect(second).toHaveBeenCalledOnce();
+		expect(harness.listenerCount(SECRETS_CHANGED_CHANNEL)).toBe(1);
+
+		unsubscribeSecond();
+		expect(harness.listenerCount(SECRETS_CHANGED_CHANNEL)).toBe(0);
+		expect(harness.removeListener).toHaveBeenCalledTimes(1);
+	});
+
+	it("bridges AI stream calls and multiplexes delta events", async () => {
+		const harness = createIpcHarness();
+		const ai = createPluginsApi(harness.ipc, webUtils).plugins.internalCapabilities.ai;
+		const first = vi.fn();
+		const second = vi.fn();
+		const unsubscribeFirst = ai.onStreamEvent(first);
+		const unsubscribeSecond = ai.onStreamEvent(second);
+		const payload = {
+			sessionId: "session",
+			requestId: "request",
+			event: { type: "text_delta" as const, delta: "hello" },
+		};
+
+		await ai.stream("session", "request", { prompt: "question" });
+		await ai.cancelStream("session", "request");
+		harness.emit(AI_STREAM_EVENT_CHANNEL, payload);
+
+		expect(harness.invoke).toHaveBeenNthCalledWith(1, "vetta:plugins:capabilities:ai:stream", "session", "request", {
+			prompt: "question",
+		});
+		expect(harness.invoke).toHaveBeenNthCalledWith(
+			2,
+			"vetta:plugins:capabilities:ai:stream:cancel",
+			"session",
+			"request",
+		);
+		expect(harness.listenerCount(AI_STREAM_EVENT_CHANNEL)).toBe(1);
+		expect(first).toHaveBeenCalledWith(payload);
+		expect(second).toHaveBeenCalledWith(payload);
+
+		unsubscribeFirst();
+		unsubscribeSecond();
+		expect(harness.listenerCount(AI_STREAM_EVENT_CHANNEL)).toBe(0);
+	});
+});
+
+function createIpcHarness(): {
+	readonly emit: (channel: string, payload: unknown) => void;
+	readonly ipc: IpcRenderer;
+	readonly invoke: ReturnType<typeof vi.fn>;
+	readonly listenerCount: (channel: string) => number;
+	readonly on: ReturnType<typeof vi.fn>;
+	readonly removeListener: ReturnType<typeof vi.fn>;
+} {
+	const listeners = new Map<string, Set<IpcListener>>();
+	const on = vi.fn((channel: string, listener: IpcListener) => {
+		const channelListeners = listeners.get(channel) ?? new Set<IpcListener>();
+		channelListeners.add(listener);
+		listeners.set(channel, channelListeners);
+		return ipc;
+	});
+	const removeListener = vi.fn((channel: string, listener: IpcListener) => {
+		listeners.get(channel)?.delete(listener);
+		return ipc;
+	});
+	const invoke = vi.fn(async () => undefined);
+	const ipc = {
+		invoke,
+		on,
+		removeListener,
+	} as unknown as IpcRenderer;
+
+	return {
+		ipc,
+		invoke,
+		on,
+		removeListener,
+		emit: (channel, payload) => {
+			for (const listener of listeners.get(channel) ?? []) {
+				listener({} as IpcRendererEvent, payload);
+			}
+		},
+		listenerCount: (channel) => listeners.get(channel)?.size ?? 0,
+	};
+}

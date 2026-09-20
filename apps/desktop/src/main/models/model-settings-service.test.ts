@@ -1,0 +1,367 @@
+import { DOMAIN_MODEL_CAPABILITIES } from "@vetta-org/capability-sdk";
+import { describe, expect, it, vi } from "vitest";
+import type { ModelCredentialStore } from "./model-credential-store.js";
+import { ModelSettingsService, type ModelsConfig } from "./model-settings-service.js";
+
+function createConfig(): ModelsConfig {
+	return {
+		defaultModel: "openai/gpt-5",
+		providers: {
+			openai: {
+				displayName: "OpenAI",
+				credentialRef: "openai-credential",
+				headers: { Authorization: "Bearer secret", "X-Region": "us" },
+				models: [{ id: "gpt-5", reasoning: true }],
+			},
+		},
+	};
+}
+
+function createCredentialStore(initial: Record<string, string> = {}): ModelCredentialStore & {
+	values: Map<string, string>;
+} {
+	const values = new Map(Object.entries(initial));
+	return {
+		values,
+		isAvailable: () => true,
+		has: (credentialRef) => values.has(credentialRef),
+		get: (credentialRef) => values.get(credentialRef),
+		set: (credentialRef, value) => {
+			values.set(credentialRef, value);
+		},
+		remove: (credentialRef) => {
+			values.delete(credentialRef);
+		},
+	};
+}
+
+describe("ModelSettingsService", () => {
+	it("persists plugin reasoning choices through capability parsing and model read-back", async () => {
+		let config: ModelsConfig = { providers: {} };
+		const service = new ModelSettingsService({
+			readConfig: async () => config,
+			writeConfig: async (next) => {
+				config = next;
+			},
+			refreshRegistry: async () => {},
+			credentials: createCredentialStore(),
+		});
+		const models = ["gpt-5.6-sol", "gpt-6-astra"].map((id) => ({
+			id,
+			reasoning: true,
+			reasoningLevels: ["low", "medium", "high", "xhigh", "max"],
+			defaultReasoningLevel: "medium",
+		}));
+		const input = DOMAIN_MODEL_CAPABILITIES.REPLACE_OWNED_PROVIDERS.parseInput({
+			owner: "cli-proxy-api",
+			providers: { responses: { api: "openai-responses", models } },
+		});
+		await service.replaceOwnedProviders(input.owner, input.providers);
+		expect(config.providers["cli-proxy-api.responses"]?.models).toEqual(models);
+		const snapshot = DOMAIN_MODEL_CAPABILITIES.GET_PROVIDER.parseOutput(
+			await service.getSanitizedProvider("cli-proxy-api.responses"),
+		);
+		expect(snapshot.models).toEqual(models);
+		const restored = new ModelSettingsService({
+			readConfig: async () => config,
+			writeConfig: async (next) => {
+				config = next;
+			},
+			refreshRegistry: async () => {},
+			credentials: createCredentialStore(),
+		});
+		expect((await restored.getRendererConfig()).providers["cli-proxy-api.responses"]?.models).toEqual(models);
+	});
+
+	it("returns masked renderer config and sanitized capability data", async () => {
+		const credentials = createCredentialStore({ "openai-credential": "secret" });
+		const service = new ModelSettingsService({
+			readConfig: async () => createConfig(),
+			writeConfig: vi.fn(),
+			refreshRegistry: vi.fn(),
+			credentials,
+		});
+
+		await expect(service.getRendererConfig()).resolves.toMatchObject({
+			providers: { openai: { apiKey: "***", credentialRef: "openai-credential" } },
+		});
+		await expect(service.getSanitizedConfig()).resolves.toEqual({
+			defaultModel: "openai/gpt-5",
+			providers: {
+				openai: {
+					displayName: "OpenAI",
+					apiKey: "***",
+					headers: { Authorization: "***", "X-Region": "us" },
+					models: [{ id: "gpt-5", reasoning: true }],
+				},
+			},
+		});
+		await expect(service.getProviderApiKey("openai")).resolves.toBe("secret");
+		await expect(service.getProviderApiKey("missing")).resolves.toBeUndefined();
+	});
+
+	it("keeps an encrypted key when renderer sends the mask", async () => {
+		let config = createConfig();
+		const credentials = createCredentialStore({ "openai-credential": "secret" });
+		const writeConfig = vi.fn<(next: ModelsConfig) => Promise<void>>(async (next) => {
+			config = next;
+		});
+		const refreshRegistry = vi.fn<() => Promise<void>>(async () => {});
+		const service = new ModelSettingsService({
+			readConfig: async () => config,
+			writeConfig,
+			refreshRegistry,
+			credentials,
+		});
+
+		const renderer = await service.getRendererConfig();
+		renderer.providers.openai = {
+			...renderer.providers.openai,
+			displayName: "OpenAI Updated",
+		};
+		await service.replaceConfig(renderer);
+
+		expect(config.providers.openai).toMatchObject({
+			displayName: "OpenAI Updated",
+			credentialRef: "openai-credential",
+		});
+		expect(config.providers.openai?.apiKey).toBeUndefined();
+		expect(credentials.values.get("openai-credential")).toBe("secret");
+		expect(refreshRegistry).toHaveBeenCalledOnce();
+	});
+
+	it("keeps an encrypted key when a capability updates provider metadata", async () => {
+		let config = createConfig();
+		const credentials = createCredentialStore({ "openai-credential": "secret" });
+		const onProviderAccessChanged = vi.fn();
+		const service = new ModelSettingsService({
+			readConfig: async () => config,
+			writeConfig: async (next) => {
+				config = next;
+			},
+			refreshRegistry: async () => {},
+			credentials,
+			onProviderAccessChanged,
+		});
+
+		await expect(
+			service.upsertProvider("openai", {
+				displayName: "OpenAI Updated",
+				models: [{ id: "gpt-5.1", reasoning: true }],
+			}),
+		).resolves.toMatchObject({
+			displayName: "OpenAI Updated",
+			apiKey: "***",
+			models: [{ id: "gpt-5.1", reasoning: true }],
+		});
+		expect(config.providers.openai?.credentialRef).toBe("openai-credential");
+		expect(config.providers.openai?.apiKey).toBeUndefined();
+		expect(credentials.values.get("openai-credential")).toBe("secret");
+		expect(onProviderAccessChanged).not.toHaveBeenCalled();
+	});
+
+	it("atomically replaces only one plugin namespace and clears its default", async () => {
+		let config: ModelsConfig = {
+			defaultModel: "cli-proxy-api.google/gemini-test",
+			providers: {
+				"cli-proxy-api.google": { api: "google-generative-ai", models: [{ id: "old" }] },
+				"cli-proxy-api.anthropic": { api: "anthropic-messages", models: [{ id: "stale" }] },
+				openai: { api: "openai-responses", models: [{ id: "gpt-5" }] },
+			},
+		};
+		const writeConfig = vi.fn<(next: ModelsConfig) => Promise<void>>(async (next) => {
+			config = next;
+		});
+		const refreshRegistry = vi.fn<() => Promise<void>>(async () => {});
+		const onConfigChanged = vi.fn();
+		const service = new ModelSettingsService({
+			readConfig: async () => config,
+			writeConfig,
+			refreshRegistry,
+			credentials: createCredentialStore(),
+			onConfigChanged,
+		});
+
+		await service.replaceOwnedProviders("cli-proxy-api", {
+			google: { api: "google-generative-ai", models: [{ id: "new" }] },
+		});
+
+		expect(config).toEqual({
+			providers: {
+				"cli-proxy-api.google": { api: "google-generative-ai", models: [{ id: "new" }] },
+				openai: { api: "openai-responses", models: [{ id: "gpt-5" }] },
+			},
+		});
+		expect(writeConfig).toHaveBeenCalledOnce();
+		expect(refreshRegistry).toHaveBeenCalledOnce();
+		expect(onConfigChanged).toHaveBeenCalledWith(expect.arrayContaining(["cli-proxy-api.google", "openai"]));
+	});
+
+	it("keeps the plugin-owned default model when the replacement still publishes it", async () => {
+		let config: ModelsConfig = {
+			defaultModel: "cli-proxy-api.google/gemini-test",
+			providers: {
+				"cli-proxy-api.google": { api: "google-generative-ai", models: [{ id: "gemini-test" }] },
+			},
+		};
+		const service = new ModelSettingsService({
+			readConfig: async () => config,
+			writeConfig: async (next) => {
+				config = next;
+			},
+			refreshRegistry: async () => {},
+			credentials: createCredentialStore(),
+		});
+
+		await service.replaceOwnedProviders("cli-proxy-api", {
+			google: { api: "google-generative-ai", models: [{ id: "gemini-test" }, { id: "gemini-new" }] },
+		});
+
+		expect(config.defaultModel).toBe("cli-proxy-api.google/gemini-test");
+	});
+
+	it("reads back one plugin namespace by local id with credentials redacted", async () => {
+		const config: ModelsConfig = {
+			providers: {
+				"cli-proxy-api.google": {
+					api: "google-generative-ai",
+					apiKey: "gateway-secret",
+					headers: { Authorization: "Bearer gateway-secret" },
+					models: [{ id: "gemini-test" }],
+				},
+				"other-plugin.google": { api: "google-generative-ai", models: [{ id: "not-mine" }] },
+				openai: { api: "openai-responses", models: [{ id: "gpt-5" }] },
+			},
+		};
+		const service = new ModelSettingsService({
+			readConfig: async () => config,
+			writeConfig: vi.fn(),
+			refreshRegistry: vi.fn(),
+			credentials: createCredentialStore(),
+		});
+
+		await expect(service.listOwnedProviders("cli-proxy-api")).resolves.toEqual({
+			google: {
+				api: "google-generative-ai",
+				apiKey: "***",
+				headers: { Authorization: "***" },
+				models: [{ id: "gemini-test" }],
+			},
+		});
+	});
+
+	it("replaces and clears an encrypted key without writing plaintext", async () => {
+		let config = createConfig();
+		const credentials = createCredentialStore({ "openai-credential": "secret" });
+		const onProviderAccessChanged = vi.fn();
+		const service = new ModelSettingsService({
+			readConfig: async () => config,
+			writeConfig: async (next) => {
+				config = next;
+			},
+			refreshRegistry: async () => {},
+			credentials,
+			onProviderAccessChanged,
+		});
+
+		const replacement = await service.getRendererConfig();
+		replacement.providers.openai.apiKey = "replacement-secret";
+		await service.replaceConfig(replacement);
+
+		expect(config.providers.openai?.apiKey).toBeUndefined();
+		expect(credentials.values.get("openai-credential")).toBe("replacement-secret");
+
+		const cleared = await service.getRendererConfig();
+		delete cleared.providers.openai.apiKey;
+		await service.replaceConfig(cleared);
+
+		expect(config.providers.openai?.credentialRef).toBeUndefined();
+		expect(credentials.values.has("openai-credential")).toBe(false);
+		expect(onProviderAccessChanged).toHaveBeenNthCalledWith(1, ["openai"]);
+		expect(onProviderAccessChanged).toHaveBeenNthCalledWith(2, ["openai"]);
+	});
+
+	it("keeps an encrypted key when its provider is renamed", async () => {
+		let config = createConfig();
+		const credentials = createCredentialStore({ "openai-credential": "secret" });
+		const service = new ModelSettingsService({
+			readConfig: async () => config,
+			writeConfig: async (next) => {
+				config = next;
+			},
+			refreshRegistry: async () => {},
+			credentials,
+		});
+
+		const renderer = await service.getRendererConfig();
+		renderer.providers.customOpenai = renderer.providers.openai;
+		delete renderer.providers.openai;
+		await service.replaceConfig(renderer);
+
+		expect(config.providers.customOpenai).toMatchObject({ credentialRef: "openai-credential" });
+		expect(credentials.values.get("openai-credential")).toBe("secret");
+	});
+
+	it("moves a legacy literal key into the credential store before removing plaintext", async () => {
+		let config: ModelsConfig = {
+			providers: { openai: { apiKey: "sk-legacy", models: [{ id: "gpt-5" }] } },
+		};
+		const credentials = createCredentialStore();
+		const service = new ModelSettingsService({
+			readConfig: async () => config,
+			writeConfig: async (next) => {
+				config = next;
+			},
+			refreshRegistry: async () => {},
+			credentials,
+		});
+
+		const renderer = await service.getRendererConfig();
+		const credentialRef = config.providers.openai?.credentialRef;
+
+		expect(credentialRef).toBeTypeOf("string");
+		expect(config.providers.openai?.apiKey).toBeUndefined();
+		expect(credentials.values.get(credentialRef as string)).toBe("sk-legacy");
+		expect(renderer.providers.openai?.apiKey).toBe("***");
+		await expect(service.getConfig()).resolves.toMatchObject({
+			providers: { openai: { apiKey: "sk-legacy" } },
+		});
+	});
+
+	it("clears the encrypted credential with a removed provider", async () => {
+		let config = createConfig();
+		const credentials = createCredentialStore({ "openai-credential": "secret" });
+		const service = new ModelSettingsService({
+			readConfig: async () => config,
+			writeConfig: async (next) => {
+				config = next;
+			},
+			refreshRegistry: async () => {},
+			credentials,
+		});
+
+		await service.removeProvider("openai");
+
+		expect(config).toEqual({ providers: {} });
+		expect(credentials.values.has("openai-credential")).toBe(false);
+	});
+
+	it("treats removing an absent provider as an idempotent no-op", async () => {
+		const config: ModelsConfig = { providers: {} };
+		const writeConfig = vi.fn<(next: ModelsConfig) => Promise<void>>(async () => {});
+		const refreshRegistry = vi.fn<() => Promise<void>>(async () => {});
+		const credentials = createCredentialStore();
+		const service = new ModelSettingsService({
+			readConfig: async () => config,
+			writeConfig,
+			refreshRegistry,
+			credentials,
+		});
+
+		await expect(service.removeProvider("cli-proxy-api.google")).resolves.toBeUndefined();
+
+		expect(writeConfig).not.toHaveBeenCalled();
+		expect(refreshRegistry).not.toHaveBeenCalled();
+		expect(credentials.values).toEqual(new Map());
+	});
+});

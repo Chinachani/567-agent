@@ -1,0 +1,1477 @@
+import { existsSync, readFileSync } from "node:fs";
+import { join } from "node:path";
+import { describe, expect, it } from "vitest";
+import { findPackageBoundaryViolations, findPackageManifestBoundaryViolations } from "./check-package-boundaries.mjs";
+import { batchPaths, createQuickCheckPlan, isBiomeGlobalTrigger } from "./check-quick.mjs";
+import { findSkillFrontmatterProblems } from "./check-skill-frontmatter.mjs";
+import {
+	collectTypeScriptExportEntries,
+	findImportedSourcePathMapViolations,
+	findSourcePathMapViolations,
+	typesExportToSourceRel,
+} from "./check-source-path-maps.mjs";
+import { findStandaloneCliBuildViolations } from "./check-standalone-cli-build.mjs";
+import { findTurboConfigurationProblems, readTurboConfiguration } from "./check-turbo-config.mjs";
+import { findVitestRunnerViolations } from "./check-vitest-runner.mjs";
+import {
+	buildableTestDependencies,
+	changedFiles,
+	expandTestablePackages,
+	formatElapsedTime,
+	packagesFromPaths,
+	parseBaseArgs,
+	parseFileSelectionArgs,
+	repoRoot,
+	stagedFiles,
+	TESTABLE_PACKAGES,
+	WORKSPACE_PACKAGES,
+} from "./lib.mjs";
+import { createChangedTestPlan, parseArgs } from "./test-changed.mjs";
+import { createImpactTestPlan, parseImpactArgs } from "./test-impact.mjs";
+
+describe("changed file selection", () => {
+	it("combines committed, working tree, and untracked paths", () => {
+		const outputs = new Map([
+			[["merge-base", "HEAD", "origin/dev"].join("\0"), "base-sha"],
+			[["diff", "--name-only", "-z", "base-sha...HEAD"].join("\0"), "packages/ai/src/a.ts\0"],
+			[["diff", "--name-only", "-z", "HEAD"].join("\0"), "packages/agent/src/b.ts\0"],
+			[
+				["ls-files", "--others", "--exclude-standard", "-z"].join("\0"),
+				"packages/ecosystem-adapter/src/new.ts\0packages/ai/src/a.ts\0",
+			],
+		]);
+		const git = (args) => outputs.get(args.join("\0")) ?? "";
+
+		expect(changedFiles("origin/dev", git)).toEqual(
+			["packages/agent/src/b.ts", "packages/ai/src/a.ts", "packages/ecosystem-adapter/src/new.ts"].sort(),
+		);
+	});
+
+	it("preserves unusual paths from NUL-delimited Git output", () => {
+		const outputs = new Map([
+			[["merge-base", "HEAD", "origin/dev"].join("\0"), "base-sha"],
+			[["diff", "--name-only", "-z", "base-sha...HEAD"].join("\0"), "packages/ai/src/line\nbreak.ts\0"],
+			[["diff", "--name-only", "-z", "HEAD"].join("\0"), "packages/ai/src/a & b.ts\0"],
+			[["ls-files", "--others", "--exclude-standard", "-z"].join("\0"), ""],
+		]);
+		const git = (args) => outputs.get(args.join("\0")) ?? "";
+
+		expect(changedFiles("origin/dev", git)).toEqual(
+			["packages/ai/src/a & b.ts", "packages/ai/src/line\nbreak.ts"].sort(),
+		);
+	});
+
+	it("preserves unusual staged paths", () => {
+		const git = () => "packages/ai/src/a & b.ts\0packages/ai/src/line\nbreak.ts\0";
+		expect(stagedFiles(git)).toEqual(["packages/ai/src/a & b.ts", "packages/ai/src/line\nbreak.ts"]);
+	});
+
+	it("does not hide an invalid base ref", () => {
+		const git = () => {
+			throw new Error("missing base");
+		};
+		expect(() => changedFiles("missing", git)).toThrow("missing base");
+	});
+
+	it("normalizes Windows package paths", () => {
+		expect(packagesFromPaths(["packages\\ai\\src\\index.ts"])).toEqual(["ai"]);
+	});
+
+	it("validates base arguments shared by changed-file commands", () => {
+		expect(parseBaseArgs(["--base", "origin/main"])).toEqual({ base: "origin/main" });
+		expect(() => parseBaseArgs(["--base", "--unknown"])).toThrow("--base requires a git ref");
+		expect(() => parseBaseArgs(["--unknown"])).toThrow("unknown argument");
+	});
+
+	it("accepts explicit task files and rejects paths outside the repository", () => {
+		expect(parseFileSelectionArgs(["--base=origin/main", "packages\\ai\\src\\index.ts"])).toEqual({
+			base: "origin/main",
+			files: ["packages/ai/src/index.ts"],
+		});
+		expect(() => parseFileSelectionArgs(["../outside.ts"])).toThrow("inside the repository");
+		expect(() => parseFileSelectionArgs(["..\\outside.ts"])).toThrow("inside the repository");
+	});
+});
+
+describe("quality timing output", () => {
+	it("keeps short timings readable and longer timings comparable", () => {
+		expect(formatElapsedTime(412)).toBe("412ms");
+		expect(formatElapsedTime(12_345)).toBe("12.3s");
+		expect(() => formatElapsedTime(-1)).toThrow("non-negative finite number");
+	});
+});
+
+describe("standalone CLI 编译入口守卫", () => {
+	it("拒绝在 Desktop 生产代码中直接编译 CLI 源入口", () => {
+		expect(
+			findStandaloneCliBuildViolations(
+				"apps/desktop/src/main/example.ts",
+				`spawn("bun", ["build", join(cliAppRoot, "src", "cli.ts"), "--compile"]);`,
+			),
+		).toHaveLength(1);
+	});
+
+	it("允许调用统一编译器和编译其他入口", () => {
+		expect(
+			findStandaloneCliBuildViolations(
+				"apps/desktop/src/main/example.ts",
+				`spawn("bun", [join(cliAppRoot, "scripts", "compile-standalone.mjs")]);`,
+			),
+		).toEqual([]);
+		expect(
+			findStandaloneCliBuildViolations(
+				"apps/desktop/src/main/dev-cli-shim.ts",
+				`spawn("bun", ["build", launcherEntryPath, "--compile"]);`,
+			),
+		).toEqual([]);
+	});
+});
+
+describe("vitest runner 守卫", () => {
+	it("拒绝 bunx vitest 和直接 vitest", () => {
+		expect(
+			findVitestRunnerViolations("packages/foo/package.json", {
+				scripts: { test: "bunx vitest --run", "test:unit": "vitest --run" },
+			}),
+		).toHaveLength(2);
+	});
+
+	it("允许统一 Node 包装器", () => {
+		expect(
+			findVitestRunnerViolations("packages/foo/package.json", {
+				scripts: { test: "bun ../../scripts/quality/run-vitest.mjs --run --coverage" },
+			}),
+		).toEqual([]);
+	});
+
+	it("忽略不含 vitest 的脚本", () => {
+		expect(
+			findVitestRunnerViolations("packages/foo/package.json", {
+				scripts: { build: "tsgo -p tsconfig.build.json", "test:e2e": "wdio run ./wdio.conf.ts" },
+			}),
+		).toEqual([]);
+	});
+});
+
+describe("source path maps", () => {
+	it("maps package.json types exports onto source files", () => {
+		expect(typesExportToSourceRel("./dist/auth/index.d.ts")).toBe("src/auth/index.ts");
+		expect(typesExportToSourceRel("./dist/npm-package.d.ts")).toBe("src/npm-package.ts");
+		expect(typesExportToSourceRel("./src/tailwind-theme.css")).toBeNull();
+	});
+
+	it("ignores CSS and wildcard exports", () => {
+		expect(
+			collectTypeScriptExportEntries({
+				name: "@vetta/example",
+				exports: {
+					".": { types: "./dist/index.d.ts", import: "./dist/index.js" },
+					"./theme.css": "./src/theme.css",
+					"./*": "./dist/*",
+				},
+			}),
+		).toEqual([{ specifier: "@vetta/example", sourceRel: "src/index.ts", types: "./dist/index.d.ts" }]);
+	});
+
+	it("requires an explicit root path map to the source file", () => {
+		const packages = [
+			{
+				dir: "packages/runtime-mcp",
+				manifest: {
+					name: "@vetta/runtime-mcp",
+					exports: {
+						"./auth": { types: "./dist/auth/index.d.ts", import: "./dist/auth/index.js" },
+					},
+				},
+			},
+		];
+
+		expect(findSourcePathMapViolations({ paths: {}, packages, fileExists: () => true })).toEqual([
+			"@vetta/runtime-mcp/auth: root tsconfig.json is missing an explicit source path map to ./packages/runtime-mcp/src/auth/index.ts",
+		]);
+		expect(
+			findSourcePathMapViolations({
+				paths: { "@vetta/runtime-mcp/auth": ["./packages/runtime-mcp/src/auth/index.ts"] },
+				packages,
+				fileExists: () => true,
+			}),
+		).toEqual([]);
+	});
+
+	it("detects when an app wildcard alias misses an imported public export source", () => {
+		const packages = [
+			{
+				dir: "packages/coding-agent",
+				manifest: {
+					name: "@vetta/coding-agent",
+					exports: {
+						"./plugin-runtime": {
+							types: "./dist/public-api/plugin-runtime.d.ts",
+							import: "./dist/public-api/plugin-runtime.js",
+						},
+					},
+				},
+			},
+		];
+		const importedSpecifiers = ["@vetta/coding-agent/plugin-runtime"];
+
+		expect(
+			findImportedSourcePathMapViolations({
+				paths: { "@vetta/coding-agent/*": ["../../packages/coding-agent/src/*"] },
+				importedSpecifiers,
+				packages,
+				configDir: "apps/desktop",
+			}),
+		).toEqual([
+			"@vetta/coding-agent/plugin-runtime: apps/desktop/tsconfig.json maps to ../../packages/coding-agent/src/plugin-runtime, expected ../../packages/coding-agent/src/public-api/plugin-runtime.ts",
+		]);
+		expect(
+			findImportedSourcePathMapViolations({
+				paths: {
+					"@vetta/coding-agent/plugin-runtime": ["../../packages/coding-agent/src/public-api/plugin-runtime.ts"],
+				},
+				importedSpecifiers,
+				packages,
+				configDir: "apps/desktop",
+			}),
+		).toEqual([]);
+	});
+});
+
+describe("quick check selection", () => {
+	it("checks every existing changed file and skips deleted files", () => {
+		const existing = new Set(["package.json", "packages/ai/src/index.ts"]);
+		const plan = createQuickCheckPlan(
+			["packages\\ai\\src\\index.ts", "deleted.ts", "package.json", "package.json"],
+			(file) => existing.has(file),
+		);
+
+		expect(plan.fullBiome).toBe(false);
+		expect(plan.existingFiles).toEqual(["package.json", "packages/ai/src/index.ts"]);
+		expect(plan.biomeBatches.flat()).toEqual(plan.existingFiles);
+	});
+
+	it("falls back to a full Biome check when any Biome config changes", () => {
+		expect(isBiomeGlobalTrigger("config/biome.jsonc")).toBe(true);
+		const plan = createQuickCheckPlan(["biome.json", "packages/ai/src/index.ts"], () => true);
+		expect(plan.fullBiome).toBe(true);
+		expect(plan.biomeBatches).toEqual([["."]]);
+	});
+
+	it("batches paths without dropping or reordering them", () => {
+		const paths = ["first.ts", "second-long.ts", "third.ts"];
+		const batches = batchPaths(paths, 20);
+		expect(batches.length).toBeGreaterThan(1);
+		expect(batches.flat()).toEqual(paths);
+	});
+});
+
+describe("affected package selection", () => {
+	it("discovers every workspace test script, including nested plugins and themes", () => {
+		expect(Object.keys(TESTABLE_PACKAGES)).toEqual(
+			WORKSPACE_PACKAGES.filter((pkg) => Boolean(pkg.scripts.test)).map((pkg) => pkg.key),
+		);
+		expect(Object.keys(TESTABLE_PACKAGES)).toEqual(
+			expect.arrayContaining(["capability-sdk", "cli-host", "runtime-node", "presets/image-gen"]),
+		);
+	});
+
+	it("includes transitive testable dependents", () => {
+		expect(expandTestablePackages(["ai"])).toEqual(
+			expect.arrayContaining(["ai", "agent", "runtime-core", "runtime-mcp", "coding-agent", "desktop"]),
+		);
+		expect(expandTestablePackages(["runtime-mcp"])).toEqual(
+			expect.arrayContaining(["runtime-mcp", "coding-agent", "desktop"]),
+		);
+		expect(expandTestablePackages(["ecosystem-adapter"])).toEqual(
+			expect.arrayContaining(["coding-agent", "ecosystem-adapter", "desktop"]),
+		);
+		expect(expandTestablePackages(["plugin-sdk"])).toEqual(
+			expect.arrayContaining(["presets/image-gen", "presets/vetta-ui-design", "desktop"]),
+		);
+	});
+
+	it("runs Runtime and Desktop tests when those packages change", () => {
+		expect(createChangedTestPlan(["packages/runtime-core/src/index.ts"]).toTest).toEqual(
+			expect.arrayContaining(["runtime-core", "runtime-mcp", "coding-agent", "desktop"]),
+		);
+		expect(createChangedTestPlan(["apps/desktop/src/main.ts"]).toTest).toEqual(["desktop"]);
+	});
+
+	it("runs every core test package for global quality inputs", () => {
+		const plan = createChangedTestPlan(["bun.lock", "turbo.json"]);
+		expect(plan.globalTriggers).toEqual(["bun.lock", "turbo.json"]);
+		expect(plan.runQuality).toBe(true);
+		expect(plan.toTest).toEqual(Object.keys(TESTABLE_PACKAGES));
+	});
+
+	it("runs quality tests when their implementation changes", () => {
+		const plan = createChangedTestPlan(["scripts/quality/test-changed.mjs"]);
+		expect(plan.runQuality).toBe(true);
+		expect(plan.toTest).toEqual(Object.keys(TESTABLE_PACKAGES));
+	});
+
+	it("accepts both base argument forms and rejects unknown arguments", () => {
+		expect(parseArgs(["--base", "origin/main"])).toEqual({ base: "origin/main", files: [] });
+		expect(parseArgs(["--base=origin/release"])).toEqual({ base: "origin/release", files: [] });
+		expect(() => parseArgs(["--unknown"])).toThrow("unknown argument");
+	});
+
+	it("selects direct and related tests for ordinary task files", () => {
+		const plan = createImpactTestPlan([
+			"packages/ai/test/provider-retry-policy.test.ts",
+			"packages/ai/src/providers/retry-policy.ts",
+		]);
+		expect(plan.fallbackChanged).toBe(false);
+		expect(plan.targets).toMatchObject([
+			{
+				key: "ai",
+				directTests: ["test/provider-retry-policy.test.ts"],
+				relatedSources: ["src/providers/retry-policy.ts"],
+				full: false,
+			},
+		]);
+	});
+
+	it("falls back for public contracts, deleted files, and workspaces without tests", () => {
+		expect(createImpactTestPlan(["packages/ai/src/index.ts"]).fallbackChanged).toBe(true);
+		expect(
+			createImpactTestPlan(["packages/coding-agent/src/composition/contracts/runtime-session-options.ts"])
+				.fallbackChanged,
+		).toBe(true);
+		expect(createImpactTestPlan(["packages/ai/src/provider.ts"], () => false).fallbackChanged).toBe(true);
+		expect(createImpactTestPlan(["packages/action-rpc/src/rpc.ts"]).fallbackChanged).toBe(true);
+	});
+
+	it("runs quality tests for scripts while documentation-only changes need no package tests", () => {
+		const quality = createImpactTestPlan(["scripts/quality/test-impact.mjs"]);
+		expect(quality).toMatchObject({ runQuality: true, fallbackChanged: false, targets: [] });
+		const docs = createImpactTestPlan(["docs/dev/quality-gates.md"]);
+		expect(docs).toMatchObject({ runQuality: false, fallbackChanged: false, targets: [] });
+		expect(parseImpactArgs(["--dry-run", "packages/ai/src/providers/retry-policy.ts"])).toMatchObject({
+			dryRun: true,
+			files: ["packages/ai/src/providers/retry-policy.ts"],
+		});
+	});
+
+	it("builds generated workspace exports required by tests without building leaf applications", () => {
+		const dependencies = buildableTestDependencies(Object.keys(TESTABLE_PACKAGES));
+		expect(dependencies).toEqual(
+			expect.arrayContaining([
+				"@vetta/action-rpc",
+				"@vetta/runtime-storage",
+				"@vetta-org/plugin-sdk",
+				"@vetta/toolkit",
+			]),
+		);
+		expect(dependencies).not.toEqual(
+			expect.arrayContaining(["@vetta/desktop", "@vetta/docs-site", "@vetta/remote-relay"]),
+		);
+	});
+});
+
+describe("CI unit test coverage", () => {
+	const workflow = readFileSync(join(repoRoot, ".github/workflows/quality.yml"), "utf8");
+	const imGatewayWorkflow = readFileSync(join(repoRoot, ".github/workflows/im-gateway.yml"), "utf8");
+	const mobileWorkflow = readFileSync(join(repoRoot, ".github/workflows/mobile.yml"), "utf8");
+	const rootManifest = JSON.parse(readFileSync(join(repoRoot, "package.json"), "utf8"));
+
+	it("runs affected workspace tests on Linux, macOS, and Windows with complete Git history", () => {
+		expect(workflow).toContain("os: [ubuntu-latest, macos-latest, windows-latest]");
+		expect(workflow).toContain("fetch-depth: 0");
+		expect(workflow).toContain("command -v rg >/dev/null || { sudo apt-get update");
+		expect(workflow).toContain("command -v rg >/dev/null || brew install ripgrep");
+		expect(workflow).toContain("Get-Command rg -ErrorAction SilentlyContinue");
+		expect(workflow).toContain("bun run test:changed --base");
+	});
+
+	it("cancels stale runs, fails the platform matrix fast, and reuses only the exact-lockfile Bun cache", () => {
+		expect(workflow).toContain("cancel-in-progress: true");
+		expect(workflow).toContain("fail-fast: true");
+		expect(workflow.match(/uses: actions\/checkout@v7/g)).toHaveLength(2);
+		expect(workflow.match(/uses: \.\/\.github\/actions\/install-bun-dependencies/g)).toHaveLength(2);
+		const installAction = readFileSync(join(repoRoot, ".github/actions/install-bun-dependencies/action.yml"), "utf8");
+		expect(installAction).not.toContain("node_modules");
+		expect(installAction).toContain("~/.bun/install/cache");
+		expect(installAction).toContain("bun-downloads-v1-");
+		expect(installAction).toContain("hashFiles('bun.lock', 'package.json')");
+		expect(installAction).not.toContain("restore-keys");
+	});
+
+	it("keeps the local full-test entry point sequential and discovery-based", () => {
+		expect(rootManifest.scripts.test).toBe("bun run scripts/quality/test-pkg.mjs --all");
+		expect(rootManifest.scripts["test:unit"]).toBe("bun run scripts/quality/test-pkg.mjs --all");
+	});
+
+	it("builds the Android app and runs host tests when Mobile changes", () => {
+		expect(mobileWorkflow).toContain('      - "apps/mobile/**"');
+		expect(mobileWorkflow).toContain(":shared:testAndroidHostTest");
+		expect(mobileWorkflow).toContain(":androidApp:assembleDebug");
+	});
+
+	it("limits path-filtered app checks to branch pushes", () => {
+		for (const appWorkflow of [imGatewayWorkflow, mobileWorkflow]) {
+			expect(appWorkflow).toMatch(/push:\r?\n {4}branches:\r?\n {6}- "\*\*"\r?\n {4}paths:/);
+		}
+	});
+});
+
+describe("package boundary analysis", () => {
+	const libFile = "packages/ai/src/example.ts";
+
+	it("detects side-effect and dynamic app imports", () => {
+		expect(findPackageBoundaryViolations(libFile, 'import "@vetta/desktop";')).toHaveLength(1);
+		expect(
+			findPackageBoundaryViolations(libFile, 'const app = await import("@vetta/cli-host/runtime");'),
+		).toHaveLength(1);
+	});
+
+	it("ignores import-looking comments", () => {
+		expect(findPackageBoundaryViolations(libFile, '// import app from "@vetta/desktop";')).toEqual([]);
+	});
+
+	it("blocks production imports from test trees but allows test files", () => {
+		const source = 'import { fixture } from "../../agent/test/fixture";';
+		expect(findPackageBoundaryViolations(libFile, source)).toHaveLength(1);
+		expect(findPackageBoundaryViolations("packages/ai/src/example.test.ts", source)).toEqual([]);
+	});
+
+	it("allows raw capability ids only in capability definition modules", () => {
+		const source = 'const id = "cap.domain.vetta.example.read";';
+		expect(findPackageBoundaryViolations("packages/capability-sdk/src/domain/example.ts", source)).toEqual([]);
+		expect(findPackageBoundaryViolations("packages/capability-sdk/src/adapters/example.ts", source)).toHaveLength(1);
+	});
+
+	it("requires schema-backed capability definitions with generated catalogs", () => {
+		const source = `
+			const TOKEN = defineCapability<Input, Output>({
+				parseInput: parse,
+				parseOutput: parse,
+			});
+		`;
+		expect(findPackageBoundaryViolations("packages/capability-sdk/src/foundation/example.ts", source)).toHaveLength(
+			2,
+		);
+	});
+
+	it("blocks Desktop globals in ordinary plugins while preserving workbench and security-probe exceptions", () => {
+		const source = "window.vetta.fs.readFile(path);";
+		expect(findPackageBoundaryViolations("packages/plugins/externals/example/src/index.ts", source)).toHaveLength(1);
+		expect(findPackageBoundaryViolations("packages/plugins/presets/plugin-workbench/src/index.ts", source)).toEqual(
+			[],
+		);
+		expect(
+			findPackageBoundaryViolations("packages/plugins/externals/security-probe/src/probes/host.ts", source),
+		).toEqual([]);
+	});
+
+	it("blocks Desktop production imports from cli-host source paths", () => {
+		expect(
+			findPackageBoundaryViolations(
+				"apps/desktop/src/main/runtime.ts",
+				'import { createRuntime } from "../../../../cli-host/src/runtime.js";',
+			),
+		).toHaveLength(1);
+		expect(
+			findPackageBoundaryViolations(
+				"apps/desktop/src/main/runtime.ts",
+				'import { createRuntime } from "@vetta/runtime-composition";',
+			),
+		).toHaveLength(1);
+	});
+
+	it("keeps the greenfield runtime kernel independent from coding-agent", () => {
+		const source = 'import { createCodingAgentPromptRuntime } from "@vetta/coding-agent/runtime-host";';
+		expect(findPackageBoundaryViolations("packages/runtime-core/src/kernel/example.ts", source)).toHaveLength(1);
+		expect(
+			findPackageBoundaryViolations("packages/runtime-storage/src/conversation/example.ts", source),
+		).toHaveLength(1);
+		expect(findPackageBoundaryViolations("packages/runtime-tools/src/coding/example.ts", source)).toHaveLength(1);
+		expect(findPackageBoundaryViolations("packages/runtime-mcp/src/example.ts", source)).toHaveLength(1);
+		expect(
+			findPackageBoundaryViolations(
+				"packages/runtime-core/src/runtime-host/greenfield-session-projection.ts",
+				source,
+			),
+		).toHaveLength(1);
+		expect(findPackageBoundaryViolations("packages/runtime-core/src/runtime-host/example.ts", source)).toHaveLength(
+			1,
+		);
+	});
+
+	it("keeps every runtime-core production module independent from coding-agent", () => {
+		const source = 'import { SessionManager } from "@vetta/coding-agent";';
+		expect(
+			findPackageBoundaryViolations("packages/runtime-core/src/runtime-host/runtime-host.ts", source),
+		).toHaveLength(1);
+		expect(
+			findPackageBoundaryViolations("packages/runtime-core/src/runtime-host/session-services.ts", source),
+		).toHaveLength(1);
+		expect(
+			findPackageBoundaryViolations("packages/runtime-core/src/runtime-host/legacy-session-services.ts", source),
+		).toHaveLength(1);
+		expect(
+			findPackageBoundaryViolations("packages/coding-agent/src/adapters/runtime-core/composition.ts", source),
+		).toEqual([]);
+	});
+
+	it("keeps the retired Coding Agent Runtime Host public resolution deleted", () => {
+		expect(
+			findPackageBoundaryViolations(
+				"apps/cli-host/test/example.test.ts",
+				'import { createHost } from "@vetta/coding-agent/runtime-host/greenfield";',
+			),
+		).toHaveLength(1);
+		expect(
+			findPackageBoundaryViolations(
+				"apps/cli-host/vitest.config.ts",
+				'const alias = { "@vetta/coding-agent/runtime-host": "../../packages/coding-agent/src/adapters/runtime-core" };',
+			),
+		).toHaveLength(1);
+		expect(
+			findPackageBoundaryViolations(
+				"apps/cli-host/test/example.test.ts",
+				'import { createCodingAgentTurnExecutor } from "@vetta/coding-agent/runtime";',
+			),
+		).toEqual([]);
+		expect(
+			findPackageManifestBoundaryViolations({
+				name: "@vetta/coding-agent",
+				exports: { "./runtime-host": "./dist/adapters/runtime-core/index.js" },
+			}),
+		).toHaveLength(1);
+	});
+
+	it("keeps agent-core independent from Runtime and product packages", () => {
+		expect(
+			findPackageBoundaryViolations(
+				"packages/agent/src/telemetry.ts",
+				'import type { RuntimeTracer } from "@vetta/runtime-telemetry";',
+			),
+		).toHaveLength(1);
+		expect(
+			findPackageBoundaryViolations(
+				"packages/agent/src/engine.ts",
+				'import type { RuntimeSession } from "@vetta/runtime-core";',
+			),
+		).toHaveLength(1);
+		expect(
+			findPackageBoundaryViolations("packages/agent/src/model.ts", 'import type { Model } from "@vetta/ai";'),
+		).toEqual([]);
+		expect(
+			findPackageManifestBoundaryViolations({
+				name: "@vetta/agent-core",
+				dependencies: { "@vetta/runtime-telemetry": "workspace:*" },
+			}),
+		).toHaveLength(1);
+		expect(
+			findPackageManifestBoundaryViolations({
+				name: "@vetta/agent-core",
+				dependencies: { "@vetta/ai": "workspace:*" },
+			}),
+		).toEqual([]);
+	});
+
+	it("keeps greenfield product modules independent from legacy startup symbols", () => {
+		const source = "const startup = runLegacyAgentWithBootstrap;";
+		expect(findPackageBoundaryViolations("apps/cli-host/src/rpc/runtime-host/runtime-host.ts", source)).toHaveLength(
+			1,
+		);
+		expect(
+			findPackageBoundaryViolations("packages/runtime-composition/src/greenfield-runtime-composition.ts", source),
+		).toHaveLength(1);
+		expect(
+			findPackageBoundaryViolations("packages/coding-agent/src/composition/runtime-composition.ts", source),
+		).toHaveLength(1);
+		expect(findPackageBoundaryViolations("apps/cli-host/src/agent-runtime-selection.ts", source)).toHaveLength(1);
+		expect(findPackageBoundaryViolations("apps/cli-host/src/legacy-runtime-gateway.ts", source)).toHaveLength(1);
+		expect(
+			findPackageBoundaryViolations(
+				"packages/coding-agent/src/composition/runtime-composition.ts",
+				"// runLegacyAgentWithBootstrap is a compatibility-only entry point.",
+			),
+		).toEqual([]);
+	});
+
+	it("keeps Extension Legacy policy out of Greenfield product modules", () => {
+		expect(
+			findPackageBoundaryViolations(
+				"apps/cli-host/src/rpc/runtime-host/runtime-host.ts",
+				'const reason = "legacy-extension";',
+			),
+		).toHaveLength(2);
+		expect(
+			findPackageBoundaryViolations(
+				"apps/cli-host/src/rpc/runtime-host/runtime-host.ts",
+				'const kind = "extension-incompatible";',
+			),
+		).toEqual([]);
+		expect(
+			findPackageBoundaryViolations(
+				"apps/cli-host/src/agent-runtime-selection.ts",
+				'const reason = "legacy-extension";',
+			),
+		).toHaveLength(1);
+	});
+
+	it("keeps automatic Legacy Session execution out of production hosts", () => {
+		expect(
+			findPackageBoundaryViolations(
+				"apps/cli-host/src/agent-runtime-selection.ts",
+				'const reason = "legacy-session";',
+			),
+		).toHaveLength(1);
+		expect(
+			findPackageBoundaryViolations(
+				"apps/cli-host/src/legacy-runtime-gateway.ts",
+				'const cause = "session-migration-gap";',
+			),
+		).toHaveLength(1);
+		expect(
+			findPackageBoundaryViolations(
+				"apps/cli-host/src/agent-runtime-selection.ts",
+				'const kind = "session-incompatible";',
+			),
+		).toEqual([]);
+	});
+
+	it("keeps the retired runtime-composition package and CLI forwarding layer deleted", () => {
+		expect(
+			findPackageBoundaryViolations(
+				"packages/runtime-composition/src/index.ts",
+				'export * from "@vetta/coding-agent/composition";',
+			),
+		).toHaveLength(1);
+		expect(
+			findPackageBoundaryViolations("packages/runtime-composition/src/new-runtime.ts", "export const runtime = {};"),
+		).toHaveLength(1);
+		expect(
+			findPackageBoundaryViolations(
+				"apps/cli-host/src/greenfield-runtime-composition.ts",
+				'export * from "@vetta/coding-agent/composition";',
+			),
+		).toHaveLength(1);
+		expect(
+			findPackageBoundaryViolations(
+				"apps/cli-host/src/index.ts",
+				'export * from "@vetta/coding-agent/composition";',
+			),
+		).toHaveLength(1);
+		expect(
+			findPackageBoundaryViolations(
+				"apps/desktop/src/main/runtime.ts",
+				'import type { CodingAgentRuntimeCompositionOptions } from "@vetta/cli-host";',
+			),
+		).toHaveLength(1);
+		expect(
+			findPackageManifestBoundaryViolations({
+				name: "@vetta/desktop",
+				dependencies: { "@vetta/runtime-composition": "workspace:*" },
+			}),
+		).toHaveLength(1);
+	});
+
+	it("requires all internal consumers to use explicit coding-agent subpaths", () => {
+		const rootImport = 'import { getAgentDir } from "@vetta/coding-agent";';
+		expect(findPackageBoundaryViolations("apps/desktop/src/main/new-consumer.ts", rootImport)).toHaveLength(1);
+		expect(
+			findPackageBoundaryViolations(
+				"apps/desktop/src/main/new-consumer.ts",
+				'import { getAgentDir } from "@vetta/coding-agent/config";',
+			),
+		).toEqual([]);
+		expect(findPackageBoundaryViolations("apps/desktop/src/main/runtime.ts", rootImport)).toHaveLength(1);
+		expect(findPackageBoundaryViolations("apps/desktop/src/main/runtime.test.ts", rootImport)).toHaveLength(1);
+		expect(findPackageBoundaryViolations("packages/runtime-core/test/runtime.test.ts", rootImport)).toHaveLength(1);
+		expect(findPackageBoundaryViolations("packages/runtime-tools/src/index.ts", rootImport)).toHaveLength(1);
+	});
+
+	it("keeps the retired Coding Agent Knowledge surface deleted", () => {
+		expect(
+			findPackageBoundaryViolations(
+				"apps/desktop/src/main/knowledge/example.ts",
+				'import { scanRaws } from "@vetta/coding-agent/knowledge";',
+			),
+		).toHaveLength(1);
+		expect(
+			findPackageBoundaryViolations(
+				"packages/coding-agent/src/composition/example.ts",
+				'import { scanRaws } from "../core/knowledge/store.js";',
+			),
+		).toHaveLength(1);
+		expect(
+			findPackageBoundaryViolations(
+				"packages/coding-agent/src/core/knowledge/new-store.ts",
+				"export const store = {};",
+			),
+		).toHaveLength(1);
+		expect(
+			findPackageManifestBoundaryViolations({
+				name: "@vetta/coding-agent",
+				exports: { "./knowledge": "./dist/core/knowledge/index.js" },
+			}),
+		).toHaveLength(1);
+		expect(
+			findPackageManifestBoundaryViolations({
+				name: "@vetta/runtime-knowledge",
+				exports: { ".": "./dist/index.js" },
+			}),
+		).toEqual([]);
+	});
+
+	it("keeps retired Coding Agent model-context core files and imports deleted", () => {
+		for (const name of ["messages", "subconscious", "system-prompt"]) {
+			expect(
+				findPackageBoundaryViolations(`packages/coding-agent/src/core/${name}.ts`, "export const retired = true;"),
+			).toHaveLength(1);
+			expect(
+				findPackageBoundaryViolations(
+					"packages/coding-agent/src/composition/example.ts",
+					`import { retired } from "../core/${name}.js";`,
+				),
+			).toHaveLength(1);
+		}
+		expect(
+			findPackageManifestBoundaryViolations({
+				name: "@vetta/coding-agent",
+				exports: { "./core/system-prompt.js": "./dist/core/system-prompt.js" },
+			}),
+		).toHaveLength(1);
+	});
+
+	it("keeps Compaction in its package domain and independent from Session storage implementations", () => {
+		expect(
+			findPackageBoundaryViolations(
+				"packages/coding-agent/src/core/compaction/compaction.ts",
+				"export const retired = true;",
+			),
+		).toHaveLength(1);
+		expect(
+			findPackageBoundaryViolations(
+				"packages/coding-agent/src/composition/example.ts",
+				'import { compact } from "../core/compaction/index.js";',
+			),
+		).toHaveLength(1);
+		expect(
+			findPackageBoundaryViolations(
+				"packages/coding-agent/src/compaction/compaction.ts",
+				'import type { SessionEntry } from "../core/session-manager/index.js";',
+			),
+		).toHaveLength(1);
+		expect(
+			findPackageBoundaryViolations(
+				"packages/coding-agent/src/compaction/compaction.ts",
+				'import type { ConversationDocument } from "@vetta/runtime-core/conversation";',
+			),
+		).toHaveLength(1);
+		expect(
+			findPackageBoundaryViolations(
+				"packages/coding-agent/src/compaction/runtime/context-runtime.ts",
+				'import type { ContextStrategy } from "@vetta/runtime-core/kernel";',
+			),
+		).toEqual([]);
+		expect(
+			findPackageBoundaryViolations(
+				"packages/coding-agent/src/compaction/runtime/context-runtime.ts",
+				'import type { SessionManager } from "../core/session-manager/index.js";',
+			),
+		).toHaveLength(1);
+	});
+
+	it("keeps production Legacy imports and Runtime adapters inside explicit compatibility boundaries", () => {
+		expect(
+			findPackageBoundaryViolations(
+				"apps/cli-host/src/legacy-runtime-gateway.ts",
+				'import { main } from "@vetta/coding-agent/legacy/cli";',
+			),
+		).toHaveLength(1);
+		expect(
+			findPackageBoundaryViolations(
+				"apps/cli-host/src/agent-runtime-selection.ts",
+				'import { main } from "@vetta/coding-agent/legacy/cli";',
+			),
+		).toHaveLength(1);
+		expect(
+			findPackageBoundaryViolations(
+				"apps/desktop/src/main/new-consumer.ts",
+				'import { main } from "@vetta/coding-agent/legacy/cli";',
+			),
+		).toHaveLength(1);
+		expect(
+			findPackageBoundaryViolations(
+				"apps/desktop/src/main/greenfield-runtime/desktop-legacy-execution-compatibility.ts",
+				'import { LegacyCodingAgentSessionBackend } from "@vetta/coding-agent/runtime-host";',
+			),
+		).toHaveLength(1);
+		expect(
+			findPackageBoundaryViolations(
+				"apps/cli-host/test/support/legacy-runtime.ts",
+				'import { main } from "@vetta/coding-agent/legacy/cli";',
+			),
+		).toEqual([]);
+		expect(
+			findPackageBoundaryViolations(
+				"packages/runtime-desktop/src/historical-session-format.ts",
+				'import { createCodingAgentHistoricalSessionCatalog } from "@vetta/coding-agent/historical-sessions";',
+			),
+		).toEqual([]);
+		expect(
+			findPackageBoundaryViolations(
+				"apps/cli-host/src/coding-agent-bootstrap.ts",
+				'import { runCodingAgentStartupMigrations } from "@vetta/coding-agent/historical-sessions";',
+			),
+		).toEqual([]);
+		expect(
+			findPackageBoundaryViolations(
+				"apps/cli-host/src/rpc/cli-session-format-compatibility.ts",
+				'import { createCodingAgentHistoricalSessionCatalog } from "@vetta/coding-agent/historical-sessions";',
+			),
+		).toEqual([]);
+		expect(
+			findPackageBoundaryViolations(
+				"apps/cli-host/src/rpc/runtime-host/runtime-host.ts",
+				'import { migrateCodingAgentHistoricalSession } from "@vetta/coding-agent/historical-sessions";',
+			),
+		).toEqual([]);
+		expect(
+			findPackageBoundaryViolations(
+				"apps/desktop/src/main/new-consumer.ts",
+				'import { createCodingAgentHistoricalSessionCatalog } from "@vetta/coding-agent/historical-sessions";',
+			),
+		).toHaveLength(1);
+		expect(
+			findPackageBoundaryViolations(
+				"apps/desktop/src/main/new-consumer.ts",
+				'import { LegacyCodingAgentSessionBackend } from "@vetta/coding-agent/runtime-host";',
+			),
+		).toHaveLength(1);
+		expect(
+			findPackageBoundaryViolations(
+				"apps/desktop/src/main/greenfield-runtime/desktop-legacy-execution-compatibility.ts",
+				'import { LegacyRuntimeSessionCatalog } from "@vetta/coding-agent/runtime-host";',
+			),
+		).toHaveLength(1);
+		expect(
+			findPackageBoundaryViolations(
+				"apps/desktop/src/main/greenfield-runtime/desktop-legacy-session-format-compatibility.ts",
+				'import { LegacyCodingAgentSessionBackend } from "@vetta/coding-agent/runtime-host";',
+			),
+		).toHaveLength(1);
+		expect(
+			findPackageBoundaryViolations(
+				"apps/cli-host/src/rpc/cli-session-format-compatibility.ts",
+				'import { LegacyCodingAgentSessionBackend } from "@vetta/coding-agent/runtime-host";',
+			),
+		).toHaveLength(1);
+		expect(
+			findPackageBoundaryViolations(
+				"packages/coding-agent/src/adapters/runtime-core/index.ts",
+				'export { LegacyRuntimeSessionCatalog } from "../../sessions/legacy/index.js";',
+			),
+		).toHaveLength(2);
+		expect(
+			findPackageBoundaryViolations(
+				"packages/coding-agent/src/public-api/historical-sessions.ts",
+				'import { LegacyRuntimeSessionCatalog } from "../sessions/legacy/catalog.js";',
+			),
+		).toEqual([]);
+		expect(
+			findPackageBoundaryViolations(
+				"packages/coding-agent/src/sessions/legacy/catalog.ts",
+				'import { createAgentSession } from "../../../core/sdk.js";',
+			),
+		).toHaveLength(2);
+		expect(
+			findPackageBoundaryViolations(
+				"packages/coding-agent/src/sessions/legacy/catalog.ts",
+				'import { SessionManager } from "../../../core/session-manager/index.js";',
+			),
+		).toEqual([]);
+		expect(
+			findPackageBoundaryViolations(
+				"packages/coding-agent/src/adapters/runtime-core/composition.ts",
+				"export function createLegacyRuntimeHostOptions() {}",
+			),
+		).toHaveLength(1);
+	});
+
+	it("keeps the Runtime active-session transaction host independent from products and platform implementations", () => {
+		const hostPath = "packages/runtime-core/src/runtime-host/active-session-host.ts";
+		expect(
+			findPackageBoundaryViolations(hostPath, 'import { SessionManager } from "../core/session-manager/index.js";'),
+		).not.toEqual([]);
+		expect(
+			findPackageBoundaryViolations(
+				hostPath,
+				'import { migrateLegacySessionToV2 } from "@vetta/runtime-storage/conversation";',
+			),
+		).not.toEqual([]);
+		expect(findPackageBoundaryViolations(hostPath, "type Runtime = CodingAgentRuntimeComposition;")).toHaveLength(1);
+		expect(findPackageBoundaryViolations(hostPath, "type Runtime = RuntimeActiveSessionRuntimePort;")).toEqual([]);
+		expect(
+			findPackageBoundaryViolations(
+				hostPath,
+				'import { createCodingAgentRuntimeComposition } from "@vetta/coding-agent/composition";',
+			),
+		).not.toEqual([]);
+		expect(findPackageBoundaryViolations(hostPath, 'import { join } from "node:path";')).not.toEqual([]);
+		expect(findPackageBoundaryViolations(hostPath, 'const value = Buffer.from("session");')).not.toEqual([]);
+		expect(findPackageBoundaryViolations(hostPath, "const cwd = process.cwd();")).not.toEqual([]);
+	});
+
+	it("keeps Greenfield session action ports independent from the Extension command API", () => {
+		const activeHostPath = "packages/runtime-core/src/runtime-host/active-session-host.ts";
+		expect(
+			findPackageBoundaryViolations(
+				activeHostPath,
+				'import type { ExtensionCommandContextActions } from "../core/extensions/types.js";',
+			),
+		).not.toEqual([]);
+		expect(
+			findPackageBoundaryViolations(
+				"packages/coding-agent/src/host/session-history/branch-navigation-host.ts",
+				'type Options = Parameters<ExtensionCommandContextActions["navigateTree"]>[1];',
+			),
+		).not.toEqual([]);
+		expect(
+			findPackageBoundaryViolations(
+				"packages/coding-agent/src/adapters/runtime-core/greenfield-extension-command-actions-adapter.ts",
+				'import type { ExtensionCommandContextActions } from "../../core/extensions/index.js";',
+			),
+		).toEqual([]);
+	});
+
+	it("keeps Knowledge Processing contracts independent from backend implementations", () => {
+		expect(
+			findPackageBoundaryViolations(
+				"packages/coding-agent/src/composition/knowledge-processing-session.ts",
+				'import type { KnowledgeProcessingSession } from "./legacy-knowledge-processing-session.js";',
+			),
+		).not.toEqual([]);
+		expect(
+			findPackageBoundaryViolations(
+				"packages/coding-agent/src/composition/knowledge-processing-contract.ts",
+				'import { SessionManager } from "../core/session-manager/index.js";',
+			),
+		).not.toEqual([]);
+		expect(
+			findPackageBoundaryViolations(
+				"packages/coding-agent/src/composition/legacy-knowledge-processing-session.ts",
+				'import { SessionManager } from "../core/session-manager/index.js";',
+			),
+		).toEqual([]);
+	});
+
+	it("keeps Subagent session assembly out of the Coding Agent Composition Root", () => {
+		const compositionPath = "packages/coding-agent/src/composition/runtime-composition.ts";
+		const embeddedAssembly = `
+			const runtime = new CodingAgentSubagentRuntime({});
+			createCodingAgentSubagentChildHandle({});
+			hooks.runSubagentStart({});
+			const directory = ".subagents";
+			const observation = "subagents_update";
+		`;
+		expect(findPackageBoundaryViolations(compositionPath, embeddedAssembly)).toHaveLength(5);
+		expect(
+			findPackageBoundaryViolations(
+				compositionPath,
+				'import { createCodingAgentSubagentSessionAssembly } from "./subagent/session-assembly.js";',
+			),
+		).toHaveLength(1);
+	});
+
+	it("keeps Turn Capability session assembly out of the Coding Agent Composition Root", () => {
+		const compositionPath = "packages/coding-agent/src/composition/runtime-composition.ts";
+		const embeddedAssembly = `
+			const plugin = new CodingAgentPluginRunOrchestrator({});
+			const prompt = new CodingAgentPromptRuntime({});
+			const frame = new CodingAgentModelCallFrameComposer({});
+			const capabilities = await RuntimeCapabilityComposition.create({});
+			await frame.previewSystemPrompt({});
+		`;
+		expect(findPackageBoundaryViolations(compositionPath, embeddedAssembly)).toHaveLength(5);
+		expect(
+			findPackageBoundaryViolations(
+				compositionPath,
+				'import { createCodingAgentTurnCapabilitySessionAssembly } from "./turn/capability-session-assembly.js";',
+			),
+		).toHaveLength(1);
+	});
+
+	it("keeps Session Resource Lifecycle assembly out of the Coding Agent Composition Root", () => {
+		const compositionPath = "packages/coding-agent/src/composition/runtime-composition.ts";
+		const embeddedAssembly = `
+			const resources: CodingAgentSessionRuntimeResources = {};
+			const sessionCleanup = new RetryableCleanup();
+			const hookSessionController = {};
+			const background = new CodingAgentBackgroundWorkController();
+			resources.createSessionPeripherals = () => ({});
+			resources.stateSource = {};
+			resources.onConversationContinued = async () => {};
+			readActiveToolNames();
+		`;
+		expect(findPackageBoundaryViolations(compositionPath, embeddedAssembly)).toHaveLength(9);
+		expect(
+			findPackageBoundaryViolations(
+				compositionPath,
+				'import { createCodingAgentSessionResourceLifecycle } from "./session-lifecycle/resource-lifecycle.js";',
+			),
+		).toHaveLength(1);
+	});
+
+	it("keeps Composition resource registries and shutdown transactions out of the Coding Agent Composition Root", () => {
+		const compositionPath = "packages/coding-agent/src/composition/runtime-composition.ts";
+		const embeddedLifecycle = `
+			const sessionValues = new InMemoryCodingAgentSessionValueIndex();
+			const sessionMarkers = new InMemoryCodingAgentSessionMarkerIndex();
+			const compositionCleanup = new RetryableCleanup();
+			const contextRuntimes = new Set();
+			const memoryRuntimes = new Set();
+			const todoRuntimes = new Set();
+			const turnCapabilityAssemblies = new Set();
+			const hookSessionDisposers = new Set();
+			const ownershipBindings = new Set();
+			prepareCompositionCleanup();
+		`;
+		expect(findPackageBoundaryViolations(compositionPath, embeddedLifecycle)).toHaveLength(11);
+		expect(
+			findPackageBoundaryViolations(
+				compositionPath,
+				'import { createCodingAgentCompositionShutdown } from "./session-lifecycle/composition-shutdown.js";',
+			),
+		).toEqual([]);
+	});
+
+	it("keeps MCP Session coordination out of the Coding Agent Composition Root", () => {
+		const compositionPath = "packages/coding-agent/src/composition/runtime-composition.ts";
+		const embeddedCoordinator = `
+			const synchronizer: McpRuntimeToolSynchronizer = createMcpRuntimeToolSynchronizer(source, registry);
+			const controller = createMcpDeferredToolController(options);
+			mergeMcpSnapshots(base, overlay);
+			mergeMcpToolViews(base, overlay);
+			refreshAndMergeMcpViews(base, overlay);
+			const start = "mcp.reload.start";
+			const end = "mcp.reload.end";
+		`;
+		expect(findPackageBoundaryViolations(compositionPath, embeddedCoordinator)).toHaveLength(8);
+		expect(
+			findPackageBoundaryViolations(
+				compositionPath,
+				'import { createCodingAgentMcpSessionCoordinator } from "./tool-surface/mcp-session-coordinator.js";',
+			),
+		).toHaveLength(1);
+	});
+
+	it("keeps Session initialization transactions out of the Coding Agent Composition Root", () => {
+		const compositionPath = "packages/coding-agent/src/composition/runtime-composition.ts";
+		const embeddedInitialization = `
+			const rollback = new InitializationRollbackScope();
+			const execution = new CodingAgentSessionExecutionRuntime({});
+			const configuration = new CodingAgentSessionConfigurationState();
+			createCodingAgentSessionResourceLifecycle({});
+			createCodingAgentTurnCapabilitySessionAssembly({});
+			rollback.defer({ id: "conversation-ownership" });
+		`;
+		expect(findPackageBoundaryViolations(compositionPath, embeddedInitialization)).toHaveLength(6);
+		expect(
+			findPackageBoundaryViolations(
+				compositionPath,
+				'import { createCodingAgentSessionInitializationTransaction } from "./session-initialization/transaction.js";',
+			),
+		).toEqual([]);
+	});
+
+	it("projects public Composition options into a narrow Session initialization profile", () => {
+		const compositionPath = "packages/coding-agent/src/composition/runtime-composition.ts";
+		const transactionPath = "packages/coding-agent/src/composition/session-initialization/transaction.ts";
+
+		expect(
+			findPackageBoundaryViolations(
+				compositionPath,
+				"createCodingAgentSessionInitializationTransaction({ composition: options });",
+			),
+		).not.toEqual([]);
+		expect(
+			findPackageBoundaryViolations(
+				transactionPath,
+				`import type { CodingAgentRuntimeCompositionOptions } from "./contracts/index.js";
+				const composition = options.composition;`,
+			),
+		).not.toEqual([]);
+		expect(
+			findPackageBoundaryViolations(
+				compositionPath,
+				"createCodingAgentSessionInitializationTransaction({ profile: sessionInitializationProfile });",
+			),
+		).toEqual([]);
+		expect(
+			findPackageBoundaryViolations(
+				transactionPath,
+				`import type { CodingAgentSessionInitializationProfile } from "./profile.js";
+				const profile = options.profile;`,
+			),
+		).toEqual([]);
+	});
+
+	it("keeps peripheral and context construction out of the Session initialization transaction", () => {
+		const transactionPath = "packages/coding-agent/src/composition/session-initialization/transaction.ts";
+		const forbiddenConstructions = [
+			"new CodingAgentSessionExecutionRuntime({});",
+			"new CodingAgentMemoryRolloverOrchestrator({});",
+			"new GreenfieldRuntimeModel({});",
+			"new CodingAgentGreenfieldContextRuntime({});",
+			"createEcosystemHookRuntime({});",
+			"createCodingAgentSubagentSessionAssembly({});",
+			"createCodingAgentSpecializedToolRegistrations({});",
+			"createSessionPluginRuntime(options);",
+		];
+		for (const source of forbiddenConstructions) {
+			expect(findPackageBoundaryViolations(transactionPath, source)).toHaveLength(1);
+		}
+		expect(
+			findPackageBoundaryViolations(
+				transactionPath,
+				`const peripherals = await createCodingAgentSessionPeripheralAssembly(options);
+				const context = createCodingAgentSessionContextAssembly({ peripherals });`,
+			),
+		).toEqual([]);
+	});
+
+	it("keeps Runtime Tool Surface assembly out of the Coding Agent Composition Root", () => {
+		const compositionPath = "packages/coding-agent/src/composition/runtime-composition.ts";
+		const embeddedToolSurface = `
+			const scopes = CODING_TOOL_SCOPES;
+			const order = CODING_AGENT_MODEL_TOOL_ORDER;
+			createCodingToolsRuntimeComposition({});
+			createCodingAgentMcpSessionCoordinator({});
+			adaptCodingAgentToolRegistration({});
+			createKbListTagsTool();
+			createKbFilterByTagsTool();
+			resolveCodingAgentToolActivation({});
+			const instruction = "knowledge_mode_instruction";
+		`;
+		expect(findPackageBoundaryViolations(compositionPath, embeddedToolSurface)).toHaveLength(9);
+		expect(
+			findPackageBoundaryViolations(
+				compositionPath,
+				'import { createCodingAgentRuntimeToolSurface } from "./tool-surface/runtime-tool-surface.js";',
+			),
+		).toEqual([]);
+	});
+
+	it("exposes Coding Agent Runtime Tools through the abstract Registry port", () => {
+		const contractPath = "packages/coding-agent/src/composition/contracts/runtime-composition-result.ts";
+		const concreteContract = `
+			type Tools = CodingToolsRuntimeComposition;
+			type Registry = InMemoryCodingToolRegistry;
+			type Compiler = FeatureCompiler;
+		`;
+		expect(findPackageBoundaryViolations(contractPath, concreteContract)).toHaveLength(3);
+		expect(
+			findPackageBoundaryViolations(
+				contractPath,
+				"interface CodingAgentRuntimeToolAccess { readonly registry: CodingToolRegistry; }",
+			),
+		).toEqual([]);
+
+		const compositionPath = "packages/coding-agent/src/composition/tool-surface/runtime-tools-composition.ts";
+		expect(
+			findPackageBoundaryViolations(
+				compositionPath,
+				"interface CodingToolsRuntimeComposition { readonly registry: InMemoryCodingToolRegistry; }",
+			),
+		).toHaveLength(1);
+		expect(
+			findPackageBoundaryViolations(
+				compositionPath,
+				"interface CodingToolsRuntimeComposition { readonly registry: CodingToolRegistry; }",
+			),
+		).toEqual([]);
+	});
+
+	it("keeps Tool policy declarations out of Adapters and Composition", () => {
+		const adapterPath = "packages/coding-agent/src/adapters/runtime-core/model-tool-order.ts";
+		const compositionPath = "packages/coding-agent/src/composition/tool-surface/activation-policy.ts";
+		const policyPath = "packages/coding-agent/src/tool-policy/activation-policy.ts";
+		const adapterPolicy = "export const CODING_AGENT_MODEL_TOOL_ORDER = {};";
+		const compositionPolicy = `
+			export interface CodingAgentToolAvailability {}
+			export function resolveCodingAgentToolActivation() {}
+		`;
+
+		expect(findPackageBoundaryViolations(adapterPath, adapterPolicy)).toHaveLength(1);
+		expect(findPackageBoundaryViolations(compositionPath, compositionPolicy)).toHaveLength(2);
+		expect(findPackageBoundaryViolations(policyPath, compositionPolicy)).toEqual([]);
+	});
+
+	it("keeps Coding Agent product domains independent from concrete Adapters", () => {
+		for (const path of [
+			"packages/coding-agent/src/extensions/runtime/extension-tool-runtime.ts",
+			"packages/coding-agent/src/memory/memory-controller.ts",
+			"packages/coding-agent/src/mcp/runtime/tool-source.ts",
+			"packages/coding-agent/src/model-context/model-call-frame-composer.ts",
+			"packages/coding-agent/src/plugins/runtime/tool-runtime.ts",
+			"packages/coding-agent/src/resources/prompt-resource-resolver.ts",
+			"packages/coding-agent/src/sessions/projection/conversation-context-projector.ts",
+			"packages/coding-agent/src/features/todo/todo-continuation-source.ts",
+		]) {
+			expect(
+				findPackageBoundaryViolations(path, 'import { Adapter } from "../adapters/runtime-core/example.js";'),
+			).toHaveLength(1);
+		}
+		expect(
+			findPackageBoundaryViolations(
+				"packages/coding-agent/src/model-context/model-call-frame-composer.ts",
+				'import type { Port } from "../runtime-contracts/index.js";',
+			),
+		).toEqual([]);
+	});
+
+	it("rejects retired Greenfield identities in the Runtime Prompt contract", () => {
+		const path = "packages/runtime-core/src/runtime-host/prompt-contract.ts";
+		expect(findPackageBoundaryViolations(path, "export interface GreenfieldPromptAdapter {}")).toHaveLength(1);
+		expect(findPackageBoundaryViolations(path, "export interface RuntimePromptAdapter {}")).toEqual([]);
+	});
+
+	it("keeps Child Composition isolation policy out of the Coding Agent Composition Root", () => {
+		const compositionPath = "packages/coding-agent/src/composition/runtime-composition.ts";
+		expect(findPackageBoundaryViolations(compositionPath, "const childComposition = {};")).toHaveLength(1);
+		expect(findPackageBoundaryViolations(compositionPath, "const childCompositionOptions = {};")).toHaveLength(1);
+		expect(
+			findPackageBoundaryViolations(
+				compositionPath,
+				"const { mcpSource: _mcpSource, createPluginMcpRuntime: _createPluginMcpRuntime, extensionTools: _extensionTools } = options;",
+			),
+		).toHaveLength(3);
+		expect(findPackageBoundaryViolations(compositionPath, "const child = { enableSubagents: false };")).toHaveLength(
+			1,
+		);
+		expect(findPackageBoundaryViolations(compositionPath, "child.backend.create(options);")).toHaveLength(1);
+		expect(findPackageBoundaryViolations(compositionPath, "child.backend.resume(options);")).toHaveLength(1);
+		expect(
+			findPackageBoundaryViolations(
+				compositionPath,
+				'import { createCodingAgentChildCompositionFactory } from "./subagent/child-composition-policy.js";',
+			),
+		).toEqual([]);
+	});
+
+	it("keeps Runtime Host Controls out of the Coding Agent Composition Root", () => {
+		const compositionPath = "packages/coding-agent/src/composition/runtime-composition.ts";
+		const embeddedControls = `
+			const sessionHooks = {};
+			bindExtensionRunner();
+			refreshExtensionTools();
+			appendSessionContext();
+			deliverSessionContext();
+			quiesceSessionBackgroundCommands();
+			preserveSessionExecutionContext();
+			clearSessionExecutionContext();
+			flushMemory();
+			indexes.hookSessionControllers.get(id);
+			indexes.extensionEventBridges.get(id);
+			indexes.resourceContexts.get(id);
+			indexes.executionRuntimes.get(id);
+			indexes.memoryControllers.get(id);
+		`;
+		expect(findPackageBoundaryViolations(compositionPath, embeddedControls)).toHaveLength(14);
+		expect(
+			findPackageBoundaryViolations(
+				compositionPath,
+				'import { createCodingAgentRuntimeSessionControls } from "./session-lifecycle/session-controls.js";',
+			),
+		).toEqual([]);
+		expect(
+			findPackageBoundaryViolations(
+				compositionPath,
+				'import { createCodingAgentRuntimeExtensionControls } from "./session-lifecycle/extension-controls.js";',
+			),
+		).toEqual([]);
+	});
+
+	it("keeps Session Host capability declarations out of Composition", () => {
+		const compositionPath = "packages/coding-agent/src/composition/session-initialization/peripheral-assembly.ts";
+		const executionPath = "packages/coding-agent/src/execution/session/runtime.ts";
+		const hostCapabilities = `
+			export class CodingAgentSessionExecutionRuntime {}
+			export interface CodingAgentSubagentWorkRuntime {}
+		`;
+
+		expect(findPackageBoundaryViolations(compositionPath, hostCapabilities)).toHaveLength(2);
+		expect(findPackageBoundaryViolations(executionPath, hostCapabilities)).toEqual([]);
+	});
+
+	it("requires scoped production packages to declare workspace imports", () => {
+		const source = 'import { createRuntime } from "@vetta/runtime-tools/coding";';
+		const path = "packages/coding-agent/src/composition/example.ts";
+		expect(
+			findPackageBoundaryViolations(path, source, {
+				manifest: {
+					name: "@vetta/coding-agent",
+					dependencies: { "@vetta/runtime-tools": "workspace:*" },
+				},
+			}),
+		).toEqual([]);
+		expect(
+			findPackageBoundaryViolations(path, source, {
+				manifest: { name: "@vetta/coding-agent" },
+			}),
+		).toHaveLength(1);
+	});
+
+	it("keeps agent-core below runtime and product packages", () => {
+		expect(
+			findPackageBoundaryViolations(
+				"packages/agent/src/example.ts",
+				'import { TurnPipeline } from "@vetta/runtime-core/kernel";',
+			),
+		).toHaveLength(1);
+		expect(
+			findPackageBoundaryViolations(
+				"packages/agent/src/example.ts",
+				'import { createCodingAgent } from "@vetta/coding-agent";',
+			),
+		).toHaveLength(1);
+		expect(
+			findPackageBoundaryViolations(
+				"packages/runtime-core/src/kernel/agent-core-turn-engine.ts",
+				'import { agentLoopContinue } from "@vetta/agent-core";',
+			),
+		).toEqual([]);
+	});
+});
+
+describe("Turborepo build orchestration", () => {
+	const rootManifest = JSON.parse(readFileSync(join(repoRoot, "package.json"), "utf8"));
+	const turboConfig = JSON.parse(readFileSync(join(repoRoot, "turbo.json"), "utf8"));
+
+	it("derives build order from the workspace graph and caches declared artifacts", () => {
+		expect(turboConfig.tasks.build.dependsOn).toEqual(["^build"]);
+		expect(turboConfig.globalDependencies).toEqual(expect.arrayContaining(["tsconfig.base.json", ".env", ".env.*"]));
+		expect(turboConfig.envMode).toBe("strict");
+		expect(turboConfig.tasks.build.inputs).toEqual(
+			expect.arrayContaining(["$TURBO_DEFAULT$", "!test/**", "!tests/**", "!README*", "!CHANGELOG*"]),
+		);
+		expect(turboConfig.tasks.build.outputs).toEqual(
+			expect.arrayContaining(["dist/**", "release/**", ".next/**", "!.next/cache/**"]),
+		);
+		expect(turboConfig.tasks.build.env).toEqual(
+			expect.arrayContaining(["NODE_ENV", "VETTA_PLUGIN_DEV_WATCH", "VETTA_PLUGIN_DOCS_SRC", "VETD_SRC"]),
+		);
+		const docsBuild = turboConfig.tasks["@vetta/docs-site#build"];
+		expect(docsBuild.env).toEqual(["DOCS_SITE_URL", "NODE_ENV"]);
+		expect(docsBuild.dependsOn).toContain("^build");
+		expect(docsBuild.outputs).toContain(".next/**");
+		const pluginWorkbenchBuild = turboConfig.tasks["@vetta/plugin-plugin-workbench#build"];
+		expect(pluginWorkbenchBuild.inputs).toContain("$TURBO_ROOT$/docs/plugin/**");
+		expect(pluginWorkbenchBuild.dependsOn).toContain("^build");
+		expect(pluginWorkbenchBuild.outputs).toContain("release/**");
+		expect(pluginWorkbenchBuild.env).toEqual(expect.arrayContaining(turboConfig.tasks.build.env));
+	});
+
+	it("keeps Desktop build and remote cache outside the initial cache boundary", () => {
+		expect(turboConfig.tasks["@vetta/desktop#build"]).toMatchObject({
+			cache: false,
+		});
+		expect(turboConfig.tasks["@vetta/desktop#build"].dependsOn).toEqual(
+			expect.arrayContaining(["^build", "@vetta-org/plugin-vite#build"]),
+		);
+		expect(turboConfig.tasks["@vetta/desktop#build"].env).toEqual(
+			expect.arrayContaining(["NODE_ENV", "VETTA_*", "VETD_*"]),
+		);
+		expect(turboConfig.remoteCache).toEqual({ enabled: false, signature: true });
+	});
+
+	it("routes root builds through Turbo while preserving preset orchestration", () => {
+		expect(rootManifest.devDependencies.turbo).toMatch(/^\d+\.\d+\.\d+$/);
+		expect(rootManifest.scripts.build).toContain("turbo run build");
+		expect(rootManifest.scripts.build).toContain("--filter=@vetta-org/plugin-vite");
+		expect(rootManifest.scripts.build).toContain("build:preset:prebuilt");
+		expect(rootManifest.scripts["build:desktop"]).toContain("--filter=@vetta/desktop");
+		expect(rootManifest.scripts["build:cli"]).toContain("--filter=@vetta/cli-host");
+		expect(rootManifest.scripts["build:cli"]).toContain("--filter=@vetta-org/plugin-vite");
+		expect(rootManifest.scripts["build:cli"]).toContain("build:preset:prebuilt");
+		expect(rootManifest.scripts["build:docs"]).toContain("turbo run build");
+		expect(rootManifest.scripts["build:preset"]).toBe("bun run --cwd apps/desktop build:presets");
+		expect(rootManifest.scripts["build:preset:prebuilt"]).toBe("bun run --cwd apps/desktop build:presets:prebuilt");
+		expect(Object.values(rootManifest.scripts).join("\n")).not.toContain("--env-mode=loose");
+		expect(Object.values(rootManifest.scripts).join("\n")).not.toContain("scripts/build.sh");
+	});
+
+	it("keeps Vercel docs builds independent from excluded Git history", () => {
+		const vercelConfig = JSON.parse(readFileSync(join(repoRoot, "apps/docs-site/vercel.json"), "utf8"));
+		const vercelIgnore = readFileSync(join(repoRoot, ".vercelignore"), "utf8");
+		const docsWorkflow = readFileSync(join(repoRoot, ".github/workflows/docs-site.yml"), "utf8");
+		expect(vercelConfig.buildCommand).toContain("build:docs");
+		expect(vercelConfig.ignoreCommand).toBeUndefined();
+		expect(vercelIgnore).toContain("\n/docs\n");
+		expect(vercelIgnore).not.toMatch(/\ndocs\r?\n/u);
+		expect(docsWorkflow).toContain('"package.json"');
+		expect(docsWorkflow).toContain('"turbo.json"');
+		expect(docsWorkflow).toContain("bun run build:docs");
+	});
+
+	it("enforces cache safety as an always-on repository contract", () => {
+		expect(findTurboConfigurationProblems(readTurboConfiguration())).toEqual([]);
+		const configuration = readTurboConfiguration();
+		configuration.turboConfig = {
+			...configuration.turboConfig,
+			globalDependencies: [".env", ".env.*"],
+		};
+		expect(findTurboConfigurationProblems(configuration)).toContain(
+			"turbo globalDependencies 缺少 tsconfig.base.json",
+		);
+	});
+
+	it("records Turbo summaries for test dependency builds and uploads them from CI", () => {
+		const testPackageScript = readFileSync(join(repoRoot, "scripts/quality/test-pkg.mjs"), "utf8");
+		const qualityWorkflow = readFileSync(join(repoRoot, ".github/workflows/quality.yml"), "utf8");
+		expect(testPackageScript).toContain('"--summarize"');
+		expect(qualityWorkflow).toContain("Upload Turbo run summaries");
+		expect(qualityWorkflow).toContain(".turbo/runs/*.json");
+		expect(qualityWorkflow).toContain("retention-days: 7");
+	});
+
+	it("removes superseded hand-written task graphs", () => {
+		for (const path of [
+			"scripts/build.sh",
+			"scripts/build.ps1",
+			"scripts/workspace-build-dependencies.mjs",
+			"scripts/quality/check-build-order.mjs",
+			"apps/desktop/scripts/build-workspace-prereqs.mjs",
+		]) {
+			expect(existsSync(join(repoRoot, path)), path).toBe(false);
+		}
+	});
+});
+
+describe("skill frontmatter analysis", () => {
+	const wrap = (frontmatter) => `---\n${frontmatter}\n---\n\n# Skill body\n`;
+
+	it("accepts a plain skill", () => {
+		expect(findSkillFrontmatterProblems(wrap("name: demo\ndescription: Does a thing when asked."))).toEqual([]);
+	});
+
+	it("rejects an unquoted description containing a colon — it makes the skill vanish silently", () => {
+		const problems = findSkillFrontmatterProblems(wrap("name: demo\ndescription: Use it: it does a thing."));
+		expect(problems).toHaveLength(1);
+		expect(problems[0]).toContain('contains ": "');
+	});
+
+	it("accepts the same description once quoted", () => {
+		expect(findSkillFrontmatterProblems(wrap('name: demo\ndescription: "Use it: it does a thing."'))).toEqual([]);
+	});
+
+	it("accepts folded block scalars and measures their real length", () => {
+		expect(findSkillFrontmatterProblems(wrap("name: demo\ndescription: >\n  Does a thing\n  when asked."))).toEqual(
+			[],
+		);
+		const long = `name: demo\ndescription: >\n  ${"x".repeat(1100)}`;
+		expect(findSkillFrontmatterProblems(wrap(long))).toHaveLength(1);
+	});
+
+	it("requires frontmatter and a description", () => {
+		expect(findSkillFrontmatterProblems("# No frontmatter\n")).toHaveLength(1);
+		expect(findSkillFrontmatterProblems(wrap("name: demo"))).toHaveLength(1);
+	});
+});

@@ -1,0 +1,72 @@
+import { contextBridge, ipcRenderer, webUtils } from "electron";
+import { create567Api } from "./apis/567api.js";
+import "./telemetry.js";
+import type { DesktopApi } from "./api.js";
+import { createAbilitiesApi } from "./apis/abilities.js";
+import { createActionApprovalApi } from "./apis/action-approval.js";
+import { createAgentTeamsApi } from "./apis/agent-teams.js";
+import { createAppLifecycleApi } from "./apis/app-lifecycle.js";
+import { createAppMonitorApi } from "./apis/app-monitor.js";
+import { createAppshotApi } from "./apis/appshot.js";
+import { createBatchTasksApi } from "./apis/batch-tasks.js";
+import { createConversationTagsApi } from "./apis/conversation-tags.js";
+import { createDownloadsApi } from "./apis/downloads.js";
+import { createI18nApi } from "./apis/i18n.js";
+import { createImApi } from "./apis/im.js";
+import { createNotificationApi } from "./apis/notification.js";
+import { createPetApi } from "./apis/pet.js";
+import { createPluginsApi } from "./apis/plugins.js";
+import { createQuickPanelApi } from "./apis/quick-panel.js";
+import { createRemotePairingApi } from "./apis/remote-pairing.js";
+import { createRuntimeConfigurationApi } from "./apis/runtime-configuration.js";
+import { createSchedulerApi } from "./apis/scheduler.js";
+import { createSessionApi } from "./apis/session.js";
+import { createSpeechInputApi } from "./apis/speech-input.js";
+import { createSystemApi } from "./apis/system.js";
+import { createTelemetryApi } from "./apis/telemetry.js";
+import { createThemesApi } from "./apis/themes.js";
+import { createWebhookApi } from "./apis/webhook.js";
+import { createHostAccessGate } from "./host-access.js";
+import { createUserActivityReporter, USER_ACTIVITY_CHANNEL } from "./user-activity.js";
+
+const reportUserActivity = createUserActivityReporter(() => ipcRenderer.send(USER_ACTIVITY_CHANNEL)).report;
+
+for (const eventName of ["keydown", "mousedown", "mousemove", "touchstart", "wheel"] as const) {
+	window.addEventListener(eventName, reportUserActivity, { capture: true, passive: true });
+}
+
+const rawApi: Omit<DesktopApi, "hostAccess"> = {
+	...createAbilitiesApi(ipcRenderer),
+	...createAgentTeamsApi(ipcRenderer),
+	...createActionApprovalApi(ipcRenderer),
+	...createAppLifecycleApi(ipcRenderer),
+	...createAppMonitorApi(ipcRenderer),
+	...createSessionApi(ipcRenderer),
+	...createSpeechInputApi(ipcRenderer),
+	...createImApi(ipcRenderer),
+	...createDownloadsApi(ipcRenderer),
+	...createBatchTasksApi(ipcRenderer),
+	...createSchedulerApi(ipcRenderer),
+	...createWebhookApi(ipcRenderer),
+	...createNotificationApi(ipcRenderer),
+	...createPluginsApi(ipcRenderer, webUtils),
+	...createThemesApi(ipcRenderer),
+	...createPetApi(ipcRenderer),
+	...createConversationTagsApi(ipcRenderer),
+	...createQuickPanelApi(ipcRenderer),
+	...createRuntimeConfigurationApi(ipcRenderer),
+	remotePairing: createRemotePairingApi(ipcRenderer),
+	...createAppshotApi(ipcRenderer),
+	...createI18nApi(ipcRenderer),
+	...createTelemetryApi(ipcRenderer),
+	...createSystemApi(ipcRenderer, webUtils),
+	...create567Api(ipcRenderer),
+};
+
+const hostGate = createHostAccessGate(rawApi);
+const api: DesktopApi = {
+	hostAccess: hostGate.hostAccess,
+	...hostGate.api,
+};
+
+contextBridge.exposeInMainWorld("vetta", api);

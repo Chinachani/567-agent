@@ -1,0 +1,406 @@
+import {
+	activeInputActionIdsAtom,
+	pluginAbilityDetailSlotsAtom,
+	pluginActivityTabsAtom,
+	pluginCardRenderersAtom,
+	pluginFilePreviewsAtom,
+	pluginFileExplorerContextMenuActionsAtom,
+	pluginFileExplorerDecorationProvidersAtom,
+	pluginFileExplorerToolbarActionsAtom,
+	type PluginI18nEntry,
+	pluginI18nByIdAtom,
+	pluginInputActionsAtom,
+	pluginNewSessionContextsAtom,
+	type RegisteredNewSessionContext,
+	pluginToolCallSlotsAtom,
+	pluginTurnCardsAtom,
+	pluginWorkspaceViewsAtom,
+	type RegisteredActivityTab,
+	type RegisteredAbilityDetailSlot,
+	type RegisteredCardRenderer,
+	type RegisteredFilePreview,
+	type RegisteredFileExplorerContextMenuAction,
+	type RegisteredFileExplorerDecorationProvider,
+	type RegisteredFileExplorerToolbarAction,
+	type RegisteredInputAction,
+	type RegisteredToolCallSlot,
+	type RegisteredTurnCard,
+	syncHardIsolationContributionModes,
+} from "@shared/store/atoms";
+import type { PluginsChangedEvent } from "@preload/api";
+import { getDefaultStore, useSetAtom } from "jotai";
+import { useEffect, useMemo, useReducer, useRef, useState } from "react";
+import type { PluginGlobalSlotContribution } from "@vetta-org/plugin-sdk";
+import { markPluginHostLoading, markPluginHostReady } from "../runtime/plugin-events";
+import { installPluginHostBridge } from "../runtime/plugin-host-bridge";
+import { installPluginHostShim } from "../runtime/plugin-host-shim";
+import { PluginI18nBoundary } from "../runtime/plugin-i18n";
+import { loadPlugin, type LoadedPlugin } from "../runtime/plugin-loader";
+import { loadPluginSnapshot } from "./plugin-snapshot";
+import { publishWorkspaceViews } from "./plugin-workspace-view-publication";
+import { PluginSlotErrorBoundary } from "./PluginSlotErrorBoundary";
+
+// 串行加载插件快照，避免并发 reload 交叉提交 activation。
+let pluginHostLifecycle = Promise.resolve();
+
+export function PluginGlobalSlotHost(): JSX.Element | null {
+	const [plugins, setPlugins] = useState<LoadedPlugin[]>([]);
+	const [revision, forceUpdate] = useReducer((value: number) => value + 1, 0);
+	const [reloadRevision, reloadPlugins] = useReducer((value: number) => value + 1, 0);
+	/** True while remotes are (re)loading — keep last published contributions to avoid tab flash. */
+	const [hostLoading, setHostLoading] = useState(true);
+	const setFilePreviews = useSetAtom(pluginFilePreviewsAtom);
+	const setAbilityDetailSlots = useSetAtom(pluginAbilityDetailSlotsAtom);
+	const setFileExplorerContextMenuActions = useSetAtom(pluginFileExplorerContextMenuActionsAtom);
+	const setFileExplorerToolbarActions = useSetAtom(pluginFileExplorerToolbarActionsAtom);
+	const setFileExplorerDecorationProviders = useSetAtom(pluginFileExplorerDecorationProvidersAtom);
+	const setActivityTabs = useSetAtom(pluginActivityTabsAtom);
+	const setInputActions = useSetAtom(pluginInputActionsAtom);
+	const setNewSessionContexts = useSetAtom(pluginNewSessionContextsAtom);
+	const setCardRenderers = useSetAtom(pluginCardRenderersAtom);
+	const setToolCallSlots = useSetAtom(pluginToolCallSlotsAtom);
+	const setTurnCards = useSetAtom(pluginTurnCardsAtom);
+	const setWorkspaceViews = useSetAtom(pluginWorkspaceViewsAtom);
+	const setPluginI18n = useSetAtom(pluginI18nByIdAtom);
+	const loadedPluginsRef = useRef<LoadedPlugin[]>([]);
+	const scheduledRevisionRef = useRef<number | undefined>(undefined);
+	/** undefined = idle, null = pending full reload, Set = pending targeted reload. */
+	const pendingPluginIdsRef = useRef<Set<string> | null | undefined>(null);
+	const unmountedRef = useRef(false);
+
+	useEffect(() => {
+		const requestFullReload = () => {
+			pendingPluginIdsRef.current = null;
+			reloadPlugins();
+		};
+		const requestMainReload = (event?: PluginsChangedEvent) => {
+			if (event?.reload === false) return;
+			if (!event?.pluginIds || event.pluginIds.length === 0) {
+				requestFullReload();
+				return;
+			}
+			if (pendingPluginIdsRef.current === null) {
+				reloadPlugins();
+				return;
+			}
+			pendingPluginIdsRef.current ??= new Set<string>();
+			for (const pluginId of event.pluginIds) pendingPluginIdsRef.current.add(pluginId);
+			reloadPlugins();
+		};
+		// Main process install/enable/reload (Action / workbench) → re-load remotes.
+		const unsubMain = window.vetta.plugins.onPluginsChanged(requestMainReload);
+		return unsubMain;
+	}, [reloadPlugins]);
+
+	useEffect(() => {
+		// React StrictMode 会用相同 revision 重放 effect；只排入一次生命周期。
+		if (scheduledRevisionRef.current === reloadRevision) return;
+		scheduledRevisionRef.current = reloadRevision;
+		const pendingPluginIds = pendingPluginIdsRef.current;
+		pendingPluginIdsRef.current = undefined;
+		setHostLoading(true);
+
+		const lifecycle = pluginHostLifecycle.then(async () => {
+			if (unmountedRef.current) return;
+
+			installPluginHostShim();
+			installPluginHostBridge();
+			markPluginHostLoading();
+
+			const previousPlugins = loadedPluginsRef.current;
+			const loadedPlugins = await window.vetta.plugins
+				.list()
+				.then((installedPlugins) =>
+					loadPluginSnapshot(
+						installedPlugins,
+						previousPlugins,
+						pendingPluginIds instanceof Set ? pendingPluginIds : undefined,
+						(plugin) => loadPlugin(plugin, forceUpdate),
+						(plugin, error) => console.error(`Failed to load plugin: ${plugin.id}`, error),
+					),
+				)
+				.catch((error: Error) => {
+					console.error("Failed to initialize plugins", error);
+					return previousPlugins;
+				});
+
+			if (unmountedRef.current) {
+				await Promise.all(
+					loadedPlugins.filter((plugin) => !previousPlugins.includes(plugin)).map((plugin) => plugin.dispose()),
+				);
+				return;
+			}
+
+			// 新 activation 已在 loadPlugin 内提交；此处一次性发布新贡献，再释放未被
+			// last-known-good 保留的旧实例。旧 activation 的清理因 id 不匹配不会误删新 Action。
+			loadedPluginsRef.current = loadedPlugins;
+			setPlugins(loadedPlugins);
+			try {
+				await window.vetta.plugins.reportAgentContributionHostReady();
+			} catch (error) {
+				console.error("Failed to report plugin contribution host readiness", error);
+			} finally {
+				markPluginHostReady();
+			}
+			setHostLoading(false);
+			await Promise.all(
+				previousPlugins.filter((plugin) => !loadedPlugins.includes(plugin)).map((plugin) => plugin.dispose()),
+			);
+		});
+		pluginHostLifecycle = lifecycle.catch((error: unknown) => {
+			console.error("Failed to replace plugins", error);
+		});
+	}, [reloadRevision]);
+
+	useEffect(() => {
+		unmountedRef.current = false;
+		return () => {
+			unmountedRef.current = true;
+			const activePlugins = loadedPluginsRef.current;
+			loadedPluginsRef.current = [];
+			pluginHostLifecycle = pluginHostLifecycle
+				.then(async () => {
+					await Promise.all(activePlugins.map((plugin) => plugin.dispose()));
+				})
+				.catch((error: unknown) => {
+					console.error("Failed to dispose plugins", error);
+				});
+		};
+	}, []);
+
+	const slots = useMemo<PluginGlobalSlotContribution[]>(
+		() => plugins.flatMap((plugin) => plugin.slots),
+		[plugins, revision],
+	);
+
+	useEffect(() => {
+		const abilitySlots: RegisteredAbilityDetailSlot[] = plugins.flatMap((plugin) =>
+			plugin.abilityDetailSlots.map((slot) => ({ ...slot, pluginId: plugin.id })),
+		);
+		if (abilitySlots.length > 0 || !hostLoading) setAbilityDetailSlots(abilitySlots);
+	}, [plugins, revision, hostLoading, setAbilityDetailSlots]);
+
+	// Publish file-preview registrations so FilePreviewView (a separate subtree)
+	// can dispatch by extension. Republished on every plugin/slot revision.
+	// While hostLoading, skip empty publishes so dispose/reload does not flash UI.
+	useEffect(() => {
+		const previews: RegisteredFilePreview[] = plugins.flatMap((plugin) =>
+			plugin.filePreviews.map((preview) => ({
+				pluginId: plugin.id,
+				extensions: preview.extensions,
+				component: preview.component,
+			})),
+		);
+		if (previews.length > 0 || !hostLoading) setFilePreviews(previews);
+	}, [plugins, revision, hostLoading, setFilePreviews]);
+
+	useEffect(() => {
+		const actions: RegisteredFileExplorerContextMenuAction[] = plugins.flatMap((plugin) =>
+			plugin.fileExplorerContextMenuActions.map((action) => ({
+				...action,
+				pluginId: plugin.id,
+				actionId: action.id,
+			})),
+		);
+		if (actions.length > 0 || !hostLoading) setFileExplorerContextMenuActions(actions);
+	}, [plugins, revision, hostLoading, setFileExplorerContextMenuActions]);
+
+	useEffect(() => {
+		const actions: RegisteredFileExplorerToolbarAction[] = plugins.flatMap((plugin) =>
+			plugin.fileExplorerToolbarActions.map((action) => ({
+				...action,
+				pluginId: plugin.id,
+				actionId: action.id,
+			})),
+		);
+		if (actions.length > 0 || !hostLoading) setFileExplorerToolbarActions(actions);
+	}, [plugins, revision, hostLoading, setFileExplorerToolbarActions]);
+
+	useEffect(() => {
+		const providers: RegisteredFileExplorerDecorationProvider[] = plugins.flatMap((plugin) =>
+			plugin.fileExplorerDecorationProviders.map((provider) => ({
+				...provider,
+				pluginId: plugin.id,
+				providerId: provider.id,
+			})),
+		);
+		if (providers.length > 0 || !hostLoading) setFileExplorerDecorationProviders(providers);
+	}, [plugins, revision, hostLoading, setFileExplorerDecorationProviders]);
+
+	// Publish activity-tab contributions (the addable pool) so ActivityPanel
+	// can render attached tabs and the "+" picker.
+	useEffect(() => {
+		const tabs: RegisteredActivityTab[] = plugins.flatMap((plugin) =>
+			plugin.activityTabs.map((tab) => ({
+				pluginId: plugin.id,
+				pluginName: plugin.name,
+				tabId: tab.id,
+				label: tab.label,
+				icon: tab.icon,
+				component: tab.component,
+				order: tab.order,
+				scope_use: tab.scope_use,
+				initiallyVisible: tab.initiallyVisible,
+				retention: tab.retention,
+				keepAliveWhenAvailable: tab.keepAliveWhenAvailable,
+			})),
+		);
+		if (tabs.length > 0 || !hostLoading) setActivityTabs(tabs);
+	}, [plugins, revision, hostLoading, setActivityTabs]);
+
+	// Publish input-action toggles (rendered beneath the AI input bar).
+	useEffect(() => {
+		const actions: RegisteredInputAction[] = plugins.flatMap((plugin) =>
+			plugin.inputActions.map((action) => ({
+				pluginId: plugin.id,
+				actionId: action.id,
+				label: action.label,
+				icon: action.icon,
+				defaultActive: action.defaultActive,
+				requiresActiveTool: action.requiresActiveTool,
+				scope_use: action.scope_use,
+				hardIsolation: action.hardIsolation,
+				onToggle: action.onToggle,
+				decoratePrompt: action.decoratePrompt,
+			})),
+		);
+		if (actions.length > 0 || !hostLoading) {
+			setInputActions(actions);
+			// 插件晚于会话恢复加载时，按当前工作集补齐 hardIsolation contribution mode。
+			if (actions.length > 0) {
+				syncHardIsolationContributionModes(getDefaultStore().get(activeInputActionIdsAtom));
+			}
+		}
+	}, [plugins, revision, hostLoading, setInputActions]);
+
+	// Publish new-session context blocks. 激活裁决在宿主那边做，这里只发布注册表。
+	useEffect(() => {
+		const contexts: RegisteredNewSessionContext[] = plugins.flatMap((plugin) =>
+			plugin.newSessionContexts.map((contribution, order) => ({
+				pluginId: plugin.id,
+				pluginName: plugin.name,
+				contextId: contribution.id,
+				label: contribution.label,
+				icon: contribution.icon,
+				...(contribution.pluginIconUrl ? { pluginIconUrl: contribution.pluginIconUrl } : {}),
+				activateWhen: contribution.activateWhen,
+				width: contribution.width,
+				render: contribution.render,
+				order,
+				canReadDraft: contribution.canReadDraft,
+			})),
+		);
+		if (contexts.length > 0 || !hostLoading) setNewSessionContexts(contexts);
+	}, [plugins, revision, hostLoading, setNewSessionContexts]);
+
+	// Publish card renderers (keyed by type). The per-message card host resolves
+	// each card descriptor's `type` to one of these.
+	useEffect(() => {
+		const cardRenderers: RegisteredCardRenderer[] = plugins.flatMap((plugin) =>
+			plugin.cardRenderers.map((renderer) => ({
+				pluginId: plugin.id,
+				type: renderer.type,
+				component: renderer.component,
+				title: renderer.title,
+				icon: renderer.icon,
+				pendingFor: renderer.pendingFor,
+			})),
+		);
+		if (cardRenderers.length > 0 || !hostLoading) setCardRenderers(cardRenderers);
+	}, [plugins, revision, hostLoading, setCardRenderers]);
+
+	// Publish per-plugin i18n catalogs so contribution labels and plugin
+	// components (useTranslation) resolve `%key%` against the right catalog.
+	useEffect(() => {
+		const registry: Record<string, PluginI18nEntry> = {};
+		for (const plugin of plugins) {
+			registry[plugin.id] = { locales: plugin.locales, defaultLocale: plugin.defaultLocale };
+		}
+		if (Object.keys(registry).length > 0 || !hostLoading) setPluginI18n(registry);
+	}, [plugins, hostLoading, setPluginI18n]);
+
+	// Publish tool-call renderers so transcript tool blocks can be replaced by plugins.
+	useEffect(() => {
+		const toolCallSlots: RegisteredToolCallSlot[] = plugins.flatMap((plugin) =>
+			plugin.toolCallSlots.map((slot) => ({
+				pluginId: plugin.id,
+				slotId: slot.id,
+				toolName: slot.toolName,
+				component: slot.component,
+			})),
+		);
+		if (toolCallSlots.length > 0 || !hostLoading) setToolCallSlots(toolCallSlots);
+	}, [plugins, revision, hostLoading, setToolCallSlots]);
+
+	// Publish turn cards (message-list footer slot). Not tool-bound — each plugin
+	// component owns its own visibility; PluginTurnCardHost renders them.
+	useEffect(() => {
+		const turnCards: RegisteredTurnCard[] = plugins.flatMap((plugin) =>
+			plugin.turnCards.map((card) => ({
+				pluginId: plugin.id,
+				cardId: card.id,
+				component: card.component,
+				scope_use: card.scope_use,
+			})),
+		);
+		if (turnCards.length > 0 || !hostLoading) setTurnCards(turnCards);
+	}, [plugins, revision, hostLoading, setTurnCards]);
+
+	// Publish workspace views (full-page plugin surfaces). The sidebar turns them
+	// into pinnable nav entries; the /workspace route mounts the component.
+	useEffect(() => {
+		const workspaceViews = publishWorkspaceViews(plugins);
+		if (workspaceViews.length > 0 || !hostLoading) setWorkspaceViews(workspaceViews);
+	}, [plugins, revision, hostLoading, setWorkspaceViews]);
+
+	// Host unmount only: clear published contributions.
+	useEffect(() => {
+		return () => {
+			setFilePreviews([]);
+			setAbilityDetailSlots([]);
+			setFileExplorerContextMenuActions([]);
+			setFileExplorerToolbarActions([]);
+			setFileExplorerDecorationProviders([]);
+			setActivityTabs([]);
+			setInputActions([]);
+			setCardRenderers([]);
+			setToolCallSlots([]);
+			setTurnCards([]);
+			setWorkspaceViews([]);
+			setPluginI18n({});
+		};
+	}, [
+		setFilePreviews,
+		setAbilityDetailSlots,
+		setFileExplorerContextMenuActions,
+		setFileExplorerToolbarActions,
+		setFileExplorerDecorationProviders,
+		setActivityTabs,
+		setInputActions,
+		setCardRenderers,
+		setToolCallSlots,
+		setTurnCards,
+		setWorkspaceViews,
+		setPluginI18n,
+	]);
+
+	if (slots.length === 0) return null;
+
+	return (
+		<div className="contents vetta-plugin-host">
+			{slots.map((slot) => {
+				const SlotComponent = slot.component;
+				const pluginId = slot.id.slice(0, slot.id.indexOf(":"));
+				return (
+					<PluginSlotErrorBoundary key={slot.id} pluginSlotId={slot.id}>
+						<div className="contents vetta-plugin" data-vetta-plugin-slot={slot.id}>
+							<PluginI18nBoundary pluginId={pluginId}>
+								<SlotComponent />
+							</PluginI18nBoundary>
+						</div>
+					</PluginSlotErrorBoundary>
+				);
+			})}
+		</div>
+	);
+}

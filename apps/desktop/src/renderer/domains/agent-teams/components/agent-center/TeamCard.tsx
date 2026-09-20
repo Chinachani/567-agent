@@ -1,0 +1,155 @@
+import type { AgentProfile, TeamDefinition } from "@vetta/agent-team";
+import { Button } from "@vetta-org/ui";
+import { useTranslation } from "react-i18next";
+import { AgentAvatarStack } from "./AgentAvatarStack";
+
+export interface TeamCardProps {
+	readonly team: TeamDefinition;
+	readonly members: readonly AgentProfile[];
+	readonly leaderId?: string;
+	readonly selected: boolean;
+	readonly onSelect: () => void;
+	readonly onOpenChat: () => void;
+	/** 已在成员编辑态时省略，避免重复进入并丢掉尚未保存的草稿。 */
+	readonly onRecruit?: () => void;
+	/** 省略时不出现设置入口：提供方维护的团队点卡片本身就是查看详情。 */
+	readonly onOpenSettings?: () => void;
+	/** 省略时不出现删除入口：提供方维护的团队不允许删除。 */
+	readonly onDelete?: () => void;
+}
+
+export function TeamCard({
+	team,
+	members,
+	leaderId,
+	selected,
+	onSelect,
+	onOpenChat,
+	onRecruit,
+	onOpenSettings,
+	onDelete,
+}: TeamCardProps): JSX.Element {
+	const { t } = useTranslation("agent-teams");
+	const summary = members
+		.map((member) => member.name)
+		.filter(Boolean)
+		.join(" · ");
+
+	return (
+		// 整张卡片都是选中热区：footer 的提示语与留白也要能点中，别只把热区留给上半部分。
+		<div
+			// 页面级的「点空白处取消选中」靠这个标记判断点击是否落在卡片内，别删。
+			data-team-card={team.id}
+			role="button"
+			tabIndex={0}
+			aria-pressed={selected}
+			onClick={onSelect}
+			onKeyDown={(event) => {
+				if (event.key !== "Enter" && event.key !== " ") return;
+				event.preventDefault();
+				onSelect();
+			}}
+			className={[
+				"group relative flex cursor-pointer flex-col justify-between rounded-xl border p-4 text-left outline-none transition-colors duration-200",
+				selected
+					? "border-primary/40 bg-card/70 ring-1 ring-inset ring-primary/30"
+					: "border-border/50 bg-card/40 hover:border-primary/40 hover:bg-card/60",
+			].join(" ")}
+		>
+			<div className="flex flex-col">
+				<span className="flex items-center justify-between gap-2">
+					<AgentAvatarStack agents={members} leaderId={leaderId} />
+					<span className="shrink-0 text-[11px] text-muted-foreground/70">
+						{t("center.expertCount", { count: members.length })}
+					</span>
+				</span>
+				<span className="mt-3.5 truncate text-[13px] font-medium tracking-tight text-foreground">{team.name}</span>
+				<span className="mt-1 line-clamp-1 text-[12px] text-muted-foreground/80">
+					{team.description || summary}
+				</span>
+			</div>
+
+			{/* 选中后操作就地长在卡片上：动作与它作用的团队挨在一起，比丢到页面右上角好找。 */}
+			<div className="mt-4 flex items-center justify-between gap-1 pt-2">
+				{selected ? (
+					<div className="flex items-center gap-1">
+						{/* 未进入成员编辑态时保留显式入口；编辑态由顶部的保存/退出承接，避免重置未保存草稿。 */}
+						{onRecruit && (
+							<Button
+								variant="primary"
+								size="sm"
+								className="h-6 gap-1 rounded-full px-2"
+								title={t("center.recruit")}
+								aria-label={t("center.recruit")}
+								onClick={stopAnd(onRecruit)}
+							>
+								<span className="icon-[solar--user-plus-linear] h-3.5 w-3.5" aria-hidden="true" />
+								<span className="text-[11px] font-medium">{t("center.recruitShort")}</span>
+							</Button>
+						)}
+						{onOpenSettings && (
+							<CardAction
+								icon="icon-[solar--settings-linear]"
+								label={t("center.teamSettings")}
+								onClick={stopAnd(onOpenSettings)}
+							/>
+						)}
+						{onDelete && (
+							<CardAction
+								icon="icon-[solar--trash-bin-trash-linear]"
+								label={t("center.deleteTeam")}
+								danger
+								onClick={stopAnd(onDelete)}
+							/>
+						)}
+					</div>
+				) : (
+					<span className="truncate text-[11px] text-muted-foreground/60">{t("center.teamSelectHint")}</span>
+				)}
+				<Button
+					variant="ghost"
+					size="icon-xs"
+					className="h-6 w-6 shrink-0 rounded-full text-muted-foreground hover:bg-primary/10 hover:text-primary"
+					title={t("center.openTeamChat")}
+					onClick={stopAnd(onOpenChat)}
+				>
+					<span className="icon-[solar--arrow-right-up-linear] h-3.5 w-3.5" aria-hidden="true" />
+					<span className="sr-only">{t("center.openTeamChat")}</span>
+				</Button>
+			</div>
+		</div>
+	);
+}
+
+/** 卡片内的动作按钮不该顺带切换选中态。 */
+function stopAnd(action: () => void): (event: { stopPropagation: () => void }) => void {
+	return (event) => {
+		event.stopPropagation();
+		action();
+	};
+}
+
+interface CardActionProps {
+	readonly icon: string;
+	readonly label: string;
+	readonly danger?: boolean;
+	readonly onClick: (event: { stopPropagation: () => void }) => void;
+}
+
+function CardAction({ icon, label, danger = false, onClick }: CardActionProps): JSX.Element {
+	return (
+		<Button
+			variant="ghost"
+			size="icon-xs"
+			className={[
+				"h-6 w-6 rounded-full text-muted-foreground",
+				danger ? "hover:bg-destructive/10 hover:text-destructive" : "hover:bg-primary/10 hover:text-primary",
+			].join(" ")}
+			title={label}
+			aria-label={label}
+			onClick={onClick}
+		>
+			<span className={`${icon} h-3.5 w-3.5`} aria-hidden="true" />
+		</Button>
+	);
+}

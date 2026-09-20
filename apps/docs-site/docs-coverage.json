@@ -1,0 +1,166 @@
+{
+	"schemaVersion": 1,
+	"statusValues": ["complete", "partial", "beta", "developer-preview", "internal-only", "not-applicable"],
+	"areas": [
+		{
+			"id": "onboarding-auth",
+			"source": "apps/desktop/src/renderer/onboarding and domains/auth",
+			"status": "complete",
+			"pages": ["/getting-started/"]
+		},
+		{
+			"id": "core-workflow",
+			"source": "apps/desktop/src/renderer/domains/conversation",
+			"status": "complete",
+			"pages": [
+				"/getting-started/first-task/",
+				"/core/overview/",
+				"/core/workspaces-and-sessions/",
+				"/core/context-tools-and-permissions/",
+				"/core/progress-results-and-recovery/"
+			]
+		},
+		{
+			"id": "workflow-examples",
+			"source": "apps/desktop/src/renderer/domains/conversation, batch-tasks, knowledge-base and scheduler",
+			"status": "complete",
+			"pages": [
+				"/examples/",
+				"/examples/review-and-fix-code/",
+				"/examples/document-to-brief/",
+				"/examples/batch-project-audit/",
+				"/examples/scheduled-project-report/"
+			]
+		},
+		{
+			"id": "project-files",
+			"source": "apps/desktop/src/renderer/domains/project and domains/file-explorer",
+			"status": "complete",
+			"pages": ["/core/workspaces-and-sessions/", "/core/progress-results-and-recovery/"]
+		},
+		{
+			"id": "models",
+			"source": "apps/desktop/src/renderer/domains/settings",
+			"status": "complete",
+			"pages": ["/product/models/"]
+		},
+		{
+			"id": "abilities",
+			"source": "apps/desktop/src/renderer/domains/abilities",
+			"status": "complete",
+			"pages": ["/product/abilities/", "/product/mcp/", "/plugins/overview/"]
+		},
+		{
+			"id": "knowledge-base",
+			"source": "apps/desktop/src/renderer/domains/knowledge-base",
+			"status": "complete",
+			"pages": ["/product/knowledge-base/"]
+		},
+		{
+			"id": "design-canvas",
+			"source": "packages/plugins/presets/vetta-ui-design",
+			"status": "complete",
+			"pages": ["/product/design/"]
+		},
+		{
+			"id": "agent-teams",
+			"source": "packages/agent-team and apps/desktop/src/main/agent-teams",
+			"status": "complete",
+			"pages": ["/product/agent-teams/"]
+		},
+		{
+			"id": "batch-tasks",
+			"source": "apps/desktop/src/renderer/domains/batch-tasks",
+			"status": "complete",
+			"pages": ["/product/batch-tasks/"]
+		},
+		{
+			"id": "automation",
+			"source": "apps/desktop/src/renderer/domains/scheduler",
+			"status": "complete",
+			"pages": ["/product/automation/"]
+		},
+		{
+			"id": "application-environment",
+			"source": "apps/desktop/src/renderer/domains/settings",
+			"status": "complete",
+			"pages": ["/product/application-environment/"]
+		},
+		{
+			"id": "claw-im",
+			"source": "apps/desktop/src/main/im-host",
+			"status": "partial",
+			"platforms": ["windows", "macos", "linux"],
+			"pages": ["/product/claw/", "/product/im/"],
+			"note": "八种渠道已登记；渠道成熟度、第三方平台条件和本机权限需要分别说明。"
+		},
+		{
+			"id": "notifications-webhook",
+			"source": "apps/desktop/src/renderer/domains/settings",
+			"status": "complete",
+			"pages": ["/product/webhook/"]
+		},
+		{
+			"id": "browser-use",
+			"source": "packages/plugins/presets/browser",
+			"status": "complete",
+			"pages": ["/product/browser/"]
+		},
+		{
+			"id": "app-snapshot",
+			"source": "apps/desktop/src/main/appshot and native/appshot",
+			"status": "complete",
+			"pages": ["/product/app-snapshot/"]
+		},
+		{
+			"id": "desktop-pet",
+			"source": "apps/desktop/src/renderer/domains/pet",
+			"status": "complete",
+			"pages": ["/product/desktop-pet/"]
+		},
+		{
+			"id": "coding-agent-public-api",
+			"source": "packages/coding-agent/package.json#exports",
+			"status": "partial",
+			"pages": ["/developers/overview/", "/developers/sdk/", "/developers/sdk-reference/", "/developers/rpc/", "/developers/cli-and-settings/"]
+		},
+		{
+			"id": "themes",
+			"source": "packages/themes",
+			"status": "complete",
+			"pages": ["/themes/overview/", "/themes/getting-started/", "/themes/module-reference/"]
+		},
+		{
+			"id": "settings",
+			"source": "apps/desktop/src/renderer/domains/settings/registry.ts",
+			"status": "partial",
+			"pages": ["/product/settings/", "/product/models/", "/product/application-environment/", "/product/knowledge-base/", "/product/im/", "/product/webhook/"]
+		},
+		{
+			"id": "remote-control",
+			"source": ["apps/desktop/src/main/remote-control", "packages/remote-control", "packages/remote-desktop"],
+			"status": "developer-preview",
+			"platforms": ["windows", "android"],
+			"pages": ["/product/remote-control/", "/reference/compatibility/"]
+		},
+		{
+			"id": "mobile-client",
+			"source": "apps/mobile",
+			"status": "developer-preview",
+			"platforms": ["android"],
+			"pages": ["/product/remote-control/", "/reference/compatibility/"]
+		},
+		{
+			"id": "plugin-capabilities",
+			"source": ["packages/plugins/plugin-sdk", "packages/plugins/plugin-vite", "packages/plugins/plugin-cli", "docs/plugin"],
+			"status": "partial",
+			"pages": ["/plugins/overview/", "/plugins/getting-started/", "/plugins/manifest-and-permissions/", "/plugins/extension-points/", "/plugins/capabilities/"]
+		},
+		{
+			"id": "internal-operations",
+			"source": "docs/adr and docs/deploy",
+			"status": "internal-only",
+			"pages": []
+		}
+	]
+}

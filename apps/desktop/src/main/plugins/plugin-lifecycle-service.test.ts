@@ -1,0 +1,216 @@
+import { describe, expect, it, vi } from "vitest";
+import type { InstalledPlugin } from "../../preload/api-types/plugins.js";
+import { PluginLifecycleService } from "./plugin-lifecycle-service.js";
+
+function installedPlugin(overrides: Partial<InstalledPlugin> = {}): InstalledPlugin {
+	return {
+		id: "demo",
+		name: "Demo",
+		version: "1.0.0",
+		activeVersion: "1.0.0",
+		pluginApiVersion: "^2.0.0",
+		moduleFederation: { remoteName: "lifecycle_test", expose: "./plugin" },
+		entryUrl: "vetta-plugin://demo/index.js",
+		styleUrls: [],
+		permissions: [],
+		grantedPermissions: [],
+		allowedNetworkHosts: [],
+		allowedBrowserHosts: [],
+		declaredCommands: [],
+		grantedCommandNames: [],
+		defaultLocale: "zh",
+		locales: {},
+		enabled: true,
+		required: false,
+		installedAt: "2026-01-01T00:00:00.000Z",
+		updatedAt: "2026-01-01T00:00:00.000Z",
+		source: "archive",
+		trustLevel: "local",
+		rootPath: "C:/plugins/demo",
+		...overrides,
+	};
+}
+
+function createHarness(plugin = installedPlugin()) {
+	const events: string[] = [];
+	let current = plugin;
+	const actions = { clear: vi.fn(() => events.push("clear-actions")) };
+	const dependencies = {
+		listPlugins: () => [current],
+		installFromArchive: async () => current,
+		installFromUrl: async () => current,
+		installFromPath: async () => current,
+		uninstall: vi.fn(() => events.push("uninstall")),
+		setEnabled: vi.fn((_id: string, enabled: boolean) => {
+			events.push(`set-enabled:${enabled}`);
+			current = { ...current, enabled };
+			return current;
+		}),
+		grantPermissions: vi.fn((_id: string, permissions: InstalledPlugin["grantedPermissions"]) => {
+			current = { ...current, grantedPermissions: [...permissions] };
+			return current;
+		}),
+		revokePermissions: vi.fn(() => current),
+		grantCommands: vi.fn(() => current),
+		revokeCommands: vi.fn(() => current),
+		applySetup: vi.fn(
+			(
+				_id: string,
+				input: {
+					enabled: boolean;
+					grantedPermissions: InstalledPlugin["grantedPermissions"];
+					grantedCommands: string[];
+				},
+			) => {
+				current = {
+					...current,
+					enabled: input.enabled,
+					grantedPermissions: input.grantedPermissions,
+					grantedCommandNames: input.grantedCommands,
+				};
+				return current;
+			},
+		),
+		reload: vi.fn(() => current),
+		stopDevWatch: vi.fn(() => events.push("stop-watch")),
+		stopSpawns: vi.fn(() => events.push("stop-spawns")),
+		ensureCliProviders: vi.fn(() => events.push("ensure-cli-providers")),
+		stopCliProviders: vi.fn(() => events.push("stop-cli-providers")),
+		stopServices: vi.fn(() => events.push("stop-services")),
+		destroyOffscreenSessions: vi.fn(() => events.push("destroy-offscreen")),
+		hardRevokeAgentHandlers: vi.fn((_id: string, reason: string) => events.push(`hard-revoke:${reason}`)),
+		refreshRuntime: vi.fn(() => events.push("refresh-runtime")),
+		recordEvent: vi.fn((_input: unknown) => events.push("record-event")),
+		logInstallStarted: vi.fn(),
+		logInstallFailed: vi.fn(),
+	};
+	return { service: new PluginLifecycleService(actions, dependencies), dependencies, actions, events };
+}
+
+describe("PluginLifecycleService", () => {
+	it("refreshes the agent runtime after installing an archive", async () => {
+		const harness = createHarness();
+
+		await harness.service.installArchive(new ArrayBuffer(0));
+		expect(harness.events).toEqual(["record-event", "ensure-cli-providers", "refresh-runtime"]);
+	});
+
+	it("records plugin-cli package provenance on a completed install", async () => {
+		const harness = createHarness();
+
+		await harness.service.installPath("C:/project/release/demo-1.0.0.vettapkg", {
+			initiator: "plugin-cli",
+		});
+
+		expect(harness.dependencies.logInstallStarted).toHaveBeenCalledWith({
+			abilityType: "plugin",
+			installMode: "plugin-cli",
+			artifactKind: "vettapkg",
+			artifactName: "demo-1.0.0.vettapkg",
+		});
+		expect(harness.dependencies.recordEvent).toHaveBeenCalledWith(
+			expect.objectContaining({ operation: "installed", resourceId: "demo" }),
+			expect.objectContaining({
+				version: "1.0.0",
+				installMode: "plugin-cli",
+				artifactKind: "vettapkg",
+			}),
+		);
+	});
+
+	it("records the attempted package source when installation fails", async () => {
+		const harness = createHarness();
+		const failure = new Error("broken package");
+		harness.dependencies.installFromPath = vi.fn().mockRejectedValue(failure);
+
+		await expect(harness.service.installPath("C:/Downloads/broken.zip")).rejects.toThrow("broken package");
+
+		expect(harness.dependencies.logInstallFailed).toHaveBeenCalledWith(
+			expect.objectContaining({
+				installMode: "manual-package",
+				artifactKind: "legacy-zip",
+				artifactName: "broken.zip",
+			}),
+			failure,
+		);
+	});
+
+	it("owns the complete disable lifecycle", () => {
+		const harness = createHarness();
+
+		expect(harness.service.setEnabled("demo", false).enabled).toBe(false);
+		expect(harness.events).toEqual([
+			"stop-watch",
+			"stop-spawns",
+			"stop-cli-providers",
+			"stop-services",
+			"destroy-offscreen",
+			"set-enabled:false",
+			"clear-actions",
+			"refresh-runtime",
+			"record-event",
+		]);
+	});
+
+	it("owns uninstall cleanup before deleting the plugin record", () => {
+		const harness = createHarness();
+
+		harness.service.uninstall("demo");
+		expect(harness.events).toEqual([
+			"hard-revoke:Plugin was uninstalled",
+			"stop-watch",
+			"stop-spawns",
+			"stop-cli-providers",
+			"stop-services",
+			"destroy-offscreen",
+			"uninstall",
+			"clear-actions",
+			"refresh-runtime",
+			"record-event",
+		]);
+	});
+
+	it("lists every installed plugin regardless of any mode notion (ADR-0071)", () => {
+		const harness = createHarness(installedPlugin());
+
+		expect(harness.service.list().map((item) => item.id)).toEqual(["demo"]);
+	});
+
+	it("records only newly granted permissions", () => {
+		const harness = createHarness(installedPlugin({ grantedPermissions: ["agent.skills.control"] }));
+
+		harness.service.grantPermissions("demo", ["agent.skills.control", "agent.tools.register"]);
+		expect(harness.dependencies.recordEvent).toHaveBeenCalledWith(
+			expect.objectContaining({ operation: "permissions-granted", permissionCount: 1 }),
+		);
+	});
+
+	it("applies first-install setup in one lifecycle transaction", () => {
+		const harness = createHarness(installedPlugin({ enabled: false }));
+		harness.service.applySetup("demo", {
+			enabled: true,
+			grantedPermissions: ["agent.tools.register"],
+			grantedCommands: ["demo.run"],
+		});
+		expect(harness.dependencies.applySetup).toHaveBeenCalledOnce();
+		expect(harness.dependencies.refreshRuntime).toHaveBeenCalledOnce();
+		expect(harness.dependencies.ensureCliProviders).toHaveBeenCalledWith("demo");
+		expect(harness.dependencies.recordEvent.mock.calls.map(([event]) => event)).toEqual([
+			expect.objectContaining({ operation: "enabled" }),
+			expect.objectContaining({ operation: "permissions-granted", permissionCount: 1 }),
+			expect.objectContaining({ operation: "commands-granted", commandCount: 1 }),
+		]);
+	});
+
+	it("hard-revokes admitted Hook leases only when Hook execution permission is revoked", () => {
+		const harness = createHarness();
+
+		harness.service.revokePermissions("demo", ["agent.hookHandler.execute"]);
+
+		expect(harness.dependencies.hardRevokeAgentHandlers).toHaveBeenCalledWith(
+			"demo",
+			"Plugin Agent permission was revoked",
+			expect.arrayContaining(["tool", "hook", "continuation", "system-prompt"]),
+		);
+	});
+});

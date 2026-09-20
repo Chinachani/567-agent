@@ -1,0 +1,78 @@
+import { CAPABILITY_ERROR_CODES, DOMAIN_AI_CAPABILITIES } from "@vetta-org/capability-sdk";
+import { describe, expect, it } from "vitest";
+import { PLUGIN_CAPABILITY_PERMISSIONS, PluginCapabilityAdapter } from "../index.js";
+import { RecordingAccessFactory } from "./helpers/recording-access-factory.js";
+
+describe("PluginCapabilityAdapter ai permission", () => {
+	it("maps ai.complete to both single-turn and chat capability grants", async () => {
+		const access = new RecordingAccessFactory();
+		const adapter = new PluginCapabilityAdapter(access, {
+			isOfficialPlugin: () => false,
+			resolvePermissions: () => [PLUGIN_CAPABILITY_PERMISSIONS.AI_COMPLETE],
+		});
+		const sessionId = adapter.openSession("demo-plugin");
+
+		expect(access.sessions[0]?.grants).toEqual([
+			{ capabilityId: DOMAIN_AI_CAPABILITIES.COMPLETE.id },
+			{ capabilityId: DOMAIN_AI_CAPABILITIES.CHAT.id },
+		]);
+		await expect(adapter.completeAi(sessionId, { prompt: "hello" })).resolves.toHaveProperty("stopReason", "stop");
+		const events: unknown[] = [];
+		await expect(
+			adapter.streamAi(
+				sessionId,
+				{ prompt: "hello" },
+				{
+					signal: new AbortController().signal,
+					onEvent: (event) => events.push(event),
+				},
+			),
+		).resolves.toHaveProperty("text", "ok");
+		expect(events).toEqual([{ type: "text_delta", delta: "ok" }]);
+	});
+
+	it("validates chat transcripts at the adapter boundary and forwards cleaned input", async () => {
+		const access = new RecordingAccessFactory();
+		const adapter = new PluginCapabilityAdapter(access, {
+			isOfficialPlugin: () => false,
+			resolvePermissions: () => [PLUGIN_CAPABILITY_PERMISSIONS.AI_COMPLETE],
+		});
+		const sessionId = adapter.openSession("demo-plugin");
+
+		const result = await adapter.chatAi(sessionId, {
+			messages: [
+				{ role: "user", content: "look it up", ignored: true },
+				{ role: "assistant", content: "thinking" },
+			],
+			tools: [{ name: "lookup_record", description: "read", parameters: { type: "object" } }],
+		});
+		expect(result.stopReason).toBe("toolUse");
+		expect(result.toolCalls[0]).toEqual({ id: "call-1", name: "lookup_record", arguments: { id: "record-1" } });
+		expect(access.invocations.at(-1)).toEqual({
+			capabilityId: DOMAIN_AI_CAPABILITIES.CHAT.id,
+			input: {
+				messages: [
+					{ role: "user", content: "look it up" },
+					{ role: "assistant", content: "thinking" },
+				],
+				tools: [{ name: "lookup_record", description: "read", parameters: { type: "object" } }],
+			},
+		});
+
+		expect(() => adapter.chatAi(sessionId, { messages: [] })).toThrowError(
+			expect.objectContaining({ code: CAPABILITY_ERROR_CODES.INVALID_INPUT }),
+		);
+	});
+
+	it("denies chat without the ai.complete permission", () => {
+		const access = new RecordingAccessFactory();
+		const adapter = new PluginCapabilityAdapter(access, {
+			isOfficialPlugin: () => false,
+			resolvePermissions: () => [PLUGIN_CAPABILITY_PERMISSIONS.AI_MODELS_LIST],
+		});
+		const sessionId = adapter.openSession("demo-plugin");
+		expect(() => adapter.chatAi(sessionId, { messages: [{ role: "user", content: "hi" }] })).toThrowError(
+			expect.objectContaining({ code: CAPABILITY_ERROR_CODES.ACCESS_DENIED }),
+		);
+	});
+});

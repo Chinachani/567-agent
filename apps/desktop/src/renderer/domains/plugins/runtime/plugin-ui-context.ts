@@ -1,0 +1,940 @@
+import type { InstalledPlugin } from "@preload/api";
+import { readSidebarState, subscribeSidebarState } from "@shared/app-shell/sidebar-state";
+import type { ActivityTabKey } from "@shared/lib/project-profile";
+import {
+	activeInputActionIdsAtom,
+	activeSessionAtom,
+	activityPanelOpenAtom,
+	activityPanelTabByProjectAtom,
+	attachedPluginTabsAtom,
+	type FilePreviewItem,
+	filePreviewAtom,
+	mountedActivityWorkspacesAtom,
+	persistCurrentInputActionState,
+	pluginInputActionsAtom,
+	pluginWorkspaceViewHeadersAtom,
+	promptAttachmentAtom,
+	resolveActivityWorkspaceKey,
+	setActivityPanelWidthAtom,
+	workspaceViewHeaderKey,
+} from "@shared/store/atoms";
+import { showToast } from "@shared/store/toast-atoms";
+import type {
+	Disposable,
+	PluginAbilityDetailSlotContribution,
+	PluginActivityTabContribution,
+	PluginActivityTabTargetOptions,
+	PluginCardRendererContribution,
+	PluginContext,
+	PluginFilePreviewContribution,
+	PluginGlobalSlotContribution,
+	PluginImageRef,
+	PluginInputActionContribution,
+	PluginNavBadge,
+	PluginNewSessionContextContribution,
+	PluginNotifyOptions,
+	PluginOpenActivityTabOptions,
+	PluginPreviewFileRef,
+	PluginPromptAttachment,
+	PluginShortcutScopeContribution,
+	PluginToolCallSlotContribution,
+	PluginTurnCardContribution,
+	PluginWorkspaceViewContribution,
+	PluginWorkspaceViewHeader,
+} from "@vetta-org/plugin-sdk";
+import { getDefaultStore } from "jotai";
+import QRCode from "qrcode";
+import { type ComponentType, createElement, type ReactNode } from "react";
+import { explicitTabVisibility, withPluginTabVisibility } from "./attached-tabs";
+import type { PluginAgentApiRegistration } from "./plugin-agent-context";
+import { copyTextToClipboard, formatPluginErrorDetail, resolvePluginDisplayText } from "./plugin-host-apis";
+import { activateInputActionIds } from "./plugin-input-action-state";
+import type {
+	PluginLocalContributions,
+	ResolvedPluginNewSessionContextContribution,
+	ResolvedPluginWorkspaceViewContribution,
+} from "./plugin-local-contributions";
+import { classifyPluginNavIcon, resolveNavIcon } from "./plugin-nav-icon";
+import {
+	createPluginPermissionApi,
+	hasPluginPermission,
+	noopDisposable,
+	warnSkippedPluginContribution,
+} from "./plugin-permissions";
+import { pluginRendererCapabilityHost } from "./plugin-renderer-capability-host";
+import {
+	assertPluginShortcutScopeKind,
+	normalizePluginShortcutBindings,
+	registerPluginShortcutScopeOnHost,
+} from "./plugin-shortcut-scope";
+import { isValidWorkspaceViewId, normalizePluginNavBadge, WORKSPACE_VIEW_ID_PATTERN } from "./workspace-view-registry";
+
+export interface CreatePluginUiApiOptions {
+	plugin: InstalledPlugin;
+	contributions: PluginLocalContributions;
+	onChanged: () => void;
+	disposers: Array<() => void>;
+	agentContributions: PluginAgentApiRegistration;
+	capabilitySessionId: string;
+}
+
+/**
+ * 面板状态的持久化键是工作空间 id，不是 cwd（ADR-0105 决策 5 / ADR-0111）。插件按会话
+ * cwd 寻址，因此写入前翻成挂载中的工作空间键；普通对话两者同值，记录格式不变。
+ *
+ * 未显式给 cwd 时先看当前挂载的工作空间——Team 不写全局活动会话，只靠 activeSession
+ * 回退会把记录写到上一个普通会话上。
+ */
+function resolveActivityTabScopeKey(requestedCwd?: string): string | null {
+	const store = getDefaultStore();
+	const mounted = store.get(mountedActivityWorkspacesAtom);
+	if (requestedCwd !== undefined) return resolveActivityWorkspaceKey(mounted, requestedCwd);
+	const foreground = mounted[0];
+	if (foreground) return foreground.id;
+	return store.get(activeSessionAtom)?.cwd ?? null;
+}
+
+/** 写入一次显式上/下栏记录；scopeKey 必须已由 resolveActivityTabScopeKey 解析过。 */
+function writePluginTabVisibility(scopeKey: string, pluginId: string, tabId: string, visible: boolean): void {
+	const store = getDefaultStore();
+	const key = `${pluginId}:${tabId}`;
+	const previous = store.get(attachedPluginTabsAtom);
+	const recordsBefore = previous.get(scopeKey) ?? [];
+	const next = withPluginTabVisibility(previous, scopeKey, key, visible);
+	if (next) store.set(attachedPluginTabsAtom, next);
+	console.debug(
+		`[activity-tab-debug] set-visible ${JSON.stringify({
+			pluginId,
+			tabId,
+			key,
+			visible,
+			scopeKey,
+			changed: next !== null,
+			recordsBefore,
+			recordsAfter: next?.get(scopeKey) ?? recordsBefore,
+		})}`,
+	);
+}
+
+function setPluginActivityTabVisible(
+	pluginId: string,
+	tabId: string,
+	visible: boolean,
+	requestedCwd?: string,
+): boolean {
+	const scopeKey = resolveActivityTabScopeKey(requestedCwd);
+	if (!scopeKey) {
+		console.debug(
+			`[activity-tab-debug] set-visible skipped ${JSON.stringify({ pluginId, tabId, visible, scopeKey: null })}`,
+		);
+		return false;
+	}
+	writePluginTabVisibility(scopeKey, pluginId, tabId, visible);
+	return true;
+}
+
+/**
+ * Attach + activate a plugin's own activity tab and open the panel, driven
+ * directly off the jotai store so it works regardless of whether the activity
+ * panel component is currently mounted/expanded. Keyed by the workspace that owns
+ * the addressed conversation (see resolveActivityTabScopeKey). Commands originating
+ * outside the foreground route pass their session cwd explicitly.
+ */
+function openPluginActivityTab(pluginId: string, tabId: string, options?: PluginOpenActivityTabOptions): void {
+	const store = getDefaultStore();
+	const scopeKey = resolveActivityTabScopeKey(options?.cwd);
+	if (!scopeKey) {
+		console.warn("[plugin] openActivityTab: no activity workspace to open into");
+		return;
+	}
+	const key = `${pluginId}:${tabId}`;
+	const recordsBefore = store.get(attachedPluginTabsAtom).get(scopeKey) ?? [];
+	const alreadyAttached = explicitTabVisibility(recordsBefore, key) === true;
+	writePluginTabVisibility(scopeKey, pluginId, tabId, true);
+	const active = new Map(store.get(activityPanelTabByProjectAtom));
+	const activeBefore = active.get(scopeKey) ?? null;
+	active.set(scopeKey, `plugin:${key}` as ActivityTabKey);
+	store.set(activityPanelTabByProjectAtom, active);
+	store.set(activityPanelOpenAtom, true);
+	// width 只在首次 attach 时生效：插件 activate 里的 openActivityTab 会随
+	// reload/热更新重放，不能每次都把用户手动拖出的面板宽度覆盖回初始值。
+	if (options?.width != null && !alreadyAttached) store.set(setActivityPanelWidthAtom, options.width);
+	console.debug(
+		`[activity-tab-debug] open ${JSON.stringify({
+			pluginId,
+			tabId,
+			key,
+			scopeKey,
+			width: options?.width ?? null,
+			requestedCwd: options?.cwd ?? null,
+			alreadyAttached,
+			recordsBefore,
+			recordsAfter: store.get(attachedPluginTabsAtom).get(scopeKey) ?? [],
+			activeBefore,
+			activeAfter: active.get(scopeKey) ?? null,
+			panelOpen: store.get(activityPanelOpenAtom),
+		})}`,
+	);
+	console.info(
+		`[activity-tab] opened ${JSON.stringify({
+			pluginId,
+			tabId,
+			alreadyAttached,
+			widthRequested: options?.width != null,
+		})}`,
+	);
+}
+
+/**
+ * Map host-resolved `InstalledPlugin.iconUrl` into an activity-tab icon. Unlike the
+ * sidebar (class strings only), a tab icon is a ReactNode, so a packaged image renders
+ * as a plain `<img>` and keeps its own colors.
+ * Protocol stays host-private; plugins only see the opaque `iconUrl` string.
+ */
+function resolvePluginBrandIcon(iconUrl: string): ReactNode {
+	const icon = classifyPluginNavIcon(iconUrl);
+	if (!icon) return undefined;
+	if (icon.kind === "class") return icon.value;
+	return createElement("img", {
+		src: icon.url,
+		alt: "",
+		className: "h-3.5 w-3.5 object-contain",
+		draggable: false,
+	});
+}
+
+/**
+ * 把插件递来的 `PluginPreviewFileRef` 归一化成全局预览 atom 认的 `FilePreviewItem`。
+ * 预览器按 **name 的扩展名**分发渲染器（不是 mime），所以 name 是必须补齐的那一项：
+ * 缺省时从本地路径的 basename 取，取不到才退到 mime 推导。
+ */
+function toFilePreviewItem(ref: PluginPreviewFileRef): FilePreviewItem {
+	if (ref == null || typeof ref !== "object") {
+		throw new Error("previewFile() requires a file reference object");
+	}
+	const path = typeof ref.path === "string" ? ref.path.trim() : "";
+	const url = typeof ref.url === "string" ? ref.url.trim() : "";
+	if (!path && !url) {
+		throw new Error("previewFile() requires either a path or a url");
+	}
+	// 相对路径在渲染进程没有可靠的 base 可解析——与其让预览器弹一个含糊的读取失败，
+	// 不如在边界上直接告诉插件它给错了。
+	if (path && !path.startsWith("/") && !/^[a-zA-Z]:[\\/]/.test(path)) {
+		throw new Error(`previewFile() requires an absolute path, got: ${path}`);
+	}
+	const declaredName = typeof ref.name === "string" ? ref.name.trim() : "";
+	const basename = path ? (path.split(/[\\/]/).pop() ?? "") : "";
+	const name = declaredName || basename || `preview.${(ref.mimeType ?? "").split("/")[1] ?? "bin"}`;
+	return {
+		name,
+		...(path ? { path } : {}),
+		...(url ? { url } : {}),
+		...(ref.mimeType ? { mime: ref.mimeType } : {}),
+		...(Number.isFinite(ref.size) ? { size: ref.size } : {}),
+	};
+}
+
+export function createPluginUiApi({
+	plugin,
+	contributions,
+	onChanged,
+	disposers,
+	agentContributions,
+	capabilitySessionId,
+}: CreatePluginUiApiOptions): PluginContext["ui"] {
+	const {
+		slots,
+		abilityDetailSlots,
+		filePreviews,
+		activityTabs,
+		inputActions,
+		newSessionContexts,
+		cardRenderers,
+		toolCallSlots,
+		turnCards,
+		workspaceViews,
+	} = contributions;
+	const registerGlobalSlot = (contribution: PluginGlobalSlotContribution): Disposable => {
+		if (!hasPluginPermission(plugin, "ui.slot.global")) {
+			warnSkippedPluginContribution(plugin, "ui.slot.global", "global slot");
+			return noopDisposable;
+		}
+		if (typeof contribution.id !== "string" || contribution.id.trim().length === 0) {
+			throw new Error("Global slot id is required");
+		}
+		const component = contribution.component as ComponentType;
+		if (typeof component !== "function" && typeof component !== "object") {
+			throw new Error("Global slot component is invalid");
+		}
+		const normalized = {
+			id: `${plugin.id}:${contribution.id}`,
+			component,
+		};
+		slots.push(normalized);
+		onChanged();
+		const disposable = {
+			dispose: () => {
+				const index = slots.findIndex((slot) => slot.id === normalized.id);
+				if (index >= 0) slots.splice(index, 1);
+				onChanged();
+			},
+		};
+		return disposable;
+	};
+	const registerAbilityDetailSlot = (contribution: PluginAbilityDetailSlotContribution): Disposable => {
+		if (!hasPluginPermission(plugin, "ui.slot.ability-detail")) {
+			warnSkippedPluginContribution(plugin, "ui.slot.ability-detail", "ability detail slot");
+			return noopDisposable;
+		}
+		if (typeof contribution.id !== "string" || contribution.id.trim().length === 0) {
+			throw new Error("Ability detail slot id is required");
+		}
+		if (typeof contribution.abilityId !== "string" || contribution.abilityId.trim().length === 0) {
+			throw new Error("Ability detail slot abilityId is required");
+		}
+		if (typeof contribution.component !== "function" && typeof contribution.component !== "object") {
+			throw new Error("Ability detail slot component is invalid");
+		}
+		const normalized: PluginAbilityDetailSlotContribution = {
+			id: `${plugin.id}:${contribution.id.trim()}`,
+			abilityId: contribution.abilityId.trim(),
+			component: contribution.component,
+		};
+		abilityDetailSlots.push(normalized);
+		onChanged();
+		return {
+			dispose: () => {
+				const index = abilityDetailSlots.indexOf(normalized);
+				if (index >= 0) abilityDetailSlots.splice(index, 1);
+				onChanged();
+			},
+		};
+	};
+	const registerFilePreview = (contribution: PluginFilePreviewContribution): Disposable => {
+		if (!hasPluginPermission(plugin, "ui.slot.file-preview")) {
+			warnSkippedPluginContribution(plugin, "ui.slot.file-preview", "file preview");
+			return noopDisposable;
+		}
+		const extensions = Array.isArray(contribution.extensions)
+			? contribution.extensions.map((ext) => ext.trim().toLowerCase()).filter(Boolean)
+			: [];
+		if (extensions.length === 0) {
+			throw new Error("File preview must declare at least one extension");
+		}
+		if (typeof contribution.component !== "function" && typeof contribution.component !== "object") {
+			throw new Error("File preview component is invalid");
+		}
+		const normalized: PluginFilePreviewContribution = { extensions, component: contribution.component };
+		filePreviews.push(normalized);
+		onChanged();
+		return {
+			dispose: () => {
+				const index = filePreviews.indexOf(normalized);
+				if (index >= 0) filePreviews.splice(index, 1);
+				onChanged();
+			},
+		};
+	};
+	const registerActivityTab = (contribution: PluginActivityTabContribution): Disposable => {
+		if (!hasPluginPermission(plugin, "ui.slot.activity-tab")) {
+			warnSkippedPluginContribution(plugin, "ui.slot.activity-tab", "activity tab");
+			return noopDisposable;
+		}
+		if (typeof contribution.id !== "string" || contribution.id.trim().length === 0) {
+			throw new Error("Activity tab id is required");
+		}
+		if (typeof contribution.label !== "string" || contribution.label.trim().length === 0) {
+			throw new Error("Activity tab label is required");
+		}
+		if (typeof contribution.component !== "function" && typeof contribution.component !== "object") {
+			throw new Error("Activity tab component is invalid");
+		}
+		if (
+			contribution.retention !== undefined &&
+			!(["active-only", "warm", "pinned"] as const).includes(contribution.retention)
+		) {
+			throw new Error("Activity tab retention is invalid");
+		}
+		const brandIcon =
+			contribution.icon === undefined && plugin.iconUrl ? resolvePluginBrandIcon(plugin.iconUrl) : undefined;
+		const normalized: PluginActivityTabContribution = {
+			id: contribution.id,
+			label: contribution.label,
+			icon: contribution.icon ?? brandIcon,
+			component: contribution.component,
+			scope_use: contribution.scope_use,
+			initiallyVisible: contribution.initiallyVisible,
+			retention: contribution.retention,
+			keepAliveWhenAvailable: contribution.keepAliveWhenAvailable,
+		};
+		activityTabs.push(normalized);
+		console.debug(
+			`[activity-tab-debug] registered ${JSON.stringify({
+				pluginId: plugin.id,
+				tabId: normalized.id,
+				initiallyVisible: normalized.initiallyVisible ?? true,
+				scopeUse: normalized.scope_use ?? [],
+			})}`,
+		);
+		onChanged();
+		return {
+			dispose: () => {
+				const index = activityTabs.indexOf(normalized);
+				if (index >= 0) activityTabs.splice(index, 1);
+				console.debug(
+					`[activity-tab-debug] disposed ${JSON.stringify({ pluginId: plugin.id, tabId: normalized.id })}`,
+				);
+				onChanged();
+			},
+		};
+	};
+	const registerNewSessionContext = (contribution: PluginNewSessionContextContribution): Disposable => {
+		if (!hasPluginPermission(plugin, "ui.slot.new-session-context")) {
+			warnSkippedPluginContribution(plugin, "ui.slot.new-session-context", "new session context");
+			return noopDisposable;
+		}
+		if (typeof contribution.id !== "string" || contribution.id.trim().length === 0) {
+			throw new Error("New session context id is required");
+		}
+		if (typeof contribution.label !== "string" || contribution.label.trim().length === 0) {
+			throw new Error("New session context label is required");
+		}
+		if (typeof contribution.render !== "function") {
+			throw new Error("New session context render is invalid");
+		}
+		const activateWhen = contribution.activateWhen ?? {};
+		if (
+			!activateWhen.agents?.length &&
+			!activateWhen.teams?.length &&
+			!activateWhen.skills?.length &&
+			!activateWhen.mcpServers?.length
+		) {
+			// 全空等于「任何新会话都上屏」，那不是上下文区该有的行为。
+			throw new Error("New session context must declare at least one activation condition");
+		}
+		const normalized: ResolvedPluginNewSessionContextContribution = {
+			id: `${plugin.id}:${contribution.id}`,
+			label: contribution.label,
+			icon: contribution.icon,
+			activateWhen,
+			width: contribution.width === "wide" ? "wide" : "input",
+			render: contribution.render,
+			canReadDraft: hasPluginPermission(plugin, "conversation.draft.read"),
+			...(plugin.iconUrl ? { pluginIconUrl: plugin.iconUrl } : {}),
+		};
+		newSessionContexts.push(normalized);
+		onChanged();
+		return {
+			dispose: () => {
+				const index = newSessionContexts.findIndex((entry) => entry.id === normalized.id);
+				if (index >= 0) newSessionContexts.splice(index, 1);
+				onChanged();
+			},
+		};
+	};
+
+	const registerInputAction = (contribution: PluginInputActionContribution): Disposable => {
+		createPluginPermissionApi(plugin).require("ui.slot.input-action");
+		if (typeof contribution.id !== "string" || contribution.id.trim().length === 0) {
+			throw new Error("Input action id is required");
+		}
+		if (typeof contribution.label !== "string" || contribution.label.trim().length === 0) {
+			throw new Error("Input action label is required");
+		}
+		const userOnToggle = contribution.onToggle;
+		const hardIsolation = contribution.hardIsolation === true;
+		const namespacedId = `${plugin.id}:${contribution.id}`;
+		if (hardIsolation) {
+			// Register mode gate immediately so agent contributions stay stripped until toggle on (ADR-0041).
+			void window.vetta.plugins.registerModeGate(plugin.id);
+			// 会话恢复可能早于插件加载：若工作集已含本 action，立刻放行 contribution。
+			if (getDefaultStore().get(activeInputActionIdsAtom).has(namespacedId)) {
+				void window.vetta.plugins.setContributionMode(plugin.id, true);
+			}
+		}
+		const normalized: PluginInputActionContribution = {
+			id: namespacedId,
+			label: contribution.label,
+			icon: contribution.icon,
+			defaultActive: contribution.defaultActive,
+			requiresActiveTool: contribution.requiresActiveTool,
+			scope_use: contribution.scope_use,
+			hardIsolation,
+			onToggle: (active) => {
+				const veto = userOnToggle?.(active);
+				if (veto === false) return false;
+				if (hardIsolation) {
+					void window.vetta.plugins.setContributionMode(plugin.id, active);
+				}
+			},
+			decoratePrompt: contribution.decoratePrompt,
+		};
+		inputActions.push(normalized);
+		onChanged();
+		return {
+			dispose: () => {
+				const index = inputActions.findIndex((action) => action.id === normalized.id);
+				if (index >= 0) inputActions.splice(index, 1);
+				if (hardIsolation) {
+					void window.vetta.plugins.setContributionMode(plugin.id, false);
+				}
+				onChanged();
+			},
+		};
+	};
+	const registerCardRenderer = (contribution: PluginCardRendererContribution): Disposable => {
+		createPluginPermissionApi(plugin).require("ui.slot.message");
+		if (typeof contribution.type !== "string" || contribution.type.trim().length === 0) {
+			throw new Error("Card renderer type is required");
+		}
+		if (typeof contribution.component !== "function" && typeof contribution.component !== "object") {
+			throw new Error("Card renderer component is invalid");
+		}
+		// The `type` is the plugin-owned, globally-unique key both the renderer and
+		// the descriptor (from a tool's details.cards) agree on — NOT namespaced by
+		// the host, unlike slot ids. The plugin is responsible for uniqueness.
+		const normalized: PluginCardRendererContribution = {
+			type: contribution.type,
+			component: contribution.component,
+			title: contribution.title,
+			icon: contribution.icon,
+			pendingFor: contribution.pendingFor,
+		};
+		cardRenderers.push(normalized);
+		onChanged();
+		return {
+			dispose: () => {
+				const index = cardRenderers.findIndex((renderer) => renderer.type === normalized.type);
+				if (index >= 0) cardRenderers.splice(index, 1);
+				onChanged();
+			},
+		};
+	};
+	const registerToolCallSlot = (contribution: PluginToolCallSlotContribution): Disposable => {
+		createPluginPermissionApi(plugin).require("ui.slot.tool-call");
+		if (typeof contribution.id !== "string" || contribution.id.trim().length === 0) {
+			throw new Error("Tool-call slot id is required");
+		}
+		if (typeof contribution.toolName !== "string" || contribution.toolName.trim().length === 0) {
+			throw new Error("Tool-call slot toolName is required");
+		}
+		if (typeof contribution.component !== "function" && typeof contribution.component !== "object") {
+			throw new Error("Tool-call slot component is invalid");
+		}
+		const normalized: PluginToolCallSlotContribution = {
+			id: `${plugin.id}:${contribution.id}`,
+			toolName: contribution.toolName.trim(),
+			component: contribution.component,
+		};
+		toolCallSlots.push(normalized);
+		agentContributions.onToolCallSlotRegistered(normalized.toolName);
+		onChanged();
+		return {
+			dispose: () => {
+				const index = toolCallSlots.findIndex((slot) => slot.id === normalized.id);
+				if (index >= 0) toolCallSlots.splice(index, 1);
+				onChanged();
+			},
+		};
+	};
+	const registerTurnCard = (contribution: PluginTurnCardContribution): Disposable => {
+		createPluginPermissionApi(plugin).require("ui.slot.turn-card");
+		if (typeof contribution.id !== "string" || contribution.id.trim().length === 0) {
+			throw new Error("Turn card id is required");
+		}
+		if (typeof contribution.component !== "function" && typeof contribution.component !== "object") {
+			throw new Error("Turn card component is invalid");
+		}
+		const normalized: PluginTurnCardContribution = {
+			id: `${plugin.id}:${contribution.id}`,
+			component: contribution.component,
+			scope_use: contribution.scope_use,
+		};
+		turnCards.push(normalized);
+		onChanged();
+		return {
+			dispose: () => {
+				const index = turnCards.findIndex((card) => card.id === normalized.id);
+				if (index >= 0) turnCards.splice(index, 1);
+				onChanged();
+			},
+		};
+	};
+	/**
+	 * 工作区视图与其它插槽不同：它是**整页 surface**，由 `/workspace/$pluginId/$viewId`
+	 * 路由挂载，并在侧边栏占一个可 pin / 可排序的导航位。因此 id 必须能安全进 URL，
+	 * label 必须存在（导航项没有 fallback 文案可用）。
+	 */
+	const registerWorkspaceView = (contribution: PluginWorkspaceViewContribution): Disposable => {
+		if (!hasPluginPermission(plugin, "ui.slot.workspace-view")) {
+			warnSkippedPluginContribution(plugin, "ui.slot.workspace-view", "workspace view");
+			return noopDisposable;
+		}
+		const viewId = typeof contribution.id === "string" ? contribution.id.trim() : "";
+		if (!isValidWorkspaceViewId(viewId)) {
+			throw new Error(
+				`Workspace view id must match ${WORKSPACE_VIEW_ID_PATTERN.source} (got ${JSON.stringify(contribution.id)})`,
+			);
+		}
+		const label = typeof contribution.label === "string" ? contribution.label.trim() : "";
+		if (label.length === 0) {
+			throw new Error("Workspace view label is required");
+		}
+		if (typeof contribution.component !== "function" && typeof contribution.component !== "object") {
+			throw new Error("Workspace view component is invalid");
+		}
+		if (workspaceViews.some((view) => view.id === viewId)) {
+			throw new Error(`Workspace view id already registered: ${viewId}`);
+		}
+		// 角标认不出就当没有：它是导航项上的装饰，不该让整个视图注册失败。
+		const badge = normalizePluginNavBadge(contribution.badge);
+		// 未声明图标时回落到插件自己的品牌图标（与活动 Tab 一致），而不是所有插件
+		// 共用一个通用 widget 图标。缺省按主题前景色 mask 成单色，与内置导航项一致；
+		// `iconTint: false` 保留原图色彩（宿主同时给出 mask class，供不认 iconUrl 的主题回落）。
+		const tint = contribution.iconTint !== false;
+		const resolvedIcon = resolveNavIcon(contribution.icon, tint) ?? resolveNavIcon(plugin.iconUrl, tint);
+		const normalized: ResolvedPluginWorkspaceViewContribution = {
+			id: viewId,
+			label,
+			component: contribution.component,
+			...(resolvedIcon ? { icon: resolvedIcon.className } : {}),
+			...(resolvedIcon?.imageUrl ? { iconUrl: resolvedIcon.imageUrl } : {}),
+			...(typeof contribution.description === "string" && contribution.description.trim()
+				? { description: contribution.description.trim() }
+				: {}),
+			...(badge ? { badge } : {}),
+			navOrder: Number.isFinite(contribution.navOrder) ? Number(contribution.navOrder) : 0,
+			// 只有显式 false 才退出侧边栏：缺省占位保持既有插件的行为不变。
+			sidebar: contribution.sidebar !== false,
+		};
+		workspaceViews.push(normalized);
+		onChanged();
+		return {
+			dispose: () => {
+				const index = workspaceViews.findIndex((view) => view.id === normalized.id);
+				if (index >= 0) workspaceViews.splice(index, 1);
+				resolvedIcon?.release();
+				// 视图没了，它接管的页头也必须跟着撤，否则宿主页头会一直挂着
+				// 一个指向已卸载组件的节点。
+				clearWorkspaceViewHeader(normalized.id);
+				onChanged();
+			},
+		};
+	};
+	const openWorkspaceView = (viewId: string): void => {
+		createPluginPermissionApi(plugin).require("ui.slot.workspace-view");
+		const id = typeof viewId === "string" ? viewId.trim() : "";
+		if (!workspaceViews.some((view) => view.id === id)) {
+			console.warn(`[plugin:${plugin.id}] openWorkspaceView: unknown view ${JSON.stringify(viewId)}`);
+			return;
+		}
+		void pluginRendererCapabilityHost.openWorkspaceView(capabilitySessionId, id).catch((error: unknown) => {
+			console.error(`[plugin:${plugin.id}] openWorkspaceView failed`, error);
+		});
+	};
+	const setWorkspaceViewBadge = (viewId: string, badge: PluginNavBadge | null): void => {
+		createPluginPermissionApi(plugin).require("ui.slot.workspace-view");
+		const id = typeof viewId === "string" ? viewId.trim() : "";
+		const view = workspaceViews.find((candidate) => candidate.id === id);
+		if (!view) {
+			console.warn(`[plugin:${plugin.id}] setWorkspaceViewBadge: unknown view ${JSON.stringify(viewId)}`);
+			return;
+		}
+		const next = badge === null ? undefined : normalizePluginNavBadge(badge);
+		// 原地改注册项：重新注册会让整个整页 surface 重挂载，未读数变一下就丢掉
+		// 视图内部状态。onChanged 只重新发布注册表快照。
+		if (next) view.badge = next;
+		else delete view.badge;
+		onChanged();
+	};
+	/** 撤下某个视图的页头接管（视图注销、插件卸载或插件显式传 null 时）。 */
+	const clearWorkspaceViewHeader = (viewId: string): void => {
+		const store = getDefaultStore();
+		const key = workspaceViewHeaderKey(plugin.id, viewId);
+		const current = store.get(pluginWorkspaceViewHeadersAtom);
+		if (!(key in current)) return;
+		const next = { ...current };
+		delete next[key];
+		store.set(pluginWorkspaceViewHeadersAtom, next);
+	};
+	const setWorkspaceViewHeader = (viewId: string, header: PluginWorkspaceViewHeader | null): void => {
+		createPluginPermissionApi(plugin).require("ui.slot.workspace-view");
+		const id = typeof viewId === "string" ? viewId.trim() : "";
+		if (!workspaceViews.some((view) => view.id === id)) {
+			console.warn(`[plugin:${plugin.id}] setWorkspaceViewHeader: unknown view ${JSON.stringify(viewId)}`);
+			return;
+		}
+		// 页头是每次状态变化都会重写的高频接口：认不出的入参当「撤下接管」处理，
+		// 而不是抛错——插件视图正在渲染中，一个坏值不该把整页打成错误态。
+		if (header === null || header === undefined || typeof header !== "object") {
+			clearWorkspaceViewHeader(id);
+			return;
+		}
+		const title = typeof header.title === "string" ? header.title.trim() : "";
+		const store = getDefaultStore();
+		store.set(pluginWorkspaceViewHeadersAtom, {
+			...store.get(pluginWorkspaceViewHeadersAtom),
+			[workspaceViewHeaderKey(plugin.id, id)]: {
+				pluginId: plugin.id,
+				viewId: id,
+				...(title ? { title } : {}),
+				...(header.hideTitle === true ? { hideTitle: true } : {}),
+				...(header.immersive === true ? { immersive: true } : {}),
+				...(header.left != null ? { left: header.left } : {}),
+				...(header.right != null ? { right: header.right } : {}),
+			},
+		});
+	};
+	// 插件整体卸载/重载时注册项是被整表清空的（不逐个走 dispose），页头接管必须
+	// 在这里兜底撤下，否则重载后的宿主页头会留着上一份已失效的节点。
+	disposers.push(() => {
+		const store = getDefaultStore();
+		const current = store.get(pluginWorkspaceViewHeadersAtom);
+		const next = Object.fromEntries(Object.entries(current).filter(([, entry]) => entry.pluginId !== plugin.id));
+		if (Object.keys(next).length !== Object.keys(current).length) {
+			store.set(pluginWorkspaceViewHeadersAtom, next);
+		}
+	});
+	const registerShortcutScope = (contribution: PluginShortcutScopeContribution): Disposable => {
+		createPluginPermissionApi(plugin).require("ui.shortcuts.register");
+		if (typeof contribution.id !== "string" || contribution.id.trim().length === 0) {
+			throw new Error("Shortcut scope id is required");
+		}
+		const kind = assertPluginShortcutScopeKind(contribution.kind);
+		const bindingsSource = contribution.bindings;
+		const resolveBindings = () => {
+			const raw = typeof bindingsSource === "function" ? bindingsSource() : bindingsSource;
+			return normalizePluginShortcutBindings(raw);
+		};
+		const dispose = registerPluginShortcutScopeOnHost({
+			scopeId: `${plugin.id}:${contribution.id.trim()}`,
+			kind,
+			exclusive: contribution.exclusive === true,
+			enabled: typeof contribution.enabled === "function" ? contribution.enabled : undefined,
+			getBindings: resolveBindings,
+		}).dispose;
+		disposers.push(dispose);
+		return { dispose };
+	};
+	const validateActivityTabCwd = (cwd: string | undefined): void => {
+		if (cwd === undefined) return;
+		if (typeof cwd !== "string" || cwd.trim().length === 0 || !(cwd.startsWith("/") || /^[a-zA-Z]:[\\/]/.test(cwd))) {
+			throw new Error("Activity tab cwd must be an absolute path");
+		}
+	};
+	const openActivityTab = (tabId: string, options?: PluginOpenActivityTabOptions): void => {
+		createPluginPermissionApi(plugin).require("ui.slot.activity-tab");
+		if (typeof tabId !== "string" || tabId.trim().length === 0) {
+			throw new Error("Activity tab id is required");
+		}
+		validateActivityTabCwd(options?.cwd);
+		openPluginActivityTab(plugin.id, tabId, options);
+	};
+	const setActivityTabVisible = (tabId: string, visible: boolean, options?: PluginActivityTabTargetOptions): void => {
+		createPluginPermissionApi(plugin).require("ui.slot.activity-tab");
+		if (typeof tabId !== "string" || tabId.trim().length === 0) {
+			throw new Error("Activity tab id is required");
+		}
+		validateActivityTabCwd(options?.cwd);
+		setPluginActivityTabVisible(plugin.id, tabId, visible === true, options?.cwd);
+	};
+	const setActivityPanelWidth = (width: number | "max"): void => {
+		createPluginPermissionApi(plugin).require("ui.slot.activity-tab");
+		if (width !== "max" && !Number.isFinite(width)) {
+			throw new Error('Activity panel width must be a finite number or "max"');
+		}
+		getDefaultStore().set(setActivityPanelWidthAtom, width);
+	};
+	const setPromptAttachment = (attachment: PluginPromptAttachment | null): void => {
+		createPluginPermissionApi(plugin).require("ui.slot.input-action");
+		const store = getDefaultStore();
+		if (attachment === null) {
+			if (store.get(promptAttachmentAtom)?.ownerPluginId === plugin.id) {
+				store.set(promptAttachmentAtom, null);
+			}
+			return;
+		}
+		if (!attachment.id.trim() || !attachment.label.trim()) {
+			throw new Error("Prompt attachment id and label are required");
+		}
+		// 逐条 label 由输入框直接渲染，先在边界上清掉空串/非字符串；清空后当作没给，
+		// 回落到单条 label，而不是让输入框上出现一处空白。
+		const labels = (attachment.labels ?? [])
+			.filter((entry): entry is string => typeof entry === "string" && entry.trim().length > 0)
+			.map((entry) => entry.trim());
+		store.set(promptAttachmentAtom, {
+			...attachment,
+			...(labels.length > 0 ? { labels } : { labels: undefined }),
+			ownerPluginId: plugin.id,
+			// 输入框上的徽标要认得出是谁挂的：插件自报的 iconify class 可有可无，
+			// 原色品牌图标是每个插件都有的那一个。
+			...(plugin.iconUrl ? { ownerPluginIconUrl: plugin.iconUrl } : {}),
+		});
+		// An attachment activates this plugin's input action so its hidden prompt
+		// instructions are contributed to the next turn.
+		const myActionIds = store
+			.get(pluginInputActionsAtom)
+			.filter((action) => action.pluginId === plugin.id)
+			.map((action) => action.actionId);
+		if (myActionIds.length > 0) {
+			store.set(activeInputActionIdsAtom, (prev) => activateInputActionIds(prev, myActionIds));
+			persistCurrentInputActionState(store.get(activeSessionAtom)?.sessionPath);
+		}
+	};
+	const previewImage = (ref: PluginImageRef, group?: PluginImageRef[]): void => {
+		createPluginPermissionApi(plugin).require("ui.slot.message");
+		const toItem = (r: PluginImageRef) => {
+			const ext = (r.mimeType ?? "image/png").split("/")[1] ?? "png";
+			return { name: `${r.id}.${ext}`, url: r.url, kind: "image" as const, mime: r.mimeType };
+		};
+		// 提供图片组（且多于一张）时以图片组形态打开，起始定位到 ref；否则单图
+		const images = (group ?? []).filter((r) => r.url);
+		if (images.length > 1) {
+			const index = Math.max(
+				0,
+				images.findIndex((r) => r.id === ref.id),
+			);
+			getDefaultStore().set(filePreviewAtom, { items: images.map(toItem), index });
+		} else {
+			getDefaultStore().set(filePreviewAtom, toItem(ref));
+		}
+	};
+	const previewFile: PluginContext["ui"]["previewFile"] = (file, group) => {
+		const refs = (group ?? []).length > 1 ? (group as PluginPreviewFileRef[]) : [file];
+		// 权限按「实际递过来的是什么」决定，而不是按 API 名字：带本地路径等于让宿主去读
+		// 磁盘上的文件，和 ctx.fs.readFile 同量级，所以要 fs.read；纯 URL 形态插件本来
+		// 就能自己渲染，只是换宿主开灯箱，沿用 previewImage 的门。
+		const permissions = createPluginPermissionApi(plugin);
+		permissions.require(refs.some((ref) => ref?.path) ? "fs.read" : "ui.slot.message");
+		const items = refs.map(toFilePreviewItem);
+		const target = toFilePreviewItem(file);
+		const store = getDefaultStore();
+		if (items.length > 1) {
+			// 起始定位按「同一个文件源」找，不按对象身份——插件很可能把组里的那一项重新
+			// 构造一遍递进来，认身份会把起始位置悄悄退回第一张。
+			const index = Math.max(
+				0,
+				items.findIndex((item) => (item.path ?? item.url) === (target.path ?? target.url)),
+			);
+			store.set(filePreviewAtom, { items, index });
+		} else {
+			store.set(filePreviewAtom, target);
+		}
+	};
+	const captureRegion: PluginContext["ui"]["captureRegion"] = (rect, defaultFileName) => {
+		createPluginPermissionApi(plugin).require("ui.slot.activity-tab");
+		if (![rect.x, rect.y, rect.width, rect.height].every(Number.isFinite) || rect.width <= 0 || rect.height <= 0) {
+			throw new Error("captureRegion() requires a finite rectangle with positive dimensions");
+		}
+		if (defaultFileName.trim().length === 0) {
+			throw new Error("captureRegion() default file name is required");
+		}
+		return window.vetta.window.captureRegion(rect, defaultFileName);
+	};
+	const copyImage: PluginContext["ui"]["copyImage"] = (dataUrl) => {
+		if (typeof dataUrl !== "string" || !dataUrl.startsWith("data:image/")) {
+			throw new Error("copyImage() requires a data:image/... URL");
+		}
+		return window.vetta.clipboard.writeImage(dataUrl);
+	};
+	const openExternal: PluginContext["ui"]["openExternal"] = async (url) => {
+		createPluginPermissionApi(plugin).require("shell.openExternal");
+		// 主进程还会再挡一次协议，这里先挡是为了给插件一条能读懂的错误——而不是
+		// 让它拿到一个来自 IPC 深处的 "Unsupported external URL protocol"。
+		let parsed: URL;
+		try {
+			parsed = new URL(url);
+		} catch {
+			throw new Error(`openExternal() requires an absolute URL, got: ${String(url)}`);
+		}
+		if (parsed.protocol !== "http:" && parsed.protocol !== "https:") {
+			throw new Error(`openExternal() only accepts http/https URLs, got: ${parsed.protocol}`);
+		}
+		await window.vetta.shell.openExternal(parsed.toString());
+	};
+	const onSidebarStateChanged: PluginContext["ui"]["onSidebarStateChanged"] = (listener) => {
+		if (typeof listener !== "function") {
+			throw new Error("onSidebarStateChanged() requires a listener function");
+		}
+		let unsubscribe = subscribeSidebarState(listener);
+		// 插件忘了 dispose 时，失活也要把监听摘掉：热重载会反复激活，
+		// 残留的监听器既跑在已卸载的插件上下文里，也会随重载次数线性堆积。
+		const dispose = (): void => {
+			unsubscribe();
+			unsubscribe = () => {};
+		};
+		disposers.push(dispose);
+		return { dispose };
+	};
+	const notify = (options: PluginNotifyOptions): void => {
+		if (options == null || typeof options !== "object" || typeof options.message !== "string") {
+			throw new Error("notify() requires { message: string }");
+		}
+		const message = options.message.trim();
+		if (message.length === 0) {
+			throw new Error("notify() message must be non-empty");
+		}
+		const hasError = options.error !== undefined;
+		const variant = options.variant ?? (hasError ? "error" : "info");
+		// 清单里的 name 通常是 `%plugin.name%` 这种 catalog 键，直接塞进 toast 会原样显示。
+		const title = resolvePluginDisplayText(plugin, options.title?.trim() || plugin.name);
+		const detail = hasError ? formatPluginErrorDetail(plugin, options.error) : null;
+		const durationMs = options.durationMs ?? (hasError ? 0 : undefined);
+		showToast({
+			variant,
+			title,
+			message,
+			durationMs,
+			action: detail
+				? {
+						label: "复制堆栈",
+						onClick: () => {
+							void copyTextToClipboard(detail).then((ok) => {
+								showToast({
+									variant: ok ? "success" : "warning",
+									message: ok ? "错误堆栈已复制到剪贴板" : "复制失败，请手动从控制台复制",
+									durationMs: 2500,
+								});
+							});
+						},
+					}
+				: undefined,
+		});
+		if (detail) {
+			console.error(`[plugin:${plugin.id}] ${message}\n${detail}`);
+		}
+	};
+
+	return {
+		registerGlobalSlot,
+		registerAbilityDetailSlot,
+		createQrCode: (text) => {
+			if (typeof text !== "string" || text.trim().length === 0) throw new Error("QR code text is required");
+			return QRCode.toDataURL(text, { width: 280, margin: 1, errorCorrectionLevel: "M" });
+		},
+		registerFilePreview,
+		registerActivityTab,
+		registerInputAction,
+		registerNewSessionContext,
+		registerCardRenderer,
+		registerToolCallSlot,
+		registerTurnCard,
+		registerWorkspaceView,
+		openWorkspaceView,
+		setWorkspaceViewBadge,
+		setWorkspaceViewHeader,
+		registerShortcutScope,
+		openActivityTab,
+		setActivityTabVisible,
+		setActivityPanelWidth,
+		setPromptAttachment,
+		previewImage,
+		previewFile,
+		captureRegion,
+		copyImage,
+		openExternal,
+		getSidebarState: () => readSidebarState(),
+		onSidebarStateChanged,
+		notify,
+	};
+}

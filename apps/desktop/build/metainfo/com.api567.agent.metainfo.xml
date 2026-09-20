@@ -1,0 +1,26 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<component type="desktop-application">
+  <id>com.api567.agent</id>
+  <name>567 Agent</name>
+  <summary>567 API 专属全能 AI 编码与桌面智能助手</summary>
+  <metadata_license>CC0-1.0</metadata_license>
+  <project_license>Commercial</project_license>
+  <developer id="api.567.wiki">
+    <name>567 API</name>
+  </developer>
+  <description>
+    <p>
+      567 Agent 是专为 567 API 用户打造的智能桌面客户端，支持多种主流 AI 大模型一键接入、实时额度查询与自动化编码团队协作。
+    </p>
+  </description>
+  <url type="homepage">https://api.567.wiki</url>
+  <url type="help">https://api.567.wiki</url>
+  <launchable type="desktop-id">567-Agent.desktop</launchable>
+  <provides>
+    <binary>567-Agent</binary>
+  </provides>
+  <categories>
+    <category>Utility</category>
+    <category>Development</category>
+  </categories>
+</component>

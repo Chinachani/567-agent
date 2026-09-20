@@ -1,0 +1,466 @@
+import { Type, type Static } from "@sinclair/typebox";
+import { SkillSurfaceVisibilitySchema, SkillVisibilitySchema } from "@vetta-org/capability-sdk";
+import { PLUGIN_PERMISSIONS } from "./permissions.js";
+
+const NON_WHITESPACE_PATTERN = "\\S";
+
+export const PluginIdSchema = Type.String({
+	minLength: 1,
+	maxLength: 64,
+	pattern: "^[a-z0-9][a-z0-9._-]{0,63}$",
+	description: "Stable lowercase plugin identifier.",
+});
+
+export const PluginVersionSchema = Type.String({
+	minLength: 1,
+	maxLength: 64,
+	pattern: "^[a-zA-Z0-9][a-zA-Z0-9._+-]{0,63}$",
+	description: "Plugin version without path separators.",
+});
+
+export const PluginCommandNameSchema = Type.String({
+	minLength: 1,
+	maxLength: 64,
+	pattern: "^[a-zA-Z0-9][a-zA-Z0-9._+-]{0,63}$",
+	description: "Bare executable name declared by the plugin.",
+});
+
+export const PluginCommandNamesSchema = Type.Array(PluginCommandNameSchema);
+
+const PluginCliCommandSchema = Type.Object(
+	{
+		command: PluginCommandNameSchema,
+		args: Type.Optional(Type.Array(Type.String(), { maxItems: 64 })),
+		timeoutMs: Type.Optional(Type.Number({ minimum: 1_000, maximum: 30 * 60_000 })),
+	},
+	{ additionalProperties: false },
+);
+
+export const PluginCliProviderManifestSchema = Type.Object(
+	{
+		id: PluginIdSchema,
+		command: PluginCommandNameSchema,
+		probe: Type.Optional(
+			Type.Object(
+				{
+					args: Type.Optional(Type.Array(Type.String(), { maxItems: 64 })),
+					timeoutMs: Type.Optional(Type.Number({ minimum: 1_000, maximum: 120_000 })),
+				},
+				{ additionalProperties: false },
+			),
+		),
+		install: PluginCliCommandSchema,
+	},
+	{ additionalProperties: false },
+);
+
+const PluginServiceArchiveSchema = Type.Union([
+	Type.Literal("file"),
+	Type.Literal("zip"),
+	Type.Literal("tar.gz"),
+]);
+
+export const PluginServiceArtifactSchema = Type.Object(
+	{
+		sha256: Type.String({ pattern: "^[a-f0-9]{64}$" }),
+		archive: PluginServiceArchiveSchema,
+		/** Relative file (archive=file) or directory (archive=zip/tar.gz) below the managed runtime root. */
+		destination: Type.String({ minLength: 1, maxLength: 512 }),
+	},
+	{ additionalProperties: false },
+);
+
+export const PluginServicePlatformSchema = Type.Object(
+	{
+		executable: Type.String({ minLength: 1, maxLength: 512 }),
+		artifacts: Type.Array(PluginServiceArtifactSchema, { minItems: 1, maxItems: 8 }),
+	},
+	{ additionalProperties: false },
+);
+
+export const PluginServiceProviderManifestSchema = Type.Object(
+	{
+		id: PluginIdSchema,
+		runtime: Type.Object(
+			{
+				/** `managed-binary` is the backwards-compatible default. */
+				kind: Type.Optional(Type.Union([Type.Literal("managed-binary"), Type.Literal("host-node")])),
+				version: PluginVersionSchema,
+				/** Entry script relative to the installed runtime (required for host-node). */
+				entry: Type.Optional(Type.String({ minLength: 1, maxLength: 512 })),
+				platforms: Type.Record(
+					Type.String({ pattern: "^(win32|darwin|linux)-(x64|arm64)$" }),
+					PluginServicePlatformSchema,
+				),
+			},
+			{ additionalProperties: false },
+		),
+		credentials: Type.Optional(
+			Type.Array(
+				Type.Object(
+					{
+						id: PluginIdSchema,
+						bytes: Type.Optional(Type.Integer({ minimum: 16, maximum: 64 })),
+					},
+					{ additionalProperties: false },
+				),
+				{ minItems: 1, maxItems: 8 },
+			),
+		),
+		templates: Type.Optional(
+			Type.Array(
+				Type.Object(
+					{
+						source: Type.String({ minLength: 1, maxLength: 512 }),
+						destination: Type.String({ minLength: 1, maxLength: 512 }),
+						/** create preserves a data file; render regenerates a cache file on every start. */
+						mode: Type.Union([Type.Literal("create"), Type.Literal("render")]),
+					},
+					{ additionalProperties: false },
+				),
+				{ minItems: 1, maxItems: 16 },
+			),
+		),
+		process: Type.Object(
+			{
+				args: Type.Optional(Type.Array(Type.String(), { maxItems: 64 })),
+				env: Type.Optional(Type.Record(Type.String({ minLength: 1 }), Type.String())),
+			},
+			{ additionalProperties: false },
+		),
+		health: Type.Object(
+			{
+				path: Type.String({ minLength: 1, maxLength: 1_024, pattern: "^/[^/]*" }),
+				credentialId: Type.Optional(PluginIdSchema),
+				timeoutMs: Type.Optional(Type.Integer({ minimum: 1_000, maximum: 120_000 })),
+				readiness: Type.Optional(
+					Type.Object({ mode: Type.Literal("plugin") }, { additionalProperties: false }),
+				),
+			},
+			{ additionalProperties: false },
+		),
+	},
+	{ additionalProperties: false },
+);
+
+export const PluginProvidersManifestSchema = Type.Object(
+	{
+		cli: Type.Optional(Type.Array(PluginCliProviderManifestSchema, { minItems: 1, maxItems: 16 })),
+		services: Type.Optional(Type.Array(PluginServiceProviderManifestSchema, { minItems: 1, maxItems: 8 })),
+	},
+	{ additionalProperties: false },
+);
+
+export const PluginNetworkManifestSchema = Type.Object(
+	{
+		allowedHosts: Type.Array(Type.String({ minLength: 1, maxLength: 253, pattern: NON_WHITESPACE_PATTERN }), {
+			minItems: 1,
+			maxItems: 128,
+		}),
+	},
+	{ additionalProperties: true },
+);
+
+export const PluginBrowserManifestSchema = Type.Object(
+	{
+		allowedHosts: Type.Array(Type.String({ minLength: 1, maxLength: 253, pattern: NON_WHITESPACE_PATTERN }), {
+			minItems: 1,
+			maxItems: 128,
+		}),
+	},
+	{ additionalProperties: true },
+);
+
+export const PluginPermissionSchema = Type.Union(
+	PLUGIN_PERMISSIONS.map((permission) => Type.Literal(permission)),
+	{ description: "Host capability requested by the plugin." },
+);
+
+const NonWhitespaceStringSchema = Type.String({ pattern: NON_WHITESPACE_PATTERN });
+const OptionalAgentModesSchema = Type.Optional(
+	Type.Union([NonWhitespaceStringSchema, Type.Array(NonWhitespaceStringSchema)]),
+);
+const StringRecordSchema = Type.Record(Type.String(), Type.String());
+
+const PluginMcpCommonProperties = {
+	disabled: Type.Optional(Type.Boolean()),
+	autoApprove: Type.Optional(Type.Array(NonWhitespaceStringSchema)),
+	startupTimeout: Type.Optional(Type.Number()),
+	debug: Type.Optional(Type.Boolean()),
+	displayName: Type.Optional(Type.String()),
+	description: Type.Optional(Type.String()),
+	agent_mode: OptionalAgentModesSchema,
+};
+
+export const PluginMcpStdioServerConfigSchema = Type.Object(
+	{
+		...PluginMcpCommonProperties,
+		type: Type.Optional(Type.Literal("stdio")),
+		command: NonWhitespaceStringSchema,
+		args: Type.Optional(Type.Array(Type.String())),
+		env: Type.Optional(StringRecordSchema),
+		cwd: Type.Optional(Type.String()),
+	},
+	{ additionalProperties: true },
+);
+
+export const PluginMcpHttpServerConfigSchema = Type.Object(
+	{
+		...PluginMcpCommonProperties,
+		type: Type.Literal("http"),
+		url: NonWhitespaceStringSchema,
+		headers: Type.Optional(StringRecordSchema),
+		oauthClientId: Type.Optional(Type.String()),
+		oauthDeviceFlow: Type.Optional(Type.Boolean()),
+		oauthScopes: Type.Optional(Type.String()),
+	},
+	{ additionalProperties: true },
+);
+
+/** HTTP MCP served by one of this plugin's managed local services. */
+export const PluginMcpServiceServerConfigSchema = Type.Object(
+	{
+		...PluginMcpCommonProperties,
+		type: Type.Literal("service"),
+		serviceId: PluginIdSchema,
+		path: Type.String({ pattern: "^/[^/]*" }),
+	},
+	{ additionalProperties: true },
+);
+
+export const PluginMcpServerConfigSchema = Type.Union([
+	PluginMcpStdioServerConfigSchema,
+	PluginMcpHttpServerConfigSchema,
+	PluginMcpServiceServerConfigSchema,
+]);
+
+const PluginMcpServerMapSchema = Type.Record(
+	Type.String({ pattern: NON_WHITESPACE_PATTERN }),
+	PluginMcpServerConfigSchema,
+	{ additionalProperties: false },
+);
+
+export const PluginSkillPresentationRuleSchema = Type.Object(
+	{
+		defaultVisibility: Type.Optional(SkillVisibilitySchema),
+		surfaces: Type.Optional(SkillSurfaceVisibilitySchema),
+		displayName: Type.Optional(NonWhitespaceStringSchema),
+		displayDescription: Type.Optional(NonWhitespaceStringSchema),
+	},
+	{ additionalProperties: false },
+);
+export const PluginSkillPresentationSchema = Type.Object(
+	{
+		defaultVisibility: Type.Optional(SkillVisibilitySchema),
+		surfaces: Type.Optional(SkillSurfaceVisibilitySchema),
+		skills: Type.Optional(Type.Record(NonWhitespaceStringSchema, PluginSkillPresentationRuleSchema)),
+	},
+	{ additionalProperties: false },
+);
+
+/** 角色 slug。跨插件引用的唯一词汇表，格式与智能体 id 一致。 */
+export const PluginAgentRoleSchema = Type.String({ pattern: "^[a-z0-9][a-z0-9-]{0,63}$" });
+
+/**
+ * 宿主认识的角色词表。
+ *
+ * **不是白名单**：写表外的角色照样能被解析，只是团队编辑器里没有现成的槽位选择器。列在这里
+ * 的角色由预置插件供货，因此任何一台装机上都解析得到，第三方插件可以放心引用。
+ */
+export const BUILTIN_PLUGIN_AGENT_ROLES = [
+	"master",
+	"developer",
+	"researcher",
+	"auditor",
+	"business",
+	"designer",
+] as const;
+
+export type BuiltinPluginAgentRole = (typeof BUILTIN_PLUGIN_AGENT_ROLES)[number];
+
+/** 插件贡献的智能体（blueprint）。人设、头像、职责都由插件提供，宿主只负责铺档案。 */
+export const PluginAgentProfileManifestSchema = Type.Object(
+	{
+		/** 插件内唯一；全局 id 由宿主拼成 `plugin:<pluginId>:<id>`。 */
+		id: Type.String({ pattern: "^[a-z0-9][a-z0-9-]{0,63}$" }),
+		/** 支持 `%key%` 占位，按插件 locales 解析。 */
+		name: NonWhitespaceStringSchema,
+		description: Type.Optional(Type.String({ maxLength: 2_000 })),
+		/** @ 提及用的短名；缺省用 `id`。 */
+		mentionHandle: Type.Optional(Type.String({ pattern: "^[a-z0-9][a-z0-9-]{0,63}$" })),
+		/** 插件包内的相对路径，指向头像图片。 */
+		avatar: Type.Optional(NonWhitespaceStringSchema),
+		/** 插件包内的相对路径，指向系统提示词 Markdown。与 `systemPrompt` 二选一。 */
+		systemPromptPath: Type.Optional(NonWhitespaceStringSchema),
+		systemPrompt: Type.Optional(Type.String({ maxLength: 64_000 })),
+		/**
+		 * `all`（默认）继承宿主全部已启用能力；`own` 只用本插件的能力。
+		 * 两种模式下本插件的能力都强制激活，用户关不掉。
+		 */
+		abilities: Type.Optional(Type.Union([Type.Literal("all"), Type.Literal("own")])),
+		/**
+		 * 本智能体接管的历史 blueprint id。
+		 *
+		 * 用于「人设从别处迁进插件」：宿主解析不到这些 id 时折算到本智能体，回填时也据此
+		 * 认领用户已有的同角色档案，而不是再铺一份新的。宿主因此不必知道是哪个插件接管了
+		 * 哪个老角色。
+		 */
+		legacyIds: Type.Optional(Type.Array(NonWhitespaceStringSchema, { maxItems: 16 })),
+		/**
+		 * 本智能体能顶的角色 slug（≤ 8 个）。
+		 *
+		 * 声明了角色，别的插件就能用 `teams[].members[].role` 槽位引用到它，而不必知道它属于
+		 * 哪个插件。这是提供方唯一要做的事——被谁引用、引用几次，提供方都不需要知道。
+		 */
+		roles: Type.Optional(Type.Array(PluginAgentRoleSchema, { maxItems: 8 })),
+	},
+	{ additionalProperties: false },
+);
+
+/**
+ * 插件贡献的团队成员。`agent` 与 `role` 二选一，必须恰好写一个。
+ *
+ * - `agent`：**实体引用**。`<agentId>` 指本插件的智能体，`<pluginId>/<agentId>` 指别的插件的。
+ * - `role`：**角色槽位**。只声明「这里需要一个什么角色」，由宿主在全部已启用插件里解析。
+ *
+ * 推荐用角色槽位：消费方只耦合到一个角色名，提供方换人、换插件、被第三方取代都不影响它，
+ * 用户还能把槽位改绑到自己调教过的智能体。实体引用留给「就是要那个人」的场合。
+ *
+ * 跨插件引用不再被拒，但它带来的「提供方可能不在」由 `optional` 兜底，而不是让整支团队消失。
+ */
+export const PluginAgentTeamMemberManifestSchema = Type.Object(
+	{
+		agent: Type.Optional(NonWhitespaceStringSchema),
+		role: Type.Optional(PluginAgentRoleSchema),
+		responsibility: Type.String({ maxLength: 2_000 }),
+		/**
+		 * 解析不到这名成员时，是否照常发布这支团队。
+		 *
+		 * 缺省值按引用方式走：本插件的实体引用为 `false`（自己的东西缺了就是配置错误），跨插件
+		 * 实体引用与角色槽位为 `true`（提供方本来就可能不在场）。
+		 */
+		optional: Type.Optional(Type.Boolean()),
+		/**
+		 * 这名成员在本团队里的任务书：追加在它本体人格之后的交待。
+		 *
+		 * 与 `responsibility` 分工不同：后者是一句全队可见的职责摘要（进共享名册），这里是只给
+		 * 这名成员看的做事方式。**跨插件引用时尤其有用**——任务书挂在你的团队上，不碰对方的
+		 * 人设，所以你可以把别的插件的设计师拉进来并交待清楚本团队怎么干，而它在别处照旧。
+		 *
+		 * 与 `instructionsPath` 二选一。队长的任务书写在团队的 `workflow` 里，不要在这里重复。
+		 */
+		instructions: Type.Optional(Type.String({ maxLength: 64_000 })),
+		/** 插件包内的相对路径，指向任务书 Markdown。与 `instructions` 二选一。 */
+		instructionsPath: Type.Optional(NonWhitespaceStringSchema),
+	},
+	{ additionalProperties: false },
+);
+
+/** 插件贡献的团队。第一个成员即队长，也是用户在会话里唯一的对话入口。 */
+export const PluginAgentTeamManifestSchema = Type.Object(
+	{
+		id: Type.String({ pattern: "^[a-z0-9][a-z0-9-]{0,63}$" }),
+		name: NonWhitespaceStringSchema,
+		description: Type.Optional(Type.String({ maxLength: 2_000 })),
+		members: Type.Array(PluginAgentTeamMemberManifestSchema, { minItems: 1, maxItems: 32 }),
+		/** 队长的团队任务书：把这支团队的固定流水线写死。与 `workflowPath` 二选一。 */
+		workflow: Type.Optional(Type.String({ maxLength: 64_000 })),
+		workflowPath: Type.Optional(NonWhitespaceStringSchema),
+		/** 本团队接管的历史团队 id，语义同 `agents[].legacyIds`。 */
+		legacyIds: Type.Optional(Type.Array(NonWhitespaceStringSchema, { maxItems: 16 })),
+	},
+	{ additionalProperties: false },
+);
+
+export const PluginAgentManifestSchema = Type.Object(
+	{
+		systemPrompt: Type.Optional(
+			Type.Object(
+				{
+					promptPaths: Type.Optional(Type.Array(NonWhitespaceStringSchema)),
+				},
+				{ additionalProperties: true },
+			),
+		),
+		skillPaths: Type.Optional(Type.Array(NonWhitespaceStringSchema)),
+		skillPresentation: Type.Optional(PluginSkillPresentationSchema),
+		agents: Type.Optional(Type.Array(PluginAgentProfileManifestSchema, { maxItems: 32 })),
+		teams: Type.Optional(Type.Array(PluginAgentTeamManifestSchema, { maxItems: 32 })),
+		mcpServers: Type.Optional(Type.Union([NonWhitespaceStringSchema, PluginMcpServerMapSchema])),
+		toolPolicy: Type.Optional(
+			Type.Object(
+				{
+					allow: Type.Optional(Type.Array(NonWhitespaceStringSchema)),
+					deny: Type.Optional(Type.Array(NonWhitespaceStringSchema)),
+				},
+				{ additionalProperties: true },
+			),
+		),
+	},
+	{ additionalProperties: true },
+);
+
+export const PluginModuleFederationManifestSchema = Type.Object(
+	{
+		remoteName: Type.String({ pattern: "^[A-Za-z_$][A-Za-z0-9_$-]{0,63}$" }),
+		expose: Type.String({ pattern: "^\\./(?!.*\\.\\.)(?!.*\\\\).+$" }),
+	},
+	{ additionalProperties: true },
+);
+
+export const PluginManifestSchema = Type.Object(
+	{
+		id: PluginIdSchema,
+		name: NonWhitespaceStringSchema,
+		version: PluginVersionSchema,
+		pluginApiVersion: NonWhitespaceStringSchema,
+		entry: NonWhitespaceStringSchema,
+		moduleFederation: PluginModuleFederationManifestSchema,
+		agent: Type.Optional(PluginAgentManifestSchema),
+		providers: Type.Optional(PluginProvidersManifestSchema),
+		styles: Type.Optional(Type.Array(NonWhitespaceStringSchema)),
+		permissions: Type.Optional(Type.Array(PluginPermissionSchema)),
+		network: Type.Optional(PluginNetworkManifestSchema),
+		browser: Type.Optional(PluginBrowserManifestSchema),
+		commands: Type.Optional(PluginCommandNamesSchema),
+		description: Type.Optional(Type.String()),
+		author: Type.Optional(Type.String()),
+		icon: Type.Optional(NonWhitespaceStringSchema),
+		guidingWords: Type.Optional(Type.Array(NonWhitespaceStringSchema)),
+		defaultLocale: Type.Optional(
+			Type.String({ minLength: 2, maxLength: 16, pattern: "^[a-zA-Z][a-zA-Z0-9-]{1,15}$" }),
+		),
+		contributionMode: Type.Optional(
+			Type.Object(
+				{
+					hardIsolation: Type.Optional(Type.Boolean()),
+				},
+				{ additionalProperties: true },
+			),
+		),
+		agent_mode: OptionalAgentModesSchema,
+	},
+	{
+		$id: "PluginManifest",
+		additionalProperties: true,
+		description: "Vetta desktop plugin manifest (plugin.json).",
+	},
+);
+
+export type PluginMcpServerConfig = Static<typeof PluginMcpServerConfigSchema>;
+export type PluginAgentManifest = Static<typeof PluginAgentManifestSchema>;
+export type PluginAgentProfileManifest = Static<typeof PluginAgentProfileManifestSchema>;
+export type PluginAgentTeamManifest = Static<typeof PluginAgentTeamManifestSchema>;
+export type PluginAgentTeamMemberManifest = Static<typeof PluginAgentTeamMemberManifestSchema>;
+export type PluginSkillPresentation = Static<typeof PluginSkillPresentationSchema>;
+export type PluginSkillPresentationRule = Static<typeof PluginSkillPresentationRuleSchema>;
+export type PluginCliProviderManifest = Static<typeof PluginCliProviderManifestSchema>;
+export type PluginServiceArtifact = Static<typeof PluginServiceArtifactSchema>;
+export type PluginServicePlatform = Static<typeof PluginServicePlatformSchema>;
+export type PluginServiceProviderManifest = Static<typeof PluginServiceProviderManifestSchema>;
+export type PluginServiceRuntimeKind = "managed-binary" | "host-node";
+export type PluginProvidersManifest = Static<typeof PluginProvidersManifestSchema>;
+export type PluginNetworkManifest = Static<typeof PluginNetworkManifestSchema>;
+export type PluginBrowserManifest = Static<typeof PluginBrowserManifestSchema>;
+export type PluginManifestInput = Static<typeof PluginManifestSchema>;
+export type PluginManifest = PluginManifestInput;
