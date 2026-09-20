@@ -27,9 +27,6 @@ jobs:
           distribution: temurin
           java-version: "21"
 
-      - name: Set up Android SDK
-        uses: android-actions/setup-android@v3
-
       - name: Set up Gradle 9.1
         uses: gradle/actions/setup-gradle@v4
         with:
@@ -53,11 +50,11 @@ jobs:
         include:
           - platform: linux
             runner: ubuntu-latest
-            command: dist:linux:appimage
+            command: package:linux:appimage
             artifact_path: "apps/desktop/dist-pack/*.AppImage"
           - platform: win
             runner: windows-latest
-            command: dist:win:zip
+            command: package:win:zip
             artifact_path: "apps/desktop/dist-pack/*.zip"
 
     steps:
@@ -79,7 +76,7 @@ jobs:
         with:
           go-version: "1.24"
 
-      - name: Install Linux build dependencies
+      - name: Install Linux packaging tools
         if: runner.os == 'Linux'
         run: |
           sudo apt-get update
@@ -91,14 +88,20 @@ jobs:
       - name: Build Monorepo Packages
         run: bun run build
 
-      - name: Prepare Desktop Package
-        env:
-          VETTA_SKIP_BWRAP_BUILD: "true"
+      - name: Build Desktop Preload & Main
         run: |
           cd apps/desktop
-          bun run prepare:desktop-pack
+          bun run build:preload
+          bun run build:main
 
       - name: Package Desktop App
+        env:
+          VETTA_SKIP_BWRAP_BUILD: "true"
+          VETTA_BUILD_ENV: "opensource"
+          VETTA_CLOUD_ENABLED: "false"
+          VETTA_UPDATE_PROVIDER: "github"
+          VETTA_UPDATE_GITHUB_OWNER: "Chinachani"
+          VETTA_UPDATE_GITHUB_REPO: "567-agent"
         run: |
           cd apps/desktop
           bun run ${{ matrix.command }}
