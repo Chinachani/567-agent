@@ -760,6 +760,7 @@ const builderConfig = {
 		maintainer: LINUX_PACKAGE_METADATA.maintainer,
 		synopsis: "567 Agent - AI Desktop & Coding Assistant",
 		vendor: LINUX_PACKAGE_METADATA.vendor,
+		executableArgs: ["--ozone-platform=x11"],
 	},
 	deb: {
 		packageName: "567-agent",

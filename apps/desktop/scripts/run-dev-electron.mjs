@@ -98,9 +98,7 @@ async function main() {
 		}
 	}
 	if (process.platform === "linux") {
-		electronArgs.push("--ozone-platform-hint=auto");
-		electronArgs.push("--enable-wayland-ime");
-		electronArgs.push("--wayland-text-input-version=3");
+		electronArgs.push("--ozone-platform=x11");
 	}
 	electronArgs.push(`--user-data-dir=${userDataDir}`);
 	electronArgs.push(join(projectRoot, "dist", "main", "index.js"));

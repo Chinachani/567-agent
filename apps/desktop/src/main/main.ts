@@ -157,10 +157,8 @@ if (!isCliMode) {
 }
 
 if (process.platform === "linux") {
-	// 启用 Wayland 原生支持及 IME (Fcitx5 / IBus)
-	app.commandLine.appendSwitch("ozone-platform-hint", "auto");
-	app.commandLine.appendSwitch("enable-wayland-ime");
-	app.commandLine.appendSwitch("wayland-text-input-version", "3");
+	// 强制使用 X11 / XWayland 模式，彻底解决 Ubuntu GNOME 下 Mutter 屏蔽 Fcitx5 导致无法输入中文的问题
+	app.commandLine.appendSwitch("ozone-platform", "x11");
 }
 
 // agent-rpc mode talks to its parent over stdout via the coding-agent
