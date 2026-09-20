@@ -32,12 +32,11 @@ jobs:
 
       - name: Set up Gradle
         uses: gradle/actions/setup-gradle@v4
-
-      - name: Grant execute permission for gradlew
-        run: chmod +x gradlew
+        with:
+          gradle-version: "8.11.1"
 
       - name: Build Debug APK
-        run: ./gradlew --no-daemon :androidApp:assembleDebug
+        run: gradle --no-daemon :androidApp:assembleDebug
 
       - name: Upload Android APK Artifact
         uses: actions/upload-artifact@v4
@@ -79,6 +78,12 @@ jobs:
         uses: actions/setup-go@v5
         with:
           go-version: "1.24"
+
+      - name: Install Linux build dependencies
+        if: runner.os == 'Linux'
+        run: |
+          sudo apt-get update
+          sudo apt-get install --no-install-recommends -y build-essential libcap-dev meson ninja-build pkg-config xz-utils rpm
 
       - name: Install dependencies
         run: bun install
