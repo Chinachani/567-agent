@@ -27,13 +27,13 @@ jobs:
           distribution: temurin
           java-version: "21"
 
-      - name: Set up Gradle 9.1
+      - name: Set up Gradle
         uses: gradle/actions/setup-gradle@v4
-        with:
-          gradle-version: "9.1.0"
 
       - name: Build Debug APK
-        run: gradle --no-daemon :androidApp:assembleDebug
+        run: |
+          chmod +x gradlew
+          ./gradlew --no-daemon :androidApp:assembleDebug
 
       - name: Upload Android APK Artifact
         uses: actions/upload-artifact@v4
@@ -88,15 +88,10 @@ jobs:
       - name: Build Monorepo Packages
         run: bun run build
 
-      - name: Build Desktop Preload & Main
-        run: |
-          cd apps/desktop
-          bun run build:preload
-          bun run build:main
-
       - name: Package Desktop App
         env:
           VETTA_SKIP_BWRAP_BUILD: "true"
+          VETTA_SPEECH_INPUT_ENABLED: "false"
           VETTA_BUILD_ENV: "opensource"
           VETTA_CLOUD_ENABLED: "false"
           VETTA_UPDATE_PROVIDER: "github"

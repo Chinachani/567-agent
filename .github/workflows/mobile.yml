@@ -30,13 +30,10 @@ jobs:
           distribution: temurin
           java-version: "21"
 
-      - name: Set up Android SDK
-        uses: android-actions/setup-android@v3
-
       - name: Set up Gradle
         uses: gradle/actions/setup-gradle@v4
-        with:
-          gradle-version: "9.1.0"
 
       - name: Assemble Android debug app
-        run: gradle --no-daemon :androidApp:assembleDebug
+        run: |
+          chmod +x gradlew
+          ./gradlew --no-daemon :androidApp:assembleDebug

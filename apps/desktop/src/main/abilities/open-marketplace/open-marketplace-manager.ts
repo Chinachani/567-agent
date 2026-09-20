@@ -262,7 +262,7 @@ let desktopOpenMarketplaceManager: OpenMarketplaceManager | undefined;
 import { isValidAppVersion } from "./marketplace-compatibility.js";
 
 export function getOpenMarketplaceManager(appVersion: string): OpenMarketplaceManager {
-	const version = isValidAppVersion(appVersion) ? appVersion : "0.5.59";
+	const version = isValidAppVersion(appVersion) ? appVersion : "1.0.0";
 	desktopOpenMarketplaceManager ??= new OpenMarketplaceManager({ appVersion: version });
 	return desktopOpenMarketplaceManager;
 }

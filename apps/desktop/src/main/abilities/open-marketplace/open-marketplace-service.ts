@@ -323,7 +323,7 @@ export class OpenMarketplaceService {
 			options.archiveUrl ??
 			(options.repository ? undefined : process.env.VETTA_OPEN_MARKETPLACE_ARCHIVE_URL?.trim() || undefined) ??
 			`${this.repository}/archive/refs/heads/${this.sourceRef.split("/").map(encodeURIComponent).join("/")}.zip`;
-		this.appVersion = isValidAppVersion(options.appVersion) ? options.appVersion : "0.5.59";
+		this.appVersion = isValidAppVersion(options.appVersion) ? options.appVersion : "1.0.0";
 		this.hostApiVersion = options.hostApiVersion ?? PLUGIN_API_VERSION;
 		this.fetchArchive = options.fetchArchive ?? fetch;
 		this.fetchManifest = options.fetchManifest ?? fetch;

@@ -121,7 +121,7 @@ export function getSecurityHeaders(extraContext?: Record<string, string>): Recor
 	const fingerprint = getClientFingerprint();
 	const timestamp = String(Math.floor(Date.now() / 1000));
 	const nonce = randomBytes(8).toString("hex");
-	const clientVersion = "0.5.59";
+	const clientVersion = "1.0.0";
 
 	// 签名载荷：指纹 + 时间戳 + 随机数 + 客户端版本
 	const signPayload = `${fingerprint}:${timestamp}:${nonce}:${clientVersion}`;

@@ -46,7 +46,7 @@
 	],
 	"scripts": {
 		"clean": "bun run --workspaces clean",
-		"build": "turbo run build --filter='./packages/*' --filter=@vetta-org/plugin-cli --filter=@vetta-org/plugin-vite --summarize && bun run build:preset:prebuilt",
+		"build": "turbo run build --filter=\"./packages/*\" --filter=@vetta/cli-host --filter=@vetta-org/plugin-cli --filter=@vetta-org/plugin-vite --summarize && bun run build:preset:prebuilt",
 		"build:all": "turbo run build --filter=@vetta/desktop --filter=@vetta-org/plugin-cli --summarize",
 		"build:desktop": "turbo run build --filter=@vetta/desktop --filter=@vetta-org/plugin-cli --summarize",
 		"build:cli": "turbo run build --filter=@vetta/cli-host --filter=@vetta-org/plugin-cli --filter=@vetta-org/plugin-vite --summarize && bun run build:preset:prebuilt",
