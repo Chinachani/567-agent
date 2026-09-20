@@ -36,7 +36,7 @@ jobs:
       - name: Set up Gradle
         uses: gradle/actions/setup-gradle@v4
         with:
-          gradle-version: "8.11.1"
+          gradle-version: "9.1.0"
 
       - name: Assemble Android debug app
         run: gradle --no-daemon :androidApp:assembleDebug
