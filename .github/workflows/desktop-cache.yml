@@ -1,17 +1,6 @@
 name: desktop-cache
 
 on:
-  push:
-    branches: [main]
-    paths:
-      - bun.lock
-      - package.json
-      - apps/desktop/src/main/runtimes/manifest.json
-      - apps/desktop/src/main/speech-input/model-manifest.json
-      - apps/desktop/scripts/fetch-*
-      - apps/desktop/scripts/speech-input-build-config.js
-      - .github/actions/**
-      - .github/workflows/desktop-cache.yml
   workflow_dispatch:
 
 permissions:
