@@ -106,8 +106,7 @@ internal fun ModelsCatalogDto.toDomain(): ModelsCatalog {
 
 internal fun ChatUsageDto.toDomain(): TokenUsage =
     TokenUsage(
-        totalTokens = usage?.totalTokens ?: 0,
-        inputTokens = usage?.inputTokens ?: 0,
-        outputTokens = usage?.outputTokens ?: 0,
-        cost = usage?.cost ?: 0.0,
+        promptTokens = promptTokens,
+        completionTokens = completionTokens,
+        totalTokens = totalTokens,
     )

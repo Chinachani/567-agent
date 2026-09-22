@@ -191,17 +191,33 @@ internal data class OpenAiErrorDetail(
 )
 
 @Serializable
-internal data class TokenUsageDto(
-    @SerialName("total_tokens")
-    val totalTokens: Long = 0,
-    @SerialName("input_tokens")
-    val inputTokens: Long = 0,
-    @SerialName("output_tokens")
-    val outputTokens: Long = 0,
-    val cost: Double = 0.0,
+internal data class ChatCompletionChunkDto(
+    val id: String? = null,
+    val choices: List<ChatChoiceDto> = emptyList(),
+    val usage: ChatUsageDto? = null,
+)
+
+@Serializable
+internal data class ChatChoiceDto(
+    val index: Int = 0,
+    val delta: ChatDeltaDto? = null,
+    val message: ChatMessageDto? = null,
+    @SerialName("finish_reason")
+    val finishReason: String? = null,
+)
+
+@Serializable
+internal data class ChatDeltaDto(
+    val role: String? = null,
+    val content: String? = null,
 )
 
 @Serializable
 internal data class ChatUsageDto(
-    val usage: TokenUsageDto? = null,
+    @SerialName("prompt_tokens")
+    val promptTokens: Int? = null,
+    @SerialName("completion_tokens")
+    val completionTokens: Int? = null,
+    @SerialName("total_tokens")
+    val totalTokens: Int? = null,
 )

@@ -36,7 +36,7 @@ import org.vetta.android.core.net.toVettaException
 
 /**
  * 对 567 API / Gateway 的薄封装。
- * - 认证与用户：`https://api.567.wiki/api/user/*`
+ * - 认证与用户：`https://api.567.wiki/api/user/`
  * - 对话：`https://api.567.wiki/v1/chat/completions`
  */
 internal class VettaApi(

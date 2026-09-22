@@ -21,12 +21,11 @@ data class VettaConfig(
     val gatewayBaseUrl: String
         get() {
             val api = apiBaseUrl
-            val origin = when {
+            return when {
                 api.endsWith("/api/v1") -> api.removeSuffix("/api/v1")
                 api.endsWith("/api/v1/") -> api.removeSuffix("/api/v1/")
                 else -> api
             }.trimEnd('/')
-            return "$origin/gateway"
         }
 
     init {
