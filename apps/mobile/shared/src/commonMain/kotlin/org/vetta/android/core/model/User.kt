@@ -9,4 +9,6 @@ data class User(
     val avatar: String = "",
     val isActive: Boolean = true,
     val createdAt: String? = null,
+    val quota: Long = 0,
+    val quotaUsd: Double = 0.0,
 )

@@ -8,6 +8,7 @@ class AnonymousPathTest {
     @Test
     fun marksAuthEndpointsAnonymous() {
         assertTrue(isAnonymousAuthPath("/api/v1/auth/login"))
+        assertTrue(isAnonymousAuthPath("/api/user/login"))
         assertTrue(isAnonymousAuthPath("/api/v1/auth/refresh"))
         assertTrue(isAnonymousAuthPath("auth/email/password/login"))
         assertFalse(isAnonymousAuthPath("/api/v1/users/me"))

@@ -5,14 +5,24 @@ import kotlinx.serialization.Serializable
 
 @Serializable
 internal data class ApiEnvelope<T>(
-    val code: Int = 0,
+    val code: Int? = null,
+    val success: Boolean? = null,
     val message: String = "",
     val data: T? = null,
-)
+) {
+    val isSuccessful: Boolean
+        get() = success == true || (code == 0 && success != false) || (code == null && success == null && data != null)
+}
 
 @Serializable
 internal data class LoginRequestDto(
     val account: String,
+    val password: String,
+)
+
+@Serializable
+internal data class NewApiLoginRequestDto(
+    val username: String,
     val password: String,
 )
 
@@ -54,7 +64,13 @@ internal data class LoginResponseDto(
     val refreshToken: String? = null,
     @SerialName("requires_password")
     val requiresPassword: Boolean = false,
-    val user: UserDto,
+    val user: UserDto? = null,
+    val id: Long = 0,
+    val username: String = "",
+    @SerialName("display_name")
+    val displayName: String? = null,
+    val quota: Long = 0,
+    val role: Int = 1,
 )
 
 @Serializable
@@ -67,9 +83,11 @@ internal data class RefreshResponseDto(
 
 @Serializable
 internal data class UserDto(
-    val id: Long,
-    val username: String,
+    val id: Long = 0,
+    val username: String = "",
     val nickname: String = "",
+    @SerialName("display_name")
+    val displayName: String? = null,
     val phone: String? = null,
     val email: String? = null,
     val avatar: String = "",
@@ -77,11 +95,13 @@ internal data class UserDto(
     val isActive: Boolean = true,
     @SerialName("created_at")
     val createdAt: String? = null,
+    val quota: Long = 0,
+    val role: Int = 1,
 )
 
 @Serializable
 internal data class SubscriptionStatusDto(
-    val active: Boolean = false,
+    val active: Boolean,
     @SerialName("is_default")
     val isDefault: Boolean = false,
     @SerialName("go_enabled")
@@ -103,8 +123,8 @@ internal data class SubscriptionStatusDto(
 @Serializable
 internal data class QuotaWindowDto(
     val kind: String,
-    val limit: Double = 0.0,
-    val consumed: Double = 0.0,
+    val limit: Double,
+    val consumed: Double,
     @SerialName("reset_at")
     val resetAt: String? = null,
 )
@@ -117,6 +137,7 @@ internal data class ModelsCatalogDto(
 @Serializable
 internal data class ProviderConfigDto(
     val api: String? = null,
+    @SerialName("base_url")
     val baseUrl: String? = null,
     val models: List<RemoteModelDto> = emptyList(),
 )
@@ -124,18 +145,21 @@ internal data class ProviderConfigDto(
 @Serializable
 internal data class RemoteModelDto(
     val id: String,
+    @SerialName("model_id")
     val modelId: String? = null,
-    val name: String? = null,
-    val api: String? = null,
+    val name: String = "",
     val reasoning: Boolean = false,
     val input: List<String> = emptyList(),
+    @SerialName("context_window")
     val contextWindow: Long? = null,
+    @SerialName("max_tokens")
     val maxTokens: Long? = null,
     val multiplier: Double? = null,
     val tags: List<String> = emptyList(),
+    @SerialName("reasoning_levels")
     val reasoningLevels: List<String> = emptyList(),
+    @SerialName("default_reasoning_level")
     val defaultReasoningLevel: String? = null,
-    val upstreamBaseUrl: String? = null,
 )
 
 @Serializable
@@ -149,7 +173,6 @@ internal data class ChatCompletionRequestDto(
 @Serializable
 internal data class ChatMessageDto(
     val role: String,
-    /** OpenAI 兼容：纯字符串，或 text/image_url 数组。 */
     val content: kotlinx.serialization.json.JsonElement,
 )
 
@@ -163,37 +186,22 @@ internal data class OpenAiErrorBody(
 internal data class OpenAiErrorDetail(
     val message: String? = null,
     val type: String? = null,
+    val param: String? = null,
     val code: Int? = null,
 )
 
 @Serializable
-internal data class ChatCompletionChunkDto(
-    val id: String? = null,
-    val choices: List<ChatChoiceDto> = emptyList(),
-    val usage: ChatUsageDto? = null,
-)
-
-@Serializable
-internal data class ChatChoiceDto(
-    val index: Int = 0,
-    val delta: ChatDeltaDto? = null,
-    val message: ChatMessageDto? = null,
-    @SerialName("finish_reason")
-    val finishReason: String? = null,
-)
-
-@Serializable
-internal data class ChatDeltaDto(
-    val role: String? = null,
-    val content: String? = null,
+internal data class TokenUsageDto(
+    @SerialName("total_tokens")
+    val totalTokens: Long = 0,
+    @SerialName("input_tokens")
+    val inputTokens: Long = 0,
+    @SerialName("output_tokens")
+    val outputTokens: Long = 0,
+    val cost: Double = 0.0,
 )
 
 @Serializable
 internal data class ChatUsageDto(
-    @SerialName("prompt_tokens")
-    val promptTokens: Int? = null,
-    @SerialName("completion_tokens")
-    val completionTokens: Int? = null,
-    @SerialName("total_tokens")
-    val totalTokens: Int? = null,
+    val usage: TokenUsageDto? = null,
 )

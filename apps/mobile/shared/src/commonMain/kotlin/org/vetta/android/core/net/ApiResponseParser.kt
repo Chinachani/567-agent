@@ -19,13 +19,14 @@ internal suspend inline fun <reified T> HttpResponse.parseEnvelope(): T {
         }.getOrElse { cause ->
             throw VettaException.Protocol("无法解析 API 响应", cause)
         }
-    if (envelope.code != 0) {
-        if (status.value == 401 || envelope.code in UNAUTHORIZED_CODES) {
-            throw VettaException.Unauthorized(envelope.message, envelope.code)
+    if (!envelope.isSuccessful) {
+        val errCode = envelope.code ?: -1
+        if (status.value == 401 || errCode in UNAUTHORIZED_CODES) {
+            throw VettaException.Unauthorized(envelope.message.ifBlank { "未授权" }, errCode)
         }
         throw VettaException.Api(
             httpStatus = status.value,
-            code = envelope.code,
+            code = errCode,
             message = envelope.message.ifBlank { "请求失败" },
             rawBody = text,
         )
@@ -52,23 +53,23 @@ internal fun parseFailure(httpStatus: Int, body: String): VettaException {
         val element = VettaJson.parseToJsonElement(body)
         val obj = element as? kotlinx.serialization.json.JsonObject
         val code = (obj?.get("code") as? kotlinx.serialization.json.JsonPrimitive)?.content?.toIntOrNull()
+        val success = (obj?.get("success") as? kotlinx.serialization.json.JsonPrimitive)?.content?.toBooleanStrictOrNull()
         val message =
             (obj?.get("message") as? kotlinx.serialization.json.JsonPrimitive)?.content.orEmpty()
-        if (code != null) {
-            if (httpStatus == 401 || code in UNAUTHORIZED_CODES) {
+        if (success == false || (code != null && code != 0)) {
+            val errCode = code ?: -1
+            if (httpStatus == 401 || errCode in UNAUTHORIZED_CODES) {
                 return VettaException.Unauthorized(
                     message = message.ifBlank { "未授权" },
-                    code = code,
+                    code = errCode,
                 )
             }
-            if (code != 0 || message.isNotBlank()) {
-                return VettaException.Api(
-                    httpStatus = httpStatus,
-                    code = code.takeIf { it != 0 },
-                    message = message.ifBlank { "HTTP $httpStatus" },
-                    rawBody = body,
-                )
-            }
+            return VettaException.Api(
+                httpStatus = httpStatus,
+                code = code,
+                message = message.ifBlank { "HTTP $httpStatus" },
+                rawBody = body,
+            )
         }
     }
 

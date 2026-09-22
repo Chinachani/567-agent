@@ -22,6 +22,9 @@ class AuthRepository internal constructor(
     suspend fun loginWithAccount(account: String, password: String): AuthSession =
         api.loginWithAccount(account.trim(), password)
 
+    suspend fun loginWithAccessToken(accessToken: String): AuthSession =
+        api.loginWithAccessToken(accessToken.trim())
+
     suspend fun loginWithEmailPassword(email: String, password: String): AuthSession =
         api.loginWithEmailPassword(email.trim(), password)
 
@@ -32,10 +35,6 @@ class AuthRepository internal constructor(
         api.sendSmsCode(phone.trim())
     }
 
-    /**
-     * 主动刷新 token。返回三态，调用方按 desktop 策略处理：
-     * Unauthorized → 登出；Transient → 保留会话。
-     */
     suspend fun refresh(): RefreshOutcome = tokenRefresher.refresh()
 
     suspend fun logout() {

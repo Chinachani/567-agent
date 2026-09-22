@@ -600,10 +600,12 @@ class AppViewModel(
         viewModelScope.launch {
             _state.update { it.copy(authLoading = true, authError = null) }
             try {
-                if (_state.value.loginModeEmail) {
-                    container.client.auth.loginWithEmailPassword(accountOrEmail, password)
+                if (password.isBlank()) {
+                    container.client.auth.loginWithAccessToken(accountOrEmail.trim())
+                } else if (_state.value.loginModeEmail) {
+                    container.client.auth.loginWithEmailPassword(accountOrEmail.trim(), password)
                 } else {
-                    container.client.auth.loginWithAccount(accountOrEmail, password)
+                    container.client.auth.loginWithAccount(accountOrEmail.trim(), password)
                 }
                 val pendingAction = pendingLoginAction
                 pendingLoginAction = null

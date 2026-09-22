@@ -104,6 +104,14 @@ fun MeScreen(
                             color = MaterialTheme.vettaExtra.secondaryText,
                         )
                     }
+                    if (user != null) {
+                        val usd = user.quota.toDouble() / 500000.0
+                        Text(
+                            "567 额度: $usd",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.primary,
+                        )
+                    }
                 }
             }
 

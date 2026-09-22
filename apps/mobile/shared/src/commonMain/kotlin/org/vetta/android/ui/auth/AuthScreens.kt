@@ -207,47 +207,57 @@ fun LoginScreen(
                 label = { Text(if (loginModeEmail) Str.email else Str.account) },
                 keyboardOptions =
                     KeyboardOptions(
-                        keyboardType = if (loginModeEmail) KeyboardType.Email else KeyboardType.Text,
-                        imeAction = ImeAction.Next,
-                    ),
-            )
-            Spacer(Modifier.height(12.dp))
-            VettaTextField(
-                value = password,
-                onValueChange = { password = it },
-                modifier = Modifier.fillMaxWidth(),
-                singleLine = true,
-                label = { Text(Str.password) },
-                visualTransformation =
-                    if (passwordVisible) VisualTransformation.None else PasswordVisualTransformation(),
-                trailingIcon = {
-                    IconButton(onClick = { onTogglePassword(!passwordVisible) }) {
-                        Icon(
-                            if (passwordVisible) Icons.Default.VisibilityOff else Icons.Default.Visibility,
-                            contentDescription =
-                                if (passwordVisible) Str.hidePassword else Str.showPassword,
-                        )
-                    }
-                },
-                keyboardOptions =
-                    KeyboardOptions(
-                        keyboardType = KeyboardType.Password,
-                        imeAction = ImeAction.Done,
+                        keyboardType = if (loginModeEmail) KeyboardType.Password else KeyboardType.Text,
+                        imeAction = if (loginModeEmail) ImeAction.Done else ImeAction.Next,
                     ),
                 keyboardActions =
                     KeyboardActions(
                         onDone = {
-                            if (!loading && account.isNotBlank() && password.isNotBlank()) {
-                                onLogin(account.trim(), password)
+                            if (!loading && account.isNotBlank()) {
+                                onLogin(account.trim(), if (loginModeEmail) "" else password)
                             }
                         },
                     ),
             )
+            if (!loginModeEmail) {
+                Spacer(Modifier.height(12.dp))
+                VettaTextField(
+                    value = password,
+                    onValueChange = { password = it },
+                    modifier = Modifier.fillMaxWidth(),
+                    singleLine = true,
+                    label = { Text(Str.password) },
+                    visualTransformation =
+                        if (passwordVisible) VisualTransformation.None else PasswordVisualTransformation(),
+                    trailingIcon = {
+                        IconButton(onClick = { onTogglePassword(!passwordVisible) }) {
+                            Icon(
+                                if (passwordVisible) Icons.Default.VisibilityOff else Icons.Default.Visibility,
+                                contentDescription =
+                                    if (passwordVisible) Str.hidePassword else Str.showPassword,
+                            )
+                        }
+                    },
+                    keyboardOptions =
+                        KeyboardOptions(
+                            keyboardType = KeyboardType.Password,
+                            imeAction = ImeAction.Done,
+                        ),
+                    keyboardActions =
+                        KeyboardActions(
+                            onDone = {
+                                if (!loading && account.isNotBlank() && password.isNotBlank()) {
+                                    onLogin(account.trim(), password)
+                                }
+                            },
+                        ),
+                )
+            }
             Spacer(Modifier.height(20.dp))
             PrimaryBlackButton(
                 text = if (loading) Str.loggingIn else Str.loginAction,
-                onClick = { onLogin(account.trim(), password) },
-                enabled = !loading && account.isNotBlank() && password.isNotBlank(),
+                onClick = { onLogin(account.trim(), if (loginModeEmail) "" else password) },
+                enabled = !loading && account.isNotBlank() && (loginModeEmail || password.isNotBlank()),
             )
             TextButton(
                 onClick = { onToggleMode(!loginModeEmail) },

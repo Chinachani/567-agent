@@ -56,4 +56,22 @@ class DtoMapperTest {
         assertEquals("refresh", session.refreshToken)
         assertEquals("n", session.user.nickname)
     }
+
+    @Test
+    fun mapsNewApi567LoginResponse() {
+        val session =
+            LoginResponseDto(
+                accessToken = "567_token_xyz",
+                id = 100,
+                username = "testuser",
+                displayName = "Test User",
+                quota = 5000000,
+                role = 1,
+            ).toSession()
+        assertEquals("567_token_xyz", session.accessToken)
+        assertEquals("567_token_xyz", session.refreshToken)
+        assertEquals("Test User", session.user.nickname)
+        assertEquals(5000000L, session.user.quota)
+        assertEquals(10.0, session.user.quotaUsd)
+    }
 }

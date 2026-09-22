@@ -10,26 +10,38 @@ import org.vetta.android.core.model.TokenPair
 import org.vetta.android.core.model.TokenUsage
 import org.vetta.android.core.model.User
 
-internal fun UserDto.toDomain(): User =
-    User(
+internal fun UserDto.toDomain(): User {
+    val qUsd = quota.toDouble() / 500000.0
+    val effectiveName = nickname.ifBlank { displayName ?: username }
+    return User(
         id = id,
         username = username,
-        nickname = nickname.ifBlank { username },
+        nickname = effectiveName,
         phone = phone,
         email = email,
         avatar = avatar,
         isActive = isActive,
         createdAt = createdAt,
+        quota = quota,
+        quotaUsd = qUsd,
     )
+}
 
 internal fun LoginResponseDto.toSession(): AuthSession {
     val access = accessToken ?: token
     require(!access.isNullOrBlank()) { "login response missing access_token" }
-    require(!refreshToken.isNullOrBlank()) { "login response missing refresh_token" }
+    val refresh = refreshToken?.takeIf { it.isNotBlank() } ?: access
+    val effectiveUser = user ?: UserDto(
+        id = id,
+        username = username,
+        displayName = displayName,
+        quota = quota,
+        role = role,
+    )
     return AuthSession(
         accessToken = access,
-        refreshToken = refreshToken,
-        user = user.toDomain(),
+        refreshToken = refresh,
+        user = effectiveUser.toDomain(),
         requiresPassword = requiresPassword,
     )
 }
@@ -60,50 +72,42 @@ internal fun QuotaWindowDto.toDomain(): QuotaWindow =
     )
 
 internal fun ModelsCatalogDto.toDomain(): ModelsCatalog {
-    val mapped =
-        providers.mapValues { (providerName, config) ->
+    val domain = mutableMapOf<String, ProviderModels>()
+    for ((providerKey, config) in providers) {
+        val models =
+            config.models.map { remote ->
+                LlmModel(
+                    id = remote.id,
+                    modelId = remote.modelId ?: remote.id,
+                    name = remote.name.ifBlank { remote.id },
+                    providerName = providerKey,
+                    api = config.api,
+                    baseUrl = config.baseUrl,
+                    reasoning = remote.reasoning,
+                    input = remote.input,
+                    contextWindow = remote.contextWindow,
+                    maxTokens = remote.maxTokens,
+                    multiplier = remote.multiplier,
+                    tags = remote.tags,
+                    reasoningLevels = remote.reasoningLevels,
+                    defaultReasoningLevel = remote.defaultReasoningLevel,
+                )
+            }
+        domain[providerKey] =
             ProviderModels(
-                name = providerName,
+                name = providerKey,
                 api = config.api,
                 baseUrl = config.baseUrl,
-                models =
-                    config.models.map { model ->
-                        model.toDomain(
-                            providerName = providerName,
-                            providerApi = config.api,
-                            providerBaseUrl = config.baseUrl,
-                        )
-                    },
+                models = models,
             )
-        }
-    return ModelsCatalog(providers = mapped)
+    }
+    return ModelsCatalog(domain)
 }
-
-internal fun RemoteModelDto.toDomain(
-    providerName: String,
-    providerApi: String?,
-    providerBaseUrl: String?,
-): LlmModel =
-    LlmModel(
-        id = id,
-        modelId = modelId ?: id,
-        name = name?.takeIf { it.isNotBlank() } ?: modelId ?: id,
-        providerName = providerName,
-        api = api ?: providerApi,
-        baseUrl = providerBaseUrl,
-        reasoning = reasoning,
-        input = input,
-        contextWindow = contextWindow,
-        maxTokens = maxTokens,
-        multiplier = multiplier,
-        tags = tags,
-        reasoningLevels = reasoningLevels,
-        defaultReasoningLevel = defaultReasoningLevel,
-    )
 
 internal fun ChatUsageDto.toDomain(): TokenUsage =
     TokenUsage(
-        promptTokens = promptTokens,
-        completionTokens = completionTokens,
-        totalTokens = totalTokens,
+        totalTokens = usage?.totalTokens ?: 0,
+        inputTokens = usage?.inputTokens ?: 0,
+        outputTokens = usage?.outputTokens ?: 0,
+        cost = usage?.cost ?: 0.0,
     )

@@ -172,6 +172,7 @@ internal fun isAnonymousAuthPath(path: String): Boolean {
             else -> "/$raw"
         }
     return pathOnly.endsWith("/auth/login") ||
+        pathOnly.endsWith("/api/user/login") ||
         pathOnly.endsWith("/auth/refresh") ||
         pathOnly.endsWith("/auth/logout") ||
         pathOnly.endsWith("/auth/sms/send") ||

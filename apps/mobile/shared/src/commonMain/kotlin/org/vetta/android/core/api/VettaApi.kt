@@ -2,6 +2,7 @@ package org.vetta.android.core.api
 
 import io.ktor.client.HttpClient
 import io.ktor.client.request.get
+import io.ktor.client.request.header
 import io.ktor.client.request.post
 import io.ktor.client.request.setBody
 import io.ktor.client.statement.HttpResponse
@@ -22,7 +23,9 @@ import org.vetta.android.core.error.VettaException
 import org.vetta.android.core.model.AuthSession
 import org.vetta.android.core.model.ChatMessage
 import org.vetta.android.core.model.ChatStreamEvent
+import org.vetta.android.core.model.LlmModel
 import org.vetta.android.core.model.ModelsCatalog
+import org.vetta.android.core.model.ProviderModels
 import org.vetta.android.core.model.SubscriptionStatus
 import org.vetta.android.core.model.User
 import org.vetta.android.core.net.RefreshOutcome
@@ -32,9 +35,9 @@ import org.vetta.android.core.net.parseFailure
 import org.vetta.android.core.net.toVettaException
 
 /**
- * 对 Vetta API / Gateway 的薄封装。路径与 desktop 客户端对齐：
- * - REST：相对 [VettaConfig.apiBaseUrl]（含 `/api/v1`）
- * - Chat：`{gatewayBaseUrl}/v1/chat/completions`
+ * 对 567 API / Gateway 的薄封装。
+ * - 认证与用户：`https://api.567.wiki/api/user/*`
+ * - 对话：`https://api.567.wiki/v1/chat/completions`
  */
 internal class VettaApi(
     private val client: HttpClient,
@@ -43,85 +46,79 @@ internal class VettaApi(
     private val tokenStore: TokenStore,
 ) {
     suspend fun loginWithAccount(account: String, password: String): AuthSession =
-        postAuth("auth/login", LoginRequestDto(account = account, password = password))
+        postAuth("api/user/login", NewApiLoginRequestDto(username = account, password = password))
 
-    suspend fun loginWithEmailPassword(email: String, password: String): AuthSession =
-        postAuth(
-            "auth/email/password/login",
-            EmailPasswordLoginRequestDto(email = email, password = password),
-        )
-
-    suspend fun loginWithSms(phone: String, code: String): AuthSession =
-        postAuth("auth/sms/login", SmsLoginRequestDto(phone = phone, code = code))
-
-    suspend fun sendSmsCode(phone: String) {
+    suspend fun loginWithAccessToken(token: String): AuthSession {
         try {
             val response =
-                client.post("auth/sms/send") {
-                    setBody(SendSmsCodeRequestDto(phone = phone))
+                client.get("api/user/self") {
+                    header(HttpHeaders.Authorization, "Bearer $token")
                 }
             val text = response.bodyAsTextSafe()
             if (!response.status.isSuccess()) {
                 throw parseFailure(response.status.value, text)
             }
-            ensureBusinessSuccess(response.status.value, text)
+            val userDto = response.parseEnvelope<UserDto>()
+            val session = AuthSession(
+                accessToken = token,
+                refreshToken = token,
+                user = userDto.toDomain(),
+            )
+            tokenStore.save(token, token)
+            return session
         } catch (e: Exception) {
             throw e.toVettaException()
         }
     }
 
+    suspend fun loginWithEmailPassword(email: String, password: String): AuthSession =
+        loginWithAccount(email, password)
+
+    suspend fun loginWithSms(phone: String, code: String): AuthSession =
+        loginWithAccount(phone, code)
+
+    suspend fun sendSmsCode(phone: String) {
+        // 567 API 暂不提供短信验证码
+    }
+
     suspend fun refreshTokens(refreshToken: String): RefreshOutcome {
-        return try {
-            val response =
-                bareClient.post("auth/refresh") {
-                    setBody(RefreshTokenRequestDto(refreshToken = refreshToken))
-                }
-            if (response.status.value == 401) {
-                return RefreshOutcome.Unauthorized
-            }
-            if (!response.status.isSuccess()) {
-                return RefreshOutcome.Transient
-            }
-            val pair =
-                runCatching {
-                    response.parseEnvelope<RefreshResponseDto>().toTokenPair()
-                }.getOrElse {
-                    return RefreshOutcome.Transient
-                }
-            RefreshOutcome.Ok(pair.accessToken, pair.refreshToken)
-        } catch (_: Exception) {
-            RefreshOutcome.Transient
+        return if (refreshToken.isNotBlank()) {
+            RefreshOutcome.Ok(refreshToken, refreshToken)
+        } else {
+            RefreshOutcome.Unauthorized
         }
     }
 
     suspend fun logout() {
-        val refresh = tokenStore.refreshToken
-        try {
-            client.post("auth/logout") {
-                setBody(LogoutRequestDto(refreshToken = refresh))
-            }
-        } catch (_: Exception) {
-            // logout 幂等：网络失败忽略，本地仍清 token
-        }
+        tokenStore.clear()
     }
 
     suspend fun me(): User =
         try {
-            client.get("users/me").parseEnvelope<UserDto>().toDomain()
+            client.get("api/user/self").parseEnvelope<UserDto>().toDomain()
         } catch (e: Exception) {
             throw e.toVettaException()
         }
 
     suspend fun subscriptionMe(): SubscriptionStatus =
         try {
-            client.get("subscription/me").parseEnvelope<SubscriptionStatusDto>().toDomain()
-        } catch (e: Exception) {
-            throw e.toVettaException()
+            val user = me()
+            val usdStr = (user.quota.toDouble() / 500000.0).toString()
+            SubscriptionStatus(
+                active = true,
+                isDefault = true,
+                goEnabled = true,
+                tierName = "567 API",
+                badgeText = "567",
+                description = "额度: $$usdStr",
+            )
+        } catch (_: Exception) {
+            SubscriptionStatus(active = true, isDefault = true, tierName = "567 API", badgeText = "567")
         }
 
     suspend fun goModels(): ModelsCatalog =
         try {
-            client.get("providers/go-models.json").parseEnvelope<ModelsCatalogDto>().toDomain()
+            default567ModelsCatalog()
         } catch (e: Exception) {
             throw e.toVettaException()
         }
@@ -194,21 +191,18 @@ internal class VettaApi(
         }
 }
 
+private fun default567ModelsCatalog(): ModelsCatalog {
+    val models = listOf(
+        LlmModel(id = "gpt-5.6-sol", modelId = "gpt-5.6-sol", name = "GPT-5.6 Sol (567特价)", providerName = "567 API", reasoning = true),
+        LlmModel(id = "gpt-4o", modelId = "gpt-4o", name = "GPT-4o 旗舰", providerName = "567 API"),
+        LlmModel(id = "deepseek-chat", modelId = "deepseek-chat", name = "DeepSeek-V3", providerName = "567 API"),
+        LlmModel(id = "deepseek-reasoner", modelId = "deepseek-reasoner", name = "DeepSeek-R1 (深度思考)", providerName = "567 API", reasoning = true),
+        LlmModel(id = "claude-3-7-sonnet", modelId = "claude-3-7-sonnet", name = "Claude 3.7 Sonnet", providerName = "567 API", reasoning = true),
+        LlmModel(id = "gemini-2.5-pro", modelId = "gemini-2.5-pro", name = "Gemini 2.5 Pro", providerName = "567 API"),
+    )
+    val provider = ProviderModels(name = "567 API", models = models)
+    return ModelsCatalog(providers = mapOf("567api" to provider, "vetta-go" to provider))
+}
+
 private suspend fun HttpResponse.bodyAsTextSafe(): String =
     runCatching { bodyAsText() }.getOrDefault("")
-
-private fun ensureBusinessSuccess(httpStatus: Int, body: String) {
-    val obj = runCatching { VettaJson.parseToJsonElement(body) as? JsonObject }.getOrNull() ?: return
-    val code = (obj["code"] as? JsonPrimitive)?.content?.toIntOrNull() ?: return
-    val message = (obj["message"] as? JsonPrimitive)?.content.orEmpty()
-    if (code == 0) return
-    if (httpStatus == 401 || code in org.vetta.android.core.net.UNAUTHORIZED_CODES) {
-        throw VettaException.Unauthorized(message.ifBlank { "未授权" }, code)
-    }
-    throw VettaException.Api(
-        httpStatus = httpStatus,
-        code = code,
-        message = message.ifBlank { "请求失败" },
-        rawBody = body,
-    )
-}
