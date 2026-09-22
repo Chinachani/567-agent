@@ -1,9 +1,6 @@
 name: desktop-release
 
 on:
-  push:
-    tags:
-      - "v*"
   workflow_dispatch:
     inputs:
       cloud_enabled:

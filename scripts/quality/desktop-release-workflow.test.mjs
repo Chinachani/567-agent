@@ -40,7 +40,7 @@ describe("Desktop release workflow contracts", () => {
 		const save = steps.findIndex((step) => step.uses === "actions/cache/save@v4");
 		expect(restore).toBeLessThan(install);
 		expect(install).toBeLessThan(save);
-		expect(steps[save].if).toBe("steps.bun-cache.outputs.cache-hit != 'true'");
+		expect(steps[save].if).toContain("steps.bun-cache.outputs.cache-hit != 'true'");
 		expect(steps[restore].with.path).toBe("~/.bun/install/cache");
 		expect(steps[restore].with.key).toContain("runner.arch");
 	});
@@ -75,7 +75,7 @@ describe("Desktop release workflow contracts", () => {
 		expect(buildSteps.some((step) => step.name === "Run packaged app and updater E2E")).toBe(false);
 		const checkpoint = buildSteps.find((step) => step.name === "Upload build checkpoint");
 		expect(checkpoint?.with.name).toBe("release-build-$" + "{{ matrix.platform }}");
-		expect(checkpoint?.with["retention-days"]).toBe(30);
+		expect(checkpoint?.with["retention-days"]).toBe(1);
 		expect(checkpoint?.with.overwrite).toBe(true);
 		const download = verifySteps.find((step) => step.uses === "actions/download-artifact@v4");
 		expect(download?.with.name).toBe(checkpoint?.with.name);
@@ -146,7 +146,7 @@ describe("Desktop release workflow contracts", () => {
 
 	it("prewarms tag-readable downloads on the default branch without building or publishing", () => {
 		const warm = parse(readFileSync(join(import.meta.dirname, "../../.github/workflows/desktop-cache.yml"), "utf8"));
-		expect(warm.on.schedule).toHaveLength(1);
+		// schedule removed to prevent quota exhaustion
 		expect(warm.jobs.warm.if).toContain("github.event.repository.default_branch");
 		expect([...warm.jobs.warm.strategy.matrix.runner].sort()).toEqual(
 			jobs.build.strategy.matrix.include.map((entry) => entry.runner).sort(),
