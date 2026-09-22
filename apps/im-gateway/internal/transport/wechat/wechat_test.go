@@ -567,16 +567,21 @@ func TestTransport_CursorPersisted(t *testing.T) {
 	go tr.Start(ctx, h) //nolint:errcheck
 	h.wait(t, 1)
 
-	// Wait one more loop iter so the post-dispatch cursor save lands.
-	time.Sleep(150 * time.Millisecond)
+	// Poll until the post-dispatch cursor save lands.
+	deadline := time.Now().Add(2 * time.Second)
+	var cursor string
+	for time.Now().Before(deadline) {
+		if store, err := newStateStore(statePath); err == nil {
+			if c := store.Cursor(); c != "" {
+				cursor = c
+				break
+			}
+		}
+		time.Sleep(20 * time.Millisecond)
+	}
 	cancel()
 
-	// Reopen and confirm the cursor was persisted.
-	store, err := newStateStore(statePath)
-	if err != nil {
-		t.Fatalf("reopen: %v", err)
-	}
-	if got := store.Cursor(); got == "" {
+	if cursor == "" {
 		t.Errorf("cursor not persisted")
 	}
 }
