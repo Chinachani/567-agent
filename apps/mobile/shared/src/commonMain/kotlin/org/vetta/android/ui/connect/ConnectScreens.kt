@@ -63,6 +63,9 @@ fun DiscoverConnectScreen(
     onOpenDevice: (String) -> Unit,
     onConnectManual: (String) -> Unit,
     onUseCloud: () -> Unit,
+    remoteConnecting: Boolean = false,
+    error: org.vetta.android.domain.error.UiError? = null,
+    onClearError: () -> Unit = {},
 ) {
     var host by remember { mutableStateOf("") }
     val channels = listOf(Str.channelLan, Str.channelRemote, Str.channelCloud)
@@ -91,6 +94,25 @@ fun DiscoverConnectScreen(
                 style = MaterialTheme.typography.bodyMedium,
                 color = MaterialTheme.vettaExtra.secondaryText,
             )
+            if (error != null) {
+                Spacer(Modifier.height(10.dp))
+                org.vetta.android.ui.components.VettaErrorBanner(error = error, onDismiss = onClearError)
+            }
+            if (remoteConnecting) {
+                Spacer(Modifier.height(10.dp))
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.Center,
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    androidx.compose.material3.CircularProgressIndicator(
+                        modifier = Modifier.size(18.dp),
+                        strokeWidth = 2.dp,
+                    )
+                    Spacer(Modifier.width(8.dp))
+                    Text("正在连接电脑端...", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.vettaExtra.secondaryText)
+                }
+            }
             Spacer(Modifier.height(14.dp))
             FilterChipRow(options = channels, selectedIndex = channelIndex, onSelect = onChannelChange)
             Spacer(Modifier.height(16.dp))
@@ -161,7 +183,13 @@ fun DiscoverConnectScreen(
                                 placeholder = { Text(Str.lanAddressHint) },
                             )
                             Spacer(Modifier.width(6.dp))
-                            PairingScannerButton(onScanned = { value -> host = value })
+                            PairingScannerButton(onScanned = { value ->
+                                if (value.startsWith("vetta://pair") || value.startsWith("agent567://pair")) {
+                                    onConnectManual(value)
+                                } else {
+                                    host = value
+                                }
+                            })
                         }
                         Spacer(Modifier.height(10.dp))
                         PrimaryBlackButton(

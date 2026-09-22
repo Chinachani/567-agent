@@ -149,4 +149,31 @@ class AppViewModelSessionPendingTest {
             advanceUntilIdle()
             assertEquals(null, container.sessionStore.getSession(session.id))
         }
+
+    @Test
+    fun bootstrapWithPersistedTokenPreservesLoggedInWorkspace() =
+        runTest(dispatcher) {
+            val settings = MapSettings()
+            val preferences = AppPreferences(settings)
+            val tokenStore = org.vetta.android.core.auth.SettingsTokenStore(settings)
+            tokenStore.save("test_token_persisted", "test_token_persisted")
+            preferences.authUsername = "persisted_user"
+            preferences.authQuotaUsd = 12.5
+
+            val container =
+                AppContainer(
+                    preferences = preferences,
+                    tokenStore = tokenStore,
+                    sessionStore = SettingsSessionStore(settings),
+                )
+            val vm = AppViewModel(container)
+            advanceUntilIdle()
+
+            assertTrue(vm.state.value.bootstrapped)
+            assertTrue(vm.state.value.mainAccessGranted)
+            assertTrue(vm.state.value.route is org.vetta.android.ui.navigation.AppRoute.Main)
+            assertEquals("persisted_user", vm.state.value.user?.nickname)
+            assertEquals(12.5, vm.state.value.user?.quotaUsd)
+        }
+
 }

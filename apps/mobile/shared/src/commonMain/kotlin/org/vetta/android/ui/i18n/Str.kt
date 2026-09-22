@@ -39,7 +39,7 @@ object Str {
     // Tabs
     const val tabHome = "首页"
     const val tabSessions = "会话"
-    const val tabDiscover = "发现"
+    const val tabDiscover = "设备"
     const val tabMe = "我的"
 
     // Home
@@ -53,7 +53,7 @@ object Str {
     const val viewAll = "查看全部"
     const val quickStart = "快速开始"
     const val newConversation = "新建对话"
-    const val useCloudAi = "使用云端 AI"
+    const val useCloudAi = "使用 567 AI"
     const val notifications = "通知"
 
     // Sessions
@@ -224,7 +224,7 @@ object Str {
     const val about = "关于"
     const val aboutVetta = "关于 567 Agent"
     const val aboutDescription = "567 Agent 让你在手机上继续使用 Desktop 与云端 AI。"
-    const val versionNumber = "版本 0.1.0"
+    const val versionNumber = "版本 1.0.3"
     const val openSourceLicenses = "开源许可"
     const val privacyPolicy = "隐私说明"
     const val openSourceLicensesBody = "567 Agent 客户端基于 Apache License 2.0 发布，并使用多个开源依赖。各依赖继续遵循其原有许可条款。"

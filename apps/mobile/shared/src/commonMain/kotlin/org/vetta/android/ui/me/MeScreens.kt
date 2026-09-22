@@ -3,6 +3,7 @@ package org.vetta.android.ui.me
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.selection.toggleable
+import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -22,6 +23,7 @@ import androidx.compose.material.icons.automirrored.filled.KeyboardArrowRight
 import androidx.compose.material.icons.filled.Devices
 import androidx.compose.material.icons.filled.DeleteSweep
 import androidx.compose.material.icons.filled.Info
+import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material3.ExperimentalMaterial3Api
@@ -56,22 +58,35 @@ import org.vetta.android.ui.components.VettaInfoDialog
 import org.vetta.android.ui.i18n.Str
 import org.vetta.android.ui.theme.vettaExtra
 
+fun formatUsd(usd: Double): String {
+    val cents = (usd * 100.0 + 0.5).toLong()
+    val intPart = cents / 100
+    val fracPart = (cents % 100).toString().padStart(2, '0')
+    return "$intPart.$fracPart"
+}
+
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun MeScreen(
     user: User?,
     subscription: SubscriptionStatus?,
+    activeGroup: String? = null,
+    availableGroups: Map<String, org.vetta.android.core.api.ApiGroupInfoDto> = emptyMap(),
     onlineDeviceCount: Int,
-    onOpenPlan: () -> Unit,
-    onOpenSettings: () -> Unit,
-    onOpenDevices: () -> Unit,
-    onOpenAbout: () -> Unit,
-    onLogin: () -> Unit,
-    onLogout: (clearLocal: Boolean) -> Unit,
+    onSelectGroup: (String) -> Unit = {},
+    onRefreshQuota: () -> Unit = {},
+    onOpenPlan: () -> Unit = {},
+    onOpenSettings: () -> Unit = {},
+    onOpenDevices: () -> Unit = {},
+    onOpenAbout: () -> Unit = {},
+    onLogin: () -> Unit = {},
+    onLogout: (clearLocal: Boolean) -> Unit = {},
 ) {
     var confirmLogout by remember { mutableStateOf(false) }
+    var showGroupDialog by remember { mutableStateOf(false) }
     val name = user?.nickname?.ifBlank { user.username } ?: Str.notLoggedIn
     val contact = user?.email ?: user?.phone ?: ""
+    val usdFormatted = user?.let { formatUsd(it.quota.toDouble() / 500000.0) } ?: "0.00"
 
     Scaffold(
         containerColor = MaterialTheme.vettaExtra.pageBackground,
@@ -104,13 +119,64 @@ fun MeScreen(
                             color = MaterialTheme.vettaExtra.secondaryText,
                         )
                     }
-                    if (user != null) {
-                        val usd = user.quota.toDouble() / 500000.0
-                        Text(
-                            "567 额度: $usd",
-                            style = MaterialTheme.typography.bodySmall,
-                            color = MaterialTheme.colorScheme.primary,
-                        )
+                }
+            }
+
+            if (user != null) {
+                Spacer(Modifier.height(16.dp))
+                androidx.compose.material3.Card(
+                    modifier = Modifier.fillMaxWidth(),
+                    colors = androidx.compose.material3.CardDefaults.cardColors(
+                        containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f)
+                    ),
+                    shape = androidx.compose.foundation.shape.RoundedCornerShape(12.dp),
+                ) {
+                    Column(Modifier.padding(16.dp)) {
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            verticalAlignment = Alignment.CenterVertically,
+                        ) {
+                            Column {
+                                Text("567 API 可用额度", style = MaterialTheme.typography.labelMedium, color = MaterialTheme.vettaExtra.secondaryText)
+                                Spacer(Modifier.height(4.dp))
+                                Text(
+                                    "$$usdFormatted",
+                                    style = MaterialTheme.typography.headlineMedium.copy(fontWeight = androidx.compose.ui.text.font.FontWeight.Bold),
+                                    color = MaterialTheme.colorScheme.primary,
+                                )
+                            }
+                            IconButton(onClick = onRefreshQuota) {
+                                Icon(Icons.Default.Refresh, contentDescription = "刷新余额")
+                            }
+                        }
+                        Spacer(Modifier.height(12.dp))
+                        androidx.compose.material3.HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.4f))
+                        Spacer(Modifier.height(12.dp))
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .clickable { showGroupDialog = true },
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            verticalAlignment = Alignment.CenterVertically,
+                        ) {
+                            Column(Modifier.weight(1f)) {
+                                Text("当前接入分组", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.vettaExtra.secondaryText)
+                                Spacer(Modifier.height(2.dp))
+                                Text(
+                                    activeGroup ?: "默认分组 (点击切换)",
+                                    style = MaterialTheme.typography.bodyMedium.copy(fontWeight = androidx.compose.ui.text.font.FontWeight.Medium),
+                                )
+                            }
+                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                Text("切换分组", style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.primary)
+                                Icon(
+                                    Icons.AutoMirrored.Filled.KeyboardArrowRight,
+                                    contentDescription = null,
+                                    tint = MaterialTheme.colorScheme.primary,
+                                )
+                            }
+                        }
                     }
                 }
             }
@@ -128,46 +194,12 @@ fun MeScreen(
             }
 
             Spacer(Modifier.height(16.dp))
-            SectionHeader(title = Str.plan)
-            VettaListGroup(modifier = Modifier.clickable(onClick = onOpenPlan)) {
-                Row(
-                    modifier = Modifier.fillMaxWidth().padding(vertical = 14.dp),
-                    verticalAlignment = Alignment.CenterVertically,
-                ) {
-                    Text(
-                        when {
-                            subscription == null -> if (user == null) Str.loginToViewPlan else Str.loading
-                            !subscription.goEnabled -> Str.planDisabled
-                            !subscription.active -> Str.planInactive
-                            else -> "${Str.planActive} · ${subscription.tierName ?: ""}"
-                        },
-                        style = MaterialTheme.typography.bodyLarge,
-                        modifier = Modifier.weight(1f),
-                    )
-                    Icon(
-                        Icons.AutoMirrored.Filled.KeyboardArrowRight,
-                        contentDescription = null,
-                        tint = MaterialTheme.vettaExtra.secondaryText,
-                    )
-                }
-                subscription?.windows?.firstOrNull()?.let { w ->
-                    Spacer(Modifier.height(10.dp))
-                    QuotaMeter(
-                        label = w.kind,
-                        limit = w.limit,
-                        consumed = w.consumed,
-                        resetAt = w.resetAt,
-                    )
-                }
-            }
-
-            Spacer(Modifier.height(16.dp))
             SectionHeader(title = Str.aboutSection)
             VettaListGroup {
                 ProfileRow(Icons.Default.Info, Str.aboutUs, Str.versionNumber.removePrefix("版本 "), onOpenAbout, showDivider = false)
             }
 
-            Spacer(Modifier.height(20.dp))
+            Spacer(Modifier.height(24.dp))
             if (user == null) {
                 PrimaryBlackButton(text = Str.getStarted, onClick = onLogin)
             } else {
@@ -175,6 +207,18 @@ fun MeScreen(
             }
             Spacer(Modifier.height(24.dp))
         }
+    }
+
+    if (showGroupDialog) {
+        GroupSelectionDialog(
+            activeGroup = activeGroup,
+            availableGroups = availableGroups,
+            onSelect = { group ->
+                showGroupDialog = false
+                onSelectGroup(group)
+            },
+            onDismiss = { showGroupDialog = false },
+        )
     }
 
     if (confirmLogout) {
@@ -594,5 +638,69 @@ fun AboutScreen(onBack: () -> Unit) {
             message = body,
             onDismiss = { openDocument = null },
         )
+    }
+}
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+fun GroupSelectionDialog(
+    activeGroup: String?,
+    availableGroups: Map<String, org.vetta.android.core.api.ApiGroupInfoDto>,
+    onSelect: (String) -> Unit,
+    onDismiss: () -> Unit,
+) {
+    androidx.compose.material3.ModalBottomSheet(
+        onDismissRequest = onDismiss,
+        sheetState = androidx.compose.material3.rememberModalBottomSheetState(skipPartiallyExpanded = true),
+    ) {
+        Column(
+            Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 16.dp, vertical = 8.dp)
+        ) {
+            Text("选择 567 API 接入分组", style = MaterialTheme.typography.titleMedium)
+            Spacer(Modifier.height(4.dp))
+            Text("切换分组将自动接入对应渠道的模型和倍率", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.vettaExtra.secondaryText)
+            Spacer(Modifier.height(16.dp))
+
+            if (availableGroups.isEmpty()) {
+                Text("暂无可用分组，请检查网络或重新登录", style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.vettaExtra.secondaryText)
+            } else {
+                Column(Modifier.verticalScroll(rememberScrollState())) {
+                    availableGroups.forEach { (name, info) ->
+                        val isSelected = name == activeGroup
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .clickable { onSelect(name) }
+                                .padding(vertical = 12.dp, horizontal = 8.dp),
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            verticalAlignment = Alignment.CenterVertically,
+                        ) {
+                            Column(Modifier.weight(1f)) {
+                                Row(verticalAlignment = Alignment.CenterVertically) {
+                                    Text(name, style = MaterialTheme.typography.bodyMedium.copy(fontWeight = androidx.compose.ui.text.font.FontWeight.Medium))
+                                    Spacer(Modifier.width(8.dp))
+                                    Text(
+                                        "${info.ratio}x 倍率",
+                                        style = MaterialTheme.typography.labelSmall,
+                                        color = MaterialTheme.colorScheme.primary,
+                                    )
+                                }
+                                if (info.desc.isNotBlank()) {
+                                    Spacer(Modifier.height(2.dp))
+                                    Text(info.desc, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.vettaExtra.secondaryText)
+                                }
+                            }
+                            if (isSelected) {
+                                Icon(Icons.Default.Check, contentDescription = null, tint = MaterialTheme.colorScheme.primary)
+                            }
+                        }
+                        androidx.compose.material3.HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.3f))
+                    }
+                }
+            }
+            Spacer(Modifier.height(24.dp))
+        }
     }
 }

@@ -7,19 +7,21 @@ import org.vetta.android.domain.session.ChatSession
 import org.vetta.android.domain.session.ConversationOrigin
 
 class ConversationRouter(
-    private val cloudStream: (modelId: String, messages: List<ChatMessage>) -> Flow<ChatStreamEvent>,
+    private val cloudStream: (modelId: String, messages: List<ChatMessage>, groupName: String?, imageGenModel: String?) -> Flow<ChatStreamEvent>,
     private val remoteGateway: RemoteConversationGateway,
 ) {
     fun stream(
         session: ChatSession,
         selectedModelId: String?,
         messages: List<ChatMessage>,
+        groupName: String? = null,
+        imageGenModel: String? = null,
     ): Flow<ChatStreamEvent> =
         when (session.origin) {
             ConversationOrigin.Cloud -> {
                 val modelId = selectedModelId ?: session.modelId
                     ?: throw RemoteConversationException("当前没有可用的云端模型")
-                cloudStream(modelId, messages)
+                cloudStream(modelId, messages, groupName, imageGenModel)
             }
             ConversationOrigin.Desktop -> {
                 val deviceId = session.remoteDeviceId

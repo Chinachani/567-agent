@@ -291,7 +291,7 @@ class RelayRemoteConversationGateway(
     }
 
     private suspend fun waitUntilOnline(connection: RemoteConnection) {
-        kotlinx.coroutines.withTimeout(10_000) { connection.state.first { it == RemoteConnectionState.Online } }
+        kotlinx.coroutines.withTimeout(3_000) { connection.state.first { it == RemoteConnectionState.Online } }
     }
 
     private suspend fun requestDiagnostics(connection: RemoteConnection): DeviceDiagnostics? {

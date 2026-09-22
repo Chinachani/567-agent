@@ -1,5 +1,13 @@
 package org.vetta.android.ui.chat
 
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
+import androidx.compose.material.icons.filled.ArrowDropDown
+import androidx.compose.material.icons.filled.AutoAwesome
+import androidx.compose.material.icons.filled.Refresh
+import androidx.compose.material3.HorizontalDivider
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
@@ -38,7 +46,19 @@ import androidx.compose.material.icons.automirrored.filled.HelpOutline
 import androidx.compose.material.icons.automirrored.filled.Send
 import androidx.compose.material.icons.filled.AttachFile
 import androidx.compose.material.icons.filled.Build
+import androidx.compose.material.icons.filled.Brush
+import androidx.compose.material3.Switch
+import androidx.compose.material3.Card
+import androidx.compose.material3.CardDefaults
+import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.ui.window.Dialog
 import androidx.compose.material.icons.filled.Check
+import androidx.compose.ui.platform.LocalClipboardManager
+import androidx.compose.ui.text.AnnotatedString
+import androidx.compose.foundation.text.selection.SelectionContainer
+import androidx.compose.material.icons.filled.ContentCopy
+import kotlinx.coroutines.delay
+
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Code
 import androidx.compose.material.icons.filled.Edit
@@ -110,6 +130,13 @@ fun ChatScreen(
     models: List<LlmModel>,
     selectedModel: LlmModel?,
     modelPickerOpen: Boolean,
+    activeGroup: String? = null,
+    availableGroups: Map<String, org.vetta.android.core.api.ApiGroupInfoDto> = emptyMap(),
+    groupPickerOpen: Boolean = false,
+    onOpenGroupPicker: () -> Unit = {},
+    onCloseGroupPicker: () -> Unit = {},
+    onSelectGroup: ((String) -> Unit)? = null,
+    onRefreshCatalog: () -> Unit = {},
     globalError: UiError?,
     onDraftChange: (String) -> Unit,
     onSend: () -> Unit,
@@ -126,9 +153,25 @@ fun ChatScreen(
     questionSubmitting: Boolean = false,
     onToggleQuestionOption: (String, String) -> Unit = { _, _ -> },
     onSubmitQuestion: () -> Unit = {},
+    activeImageGroup: String? = null,
+    activeImageModel: String? = null,
+    imageGenEnabled: Boolean = false,
+    imagePickerOpen: Boolean = false,
+    availableImageModels: List<String> = emptyList(),
+    imageModelsLoading: Boolean = false,
+    imageGroupExpanded: Boolean = false,
+    onOpenImagePicker: () -> Unit = {},
+    onCloseImagePicker: () -> Unit = {},
+    onToggleGroupExpanded: (Boolean) -> Unit = {},
+    onToggleImageGen: (Boolean) -> Unit = {},
+    onSelectImageGroup: (String) -> Unit = {},
+    onSelectImageModel: (String) -> Unit = {},
 ) {
     val listState = rememberLazyListState()
     val scope = rememberCoroutineScope()
+    var attachedSessionId by remember { mutableStateOf<String?>(null) }
+    val currentSessionId = messages.firstOrNull()?.sessionId
+
     val launchPicker =
         rememberImagePicker { picked ->
             onImagesPicked(
@@ -142,6 +185,15 @@ fun ChatScreen(
                 },
             )
         }
+
+    // 1. 会话初次进入或切换会话时，无论消息多少，瞬间精确定位至最底部最新消息
+    LaunchedEffect(currentSessionId, messages.isNotEmpty()) {
+        if (messages.isNotEmpty() && (attachedSessionId == null || attachedSessionId != currentSessionId)) {
+            attachedSessionId = currentSessionId
+            listState.scrollToItem(messages.lastIndex)
+        }
+    }
+
     val isAtBottom by remember {
         derivedStateOf {
             val info = listState.layoutInfo
@@ -150,6 +202,7 @@ fun ChatScreen(
         }
     }
 
+    // 2. 用户处于底部附着区时，新消息产生或流式文字生成平滑向下跟随滚动
     LaunchedEffect(messages.size, messages.lastOrNull()?.content, messages.lastOrNull()?.status) {
         if (isAtBottom && messages.isNotEmpty()) {
             listState.animateScrollToItem(messages.lastIndex)
@@ -188,12 +241,30 @@ fun ChatScreen(
                 },
                 actions = {
                     if (surface == ChatSurface.Cloud) {
-                        TextButton(onClick = onOpenModelPicker) {
-                            Text(
-                                selectedModel?.name ?: Str.selectModel,
-                                maxLines = 1,
-                                style = MaterialTheme.typography.labelLarge,
-                            )
+                        Surface(
+                            onClick = onOpenGroupPicker,
+                            shape = RoundedCornerShape(16.dp),
+                            color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.6f),
+                            modifier = Modifier.padding(end = 8.dp),
+                        ) {
+                            Row(
+                                verticalAlignment = Alignment.CenterVertically,
+                                modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp),
+                            ) {
+                                Text(
+                                    activeGroup ?: "点击选择分组",
+                                    style = MaterialTheme.typography.labelMedium.copy(fontWeight = FontWeight.Medium),
+                                    color = MaterialTheme.colorScheme.primary,
+                                    maxLines = 1,
+                                )
+                                Spacer(Modifier.width(2.dp))
+                                Icon(
+                                    Icons.Default.ArrowDropDown,
+                                    contentDescription = null,
+                                    modifier = Modifier.size(18.dp),
+                                    tint = MaterialTheme.colorScheme.primary,
+                                )
+                            }
                         }
                     }
                 },
@@ -237,6 +308,79 @@ fun ChatScreen(
                             onToggle = onToggleQuestionOption,
                             onSubmit = onSubmitQuestion,
                         )
+                    }
+                }
+                if (surface == ChatSurface.Cloud) {
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(horizontal = 12.dp, vertical = 4.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(8.dp),
+                    ) {
+                        // 1. 主模型胶囊
+                        Surface(
+                            onClick = onOpenModelPicker,
+                            shape = RoundedCornerShape(12.dp),
+                            color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f),
+                            modifier = Modifier.weight(1f, fill = false),
+                        ) {
+                            Row(
+                                verticalAlignment = Alignment.CenterVertically,
+                                modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp),
+                            ) {
+                                Icon(
+                                    Icons.Default.AutoAwesome,
+                                    contentDescription = null,
+                                    modifier = Modifier.size(13.dp),
+                                    tint = MaterialTheme.colorScheme.primary,
+                                )
+                                Spacer(Modifier.width(4.dp))
+                                Text(
+                                    if (activeGroup == null) "请选择主分组" else (selectedModel?.name ?: "选择主模型"),
+                                    style = MaterialTheme.typography.labelSmall.copy(fontWeight = FontWeight.Medium),
+                                    maxLines = 1,
+                                )
+                                Icon(
+                                    Icons.Default.ArrowDropDown,
+                                    contentDescription = null,
+                                    modifier = Modifier.size(16.dp),
+                                )
+                            }
+                        }
+
+                        // 2. 独立画图模型胶囊（并列双胶囊）
+                        Surface(
+                            onClick = onOpenImagePicker,
+                            shape = RoundedCornerShape(12.dp),
+                            color = if (imageGenEnabled) MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.6f) else MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f),
+                            modifier = Modifier.weight(1f, fill = false),
+                        ) {
+                            Row(
+                                verticalAlignment = Alignment.CenterVertically,
+                                modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp),
+                            ) {
+                                Icon(
+                                    Icons.Default.Brush,
+                                    contentDescription = null,
+                                    modifier = Modifier.size(13.dp),
+                                    tint = if (imageGenEnabled) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant,
+                                )
+                                Spacer(Modifier.width(4.dp))
+                                Text(
+                                    if (!imageGenEnabled) "绘图: 关闭" else (activeImageModel?.let { "绘图: $it" } ?: "配置绘图"),
+                                    style = MaterialTheme.typography.labelSmall.copy(fontWeight = FontWeight.Medium),
+                                    color = if (imageGenEnabled) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant,
+                                    maxLines = 1,
+                                )
+                                Icon(
+                                    Icons.Default.ArrowDropDown,
+                                    contentDescription = null,
+                                    modifier = Modifier.size(16.dp),
+                                    tint = if (imageGenEnabled) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant,
+                                )
+                            }
+                        }
                     }
                 }
                 InputDock(
@@ -294,38 +438,299 @@ fun ChatScreen(
         }
     }
 
+
+    if (imagePickerOpen) {
+        ModalBottomSheet(
+            onDismissRequest = onCloseImagePicker,
+            sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true),
+        ) {
+            Column(
+                Modifier
+                    .padding(horizontal = 16.dp, vertical = 8.dp)
+                    .verticalScroll(rememberScrollState()),
+            ) {
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    Text("智能绘图配置", style = MaterialTheme.typography.titleMedium)
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Text(
+                            if (imageGenEnabled) "已启用" else "已关闭",
+                            style = MaterialTheme.typography.labelMedium,
+                            color = if (imageGenEnabled) MaterialTheme.colorScheme.primary else MaterialTheme.vettaExtra.secondaryText,
+                        )
+                        Spacer(Modifier.width(8.dp))
+                        Switch(
+                            checked = imageGenEnabled,
+                            onCheckedChange = onToggleImageGen,
+                        )
+                    }
+                }
+                Text(
+                    "开启后，对话时主模型可自动调用画图工具扩写提示词并生成画面",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.vettaExtra.secondaryText,
+                )
+                Spacer(Modifier.height(16.dp))
+
+                if (imageGenEnabled) {
+                    // 第一级：画图分组（支持自动折叠联动）
+                    Card(
+                        shape = RoundedCornerShape(10.dp),
+                        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.4f)),
+                        modifier = Modifier.fillMaxWidth(),
+                    ) {
+                        Column(Modifier.padding(12.dp)) {
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.SpaceBetween,
+                                verticalAlignment = Alignment.CenterVertically,
+                            ) {
+                                Column {
+                                    Text("画图分组", style = MaterialTheme.typography.labelLarge.copy(fontWeight = FontWeight.Bold))
+                                    Text(
+                                        if (activeImageGroup != null) "当前: $activeImageGroup" else "未选择分组（请点击选择）",
+                                        style = MaterialTheme.typography.bodySmall,
+                                        color = MaterialTheme.colorScheme.primary,
+                                    )
+                                }
+                                TextButton(onClick = { onToggleGroupExpanded(!imageGroupExpanded) }) {
+                                    Text(if (imageGroupExpanded) "收起分组" else "更改分组")
+                                }
+                            }
+
+                            AnimatedVisibility(
+                                visible = imageGroupExpanded || activeImageGroup == null,
+                                enter = fadeIn() + expandVertically(),
+                                exit = fadeOut() + shrinkVertically(),
+                            ) {
+                                Column(Modifier.padding(top = 8.dp)) {
+                                    HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.3f))
+                                    Spacer(Modifier.height(6.dp))
+                                    availableGroups.keys.forEach { groupName ->
+                                        val isSelected = groupName == activeImageGroup
+                                        Row(
+                                            modifier = Modifier
+                                                .fillMaxWidth()
+                                                .clip(RoundedCornerShape(6.dp))
+                                                .background(if (isSelected) MaterialTheme.colorScheme.primary.copy(alpha = 0.12f) else Color.Transparent)
+                                                .clickable {
+                                                    onSelectImageGroup(groupName)
+                                                }
+                                                .padding(horizontal = 8.dp, vertical = 8.dp),
+                                            verticalAlignment = Alignment.CenterVertically,
+                                            horizontalArrangement = Arrangement.SpaceBetween,
+                                        ) {
+                                            Text(
+                                                groupName,
+                                                style = MaterialTheme.typography.bodyMedium.copy(fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal),
+                                                color = if (isSelected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurface,
+                                            )
+                                            if (isSelected) {
+                                                Icon(Icons.Default.Check, contentDescription = null, modifier = Modifier.size(16.dp), tint = MaterialTheme.colorScheme.primary)
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+
+                    Spacer(Modifier.height(16.dp))
+
+                    // 第二级：展现该分组下的生图模型
+                    Text("绘图模型", style = MaterialTheme.typography.labelLarge.copy(fontWeight = FontWeight.Bold))
+                    Text("选择生成画面的底层模型", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.vettaExtra.secondaryText)
+                    Spacer(Modifier.height(8.dp))
+
+                    if (activeImageGroup == null) {
+                        Text("请先在上方选择画图分组", style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.vettaExtra.secondaryText)
+                    } else if (imageModelsLoading) {
+                        Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.padding(vertical = 12.dp)) {
+                            CircularProgressIndicator(modifier = Modifier.size(18.dp), strokeWidth = 2.dp)
+                            Spacer(Modifier.width(8.dp))
+                            Text("正在拉取该分组的绘图模型...", style = MaterialTheme.typography.bodyMedium)
+                        }
+                    } else if (availableImageModels.isEmpty()) {
+                        Text("该分组下未检索到模型或通道未开放", style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.vettaExtra.secondaryText)
+                    } else {
+                        Column {
+                            availableImageModels.forEach { modelName ->
+                                val isSelected = modelName == activeImageModel
+                                Row(
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .clip(RoundedCornerShape(8.dp))
+                                        .background(if (isSelected) MaterialTheme.colorScheme.primary.copy(alpha = 0.08f) else Color.Transparent)
+                                        .clickable {
+                                            onSelectImageModel(modelName)
+                                        }
+                                        .padding(vertical = 10.dp, horizontal = 10.dp),
+                                    verticalAlignment = Alignment.CenterVertically,
+                                    horizontalArrangement = Arrangement.SpaceBetween,
+                                ) {
+                                    Column(Modifier.weight(1f)) {
+                                        Text(
+                                            modelName,
+                                            style = MaterialTheme.typography.bodyMedium.copy(fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Medium),
+                                            color = if (isSelected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurface,
+                                        )
+                                    }
+                                    if (isSelected) {
+                                        Icon(
+                                            Icons.Default.Check,
+                                            contentDescription = null,
+                                            tint = MaterialTheme.colorScheme.primary,
+                                            modifier = Modifier.size(18.dp),
+                                        )
+                                    }
+                                }
+                                HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.2f))
+                            }
+                        }
+                    }
+                }
+                Spacer(Modifier.height(28.dp))
+            }
+        }
+    }
+
+    if (groupPickerOpen) {
+        ModalBottomSheet(
+            onDismissRequest = onCloseGroupPicker,
+            sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true),
+        ) {
+            Column(Modifier.padding(horizontal = 16.dp, vertical = 8.dp)) {
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    Text("567 API 接入分组", style = MaterialTheme.typography.titleMedium)
+                    IconButton(onClick = onRefreshCatalog) {
+                        Icon(Icons.Default.Refresh, contentDescription = "刷新缓存")
+                    }
+                }
+                Spacer(Modifier.height(4.dp))
+                Text("纵向选择分组，切换后立即自动加载对应模型", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.vettaExtra.secondaryText)
+                Spacer(Modifier.height(12.dp))
+
+                val sortedGroups = remember(availableGroups, activeGroup) {
+                    val list = availableGroups.keys.toList()
+                    if (activeGroup != null && activeGroup in list) {
+                        listOf(activeGroup) + list.filter { it != activeGroup }
+                    } else {
+                        list
+                    }
+                }
+
+                Column(Modifier.verticalScroll(rememberScrollState())) {
+                    sortedGroups.forEach { groupName ->
+                        val isSelected = groupName == activeGroup
+                        val info = availableGroups[groupName]
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .clip(RoundedCornerShape(8.dp))
+                                .background(if (isSelected) MaterialTheme.colorScheme.primary.copy(alpha = 0.08f) else Color.Transparent)
+                                .clickable {
+                                    onSelectGroup?.invoke(groupName)
+                                    onCloseGroupPicker()
+                                }
+                                .padding(vertical = 12.dp, horizontal = 10.dp),
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            verticalAlignment = Alignment.CenterVertically,
+                        ) {
+                            Column(Modifier.weight(1f)) {
+                                Row(verticalAlignment = Alignment.CenterVertically) {
+                                    Text(
+                                        groupName,
+                                        style = MaterialTheme.typography.bodyMedium.copy(
+                                            fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Medium
+                                        ),
+                                        color = if (isSelected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurface,
+                                    )
+                                    Spacer(Modifier.width(8.dp))
+                                    Text(
+                                        "${info?.ratio ?: 1.0}x 倍率",
+                                        style = MaterialTheme.typography.labelSmall,
+                                        color = MaterialTheme.colorScheme.primary,
+                                    )
+                                    if (isSelected) {
+                                        Spacer(Modifier.width(6.dp))
+                                        Text(
+                                            "当前选择",
+                                            style = MaterialTheme.typography.labelSmall,
+                                            color = MaterialTheme.colorScheme.primary,
+                                        )
+                                    }
+                                }
+                                if (!info?.desc.isNullOrBlank()) {
+                                    Spacer(Modifier.height(2.dp))
+                                    Text(info?.desc.orEmpty(), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.vettaExtra.secondaryText)
+                                }
+                            }
+                            if (isSelected) {
+                                Icon(Icons.Default.Check, contentDescription = null, tint = MaterialTheme.colorScheme.primary)
+                            }
+                        }
+                        HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.3f))
+                    }
+                }
+                Spacer(Modifier.height(24.dp))
+            }
+        }
+    }
+
     if (modelPickerOpen) {
         ModalBottomSheet(
             onDismissRequest = onCloseModelPicker,
             sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true),
         ) {
             Column(Modifier.padding(horizontal = 16.dp, vertical = 8.dp)) {
-                Text(Str.selectModel, style = MaterialTheme.typography.titleMedium)
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    Text(
+                        "${activeGroup ?: "当前分组"} · 模型列表",
+                        style = MaterialTheme.typography.titleMedium,
+                    )
+                    IconButton(onClick = onRefreshCatalog) {
+                        Icon(Icons.Default.Refresh, contentDescription = "刷新")
+                    }
+                }
                 Spacer(Modifier.height(12.dp))
                 if (models.isEmpty()) {
-                    EmptyState(title = Str.noModels, subtitle = Str.noModelsHint)
+                    EmptyState(title = Str.noModels, subtitle = "正在拉取或该分组暂无模型，点击右上角刷新")
                 } else {
-                    models.forEachIndexed { index, model ->
-                        val selected = model.id == selectedModel?.id
-                        val meta =
-                            buildString {
-                                if (model.contextWindow != null) append("上下文 ${model.contextWindow}")
-                                if (model.tags.isNotEmpty()) {
-                                    if (isNotEmpty()) append(" · ")
-                                    append(model.tags.take(3).joinToString(" / "))
+                    Column(Modifier.verticalScroll(rememberScrollState())) {
+                        models.forEachIndexed { index, model ->
+                            val selected = model.id == selectedModel?.id
+                            val meta =
+                                buildString {
+                                    if (model.reasoning) append("深度推理 · ")
+                                    if (model.contextWindow != null) append("上下文 ${model.contextWindow}")
+                                    if (model.tags.isNotEmpty()) {
+                                        if (isNotEmpty()) append(" · ")
+                                        append(model.tags.take(3).joinToString(" / "))
+                                    }
                                 }
-                            }
-                        ListRow(
-                            title = model.name,
-                            subtitle = meta.takeIf { it.isNotEmpty() },
-                            trailing = if (selected) {
-                                { Icon(Icons.Default.Check, contentDescription = null) }
-                            } else {
-                                null
-                            },
-                            onClick = { onSelectModel(model) },
-                            showDivider = index < models.lastIndex,
-                        )
+                            ListRow(
+                                title = model.name,
+                                subtitle = meta.takeIf { it.isNotEmpty() },
+                                trailing = if (selected) {
+                                    { Icon(Icons.Default.Check, contentDescription = null, tint = MaterialTheme.colorScheme.primary) }
+                                } else {
+                                    null
+                                },
+                                onClick = { onSelectModel(model) },
+                                showDivider = index < models.lastIndex,
+                            )
+                        }
                     }
                 }
                 Spacer(Modifier.height(24.dp))
@@ -401,14 +806,22 @@ private fun MessageBubble(message: LocalMessage) {
                     items(message.images, key = { it.id }) { image ->
                         val bmp = remember(image.id) { imageBitmapFromBase64(image.base64Data) }
                         if (bmp != null) {
+                            val isGen = image.id.startsWith("gen-")
                             Image(
                                 bitmap = bmp,
                                 contentDescription = image.fileName ?: Str.attach,
                                 modifier =
-                                    Modifier
-                                        .size(120.dp)
-                                        .clip(RoundedCornerShape(12.dp)),
-                                contentScale = ContentScale.Crop,
+                                    if (isGen) {
+                                        Modifier
+                                            .fillMaxWidth()
+                                            .heightIn(max = 280.dp)
+                                            .clip(RoundedCornerShape(12.dp))
+                                    } else {
+                                        Modifier
+                                            .size(120.dp)
+                                            .clip(RoundedCornerShape(12.dp))
+                                    },
+                                contentScale = if (isGen) ContentScale.Fit else ContentScale.Crop,
                             )
                         }
                     }
@@ -571,7 +984,7 @@ private fun ToolTraceRow(tool: ToolTrace) {
                 modifier = Modifier.padding(horizontal = 10.dp, vertical = 4.dp),
                 verticalArrangement = Arrangement.spacedBy(6.dp),
             ) {
-                ToolDetailSection(Str.toolArguments, tool.arguments)
+                ToolDetailSection(if (tool.toolName == "generate_image") "生图提示词" else Str.toolArguments, tool.arguments)
                 ToolDetailSection(Str.toolResult, tool.result)
                 parseToolQuestionResolution(tool.toolName, tool.result)?.let { resolution ->
                     Text(
@@ -609,17 +1022,86 @@ private fun ToolTraceRow(tool: ToolTrace) {
 
 @Composable
 private fun ToolDetailSection(label: String, value: String?) {
-    val content = value?.takeIf { it.isNotBlank() } ?: return
-    Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
-        Text(
-            text = label,
-            style = MaterialTheme.typography.labelSmall,
-            color = MaterialTheme.vettaExtra.secondaryText,
-        )
-        if (content.trimStart().startsWith('{') || content.trimStart().startsWith('[')) {
-            CodeBlockChrome(language = "json", code = content)
+    val content = value?.trim()?.takeIf { it.isNotBlank() && !it.equals("null", ignoreCase = true) } ?: return
+    @Suppress("DEPRECATION")
+    val clipboard = LocalClipboardManager.current
+    var copied by remember(content) { mutableStateOf(false) }
+    LaunchedEffect(copied) {
+        if (copied) {
+            delay(1600)
+            copied = false
+        }
+    }
+
+    val textToCopy = remember(content) {
+        if (content.trimStart().startsWith('{')) {
+            try {
+                val obj = org.vetta.android.core.net.VettaJson.parseToJsonElement(content) as? kotlinx.serialization.json.JsonObject
+                (obj?.get("prompt") as? kotlinx.serialization.json.JsonPrimitive)?.content ?: content
+            } catch (_: Exception) {
+                content
+            }
         } else {
-            MarkdownContent(source = content)
+            content
+        }
+    }
+
+    Column(
+        modifier = Modifier.fillMaxWidth().padding(vertical = 2.dp),
+        verticalArrangement = Arrangement.spacedBy(4.dp),
+    ) {
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            Text(
+                text = label,
+                style = MaterialTheme.typography.labelSmall.copy(fontWeight = FontWeight.SemiBold),
+                color = MaterialTheme.vettaExtra.secondaryText,
+            )
+            Surface(
+                onClick = {
+                    clipboard.setText(AnnotatedString(textToCopy))
+                    copied = true
+                },
+                shape = RoundedCornerShape(6.dp),
+                color = if (copied) MaterialTheme.colorScheme.primaryContainer else MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.6f),
+            ) {
+                Row(
+                    modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    Icon(
+                        imageVector = if (copied) Icons.Default.Check else Icons.Default.ContentCopy,
+                        contentDescription = if (copied) "已复制" else "复制",
+                        modifier = Modifier.size(13.dp),
+                        tint = if (copied) MaterialTheme.colorScheme.primary else MaterialTheme.vettaExtra.secondaryText,
+                    )
+                    Spacer(Modifier.width(3.dp))
+                    Text(
+                        text = if (copied) "已复制" else "复制",
+                        style = MaterialTheme.typography.labelSmall,
+                        color = if (copied) MaterialTheme.colorScheme.primary else MaterialTheme.vettaExtra.secondaryText,
+                    )
+                }
+            }
+        }
+
+        Surface(
+            shape = RoundedCornerShape(8.dp),
+            color = MaterialTheme.colorScheme.surface.copy(alpha = 0.7f),
+            modifier = Modifier.fillMaxWidth(),
+        ) {
+            Box(Modifier.padding(8.dp)) {
+                SelectionContainer {
+                    if (content.trimStart().startsWith('{') || content.trimStart().startsWith('[')) {
+                        CodeBlockChrome(language = "json", code = content)
+                    } else {
+                        MarkdownContent(source = content)
+                    }
+                }
+            }
         }
     }
 }

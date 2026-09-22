@@ -3,11 +3,11 @@ package org.vetta.android.ui.components
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.ChatBubbleOutline
-import androidx.compose.material.icons.filled.Explore
+import androidx.compose.material.icons.filled.Devices
 import androidx.compose.material.icons.filled.Home
 import androidx.compose.material.icons.filled.PersonOutline
 import androidx.compose.material.icons.outlined.ChatBubbleOutline
-import androidx.compose.material.icons.outlined.Explore
+import androidx.compose.material.icons.outlined.Devices
 import androidx.compose.material.icons.outlined.Home
 import androidx.compose.material.icons.outlined.PersonOutline
 import androidx.compose.material3.Icon
@@ -33,7 +33,7 @@ fun VettaBottomBar(
         listOf(
             TabItem(MainTab.Home, Str.tabHome, Icons.Outlined.Home, Icons.Filled.Home),
             TabItem(MainTab.Sessions, Str.tabSessions, Icons.Outlined.ChatBubbleOutline, Icons.Filled.ChatBubbleOutline),
-            TabItem(MainTab.Discover, Str.tabDiscover, Icons.Outlined.Explore, Icons.Filled.Explore),
+            TabItem(MainTab.Discover, Str.tabDiscover, Icons.Outlined.Devices, Icons.Filled.Devices),
             TabItem(MainTab.Me, Str.tabMe, Icons.Outlined.PersonOutline, Icons.Filled.PersonOutline),
         )
     NavigationBar(

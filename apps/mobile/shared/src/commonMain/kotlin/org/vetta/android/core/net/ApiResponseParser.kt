@@ -81,6 +81,14 @@ internal fun parseFailure(httpStatus: Int, body: String): VettaException {
             openai.error?.message
                 ?: openai.message
                 ?: "HTTP $httpStatus"
+        if (httpStatus == 401 && (message.contains("Invalid token", ignoreCase = true) || message.contains("permission", ignoreCase = true) || message.contains("token", ignoreCase = true))) {
+            return VettaException.Api(
+                httpStatus = 401,
+                code = openai.error?.code,
+                message = "当前分组下该模型鉴权失败或无权限，请更换模型或分组重试",
+                rawBody = body,
+            )
+        }
         if (httpStatus == 401) {
             return VettaException.Unauthorized(message, openai.error?.code)
         }
@@ -93,6 +101,14 @@ internal fun parseFailure(httpStatus: Int, body: String): VettaException {
     }
 
     if (httpStatus == 401) {
+        if (body.contains("Invalid token", ignoreCase = true) || body.contains("permission", ignoreCase = true)) {
+            return VettaException.Api(
+                httpStatus = 401,
+                code = null,
+                message = "当前分组下该模型鉴权失败或无权限，请更换模型或分组重试",
+                rawBody = body,
+            )
+        }
         return VettaException.Unauthorized(body.ifBlank { "未授权" })
     }
     return VettaException.Api(

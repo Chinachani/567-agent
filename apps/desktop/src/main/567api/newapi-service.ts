@@ -1,3 +1,23 @@
+function getModelScore(id: string): number {
+	const lower = id.toLowerCase();
+	if (lower.includes("3.8")) return 100;
+	if (lower.includes("3.7")) return 95;
+	if (lower.includes("3.5")) return 90;
+	if (lower.includes("3-") || lower.includes("3.")) return 85;
+	if (lower.includes("2.5")) return 80;
+	if (lower.includes("2.0") || lower.includes("2-")) return 75;
+	if (lower.includes("4o")) return 70;
+	if (lower.includes("r1") || lower.includes("reasoner")) return 65;
+	if (lower.includes("deepseek")) return 60;
+	return 10;
+}
+
+function pickBestModel(models: ModelDefinition[]): ModelDefinition | undefined {
+	if (!models || models.length === 0) return undefined;
+	const sorted = [...models].sort((a, b) => getModelScore(b.id) - getModelScore(a.id));
+	return sorted[0];
+}
+
 import { existsSync, readFileSync, writeFileSync } from "node:fs";
 import http from "node:http";
 import https from "node:https";
@@ -775,8 +795,9 @@ export class NewApiService {
 			};
 
 			if (!config.defaultModel || config.defaultModel.startsWith(`${providerId}/`)) {
-				if (modelDefs[0]) {
-					config.defaultModel = `${providerId}/${modelDefs[0].id}`;
+				const best = pickBestModel(modelDefs);
+				if (best) {
+					config.defaultModel = `${providerId}/${best.id}`;
 				}
 			}
 
@@ -883,7 +904,8 @@ export class NewApiService {
 			}
 
 			if (provider?.models && provider.models.length > 0) {
-				config.defaultModel = `${providerId}/${provider.models[0].id}`;
+				const best = pickBestModel(provider.models);
+				config.defaultModel = `${providerId}/${best?.id || provider.models[0].id}`;
 				await service.replaceConfig(config);
 			}
 

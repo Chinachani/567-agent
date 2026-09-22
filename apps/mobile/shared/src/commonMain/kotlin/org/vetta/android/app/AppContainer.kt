@@ -32,7 +32,7 @@ class AppContainer(
 
     val conversationRouter =
         ConversationRouter(
-            cloudStream = { modelId, messages -> client.chat.stream(modelId, messages) },
+            cloudStream = { modelId, messages, groupName, imageGenModel -> client.chat.stream(modelId, messages, groupName = groupName, imageGenModel = imageGenModel) },
             remoteGateway = remoteConversationGateway,
         )
 
@@ -52,7 +52,7 @@ class AppContainer(
             config =
                 VettaConfig(
                     serverUrl = serverUrl,
-                    userAgent = "vetta-android/0.1.0",
+                    userAgent = "567-agent-android/1.0.3",
                 ),
             tokenStore = tokenStore,
             onUnauthorized = { notifyUnauthorized() },

@@ -65,6 +65,16 @@ data class AppUiState(
     /** 面向用户的短状态，不透传 Desktop 内部思考文本或异常原文。 */
     val streamingStatus: String? = null,
     val modelPickerOpen: Boolean = false,
+    val available567Groups: Map<String, org.vetta.android.core.api.ApiGroupInfoDto> = emptyMap(),
+    val active567Group: String? = null,
+    val groupPickerOpen: Boolean = false,
+    val activeImageGroup: String? = null,
+    val activeImageModel: String? = null,
+    val imageGenEnabled: Boolean = false,
+    val imagePickerOpen: Boolean = false,
+    val availableImageModels: List<String> = emptyList(),
+    val imageModelsLoading: Boolean = false,
+    val imageGroupExpanded: Boolean = false,
     val remoteConnecting: Boolean = false,
     val globalError: UiError? = null,
     val authError: UiError? = null,
@@ -151,85 +161,120 @@ class AppViewModel(
 
     private fun bootstrap() {
         viewModelScope.launch {
-            val loggedIn = container.tokenStore.accessToken != null
-            if (!loggedIn) {
+            val savedGroup = container.preferences.active567Group
+            val savedImageGroup = container.preferences.activeImageGroup
+            val savedImageModel = container.preferences.activeImageModel
+            val savedImageEnabled = container.preferences.imageGenEnabled
+
+            val cachedUsername = container.preferences.authUsername
+            val cachedUser = if (!cachedUsername.isNullOrBlank()) {
+                User(
+                    id = container.preferences.authUserId,
+                    username = cachedUsername,
+                    nickname = cachedUsername,
+                    phone = null,
+                    email = null,
+                    avatar = "",
+                    isActive = true,
+                    createdAt = null,
+                    quota = (container.preferences.authQuotaUsd * 500000.0 + 0.5).toLong(),
+                    quotaUsd = container.preferences.authQuotaUsd,
+                )
+            } else {
+                null
+            }
+
+            _state.update {
+                it.copy(
+                    active567Group = savedGroup,
+                    activeImageGroup = savedImageGroup,
+                    activeImageModel = savedImageModel,
+                    imageGenEnabled = savedImageEnabled,
+                    user = cachedUser,
+                )
+            }
+            val token = container.tokenStore.accessToken ?: container.preferences.authToken
+            if (token.isNullOrBlank()) {
                 _state.update {
-                    it.copy(bootstrapped = true, route = AppRoute.Welcome)
+                    it.copy(
+                        bootstrapped = true,
+                        mainAccessGranted = false,
+                        route = AppRoute.Welcome,
+                    )
                 }
                 restorePendingQuestion()
                 return@launch
             }
-            when (val refresh = container.client.auth.refresh()) {
-                is RefreshOutcome.Ok, RefreshOutcome.Transient -> {
-                    // Transient：保留会话，尽量拉用户信息
-                    loadWorkspace(openLastSession = container.preferences.autoResumeLastSession.value)
-                }
-                RefreshOutcome.Unauthorized -> {
-                    container.tokenStore.clear()
-                    _state.update {
-                        it.copy(
-                            bootstrapped = true,
-                            route = AppRoute.Login,
-                            authError =
-                                UiError(
-                                    title = "需要重新登录",
-                                    message = "登录已失效，请重新登录",
-                                    action = UiErrorAction.None,
-                                ),
-                        )
-                    }
-                }
+            if (container.tokenStore.accessToken.isNullOrBlank()) {
+                container.tokenStore.save(token, token)
             }
+            if (container.preferences.authToken.isNullOrBlank()) {
+                container.preferences.authToken = token
+            }
+            loadWorkspace(openLastSession = container.preferences.autoResumeLastSession.value)
         }
     }
 
     private suspend fun loadWorkspace(openLastSession: Boolean) {
-        _state.update { it.copy(catalogLoading = true, globalError = null) }
+        val lastSessionId = container.preferences.lastSessionId
+        val lastSession = if (openLastSession && lastSessionId != null) {
+            container.sessionStore.getSession(lastSessionId)
+        } else {
+            null
+        }
+        val routeSession = lastSession?.id
+
+        _state.update {
+            it.copy(
+                bootstrapped = true,
+                mainAccessGranted = true,
+                route = AppRoute.Main(it.mainTab),
+                currentSessionId = routeSession,
+                catalogLoading = true,
+                globalError = null,
+            )
+        }
+        restorePendingQuestion()
+
         try {
             val user = runCatching { container.client.auth.me() }.getOrNull()
+            if (user != null) {
+                container.preferences.authUsername = user.nickname.ifBlank { user.username }
+                container.preferences.authQuotaUsd = user.quotaUsd
+                container.preferences.authUserId = user.id
+            }
             val sub = runCatching { container.client.subscription.me() }.getOrNull()
+            val groups = runCatching { container.client.models.getAvailableGroups() }.getOrDefault(emptyMap())
+            val currentGroup = _state.value.active567Group ?: pickDefaultGroup(groups)
+            if (_state.value.active567Group == null && currentGroup != null) {
+                container.preferences.active567Group = currentGroup
+            }
             val models =
-                runCatching { container.client.models.listGoModels() }
-                    .getOrElse { emptyList() }
+                if (!currentGroup.isNullOrBlank()) {
+                    runCatching { container.client.models.listGoModels(currentGroup) }.getOrElse { emptyList() }
+                } else {
+                    emptyList()
+                }
             val selected =
                 resolveModelId(
                     preferred = container.preferences.lastModelId,
                     models = models,
                 )
-            val lastSessionId = container.preferences.lastSessionId
-            val routeSession =
-                if (openLastSession && lastSessionId != null &&
-                    container.sessionStore.getSession(lastSessionId) != null
-                ) {
-                    lastSessionId
-                } else {
-                    null
-                }
             _state.update {
                 it.copy(
-                    bootstrapped = true,
-                    mainAccessGranted = true,
-                    user = user,
-                    subscription = sub,
+                    user = user ?: it.user,
+                    subscription = sub ?: it.subscription,
+                    available567Groups = groups,
+                    active567Group = currentGroup,
                     models = models,
                     selectedModelId = selected,
-                    route = AppRoute.Main(MainTab.Home),
-                    mainTab = MainTab.Home,
-                    currentSessionId = routeSession,
                     catalogLoading = false,
                 )
-            }
-            restorePendingQuestion()
-            if (routeSession != null) {
-                // 保留 last session 引用，进入主页后用户可从最近会话打开
             }
         } catch (t: Throwable) {
             _state.update {
                 it.copy(
-                    bootstrapped = true,
                     catalogLoading = false,
-                    route = AppRoute.Main(MainTab.Home),
-                    mainTab = MainTab.Home,
                     globalError = ErrorMapper.from(t),
                 )
             }
@@ -275,7 +320,7 @@ class AppViewModel(
 
     /** 登录后继续用户刚刚发起的高意图操作，避免登录成功后把用户丢回首页。 */
     fun openCloudConversation() {
-        if (_state.value.user == null) {
+        if (container.tokenStore.accessToken.isNullOrBlank()) {
             pendingLoginAction = PendingLoginAction.CloudConversation
             openLogin()
         } else {
@@ -345,10 +390,19 @@ class AppViewModel(
                         listOf(target)
                     } else {
                         buildList {
-                            if (savedResume != null) {
-                                add(org.vetta.android.domain.remote.buildMobileResumeTarget(invite, savedResume))
+                            if (!invite.lanBaseUrl.isNullOrBlank()) {
+                                val lanInvite = invite.copy(relayBaseUrl = invite.lanBaseUrl)
+                                if (savedResume != null) {
+                                    add(org.vetta.android.domain.remote.buildMobileResumeTarget(lanInvite, savedResume))
+                                }
+                                add(org.vetta.android.domain.remote.buildMobileBootstrapTarget(lanInvite, requireNotNull(resume)))
                             }
-                            add(org.vetta.android.domain.remote.buildMobileBootstrapTarget(invite, requireNotNull(resume)))
+                            if (invite.relayBaseUrl.isNotBlank() && invite.relayBaseUrl != invite.lanBaseUrl) {
+                                if (savedResume != null) {
+                                    add(org.vetta.android.domain.remote.buildMobileResumeTarget(invite, savedResume))
+                                }
+                                add(org.vetta.android.domain.remote.buildMobileBootstrapTarget(invite, requireNotNull(resume)))
+                            }
                         }
                     }
                 var connected = false
@@ -472,28 +526,32 @@ class AppViewModel(
         _state.update { it.copy(modelPickerOpen = open) }
     }
 
-    fun sessionListItems(): List<SessionListItem> =
-        container.sessionStore.sessions.value.map { s ->
-            val remoteDevice = s.remoteDeviceId?.let { id -> _state.value.devices.firstOrNull { it.id == id } }
-            SessionListItem(
-                id = s.id,
-                title = s.title,
-                subtitle =
-                    if (s.origin == ConversationOrigin.Desktop) {
-                        remoteDevice?.host.orEmpty()
-                    } else {
-                        s.modelName.orEmpty()
-                    },
-                sourceLabel =
-                    if (s.origin == ConversationOrigin.Desktop) {
-                        remoteDevice?.name ?: Str.desktopDevice
-                    } else {
-                        s.modelName?.takeIf { it.isNotBlank() } ?: Str.filterCloud
-                    },
-                timeLabel = relativeTime(s.updatedAtEpochMs),
-                isCloud = s.origin == ConversationOrigin.Cloud,
-            )
-        }
+    val sessionListItems: StateFlow<List<SessionListItem>> =
+        combine(container.sessionStore.sessions, _state) { sessionList, s ->
+            sessionList.map { session ->
+                val remoteDevice = session.remoteDeviceId?.let { id -> s.devices.firstOrNull { it.id == id } }
+                SessionListItem(
+                    id = session.id,
+                    title = session.title,
+                    subtitle =
+                        if (session.origin == ConversationOrigin.Desktop) {
+                            remoteDevice?.host.orEmpty()
+                        } else {
+                            session.modelName.orEmpty()
+                        },
+                    sourceLabel =
+                        if (session.origin == ConversationOrigin.Desktop) {
+                            remoteDevice?.name ?: Str.desktopDevice
+                        } else {
+                            session.modelName?.takeIf { it.isNotBlank() } ?: Str.filterCloud
+                        },
+                    timeLabel = relativeTime(session.updatedAtEpochMs),
+                    isCloud = session.origin == ConversationOrigin.Cloud,
+                )
+            }
+        }.stateIn(viewModelScope, SharingStarted.Eagerly, emptyList())
+
+    fun sessionListItems(): List<SessionListItem> = sessionListItems.value
 
     private fun relativeTime(epochMs: Long): String {
         val delta = (nowEpochMs() - epochMs).coerceAtLeast(0)
@@ -537,6 +595,109 @@ class AppViewModel(
 
     fun removePendingImage(id: String) {
         _state.update { it.copy(pendingImages = it.pendingImages.filterNot { img -> img.id == id }) }
+    }
+
+    fun setGroupPickerOpen(open: Boolean) {
+        _state.update { it.copy(groupPickerOpen = open) }
+    }
+
+    fun setActive567Group(group: String?) {
+        val oldGroup = _state.value.active567Group
+        if (oldGroup != null && oldGroup != group) {
+            viewModelScope.launch {
+                runCatching { container.client.models.cleanupGroupToken(oldGroup) }
+            }
+        }
+        container.preferences.active567Group = group
+        _state.update { it.copy(active567Group = group, groupPickerOpen = false, catalogLoading = true) }
+        viewModelScope.launch {
+            try {
+                val models = container.client.models.listGoModels(group)
+                val selected = resolveModelId(container.preferences.lastModelId, models) ?: models.firstOrNull()?.id
+                _state.update {
+                    it.copy(models = models, selectedModelId = selected, catalogLoading = false)
+                }
+            } catch (_: Throwable) {
+                _state.update { it.copy(catalogLoading = false) }
+            }
+        }
+    }
+
+
+    fun setImagePickerOpen(open: Boolean) {
+        _state.update {
+            it.copy(
+                imagePickerOpen = open,
+                imageGroupExpanded = if (open && it.activeImageGroup == null) true else it.imageGroupExpanded,
+            )
+        }
+        if (open && !_state.value.activeImageGroup.isNullOrBlank() && _state.value.availableImageModels.isEmpty()) {
+            loadGroupImageModels(_state.value.activeImageGroup)
+        }
+    }
+
+    fun setImageGroupExpanded(expanded: Boolean) {
+        _state.update { it.copy(imageGroupExpanded = expanded) }
+    }
+
+    fun setImageGenEnabled(enabled: Boolean) {
+        container.preferences.imageGenEnabled = enabled
+        _state.update { it.copy(imageGenEnabled = enabled) }
+    }
+
+    fun setActiveImageGroup(group: String?) {
+        val oldGroup = _state.value.activeImageGroup
+        if (oldGroup != null && oldGroup != group) {
+            viewModelScope.launch {
+                runCatching { container.client.models.cleanupGroupToken(oldGroup) }
+            }
+        }
+        container.preferences.activeImageGroup = group
+        // 选中分组后关键步骤：立即自动折叠收起分组列表，展现对应模型
+        _state.update {
+            it.copy(
+                activeImageGroup = group,
+                imageGroupExpanded = false,
+                imageModelsLoading = true,
+            )
+        }
+        loadGroupImageModels(group)
+    }
+
+    fun setActiveImageModel(model: String?) {
+        container.preferences.activeImageModel = model
+        _state.update {
+            it.copy(
+                activeImageModel = model,
+                imagePickerOpen = false,
+            )
+        }
+    }
+
+    private fun loadGroupImageModels(group: String?) {
+        if (group.isNullOrBlank()) {
+            _state.update { it.copy(availableImageModels = emptyList(), imageModelsLoading = false) }
+            return
+        }
+        viewModelScope.launch {
+            try {
+                val models = container.client.models.fetchGroupImageModels(group)
+                val current = _state.value.activeImageModel
+                val selected = if (current != null && models.contains(current)) current else models.firstOrNull()
+                if (selected != null) {
+                    container.preferences.activeImageModel = selected
+                }
+                _state.update {
+                    it.copy(
+                        availableImageModels = models,
+                        activeImageModel = selected,
+                        imageModelsLoading = false,
+                    )
+                }
+            } catch (_: Throwable) {
+                _state.update { it.copy(imageModelsLoading = false) }
+            }
+        }
     }
 
     fun selectModel(model: LlmModel) {
@@ -600,13 +761,19 @@ class AppViewModel(
         viewModelScope.launch {
             _state.update { it.copy(authLoading = true, authError = null) }
             try {
-                if (password.isBlank()) {
+                val session = if (password.isBlank()) {
                     container.client.auth.loginWithAccessToken(accountOrEmail.trim())
                 } else if (_state.value.loginModeEmail) {
                     container.client.auth.loginWithEmailPassword(accountOrEmail.trim(), password)
                 } else {
                     container.client.auth.loginWithAccount(accountOrEmail.trim(), password)
                 }
+                container.preferences.authToken = session.accessToken
+                container.preferences.authRefreshToken = session.refreshToken
+                container.preferences.authUsername = session.user.nickname.ifBlank { session.user.username }
+                container.preferences.authQuotaUsd = session.user.quotaUsd
+                container.preferences.authUserId = session.user.id
+
                 val pendingAction = pendingLoginAction
                 pendingLoginAction = null
                 loadWorkspace(openLastSession = true)
@@ -631,6 +798,7 @@ class AppViewModel(
         viewModelScope.launch {
             streamJob?.cancel()
             runCatching { container.client.auth.logout() }
+            container.preferences.clearAuthSnapshot()
             forceLogout(keepLocalSessions = !clearLocalSessions)
         }
     }
@@ -638,6 +806,7 @@ class AppViewModel(
     private suspend fun forceLogout(keepLocalSessions: Boolean, message: String? = null) {
         streamJob?.cancel()
         container.tokenStore.clear()
+        container.preferences.clearAuthSnapshot()
         if (!keepLocalSessions) {
             container.sessionStore.sessions.value.map { it.id }.forEach {
                 container.sessionStore.deleteSession(it)
@@ -647,6 +816,7 @@ class AppViewModel(
         container.preferences.lastSessionId = null
         _state.update {
             it.copy(
+                mainAccessGranted = false,
                 user = null,
                 subscription = null,
                 models = emptyList(),
@@ -674,12 +844,15 @@ class AppViewModel(
             _state.update { it.copy(catalogLoading = true) }
             try {
                 val sub = container.client.subscription.me()
-                val models = container.client.models.listGoModels()
+                val groups = runCatching { container.client.models.getAvailableGroups() }.getOrDefault(emptyMap())
+                val currentGroup = _state.value.active567Group
+                val models = container.client.models.listGoModels(currentGroup)
                 val selected =
                     resolveModelId(_state.value.selectedModelId ?: container.preferences.lastModelId, models)
                 _state.update {
                     it.copy(
                         subscription = sub,
+                        available567Groups = groups,
                         models = models,
                         selectedModelId = selected,
                         catalogLoading = false,
@@ -695,15 +868,22 @@ class AppViewModel(
     }
 
     fun newChat() {
+        if (container.tokenStore.accessToken == null) {
+            openLogin()
+            return
+        }
         viewModelScope.launch {
             streamJob?.cancel()
-            val model = currentModel()
+            val model = currentModel() ?: _state.value.models.firstOrNull()
             val session =
                 container.sessionStore.createSession(
                     title = SessionStore.DEFAULT_TITLE,
                     modelId = model?.id,
                     modelName = model?.name,
                 )
+            if (_state.value.selectedModelId == null && model != null) {
+                _state.update { it.copy(selectedModelId = model.id) }
+            }
             container.preferences.lastSessionId = session.id
             drafts[session.id] = ""
             _state.update { it.copy(pendingImages = emptyList()) }
@@ -780,6 +960,13 @@ class AppViewModel(
         if ((text.isEmpty() && images.isEmpty()) || _state.value.isStreaming) return
 
         viewModelScope.launch {
+            val route = _state.value.route as? AppRoute.Chat
+            val isDesktop = route?.surface == ChatSurface.Desktop ||
+                _state.value.currentSessionId?.let { container.sessionStore.getSession(it)?.origin == ConversationOrigin.Desktop } == true
+            if (!isDesktop && container.tokenStore.accessToken.isNullOrBlank()) {
+                openLogin()
+                return@launch
+            }
             val model = currentModel()
             var sessionId = _state.value.currentSessionId
             if (sessionId == null) {
@@ -920,6 +1107,8 @@ class AppViewModel(
                                 session = session,
                                 selectedModelId = model?.id,
                                 messages = history,
+                                groupName = _state.value.active567Group,
+                                imageGenModel = if (_state.value.imageGenEnabled) _state.value.activeImageModel else null,
                             )
                             .collect { event ->
                                 when (event) {
@@ -937,6 +1126,8 @@ class AppViewModel(
                                         // A response to a pending question may resume with a tool event.
                                         // The tool event is the durable boundary that clears the prompt.
                                         pendingQuestion = null
+                                        val isImageGen = event.toolName == "generate_image"
+                                        val displayLabel = if (isImageGen) "正在绘制画面..." else event.phaseLabel
                                         toolEvents = mergeToolTrace(
                                             toolEvents,
                                             ToolTrace(
@@ -947,10 +1138,130 @@ class AppViewModel(
                                                 durationMs = event.durationMs,
                                                 arguments = event.arguments,
                                                 result = event.result,
-                                                phaseLabel = event.phaseLabel,
+                                                phaseLabel = displayLabel,
                                             ),
                                         )
                                         persistAssistant()
+
+                                        if (isImageGen && event.phase == "call") {
+                                            val promptArg = try {
+                                                val argsObj = org.vetta.android.core.net.VettaJson.parseToJsonElement(event.arguments.orEmpty()) as? kotlinx.serialization.json.JsonObject
+                                                (argsObj?.get("prompt") as? kotlinx.serialization.json.JsonPrimitive)?.content ?: event.arguments.orEmpty()
+                                            } catch (_: Exception) {
+                                                event.arguments.orEmpty()
+                                            }
+                                            val imgModel = _state.value.activeImageModel ?: "flux-schnell"
+                                            val imgGroup = _state.value.activeImageGroup
+                                            viewModelScope.launch {
+                                                try {
+                                                    val res = container.client.models.generateImage(
+                                                        prompt = promptArg,
+                                                        model = imgModel,
+                                                        groupName = imgGroup,
+                                                    )
+                                                    val b64 = res.b64Json
+                                                    val url = res.url
+                                                    val finalB64 = if (!b64.isNullOrBlank()) {
+                                                        b64.trim()
+                                                    } else if (!url.isNullOrBlank()) {
+                                                        try {
+                                                            val bytes = container.client.models.downloadImageBytesDirect(url)
+                                                            @OptIn(kotlin.io.encoding.ExperimentalEncodingApi::class)
+                                                            kotlin.io.encoding.Base64.encode(bytes)
+                                                        } catch (_: Throwable) {
+                                                            ""
+                                                        }
+                                                    } else {
+                                                        ""
+                                                    }
+
+                                                    val hasValidImage = finalB64.isNotBlank()
+                                                    val cleanText = res.textContent?.trim()?.takeIf { it.isNotBlank() && !it.equals("null", ignoreCase = true) }
+                                                    val resultDesc = if (hasValidImage) {
+                                                        "成功生成图片"
+                                                    } else if (cleanText != null) {
+                                                        cleanText
+                                                    } else {
+                                                        "未检测到图片数据，建议在右下角切换为 DALL-E 3 或 FLUX 等生图模型重试"
+                                                    }
+
+                                                    val updatedTools = mergeToolTrace(
+                                                        toolEvents,
+                                                        ToolTrace(
+                                                            phase = "completed",
+                                                            toolCallId = event.toolCallId,
+                                                            toolName = "generate_image",
+                                                            detail = if (hasValidImage) "画面绘制完成" else resultDesc,
+                                                            arguments = promptArg,
+                                                            result = resultDesc,
+                                                            phaseLabel = if (hasValidImage) "画面绘制完成" else "生图完成",
+                                                        ),
+                                                    )
+                                                    toolEvents = updatedTools
+
+                                                    val newImages = if (hasValidImage) {
+                                                        listOf(
+                                                            MessageImage(
+                                                                id = "gen-${newMessageId()}",
+                                                                mimeType = "image/png",
+                                                                fileName = "generated.png",
+                                                                base64Data = finalB64,
+                                                            )
+                                                        )
+                                                    } else {
+                                                        emptyList()
+                                                    }
+
+                                                    val currentMsg = container.sessionStore.getMessages(sid).firstOrNull { it.id == assistantId }
+                                                    val currentImages = (currentMsg?.images ?: assistantMsg.images) + newImages
+                                                    val descSuffix = if (cleanText != null) "\n\n" + cleanText else ""
+                                                    val finalContent = if (assembled.isBlank()) {
+                                                        if (hasValidImage) "画面绘制完成$descSuffix" else resultDesc
+                                                    } else {
+                                                        assembled + descSuffix
+                                                    }
+
+                                                    container.sessionStore.upsertMessage(
+                                                        (currentMsg ?: assistantMsg).copy(
+                                                            content = finalContent,
+                                                            status = MessageStatus.Complete,
+                                                            images = currentImages,
+                                                            toolEvents = updatedTools,
+                                                        )
+                                                    )
+                                                } catch (e: Throwable) {
+                                                    val failMsg = e.message ?: "请求失败"
+                                                    val failTools = mergeToolTrace(
+                                                        toolEvents,
+                                                        ToolTrace(
+                                                            phase = "error",
+                                                            toolCallId = event.toolCallId,
+                                                            toolName = "generate_image",
+                                                            detail = "生图失败: $failMsg",
+                                                            phaseLabel = "生图失败",
+                                                        ),
+                                                    )
+                                                    toolEvents = failTools
+                                                    val currentMsg = container.sessionStore.getMessages(sid).firstOrNull { it.id == assistantId }
+                                                    container.sessionStore.upsertMessage(
+                                                        (currentMsg ?: assistantMsg).copy(
+                                                            status = MessageStatus.Complete,
+                                                            toolEvents = failTools,
+                                                            errorMessage = failMsg,
+                                                        )
+                                                    )
+                                                    _state.update {
+                                                        it.copy(
+                                                            globalError = UiError(
+                                                                title = "生图失败",
+                                                                message = failMsg,
+                                                                action = UiErrorAction.None,
+                                                            )
+                                                        )
+                                                    }
+                                                }
+                                            }
+                                        }
                                     }
                                     is ChatStreamEvent.UserInputRequired -> {
                                         flushPendingPersist()
@@ -1235,9 +1546,43 @@ class AppViewModel(
     private fun resolveModelId(preferred: String?, models: List<LlmModel>): String? {
         if (models.isEmpty()) return null
         if (preferred != null && models.any { it.id == preferred }) return preferred
-        return models.first().id
+
+        val sorted = models.sortedWith(compareByDescending<LlmModel> { model ->
+            val id = model.id.lowercase()
+            when {
+                id.contains("3.8") -> 100
+                id.contains("3.7") -> 95
+                id.contains("3.5") -> 90
+                id.contains("3-") || id.contains("3.") -> 85
+                id.contains("2.5") -> 80
+                id.contains("2.0") || id.contains("2-") -> 75
+                id.contains("4o") -> 70
+                id.contains("r1") || id.contains("reasoner") -> 65
+                id.contains("deepseek") -> 60
+                else -> 10
+            }
+        })
+        return sorted.first().id
     }
 
     private fun newMessageId(): String =
         "${nowEpochMs().toString(16)}-${Random.nextInt(0, Int.MAX_VALUE).toString(16)}"
+}
+
+private fun pickDefaultGroup(available: Map<String, org.vetta.android.core.api.ApiGroupInfoDto>): String? {
+    val priorityGroups = listOf(
+        "chat GPT 特价",
+        "chat GPT 满血",
+        "反重力Gemini",
+        "deepseek官",
+        "Google Gemini",
+        "chat GPT pro",
+        "xAI grok",
+        "国模特价组1",
+        "福利特价",
+    )
+    for (p in priorityGroups) {
+        if (available.containsKey(p)) return p
+    }
+    return available.keys.firstOrNull { !it.contains("kiro", ignoreCase = true) } ?: available.keys.firstOrNull()
 }

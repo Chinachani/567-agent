@@ -1,4 +1,3 @@
-import type { RemoteDesktopSignal } from "@vetta/remote-desktop";
 import { RemoteDesktopHost, WebSocketRemoteDesktopSignaling } from "@vetta/remote-desktop";
 
 declare global {
@@ -14,31 +13,52 @@ if (!target || !sessionId) throw new Error("remote desktop host target is missin
 
 const signaling = new WebSocketRemoteDesktopSignaling(target);
 let host: RemoteDesktopHost | undefined;
-const pending: RemoteDesktopSignal[] = [];
+let stream: MediaStream | undefined;
+let isStarting = false;
+
+async function startHostWithStream(): Promise<void> {
+	if (host || isStarting) return;
+	isStarting = true;
+	try {
+		console.info("peer ready received, requesting display media capture...");
+		stream = await navigator.mediaDevices.getDisplayMedia({ video: true, audio: false });
+		host = new RemoteDesktopHost(
+			{
+				sessionId: sessionId!,
+				logger: {
+					debug: (message, fields) => console.debug(message, fields),
+					info: (message, fields) => console.info(message, fields),
+					warn: (message, fields) => console.warn(message, fields),
+				},
+			},
+			async (signal) => signaling.send(signal),
+			(message) => window.vettaRemoteDesktop?.onInput(message),
+		);
+		await host.start(stream, { waitForPeerReady: false });
+		console.info("remote desktop host started successfully with active stream");
+	} catch (err) {
+		console.warn("display media capture failed or cancelled by user", err);
+		isStarting = false;
+	}
+}
 
 await signaling.connect({
-	onSignal(signal) {
-		if (host) void host.acceptSignal(signal);
-		else pending.push(signal);
+	async onSignal(signal) {
+		if (signal.type === "peer_ready") {
+			await startHostWithStream();
+			return;
+		}
+		if (host) {
+			void host.acceptSignal(signal);
+		}
 	},
 	onClose(reason) {
 		console.warn("remote desktop signaling closed", reason);
-		setTimeout(() => window.location.reload(), 1_000);
+		stream?.getTracks().forEach((t) => {
+			t.stop();
+		});
+		setTimeout(() => window.location.reload(), 2_000);
 	},
 });
 
-const stream = await navigator.mediaDevices.getDisplayMedia({ video: true, audio: false });
-host = new RemoteDesktopHost(
-	{
-		sessionId,
-		logger: {
-			debug: (message, fields) => console.debug(message, fields),
-			info: (message, fields) => console.info(message, fields),
-			warn: (message, fields) => console.warn(message, fields),
-		},
-	},
-	async (signal) => signaling.send(signal),
-	(message) => window.vettaRemoteDesktop?.onInput(message),
-);
-await host.start(stream, { waitForPeerReady: true });
-for (const signal of pending.splice(0)) await host.acceptSignal(signal);
+console.info("remote desktop host signaling connected, waiting for mobile peer_ready...");

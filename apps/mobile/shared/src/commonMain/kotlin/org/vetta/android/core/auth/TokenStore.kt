@@ -41,31 +41,40 @@ class SettingsTokenStore(
 
     override val accessToken: String?
         get() = settings.getStringOrNull(accessKey)?.takeIf { it.isNotBlank() }
+            ?: settings.getStringOrNull(KEY_PREF_AUTH_TOKEN)?.takeIf { it.isNotBlank() }
 
     override val refreshToken: String?
         get() = settings.getStringOrNull(refreshKey)?.takeIf { it.isNotBlank() }
+            ?: settings.getStringOrNull(KEY_PREF_AUTH_REFRESH)?.takeIf { it.isNotBlank() }
+            ?: accessToken
 
     override fun save(accessToken: String, refreshToken: String) {
         settings[accessKey] = accessToken
         settings[refreshKey] = refreshToken
+        settings[KEY_PREF_AUTH_TOKEN] = accessToken
+        settings[KEY_PREF_AUTH_REFRESH] = refreshToken
         _tokens.value = StoredTokens(accessToken, refreshToken)
     }
 
     override fun clear() {
         settings.remove(accessKey)
         settings.remove(refreshKey)
+        settings.remove(KEY_PREF_AUTH_TOKEN)
+        settings.remove(KEY_PREF_AUTH_REFRESH)
         _tokens.value = null
     }
 
     private fun readSnapshot(): StoredTokens? {
-        val access = settings.getStringOrNull(accessKey)?.takeIf { it.isNotBlank() } ?: return null
-        val refresh = settings.getStringOrNull(refreshKey)?.takeIf { it.isNotBlank() } ?: return null
+        val access = accessToken ?: return null
+        val refresh = refreshToken ?: access
         return StoredTokens(access, refresh)
     }
 
     companion object {
         const val KEY_ACCESS = "vetta.access_token"
         const val KEY_REFRESH = "vetta.refresh_token"
+        private const val KEY_PREF_AUTH_TOKEN = "vetta.prefs.auth_token"
+        private const val KEY_PREF_AUTH_REFRESH = "vetta.prefs.auth_refresh_token"
     }
 }
 

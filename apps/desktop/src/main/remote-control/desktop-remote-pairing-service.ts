@@ -4,6 +4,7 @@ import type { RemoteConnectionState } from "@vetta/remote-control";
 import { type DesktopConfig, readDesktopConfig, writeDesktopConfig } from "../config/desktop-config-store.js";
 import { getDesktopCredentialVault } from "../credentials/desktop-credential-vault.js";
 import { getAppLogger } from "../logger.js";
+import { getDesktopLocalRelay } from "./desktop-local-relay.js";
 import { startDesktopRemoteAccess, stopDesktopRemoteAccess } from "./desktop-remote-access-service.js";
 import {
 	type DesktopRemoteDesktopHostHandle,
@@ -63,7 +64,10 @@ export class DesktopRemotePairingService {
 			inputSupported: false,
 		};
 		try {
-			await this.startActive(remote.relayBaseUrl, remote.pairingId, secret, remote.inputEnabled === true);
+			const localRelay = getDesktopLocalRelay();
+			await localRelay.start();
+			const activeUrl = localRelay.getLanUrl();
+			await this.startActive(activeUrl, remote.pairingId, secret, remote.inputEnabled === true);
 			this.state = {
 				...this.state,
 				status: this.connectionState === "online" ? "connected" : this.state.status,
@@ -95,14 +99,17 @@ export class DesktopRemotePairingService {
 			desktopSecret,
 			{ kind: "remote-desktop", consumer: "desktop" },
 		);
+		const localRelay = getDesktopLocalRelay();
+		await localRelay.start();
+		const lanUrl = localRelay.getLanUrl();
 		const config = await readDesktopConfig();
 		await this.persistRemoteConfig(config, { relayBaseUrl: relay, pairingId, inputEnabled: false });
-		await this.startActive(relay, pairingId, desktopSecret, false, bootstrapSecret);
+		await this.startActive(lanUrl, pairingId, desktopSecret, false, bootstrapSecret);
 		this.state = {
-			status: this.connectionState === "online" ? "connected" : "ready",
+			status: "ready",
 			relayBaseUrl: relay,
 			pairingId,
-			inviteUri: buildInviteUri(relay, pairingId, bootstrapSecret),
+			inviteUri: buildInviteUri(relay, pairingId, bootstrapSecret, lanUrl),
 			inputEnabled: false,
 			inputSupported: this.host?.inputSupported === true,
 		};
@@ -123,6 +130,7 @@ export class DesktopRemotePairingService {
 	async revoke(clearCredential = true): Promise<void> {
 		await stopDesktopRemoteAccess();
 		await stopDesktopRemoteDesktopHost();
+		await getDesktopLocalRelay().stop();
 		this.host = undefined;
 		this.connectionState = "idle";
 		if (clearCredential)
@@ -197,7 +205,13 @@ function normalizeRelayBaseUrl(value: string | undefined): string | undefined {
 	return `${protocol}//${parsed.host}${parsed.pathname}`.replace(/\/$/, "");
 }
 
-function buildInviteUri(relay: string, pairingId: string, bootstrap: string): string {
+function buildInviteUri(relay: string, pairingId: string, bootstrap: string, lanUrl?: string): string {
 	const webRelay = relay.replace(/^ws/, "http");
-	return `vetta://pair?relay=${encodeURIComponent(webRelay)}&pairingId=${encodeURIComponent(pairingId)}&bootstrap=${encodeURIComponent(bootstrap)}`;
+	const params = new URLSearchParams({
+		relay: webRelay,
+		pairingId,
+		bootstrap,
+		...(lanUrl ? { lan: lanUrl } : {}),
+	});
+	return `vetta://pair?${params.toString()}`;
 }

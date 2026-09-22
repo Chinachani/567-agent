@@ -1,6 +1,11 @@
 package org.vetta.android.domain.remote
 
-data class PairingInvite(val relayBaseUrl: String, val pairingId: String, val bootstrapSecret: String)
+data class PairingInvite(
+    val relayBaseUrl: String,
+    val pairingId: String,
+    val bootstrapSecret: String,
+    val lanBaseUrl: String? = null,
+)
 
 fun parsePairingInvite(value: String): PairingInvite? {
     val match = Regex("^(?:vetta|agent567)://pair\\?(.+)$").matchEntire(value.trim()) ?: return null
@@ -8,13 +13,20 @@ fun parsePairingInvite(value: String): PairingInvite? {
         val separator = it.indexOf('=')
         if (separator <= 0) null else decode(it.substring(0, separator)) to decode(it.substring(separator + 1))
     }.toMap()
-    val relay = values["relay"]?.trimEnd('/') ?: return null
+    val relay = values["relay"]?.trimEnd('/')
+    val lan = values["lan"]?.trimEnd('/')
     val pairingId = values["pairingId"] ?: return null
     val bootstrap = values["bootstrap"] ?: return null
-    if (!relay.startsWith("https://") && !relay.startsWith("http://")) return null
+    val effectiveRelay = lan ?: relay ?: return null
+    if (!effectiveRelay.startsWith("https://") && !effectiveRelay.startsWith("http://")) return null
     if (!pairingId.matches(Regex("[A-Za-z0-9_-]{24,128}"))) return null
     if (!bootstrap.matches(Regex("[A-Za-z0-9_-]{32,256}"))) return null
-    return PairingInvite(relay, pairingId, bootstrap)
+    return PairingInvite(
+        relayBaseUrl = relay ?: effectiveRelay,
+        pairingId = pairingId,
+        bootstrapSecret = bootstrap,
+        lanBaseUrl = lan,
+    )
 }
 
 fun buildMobileBootstrapTarget(invite: PairingInvite, resumeSecret: String): String {

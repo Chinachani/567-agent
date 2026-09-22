@@ -77,6 +77,7 @@ fun RootApp(
         viewModel(factory = remember(container) { AppViewModelFactory(container) })
     val state by vm.state.collectAsState()
     val sessions by vm.sessions.collectAsState()
+    val sessionItems by vm.sessionListItems.collectAsState()
 
     PlatformBackHandler(
         enabled = state.route.hasInAppBackDestination(),
@@ -129,6 +130,7 @@ fun RootApp(
                 )
             is AppRoute.Main -> {
                 Scaffold(
+                    contentWindowInsets = androidx.compose.foundation.layout.WindowInsets(0, 0, 0, 0),
                     bottomBar = {
                         VettaBottomBar(
                             selected = state.mainTab,
@@ -149,7 +151,7 @@ fun RootApp(
                                         state.devices.firstOrNull {
                                             it.status == org.vetta.android.domain.device.DeviceStatus.Online
                                         },
-                                    recentSessions = vm.sessionListItems().take(5),
+                                    recentSessions = sessionItems.take(5),
                                     onOpenDevice = vm::openDeviceDetail,
                                     onOpenDevices = { vm.selectMainTab(MainTab.Discover) },
                                     onOpenSessions = { vm.selectMainTab(MainTab.Sessions) },
@@ -166,7 +168,7 @@ fun RootApp(
                                 )
                             MainTab.Sessions ->
                                 SessionsScreen(
-                                    sessions = vm.sessionListItems(),
+                                    sessions = sessionItems,
                                     query = state.sessionQuery,
                                     filterIndex = state.sessionFilterIndex,
                                     onQueryChange = vm::setSessionQuery,
@@ -191,15 +193,22 @@ fun RootApp(
                                     onOpenDevice = vm::openDeviceDetail,
                                     onConnectManual = vm::connectDesktop,
                                     onUseCloud = vm::openCloudConversation,
+                                    remoteConnecting = state.remoteConnecting,
+                                    error = state.globalError,
+                                    onClearError = vm::clearGlobalError,
                                 )
                             MainTab.Me ->
                                 MeScreen(
                                     user = state.user,
                                     subscription = state.subscription,
+                                    activeGroup = state.active567Group,
+                                    availableGroups = state.available567Groups,
                                     onlineDeviceCount =
                                         state.devices.count {
                                             it.status == org.vetta.android.domain.device.DeviceStatus.Online
                                         },
+                                    onSelectGroup = vm::setActive567Group,
+                                    onRefreshQuota = vm::refreshCatalog,
                                     onOpenPlan = vm::openPlan,
                                     onOpenSettings = vm::openSettings,
                                     onOpenDevices = { vm.selectMainTab(MainTab.Discover) },
@@ -259,6 +268,26 @@ fun RootApp(
                     models = state.models,
                     selectedModel = selected,
                     modelPickerOpen = state.modelPickerOpen,
+                    activeGroup = state.active567Group,
+                    availableGroups = state.available567Groups,
+                    groupPickerOpen = state.groupPickerOpen,
+                    onOpenGroupPicker = { vm.setGroupPickerOpen(true) },
+                    onCloseGroupPicker = { vm.setGroupPickerOpen(false) },
+                    onSelectGroup = vm::setActive567Group,
+                    onRefreshCatalog = vm::refreshCatalog,
+                    activeImageGroup = state.activeImageGroup,
+                    activeImageModel = state.activeImageModel,
+                    imageGenEnabled = state.imageGenEnabled,
+                    imagePickerOpen = state.imagePickerOpen,
+                    availableImageModels = state.availableImageModels,
+                    imageModelsLoading = state.imageModelsLoading,
+                    imageGroupExpanded = state.imageGroupExpanded,
+                    onOpenImagePicker = { vm.setImagePickerOpen(true) },
+                    onCloseImagePicker = { vm.setImagePickerOpen(false) },
+                    onToggleGroupExpanded = vm::setImageGroupExpanded,
+                    onToggleImageGen = vm::setImageGenEnabled,
+                    onSelectImageGroup = vm::setActiveImageGroup,
+                    onSelectImageModel = vm::setActiveImageModel,
                     globalError = state.globalError,
                     onDraftChange = vm::onDraftChange,
                     onSend = vm::sendMessage,

@@ -157,7 +157,8 @@ object ErrorMapper {
                         if (e.httpStatus >= 500) {
                             "服务暂时不可用，请稍后重试"
                         } else {
-                            "当前请求无法完成，请检查输入后重试"
+                            e.message.takeIf { it.isNotBlank() && !it.startsWith("HTTP ") }
+                                ?: "当前请求无法完成，请检查输入后重试"
                         },
                     action = if (e.httpStatus >= 500) UiErrorAction.Retry else UiErrorAction.None,
                     technicalCode = code,

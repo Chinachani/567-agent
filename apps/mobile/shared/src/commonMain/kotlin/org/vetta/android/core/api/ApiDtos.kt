@@ -166,7 +166,7 @@ internal data class RemoteModelDto(
 internal data class ChatCompletionRequestDto(
     val model: String,
     val messages: List<ChatMessageDto>,
-    val stream: Boolean = true,
+    val stream: Boolean,
     val temperature: Double? = null,
 )
 
@@ -210,6 +210,10 @@ internal data class ChatChoiceDto(
 internal data class ChatDeltaDto(
     val role: String? = null,
     val content: String? = null,
+    @SerialName("reasoning_content")
+    val reasoningContent: String? = null,
+    @SerialName("tool_calls")
+    val toolCalls: List<ToolCallChunkDto> = emptyList(),
 )
 
 @Serializable
@@ -220,4 +224,32 @@ internal data class ChatUsageDto(
     val completionTokens: Int? = null,
     @SerialName("total_tokens")
     val totalTokens: Int? = null,
+)
+
+@Serializable
+data class ApiGroupInfoDto(
+    val desc: String = "",
+    val ratio: Double = 1.0,
+)
+
+@Serializable
+data class GeneratedImageResult(
+    val url: String? = null,
+    val b64Json: String? = null,
+    val prompt: String = "",
+    val textContent: String? = null,
+)
+
+@Serializable
+internal data class ToolCallChunkDto(
+    val index: Int = 0,
+    val id: String? = null,
+    val type: String? = null,
+    val function: ToolCallFunctionDto? = null,
+)
+
+@Serializable
+internal data class ToolCallFunctionDto(
+    val name: String? = null,
+    val arguments: String? = null,
 )

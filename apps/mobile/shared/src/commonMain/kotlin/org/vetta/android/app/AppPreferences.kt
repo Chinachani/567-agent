@@ -64,6 +64,68 @@ class AppPreferences(
             if (value.isNullOrBlank()) settings.remove(KEY_REMOTE_PAIRING_ID) else settings[KEY_REMOTE_PAIRING_ID] = value
         }
 
+    var active567Group: String?
+        get() = settings.getStringOrNull(KEY_ACTIVE_567_GROUP)?.takeIf { it.isNotBlank() }
+        set(value) {
+            if (value.isNullOrBlank()) settings.remove(KEY_ACTIVE_567_GROUP) else settings[KEY_ACTIVE_567_GROUP] = value
+        }
+
+    var activeImageGroup: String?
+        get() = settings.getStringOrNull(KEY_ACTIVE_IMAGE_GROUP)?.takeIf { it.isNotBlank() }
+        set(value) {
+            if (value.isNullOrBlank()) settings.remove(KEY_ACTIVE_IMAGE_GROUP) else settings[KEY_ACTIVE_IMAGE_GROUP] = value
+        }
+
+    var activeImageModel: String?
+        get() = settings.getStringOrNull(KEY_ACTIVE_IMAGE_MODEL)?.takeIf { it.isNotBlank() }
+        set(value) {
+            if (value.isNullOrBlank()) settings.remove(KEY_ACTIVE_IMAGE_MODEL) else settings[KEY_ACTIVE_IMAGE_MODEL] = value
+        }
+
+    var authToken: String?
+        get() = settings.getStringOrNull(KEY_AUTH_TOKEN)?.takeIf { it.isNotBlank() }
+        set(value) {
+            if (value.isNullOrBlank()) settings.remove(KEY_AUTH_TOKEN) else settings[KEY_AUTH_TOKEN] = value
+        }
+
+    var authRefreshToken: String?
+        get() = settings.getStringOrNull(KEY_AUTH_REFRESH_TOKEN)?.takeIf { it.isNotBlank() }
+        set(value) {
+            if (value.isNullOrBlank()) settings.remove(KEY_AUTH_REFRESH_TOKEN) else settings[KEY_AUTH_REFRESH_TOKEN] = value
+        }
+
+    var authUsername: String?
+        get() = settings.getStringOrNull(KEY_AUTH_USERNAME)?.takeIf { it.isNotBlank() }
+        set(value) {
+            if (value.isNullOrBlank()) settings.remove(KEY_AUTH_USERNAME) else settings[KEY_AUTH_USERNAME] = value
+        }
+
+    var authQuotaUsd: Double
+        get() = settings.getStringOrNull(KEY_AUTH_QUOTA_USD)?.toDoubleOrNull() ?: 0.0
+        set(value) {
+            settings[KEY_AUTH_QUOTA_USD] = value.toString()
+        }
+
+    var authUserId: Long
+        get() = settings.getStringOrNull(KEY_AUTH_USER_ID)?.toLongOrNull() ?: 0L
+        set(value) {
+            settings[KEY_AUTH_USER_ID] = value.toString()
+        }
+
+    fun clearAuthSnapshot() {
+        authToken = null
+        authRefreshToken = null
+        authUsername = null
+        settings.remove(KEY_AUTH_QUOTA_USD)
+        settings.remove(KEY_AUTH_USER_ID)
+    }
+
+    var imageGenEnabled: Boolean
+        get() = settings.getBoolean(KEY_IMAGE_GEN_ENABLED, defaultValue = false)
+        set(value) {
+            settings.putBoolean(KEY_IMAGE_GEN_ENABLED, value)
+        }
+
     fun setServerUrl(url: String) {
         val normalized = url.trim().trimEnd('/')
         require(normalized.isNotBlank()) { "serverUrl blank" }
@@ -112,5 +174,14 @@ class AppPreferences(
         private const val KEY_LAST_MODEL = "vetta.prefs.last_model"
         private const val KEY_REMOTE_RESUME = "vetta.prefs.remote_resume"
         private const val KEY_REMOTE_PAIRING_ID = "vetta.prefs.remote_pairing_id"
+        private const val KEY_ACTIVE_567_GROUP = "vetta.prefs.active_567_group"
+        private const val KEY_ACTIVE_IMAGE_GROUP = "vetta.prefs.active_image_group"
+        private const val KEY_ACTIVE_IMAGE_MODEL = "vetta.prefs.active_image_model"
+        private const val KEY_IMAGE_GEN_ENABLED = "vetta.prefs.image_gen_enabled"
+        private const val KEY_AUTH_TOKEN = "vetta.prefs.auth_token"
+        private const val KEY_AUTH_REFRESH_TOKEN = "vetta.prefs.auth_refresh_token"
+        private const val KEY_AUTH_USERNAME = "vetta.prefs.auth_username"
+        private const val KEY_AUTH_QUOTA_USD = "vetta.prefs.auth_quota_usd"
+        private const val KEY_AUTH_USER_ID = "vetta.prefs.auth_user_id"
     }
 }
