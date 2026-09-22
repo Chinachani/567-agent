@@ -22,7 +22,7 @@ execSync(
 console.log("[build-bytecode] 2. Compiling CommonJS bundle into V8 Bytecode (.jsc)...");
 const compileScript = createBytecodeCompileScript(outCjs, outJsc);
 
-execFileSync(electronPath, ["-e", compileScript], {
+execFileSync(electronPath, ["--no-lazy", "-e", compileScript], {
 	env: { ...process.env, ELECTRON_RUN_AS_NODE: "1" },
 	stdio: "inherit",
 });

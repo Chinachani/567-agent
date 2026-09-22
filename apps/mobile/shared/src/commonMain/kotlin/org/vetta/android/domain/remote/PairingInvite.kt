@@ -3,7 +3,7 @@ package org.vetta.android.domain.remote
 data class PairingInvite(val relayBaseUrl: String, val pairingId: String, val bootstrapSecret: String)
 
 fun parsePairingInvite(value: String): PairingInvite? {
-    val match = Regex("^vetta://pair\\?(.+)$").matchEntire(value.trim()) ?: return null
+    val match = Regex("^(?:vetta|agent567)://pair\\?(.+)$").matchEntire(value.trim()) ?: return null
     val values = match.groupValues[1].split('&').mapNotNull {
         val separator = it.indexOf('=')
         if (separator <= 0) null else decode(it.substring(0, separator)) to decode(it.substring(separator + 1))

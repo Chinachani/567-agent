@@ -6,7 +6,7 @@ import { useEffect, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 import type { RemotePairingState } from "../../../../preload/api-types/remote-pairing";
 
-const DEFAULT_RELAY = "https://relay.flowerwine.dpdns.org";
+const DEFAULT_RELAY = "https://567-agent-relay.907746241.workers.dev";
 
 export function RemotePairingSettings(): JSX.Element {
 	const { t } = useTranslation("settings");

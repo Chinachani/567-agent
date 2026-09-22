@@ -103,6 +103,10 @@ async function buildForCurrentArch(arch) {
 		return;
 	}
 
+	for (const command of ["meson", "tar", "cc", "pkg-config"]) {
+		ensureCommandAvailable(command);
+	}
+
 	const workDir = join(tmpdir(), `vetta-bwrap-${bubblewrapVersion}-${arch}`);
 	const archivePath = join(workDir, `bubblewrap-${bubblewrapVersion}.tar.xz`);
 	const sourceDir = join(workDir, `bubblewrap-${bubblewrapVersion}`);
@@ -144,10 +148,6 @@ async function main() {
 	if (process.platform !== "linux") {
 		console.log(`[prepare-bwrap] skipped on non-Linux host: ${process.platform}`);
 		return;
-	}
-
-	for (const command of ["meson", "tar", "cc", "pkg-config"]) {
-		ensureCommandAvailable(command);
 	}
 
 	for (const arch of targetArchs) {

@@ -55,8 +55,10 @@ jobs:
         include:
           - platform: linux
             runner: ubuntu-latest
-            command: package:linux:appimage
-            artifact_path: "apps/desktop/release/*.AppImage"
+            command: package:linux
+            artifact_path: |
+              apps/desktop/release/*.AppImage
+              apps/desktop/release/*.deb
           - platform: win
             runner: windows-latest
             command: package:win:zip

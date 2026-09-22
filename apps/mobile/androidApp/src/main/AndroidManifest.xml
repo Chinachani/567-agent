@@ -34,6 +34,9 @@
                 <data
                     android:host="pair"
                     android:scheme="vetta" />
+                <data
+                    android:host="pair"
+                    android:scheme="agent567" />
             </intent-filter>
         </activity>
     </application>

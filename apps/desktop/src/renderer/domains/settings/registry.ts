@@ -46,7 +46,6 @@ export const SETTINGS_TABS: readonly SettingsTabRegistration[] = [
 		label: "远程连接",
 		labelKey: "tabRemote",
 		icon: "icon-[solar--smartphone-rotate-angle-linear]",
-		windowsOnly: true,
 	},
 	{ key: "appearance", label: "外观", labelKey: "tabAppearance", icon: "icon-[mdi--palette-outline]" },
 	{ key: "context", label: "Agent配置", labelKey: "tabContext", icon: "icon-[mdi--robot-outline]" },

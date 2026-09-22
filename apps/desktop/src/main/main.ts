@@ -747,7 +747,8 @@ if (!gotSingleLock) {
 			isPackaged: app.isPackaged,
 			devServerUrl: process.env.VETTA_DESKTOP_DEV_URL,
 			conversationCwd: join(getVettaHomePath(), "conversation"),
-			defaultRelayBaseUrl: process.env.VETTA_REMOTE_RELAY_BASE_URL,
+			defaultRelayBaseUrl:
+				process.env.VETTA_REMOTE_RELAY_BASE_URL || "https://567-agent-relay.907746241.workers.dev",
 		});
 
 		// Register IPC handlers
