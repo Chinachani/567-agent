@@ -61,4 +61,42 @@ describe("ThinkingTagSplitter", () => {
 	test("flushes a dangling partial tag as text", () => {
 		expect(run(["abc<think"])).toEqual([{ kind: "text", text: "abc<think" }]);
 	});
+
+	test("extracts standard DeepSeek/reasoner <think> tags", () => {
+		expect(
+			run([
+				"<think>\n**Diagnosing schema-related tool bug**\nTesting edits without newText oldText\n</think>\nHere is the fix.",
+			]),
+		).toEqual([
+			{
+				kind: "thinking",
+				text: "\n**Diagnosing schema-related tool bug**\nTesting edits without newText oldText\n",
+			},
+			{ kind: "text", text: "\nHere is the fix." },
+		]);
+	});
+
+	test("handles <think> split across deltas", () => {
+		expect(run(["<thi", "nk>internal logic</thi", "nk>result"])).toEqual([
+			{ kind: "thinking", text: "internal logic" },
+			{ kind: "text", text: "result" },
+		]);
+	});
+
+	test("handles case-insensitive <Think> and <Thought> tags", () => {
+		expect(run(["<Think>planning</Think>done"])).toEqual([
+			{ kind: "thinking", text: "planning" },
+			{ kind: "text", text: "done" },
+		]);
+		expect(run(["<thought>reasoning</thought>done"])).toEqual([
+			{ kind: "thinking", text: "reasoning" },
+			{ kind: "text", text: "done" },
+		]);
+	});
+
+	test("flushes an unterminated <think> block (as seen before tool calls)", () => {
+		expect(run(["<think>\n**Diagnosing schema-related tool bug**\n"])).toEqual([
+			{ kind: "thinking", text: "\n**Diagnosing schema-related tool bug**\n" },
+		]);
+	});
 });

@@ -2,6 +2,7 @@ import { execFileSync, execSync } from "node:child_process";
 import { existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import electronPath from "electron";
+import { createBytecodeCompileScript } from "./build-bytecode-script.mjs";
 
 const projectRoot = join(import.meta.dirname, "..");
 const distMainDir = join(projectRoot, "dist", "main");
@@ -15,34 +16,11 @@ mkdirSync(distMainDir, { recursive: true });
 console.log("[build-bytecode] 1. Bundling security module into CommonJS...");
 execSync(
 	`bun build "${srcSecurityTs}" --target=node --format=cjs --outfile="${outCjs}"`,
-	{ cwd: projectRoot, stdio: "inherit" }
+	{ cwd: projectRoot, stdio: "inherit" },
 );
 
 console.log("[build-bytecode] 2. Compiling CommonJS bundle into V8 Bytecode (.jsc)...");
-const compileScript = `
-const fs = require("node:fs");
-const vm = require("node:vm");
-const v8 = require("node:v8");
-const Module = require("node:module");
-
-const cjsPath = "${outCjs}";
-const jscPath = "${outJsc}";
-
-const sourceCode = fs.readFileSync(cjsPath, "utf8");
-const wrapped = Module.wrap(sourceCode);
-
-v8.setFlagsFromString("--no-lazy");
-const script = new vm.Script(wrapped, { produceCachedData: true });
-const cachedData = script.createCachedData();
-
-// 文件结构：4 字节 header（wrapped 源码长度）+ V8 cachedData 二进制
-const header = Buffer.alloc(4);
-header.writeUInt32LE(wrapped.length, 0);
-const finalBuffer = Buffer.concat([header, cachedData]);
-
-fs.writeFileSync(jscPath, finalBuffer);
-console.log("[build-bytecode] V8 Bytecode successfully produced: " + jscPath + " (" + finalBuffer.length + " bytes)");
-`;
+const compileScript = createBytecodeCompileScript(outCjs, outJsc);
 
 execFileSync(electronPath, ["-e", compileScript], {
 	env: { ...process.env, ELECTRON_RUN_AS_NODE: "1" },

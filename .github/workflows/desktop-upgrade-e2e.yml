@@ -77,7 +77,7 @@ jobs:
         with:
           name: desktop-${{ matrix.platform }}-upgrade-e2e-diagnostics
           if-no-files-found: ignore
-          retention-days: 14
+          retention-days: 1
           path: |
             ${{ runner.temp }}/vetta-upgrade-e2e-*/desktop.log
             ${{ runner.temp }}/vetta-upgrade-e2e-*/desktop-upgrade-e2e.json

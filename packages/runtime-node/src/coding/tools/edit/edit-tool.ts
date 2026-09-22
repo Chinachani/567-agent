@@ -114,7 +114,8 @@ export function createEditTool(cwd: string, options: EditToolOptions): RuntimeTo
 			const absolutePath = resolveExistingPath(path, cwd);
 			const rejectionReason = pathPolicy.getRejectionReason(absolutePath);
 			if (rejectionReason !== undefined) throw new Error(rejectionReason);
-			if (edits !== undefined && (oldText !== undefined || newText !== undefined)) {
+			const hasExactText = oldText !== undefined && oldText.length > 0;
+			if (edits !== undefined && hasExactText) {
 				throw new Error("Use either `edits` (anchor mode) or `oldText`/`newText` (exact-text mode), not both.");
 			}
 			if (edits !== undefined) {

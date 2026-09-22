@@ -29,6 +29,8 @@ jobs:
 
       - name: Set up Gradle
         uses: gradle/actions/setup-gradle@v4
+        with:
+          cache-disabled: true
 
       - name: Build Debug APK
         run: |
@@ -40,6 +42,7 @@ jobs:
         with:
           name: 567-Agent-Android-debug
           path: apps/mobile/androidApp/build/outputs/apk/debug/*.apk
+          retention-days: 1
 
   build-desktop:
     name: Build Desktop (${{ matrix.platform }})
@@ -51,11 +54,11 @@ jobs:
           - platform: linux
             runner: ubuntu-latest
             command: package:linux:appimage
-            artifact_path: "apps/desktop/dist-pack/*.AppImage"
+            artifact_path: "apps/desktop/release/*.AppImage"
           - platform: win
             runner: windows-latest
             command: package:win:zip
-            artifact_path: "apps/desktop/dist-pack/*.zip"
+            artifact_path: "apps/desktop/release/*.zip"
 
     steps:
       - name: Checkout repository
@@ -83,14 +86,13 @@ jobs:
           sudo apt-get install --no-install-recommends -y build-essential libcap-dev meson ninja-build pkg-config xz-utils rpm
 
       - name: Install dependencies
-        run: bun install
+        uses: ./.github/actions/install-bun-dependencies
 
       - name: Build Monorepo Packages
         run: bun run build
 
       - name: Package Desktop App
         env:
-          VETTA_SKIP_BWRAP_BUILD: "true"
           VETTA_SPEECH_INPUT_ENABLED: "false"
           VETTA_BUILD_ENV: "opensource"
           VETTA_CLOUD_ENABLED: "false"
@@ -106,6 +108,7 @@ jobs:
         with:
           name: 567-Agent-${{ matrix.platform }}
           path: ${{ matrix.artifact_path }}
+          retention-days: 1
 
   create-github-release:
     name: Create GitHub Release

@@ -206,6 +206,17 @@ describe("edit tool anchor mode", () => {
 		expect(readFileSync(file, "utf-8")).toBe("const a = 1;\nconst e = 5;");
 	});
 
+	test("allows empty oldText/newText defaults alongside edits for proxy/gateway compat", async () => {
+		const result = await tool().execute("t", {
+			path: file,
+			oldText: "",
+			newText: "",
+			edits: [{ anchor: anchorFor("const a = 1;", 1), new_text: "const a = 100;" }],
+		});
+		expect(readFileSync(file, "utf-8").split("\n")[0]).toBe("const a = 100;");
+		expect((result.details as EditToolDetails).diff).toContain("const a = 100;");
+	});
+
 	test("mode exclusivity and missing payload", async () => {
 		await expect(
 			tool().execute("t", { path: file, oldText: "const a = 1;", newText: "x", edits: [] }),

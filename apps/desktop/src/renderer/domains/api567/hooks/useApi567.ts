@@ -278,6 +278,7 @@ export function useApi567() {
 	return {
 		status,
 		availableGroups,
+		loadAvailableGroups,
 		initialCheckDone,
 		loading,
 		modalOpen,

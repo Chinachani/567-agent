@@ -10,7 +10,7 @@ import { Check, ChevronRight, ExternalLink, Layers, LogOut, Plus, RefreshCw, Sta
 import { useState } from "react";
 import { useApi567 } from "../hooks/useApi567";
 
-export function Api567Button(): JSX.Element {
+export function Api567Button(): JSX.Element | null {
 	const {
 		status,
 		availableGroups,

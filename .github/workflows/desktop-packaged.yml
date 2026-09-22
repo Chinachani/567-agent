@@ -125,7 +125,7 @@ jobs:
         with:
           name: desktop-${{ matrix.platform }}-packaged-e2e-diagnostics
           if-no-files-found: ignore
-          retention-days: 7
+          retention-days: 1
           path: |
             apps/desktop/release/**
             apps/desktop/.wdio-electron-user-data/**

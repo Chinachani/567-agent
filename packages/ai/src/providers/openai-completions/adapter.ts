@@ -107,6 +107,8 @@ async function produceOpenAICompletions(
 	let rawFinishReason: string | undefined;
 	let responseId: string | undefined;
 	let systemFingerprint: string | undefined;
+	let contentSplitter: ThinkingTagSplitter | undefined;
+	let emitContentSegment: ((segment: ThinkingTagSegment) => void) | undefined;
 	try {
 		const apiKey = requireProviderCredential(model, options?.apiKey || getEnvApiKey(model.provider));
 		const client = createOpenAICompletionsClient(
@@ -140,8 +142,9 @@ async function produceOpenAICompletions(
 			}
 		};
 
-		const contentSplitter = new ThinkingTagSplitter();
-		const emitContentSegment = (segment: ThinkingTagSegment) => {
+		contentSplitter = new ThinkingTagSplitter();
+		emitContentSegment = (segment: ThinkingTagSegment) => {
+			if (!segment.text) return;
 			if (segment.kind === "thinking") {
 				if (!currentBlock || currentBlock.type !== "thinking") {
 					finishCurrentBlock(currentBlock);
@@ -208,6 +211,7 @@ async function produceOpenAICompletions(
 			}
 
 			if (choice.delta.tool_calls) {
+				for (const segment of contentSplitter.flush()) emitContentSegment(segment);
 				for (const toolCall of choice.delta.tool_calls) {
 					const protocolIndex = typeof toolCall.index === "number" ? toolCall.index : -1;
 					let block = protocolIndex >= 0 ? toolCallByIndex.get(protocolIndex) : undefined;
@@ -278,7 +282,13 @@ async function produceOpenAICompletions(
 		);
 		stream.push({ type: "done", reason: output.stopReason, message: output });
 	} catch (error) {
-		for (const block of output.content) Reflect.deleteProperty(block, "index");
+		if (contentSplitter && emitContentSegment) {
+			for (const segment of contentSplitter.flush()) emitContentSegment(segment);
+		}
+		for (const block of output.content) {
+			Reflect.deleteProperty(block, "index");
+			Reflect.deleteProperty(block, "partialArgs");
+		}
 		const normalized = options?.signal?.aborted
 			? new AIAbortedError(undefined, { cause: error })
 			: normalizeProviderError(error, model);

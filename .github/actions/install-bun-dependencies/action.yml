@@ -1,10 +1,17 @@
 name: Install Bun dependencies
 description: Install the frozen workspace dependencies with bounded retries for transient registry failures.
 
+inputs:
+  cache:
+    description: "Whether to cache bun package downloads (defaults to false to respect storage quota)"
+    required: false
+    default: "false"
+
 runs:
   using: composite
   steps:
     - name: Restore Bun package downloads
+      if: inputs.cache == 'true'
       id: bun-cache
       uses: actions/cache/restore@v4
       with:
@@ -14,7 +21,7 @@ runs:
       run: node scripts/quality/install-ci-dependencies.mjs
     # Save before tests/builds: their failure must not discard a successful install.
     - name: Save Bun package downloads
-      if: steps.bun-cache.outputs.cache-hit != 'true'
+      if: inputs.cache == 'true' && steps.bun-cache.outputs.cache-hit != 'true'
       uses: actions/cache/save@v4
       with:
         path: ~/.bun/install/cache

@@ -22,8 +22,8 @@ async function createLayout(root, version) {
 
 test("Windows supplemental package names are stable and versioned", () => {
 	assert.deepEqual(windowsSupplementalArtifactNames("1.2.3"), [
-		"Vetta-1.2.3-win-x64.msi",
-		"Vetta-1.2.3-win-x64.zip",
+		"567-Agent-1.2.3-win-x64.msi",
+		"567-Agent-1.2.3-win-x64.zip",
 	]);
 });
 

@@ -13,9 +13,6 @@ on:
       - .github/actions/**
       - .github/workflows/desktop-cache.yml
   workflow_dispatch:
-  # GitHub evicts unused caches. Scheduled runs also use the default branch scope.
-  schedule:
-    - cron: "23 3 * * 1,4"
 
 permissions:
   contents: read

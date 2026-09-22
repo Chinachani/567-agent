@@ -15,7 +15,7 @@ import { BrowserWindow } from "electron";
 import { getAppLogger } from "../logger.js";
 import { getDesktopModelSettingsService } from "../models/model-settings-host.js";
 import type { ModelDefinition } from "../models/model-settings-service.js";
-import { decryptSecret, encryptSecret, getSecurityHeaders } from "./security.js";
+import { containsNonAscii, decryptSecret, encryptSecret, getSecurityHeaders } from "./security.js";
 
 const log = getAppLogger("567api");
 
@@ -345,13 +345,13 @@ export class NewApiService {
 					}
 					if (provider.headers) {
 						for (const [k, v] of Object.entries(provider.headers)) {
-							if (typeof v === "string" && /[^-]/.test(v)) {
+							if (typeof v === "string" && containsNonAscii(v)) {
 								provider.headers[k] = encodeURIComponent(v);
 								configChanged = true;
 							}
 						}
 					}
-					const modelIds = provider.models.map((m) => m.id);
+					const modelIds = provider.models?.map((m) => m.id) ?? [];
 					validGroups.push({
 						...g,
 						enabled: true,
@@ -369,7 +369,7 @@ export class NewApiService {
 					}
 					if (p.headers) {
 						for (const [k, v] of Object.entries(p.headers)) {
-							if (typeof v === "string" && /[^-]/.test(v)) {
+							if (typeof v === "string" && containsNonAscii(v)) {
 								p.headers[k] = encodeURIComponent(v);
 								configChanged = true;
 							}
@@ -768,7 +768,6 @@ export class NewApiService {
 				apiKey,
 				displayName,
 				api: "openai-completions",
-				source: "custom",
 				icon: getProviderIconForGroup(groupName),
 				headers: getSecurityHeaders({ "X-567-Group": encodeURIComponent(groupName || "default") }),
 				modelsSyncedAt: new Date().toISOString(),

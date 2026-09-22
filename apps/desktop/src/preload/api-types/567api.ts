@@ -4,6 +4,7 @@ export interface Api567GroupInfo {
 	ratio: number;
 	enabled: boolean;
 	modelsCount?: number;
+	models?: string[];
 }
 
 export interface Api567Status {
@@ -22,7 +23,7 @@ export interface Api567Status {
 
 export interface Api567Api {
 	getStatus(): Promise<Api567Status>;
-	getAvailableGroups(): Promise<Record<string, { desc: string; ratio: number }>>;
+	getAvailableGroups(force?: boolean): Promise<Record<string, { desc: string; ratio: number }>>;
 	syncGroup(groupName: string): Promise<{ success: boolean; groupInfo?: Api567GroupInfo; message?: string }>;
 	removeGroup(groupName: string): Promise<{ success: boolean; message?: string }>;
 	setActiveGroup(groupName: string): Promise<{ success: boolean; message?: string }>;
@@ -33,7 +34,7 @@ export interface Api567Api {
 	}): Promise<{ success: boolean; message?: string }>;
 	login(credentials: { username: string; password: string }): Promise<{ success: boolean; message?: string }>;
 	bindToken(token: string): Promise<{ success: boolean; message?: string }>;
-	refreshQuota(): Promise<{ success: boolean; quota?: number; quotaUsd?: number }>;
+	refreshQuota(force?: boolean): Promise<{ success: boolean; quota?: number; quotaUsd?: number }>;
 	logout(): Promise<{ success: boolean }>;
 	onStatusChanged(handler: (status: Api567Status) => void): () => void;
 }

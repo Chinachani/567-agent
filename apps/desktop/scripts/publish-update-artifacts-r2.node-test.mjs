@@ -15,7 +15,7 @@ import {
 test("contentTypeFor publishes native package formats with package media types", () => {
 	assert.equal(contentTypeFor("vetta_1.2.3_amd64.deb"), "application/vnd.debian.binary-package");
 	assert.equal(contentTypeFor("vetta-1.2.3.x86_64.rpm"), "application/x-rpm");
-	assert.equal(contentTypeFor("Vetta-1.2.3-win-x64.msi"), "application/x-msi");
+	assert.equal(contentTypeFor("567-Agent-1.2.3-win-x64.msi"), "application/x-msi");
 });
 
 test("collectArtifacts uploads updater files and matching Windows supplements before metadata", async () => {
@@ -28,17 +28,17 @@ test("collectArtifacts uploads updater files and matching Windows supplements be
 			),
 			writeFile(join(directory, "Vetta Setup 1.2.3.exe"), "installer"),
 			writeFile(join(directory, "Vetta Setup 1.2.3.exe.blockmap"), "blockmap"),
-			writeFile(join(directory, "Vetta-1.2.3-win-x64.msi"), "msi"),
-			writeFile(join(directory, "Vetta-1.2.3-win-x64.zip"), "zip"),
+			writeFile(join(directory, "567-Agent-1.2.3-win-x64.msi"), "msi"),
+			writeFile(join(directory, "567-Agent-1.2.3-win-x64.zip"), "zip"),
 			writeFile(join(directory, "Vetta Setup 1.2.2.exe"), "stale"),
-			writeFile(join(directory, "Vetta-1.2.2-win-x64.msi"), "stale"),
+			writeFile(join(directory, "567-Agent-1.2.2-win-x64.msi"), "stale"),
 		]);
 
 		assert.deepEqual(await collectArtifacts(directory), [
+			"567-Agent-1.2.3-win-x64.msi",
+			"567-Agent-1.2.3-win-x64.zip",
 			"Vetta Setup 1.2.3.exe",
 			"Vetta Setup 1.2.3.exe.blockmap",
-			"Vetta-1.2.3-win-x64.msi",
-			"Vetta-1.2.3-win-x64.zip",
 			"latest.yml",
 		]);
 	} finally {

@@ -32,8 +32,10 @@ jobs:
 
       - name: Set up Gradle
         uses: gradle/actions/setup-gradle@v4
+        with:
+          cache-disabled: true
 
-      - name: Assemble Android debug app
+      - name: Assemble Android debug app and run host tests
         run: |
           chmod +x gradlew
-          ./gradlew --no-daemon :androidApp:assembleDebug
+          ./gradlew --no-daemon :androidApp:assembleDebug :shared:testAndroidHostTest

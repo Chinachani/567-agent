@@ -30,6 +30,8 @@ jobs:
         uses: ./.github/actions/install-bun-dependencies
 
       - name: Run quality checks
+        env:
+          NODE_OPTIONS: --max-old-space-size=4096
         run: bun run check
 
       - name: Test quality scripts
@@ -85,4 +87,4 @@ jobs:
           name: turbo-run-summaries-${{ matrix.os }}
           path: .turbo/runs/*.json
           if-no-files-found: ignore
-          retention-days: 7
+          retention-days: 1

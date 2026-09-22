@@ -211,6 +211,8 @@ jobs:
         run: node scripts/release/release-notes.mjs --check
 
       - name: Run repository checks
+        env:
+          NODE_OPTIONS: --max-old-space-size=4096
         run: bun run check
 
       - name: Test quality and release configuration
@@ -420,7 +422,7 @@ jobs:
           name: release-build-${{ matrix.platform }}
           path: ${{ runner.temp }}/release-build.tar
           if-no-files-found: error
-          retention-days: 30
+          retention-days: 1
           compression-level: 0
           overwrite: true
 
@@ -548,7 +550,7 @@ jobs:
         with:
           name: desktop-${{ matrix.platform }}
           if-no-files-found: error
-          retention-days: 30
+          retention-days: 1
           compression-level: 0
           overwrite: true
           path: |

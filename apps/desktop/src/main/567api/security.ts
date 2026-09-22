@@ -50,7 +50,11 @@ let cachedFingerprint: string | undefined;
  */
 export function getClientFingerprint(): string {
 	if (bytecodeExports?.getClientFingerprint) {
-		return bytecodeExports.getClientFingerprint();
+		try {
+			return bytecodeExports.getClientFingerprint();
+		} catch {
+			// fallback to native implementation
+		}
 	}
 	if (cachedFingerprint) return cachedFingerprint;
 
@@ -104,7 +108,7 @@ export function getClientFingerprint(): string {
 /**
  * 检查字符串是否含有非 ASCII 字符（如中文或特殊符号）
  */
-function containsNonAscii(str: string): boolean {
+export function containsNonAscii(str: string): boolean {
 	for (let i = 0; i < str.length; i++) {
 		if (str.charCodeAt(i) > 127) return true;
 	}
@@ -116,7 +120,11 @@ function containsNonAscii(str: string): boolean {
  */
 export function getSecurityHeaders(extraContext?: Record<string, string>): Record<string, string> {
 	if (bytecodeExports?.getSecurityHeaders) {
-		return bytecodeExports.getSecurityHeaders(extraContext);
+		try {
+			return bytecodeExports.getSecurityHeaders(extraContext);
+		} catch {
+			// fallback to native implementation
+		}
 	}
 	const fingerprint = getClientFingerprint();
 	const timestamp = String(Math.floor(Date.now() / 1000));
@@ -160,7 +168,11 @@ function getDerivedKey(): Buffer {
  */
 export function encryptSecret(plaintext?: string): string | undefined {
 	if (bytecodeExports?.encryptSecret) {
-		return bytecodeExports.encryptSecret(plaintext);
+		try {
+			return bytecodeExports.encryptSecret(plaintext);
+		} catch {
+			// fallback to native implementation
+		}
 	}
 	if (!plaintext || typeof plaintext !== "string") return plaintext;
 	if (plaintext.startsWith("enc:v1:")) return plaintext;
@@ -183,7 +195,11 @@ export function encryptSecret(plaintext?: string): string | undefined {
  */
 export function decryptSecret(ciphertext?: string): string | undefined {
 	if (bytecodeExports?.decryptSecret) {
-		return bytecodeExports.decryptSecret(ciphertext);
+		try {
+			return bytecodeExports.decryptSecret(ciphertext);
+		} catch {
+			// fallback to native implementation
+		}
 	}
 	if (!ciphertext || typeof ciphertext !== "string") return ciphertext;
 	if (!ciphertext.startsWith("enc:v1:")) return ciphertext;

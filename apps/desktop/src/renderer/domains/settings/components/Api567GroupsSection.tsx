@@ -39,6 +39,7 @@ export function Api567GroupsSection({
 	const {
 		status,
 		availableGroups,
+		loadAvailableGroups,
 		syncGroup,
 		removeGroup,
 		setActiveGroup,

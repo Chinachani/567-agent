@@ -39,6 +39,7 @@ const ToolCallSchema = Type.Object(
 		name: Type.String(),
 		arguments: Type.Record(Type.String(), Type.Unknown()),
 		thoughtSignature: Type.Optional(Type.String()),
+		partialArgs: Type.Optional(Type.String()),
 	},
 	{ additionalProperties: false },
 );
@@ -163,8 +164,25 @@ const FailureDiagnosticProperties = {
 	url: Type.Optional(Type.String()),
 	responseHeaders: Type.Optional(Type.Record(Type.String(), Type.String())),
 	responseBodyPreview: Type.Optional(Type.String()),
-	retryAfterMs: Type.Optional(Type.Number({ minimum: 0 })),
+	retryAfterMs: Type.Optional(Type.Number()),
 } as const;
+
+const ResponseValidationIssueSchema = Type.Object(
+	{
+		path: Type.String(),
+		message: Type.String(),
+		received: Type.Optional(Type.String()),
+	},
+	{ additionalProperties: false },
+);
+
+const ResponseValidationDetailsSchema = Type.Object(
+	{
+		payloadType: Type.String(),
+		errors: Type.Array(ResponseValidationIssueSchema),
+	},
+	{ additionalProperties: false },
+);
 
 type StoredAssistantFailure = NonNullable<
 	Extract<Extract<StoredSessionEvent, { type: "message.appended" }>["message"], { role: "assistant" }>["failure"]
@@ -177,6 +195,7 @@ const AssistantFailureSchema = Type.Unsafe<StoredAssistantFailure>(
 			message: Type.String(),
 			retryable: Type.Boolean(),
 			...FailureDiagnosticProperties,
+			responseValidation: Type.Optional(ResponseValidationDetailsSchema),
 		},
 		{ additionalProperties: false },
 	),
@@ -191,7 +210,23 @@ const RuntimeFailureOriginSchema = Type.Union([
 
 const ReadRuntimeFailureOriginSchema = Type.Union([RuntimeFailureOriginSchema, Type.Literal("mcp")]);
 
-const RuntimeFailureDetailsSchema = Type.Object(FailureDiagnosticProperties, { additionalProperties: false });
+const RuntimeFailureLockHolderSchema = Type.Object(
+	{
+		pid: Type.Number(),
+		hostname: Type.String(),
+		openedAt: Type.String(),
+	},
+	{ additionalProperties: false },
+);
+
+const RuntimeFailureDetailsSchema = Type.Object(
+	{
+		...FailureDiagnosticProperties,
+		lockHolder: Type.Optional(RuntimeFailureLockHolderSchema),
+		responseValidation: Type.Optional(ResponseValidationDetailsSchema),
+	},
+	{ additionalProperties: false },
+);
 
 const RuntimeFailureSchema = Type.Object(
 	{
@@ -581,7 +616,34 @@ export function getStoredSessionEventValidationIssue(value: unknown): StoredSess
 	const schema = storedSessionEventSchemaForType(eventType);
 	if (!schema) return { eventType, path: "/type", message: "Expected known event type" };
 	const issue = Value.Errors(schema, value).First();
-	return issue ? { eventType, path: issue.path || "/", message: issue.message } : undefined;
+	if (!issue) return undefined;
+
+	if (
+		issue.path === "/message" &&
+		issue.message === "Expected union value" &&
+		typeof value === "object" &&
+		value !== null
+	) {
+		const message = (value as Record<string, unknown>).message;
+		if (typeof message === "object" && message !== null && "role" in message) {
+			let subSchema: TSchema | undefined;
+			if (message.role === "assistant") subSchema = AssistantMessageSchema;
+			else if (message.role === "user") subSchema = UserMessageSchema;
+			else if (message.role === "toolResult") subSchema = ToolResultMessageSchema;
+			if (subSchema) {
+				const specific = Value.Errors(subSchema, message).First();
+				if (specific) {
+					return {
+						eventType,
+						path: `/message${specific.path}`,
+						message: specific.message,
+					};
+				}
+			}
+		}
+	}
+
+	return { eventType, path: issue.path || "/", message: issue.message };
 }
 
 const ConversationFileHeaderSchemaV1 = Type.Object(

@@ -646,6 +646,14 @@ if (!gotSingleLock) {
 		if (isCloudBuildEnabled()) {
 			const { startCloudMain } = await import("./cloud/index.js");
 			cloudMain = startCloudMain({ receiveProtocolUrl });
+		} else {
+			ipcMain.handle("vetta:models:fetch-remote", async () => ({ providers: {} }));
+			ipcMain.handle("vetta:subscription:status", async () => ({ isPro: false }));
+			ipcMain.handle("vetta:auth:refresh-token", async () => false);
+			ipcMain.handle("vetta:settings:get-server-token", () => undefined);
+			ipcMain.handle("vetta:settings:set-server-token", () => {});
+			ipcMain.handle("vetta:settings:get-server-refresh-token", () => undefined);
+			ipcMain.handle("vetta:settings:set-server-refresh-token", () => {});
 		}
 
 		if (process.platform === "darwin") {

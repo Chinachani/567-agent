@@ -64,7 +64,7 @@ function findSkillFiles(dir, results = []) {
 function collectTargets(stagedOnly) {
 	if (stagedOnly) {
 		return stagedFiles()
-			.filter((file) => file.endsWith("SKILL.md"))
+			.filter((file) => file.endsWith("SKILL.md") && !file.split("/").some((part) => SKIP_DIRS.has(part)))
 			.map((file) => join(repoRoot, file))
 			.filter((file) => existsSync(file));
 	}
