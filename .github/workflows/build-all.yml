@@ -42,6 +42,7 @@ jobs:
         uses: softprops/action-gh-release@v2
         with:
           files: apps/mobile/androidApp/build/outputs/apk/debug/*.apk
+          body_path: ${{ github.workspace }}/.github/release-notes/${{ github.ref_name }}.md
           draft: false
           prerelease: false
 
@@ -109,5 +110,6 @@ jobs:
         uses: softprops/action-gh-release@v2
         with:
           files: ${{ matrix.artifact_path }}
+          body_path: ${{ github.workspace }}/.github/release-notes/${{ github.ref_name }}.md
           draft: false
           prerelease: false
