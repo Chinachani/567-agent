@@ -375,8 +375,8 @@ export function useSessionOpener(): SessionOpenerController {
 						console.error("[useSessionOpener] staged input restore failed:", restoreError);
 					}
 					void navigate({
-						to: "/new-session/$cwd",
-						params: { cwd: encodeURIComponent(cwd) },
+						to: "/new-session",
+						search: { cwd },
 					});
 				} else if (shouldNavigate) {
 					void navigate({ to: "/" });

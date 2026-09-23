@@ -221,7 +221,7 @@ export function useProjectDetailPageModel(): ProjectDetailPageModel {
 		onEditorFocus: () => setEditorFocused(true),
 		onExport: handleExportProject,
 		onNewSession: () => {
-			void navigate({ to: "/new-session/$cwd", params: { cwd: encodeURIComponent(decodedCwd) } });
+			void navigate({ to: "/new-session", search: { cwd: decodedCwd } });
 		},
 		onSave: () => {
 			void save();

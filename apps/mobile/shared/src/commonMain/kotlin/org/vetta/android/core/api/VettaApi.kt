@@ -223,14 +223,32 @@ internal class VettaApi(
         }
     }
 
+    companion object {
+        val FALLBACK_CHAT_MODELS = listOf(
+            "gpt-5.6-sol",
+            "claude-3-7-sonnet-20250219",
+            "deepseek-reasoner",
+            "deepseek-chat",
+            "gpt-4o",
+            "gemini-2.5-pro",
+            "gemini-2.5-flash",
+            "qwen-plus",
+        )
+    }
+
     suspend fun fetchGroupModels(groupName: String?): List<String> {
         val patToken = tokenStore.accessToken
-        val apiKey = groupName?.let { groupKeyCache[it] } ?: patToken
 
-        if (!groupName.isNullOrBlank() && !patToken.isNullOrBlank()) {
+        // 1. 如果有登录 Token，先尝试调用 567 API 用户模型列表接口（有 group 则查指定分组，无 group 则查默认可用）
+        if (!patToken.isNullOrBlank()) {
             try {
-                val encoded = java.net.URLEncoder.encode(groupName, "UTF-8")
-                val res = client.get("api/user/models?group=$encoded") {
+                val path = if (!groupName.isNullOrBlank()) {
+                    val encoded = java.net.URLEncoder.encode(groupName, "UTF-8")
+                    "api/user/models?group=$encoded"
+                } else {
+                    "api/user/models"
+                }
+                val res = client.get(path) {
                     header(HttpHeaders.Authorization, "Bearer $patToken")
                 }
                 val text = res.bodyAsTextSafe()
@@ -238,15 +256,18 @@ internal class VettaApi(
                     val root = org.vetta.android.core.net.VettaJson.parseToJsonElement(text)
                     val dataArr = (root as? kotlinx.serialization.json.JsonObject)?.get("data") as? kotlinx.serialization.json.JsonArray
                     if (dataArr != null && dataArr.isNotEmpty()) {
-                        return dataArr.mapNotNull { (it as? kotlinx.serialization.json.JsonPrimitive)?.content }
+                        val ids = dataArr.mapNotNull { (it as? kotlinx.serialization.json.JsonPrimitive)?.content }
+                        if (ids.isNotEmpty()) return ids
                     }
                 }
             } catch (_: Exception) {
             }
         }
 
+        // 2. 如果 /api/user/models 没拿到，确保获取或创建专属 API Key (sk-...)，请求标准 /v1/models
         return try {
-            val keyToUse = if (apiKey?.startsWith("sk-") == true) apiKey else patToken
+            val apiKey = ensureApiKeyForGroup(groupName)
+            val keyToUse = if (apiKey.isNotBlank()) apiKey else patToken
             val res = client.get("v1/models") {
                 if (!keyToUse.isNullOrBlank()) {
                     header(HttpHeaders.Authorization, "Bearer $keyToUse")
@@ -258,18 +279,20 @@ internal class VettaApi(
             val text = res.bodyAsTextSafe()
             val root = org.vetta.android.core.net.VettaJson.parseToJsonElement(text)
             val dataArr = (root as? kotlinx.serialization.json.JsonObject)?.get("data") as? kotlinx.serialization.json.JsonArray
-            dataArr?.mapNotNull { el ->
+            val ids = dataArr?.mapNotNull { el ->
                 (el as? kotlinx.serialization.json.JsonObject)?.get("id")?.let { (it as? kotlinx.serialization.json.JsonPrimitive)?.content }
             } ?: emptyList()
+
+            ids.ifEmpty { FALLBACK_CHAT_MODELS }
         } catch (_: Exception) {
-            emptyList()
+            FALLBACK_CHAT_MODELS
         }
     }
 
     suspend fun goModels(activeGroup: String? = null): ModelsCatalog {
-        val modelIds = fetchGroupModels(activeGroup)
+        var modelIds = fetchGroupModels(activeGroup)
         if (modelIds.isEmpty()) {
-            return ModelsCatalog()
+            modelIds = FALLBACK_CHAT_MODELS
         }
         val models = modelIds.map { id ->
             val isReasoning = id.contains("reasoner", ignoreCase = true) ||
@@ -289,7 +312,6 @@ internal class VettaApi(
         val provider = ProviderModels(name = activeGroup ?: "567 API", models = models)
         return ModelsCatalog(providers = mapOf("vetta-go" to provider, "567api" to provider))
     }
-
 
     private val groupKeyCache = mutableMapOf<String, String>()
     private val autoCreatedTokens = mutableMapOf<String, Long>()

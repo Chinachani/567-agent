@@ -106,6 +106,12 @@ class AppPreferences(
             settings[KEY_AUTH_QUOTA_USD] = value.toString()
         }
 
+    var cachedModelsJson: String?
+        get() = settings.getStringOrNull(KEY_CACHED_MODELS_JSON)?.takeIf { it.isNotBlank() }
+        set(value) {
+            if (value.isNullOrBlank()) settings.remove(KEY_CACHED_MODELS_JSON) else settings[KEY_CACHED_MODELS_JSON] = value
+        }
+
     var authUserId: Long
         get() = settings.getStringOrNull(KEY_AUTH_USER_ID)?.toLongOrNull() ?: 0L
         set(value) {
@@ -182,6 +188,7 @@ class AppPreferences(
         private const val KEY_AUTH_REFRESH_TOKEN = "vetta.prefs.auth_refresh_token"
         private const val KEY_AUTH_USERNAME = "vetta.prefs.auth_username"
         private const val KEY_AUTH_QUOTA_USD = "vetta.prefs.auth_quota_usd"
+        private const val KEY_CACHED_MODELS_JSON = "vetta.prefs.cached_models_json"
         private const val KEY_AUTH_USER_ID = "vetta.prefs.auth_user_id"
     }
 }

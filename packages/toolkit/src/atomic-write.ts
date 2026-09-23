@@ -1,5 +1,15 @@
-import { closeSync, existsSync, fsyncSync, mkdirSync, openSync, renameSync, writeSync } from "node:fs";
-import { mkdir, open, rename } from "node:fs/promises";
+import {
+	closeSync,
+	existsSync,
+	fsyncSync,
+	mkdirSync,
+	openSync,
+	renameSync,
+	unlinkSync,
+	writeFileSync,
+	writeSync,
+} from "node:fs";
+import { mkdir, open, rename, unlink, writeFile } from "node:fs/promises";
 import { dirname } from "node:path";
 
 /**
@@ -17,7 +27,7 @@ export function atomicWriteFile(path: string, data: string): void {
 	const dir = dirname(path);
 	if (!existsSync(dir)) mkdirSync(dir, { recursive: true });
 
-	const tmpPath = `${path}.${process.pid}.tmp`;
+	const tmpPath = `${path}.${process.pid}.${Date.now()}.${Math.random().toString(36).slice(2, 6)}.tmp`;
 	const fd = openSync(tmpPath, "w");
 	try {
 		writeSync(fd, data);
@@ -25,7 +35,24 @@ export function atomicWriteFile(path: string, data: string): void {
 	} finally {
 		closeSync(fd);
 	}
-	renameSync(tmpPath, path);
+	try {
+		renameSync(tmpPath, path);
+	} catch (err) {
+		if (process.platform === "win32") {
+			try {
+				if (existsSync(path)) unlinkSync(path);
+				renameSync(tmpPath, path);
+				return;
+			} catch {
+				writeFileSync(path, data, "utf8");
+				try {
+					if (existsSync(tmpPath)) unlinkSync(tmpPath);
+				} catch {}
+				return;
+			}
+		}
+		throw err;
+	}
 }
 
 /**
@@ -42,7 +69,7 @@ export async function atomicWriteFileAsync(path: string, data: string): Promise<
 	const dir = dirname(path);
 	await mkdir(dir, { recursive: true });
 
-	const tmpPath = `${path}.${process.pid}.tmp`;
+	const tmpPath = `${path}.${process.pid}.${Date.now()}.${Math.random().toString(36).slice(2, 6)}.tmp`;
 	const file = await open(tmpPath, "w");
 	try {
 		await file.writeFile(data);
@@ -50,7 +77,22 @@ export async function atomicWriteFileAsync(path: string, data: string): Promise<
 	} finally {
 		await file.close();
 	}
-	await rename(tmpPath, path);
+	try {
+		await rename(tmpPath, path);
+	} catch (err) {
+		if (process.platform === "win32") {
+			try {
+				await unlink(path).catch(() => {});
+				await rename(tmpPath, path);
+				return;
+			} catch {
+				await writeFile(path, data, "utf8");
+				await unlink(tmpPath).catch(() => {});
+				return;
+			}
+		}
+		throw err;
+	}
 }
 
 export async function atomicWriteJSONAsync(path: string, value: unknown): Promise<void> {

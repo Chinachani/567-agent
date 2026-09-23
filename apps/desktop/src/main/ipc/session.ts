@@ -949,6 +949,9 @@ export function registerSessionIpc(webContents: WebContents): () => void {
 		async (_event, config: DesktopCodingAgentSessionConfig | undefined, kind: unknown, rawTraceContext: unknown) => {
 			assertSessionKind(kind);
 			assertExecutionMode(config?.executionMode);
+			if (process.platform === "win32" && config && config.executionMode === "sandbox") {
+				config.executionMode = "full-access";
+			}
 			const traceContext = parseSessionTraceContext(rawTraceContext);
 			const result = await conversationService.createSession(config, kind, "interactive", traceContext);
 			const effectiveCwd = result.cwd;

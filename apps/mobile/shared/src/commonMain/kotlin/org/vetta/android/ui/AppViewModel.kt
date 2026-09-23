@@ -253,20 +253,21 @@ class AppViewModel(
                 if (!currentGroup.isNullOrBlank()) {
                     runCatching { container.client.models.listGoModels(currentGroup) }.getOrElse { emptyList() }
                 } else {
-                    emptyList()
+                    runCatching { container.client.models.listGoModels(null) }.getOrElse { emptyList() }
                 }
+            val finalModels = if (models.isNotEmpty()) models else _state.value.models
             val selected =
                 resolveModelId(
                     preferred = container.preferences.lastModelId,
-                    models = models,
-                )
+                    models = finalModels,
+                ) ?: finalModels.firstOrNull()?.id
             _state.update {
                 it.copy(
                     user = user ?: it.user,
                     subscription = sub ?: it.subscription,
-                    available567Groups = groups,
+                    available567Groups = if (groups.isNotEmpty()) groups else it.available567Groups,
                     active567Group = currentGroup,
-                    models = models,
+                    models = finalModels,
                     selectedModelId = selected,
                     catalogLoading = false,
                 )
@@ -613,9 +614,10 @@ class AppViewModel(
         viewModelScope.launch {
             try {
                 val models = container.client.models.listGoModels(group)
-                val selected = resolveModelId(container.preferences.lastModelId, models) ?: models.firstOrNull()?.id
+                val finalModels = if (models.isNotEmpty()) models else _state.value.models
+                val selected = resolveModelId(container.preferences.lastModelId, finalModels) ?: finalModels.firstOrNull()?.id
                 _state.update {
-                    it.copy(models = models, selectedModelId = selected, catalogLoading = false)
+                    it.copy(models = finalModels, selectedModelId = selected, catalogLoading = false)
                 }
             } catch (_: Throwable) {
                 _state.update { it.copy(catalogLoading = false) }
@@ -847,13 +849,15 @@ class AppViewModel(
                 val groups = runCatching { container.client.models.getAvailableGroups() }.getOrDefault(emptyMap())
                 val currentGroup = _state.value.active567Group
                 val models = container.client.models.listGoModels(currentGroup)
+                val finalModels = if (models.isNotEmpty()) models else _state.value.models
                 val selected =
-                    resolveModelId(_state.value.selectedModelId ?: container.preferences.lastModelId, models)
+                    resolveModelId(_state.value.selectedModelId ?: container.preferences.lastModelId, finalModels)
+                        ?: finalModels.firstOrNull()?.id
                 _state.update {
                     it.copy(
                         subscription = sub,
-                        available567Groups = groups,
-                        models = models,
+                        available567Groups = if (groups.isNotEmpty()) groups else it.available567Groups,
+                        models = finalModels,
                         selectedModelId = selected,
                         catalogLoading = false,
                         globalError = null,

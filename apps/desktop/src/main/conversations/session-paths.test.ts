@@ -3,7 +3,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
 import { DEFAULT_CONVERSATION_CWD } from "../config/desktop-config-store.js";
-import { isConversationWorkspaceDirEntry, readDesktopSessionHeader } from "./session-paths.js";
+import { isConversationWorkspaceDirEntry, readDesktopSessionHeader, samePath } from "./session-paths.js";
 
 describe("readDesktopSessionHeader", () => {
 	const directories: string[] = [];
@@ -81,5 +81,12 @@ describe("isConversationWorkspaceDirEntry", () => {
 	it("只作用于「对话」根这一层：其它目录与工作区内部的 uuid 目录都不匹配", () => {
 		expect(isConversationWorkspaceDirEntry("/tmp/some-project", uuidName)).toBe(false);
 		expect(isConversationWorkspaceDirEntry(join(DEFAULT_CONVERSATION_CWD, uuidName), uuidName)).toBe(false);
+	});
+});
+
+describe("samePath", () => {
+	it("correctly compares paths across platforms", () => {
+		expect(samePath("/foo/bar", "/foo/bar")).toBe(true);
+		expect(samePath("/foo/bar", "/foo/baz")).toBe(false);
 	});
 });

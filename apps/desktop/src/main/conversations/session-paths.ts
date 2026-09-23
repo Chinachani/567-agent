@@ -17,16 +17,22 @@ export interface DesktopSessionHeader {
 	cwd: string;
 }
 
+export function samePath(a: string | undefined, b: string | undefined): boolean {
+	if (!a || !b) return a === b;
+	const resA = resolve(a);
+	const resB = resolve(b);
+	return process.platform === "win32" ? resA.toLowerCase() === resB.toLowerCase() : resA === resB;
+}
+
 export function resolveSessionDirForCwd(cwd: string | undefined): string | undefined {
 	if (!cwd) return undefined;
-	const abs = resolve(cwd);
-	if (abs === resolve(DEFAULT_CONVERSATION_CWD)) {
+	if (samePath(cwd, DEFAULT_CONVERSATION_CWD)) {
 		return DEFAULT_CONVERSATION_SESSION_DIR;
 	}
-	if (abs === resolve(DEFAULT_IM_CONVERSATION_CWD)) {
+	if (samePath(cwd, DEFAULT_IM_CONVERSATION_CWD)) {
 		return DEFAULT_IM_CONVERSATION_SESSION_DIR;
 	}
-	if (abs === resolve(KB_PROCESSING_CWD)) {
+	if (samePath(cwd, KB_PROCESSING_CWD)) {
 		return KB_PROCESSING_SESSION_DIR;
 	}
 	return undefined;
@@ -35,26 +41,25 @@ export function resolveSessionDirForCwd(cwd: string | undefined): string | undef
 export function isConversationSubCwd(cwd: string): boolean {
 	const abs = resolve(cwd);
 	const root = resolve(DEFAULT_CONVERSATION_CWD);
-	if (abs === root) return false;
+	if (samePath(abs, root)) return false;
 	const rel = relative(root, abs).replace(/\\/g, "/");
 	return rel.length > 0 && !rel.startsWith("..") && !isAbsolute(rel) && !rel.includes("/");
 }
 
 export function isConversationCwd(cwd: string): boolean {
-	return resolve(cwd) === resolve(DEFAULT_CONVERSATION_CWD) || isConversationSubCwd(cwd);
+	return samePath(cwd, DEFAULT_CONVERSATION_CWD) || isConversationSubCwd(cwd);
 }
 
 export function resolveSessionListCwd(cwd: string): string {
 	if (isConversationCwd(cwd)) return DEFAULT_CONVERSATION_CWD;
-	const absoluteCwd = resolve(cwd);
-	if (absoluteCwd === resolve(DEFAULT_IM_CONVERSATION_CWD)) return DEFAULT_IM_CONVERSATION_CWD;
-	if (absoluteCwd === resolve(KB_PROCESSING_CWD)) return KB_PROCESSING_CWD;
+	if (samePath(cwd, DEFAULT_IM_CONVERSATION_CWD)) return DEFAULT_IM_CONVERSATION_CWD;
+	if (samePath(cwd, KB_PROCESSING_CWD)) return KB_PROCESSING_CWD;
 	return cwd;
 }
 
 export async function ensureConversationSubCwd(requestedCwd: string | undefined): Promise<string | undefined> {
 	if (!requestedCwd) return requestedCwd;
-	if (resolve(requestedCwd) !== resolve(DEFAULT_CONVERSATION_CWD)) return requestedCwd;
+	if (!samePath(requestedCwd, DEFAULT_CONVERSATION_CWD)) return requestedCwd;
 	const sub = join(DEFAULT_CONVERSATION_CWD, randomUUID());
 	await mkdir(sub, { recursive: true });
 	return sub;
@@ -112,6 +117,6 @@ const WORKSPACE_DIR_NAME_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-
  * 见 ADR-0007 修订。
  */
 export function isConversationWorkspaceDirEntry(parentDir: string, entryName: string): boolean {
-	if (resolve(parentDir) !== resolve(DEFAULT_CONVERSATION_CWD)) return false;
+	if (!samePath(parentDir, DEFAULT_CONVERSATION_CWD)) return false;
 	return WORKSPACE_DIR_NAME_RE.test(entryName);
 }

@@ -241,7 +241,11 @@ const legacyNewSessionRoute = createRoute({
 	getParentRoute: () => rootRoute,
 	path: "/new-session/$cwd",
 	beforeLoad: ({ params }) => {
-		throw redirect({ to: "/new-session", search: { cwd: params.cwd } });
+		let cwd = params.cwd;
+		try {
+			cwd = decodeURIComponent(params.cwd);
+		} catch {}
+		throw redirect({ to: "/new-session", search: { cwd } });
 	},
 });
 

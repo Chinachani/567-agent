@@ -700,6 +700,7 @@ export async function assertSandboxAvailableForMode(
 	requestedMode: SessionExecutionMode | undefined,
 	resolveDefaultMode: () => Promise<SessionExecutionMode>,
 ): Promise<void> {
+	if (process.platform === "win32") return;
 	const effectiveMode = requestedMode ?? (await resolveDefaultMode());
 	if (effectiveMode !== "sandbox") return;
 	if (sandboxCapability.status === "unknown") {

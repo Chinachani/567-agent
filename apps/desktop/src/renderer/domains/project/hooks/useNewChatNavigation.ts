@@ -52,8 +52,8 @@ export function useNewChatNavigation(): () => void {
 			}
 			if (!targetCwd) return;
 			void navigate({
-				to: "/new-session/$cwd",
-				params: { cwd: encodeURIComponent(targetCwd) },
+				to: "/new-session",
+				search: { cwd: targetCwd },
 			});
 		})();
 	}, [navigate, newChatCwd, setDefaultConversationCwd]);

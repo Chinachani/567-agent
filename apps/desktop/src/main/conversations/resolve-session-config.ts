@@ -13,6 +13,7 @@ import {
 	ensureSessionWorkingCwd,
 	readSessionCwdFromHeader,
 	resolveSessionDirForCwd,
+	samePath,
 } from "./session-paths.js";
 
 export type DesktopConversationSource = "interactive" | "debug";
@@ -74,7 +75,7 @@ export async function resolveDesktopSessionConfig(
 	const cwdFromExistingHeader = config?.sessionPath ? await readSessionCwdFromHeader(config.sessionPath) : undefined;
 	const effectiveCwd = cwdFromExistingHeader ?? (await ensureConversationSubCwd(requestedCwd)) ?? requestedCwd;
 	await ensureSessionWorkingCwd(effectiveCwd);
-	if (effectiveCwd !== requestedCwd) {
+	if (!samePath(effectiveCwd, requestedCwd)) {
 		allowProjectRoot(effectiveCwd);
 	}
 
@@ -106,9 +107,14 @@ export async function resolveDesktopSessionConfig(
 		sessionRuntimeTools: _sessionRuntimeTools,
 		...runtimeConfig
 	} = config ?? {};
+	const effectiveExecutionMode =
+		process.platform === "win32" && runtimeConfig.executionMode === "sandbox"
+			? "full-access"
+			: runtimeConfig.executionMode;
 	return {
 		config: {
 			...runtimeConfig,
+			executionMode: effectiveExecutionMode,
 			agent: createCodingAgentRuntimeSessionSelection(
 				{
 					sessionId: config?.sessionId,

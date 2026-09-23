@@ -181,8 +181,8 @@ export function useRootLayoutModel(): RootLayoutModel {
 			return;
 		}
 		void navigate({
-			to: "/new-session/$cwd",
-			params: { cwd: encodeURIComponent(defaultConversationCwd) },
+			to: "/new-session",
+			search: { cwd: defaultConversationCwd },
 		});
 	}, [
 		currentPath,
@@ -242,8 +242,8 @@ export function useRootLayoutModel(): RootLayoutModel {
 			});
 			if (currentPath !== "/" && !currentPath.startsWith("/new-session") && defaultConversationCwd) {
 				void navigate({
-					to: "/new-session/$cwd",
-					params: { cwd: encodeURIComponent(defaultConversationCwd) },
+					to: "/new-session",
+					search: { cwd: defaultConversationCwd },
 				});
 			}
 			store.set(focusInputRequestAtom, (previous) => previous + 1);
@@ -420,8 +420,8 @@ export function useRootLayoutModel(): RootLayoutModel {
 						const target = defaultCwdRef.current || projectsRef.current[0]?.cwd;
 						if (target) {
 							void navigate({
-								to: "/new-session/$cwd",
-								params: { cwd: encodeURIComponent(target) },
+								to: "/new-session",
+								search: { cwd: target },
 							});
 						}
 						break;
