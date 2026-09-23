@@ -9,7 +9,7 @@ package org.vetta.android.core
  */
 data class VettaConfig(
     val serverUrl: String,
-    val userAgent: String = "567-agent-android/1.0.5",
+    val userAgent: String = "567-agent-android/1.0.6",
     val enableHttpLogging: Boolean = false,
 ) {
     val apiBaseUrl: String

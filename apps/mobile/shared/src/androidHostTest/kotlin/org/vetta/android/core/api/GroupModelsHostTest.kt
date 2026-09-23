@@ -82,7 +82,7 @@ class GroupModelsHostTest {
         val client = createVettaHttpClient(config, tokens, TokenRefresher(tokens, { RefreshOutcome.Transient }, null))
         try {
             val api = VettaApi(client, bare, config, tokens)
-            assertTrue(api.goModels().goModels().isNotEmpty())
+            assertTrue(api.goModels().goModels().isEmpty(), "On temporary 503 error, models should be empty rather than fake fallback models")
             assertEquals(listOf("restored-model"), api.goModels().goModels().map { it.id })
         } finally {
             client.close()

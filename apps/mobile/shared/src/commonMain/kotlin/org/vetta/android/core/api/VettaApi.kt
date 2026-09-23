@@ -223,48 +223,32 @@ internal class VettaApi(
         }
     }
 
-    companion object {
-        val FALLBACK_CHAT_MODELS = listOf(
-            "gpt-5.6-sol",
-            "claude-3-7-sonnet-20250219",
-            "deepseek-reasoner",
-            "deepseek-chat",
-            "gpt-4o",
-            "gemini-2.5-pro",
-            "gemini-2.5-flash",
-            "qwen-plus",
-        )
-    }
-
     suspend fun fetchGroupModels(groupName: String?): List<String> {
         val patToken = tokenStore.accessToken
 
         // 1. 如果有登录 Token，先尝试调用 567 API 用户模型列表接口（有 group 则查指定分组，无 group 则查默认可用）
         if (!patToken.isNullOrBlank()) {
             try {
-                val path = if (!groupName.isNullOrBlank()) {
-                    val encoded = java.net.URLEncoder.encode(groupName, "UTF-8")
-                    "api/user/models?group=$encoded"
+                val query = if (!groupName.isNullOrBlank()) {
+                    "?group=${java.net.URLEncoder.encode(groupName, "UTF-8")}"
                 } else {
-                    "api/user/models"
+                    ""
                 }
-                val res = client.get(path) {
+                val url = "${config.apiBaseUrl.trimEnd('/')}/api/user/models$query"
+                val res = bareClient.get(url) {
                     header(HttpHeaders.Authorization, "Bearer $patToken")
                 }
                 val text = res.bodyAsTextSafe()
                 if (res.status.isSuccess()) {
                     val root = org.vetta.android.core.net.VettaJson.parseToJsonElement(text)
-                    val dataArr = (root as? kotlinx.serialization.json.JsonObject)?.get("data") as? kotlinx.serialization.json.JsonArray
-                    if (dataArr != null && dataArr.isNotEmpty()) {
-                        val ids = dataArr.mapNotNull { (it as? kotlinx.serialization.json.JsonPrimitive)?.content }
-                        if (ids.isNotEmpty()) return ids
-                    }
+                    val ids = extractModelIds(root)
+                    if (ids.isNotEmpty()) return ids
                 }
             } catch (_: Exception) {
             }
         }
 
-        // 2. 如果 /api/user/models 没拿到，确保获取或创建专属 API Key (sk-...)，请求标准 /v1/models
+        // 2. 如果 /api/user/models 没拿到，获取或解析分组专属 API Key (sk-...)，请求标准 /v1/models
         return try {
             val apiKey = ensureApiKeyForGroup(groupName)
             val keyToUse = if (apiKey.isNotBlank()) apiKey else patToken
@@ -278,21 +262,16 @@ internal class VettaApi(
             }
             val text = res.bodyAsTextSafe()
             val root = org.vetta.android.core.net.VettaJson.parseToJsonElement(text)
-            val dataArr = (root as? kotlinx.serialization.json.JsonObject)?.get("data") as? kotlinx.serialization.json.JsonArray
-            val ids = dataArr?.mapNotNull { el ->
-                (el as? kotlinx.serialization.json.JsonObject)?.get("id")?.let { (it as? kotlinx.serialization.json.JsonPrimitive)?.content }
-            } ?: emptyList()
-
-            ids.ifEmpty { FALLBACK_CHAT_MODELS }
+            extractModelIds(root)
         } catch (_: Exception) {
-            FALLBACK_CHAT_MODELS
+            emptyList()
         }
     }
 
     suspend fun goModels(activeGroup: String? = null): ModelsCatalog {
-        var modelIds = fetchGroupModels(activeGroup)
+        val modelIds = fetchGroupModels(activeGroup)
         if (modelIds.isEmpty()) {
-            modelIds = FALLBACK_CHAT_MODELS
+            return ModelsCatalog()
         }
         val models = modelIds.map { id ->
             val isReasoning = id.contains("reasoner", ignoreCase = true) ||
@@ -341,7 +320,7 @@ internal class VettaApi(
 
     private suspend fun fetchUnmaskedKey(tokenId: Long, token: String): String? {
         try {
-            val keyRes = client.post("api/token/$tokenId/key") {
+            val keyRes = bareClient.post("${config.apiBaseUrl.trimEnd('/')}/api/token/$tokenId/key") {
                 header(HttpHeaders.Authorization, "Bearer $token")
                 contentType(ContentType.Application.Json)
                 setBody("{}")
@@ -370,7 +349,7 @@ internal class VettaApi(
         val recordedId = autoCreatedTokens.remove(targetGroup)
         if (recordedId != null) {
             try {
-                client.delete("api/token/$recordedId") {
+                bareClient.delete("${config.apiBaseUrl.trimEnd('/')}/api/token/$recordedId") {
                     header(HttpHeaders.Authorization, "Bearer $token")
                 }
             } catch (_: Exception) {
@@ -379,7 +358,7 @@ internal class VettaApi(
         }
 
         try {
-            val res = client.get("api/token/?p=0&size=100") {
+            val res = bareClient.get("${config.apiBaseUrl.trimEnd('/')}/api/token/?p=0&size=100") {
                 header(HttpHeaders.Authorization, "Bearer $token")
             }
             val text = res.bodyAsTextSafe()
@@ -392,7 +371,7 @@ internal class VettaApi(
             }
             val id = (autoToken?.get("id") as? kotlinx.serialization.json.JsonPrimitive)?.content?.toLongOrNull()
             if (id != null) {
-                client.delete("api/token/$id") {
+                bareClient.delete("${config.apiBaseUrl.trimEnd('/')}/api/token/$id") {
                     header(HttpHeaders.Authorization, "Bearer $token")
                 }
             }
@@ -407,7 +386,7 @@ internal class VettaApi(
         groupKeyCache[cacheKey]?.let { return it }
 
         try {
-            val res = client.get("api/token/?p=0&size=100") {
+            val res = bareClient.get("${config.apiBaseUrl.trimEnd('/')}/api/token/?p=0&size=100") {
                 header(HttpHeaders.Authorization, "Bearer $token")
             }
             val text = res.bodyAsTextSafe()
@@ -453,7 +432,7 @@ internal class VettaApi(
             }
 
             // 2. 只有在当前分组确实无可用令牌时，才自动创建并记录 Token ID
-            client.post("api/token/") {
+            bareClient.post("${config.apiBaseUrl.trimEnd('/')}/api/token/") {
                 header(HttpHeaders.Authorization, "Bearer $token")
                 contentType(ContentType.Application.Json)
                 setBody(
@@ -467,7 +446,7 @@ internal class VettaApi(
                 )
             }
 
-            val reloadRes = client.get("api/token/?p=0&size=100") {
+            val reloadRes = bareClient.get("${config.apiBaseUrl.trimEnd('/')}/api/token/?p=0&size=100") {
                 header(HttpHeaders.Authorization, "Bearer $token")
             }
             tokens = extractTokens(org.vetta.android.core.net.VettaJson.parseToJsonElement(reloadRes.bodyAsTextSafe()))
@@ -830,18 +809,31 @@ internal class VettaApi(
         }
 }
 
-private fun default567ModelsCatalog(): ModelsCatalog {
-    val models = listOf(
-        LlmModel(id = "gpt-5.6-sol", modelId = "gpt-5.6-sol", name = "GPT-5.6 Sol (567特价)", providerName = "567 API", reasoning = true),
-        LlmModel(id = "gpt-4o", modelId = "gpt-4o", name = "GPT-4o 旗舰", providerName = "567 API"),
-        LlmModel(id = "deepseek-chat", modelId = "deepseek-chat", name = "DeepSeek-V3", providerName = "567 API"),
-        LlmModel(id = "deepseek-reasoner", modelId = "deepseek-reasoner", name = "DeepSeek-R1 (深度思考)", providerName = "567 API", reasoning = true),
-        LlmModel(id = "claude-3-7-sonnet", modelId = "claude-3-7-sonnet", name = "Claude 3.7 Sonnet", providerName = "567 API", reasoning = true),
-        LlmModel(id = "gemini-2.5-pro", modelId = "gemini-2.5-pro", name = "Gemini 2.5 Pro", providerName = "567 API"),
-    )
-    val provider = ProviderModels(name = "567 API", models = models)
-    return ModelsCatalog(providers = mapOf("567api" to provider, "vetta-go" to provider))
+private fun extractModelIds(root: kotlinx.serialization.json.JsonElement?): List<String> {
+    if (root == null) return emptyList()
+    val dataArr = when (root) {
+        is kotlinx.serialization.json.JsonArray -> root
+        is kotlinx.serialization.json.JsonObject -> {
+            (root["data"] as? kotlinx.serialization.json.JsonArray)
+                ?: (root["models"] as? kotlinx.serialization.json.JsonArray)
+        }
+        else -> null
+    } ?: return emptyList()
+
+    return dataArr.mapNotNull { item ->
+        when (item) {
+            is kotlinx.serialization.json.JsonPrimitive -> item.content.takeIf { it.isNotBlank() }
+            is kotlinx.serialization.json.JsonObject -> {
+                val id = (item["id"] as? kotlinx.serialization.json.JsonPrimitive)?.content
+                    ?: (item["name"] as? kotlinx.serialization.json.JsonPrimitive)?.content
+                    ?: (item["model"] as? kotlinx.serialization.json.JsonPrimitive)?.content
+                id?.takeIf { it.isNotBlank() }
+            }
+            else -> null
+        }
+    }
 }
+
 
 private suspend fun HttpResponse.bodyAsTextSafe(): String =
     runCatching { bodyAsText() }.getOrDefault("")
