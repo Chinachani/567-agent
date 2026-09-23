@@ -2,17 +2,19 @@ import type { ErrorBlock } from "@shared/store/atoms";
 import { ErrorBlockView as ThemeErrorBlockView } from "@vetta-org/theme-ui/chat";
 import { useNavigate } from "@tanstack/react-router";
 import { useTranslation } from "react-i18next";
-import type { ChatErrorKind } from "../../services/classifyChatError";
+import { presentChatError, type PresentedErrorKind } from "../../services/error-presentation";
 import { useExpansion } from "../message-list/expansionStore";
 
 /** 每类错误的图标。中性表意，不用红色警报。 */
-const ICON_BY_KIND: Record<ChatErrorKind, string> = {
+const ICON_BY_KIND: Record<PresentedErrorKind, string> = {
 	rate_limit: "icon-[mdi--timer-sand]",
 	quota: "icon-[mdi--battery-alert-variant-outline]",
 	network: "icon-[mdi--wifi-off]",
 	auth: "icon-[mdi--key-outline]",
 	server: "icon-[mdi--server-network-off]",
 	unknown: "icon-[mdi--alert-circle-outline]",
+	run_limit: "icon-[mdi--timer-sand]",
+	persistence: "icon-[mdi--alert-circle-outline]",
 };
 
 /**
@@ -22,7 +24,7 @@ const ICON_BY_KIND: Record<ChatErrorKind, string> = {
 const ACTION_BY_KIND = {
 	quota: { tab: "account", labelKey: "messageList.errorBlock.kinds.quota.action" },
 	auth: { tab: "models", labelKey: "messageList.errorBlock.kinds.auth.action" },
-} as const satisfies Partial<Record<ChatErrorKind, { tab: string; labelKey: string }>>;
+} as const satisfies Partial<Record<ErrorBlock["kind"], { tab: string; labelKey: string }>>;
 
 interface ErrorBlockProps {
 	block: ErrorBlock;
@@ -34,7 +36,7 @@ export function ErrorBlockView({ block, exportMode = false }: ErrorBlockProps): 
 	const navigate = useNavigate();
 	const [expanded, toggleExpanded] = useExpansion(`error-detail:${block.id}`);
 
-	const kind = block.kind;
+	const { kind, severity } = presentChatError(block);
 	const action = kind === "quota" || kind === "auth" ? ACTION_BY_KIND[kind] : undefined;
 	// 「已自动重试 N 次」（live）与「重复出现 N 次」（历史回放）互斥：前者是本次
 	// 请求内部的重试，后者是会话文件里连续同类错误折叠后的条数。
@@ -65,6 +67,7 @@ export function ErrorBlockView({ block, exportMode = false }: ErrorBlockProps): 
 		<ThemeErrorBlockView
 			iconClass={ICON_BY_KIND[kind]}
 			detail={block.text}
+			severity={{ level: severity, label: t(`messageList.errorBlock.severity.${severity}`) }}
 			diagnostics={diagnosticLines.length > 0 ? diagnosticLines.join("\n") : undefined}
 			expanded={expanded}
 			onToggleExpanded={toggleExpanded}

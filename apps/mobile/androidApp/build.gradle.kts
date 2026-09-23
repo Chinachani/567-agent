@@ -36,8 +36,8 @@ android {
         applicationId = "com.api567.agent"
         minSdk = libs.versions.android.minSdk.get().toInt()
         targetSdk = libs.versions.android.targetSdk.get().toInt()
-        versionCode = 10004
-        versionName = "1.0.4"
+        versionCode = 10005
+        versionName = "1.0.5"
     }
     packaging {
         resources {

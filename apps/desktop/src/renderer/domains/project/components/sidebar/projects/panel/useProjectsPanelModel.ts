@@ -21,7 +21,7 @@ import { useCallback, useEffect, useMemo, useRef } from "react";
 import { useTranslation } from "react-i18next";
 import { resolveProjectGoneCleanup } from "../../../../hooks/project-gone-cleanup";
 import { resolveSessionOpenTarget } from "../../../../hooks/session-open-target";
-import { useProjects } from "../../../../hooks/useProjects";
+import { forgetPendingSessions, useProjects } from "../../../../hooks/useProjects";
 import { useTeamSidebarConversations } from "../../../../hooks/useTeamSidebarConversations";
 import {
 	projectSidebarConversations,
@@ -434,6 +434,7 @@ export function useProjectsPanelModel({
 				variant: "danger",
 				onConfirm: async () => {
 					await window.vetta.session.clearDefaultConversation("conversation");
+					forgetPendingSessions(cwd);
 					const removedPaths = new Set(allSessions.map((session) => session.path));
 					removePinnedSessions(removedPaths);
 					if (removedPaths.has(activeSessionPathValue) || (activeSessionCwd === cwd && !removedPaths.size)) {
@@ -470,6 +471,7 @@ export function useProjectsPanelModel({
 				variant: "danger",
 				onConfirm: async () => {
 					await window.vetta.session.clearDefaultConversation("claw");
+					forgetPendingSessions(imCwd);
 					const removedPaths = new Set(imSessions.map((session) => session.path));
 					removePinnedSessions(removedPaths);
 					if (removedPaths.has(activeSessionPathValue)) {

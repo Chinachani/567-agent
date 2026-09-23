@@ -630,9 +630,10 @@ export function useSessionOpener(): SessionOpenerController {
 										current,
 									);
 									const mergedIds = new Set(merged.map((message) => message.id));
-									const missingOptimistic = unresolvedOptimistic.filter(
-										(message) => !mergedIds.has(message.id),
-									);
+									const missingOptimistic = preserveMessagesAddedAfterSnapshot(previewSnapshot, merged, [
+										...previewSnapshot,
+										...unresolvedOptimistic,
+									]).filter((message) => !mergedIds.has(message.id));
 									return missingOptimistic.length > 0 ? [...merged, ...missingOptimistic] : merged;
 								});
 							});

@@ -21,6 +21,11 @@ describe("supportsXhigh", () => {
 		expect(supportsXhigh(model("claude-opus-4-6"))).toBe(true);
 	});
 
+	it("supports xhigh for later Anthropic Opus models", () => {
+		expect(supportsXhigh(model("claude-opus-4-7"))).toBe(true);
+		expect(supportsXhigh(model("claude-opus-5"))).toBe(true);
+	});
+
 	it("returns false for non-Opus Anthropic models", () => {
 		expect(supportsXhigh(model("claude-sonnet-4-5"))).toBe(false);
 	});

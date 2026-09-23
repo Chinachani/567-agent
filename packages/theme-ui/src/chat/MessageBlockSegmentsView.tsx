@@ -114,6 +114,8 @@ export interface ErrorBlockViewProps {
 	/** iconify 类名，如 "icon-[mdi--timer-sand]"。 */
 	iconClass: string;
 	labels: ErrorBlockViewLabels;
+	/** Host-provided severity, independent from the error category. */
+	severity?: { level: "warning" | "error" | "critical"; label: string };
 	/** provider 原文，只出现在折叠区。 */
 	detail: string;
 	/** Optional safe diagnostics, already localized/formatted by the host app. */
@@ -127,13 +129,13 @@ export interface ErrorBlockViewProps {
 }
 
 /**
- * 对话流里的错误卡。刻意不用 destructive 红：这里绝大多数是限流 / 网络抖动一类
- * 的暂时性状况，红底红框会把每次抖动都渲染成事故。紧迫性交给图标、文案和动作
- * 按钮表达。分类与文案由调用方决定，本组件只负责呈现。
+ * 对话流里的错误卡。短暂的网络波动用警告色，需要处理的问题用错误色；
+ * 分类、严重程度和用户文案由调用方决定，本组件只负责呈现。
  */
 export function ErrorBlockView({
 	iconClass,
 	labels,
+	severity,
 	detail,
 	diagnostics,
 	expanded,
@@ -144,13 +146,27 @@ export function ErrorBlockView({
 	const generatedId = useId();
 	const panelId = `error-detail-${generatedId}`;
 	const open = expanded || exportMode;
+	const severityClass =
+		severity?.level === "warning"
+			? "border-amber-500/30 bg-amber-500/15 text-amber-400"
+			: severity?.level === "critical"
+				? "border-destructive/50 bg-destructive/20 text-destructive"
+				: "border-destructive/30 bg-destructive/10 text-destructive";
 
 	return (
-		<div className="w-full rounded-xl border border-border/40 bg-secondary px-3 py-2.5 dark:bg-input-bar-bg">
+		<div
+			data-severity={severity?.level}
+			className="w-full rounded-xl border border-border/40 bg-secondary px-3 py-2.5 dark:bg-input-bar-bg"
+		>
 			<div className="flex items-start gap-2.5">
 				<span className={`${iconClass} mt-0.5 h-4 w-4 shrink-0 text-muted-foreground/70`} />
 				<div className="min-w-0 flex-1">
-					<div className="flex flex-wrap items-baseline gap-x-2 gap-y-0.5">
+					<div className="flex flex-wrap items-center gap-x-2 gap-y-0.5">
+						{severity ? (
+							<span className={`rounded-md border px-1.5 py-0.5 text-[11px] font-medium leading-none ${severityClass}`}>
+								{severity.label}
+							</span>
+						) : null}
 						<span className="text-[13px] font-medium leading-[1.5] text-foreground/85">{labels.title}</span>
 						{labels.note ? <span className="text-[12px] text-muted-foreground/60">{labels.note}</span> : null}
 					</div>

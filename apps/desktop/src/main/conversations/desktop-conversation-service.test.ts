@@ -75,6 +75,32 @@ afterEach(async () => {
 });
 
 describe("DesktopConversationService session access", () => {
+	it("creates a session and sends the first message with Windows sandbox fallback", async () => {
+		const originalPlatform = Object.getOwnPropertyDescriptor(process, "platform");
+		const cwd = await createTemporaryRoot();
+		const sessionPath = join(cwd, "session-1.conversation.jsonl");
+		const runtime = {
+			createSession: vi.fn(async () => ({ sessionId: "session-1" })),
+			getSessionPath: vi.fn(() => sessionPath),
+			getMessages: vi.fn(() => [{ role: "user" }]),
+			subscribe: vi.fn(() => () => undefined),
+			prompt: vi.fn(async () => ({ status: "completed" as const })),
+		} as unknown as RuntimeHost;
+		const service = new DesktopConversationService(runtime);
+
+		try {
+			Object.defineProperty(process, "platform", { configurable: true, value: "win32" });
+			const session = await service.createSession({ cwd, executionMode: "sandbox" }, "other", "interactive");
+			const receipt = await service.promptInteractiveSession(session.sessionId, { text: "Hello" }, session.cwd);
+
+			expect(runtime.createSession).toHaveBeenCalledWith(expect.objectContaining({ executionMode: "full-access" }));
+			expect(runtime.prompt).toHaveBeenCalledWith("session-1", expect.objectContaining({ text: "Hello" }));
+			expect(receipt).toEqual({ status: "completed" });
+		} finally {
+			if (originalPlatform) Object.defineProperty(process, "platform", originalPlatform);
+		}
+	});
+
 	it("starts first-message auto-title when the turn is accepted without waiting for the assistant", async () => {
 		const promptResult = deferred<{ status: "completed" }>();
 		const autoTitleResult = deferred<string | null>();

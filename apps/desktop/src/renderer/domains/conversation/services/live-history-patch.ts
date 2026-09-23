@@ -123,5 +123,20 @@ export function applyAgentEndHistoryRefresh(
 	live: readonly ChatConversationItem[],
 	canonical: ChatConversationItem[],
 ): ChatConversationItem[] {
+	if (
+		canonical.length < live.length &&
+		live.slice(canonical.length).some((item) => item.kind === "user") &&
+		canonical.every((item, index) => {
+			const visible = live[index];
+			return (
+				visible?.kind === item.kind &&
+				(item.kind !== "user" || (visible.kind === "user" && visible.text === item.text)) &&
+				(!item.entryId || !visible.entryId || item.entryId === visible.entryId)
+			);
+		})
+	) {
+		const patchedPrefix = patchLiveMessagesWithCanonical(live.slice(0, canonical.length), canonical);
+		if (patchedPrefix) return [...patchedPrefix, ...live.slice(canonical.length)];
+	}
 	return patchLiveMessagesWithCanonical(live, canonical) ?? reconcileHistoryWithLiveTerminalErrors(canonical, live);
 }

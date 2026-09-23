@@ -4,24 +4,22 @@
 
 两条路：安装现成构建，或从本仓库跑桌面应用。
 
-## 直接使用
+## 上游安装包参考
 
-macOS、Windows、Linux 安装包：
+Open Vetta 上游提供 macOS、Windows、Linux 安装包；这些不是 567 Agent 的安装包：
 
 **→ [www.openvetta.com/download](https://www.openvetta.com/download)**
 
-官方安装包发布在官网 CDN。本仓库提供源码。安装后引导会带你配置模型（BYOK）和权限。产品文档：[docs.openvetta.com](https://docs.openvetta.com)。
+上述安装包和产品文档属于上游 Open Vetta。本仓库提供 567 Agent 源码；从源码运行时可自行配置模型（BYOK）和权限。
 
-从源码检出得到的是 **lite** 构建：无 Vetta 登录、无订阅，密钥留在本机。官方安装包可能是 **full** 构建。两种形态见[构建模式](docs/desktop/build-modes.md)。
+从本仓库源码检出得到的是 **lite** 构建：无上游 Vetta 登录、无订阅，密钥留在本机。上游安装包可能是 **full** 构建；两种形态见[构建模式](docs/desktop/build-modes.md)。
 
 ## 从源码开发
 
 需要 **Bun 1.3+** 和 **Node 20+**。支持 macOS、Windows、Linux。
 
 ```bash
-git clone https://github.com/openvetta/open-vetta.git
-cd open-vetta
-git checkout dev
+# 在本仓库根目录执行
 bun install
 ```
 

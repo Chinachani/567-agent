@@ -85,12 +85,13 @@ function buildShareNav(iconDataUrl: string, nickname?: string): string {
 	const desc = nickname
 		? i18n.t("chat:export.shareNavDescriptionWithNickname", { nickname: escapeHtml(nickname) })
 		: i18n.t("chat:export.shareNavDescription");
-	const icon = iconDataUrl ? `<img class="vetta-share-nav__icon" src="${iconDataUrl}" alt="Vetta" />` : "";
+	const brandName = escapeHtml(i18n.t("common:appName"));
+	const icon = iconDataUrl ? `<img class="vetta-share-nav__icon" src="${iconDataUrl}" alt="${brandName}" />` : "";
 	return `<nav class="vetta-share-nav" data-share-nav>
 		<div class="vetta-share-nav__inner">
 			${icon}
 			<div class="vetta-share-nav__meta">
-				<span class="vetta-share-nav__brand">Vetta</span>
+				<span class="vetta-share-nav__brand">${brandName}</span>
 				<span class="vetta-share-nav__desc">${desc}</span>
 			</div>
 		</div>

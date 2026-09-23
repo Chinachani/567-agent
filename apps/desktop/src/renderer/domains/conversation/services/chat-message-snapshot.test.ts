@@ -58,4 +58,50 @@ describe("shareChatMessageSnapshot", () => {
 
 		expect(result).toEqual([queued]);
 	});
+
+	describe("cross-session history handoff", () => {
+		it("keeps a preview message when canonical history has not caught up", () => {
+			const preview = [
+				createConversationUserMessage({ id: "preview-entry", entryId: "entry-1", text: "still visible" }),
+			];
+			expect(preserveMessagesAddedAfterSnapshot(preview, [], preview)).toEqual(preview);
+		});
+
+		it("does not duplicate a newly sent user message when canonical history assigns its durable id", () => {
+			const preview = [createConversationUserMessage({ id: "entry-1", entryId: "entry-1", text: "first" })];
+			const optimistic = createConversationUserMessage({ id: "optimistic-2", text: "same prompt" });
+			const canonical = [
+				...preview,
+				createConversationUserMessage({ id: "entry-2", entryId: "entry-2", text: "same prompt" }),
+			];
+			const result = preserveMessagesAddedAfterSnapshot(preview, canonical, [...preview, optimistic]);
+			expect(result.filter((item) => item.kind === "user" && item.text === "same prompt")).toHaveLength(1);
+		});
+
+		it("preserves a repeated prompt at a different user ordinal when canonical is still behind", () => {
+			const first = createConversationUserMessage({ id: "entry-1", entryId: "entry-1", text: "repeat" });
+			const pending = createConversationUserMessage({ id: "optimistic-2", text: "repeat" });
+			expect(preserveMessagesAddedAfterSnapshot([first], [first], [first, pending])).toEqual([first, pending]);
+		});
+
+		it("keeps a distinct attachment send even when its text matches the canonical message", () => {
+			const preview = [createConversationUserMessage({ id: "entry-1", entryId: "entry-1", text: "first" })];
+			const persisted = createConversationUserMessage({
+				id: "entry-2",
+				entryId: "entry-2",
+				text: "look here",
+				attachments: [{ kind: "file", path: "/first.txt" }],
+			});
+			const pending = createConversationUserMessage({
+				id: "pending-2",
+				text: "look here",
+				attachments: [{ kind: "file", path: "/second.txt" }],
+			});
+			expect(preserveMessagesAddedAfterSnapshot(preview, [...preview, persisted], [...preview, pending])).toEqual([
+				...preview,
+				persisted,
+				pending,
+			]);
+		});
+	});
 });

@@ -174,4 +174,12 @@ describe("applyAgentEndHistoryRefresh", () => {
 			}),
 		]);
 	});
+
+	it("keeps a newly visible user message when agent_end reads an older history snapshot", () => {
+		const earlier = createConversationUserMessage({ id: "older", entryId: "older", text: "first" });
+		const pending = createConversationUserMessage({ id: "pending", text: "still running" });
+		const live = [earlier, pending];
+		const refreshed = applyAgentEndHistoryRefresh(live, [earlier]);
+		expect(refreshed).toEqual(live);
+	});
 });

@@ -25,7 +25,7 @@ const log = getAppLogger("auth");
 const CALLBACK_PATH = "/oauth/callback";
 
 /** dev-only 页面，仅在开发者本机浏览器一闪而过，不进 i18n。 */
-const RESPONSE_HTML = `<!doctype html><meta charset="utf-8"><title>Vetta</title><body style="font:16px system-ui;padding:48px">Authorized. You can close this window.</body>`;
+const RESPONSE_HTML = `<!doctype html><meta charset="utf-8"><title>567 Agent</title><body style="font:16px system-ui;padding:48px">Authorized. You can close this window.</body>`;
 
 let callbackUrl: string | null = null;
 let handler: ((url: string) => void) | null = null;

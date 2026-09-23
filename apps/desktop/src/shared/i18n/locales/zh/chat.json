@@ -622,6 +622,11 @@
 			"hideDetail": "收起详情",
 			"retriedNote": "已自动重试 {{count}} 次",
 			"repeatedNote": "重复出现 {{count}} 次",
+			"severity": {
+				"warning": "警告",
+				"error": "错误",
+				"critical": "严重"
+			},
 			"diagnostic": {
 				"code": "错误码：{{value}}",
 				"origin": "来源：{{value}}",
@@ -655,6 +660,14 @@
 				"server": {
 					"title": "服务方暂时出了点问题",
 					"hint": "通常几分钟内会自行恢复，稍后再发一次。"
+				},
+				"run_limit": {
+					"title": "执行已中断",
+					"hint": "本次运行已达到模型调用次数上限，可继续发送消息接着处理。"
+				},
+				"persistence": {
+					"title": "会话状态未能保存",
+					"hint": "重新打开会话核对记录后再继续；如果问题反复出现，请复制详情反馈。"
 				},
 				"unknown": {
 					"title": "本次回复中断了",

@@ -40,6 +40,13 @@ let sessionListSubscribed = false;
  */
 let projectsChangedSubscribed = false;
 const sessionLoadPromises = new Map<string, Promise<void>>();
+// A newly created session can precede its first durable catalog entry. Keep it visible
+// through listSessions reloads until the catalog confirms it.
+const pendingLocalSessions = new Map<string, Map<string, SessionInfo>>();
+
+export function forgetPendingSessions(cwd: string): void {
+	pendingLocalSessions.delete(cwd);
+}
 
 /**
  * `onSessionsChanged` 每轮对话至少触发 2~3 次（turn 开始 / 结束 / auto-title），
@@ -108,24 +115,26 @@ export function useProjectActions() {
 				.listSessions(cwd)
 				.then((sessions: SessionInfo[]) =>
 					setSessionsMap((prev) => {
-						// 定时 / 新建 session 的 name、以及发送瞬间写入的乐观 firstMessage，在 assistant
-						// 首条落盘前磁盘可能仍是空 name + "(no messages)"。若直接覆盖会让侧栏/标题
-						// 闪回「未命名会话」。用上一次已知的非空 name / 可用 firstMessage 兜底。
+						const pending = pendingLocalSessions.get(cwd);
+						for (const session of sessions) pending?.delete(session.path);
+						if (pending?.size === 0) pendingLocalSessions.delete(cwd);
+						const confirmedPaths = new Set(sessions.map((session) => session.path));
+						const visible = [
+							...sessions,
+							...(pending ? [...pending.values()].filter((session) => !confirmedPaths.has(session.path)) : []),
+						];
+						// Preserve the known title while the first message is being written.
 						const prevByPath = new Map((prev.get(cwd) ?? []).map((s) => [s.path, s]));
-						const merged = sessions.map((s) => {
+						const merged = visible.map((s) => {
 							const known = prevByPath.get(s.path);
 							if (!known) return s;
 							let next = s;
-							if (!s.name && known.name) {
-								next = { ...next, name: known.name };
-							}
+							if (!s.name && known.name) next = { ...next, name: known.name };
 							if (!isUsableFirstMessage(s.firstMessage) && isUsableFirstMessage(known.firstMessage)) {
 								next = { ...next, firstMessage: known.firstMessage };
 							}
 							return next;
 						});
-						// 内容没变就保持原引用：listSessions 被高频触发时结果往往完全一致，
-						// 换引用会白白唤醒所有 useProjects() 消费者（含 RootLayout 整棵树）。
 						if (sessionListsEqual(prev.get(cwd) ?? [], merged)) return prev;
 						return new Map([...prev, [cwd, merged]]);
 					}),
@@ -176,6 +185,9 @@ export function useProjectActions() {
 								firstMessage: session.firstMessage,
 								modifiedAt: session.modifiedAt,
 							});
+							const pending = pendingLocalSessions.get(cwd) ?? new Map<string, SessionInfo>();
+							pending.set(sessionPath, nextSessions[0]);
+							pendingLocalSessions.set(cwd, pending);
 						} else {
 							const existing = nextSessions[existingIndex];
 							nextSessions[existingIndex] = {
@@ -350,6 +362,7 @@ export function useProjectActions() {
 			const config = await window.vetta.config.get();
 			config.projects = config.projects.filter((p) => p.path !== cwd);
 			await window.vetta.config.set({ projects: config.projects });
+			forgetPendingSessions(cwd);
 			await refreshProjects();
 		},
 		[refreshProjects, store],
@@ -366,6 +379,7 @@ export function useProjectActions() {
 				archived.push(entry ?? { path: cwd });
 			}
 			await window.vetta.config.set({ projects: config.projects, archivedProjects: archived });
+			forgetPendingSessions(cwd);
 			await refreshProjects();
 		},
 		[refreshProjects, store],
@@ -411,6 +425,7 @@ export function useProjectActions() {
 	const deleteSession = useCallback(
 		async (_cwd: string, sessionPath: string) => {
 			await window.vetta.session.delete(sessionPath);
+			for (const pending of pendingLocalSessions.values()) pending.delete(sessionPath);
 			removePinnedSessions([sessionPath]);
 			// 定时任务 session：同步删掉「自动化」里的执行记录，否则历史列表会残留。
 			if (store.get(scheduledSessionPathsAtom).has(sessionPath)) {
@@ -452,6 +467,9 @@ export function useProjectActions() {
 				const sessions = prev.get(cwd) ?? [];
 				const idx = sessions.findIndex((s) => s.path === info.path);
 				if (idx < 0) {
+					const pending = pendingLocalSessions.get(cwd) ?? new Map<string, SessionInfo>();
+					pending.set(info.path, info);
+					pendingLocalSessions.set(cwd, pending);
 					const next = new Map(prev);
 					next.set(cwd, [...sessions, info]);
 					return next;
@@ -526,6 +544,7 @@ export function useProjectActions() {
 		applyLocalRename,
 		ensureLocalSession,
 		removePinnedSessions,
+		forgetPendingSessions,
 	};
 }
 

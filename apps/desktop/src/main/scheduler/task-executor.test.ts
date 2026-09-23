@@ -125,6 +125,43 @@ describe("scheduler RuntimeHost consumer", () => {
 		expect(disposeSession).not.toHaveBeenCalled();
 	});
 
+	it.each(["provider down", ""])("records a failed turn as failed when the error message is %j", async (message) => {
+		const handlers = new Set<(event: SessionEvent) => void>();
+		const runtime = {
+			createSession: vi.fn(async () => ({ sessionId: "automation-session" })),
+			renameSessionById: vi.fn(async () => {}),
+			getSessionPath: () => "C:/desktop/conversations/.vetta/sessions/automation.jsonl",
+			subscribe: (_sessionId: string, handler: (event: SessionEvent) => void) => {
+				handlers.add(handler);
+				return () => handlers.delete(handler);
+			},
+			prompt: vi.fn(async () => {
+				emit(handlers, {
+					...eventBase("automation-session"),
+					type: "error",
+					turnId: "turn-1",
+					error: { message },
+				} as SessionEvent);
+				emit(handlers, lifecycle("automation-session", "agent_end"));
+			}),
+		} as unknown as RuntimeHost;
+		const task = scheduledTask();
+
+		await executeTask(task, runtime);
+		await vi.waitFor(() => expect(mocks.updateTaskLastRun).toHaveBeenCalledWith(task.id, "failed"));
+
+		expect(mocks.updateRecordMetadata.mock.calls.at(-1)?.[0]).toMatchObject({
+			status: "failed",
+			error: message,
+		});
+		expect(mocks.emitTaskEvent).toHaveBeenCalledWith({
+			type: "record.updated",
+			taskId: task.id,
+			sessionId: "automation-session",
+			status: "failed",
+		});
+	});
+
 	it("aborts active work, releases subscriptions, and rejects work after shutdown", async () => {
 		const handlers = new Set<(event: SessionEvent) => void>();
 		let finishPrompt: () => void = () => {};

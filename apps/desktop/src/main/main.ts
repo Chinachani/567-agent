@@ -36,7 +36,7 @@ import {
 } from "./diagnostics.js";
 import { FILE_PROTOCOL_PRIVILEGE, registerFileProtocolHandler } from "./file-protocol.js";
 import { fixPath } from "./fix-path.js";
-import { initAppLanguage } from "./i18n/index.js";
+import { initAppLanguage, mainT } from "./i18n/index.js";
 import { getImHost } from "./im-host/index.js";
 import { syncAppshotGesture } from "./ipc/appshot.js";
 import { persistVettaCliPaths } from "./ipc/fs.js";
@@ -518,7 +518,7 @@ if (!gotSingleLock) {
 		if (!app.isPackaged) {
 			const appVersion = getAppVersion();
 			app.setAboutPanelOptions({
-				applicationName: "Vetta",
+				applicationName: mainT("menu.app.title"),
 				applicationVersion: appVersion,
 				version: "",
 			});

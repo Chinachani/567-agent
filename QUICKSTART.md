@@ -2,26 +2,24 @@
 
 <p align="center"><b>English</b> · <a href="QUICKSTART.zh-CN.md">简体中文</a></p>
 
-Two ways in: install a build, or run the desktop app from this repository.
+Run 567 Agent from this repository; upstream Open Vetta installers are listed below only for reference.
 
-## Use the app
+## Upstream installers
 
-Installers for macOS, Windows, and Linux:
+Open Vetta offers installers for macOS, Windows, and Linux; these are not 567 Agent installers:
 
 **→ [www.openvetta.com/download](https://www.openvetta.com/download)**
 
-Official installers are published on the website CDN. This repository is the source. After install, the setup wizard walks through model configuration (BYOK) and permissions. Product guides: [docs.openvetta.com](https://docs.openvetta.com).
+The installers and product guides above belong to upstream Open Vetta. This repository contains the 567 Agent source; configure your model (BYOK) and permissions when running from source.
 
-A source checkout produces the **lite** build: no Vetta login, no subscription, keys stay on your machine. Official installers may be the **full** build. The two shapes are documented in [Build Modes](docs/desktop/build-modes.en.md).
+This source checkout produces the **lite** build: no upstream Vetta login or subscription, and keys stay on your machine. Upstream installers may be **full** builds. See [Build Modes](docs/desktop/build-modes.en.md).
 
 ## Develop from source
 
 Requires **Bun 1.3+** and **Node 20+**. macOS, Windows, and Linux are supported.
 
 ```bash
-git clone https://github.com/openvetta/open-vetta.git
-cd open-vetta
-git checkout dev
+# From this repository's root directory
 bun install
 ```
 

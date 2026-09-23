@@ -268,7 +268,7 @@ internal class VettaApi(
         return try {
             val apiKey = ensureApiKeyForGroup(groupName)
             val keyToUse = if (apiKey.isNotBlank()) apiKey else patToken
-            val res = client.get("v1/models") {
+            val res = bareClient.get(config.gatewayBaseUrl.trimEnd('/') + "/v1/models") {
                 if (!keyToUse.isNullOrBlank()) {
                     header(HttpHeaders.Authorization, "Bearer $keyToUse")
                 }
@@ -422,10 +422,11 @@ internal class VettaApi(
                     val grp = (it["group"] as? kotlinx.serialization.json.JsonPrimitive)?.content
                     val name = (it["name"] as? kotlinx.serialization.json.JsonPrimitive)?.content
                     val status = (it["status"] as? kotlinx.serialization.json.JsonPrimitive)?.content?.toIntOrNull() ?: 1
-                    status == 1 && (grp == groupName || name == targetName || (name != null && name.contains(groupName)))
+                    status == 1 && (grp == groupName || name == targetName)
                 } ?: tokens.find {
+                    val grp = (it["group"] as? kotlinx.serialization.json.JsonPrimitive)?.content
                     val status = (it["status"] as? kotlinx.serialization.json.JsonPrimitive)?.content?.toIntOrNull() ?: 1
-                    status == 1
+                    status == 1 && grp.isNullOrBlank()
                 }
             } else {
                 tokens.find {
