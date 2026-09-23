@@ -348,6 +348,18 @@ export function useSessionEventController({ activeSessionRef }: SessionEventCont
 				return;
 			}
 
+			// retry.end 在整个重试回合结束后才发出；首段回复已恢复时，不能继续显示「正在重新连接」。
+			if (
+				event.channel === "assistant" ||
+				event.type === "thinking.delta" ||
+				event.type === "message.delta" ||
+				event.type === "message.final" ||
+				event.type === "toolcall.start" ||
+				event.type === "tool.start"
+			) {
+				setRetryProgress(null);
+			}
+
 			// ── Raw assistant protocol stream ──
 			// AssistantMessageEvent stays intact across Runtime/IPC. The projection
 			// batches an ordered event array instead of merging by content type.
