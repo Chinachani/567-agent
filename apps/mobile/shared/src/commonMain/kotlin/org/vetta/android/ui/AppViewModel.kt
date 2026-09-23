@@ -194,6 +194,7 @@ class AppViewModel(
                 )
             }
             val token = container.tokenStore.accessToken ?: container.preferences.authToken
+            val refreshToken = container.tokenStore.refreshToken ?: container.preferences.authRefreshToken ?: token
             if (token.isNullOrBlank()) {
                 _state.update {
                     it.copy(
@@ -205,11 +206,14 @@ class AppViewModel(
                 restorePendingQuestion()
                 return@launch
             }
-            if (container.tokenStore.accessToken.isNullOrBlank()) {
-                container.tokenStore.save(token, token)
+            if (container.tokenStore.accessToken.isNullOrBlank() || container.tokenStore.refreshToken.isNullOrBlank()) {
+                container.tokenStore.save(token, refreshToken ?: token)
             }
             if (container.preferences.authToken.isNullOrBlank()) {
                 container.preferences.authToken = token
+            }
+            if (container.preferences.authRefreshToken.isNullOrBlank() && !refreshToken.isNullOrBlank()) {
+                container.preferences.authRefreshToken = refreshToken
             }
             loadWorkspace(openLastSession = container.preferences.autoResumeLastSession.value)
         }

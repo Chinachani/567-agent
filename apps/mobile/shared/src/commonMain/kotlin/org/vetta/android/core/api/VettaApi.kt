@@ -104,18 +104,22 @@ internal class VettaApi(
                 )
             }
 
+            val rawCookies = response.headers.getAll(HttpHeaders.SetCookie) ?: emptyList()
+            val cookieHeader = rawCookies.map { it.split(";")[0] }.joinToString("; ").takeIf { it.isNotBlank() }
+            val effectiveRefreshToken = cookieHeader ?: token!!
+
             val effectiveUser = userDto ?: runCatching {
-                client.get("api/user/self") {
+                bareClient.get("${config.apiBaseUrl.trimEnd('/')}/api/user/self") {
                     header(HttpHeaders.Authorization, "Bearer $token")
                 }.parseEnvelope<UserDto>()
             }.getOrDefault(UserDto(username = account))
 
             val session = AuthSession(
                 accessToken = token!!,
-                refreshToken = token!!,
+                refreshToken = effectiveRefreshToken,
                 user = effectiveUser.toDomain(),
             )
-            tokenStore.save(token!!, token!!)
+            tokenStore.save(token!!, effectiveRefreshToken)
             return session
         } catch (e: Exception) {
             throw e.toVettaException()
@@ -156,11 +160,58 @@ internal class VettaApi(
     }
 
     suspend fun refreshTokens(refreshToken: String): RefreshOutcome {
-        return if (refreshToken.isNotBlank()) {
-            RefreshOutcome.Ok(refreshToken, refreshToken)
-        } else {
-            RefreshOutcome.Unauthorized
+        if (refreshToken.isBlank()) return RefreshOutcome.Unauthorized
+
+        if (refreshToken.contains("=") || refreshToken.contains("session", ignoreCase = true)) {
+            try {
+                val refreshRes = bareClient.post("${config.apiBaseUrl.trimEnd('/')}/api/user/auth/refresh") {
+                    header(HttpHeaders.Cookie, refreshToken)
+                }
+                if (refreshRes.status.value in 400..403) {
+                    return RefreshOutcome.Unauthorized
+                }
+                if (!refreshRes.status.isSuccess()) {
+                    return RefreshOutcome.Transient
+                }
+
+                val rawCookies = refreshRes.headers.getAll(HttpHeaders.SetCookie) ?: emptyList()
+                val newCookieHeader = if (rawCookies.isNotEmpty()) {
+                    rawCookies.map { it.split(";")[0] }.joinToString("; ")
+                } else {
+                    refreshToken
+                }
+
+                val text = refreshRes.bodyAsTextSafe()
+                val root = org.vetta.android.core.net.VettaJson.parseToJsonElement(text) as? kotlinx.serialization.json.JsonObject
+                val data = root?.get("data") as? kotlinx.serialization.json.JsonObject
+                val newAccessToken = (data?.get("access_token") as? kotlinx.serialization.json.JsonPrimitive)?.content
+
+                if (!newAccessToken.isNullOrBlank()) {
+                    tokenStore.save(newAccessToken, newCookieHeader)
+                    return RefreshOutcome.Ok(newAccessToken, newCookieHeader)
+                }
+                return RefreshOutcome.Unauthorized
+            } catch (_: Exception) {
+                return RefreshOutcome.Transient
+            }
         }
+
+        return RefreshOutcome.Unauthorized
+    }
+
+    private suspend fun executeWithAuthRefresh(
+        action: suspend (token: String) -> HttpResponse,
+    ): HttpResponse {
+        var token = tokenStore.accessToken.orEmpty()
+        var response = action(token)
+        if (response.status.value == 401 && !tokenStore.refreshToken.isNullOrBlank()) {
+            val outcome = refreshTokens(tokenStore.refreshToken!!)
+            if (outcome is RefreshOutcome.Ok) {
+                token = outcome.accessToken
+                response = action(token)
+            }
+        }
+        return response
     }
 
     suspend fun logout() {
@@ -169,13 +220,16 @@ internal class VettaApi(
 
     suspend fun me(): User =
         try {
-            val token = tokenStore.accessToken
-            val response =
-                client.get("api/user/self") {
-                    if (!token.isNullOrBlank()) {
+            val response = executeWithAuthRefresh { token ->
+                bareClient.get("${config.apiBaseUrl.trimEnd('/')}/api/user/self") {
+                    if (token.isNotBlank()) {
                         header(HttpHeaders.Authorization, "Bearer $token")
                     }
                 }
+            }
+            if (!response.status.isSuccess()) {
+                throw parseFailure(response.status.value, response.bodyAsTextSafe())
+            }
             response.parseEnvelope<UserDto>().toDomain()
         } catch (e: Exception) {
             throw e.toVettaException()
@@ -200,10 +254,11 @@ internal class VettaApi(
 
     suspend fun getAvailableGroups(): Map<String, ApiGroupInfoDto> {
         return try {
-            val token = tokenStore.accessToken
-            val response = client.get("api/user/groups") {
-                if (!token.isNullOrBlank()) {
-                    header(HttpHeaders.Authorization, "Bearer $token")
+            val response = executeWithAuthRefresh { token ->
+                bareClient.get("${config.apiBaseUrl.trimEnd('/')}/api/user/groups") {
+                    if (token.isNotBlank()) {
+                        header(HttpHeaders.Authorization, "Bearer $token")
+                    }
                 }
             }
             val text = response.bodyAsTextSafe()
@@ -235,8 +290,10 @@ internal class VettaApi(
                     ""
                 }
                 val url = "${config.apiBaseUrl.trimEnd('/')}/api/user/models$query"
-                val res = bareClient.get(url) {
-                    header(HttpHeaders.Authorization, "Bearer $patToken")
+                val res = executeWithAuthRefresh { token ->
+                    bareClient.get(url) {
+                        header(HttpHeaders.Authorization, "Bearer $token")
+                    }
                 }
                 val text = res.bodyAsTextSafe()
                 if (res.status.isSuccess()) {

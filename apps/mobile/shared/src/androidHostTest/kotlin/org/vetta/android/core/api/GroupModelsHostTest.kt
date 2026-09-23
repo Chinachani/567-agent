@@ -15,6 +15,50 @@ import kotlin.test.assertTrue
 
 class GroupModelsHostTest {
     @Test
+    fun testSilentTokenRefreshViaCookieOn401() = runBlocking {
+        var refreshCalled = false
+        val server = HttpServer.create(InetSocketAddress("127.0.0.1", 0), 0)
+        server.createContext("/") { request ->
+            val auth = request.requestHeaders.getFirst("Authorization")
+            val cookie = request.requestHeaders.getFirst("Cookie")
+            val body = when {
+                request.requestURI.path == "/api/user/models" && auth == "Bearer expired-token" -> {
+                    """{"success":false,"message":"token expired"}"""
+                }
+                request.requestURI.path == "/api/user/auth/refresh" && cookie == "session=valid-cookie" -> {
+                    refreshCalled = true
+                    """{"success":true,"data":{"access_token":"fresh-new-token"}}"""
+                }
+                request.requestURI.path == "/api/user/models" && auth == "Bearer fresh-new-token" -> {
+                    """{"success":true,"data":["refreshed-model-1","refreshed-model-2"]}"""
+                }
+                else -> """{"data":[]}"""
+            }
+            val status = if (body.contains("token expired")) 401 else 200
+            val bytes = body.toByteArray()
+            request.responseHeaders.add("Content-Type", "application/json")
+            request.sendResponseHeaders(status, bytes.size.toLong())
+            request.responseBody.use { it.write(bytes) }
+        }
+        server.start()
+        val config = VettaConfig("http://127.0.0.1:${server.address.port}")
+        val tokens = InMemoryTokenStore("expired-token", "session=valid-cookie")
+        val bare = createBareHttpClient(config)
+        val client = createVettaHttpClient(config, tokens, TokenRefresher(tokens, { RefreshOutcome.Transient }, null))
+        try {
+            val api = VettaApi(client, bare, config, tokens)
+            val catalog = api.goModels("B")
+            assertTrue(refreshCalled, "Expected /api/user/auth/refresh to be called with session cookie")
+            assertEquals(listOf("refreshed-model-1", "refreshed-model-2"), catalog.goModels().map { it.id })
+            assertEquals("fresh-new-token", tokens.accessToken)
+        } finally {
+            client.close()
+            bare.close()
+            server.stop(0)
+        }
+    }
+
+    @Test
     fun choosingGroupBDoesNotReuseGroupAToken() = runBlocking {
         val requests = java.util.concurrent.CopyOnWriteArrayList<String>()
         var createdGroupBToken = false
