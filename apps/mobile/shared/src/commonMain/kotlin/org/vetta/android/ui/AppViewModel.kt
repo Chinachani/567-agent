@@ -1349,15 +1349,24 @@ class AppViewModel(
                                             } catch (_: Exception) {
                                             }
 
-                                            // 自动溯源上下文历史图片：支持单图修改与多图融合创作
+                                            // 自动溯源上下文历史图片：优先匹配用户本轮上传，支持单图修改与多图融合创作
                                             val allSessionMsgs = container.sessionStore.getMessages(sid)
-                                            val historyImages = allSessionMsgs.flatMap { it.images }.filter { it.base64Data.isNotBlank() }
-                                            val editKeywords = listOf("改", "换", "修改", "替换", "参考", "融合", "结合", "加上", "去掉", "调成", "edit", "modify", "change", "replace", "fuse", "combine")
-                                            val shouldAttachRef = isEdit || (historyImages.isNotEmpty() && editKeywords.any { promptArg.contains(it) })
-                                            val refImages = if (shouldAttachRef) {
-                                                historyImages.takeLast(3).map { it.base64Data }
+                                            val lastUserMsg = allSessionMsgs.filter { it.role == ChatRole.User }.lastOrNull()
+                                            val userAttachedImages = lastUserMsg?.images?.filter { it.base64Data.isNotBlank() } ?: emptyList()
+
+                                            val refImages = if (userAttachedImages.isNotEmpty()) {
+                                                // 用户本条消息直接附带了图片（例如上传2张图并要求融合），严格以用户本次上传的图片为准！
+                                                userAttachedImages.map { it.base64Data }
                                             } else {
-                                                emptyList()
+                                                // 用户未在本次发送附带图片，从会话历史中追溯生成或上传的图片
+                                                val historyImages = allSessionMsgs.flatMap { it.images }.filter { it.base64Data.isNotBlank() }
+                                                val editKeywords = listOf("改", "换", "修改", "替换", "参考", "融合", "结合", "加上", "去掉", "调成", "edit", "modify", "change", "replace", "fuse", "combine")
+                                                val shouldAttachRef = isEdit || (historyImages.isNotEmpty() && editKeywords.any { promptArg.contains(it) })
+                                                if (shouldAttachRef) {
+                                                    historyImages.takeLast(3).map { it.base64Data }
+                                                } else {
+                                                    emptyList()
+                                                }
                                             }
 
                                             val displayLabel = if (refImages.size > 1) {

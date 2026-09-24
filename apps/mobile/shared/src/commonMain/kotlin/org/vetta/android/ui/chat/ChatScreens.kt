@@ -1,5 +1,11 @@
 package org.vetta.android.ui.chat
 
+import androidx.compose.foundation.gestures.detectTransformGestures
+import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.window.Dialog
+import androidx.compose.ui.window.DialogProperties
+
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.filled.ArrowDropDown
@@ -242,6 +248,10 @@ fun ChatScreen(
         }
     }
 
+    val imageSaver = org.vetta.android.ui.media.rememberImageSaver()
+    var previewImage by remember { mutableStateOf<MessageImage?>(null) }
+    var toastNotice by remember { mutableStateOf<String?>(null) }
+
     val canSend =
         !isStreaming &&
             (surface == ChatSurface.Desktop || selectedModel != null) &&
@@ -452,7 +462,11 @@ fun ChatScreen(
                     verticalArrangement = Arrangement.spacedBy(10.dp),
                 ) {
                     items(messages, key = { it.id }) { msg ->
-                        MessageBubble(msg)
+                        MessageBubble(
+                            message = msg,
+                            onImageClick = { previewImage = it },
+                            onCopyToast = { toastNotice = it },
+                        )
                     }
                 }
                 if (!isAtBottom) {
@@ -770,12 +784,123 @@ fun ChatScreen(
             }
         }
     }
+
+    if (previewImage != null) {
+        ImagePreviewModal(
+            image = previewImage!!,
+            onDismiss = { previewImage = null },
+            onSave = { b64 ->
+                imageSaver(b64) { ok, msg ->
+                    toastNotice = msg
+                }
+            },
+        )
+    }
+
+    if (toastNotice != null) {
+        Box(
+            modifier = Modifier.fillMaxSize(),
+            contentAlignment = Alignment.BottomCenter,
+        ) {
+            androidx.compose.material3.Snackbar(
+                modifier = Modifier
+                    .padding(bottom = 72.dp, start = 16.dp, end = 16.dp),
+                action = {
+                    TextButton(onClick = { toastNotice = null }) {
+                        Text("确定", color = MaterialTheme.colorScheme.inversePrimary)
+                    }
+                },
+            ) {
+                Text(toastNotice!!)
+            }
+        }
+        LaunchedEffect(toastNotice) {
+            kotlinx.coroutines.delay(2500)
+            toastNotice = null
+        }
+    }
+}
+
+@Composable
+private fun ImagePreviewModal(
+    image: MessageImage,
+    onDismiss: () -> Unit,
+    onSave: (String) -> Unit,
+) {
+    var scale by remember { mutableStateOf(1f) }
+    var offset by remember { mutableStateOf(Offset.Zero) }
+
+    Dialog(
+        onDismissRequest = onDismiss,
+        properties = DialogProperties(usePlatformDefaultWidth = false),
+    ) {
+        Box(
+            modifier = Modifier
+                .fillMaxSize()
+                .background(Color.Black),
+        ) {
+            val bmp = remember(image.id) { imageBitmapFromBase64(image.base64Data) }
+            if (bmp != null) {
+                Box(
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .pointerInput(Unit) {
+                            detectTransformGestures { _, pan, zoom, _ ->
+                                scale = (scale * zoom).coerceIn(0.8f, 5f)
+                                offset += pan
+                            }
+                        },
+                    contentAlignment = Alignment.Center,
+                ) {
+                    Image(
+                        bitmap = bmp,
+                        contentDescription = "查看大图",
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .graphicsLayer(
+                                scaleX = scale,
+                                scaleY = scale,
+                                translationX = offset.x,
+                                translationY = offset.y,
+                            ),
+                        contentScale = androidx.compose.ui.layout.ContentScale.Fit,
+                    )
+                }
+            }
+
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 16.dp, vertical = 24.dp),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                IconButton(
+                    onClick = onDismiss,
+                    modifier = Modifier.background(Color.Black.copy(alpha = 0.5f), RoundedCornerShape(50)),
+                ) {
+                    Icon(Icons.Default.Close, contentDescription = "关闭", tint = Color.White)
+                }
+                androidx.compose.material3.FilledTonalButton(
+                    onClick = { onSave(image.base64Data) },
+                    shape = RoundedCornerShape(20.dp),
+                    colors = androidx.compose.material3.ButtonDefaults.filledTonalButtonColors(
+                        containerColor = MaterialTheme.colorScheme.primary,
+                        contentColor = MaterialTheme.colorScheme.onPrimary,
+                    ),
+                ) {
+                    Text("保存到相册", style = MaterialTheme.typography.labelMedium)
+                }
+            }
+        }
+    }
 }
 
 @Composable
 private fun PendingImageRow(
     images: List<MessageImage>,
     onRemove: (String) -> Unit,
+    onImageClick: (MessageImage) -> Unit = {},
 ) {
     LazyRow(
         contentPadding = PaddingValues(horizontal = 12.dp, vertical = 8.dp),
@@ -791,7 +916,8 @@ private fun PendingImageRow(
                         modifier =
                             Modifier
                                 .size(72.dp)
-                                .clip(RoundedCornerShape(10.dp)),
+                                .clip(RoundedCornerShape(10.dp))
+                                .clickable { onImageClick(image) },
                         contentScale = ContentScale.Crop,
                     )
                 } else {
@@ -824,7 +950,11 @@ private fun PendingImageRow(
 }
 
 @Composable
-private fun MessageBubble(message: LocalMessage) {
+private fun MessageBubble(
+    message: LocalMessage,
+    onImageClick: (MessageImage) -> Unit = {},
+    onCopyToast: (String) -> Unit = {},
+) {
     val isUser = message.role == ChatRole.User
     Row(
         modifier = Modifier.fillMaxWidth(),
@@ -849,10 +979,12 @@ private fun MessageBubble(message: LocalMessage) {
                                             .fillMaxWidth()
                                             .heightIn(max = 280.dp)
                                             .clip(RoundedCornerShape(12.dp))
+                                            .clickable { onImageClick(image) }
                                     } else {
                                         Modifier
                                             .size(120.dp)
                                             .clip(RoundedCornerShape(12.dp))
+                                            .clickable { onImageClick(image) }
                                     },
                                 contentScale = if (isGen) ContentScale.Fit else ContentScale.Crop,
                             )
@@ -863,63 +995,90 @@ private fun MessageBubble(message: LocalMessage) {
                     Spacer(Modifier.height(6.dp))
                 }
             }
-            Surface(
-                shape =
-                    RoundedCornerShape(
-                        topStart = 16.dp,
-                        topEnd = 16.dp,
-                        bottomStart = if (isUser) 16.dp else 4.dp,
-                        bottomEnd = if (isUser) 4.dp else 16.dp,
-                    ),
-                color =
-                    if (isUser) {
-                        MaterialTheme.colorScheme.primary
-                    } else {
-                        MaterialTheme.colorScheme.surfaceVariant
-                    },
-                contentColor =
-                    if (isUser) {
-                        MaterialTheme.colorScheme.onPrimary
-                    } else {
-                        MaterialTheme.colorScheme.onSurfaceVariant
-                    },
-            ) {
-                when {
-                    isUser -> {
-                        Text(
-                            text =
-                                message.content.ifBlank {
-                                    if (message.images.isNotEmpty()) " " else ""
-                                },
-                            modifier = Modifier.padding(horizontal = 14.dp, vertical = 10.dp),
-                            style = MaterialTheme.typography.bodyLarge,
-                        )
+            SelectionContainer {
+                Surface(
+                    shape =
+                        RoundedCornerShape(
+                            topStart = 16.dp,
+                            topEnd = 16.dp,
+                            bottomStart = if (isUser) 16.dp else 4.dp,
+                            bottomEnd = if (isUser) 4.dp else 16.dp,
+                        ),
+                    color =
+                        if (isUser) {
+                            MaterialTheme.colorScheme.primary
+                        } else {
+                            MaterialTheme.colorScheme.surfaceVariant
+                        },
+                    contentColor =
+                        if (isUser) {
+                            MaterialTheme.colorScheme.onPrimary
+                        } else {
+                            MaterialTheme.colorScheme.onSurfaceVariant
+                        },
+                ) {
+                    when {
+                        isUser -> {
+                            Text(
+                                text =
+                                    message.content.ifBlank {
+                                        if (message.images.isNotEmpty()) " " else ""
+                                    },
+                                modifier = Modifier.padding(horizontal = 14.dp, vertical = 10.dp),
+                                style = MaterialTheme.typography.bodyLarge,
+                            )
+                        }
+                        message.content.isBlank() && message.status == MessageStatus.Streaming -> {
+                            Text(
+                                "…",
+                                modifier = Modifier.padding(horizontal = 14.dp, vertical = 10.dp),
+                                style = MaterialTheme.typography.bodyLarge,
+                            )
+                        }
+                        message.content.isBlank() && message.status == MessageStatus.Error -> {
+                            Text(
+                                Str.responseFailed,
+                                modifier = Modifier.padding(horizontal = 14.dp, vertical = 10.dp),
+                                style = MaterialTheme.typography.bodyLarge,
+                            )
+                        }
+                        message.content.isBlank() && message.status == MessageStatus.Aborted -> {
+                            Text(
+                                Str.responseStopped,
+                                modifier = Modifier.padding(horizontal = 14.dp, vertical = 10.dp),
+                                style = MaterialTheme.typography.bodyLarge,
+                            )
+                        }
+                        else -> {
+                            MarkdownContent(
+                                source = message.content,
+                                modifier = Modifier.padding(horizontal = 12.dp, vertical = 10.dp),
+                            )
+                        }
                     }
-                    message.content.isBlank() && message.status == MessageStatus.Streaming -> {
-                        Text(
-                            "…",
-                            modifier = Modifier.padding(horizontal = 14.dp, vertical = 10.dp),
-                            style = MaterialTheme.typography.bodyLarge,
-                        )
-                    }
-                    message.content.isBlank() && message.status == MessageStatus.Error -> {
-                        Text(
-                            Str.responseFailed,
-                            modifier = Modifier.padding(horizontal = 14.dp, vertical = 10.dp),
-                            style = MaterialTheme.typography.bodyLarge,
-                        )
-                    }
-                    message.content.isBlank() && message.status == MessageStatus.Aborted -> {
-                        Text(
-                            Str.responseStopped,
-                            modifier = Modifier.padding(horizontal = 14.dp, vertical = 10.dp),
-                            style = MaterialTheme.typography.bodyLarge,
-                        )
-                    }
-                    else -> {
-                        MarkdownContent(
-                            source = message.content,
-                            modifier = Modifier.padding(horizontal = 12.dp, vertical = 10.dp),
+                }
+            }
+
+            if (message.content.isNotBlank() && message.status != MessageStatus.Streaming) {
+                val clipboard = androidx.compose.ui.platform.LocalClipboardManager.current
+                var copied by remember { mutableStateOf(false) }
+                Row(
+                    modifier = Modifier.padding(top = 2.dp, start = 2.dp, end = 2.dp),
+                    horizontalArrangement = if (isUser) Arrangement.End else Arrangement.Start,
+                ) {
+                    IconButton(
+                        onClick = {
+                            clipboard.setText(androidx.compose.ui.text.AnnotatedString(message.content))
+                            copied = true
+                            onCopyToast("已复制内容到剪贴板")
+                        },
+                        modifier = Modifier.size(24.dp),
+                    ) {
+                        Icon(
+                            if (copied) Icons.Default.Check else Icons.Default.ContentCopy,
+                            contentDescription = "复制内容",
+                            modifier = Modifier.size(13.dp),
+                            tint = MaterialTheme.vettaExtra.secondaryText,
                         )
                     }
                 }

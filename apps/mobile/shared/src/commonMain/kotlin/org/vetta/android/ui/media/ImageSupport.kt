@@ -27,3 +27,9 @@ fun imageBitmapFromBase64(base64: String): ImageBitmap? =
  */
 @Composable
 expect fun rememberImagePicker(onPicked: (List<PickedImage>) -> Unit): () -> Unit
+
+/**
+ * 平台图片保存到系统相册函数。返回 (base64Data, onResult) -> Unit
+ */
+@Composable
+expect fun rememberImageSaver(): (String, (Boolean, String) -> Unit) -> Unit
