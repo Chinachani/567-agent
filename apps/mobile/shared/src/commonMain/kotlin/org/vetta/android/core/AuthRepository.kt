@@ -31,6 +31,12 @@ class AuthRepository internal constructor(
     suspend fun loginWithSms(phone: String, code: String): AuthSession =
         api.loginWithSms(phone.trim(), code.trim())
 
+    suspend fun sendVerificationCode(email: String): String =
+        api.sendVerificationCode(email)
+
+    suspend fun register(username: String, password: String, email: String, code: String, affCode: String?): AuthSession =
+        api.register(username, password, email, code, affCode)
+
     suspend fun sendSmsCode(phone: String) {
         api.sendSmsCode(phone.trim())
     }

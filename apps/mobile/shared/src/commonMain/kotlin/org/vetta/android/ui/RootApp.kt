@@ -127,6 +127,8 @@ fun RootApp(
                     onLogin = vm::login,
                     onClearError = vm::clearAuthError,
                     onBack = vm::openWelcome,
+                    onSendVerification = vm::sendVerificationCode,
+                    onRegister = { u, p, e, c, a -> vm.register(u, p, e, c, a) { _, _ -> } },
                 )
             is AppRoute.Main -> {
                 Scaffold(
@@ -216,6 +218,8 @@ fun RootApp(
                                     onOpenAbout = vm::openAbout,
                                     onLogin = vm::openLogin,
                                     onLogout = vm::logout,
+                                    onTopupWithKey = vm::topupWithKey,
+                                    onCreatePayOrder = vm::createPayOrder,
                                 )
                             }
                         }

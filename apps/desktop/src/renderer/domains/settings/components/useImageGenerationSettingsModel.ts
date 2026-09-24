@@ -34,7 +34,8 @@ export interface ImageGenerationSettingsModel {
 	textToImageRouteId: string;
 }
 
-function normalizeProviderId(id: string | undefined): string | undefined {
+function normalizeProviderId(id: string | null | undefined): string | undefined {
+	if (!id) return undefined;
 	if (id === "desktop-app:vetta" || id === "desktop-app:567api") return "desktop-app:api567";
 	return id;
 }

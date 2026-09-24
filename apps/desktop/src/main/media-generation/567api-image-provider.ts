@@ -1,5 +1,5 @@
 import { randomUUID } from "node:crypto";
-import type { MediaDimensions } from "@vetta-org/capability-sdk";
+import type { MediaDimensions, MediaProviderDescriptor } from "@vetta-org/capability-sdk";
 import { MEDIA_PROTOCOL_VERSION } from "@vetta-org/capability-sdk";
 import { NewApiService } from "../567api/newapi-service.js";
 import { getAppLogger } from "../logger.js";

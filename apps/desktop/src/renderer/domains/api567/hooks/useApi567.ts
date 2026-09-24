@@ -6,6 +6,7 @@ import {
 	api567AvailableGroupsAtom,
 	api567InitialCheckDoneAtom,
 	api567StatusAtom,
+	api567TopupModalOpenAtom,
 } from "../store/api567-atoms";
 
 export function useApi567() {
@@ -13,6 +14,7 @@ export function useApi567() {
 	const [availableGroups, setAvailableGroups] = useAtom(api567AvailableGroupsAtom);
 	const [initialCheckDone, setInitialCheckDone] = useAtom(api567InitialCheckDoneAtom);
 	const [modalOpen, setModalOpen] = useAtom(api567AuthModalOpenAtom);
+	const [topupModalOpen, setTopupModalOpen] = useAtom(api567TopupModalOpenAtom);
 	const [loading, setLoading] = useState(false);
 
 	const loadAvailableGroups = useCallback(
@@ -333,6 +335,111 @@ export function useApi567() {
 		[setStatus],
 	);
 
+	const sendVerificationCode = useCallback(async (email: string) => {
+		if (!email.trim()) {
+			showToast({ variant: "error", message: "请输入有效的邮箱地址" });
+			return { success: false, message: "请输入有效的邮箱地址" };
+		}
+		try {
+			const res = await window.vetta.api567.sendVerificationCode(email.trim());
+			if (res.success) {
+				showToast({ variant: "success", title: "验证码已发送", message: "请查看您的邮箱并输入验证码" });
+			} else {
+				showToast({ variant: "error", title: "发送失败", message: res.message || "验证码发送失败" });
+			}
+			return res;
+		} catch (err) {
+			const msg = err instanceof Error ? err.message : String(err);
+			showToast({ variant: "error", message: msg });
+			return { success: false, message: msg };
+		}
+	}, []);
+
+	const register = useCallback(
+		async (params: {
+			username: string;
+			password: string;
+			email: string;
+			verification_code: string;
+			aff_code?: string;
+		}) => {
+			setLoading(true);
+			try {
+				const res = await window.vetta.api567.register(params);
+				if (res.success) {
+					showToast({
+						variant: "success",
+						title: "567 API 注册成功",
+						message: `欢迎加入，${params.username}！已为您自动登录并配置初始模型。`,
+					});
+					const latest = await window.vetta.api567.getStatus();
+					setStatus(latest);
+					void loadAvailableGroups();
+				} else {
+					showToast({
+						variant: "error",
+						title: "注册失败",
+						message: res.message || "注册信息有误，请核对后重试",
+					});
+				}
+				return res;
+			} catch (err) {
+				const msg = err instanceof Error ? err.message : String(err);
+				showToast({ variant: "error", title: "注册异常", message: msg });
+				return { success: false, message: msg };
+			} finally {
+				setLoading(false);
+			}
+		},
+		[setStatus, loadAvailableGroups],
+	);
+
+	const topupWithKey = useCallback(
+		async (key: string) => {
+			if (!key.trim()) {
+				showToast({ variant: "error", message: "请输入充值卡密兑换码" });
+				return { success: false, message: "请输入充值卡密兑换码" };
+			}
+			setLoading(true);
+			try {
+				const res = await window.vetta.api567.topupWithKey(key.trim());
+				if (res.success) {
+					showToast({
+						variant: "success",
+						title: "充值成功",
+						message: res.message || "卡密兑换成功，额度已实时到账！",
+					});
+					const latest = await window.vetta.api567.getStatus();
+					setStatus(latest);
+				} else {
+					showToast({
+						variant: "error",
+						title: "兑换失败",
+						message: res.message || "卡密兑换失败，请检查卡密有效性",
+					});
+				}
+				return res;
+			} catch (err) {
+				const msg = err instanceof Error ? err.message : String(err);
+				showToast({ variant: "error", message: msg });
+				return { success: false, message: msg };
+			} finally {
+				setLoading(false);
+			}
+		},
+		[setStatus],
+	);
+
+	const createPayOrder = useCallback(async (amount: number, method: "alipay" | "wxpay") => {
+		try {
+			return await window.vetta.api567.createPayOrder(amount, method);
+		} catch (err) {
+			const msg = err instanceof Error ? err.message : String(err);
+			showToast({ variant: "error", title: "订单创建失败", message: msg });
+			return { success: false, message: msg };
+		}
+	}, []);
+
 	const logout = useCallback(async () => {
 		try {
 			await window.vetta.api567.logout();
@@ -354,6 +461,12 @@ export function useApi567() {
 		loading,
 		modalOpen,
 		setModalOpen,
+		topupModalOpen,
+		setTopupModalOpen,
+		sendVerificationCode,
+		register,
+		topupWithKey,
+		createPayOrder,
 		loginWithAccessToken,
 		loginWithPassword,
 		syncGroup,

@@ -83,9 +83,12 @@ fun MeScreen(
     onOpenAbout: () -> Unit = {},
     onLogin: () -> Unit = {},
     onLogout: (clearLocal: Boolean) -> Unit = {},
+    onTopupWithKey: (String, (Boolean, String) -> Unit) -> Unit = { _, _ -> },
+    onCreatePayOrder: (Int, String, (String) -> Unit, (String) -> Unit) -> Unit = { _, _, _, _ -> },
 ) {
     var confirmLogout by remember { mutableStateOf(false) }
     var showGroupDialog by remember { mutableStateOf(false) }
+    var showTopupDialog by remember { mutableStateOf(false) }
     val name = user?.nickname?.ifBlank { user.username } ?: Str.notLoggedIn
     val contact = user?.email ?: user?.phone ?: ""
     val usdFormatted = user?.let { formatUsd(it.quota.toDouble() / 500000.0) } ?: "0.00"
@@ -148,8 +151,18 @@ fun MeScreen(
                                     color = MaterialTheme.colorScheme.primary,
                                 )
                             }
-                            IconButton(onClick = onRefreshQuota) {
-                                RotatingRefreshIcon(isRefreshing = catalogLoading, contentDescription = "刷新余额")
+                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                androidx.compose.material3.FilledTonalButton(
+                                    onClick = { showTopupDialog = true },
+                                    modifier = Modifier.height(36.dp),
+                                    contentPadding = androidx.compose.foundation.layout.PaddingValues(horizontal = 12.dp, vertical = 4.dp),
+                                ) {
+                                    Text("充值", style = MaterialTheme.typography.labelMedium)
+                                }
+                                Spacer(Modifier.width(6.dp))
+                                IconButton(onClick = onRefreshQuota) {
+                                    RotatingRefreshIcon(isRefreshing = catalogLoading, contentDescription = "刷新余额")
+                                }
                             }
                         }
                         Spacer(Modifier.height(12.dp))
@@ -209,6 +222,15 @@ fun MeScreen(
             }
             Spacer(Modifier.height(24.dp))
         }
+    }
+
+    if (showTopupDialog) {
+        TopupDialog(
+            onDismiss = { showTopupDialog = false },
+            onTopupWithKey = onTopupWithKey,
+            onCreatePayOrder = onCreatePayOrder,
+            onRefreshQuota = onRefreshQuota,
+        )
     }
 
     if (showGroupDialog) {
@@ -703,6 +725,209 @@ fun GroupSelectionDialog(
                 }
             }
             Spacer(Modifier.height(24.dp))
+        }
+    }
+}
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+fun TopupDialog(
+    onDismiss: () -> Unit,
+    onTopupWithKey: (String, (Boolean, String) -> Unit) -> Unit,
+    onCreatePayOrder: (Int, String, (String) -> Unit, (String) -> Unit) -> Unit,
+    onRefreshQuota: () -> Unit,
+) {
+    val uriHandler = androidx.compose.ui.platform.LocalUriHandler.current
+    var activeTab by remember { mutableStateOf(0) } // 0: 在线充值, 1: 卡密兑换
+    var selectedAmount by remember { mutableStateOf(20) }
+    var customAmountText by remember { mutableStateOf("") }
+    var payMethod by remember { mutableStateOf("alipay") }
+    var cdkeyText by remember { mutableStateOf("") }
+    var loading by remember { mutableStateOf(false) }
+    var message by remember { mutableStateOf<String?>(null) }
+    var isError by remember { mutableStateOf(false) }
+    var payingNotice by remember { mutableStateOf(false) }
+
+    androidx.compose.material3.ModalBottomSheet(
+        onDismissRequest = onDismiss,
+        containerColor = MaterialTheme.colorScheme.surface,
+        dragHandle = { androidx.compose.material3.BottomSheetDefaults.DragHandle() },
+    ) {
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 24.dp)
+                .verticalScroll(rememberScrollState()),
+        ) {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                Text("账户额度充值", style = MaterialTheme.typography.titleLarge.copy(fontWeight = androidx.compose.ui.text.font.FontWeight.Bold))
+                IconButton(onClick = onDismiss) {
+                    Icon(Icons.Default.DeleteSweep, contentDescription = "关闭", modifier = Modifier.size(20.dp))
+                }
+            }
+            Spacer(Modifier.height(12.dp))
+
+            // Tab 切换
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f), androidx.compose.foundation.shape.RoundedCornerShape(10.dp))
+                    .padding(4.dp),
+            ) {
+                listOf("在线充值", "卡密兑换").forEachIndexed { idx, title ->
+                    val isSel = activeTab == idx
+                    Box(
+                        modifier = Modifier
+                            .weight(1f)
+                            .background(
+                                if (isSel) MaterialTheme.colorScheme.surface else androidx.compose.ui.graphics.Color.Transparent,
+                                androidx.compose.foundation.shape.RoundedCornerShape(8.dp),
+                            )
+                            .clickable { activeTab = idx; message = null }
+                            .padding(vertical = 8.dp),
+                        contentAlignment = Alignment.Center,
+                    ) {
+                        Text(
+                            title,
+                            style = MaterialTheme.typography.labelMedium.copy(fontWeight = if (isSel) androidx.compose.ui.text.font.FontWeight.Bold else androidx.compose.ui.text.font.FontWeight.Normal),
+                            color = if (isSel) MaterialTheme.colorScheme.primary else MaterialTheme.vettaExtra.secondaryText,
+                        )
+                    }
+                }
+            }
+
+            Spacer(Modifier.height(16.dp))
+            if (message != null) {
+                Text(
+                    text = message!!,
+                    style = MaterialTheme.typography.bodySmall,
+                    color = if (isError) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.primary,
+                    modifier = Modifier.padding(bottom = 8.dp),
+                )
+            }
+
+            if (activeTab == 0) {
+                // 在线充值 (易支付)
+                Text("选择支付方式", style = MaterialTheme.typography.labelMedium.copy(fontWeight = androidx.compose.ui.text.font.FontWeight.Bold))
+                Spacer(Modifier.height(8.dp))
+                Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    listOf("alipay" to "支付宝", "wxpay" to "微信支付").forEach { (method, label) ->
+                        val isSel = payMethod == method
+                        androidx.compose.material3.OutlinedButton(
+                            onClick = { payMethod = method },
+                            modifier = Modifier.weight(1f),
+                            shape = androidx.compose.foundation.shape.RoundedCornerShape(10.dp),
+                            border = androidx.compose.foundation.BorderStroke(
+                                1.5.dp,
+                                if (isSel) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.outlineVariant,
+                            ),
+                        ) {
+                            Text(label, color = if (isSel) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurface)
+                        }
+                    }
+                }
+
+                Spacer(Modifier.height(16.dp))
+                Text("充值金额 (1元 = $1)", style = MaterialTheme.typography.labelMedium.copy(fontWeight = androidx.compose.ui.text.font.FontWeight.Bold))
+                Spacer(Modifier.height(8.dp))
+                Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    listOf(10, 20, 50, 100).forEach { amt ->
+                        val isSel = selectedAmount == amt && customAmountText.isBlank()
+                        androidx.compose.material3.OutlinedButton(
+                            onClick = { selectedAmount = amt; customAmountText = "" },
+                            modifier = Modifier.weight(1f),
+                            shape = androidx.compose.foundation.shape.RoundedCornerShape(8.dp),
+                            border = androidx.compose.foundation.BorderStroke(
+                                1.dp,
+                                if (isSel) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.outlineVariant,
+                            ),
+                        ) {
+                            Text("¥$amt", style = MaterialTheme.typography.labelSmall)
+                        }
+                    }
+                }
+                Spacer(Modifier.height(8.dp))
+                org.vetta.android.ui.components.VettaTextField(
+                    value = customAmountText,
+                    onValueChange = { customAmountText = it },
+                    modifier = Modifier.fillMaxWidth(),
+                    singleLine = true,
+                    label = { Text("自定义金额 (≥1元整数)") },
+                )
+
+                if (payingNotice) {
+                    Spacer(Modifier.height(12.dp))
+                    Text(
+                        "已调起外部支付收银台，支付成功后请刷新余额查看最新到账额度",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.primary,
+                    )
+                }
+
+                Spacer(Modifier.height(20.dp))
+                PrimaryBlackButton(
+                    text = if (loading) "正在创建订单..." else "前往支付",
+                    onClick = {
+                        val finalAmt = customAmountText.toIntOrNull() ?: selectedAmount
+                        if (finalAmt < 1) {
+                            message = "金额不能少于 1 元"
+                            isError = true
+                            return@PrimaryBlackButton
+                        }
+                        loading = true
+                        message = null
+                        onCreatePayOrder(finalAmt, payMethod, { payUrl ->
+                            loading = false
+                            payingNotice = true
+                            runCatching { uriHandler.openUri(payUrl) }
+                        }, { err ->
+                            loading = false
+                            message = err
+                            isError = true
+                        })
+                    },
+                    enabled = !loading,
+                )
+            } else {
+                // 卡密兑换
+                Text("输入兑换码 / 卡密", style = MaterialTheme.typography.labelMedium.copy(fontWeight = androidx.compose.ui.text.font.FontWeight.Bold))
+                Spacer(Modifier.height(8.dp))
+                org.vetta.android.ui.components.VettaTextField(
+                    value = cdkeyText,
+                    onValueChange = { cdkeyText = it; message = null },
+                    modifier = Modifier.fillMaxWidth(),
+                    singleLine = true,
+                    label = { Text("卡密 (CDKEY)") },
+                )
+                Spacer(Modifier.height(20.dp))
+                PrimaryBlackButton(
+                    text = if (loading) "正在兑换..." else "立即兑换",
+                    onClick = {
+                        if (cdkeyText.isBlank()) {
+                            message = "请输入卡密"
+                            isError = true
+                            return@PrimaryBlackButton
+                        }
+                        loading = true
+                        message = null
+                        onTopupWithKey(cdkeyText.trim()) { ok, msg ->
+                            loading = false
+                            isError = !ok
+                            message = msg
+                            if (ok) {
+                                cdkeyText = ""
+                                onRefreshQuota()
+                            }
+                        }
+                    },
+                    enabled = !loading && cdkeyText.isNotBlank(),
+                )
+            }
+            Spacer(Modifier.height(32.dp))
         }
     }
 }

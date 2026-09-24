@@ -16,6 +16,11 @@ export function create567Api(ipc: IpcRenderer): { api567: Api567Api } {
 			loginWithPassword: (credentials) =>
 				ipc.invoke("vetta:567api:login-password", credentials.username, credentials.password),
 			login: (credentials) => ipc.invoke("vetta:567api:login-password", credentials.username, credentials.password),
+			sendVerificationCode: (email: string) => ipc.invoke("vetta:567api:send-verification-code", email),
+			register: (params) => ipc.invoke("vetta:567api:register", params),
+			topupWithKey: (key: string) => ipc.invoke("vetta:567api:topup-key", key),
+			createPayOrder: (amount: number, method: "alipay" | "wxpay") =>
+				ipc.invoke("vetta:567api:create-pay-order", amount, method),
 			bindToken: (token) => ipc.invoke("vetta:567api:login-access-token", token),
 			refreshQuota: (force?: boolean) => ipc.invoke("vetta:567api:refresh-quota", force),
 			refreshGroups: () => ipc.invoke("vetta:567api:refresh-groups"),

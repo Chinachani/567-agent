@@ -1,3 +1,4 @@
+import { Api567TopupModal } from "../../api567/components/Api567TopupModal";
 import type { ModelsConfigData } from "@preload/api.js";
 import { Button } from "@shared/components/ui/button";
 import { ProviderIcon } from "@vetta-org/theme-ui/shared";
@@ -49,6 +50,7 @@ export function Api567GroupsSection({
 		refreshGroups,
 		refreshQuota,
 		setModalOpen,
+		setTopupModalOpen,
 	} = useApi567();
 
 	const [refreshing, setRefreshing] = useState(false);
@@ -105,7 +107,8 @@ export function Api567GroupsSection({
 	const availableEntries = Object.entries(availableGroups);
 
 	return (
-		<SettingSection
+		<>
+			<SettingSection
 			section={SETTINGS_SECTION["models-preset-providers"]}
 			title={
 				<div className="flex flex-wrap items-center justify-between gap-3">
@@ -141,7 +144,7 @@ export function Api567GroupsSection({
 								<Button
 									variant="outline"
 									size="sm"
-									onClick={() => openExternal("https://api.567.wiki/console/topup")}
+									onClick={() => setTopupModalOpen(true)}
 									className="h-7 gap-1 px-2.5 text-xs"
 								>
 									<span>充值额度</span>
@@ -411,5 +414,7 @@ export function Api567GroupsSection({
 				</div>
 			)}
 		</SettingSection>
+			<Api567TopupModal />
+		</>
 	);
 }

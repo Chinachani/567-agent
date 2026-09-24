@@ -5,6 +5,7 @@ export interface Api567GroupInfo {
 	enabled: boolean;
 	modelsCount?: number;
 	models?: string[];
+	imageModels?: string[];
 }
 
 export interface Api567Status {
@@ -37,6 +38,19 @@ export interface Api567Api {
 		password: string;
 	}): Promise<{ success: boolean; message?: string }>;
 	login(credentials: { username: string; password: string }): Promise<{ success: boolean; message?: string }>;
+	sendVerificationCode(email: string): Promise<{ success: boolean; message?: string }>;
+	register(params: {
+		username: string;
+		password: string;
+		email: string;
+		verification_code: string;
+		aff_code?: string;
+	}): Promise<{ success: boolean; message?: string }>;
+	topupWithKey(key: string): Promise<{ success: boolean; message?: string }>;
+	createPayOrder(
+		amount: number,
+		paymentMethod: "alipay" | "wxpay",
+	): Promise<{ success: boolean; payUrl?: string; message?: string }>;
 	bindToken(token: string): Promise<{ success: boolean; message?: string }>;
 	refreshQuota(force?: boolean): Promise<{ success: boolean; quota?: number; quotaUsd?: number }>;
 	refreshGroups(): Promise<{ success: boolean }>;

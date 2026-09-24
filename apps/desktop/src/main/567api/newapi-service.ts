@@ -1,5 +1,6 @@
 function getModelScore(id: string): number {
 	const lower = id.toLowerCase();
+	if (lower === "gemini-3.8-flash-high") return 120;
 	if (lower.includes("3.8")) return 100;
 	if (lower.includes("3.7")) return 95;
 	if (lower.includes("3.5")) return 90;
@@ -18,6 +19,7 @@ function pickBestModel(models: ModelDefinition[]): ModelDefinition | undefined {
 	return sorted[0];
 }
 
+import { createHash } from "node:crypto";
 import { existsSync, readFileSync, writeFileSync } from "node:fs";
 import http from "node:http";
 import https from "node:https";
@@ -302,6 +304,7 @@ export class NewApiService {
 			return this.currentSession.imageGroup;
 		}
 		const available = this.currentSession.availableGroups || {};
+		if ("画图" in available) return "画图";
 		for (const [name, info] of Object.entries(available)) {
 			const text = `${name} ${info.desc || ""}`.toLowerCase();
 			if (
@@ -325,9 +328,12 @@ export class NewApiService {
 		const currentImgGroup = this.getImageGroup();
 		const matchedGroup = this.currentSession.groups?.find((g) => g.name === currentImgGroup);
 		if (matchedGroup?.imageModels && matchedGroup.imageModels.length > 0) {
+			if (matchedGroup.imageModels.includes("gemini-3.1-flash-image")) {
+				return "gemini-3.1-flash-image";
+			}
 			return matchedGroup.imageModels[0];
 		}
-		return undefined;
+		return "gemini-3.1-flash-image";
 	}
 
 	public async setImageGroup(groupName: string): Promise<{ success: boolean; message?: string }> {
@@ -393,6 +399,157 @@ export class NewApiService {
 			} catch (err) {
 				log.warn(`Failed to refresh models for group ${g.name}:`, err);
 			}
+		}
+	}
+
+	/**
+	 * 发送邮箱验证码
+	 */
+	public async sendVerificationCode(email: string): Promise<{ success: boolean; message?: string }> {
+		const cleanEmail = email.trim();
+		if (!cleanEmail) {
+			return { success: false, message: "请输入有效的邮箱地址" };
+		}
+		try {
+			log.info(`Sending email verification code to: ${cleanEmail}`);
+			const res = await request<{ success: boolean; message?: string }>(
+				`${BASE_SERVER}/api/verification?email=${encodeURIComponent(cleanEmail)}`,
+			);
+			return {
+				success: res.data?.success ?? false,
+				message: res.data?.message || (res.data?.success ? "验证码已发送至您的邮箱" : "发送失败，请稍后重试"),
+			};
+		} catch (err) {
+			const msg = err instanceof Error ? err.message : String(err);
+			log.warn("Failed to send verification code:", err);
+			return { success: false, message: msg };
+		}
+	}
+
+	/**
+	 * 用户账号注册，并在注册成功后自动完成登录
+	 */
+	public async register(params: {
+		username: string;
+		password: string;
+		email: string;
+		verification_code: string;
+		aff_code?: string;
+	}): Promise<{ success: boolean; message?: string }> {
+		const username = params.username.trim();
+		const password = params.password.trim();
+		const email = params.email.trim();
+		const verification_code = params.verification_code.trim();
+		const aff_code = params.aff_code?.trim() || undefined;
+
+		if (!username || !password || !email || !verification_code) {
+			return { success: false, message: "请完整填写用户名、密码、邮箱及验证码" };
+		}
+
+		try {
+			log.info(`Registering new user: "${username}" with email "${email}"`);
+			const res = await request<{ success: boolean; message?: string }>(`${BASE_SERVER}/api/user/register`, {
+				method: "POST",
+				body: {
+					username,
+					password,
+					email,
+					verification_code,
+					...(aff_code ? { aff_code } : {}),
+				},
+			});
+
+			if (!res.data?.success) {
+				return {
+					success: false,
+					message: res.data?.message || "注册失败，请检查填写的信息后重试",
+				};
+			}
+
+			log.info(`Registration succeeded for "${username}", automatically logging in...`);
+			return await this.loginWithPassword(username, password);
+		} catch (err) {
+			const msg = err instanceof Error ? err.message : String(err);
+			log.warn("Registration failed with error:", err);
+			return { success: false, message: msg };
+		}
+	}
+
+	/**
+	 * 卡密兑换充值 (CDKEY)
+	 */
+	public async topupWithKey(key: string): Promise<{ success: boolean; message?: string }> {
+		const cleanKey = key.trim();
+		if (!cleanKey) {
+			return { success: false, message: "请输入有效的充值兑换码" };
+		}
+		if (!this.currentSession.isLoggedIn) {
+			return { success: false, message: "请先登录 567 API 账户后再进行充值" };
+		}
+		try {
+			log.info("Redeeming topup key...");
+			const res = await this.requestWithAuth<{ success: boolean; message?: string }>(
+				`${BASE_SERVER}/api/user/topup`,
+				{
+					method: "POST",
+					body: { key: cleanKey },
+				},
+			);
+			if (res.data?.success) {
+				await this.refreshQuota(true);
+				return { success: true, message: res.data?.message || "兑换成功！额度已到账" };
+			}
+			return { success: false, message: res.data?.message || "兑换失败，请检查卡密是否正确" };
+		} catch (err) {
+			const msg = err instanceof Error ? err.message : String(err);
+			log.warn("Topup with key failed:", err);
+			return { success: false, message: msg };
+		}
+	}
+
+	/**
+	 * 易支付在线充值创建订单
+	 */
+	public async createPayOrder(
+		amount: number,
+		paymentMethod: "alipay" | "wxpay",
+	): Promise<{ success: boolean; payUrl?: string; message?: string }> {
+		if (amount < 1) {
+			return { success: false, message: "充值金额不能少于 1 元" };
+		}
+		if (!this.currentSession.isLoggedIn) {
+			return { success: false, message: "请先登录 567 API 账户后再进行充值" };
+		}
+		try {
+			log.info(`Creating pay order: amount=${amount}, method=${paymentMethod}`);
+			const res = await this.requestWithAuth<{
+				message?: string;
+				url?: string;
+				data?: Record<string, string | number>;
+			}>(`${BASE_SERVER}/api/user/pay`, {
+				method: "POST",
+				body: {
+					amount: Math.floor(amount),
+					payment_method: paymentMethod,
+				},
+			});
+
+			if (res.data?.url && res.data?.data) {
+				const params = new URLSearchParams();
+				for (const [k, v] of Object.entries(res.data.data)) {
+					params.set(k, String(v));
+				}
+				const payUrl = `${res.data.url}?${params.toString()}`;
+				return { success: true, payUrl };
+			}
+			return {
+				success: false,
+				message: res.data?.message || "创建支付订单失败，请稍后重试",
+			};
+		} catch (err) {
+			const msg = err instanceof Error ? err.message : String(err);
+			log.warn("Create pay order failed:", err);
+			return { success: false, message: msg };
 		}
 	}
 
@@ -835,13 +992,14 @@ export class NewApiService {
 		const availableNames = Object.keys(available);
 
 		const priorityGroups = [
+			"反重力Gemini",
+			"画图",
+			"chat GPT 特价",
 			"chat GPT 满血",
 			"Anthropic Claude_max",
 			"Google Gemini",
 			"deepseek官",
 			"xAI grok",
-			"反重力Gemini",
-			"chat GPT 特价",
 		];
 
 		const toSync = priorityGroups.filter((g) => availableNames.includes(g)).slice(0, 2);
@@ -860,6 +1018,12 @@ export class NewApiService {
 
 		if (!this.currentSession.activeGroup && toSync[0]) {
 			this.currentSession.activeGroup = toSync[0];
+		}
+		if (!this.currentSession.imageGroup && availableNames.includes("画图")) {
+			this.currentSession.imageGroup = "画图";
+		}
+		if (!this.currentSession.imageModel) {
+			this.currentSession.imageModel = "gemini-3.1-flash-image";
 		}
 	}
 
@@ -924,7 +1088,11 @@ export class NewApiService {
 				models: modelDefs,
 			};
 
-			if (!config.defaultModel || config.defaultModel.startsWith(`${providerId}/`)) {
+			if (
+				!config.defaultModel ||
+				config.defaultModel.startsWith(`${providerId}/`) ||
+				(groupName === "反重力Gemini" && config.defaultModel.startsWith("567api"))
+			) {
 				const best = pickBestModel(modelDefs);
 				if (best) {
 					config.defaultModel = `${providerId}/${best.id}`;

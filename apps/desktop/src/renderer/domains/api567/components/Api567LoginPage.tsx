@@ -1,16 +1,53 @@
+import { Api567TopupModal } from "./Api567TopupModal";
 import { Button } from "@shared/components/ui/button";
 import { Input } from "@shared/components/ui/input";
-import { ArrowRight, ExternalLink, Key, Lock, ShieldCheck, Sparkles, User } from "lucide-react";
-import React, { useState } from "react";
+import {
+	ArrowRight,
+	ExternalLink,
+	Key,
+	Lock,
+	Mail,
+	ShieldCheck,
+	Sparkles,
+	User,
+	UserPlus,
+} from "lucide-react";
+import React, { useEffect, useState } from "react";
 import { useApi567 } from "../hooks/useApi567";
 
 export function Api567LoginPage(): JSX.Element {
-	const { loginWithAccessToken, loginWithPassword, loading } = useApi567();
-	const [activeTab, setActiveTab] = useState<"token" | "account">("token");
+	const {
+		loginWithAccessToken,
+		loginWithPassword,
+		sendVerificationCode,
+		register,
+		setTopupModalOpen,
+		loading,
+	} = useApi567();
+
+	const [activeTab, setActiveTab] = useState<"token" | "account" | "register">("token");
 	const [token, setToken] = useState("");
 	const [username, setUsername] = useState("");
 	const [password, setPassword] = useState("");
+
+	// 注册字段
+	const [regUsername, setRegUsername] = useState("");
+	const [regEmail, setRegEmail] = useState("");
+	const [regCode, setRegCode] = useState("");
+	const [regPassword, setRegPassword] = useState("");
+	const [regConfirmPassword, setRegConfirmPassword] = useState("");
+	const [regAffCode, setRegAffCode] = useState("");
+	const [sendingCode, setSendingCode] = useState(false);
+	const [cooldown, setCooldown] = useState(0);
+
 	const [errorMsg, setErrorMsg] = useState<string | null>(null);
+
+	// 验证码倒计时
+	useEffect(() => {
+		if (cooldown <= 0) return;
+		const timer = setTimeout(() => setCooldown((c) => c - 1), 1000);
+		return () => clearTimeout(timer);
+	}, [cooldown]);
 
 	const handleTokenSubmit = async (e: React.FormEvent) => {
 		e.preventDefault();
@@ -36,6 +73,53 @@ export function Api567LoginPage(): JSX.Element {
 		const res = await loginWithPassword(username.trim(), password.trim());
 		if (!res.success) {
 			setErrorMsg(res.message || "登录失败，请检查用户名或密码");
+		}
+	};
+
+	const handleSendCode = async () => {
+		if (cooldown > 0 || sendingCode) return;
+		if (!regEmail.trim()) {
+			setErrorMsg("请输入用于接收验证码的邮箱");
+			return;
+		}
+		setErrorMsg(null);
+		setSendingCode(true);
+		try {
+			const res = await sendVerificationCode(regEmail.trim());
+			if (res.success) {
+				setCooldown(60);
+			} else {
+				setErrorMsg(res.message || "发送验证码失败，请检查邮箱有效性");
+			}
+		} finally {
+			setSendingCode(false);
+		}
+	};
+
+	const handleRegisterSubmit = async (e: React.FormEvent) => {
+		e.preventDefault();
+		setErrorMsg(null);
+		if (!regUsername.trim() || !regEmail.trim() || !regCode.trim() || !regPassword.trim()) {
+			setErrorMsg("请完整填写用户名、邮箱、验证码及密码");
+			return;
+		}
+		if (regPassword.length < 8) {
+			setErrorMsg("密码长度不能少于 8 位");
+			return;
+		}
+		if (regPassword !== regConfirmPassword) {
+			setErrorMsg("两次输入的密码不一致");
+			return;
+		}
+		const res = await register({
+			username: regUsername.trim(),
+			password: regPassword.trim(),
+			email: regEmail.trim(),
+			verification_code: regCode.trim(),
+			aff_code: regAffCode.trim() || undefined,
+		});
+		if (!res.success) {
+			setErrorMsg(res.message || "注册失败，请检查填写的信息");
 		}
 	};
 
@@ -85,7 +169,7 @@ export function Api567LoginPage(): JSX.Element {
 						}}
 					>
 						<Key className="h-3.5 w-3.5" />
-						<span>账户令牌登录 (推荐)</span>
+						<span>令牌登录</span>
 					</button>
 					<button
 						type="button"
@@ -100,7 +184,22 @@ export function Api567LoginPage(): JSX.Element {
 						}}
 					>
 						<User className="h-3.5 w-3.5" />
-						<span>账号密码登录</span>
+						<span>账号登录</span>
+					</button>
+					<button
+						type="button"
+						className={`flex flex-1 items-center justify-center gap-1.5 rounded-lg py-2 font-medium transition-all ${
+							activeTab === "register"
+								? "bg-background text-foreground shadow-sm"
+								: "text-muted-foreground hover:text-foreground"
+						}`}
+						onClick={() => {
+							setActiveTab("register");
+							setErrorMsg(null);
+						}}
+					>
+						<UserPlus className="h-3.5 w-3.5" />
+						<span>注册账号</span>
 					</button>
 				</div>
 
@@ -111,8 +210,8 @@ export function Api567LoginPage(): JSX.Element {
 					</div>
 				)}
 
-				{/* 账户令牌登录表单 */}
-				{activeTab === "token" ? (
+				{/* 1. 账户令牌登录表单 */}
+				{activeTab === "token" && (
 					<form onSubmit={handleTokenSubmit} className="flex flex-col gap-4">
 						<div>
 							<div className="mb-1.5 flex items-center justify-between text-xs">
@@ -137,7 +236,7 @@ export function Api567LoginPage(): JSX.Element {
 								className="h-10"
 							/>
 							<p className="mt-1.5 text-[11px] text-muted-foreground leading-relaxed">
-								登录 567 API 网页端后，在「个人设置 → 安全设置 → 系统访问令牌」中生成或复制。客户端将自动创建并管理专属密钥与模型配置。
+								登录 567 API 网页端后，在「个人设置 → 安全设置 → 系统访问令牌」中生成或复制。
 							</p>
 						</div>
 
@@ -155,23 +254,23 @@ export function Api567LoginPage(): JSX.Element {
 							)}
 						</Button>
 					</form>
-				) : (
-					/* 账号密码登录表单 */
+				)}
+
+				{/* 2. 账号密码登录表单 */}
+				{activeTab === "account" && (
 					<form onSubmit={handleAccountSubmit} className="flex flex-col gap-3.5">
 						<div>
 							<label className="mb-1.5 block font-medium text-foreground text-xs">用户名 / 邮箱</label>
-							<div className="relative">
-								<Input
-									type="text"
-									placeholder="请输入 567 API 用户名"
-									value={username}
-									onChange={(e) => setUsername(e.target.value)}
-									disabled={loading}
-									autoFocus
-									required
-									className="h-10"
-								/>
-							</div>
+							<Input
+								type="text"
+								placeholder="请输入 567 API 用户名"
+								value={username}
+								onChange={(e) => setUsername(e.target.value)}
+								disabled={loading}
+								autoFocus
+								required
+								className="h-10"
+							/>
 						</div>
 
 						<div>
@@ -185,17 +284,15 @@ export function Api567LoginPage(): JSX.Element {
 									忘记密码？
 								</button>
 							</div>
-							<div className="relative">
-								<Input
-									type="password"
-									placeholder="请输入密码"
-									value={password}
-									onChange={(e) => setPassword(e.target.value)}
-									disabled={loading}
-									required
-									className="h-10"
-								/>
-							</div>
+							<Input
+								type="password"
+								placeholder="请输入密码"
+								value={password}
+								onChange={(e) => setPassword(e.target.value)}
+								disabled={loading}
+								required
+								className="h-10"
+							/>
 						</div>
 
 						<Button type="submit" disabled={loading} className="mt-2 h-10 w-full gap-2 font-semibold">
@@ -214,20 +311,144 @@ export function Api567LoginPage(): JSX.Element {
 					</form>
 				)}
 
+				{/* 3. 注册新账号表单 */}
+				{activeTab === "register" && (
+					<form onSubmit={handleRegisterSubmit} className="flex flex-col gap-3">
+						<div>
+							<label className="mb-1 block font-medium text-foreground text-xs">用户名</label>
+							<Input
+								type="text"
+								placeholder="请输入用户名（建议字母或数字）"
+								value={regUsername}
+								onChange={(e) => setRegUsername(e.target.value)}
+								disabled={loading}
+								required
+								className="h-9 text-xs"
+							/>
+						</div>
+
+						<div>
+							<label className="mb-1 block font-medium text-foreground text-xs">邮箱地址</label>
+							<div className="flex gap-2">
+								<Input
+									type="email"
+									placeholder="请输入您的邮箱"
+									value={regEmail}
+									onChange={(e) => setRegEmail(e.target.value)}
+									disabled={loading || cooldown > 0}
+									required
+									className="h-9 flex-1 text-xs"
+								/>
+								<Button
+									type="button"
+									variant="outline"
+									disabled={loading || cooldown > 0 || sendingCode}
+									onClick={handleSendCode}
+									className="h-9 shrink-0 px-3 text-xs"
+								>
+									{sendingCode ? "发送中..." : cooldown > 0 ? `${cooldown}s` : "获取验证码"}
+								</Button>
+							</div>
+						</div>
+
+						<div>
+							<label className="mb-1 block font-medium text-foreground text-xs">邮箱验证码</label>
+							<Input
+								type="text"
+								placeholder="请输入收到的 6 位验证码"
+								value={regCode}
+								onChange={(e) => setRegCode(e.target.value)}
+								disabled={loading}
+								required
+								className="h-9 text-xs font-mono"
+							/>
+						</div>
+
+						<div className="grid grid-cols-2 gap-2">
+							<div>
+								<label className="mb-1 block font-medium text-foreground text-xs">密码 (≥8位)</label>
+								<Input
+									type="password"
+									placeholder="设置登录密码"
+									value={regPassword}
+									onChange={(e) => setRegPassword(e.target.value)}
+									disabled={loading}
+									required
+									className="h-9 text-xs"
+								/>
+							</div>
+							<div>
+								<label className="mb-1 block font-medium text-foreground text-xs">确认密码</label>
+								<Input
+									type="password"
+									placeholder="重复输入密码"
+									value={regConfirmPassword}
+									onChange={(e) => setRegConfirmPassword(e.target.value)}
+									disabled={loading}
+									required
+									className="h-9 text-xs"
+								/>
+							</div>
+						</div>
+
+						<div>
+							<label className="mb-1 block font-medium text-foreground text-xs">邀请码 (可选)</label>
+							<Input
+								type="text"
+								placeholder="如果有邀请码可在此填入"
+								value={regAffCode}
+								onChange={(e) => setRegAffCode(e.target.value)}
+								disabled={loading}
+								className="h-9 text-xs font-mono"
+							/>
+						</div>
+
+						<Button type="submit" disabled={loading} className="mt-2 h-10 w-full gap-2 font-semibold">
+							{loading ? (
+								<>
+									<span className="inline-block h-4 w-4 animate-spin rounded-full border-2 border-current border-t-transparent" />
+									<span>正在注册并自动登录...</span>
+								</>
+							) : (
+								<>
+									<span>立即注册并登录</span>
+									<ArrowRight className="h-4 w-4" />
+								</>
+							)}
+						</Button>
+					</form>
+				)}
+
 				{/* 底部导航与快捷链接 */}
-				<div className="mt-6 border-border/50 border-t pt-4 text-center text-xs">
+				<div className="mt-5 border-border/50 border-t pt-4 text-center text-xs">
 					<div className="flex items-center justify-center gap-3 text-muted-foreground">
-						<button
-							type="button"
-							onClick={() => openExternal("https://api.567.wiki")}
-							className="transition-colors hover:text-primary"
-						>
-							注册账户
-						</button>
+						{activeTab !== "register" ? (
+							<button
+								type="button"
+								onClick={() => {
+									setActiveTab("register");
+									setErrorMsg(null);
+								}}
+								className="transition-colors hover:text-primary font-medium text-primary"
+							>
+								注册新账号
+							</button>
+						) : (
+							<button
+								type="button"
+								onClick={() => {
+									setActiveTab("token");
+									setErrorMsg(null);
+								}}
+								className="transition-colors hover:text-primary font-medium text-primary"
+							>
+								返回登录
+							</button>
+						)}
 						<span>·</span>
 						<button
 							type="button"
-							onClick={() => openExternal("https://api.567.wiki/console/topup")}
+							onClick={() => setTopupModalOpen(true)}
 							className="transition-colors hover:text-primary"
 						>
 							额度充值
@@ -243,6 +464,7 @@ export function Api567LoginPage(): JSX.Element {
 					</div>
 				</div>
 			</div>
+			<Api567TopupModal />
 		</div>
 	);
 }

@@ -219,6 +219,119 @@ internal class VettaApi(
         tokenStore.clear()
     }
 
+    suspend fun sendVerificationCode(email: String): String {
+        val cleanEmail = email.trim()
+        val url = "${config.apiBaseUrl.trimEnd('/')}/api/verification?email=${java.net.URLEncoder.encode(cleanEmail, "UTF-8")}"
+        val response = bareClient.get(url)
+        val text = response.bodyAsTextSafe()
+        val root = org.vetta.android.core.net.VettaJson.parseToJsonElement(text)
+        val success = (root as? kotlinx.serialization.json.JsonObject)?.get("success")?.let {
+            (it as? kotlinx.serialization.json.JsonPrimitive)?.content?.toBooleanStrictOrNull()
+        } ?: false
+        val message = (root as? kotlinx.serialization.json.JsonObject)?.get("message")?.let {
+            (it as? kotlinx.serialization.json.JsonPrimitive)?.content
+        }
+        if (!success) {
+            throw VettaException.Api(response.status.value, response.status.value, message ?: "发送验证码失败，请检查邮箱有效性")
+        }
+        return message ?: "验证码已发送至您的邮箱"
+    }
+
+    suspend fun register(
+        username: String,
+        password: String,
+        email: String,
+        code: String,
+        affCode: String?,
+    ): AuthSession {
+        val url = "${config.apiBaseUrl.trimEnd('/')}/api/user/register"
+        val payload = buildJsonObject {
+            put("username", username.trim())
+            put("password", password.trim())
+            put("email", email.trim())
+            put("verification_code", code.trim())
+            if (!affCode.isNullOrBlank()) {
+                put("aff_code", affCode.trim())
+            }
+        }
+        val response = bareClient.post(url) {
+            contentType(ContentType.Application.Json)
+            setBody(payload.toString())
+        }
+        val text = response.bodyAsTextSafe()
+        val root = org.vetta.android.core.net.VettaJson.parseToJsonElement(text)
+        val success = (root as? kotlinx.serialization.json.JsonObject)?.get("success")?.let {
+            (it as? kotlinx.serialization.json.JsonPrimitive)?.content?.toBooleanStrictOrNull()
+        } ?: false
+        val message = (root as? kotlinx.serialization.json.JsonObject)?.get("message")?.let {
+            (it as? kotlinx.serialization.json.JsonPrimitive)?.content
+        }
+        if (!success) {
+            throw VettaException.Api(response.status.value, response.status.value, message ?: "注册失败")
+        }
+        return loginWithAccount(username.trim(), password.trim())
+    }
+
+    suspend fun topupWithKey(key: String): String {
+        val cleanKey = key.trim()
+        val url = "${config.apiBaseUrl.trimEnd('/')}/api/user/topup"
+        val response = executeWithAuthRefresh { token ->
+            bareClient.post(url) {
+                if (token.isNotBlank()) {
+                    header(HttpHeaders.Authorization, "Bearer $token")
+                }
+                contentType(ContentType.Application.Json)
+                val body = buildJsonObject {
+                    put("key", cleanKey)
+                }
+                setBody(body.toString())
+            }
+        }
+        val text = response.bodyAsTextSafe()
+        val root = org.vetta.android.core.net.VettaJson.parseToJsonElement(text)
+        val success = (root as? kotlinx.serialization.json.JsonObject)?.get("success")?.let {
+            (it as? kotlinx.serialization.json.JsonPrimitive)?.content?.toBooleanStrictOrNull()
+        } ?: false
+        val message = (root as? kotlinx.serialization.json.JsonObject)?.get("message")?.let {
+            (it as? kotlinx.serialization.json.JsonPrimitive)?.content
+        }
+        if (!success) {
+            throw VettaException.Api(response.status.value, response.status.value, message ?: "兑换失败，请检查卡密有效性")
+        }
+        return message ?: "兑换成功！额度已到账"
+    }
+
+    suspend fun createPayOrder(amount: Int, paymentMethod: String): String {
+        val url = "${config.apiBaseUrl.trimEnd('/')}/api/user/pay"
+        val response = executeWithAuthRefresh { token ->
+            bareClient.post(url) {
+                if (token.isNotBlank()) {
+                    header(HttpHeaders.Authorization, "Bearer $token")
+                }
+                contentType(ContentType.Application.Json)
+                val body = buildJsonObject {
+                    put("amount", amount)
+                    put("payment_method", paymentMethod)
+                }
+                setBody(body.toString())
+            }
+        }
+        val text = response.bodyAsTextSafe()
+        val root = org.vetta.android.core.net.VettaJson.parseToJsonElement(text)
+        val obj = root as? kotlinx.serialization.json.JsonObject
+        val submitUrl = (obj?.get("url") as? kotlinx.serialization.json.JsonPrimitive)?.content
+        val dataObj = obj?.get("data") as? kotlinx.serialization.json.JsonObject
+        if (submitUrl.isNullOrBlank() || dataObj == null) {
+            val message = (obj?.get("message") as? kotlinx.serialization.json.JsonPrimitive)?.content
+            throw VettaException.Api(response.status.value, response.status.value, message ?: "创建支付订单失败")
+        }
+        val query = dataObj.entries.joinToString("&") { (k, v) ->
+            val vStr = (v as? kotlinx.serialization.json.JsonPrimitive)?.content ?: v.toString()
+            "${k}=${java.net.URLEncoder.encode(vStr, "UTF-8")}"
+        }
+        return "$submitUrl?$query"
+    }
+
     suspend fun me(): User =
         try {
             val response = executeWithAuthRefresh { token ->

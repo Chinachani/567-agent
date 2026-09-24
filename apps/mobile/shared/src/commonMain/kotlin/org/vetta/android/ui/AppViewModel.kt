@@ -83,6 +83,9 @@ data class AppUiState(
     val catalogLoading: Boolean = false,
     val passwordVisible: Boolean = false,
     val sessionQuery: String = "",
+    val topupDialogOpen: Boolean = false,
+    val topupLoading: Boolean = false,
+    val topupMessage: String? = null,
     val sessionFilterIndex: Int = 0,
     val discoverChannelIndex: Int = 0,
     val newConversationChannelIndex: Int = 0,
@@ -307,6 +310,10 @@ class AppViewModel(
             if (_state.value.active567Group == null && currentGroup != null) {
                 container.preferences.active567Group = currentGroup
             }
+            val currentImageGroup = _state.value.activeImageGroup ?: pickDefaultImageGroup(groups)
+            if (_state.value.activeImageGroup == null && currentImageGroup != null) {
+                container.preferences.activeImageGroup = currentImageGroup
+            }
             val models =
                 if (!currentGroup.isNullOrBlank()) {
                     runCatching { container.client.models.listGoModels(currentGroup) }.getOrElse { emptyList() }
@@ -347,10 +354,14 @@ class AppViewModel(
                     subscription = sub ?: it.subscription,
                     available567Groups = if (groups.isNotEmpty()) groups else it.available567Groups,
                     active567Group = currentGroup,
+                    activeImageGroup = currentImageGroup ?: it.activeImageGroup,
                     models = finalModels,
                     selectedModelId = selected,
                     catalogLoading = false,
                 )
+            }
+            if (!currentImageGroup.isNullOrBlank() && _state.value.availableImageModels.isEmpty()) {
+                loadGroupImageModels(currentImageGroup)
             }
         } catch (t: Throwable) {
             _state.update {
@@ -783,7 +794,11 @@ class AppViewModel(
             try {
                 val models = container.client.models.fetchGroupImageModels(group)
                 val current = _state.value.activeImageModel
-                val selected = if (current != null && models.contains(current)) current else models.firstOrNull()
+                val selected = if (current != null && models.contains(current)) {
+                    current
+                } else {
+                    models.find { it == "gemini-3.1-flash-image" } ?: models.firstOrNull()
+                }
                 if (selected != null) {
                     container.preferences.activeImageModel = selected
                 }
@@ -895,6 +910,97 @@ class AppViewModel(
 
     private enum class PendingLoginAction {
         CloudConversation,
+    }
+
+    fun sendVerificationCode(email: String, onResult: (Boolean, String) -> Unit) {
+        viewModelScope.launch {
+            try {
+                val msg = container.client.auth.sendVerificationCode(email)
+                onResult(true, msg)
+            } catch (t: Throwable) {
+                onResult(false, t.message ?: "发送验证码失败")
+            }
+        }
+    }
+
+    fun register(
+        username: String,
+        password: String,
+        email: String,
+        code: String,
+        affCode: String?,
+        onResult: (Boolean, String?) -> Unit,
+    ) {
+        viewModelScope.launch {
+            _state.update { it.copy(authLoading = true, authError = null) }
+            try {
+                val session = container.client.auth.register(username, password, email, code, affCode)
+                container.preferences.authLoginType = "account"
+                container.preferences.authAccount = username.trim()
+                container.preferences.authPassword = password
+                container.preferences.authToken = session.accessToken
+                container.preferences.authRefreshToken = session.refreshToken
+                container.preferences.authUsername = session.user.nickname.ifBlank { session.user.username }
+                container.preferences.authQuotaUsd = session.user.quotaUsd
+                container.preferences.authUserId = session.user.id
+
+                val pendingAction = pendingLoginAction
+                pendingLoginAction = null
+                loadWorkspace(openLastSession = true)
+                if (pendingAction == PendingLoginAction.CloudConversation) {
+                    newChat()
+                }
+                onResult(true, null)
+            } catch (t: Throwable) {
+                val err = ErrorMapper.from(t)
+                _state.update {
+                    it.copy(authLoading = false, authError = err)
+                }
+                onResult(false, err.message)
+                return@launch
+            }
+            _state.update { it.copy(authLoading = false) }
+        }
+    }
+
+    fun setTopupDialogOpen(open: Boolean) {
+        _state.update { it.copy(topupDialogOpen = open, topupLoading = false, topupMessage = null) }
+    }
+
+    fun topupWithKey(key: String, onResult: (Boolean, String) -> Unit) {
+        viewModelScope.launch {
+            _state.update { it.copy(topupLoading = true, topupMessage = null) }
+            try {
+                val msg = container.client.subscription.topupWithKey(key)
+                refreshCatalog()
+                _state.update { it.copy(topupLoading = false, topupMessage = msg) }
+                onResult(true, msg)
+            } catch (t: Throwable) {
+                val err = t.message ?: "兑换失败"
+                _state.update { it.copy(topupLoading = false, topupMessage = err) }
+                onResult(false, err)
+            }
+        }
+    }
+
+    fun createPayOrder(
+        amount: Int,
+        method: String,
+        onUrlReady: (String) -> Unit,
+        onError: (String) -> Unit,
+    ) {
+        viewModelScope.launch {
+            _state.update { it.copy(topupLoading = true, topupMessage = null) }
+            try {
+                val payUrl = container.client.subscription.createPayOrder(amount, method)
+                _state.update { it.copy(topupLoading = false) }
+                onUrlReady(payUrl)
+            } catch (t: Throwable) {
+                val err = t.message ?: "创建支付订单失败"
+                _state.update { it.copy(topupLoading = false, topupMessage = err) }
+                onError(err)
+            }
+        }
     }
 
     fun logout(clearLocalSessions: Boolean) {
@@ -1655,6 +1761,7 @@ class AppViewModel(
         val sorted = models.sortedWith(compareByDescending<LlmModel> { model ->
             val id = model.id.lowercase()
             when {
+                id == "gemini-3.8-flash-high" -> 120
                 id.contains("3.8") -> 100
                 id.contains("3.7") -> 95
                 id.contains("3.5") -> 90
@@ -1676,9 +1783,10 @@ class AppViewModel(
 
 private fun pickDefaultGroup(available: Map<String, org.vetta.android.core.api.ApiGroupInfoDto>): String? {
     val priorityGroups = listOf(
+        "反重力Gemini",
+        "画图",
         "chat GPT 特价",
         "chat GPT 满血",
-        "反重力Gemini",
         "deepseek官",
         "Google Gemini",
         "chat GPT pro",
@@ -1690,4 +1798,14 @@ private fun pickDefaultGroup(available: Map<String, org.vetta.android.core.api.A
         if (available.containsKey(p)) return p
     }
     return available.keys.firstOrNull { !it.contains("kiro", ignoreCase = true) } ?: available.keys.firstOrNull()
+}
+
+private fun pickDefaultImageGroup(available: Map<String, org.vetta.android.core.api.ApiGroupInfoDto>): String? {
+    val priorityGroups = listOf("画图", "画图模型", "chat GPT 备用2")
+    for (p in priorityGroups) {
+        if (available.containsKey(p)) return p
+    }
+    return available.keys.firstOrNull {
+        it.contains("画图") || it.contains("绘图") || it.contains("生图") || it.contains("image", ignoreCase = true)
+    }
 }
