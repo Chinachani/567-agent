@@ -224,7 +224,7 @@ object Str {
     const val about = "关于"
     const val aboutVetta = "关于 567 Agent"
     const val aboutDescription = "567 Agent 让你在手机上继续使用 Desktop 与云端 AI。"
-    const val versionNumber = "版本 1.0.6"
+    const val versionNumber = "版本 1.0.7"
     const val openSourceLicenses = "开源许可"
     const val privacyPolicy = "隐私说明"
     const val openSourceLicensesBody = "567 Agent 客户端基于 Apache License 2.0 发布，并使用多个开源依赖。各依赖继续遵循其原有许可条款。"

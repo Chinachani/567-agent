@@ -809,6 +809,32 @@ describe("DesktopRuntimeBackendPool", () => {
 		directories.push(directory);
 		return directory;
 	}
+	it("falls back to the default fallback model when no model is available in the registry and initialModel is omitted", async () => {
+		const cwd = await temporaryDirectory("desktop-session-fallback-model-");
+		const agents = new RuntimeAgentRuntime();
+		publishCodingAgentExecutionRuntimeDefinition(agents);
+		const emptyRegistry: CodingAgentRuntimeModelSource = {
+			refresh() {},
+			getAvailable: () => [],
+			find: () => undefined,
+			getApiKey: async () => undefined,
+			setServerToken() {},
+			loadRemoteModels: async () => undefined,
+		};
+		const pool = new DesktopRuntimeBackendPool({
+			compositionDefaults: {
+				agentRuntime: { runtime: agents },
+				modelRegistry: emptyRegistry,
+				initialThinkingLevel: "off",
+				resolveSystemPromptOptions: resolveTestSystemPromptOptions,
+			},
+		});
+		const runtime = new RuntimeHost({ sessionBackend: pool, getDefaultExecutionMode: () => "full-access" });
+		pools.push(pool);
+		runtimes.push(runtime);
+		const session = await runtime.createSession({ cwd, scenario: "batch" });
+		expect(session.sessionId).toBeDefined();
+	});
 });
 
 function modelRegistry(): CodingAgentRuntimeModelSource {

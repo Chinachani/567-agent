@@ -112,10 +112,60 @@ class AppPreferences(
             settings[KEY_AUTH_USER_ID] = value.toString()
         }
 
+    var authLoginType: String?
+        get() = settings.getStringOrNull(KEY_AUTH_LOGIN_TYPE)?.takeIf { it.isNotBlank() }
+        set(value) {
+            if (value.isNullOrBlank()) settings.remove(KEY_AUTH_LOGIN_TYPE) else settings[KEY_AUTH_LOGIN_TYPE] = value
+        }
+
+    var authAccount: String?
+        get() = settings.getStringOrNull(KEY_AUTH_ACCOUNT)?.takeIf { it.isNotBlank() }
+        set(value) {
+            if (value.isNullOrBlank()) settings.remove(KEY_AUTH_ACCOUNT) else settings[KEY_AUTH_ACCOUNT] = value
+        }
+
+    var authPassword: String?
+        get() = settings.getStringOrNull(KEY_AUTH_PASSWORD)?.takeIf { it.isNotBlank() }
+        set(value) {
+            if (value.isNullOrBlank()) settings.remove(KEY_AUTH_PASSWORD) else settings[KEY_AUTH_PASSWORD] = value
+        }
+
+    fun getCachedGroupModels(group: String?): List<String> {
+        val key = KEY_CACHE_GROUP_MODELS_PREFIX + (group ?: "default")
+        val raw = settings.getStringOrNull(key)?.takeIf { it.isNotBlank() } ?: return emptyList()
+        return raw.split(",").map { it.trim() }.filter { it.isNotEmpty() }
+    }
+
+    fun setCachedGroupModels(group: String?, models: List<String>) {
+        val key = KEY_CACHE_GROUP_MODELS_PREFIX + (group ?: "default")
+        if (models.isEmpty()) {
+            settings.remove(key)
+        } else {
+            settings[key] = models.joinToString(",")
+        }
+    }
+
+    fun getCachedGroupKey(group: String?): String? {
+        val key = KEY_CACHE_GROUP_KEY_PREFIX + (group ?: "default")
+        return settings.getStringOrNull(key)?.takeIf { it.isNotBlank() }
+    }
+
+    fun setCachedGroupKey(group: String?, apiKey: String?) {
+        val key = KEY_CACHE_GROUP_KEY_PREFIX + (group ?: "default")
+        if (apiKey.isNullOrBlank()) {
+            settings.remove(key)
+        } else {
+            settings[key] = apiKey
+        }
+    }
+
     fun clearAuthSnapshot() {
         authToken = null
         authRefreshToken = null
         authUsername = null
+        authLoginType = null
+        authAccount = null
+        authPassword = null
         settings.remove(KEY_AUTH_QUOTA_USD)
         settings.remove(KEY_AUTH_USER_ID)
     }
@@ -183,5 +233,10 @@ class AppPreferences(
         private const val KEY_AUTH_USERNAME = "vetta.prefs.auth_username"
         private const val KEY_AUTH_QUOTA_USD = "vetta.prefs.auth_quota_usd"
         private const val KEY_AUTH_USER_ID = "vetta.prefs.auth_user_id"
+        private const val KEY_AUTH_LOGIN_TYPE = "vetta.prefs.auth_login_type"
+        private const val KEY_AUTH_ACCOUNT = "vetta.prefs.auth_account"
+        private const val KEY_AUTH_PASSWORD = "vetta.prefs.auth_password"
+        private const val KEY_CACHE_GROUP_MODELS_PREFIX = "vetta.cache.models."
+        private const val KEY_CACHE_GROUP_KEY_PREFIX = "vetta.cache.key."
     }
 }

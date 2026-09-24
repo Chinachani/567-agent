@@ -613,8 +613,13 @@ export class NewApiService {
 				lastUpdated: new Date().toISOString(),
 			};
 
-			// 登录成功后仅拉取可用分组元数据，不自动创建多个 Key
+			// 登录成功后拉取可用分组元数据，并自动接入核心推荐分组
 			await this.getAvailableGroups(true);
+			try {
+				await this.syncRecommendedGroups();
+			} catch (syncErr) {
+				log.warn("Auto sync recommended groups failed on token login:", syncErr);
+			}
 			await this.reconcileWithModelConfig();
 
 			this.saveSession(this.currentSession);
@@ -686,8 +691,13 @@ export class NewApiService {
 				lastUpdated: new Date().toISOString(),
 			};
 
-			// 登录成功后仅拉取可用分组元数据，不自动创建多个 Key
+			// 登录成功后拉取可用分组元数据，并自动接入核心推荐分组
 			await this.getAvailableGroups(true);
+			try {
+				await this.syncRecommendedGroups();
+			} catch (syncErr) {
+				log.warn("Auto sync recommended groups failed on password login:", syncErr);
+			}
 			await this.reconcileWithModelConfig();
 
 			this.saveSession(this.currentSession);
@@ -716,7 +726,7 @@ export class NewApiService {
 			"chat GPT 特价",
 		];
 
-		const toSync = priorityGroups.filter((g) => availableNames.includes(g));
+		const toSync = priorityGroups.filter((g) => availableNames.includes(g)).slice(0, 2);
 		if (toSync.length === 0) {
 			toSync.push("");
 		}

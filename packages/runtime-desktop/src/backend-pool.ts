@@ -478,15 +478,24 @@ function readCodingAgentRequestConfiguration(
 	return parseCodingAgentRuntimeSessionConfiguration(configuration);
 }
 
+const FALLBACK_DEFAULT_MODEL: Model<Api> = {
+	id: "gpt-5.6-sol",
+	name: "GPT-5.6 Sol",
+	api: "openai-completions",
+	provider: "567api",
+	baseUrl: "https://api.567.wiki/v1",
+	reasoning: true,
+	input: ["text", "image"],
+	cost: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0 },
+	contextWindow: 128_000,
+	maxTokens: 16_384,
+};
+
 function resolveInitialModel(
 	request: RuntimeSessionCreateRequest,
 	defaults: DesktopCodingAgentRuntimeCompositionDefaults,
 ): Model<Api> {
-	const model = request.model ?? defaults.initialModel ?? defaults.modelRegistry.getAvailable()[0];
-	if (!model) {
-		throw new Error("Desktop Runtime requires at least one available model");
-	}
-	return model;
+	return request.model ?? defaults.initialModel ?? defaults.modelRegistry.getAvailable()[0] ?? FALLBACK_DEFAULT_MODEL;
 }
 
 function resolvePositiveInteger(value: string | undefined): number | undefined {

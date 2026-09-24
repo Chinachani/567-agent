@@ -52,10 +52,11 @@ class AppContainer(
             config =
                 VettaConfig(
                     serverUrl = serverUrl,
-                    userAgent = "567-agent-android/1.0.6",
+                    userAgent = "567-agent-android/1.0.7",
                 ),
             tokenStore = tokenStore,
             onUnauthorized = { notifyUnauthorized() },
+            preferences = preferences,
         )
 
     companion object {

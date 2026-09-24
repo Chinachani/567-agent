@@ -184,6 +184,25 @@ class AppViewModel(
                 null
             }
 
+            val cachedModelIds = container.preferences.getCachedGroupModels(savedGroup)
+            val initialCachedModels = cachedModelIds.map { id ->
+                val isReasoning = id.contains("reasoner", ignoreCase = true) ||
+                        id.contains("r1", ignoreCase = true) ||
+                        id.contains("o1", ignoreCase = true) ||
+                        id.contains("o3", ignoreCase = true) ||
+                        id.contains("thinking", ignoreCase = true) ||
+                        id.contains("sol", ignoreCase = true)
+                LlmModel(
+                    id = id,
+                    modelId = id,
+                    name = id,
+                    providerName = savedGroup ?: "567 API",
+                    reasoning = isReasoning,
+                )
+            }
+            val initialSelected = resolveModelId(container.preferences.lastModelId, initialCachedModels)
+                ?: initialCachedModels.firstOrNull()?.id
+
             _state.update {
                 it.copy(
                     active567Group = savedGroup,
@@ -191,6 +210,8 @@ class AppViewModel(
                     activeImageModel = savedImageModel,
                     imageGenEnabled = savedImageEnabled,
                     user = cachedUser,
+                    models = initialCachedModels,
+                    selectedModelId = initialSelected,
                 )
             }
             val token = container.tokenStore.accessToken ?: container.preferences.authToken
@@ -215,6 +236,39 @@ class AppViewModel(
             if (container.preferences.authRefreshToken.isNullOrBlank() && !refreshToken.isNullOrBlank()) {
                 container.preferences.authRefreshToken = refreshToken
             }
+            val loginType = container.preferences.authLoginType
+            val account = container.preferences.authAccount
+            val password = container.preferences.authPassword
+
+            if (loginType == "account" && !account.isNullOrBlank() && !password.isNullOrBlank()) {
+                viewModelScope.launch {
+                    try {
+                        val session = container.client.auth.loginWithAccount(account, password)
+                        container.preferences.authToken = session.accessToken
+                        container.preferences.authRefreshToken = session.refreshToken
+                        container.preferences.authUsername = session.user.nickname.ifBlank { session.user.username }
+                        container.preferences.authQuotaUsd = session.user.quotaUsd
+                        container.preferences.authUserId = session.user.id
+                        _state.update { it.copy(user = session.user) }
+                        loadWorkspace(openLastSession = false)
+                    } catch (_: Throwable) {
+                    }
+                }
+            } else if (loginType == "token" && !account.isNullOrBlank()) {
+                viewModelScope.launch {
+                    try {
+                        val session = container.client.auth.loginWithAccessToken(account)
+                        container.preferences.authToken = session.accessToken
+                        container.preferences.authUsername = session.user.nickname.ifBlank { session.user.username }
+                        container.preferences.authQuotaUsd = session.user.quotaUsd
+                        container.preferences.authUserId = session.user.id
+                        _state.update { it.copy(user = session.user) }
+                        loadWorkspace(openLastSession = false)
+                    } catch (_: Throwable) {
+                    }
+                }
+            }
+
             loadWorkspace(openLastSession = container.preferences.autoResumeLastSession.value)
         }
     }
@@ -259,7 +313,29 @@ class AppViewModel(
                 } else {
                     runCatching { container.client.models.listGoModels(null) }.getOrElse { emptyList() }
                 }
-            val finalModels = if (models.isNotEmpty()) models else _state.value.models
+            val cachedFallbackIds = container.preferences.getCachedGroupModels(currentGroup)
+            val fallbackModels = cachedFallbackIds.map { id ->
+                val isReasoning = id.contains("reasoner", ignoreCase = true) ||
+                        id.contains("r1", ignoreCase = true) ||
+                        id.contains("o1", ignoreCase = true) ||
+                        id.contains("o3", ignoreCase = true) ||
+                        id.contains("thinking", ignoreCase = true) ||
+                        id.contains("sol", ignoreCase = true)
+                LlmModel(
+                    id = id,
+                    modelId = id,
+                    name = id,
+                    providerName = currentGroup ?: "567 API",
+                    reasoning = isReasoning,
+                )
+            }
+            val finalModels = if (models.isNotEmpty()) {
+                models
+            } else if (_state.value.models.isNotEmpty()) {
+                _state.value.models
+            } else {
+                fallbackModels
+            }
             val selected =
                 resolveModelId(
                     preferred = container.preferences.lastModelId,
@@ -614,7 +690,25 @@ class AppViewModel(
             }
         }
         container.preferences.active567Group = group
-        _state.update { it.copy(active567Group = group, groupPickerOpen = false, catalogLoading = true) }
+        val cached = container.preferences.getCachedGroupModels(group).map { id ->
+            val isReasoning = id.contains("reasoner", ignoreCase = true) ||
+                    id.contains("r1", ignoreCase = true) ||
+                    id.contains("o1", ignoreCase = true) ||
+                    id.contains("o3", ignoreCase = true) ||
+                    id.contains("thinking", ignoreCase = true) ||
+                    id.contains("sol", ignoreCase = true)
+            LlmModel(id = id, modelId = id, name = id, providerName = group ?: "567 API", reasoning = isReasoning)
+        }
+        val immediateSelected = resolveModelId(container.preferences.lastModelId, cached) ?: cached.firstOrNull()?.id
+        _state.update {
+            it.copy(
+                active567Group = group,
+                groupPickerOpen = false,
+                catalogLoading = cached.isEmpty(),
+                models = if (cached.isNotEmpty()) cached else it.models,
+                selectedModelId = immediateSelected ?: it.selectedModelId,
+            )
+        }
         viewModelScope.launch {
             try {
                 val models = container.client.models.listGoModels(group)
@@ -774,6 +868,9 @@ class AppViewModel(
                 } else {
                     container.client.auth.loginWithAccount(accountOrEmail.trim(), password)
                 }
+                container.preferences.authLoginType = if (password.isBlank()) "token" else "account"
+                container.preferences.authAccount = accountOrEmail.trim()
+                container.preferences.authPassword = if (password.isBlank()) null else password
                 container.preferences.authToken = session.accessToken
                 container.preferences.authRefreshToken = session.refreshToken
                 container.preferences.authUsername = session.user.nickname.ifBlank { session.user.username }

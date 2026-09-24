@@ -51,6 +51,7 @@ internal class VettaApi(
     private val bareClient: HttpClient,
     private val config: VettaConfig,
     private val tokenStore: TokenStore,
+    private val preferences: org.vetta.android.app.AppPreferences? = null,
 ) {
     suspend fun loginWithAccount(account: String, password: String): AuthSession {
         try {
@@ -299,7 +300,10 @@ internal class VettaApi(
                 if (res.status.isSuccess()) {
                     val root = org.vetta.android.core.net.VettaJson.parseToJsonElement(text)
                     val ids = extractModelIds(root)
-                    if (ids.isNotEmpty()) return ids
+                    if (ids.isNotEmpty()) {
+                        preferences?.setCachedGroupModels(groupName, ids)
+                        return ids
+                    }
                 }
             } catch (_: Exception) {
             }
@@ -319,14 +323,21 @@ internal class VettaApi(
             }
             val text = res.bodyAsTextSafe()
             val root = org.vetta.android.core.net.VettaJson.parseToJsonElement(text)
-            extractModelIds(root)
+            val ids = extractModelIds(root)
+            if (ids.isNotEmpty()) {
+                preferences?.setCachedGroupModels(groupName, ids)
+            }
+            ids
         } catch (_: Exception) {
             emptyList()
         }
     }
 
     suspend fun goModels(activeGroup: String? = null): ModelsCatalog {
-        val modelIds = fetchGroupModels(activeGroup)
+        var modelIds = fetchGroupModels(activeGroup)
+        if (modelIds.isEmpty() && preferences != null) {
+            modelIds = preferences.getCachedGroupModels(activeGroup)
+        }
         if (modelIds.isEmpty()) {
             return ModelsCatalog()
         }
@@ -402,6 +413,7 @@ internal class VettaApi(
         val targetGroup = groupName?.takeIf { it.isNotBlank() } ?: return
         val token = tokenStore.accessToken ?: return
         groupKeyCache.remove(targetGroup)
+        preferences?.setCachedGroupKey(targetGroup, null)
 
         val recordedId = autoCreatedTokens.remove(targetGroup)
         if (recordedId != null) {
@@ -441,6 +453,11 @@ internal class VettaApi(
         if (token.startsWith("sk-")) return token
         val cacheKey = groupName ?: "default"
         groupKeyCache[cacheKey]?.let { return it }
+        val prefKey = preferences?.getCachedGroupKey(groupName)
+        if (!prefKey.isNullOrBlank()) {
+            groupKeyCache[cacheKey] = prefKey
+            return prefKey
+        }
 
         try {
             val res = bareClient.get("${config.apiBaseUrl.trimEnd('/')}/api/token/?p=0&size=100") {
@@ -476,6 +493,7 @@ internal class VettaApi(
                 if (key != null && !key.contains("*") && key.length >= 20) {
                     val finalKey = if (key.startsWith("sk-")) key else "sk-$key"
                     groupKeyCache[cacheKey] = finalKey
+                    preferences?.setCachedGroupKey(groupName, finalKey)
                     return finalKey
                 }
                 val id = (matched["id"] as? kotlinx.serialization.json.JsonPrimitive)?.content?.toLongOrNull()
@@ -483,6 +501,7 @@ internal class VettaApi(
                     val unmasked = fetchUnmaskedKey(id, token)
                     if (unmasked != null) {
                         groupKeyCache[cacheKey] = unmasked
+                        preferences?.setCachedGroupKey(groupName, unmasked)
                         return unmasked
                     }
                 }

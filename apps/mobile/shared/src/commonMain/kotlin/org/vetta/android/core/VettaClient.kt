@@ -41,6 +41,7 @@ class VettaClient private constructor(
             config: VettaConfig,
             tokenStore: TokenStore = SettingsTokenStore(),
             onUnauthorized: UnauthorizedHandler? = null,
+            preferences: org.vetta.android.app.AppPreferences? = null,
         ): VettaClient {
             val bare = createBareHttpClient(config)
 
@@ -53,7 +54,7 @@ class VettaClient private constructor(
                     onUnauthorized = onUnauthorized,
                 )
             val client = createVettaHttpClient(config, tokenStore, refresher)
-            api = VettaApi(client, bare, config, tokenStore)
+            api = VettaApi(client, bare, config, tokenStore, preferences)
 
             return VettaClient(
                 config = config,
