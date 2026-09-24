@@ -17,7 +17,7 @@ export function ModelsSettingsView({ model }: { model: ModelsSettingsModel }): J
 			footer={
 				model.config ? (
 					<div className="mt-6 text-center text-[11px] text-muted-foreground/60">
-						{t("configFilePath")}: ~/.vetta/agent/models.json
+						{t("configFilePath")}: ~/.567agent/agent/models.json
 					</div>
 				) : undefined
 			}

@@ -1,4 +1,5 @@
-import { useActivityTab, useTranslation, type PluginContext } from "@vetta-org/plugin-sdk";
+import { useActiveConversation, useActivityTab, useTranslation, type PluginContext } from "@vetta-org/plugin-sdk";
+import { useEffect } from "react";
 import { lazy, Suspense, useLayoutEffect, useMemo, useState, type ComponentType } from "react";
 import { installBridgeFromPluginContext } from "./vettaCowartBridge";
 import { getPluginContext } from "./pluginContext";
@@ -18,12 +19,25 @@ const CowartApp = lazy(() =>
  */
 export function CanvasPanel() {
 	const { t } = useTranslation();
-	const { cwd } = useActivityTab();
+	const activityTab = useActivityTab();
+	const convo = useActiveConversation();
 	const ctx = getPluginContext();
 	const [ready, setReady] = useState(false);
 	const [error, setError] = useState<string | null>(null);
 
-	const projectDir = useMemo(() => (cwd && cwd.trim() ? cwd.trim() : null), [cwd]);
+	const projectDir = useMemo(() => {
+		if (activityTab?.cwd && activityTab.cwd.trim()) return activityTab.cwd.trim();
+		if (convo?.cwd && convo.cwd.trim()) return convo.cwd.trim();
+		try {
+			const roots = ctx?.fileExplorer?.getWorkspaceRoots();
+			if (roots && roots.length > 0 && roots[0]?.path) {
+				return roots[0].path;
+			}
+		} catch {
+			// ignore
+		}
+		return null;
+	}, [activityTab?.cwd, convo?.cwd, ctx]);
 
 	// useLayoutEffect: install bridge before child App effects call loadCowartCanvasState.
 	useLayoutEffect(() => {

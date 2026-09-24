@@ -11,7 +11,11 @@
 	"styles": ["dist/style.css", "dist/style2.css"],
 	"icon": "assets/app-icon.png",
 	"permissions": [
+		"ui.slot.workspace-view",
 		"ui.slot.activity-tab",
+		"conversation.draft.read",
+		"ui.slot.input-action",
+		"workspace.read",
 		"agent.session.read",
 		"agent.session.write",
 		"agent.skills.control",

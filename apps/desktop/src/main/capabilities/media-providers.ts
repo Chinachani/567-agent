@@ -32,7 +32,9 @@ export function registerDesktopMediaProviders(
 	const artifacts = new MediaArtifactStore(artifactStore);
 	desktopMediaRuntime = { providers, artifacts };
 	// 注册 567 API 图像生成能力
-	const api567ImageRegistration = providers.registerProvider(create567ApiImageProvider(artifacts));
+	const api567ImageRegistration = providers.registerProvider(
+		create567ApiImageProvider(artifacts, "desktop-app:api567"),
+	);
 	const vettaRegistration = isCloudBuildEnabled()
 		? providers.registerProvider(createVettaImageProvider(artifacts))
 		: undefined;

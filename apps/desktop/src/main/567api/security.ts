@@ -1,26 +1,7 @@
 import { createCipheriv, createDecipheriv, createHash, createHmac, randomBytes, scryptSync } from "node:crypto";
 import { existsSync, readFileSync, writeFileSync } from "node:fs";
-import { createRequire } from "node:module";
 import os from "node:os";
 import { join } from "node:path";
-
-interface BytecodeSecurityExports {
-	getClientFingerprint?: () => string;
-	getSecurityHeaders?: (extraContext?: Record<string, string>) => Record<string, string>;
-	encryptSecret?: (plaintext?: string) => string | undefined;
-	decryptSecret?: (ciphertext?: string) => string | undefined;
-}
-
-let bytecodeExports: BytecodeSecurityExports | null = null;
-try {
-	const req = createRequire(import.meta.url);
-	const loaderPath = join(import.meta.dirname, "567api-security-loader.cjs");
-	if (existsSync(loaderPath)) {
-		bytecodeExports = req(loaderPath) as BytecodeSecurityExports;
-	}
-} catch {
-	bytecodeExports = null;
-}
 
 /**
  * 567 Agent 客户端安全防护、请求指纹与敏感凭据加密模块
@@ -39,7 +20,7 @@ const CLIENT_SECRET_KEY = createHash("sha256").update(SALT_PARTS.join("::#@!")).
 function getVettaHomePath(): string {
 	const explicit = process.env.VETTA_HOME;
 	if (explicit) return explicit;
-	const dirName = process.env.VETTA_CONFIG_DIR || ".vetta";
+	const dirName = process.env.VETTA_CONFIG_DIR || ".567agent";
 	return join(os.homedir(), dirName);
 }
 
@@ -49,13 +30,6 @@ let cachedFingerprint: string | undefined;
  * 获取或持久化生成当前机器的稳定设备唯一指纹
  */
 export function getClientFingerprint(): string {
-	if (bytecodeExports?.getClientFingerprint) {
-		try {
-			return bytecodeExports.getClientFingerprint();
-		} catch {
-			// fallback to native implementation
-		}
-	}
 	if (cachedFingerprint) return cachedFingerprint;
 
 	const idFilePath = join(getVettaHomePath(), "desktop-app", "device-fingerprint.id");
@@ -119,13 +93,6 @@ export function containsNonAscii(str: string): boolean {
  * 为发往 567 API 的所有请求生成安全防护 Headers
  */
 export function getSecurityHeaders(extraContext?: Record<string, string>): Record<string, string> {
-	if (bytecodeExports?.getSecurityHeaders) {
-		try {
-			return bytecodeExports.getSecurityHeaders(extraContext);
-		} catch {
-			// fallback to native implementation
-		}
-	}
 	const fingerprint = getClientFingerprint();
 	const timestamp = String(Math.floor(Date.now() / 1000));
 	const nonce = randomBytes(8).toString("hex");
@@ -167,13 +134,6 @@ function getDerivedKey(): Buffer {
  * 本机绑定加密：将敏感 Token / Key / Cookie 加密为密文字符串
  */
 export function encryptSecret(plaintext?: string): string | undefined {
-	if (bytecodeExports?.encryptSecret) {
-		try {
-			return bytecodeExports.encryptSecret(plaintext);
-		} catch {
-			// fallback to native implementation
-		}
-	}
 	if (!plaintext || typeof plaintext !== "string") return plaintext;
 	if (plaintext.startsWith("enc:v1:")) return plaintext;
 
@@ -194,13 +154,6 @@ export function encryptSecret(plaintext?: string): string | undefined {
  * 本机绑定解密：解密本地保存的密文 Token
  */
 export function decryptSecret(ciphertext?: string): string | undefined {
-	if (bytecodeExports?.decryptSecret) {
-		try {
-			return bytecodeExports.decryptSecret(ciphertext);
-		} catch {
-			// fallback to native implementation
-		}
-	}
 	if (!ciphertext || typeof ciphertext !== "string") return ciphertext;
 	if (!ciphertext.startsWith("enc:v1:")) return ciphertext;
 

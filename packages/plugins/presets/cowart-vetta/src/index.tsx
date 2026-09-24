@@ -4,6 +4,7 @@ import { setPluginContext } from "./pluginContext";
 import "./style.css";
 
 const TAB_ID = "canvas";
+const WORKSPACE_VIEW_ID = "canvas";
 const OPEN_TOOL_ID = "open_cowart_canvas";
 
 function CanvasIcon({ className }: { className?: string }) {
@@ -30,6 +31,14 @@ function CanvasIcon({ className }: { className?: string }) {
 export default definePlugin({
 	activate(ctx) {
 		setPluginContext(ctx);
+
+		ctx.ui.registerWorkspaceView({
+			id: WORKSPACE_VIEW_ID,
+			label: "%tab.label%",
+			icon: "icon-[solar--pallete-2-linear]",
+			description: "%plugin.description%",
+			component: CanvasPanel,
+		});
 
 		ctx.ui.registerActivityTab({
 			id: TAB_ID,

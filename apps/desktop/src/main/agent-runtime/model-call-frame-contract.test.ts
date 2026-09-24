@@ -3,7 +3,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import type { Api, Model } from "@vetta/ai";
 import { createCodingAgentRuntimeSessionSelection } from "@vetta/coding-agent/composition";
-import { ENV_AGENT_DIR, getAgentDir } from "@vetta/coding-agent/config";
+import { CONFIG_DIR_NAME, ENV_AGENT_DIR, getAgentDir } from "@vetta/coding-agent/config";
 import {
 	type CodingAgentPluginRuntimeSource,
 	type CodingAgentRuntimeModelSource,
@@ -171,7 +171,7 @@ describe("Desktop RuntimeHost model-call frame contract", () => {
 			});
 
 			await fixture.runtime.prompt(created.sessionId, { text: "Observe skills before creation" });
-			const skillDirectory = join(cwd, ".vetta", "skills", "phase-112-dynamic-skill");
+			const skillDirectory = join(cwd, CONFIG_DIR_NAME, "skills", "phase-112-dynamic-skill");
 			const skillPath = join(skillDirectory, "SKILL.md");
 			await mkdir(skillDirectory, { recursive: true });
 			await writeFile(skillPath, skillDocument(PHASE_112_SKILL_V1), "utf8");

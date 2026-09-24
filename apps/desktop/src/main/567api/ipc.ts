@@ -33,6 +33,25 @@ export function register567ApiIpc(): () => void {
 		return service.setActiveGroup(groupName.trim());
 	});
 
+	ipcMain.handle("vetta:567api:set-image-group", async (_event, groupName: unknown) => {
+		if (typeof groupName !== "string" || !groupName.trim()) {
+			return { success: false, message: "分组名称格式错误" };
+		}
+		return service.setImageGroup(groupName.trim());
+	});
+
+	ipcMain.handle("vetta:567api:set-image-model", async (_event, modelName: unknown) => {
+		if (typeof modelName !== "string" || !modelName.trim()) {
+			return { success: false, message: "模型名称格式错误" };
+		}
+		return service.setImageModel(modelName.trim());
+	});
+
+	ipcMain.handle("vetta:567api:refresh-groups", async () => {
+		await service.refreshSyncedGroups();
+		return { success: true };
+	});
+
 	ipcMain.handle("vetta:567api:login-access-token", async (_event, token: unknown) => {
 		if (typeof token !== "string") {
 			return { success: false, message: "账户访问令牌格式错误" };
@@ -76,6 +95,9 @@ export function register567ApiIpc(): () => void {
 		ipcMain.removeHandler("vetta:567api:sync-group");
 		ipcMain.removeHandler("vetta:567api:remove-group");
 		ipcMain.removeHandler("vetta:567api:set-active-group");
+		ipcMain.removeHandler("vetta:567api:set-image-group");
+		ipcMain.removeHandler("vetta:567api:set-image-model");
+		ipcMain.removeHandler("vetta:567api:refresh-groups");
 		ipcMain.removeHandler("vetta:567api:login-access-token");
 		ipcMain.removeHandler("vetta:567api:login-password");
 		ipcMain.removeHandler("vetta:567api:login");

@@ -184,7 +184,15 @@ function main() {
 		`[run-electron-builder] platform=${platform} archs=${archs.join(",")} targets=${targets.join(",")} stage=${buildStageDir}`,
 	);
 
-	if (process.platform === "win32") {
+	const localBuilderBin = join(import.meta.dirname, "..", "node_modules", ".bin", process.platform === "win32" ? "electron-builder.cmd" : "electron-builder");
+	if (existsSync(localBuilderBin)) {
+		if (process.platform === "win32") {
+			const command = [`"${localBuilderBin}"`, ...args.slice(1).map((value) => (value.includes(" ") ? `"${value}"` : value))].join(" ");
+			execSync(command, { stdio: "inherit" });
+		} else {
+			execFileSync(localBuilderBin, args.slice(1), { stdio: "inherit" });
+		}
+	} else if (process.platform === "win32") {
 		const command = ["bunx", ...args.map((value) => (value.includes(" ") ? `"${value}"` : value))].join(" ");
 		execSync(command, {
 			stdio: "inherit",

@@ -10,4 +10,4 @@
  *
  * 修改此常量会让所有存量用户已保存的凭据无法解密，必须同时提供迁移方案。
  */
-export const APP_RUNTIME_NAME = "vetta";
+export const APP_RUNTIME_NAME = "567-agent";

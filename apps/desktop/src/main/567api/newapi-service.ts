@@ -27,7 +27,7 @@ import { join } from "node:path";
 function getVettaHomePath(): string {
 	const explicit = process.env.VETTA_HOME;
 	if (explicit) return explicit;
-	const dirName = process.env.VETTA_CONFIG_DIR || ".vetta";
+	const dirName = process.env.VETTA_CONFIG_DIR || ".567agent";
 	return join(os.homedir(), dirName);
 }
 
@@ -50,6 +50,7 @@ export interface Api567GroupInfo {
 	enabled: boolean;
 	modelsCount?: number;
 	models?: string[];
+	imageModels?: string[];
 }
 
 export interface Api567Session {
@@ -62,6 +63,8 @@ export interface Api567Session {
 	quotaUsd?: number;
 	cookie?: string;
 	activeGroup?: string;
+	imageGroup?: string;
+	imageModel?: string;
 	groups?: Api567GroupInfo[];
 	availableGroups?: Record<string, { desc: string; ratio: number }>;
 	lastUpdated?: string;
@@ -77,6 +80,8 @@ export interface Api567Status {
 	quota?: number;
 	quotaUsd?: number;
 	activeGroup?: string;
+	imageGroup?: string;
+	imageModel?: string;
 	groups?: Api567GroupInfo[];
 	availableGroups?: Record<string, { desc: string; ratio: number }>;
 	lastUpdated?: string;
@@ -209,13 +214,17 @@ export function getProviderIdForGroup(groupName: string): string {
 		国模特价组2: "567api_domestic_2",
 		"国🥚": "567api_guodan",
 		福利特价: "567api_welfare_sale",
+		画图: "567api_image",
+		画图模型: "567api_image_model",
 	};
 	if (map[groupName]) return map[groupName];
-	const slug = groupName
+	const asciiSlug = groupName
 		.toLowerCase()
-		.replace(/[^a-z0-9_-]/g, "_")
-		.slice(0, 20);
-	return `567api_${slug || "custom"}`;
+		.replace(/[^a-z0-9_-]/g, "")
+		.slice(0, 16);
+	if (asciiSlug.length >= 3) return `567api_${asciiSlug}`;
+	const hash = createHash("md5").update(groupName).digest("hex").slice(0, 8);
+	return `567api_${hash}`;
 }
 
 export function getProviderIconForGroup(groupName: string): string {
@@ -279,11 +288,112 @@ export class NewApiService {
 			quota: this.currentSession.quota,
 			quotaUsd: this.currentSession.quotaUsd,
 			activeGroup: this.currentSession.activeGroup,
+			imageGroup: this.getImageGroup(),
+			imageModel: this.getImageModel(),
 			groups: this.currentSession.groups,
 			availableGroups: this.currentSession.availableGroups,
 			lastUpdated: this.currentSession.lastUpdated,
 			modelsCount: this.currentSession.modelsCount,
 		};
+	}
+
+	public getImageGroup(): string | undefined {
+		if (this.currentSession.imageGroup) {
+			return this.currentSession.imageGroup;
+		}
+		const available = this.currentSession.availableGroups || {};
+		for (const [name, info] of Object.entries(available)) {
+			const text = `${name} ${info.desc || ""}`.toLowerCase();
+			if (
+				text.includes("画图") ||
+				text.includes("绘图") ||
+				text.includes("生图") ||
+				text.includes("image") ||
+				text.includes("dall") ||
+				text.includes("flux")
+			) {
+				return name;
+			}
+		}
+		return this.currentSession.activeGroup;
+	}
+
+	public getImageModel(): string | undefined {
+		if (this.currentSession.imageModel) {
+			return this.currentSession.imageModel;
+		}
+		const currentImgGroup = this.getImageGroup();
+		const matchedGroup = this.currentSession.groups?.find((g) => g.name === currentImgGroup);
+		if (matchedGroup?.imageModels && matchedGroup.imageModels.length > 0) {
+			return matchedGroup.imageModels[0];
+		}
+		return undefined;
+	}
+
+	public async setImageGroup(groupName: string): Promise<{ success: boolean; message?: string }> {
+		this.currentSession.imageGroup = groupName;
+		this.saveSession(this.currentSession);
+		log.info(`567api image group set to: ${groupName}`);
+		return { success: true };
+	}
+
+	public async setImageModel(modelName: string): Promise<{ success: boolean; message?: string }> {
+		this.currentSession.imageModel = modelName;
+		this.saveSession(this.currentSession);
+		log.info(`567api image model set to: ${modelName}`);
+		return { success: true };
+	}
+
+	public getAvailableImageModels(): Array<{
+		id: string;
+		displayName: string;
+		modes: ("text-to-image" | "image-to-image")[];
+	}> {
+		const result = new Map<
+			string,
+			{ id: string; displayName: string; modes: ("text-to-image" | "image-to-image")[] }
+		>();
+
+		// 1. 如果有配置画图专属分组，优先注入该分组里的所有生图模型
+		const currentImgGroup = this.getImageGroup();
+		const matchedGroup = this.currentSession.groups?.find((g) => g.name === currentImgGroup);
+		if (matchedGroup?.imageModels && matchedGroup.imageModels.length > 0) {
+			for (const mId of matchedGroup.imageModels) {
+				result.set(mId, {
+					id: mId,
+					displayName: `${mId} · ${matchedGroup.name}`,
+					modes: ["text-to-image", "image-to-image"],
+				});
+			}
+		}
+
+		// 2. 注入所有已接入分组中发现的图像模型
+		for (const g of this.currentSession.groups ?? []) {
+			if (g.imageModels) {
+				for (const mId of g.imageModels) {
+					if (!result.has(mId)) {
+						result.set(mId, {
+							id: mId,
+							displayName: `${mId} · ${g.name}`,
+							modes: ["text-to-image", "image-to-image"],
+						});
+					}
+				}
+			}
+		}
+
+		return Array.from(result.values());
+	}
+
+	public async refreshSyncedGroups(): Promise<void> {
+		const groups = [...(this.currentSession.groups || [])];
+		for (const g of groups) {
+			try {
+				await this.syncSingleGroup(g.name);
+			} catch (err) {
+				log.warn(`Failed to refresh models for group ${g.name}:`, err);
+			}
+		}
 	}
 
 	public getRawSession(): Api567Session {
@@ -371,9 +481,18 @@ export class NewApiService {
 							}
 						}
 					}
+					const meta = this.currentSession.availableGroups?.[g.name];
+					const expectedRatio = meta?.ratio !== undefined ? meta.ratio : (g.ratio ?? 1);
+					const expectedDisplayName = `567 · ${g.name} (${expectedRatio}x)`;
+					if (provider.displayName !== expectedDisplayName) {
+						provider.displayName = expectedDisplayName;
+						configChanged = true;
+					}
+
 					const modelIds = provider.models?.map((m) => m.id) ?? [];
 					validGroups.push({
 						...g,
+						ratio: expectedRatio,
 						enabled: true,
 						modelsCount: modelIds.length,
 						models: modelIds,
@@ -541,7 +660,6 @@ export class NewApiService {
 			if (res.data?.success && res.data.data) {
 				const result: Record<string, { desc: string; ratio: number }> = {};
 				for (const [k, v] of Object.entries(res.data.data)) {
-					if (k.includes("画图") || k.includes("视频")) continue;
 					result[k] = {
 						desc: v.desc ?? "",
 						ratio: typeof v.ratio === "number" ? v.ratio : 1,
@@ -783,11 +901,13 @@ export class NewApiService {
 			const apiKey = await this.resolveOrCreateApiKeyForGroup(groupName);
 
 			log.info(`Fetching models for group: "${groupName || "默认分组"}"`);
-			const modelDefs = await this.fetchGroupModels(groupName, apiKey);
+			const { modelDefs, imageModelIds } = await this.fetchGroupModelsWithImages(groupName, apiKey);
 
 			const providerId = groupName ? getProviderIdForGroup(groupName) : "567api";
-			const ratio = groupMeta?.ratio ?? 1;
-			const desc = groupMeta?.desc ?? "";
+			const meta = groupMeta ?? this.currentSession.availableGroups?.[groupName];
+			const ratio =
+				meta?.ratio !== undefined ? meta.ratio : (this.currentSession.availableGroups?.[groupName]?.ratio ?? 1);
+			const desc = meta?.desc ?? this.currentSession.availableGroups?.[groupName]?.desc ?? "";
 			const displayName = groupName ? `567 · ${groupName} (${ratio}x)` : "567 API";
 
 			const service = getDesktopModelSettingsService();
@@ -821,6 +941,7 @@ export class NewApiService {
 				enabled: true,
 				modelsCount: modelDefs.length,
 				models: modelIds,
+				imageModels: imageModelIds,
 			};
 
 			const existingGroups = (this.currentSession.groups ?? []).filter((g) => g.name !== (groupName || "默认分组"));
@@ -930,8 +1051,11 @@ export class NewApiService {
 	/**
 	 * 获取指定分组所支持的模型列表
 	 */
-	private async fetchGroupModels(groupName: string, apiKey: string): Promise<ModelDefinition[]> {
-		let modelIds: string[] = [];
+	private async fetchGroupModelsWithImages(
+		groupName: string,
+		apiKey: string,
+	): Promise<{ modelDefs: ModelDefinition[]; imageModelIds: string[] }> {
+		let rawModelIds: string[] = [];
 
 		if (groupName) {
 			try {
@@ -940,14 +1064,14 @@ export class NewApiService {
 					data?: string[];
 				}>(`${BASE_SERVER}/api/user/models?group=${encodeURIComponent(groupName)}`);
 				if (res.data?.success && Array.isArray(res.data.data) && res.data.data.length > 0) {
-					modelIds = res.data.data;
+					rawModelIds = res.data.data;
 				}
 			} catch (err) {
 				log.warn(`Failed to fetch models from /api/user/models for group ${groupName}:`, err);
 			}
 		}
 
-		if (modelIds.length === 0) {
+		if (rawModelIds.length === 0) {
 			try {
 				const res = await request<{
 					data?: Array<{ id: string }>;
@@ -955,22 +1079,36 @@ export class NewApiService {
 					headers: { Authorization: `Bearer ${apiKey}` },
 				});
 				if (res.data?.data && Array.isArray(res.data.data)) {
-					modelIds = res.data.data.map((m) => m.id);
+					rawModelIds = res.data.data.map((m) => m.id);
 				}
 			} catch (err) {
 				log.warn(`Failed to fetch models from /v1/models for group ${groupName}:`, err);
 			}
 		}
 
-		const chatModels = modelIds.filter((id) => !NON_CHAT.test(id));
-		const finalModels = chatModels.length > 0 ? chatModels : modelIds;
+		const desc = this.currentSession.availableGroups?.[groupName]?.desc || "";
+		const isDrawingGroup = /画图|绘图|生图|image|draw|paint|flux/i.test(`${groupName} ${desc}`);
 
-		return finalModels.map((id) => ({
+		const isImageModel = (id: string) =>
+			/dall-e|image|imagen|flux|midjourney|draw|paint|diffusion|agnes/i.test(id) || isDrawingGroup;
+		const imageModelIds = rawModelIds.filter(isImageModel);
+
+		let chatModelIds: string[];
+		if (isDrawingGroup) {
+			chatModelIds = rawModelIds;
+		} else {
+			const filtered = rawModelIds.filter((id) => !NON_CHAT.test(id));
+			chatModelIds = filtered.length > 0 ? filtered : rawModelIds;
+		}
+
+		const modelDefs = chatModelIds.map((id) => ({
 			id,
 			name: id,
 			input: ["text", "image"],
 			...inferModelParams(id),
 		}));
+
+		return { modelDefs, imageModelIds };
 	}
 
 	/**
@@ -1000,7 +1138,7 @@ export class NewApiService {
 		let matched = existingTokens.find((t) => t.status === 1 && t.name === targetName);
 
 		if (!matched && groupName) {
-			matched = existingTokens.find((t) => t.status === 1 && (t.group === groupName || t.name.includes(groupName)));
+			matched = existingTokens.find((t) => t.status === 1 && t.group === groupName);
 		}
 
 		if (!matched && !groupName) {

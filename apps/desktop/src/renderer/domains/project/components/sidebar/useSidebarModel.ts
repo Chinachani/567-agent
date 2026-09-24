@@ -117,7 +117,12 @@ const BUILTIN_NAV_ITEMS = [
  * 首次使用时的置顶区默认成员：留「能力」「智能体」和设计画廊，其余入口默认收纳。
  * 顺序由 navCatalog 决定（内置在前、插件视图在后），即「新会话 / 能力 / 智能体 / 设计」。
  */
-const DEFAULT_PINNED_NAV_KEYS = ["/abilities", "/agents", workspaceViewNavKey("vetta-ui-design", "gallery")];
+const DEFAULT_PINNED_NAV_KEYS = [
+	"/abilities",
+	"/agents",
+	workspaceViewNavKey("vetta-ui-design", "gallery"),
+	workspaceViewNavKey("cowart-vetta", "canvas"),
+];
 
 function loadStoredNavLayout(): SidebarNavLayout {
 	try {

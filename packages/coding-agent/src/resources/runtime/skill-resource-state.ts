@@ -4,6 +4,7 @@ import type { ResourceAccessPort } from "../contracts/resource-access.js";
 import { loadSkills, type Skill } from "../skills/index.js";
 
 const PROJECT_CONFIG_DIRECTORY = CONFIG_DIR_NAME;
+const LEGACY_PROJECT_CONFIG_DIRECTORY = ".vetta";
 
 export async function computeSkillsFingerprint(
 	access: ResourceAccessPort,
@@ -56,6 +57,9 @@ export async function computeSkillsFingerprint(
 	if (options.includeDefaults) {
 		await walk(access.paths.join(options.agentDir, "skills"));
 		await walk(access.paths.join(options.cwd, PROJECT_CONFIG_DIRECTORY, "skills"));
+		if ((PROJECT_CONFIG_DIRECTORY as string) !== LEGACY_PROJECT_CONFIG_DIRECTORY) {
+			await walk(access.paths.join(options.cwd, LEGACY_PROJECT_CONFIG_DIRECTORY, "skills"));
+		}
 	}
 	if (options.includeAgentSkills) {
 		await walk(access.paths.join(access.paths.homeDirectory(), ".agents", "skills"));

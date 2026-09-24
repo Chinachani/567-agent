@@ -35,6 +35,7 @@ export interface ImageRepository {
 	read(id: string): Promise<PluginStoredBlobRef | null>;
 	lineage(imageId: string): Promise<PluginImageRef[]>;
 	sessionLineages(sessionId: string): Promise<PluginImageRef[][]>;
+	allLineages(): Promise<PluginImageRef[][]>;
 }
 
 function recordKey(id: string): string {
@@ -144,6 +145,27 @@ export function createImageRepository(storage: PluginStorageApi): ImageRepositor
 					.filter((record) => record.sessionId === sessionId)
 					.map((record) => record.rootId),
 			);
+			const lineages = await Promise.all(
+				Array.from(roots).map(async (rootId) => {
+					const members = records
+						.filter((record) => record.rootId === rootId)
+						.sort((left, right) => left.createdAt.localeCompare(right.createdAt));
+					const refs = await Promise.all(
+						members.map((record) => toRef(storage, record)),
+					);
+					return {
+						latest: members.at(-1)?.createdAt ?? "",
+						refs: refs.filter((ref): ref is PluginImageRef => ref !== null),
+					};
+				}),
+			);
+			return lineages
+				.sort((left, right) => right.latest.localeCompare(left.latest))
+				.map((lineage) => lineage.refs);
+		},
+		async allLineages() {
+			const records = await readRecords();
+			const roots = new Set(records.map((record) => record.rootId));
 			const lineages = await Promise.all(
 				Array.from(roots).map(async (rootId) => {
 					const members = records

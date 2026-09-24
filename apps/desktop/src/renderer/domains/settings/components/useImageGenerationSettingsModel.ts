@@ -34,6 +34,11 @@ export interface ImageGenerationSettingsModel {
 	textToImageRouteId: string;
 }
 
+function normalizeProviderId(id: string | undefined): string | undefined {
+	if (id === "desktop-app:vetta" || id === "desktop-app:567api") return "desktop-app:api567";
+	return id;
+}
+
 function supportsMode(provider: MediaProviderDescriptor, mode: ImageGenerationMode): boolean {
 	return provider.capabilities.some(
 		(capability) =>
@@ -123,9 +128,9 @@ export function useImageGenerationSettingsModel(): ImageGenerationSettingsModel 
 				window.vetta.config.get(),
 			]);
 			setProviders(nextProviders);
-			setTextToImageProviderId(config.imageGeneration?.textToImageProviderId ?? undefined);
+			setTextToImageProviderId(normalizeProviderId(config.imageGeneration?.textToImageProviderId));
 			setTextToImageModelId(config.imageGeneration?.textToImageModelId ?? undefined);
-			setImageToImageProviderId(config.imageGeneration?.imageToImageProviderId ?? undefined);
+			setImageToImageProviderId(normalizeProviderId(config.imageGeneration?.imageToImageProviderId));
 			setImageToImageModelId(config.imageGeneration?.imageToImageModelId ?? undefined);
 		} finally {
 			setLoading(false);

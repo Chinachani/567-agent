@@ -257,9 +257,10 @@ if (preparedSpeechModel) {
 // externalized runtime deps must be declared here even though we copy them
 // manually below.
 const appPkg = {
-	name: "vetta",
+	name: "567-agent",
+	desktopName: "567-Agent",
 	version: appVersion,
-	description: "Vetta Desktop App",
+	description: "567 Agent - AI Desktop & Coding Assistant",
 	author: LINUX_PACKAGE_METADATA.author,
 	homepage: LINUX_PACKAGE_METADATA.homepage,
 	license: LINUX_PACKAGE_METADATA.license,
@@ -666,7 +667,7 @@ const builderConfig = {
 	files: ["**/*", ...extraResources.map(({ from }) => `!${from}/**/*`)],
 	protocols: {
 		name: "567 Agent",
-		schemes: ["api567", "vetta"],
+		schemes: ["agent567", "api567", "vetta"],
 	},
 	fileAssociations: [VETTA_PLUGIN_FILE_ASSOCIATION],
 	mac: {
@@ -741,7 +742,13 @@ const builderConfig = {
 	},
 	linux: {
 		target: LINUX_RELEASE_TARGETS,
+		syncDesktopName: true,
 		artifactName: "${productName}-${version}.${ext}",
+		desktop: {
+			entry: {
+				StartupWMClass: "567-agent",
+			},
+		},
 		category: "Utility;Development",
 		description: "567 Agent is an all-in-one AI coding and desktop assistant deeply integrated with 567 API.",
 		icon: "build/icons",

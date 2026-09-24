@@ -15,7 +15,8 @@
         "git",
         "plugin-workbench",
         "content-creation",
-        "browser"
+        "browser",
+        "cowart-vetta"
       ]
     },
     "production": {
@@ -30,7 +31,8 @@
         "chart-renderer",
         "git",
         "plugin-workbench",
-        "browser"
+        "browser",
+        "cowart-vetta"
       ]
     }
   }

@@ -1,4 +1,5 @@
 import ignore from "ignore";
+import { CONFIG_DIR_NAME } from "../../identity.js";
 import type { ResourceDiagnostic } from "../contracts/diagnostics.js";
 import type { ResourceAccessPort } from "../contracts/resource-access.js";
 import { parseFrontmatter } from "../shared/frontmatter.js";
@@ -15,7 +16,8 @@ import type {
 const MAX_NAME_LENGTH = 64;
 const MAX_DESCRIPTION_LENGTH = 1024;
 const IGNORE_FILE_NAMES = [".gitignore", ".ignore", ".fdignore"];
-const PROJECT_CONFIG_DIRECTORY = ".vetta";
+const PROJECT_CONFIG_DIRECTORY = CONFIG_DIR_NAME;
+const LEGACY_PROJECT_CONFIG_DIRECTORY = ".vetta";
 type IgnoreMatcher = ReturnType<typeof ignore>;
 
 function provenanceForSource(source: string): SkillProvenance {
@@ -301,9 +303,18 @@ export async function loadSkills(options: LoadSkillsOptions): Promise<LoadSkills
 
 	const userSkillsDir = access.paths.join(agentDir, "skills");
 	const projectSkillsDir = access.paths.resolve(cwd, PROJECT_CONFIG_DIRECTORY, "skills");
+	const legacyProjectSkillsDir =
+		(PROJECT_CONFIG_DIRECTORY as string) !== LEGACY_PROJECT_CONFIG_DIRECTORY
+			? access.paths.resolve(cwd, LEGACY_PROJECT_CONFIG_DIRECTORY, "skills")
+			: undefined;
 	if (includeDefaults) {
 		await addSkills(await loadSkillsFromDirInternal(access, userSkillsDir, "user", true, options.signal));
 		await addSkills(await loadSkillsFromDirInternal(access, projectSkillsDir, "project", true, options.signal));
+		if (legacyProjectSkillsDir) {
+			await addSkills(
+				await loadSkillsFromDirInternal(access, legacyProjectSkillsDir, "project", true, options.signal),
+			);
+		}
 		await addSkills(await loadScenesFromDir(access, sceneDir, options.signal));
 	}
 
@@ -318,7 +329,11 @@ export async function loadSkills(options: LoadSkillsOptions): Promise<LoadSkills
 	const getSource = (path: string): "user" | "project" | "path" => {
 		if (!includeDefaults) {
 			if (isUnderPath(path, userSkillsDir)) return "user";
-			if (isUnderPath(path, projectSkillsDir)) return "project";
+			if (
+				isUnderPath(path, projectSkillsDir) ||
+				(legacyProjectSkillsDir && isUnderPath(path, legacyProjectSkillsDir))
+			)
+				return "project";
 		}
 		return "path";
 	};

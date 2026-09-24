@@ -334,7 +334,15 @@ export class MediaProviderRegistry {
 	}
 
 	async submit(input: MediaSubmitInput, signal: AbortSignal): Promise<Job> {
-		const provider = this.providers.get(input.providerId);
+		let provider = this.providers.get(input.providerId);
+		if (
+			!provider &&
+			(input.providerId === "desktop-app:vetta" ||
+				input.providerId === "desktop-app:api567" ||
+				input.providerId === "desktop-app:567api")
+		) {
+			provider = this.providers.get("desktop-app:api567") || this.providers.get("desktop-app:vetta");
+		}
 		const logContext = this.createLogContext(input, provider?.registration.descriptor);
 		this.logger.info("media job submitted", logContext.fields);
 		if (!provider) {

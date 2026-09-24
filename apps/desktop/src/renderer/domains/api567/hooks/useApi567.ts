@@ -254,6 +254,60 @@ export function useApi567() {
 		[setStatus],
 	);
 
+	const setImageGroup = useCallback(
+		async (groupName: string) => {
+			try {
+				const res = await window.vetta.api567.setImageGroup(groupName);
+				if (res.success) {
+					showToast({
+						variant: "success",
+						message: `画图分组已设置为: ${groupName}`,
+					});
+					const latest = await window.vetta.api567.getStatus();
+					setStatus(latest);
+				}
+				return res;
+			} catch (err) {
+				console.error("Failed to set image group:", err);
+				return { success: false };
+			}
+		},
+		[setStatus],
+	);
+
+	const setImageModel = useCallback(
+		async (modelName: string) => {
+			try {
+				const res = await window.vetta.api567.setImageModel(modelName);
+				if (res.success) {
+					showToast({
+						variant: "success",
+						message: `画图模型已设置为: ${modelName}`,
+					});
+					const latest = await window.vetta.api567.getStatus();
+					setStatus(latest);
+				}
+				return res;
+			} catch (err) {
+				console.error("Failed to set image model:", err);
+				return { success: false };
+			}
+		},
+		[setStatus],
+	);
+
+	const refreshGroups = useCallback(async () => {
+		try {
+			if (window.vetta?.api567?.refreshGroups) {
+				await window.vetta.api567.refreshGroups();
+			}
+			const latest = await window.vetta.api567.getStatus();
+			setStatus(latest);
+		} catch (err) {
+			console.error("Failed to refresh groups:", err);
+		}
+	}, [setStatus]);
+
 	const refreshQuota = useCallback(
 		async (force = false) => {
 			try {
@@ -305,6 +359,9 @@ export function useApi567() {
 		syncGroup,
 		removeGroup,
 		setActiveGroup,
+		setImageGroup,
+		setImageModel,
+		refreshGroups,
 		refreshQuota,
 		logout,
 	};

@@ -561,7 +561,21 @@ const UUID_RE = /[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}/i;
 
 /** Agent session id = the UUID embedded in the session file path. */
 function sessionIdFromPath(sessionPath: string | null): string | undefined {
-	return sessionPath?.match(UUID_RE)?.[0];
+	if (!sessionPath) return undefined;
+	const direct = sessionPath.match(UUID_RE)?.[0];
+	if (direct) return direct;
+	try {
+		const filename = sessionPath.split(/[\/\\]/).pop() || "";
+		const encodedPart = filename.split(".")[0];
+		if (encodedPart && encodedPart.length >= 24) {
+			const decoded = atob(encodedPart);
+			const decodedMatch = decoded.match(UUID_RE)?.[0];
+			if (decodedMatch) return decodedMatch;
+		}
+	} catch {
+		// ignore
+	}
+	return undefined;
 }
 
 // ─── Stacked group + expandable grid (生图历史 内的紧凑展示) ───
@@ -756,25 +770,41 @@ function StackedGroup({
 
 function GenHistoryPanel() {
 	const { t } = useTranslation();
-	const { sessionPath, isStreaming } = useActiveConversation();
-	const sessionId = useMemo(() => sessionIdFromPath(sessionPath), [sessionPath]);
+	const convo = useActiveConversation();
+	const isStreaming = convo.isStreaming;
+	const sessionId = useMemo(() => {
+		if (convo.id && UUID_RE.test(convo.id)) return convo.id;
+		return sessionIdFromPath(convo.sessionPath);
+	}, [convo.id, convo.sessionPath]);
 	const attachedId = usePromptAttachment()?.id ?? null;
 	const [lineages, setLineages] = useState<PluginImageRef[][]>([]);
 	const reqId = useRef(0);
 
 	const refetch = useCallback(() => {
-		if (!sessionId || !imageRepository) {
+		if (!imageRepository) {
 			setLineages([]);
 			return;
 		}
 		const my = ++reqId.current;
-		void imageRepository
-			.sessionLineages(sessionId)
+		const query = sessionId ? imageRepository.sessionLineages(sessionId) : Promise.resolve([]);
+		void query
 			.then((result) => {
-				if (my === reqId.current) setLineages(result);
+				if (my !== reqId.current) return;
+				if (result.length > 0) {
+					setLineages(result);
+				} else {
+					void imageRepository?.allLineages().then((all) => {
+						if (my === reqId.current) setLineages(all);
+					});
+				}
 			})
 			.catch(() => {
-				if (my === reqId.current) setLineages([]);
+				if (my !== reqId.current) return;
+				void imageRepository?.allLineages().then((all) => {
+					if (my === reqId.current) setLineages(all);
+				}).catch(() => {
+					if (my === reqId.current) setLineages([]);
+				});
 			});
 	}, [sessionId]);
 

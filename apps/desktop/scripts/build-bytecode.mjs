@@ -60,7 +60,7 @@ function loadBytecode() {
 module.exports = loadBytecode();
 `;
 
-writeFileSync(outLoader, loaderCode, "utf8");
+if (existsSync(outLoader)) rmSync(outLoader, { force: true });
 
 console.log("[build-bytecode] 4. Removing plaintext CJS bundle to protect sensitive logic...");
 if (existsSync(outCjs)) {

@@ -9,6 +9,7 @@ import {
 	ExternalLink,
 	Key,
 	Layers,
+	Palette,
 	Plus,
 	RefreshCw,
 	Star,
@@ -43,6 +44,9 @@ export function Api567GroupsSection({
 		syncGroup,
 		removeGroup,
 		setActiveGroup,
+		setImageGroup,
+		setImageModel,
+		refreshGroups,
 		refreshQuota,
 		setModalOpen,
 	} = useApi567();
@@ -56,6 +60,7 @@ export function Api567GroupsSection({
 		try {
 			await refreshQuota(true);
 			await loadAvailableGroups(true);
+			await refreshGroups();
 		} finally {
 			setRefreshing(false);
 		}
@@ -88,11 +93,12 @@ export function Api567GroupsSection({
 	};
 
 	// 判定分组是否真正已在本地 models.json 中生效
-	const syncedGroupMap = new Map<string, { modelsCount: number; models?: string[] }>();
+	const syncedGroupMap = new Map<string, { modelsCount: number; models?: string[]; imageModels?: string[] }>();
 	for (const g of status.groups ?? []) {
 		syncedGroupMap.set(g.name, {
 			modelsCount: g.modelsCount ?? 0,
 			models: g.models,
+			imageModels: g.imageModels,
 		});
 	}
 
@@ -187,6 +193,7 @@ export function Api567GroupsSection({
 						const syncedData = syncedGroupMap.get(groupName);
 						const isSynced = Boolean(syncedData);
 						const isActive = status.activeGroup === groupName;
+						const isImageGroup = status.imageGroup === groupName;
 						const isBusy = syncingGroup === groupName;
 						const isExpanded = expandedGroup === groupName;
 						const iconSymbol = getProviderIconForGroup(groupName);
@@ -214,6 +221,12 @@ export function Api567GroupsSection({
 														当前主力
 													</span>
 												)}
+												{isImageGroup && (
+													<span className="inline-flex items-center gap-1 rounded bg-purple-500/10 px-1.5 py-0.5 text-[10px] font-bold text-purple-600 dark:text-purple-400">
+														<Palette className="h-3 w-3" />
+														画图专属
+													</span>
+												)}
 												{isSynced && (
 													<span className="text-[11px] text-muted-foreground">
 														· 已接入 {syncedData?.modelsCount ?? 0} 个模型
@@ -235,7 +248,7 @@ export function Api567GroupsSection({
 												{isActive ? (
 													<span className="inline-flex items-center gap-1 rounded-md bg-primary/10 px-2.5 py-1 text-primary text-xs font-medium">
 														<Check className="h-3.5 w-3.5" />
-														<span>已生效</span>
+														<span>主力生效</span>
 													</span>
 												) : (
 													<Button
@@ -244,6 +257,7 @@ export function Api567GroupsSection({
 														disabled={isBusy}
 														onClick={() => void handleSetActive(groupName)}
 														className="h-8 gap-1 text-xs"
+														title="设为常规对话主力模型分组"
 													>
 														{isBusy && syncingGroup === groupName ? (
 															<span className="h-3 w-3 animate-spin rounded-full border-2 border-current border-t-transparent" />
@@ -254,7 +268,37 @@ export function Api567GroupsSection({
 													</Button>
 												)}
 
-												{syncedData?.models && syncedData.models.length > 0 && (
+												{isImageGroup ? (
+													<span className="inline-flex items-center gap-1 rounded-md bg-purple-500/10 px-2.5 py-1 text-purple-600 dark:text-purple-400 text-xs font-medium" title="当前生图调用由此分组承载">
+														<Palette className="h-3.5 w-3.5" />
+														<span>画图生效</span>
+													</span>
+												) : (
+													<Button
+														variant="outline"
+														size="sm"
+														disabled={isBusy}
+														onClick={() => void setImageGroup(groupName)}
+														className="h-8 gap-1 text-xs text-muted-foreground hover:text-purple-600 hover:border-purple-300 dark:hover:text-purple-400"
+														title="将此分组设为专属画图通道"
+													>
+														<Palette className="h-3.5 w-3.5" />
+														<span>设为画图</span>
+													</Button>
+												)}
+
+												<Button
+													variant="ghost"
+													size="sm"
+													disabled={isBusy}
+													onClick={() => void handleSync(groupName)}
+													className="h-8 w-8 p-0 text-muted-foreground hover:bg-primary/10 hover:text-primary"
+													title="重新拉取并更新此分组模型"
+												>
+													<RefreshCw className={`h-3.5 w-3.5 ${isBusy && syncingGroup === groupName ? "animate-spin text-primary" : ""}`} />
+												</Button>
+
+												{((syncedData?.models && syncedData.models.length > 0) || (syncedData?.imageModels && syncedData.imageModels.length > 0)) && (
 													<Button
 														variant="ghost"
 														size="sm"
@@ -305,21 +349,60 @@ export function Api567GroupsSection({
 								</div>
 
 								{/* 展开展示该分组下的模型列表 */}
-								{isExpanded && syncedData?.models && syncedData.models.length > 0 && (
-									<div className="mt-3 rounded-lg border border-border/70 bg-muted/30 p-3">
-										<div className="mb-2 font-medium text-[11px] text-muted-foreground">
-											该分组支持的模型 ({syncedData.models.length}):
-										</div>
-										<div className="flex flex-wrap gap-1.5 max-h-36 overflow-y-auto pr-1">
-											{syncedData.models.map((mId) => (
-												<span
-													key={mId}
-													className="inline-block rounded border border-border/60 bg-background px-2 py-0.5 font-mono text-[11px] text-foreground"
-												>
-													{mId}
-												</span>
-											))}
-										</div>
+								{isExpanded && syncedData && (
+									<div className="mt-3 space-y-3 rounded-lg border border-border/70 bg-muted/30 p-3">
+										{syncedData.models && syncedData.models.length > 0 && (
+											<div>
+												<div className="mb-1.5 font-medium text-[11px] text-muted-foreground">
+													语言与对话模型 ({syncedData.models.length}):
+												</div>
+												<div className="flex flex-wrap gap-1.5 max-h-36 overflow-y-auto pr-1">
+													{syncedData.models.map((mId) => (
+														<span
+															key={mId}
+															className="inline-block rounded border border-border/60 bg-background px-2 py-0.5 font-mono text-[11px] text-foreground"
+														>
+															{mId}
+														</span>
+													))}
+												</div>
+											</div>
+										)}
+
+										{syncedData.imageModels && syncedData.imageModels.length > 0 && (
+											<div>
+												<div className="mb-1.5 flex items-center justify-between font-medium text-[11px] text-purple-600 dark:text-purple-400">
+													<span>画图 / 生图模型 ({syncedData.imageModels.length}):</span>
+													{isImageGroup && (
+														<span className="text-[10px] text-muted-foreground font-normal">
+															当前默认: <strong className="text-purple-600 dark:text-purple-300">{status.imageModel || "dall-e-3"}</strong>
+														</span>
+													)}
+												</div>
+												<div className="flex flex-wrap gap-1.5 max-h-36 overflow-y-auto pr-1">
+													{syncedData.imageModels.map((mId) => {
+														const isCurImageModel = status.imageModel === mId;
+														return (
+															<button
+																key={mId}
+																type="button"
+																onClick={() => void setImageModel(mId)}
+																className={`inline-flex items-center gap-1 rounded border px-2 py-0.5 font-mono text-[11px] transition-colors cursor-pointer ${
+																	isCurImageModel
+																		? "border-purple-500 bg-purple-500/10 font-bold text-purple-600 dark:text-purple-300"
+																		: "border-border/60 bg-background text-foreground hover:border-purple-400 hover:text-purple-500"
+																}`}
+																title="点击将此模型设为默认生图模型"
+															>
+																<Palette className="h-3 w-3" />
+																<span>{mId}</span>
+																{isCurImageModel && <Check className="h-3 w-3" />}
+															</button>
+														);
+													})}
+												</div>
+											</div>
+										)}
 									</div>
 								)}
 							</div>

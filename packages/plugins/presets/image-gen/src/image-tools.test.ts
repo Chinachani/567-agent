@@ -45,6 +45,7 @@ describe("image generation media tools", () => {
 	const read = vi.fn<ImageRepository["read"]>();
 	const lineage = vi.fn<ImageRepository["lineage"]>();
 	const sessionLineages = vi.fn<ImageRepository["sessionLineages"]>();
+	const allLineages = vi.fn<ImageRepository["allLineages"]>();
 	const openActivityTab = vi.fn();
 	const getImageGeneration = vi.fn();
 	const media: PluginMediaApi = {
@@ -62,7 +63,7 @@ describe("image generation media tools", () => {
 		): Promise<TJob> => (await wait(job, options)) as TJob,
 	};
 	const artifacts: PluginArtifactsApi = { persist: persistArtifact, release: releaseArtifact };
-	const repository: ImageRepository = { persist, read, lineage, sessionLineages };
+	const repository: ImageRepository = { persist, read, lineage, sessionLineages, allLineages };
 	const ctx = {
 		media,
 		jobs,

@@ -22,20 +22,37 @@ function dimensionsFromSize(size: string | undefined): MediaDimensions | undefin
 	return width > 0 && height > 0 ? { width, height } : undefined;
 }
 
-export function create567ApiImageProvider(artifacts: MediaArtifactStore): MediaProviderRegistration {
+export function create567ApiImageProvider(
+	artifacts: MediaArtifactStore,
+	providerId = "desktop-app:api567",
+): MediaProviderRegistration {
 	return {
-		descriptor: {
-			id: "desktop-app:vetta",
-			ownerId: "desktop-app",
-			protocolVersion: MEDIA_PROTOCOL_VERSION,
-			capabilities: [
-				{
-					operation: "generate",
-					kind: "image",
-					modes: ["text-to-image"],
-					aspectRatios: ["1:1", "16:9", "9:16"],
-				},
-			],
+		get descriptor(): MediaProviderDescriptor {
+			const service = NewApiService.getInstance();
+			const imageModels = service.getAvailableImageModels();
+			return {
+				id: providerId,
+				displayName: "567 API",
+				ownerId: "desktop-app",
+				protocolVersion: MEDIA_PROTOCOL_VERSION,
+				capabilities: [
+					{
+						operation: "generate",
+						kind: "image",
+						modes: ["text-to-image", "image-to-image"],
+						aspectRatios: ["1:1", "16:9", "9:16", "4:3", "3:4"],
+						defaultModelId: service.getImageModel(),
+						models:
+							imageModels.length > 0
+								? imageModels.map((m) => ({
+										id: m.id,
+										displayName: m.displayName,
+										modes: m.modes,
+									}))
+								: undefined,
+					},
+				],
+			};
 		},
 		submit: async (input: MediaHostProviderSubmitInput, context) => {
 			if (input.operation !== "generate") {
@@ -51,10 +68,17 @@ export function create567ApiImageProvider(artifacts: MediaArtifactStore): MediaP
 			}
 
 			const service = NewApiService.getInstance();
+			const targetGroup = service.getImageGroup();
 			let apiKey: string | undefined;
-			try {
-				apiKey = await service.getApiKey("画图模型");
-			} catch {
+			if (targetGroup) {
+				try {
+					apiKey = await service.getApiKey(targetGroup);
+					log.info(`Using 567 API image group: "${targetGroup}"`);
+				} catch (err) {
+					log.warn(`Failed to get API key for image group "${targetGroup}":`, err);
+				}
+			}
+			if (!apiKey) {
 				try {
 					apiKey = await service.getApiKey();
 				} catch {
@@ -74,9 +98,25 @@ export function create567ApiImageProvider(artifacts: MediaArtifactStore): MediaP
 				};
 			}
 
+			const selectedModel = input.modelId || service.getImageModel();
+			if (!selectedModel) {
+				return {
+					id: randomUUID(),
+					status: "failed",
+					error: {
+						code: "provider-failed",
+						message:
+							"当前画图分组下未检测到可用画图模型，请在「模型设置」中接入画图分组或在「Agent 配置」中选择画图模型",
+						retryable: false,
+					},
+				};
+			}
+
 			const requestedSize = dimensionsToSize(input.dimensions);
 			try {
-				log.info(`Generating image via 567 API, size=${requestedSize}, promptLength=${input.prompt.length}`);
+				log.info(
+					`Generating image via 567 API, model=${selectedModel}, size=${requestedSize}, promptLength=${input.prompt.length}`,
+				);
 				const res = await fetch("https://api.567.wiki/v1/images/generations", {
 					method: "POST",
 					headers: {
@@ -85,7 +125,7 @@ export function create567ApiImageProvider(artifacts: MediaArtifactStore): MediaP
 					},
 					body: JSON.stringify({
 						prompt: input.prompt,
-						model: input.modelId || "dall-e-3",
+						model: selectedModel,
 						n: 1,
 						size: requestedSize,
 						response_format: "b64_json",
