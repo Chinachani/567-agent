@@ -213,5 +213,5 @@ function buildInviteUri(relay: string, pairingId: string, bootstrap: string, lan
 		bootstrap,
 		...(lanUrl ? { lan: lanUrl } : {}),
 	});
-	return `vetta://pair?${params.toString()}`;
+	return `agent567://pair?${params.toString()}`;
 }

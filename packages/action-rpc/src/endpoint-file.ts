@@ -1,3 +1,4 @@
+import { cpSync, existsSync, renameSync, rmSync } from "node:fs";
 import { readFile } from "node:fs/promises";
 import { homedir } from "node:os";
 import { join } from "node:path";
@@ -12,7 +13,23 @@ export const VETTA_CONFIG_DIR_ENV = "VETTA_CONFIG_DIR";
  * 既用于用户主目录根（~/<name>），也用于项目内目录（projectDir/<name>）。
  * 改品牌只改这一处；按环境隔离（如 dev）则用 VETTA_CONFIG_DIR 覆盖。
  */
-export const DEFAULT_CONFIG_DIR_NAME = ".vetta";
+export const DEFAULT_CONFIG_DIR_NAME = ".567agent";
+
+function migrateLegacyHomeIfNeeded(newHome: string): void {
+	if (existsSync(newHome)) return;
+	const oldHome = join(homedir(), ".vetta");
+	if (!existsSync(oldHome)) return;
+	try {
+		renameSync(oldHome, newHome);
+	} catch {
+		try {
+			cpSync(oldHome, newHome, { recursive: true });
+			rmSync(oldHome, { recursive: true, force: true });
+		} catch (err) {
+			console.warn(`[migration] failed to migrate legacy ~/.vetta to ${newHome}`, err);
+		}
+	}
+}
 
 function expandTilde(p: string): string {
 	if (p === "~") return homedir();
@@ -35,7 +52,9 @@ export function getVettaConfigDirName(): string {
 export function getVettaHomePath(): string {
 	const explicit = process.env[VETTA_HOME_ENV];
 	if (explicit) return expandTilde(explicit);
-	return join(homedir(), getVettaConfigDirName());
+	const newHome = join(homedir(), getVettaConfigDirName());
+	migrateLegacyHomeIfNeeded(newHome);
+	return newHome;
 }
 
 export function getActionRpcEndpointFilePath(): string {

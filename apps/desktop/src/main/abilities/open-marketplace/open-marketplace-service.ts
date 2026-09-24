@@ -187,6 +187,18 @@ function normalizeArchiveEntryPath(value: string): string {
 	return normalized;
 }
 
+function findMarketplaceManifestPath(root: string): string {
+	const paths = [
+		join(root, ".567agent", "marketplace.json"),
+		join(root, "marketplace.json"),
+		join(root, ".vetta", "marketplace.json"),
+	];
+	for (const p of paths) {
+		if (existsSync(p)) return p;
+	}
+	return paths[0];
+}
+
 function marketplaceManifestUrl(repository: string, ref: string): string {
 	const parsed = new URL(repository);
 	const encodedRef = ref.split("/").map(encodeURIComponent).join("/");
@@ -508,7 +520,7 @@ export class OpenMarketplaceService {
 		if (!state || !this.matchesCurrentSource(state)) return null;
 		const snapshotRoot = join(this.snapshotsDir, state.marketplaceVersion);
 		try {
-			const raw: unknown = JSON.parse(await readFile(join(snapshotRoot, ".vetta", "marketplace.json"), "utf-8"));
+			const raw: unknown = JSON.parse(await readFile(findMarketplaceManifestPath(snapshotRoot), "utf-8"));
 			const manifest = parseMarketplaceManifest(raw);
 			if (manifest.marketplaceVersion !== state.marketplaceVersion) return null;
 			this.assertManifestCompatible(manifest);
@@ -643,9 +655,10 @@ export class OpenMarketplaceService {
 		armStall(this.archiveDownload.headerTimeoutMs);
 		try {
 			const token = this.getAccessToken()?.trim();
-			const response = await this.fetchArchive(
-				token ? githubZipballUrl(this.repository, this.sourceRef) : this.archiveUrl,
-				{
+			const directUrl = token ? githubZipballUrl(this.repository, this.sourceRef) : this.archiveUrl;
+			let response: Response;
+			try {
+				response = await this.fetchArchive(directUrl, {
 					headers: token
 						? githubApiHeaders("application/vnd.github+json", token)
 						: githubHeaders("application/zip"),
@@ -653,8 +666,18 @@ export class OpenMarketplaceService {
 					// strips Authorization when following the cross-origin GitHub download redirect.
 					redirect: "follow",
 					signal: controller.signal,
-				},
-			);
+				});
+			} catch (err) {
+				if (!token && directUrl.startsWith("https://github.com/")) {
+					response = await this.fetchArchive(`https://ghproxy.net/${directUrl}`, {
+						headers: githubHeaders("application/zip"),
+						redirect: "follow",
+						signal: controller.signal,
+					});
+				} else {
+					throw err;
+				}
+			}
 			if (!response.ok) throw requestError(response.status, "Open marketplace download");
 			const declaredLength = Number(response.headers.get("content-length"));
 			if (Number.isFinite(declaredLength) && declaredLength > MAX_ARCHIVE_BYTES) {
@@ -844,13 +867,18 @@ export class OpenMarketplaceService {
 	}
 
 	private async locateMarketplaceRoot(unpackedDir: string): Promise<string> {
-		if (existsSync(join(unpackedDir, ".vetta", "marketplace.json"))) return unpackedDir;
+		const isManifestPresent = (dir: string) =>
+			existsSync(join(dir, ".567agent", "marketplace.json")) ||
+			existsSync(join(dir, "marketplace.json")) ||
+			existsSync(join(dir, ".vetta", "marketplace.json"));
+
+		if (isManifestPresent(unpackedDir)) return unpackedDir;
 		const entries = await readdir(unpackedDir, { withFileTypes: true });
 		const candidates = entries
 			.filter((entry) => entry.isDirectory())
 			.map((entry) => join(unpackedDir, entry.name))
-			.filter((dir) => existsSync(join(dir, ".vetta", "marketplace.json")));
-		if (candidates.length !== 1) throw new Error("Archive must contain exactly one .vetta/marketplace.json");
+			.filter((dir) => isManifestPresent(dir));
+		if (candidates.length !== 1) throw new Error("Archive must contain exactly one marketplace.json");
 		return candidates[0];
 	}
 
@@ -875,9 +903,7 @@ export class OpenMarketplaceService {
 			await mkdir(unpackedDir, { recursive: true });
 			await this.extractArchive(buffer, unpackedDir);
 			const marketplaceRoot = await this.locateMarketplaceRoot(unpackedDir);
-			const manifestRaw: unknown = JSON.parse(
-				await readFile(join(marketplaceRoot, ".vetta", "marketplace.json"), "utf-8"),
-			);
+			const manifestRaw: unknown = JSON.parse(await readFile(findMarketplaceManifestPath(marketplaceRoot), "utf-8"));
 			const manifest = parseMarketplaceManifest(manifestRaw);
 			this.assertManifestCompatible(manifest);
 			loadMarketplaceCatalog(marketplaceRoot, manifest);

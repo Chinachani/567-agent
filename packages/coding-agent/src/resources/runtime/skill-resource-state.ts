@@ -1,8 +1,9 @@
+import { CONFIG_DIR_NAME } from "../../identity.js";
 import type { ResourceDiagnostic } from "../contracts/diagnostics.js";
 import type { ResourceAccessPort } from "../contracts/resource-access.js";
 import { loadSkills, type Skill } from "../skills/index.js";
 
-const PROJECT_CONFIG_DIRECTORY = ".vetta";
+const PROJECT_CONFIG_DIRECTORY = CONFIG_DIR_NAME;
 
 export async function computeSkillsFingerprint(
 	access: ResourceAccessPort,

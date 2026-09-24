@@ -5,7 +5,7 @@ import { LATEST_CODEX_HOOK_PROFILE_ID } from "./codex/hooks/latest/profile.js";
 import type { HookConfigLayer, HookConfigSource } from "./hooks/types.js";
 
 /** Project / user config directory basename (brand default). */
-export const VETTA_HOOK_CONFIG_DIR_NAME = ".vetta";
+export const VETTA_HOOK_CONFIG_DIR_NAME = ".567agent";
 
 export interface BuildDefaultHookConfigLayersOptions {
 	/** Session project working directory. */

@@ -4,7 +4,11 @@ import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { MarketplaceSource } from "../../../preload/api-types/abilities";
 import { MarketplaceSourceStore } from "./marketplace-source-store";
-import { OFFICIAL_MARKETPLACE_REF, OFFICIAL_MARKETPLACE_REPOSITORY } from "./official-marketplace-source";
+import {
+	OFFICIAL_MARKETPLACE_NAME,
+	OFFICIAL_MARKETPLACE_REF,
+	OFFICIAL_MARKETPLACE_REPOSITORY,
+} from "./official-marketplace-source";
 
 const temporaryRoots: string[] = [];
 const originalRepository = process.env.VETTA_OPEN_MARKETPLACE_REPOSITORY;
@@ -113,7 +117,7 @@ describe("MarketplaceSourceStore", () => {
 				expect(new MarketplaceSourceStore({ filePath: await temporaryFile() }).list()).toMatchObject([
 					{
 						id: "vetta-official",
-						name: "Vetta Official",
+						name: OFFICIAL_MARKETPLACE_NAME,
 						repository: OFFICIAL_MARKETPLACE_REPOSITORY,
 						ref: OFFICIAL_MARKETPLACE_REF,
 						archiveUrl: `${OFFICIAL_MARKETPLACE_REPOSITORY}/archive/refs/heads/${OFFICIAL_MARKETPLACE_REF}.zip`,

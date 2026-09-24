@@ -108,7 +108,8 @@ fixPath();
 app.setName("567 Agent");
 app.setAppUserModelId("com.api567.agent");
 
-const PROTOCOL = "vetta";
+const PROTOCOL = "agent567";
+const LEGACY_PROTOCOL = "vetta";
 // registerSchemesAsPrivileged 整个进程只能调用一次且须在 ready 前：
 // 所有自定义 scheme（插件、主题、应用资源、媒体流）的特权声明在此合并注册。
 protocol.registerSchemesAsPrivileged([
@@ -308,8 +309,10 @@ function attachMainWindowLifecycle(mainWindow: BrowserWindow): void {
 if (!isCliMode) {
 	if (!app.isPackaged && process.platform === "win32") {
 		app.setAsDefaultProtocolClient(PROTOCOL, process.execPath, [devMainEntryPath]);
+		app.setAsDefaultProtocolClient(LEGACY_PROTOCOL, process.execPath, [devMainEntryPath]);
 	} else {
 		app.setAsDefaultProtocolClient(PROTOCOL);
+		app.setAsDefaultProtocolClient(LEGACY_PROTOCOL);
 	}
 }
 
@@ -360,7 +363,9 @@ if (!gotSingleLock) {
 	app.exit(0);
 } else {
 	app.on("second-instance", (_event, argv) => {
-		const protocolUrl = argv.find((arg) => arg.startsWith(`${PROTOCOL}://`));
+		const protocolUrl = argv.find(
+			(arg) => arg.startsWith(`${PROTOCOL}://`) || arg.startsWith(`${LEGACY_PROTOCOL}://`),
+		);
 		if (protocolUrl) {
 			handleProtocolUrl(protocolUrl);
 		}
