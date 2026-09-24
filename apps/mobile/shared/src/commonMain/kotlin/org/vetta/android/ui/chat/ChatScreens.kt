@@ -40,6 +40,12 @@ import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.animation.shrinkVertically
 import androidx.compose.animation.core.tween
+import androidx.compose.animation.core.rememberInfiniteTransition
+import androidx.compose.animation.core.animateFloat
+import androidx.compose.animation.core.infiniteRepeatable
+import androidx.compose.animation.core.LinearEasing
+import androidx.compose.animation.core.RepeatMode
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.automirrored.filled.HelpOutline
@@ -117,6 +123,32 @@ import org.vetta.android.ui.media.rememberImagePicker
 import org.vetta.android.ui.navigation.ChatSurface
 import org.vetta.android.ui.theme.vettaExtra
 
+@Composable
+fun RotatingRefreshIcon(
+    isRefreshing: Boolean,
+    contentDescription: String? = null,
+    modifier: Modifier = Modifier,
+) {
+    val rotation by if (isRefreshing) {
+        val transition = rememberInfiniteTransition()
+        transition.animateFloat(
+            initialValue = 0f,
+            targetValue = 360f,
+            animationSpec = infiniteRepeatable(
+                animation = tween(800, easing = LinearEasing),
+                repeatMode = RepeatMode.Restart,
+            ),
+        )
+    } else {
+        remember { mutableStateOf(0f) }
+    }
+    Icon(
+        imageVector = Icons.Default.Refresh,
+        contentDescription = contentDescription,
+        modifier = modifier.graphicsLayer { rotationZ = rotation },
+    )
+}
+
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun ChatScreen(
@@ -137,6 +169,7 @@ fun ChatScreen(
     onCloseGroupPicker: () -> Unit = {},
     onSelectGroup: ((String) -> Unit)? = null,
     onRefreshCatalog: () -> Unit = {},
+    catalogLoading: Boolean = false,
     globalError: UiError?,
     onDraftChange: (String) -> Unit,
     onSend: () -> Unit,
@@ -610,7 +643,7 @@ fun ChatScreen(
                 ) {
                     Text("567 API 接入分组", style = MaterialTheme.typography.titleMedium)
                     IconButton(onClick = onRefreshCatalog) {
-                        Icon(Icons.Default.Refresh, contentDescription = "刷新缓存")
+                        RotatingRefreshIcon(isRefreshing = catalogLoading, contentDescription = "刷新缓存")
                     }
                 }
                 Spacer(Modifier.height(4.dp))
@@ -700,7 +733,7 @@ fun ChatScreen(
                         style = MaterialTheme.typography.titleMedium,
                     )
                     IconButton(onClick = onRefreshCatalog) {
-                        Icon(Icons.Default.Refresh, contentDescription = "刷新")
+                        RotatingRefreshIcon(isRefreshing = catalogLoading, contentDescription = "刷新")
                     }
                 }
                 Spacer(Modifier.height(12.dp))

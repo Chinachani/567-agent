@@ -74,8 +74,25 @@ export function useApi567() {
 			}
 		});
 
+		// 1. 每 60 秒自动静默轮询最新可用额度
+		const interval = setInterval(() => {
+			if (isMounted && document.visibilityState === "visible") {
+				void window.vetta.api567.refreshQuota(false);
+			}
+		}, 60_000);
+
+		// 2. 窗口重新聚焦时自动刷新
+		const onFocus = () => {
+			if (isMounted) {
+				void window.vetta.api567.refreshQuota(false);
+			}
+		};
+		window.addEventListener("focus", onFocus);
+
 		return () => {
 			isMounted = false;
+			clearInterval(interval);
+			window.removeEventListener("focus", onFocus);
 			unsubscribe();
 		};
 	}, [setStatus, setInitialCheckDone, loadAvailableGroups, setAvailableGroups]);

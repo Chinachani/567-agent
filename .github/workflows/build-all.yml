@@ -36,6 +36,11 @@ jobs:
         run: |
           chmod +x gradlew
           ./gradlew --no-daemon :androidApp:assembleDebug
+          cd apps/mobile/androidApp/build/outputs/apk/debug
+          VERSION="${GITHUB_REF_NAME#v}"
+          if [ -z "$VERSION" ]; then VERSION="debug"; fi
+          cp androidApp-debug.apk "567 Agent-${VERSION}.apk"
+          rm -f androidApp-debug.apk
 
       - name: Publish Android APK to Release
         if: startsWith(github.ref, 'refs/tags/v')

@@ -974,6 +974,13 @@ export class NewApiService {
 	}
 
 	/**
+	 * 对外暴露获取或创建专属 API Key (sk-...)
+	 */
+	public async getApiKey(groupName?: string): Promise<string> {
+		return this.resolveOrCreateApiKeyForGroup(groupName);
+	}
+
+	/**
 	 * 使用指定分组解析或创建专属 API Key (sk-...)
 	 */
 	private async resolveOrCreateApiKeyForGroup(groupName?: string): Promise<string> {
@@ -1101,7 +1108,7 @@ export class NewApiService {
 
 		if (!force && this.currentSession.quota !== undefined && this.currentSession.lastUpdated) {
 			const age = Date.now() - new Date(this.currentSession.lastUpdated).getTime();
-			if (age < 5 * 60 * 1000) {
+			if (age < 30 * 1000) {
 				return {
 					success: true,
 					quota: this.currentSession.quota,

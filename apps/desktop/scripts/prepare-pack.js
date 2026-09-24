@@ -741,6 +741,7 @@ const builderConfig = {
 	},
 	linux: {
 		target: LINUX_RELEASE_TARGETS,
+		artifactName: "${productName}-${version}.${ext}",
 		category: "Utility;Development",
 		description: "567 Agent is an all-in-one AI coding and desktop assistant deeply integrated with 567 API.",
 		icon: "build/icons",
@@ -751,6 +752,7 @@ const builderConfig = {
 	},
 	deb: {
 		packageName: "567-agent",
+		artifactName: "${productName}-${version}-amd64.${ext}",
 		priority: "optional",
 		synopsis: "567 Agent - AI Desktop & Coding Assistant",
 		description: "567 Agent is an all-in-one AI coding and desktop assistant deeply integrated with 567 API.",

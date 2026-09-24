@@ -301,6 +301,9 @@ export function useSessionEventController({ activeSessionRef }: SessionEventCont
 						});
 
 					if (event.phase === "agent_end") {
+						setTimeout(() => {
+							void window.vetta.api567?.refreshQuota(true);
+						}, 1000);
 						const active = activeSessionRef.current;
 						const cwd = active?.cwd;
 						const rid = active?.runtimeId;

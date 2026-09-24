@@ -1,4 +1,5 @@
 package org.vetta.android.ui.me
+import org.vetta.android.ui.chat.RotatingRefreshIcon
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
@@ -75,6 +76,7 @@ fun MeScreen(
     onlineDeviceCount: Int,
     onSelectGroup: (String) -> Unit = {},
     onRefreshQuota: () -> Unit = {},
+    catalogLoading: Boolean = false,
     onOpenPlan: () -> Unit = {},
     onOpenSettings: () -> Unit = {},
     onOpenDevices: () -> Unit = {},
@@ -147,7 +149,7 @@ fun MeScreen(
                                 )
                             }
                             IconButton(onClick = onRefreshQuota) {
-                                Icon(Icons.Default.Refresh, contentDescription = "刷新余额")
+                                RotatingRefreshIcon(isRefreshing = catalogLoading, contentDescription = "刷新余额")
                             }
                         }
                         Spacer(Modifier.height(12.dp))
