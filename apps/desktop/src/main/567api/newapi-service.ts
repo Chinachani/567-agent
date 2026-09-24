@@ -263,6 +263,37 @@ function inferModelParams(modelId: string): { contextWindow: number; maxTokens: 
 const NON_CHAT =
 	/embedding|embed|whisper|tts|audio|realtime|-live-|moderation|dall-e|image|transcribe|rerank|vision-ocr|veo-|lyria|imagen|deep-research|computer-use|-character|livetranslate/i;
 
+function fetchPageHtml(urlStr: string): Promise<{ html: string; url: string; status: number }> {
+	return new Promise((resolve, reject) => {
+		const u = new URL(urlStr);
+		const client = u.protocol === "http:" ? http : https;
+		const req = client.get(
+			u,
+			{
+				headers: {
+					"User-Agent":
+						"Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
+					Accept: "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
+				},
+				timeout: 8000,
+			},
+			(res) => {
+				if (res.statusCode && res.statusCode >= 300 && res.statusCode < 400 && res.headers.location) {
+					return resolve(fetchPageHtml(new URL(res.headers.location, u).href));
+				}
+				let raw = "";
+				res.setEncoding("utf8");
+				res.on("data", (c) => {
+					raw += c;
+				});
+				res.on("end", () => resolve({ html: raw, url: urlStr, status: res.statusCode ?? 0 }));
+			},
+		);
+		req.on("error", reject);
+		req.on("timeout", () => req.destroy(new Error("Request timeout")));
+	});
+}
+
 export class NewApiService {
 	private static instance: NewApiService;
 	private currentSession: Api567Session = { isLoggedIn: false };
@@ -511,47 +542,37 @@ export class NewApiService {
 	 * 易支付在线充值创建订单
 	 */
 	/**
-	 * 从收银台页面提取二维码链接或图片
+	 * 从收银台页面提取二维码链接或图片 (使用 Node.js 原生 https 避免 Electron fetch 挂起)
 	 */
 	public async extractQrCode(payUrl: string): Promise<string | undefined> {
 		try {
-			log.info("Attempting to extract QR code from payUrl in background...");
-			const res = await fetch(payUrl, {
-				headers: {
-					"User-Agent":
-						"Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
-				},
-				redirect: "follow",
-			});
-			const text = await res.text();
+			log.info("Attempting to extract QR code from payUrl in background using https...");
+			const page1 = await fetchPageHtml(payUrl);
+			log.info(`Page 1 fetched, status: ${page1.status}, len: ${page1.html.length}`);
 
-			// 检查是否是重定向中转页面（如 window.location.replace('/pay/alipay/...')）
-			const replaceMatch =
-				text.match(/window\.location\.replace\(['"]([^'"]+)['"]\)/i) ||
-				text.match(/window\.location\.href\s*=\s*['"]([^'"]+)['"]/i);
-			let finalHtml = text;
-			const targetUrl = res.url || payUrl;
-			if (replaceMatch?.[1]) {
-				const nextUrl = new URL(replaceMatch[1], targetUrl).href;
-				const nextRes = await fetch(nextUrl, {
-					headers: {
-						"User-Agent":
-							"Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
-					},
-					redirect: "follow",
-				});
-				finalHtml = await nextRes.text();
+			const repMatch =
+				page1.html.match(/window\.location\.replace\(['"]([^'"]+)['"]\)/i) ||
+				page1.html.match(/window\.location\.href\s*=\s*['"]([^'"]+)['"]\)/i);
+			let targetHtml = page1.html;
+			let currentUrl = page1.url;
+			if (repMatch?.[1]) {
+				const nextUrl = new URL(repMatch[1], currentUrl).href;
+				log.info(`Following JS redirect to: ${nextUrl}`);
+				const page2 = await fetchPageHtml(nextUrl);
+				log.info(`Page 2 fetched, status: ${page2.status}, len: ${page2.html.length}`);
+				targetHtml = page2.html;
+				currentUrl = page2.url;
 			}
 
 			// 1. 匹配 code_url 变量：如 var code_url = 'https://q.lakala.com/r/0000?...'
-			const codeUrlMatch = finalHtml.match(/(?:var|let|const)?\s*code_url\s*=\s*['"]([^'"]+)['"]/i);
+			const codeUrlMatch = targetHtml.match(/(?:var|let|const)?\s*code_url\s*=\s*['"]([^'"]+)['"]/i);
 			if (codeUrlMatch?.[1]) {
-				log.info("Successfully extracted code_url from pay page");
+				log.info(`Successfully extracted code_url from pay page: ${codeUrlMatch[1].slice(0, 50)}...`);
 				return codeUrlMatch[1].trim();
 			}
 
 			// 2. 匹配 url_scheme 或 pay_url
-			const schemeMatch = finalHtml.match(
+			const schemeMatch = targetHtml.match(
 				/(?:var|let|const)?\s*(?:url_scheme|pay_url|qrcode_url)\s*=\s*['"]([^'"]+)['"]/i,
 			);
 			if (schemeMatch?.[1] && !schemeMatch[1].startsWith("javascript:")) {
@@ -560,7 +581,7 @@ export class NewApiService {
 			}
 
 			// 3. 匹配 base64 图片二维码
-			const base64Match = finalHtml.match(/src=['"](data:image\/[a-zA-Z]+;base64,[A-Za-z0-9+/=]+)['"]/i);
+			const base64Match = targetHtml.match(/src=['"](data:image\/[a-zA-Z]+;base64,[A-Za-z0-9+/=]+)['"]/i);
 			if (base64Match?.[1]) {
 				log.info("Successfully extracted base64 qr image from pay page");
 				return base64Match[1].trim();
@@ -568,11 +589,11 @@ export class NewApiService {
 
 			// 4. 匹配二维码 img 标签
 			const imgMatch =
-				finalHtml.match(/<img[^>]+id=['"]qrcode['"][^>]+src=['"]([^'"]+)['"]/i) ||
-				finalHtml.match(/<img[^>]+src=['"]([^'"]*qrcode[^'"]*)['"]/i);
+				targetHtml.match(/<img[^>]+id=['"]qrcode['"][^>]+src=['"]([^'"]+)['"]/i) ||
+				targetHtml.match(/<img[^>]+src=['"]([^\x27"]*qrcode[^\x27"]*)['"]/i);
 			if (imgMatch?.[1]) {
 				log.info("Successfully extracted img qr url from pay page");
-				return new URL(imgMatch[1], targetUrl).href;
+				return new URL(imgMatch[1], currentUrl).href;
 			}
 		} catch (err) {
 			log.warn("Failed to extract qr code from pay url:", err);
