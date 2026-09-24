@@ -25,6 +25,28 @@ export function CanvasPanel() {
 	const [ready, setReady] = useState(false);
 	const [error, setError] = useState<string | null>(null);
 
+	const [fallbackDir, setFallbackDir] = useState<string | null>(null);
+
+	useEffect(() => {
+		if (activityTab?.cwd || convo?.cwd) return;
+		let cancelled = false;
+		if (
+			typeof window !== "undefined" &&
+			(window as unknown as { vetta?: { config?: { get?: () => Promise<{ defaultConversationCwd?: string; workspacePath?: string }> } } }).vetta?.config?.get
+		) {
+			(window as unknown as { vetta: { config: { get: () => Promise<{ defaultConversationCwd?: string; workspacePath?: string }> } } }).vetta.config.get()
+				.then((cfg) => {
+					if (!cancelled && (cfg?.defaultConversationCwd || cfg?.workspacePath)) {
+						setFallbackDir(cfg.defaultConversationCwd || cfg.workspacePath || null);
+					}
+				})
+				.catch(() => {});
+		}
+		return () => {
+			cancelled = true;
+		};
+	}, [activityTab?.cwd, convo?.cwd]);
+
 	const projectDir = useMemo(() => {
 		if (activityTab?.cwd && activityTab.cwd.trim()) return activityTab.cwd.trim();
 		if (convo?.cwd && convo.cwd.trim()) return convo.cwd.trim();
@@ -36,8 +58,8 @@ export function CanvasPanel() {
 		} catch {
 			// ignore
 		}
-		return null;
-	}, [activityTab?.cwd, convo?.cwd, ctx]);
+		return fallbackDir;
+	}, [activityTab?.cwd, convo?.cwd, ctx, fallbackDir]);
 
 	// useLayoutEffect: install bridge before child App effects call loadCowartCanvasState.
 	useLayoutEffect(() => {

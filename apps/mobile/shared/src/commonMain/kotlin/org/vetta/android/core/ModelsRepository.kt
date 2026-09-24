@@ -32,6 +32,10 @@ class ModelsRepository internal constructor(
         }
     }
 
-    suspend fun generateImage(prompt: String, model: String, groupName: String? = null) =
-        api.generateImage(prompt = prompt, model = model, groupName = groupName)
+    suspend fun generateImage(
+        prompt: String,
+        model: String,
+        groupName: String? = null,
+        referenceImages: List<String> = emptyList(),
+    ) = api.generateImage(prompt = prompt, model = model, groupName = groupName, referenceImages = referenceImages)
 }

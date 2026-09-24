@@ -706,45 +706,48 @@ internal class VettaApi(
         model: String,
         groupName: String? = null,
         size: String = "1024x1024",
+        referenceImages: List<String> = emptyList(),
     ): GeneratedImageResult {
         val apiKey = ensureApiKeyForGroup(groupName)
 
-        // 1. 优先尝试 /v1/images/generations 标准生图端点
-        try {
-            val url = config.gatewayBaseUrl.trimEnd('/') + "/v1/images/generations"
-            val body = buildJsonObject {
-                put("model", model)
-                put("prompt", prompt)
-                put("n", 1)
-                put("size", size)
-            }
-            val secHeaders = org.vetta.android.core.net.SecurityHeaders.generate(
-                deviceId = "mobile-${apiKey.hashCode().toUInt().toString(16)}",
-                extraContext = if (!groupName.isNullOrBlank()) mapOf("X-567-Group" to java.net.URLEncoder.encode(groupName, "UTF-8")) else emptyMap()
-            )
+        // 1. 若无参考图片，优先尝试 /v1/images/generations 标准生图端点
+        if (referenceImages.isEmpty()) {
+            try {
+                val url = config.gatewayBaseUrl.trimEnd('/') + "/v1/images/generations"
+                val body = buildJsonObject {
+                    put("model", model)
+                    put("prompt", prompt)
+                    put("n", 1)
+                    put("size", size)
+                }
+                val secHeaders = org.vetta.android.core.net.SecurityHeaders.generate(
+                    deviceId = "mobile-${apiKey.hashCode().toUInt().toString(16)}",
+                    extraContext = if (!groupName.isNullOrBlank()) mapOf("X-567-Group" to java.net.URLEncoder.encode(groupName, "UTF-8")) else emptyMap()
+                )
 
-            val res = bareClient.post(url) {
-                setBody(body.toString())
-                contentType(ContentType.Application.Json)
-                if (apiKey.isNotBlank()) {
-                    header(HttpHeaders.Authorization, "Bearer $apiKey")
+                val res = bareClient.post(url) {
+                    setBody(body.toString())
+                    contentType(ContentType.Application.Json)
+                    if (apiKey.isNotBlank()) {
+                        header(HttpHeaders.Authorization, "Bearer $apiKey")
+                    }
+                    for ((k, v) in secHeaders) {
+                        header(k, v)
+                    }
                 }
-                for ((k, v) in secHeaders) {
-                    header(k, v)
-                }
-            }
 
-            val text = res.bodyAsTextSafe()
-            if (res.status.isSuccess()) {
-                val extracted = extractImagePayload(text, prompt)
-                if (!extracted.url.isNullOrBlank() || !extracted.b64Json.isNullOrBlank()) {
-                    return extracted
+                val text = res.bodyAsTextSafe()
+                if (res.status.isSuccess()) {
+                    val extracted = extractImagePayload(text, prompt)
+                    if (!extracted.url.isNullOrBlank() || !extracted.b64Json.isNullOrBlank()) {
+                        return extracted
+                    }
                 }
+            } catch (_: Exception) {
             }
-        } catch (_: Exception) {
         }
 
-        // 2. 转调 /v1/chat/completions 渠道
+        // 2. 转调 /v1/chat/completions 渠道（支持单图修改与多图融合改图）
         val chatUrl = config.gatewayBaseUrl.trimEnd('/') + "/v1/chat/completions"
         val chatBody = buildJsonObject {
             put("model", model)
@@ -755,7 +758,32 @@ internal class VettaApi(
                 })
                 add(buildJsonObject {
                     put("role", "user")
-                    put("content", "Please generate an image for:\n$prompt")
+                    if (referenceImages.isEmpty()) {
+                        put("content", "Please generate an image for:\n$prompt")
+                    } else {
+                        put("content", kotlinx.serialization.json.buildJsonArray {
+                            add(buildJsonObject {
+                                put("type", "text")
+                                put("text", "Please generate/edit the image based on the provided reference image(s) and prompt:\n$prompt")
+                            })
+                            for (img in referenceImages) {
+                                val finalUrl = if (img.startsWith("http://") || img.startsWith("https://") || img.startsWith("data:")) {
+                                    img
+                                } else {
+                                    "data:image/png;base64,$img"
+                                }
+                                add(buildJsonObject {
+                                    put("type", "image_url")
+                                    put(
+                                        "image_url",
+                                        buildJsonObject {
+                                            put("url", finalUrl)
+                                        },
+                                    )
+                                })
+                            }
+                        })
+                    }
                 })
             })
             put("stream", false)
@@ -922,13 +950,17 @@ internal class VettaApi(
                             put("type", "function")
                             put("function", buildJsonObject {
                                 put("name", "generate_image")
-                                put("description", "当用户明确要求画图、绘制图片、生成插画或视觉展示时调用该工具。")
+                                put("description", "当用户要求画图、绘制图片、或者基于已有图片进行修改（以图生图、改图、垫图、多图融合创作）时调用该工具。系统具备向视觉模型传入多张参考图的能力。")
                                 put("parameters", buildJsonObject {
                                     put("type", "object")
                                     put("properties", buildJsonObject {
                                         put("prompt", buildJsonObject {
                                             put("type", "string")
-                                            put("description", "画面描述词，包含主体细节、风格、色彩光影与构图。")
+                                            put("description", "画面详细描述词。如果是改图或多图融合，请在提示词中详细说明需要保留什么、替换什么、如何融合各参考图元素以及画风细节。")
+                                        })
+                                        put("action", buildJsonObject {
+                                            put("type", "string")
+                                            put("description", "操作模式：'create' 为从零生成全新图片；'edit' 为在已有单张或多张图片的基础上进行修改或融合。")
                                         })
                                     })
                                     put("required", kotlinx.serialization.json.buildJsonArray {

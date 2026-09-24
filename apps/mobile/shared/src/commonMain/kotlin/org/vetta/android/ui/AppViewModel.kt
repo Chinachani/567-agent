@@ -79,7 +79,7 @@ data class AppUiState(
     val globalError: UiError? = null,
     val authError: UiError? = null,
     val authLoading: Boolean = false,
-    val loginModeEmail: Boolean = true,
+    val loginModeEmail: Boolean = false,
     val catalogLoading: Boolean = false,
     val passwordVisible: Boolean = false,
     val sessionQuery: String = "",
@@ -1338,30 +1338,52 @@ class AppViewModel(
                                         // The tool event is the durable boundary that clears the prompt.
                                         pendingQuestion = null
                                         val isImageGen = event.toolName == "generate_image"
-                                        val displayLabel = if (isImageGen) "正在绘制画面..." else event.phaseLabel
-                                        toolEvents = mergeToolTrace(
-                                            toolEvents,
-                                            ToolTrace(
-                                                phase = event.phase,
-                                                toolCallId = event.toolCallId,
-                                                toolName = event.toolName,
-                                                detail = event.detail,
-                                                durationMs = event.durationMs,
-                                                arguments = event.arguments,
-                                                result = event.result,
-                                                phaseLabel = displayLabel,
-                                            ),
-                                        )
-                                        persistAssistant()
-
                                         if (isImageGen && event.phase == "call") {
-                                            val promptArg = try {
+                                            var promptArg = event.arguments.orEmpty()
+                                            var isEdit = false
+                                            try {
                                                 val argsObj = org.vetta.android.core.net.VettaJson.parseToJsonElement(event.arguments.orEmpty()) as? kotlinx.serialization.json.JsonObject
-                                                (argsObj?.get("prompt") as? kotlinx.serialization.json.JsonPrimitive)?.content ?: event.arguments.orEmpty()
+                                                promptArg = (argsObj?.get("prompt") as? kotlinx.serialization.json.JsonPrimitive)?.content ?: promptArg
+                                                val actionStr = (argsObj?.get("action") as? kotlinx.serialization.json.JsonPrimitive)?.content
+                                                isEdit = actionStr == "edit"
                                             } catch (_: Exception) {
-                                                event.arguments.orEmpty()
                                             }
-                                            val imgModel = _state.value.activeImageModel ?: "flux-schnell"
+
+                                            // 自动溯源上下文历史图片：支持单图修改与多图融合创作
+                                            val allSessionMsgs = container.sessionStore.getMessages(sid)
+                                            val historyImages = allSessionMsgs.flatMap { it.images }.filter { it.base64Data.isNotBlank() }
+                                            val editKeywords = listOf("改", "换", "修改", "替换", "参考", "融合", "结合", "加上", "去掉", "调成", "edit", "modify", "change", "replace", "fuse", "combine")
+                                            val shouldAttachRef = isEdit || (historyImages.isNotEmpty() && editKeywords.any { promptArg.contains(it) })
+                                            val refImages = if (shouldAttachRef) {
+                                                historyImages.takeLast(3).map { it.base64Data }
+                                            } else {
+                                                emptyList()
+                                            }
+
+                                            val displayLabel = if (refImages.size > 1) {
+                                                "正在融合 ${refImages.size} 张参考图重绘..."
+                                            } else if (refImages.isNotEmpty()) {
+                                                "正在基于原图修改画面..."
+                                            } else {
+                                                "正在绘制画面..."
+                                            }
+
+                                            toolEvents = mergeToolTrace(
+                                                toolEvents,
+                                                ToolTrace(
+                                                    phase = event.phase,
+                                                    toolCallId = event.toolCallId,
+                                                    toolName = event.toolName,
+                                                    detail = event.detail,
+                                                    durationMs = event.durationMs,
+                                                    arguments = event.arguments,
+                                                    result = event.result,
+                                                    phaseLabel = displayLabel,
+                                                ),
+                                            )
+                                            persistAssistant()
+
+                                            val imgModel = _state.value.activeImageModel ?: "gemini-3.1-flash-image"
                                             val imgGroup = _state.value.activeImageGroup
                                             viewModelScope.launch {
                                                 try {
@@ -1369,6 +1391,7 @@ class AppViewModel(
                                                         prompt = promptArg,
                                                         model = imgModel,
                                                         groupName = imgGroup,
+                                                        referenceImages = refImages,
                                                     )
                                                     val b64 = res.b64Json
                                                     val url = res.url
@@ -1396,16 +1419,21 @@ class AppViewModel(
                                                         "未检测到图片数据，建议在右下角切换为 DALL-E 3 或 FLUX 等生图模型重试"
                                                     }
 
+                                                    val doneLabel = if (hasValidImage) {
+                                                        if (refImages.size > 1) "多图融合重绘完成" else if (refImages.isNotEmpty()) "基于原图修改完成" else "画面绘制完成"
+                                                    } else {
+                                                        "生图完成"
+                                                    }
                                                     val updatedTools = mergeToolTrace(
                                                         toolEvents,
                                                         ToolTrace(
                                                             phase = "completed",
                                                             toolCallId = event.toolCallId,
                                                             toolName = "generate_image",
-                                                            detail = if (hasValidImage) "画面绘制完成" else resultDesc,
+                                                            detail = if (hasValidImage) doneLabel else resultDesc,
                                                             arguments = promptArg,
                                                             result = resultDesc,
-                                                            phaseLabel = if (hasValidImage) "画面绘制完成" else "生图完成",
+                                                            phaseLabel = doneLabel,
                                                         ),
                                                     )
                                                     toolEvents = updatedTools
