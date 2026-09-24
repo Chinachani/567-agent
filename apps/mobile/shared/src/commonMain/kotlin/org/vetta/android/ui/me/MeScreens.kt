@@ -25,6 +25,9 @@ import androidx.compose.material.icons.filled.Devices
 import androidx.compose.material.icons.filled.DeleteSweep
 import androidx.compose.material.icons.filled.Info
 import androidx.compose.material.icons.filled.Check
+import androidx.compose.material.icons.filled.CheckCircle
+import kotlinx.coroutines.delay
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material3.ExperimentalMaterial3Api
@@ -84,7 +87,7 @@ fun MeScreen(
     onLogin: () -> Unit = {},
     onLogout: (clearLocal: Boolean) -> Unit = {},
     onTopupWithKey: (String, (Boolean, String) -> Unit) -> Unit = { _, _ -> },
-    onCreatePayOrder: (Int, String, (String) -> Unit, (String) -> Unit) -> Unit = { _, _, _, _ -> },
+    onCreatePayOrder: (Int, String, (org.vetta.android.core.PayOrderResult) -> Unit, (String) -> Unit) -> Unit = { _, _, _, _ -> },
 ) {
     var confirmLogout by remember { mutableStateOf(false) }
     var showGroupDialog by remember { mutableStateOf(false) }
@@ -226,6 +229,7 @@ fun MeScreen(
 
     if (showTopupDialog) {
         TopupDialog(
+            user = user,
             onDismiss = { showTopupDialog = false },
             onTopupWithKey = onTopupWithKey,
             onCreatePayOrder = onCreatePayOrder,
@@ -732,9 +736,10 @@ fun GroupSelectionDialog(
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun TopupDialog(
+    user: User?,
     onDismiss: () -> Unit,
     onTopupWithKey: (String, (Boolean, String) -> Unit) -> Unit,
-    onCreatePayOrder: (Int, String, (String) -> Unit, (String) -> Unit) -> Unit,
+    onCreatePayOrder: (Int, String, (org.vetta.android.core.PayOrderResult) -> Unit, (String) -> Unit) -> Unit,
     onRefreshQuota: () -> Unit,
 ) {
     val uriHandler = androidx.compose.ui.platform.LocalUriHandler.current
@@ -747,6 +752,25 @@ fun TopupDialog(
     var message by remember { mutableStateOf<String?>(null) }
     var isError by remember { mutableStateOf(false) }
     var payingNotice by remember { mutableStateOf(false) }
+    var initialQuota by remember { mutableStateOf<Long?>(null) }
+    var paySuccess by remember { mutableStateOf(false) }
+
+    LaunchedEffect(payingNotice) {
+        if (!payingNotice) return@LaunchedEffect
+        while (!paySuccess) {
+            delay(2500)
+            onRefreshQuota()
+        }
+    }
+
+    LaunchedEffect(user?.quota) {
+        val curr = user?.quota
+        if (payingNotice && initialQuota != null && curr != null && curr > initialQuota!!) {
+            paySuccess = true
+            delay(1500)
+            onDismiss()
+        }
+    }
 
     androidx.compose.material3.ModalBottomSheet(
         onDismissRequest = onDismiss,
@@ -770,6 +794,25 @@ fun TopupDialog(
                 }
             }
             Spacer(Modifier.height(12.dp))
+
+            if (paySuccess) {
+                Spacer(Modifier.height(24.dp))
+                Column(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalAlignment = Alignment.CenterHorizontally,
+                ) {
+                    Icon(
+                        Icons.Default.CheckCircle,
+                        contentDescription = "成功",
+                        tint = MaterialTheme.colorScheme.primary,
+                        modifier = Modifier.size(56.dp),
+                    )
+                    Spacer(Modifier.height(12.dp))
+                    Text("充值成功！", style = MaterialTheme.typography.titleMedium.copy(fontWeight = androidx.compose.ui.text.font.FontWeight.Bold))
+                    Text("额度已实时到账并同步", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.vettaExtra.secondaryText)
+                }
+                Spacer(Modifier.height(32.dp))
+            } else 
 
             // Tab 切换
             Row(
@@ -888,10 +931,22 @@ fun TopupDialog(
                         }
                         loading = true
                         message = null
-                        onCreatePayOrder(finalAmt, payMethod, { payUrl ->
+                        initialQuota = user?.quota
+                        onCreatePayOrder(finalAmt, payMethod, { payResult ->
                             loading = false
                             payingNotice = true
-                            runCatching { uriHandler.openUri(payUrl) }
+                            // 优先尝试唤醒原生 App
+                            val launched = if (!payResult.urlScheme.isNullOrBlank()) {
+                                runCatching {
+                                    uriHandler.openUri(payResult.urlScheme)
+                                    true
+                                }.getOrDefault(false)
+                            } else false
+
+                            if (!launched) {
+                                // 兜底调起收银台网页（拉卡拉页面具备跳转微信与支付宝能力）
+                                runCatching { uriHandler.openUri(payResult.payUrl) }
+                            }
                         }, { err ->
                             loading = false
                             message = err

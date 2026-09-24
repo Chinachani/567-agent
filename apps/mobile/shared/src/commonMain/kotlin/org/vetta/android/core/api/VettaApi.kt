@@ -301,7 +301,7 @@ internal class VettaApi(
         return message ?: "兑换成功！额度已到账"
     }
 
-    suspend fun createPayOrder(amount: Int, paymentMethod: String): String {
+    suspend fun createPayOrder(amount: Int, paymentMethod: String): org.vetta.android.core.PayOrderResult {
         val url = "${config.apiBaseUrl.trimEnd('/')}/api/user/pay"
         val response = executeWithAuthRefresh { token ->
             bareClient.post(url) {
@@ -329,7 +329,35 @@ internal class VettaApi(
             val vStr = (v as? kotlinx.serialization.json.JsonPrimitive)?.content ?: v.toString()
             "${k}=${java.net.URLEncoder.encode(vStr, "UTF-8")}"
         }
-        return "$submitUrl?$query"
+        val payUrl = "$submitUrl?$query"
+
+        var codeUrl: String? = null
+        var urlScheme: String? = null
+        runCatching {
+            val page1Res = bareClient.get(payUrl)
+            val page1Text = page1Res.bodyAsTextSafe()
+            val repMatch = Regex("""window\.location\.replace\(['"]([^'"]+)['"]\)""").find(page1Text)?.groupValues?.getOrNull(1)
+            var targetHtml = page1Text
+            if (repMatch != null) {
+                val nextUrl = if (repMatch.startsWith("http")) repMatch else {
+                    val base = payUrl.substringBefore("?").substringBeforeLast("/")
+                    "${base.trimEnd('/')}/${repMatch.trimStart('/')}"
+                }
+                val page2Res = bareClient.get(nextUrl)
+                targetHtml = page2Res.bodyAsTextSafe()
+            }
+            val match = Regex("""(?:var|let|const)?\s*code_url\s*=\s*['"]([^'"]+)['"]""").find(targetHtml)?.groupValues?.getOrNull(1)
+            if (!match.isNullOrBlank()) {
+                codeUrl = match.trim()
+                if (paymentMethod == "alipay") {
+                    urlScheme = "alipays://platformapi/startapp?appId=20000067&url=" + java.net.URLEncoder.encode(codeUrl, "UTF-8")
+                } else if (paymentMethod == "wxpay") {
+                    urlScheme = codeUrl
+                }
+            }
+        }
+
+        return org.vetta.android.core.PayOrderResult(payUrl = payUrl, codeUrl = codeUrl, urlScheme = urlScheme)
     }
 
     suspend fun me(): User =

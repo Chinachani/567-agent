@@ -986,15 +986,15 @@ class AppViewModel(
     fun createPayOrder(
         amount: Int,
         method: String,
-        onUrlReady: (String) -> Unit,
+        onUrlReady: (org.vetta.android.core.PayOrderResult) -> Unit,
         onError: (String) -> Unit,
     ) {
         viewModelScope.launch {
             _state.update { it.copy(topupLoading = true, topupMessage = null) }
             try {
-                val payUrl = container.client.subscription.createPayOrder(amount, method)
+                val payResult = container.client.subscription.createPayOrder(amount, method)
                 _state.update { it.copy(topupLoading = false) }
-                onUrlReady(payUrl)
+                onUrlReady(payResult)
             } catch (t: Throwable) {
                 val err = t.message ?: "创建支付订单失败"
                 _state.update { it.copy(topupLoading = false, topupMessage = err) }
