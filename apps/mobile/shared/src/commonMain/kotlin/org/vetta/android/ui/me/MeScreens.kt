@@ -862,10 +862,18 @@ fun TopupDialog(
                 if (payingNotice) {
                     Spacer(Modifier.height(12.dp))
                     Text(
-                        "已调起外部支付收银台，支付成功后请刷新余额查看最新到账额度",
+                        "已调起外部支付收银台，支付成功后可点击下方按钮刷新余额",
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.primary,
                     )
+                    Spacer(Modifier.height(8.dp))
+                    androidx.compose.material3.OutlinedButton(
+                        onClick = { onRefreshQuota() },
+                        modifier = Modifier.fillMaxWidth(),
+                        shape = androidx.compose.foundation.shape.RoundedCornerShape(8.dp),
+                    ) {
+                        Text("已完成支付，刷新余额", style = MaterialTheme.typography.labelMedium)
+                    }
                 }
 
                 Spacer(Modifier.height(20.dp))

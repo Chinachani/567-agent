@@ -18,7 +18,9 @@ export function Api567Button(): JSX.Element | null {
 		setActiveGroup,
 		refreshQuota,
 		logout,
+		setTopupModalOpen,
 	} = useApi567();
+	const [popoverOpen, setPopoverOpen] = useState(false);
 	const [refreshing, setRefreshing] = useState(false);
 	const [syncingGroup, setSyncingGroup] = useState<string | null>(null);
 
@@ -56,7 +58,7 @@ export function Api567Button(): JSX.Element | null {
 	const availableEntries = Object.entries(availableGroups);
 
 	return (
-		<Popover>
+		<Popover open={popoverOpen} onOpenChange={setPopoverOpen}>
 			<PopoverTrigger asChild>
 				<Button
 					variant="ghost"
@@ -220,10 +222,16 @@ export function Api567Button(): JSX.Element | null {
 						variant="outline"
 						size="sm"
 						className="h-7 w-full justify-between text-xs"
-						onClick={() => openExternal("https://api.567.wiki/console/topup")}
+						onClick={() => {
+							setPopoverOpen(false);
+							setTopupModalOpen(true);
+						}}
 					>
-						<span>额度充值</span>
-						<ExternalLink className="h-3 w-3 text-muted-foreground" />
+						<span className="flex items-center gap-1.5 font-medium text-foreground">
+							<Wallet className="h-3.5 w-3.5 text-primary" />
+							<span>账户额度充值</span>
+						</span>
+						<ChevronRight className="h-3 w-3 text-muted-foreground" />
 					</Button>
 					<Button
 						variant="outline"

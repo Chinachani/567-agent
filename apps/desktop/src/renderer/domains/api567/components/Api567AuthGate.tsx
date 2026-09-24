@@ -1,6 +1,7 @@
 import type React from "react";
 import { useApi567 } from "../hooks/useApi567";
 import { Api567LoginPage } from "./Api567LoginPage";
+import { Api567TopupModal } from "./Api567TopupModal";
 
 export function Api567AuthGate({ children }: { children: React.ReactNode }): JSX.Element {
 	const { status, initialCheckDone } = useApi567();
@@ -28,5 +29,10 @@ export function Api567AuthGate({ children }: { children: React.ReactNode }): JSX
 	}
 
 	// 登录成功后，正常渲染主工作区
-	return <>{children}</>;
+	return (
+		<>
+			{children}
+			<Api567TopupModal />
+		</>
+	);
 }

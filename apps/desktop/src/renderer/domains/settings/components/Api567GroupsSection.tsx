@@ -1,4 +1,3 @@
-import { Api567TopupModal } from "../../api567/components/Api567TopupModal";
 import type { ModelsConfigData } from "@preload/api.js";
 import { Button } from "@shared/components/ui/button";
 import { ProviderIcon } from "@vetta-org/theme-ui/shared";
@@ -15,6 +14,7 @@ import {
 	RefreshCw,
 	Star,
 	Trash2,
+	Wallet,
 } from "lucide-react";
 import { useState } from "react";
 import { useTranslation } from "react-i18next";
@@ -145,10 +145,10 @@ export function Api567GroupsSection({
 									variant="outline"
 									size="sm"
 									onClick={() => setTopupModalOpen(true)}
-									className="h-7 gap-1 px-2.5 text-xs"
+									className="h-7 gap-1.5 px-2.5 text-xs"
 								>
+									<Wallet className="h-3.5 w-3.5 text-primary" />
 									<span>充值额度</span>
-									<ExternalLink className="h-3 w-3 text-muted-foreground" />
 								</Button>
 							</>
 						) : (
@@ -414,7 +414,6 @@ export function Api567GroupsSection({
 				</div>
 			)}
 		</SettingSection>
-			<Api567TopupModal />
 		</>
 	);
 }
