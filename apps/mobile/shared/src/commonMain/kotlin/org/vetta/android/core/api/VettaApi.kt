@@ -710,9 +710,9 @@ internal class VettaApi(
     ): GeneratedImageResult {
         val apiKey = ensureApiKeyForGroup(groupName)
 
-        // 1. 若无参考图片，优先尝试 /v1/images/generations 标准生图端点
-        if (referenceImages.isEmpty()) {
-            try {
+        // 辅助方法：调用 /v1/images/generations 标准生图端点
+        suspend fun tryImagesGenerations(): GeneratedImageResult? {
+            return try {
                 val url = config.gatewayBaseUrl.trimEnd('/') + "/v1/images/generations"
                 val body = buildJsonObject {
                     put("model", model)
@@ -740,76 +740,112 @@ internal class VettaApi(
                 if (res.status.isSuccess()) {
                     val extracted = extractImagePayload(text, prompt)
                     if (!extracted.url.isNullOrBlank() || !extracted.b64Json.isNullOrBlank()) {
-                        return extracted
-                    }
-                }
+                        extracted
+                    } else null
+                } else null
             } catch (_: Exception) {
+                null
             }
         }
 
-        // 2. 转调 /v1/chat/completions 渠道（支持单图修改与多图融合改图）
-        val chatUrl = config.gatewayBaseUrl.trimEnd('/') + "/v1/chat/completions"
-        val chatBody = buildJsonObject {
-            put("model", model)
-            put("messages", kotlinx.serialization.json.buildJsonArray {
-                add(buildJsonObject {
-                    put("role", "system")
-                    put("content", "You are an AI image generator. Please generate and output the image directly or provide the image URL.")
-                })
-                add(buildJsonObject {
-                    put("role", "user")
-                    if (referenceImages.isEmpty()) {
-                        put("content", "Please generate an image for:\n$prompt")
-                    } else {
-                        put("content", kotlinx.serialization.json.buildJsonArray {
-                            add(buildJsonObject {
-                                put("type", "text")
-                                put("text", "Please generate/edit the image based on the provided reference image(s) and prompt:\n$prompt")
-                            })
-                            for (img in referenceImages) {
-                                val finalUrl = if (img.startsWith("http://") || img.startsWith("https://") || img.startsWith("data:")) {
-                                    img
-                                } else {
-                                    "data:image/png;base64,$img"
-                                }
+        // 辅助方法：调用 /v1/chat/completions 多模态生图/改图
+        suspend fun tryChatCompletions(): GeneratedImageResult {
+            val chatUrl = config.gatewayBaseUrl.trimEnd('/') + "/v1/chat/completions"
+            val chatBody = buildJsonObject {
+                put("model", model)
+                put("messages", kotlinx.serialization.json.buildJsonArray {
+                    add(buildJsonObject {
+                        put("role", "system")
+                        put("content", "You are an AI image generator. Please generate and output the image directly or provide the image URL.")
+                    })
+                    add(buildJsonObject {
+                        put("role", "user")
+                        if (referenceImages.isEmpty()) {
+                            put("content", "Please generate an image for:\n$prompt")
+                        } else {
+                            put("content", kotlinx.serialization.json.buildJsonArray {
                                 add(buildJsonObject {
-                                    put("type", "image_url")
-                                    put(
-                                        "image_url",
-                                        buildJsonObject {
-                                            put("url", finalUrl)
-                                        },
-                                    )
+                                    put("type", "text")
+                                    put("text", "Please generate/edit the image based on the provided reference image(s) and prompt:\n$prompt")
                                 })
-                            }
-                        })
-                    }
+                                for (img in referenceImages) {
+                                    val finalUrl = if (img.startsWith("http://") || img.startsWith("https://") || img.startsWith("data:")) {
+                                        img
+                                    } else {
+                                        "data:image/png;base64,$img"
+                                    }
+                                    add(buildJsonObject {
+                                        put("type", "image_url")
+                                        put(
+                                            "image_url",
+                                            buildJsonObject {
+                                                put("url", finalUrl)
+                                            },
+                                        )
+                                    })
+                                }
+                            })
+                        }
+                    })
                 })
-            })
-            put("stream", false)
-        }
-        val secHeaders = org.vetta.android.core.net.SecurityHeaders.generate(
-            deviceId = "mobile-${apiKey.hashCode().toUInt().toString(16)}",
-            extraContext = if (!groupName.isNullOrBlank()) mapOf("X-567-Group" to java.net.URLEncoder.encode(groupName, "UTF-8")) else emptyMap()
-        )
-
-        val chatRes = bareClient.post(chatUrl) {
-            setBody(chatBody.toString())
-            contentType(ContentType.Application.Json)
-            if (apiKey.isNotBlank()) {
-                header(HttpHeaders.Authorization, "Bearer $apiKey")
+                put("stream", false)
             }
-            for ((k, v) in secHeaders) {
-                header(k, v)
+            val secHeaders = org.vetta.android.core.net.SecurityHeaders.generate(
+                deviceId = "mobile-${apiKey.hashCode().toUInt().toString(16)}",
+                extraContext = if (!groupName.isNullOrBlank()) mapOf("X-567-Group" to java.net.URLEncoder.encode(groupName, "UTF-8")) else emptyMap()
+            )
+
+            val chatRes = bareClient.post(chatUrl) {
+                setBody(chatBody.toString())
+                contentType(ContentType.Application.Json)
+                if (apiKey.isNotBlank()) {
+                    header(HttpHeaders.Authorization, "Bearer $apiKey")
+                }
+                for ((k, v) in secHeaders) {
+                    header(k, v)
+                }
+            }
+
+            val chatText = chatRes.bodyAsTextSafe()
+            if (!chatRes.status.isSuccess()) {
+                throw parseFailure(chatRes.status.value, chatText)
+            }
+
+            return extractImagePayload(chatText, prompt)
+        }
+
+        // 智能双通道路由与容错兜底：
+        // 1. 若模型名称明确包含 "gemini"（多模态视觉模型），优先走 chat/completions；若失败提示用 images/generations 则回退
+        // 2. 其余专用生图模型（如 agnes-image-*，dall-e-*，flux-*）优先走 images/generations；若失败且有参考图则尝试 chat/completions
+        val isExplicitChatVisionModel = model.contains("gemini", ignoreCase = true)
+
+        if (isExplicitChatVisionModel) {
+            try {
+                return tryChatCompletions()
+            } catch (e: Exception) {
+                val msg = e.message.orEmpty()
+                if (msg.contains("images/generations", ignoreCase = true) || msg.contains("image model", ignoreCase = true)) {
+                    val fallback = tryImagesGenerations()
+                    if (fallback != null) return fallback
+                }
+                throw e
+            }
+        } else {
+            val genResult = tryImagesGenerations()
+            if (genResult != null) return genResult
+
+            // 若 images/generations 无法处理，回退到 chat/completions
+            try {
+                return tryChatCompletions()
+            } catch (e: Exception) {
+                val msg = e.message.orEmpty()
+                if (msg.contains("images/generations", ignoreCase = true) || msg.contains("image model", ignoreCase = true)) {
+                    val fallback = tryImagesGenerations()
+                    if (fallback != null) return fallback
+                }
+                throw e
             }
         }
-
-        val chatText = chatRes.bodyAsTextSafe()
-        if (!chatRes.status.isSuccess()) {
-            throw parseFailure(chatRes.status.value, chatText)
-        }
-
-        return extractImagePayload(chatText, prompt)
     }
 
     private fun extractImagePayload(jsonText: String, prompt: String): GeneratedImageResult {
