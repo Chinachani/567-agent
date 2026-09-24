@@ -30,6 +30,13 @@ export function create567ApiImageProvider(
 		get descriptor(): MediaProviderDescriptor {
 			const service = NewApiService.getInstance();
 			const imageModels = service.getAvailableImageModels();
+			const configuredModel = service.getImageModel();
+			const defaultModelId =
+				imageModels.length > 0
+					? configuredModel && imageModels.some((m) => m.id === configuredModel)
+						? configuredModel
+						: imageModels[0].id
+					: undefined;
 			return {
 				id: providerId,
 				displayName: "567 API",
@@ -41,15 +48,16 @@ export function create567ApiImageProvider(
 						kind: "image",
 						modes: ["text-to-image", "image-to-image"],
 						aspectRatios: ["1:1", "16:9", "9:16", "4:3", "3:4"],
-						defaultModelId: service.getImageModel(),
-						models:
-							imageModels.length > 0
-								? imageModels.map((m) => ({
+						...(defaultModelId ? { defaultModelId } : {}),
+						...(imageModels.length > 0
+							? {
+									models: imageModels.map((m) => ({
 										id: m.id,
 										displayName: m.displayName,
 										modes: m.modes,
-									}))
-								: undefined,
+									})),
+								}
+							: {}),
 					},
 				],
 			};
