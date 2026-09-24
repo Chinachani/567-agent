@@ -50,7 +50,7 @@ export interface Api567Api {
 	createPayOrder(
 		amount: number,
 		paymentMethod: "alipay" | "wxpay",
-	): Promise<{ success: boolean; payUrl?: string; message?: string }>;
+	): Promise<{ success: boolean; payUrl?: string; qrCode?: string; message?: string }>;
 	bindToken(token: string): Promise<{ success: boolean; message?: string }>;
 	refreshQuota(force?: boolean): Promise<{ success: boolean; quota?: number; quotaUsd?: number }>;
 	refreshGroups(): Promise<{ success: boolean }>;

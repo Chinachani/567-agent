@@ -510,10 +510,83 @@ export class NewApiService {
 	/**
 	 * 易支付在线充值创建订单
 	 */
+	/**
+	 * 从收银台页面提取二维码链接或图片
+	 */
+	public async extractQrCode(payUrl: string): Promise<string | undefined> {
+		try {
+			log.info("Attempting to extract QR code from payUrl in background...");
+			const res = await fetch(payUrl, {
+				headers: {
+					"User-Agent":
+						"Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
+				},
+				redirect: "follow",
+			});
+			const text = await res.text();
+
+			// 检查是否是重定向中转页面（如 window.location.replace('/pay/alipay/...')）
+			const replaceMatch =
+				text.match(/window\.location\.replace\(['"]([^'"]+)['"]\)/i) ||
+				text.match(/window\.location\.href\s*=\s*['"]([^'"]+)['"]/i);
+			let finalHtml = text;
+			const targetUrl = res.url || payUrl;
+			if (replaceMatch?.[1]) {
+				const nextUrl = new URL(replaceMatch[1], targetUrl).href;
+				const nextRes = await fetch(nextUrl, {
+					headers: {
+						"User-Agent":
+							"Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
+					},
+					redirect: "follow",
+				});
+				finalHtml = await nextRes.text();
+			}
+
+			// 1. 匹配 code_url 变量：如 var code_url = 'https://q.lakala.com/r/0000?...'
+			const codeUrlMatch = finalHtml.match(/(?:var|let|const)?\s*code_url\s*=\s*['"]([^'"]+)['"]/i);
+			if (codeUrlMatch?.[1]) {
+				log.info("Successfully extracted code_url from pay page");
+				return codeUrlMatch[1].trim();
+			}
+
+			// 2. 匹配 url_scheme 或 pay_url
+			const schemeMatch = finalHtml.match(
+				/(?:var|let|const)?\s*(?:url_scheme|pay_url|qrcode_url)\s*=\s*['"]([^'"]+)['"]/i,
+			);
+			if (schemeMatch?.[1] && !schemeMatch[1].startsWith("javascript:")) {
+				log.info("Successfully extracted url_scheme from pay page");
+				return schemeMatch[1].trim();
+			}
+
+			// 3. 匹配 base64 图片二维码
+			const base64Match = finalHtml.match(/src=['"](data:image\/[a-zA-Z]+;base64,[A-Za-z0-9+/=]+)['"]/i);
+			if (base64Match?.[1]) {
+				log.info("Successfully extracted base64 qr image from pay page");
+				return base64Match[1].trim();
+			}
+
+			// 4. 匹配二维码 img 标签
+			const imgMatch =
+				finalHtml.match(/<img[^>]+id=['"]qrcode['"][^>]+src=['"]([^'"]+)['"]/i) ||
+				finalHtml.match(/<img[^>]+src=['"]([^'"]*qrcode[^'"]*)['"]/i);
+			if (imgMatch?.[1]) {
+				log.info("Successfully extracted img qr url from pay page");
+				return new URL(imgMatch[1], targetUrl).href;
+			}
+		} catch (err) {
+			log.warn("Failed to extract qr code from pay url:", err);
+		}
+		return undefined;
+	}
+
+	/**
+	 * 易支付在线充值创建订单
+	 */
 	public async createPayOrder(
 		amount: number,
 		paymentMethod: "alipay" | "wxpay",
-	): Promise<{ success: boolean; payUrl?: string; message?: string }> {
+	): Promise<{ success: boolean; payUrl?: string; qrCode?: string; message?: string }> {
 		if (amount < 1) {
 			return { success: false, message: "充值金额不能少于 1 元" };
 		}
@@ -540,7 +613,8 @@ export class NewApiService {
 					params.set(k, String(v));
 				}
 				const payUrl = `${res.data.url}?${params.toString()}`;
-				return { success: true, payUrl };
+				const qrCode = await this.extractQrCode(payUrl);
+				return { success: true, payUrl, qrCode };
 			}
 			return {
 				success: false,

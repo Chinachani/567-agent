@@ -311,25 +311,32 @@ export function useApi567() {
 	}, [setStatus]);
 
 	const refreshQuota = useCallback(
-		async (force = false) => {
+		async (force = false, silent = false): Promise<{ success: boolean; quota?: number; quotaUsd?: number }> => {
 			try {
 				const res = await window.vetta.api567.refreshQuota(force);
 				if (res.success) {
-					showToast({
-						variant: "success",
-						title: "余额刷新成功",
-						message: `当前可用额度: $${res.quotaUsd !== undefined ? res.quotaUsd.toFixed(2) : "0.00"}`,
-					});
+					if (!silent) {
+						showToast({
+							variant: "success",
+							title: "余额刷新成功",
+							message: `当前可用额度: $${res.quotaUsd !== undefined ? res.quotaUsd.toFixed(2) : "0.00"}`,
+						});
+					}
 					const latest = await window.vetta.api567.getStatus();
 					setStatus(latest);
+					return res;
 				} else {
-					showToast({
-						variant: "warning",
-						message: "刷新余额失败，请稍后重试",
-					});
+					if (!silent) {
+						showToast({
+							variant: "warning",
+							message: "刷新余额失败，请稍后重试",
+						});
+					}
+					return res;
 				}
 			} catch (err) {
 				console.error("Failed to refresh quota:", err);
+				return { success: false };
 			}
 		},
 		[setStatus],
