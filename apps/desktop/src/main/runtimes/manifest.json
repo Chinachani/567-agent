@@ -18,7 +18,7 @@
 		"version": "3.13.12",
 		"release": "20260203",
 		"sources": [
-			"https://ghproxy.net/https://github.com/astral-sh/python-build-standalone/releases/download/{release}/{filename}",
+			"https://v6.gh-proxy.org/https://github.com/astral-sh/python-build-standalone/releases/download/{release}/{filename}",
 			"https://github.com/astral-sh/python-build-standalone/releases/download/{release}/{filename}"
 		],
 		"platforms": {

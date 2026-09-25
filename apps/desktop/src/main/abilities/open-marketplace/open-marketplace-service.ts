@@ -669,7 +669,7 @@ export class OpenMarketplaceService {
 				});
 			} catch (err) {
 				if (!token && directUrl.startsWith("https://github.com/")) {
-					response = await this.fetchArchive(`https://ghproxy.net/${directUrl}`, {
+					response = await this.fetchArchive(`https://v6.gh-proxy.org/${directUrl}`, {
 						headers: githubHeaders("application/zip"),
 						redirect: "follow",
 						signal: controller.signal,

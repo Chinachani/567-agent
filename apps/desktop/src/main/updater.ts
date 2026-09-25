@@ -73,7 +73,7 @@ function configureUpdateDownloadProxy(): void {
 				urls: ["https://github.com/Chinachani/567-agent/releases/download/*"],
 			};
 			session.defaultSession.webRequest.onBeforeRequest(filter, (details, callback) => {
-				const proxyUrl = `https://ghproxy.net/${details.url}`;
+				const proxyUrl = `https://v6.gh-proxy.org/${details.url}`;
 				console.info(`[updater] routing update asset download via accelerator proxy: ${proxyUrl}`);
 				callback({ redirectURL: proxyUrl });
 			});

@@ -1131,7 +1131,7 @@ internal class VettaApi(
             val cleanTag = tagName.removePrefix("v").trim()
             val current = "1.1.2"
             val hasUpdate = isNewerVersion(cleanTag, current)
-            val fastUrl = if (!apkUrl.isNullOrBlank()) "https://ghproxy.net/$apkUrl" else null
+            val fastUrl = if (!apkUrl.isNullOrBlank()) "https://v6.gh-proxy.org/$apkUrl" else null
             AppUpdateCheckResult(
                 hasUpdate = hasUpdate,
                 latestVersion = tagName.ifBlank { "v$current" },
