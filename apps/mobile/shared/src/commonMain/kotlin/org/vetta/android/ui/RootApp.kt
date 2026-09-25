@@ -335,7 +335,7 @@ fun RootApp(
                     onConfirmBeforeDelete = vm::setConfirmBeforeDelete,
                 )
             AppRoute.About ->
-                AboutScreen(onBack = vm::navigateBackFromSecondary)
+                AboutScreen(onBack = vm::navigateBackFromSecondary, onCheckUpdate = vm::checkAppUpdate)
             }
             }
             val pending = state.pendingQuestion

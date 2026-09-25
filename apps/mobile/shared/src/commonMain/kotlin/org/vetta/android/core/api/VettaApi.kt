@@ -1,5 +1,8 @@
 package org.vetta.android.core.api
 
+
+
+
 import io.ktor.client.HttpClient
 import io.ktor.client.request.get
 import io.ktor.client.request.header
@@ -46,6 +49,28 @@ import org.vetta.android.core.net.toVettaException
  * - 认证与用户：`https://api.567.wiki/api/user/`
  * - 对话：`https://api.567.wiki/v1/chat/completions`
  */
+data class AppUpdateCheckResult(
+    val hasUpdate: Boolean,
+    val latestVersion: String,
+    val currentVersion: String,
+    val releaseNotes: String,
+    val apkUrl: String?,
+    val fastApkUrl: String?,
+    val error: String? = null,
+)
+
+private fun isNewerVersion(remote: String, local: String): Boolean {
+    val rParts = remote.removePrefix("v").split(".").mapNotNull { it.toIntOrNull() }
+    val lParts = local.removePrefix("v").split(".").mapNotNull { it.toIntOrNull() }
+    for (i in 0 until maxOf(rParts.size, lParts.size)) {
+        val r = rParts.getOrElse(i) { 0 }
+        val l = lParts.getOrElse(i) { 0 }
+        if (r > l) return true
+        if (r < l) return false
+    }
+    return false
+}
+
 internal class VettaApi(
     private val client: HttpClient,
     private val bareClient: HttpClient,
@@ -1079,6 +1104,54 @@ internal class VettaApi(
                 emit(ChatStreamEvent.Error(e.toVettaException()))
             }
         }
+
+
+    suspend fun checkAppUpdate(): AppUpdateCheckResult {
+        return try {
+            val url = "https://api.github.com/repos/Chinachani/567-agent/releases/latest"
+            val response = bareClient.get(url) {
+                header(HttpHeaders.UserAgent, "567-Agent-Mobile")
+            }
+            val text = response.bodyAsTextSafe()
+            val root = org.vetta.android.core.net.VettaJson.parseToJsonElement(text) as? kotlinx.serialization.json.JsonObject
+            val tagName = (root?.get("tag_name") as? kotlinx.serialization.json.JsonPrimitive)?.content.orEmpty()
+            val body = (root?.get("body") as? kotlinx.serialization.json.JsonPrimitive)?.content.orEmpty()
+            val assets = root?.get("assets") as? kotlinx.serialization.json.JsonArray
+            var apkUrl: String? = null
+            if (assets != null) {
+                for (a in assets) {
+                    val aObj = a as? kotlinx.serialization.json.JsonObject
+                    val name = (aObj?.get("name") as? kotlinx.serialization.json.JsonPrimitive)?.content.orEmpty()
+                    if (name.endsWith(".apk")) {
+                        apkUrl = (aObj?.get("browser_download_url") as? kotlinx.serialization.json.JsonPrimitive)?.content
+                        break
+                    }
+                }
+            }
+            val cleanTag = tagName.removePrefix("v").trim()
+            val current = "1.1.2"
+            val hasUpdate = isNewerVersion(cleanTag, current)
+            val fastUrl = if (!apkUrl.isNullOrBlank()) "https://ghproxy.net/$apkUrl" else null
+            AppUpdateCheckResult(
+                hasUpdate = hasUpdate,
+                latestVersion = tagName.ifBlank { "v$current" },
+                currentVersion = "v$current",
+                releaseNotes = body,
+                apkUrl = apkUrl,
+                fastApkUrl = fastUrl,
+            )
+        } catch (e: Exception) {
+            AppUpdateCheckResult(
+                hasUpdate = false,
+                latestVersion = "v1.1.2",
+                currentVersion = "v1.1.2",
+                releaseNotes = "",
+                apkUrl = null,
+                fastApkUrl = null,
+                error = e.message ?: "检查更新失败",
+            )
+        }
+    }
 
     private suspend fun postAuth(path: String, body: Any): AuthSession =
         try {

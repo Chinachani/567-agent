@@ -408,6 +408,28 @@ class AppViewModel(
 
     fun openSettings() = navigate(AppRoute.Settings)
 
+
+    fun checkAppUpdate(onResult: (org.vetta.android.core.api.AppUpdateCheckResult) -> Unit) {
+        viewModelScope.launch {
+            try {
+                val res = container.client.models.checkAppUpdate()
+                onResult(res)
+            } catch (t: Throwable) {
+                onResult(
+                    org.vetta.android.core.api.AppUpdateCheckResult(
+                        hasUpdate = false,
+                        latestVersion = "v1.1.2",
+                        currentVersion = "v1.1.2",
+                        releaseNotes = "",
+                        apkUrl = null,
+                        fastApkUrl = null,
+                        error = t.message,
+                    )
+                )
+            }
+        }
+    }
+
     fun openAbout() = navigate(AppRoute.About)
 
     /** 登录后继续用户刚刚发起的高意图操作，避免登录成功后把用户丢回首页。 */

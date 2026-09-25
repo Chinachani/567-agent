@@ -33,6 +33,7 @@ import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
+import androidx.compose.material3.TextButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
@@ -607,7 +608,14 @@ private fun PreferenceSwitchRow(
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun AboutScreen(onBack: () -> Unit) {
+fun AboutScreen(
+    onBack: () -> Unit,
+    onCheckUpdate: ((org.vetta.android.core.api.AppUpdateCheckResult) -> Unit) -> Unit = {},
+) {
+    val uriHandler = androidx.compose.ui.platform.LocalUriHandler.current
+    var checkingUpdate by remember { mutableStateOf(false) }
+    var updateResult by remember { mutableStateOf<org.vetta.android.core.api.AppUpdateCheckResult?>(null) }
+    var showNoUpdateNotice by remember { mutableStateOf(false) }
     var openDocument by remember { mutableStateOf<AboutDocument?>(null) }
     Scaffold(
         containerColor = MaterialTheme.vettaExtra.pageBackground,
@@ -641,6 +649,24 @@ fun AboutScreen(onBack: () -> Unit) {
             Spacer(Modifier.height(28.dp))
             VettaListGroup {
                 ProfileRow(
+                    Icons.Default.Refresh,
+                    "检查新版本",
+                    if (checkingUpdate) "正在检测更新..." else "当前版本 v1.1.2",
+                    onClick = {
+                        if (checkingUpdate) return@ProfileRow
+                        checkingUpdate = true
+                        onCheckUpdate { result ->
+                            checkingUpdate = false
+                            if (result.hasUpdate) {
+                                updateResult = result
+                            } else {
+                                showNoUpdateNotice = true
+                            }
+                        }
+                    },
+                    showDivider = true,
+                )
+                ProfileRow(
                     Icons.Default.Info,
                     Str.openSourceLicenses,
                     null,
@@ -665,6 +691,61 @@ fun AboutScreen(onBack: () -> Unit) {
             title = title,
             message = body,
             onDismiss = { openDocument = null },
+        )
+    }
+
+    updateResult?.let { update ->
+        androidx.compose.material3.AlertDialog(
+            onDismissRequest = { updateResult = null },
+            title = {
+                Text("发现新版本 ${update.latestVersion}", style = MaterialTheme.typography.titleLarge)
+            },
+            text = {
+                Column(Modifier.verticalScroll(rememberScrollState())) {
+                    Text(
+                        if (update.releaseNotes.isNotBlank()) update.releaseNotes else "有全新版本可供升级，建议更新以获得最佳使用体验。",
+                        style = MaterialTheme.typography.bodyMedium,
+                    )
+                }
+            },
+            confirmButton = {
+                androidx.compose.material3.FilledTonalButton(
+                    onClick = {
+                        val targetUrl = update.fastApkUrl ?: update.apkUrl
+                        if (!targetUrl.isNullOrBlank()) {
+                            runCatching { uriHandler.openUri(targetUrl) }
+                        }
+                        updateResult = null
+                    },
+                ) {
+                    Text("极速下载 (加速代理)")
+                }
+            },
+            dismissButton = {
+                Row {
+                    if (!update.apkUrl.isNullOrBlank()) {
+                        TextButton(
+                            onClick = {
+                                runCatching { uriHandler.openUri(update.apkUrl) }
+                                updateResult = null
+                            },
+                        ) {
+                            Text("GitHub直链")
+                        }
+                    }
+                    TextButton(onClick = { updateResult = null }) {
+                        Text("稍后")
+                    }
+                }
+            },
+        )
+    }
+
+    if (showNoUpdateNotice) {
+        VettaInfoDialog(
+            title = "检查更新",
+            message = "当前已是最新版本 (v1.1.2)，暂无可用更新。",
+            onDismiss = { showNoUpdateNotice = false },
         )
     }
 }

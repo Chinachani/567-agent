@@ -38,4 +38,5 @@ class ModelsRepository internal constructor(
         groupName: String? = null,
         referenceImages: List<String> = emptyList(),
     ) = api.generateImage(prompt = prompt, model = model, groupName = groupName, referenceImages = referenceImages)
+    suspend fun checkAppUpdate() = api.checkAppUpdate()
 }

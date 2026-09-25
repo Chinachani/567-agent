@@ -4,7 +4,7 @@ import { homedir } from "node:os";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { getVettaHomePath } from "@vetta/action-rpc";
-import { app, autoUpdater as nativeAutoUpdater, powerMonitor } from "electron";
+import { app, autoUpdater as nativeAutoUpdater, powerMonitor, session } from "electron";
 import electronUpdater from "electron-updater";
 
 import { mainT } from "./i18n/index.js";
@@ -65,6 +65,25 @@ function configureE2eUpdateFeed(): void {
 	}
 }
 
+function configureUpdateDownloadProxy(): void {
+	if (!app.isPackaged) return;
+	app.whenReady().then(() => {
+		try {
+			const filter = {
+				urls: ["https://github.com/Chinachani/567-agent/releases/download/*"],
+			};
+			session.defaultSession.webRequest.onBeforeRequest(filter, (details, callback) => {
+				const proxyUrl = `https://ghproxy.net/${details.url}`;
+				console.info(`[updater] routing update asset download via accelerator proxy: ${proxyUrl}`);
+				callback({ redirectURL: proxyUrl });
+			});
+		} catch (err) {
+			console.warn("[updater] failed to attach download accelerator proxy", err);
+		}
+	});
+}
+
+configureUpdateDownloadProxy();
 configureE2eUpdateFeed();
 const currentVersion = getAppVersion();
 const innoWindowsUpdate =
