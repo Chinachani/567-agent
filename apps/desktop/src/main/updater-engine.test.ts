@@ -9,6 +9,18 @@ import { ElectronUpdaterEngine, type NativeMacUpdateEvents } from "./updater-eng
 
 const temporaryRoots: string[] = [];
 
+import { htmlToMarkdown } from "./updater-engine.js";
+
+describe("htmlToMarkdown release notes conversion", () => {
+	it("converts html headings, paragraphs, lists and formatting to markdown", () => {
+		const html = "<h1>Title</h1><p>Date</p><h2>Section</h2><ul><li><strong>Item 1</strong>: text</li></ul>";
+		const md = htmlToMarkdown(html);
+		expect(md).toContain("# Title");
+		expect(md).toContain("## Section");
+		expect(md).toContain("- **Item 1**: text");
+	});
+});
+
 describe("ElectronUpdaterEngine", () => {
 	afterEach(async () => {
 		await Promise.all(temporaryRoots.splice(0).map((root) => rm(root, { recursive: true, force: true })));

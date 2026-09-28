@@ -1066,7 +1066,8 @@ private fun MessageBubble(
                     when {
                         isUser -> {
                             var isExpanded by remember(message.id) { mutableStateOf(false) }
-                            var canExpand by remember(message.id) { mutableStateOf(false) }
+                            val lineCount = remember(message.content) { message.content.lines().size }
+                            val isLong = remember(message.content) { lineCount > 8 || message.content.length > 240 }
 
                             Column(modifier = Modifier.padding(horizontal = 14.dp, vertical = 10.dp)) {
                                 Text(
@@ -1076,34 +1077,31 @@ private fun MessageBubble(
                                         },
                                     maxLines = if (isExpanded) Int.MAX_VALUE else 8,
                                     overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis,
-                                    onTextLayout = { textLayoutResult ->
-                                        if (!isExpanded && (textLayoutResult.hasVisualOverflow || textLayoutResult.lineCount > 8)) {
-                                            canExpand = true
-                                        }
-                                    },
                                     style = MaterialTheme.typography.bodyLarge,
                                 )
-                                if (canExpand) {
+                                if (isLong) {
                                     Spacer(Modifier.height(6.dp))
-                                    Row(
-                                        modifier = Modifier
-                                            .clip(RoundedCornerShape(6.dp))
-                                            .clickable { isExpanded = !isExpanded }
-                                            .padding(horizontal = 4.dp, vertical = 2.dp),
-                                        verticalAlignment = Alignment.CenterVertically,
-                                        horizontalArrangement = Arrangement.spacedBy(2.dp),
-                                    ) {
-                                        Text(
-                                            text = if (isExpanded) "收起" else "展开全文",
-                                            style = MaterialTheme.typography.labelSmall,
-                                            color = MaterialTheme.colorScheme.onPrimary.copy(alpha = 0.85f),
-                                        )
-                                        Icon(
-                                            imageVector = if (isExpanded) Icons.Default.ExpandLess else Icons.Default.ExpandMore,
-                                            contentDescription = if (isExpanded) "收起" else "展开",
-                                            tint = MaterialTheme.colorScheme.onPrimary.copy(alpha = 0.85f),
-                                            modifier = Modifier.size(16.dp),
-                                        )
+                                    androidx.compose.foundation.text.selection.DisableSelection {
+                                        Row(
+                                            modifier = Modifier
+                                                .clip(RoundedCornerShape(6.dp))
+                                                .clickable { isExpanded = !isExpanded }
+                                                .padding(horizontal = 6.dp, vertical = 4.dp),
+                                            verticalAlignment = Alignment.CenterVertically,
+                                            horizontalArrangement = Arrangement.spacedBy(4.dp),
+                                        ) {
+                                            Text(
+                                                text = if (isExpanded) "收起" else "展开全文",
+                                                style = MaterialTheme.typography.labelSmall,
+                                                color = MaterialTheme.colorScheme.onPrimary.copy(alpha = 0.9f),
+                                            )
+                                            Icon(
+                                                imageVector = if (isExpanded) Icons.Default.ExpandLess else Icons.Default.ExpandMore,
+                                                contentDescription = if (isExpanded) "收起" else "展开",
+                                                tint = MaterialTheme.colorScheme.onPrimary.copy(alpha = 0.9f),
+                                                modifier = Modifier.size(16.dp),
+                                            )
+                                        }
                                     }
                                 }
                             }

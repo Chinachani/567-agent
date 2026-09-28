@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState, type JSX } from "react";
+import { useEffect, useMemo, useRef, useState, type JSX } from "react";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import { Button } from "@vetta-org/ui";
@@ -125,6 +125,32 @@ const MAX_LINES = 10;
 // Line height ~1.5rem (24px) for 13px font text, 10 lines is ~240px
 const MAX_HEIGHT_PX = 240;
 
+function htmlToMarkdown(html: string): string {
+	if (!html || !/<[a-z][\s\S]*>/i.test(html)) return html;
+	let md = html;
+	md = md.replace(/<h1[^>]*>([\s\S]*?)<\/h1>/gi, "# $1\n\n");
+	md = md.replace(/<h2[^>]*>([\s\S]*?)<\/h2>/gi, "## $1\n\n");
+	md = md.replace(/<h3[^>]*>([\s\S]*?)<\/h3>/gi, "### $1\n\n");
+	md = md.replace(/<h4[^>]*>([\s\S]*?)<\/h4>/gi, "#### $1\n\n");
+	md = md.replace(/<(strong|b)[^>]*>([\s\S]*?)<\/\1>/gi, "**$2**");
+	md = md.replace(/<(em|i)[^>]*>([\s\S]*?)<\/\1>/gi, "*$2*");
+	md = md.replace(/<code[^>]*>([\s\S]*?)<\/code>/gi, "`$1`");
+	md = md.replace(/<a[^>]*href="([^"]*)"[^>]*>([\s\S]*?)<\/a>/gi, "[$2]($1)");
+	md = md.replace(/<li[^>]*>([\s\S]*?)<\/li>/gi, "- $1\n");
+	md = md.replace(/<\/?(ul|ol)[^>]*>/gi, "\n");
+	md = md.replace(/<p[^>]*>([\s\S]*?)<\/p>/gi, "$1\n\n");
+	md = md.replace(/<br\s*\/?>/gi, "\n");
+	md = md.replace(/<[^>]+>/g, "");
+	md = md
+		.replace(/&amp;/g, "&")
+		.replace(/&lt;/g, "<")
+		.replace(/&gt;/g, ">")
+		.replace(/&quot;/g, '"')
+		.replace(/&#39;/g, "'")
+		.replace(/&nbsp;/g, " ");
+	return md.replace(/\n{3,}/g, "\n\n").trim();
+}
+
 function ReleaseNotePreview({
 	releaseNote,
 	viewMoreLabel,
@@ -136,19 +162,20 @@ function ReleaseNotePreview({
 }): JSX.Element {
 	const contentRef = useRef<HTMLDivElement>(null);
 	const [isOverflowing, setIsOverflowing] = useState(false);
+	const formattedNote = useMemo(() => htmlToMarkdown(releaseNote), [releaseNote]);
 
 	useEffect(() => {
 		const el = contentRef.current;
 		if (!el) return;
 
 		// 检查纯行数（通过换行统计作为下限）以及实际渲染像素高度
-		const lineCount = releaseNote.split(/\r?\n/).length;
+		const lineCount = formattedNote.split(/\r?\n/).length;
 		if (lineCount > MAX_LINES || el.scrollHeight > MAX_HEIGHT_PX + 4) {
 			setIsOverflowing(true);
 		} else {
 			setIsOverflowing(false);
 		}
-	}, [releaseNote]);
+	}, [formattedNote]);
 
 	return (
 		<div className="relative mt-2">
@@ -160,7 +187,7 @@ function ReleaseNotePreview({
 				style={isOverflowing ? { maxHeight: `${MAX_HEIGHT_PX}px` } : undefined}
 			>
 				<ReactMarkdown remarkPlugins={[remarkGfm]}>
-					{releaseNote}
+					{formattedNote}
 				</ReactMarkdown>
 			</div>
 			{isOverflowing && (
