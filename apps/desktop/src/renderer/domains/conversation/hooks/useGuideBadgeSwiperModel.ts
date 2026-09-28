@@ -49,13 +49,6 @@ export function useGuideBadgeSwiperModel(mounted: boolean): GuideBadgeSwiperMode
 	const allBadges = useMemo<GuideBadge[]>(
 		() => [
 			{
-				id: "pet-feature",
-				type: "once",
-				icon: "icon-[mdi--paw-outline]",
-				text: t("guideBadgeSwiper.petFeatureText"),
-				onClick: () => void navigate({ to: "/settings/$tab", params: { tab: "pet" } }),
-			},
-			{
 				id: "quick-panel-feature",
 				type: "once",
 				icon: "icon-[solar--magnifer-linear]",

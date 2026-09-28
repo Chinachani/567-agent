@@ -51,9 +51,6 @@
 		"questionPending": "A question needs your confirmation. Click to view.",
 		"sessionFallback": "New Session"
 	},
-	"pet": {
-		"openDevTools": "Open Pet DevTools"
-	},
 	"pluginPackage": {
 		"confirmTitle": "Install 567 Agent Plugin",
 		"confirmMessage": "Install and enable {{name}} {{version}}?",

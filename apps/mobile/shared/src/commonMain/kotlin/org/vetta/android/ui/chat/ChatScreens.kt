@@ -789,11 +789,7 @@ fun ChatScreen(
         ImagePreviewModal(
             image = previewImage!!,
             onDismiss = { previewImage = null },
-            onSave = { b64 ->
-                imageSaver(b64) { ok, msg ->
-                    toastNotice = msg
-                }
-            },
+            imageSaver = imageSaver,
         )
     }
 
@@ -825,10 +821,12 @@ fun ChatScreen(
 private fun ImagePreviewModal(
     image: MessageImage,
     onDismiss: () -> Unit,
-    onSave: (String) -> Unit,
+    imageSaver: (String, (Boolean, String) -> Unit) -> Unit,
 ) {
     var scale by remember { mutableStateOf(1f) }
     var offset by remember { mutableStateOf(Offset.Zero) }
+    var saveStatus by remember { mutableStateOf<String?>(null) }
+    var isSaving by remember { mutableStateOf(false) }
 
     Dialog(
         onDismissRequest = onDismiss,
@@ -881,15 +879,63 @@ private fun ImagePreviewModal(
                 ) {
                     Icon(Icons.Default.Close, contentDescription = "关闭", tint = Color.White)
                 }
+                val isSuccess = saveStatus?.contains("成功") == true || saveStatus?.contains("已保存") == true
                 androidx.compose.material3.FilledTonalButton(
-                    onClick = { onSave(image.base64Data) },
+                    onClick = {
+                        if (!isSaving) {
+                            isSaving = true
+                            imageSaver(image.base64Data) { ok, msg ->
+                                isSaving = false
+                                saveStatus = msg
+                            }
+                        }
+                    },
                     shape = RoundedCornerShape(20.dp),
                     colors = androidx.compose.material3.ButtonDefaults.filledTonalButtonColors(
-                        containerColor = MaterialTheme.colorScheme.primary,
-                        contentColor = MaterialTheme.colorScheme.onPrimary,
+                        containerColor = if (isSuccess) Color(0xFF2E7D32) else MaterialTheme.colorScheme.primary,
+                        contentColor = Color.White,
                     ),
                 ) {
-                    Text("保存到相册", style = MaterialTheme.typography.labelMedium)
+                    if (isSuccess) {
+                        Icon(Icons.Default.Check, contentDescription = null, modifier = Modifier.size(16.dp), tint = Color.White)
+                        Spacer(Modifier.width(4.dp))
+                    }
+                    Text(
+                        text = when {
+                            isSaving -> "正在保存…"
+                            isSuccess -> "已保存至相册"
+                            else -> "保存到相册"
+                        },
+                        style = MaterialTheme.typography.labelMedium,
+                    )
+                }
+            }
+
+            if (saveStatus != null) {
+                Surface(
+                    shape = RoundedCornerShape(24.dp),
+                    color = Color.Black.copy(alpha = 0.85f),
+                    contentColor = Color.White,
+                    modifier = Modifier.align(Alignment.Center).padding(horizontal = 32.dp),
+                ) {
+                    Row(
+                        modifier = Modifier.padding(horizontal = 20.dp, vertical = 12.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(8.dp),
+                    ) {
+                        val isSuccess = saveStatus!!.contains("成功") || saveStatus!!.contains("已保存")
+                        if (isSuccess) {
+                            Icon(Icons.Default.Check, contentDescription = null, tint = Color(0xFF81C784), modifier = Modifier.size(20.dp))
+                        }
+                        Text(
+                            text = saveStatus!!,
+                            style = MaterialTheme.typography.bodyMedium,
+                        )
+                    }
+                }
+                LaunchedEffect(saveStatus) {
+                    kotlinx.coroutines.delay(2000)
+                    saveStatus = null
                 }
             }
         }
@@ -1019,14 +1065,48 @@ private fun MessageBubble(
                 ) {
                     when {
                         isUser -> {
-                            Text(
-                                text =
-                                    message.content.ifBlank {
-                                        if (message.images.isNotEmpty()) " " else ""
+                            var isExpanded by remember(message.id) { mutableStateOf(false) }
+                            var canExpand by remember(message.id) { mutableStateOf(false) }
+
+                            Column(modifier = Modifier.padding(horizontal = 14.dp, vertical = 10.dp)) {
+                                Text(
+                                    text =
+                                        message.content.ifBlank {
+                                            if (message.images.isNotEmpty()) " " else ""
+                                        },
+                                    maxLines = if (isExpanded) Int.MAX_VALUE else 8,
+                                    overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis,
+                                    onTextLayout = { textLayoutResult ->
+                                        if (!isExpanded && (textLayoutResult.hasVisualOverflow || textLayoutResult.lineCount > 8)) {
+                                            canExpand = true
+                                        }
                                     },
-                                modifier = Modifier.padding(horizontal = 14.dp, vertical = 10.dp),
-                                style = MaterialTheme.typography.bodyLarge,
-                            )
+                                    style = MaterialTheme.typography.bodyLarge,
+                                )
+                                if (canExpand) {
+                                    Spacer(Modifier.height(6.dp))
+                                    Row(
+                                        modifier = Modifier
+                                            .clip(RoundedCornerShape(6.dp))
+                                            .clickable { isExpanded = !isExpanded }
+                                            .padding(horizontal = 4.dp, vertical = 2.dp),
+                                        verticalAlignment = Alignment.CenterVertically,
+                                        horizontalArrangement = Arrangement.spacedBy(2.dp),
+                                    ) {
+                                        Text(
+                                            text = if (isExpanded) "收起" else "展开全文",
+                                            style = MaterialTheme.typography.labelSmall,
+                                            color = MaterialTheme.colorScheme.onPrimary.copy(alpha = 0.85f),
+                                        )
+                                        Icon(
+                                            imageVector = if (isExpanded) Icons.Default.ExpandLess else Icons.Default.ExpandMore,
+                                            contentDescription = if (isExpanded) "收起" else "展开",
+                                            tint = MaterialTheme.colorScheme.onPrimary.copy(alpha = 0.85f),
+                                            modifier = Modifier.size(16.dp),
+                                        )
+                                    }
+                                }
+                            }
                         }
                         message.content.isBlank() && message.status == MessageStatus.Streaming -> {
                             Text(

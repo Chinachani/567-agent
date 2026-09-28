@@ -14,7 +14,6 @@ import { createDownloadsApi } from "./apis/downloads.js";
 import { createI18nApi } from "./apis/i18n.js";
 import { createImApi } from "./apis/im.js";
 import { createNotificationApi } from "./apis/notification.js";
-import { createPetApi } from "./apis/pet.js";
 import { createPluginsApi } from "./apis/plugins.js";
 import { createQuickPanelApi } from "./apis/quick-panel.js";
 import { createRemotePairingApi } from "./apis/remote-pairing.js";
@@ -51,7 +50,6 @@ const rawApi: Omit<DesktopApi, "hostAccess"> = {
 	...createNotificationApi(ipcRenderer),
 	...createPluginsApi(ipcRenderer, webUtils),
 	...createThemesApi(ipcRenderer),
-	...createPetApi(ipcRenderer),
 	...createConversationTagsApi(ipcRenderer),
 	...createQuickPanelApi(ipcRenderer),
 	...createRuntimeConfigurationApi(ipcRenderer),

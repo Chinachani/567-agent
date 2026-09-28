@@ -109,7 +109,8 @@ function scanInline(body: string, segments: InputSegment[]): void {
  * 输入框反序列化、用户气泡渲染、重编辑回填三处共用这一个实现。
  */
 export function parseInputSegments(text: string): ParsedInput {
-	const { legacyRef, paths, body } = takeLegacyPrefixes(text);
+	const normalizedText = text.replace(/\r\n/g, "\n").replace(/\r/g, "\n");
+	const { legacyRef, paths, body } = takeLegacyPrefixes(normalizedText);
 	const segments: InputSegment[] = [];
 	for (const path of paths) pushPath(segments, path);
 	scanInline(body, segments);

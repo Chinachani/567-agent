@@ -18,7 +18,6 @@ export const SETTINGS_TAB_LOADERS = {
 	models: async () => ({ default: (await import("./ModelsSettings")).ModelsSettings }),
 	permissions: async () => ({ default: (await import("./PermissionsSettings")).PermissionsSettings }),
 	remote: async () => ({ default: (await import("./RemotePairingSettings")).RemotePairingSettings }),
-	pet: async () => ({ default: (await import("./PetSettings")).PetSettings }),
 	shortcuts: async () => ({ default: (await import("./ShortcutsSettings")).ShortcutsSettings }),
 	team: async () => ({ default: (await import("./TeamSettings")).TeamSettings }),
 	webhook: async () => ({ default: (await import("./WebhookSettings")).WebhookSettings }),

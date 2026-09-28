@@ -122,7 +122,7 @@ export const UserMessage = memo(function UserMessage({
 							{projection.displayText ? (
 								<MessageVisual.OutgoingBubble
 									className={`cursor-text ${pending ? "ring-1 ring-primary/40" : ""}`}
-									style={{ wordBreak: "break-word" }}
+									style={{ whiteSpace: "pre-wrap", wordBreak: "break-word" }}
 								>
 									<UserMessagePrimitive.Text
 										contentKey={projection.displayText}
@@ -132,7 +132,7 @@ export const UserMessage = memo(function UserMessage({
 										<TextBlockView
 											text={projection.displayText}
 											inlineTokens={inlineTokens}
-											className="max-w-full overflow-x-auto [overflow-wrap:anywhere] [&_code]:break-all"
+											className="max-w-full overflow-x-auto [overflow-wrap:anywhere] whitespace-pre-wrap [&_p]:whitespace-pre-wrap [&_code]:break-all"
 										/>
 									</UserMessagePrimitive.Text>
 								</MessageVisual.OutgoingBubble>

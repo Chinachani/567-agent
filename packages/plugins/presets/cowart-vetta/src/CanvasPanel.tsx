@@ -30,14 +30,11 @@ export function CanvasPanel() {
 	useEffect(() => {
 		if (activityTab?.cwd || convo?.cwd) return;
 		let cancelled = false;
-		if (
-			typeof window !== "undefined" &&
-			(window as unknown as { vetta?: { config?: { get?: () => Promise<{ defaultConversationCwd?: string; workspacePath?: string }> } } }).vetta?.config?.get
-		) {
-			(window as unknown as { vetta: { config: { get: () => Promise<{ defaultConversationCwd?: string; workspacePath?: string }> } } }).vetta.config.get()
-				.then((cfg) => {
-					if (!cancelled && (cfg?.defaultConversationCwd || cfg?.workspacePath)) {
-						setFallbackDir(cfg.defaultConversationCwd || cfg.workspacePath || null);
+		if (ctx?.official?.projects?.list) {
+			ctx.official.projects.list()
+				.then((res) => {
+					if (!cancelled && res?.workspacePath) {
+						setFallbackDir(res.workspacePath);
 					}
 				})
 				.catch(() => {});
@@ -45,7 +42,7 @@ export function CanvasPanel() {
 		return () => {
 			cancelled = true;
 		};
-	}, [activityTab?.cwd, convo?.cwd]);
+	}, [activityTab?.cwd, convo?.cwd, ctx]);
 
 	const projectDir = useMemo(() => {
 		if (activityTab?.cwd && activityTab.cwd.trim()) return activityTab.cwd.trim();

@@ -65,7 +65,6 @@ export type SettingsTab =
 	| "team"
 	| "context"
 	| "knowledge"
-	| "pet"
 	| "remote";
 
 // ─── Theme ───

@@ -49,14 +49,17 @@ export function useApi567() {
 						setAvailableGroups(initialStatus.availableGroups);
 					}
 					if (initialStatus.isLoggedIn) {
-						void loadAvailableGroups(false);
-						// 静默使用缓存或按需刷新
-						void window.vetta.api567.refreshQuota(false).then(async (res) => {
-							if (res.success && isMounted) {
-								const latest = await window.vetta.api567.getStatus();
-								setStatus(latest);
-							}
-						});
+						if (!initialStatus.availableGroups || Object.keys(initialStatus.availableGroups).length === 0) {
+							void loadAvailableGroups(false);
+						}
+						if (initialStatus.quota === undefined) {
+							void window.vetta.api567.refreshQuota(false).then(async (res) => {
+								if (res.success && isMounted) {
+									const latest = await window.vetta.api567.getStatus();
+									setStatus(latest);
+								}
+							});
+						}
 					}
 				}
 			})
@@ -70,31 +73,11 @@ export function useApi567() {
 		const unsubscribe = window.vetta.api567.onStatusChanged((newStatus) => {
 			if (isMounted) {
 				setStatus(newStatus);
-				if (newStatus.isLoggedIn) {
-					void loadAvailableGroups();
-				}
 			}
 		});
 
-		// 1. 每 60 秒自动静默轮询最新可用额度
-		const interval = setInterval(() => {
-			if (isMounted && document.visibilityState === "visible") {
-				void window.vetta.api567.refreshQuota(false);
-			}
-		}, 60_000);
-
-		// 2. 窗口重新聚焦时自动刷新
-		const onFocus = () => {
-			if (isMounted) {
-				void window.vetta.api567.refreshQuota(false);
-			}
-		};
-		window.addEventListener("focus", onFocus);
-
 		return () => {
 			isMounted = false;
-			clearInterval(interval);
-			window.removeEventListener("focus", onFocus);
 			unsubscribe();
 		};
 	}, [setStatus, setInitialCheckDone, loadAvailableGroups, setAvailableGroups]);

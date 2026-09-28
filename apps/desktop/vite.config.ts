@@ -142,7 +142,6 @@ export default defineConfig(({ mode }) => {
 			rollupOptions: {
 				input: {
 					main: resolve(__dirname, "src/renderer/index.html"),
-					pet: resolve(__dirname, "src/renderer/pet.html"),
 					quickpanel: resolve(__dirname, "src/renderer/quickpanel.html"),
 					onboarding: resolve(__dirname, "src/renderer/onboarding.html"),
 					"remote-desktop-host": resolve(__dirname, "src/renderer/remote-desktop-host.html"),

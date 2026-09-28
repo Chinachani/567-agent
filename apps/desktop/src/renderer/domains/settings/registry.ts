@@ -14,7 +14,6 @@ export type SettingsTabLabelKey =
 	| "tabEnvironment"
 	| "tabExtensions"
 	| "tabKnowledge"
-	| "tabPet"
 	| "tabPermissions"
 	| "tabRemote";
 
@@ -70,7 +69,6 @@ export const SETTINGS_TABS: readonly SettingsTabRegistration[] = [
 		labelKey: "tabKnowledge",
 		icon: "icon-[mdi--database-outline]",
 	},
-	{ key: "pet", label: "567 伴侣", labelKey: "tabPet", icon: "icon-[mdi--paw-outline]" },
 	{
 		key: "permissions",
 		label: "权限管理",
@@ -134,10 +132,6 @@ export const SETTINGS_SECTIONS = [
 	{ tab: "context", id: "agent-runtime", title: "运行时", titleKey: "section_agent-runtime" },
 	{ tab: "knowledge", id: "knowledge-processing", title: "后台加工", titleKey: "section_knowledge-processing" },
 	{ tab: "knowledge", id: "knowledge-actions", title: "手动操作", titleKey: "section_knowledge-actions" },
-	{ tab: "pet", id: "pet-display", title: "显示与窗口", titleKey: "section_pet-display" },
-	{ tab: "pet", id: "pet-decoration", title: "桌宠装饰", titleKey: "section_pet-decoration" },
-	{ tab: "pet", id: "pet-bubble", title: "气泡样式", titleKey: "section_pet-bubble" },
-	{ tab: "pet", id: "pet-developer", title: "开发调试", titleKey: "section_pet-developer" },
 ] as const satisfies readonly SettingsSectionRegistration[];
 
 export type SettingsSectionId = (typeof SETTINGS_SECTIONS)[number]["id"];

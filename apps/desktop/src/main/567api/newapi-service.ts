@@ -297,9 +297,19 @@ function fetchPageHtml(urlStr: string): Promise<{ html: string; url: string; sta
 export class NewApiService {
 	private static instance: NewApiService;
 	private currentSession: Api567Session = { isLoggedIn: false };
+	private rateLimitedUntil = 0;
+	private refreshQuotaPromise: Promise<{ success: boolean; quota?: number; quotaUsd?: number }> | null = null;
 
 	private constructor() {
 		this.loadSession();
+		setInterval(
+			() => {
+				if (this.currentSession.isLoggedIn) {
+					void this.refreshQuota(false);
+				}
+			},
+			5 * 60 * 1000,
+		);
 	}
 
 	public static getInstance(): NewApiService {
@@ -697,10 +707,14 @@ export class NewApiService {
 
 	public async broadcastStatus(): Promise<void> {
 		const status = await this.getStatus();
-		for (const win of BrowserWindow.getAllWindows()) {
-			if (!win.isDestroyed()) {
-				win.webContents.send("vetta:567api:status-changed", status);
+		try {
+			for (const win of BrowserWindow.getAllWindows?.() ?? []) {
+				if (!win.isDestroyed()) {
+					win.webContents.send("vetta:567api:status-changed", status);
+				}
 			}
+		} catch {
+			// Electron BrowserWindow context not available in headless tests
 		}
 	}
 
@@ -866,6 +880,11 @@ export class NewApiService {
 				Authorization: `Bearer ${token}`,
 			},
 		});
+
+		if (res.status === 429) {
+			log.warn("Rate limited (HTTP 429) from 567 API, cooling down for 2 minutes.");
+			this.rateLimitedUntil = Date.now() + 2 * 60 * 1000;
+		}
 
 		if (res.status === 401 && this.currentSession.cookie && this.currentSession.authType === "account") {
 			log.warn("Access token expired (HTTP 401), refreshing token and retrying request...");
@@ -1507,45 +1526,65 @@ export class NewApiService {
 			return { success: false };
 		}
 
-		if (!force && this.currentSession.quota !== undefined && this.currentSession.lastUpdated) {
-			const age = Date.now() - new Date(this.currentSession.lastUpdated).getTime();
-			if (age < 30 * 1000) {
+		if (this.refreshQuotaPromise) {
+			return this.refreshQuotaPromise;
+		}
+
+		if (!force) {
+			if (Date.now() < this.rateLimitedUntil && this.currentSession.quota !== undefined) {
 				return {
 					success: true,
 					quota: this.currentSession.quota,
 					quotaUsd: this.currentSession.quotaUsd,
 				};
 			}
-		}
-
-		try {
-			const res = await this.requestWithAuth<{
-				success: boolean;
-				data?: {
-					quota?: number;
-					user?: { quota?: number };
-				};
-			}>(`${BASE_SERVER}/api/user/self`);
-
-			if (res.data?.success && res.data.data) {
-				const userData = res.data.data.user || res.data.data;
-				if (typeof userData.quota === "number") {
-					const quota = userData.quota;
-					const quotaUsd = Number((quota / QUOTA_PER_USD).toFixed(2));
-					this.saveSession({
-						...this.currentSession,
-						quota,
-						quotaUsd,
-						lastUpdated: new Date().toISOString(),
-					});
-					return { success: true, quota, quotaUsd };
+			if (this.currentSession.quota !== undefined && this.currentSession.lastUpdated) {
+				const age = Date.now() - new Date(this.currentSession.lastUpdated).getTime();
+				if (age < 3 * 60 * 1000) {
+					return {
+						success: true,
+						quota: this.currentSession.quota,
+						quotaUsd: this.currentSession.quotaUsd,
+					};
 				}
 			}
-		} catch (err) {
-			log.warn("Failed to refresh 567api quota:", err);
 		}
 
-		return { success: false };
+		const execute = async (): Promise<{ success: boolean; quota?: number; quotaUsd?: number }> => {
+			try {
+				const res = await this.requestWithAuth<{
+					success: boolean;
+					data?: {
+						quota?: number;
+						user?: { quota?: number };
+					};
+				}>(`${BASE_SERVER}/api/user/self`);
+
+				if (res.data?.success && res.data.data) {
+					const userData = res.data.data.user || res.data.data;
+					if (typeof userData.quota === "number") {
+						const quota = userData.quota;
+						const quotaUsd = Number((quota / QUOTA_PER_USD).toFixed(2));
+						this.saveSession({
+							...this.currentSession,
+							quota,
+							quotaUsd,
+							lastUpdated: new Date().toISOString(),
+						});
+						return { success: true, quota, quotaUsd };
+					}
+				}
+			} catch (err) {
+				log.warn("Failed to refresh 567api quota:", err);
+			}
+			return { success: false };
+		};
+
+		this.refreshQuotaPromise = execute().finally(() => {
+			this.refreshQuotaPromise = null;
+		});
+
+		return this.refreshQuotaPromise;
 	}
 
 	/**

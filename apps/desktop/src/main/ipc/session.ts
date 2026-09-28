@@ -70,9 +70,6 @@ import { getAppLogger } from "../logger.js";
 import { getDesktopMcpAppRegistry } from "../mcp/mcp-app-runtime.js";
 import { getDesktopMcpTaskCoordinator, getDesktopMcpTaskRegistry } from "../mcp/mcp-task-runtime.js";
 import { notify } from "../notifications/index.js";
-import { createPetBubbleCommand } from "../pet/pet-bubble-command.js";
-import { mapSessionEventToPetPresentation } from "../pet/session-event-action-policy.js";
-import { sendPetCommandToWindow } from "../pet-window.js";
 import { setDesktopPluginHookInvoker } from "../plugins/coding-agent-hook-invocation.js";
 import { listPlugins, pluginAgentContributionService } from "../plugins/plugin-catalog.js";
 import { summarizeAgentPluginRuntimeConfig } from "../plugins/plugin-runtime-config-builder.js";
@@ -427,45 +424,23 @@ export function registerSessionIpc(webContents: WebContents): () => void {
 		// lifecycle 各自独立。agent_end 时按累积状态判定该不该通知。
 		let lastStopReason: string | undefined;
 		let aborted = false;
-		let lastPetActionId: string | undefined;
-		let hasFinalPetBody = false;
 		const unsubscribe = runtime.subscribe(sessionId, (ev: SessionEvent) => {
-			const petPresentation = mapSessionEventToPetPresentation(ev);
-			const petActionId = petPresentation?.actionId;
-			if (petActionId && petActionId !== lastPetActionId) {
-				lastPetActionId = petActionId;
-				sendPetCommandToWindow({ type: "set-action", actionId: petActionId, source: "app" });
-			}
-			const petBubble = petPresentation?.bubble;
-			const isRedundantGenericCompletion =
-				ev.type === "session.lifecycle" && ev.phase === "agent_end" && hasFinalPetBody;
-			if (petBubble && !isRedundantGenericCompletion) {
-				const command = createPetBubbleCommand(petBubble, sessionId);
-				if (command) sendPetCommandToWindow(command);
-			}
-
 			if (ev.type === "message.final") {
-				if (petBubble?.body) hasFinalPetBody = true;
 				const sr = (ev.message as unknown as { stopReason?: unknown }).stopReason;
 				if (typeof sr === "string") lastStopReason = sr;
 			} else if (ev.channel === "assistant" && (ev.type === "done" || ev.type === "error")) {
-				if (petBubble?.body) hasFinalPetBody = true;
 				lastStopReason = ev.type === "done" ? ev.message.stopReason : "error";
 			} else if (ev.channel !== "assistant" && ev.type === "error") {
 				lastStopReason = "error";
 			} else if (ev.type === "session.lifecycle") {
-				if (ev.phase === "agent_start") {
-					hasFinalPetBody = false;
-				} else if (ev.phase === "aborted") {
+				if (ev.phase === "aborted") {
 					aborted = true;
-					hasFinalPetBody = false;
 				} else if (ev.phase === "agent_end") {
 					const wasAborted = aborted || lastStopReason === "aborted";
 					const outcome = lastStopReason === "error" ? "error" : "completed";
 					const sessionPath = runtime.getSessionPath(sessionId);
 					lastStopReason = undefined;
 					aborted = false;
-					hasFinalPetBody = false;
 					// 中断不通知；正常完成 / 出错才通知（见 CONTEXT.md「agent 完成通知」）。
 					if (!wasAborted && sessionPath) {
 						void notify({ type: "agent-turn-complete", sessionPath, cwd, outcome });

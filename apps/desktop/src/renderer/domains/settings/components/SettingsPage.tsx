@@ -24,7 +24,6 @@ const SETTINGS_CONTENT: Record<Exclude<SettingsTab, "mcp">, LazyExoticComponent<
 	team: lazy(SETTINGS_TAB_LOADERS.team),
 	context: lazy(SETTINGS_TAB_LOADERS.context),
 	knowledge: lazy(SETTINGS_TAB_LOADERS.knowledge),
-	pet: lazy(SETTINGS_TAB_LOADERS.pet),
 	remote: lazy(SETTINGS_TAB_LOADERS.remote),
 };
 

@@ -8,7 +8,6 @@ import type chat from "@/shared/i18n/locales/zh/chat.json";
 import type common from "@/shared/i18n/locales/zh/common.json";
 import type main from "@/shared/i18n/locales/zh/main.json";
 import type message from "@/shared/i18n/locales/zh/message.json";
-import type pet from "@/shared/i18n/locales/zh/pet.json";
 import type project from "@/shared/i18n/locales/zh/project.json";
 import type settings from "@/shared/i18n/locales/zh/settings.json";
 import type skills from "@/shared/i18n/locales/zh/skills.json";
@@ -22,7 +21,6 @@ declare module "i18next" {
 			message: typeof message;
 			chat: typeof chat;
 			project: typeof project;
-			pet: typeof pet;
 			settings: typeof settings;
 			skills: typeof skills;
 			abilities: typeof abilities;

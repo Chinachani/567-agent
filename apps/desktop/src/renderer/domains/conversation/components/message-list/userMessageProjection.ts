@@ -213,7 +213,6 @@ const SETTINGS_ASSIST_TAB_IDS = [
 	"im",
 	"webhook",
 	"appearance",
-	"pet",
 	"environment",
 	"shortcuts",
 	"agent",

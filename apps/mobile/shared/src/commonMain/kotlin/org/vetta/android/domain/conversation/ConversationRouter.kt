@@ -20,7 +20,7 @@ class ConversationRouter(
         when (session.origin) {
             ConversationOrigin.Cloud -> {
                 val modelId = selectedModelId ?: session.modelId
-                    ?: throw RemoteConversationException("当前没有可用的云端模型")
+                    ?: throw RemoteConversationException("当前没有可用的直接对话模型")
                 cloudStream(modelId, messages, groupName, imageGenModel)
             }
             ConversationOrigin.Desktop -> {

@@ -12,7 +12,6 @@ export type SettingsAiAssistTabId =
 	| "im"
 	| "webhook"
 	| "appearance"
-	| "pet"
 	| "environment"
 	| "shortcuts"
 	| "agent";
@@ -127,18 +126,6 @@ const CATALOG = [
 			"aiAssist.examples.appearance.dark",
 			"aiAssist.examples.appearance.theme",
 			"aiAssist.examples.appearance.cursor",
-		],
-	},
-	{
-		tabId: "pet",
-		contextLabelKey: "aiAssist.context.pet",
-		defaultIntentKey: "aiAssist.defaultIntent.pet",
-		placeholderKey: "aiAssist.placeholder.pet",
-		exampleKeys: [
-			WHAT_CAN_YOU_CONFIGURE,
-			"aiAssist.examples.pet.show",
-			"aiAssist.examples.pet.size",
-			"aiAssist.examples.pet.bubble",
 		],
 	},
 	{

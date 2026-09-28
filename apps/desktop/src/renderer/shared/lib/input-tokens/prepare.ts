@@ -38,17 +38,18 @@ function trimEdgeText(segments: readonly InputSegment[]): InputSegment[] {
 
 /** 将统一编辑器 Token 投影为 Runtime Prompt 合同。 */
 export function prepareInputPrompt(text: string, sourceSegments?: readonly InputSegment[]): PreparedInputPrompt {
+	const normalizedText = text.replace(/\r\n/g, "\n").replace(/\r/g, "\n");
 	const parsed =
-		sourceSegments && segmentsToText(sourceSegments).trim() === text.trim()
+		sourceSegments && segmentsToText(sourceSegments).trim() === normalizedText.trim()
 			? { segments: trimEdgeText(sourceSegments), legacyRef: null }
-			: parseInputSegments(text);
+			: parseInputSegments(normalizedText);
 	const sceneNames = deriveSceneNames(parsed.segments);
 	if (parsed.legacyRef?.kind === "scene" && !sceneNames.includes(parsed.legacyRef.name)) {
 		sceneNames.unshift(parsed.legacyRef.name);
 	}
 	if (sceneNames.length > 1) throw new MultipleSceneReferencesError(sceneNames);
 	const sceneName = sceneNames[0];
-	if (!sceneName) return { text, segments: parsed.segments };
+	if (!sceneName) return { text: normalizedText, segments: parsed.segments };
 
 	return {
 		text: segmentsToText(parsed.segments.filter((segment) => segment.kind !== "scene")).trim(),

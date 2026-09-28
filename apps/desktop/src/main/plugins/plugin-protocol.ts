@@ -98,6 +98,23 @@ export const Fragment = jsxDevRuntime.Fragment;
 export const jsxDEV = jsxDevRuntime.jsxDEV;
 `);
 	}
+	if (moduleName === "react-dom") {
+		return moduleResponse(`
+const ReactDom = globalThis.__VETTA_PLUGIN_HOST__.ReactDom;
+export default ReactDom;
+export const createPortal = ReactDom.createPortal;
+export const flushSync = ReactDom.flushSync;
+export const version = ReactDom.version;
+`);
+	}
+	if (moduleName === "react-dom/client") {
+		return moduleResponse(`
+const ReactDomClient = globalThis.__VETTA_PLUGIN_HOST__.ReactDomClient;
+export default ReactDomClient;
+export const createRoot = ReactDomClient.createRoot;
+export const hydrateRoot = ReactDomClient.hydrateRoot;
+`);
+	}
 	if (moduleName === "plugin-sdk") {
 		// 须与 @vetta-org/plugin-sdk 的运行时导出保持同步（纯类型导出无需列出）：
 		// 插件构建时 @vetta-org/plugin-sdk 被外部化为本模块，漏列会在插件模块求值时

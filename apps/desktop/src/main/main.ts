@@ -56,8 +56,6 @@ import { type DesktopLocalRpcServerHandle, startDesktopLocalRpcServer } from "./
 import { getAppLogger } from "./logger.js";
 import { MEDIA_PROTOCOL_PRIVILEGE, registerMediaProtocolHandler } from "./media-protocol.js";
 import { openExternalUrl } from "./open-external.js";
-import { startPetIdleGuard } from "./pet/pet-idle-guard.js";
-import { initializePetWindow } from "./pet-window.js";
 import { stopAllPluginSpawns } from "./plugins/command-spawner.js";
 import { PluginActionService } from "./plugins/plugin-action-service.js";
 import { discoverSystemPlugins } from "./plugins/plugin-catalog.js";
@@ -858,8 +856,6 @@ if (!gotSingleLock) {
 				}, 500);
 				deferredStartupTimer.unref?.();
 
-				initializePetWindow();
-				startPetIdleGuard();
 				// 快捷面板：预创建隐藏窗口（按需 show/hide，不每次重建），随后据配置启停双击功能键监听。
 				// registerAllIpc 已注册快捷面板 IPC（含 RELOAD_HOTKEY），这里仅补窗口与初次触发器同步。
 				createQuickPanelWindow();
