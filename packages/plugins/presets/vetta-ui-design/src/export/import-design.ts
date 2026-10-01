@@ -52,7 +52,7 @@ export async function importPackagedVetd(
 	targetDir: string,
 	sourceFileName: string,
 ): Promise<string> {
-	const baseName = sanitizeDesignName(sourceFileName.replace(/\.(?:vetdz|vetd)$/i, "").replace(/-share$/i, ""));
+	const baseName = sanitizeDesignName(sourceFileName.replace(/\.(?:567design|vetdz|vetd)$/i, "").replace(/-share$/i, ""));
 	let vetdPath = `${targetDir}/${baseName}.vetd`;
 	let suffix = 1;
 	while ((await ctx.fs.stat(vetdPath)) !== null) {

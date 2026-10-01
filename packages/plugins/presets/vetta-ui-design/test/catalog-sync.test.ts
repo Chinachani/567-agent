@@ -1,6 +1,12 @@
 import type { PluginContext } from "@vetta-org/plugin-sdk";
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { DESIGN_CATALOG_SOURCES, isCacheFresh, refreshDesignCatalog, repoRootUrl } from "../src/design-systems/catalog-sync";
+import {
+	DESIGN_CATALOG_SOURCES,
+	isCacheFresh,
+	refreshDesignCatalog,
+	repoRootUrl,
+} from "../src/design-systems/catalog-sync";
+import { STYLEKIT_CATALOG_URL } from "../src/design-systems/stylekit-catalog";
 import { catalogState, designSystems, resetDesignSystems } from "../src/design-systems/registry";
 
 const NOW = Date.parse("2026-08-11T12:00:00.000Z");
@@ -49,6 +55,7 @@ function assertJsonSafe(value: Record<string, unknown>): void {
 function fakeCtx(options: FakeOptions) {
 	const writes: unknown[] = [];
 	const requests: RequestLog[] = [];
+	const stylekitRequests: RequestLog[] = [];
 	/** 原样留存的请求对象，用来断言可选字段是「没有这个键」而不是「值为 undefined」。 */
 	const sent: Record<string, unknown>[] = [];
 	let call = 0;
@@ -66,14 +73,16 @@ function fakeCtx(options: FakeOptions) {
 				// （真机上就是这么炸的）。fake 复刻这条约束，否则本地全绿、装到 app 里全挂。
 				assertJsonSafe(request);
 				sent.push(request);
-				requests.push({ url: request.url, headers: request.headers });
+				const requestLog = { url: request.url, headers: request.headers };
+				if (request.url === STYLEKIT_CATALOG_URL) stylekitRequests.push(requestLog);
+				else requests.push(requestLog);
 				const next = options.responses?.[call++];
 				if (!next) throw new Error("offline");
 				return next;
 			},
 		},
 	} as unknown as PluginContext;
-	return { ctx, writes, requests, sent };
+	return { ctx, writes, requests, stylekitRequests, sent };
 }
 
 function cacheOf(slugs: string[], overrides: Partial<Record<string, unknown>> = {}) {
@@ -181,6 +190,60 @@ describe("refreshDesignCatalog 的请求预算", () => {
 		await refreshDesignCatalog(ctx, NOW);
 		expect(requests.map((request) => request.url)).toEqual([...DESIGN_CATALOG_SOURCES]);
 		expect(designSystems().map((system) => system.id)).toEqual(["from-fallback"]);
+	});
+});
+
+describe("StyleKit 目录接入", () => {
+	it("将 StyleKit 风格与 Vetta 设计模板合并到画廊目录", async () => {
+		const { ctx, stylekitRequests } = fakeCtx({
+			responses: [
+				{ ok: true, status: 200, body: catalogOf(["vetta-one"]) },
+				{
+					ok: true,
+					status: 200,
+					body: {
+						total: 1,
+						styles: [
+							{
+								slug: "editorial",
+								name: "编辑杂志风",
+								nameEn: "Editorial",
+								description: "暖米色留白。",
+								descriptionEn: "Warm editorial style.",
+								category: "minimal",
+								colors: { primary: "#222222", secondary: "#F7F6F3", accent: ["#816d70"] },
+							},
+						],
+					},
+				},
+			],
+		});
+		await refreshDesignCatalog(ctx, NOW);
+		expect(stylekitRequests.map((request) => request.url)).toEqual([STYLEKIT_CATALOG_URL]);
+		expect(designSystems().map((system) => system.id)).toEqual(["vetta-one", "stylekit-editorial"]);
+	});
+
+	it("离线时复用本地 StyleKit 缓存", async () => {
+		const cachedStyleKit = {
+			catalog: {
+				styles: [
+					{
+						slug: "neo-brutalist",
+						name: "新野兽派",
+						nameEn: "Neo-Brutalist",
+						description: "粗线条和高对比。",
+						descriptionEn: "Bold borders and high contrast.",
+						category: "expressive",
+						colors: { primary: "#111111", secondary: "#ffffff", accent: ["#ff006e"] },
+					},
+				],
+			},
+			fetchedAt: new Date(NOW).toISOString(),
+			sourceUrl: STYLEKIT_CATALOG_URL,
+		};
+		const { ctx } = fakeCtx({ cached: cachedStyleKit, responses: [null, null] });
+		await refreshDesignCatalog(ctx, NOW + MINUTE);
+		expect(designSystems().map((system) => system.id)).toContain("stylekit-neo-brutalist");
 	});
 });
 

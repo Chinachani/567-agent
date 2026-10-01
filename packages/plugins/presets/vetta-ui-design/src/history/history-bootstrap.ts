@@ -1,7 +1,7 @@
 /**
  * 设计打开时把历史接上（ADR-0069）。
  *
- * 懒初始化而不是只在 `vetd_create` 时建：用户手里已经存在的设计、以及从 `.vetdz`
+ * 懒初始化而不是只在 `vetd_create` 时建：用户手里已经存在的设计、以及从分享包
  * 导入的设计，都必须能享受到版本历史，而它们不会再经过一次创建流程。
  */
 import type { PluginContext } from "@vetta-org/plugin-sdk";

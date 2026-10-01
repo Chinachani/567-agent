@@ -1,4 +1,7 @@
+import { useEffect } from "react";
+import { useSetAtom } from "jotai";
 import { FilePreviewDialog } from "../domains/file-preview/components/FilePreviewDialog";
+import { filePreviewAtom } from "../shared/store/file-preview-atoms";
 import { KnowledgeDropOverlay } from "../domains/knowledge-base/components/KnowledgeDropOverlay";
 import { PluginGlobalSlotHost } from "../domains/plugins/components/PluginGlobalSlotHost";
 import { SetupWizard } from "../domains/setup-wizard";
@@ -22,6 +25,13 @@ import { ConfirmDialog } from "../shared/components/ui/confirm-dialog";
 import { useThemeComponent } from "@vetta-org/theme-sdk";
 
 export function RootGlobalOverlays(): JSX.Element {
+	const setFilePreview = useSetAtom(filePreviewAtom);
+	useEffect(
+		() => window.vetta.appLifecycle.onDesignShareOpen(({ filePath }) => {
+			setFilePreview({ name: filePath.split(/[\\/]/).at(-1) ?? "design.567design", path: filePath });
+		}),
+		[setFilePreview],
+	);
 	const ThemedConfirmDialog = useThemeComponent("root.confirmDialog", ConfirmDialog);
 	const ThemedFilePreviewDialog = useThemeComponent("root.filePreviewDialog", FilePreviewDialog);
 	const ThemedUpdateRestartDialog = useThemeComponent("root.updateRestartDialog", UpdateRestartDialog);

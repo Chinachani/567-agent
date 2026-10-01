@@ -7,14 +7,14 @@
  * - engine-manager：打开设计时决定要不要先补装，以及 vetd_install 落到哪个目录。
  *
  * 事实源是**声明**而不是 node_modules：清单在、依赖没装是一个正常且短暂的状态
- * （刚从 .vetdz 导入），由补装接住；反过来 node_modules 里有什么则完全不作数。
+ * （刚从分享包导入），由补装接住；反过来 node_modules 里有什么则完全不作数。
  */
 import type { PluginFsApi } from "@vetta-org/plugin-sdk";
 import { engineRuntimeDependencies } from "../engine/engine-files";
 
 export const PACKAGE_FILE = "package.json";
 
-/** 依赖装在哪。生成物，不进 .vetdz（见 bundle-paths 的 GENERATED_PREFIXES）。 */
+/** 依赖装在哪。生成物，不进分享包（见 bundle-paths 的 GENERATED_PREFIXES）。 */
 export const MODULES_DIR = "node_modules";
 
 /**
@@ -51,7 +51,7 @@ export async function readDesignDependencies(fs: PluginFsApi, dirPath: string): 
 /**
  * 打开这份设计之前要不要先跑一次 npm install。
  *
- * 判据是「声明了依赖，但 node_modules 不在」——这正是从 .vetdz 导入、或者从别人的
+ * 判据是「声明了依赖，但 node_modules 不在」——这正是从分享包导入、或者从别人的
  * git 仓库 clone 下来的那一刻。已经装过的设计不重复检查依赖树是否完整：那会把每次
  * 打开都变成一次 npm 往返，而真正装坏了的情况由构建报错暴露，用户可以重新装。
  */

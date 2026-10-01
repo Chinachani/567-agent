@@ -22,9 +22,8 @@ function readGlobalAgentModeHandler(): string {
 it("persists the default mode and broadcasts it for toggle display sync", () => {
 	const handler = readGlobalAgentModeHandler();
 
-	expect(handler).toContain("settings.defaultAgentMode = next");
-	expect(handler).toContain("writeDesktopConfig(settings)");
-	expect(handler).toContain("CHANNELS.AGENT_MODE_CHANGED");
+	expect(handler).toContain("await updateDesktopConfig((settings) => ({ ...settings, defaultAgentMode: next }));");
+	expect(handler).toContain("win.webContents.send(CHANNELS.AGENT_MODE_CHANGED, next);");
 });
 
 it("never rebuilds plugin runtime config or reloads renderer plugins", () => {

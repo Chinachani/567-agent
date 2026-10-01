@@ -24,6 +24,7 @@ const upgradeWorkflow = readFileSync(
 	join(import.meta.dirname, "../../.github/workflows/desktop-upgrade-e2e.yml"),
 	"utf8",
 );
+const tagReleaseWorkflow = readFileSync(join(import.meta.dirname, "../../.github/workflows/build-all.yml"), "utf8");
 
 const require = createRequire(join(import.meta.dirname, "../../apps/desktop/package.json"));
 const { parse } = require("yaml");
@@ -242,6 +243,29 @@ describe("Desktop release workflow contracts", () => {
 		);
 		expect(desktopPackage.scripts["dist:win"]).toBe("bun run package:win");
 		expect(desktopPackage.scripts["package:win"]).toMatch(/--platform win$/);
+	});
+
+	it("publishes a Windows installer and keeps the portable ZIP in tag releases", () => {
+		const tagReleaseJobs = parse(tagReleaseWorkflow).jobs;
+		const windows = tagReleaseJobs["build-desktop"].strategy.matrix.include.find((entry) => entry.platform === "win");
+		expect(windows.command).toBe("package:win");
+		for (const extension of ["*.exe", "*.blockmap", "*.msi", "*.zip", "latest.yml"]) {
+			expect(windows.artifact_path).toContain(`apps/desktop/release/${extension}`);
+		}
+		expect(tagReleaseWorkflow).toContain("Install Inno Setup");
+		expect(tagReleaseWorkflow).toContain("choco install innosetup --yes --no-progress");
+		expect(tagReleaseWorkflow).toContain("Verify Windows installer and packages");
+		expect(tagReleaseWorkflow).toContain("bun run verify:updates:windows");
+		expect(tagReleaseWorkflow).toContain("bun run verify:packages:windows");
+	});
+
+	it("publishes all Linux desktop formats and the AppImage update feed", () => {
+		const tagReleaseJobs = parse(tagReleaseWorkflow).jobs;
+		const linux = tagReleaseJobs["build-desktop"].strategy.matrix.include.find((entry) => entry.platform === "linux");
+		expect(linux.command).toBe("package:linux");
+		for (const extension of ["*.AppImage", "*.blockmap", "*.deb", "*.rpm", "latest-linux.yml"]) {
+			expect(linux.artifact_path).toContain(`apps/desktop/release/${extension}`);
+		}
 	});
 
 	it("keeps pull-request Windows packaging on the unpacked smoke target", () => {

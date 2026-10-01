@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { bumpVersion, parsePorcelainPaths } from "./release-desktop.mjs";
+import { bumpVersion, parsePorcelainPaths, releaseCommitMessage } from "./release-desktop.mjs";
 
 describe("parsePorcelainPaths", () => {
 	// 回归：曾经对整段输出做 trim，削掉第一行的前导空格后 slice(3) 吃掉路径首字母，
@@ -42,5 +42,13 @@ describe("bumpVersion", () => {
 
 	it("rejects a non-semver desktop version", () => {
 		expect(() => bumpVersion("0.5", "patch")).toThrow(/Invalid desktop version/);
+	});
+});
+
+describe("releaseCommitMessage", () => {
+	it("uses the repository's multi-line Chinese commit format", () => {
+		expect(releaseCommitMessage("v1.1.5")).toBe(
+			"release(desktop): 发布 v1.1.5\n\n更新 Desktop 版本号与发布说明，确保本次 tag 对应的构建和 Release 正文一致。",
+		);
 	});
 });

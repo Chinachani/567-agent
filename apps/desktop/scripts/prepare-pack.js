@@ -5,7 +5,11 @@ import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import { resolveBuildResourceFilters } from "./build-resource-filters.mjs";
 import { validateDesktopBuildEnvironment } from "./desktop-build-environment.mjs";
-import { DESKTOP_BUILD_OUTPUTS, VETTA_PLUGIN_FILE_ASSOCIATION } from "./desktop-packaging-layout.mjs";
+import {
+	DESKTOP_BUILD_OUTPUTS,
+	VETTA_DESIGN_SHARE_FILE_ASSOCIATION,
+	VETTA_PLUGIN_FILE_ASSOCIATION,
+} from "./desktop-packaging-layout.mjs";
 import { resolveInstalledPackageRoot } from "./installed-package-root.mjs";
 import { LINUX_PACKAGE_METADATA, LINUX_RELEASE_TARGETS } from "./linux-packaging-contract.mjs";
 import { loadBuildEnv } from "./load-build-env.mjs";
@@ -669,7 +673,7 @@ const builderConfig = {
 		name: "567 Agent",
 		schemes: ["agent567", "api567", "vetta"],
 	},
-	fileAssociations: [VETTA_PLUGIN_FILE_ASSOCIATION],
+	fileAssociations: [VETTA_PLUGIN_FILE_ASSOCIATION, VETTA_DESIGN_SHARE_FILE_ASSOCIATION],
 	mac: {
 		target: ["dmg", "zip"],
 		category: "public.app-category.productivity",

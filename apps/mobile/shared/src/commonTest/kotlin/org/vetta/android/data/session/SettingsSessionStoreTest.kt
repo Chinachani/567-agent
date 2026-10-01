@@ -2,6 +2,9 @@ package org.vetta.android.data.session
 
 import com.russhwolf.settings.MapSettings
 import com.russhwolf.settings.set
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.async
+import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.runBlocking
 import org.vetta.android.core.model.ChatRole
 import org.vetta.android.core.model.ChatQuestion
@@ -160,5 +163,19 @@ class SettingsSessionStoreTest {
 
             assertEquals(null, settings.getStringOrNull("vetta.session.streaming.${session.id}"))
             assertEquals("完整回答", SettingsSessionStore(settings).getMessages(session.id).last().content)
+        }
+
+    @Test
+    fun concurrentObserversShareOneMessageFlowPerSession() =
+        runBlocking {
+            val store = SettingsSessionStore(MapSettings())
+            val observed =
+                coroutineScope {
+                    (1..128)
+                        .map { async(Dispatchers.Default) { store.observeMessages("concurrent-session") } }
+                        .map { it.await() }
+                }
+
+            assertTrue(observed.all { it === observed.first() })
         }
 }

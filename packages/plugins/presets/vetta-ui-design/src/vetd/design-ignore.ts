@@ -7,7 +7,7 @@ import { HISTORY_DIR } from "../history/history-paths";
 
 /**
  * 必须被忽略的条目。`.history/` 是设计自己的版本历史（ADR-0069）——它随设计目录
- * 和 `.vetdz` 走，但不该随用户的 git 提交走。
+ * 和设计分享包走，但不该随用户的 git 提交走。
  */
 export const DESIGN_IGNORE_LINES = [
 	`${HISTORY_DIR}/`,

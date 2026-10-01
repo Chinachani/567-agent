@@ -6,6 +6,7 @@ import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import kotlinx.coroutines.sync.Mutex
@@ -37,7 +38,7 @@ class SettingsSessionStore(
     private val _sessions = MutableStateFlow(loadSessionsSorted())
     override val sessions: StateFlow<List<ChatSession>> = _sessions.asStateFlow()
 
-    private val messagesFlows = mutableMapOf<String, MutableStateFlow<List<LocalMessage>>>()
+    private val messagesFlows = MutableStateFlow<Map<String, MutableStateFlow<List<LocalMessage>>>>(emptyMap())
 
     override fun observeMessages(sessionId: String): Flow<List<LocalMessage>> =
         messageFlow(sessionId)
@@ -89,7 +90,7 @@ class SettingsSessionStore(
             persistSessions(loadSessionsRaw().filterNot { it.id == id })
             settings.remove(messagesKey(id))
             settings.remove(streamingMessageKey(id))
-            messagesFlows.remove(id)
+            messagesFlows.update { it - id }
         }
     }
 
@@ -192,10 +193,14 @@ class SettingsSessionStore(
             importedIds.size
         }
 
-    private fun messageFlow(sessionId: String): MutableStateFlow<List<LocalMessage>> =
-        messagesFlows.getOrPut(sessionId) {
-            MutableStateFlow(loadMessages(sessionId))
+    private fun messageFlow(sessionId: String): MutableStateFlow<List<LocalMessage>> {
+        while (true) {
+            val current = messagesFlows.value
+            current[sessionId]?.let { return it }
+            val created = MutableStateFlow(loadMessages(sessionId))
+            if (messagesFlows.compareAndSet(current, current + (sessionId to created))) return created
         }
+    }
 
     private fun loadSessionsSorted(): List<ChatSession> =
         loadSessionsRaw()

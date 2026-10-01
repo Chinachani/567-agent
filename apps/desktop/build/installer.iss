@@ -68,6 +68,10 @@ Name: "{group}\567 Agent"; Filename: "{app}\567-Agent.exe"; Check: IsNotBackgrou
 Name: "{autodesktop}\567 Agent"; Filename: "{app}\567-Agent.exe"; Tasks: desktopicon; Check: IsNotBackgroundUpdate
 
 [Registry]
+Root: HKCR; Subkey: ".567design"; ValueType: string; ValueName: ""; ValueData: "567Agent.DesignShare"; Flags: uninsdeletevalue
+Root: HKCR; Subkey: "567Agent.DesignShare"; ValueType: string; ValueName: ""; ValueData: "567 Agent 设计分享包"; Flags: uninsdeletekey
+Root: HKCR; Subkey: "567Agent.DesignShare\DefaultIcon"; ValueType: string; ValueName: ""; ValueData: "{app}\567-Agent.exe,0"
+Root: HKCR; Subkey: "567Agent.DesignShare\shell\open\command"; ValueType: string; ValueName: ""; ValueData: "\"{app}\567-Agent.exe\" \"%1\""
 Root: HKCU; Subkey: "Software\Classes\vetta"; ValueType: string; ValueName: ""; ValueData: "URL:Vetta Protocol"; Flags: uninsdeletekey; Check: IsNotBackgroundUpdate
 Root: HKCU; Subkey: "Software\Classes\vetta"; ValueType: string; ValueName: "URL Protocol"; ValueData: ""; Check: IsNotBackgroundUpdate
 Root: HKCU; Subkey: "Software\Classes\vetta\DefaultIcon"; ValueType: string; ValueName: ""; ValueData: "{app}\567-Agent.exe,0"; Check: IsNotBackgroundUpdate

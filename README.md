@@ -1,198 +1,69 @@
+# 567 Agent
 
-<h1 align="center">567 Agent</h1>
+567 Agent 是围绕 567 API 服务打造的 AI Agent 客户端项目，包含桌面应用、Android 客户端、命令行宿主和 IM 网关。桌面端把对话、项目文件和 Agent 工具放在本机工作区中；Android 可独立发起对话，也可连接桌面端继续会话或远程操作桌面。
 
-<p align="center">
-  An open-source desktop AI agent for real work — local-first, extensible, and under your control.
-</p>
+## 获取应用
 
-<p align="center">
-  <a href="https://www.openvetta.com"><img src="https://img.shields.io/badge/upstream-openvetta.com-0b7285" alt="Open Vetta upstream website"></a>
-  <a href="https://docs.openvetta.com"><img src="https://img.shields.io/badge/upstream%20docs-docs.openvetta.com-f06449" alt="Open Vetta upstream documentation"></a>
-  <a href="https://discord.gg/qGqkk22Vg9"><img src="https://img.shields.io/badge/upstream-Discord-5865F2?logo=discord&logoColor=white" alt="Open Vetta upstream Discord"></a>
-  <a href="LICENSE"><img src="https://img.shields.io/badge/license-Apache--2.0-blue" alt="Apache-2.0 license"></a>
-  <img src="https://img.shields.io/badge/platform-macOS%20%7C%20Windows%20%7C%20Linux-lightgrey" alt="macOS, Windows, and Linux">
-</p>
+正式版本和各平台文件发布在 [GitHub Releases](https://github.com/Chinachani/567-agent/releases)。请以每个版本页面列出的文件和发布说明为准。
 
-<p align="center">
-  <b>English</b> ·
-  <a href="README.zh-CN.md">简体中文</a> ·
-  <a href="https://www.openvetta.com/download">Upstream download</a> ·
-  <a href="https://docs.openvetta.com/getting-started/">Upstream getting started</a> ·
-  <a href="https://github.com/openvetta/open-vetta/discussions">Upstream discussions</a> ·
-  <a href="https://discord.gg/qGqkk22Vg9">Upstream Discord</a> ·
-  <a href="CONTRIBUTING.md">Contributing</a>
-</p>
+当前最新发布为 **v1.1.4**，提供 Windows 便携 ZIP、Linux AppImage / DEB 和 Android APK。Windows ZIP 解压后运行，不需要安装向导。后续版本计划增加 Windows 安装程序和 MSI，并为 Linux 增加 RPM；这些格式尚未出现在当前 Release 中。
 
----
+Android 用户如因签名更换而无法覆盖安装，可先导出旧版聊天记录，再卸载旧版并安装新版，最后导入记录。操作步骤见[聊天记录迁移指南](docs/apps/mobile/chat-history-migration.md)。
 
-567 Agent brings models, project files, local tools, and reusable capabilities into one desktop workspace. Use it for coding, documents, data, research, creative work, and repeatable workflows without giving up control of the environment where the work happens.
+## 项目能做什么
 
-It is more than a chat interface: 567 Agent can inspect a workspace, use tools with visible permission boundaries, produce real files, and keep the execution trail available for review.
+- **桌面 Agent 工作区**：在项目目录中与 Agent 协作，使用模型、工具和本机文件完成编码及其他工作任务。
+- **本机能力与扩展**：项目包含命令和文件工具、MCP、知识库、技能、插件、主题、批量任务及相关运行时模块。具体能力取决于应用构建和配置。
+- **Android 客户端**：通过 567 API 在手机上直接聊天，或连接桌面端继续会话；支持配对后的桌面远程预览与控制。
+- **IM 网关**：桌面端可托管 Go 编写的网关，将已配置的即时通讯渠道接入本机 Agent。渠道支持情况和配置要求见 [IM 网关说明](apps/im-gateway/README.md)。
+- **本地会话数据**：桌面会话与配置保存在本机；IM 会话可与桌面会话共享。网络请求仍会发送到所配置的模型、567 API 或已启用的集成服务。
 
-## Why 567 Agent
+手机端登录、模型连接和网络问题可参考[手机端连接与模型排障](docs/apps/mobile/chat-connection-troubleshooting.md)。
 
-| | What it means |
-|---|---|
-| **Local-first workspace** | Projects, sessions, files, and execution live in the environment you choose. |
-| **Bring your own models** | Connect supported providers, OpenAI-compatible endpoints, or local inference through BYOK. |
-| **Real tools and artifacts** | Work with code, documents, spreadsheets, media, commands, and generated files in one task flow. |
-| **Reviewable execution** | Tool calls, plans, permissions, progress, results, and recovery paths remain visible. |
-| **Reusable workflows** | Extend the agent with skills, MCP servers, plugins, themes, knowledge, batch tasks, and automation. |
-| **Open client stack** | The desktop app, CLI, SDK, plugin system, themes, mobile client, and IM gateway are developed in this repository. |
+## 从源码运行
 
-## Start here
-
-The external documentation and community links below are upstream Open Vetta references; 567 Agent's own destinations have not yet been confirmed.
-
-| I want to… | Start with |
-|---|---|
-| Use the desktop app | Run it from this repository's source. The [upstream installers](https://www.openvetta.com/download) are Open Vetta releases, not 567 Agent installers. |
-| Complete a real task | Follow the [first-task walkthrough](https://docs.openvetta.com/getting-started/first-task/). |
-| Understand the product | Read the [product guide](https://docs.openvetta.com/product/overview/) and [security and data boundaries](https://docs.openvetta.com/reference/security-and-data/). |
-| Build an extension | Choose between [skills, MCP, plugins, themes, SDK, RPC, and CLI](https://docs.openvetta.com/developers/overview/). |
-| Contribute code | Read [`QUICKSTART.md`](QUICKSTART.md) and [`CONTRIBUTING.md`](CONTRIBUTING.md). |
-
-### Run from source
-
-Requires **Bun 1.3+** and **Node.js 20+**.
+仓库使用 Bun 管理 TypeScript monorepo，Android 应用使用 Kotlin Multiplatform，IM 网关使用 Go。开发桌面端需要 Bun 1.3+ 和 Node.js 20+：
 
 ```bash
-# From this repository's root directory
 bun install
 cd apps/desktop
 bun run dev
 ```
 
-The development app uses `~/.vetta-dev` by default, keeping installed-app data in `~/.vetta` untouched. Root-level `bun run dev` watches core libraries; it does not launch Electron. See [`QUICKSTART.md`](QUICKSTART.md) for the complete setup and validation commands.
+桌面开发环境默认使用独立的 `~/.vetta-dev` 配置目录。仓库根目录的 `bun run dev` 只启动部分核心包的开发监听，不会启动 Electron 桌面应用。
 
-## What you can do
+Android 开发和 APK 签名配置见 [`apps/mobile/README.md`](apps/mobile/README.md)；完整开发入口见[快速开始](QUICKSTART.zh-CN.md)。
 
-- **Work in projects and sessions.** Keep task history, files, context, artifacts, and execution details together.
-- **Use local and external tools.** Run commands, inspect files, connect MCP services, and approve sensitive operations explicitly.
-- **Handle professional artifacts.** Preview and work with source code, PDF, Office files, spreadsheets, images, audio, video, SVG, and generated UI.
-- **Scale a proven task.** Run the same workflow across directories with batch tasks, or schedule it as an automation.
-- **Reuse organizational knowledge.** Build local knowledge bases and install reusable skills or scenarios.
-- **Keep working away from the desk.** Use supported IM bridges, webhooks, notifications, quick entry, and native desktop integrations.
+## 仓库结构
 
-Upstream documentation includes task guides and screenshots: [browse upstream product capabilities](https://docs.openvetta.com/product/overview/).
+本仓库是客户端开源仓库，不包含 567 API 的服务端、管理后台或官网。主要目录如下：
 
-## Extension model
+| 路径 | 内容 |
+| --- | --- |
+| [`apps/desktop`](apps/desktop) | Electron 桌面应用 |
+| [`apps/mobile`](apps/mobile) | Kotlin Multiplatform Android 客户端 |
+| [`apps/cli-host`](apps/cli-host) | Coding Agent 命令行宿主 |
+| [`apps/im-gateway`](apps/im-gateway) | Go 即时通讯网关 |
+| [`apps/docs-site`](apps/docs-site) | 项目文档站源码 |
+| [`packages/ai`](packages/ai)、[`packages/agent`](packages/agent) | 模型协议与 Agent 核心循环 |
+| [`packages/coding-agent`](packages/coding-agent)、`packages/runtime-*` | 产品能力组合与运行时模块 |
+| [`packages/plugins`](packages/plugins)、[`packages/themes`](packages/themes) | 插件、预置扩展和主题 |
 
-567 Agent offers several extension levels so a simple workflow does not need to become a full plugin:
+架构决策记录位于 [`docs/adr`](docs/adr)，贡献指南见 [`CONTRIBUTING.zh-CN.md`](CONTRIBUTING.zh-CN.md)。
 
-| Extension | Use it for | Guide |
-|---|---|---|
-| **Skill** | Teach the agent a repeatable method or domain workflow. | [Abilities](https://docs.openvetta.com/product/abilities/) |
-| **MCP** | Connect external tools and data over a standard protocol. | [MCP connectors](https://docs.openvetta.com/product/mcp/) |
-| **Plugin** | Extend the desktop UI, files, messages, tools, and host actions. | [Plugin development](https://docs.openvetta.com/plugins/overview/) |
-| **Theme** | Replace the visual system and provide theme-specific pages. | [Theme development](https://docs.openvetta.com/themes/overview/) |
-| **SDK / RPC / CLI** | Embed or drive the agent from another application or process. | [Developer paths](https://docs.openvetta.com/developers/overview/) |
+## 参与开发
 
-### Build a plugin from any directory
-
-You do not need this repository, or a 567 Agent source checkout, to build a plugin. Nor does an agent:
+常用检查命令：
 
 ```bash
-npx @vetta-org/plugin-cli init --id my-plugin --name "My Plugin"
-cd my-plugin && npm install
-npx vetta-plugin-cli docs        # where the manual is, and which SDK version it documents
-npm run install:vetta            # build, package, install into the running desktop app
-npx vetta-plugin-cli watch       # hot reload: the host loads the plugin from this directory
+bun run check:quick             # 检查指定改动或当前工作区
+bun run check                   # lint、类型检查和架构守卫
+bun run test:pkg <包名>         # 运行指定包的测试
+bun run test:changed -- <文件>  # 运行与改动相关的测试
 ```
 
-`init` also writes an `AGENTS.md`, so **any** coding agent — Claude Code, Cursor, or 567 Agent's own —
-picks the project up without host-side setup. The plugin manual ships inside
-`@vetta-org/plugin-sdk`, so the contract an agent reads is the contract the project compiles
-against; `docs` locates it rather than anyone hard-coding a `node_modules` path.
+请使用仓库脚本运行测试，不要在 monorepo 根目录执行裸 `bun test`。完整贡献约定见 [`CONTRIBUTING.zh-CN.md`](CONTRIBUTING.zh-CN.md)。
 
-To publish several abilities from one repository, scaffold a marketplace:
+## 安全与数据
 
-```bash
-npx @vetta-org/plugin-cli init hub --name my-market \
-  --repository https://github.com/me/my-market --min-app-version 0.55.0
-```
-
-That lays down the index, the `abilities/` layout, a repository-level `AGENTS.md`, and CI running
-`vetta-plugin-cli sync --check`, which keeps `.vetta/marketplace.json` reconciled with each ability
-package. Development commands always act on the nearest ability directory, so working inside a
-marketplace is identical to working on a standalone plugin.
-
-Plugins declare capabilities in `plugin.json`; privileged operations are authorized by the host and checked again at runtime. Plugins run inside the desktop renderer and should be treated as curated code, not as an arbitrary-code sandbox. Read the [plugin trust and permission model](https://docs.openvetta.com/plugins/manifest-and-permissions/) before distributing one.
-
-## Data and build modes
-
-A source checkout produces the **lite** build by default. It has no dependency on the upstream-operated backend: no account, subscription, remote administration, or hosted marketplace is required. Model requests go to the endpoint you configure, and credentials remain in local credential storage.
-
-Upstream official installers may enable the optional Vetta Serv integration for accounts, subscriptions, and a hosted marketplace; this does not establish which services 567 Agent release builds use.
-
-Local-first does not mean zero network traffic. Model providers, MCP servers, plugins, webhooks, IM integrations, update sources, and optional telemetry can each create their own data boundary. Review:
-
-- [Security and data boundaries](https://docs.openvetta.com/reference/security-and-data/)
-- [Configuration paths](https://docs.openvetta.com/reference/configuration-paths/)
-- [Build modes and environment variables](docs/desktop/build-modes.en.md)
-- [Security policy](SECURITY.md)
-
-## Repository map
-
-This is a Bun/TypeScript monorepo with additional Kotlin and Go applications. Dependencies point from applications toward reusable packages; `packages/*` never depend on `apps/*`.
-
-| Area | Responsibility |
-|---|---|
-| [`apps/desktop`](apps/desktop) | Electron desktop host and renderer |
-| [`apps/cli-host`](apps/cli-host) | CLI host for the coding agent |
-| [`apps/docs-site`](apps/docs-site) | Next.js documentation site published at `docs.openvetta.com` |
-| [`apps/mobile`](apps/mobile) | Kotlin Multiplatform Android client |
-| [`apps/im-gateway`](apps/im-gateway) | Go IM sidecar gateway |
-| [`packages/ai`](packages/ai) · [`packages/agent`](packages/agent) | Provider abstraction and the agent loop |
-| [`packages/coding-agent`](packages/coding-agent) · `packages/runtime-*` | Product composition, runtime contracts, tools, storage, MCP, and host adapters |
-| [`packages/plugins`](packages/plugins) · [`packages/themes`](packages/themes) | Extension SDKs, presets, and themes |
-
-Architecture details and public integration contracts live in the [developer documentation](https://docs.openvetta.com/developers/architecture/) and [`docs/adr/`](docs/adr/).
-
-## Develop and contribute
-
-Use Bun and the repository scripts; do not run bare `bun test` in this monorepo.
-
-```bash
-bun run check:quick              # changed-file lint and architecture guards
-bun run check                    # full lint, types, and architecture guards
-bun run test:pkg <package-name>  # focused package tests
-bun run test:changed             # tests affected by the current diff
-```
-
-Pull requests target the **`dev`** branch. The contribution map, test expectations, and review bar are in [`CONTRIBUTING.md`](CONTRIBUTING.md). Architecture and Agent collaboration rules are in [`AGENTS.md`](AGENTS.md).
-
-Questions and early ideas belong in [GitHub Discussions](https://github.com/openvetta/open-vetta/discussions). Report vulnerabilities privately through [GitHub Security Advisories](https://github.com/openvetta/open-vetta/security/advisories/new).
-
-## Documentation
-
-- [User and product guides](https://docs.openvetta.com/product/overview/)
-- [Plugin development](https://docs.openvetta.com/plugins/overview/)
-- [Theme development](https://docs.openvetta.com/themes/overview/)
-- [SDK, RPC, CLI, and architecture](https://docs.openvetta.com/developers/overview/)
-- [Troubleshooting](https://docs.openvetta.com/troubleshooting/)
-- [`QUICKSTART.md`](QUICKSTART.md) for repository setup
-- [`CONTRIBUTING.md`](CONTRIBUTING.md) for contributions
-- [`docs/adr/`](docs/adr/) for architecture decisions
-
-The documentation site also publishes [`llms.txt`](https://docs.openvetta.com/llms.txt), [`llms-full.txt`](https://docs.openvetta.com/llms-full.txt), and a Markdown representation of each page for Agent consumption.
-
-## Community
-
-The upstream Open Vetta Discord is for discussing upstream workflows, skills, and plugins; this is not an official 567 Agent community link.
-
-<p align="center">
-  <a href="https://discord.gg/qGqkk22Vg9"><img src="https://img.shields.io/badge/Open%20Vetta-Discord-5865F2?logo=discord&logoColor=white&style=for-the-badge" alt="Open Vetta Discord"></a>
-</p>
-
-**https://discord.gg/qGqkk22Vg9**
-
-Longer, searchable threads still belong in [GitHub Discussions](https://github.com/openvetta/open-vetta/discussions), and vulnerabilities go through [GitHub Security Advisories](https://github.com/openvetta/open-vetta/security/advisories/new) — please do not report them on Discord.
-
-## Credits and license
-
-567 Agent is based on Open Vetta and the wider open-source ecosystem, including pi, Codex CLI, MCP, Electron, React, Bun, models.dev, and the projects listed in [`NOTICE`](NOTICE). The complete third-party inventory and original notices live there.
-
-Licensed under [Apache-2.0](LICENSE).
-
-- **Friends & Links:** [LINUX DO](https://linux.do/) - A Chinese community for technology enthusiasts. This project is linked with and endorsed by LINUX DO.
+提交漏洞前请阅读 [`SECURITY.md`](SECURITY.md)，不要在公开 Issue 中披露可利用的安全细节。第三方组件与版权信息见 [`NOTICE`](NOTICE)，项目使用的开源许可见 [`LICENSE`](LICENSE)。

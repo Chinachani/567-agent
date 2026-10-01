@@ -1,10 +1,12 @@
 import type { IpcRenderer } from "electron";
 import {
+	APP_LIFECYCLE_DESIGN_SHARE_OPEN_CHANNEL,
 	APP_LIFECYCLE_RENDERER_BOOT_PAINTED_CHANNEL,
 	APP_LIFECYCLE_RENDERER_CONTENT_PAINTED_CHANNEL,
 	APP_LIFECYCLE_WHEN_READY_CHANNEL,
 } from "../../shared/app-lifecycle-ipc.js";
 import type { DesktopApi } from "../api.js";
+import { onIpcEvent } from "./helper.js";
 
 export function createAppLifecycleApi(ipcRenderer: IpcRenderer): Pick<DesktopApi, "appLifecycle"> {
 	return {
@@ -16,6 +18,7 @@ export function createAppLifecycleApi(ipcRenderer: IpcRenderer): Pick<DesktopApi
 				ipcRenderer.send(APP_LIFECYCLE_RENDERER_CONTENT_PAINTED_CHANNEL);
 			},
 			whenReady: () => ipcRenderer.invoke(APP_LIFECYCLE_WHEN_READY_CHANNEL),
+			onDesignShareOpen: (handler) => onIpcEvent(ipcRenderer, APP_LIFECYCLE_DESIGN_SHARE_OPEN_CHANNEL, handler),
 		},
 	};
 }

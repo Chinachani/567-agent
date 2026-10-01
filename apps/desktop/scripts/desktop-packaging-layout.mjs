@@ -21,6 +21,14 @@ export const VETTA_PLUGIN_FILE_ASSOCIATION = Object.freeze({
 	role: "Editor",
 });
 
+export const VETTA_DESIGN_SHARE_FILE_ASSOCIATION = Object.freeze({
+	ext: "567design",
+	name: "567 Agent Design Share Package",
+	description: "567 Agent 设计分享包",
+	mimeType: "application/vnd.567agent.design+zip",
+	role: "Editor",
+});
+
 export const DESKTOP_REQUIRED_SOURCE_FILES = Object.freeze([
 	"src/main/main.ts",
 	"src/preload/index.ts",

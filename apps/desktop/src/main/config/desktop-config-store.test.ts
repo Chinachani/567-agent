@@ -87,3 +87,14 @@ describe("updateDesktopConfig", () => {
 		expect(config.remoteControl?.relayBaseUrl).toBe("https://relay.example");
 	});
 });
+
+describe("appshot configuration patches", () => {
+	it("keeps the selected gesture when disabling appshot", async () => {
+		const { mergeAppshotConfig } = await import("./desktop-config-store.js");
+
+		expect(mergeAppshotConfig({ enabled: true, gesture: "both-alt" }, { enabled: false })).toEqual({
+			enabled: false,
+			gesture: "both-alt",
+		});
+	});
+});

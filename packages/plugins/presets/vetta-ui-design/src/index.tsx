@@ -213,7 +213,7 @@ export default definePlugin({
 			}
 		});
 
-		// 跨模式唯一保留的能力：编程模式里也可能点开一份设计看看。分享包（`.vetdz`，
+		// 跨模式唯一保留的能力：编程模式里也可能点开一份设计看看。分享包（`.567design`，
 		// 以及历史导出的 `.vetd` zip）是文件，走预览；设计本体是目录，走右键打开画布。
 		ctx.ui.registerFilePreview({ extensions: [...SHARE_PREVIEW_EXTENSIONS], component: VetdPreview });
 		if (packageIcon) {

@@ -58,11 +58,11 @@ beforeEach(() => {
 });
 
 it("把分享包交给系统另存为对话框，不写进项目目录", async () => {
-	const { ctx, writes, calls } = fakeCtx(() => "/Users/me/Desktop/checkout-share.vetdz");
+	const { ctx, writes, calls } = fakeCtx(() => "/Users/me/Desktop/checkout-share.567design");
 
 	const path = await exportDesign(ctx, fakeSession());
 
-	expect(path).toBe("/Users/me/Desktop/checkout-share.vetdz");
+	expect(path).toBe("/Users/me/Desktop/checkout-share.567design");
 	expect(calls).toHaveLength(1);
 	expect(calls[0].fileName).toBe(`checkout-share.${SHARE_EXTENSION}`);
 	expect(calls[0].encoding).toBe("base64");

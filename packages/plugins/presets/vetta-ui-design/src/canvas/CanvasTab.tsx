@@ -81,7 +81,7 @@ export function CanvasTab() {
 		}
 		const ctx = getPluginCtx();
 		// 设计包是目录，认的是里面的 design.json——不再需要按内容嗅探区分工作态与
-		// 打包分享文件（后者是 `.vetdz`，压根不会出现在这个列表里）。
+		// 打包分享文件（后者是 `.567design`，压根不会出现在这个列表里）。
 		const found = await findVetdFiles(ctx.fs, cwd);
 		setFiles(found);
 		return found;

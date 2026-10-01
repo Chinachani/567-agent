@@ -245,7 +245,7 @@ export async function installDesignDependencies(
 }
 
 /**
- * 声明了依赖但还没装（刚从 .vetdz 导入、或从 git clone 下来）时补装一次。
+ * 声明了依赖但还没装（刚从分享包导入、或从 git clone 下来）时补装一次。
  *
  * 放在起 dev server 之前：vite 首次 import 解析不到包就是一帧构建失败，而用户看到的
  * 是一张红色报错，不知道只是还没装。

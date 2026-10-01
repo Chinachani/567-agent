@@ -176,6 +176,10 @@ export function normalizeAppshot(value: unknown): AppshotConfig {
 	};
 }
 
+export function mergeAppshotConfig(current: AppshotConfig | undefined, patch: AppshotConfig): AppshotConfig {
+	return normalizeAppshot({ ...current, ...patch });
+}
+
 export function normalizeExperimental(value: unknown): ExperimentalConfig {
 	if (typeof value !== "object" || value === null) {
 		return {

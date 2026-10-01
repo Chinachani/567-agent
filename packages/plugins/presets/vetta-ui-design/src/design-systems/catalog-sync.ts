@@ -1,6 +1,8 @@
 import { readJsonFile, type PluginContext } from "@vetta-org/plugin-sdk";
 import { parseRemoteCatalog } from "./remote-catalog";
-import { markCatalogFailed, markCatalogLoading, setDesignSystems } from "./registry";
+import { parseStyleKitCatalog, STYLEKIT_CATALOG_URL } from "./stylekit-catalog";
+import { designSystems, markCatalogFailed, markCatalogLoading, setDesignSystems } from "./registry";
+import type { DesignSystem } from "./types";
 
 /**
  * 远端设计资源清单的同步。
@@ -31,6 +33,8 @@ export const DESIGN_CATALOG_SOURCES: readonly string[] = [
 	"https://raw.githubusercontent.com/openvetta/vetta-design-templates/main/.vetta/design-templates.json",
 	"https://cdn.jsdelivr.net/gh/openvetta/vetta-design-templates@main/.vetta/design-templates.json",
 ];
+
+const STYLEKIT_CACHE_KEY = "design-catalog/stylekit.json";
 
 /** 上一次成功拉取到的清单原文，存插件私有 storage。 */
 const CACHE_KEY = "design-catalog/latest.json";
@@ -180,12 +184,90 @@ export async function refreshDesignCatalog(
 			setDesignSystems(parsed.systems);
 			// 缓存还新鲜就到此为止：这是把请求量从「每次启动」压到「每 TTL 一次」的关键。
 			// 用户主动刷新时例外——先用缓存渲染避免白屏，但一定要去问一次最新的。
-			if (!options.force && isCacheFresh(cached.fetchedAt, now)) return;
+			if (!options.force && isCacheFresh(cached.fetchedAt, now)) {
+				await applyStyleKit(ctx, now, options.force);
+				return;
+			}
 		} else {
 			// 缓存内容已经不可用（格式变了/坏了），别拿它的 ETag 去做条件请求。
 			cached = null;
 		}
 	}
 
-	if (!(await applyRemote(ctx, cached, now))) markCatalogFailed();
+	const remoteApplied = await applyRemote(ctx, cached, now);
+	const stylekitApplied = await applyStyleKit(ctx, now, options.force);
+	if (!remoteApplied && !stylekitApplied) markCatalogFailed();
+}
+
+async function applyStyleKit(ctx: PluginContext, now: number, force = false): Promise<boolean> {
+	let cached: CachedCatalog | null = null;
+	try {
+		cached = asCache(await readJsonFile<CachedCatalog>(ctx.storage, STYLEKIT_CACHE_KEY));
+	} catch {
+		cached = null;
+	}
+	let stylekitSystems = cached ? parseStyleKitCatalog(cached.catalog) : null;
+	if (stylekitSystems && !force && isCacheFresh(cached?.fetchedAt ?? "", now)) {
+		setDesignSystems(mergeSystems(designSystems(), stylekitSystems));
+		return true;
+	}
+	try {
+		const conditional = cached?.sourceUrl === STYLEKIT_CATALOG_URL && cached.etag ? { "if-none-match": cached.etag } : null;
+		const response = await ctx.network.request<unknown>({
+			url: STYLEKIT_CATALOG_URL,
+			method: "GET",
+			responseType: "json",
+			timeoutMs: REQUEST_TIMEOUT_MS,
+			...(conditional ? { headers: conditional } : {}),
+		});
+		if (response.status === 304 && cached && stylekitSystems) {
+			setDesignSystems(mergeSystems(designSystems(), stylekitSystems));
+			await ctx.storage.writeFile(
+				STYLEKIT_CACHE_KEY,
+				JSON.stringify({ ...cached, fetchedAt: new Date(now).toISOString() }, null, 2),
+				"utf8",
+			).catch(() => {});
+			return true;
+		}
+		if (!response.ok) {
+			if (stylekitSystems) setDesignSystems(mergeSystems(designSystems(), stylekitSystems));
+			return stylekitSystems !== null;
+		}
+		stylekitSystems = parseStyleKitCatalog(response.body);
+		if (!stylekitSystems) {
+			if (cached) {
+				const fallback = parseStyleKitCatalog(cached.catalog);
+				if (fallback) setDesignSystems(mergeSystems(designSystems(), fallback));
+				return fallback !== null;
+			}
+			return false;
+		}
+		setDesignSystems(mergeSystems(designSystems(), stylekitSystems));
+		await ctx.storage
+			.writeFile(
+				STYLEKIT_CACHE_KEY,
+				JSON.stringify(
+					{
+						catalog: response.body,
+						fetchedAt: new Date(now).toISOString(),
+						sourceUrl: STYLEKIT_CATALOG_URL,
+						etag: headerValue(response.headers, "etag"),
+					} satisfies CachedCatalog,
+					null,
+					2,
+				),
+				"utf8",
+			)
+			.catch(() => {});
+		return true;
+	} catch {
+		if (stylekitSystems) setDesignSystems(mergeSystems(designSystems(), stylekitSystems));
+		return stylekitSystems !== null;
+	}
+}
+
+function mergeSystems(current: readonly DesignSystem[], incoming: readonly DesignSystem[]): DesignSystem[] {
+	const byId = new Map(current.map((system) => [system.id, system]));
+	for (const system of incoming) byId.set(system.id, system);
+	return [...byId.values()];
 }

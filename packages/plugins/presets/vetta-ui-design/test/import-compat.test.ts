@@ -4,7 +4,7 @@
  */
 import { strToU8, zipSync } from "fflate";
 import { describe, expect, it } from "vitest";
-import { parsePackagedVetd } from "../src/export/import-design";
+import { importPackagedVetd, parsePackagedVetd } from "../src/export/import-design";
 
 function legacyPackage(): Uint8Array {
 	return zipSync({
@@ -28,5 +28,22 @@ describe("老分享包", () => {
 			"history.zip": strToU8("PK-fake"),
 		});
 		expect(parsePackagedVetd(withHistory).historyZip).not.toBeNull();
+	});
+});
+
+describe("分享包扩展名兼容", () => {
+	it.each(["design.567design", "design.vetdz", "design.vetd"])("导入 %s 时落为 design.vetd 工作目录", async (fileName) => {
+		const writes: string[] = [];
+		const ctx = {
+			fs: {
+				stat: async () => null,
+				writeFile: async (path: string) => {
+					writes.push(path);
+				},
+			},
+	} as unknown as Parameters<typeof importPackagedVetd>[0];
+		const vetdPath = await importPackagedVetd(ctx, parsePackagedVetd(legacyPackage()), "/target", fileName);
+		expect(vetdPath).toBe("/target/design.vetd");
+		expect(writes).toContain("/target/design.vetd/frames/index.tsx");
 	});
 });

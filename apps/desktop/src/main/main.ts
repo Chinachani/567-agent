@@ -6,6 +6,11 @@ import { URL } from "node:url";
 import { getVettaHomePath, VETTA_HOME_ENV } from "@vetta/action-rpc";
 import { app, type BrowserWindow, dialog, ipcMain, nativeImage, nativeTheme, protocol, session, shell } from "electron";
 import { APP_RUNTIME_NAME } from "../shared/app-identity.js";
+import {
+	APP_LIFECYCLE_DESIGN_SHARE_OPEN_CHANNEL,
+	findDesignSharePath,
+	isDesignSharePath,
+} from "../shared/app-lifecycle-ipc.js";
 import { isCloudBuildEnabled } from "../shared/feature-flags.js";
 import { stopAllOpenMarketplaceMcpRuntimes } from "./abilities/open-marketplace/open-marketplace-mcp-runtime-host.js";
 import { ActionApprovalBroker } from "./app-actions/approval-broker.js";
@@ -350,12 +355,43 @@ app.on("open-url", (event, url) => {
 const gotSingleLock = isCliMode ? true : app.requestSingleInstanceLock();
 const pluginPackageOpenService = isCliMode ? undefined : createDesktopPluginPackageOpenService();
 pluginPackageOpenService?.enqueueFromArgv(process.argv);
+const pendingDesignSharePaths: string[] = [];
+let designShareOpenReady = false;
+
+function enqueueDesignShareOpen(filePath: string): boolean {
+	if (isCliMode || !isDesignSharePath(filePath)) return false;
+	if (!pendingDesignSharePaths.includes(filePath)) pendingDesignSharePaths.push(filePath);
+	if (designShareOpenReady) {
+		showMainWindow();
+		flushPendingDesignSharePaths();
+	}
+	return true;
+}
+
+function flushPendingDesignSharePaths(): void {
+	if (!designShareOpenReady || pendingDesignSharePaths.length === 0) return;
+	const window = getMainWindow();
+	if (!window || window.isDestroyed() || window.webContents.isDestroyed()) return;
+	if (window.webContents.isLoading()) {
+		window.webContents.once("did-finish-load", flushPendingDesignSharePaths);
+		return;
+	}
+	for (const filePath of pendingDesignSharePaths.splice(0)) {
+		window.webContents.send(APP_LIFECYCLE_DESIGN_SHARE_OPEN_CHANNEL, { filePath });
+	}
+}
+
+function enqueueDesignShareFromArgv(argv: readonly string[]): void {
+	const filePath = findDesignSharePath(argv);
+	if (filePath) enqueueDesignShareOpen(filePath);
+}
+
+enqueueDesignShareFromArgv(process.argv);
 
 // macOS Finder sends associated files through open-file. The service queues
 // startup events until language, window, and plugin infrastructure are ready.
 app.on("open-file", (event, filePath) => {
-	if (!pluginPackageOpenService?.enqueue(filePath)) return;
-	event.preventDefault();
+	if (pluginPackageOpenService?.enqueue(filePath) || enqueueDesignShareOpen(filePath)) event.preventDefault();
 });
 
 if (!gotSingleLock) {
@@ -369,6 +405,7 @@ if (!gotSingleLock) {
 			handleProtocolUrl(protocolUrl);
 		}
 		pluginPackageOpenService?.enqueueFromArgv(argv);
+		enqueueDesignShareFromArgv(argv);
 		showMainWindow();
 	});
 	app.whenReady().then(async () => {
@@ -790,6 +827,8 @@ if (!gotSingleLock) {
 		registerKnowledgeIpc();
 		appLifecycle.markReady();
 		pluginPackageOpenService?.markReady();
+		designShareOpenReady = true;
+		flushPendingDesignSharePaths();
 		void remotePairingService.restore();
 		if (!app.isPackaged) {
 			void startConfiguredPluginDevWatches(appRoot)

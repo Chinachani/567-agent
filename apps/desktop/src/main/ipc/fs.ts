@@ -33,8 +33,8 @@ import {
 	KB_PROCESSING_CWD,
 	KB_PROCESSING_SESSION_DIR,
 	type KnowledgeBaseConfig,
+	mergeAppshotConfig,
 	normalizeAgentMode,
-	normalizeAppshot,
 	normalizeExecutionMode,
 	normalizeExperimental,
 	normalizeImageGeneration,
@@ -436,7 +436,7 @@ export function registerFsIpc(): () => void {
 					patch.quickPanel !== undefined
 						? normalizeQuickPanel({ ...current.quickPanel, ...patch.quickPanel })
 						: current.quickPanel,
-				appshot: patch.appshot !== undefined ? normalizeAppshot(patch.appshot) : current.appshot,
+				appshot: patch.appshot !== undefined ? mergeAppshotConfig(current.appshot, patch.appshot) : current.appshot,
 			}),
 		);
 		// Allow all known roots for file operations

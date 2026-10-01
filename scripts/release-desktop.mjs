@@ -33,6 +33,10 @@ export function bumpVersion(version, bumpType) {
 	return bumpType === "minor" ? `${major}.${minor + 1}.0` : `${major}.${minor}.${patch + 1}`;
 }
 
+export function releaseCommitMessage(tag) {
+	return `release(desktop): 发布 ${tag}\n\n更新 Desktop 版本号与发布说明，确保本次 tag 对应的构建和 Release 正文一致。`;
+}
+
 function assertCleanWorktree() {
 	const status = run("git", ["status", "--porcelain"], { capture: true }).trim();
 	if (status) throw new Error(`Uncommitted changes detected:\n${status}`);
@@ -118,7 +122,7 @@ function main() {
 	assertOnlyReleaseFilesChanged();
 
 	run("git", ["add", "--", ...RELEASE_FILES]);
-	run("git", ["commit", "-m", `release(desktop): 发布 ${tag}`]);
+	run("git", ["commit", "-m", releaseCommitMessage(tag)]);
 	run("git", ["tag", tag]);
 	run("git", ["push", "--atomic", "origin", branch, `refs/tags/${tag}`]);
 

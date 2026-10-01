@@ -63,11 +63,19 @@ jobs:
             command: package:linux
             artifact_path: |
               apps/desktop/release/*.AppImage
+              apps/desktop/release/*.blockmap
               apps/desktop/release/*.deb
+              apps/desktop/release/*.rpm
+              apps/desktop/release/latest-linux.yml
           - platform: win
             runner: windows-latest
-            command: package:win:zip
-            artifact_path: "apps/desktop/release/*.zip"
+            command: package:win
+            artifact_path: |
+              apps/desktop/release/*.exe
+              apps/desktop/release/*.blockmap
+              apps/desktop/release/*.msi
+              apps/desktop/release/*.zip
+              apps/desktop/release/latest.yml
 
     steps:
       - name: Checkout repository
@@ -97,6 +105,19 @@ jobs:
       - name: Install dependencies
         uses: ./.github/actions/install-bun-dependencies
 
+      - name: Install Inno Setup
+        if: matrix.platform == 'win'
+        shell: pwsh
+        run: |
+          choco install innosetup --yes --no-progress
+          $candidates = @(
+            (Join-Path $env:ProgramFiles 'Inno Setup 6\ISCC.exe'),
+            (Join-Path ${env:ProgramFiles(x86)} 'Inno Setup 6\ISCC.exe')
+          )
+          if (-not ($candidates | Where-Object { Test-Path $_ })) {
+            throw 'Inno Setup 6 compiler was not found after installation.'
+          }
+
       - name: Build Monorepo Packages
         run: bun run build
 
@@ -111,6 +132,13 @@ jobs:
         run: |
           cd apps/desktop
           bun run ${{ matrix.command }}
+
+      - name: Verify Windows installer and packages
+        if: matrix.platform == 'win'
+        working-directory: apps/desktop
+        run: |
+          bun run verify:updates:windows
+          bun run verify:packages:windows
 
       - name: Publish Desktop Artifact to Release
         if: startsWith(github.ref, 'refs/tags/v')

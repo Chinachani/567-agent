@@ -282,7 +282,7 @@
 	"gallery.create.busy": "Creating…",
 	"gallery.create.failed": "Could not create the design",
 	"gallery.import.title": "Choose a design share file",
-	"gallery.import.filter": "Design share file",
+	"gallery.import.filter": "567 Agent Design Share Package",
 	"gallery.import.done": "Design imported",
 	"gallery.import.failed": "Import failed",
 	"gallery.import.wrongType": "Only .{{ext}} share files can be imported",

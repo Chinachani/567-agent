@@ -17,12 +17,14 @@ describe("toProjectName", () => {
 describe("projectNameFromShareFile", () => {
 	it("去掉扩展名与导出时加的 -share 后缀", () => {
 		expect(projectNameFromShareFile("checkout-share.vetdz")).toBe("checkout");
+		expect(projectNameFromShareFile("checkout-share.567design")).toBe("checkout");
 		expect(projectNameFromShareFile("checkout.vetd")).toBe("checkout");
 	});
 });
 
 describe("isSharePackageName", () => {
-	it("认新扩展名与历史导出的 .vetd zip，大小写不敏感", () => {
+	it("认新扩展名与历史分享包扩展名，大小写不敏感", () => {
+		expect(isSharePackageName("a.567design")).toBe(true);
 		expect(isSharePackageName("a.vetdz")).toBe(true);
 		expect(isSharePackageName("a.VETD")).toBe(true);
 		expect(isSharePackageName("a.zip")).toBe(false);

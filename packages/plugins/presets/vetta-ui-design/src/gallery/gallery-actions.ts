@@ -45,7 +45,7 @@ export function isSharePackageName(fileName: string): boolean {
 
 /** 分享包文件名 → 项目名：去掉扩展名与导出时加的 `-share` 后缀。 */
 export function projectNameFromShareFile(fileName: string): string {
-	return toProjectName(fileName.replace(/\.(?:vetdz|vetd)$/i, "").replace(/-share$/i, ""));
+	return toProjectName(fileName.replace(/\.(?:567design|vetdz|vetd)$/i, "").replace(/-share$/i, ""));
 }
 
 /**
@@ -62,7 +62,7 @@ export async function importDesignPackage(fileName: string, bytes: Uint8Array): 
 }
 
 /**
- * 导出一份设计为 `.vetdz`。
+ * 导出一份设计为 `.567design`。
  *
  * 要一个打开状态的 DesignSession（manifest 是打包内容的一部分），所以这里临时开一个
  * 再关掉；导出本身要跑一次引擎构建，是个「点了要等」的动作，调用方负责给进度提示。

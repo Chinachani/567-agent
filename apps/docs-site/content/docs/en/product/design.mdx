@@ -32,7 +32,7 @@ The gallery scans only the top level of each project root, so a design moved int
 
     - **New design**: give it a name. Vetta creates a project of the same name in your workspace directory and opens a new session with the design ability already attached.
     - **Browse styles**: pick a ready-made style first, and the new design inherits its palette and rules.
-    - **Import**: drop a `.vetdz` package onto the gallery, or click **Import** and pick the file.
+    - **Import**: drop a `.567design` package onto the gallery, or click **Import** and pick the file. Legacy `.vetdz` and historical `.vetd` ZIP files remain importable; double-click `.567design` to preview it in the desktop app.
   </Step>
   <Step>
     ### Describe what you want
@@ -88,6 +88,8 @@ The toolbar also carries select, hand, **new frame** (drag out an empty frame an
 
 **Design systems** in the control bar — and the style library in the gallery — offer complete palettes and rules. Applying one to a design that already has frames means Vetta restyles all of them, which takes a while. The state before the change is backed up automatically, so **restore** is always available.
 
+The library includes the public [StyleKit](https://stylekit.top/zh) catalog. Choosing a style copies its palette and design notes into the new design, and the catalog is cached locally.
+
 If the design already contains a `DESIGN.md`, a system has been applied before, and applying a new one overwrites it (also restorable).
 
 ## Preview and run
@@ -107,7 +109,7 @@ So "undo that change" or "go back to before the nav bar moved" belongs in versio
 
 | Action | Output |
 | --- | --- |
-| **Export & share** on the canvas, or **Export share file** from a gallery card | A `.vetdz` package the recipient can drop into their gallery to view or import |
+| **Export & share** on the canvas, or **Export share file** from a gallery card | A `.567design` package the recipient can drop into their gallery to view or import |
 | **Export mockup** from the control bar or a frame's context menu | Selected frames composed into PNG, a long image, or PDF, with scale, radius, border, background, shadow, and Vetta branding options |
 | **Copy as image** on a frame | A single frame bitmap on the clipboard |
 

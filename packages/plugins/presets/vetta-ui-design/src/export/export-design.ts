@@ -126,6 +126,6 @@ export async function buildDesignPackage(ctx: PluginContext, session: DesignSess
 export async function exportDesign(ctx: PluginContext, session: DesignSession): Promise<string | null> {
 	const pkg = await buildDesignPackage(ctx, session);
 	return await ctx.fs.saveAs(pkg.fileName, pkg.base64, "base64", {
-		filters: [{ name: "Vetta Design", extensions: [SHARE_EXTENSION] }],
+		filters: [{ name: "567 Agent 设计分享包", extensions: [SHARE_EXTENSION] }],
 	});
 }
