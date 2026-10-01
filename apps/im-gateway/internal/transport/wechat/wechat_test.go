@@ -254,6 +254,28 @@ func newBoundTransport(t *testing.T) (*Transport, *fakeILink, string) {
 	return tr, fake, statePath
 }
 
+// startTestTransport joins the polling loop before TempDir cleanup. Tests that
+// only cancel a context on return can otherwise race cursor persistence with
+// testing.T's asynchronous temporary-directory removal.
+func startTestTransport(t *testing.T, tr *Transport, handler transport.MessageHandler) context.Context {
+	t.Helper()
+	ctx, cancel := context.WithCancel(context.Background())
+	done := make(chan error, 1)
+	go func() { done <- tr.Start(ctx, handler) }()
+	t.Cleanup(func() {
+		cancel()
+		select {
+		case err := <-done:
+			if err != nil && !errors.Is(err, context.Canceled) {
+				t.Errorf("wechat transport stopped with unexpected error: %v", err)
+			}
+		case <-time.After(2 * time.Second):
+			t.Error("wechat transport did not stop before test cleanup")
+		}
+	})
+	return ctx
+}
+
 // =============================================================================
 // tests
 // =============================================================================
@@ -339,9 +361,7 @@ func TestTransport_DropsNonTextAndEmptyFromUserID(t *testing.T) {
 	)
 
 	h := newCaptureHandler()
-	ctx, cancel := context.WithCancel(t.Context())
-	defer cancel()
-	go tr.Start(ctx, h) //nolint:errcheck
+	startTestTransport(t, tr, h)
 
 	h.wait(t, 1)
 	got := h.snapshot()
@@ -364,9 +384,7 @@ func TestTransport_VoiceWithSTTFallback(t *testing.T) {
 	})
 
 	h := newCaptureHandler()
-	ctx, cancel := context.WithCancel(t.Context())
-	defer cancel()
-	go tr.Start(ctx, h) //nolint:errcheck
+	startTestTransport(t, tr, h)
 
 	h.wait(t, 1)
 	if got := h.snapshot()[0].Text; got != "transcribed audio" {
@@ -392,9 +410,7 @@ func TestTransport_QuotedReplyFormatting(t *testing.T) {
 	})
 
 	h := newCaptureHandler()
-	ctx, cancel := context.WithCancel(t.Context())
-	defer cancel()
-	go tr.Start(ctx, h) //nolint:errcheck
+	startTestTransport(t, tr, h)
 
 	h.wait(t, 1)
 	got := h.snapshot()[0].Text
@@ -418,9 +434,7 @@ func TestTransport_SendMessageUsesContextTokenAndIncrementsQuota(t *testing.T) {
 	})
 
 	h := newCaptureHandler()
-	ctx, cancel := context.WithCancel(t.Context())
-	defer cancel()
-	go tr.Start(ctx, h) //nolint:errcheck
+	ctx := startTestTransport(t, tr, h)
 
 	h.wait(t, 1)
 
@@ -562,9 +576,7 @@ func TestTransport_CursorPersisted(t *testing.T) {
 	})
 
 	h := newCaptureHandler()
-	ctx, cancel := context.WithCancel(t.Context())
-	defer cancel()
-	go tr.Start(ctx, h) //nolint:errcheck
+	startTestTransport(t, tr, h)
 	h.wait(t, 1)
 
 	// Poll until the post-dispatch cursor save lands.
@@ -579,7 +591,7 @@ func TestTransport_CursorPersisted(t *testing.T) {
 		}
 		time.Sleep(20 * time.Millisecond)
 	}
-	cancel()
+	// The test cleanup cancels and joins Start before removing this temp dir.
 
 	if cursor == "" {
 		t.Errorf("cursor not persisted")
