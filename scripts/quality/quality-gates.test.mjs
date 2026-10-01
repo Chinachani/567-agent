@@ -1429,7 +1429,7 @@ describe("Turborepo build orchestration", () => {
 		expect(testPackageScript).toContain('"--summarize"');
 		expect(qualityWorkflow).toContain("Upload Turbo run summaries");
 		expect(qualityWorkflow).toContain(".turbo/runs/*.json");
-		expect(qualityWorkflow).toContain("retention-days: 7");
+		expect(qualityWorkflow).toContain("retention-days: 1");
 	});
 
 	it("removes superseded hand-written task graphs", () => {
