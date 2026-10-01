@@ -6,9 +6,9 @@
  */
 
 import { createHash, randomUUID } from "node:crypto";
-import type { Dirent } from "node:fs";
-import { mkdir, readdir, readFile, rename, rm, rmdir, stat, writeFile } from "node:fs/promises";
-import { dirname, join, posix, relative, sep } from "node:path";
+import type { Dirent, Stats } from "node:fs";
+import { lstat, mkdir, readdir, readFile, rename, rm, rmdir, stat, writeFile } from "node:fs/promises";
+import { dirname, isAbsolute, join, posix, relative, resolve, sep } from "node:path";
 import { parseWikiPage, serializeWikiPage } from "../domain/frontmatter.js";
 import { EMPTY_FAILURES, type FailuresRecord } from "../domain/processing-failures.js";
 import {
@@ -133,15 +133,90 @@ export async function writeWikiPage(
 	frontmatter: WikiFrontmatter,
 	body: string,
 ): Promise<void> {
-	const full = join(wikiDir(root), relPath);
-	await mkdir(dirname(full), { recursive: true });
+	const full = resolveWikiPagePath(root, relPath);
+	await createWikiParents(root, full);
+	try {
+		if ((await lstat(full)).isSymbolicLink()) throw new Error("Wiki page path cannot target a symbolic link");
+	} catch (error) {
+		if (!isNodeError(error, "ENOENT")) throw error;
+	}
 	await writeFile(full, serializeWikiPage(frontmatter, body), "utf-8");
 }
 
 /** 物理删除一个 wiki 页。 */
 export async function deleteWikiPage(root: string, relPath: string): Promise<void> {
-	const full = join(wikiDir(root), relPath);
+	const full = resolveWikiPagePath(root, relPath);
+	await assertWikiParents(root, full);
 	await rm(full, { force: true });
+}
+
+async function createWikiParents(root: string, fullPath: string): Promise<void> {
+	const base = resolve(wikiDir(root));
+	await mkdir(base, { recursive: true });
+	const baseStat = await lstat(base);
+	if (!baseStat.isDirectory() || baseStat.isSymbolicLink()) {
+		throw new Error("Wiki directory cannot be a symbolic link");
+	}
+	const parentParts = relative(base, dirname(fullPath)).split(sep).filter(Boolean);
+	let current = base;
+	for (const part of parentParts) {
+		current = join(current, part);
+		try {
+			await mkdir(current);
+		} catch (error) {
+			if (!isNodeError(error, "EEXIST")) throw error;
+		}
+		const currentStat = await lstat(current);
+		if (!currentStat.isDirectory() || currentStat.isSymbolicLink()) {
+			throw new Error("Wiki page path cannot traverse a symbolic link or non-directory");
+		}
+	}
+}
+
+async function assertWikiParents(root: string, fullPath: string): Promise<void> {
+	const base = resolve(wikiDir(root));
+	let baseStat: Stats;
+	try {
+		baseStat = await lstat(base);
+	} catch (error) {
+		if (isNodeError(error, "ENOENT")) return;
+		throw error;
+	}
+	if (!baseStat.isDirectory() || baseStat.isSymbolicLink()) {
+		throw new Error("Wiki directory cannot be a symbolic link");
+	}
+	let current = base;
+	for (const part of relative(base, dirname(fullPath)).split(sep).filter(Boolean)) {
+		current = join(current, part);
+		let currentStat: Stats;
+		try {
+			currentStat = await lstat(current);
+		} catch (error) {
+			if (isNodeError(error, "ENOENT")) return;
+			throw error;
+		}
+		if (!currentStat.isDirectory() || currentStat.isSymbolicLink()) {
+			throw new Error("Wiki page path cannot traverse a symbolic link or non-directory");
+		}
+	}
+}
+
+function isNodeError(error: unknown, code: string): boolean {
+	return error instanceof Error && "code" in error && error.code === code;
+}
+
+function resolveWikiPagePath(root: string, relPath: string): string {
+	const normalized = relPath.replaceAll("\\", "/");
+	if (!normalized || normalized.includes("\0") || isAbsolute(normalized) || normalized.split("/").includes("..")) {
+		throw new Error("Wiki page path must stay within the wiki directory");
+	}
+	const base = resolve(wikiDir(root));
+	const full = resolve(base, normalized);
+	const fromBase = relative(base, full);
+	if (!fromBase || fromBase === ".." || fromBase.startsWith(`..${sep}`) || isAbsolute(fromBase)) {
+		throw new Error("Wiki page path must stay within the wiki directory");
+	}
+	return full;
 }
 
 /**

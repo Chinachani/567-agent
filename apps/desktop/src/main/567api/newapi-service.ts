@@ -263,7 +263,7 @@ function inferModelParams(modelId: string): { contextWindow: number; maxTokens: 
 const NON_CHAT =
 	/embedding|embed|whisper|tts|audio|realtime|-live-|moderation|dall-e|image|transcribe|rerank|vision-ocr|veo-|lyria|imagen|deep-research|computer-use|-character|livetranslate/i;
 
-function fetchPageHtml(urlStr: string): Promise<{ html: string; url: string; status: number }> {
+function fetchPageHtml(urlStr: string, redirectCount = 0): Promise<{ html: string; url: string; status: number }> {
 	return new Promise((resolve, reject) => {
 		const u = new URL(urlStr);
 		const client = u.protocol === "http:" ? http : https;
@@ -279,7 +279,11 @@ function fetchPageHtml(urlStr: string): Promise<{ html: string; url: string; sta
 			},
 			(res) => {
 				if (res.statusCode && res.statusCode >= 300 && res.statusCode < 400 && res.headers.location) {
-					return resolve(fetchPageHtml(new URL(res.headers.location, u).href));
+					res.resume();
+					if (redirectCount >= 10) {
+						return reject(new Error("Too many redirects while fetching payment page"));
+					}
+					return resolve(fetchPageHtml(new URL(res.headers.location, u).href, redirectCount + 1));
 				}
 				let raw = "";
 				res.setEncoding("utf8");

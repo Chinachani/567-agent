@@ -11,6 +11,7 @@ export interface DesktopRemoteAccessOptions {
 	readonly controlUrl?: string;
 	readonly pairingToken?: string;
 	readonly controlTarget?: string;
+	readonly webSocketCaCertificate?: string;
 	readonly conversationCwd: string;
 	readonly onStateChange?: (state: RemoteConnectionState) => void;
 }
@@ -54,7 +55,7 @@ async function connect(options: DesktopRemoteAccessOptions, runGeneration: numbe
 	const connection = new RemoteConnection(
 		new WebSocketRemoteTransport(
 			options.controlTarget ?? `${options.controlUrl}#${options.pairingToken}`,
-			createDesktopWebSocketFactory(),
+			createDesktopWebSocketFactory(options.webSocketCaCertificate),
 		),
 		{
 			role: "desktop",

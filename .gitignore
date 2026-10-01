@@ -32,6 +32,8 @@ deploy/data/
 deploy/logs/
 *.pem
 *.key
+*.keystore
+*.jks
 
 # Editor files
 .vscode/

@@ -1,4 +1,4 @@
-import { createServer, type Server } from "node:http";
+import { createServer, type Server } from "node:https";
 import { networkInterfaces } from "node:os";
 import { encodeRemoteFrame, parseRemoteFrame, type RemoteFrame, type RemoteHello } from "@vetta/remote-control";
 import { encodeRemoteDesktopSignal, REMOTE_DESKTOP_PROTOCOL_VERSION } from "@vetta/remote-desktop/protocol";
@@ -9,11 +9,25 @@ const log = getAppLogger("local-relay");
 const DEFAULT_PORT = 18789;
 const _REMOTE_WEBSOCKET_PROTOCOL = "vetta.remote.v1";
 
+export interface DesktopLocalRelayTlsOptions {
+	readonly certificate: string;
+	readonly privateKey: string;
+}
+
+export interface DesktopLocalRelayPairingCredentials {
+	readonly pairingId: string;
+	readonly desktopSecret: string;
+	readonly bootstrapSecret?: string;
+	readonly resumeSecret?: string;
+	readonly onResumeSecret?: (secret: string) => void;
+}
+
 interface PairRoom {
 	desktop?: WebSocket;
 	mobile?: WebSocket;
 	desktopHello?: RemoteHello;
 	mobileHello?: RemoteHello;
+	resumeSecret?: string;
 }
 
 interface DesktopRoom {
@@ -27,12 +41,18 @@ export class DesktopLocalRelay {
 	private port: number = DEFAULT_PORT;
 	private readonly pairRooms = new Map<string, PairRoom>();
 	private readonly desktopRooms = new Map<string, DesktopRoom>();
+	private credentials: DesktopLocalRelayPairingCredentials | undefined;
 
-	async start(preferredPort = DEFAULT_PORT): Promise<number> {
+	async start(
+		tls: DesktopLocalRelayTlsOptions,
+		credentials: DesktopLocalRelayPairingCredentials,
+		preferredPort = DEFAULT_PORT,
+	): Promise<number> {
 		if (this.server) return this.port;
+		this.credentials = credentials;
 
 		return new Promise<number>((resolve, reject) => {
-			const server = createServer((req, res) => {
+			const server = createServer({ cert: tls.certificate, key: tls.privateKey }, (req, res) => {
 				if (req.url === "/health") {
 					res.writeHead(200, { "Content-Type": "application/json" });
 					res.end(JSON.stringify({ status: "ok", protocolVersion: 1, local: true }));
@@ -53,10 +73,21 @@ export class DesktopLocalRelay {
 					socket.destroy();
 					return;
 				}
+				const requestedProtocols = readRequestedProtocols(request.headers["sec-websocket-protocol"]);
+				const resumeSecret = this.authorizeConnection(relayMatch ?? desktopMatch!, requestedProtocols);
+				if (resumeSecret === false) {
+					socket.destroy();
+					return;
+				}
 
 				wss.handleUpgrade(request, socket, head, (ws) => {
 					if (relayMatch) {
-						this.handleRelayConnection(ws, relayMatch[1], relayMatch[2] as "mobile" | "desktop");
+						this.handleRelayConnection(
+							ws,
+							relayMatch[1],
+							relayMatch[2] as "mobile" | "desktop",
+							resumeSecret || undefined,
+						);
 					} else if (desktopMatch) {
 						this.handleDesktopConnection(ws, desktopMatch[1], desktopMatch[2] as "host" | "viewer");
 					}
@@ -103,6 +134,7 @@ export class DesktopLocalRelay {
 			room.viewer?.close();
 		}
 		this.desktopRooms.clear();
+		this.credentials = undefined;
 
 		await new Promise<void>((resolve) => {
 			this.wss?.close(() => {
@@ -138,18 +170,28 @@ export class DesktopLocalRelay {
 	}
 
 	getLanUrl(): string {
-		return `http://${this.getLanIp()}:${this.port}`;
+		return `https://${this.getLanIp()}:${this.port}`;
 	}
 
 	isListening(): boolean {
 		return Boolean(this.server?.listening);
 	}
 
-	private handleRelayConnection(ws: WebSocket, pairingId: string, role: "mobile" | "desktop"): void {
+	private handleRelayConnection(
+		ws: WebSocket,
+		pairingId: string,
+		role: "mobile" | "desktop",
+		resumeSecret?: string,
+	): void {
 		let room = this.pairRooms.get(pairingId);
 		if (!room) {
 			room = {};
 			this.pairRooms.set(pairingId, room);
+		}
+		if (role === "mobile" && resumeSecret && room.resumeSecret !== resumeSecret) {
+			room.resumeSecret = resumeSecret;
+			if (this.credentials) this.credentials = { ...this.credentials, resumeSecret };
+			this.credentials?.onResumeSecret?.(resumeSecret);
 		}
 
 		if (role === "desktop") {
@@ -219,6 +261,24 @@ export class DesktopLocalRelay {
 		});
 	}
 
+	private authorizeConnection(match: RegExpExecArray, protocols: ReadonlySet<string>): string | undefined | false {
+		const credentials = this.credentials;
+		if (!credentials || match[1] !== credentials.pairingId) return false;
+		const role = match[2];
+		const pairing = protocolValue(protocols, "vetta.pairing.");
+		if (role === "desktop" || role === "host") return pairing === credentials.desktopSecret ? undefined : false;
+		if (role === "mobile") {
+			const resume = protocolValue(protocols, "vetta.resume.");
+			if (credentials.bootstrapSecret && pairing === credentials.bootstrapSecret && resume) return resume;
+			if (credentials.resumeSecret && pairing === credentials.resumeSecret) return credentials.resumeSecret;
+			return false;
+		}
+		if (role === "viewer" && credentials.resumeSecret && pairing === credentials.resumeSecret) {
+			return credentials.resumeSecret;
+		}
+		return false;
+	}
+
 	private handleDesktopConnection(ws: WebSocket, pairingId: string, role: "host" | "viewer"): void {
 		let room = this.desktopRooms.get(pairingId);
 		if (!room) {
@@ -264,6 +324,23 @@ export class DesktopLocalRelay {
 			}
 		});
 	}
+}
+
+function readRequestedProtocols(value: string | string[] | undefined): ReadonlySet<string> {
+	const header = Array.isArray(value) ? value.join(",") : (value ?? "");
+	return new Set(
+		header
+			.split(",")
+			.map((protocol) => protocol.trim())
+			.filter(Boolean),
+	);
+}
+
+function protocolValue(protocols: ReadonlySet<string>, prefix: string): string | undefined {
+	for (const protocol of protocols) {
+		if (protocol.startsWith(prefix)) return protocol.slice(prefix.length) || undefined;
+	}
+	return undefined;
 }
 
 let localRelayInstance: DesktopLocalRelay | undefined;

@@ -1,10 +1,14 @@
 import { randomBytes } from "node:crypto";
 import { hostname } from "node:os";
 import type { RemoteConnectionState } from "@vetta/remote-control";
-import { type DesktopConfig, readDesktopConfig, writeDesktopConfig } from "../config/desktop-config-store.js";
+import { type DesktopConfig, readDesktopConfig, updateDesktopConfig } from "../config/desktop-config-store.js";
 import { getDesktopCredentialVault } from "../credentials/desktop-credential-vault.js";
 import { getAppLogger } from "../logger.js";
 import { getDesktopLocalRelay } from "./desktop-local-relay.js";
+import {
+	createDesktopLocalRelayCertificate,
+	type DesktopLocalRelayCertificate,
+} from "./desktop-local-relay-certificate.js";
 import { startDesktopRemoteAccess, stopDesktopRemoteAccess } from "./desktop-remote-access-service.js";
 import {
 	type DesktopRemoteDesktopHostHandle,
@@ -16,6 +20,8 @@ const log = getAppLogger("remote-pairing");
 const CREDENTIAL_NAMESPACE = "remote-control";
 const CREDENTIAL_OWNER = "desktop";
 const CREDENTIAL_NAME = "desktop-secret";
+const LOCAL_RELAY_CERT_CREDENTIAL = "local-relay-tls";
+const MOBILE_RESUME_CREDENTIAL = "mobile-resume-secret";
 
 export interface DesktopRemotePairingServiceOptions {
 	readonly appRoot: string;
@@ -43,6 +49,7 @@ export class DesktopRemotePairingService {
 		inputSupported: false,
 	};
 	private host: DesktopRemoteDesktopHostHandle | undefined;
+	private localRelayCertificate: DesktopLocalRelayCertificate | undefined;
 	private connectionState: RemoteConnectionState = "idle";
 
 	constructor(private readonly options: DesktopRemotePairingServiceOptions) {}
@@ -65,9 +72,22 @@ export class DesktopRemotePairingService {
 		};
 		try {
 			const localRelay = getDesktopLocalRelay();
-			await localRelay.start();
+			this.localRelayCertificate = await this.getLocalRelayCertificate(localRelay.getLanIp());
+			await localRelay.start(this.localRelayCertificate, {
+				pairingId: remote.pairingId,
+				desktopSecret: secret,
+				resumeSecret: this.readMobileResumeSecret(),
+				onResumeSecret: (resumeSecret) => this.storeMobileResumeSecret(resumeSecret),
+			});
 			const activeUrl = localRelay.getLanUrl();
-			await this.startActive(activeUrl, remote.pairingId, secret, remote.inputEnabled === true);
+			await this.startActive(
+				activeUrl,
+				remote.pairingId,
+				secret,
+				remote.inputEnabled === true,
+				undefined,
+				this.localRelayCertificate,
+			);
 			this.state = {
 				...this.state,
 				status: this.connectionState === "online" ? "connected" : this.state.status,
@@ -100,16 +120,21 @@ export class DesktopRemotePairingService {
 			{ kind: "remote-desktop", consumer: "desktop" },
 		);
 		const localRelay = getDesktopLocalRelay();
-		await localRelay.start();
+		this.localRelayCertificate = await this.getLocalRelayCertificate(localRelay.getLanIp(), true);
+		await localRelay.start(this.localRelayCertificate, {
+			pairingId,
+			desktopSecret,
+			bootstrapSecret,
+			onResumeSecret: (resumeSecret) => this.storeMobileResumeSecret(resumeSecret),
+		});
 		const lanUrl = localRelay.getLanUrl();
-		const config = await readDesktopConfig();
-		await this.persistRemoteConfig(config, { relayBaseUrl: relay, pairingId, inputEnabled: false });
-		await this.startActive(lanUrl, pairingId, desktopSecret, false, bootstrapSecret);
+		await this.persistRemoteConfig({ relayBaseUrl: relay, pairingId, inputEnabled: false });
+		await this.startActive(lanUrl, pairingId, desktopSecret, false, bootstrapSecret, this.localRelayCertificate);
 		this.state = {
 			status: "ready",
 			relayBaseUrl: relay,
 			pairingId,
-			inviteUri: buildInviteUri(relay, pairingId, bootstrapSecret, lanUrl),
+			inviteUri: buildInviteUri(relay, pairingId, bootstrapSecret, lanUrl, this.localRelayCertificate.fingerprint),
 			inputEnabled: false,
 			inputSupported: this.host?.inputSupported === true,
 		};
@@ -122,8 +147,7 @@ export class DesktopRemotePairingService {
 		if (effective) this.host?.grantInput();
 		else this.host?.revokeInput();
 		this.state = { ...this.state, inputEnabled: effective };
-		const config = await readDesktopConfig();
-		if (config.remoteControl) await this.persistRemoteConfig(config, { inputEnabled: effective });
+		await this.persistRemoteConfig({ inputEnabled: effective });
 		return this.getState();
 	}
 
@@ -133,10 +157,10 @@ export class DesktopRemotePairingService {
 		await getDesktopLocalRelay().stop();
 		this.host = undefined;
 		this.connectionState = "idle";
+		this.vault.remove({ namespace: CREDENTIAL_NAMESPACE, ownerId: CREDENTIAL_OWNER, name: MOBILE_RESUME_CREDENTIAL });
 		if (clearCredential)
 			this.vault.remove({ namespace: CREDENTIAL_NAMESPACE, ownerId: CREDENTIAL_OWNER, name: CREDENTIAL_NAME });
-		const config = await readDesktopConfig();
-		if (config.remoteControl) await writeDesktopConfig({ ...config, remoteControl: undefined });
+		await updateDesktopConfig((config) => (config.remoteControl ? { ...config, remoteControl: undefined } : config));
 		this.state = { status: "idle", inputEnabled: false, inputSupported: false };
 		log.info("remote pairing revoked");
 	}
@@ -147,11 +171,18 @@ export class DesktopRemotePairingService {
 		desktopSecret: string,
 		inputEnabled: boolean,
 		bootstrapSecret?: string,
+		localRelayCertificate?: DesktopLocalRelayCertificate,
 	): Promise<void> {
-		const controlTarget = `${relay}/v1/relay/${pairingId}/desktop#${new URLSearchParams({ pairing: desktopSecret, ...(bootstrapSecret ? { bootstrap: bootstrapSecret } : {}) }).toString()}`;
-		const signalingTarget = `${relay}/v1/desktop/${pairingId}/host#pairing=${encodeURIComponent(desktopSecret)}`;
+		const targetParams = new URLSearchParams({
+			pairing: desktopSecret,
+			...(bootstrapSecret ? { bootstrap: bootstrapSecret } : {}),
+		});
+		if (localRelayCertificate) targetParams.set("fingerprint", localRelayCertificate.fingerprint);
+		const controlTarget = `${relay}/v1/relay/${pairingId}/desktop#${targetParams.toString()}`;
+		const signalingTarget = `${relay}/v1/desktop/${pairingId}/host#${new URLSearchParams({ pairing: desktopSecret, ...(localRelayCertificate ? { fingerprint: localRelayCertificate.fingerprint } : {}) }).toString()}`;
 		await startDesktopRemoteAccess({
 			controlTarget,
+			webSocketCaCertificate: localRelayCertificate?.certificate,
 			conversationCwd: this.options.conversationCwd,
 			onStateChange: (state) => this.handleConnectionState(state),
 		});
@@ -183,35 +214,68 @@ export class DesktopRemotePairingService {
 		return this.vault.get({ namespace: CREDENTIAL_NAMESPACE, ownerId: CREDENTIAL_OWNER, name: CREDENTIAL_NAME });
 	}
 
-	private async persistRemoteConfig(
-		config: DesktopConfig,
-		patch: NonNullable<DesktopConfig["remoteControl"]>,
-	): Promise<void> {
-		await writeDesktopConfig({ ...config, remoteControl: { ...config.remoteControl, ...patch } });
+	private async persistRemoteConfig(patch: NonNullable<DesktopConfig["remoteControl"]>): Promise<void> {
+		await updateDesktopConfig((config) => {
+			if (!config.remoteControl) return config;
+			return { ...config, remoteControl: { ...config.remoteControl, ...patch } };
+		});
+	}
+
+	private async getLocalRelayCertificate(ipAddress: string, rotate = false): Promise<DesktopLocalRelayCertificate> {
+		const ref = { namespace: CREDENTIAL_NAMESPACE, ownerId: CREDENTIAL_OWNER, name: LOCAL_RELAY_CERT_CREDENTIAL };
+		const stored = rotate ? undefined : this.vault.get(ref);
+		if (stored) {
+			try {
+				const parsed = JSON.parse(stored) as DesktopLocalRelayCertificate;
+				if (parsed.certificate && parsed.privateKey && parsed.fingerprint) return parsed;
+			} catch {
+				// Replace malformed local relay credentials with a fresh certificate.
+			}
+		}
+		const generated = await createDesktopLocalRelayCertificate(ipAddress);
+		this.vault.put(ref, JSON.stringify(generated), { kind: "remote-relay-tls", consumer: "desktop" });
+		return generated;
+	}
+
+	private readMobileResumeSecret(): string | undefined {
+		return this.vault.get({
+			namespace: CREDENTIAL_NAMESPACE,
+			ownerId: CREDENTIAL_OWNER,
+			name: MOBILE_RESUME_CREDENTIAL,
+		});
+	}
+
+	private storeMobileResumeSecret(secret: string): void {
+		this.vault.put(
+			{ namespace: CREDENTIAL_NAMESPACE, ownerId: CREDENTIAL_OWNER, name: MOBILE_RESUME_CREDENTIAL },
+			secret,
+			{ kind: "remote-mobile-resume", consumer: "desktop-local-relay" },
+		);
 	}
 }
 
 function normalizeRelayBaseUrl(value: string | undefined): string | undefined {
 	if (!value) return undefined;
 	const parsed = new URL(value.trim());
-	if (
-		parsed.protocol !== "http:" &&
-		parsed.protocol !== "https:" &&
-		parsed.protocol !== "ws:" &&
-		parsed.protocol !== "wss:"
-	)
-		return undefined;
-	const protocol = parsed.protocol === "http:" ? "ws:" : parsed.protocol === "https:" ? "wss:" : parsed.protocol;
+	if (parsed.protocol !== "https:" && parsed.protocol !== "wss:") return undefined;
+	const protocol = parsed.protocol === "https:" ? "wss:" : parsed.protocol;
 	return `${protocol}//${parsed.host}${parsed.pathname}`.replace(/\/$/, "");
 }
 
-function buildInviteUri(relay: string, pairingId: string, bootstrap: string, lanUrl?: string): string {
+function buildInviteUri(
+	relay: string,
+	pairingId: string,
+	bootstrap: string,
+	lanUrl?: string,
+	lanFingerprint?: string,
+): string {
 	const webRelay = relay.replace(/^ws/, "http");
 	const params = new URLSearchParams({
 		relay: webRelay,
 		pairingId,
 		bootstrap,
 		...(lanUrl ? { lan: lanUrl } : {}),
+		...(lanFingerprint ? { lanFingerprint } : {}),
 	});
 	return `agent567://pair?${params.toString()}`;
 }

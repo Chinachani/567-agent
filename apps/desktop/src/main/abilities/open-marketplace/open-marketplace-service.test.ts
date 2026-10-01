@@ -381,6 +381,27 @@ describe("OpenMarketplaceService", () => {
 		);
 	});
 
+	it("does not route a failed public GitHub archive request through a third-party proxy", async () => {
+		const fetchArchive = vi.fn(async () => {
+			throw new Error("network unavailable");
+		});
+		const service = new OpenMarketplaceService({
+			appVersion: APP_VERSION,
+			repository: "https://github.com/example/vetta-abilities",
+			rootDir: await temporaryRoot(),
+			archiveDownload: { attempts: 1 },
+			fetchArchive,
+		});
+
+		await service.refresh();
+
+		expect(fetchArchive).toHaveBeenCalledOnce();
+		expect(fetchArchive).toHaveBeenCalledWith(
+			"https://github.com/example/vetta-abilities/archive/refs/heads/main.zip",
+			expect.objectContaining({ redirect: "follow" }),
+		);
+	});
+
 	it("uses the GitHub Contents API and decodes its base64 manifest payload", async () => {
 		const rootDir = await temporaryRoot();
 		const zip = archive();

@@ -656,28 +656,13 @@ export class OpenMarketplaceService {
 		try {
 			const token = this.getAccessToken()?.trim();
 			const directUrl = token ? githubZipballUrl(this.repository, this.sourceRef) : this.archiveUrl;
-			let response: Response;
-			try {
-				response = await this.fetchArchive(directUrl, {
-					headers: token
-						? githubApiHeaders("application/vnd.github+json", token)
-						: githubHeaders("application/zip"),
-					// Electron's Chromium fetch cancels manual redirects. Its network stack
-					// strips Authorization when following the cross-origin GitHub download redirect.
-					redirect: "follow",
-					signal: controller.signal,
-				});
-			} catch (err) {
-				if (!token && directUrl.startsWith("https://github.com/")) {
-					response = await this.fetchArchive(`https://v6.gh-proxy.org/${directUrl}`, {
-						headers: githubHeaders("application/zip"),
-						redirect: "follow",
-						signal: controller.signal,
-					});
-				} else {
-					throw err;
-				}
-			}
+			const response = await this.fetchArchive(directUrl, {
+				headers: token ? githubApiHeaders("application/vnd.github+json", token) : githubHeaders("application/zip"),
+				// Electron's Chromium fetch cancels manual redirects. Its network stack
+				// strips Authorization when following the cross-origin GitHub download redirect.
+				redirect: "follow",
+				signal: controller.signal,
+			});
 			if (!response.ok) throw requestError(response.status, "Open marketplace download");
 			const declaredLength = Number(response.headers.get("content-length"));
 			if (Number.isFinite(declaredLength) && declaredLength > MAX_ARCHIVE_BYTES) {

@@ -13,8 +13,19 @@ export interface NodeRemoteWebSocket {
 	close(): void;
 }
 
-export function createDesktopWebSocketFactory(): RemoteWebSocketFactory {
-	return (url, protocols) => adaptNodeWebSocket(new NodeWebSocket(url, protocols ? [...protocols] : undefined));
+export function createDesktopWebSocketFactory(ca?: string): RemoteWebSocketFactory {
+	return (url, protocols) =>
+		adaptNodeWebSocket(
+			new NodeWebSocket(
+				url,
+				protocols ? [...protocols] : undefined,
+				ca
+					? {
+							ca,
+						}
+					: undefined,
+			),
+		);
 }
 
 export function adaptNodeWebSocket(socket: NodeRemoteWebSocket): RemoteWebSocket {

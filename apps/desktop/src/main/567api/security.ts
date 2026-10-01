@@ -1,7 +1,8 @@
-import { createCipheriv, createDecipheriv, createHash, createHmac, randomBytes, scryptSync } from "node:crypto";
+import { createDecipheriv, createHash, createHmac, randomBytes, scryptSync } from "node:crypto";
 import { existsSync, readFileSync, writeFileSync } from "node:fs";
 import os from "node:os";
 import { join } from "node:path";
+import { ElectronSafeStorageCryptography } from "../credentials/electron-safe-storage-cryptography.js";
 
 /**
  * 567 Agent 客户端安全防护、请求指纹与敏感凭据加密模块
@@ -9,13 +10,14 @@ import { join } from "node:path";
  * 核心能力：
  * 1. 采集并计算设备唯一硬件指纹（Device Fingerprint），与本地硬件环境绑定；
  * 2. 为所有发往 567 API 服务端（管理接口与大模型推理接口）的请求附加自定义防伪 Header 与动态 HMAC 签名；
- * 3. 对保存在本地的 Token、Key、Cookie 采用 AES-256-GCM 硬件绑定加密存储，防止用户直接解包或打开配置窃取 Token；
+ * 3. 对保存在本地的 Token、Key、Cookie 使用 Electron safeStorage 加密存储；
  * 4. 配合 V8 字节码保护，密钥派生与签名算法在二进制中执行，无法通过静态分析逆向。
  */
 
 // 混淆加密盐
 const SALT_PARTS = ["567", "Api", "Secure", "Token", "2026", "AntiLeech", "v1"];
 const CLIENT_SECRET_KEY = createHash("sha256").update(SALT_PARTS.join("::#@!")).digest("hex");
+const secureStorage = new ElectronSafeStorageCryptography();
 
 function getVettaHomePath(): string {
 	const explicit = process.env.VETTA_HOME;
@@ -123,7 +125,7 @@ export function getSecurityHeaders(extraContext?: Record<string, string>): Recor
 }
 
 /**
- * 获取本机绑定的派生 AES 密钥
+ * 获取旧版密文使用的派生密钥，仅用于迁移历史数据。
  */
 function getDerivedKey(): Buffer {
 	const fp = getClientFingerprint();
@@ -131,22 +133,18 @@ function getDerivedKey(): Buffer {
 }
 
 /**
- * 本机绑定加密：将敏感 Token / Key / Cookie 加密为密文字符串
+ * OS-backed 加密：将敏感 Token / Key / Cookie 加密为密文字符串。
+ * 若系统安全存储不可用则失败关闭，不能把明文当作加密结果返回。
  */
 export function encryptSecret(plaintext?: string): string | undefined {
 	if (!plaintext || typeof plaintext !== "string") return plaintext;
-	if (plaintext.startsWith("enc:v1:")) return plaintext;
+	if (plaintext.startsWith("enc:v2:")) return plaintext;
 
 	try {
-		const key = getDerivedKey();
-		const iv = randomBytes(12);
-		const cipher = createCipheriv("aes-256-gcm", key, iv);
-		let enc = cipher.update(plaintext, "utf8", "hex");
-		enc += cipher.final("hex");
-		const tag = cipher.getAuthTag().toString("hex");
-		return `enc:v1:${iv.toString("hex")}:${tag}:${enc}`;
+		if (!secureStorage.isAvailable()) throw new Error("Secure credential storage is unavailable");
+		return `enc:v2:${secureStorage.encrypt(plaintext)}`;
 	} catch {
-		return plaintext;
+		throw new Error("Unable to encrypt 567 API credentials with OS-backed secure storage");
 	}
 }
 
@@ -155,6 +153,14 @@ export function encryptSecret(plaintext?: string): string | undefined {
  */
 export function decryptSecret(ciphertext?: string): string | undefined {
 	if (!ciphertext || typeof ciphertext !== "string") return ciphertext;
+	if (ciphertext.startsWith("enc:v2:")) {
+		try {
+			if (!secureStorage.isAvailable()) return undefined;
+			return secureStorage.decrypt(ciphertext.slice("enc:v2:".length));
+		} catch {
+			return undefined;
+		}
+	}
 	if (!ciphertext.startsWith("enc:v1:")) return ciphertext;
 
 	try {

@@ -107,7 +107,7 @@ function HtmlPreviewFrame({
 			<iframe
 				title={title}
 				srcDoc={srcDoc}
-				sandbox="allow-scripts allow-same-origin allow-popups allow-forms"
+				sandbox="allow-scripts allow-popups allow-forms"
 				onLoad={() => setLoadedSrcDoc(srcDoc)}
 				className={`absolute inset-0 h-full w-full border-0 bg-white ${
 					loaded ? "opacity-100" : "opacity-0"

@@ -510,12 +510,20 @@ function toRpcError(status: number, payload: unknown): Error {
 async function delayWithSignal(delayMs: number, signal?: AbortSignal): Promise<void> {
 	if (delayMs <= 0) return;
 	await new Promise<void>((resolve, reject) => {
-		const timer = setTimeout(resolve, delayMs);
+		if (signal?.aborted) {
+			reject(new DOMException("Task wait aborted", "AbortError"));
+			return;
+		}
+		const cleanup = (): void => signal?.removeEventListener("abort", abort);
+		const timer = setTimeout(() => {
+			cleanup();
+			resolve();
+		}, delayMs);
 		const abort = () => {
 			clearTimeout(timer);
+			cleanup();
 			reject(new DOMException("Task wait aborted", "AbortError"));
 		};
-		if (signal?.aborted) return abort();
 		signal?.addEventListener("abort", abort, { once: true });
 	});
 }

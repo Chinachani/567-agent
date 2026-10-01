@@ -217,7 +217,9 @@ function scanCommand(source: string): CommandScan {
 
 function classifySegment(segmentWords: readonly string[]): PlanModeCommandVerdict {
 	const firstProgramIndex = segmentWords.findIndex((word) => !/^[A-Za-z_][A-Za-z0-9_]*=/.test(word));
-	if (firstProgramIndex < 0) return ALLOWED;
+	if (firstProgramIndex !== 0) {
+		return deny("environment assignments can change command resolution or execution");
+	}
 	const program = normalizeProgram(segmentWords[firstProgramIndex]);
 	if (!program) return ALLOWED;
 	const args = segmentWords.slice(firstProgramIndex + 1);
@@ -235,9 +237,7 @@ function classifySegment(segmentWords: readonly string[]): PlanModeCommandVerdic
 	const subcommands = READ_ONLY_SUBCOMMANDS.get(program);
 	if (!subcommands && (READ_ONLY_PROGRAMS.has(program) || MUTATING_ARGUMENT_PREFIXES.has(program))) return ALLOWED;
 	if (program === "sed") {
-		return args.includes("-n") && !args.some((arg) => /^-[a-zA-Z]*i|^--in-place/.test(arg))
-			? ALLOWED
-			: deny("sed is only allowed as a read-only filter (sed -n, without -i)");
+		return isReadOnlySed(args) ? ALLOWED : deny("sed only allows numeric line-print expressions with -n");
 	}
 	if (subcommands) {
 		const subcommand = args.find((arg) => !arg.startsWith("-"));
@@ -251,6 +251,29 @@ function classifySegment(segmentWords: readonly string[]): PlanModeCommandVerdic
 			: deny(`${program} can execute arbitrary code`);
 	}
 	return deny(`${program} is not on the read-only command list`);
+}
+
+function isReadOnlySed(args: readonly string[]): boolean {
+	if (!args.includes("-n") && !args.includes("--quiet") && !args.includes("--silent")) return false;
+	const scripts: string[] = [];
+	let expectExpression = false;
+	for (const arg of args) {
+		if (expectExpression) {
+			scripts.push(arg);
+			expectExpression = false;
+		} else if (arg !== "-n" && arg !== "--quiet" && arg !== "--silent") {
+			if (arg === "-e" || arg === "--expression") {
+				expectExpression = true;
+			} else if (arg.startsWith("--expression=")) {
+				scripts.push(arg.slice("--expression=".length));
+			} else if (arg.startsWith("-")) {
+				return false;
+			} else if (scripts.length === 0) {
+				scripts.push(arg);
+			}
+		}
+	}
+	return !expectExpression && scripts.length === 1 && /^(?:\d+|\$)(?:,(?:\d+|\$))?p$/.test(scripts[0]!);
 }
 
 function normalizeProgram(word: string | undefined): string | undefined {

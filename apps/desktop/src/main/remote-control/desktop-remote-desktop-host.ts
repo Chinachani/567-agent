@@ -37,17 +37,48 @@ export async function startDesktopRemoteDesktopHost(
 	const input = createSystemInputAdapter({ enabled: options.inputEnabled });
 	input.setEnabled(options.inputEnabled);
 	const paths = resolveDesktopRemoteDesktopHostPaths(options);
+	const hostSession = session.fromPartition(`vetta-remote-desktop-${sessionId}`);
+	const expectedFingerprint = readTargetFingerprint(options.signalingTarget ?? options.signalingUrl ?? "");
+	const allowedOrigin = readTargetOrigin(options.signalingTarget ?? options.signalingUrl ?? "");
 	const window = new BrowserWindow({
 		show: false,
 		width: 1280,
 		height: 720,
 		webPreferences: {
+			session: hostSession,
 			backgroundThrottling: false,
 			contextIsolation: true,
 			nodeIntegration: false,
 			preload: paths.preloadPath,
 		},
 	});
+	const onCertificateError = (
+		event: Electron.Event,
+		url: string,
+		_error: string,
+		certificate: Electron.Certificate,
+		callback: (isTrusted: boolean) => void,
+	): void => {
+		let origin: string | undefined;
+		try {
+			origin = new URL(url).origin;
+		} catch {
+			callback(false);
+			return;
+		}
+		const matches =
+			expectedFingerprint !== undefined &&
+			allowedOrigin !== undefined &&
+			origin === allowedOrigin &&
+			certificate.fingerprint.replaceAll(":", "").toLowerCase() === expectedFingerprint;
+		if (!matches) {
+			callback(false);
+			return;
+		}
+		event.preventDefault();
+		callback(true);
+	};
+	window.webContents.on("certificate-error", onCertificateError);
 	const unregisterVideoPermission = registerRemoteDesktopVideoPermission(window.webContents.id);
 	window.webContents.on("console-message", (_event, level, message) => {
 		const fields = { sessionId, level };
@@ -112,6 +143,7 @@ export async function startDesktopRemoteDesktopHost(
 	} catch (error) {
 		input.setEnabled(false);
 		unregisterVideoPermission();
+		window.webContents.removeListener("certificate-error", onCertificateError);
 		ipcMain.removeListener("vetta:remote-desktop:input", onInput);
 		if (displayMediaHandlerInstalled) session.defaultSession.setDisplayMediaRequestHandler(null);
 		if (!window.isDestroyed()) window.destroy();
@@ -131,6 +163,7 @@ export async function startDesktopRemoteDesktopHost(
 		async stop() {
 			input.setEnabled(false);
 			unregisterVideoPermission();
+			window.webContents.removeListener("certificate-error", onCertificateError);
 			session.defaultSession.setDisplayMediaRequestHandler(null);
 			ipcMain.removeListener("vetta:remote-desktop:input", onInput);
 			if (!window.isDestroyed()) window.destroy();
@@ -140,6 +173,21 @@ export async function startDesktopRemoteDesktopHost(
 	};
 	activeHost = handle;
 	return handle;
+}
+
+function readTargetFingerprint(target: string): string | undefined {
+	const fragment = target.split("#")[1];
+	if (!fragment) return undefined;
+	const value = new URLSearchParams(fragment).get("fingerprint")?.toLowerCase();
+	return value && /^[a-f0-9]{64}$/.test(value) ? value : undefined;
+}
+
+function readTargetOrigin(target: string): string | undefined {
+	try {
+		return new URL(target.split("#")[0]!).origin;
+	} catch {
+		return undefined;
+	}
 }
 
 export async function stopDesktopRemoteDesktopHost(): Promise<void> {
