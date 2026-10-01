@@ -1,31 +1,49 @@
-This is a Kotlin Multiplatform project targeting Android.
+# 567 Agent Android
 
-* [/shared](./shared/src) is for code that will be shared across your Compose Multiplatform applications.
-  It contains several subfolders:
-  - [commonMain](./shared/src/commonMain/kotlin) is for code that’s common for all targets.
-  - Other folders are for Kotlin code that will be compiled for only the platform indicated in the folder name.
-    For example, [androidMain](./shared/src/androidMain/kotlin) holds the Android-specific `actual`
-    implementations of the `expect` declarations in `commonMain`.
+Android 客户端提供两种对话方式：连接 Vetta Desktop 继续桌面会话，或在手机上通过 567 API 直接对话。远程桌面预览可查看画面并发送输入；它与手机端直接对话使用不同的连接配置。
 
-* [/androidApp](./androidApp/src) is the Android application entry point.
+## 用户指南
 
-### Running the app
+- [聊天记录迁移](../../docs/apps/mobile/chat-history-migration.md)：签名更换、重装前导出和导入本地会话。
+- [手机端连接与模型排障](../../docs/apps/mobile/chat-connection-troubleshooting.md)：检查登录、模型目录和聊天连接问题。
+- [Mobile 文档索引](../../docs/apps/mobile/README.md)：远程桌面开发、真机测试和排障资料。
 
-Use the run configurations provided by the run widget in your IDE's toolbar. You can also use this command:
+## 开发
 
-- Android app: `./gradlew :androidApp:assembleDebug`
+这是 Kotlin Multiplatform 项目。共享 Compose UI、业务逻辑和数据层位于 `shared/src/commonMain`；Android 专属实现位于 `shared/src/androidMain`；应用入口位于 `androidApp`。
 
-### Running tests
+在 `apps/mobile` 目录运行：
 
-Use the run button in your IDE's editor gutter, or run tests using Gradle tasks:
+```bash
+./gradlew :androidApp:assembleDebug
+./gradlew :shared:testAndroidHostTest
+```
 
-- Android tests: `./gradlew :shared:testAndroidHostTest`
-- Android emulator/device tests: `./gradlew :shared:connectedAndroidDeviceTest`
+连接已启动的 Android 设备或模拟器运行仪器测试：
 
-### Remote Desktop developer preview
+```bash
+./gradlew :shared:connectedAndroidDeviceTest
+```
 
-Run the Cloudflare relay locally, generate a pairing with `bun run --cwd ../remote-relay pair`, and paste the printed mobile target into the app's remote connection field. The device detail screen renders the peer-to-peer desktop stream; pointer, wheel, and hardware keyboard events use the WebRTC DataChannel rather than the relay.
+## APK 签名
 
----
+发布签名材料不能存放在仓库。构建正式版前，通过本机环境变量或用户级 `~/.gradle/gradle.properties` 配置：
 
-Learn more about [Kotlin Multiplatform](https://www.jetbrains.com/help/kotlin-multiplatform-dev/get-started.html)…
+- `VETTA_ANDROID_KEYSTORE_PATH`
+- `VETTA_ANDROID_KEYSTORE_PASSWORD`
+- `VETTA_ANDROID_KEY_ALIAS`
+- `VETTA_ANDROID_KEY_PASSWORD`
+
+不要把密码写入仓库中的 `gradle.properties`。Debug 构建使用 Android 标准 debug 密钥。
+
+签名迁移期间使用单独的 legacy 密钥构建过渡 APK：
+
+```bash
+./gradlew :androidApp:assembleMigration
+```
+
+过渡版配置使用 `VETTA_ANDROID_MIGRATION_KEYSTORE_PATH`、`VETTA_ANDROID_MIGRATION_KEYSTORE_PASSWORD`、`VETTA_ANDROID_MIGRATION_KEY_ALIAS` 和 `VETTA_ANDROID_MIGRATION_KEY_PASSWORD`。密钥必须保存在仓库之外；迁移密钥仅用于过渡 APK，正式版必须使用新的发布密钥。用户操作步骤见[聊天记录迁移指南](../../docs/apps/mobile/chat-history-migration.md)。
+
+## Remote Desktop 开发预览
+
+远程桌面需要 Desktop 与 Android 配对，并使用 Cloudflare Relay 传递配对和信令。真机验证步骤、权限要求和故障定位见 [Mobile 文档索引](../../docs/apps/mobile/README.md)。

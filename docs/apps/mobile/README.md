@@ -2,6 +2,11 @@
 
 这里记录 Android 真机、Desktop 远程控制和 Cloudflare Relay 的开发与验收方法。
 
+面向手机端用户的说明：
+
+- [聊天记录迁移](./chat-history-migration.md)：签名更换时如何使用过渡 APK 导出、重装并导入本地会话。
+- [手机端连接与模型排障](./chat-connection-troubleshooting.md)：排查 567 API 模型目录和 Desktop 远程连接。
+
 ## 文档索引
 
 - [真机测试操作手册](./remote-desktop-real-device-testing.md)：从 ADB、APK 安装、Desktop 启动、二维码配对到远程画面和输入验收。
@@ -12,7 +17,7 @@
 
 ## 当前边界
 
-- Android 包名：`org.vetta.android`。
+- Android `applicationId`：`com.api567.agent`；Kotlin namespace：`org.vetta.android`。
 - Desktop 远程画面使用独立 WebRTC，Cloudflare Worker 只负责配对和信令转发，不承载屏幕像素或输入数据。
 - Desktop 和 Android 都需要互联网访问；同一 Wi-Fi 适合首轮排障，但不能替代跨 NAT 验证。
 - 远程输入默认关闭，并受 Desktop 操作系统权限和本地能力检测限制。

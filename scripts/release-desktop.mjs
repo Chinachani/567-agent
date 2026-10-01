@@ -95,9 +95,13 @@ function main() {
 
 	assertCleanWorktree();
 	const branch = assertBranch();
-	run("bun", ["run", "check:lint"]);
-	run("bun", ["run", "--cwd", "apps/desktop", "typecheck"]);
-	run("bun", ["run", "check:guards"]);
+	// Run the same fast correctness gates before creating the version commit/tag.
+	// The release workflow repeats them on GitHub, but local preflight prevents
+	// pushing a tag that is guaranteed to fail before platform builds begin.
+	run("bun", ["run", "check"]);
+	run("bun", ["run", "test:quality"]);
+	run("bun", ["run", "verify:desktop:contracts"]);
+	run("bun", ["run", "test:desktop:packaging"]);
 	assertCleanWorktree();
 
 	const desktopPackage = readDesktopPackage();

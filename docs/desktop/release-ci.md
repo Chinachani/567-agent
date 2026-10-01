@@ -3,6 +3,21 @@
 实现入口：[desktop-release.yml](../../.github/workflows/desktop-release.yml)、
 [desktop-cache.yml](../../.github/workflows/desktop-cache.yml)。
 
+## 本地发版入口
+
+先为下一个版本准备并提交 `.github/release-notes/v<version>.md`，再保证当前分支工作区干净。桌面版本号以 `apps/desktop/package.json` 为准；例如当前版本为 `1.1.3` 时，patch 发版说明应提前写入 `v1.1.4.md`。已存在的版本 tag 和 Release 说明不应复用或改写。
+
+在仓库根目录运行以下命令之一：
+
+```bash
+bun run release:desktop:patch
+bun run release:desktop:minor
+```
+
+脚本会检查分支与工作区状态，运行 `bun run check`、`bun run test:quality`、`bun run verify:desktop:contracts` 和 `bun run test:desktop:packaging`，然后校验下一版本的 Release Notes。通过后只更新并暂存 Desktop 版本文件和 `bun.lock`，创建版本提交与 tag，并用一次 atomic push 推送分支和 tag。该入口会直接触发 GitHub 发版工作流；不要把它当成普通代码推送命令，也不要对已存在的 tag 重新推送。
+
+如果只需要提交代码、不发版，应正常提交并推送分支，不创建版本 tag。GitHub 上的 `desktop-release` 仍会在 tag 流程中重复质量、合同和制品检查。
+
 ## 哪一步失败，就重跑哪一步
 
 在原来的 Actions 运行页面选择 **Re-run jobs → Re-run failed jobs**，不要重新 Run workflow，

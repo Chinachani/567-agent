@@ -16,7 +16,7 @@
  * 9. Generate release artifacts and install guide
  */
 
-import { execSync } from "child_process";
+import { execFileSync, execSync } from "child_process";
 import { readFileSync, writeFileSync, readdirSync, existsSync, mkdirSync, copyFileSync } from "fs";
 import { join } from "path";
 
@@ -112,6 +112,12 @@ function getChangelogs() {
 		.filter((path) => existsSync(path));
 }
 
+function stageFiles(paths) {
+	if (paths.length === 0) throw new Error("No release files to stage");
+	console.log(`$ git add -- ${paths.join(" ")}`);
+	execFileSync("git", ["add", "--", ...paths], { stdio: "inherit" });
+}
+
 function updateChangelogsForRelease(version) {
 	const date = new Date().toISOString().split("T")[0];
 	const changelogs = getChangelogs();
@@ -200,13 +206,9 @@ function createReleaseArtifacts(version) {
 		"```",
 		"",
 		"## Binary artifact usage (optional)",
-		"```bash",
-		"tar -xzf pi-linux-x64.tar.gz",
-		"cd pi-linux-x64",
-		"./pi --version",
-		"```",
+		"Extract the archive for your platform and run the included Vetta executable.",
 		"",
-		"Upload these artifacts to your release page in Gitee Releases.",
+		"Upload these artifacts to this repository's release page.",
 	];
 
 	const releaseNotesLines = [
@@ -252,7 +254,7 @@ console.log();
 
 // 4. Commit and tag
 console.log("Committing and tagging...");
-run("git add .");
+stageFiles([...getLockstepPackageJsonPaths(), ...getChangelogs()]);
 run(`git commit -m "Release v${version}"`);
 run(`git tag v${version}`);
 console.log();
@@ -273,7 +275,7 @@ console.log();
 
 // 7. Commit
 console.log("Committing changelog updates...");
-run("git add .");
+stageFiles(getChangelogs());
 run(`git commit -m "Add [Unreleased] section for next cycle"`);
 console.log();
 

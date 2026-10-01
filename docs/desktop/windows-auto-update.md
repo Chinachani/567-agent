@@ -111,7 +111,7 @@ desktop/
   current.blockmap                  # electron-updater 管理的基线 blockmap
 ```
 
-首次/手动安装完成后，Inno 用硬链接把安装源 EXE 写成 `installer.exe`；硬链接失败时回退为复制。后台下载完成后，主进程也会在运行 Inno 前提升新的安装包为下一次差分基线。
+首次/手动安装完成后，Inno 用硬链接把安装源 EXE 写成 `installer.exe`；硬链接失败时回退为复制。后台下载完成并且 Inno 已成功展开、校验新版本目录后，主进程才会提升新的安装包为下一次差分基线；准备失败时继续保留旧基线。
 
 这两个动作都不能删除。缺少当前安装包基线时，客户端即使拿到了 blockmap，也可能退化为接近全量下载。
 
@@ -124,9 +124,9 @@ desktop/
   -> 发现更高版本
   -> 20 秒后自动下载（也可手动触发）
   -> electron-updater 校验并差分重建完整 EXE
-  -> 提升 EXE 为下一次差分基线
   -> Inno 静默展开到 %LOCALAPPDATA%\Vetta\versions\<new>
   -> 校验 Vetta.exe、resources/app.asar、.install-complete
+  -> 提升 EXE 为下一次差分基线
   -> 状态变为 ready，提示更新并重启
   -> 写 current.json（pending=true）
   -> 直接启动新版本 EXE，退出旧版本
@@ -558,7 +558,7 @@ ready 弹窗只会在以下三项同时存在后出现：
 
 - 普通 Inno 安装完成后调用 `SeedUpdaterDifferentialCache()`，优先硬链接安装源 EXE到缓存。
 - 手动安装替换缓存时删除旧 `current.blockmap`，避免新 EXE 配旧 blockmap。
-- 每次后台下载完成后，在运行 Inno 之前提升新 EXE 为下一次基线。
+- 只有新版本成功展开并通过核心文件校验后，才提升新 EXE 为下一次基线。
 - 提升失败时清理临时文件、安装包缓存和 blockmap，避免留下错误配对。
 
 日志中的 `To download: 741.68 KB (0%)` 不是零下载。741 KB 相对约 250 MB 不足 1%，electron-updater 取整后显示为 0%。
