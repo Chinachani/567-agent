@@ -172,6 +172,28 @@ export function useSessionMessageSender({ bumpSuggestionToken }: SessionMessageS
 			) {
 				return;
 			}
+			const targetSessionId = session.runtimeId;
+			const targetDraftKey = store.get(activeInputDraftKeyAtom);
+			const targetWasStreaming = store.get(isStreamingAtom);
+			const targetDefaultConversationCwd = defaultConversationCwdRef.current;
+			const pendingEdit = store.get(pendingMessageEditAtom);
+			const isTargetSessionActive = (): boolean => store.get(activeSessionAtom)?.runtimeId === targetSessionId;
+			const isTargetSessionStreaming = (): boolean =>
+				isTargetSessionActive() ? store.get(isStreamingAtom) : targetWasStreaming;
+			const setTargetSessionMessages = (update: Parameters<typeof setChatMessages>[0]): void => {
+				if (isTargetSessionActive()) setChatMessages(update);
+			};
+			const setTargetSessionStreaming = (streaming: boolean): void => {
+				if (isTargetSessionActive()) setActiveSessionStreaming(streaming);
+			};
+			const clearTargetSessionRetryProgress = (): void => {
+				if (isTargetSessionActive()) setRetryProgress(null);
+			};
+			const clearTargetPendingEdit = (): void => {
+				if (isTargetSessionActive() && store.get(pendingMessageEditAtom) === pendingEdit) {
+					store.set(pendingMessageEditAtom, null);
+				}
+			};
 			// 发出新 prompt：清空该会话的输入预测，并作废仍在飞的生成（过期判定）。
 			// 插件静默发送不动用户正在看的预测。
 			if (options?.source !== "plugin") {
@@ -191,7 +213,7 @@ export function useSessionMessageSender({ bumpSuggestionToken }: SessionMessageS
 			} catch (error) {
 				if (!(error instanceof MultipleSceneReferencesError)) throw error;
 				const message = i18n.t("chat:inputBar.error.multipleScenes");
-				setChatMessages((prev) => appendError(prev, message));
+				setTargetSessionMessages((prev) => appendError(prev, message));
 				return { status: "failed", error: { message } };
 			}
 			const images = !hasOverride && attachedImages.length > 0 ? attachedImages : undefined;
@@ -241,7 +263,7 @@ export function useSessionMessageSender({ bumpSuggestionToken }: SessionMessageS
 			const text = hasOverride ? rawText : preparedInput.text;
 			if (stagedInput && imagePaths.length > 0) {
 				const stagedId = stagedInput.optimisticMessage.id;
-				setChatMessages((messages) =>
+				setTargetSessionMessages((messages) =>
 					messages.map((message) =>
 						message.id === stagedId && message.kind === "user"
 							? { ...message, attachments, images: undefined }
@@ -267,19 +289,20 @@ export function useSessionMessageSender({ bumpSuggestionToken }: SessionMessageS
 				if (stagedInput) {
 					// 用户可能已在 Runtime 创建期间输入下一条消息。首条只补记历史，
 					// 不得清掉当前编辑器中后来产生的新草稿与附件。
-					pushSessionInputHistory(getDefaultStore().get(activeInputDraftKeyAtom), rawText);
+					pushSessionInputHistory(targetDraftKey, rawText);
 				} else {
-					recordSentInputAndClearDraft(rawText);
-					setAttachedImages([]);
-					setMentionedFiles([]);
+					recordSentInputAndClearDraft(rawText, targetDraftKey);
+					if (isTargetSessionActive()) {
+						setAttachedImages([]);
+						setMentionedFiles([]);
+					}
 				}
 				perfSendMark("clear-draft-end", interactionId);
 			}
 			// 最后一条用户消息重编辑：提交时先中止当前生成，再删除旧消息及其回复子树；
 			// 随后的正常 prompt 从原 parent 继续，因此不会创建会话内分支。
-			const pendingEdit = store.get(pendingMessageEditAtom);
 			if (pendingEdit) {
-				if (store.get(isStreamingAtom)) {
+				if (isTargetSessionStreaming()) {
 					await new Promise<void>((resolve) => {
 						let settled = false;
 						let unsubscribe: () => void = () => {};
@@ -294,7 +317,7 @@ export function useSessionMessageSender({ bumpSuggestionToken }: SessionMessageS
 						unsubscribe = window.vetta.session.onRunningChanged((p) => {
 							if (p.sessionId === session.runtimeId && p.running === false) finish();
 						});
-						if (!store.get(isStreamingAtom)) {
+						if (!isTargetSessionStreaming()) {
 							finish();
 							return;
 						}
@@ -306,13 +329,13 @@ export function useSessionMessageSender({ bumpSuggestionToken }: SessionMessageS
 				try {
 					await window.vetta.session.replaceLastUserMessage(session.runtimeId, pendingEdit.entryId);
 					const history = await window.vetta.session.getFullHistory(session.runtimeId);
-					setChatMessages(fullHistoryToChat(history));
-					store.set(pendingMessageEditAtom, null);
+					setTargetSessionMessages(fullHistoryToChat(history));
+					clearTargetPendingEdit();
 				} catch (err) {
 					const message = err instanceof Error ? err.message : String(err);
 					console.error("[useSessionManager.sendMessage] replaceLastUserMessage failed:", err);
-					store.set(pendingMessageEditAtom, null);
-					setChatMessages((prev) => appendError(prev, message));
+					clearTargetPendingEdit();
+					setTargetSessionMessages((prev) => appendError(prev, message));
 					return;
 				}
 			}
@@ -320,19 +343,21 @@ export function useSessionMessageSender({ bumpSuggestionToken }: SessionMessageS
 			// streaming 期间发送 = 排队等下一轮：跳过「用户气泡 / 清产物列表 / 乐观侧边栏 /
 			// 清 todo」这些开启新一轮才该有的副作用，仅在下方组装好 promptReq 快照后入队。
 			// （输入框已在上方清空，符合「入队后清空输入框」语义。）
-			const streaming = pendingEdit ? false : getDefaultStore().get(isStreamingAtom);
+			const streaming = pendingEdit ? false : isTargetSessionStreaming();
 			let optimisticUserMsgId: string | undefined;
 			if (!streaming && stagedInput) {
 				optimisticUserMsgId = stagedInput.optimisticMessage.id;
-				rememberOptimisticUserMessage(
-					session.runtimeId,
-					{
-						...stagedInput.optimisticMessage,
-						attachments,
-						...(imagePaths.length > 0 ? { images: undefined } : {}),
-					},
-					[],
-				);
+				if (isTargetSessionActive()) {
+					rememberOptimisticUserMessage(
+						session.runtimeId,
+						{
+							...stagedInput.optimisticMessage,
+							attachments,
+							...(imagePaths.length > 0 ? { images: undefined } : {}),
+						},
+						[],
+					);
+				}
 			} else if (!streaming) {
 				// 失败重发去重（ADR-0060）：上一轮在 prompt 前置阶段就失败、什么都没产出，
 				// 且本次原样重发时，先 replaceLastUserMessage 回退再发，避免 jsonl 双份
@@ -340,11 +365,13 @@ export function useSessionMessageSender({ bumpSuggestionToken }: SessionMessageS
 				// 判据见 planFailedResendRollback——后端是硬删子树，收不紧会连带销毁
 				// 「跑了很久才失败」那一轮的全部产出。
 				if (!pendingEdit) {
-					const rollback = planFailedResendRollback(store.get(chatMessagesAtom), text);
+					const rollback = isTargetSessionActive()
+						? planFailedResendRollback(store.get(chatMessagesAtom), text)
+						: undefined;
 					if (rollback) {
 						try {
 							await window.vetta.session.replaceLastUserMessage(session.runtimeId, rollback.entryId);
-							setChatMessages((prev) => prev.slice(0, rollback.truncateFrom));
+							setTargetSessionMessages((prev) => prev.slice(0, rollback.truncateFrom));
 						} catch (err) {
 							// 回退失败就按普通追加发送；宁可重复也不丢消息。
 							console.warn("[useSessionManager.sendMessage] resend dedupe failed:", err);
@@ -374,9 +401,11 @@ export function useSessionMessageSender({ bumpSuggestionToken }: SessionMessageS
 				if (settingsAssistTabId) {
 					userMsg.settingsAssistTabId = settingsAssistTabId;
 				}
-				rememberOptimisticUserMessage(session.runtimeId, userMsg, store.get(chatMessagesAtom));
+				if (isTargetSessionActive()) {
+					rememberOptimisticUserMessage(session.runtimeId, userMsg, store.get(chatMessagesAtom));
+				}
 				perfSendMark("optimistic-append", interactionId);
-				setChatMessages((prev) => [...prev, userMsg]);
+				setTargetSessionMessages((prev) => [...prev, userMsg]);
 				optimisticUserMsgId = userMsg.id;
 			}
 
@@ -390,7 +419,7 @@ export function useSessionMessageSender({ bumpSuggestionToken }: SessionMessageS
 				// 但侧边栏 sessionsMap / 默认列表都挂在项目根 bucket 上。乐观行必须落到根
 				// bucket，否则既不在「会话」列表显示，auto-title 的 applyLocalRename(root,…)
 				// 也会因 bucket 不匹配而落空，导致改名要等下一次磁盘刷新才生效。
-				const bucketCwd = conversationBucketCwd(session.cwd, defaultConversationCwdRef.current);
+				const bucketCwd = conversationBucketCwd(session.cwd, targetDefaultConversationCwd);
 				ensureLocalSession(bucketCwd, {
 					id: session.runtimeId,
 					path: sp,
@@ -422,7 +451,7 @@ export function useSessionMessageSender({ bumpSuggestionToken }: SessionMessageS
 				} catch (err) {
 					const message = err instanceof Error ? err.message : String(err);
 					console.error("[useSessionManager.sendMessage] resumeTaskWithText rejected:", err);
-					setChatMessages((prev) => appendError(prev, message));
+					setTargetSessionMessages((prev) => appendError(prev, message));
 				}
 				await loadSessions(session.cwd);
 				return;
@@ -452,7 +481,7 @@ export function useSessionMessageSender({ bumpSuggestionToken }: SessionMessageS
 				await applyDraftPlanMode(session.runtimeId);
 			} catch (err) {
 				console.error("[useSessionManager.sendMessage] applyDraftPlanMode failed:", err);
-				setChatMessages((prev) => appendError(prev, err instanceof Error ? err.message : String(err)));
+				setTargetSessionMessages((prev) => appendError(prev, err instanceof Error ? err.message : String(err)));
 				return;
 			}
 
@@ -553,9 +582,12 @@ export function useSessionMessageSender({ bumpSuggestionToken }: SessionMessageS
 			let sendResult: SendMessageResult | undefined;
 			try {
 				if (stagedInput) {
-					getDefaultStore().set(pendingSessionSendAtom, null);
-					setChatMessages((prev) => startAssistantTurn(prev, Date.now()));
-					setActiveSessionStreaming(true);
+					const pendingSend = getDefaultStore().get(pendingSessionSendAtom);
+					if (pendingSend?.messageId === stagedInput.optimisticMessage.id) {
+						getDefaultStore().set(pendingSessionSendAtom, null);
+					}
+					setTargetSessionMessages((prev) => startAssistantTurn(prev, Date.now()));
+					setTargetSessionStreaming(true);
 				}
 				perfSendMark("await-plugin-host", interactionId);
 				// 只等首次激活：热重载期间旧工具注册仍有效（last-known-good），
@@ -575,7 +607,7 @@ export function useSessionMessageSender({ bumpSuggestionToken }: SessionMessageS
 						// 以为空闲实则已在跑：消息已入 kernel 队列，撤掉抢先的乐观气泡，
 						// 待消费时经 queue.changed 重新上屏，保证顺序与模型可见一致。
 						const staleId = optimisticUserMsgId;
-						setChatMessages((prev) => prev.filter((m) => m.id !== staleId));
+						setTargetSessionMessages((prev) => prev.filter((m) => m.id !== staleId));
 					}
 					sendResult = { status: "queued", queueItemId: outcome.queueItemId };
 				} else if (outcome?.status === "failed") {
@@ -584,11 +616,11 @@ export function useSessionMessageSender({ bumpSuggestionToken }: SessionMessageS
 					// delayed or lost. appendError deduplicates the later error event by turnId.
 					const message =
 						outcome.error?.message?.trim() || i18n.t("chat:messageList.errorBlock.kinds.unknown.title");
-					setChatMessages((prev) =>
+					setTargetSessionMessages((prev) =>
 						appendError(prev, message, undefined, outcome.turnId, toChatErrorDetails(outcome.error)),
 					);
-					setActiveSessionStreaming(false);
-					setRetryProgress(null);
+					setTargetSessionStreaming(false);
+					clearTargetSessionRetryProgress();
 					sendResult = { status: "failed", error: { message } };
 				} else {
 					sendResult = { status: "sent" };
@@ -604,7 +636,7 @@ export function useSessionMessageSender({ bumpSuggestionToken }: SessionMessageS
 				// 气泡，杜绝「按了发送但屏幕完全没反应」的死寂体验。
 				const message = err instanceof Error ? err.message : String(err);
 				console.error("[useSessionManager.sendMessage] prompt rejected:", err);
-				setChatMessages((prev) => {
+				setTargetSessionMessages((prev) => {
 					const last = prev.at(-1);
 					const lastError = last?.kind === "agent" ? last.blocks.at(-1) : undefined;
 					if (last?.kind === "agent" && lastError?.type === "error" && lastError.text === message) return prev;
@@ -614,8 +646,8 @@ export function useSessionMessageSender({ bumpSuggestionToken }: SessionMessageS
 				// 流式态（新会话暂存发送会抢先置为 true）必须在这里退出，否则界面一直“处理中”，
 				// 停止按钮对着一个并不存在的 turn 调 abort，永远停不下来。
 				if (!streaming) {
-					setActiveSessionStreaming(false);
-					setRetryProgress(null);
+					setTargetSessionStreaming(false);
+					clearTargetSessionRetryProgress();
 				}
 				sendResult = { status: "failed", error: { message } };
 			}

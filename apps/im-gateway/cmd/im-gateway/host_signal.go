@@ -125,10 +125,16 @@ func (c *signalBindCoordinator) run(ctx context.Context) {
 		c.cancel = nil
 		c.mu.Unlock()
 	}()
+	c.mu.Lock()
+	var config hostproto.SignalConfig
+	if c.cfg != nil {
+		config = *c.cfg
+	}
+	c.mu.Unlock()
 
 	attempt := 0
-	c.emitLog("info", "signal link: starting", map[string]any{"configDir": c.cfg.ConfigDir})
-	account, err := signalcli.Link(ctx, signalCLIOptions(c.cfg), signalDeviceName, func(uri string) {
+	c.emitLog("info", "signal link: starting", map[string]any{"configDir": config.ConfigDir})
+	account, err := signalcli.Link(ctx, signalCLIOptions(&config), signalDeviceName, func(uri string) {
 		attempt++
 		_ = c.out.WriteFrame(hostproto.SignalQREvent{
 			Type:    hostproto.TypeSignalQR,
@@ -160,7 +166,11 @@ func (c *signalBindCoordinator) run(ctx context.Context) {
 
 	// signal-cli persisted the linked device itself; the transport picks it
 	// up on the next build via listAccounts.
-	c.cfg.Account = account
+	c.mu.Lock()
+	if c.cfg != nil {
+		c.cfg.Account = account
+	}
+	c.mu.Unlock()
 	c.emitBindStatus(hostproto.WechatBindStatusConfirmed, "")
 	_ = c.out.WriteFrame(hostproto.SignalBoundEvent{
 		Type:    hostproto.TypeSignalBound,
@@ -192,15 +202,25 @@ func (c *signalBindCoordinator) emitBindStatus(status, errMsg string) {
 // clicked "unbind" in Vetta would be destructive far beyond this app.
 func (c *signalBindCoordinator) LogoutAndClear(reason string) error {
 	c.Cancel()
-	if c.cfg.OwnsConfigDir && c.cfg.ConfigDir != "" {
-		if err := os.RemoveAll(c.cfg.ConfigDir); err != nil {
-			return fmt.Errorf("signal logout: clear %s: %w", c.cfg.ConfigDir, err)
+	c.mu.Lock()
+	var config hostproto.SignalConfig
+	if c.cfg != nil {
+		config = *c.cfg
+	}
+	c.mu.Unlock()
+	if config.OwnsConfigDir && config.ConfigDir != "" {
+		if err := os.RemoveAll(config.ConfigDir); err != nil {
+			return fmt.Errorf("signal logout: clear %s: %w", config.ConfigDir, err)
 		}
-		c.emitLog("info", "signal logout: cleared local account data", map[string]any{"configDir": c.cfg.ConfigDir})
+		c.emitLog("info", "signal logout: cleared local account data", map[string]any{"configDir": config.ConfigDir})
 	} else {
 		c.emitLog("info", "signal logout: leaving user-managed signal-cli data untouched", nil)
 	}
-	c.cfg.Account = ""
+	c.mu.Lock()
+	if c.cfg != nil {
+		c.cfg.Account = ""
+	}
+	c.mu.Unlock()
 	_ = c.out.WriteFrame(hostproto.SignalUnboundEvent{
 		Type:   hostproto.TypeSignalUnbound,
 		Reason: reason,

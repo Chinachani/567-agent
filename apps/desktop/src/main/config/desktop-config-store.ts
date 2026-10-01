@@ -56,6 +56,10 @@ export interface DesktopConfig {
 	};
 }
 
+export type DesktopConfigUpdater = (
+	mutate: (config: DesktopConfig) => DesktopConfig | Promise<DesktopConfig>,
+) => Promise<DesktopConfig>;
+
 export type AppshotGesture = "both-shift" | "both-mod" | "both-alt";
 
 export interface AppshotConfig {
@@ -266,13 +270,41 @@ function normalizeRemoteControl(value: unknown): DesktopConfig["remoteControl"] 
 }
 
 export async function writeDesktopConfig(config: DesktopConfig): Promise<void> {
-	atomicWriteJSON(CONFIG_PATH, config);
+	await withDesktopConfigMutation(async () => {
+		atomicWriteJSON(CONFIG_PATH, config);
+	});
+}
+
+/** Serialize in-process config read-modify-write operations so concurrent callers retain each other's fields. */
+export async function updateDesktopConfig(mutate: Parameters<DesktopConfigUpdater>[0]): Promise<DesktopConfig> {
+	return withDesktopConfigMutation(async () => {
+		const next = await mutate(await readDesktopConfig());
+		atomicWriteJSON(CONFIG_PATH, next);
+		return next;
+	});
+}
+
+let desktopConfigMutationTail: Promise<void> = Promise.resolve();
+
+async function withDesktopConfigMutation<T>(operation: () => Promise<T>): Promise<T> {
+	const previous = desktopConfigMutationTail;
+	let release!: () => void;
+	desktopConfigMutationTail = new Promise<void>((resolve) => {
+		release = resolve;
+	});
+	await previous;
+	try {
+		return await operation();
+	} finally {
+		release();
+	}
 }
 
 export async function persistVettaCliPaths(paths: { vettaAppPath: string; vettaCliAppPath: string }): Promise<void> {
-	const config = await readDesktopConfig();
-	if (config.vettaAppPath === paths.vettaAppPath && config.vettaCliAppPath === paths.vettaCliAppPath) return;
-	await writeDesktopConfig({ ...config, ...paths });
+	await updateDesktopConfig((config) => {
+		if (config.vettaAppPath === paths.vettaAppPath && config.vettaCliAppPath === paths.vettaCliAppPath) return config;
+		return { ...config, ...paths };
+	});
 }
 
 export function expandTildePath(path: string): string {

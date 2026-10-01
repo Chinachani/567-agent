@@ -1,4 +1,4 @@
-import { describe, expect, it, vi } from "vitest";
+import { describe, expect, it } from "vitest";
 import type { DesktopConfig } from "../config/desktop-config-store.js";
 import { AgentSettingsService } from "./agent-settings-service.js";
 
@@ -14,11 +14,23 @@ function createConfig(): DesktopConfig {
 	};
 }
 
+function createConfigStore(initial: DesktopConfig) {
+	let config = initial;
+	return {
+		readConfig: async () => config,
+		updateConfig: async (mutate: (config: DesktopConfig) => DesktopConfig | Promise<DesktopConfig>) => {
+			config = await mutate(config);
+			return config;
+		},
+		getConfig: () => config,
+	};
+}
+
 describe("AgentSettingsService", () => {
 	it("returns normalized experimental defaults", async () => {
+		const store = createConfigStore({ ...createConfig(), experimental: undefined });
 		const service = new AgentSettingsService({
-			readConfig: async () => ({ ...createConfig(), experimental: undefined }),
-			writeConfig: vi.fn(),
+			...store,
 		});
 
 		await expect(service.getExperimental()).resolves.toEqual({
@@ -29,10 +41,9 @@ describe("AgentSettingsService", () => {
 	});
 
 	it("atomically merges a partial update without dropping adjacent config", async () => {
-		const writeConfig = vi.fn<(config: DesktopConfig) => Promise<void>>(async () => {});
+		const store = createConfigStore(createConfig());
 		const service = new AgentSettingsService({
-			readConfig: async () => createConfig(),
-			writeConfig,
+			...store,
 		});
 
 		await expect(service.setExperimental({ promptPrediction: true })).resolves.toEqual({
@@ -40,24 +51,19 @@ describe("AgentSettingsService", () => {
 			promptPrediction: true,
 			agentSkills: true,
 		});
-		expect(writeConfig).toHaveBeenCalledWith({
+		expect(store.getConfig()).toEqual({
 			...createConfig(),
 			experimental: { vettaCli: false, promptPrediction: true, agentSkills: true },
 		});
 	});
 
 	it("merges and clears image provider preferences without dropping other settings", async () => {
-		const writeConfig = vi.fn<(config: DesktopConfig) => Promise<void>>(async () => {});
-		let current: DesktopConfig = {
+		const store = createConfigStore({
 			...createConfig(),
 			imageGeneration: { textToImageProviderId: "remote:images" },
-		};
+		});
 		const service = new AgentSettingsService({
-			readConfig: async () => current,
-			writeConfig: async (config) => {
-				current = config;
-				await writeConfig(config);
-			},
+			...store,
 		});
 
 		await expect(service.setImageGeneration({ imageToImageProviderId: "remote:edit" })).resolves.toEqual({
@@ -67,25 +73,22 @@ describe("AgentSettingsService", () => {
 		await expect(service.setImageGeneration({ textToImageProviderId: null })).resolves.toEqual({
 			imageToImageProviderId: "remote:edit",
 		});
-		expect(writeConfig).toHaveBeenLastCalledWith({
+		expect(store.getConfig()).toEqual({
 			...createConfig(),
 			imageGeneration: { imageToImageProviderId: "remote:edit" },
 		});
 	});
 
 	it("stores model preferences with their provider and clears stale models when the provider changes", async () => {
-		let current: DesktopConfig = {
+		const store = createConfigStore({
 			...createConfig(),
 			imageGeneration: {
 				textToImageProviderId: "cpa:images",
 				textToImageModelId: "codex/gpt-image-2",
 			},
-		};
+		});
 		const service = new AgentSettingsService({
-			readConfig: async () => current,
-			writeConfig: async (config) => {
-				current = config;
-			},
+			...store,
 		});
 
 		await expect(

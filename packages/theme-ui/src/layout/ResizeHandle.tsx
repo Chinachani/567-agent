@@ -46,6 +46,7 @@ export function ResizeHandle({ side, onResizeStart, onResize, onResizeEnd }: Res
 			const onPointerUp = () => {
 				document.removeEventListener("pointermove", onPointerMove);
 				document.removeEventListener("pointerup", onPointerUp);
+				document.removeEventListener("pointercancel", onPointerUp);
 				if (animationFrame !== null) cancelAnimationFrame(animationFrame);
 				flushResize();
 				overlay.remove();
@@ -55,6 +56,7 @@ export function ResizeHandle({ side, onResizeStart, onResize, onResizeEnd }: Res
 
 			document.addEventListener("pointermove", onPointerMove);
 			document.addEventListener("pointerup", onPointerUp);
+			document.addEventListener("pointercancel", onPointerUp);
 			document.body.style.userSelect = "none";
 		},
 		[side, onResizeStart, onResize, onResizeEnd],

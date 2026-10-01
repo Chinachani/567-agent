@@ -303,7 +303,7 @@ describe("ElectronUpdaterEngine", () => {
 		expect(quitAndInstall).not.toHaveBeenCalled();
 	});
 
-	it("promotes the differential cache baseline before running Inno Setup", async () => {
+	it("preserves the differential cache baseline when Inno preparation fails", async () => {
 		const root = await mkdtemp(join(tmpdir(), "vetta-updater-engine-"));
 		temporaryRoots.push(root);
 		const cacheDir = join(root, "cache");
@@ -319,7 +319,7 @@ describe("ElectronUpdaterEngine", () => {
 			releaseDate: new Date().toISOString(),
 		};
 		const prepareDownloadedInstaller = vi.fn(async () => {
-			expect(await readFile(join(cacheDir, CURRENT_APP_INSTALLER_FILE_NAME), "utf8")).toBe("new installer");
+			expect(await readFile(join(cacheDir, CURRENT_APP_INSTALLER_FILE_NAME), "utf8")).toBe("old installer");
 			throw new Error("Inno Setup interrupted");
 		});
 		const updater = {
@@ -355,5 +355,6 @@ describe("ElectronUpdaterEngine", () => {
 		await engine.checkForUpdates();
 		await expect(engine.downloadUpdate(vi.fn()).promise).rejects.toThrow("Inno Setup interrupted");
 		expect(prepareDownloadedInstaller).toHaveBeenCalledOnce();
+		await expect(readFile(join(cacheDir, CURRENT_APP_INSTALLER_FILE_NAME), "utf8")).resolves.toBe("old installer");
 	});
 });

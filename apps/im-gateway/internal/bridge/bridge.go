@@ -8,6 +8,7 @@ import (
 	"strings"
 	"sync"
 	"time"
+	"unicode/utf8"
 
 	"vetta-im-gateway/internal/hostclient"
 	"vetta-im-gateway/internal/transport"
@@ -507,8 +508,9 @@ func (b *Bridge) maybeEdit(ctx context.Context, force bool) error {
 		// Even in edit mode, respect a hard cap. Send the head, then
 		// switch to a fresh message for the tail. This is a rare path
 		// but feishu does have a (large) cap.
-		head := text[:b.caps.MaxMessageLength]
-		tail := text[b.caps.MaxMessageLength:]
+		split := utf8PrefixBoundary(text, b.caps.MaxMessageLength)
+		head := text[:split]
+		tail := text[split:]
 		if err := b.commitEdit(ctx, head); err != nil {
 			return err
 		}
@@ -559,7 +561,7 @@ func (b *Bridge) maybeChunk(ctx context.Context) error {
 		// Try to split at the last newline within the limit so we don't
 		// chop mid-line; fall back to a hard cut if the limit is reached
 		// without any newline.
-		split := limit
+		split := utf8PrefixBoundary(text, limit)
 		candidate := text[:limit]
 		if nl := strings.LastIndex(candidate, "\n"); nl > 0 {
 			split = nl + 1
@@ -576,6 +578,27 @@ func (b *Bridge) maybeChunk(ctx context.Context) error {
 		b.buf.WriteString(tail)
 	}
 	return nil
+}
+
+// utf8PrefixBoundary returns a byte offset that does not cut through a rune.
+// If a limit is smaller than the first rune, it returns that rune's end so
+// chunking still makes progress without emitting invalid UTF-8.
+func utf8PrefixBoundary(text string, limit int) int {
+	if limit >= len(text) {
+		return len(text)
+	}
+	if limit <= 0 || text == "" {
+		return 0
+	}
+	boundary := limit
+	for boundary > 0 && !utf8.RuneStart(text[boundary]) {
+		boundary--
+	}
+	if boundary == 0 {
+		_, size := utf8.DecodeRuneInString(text)
+		return size
+	}
+	return boundary
 }
 
 // flush emits whatever is in the buffer immediately, regardless of

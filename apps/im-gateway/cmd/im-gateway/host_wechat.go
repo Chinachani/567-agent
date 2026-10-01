@@ -200,7 +200,6 @@ func (c *wechatBindCoordinator) run(ctx context.Context) {
 		c.cancel = nil
 		c.mu.Unlock()
 	}()
-
 	client := ilink.New(ilink.Options{Logger: ilinkLogShim{c.emitLog}})
 
 	c.emitLog("info", "wechat bind: generating QR", nil)
@@ -243,7 +242,10 @@ func (c *wechatBindCoordinator) run(ctx context.Context) {
 
 	// Persist credentials via the public CLI store helper. This writes the
 	// same wechat.json that the wechat transport will load on next build.
-	store, err := wechat.NewStateStoreForCLI(c.statePath)
+	c.mu.Lock()
+	statePath := c.statePath
+	c.mu.Unlock()
+	store, err := wechat.NewStateStoreForCLI(statePath)
 	if err != nil {
 		c.emitLog("error", "wechat bind: open state store failed", map[string]any{"err": err.Error()})
 		c.emitBindStatus(hostproto.WechatBindStatusFailed, err.Error())
@@ -296,7 +298,10 @@ func (c *wechatBindCoordinator) emitBindStatus(status, errMsg string) {
 // UI. Safe to call when nothing is bound — Clear is idempotent.
 func (c *wechatBindCoordinator) LogoutAndClear(reason string) error {
 	c.Cancel()
-	store, err := wechat.NewStateStoreForCLI(c.statePath)
+	c.mu.Lock()
+	statePath := c.statePath
+	c.mu.Unlock()
+	store, err := wechat.NewStateStoreForCLI(statePath)
 	if err != nil {
 		return err
 	}

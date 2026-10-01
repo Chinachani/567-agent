@@ -13,11 +13,23 @@ function createConfig(): DesktopConfig {
 	};
 }
 
+function createConfigStore(initial: DesktopConfig) {
+	let config = initial;
+	return {
+		readConfig: async () => config,
+		updateConfig: async (mutate: (config: DesktopConfig) => DesktopConfig | Promise<DesktopConfig>) => {
+			config = await mutate(config);
+			return config;
+		},
+		getConfig: () => config,
+	};
+}
+
 describe("GeneralSettingsService", () => {
 	it("returns a stable general settings snapshot", async () => {
+		const store = createConfigStore(createConfig());
 		const service = new GeneralSettingsService({
-			readConfig: async () => createConfig(),
-			writeConfig: vi.fn(),
+			...store,
 			allowWorkspaceRoot: vi.fn(),
 			getSandbox: () => ({ status: "available", backend: "windows-host", platform: "win32" }),
 		});
@@ -32,31 +44,29 @@ describe("GeneralSettingsService", () => {
 	});
 
 	it("updates one setting without dropping adjacent config", async () => {
-		const writeConfig = vi.fn<(config: DesktopConfig) => Promise<void>>(async () => {});
+		const store = createConfigStore(createConfig());
 		const service = new GeneralSettingsService({
-			readConfig: async () => createConfig(),
-			writeConfig,
+			...store,
 			allowWorkspaceRoot: vi.fn(),
 			getSandbox: () => ({ status: "unknown", backend: null, platform: "win32" }),
 		});
 
 		await expect(service.setNotifications(false)).resolves.toEqual({ enabled: false });
-		expect(writeConfig).toHaveBeenCalledWith({ ...createConfig(), notificationsEnabled: false });
+		expect(store.getConfig()).toEqual({ ...createConfig(), notificationsEnabled: false });
 	});
 
 	it("normalizes and authorizes absolute workspace paths", async () => {
-		const writeConfig = vi.fn<(config: DesktopConfig) => Promise<void>>(async () => {});
+		const store = createConfigStore(createConfig());
 		const allowWorkspaceRoot = vi.fn();
 		const service = new GeneralSettingsService({
-			readConfig: async () => createConfig(),
-			writeConfig,
+			...store,
 			allowWorkspaceRoot,
 			getSandbox: () => ({ status: "unknown", backend: null, platform: "win32" }),
 		});
 
 		await expect(service.setWorkspace("  C:\\next  ")).resolves.toEqual({ path: "C:\\next" });
 		expect(allowWorkspaceRoot).toHaveBeenCalledWith("C:\\next");
-		expect(writeConfig).toHaveBeenCalledWith({ ...createConfig(), workspacePath: "C:\\next" });
+		expect(store.getConfig()).toEqual({ ...createConfig(), workspacePath: "C:\\next" });
 		await expect(service.setWorkspace("relative/path")).rejects.toThrow("workspace path must be absolute");
 	});
 });

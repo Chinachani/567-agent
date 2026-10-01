@@ -29,6 +29,7 @@ export const iconPath: Record<string, string> = {
 export const macTrayIconPath = join(buildDir, "icon.png");
 
 let mainWindow: BrowserWindow | null = null;
+let onMainWindowRecreated: ((window: BrowserWindow) => void) | undefined;
 
 export function getMainWindow(): BrowserWindow | null {
 	return mainWindow;
@@ -36,6 +37,10 @@ export function getMainWindow(): BrowserWindow | null {
 
 export function setMainWindow(win: BrowserWindow | null): void {
 	mainWindow = win;
+}
+
+export function setMainWindowRecreatedHandler(handler: (window: BrowserWindow) => void): void {
+	onMainWindowRecreated = handler;
 }
 
 export function createWindow(): BrowserWindow {
@@ -189,6 +194,7 @@ export function revealMainWindow(win: BrowserWindow): void {
 export function showMainWindow(): BrowserWindow {
 	if (!mainWindow || mainWindow.isDestroyed()) {
 		const win = createWindow();
+		onMainWindowRecreated?.(win);
 		win.once("ready-to-show", () => {
 			if (win.isDestroyed()) return;
 			revealMainWindow(win);

@@ -45,6 +45,7 @@ import { DEFAULT_AGENT_MODE, isAgentMode, MODE_PROMPTS } from "../agent-modes/in
 import { stopSessionBackgroundWork } from "../agent-runtime/stop-session-work.js";
 import { agentTeamSessionService } from "../agent-teams/team-session-service.js";
 import { stopMonitoringRuntimeSession } from "../app-monitor/app-monitor-service.js";
+import { updateDesktopConfig } from "../config/desktop-config-store.js";
 import { onConversationListChanged } from "../conversations/conversation-list-events.js";
 import { assertOrdinaryConversationPath } from "../conversations/conversation-ownership-guard.js";
 import { getDesktopConversationService } from "../conversations/desktop-conversation-service.js";
@@ -88,7 +89,6 @@ import {
 	DEFAULT_IM_CONVERSATION_SESSION_DIR,
 	readConfigSync,
 	readDesktopConfig,
-	writeDesktopConfig,
 } from "./fs.js";
 import { parseSessionTraceContext } from "./session-trace-context.js";
 import { readSettings, updateSettings } from "./settings.js";
@@ -1050,9 +1050,7 @@ export function registerSessionIpc(webContents: WebContents): () => void {
 	ipcMain.handle(CHANNELS.SET_GLOBAL_EXECUTION_MODE, async (_event, mode: unknown) => {
 		assertExecutionMode(mode);
 		await assertSandboxAvailableForMode(mode as SessionExecutionMode, resolveDefaultExecutionMode);
-		const settings = await readDesktopConfig();
-		settings.defaultExecutionMode = mode as SessionExecutionMode;
-		await writeDesktopConfig(settings);
+		await updateDesktopConfig((settings) => ({ ...settings, defaultExecutionMode: mode as SessionExecutionMode }));
 	});
 
 	// 只更新「新会话默认工作模式」。工作模式在会话创建时固化、会话内不可变，
@@ -1061,9 +1059,7 @@ export function registerSessionIpc(webContents: WebContents): () => void {
 	// 广播仅用于各窗口新会话页 toggle 的显示同步。
 	ipcMain.handle(CHANNELS.SET_GLOBAL_AGENT_MODE, async (_event, mode: unknown) => {
 		const next = isAgentMode(mode) ? mode : DEFAULT_AGENT_MODE;
-		const settings = await readDesktopConfig();
-		settings.defaultAgentMode = next;
-		await writeDesktopConfig(settings);
+		await updateDesktopConfig((settings) => ({ ...settings, defaultAgentMode: next }));
 		for (const win of BrowserWindow.getAllWindows()) {
 			win.webContents.send(CHANNELS.AGENT_MODE_CHANGED, next);
 		}

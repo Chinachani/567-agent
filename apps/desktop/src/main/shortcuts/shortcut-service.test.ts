@@ -29,8 +29,9 @@ function createFixture(initial?: Partial<DesktopConfig>) {
 	const reloadQuickPanelTrigger = vi.fn(async () => {});
 	const service = new ShortcutService({
 		readConfig: async () => structuredClone(config),
-		writeConfig: async (next) => {
-			config = structuredClone(next);
+		updateConfig: async (mutate) => {
+			config = structuredClone(await mutate(config));
+			return config;
 		},
 		broadcastBindings,
 		reloadQuickPanelTrigger,

@@ -266,8 +266,14 @@ export function pushSessionInputHistory(key: string | null | undefined, text: st
 /**
  * 发送后推历史并清草稿。override 发送（建议气泡等）不碰草稿/历史。
  */
-export function recordSentInputAndClearDraft(text: string): void {
-	const key = getDefaultStore().get(activeInputDraftKeyAtom);
+export function recordSentInputAndClearDraft(text: string, targetKey?: string | null): void {
+	const store = getDefaultStore();
+	const activeKey = store.get(activeInputDraftKeyAtom);
+	const key = targetKey === undefined ? activeKey : targetKey;
 	pushSessionInputHistory(key, text);
-	clearCurrentSessionInputDraft();
+	if (targetKey === undefined || key === activeKey) {
+		clearCurrentSessionInputDraft();
+	} else if (key) {
+		persistSessionInputDraft(key, emptySessionInputDraft());
+	}
 }

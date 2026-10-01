@@ -330,7 +330,7 @@ export class SidecarManager {
 		// Wire up stdout / stderr / exit before sending init.
 		this.attachReaders(child);
 		child.on("exit", (code, signal) => this.handleExit(child, code, signal));
-		child.on("error", (err) => this.handleSpawnFailure(`spawn error: ${err.message}`));
+		child.on("error", (err) => this.handleSpawnFailure(`spawn error: ${err.message}`, child));
 
 		// Now send the init frame. Stdin is set up in attachReaders via
 		// child.stdin reference.
@@ -610,7 +610,11 @@ export class SidecarManager {
 		this.hooks.onReady?.(event);
 	}
 
-	private handleSpawnFailure(reason: string): void {
+	private handleSpawnFailure(reason: string, failedChild?: ChildProcess): void {
+		if (this.state.kind === "backoff" || this.state.kind === "fatal" || this.state.kind === "stopping") return;
+		if (failedChild && (this.state.kind !== "spawning" || this.state.child !== failedChild)) {
+			return;
+		}
 		if (this.state.kind === "spawning") {
 			clearTimeout(this.state.readyTimer);
 		}
@@ -638,6 +642,12 @@ export class SidecarManager {
 	}
 
 	private handleExit(child: ChildProcess, code: number | null, signal: NodeJS.Signals | null): void {
+		if (
+			(this.state.kind !== "spawning" && this.state.kind !== "running" && this.state.kind !== "stopping") ||
+			this.state.child !== child
+		) {
+			return;
+		}
 		this.hooks.onExit?.(code, signal);
 
 		if (this.state.kind === "stopping") {

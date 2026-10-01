@@ -140,11 +140,17 @@ func (c *feishuBindCoordinator) run(ctx context.Context) {
 		c.cancel = nil
 		c.mu.Unlock()
 	}()
+	c.mu.Lock()
+	var config hostproto.FeishuConfig
+	if c.cfg != nil {
+		config = *c.cfg
+	}
+	c.mu.Unlock()
 
 	attempt := 0
 	c.emitLog("info", "feishu registration: starting", nil)
 	result, err := feishu.Register(ctx, feishu.RegisterOptions{
-		Domain: c.cfg.AccountsDomain,
+		Domain: config.AccountsDomain,
 		Source: feishuRegisterSource,
 		Addons: feishuRegisterAddons(),
 		AppPreset: &feishu.RegisterAppPreset{
@@ -175,14 +181,18 @@ func (c *feishuBindCoordinator) run(ctx context.Context) {
 	}
 
 	// Credentials stay in memory here and are persisted by the parent.
-	c.cfg.AppID = result.AppID
-	c.cfg.AppSecret = result.AppSecret
-	// An app minted inside a Lark tenant lives on the international API
-	// host; without this the rebuilt transport would call open.feishu.cn
-	// with credentials it does not know.
-	if result.TenantBrand == "lark" && c.cfg.BaseURL == "" {
-		c.cfg.BaseURL = larkOpenBaseURL
+	c.mu.Lock()
+	if c.cfg != nil {
+		c.cfg.AppID = result.AppID
+		c.cfg.AppSecret = result.AppSecret
+		// An app minted inside a Lark tenant lives on the international API
+		// host; without this the rebuilt transport would call open.feishu.cn
+		// with credentials it does not know.
+		if result.TenantBrand == "lark" && c.cfg.BaseURL == "" {
+			c.cfg.BaseURL = larkOpenBaseURL
+		}
 	}
+	c.mu.Unlock()
 	c.emitBindStatus(hostproto.WechatBindStatusConfirmed, "")
 	_ = c.out.WriteFrame(hostproto.FeishuBoundEvent{
 		Type:        hostproto.TypeFeishuBound,
@@ -222,7 +232,10 @@ func (c *feishuBindCoordinator) SyncAfterBind(ctx context.Context) {
 	c.mu.Lock()
 	pending := c.pendingSync
 	c.pendingSync = false
-	appID, appSecret, baseURL := c.cfg.AppID, c.cfg.AppSecret, c.cfg.BaseURL
+	var appID, appSecret, baseURL string
+	if c.cfg != nil {
+		appID, appSecret, baseURL = c.cfg.AppID, c.cfg.AppSecret, c.cfg.BaseURL
+	}
 	c.mu.Unlock()
 	if !pending || appID == "" {
 		return
@@ -303,9 +316,11 @@ func (c *feishuBindCoordinator) LogoutAndClear(reason string) error {
 	c.Cancel()
 	c.mu.Lock()
 	c.pendingSync = false
+	if c.cfg != nil {
+		c.cfg.AppID = ""
+		c.cfg.AppSecret = ""
+	}
 	c.mu.Unlock()
-	c.cfg.AppID = ""
-	c.cfg.AppSecret = ""
 	_ = c.out.WriteFrame(hostproto.FeishuUnboundEvent{
 		Type:   hostproto.TypeFeishuUnbound,
 		Reason: reason,

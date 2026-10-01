@@ -23,7 +23,7 @@ import {
 import { getDesktopAgentSettingsService } from "../agent-settings/agent-settings-service.js";
 import type { ArtifactStore } from "../artifacts/artifact-store.js";
 import { getDesktopBatchTaskService } from "../batch-tasks/batch-task-service.js";
-import { readDesktopConfig, writeDesktopConfig } from "../config/desktop-config-store.js";
+import { readDesktopConfig, updateDesktopConfig } from "../config/desktop-config-store.js";
 import { listRuntimeSessionProjects, listSessionHistory } from "../conversations/session-query-service.js";
 import { getDesktopDownloadService } from "../downloads/download-service.js";
 import { allowProjectRoot, createFilesystemDirectory } from "../filesystem/filesystem-service.js";
@@ -113,7 +113,7 @@ export function registerDesktopDomainProviders(
 		allowProjectRoot,
 		createDirectory: createFilesystemDirectory,
 		readConfig: readDesktopConfig,
-		writeConfig: writeDesktopConfig,
+		updateConfig: updateDesktopConfig,
 		broadcastChanged: broadcastProjectsChanged,
 		// 直接查磁盘：这是「能不能登记成项目」的判断，此刻该路径还不在任何授权根里，
 		// 走不了 filesystem-service 那套带 allowedRoots 断言的入口。

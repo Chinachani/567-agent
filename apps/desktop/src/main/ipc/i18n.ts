@@ -6,9 +6,9 @@
 import { BrowserWindow, type IpcMainEvent, ipcMain } from "electron";
 import { isLanguagePreference, type LanguagePreference, type LanguageState } from "../../shared/i18n/config.js";
 import { installApplicationMenu } from "../app-menu.js";
+import { updateDesktopConfig } from "../config/desktop-config-store.js";
 import { applyLanguagePreference, getAppLanguage, getLanguagePreference, getLanguageState } from "../i18n/index.js";
 import { rebuildTrayContextMenu } from "../tray-manager.js";
-import { readDesktopConfig, writeDesktopConfig } from "./fs.js";
 
 export const I18N_GET_INITIAL_CHANNEL = "vetta:i18n:get-initial-language";
 export const I18N_SET_LANGUAGE_CHANNEL = "vetta:i18n:set-language";
@@ -28,8 +28,7 @@ export async function applyAppLanguage(preference: LanguagePreference): Promise<
 	if (prev.preference === next.preference && prev.language === next.language) {
 		return next;
 	}
-	const config = await readDesktopConfig();
-	await writeDesktopConfig({ ...config, language: preference });
+	await updateDesktopConfig((config) => ({ ...config, language: preference }));
 	rebuildTrayContextMenu();
 	installApplicationMenu();
 	broadcastLanguageState(next);

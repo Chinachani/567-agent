@@ -31,14 +31,24 @@ interface PendingApproval {
 
 export class ActionApprovalBroker implements ActionApprovalRequester {
 	private readonly pending = new Map<string, PendingApproval>();
+	private webContents: WebContents;
 	private readonly onRenderProcessGone = (): void => {
 		this.cancelAll();
 	};
 
 	constructor(
-		private readonly webContents: WebContents,
+		webContents: WebContents,
 		private readonly timeoutMs = DEFAULT_APPROVAL_TIMEOUT_MS,
 	) {
+		this.webContents = webContents;
+		this.webContents.on("render-process-gone", this.onRenderProcessGone);
+	}
+
+	setWebContents(webContents: WebContents): void {
+		if (this.webContents === webContents) return;
+		this.webContents.removeListener("render-process-gone", this.onRenderProcessGone);
+		this.cancelAll();
+		this.webContents = webContents;
 		this.webContents.on("render-process-gone", this.onRenderProcessGone);
 	}
 

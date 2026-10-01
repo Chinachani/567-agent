@@ -42,8 +42,10 @@ type Router struct {
 	mu     sync.Mutex
 	queues map[string]chan transport.InboundMessage
 	closed bool
+	done   chan struct{}
 
-	wg sync.WaitGroup
+	senders sync.WaitGroup
+	wg      sync.WaitGroup
 }
 
 // New constructs a Router. None of the arguments may be nil; conversationCwd
@@ -62,6 +64,7 @@ func New(
 		pool:            pool,
 		conversationCwd: conversationCwd,
 		queues:          make(map[string]chan transport.InboundMessage),
+		done:            make(chan struct{}),
 	}
 }
 
@@ -111,7 +114,9 @@ func (r *Router) HandleInbound(ctx context.Context, msg transport.InboundMessage
 		r.wg.Add(1)
 		go r.processConversation(ctx, q)
 	}
+	r.senders.Add(1)
 	r.mu.Unlock()
+	defer r.senders.Done()
 
 	select {
 	case q <- msg:
@@ -121,8 +126,8 @@ func (r *Router) HandleInbound(ctx context.Context, msg transport.InboundMessage
 	}
 }
 
-// Shutdown closes all per-conversation queues and waits for the workers
-// to drain. Safe to call multiple times.
+// Shutdown rejects new messages, waits for already admitted sends, then lets
+// workers drain their queues. Safe to call multiple times.
 func (r *Router) Shutdown() {
 	r.mu.Lock()
 	if r.closed {
@@ -130,16 +135,33 @@ func (r *Router) Shutdown() {
 		return
 	}
 	r.closed = true
-	for _, q := range r.queues {
-		close(q)
-	}
-	r.queues = nil
 	r.mu.Unlock()
+	// Wait for enqueue operations admitted before closed was set. Queues stay
+	// open so a concurrent sender can never panic on a closed channel.
+	r.senders.Wait()
+	close(r.done)
 	r.wg.Wait()
 }
 
 func convKey(userID, chatID string) string {
 	return userID + "::" + chatID
+}
+
+func (r *Router) nextInbound(queue <-chan transport.InboundMessage) (transport.InboundMessage, bool) {
+	select {
+	case msg := <-queue:
+		return msg, true
+	case <-r.done:
+		// Shutdown waits until all admitted senders finish before closing done,
+		// so the remaining buffer can now be drained without another sender
+		// racing the empty check.
+		select {
+		case msg := <-queue:
+			return msg, true
+		default:
+			return transport.InboundMessage{}, false
+		}
+	}
 }
 
 // processConversation drains one queue, implementing the live-turn state
@@ -160,7 +182,7 @@ func (r *Router) processConversation(ctx context.Context, queue chan transport.I
 		if pending != nil {
 			seed, pending = *pending, nil
 		} else {
-			m, ok := <-queue
+			m, ok := r.nextInbound(queue)
 			if !ok {
 				return
 			}
@@ -268,7 +290,7 @@ drain:
 		return nil, fmt.Errorf("send prompt: %w", err)
 	}
 
-	br := bridge.New(r.tr, seed.ChatID)
+	br := bridge.New(r.getTransport(), seed.ChatID)
 	// Reply anchoring + status reactions target the message that triggered
 	// the turn (best-effort; only used on platforms that support it).
 	br.SetInboundRef(seed.MessageID)

@@ -47,6 +47,7 @@ import {
 	type QuickPanelTrigger,
 	readConfigSync,
 	readDesktopConfig,
+	updateDesktopConfig,
 	writeDesktopConfig,
 } from "../config/desktop-config-store.js";
 import {
@@ -112,6 +113,7 @@ export {
 	type QuickPanelTrigger,
 	readConfigSync,
 	readDesktopConfig,
+	updateDesktopConfig,
 	writeDesktopConfig,
 };
 export { readMcpConfig, writeMcpConfig };
@@ -397,51 +399,50 @@ export function registerFsIpc(): () => void {
 
 	ipcMain.handle(CHANNELS.CONFIG_SET, async (_event, config: unknown) => {
 		if (typeof config !== "object" || config === null) throw new Error("Invalid config");
-		const current = await readDesktopConfig();
 		const patch = config as Partial<DesktopConfig>;
-		const next: DesktopConfig = {
-			projects: patch.projects ?? current.projects,
-			archivedProjects: patch.archivedProjects ?? current.archivedProjects,
-			workspacePath: patch.workspacePath ?? current.workspacePath,
-			defaultExecutionMode:
-				patch.defaultExecutionMode !== undefined
-					? normalizeExecutionMode(patch.defaultExecutionMode)
-					: current.defaultExecutionMode,
-			defaultAgentMode:
-				patch.defaultAgentMode !== undefined
-					? normalizeAgentMode(patch.defaultAgentMode)
-					: current.defaultAgentMode,
-			debugMode: patch.debugMode ?? current.debugMode,
-			vettaAppPath: patch.vettaAppPath ?? current.vettaAppPath,
-			vettaCliAppPath: patch.vettaCliAppPath ?? current.vettaCliAppPath,
-			notificationsEnabled: patch.notificationsEnabled ?? current.notificationsEnabled,
-			language: patch.language ?? current.language,
-			experimental:
-				patch.experimental !== undefined
-					? normalizeExperimental({ ...current.experimental, ...patch.experimental })
-					: current.experimental,
-			imageGeneration:
-				patch.imageGeneration !== undefined
-					? normalizeImageGeneration({ ...current.imageGeneration, ...patch.imageGeneration })
-					: current.imageGeneration,
-			knowledgeBase:
-				patch.knowledgeBase !== undefined
-					? normalizeKnowledgeBase({ ...current.knowledgeBase, ...patch.knowledgeBase })
-					: current.knowledgeBase,
-			// bindings 整表替换（支持 reset 删键）；GUI/Action 均传完整 map。
-			shortcuts: patch.shortcuts !== undefined ? normalizeShortcuts(patch.shortcuts) : current.shortcuts,
-			quickPanel:
-				patch.quickPanel !== undefined
-					? normalizeQuickPanel({ ...current.quickPanel, ...patch.quickPanel })
-					: current.quickPanel,
-			appshot:
-				patch.appshot !== undefined ? normalizeAppshot({ ...current.appshot, ...patch.appshot }) : current.appshot,
-		};
+		const next = await updateDesktopConfig(
+			(current): DesktopConfig => ({
+				projects: patch.projects ?? current.projects,
+				archivedProjects: patch.archivedProjects ?? current.archivedProjects,
+				workspacePath: patch.workspacePath ?? current.workspacePath,
+				defaultExecutionMode:
+					patch.defaultExecutionMode !== undefined
+						? normalizeExecutionMode(patch.defaultExecutionMode)
+						: current.defaultExecutionMode,
+				defaultAgentMode:
+					patch.defaultAgentMode !== undefined
+						? normalizeAgentMode(patch.defaultAgentMode)
+						: current.defaultAgentMode,
+				debugMode: patch.debugMode ?? current.debugMode,
+				vettaAppPath: patch.vettaAppPath ?? current.vettaAppPath,
+				vettaCliAppPath: patch.vettaCliAppPath ?? current.vettaCliAppPath,
+				notificationsEnabled: patch.notificationsEnabled ?? current.notificationsEnabled,
+				language: patch.language ?? current.language,
+				experimental:
+					patch.experimental !== undefined
+						? normalizeExperimental({ ...current.experimental, ...patch.experimental })
+						: current.experimental,
+				imageGeneration:
+					patch.imageGeneration !== undefined
+						? normalizeImageGeneration({ ...current.imageGeneration, ...patch.imageGeneration })
+						: current.imageGeneration,
+				knowledgeBase:
+					patch.knowledgeBase !== undefined
+						? normalizeKnowledgeBase({ ...current.knowledgeBase, ...patch.knowledgeBase })
+						: current.knowledgeBase,
+				// bindings 整表替换（支持 reset 删键）；GUI/Action 均传完整 map。
+				shortcuts: patch.shortcuts !== undefined ? normalizeShortcuts(patch.shortcuts) : current.shortcuts,
+				quickPanel:
+					patch.quickPanel !== undefined
+						? normalizeQuickPanel({ ...current.quickPanel, ...patch.quickPanel })
+						: current.quickPanel,
+				appshot: patch.appshot !== undefined ? normalizeAppshot(patch.appshot) : current.appshot,
+			}),
+		);
 		// Allow all known roots for file operations
 		for (const p of next.projects) allowProjectRoot(p.path);
 		for (const p of next.archivedProjects) allowProjectRoot(p.path);
 		if (next.workspacePath) allowProjectRoot(next.workspacePath);
-		await writeDesktopConfig(next);
 		if (patch.shortcuts !== undefined) {
 			const bindings = next.shortcuts?.bindings ?? {};
 			shortcuts.notifyBindingsChanged(bindings as Record<string, string>);

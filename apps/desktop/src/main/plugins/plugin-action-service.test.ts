@@ -128,6 +128,21 @@ describe("PluginActionService provider identity", () => {
 		await expect(result).resolves.toEqual({ ok: true });
 	});
 
+	it("cancels pending invocations when the renderer is replaced", async () => {
+		const { catalog, service } = createRegisteredAction();
+		const result = Promise.resolve(catalog.get("plugin.action-provider.read").run({}, { source: "internal" }));
+
+		service.setWebContents({
+			isDestroyed: () => false,
+			send: vi.fn(),
+		} as unknown as WebContents);
+
+		await expect(result).rejects.toMatchObject({
+			code: "ACTION_ABORTED",
+			message: "Plugin host renderer was replaced",
+		});
+	});
+
 	it("rejects invocation when the provider plugin is disabled", () => {
 		const { catalog } = createRegisteredAction();
 		pluginState.enabled = false;

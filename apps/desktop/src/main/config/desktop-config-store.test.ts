@@ -3,13 +3,17 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { VETTA_HOME_ENV } from "@vetta/action-rpc";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import type { DesktopConfig } from "./desktop-config-store.js";
 
 const temporaryRoots: string[] = [];
 let previousHome: string | undefined;
 
 /** desktop-config.json 的路径在模块加载时算好，所以每个用例重置模块并重设 VETTA_HOME。 */
 async function loadStoreWithConfig(config: Record<string, unknown> | undefined): Promise<{
-	readDesktopConfig: () => Promise<{ defaultAgentMode?: string }>;
+	readDesktopConfig: () => Promise<DesktopConfig>;
+	updateDesktopConfig: (
+		mutate: (config: DesktopConfig) => DesktopConfig | Promise<DesktopConfig>,
+	) => Promise<DesktopConfig>;
 }> {
 	const home = await mkdtemp(join(tmpdir(), "vetta-config-"));
 	temporaryRoots.push(home);
@@ -50,5 +54,36 @@ describe("defaultAgentMode 兼容旧字段名", () => {
 	it("配置文件不存在时回落 work", async () => {
 		const store = await loadStoreWithConfig(undefined);
 		expect((await store.readDesktopConfig()).defaultAgentMode).toBe("work");
+	});
+});
+
+describe("updateDesktopConfig", () => {
+	it("preserves independent fields when concurrent updates overlap", async () => {
+		const store = await loadStoreWithConfig({});
+		let startFirstMutation!: () => void;
+		let releaseFirstMutation!: () => void;
+		const firstMutationStarted = new Promise<void>((resolve) => {
+			startFirstMutation = resolve;
+		});
+		const firstMutationGate = new Promise<void>((resolve) => {
+			releaseFirstMutation = resolve;
+		});
+
+		const first = store.updateDesktopConfig(async (config) => {
+			startFirstMutation();
+			await firstMutationGate;
+			return { ...config, language: "en" };
+		});
+		await firstMutationStarted;
+		const second = store.updateDesktopConfig((config) => ({
+			...config,
+			remoteControl: { relayBaseUrl: "https://relay.example" },
+		}));
+		releaseFirstMutation();
+		await Promise.all([first, second]);
+
+		const config = await store.readDesktopConfig();
+		expect(config.language).toBe("en");
+		expect(config.remoteControl?.relayBaseUrl).toBe("https://relay.example");
 	});
 });

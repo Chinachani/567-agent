@@ -18,8 +18,9 @@ function createFixture(initial?: Partial<DesktopConfig>) {
 		allowProjectRoot,
 		createDirectory,
 		readConfig: async () => structuredClone(config),
-		writeConfig: async (next) => {
-			config = structuredClone(next);
+		updateConfig: async (mutate) => {
+			config = structuredClone(await mutate(config));
+			return config;
 		},
 		broadcastChanged,
 		isExistingNonDirectory: async (path) => nonDirectoryPaths.has(path),

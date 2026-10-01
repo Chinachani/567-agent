@@ -265,11 +265,22 @@ export class PluginActionService {
 	private readonly activeActivations = new Map<string, PluginActionActivation>();
 	private readonly stagingActivations = new Map<string, PluginActionActivation>();
 	private readonly pendingInvocations = new Map<string, PendingInvocation>();
+	private webContents: WebContents;
 
 	constructor(
-		private readonly webContents: WebContents,
+		webContents: WebContents,
 		private readonly catalog: AppActionCatalog,
-	) {}
+	) {
+		this.webContents = webContents;
+	}
+
+	setWebContents(webContents: WebContents): void {
+		if (this.webContents === webContents) return;
+		for (const [requestId, pending] of this.pendingInvocations) {
+			this.cancelPending(requestId, pending, "Plugin host renderer was replaced");
+		}
+		this.webContents = webContents;
+	}
 
 	beginLoad(pluginId: string, activationId: string): void {
 		assertPluginAvailable(pluginId);

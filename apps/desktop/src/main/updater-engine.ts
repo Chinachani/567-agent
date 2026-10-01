@@ -257,15 +257,15 @@ export class ElectronUpdaterEngine implements UpdateEngine {
 				if (!this.useInnoUpdate || !this.innoWindowsUpdate) return downloadedPaths;
 				const installerPath = downloadedPaths[0];
 				if (!installerPath) throw new Error("electron-updater did not return a Windows installer");
-				await promoteDownloadedInstaller(this.updater, installerPath)
-					.then(() => console.info("[updater] differential cache baseline promoted"))
-					.catch((error) => console.warn("[updater] unable to promote differential cache baseline", error));
 				console.info("[updater] preparing downloaded Windows version with Inno Setup", installerPath);
 				const preparedPaths = await this.innoWindowsUpdate.prepareDownloadedInstaller(
 					installerPath,
 					onProgress,
 					abortController.signal,
 				);
+				await promoteDownloadedInstaller(this.updater, installerPath)
+					.then(() => console.info("[updater] differential cache baseline promoted"))
+					.catch((error) => console.warn("[updater] unable to promote differential cache baseline", error));
 				console.info("[updater] downloaded Windows version is ready", preparedPaths[0]);
 				return preparedPaths;
 			})

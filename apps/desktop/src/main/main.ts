@@ -96,6 +96,7 @@ import {
 	loadMainWindow,
 	revealMainWindow,
 	setMainWindow,
+	setMainWindowRecreatedHandler,
 	showMainWindow,
 } from "./window-manager.js";
 
@@ -457,7 +458,7 @@ if (!gotSingleLock) {
 		// 因此必须在创建窗口、加载 Vite renderer 之前完成。打包版使用版本化资源，不清缓存。
 		// 协议响应的 no-store 继续作为插件开发资源的第二层保证。
 		const rendererBootStartedAt = Date.now();
-		const mainWindow = await startRendererAfterSessionPreparation({
+		let mainWindow = await startRendererAfterSessionPreparation({
 			resetDevelopmentCache: app.isPackaged ? undefined : () => session.defaultSession.clearCache(),
 			startRenderer: () => {
 				// 直接加载真实 renderer，但先保持窗口隐藏。renderer 恢复持久化主题并绘制
@@ -757,13 +758,33 @@ if (!gotSingleLock) {
 				process.env.VETTA_REMOTE_RELAY_BASE_URL || "https://567-agent-relay.907746241.workers.dev",
 		});
 
-		// Register IPC handlers
-		ipcTeardown = registerAllIpc(mainWindow.webContents, {
-			actionApprovalBroker,
-			pluginActionService,
-			remotePairingService,
+		let schedulerIpcReady = false;
+		const bindMainWindowIpc = (window: BrowserWindow): void => {
+			if (ipcTeardown) teardownAllIpc(ipcTeardown);
+			if (teardownBatchTasksIpc) {
+				teardownBatchTasksIpc();
+				teardownBatchTasksIpc = undefined;
+			}
+			if (teardownSchedulerIpc) {
+				teardownSchedulerIpc();
+				teardownSchedulerIpc = undefined;
+			}
+			actionApprovalBroker.setWebContents(window.webContents);
+			pluginActionService.setWebContents(window.webContents);
+			ipcTeardown = registerAllIpc(window.webContents, {
+				actionApprovalBroker,
+				pluginActionService,
+				remotePairingService,
+			});
+			teardownBatchTasksIpc = registerBatchTasksIpc(window.webContents, batchTaskService, batchTaskReadyPromise);
+			if (schedulerIpcReady) teardownSchedulerIpc = registerSchedulerIpc(window.webContents, schedulerService);
+		};
+		setMainWindowRecreatedHandler((window) => {
+			mainWindow = window;
+			attachMainWindowLifecycle(window);
+			bindMainWindowIpc(window);
 		});
-		teardownBatchTasksIpc = registerBatchTasksIpc(mainWindow.webContents, batchTaskService, batchTaskReadyPromise);
+		bindMainWindowIpc(mainWindow);
 		// 知识库手动操作 IPC 只做桥接，先注册以保证 renderer 不会遇到缺失 handler；
 		// 后台 poller 等真实内容绘制后再启动。
 		registerKnowledgeIpc();
@@ -827,6 +848,7 @@ if (!gotSingleLock) {
 			teardownSchedulerIpc = undefined;
 		}
 		void initScheduler().then(() => {
+			schedulerIpcReady = true;
 			const win = getMainWindow();
 			if (win) {
 				teardownSchedulerIpc = registerSchedulerIpc(win.webContents, schedulerService);
@@ -990,6 +1012,11 @@ app.on("before-quit", async (event) => {
 	if (isQuitCleanupStarted()) return;
 	(app as typeof app & { isQuitting?: boolean }).isQuitting = true;
 	event.preventDefault();
-	await runQuitCleanup();
-	app.exit(0);
+	try {
+		await runQuitCleanup();
+	} catch (err) {
+		mainLog.error("quit cleanup failed", err);
+	} finally {
+		app.exit(0);
+	}
 });

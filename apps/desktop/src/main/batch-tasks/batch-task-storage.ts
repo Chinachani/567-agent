@@ -1,8 +1,13 @@
 import { mkdir, readdir, readFile, rm, writeFile } from "node:fs/promises";
 import { basename, join } from "node:path";
 import type { SessionExecutionMode } from "@vetta/runtime-core";
+import {
+	type DesktopConfig,
+	type ProjectEntry,
+	readDesktopConfig,
+	updateDesktopConfig,
+} from "../config/desktop-config-store.js";
 import { type ExecutionModeOverride, normalizeExecutionModeOverride } from "../execution-mode.js";
-import { type DesktopConfig, type ProjectEntry, readDesktopConfig, writeDesktopConfig } from "../ipc/fs.js";
 import { getAppLogger } from "../logger.js";
 import { type BatchTaskState, type BatchTaskStatus, loadProjectTaskStates } from "./batch-task-state";
 
@@ -170,23 +175,25 @@ function assembleProject(
 // hand-edited workspaces keep working.
 
 async function registerProjectInConfig(projectPath: string, name: string): Promise<void> {
-	const config = await readDesktopConfig();
-	if (config.projects.some((p) => p.path === projectPath)) return;
-	if (config.archivedProjects.some((p) => p.path === projectPath)) return;
-	await writeDesktopConfig({
-		...config,
-		projects: [...config.projects, { path: projectPath, name }],
+	await updateDesktopConfig((config) => {
+		if (config.projects.some((p) => p.path === projectPath)) return config;
+		if (config.archivedProjects.some((p) => p.path === projectPath)) return config;
+		return {
+			...config,
+			projects: [...config.projects, { path: projectPath, name }],
+		};
 	});
 }
 
 async function unregisterProjectFromConfig(projectPath: string): Promise<void> {
-	const config = await readDesktopConfig();
-	const projects = config.projects.filter((p) => p.path !== projectPath);
-	const archivedProjects = config.archivedProjects.filter((p) => p.path !== projectPath);
-	if (projects.length === config.projects.length && archivedProjects.length === config.archivedProjects.length) {
-		return;
-	}
-	await writeDesktopConfig({ ...config, projects, archivedProjects });
+	await updateDesktopConfig((config) => {
+		const projects = config.projects.filter((p) => p.path !== projectPath);
+		const archivedProjects = config.archivedProjects.filter((p) => p.path !== projectPath);
+		if (projects.length === config.projects.length && archivedProjects.length === config.archivedProjects.length) {
+			return config;
+		}
+		return { ...config, projects, archivedProjects };
+	});
 }
 
 /**
@@ -213,12 +220,16 @@ async function autoRegisterLooseBatchProjects(config: DesktopConfig): Promise<De
 	}
 	if (additions.length === 0) return config;
 
-	log.info(`auto-registering ${additions.length} loose batch project(s) into config`);
-	const next: DesktopConfig = {
-		...config,
-		projects: [...config.projects, ...additions],
-	};
-	await writeDesktopConfig(next);
+	let registeredCount = 0;
+	const next = await updateDesktopConfig((current) => {
+		if (current.workspacePath !== config.workspacePath) return current;
+		const known = new Set([...current.projects, ...current.archivedProjects].map((project) => project.path));
+		const newProjects = additions.filter((project) => !known.has(project.path));
+		if (newProjects.length === 0) return current;
+		registeredCount = newProjects.length;
+		return { ...current, projects: [...current.projects, ...newProjects] };
+	});
+	if (registeredCount > 0) log.info(`auto-registered ${registeredCount} loose batch project(s) into config`);
 	return next;
 }
 
