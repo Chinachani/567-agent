@@ -5,6 +5,32 @@ plugins {
     alias(libs.plugins.composeCompiler)
 }
 
+val releaseStorePath = providers.gradleProperty("VETTA_ANDROID_KEYSTORE_PATH")
+	.orElse(providers.environmentVariable("VETTA_ANDROID_KEYSTORE_PATH"))
+	.orNull
+val releaseStorePassword = providers.gradleProperty("VETTA_ANDROID_KEYSTORE_PASSWORD")
+	.orElse(providers.environmentVariable("VETTA_ANDROID_KEYSTORE_PASSWORD"))
+	.orNull
+val releaseKeyAlias = providers.gradleProperty("VETTA_ANDROID_KEY_ALIAS")
+	.orElse(providers.environmentVariable("VETTA_ANDROID_KEY_ALIAS"))
+	.orNull
+val releaseKeyPassword = providers.gradleProperty("VETTA_ANDROID_KEY_PASSWORD")
+	.orElse(providers.environmentVariable("VETTA_ANDROID_KEY_PASSWORD"))
+	.orNull
+
+val migrationStorePath = providers.gradleProperty("VETTA_ANDROID_MIGRATION_KEYSTORE_PATH")
+	.orElse(providers.environmentVariable("VETTA_ANDROID_MIGRATION_KEYSTORE_PATH"))
+	.orNull
+val migrationStorePassword = providers.gradleProperty("VETTA_ANDROID_MIGRATION_KEYSTORE_PASSWORD")
+	.orElse(providers.environmentVariable("VETTA_ANDROID_MIGRATION_KEYSTORE_PASSWORD"))
+	.orNull
+val migrationKeyAlias = providers.gradleProperty("VETTA_ANDROID_MIGRATION_KEY_ALIAS")
+	.orElse(providers.environmentVariable("VETTA_ANDROID_MIGRATION_KEY_ALIAS"))
+	.orNull
+val migrationKeyPassword = providers.gradleProperty("VETTA_ANDROID_MIGRATION_KEY_PASSWORD")
+	.orElse(providers.environmentVariable("VETTA_ANDROID_MIGRATION_KEY_PASSWORD"))
+	.orNull
+
 kotlin {
     compilerOptions {
         jvmTarget = JvmTarget.JVM_11
@@ -25,10 +51,16 @@ android {
 
     signingConfigs {
         create("release") {
-            storeFile = file("release.keystore")
-            storePassword = "api567agent"
-            keyAlias = "567agent"
-            keyPassword = "api567agent"
+            storeFile = releaseStorePath?.let { file(it) } ?: file("release-signing-not-configured.keystore")
+            storePassword = releaseStorePassword.orEmpty()
+            keyAlias = releaseKeyAlias.orEmpty()
+            keyPassword = releaseKeyPassword.orEmpty()
+        }
+        create("migration") {
+            storeFile = migrationStorePath?.let { file(it) } ?: file("migration-signing-not-configured.keystore")
+            storePassword = migrationStorePassword.orEmpty()
+            keyAlias = migrationKeyAlias.orEmpty()
+            keyPassword = migrationKeyPassword.orEmpty()
         }
     }
 
@@ -36,7 +68,7 @@ android {
         applicationId = "com.api567.agent"
         minSdk = libs.versions.android.minSdk.get().toInt()
         targetSdk = libs.versions.android.targetSdk.get().toInt()
-        versionCode = 10103
+        versionCode = 10104
         versionName = "1.1.3"
     }
     packaging {
@@ -53,8 +85,11 @@ android {
                 "proguard-rules.pro"
             )
         }
-        debug {
-            signingConfig = signingConfigs.getByName("release")
+        create("migration") {
+            initWith(getByName("release"))
+            signingConfig = signingConfigs.getByName("migration")
+            versionNameSuffix = "-migration"
+            matchingFallbacks += listOf("release")
         }
     }
     compileOptions {

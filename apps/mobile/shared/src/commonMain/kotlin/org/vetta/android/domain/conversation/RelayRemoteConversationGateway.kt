@@ -307,11 +307,14 @@ class RelayRemoteConversationGateway(
 
     private fun normalizeRelayUrl(target: String): String {
         val value = target.trim()
-        if (value.startsWith("ws://") || value.startsWith("wss://")) return value
+        if (value.startsWith("wss://")) return value
+        if (value.startsWith("ws://")) return value.replaceFirst("ws://", "wss://")
+        if (value.startsWith("https://")) return value.replaceFirst("https://", "wss://")
+        if (value.startsWith("http://")) return value.replaceFirst("http://", "wss://")
         val separator = value.indexOf('#')
         val host = if (separator >= 0) value.substring(0, separator) else value
         val pairing = if (separator >= 0) value.substring(separator + 1) else "default"
-        return "ws://$host/relay/$pairing/mobile"
+        return "wss://$host/relay/$pairing/mobile"
     }
 
     private fun MutableStateFlow<List<DesktopDevice>>.updateStatus(status: DeviceStatus) {

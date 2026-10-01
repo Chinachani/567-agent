@@ -5,6 +5,8 @@ import com.russhwolf.settings.set
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import org.vetta.android.core.auth.SecretStore
+import org.vetta.android.core.auth.SettingsSecretStore
 
 enum class ThemeMode {
     System,
@@ -24,6 +26,7 @@ enum class ThemeMode {
  */
 class AppPreferences(
     private val settings: Settings = Settings(),
+    private val secretStore: SecretStore = SettingsSecretStore(settings),
 ) {
     private val _serverUrl = MutableStateFlow(readServerUrl())
     val serverUrl: StateFlow<String> = _serverUrl.asStateFlow()
@@ -53,9 +56,9 @@ class AppPreferences(
         }
 
     var remoteResumeSecret: String?
-        get() = settings.getStringOrNull(KEY_REMOTE_RESUME)?.takeIf { it.isNotBlank() }
+        get() = secretStore.get(KEY_REMOTE_RESUME)?.takeIf { it.isNotBlank() }
         set(value) {
-            if (value.isNullOrBlank()) settings.remove(KEY_REMOTE_RESUME) else settings[KEY_REMOTE_RESUME] = value
+            if (value.isNullOrBlank()) secretStore.remove(KEY_REMOTE_RESUME) else secretStore.put(KEY_REMOTE_RESUME, value)
         }
 
     var remotePairingId: String?
@@ -83,15 +86,15 @@ class AppPreferences(
         }
 
     var authToken: String?
-        get() = settings.getStringOrNull(KEY_AUTH_TOKEN)?.takeIf { it.isNotBlank() }
+        get() = secretStore.get(KEY_AUTH_TOKEN)?.takeIf { it.isNotBlank() }
         set(value) {
-            if (value.isNullOrBlank()) settings.remove(KEY_AUTH_TOKEN) else settings[KEY_AUTH_TOKEN] = value
+            if (value.isNullOrBlank()) secretStore.remove(KEY_AUTH_TOKEN) else secretStore.put(KEY_AUTH_TOKEN, value)
         }
 
     var authRefreshToken: String?
-        get() = settings.getStringOrNull(KEY_AUTH_REFRESH_TOKEN)?.takeIf { it.isNotBlank() }
+        get() = secretStore.get(KEY_AUTH_REFRESH_TOKEN)?.takeIf { it.isNotBlank() }
         set(value) {
-            if (value.isNullOrBlank()) settings.remove(KEY_AUTH_REFRESH_TOKEN) else settings[KEY_AUTH_REFRESH_TOKEN] = value
+            if (value.isNullOrBlank()) secretStore.remove(KEY_AUTH_REFRESH_TOKEN) else secretStore.put(KEY_AUTH_REFRESH_TOKEN, value)
         }
 
     var authUsername: String?
@@ -125,9 +128,9 @@ class AppPreferences(
         }
 
     var authPassword: String?
-        get() = settings.getStringOrNull(KEY_AUTH_PASSWORD)?.takeIf { it.isNotBlank() }
+        get() = secretStore.get(KEY_AUTH_PASSWORD)?.takeIf { it.isNotBlank() }
         set(value) {
-            if (value.isNullOrBlank()) settings.remove(KEY_AUTH_PASSWORD) else settings[KEY_AUTH_PASSWORD] = value
+            if (value.isNullOrBlank()) secretStore.remove(KEY_AUTH_PASSWORD) else secretStore.put(KEY_AUTH_PASSWORD, value)
         }
 
     fun getCachedGroupModels(group: String?): List<String> {
@@ -147,15 +150,15 @@ class AppPreferences(
 
     fun getCachedGroupKey(group: String?): String? {
         val key = KEY_CACHE_GROUP_KEY_PREFIX + (group ?: "default")
-        return settings.getStringOrNull(key)?.takeIf { it.isNotBlank() }
+        return secretStore.get(key)?.takeIf { it.isNotBlank() }
     }
 
     fun setCachedGroupKey(group: String?, apiKey: String?) {
         val key = KEY_CACHE_GROUP_KEY_PREFIX + (group ?: "default")
         if (apiKey.isNullOrBlank()) {
-            settings.remove(key)
+            secretStore.remove(key)
         } else {
-            settings[key] = apiKey
+            secretStore.put(key, apiKey)
         }
     }
 

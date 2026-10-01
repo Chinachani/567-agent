@@ -168,7 +168,7 @@ class AppViewModelRemoteConversationTest {
     fun pendingDesktopQuestionIsRestoredIntoMainShellAfterViewModelRecreation() =
         runTest(dispatcher) {
             val settings = MapSettings()
-            val store = SettingsSessionStore(settings)
+            val store = SettingsSessionStore(settings, dispatcher)
             val session = store.createSession(title = "待确认", origin = ConversationOrigin.Desktop, remoteDeviceId = "desktop-1")
             store.upsertMessage(
                 LocalMessage(
@@ -397,7 +397,7 @@ class AppViewModelRemoteConversationTest {
         AppContainer(
             preferences = preferences,
             tokenStore = InMemoryTokenStore(),
-            sessionStore = SettingsSessionStore(MapSettings()),
+            sessionStore = SettingsSessionStore(MapSettings(), dispatcher),
             remoteConversationGateway = gateway,
         )
 }

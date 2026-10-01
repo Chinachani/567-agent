@@ -119,4 +119,46 @@ class SettingsSessionStoreTest {
             val restored = SettingsSessionStore(settings).getMessages(session.id).single().toolEvents.single()
             assertEquals("读取文件内容", restored.phaseLabel)
         }
+
+    @Test
+    fun streamingCheckpointRecoversPartialTextWithoutRewritingTheConversationAndFinalCommitClearsIt() =
+        runBlocking {
+            val settings = MapSettings()
+            val store = SettingsSessionStore(settings)
+            val session = store.createSession(origin = ConversationOrigin.Desktop)
+            store.upsertMessage(
+                LocalMessage(
+                    id = "user-1",
+                    sessionId = session.id,
+                    role = ChatRole.User,
+                    content = "继续",
+                    status = MessageStatus.Complete,
+                    createdAtEpochMs = 1,
+                ),
+            )
+            val assistant = LocalMessage(
+                id = "assistant-1",
+                sessionId = session.id,
+                role = ChatRole.Assistant,
+                content = "",
+                status = MessageStatus.Streaming,
+                createdAtEpochMs = 2,
+            )
+            store.upsertMessage(assistant)
+            val historyBeforeStreaming = settings.getStringOrNull("vetta.session.messages.${session.id}")
+
+            store.upsertStreamingMessage(assistant.copy(content = "部分回答"))
+
+            assertEquals(
+                historyBeforeStreaming,
+                settings.getStringOrNull("vetta.session.messages.${session.id}"),
+            )
+            val restored = SettingsSessionStore(settings).getMessages(session.id)
+            assertEquals(listOf("继续", "部分回答"), restored.map { it.content })
+
+            store.upsertMessage(assistant.copy(content = "完整回答", status = MessageStatus.Complete))
+
+            assertEquals(null, settings.getStringOrNull("vetta.session.streaming.${session.id}"))
+            assertEquals("完整回答", SettingsSessionStore(settings).getMessages(session.id).last().content)
+        }
 }

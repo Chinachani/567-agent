@@ -24,6 +24,8 @@ import androidx.compose.material.icons.automirrored.filled.KeyboardArrowRight
 import androidx.compose.material.icons.filled.Devices
 import androidx.compose.material.icons.filled.DeleteSweep
 import androidx.compose.material.icons.filled.Info
+import androidx.compose.material.icons.filled.FileDownload
+import androidx.compose.material.icons.filled.FileUpload
 import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.CheckCircle
 import kotlinx.coroutines.delay
@@ -31,9 +33,11 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.TextButton
+import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
@@ -50,6 +54,7 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.text.input.PasswordVisualTransformation
 import org.vetta.android.core.model.SubscriptionStatus
 import org.vetta.android.core.model.User
 import org.vetta.android.ui.components.PrimaryBlackButton
@@ -440,12 +445,31 @@ fun SettingsScreen(
     onAutoResumeLastSession: (Boolean) -> Unit,
     onMotionEnabled: (Boolean) -> Unit,
     onClearLocalData: () -> Unit,
+    onExportMigration: (String, (ByteArray?, String?) -> Unit) -> Unit,
+    onImportMigration: (ByteArray, String, (Int?, String?) -> Unit) -> Unit,
     onOpenAbout: () -> Unit,
     onBack: () -> Unit,
     confirmBeforeDelete: Boolean,
     onConfirmBeforeDelete: (Boolean) -> Unit,
 ) {
     var confirmClearLocalData by remember { mutableStateOf(false) }
+    var migrationDialog by remember { mutableStateOf<MigrationDialog?>(null) }
+    var migrationPassword by remember { mutableStateOf("") }
+    var migrationPasswordConfirm by remember { mutableStateOf("") }
+    var pendingMigrationArchive by remember { mutableStateOf<ByteArray?>(null) }
+    var migrationNotice by remember { mutableStateOf<String?>(null) }
+    val migrationFiles = rememberMigrationBackupFileActions(
+        onOpened = { bytes ->
+            if (bytes != null) {
+                pendingMigrationArchive = bytes
+                migrationPassword = ""
+                migrationDialog = MigrationDialog.Import
+            }
+        },
+        onSaved = { saved ->
+            migrationNotice = if (saved) Str.migrationExportSuccess else Str.migrationExportFailure
+        },
+    )
     Scaffold(
         containerColor = MaterialTheme.vettaExtra.pageBackground,
         topBar = {
@@ -500,7 +524,32 @@ fun SettingsScreen(
 
             Spacer(Modifier.height(28.dp))
             SectionHeader(title = Str.dataSection)
+            Text(
+                Str.migrationBackupHint,
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.vettaExtra.secondaryText,
+                modifier = Modifier.padding(horizontal = 4.dp, vertical = 2.dp),
+            )
+            Spacer(Modifier.height(10.dp))
             VettaListGroup {
+                ProfileRow(
+                    Icons.Default.FileDownload,
+                    Str.exportChatHistory,
+                    null,
+            onClick = {
+                migrationPassword = ""
+                migrationPasswordConfirm = ""
+                migrationDialog = MigrationDialog.Export
+                    },
+                    showDivider = true,
+                )
+                ProfileRow(
+                    Icons.Default.FileUpload,
+                    Str.importChatHistory,
+                    null,
+                    onClick = migrationFiles.open,
+                    showDivider = true,
+                )
                 ProfileRow(
                     Icons.Default.DeleteSweep,
                     Str.clearLocalData,
@@ -526,6 +575,90 @@ fun SettingsScreen(
         }
     }
 
+    migrationDialog?.let { mode ->
+        AlertDialog(
+            onDismissRequest = {
+                migrationDialog = null
+                pendingMigrationArchive = null
+            },
+            title = { Text(if (mode == MigrationDialog.Export) Str.migrationExportTitle else Str.migrationImportTitle) },
+            text = {
+                Column {
+                    Text(if (mode == MigrationDialog.Export) Str.migrationPasswordHint else Str.migrationImportPasswordHint)
+                    if (mode == MigrationDialog.Import) {
+                        Spacer(Modifier.height(8.dp))
+                        Text(Str.migrationImportMergeHint, style = MaterialTheme.typography.bodySmall)
+                    }
+                    Spacer(Modifier.height(12.dp))
+                    OutlinedTextField(
+                        value = migrationPassword,
+                        onValueChange = { if (it.length <= 128) migrationPassword = it },
+                        singleLine = true,
+                        visualTransformation = PasswordVisualTransformation(),
+                        label = { Text(Str.migrationPasswordLabel) },
+                    )
+                    if (mode == MigrationDialog.Export) {
+                        Spacer(Modifier.height(8.dp))
+                        OutlinedTextField(
+                            value = migrationPasswordConfirm,
+                            onValueChange = { if (it.length <= 128) migrationPasswordConfirm = it },
+                            singleLine = true,
+                            visualTransformation = PasswordVisualTransformation(),
+                            label = { Text(Str.migrationPasswordConfirmLabel) },
+                        )
+                        if (migrationPasswordConfirm.isNotEmpty() && migrationPasswordConfirm != migrationPassword) {
+                            Text(Str.migrationPasswordMismatch, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.error)
+                        }
+                    }
+                }
+            },
+            confirmButton = {
+                TextButton(
+                    enabled = migrationPassword.length >= 8 &&
+                        (mode == MigrationDialog.Import || migrationPassword == migrationPasswordConfirm),
+                    onClick = {
+                        val password = migrationPassword
+                        migrationPassword = ""
+                        migrationPasswordConfirm = ""
+                        migrationDialog = null
+                        if (mode == MigrationDialog.Export) {
+                            onExportMigration(password) { bytes, error ->
+                                if (bytes != null) migrationFiles.save(bytes)
+                                else migrationNotice = error ?: Str.migrationExportFailure
+                            }
+                        } else {
+                            val archive = pendingMigrationArchive
+                            pendingMigrationArchive = null
+                            if (archive != null) {
+                                onImportMigration(archive, password) { count, error ->
+                                    migrationNotice = if (count != null) {
+                                        "${Str.migrationImportSuccess}（$count 个会话）"
+                                    } else {
+                                        error ?: Str.migrationFileReadFailure
+                                    }
+                                }
+                            }
+                        }
+                    },
+                ) { Text(Str.migrationContinue) }
+            },
+            dismissButton = {
+                TextButton(onClick = {
+                    migrationDialog = null
+                    pendingMigrationArchive = null
+                }) { Text(Str.cancel) }
+            },
+        )
+    }
+
+    migrationNotice?.let { message ->
+        AlertDialog(
+            onDismissRequest = { migrationNotice = null },
+            text = { Text(message) },
+            confirmButton = { TextButton(onClick = { migrationNotice = null }) { Text(Str.confirm) } },
+        )
+    }
+
     if (confirmClearLocalData) {
         VettaConfirmDialog(
             title = Str.clearLocalDataTitle,
@@ -539,6 +672,8 @@ fun SettingsScreen(
         )
     }
 }
+
+private enum class MigrationDialog { Export, Import }
 
 @Composable
 private fun ThemeModeSelector(
@@ -651,7 +786,7 @@ fun AboutScreen(
                 ProfileRow(
                     Icons.Default.Refresh,
                     "检查新版本",
-                    if (checkingUpdate) "正在检测更新..." else "当前版本 v1.1.2",
+                    if (checkingUpdate) "正在检测更新..." else "当前版本 v1.1.3",
                     onClick = {
                         if (checkingUpdate) return@ProfileRow
                         checkingUpdate = true
@@ -711,28 +846,17 @@ fun AboutScreen(
             confirmButton = {
                 androidx.compose.material3.FilledTonalButton(
                     onClick = {
-                        val targetUrl = update.fastApkUrl ?: update.apkUrl
-                        if (!targetUrl.isNullOrBlank()) {
-                            runCatching { uriHandler.openUri(targetUrl) }
+                        if (!update.apkUrl.isNullOrBlank()) {
+                            runCatching { uriHandler.openUri(update.apkUrl) }
                         }
                         updateResult = null
                     },
                 ) {
-                    Text("极速下载 (加速代理)")
+                    Text("GitHub直链")
                 }
             },
             dismissButton = {
                 Row {
-                    if (!update.apkUrl.isNullOrBlank()) {
-                        TextButton(
-                            onClick = {
-                                runCatching { uriHandler.openUri(update.apkUrl) }
-                                updateResult = null
-                            },
-                        ) {
-                            Text("GitHub直链")
-                        }
-                    }
                     TextButton(onClick = { updateResult = null }) {
                         Text("稍后")
                     }
@@ -744,7 +868,7 @@ fun AboutScreen(
     if (showNoUpdateNotice) {
         VettaInfoDialog(
             title = "检查更新",
-            message = "当前已是最新版本 (v1.1.2)，暂无可用更新。",
+            message = "当前已是最新版本 (v1.1.3)，暂无可用更新。",
             onDismiss = { showNoUpdateNotice = false },
         )
     }

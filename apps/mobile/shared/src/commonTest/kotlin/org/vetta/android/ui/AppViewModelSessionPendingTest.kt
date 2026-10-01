@@ -43,7 +43,7 @@ class AppViewModelSessionPendingTest {
                 AppContainer(
                     preferences = AppPreferences(MapSettings()),
                     tokenStore = InMemoryTokenStore(),
-                    sessionStore = SettingsSessionStore(MapSettings()),
+                    sessionStore = SettingsSessionStore(MapSettings(), dispatcher),
                 )
             val vm = AppViewModel(container)
             advanceUntilIdle()
@@ -81,7 +81,7 @@ class AppViewModelSessionPendingTest {
                 AppContainer(
                     preferences = AppPreferences(MapSettings()),
                     tokenStore = InMemoryTokenStore(),
-                    sessionStore = SettingsSessionStore(MapSettings()),
+                    sessionStore = SettingsSessionStore(MapSettings(), dispatcher),
                 )
             val vm = AppViewModel(container)
             advanceUntilIdle()
@@ -111,7 +111,7 @@ class AppViewModelSessionPendingTest {
                 AppContainer(
                     preferences = AppPreferences(MapSettings()),
                     tokenStore = InMemoryTokenStore(),
-                    sessionStore = SettingsSessionStore(MapSettings()),
+                    sessionStore = SettingsSessionStore(MapSettings(), dispatcher),
                 )
             val vm = AppViewModel(container)
             advanceUntilIdle()
@@ -135,7 +135,7 @@ class AppViewModelSessionPendingTest {
                 AppContainer(
                     preferences = AppPreferences(MapSettings()),
                     tokenStore = InMemoryTokenStore(),
-                    sessionStore = SettingsSessionStore(MapSettings()),
+                    sessionStore = SettingsSessionStore(MapSettings(), dispatcher),
                 )
             val vm = AppViewModel(container)
             advanceUntilIdle()
@@ -164,7 +164,7 @@ class AppViewModelSessionPendingTest {
                 AppContainer(
                     preferences = preferences,
                     tokenStore = tokenStore,
-                    sessionStore = SettingsSessionStore(settings),
+                    sessionStore = SettingsSessionStore(settings, dispatcher),
                 )
             val vm = AppViewModel(container)
             advanceUntilIdle()

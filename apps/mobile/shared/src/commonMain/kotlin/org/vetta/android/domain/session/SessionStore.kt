@@ -27,7 +27,14 @@ interface SessionStore {
 
     suspend fun upsertMessage(message: LocalMessage)
 
+    /** Persist an in-progress assistant snapshot without rewriting the full conversation history when supported. */
+    suspend fun upsertStreamingMessage(message: LocalMessage) = upsertMessage(message)
+
     suspend fun replaceMessages(sessionId: String, messages: List<LocalMessage>)
+
+    suspend fun exportMigrationData(): String
+
+    suspend fun importMigrationData(serialized: String): Int
 
     companion object {
         const val DEFAULT_TITLE = "新对话"

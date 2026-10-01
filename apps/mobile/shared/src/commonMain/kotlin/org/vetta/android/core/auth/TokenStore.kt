@@ -35,32 +35,33 @@ class SettingsTokenStore(
     private val settings: Settings = Settings(),
     private val accessKey: String = KEY_ACCESS,
     private val refreshKey: String = KEY_REFRESH,
+    private val secretStore: SecretStore = SettingsSecretStore(settings),
 ) : TokenStore {
     private val _tokens = MutableStateFlow(readSnapshot())
     override val tokens: StateFlow<StoredTokens?> = _tokens.asStateFlow()
 
     override val accessToken: String?
-        get() = settings.getStringOrNull(accessKey)?.takeIf { it.isNotBlank() }
-            ?: settings.getStringOrNull(KEY_PREF_AUTH_TOKEN)?.takeIf { it.isNotBlank() }
+        get() = secretStore.get(accessKey)?.takeIf { it.isNotBlank() }
+            ?: secretStore.get(KEY_PREF_AUTH_TOKEN)?.takeIf { it.isNotBlank() }
 
     override val refreshToken: String?
-        get() = settings.getStringOrNull(refreshKey)?.takeIf { it.isNotBlank() }
-            ?: settings.getStringOrNull(KEY_PREF_AUTH_REFRESH)?.takeIf { it.isNotBlank() }
+        get() = secretStore.get(refreshKey)?.takeIf { it.isNotBlank() }
+            ?: secretStore.get(KEY_PREF_AUTH_REFRESH)?.takeIf { it.isNotBlank() }
             ?: accessToken
 
     override fun save(accessToken: String, refreshToken: String) {
-        settings[accessKey] = accessToken
-        settings[refreshKey] = refreshToken
-        settings[KEY_PREF_AUTH_TOKEN] = accessToken
-        settings[KEY_PREF_AUTH_REFRESH] = refreshToken
+        secretStore.put(accessKey, accessToken)
+        secretStore.put(refreshKey, refreshToken)
+        secretStore.put(KEY_PREF_AUTH_TOKEN, accessToken)
+        secretStore.put(KEY_PREF_AUTH_REFRESH, refreshToken)
         _tokens.value = StoredTokens(accessToken, refreshToken)
     }
 
     override fun clear() {
-        settings.remove(accessKey)
-        settings.remove(refreshKey)
-        settings.remove(KEY_PREF_AUTH_TOKEN)
-        settings.remove(KEY_PREF_AUTH_REFRESH)
+        secretStore.remove(accessKey)
+        secretStore.remove(refreshKey)
+        secretStore.remove(KEY_PREF_AUTH_TOKEN)
+        secretStore.remove(KEY_PREF_AUTH_REFRESH)
         _tokens.value = null
     }
 

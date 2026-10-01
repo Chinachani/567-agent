@@ -24,6 +24,8 @@ import kotlinx.serialization.json.jsonPrimitive
 import kotlinx.serialization.json.int
 import kotlinx.serialization.json.put
 import org.vetta.android.domain.remote.connection.PlatformRemoteLogger
+import org.vetta.android.core.net.platformHttpClientEngine
+import org.vetta.android.core.net.pinnedWebSocketHttpClient
 import org.webrtc.DataChannel
 import org.webrtc.EglBase
 import org.webrtc.IceCandidate
@@ -43,7 +45,17 @@ private const val INPUT_CHANNEL = "vetta-input-v1"
 class NativeRemoteDesktopSession(private val context: Context, private val target: String) {
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Main.immediate)
     private val json = Json { ignoreUnknownKeys = true }
-    private val client = HttpClient { install(WebSockets) }
+    private val client by lazy {
+        val fingerprint = target.substringAfter('#', "").split('&')
+            .firstOrNull { it.startsWith("fingerprint=") }
+            ?.substringAfter('=')
+            ?.lowercase()
+        if (fingerprint != null && !fingerprint.matches(Regex("[a-f0-9]{64}"))) {
+            error("Invalid pinned certificate fingerprint")
+        }
+        if (fingerprint == null) HttpClient(platformHttpClientEngine()) { install(WebSockets) }
+        else pinnedWebSocketHttpClient(fingerprint)
+    }
     private val eglBase = EglBase.create()
     private var factory: PeerConnectionFactory? = null
     private var peerConnection: PeerConnection? = null

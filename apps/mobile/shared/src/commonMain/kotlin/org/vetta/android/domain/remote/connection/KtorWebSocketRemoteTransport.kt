@@ -16,22 +16,31 @@ import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.receiveAsFlow
 import kotlinx.coroutines.launch
 import org.vetta.android.core.net.platformHttpClientEngine
+import org.vetta.android.core.net.pinnedWebSocketHttpClient
 import org.vetta.android.domain.remote.protocol.RemoteFrame
 import org.vetta.android.domain.remote.protocol.RemoteProtocol
 
 class KtorWebSocketRemoteTransport(
     private val url: String,
     private val scope: CoroutineScope,
-    private val client: HttpClient = HttpClient(platformHttpClientEngine()) { install(WebSockets) },
+    private val client: HttpClient? = null,
 ) : RemoteTransport {
     private val incomingChannel = Channel<RemoteFrame>(Channel.UNLIMITED)
     private var session: DefaultClientWebSocketSession? = null
     private var readerJob: Job? = null
+    private var activeClient: HttpClient? = null
 
     override val incoming: Flow<RemoteFrame> = incomingChannel.receiveAsFlow()
 
     override suspend fun connect() {
 		val target = splitPairingTarget(url)
+        val fingerprint = target.fingerprint
+		val client =
+			(this.client ?: if (fingerprint == null) {
+				HttpClient(platformHttpClientEngine()) { install(WebSockets) }
+			} else {
+				pinnedWebSocketHttpClient(fingerprint)
+			}).also { activeClient = it }
         val socket =
             client.webSocketSession {
 				url.takeFrom(target.url)
@@ -66,20 +75,23 @@ class KtorWebSocketRemoteTransport(
         readerJob = null
         session?.close()
         session = null
-        client.close()
+        activeClient?.close()
+        activeClient = null
     }
 
-    private data class Target(val url: String, val pairingToken: String?, val resumeToken: String?)
+    private data class Target(val url: String, val pairingToken: String?, val resumeToken: String?, val fingerprint: String?)
 
     private fun splitPairingTarget(target: String): Target {
         val separator = target.indexOf('#')
-		if (separator < 0) return Target(target, null, null)
+		if (separator < 0) return Target(target, null, null, null)
 		val fragment = target.substring(separator + 1)
-		if (!fragment.contains('=')) return Target(target.substring(0, separator), fragment.takeIf { it.isNotEmpty() }, null)
+		if (!fragment.contains('=')) return Target(target.substring(0, separator), fragment.takeIf { it.isNotEmpty() }, null, null)
 		val values = fragment.split('&').mapNotNull {
 			val index = it.indexOf('=')
 			if (index <= 0) null else it.substring(0, index) to java.net.URLDecoder.decode(it.substring(index + 1), "UTF-8")
 		}.toMap()
-		return Target(target.substring(0, separator), values["pairing"], values["resume"])
+		val fingerprint = values["fingerprint"]?.lowercase()
+		if (fingerprint != null && !fingerprint.matches(Regex("[a-f0-9]{64}"))) error("Invalid certificate fingerprint")
+		return Target(target.substring(0, separator), values["pairing"], values["resume"], fingerprint)
     }
 }

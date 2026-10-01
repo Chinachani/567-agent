@@ -4,6 +4,7 @@ package org.vetta.android.core.api
 
 
 import io.ktor.client.HttpClient
+import io.ktor.client.plugins.timeout
 import io.ktor.client.request.get
 import io.ktor.client.request.header
 import io.ktor.client.request.post
@@ -21,6 +22,7 @@ import io.ktor.http.isSuccess
 import io.ktor.utils.io.readUTF8Line
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.flow
+import kotlinx.coroutines.CancellationException
 import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.JsonPrimitive
 import kotlinx.serialization.json.buildJsonObject
@@ -55,7 +57,6 @@ data class AppUpdateCheckResult(
     val currentVersion: String,
     val releaseNotes: String,
     val apkUrl: String?,
-    val fastApkUrl: String?,
     val error: String? = null,
 )
 
@@ -1040,67 +1041,79 @@ internal class VettaApi(
                 deviceId = "mobile-${token.hashCode().toUInt().toString(16)}",
                 extraContext = if (!groupName.isNullOrBlank()) mapOf("X-567-Group" to java.net.URLEncoder.encode(groupName, "UTF-8")) else emptyMap()
             )
+            var responseReceived = false
             try {
-                bareClient.preparePost(url) {
-                    setBody(bodyJson.toString())
-                    contentType(ContentType.Application.Json)
-                    if (!token.isNullOrBlank()) {
-                        header(HttpHeaders.Authorization, "Bearer $token")
-                    }
-                    for ((k, v) in secHeaders) {
-                        header(k, v)
-                    }
-                    header(HttpHeaders.Accept, "text/event-stream")
-                }.execute { response ->
-                    if (!response.status.isSuccess()) {
-                        val text = response.bodyAsTextSafe()
-                        emit(ChatStreamEvent.Error(parseFailure(response.status.value, text)))
-                        return@execute
-                    }
-
-                    val channel = response.bodyAsChannel()
-                    var sawDone = false
-                    var sawAnyEvent = false
-                    val bufferedLines = mutableListOf<String>()
-
-                    while (!channel.isClosedForRead) {
-                        val line = channel.readUTF8Line() ?: break
-                        val trimmed = line.trim()
-                        if (trimmed.isEmpty() || trimmed.startsWith(":")) continue
-                        bufferedLines.add(line)
-
-                        val event = OpenAiSseParser.parseLine(line)
-                        if (event != null) {
-                            sawAnyEvent = true
-                            if (event is ChatStreamEvent.Done) {
-                                sawDone = true
-                            }
-                            emit(event)
-                            if (event is ChatStreamEvent.Error) {
-                                return@execute
-                            }
+                withChatConnectionRetry(responseReceived = { responseReceived }) {
+                    bareClient.preparePost(url) {
+                        // Model streams can take longer than ordinary API calls to produce
+                        // the first token or pause between chunks; keep the REST client's
+                        // short timeout from turning those pauses into apparent disconnects.
+                        timeout {
+                            requestTimeoutMillis = 600_000
+                            socketTimeoutMillis = 600_000
                         }
-                    }
+                        setBody(bodyJson.toString())
+                        contentType(ContentType.Application.Json)
+                        if (!token.isNullOrBlank()) {
+                            header(HttpHeaders.Authorization, "Bearer $token")
+                        }
+                        for ((k, v) in secHeaders) {
+                            header(k, v)
+                        }
+                        header(HttpHeaders.Accept, "text/event-stream")
+                    }.execute { response ->
+                        responseReceived = true
+                        if (!response.status.isSuccess()) {
+                            val text = response.bodyAsTextSafe()
+                            emit(ChatStreamEvent.Error(parseFailure(response.status.value, text)))
+                            return@execute
+                        }
 
-                    // 兜底保障：如果循环读完没有产生任何有效 SSE 事件（例如返回了非流式 JSON）
-                    if (!sawAnyEvent && bufferedLines.isNotEmpty()) {
-                        val fullText = bufferedLines.joinToString("\n")
-                        val fallbackEvents = OpenAiSseParser.parseNonStreamJson(fullText)
-                        if (fallbackEvents.isNotEmpty()) {
-                            for (ev in fallbackEvents) {
-                                emit(ev)
-                                if (ev is ChatStreamEvent.Done) {
+                        val channel = response.bodyAsChannel()
+                        var sawDone = false
+                        var sawAnyEvent = false
+                        val bufferedLines = mutableListOf<String>()
+
+                        while (!channel.isClosedForRead) {
+                            val line = channel.readUTF8Line() ?: break
+                            val trimmed = line.trim()
+                            if (trimmed.isEmpty() || trimmed.startsWith(":")) continue
+                            bufferedLines.add(line)
+
+                            val event = OpenAiSseParser.parseLine(line)
+                            if (event != null) {
+                                sawAnyEvent = true
+                                if (event is ChatStreamEvent.Done) {
                                     sawDone = true
+                                }
+                                emit(event)
+                                if (event is ChatStreamEvent.Error) {
+                                    return@execute
                                 }
                             }
                         }
-                    }
 
-                    if (!sawDone) {
-                        emit(ChatStreamEvent.Done)
+                        // 兜底保障：如果循环读完没有产生任何有效 SSE 事件（例如返回了非流式 JSON）
+                        if (!sawAnyEvent && bufferedLines.isNotEmpty()) {
+                            val fullText = bufferedLines.joinToString("\n")
+                            val fallbackEvents = OpenAiSseParser.parseNonStreamJson(fullText)
+                            if (fallbackEvents.isNotEmpty()) {
+                                for (ev in fallbackEvents) {
+                                    emit(ev)
+                                    if (ev is ChatStreamEvent.Done) {
+                                        sawDone = true
+                                    }
+                                }
+                            }
+                        }
+
+                        if (!sawDone) {
+                            emit(ChatStreamEvent.Done)
+                        }
                     }
                 }
             } catch (e: Exception) {
+                if (e is CancellationException) throw e
                 emit(ChatStreamEvent.Error(e.toVettaException()))
             }
         }
@@ -1129,25 +1142,22 @@ internal class VettaApi(
                 }
             }
             val cleanTag = tagName.removePrefix("v").trim()
-            val current = "1.1.2"
+            val current = "1.1.3"
             val hasUpdate = isNewerVersion(cleanTag, current)
-            val fastUrl = if (!apkUrl.isNullOrBlank()) "https://v6.gh-proxy.org/$apkUrl" else null
             AppUpdateCheckResult(
                 hasUpdate = hasUpdate,
                 latestVersion = tagName.ifBlank { "v$current" },
                 currentVersion = "v$current",
                 releaseNotes = body,
                 apkUrl = apkUrl,
-                fastApkUrl = fastUrl,
             )
         } catch (e: Exception) {
             AppUpdateCheckResult(
                 hasUpdate = false,
-                latestVersion = "v1.1.2",
-                currentVersion = "v1.1.2",
+                latestVersion = "v1.1.3",
+                currentVersion = "v1.1.3",
                 releaseNotes = "",
                 apkUrl = null,
-                fastApkUrl = null,
                 error = e.message ?: "检查更新失败",
             )
         }

@@ -329,6 +329,8 @@ fun RootApp(
                     onAutoResumeLastSession = vm::setAutoResumeLastSession,
                     onMotionEnabled = vm::setMotionEnabled,
                     onClearLocalData = vm::clearLocalSessions,
+                    onExportMigration = vm::exportSessionMigration,
+                    onImportMigration = vm::importSessionMigration,
                     onOpenAbout = vm::openAbout,
                     onBack = vm::navigateBackFromSecondary,
                     confirmBeforeDelete = state.confirmBeforeDelete,

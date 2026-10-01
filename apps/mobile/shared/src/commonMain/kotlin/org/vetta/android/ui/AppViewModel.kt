@@ -2,6 +2,7 @@ package org.vetta.android.ui
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.cancelAndJoin
 import kotlinx.coroutines.delay
@@ -13,8 +14,10 @@ import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 import org.vetta.android.app.AppContainer
 import org.vetta.android.app.ThemeMode
+import org.vetta.android.data.session.SessionMigrationBackup
 import org.vetta.android.core.model.ChatRole
 import org.vetta.android.core.model.ChatStreamEvent
 import org.vetta.android.core.model.LlmModel
@@ -102,7 +105,7 @@ private data class PreferenceSnapshot(
     val confirmDelete: Boolean,
 )
 
-private const val STREAMING_PERSIST_INTERVAL_MS = 80L
+private const val STREAMING_PERSIST_INTERVAL_MS = 300L
 
 class AppViewModel(
     private val container: AppContainer,
@@ -418,11 +421,10 @@ class AppViewModel(
                 onResult(
                     org.vetta.android.core.api.AppUpdateCheckResult(
                         hasUpdate = false,
-                        latestVersion = "v1.1.2",
-                        currentVersion = "v1.1.2",
+                        latestVersion = "v1.1.3",
+                        currentVersion = "v1.1.3",
                         releaseNotes = "",
                         apkUrl = null,
-                        fastApkUrl = null,
                         error = t.message,
                     )
                 )
@@ -512,10 +514,11 @@ class AppViewModel(
                                 add(org.vetta.android.domain.remote.buildMobileBootstrapTarget(lanInvite, requireNotNull(resume)))
                             }
                             if (invite.relayBaseUrl.isNotBlank() && invite.relayBaseUrl != invite.lanBaseUrl) {
+                                val cloudInvite = invite.copy(lanCertificateFingerprint = null)
                                 if (savedResume != null) {
-                                    add(org.vetta.android.domain.remote.buildMobileResumeTarget(invite, savedResume))
+                                    add(org.vetta.android.domain.remote.buildMobileResumeTarget(cloudInvite, savedResume))
                                 }
-                                add(org.vetta.android.domain.remote.buildMobileBootstrapTarget(invite, requireNotNull(resume)))
+                                add(org.vetta.android.domain.remote.buildMobileBootstrapTarget(cloudInvite, requireNotNull(resume)))
                             }
                         }
                     }
@@ -891,6 +894,32 @@ class AppViewModel(
                     modelPickerOpen = false,
                 )
             }
+        }
+    }
+
+    fun exportSessionMigration(passphrase: String, onComplete: (ByteArray?, String?) -> Unit) {
+        viewModelScope.launch {
+            val result = runCatching {
+                withContext(Dispatchers.Default) {
+                    SessionMigrationBackup(container.sessionStore).export(passphrase)
+                }
+            }
+            onComplete(result.getOrNull(), result.exceptionOrNull()?.message)
+        }
+    }
+
+    fun importSessionMigration(
+        archive: ByteArray,
+        passphrase: String,
+        onComplete: (Int?, String?) -> Unit,
+    ) {
+        viewModelScope.launch {
+            val result = runCatching {
+                withContext(Dispatchers.Default) {
+                    SessionMigrationBackup(container.sessionStore).import(archive, passphrase)
+                }
+            }
+            onComplete(result.getOrNull(), result.exceptionOrNull()?.message)
         }
     }
 
@@ -1307,16 +1336,19 @@ class AppViewModel(
                     var pendingPersist: Job? = null
 
                     suspend fun persistAssistant(status: MessageStatus = MessageStatus.Streaming) {
-                        container.sessionStore.upsertMessage(
-                            assistantMsg.copy(
-                                content = assembled,
-                                status = status,
-                                toolEvents = toolEvents,
-                                usage = usage,
-                                contextPercent = contextPercent,
-                                pendingQuestion = pendingQuestion,
-                            ),
+                        val snapshot = assistantMsg.copy(
+                            content = assembled,
+                            status = status,
+                            toolEvents = toolEvents,
+                            usage = usage,
+                            contextPercent = contextPercent,
+                            pendingQuestion = pendingQuestion,
                         )
+                        if (status == MessageStatus.Streaming) {
+                            container.sessionStore.upsertStreamingMessage(snapshot)
+                        } else {
+                            container.sessionStore.upsertMessage(snapshot)
+                        }
                     }
 
                     suspend fun flushPendingPersist() {
@@ -1608,7 +1640,8 @@ class AppViewModel(
                             container.sessionStore.getMessages(sid).firstOrNull { it.id == assistantId }
                         if (latest != null) {
                             container.sessionStore.upsertMessage(
-                                latest.copy(
+                                assistantMsg.copy(
+                                    content = assembled,
                                     status =
                                         if (t is kotlinx.coroutines.CancellationException) {
                                             MessageStatus.Aborted
@@ -1616,6 +1649,7 @@ class AppViewModel(
                                             MessageStatus.Error
                                         },
                                     errorMessage = if (t is kotlinx.coroutines.CancellationException) null else ui.message,
+                                    toolEvents = toolEvents,
                                     usage = usage,
                                     contextPercent = contextPercent,
                                     pendingQuestion = null,

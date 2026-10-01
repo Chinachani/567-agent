@@ -28,6 +28,7 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.imePadding
+import androidx.compose.foundation.layout.ime
 import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
@@ -109,8 +110,11 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.unit.dp
+import androidx.compose.foundation.layout.WindowInsets
 import kotlinx.coroutines.launch
+import androidx.compose.runtime.withFrameNanos
 import org.vetta.android.core.model.ChatRole
 import org.vetta.android.core.model.LlmModel
 import org.vetta.android.domain.error.UiError
@@ -128,6 +132,9 @@ import org.vetta.android.ui.media.imageBitmapFromBase64
 import org.vetta.android.ui.media.rememberImagePicker
 import org.vetta.android.ui.navigation.ChatSurface
 import org.vetta.android.ui.theme.vettaExtra
+
+internal fun chatImeScrollTarget(imeBottomPx: Int, lastMessageIndex: Int): Int? =
+    lastMessageIndex.takeIf { imeBottomPx > 0 && it >= 0 }
 
 @Composable
 fun RotatingRefreshIcon(
@@ -208,6 +215,7 @@ fun ChatScreen(
 ) {
     val listState = rememberLazyListState()
     val scope = rememberCoroutineScope()
+    val imeBottomPx = WindowInsets.ime.getBottom(LocalDensity.current)
     var attachedSessionId by remember { mutableStateOf<String?>(null) }
     val currentSessionId = messages.firstOrNull()?.sessionId
 
@@ -245,6 +253,16 @@ fun ChatScreen(
     LaunchedEffect(messages.size, messages.lastOrNull()?.content, messages.lastOrNull()?.status) {
         if (isAtBottom && messages.isNotEmpty()) {
             listState.animateScrollToItem(messages.lastIndex)
+        }
+    }
+
+    val imeScrollTarget = chatImeScrollTarget(imeBottomPx, messages.lastIndex)
+    LaunchedEffect(imeScrollTarget) {
+        imeScrollTarget?.let { target ->
+            // Let the resized viewport land first, then keep the newest message
+            // visible while the user starts typing.
+            withFrameNanos { }
+            listState.animateScrollToItem(target)
         }
     }
 

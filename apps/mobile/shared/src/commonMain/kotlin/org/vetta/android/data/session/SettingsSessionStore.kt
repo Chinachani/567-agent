@@ -6,6 +6,8 @@ import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 import kotlinx.serialization.Serializable
@@ -29,6 +31,7 @@ import kotlin.random.Random
  */
 class SettingsSessionStore(
     private val settings: Settings = Settings(),
+    private val storageDispatcher: kotlinx.coroutines.CoroutineDispatcher = Dispatchers.IO,
 ) : SessionStore {
     private val mutex = Mutex()
     private val _sessions = MutableStateFlow(loadSessionsSorted())
@@ -43,7 +46,7 @@ class SettingsSessionStore(
         _sessions.value.firstOrNull { it.id == id }
 
     override suspend fun getMessages(sessionId: String): List<LocalMessage> =
-        messageFlow(sessionId).value
+        withStorageLock { messageFlow(sessionId).value }
 
     override suspend fun createSession(
         title: String,
@@ -53,7 +56,7 @@ class SettingsSessionStore(
         remoteDeviceId: String?,
         remoteSessionId: String?,
     ): ChatSession =
-        mutex.withLock {
+        withStorageLock {
             val now = nowEpochMs()
             val session =
                 ChatSession(
@@ -75,27 +78,29 @@ class SettingsSessionStore(
         }
 
     override suspend fun updateSession(session: ChatSession) {
-        mutex.withLock {
+        withStorageLock {
             val raw = loadSessionsRaw().map { if (it.id == session.id) session.toDto() else it }
             persistSessions(raw.sortedByDescending { it.updatedAtEpochMs })
         }
     }
 
     override suspend fun deleteSession(id: String) {
-        mutex.withLock {
+        withStorageLock {
             persistSessions(loadSessionsRaw().filterNot { it.id == id })
             settings.remove(messagesKey(id))
+            settings.remove(streamingMessageKey(id))
             messagesFlows.remove(id)
         }
     }
 
     override suspend fun upsertMessage(message: LocalMessage) {
-        mutex.withLock {
+        withStorageLock {
             val current = loadMessages(message.sessionId).toMutableList()
             val idx = current.indexOfFirst { it.id == message.id }
             if (idx >= 0) current[idx] = message else current.add(message)
             val sorted = current.sortedBy { it.createdAtEpochMs }
             persistMessages(message.sessionId, sorted)
+            settings.remove(streamingMessageKey(message.sessionId))
             messageFlow(message.sessionId).value = sorted
 
             // 触摸会话更新时间；首条用户消息生成标题
@@ -117,13 +122,75 @@ class SettingsSessionStore(
         }
     }
 
+    override suspend fun upsertStreamingMessage(message: LocalMessage) {
+        withStorageLock {
+            val current = messageFlow(message.sessionId).value.toMutableList()
+            val idx = current.indexOfFirst { it.id == message.id }
+            if (idx >= 0) current[idx] = message else current.add(message)
+            val sorted = current.sortedBy { it.createdAtEpochMs }
+            settings[streamingMessageKey(message.sessionId)] =
+                VettaJson.encodeToString(MessageDto.serializer(), message.toDto())
+            messageFlow(message.sessionId).value = sorted
+        }
+    }
+
     override suspend fun replaceMessages(sessionId: String, messages: List<LocalMessage>) {
-        mutex.withLock {
+        withStorageLock {
             val sorted = messages.sortedBy { it.createdAtEpochMs }
             persistMessages(sessionId, sorted)
+            settings.remove(streamingMessageKey(sessionId))
             messageFlow(sessionId).value = sorted
         }
     }
+
+    override suspend fun exportMigrationData(): String =
+        withStorageLock {
+            val sessions = loadSessionsRaw()
+            val archive =
+                SessionMigrationArchiveDto(
+                    exportedAtEpochMs = nowEpochMs(),
+                    sessions = sessions,
+                    messages = sessions.map { session ->
+                        SessionMigrationMessagesDto(
+                            sessionId = session.id,
+                            items = loadMessages(session.id).map { it.toDto() },
+                        )
+                    },
+                )
+            VettaJson.encodeToString(SessionMigrationArchiveDto.serializer(), archive)
+        }
+
+    override suspend fun importMigrationData(serialized: String): Int =
+        withStorageLock {
+            require(serialized.length <= MAX_MIGRATION_JSON_CHARS) { "迁移文件过大" }
+            val archive = VettaJson.decodeFromString(SessionMigrationArchiveDto.serializer(), serialized)
+            require(archive.schemaVersion == MIGRATION_SCHEMA_VERSION) { "不支持的迁移文件版本" }
+            require(archive.sessions.size <= MAX_MIGRATION_SESSIONS) { "迁移文件包含过多会话" }
+            require(archive.sessions.map { it.id }.distinct().size == archive.sessions.size) { "迁移文件包含重复会话" }
+            require(archive.messages.map { it.sessionId }.distinct().size == archive.messages.size) { "迁移文件包含重复消息列表" }
+
+            val sessionIds = archive.sessions.mapTo(mutableSetOf()) { it.id }
+            require(archive.messages.all { it.sessionId in sessionIds }) { "迁移文件包含无效消息列表" }
+            require(archive.messages.all { group -> group.items.all { it.sessionId == group.sessionId } }) { "迁移文件中的消息归属无效" }
+            require(archive.messages.sumOf { it.items.size } <= MAX_MIGRATION_MESSAGES) { "迁移文件包含过多消息" }
+
+            val existingIds = loadSessionsRaw().mapTo(mutableSetOf()) { it.id }
+            val imported = archive.sessions.filterNot { it.id in existingIds }
+            val importedIds = imported.mapTo(mutableSetOf()) { it.id }
+            val messagesBySession = archive.messages.associateBy { it.sessionId }
+
+            // Write message keys first and publish the session index last. If the process
+            // stops midway, incomplete imports stay invisible and can safely be retried.
+            imported.forEach { session ->
+                val items = messagesBySession[session.id]?.items.orEmpty()
+                persistMessages(session.id, items.map { it.toDomain() })
+                settings.remove(streamingMessageKey(session.id))
+                messageFlow(session.id).value = items.map { it.toDomain() }
+            }
+            val mergedSessions = (loadSessionsRaw() + imported).sortedByDescending { it.updatedAtEpochMs }
+            persistSessions(mergedSessions)
+            importedIds.size
+        }
 
     private fun messageFlow(sessionId: String): MutableStateFlow<List<LocalMessage>> =
         messagesFlows.getOrPut(sessionId) {
@@ -152,10 +219,22 @@ class SettingsSessionStore(
     }
 
     private fun loadMessages(sessionId: String): List<LocalMessage> {
-        val json = settings.getStringOrNull(messagesKey(sessionId)) ?: return emptyList()
-        return runCatching {
-            VettaJson.decodeFromString(MessageListDto.serializer(), json).items.map { it.toDomain() }
-        }.getOrDefault(emptyList())
+        val messages = settings.getStringOrNull(messagesKey(sessionId))?.let { json ->
+            runCatching {
+                VettaJson.decodeFromString(MessageListDto.serializer(), json).items.map { it.toDomain() }
+            }.getOrDefault(emptyList())
+        }.orEmpty()
+        val checkpoint = settings.getStringOrNull(streamingMessageKey(sessionId))?.let { checkpointJson ->
+            runCatching { VettaJson.decodeFromString(MessageDto.serializer(), checkpointJson).toDomain() }.getOrNull()
+        }?.takeIf { it.status == MessageStatus.Streaming }
+            ?: return messages
+        val checkpointIndex = messages.indexOfFirst { it.id == checkpoint.id }
+        if (checkpointIndex < 0) return (messages + checkpoint).sortedBy { it.createdAtEpochMs }
+        if (messages[checkpointIndex].status == MessageStatus.Streaming) {
+            return messages.toMutableList().also { it[checkpointIndex] = checkpoint }
+                .sortedBy { it.createdAtEpochMs }
+        }
+        return messages
     }
 
     private fun persistMessages(sessionId: String, messages: List<LocalMessage>) {
@@ -168,6 +247,13 @@ class SettingsSessionStore(
 
     private fun messagesKey(sessionId: String) = "vetta.session.messages.$sessionId"
 
+    private fun streamingMessageKey(sessionId: String) = "vetta.session.streaming.$sessionId"
+
+    private suspend fun <T> withStorageLock(block: () -> T): T =
+        withContext(storageDispatcher) {
+            mutex.withLock { block() }
+        }
+
     private fun newId(): String {
         val time = nowEpochMs().toString(16)
         val rand = Random.nextLong().toULong().toString(16)
@@ -176,8 +262,26 @@ class SettingsSessionStore(
 
     companion object {
         private const val KEY_SESSIONS = "vetta.session.index"
+        private const val MIGRATION_SCHEMA_VERSION = 1
+        private const val MAX_MIGRATION_JSON_CHARS = 100 * 1024 * 1024
+        private const val MAX_MIGRATION_SESSIONS = 20_000
+        private const val MAX_MIGRATION_MESSAGES = 200_000
     }
 }
+
+@Serializable
+private data class SessionMigrationArchiveDto(
+    val schemaVersion: Int = 1,
+    val exportedAtEpochMs: Long,
+    val sessions: List<SessionDto>,
+    val messages: List<SessionMigrationMessagesDto>,
+)
+
+@Serializable
+private data class SessionMigrationMessagesDto(
+    val sessionId: String,
+    val items: List<MessageDto>,
+)
 
 @Serializable
 private data class SessionListDto(val items: List<SessionDto> = emptyList())

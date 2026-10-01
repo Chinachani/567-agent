@@ -1,11 +1,13 @@
 package org.vetta.android.app
 
+import com.russhwolf.settings.Settings
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import org.vetta.android.core.VettaClient
 import org.vetta.android.core.VettaConfig
 import org.vetta.android.core.auth.SettingsTokenStore
+import org.vetta.android.core.auth.createPlatformSecretStore
 import org.vetta.android.core.auth.TokenStore
 import org.vetta.android.data.session.SettingsSessionStore
 import org.vetta.android.domain.conversation.ConversationRouter
@@ -60,6 +62,13 @@ class AppContainer(
         )
 
     companion object {
-        fun createDefault(): AppContainer = AppContainer()
+        fun createDefault(): AppContainer {
+            val settings = Settings()
+            val secrets = createPlatformSecretStore(settings)
+            return AppContainer(
+                preferences = AppPreferences(settings, secrets),
+                tokenStore = SettingsTokenStore(settings, secretStore = secrets),
+            )
+        }
     }
 }
