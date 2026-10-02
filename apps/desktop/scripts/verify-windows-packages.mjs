@@ -80,6 +80,7 @@ async function installMsiForVerification(packagePath, destination) {
 			"/i",
 			packagePath,
 			"/qn",
+			"ALLUSERS=1",
 			`INSTALLDIR=${destination}`,
 			"/L*V",
 			logPath,
@@ -117,10 +118,28 @@ export async function verifyWindowsPackages({ releaseDir = defaultReleaseDir } =
 	try {
 		await installMsiForVerification(msiPath, msiRoot);
 		await extractZip(zipPath, zipRoot);
-		await Promise.all([
-			verifyExtractedWindowsLayout(msiRoot, expectedVersion),
-			verifyExtractedWindowsLayout(zipRoot, expectedVersion),
-		]);
+		try {
+			await verifyExtractedWindowsLayout(msiRoot, expectedVersion);
+		} catch (error) {
+			const log = await readFile(join(msiRoot, "msiexec.log"))
+				.then((contents) =>
+					contents.subarray(0, 2).equals(Buffer.from([0xff, 0xfe]))
+						? contents.subarray(2).toString("utf16le")
+						: contents.toString("utf8"),
+				)
+				.catch(() => "");
+			const diagnostics = log
+				.split(/\r?\n/)
+				.filter((line) => /INSTALLDIR|TARGETDIR|Return value 3|Action ended|Product:|Installation success or error/i.test(line))
+				.slice(-30)
+				.join("\n");
+			const entries = (await readdir(msiRoot)).join(", ");
+			throw new Error(
+				`[verify-windows-packages] MSI installed without the expected payload. Root entries: ${entries}\n${diagnostics}`,
+				{ cause: error },
+			);
+		}
+		await verifyExtractedWindowsLayout(zipRoot, expectedVersion);
 		console.info(`[verify-windows-packages] MSI and ZIP packages verified: ${expectedVersion}`);
 		return { version: expectedVersion, msiPath, zipPath };
 	} finally {
