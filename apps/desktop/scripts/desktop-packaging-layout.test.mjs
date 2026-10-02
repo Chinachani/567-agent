@@ -55,5 +55,5 @@ test("Windows installer registers and opens 567design files", () => {
 	assert.match(installer, /Subkey: "\.567design"/);
 	assert.match(installer, /567 Agent 设计分享包/);
 	assert.match(installer, /Subkey: "567Agent\.DesignShare\\shell\\open\\command"/);
-	assert.match(installer, /567-Agent\.exe.*%1/);
+	assert.match(installer, /ValueData: """\{app\}\\567-Agent\.exe"" ""%1"""/);
 });
