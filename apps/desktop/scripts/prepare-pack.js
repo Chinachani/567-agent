@@ -747,6 +747,9 @@ const builderConfig = {
 		artifactName: "567-Agent-${version}-win-${arch}.${ext}",
 		icon: "build/icon.ico",
 	},
+	msi: {
+		perMachine: true,
+	},
 	linux: {
 		target: LINUX_RELEASE_TARGETS,
 		executableName: "567-agent",

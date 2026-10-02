@@ -85,7 +85,13 @@ async function extractMsi(packagePath, destination) {
 			logPath,
 		]);
 	} catch (error) {
-		const log = await readFile(logPath, "utf8").catch(() => "");
+		const log = await readFile(logPath)
+			.then((contents) =>
+				contents.subarray(0, 2).equals(Buffer.from([0xff, 0xfe]))
+					? contents.subarray(2).toString("utf16le")
+					: contents.toString("utf8"),
+			)
+			.catch(() => "");
 		const excerpt = log.split(/\r?\n/).slice(-80).join("\n");
 		throw new Error(
 			`[verify-windows-packages] MSI administrative extraction failed. msiexec log tail:\n${excerpt}`,
