@@ -489,9 +489,8 @@ jobs:
         working-directory: apps/desktop
         run: bun run ${{ matrix.verify }}
 
-      # latest.yml 仍只描述自定义 Inno 更新包；MSI/ZIP 是额外下载格式，单独解包
-      # 检查它们是否保留 launcher + versions/<version> 的可更新目录布局。
-      - name: Verify supplemental Windows packages
+      # latest.yml 描述自定义 Inno 更新包；便携 ZIP 也需保留 launcher + versions/<version> 布局。
+      - name: Verify portable Windows package
         if: matrix.platform == 'windows'
         working-directory: apps/desktop
         run: bun run verify:packages:windows
@@ -556,7 +555,6 @@ jobs:
             apps/desktop/release/*.deb
             apps/desktop/release/*.dmg
             apps/desktop/release/*.exe
-            apps/desktop/release/*.msi
             apps/desktop/release/*.rpm
             apps/desktop/release/*.zip
             apps/desktop/release/latest*.yml

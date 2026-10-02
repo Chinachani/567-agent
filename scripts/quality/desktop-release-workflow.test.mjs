@@ -221,6 +221,7 @@ describe("Desktop release workflow contracts", () => {
 		expect(workflow).toContain("apps/desktop/release/*.AppImage");
 		expect(workflow).toContain("apps/desktop/release/*.deb");
 		expect(workflow).toContain("apps/desktop/release/*.rpm");
+		expect(workflow).not.toContain("apps/desktop/release/*.msi");
 	});
 
 	it("keeps pull-request Linux packaging on the AppImage smoke target", () => {
@@ -231,13 +232,13 @@ describe("Desktop release workflow contracts", () => {
 		expect(desktopPackage.scripts["dist:linux:test"]).toContain("dist:linux:appimage");
 	});
 
-	it("builds, verifies, and uploads all Windows release formats", () => {
+	it("builds, verifies, and uploads the Windows installer and portable ZIP", () => {
 		expect(workflow).toContain("command: dist:win");
 		expect(workflow).toContain("verify: verify:updates:windows");
-		expect(workflow).toContain("Verify supplemental Windows packages");
+		expect(workflow).toContain("Verify portable Windows package");
 		expect(workflow).toContain("run: bun run verify:packages:windows");
 		expect(workflow).toContain("apps/desktop/release/*.exe");
-		expect(workflow).toContain("apps/desktop/release/*.msi");
+		expect(workflow).not.toContain("apps/desktop/release/*.msi");
 		expect(workflow).toContain("apps/desktop/release/*.zip");
 
 		const desktopPackage = JSON.parse(
@@ -251,12 +252,12 @@ describe("Desktop release workflow contracts", () => {
 		const tagReleaseJobs = parse(tagReleaseWorkflow).jobs;
 		const windows = tagReleaseJobs["build-desktop"].strategy.matrix.include.find((entry) => entry.platform === "win");
 		expect(windows.command).toBe("package:win");
-		for (const extension of ["*.exe", "*.blockmap", "*.msi", "*.zip", "latest.yml"]) {
+		for (const extension of ["*.exe", "*.blockmap", "*.zip", "latest.yml"]) {
 			expect(windows.artifact_path).toContain(`apps/desktop/release/${extension}`);
 		}
 		expect(tagReleaseWorkflow).toContain("Install Inno Setup");
 		expect(tagReleaseWorkflow).toContain("choco install innosetup --yes --no-progress");
-		expect(tagReleaseWorkflow).toContain("Verify Windows installer and packages");
+		expect(tagReleaseWorkflow).toContain("Verify Windows installer and portable package");
 		expect(tagReleaseWorkflow).toContain("bun run verify:updates:windows");
 		expect(tagReleaseWorkflow).toContain("bun run verify:packages:windows");
 	});

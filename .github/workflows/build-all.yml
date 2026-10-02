@@ -87,7 +87,6 @@ jobs:
             artifact_path: |
               apps/desktop/release/*.exe
               apps/desktop/release/*.blockmap
-              apps/desktop/release/*.msi
               apps/desktop/release/*.zip
               apps/desktop/release/latest.yml
 
@@ -147,7 +146,7 @@ jobs:
           cd apps/desktop
           bun run ${{ matrix.command }}
 
-      - name: Verify Windows installer and packages
+      - name: Verify Windows installer and portable package
         if: matrix.platform == 'win'
         working-directory: apps/desktop
         run: |

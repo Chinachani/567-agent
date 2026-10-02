@@ -23,10 +23,10 @@ test("electron-builder never publishes unless the caller explicitly opts in", ()
 	assert.equal(resolveElectronBuilderPublishMode("always"), "always");
 });
 
-test("Windows release builds Inno, MSI, and ZIP without exposing Inno to electron-builder", () => {
+test("Windows release builds Inno and ZIP without exposing Inno to electron-builder", () => {
 	assert.deepEqual(resolveDefaultTargets("win"), WINDOWS_RELEASE_TARGETS);
 	assert.deepEqual(resolveElectronBuilderTargets("win", WINDOWS_RELEASE_TARGETS), {
-		targets: ["dir", "msi", "zip"],
+		targets: ["dir", "zip"],
 		usesInno: true,
 	});
 	assert.throws(
