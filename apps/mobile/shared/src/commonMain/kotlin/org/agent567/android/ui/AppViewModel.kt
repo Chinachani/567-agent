@@ -951,7 +951,7 @@ class AppViewModel(
                 result.getOrNull(),
                 when (error) {
                     is MigrationBackupTooLargeException -> Str.migrationImportTooLarge
-                    else -> error?.message,
+                    else -> error?.message
                 },
             )
         }
