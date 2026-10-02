@@ -20,7 +20,7 @@
 - 2 份 Hook 配置和 15 个辅助脚本；
 - 一个依赖 Claude Code Agent Teams 的完整协作工作流。
 
-Vetta 已经具备三块可复用基础：标准 Agent Skill 发现、可扩展的 root → child 子代理运行时、以及 `@vetta/ecosystem-adapter` 的通用 Hook 调度内核。但当前只能直接承载 skills-only 插件的主体内容，不能无损运行 `council`、`ci-review` 和 `cdt`：
+Vetta 已经具备三块可复用基础：标准 Agent Skill 发现、可扩展的 root → child 子代理运行时、以及 `@567agent/ecosystem-adapter` 的通用 Hook 调度内核。但当前只能直接承载 skills-only 插件的主体内容，不能无损运行 `council`、`ci-review` 和 `cdt`：
 
 1. Claude 与 Vetta 的插件清单不是同一种格式，`commands` 字段甚至具有不同含义。
 2. Vetta 会忽略 `user-invocable`、`context: fork`、`agent`、`allowed-tools` 等 Claude Skill 扩展语义，也不展开 `$ARGUMENTS` 或 Claude 的动态命令上下文语法。

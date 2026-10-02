@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 
-import type { AgentTeamDocument } from "@vetta/agent-team";
+import type { AgentTeamDocument } from "@567agent/agent-team";
 import { renderHook, waitFor } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
 import { useAgentTeamResources } from "./useAgentTeamResources";

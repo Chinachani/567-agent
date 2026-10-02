@@ -116,7 +116,7 @@ $env:VETTA_BASH = "C:\Program Files\Git\bin\bash.exe"
 ```powershell
 playwright-cli -s=vetta attach --cdp=http://127.0.0.1:9223
 playwright-cli -s=vetta tab-list
-# 选择 Title=Vetta Desktop 的 tab
+# 选择 Title=567 Agent 的 tab
 playwright-cli -s=vetta tab-select <n>
 playwright-cli -s=vetta snapshot
 playwright-cli -s=vetta detach

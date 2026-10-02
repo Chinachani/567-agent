@@ -15,7 +15,7 @@
 
 ## 2. 核心结论
 
-当前实现的抽象方向是正确的：使用独立的 `@vetta/ecosystem-adapter`，并允许 SDK 追加 adapter，而不是在 `coding-agent` 中不断增加 `xxHook`。
+当前实现的抽象方向是正确的：使用独立的 `@567agent/ecosystem-adapter`，并允许 SDK 追加 adapter，而不是在 `coding-agent` 中不断增加 `xxHook`。
 
 最新版 Codex 相比早期实现已经发生结构性变化，不能只给原有 5 事件和 Bash-only mapper 增加几个枚举值：
 
@@ -192,7 +192,7 @@ Vetta 应支持“由 Vetta 插件加载器显式传入的插件 Hook 来源”�
 
 | 能力 | 当前状态 | 结论 |
 | --- | --- | --- |
-| 独立生态适配包 | 已有 `@vetta/ecosystem-adapter` | 保留 |
+| 独立生态适配包 | 已有 `@567agent/ecosystem-adapter` | 保留 |
 | Adapter 工厂扩展 | SDK 可追加 factory | 保留 |
 | Host 与 adapter 分离 | 基本完成 | 需要进一步去 Codex 事件形状化 |
 | 最新 profile | 实施前未实现 | 新增唯一的 `fca51f6` profile |

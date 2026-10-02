@@ -1,5 +1,5 @@
+import type { RuntimeSandboxGrantInfo } from "@567agent/runtime-core";
 import { activeSessionAtom } from "@shared/store/atoms";
-import type { RuntimeSandboxGrantInfo } from "@vetta/runtime-core";
 import type { SandboxGrantsBadgeViewLabels, SandboxGrantViewItem } from "@vetta-org/theme-ui/chat";
 import type { TFunction } from "i18next";
 import { useAtomValue } from "jotai";

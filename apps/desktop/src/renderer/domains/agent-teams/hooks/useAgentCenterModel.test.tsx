@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 
-import type { AgentTeamDocument, TeamDefinition } from "@vetta/agent-team";
+import type { AgentTeamDocument, TeamDefinition } from "@567agent/agent-team";
 import { act, renderHook, waitFor } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
 import { useAgentCenterModel } from "./useAgentCenterModel";

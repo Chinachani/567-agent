@@ -1,9 +1,9 @@
-// 把 native/appshot/main.swift 编译打包成 `Vetta Computer Use.app`（swiftc 单文件
+// 把 native/appshot/main.swift 编译打包成 `567 Agent Computer Use.app`（swiftc 单文件
 // 编译到 Contents/MacOS/、写 Info.plist、拷贝主 app icns、ad-hoc 签名）。
 //
 // 独立 .app bundle（独立 CFBundleIdentifier）使其在 macOS TCC（辅助功能/屏幕
 // 录制）里是与主 Vetta app 分离的授权主体，系统设置权限列表显示为
-// "Vetta Computer Use"。
+// "567 Agent Computer Use"。
 //
 // darwin-only：非 macOS host 直接跳过（appshot 功能本身仅 macOS 提供）。
 // 幂等：产物已存在且可执行文件 mtime 晚于源码时跳过编译，加速 dev 启动与迭代构建。
@@ -16,13 +16,14 @@
 import { execFileSync } from "node:child_process";
 import { cpSync, existsSync, mkdirSync, statSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
+import { fileURLToPath } from "node:url";
 
 const projectRoot = join(import.meta.dirname, "..");
 const sourcePath = join(projectRoot, "native", "appshot", "main.swift");
 const iconSourcePath = join(projectRoot, "build", "icon.icns");
 
-const APP_NAME = "Vetta Computer Use";
-const BUNDLE_ID = "com.vetta.desktop.computer-use";
+export const APP_NAME = "567 Agent Computer Use";
+export const BUNDLE_ID = "com.api567.agent.computer-use";
 
 function resolveOutDir() {
 	const outIndex = process.argv.indexOf("--out");
@@ -32,7 +33,7 @@ function resolveOutDir() {
 	return join(projectRoot, "resources", "appshot", "bin");
 }
 
-function infoPlistContents() {
+export function infoPlistContents() {
 	return `<?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <plist version="1.0">
@@ -56,7 +57,7 @@ function infoPlistContents() {
 	<key>LSMinimumSystemVersion</key>
 	<string>13.0</string>
 	<key>NSScreenCaptureUsageDescription</key>
-	<string>Vetta Computer Use needs to record your screen to capture the active window for the assistant.</string>
+	<string>567 Agent Computer Use needs to record your screen to capture the active window for the assistant.</string>
 </dict>
 </plist>
 `;
@@ -112,4 +113,4 @@ function main() {
 	execFileSync("codesign", ["-s", "-", "--force", "--deep", appBundlePath], { stdio: "inherit" });
 }
 
-main();
+if (process.argv[1] === fileURLToPath(import.meta.url)) main();

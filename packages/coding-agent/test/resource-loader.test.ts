@@ -2,7 +2,7 @@ import { mkdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { fileURLToPath } from "node:url";
-import { createNodeResourceAccess } from "@vetta/runtime-node/host";
+import { createNodeResourceAccess } from "@567agent/runtime-node/host";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { CONFIG_DIR_NAME } from "../src/config.js";
 import { ExtensionRunner } from "../src/extensions/index.js";
@@ -725,7 +725,7 @@ Content`,
 			writeFileSync(
 				join(ext1Dir, "index.ts"),
 				`
-import type { ExtensionAPI } from "@vetta/coding-agent";
+import type { ExtensionAPI } from "@567agent/coding-agent";
 import { Type } from "@sinclair/typebox";
 export default function(api: ExtensionAPI) {
   api.registerTool({
@@ -740,7 +740,7 @@ export default function(api: ExtensionAPI) {
 			writeFileSync(
 				join(ext2Dir, "index.ts"),
 				`
-import type { ExtensionAPI } from "@vetta/coding-agent";
+import type { ExtensionAPI } from "@567agent/coding-agent";
 import { Type } from "@sinclair/typebox";
 export default function(api: ExtensionAPI) {
   api.registerTool({

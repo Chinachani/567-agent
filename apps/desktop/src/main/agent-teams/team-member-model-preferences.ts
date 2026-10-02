@@ -1,8 +1,8 @@
 import { mkdir, readFile } from "node:fs/promises";
 import { dirname, join } from "node:path";
-import { getVettaHomePath } from "@vetta/action-rpc";
-import type { TeamDefinition } from "@vetta/agent-team";
-import { atomicWriteJSONAsync } from "@vetta/toolkit/atomic-write";
+import { getVettaHomePath } from "@567agent/action-rpc";
+import type { TeamDefinition } from "@567agent/agent-team";
+import { atomicWriteJSONAsync } from "@567agent/toolkit/atomic-write";
 import { z } from "zod";
 import type { TeamMemberModelPreference, TeamMemberModelSelection } from "../../shared/agent-team-member-model.js";
 

@@ -1,10 +1,10 @@
-import type { RuntimeToolResult } from "@vetta/runtime-core/kernel";
+import type { RuntimeToolResult } from "@567agent/runtime-core/kernel";
 import type {
 	CodingToolResultContext,
 	CodingToolResultPolicy,
 	RuntimeToolResultArtifact,
 	RuntimeToolResultArtifactStore,
-} from "@vetta/runtime-tools";
+} from "@567agent/runtime-tools";
 
 export const DEFAULT_CODING_AGENT_MAX_INLINE_TOOL_RESULT_BYTES = 50 * 1024;
 const utf8Encoder = new TextEncoder();

@@ -1,5 +1,5 @@
 {
-	"name": "@vetta/plugin-build-apple-apps",
+	"name": "@567agent/plugin-build-apple-apps",
 	"version": "0.1.0",
 	"private": true,
 	"type": "module",

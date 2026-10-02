@@ -1,5 +1,5 @@
-import type { Api, Model } from "@vetta/ai";
-import { RuntimeToolProjectionPipeline, type RuntimeToolProjector } from "@vetta/runtime-tools";
+import type { Api, Model } from "@567agent/ai";
+import { RuntimeToolProjectionPipeline, type RuntimeToolProjector } from "@567agent/runtime-tools";
 import { describe, expect, it, vi } from "vitest";
 import {
 	CodingAgentRuntimeModelAdapter,

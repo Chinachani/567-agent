@@ -110,11 +110,11 @@ describe("installing the current project directory", () => {
 		};
 	}
 
-	it("installs the archive the project packed", async () => {
+	it.each(["567plugin", "vettapkg"])("installs the %s archive the project packed", async (extension) => {
 		const root = scratch();
 		const pluginRoot = join(root, "plugins", "demo");
 		write(join(pluginRoot, "plugin.json"), JSON.stringify({ id: "demo", version: "1.0.0" }));
-		write(join(pluginRoot, "release", "demo-1.0.0.vettapkg"), "package");
+		write(join(pluginRoot, "release", `demo-1.0.0.${extension}`), "package");
 		const runAction = vi.fn().mockResolvedValue({ plugin: { id: "demo", version: "1.0.0" } });
 
 		const code = await runPluginCommand({ type: "add", source: pluginRoot, json: false }, deps({ runAction }));
@@ -123,7 +123,7 @@ describe("installing the current project directory", () => {
 		expect(runAction).toHaveBeenCalledWith("plugins.manage", {
 			operation: "install-from-path",
 			initiator: "plugin-cli",
-			path: join(pluginRoot, "release", "demo-1.0.0.vettapkg"),
+			path: join(pluginRoot, "release", `demo-1.0.0.${extension}`),
 			enable: true,
 		});
 	});

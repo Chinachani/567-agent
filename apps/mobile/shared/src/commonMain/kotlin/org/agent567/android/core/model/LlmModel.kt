@@ -3,7 +3,7 @@ package org.agent567.android.core.model
 /**
  * 来自 `/providers/go-models.json` 的模型条目。
  *
- * [id] 在 Vetta Go 网关模式下是路由 key（客户端请求 body.model 必须用它），
+ * [id] 在 567 Agent Go 网关模式下是路由 key（客户端请求 body.model 必须用它），
  * [modelId] 是上游真实模型名。
  */
 data class LlmModel(

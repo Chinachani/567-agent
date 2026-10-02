@@ -1,8 +1,8 @@
 import { join } from "node:path";
-import { createCodingAgentCodingToolResultPolicy } from "@vetta/coding-agent/composition";
-import { createMcpToolResultPolicy, type McpToolResultPolicy } from "@vetta/runtime-mcp";
-import { createNodeResultArtifactStorage, type NodeSessionArtifactStore } from "@vetta/runtime-node/host";
-import type { CodingToolResultPolicy } from "@vetta/runtime-tools";
+import { createCodingAgentCodingToolResultPolicy } from "@567agent/coding-agent/composition";
+import { createMcpToolResultPolicy, type McpToolResultPolicy } from "@567agent/runtime-mcp";
+import { createNodeResultArtifactStorage, type NodeSessionArtifactStore } from "@567agent/runtime-node/host";
+import type { CodingToolResultPolicy } from "@567agent/runtime-tools";
 
 export interface DesktopResultArtifactRuntime {
 	readonly codingToolResultPolicy: CodingToolResultPolicy;

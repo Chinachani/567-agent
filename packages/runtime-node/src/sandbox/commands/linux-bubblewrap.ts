@@ -2,9 +2,9 @@ import { spawn, spawnSync } from "node:child_process";
 import { chmodSync, existsSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { delimiter, isAbsolute, join, resolve as resolvePath } from "node:path";
-import { getVettaHomePath } from "@vetta/action-rpc";
-import type { SandboxShellGrant } from "@vetta/runtime-core/sandbox";
-import type { ForegroundCommandOperations } from "@vetta/runtime-tools";
+import { getVettaHomePath } from "@567agent/action-rpc";
+import type { SandboxShellGrant } from "@567agent/runtime-core/sandbox";
+import type { ForegroundCommandOperations } from "@567agent/runtime-tools";
 import { getSandboxShellGrant } from "../sandbox-permissions.js";
 import type { NodeSandboxEnvironment, NodeSandboxShell } from "./contracts.js";
 

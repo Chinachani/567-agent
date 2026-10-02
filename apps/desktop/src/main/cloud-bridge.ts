@@ -36,7 +36,7 @@ export type CloudRefreshOutcome =
 	| { status: "transient" };
 
 export interface CloudBridge {
-	/** 云端 provider 目录（Vetta Go 等远程模型）。 */
+	/** 云端 provider 目录（567 Agent Go 等远程模型）。 */
 	fetchRemoteProviders(): Promise<RemoteProvidersResult>;
 	/** 经 vetta 服务端 `/api/v1` 的带鉴权中转（图像生成等增值能力）。 */
 	requestGateway<T = unknown>(request: VettaGatewayRequest, signal?: AbortSignal): Promise<VettaGatewayResponse<T>>;

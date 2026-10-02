@@ -1,5 +1,5 @@
-import type { Api, AssistantMessage, Model, UserMessage } from "@vetta/ai";
-import { createRuntimeObservationPublisher, type RuntimeObservationRecord } from "@vetta/runtime-core";
+import type { Api, AssistantMessage, Model, UserMessage } from "@567agent/ai";
+import { createRuntimeObservationPublisher, type RuntimeObservationRecord } from "@567agent/runtime-core";
 import { describe, expect, it, vi } from "vitest";
 import type { CompactionResult, CompactionSettings } from "../../../src/compaction/index.js";
 import { CompactionPrefireCache } from "../../../src/compaction/runtime/compaction-prefire-cache.js";

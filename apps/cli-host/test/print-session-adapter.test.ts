@@ -6,9 +6,9 @@ import {
 	CODING_AGENT_TODO_OBSERVATION,
 	type CodingAgentSubagentSnapshot,
 	type TodoItem,
-} from "@vetta/coding-agent/session-extensions";
-import type { SessionEvent } from "@vetta/runtime-core";
-import { sessionExtensionObservation } from "@vetta/runtime-core/session-extensions";
+} from "@567agent/coding-agent/session-extensions";
+import type { SessionEvent } from "@567agent/runtime-core";
+import { sessionExtensionObservation } from "@567agent/runtime-core/session-extensions";
 import { describe, expect, it } from "vitest";
 import { mapSupplementalSessionEvent } from "../src/print-session-adapter.js";
 

@@ -1,5 +1,5 @@
-import type { AgentBlueprint, AgentProfile, AgentResourceSource } from "@vetta/agent-team";
-import { parsePluginBlueprintId } from "@vetta/agent-team";
+import type { AgentBlueprint, AgentProfile, AgentResourceSource } from "@567agent/agent-team";
+import { parsePluginBlueprintId } from "@567agent/agent-team";
 import { resolvePluginText } from "@vetta-org/plugin-sdk";
 
 export interface BlueprintDisplayPlugin {

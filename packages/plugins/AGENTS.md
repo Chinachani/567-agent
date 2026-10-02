@@ -4,7 +4,7 @@
 
 - `plugin-sdk/`：插件运行时 API 和类型契约。
 - `plugin-vite/`：插件 Vite、Module Federation 和 zip 打包工具。
-- `presets/<id>/`：随 Vetta Desktop 发布的系统插件。
+- `presets/<id>/`：随 567 Agent 发布的系统插件。
 - `externals/<id>/`：不随 App 打包、供用户安装的外置插件。
 - `tenants.json`：按业务租户划分系统插件的打包清单（见下）。
 
@@ -158,7 +158,7 @@ Preset 和 external 插件直接纳入根 `package.json` 定义的 workspace。�
 
 ```json
 {
-  "name": "@vetta/plugin-example",
+  "name": "@567agent/plugin-example",
   "version": "0.1.0",
   "private": true,
   "type": "module",

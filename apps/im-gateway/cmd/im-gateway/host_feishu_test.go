@@ -12,7 +12,7 @@ import (
 	"testing"
 	"time"
 
-	"vetta-im-gateway/internal/hostproto"
+	"github.com/Chinachani/567-agent/apps/im-gateway/internal/hostproto"
 )
 
 // feishuRegistrationServer replays a scripted device-authorization

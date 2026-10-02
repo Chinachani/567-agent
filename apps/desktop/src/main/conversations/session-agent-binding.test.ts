@@ -1,7 +1,7 @@
 import { mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import type { AgentProfile, AgentTeamDocument } from "@vetta/agent-team";
+import type { AgentProfile, AgentTeamDocument } from "@567agent/agent-team";
 import { afterEach, describe, expect, it } from "vitest";
 import {
 	readSessionAgentBinding,

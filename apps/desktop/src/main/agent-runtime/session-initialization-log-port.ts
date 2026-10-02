@@ -1,8 +1,8 @@
 import {
 	CODING_AGENT_SESSION_INITIALIZATION_OBSERVATION,
 	type CodingAgentSessionInitializationObservation,
-} from "@vetta/coding-agent/composition";
-import type { RuntimeObservationPort, RuntimeObservationRecord } from "@vetta/runtime-core";
+} from "@567agent/coding-agent/composition";
+import type { RuntimeObservationPort, RuntimeObservationRecord } from "@567agent/runtime-core";
 
 interface SessionInitializationLogger {
 	info(message: string, fields: Record<string, unknown>): void;

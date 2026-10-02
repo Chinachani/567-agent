@@ -1,4 +1,4 @@
-import type { RuntimeToolDefinition } from "@vetta/runtime-core/kernel";
+import type { RuntimeToolDefinition } from "@567agent/runtime-core/kernel";
 import { describe, expect, it, vi } from "vitest";
 import {
 	createMcpRuntimeToolSynchronizer,

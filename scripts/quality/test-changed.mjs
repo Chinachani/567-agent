@@ -1,5 +1,5 @@
 /**
- * Run vitest only for testable packages touched vs base ref (default origin/dev).
+ * Run vitest only for testable packages touched vs base ref (default origin/main).
  *
  * Usage:
  *   bun run test:changed

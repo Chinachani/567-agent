@@ -3,7 +3,7 @@
 ## 1. 目标
 
 第 100 轮已经将 MCP Client、stdio 子进程和 HTTP SDK Transport 迁入
-`@vetta/runtime-mcp`，但 OAuth SDK Provider 仍直接依赖 coding-agent 的文件函数和
+`@567agent/runtime-mcp`，但 OAuth SDK Provider 仍直接依赖 coding-agent 的文件函数和
 `getAgentDir()`。这使通用 OAuth 状态机无法独立组合或使用内存 Store 测试。
 
 本轮目标是拆分三类职责：

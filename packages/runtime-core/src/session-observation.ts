@@ -1,5 +1,5 @@
-import type { ToolPhase } from "@vetta/agent-core";
-import type { AssistantMessageEvent, CacheUsageReporting, Message } from "@vetta/ai";
+import type { ToolPhase } from "@567agent/agent-core";
+import type { AssistantMessageEvent, CacheUsageReporting, Message } from "@567agent/ai";
 import type { RuntimeEventSource, SessionError } from "./contracts.js";
 import type { RuntimeFailure } from "./failure-contract.js";
 import type { SessionExtensionObservation } from "./session-extensions/contracts.js";

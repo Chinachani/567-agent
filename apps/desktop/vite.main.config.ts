@@ -12,11 +12,11 @@ function toolkitSourceAlias(): Plugin {
 	return {
 		name: "toolkit-source-alias",
 		resolveId(source) {
-			if (source === "@vetta/toolkit") {
+			if (source === "@567agent/toolkit") {
 				return resolve(process.cwd(), "../../packages/toolkit/src/index.ts");
 			}
-			if (source.startsWith("@vetta/toolkit/")) {
-				return resolve(process.cwd(), `../../packages/toolkit/src/${source.slice("@vetta/toolkit/".length)}.ts`);
+			if (source.startsWith("@567agent/toolkit/")) {
+				return resolve(process.cwd(), `../../packages/toolkit/src/${source.slice("@567agent/toolkit/".length)}.ts`);
 			}
 			return null;
 		},
@@ -35,7 +35,7 @@ export default defineConfig(({ mode }) => {
 	const speechInputBuildConfig = resolveSpeechInputBuildConfig({ env });
 	const developmentWorkspacePackages =
 		effectiveMode === "development"
-			? [/^@vetta\/(?:action-rpc|ai|coding-agent|remote-control|runtime-core)(?:\/|$)/]
+			? [/^@567agent\/(?:action-rpc|ai|coding-agent|remote-control|runtime-core)(?:\/|$)/]
 			: [];
 	const sourcemapEnabled = (process.env.VETTA_MAIN_SOURCEMAP ?? env.VETTA_MAIN_SOURCEMAP) === "true";
 	const sentry = createSentryBuildSetup(env, "dist/main");
@@ -78,7 +78,7 @@ export default defineConfig(({ mode }) => {
 		resolve: {
 			alias: [
 				{
-					find: /^@vetta\/remote-desktop$/,
+					find: /^@567agent\/remote-desktop$/,
 					replacement: resolve(process.cwd(), "../../packages/remote-desktop/src/index.ts"),
 				},
 				{ find: "x11", replacement: resolve(process.cwd(), "src/main/shims/x11.ts") },

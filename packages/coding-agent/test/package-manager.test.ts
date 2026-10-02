@@ -7,7 +7,7 @@ import {
 	NodeResourcePackageFiles,
 	NpmResourcePackageRegistry,
 	nodeResourcePackageDigest,
-} from "@vetta/runtime-node/host";
+} from "@567agent/runtime-node/host";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { CONFIG_DIR_NAME } from "../src/config.js";
 import type {

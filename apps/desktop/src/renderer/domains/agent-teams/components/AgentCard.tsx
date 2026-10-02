@@ -1,5 +1,5 @@
 import { agentAvatarUrl } from "@shared/agent-teams/agent-avatar";
-import type { AgentBlueprint, AgentProfile } from "@vetta/agent-team";
+import type { AgentBlueprint, AgentProfile } from "@567agent/agent-team";
 import { agentUnavailableReason, type BlueprintDisplayPlugin } from "../lib/blueprint-display";
 import { Button } from "@vetta-org/ui";
 import { useTranslation } from "react-i18next";

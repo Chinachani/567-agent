@@ -12,9 +12,9 @@ import {
 	type TeamMessageDelivery,
 	type TeamSessionDocument,
 	type TeamWorkItem,
-} from "@vetta/agent-team";
-import { createAssistantMessage, providerModelNotFoundError } from "@vetta/ai";
-import type { CodingAgentPinnedModelContext } from "@vetta/coding-agent/runtime";
+} from "@567agent/agent-team";
+import { createAssistantMessage, providerModelNotFoundError } from "@567agent/ai";
+import type { CodingAgentPinnedModelContext } from "@567agent/coding-agent/runtime";
 import {
 	type ConversationDocument,
 	createEmptyConversationDocument,
@@ -22,10 +22,10 @@ import {
 	type RuntimeHost,
 	type RuntimeObservationContext,
 	type RuntimeSessionContextDeliveryMode,
-} from "@vetta/runtime-core";
-import type { ConversationMessageRecord } from "@vetta/runtime-core/conversation";
-import type { SessionContextRecord } from "@vetta/runtime-core/kernel";
-import { createRuntimeObservationPublisher, type RuntimeObservationRecord } from "@vetta/runtime-core/observation";
+} from "@567agent/runtime-core";
+import type { ConversationMessageRecord } from "@567agent/runtime-core/conversation";
+import type { SessionContextRecord } from "@567agent/runtime-core/kernel";
+import { createRuntimeObservationPublisher, type RuntimeObservationRecord } from "@567agent/runtime-core/observation";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import type { DesktopCodingAgentSessionConfig } from "../conversations/resolve-session-config.js";
 import { registerPresetPluginBlueprints } from "./preset-plugin-blueprints.testing.js";

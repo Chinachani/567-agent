@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 
-import type { AgentTeamDocument } from "@vetta/agent-team";
+import type { AgentTeamDocument } from "@567agent/agent-team";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import {
 	cachedAgentTeamDocument,

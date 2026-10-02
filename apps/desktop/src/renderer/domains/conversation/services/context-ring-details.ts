@@ -3,7 +3,7 @@ import type {
 	ContextSectionKind,
 	ContextSectionUsage,
 	ContextSourceOwner,
-} from "@vetta/runtime-core";
+} from "@567agent/runtime-core";
 
 export type ContextRingDetailGroupKind = "instructions" | "capabilities" | "tools" | "conversation" | "runtime";
 

@@ -1,5 +1,5 @@
 import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
-import { createNodeResourceAccess } from "@vetta/runtime-node/host";
+import { createNodeResourceAccess } from "@567agent/runtime-node/host";
 import { homedir, tmpdir } from "os";
 import { join, resolve } from "path";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";

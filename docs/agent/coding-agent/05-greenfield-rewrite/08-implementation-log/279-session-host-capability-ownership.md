@@ -14,7 +14,7 @@
 - 会话历史、认证、模型和设置等用户数据；必要时由显式、独立的新迁移器读取旧格式。
 - 模型消息、工具消息、错误、取消、事件顺序、并发约束和资源释放语义。
 - 仍然有效的行为测试场景和数据 fixture；旧实现可以临时作为测试 Oracle，但不能被新生产代码调用。
-- `@vetta/ai` 与经过合同验证的 `@vetta/agent-core` 等独立下层能力，除非单独审计证明其合同不满足目标。
+- `@567agent/ai` 与经过合同验证的 `@567agent/agent-core` 等独立下层能力，除非单独审计证明其合同不满足目标。
 
 ## 明确舍弃（固定）
 
@@ -59,7 +59,7 @@
 
 ### 保持公共合同稳定
 
-`@vetta/coding-agent/runtime` 的下列公共名称和结构保持不变：
+`@567agent/coding-agent/runtime` 的下列公共名称和结构保持不变：
 
 - `createCodingAgentRuntimeBranchNavigationHost`；
 - `createCodingAgentRuntimeResourceReloadHost`；

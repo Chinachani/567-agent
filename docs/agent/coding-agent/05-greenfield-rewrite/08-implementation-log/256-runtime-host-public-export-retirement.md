@@ -2,7 +2,7 @@
 
 ## 阶段目标
 
-在不改变 CLI、Desktop、SDK、RPC、IM 的 Agent 功能与协议的前提下，删除 `@vetta/coding-agent/runtime-host` 和 `@vetta/coding-agent/runtime-host/greenfield` 两个过渡公共出口，使宿主和测试只依赖用途明确的稳定合同；同时验证运行中 MCP、Tool 与 Skill 资源变化仍能在后续模型调用中生效。
+在不改变 CLI、Desktop、SDK、RPC、IM 的 Agent 功能与协议的前提下，删除 `@567agent/coding-agent/runtime-host` 和 `@567agent/coding-agent/runtime-host/greenfield` 两个过渡公共出口，使宿主和测试只依赖用途明确的稳定合同；同时验证运行中 MCP、Tool 与 Skill 资源变化仍能在后续模型调用中生效。
 
 <!-- coding-agent-rewrite-charter:v1:start -->
 ## 重写目标确认（固定）
@@ -18,7 +18,7 @@
 - 会话历史、认证、模型和设置等用户数据；必要时由显式、独立的新迁移器读取旧格式。
 - 模型消息、工具消息、错误、取消、事件顺序、并发约束和资源释放语义。
 - 仍然有效的行为测试场景和数据 fixture；旧实现可以临时作为测试 Oracle，但不能被新生产代码调用。
-- `@vetta/ai` 与经过合同验证的 `@vetta/agent-core` 等独立下层能力，除非单独审计证明其合同不满足目标。
+- `@567agent/ai` 与经过合同验证的 `@567agent/agent-core` 等独立下层能力，除非单独审计证明其合同不满足目标。
 
 ## 明确舍弃（固定）
 
@@ -67,7 +67,7 @@
 ### 5. 防回退质量门禁
 
 - Package Boundary Guard 新增退役 `runtime-host` 子路径审查，覆盖源码/测试 import、TypeScript/Vitest alias 和 package exports。
-- Quality Gate 增加反例，验证旧测试导入、旧别名和旧 manifest export 会失败，而稳定 `@vetta/coding-agent/runtime` 入口继续允许。
+- Quality Gate 增加反例，验证旧测试导入、旧别名和旧 manifest export 会失败，而稳定 `@567agent/coding-agent/runtime` 入口继续允许。
 - Coding Agent 重写进度基线新增 Runtime Host export 指标，固定为 0。
 
 ## 旧实现依赖变化

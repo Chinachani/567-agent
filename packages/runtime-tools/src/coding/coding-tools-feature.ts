@@ -3,7 +3,7 @@ import type {
 	ModelCallContributionContext,
 	ModelCallContributionProvider,
 	RuntimeSnapshotAcquireContext,
-} from "@vetta/runtime-core/kernel";
+} from "@567agent/runtime-core/kernel";
 import { guardCodingToolRegistration } from "./coding-tool-availability.js";
 import type { CodingToolCatalog } from "./coding-tool-catalog.js";
 import type { CodingToolRegistration } from "./tool-registration.js";

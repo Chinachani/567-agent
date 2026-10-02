@@ -29,9 +29,9 @@ export function findTurboConfigurationProblems({
 }) {
 	const problems = [];
 	const build = turboConfig.tasks?.build ?? {};
-	const desktopBuild = turboConfig.tasks?.["@vetta/desktop#build"] ?? {};
-	const docsBuild = turboConfig.tasks?.["@vetta/docs-site#build"] ?? {};
-	const pluginWorkbenchBuild = turboConfig.tasks?.["@vetta/plugin-plugin-workbench#build"] ?? {};
+	const desktopBuild = turboConfig.tasks?.["@567agent/desktop#build"] ?? {};
+	const docsBuild = turboConfig.tasks?.["@567agent/docs-site#build"] ?? {};
+	const pluginWorkbenchBuild = turboConfig.tasks?.["@567agent/plugin-plugin-workbench#build"] ?? {};
 
 	for (const value of missingValues(turboConfig.globalDependencies, REQUIRED_GLOBAL_DEPENDENCIES)) {
 		problems.push(`turbo globalDependencies 缺少 ${value}`);

@@ -1,5 +1,5 @@
-import type { AgentMessage, ToolPhase } from "@vetta/agent-core";
-import type { ImageContent, TextContent } from "@vetta/ai";
+import type { AgentMessage, ToolPhase } from "@567agent/agent-core";
+import type { ImageContent, TextContent } from "@567agent/ai";
 import type { ExtensionSessionWriter } from "../../extensions/index.js";
 import {
 	CODING_AGENT_SESSION_VIEW_VERSION,

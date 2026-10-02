@@ -8,7 +8,7 @@ import type {
 	StoredSessionEvent,
 	TurnCompletedEvent,
 	TurnStartedEvent,
-} from "@vetta/runtime-core/kernel";
+} from "@567agent/runtime-core/kernel";
 import { afterEach, describe, expect, it } from "vitest";
 import { CONVERSATION_STORAGE_ERROR_CODES, FileConversationRepository } from "../../src/conversation/index.js";
 

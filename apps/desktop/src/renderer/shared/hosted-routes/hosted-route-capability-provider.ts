@@ -1,4 +1,4 @@
-import { bindCapability } from "@vetta/capability-runtime";
+import { bindCapability } from "@567agent/capability-runtime";
 import { type Disposable, DOMAIN_NAVIGATION_CAPABILITIES } from "@vetta-org/capability-sdk";
 import type { RendererCapabilityHost } from "../capabilities/renderer-capability-host.js";
 import type { HostedRouteService } from "./hosted-route-service.js";

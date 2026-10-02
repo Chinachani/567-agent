@@ -1,12 +1,15 @@
-import type { Message } from "@vetta/ai";
-import { createRuntimeObservationPublisher, type RuntimeObservationRecord } from "@vetta/runtime-core";
-import { RuntimeConfigurationCenter, RuntimeConfigurationSnapshotCoordinator } from "@vetta/runtime-core/configuration";
+import type { Message } from "@567agent/ai";
+import { createRuntimeObservationPublisher, type RuntimeObservationRecord } from "@567agent/runtime-core";
+import {
+	RuntimeConfigurationCenter,
+	RuntimeConfigurationSnapshotCoordinator,
+} from "@567agent/runtime-core/configuration";
 import type {
 	ModelCallMessageFinalizationInput,
 	RuntimeSnapshotAcquireContext,
 	RuntimeTurnModelBinding,
-} from "@vetta/runtime-core/kernel";
-import { CODING_IMAGE_CONFIGURATION } from "@vetta/runtime-tools";
+} from "@567agent/runtime-core/kernel";
+import { CODING_IMAGE_CONFIGURATION } from "@567agent/runtime-tools";
 import { describe, expect, it } from "vitest";
 import { CodingAgentLegacyImageSettingsRuntime } from "../src/adapters/settings/legacy-image-settings-adapter.js";
 import { CodingAgentImageSettingsSnapshotRouter } from "../src/composition/turn/image-settings-snapshot-router.js";

@@ -1,6 +1,6 @@
+import type { AgentProfile, TeamDefinition } from "@567agent/agent-team";
+import { pluginBlueprintId } from "@567agent/agent-team";
 import type { RegisteredNewSessionContext } from "@shared/store/plugin-atoms";
-import type { AgentProfile, TeamDefinition } from "@vetta/agent-team";
-import { pluginBlueprintId } from "@vetta/agent-team";
 import { describe, expect, it } from "vitest";
 import { resolveNewSessionContexts } from "./new-session-context-activation";
 

@@ -14,7 +14,7 @@ vi.mock("electron", () => ({
 	},
 }));
 
-vi.mock("@vetta/cli-host", () => ({
+vi.mock("@567agent/cli-host", () => ({
 	runAgentRuntimeCli: runtimeSelector,
 }));
 

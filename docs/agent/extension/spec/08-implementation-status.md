@@ -6,7 +6,7 @@
 
 ### Runtime Tool validator Port
 
-- `RuntimeToolDefinition.validateInput` 已从 `@vetta/runtime-core` 透传到 Agent engine；
+- `RuntimeToolDefinition.validateInput` 已从 `@567agent/runtime-core` 透传到 Agent engine；
 - 没有自定义 validator 的 Tool 仍走原有 JSON Schema 校验；
 - validator 可以完成 normalize/decode，异常仍由 Agent engine 归类为 Tool input invalid；
 - Runtime Core 不依赖 Pi、TypeBox 1 或 Zod。
@@ -23,7 +23,7 @@ Prompt block 有稳定 id、extension source、priority 和既有 token diagnost
 
 ### Pi Tool compatibility ACL
 
-已新增显式入口 `@vetta/coding-agent/extensions/pi-compat` 的 `loadPiExtensions()`，native `loadExtensions()` 不暴露 Pi virtual module。首个 profile 是 `pi-extension-0.84-host-neutral-v1`，当前证明过的映射为：
+已新增显式入口 `@567agent/coding-agent/extensions/pi-compat` 的 `loadPiExtensions()`，native `loadExtensions()` 不暴露 Pi virtual module。首个 profile 是 `pi-extension-0.84-host-neutral-v1`，当前证明过的映射为：
 
 | Pi 行为 | Vetta 投影 | 状态 |
 | --- | --- | --- |

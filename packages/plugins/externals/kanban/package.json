@@ -1,5 +1,5 @@
 {
-	"name": "@vetta/plugin-kanban",
+	"name": "@567agent/plugin-kanban",
 	"version": "0.4.0",
 	"private": true,
 	"type": "module",

@@ -33,9 +33,9 @@ Pi module/facade -----------> Pi ACL --------------------------+--> DynamicContr
                                                                      +--> existing Runtime/Host ports
 ```
 
-- Catalog、Extension lifecycle、prompt contribution 和 Pi ACL 属于 `@vetta/coding-agent`。
-- 通用 Tool validator Port 属于 `@vetta/runtime-core`，实际输入校验由 Agent engine 既有能力执行。
-- Provider wire/stream 协议仍属于 `@vetta/ai`。
+- Catalog、Extension lifecycle、prompt contribution 和 Pi ACL 属于 `@567agent/coding-agent`。
+- 通用 Tool validator Port 属于 `@567agent/runtime-core`，实际输入校验由 Agent engine 既有能力执行。
+- Provider wire/stream 协议仍属于 `@567agent/ai`。
 - Desktop/CLI/RPC 只适配结构化交互和 native-only presentation，不理解 Pi 类型。
 
 ## 生命周期语义

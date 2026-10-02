@@ -22,7 +22,7 @@ import (
 	"testing"
 	"time"
 
-	"vetta-im-gateway/internal/transport"
+	"github.com/Chinachani/567-agent/apps/im-gateway/internal/transport"
 )
 
 const fakeCLIEnv = "VETTA_FAKE_SIGNAL_CLI"
@@ -235,6 +235,26 @@ func TestLink_EmitsURIAndResolvesAccount(t *testing.T) {
 	}
 	if account != fakeAccount {
 		t.Fatalf("account = %q, want %q", account, fakeAccount)
+	}
+}
+
+func TestLink_DefaultDeviceName(t *testing.T) {
+	argsFile := filepath.Join(t.TempDir(), "link-args.txt")
+	t.Setenv("VETTA_FAKE_SIGNAL_ARGS_FILE", argsFile)
+	// Inspect link arguments before listAccounts overwrites the helper's log.
+	seen := false
+	account, err := Link(context.Background(), CLIOptions{Path: fakeCLI(t), ConfigDir: t.TempDir()}, "", func(string) {
+		seen = true
+		args, err := os.ReadFile(argsFile)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if !strings.Contains(string(args), "link\n-n\n567 Agent") {
+			t.Fatalf("link arguments do not use the new brand: %s", args)
+		}
+	})
+	if err != nil || account != fakeAccount || !seen {
+		t.Fatalf("link failed: account=%q URI received=%v error=%v", account, seen, err)
 	}
 }
 

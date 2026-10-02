@@ -4,6 +4,7 @@ import { basename, join, resolve, sep } from "node:path";
 import AdmZip from "adm-zip";
 import { dialog, ipcMain } from "electron";
 import { readDesktopConfig, updateDesktopConfig } from "../config/desktop-config-store.js";
+import { mainT } from "../i18n/index.js";
 import { getAppLogger } from "../logger.js";
 import { allowProjectRoot } from "./fs.js";
 
@@ -324,7 +325,7 @@ async function handleExport(projectDir: string): Promise<ExportProjectResult> {
 	const saveResult = await dialog.showSaveDialog({
 		title: "导出项目",
 		defaultPath: `${projectName}.vetta.zip`,
-		filters: [{ name: "Vetta Project Export", extensions: ["zip"] }],
+		filters: [{ name: mainT("projectExportFileType"), extensions: ["zip"] }],
 	});
 	if (saveResult.canceled || !saveResult.filePath) {
 		return { saved: false };
@@ -354,7 +355,7 @@ async function handleImport(): Promise<ImportProjectResult | null> {
 	const open = await dialog.showOpenDialog({
 		title: "导入项目",
 		properties: ["openFile"],
-		filters: [{ name: "Vetta Project Export", extensions: ["zip"] }],
+		filters: [{ name: mainT("projectExportFileType"), extensions: ["zip"] }],
 	});
 	if (open.canceled || open.filePaths.length === 0) return null;
 	const zipPath = open.filePaths[0];

@@ -47,7 +47,7 @@ Playwright闭环验收
 
 ## 本地查看方式
 
-1. 打开 Vetta Desktop  
+1. 打开 567 Agent
 2. 侧边栏点 **vetta-mono**  
 3. 点会话 **ClaudeHook UI可**  
 4. 应看到首轮 `session hooks ok` 与后续 Write 拒绝说明  

@@ -7,8 +7,8 @@ import (
 	"testing"
 	"time"
 
-	"vetta-im-gateway/internal/hostclient"
-	"vetta-im-gateway/internal/state"
+	"github.com/Chinachani/567-agent/apps/im-gateway/internal/hostclient"
+	"github.com/Chinachani/567-agent/apps/im-gateway/internal/state"
 )
 
 // fakeStore is a minimal in-memory state.Store implementation.

@@ -18,7 +18,7 @@
 - 会话历史、认证、模型和设置等用户数据；必要时由显式、独立的新迁移器读取旧格式。
 - 模型消息、工具消息、错误、取消、事件顺序、并发约束和资源释放语义。
 - 仍然有效的行为测试场景和数据 fixture；旧实现可以临时作为测试 Oracle，但不能被新生产代码调用。
-- `@vetta/ai` 与经过合同验证的 `@vetta/agent-core` 等独立下层能力，除非单独审计证明其合同不满足目标。
+- `@567agent/ai` 与经过合同验证的 `@567agent/agent-core` 等独立下层能力，除非单独审计证明其合同不满足目标。
 
 ## 明确舍弃（固定）
 
@@ -41,7 +41,7 @@
 
 ### 1. 独立历史会话公共入口
 
-- 新增 `@vetta/coding-agent/historical-sessions` 子路径。
+- 新增 `@567agent/coding-agent/historical-sessions` 子路径。
 - 公共入口只暴露 catalog/history reader 工厂、迁移函数和使用 `HistoricalSession` 命名的迁移结果类型。
 - 工厂返回 `runtime-core` 中立接口，不导出 `LegacyRuntimeSessionCatalog` 和 `LegacyRuntimeSessionFileHistoryReader` 具体类。
 - 历史 record normalizer、lease、document reader 等格式细节继续留在 `sessions/legacy` 内部。

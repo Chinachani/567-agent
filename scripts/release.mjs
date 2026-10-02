@@ -201,7 +201,7 @@ function createReleaseArtifacts(version) {
 		"",
 		"## Install from registry",
 		"```bash",
-		`npm install -g @vetta/coding-agent@${version}`,
+		`npm install -g @567agent/coding-agent@${version}`,
 		"vetta --version",
 		"```",
 		"",

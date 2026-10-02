@@ -2,7 +2,7 @@ import { existsSync } from "node:fs";
 import { mkdtemp, rm, utimes, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import type { MessageAppendedEvent, TurnCompletedEvent, TurnStartedEvent } from "@vetta/runtime-core/kernel";
+import type { MessageAppendedEvent, TurnCompletedEvent, TurnStartedEvent } from "@567agent/runtime-core/kernel";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import {
 	ConversationOwnershipConflictError,

@@ -14,7 +14,7 @@
 - `plugin-sdk/`：插件运行时 API 和类型。
 - `plugin-vite/`：插件 Vite 配置与 zip 打包工具。
 - `plugin-cli/`：从 npm 包、本地 .vettapkg（兼容旧 .zip）或 URL 安装插件的公开 CLI。
-- `presets/`：随 Vetta Desktop 发布的系统插件。
+- `presets/`：随 567 Agent 发布的系统插件。
 - `externals/`：不随 App 打包的外置插件示例。
 
 ## 安装
@@ -66,7 +66,7 @@ vettaPluginFederation({
 });
 ```
 
-发布 npm 包后，用户需要先启动 Vetta Desktop，再执行：
+发布 npm 包后，用户需要先启动 567 Agent，再执行：
 
 ```bash
 npx @vetta-org/plugin-cli add @example/vetta-plugin-demo

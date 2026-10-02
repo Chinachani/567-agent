@@ -2,10 +2,10 @@ import { existsSync, readFileSync } from "node:fs";
 import { homedir } from "node:os";
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
-import { getVettaHomePath } from "@vetta/action-rpc";
+import { getVettaHomePath } from "@567agent/action-rpc";
 import { APP_NAME, ENV_AGENT_DIR, ENV_PACKAGE_DIR, ENV_SHARE_VIEWER_URL, PACKAGE_NAME } from "../identity.js";
 
-export { getVettaHomePath } from "@vetta/action-rpc";
+export { getVettaHomePath } from "@567agent/action-rpc";
 
 declare const VETTA_COMPILED_PACKAGE_METADATA: unknown;
 

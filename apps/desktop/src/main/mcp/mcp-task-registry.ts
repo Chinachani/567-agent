@@ -1,8 +1,8 @@
 import { readFile } from "node:fs/promises";
 import { join } from "node:path";
-import { getVettaHomePath } from "@vetta/action-rpc";
-import type { McpTaskExecutionSnapshot, McpTaskExecutionStore } from "@vetta/runtime-mcp";
-import { atomicWriteJSONAsync } from "@vetta/toolkit/atomic-write";
+import { getVettaHomePath } from "@567agent/action-rpc";
+import type { McpTaskExecutionSnapshot, McpTaskExecutionStore } from "@567agent/runtime-mcp";
+import { atomicWriteJSONAsync } from "@567agent/toolkit/atomic-write";
 import type { DesktopMcpTask, DesktopMcpTasksChangedEvent } from "../../shared/mcp-task.js";
 
 const STORE_VERSION = 1;

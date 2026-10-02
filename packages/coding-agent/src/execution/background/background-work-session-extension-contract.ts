@@ -1,11 +1,11 @@
-import { Type } from "@sinclair/typebox";
-import { Value } from "@sinclair/typebox/value";
-import type { SessionEvent } from "@vetta/runtime-core";
+import type { SessionEvent } from "@567agent/runtime-core";
 import {
 	defineSessionExtensionEndpoint,
 	defineSessionExtensionObservation,
-} from "@vetta/runtime-core/session-extensions";
-import type { BackgroundCommandSnapshot } from "@vetta/runtime-tools";
+} from "@567agent/runtime-core/session-extensions";
+import type { BackgroundCommandSnapshot } from "@567agent/runtime-tools";
+import { Type } from "@sinclair/typebox";
+import { Value } from "@sinclair/typebox/value";
 import type { CodingAgentSubagentSnapshot } from "../../runtime-contracts/index.js";
 
 export const CODING_AGENT_BACKGROUND_WORK_EXTENSION_ID = "coding-agent.background-work";

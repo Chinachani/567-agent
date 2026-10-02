@@ -5,7 +5,7 @@ import (
 	"strings"
 	"testing"
 
-	"vetta-im-gateway/internal/hostproto"
+	"github.com/Chinachani/567-agent/apps/im-gateway/internal/hostproto"
 )
 
 // TestSpecFromInit_AllSlots pins the InitFrame → buildSpec mapping so a new

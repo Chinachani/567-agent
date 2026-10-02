@@ -24,7 +24,7 @@ CLI App 测试新增两类支持设施：
 - OpenAI Responses fixture：只监听本机随机端口，用 Zod 校验外部请求边界，记录请求并输出确定性
   SSE；同时支持保持连接，以验证 abort 是否真正关闭网络请求。
 
-测试没有注入进程内假 Session，也没有绕过 `@vetta/ai` Provider、Agent Core Tool Loop、RPC Dispatcher
+测试没有注入进程内假 Session，也没有绕过 `@567agent/ai` Provider、Agent Core Tool Loop、RPC Dispatcher
 或文件会话存储。
 
 差分观察只归一化以下宿主语义：

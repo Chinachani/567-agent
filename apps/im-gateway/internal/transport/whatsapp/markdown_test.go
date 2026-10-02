@@ -3,7 +3,7 @@ package whatsapp
 import (
 	"testing"
 
-	"vetta-im-gateway/internal/transport"
+	"github.com/Chinachani/567-agent/apps/im-gateway/internal/transport"
 )
 
 func TestMarkdownToWhatsApp(t *testing.T) {

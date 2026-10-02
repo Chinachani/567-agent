@@ -19,8 +19,8 @@ import * as desktopThemeSidebar from "../sdk/sidebar-primitives";
 type ModuleFederationShared = Parameters<typeof ModuleFederation.prototype.initOptions>[0]["shared"];
 
 const sharedModules = {
-	"@vetta/desktop-theme-ui/app-shell": { module: desktopThemeAppShell, version: "0.1.0" },
-	"@vetta/desktop-theme-ui/sidebar": { module: desktopThemeSidebar, version: "0.1.0" },
+	"@567agent/desktop-theme-ui/app-shell": { module: desktopThemeAppShell, version: "0.1.0" },
+	"@567agent/desktop-theme-ui/sidebar": { module: desktopThemeSidebar, version: "0.1.0" },
 	"@vetta-org/theme-sdk": { module: themeSdk, version: "0.1.0" },
 	"@vetta-org/theme-sdk/pages": { module: themeSdkPages, version: "0.1.0" },
 	"@vetta-org/theme-sdk/routing": { module: themeSdkRouting, version: "0.1.0" },

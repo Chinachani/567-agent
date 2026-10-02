@@ -2,9 +2,12 @@ import {
 	applyConversationDocumentCommand,
 	type ConversationDocument,
 	createEmptyConversationDocument,
-} from "@vetta/runtime-core";
-import type { ModelCallContribution, ModelCallContributionContext } from "@vetta/runtime-core/kernel";
-import { SessionExtensionComposition, SessionExtensionFunctionRegistry } from "@vetta/runtime-core/session-extensions";
+} from "@567agent/runtime-core";
+import type { ModelCallContribution, ModelCallContributionContext } from "@567agent/runtime-core/kernel";
+import {
+	SessionExtensionComposition,
+	SessionExtensionFunctionRegistry,
+} from "@567agent/runtime-core/session-extensions";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import {
 	CODING_AGENT_PERMISSION_MODE_SET,

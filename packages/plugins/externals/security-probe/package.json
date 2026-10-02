@@ -1,5 +1,5 @@
 {
-	"name": "@vetta/plugin-security-probe",
+	"name": "@567agent/plugin-security-probe",
 	"version": "0.1.0",
 	"private": true,
 	"type": "module",

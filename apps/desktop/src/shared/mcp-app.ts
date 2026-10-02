@@ -1,4 +1,4 @@
-import type { McpAppAttachment, McpAppResourceMeta, McpToolCallResult } from "@vetta/runtime-mcp";
+import type { McpAppAttachment, McpAppResourceMeta, McpToolCallResult } from "@567agent/runtime-mcp";
 
 export type DesktopMcpAppAttachment = McpAppAttachment;
 

@@ -1,8 +1,8 @@
 # App Action 测试
 
-本文记录 Vetta Desktop App Action（`vetta action` / 本地 Action RPC）的验收约定。
+本文记录 567 Agent App Action（`vetta action` / 本地 Action RPC）的验收约定。
 
-UI 验证入口见 [Vetta Desktop UI 验证](../dev/README.md)。
+UI 验证入口见 [567 Agent UI 验证](../dev/README.md)。
 
 本页只说明用户已明确要求使用 `verify:ui:*` 验收 App Action 时的操作方法，不会因为修改或测试了 App Action 而自动授权 Agent 启动 UI 验证实例。
 
@@ -15,7 +15,7 @@ UI 验证入口见 [Vetta Desktop UI 验证](../dev/README.md)。
 | `snapshot` / `run-code` 列出当前按钮文案 | 封装 `run-with-ui-approve.ps1` / 黑盒 `--approve` 盲点 |
 | 看到真实按钮后再 `click`（如 `确认开启`、`保存实验功能`） | 写死中文正则列表后批量空转 |
 | 先清残留弹窗（尤其 `拒绝（0:00）`）再发新 RPC | 队列堵着还连发写 action，把超时全记成 fail |
-| 统一使用 `verify:ui:pw` 操作 **Vetta Desktop** 主窗 | 直接调用全局 `playwright-cli` 或写死 tab 下标 |
+| 统一使用 `verify:ui:pw` 操作 **567 Agent** 主窗 | 直接调用全局 `playwright-cli` 或写死 tab 下标 |
 
 原因：
 
@@ -66,4 +66,4 @@ bun apps/cli-host/src/cli.ts action run navigation.query '{"type":"help"}'
 
 ## 相关文档
 
-- [Vetta Desktop UI 验证](../dev/README.md)
+- [567 Agent UI 验证](../dev/README.md)

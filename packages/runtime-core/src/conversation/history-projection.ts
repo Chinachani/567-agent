@@ -1,4 +1,4 @@
-import type { Message } from "@vetta/ai";
+import type { Message } from "@567agent/ai";
 import type {
 	AssistantTurnTiming,
 	HistoryEntry,

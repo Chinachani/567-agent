@@ -9,8 +9,8 @@ import (
 	"go.mau.fi/whatsmeow"
 	"go.mau.fi/whatsmeow/proto/waE2E"
 
-	"vetta-im-gateway/internal/transport"
-	"vetta-im-gateway/internal/transport/inbox"
+	"github.com/Chinachani/567-agent/apps/im-gateway/internal/transport"
+	"github.com/Chinachani/567-agent/apps/im-gateway/internal/transport/inbox"
 )
 
 // mediaPart is one downloadable payload of an inbound message, described

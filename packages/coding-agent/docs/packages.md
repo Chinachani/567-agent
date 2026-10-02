@@ -32,4 +32,4 @@ vetta list
 
 资源目录中的格式解析、优先级和快照属于 Coding Agent；文件遍历、摘要、Git/NPM 命令和临时目录由宿主通过
 `ResourceAccessPort`、`ResourcePackageHost` 等合同注入。不要从资源规则直接导入 `node:fs`、`node:path` 或
-`@vetta/runtime-node`。
+`@567agent/runtime-node`。

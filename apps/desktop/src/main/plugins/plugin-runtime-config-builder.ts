@@ -6,7 +6,7 @@ import type {
 	McpServerContribution,
 	SystemPromptBlock,
 	SystemPromptOperation,
-} from "@vetta/coding-agent/plugin-runtime";
+} from "@567agent/coding-agent/plugin-runtime";
 import { parsePluginMcpServerConfig } from "@vetta-org/plugin-sdk/manifest";
 import type { InstalledPlugin, PluginMcpServerConfig, PluginPermission } from "../../preload/api-types/plugins.js";
 import type { PluginAgentContributionRegistry } from "./plugin-agent-contribution-registry.js";

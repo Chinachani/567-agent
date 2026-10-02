@@ -6,13 +6,13 @@
 
 import { homedir } from "node:os";
 import { join } from "node:path";
-import { getModel } from "@vetta/ai";
+import { getModel } from "@567agent/ai";
 import {
 	AuthStorage,
 	createCodingAgentHostWithServices,
 	createCodingAgentModelRuntime,
-} from "@vetta/coding-agent/host-services";
-import { NodeTransactionalTextStorage } from "@vetta/runtime-node/host";
+} from "@567agent/coding-agent/host-services";
+import { NodeTransactionalTextStorage } from "@567agent/runtime-node/host";
 
 // Set up auth storage and model registry
 const authStorage = AuthStorage.fromStorage(

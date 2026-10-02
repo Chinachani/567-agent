@@ -1,10 +1,10 @@
-import { providerAuthenticationError } from "@vetta/ai";
-import { runtimeFailureFromError } from "@vetta/runtime-core";
+import { providerAuthenticationError } from "@567agent/ai";
+import { runtimeFailureFromError } from "@567agent/runtime-core";
 import type {
 	ConsecutiveFailureCircuitBreaker,
 	ContextPreparationInput,
 	PreparedContext,
-} from "@vetta/runtime-core/kernel";
+} from "@567agent/runtime-core/kernel";
 import type {
 	CodingAgentCompactionExtensionRuntime,
 	CodingAgentContextRuntimeOptions,

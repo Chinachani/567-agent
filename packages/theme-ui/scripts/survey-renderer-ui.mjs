@@ -68,7 +68,7 @@ for (const f of files) {
 		/@tanstack\/react-router|useNavigate|useParams|useMatches\b/.test(text);
 	const model = /use[A-Z][A-Za-z0-9]*Model\s*\(/.test(text);
 	const view = /<[A-Z][A-Za-z0-9]*(View|Frame)\b/.test(text) || /useTheme(Region|Component)/.test(text);
-	const theme = /@vetta\/theme-ui/.test(text);
+	const theme = /@567agent\/theme-ui/.test(text);
 	const d = deferrals[rel];
 	const kind = d ? (typeof d === "string" ? "permanent_desktop" : d.kind) : null;
 

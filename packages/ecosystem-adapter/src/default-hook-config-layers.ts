@@ -1,3 +1,4 @@
+import { existsSync } from "node:fs";
 import { homedir } from "node:os";
 import { join } from "node:path";
 import { CLAUDE_CODE_HOOK_PROFILE_ID } from "./claude-code/hooks/profile.js";
@@ -12,12 +13,12 @@ export interface BuildDefaultHookConfigLayersOptions {
 	cwd: string;
 	/**
 	 * Vetta user data root.
-	 * Default: `~/.vetta` (HOME / USERPROFILE / os.homedir()).
+	 * Default: `~/.567agent` (HOME / USERPROFILE / os.homedir()).
 	 * Coding Agent should pass `getVettaHomePath()` so `VETTA_HOME` applies.
 	 */
 	vettaHome?: string;
 	/**
-	 * Project config directory name under cwd. Default: `.vetta`.
+	 * Project config directory name under cwd. Default: `.567agent`.
 	 * Override only for tests or non-standard layouts.
 	 */
 	configDirName?: string;
@@ -58,10 +59,15 @@ export function buildDefaultHookConfigLayers(options: BuildDefaultHookConfigLaye
 	const configDirName = options.configDirName ?? VETTA_HOOK_CONFIG_DIR_NAME;
 	const projectVettaDir = join(options.cwd, configDirName);
 
-	const userCodexDir = join(vettaHome, ".codex");
-	const userClaudeDir = join(vettaHome, ".claude");
-	const projectCodexDir = join(projectVettaDir, ".codex");
-	const projectClaudeDir = join(projectVettaDir, ".claude");
+	const legacyHome = options.vettaHome === undefined ? join(homeDir, ".vetta") : undefined;
+	const legacyProject = options.configDirName === undefined ? join(options.cwd, ".vetta") : undefined;
+	const userCodexDir = selectProfileDirectory(vettaHome, legacyHome, ".codex", ["hooks.json"]);
+	const userClaudeDir = selectProfileDirectory(vettaHome, legacyHome, ".claude", ["settings.json"]);
+	const projectCodexDir = selectProfileDirectory(projectVettaDir, legacyProject, ".codex", ["hooks.json"]);
+	const projectClaudeDir = selectProfileDirectory(projectVettaDir, legacyProject, ".claude", [
+		"settings.json",
+		"settings.local.json",
+	]);
 
 	return [
 		{
@@ -92,6 +98,20 @@ export function buildDefaultHookConfigLayers(options: BuildDefaultHookConfigLaye
 			],
 		},
 	];
+}
+
+// A configured new profile replaces the legacy profile as a whole. Loading both
+// would execute copied hooks twice, so fallback only when the new profile is absent.
+function selectProfileDirectory(
+	root: string,
+	legacyRoot: string | undefined,
+	profile: string,
+	files: string[],
+): string {
+	const primary = join(root, profile);
+	if (!legacyRoot || files.some((file) => existsSync(join(primary, file)))) return primary;
+	const legacy = join(legacyRoot, profile);
+	return files.some((file) => existsSync(join(legacy, file))) ? legacy : primary;
 }
 
 function codexSource(path: string): HookConfigSource {

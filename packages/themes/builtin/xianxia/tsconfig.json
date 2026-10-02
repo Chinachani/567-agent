@@ -16,8 +16,8 @@
 			"@vetta-org/theme-sdk/*": ["../../../theme-sdk/src/*"],
 			"@vetta-org/theme-ui": ["../../../theme-ui/src/index.ts"],
 			"@vetta-org/theme-ui/*": ["../../../theme-ui/src/*"],
-			"@vetta/desktop-theme-ui/app-shell": ["../../../../apps/desktop/src/renderer/shared/theme/sdk/app-shell.ts"],
-			"@vetta/desktop-theme-ui/sidebar": ["../../../../apps/desktop/src/renderer/shared/theme/sdk/sidebar-primitives.ts"],
+			"@567agent/desktop-theme-ui/app-shell": ["../../../../apps/desktop/src/renderer/shared/theme/sdk/app-shell.ts"],
+			"@567agent/desktop-theme-ui/sidebar": ["../../../../apps/desktop/src/renderer/shared/theme/sdk/sidebar-primitives.ts"],
 			"@vetta-org/ui": ["../../../ui/src/index.ts"],
 			"@vetta-org/ui/*": ["../../../ui/src/*"]
 		}

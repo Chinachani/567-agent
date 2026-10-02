@@ -1,7 +1,7 @@
 import { readFile } from "node:fs/promises";
 import { homedir } from "node:os";
 import { join } from "node:path";
-import { getVettaHomePath } from "@vetta/action-rpc";
+import { getVettaHomePath } from "@567agent/action-rpc";
 
 const CONFIG_PATH = join(getVettaHomePath(), "desktop-config.json");
 const DEFAULT_WORKSPACE_PATH = join(getVettaHomePath(), "workspace");

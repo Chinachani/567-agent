@@ -31,7 +31,7 @@ Desktop 已有经过资源校验、权限审批、版本暂存与 reload 激活�
 
 ## 后果
 
-- 安装要求 Vetta Desktop 正在运行且本机 Action RPC 可用；CLI 不提供离线写注册表模式。
+- 安装要求 567 Agent 正在运行且本机 Action RPC 可用；CLI 不提供离线写注册表模式。
 - 发布者需要同步维护 npm package version、`package.json#vetta` 与 `plugin.json` 身份，构建期会在不一致时失败。
 - `@vetta-org/plugin-cli` 的发布制品必须是自包含 Node ESM bundle，运行时不能依赖 monorepo workspace 包。
 - npm 解决的是分发与版本选择，不代表插件已被官方审核；权限和 trust 仍由 Desktop 决定。

@@ -229,7 +229,7 @@ export function CompareRow({ label, left, right, language = "zh" }: { label: str
 			</span>
 			<span className="bg-vetta-coral/[0.05] px-4 py-2.5 text-[0.82rem] leading-[1.55] md:py-3.5">
 				<span className="mb-1 block font-mono text-[0.6rem] tracking-[0.08em] text-vetta-coral uppercase md:hidden">
-					Vetta
+					567 Agent
 				</span>
 				{right}
 			</span>

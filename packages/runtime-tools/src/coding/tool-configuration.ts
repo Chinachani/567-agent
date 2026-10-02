@@ -2,13 +2,13 @@ import type {
 	RuntimeConfigurationSnapshot,
 	RuntimeConfigurationSnapshotLease,
 	RuntimeConfigurationSnapshotSource,
-} from "@vetta/runtime-core/configuration";
+} from "@567agent/runtime-core/configuration";
 import type {
 	RuntimeSnapshotAcquireContext,
 	RuntimeToolDefinition,
 	RuntimeToolTurnBinding,
-} from "@vetta/runtime-core/kernel";
-import { type RuntimeObservationPublisher, runtimeObservationFailure } from "@vetta/runtime-core/observation";
+} from "@567agent/runtime-core/kernel";
+import { type RuntimeObservationPublisher, runtimeObservationFailure } from "@567agent/runtime-core/observation";
 import { CODING_TOOL_CONFIGURATION_ISSUE_OBSERVATION, CODING_TOOL_CONFIGURATION_OBSERVATION } from "./observations.js";
 import type { CodingToolConfigurationAssociation, CodingToolRegistration } from "./tool-registration.js";
 

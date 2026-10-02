@@ -1,5 +1,5 @@
-import type { EcosystemHookContributionSource } from "@vetta/ecosystem-adapter";
-import type { PromptResourceRef } from "@vetta/runtime-core";
+import type { EcosystemHookContributionSource } from "@567agent/ecosystem-adapter";
+import type { PromptResourceRef } from "@567agent/runtime-core";
 import type { SessionResourceRuntime } from "../index.js";
 
 export interface ParsedSkillBlock {

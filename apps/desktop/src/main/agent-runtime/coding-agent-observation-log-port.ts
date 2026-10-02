@@ -9,8 +9,8 @@ import {
 	type CodingAgentPluginConfigurationObservation,
 	type CodingAgentSessionAssistanceObservation,
 	type CodingAgentSubagentIssueObservation,
-} from "@vetta/coding-agent/composition";
-import type { RuntimeObservationPort, RuntimeObservationRecord } from "@vetta/runtime-core";
+} from "@567agent/coding-agent/composition";
+import type { RuntimeObservationPort, RuntimeObservationRecord } from "@567agent/runtime-core";
 
 interface CodingAgentObservationLogger {
 	info(message: string, fields: Record<string, unknown>): void;

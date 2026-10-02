@@ -64,7 +64,7 @@ knip.config.ts                 Knip（可选）
 | `test` / `test:unit` | 从 workspace manifest 自动发现并顺序运行所有声明 `test` 的包 |
 | `test:pkg` | 见 `bun run test:pkg --list` |
 | `test:impact` | 显式任务文件走精确测试；公共合同、删除和配置变化自动回退 `test:changed` |
-| `test:changed` | 默认比较 `origin/dev`；`--base origin/main` 可改基线 |
+| `test:changed` | 默认比较 `origin/main`；`--base <ref>` 可改基线 |
 | `deadcode` / `deadcode:report` | Knip 严格 / 仅报告 |
 
 ### 单测覆盖率（可选，不进门禁）
@@ -160,7 +160,7 @@ Desktop build task 显式依赖 `@vetta-org/plugin-vite`。开发前置构建读
 日志直接显示 CLI 门禁。
 
 根 `tsconfig.json` 的 path map 必须为每个 workspace `package.json#exports` 的 types 子路径
-写明源文件（例如 `@vetta/runtime-mcp/auth` → `src/auth/index.ts`）。`check` 在干净树里
+写明源文件（例如 `@567agent/runtime-mcp/auth` → `src/auth/index.ts`）。`check` 在干净树里
 typecheck，不会先生成 `dist/*.d.ts`；`moduleResolution: Node16` 下通配 `src/*` 也不会把
 目录解析成 `index.ts`。`check-source-path-maps.mjs` 机械检查这条合同。
 

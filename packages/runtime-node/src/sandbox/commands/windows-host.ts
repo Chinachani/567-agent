@@ -4,7 +4,7 @@ import { copyFile, mkdir, mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { delimiter, dirname, join, resolve as resolvePath } from "node:path";
 import { fileURLToPath } from "node:url";
-import type { ForegroundCommandOperations } from "@vetta/runtime-tools";
+import type { ForegroundCommandOperations } from "@567agent/runtime-tools";
 import { getNodeShellCommandPrefix, prependCommandPrefixes } from "../../coding/host/node-shell.js";
 import { getSandboxShellGrant } from "../sandbox-permissions.js";
 import type { NodeSandboxEnvironment } from "./contracts.js";

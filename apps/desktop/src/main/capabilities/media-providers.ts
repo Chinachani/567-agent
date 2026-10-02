@@ -1,4 +1,4 @@
-import { bindCapability, type CapabilityRegistry } from "@vetta/capability-runtime";
+import { bindCapability, type CapabilityRegistry } from "@567agent/capability-runtime";
 import { type Disposable, DOMAIN_MEDIA_CAPABILITIES } from "@vetta-org/capability-sdk";
 import { isCloudBuildEnabled } from "../../shared/feature-flags.js";
 import type { ArtifactStore } from "../artifacts/artifact-store.js";

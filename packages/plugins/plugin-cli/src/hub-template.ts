@@ -113,7 +113,7 @@ jobs:
 export function renderHubReadme(input: { name: string; repository: string }): string {
 	return `# ${input.name}
 
-A Vetta ability marketplace. Add it in Vetta Desktop under **能力市场 → 添加来源**:
+A Vetta ability marketplace. Add it in 567 Agent under **能力市场 → 添加来源**:
 
 \`\`\`
 ${input.repository}

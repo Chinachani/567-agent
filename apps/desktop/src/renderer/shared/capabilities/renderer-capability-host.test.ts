@@ -1,4 +1,4 @@
-import { bindCapability } from "@vetta/capability-runtime";
+import { bindCapability } from "@567agent/capability-runtime";
 import {
 	CAPABILITY_ERROR_CODES,
 	createCapabilityGrant,

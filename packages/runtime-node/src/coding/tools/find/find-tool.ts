@@ -1,8 +1,8 @@
 import { spawn } from "node:child_process";
 import { existsSync } from "node:fs";
 import { basename, relative } from "node:path";
+import type { RuntimeToolDefinition, RuntimeToolResult } from "@567agent/runtime-core/kernel";
 import { type Static, Type } from "@sinclair/typebox";
-import type { RuntimeToolDefinition, RuntimeToolResult } from "@vetta/runtime-core/kernel";
 import type { CodingToolExecutableResolver } from "../../host/executable-resolver.js";
 import { formatNotFoundPath, resolveExistingPath } from "../../shared/path-resolution.js";
 import { formatSize, type TruncationResult, truncateHead } from "../../shared/truncation.js";

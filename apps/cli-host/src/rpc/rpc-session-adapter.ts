@@ -1,9 +1,9 @@
-import type { CodingAgentBootstrap } from "@vetta/coding-agent/bootstrap";
+import type { CodingAgentBootstrap } from "@567agent/coding-agent/bootstrap";
 import type {
 	CodingAgentRuntimeComposition,
 	CodingAgentRuntimeToolRegistration,
-} from "@vetta/coding-agent/composition";
-import type { CodingAgentHtmlExportRuntime } from "@vetta/coding-agent/export-html";
+} from "@567agent/coding-agent/composition";
+import type { CodingAgentHtmlExportRuntime } from "@567agent/coding-agent/export-html";
 import {
 	type CodingAgentTurnRetryEvent,
 	createImSendAttachmentToolRegistration,
@@ -14,7 +14,7 @@ import {
 	type RpcSessionProfile,
 	type RpcSessionState,
 	readCodingAgentRpcAgentMessages,
-} from "@vetta/coding-agent/rpc";
+} from "@567agent/coding-agent/rpc";
 import {
 	type CodingAgentRuntimeExtensionCommandHost,
 	type CodingAgentSessionCapabilityHost,
@@ -22,9 +22,14 @@ import {
 	type CodingAgentTurnRetryController,
 	createCodingAgentSessionCapabilityHost,
 	readCodingAgentTurnFailure,
-} from "@vetta/coding-agent/runtime";
-import { type HistoryEntry, RetryableCleanup, type RuntimeHostSession, type SessionEvent } from "@vetta/runtime-core";
-import { createNodeFileInspectionOperations } from "@vetta/runtime-node/coding";
+} from "@567agent/coding-agent/runtime";
+import {
+	type HistoryEntry,
+	RetryableCleanup,
+	type RuntimeHostSession,
+	type SessionEvent,
+} from "@567agent/runtime-core";
+import { createNodeFileInspectionOperations } from "@567agent/runtime-node/coding";
 import { createCliCodingAgentHtmlExportRuntime } from "../html-export-runtime.js";
 import { RpcSessionEventAdapter } from "./rpc-session-event-adapter.js";
 

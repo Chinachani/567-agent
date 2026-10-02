@@ -1,4 +1,4 @@
-import type { AgentFeatureDefinition } from "@vetta/runtime-core/kernel";
+import type { AgentFeatureDefinition } from "@567agent/runtime-core/kernel";
 import type { CodingAgentRuntimeToolRegistration } from "../../runtime-contracts/index.js";
 import { CODING_AGENT_MODEL_TOOL_ORDER } from "../../tool-policy/model-tool-order.js";
 import type { CodingAgentTodoRuntime } from "./contracts.js";

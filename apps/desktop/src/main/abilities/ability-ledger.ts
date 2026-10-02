@@ -1,7 +1,7 @@
 import { existsSync, readFileSync } from "node:fs";
 import { join } from "node:path";
-import { getVettaHomePath } from "@vetta/action-rpc";
-import { atomicWriteJSON } from "@vetta/toolkit/atomic-write";
+import { getVettaHomePath } from "@567agent/action-rpc";
+import { atomicWriteJSON } from "@567agent/toolkit/atomic-write";
 import type {
 	AbilityInstallMetadata,
 	AbilityInstallOrigin,

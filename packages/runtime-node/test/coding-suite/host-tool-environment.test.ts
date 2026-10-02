@@ -1,4 +1,4 @@
-import type { RuntimeToolResult } from "@vetta/runtime-core/kernel";
+import type { RuntimeToolResult } from "@567agent/runtime-core/kernel";
 import { describe, expect, it } from "vitest";
 import { type CommandToolExecutor, createNodeHostCodingToolEnvironment } from "../../src/coding/index.js";
 

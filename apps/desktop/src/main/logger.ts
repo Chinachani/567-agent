@@ -1,7 +1,7 @@
 import { existsSync, mkdirSync, readFileSync, renameSync, statSync, writeFileSync } from "node:fs";
 import { join, parse } from "node:path";
 import { inspect } from "node:util";
-import { getVettaHomePath } from "@vetta/action-rpc";
+import { getVettaHomePath } from "@567agent/action-rpc";
 import electronLog from "electron-log/main";
 import { formatErrorChain, formatErrorChainJSON } from "./logger/format-error-chain.js";
 import { enforceRetention } from "./logger/log-retention.js";

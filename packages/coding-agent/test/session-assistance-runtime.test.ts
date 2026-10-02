@@ -1,12 +1,12 @@
-import type { StreamFn } from "@vetta/agent-core";
+import type { StreamFn } from "@567agent/agent-core";
 import {
 	type Api,
 	type AssistantMessage,
 	createAssistantMessage,
 	createAssistantMessageEventStream,
 	type Model,
-} from "@vetta/ai";
-import type { RuntimeSessionModelView } from "@vetta/runtime-core";
+} from "@567agent/ai";
+import type { RuntimeSessionModelView } from "@567agent/runtime-core";
 import { describe, expect, it, vi } from "vitest";
 import {
 	CodingAgentSessionAssistanceRuntime,

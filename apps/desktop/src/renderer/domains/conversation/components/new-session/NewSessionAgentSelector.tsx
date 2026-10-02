@@ -1,7 +1,7 @@
 import { teamMemberAvatarUrls, useAgentAvatarResolver } from "@shared/agent-teams/agent-avatar";
 import { useLocalizedAgentTeamDocument } from "@shared/agent-teams/agent-team-localization";
 import { BotAvatar } from "@shared/components/BotAvatar";
-import { type AgentTeamDocument, listLibraryAgentProfiles } from "@vetta/agent-team";
+import { type AgentTeamDocument, listLibraryAgentProfiles } from "@567agent/agent-team";
 import { NewSessionPicker, type NewSessionPickerRootProps } from "@vetta-org/theme-ui/chat";
 import { AvatarStackView } from "@vetta-org/theme-ui/shared";
 import { useCallback, useEffect, useMemo, useState } from "react";

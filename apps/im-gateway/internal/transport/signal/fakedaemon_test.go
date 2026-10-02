@@ -16,7 +16,7 @@ import (
 	"testing"
 	"time"
 
-	"vetta-im-gateway/internal/transport"
+	"github.com/Chinachani/567-agent/apps/im-gateway/internal/transport"
 )
 
 type rpcCallRecord struct {

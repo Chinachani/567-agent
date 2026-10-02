@@ -7,11 +7,11 @@ import {
 	resolveCodingAgentExtensionCompatibility,
 	resolveCodingAgentInitialModel,
 	runPrintMode,
-} from "@vetta/coding-agent/bootstrap";
-import { migrateCodingAgentHistoricalSession } from "@vetta/coding-agent/historical-sessions";
-import { runRpcModeWithCapabilities } from "@vetta/coding-agent/rpc";
-import { InitializationRollbackScope } from "@vetta/runtime-core";
-import { resolveSessionIdFromPath } from "@vetta/runtime-node/conversation";
+} from "@567agent/coding-agent/bootstrap";
+import { migrateCodingAgentHistoricalSession } from "@567agent/coding-agent/historical-sessions";
+import { runRpcModeWithCapabilities } from "@567agent/coding-agent/rpc";
+import { InitializationRollbackScope } from "@567agent/runtime-core";
+import { resolveSessionIdFromPath } from "@567agent/runtime-node/conversation";
 import { createCliCodingAgentBootstrap } from "../../coding-agent-bootstrap.js";
 import { processCliFileArguments } from "../../file-processor.js";
 import { createCliHistoricalSessionHost } from "../../historical-session-host.js";

@@ -114,14 +114,17 @@ function createBuildDefaultsPlugin(entry: string, options: Pick<VettaPluginFeder
 						// Host-provided singletons (see desktop-app plugin-shared-modules + vetta-host protocol).
 						external: [
 							"@vetta-org/plugin-sdk",
+							"@567agent/plugin-sdk",
 							...(options.hostUi
 								? [
 										"@vetta-org/ui",
 										// 旧源码名仍映射到宿主；已构建的旧 remote 则由 Desktop share scope 兼容。
+										"@567agent/ui",
 										"@vetta/ui",
 									]
 								: []),
 							"@vetta-org/theme-ui/plugin-ui",
+							"@567agent/theme-ui/plugin-ui",
 							"@vetta/theme-ui/plugin-ui",
 						],
 						output: {
@@ -132,9 +135,12 @@ function createBuildDefaultsPlugin(entry: string, options: Pick<VettaPluginFeder
 							},
 							paths: {
 								"@vetta-org/plugin-sdk": "vetta-host://plugin-sdk",
+								"@567agent/plugin-sdk": "vetta-host://plugin-sdk",
 								"@vetta-org/ui": "vetta-host://ui",
+								"@567agent/ui": "vetta-host://ui",
 								"@vetta/ui": "vetta-host://ui",
 								"@vetta-org/theme-ui/plugin-ui": "vetta-host://theme-ui-plugin",
+								"@567agent/theme-ui/plugin-ui": "vetta-host://theme-ui-plugin",
 								"@vetta/theme-ui/plugin-ui": "vetta-host://theme-ui-plugin",
 							},
 						},

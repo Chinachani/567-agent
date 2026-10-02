@@ -32,21 +32,25 @@ function harness(confirm = true) {
 }
 
 describe("PluginPackageOpenService", () => {
-	it("queues a startup package and installs it only after Desktop is ready", async () => {
-		const { dependencies, service } = harness();
-		expect(service.enqueue("C:/Downloads/demo.VETTAPKG")).toBe(true);
-		await service.waitForIdle();
-		expect(dependencies.inspect).not.toHaveBeenCalled();
+	it.each(["567PLUGIN", "VETTAPKG"])(
+		"queues a startup %s package and installs it only after Desktop is ready",
+		async (extension) => {
+			const { dependencies, service } = harness();
+			const filePath = `C:/Downloads/demo.${extension}`;
+			expect(service.enqueue(filePath)).toBe(true);
+			await service.waitForIdle();
+			expect(dependencies.inspect).not.toHaveBeenCalled();
 
-		service.markReady();
-		await service.waitForIdle();
+			service.markReady();
+			await service.waitForIdle();
 
-		expect(dependencies.inspect).toHaveBeenCalledWith("C:/Downloads/demo.VETTAPKG");
-		expect(dependencies.confirm).toHaveBeenCalledWith("C:/Downloads/demo.VETTAPKG", manifest);
-		expect(dependencies.install).toHaveBeenCalledWith("C:/Downloads/demo.VETTAPKG", manifest);
-		expect(dependencies.notifyInstalled).toHaveBeenCalledWith(installed);
-		expect(dependencies.revealApp).toHaveBeenCalledOnce();
-	});
+			expect(dependencies.inspect).toHaveBeenCalledWith(filePath);
+			expect(dependencies.confirm).toHaveBeenCalledWith(filePath, manifest);
+			expect(dependencies.install).toHaveBeenCalledWith(filePath, manifest);
+			expect(dependencies.notifyInstalled).toHaveBeenCalledWith(installed);
+			expect(dependencies.revealApp).toHaveBeenCalledOnce();
+		},
+	);
 
 	it("does not install when the user cancels the package confirmation", async () => {
 		const { dependencies, service } = harness(false);

@@ -2,21 +2,21 @@ import { randomUUID } from "node:crypto";
 import { type Dirent, type FSWatcher, watch } from "node:fs";
 import { mkdir, readdir, rm } from "node:fs/promises";
 import { basename, join, resolve } from "node:path";
-import { codingAgentSessionShardPath } from "@vetta/coding-agent/bootstrap";
+import { codingAgentSessionShardPath } from "@567agent/coding-agent/bootstrap";
 import type {
 	CodingAgentQuestionFunctionRequest,
 	CodingAgentQuestionResult,
 	CodingAgentSandboxAuthorizationDecision,
 	CodingAgentSandboxAuthorizationFunctionRequest,
-} from "@vetta/coding-agent/function-extensions";
+} from "@567agent/coding-agent/function-extensions";
 import type {
 	AgentPluginContinuationInvocation,
 	AgentPluginContinuationResult,
 	AgentPluginHandlerResult,
 	AgentPluginSystemPromptInvocation,
 	AgentPluginToolInvocation,
-} from "@vetta/coding-agent/plugin-runtime";
-import { DEFAULT_PERSONA_ID, PERSONAS } from "@vetta/coding-agent/profile";
+} from "@567agent/coding-agent/plugin-runtime";
+import { DEFAULT_PERSONA_ID, PERSONAS } from "@567agent/coding-agent/profile";
 import {
 	CODING_AGENT_BACKGROUND_TASK_KILL,
 	CODING_AGENT_BACKGROUND_TASKS_CLEAR_FINISHED,
@@ -32,10 +32,10 @@ import {
 	CODING_AGENT_SUBAGENTS_READ,
 	CODING_AGENT_TODO_CLEAR,
 	isCodingAgentPermissionMode,
-} from "@vetta/coding-agent/session-extensions";
-import type { SessionEvent, SessionExecutionMode, SettingsPatch } from "@vetta/runtime-core";
-import { sessionExtensionObservation } from "@vetta/runtime-core/session-extensions";
-import { isMcpJsonValue, type McpJsonObject } from "@vetta/runtime-mcp";
+} from "@567agent/coding-agent/session-extensions";
+import type { SessionEvent, SessionExecutionMode, SettingsPatch } from "@567agent/runtime-core";
+import { sessionExtensionObservation } from "@567agent/runtime-core/session-extensions";
+import { isMcpJsonValue, type McpJsonObject } from "@567agent/runtime-mcp";
 import { BrowserWindow, ipcMain, type WebContents } from "electron";
 import type { DesktopMcpAppResourceRead, DesktopMcpAppToolCall } from "../../shared/mcp-app.js";
 import type { DesktopMcpElicitationResponse, DesktopMcpElicitationValue } from "../../shared/mcp-interaction.js";

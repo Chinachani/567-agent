@@ -134,7 +134,7 @@ async function createLegacyUiFixture(): Promise<string> {
 		),
 		writeFile(
 			join(rootDir, "src", "index.js"),
-			`import { Button } from "@vetta/ui";
+			`import { Button } from "@567agent/ui";
 export const LegacyButton = Button;
 export default { activate() {} };
 `,

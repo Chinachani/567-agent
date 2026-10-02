@@ -4,7 +4,7 @@ import {
 	type OcrRemoteProviderPolicy,
 	VETTA_OCR_CONFIGURATION,
 	type VettaOcrConfiguration,
-} from "@vetta/runtime-tools";
+} from "@567agent/runtime-tools";
 import {
 	CAPABILITY_ERROR_CODES,
 	CapabilityError,

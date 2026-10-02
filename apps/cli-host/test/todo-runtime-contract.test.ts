@@ -1,11 +1,11 @@
 import { mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { type Api, type AssistantMessage, type AssistantMessageEvent, EventStream, type Model } from "@vetta/ai";
-import type { CodingAgentRuntimeComposition } from "@vetta/coding-agent/composition";
-import type { CodingAgentRuntimeModelSource } from "@vetta/coding-agent/host-services";
-import { CODING_AGENT_TODO_CLEAR, CODING_AGENT_TODO_READ } from "@vetta/coding-agent/session-extensions";
-import type { RuntimeHostSession } from "@vetta/runtime-core";
+import { type Api, type AssistantMessage, type AssistantMessageEvent, EventStream, type Model } from "@567agent/ai";
+import type { CodingAgentRuntimeComposition } from "@567agent/coding-agent/composition";
+import type { CodingAgentRuntimeModelSource } from "@567agent/coding-agent/host-services";
+import { CODING_AGENT_TODO_CLEAR, CODING_AGENT_TODO_READ } from "@567agent/coding-agent/session-extensions";
+import type { RuntimeHostSession } from "@567agent/runtime-core";
 import { afterEach, describe, expect, it } from "vitest";
 import { createCodingAgentRuntimeComposition } from "./fixtures/runtime-composition.js";
 

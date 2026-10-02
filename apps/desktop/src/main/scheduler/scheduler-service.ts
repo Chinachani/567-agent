@@ -1,5 +1,5 @@
 import { stat } from "node:fs/promises";
-import type { RuntimeHost } from "@vetta/runtime-core";
+import type { RuntimeHost } from "@567agent/runtime-core";
 import { recordAutomationTaskCreated } from "../app-monitor/app-monitor-service.js";
 import { isValidCronExpression } from "./cron.js";
 import { abortTask, executeTask, isTaskRunning } from "./task-executor.js";

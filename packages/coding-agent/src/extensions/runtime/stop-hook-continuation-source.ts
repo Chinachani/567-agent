@@ -1,6 +1,6 @@
-import type { UserMessage } from "@vetta/ai";
-import type { EcosystemHookRuntime } from "@vetta/ecosystem-adapter/hooks";
-import type { ContinuationPolicyContext } from "@vetta/runtime-core/kernel";
+import type { UserMessage } from "@567agent/ai";
+import type { EcosystemHookRuntime } from "@567agent/ecosystem-adapter/hooks";
+import type { ContinuationPolicyContext } from "@567agent/runtime-core/kernel";
 import type { CodingAgentContinuationSource } from "../../runtime-contracts/index.js";
 import { getLastAssistantText } from "../../sessions/index.js";
 

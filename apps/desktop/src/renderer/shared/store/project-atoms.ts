@@ -1,5 +1,5 @@
+import type { RuntimeSessionAccess } from "@567agent/runtime-core";
 import { isSubPath, pathBasename } from "@shared/lib/utils";
-import type { RuntimeSessionAccess } from "@vetta/runtime-core";
 import { atom } from "jotai";
 import { SCHEDULE_SESSION_MARKER } from "../../../shared/scheduled-session";
 

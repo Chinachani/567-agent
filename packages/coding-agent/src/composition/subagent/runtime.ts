@@ -1,15 +1,15 @@
-import type { Message } from "@vetta/ai";
+import type { Message } from "@567agent/ai";
 import type {
 	ConversationDocument,
 	RuntimeDocumentParticipant,
 	RuntimeDocumentParticipantContext,
-} from "@vetta/runtime-core";
+} from "@567agent/runtime-core";
 import type {
 	AgentFeature,
 	AgentFeatureDefinition,
 	RuntimeToolDefinition,
 	StoredSessionEvent,
-} from "@vetta/runtime-core/kernel";
+} from "@567agent/runtime-core/kernel";
 import {
 	isValidTaskName,
 	type SubagentChildHandle,
@@ -20,7 +20,7 @@ import {
 	type SubagentTypeDefinition,
 	type SubagentTypeRegistryLike,
 	taskPath,
-} from "@vetta/runtime-subagents";
+} from "@567agent/runtime-subagents";
 import type { CodingAgentSubagentWorkRuntime } from "../../execution/background/work-controller.js";
 import type {
 	CodingAgentSubagentSnapshot,

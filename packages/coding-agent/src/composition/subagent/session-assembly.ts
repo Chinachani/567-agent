@@ -1,15 +1,15 @@
-import type { Message } from "@vetta/ai";
-import type { EcosystemHookRuntime } from "@vetta/ecosystem-adapter";
+import type { Message } from "@567agent/ai";
+import type { EcosystemHookRuntime } from "@567agent/ecosystem-adapter";
 import {
 	type RuntimeActiveSession,
 	type RuntimeObservationPublisher,
 	type RuntimeResourceContext,
 	runtimeObservationFailure,
 	type SessionConfig,
-} from "@vetta/runtime-core";
-import type { SessionContextRecord } from "@vetta/runtime-core/kernel";
-import { sessionExtensionObservation } from "@vetta/runtime-core/session-extensions";
-import type { McpRuntimeToolView } from "@vetta/runtime-mcp";
+} from "@567agent/runtime-core";
+import type { SessionContextRecord } from "@567agent/runtime-core/kernel";
+import { sessionExtensionObservation } from "@567agent/runtime-core/session-extensions";
+import type { McpRuntimeToolView } from "@567agent/runtime-mcp";
 import type {
 	SubagentChildHandle,
 	SubagentLifecycle,
@@ -17,7 +17,7 @@ import type {
 	SubagentSpawnRequest,
 	SubagentTypeDefinition,
 	SubagentTypeRegistryLike,
-} from "@vetta/runtime-subagents";
+} from "@567agent/runtime-subagents";
 import type { ConversationScenario } from "../../profiles/index.js";
 import type { CodingAgentRuntimeToolRegistration, CodingAgentToolActivation } from "../../runtime-contracts/index.js";
 import {

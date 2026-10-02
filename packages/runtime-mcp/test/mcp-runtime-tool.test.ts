@@ -1,4 +1,4 @@
-import type { RuntimeToolResult } from "@vetta/runtime-core/kernel";
+import type { RuntimeToolResult } from "@567agent/runtime-core/kernel";
 import { describe, expect, it } from "vitest";
 import type { McpAppExecutionHost } from "../src/apps/index.js";
 import { McpTaskCreatedError } from "../src/client/index.js";

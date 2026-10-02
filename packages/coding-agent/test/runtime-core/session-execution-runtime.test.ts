@@ -1,7 +1,10 @@
-import type { RuntimeSessionObservationEvent } from "@vetta/runtime-core";
-import type { AgentSession, ModelCallContributionContext, SessionContextRecord } from "@vetta/runtime-core/kernel";
-import { createNodeSandboxCodingToolEnvironment, type ForegroundCommandOperations } from "@vetta/runtime-node/coding";
-import type { CodingToolCatalogEntry } from "@vetta/runtime-tools";
+import type { RuntimeSessionObservationEvent } from "@567agent/runtime-core";
+import type { AgentSession, ModelCallContributionContext, SessionContextRecord } from "@567agent/runtime-core/kernel";
+import {
+	createNodeSandboxCodingToolEnvironment,
+	type ForegroundCommandOperations,
+} from "@567agent/runtime-node/coding";
+import type { CodingToolCatalogEntry } from "@567agent/runtime-tools";
 import { describe, expect, it } from "vitest";
 import type { CodingAgentSandboxAuthorizationPort } from "../../src/execution/sandbox/authorization-contract.js";
 import { CodingAgentSessionExecutionRuntime } from "../../src/execution/session/runtime.js";

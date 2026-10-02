@@ -1,8 +1,8 @@
-# Vetta Desktop UI 验证
+# 567 Agent UI 验证
 
-本文说明 Agent 如何通过仓库内的 Playwright CLI 入口验证开发版 Vetta Desktop 的真实 Renderer UI。
+本文说明 Agent 如何通过仓库内的 Playwright CLI 入口验证开发版 567 Agent 的真实 Renderer UI。
 
-仓库入口负责启动隔离的验证实例、发现动态 CDP 端口、维护 Playwright session，并自动选择 `Vetta Desktop` 主窗口。不要在提示词或脚本中写死端口、session 名、tab 下标或 snapshot ref。
+仓库入口负责启动隔离的验证实例、发现动态 CDP 端口、维护 Playwright session，并自动选择 `567 Agent` 主窗口。不要在提示词或脚本中写死端口、session 名、tab 下标或 snapshot ref。
 
 Vetta Debug 的会话操作参数见 [Vetta Debug](./vetta-debug.md)；真实模型、多轮工具和上下文缓存实验见
 [Vetta Debug 真实 Provider 实战](./vetta-debug-real-provider-runbook.md)。
@@ -94,7 +94,7 @@ bun run verify:ui:pw:dev -- run-code --filename=C:\path\to\ui-probe.js
 
 临时脚本应保持短小、作用域明确，并在验证结束后删除；只操作当前验证所需的页面状态。页面导航、HMR 或抽屉重开后，旧 snapshot ref 可能失效，应重新 snapshot 后再定位。
 
-若附着日志停在 `<ws connected>` 后超时，先运行 `verify:ui:status:dev`。状态现在会报告 `devtoolsTargetCount`；存在 DevTools target 时，关闭已经失效的 DevTools 窗口后重试，保留 Vetta Desktop 主窗口。附着失败的错误也会保留 Playwright 输出尾部并给出这一诊断，不再只显示泛化的 `Unable to attach`。
+若附着日志停在 `<ws connected>` 后超时，先运行 `verify:ui:status:dev`。状态现在会报告 `devtoolsTargetCount`；存在 DevTools target 时，关闭已经失效的 DevTools 窗口后重试，保留 567 Agent 主窗口。附着失败的错误也会保留 Playwright 输出尾部并给出这一诊断，不再只显示泛化的 `Unable to attach`。
 
 需要通过 Vetta Debug 创建或继续真实 Agent 会话时，统一经仓库入口调用：
 

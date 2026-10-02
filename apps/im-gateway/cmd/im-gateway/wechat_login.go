@@ -23,10 +23,10 @@ import (
 
 	"go.uber.org/zap"
 
-	"vetta-im-gateway/internal/config"
-	"vetta-im-gateway/internal/logger"
-	"vetta-im-gateway/internal/transport/wechat"
-	"vetta-im-gateway/internal/transport/wechat/ilink"
+	"github.com/Chinachani/567-agent/apps/im-gateway/internal/config"
+	"github.com/Chinachani/567-agent/apps/im-gateway/internal/logger"
+	"github.com/Chinachani/567-agent/apps/im-gateway/internal/transport/wechat"
+	"github.com/Chinachani/567-agent/apps/im-gateway/internal/transport/wechat/ilink"
 )
 
 // runWechat is the entry point dispatched from main.go for the `wechat`

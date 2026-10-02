@@ -11,9 +11,9 @@ const DEPENDENCY_SECTIONS = Object.freeze([
 	"peerDependencies",
 ]);
 const FORBIDDEN_SOURCE_TOKENS = Object.freeze([
-	"@vetta/coding-agent",
-	"@vetta/runtime-core",
-	"@vetta/runtime-tools",
+	"@567agent/coding-agent",
+	"@567agent/runtime-core",
+	"@567agent/runtime-tools",
 	"SubagentNotificationPayload",
 	"buildSubagentNotification",
 	"describeForTools",
@@ -53,7 +53,7 @@ export function findRuntimeSubagentsBoundaryViolations({ manifest, files }) {
 	const paths = new Set(files.map((file) => file.path.replaceAll("\\", "/")));
 	for (const section of DEPENDENCY_SECTIONS) {
 		for (const dependency of Object.keys(manifest.content[section] ?? {})) {
-			if (!dependency.startsWith("@vetta/")) continue;
+			if (!dependency.startsWith("@567agent/")) continue;
 			violations.push(`${manifest.path}: ${section} must not declare workspace dependency ${dependency}`);
 		}
 	}

@@ -34,10 +34,10 @@
 新增 package export：
 
 ```text
-@vetta/ai/protocol
+@567agent/ai/protocol
 ```
 
-根 `@vetta/ai` 仍导出相同协议类型，避免要求所有上游一次性改 import。根 `tsconfig.json` 和 Desktop 独立 `tsconfig.json` 均增加精确 path mapping，确保 NodeNext 与 bundler 两种解析模式一致。
+根 `@567agent/ai` 仍导出相同协议类型，避免要求所有上游一次性改 import。根 `tsconfig.json` 和 Desktop 独立 `tsconfig.json` 均增加精确 path mapping，确保 NodeNext 与 bundler 两种解析模式一致。
 
 协议测试使用 `expectTypeOf(...).toEqualTypeOf(...)` 验证以下旧类型是新协议类型的精确别名：
 
@@ -147,7 +147,7 @@ Vercel AI 的强项是将公开模型协议、Provider 实现和测试工具分�
 | 项目 | 预期 | 实际 | 结论 |
 | --- | --- | --- | --- |
 | 类型所有权 | 从单体 `types.ts` 移到协议层 | 已完成，旧类型 exact alias | 符合 |
-| 公共子路径 | 稳定协议可单独消费 | `@vetta/ai/protocol` 已导出 | 符合 |
+| 公共子路径 | 稳定协议可单独消费 | `@567agent/ai/protocol` 已导出 | 符合 |
 | 事件穷尽性 | switch 可穷尽检查 | 12 分支 contract test | 符合 |
 | 流有限终止 | iterator/result 均有限结束 | Phase 0 测试继续通过 | 符合 |
 | 错误体系 | 建立稳定分类 | 分类完成，Provider 映射待 Phase 2/3 | 部分完成，符合分阶段边界 |

@@ -1,5 +1,5 @@
 import { resolve } from "node:path";
-import type { HistoryEntry, SessionExecutionMode } from "@vetta/runtime-core";
+import type { HistoryEntry, SessionExecutionMode } from "@567agent/runtime-core";
 import type { DesktopSessionHistoryInfo } from "../../shared/session-access.js";
 import type {
 	DesktopSessionSearchRequest,

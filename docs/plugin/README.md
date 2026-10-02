@@ -1,8 +1,17 @@
-# Vetta 桌面插件开发手册
+# 567 Agent 桌面插件开发手册
 
-面向第三方开发者的 Vetta 桌面端插件**对接与开发**完整手册。读完本目录你应当能从零写出、打包、安装、调试一个插件，并用上所有可用扩展点。
+## 新旧包名兼容
 
-> 插件运行在 Vetta 桌面 App（Electron）的 renderer 进程内，与宿主共享 JavaScript realm——**没有安全沙箱**。只安装并启用你信任的插件。`@vetta-org/plugin-sdk` 权限用于声明与门控宿主 API，不承诺隔离恶意代码（见 [信任模型](#信任模型)）。
+仓库提供 `@567agent/*` 转发包，现有 `@vetta-org/*` SDK 仍是实现的事实源，使用同一份
+宿主共享实例。转发包尚未发布到 npm，现有 npm 工程继续使用已发布的旧 scope。
+公开入口、CSS 和 CLI 由 `scripts/generate-npm-compat.mjs` 生成并验证；不要复制 SDK 代码。
+
+新工具导出 `.567plugin` 文件，Desktop 和 CLI 仍可导入 `.vettapkg` 与旧 `.zip`。
+稳定 npm 信封路径 `release/vetta-plugin.vettapkg` 保留兼容。
+
+面向第三方开发者的 567 Agent 桌面端插件**对接与开发**完整手册。读完本目录你应当能从零写出、打包、安装、调试一个插件，并用上所有可用扩展点。
+
+> 插件运行在 567 Agent 桌面 App（Electron）的 renderer 进程内，与宿主共享 JavaScript realm——**没有安全沙箱**。只安装并启用你信任的插件。`@vetta-org/plugin-sdk` 权限用于声明与门控宿主 API，不承诺隔离恶意代码（见 [信任模型](#信任模型)）。
 
 > **这份手册是随 `@vetta-org/plugin-sdk` 装进 `node_modules` 的快照**，版本与本工程实际编译的 SDK 一致——这正是它的价值：它不会教你写宿主还不支持的东西。代价是工程不升级 SDK，它就永远停在初始化那天。开工前确认一次：
 >
@@ -47,7 +56,7 @@
 | **顶层不要出现依赖共享 React 的 JSX** | Module Federation 的加载时序问题。放进组件或 `activate` 内 | [styling-and-pitfalls](./styling-and-pitfalls.md#module-federation-顶层-jsx-陷阱) |
 | **不要写 `agent_mode`** | 已废弃，无运行时语义。想收窄某个工具的使用场景，把「何时不该用它 + 替代做法」写进该工具 description 的反向触发段 | [guiding-the-agent](./guiding-the-agent.md#3-description-反向触发段在选择前说明边界) |
 | **依赖用 registry 上已发布的 semver** | 不要 `workspace:*`——那是仓库内插件专用的，发出去的包在用户机器上装不上 | [getting-started](./getting-started.md#2-packagejson) |
-| **目录市场发布要有构建制品** | 旧版 GitHub 市场通过仓库目录安装时，宿主直接读 `entry` 与 `styles`；新版 schema v3 可把 `.vettapkg` 发布为独立制品，市场仓库只保留元数据 | [getting-started](./getting-started.md#6-构建与打包) |
+| **目录市场发布要有构建制品** | 旧版 GitHub 市场通过仓库目录安装时，宿主直接读 `entry` 与 `styles`；新版 schema v3 可把 `.567plugin` 发布为独立制品，市场仓库只保留元数据 | [getting-started](./getting-started.md#6-构建与打包) |
 | **信息不足时问用户** | 插件 id、展示名、要用哪些权限、功能边界、是否立刻安装——不要自己假定 | — |
 
 ## 插件能做什么

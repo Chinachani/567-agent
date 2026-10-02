@@ -5,8 +5,8 @@ import type {
 	HookDispatchOutcome,
 	HookOutputEntry,
 	HookRunSummary,
-} from "@vetta/coding-agent/hooks";
-import { aggregateHookDispatchOutcomes, emptyHookDispatchOutcome } from "@vetta/coding-agent/hooks";
+} from "@567agent/coding-agent/hooks";
+import { aggregateHookDispatchOutcomes, emptyHookDispatchOutcome } from "@567agent/coding-agent/hooks";
 import type { PluginCodingAgentHookEvent, PluginCodingAgentHookEventName } from "@vetta-org/plugin-sdk";
 import { invokeDesktopPluginHook } from "./coding-agent-hook-invocation.js";
 import {

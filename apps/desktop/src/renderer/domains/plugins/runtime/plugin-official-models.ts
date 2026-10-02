@@ -8,7 +8,7 @@ import { getDefaultStore } from "jotai";
 
 /**
  * 宿主的可选模型有**两个来源**：主进程的 `models.json`（用户自配的 provider）和
- * 登录后服务端下发的远程目录（Vetta Go 等，只存在于 renderer 内存）。主进程那侧
+ * 登录后服务端下发的远程目录（567 Agent Go 等，只存在于 renderer 内存）。主进程那侧
  * 看不见远程目录，所以 `list` / `assertModelKeyExists` 必须在这里把两份合起来，
  * 否则插件拿到的模型清单会比用户在输入栏里看到的少一整块。
  *
@@ -59,7 +59,7 @@ function readRemoteProviders(): PluginOfficialProviderSummary[] {
 			{
 				id,
 				// 与宿主选择器同一套兜底：远程目录没给显示名时，vetta-go 有专名，其余回落 provider id。
-				displayName: entry.displayName ?? (id === "vetta-go" ? "Vetta Go" : id),
+				displayName: entry.displayName ?? (id === "vetta-go" ? "567 Agent Go" : id),
 				...(entry.baseUrl ? { baseUrl: entry.baseUrl } : {}),
 				...(entry.api ? { api: entry.api } : {}),
 				...(entry.icon ? { icon: entry.icon } : {}),
@@ -134,7 +134,7 @@ export function createOfficialModelsApi(
 		},
 		assertModelKeyExists: async (modelKey, operation) => {
 			assertOfficial();
-			// 远程目录里的模型（Vetta Go）主进程不认识，先在本地内存这份里认一次再落回主进程校验。
+			// 远程目录里的模型（567 Agent Go）主进程不认识，先在本地内存这份里认一次再落回主进程校验。
 			if (remoteHasModelKey(modelKey)) return;
 			await models.validateModelKey(capabilitySessionId, modelKey, operation);
 		},

@@ -1,3 +1,5 @@
+import type { AgentTeamDocument, TeamDefinition } from "@567agent/agent-team";
+import type { HistoryEntry, PromptAttachmentRef, SessionExecutionMode } from "@567agent/runtime-core";
 import type {
 	DesktopTeamSessionSnapshot,
 	DesktopTeamSessionStreamEvent,
@@ -16,8 +18,6 @@ import {
 import type { InputSegment } from "@shared/lib/input-tokens";
 import type { ChatConversationItem, ChatToolCallPresentationViewModel, ContextUsageData } from "@shared/store/atoms";
 import type { ActivityWorkspace } from "@shared/workspace/activity-workspace";
-import type { AgentTeamDocument, TeamDefinition } from "@vetta/agent-team";
-import type { HistoryEntry, PromptAttachmentRef, SessionExecutionMode } from "@vetta/runtime-core";
 import type { ConversationScenario } from "@vetta-org/plugin-sdk";
 import { fullHistoryToChat } from "../../services/chat-service";
 import { classifyChatError } from "../../services/classifyChatError";

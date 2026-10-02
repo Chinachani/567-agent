@@ -1,5 +1,5 @@
-import type { Api, Model } from "@vetta/ai";
-import { type RuntimeObservationPublisher, runtimeObservationFailure } from "@vetta/runtime-core";
+import type { Api, Model } from "@567agent/ai";
+import { type RuntimeObservationPublisher, runtimeObservationFailure } from "@567agent/runtime-core";
 import { CODING_AGENT_COMPACTION_PREFIRE_OBSERVATION } from "../../runtime-contracts/context-observability.js";
 import type { CodingAgentContextRuntimeOptions } from "../../runtime-contracts/index.js";
 import type { CodingAgentSessionEntry as SessionEntry } from "../../sessions/index.js";

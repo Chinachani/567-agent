@@ -1,4 +1,4 @@
-import type { Message } from "@vetta/ai";
+import type { Message } from "@567agent/ai";
 import type {
 	CodingAgentPlanReviewRequest,
 	CodingAgentPlanReviewResult,
@@ -6,9 +6,9 @@ import type {
 	CodingAgentQuestionResult,
 	CodingAgentSandboxAuthorizationDecision,
 	CodingAgentSandboxAuthorizationFunctionRequest,
-} from "@vetta/coding-agent/function-extensions";
-import type { ConversationScenario } from "@vetta/coding-agent/profile";
-import type { CodingAgentPermissionMode, CodingAgentPlanModeState } from "@vetta/coding-agent/session-extensions";
+} from "@567agent/coding-agent/function-extensions";
+import type { ConversationScenario } from "@567agent/coding-agent/profile";
+import type { CodingAgentPermissionMode, CodingAgentPlanModeState } from "@567agent/coding-agent/session-extensions";
 import type {
 	HistoryEntry,
 	ProjectInfo,
@@ -21,7 +21,7 @@ import type {
 	SessionExecutionMode,
 	SessionStateSnapshot,
 	SettingsPatch,
-} from "@vetta/runtime-core";
+} from "@567agent/runtime-core";
 import type { DesktopMcpAppResourceRead, DesktopMcpAppSurface, DesktopMcpAppToolCall } from "../../shared/mcp-app.js";
 import type {
 	DesktopMcpElicitationRequest,

@@ -6,16 +6,16 @@ import {
 	createCodingAgentEditPathPolicy,
 	createCodingAgentSessionCommandEnvironment,
 	createCodingAgentWritePathPolicy,
-} from "@vetta/coding-agent/composition";
+} from "@567agent/coding-agent/composition";
 import {
 	CONFIG_DIR_NAME,
 	getAgentDir,
 	getKnowledgeDir,
 	getSceneDir,
 	getUserSkillsDir,
-} from "@vetta/coding-agent/config";
-import { CODING_AGENT_READ_TOOL_OPTIONS } from "@vetta/coding-agent/host";
-import { SettingsRuntime } from "@vetta/coding-agent/settings";
+} from "@567agent/coding-agent/config";
+import { CODING_AGENT_READ_TOOL_OPTIONS } from "@567agent/coding-agent/host";
+import { SettingsRuntime } from "@567agent/coding-agent/settings";
 import {
 	createNodeFileToolRegistrations,
 	createNodeHostCodingToolEnvironment,
@@ -25,8 +25,8 @@ import {
 	createNodeShellEnvironment,
 	getNodeShellCommandPrefix,
 	resolveNodeShell,
-} from "@vetta/runtime-node/coding";
-import { NodeScopedTextStorage } from "@vetta/runtime-node/host";
+} from "@567agent/runtime-node/coding";
+import { NodeScopedTextStorage } from "@567agent/runtime-node/host";
 
 /** Desktop Composition Root selection of Coding Agent's Node tool implementations. */
 export const createDesktopCodingAgentToolEnvironment: CodingAgentToolEnvironmentFactory = (context) => {

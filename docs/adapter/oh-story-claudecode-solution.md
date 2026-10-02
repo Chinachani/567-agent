@@ -119,7 +119,7 @@ packages/plugins/externals/oh-story-vetta/
 
 ## 2. story-setup 在 Vetta 中直接走 Codex 部署
 
-Vetta 会话需要公开结构化宿主信息：
+567 Agent 会话需要公开结构化宿主信息：
 
 ```text
 host = vetta

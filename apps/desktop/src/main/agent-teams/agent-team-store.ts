@@ -18,7 +18,7 @@ import {
 	type TeamMemberAssignment,
 	type UpdateAgentProfileInput,
 	type UpdateTeamInput,
-} from "@vetta/agent-team";
+} from "@567agent/agent-team";
 import { getAppLogger } from "../logger.js";
 import { agentBlueprintRegistry, resolveAgentBlueprint } from "./agent-blueprint-registry.js";
 import { type AgentTeamConfigRepository, createAgentTeamConfigRepository } from "./agent-team-config-repository.js";

@@ -12,8 +12,8 @@ import (
 	"testing"
 	"time"
 
-	"vetta-im-gateway/internal/transport"
-	"vetta-im-gateway/internal/transport/wechat/ilink"
+	"github.com/Chinachani/567-agent/apps/im-gateway/internal/transport"
+	"github.com/Chinachani/567-agent/apps/im-gateway/internal/transport/wechat/ilink"
 )
 
 // =============================================================================

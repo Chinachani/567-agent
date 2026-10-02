@@ -1,8 +1,8 @@
 import { readFile, rm, writeFile } from "node:fs/promises";
 import { hostname } from "node:os";
 import { join } from "node:path";
-import { migrateCodingAgentHistoricalSession } from "@vetta/coding-agent/historical-sessions";
-import { createNodeLegacySessionHost } from "@vetta/runtime-node/host";
+import { migrateCodingAgentHistoricalSession } from "@567agent/coding-agent/historical-sessions";
+import { createNodeLegacySessionHost } from "@567agent/runtime-node/host";
 import { afterAll, afterEach, beforeAll, describe, expect, it } from "vitest";
 import {
 	type AgentRpcExecutable,

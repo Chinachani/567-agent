@@ -1,7 +1,7 @@
+import type { RuntimeToolDefinition } from "@567agent/runtime-core/kernel";
+import type { SubagentCoordinatorPort } from "@567agent/runtime-subagents";
+import { ToolCallDescriptionSchema } from "@567agent/runtime-tools/coding";
 import { type Static, Type } from "@sinclair/typebox";
-import type { RuntimeToolDefinition } from "@vetta/runtime-core/kernel";
-import type { SubagentCoordinatorPort } from "@vetta/runtime-subagents";
-import { ToolCallDescriptionSchema } from "@vetta/runtime-tools/coding";
 import { resolveSubagentTaskMessage, SubagentTaskContractSchema } from "../../task-contract.js";
 import { SPAWN_AGENT_TOOL_DESCRIPTION } from "./description.js";
 

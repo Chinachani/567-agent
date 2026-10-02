@@ -1,4 +1,4 @@
-import type { RuntimeHost, SessionEvent } from "@vetta/runtime-core";
+import type { RuntimeHost, SessionEvent } from "@567agent/runtime-core";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import type { ScheduledTask, TaskExecutionRecord } from "./task-storage.js";
 

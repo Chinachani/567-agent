@@ -45,14 +45,14 @@ export function findRuntimeCodingAgentIndependenceViolations(input) {
 	const violations = [];
 	for (const manifest of input.manifests) {
 		for (const section of DEPENDENCY_SECTIONS) {
-			if (manifest.content[section]?.["@vetta/coding-agent"] === undefined) continue;
-			violations.push(`${manifest.path}: ${section} must not declare @vetta/coding-agent`);
+			if (manifest.content[section]?.["@567agent/coding-agent"] === undefined) continue;
+			violations.push(`${manifest.path}: ${section} must not declare @567agent/coding-agent`);
 		}
 	}
 	for (const file of input.files) {
 		for (const [index, line] of file.text.split(/\r?\n/u).entries()) {
-			if (line.includes("@vetta/coding-agent")) {
-				violations.push(`${file.path}:${index + 1}: Runtime package file depends on @vetta/coding-agent`);
+			if (line.includes("@567agent/coding-agent")) {
+				violations.push(`${file.path}:${index + 1}: Runtime package file depends on @567agent/coding-agent`);
 			}
 			if (!file.path.replaceAll("\\", "/").includes("/src/")) continue;
 			for (const token of FORBIDDEN_PRODUCT_SOURCE_TOKENS) {

@@ -36,7 +36,7 @@ Pi source module
 
 ## 为什么不直接映射到当前 Vetta ExtensionAPI
 
-直接把 Pi 包名 alias 到 `@vetta/coding-agent` 能很快跑通少量扩展，但会产生四个问题：
+直接把 Pi 包名 alias 到 `@567agent/coding-agent` 能很快跑通少量扩展，但会产生四个问题：
 
 1. 同名 API 的参数和生命周期已经分叉，静态类型相似不代表运行时兼容。
 2. Pi current 使用 `typebox@1.3.7`，Vetta native Extension 使用 `@sinclair/typebox@0.34`；直接共享对象会隐藏 Schema 方言和运行时校验问题。

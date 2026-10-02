@@ -1,4 +1,4 @@
-import { RemoteDesktopHost, WebSocketRemoteDesktopSignaling } from "@vetta/remote-desktop";
+import { RemoteDesktopHost, WebSocketRemoteDesktopSignaling } from "@567agent/remote-desktop";
 
 declare global {
 	interface Window {

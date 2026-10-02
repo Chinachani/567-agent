@@ -1,9 +1,9 @@
-import type { AssistantMessage, Message, UserMessage } from "@vetta/ai";
+import type { AssistantMessage, Message, UserMessage } from "@567agent/ai";
 import {
 	applyStoredEventToConversationDocument,
 	createEmptyConversationDocument,
-} from "@vetta/runtime-core/conversation";
-import type { ModelCallMessageFinalizationInput } from "@vetta/runtime-core/kernel";
+} from "@567agent/runtime-core/conversation";
+import type { ModelCallMessageFinalizationInput } from "@567agent/runtime-core/kernel";
 import { describe, expect, it } from "vitest";
 import { CodingAgentModelCallMessageFinalizer } from "../../src/model-context/model-call-message-finalizer.js";
 import { CodingAgentConversationContextProjector } from "../../src/sessions/projection/conversation-context-projector.js";

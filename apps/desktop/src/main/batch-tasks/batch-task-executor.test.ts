@@ -1,8 +1,8 @@
 import { mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import type { AssistantMessage } from "@vetta/ai";
-import type { RuntimeHost } from "@vetta/runtime-core";
+import type { AssistantMessage } from "@567agent/ai";
+import type { RuntimeHost } from "@567agent/runtime-core";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { BatchTaskState } from "./batch-task-state.js";
 import type { BatchProject, BatchTask } from "./batch-task-storage.js";

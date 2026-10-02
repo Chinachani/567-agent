@@ -142,7 +142,7 @@ const ANNOTATION_SELECT_TEXT_MAX_ATTEMPTS = 8
 const ANNOTATION_SELECT_TEXT_SETTLE_ATTEMPTS = 4
 const ANNOTATION_EDIT_TOOL_LABEL = '按标注修改'
 const ANNOTATION_HTML_TOOL_LABEL = '按标注生成 Html'
-/** Vetta Desktop image tools: new bitmap → generate_image; revise existing → edit_image. */
+/** 567 Agent image tools: new bitmap → generate_image; revise existing → edit_image. */
 const VETTA_IMAGE_TOOL_RULES = [
   '【Vetta 图片工具约定 — 必须遵守】',
   '- 生成全新图片（新建画面、AI 图片框填图、从 HTML/文案/参考图新建位图）：必须调用工具 generate_image。',

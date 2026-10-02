@@ -1,4 +1,4 @@
-import { bindCapability, type CapabilityRegistry } from "@vetta/capability-runtime";
+import { bindCapability, type CapabilityRegistry } from "@567agent/capability-runtime";
 import { type Disposable, FOUNDATION_JOB_CAPABILITIES } from "@vetta-org/capability-sdk";
 import type { JobManager } from "../jobs/job-manager.js";
 

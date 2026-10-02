@@ -1,5 +1,5 @@
 {
-	"name": "@vetta/theme-xianxia",
+	"name": "@567agent/theme-xianxia",
 	"version": "0.1.0",
 	"type": "module",
 	"private": true,
@@ -21,7 +21,7 @@
 	"dependencies": {
 		"@vetta-org/theme-sdk": "workspace:*",
 		"@vetta-org/theme-ui": "workspace:*",
-		"@vetta/toolkit": "workspace:*",
+		"@567agent/toolkit": "workspace:*",
 		"@visx/event": "^4.0.0",
 		"@visx/group": "^4.0.0",
 		"@visx/scale": "^4.0.0",

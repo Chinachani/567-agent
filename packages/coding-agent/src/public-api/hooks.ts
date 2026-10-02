@@ -16,7 +16,7 @@ export {
 	type HookEventName,
 	type HookOutputEntry,
 	type HookRunSummary,
-} from "@vetta/ecosystem-adapter";
+} from "@567agent/ecosystem-adapter";
 export {
 	type EcosystemHookAwareTool,
 	wrapToolsWithEcosystemHooks,

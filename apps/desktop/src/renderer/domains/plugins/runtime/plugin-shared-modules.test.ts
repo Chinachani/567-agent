@@ -10,12 +10,22 @@ import { createPluginRuntimeShared, pluginSharedModules } from "./plugin-shared-
  */
 describe("plugin shared modules", () => {
 	it("serves the design system under both its current and legacy package name", () => {
+		expect(pluginSharedModules["@vetta-org/ui"].module).toBe(pluginSharedModules["@567agent/ui"].module);
 		expect(pluginSharedModules["@vetta-org/ui"].module).toBe(pluginSharedModules["@vetta/ui"].module);
 	});
 
 	it("serves the host component surface under both names too", () => {
 		expect(pluginSharedModules["@vetta-org/theme-ui/plugin-ui"].module).toBe(
-			pluginSharedModules["@vetta/theme-ui/plugin-ui"].module,
+			pluginSharedModules["@567agent/theme-ui/plugin-ui"].module,
+		);
+	});
+
+	it("keeps the new SDK name on the host singleton", () => {
+		expect(pluginSharedModules["@567agent/plugin-sdk"].module).toBe(
+			pluginSharedModules["@vetta-org/plugin-sdk"].module,
+		);
+		expect(pluginSharedModules["@vetta/theme-ui/plugin-ui"].module).toBe(
+			pluginSharedModules["@567agent/theme-ui/plugin-ui"].module,
 		);
 	});
 
@@ -26,7 +36,7 @@ describe("plugin shared modules", () => {
 			expect(Object.keys(shared)).toContain(name);
 		}
 		// 共享条目的类型是联合体；取到的这一支带 lib()，它返回的实例必须与新名同一份。
-		const legacy = shared["@vetta/ui"];
+		const legacy = shared["@567agent/ui"];
 		const resolve = (Array.isArray(legacy) ? legacy[0] : legacy) as { lib?: () => unknown } | undefined;
 		expect(resolve?.lib?.()).toBe(pluginSharedModules["@vetta-org/ui"].module);
 	});

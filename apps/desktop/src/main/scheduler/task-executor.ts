@@ -1,5 +1,5 @@
-import { createCodingAgentRuntimeSessionSelection } from "@vetta/coding-agent/composition";
-import type { RuntimeHost, SessionEvent } from "@vetta/runtime-core";
+import { createCodingAgentRuntimeSessionSelection } from "@567agent/coding-agent/composition";
+import type { RuntimeHost, SessionEvent } from "@567agent/runtime-core";
 import { formatScheduleSessionName } from "../../shared/scheduled-session.js";
 import { monitorRuntimeSession, recordAutomationRunStarted } from "../app-monitor/app-monitor-service.js";
 import { resolveExecutionMode } from "../execution-mode.js";

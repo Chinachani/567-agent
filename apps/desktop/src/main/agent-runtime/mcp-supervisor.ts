@@ -1,15 +1,15 @@
 import { basename } from "node:path";
 import { pathToFileURL } from "node:url";
-import { CONFIG_DIR_NAME, VERSION } from "@vetta/coding-agent/config";
-import type { McpServerConfig } from "@vetta/runtime-mcp";
+import { CONFIG_DIR_NAME, VERSION } from "@567agent/coding-agent/config";
+import type { McpServerConfig } from "@567agent/runtime-mcp";
 import {
 	EMPTY_MCP_CONFIG_SOURCE,
 	MCP_APP_CLIENT_CAPABILITY,
 	MCP_APPS_EXTENSION_ID,
 	type McpServerInteractionHandlers,
 	type McpServerSupervisor,
-} from "@vetta/runtime-mcp";
-import { createMcpClient, createNodeMcpSupervisor } from "@vetta/runtime-node/mcp";
+} from "@567agent/runtime-mcp";
+import { createMcpClient, createNodeMcpSupervisor } from "@567agent/runtime-node/mcp";
 import { ensureOpenMarketplaceManagedMcpRuntime } from "../abilities/open-marketplace/open-marketplace-mcp-runtime-host.js";
 import { getDesktopMcpElicitationBroker } from "../conversations/mcp-elicitation-broker.js";
 import { getAppLogger } from "../logger.js";

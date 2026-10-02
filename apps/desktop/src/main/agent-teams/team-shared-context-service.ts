@@ -14,11 +14,11 @@ import {
 	type TeamSessionDocument,
 	type TeamSharedContextCheckpoint,
 	type TeamSharedHistoryQuery,
-} from "@vetta/agent-team";
-import type { RuntimeHost } from "@vetta/runtime-core";
-import type { ConversationMessageRecord } from "@vetta/runtime-core/conversation";
-import type { SessionContextRecord } from "@vetta/runtime-core/kernel";
-import { runtimeObservationFailure } from "@vetta/runtime-core/observation";
+} from "@567agent/agent-team";
+import type { RuntimeHost } from "@567agent/runtime-core";
+import type { ConversationMessageRecord } from "@567agent/runtime-core/conversation";
+import type { SessionContextRecord } from "@567agent/runtime-core/kernel";
+import { runtimeObservationFailure } from "@567agent/runtime-core/observation";
 import type { TeamCollaborationStore } from "./team-collaboration-store.js";
 import { TeamOperationQueue } from "./team-operation-queue.js";
 import type { TeamSessionStateRepository } from "./team-session-state-repository.js";

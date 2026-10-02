@@ -2,27 +2,27 @@ import { existsSync } from "node:fs";
 import { mkdtemp, readdir, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
-import type { Api, Model } from "@vetta/ai";
-import { resolveCodingAgentSessionDir } from "@vetta/coding-agent/bootstrap";
+import type { Api, Model } from "@567agent/ai";
+import { resolveCodingAgentSessionDir } from "@567agent/coding-agent/bootstrap";
 import {
 	type CodingAgentRuntimeCompositionOptions,
 	createCodingAgentRuntimeComposition,
 	createCodingAgentRuntimeSessionSelection,
 	publishCodingAgentExecutionRuntimeDefinition,
-} from "@vetta/coding-agent/composition";
-import type { EcosystemHookAdapterFactory } from "@vetta/coding-agent/hooks";
-import type { CodingAgentRuntimeModelSource } from "@vetta/coding-agent/host-services";
-import type { ConversationScenario } from "@vetta/coding-agent/profile";
-import { CODING_AGENT_SESSION_PROFILE_STATE_READ } from "@vetta/coding-agent/session-extensions";
+} from "@567agent/coding-agent/composition";
+import type { EcosystemHookAdapterFactory } from "@567agent/coding-agent/hooks";
+import type { CodingAgentRuntimeModelSource } from "@567agent/coding-agent/host-services";
+import type { ConversationScenario } from "@567agent/coding-agent/profile";
+import { CODING_AGENT_SESSION_PROFILE_STATE_READ } from "@567agent/coding-agent/session-extensions";
 import {
 	RuntimeHost as BaseRuntimeHost,
 	RuntimeAgentRuntime,
 	RuntimeObservationHub,
 	type SessionConfig,
-} from "@vetta/runtime-core";
-import type { McpRuntimeToolSource } from "@vetta/runtime-mcp";
-import { createInMemoryConversationPersistence } from "@vetta/runtime-node/conversation";
-import type { CodingToolResultPolicy } from "@vetta/runtime-tools";
+} from "@567agent/runtime-core";
+import type { McpRuntimeToolSource } from "@567agent/runtime-mcp";
+import { createInMemoryConversationPersistence } from "@567agent/runtime-node/conversation";
+import type { CodingToolResultPolicy } from "@567agent/runtime-tools";
 import { afterAll, afterEach, beforeAll, describe, expect, it, vi } from "vitest";
 import { DesktopRuntimeBackendPool } from "./backend-pool.js";
 import { DesktopRuntimeSessionCatalog } from "./session-catalog.js";

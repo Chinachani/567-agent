@@ -1,6 +1,6 @@
 import { writeSync } from "node:fs";
 import { parseArgs } from "node:util";
-import { ActionRpcError, createActionRpcClient, readActionRpcEndpoint } from "@vetta/action-rpc";
+import { ActionRpcError, createActionRpcClient, readActionRpcEndpoint } from "@567agent/action-rpc";
 import { z } from "zod";
 
 const actionErrorCommandSchema = z.object({
@@ -58,7 +58,7 @@ Usage:
   vetta action --help
 
 Description:
-  Operate the running Vetta Desktop app through its local action RPC.
+  Operate the running 567 Agent app through its local action RPC.
   The GUI must already be running. Do not guess action ids or parameters
   from memory; discover them at runtime.
 

@@ -1,7 +1,7 @@
 import { stat } from "node:fs/promises";
 import { extname, isAbsolute, resolve } from "node:path";
-import type { AgentTeamDocument } from "@vetta/agent-team";
-import { CODING_AGENT_SESSION_TITLE_GENERATE } from "@vetta/coding-agent/session-extensions";
+import type { AgentTeamDocument } from "@567agent/agent-team";
+import { CODING_AGENT_SESSION_TITLE_GENERATE } from "@567agent/coding-agent/session-extensions";
 import {
 	isSessionError,
 	type PromptRequest,
@@ -12,8 +12,8 @@ import {
 	type RuntimeTurnPromptOutcome,
 	runtimeFailureFromAIErrorDetails,
 	type SessionEvent,
-} from "@vetta/runtime-core";
-import { sanitizeRuntimeErrorMessage } from "@vetta/runtime-desktop";
+} from "@567agent/runtime-core";
+import { sanitizeRuntimeErrorMessage } from "@567agent/runtime-desktop";
 import { type DesktopSessionHistoryInfo, UNAVAILABLE_RUNTIME_SESSION_ACCESS } from "../../shared/session-access.js";
 import { agentTeamStore } from "../agent-teams/agent-team-store.js";
 import { ensureLegacyAgentTeamOwnershipCatalog } from "../agent-teams/team-ownership-backfill.js";

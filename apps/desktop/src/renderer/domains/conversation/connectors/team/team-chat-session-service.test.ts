@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 
-import { createAgentTeamFixture, type TeamSessionSnapshot } from "@vetta/agent-team";
+import { createAgentTeamFixture, type TeamSessionSnapshot } from "@567agent/agent-team";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import {
 	createReservedTeamChatSession,

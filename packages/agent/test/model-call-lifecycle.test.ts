@@ -5,7 +5,7 @@ import {
 	EventStream,
 	type Message,
 	type Model,
-} from "@vetta/ai";
+} from "@567agent/ai";
 import { describe, expect, it, vi } from "vitest";
 import { agentLoopContinue } from "../src/agent-loop.js";
 import type { AgentLoopConfig, AgentMessage } from "../src/types.js";

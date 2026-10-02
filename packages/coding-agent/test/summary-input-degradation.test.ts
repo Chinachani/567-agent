@@ -1,5 +1,5 @@
-import type { AgentMessage } from "@vetta/agent-core";
-import type { AssistantMessage, ToolResultMessage, UserMessage } from "@vetta/ai";
+import type { AgentMessage } from "@567agent/agent-core";
+import type { AssistantMessage, ToolResultMessage, UserMessage } from "@567agent/ai";
 import { describe, expect, it } from "vitest";
 import { createCompactionSummaryInputCandidates } from "../src/compaction/summary-input-degradation.js";
 

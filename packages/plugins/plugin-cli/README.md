@@ -1,6 +1,6 @@
 # @vetta-org/plugin-cli
 
-Create, document and install Vetta Desktop plugins from any directory.
+Create, document and install 567 Agent plugins from any directory.
 
 ## Start a plugin
 
@@ -95,7 +95,7 @@ the chain that cannot be out of date — when it disagrees with a checked-in bri
 
 ## Install a plugin
 
-Install an npm-distributed plugin into the running Vetta Desktop app:
+Install an npm-distributed plugin into the running 567 Agent app:
 
 ```bash
 npx @vetta-org/plugin-cli add @example/vetta-plugin-demo

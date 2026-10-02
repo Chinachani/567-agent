@@ -6,8 +6,8 @@
  * Runs as a pure function on every LLM call via transformContext.
  */
 
-import type { AgentMessage } from "@vetta/agent-core";
-import type { AssistantMessage, ToolResultMessage } from "@vetta/ai";
+import type { AgentMessage } from "@567agent/agent-core";
+import type { AssistantMessage, ToolResultMessage } from "@567agent/ai";
 import type { BashExecutionMessage } from "../model-context/index.js";
 
 export interface MicrocompactOptions {

@@ -1,6 +1,6 @@
-# @vetta/action-rpc
+# @567agent/action-rpc
 
-Localhost HTTP JSON RPC transport for Vetta Desktop capabilities.
+Localhost HTTP JSON RPC transport for 567 Agent capabilities.
 
 This package owns transport, protocol, server, and client helpers only. It does
 not define desktop business capabilities.

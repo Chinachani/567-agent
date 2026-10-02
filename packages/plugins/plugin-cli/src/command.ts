@@ -1,7 +1,7 @@
 import { existsSync, readFileSync, statSync } from "node:fs";
 import { join, resolve } from "node:path";
 import { parseArgs } from "node:util";
-import { ActionRpcError, createActionRpcClient, readActionRpcEndpoint } from "@vetta/action-rpc";
+import { ActionRpcError, createActionRpcClient, readActionRpcEndpoint } from "@567agent/action-rpc";
 import { readLatestNpmVersion, resolveNpmPluginArchive, type ResolvedNpmPluginArchive } from "./npm-package.js";
 import { AGENTS_GUIDE_REVISION, readAgentsGuideRevision } from "./agents-template.js";
 import { initHubRepository, initPluginProject, refreshAgentsGuide } from "./init.js";
@@ -84,7 +84,7 @@ Examples:
   npx @vetta-org/plugin-cli add @example/vetta-plugin-demo
   npx @vetta-org/plugin-cli add @example/vetta-plugin-demo@1.2.0
   npx @vetta-org/plugin-cli add .                      # 当前插件工程（先 pack）
-  npx @vetta-org/plugin-cli add ./release/demo-1.2.0.vettapkg
+  npx @vetta-org/plugin-cli add ./release/demo-1.2.0.567plugin
   npx @vetta-org/plugin-cli reload demo
   npx @vetta-org/plugin-cli docs
   npx @vetta-org/plugin-cli init --id my-plugin --name "My Plugin"
@@ -230,7 +230,7 @@ function parseInitHubCommand(argv: string[]): PluginInitCommand {
 	if (typeof minAppVersion !== "string" || minAppVersion.length === 0) {
 		return {
 			type: "error",
-			message: "Missing --min-app-version <x.y.z> (the oldest Vetta Desktop version your abilities support)",
+			message: "Missing --min-app-version <x.y.z> (the oldest 567 Agent version your abilities support)",
 		};
 	}
 	const [targetDir, unexpected] = parsed.positionals;
@@ -333,7 +333,7 @@ function isHttpUrl(source: string): boolean {
 
 function isLocalPackage(source: string): boolean {
 	const lower = source.toLowerCase();
-	if (lower.endsWith(".vettapkg") || lower.endsWith(".zip")) return true;
+	if (lower.endsWith(".567plugin") || lower.endsWith(".vettapkg") || lower.endsWith(".zip")) return true;
 	const path = resolve(source);
 	// 目录不是压缩包：它是一个插件工程，走 resolveProjectArchive 先找它打出来的产物。
 	return existsSync(path) && !statSync(path).isDirectory();
@@ -363,7 +363,9 @@ function resolveProjectArchive(source: string): { archivePath: string; project: 
 		}
 		throw new Error(`No plugin.json found in ${from} or any parent directory.`);
 	}
-	const archivePath = join(project.root, "release", `${project.pluginId}-${project.version}.vettapkg`);
+	const newArchivePath = join(project.root, "release", `${project.pluginId}-${project.version}.567plugin`);
+	const legacyArchivePath = join(project.root, "release", `${project.pluginId}-${project.version}.vettapkg`);
+	const archivePath = existsSync(newArchivePath) ? newArchivePath : legacyArchivePath;
 	if (!existsSync(archivePath)) {
 		throw new Error(
 			`Packaged archive not found: ${archivePath}\nBuild it first: npm run build && npx vetta-plugin pack`,

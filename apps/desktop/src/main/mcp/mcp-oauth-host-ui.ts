@@ -1,5 +1,5 @@
 import { createServer, type Server } from "node:http";
-import type { McpDeviceCodeInfo, McpOAuthCallbackSession } from "@vetta/runtime-mcp";
+import type { McpDeviceCodeInfo, McpOAuthCallbackSession } from "@567agent/runtime-mcp";
 import { mainT } from "../i18n/index.js";
 
 export async function createOAuthCallbackSession(): Promise<McpOAuthCallbackSession> {

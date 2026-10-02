@@ -1,6 +1,6 @@
 /** Structured system-prompt document and deterministic mutation/rendering operations. */
 
-import type { PromptCacheSystemPromptBlockSpan } from "@vetta/ai";
+import type { PromptCacheSystemPromptBlockSpan } from "@567agent/ai";
 import type {
 	SystemPromptBlock,
 	SystemPromptBlockType,

@@ -10,7 +10,7 @@
  * 3. When enabled, the agent will respond like a pirate
  */
 
-import type { ExtensionAPI } from "@vetta/coding-agent";
+import type { ExtensionAPI } from "@567agent/coding-agent";
 
 export default function pirateExtension(api: ExtensionAPI) {
 	let pirateMode = false;

@@ -34,7 +34,7 @@ typebox/value
 
 这不仅是类型层兼容。Extension 可能在 factory 或 Tool 实现中调用 `Value.*`、`Compile` 等运行时代码。如果只提供假的类型声明，模块会在执行时失败。
 
-建议在 `@vetta/coding-agent` 增加与目标兼容 profile 对齐的精确 `typebox` minor 依赖，并由 virtual module facade 暴露。依赖升级必须通过 compatibility corpus 后才能调整；不要用宽范围表达“所有未来 TypeBox 1 都兼容”。
+建议在 `@567agent/coding-agent` 增加与目标兼容 profile 对齐的精确 `typebox` minor 依赖，并由 virtual module facade 暴露。依赖升级必须通过 compatibility corpus 后才能调整；不要用宽范围表达“所有未来 TypeBox 1 都兼容”。
 
 Pi legacy namespace 中的 `@sinclair/typebox` 也应在 **Pi loader 内**指向 TypeBox 1 facade，以复现 Pi 当前行为。Vetta native loader 仍把 `@sinclair/typebox` 指向现有 0.34 实例，两者不能共享 specifier map。
 
@@ -95,7 +95,7 @@ normalize/`prepareArguments` 抛错与 Schema 校验失败使用不同错误码�
 
 ## Zod 是否引入
 
-`@vetta/coding-agent` 已经依赖 Zod，但本兼容层不应因为“类型判断更方便”而无差别使用它。
+`@567agent/coding-agent` 已经依赖 Zod，但本兼容层不应因为“类型判断更方便”而无差别使用它。
 
 适合 Zod 的场景：
 

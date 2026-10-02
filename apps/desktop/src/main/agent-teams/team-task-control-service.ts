@@ -10,9 +10,9 @@ import type {
 	TeamWaitTasksRequest,
 	TeamWaitTasksResult,
 	TeamWorkItem,
-} from "@vetta/agent-team";
-import { matchesTeamExternalConditionChange } from "@vetta/agent-team";
-import type { ConversationDocument } from "@vetta/runtime-core";
+} from "@567agent/agent-team";
+import { matchesTeamExternalConditionChange } from "@567agent/agent-team";
+import type { ConversationDocument } from "@567agent/runtime-core";
 import { getAppLogger } from "../logger.js";
 import type { TeamCollaborationStore } from "./team-collaboration-store.js";
 import type { TeamMemberScheduler } from "./team-member-scheduler.js";

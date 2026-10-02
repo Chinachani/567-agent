@@ -1,5 +1,5 @@
 {
-	"name": "@vetta/cli-host",
+	"name": "@567agent/cli-host",
 	"version": "0.0.1",
 	"type": "module",
 	"main": "./dist/index.js",
@@ -20,15 +20,15 @@
 		"verify:runtime-contract": "bun ../../scripts/quality/run-vitest.mjs --run --maxWorkers=4 contract.test.ts test/runtime-host.test.ts test/agent-runtime-selection.test.ts test/rpc-session-adapter.test.ts test/session-resource-close.test.ts test/agent-runtime-initialization-failure.test.ts test/agent-print-mode.test.ts"
 	},
 	"dependencies": {
-		"@vetta/ai": "workspace:*",
-		"@vetta/action-rpc": "workspace:*",
-		"@vetta/coding-agent": "workspace:*",
-		"@vetta/ecosystem-adapter": "workspace:*",
-		"@vetta/runtime-core": "workspace:*",
-		"@vetta/runtime-mcp": "workspace:*",
-		"@vetta/runtime-node": "workspace:*",
-		"@vetta/runtime-storage": "workspace:*",
-		"@vetta/runtime-subagents": "workspace:*",
+		"@567agent/ai": "workspace:*",
+		"@567agent/action-rpc": "workspace:*",
+		"@567agent/coding-agent": "workspace:*",
+		"@567agent/ecosystem-adapter": "workspace:*",
+		"@567agent/runtime-core": "workspace:*",
+		"@567agent/runtime-mcp": "workspace:*",
+		"@567agent/runtime-node": "workspace:*",
+		"@567agent/runtime-storage": "workspace:*",
+		"@567agent/runtime-subagents": "workspace:*",
 		"chalk": "^5.5.0",
 		"zod": "^4.4.3"
 	},

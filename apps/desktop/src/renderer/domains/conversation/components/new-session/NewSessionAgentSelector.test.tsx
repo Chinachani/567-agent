@@ -2,7 +2,7 @@
 
 import { cleanup, render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { type AgentProfile, createAgentTeamFixture } from "@vetta/agent-team";
+import { type AgentProfile, createAgentTeamFixture } from "@567agent/agent-team";
 import { useState } from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { NewSessionAgentSelector } from "./NewSessionAgentSelector";

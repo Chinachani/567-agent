@@ -14,7 +14,7 @@
 
 第 206 阶段已经让 CLI、Desktop 和 Knowledge Processing 生产宿主无法激活 Legacy，但仍存在四个发布层缺口：
 
-1. `@vetta/coding-agent` 仍声明 `vetta-agent -> dist/cli.js`；
+1. `@567agent/coding-agent` 仍声明 `vetta-agent -> dist/cli.js`；
 2. `coding-agent/src/cli.ts` 仍直接调用 Legacy `main()`；
 3. 独立二进制和全局 link 脚本仍以 `coding-agent/dist/cli.js` 为入口；
 4. `RpcClient` 默认假定当前目录存在 `dist/cli.js`。
@@ -37,7 +37,7 @@ Agent 专用入口复用现有 intent 分类、control/print/RPC Host 和 reques
 
 ### 2. Coding Agent 撤销可执行与 Legacy CLI 公开面
 
-`@vetta/coding-agent` 完成以下收缩：
+`@567agent/coding-agent` 完成以下收缩：
 
 - 删除 `bin.vetta-agent`；
 - 删除 `src/cli.ts`；
@@ -74,7 +74,7 @@ Legacy `main.ts` 暂时保留为测试参照，但已不存在生产 import、pa
 
 ### 5. 测试专用 Legacy 基线
 
-Print 和 RPC 差分测试不再导入已删除的 `@vetta/coding-agent/legacy/cli`。测试目录中的专用入口直接调用内部 `main.ts`：
+Print 和 RPC 差分测试不再导入已删除的 `@567agent/coding-agent/legacy/cli`。测试目录中的专用入口直接调用内部 `main.ts`：
 
 - 不参与 `coding-agent` package exports；
 - 不进入 `cli-host` build；
@@ -120,7 +120,7 @@ Legacy 执行边从 10 条降到 7 条：
 - `vetta` 和 `vetta-agent-rpc` 行为未改变；
 - `--agent-runtime legacy` 仍可解析，但实际执行 Greenfield；
 - Legacy 会话读取、迁移和显式不兼容错误未改变；
-- 被移除的 `@vetta/coding-agent/legacy/cli`、根 Legacy main 导出和 coding-agent bin 属于公开破坏性变化，发布时应按 minor release 处理。
+- 被移除的 `@567agent/coding-agent/legacy/cli`、根 Legacy main 导出和 coding-agent bin 属于公开破坏性变化，发布时应按 minor release 处理。
 
 ## 下一阶段建议
 

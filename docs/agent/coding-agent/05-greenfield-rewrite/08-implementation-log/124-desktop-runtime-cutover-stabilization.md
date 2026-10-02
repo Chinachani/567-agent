@@ -77,11 +77,11 @@ Desktop selector 新增结构化决策：
 
 ### 4. 收紧 Coding Agent 宿主服务公开面
 
-新增稳定子路径 `@vetta/coding-agent/host-services`，公开 Desktop 组合仍需使用的
+新增稳定子路径 `@567agent/coding-agent/host-services`，公开 Desktop 组合仍需使用的
 `AuthStorage`、`ModelRegistry` 和 `SettingsManager`。原 `legacy/host-services` 保留为带弃用标记的
 兼容转发，避免本轮删除既有消费者功能。
 
-Desktop 生产组合不再导入 `@vetta/coding-agent/legacy/*`。旧
+Desktop 生产组合不再导入 `@567agent/coding-agent/legacy/*`。旧
 `createLegacyRuntimeHostOptions` 在生产代码中只允许由
 `desktop-legacy-runtime-compatibility.ts` 调用。
 

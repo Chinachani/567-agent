@@ -4,7 +4,7 @@ import type {
 	TeamSessionDocument,
 	TeamSessionReference,
 	TeamSessionSnapshot,
-} from "@vetta/agent-team";
+} from "@567agent/agent-team";
 import {
 	parseCreateAgentProfileInput,
 	parseCreateTeamInput,
@@ -14,8 +14,8 @@ import {
 	parseUpdateAgentProfileInput,
 	parseUpdateTeamInput,
 	parseUpdateTeamSessionModelSettingsInput,
-} from "@vetta/agent-team";
-import type { SessionExecutionMode } from "@vetta/runtime-core";
+} from "@567agent/agent-team";
+import type { SessionExecutionMode } from "@567agent/runtime-core";
 import { dialog, ipcMain, webContents } from "electron";
 import type {
 	DesktopTeamConversationDisplay,

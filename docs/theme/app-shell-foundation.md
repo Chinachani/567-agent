@@ -107,7 +107,7 @@ components: {
 
 ```tsx
 import { usePageHeaderModel } from "@vetta-org/theme-sdk/app-shell";
-import { DefaultPageHeader } from "@vetta/desktop-theme-ui/app-shell";
+import { DefaultPageHeader } from "@567agent/desktop-theme-ui/app-shell";
 
 export function ThemePageHeader(props: PageHeaderProps) {
   const model = usePageHeaderModel(props);

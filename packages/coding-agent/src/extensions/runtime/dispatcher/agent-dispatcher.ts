@@ -1,5 +1,5 @@
-import type { AgentMessage } from "@vetta/agent-core";
-import type { ImageContent } from "@vetta/ai";
+import type { AgentMessage } from "@567agent/agent-core";
+import type { ImageContent } from "@567agent/ai";
 import type { ExtensionContext } from "../../context-contracts.js";
 import type {
 	BeforeAgentStartEvent,

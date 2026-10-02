@@ -1,4 +1,4 @@
-import { defineRuntimeObservation, type RuntimeObservationFailure } from "@vetta/runtime-core";
+import { defineRuntimeObservation, type RuntimeObservationFailure } from "@567agent/runtime-core";
 
 export interface CodingAgentCompactionPrefireObservation {
 	readonly phase: "cached" | "failed" | "cancelled";

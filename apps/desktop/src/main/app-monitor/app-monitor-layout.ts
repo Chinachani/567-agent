@@ -1,5 +1,5 @@
 import { join } from "node:path";
-import { getVettaHomePath } from "@vetta/action-rpc";
+import { getVettaHomePath } from "@567agent/action-rpc";
 
 const MONTH_KEY_PATTERN = /^\d{4}-\d{2}$/;
 

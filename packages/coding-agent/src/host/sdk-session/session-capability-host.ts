@@ -1,6 +1,6 @@
-import type { ThinkingLevel } from "@vetta/agent-core";
-import type { Api, Model } from "@vetta/ai";
-import type { PromptRequest, RuntimeSessionInputQueueMode } from "@vetta/runtime-core";
+import type { ThinkingLevel } from "@567agent/agent-core";
+import type { Api, Model } from "@567agent/ai";
+import type { PromptRequest, RuntimeSessionInputQueueMode } from "@567agent/runtime-core";
 import {
 	CODING_AGENT_BACKGROUND_TASK_KILL,
 	CODING_AGENT_BACKGROUND_TASKS_CLEAR_FINISHED,

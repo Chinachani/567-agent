@@ -1,6 +1,6 @@
-import type { AgentMessage } from "@vetta/agent-core";
-import type { ConversationDocumentEntry } from "@vetta/runtime-core/conversation";
-import { parseLegacySessionDocumentSource } from "@vetta/runtime-storage/conversation";
+import type { AgentMessage } from "@567agent/agent-core";
+import type { ConversationDocumentEntry } from "@567agent/runtime-core/conversation";
+import { parseLegacySessionDocumentSource } from "@567agent/runtime-storage/conversation";
 import type {
 	CodingAgentCustomMessageEntry,
 	CodingAgentSessionEntry,

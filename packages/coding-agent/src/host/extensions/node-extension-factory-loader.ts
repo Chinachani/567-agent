@@ -1,7 +1,11 @@
+import * as bundledAgentCore from "@567agent/agent-core";
+import * as bundledAi from "@567agent/ai";
+import {
+	createNodeDynamicModuleLoader,
+	nodeFileUrlToPath,
+	resolveNodeModuleSpecifier,
+} from "@567agent/runtime-node/host";
 import * as bundledTypebox from "@sinclair/typebox";
-import * as bundledAgentCore from "@vetta/agent-core";
-import * as bundledAi from "@vetta/ai";
-import { createNodeDynamicModuleLoader, nodeFileUrlToPath, resolveNodeModuleSpecifier } from "@vetta/runtime-node/host";
 import * as piTypebox from "typebox";
 import * as piCompile from "typebox/compile";
 import * as piValue from "typebox/value";
@@ -12,10 +16,10 @@ import { isBunBinary } from "../node-config.js";
 
 const NATIVE_VIRTUAL_MODULES: Readonly<Record<string, unknown>> = {
 	"@sinclair/typebox": bundledTypebox,
-	"@vetta/agent-core": bundledAgentCore,
-	"@vetta/ai": bundledAi,
-	"@vetta/coding-agent": bundledCodingAgent,
-	"@vetta/coding-agent/extensions": bundledCodingAgent,
+	"@567agent/agent-core": bundledAgentCore,
+	"@567agent/ai": bundledAi,
+	"@567agent/coding-agent": bundledCodingAgent,
+	"@567agent/coding-agent/extensions": bundledCodingAgent,
 };
 
 const piCodingAgentFacade = Object.freeze({
@@ -75,9 +79,9 @@ function resolveAliases(): Readonly<Record<string, string>> {
 	const typeboxEntry = resolveNodeModuleSpecifier("@sinclair/typebox", import.meta.url);
 	const typeboxRoot = typeboxEntry.replace(/[\\/]build[\\/]cjs[\\/]index\.js$/, "");
 	aliases = {
-		"@vetta/coding-agent": packageIndex,
-		"@vetta/agent-core": resolveNodeModuleSpecifier("@vetta/agent-core", import.meta.url),
-		"@vetta/ai": resolveNodeModuleSpecifier("@vetta/ai", import.meta.url),
+		"@567agent/coding-agent": packageIndex,
+		"@567agent/agent-core": resolveNodeModuleSpecifier("@567agent/agent-core", import.meta.url),
+		"@567agent/ai": resolveNodeModuleSpecifier("@567agent/ai", import.meta.url),
 		"@sinclair/typebox": typeboxRoot,
 	};
 	return aliases;

@@ -1,5 +1,9 @@
-import type { RuntimeSnapshot, RuntimeSnapshotAcquireContext, RuntimeSnapshotLease } from "@vetta/runtime-core/kernel";
-import { SessionExtensionComposition } from "@vetta/runtime-core/session-extensions";
+import type {
+	RuntimeSnapshot,
+	RuntimeSnapshotAcquireContext,
+	RuntimeSnapshotLease,
+} from "@567agent/runtime-core/kernel";
+import { SessionExtensionComposition } from "@567agent/runtime-core/session-extensions";
 import { describe, expect, it, vi } from "vitest";
 import {
 	type CodingAgentSessionRuntimeResourcesOptions,

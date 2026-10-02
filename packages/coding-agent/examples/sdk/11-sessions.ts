@@ -5,7 +5,7 @@
  */
 
 import { join } from "node:path";
-import { createCodingAgentSession, createCodingAgentSessionCatalog } from "@vetta/coding-agent/sdk";
+import { createCodingAgentSession, createCodingAgentSessionCatalog } from "@567agent/coding-agent/sdk";
 
 const cwd = process.cwd();
 const conversationDir = join(cwd, ".vetta", "conversations");

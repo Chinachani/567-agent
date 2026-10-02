@@ -1,6 +1,6 @@
-import type { Api, Model } from "@vetta/ai";
-import type { RuntimeHostSession, RuntimeSessionContextDeliveryController } from "@vetta/runtime-core";
-import type { RuntimeToolDefinition } from "@vetta/runtime-core/kernel";
+import type { Api, Model } from "@567agent/ai";
+import type { RuntimeHostSession, RuntimeSessionContextDeliveryController } from "@567agent/runtime-core";
+import type { RuntimeToolDefinition } from "@567agent/runtime-core/kernel";
 import { describe, expect, it, vi } from "vitest";
 import { CodingAgentExtensionActionHost } from "../../src/host/extensions/action-host.js";
 

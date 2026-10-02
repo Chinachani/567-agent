@@ -1,5 +1,5 @@
+import type { RuntimeToolDefinition } from "@567agent/runtime-core/kernel";
 import { type Static, Type } from "@sinclair/typebox";
-import type { RuntimeToolDefinition } from "@vetta/runtime-core/kernel";
 import { CURRENT_TIME_TOOL_DESCRIPTION } from "./description.js";
 
 export const CurrentTimeToolInputSchema = Type.Object({

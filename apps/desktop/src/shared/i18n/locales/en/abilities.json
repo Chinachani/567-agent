@@ -83,7 +83,7 @@
 		"importSkill": "Import skill archive",
 		"importSkillHint": "Install from a local zip, tar.gz or tgz archive",
 		"importPlugin": "Import plugin package",
-		"importPluginHint": "Install from a local .vettapkg (legacy .zip is supported; must contain plugin.json)",
+		"importPluginHint": "Install from a local .567plugin (legacy .vettapkg and .zip is supported; must contain plugin.json)",
 		"addMcp": "Add MCP manually",
 		"addMcpHint": "Configure a stdio or HTTP MCP server by hand"
 	},

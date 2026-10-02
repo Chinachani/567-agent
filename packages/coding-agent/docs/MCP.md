@@ -73,5 +73,5 @@ initialize、Tool input/result、受限 `tools/call` 和 `resources/read`；Tool
 协议异常、超时、进程退出、MRTR/Task/App 生命周期和结果降级只记录安全摘要，不记录凭据、参数、结果正文或 base64 媒体。
 
 协议细节见 [MCP `2026-07-28` 规范](https://modelcontextprotocol.io/specification/2026-07-28)和
-[MCP Apps 规范](https://modelcontextprotocol.io/extensions/apps/overview)。运行时实现在 `@vetta/runtime-mcp`，
+[MCP Apps 规范](https://modelcontextprotocol.io/extensions/apps/overview)。运行时实现在 `@567agent/runtime-mcp`，
 本包负责产品侧装配。

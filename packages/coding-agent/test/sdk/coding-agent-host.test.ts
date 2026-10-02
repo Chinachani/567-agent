@@ -1,9 +1,9 @@
-import type { Api, Model } from "@vetta/ai";
+import type { Api, Model } from "@567agent/ai";
 import {
 	RUNTIME_HOST_LIFECYCLE_OBSERVATION,
 	type RuntimeHostLifecycleObservation,
 	type RuntimeObservationRecord,
-} from "@vetta/runtime-core";
+} from "@567agent/runtime-core";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { createCodingAgentHostFromSessionFactory } from "../../src/host/coding-agent-host.js";
 import {

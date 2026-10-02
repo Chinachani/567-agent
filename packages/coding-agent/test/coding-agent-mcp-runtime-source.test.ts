@@ -9,9 +9,9 @@ import type {
 	McpToolResultOffloadDetails,
 	RuntimeMcpClientFactory,
 	RuntimeMcpClientFactoryOptions,
-} from "@vetta/runtime-mcp";
-import { createMcpToolResultPolicy, DEFAULT_MCP_MAX_INLINE_RESULT_BYTES } from "@vetta/runtime-mcp";
-import { createNodeMcpSupervisor, NodeMcpToolResultArtifactStore } from "@vetta/runtime-node/mcp";
+} from "@567agent/runtime-mcp";
+import { createMcpToolResultPolicy, DEFAULT_MCP_MAX_INLINE_RESULT_BYTES } from "@567agent/runtime-mcp";
+import { createNodeMcpSupervisor, NodeMcpToolResultArtifactStore } from "@567agent/runtime-node/mcp";
 import { describe, expect, it, vi } from "vitest";
 import type { EcosystemHookAwareRuntimeTool } from "../src/adapters/ecosystem/tool-interceptor-adapter.js";
 import { createCodingAgentMcpRuntimeToolSource } from "../src/mcp/runtime/tool-source.js";

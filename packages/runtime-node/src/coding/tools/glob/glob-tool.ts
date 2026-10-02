@@ -1,8 +1,8 @@
 import { spawn } from "node:child_process";
 import { statSync } from "node:fs";
 import { basename, dirname, isAbsolute, join, parse, relative, sep } from "node:path";
+import type { RuntimeToolDefinition, RuntimeToolResult } from "@567agent/runtime-core/kernel";
 import { type Static, Type } from "@sinclair/typebox";
-import type { RuntimeToolDefinition, RuntimeToolResult } from "@vetta/runtime-core/kernel";
 import { Minimatch } from "minimatch";
 import type { CodingToolExecutableResolver } from "../../host/executable-resolver.js";
 import { formatNotFoundPath, resolveExistingPath } from "../../shared/path-resolution.js";

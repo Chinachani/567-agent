@@ -67,7 +67,7 @@ export function parseImpactArgs(args, root = repoRoot) {
 	const dryRun = args.includes("--dry-run");
 	const selection = parseFileSelectionArgs(
 		args.filter((arg) => arg !== "--dry-run"),
-		"origin/dev",
+		"origin/main",
 		root,
 	);
 	return { ...selection, dryRun };

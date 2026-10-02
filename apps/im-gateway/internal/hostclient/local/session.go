@@ -43,7 +43,7 @@ import (
 	"syscall"
 	"time"
 
-	"vetta-im-gateway/internal/hostclient"
+	"github.com/Chinachani/567-agent/apps/im-gateway/internal/hostclient"
 )
 
 // session implements hostclient.HostSession backed by one coding-agent

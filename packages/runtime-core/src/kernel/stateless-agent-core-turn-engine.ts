@@ -7,7 +7,7 @@ import {
 	runAgentTurn,
 	type StreamFn,
 	salvageTextToolCalls,
-} from "@vetta/agent-core";
+} from "@567agent/agent-core";
 import {
 	type AIErrorDetails,
 	type Api,
@@ -21,7 +21,7 @@ import {
 	type Tool,
 	Type,
 	validateToolArguments,
-} from "@vetta/ai";
+} from "@567agent/ai";
 import type { RuntimeFailure } from "../failure-contract.js";
 import { runtimeFailureFromAIErrorDetails } from "../failure-projection.js";
 import type { RuntimeMessageEnvelope } from "../runtime-execution-observation.js";

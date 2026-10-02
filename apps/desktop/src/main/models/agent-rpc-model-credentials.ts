@@ -4,7 +4,7 @@
  * 背景：`ModelSettingsService` 落盘时会把明文 key 从 `models.json` 移到
  * safeStorage 保险库，只在 provider 上留 `credentialRef`。主进程对话页靠
  * `DesktopModelCredentialStore.syncToAuthStorage()` 在进程内补回凭据，但
- * Claw（im-gateway → `Vetta --agent-rpc`）是**另一个进程**，它经 `@vetta/cli-host`
+ * Claw（im-gateway → `Vetta --agent-rpc`）是**另一个进程**，它经 `@567agent/cli-host`
  * 自建 bootstrap，只读 `models.json` / `auth.json`，不认识 `credentialRef`。
  * 缺凭据时 coding-agent 的 ModelRuntime 会回落到本地 provider 的 "no auth"
  * 占位串并把它当 Bearer 发出去，远端 provider（deepseek 等）随即报 401。
@@ -15,8 +15,8 @@
  */
 import { readFile } from "node:fs/promises";
 import { join } from "node:path";
-import { getVettaHomePath } from "@vetta/action-rpc";
-import type { CodingAgentAuthRuntime } from "@vetta/coding-agent/host-services";
+import { getVettaHomePath } from "@567agent/action-rpc";
+import type { CodingAgentAuthRuntime } from "@567agent/coding-agent/host-services";
 
 /** 只取注入需要的字段；models.json 的完整 schema 由 coding-agent 校验。 */
 export interface CredentialRefProviders {

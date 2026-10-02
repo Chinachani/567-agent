@@ -1,4 +1,4 @@
-import type { Message } from "@vetta/ai";
+import type { Message } from "@567agent/ai";
 import type { HistoryEntry, PromptRequest, RuntimeQueuePromptIfRunningOutcome, SessionEvent } from "../contracts.js";
 import {
 	type ConversationDocument,

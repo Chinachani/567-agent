@@ -1,9 +1,9 @@
 import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import type { Api, Model } from "@vetta/ai";
-import { EcosystemHookRuntime } from "@vetta/ecosystem-adapter";
-import type { RuntimeModel } from "@vetta/runtime-core";
+import type { Api, Model } from "@567agent/ai";
+import { EcosystemHookRuntime } from "@567agent/ecosystem-adapter";
+import type { RuntimeModel } from "@567agent/runtime-core";
 import {
 	type AgentFeatureDefinition,
 	type ConversationContextProjector,
@@ -13,7 +13,7 @@ import {
 	RandomIdGenerator,
 	RuntimeCapabilityComposition,
 	type RuntimeToolDefinition,
-} from "@vetta/runtime-core/kernel";
+} from "@567agent/runtime-core/kernel";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { AgentSessionConfiguration } from "../../src/agent-configuration/session-configuration.js";
 import { createCodingToolsRuntimeComposition } from "../../src/composition/tool-surface/runtime-tools-composition.js";

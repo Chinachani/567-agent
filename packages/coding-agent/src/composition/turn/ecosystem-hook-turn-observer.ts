@@ -1,5 +1,5 @@
-import type { EcosystemHookRuntime } from "@vetta/ecosystem-adapter";
-import type { TurnObserver } from "@vetta/runtime-core/kernel";
+import type { EcosystemHookRuntime } from "@567agent/ecosystem-adapter";
+import type { TurnObserver } from "@567agent/runtime-core/kernel";
 
 export function createEcosystemHookTurnObserver(
 	hookRuntime: Pick<EcosystemHookRuntime, "finishCurrentTurn">,

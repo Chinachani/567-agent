@@ -6,7 +6,7 @@
 
 ## 背景
 
-当前 Agent Team 有两个事实源：`@vetta/agent-team` 在 TypeScript 中写死随应用提供的初始 Agent/Blueprint/团队，Desktop 又把运行时聚合结果写入 `agent-teams.json`。初始项还被 UI 和 Store 当作特殊对象处理。这样会造成默认数据、运行时和用户修改之间的分叉，也无法自然地支持从文件增加团队。
+当前 Agent Team 有两个事实源：`@567agent/agent-team` 在 TypeScript 中写死随应用提供的初始 Agent/Blueprint/团队，Desktop 又把运行时聚合结果写入 `agent-teams.json`。初始项还被 UI 和 Store 当作特殊对象处理。这样会造成默认数据、运行时和用户修改之间的分叉，也无法自然地支持从文件增加团队。
 
 ## 决策
 

@@ -1,6 +1,6 @@
 # Coding Agent 与多主 Agent 基座
 
-本文说明生产 `CodingAgentRuntimeComposition` 如何使用 `@vetta/runtime-core/agents`。它补充
+本文说明生产 `CodingAgentRuntimeComposition` 如何使用 `@567agent/runtime-core/agents`。它补充
 [Runtime Core 自定义 Agent 指南](../../runtime-core/docs/custom-agents.md)：后者解释通用基座，本文只解释 Coding Agent
 这个复杂产品 Agent 的接线、配置和生命周期。唯一 Host 的所有权决策见
 [ADR-0084](../../../docs/adr/0084-runtime-host-owns-agent-control-plane.md)。
@@ -48,7 +48,7 @@ CLI、SDK 或测试直接调用 Composition 时，不传 `agentRuntime` 即可�
 Session、Instance、控制面和产品 Hub。它是模块化运行方式，不会产生第二个 `RuntimeHost`。
 
 ```ts
-import { createCodingAgentRuntimeComposition } from "@vetta/coding-agent/composition";
+import { createCodingAgentRuntimeComposition } from "@567agent/coding-agent/composition";
 
 const composition = await createCodingAgentRuntimeComposition({
   ...codingAgentPlatformOptions,
@@ -76,8 +76,8 @@ Session Host。
 ```ts
 import {
   publishCodingAgentExecutionRuntimeDefinition,
-} from "@vetta/coding-agent/composition";
-import { RuntimeHost, RuntimeObservationHub } from "@vetta/runtime-core";
+} from "@567agent/coding-agent/composition";
+import { RuntimeHost, RuntimeObservationHub } from "@567agent/runtime-core";
 
 const applicationHub = new RuntimeObservationHub();
 const host = new RuntimeHost({
@@ -134,7 +134,7 @@ MCP 配置格式或平台连接。
 import {
   createCodingAgentExecutionRuntimeDefinition,
   publishCodingAgentExecutionRuntimeDefinition,
-} from "@vetta/coding-agent/composition";
+} from "@567agent/coding-agent/composition";
 
 const revision2 = createCodingAgentExecutionRuntimeDefinition({
   id: "coding-agent",

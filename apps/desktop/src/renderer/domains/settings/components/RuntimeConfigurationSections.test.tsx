@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import type { RuntimeConfigurationJsonObject } from "@vetta/runtime-core/configuration";
+import type { RuntimeConfigurationJsonObject } from "@567agent/runtime-core/configuration";
 import { describe, expect, it, vi } from "vitest";
 import type { DesktopRuntimeConfigurationCatalog } from "@preload/api";
 import { RuntimeConfigurationSections } from "./RuntimeConfigurationSections";

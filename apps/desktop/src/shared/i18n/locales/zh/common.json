@@ -991,7 +991,7 @@
 			"title": "授予权限",
 			"subtitle": "授权后可使用截图、自动化与系统通知等能力；均可稍后在设置中完成",
 			"systemSection": "系统权限",
-			"computerUseTitle": "567 Computer Use",
+			"computerUseTitle": "567 Agent Computer Use",
 			"computerUseDesc": "独立辅助程序负责前台窗口捕获，需单独完成辅助功能与屏幕录制授权",
 			"optionalHint": "权限均为可选，可随时在「设置 › 权限」中调整"
 		},

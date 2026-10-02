@@ -5,8 +5,8 @@ import type {
 	DesktopTeamSessionStreamEvent,
 } from "@preload/api-types/team-conversation-display";
 import type { ChatConversationItem } from "@shared/store/atoms";
-import { createAssistantMessage, type AssistantMessage } from "@vetta/ai";
-import { createAgentTeamFixture, type TeamSessionDocument } from "@vetta/agent-team";
+import { createAssistantMessage, type AssistantMessage } from "@567agent/ai";
+import { createAgentTeamFixture, type TeamSessionDocument } from "@567agent/agent-team";
 import { act, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import type { ReactNode } from "react";
 import { beforeEach, describe, expect, it, vi } from "vitest";

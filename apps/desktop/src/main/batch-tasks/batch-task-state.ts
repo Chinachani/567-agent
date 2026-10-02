@@ -1,6 +1,6 @@
 import { mkdir, readFile, writeFile } from "node:fs/promises";
 import { join } from "node:path";
-import type { SessionExecutionMode } from "@vetta/runtime-core";
+import type { SessionExecutionMode } from "@567agent/runtime-core";
 import { getAppLogger } from "../logger.js";
 import { discoverBatchProjects } from "./batch-task-storage";
 

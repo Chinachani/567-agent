@@ -3,7 +3,7 @@
 ## 1. 目标
 
 第 99 至 102 轮已经把 MCP 协议、配置 Source、Client/Transport、OAuth Store/Provider 和交互式
-OAuth 用例迁入 `@vetta/runtime-mcp`，但 `coding-agent` 的 `McpManager` 仍拥有约 700 行通用运行时逻辑：
+OAuth 用例迁入 `@567agent/runtime-mcp`，但 `coding-agent` 的 `McpManager` 仍拥有约 700 行通用运行时逻辑：
 
 - Server 初始化、状态转换和 Tool/Resource discovery；
 - 静态配置与插件配置的覆盖；

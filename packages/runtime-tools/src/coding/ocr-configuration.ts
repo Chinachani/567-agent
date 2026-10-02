@@ -1,4 +1,7 @@
-import type { RuntimeConfigurationDefinition, RuntimeConfigurationJsonObject } from "@vetta/runtime-core/configuration";
+import type {
+	RuntimeConfigurationDefinition,
+	RuntimeConfigurationJsonObject,
+} from "@567agent/runtime-core/configuration";
 
 export const VETTA_OCR_CONFIGURATION_ID = "vetta.ocr";
 export const DEFAULT_OCR_PROVIDER_ID = "desktop-app:ppocrv5";

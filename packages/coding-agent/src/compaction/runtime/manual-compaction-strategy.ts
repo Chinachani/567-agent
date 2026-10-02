@@ -1,5 +1,5 @@
-import { providerAuthenticationError } from "@vetta/ai";
-import type { ContextCompactionRecord, ManualContextCompactionInput } from "@vetta/runtime-core/kernel";
+import { providerAuthenticationError } from "@567agent/ai";
+import type { ContextCompactionRecord, ManualContextCompactionInput } from "@567agent/runtime-core/kernel";
 import type {
 	CodingAgentCompactionExtensionRuntime,
 	CodingAgentContextRuntimeOptions,

@@ -10,8 +10,8 @@ import {
 	createSeededConversationDocument,
 	nativeConversationEntryId,
 	selectConversationDocumentModelMessages,
-} from "@vetta/runtime-core/conversation";
-import type { StoredConversation, StoredSessionEvent } from "@vetta/runtime-core/kernel";
+} from "@567agent/runtime-core/conversation";
+import type { StoredConversation, StoredSessionEvent } from "@567agent/runtime-core/kernel";
 import {
 	CONVERSATION_SCHEMA_VERSION,
 	CONVERSATION_STORAGE_ERROR_CODES,
@@ -32,7 +32,7 @@ import {
 	type NormalizedReadConversationEventRecord,
 	type ReadConversationFileHeader,
 	readConversationEventRecord,
-} from "@vetta/runtime-storage/conversation";
+} from "@567agent/runtime-storage/conversation";
 
 type ConversationBodyRecord = NormalizedReadConversationEventRecord | ConversationDocumentOperationRecord;
 

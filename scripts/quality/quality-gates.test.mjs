@@ -30,6 +30,10 @@ import { createChangedTestPlan, parseArgs } from "./test-changed.mjs";
 import { createImpactTestPlan, parseImpactArgs } from "./test-impact.mjs";
 
 describe("changed file selection", () => {
+	it("uses the fork's main branch for default change selection", () => {
+		expect(parseBaseArgs([]).base).toBe("origin/main");
+		expect(parseFileSelectionArgs([]).base).toBe("origin/main");
+	});
 	it("combines committed, working tree, and untracked paths", () => {
 		const outputs = new Map([
 			[["merge-base", "HEAD", "origin/dev"].join("\0"), "base-sha"],
@@ -163,14 +167,14 @@ describe("source path maps", () => {
 	it("ignores CSS and wildcard exports", () => {
 		expect(
 			collectTypeScriptExportEntries({
-				name: "@vetta/example",
+				name: "@567agent/example",
 				exports: {
 					".": { types: "./dist/index.d.ts", import: "./dist/index.js" },
 					"./theme.css": "./src/theme.css",
 					"./*": "./dist/*",
 				},
 			}),
-		).toEqual([{ specifier: "@vetta/example", sourceRel: "src/index.ts", types: "./dist/index.d.ts" }]);
+		).toEqual([{ specifier: "@567agent/example", sourceRel: "src/index.ts", types: "./dist/index.d.ts" }]);
 	});
 
 	it("requires an explicit root path map to the source file", () => {
@@ -178,7 +182,7 @@ describe("source path maps", () => {
 			{
 				dir: "packages/runtime-mcp",
 				manifest: {
-					name: "@vetta/runtime-mcp",
+					name: "@567agent/runtime-mcp",
 					exports: {
 						"./auth": { types: "./dist/auth/index.d.ts", import: "./dist/auth/index.js" },
 					},
@@ -187,11 +191,11 @@ describe("source path maps", () => {
 		];
 
 		expect(findSourcePathMapViolations({ paths: {}, packages, fileExists: () => true })).toEqual([
-			"@vetta/runtime-mcp/auth: root tsconfig.json is missing an explicit source path map to ./packages/runtime-mcp/src/auth/index.ts",
+			"@567agent/runtime-mcp/auth: root tsconfig.json is missing an explicit source path map to ./packages/runtime-mcp/src/auth/index.ts",
 		]);
 		expect(
 			findSourcePathMapViolations({
-				paths: { "@vetta/runtime-mcp/auth": ["./packages/runtime-mcp/src/auth/index.ts"] },
+				paths: { "@567agent/runtime-mcp/auth": ["./packages/runtime-mcp/src/auth/index.ts"] },
 				packages,
 				fileExists: () => true,
 			}),
@@ -203,7 +207,7 @@ describe("source path maps", () => {
 			{
 				dir: "packages/coding-agent",
 				manifest: {
-					name: "@vetta/coding-agent",
+					name: "@567agent/coding-agent",
 					exports: {
 						"./plugin-runtime": {
 							types: "./dist/public-api/plugin-runtime.d.ts",
@@ -213,22 +217,24 @@ describe("source path maps", () => {
 				},
 			},
 		];
-		const importedSpecifiers = ["@vetta/coding-agent/plugin-runtime"];
+		const importedSpecifiers = ["@567agent/coding-agent/plugin-runtime"];
 
 		expect(
 			findImportedSourcePathMapViolations({
-				paths: { "@vetta/coding-agent/*": ["../../packages/coding-agent/src/*"] },
+				paths: { "@567agent/coding-agent/*": ["../../packages/coding-agent/src/*"] },
 				importedSpecifiers,
 				packages,
 				configDir: "apps/desktop",
 			}),
 		).toEqual([
-			"@vetta/coding-agent/plugin-runtime: apps/desktop/tsconfig.json maps to ../../packages/coding-agent/src/plugin-runtime, expected ../../packages/coding-agent/src/public-api/plugin-runtime.ts",
+			"@567agent/coding-agent/plugin-runtime: apps/desktop/tsconfig.json maps to ../../packages/coding-agent/src/plugin-runtime, expected ../../packages/coding-agent/src/public-api/plugin-runtime.ts",
 		]);
 		expect(
 			findImportedSourcePathMapViolations({
 				paths: {
-					"@vetta/coding-agent/plugin-runtime": ["../../packages/coding-agent/src/public-api/plugin-runtime.ts"],
+					"@567agent/coding-agent/plugin-runtime": [
+						"../../packages/coding-agent/src/public-api/plugin-runtime.ts",
+					],
 				},
 				importedSpecifiers,
 				packages,
@@ -358,14 +364,14 @@ describe("affected package selection", () => {
 		const dependencies = buildableTestDependencies(Object.keys(TESTABLE_PACKAGES));
 		expect(dependencies).toEqual(
 			expect.arrayContaining([
-				"@vetta/action-rpc",
-				"@vetta/runtime-storage",
+				"@567agent/action-rpc",
+				"@567agent/runtime-storage",
 				"@vetta-org/plugin-sdk",
-				"@vetta/toolkit",
+				"@567agent/toolkit",
 			]),
 		);
 		expect(dependencies).not.toEqual(
-			expect.arrayContaining(["@vetta/desktop", "@vetta/docs-site", "@vetta/remote-relay"]),
+			expect.arrayContaining(["@567agent/desktop", "@567agent/docs-site", "@567agent/remote-relay"]),
 		);
 	});
 });
@@ -420,14 +426,14 @@ describe("package boundary analysis", () => {
 	const libFile = "packages/ai/src/example.ts";
 
 	it("detects side-effect and dynamic app imports", () => {
-		expect(findPackageBoundaryViolations(libFile, 'import "@vetta/desktop";')).toHaveLength(1);
+		expect(findPackageBoundaryViolations(libFile, 'import "@567agent/desktop";')).toHaveLength(1);
 		expect(
-			findPackageBoundaryViolations(libFile, 'const app = await import("@vetta/cli-host/runtime");'),
+			findPackageBoundaryViolations(libFile, 'const app = await import("@567agent/cli-host/runtime");'),
 		).toHaveLength(1);
 	});
 
 	it("ignores import-looking comments", () => {
-		expect(findPackageBoundaryViolations(libFile, '// import app from "@vetta/desktop";')).toEqual([]);
+		expect(findPackageBoundaryViolations(libFile, '// import app from "@567agent/desktop";')).toEqual([]);
 	});
 
 	it("blocks production imports from test trees but allows test files", () => {
@@ -475,13 +481,13 @@ describe("package boundary analysis", () => {
 		expect(
 			findPackageBoundaryViolations(
 				"apps/desktop/src/main/runtime.ts",
-				'import { createRuntime } from "@vetta/runtime-composition";',
+				'import { createRuntime } from "@567agent/runtime-composition";',
 			),
 		).toHaveLength(1);
 	});
 
 	it("keeps the greenfield runtime kernel independent from coding-agent", () => {
-		const source = 'import { createCodingAgentPromptRuntime } from "@vetta/coding-agent/runtime-host";';
+		const source = 'import { createCodingAgentPromptRuntime } from "@567agent/coding-agent/runtime-host";';
 		expect(findPackageBoundaryViolations("packages/runtime-core/src/kernel/example.ts", source)).toHaveLength(1);
 		expect(
 			findPackageBoundaryViolations("packages/runtime-storage/src/conversation/example.ts", source),
@@ -500,7 +506,7 @@ describe("package boundary analysis", () => {
 	});
 
 	it("keeps every runtime-core production module independent from coding-agent", () => {
-		const source = 'import { SessionManager } from "@vetta/coding-agent";';
+		const source = 'import { SessionManager } from "@567agent/coding-agent";';
 		expect(
 			findPackageBoundaryViolations("packages/runtime-core/src/runtime-host/runtime-host.ts", source),
 		).toHaveLength(1);
@@ -519,24 +525,24 @@ describe("package boundary analysis", () => {
 		expect(
 			findPackageBoundaryViolations(
 				"apps/cli-host/test/example.test.ts",
-				'import { createHost } from "@vetta/coding-agent/runtime-host/greenfield";',
+				'import { createHost } from "@567agent/coding-agent/runtime-host/greenfield";',
 			),
 		).toHaveLength(1);
 		expect(
 			findPackageBoundaryViolations(
 				"apps/cli-host/vitest.config.ts",
-				'const alias = { "@vetta/coding-agent/runtime-host": "../../packages/coding-agent/src/adapters/runtime-core" };',
+				'const alias = { "@567agent/coding-agent/runtime-host": "../../packages/coding-agent/src/adapters/runtime-core" };',
 			),
 		).toHaveLength(1);
 		expect(
 			findPackageBoundaryViolations(
 				"apps/cli-host/test/example.test.ts",
-				'import { createCodingAgentTurnExecutor } from "@vetta/coding-agent/runtime";',
+				'import { createCodingAgentTurnExecutor } from "@567agent/coding-agent/runtime";',
 			),
 		).toEqual([]);
 		expect(
 			findPackageManifestBoundaryViolations({
-				name: "@vetta/coding-agent",
+				name: "@567agent/coding-agent",
 				exports: { "./runtime-host": "./dist/adapters/runtime-core/index.js" },
 			}),
 		).toHaveLength(1);
@@ -546,28 +552,28 @@ describe("package boundary analysis", () => {
 		expect(
 			findPackageBoundaryViolations(
 				"packages/agent/src/telemetry.ts",
-				'import type { RuntimeTracer } from "@vetta/runtime-telemetry";',
+				'import type { RuntimeTracer } from "@567agent/runtime-telemetry";',
 			),
 		).toHaveLength(1);
 		expect(
 			findPackageBoundaryViolations(
 				"packages/agent/src/engine.ts",
-				'import type { RuntimeSession } from "@vetta/runtime-core";',
+				'import type { RuntimeSession } from "@567agent/runtime-core";',
 			),
 		).toHaveLength(1);
 		expect(
-			findPackageBoundaryViolations("packages/agent/src/model.ts", 'import type { Model } from "@vetta/ai";'),
+			findPackageBoundaryViolations("packages/agent/src/model.ts", 'import type { Model } from "@567agent/ai";'),
 		).toEqual([]);
 		expect(
 			findPackageManifestBoundaryViolations({
-				name: "@vetta/agent-core",
-				dependencies: { "@vetta/runtime-telemetry": "workspace:*" },
+				name: "@567agent/agent-core",
+				dependencies: { "@567agent/runtime-telemetry": "workspace:*" },
 			}),
 		).toHaveLength(1);
 		expect(
 			findPackageManifestBoundaryViolations({
-				name: "@vetta/agent-core",
-				dependencies: { "@vetta/ai": "workspace:*" },
+				name: "@567agent/agent-core",
+				dependencies: { "@567agent/ai": "workspace:*" },
 			}),
 		).toEqual([]);
 	});
@@ -639,7 +645,7 @@ describe("package boundary analysis", () => {
 		expect(
 			findPackageBoundaryViolations(
 				"packages/runtime-composition/src/index.ts",
-				'export * from "@vetta/coding-agent/composition";',
+				'export * from "@567agent/coding-agent/composition";',
 			),
 		).toHaveLength(1);
 		expect(
@@ -648,36 +654,36 @@ describe("package boundary analysis", () => {
 		expect(
 			findPackageBoundaryViolations(
 				"apps/cli-host/src/greenfield-runtime-composition.ts",
-				'export * from "@vetta/coding-agent/composition";',
+				'export * from "@567agent/coding-agent/composition";',
 			),
 		).toHaveLength(1);
 		expect(
 			findPackageBoundaryViolations(
 				"apps/cli-host/src/index.ts",
-				'export * from "@vetta/coding-agent/composition";',
+				'export * from "@567agent/coding-agent/composition";',
 			),
 		).toHaveLength(1);
 		expect(
 			findPackageBoundaryViolations(
 				"apps/desktop/src/main/runtime.ts",
-				'import type { CodingAgentRuntimeCompositionOptions } from "@vetta/cli-host";',
+				'import type { CodingAgentRuntimeCompositionOptions } from "@567agent/cli-host";',
 			),
 		).toHaveLength(1);
 		expect(
 			findPackageManifestBoundaryViolations({
-				name: "@vetta/desktop",
-				dependencies: { "@vetta/runtime-composition": "workspace:*" },
+				name: "@567agent/desktop",
+				dependencies: { "@567agent/runtime-composition": "workspace:*" },
 			}),
 		).toHaveLength(1);
 	});
 
 	it("requires all internal consumers to use explicit coding-agent subpaths", () => {
-		const rootImport = 'import { getAgentDir } from "@vetta/coding-agent";';
+		const rootImport = 'import { getAgentDir } from "@567agent/coding-agent";';
 		expect(findPackageBoundaryViolations("apps/desktop/src/main/new-consumer.ts", rootImport)).toHaveLength(1);
 		expect(
 			findPackageBoundaryViolations(
 				"apps/desktop/src/main/new-consumer.ts",
-				'import { getAgentDir } from "@vetta/coding-agent/config";',
+				'import { getAgentDir } from "@567agent/coding-agent/config";',
 			),
 		).toEqual([]);
 		expect(findPackageBoundaryViolations("apps/desktop/src/main/runtime.ts", rootImport)).toHaveLength(1);
@@ -690,7 +696,7 @@ describe("package boundary analysis", () => {
 		expect(
 			findPackageBoundaryViolations(
 				"apps/desktop/src/main/knowledge/example.ts",
-				'import { scanRaws } from "@vetta/coding-agent/knowledge";',
+				'import { scanRaws } from "@567agent/coding-agent/knowledge";',
 			),
 		).toHaveLength(1);
 		expect(
@@ -707,13 +713,13 @@ describe("package boundary analysis", () => {
 		).toHaveLength(1);
 		expect(
 			findPackageManifestBoundaryViolations({
-				name: "@vetta/coding-agent",
+				name: "@567agent/coding-agent",
 				exports: { "./knowledge": "./dist/core/knowledge/index.js" },
 			}),
 		).toHaveLength(1);
 		expect(
 			findPackageManifestBoundaryViolations({
-				name: "@vetta/runtime-knowledge",
+				name: "@567agent/runtime-knowledge",
 				exports: { ".": "./dist/index.js" },
 			}),
 		).toEqual([]);
@@ -733,7 +739,7 @@ describe("package boundary analysis", () => {
 		}
 		expect(
 			findPackageManifestBoundaryViolations({
-				name: "@vetta/coding-agent",
+				name: "@567agent/coding-agent",
 				exports: { "./core/system-prompt.js": "./dist/core/system-prompt.js" },
 			}),
 		).toHaveLength(1);
@@ -761,13 +767,13 @@ describe("package boundary analysis", () => {
 		expect(
 			findPackageBoundaryViolations(
 				"packages/coding-agent/src/compaction/compaction.ts",
-				'import type { ConversationDocument } from "@vetta/runtime-core/conversation";',
+				'import type { ConversationDocument } from "@567agent/runtime-core/conversation";',
 			),
 		).toHaveLength(1);
 		expect(
 			findPackageBoundaryViolations(
 				"packages/coding-agent/src/compaction/runtime/context-runtime.ts",
-				'import type { ContextStrategy } from "@vetta/runtime-core/kernel";',
+				'import type { ContextStrategy } from "@567agent/runtime-core/kernel";',
 			),
 		).toEqual([]);
 		expect(
@@ -782,85 +788,85 @@ describe("package boundary analysis", () => {
 		expect(
 			findPackageBoundaryViolations(
 				"apps/cli-host/src/legacy-runtime-gateway.ts",
-				'import { main } from "@vetta/coding-agent/legacy/cli";',
+				'import { main } from "@567agent/coding-agent/legacy/cli";',
 			),
 		).toHaveLength(1);
 		expect(
 			findPackageBoundaryViolations(
 				"apps/cli-host/src/agent-runtime-selection.ts",
-				'import { main } from "@vetta/coding-agent/legacy/cli";',
+				'import { main } from "@567agent/coding-agent/legacy/cli";',
 			),
 		).toHaveLength(1);
 		expect(
 			findPackageBoundaryViolations(
 				"apps/desktop/src/main/new-consumer.ts",
-				'import { main } from "@vetta/coding-agent/legacy/cli";',
+				'import { main } from "@567agent/coding-agent/legacy/cli";',
 			),
 		).toHaveLength(1);
 		expect(
 			findPackageBoundaryViolations(
 				"apps/desktop/src/main/greenfield-runtime/desktop-legacy-execution-compatibility.ts",
-				'import { LegacyCodingAgentSessionBackend } from "@vetta/coding-agent/runtime-host";',
+				'import { LegacyCodingAgentSessionBackend } from "@567agent/coding-agent/runtime-host";',
 			),
 		).toHaveLength(1);
 		expect(
 			findPackageBoundaryViolations(
 				"apps/cli-host/test/support/legacy-runtime.ts",
-				'import { main } from "@vetta/coding-agent/legacy/cli";',
+				'import { main } from "@567agent/coding-agent/legacy/cli";',
 			),
 		).toEqual([]);
 		expect(
 			findPackageBoundaryViolations(
 				"packages/runtime-desktop/src/historical-session-format.ts",
-				'import { createCodingAgentHistoricalSessionCatalog } from "@vetta/coding-agent/historical-sessions";',
+				'import { createCodingAgentHistoricalSessionCatalog } from "@567agent/coding-agent/historical-sessions";',
 			),
 		).toEqual([]);
 		expect(
 			findPackageBoundaryViolations(
 				"apps/cli-host/src/coding-agent-bootstrap.ts",
-				'import { runCodingAgentStartupMigrations } from "@vetta/coding-agent/historical-sessions";',
+				'import { runCodingAgentStartupMigrations } from "@567agent/coding-agent/historical-sessions";',
 			),
 		).toEqual([]);
 		expect(
 			findPackageBoundaryViolations(
 				"apps/cli-host/src/rpc/cli-session-format-compatibility.ts",
-				'import { createCodingAgentHistoricalSessionCatalog } from "@vetta/coding-agent/historical-sessions";',
+				'import { createCodingAgentHistoricalSessionCatalog } from "@567agent/coding-agent/historical-sessions";',
 			),
 		).toEqual([]);
 		expect(
 			findPackageBoundaryViolations(
 				"apps/cli-host/src/rpc/runtime-host/runtime-host.ts",
-				'import { migrateCodingAgentHistoricalSession } from "@vetta/coding-agent/historical-sessions";',
+				'import { migrateCodingAgentHistoricalSession } from "@567agent/coding-agent/historical-sessions";',
 			),
 		).toEqual([]);
 		expect(
 			findPackageBoundaryViolations(
 				"apps/desktop/src/main/new-consumer.ts",
-				'import { createCodingAgentHistoricalSessionCatalog } from "@vetta/coding-agent/historical-sessions";',
+				'import { createCodingAgentHistoricalSessionCatalog } from "@567agent/coding-agent/historical-sessions";',
 			),
 		).toHaveLength(1);
 		expect(
 			findPackageBoundaryViolations(
 				"apps/desktop/src/main/new-consumer.ts",
-				'import { LegacyCodingAgentSessionBackend } from "@vetta/coding-agent/runtime-host";',
+				'import { LegacyCodingAgentSessionBackend } from "@567agent/coding-agent/runtime-host";',
 			),
 		).toHaveLength(1);
 		expect(
 			findPackageBoundaryViolations(
 				"apps/desktop/src/main/greenfield-runtime/desktop-legacy-execution-compatibility.ts",
-				'import { LegacyRuntimeSessionCatalog } from "@vetta/coding-agent/runtime-host";',
+				'import { LegacyRuntimeSessionCatalog } from "@567agent/coding-agent/runtime-host";',
 			),
 		).toHaveLength(1);
 		expect(
 			findPackageBoundaryViolations(
 				"apps/desktop/src/main/greenfield-runtime/desktop-legacy-session-format-compatibility.ts",
-				'import { LegacyCodingAgentSessionBackend } from "@vetta/coding-agent/runtime-host";',
+				'import { LegacyCodingAgentSessionBackend } from "@567agent/coding-agent/runtime-host";',
 			),
 		).toHaveLength(1);
 		expect(
 			findPackageBoundaryViolations(
 				"apps/cli-host/src/rpc/cli-session-format-compatibility.ts",
-				'import { LegacyCodingAgentSessionBackend } from "@vetta/coding-agent/runtime-host";',
+				'import { LegacyCodingAgentSessionBackend } from "@567agent/coding-agent/runtime-host";',
 			),
 		).toHaveLength(1);
 		expect(
@@ -903,7 +909,7 @@ describe("package boundary analysis", () => {
 		expect(
 			findPackageBoundaryViolations(
 				hostPath,
-				'import { migrateLegacySessionToV2 } from "@vetta/runtime-storage/conversation";',
+				'import { migrateLegacySessionToV2 } from "@567agent/runtime-storage/conversation";',
 			),
 		).not.toEqual([]);
 		expect(findPackageBoundaryViolations(hostPath, "type Runtime = CodingAgentRuntimeComposition;")).toHaveLength(1);
@@ -911,7 +917,7 @@ describe("package boundary analysis", () => {
 		expect(
 			findPackageBoundaryViolations(
 				hostPath,
-				'import { createCodingAgentRuntimeComposition } from "@vetta/coding-agent/composition";',
+				'import { createCodingAgentRuntimeComposition } from "@567agent/coding-agent/composition";',
 			),
 		).not.toEqual([]);
 		expect(findPackageBoundaryViolations(hostPath, 'import { join } from "node:path";')).not.toEqual([]);
@@ -1302,19 +1308,19 @@ describe("package boundary analysis", () => {
 	});
 
 	it("requires scoped production packages to declare workspace imports", () => {
-		const source = 'import { createRuntime } from "@vetta/runtime-tools/coding";';
+		const source = 'import { createRuntime } from "@567agent/runtime-tools/coding";';
 		const path = "packages/coding-agent/src/composition/example.ts";
 		expect(
 			findPackageBoundaryViolations(path, source, {
 				manifest: {
-					name: "@vetta/coding-agent",
-					dependencies: { "@vetta/runtime-tools": "workspace:*" },
+					name: "@567agent/coding-agent",
+					dependencies: { "@567agent/runtime-tools": "workspace:*" },
 				},
 			}),
 		).toEqual([]);
 		expect(
 			findPackageBoundaryViolations(path, source, {
-				manifest: { name: "@vetta/coding-agent" },
+				manifest: { name: "@567agent/coding-agent" },
 			}),
 		).toHaveLength(1);
 	});
@@ -1323,19 +1329,19 @@ describe("package boundary analysis", () => {
 		expect(
 			findPackageBoundaryViolations(
 				"packages/agent/src/example.ts",
-				'import { TurnPipeline } from "@vetta/runtime-core/kernel";',
+				'import { TurnPipeline } from "@567agent/runtime-core/kernel";',
 			),
 		).toHaveLength(1);
 		expect(
 			findPackageBoundaryViolations(
 				"packages/agent/src/example.ts",
-				'import { createCodingAgent } from "@vetta/coding-agent";',
+				'import { createCodingAgent } from "@567agent/coding-agent";',
 			),
 		).toHaveLength(1);
 		expect(
 			findPackageBoundaryViolations(
 				"packages/runtime-core/src/kernel/agent-core-turn-engine.ts",
-				'import { agentLoopContinue } from "@vetta/agent-core";',
+				'import { agentLoopContinue } from "@567agent/agent-core";',
 			),
 		).toEqual([]);
 	});
@@ -1358,11 +1364,11 @@ describe("Turborepo build orchestration", () => {
 		expect(turboConfig.tasks.build.env).toEqual(
 			expect.arrayContaining(["NODE_ENV", "VETTA_PLUGIN_DEV_WATCH", "VETTA_PLUGIN_DOCS_SRC", "VETD_SRC"]),
 		);
-		const docsBuild = turboConfig.tasks["@vetta/docs-site#build"];
+		const docsBuild = turboConfig.tasks["@567agent/docs-site#build"];
 		expect(docsBuild.env).toEqual(["DOCS_SITE_URL", "NODE_ENV"]);
 		expect(docsBuild.dependsOn).toContain("^build");
 		expect(docsBuild.outputs).toContain(".next/**");
-		const pluginWorkbenchBuild = turboConfig.tasks["@vetta/plugin-plugin-workbench#build"];
+		const pluginWorkbenchBuild = turboConfig.tasks["@567agent/plugin-plugin-workbench#build"];
 		expect(pluginWorkbenchBuild.inputs).toContain("$TURBO_ROOT$/docs/plugin/**");
 		expect(pluginWorkbenchBuild.dependsOn).toContain("^build");
 		expect(pluginWorkbenchBuild.outputs).toContain("release/**");
@@ -1370,13 +1376,13 @@ describe("Turborepo build orchestration", () => {
 	});
 
 	it("keeps Desktop build and remote cache outside the initial cache boundary", () => {
-		expect(turboConfig.tasks["@vetta/desktop#build"]).toMatchObject({
+		expect(turboConfig.tasks["@567agent/desktop#build"]).toMatchObject({
 			cache: false,
 		});
-		expect(turboConfig.tasks["@vetta/desktop#build"].dependsOn).toEqual(
+		expect(turboConfig.tasks["@567agent/desktop#build"].dependsOn).toEqual(
 			expect.arrayContaining(["^build", "@vetta-org/plugin-vite#build"]),
 		);
-		expect(turboConfig.tasks["@vetta/desktop#build"].env).toEqual(
+		expect(turboConfig.tasks["@567agent/desktop#build"].env).toEqual(
 			expect.arrayContaining(["NODE_ENV", "VETTA_*", "VETD_*"]),
 		);
 		expect(turboConfig.remoteCache).toEqual({ enabled: false, signature: true });
@@ -1387,8 +1393,8 @@ describe("Turborepo build orchestration", () => {
 		expect(rootManifest.scripts.build).toContain("turbo run build");
 		expect(rootManifest.scripts.build).toContain("--filter=@vetta-org/plugin-vite");
 		expect(rootManifest.scripts.build).toContain("build:preset:prebuilt");
-		expect(rootManifest.scripts["build:desktop"]).toContain("--filter=@vetta/desktop");
-		expect(rootManifest.scripts["build:cli"]).toContain("--filter=@vetta/cli-host");
+		expect(rootManifest.scripts["build:desktop"]).toContain("--filter=@567agent/desktop");
+		expect(rootManifest.scripts["build:cli"]).toContain("--filter=@567agent/cli-host");
 		expect(rootManifest.scripts["build:cli"]).toContain("--filter=@vetta-org/plugin-vite");
 		expect(rootManifest.scripts["build:cli"]).toContain("build:preset:prebuilt");
 		expect(rootManifest.scripts["build:docs"]).toContain("turbo run build");

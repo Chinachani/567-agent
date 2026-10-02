@@ -1,5 +1,5 @@
-import type { Api, Model } from "@vetta/ai";
-import type { RuntimeModelCatalog, RuntimeModelCredentialResolver } from "@vetta/runtime-core";
+import type { Api, Model } from "@567agent/ai";
+import type { RuntimeModelCatalog, RuntimeModelCredentialResolver } from "@567agent/runtime-core";
 import type { CodingAgentRuntimeModelSource } from "../../runtime-contracts/index.js";
 
 export type { CodingAgentRuntimeModelSource } from "../../runtime-contracts/index.js";

@@ -1,10 +1,10 @@
-import { resolveCodingAgentSessionDir } from "@vetta/coding-agent/bootstrap";
-import { getAgentDir } from "@vetta/coding-agent/config";
-import type { CodingAgentHtmlExportRuntime } from "@vetta/coding-agent/export-html";
-import type { CodingAgentAuthRuntime } from "@vetta/coding-agent/host-services";
-import { RPC_FAILURE_CODES, stringifyRpcStartupFailure } from "@vetta/coding-agent/rpc";
-import { isSessionError, RUNTIME_ERROR_CODES } from "@vetta/runtime-core";
-import { ConversationOwnershipConflictError } from "@vetta/runtime-storage/conversation";
+import { resolveCodingAgentSessionDir } from "@567agent/coding-agent/bootstrap";
+import { getAgentDir } from "@567agent/coding-agent/config";
+import type { CodingAgentHtmlExportRuntime } from "@567agent/coding-agent/export-html";
+import type { CodingAgentAuthRuntime } from "@567agent/coding-agent/host-services";
+import { RPC_FAILURE_CODES, stringifyRpcStartupFailure } from "@567agent/coding-agent/rpc";
+import { isSessionError, RUNTIME_ERROR_CODES } from "@567agent/runtime-core";
+import { ConversationOwnershipConflictError } from "@567agent/runtime-storage/conversation";
 import { classifyAgentCliIntent } from "./agent-cli-intent.js";
 import { createCliCodingAgentBootstrap } from "./coding-agent-bootstrap.js";
 import { runCodingAgentCliControl } from "./coding-agent-cli-control.js";

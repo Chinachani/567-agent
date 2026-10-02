@@ -5,7 +5,7 @@
  * Shows turn progress with themed colors.
  */
 
-import type { ExtensionAPI } from "@vetta/coding-agent";
+import type { ExtensionAPI } from "@567agent/coding-agent";
 
 export default function (api: ExtensionAPI) {
 	let turnCount = 0;

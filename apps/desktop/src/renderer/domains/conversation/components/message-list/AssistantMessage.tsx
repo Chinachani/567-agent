@@ -2,7 +2,7 @@ import { BotAvatar } from "@shared/components/BotAvatar";
 import type { ConversationParticipantViewModel } from "@shared/conversation";
 import type { ChatAgentMessageViewModel, ChatToolCallPresentationViewModel } from "@shared/store/atoms";
 import { useThemeSurface } from "@vetta-org/theme-sdk/appearance";
-import type { Usage } from "@vetta/ai/protocol";
+import type { Usage } from "@567agent/ai/protocol";
 import { ThemeSurface } from "@vetta-org/theme-ui/appearance";
 import {
 	AssistantMessage as AssistantMessagePrimitive,

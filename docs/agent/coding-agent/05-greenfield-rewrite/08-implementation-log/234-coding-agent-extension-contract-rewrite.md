@@ -18,7 +18,7 @@
 - 会话历史、认证、模型和设置等用户数据；必要时由显式、独立的新迁移器读取旧格式。
 - 模型消息、工具消息、错误、取消、事件顺序、并发约束和资源释放语义。
 - 仍然有效的行为测试场景和数据 fixture；旧实现可以临时作为测试 Oracle，但不能被新生产代码调用。
-- `@vetta/ai` 与经过合同验证的 `@vetta/agent-core` 等独立下层能力，除非单独审计证明其合同不满足目标。
+- `@567agent/ai` 与经过合同验证的 `@567agent/agent-core` 等独立下层能力，除非单独审计证明其合同不满足目标。
 
 ## 明确舍弃（固定）
 
@@ -43,7 +43,7 @@ Extension 是围绕 Agent 内核组合 Tool、事件、资源和宿主交互的�
 - 新增 `session-contracts.ts`，定义 Extension 只读会话视图、写入端口和事件需要的 Session Entry 值合同；旧 `setup(SessionManager)` 回调继续保持可赋值。
 - 新增 `ui-primitives.ts`，承接已经退役 TUI 后仍由 RPC/Desktop 和 HTML export 使用的最小 UI 结构。
 - 新增 `runtime-bindings.ts`，原位绑定 Loader 创建的共享 Runtime，保持 Extension factory 长期保存 API 对象的语义。
-- Tool 事件输入和详情改为复用 `@vetta/runtime-tools/coding` 的独立类型；Tool 名称、Schema、结果和拦截顺序不变。
+- Tool 事件输入和详情改为复用 `@567agent/runtime-tools/coding` 的独立类型；Tool 名称、Schema、结果和拦截顺序不变。
 - 生产消费者切换到 `src/extensions`；删除旧 `core/extensions/types.ts`、`ui-types.ts` 和 `execution-host.ts`，不保留转发文件。
 - 重写进度守卫新增绝对规则：`src/extensions` 即使被写入基线，也不得依赖旧 `core/*`。
 

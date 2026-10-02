@@ -249,7 +249,7 @@ Theme SDK 是主题唯一应依赖的应用协议 API。它不承载具体 UI �
 - 不绑定应用内部数据的布局 primitive。
 - 接收 `model` / `actions` props 的官方默认 view 组件。
 
-desktop 可以额外提供窄口径的官方 UI primitive 出口，例如 `@vetta/desktop-theme-ui/sidebar`。这类出口只应导出稳定的 props-driven 子组件和类型，例如 `SidebarNavigation`、`SidebarNavItemButton`、`SidebarNavigationProps`、`SidebarNavItem`；不要从该出口导出完整 sidebar connected container 或会牵出整个领域依赖树的组件。
+desktop 可以额外提供窄口径的官方 UI primitive 出口，例如 `@567agent/desktop-theme-ui/sidebar`。这类出口只应导出稳定的 props-driven 子组件和类型，例如 `SidebarNavigation`、`SidebarNavItemButton`、`SidebarNavigationProps`、`SidebarNavItem`；不要从该出口导出完整 sidebar connected container 或会牵出整个领域依赖树的组件。
 
 具体主题组件应放在主题包内。新增主题不应修改 SDK；只有协议、registry、host 能力变化时才修改 SDK。
 
@@ -280,7 +280,7 @@ import { usePageHeaderModel } from "@vetta-org/theme-sdk/app-shell";
 
 ```tsx
 import { useSidebarModel } from "@vetta-org/theme-sdk/sidebar";
-import { DefaultSidebar } from "@vetta/desktop-theme-ui/sidebar";
+import { DefaultSidebar } from "@567agent/desktop-theme-ui/sidebar";
 
 export function ThemeSidebar(props: SidebarProps) {
   const model = useSidebarModel(props);

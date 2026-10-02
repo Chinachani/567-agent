@@ -1,4 +1,4 @@
-import type { ErrorEvent } from "@vetta/runtime-core";
+import type { ErrorEvent } from "@567agent/runtime-core";
 
 const MAX_ERROR_MESSAGE_LENGTH = 2_048;
 

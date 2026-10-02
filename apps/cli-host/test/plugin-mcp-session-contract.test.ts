@@ -1,19 +1,19 @@
 import { mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { type Api, type AssistantMessage, type AssistantMessageEvent, EventStream, type Model } from "@vetta/ai";
-import type { CodingAgentRuntimeComposition } from "@vetta/coding-agent/composition";
-import { createCodingAgentPluginMcpRuntime } from "@vetta/coding-agent/host-services";
-import type { AgentPluginRuntimeConfig } from "@vetta/coding-agent/plugin-runtime";
-import { CODING_AGENT_PLUGIN_CONFIGURATION_APPLY } from "@vetta/coding-agent/session-extensions";
+import { type Api, type AssistantMessage, type AssistantMessageEvent, EventStream, type Model } from "@567agent/ai";
+import type { CodingAgentRuntimeComposition } from "@567agent/coding-agent/composition";
+import { createCodingAgentPluginMcpRuntime } from "@567agent/coding-agent/host-services";
+import type { AgentPluginRuntimeConfig } from "@567agent/coding-agent/plugin-runtime";
+import { CODING_AGENT_PLUGIN_CONFIGURATION_APPLY } from "@567agent/coding-agent/session-extensions";
 import type {
 	McpClientHandle,
 	McpResourceReadResult,
 	McpToolCallResult,
 	RuntimeMcpClientFactory,
-} from "@vetta/runtime-mcp";
-import { EMPTY_MCP_CONFIG_SOURCE } from "@vetta/runtime-mcp";
-import { createNodeMcpSupervisor } from "@vetta/runtime-node/mcp";
+} from "@567agent/runtime-mcp";
+import { EMPTY_MCP_CONFIG_SOURCE } from "@567agent/runtime-mcp";
+import { createNodeMcpSupervisor } from "@567agent/runtime-node/mcp";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { createCodingAgentRuntimeComposition } from "./fixtures/runtime-composition.js";
 

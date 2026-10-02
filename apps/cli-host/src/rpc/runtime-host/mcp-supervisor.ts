@@ -1,6 +1,6 @@
-import { CONFIG_DIR_NAME, VERSION } from "@vetta/coding-agent/config";
-import { EMPTY_MCP_CONFIG_SOURCE, type McpServerSupervisor } from "@vetta/runtime-mcp";
-import { createNodeMcpSupervisor } from "@vetta/runtime-node/mcp";
+import { CONFIG_DIR_NAME, VERSION } from "@567agent/coding-agent/config";
+import { EMPTY_MCP_CONFIG_SOURCE, type McpServerSupervisor } from "@567agent/runtime-mcp";
+import { createNodeMcpSupervisor } from "@567agent/runtime-node/mcp";
 
 export interface CliMcpSupervisorOptions {
 	readonly projectRoot: string;

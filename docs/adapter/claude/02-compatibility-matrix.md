@@ -29,7 +29,7 @@ Vetta 已有可扩展的 `SubagentTypeRegistry` 和独立 child session：
 
 ### 1.3 Hooks
 
-`@vetta/ecosystem-adapter` 已把通用 runtime 与 Codex wire profile 分开：
+`@567agent/ecosystem-adapter` 已把通用 runtime 与 Codex wire profile 分开：
 
 - 通用层管理 session/turn、adapter 聚合、Stop continuation 安全阀；
 - dispatcher 管理 matcher、并发 handler、命令执行和 effect 聚合；

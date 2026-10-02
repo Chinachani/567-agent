@@ -1,5 +1,5 @@
-import { providerAuthenticationError } from "@vetta/ai";
-import type { ContextSummaryInput, ContextSummaryResult } from "@vetta/runtime-core/kernel";
+import { providerAuthenticationError } from "@567agent/ai";
+import type { ContextSummaryInput, ContextSummaryResult } from "@567agent/runtime-core/kernel";
 import { createCustomMessage } from "../../model-context/index.js";
 import type { CodingAgentContextRuntimeOptions } from "../../runtime-contracts/index.js";
 import { type CompactionPreparation, type CompactionSettings, estimateContextTokens } from "../index.js";

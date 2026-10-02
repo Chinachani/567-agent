@@ -4,7 +4,7 @@ import { NodeCommandProcessAbortedError } from "../../src/coding/host/command-pr
 import { createNodeVettaDesktopCommandPort } from "../../src/coding/host/vetta-desktop-command-port.js";
 import { type CommandProcessPort, DesktopCommandAbortedError } from "../../src/coding/shared/desktop-command.js";
 
-describe("Node Vetta Desktop command port", () => {
+describe("Node 567 Agent command port", () => {
 	it("prefers the explicit environment executable without reading configuration", async () => {
 		const readTextFile = vi.fn<() => Promise<string>>();
 		const port = createNodeVettaDesktopCommandPort({

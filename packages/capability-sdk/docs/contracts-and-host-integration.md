@@ -14,7 +14,7 @@ SDK 不反向认识调用者。
 固定为受约束的 `namespace`，并把公开 facade 的 `plugin-blob` 转成通用 `storage-blob`；这些插件词汇
 不得出现在本包的 Token 或 Schema 中。
 
-相关执行机制见 [`@vetta/capability-runtime` 的 Registry 与 Access 文档](../../capability-runtime/docs/registry-and-access.md)。
+相关执行机制见 [`@567agent/capability-runtime` 的 Registry 与 Access 文档](../../capability-runtime/docs/registry-and-access.md)。
 
 最重要的不变量是：**能力合同是具体实现所依赖的抽象；合同不依赖宿主实现，宿主实现反向依赖合同。**
 

@@ -1,5 +1,5 @@
 import { stat } from "node:fs/promises";
-import { bindCapability, type CapabilityRegistry } from "@vetta/capability-runtime";
+import { bindCapability, type CapabilityRegistry } from "@567agent/capability-runtime";
 import {
 	CAPABILITY_ERROR_CODES,
 	CapabilityError,

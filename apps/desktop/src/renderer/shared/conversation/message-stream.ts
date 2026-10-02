@@ -1,5 +1,5 @@
-import type { AssistantMessage, AssistantMessageEvent } from "@vetta/ai";
-import type { ConversationAgentMessageEvent } from "@vetta/runtime-core/conversation";
+import type { AssistantMessage, AssistantMessageEvent } from "@567agent/ai";
+import type { ConversationAgentMessageEvent } from "@567agent/runtime-core/conversation";
 import type { ContentBlock, ToolCallBlock } from "./content-blocks";
 import { createConversationAgentMessage } from "./message-factories";
 import type { ConversationAgentMessageViewModel } from "./types";

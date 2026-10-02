@@ -26,7 +26,7 @@ describe("App Action discovery", () => {
 
 	it("returns usage boundaries without indexing exclusions as positive matches", () => {
 		const usage = {
-			target: "Vetta Desktop appearance settings",
+			target: "567 Agent appearance settings",
 			useWhen: "Change Vetta's own theme.",
 			avoidWhen: "Installing webpack plugins or editing a website.",
 			alternatives: "Use the project's package manager and source files.",

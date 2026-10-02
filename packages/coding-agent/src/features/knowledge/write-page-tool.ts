@@ -1,7 +1,7 @@
+import type { RuntimeToolDefinition } from "@567agent/runtime-core/kernel";
+import type { WritePageResult } from "@567agent/runtime-knowledge";
+import { ToolCallDescriptionSchema } from "@567agent/runtime-tools/coding";
 import { type Static, Type } from "@sinclair/typebox";
-import type { RuntimeToolDefinition } from "@vetta/runtime-core/kernel";
-import type { WritePageResult } from "@vetta/runtime-knowledge";
-import { ToolCallDescriptionSchema } from "@vetta/runtime-tools/coding";
 import type { ConversationScenario } from "../../profiles/index.js";
 import type { CodingAgentRuntimeToolRegistration } from "../../runtime-contracts/index.js";
 import type { CodingAgentKnowledgeWriteOperations } from "./contracts.js";

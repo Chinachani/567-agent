@@ -1,6 +1,6 @@
 # Extensions
 
-TypeScript 模块，订阅生命周期、注册工具/命令/Provider。契约：`@vetta/coding-agent`（`ExtensionAPI`）。
+TypeScript 模块，订阅生命周期、注册工具/命令/Provider。契约：`@567agent/coding-agent`（`ExtensionAPI`）。
 
 产品模式为 print / RPC / SDK（无 TUI）。`ctx.ui` 在 RPC 下可转发到 Desktop；无 UI 宿主时多数为 no-op 或拒绝。
 
@@ -15,7 +15,7 @@ TypeScript 模块，订阅生命周期、注册工具/命令/Provider。契约�
 ## 最小示例
 
 ```typescript
-import type { ExtensionAPI } from "@vetta/coding-agent";
+import type { ExtensionAPI } from "@567agent/coding-agent";
 import { Type } from "@sinclair/typebox";
 
 export default function (pi: ExtensionAPI) {

@@ -1,7 +1,7 @@
 import { ImageResponse } from "next/og";
 
 export const socialImageSize = { width: 1200, height: 630 };
-export const socialImageAlt = "Vetta Documentation";
+export const socialImageAlt = "567 Agent Documentation";
 export const socialImageContentType = "image/png";
 
 export function createSocialImage(): ImageResponse {

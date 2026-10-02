@@ -2,7 +2,7 @@ import { randomUUID } from "node:crypto";
 import { mkdtemp, readFile, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { createConversationSeedDraft, FileConversationRepository } from "@vetta/runtime-node/conversation";
+import { createConversationSeedDraft, FileConversationRepository } from "@567agent/runtime-node/conversation";
 import { afterEach, describe, expect, it } from "vitest";
 import { initializeCodingAgentSessionSetupSeed } from "../../src/sessions/setup/session-setup-seed-initializer.js";
 

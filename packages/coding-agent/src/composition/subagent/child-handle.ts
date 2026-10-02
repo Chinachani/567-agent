@@ -1,7 +1,7 @@
-import type { AssistantMessage, Message } from "@vetta/ai";
-import type { RuntimeActiveSession } from "@vetta/runtime-core";
-import type { SessionContextRecord } from "@vetta/runtime-core/kernel";
-import type { SubagentChildHandle, SubagentUsageSnapshot } from "@vetta/runtime-subagents";
+import type { AssistantMessage, Message } from "@567agent/ai";
+import type { RuntimeActiveSession } from "@567agent/runtime-core";
+import type { SessionContextRecord } from "@567agent/runtime-core/kernel";
+import type { SubagentChildHandle, SubagentUsageSnapshot } from "@567agent/runtime-subagents";
 import {
 	CODING_AGENT_TODO_READ,
 	readCodingAgentTodoObservation,

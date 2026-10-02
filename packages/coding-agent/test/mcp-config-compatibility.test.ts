@@ -1,7 +1,7 @@
 import { mkdir, mkdtemp, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
-import { createNodeMcpSupervisor } from "@vetta/runtime-node/mcp";
+import { createNodeMcpSupervisor } from "@567agent/runtime-node/mcp";
 import { afterEach, describe, expect, it } from "vitest";
 
 describe("MCP config compatibility", () => {

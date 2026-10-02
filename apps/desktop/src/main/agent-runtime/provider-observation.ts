@@ -6,13 +6,13 @@ import {
 	registerBuiltInAdapters,
 	type SimpleStreamFunction,
 	streamSimple,
-} from "@vetta/ai";
+} from "@567agent/ai";
 import {
 	createProviderObservationMiddleware,
 	type ProviderCallObservation,
 	type ProviderObservationCapture,
 	type ProviderObservationSink,
-} from "@vetta/ai/testing";
+} from "@567agent/ai/testing";
 import { type ApplicationCacheService, getApplicationCacheService } from "../cache/application-cache-service.js";
 
 const RUN_ID_PATTERN = /^[a-zA-Z0-9_-]{1,64}$/;

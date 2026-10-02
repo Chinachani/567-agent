@@ -1,9 +1,9 @@
 import { mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import type { Api, Model } from "@vetta/ai";
-import type { CodingAgentRuntimeModelSource } from "@vetta/coding-agent/host-services";
-import type { ConversationOwnershipManager } from "@vetta/runtime-storage/conversation";
+import type { Api, Model } from "@567agent/ai";
+import type { CodingAgentRuntimeModelSource } from "@567agent/coding-agent/host-services";
+import type { ConversationOwnershipManager } from "@567agent/runtime-storage/conversation";
 import { describe, expect, it } from "vitest";
 import { createCodingAgentRuntimeComposition } from "./fixtures/runtime-composition.js";
 

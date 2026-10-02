@@ -7,7 +7,7 @@
  * the Session cwd inside the product composition.
  */
 
-import { createCodingAgentSession } from "@vetta/coding-agent/sdk";
+import { createCodingAgentSession } from "@567agent/coding-agent/sdk";
 
 // Read-only mode (no edit/write)
 await createCodingAgentSession({

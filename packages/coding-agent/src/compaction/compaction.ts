@@ -5,9 +5,9 @@
  * and after compaction the session is reloaded.
  */
 
-import type { AgentMessage } from "@vetta/agent-core";
-import type { Api, Model } from "@vetta/ai";
-import { completeSimple, normalizeAssistantMessageError } from "@vetta/ai";
+import type { AgentMessage } from "@567agent/agent-core";
+import type { Api, Model } from "@567agent/ai";
+import { completeSimple, normalizeAssistantMessageError } from "@567agent/ai";
 import {
 	convertToLlm,
 	createBranchSummaryMessage,

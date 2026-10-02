@@ -1,4 +1,4 @@
-# @vetta/desktop
+# @567agent/desktop
 
 Electron desktop host for the Vetta runtime.
 

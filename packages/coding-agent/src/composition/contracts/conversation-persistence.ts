@@ -1,5 +1,5 @@
-import type { ConversationDocumentStore } from "@vetta/runtime-core/conversation";
-import type { ConversationContinuationStore, ConversationRepository } from "@vetta/runtime-core/kernel";
+import type { ConversationDocumentStore } from "@567agent/runtime-core/conversation";
+import type { ConversationContinuationStore, ConversationRepository } from "@567agent/runtime-core/kernel";
 
 export type CodingAgentConversationSessionPathAssessment = "valid" | "path-mismatch" | "missing" | "not-file";
 

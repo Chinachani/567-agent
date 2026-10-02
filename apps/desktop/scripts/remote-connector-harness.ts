@@ -1,4 +1,4 @@
-import { RemoteConnection, WebSocketRemoteTransport } from "@vetta/remote-control";
+import { RemoteConnection, WebSocketRemoteTransport } from "@567agent/remote-control";
 import { DesktopRemoteConnector, type DesktopRemoteOperations } from "../src/main/remote-control/desktop-remote-connector.js";
 
 const connection = new RemoteConnection(

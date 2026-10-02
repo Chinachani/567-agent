@@ -1,5 +1,5 @@
 /** Stable Coding Agent identity and configuration contract. */
-export const PACKAGE_NAME = "@vetta/coding-agent";
+export const PACKAGE_NAME = "@567agent/coding-agent";
 export const APP_NAME = "vetta";
 
 // Project-local resources always use the branded directory. VETTA_CONFIG_DIR only changes the home root.

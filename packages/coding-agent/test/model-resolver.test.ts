@@ -1,4 +1,4 @@
-import type { Model } from "@vetta/ai";
+import type { Model } from "@567agent/ai";
 import { describe, expect, test } from "vitest";
 import {
 	DEFAULT_MODEL_PER_PROVIDER as defaultModelPerProvider,

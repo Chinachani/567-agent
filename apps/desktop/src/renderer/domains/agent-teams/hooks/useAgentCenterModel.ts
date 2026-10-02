@@ -1,4 +1,4 @@
-import type { AgentProfile, TeamDefinition } from "@vetta/agent-team";
+import type { AgentProfile, TeamDefinition } from "@567agent/agent-team";
 import { useCallback, useMemo, useState } from "react";
 import type { AgentCapabilityOption } from "../lib/capability-options";
 import {

@@ -32,7 +32,7 @@ Greenfield 路径此前把三个公开参数标记为 `not-wired`，SDK Host 会
 ### 1. 具体后端只存在于产品 Host
 
 `createLangfuseRuntimeTracerFromEnv` 只在 Coding Agent SDK Host 中调用。Runtime Core 没有增加
-`@vetta/runtime-telemetry` 或 Langfuse 依赖，而是复用 `AgentLoopConfig["tracer"]` 和
+`@567agent/runtime-telemetry` 或 Langfuse 依赖，而是复用 `AgentLoopConfig["tracer"]` 和
 `AgentLoopConfig["tracing"]` 的已有平台中立类型。
 
 接线方向固定为：

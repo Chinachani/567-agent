@@ -2,7 +2,7 @@ import { mkdtemp, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { delimiter, dirname, join } from "node:path";
 import { execPath } from "node:process";
-import { RpcClientError, rpcClientErrorFromResponse } from "@vetta/coding-agent/rpc";
+import { RpcClientError, rpcClientErrorFromResponse } from "@567agent/coding-agent/rpc";
 import { describe, expect, it } from "vitest";
 import { RpcClient, resolveRpcClientProcessLaunch } from "../src/rpc/rpc-client.js";
 

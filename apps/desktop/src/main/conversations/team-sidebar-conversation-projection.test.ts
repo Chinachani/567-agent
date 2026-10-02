@@ -1,4 +1,4 @@
-import { createAgentTeamFixture } from "@vetta/agent-team";
+import { createAgentTeamFixture } from "@567agent/agent-team";
 import { describe, expect, it, vi } from "vitest";
 import { listTeamSidebarConversations } from "./team-sidebar-conversation-projection.js";
 

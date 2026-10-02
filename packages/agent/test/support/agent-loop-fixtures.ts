@@ -5,7 +5,7 @@ import {
 	type Message,
 	type Model,
 	type UserMessage,
-} from "@vetta/ai";
+} from "@567agent/ai";
 import type { AgentMessage } from "../../src/types.js";
 
 export class MockAssistantStream extends EventStream<AssistantMessageEvent, AssistantMessage> {

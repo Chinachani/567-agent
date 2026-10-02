@@ -1,6 +1,6 @@
 import { mkdir, readdir, readFile, rm, stat, writeFile } from "node:fs/promises";
 import { join } from "node:path";
-import { getVettaHomePath } from "@vetta/action-rpc";
+import { getVettaHomePath } from "@567agent/action-rpc";
 import type { PersistedImageResult, PersistImageFileInput, PersistImageInput } from "../../shared/image-cache.js";
 
 const EXTENSION_BY_MIME_TYPE: Readonly<Record<string, string>> = {

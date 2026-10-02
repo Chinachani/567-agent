@@ -1,13 +1,16 @@
-import type { CodingAgentBootstrap, CodingAgentExtensionCompatibilityAssessment } from "@vetta/coding-agent/bootstrap";
+import type {
+	CodingAgentBootstrap,
+	CodingAgentExtensionCompatibilityAssessment,
+} from "@567agent/coding-agent/bootstrap";
 import type {
 	CodingAgentRuntimeComposition,
 	CodingAgentRuntimeCompositionOptions,
-} from "@vetta/coding-agent/composition";
-import type { CodingAgentHtmlExportRuntime } from "@vetta/coding-agent/export-html";
-import type { CodingAgentHistoricalSessionMigrationIncompatible } from "@vetta/coding-agent/historical-sessions";
-import type { RpcSessionCapabilities } from "@vetta/coding-agent/rpc";
-import type { RuntimeHostSession, RuntimeSessionCatalog } from "@vetta/runtime-core";
-import type { FileConversationOwnershipManagerOptions } from "@vetta/runtime-node/conversation";
+} from "@567agent/coding-agent/composition";
+import type { CodingAgentHtmlExportRuntime } from "@567agent/coding-agent/export-html";
+import type { CodingAgentHistoricalSessionMigrationIncompatible } from "@567agent/coding-agent/historical-sessions";
+import type { RpcSessionCapabilities } from "@567agent/coding-agent/rpc";
+import type { RuntimeHostSession, RuntimeSessionCatalog } from "@567agent/runtime-core";
+import type { FileConversationOwnershipManagerOptions } from "@567agent/runtime-node/conversation";
 import type { CreateCliCodingAgentBootstrapOptions } from "../../coding-agent-bootstrap.js";
 import type { CliPrintSessionAdapter } from "../../print-session-adapter.js";
 

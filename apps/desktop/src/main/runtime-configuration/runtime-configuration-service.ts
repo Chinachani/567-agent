@@ -4,14 +4,14 @@ import {
 	CODING_AGENT_COMPACTION_CONFIGURATION_ID,
 	type CodingAgentCompactionConfiguration,
 	type ResolvedCompactionSettings,
-} from "@vetta/coding-agent/settings";
+} from "@567agent/coding-agent/settings";
 import {
 	projectRuntimeConfigurationCatalog,
 	RuntimeConfigurationCenter,
 	type RuntimeConfigurationJsonObject,
 	type RuntimeConfigurationJsonValue,
-} from "@vetta/runtime-core/configuration";
-import { CODING_IMAGE_CONFIGURATION, VETTA_OCR_CONFIGURATION } from "@vetta/runtime-tools";
+} from "@567agent/runtime-core/configuration";
+import { CODING_IMAGE_CONFIGURATION, VETTA_OCR_CONFIGURATION } from "@567agent/runtime-tools";
 import type { OcrProviderDescriptor } from "@vetta-org/capability-sdk";
 import type {
 	DesktopRuntimeConfigurationCatalog,

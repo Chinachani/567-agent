@@ -1,5 +1,5 @@
 {
-	"name": "@vetta/plugin-comfyui-media-provider",
+	"name": "@567agent/plugin-comfyui-media-provider",
 	"version": "0.1.0",
 	"private": true,
 	"type": "module",

@@ -4,10 +4,10 @@ import {
 	createAgentTeamFixture,
 	type TeamSessionDocument,
 	type TeamSessionSnapshot,
-} from "@vetta/agent-team";
+} from "@567agent/agent-team";
 import type { DesktopTeamSessionStreamEvent, DesktopTeamSessionSnapshot } from "@preload/api-types/team-conversation-display";
-import { createAssistantMessage } from "@vetta/ai";
-import type { ContextCompositionReport } from "@vetta/runtime-core";
+import { createAssistantMessage } from "@567agent/ai";
+import type { ContextCompositionReport } from "@567agent/runtime-core";
 import { reasoningByModelAtom, selectedModelAtom } from "@shared/store/atoms";
 import { act, renderHook, waitFor } from "@testing-library/react";
 import { createStore, Provider } from "jotai";

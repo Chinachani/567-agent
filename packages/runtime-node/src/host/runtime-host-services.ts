@@ -1,6 +1,6 @@
 import { mkdir, readFile, rm, writeFile } from "node:fs/promises";
 import { resolve } from "node:path";
-import type { RuntimeHostPathServices, RuntimeQueueSidecarStore } from "@vetta/runtime-core";
+import type { RuntimeHostPathServices, RuntimeQueueSidecarStore } from "@567agent/runtime-core";
 
 function queueSidecarPath(sessionPath: string): string {
 	return `${sessionPath}.queue.json`;

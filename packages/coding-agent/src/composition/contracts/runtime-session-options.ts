@@ -1,6 +1,6 @@
-import type { Message } from "@vetta/ai";
-import type { SessionConfig, SessionExecutionMode } from "@vetta/runtime-core";
-import type { SessionExtensionFunctionSource } from "@vetta/runtime-core/session-extensions";
+import type { Message } from "@567agent/ai";
+import type { SessionConfig, SessionExecutionMode } from "@567agent/runtime-core";
+import type { SessionExtensionFunctionSource } from "@567agent/runtime-core/session-extensions";
 import {
 	type AgentConfigurationSelection,
 	parseAgentConfigurationSelection,

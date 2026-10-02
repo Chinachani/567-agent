@@ -14,7 +14,7 @@ Record the time, entry point, and last successful step first. For a report, use 
 ## Five-minute triage
 
 <Checklist title="Start here">
-  <li>Confirm Vetta, the network, and the target external service are available.</li>
+  <li>Confirm 567 Agent, the network, and the target external service are available.</li>
   <li>Create a short session, explicitly choose a model, and send one minimal message.</li>
   <li>Confirm that the session worktree exists and the current user can access it.</li>
   <li>Temporarily remove unnecessary MCP, skills, attachments, and long context.</li>
@@ -27,7 +27,7 @@ Record the time, entry point, and last successful step first. For a report, use 
 | Only one project fails | Worktree, project instructions, or permissions | Path exists and sandbox permits the action |
 | One external tool fails | MCP process, URL, or authorization | Connector state under **Capabilities → My capabilities** |
 | Success but no file | Acceptance rule or path | Tool record and target directory, not only the final reply |
-| Scheduled run did not happen | Automation state or local environment | Vetta running, device awake, task enabled |
+| Scheduled run did not happen | Automation state or local environment | 567 Agent running, device awake, task enabled |
 | Several subtasks fail together | Shared prompt, rate limit, or directory shape | Set concurrency to 1 and open one representative session |
 
 ## Diagnose by symptom
@@ -73,7 +73,7 @@ Record the time, entry point, and last successful step first. For a report, use 
     **Recover**: Rebuild and import the archive again, then enable and authorize it in the **Enable and permissions** dialog. Built-in plugin permissions are automatic; external plugins should request only the permissions required for the task.
   </Accordion>
   <Accordion id="claw" title="Claw or IM has no reply">
-    **Check first**: The Claw switch is on, the active channel is correct, the conversation model is usable, and Vetta remains running.
+    **Check first**: The Claw switch is on, the active channel is correct, the conversation model is usable, and 567 Agent remains running.
 
     **Recover**: Send `/help` to verify the command channel, then use **View logs** and **Restart** as needed. If commands work but ordinary messages fail, inspect the model and channel binding next.
   </Accordion>
@@ -83,14 +83,14 @@ Record the time, entry point, and last successful step first. For a report, use 
     **Recover**: Retry one failed item first. For repeated failures, set concurrency to 1 and validate a representative directory. Stopping resets unfinished sessions, artifacts, and state; the confirmation dialog defines what happens to completed items.
   </Accordion>
   <Accordion id="automation" title="An automation did not run or has no artifact">
-    **Check first**: Vetta is running, the device is awake, the task is enabled, the time zone and next run are correct, and the worktree has not moved.
+    **Check first**: 567 Agent is running, the device is awake, the task is enabled, the time zone and next run are correct, and the worktree has not moved.
 
     **Recover**: Pause the schedule and use **Run now** to expose model, path, and permission errors. Check execution history and the real output file together. Re-enable only after validation; missed times are not replayed automatically.
   </Accordion>
   <Accordion id="runtime" title="Node.js or Python is unavailable in an Agent task">
-    **Check first**: Vetta's bundled environment is separate from the system terminal environment.
+    **Check first**: 567 Agent's bundled environment is separate from the system terminal environment.
 
-    **Recover**: Open **Settings → Application environment**, get or reinstall Node.js / Python, then verify the versions in a **Vetta session**. Do not infer bundled availability from the system terminal version.
+    **Recover**: Open **Settings → Application environment**, get or reinstall Node.js / Python, then verify the versions in a **567 Agent session**. Do not infer bundled availability from the system terminal version.
   </Accordion>
 </Accordions>
 
@@ -98,7 +98,7 @@ Record the time, entry point, and last successful step first. For a report, use 
 
 If the minimal case still fails, open a [GitHub Issue](https://github.com/openvetta/open-vetta/issues) with:
 
-- Vetta version, operating system, and installation source.
+- 567 Agent version, operating system, and installation source.
 - Minimal reproduction steps, expected result, and actual result.
 - Time of occurrence and whether it is consistent or intermittent.
 - Redacted original error, relevant execution history, and diagnostics.

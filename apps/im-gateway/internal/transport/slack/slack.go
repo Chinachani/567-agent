@@ -37,8 +37,8 @@ import (
 	"github.com/slack-go/slack/slackevents"
 	"github.com/slack-go/slack/socketmode"
 
-	"vetta-im-gateway/internal/transport"
-	"vetta-im-gateway/internal/transport/inbox"
+	"github.com/Chinachani/567-agent/apps/im-gateway/internal/transport"
+	"github.com/Chinachani/567-agent/apps/im-gateway/internal/transport/inbox"
 )
 
 // MaxInboundAttachmentBytes caps a single inbound file we will download +

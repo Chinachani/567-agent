@@ -1,5 +1,5 @@
-import type { TeamSessionDocument } from "@vetta/agent-team";
-import type { SessionConfig } from "@vetta/runtime-core";
+import type { TeamSessionDocument } from "@567agent/agent-team";
+import type { SessionConfig } from "@567agent/runtime-core";
 
 export interface TeamMemberRuntimeReconfigurationHost {
 	getSessionPath(sessionId: string): string | undefined;

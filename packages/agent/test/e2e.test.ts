@@ -1,5 +1,5 @@
-import type { AssistantMessage, Model, ToolResultMessage, UserMessage } from "@vetta/ai";
-import { getModel } from "@vetta/ai";
+import type { AssistantMessage, Model, ToolResultMessage, UserMessage } from "@567agent/ai";
+import { getModel } from "@567agent/ai";
 import { describe, expect, it } from "vitest";
 import { Agent } from "../src/index.js";
 import { hasBedrockCredentials } from "./bedrock-utils.js";

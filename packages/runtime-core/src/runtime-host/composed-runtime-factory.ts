@@ -1,5 +1,5 @@
-import type { StreamFn } from "@vetta/agent-core";
-import type { SimpleStreamOptions } from "@vetta/ai";
+import type { StreamFn } from "@567agent/agent-core";
+import type { SimpleStreamOptions } from "@567agent/ai";
 import type { ConversationDocumentStore } from "../conversation/index.js";
 import {
 	AgentCoreTurnEngine,

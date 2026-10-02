@@ -54,7 +54,7 @@ runtime-composition
 类型中的开放 JSON 值改用 `unknown` 和显式 JSON Object，不新增 `any`。coding-agent 原类型文件变为
 兼容 re-export，因此既有内部和下游导入无需同步改写，运行时也没有新增逻辑。
 
-`@vetta/runtime-mcp` 同时增加根入口、`./protocol` 和 `./config` 导出，独立构建产物包含这些合同。
+`@567agent/runtime-mcp` 同时增加根入口、`./protocol` 和 `./config` 导出，独立构建产物包含这些合同。
 
 ### 3.2 TypeBox 配置解析
 

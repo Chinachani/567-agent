@@ -25,8 +25,8 @@ export interface CreateVettaPluginPackageOptions {
 	npmArchive?: boolean;
 }
 
-export const VETTA_PLUGIN_PACKAGE_EXTENSION = ".vettapkg";
-export const VETTA_NPM_PLUGIN_ARCHIVE_PATH = `release/vetta-plugin${VETTA_PLUGIN_PACKAGE_EXTENSION}`;
+export const VETTA_PLUGIN_PACKAGE_EXTENSION = ".567plugin";
+export const VETTA_NPM_PLUGIN_ARCHIVE_PATH = "release/vetta-plugin.vettapkg";
 
 const crcTable = new Uint32Array(256);
 for (let i = 0; i < 256; i += 1) {

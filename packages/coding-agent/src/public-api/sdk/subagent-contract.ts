@@ -1,4 +1,4 @@
-import type { SubagentSnapshot } from "@vetta/runtime-subagents";
+import type { SubagentSnapshot } from "@567agent/runtime-subagents";
 
 export interface CodingAgentSubagentTodoProgress {
 	readonly done: number;

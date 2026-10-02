@@ -1,10 +1,13 @@
-import type { Message } from "@vetta/ai";
+import type { Message } from "@567agent/ai";
 import {
 	type ContextCompactionEligibility,
 	type ContextCompositionReport,
 	RuntimeContextUsageTracker,
-} from "@vetta/runtime-core";
-import { type ConversationDocument, selectConversationDocumentModelMessages } from "@vetta/runtime-core/conversation";
+} from "@567agent/runtime-core";
+import {
+	type ConversationDocument,
+	selectConversationDocumentModelMessages,
+} from "@567agent/runtime-core/conversation";
 import {
 	ConsecutiveFailureCircuitBreaker,
 	type ContextCompactionRecord,
@@ -23,7 +26,7 @@ import {
 	type RuntimeSnapshotAcquireContext,
 	type StoredSessionEvent,
 	type TurnObserver,
-} from "@vetta/runtime-core/kernel";
+} from "@567agent/runtime-core/kernel";
 import type {
 	CodingAgentBoundContextRuntime,
 	CodingAgentCompactionExtensionRuntime,

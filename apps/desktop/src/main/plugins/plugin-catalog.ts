@@ -1,7 +1,7 @@
 import { existsSync, readFileSync, rmSync } from "node:fs";
 import { readFile, rm, stat } from "node:fs/promises";
 import { isAbsolute, join, resolve } from "node:path";
-import { getVettaHomePath } from "@vetta/action-rpc";
+import { getVettaHomePath } from "@567agent/action-rpc";
 import {
 	parsePluginCommandNames as parseCommands,
 	parsePluginManifest as parseManifest,
@@ -32,6 +32,7 @@ import {
 	extractPluginArchive,
 	findPluginManifest,
 	installedPluginResourceUrl,
+	LEGACY_PLUGIN_PACKAGE_EXTENSION,
 	projectPluginVersion,
 	readPluginLocales,
 	VETTA_PLUGIN_PACKAGE_EXTENSION,
@@ -295,8 +296,14 @@ export async function readPluginPackageFromPath(filePath: string): Promise<Buffe
 		throw new Error(`Plugin archive not found: ${resolved}`);
 	}
 	const lowerPath = resolved.toLowerCase();
-	if (!lowerPath.endsWith(VETTA_PLUGIN_PACKAGE_EXTENSION) && !lowerPath.endsWith(".zip")) {
-		throw new Error(`Plugin path must be a ${VETTA_PLUGIN_PACKAGE_EXTENSION} package or legacy .zip archive`);
+	if (
+		!lowerPath.endsWith(VETTA_PLUGIN_PACKAGE_EXTENSION) &&
+		!lowerPath.endsWith(LEGACY_PLUGIN_PACKAGE_EXTENSION) &&
+		!lowerPath.endsWith(".zip")
+	) {
+		throw new Error(
+			`Plugin path must be a ${VETTA_PLUGIN_PACKAGE_EXTENSION} package or legacy .vettapkg/.zip archive`,
+		);
 	}
 	const info = await stat(resolved);
 	if (!info.isFile() || info.size > MAX_LOCAL_PLUGIN_PACKAGE_BYTES) {

@@ -1,6 +1,6 @@
-import type { ConversationDocument, RuntimeDocumentParticipantContext } from "@vetta/runtime-core";
-import { selectConversationDocumentEntries } from "@vetta/runtime-core";
-import type { StoredSessionEvent } from "@vetta/runtime-core/kernel";
+import type { ConversationDocument, RuntimeDocumentParticipantContext } from "@567agent/runtime-core";
+import { selectConversationDocumentEntries } from "@567agent/runtime-core";
+import type { StoredSessionEvent } from "@567agent/runtime-core/kernel";
 import type { CodingAgentPermissionMode, CodingAgentPlanModeState, CodingAgentPlanStatus } from "./contracts.js";
 import { PLAN_MODE_SNAPSHOT_TYPE, parsePlanModeSnapshot } from "./plan-mode-snapshot.js";
 

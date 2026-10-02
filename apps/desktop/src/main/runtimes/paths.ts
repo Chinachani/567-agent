@@ -1,5 +1,5 @@
 import { dirname, join } from "node:path";
-import { getAgentDir } from "@vetta/coding-agent/config";
+import { getAgentDir } from "@567agent/coding-agent/config";
 import manifest from "./manifest.json";
 
 export type RuntimeType = "node" | "python";

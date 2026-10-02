@@ -1,5 +1,5 @@
-import type { ThinkingLevel } from "@vetta/agent-core";
-import type { Api, Message, Model } from "@vetta/ai";
+import type { ThinkingLevel } from "@567agent/agent-core";
+import type { Api, Message, Model } from "@567agent/ai";
 import { RuntimeAgentRuntime } from "../agents/index.js";
 import type {
 	HistoryEntry,

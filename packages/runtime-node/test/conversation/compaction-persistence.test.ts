@@ -1,7 +1,7 @@
 import { mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import type { AssistantMessage, Message } from "@vetta/ai";
+import type { AssistantMessage, Message } from "@567agent/ai";
 import { afterEach, describe, expect, it } from "vitest";
 import { FileConversationRepository } from "../../src/conversation/index.js";
 

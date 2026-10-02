@@ -1,13 +1,13 @@
-import { type TSchema, Type } from "@sinclair/typebox";
-import type { AgentTool } from "@vetta/agent-core";
+import type { AgentTool } from "@567agent/agent-core";
 import {
 	type EcosystemHookAdapter,
 	type EcosystemHookEvent,
 	EcosystemHookRuntime,
 	emptyHookDispatchOutcome,
 	type HookDispatchOutcome,
-} from "@vetta/ecosystem-adapter/hooks";
-import type { RuntimeToolDefinition } from "@vetta/runtime-core/kernel";
+} from "@567agent/ecosystem-adapter/hooks";
+import type { RuntimeToolDefinition } from "@567agent/runtime-core/kernel";
+import { type TSchema, Type } from "@sinclair/typebox";
 import { describe, expect, it, vi } from "vitest";
 import {
 	type EcosystemHookAwareRuntimeTool,

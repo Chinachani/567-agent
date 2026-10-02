@@ -6,18 +6,18 @@ import {
 	type Message,
 	type Model,
 	type UserMessage,
-} from "@vetta/ai";
-import type { HookDispatchOutcome } from "@vetta/ecosystem-adapter/hooks";
+} from "@567agent/ai";
+import type { HookDispatchOutcome } from "@567agent/ecosystem-adapter/hooks";
 import {
 	applyStoredEventToConversationDocument,
 	type ConversationDocument,
 	createEmptyConversationDocument,
-} from "@vetta/runtime-core/conversation";
+} from "@567agent/runtime-core/conversation";
 import type {
 	ContextPreparationInput,
 	RuntimeSessionObservationEvent,
 	StoredSessionEvent,
-} from "@vetta/runtime-core/kernel";
+} from "@567agent/runtime-core/kernel";
 import { describe, expect, it, vi } from "vitest";
 import type { CompactionPreparation, CompactionResult, CompactionSettings } from "../../src/compaction/index.js";
 import { toActiveCompactionSessionEntries } from "../../src/compaction/runtime/conversation-compaction-projection.js";

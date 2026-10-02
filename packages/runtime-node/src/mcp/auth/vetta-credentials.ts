@@ -1,7 +1,7 @@
 /**
  * 读取 Vetta 客户端下沉的登录态。
  *
- * 桌面端登录、刷新、登出时都会把当前 access token 写进 `~/.vetta/auth.json`
+ * 桌面端登录、刷新、登出时都会把当前 access token 写进 `~/.567agent/auth.json`
  * （见 desktop-app 的 credential-store），这是宿主与外部进程之间唯一的凭据契约：
  * 不去翻客户端的 settings.json，免得把「客户端配置文件的内部结构」变成外部契约。
  *
@@ -11,7 +11,7 @@
 
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
-import { getVettaHomePath } from "@vetta/action-rpc";
+import { getVettaHomePath } from "@567agent/action-rpc";
 
 export interface VettaCredentials {
 	/** 服务根，不含 API 前缀 */
@@ -22,7 +22,7 @@ export interface VettaCredentials {
 
 export const VETTA_API_PREFIX = "/api/v1";
 
-/** 凭据文件路径：`~/.vetta/auth.json`，显式运行时目录或 VETTA_HOME 可覆盖根目录。 */
+/** 凭据文件路径：`~/.567agent/auth.json`，显式运行时目录或 VETTA_HOME 可覆盖根目录。 */
 export function vettaCredentialsPath(vettaHome?: string): string {
 	const home = vettaHome?.trim() || getVettaHomePath();
 	return join(home, "auth.json");

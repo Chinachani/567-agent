@@ -1,6 +1,6 @@
 # 清单参考（plugin.json）
 
-`plugin.json` 是插件的唯一清单，位于 `.vettapkg` 包的 ZIP 容器根目录（或唯一顶层文件夹内）。
+`plugin.json` 是插件的唯一清单，位于 `.567plugin` 包的 ZIP 容器根目录（或唯一顶层文件夹内）。
 
 它描述插件的运行时合同。能力页的可选长详情使用独立的 `ability.json`，见
 [能力详情页](./ability-details.md)；不要把 showcase、长 Markdown 或展示图片塞进 `plugin.json`。
@@ -214,7 +214,7 @@ revision 读取；不要依次调用多次 `writeFile()` 冒充多文件事务�
 - `skills.<skill-name>`：按 `SKILL.md` 中的稳定 Skill 名覆盖插件默认值；可声明 `defaultVisibility`、`surfaces`、`displayName`、`displayDescription`。
 - `displayName` / `displayDescription`：仅改变用户看到的文案，不改变 Skill 名、调用路由或已保存引用；支持插件 `%catalogKey%` 本地化占位符。
 
-普通用户、项目、市场与 Vetta 内置 Skill 没有声明时继续默认可见。已安装的旧插件没有 `skillPresentation` 时按插件默认隐藏，避免把实现细节意外暴露为产品能力。
+普通用户、项目、市场与 567 Agent 内置 Skill 没有声明时继续默认可见。已安装的旧插件没有 `skillPresentation` 时按插件默认隐藏，避免把实现细节意外暴露为产品能力。
 
 ## 贡献智能体与团队
 
@@ -359,7 +359,7 @@ revision 读取；不要依次调用多次 `writeFile()` 冒充多文件事务�
 
 | role | agent | 名称 | 擅长什么 |
 | --- | --- | --- | --- |
-| `designer` | `vetta-ui-design/designer` | 设计师 | 在 Vetta 设计画布上产出界面：App 页面、落地页、幻灯片与海报 |
+| `designer` | `vetta-ui-design/designer` | 设计师 | 在 567 Agent 设计画布上产出界面：App 页面、落地页、幻灯片与海报 |
 
 这两个插件是**预置插件**，用户可以禁用但不会卸载。禁用时槽位按 `optional` 规则降级——用 `role` 引用它们的团队会少一名队员，重新启用后原样回来。
 

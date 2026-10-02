@@ -1,4 +1,4 @@
-import type { AgentModelCallLifecycle, StreamFn } from "@vetta/agent-core";
+import type { AgentModelCallLifecycle, StreamFn } from "@567agent/agent-core";
 import {
 	type Api,
 	type AssistantMessage,
@@ -7,7 +7,7 @@ import {
 	type Message,
 	type Model,
 	streamSimple,
-} from "@vetta/ai";
+} from "@567agent/ai";
 import {
 	buildContextCompositionReport,
 	completeContextCompositionReport,

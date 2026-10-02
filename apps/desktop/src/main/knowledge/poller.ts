@@ -12,7 +12,7 @@ import { randomUUID } from "node:crypto";
 import { mkdir, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import * as knowledge from "@vetta/runtime-knowledge";
+import * as knowledge from "@567agent/runtime-knowledge";
 import { BrowserWindow } from "electron";
 import { AsyncTask, SimpleIntervalJob, ToadScheduler } from "toad-scheduler";
 import { getOrCreateSharedModelRuntime } from "../agent-runtime/host-services.js";

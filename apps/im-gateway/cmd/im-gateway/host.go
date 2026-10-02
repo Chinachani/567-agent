@@ -9,14 +9,14 @@ import (
 	"path/filepath"
 	"time"
 
-	"vetta-im-gateway/internal/command"
-	"vetta-im-gateway/internal/hostclient"
-	hclocal "vetta-im-gateway/internal/hostclient/local"
-	"vetta-im-gateway/internal/hostproto"
-	"vetta-im-gateway/internal/router"
-	"vetta-im-gateway/internal/state"
-	"vetta-im-gateway/internal/transport"
-	"vetta-im-gateway/internal/transport/wechat/ilink"
+	"github.com/Chinachani/567-agent/apps/im-gateway/internal/command"
+	"github.com/Chinachani/567-agent/apps/im-gateway/internal/hostclient"
+	hclocal "github.com/Chinachani/567-agent/apps/im-gateway/internal/hostclient/local"
+	"github.com/Chinachani/567-agent/apps/im-gateway/internal/hostproto"
+	"github.com/Chinachani/567-agent/apps/im-gateway/internal/router"
+	"github.com/Chinachani/567-agent/apps/im-gateway/internal/state"
+	"github.com/Chinachani/567-agent/apps/im-gateway/internal/transport"
+	"github.com/Chinachani/567-agent/apps/im-gateway/internal/transport/wechat/ilink"
 )
 
 // transportBuilder constructs a transport.Transport from the active

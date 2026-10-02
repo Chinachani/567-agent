@@ -1,5 +1,5 @@
-import type { TeamSessionDocument } from "@vetta/agent-team";
-import { createAssistantMessage } from "@vetta/ai";
+import type { TeamSessionDocument } from "@567agent/agent-team";
+import { createAssistantMessage } from "@567agent/ai";
 import { describe, expect, it, vi } from "vitest";
 import { projectTeamConversationDisplay } from "./team-conversation-display.js";
 

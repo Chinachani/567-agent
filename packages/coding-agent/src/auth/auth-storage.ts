@@ -1,4 +1,4 @@
-import { getEnvApiKey, type OAuthCredentials, type OAuthLoginCallbacks, type OAuthProviderId } from "@vetta/ai";
+import { getEnvApiKey, type OAuthCredentials, type OAuthLoginCallbacks, type OAuthProviderId } from "@567agent/ai";
 import {
 	type CodingAgentConfigurationValueResolver,
 	literalCodingAgentConfigurationValueResolver,

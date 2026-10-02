@@ -3,8 +3,8 @@ import {
 	createTeamSharedContextGeneration,
 	type TeamContextProjectionReceipt,
 	type TeamPublicationOperationRecord,
-} from "@vetta/agent-team";
-import { type ConversationDocument, createEmptyConversationDocument } from "@vetta/runtime-core/conversation";
+} from "@567agent/agent-team";
+import { type ConversationDocument, createEmptyConversationDocument } from "@567agent/runtime-core/conversation";
 import { describe, expect, it } from "vitest";
 import { buildTeamMemberPinnedContext, restoreTeamMemberPinnedContext } from "./team-member-context.js";
 

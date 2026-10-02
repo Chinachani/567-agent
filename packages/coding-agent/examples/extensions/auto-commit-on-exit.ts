@@ -5,7 +5,7 @@
  * Uses the last assistant message to generate a commit message.
  */
 
-import type { ExtensionAPI } from "@vetta/coding-agent";
+import type { ExtensionAPI } from "@567agent/coding-agent";
 
 export default function (api: ExtensionAPI) {
 	api.on("session_shutdown", async (_event, ctx) => {

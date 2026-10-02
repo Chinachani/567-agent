@@ -1,6 +1,6 @@
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
-import { pluginBlueprintId } from "@vetta/agent-team";
+import { pluginBlueprintId } from "@567agent/agent-team";
 import { describe, expect, it, vi } from "vitest";
 import type { InstalledPlugin } from "../../preload/api-types/plugins.js";
 import { buildPluginAgentPresets } from "./plugin-agent-presets.js";

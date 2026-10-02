@@ -3,8 +3,8 @@ import type { Dirent } from "node:fs";
 import { existsSync } from "node:fs";
 import { mkdir, readdir, readFile, rename, rm, rmdir } from "node:fs/promises";
 import { dirname, join, relative, resolve, sep } from "node:path";
-import { codingAgentSessionShardPath } from "@vetta/coding-agent/bootstrap";
-import { atomicWriteFileAsync, atomicWriteJSONAsync } from "@vetta/toolkit/atomic-write";
+import { codingAgentSessionShardPath } from "@567agent/coding-agent/bootstrap";
+import { atomicWriteFileAsync, atomicWriteJSONAsync } from "@567agent/toolkit/atomic-write";
 
 export const AGENT_TEAM_STORAGE_LAYOUT_VERSION = 2;
 export const AGENT_TEAM_TEAMS_DIRECTORY = "teams";

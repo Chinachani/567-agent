@@ -1,1 +1,1 @@
-export * from "@vetta/runtime-mcp/config";
+export * from "@567agent/runtime-mcp/config";

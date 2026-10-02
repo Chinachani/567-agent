@@ -5,7 +5,7 @@
  * from cwd and ~/.vetta/agent. Model chosen from settings or first available.
  */
 
-import { createCodingAgentSession } from "@vetta/coding-agent/sdk";
+import { createCodingAgentSession } from "@567agent/coding-agent/sdk";
 
 const { session } = await createCodingAgentSession();
 

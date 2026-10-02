@@ -1,4 +1,4 @@
-import type { RuntimeAssemblyOperation, RuntimeObservationPublisher } from "@vetta/runtime-core";
+import type { RuntimeAssemblyOperation, RuntimeObservationPublisher } from "@567agent/runtime-core";
 import type { CodingAgentSessionInitializationStage } from "../contracts/session-initialization-observability.js";
 import { CODING_AGENT_SESSION_INITIALIZATION_OBSERVATION } from "../contracts/session-initialization-observability.js";
 

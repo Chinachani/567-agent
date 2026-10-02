@@ -1,7 +1,7 @@
 import { mkdtemp, readFile, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import type { ProviderCallObservation } from "@vetta/ai/testing";
+import type { ProviderCallObservation } from "@567agent/ai/testing";
 import { afterEach, describe, expect, it } from "vitest";
 import { ApplicationCacheService } from "../cache/application-cache-service.js";
 import { createDesktopProviderObservationRuntime, NdjsonProviderObservationSink } from "./provider-observation.js";

@@ -65,10 +65,6 @@
 			"types": "./src/file-explorer/index.ts",
 			"import": "./src/file-explorer/index.ts"
 		},
-		"./downloads": {
-			"types": "./src/downloads/index.ts",
-			"import": "./src/downloads/index.ts"
-		},
 		"./flowing": {
 			"types": "./src/flowing/index.ts",
 			"import": "./src/flowing/index.ts"
@@ -119,7 +115,9 @@
 		},
 		"./styles.css": "./src/styles.css"
 	},
-	"files": ["src"],
+	"files": [
+		"src"
+	],
 	"publishConfig": {
 		"access": "public",
 		"registry": "https://registry.npmjs.org/"

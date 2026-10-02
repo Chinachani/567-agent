@@ -1,20 +1,20 @@
 // Shared Desktop host services used by the production Agent Runtime composition.
 import { existsSync, readFileSync } from "node:fs";
 import { join } from "node:path";
-import { CONFIG_DIR_NAME, getAgentDir } from "@vetta/coding-agent/config";
+import { CONFIG_DIR_NAME, getAgentDir } from "@567agent/coding-agent/config";
 import {
 	AuthStorage,
 	type CodingAgentAuthRuntime,
 	type CodingAgentModelRuntime,
 	createCodingAgentModelRuntime,
 	SettingsRuntime,
-} from "@vetta/coding-agent/host-services";
+} from "@567agent/coding-agent/host-services";
 import {
 	NodeScopedTextStorage,
 	NodeTransactionalTextStorage,
 	nodeConfigurationValueResolver,
 	nodeSyncTextFileSource,
-} from "@vetta/runtime-node/host";
+} from "@567agent/runtime-node/host";
 import { DEFAULT_SERVER_URL } from "../constants.js";
 import { getDesktopModelCredentialStore, type ModelCredentialStore } from "../models/model-credential-store.js";
 import { readModelsConfigSync } from "../models/model-settings-service.js";

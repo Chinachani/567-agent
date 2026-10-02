@@ -1,4 +1,4 @@
-import type { BackgroundCommandSnapshot } from "@vetta/runtime-tools";
+import type { BackgroundCommandSnapshot } from "@567agent/runtime-tools";
 import { describe, expect, it } from "vitest";
 import { buildCodingAgentBackgroundCommandNotification } from "../../src/execution/background/notification.js";
 

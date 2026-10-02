@@ -8,8 +8,8 @@ import (
 	"sync"
 	"time"
 
-	"vetta-im-gateway/internal/hostproto"
-	signalcli "vetta-im-gateway/internal/transport/signal"
+	"github.com/Chinachani/567-agent/apps/im-gateway/internal/hostproto"
+	signalcli "github.com/Chinachani/567-agent/apps/im-gateway/internal/transport/signal"
 )
 
 // accountLookupTimeout bounds the `signal-cli listAccounts` probe used to

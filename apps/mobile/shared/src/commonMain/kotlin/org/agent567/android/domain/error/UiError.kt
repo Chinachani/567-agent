@@ -104,7 +104,7 @@ object ErrorMapper {
             40301 ->
                 UiError(
                     title = "服务暂不可用",
-                    message = "Vetta Go 当前未开放，请稍后再试",
+                    message = "567 Agent Go 当前未开放，请稍后再试",
                     action = UiErrorAction.OpenPlan,
                     technicalCode = code,
                 )

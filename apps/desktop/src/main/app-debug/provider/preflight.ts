@@ -6,8 +6,8 @@ import {
 	isAIError,
 	type Model,
 	type SimpleStreamFunction,
-} from "@vetta/ai";
-import type { CodingAgentModelRuntime } from "@vetta/coding-agent/host-services";
+} from "@567agent/ai";
+import type { CodingAgentModelRuntime } from "@567agent/coding-agent/host-services";
 import { waitForSignal } from "./wait-for-signal.js";
 
 const PREFLIGHT_SYSTEM_PROMPT = "You are a provider connection probe. Reply with OK only.";

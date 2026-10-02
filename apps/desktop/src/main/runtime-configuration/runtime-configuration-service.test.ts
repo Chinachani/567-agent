@@ -1,8 +1,8 @@
 import {
 	CODING_AGENT_COMPACTION_CONFIGURATION,
 	CODING_AGENT_COMPACTION_CONFIGURATION_ID,
-} from "@vetta/coding-agent/settings";
-import { CODING_IMAGE_CONFIGURATION_ID, VETTA_OCR_CONFIGURATION_ID } from "@vetta/runtime-tools";
+} from "@567agent/coding-agent/settings";
+import { CODING_IMAGE_CONFIGURATION_ID, VETTA_OCR_CONFIGURATION_ID } from "@567agent/runtime-tools";
 import { describe, expect, it, vi } from "vitest";
 import {
 	DesktopRuntimeConfigurationService,

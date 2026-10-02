@@ -1,10 +1,10 @@
-import type { TeamSessionSnapshot, TeamSessionStreamEvent } from "@vetta/agent-team";
-import type { ContextCompositionReport, HistoryEntry, SessionExecutionMode } from "@vetta/runtime-core";
+import type { TeamSessionSnapshot, TeamSessionStreamEvent } from "@567agent/agent-team";
+import type { ContextCompositionReport, HistoryEntry, SessionExecutionMode } from "@567agent/runtime-core";
 import type {
 	ConversationAgentAuthorReference,
 	ConversationMessageStreamEvent,
-} from "@vetta/runtime-core/conversation";
-import type { RuntimeToolResult } from "@vetta/runtime-core/kernel";
+} from "@567agent/runtime-core/conversation";
+import type { RuntimeToolResult } from "@567agent/runtime-core/kernel";
 
 /** One ordinary member Conversation, read from its native persisted history. */
 export interface DesktopTeamMemberConversation {

@@ -8,7 +8,7 @@ import {
 } from "@vetta-org/theme-ui/chat";
 import { forwardRef, memo } from "react";
 import { useTranslation } from "react-i18next";
-import type { Usage } from "@vetta/ai/protocol";
+import type { Usage } from "@567agent/ai/protocol";
 import type { ChatConversationItem } from "./types";
 import type { ConversationParticipantViewModel } from "@shared/conversation";
 import { AssistantMessage } from "./AssistantMessage";

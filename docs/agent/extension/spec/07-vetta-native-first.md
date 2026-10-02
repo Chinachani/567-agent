@@ -136,7 +136,7 @@ Context 和 action facade 持有 generation token。Session replacement 创建 f
 - extension unload/reload 自动撤销；
 - resolved credential 不进入诊断或可序列化 contribution snapshot；catalog 只保存 credential reference/resolver binding id，私有 binding 同样受 generation owner 管理。
 
-第一阶段只允许 `baseUrl/apiKey/api/headers/authHeader` 和双方都能表达的 model metadata。虽然 `@vetta/ai` 已支持按 `sourceId` 注销 API provider，OAuth registry 尚无等价 owner lifecycle；因此 native Provider 第一阶段也不接受 OAuth、custom `streamSimple`、动态 refresh 或完整 Provider 对象。
+第一阶段只允许 `baseUrl/apiKey/api/headers/authHeader` 和双方都能表达的 model metadata。虽然 `@567agent/ai` 已支持按 `sourceId` 注销 API provider，OAuth registry 尚无等价 owner lifecycle；因此 native Provider 第一阶段也不接受 OAuth、custom `streamSimple`、动态 refresh 或完整 Provider 对象。
 
 ### N5：Native 结构化交互边界
 
@@ -158,7 +158,7 @@ Native Extension 可以继续保留旧 UI contract 以兼容现有作者，但�
 | Pi 能力 | 不扩展原因 |
 | --- | --- |
 | Pi TUI/Theme/Component/renderers/shortcut | 具体终端产品合同，Vetta 已有独立宿主 UI 路线 |
-| full native Provider | 会绕过 `@vetta/ai` 稳定协议和 owner 模型 |
+| full native Provider | 会绕过 `@567agent/ai` 稳定协议和 owner 模型 |
 | request/header/response hooks | 扩大 prompt、credential 和请求可见范围 |
 | `project_trust` handler | 待执行代码不能参与自身 trust 决策 |
 | parallel Tool execution | 需要 Agent engine 级调度设计，不能作为兼容细节添加 |

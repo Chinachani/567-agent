@@ -1,4 +1,4 @@
-# @vetta/runtime-telemetry
+# @567agent/runtime-telemetry
 
 Minimal telemetry contract for runtime and host packages.
 
@@ -9,7 +9,7 @@ Minimal telemetry contract for runtime and host packages.
 - structured logger context shape
 - platform-neutral `RuntimeTracer` / `RuntimeObservation` interfaces
 - `RuntimeObservationPort` adapters for structured logs and flat tracer events
-- optional Langfuse exporter in `@vetta/runtime-telemetry/langfuse`
+- optional Langfuse exporter in `@567agent/runtime-telemetry/langfuse`
 
 ## What It Does Not Own
 
@@ -19,7 +19,7 @@ Minimal telemetry contract for runtime and host packages.
 ## Langfuse
 
 ```ts
-import { createLangfuseRuntimeTracerFromEnv } from "@vetta/runtime-telemetry/langfuse";
+import { createLangfuseRuntimeTracerFromEnv } from "@567agent/runtime-telemetry/langfuse";
 
 const tracer = createLangfuseRuntimeTracerFromEnv();
 ```
@@ -29,11 +29,11 @@ Set `VETTA_TRACING=langfuse` plus Langfuse credentials (`LANGFUSE_PUBLIC_KEY`, `
 ## Runtime Observation adapters
 
 ```ts
-import { RuntimeObservationHub } from "@vetta/runtime-core/observation";
+import { RuntimeObservationHub } from "@567agent/runtime-core/observation";
 import {
   createRuntimeObservationLoggerPort,
   createRuntimeObservationTracerPort,
-} from "@vetta/runtime-telemetry";
+} from "@567agent/runtime-telemetry";
 
 const hub = new RuntimeObservationHub();
 hub.attach(createRuntimeObservationLoggerPort({ logger }), { id: "log" });

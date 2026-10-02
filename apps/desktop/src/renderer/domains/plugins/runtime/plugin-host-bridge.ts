@@ -1,3 +1,5 @@
+import type { Message } from "@567agent/ai";
+import type { SessionEvent } from "@567agent/runtime-core";
 import { useSidebarState } from "@shared/app-shell/sidebar-state";
 import {
 	activeSessionAtom,
@@ -11,8 +13,6 @@ import {
 	selectedModelAtom,
 	sessionExecutionModeAtom,
 } from "@shared/store/atoms";
-import type { Message } from "@vetta/ai";
-import type { SessionEvent } from "@vetta/runtime-core";
 import type {
 	ConversationEvent,
 	ConversationMessage,

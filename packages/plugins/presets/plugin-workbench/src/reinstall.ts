@@ -42,7 +42,7 @@ export async function applyPluginToVetta(options: ApplyPluginOptions): Promise<{
 		}
 		const manifest = await readJson(joinPath(project.dir, "plugin.json"));
 		const version = typeof manifest?.version === "string" ? manifest.version : project.version;
-		packagePath = joinPath(project.dir, "release", `${project.id}-${version}.vettapkg`);
+		packagePath = joinPath(project.dir, "release", `${project.id}-${version}.567plugin`);
 	}
 
 	// 构建期间 dev-watch 可能已触发插件重载，必须用重载后的 fs session。

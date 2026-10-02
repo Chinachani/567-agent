@@ -1,5 +1,5 @@
-import type { ThinkingLevel } from "@vetta/agent-core";
-import type { KnownProvider } from "@vetta/ai";
+import type { ThinkingLevel } from "@567agent/agent-core";
+import type { KnownProvider } from "@567agent/ai";
 
 export const DEFAULT_THINKING_LEVEL: ThinkingLevel = "medium";
 

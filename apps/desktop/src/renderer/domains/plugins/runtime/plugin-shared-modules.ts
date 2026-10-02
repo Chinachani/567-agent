@@ -30,9 +30,21 @@ export const pluginSharedModules = {
 		singleton: true,
 		requiredVersion: false,
 	},
+	"@567agent/plugin-sdk": {
+		module: pluginSdk,
+		version: "1.0.0",
+		singleton: true,
+		requiredVersion: false,
+	},
 	// 兼容别名：这个包 0.1.0 之前叫 @vetta/ui。名字就是 MF 的共享键，市场上按旧名构建的
 	// 插件在它们的 remoteEntry 里声明的仍是旧名——只提供新名会让它们在共享域里落空，
 	// 退回自己打包的那一份，于是宿主与插件各持一份组件实例。指向同一个 module 即可。
+	"@567agent/ui": {
+		module: vettaUi,
+		version: "0.0.1",
+		singleton: true,
+		requiredVersion: false,
+	},
 	"@vetta/ui": {
 		module: vettaUi,
 		version: "0.0.1",
@@ -47,6 +59,12 @@ export const pluginSharedModules = {
 		requiredVersion: false,
 	},
 	// 兼容别名，理由同上：这个包 0.1.0 之前叫 @vetta/theme-ui。
+	"@567agent/theme-ui/plugin-ui": {
+		module: themeUiPlugin,
+		version: "0.0.1",
+		singleton: true,
+		requiredVersion: false,
+	},
 	"@vetta/theme-ui/plugin-ui": {
 		module: themeUiPlugin,
 		version: "0.0.1",

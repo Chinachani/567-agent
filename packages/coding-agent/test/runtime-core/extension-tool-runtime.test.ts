@@ -1,9 +1,9 @@
-import { Type } from "@sinclair/typebox";
 import type {
 	ModelCallFrameCompositionContext,
 	RuntimeSnapshotAcquireContext,
 	RuntimeToolDefinition,
-} from "@vetta/runtime-core/kernel";
+} from "@567agent/runtime-core/kernel";
+import { Type } from "@sinclair/typebox";
 import { describe, expect, it } from "vitest";
 import type {
 	Extension,

@@ -6,9 +6,9 @@ import {
 	type TeamSessionDocument,
 	type TeamWorkItem,
 	teamMemberResultMessageId,
-} from "@vetta/agent-team";
-import type { AssistantMessage } from "@vetta/ai";
-import type { RuntimeHost } from "@vetta/runtime-core";
+} from "@567agent/agent-team";
+import type { AssistantMessage } from "@567agent/ai";
+import type { RuntimeHost } from "@567agent/runtime-core";
 import type { TeamCollaborationStore } from "./team-collaboration-store.js";
 import { isTeamAttemptFinalResult } from "./team-member-result.js";
 import { publicAssistantMessage } from "./team-public-message.js";

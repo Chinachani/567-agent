@@ -31,7 +31,7 @@ async function activateRendererControl(element: WebdriverIO.Element): Promise<vo
 	await browser.execute((control) => control.click(), element);
 }
 
-describe("Vetta Desktop packaged updater", () => {
+describe("567 Agent packaged updater", () => {
 	(packaged ? it : it.skip)("checks the configured update feed through the settings UI", async () => {
 		await browser.waitUntil(
 			async () => {

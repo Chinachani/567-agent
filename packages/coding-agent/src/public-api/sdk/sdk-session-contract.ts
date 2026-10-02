@@ -1,13 +1,13 @@
-import type { AgentMessage, ThinkingLevel } from "@vetta/agent-core";
-import type { Api, ImageContent, Model, TextContent } from "@vetta/ai";
-import type { TodoItem } from "@vetta/coding-agent/session-extensions";
+import type { AgentMessage, ThinkingLevel } from "@567agent/agent-core";
+import type { Api, ImageContent, Model, TextContent } from "@567agent/ai";
+import type { TodoItem } from "@567agent/coding-agent/session-extensions";
 import type {
 	RuntimeContextCompactionResult,
 	RuntimeSessionContextUsage,
 	RuntimeSessionInputQueueMode,
 	RuntimeSessionState,
-} from "@vetta/runtime-core";
-import type { BackgroundCommandSnapshot } from "@vetta/runtime-tools";
+} from "@567agent/runtime-core";
+import type { BackgroundCommandSnapshot } from "@567agent/runtime-tools";
 import type { CodingAgentSessionEventListener } from "./sdk-event-contract.js";
 import type { AgentPluginRuntimeConfig } from "./sdk-plugin-contract.js";
 import type { CodingAgentPromptOptions } from "./sdk-prompt-contract.js";
@@ -252,5 +252,5 @@ export interface CodingAgentActiveSessionCapabilities {
 	getUserMessagesForForking(): readonly { readonly entryId: string; readonly text: string }[];
 }
 
-/** `@vetta/coding-agent/sdk` 返回的稳定活动会话门面。 */
+/** `@567agent/coding-agent/sdk` 返回的稳定活动会话门面。 */
 export type CodingAgentSession = CodingAgentFixedSession & CodingAgentActiveSessionCapabilities;

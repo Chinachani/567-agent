@@ -1,9 +1,9 @@
 import { mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import type { Api, AssistantMessage, AssistantMessageEvent, Model } from "@vetta/ai";
-import { EventStream } from "@vetta/ai";
-import { RuntimeHost } from "@vetta/runtime-core";
+import type { Api, AssistantMessage, AssistantMessageEvent, Model } from "@567agent/ai";
+import { EventStream } from "@567agent/ai";
+import { RuntimeHost } from "@567agent/runtime-core";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import type { CodingAgentRuntimeModelSource } from "../../src/adapters/runtime-core/model-runtime-adapter.js";
 import type { CodingAgentRuntimeComposition } from "../../src/composition/contracts/index.js";

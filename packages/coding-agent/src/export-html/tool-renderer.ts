@@ -1,4 +1,4 @@
-import type { ImageContent, TextContent } from "@vetta/ai";
+import type { ImageContent, TextContent } from "@567agent/ai";
 import type { ToolDefinition } from "../extensions/index.js";
 import type { Theme } from "../theme/index.js";
 import { ansiLinesToHtml } from "./ansi-to-html.js";

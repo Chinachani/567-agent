@@ -1,4 +1,4 @@
-import type { AgentBlueprint } from "@vetta/agent-team";
+import type { AgentBlueprint } from "@567agent/agent-team";
 import { describe, expect, it } from "vitest";
 import { agentBlueprintLabel, resourceProviderName } from "./blueprint-display";
 

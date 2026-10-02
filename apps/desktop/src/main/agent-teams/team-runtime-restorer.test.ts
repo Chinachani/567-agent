@@ -1,5 +1,5 @@
-import type { TeamSessionDocument } from "@vetta/agent-team";
-import type { SessionConfig } from "@vetta/runtime-core";
+import type { TeamSessionDocument } from "@567agent/agent-team";
+import type { SessionConfig } from "@567agent/runtime-core";
 import { describe, expect, it, vi } from "vitest";
 import { restoreTeamMemberRuntimes, type TeamRuntimeResumeHost } from "./team-runtime-restorer.js";
 

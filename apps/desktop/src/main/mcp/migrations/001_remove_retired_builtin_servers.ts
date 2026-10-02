@@ -1,4 +1,4 @@
-import type { FileMigration } from "@vetta/toolkit/file-migrations";
+import type { FileMigration } from "@567agent/toolkit/file-migrations";
 import type { McpConfigData, McpServerConfigData } from "../../../preload/api-types/mcp.js";
 import { validateMcpConfig } from "../../mcp-config-validation.js";
 

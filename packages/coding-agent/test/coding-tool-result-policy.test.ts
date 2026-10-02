@@ -1,5 +1,5 @@
-import type { RuntimeToolResult } from "@vetta/runtime-core/kernel";
-import type { RuntimeToolResultArtifactStore } from "@vetta/runtime-tools";
+import type { RuntimeToolResult } from "@567agent/runtime-core/kernel";
+import type { RuntimeToolResultArtifactStore } from "@567agent/runtime-tools";
 import { describe, expect, it, vi } from "vitest";
 import { createCodingAgentCodingToolResultPolicy } from "../src/tool-results/result-policy.js";
 

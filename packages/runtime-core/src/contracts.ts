@@ -1,5 +1,5 @@
-import type { ThinkingLevel, ToolPhase } from "@vetta/agent-core";
-import type { AssistantMessageEvent, CacheUsageReporting, Message, Model } from "@vetta/ai";
+import type { ThinkingLevel, ToolPhase } from "@567agent/agent-core";
+import type { AssistantMessageEvent, CacheUsageReporting, Message, Model } from "@567agent/ai";
 import type { ContextCompositionReport } from "./context-composition/contracts.js";
 import type { RuntimeFailure, RuntimeFailureDetails, RuntimeFailureOrigin } from "./failure-contract.js";
 import type { SessionContextState, SessionContextStateEvent } from "./session-context-state.js";
@@ -34,7 +34,7 @@ export interface SessionEventBase {
 }
 
 /**
- * @vetta/ai 模型协议事件及其 Session 传输元数据。
+ * @567agent/ai 模型协议事件及其 Session 传输元数据。
  *
  * AssistantMessageEvent 的 `type` 和载荷字段保持在顶层；Runtime 只补充 channel
  * 与会话相关元数据，不再包裹或映射为第二套模型事件。

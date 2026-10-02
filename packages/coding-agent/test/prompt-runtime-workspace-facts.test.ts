@@ -1,7 +1,7 @@
 import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { nodeWorkspaceFactsFileSource } from "@vetta/runtime-node/coding";
+import { nodeWorkspaceFactsFileSource } from "@567agent/runtime-node/coding";
 import { afterEach, describe, expect, it } from "vitest";
 import { CodingAgentPromptRuntime } from "../src/model-context/prompt-runtime.js";
 import { detectWorkspaceFacts, probeWorkspaceSignals } from "../src/model-context/workspace-facts.js";

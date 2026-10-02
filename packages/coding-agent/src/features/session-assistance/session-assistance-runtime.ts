@@ -1,4 +1,4 @@
-import type { StreamFn } from "@vetta/agent-core";
+import type { StreamFn } from "@567agent/agent-core";
 import {
 	type Api,
 	getReasoningPreset,
@@ -9,9 +9,9 @@ import {
 	type Tool,
 	type ToolCall,
 	Type,
-} from "@vetta/ai";
-import type { RuntimeSessionModelView } from "@vetta/runtime-core";
-import { type RuntimeObservationPublisher, runtimeObservationFailure } from "@vetta/runtime-core/observation";
+} from "@567agent/ai";
+import type { RuntimeSessionModelView } from "@567agent/runtime-core";
+import { type RuntimeObservationPublisher, runtimeObservationFailure } from "@567agent/runtime-core/observation";
 import { CODING_AGENT_SESSION_ASSISTANCE_OBSERVATION } from "../../runtime-contracts/session-assistance-observability.js";
 
 const MAX_CANDIDATES = 3;

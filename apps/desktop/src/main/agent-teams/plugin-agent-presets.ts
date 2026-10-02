@@ -1,7 +1,7 @@
 import { existsSync, readFileSync } from "node:fs";
 import { extname, resolve } from "node:path";
-import type { AgentBlueprint } from "@vetta/agent-team";
-import { EMPTY_AGENT_ABILITIES, pluginBlueprintId } from "@vetta/agent-team";
+import type { AgentBlueprint } from "@567agent/agent-team";
+import { EMPTY_AGENT_ABILITIES, pluginBlueprintId } from "@567agent/agent-team";
 import type { InstalledPlugin } from "../../preload/api-types/plugins.js";
 
 /**

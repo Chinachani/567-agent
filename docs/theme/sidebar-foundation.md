@@ -84,7 +84,7 @@ regions: {
 
 ```tsx
 import { useSidebarModel } from "@vetta-org/theme-sdk/sidebar";
-import { DefaultSidebar } from "@vetta/desktop-theme-ui/sidebar";
+import { DefaultSidebar } from "@567agent/desktop-theme-ui/sidebar";
 
 export function ThemeSidebar(props: SidebarProps) {
   const model = useSidebarModel(props);

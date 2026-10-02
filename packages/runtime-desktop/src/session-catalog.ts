@@ -1,10 +1,10 @@
 import { dirname, relative, resolve } from "node:path";
-import type { ProjectInfo, RuntimeSessionCatalog, SessionHistoryInfo } from "@vetta/runtime-core";
+import type { ProjectInfo, RuntimeSessionCatalog, SessionHistoryInfo } from "@567agent/runtime-core";
 import {
 	FileConversationRuntimeSessionCatalog,
 	type FileConversationRuntimeSessionCatalogOptions,
 	type RuntimeConversationSessionRoot,
-} from "@vetta/runtime-node/conversation";
+} from "@567agent/runtime-node/conversation";
 
 export interface DesktopRuntimeSessionCatalogOptions
 	extends Pick<FileConversationRuntimeSessionCatalogOptions, "artifactCleaner" | "ownershipManager"> {

@@ -79,9 +79,9 @@ test("development and packaging scripts pin their system plugin profiles without
 	for (const script of [productionWorkspaceBuild, developmentWorkspaceBuild]) {
 		assert.match(script, /^turbo run build /);
 		assert.match(script, /--cwd \.\.\/\.\./);
-		assert.match(script, /--filter=@vetta\/desktop\.\.\./);
+		assert.match(script, /--filter=@567agent\/desktop\.\.\./);
 		assert.match(script, /--filter=@vetta-org\/plugin-vite\.\.\./);
-		assert.match(script, /--filter=!@vetta\/desktop/);
+		assert.match(script, /--filter=!@567agent\/desktop/);
 		assert.doesNotMatch(script, /--env-mode=loose/);
 	}
 	assert.match(productionWorkspaceBuild, /--force/);

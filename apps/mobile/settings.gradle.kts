@@ -1,4 +1,4 @@
-rootProject.name = "vetta-mobile"
+rootProject.name = "567-agent-mobile"
 
 pluginManagement {
     repositories {

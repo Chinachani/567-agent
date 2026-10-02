@@ -1,5 +1,5 @@
-import type { PromptAttachmentRef, RuntimeFailure } from "@vetta/runtime-core";
-import type { ConversationMessageRecord } from "@vetta/runtime-core/conversation";
+import type { PromptAttachmentRef, RuntimeFailure } from "@567agent/runtime-core";
+import type { ConversationMessageRecord } from "@567agent/runtime-core/conversation";
 import type {
 	AgentProfile,
 	AgentTeamDocument,

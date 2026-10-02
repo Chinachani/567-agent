@@ -1,6 +1,6 @@
 import { hostname } from "node:os";
-import type { RemoteConnectionState } from "@vetta/remote-control";
-import { RemoteConnection, WebSocketRemoteTransport } from "@vetta/remote-control";
+import type { RemoteConnectionState } from "@567agent/remote-control";
+import { RemoteConnection, WebSocketRemoteTransport } from "@567agent/remote-control";
 import { getDesktopConversationService } from "../conversations/desktop-conversation-service.js";
 import { getAppLogger } from "../logger.js";
 import { DesktopConversationRemoteOperations } from "./desktop-conversation-remote-operations.js";

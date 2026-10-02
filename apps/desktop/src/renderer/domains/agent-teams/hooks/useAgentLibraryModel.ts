@@ -3,7 +3,7 @@ import {
 	type AgentProfile,
 	type AgentProfileDeleteImpact,
 	listLibraryAgentProfiles,
-} from "@vetta/agent-team";
+} from "@567agent/agent-team";
 import { useCallback, useMemo } from "react";
 import { type AgentTeamResources, agentTeamErrorMessage } from "./useAgentTeamResources";
 

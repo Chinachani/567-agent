@@ -11,8 +11,8 @@ import {
 	type Tool,
 	type ToolCall,
 	type Usage,
-} from "@vetta/ai";
-import { bindCapability, type CapabilityRegistry } from "@vetta/capability-runtime";
+} from "@567agent/ai";
+import { bindCapability, type CapabilityRegistry } from "@567agent/capability-runtime";
 import {
 	type AiChatInput,
 	type AiChatMessage,

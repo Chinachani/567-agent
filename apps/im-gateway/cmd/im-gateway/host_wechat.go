@@ -5,9 +5,9 @@ import (
 	"errors"
 	"sync"
 
-	"vetta-im-gateway/internal/hostproto"
-	"vetta-im-gateway/internal/transport/wechat"
-	"vetta-im-gateway/internal/transport/wechat/ilink"
+	"github.com/Chinachani/567-agent/apps/im-gateway/internal/hostproto"
+	"github.com/Chinachani/567-agent/apps/im-gateway/internal/transport/wechat"
+	"github.com/Chinachani/567-agent/apps/im-gateway/internal/transport/wechat/ilink"
 )
 
 // errAwaitingBind is the sentinel buildHostTransport returns when a

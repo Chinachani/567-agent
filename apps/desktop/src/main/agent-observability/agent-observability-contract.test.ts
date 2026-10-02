@@ -1,14 +1,14 @@
 import { mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { type Api, AssistantMessageEventStream, type Model } from "@vetta/ai";
+import { type Api, AssistantMessageEventStream, type Model } from "@567agent/ai";
 import {
 	createCodingAgentRuntimeSessionSelection,
 	publishCodingAgentExecutionRuntimeDefinition,
-} from "@vetta/coding-agent/composition";
-import { AGENT_CONFIGURATION_UPDATE } from "@vetta/coding-agent/session-extensions";
-import { RuntimeHost, RuntimeObservationHub } from "@vetta/runtime-core";
-import { DesktopRuntimeBackendPool } from "@vetta/runtime-desktop";
+} from "@567agent/coding-agent/composition";
+import { AGENT_CONFIGURATION_UPDATE } from "@567agent/coding-agent/session-extensions";
+import { RuntimeHost, RuntimeObservationHub } from "@567agent/runtime-core";
+import { DesktopRuntimeBackendPool } from "@567agent/runtime-desktop";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { createDesktopAgentObservability } from "./composition.js";
 import { LocalAgentObservationRepository } from "./local-observation-repository.js";

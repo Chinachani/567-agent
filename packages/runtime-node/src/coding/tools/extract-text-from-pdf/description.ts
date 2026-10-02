@@ -1,8 +1,8 @@
-export const EXTRACT_TEXT_FROM_PDF_TOOL_DESCRIPTION = `Extract text from a PDF (scanned or born-digital) using Vetta Desktop's bundled OCR runner.
+export const EXTRACT_TEXT_FROM_PDF_TOOL_DESCRIPTION = `Extract text from a PDF (scanned or born-digital) using 567 Agent's bundled OCR runner.
 
 Pages with an embedded text layer are read directly (near-perfect accuracy, milliseconds per page). Pages without a usable text layer fall through to PP-OCRv5 (Chinese + English, ~1-2s per page on a modern machine). All work runs locally — no network calls.
 
-This tool calls the Vetta Desktop executable in command-line OCR mode. Vetta Desktop must be installed, or VETTA_DESKTOP_EXE must point to the desktop executable.
+This tool calls the 567 Agent executable in command-line OCR mode. 567 Agent must be installed, or VETTA_DESKTOP_EXE must point to the desktop executable.
 
 Input
   - input: path to the PDF file

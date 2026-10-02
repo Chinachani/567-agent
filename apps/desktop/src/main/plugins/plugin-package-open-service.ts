@@ -1,9 +1,10 @@
 import { extname } from "node:path";
 import type { InstalledPlugin, PluginManifest } from "../../preload/api-types/plugins.js";
-import { VETTA_PLUGIN_PACKAGE_EXTENSION } from "./plugin-package.js";
+import { LEGACY_PLUGIN_PACKAGE_EXTENSION, VETTA_PLUGIN_PACKAGE_EXTENSION } from "./plugin-package.js";
 
 export function isVettaPluginPackagePath(filePath: string): boolean {
-	return extname(filePath).toLowerCase() === VETTA_PLUGIN_PACKAGE_EXTENSION;
+	const extension = extname(filePath).toLowerCase();
+	return extension === VETTA_PLUGIN_PACKAGE_EXTENSION || extension === LEGACY_PLUGIN_PACKAGE_EXTENSION;
 }
 
 export function findVettaPluginPackagePath(argv: readonly string[]): string | undefined {

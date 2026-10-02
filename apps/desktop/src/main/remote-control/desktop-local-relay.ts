@@ -1,7 +1,7 @@
 import { createServer, type Server } from "node:https";
 import { networkInterfaces } from "node:os";
-import { encodeRemoteFrame, parseRemoteFrame, type RemoteFrame, type RemoteHello } from "@vetta/remote-control";
-import { encodeRemoteDesktopSignal, REMOTE_DESKTOP_PROTOCOL_VERSION } from "@vetta/remote-desktop/protocol";
+import { encodeRemoteFrame, parseRemoteFrame, type RemoteFrame, type RemoteHello } from "@567agent/remote-control";
+import { encodeRemoteDesktopSignal, REMOTE_DESKTOP_PROTOCOL_VERSION } from "@567agent/remote-desktop/protocol";
 import { WebSocket, WebSocketServer } from "ws";
 import { getAppLogger } from "../logger.js";
 

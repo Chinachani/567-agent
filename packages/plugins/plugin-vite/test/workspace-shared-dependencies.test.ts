@@ -7,7 +7,7 @@ import { describe, expect, it } from "vitest";
 const pluginsRoot = resolve(dirname(fileURLToPath(import.meta.url)), "../..");
 const pluginDirectories = ["presets", "externals"] as const;
 const defaultSharedDependencies = ["@vetta-org/plugin-sdk", "react", "react-dom"] as const;
-const hostUiSpecifiers = new Set(["@vetta-org/ui", "@vetta/ui"]);
+const hostUiSpecifiers = new Set(["@vetta-org/ui", "@567agent/ui", "@vetta/ui"]);
 const codeExtensions = new Set([".js", ".jsx", ".ts", ".tsx"]);
 
 interface PackageManifest {

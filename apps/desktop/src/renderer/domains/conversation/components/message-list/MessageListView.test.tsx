@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 
 import { cleanup, render, screen } from "@testing-library/react";
-import type { Usage } from "@vetta/ai";
+import type { Usage } from "@567agent/ai";
 import { createConversationAgentMessage } from "@shared/conversation";
 import userEvent from "@testing-library/user-event";
 import { type ComponentProps, Fragment, type ReactNode } from "react";

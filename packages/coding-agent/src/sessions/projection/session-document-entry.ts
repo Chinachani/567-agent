@@ -1,10 +1,10 @@
-import { Type } from "@sinclair/typebox";
-import { Value } from "@sinclair/typebox/value";
-import type { AgentMessage } from "@vetta/agent-core";
+import type { AgentMessage } from "@567agent/agent-core";
 import type {
 	ConversationDocumentCustomMessageEntry,
 	ConversationDocumentEntry,
-} from "@vetta/runtime-core/conversation";
+} from "@567agent/runtime-core/conversation";
+import { Type } from "@sinclair/typebox";
+import { Value } from "@sinclair/typebox/value";
 import {
 	COMPACTION_SUMMARY_PREFIX,
 	COMPACTION_SUMMARY_SUFFIX,

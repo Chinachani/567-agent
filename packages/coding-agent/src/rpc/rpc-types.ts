@@ -5,8 +5,8 @@
  * Responses and events are emitted as JSON lines on stdout.
  */
 
-import type { AgentMessage, ThinkingLevel } from "@vetta/agent-core";
-import type { ImageContent, Model } from "@vetta/ai";
+import type { AgentMessage, ThinkingLevel } from "@567agent/agent-core";
+import type { ImageContent, Model } from "@567agent/ai";
 import type { CompactionResult } from "../compaction/index.js";
 import type { RpcFailureMetadata } from "./rpc-failure.js";
 import type { RpcStartupFailure } from "./rpc-startup-failure.js";

@@ -5,21 +5,21 @@ import {
 	loadSkillsFromDir,
 	type ResourceDiagnostic,
 	type Skill,
-} from "@vetta/coding-agent/resources";
+} from "@567agent/coding-agent/resources";
 import {
 	defineRuntimeAgent,
 	type RuntimeAgentDefinition,
 	type RuntimeAgentSessionPlan,
 	RuntimeHost,
-} from "@vetta/runtime-core";
+} from "@567agent/runtime-core";
 import {
 	type AgentFeatureDefinition,
 	createDefaultRuntimeCapabilityDefinition,
 	type ModelCallContribution,
 	type ModelCallContributionProvider,
 	type RuntimeToolDefinition,
-} from "@vetta/runtime-core/kernel";
-import { createNodeResourceAccess } from "@vetta/runtime-node/host";
+} from "@567agent/runtime-core/kernel";
+import { createNodeResourceAccess } from "@567agent/runtime-node/host";
 import { acquirePreview, executeTextTool } from "./support/preview.js";
 
 const resourceAccess = createNodeResourceAccess();

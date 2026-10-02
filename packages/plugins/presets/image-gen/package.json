@@ -1,5 +1,5 @@
 {
-	"name": "@vetta/plugin-image-gen",
+	"name": "@567agent/plugin-image-gen",
 	"version": "0.1.16",
 	"private": true,
 	"type": "module",

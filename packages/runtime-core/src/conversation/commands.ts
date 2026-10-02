@@ -1,4 +1,4 @@
-import type { Message, UserMessage } from "@vetta/ai";
+import type { Message, UserMessage } from "@567agent/ai";
 import type { ConversationDocument, ConversationDocumentEntry } from "./document.js";
 import type { ConversationMessageRecord } from "./message-contract.js";
 

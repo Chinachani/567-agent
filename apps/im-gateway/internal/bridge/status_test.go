@@ -4,8 +4,8 @@ import (
 	"context"
 	"testing"
 
-	"vetta-im-gateway/internal/hostclient"
-	"vetta-im-gateway/internal/transport"
+	"github.com/Chinachani/567-agent/apps/im-gateway/internal/hostclient"
+	"github.com/Chinachani/567-agent/apps/im-gateway/internal/transport"
 )
 
 // reactingTransport extends fakeTransport with the optional Reactor

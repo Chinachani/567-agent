@@ -8,7 +8,7 @@ import (
 	"go.mau.fi/whatsmeow/types"
 	"go.mau.fi/whatsmeow/types/events"
 
-	"vetta-im-gateway/internal/transport"
+	"github.com/Chinachani/567-agent/apps/im-gateway/internal/transport"
 )
 
 var errChatIDRequired = errors.New("whatsapp: chatID required")

@@ -3,7 +3,7 @@ import type {
 	RuntimeToolDefinition,
 	RuntimeToolExecutionRequest,
 	RuntimeToolResult,
-} from "@vetta/runtime-core/kernel";
+} from "@567agent/runtime-core/kernel";
 import type { ContributionRegistration, DynamicContributionCatalog } from "../contribution-catalog.js";
 import type { CodingAgentToolInterceptor, ToolInterceptionAfterResult, ToolInterceptionContext } from "./contracts.js";
 

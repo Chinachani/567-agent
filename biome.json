@@ -26,6 +26,9 @@
 	"files": {
 		"includes": [
 			"package.json",
+			"packages/npm-compat/*/src/**/*.ts",
+			"packages/npm-compat/*/package.json",
+			"packages/npm-compat/tsconfig.json",
 			"knip.config.ts",
 			".claude/hooks/**/*.mjs",
 			"scripts/quality/**/*.mjs",
@@ -42,7 +45,8 @@
 			"!**/modes-data.ts",
 			"!**/builtin-theme-documents.ts",
 			"!**/descriptions-data.ts",
-			"!!**/node_modules"
+			"!!**/node_modules",
+			"packages/npm-compat/package.json"
 		]
 	}
 }

@@ -1,5 +1,5 @@
-import type { ThinkingLevel } from "@vetta/agent-core";
-import { type Api, type Model, resolveModelThinkingLevel } from "@vetta/ai";
+import type { ThinkingLevel } from "@567agent/agent-core";
+import { type Api, type Model, resolveModelThinkingLevel } from "@567agent/ai";
 import type { CodingAgentAuthRuntime } from "../auth/index.js";
 import {
 	type CodingAgentExtensionRequirements,

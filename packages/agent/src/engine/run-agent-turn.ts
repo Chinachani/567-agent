@@ -5,7 +5,7 @@ import {
 	getAIErrorDetails,
 	isAIError,
 	type Message,
-} from "@vetta/ai";
+} from "@567agent/ai";
 import { validateAgentRunLimits } from "./limits.js";
 import { executeRuntimeToolCalls } from "./tool-executor.js";
 import type {

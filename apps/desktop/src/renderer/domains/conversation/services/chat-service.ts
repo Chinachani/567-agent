@@ -1,3 +1,6 @@
+import type { Usage } from "@567agent/ai";
+import type { HistoryEntry, PromptAttachmentRef, PromptResourceRef } from "@567agent/runtime-core";
+import { readMcpAppAttachment, selectMcpMediaCandidates } from "@567agent/runtime-mcp/browser";
 import {
 	type ConversationAgentMessageViewModel,
 	createConversationAgentMessage,
@@ -17,9 +20,6 @@ import type {
 	ToolCallUiDetails,
 	ToolImagePreview,
 } from "@shared/store/atoms";
-import type { Usage } from "@vetta/ai";
-import type { HistoryEntry, PromptAttachmentRef, PromptResourceRef } from "@vetta/runtime-core";
-import { readMcpAppAttachment, selectMcpMediaCandidates } from "@vetta/runtime-mcp/browser";
 import type { CardDescriptor } from "@vetta-org/plugin-sdk";
 import { classifyChatError } from "./classifyChatError";
 

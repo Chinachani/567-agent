@@ -9,7 +9,7 @@ import (
 	"os/exec"
 	"time"
 
-	"vetta-im-gateway/internal/hostclient"
+	"github.com/Chinachani/567-agent/apps/im-gateway/internal/hostclient"
 )
 
 // Options configures a Client. Zero values are replaced with the documented

@@ -240,7 +240,7 @@ Runtime 提供的本地 Adapter 只检查受管 bin 目录和 PATH，不下载�
 不会进入 Runtime Tool。当前已在 `coding-agent` 增加
 `createToolExecutableResolver`，以 `silent: true` 委托旧 `ensureTool`，形成不改变旧下载
 行为的结构适配。适配器位于 `adapters/runtime-tools`，并通过
-`@vetta/coding-agent/host` 作为组合层稳定入口提供；
+`@567agent/coding-agent/host` 作为组合层稳定入口提供；
 旧的 `core/host` 子路径保留为迁移期转发入口。
 
 `grep/find/tree` 在注入解析器时于每次执行解析 `rg`/`fd`，因此宿主可以在运行时替换或移除可执行
@@ -354,7 +354,7 @@ Runtime glob 直接声明 `glob` 和 `ignore`，不再通过 `coding-agent` 的�
 新 Composition Root 显式激活。比较发生在模型调用贡献层，而不是只比较 Registry 元数据，
 因此能发现 Feature 编排、默认 scope 或 Provider 输出造成的可观察差异。
 
-同时审计了 `@vetta/runtime-tools` 包根：仓库内源码和测试当前没有直接消费者，但包根仍是已
+同时审计了 `@567agent/runtime-tools` 包根：仓库内源码和测试当前没有直接消费者，但包根仍是已
 发布的公共入口，并继续转发旧工具 Factory 和单例。Coding 子路径已有独立 tree/write/edit，但
 产品 Composition Root 尚未切换，直接删除或改写根导出仍会造成公开 API 和生产功能缺失。因此本阶段
 保留兼容导出，不用“仓库内无人引用”替代公共兼容性判断。只有产品 Composition Root
@@ -996,7 +996,7 @@ Composition Root cwd；agent mode、capability 和显式选择变化仍在下一
 产品策略写入位于 `ask_user_question` 之后、MCP 之前的统一顺序值；产品名称与 Legacy 数值映射只存在于
 Coding Agent 组合策略中。
 
-110 阶段重新验收时修复了 Desktop Vitest 未将 `@vetta/runtime-composition` 指向源码的问题，并将全局 Agent
+110 阶段重新验收时修复了 Desktop Vitest 未将 `@567agent/runtime-composition` 指向源码的问题，并将全局 Agent
 配置隔离到临时目录，避免个人 MCP 配置污染差异门禁。修正后，Desktop 全部场景及动态重配置的最终 Provider
 Tool 数组逐项相等；CLI/RPC/IM 的真实 Agent RPC Provider 差分也通过。
 
@@ -1122,7 +1122,7 @@ Skill/MCP 合同继续通过。默认 selector、Tool 功能、公开 Legacy 入
 中立 Runtime 组合。它直接选择 Coding Prompt、Knowledge、Subagent Profile、产品 Tool 顺序及宿主适配器，
 却以一个看似底层的独立包存在，导致所有权和依赖方向不一致。
 
-产品实现现已迁入 `@vetta/coding-agent/composition`：
+产品实现现已迁入 `@567agent/coding-agent/composition`：
 
 ```text
 runtime-tools/coding ─┐
@@ -1160,16 +1160,16 @@ Legacy 兼容入口。Composition 移动后的关键 CLI、Desktop、RuntimeHost
 
 ### 2.34 公开子路径与兼容根入口治理
 
-第 116 轮没有收缩 `@vetta/coding-agent` 已发布根入口，而是先把仓库内消费者从“从一个聚合根取得所有能力”
+第 116 轮没有收缩 `@567agent/coding-agent` 已发布根入口，而是先把仓库内消费者从“从一个聚合根取得所有能力”
 迁移为“按所需职责依赖显式子路径”。新增的公开边界为：
 
 ```text
-@vetta/coding-agent/bootstrap
-@vetta/coding-agent/config
-@vetta/coding-agent/knowledge
-@vetta/coding-agent/profile
-@vetta/coding-agent/resources
-@vetta/coding-agent/rpc
+@567agent/coding-agent/bootstrap
+@567agent/coding-agent/config
+@567agent/coding-agent/knowledge
+@567agent/coding-agent/profile
+@567agent/coding-agent/resources
+@567agent/coding-agent/rpc
 ```
 
 这些子路径只转发现有实现和类型，不复制实现、不增加包装，也不创建第二份运行时状态。合同测试同时比较根入口
@@ -1196,10 +1196,10 @@ TypeBox/Zod Schema。
 CLI 启动、Desktop 具体 Host Service 和两个 Runtime 包根分别改用用途明确的迁移期边界：
 
 ```text
-@vetta/coding-agent/legacy/cli
-@vetta/coding-agent/legacy/host-services
-@vetta/coding-agent/compat/runtime-storage
-@vetta/coding-agent/compat/runtime-tools
+@567agent/coding-agent/legacy/cli
+@567agent/coding-agent/legacy/host-services
+@567agent/coding-agent/compat/runtime-storage
+@567agent/coding-agent/compat/runtime-tools
 ```
 
 `runtime-storage` 和 `runtime-tools` 的外部根导出没有删除或改名，只是其内部转发不再依赖 Coding Agent
@@ -1229,7 +1229,7 @@ Poller 已不再认识 `AgentSession`、`AgentSessionEvent`、`SessionManager`�
 属于功能变化。Greenfield 实现必须在同一 Port 下补齐这些合同后再切换。
 
 CLI、Desktop、Runtime Tools 和 Runtime Storage 的生产源码现已没有精确
-`@vetta/coding-agent` 根入口引用，结构守卫因此删除全部路径允许项；测试仍可使用根入口验证兼容性。
+`@567agent/coding-agent` 根入口引用，结构守卫因此删除全部路径允许项；测试仍可使用根入口验证兼容性。
 默认 Runtime、公开根导出、Tool/Prompt/Skill/MCP、RPC wire 和持久化格式均未改变。
 
 新增 Port、usage 投影和 export map 都是进程内已类型化边界，没有新的外部输入或持久化记录，因此没有新增
@@ -1354,7 +1354,7 @@ Session lock。真实结果的 `blockingDifferences` 为空，两个 Runtime 的
 statuses、processing false，其余归一化字段完全相同。
 
 验证驱动复用了 verify:ui 已有浏览器级 Playwright 会话，并通过独立页面级 CDP 重新发现当前主 Renderer。
-这样审批和 preload 通知 API 作用于真实 Vetta Desktop 页面，又不会在 Electron 重启时争用浏览器级
+这样审批和 preload 通知 API 作用于真实 567 Agent 页面，又不会在 Electron 重启时争用浏览器级
 WebSocket。跨进程/CDP/报告边界使用 Zod；产品实现和进程内 Knowledge Port 没有新增 Schema。
 
 本轮没有修改默认 selector，也没有改变两项既有失败语义：Provider/批次直接抛错仍不进入最终对账；
@@ -1405,7 +1405,7 @@ Composition 总释放路径逐层等待该 Promise，ownership 只在后台进�
 | `bash/shell` Tool | Runtime Definition、Registration、前台执行器、后台协调、独立后台生命周期、task 工具、通知格式、低层 Host Adapter、平台 scope 和过渡 Composition Root 已通过；后台 Service 具备可等待 `shutdown()`，Greenfield Session 释放会等待真实进程退出 | 旧 AgentSession 仍使用旧工具/Manager；同步 `dispose()` 兼容入口仍保留 | 新 Runtime 工具链与异步关闭合同已完成；旧生产兼容路径尚不可删除 |
 | 宿主可执行文件解析 | Runtime Port、本地 PATH/managed-bin Adapter、grep/find 注入合同、旧 ensureTool 适配、网络/归档合同和 cli-host Composition Root 已通过 | 真实 GitHub 网络、最终独立可执行发布物和完整 Tool Profile 迁移尚未完成；包根兼容导出必须继续保留 | 新 Profile 可并行验证；旧宿主仍不可切换 |
 | Coding Tools Feature | 只依赖版本化 Catalog，按 Model Call 动态解析 scope、agent mode、explicit 激活和 requires/capabilities，使用稳定 binding 和原子 Catalog 执行仲裁，并支持 deactivate/revoke/unregister；产品工具按 Session cwd 创建，文档/OCR/progress 已由 Runtime Tools 原生拥有，模型顺序由通用 `modelOrder` 稳定物化；Desktop 与 CLI/RPC/IM 源码 Provider Frame 已精确差分，安装产物 `im-claw` Provider Frame 与有序 Tool Surface 也已验证 | 安装产物 Greenfield CLI 仍只支持 `im-claw`；默认 selector 尚未切换 | 模型调用级工具面与 Runtime-native 所有权已闭合；进入默认切换准备度审计 |
-| Composition Root 与依赖图 | 产品装配已归属 `@vetta/coding-agent/composition`；CLI/Desktop 直接消费；`runtime-composition` 无包装兼容转发；Runtime 子路径与旧根兼容面采用分段构建；manifest truth 和 forwarding-only 守卫已接入 | `runtime-tools`、`runtime-storage` 包根仍需为外部消费者保留 Coding Agent 兼容转发；默认 selector 仍是 Legacy | 产品所有权和 clean build 顺序已收口；兼容根入口只能在外部迁移窗口后删除 |
+| Composition Root 与依赖图 | 产品装配已归属 `@567agent/coding-agent/composition`；CLI/Desktop 直接消费；`runtime-composition` 无包装兼容转发；Runtime 子路径与旧根兼容面采用分段构建；manifest truth 和 forwarding-only 守卫已接入 | `runtime-tools`、`runtime-storage` 包根仍需为外部消费者保留 Coding Agent 兼容转发；默认 selector 仍是 Legacy | 产品所有权和 clean build 顺序已收口；兼容根入口只能在外部迁移窗口后删除 |
 | Coding Agent 公开 API | Bootstrap、Config、Knowledge、Profile、Resources、RPC 已有显式子路径；Legacy CLI/Host Service 与 Runtime 包根使用用途明确的迁移期入口；受治理生产源码的精确根入口消费者已归零 | Legacy/Compat 子路径仍转发具体实现，外部消费者迁移窗口尚未建立；根入口仍是已发布兼容面 | 仓库内依赖不再经过聚合根；兼容入口只能按各自迁移合同逐项删除 |
 | Knowledge Processing Session | Legacy/Greenfield Factory 均实现稳定 Port；Desktop Poller 已复用进程级 selector 提供显式 Greenfield opt-in；真实 Tool Loop、共享轮级 Writer、Round Controller 副作用合同、Desktop 生命周期 Canary 和完整 Legacy/Greenfield 产品差分均已通过 | 默认仍为 Legacy；直接抛错不进入失败对账、失败记录与 Monitor `filesFailed` 口径不一致是两边共同的既有产品语义 | 0 项阻断差异；默认切换可以进入独立阶段，但不得同时删除 Legacy 或夹带修改失败语义 |
 | `AgentSession` | 新状态机、活动 Turn 输入队列、无伪 user message 的 continue、显式 resume 与同 Turn 持久化身份重绑定已实现 | 尚缺旧外围能力的 Greenfield 实现 | 内核 Turn/恢复语义已具备；生产入口不可切换 |

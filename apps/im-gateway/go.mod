@@ -1,4 +1,4 @@
-module vetta-im-gateway
+module github.com/Chinachani/567-agent/apps/im-gateway
 
 go 1.25.3
 

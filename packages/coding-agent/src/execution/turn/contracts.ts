@@ -1,4 +1,4 @@
-import type { ImageContent } from "@vetta/ai";
+import type { ImageContent } from "@567agent/ai";
 import type {
 	RuntimeActiveSession,
 	RuntimeFailure,
@@ -7,7 +7,7 @@ import type {
 	RuntimeTurnRetryController,
 	RuntimeTurnRetryEvent,
 	RuntimeTurnRetrySettings,
-} from "@vetta/runtime-core";
+} from "@567agent/runtime-core";
 
 export type CodingAgentTurnRetrySettings = RuntimeTurnRetrySettings;
 

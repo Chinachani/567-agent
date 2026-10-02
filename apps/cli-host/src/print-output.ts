@@ -1,4 +1,4 @@
-import type { CodingAgentPrintOutputPort } from "@vetta/coding-agent/bootstrap";
+import type { CodingAgentPrintOutputPort } from "@567agent/coding-agent/bootstrap";
 
 /** Node process transport for the platform-neutral Print mode. */
 export const nodePrintOutput: CodingAgentPrintOutputPort = {

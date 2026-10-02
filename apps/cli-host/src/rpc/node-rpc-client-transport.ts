@@ -5,7 +5,7 @@ import {
 	RpcClientError,
 	type RpcClientTransport,
 	type RpcClientTransportHandlers,
-} from "@vetta/coding-agent/rpc";
+} from "@567agent/coding-agent/rpc";
 
 const RPC_CLIENT_STARTUP_SETTLE_MS = 100;
 const RPC_CLIENT_STOP_GRACE_MS = 1_000;

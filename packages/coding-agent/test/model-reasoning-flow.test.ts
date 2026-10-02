@@ -1,5 +1,5 @@
-import { getModelReasoningPreset, streamSimpleOpenAIResponses } from "@vetta/ai";
-import { RuntimeModel } from "@vetta/runtime-core";
+import { getModelReasoningPreset, streamSimpleOpenAIResponses } from "@567agent/ai";
+import { RuntimeModel } from "@567agent/runtime-core";
 import { describe, expect, it, vi } from "vitest";
 import { loadLocalModelConfig } from "../src/models/configuration/local-model-config.js";
 import { applyProviderAndModelOverrides } from "../src/models/configuration/model-merge.js";

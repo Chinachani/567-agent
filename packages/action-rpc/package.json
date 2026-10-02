@@ -1,5 +1,5 @@
 {
-	"name": "@vetta/action-rpc",
+	"name": "@567agent/action-rpc",
 	"version": "0.0.1",
 	"type": "module",
 	"main": "./dist/index.js",

@@ -14,7 +14,7 @@
 import type { Dirent } from "node:fs";
 import { chmod, readdir } from "node:fs/promises";
 import { join } from "node:path";
-import * as knowledge from "@vetta/runtime-knowledge";
+import * as knowledge from "@567agent/runtime-knowledge";
 import { getAppLogger } from "../logger.js";
 import { getKnowledgeRoot } from "./knowledge-layout.js";
 

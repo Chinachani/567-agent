@@ -3,7 +3,7 @@ import {
 	SidebarNavigation,
 	type SidebarNavigationProps,
 	type SidebarNavItem,
-} from "@vetta/desktop-theme-ui/sidebar";
+} from "@567agent/desktop-theme-ui/sidebar";
 import { useThemePagesModel } from "@vetta-org/theme-sdk/pages";
 import type { JSX } from "react";
 import { useCallback, useLayoutEffect, useMemo, useRef, useState } from "react";

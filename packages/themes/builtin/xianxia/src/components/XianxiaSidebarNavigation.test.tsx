@@ -1,5 +1,5 @@
 import { cleanup, render, screen } from "@testing-library/react";
-import type { SidebarNavigationProps } from "@vetta/desktop-theme-ui/sidebar";
+import type { SidebarNavigationProps } from "@567agent/desktop-theme-ui/sidebar";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { XianxiaSidebarNavigation } from "./XianxiaSidebarNavigation";
 
@@ -18,7 +18,7 @@ vi.mock("@vetta-org/theme-sdk/pages", () => ({
 	}),
 }));
 
-vi.mock("@vetta/desktop-theme-ui/sidebar", () => ({
+vi.mock("@567agent/desktop-theme-ui/sidebar", () => ({
 	SidebarNavigation: ({ indicatorBounds, items, setItemRef }: SidebarNavigationProps) => (
 		<nav data-indicator-top={indicatorBounds?.top ?? "unset"}>
 			{items.map((item, index) => (

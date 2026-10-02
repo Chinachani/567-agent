@@ -1,6 +1,6 @@
+import type { ThinkingLevel } from "@567agent/agent-core";
+import type { Api, ImageContent, Model, TextContent } from "@567agent/ai";
 import type { TSchema } from "@sinclair/typebox";
-import type { ThinkingLevel } from "@vetta/agent-core";
-import type { Api, ImageContent, Model, TextContent } from "@vetta/ai";
 import type { CustomMessage } from "../model-context/index.js";
 import type { Theme } from "../theme/index.js";
 import type { ExtensionCommandContext, ExtensionContext } from "./context-contracts.js";

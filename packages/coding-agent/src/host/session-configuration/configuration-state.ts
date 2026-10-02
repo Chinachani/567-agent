@@ -1,5 +1,5 @@
-import type { RuntimeSessionConfigurationController } from "@vetta/runtime-core";
-import type { AgentSession } from "@vetta/runtime-core/kernel";
+import type { RuntimeSessionConfigurationController } from "@567agent/runtime-core";
+import type { AgentSession } from "@567agent/runtime-core/kernel";
 import type { AgentPluginRuntimeConfig } from "../../model-context/plugin-runtime.js";
 
 export interface CodingAgentSessionConfigurationRevision {

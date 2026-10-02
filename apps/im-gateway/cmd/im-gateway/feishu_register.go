@@ -6,7 +6,7 @@ import (
 	"fmt"
 	"os"
 
-	"vetta-im-gateway/internal/transport/feishu"
+	"github.com/Chinachani/567-agent/apps/im-gateway/internal/transport/feishu"
 )
 
 // `im-gateway feishu register` is the standalone-CLI half of the one-click

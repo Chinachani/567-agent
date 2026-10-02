@@ -1,4 +1,4 @@
-import type { CodingToolRegistration } from "@vetta/runtime-tools";
+import type { CodingToolRegistration } from "@567agent/runtime-tools";
 import type { AsyncExecutionGate, CommandProcessPort } from "../shared/desktop-command.js";
 import { createDocToPdfToolRegistration } from "../tools/doc-to-pdf/index.js";
 import { createExtractTextFromImageToolRegistration } from "../tools/extract-text-from-image/index.js";

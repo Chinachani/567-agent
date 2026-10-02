@@ -1,5 +1,5 @@
 import { join } from "node:path";
-import { getVettaHomePath } from "@vetta/action-rpc";
+import { getVettaHomePath } from "@567agent/action-rpc";
 import { getAppLogger } from "../../logger.js";
 import { ManagedHttpRuntimeService, type ManagedHttpRuntimeSpec } from "./open-marketplace-managed-http-runtime.js";
 import { OpenMarketplaceMcpRuntimeInstaller } from "./open-marketplace-mcp-runtime.js";

@@ -1,4 +1,4 @@
-import type { UserMessage } from "@vetta/ai";
+import type { UserMessage } from "@567agent/ai";
 import type { AgentFeatureDefinition, Clock, ContinuationPolicyContext } from "../kernel/contracts.js";
 import type { RuntimeDocumentParticipant } from "../runtime-host/runtime-document-participant.js";
 

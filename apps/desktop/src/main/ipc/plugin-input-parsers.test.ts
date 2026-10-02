@@ -27,7 +27,7 @@ describe("plugin agent tool configuration parser", () => {
 
 describe("plugin App Action usage parser", () => {
 	const usage = {
-		target: "Vetta Desktop settings",
+		target: "567 Agent settings",
 		useWhen: "The user wants to change Vetta settings.",
 		avoidWhen: "Editing project configuration files.",
 		alternatives: "Edit the project's files instead.",

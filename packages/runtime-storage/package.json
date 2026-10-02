@@ -1,5 +1,5 @@
 {
-	"name": "@vetta/runtime-storage",
+	"name": "@567agent/runtime-storage",
 	"version": "0.0.1",
 	"description": "Platform-neutral conversation storage contracts and schemas for Vetta runtimes",
 	"type": "module",
@@ -23,7 +23,7 @@
 	},
 	"dependencies": {
 		"@sinclair/typebox": "^0.34.41",
-		"@vetta/runtime-core": "workspace:*"
+		"@567agent/runtime-core": "workspace:*"
 	},
 	"devDependencies": {
 		"typescript": "^5.9.2",

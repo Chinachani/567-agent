@@ -4,7 +4,7 @@ import {
 	type RuntimeActiveSessionTransition,
 	type RuntimeHostSession,
 	type RuntimePreparedSessionBinding,
-} from "@vetta/runtime-core";
+} from "@567agent/runtime-core";
 import type { ExtensionCommandContextActions } from "../../extensions/index.js";
 import { createCodingAgentExtensionCommandHost } from "./command-host.js";
 import type {

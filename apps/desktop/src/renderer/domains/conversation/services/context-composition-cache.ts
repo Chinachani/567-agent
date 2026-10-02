@@ -1,4 +1,4 @@
-import type { ContextCompositionReport } from "@vetta/runtime-core";
+import type { ContextCompositionReport } from "@567agent/runtime-core";
 
 const STORAGE_KEY = "vetta-context-composition-cache-v1";
 const MAX_ENTRIES = 10;

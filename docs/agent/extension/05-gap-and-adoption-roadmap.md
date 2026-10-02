@@ -71,7 +71,7 @@
 - `prepareArguments`；
 - sequential/parallel execution hint；
 - capability/permission requirement；
-- constrained sampling（仅在 `@vetta/ai` provider 合同能保持一致时）。
+- constrained sampling（仅在 `@567agent/ai` provider 合同能保持一致时）。
 
 不要把 TUI renderer state 下沉到 `runtime-tools`。Renderer 通过宿主 adapter 消费标准 call/result/progress 数据。
 
@@ -110,7 +110,7 @@
 
 #### K. 拆分 host-neutral Extension 与 TUI
 
-保留 `@vetta/coding-agent/extensions` 的事件、工具、Provider、结构化 UI request；把 terminal `Component`、editor/header/footer 等放到显式 TUI subpath。Desktop UI 继续使用 Plugin SDK，不在 Coding Extension 中复制 React/Renderer 权限面。
+保留 `@567agent/coding-agent/extensions` 的事件、工具、Provider、结构化 UI request；把 terminal `Component`、editor/header/footer 等放到显式 TUI subpath。Desktop UI 继续使用 Plugin SDK，不在 Coding Extension 中复制 React/Renderer 权限面。
 
 这是公共 API 变化，需要兼容层、deprecation 窗口和 consumer 清单。
 

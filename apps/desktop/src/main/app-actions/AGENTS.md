@@ -2,7 +2,7 @@
 
 ## Action 的作用
 
-App Action 是 agent 调用 Vetta Desktop 能力的受控 RPC 边界。主进程只保留：
+App Action 是 agent 调用 567 Agent 能力的受控 RPC 边界。主进程只保留：
 
 - Catalog / Runtime / 本地 Action RPC
 - 审批 broker

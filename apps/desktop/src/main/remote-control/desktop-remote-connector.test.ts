@@ -1,4 +1,4 @@
-import { FakeRelay, RemoteConnection } from "@vetta/remote-control";
+import { FakeRelay, RemoteConnection } from "@567agent/remote-control";
 import { describe, expect, it } from "vitest";
 import { DesktopRemoteConnector, type DesktopRemoteOperations } from "./desktop-remote-connector.js";
 

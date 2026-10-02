@@ -1,5 +1,5 @@
 {
-	"name": "@vetta/plugin-chinese-chess",
+	"name": "@567agent/plugin-chinese-chess",
 	"version": "0.1.0",
 	"private": true,
 	"type": "module",

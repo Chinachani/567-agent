@@ -89,5 +89,6 @@
 			"downloadFailed": "下载更新失败",
 			"installFailed": "安装更新失败"
 		}
-	}
+	},
+	"projectExportFileType": "567 Agent 项目导出包"
 }

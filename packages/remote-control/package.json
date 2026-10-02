@@ -1,5 +1,5 @@
 {
-	"name": "@vetta/remote-control",
+	"name": "@567agent/remote-control",
 	"version": "0.0.1",
 	"description": "Platform-neutral remote control protocol and test transport for Vetta",
 	"type": "module",

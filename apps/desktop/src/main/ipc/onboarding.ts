@@ -1,4 +1,4 @@
-// Vetta Computer Use 授权引导窗 IPC：查/请求 helper 权限、拖拽授权、显示/关闭引导窗。
+// 567 Agent Computer Use 授权引导窗 IPC：查/请求 helper 权限、拖拽授权、显示/关闭引导窗。
 // OPEN_PANE 复用 permissions.ts 已注册的同名全局通道（vetta:permissions:open-pane），
 // 本文件不重复注册该 handler。
 

@@ -292,8 +292,8 @@ kebab-case namespace。默认根目录为 `~/.vetta/cache/`，例如 Marketplace
 ## 配置迁移
 
 持久化 JSON 配置需要演进结构时，复用 `packages/toolkit/src` 提供的迁移能力：
-纯 `schemaVersion` 转换使用 `@vetta/toolkit/versioned-config`，文件读写可使用
-`@vetta/toolkit/config-store`。业务 schema 与连续 migration 留在 desktop 对应领域内，
+纯 `schemaVersion` 转换使用 `@567agent/toolkit/versioned-config`，文件读写可使用
+`@567agent/toolkit/config-store`。业务 schema 与连续 migration 留在 desktop 对应领域内，
 不要在业务模块重复实现迁移框架。
 
 ## 日志规范
@@ -371,7 +371,7 @@ imLog.debug("sidecar debug message");
 
 ### bun dev 前置依赖构建
 
-`desktop` 的主进程（`src/main/`）依赖 workspace 中的其他包。这些包的 `dist/` 目录必须先构建，否则 `build:main` 会报 "Failed to resolve entry for package" 错误。`bun dev` 已通过 `prepare:workspace:dev` 调用根 Turborepo 任务图，自动构建 `@vetta/desktop` 的依赖闭包和 preset 开发所需的 `@vetta-org/plugin-vite`，无需手工维护或执行包顺序。
+`desktop` 的主进程（`src/main/`）依赖 workspace 中的其他包。这些包的 `dist/` 目录必须先构建，否则 `build:main` 会报 "Failed to resolve entry for package" 错误。`bun dev` 已通过 `prepare:workspace:dev` 调用根 Turborepo 任务图，自动构建 `@567agent/desktop` 的依赖闭包和 preset 开发所需的 `@vetta-org/plugin-vite`，无需手工维护或执行包顺序。
 
 单独准备依赖时使用：
 
@@ -385,7 +385,7 @@ bun run prepare:workspace:dev
 ## 注意事项
 
 - 与 `admin` 包完全独立，可安全并行开发
-- 消费 `@vetta/runtime-core` 的事件契约，契约变更需同步适配
+- 消费 `@567agent/runtime-core` 的事件契约，契约变更需同步适配
 - 主进程和渲染进程通过 IPC 通信，注意安全边界
 - desktop 类型检查：仓库根目录 `bun run check` **已包含** `bunx tsc --noEmit -p apps/desktop/tsconfig.json`（在 Biome + monorepo `tsgo` 之后）。
 - 单独排查时也可：`cd apps/desktop && bunx tsc --noEmit`，或在仓库根目录 `bunx tsc --noEmit -p apps/desktop/tsconfig.json`。不要在仓库根目录裸跑 `bunx tsc --noEmit`（那会用根 tsconfig，**查不到** desktop / i18n 等类型错误）。

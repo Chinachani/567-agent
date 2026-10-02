@@ -18,8 +18,8 @@ import {
 	type TeamWorkItem,
 	transitionTeamMessageDelivery,
 	transitionTeamWorkItem,
-} from "@vetta/agent-team";
-import type { ConversationDocument, PromptAttachmentRef } from "@vetta/runtime-core";
+} from "@567agent/agent-team";
+import type { ConversationDocument, PromptAttachmentRef } from "@567agent/runtime-core";
 import { TeamOperationQueue } from "./team-operation-queue.js";
 
 export interface TeamCollaborationConversationPort {

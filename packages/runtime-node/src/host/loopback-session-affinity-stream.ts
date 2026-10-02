@@ -1,4 +1,4 @@
-import { type SimpleStreamFunction, type SimpleStreamOptions, streamSimple } from "@vetta/ai";
+import { type SimpleStreamFunction, type SimpleStreamOptions, streamSimple } from "@567agent/ai";
 
 const SESSION_AFFINITY_HEADER = "X-Session-ID";
 

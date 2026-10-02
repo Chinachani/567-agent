@@ -1,8 +1,8 @@
+import type { CodingAgentPlanReviewRequest } from "@567agent/coding-agent/function-extensions";
 import type { SkillInfo } from "@preload/api";
 import type { InputSegment } from "@shared/lib/input-tokens";
 import type { AppshotAttachment } from "@shared/store/atoms";
 import type { TodoItem } from "@shared/store/todo-atoms";
-import type { CodingAgentPlanReviewRequest } from "@vetta/coding-agent/function-extensions";
 import type { InputBarContextMenuViewProps, SessionDropZoneViewProps } from "@vetta-org/theme-ui/chat";
 import type { ComponentProps, MouseEvent, ReactNode } from "react";
 import type { ConnectorGridItem } from "../../hooks/useConnectorGrid";

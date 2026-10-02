@@ -1,10 +1,13 @@
 import { mkdtemp, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
+import {
+	RuntimeConfigurationCenter,
+	RuntimeConfigurationSnapshotCoordinator,
+} from "@567agent/runtime-core/configuration";
+import type { RuntimeSnapshotAcquireContext } from "@567agent/runtime-core/kernel";
+import { CODING_IMAGE_CONFIGURATION } from "@567agent/runtime-tools";
 import { PhotonImage, resize, SamplingFilter } from "@silvia-odwyer/photon-node";
-import { RuntimeConfigurationCenter, RuntimeConfigurationSnapshotCoordinator } from "@vetta/runtime-core/configuration";
-import type { RuntimeSnapshotAcquireContext } from "@vetta/runtime-core/kernel";
-import { CODING_IMAGE_CONFIGURATION } from "@vetta/runtime-tools";
 import { describe, expect, it } from "vitest";
 import { createReadTool, createReadToolRegistration, type ImageResizeOptions } from "../../../src/coding/index.js";
 import type { ReadBehaviorSubject, ReadBehaviorSubjectOptions } from "./read-behavior-contract.js";

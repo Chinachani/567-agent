@@ -1,5 +1,5 @@
-import type { AgentLoopConfig, StreamFn } from "@vetta/agent-core";
-import type { Api, Model, SimpleStreamOptions } from "@vetta/ai";
+import type { AgentLoopConfig, StreamFn } from "@567agent/agent-core";
+import type { Api, Model, SimpleStreamOptions } from "@567agent/ai";
 
 export interface AgentCoreTurnEngineOptions {
 	/** Compatibility fallback; production Runtime should bind the model per turn. */

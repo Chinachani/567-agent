@@ -33,7 +33,7 @@ import (
 	"sync/atomic"
 	"time"
 
-	"vetta-im-gateway/internal/transport"
+	"github.com/Chinachani/567-agent/apps/im-gateway/internal/transport"
 )
 
 // Transport is the mock implementation. Construct via New; the zero value

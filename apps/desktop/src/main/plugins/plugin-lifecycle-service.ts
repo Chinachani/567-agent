@@ -294,7 +294,7 @@ function installMode(options: PluginInstallOptions | undefined, fallback: "manua
 
 function artifactKind(value: string): "vettapkg" | "legacy-zip" | "remote-archive" {
 	const lower = value.toLowerCase();
-	if (lower.endsWith(".vettapkg")) return "vettapkg";
+	if (lower.endsWith(".567plugin") || lower.endsWith(".vettapkg")) return "vettapkg";
 	if (lower.endsWith(".zip")) return "legacy-zip";
 	return "remote-archive";
 }

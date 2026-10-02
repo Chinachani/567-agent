@@ -1,8 +1,8 @@
 import { mkdtemp, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import type { Api, AssistantMessage, Model } from "@vetta/ai";
-import type { ContextCompactionRecord, StoredSessionEvent } from "@vetta/runtime-core/kernel";
+import type { Api, AssistantMessage, Model } from "@567agent/ai";
+import type { ContextCompactionRecord, StoredSessionEvent } from "@567agent/runtime-core/kernel";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import type { CompactionPreparation, CompactionSettings } from "../../src/compaction/index.js";
 import {

@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 
-import type { AgentProfile } from "@vetta/agent-team";
+import type { AgentProfile } from "@567agent/agent-team";
 import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import type { ReactNode } from "react";

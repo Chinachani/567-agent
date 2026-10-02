@@ -1,7 +1,7 @@
 import { randomUUID } from "node:crypto";
 import { dirname, join, resolve } from "node:path";
-import type { Api, Model } from "@vetta/ai";
-import { resolveCodingAgentSessionDir } from "@vetta/coding-agent/bootstrap";
+import type { Api, Model } from "@567agent/ai";
+import { resolveCodingAgentSessionDir } from "@567agent/coding-agent/bootstrap";
 import {
 	type CodingAgentRuntimeComposition,
 	type CodingAgentRuntimeCompositionOptions,
@@ -10,25 +10,25 @@ import {
 	createCodingAgentRuntimeSessionAgentSelection,
 	DEFAULT_CODING_AGENT_RUNTIME_ID,
 	parseCodingAgentRuntimeSessionConfiguration,
-} from "@vetta/coding-agent/composition";
-import { createCodingAgentNodeSettingsRuntime } from "@vetta/coding-agent/host-services";
-import { detectWorkspaceFacts, probeWorkspaceSignals } from "@vetta/coding-agent/model-context";
+} from "@567agent/coding-agent/composition";
+import { createCodingAgentNodeSettingsRuntime } from "@567agent/coding-agent/host-services";
+import { detectWorkspaceFacts, probeWorkspaceSignals } from "@567agent/coding-agent/model-context";
 import {
 	type ConversationScenario,
 	DEFAULT_SCENARIO,
 	shouldEnableCodingAgentSubagents,
-} from "@vetta/coding-agent/profile";
+} from "@567agent/coding-agent/profile";
 import type {
 	RuntimeHostSessionAssembly,
 	RuntimeHostSessionBackend,
 	RuntimeObservationPublisher,
 	RuntimeSessionCreateRequest,
-} from "@vetta/runtime-core";
-import { RetryableCleanup, RetryableCloseController } from "@vetta/runtime-core";
-import type { McpRuntimeToolSource } from "@vetta/runtime-mcp";
-import { nodeModelInputImageProcessor, nodeWorkspaceFactsFileSource } from "@vetta/runtime-node/coding";
-import { createFileConversationPersistence, resolveSessionIdFromPath } from "@vetta/runtime-node/conversation";
-import type { CodingToolResultPolicy } from "@vetta/runtime-tools";
+} from "@567agent/runtime-core";
+import { RetryableCleanup, RetryableCloseController } from "@567agent/runtime-core";
+import type { McpRuntimeToolSource } from "@567agent/runtime-mcp";
+import { nodeModelInputImageProcessor, nodeWorkspaceFactsFileSource } from "@567agent/runtime-node/coding";
+import { createFileConversationPersistence, resolveSessionIdFromPath } from "@567agent/runtime-node/conversation";
+import type { CodingToolResultPolicy } from "@567agent/runtime-tools";
 import {
 	createDesktopCodingAgentSessionExecutionEnvironment,
 	createDesktopCodingAgentToolEnvironment,

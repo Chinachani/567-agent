@@ -2,7 +2,7 @@ import { existsSync, readdirSync, readFileSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
-import type { AgentEvent } from "@vetta/agent-core";
+import type { AgentEvent } from "@567agent/agent-core";
 import { afterEach, beforeEach, describe, expect, test } from "vitest";
 import { RpcClient } from "../src/rpc/rpc-client.js";
 
@@ -11,7 +11,12 @@ const __dirname = dirname(fileURLToPath(import.meta.url));
 /**
  * RPC mode tests.
  */
-describe.skipIf(!process.env.ANTHROPIC_API_KEY && !process.env.ANTHROPIC_OAUTH_TOKEN)("RPC mode", () => {
+// Live Provider tests require explicit opt-in; a credential inherited from the
+// developer shell must never cause the default offline suite to use a paid API.
+describe.skipIf(
+	process.env.VETTA_LIVE_PROVIDER_TESTS !== "1" ||
+		(!process.env.ANTHROPIC_API_KEY && !process.env.ANTHROPIC_OAUTH_TOKEN),
+)("RPC mode", () => {
 	let client: RpcClient;
 	let sessionDir: string;
 
@@ -20,7 +25,7 @@ describe.skipIf(!process.env.ANTHROPIC_API_KEY && !process.env.ANTHROPIC_OAUTH_T
 		client = new RpcClient({
 			cliPath: join(__dirname, "..", "dist", "agent-rpc-cli.js"),
 			cwd: join(__dirname, ".."),
-			env: { PI_CODING_AGENT_DIR: sessionDir },
+			env: { PI_CODING_AGENT_DIR: sessionDir, VETTA_HOME: sessionDir, HOME: sessionDir, USERPROFILE: sessionDir },
 			provider: "anthropic",
 			model: "claude-sonnet-4-5",
 		});

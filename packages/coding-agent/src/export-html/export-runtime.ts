@@ -1,4 +1,4 @@
-import type { ConversationDocument } from "@vetta/runtime-core";
+import type { ConversationDocument } from "@567agent/runtime-core";
 import { APP_NAME } from "../identity.js";
 import type {
 	CodingAgentHtmlExportRuntime,

@@ -1,6 +1,6 @@
 import { writeSync } from "node:fs";
 import { parseArgs } from "node:util";
-import { ActionRpcError, createDebugRpcClient, readActionRpcEndpoint } from "@vetta/action-rpc";
+import { ActionRpcError, createDebugRpcClient, readActionRpcEndpoint } from "@567agent/action-rpc";
 import { z } from "zod";
 
 const debugErrorCommandSchema = z.object({

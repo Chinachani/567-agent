@@ -7,8 +7,8 @@ import type {
 	RuntimeSessionCatalog,
 	RuntimeSessionExecutionObservation,
 	SessionEvent,
-} from "@vetta/runtime-core";
-import { createConversationSeedDraft } from "@vetta/runtime-node/conversation";
+} from "@567agent/runtime-core";
+import { createConversationSeedDraft } from "@567agent/runtime-node/conversation";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import {
 	CodingAgentActiveSessionHost,

@@ -1,3 +1,5 @@
+import type { AgentTeamDocument, TeamSessionListItem } from "@567agent/agent-team";
+import type { PromptAttachmentRef, SessionExecutionMode } from "@567agent/runtime-core";
 import type { DesktopTeamSessionSnapshot } from "@preload/api-types/team-conversation-display";
 import { useAgentAvatarResolver } from "@shared/agent-teams/agent-avatar";
 import { useLocalizedAgentTeamDocument } from "@shared/agent-teams/agent-team-localization";
@@ -19,8 +21,6 @@ import { persistBase64Images } from "@shared/lib/persist-input-images";
 import { pathBasename } from "@shared/lib/utils";
 import { reasoningByModelAtom, selectedModelAtom } from "@shared/store/atoms";
 import { createActivityWorkspace } from "@shared/workspace/activity-workspace";
-import type { AgentTeamDocument, TeamSessionListItem } from "@vetta/agent-team";
-import type { PromptAttachmentRef, SessionExecutionMode } from "@vetta/runtime-core";
 import type { ConversationScenario } from "@vetta-org/plugin-sdk";
 import { useAtomValue } from "jotai";
 import { useCallback, useEffect, useMemo, useRef, useState, useTransition } from "react";

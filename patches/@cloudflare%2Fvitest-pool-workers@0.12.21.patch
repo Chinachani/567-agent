@@ -1,0 +1,95 @@
+diff --git a/dist/pool/index.mjs b/dist/pool/index.mjs
+index 87def84cb6283651cd4828d186cf24bf2c188de2..722abf88f0c4946e484a1b94aede100204b7b0ba 100644
+--- a/dist/pool/index.mjs
++++ b/dist/pool/index.mjs
+@@ -7060,6 +7060,17 @@ function maybeGetTargetFilePath(target) {
+     return maybeGetTargetFilePath(target + "/index");
+   }
+ }
++// Redirect headers carry URI paths; Vite and filesystem lookups need native paths.
++function decodeModulePath(target) {
++  const physicalPath = target.endsWith(disableCjsEsmShimSuffix)
++    ? trimSuffix(disableCjsEsmShimSuffix, target) : target;
++  if (!target.includes("%") || fs2.existsSync(physicalPath)) return target;
++  try {
++    return decodeURI(target);
++  } catch {
++    return target;
++  }
++}
+ function getApproximateSpecifier(target, referrerDir) {
+   if (/^(node|cloudflare|workerd):/.test(target)) {
+     return target;
+@@ -7099,7 +7110,7 @@ async function viteResolve(vite, specifier, referrer, isRequire) {
+ }
+ async function resolve(vite, method, target, specifier, referrer) {
+   const referrerDir = posixPath.dirname(referrer);
+-  let filePath = maybeGetTargetFilePath(target);
++  let filePath = maybeGetTargetFilePath(decodeModulePath(target));
+   if (filePath !== void 0) {
+     return filePath;
+   }
+@@ -7120,7 +7131,7 @@ function buildRedirectResponse(filePath) {
+   if (isWindows && filePath[0] !== "/") {
+     filePath = `/${filePath}`;
+   }
+-  return new Response2(null, { status: 301, headers: { Location: filePath } });
++  return new Response2(null, { status: 301, headers: { Location: encodeURI(filePath) } });
+ }
+ function maybeGetForceTypeModuleContents(filePath) {
+   const match = forceModuleTypeRegexp.exec(filePath);
+@@ -7165,7 +7176,7 @@ function buildModuleResponse(target, contents) {
+   return Response2.json(result);
+ }
+ async function load(vite, logBase, method, target, specifier, filePath) {
+-  if (target !== filePath) {
++  if (target !== filePath && target !== encodeURI(filePath)) {
+     if (method === "require" && !specifier.startsWith("node:")) {
+       filePath += disableCjsEsmShimSuffix;
+     }
+@@ -7191,7 +7202,7 @@ async function load(vite, logBase, method, target, specifier, filePath) {
+     return buildModuleResponse(target, { json });
+   }
+   let contents = fs2.readFileSync(filePath, "utf8");
+-  const targetUrl = pathToFileURL(target);
++  const targetUrl = pathToFileURL(filePath);
+   contents = withSourceUrl(contents, targetUrl);
+   if (isEsm) {
+     contents = withImportMetaUrl(contents, targetUrl);
+@@ -7221,8 +7232,9 @@ async function handleModuleFallbackRequest(vite, request) {
+   let referrer = url.searchParams.get("referrer");
+   assert3(target !== null, "Expected specifier search param");
+   assert3(referrer !== null, "Expected referrer search param");
++  referrer = decodeModulePath(referrer);
+   const referrerDir = posixPath.dirname(referrer);
+-  let specifier = getApproximateSpecifier(target, referrerDir);
++  let specifier = getApproximateSpecifier(decodeModulePath(target), referrerDir);
+   if (specifier.startsWith("file:")) {
+     specifier = fileURLToPath(specifier);
+   }
+@@ -7255,6 +7267,10 @@ assert4(
+   typeof __vite_ssr_import__ === "undefined",
+   "Expected `@cloudflare/vitest-pool-workers` not to be transformed by Vite"
+ );
++// JSON escapes preserve the serialized payload while keeping HTTP headers ASCII.
++function encodeHeaderValue(value) {
++  return value.replace(/[\u007f-\uffff]/g, (character) => `\\u${character.charCodeAt(0).toString(16).padStart(4, "0")}`);
++}
+ function structuredSerializableStringify(value) {
+   if (value && typeof value === "object" && "r" in value && value.r && typeof value.r === "object" && "map" in value.r && value.r.map) {
+     delete value.r.map;
+@@ -7771,12 +7787,12 @@ async function runTests(ctx, mf, workerName, project, config, files, invalidates
+   const res = await stub.fetch("http://placeholder", {
+     headers: {
+       Upgrade: "websocket",
+-      "MF-Vitest-Worker-Data": structuredSerializableStringify({
++      "MF-Vitest-Worker-Data": encodeHeaderValue(structuredSerializableStringify({
+         filePath: pathToFileURL2(workerPath).href,
+         name: method,
+         data,
+         cwd: process.cwd()
+-      })
++      }))
+     }
+   });
+   const webSocket = res.webSocket;

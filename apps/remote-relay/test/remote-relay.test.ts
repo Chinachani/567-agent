@@ -1,10 +1,10 @@
 import { SELF } from "cloudflare:test";
-import { encodeRemoteFrame, parseRemoteFrame, type RemoteFrame } from "@vetta/remote-control";
+import { encodeRemoteFrame, parseRemoteFrame, type RemoteFrame } from "@567agent/remote-control";
 import {
 	encodeRemoteDesktopSignal,
 	parseRemoteDesktopSignal,
 	REMOTE_DESKTOP_WEBSOCKET_PROTOCOL,
-} from "@vetta/remote-desktop/protocol";
+} from "@567agent/remote-desktop/protocol";
 import { describe, expect, it } from "vitest";
 import { PAIRING_PROTOCOL_PREFIX, REMOTE_WEBSOCKET_PROTOCOL } from "../src/auth.js";
 

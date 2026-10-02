@@ -89,5 +89,6 @@
 			"downloadFailed": "Failed to download the update",
 			"installFailed": "Failed to install the update"
 		}
-	}
+	},
+	"projectExportFileType": "567 Agent Project Export"
 }

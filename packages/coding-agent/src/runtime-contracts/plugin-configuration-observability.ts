@@ -1,4 +1,4 @@
-import { defineRuntimeObservation, type RuntimeObservationFailure } from "@vetta/runtime-core/observation";
+import { defineRuntimeObservation, type RuntimeObservationFailure } from "@567agent/runtime-core/observation";
 
 export interface CodingAgentPluginConfigurationObservation {
 	readonly phase: "started" | "completed" | "failed";

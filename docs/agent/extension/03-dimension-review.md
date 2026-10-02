@@ -99,7 +99,7 @@ Vetta RPC 是逐行 JSON、单进程单活动会话，已由 Desktop/IM 等宿�
 
 ## 7. UI 扩展
 
-Vetta Desktop Plugin 在 UI slots、file explorer、conversation card、app action、media、settings、i18n 和权限 SDK 上覆盖面广，适合 GUI 产品。Pi Extension 可以替换 editor、header/footer、渲染器、autocomplete 和状态组件，适合 TUI 产品。
+567 Agent Plugin 在 UI slots、file explorer、conversation card、app action、media、settings、i18n 和权限 SDK 上覆盖面广，适合 GUI 产品。Pi Extension 可以替换 editor、header/footer、渲染器、autocomplete 和状态组件，适合 TUI 产品。
 
 Vetta Coding Extension 继续公开 TUI concrete types 会制造第三套 UI 预期。建议把核心 Extension 的 UI 降为宿主能力探测和结构化 request/response；具体 Desktop UI 走 Plugin SDK，若 CLI 仍需要 TUI 扩展，则通过单独的 TUI subpath 暴露。
 

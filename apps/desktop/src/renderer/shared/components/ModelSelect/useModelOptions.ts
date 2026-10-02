@@ -118,7 +118,7 @@ export function useModelOptions(): UseModelOptionsResult {
 		const remote = (remoteProviders as Record<string, { displayName?: string }>)[provider];
 		if (local?.displayName) return local.displayName;
 		if (remote?.displayName) return remote.displayName;
-		if (provider === "vetta-go") return "Vetta Go";
+		if (provider === "vetta-go") return "567 Agent Go";
 		return provider;
 	};
 

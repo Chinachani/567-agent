@@ -22,7 +22,7 @@
 
 ## 边界判断
 
-MCP wire protocol、transport、动态 Tool source 与通用 synchronizer 继续属于 `@vetta/runtime-mcp`。
+MCP wire protocol、transport、动态 Tool source 与通用 synchronizer 继续属于 `@567agent/runtime-mcp`。
 
 新增 Coordinator 属于 Coding Agent Composition 层，因为它组合的是产品级策略：
 

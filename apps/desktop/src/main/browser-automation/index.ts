@@ -1,5 +1,5 @@
 import { join } from "node:path";
-import { getVettaHomePath } from "@vetta/action-rpc";
+import { getVettaHomePath } from "@567agent/action-rpc";
 import { getAppLogger } from "../logger.js";
 import { AgentBrowserEngine } from "./agent-browser-engine.js";
 import { BrowserAutomationService } from "./browser-automation-service.js";

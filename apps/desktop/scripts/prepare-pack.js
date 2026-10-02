@@ -9,6 +9,7 @@ import {
 	DESKTOP_BUILD_OUTPUTS,
 	VETTA_DESIGN_SHARE_FILE_ASSOCIATION,
 	VETTA_PLUGIN_FILE_ASSOCIATION,
+	LEGACY_PLUGIN_FILE_ASSOCIATION,
 } from "./desktop-packaging-layout.mjs";
 import { resolveInstalledPackageRoot } from "./installed-package-root.mjs";
 import { LINUX_PACKAGE_METADATA, LINUX_RELEASE_TARGETS } from "./linux-packaging-contract.mjs";
@@ -224,7 +225,7 @@ for (const dep of optionalExternalDeps) {
 }
 
 function assertPackagedMainHasNoWorkspaceImports(mainOutputDir) {
-	const workspaceImportPattern = /^\s*import(?:\s+.+\s+from)?\s+["']@vetta\//;
+	const workspaceImportPattern = /^\s*import(?:\s+.+\s+from)?\s+["']@567agent\//;
 	const invalidImports = [];
 	for (const fileName of readdirSync(mainOutputDir)) {
 		if (!fileName.endsWith(".js")) continue;
@@ -305,7 +306,7 @@ if (process.platform === "darwin" && !macSigning.enabled) {
 	);
 }
 
-// macOS appshot: swiftc 编译 "Vetta Computer Use.app" 直接落到 staging appshot/，
+// macOS appshot: swiftc 编译 "567 Agent Computer Use.app" 直接落到 staging appshot/，
 // 由 resolveExtraResources 带进 Resources/appshot/（filter "**/*" 递归带入
 // .app bundle 内部结构）。仅 darwin host 可编译。
 if (process.platform === "darwin") {
@@ -386,7 +387,7 @@ if (existsSync(imGatewayDistDir)) {
 // coding-agent runtime assets (extraResources)
 // =============================================================================
 //
-// The bundled main-*.js (Vite output) contains `@vetta/coding-agent`'s JS
+// The bundled main-*.js (Vite output) contains `@567agent/coding-agent`'s JS
 // but not its on-disk package tree. Stage the full dist plus metadata into
 // Resources/coding-agent/. macOS/Linux agent-rpc-command.ts uses it as
 // VETTA_PACKAGE_DIR for assets; Windows additionally runs a bundled
@@ -440,7 +441,7 @@ if (!existsSync(bundledAgentRpcCli)) {
 // vetta CLI app (extraResources)
 // =============================================================================
 //
-// The agent-facing `vetta` command is @vetta/cli-host, not the desktop
+// The agent-facing `vetta` command is @567agent/cli-host, not the desktop
 // executable. Stage it into Resources/cli-app/ so Desktop can write
 // ~/.vetta/agent/bin/vetta as a stable shim to this entry.
 const stagedCliAppDir = join(buildStageDir, "cli-app");
@@ -572,7 +573,7 @@ await stageVendorRuntimes();
 // 系统插件（extraResources）—— ADR-0024
 // =============================================================================
 //
-// build:presets 已为每个 preset 生成 release/<id>-<version>.vettapkg。打包阶段只消费
+// build:presets 已为每个 preset 生成 release/<id>-<version>.567plugin。打包阶段只消费
 // zip 制品，校验后解压到 Resources/system-plugins/<id>/，不读取源码 dist。
 // 按 profile + 租户筛选打包进 App 的系统插件。
 console.log(
@@ -637,7 +638,7 @@ function resolveExtraResources() {
 			filter: sandboxFilters,
 		});
 	}
-	// "Vetta Computer Use.app" 仅 darwin 目标需要，且仅 darwin host 能编译（见上方 staging）。
+	// "567 Agent Computer Use.app" 仅 darwin 目标需要，且仅 darwin host 能编译（见上方 staging）。
 	if (resolvePlatformFamilies().has("darwin") && process.platform === "darwin") {
 		extraResources.push({
 			from: "appshot",
@@ -676,7 +677,7 @@ const builderConfig = {
 		name: "567 Agent",
 		schemes: ["agent567", "api567", "vetta"],
 	},
-	fileAssociations: [VETTA_PLUGIN_FILE_ASSOCIATION, VETTA_DESIGN_SHARE_FILE_ASSOCIATION],
+	fileAssociations: [VETTA_PLUGIN_FILE_ASSOCIATION, LEGACY_PLUGIN_FILE_ASSOCIATION, VETTA_DESIGN_SHARE_FILE_ASSOCIATION],
 	mac: {
 		target: ["dmg", "zip"],
 		category: "public.app-category.productivity",

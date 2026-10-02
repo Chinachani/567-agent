@@ -7,7 +7,7 @@
  * Usage: vetta -e ./model-status.ts
  */
 
-import type { ExtensionAPI } from "@vetta/coding-agent";
+import type { ExtensionAPI } from "@567agent/coding-agent";
 
 export default function (api: ExtensionAPI) {
 	api.on("model_select", async (event, ctx) => {

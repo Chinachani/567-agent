@@ -1,4 +1,4 @@
-import { defineSessionExtensionEndpoint } from "@vetta/runtime-core/session-extensions";
+import { defineSessionExtensionEndpoint } from "@567agent/runtime-core/session-extensions";
 import type {
 	AgentConfiguration,
 	AgentConfigurationDocument,

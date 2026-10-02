@@ -1,14 +1,14 @@
 ---
 title: Create your first plugin
-description: Create, build, and install a minimal Vetta desktop plugin.
+description: Create, build, and install a minimal 567 Agent desktop plugin.
 ---
 
 ## Prerequisites
 
 - Node or Bun.
-- Vetta Desktop, running — installing and hot reload both talk to the live app.
+- 567 Agent, running — installing and hot reload both talk to the live app.
 
-You do **not** need a Vetta source checkout.
+You do **not** need a 567 Agent source checkout.
 
 ## Scaffold in one command
 
@@ -115,7 +115,7 @@ Choose the path for development debugging or release installation:
 
 <Tabs items={["Development", "Release installation"]}>
   <Tab value="Development">
-    Run `bunx vetta-plugin dev` to start the plugin development server, then load it through a Vetta development link. This is useful for quickly checking UI and tool registration, but run the production build and `.vettapkg` installation flow before release.
+    Run `bunx vetta-plugin dev` to start the plugin development server, then load it through a 567 Agent development link. This is useful for quickly checking UI and tool registration, but run the production build and `.567plugin` installation flow before release.
   </Tab>
   <Tab value="Release installation">
     <Steps>
@@ -127,12 +127,12 @@ Choose the path for development debugging or release installation:
       <Step>
         ### Archive the package
 
-        Use the `.vettapkg` extension and ZIP container. Its archive root must contain `plugin.json` and `dist/`. Once Vetta is installed, users can double-click the file to install it.
+        Use the `.567plugin` extension and ZIP container. Its archive root must contain `plugin.json` and `dist/`. Once 567 Agent is installed, users can double-click the file to install it.
       </Step>
       <Step>
         ### Install and enable
 
-        In the **Capabilities** page, open **Add capability → Import plugin package** and select the `.vettapkg` file. Enable it and grant permissions in the **Enable and permissions** dialog.
+        In the **Capabilities** page, open **Add capability → Import plugin package** and select the `.567plugin` file. Enable it and grant permissions in the **Enable and permissions** dialog.
       </Step>
       <Step>
         ### Verify loading

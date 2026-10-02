@@ -5,8 +5,8 @@ import type {
 	TeamDefinition,
 	TeamMember,
 	TeamMemberAssignment,
-} from "@vetta/agent-team";
-import { normalizeMentionHandle } from "@vetta/agent-team";
+} from "@567agent/agent-team";
+import { normalizeMentionHandle } from "@567agent/agent-team";
 import type { PluginAgentPreset, PluginTeamPreset, PluginTeamPresetMember } from "./plugin-agent-presets.js";
 
 /**

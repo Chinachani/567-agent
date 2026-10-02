@@ -1,5 +1,5 @@
 {
-	"name": "@vetta/plugin-chart-renderer",
+	"name": "@567agent/plugin-chart-renderer",
 	"version": "0.1.21",
 	"private": true,
 	"type": "module",

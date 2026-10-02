@@ -1,4 +1,4 @@
-import type { RuntimeHost } from "@vetta/runtime-core";
+import type { RuntimeHost } from "@567agent/runtime-core";
 import { AsyncTask, CronJob, ToadScheduler } from "toad-scheduler";
 import { getAppLogger } from "../logger.js";
 import { getSharedRuntime } from "../runtime.js";

@@ -47,7 +47,7 @@ Knowledge Processing Session Factory 不再暴露或构造 Legacy factory，生�
 
 ### 4. 测试专用 Legacy 差分基线
 
-生产代码不再导入 `@vetta/coding-agent/legacy/*`。为了继续证明功能没有因架构切换而漂移，新增测试专用 RPC 入口：
+生产代码不再导入 `@567agent/coding-agent/legacy/*`。为了继续证明功能没有因架构切换而漂移，新增测试专用 RPC 入口：
 
 - Legacy/Greenfield Provider、Extension、Print 等差分测试仍可运行真实 Legacy 基线；
 - 该入口只位于测试目录，不会进入生产 selector 或安装产物；

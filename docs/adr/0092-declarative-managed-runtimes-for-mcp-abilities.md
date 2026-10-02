@@ -27,7 +27,7 @@ Desktop 已由 ADR-0011 管理 Node/Python 运行时并重定向包源，Open Ma
    `data/` 与 `cache/` 位于版本目录之外；更新运行时不能覆盖 Cookie、登录态和其它用户数据。
 4. 安装采用同盘 staging。下载、哈希、解包、可执行文件存在性和权限校验全部完成后才替换目标版本；失败保留已安装
    版本。卸载只删除 `runtime/`，默认保留 `data/` 与 `cache/`。
-5. 安装器属于 Desktop 的 Ability 领域。`@vetta/runtime-mcp` 继续只消费标准 stdio/HTTP 配置，不感知市场、下载或安装。
+5. 安装器属于 Desktop 的 Ability 领域。`@567agent/runtime-mcp` 继续只消费标准 stdio/HTTP 配置，不感知市场、下载或安装。
    IPC 只负责输入校验和调用领域服务。
 6. 现有 `schemaVersion: 1`、远程 HTTP 和普通 stdio 配置保持兼容。Node/Python MCP 继续受益于 ADR-0011 的托管运行时；
    在获得足够真实包样本、能够定义锁定依赖和无任意脚本的可复现合同前，不新增万能 package recipe。

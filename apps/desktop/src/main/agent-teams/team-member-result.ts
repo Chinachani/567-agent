@@ -1,5 +1,5 @@
-import type { AssistantMessage } from "@vetta/ai";
-import type { HistoryEntry } from "@vetta/runtime-core";
+import type { AssistantMessage } from "@567agent/ai";
+import type { HistoryEntry } from "@567agent/runtime-core";
 
 /** Model-visible message counts shrink on compaction; durable entry ids do not. */
 export function findTeamAttemptResult(

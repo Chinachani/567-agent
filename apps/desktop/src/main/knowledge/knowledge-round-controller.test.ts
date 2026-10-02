@@ -6,8 +6,8 @@ import type {
 	KnowledgeProcessingSessionFactory,
 	KnowledgeProcessingSessionRequest,
 	KnowledgeProcessingUsage,
-} from "@vetta/coding-agent/composition";
-import * as knowledge from "@vetta/runtime-knowledge";
+} from "@567agent/coding-agent/composition";
+import * as knowledge from "@567agent/runtime-knowledge";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import {
 	KnowledgeRoundController,

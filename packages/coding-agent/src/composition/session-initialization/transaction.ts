@@ -1,12 +1,12 @@
-import type { Message } from "@vetta/ai";
+import type { Message } from "@567agent/ai";
 import {
 	InitializationRollbackScope,
 	type RuntimeAgentSessionPlan,
 	type RuntimeAgentSessionPreparationContext,
 	type RuntimeObservationPublisher,
 	type RuntimeResourceContext,
-} from "@vetta/runtime-core";
-import type { ModelCallContributionContext } from "@vetta/runtime-core/kernel";
+} from "@567agent/runtime-core";
+import type { ModelCallContributionContext } from "@567agent/runtime-core/kernel";
 import type { CodingAgentRuntimeModelAdapter } from "../../adapters/runtime-core/model-runtime-adapter.js";
 import {
 	allowsAgentResource,

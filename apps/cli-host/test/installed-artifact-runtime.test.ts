@@ -835,8 +835,8 @@ describe("installed standalone CLI artifact", () => {
 			fixture,
 			"combined-extension.ts",
 			`import { appendFileSync } from "node:fs";
-			import { createEventBus as createRootEventBus } from "@vetta/coding-agent";
-			import { createEventBus as createExtensionEventBus } from "@vetta/coding-agent/extensions";
+			import { createEventBus as createRootEventBus } from "@567agent/coding-agent";
+			import { createEventBus as createExtensionEventBus } from "@567agent/coding-agent/extensions";
 			export default function(pi) {
 				createRootEventBus().clear();
 				createExtensionEventBus().clear();

@@ -1,6 +1,6 @@
 # Windows 自动更新、R2 发版与排障
 
-本文记录 Vetta Desktop Windows 自动更新从服务端发版迁移到 R2/GitHub Releases 的最终方案、实现细节、完整验证流程，以及开发期间遇到的问题。它是当前 Windows 更新链路的维护手册。
+本文记录 567 Agent Windows 自动更新从服务端发版迁移到 R2/GitHub Releases 的最终方案、实现细节、完整验证流程，以及开发期间遇到的问题。它是当前 Windows 更新链路的维护手册。
 
 ## 1. 当前结论
 
@@ -533,7 +533,7 @@ ready 弹窗只会在以下三项同时存在后出现：
 
 - `prepare-pack.js` 显式 staging `electron-updater`、`builder-util-runtime` 等 external 依赖及其生产依赖闭包。
 - coding-agent runtime、agent-rpc CLI 和 cli-host 作为资源进入安装包。
-- 打包前扫描 `dist/main`，若仍有 `@vetta/*` workspace import 会直接失败。
+- 打包前扫描 `dist/main`，若仍有 `@567agent/*` workspace import 会直接失败。
 - R2 发布前 Inno 预检会把版本目录全部展开并按 manifest 校验文件数量与大小。
 
 新增/调整 Vite external 时必须同步检查 `prepare-pack.js` 的 staging 列表，不能只让开发模式通过。
@@ -665,7 +665,7 @@ install failed
 - [ ] 更新 provider/URL 写入目标包。
 - [ ] EXE、blockmap、files manifest、`latest.yml` 属于同一版本。
 - [ ] Inno 本地预检通过，文件数量和大小一致。
-- [ ] 最终包不含未解析的 `@vetta/*` workspace import。
+- [ ] 最终包不含未解析的 `@567agent/*` workspace import。
 
 ### R2/Cloudflare
 

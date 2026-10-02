@@ -1,9 +1,9 @@
-import type { Api, Message, Model } from "@vetta/ai";
+import type { Api, Message, Model } from "@567agent/ai";
 import type {
 	ModelCallFrameCompositionContext,
 	RuntimeSnapshotAcquireContext,
 	RuntimeToolDefinition,
-} from "@vetta/runtime-core/kernel";
+} from "@567agent/runtime-core/kernel";
 import type {
 	McpClientHandle,
 	McpResourceReadResult,
@@ -11,9 +11,9 @@ import type {
 	McpToolCallResult,
 	McpToolResultPolicy,
 	RuntimeMcpClientFactory,
-} from "@vetta/runtime-mcp";
-import { EMPTY_MCP_CONFIG_SOURCE } from "@vetta/runtime-mcp";
-import { createNodeMcpSupervisor } from "@vetta/runtime-node/mcp";
+} from "@567agent/runtime-mcp";
+import { EMPTY_MCP_CONFIG_SOURCE } from "@567agent/runtime-mcp";
+import { createNodeMcpSupervisor } from "@567agent/runtime-node/mcp";
 import { describe, expect, it, vi } from "vitest";
 import type { EcosystemHookAwareRuntimeTool } from "../src/adapters/ecosystem/tool-interceptor-adapter.js";
 import type { AgentPluginRuntimeConfig } from "../src/model-context/index.js";

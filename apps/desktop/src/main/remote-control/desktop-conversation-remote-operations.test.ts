@@ -1,4 +1,4 @@
-import type { SessionEvent } from "@vetta/runtime-core";
+import type { SessionEvent } from "@567agent/runtime-core";
 import { describe, expect, it } from "vitest";
 import { DesktopConversationRemoteOperations } from "./desktop-conversation-remote-operations.js";
 

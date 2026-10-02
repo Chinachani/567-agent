@@ -11,7 +11,7 @@
 承载三类入口：
 
 - **命令分发** — `vetta` 顶层命令下的 `action` / `debug` / `agent` 子命令
-- **Agent 运行时包装** — 把参数与宿主能力交给 `@vetta/coding-agent`，含 print 模式与 Runtime 选择
+- **Agent 运行时包装** — 把参数与宿主能力交给 `@567agent/coding-agent`，含 print 模式与 Runtime 选择
 - **RPC sidecar** — `vetta-agent-rpc`，由 `apps/desktop` 与 `apps/im-gateway` spawn 的 headless 进程
 
 ## 关键模块
@@ -26,7 +26,7 @@
 
 - bin 名 `vetta` / `vetta-agent` / `vetta-cli-app` / `vetta-agent-rpc` 与包名解耦，改包名不要跟着改 bin
 - 打包后 sidecar 落在 `<Resources>/cli-app/`，该目录名是打包布局约定，与本包目录名无关
-- 依赖 `@vetta/coding-agent`、`@vetta/runtime-*`；不得反向依赖 `@vetta/desktop`
+- 依赖 `@567agent/coding-agent`、`@567agent/runtime-*`；不得反向依赖 `@567agent/desktop`
 
 ## 测试要求
 

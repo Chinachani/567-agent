@@ -1,5 +1,5 @@
-import type { EcosystemHookRuntime, EcosystemToolDescriptor } from "@vetta/ecosystem-adapter/hooks";
-import type { RuntimeToolDefinition } from "@vetta/runtime-core/kernel";
+import type { EcosystemHookRuntime, EcosystemToolDescriptor } from "@567agent/ecosystem-adapter/hooks";
+import type { RuntimeToolDefinition } from "@567agent/runtime-core/kernel";
 import type { EcosystemHookAwareRuntimeTool } from "../../extensions/runtime/ecosystem-hook-tool-wrapper.js";
 import { DynamicContributionCatalog } from "../../interception/contribution-catalog.js";
 import {

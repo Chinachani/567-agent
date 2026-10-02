@@ -1,6 +1,6 @@
 ---
 name: cowart-open-canvas
-description: Open the Cowart infinite canvas (tldraw) in Vetta Desktop. Use when the user asks to open, launch, view, or work in the Cowart canvas or wants an infinite canvas for visual planning/image work.
+description: Open the Cowart infinite canvas (tldraw) in 567 Agent. Use when the user asks to open, launch, view, or work in the Cowart canvas or wants an infinite canvas for visual planning/image work.
 ---
 
 # Cowart Open Canvas (Vetta 1:1)

@@ -66,7 +66,7 @@
 
 ### 新发现
 
-- `coding-agent` 对 `@vetta/agent-core` 的大量依赖主要是 `AgentMessage`、`ThinkingLevel`、`ToolPhase`、`AgentEvent` 等共享类型，而不是执行循环。
+- `coding-agent` 对 `@567agent/agent-core` 的大量依赖主要是 `AgentMessage`、`ThinkingLevel`、`ToolPhase`、`AgentEvent` 等共享类型，而不是执行循环。
 - `ThinkingLevel` 在 `packages/ai` 与 `packages/agent` 已存在重复定义。
 - `ToolPhase` 被 Runtime 事件和 Session 文档使用，实际所有者不是 Agent Engine。
 - `AgentMessage` 混合模型消息与 UI/扩展自定义消息，使模型协议、Session 协议和产品扩展互相耦合。
@@ -74,9 +74,9 @@
 
 ### 最终修正
 
-1. 保留 `@vetta/agent-core` 包，作为 Runtime 与 AI 之间的无状态执行引擎边界；不把它并入已很复杂的 `runtime-core`。
+1. 保留 `@567agent/agent-core` 包，作为 Runtime 与 AI 之间的无状态执行引擎边界；不把它并入已很复杂的 `runtime-core`。
 2. 现有有状态 `Agent` 移到显式 standalone 兼容子路径，根入口停止导出。至少两个锁步发布周期后，如无真实外部消费者则删除 standalone；`agent-core` 包本身继续保留。
-3. 将共享类型按所有权迁移：模型消息和 reasoning 到 `@vetta/ai/protocol`，Session/observation 到 `runtime-core`，工具定义和进度到 Runtime Tool 层。
+3. 将共享类型按所有权迁移：模型消息和 reasoning 到 `@567agent/ai/protocol`，Session/observation 到 `runtime-core`，工具定义和进度到 Runtime Tool 层。
 4. Agent Engine 只接受模型可见 `Message[]`；自定义 Session entry 在 Runtime 投影阶段处理，不再通过 `AgentMessage` 进入模型循环。
 5. 上下文组成报告成为 `ModelCallFrame`/最终调用准备的正式只读产物。现有 Prompt diagnostics 提供 system prompt 明细，Runtime 再补 tools、history、runtime context 和 user input。
 6. 兼容 Adapter 必须有 owner、删除条件和禁新增调用 guard；没有退出条件的 Adapter 不允许进入迁移方案。

@@ -1,4 +1,4 @@
-import type { ConfigRecord } from "@vetta/toolkit/versioned-config";
+import type { ConfigRecord } from "@567agent/toolkit/versioned-config";
 import { isContentProjectRuntime, isGenerationJob } from "./persistence";
 import {
 	CONTENT_CREATION_RUNTIME_SCHEMA_VERSION,

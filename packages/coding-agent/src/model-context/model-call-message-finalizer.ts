@@ -1,15 +1,15 @@
-import type { AgentMessage } from "@vetta/agent-core";
-import type { Message, TextContent } from "@vetta/ai";
+import type { AgentMessage } from "@567agent/agent-core";
+import type { Message, TextContent } from "@567agent/ai";
 import type {
 	RuntimeConfigurationSnapshotLease,
 	RuntimeConfigurationSnapshotSource,
-} from "@vetta/runtime-core/configuration";
+} from "@567agent/runtime-core/configuration";
 import type {
 	ModelCallMessageFinalizationInput,
 	ModelCallMessageFinalizer,
 	RuntimeSnapshotAcquireContext,
-} from "@vetta/runtime-core/kernel";
-import { CODING_IMAGE_CONFIGURATION, type CodingImageConfiguration } from "@vetta/runtime-tools";
+} from "@567agent/runtime-core/kernel";
+import { CODING_IMAGE_CONFIGURATION, type CodingImageConfiguration } from "@567agent/runtime-tools";
 import { applyImageBudget } from "./image-budget.js";
 import {
 	type ModelInputImageProcessor,

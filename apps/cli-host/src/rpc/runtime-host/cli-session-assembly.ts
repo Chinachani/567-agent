@@ -1,6 +1,6 @@
 import { randomUUID } from "node:crypto";
 import { dirname, join } from "node:path";
-import type { CodingAgentBootstrap } from "@vetta/coding-agent/bootstrap";
+import type { CodingAgentBootstrap } from "@567agent/coding-agent/bootstrap";
 import {
 	type CodingAgentMemoryRuntimeFactoryOptions,
 	type CodingAgentRuntimeComposition,
@@ -11,13 +11,13 @@ import {
 	createCodingAgentRuntimeComposition,
 	createCodingAgentRuntimeHostSessionConfig,
 	createCodingAgentSessionSetupSeedInitializer,
-} from "@vetta/coding-agent/composition";
-import { getKnowledgeDir, getVettaHomePath } from "@vetta/coding-agent/config";
+} from "@567agent/coding-agent/composition";
+import { getKnowledgeDir, getVettaHomePath } from "@567agent/coding-agent/config";
 import {
 	createCodingAgentMcpRuntimeToolSource,
 	createCodingAgentPluginMcpRuntime,
-} from "@vetta/coding-agent/host-services";
-import { detectWorkspaceFacts, probeWorkspaceSignals } from "@vetta/coding-agent/model-context";
+} from "@567agent/coding-agent/host-services";
+import { detectWorkspaceFacts, probeWorkspaceSignals } from "@567agent/coding-agent/model-context";
 import {
 	type CodingAgentRuntimeExtensionEventHost,
 	type CodingAgentRuntimeExtensionSessionHost,
@@ -27,17 +27,17 @@ import {
 	createCodingAgentRuntimeExtensionEventHost,
 	createCodingAgentRuntimeExtensionSessionHost,
 	createCodingAgentRuntimeResourceReloadHost,
-} from "@vetta/coding-agent/runtime";
-import { buildDefaultHookConfigLayers } from "@vetta/ecosystem-adapter";
+} from "@567agent/coding-agent/runtime";
+import { buildDefaultHookConfigLayers } from "@567agent/ecosystem-adapter";
 import {
 	InitializationRollbackScope,
 	RuntimeActiveSessionHost,
 	RuntimeHost,
 	type RuntimeHostSession,
 	type RuntimeSessionCatalog,
-} from "@vetta/runtime-core";
-import { createMcpToolResultPolicy } from "@vetta/runtime-mcp";
-import { nodeModelInputImageProcessor, nodeWorkspaceFactsFileSource } from "@vetta/runtime-node/coding";
+} from "@567agent/runtime-core";
+import { createMcpToolResultPolicy } from "@567agent/runtime-mcp";
+import { nodeModelInputImageProcessor, nodeWorkspaceFactsFileSource } from "@567agent/runtime-node/coding";
 import {
 	createConversationSeedDraft,
 	createFileConversationPersistence,
@@ -45,13 +45,13 @@ import {
 	type FileConversationOwnershipManagerOptions,
 	resolveConversationFilePath,
 	resolveSessionIdFromPath,
-} from "@vetta/runtime-node/conversation";
+} from "@567agent/runtime-node/conversation";
 import {
 	createLoopbackSessionAffinityStream,
 	createNodeKnowledgeRuntime,
 	createNodeResultArtifactStorage,
 	NodeTextFileStorage,
-} from "@vetta/runtime-node/host";
+} from "@567agent/runtime-node/host";
 import {
 	createCliCodingAgentSessionExecutionEnvironmentFactory,
 	createCliCodingAgentToolEnvironmentFactory,

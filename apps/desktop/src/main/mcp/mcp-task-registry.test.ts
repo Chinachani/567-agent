@@ -1,7 +1,7 @@
 import { mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import type { McpTaskExecutionSnapshot } from "@vetta/runtime-mcp";
+import type { McpTaskExecutionSnapshot } from "@567agent/runtime-mcp";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { DesktopMcpTaskRegistry } from "./mcp-task-registry.js";
 

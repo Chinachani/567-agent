@@ -6,7 +6,7 @@ import { app } from "electron";
 // ---------------------------------------------------------------------------
 // When the parent process spawns Vetta.app with `--agent-rpc` (followed by
 // the coding-agent CLI args), main.ts short-circuits into this command:
-// we forward everything after `--agent-rpc` to `@vetta/cli-host`'s runtime
+// we forward everything after `--agent-rpc` to `@567agent/cli-host`'s runtime
 // host. The host owns one production Runtime; scenario flags only select
 // Coding Agent capabilities such as the IM host bridge.
 //
@@ -65,7 +65,7 @@ function resolveCodingAgentPackageDir(): string {
  * 报自己的鉴权错误，也不能让整个 Claw 子进程起不来——本地无鉴权 provider 本来能用。
  */
 async function loadRuntimeCredentialInjector(): Promise<
-	NonNullable<Parameters<typeof import("@vetta/cli-host").runAgentRuntimeCli>[1]>["injectRuntimeCredentials"]
+	NonNullable<Parameters<typeof import("@567agent/cli-host").runAgentRuntimeCli>[1]>["injectRuntimeCredentials"]
 > {
 	try {
 		const [{ syncAgentRpcModelCredentials }, { getDesktopModelCredentialStore }, { getAppLogger }] =
@@ -97,7 +97,7 @@ export async function runAgentRpcCommand(args: string[]): Promise<number> {
 		if (!process.env.VETTA_PACKAGE_DIR && !process.env.PI_PACKAGE_DIR) {
 			process.env.VETTA_PACKAGE_DIR = resolveCodingAgentPackageDir();
 		}
-		const { runAgentRuntimeCli } = await import("@vetta/cli-host");
+		const { runAgentRuntimeCli } = await import("@567agent/cli-host");
 		const injectRuntimeCredentials = await loadRuntimeCredentialInjector();
 		await runAgentRuntimeCli(args, { injectRuntimeCredentials });
 		return typeof process.exitCode === "number" ? process.exitCode : 0;

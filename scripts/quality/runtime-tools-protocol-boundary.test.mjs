@@ -15,7 +15,7 @@ describe("runtime-tools protocol boundary", () => {
 		expect(
 			findPackageBoundaryViolations(
 				"packages/runtime-tools/src/coding/default-tool.ts",
-				'import { createReadTool } from "@vetta/runtime-node/coding";',
+				'import { createReadTool } from "@567agent/runtime-node/coding";',
 			),
 		).toContainEqual(expect.stringContaining("runtime-tools protocol must not import platform implementation"));
 	});
@@ -24,7 +24,7 @@ describe("runtime-tools protocol boundary", () => {
 		expect(
 			findPackageBoundaryViolations(
 				"packages/runtime-tools/src/coding/tool-registration.ts",
-				'import type { RuntimeToolDefinition } from "@vetta/runtime-core/kernel";',
+				'import type { RuntimeToolDefinition } from "@567agent/runtime-core/kernel";',
 			),
 		).toEqual([]);
 	});

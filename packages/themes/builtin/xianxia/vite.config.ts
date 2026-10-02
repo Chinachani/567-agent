@@ -18,8 +18,8 @@ export default defineConfig({
 			publicPath: "auto",
 			dts: false,
 			shared: {
-				"@vetta/desktop-theme-ui/app-shell": { singleton: true, import: false, requiredVersion: "*" },
-				"@vetta/desktop-theme-ui/sidebar": { singleton: true, import: false, requiredVersion: "*" },
+				"@567agent/desktop-theme-ui/app-shell": { singleton: true, import: false, requiredVersion: "*" },
+				"@567agent/desktop-theme-ui/sidebar": { singleton: true, import: false, requiredVersion: "*" },
 				"@vetta-org/theme-sdk": { singleton: true, import: false, requiredVersion: "*" },
 				"@vetta-org/theme-sdk/pages": { singleton: true, import: false, requiredVersion: "*" },
 				"@vetta-org/theme-sdk/routing": { singleton: true, import: false, requiredVersion: "*" },

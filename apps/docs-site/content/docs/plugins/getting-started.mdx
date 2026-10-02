@@ -1,14 +1,14 @@
 ---
 title: 创建第一个插件
-description: 创建、构建并安装一个最小 Vetta 桌面插件。
+description: 创建、构建并安装一个最小 567 Agent 桌面插件。
 ---
 
 ## 前置条件
 
 - Node 或 Bun。
-- 用于安装和调试插件的 Vetta 桌面客户端（安装与热更新都要求它正在运行）。
+- 用于安装和调试插件的 567 Agent 桌面客户端（安装与热更新都要求它正在运行）。
 
-**不需要** Vetta 的源码仓库。
+**不需要** 567 Agent 的源码仓库。
 
 ## 一条命令起工程
 
@@ -36,7 +36,7 @@ cd my-plugin && npm install
 ```bash
 npm run dev            # Vite + Module Federation 开发服务器
 npm run validate       # 校验清单与构建产物
-npm run install:vetta  # 构建、打包并装进正在运行的 Vetta
+npm run install:vetta  # 构建、打包并装进正在运行的 567 Agent
 npx vetta-plugin-cli watch      # 热更新：宿主改从本工程目录加载，改完即生效
 npx vetta-plugin-cli reload <id>  # 提示有 pending 版本时切换过去
 npx vetta-plugin-cli uninstall  # 卸载
@@ -109,7 +109,7 @@ export default definePlugin({
 
 <Tabs items={["开发调试", "发布安装"]}>
   <Tab value="开发调试">
-    使用 `bunx vetta-plugin dev` 启动插件开发服务，再通过 Vetta 的开发链接加载。改动后可快速验证界面与工具注册，但发布前仍要执行生产构建并测试 ZIP 安装流程。
+    使用 `bunx vetta-plugin dev` 启动插件开发服务，再通过 567 Agent 的开发链接加载。改动后可快速验证界面与工具注册，但发布前仍要执行生产构建并测试 ZIP 安装流程。
   </Tab>
   <Tab value="发布安装">
     <Steps>
@@ -121,7 +121,7 @@ export default definePlugin({
       <Step>
         ### 打包归档
 
-        发布包使用 `.vettapkg` 扩展名和 ZIP 容器，并在归档根目录包含 `plugin.json` 和 `dist/`。安装了 Vetta 后可以双击该文件安装。
+        发布包使用 `.567plugin` 扩展名和 ZIP 容器，并在归档根目录包含 `plugin.json` 和 `dist/`。安装了 567 Agent 后可以双击该文件安装。
       </Step>
       <Step>
         ### 安装并启用

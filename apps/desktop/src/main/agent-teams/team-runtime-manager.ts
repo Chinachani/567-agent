@@ -10,12 +10,12 @@ import {
 	type TeamSessionDocument,
 	teamMemberAssignmentFingerprint,
 	teamRosterFingerprint,
-} from "@vetta/agent-team";
+} from "@567agent/agent-team";
 import type {
 	CodingAgentPinnedModelContextBinder,
 	CodingAgentRuntimeToolRegistration,
-} from "@vetta/coding-agent/runtime";
-import type { RuntimeHost, SessionExecutionMode } from "@vetta/runtime-core";
+} from "@567agent/coding-agent/runtime";
+import type { RuntimeHost, SessionExecutionMode } from "@567agent/runtime-core";
 import { resolveDesktopSessionConfig } from "../conversations/resolve-session-config.js";
 import { getAppLogger } from "../logger.js";
 import { toAgentConfigurationOverrides } from "./agent-ability-overrides.js";

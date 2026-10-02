@@ -1,9 +1,9 @@
 import { mkdtemp, readFile, realpath, rm, writeFile } from "node:fs/promises";
 import { hostname, tmpdir } from "node:os";
 import { join } from "node:path";
-import { migrateCodingAgentHistoricalSession } from "@vetta/coding-agent/historical-sessions";
-import { createNodeLegacySessionHost } from "@vetta/runtime-node/host";
-import { ConversationOwnershipConflictError } from "@vetta/runtime-storage/conversation";
+import { migrateCodingAgentHistoricalSession } from "@567agent/coding-agent/historical-sessions";
+import { createNodeLegacySessionHost } from "@567agent/runtime-node/host";
+import { ConversationOwnershipConflictError } from "@567agent/runtime-storage/conversation";
 import { afterEach, describe, expect, it } from "vitest";
 
 const temporaryRoots = new Set<string>();

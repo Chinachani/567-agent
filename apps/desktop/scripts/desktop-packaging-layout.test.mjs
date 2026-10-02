@@ -7,7 +7,9 @@ import {
 	DESKTOP_REQUIRED_SOURCE_FILES,
 	VETTA_DESIGN_SHARE_FILE_ASSOCIATION,
 	VETTA_PLUGIN_FILE_ASSOCIATION,
+	LEGACY_PLUGIN_FILE_ASSOCIATION,
 } from "./desktop-packaging-layout.mjs";
+import { APP_NAME, BUNDLE_ID, infoPlistContents } from "./build-appshot-helper.js";
 
 const desktopRoot = join(import.meta.dirname, "..");
 
@@ -32,9 +34,9 @@ test("required source entry points exist", () => {
 
 test("packaged Desktop registers the dedicated Vetta plugin package type", () => {
 	assert.deepEqual(VETTA_PLUGIN_FILE_ASSOCIATION, {
-		ext: "vettapkg",
-		name: "Vetta Plugin Package",
-		description: "Installable Vetta plugin package",
+		ext: "567plugin",
+		name: "567 Agent Plugin Package",
+		description: "Installable 567 Agent plugin package",
 		mimeType: "application/vnd.vetta.plugin+zip",
 		role: "Editor",
 	});
@@ -48,6 +50,28 @@ test("packaged Desktop registers the 567design share file type", () => {
 		mimeType: "application/vnd.567agent.design+zip",
 		role: "Editor",
 	});
+});
+
+test("new and legacy plugin packages keep dedicated file associations", () => {
+	assert.equal(LEGACY_PLUGIN_FILE_ASSOCIATION.ext, "vettapkg");
+	assert.equal(LEGACY_PLUGIN_FILE_ASSOCIATION.mimeType, VETTA_PLUGIN_FILE_ASSOCIATION.mimeType);
+	const installer = readFileSync(join(desktopRoot, "build", "installer.iss"), "utf8");
+	assert.ok(installer.includes('Subkey: "Software\\Classes\\.567plugin"'));
+	assert.ok(installer.includes('Subkey: "Software\\Classes\\.vettapkg"'));
+	assert.ok(installer.includes('Subkey: "Software\\Classes\\567Agent.PluginPackage\\shell\\open\\command"'));
+	assert.ok(installer.includes('Subkey: "Software\\Classes\\agent567\\shell\\open\\command"'));
+	assert.ok(installer.includes('Subkey: "Software\\Classes\\vetta\\shell\\open\\command"'));
+});
+
+test("macOS helper metadata and runtime resolution use the same brand", () => {
+	assert.equal(APP_NAME, "567 Agent Computer Use");
+	assert.equal(BUNDLE_ID, "com.api567.agent.computer-use");
+	const plist = infoPlistContents();
+	assert.ok(plist.includes(`<string>${APP_NAME}</string>`));
+	assert.ok(plist.includes(`<string>${BUNDLE_ID}</string>`));
+	const resolver = readFileSync(join(desktopRoot, "src/main/appshot/helper-resolver.ts"), "utf8");
+	assert.ok(resolver.includes(`APP_BUNDLE_NAME = "${APP_NAME}.app"`));
+	assert.ok(resolver.includes(`EXECUTABLE_NAME = "${APP_NAME}"`));
 });
 
 test("Windows installer registers and opens 567design files", () => {

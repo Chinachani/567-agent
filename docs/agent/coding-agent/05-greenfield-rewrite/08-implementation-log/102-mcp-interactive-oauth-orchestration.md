@@ -11,7 +11,7 @@
 - GitHub fallback、提示文案和 Vetta 产品身份；
 - token 持久化。
 
-本轮把协议与用例编排迁入 `@vetta/runtime-mcp`，把操作系统、页面和产品策略留在
+本轮把协议与用例编排迁入 `@567agent/runtime-mcp`，把操作系统、页面和产品策略留在
 `coding-agent`。Browser Authorization Code 和 RFC 8628 Device Authorization 是两条独立流程，
 没有合并成带可选方法的万能 OAuth Service。
 

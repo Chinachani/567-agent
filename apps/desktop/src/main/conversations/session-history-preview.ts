@@ -1,4 +1,4 @@
-import type { HistoryEntry } from "@vetta/runtime-core";
+import type { HistoryEntry } from "@567agent/runtime-core";
 
 const PREVIEW_ENTRY_FALLBACK = 32;
 

@@ -1,7 +1,7 @@
-import type { AgentEvent } from "@vetta/agent-core";
-import type { TodoItem } from "@vetta/coding-agent/session-extensions";
-import type { RuntimeContextCompactionResult, RuntimeFailure } from "@vetta/runtime-core";
-import type { BackgroundCommandSnapshot } from "@vetta/runtime-tools";
+import type { AgentEvent } from "@567agent/agent-core";
+import type { TodoItem } from "@567agent/coding-agent/session-extensions";
+import type { RuntimeContextCompactionResult, RuntimeFailure } from "@567agent/runtime-core";
+import type { BackgroundCommandSnapshot } from "@567agent/runtime-tools";
 import type { CodingAgentSubagentSnapshot } from "./subagent-contract.js";
 
 export type CodingAgentRetryEvent =

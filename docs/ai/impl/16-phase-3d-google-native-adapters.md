@@ -104,7 +104,7 @@ Cloud Code retry 现在区分：
 
 继续使用 TypeBox，不引入 Zod：
 
-- `@vetta/ai` 的 Tool schema、wire pilot、validation error 和测试设施已经围绕 TypeBox。
+- `@567agent/ai` 的 Tool schema、wire pilot、validation error 和测试设施已经围绕 TypeBox。
 - Google SDK 类型与手写 Cloud Code 类型只能提供编译期约束；SDK、代理和 SSE 仍是不可信运行时边界。
 - TypeBox 负责 chunk 字段形状；事件顺序、terminal 唯一性、block 切换和 partial function argument policy 由 reducer 负责。
 - request、client config 和内部状态已经由 TypeScript 类型覆盖，不重复做运行时 schema。

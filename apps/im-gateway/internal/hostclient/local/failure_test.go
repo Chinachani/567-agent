@@ -5,7 +5,7 @@ import (
 	"errors"
 	"testing"
 
-	"vetta-im-gateway/internal/hostclient"
+	"github.com/Chinachani/567-agent/apps/im-gateway/internal/hostclient"
 )
 
 func TestFailureFromResponsePreservesWireMetadata(t *testing.T) {

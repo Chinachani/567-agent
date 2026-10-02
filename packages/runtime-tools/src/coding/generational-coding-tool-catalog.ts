@@ -1,4 +1,4 @@
-import type { CapabilityBinding, RuntimeToolDefinition } from "@vetta/runtime-core/kernel";
+import type { CapabilityBinding, RuntimeToolDefinition } from "@567agent/runtime-core/kernel";
 import {
 	CODING_TOOL_AVAILABILITY_ERROR_CODES,
 	CodingToolAvailabilityError,

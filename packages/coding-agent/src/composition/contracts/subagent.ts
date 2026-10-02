@@ -1,12 +1,12 @@
-import type { Message } from "@vetta/ai";
-import type { SessionConfig } from "@vetta/runtime-core";
-import type { McpRuntimeToolView } from "@vetta/runtime-mcp";
+import type { Message } from "@567agent/ai";
+import type { SessionConfig } from "@567agent/runtime-core";
+import type { McpRuntimeToolView } from "@567agent/runtime-mcp";
 import type {
 	SubagentChildHandle,
 	SubagentSnapshot,
 	SubagentSpawnRequest,
 	SubagentTypeDefinition,
-} from "@vetta/runtime-subagents";
+} from "@567agent/runtime-subagents";
 import type { ConversationScenario } from "../../profiles/index.js";
 import type { CodingAgentRuntimeToolRegistration, CodingAgentToolActivation } from "../../runtime-contracts/index.js";
 

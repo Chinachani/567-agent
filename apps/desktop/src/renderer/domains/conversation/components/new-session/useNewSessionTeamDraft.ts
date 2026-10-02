@@ -1,3 +1,5 @@
+import type { AgentTeamDocument, SendTeamMessageInput, TeamDefinition } from "@567agent/agent-team";
+import type { PromptAttachmentRef, SessionExecutionMode } from "@567agent/runtime-core";
 import { useLocalizedAgentTeamDocument } from "@shared/agent-teams/agent-team-localization";
 import { agentDisplayName } from "@shared/agent-teams/agent-team-presentation";
 import {
@@ -17,8 +19,6 @@ import {
 	reasoningByModelAtom,
 	selectedModelAtom,
 } from "@shared/store/atoms";
-import type { AgentTeamDocument, SendTeamMessageInput, TeamDefinition } from "@vetta/agent-team";
-import type { PromptAttachmentRef, SessionExecutionMode } from "@vetta/runtime-core";
 import { useAtomValue, useStore } from "jotai";
 import { useCallback, useEffect, useMemo, useReducer, useRef, useState, useSyncExternalStore } from "react";
 import { useTranslation } from "react-i18next";

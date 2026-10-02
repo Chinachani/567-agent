@@ -1,4 +1,4 @@
-import { getReasoningPreset } from "@vetta/ai/reasoning-presets";
+import { getReasoningPreset } from "@567agent/ai/reasoning-presets";
 import { useMemo } from "react";
 import { useTranslation } from "react-i18next";
 import { Button } from "@vetta-org/ui";

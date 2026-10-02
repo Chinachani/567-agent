@@ -1,5 +1,5 @@
-import { RuntimeAgentRuntime } from "@vetta/runtime-core";
-import { PassthroughContextStrategy } from "@vetta/runtime-core/kernel";
+import { RuntimeAgentRuntime } from "@567agent/runtime-core";
+import { PassthroughContextStrategy } from "@567agent/runtime-core/kernel";
 import { describe, expect, it, vi } from "vitest";
 import { createCodingAgentExecutionRuntimeDefinition } from "../../src/composition/index.js";
 

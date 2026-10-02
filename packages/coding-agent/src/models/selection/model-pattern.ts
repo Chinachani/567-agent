@@ -1,5 +1,5 @@
-import type { ThinkingLevel } from "@vetta/agent-core";
-import type { Api, Model } from "@vetta/ai";
+import type { ThinkingLevel } from "@567agent/agent-core";
+import type { Api, Model } from "@567agent/ai";
 import { isValidThinkingLevel } from "./model-selection-defaults.js";
 
 export interface ParsedModelResult {

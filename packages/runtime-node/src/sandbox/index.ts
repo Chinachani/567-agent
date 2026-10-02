@@ -4,7 +4,7 @@ export type {
 	SandboxPermissionRequest,
 	SandboxSessionGrantEntry,
 	SandboxShellGrant,
-} from "@vetta/runtime-core/sandbox";
+} from "@567agent/runtime-core/sandbox";
 export type {
 	NodeSandboxEnvironment,
 	NodeSandboxPlatform,

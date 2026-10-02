@@ -7,9 +7,9 @@ import (
 	"strings"
 	"time"
 
-	"vetta-im-gateway/internal/hostclient"
-	"vetta-im-gateway/internal/state"
-	"vetta-im-gateway/internal/transport"
+	"github.com/Chinachani/567-agent/apps/im-gateway/internal/hostclient"
+	"github.com/Chinachani/567-agent/apps/im-gateway/internal/state"
+	"github.com/Chinachani/567-agent/apps/im-gateway/internal/transport"
 )
 
 // flushMemoryTimeout bounds the memory-consolidation step on /new so a slow or

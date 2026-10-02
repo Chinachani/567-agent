@@ -1,5 +1,5 @@
 {
-	"name": "@vetta/plugin-git",
+	"name": "@567agent/plugin-git",
 	"version": "0.2.3",
 	"private": true,
 	"type": "module",

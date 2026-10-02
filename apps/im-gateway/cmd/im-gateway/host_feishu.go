@@ -6,8 +6,8 @@ import (
 	"fmt"
 	"sync"
 
-	"vetta-im-gateway/internal/hostproto"
-	"vetta-im-gateway/internal/transport/feishu"
+	"github.com/Chinachani/567-agent/apps/im-gateway/internal/hostproto"
+	"github.com/Chinachani/567-agent/apps/im-gateway/internal/transport/feishu"
 )
 
 // registerSource tags the QR URL so the platform can attribute apps

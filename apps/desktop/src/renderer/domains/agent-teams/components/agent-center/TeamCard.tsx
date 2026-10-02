@@ -1,4 +1,4 @@
-import type { AgentProfile, TeamDefinition } from "@vetta/agent-team";
+import type { AgentProfile, TeamDefinition } from "@567agent/agent-team";
 import { Button } from "@vetta-org/ui";
 import { useTranslation } from "react-i18next";
 import { AgentAvatarStack } from "./AgentAvatarStack";

@@ -1,16 +1,16 @@
 import type { Dirent } from "node:fs";
 import { mkdir, readdir, readFile, rm } from "node:fs/promises";
 import { join } from "node:path";
-import { getVettaHomePath } from "@vetta/action-rpc";
+import { getVettaHomePath } from "@567agent/action-rpc";
 import type {
 	AgentProfile,
 	AgentTeamDocument,
 	AgentTeamExtensionRegistry,
 	TeamDefinition,
 	TeamMember,
-} from "@vetta/agent-team";
-import { DEFAULT_AGENT_TEAM_EXTENSIONS, parseAgentTeamDocument } from "@vetta/agent-team";
-import { atomicWriteFileAsync, atomicWriteJSONAsync } from "@vetta/toolkit/atomic-write";
+} from "@567agent/agent-team";
+import { DEFAULT_AGENT_TEAM_EXTENSIONS, parseAgentTeamDocument } from "@567agent/agent-team";
+import { atomicWriteFileAsync, atomicWriteJSONAsync } from "@567agent/toolkit/atomic-write";
 import { getAppLogger } from "../logger.js";
 import { agentBlueprintRegistry, resolveAgentBlueprint } from "./agent-blueprint-registry.js";
 import {

@@ -1,4 +1,4 @@
-import type { HookDispatchEffect } from "@vetta/coding-agent/hooks";
+import type { HookDispatchEffect } from "@567agent/coding-agent/hooks";
 import type { PluginCodingAgentHookEventName } from "@vetta-org/plugin-sdk";
 
 export function parseDesktopPluginHookResult(

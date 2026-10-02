@@ -2,7 +2,11 @@ import { existsSync, mkdtempSync, rmSync } from "node:fs";
 import type * as NodeOs from "node:os";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { afterEach, beforeEach, expect, it, vi } from "vitest";
+import { afterEach, beforeAll, beforeEach, expect, it, vi } from "vitest";
+
+let syncCredentialFile: typeof import("./credential-store.js")["syncCredentialFile"];
+let loadVettaCredentials: typeof import("@567agent/runtime-node/mcp")["loadVettaCredentials"];
+let vettaCredentialsPath: typeof import("@567agent/runtime-node/mcp")["vettaCredentialsPath"];
 
 const isolated = vi.hoisted(() => ({ home: "" }));
 vi.mock("node:os", async (importOriginal) => ({
@@ -11,8 +15,14 @@ vi.mock("node:os", async (importOriginal) => ({
 }));
 vi.mock("../../logger.js", () => ({ getAppLogger: () => ({ warn: () => {} }) }));
 
+// The public MCP entry loads its complete dependency graph. Keep that transform
+// cost in suite setup so the actual filesystem round trip retains a short limit.
+beforeAll(async () => {
+	({ syncCredentialFile } = await import("./credential-store.js"));
+	({ loadVettaCredentials, vettaCredentialsPath } = await import("@567agent/runtime-node/mcp"));
+}, 30_000);
+
 beforeEach(() => {
-	vi.resetModules();
 	isolated.home = mkdtempSync(join(tmpdir(), "567-auth-home-"));
 	for (const name of ["VETTA_HOME", "VETTA_CONFIG_DIR", "VETTA_API_TOKEN", "VETTA_API_BASE_URL", "VETTA_SERVER_URL"])
 		vi.stubEnv(name, "");
@@ -24,8 +34,6 @@ afterEach(() => {
 });
 
 it("writes, rotates, reads, and removes MCP credentials in the branded home without recreating the old directory", async () => {
-	const { syncCredentialFile } = await import("./credential-store.js");
-	const { loadVettaCredentials, vettaCredentialsPath } = await import("@vetta/runtime-node/mcp");
 	expect(vettaCredentialsPath()).toBe(join(isolated.home, ".567agent", "auth.json"));
 	syncCredentialFile("first-synthetic-token");
 	expect(loadVettaCredentials()?.token).toBe("first-synthetic-token");

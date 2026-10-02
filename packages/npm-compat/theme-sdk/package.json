@@ -1,0 +1,71 @@
+{
+	"name": "@567agent/theme-sdk",
+	"version": "0.1.0",
+	"type": "module",
+	"description": "567 Agent public entry for @vetta-org/theme-sdk; shared runtime identity is preserved.",
+	"main": "./dist/index.js",
+	"types": "./dist/index.d.ts",
+	"exports": {
+		".": {
+			"types": "./dist/index.d.ts",
+			"import": "./dist/index.js"
+		},
+		"./appearance": {
+			"types": "./dist/appearance.d.ts",
+			"import": "./dist/appearance.js"
+		},
+		"./app-shell": {
+			"types": "./dist/app-shell.d.ts",
+			"import": "./dist/app-shell.js"
+		},
+		"./host": {
+			"types": "./dist/host.d.ts",
+			"import": "./dist/host.js"
+		},
+		"./module": {
+			"types": "./dist/module.d.ts",
+			"import": "./dist/module.js"
+		},
+		"./pages": {
+			"types": "./dist/pages.d.ts",
+			"import": "./dist/pages.js"
+		},
+		"./routing": {
+			"types": "./dist/routing.d.ts",
+			"import": "./dist/routing.js"
+		},
+		"./sidebar": {
+			"types": "./dist/sidebar.d.ts",
+			"import": "./dist/sidebar.js"
+		},
+		"./storage": {
+			"types": "./dist/storage.d.ts",
+			"import": "./dist/storage.js"
+		},
+		"./usage": {
+			"types": "./dist/usage.d.ts",
+			"import": "./dist/usage.js"
+		}
+	},
+	"license": "Apache-2.0",
+	"files": [
+		"dist",
+		"README.md",
+		"LICENSE",
+		"NOTICE"
+	],
+	"scripts": {
+		"build": "node ../../../scripts/generate-npm-compat.mjs theme-sdk",
+		"prepack": "node ../../../scripts/generate-npm-compat.mjs theme-sdk"
+	},
+	"dependencies": {
+		"@vetta-org/theme-sdk": "0.1.0"
+	},
+	"peerDependencies": {
+		"react": "^19.0.0"
+	},
+	"publishConfig": {
+		"access": "public",
+		"registry": "https://registry.npmjs.org/"
+	}
+}

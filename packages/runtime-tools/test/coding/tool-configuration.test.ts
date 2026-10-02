@@ -1,16 +1,16 @@
-import { createRuntimeObservationPublisher, type RuntimeObservationRecord } from "@vetta/runtime-core";
+import { createRuntimeObservationPublisher, type RuntimeObservationRecord } from "@567agent/runtime-core";
 import {
 	type RuntimeConfigurationDefinition,
 	type RuntimeConfigurationJsonObject,
 	type RuntimeConfigurationLayerSnapshot,
 	RuntimeConfigurationRegistry,
 	RuntimeConfigurationResolver,
-} from "@vetta/runtime-core/configuration";
+} from "@567agent/runtime-core/configuration";
 import type {
 	RuntimeSnapshotAcquireContext,
 	RuntimeToolDefinition,
 	RuntimeToolExecutionRequest,
-} from "@vetta/runtime-core/kernel";
+} from "@567agent/runtime-core/kernel";
 import { describe, expect, it } from "vitest";
 import {
 	CODING_TOOL_CONFIGURATION_ERROR_CODES,

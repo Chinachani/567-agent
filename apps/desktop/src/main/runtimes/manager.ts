@@ -2,7 +2,7 @@ import { spawnSync } from "node:child_process";
 import { existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { chmod } from "node:fs/promises";
 import { delimiter, join } from "node:path";
-import { atomicWriteJSON } from "@vetta/toolkit/atomic-write";
+import { atomicWriteJSON } from "@567agent/toolkit/atomic-write";
 import { getAppLogger } from "../logger.js";
 import {
 	binDirsFor,

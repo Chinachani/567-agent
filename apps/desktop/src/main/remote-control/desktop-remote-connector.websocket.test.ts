@@ -1,6 +1,6 @@
 import { type ChildProcess, spawn } from "node:child_process";
 import { resolve } from "node:path";
-import { RemoteConnection, WebSocketRemoteTransport } from "@vetta/remote-control";
+import { RemoteConnection, WebSocketRemoteTransport } from "@567agent/remote-control";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { DesktopRemoteConnector, type DesktopRemoteOperations } from "./desktop-remote-connector.js";
 

@@ -4,7 +4,7 @@
 
 本评审中的“Vetta”主要指以下实现：
 
-- `@vetta/coding-agent` 的公开 SDK、Extension API、资源加载与宿主组合；
+- `@567agent/coding-agent` 的公开 SDK、Extension API、资源加载与宿主组合；
 - `runtime-core`、`runtime-tools`、`runtime-mcp`、`runtime-subagents`、`runtime-storage`、`runtime-telemetry`；
 - Desktop Plugin SDK、manifest、权限与 capability runtime；
 - CLI、Desktop、IM/RPC 等宿主如何消费这些能力。

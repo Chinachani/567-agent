@@ -1,4 +1,4 @@
-import { createNodeCommandExecutor, createNodeResourcePackageHost } from "@vetta/runtime-node/host";
+import { createNodeCommandExecutor, createNodeResourcePackageHost } from "@567agent/runtime-node/host";
 import { getAgentDir, getSceneDir, getUserSkillsDir, getVettaHomePath } from "../../src/config.js";
 import { createCodingAgentNodeExtensionFactoryLoader } from "../../src/host/extensions/node-extension-factory-loader.js";
 import { createCodingAgentNodeSettingsRuntime } from "../../src/host/node-state-services.js";

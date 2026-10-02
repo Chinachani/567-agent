@@ -31,7 +31,7 @@ describe("Coding Agent architecture gate", () => {
 		const state = createState([
 			{
 				path: `${SOURCE_ROOT}/composition/contracts/sample.ts`,
-				text: 'import type { RuntimeSession } from "@vetta/runtime-core";',
+				text: 'import type { RuntimeSession } from "@567agent/runtime-core";',
 			},
 			{
 				path: `${SOURCE_ROOT}/memory/runtime.ts`,
@@ -47,7 +47,7 @@ describe("Coding Agent architecture gate", () => {
 			},
 			{
 				path: "apps/cli-host/src/runtime.ts",
-				text: 'import { createCodingAgentRuntimeComposition } from "@vetta/coding-agent/composition";',
+				text: 'import { createCodingAgentRuntimeComposition } from "@567agent/coding-agent/composition";',
 			},
 		]);
 
@@ -95,7 +95,7 @@ describe("Coding Agent architecture gate", () => {
 		[
 			"consumer deep import",
 			"apps/cli-host/src/runtime.ts",
-			'import { value } from "@vetta/coding-agent/src/private.js";',
+			'import { value } from "@567agent/coding-agent/src/private.js";',
 			"consumer uses a non-public Coding Agent subpath",
 		],
 	])("rejects %s", (_name, path, text, expected) => {
@@ -206,7 +206,7 @@ describe("Coding Agent architecture gate", () => {
 		const runtimeNodeAdapter = createState([
 			{
 				path: `${SOURCE_ROOT}/adapters/runtime-core/model-adapter.ts`,
-				text: 'import { createHost } from "@vetta/runtime-node/host";',
+				text: 'import { createHost } from "@567agent/runtime-node/host";',
 			},
 		]);
 
@@ -224,7 +224,7 @@ describe("Coding Agent architecture gate", () => {
 			{ path: `${SOURCE_ROOT}/modes/print-mode.ts`, text: "output.writeLine(value);" },
 			{
 				path: "apps/cli-host/src/print-output.ts",
-				text: "import type { CodingAgentPrintOutputPort } from '@vetta/coding-agent/bootstrap';",
+				text: "import type { CodingAgentPrintOutputPort } from '@567agent/coding-agent/bootstrap';",
 			},
 		]);
 
@@ -277,7 +277,7 @@ describe("Coding Agent architecture gate", () => {
 		const rejected = createState([
 			{
 				path: `${SOURCE_ROOT}/sessions/legacy/migration.ts`,
-				text: 'import { migrateLegacySessionToV2 } from "@vetta/runtime-node/conversation";',
+				text: 'import { migrateLegacySessionToV2 } from "@567agent/runtime-node/conversation";',
 			},
 		]);
 
@@ -293,7 +293,7 @@ describe("Coding Agent architecture gate", () => {
 		const nodeImport = createState([
 			{
 				path: `${SOURCE_ROOT}/mcp/runtime/tool-source.ts`,
-				text: 'import { createNodeMcpSupervisor } from "@vetta/runtime-node/mcp";',
+				text: 'import { createNodeMcpSupervisor } from "@567agent/runtime-node/mcp";',
 			},
 		]);
 		const processRead = createState([
@@ -361,7 +361,7 @@ describe("Coding Agent architecture gate", () => {
 				},
 				{
 					path: "apps/cli-host/src/new-capability.ts",
-					text: 'import { createNewCapability } from "@vetta/coding-agent/new-capability";',
+					text: 'import { createNewCapability } from "@567agent/coding-agent/new-capability";',
 				},
 			],
 			{ exports: { ".": "./dist/index.js", "./new-capability": "./dist/new-capability.js" } },
@@ -389,8 +389,8 @@ describe("Coding Agent architecture gate", () => {
 				{
 					path: "apps/cli-host/src/plugins.ts",
 					text: [
-						'import { official } from "@vetta/coding-agent/plugins/official";',
-						'import { privateValue } from "@vetta/coding-agent/private/value";',
+						'import { official } from "@567agent/coding-agent/plugins/official";',
+						'import { privateValue } from "@567agent/coding-agent/private/value";',
 					].join("\n"),
 				},
 			],
@@ -399,7 +399,7 @@ describe("Coding Agent architecture gate", () => {
 		const violations = findCodingAgentArchitectureViolations(state);
 
 		expect(violations).toHaveLength(1);
-		expect(violations[0]).toContain("@vetta/coding-agent/private/value");
+		expect(violations[0]).toContain("@567agent/coding-agent/private/value");
 	});
 
 	it("uses syntax edges instead of matching imports in comments", () => {
@@ -426,17 +426,17 @@ describe("Coding Agent architecture gate", () => {
 		const missing = createState([
 			{
 				path,
-				text: 'import { createCodingAgentRuntimeComposition } from "@vetta/coding-agent/composition";',
+				text: 'import { createCodingAgentRuntimeComposition } from "@567agent/coding-agent/composition";',
 			},
 		]);
 		const configured = createState([
 			{
 				path,
 				text: [
-					'import { createCodingAgentRuntimeComposition } from "@vetta/coding-agent/composition";',
-					'import { nodeModelInputImageProcessor } from "@vetta/runtime-node/coding";',
-					'import { createFileConversationPersistence } from "@vetta/runtime-node/conversation";',
-					`import { createNodeKnowledgeRuntime${requiresMemoryStorage ? ", NodeTextFileStorage" : ""} } from "@vetta/runtime-node/host";`,
+					'import { createCodingAgentRuntimeComposition } from "@567agent/coding-agent/composition";',
+					'import { nodeModelInputImageProcessor } from "@567agent/runtime-node/coding";',
+					'import { createFileConversationPersistence } from "@567agent/runtime-node/conversation";',
+					`import { createNodeKnowledgeRuntime${requiresMemoryStorage ? ", NodeTextFileStorage" : ""} } from "@567agent/runtime-node/host";`,
 					"createCodingAgentRuntimeComposition({",
 					"\tcreateConversationPersistence: () => createFileConversationPersistence(conversationDir),",
 					"\tcreateToolEnvironment: hostToolEnvironmentFactory,",
@@ -477,7 +477,7 @@ describe("Coding Agent architecture gate", () => {
 		const importingNode = createState([
 			{
 				path: imagePolicyPath,
-				text: 'import { resizeImageBuffer } from "@vetta/runtime-node/coding";',
+				text: 'import { resizeImageBuffer } from "@567agent/runtime-node/coding";',
 			},
 		]);
 		const readingNodeGlobal = createState([{ path: imagePolicyPath, text: "Buffer.from(data);" }]);
@@ -541,7 +541,7 @@ describe("Coding Agent architecture gate", () => {
 			{
 				path: `${SOURCE_ROOT}/composition/runtime-composition.ts`,
 				text: [
-					'import { createFileConversationPersistence } from "@vetta/runtime-node/conversation";',
+					'import { createFileConversationPersistence } from "@567agent/runtime-node/conversation";',
 					"options.createConversationPersistence({ conversationDir: options.conversationDir });",
 				].join("\n"),
 			},
@@ -567,7 +567,7 @@ describe("Coding Agent architecture gate", () => {
 		const importingNode = createState([
 			{
 				path: toolCompositionPath,
-				text: 'import { createReadToolRegistration } from "@vetta/runtime-node/coding";',
+				text: 'import { createReadToolRegistration } from "@567agent/runtime-node/coding";',
 			},
 		]);
 		const missingForward = createState([{ path: runtimeCompositionPath, text: "export const runtime = {};" }]);
@@ -620,7 +620,7 @@ describe("Coding Agent architecture gate", () => {
 		const sandboxPath = `${SOURCE_ROOT}/execution/sandbox/tool-registrations.ts`;
 		const state = createState([
 			{ path: executionPath, text: 'import { spawn } from "node:child_process";' },
-			{ path: sandboxPath, text: 'import { createNodeSandboxHost } from "@vetta/runtime-node/sandbox";' },
+			{ path: sandboxPath, text: 'import { createNodeSandboxHost } from "@567agent/runtime-node/sandbox";' },
 		]);
 
 		expect(findCodingAgentArchitectureViolations(state)).toEqual(
@@ -738,7 +738,7 @@ describe("Coding Agent architecture gate", () => {
 		const importingNode = createState([
 			{
 				path: `${SOURCE_ROOT}/settings/runtime/create-settings-runtime.ts`,
-				text: 'import { NodeScopedTextStorage } from "@vetta/runtime-node/host";',
+				text: 'import { NodeScopedTextStorage } from "@567agent/runtime-node/host";',
 			},
 		]);
 		const selectingFileDefault = createState([
@@ -776,7 +776,7 @@ describe("Coding Agent architecture gate", () => {
 		const modulePath = `${SOURCE_ROOT}/extensions/events/tool-events.ts`;
 		const globalPath = `${SOURCE_ROOT}/extensions/infrastructure.ts`;
 		const importingNode = createState([
-			{ path: modulePath, text: 'import type { ToolInput } from "@vetta/runtime-node/coding";' },
+			{ path: modulePath, text: 'import type { ToolInput } from "@567agent/runtime-node/coding";' },
 		]);
 		const usingNodeGlobals = createState([
 			{
@@ -1005,10 +1005,10 @@ describe("Coding Agent architecture gate", () => {
 		]);
 		const nodeGlobalPolicy = createState([{ path: policyPath, text: "const platform = process.platform;" }]);
 		const selectingNodeService = createState([
-			{ path: policyPath, text: 'import { findSessionGrant } from "@vetta/runtime-node/sandbox";' },
+			{ path: policyPath, text: 'import { findSessionGrant } from "@567agent/runtime-node/sandbox";' },
 		]);
 		const selectingNodeTools = createState([
-			{ path: policyPath, text: 'import { createReadToolRegistration } from "@vetta/runtime-node/coding";' },
+			{ path: policyPath, text: 'import { createReadToolRegistration } from "@567agent/runtime-node/coding";' },
 		]);
 
 		expect(findCodingAgentArchitectureViolations(retiredAdapter)).toContain(
@@ -1188,7 +1188,7 @@ describe("Coding Agent architecture gate", () => {
 		const statePath = `${SOURCE_ROOT}/resources/runtime/prompt-resource-state.ts`;
 		const importingNode = createState([{ path: discoveryPath, text: 'import { readFile } from "node:fs";' }]);
 		const selectingNode = createState([
-			{ path: statePath, text: 'import { createNodeResourceAccess } from "@vetta/runtime-node/host";' },
+			{ path: statePath, text: 'import { createNodeResourceAccess } from "@567agent/runtime-node/host";' },
 		]);
 
 		expect(findCodingAgentArchitectureViolations(importingNode)).toContain(
@@ -1350,7 +1350,7 @@ describe("Coding Agent architecture gate", () => {
 		const nodeEnvironmentPath = "packages/runtime-node/src/coding/node-tool-environment.ts";
 		const state = createState([
 			{ path: featurePath, text: 'import { platform } from "node:os";' },
-			{ path: specializedCompositionPath, text: 'import { createNodeTool } from "@vetta/runtime-node/coding";' },
+			{ path: specializedCompositionPath, text: 'import { createNodeTool } from "@567agent/runtime-node/coding";' },
 			{ path: nodeToolPath, text: "export const tool = {};" },
 			{ path: nodeGatePath, text: "export const gate = {};" },
 			{

@@ -1,4 +1,4 @@
-import type { AgentToolResult, AgentToolUpdateCallback } from "@vetta/agent-core";
+import type { AgentToolResult, AgentToolUpdateCallback } from "@567agent/agent-core";
 import type { TSchema as PiSchema } from "typebox";
 import type { ExtensionContext } from "../context-contracts.js";
 

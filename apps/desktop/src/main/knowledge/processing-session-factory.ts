@@ -1,18 +1,18 @@
 import {
 	createKnowledgeProcessingSessionFactory,
 	type KnowledgeProcessingSessionFactory,
-} from "@vetta/coding-agent/composition";
-import { getAgentDir } from "@vetta/coding-agent/config";
-import type { CodingAgentModelRuntime } from "@vetta/coding-agent/host-services";
-import { detectWorkspaceFacts, probeWorkspaceSignals } from "@vetta/coding-agent/model-context";
+} from "@567agent/coding-agent/composition";
+import { getAgentDir } from "@567agent/coding-agent/config";
+import type { CodingAgentModelRuntime } from "@567agent/coding-agent/host-services";
+import { detectWorkspaceFacts, probeWorkspaceSignals } from "@567agent/coding-agent/model-context";
 import {
 	createDesktopCodingAgentSessionExecutionEnvironment,
 	createDesktopCodingAgentToolEnvironment,
 	createDesktopResultArtifactRuntime,
-} from "@vetta/runtime-desktop";
-import { nodeModelInputImageProcessor, nodeWorkspaceFactsFileSource } from "@vetta/runtime-node/coding";
-import { createFileConversationPersistence } from "@vetta/runtime-node/conversation";
-import { createNodeKnowledgeRuntime } from "@vetta/runtime-node/host";
+} from "@567agent/runtime-desktop";
+import { nodeModelInputImageProcessor, nodeWorkspaceFactsFileSource } from "@567agent/runtime-node/coding";
+import { createFileConversationPersistence } from "@567agent/runtime-node/conversation";
+import { createNodeKnowledgeRuntime } from "@567agent/runtime-node/host";
 import { getKnowledgeRoot } from "./knowledge-layout.js";
 
 export interface DesktopKnowledgeProcessingSessionFactoryOptions {

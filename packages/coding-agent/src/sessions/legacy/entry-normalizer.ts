@@ -1,5 +1,5 @@
+import type { AgentMessage } from "@567agent/agent-core";
 import { Value } from "@sinclair/typebox/value";
-import type { AgentMessage } from "@vetta/agent-core";
 import {
 	CODING_AGENT_EXTENDED_MESSAGE_CONTEXT_TYPE,
 	CodingAgentExtendedMessageSchema,

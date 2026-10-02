@@ -15,7 +15,7 @@ describe("public failures entry", () => {
 			types: "./dist/failures.d.ts",
 			import: "./dist/failures.js",
 		});
-		expect(portableSources.join("\n")).not.toContain("@vetta/ai");
+		expect(portableSources.join("\n")).not.toContain("@567agent/ai");
 		expect(
 			readRuntimeFailure({
 				code: "MCP_RELOAD_FAILED",

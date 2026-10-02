@@ -1,4 +1,4 @@
-import type { EcosystemHookRuntime } from "@vetta/ecosystem-adapter";
+import type { EcosystemHookRuntime } from "@567agent/ecosystem-adapter";
 import {
 	createRuntimeObservationPublisher,
 	InMemoryRuntimeSessionMarkerIndex,
@@ -7,10 +7,10 @@ import {
 	type RuntimeObservationRecord,
 	type RuntimeResourceContext,
 	type RuntimeResources,
-} from "@vetta/runtime-core";
-import type { ConversationContinuationResult } from "@vetta/runtime-core/kernel";
-import { SessionExtensionComposition } from "@vetta/runtime-core/session-extensions";
-import type { McpDeferredToolController } from "@vetta/runtime-mcp";
+} from "@567agent/runtime-core";
+import type { ConversationContinuationResult } from "@567agent/runtime-core/kernel";
+import { SessionExtensionComposition } from "@567agent/runtime-core/session-extensions";
+import type { McpDeferredToolController } from "@567agent/runtime-mcp";
 import { describe, expect, it, vi } from "vitest";
 import {
 	type CodingAgentSessionResourceIndexes,

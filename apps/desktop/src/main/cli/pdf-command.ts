@@ -29,16 +29,16 @@ export interface PdfCliResponse {
 	};
 }
 
-const HELP_TEXT = `Vetta PDF command line interface
+const HELP_TEXT = `567 Agent PDF command line interface
 
 Usage:
-  Vetta.exe --html-to-pdf <input.html> --output <output.pdf> [options]
-  Vetta.exe pdf html-to-pdf <input.html> --output <output.pdf> [options]
-  Vetta.exe pdf -h
-  Vetta.exe pdf --help
+  567-Agent.exe --html-to-pdf <input.html> --output <output.pdf> [options]
+  567-Agent.exe pdf html-to-pdf <input.html> --output <output.pdf> [options]
+  567-Agent.exe pdf -h
+  567-Agent.exe pdf --help
 
 Description:
-  Convert an HTML file to PDF using Vetta Desktop's bundled Electron Chromium
+  Convert an HTML file to PDF using 567 Agent's bundled Electron Chromium
   renderer. This does not require Google Chrome or Microsoft Edge to be
   installed on the user machine.
 

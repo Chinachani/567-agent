@@ -1,6 +1,6 @@
 import { join } from "node:path";
-import { getAgentDir } from "@vetta/coding-agent/config";
-import { createNodeLegacySessionHost } from "@vetta/runtime-node/host";
+import { getAgentDir } from "@567agent/coding-agent/config";
+import { createNodeLegacySessionHost } from "@567agent/runtime-node/host";
 
 export function createDesktopHistoricalSessionHost(defaultCwd = process.cwd()) {
 	return createNodeLegacySessionHost({

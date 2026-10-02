@@ -16,7 +16,7 @@ import type {
 	TreeToolInput as NodeTreeToolInput,
 	TruncationResult as NodeTruncationResult,
 	WriteToolInput as NodeWriteToolInput,
-} from "@vetta/runtime-node/coding";
+} from "@567agent/runtime-node/coding";
 import { describe, expectTypeOf, it } from "vitest";
 import type {
 	BashToolDetails as ExtensionBashToolDetails,

@@ -1,18 +1,18 @@
 import { mkdtemp, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
-import type { RuntimeToolDefinition } from "@vetta/runtime-core/kernel";
+import type { RuntimeToolDefinition } from "@567agent/runtime-core/kernel";
 import type {
 	SandboxPermissionDecision,
 	SandboxPermissionRequest,
 	SandboxShellGrant,
-} from "@vetta/runtime-core/sandbox";
+} from "@567agent/runtime-core/sandbox";
 import {
 	type CodingToolRegistration,
 	createNodeSandboxCodingToolEnvironment,
 	type ForegroundCommandOperations,
-} from "@vetta/runtime-node/coding";
-import { clearSessionGrants, getSandboxShellGrant, type NodeSandboxPlatform } from "@vetta/runtime-node/sandbox";
+} from "@567agent/runtime-node/coding";
+import { clearSessionGrants, getSandboxShellGrant, type NodeSandboxPlatform } from "@567agent/runtime-node/sandbox";
 import { afterEach, describe, expect, it } from "vitest";
 import type { CodingAgentSandboxAuthorizationPort } from "../../src/execution/sandbox/authorization-contract.js";
 import { createCodingAgentSandboxToolRegistrations } from "../../src/execution/sandbox/tool-registrations.js";

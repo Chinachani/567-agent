@@ -1,0 +1,35 @@
+{
+	"name": "@567agent/plugin-cli",
+	"version": "0.1.7",
+	"type": "module",
+	"description": "567 Agent public entry for @vetta-org/plugin-cli; shared runtime identity is preserved.",
+	"main": "./dist/index.js",
+	"types": "./dist/index.d.ts",
+	"exports": {
+		".": {
+			"types": "./dist/index.d.ts",
+			"import": "./dist/index.js"
+		}
+	},
+	"license": "Apache-2.0",
+	"bin": {
+		"vetta-plugin-cli": "./dist/bin/vetta-plugin-cli.js"
+	},
+	"files": [
+		"dist",
+		"README.md",
+		"LICENSE",
+		"NOTICE"
+	],
+	"scripts": {
+		"build": "node ../../../scripts/generate-npm-compat.mjs plugin-cli",
+		"prepack": "node ../../../scripts/generate-npm-compat.mjs plugin-cli"
+	},
+	"dependencies": {
+		"@vetta-org/plugin-cli": "0.1.7"
+	},
+	"publishConfig": {
+		"access": "public",
+		"registry": "https://registry.npmjs.org/"
+	}
+}

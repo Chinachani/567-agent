@@ -1,5 +1,5 @@
 import { join } from "node:path";
-import type { ProjectInfo, RuntimeSessionCatalog, SessionHistoryInfo } from "@vetta/runtime-core";
+import type { ProjectInfo, RuntimeSessionCatalog, SessionHistoryInfo } from "@567agent/runtime-core";
 import { describe, expect, it, vi } from "vitest";
 import { isSessionPathInDirectory, PathFilteredRuntimeSessionCatalog } from "./session-catalog.js";
 

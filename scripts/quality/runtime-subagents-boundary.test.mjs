@@ -25,7 +25,7 @@ describe("Runtime Subagents boundary guard", () => {
 			findRuntimeSubagentsBoundaryViolations({
 				manifest: {
 					path: "packages/runtime-subagents/package.json",
-					content: { dependencies: { "@vetta/runtime-tools": "workspace:*" } },
+					content: { dependencies: { "@567agent/runtime-tools": "workspace:*" } },
 				},
 				files: [
 					{
@@ -36,7 +36,7 @@ describe("Runtime Subagents boundary guard", () => {
 				],
 			}),
 		).toEqual([
-			"packages/runtime-subagents/package.json: dependencies must not declare workspace dependency @vetta/runtime-tools",
+			"packages/runtime-subagents/package.json: dependencies must not declare workspace dependency @567agent/runtime-tools",
 			"packages/runtime-subagents/src/notifications.ts:1: forbidden subagent kernel token followup_task",
 			"packages/runtime-subagents/src/notifications.ts:2: forbidden subagent kernel token todoProgress",
 		]);

@@ -1,4 +1,8 @@
-import { CapabilityAccessController, CapabilityHub, type CapabilityProviderBinding } from "@vetta/capability-runtime";
+import {
+	CapabilityAccessController,
+	CapabilityHub,
+	type CapabilityProviderBinding,
+} from "@567agent/capability-runtime";
 import type {
 	CapabilityAccessHandle,
 	CapabilityAccessSessionFactory,

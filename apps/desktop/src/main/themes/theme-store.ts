@@ -1,6 +1,6 @@
 import { existsSync, readdirSync, readFileSync, statSync } from "node:fs";
 import { join, resolve } from "node:path";
-import { getVettaHomePath } from "@vetta/action-rpc";
+import { getVettaHomePath } from "@567agent/action-rpc";
 import { app } from "electron";
 import type { DesktopThemePackage, DesktopThemePackageSource } from "../../preload/api-types/themes.js";
 

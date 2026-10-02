@@ -1,3 +1,4 @@
+import type { ContextCompactionEligibility, ContextCompositionReport } from "@567agent/runtime-core";
 import type { DesktopMcpElicitationRequest } from "@preload/api";
 import type {
 	AppshotAttachment,
@@ -9,7 +10,6 @@ import type {
 	PendingQuestion,
 } from "@shared/conversation";
 import type { InputSegment } from "@shared/lib/input-tokens";
-import type { ContextCompactionEligibility, ContextCompositionReport } from "@vetta/runtime-core";
 import { atom } from "jotai";
 import { runningSessionPathsAtom } from "./running-sessions-atoms";
 

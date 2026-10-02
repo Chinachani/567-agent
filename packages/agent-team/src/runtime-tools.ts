@@ -1,5 +1,5 @@
+import type { RuntimeToolDefinition } from "@567agent/runtime-core/kernel";
 import { type Static, Type } from "@sinclair/typebox";
-import type { RuntimeToolDefinition } from "@vetta/runtime-core/kernel";
 import type { TeamRosterSnapshot } from "./collaboration.js";
 
 const TeamListMembersInputSchema = Type.Object({}, { additionalProperties: false });

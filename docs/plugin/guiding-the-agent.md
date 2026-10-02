@@ -119,7 +119,7 @@ Skill 走渐进披露：清单里只有 name + description（每轮都在 prompt
 ## App Action 的发现说明
 
 App Action 还应声明 `usage.target`、`useWhen`、`avoidWhen`、`alternatives`，随 search / describe 返回。
-例如 Vetta 主题设置与网站深色模式、Vetta 定时 Agent 与业务 cron、插件安装与插件源码开发，需要明确区分。
+例如 567 Agent 主题设置与网站深色模式、567 Agent 定时 Agent 与业务 cron、插件安装与插件源码开发，需要明确区分。
 检索候选不是执行指令；查询/解释不等于修改，不要先调用写入 Action 再把意图判断交给审批框。
 usage 不参与权限决策，也不进入正向检索文本。合同见 [app-actions.md](./app-actions.md#模型选择边界)。
 
@@ -171,7 +171,7 @@ usage 不参与权限决策，也不进入正向检索文本。合同见 [app-ac
 - [ ] 没有写 `agent_mode`，没有在 handler 里读 `getAgentMode()`
 - [ ] （宿主侧）构成新路线的能力更新了 mode md 类别措辞 / facts 探测，并保持零插件点名
 
-## Vetta 扩展设计的八荣八耻
+## 567 Agent 扩展设计的八荣八耻
 
 - 以描述任务为荣，以罗列功能为耻。
 - 以指明何时别用为荣，以逢场必荐自己为耻。

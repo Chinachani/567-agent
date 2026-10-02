@@ -1,4 +1,4 @@
-import type { RuntimeSessionContextDeliveryController } from "@vetta/runtime-core";
+import type { RuntimeSessionContextDeliveryController } from "@567agent/runtime-core";
 import { describe, expect, it, vi } from "vitest";
 import type { CodingAgentTurnRetryEvent } from "../../src/execution/turn/contracts.js";
 import { readCodingAgentTurnFailure } from "../../src/execution/turn/turn-executor.js";

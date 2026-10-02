@@ -2,7 +2,7 @@ import type {
 	BackgroundCommandService,
 	BackgroundCommandSnapshot,
 	BackgroundCommandStopReason,
-} from "@vetta/runtime-tools";
+} from "@567agent/runtime-tools";
 import { describe, expect, it } from "vitest";
 import {
 	createTaskOutputToolRegistration,

@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 
-import { createAgentTeamFixture } from "@vetta/agent-team";
+import { createAgentTeamFixture } from "@567agent/agent-team";
 import type { DesktopTeamSessionSnapshot } from "@preload/api-types/team-conversation-display";
 import { inputValueAtom } from "@shared/store/atoms";
 import { act, renderHook, waitFor } from "@testing-library/react";

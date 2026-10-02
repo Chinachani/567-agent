@@ -1,7 +1,7 @@
 import type {
 	CodingAgentPlanReviewRequest,
 	CodingAgentPlanReviewResult,
-} from "@vetta/coding-agent/function-extensions";
+} from "@567agent/coding-agent/function-extensions";
 import { useCallback, useMemo } from "react";
 import { useTranslation } from "react-i18next";
 import type { PlanReviewPanelLabels } from "../components/plan-review-panel/types";

@@ -1,7 +1,7 @@
 import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
-import type { Message } from "@vetta/ai";
-import type { ContinuationPolicyContext } from "@vetta/runtime-core/kernel";
+import type { Message } from "@567agent/ai";
+import type { ContinuationPolicyContext } from "@567agent/runtime-core/kernel";
 import { describe, expect, it } from "vitest";
 import { CodingAgentLengthContinuationSource } from "../../src/composition/turn/length-continuation-source.js";
 

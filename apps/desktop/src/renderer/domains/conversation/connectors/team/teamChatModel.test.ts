@@ -1,9 +1,9 @@
+import type { TeamDefinition, TeamSessionDocument } from "@567agent/agent-team";
+import { createAssistantMessage } from "@567agent/ai";
 import type {
 	DesktopTeamSessionSnapshot,
 	DesktopTeamSessionStreamEvent,
 } from "@preload/api-types/team-conversation-display";
-import type { TeamDefinition, TeamSessionDocument } from "@vetta/agent-team";
-import { createAssistantMessage } from "@vetta/ai";
 import { describe, expect, it } from "vitest";
 import {
 	placeTeamErrorInTimeline,

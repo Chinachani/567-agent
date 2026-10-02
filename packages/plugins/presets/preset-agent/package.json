@@ -1,5 +1,5 @@
 {
-	"name": "@vetta/plugin-preset-agent",
+	"name": "@567agent/plugin-preset-agent",
 	"version": "0.1.0",
 	"private": true,
 	"type": "module",

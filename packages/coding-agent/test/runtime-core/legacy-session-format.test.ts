@@ -1,8 +1,8 @@
 import { existsSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import type { UserMessage } from "@vetta/ai";
-import { createNodeLegacySessionHost } from "@vetta/runtime-node/host";
+import type { UserMessage } from "@567agent/ai";
+import { createNodeLegacySessionHost } from "@567agent/runtime-node/host";
 import { afterEach, describe, expect, it } from "vitest";
 import { LegacyRuntimeSessionCatalog } from "../../src/sessions/legacy/catalog.js";
 import { LegacyRuntimeSessionFileHistoryReader } from "../../src/sessions/legacy/history-reader.js";

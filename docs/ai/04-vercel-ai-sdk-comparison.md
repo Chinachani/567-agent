@@ -86,7 +86,7 @@ LanguageModel Adapter
 
 Vercel 的核心和 Provider 工具明确运行 Node 与 edge 测试，包声明 `sideEffects: false`，Provider 依赖按包隔离。
 
-Vetta README 宣称支持浏览器，但根 `@vetta/ai` 直接依赖多套 Node/Provider SDK，根导出暴露大部分 Provider，并在导入流 API 时注册全部 Provider、修改 Node 全局 dispatcher。代码中已有动态 import 来规避部分 Node 模块问题，说明当前边界依赖 bundler 行为和人工约定。
+Vetta README 宣称支持浏览器，但根 `@567agent/ai` 直接依赖多套 Node/Provider SDK，根导出暴露大部分 Provider，并在导入流 API 时注册全部 Provider、修改 Node 全局 dispatcher。代码中已有动态 import 来规避部分 Node 模块问题，说明当前边界依赖 bundler 行为和人工约定。
 
 这不等于浏览器一定不能运行，但意味着“浏览器兼容”不是由包结构保证的。应增加浏览器 smoke bundle 和运行测试，并提供无副作用 browser-safe 入口。
 

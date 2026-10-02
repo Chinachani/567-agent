@@ -9,8 +9,8 @@ import {
 	RuntimeHost,
 	type RuntimeSessionCatalog,
 	type RuntimeSessionFileHistoryReader,
-} from "@vetta/runtime-core";
-import { createNodeLegacySessionHost } from "@vetta/runtime-node/host";
+} from "@567agent/runtime-core";
+import { createNodeLegacySessionHost } from "@567agent/runtime-node/host";
 import { describe, expect, it, vi } from "vitest";
 import {
 	createCodingAgentHistoricalSessionCatalog,

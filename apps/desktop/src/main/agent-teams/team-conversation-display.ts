@@ -1,5 +1,5 @@
-import type { TeamPublicationOperationRecord, TeamSessionDocument, TeamWorkItem } from "@vetta/agent-team";
-import type { ContextCompositionReport, HistoryEntry, SessionExecutionMode } from "@vetta/runtime-core";
+import type { TeamPublicationOperationRecord, TeamSessionDocument, TeamWorkItem } from "@567agent/agent-team";
+import type { ContextCompositionReport, HistoryEntry, SessionExecutionMode } from "@567agent/runtime-core";
 import type {
 	DesktopTeamConversationDisplay,
 	DesktopTeamToolExecutionProjection,

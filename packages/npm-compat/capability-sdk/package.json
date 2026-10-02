@@ -1,0 +1,44 @@
+{
+	"name": "@567agent/capability-sdk",
+	"version": "0.1.2",
+	"type": "module",
+	"description": "567 Agent public entry for @vetta-org/capability-sdk; shared runtime identity is preserved.",
+	"main": "./dist/index.js",
+	"types": "./dist/index.d.ts",
+	"exports": {
+		".": {
+			"types": "./dist/index.d.ts",
+			"import": "./dist/index.js"
+		},
+		"./access": {
+			"types": "./dist/access.d.ts",
+			"import": "./dist/access.js"
+		},
+		"./foundation": {
+			"types": "./dist/foundation.d.ts",
+			"import": "./dist/foundation.js"
+		},
+		"./domain": {
+			"types": "./dist/domain.d.ts",
+			"import": "./dist/domain.js"
+		}
+	},
+	"license": "Apache-2.0",
+	"files": [
+		"dist",
+		"README.md",
+		"LICENSE",
+		"NOTICE"
+	],
+	"scripts": {
+		"build": "node ../../../scripts/generate-npm-compat.mjs capability-sdk",
+		"prepack": "node ../../../scripts/generate-npm-compat.mjs capability-sdk"
+	},
+	"dependencies": {
+		"@vetta-org/capability-sdk": "0.1.2"
+	},
+	"publishConfig": {
+		"access": "public",
+		"registry": "https://registry.npmjs.org/"
+	}
+}

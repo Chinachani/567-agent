@@ -3,7 +3,7 @@
 ## 1. 目标
 
 第 99 轮已经把 MCP 协议合同、TypeBox 配置解析和通用文件配置 Source 迁入
-`@vetta/runtime-mcp`，但具体连接仍位于 `coding-agent/core/mcp`：
+`@567agent/runtime-mcp`，但具体连接仍位于 `coding-agent/core/mcp`：
 
 - `McpClient` 同时承担 stdio JSON-RPC 请求关联和具体子进程通信；
 - `McpProcess` 直接管理 spawn、NDJSON、环境、stderr 和关闭；

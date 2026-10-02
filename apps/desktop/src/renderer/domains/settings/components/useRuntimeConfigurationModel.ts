@@ -1,5 +1,8 @@
+import type {
+	RuntimeConfigurationJsonObject,
+	RuntimeConfigurationJsonValue,
+} from "@567agent/runtime-core/configuration";
 import type { DesktopRuntimeConfigurationCatalog } from "@preload/api";
-import type { RuntimeConfigurationJsonObject, RuntimeConfigurationJsonValue } from "@vetta/runtime-core/configuration";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { recordSettingsUsage } from "./recordSettingsUsage";

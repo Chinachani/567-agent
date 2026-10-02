@@ -2,7 +2,7 @@
 
 ## 目的
 
-`@vetta/capability-runtime` 是 Capability 合同的通用执行内核。它把“某个 Token 有什么 Provider”与
+`@567agent/capability-runtime` 是 Capability 合同的通用执行内核。它把“某个 Token 有什么 Provider”与
 “某个 Subject 是否持有精确 Grant”组合成一次受控调用，但不定义具体能力，也不知道调用者属于哪个扩展系统。
 
 Token、Schema 和上层系统集成的边界见
@@ -19,7 +19,7 @@ Token、Schema 和上层系统集成的边界见
   Token / Schema / Error / Grant contract
                |
                v
-@vetta/capability-runtime
+@567agent/capability-runtime
   Registry / Hub / Access / Constraint / Audit
                ^
                |

@@ -1,4 +1,4 @@
-import type { AssistantMessage } from "@vetta/ai";
+import type { AssistantMessage } from "@567agent/ai";
 import type { MemoryTextStorage } from "./memory-storage.js";
 
 const MAX_LINE_TEXT = 200;

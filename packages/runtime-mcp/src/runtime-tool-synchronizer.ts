@@ -1,5 +1,5 @@
-import { type RuntimeObservationPublisher, runtimeObservationFailure } from "@vetta/runtime-core";
-import type { RuntimeToolDefinition } from "@vetta/runtime-core/kernel";
+import { type RuntimeObservationPublisher, runtimeObservationFailure } from "@567agent/runtime-core";
+import type { RuntimeToolDefinition } from "@567agent/runtime-core/kernel";
 import { MCP_RUNTIME_OBSERVATION } from "./observations.js";
 
 export interface McpRuntimeToolBinding {

@@ -2,14 +2,14 @@
 
 ## 所有权决策
 
-Pi Extension 兼容属于 `@vetta/coding-agent` 的产品扩展边界：
+Pi Extension 兼容属于 `@567agent/coding-agent` 的产品扩展边界：
 
 - 它理解 Pi 的 Extension、Package、事件和宿主语义；
 - 它把第三方协议转换成 Vetta 稳定产品合同；
-- `runtime-core`、`runtime-tools` 和 `@vetta/ai` 不应认识 Pi 包名或 Pi 类型。
-- `@vetta/coding-agent` 不新增 `pi-tui` 依赖；兼容 loader 也不为它提供 virtual module。
+- `runtime-core`、`runtime-tools` 和 `@567agent/ai` 不应认识 Pi 包名或 Pi 类型。
+- `@567agent/coding-agent` 不新增 `pi-tui` 依赖；兼容 loader 也不为它提供 virtual module。
 
-第一阶段不新增 workspace package。兼容代码放入 `packages/coding-agent/src/extensions/pi-compat/`，canonical contribution 放在 `src/extensions/contributions/`。当兼容层需要被多个产品包独立消费、或依赖集合明显独立后，再按新增包规范提取 `@vetta/pi-extension-compat`；现在提前拆包只会增加 exports/build/path-map 成本。
+第一阶段不新增 workspace package。兼容代码放入 `packages/coding-agent/src/extensions/pi-compat/`，canonical contribution 放在 `src/extensions/contributions/`。当兼容层需要被多个产品包独立消费、或依赖集合明显独立后，再按新增包规范提取 `@567agent/pi-extension-compat`；现在提前拆包只会增加 exports/build/path-map 成本。
 
 这不是恢复被禁止的通用 `src/compat/`：`pi-compat` 是一个有明确外部协议、单向转换和删除条件的 Anti-Corruption Layer，输出只能是当前 Extension contribution contract。
 
@@ -251,12 +251,12 @@ Pi Extension 看到的是兼容 facade，不是 Vetta 内部对象：
 
 ## 公开入口
 
-先从 `@vetta/coding-agent/extensions` 兼容演进 Vetta native contract：Tool input normalization/prompt metadata、原生状态事件、Provider unregister、generation/source diagnostics。现有字段保持兼容，新字段均为 optional 或新增方法，并检查所有宿主消费者。
+先从 `@567agent/coding-agent/extensions` 兼容演进 Vetta native contract：Tool input normalization/prompt metadata、原生状态事件、Provider unregister、generation/source diagnostics。现有字段保持兼容，新字段均为 optional 或新增方法，并检查所有宿主消费者。
 
-Pi 接入使用显式 `@vetta/coding-agent/extensions/pi-compat` subpath，避免 native Extension loader/API 意外获得 Pi facade。该入口只导出窄类型与显式 loader：
+Pi 接入使用显式 `@567agent/coding-agent/extensions/pi-compat` subpath，避免 native Extension loader/API 意外获得 Pi facade。该入口只导出窄类型与显式 loader：
 
-- `@vetta/coding-agent/extensions/pi-compat`：显式 Pi loader、兼容状态、报告、inspect options；
-- `@vetta/coding-agent/bootstrap`：在现有 `extensionRequirements` 中携带 origin/profile；
+- `@567agent/coding-agent/extensions/pi-compat`：显式 Pi loader、兼容状态、报告、inspect options；
+- `@567agent/coding-agent/bootstrap`：在现有 `extensionRequirements` 中携带 origin/profile；
 - SDK create options：只增加 `piCompatibility?: "off" | "strict" | "host-aware"`，默认是否开启由产品决策明确指定。
 
 不要公开底层 module loader、draft、compiler class 或 Pi facade 具体实现；只公开按 profile 加载并返回报告的高层入口。
@@ -266,7 +266,7 @@ Pi 接入使用显式 `@vetta/coding-agent/extensions/pi-compat` subpath，避�
 ```text
 pi-compat -> extension contributions -> runtime-contracts
           -> resources contracts
-          -> @vetta/ai public values（仅 adapter）
+          -> @567agent/ai public values（仅 adapter）
 
 composition -> pi-compat factory + catalog adapter
 runtime-*  -X-> pi-compat

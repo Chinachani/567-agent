@@ -1,4 +1,4 @@
-import type { ErrorEvent } from "@vetta/runtime-core";
+import type { ErrorEvent } from "@567agent/runtime-core";
 import { describe, expect, it, vi } from "vitest";
 import { logRuntimeSessionError, sanitizeRuntimeErrorMessage } from "./session-error-logger.js";
 

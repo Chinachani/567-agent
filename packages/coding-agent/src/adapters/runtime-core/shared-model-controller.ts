@@ -1,4 +1,4 @@
-import type { RuntimeSharedModelController } from "@vetta/runtime-core";
+import type { RuntimeSharedModelController } from "@567agent/runtime-core";
 
 export interface CodingAgentSharedModelSource {
 	setServerToken(token: string | undefined): void;

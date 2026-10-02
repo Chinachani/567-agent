@@ -1,5 +1,5 @@
-import type { UserMessage } from "@vetta/ai";
-import type { ContinuationPolicyContext } from "@vetta/runtime-core/kernel";
+import type { UserMessage } from "@567agent/ai";
+import type { ContinuationPolicyContext } from "@567agent/runtime-core/kernel";
 import type { CodingAgentContinuationSource } from "../../runtime-contracts/index.js";
 import type { TodoContinuationState } from "./contracts.js";
 import { buildTodoContinuationMessages } from "./todo-continuation.js";

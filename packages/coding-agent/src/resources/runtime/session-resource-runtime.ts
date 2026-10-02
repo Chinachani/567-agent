@@ -4,7 +4,7 @@ import {
 	type EventBus,
 	type LoadExtensionsResult,
 } from "../../extensions/index.js";
-import { CONFIG_DIR_NAME } from "../../identity.js";
+import { CONFIG_DIR_NAME, LEGACY_CONFIG_DIR_NAME } from "../../identity.js";
 import type { Theme } from "../../theme/index.js";
 import type { ResourceDiagnostic } from "../contracts/diagnostics.js";
 import type {
@@ -304,6 +304,7 @@ class DefaultSessionResourceRuntime implements SessionResourceRuntime {
 			: this.merge(
 					[
 						pathPort.resolve(this.options.cwd, CONFIG_DIR_NAME, "skills"),
+						pathPort.resolve(this.options.cwd, LEGACY_CONFIG_DIR_NAME, "skills"),
 						pathPort.join(this.options.agentDir, "skills"),
 					],
 					resourcePaths,
@@ -338,9 +339,13 @@ class DefaultSessionResourceRuntime implements SessionResourceRuntime {
 		const globalSettings = this.options.settings.getGlobalSettings();
 		const pathPort = this.options.resourceAccess.paths;
 		const projectBaseDir = pathPort.resolve(this.options.cwd, CONFIG_DIR_NAME);
+		const legacyProjectBaseDir = pathPort.resolve(this.options.cwd, LEGACY_CONFIG_DIR_NAME);
 		return skills.filter((skill) => {
 			if (skill.source === "project") {
-				return isResourceEnabledByOverrides(pathPort, skill.filePath, projectSettings.skills ?? [], projectBaseDir);
+				const baseDir = skill.filePath.startsWith(`${legacyProjectBaseDir}${pathPort.separator}`)
+					? legacyProjectBaseDir
+					: projectBaseDir;
+				return isResourceEnabledByOverrides(pathPort, skill.filePath, projectSettings.skills ?? [], baseDir);
 			}
 			if (skill.source === "user") {
 				return isResourceEnabledByOverrides(

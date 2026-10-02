@@ -2,7 +2,7 @@ import { createReadStream } from "node:fs";
 import { stat } from "node:fs/promises";
 import { extname, isAbsolute, join, relative, resolve } from "node:path";
 import { Readable } from "node:stream";
-import { getVettaHomePath } from "@vetta/action-rpc";
+import { getVettaHomePath } from "@567agent/action-rpc";
 import { type CustomScheme, protocol } from "electron";
 import { assertPathReadableForPreview } from "./ipc/fs.js";
 import { createEphemeralMediaToken, resolveEphemeralMediaToken } from "./media-token-store.js";

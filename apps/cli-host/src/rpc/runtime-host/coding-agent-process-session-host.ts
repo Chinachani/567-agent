@@ -1,4 +1,7 @@
-import type { CodingAgentRuntimeComposition, CodingAgentRuntimeSessionOptions } from "@vetta/coding-agent/composition";
+import type {
+	CodingAgentRuntimeComposition,
+	CodingAgentRuntimeSessionOptions,
+} from "@567agent/coding-agent/composition";
 import {
 	type CodingAgentRuntimeExtensionInitialization,
 	type CodingAgentRuntimeExtensionSessionHost,
@@ -8,7 +11,7 @@ import {
 	type CodingAgentTurnRetrySettings,
 	createCodingAgentTurnExecutor,
 	createCodingAgentTurnRetryController,
-} from "@vetta/coding-agent/runtime";
+} from "@567agent/coding-agent/runtime";
 import {
 	RetryableCleanup,
 	type RuntimeActiveSessionHost,
@@ -16,8 +19,8 @@ import {
 	type RuntimeHostSession,
 	type RuntimeSessionExecutionObservation,
 	type SessionEvent,
-} from "@vetta/runtime-core";
-import type { ManagedMcpRuntimeToolSource } from "@vetta/runtime-mcp";
+} from "@567agent/runtime-core";
+import type { ManagedMcpRuntimeToolSource } from "@567agent/runtime-mcp";
 
 export interface CliCodingAgentProcessSessionHostOptions {
 	readonly runtime: CodingAgentRuntimeComposition;

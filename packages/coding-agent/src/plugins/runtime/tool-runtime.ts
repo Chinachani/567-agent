@@ -5,9 +5,9 @@ import type {
 	RuntimeToolDefinition,
 	RuntimeToolExecutionRequest,
 	RuntimeToolResult,
-} from "@vetta/runtime-core/kernel";
-import { RuntimeToolExecutionError } from "@vetta/runtime-core/kernel";
-import { createModelOnlyToolInputPropertyProjector, RuntimeToolProjectionPipeline } from "@vetta/runtime-tools";
+} from "@567agent/runtime-core/kernel";
+import { RuntimeToolExecutionError } from "@567agent/runtime-core/kernel";
+import { createModelOnlyToolInputPropertyProjector, RuntimeToolProjectionPipeline } from "@567agent/runtime-tools";
 import type {
 	AgentPluginRuntimeConfig,
 	AgentPluginToolContribution,

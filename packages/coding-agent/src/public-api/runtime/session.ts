@@ -1,5 +1,5 @@
-import type { AgentMessage } from "@vetta/agent-core";
-import type { ConversationDocument } from "@vetta/runtime-core/conversation";
+import type { AgentMessage } from "@567agent/agent-core";
+import type { ConversationDocument } from "@567agent/runtime-core/conversation";
 import {
 	CodingAgentResourceReloadHost,
 	type CodingAgentResourceReloadHostOptions,

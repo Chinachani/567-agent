@@ -4,21 +4,21 @@ import {
 	createAgentTeamExtensionRegistry,
 	createAgentTeamFixture,
 	type TeamSessionDocument,
-} from "@vetta/agent-team";
-import { createAssistantMessage } from "@vetta/ai";
+} from "@567agent/agent-team";
+import { createAssistantMessage } from "@567agent/ai";
 import type {
 	RuntimeContextSummaryRequest,
 	RuntimeHost,
 	RuntimeSessionExecutionObservation,
 	SessionConfig,
 	SessionEvent,
-} from "@vetta/runtime-core";
-import type { ConversationMessageRecord } from "@vetta/runtime-core/conversation";
+} from "@567agent/runtime-core";
+import type { ConversationMessageRecord } from "@567agent/runtime-core/conversation";
 import {
 	createRuntimeObservationPublisher,
 	type RuntimeObservationContext,
 	type RuntimeObservationRecord,
-} from "@vetta/runtime-core/observation";
+} from "@567agent/runtime-core/observation";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import type { DesktopTeamSessionStreamEvent } from "../../preload/api-types/team-conversation-display.js";
 import type {

@@ -1,5 +1,5 @@
-import type { ModelCallContributionContext } from "@vetta/runtime-core/kernel";
-import { createCodingToolsFeature, InMemoryCodingToolRegistry } from "@vetta/runtime-tools";
+import type { ModelCallContributionContext } from "@567agent/runtime-core/kernel";
+import { createCodingToolsFeature, InMemoryCodingToolRegistry } from "@567agent/runtime-tools";
 import { describe, expect, it, vi } from "vitest";
 import { createCurrentTimeToolRegistration } from "../../src/features/current-time/index.js";
 import {

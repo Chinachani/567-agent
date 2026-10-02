@@ -7,223 +7,223 @@ export default defineConfig({
 	resolve: {
 		alias: [
 			{
-				find: "@vetta/runtime-core/configuration",
+				find: "@567agent/runtime-core/configuration",
 				replacement: fileURLToPath(
 					new URL("../../packages/runtime-core/src/configuration/index.ts", import.meta.url),
 				),
 			},
 			{
-				find: "@vetta/runtime-core/observation",
+				find: "@567agent/runtime-core/observation",
 				replacement: fileURLToPath(
 					new URL("../../packages/runtime-core/src/observation/index.ts", import.meta.url),
 				),
 			},
 			{
-				find: "@vetta/runtime-node/conversation/legacy",
+				find: "@567agent/runtime-node/conversation/legacy",
 				replacement: fileURLToPath(new URL("../../packages/runtime-node/src/conversation/legacy.ts", import.meta.url)),
 			},
 			{
-				find: "@vetta/ai",
+				find: "@567agent/ai",
 				replacement: fileURLToPath(new URL("../../packages/ai/src/index.ts", import.meta.url)),
 			},
 			{
-				find: "@vetta/agent-core",
+				find: "@567agent/agent-core",
 				replacement: fileURLToPath(new URL("../../packages/agent/src/index.ts", import.meta.url)),
 			},
 			{
-				find: "@vetta/ecosystem-adapter",
+				find: "@567agent/ecosystem-adapter",
 				replacement: fileURLToPath(new URL("../../packages/ecosystem-adapter/src/index.ts", import.meta.url)),
 			},
 			// Stable public host surface (package exports "./host")
 			{
-				find: "@vetta/coding-agent/host",
+				find: "@567agent/coding-agent/host",
 				replacement: fileURLToPath(
 					new URL("../../packages/coding-agent/src/host/tool-environment/node/index.ts", import.meta.url),
 				),
 			},
 			{
-				find: "@vetta/coding-agent/composition",
+				find: "@567agent/coding-agent/composition",
 				replacement: fileURLToPath(new URL("../../packages/coding-agent/src/composition/index.ts", import.meta.url)),
 			},
 			{
-				find: "@vetta/coding-agent/model-context",
+				find: "@567agent/coding-agent/model-context",
 				replacement: fileURLToPath(new URL("../../packages/coding-agent/src/public-api/model-context.ts", import.meta.url)),
 			},
 			{
-				find: "@vetta/coding-agent/session-extensions",
+				find: "@567agent/coding-agent/session-extensions",
 				replacement: fileURLToPath(
 					new URL("../../packages/coding-agent/src/public-api/session-extensions.ts", import.meta.url),
 				),
 			},
 			{
-				find: "@vetta/coding-agent/function-extensions",
+				find: "@567agent/coding-agent/function-extensions",
 				replacement: fileURLToPath(
 					new URL("../../packages/coding-agent/src/public-api/function-extensions.ts", import.meta.url),
 				),
 			},
 			{
-				find: "@vetta/coding-agent/plugin-runtime",
+				find: "@567agent/coding-agent/plugin-runtime",
 				replacement: fileURLToPath(
 					new URL("../../packages/coding-agent/src/public-api/plugin-runtime.ts", import.meta.url),
 				),
 			},
 			{
-				find: "@vetta/coding-agent/bootstrap",
+				find: "@567agent/coding-agent/bootstrap",
 				replacement: fileURLToPath(new URL("../../packages/coding-agent/src/public-api/bootstrap.ts", import.meta.url)),
 			},
 			{
-				find: "@vetta/coding-agent/export-html",
+				find: "@567agent/coding-agent/export-html",
 				replacement: fileURLToPath(new URL("../../packages/coding-agent/src/public-api/export-html.ts", import.meta.url)),
 			},
 			{
-				find: "@vetta/coding-agent/extensions",
+				find: "@567agent/coding-agent/extensions",
 				replacement: fileURLToPath(new URL("../../packages/coding-agent/src/public-api/extensions.ts", import.meta.url)),
 			},
 			{
-				find: "@vetta/coding-agent/config",
+				find: "@567agent/coding-agent/config",
 				replacement: fileURLToPath(new URL("../../packages/coding-agent/src/config.ts", import.meta.url)),
 			},
 			{
-				find: "@vetta/coding-agent/hooks",
+				find: "@567agent/coding-agent/hooks",
 				replacement: fileURLToPath(new URL("../../packages/coding-agent/src/public-api/hooks.ts", import.meta.url)),
 			},
 			{
-				find: "@vetta/coding-agent/host-services",
+				find: "@567agent/coding-agent/host-services",
 				replacement: fileURLToPath(new URL("../../packages/coding-agent/src/public-api/host-services.ts", import.meta.url)),
 			},
 			{
-				find: "@vetta/coding-agent/historical-sessions",
+				find: "@567agent/coding-agent/historical-sessions",
 				replacement: fileURLToPath(
 					new URL("../../packages/coding-agent/src/public-api/historical-sessions.ts", import.meta.url),
 				),
 			},
 			{
-				find: "@vetta/coding-agent/profile",
+				find: "@567agent/coding-agent/profile",
 				replacement: fileURLToPath(new URL("../../packages/coding-agent/src/public-api/profile.ts", import.meta.url)),
 			},
 			{
-				find: "@vetta/coding-agent/resources",
+				find: "@567agent/coding-agent/resources",
 				replacement: fileURLToPath(new URL("../../packages/coding-agent/src/public-api/resources.ts", import.meta.url)),
 			},
 			{
-				find: "@vetta/coding-agent/rpc",
+				find: "@567agent/coding-agent/rpc",
 				replacement: fileURLToPath(new URL("../../packages/coding-agent/src/public-api/rpc.ts", import.meta.url)),
 			},
 			{
-				find: "@vetta/coding-agent/runtime",
+				find: "@567agent/coding-agent/runtime",
 				replacement: fileURLToPath(new URL("../../packages/coding-agent/src/public-api/runtime.ts", import.meta.url)),
 			},
 			{
-				find: "@vetta/coding-agent/settings",
+				find: "@567agent/coding-agent/settings",
 				replacement: fileURLToPath(new URL("../../packages/coding-agent/src/public-api/settings.ts", import.meta.url)),
 			},
 			// Deep imports use ESM ".js" suffix; map to monorepo TypeScript sources
 			{
-				find: /^@vetta\/coding-agent\/(.+)\.js$/,
+				find: /^@567agent\/coding-agent\/(.+)\.js$/,
 				replacement: `${codingAgentSrc}/$1.ts`,
 			},
 			{
-				find: "@vetta/coding-agent",
+				find: "@567agent/coding-agent",
 				replacement: fileURLToPath(new URL("../../packages/coding-agent/src/index.ts", import.meta.url)),
 			},
 			{
-				find: "@vetta/runtime-core/kernel",
+				find: "@567agent/runtime-core/kernel",
 				replacement: fileURLToPath(new URL("../../packages/runtime-core/src/kernel/index.ts", import.meta.url)),
 			},
 			{
-				find: "@vetta/runtime-core/conversation",
+				find: "@567agent/runtime-core/conversation",
 				replacement: fileURLToPath(new URL("../../packages/runtime-core/src/conversation/index.ts", import.meta.url)),
 			},
 			{
-				find: "@vetta/runtime-core/sandbox",
+				find: "@567agent/runtime-core/sandbox",
 				replacement: fileURLToPath(new URL("../../packages/runtime-core/src/sandbox/index.ts", import.meta.url)),
 			},
 			{
-				find: "@vetta/runtime-core/session-extensions",
+				find: "@567agent/runtime-core/session-extensions",
 				replacement: fileURLToPath(
 					new URL("../../packages/runtime-core/src/session-extensions/index.ts", import.meta.url),
 				),
 			},
 			{
-				find: "@vetta/runtime-core/failures",
+				find: "@567agent/runtime-core/failures",
 				replacement: fileURLToPath(
 					new URL("../../packages/runtime-core/src/failures.ts", import.meta.url),
 				),
 			},
 			{
-				find: "@vetta/runtime-core",
+				find: "@567agent/runtime-core",
 				replacement: fileURLToPath(new URL("../../packages/runtime-core/src/index.ts", import.meta.url)),
 			},
 			{
-				find: "@vetta/runtime-mcp/auth",
+				find: "@567agent/runtime-mcp/auth",
 				replacement: fileURLToPath(new URL("../../packages/runtime-mcp/src/auth/index.ts", import.meta.url)),
 			},
 			{
-				find: "@vetta/runtime-mcp/client",
+				find: "@567agent/runtime-mcp/client",
 				replacement: fileURLToPath(new URL("../../packages/runtime-mcp/src/client/index.ts", import.meta.url)),
 			},
 			{
-				find: "@vetta/runtime-mcp/config",
+				find: "@567agent/runtime-mcp/config",
 				replacement: fileURLToPath(new URL("../../packages/runtime-mcp/src/config/index.ts", import.meta.url)),
 			},
 			{
-				find: "@vetta/runtime-mcp/protocol",
+				find: "@567agent/runtime-mcp/protocol",
 				replacement: fileURLToPath(new URL("../../packages/runtime-mcp/src/protocol/index.ts", import.meta.url)),
 			},
 			{
-				find: "@vetta/runtime-mcp",
+				find: "@567agent/runtime-mcp",
 				replacement: fileURLToPath(new URL("../../packages/runtime-mcp/src/index.ts", import.meta.url)),
 			},
 			{
-				find: "@vetta/runtime-telemetry/langfuse",
+				find: "@567agent/runtime-telemetry/langfuse",
 				replacement: fileURLToPath(new URL("../../packages/runtime-telemetry/src/langfuse.ts", import.meta.url)),
 			},
 			{
-				find: "@vetta/runtime-knowledge",
+				find: "@567agent/runtime-knowledge",
 				replacement: fileURLToPath(new URL("../../packages/runtime-knowledge/src/index.ts", import.meta.url)),
 			},
 			{
-				find: "@vetta/runtime-storage/conversation",
+				find: "@567agent/runtime-storage/conversation",
 				replacement: fileURLToPath(new URL("../../packages/runtime-storage/src/conversation/index.ts", import.meta.url)),
 			},
 			{
-				find: "@vetta/runtime-storage",
+				find: "@567agent/runtime-storage",
 				replacement: fileURLToPath(new URL("../../packages/runtime-storage/src/index.ts", import.meta.url)),
 			},
 			{
-				find: "@vetta/action-rpc",
+				find: "@567agent/action-rpc",
 				replacement: fileURLToPath(new URL("../../packages/action-rpc/src/index.ts", import.meta.url)),
 			},
 			{
-				find: "@vetta/runtime-node/conversation",
+				find: "@567agent/runtime-node/conversation",
 				replacement: fileURLToPath(new URL("../../packages/runtime-node/src/conversation/index.ts", import.meta.url)),
 			},
 			{
-				find: "@vetta/runtime-node/host",
+				find: "@567agent/runtime-node/host",
 				replacement: fileURLToPath(new URL("../../packages/runtime-node/src/host/index.ts", import.meta.url)),
 			},
 			{
-				find: "@vetta/runtime-node/sandbox",
+				find: "@567agent/runtime-node/sandbox",
 				replacement: fileURLToPath(new URL("../../packages/runtime-node/src/sandbox/index.ts", import.meta.url)),
 			},
 			{
-				find: "@vetta/runtime-node/coding",
+				find: "@567agent/runtime-node/coding",
 				replacement: fileURLToPath(new URL("../../packages/runtime-node/src/coding/index.ts", import.meta.url)),
 			},
 			{
-				find: "@vetta/runtime-node/mcp",
+				find: "@567agent/runtime-node/mcp",
 				replacement: fileURLToPath(new URL("../../packages/runtime-node/src/mcp/index.ts", import.meta.url)),
 			},
 			{
-				find: "@vetta/runtime-subagents",
+				find: "@567agent/runtime-subagents",
 				replacement: fileURLToPath(new URL("../../packages/runtime-subagents/src/index.ts", import.meta.url)),
 			},
 			{
-				find: "@vetta/runtime-tools/coding",
+				find: "@567agent/runtime-tools/coding",
 				replacement: fileURLToPath(new URL("../../packages/runtime-tools/src/coding/index.ts", import.meta.url)),
 			},
 			{
-				find: "@vetta/runtime-tools",
+				find: "@567agent/runtime-tools",
 				replacement: fileURLToPath(new URL("../../packages/runtime-tools/src/index.ts", import.meta.url)),
 			},
 		],

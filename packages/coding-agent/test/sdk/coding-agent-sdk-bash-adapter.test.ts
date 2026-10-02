@@ -1,4 +1,4 @@
-import type { RuntimeHostSession } from "@vetta/runtime-core";
+import type { RuntimeHostSession } from "@567agent/runtime-core";
 import { describe, expect, it, vi } from "vitest";
 import { CodingAgentSdkBashAdapter } from "../../src/host/coding-agent-sdk-bash-adapter.js";
 import { createHostBashExecutor } from "../../src/host/command-execution/index.js";

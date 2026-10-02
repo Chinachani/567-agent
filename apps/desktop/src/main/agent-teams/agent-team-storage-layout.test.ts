@@ -2,7 +2,7 @@ import { existsSync } from "node:fs";
 import { mkdir, mkdtemp, readdir, readFile, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { codingAgentSessionShardPath } from "@vetta/coding-agent/bootstrap";
+import { codingAgentSessionShardPath } from "@567agent/coding-agent/bootstrap";
 import { afterEach, describe, expect, it } from "vitest";
 import {
 	createAgentTeamStorageKey,

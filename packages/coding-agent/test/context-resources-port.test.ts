@@ -91,6 +91,17 @@ describe("context resources host port", () => {
 		}
 	});
 
+	it("prefers a new project SYSTEM.md over both legacy and global prompts", async () => {
+		const access = createMemoryResourceAccess({
+			"/agent/SYSTEM.md": "global prompt",
+			"/workspace/.vetta/SYSTEM.md": "old project prompt",
+			"/workspace/.567agent/SYSTEM.md": "new project prompt",
+		});
+		const selected = await discoverPromptFile(access, "/workspace", "/agent", "SYSTEM.md");
+		expect(selected).toBe("/workspace/.567agent/SYSTEM.md");
+		await expect(resolvePromptInput(access, selected, "system prompt")).resolves.toBe("new project prompt");
+	});
+
 	it("propagates cancellation instead of treating it as a recoverable read failure", async () => {
 		const promptPath = "/workspace/.vetta/SYSTEM.md";
 		const access = createMemoryResourceAccess({ [promptPath]: "unavailable" }, new Set([promptPath]));

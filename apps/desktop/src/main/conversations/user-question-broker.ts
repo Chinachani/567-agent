@@ -1,7 +1,7 @@
 import type {
 	CodingAgentQuestionFunctionRequest,
 	CodingAgentQuestionResult,
-} from "@vetta/coding-agent/function-extensions";
+} from "@567agent/coding-agent/function-extensions";
 
 export type UserQuestionHandler = (
 	request: CodingAgentQuestionFunctionRequest,

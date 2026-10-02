@@ -1,7 +1,7 @@
-import type { AgentMessage } from "@vetta/agent-core";
-import type { Message } from "@vetta/ai";
-import type { RuntimeMessageEnvelope } from "@vetta/runtime-core";
-import type { ConversationDocument, ConversationDocumentEntry } from "@vetta/runtime-core/conversation";
+import type { AgentMessage } from "@567agent/agent-core";
+import type { Message } from "@567agent/ai";
+import type { RuntimeMessageEnvelope } from "@567agent/runtime-core";
+import type { ConversationDocument, ConversationDocumentEntry } from "@567agent/runtime-core/conversation";
 import { describe, expect, it } from "vitest";
 import {
 	COMPACTION_SUMMARY_PREFIX,

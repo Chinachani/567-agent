@@ -2,14 +2,14 @@ import { cpus, platform, release, totalmem } from "node:os";
 import type {
 	CodingAgentQuestionFunctionRequest,
 	CodingAgentQuestionResult,
-} from "@vetta/coding-agent/function-extensions";
+} from "@567agent/coding-agent/function-extensions";
 import {
 	isCodingAgentMcpReloadStarted,
 	readCodingAgentBackgroundTasksObservation,
 	readCodingAgentMcpReloadFinished,
 	readCodingAgentSubagentsObservation,
-} from "@vetta/coding-agent/session-extensions";
-import type { SessionEvent } from "@vetta/runtime-core";
+} from "@567agent/coding-agent/session-extensions";
+import type { SessionEvent } from "@567agent/runtime-core";
 import type {
 	DesktopConversationService,
 	DesktopConversationSession,

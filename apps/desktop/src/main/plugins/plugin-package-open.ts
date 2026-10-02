@@ -52,7 +52,7 @@ export function createDesktopPluginPackageOpenService(): PluginPackageOpenServic
 				abilityId: manifest.id,
 				version: manifest.version,
 				installMode: "manual-package" as const,
-				artifactKind: artifactName.toLowerCase().endsWith(".vettapkg")
+				artifactKind: /\.(?:567plugin|vettapkg)$/i.test(artifactName)
 					? ("vettapkg" as const)
 					: ("legacy-zip" as const),
 				artifactName,

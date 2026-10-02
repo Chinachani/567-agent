@@ -1,4 +1,4 @@
-import type { ConversationDocument, ConversationDocumentEntry } from "@vetta/runtime-core/conversation";
+import type { ConversationDocument, ConversationDocumentEntry } from "@567agent/runtime-core/conversation";
 import type { ExtensionSessionSetup } from "../../extensions/index.js";
 import type {
 	CodingAgentSessionSeedInitializer,

@@ -1,3 +1,4 @@
+import type { CodingAgentPlanReviewRequest } from "@567agent/coding-agent/function-extensions";
 import type {
 	DesktopMcpElicitationRequest,
 	DesktopMcpTask,
@@ -5,7 +6,6 @@ import type {
 	DesktopUserQuestionRequest,
 } from "@preload/api";
 import { useMatches, useNavigate } from "@tanstack/react-router";
-import type { CodingAgentPlanReviewRequest } from "@vetta/coding-agent/function-extensions";
 import { getDefaultStore, useAtom, useAtomValue, useSetAtom } from "jotai";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { FILE_EDITOR_SAVE_EVENT } from "@/shared/shortcuts";

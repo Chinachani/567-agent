@@ -2,7 +2,7 @@ import {
 	createNodeCommandExecutor,
 	createNodeResourcePackageHost,
 	nodeTextFileWatchPort,
-} from "@vetta/runtime-node/host";
+} from "@567agent/runtime-node/host";
 import type {
 	SessionResourceRuntime,
 	SessionResourceRuntimeOptions,

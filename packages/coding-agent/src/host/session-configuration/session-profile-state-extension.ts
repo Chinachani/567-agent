@@ -1,4 +1,4 @@
-import type { SessionExtensionDefinition } from "@vetta/runtime-core/session-extensions";
+import type { SessionExtensionDefinition } from "@567agent/runtime-core/session-extensions";
 import type { ConversationScenario } from "../../profiles/index.js";
 import type { CodingAgentSessionConfigurationState } from "./configuration-state.js";
 import {

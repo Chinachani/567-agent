@@ -1,5 +1,5 @@
 import { join } from "node:path";
-import { NodeScopedTextStorage } from "@vetta/runtime-node/host";
+import { NodeScopedTextStorage } from "@567agent/runtime-node/host";
 import { CONFIG_DIR_NAME } from "../../src/config.js";
 import { SettingsRuntime } from "../../src/settings/index.js";
 

@@ -3,7 +3,7 @@ import {
 	type CommandToolExecutor,
 	createNodeHostCodingToolEnvironment,
 	type ResolveCodingToolExecutable,
-} from "@vetta/runtime-node/coding";
+} from "@567agent/runtime-node/coding";
 import type {
 	CodingAgentToolEnvironment,
 	CodingAgentToolEnvironmentContext,

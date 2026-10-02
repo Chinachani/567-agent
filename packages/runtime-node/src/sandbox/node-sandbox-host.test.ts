@@ -1,8 +1,8 @@
 import { mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { dirname, join, resolve } from "node:path";
-import type { SandboxShellGrant } from "@vetta/runtime-core/sandbox";
-import type { ForegroundCommandOperations } from "@vetta/runtime-tools";
+import type { SandboxShellGrant } from "@567agent/runtime-core/sandbox";
+import type { ForegroundCommandOperations } from "@567agent/runtime-tools";
 import { afterEach, describe, expect, it } from "vitest";
 import { buildWindowsSandboxPolicy } from "./commands/windows-policy.js";
 import { createNodeSandboxHost } from "./node-sandbox-host.js";

@@ -1,0 +1,40 @@
+{
+	"name": "@567agent/ui",
+	"version": "0.1.0",
+	"type": "module",
+	"description": "567 Agent public entry for @vetta-org/ui; shared runtime identity is preserved.",
+	"main": "./dist/index.js",
+	"types": "./dist/index.d.ts",
+	"exports": {
+		".": {
+			"types": "./dist/index.d.ts",
+			"import": "./dist/index.js"
+		},
+		"./utils": {
+			"types": "./dist/utils.d.ts",
+			"import": "./dist/utils.js"
+		}
+	},
+	"license": "Apache-2.0",
+	"files": [
+		"dist",
+		"README.md",
+		"LICENSE",
+		"NOTICE"
+	],
+	"scripts": {
+		"build": "node ../../../scripts/generate-npm-compat.mjs ui",
+		"prepack": "node ../../../scripts/generate-npm-compat.mjs ui"
+	},
+	"dependencies": {
+		"@vetta-org/ui": "0.1.0"
+	},
+	"peerDependencies": {
+		"react": "^19.0.0",
+		"react-dom": "^19.0.0"
+	},
+	"publishConfig": {
+		"access": "public",
+		"registry": "https://registry.npmjs.org/"
+	}
+}

@@ -1,6 +1,6 @@
-import { AI_ERROR_CODES, isAIError } from "@vetta/ai";
-import type { CodingAgentQuestionResult } from "@vetta/coding-agent/function-extensions";
-import type { RemoteConnection, RemoteError, RemoteRequest } from "@vetta/remote-control";
+import { AI_ERROR_CODES, isAIError } from "@567agent/ai";
+import type { CodingAgentQuestionResult } from "@567agent/coding-agent/function-extensions";
+import type { RemoteConnection, RemoteError, RemoteRequest } from "@567agent/remote-control";
 
 export interface DesktopRemoteSessionSummary {
 	readonly id: string;

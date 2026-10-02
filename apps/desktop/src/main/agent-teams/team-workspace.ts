@@ -1,7 +1,7 @@
 import { mkdir } from "node:fs/promises";
 import { join } from "node:path";
-import { getVettaHomePath } from "@vetta/action-rpc";
-import type { TeamSessionWorkspaceKind, TeamSessionWorkspaceSelection } from "@vetta/agent-team";
+import { getVettaHomePath } from "@567agent/action-rpc";
+import type { TeamSessionWorkspaceKind, TeamSessionWorkspaceSelection } from "@567agent/agent-team";
 import { readDesktopConfig } from "../config/desktop-config-store.js";
 import { sameProjectPath } from "../projects/project-path.js";
 import { readAgentTeamStorageIndex, teamSessionWorkspacePath, teamWorkspacePath } from "./agent-team-storage-layout.js";

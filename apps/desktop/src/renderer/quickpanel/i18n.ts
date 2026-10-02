@@ -11,7 +11,7 @@ const QUICK_PANEL_NS = "quickpanel";
 const resources = {
 	zh: {
 		[QUICK_PANEL_NS]: {
-			placeholder: "向 Vetta 提问…",
+			placeholder: "向 567 Agent 提问…",
 			recentTitle: "最近会话",
 			emptyTitle: "暂无最近会话",
 			emptyHint: "在上方输入即可开始新对话",
@@ -32,7 +32,7 @@ const resources = {
 	},
 	en: {
 		[QUICK_PANEL_NS]: {
-			placeholder: "Ask Vetta…",
+			placeholder: "Ask 567 Agent…",
 			recentTitle: "Recent",
 			emptyTitle: "No recent conversations",
 			emptyHint: "Type above to start a new chat",

@@ -1,12 +1,12 @@
-import type { ThinkingLevel } from "@vetta/agent-core";
-import type { Api, Model } from "@vetta/ai";
-import type { EcosystemHookAdapterFactory } from "@vetta/ecosystem-adapter";
+import type { ThinkingLevel } from "@567agent/agent-core";
+import type { Api, Model } from "@567agent/ai";
+import type { EcosystemHookAdapterFactory } from "@567agent/ecosystem-adapter";
 import type {
 	RuntimeObservationHubIssue,
 	RuntimeObservationPort,
 	RuntimeObservationRouteOptions,
-} from "@vetta/runtime-core";
-import type { RuntimeTracer } from "@vetta/runtime-telemetry";
+} from "@567agent/runtime-core";
+import type { RuntimeTracer } from "@567agent/runtime-telemetry";
 import type {
 	AgentPluginContinuationInvoker,
 	AgentPluginRuntimeConfig,

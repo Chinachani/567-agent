@@ -1,4 +1,4 @@
-import { CapabilityHub } from "@vetta/capability-runtime";
+import { CapabilityHub } from "@567agent/capability-runtime";
 import { FOUNDATION_JOB_CAPABILITIES, JOB_ERROR_CODES } from "@vetta-org/capability-sdk";
 import { describe, expect, it } from "vitest";
 import { JobManager } from "../jobs/job-manager.js";

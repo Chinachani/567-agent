@@ -4,7 +4,7 @@ import {
 	type RuntimeActiveSessionTransitionLifecycle,
 	type RuntimeHostSession,
 	type RuntimePreparedSessionBinding,
-} from "@vetta/runtime-core";
+} from "@567agent/runtime-core";
 import type { CodingAgentRuntimeComposition } from "../composition/contracts/index.js";
 import type { CodingAgentExtensionEventHost, CodingAgentExtensionInitialization } from "./extensions/contracts.js";
 import type {

@@ -1,7 +1,7 @@
 // appshot-helper：捕获前台应用窗口——AX 结构化文本 + 源文件路径 + 窗口截图 PNG，
 // stdout 输出单个 JSON（UTF-8）后退出。由 desktop-app 主进程 spawn（见
 // src/main/appshot/），CLI 契约见仓库 appshot 规格。打包为
-// `Vetta Computer Use.app`（scripts/build-appshot-helper.js），独立 bundle id
+// `567 Agent Computer Use.app`（scripts/build-appshot-helper.js），独立 bundle id
 // 使其在 TCC（辅助功能/屏幕录制）里是与主 app 分离的授权主体。
 //
 // 三种模式，均先过 self-disclaim（见下）：

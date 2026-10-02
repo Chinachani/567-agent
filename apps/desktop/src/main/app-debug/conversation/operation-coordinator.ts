@@ -2,8 +2,8 @@ import { randomUUID } from "node:crypto";
 import type {
 	CodingAgentQuestionFunctionRequest,
 	CodingAgentQuestionResult,
-} from "@vetta/coding-agent/function-extensions";
-import type { PromptRequest } from "@vetta/runtime-core";
+} from "@567agent/coding-agent/function-extensions";
+import type { PromptRequest } from "@567agent/runtime-core";
 import {
 	DesktopConversationError,
 	type DesktopConversationService,

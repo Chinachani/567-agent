@@ -1,11 +1,11 @@
-import type { Message, TextContent } from "@vetta/ai";
+import type { Message, TextContent } from "@567agent/ai";
 import type {
 	AssistantTurnTiming,
 	HistoryEntry,
 	HistoryMessageBranch,
 	PromptAttachmentRef,
 	PromptResourceRef,
-} from "@vetta/runtime-core";
+} from "@567agent/runtime-core";
 import {
 	PROMPT_ATTACHMENT_CONTEXT_TYPE,
 	PROMPT_ATTACHMENT_REFERENCE_TYPE,

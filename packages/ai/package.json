@@ -1,5 +1,5 @@
 {
-	"name": "@vetta/ai",
+	"name": "@567agent/ai",
 	"version": "0.0.1",
 	"description": "Unified LLM API with automatic model discovery and provider configuration",
 	"type": "module",

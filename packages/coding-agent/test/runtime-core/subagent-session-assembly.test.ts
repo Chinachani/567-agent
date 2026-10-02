@@ -1,17 +1,17 @@
 import { win32 } from "node:path";
-import { Type } from "@sinclair/typebox";
-import type { Api, Message, Model } from "@vetta/ai";
-import type { EcosystemHookRuntime } from "@vetta/ecosystem-adapter";
-import { emptyHookDispatchOutcome } from "@vetta/ecosystem-adapter";
+import type { Api, Message, Model } from "@567agent/ai";
+import type { EcosystemHookRuntime } from "@567agent/ecosystem-adapter";
+import { emptyHookDispatchOutcome } from "@567agent/ecosystem-adapter";
 import {
 	createRuntimeObservationPublisher,
 	type RuntimeObservationRecord,
 	type RuntimeResourceContext,
 	type RuntimeSession,
-} from "@vetta/runtime-core";
-import type { SessionContextRecord } from "@vetta/runtime-core/kernel";
-import type { McpRuntimeToolView } from "@vetta/runtime-mcp";
-import { SubagentTypeRegistry } from "@vetta/runtime-subagents";
+} from "@567agent/runtime-core";
+import type { SessionContextRecord } from "@567agent/runtime-core/kernel";
+import type { McpRuntimeToolView } from "@567agent/runtime-mcp";
+import { SubagentTypeRegistry } from "@567agent/runtime-subagents";
+import { Type } from "@sinclair/typebox";
 import { describe, expect, it, vi } from "vitest";
 import type { CodingAgentSubagentProfile } from "../../src/composition/subagent/runtime.js";
 import {

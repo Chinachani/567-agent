@@ -65,11 +65,11 @@ describe("buildDefaultHookConfigLayers", () => {
 
 		const paths = layers.flatMap((layer) => (layer.sources ?? []).map((s) => s.path.replace(/\\/g, "/")));
 		expect(paths).toEqual([
-			"C:/fake-home/.vetta/.codex/hooks.json",
-			"C:/fake-home/.vetta/.claude/settings.json",
-			"C:/projects/demo/.vetta/.codex/hooks.json",
-			"C:/projects/demo/.vetta/.claude/settings.json",
-			"C:/projects/demo/.vetta/.claude/settings.local.json",
+			"C:/fake-home/.567agent/.codex/hooks.json",
+			"C:/fake-home/.567agent/.claude/settings.json",
+			"C:/projects/demo/.567agent/.codex/hooks.json",
+			"C:/projects/demo/.567agent/.claude/settings.json",
+			"C:/projects/demo/.567agent/.claude/settings.local.json",
 		]);
 
 		const byProfile = layers.flatMap((layer) =>
@@ -126,6 +126,32 @@ describe("source ownership filters", () => {
 });
 
 describe("vetta-nested path discovery", () => {
+	it("uses the new Codex profile once when a legacy copy also exists", async () => {
+		const project = await makeTempDir("567-agent-hook-priority-");
+		for (const [directory, command] of [
+			[".567agent", "echo new"],
+			[".vetta", "echo old"],
+		]) {
+			await mkdir(join(project, directory, ".codex"), { recursive: true });
+			await writeFile(join(project, directory, ".codex/hooks.json"), sessionStartHooks(command));
+		}
+		const layers = buildDefaultHookConfigLayers({ cwd: project, homeDir: join(project, "home"), env: {} });
+		const result = await discoverCodexHookHandlers(layers);
+		expect(result.diagnostics).toEqual([]);
+		expect(result.handlers.map((handler) => handler.command)).toEqual(["echo new"]);
+	});
+
+	it("does not combine legacy Claude hooks with a newly configured profile", async () => {
+		const project = await makeTempDir("567-agent-claude-priority-");
+		await mkdir(join(project, ".567agent/.claude"), { recursive: true });
+		await mkdir(join(project, ".vetta/.claude"), { recursive: true });
+		await writeFile(join(project, ".567agent/.claude/settings.json"), claudeSettingsWithHooks("echo new"));
+		await writeFile(join(project, ".vetta/.claude/settings.local.json"), claudeSettingsWithHooks("echo old"));
+		const layers = buildDefaultHookConfigLayers({ cwd: project, homeDir: join(project, "home"), env: {} });
+		const result = await discoverClaudeHookHandlers(layers, { projectDir: project });
+		expect(result.handlers.map((handler) => handler.command)).toEqual(["echo new"]);
+	});
+
 	it("loads Codex handlers from .vetta/.codex and ignores top-level official + Claude", async () => {
 		const home = await makeTempDir("vetta-codex-home-");
 		const project = await makeTempDir("vetta-codex-proj-");

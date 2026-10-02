@@ -1,6 +1,6 @@
-import type { JsonValue } from "@vetta/action-rpc";
+import type { JsonValue } from "@567agent/action-rpc";
 
-export type { JsonValue } from "@vetta/action-rpc";
+export type { JsonValue } from "@567agent/action-rpc";
 
 export interface DebugExample {
 	description: string;

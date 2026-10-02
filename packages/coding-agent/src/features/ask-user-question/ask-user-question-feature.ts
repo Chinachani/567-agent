@@ -1,4 +1,4 @@
-import type { AgentFeatureDefinition, ModelCallContributionProvider } from "@vetta/runtime-core/kernel";
+import type { AgentFeatureDefinition, ModelCallContributionProvider } from "@567agent/runtime-core/kernel";
 import { CODING_AGENT_ASK_USER_QUESTION_TOOL_NAME, createAskUserQuestionToolRegistration } from "./tool/index.js";
 
 export { CODING_AGENT_ASK_USER_QUESTION_TOOL_NAME };

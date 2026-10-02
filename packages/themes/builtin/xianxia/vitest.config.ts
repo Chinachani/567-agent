@@ -5,7 +5,7 @@ export default defineConfig({
 	root: __dirname,
 	resolve: {
 		alias: {
-			"@vetta/desktop-theme-ui/sidebar": resolve(
+			"@567agent/desktop-theme-ui/sidebar": resolve(
 				__dirname,
 				"../../../../apps/desktop/src/renderer/shared/theme/sdk/sidebar-primitives.ts",
 			),

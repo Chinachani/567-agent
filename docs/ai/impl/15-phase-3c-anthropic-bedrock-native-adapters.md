@@ -88,7 +88,7 @@ text、thinking、signature 和 tool JSON delta 都保留原语义。`redacted_t
 本阶段继续使用 TypeBox，不引入 Zod：
 
 - 两个 SDK 的 TypeScript 类型只描述编译期，不能证明运行时 event 结构。
-- TypeBox 已是 `@vetta/ai` 公共 schema 体系和 Phase 2/3 既有依赖，继续用于不可信 wire 边界可避免两套 schema runtime、错误格式和测试工具并存。
+- TypeBox 已是 `@567agent/ai` 公共 schema 体系和 Phase 2/3 既有依赖，继续用于不可信 wire 边界可避免两套 schema runtime、错误格式和测试工具并存。
 - Anthropic schema 校验 block/delta 判别项、index、usage 和 stop reason；Bedrock schema 校验 event union、delta、metadata usage 和 exception。
 - 事件顺序、唯一性和 EOF 规则不能仅靠 TypeBox/Zod 表达，继续由显式状态机承担。
 - AWS SDK command/request 等内部已类型化对象不做重复 schema 校验。

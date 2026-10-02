@@ -1,12 +1,12 @@
 import { randomUUID } from "node:crypto";
 import { dirname, join } from "node:path";
-import { buildDefaultHookConfigLayers } from "@vetta/ecosystem-adapter";
+import { buildDefaultHookConfigLayers } from "@567agent/ecosystem-adapter";
 import {
 	SessionExtensionFunctionRegistry,
 	type SessionExtensionFunctionSource,
-} from "@vetta/runtime-core/session-extensions";
-import { createMcpToolResultPolicy, EMPTY_MCP_CONFIG_SOURCE, type McpServerSupervisor } from "@vetta/runtime-mcp";
-import { nodeModelInputImageProcessor, nodeWorkspaceFactsFileSource } from "@vetta/runtime-node/coding";
+} from "@567agent/runtime-core/session-extensions";
+import { createMcpToolResultPolicy, EMPTY_MCP_CONFIG_SOURCE, type McpServerSupervisor } from "@567agent/runtime-mcp";
+import { nodeModelInputImageProcessor, nodeWorkspaceFactsFileSource } from "@567agent/runtime-node/coding";
 import {
 	createLoopbackSessionAffinityStream,
 	createNodeHtmlExportFileAdapters,
@@ -16,9 +16,9 @@ import {
 	NodeTransactionalTextStorage,
 	nodeConfigurationValueResolver,
 	nodeSyncTextFileSource,
-} from "@vetta/runtime-node/host";
-import { createNodeMcpSupervisor } from "@vetta/runtime-node/mcp";
-import { createLangfuseRuntimeTracerFromEnv } from "@vetta/runtime-telemetry/langfuse";
+} from "@567agent/runtime-node/host";
+import { createNodeMcpSupervisor } from "@567agent/runtime-node/mcp";
+import { createLangfuseRuntimeTracerFromEnv } from "@567agent/runtime-telemetry/langfuse";
 import { createCodingAgentCompactionExtensionRuntime } from "../../adapters/extensions/compaction-extension-adapter.js";
 import { createCodingAgentAuthRuntime } from "../../auth/index.js";
 import { createCodingAgentMemoryRolloverRuntime } from "../../composition/memory-runtime.js";

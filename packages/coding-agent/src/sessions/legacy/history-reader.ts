@@ -1,4 +1,4 @@
-import type { HistoryEntry, RuntimeSessionFileHistoryReader } from "@vetta/runtime-core";
+import type { HistoryEntry, RuntimeSessionFileHistoryReader } from "@567agent/runtime-core";
 import { branchFromFileEntries, entriesToHistory } from "../projection/session-history.js";
 import { parseCodingAgentLegacySessionDocument } from "./document.js";
 import { isLegacySessionHeader } from "./header-reader.js";

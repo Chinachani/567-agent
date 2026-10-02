@@ -1,5 +1,5 @@
-import { McpInputRequiredError, McpTaskCreatedError } from "@vetta/runtime-mcp/client";
-import { MCP_MODERN_PROTOCOL_VERSION } from "@vetta/runtime-mcp/protocol";
+import { McpInputRequiredError, McpTaskCreatedError } from "@567agent/runtime-mcp/client";
+import { MCP_MODERN_PROTOCOL_VERSION } from "@567agent/runtime-mcp/protocol";
 import { describe, expect, it } from "vitest";
 import { ModernStatelessMcpClient } from "../../src/mcp/transports/http/modern-stateless-mcp-client.js";
 

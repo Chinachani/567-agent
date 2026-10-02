@@ -1,4 +1,4 @@
-import type { SessionContextRecord } from "@vetta/runtime-core/kernel";
+import type { SessionContextRecord } from "@567agent/runtime-core/kernel";
 import type {
 	TeamCompactionReference,
 	TeamContextImportRecord,

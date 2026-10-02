@@ -1,7 +1,7 @@
 import { existsSync, readdirSync, statSync } from "node:fs";
 import { join } from "node:path";
+import type { RuntimeToolDefinition, RuntimeToolResult } from "@567agent/runtime-core/kernel";
 import { type Static, Type } from "@sinclair/typebox";
-import type { RuntimeToolDefinition, RuntimeToolResult } from "@vetta/runtime-core/kernel";
 import { formatNotFoundPath, resolveExistingPath } from "../../shared/path-resolution.js";
 import { DEFAULT_MAX_BYTES, formatSize, type TruncationResult, truncateHead } from "../../shared/truncation.js";
 import { LS_TOOL_DESCRIPTION } from "./description.js";

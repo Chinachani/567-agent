@@ -1,4 +1,4 @@
-import type { ContextCompositionSectionInput } from "@vetta/runtime-core";
+import type { ContextCompositionSectionInput } from "@567agent/runtime-core";
 import type {
 	InstructionBlock,
 	ModelCallFrame,
@@ -6,8 +6,8 @@ import type {
 	ModelCallFrameCompositionContext,
 	RuntimeSnapshotAcquireContext,
 	RuntimeToolDefinition,
-} from "@vetta/runtime-core/kernel";
-import type { RuntimeToolProjectionPipeline } from "@vetta/runtime-tools";
+} from "@567agent/runtime-core/kernel";
+import type { RuntimeToolProjectionPipeline } from "@567agent/runtime-tools";
 import { filterAgentTools } from "../agent-configuration/resource-selection.js";
 import type {
 	CodingAgentPluginMcpToolComposer,

@@ -1,4 +1,4 @@
-import type { EcosystemHookRuntime, SessionEndCause, SessionStartSource } from "@vetta/ecosystem-adapter";
+import type { EcosystemHookRuntime, SessionEndCause, SessionStartSource } from "@567agent/ecosystem-adapter";
 import {
 	RetryableCleanup,
 	type RuntimeAgentSessionActivationContext,
@@ -8,9 +8,9 @@ import {
 	type RuntimeSessionMarkerIndex,
 	type RuntimeSessionValueIndex,
 	runtimeObservationFailure,
-} from "@vetta/runtime-core";
-import type { SessionExtensionComposition } from "@vetta/runtime-core/session-extensions";
-import type { McpDeferredToolController } from "@vetta/runtime-mcp";
+} from "@567agent/runtime-core";
+import type { SessionExtensionComposition } from "@567agent/runtime-core/session-extensions";
+import type { McpDeferredToolController } from "@567agent/runtime-mcp";
 import type { CodingAgentSessionExecutionRuntime } from "../../execution/session/runtime.js";
 import type { CodingAgentExtensionRunBridge } from "../../extensions/runtime/extension-run-bridge.js";
 import type { CodingAgentExtensionToolRuntime } from "../../extensions/runtime/extension-tool-runtime.js";

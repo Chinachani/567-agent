@@ -3,7 +3,7 @@ import {
 	canonicalizeAssistantEvents,
 	canonicalizeAssistantMessage,
 	canonicalizeJsonValue,
-} from "@vetta/ai/testkit";
+} from "@567agent/ai/testkit";
 import type { AgentEvent, AgentMessage } from "../../src/types.js";
 
 export interface CanonicalAgentRun {

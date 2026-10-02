@@ -21,7 +21,7 @@ describe("official Action usage", () => {
 		expect(new Set(registrations.map(({ publicId }) => publicId)).size).toBe(37);
 		for (const registration of registrations) {
 			expect(registration.publicId).toBe(registration.id);
-			expect(registration.usage?.target, registration.id).toContain("Vetta Desktop");
+			expect(registration.usage?.target, registration.id).toContain("567 Agent");
 			for (const field of ["useWhen", "avoidWhen", "alternatives"] as const) {
 				expect(registration.usage?.[field].trim().length, `${registration.id}.${field}`).toBeGreaterThan(0);
 			}

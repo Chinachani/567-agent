@@ -4,7 +4,7 @@ import { join } from "node:path";
 import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
 
 const mockState = vi.hoisted(() => ({ home: "" }));
-vi.mock("@vetta/action-rpc", () => ({ getVettaHomePath: () => mockState.home }));
+vi.mock("@567agent/action-rpc", () => ({ getVettaHomePath: () => mockState.home }));
 
 import {
 	commitPluginStorage,

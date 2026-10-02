@@ -7,7 +7,7 @@
  */
 
 import { createServer, type Server } from "node:http";
-import { HttpMcpClient, type McpHttpServerConfig } from "@vetta/runtime-node/mcp";
+import { HttpMcpClient, type McpHttpServerConfig } from "@567agent/runtime-node/mcp";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 
 interface RecordedRequest {

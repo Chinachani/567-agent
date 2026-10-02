@@ -1,5 +1,5 @@
-import { type AssistantMessage, createAssistantMessage } from "@vetta/ai";
-import type { AssistantSessionEvent, SessionEvent } from "@vetta/runtime-core";
+import { type AssistantMessage, createAssistantMessage } from "@567agent/ai";
+import type { AssistantSessionEvent, SessionEvent } from "@567agent/runtime-core";
 
 /**
  * Shared stub for renderer IPC. `text_delta` / `thinking_delta` consumers only

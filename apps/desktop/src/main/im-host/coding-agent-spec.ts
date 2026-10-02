@@ -6,7 +6,7 @@ import { DEFAULT_SERVER_URL } from "../constants.js";
 import type { CodingAgentSpec } from "./host-protocol.js";
 
 /**
- * Resolve the on-disk root of the `@vetta/coding-agent` package so the
+ * Resolve the on-disk root of the `@567agent/coding-agent` package so the
  * spawned agent-rpc subprocess can find its bundled runtime assets
  * (theme JSON, export-html template, package.json, banner). We never rely
  * on the subprocess's own `getPackageDir()` walk-up because once
@@ -24,9 +24,9 @@ function resolveCodingAgentPackageDir(): string {
 	// then walk up to the package root. We avoid require.resolve because
 	// coding-agent's "exports" map has no "require" / "default" condition
 	// (ESM-only export) and CJS resolution refuses it. We also avoid
-	// "@vetta/coding-agent/package.json" subpath because "./package.json"
+	// "@567agent/coding-agent/package.json" subpath because "./package.json"
 	// isn't listed in "exports".
-	const entryUrl = import.meta.resolve("@vetta/coding-agent");
+	const entryUrl = import.meta.resolve("@567agent/coding-agent");
 	const entry = fileURLToPath(entryUrl);
 	let dir = dirname(entry);
 	while (dir !== dirname(dir)) {

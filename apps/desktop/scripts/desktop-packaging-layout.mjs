@@ -14,11 +14,16 @@ export const DESKTOP_BUILD_OUTPUTS = Object.freeze([
 ]);
 
 export const VETTA_PLUGIN_FILE_ASSOCIATION = Object.freeze({
-	ext: "vettapkg",
-	name: "Vetta Plugin Package",
-	description: "Installable Vetta plugin package",
+	ext: "567plugin",
+	name: "567 Agent Plugin Package",
+	description: "Installable 567 Agent plugin package",
 	mimeType: "application/vnd.vetta.plugin+zip",
 	role: "Editor",
+});
+
+export const LEGACY_PLUGIN_FILE_ASSOCIATION = Object.freeze({
+	...VETTA_PLUGIN_FILE_ASSOCIATION,
+	ext: "vettapkg",
 });
 
 export const VETTA_DESIGN_SHARE_FILE_ASSOCIATION = Object.freeze({

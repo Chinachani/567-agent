@@ -7,9 +7,9 @@ import {
 	type TeamSendMessageResult,
 	type TeamSessionDocument,
 	type TeamWorkItem,
-} from "@vetta/agent-team";
-import { createAssistantMessage } from "@vetta/ai";
-import type { ConversationMessageRecord } from "@vetta/runtime-core/conversation";
+} from "@567agent/agent-team";
+import { createAssistantMessage } from "@567agent/ai";
+import type { ConversationMessageRecord } from "@567agent/runtime-core/conversation";
 import type { TeamCollaborationStore } from "./team-collaboration-store.js";
 
 export interface TeamMessageControlHost {

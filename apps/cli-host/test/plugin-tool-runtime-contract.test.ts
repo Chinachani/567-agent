@@ -8,10 +8,13 @@ import {
 	EventStream,
 	type Message,
 	type Model,
-} from "@vetta/ai";
-import type { CodingAgentRuntimeComposition } from "@vetta/coding-agent/composition";
-import { type EcosystemHookEvent, emptyHookDispatchOutcome } from "@vetta/coding-agent/hooks";
-import type { CodingAgentPluginRuntimeSource, CodingAgentRuntimeModelSource } from "@vetta/coding-agent/host-services";
+} from "@567agent/ai";
+import type { CodingAgentRuntimeComposition } from "@567agent/coding-agent/composition";
+import { type EcosystemHookEvent, emptyHookDispatchOutcome } from "@567agent/coding-agent/hooks";
+import type {
+	CodingAgentPluginRuntimeSource,
+	CodingAgentRuntimeModelSource,
+} from "@567agent/coding-agent/host-services";
 import { afterEach, describe, expect, it } from "vitest";
 import { createCodingAgentRuntimeComposition } from "./fixtures/runtime-composition.js";
 

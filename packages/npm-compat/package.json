@@ -1,0 +1,13 @@
+{
+	"name": "@567agent/npm-compat",
+	"private": true,
+	"type": "module",
+	"scripts": {
+		"check": "tsgo --noEmit -p tsconfig.json"
+	},
+	"devDependencies": {
+		"@types/react": "^19.1.1",
+		"@types/react-dom": "^19.2.3",
+		"vite": "^7.1.7"
+	}
+}

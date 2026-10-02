@@ -6,9 +6,9 @@ Bridges instant messaging platforms (Feishu, with Telegram / DingTalk planned) t
 
 ## Deployment model
 
-`im-gateway` is **embedded** as a sidecar inside `Vetta.app`. End users do **not** install or configure this binary directly — they enable IM bridging from `Settings → IM 集成` in the desktop app, fill in their feishu credentials, and the desktop main process spawns this binary as a child process.
+`im-gateway` is **embedded** as a sidecar inside `567 Agent.app`. End users do **not** install or configure this binary directly — they enable IM bridging from `Settings → IM 集成` in the desktop app, fill in their feishu credentials, and the desktop main process spawns this binary as a child process.
 
-The sidecar's lifecycle is strictly bound to the desktop app: completely quitting Vetta (including the tray icon) terminates the sidecar and stops receiving feishu events. There is no `launchd` / `systemd` daemon mode, by design.
+The sidecar's lifecycle is strictly bound to the desktop app: completely quitting 567 Agent (including the tray icon) terminates the sidecar and stops receiving feishu events. There is no `launchd` / `systemd` daemon mode, by design.
 
 ## Subcommands
 

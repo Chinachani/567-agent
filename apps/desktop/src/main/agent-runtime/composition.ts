@@ -8,14 +8,14 @@ import {
 	CODING_AGENT_SUBAGENT_ISSUE_OBSERVATION,
 	createCodingAgentMemoryRolloverRuntime,
 	publishCodingAgentExecutionRuntimeDefinition,
-} from "@vetta/coding-agent/composition";
-import { getAgentDir } from "@vetta/coding-agent/config";
+} from "@567agent/coding-agent/composition";
+import { getAgentDir } from "@567agent/coding-agent/config";
 import {
 	createCodingAgentMcpRuntimeToolSource,
 	createCodingAgentPluginMcpRuntime,
 	createCodingAgentSharedModelController,
-} from "@vetta/coding-agent/host-services";
-import { AGENT_CONFIGURATION_OBSERVATION } from "@vetta/coding-agent/session-extensions";
+} from "@567agent/coding-agent/host-services";
+import { AGENT_CONFIGURATION_OBSERVATION } from "@567agent/coding-agent/session-extensions";
 import {
 	CatalogRoutedRuntimeHostSessionBackend,
 	CatalogRoutedRuntimeSessionAccessResolver,
@@ -29,7 +29,7 @@ import {
 	type RuntimeHostSessionBackendRouteDecision,
 	RuntimeObservationHub,
 	type RuntimeObservationPublisher,
-} from "@vetta/runtime-core";
+} from "@567agent/runtime-core";
 import {
 	createDesktopHistoricalSessionFormat,
 	createDesktopResultArtifactRuntime,
@@ -42,13 +42,13 @@ import {
 	isSessionPathInDirectory,
 	logRuntimeSessionError,
 	PathFilteredRuntimeSessionCatalog,
-} from "@vetta/runtime-desktop";
-import { FileConversationRuntimeSessionFileHistoryReader } from "@vetta/runtime-node/conversation";
+} from "@567agent/runtime-desktop";
+import { FileConversationRuntimeSessionFileHistoryReader } from "@567agent/runtime-node/conversation";
 import {
 	createLoopbackSessionAffinityStream,
 	createNodeKnowledgeRuntime,
 	NodeTextFileStorage,
-} from "@vetta/runtime-node/host";
+} from "@567agent/runtime-node/host";
 import { getModePrompt } from "../agent-modes/index.js";
 import { createDesktopAgentObservability } from "../agent-observability/composition.js";
 import {

@@ -1,5 +1,5 @@
-import { createAgentTeamFixture, createEmptyAgentTeamDocument } from "@vetta/agent-team";
-import { providerModelNotFoundError } from "@vetta/ai";
+import { createAgentTeamFixture, createEmptyAgentTeamDocument } from "@567agent/agent-team";
+import { providerModelNotFoundError } from "@567agent/ai";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { resolveTeamSessionWorkspace } from "../agent-teams/team-workspace.js";
 import { type AgentTeamsIpcDependencies, registerAgentTeamsIpc } from "./agent-teams.js";

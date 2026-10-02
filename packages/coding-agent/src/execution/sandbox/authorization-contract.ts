@@ -1,5 +1,5 @@
-import type { SandboxPermissionCapability, SandboxPermissionRequest } from "@vetta/runtime-core/sandbox";
-import { defineSessionExtensionFunction } from "@vetta/runtime-core/session-extensions";
+import type { SandboxPermissionCapability, SandboxPermissionRequest } from "@567agent/runtime-core/sandbox";
+import { defineSessionExtensionFunction } from "@567agent/runtime-core/session-extensions";
 
 export const CODING_AGENT_SANDBOX_AUTHORIZATION_EXTENSION_ID = "coding-agent.sandbox-authorization";
 

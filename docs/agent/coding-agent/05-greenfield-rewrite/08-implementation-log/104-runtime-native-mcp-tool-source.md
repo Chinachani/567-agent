@@ -2,7 +2,7 @@
 
 ## 1. 目标
 
-第 103 轮已将通用 MCP Server 生命周期迁入 `@vetta/runtime-mcp`，但 Greenfield CLI 和 Desktop
+第 103 轮已将通用 MCP Server 生命周期迁入 `@567agent/runtime-mcp`，但 Greenfield CLI 和 Desktop
 仍通过以下绕行获得 Runtime Tool：
 
 ```text

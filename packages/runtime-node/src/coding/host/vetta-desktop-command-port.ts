@@ -1,9 +1,9 @@
 import { constants } from "node:fs";
 import { access, readFile } from "node:fs/promises";
 import nodePath from "node:path";
+import { getVettaHomePath } from "@567agent/action-rpc";
 import { Type } from "@sinclair/typebox";
 import { Value } from "@sinclair/typebox/value";
-import { getVettaHomePath } from "@vetta/action-rpc";
 import {
 	type CommandProcessPort,
 	DesktopCommandAbortedError,
@@ -78,7 +78,7 @@ async function findVettaExecutable(
 	}
 	const staleNote = configuredPath ? ` Configured vettaAppPath is stale: ${configuredPath}` : "";
 	throw new Error(
-		`Vetta Desktop executable not found. Set VETTA_DESKTOP_EXE or start Vetta Desktop once to write vettaAppPath.${staleNote}`,
+		`567 Agent executable not found. Set VETTA_DESKTOP_EXE or start 567 Agent once to write vettaAppPath.${staleNote}`,
 	);
 }
 

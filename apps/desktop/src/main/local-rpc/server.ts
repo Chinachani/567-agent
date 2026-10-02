@@ -6,7 +6,7 @@ import {
 	type LocalRpcRuntime,
 	type LocalRpcServerHandle,
 	startLocalRpcServer,
-} from "@vetta/action-rpc";
+} from "@567agent/action-rpc";
 import { getAppLogger } from "../logger.js";
 import { getLocalRpcServerEndpointFilePath } from "./endpoint-file.js";
 

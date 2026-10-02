@@ -2,7 +2,7 @@
 
 ## 1. 目标
 
-第 95 轮验证了 `@vetta/runtime-composition` 的 `dist` 闭包和真实 Desktop 主进程 Canary，
+第 95 轮验证了 `@567agent/runtime-composition` 的 `dist` 闭包和真实 Desktop 主进程 Canary，
 但 CLI 仍由源码入口驱动测试，未证明 Desktop 实际分发的单文件可执行程序能够在源码不可见时：
 
 - 启动 Greenfield IM Runtime；

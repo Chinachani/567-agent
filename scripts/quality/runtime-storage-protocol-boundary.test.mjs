@@ -15,7 +15,7 @@ describe("runtime-storage protocol boundary", () => {
 		expect(
 			findPackageBoundaryViolations(
 				"packages/runtime-storage/src/conversation/default-adapter.ts",
-				'import { FileConversationRepository } from "@vetta/runtime-node/conversation";',
+				'import { FileConversationRepository } from "@567agent/runtime-node/conversation";',
 			),
 		).toContainEqual(expect.stringContaining("runtime-storage protocol must not import platform implementation"));
 	});
@@ -24,7 +24,7 @@ describe("runtime-storage protocol boundary", () => {
 		expect(
 			findPackageBoundaryViolations(
 				"packages/runtime-storage/src/conversation/contracts.ts",
-				'import type { ConversationRepository } from "@vetta/runtime-core/kernel";',
+				'import type { ConversationRepository } from "@567agent/runtime-core/kernel";',
 			),
 		).toEqual([]);
 	});

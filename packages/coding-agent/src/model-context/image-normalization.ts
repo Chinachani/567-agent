@@ -1,5 +1,5 @@
-import type { ImageContent, Message, TextContent } from "@vetta/ai";
-import type { CodingImageResizeConfiguration } from "@vetta/runtime-tools";
+import type { ImageContent, Message, TextContent } from "@567agent/ai";
+import type { CodingImageResizeConfiguration } from "@567agent/runtime-tools";
 
 export interface ModelInputImage {
 	readonly data: string;

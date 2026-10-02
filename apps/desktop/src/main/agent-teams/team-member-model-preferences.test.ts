@@ -1,7 +1,7 @@
 import { mkdtemp, readFile, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import type { TeamDefinition } from "@vetta/agent-team";
+import type { TeamDefinition } from "@567agent/agent-team";
 import { afterEach, describe, expect, it } from "vitest";
 import { resolveTeamMemberModel } from "./resolve-team-member-model.js";
 import { TeamMemberModelPreferences } from "./team-member-model-preferences.js";

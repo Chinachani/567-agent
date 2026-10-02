@@ -4,10 +4,10 @@ import type {
 	KnowledgeProcessingSession,
 	KnowledgeProcessingSessionFactory,
 	KnowledgeProcessingUsage,
-} from "@vetta/coding-agent/composition";
-import { CODING_AGENT_KNOWLEDGE_PROCESSING_GUIDE } from "@vetta/coding-agent/composition";
-import * as knowledge from "@vetta/runtime-knowledge";
-import { createAsyncExecutionGate } from "@vetta/runtime-tools";
+} from "@567agent/coding-agent/composition";
+import { CODING_AGENT_KNOWLEDGE_PROCESSING_GUIDE } from "@567agent/coding-agent/composition";
+import * as knowledge from "@567agent/runtime-knowledge";
+import { createAsyncExecutionGate } from "@567agent/runtime-tools";
 
 const KB_MAX_FILES_PER_BATCH = 20;
 const KB_MAX_BYTES_PER_BATCH = 8 * 1024 * 1024;

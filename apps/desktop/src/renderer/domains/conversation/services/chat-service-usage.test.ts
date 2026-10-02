@@ -1,5 +1,5 @@
-import type { AssistantMessage, Usage } from "@vetta/ai";
-import type { HistoryEntry } from "@vetta/runtime-core";
+import type { AssistantMessage, Usage } from "@567agent/ai";
+import type { HistoryEntry } from "@567agent/runtime-core";
 import { describe, expect, it } from "vitest";
 import { ensureDraft, finalizeMessage, fullHistoryToChat, historyToChat, resetStreamState } from "./chat-service";
 

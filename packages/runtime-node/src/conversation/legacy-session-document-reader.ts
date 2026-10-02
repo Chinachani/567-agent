@@ -1,10 +1,10 @@
 import { readFile } from "node:fs/promises";
-import type { ConversationDocument, ConversationDocumentReader } from "@vetta/runtime-core/conversation";
+import type { ConversationDocument, ConversationDocumentReader } from "@567agent/runtime-core/conversation";
 import {
 	type LegacySessionDocumentSource,
 	parseLegacySessionDocument,
 	parseLegacySessionDocumentSource,
-} from "@vetta/runtime-storage/conversation";
+} from "@567agent/runtime-storage/conversation";
 
 export interface LegacySessionDocumentReaderOptions {
 	readonly resolvePath: (sessionId: string) => string;

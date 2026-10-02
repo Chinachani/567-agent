@@ -23,8 +23,9 @@ interface PluginPackageLogger {
 	warn(message: string, error?: unknown): void;
 }
 
-export const VETTA_PLUGIN_PACKAGE_EXTENSION = ".vettapkg";
+export const VETTA_PLUGIN_PACKAGE_EXTENSION = ".567plugin";
 export const VETTA_PLUGIN_PACKAGE_MIME_TYPE = "application/vnd.vetta.plugin+zip";
+export const LEGACY_PLUGIN_PACKAGE_EXTENSION = ".vettapkg";
 const MAX_PLUGIN_MANIFEST_BYTES = 1024 * 1024;
 
 export function resolvePluginIcon(

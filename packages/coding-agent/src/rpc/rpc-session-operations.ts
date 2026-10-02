@@ -1,6 +1,6 @@
-import type { AgentMessage, ThinkingLevel } from "@vetta/agent-core";
-import { type Api, type AssistantMessage, getModelReasoningPreset, type Model } from "@vetta/ai";
-import type { ConversationDocument } from "@vetta/runtime-core";
+import type { AgentMessage, ThinkingLevel } from "@567agent/agent-core";
+import { type Api, type AssistantMessage, getModelReasoningPreset, type Model } from "@567agent/ai";
+import type { ConversationDocument } from "@567agent/runtime-core";
 import type { CodingAgentHtmlExportRuntime } from "../export-html/index.js";
 import { projectCodingAgentMessages } from "../sessions/projection/conversation-context-projector.js";
 import type { SessionStats } from "./rpc-types.js";

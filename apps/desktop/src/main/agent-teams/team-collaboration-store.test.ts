@@ -3,8 +3,8 @@ import {
 	createTeamSharedContextCheckpoint,
 	createTeamSharedContextGeneration,
 	type TeamSessionDocument,
-} from "@vetta/agent-team";
-import { type ConversationDocument, createEmptyConversationDocument } from "@vetta/runtime-core";
+} from "@567agent/agent-team";
+import { type ConversationDocument, createEmptyConversationDocument } from "@567agent/runtime-core";
 import { describe, expect, it } from "vitest";
 import { TeamCollaborationStore } from "./team-collaboration-store.js";
 

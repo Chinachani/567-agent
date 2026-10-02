@@ -29,7 +29,7 @@ Greenfield 选择失败时直接调用 `runLegacyAgentWithBootstrap()`。这不�
 
 ## 3. 显式 Runtime Selector
 
-`@vetta/cli-host` 新增宿主级参数：
+`@567agent/cli-host` 新增宿主级参数：
 
 ```text
 --agent-runtime legacy

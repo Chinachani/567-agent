@@ -55,7 +55,7 @@ async function checkFullDiskAccess(): Promise<PermissionStatus> {
 	return sawDenied ? "denied" : "unknown";
 }
 
-// accessibility / screenRecording 现在查的是独立 TCC 主体「Vetta Computer Use」helper 的权限
+// accessibility / screenRecording 现在查的是独立 TCC 主体「567 Agent Computer Use」helper 的权限
 // （非本 Electron 进程），单一来源为 appshot-service.ts 的 checkHelperPermissions。
 async function checkHelperTccPermissions(): Promise<Pick<PermissionsSnapshot, "accessibility" | "screenRecording">> {
 	const { accessibility, screenRecording } = await checkHelperPermissions();

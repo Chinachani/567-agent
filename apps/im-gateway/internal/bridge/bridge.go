@@ -10,8 +10,8 @@ import (
 	"time"
 	"unicode/utf8"
 
-	"vetta-im-gateway/internal/hostclient"
-	"vetta-im-gateway/internal/transport"
+	"github.com/Chinachani/567-agent/apps/im-gateway/internal/hostclient"
+	"github.com/Chinachani/567-agent/apps/im-gateway/internal/transport"
 )
 
 // EditThrottle is the minimum gap between successive edit calls when the
@@ -723,7 +723,7 @@ func extractToolName(raw json.RawMessage) string {
 // `message_end` event whose payload is a fully-formed AssistantMessage
 // with stopReason == "error". Returns "" when the message ended normally.
 //
-// Shape we read (subset of @vetta/coding-agent's AssistantMessage):
+// Shape we read (subset of @567agent/coding-agent's AssistantMessage):
 //
 //	{ "message": { "stopReason": "error", "errorMessage": "Connection error." } }
 //

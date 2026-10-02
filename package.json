@@ -42,18 +42,20 @@
 		"packages/coding-agent/examples/extensions/with-deps",
 		"packages/coding-agent/examples/extensions/custom-provider-anthropic",
 		"packages/coding-agent/examples/extensions/custom-provider-gitlab-duo",
-		"packages/coding-agent/examples/extensions/custom-provider-qwen-cli"
+		"packages/coding-agent/examples/extensions/custom-provider-qwen-cli",
+		"packages/npm-compat/*",
+		"packages/npm-compat"
 	],
 	"scripts": {
 		"clean": "bun run --workspaces clean",
-		"build": "turbo run build --filter=\"./packages/*\" --filter=@vetta/cli-host --filter=@vetta-org/plugin-cli --filter=@vetta-org/plugin-vite --summarize && bun run build:preset:prebuilt",
-		"build:all": "turbo run build --filter=@vetta/desktop --filter=@vetta-org/plugin-cli --summarize",
-		"build:desktop": "turbo run build --filter=@vetta/desktop --filter=@vetta-org/plugin-cli --summarize",
-		"build:cli": "turbo run build --filter=@vetta/cli-host --filter=@vetta-org/plugin-cli --filter=@vetta-org/plugin-vite --summarize && bun run build:preset:prebuilt",
-		"build:docs": "turbo run build --filter=@vetta/docs-site --summarize",
+		"build": "turbo run build --filter=\"./packages/*\" --filter=@567agent/cli-host --filter=@vetta-org/plugin-cli --filter=@vetta-org/plugin-vite --summarize && bun run build:preset:prebuilt",
+		"build:all": "turbo run build --filter=@567agent/desktop --filter=@vetta-org/plugin-cli --summarize",
+		"build:desktop": "turbo run build --filter=@567agent/desktop --filter=@vetta-org/plugin-cli --summarize",
+		"build:cli": "turbo run build --filter=@567agent/cli-host --filter=@vetta-org/plugin-cli --filter=@vetta-org/plugin-vite --summarize && bun run build:preset:prebuilt",
+		"build:docs": "turbo run build --filter=@567agent/docs-site --summarize",
 		"build:preset": "bun run --cwd apps/desktop build:presets",
 		"build:preset:prebuilt": "bun run --cwd apps/desktop build:presets:prebuilt",
-		"dev": "turbo run dev --filter=@vetta/ai --filter=@vetta/agent-core --filter=@vetta/coding-agent",
+		"dev": "turbo run dev --filter=@567agent/ai --filter=@567agent/agent-core --filter=@567agent/coding-agent",
 		"dev:tsc": "concurrently --names \"ai\" --prefix-colors \"cyan\" \"cd packages/ai && bun run dev:tsc\"",
 		"verify:ui:start": "bun run --cwd apps/desktop verify:ui:start",
 		"verify:ui:start:fresh": "bun run --cwd apps/desktop verify:ui:start:fresh",
@@ -83,7 +85,7 @@
 		"verify:agent-hosts": "bun scripts/verify-coding-agent-hosts.mjs",
 		"check:lint": "bun run scripts/quality/check-lint.mjs",
 		"check:lint:fix": "bun run scripts/quality/check-lint.mjs --write",
-		"check:types": "concurrently --names \"root,cli,desktop,docs\" --prefix-colors \"blue,yellow,green,magenta\" \"tsgo --noEmit\" \"bun run --cwd apps/cli-host typecheck\" \"bunx tsc --noEmit -p apps/desktop/tsconfig.json --incremental --tsBuildInfoFile node_modules/.desktop-check.tsbuildinfo\" \"bun run --cwd apps/docs-site check\"",
+		"check:types": "concurrently --names \"root,cli,desktop,docs\" --prefix-colors \"blue,yellow,green,magenta\" \"tsgo --noEmit\" \"bun run --cwd apps/cli-host typecheck\" \"bunx tsc --noEmit -p apps/desktop/tsconfig.json --incremental --tsBuildInfoFile node_modules/.desktop-check.tsbuildinfo\" \"bun run --cwd apps/docs-site check\" && bun run check:types:npm-compat",
 		"check:types:build-surfaces": "bunx tsgo --noEmit -p apps/cli-host/tsconfig.build.json",
 		"check:guards": "bun run scripts/quality/check-guards.mjs",
 		"check:staged": "bunx @biomejs/biome check --write --error-on-warnings --staged --no-errors-on-unmatched",
@@ -93,7 +95,7 @@
 		"fix": "bun run check:lint:fix",
 		"test": "bun run scripts/quality/test-pkg.mjs --all",
 		"vitest": "bun scripts/quality/run-vitest.mjs",
-		"test:quality": "bun scripts/quality/run-vitest.mjs --run .claude/hooks/check-file-lines.test.mjs scripts/quality/quality-gates.test.mjs scripts/quality/coding-agent-architecture.test.mjs scripts/quality/coding-agent-tool-public-surface.test.mjs scripts/quality/runtime-coding-agent-independence.test.mjs scripts/quality/runtime-subagents-boundary.test.mjs scripts/quality/conversation-message-architecture.test.mjs scripts/quality/runtime-failure-contract.test.mjs scripts/quality/runtime-platform-boundary.test.mjs scripts/quality/runtime-storage-protocol-boundary.test.mjs scripts/quality/runtime-tools-protocol-boundary.test.mjs scripts/quality/runtime-mcp-protocol-boundary.test.mjs scripts/quality/runtime-product-semantic-boundary.test.mjs scripts/quality/agent-ai-maintainability.test.mjs scripts/release/resolve-desktop-release-config.test.mjs scripts/release/release-notes.test.mjs scripts/release-desktop.test.mjs scripts/quality/desktop-packaging-scope.test.mjs scripts/quality/desktop-release-workflow.test.mjs apps/desktop/scripts/fetch-vendor-runtimes.test.mjs scripts/quality/ci-dependency-install.test.mjs apps/desktop/scripts/verify-packaging-contract.test.mjs",
+		"test:quality": "bun scripts/quality/run-vitest.mjs --run .claude/hooks/check-file-lines.test.mjs scripts/quality/quality-gates.test.mjs scripts/quality/coding-agent-architecture.test.mjs scripts/quality/coding-agent-tool-public-surface.test.mjs scripts/quality/runtime-coding-agent-independence.test.mjs scripts/quality/runtime-subagents-boundary.test.mjs scripts/quality/conversation-message-architecture.test.mjs scripts/quality/runtime-failure-contract.test.mjs scripts/quality/runtime-platform-boundary.test.mjs scripts/quality/runtime-storage-protocol-boundary.test.mjs scripts/quality/runtime-tools-protocol-boundary.test.mjs scripts/quality/runtime-mcp-protocol-boundary.test.mjs scripts/quality/runtime-product-semantic-boundary.test.mjs scripts/quality/agent-ai-maintainability.test.mjs scripts/release/resolve-desktop-release-config.test.mjs scripts/release/release-notes.test.mjs scripts/release-desktop.test.mjs scripts/quality/desktop-packaging-scope.test.mjs scripts/quality/desktop-release-workflow.test.mjs apps/desktop/scripts/fetch-vendor-runtimes.test.mjs scripts/quality/ci-dependency-install.test.mjs scripts/quality/cloudflare-worker-paths.test.mjs apps/desktop/scripts/verify-packaging-contract.test.mjs && bun run test:npm-compat",
 		"test:unit": "bun run scripts/quality/test-pkg.mjs --all",
 		"test:pkg": "bun run scripts/quality/test-pkg.mjs",
 		"test:impact": "bun run scripts/quality/test-impact.mjs",
@@ -113,7 +115,10 @@
 		"release:major": "node scripts/release.mjs major",
 		"release:desktop:patch": "node scripts/release-desktop.mjs patch",
 		"release:desktop:minor": "node scripts/release-desktop.mjs minor",
-		"prepare": "husky"
+		"prepare": "husky",
+		"build:npm-compat": "node scripts/generate-npm-compat.mjs",
+		"check:types:npm-compat": "bun run --cwd packages/npm-compat check",
+		"test:npm-compat": "turbo run build --filter=@567agent/capability-sdk --filter=@567agent/plugin-sdk --filter=@567agent/plugin-vite --filter=@567agent/plugin-cli && bun scripts/quality/run-vitest.mjs --run scripts/quality/npm-compat.test.mjs"
 	},
 	"devDependencies": {
 		"@biomejs/biome": "2.3.5",
@@ -138,8 +143,8 @@
 		"@radix-ui/react-popover": "^1.1.15",
 		"@radix-ui/react-select": "^2.2.6",
 		"@radix-ui/react-slot": "^1.2.4",
-		"@vetta/cli-host": "workspace:*",
-		"@vetta/coding-agent": "workspace:*",
+		"@567agent/cli-host": "workspace:*",
+		"@567agent/coding-agent": "workspace:*",
 		"date-fns": "^4.1.0",
 		"get-east-asian-width": "^1.4.0",
 		"koffi": "^2.15.1"
@@ -148,5 +153,8 @@
 		"@types/react": "19.2.17",
 		"rimraf": "6.1.2",
 		"@wdio/native-utils": "2.6.0"
+	},
+	"patchedDependencies": {
+		"@cloudflare/vitest-pool-workers@0.12.21": "patches/@cloudflare%2Fvitest-pool-workers@0.12.21.patch"
 	}
 }

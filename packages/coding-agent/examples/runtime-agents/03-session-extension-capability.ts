@@ -1,10 +1,9 @@
-import { type Static, Type } from "@sinclair/typebox";
-import { defineRuntimeAgent, type RuntimeAgentDefinition, RuntimeHost } from "@vetta/runtime-core";
+import { defineRuntimeAgent, type RuntimeAgentDefinition, RuntimeHost } from "@567agent/runtime-core";
 import {
 	type AgentFeatureDefinition,
 	createDefaultRuntimeCapabilityDefinition,
 	type RuntimeToolDefinition,
-} from "@vetta/runtime-core/kernel";
+} from "@567agent/runtime-core/kernel";
 import {
 	defineSessionExtensionEndpoint,
 	defineSessionExtensionObservation,
@@ -12,7 +11,8 @@ import {
 	defineSessionExtensionSignal,
 	type SessionExtensionDefinition,
 	sessionExtensionObservation,
-} from "@vetta/runtime-core/session-extensions";
+} from "@567agent/runtime-core/session-extensions";
+import { type Static, Type } from "@sinclair/typebox";
 import { acquirePreview, executeTextTool } from "./support/preview.js";
 
 const REVIEW_NOTES_EXTENSION_ID = "example.review-notes";

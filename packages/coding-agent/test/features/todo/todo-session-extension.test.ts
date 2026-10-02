@@ -1,4 +1,4 @@
-import { SessionExtensionComposition } from "@vetta/runtime-core/session-extensions";
+import { SessionExtensionComposition } from "@567agent/runtime-core/session-extensions";
 import { describe, expect, it, vi } from "vitest";
 import { CodingAgentTodoRuntime } from "../../../src/features/todo/todo-runtime.js";
 import {

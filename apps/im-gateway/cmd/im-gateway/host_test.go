@@ -10,10 +10,10 @@ import (
 	"testing"
 	"time"
 
-	"vetta-im-gateway/internal/hostproto"
-	"vetta-im-gateway/internal/transport"
-	"vetta-im-gateway/internal/transport/wechat"
-	"vetta-im-gateway/internal/transport/wechat/ilink"
+	"github.com/Chinachani/567-agent/apps/im-gateway/internal/hostproto"
+	"github.com/Chinachani/567-agent/apps/im-gateway/internal/transport"
+	"github.com/Chinachani/567-agent/apps/im-gateway/internal/transport/wechat"
+	"github.com/Chinachani/567-agent/apps/im-gateway/internal/transport/wechat/ilink"
 )
 
 // stubTransport is a no-op transport that just blocks Start() until ctx

@@ -327,11 +327,11 @@ export function WorkbenchPanel() {
 		setBusy(`export:${project.id}`);
 		setError(null);
 		try {
-			const defaultFileName = `${project.id}-${project.version}.vettapkg`;
+			const defaultFileName = `${project.id}-${project.version}.567plugin`;
 			const saved = await getWorkbenchDialog().saveCopy(project.packagePath, {
 				defaultFileName,
 				title: t("panel.exportTitle"),
-				filters: [{ name: "Vetta Plugin Package", extensions: ["vettapkg"] }],
+				filters: [{ name: "567 Agent Plugin Package", extensions: ["567plugin"] }],
 			});
 			// null = user cancelled the save dialog; no error.
 			if (saved == null) return;

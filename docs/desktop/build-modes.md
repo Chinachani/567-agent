@@ -2,13 +2,13 @@
 
 *[English](./build-modes.en.md)*
 
-Vetta Desktop 有两种发行形态，由构建期开关 `VETTA_CLOUD_ENABLED` 决定。开发启动时未配置仍按 serv-less 运行；**正式打包必须显式选择 `true` 或 `false`**，前置检查不会再猜测版本类型。
+567 Agent 有两种发行形态，由构建期开关 `VETTA_CLOUD_ENABLED` 决定。开发启动时未配置仍按 serv-less 运行；**正式打包必须显式选择 `true` 或 `false`**，前置检查不会再猜测版本类型。
 
 | | **开源版（serv-less）** | **商业版（Vetta Serv）** |
 | --- | --- | --- |
 | 开关 | `VETTA_CLOUD_ENABLED=false` | `VETTA_CLOUD_ENABLED=true` |
 | 账号登录 / OAuth | ❌ 代码不进产物 | ✅ |
-| Vetta Go 模型渠道 | ❌ | ✅ |
+| 567 Agent Go 模型渠道 | ❌ | ✅ |
 | 订阅 / 积分 / 配额 | ❌ | ✅ |
 | 能力广场来源 | GitHub 多源（环境配置或用户添加） | 云市场（Vetta Serv）；可选 GitHub 多源 |
 | 远程模型目录下发 | ❌ | ✅ |

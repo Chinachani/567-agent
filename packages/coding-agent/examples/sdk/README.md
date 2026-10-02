@@ -1,7 +1,7 @@
 # SDK Examples
 
-Programmatic usage through the stable `@vetta/coding-agent/sdk` entry. Concrete authentication, model and settings
-services use the stable Host adapter in `@vetta/coding-agent/host-services`.
+Programmatic usage through the stable `@567agent/coding-agent/sdk` entry. Concrete authentication, model and settings
+services use the stable Host adapter in `@567agent/coding-agent/host-services`.
 
 ## Examples
 
@@ -30,11 +30,11 @@ bun examples/sdk/01-minimal.ts
 
 ```typescript
 import { join } from "node:path";
-import { getModel } from "@vetta/ai";
+import { getModel } from "@567agent/ai";
 import {
   createCodingAgentSession,
   createCodingAgentSessionCatalog,
-} from "@vetta/coding-agent/sdk";
+} from "@567agent/coding-agent/sdk";
 
 const cwd = process.cwd();
 const conversationDir = join(cwd, ".vetta", "conversations");
@@ -84,7 +84,7 @@ await session.prompt("Hello");
 
 Credential storage, custom provider registration and persistent settings are host concerns. Import `AuthStorage`,
 `ModelRegistry`, `SettingsRuntime` and `createCodingAgentHostWithServices` from
-`@vetta/coding-agent/host-services`. The Host owns its Sessions while the caller continues to own the concrete shared
+`@567agent/coding-agent/host-services`. The Host owns its Sessions while the caller continues to own the concrete shared
 services. Complete loader and composition replacement remains on the package-root compatibility API.
 
 ## Events

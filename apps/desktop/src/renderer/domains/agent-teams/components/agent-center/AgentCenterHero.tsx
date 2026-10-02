@@ -1,4 +1,4 @@
-import type { AgentProfile } from "@vetta/agent-team";
+import type { AgentProfile } from "@567agent/agent-team";
 import { Button } from "@vetta-org/ui";
 import { motion } from "motion/react";
 import { useTranslation } from "react-i18next";

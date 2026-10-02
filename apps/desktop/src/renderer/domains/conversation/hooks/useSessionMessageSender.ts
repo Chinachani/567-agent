@@ -1,3 +1,4 @@
+import type { PromptAttachmentRef, PromptRequest } from "@567agent/runtime-core";
 import { waitForPluginHostFirstReady } from "@domains/plugins/runtime/plugin-events";
 import { useProjectActions } from "@domains/project/hooks/useProjects";
 import type { PersistedImageResult } from "@preload/api";
@@ -50,7 +51,6 @@ import {
 	todoItemsBySessionAtom,
 } from "@shared/store/atoms";
 import { bumpQueuedDispatchSeq } from "@shared/store/message-queue-atoms";
-import type { PromptAttachmentRef, PromptRequest } from "@vetta/runtime-core";
 import type { PluginPromptContext } from "@vetta-org/plugin-sdk";
 import { getDefaultStore, useAtom, useAtomValue, useSetAtom } from "jotai";
 import { useCallback, useRef } from "react";

@@ -30,7 +30,7 @@ cd "$ROOT_DIR"
 "$BUN_BIN" run build:cli
 chmod +x "$CLI_APP_DIR/dist/cli.js" "$CLI_APP_DIR/dist/agent-cli.js" "$CLI_APP_DIR/dist/agent-rpc-cli.js"
 
-echo "Linking @vetta/cli-host executables globally..."
+echo "Linking @567agent/cli-host executables globally..."
 
 # Create a symlink in bun's global bin directory directly.
 # `bun link -g` fails with FileNotFound for workspace packages, so we bypass it.

@@ -1,9 +1,9 @@
-import type { PromptAttachmentRef, SessionExecutionMode } from "@vetta/runtime-core";
+import type { PromptAttachmentRef, SessionExecutionMode } from "@567agent/runtime-core";
 import type {
 	ConversationAuthorReference,
 	ConversationMessageRecord,
 	ConversationMessageStreamEvent,
-} from "@vetta/runtime-core/conversation";
+} from "@567agent/runtime-core/conversation";
 
 export const AGENT_TEAM_SCHEMA_VERSION = 1 as const;
 

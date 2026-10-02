@@ -4,14 +4,14 @@ import (
 	"errors"
 	"fmt"
 
-	"vetta-im-gateway/internal/transport"
-	"vetta-im-gateway/internal/transport/discord"
-	"vetta-im-gateway/internal/transport/feishu"
-	"vetta-im-gateway/internal/transport/imessage"
-	signalcli "vetta-im-gateway/internal/transport/signal"
-	"vetta-im-gateway/internal/transport/slack"
-	"vetta-im-gateway/internal/transport/telegram"
-	"vetta-im-gateway/internal/transport/wechat"
+	"github.com/Chinachani/567-agent/apps/im-gateway/internal/transport"
+	"github.com/Chinachani/567-agent/apps/im-gateway/internal/transport/discord"
+	"github.com/Chinachani/567-agent/apps/im-gateway/internal/transport/feishu"
+	"github.com/Chinachani/567-agent/apps/im-gateway/internal/transport/imessage"
+	signalcli "github.com/Chinachani/567-agent/apps/im-gateway/internal/transport/signal"
+	"github.com/Chinachani/567-agent/apps/im-gateway/internal/transport/slack"
+	"github.com/Chinachani/567-agent/apps/im-gateway/internal/transport/telegram"
+	"github.com/Chinachani/567-agent/apps/im-gateway/internal/transport/wechat"
 )
 
 // hostChannel binds one InitFrame slot to its transport constructor.

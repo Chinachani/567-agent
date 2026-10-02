@@ -1,4 +1,4 @@
-import type { AgentProfile } from "@vetta/agent-team";
+import type { AgentProfile } from "@567agent/agent-team";
 import { useCallback, useEffect, useState } from "react";
 import { agentAvatarUrl } from "../../../shared/agent-team-avatar";
 

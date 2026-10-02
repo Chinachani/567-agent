@@ -5,16 +5,16 @@ export interface HelpCliCommand {
 }
 
 const HELP_TEXT = `Usage:
-  Vetta.exe [options]
-  Vetta.exe action <subcommand> [options]
-  Vetta.exe pdf <subcommand> [options]
-  Vetta.exe ocr <subcommand> [options]
+  567-Agent.exe [options]
+  567-Agent.exe action <subcommand> [options]
+  567-Agent.exe pdf <subcommand> [options]
+  567-Agent.exe ocr <subcommand> [options]
 
 Options:
   -h, --help            Show this help text.
-  --html-to-pdf         Convert HTML to PDF. See: Vetta.exe pdf --help
-  --ocr-pdf             Run OCR on a PDF. See: Vetta.exe ocr --help
-  --ocr-img             Run OCR on an image. See: Vetta.exe ocr --help
+  --html-to-pdf         Convert HTML to PDF. See: 567-Agent.exe pdf --help
+  --ocr-pdf             Run OCR on a PDF. See: 567-Agent.exe ocr --help
+  --ocr-img             Run OCR on an image. See: 567-Agent.exe ocr --help
   --agent-rpc           Start agent RPC sidecar mode.
 
 Commands:

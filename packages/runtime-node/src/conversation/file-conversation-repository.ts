@@ -17,7 +17,7 @@ import {
 	resolveConversationUserTurnTip,
 	selectConversationDocumentEntries,
 	selectConversationDocumentModelMessages,
-} from "@vetta/runtime-core/conversation";
+} from "@567agent/runtime-core/conversation";
 import {
 	type AppendResult,
 	type ContinueConversationInput,
@@ -30,7 +30,7 @@ import {
 	FailInterruptedTurnRecoveryPolicy,
 	type StoredConversation,
 	type StoredSessionEvent,
-} from "@vetta/runtime-core/kernel";
+} from "@567agent/runtime-core/kernel";
 import {
 	CONVERSATION_SCHEMA_VERSION,
 	CONVERSATION_STORAGE_ERROR_CODES,
@@ -43,7 +43,7 @@ import {
 	isConversationContinuationSeedRecord,
 	isConversationDocumentCommand,
 	isConversationSnapshot,
-} from "@vetta/runtime-storage/conversation";
+} from "@567agent/runtime-storage/conversation";
 import {
 	conversationFromFile,
 	createDocumentEntryReference,

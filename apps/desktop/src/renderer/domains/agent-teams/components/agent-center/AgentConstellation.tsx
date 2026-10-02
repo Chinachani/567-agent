@@ -1,5 +1,5 @@
 import { useAgentAvatarResolver } from "@shared/agent-teams/agent-avatar";
-import type { AgentProfile } from "@vetta/agent-team";
+import type { AgentProfile } from "@567agent/agent-team";
 import { AgentAvatarView } from "@vetta-org/theme-ui/chat";
 import { motion, useReducedMotion } from "motion/react";
 

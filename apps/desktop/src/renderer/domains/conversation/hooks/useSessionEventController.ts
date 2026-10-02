@@ -1,3 +1,12 @@
+import {
+	isCodingAgentMcpReloadStarted,
+	readCodingAgentBackgroundTasksObservation,
+	readCodingAgentMcpReloadFinished,
+	readCodingAgentPlanModeObservation,
+	readCodingAgentSubagentsObservation,
+	readCodingAgentTodoObservation,
+} from "@567agent/coding-agent/session-extensions";
+import type { SessionEvent } from "@567agent/runtime-core";
 import { createConversationUserMessage } from "@shared/conversation";
 import { i18n } from "@shared/i18n";
 import {
@@ -29,15 +38,6 @@ import {
 	setQueuePausedAtom,
 } from "@shared/store/message-queue-atoms";
 import { showToast } from "@shared/store/toast-atoms";
-import {
-	isCodingAgentMcpReloadStarted,
-	readCodingAgentBackgroundTasksObservation,
-	readCodingAgentMcpReloadFinished,
-	readCodingAgentPlanModeObservation,
-	readCodingAgentSubagentsObservation,
-	readCodingAgentTodoObservation,
-} from "@vetta/coding-agent/session-extensions";
-import type { SessionEvent } from "@vetta/runtime-core";
 import { getDefaultStore, useSetAtom } from "jotai";
 import { type MutableRefObject, useCallback, useEffect, useRef } from "react";
 import {

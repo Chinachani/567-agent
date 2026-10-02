@@ -348,9 +348,9 @@ desktop 的一项[[实验性功能]]（`experimental.promptPrediction`，**缺�
 
 [[输入预测]]的列表呈现单元：MessageList 下方、InputBar 上方垂直排列的 0-3 个可点击气泡，每个承载一条预测 prompt（0 条即整块不渲染）。**点击即直接发送**该 prompt（与「placeholder 态空输入回车直发」语义一致），不是填入输入框待编辑。
 
-### Vetta Go / Token Plan
+### 567 Agent Go / Token Plan
 
-新增的订阅式计费方式，仿主流 token plan。用户开通某 [[档位]] 后，在该档位的[[窗口配额]]内使用其[[模型分组 tag]]覆盖的模型，**不走积分钱包扣减**。desktop 中作为独立服务商「Vetta Go」呈现；开通后有特殊标记与卡片。
+新增的订阅式计费方式，仿主流 token plan。用户开通某 [[档位]] 后，在该档位的[[窗口配额]]内使用其[[模型分组 tag]]覆盖的模型，**不走积分钱包扣减**。desktop 中作为独立服务商「567 Agent Go」呈现；开通后有特殊标记与卡片。
 
 ### 站内信（in-app notification）
 
@@ -377,7 +377,7 @@ _Avoid_: 把服务端推送的应用内消息叫「系统通知」。
 
 显示：desktop 对**已知 value**（minimal/low/medium/high/xhigh）映射到 i18n key 随语言切换渲染；未知自定义 value 直接展示原文——故档位项不存展示文本，无死文案。
 
-来源分层：每个 `api` 类型在 `@vetta/ai` 内置一份**预设档位列表**作为「新建模型时的预填 + 空列表 fallback」；但**只是预设、非约束**——模型可自由改写自己的档位列表（服务端模型走 admin，本地离线[[预设模板]]/手搓 provider 走 desktop 本地配置）。列表为空时 fallback 到该 api 预设。
+来源分层：每个 `api` 类型在 `@567agent/ai` 内置一份**预设档位列表**作为「新建模型时的预填 + 空列表 fallback」；但**只是预设、非约束**——模型可自由改写自己的档位列表（服务端模型走 admin，本地离线[[预设模板]]/手搓 provider 走 desktop 本地配置）。列表为空时 fallback 到该 api 预设。
 
 记忆与传输：desktop **每模型记忆**上次所选档位（本地 `modelKey→value` 映射，跨会话/重启保留），随 `PromptRequest` 与 `modelKey` 同行下发、应用于本轮。取代原全局 `setGlobalThinkingLevel`（连同设置页全局 SegmentedControl 一并移除）。`reasoning:bool` 降级为**派生值**（`reasoningLevels` 非空即 true），列表为唯一真相源；无全局 `off` 档，关思考与否由档位列表自决。
 
@@ -676,7 +676,7 @@ _Avoid_: 把工作流称作「后台任务」（那是 background-tasks 标签�
 
 ### Capability（授权契约）
 
-`@vetta-org/capability-sdk` / `@vetta/capability-runtime` 里的权限契约层：Capability ID、Grant、access session、constraint、audit（见 `docs/capabilities/README.md`）。回答的是「某个 subject 能否调用某个宿主能力出口」。
+`@vetta-org/capability-sdk` / `@567agent/capability-runtime` 里的权限契约层：Capability ID、Grant、access session、constraint、audit（见 `docs/capabilities/README.md`）。回答的是「某个 subject 能否调用某个宿主能力出口」。
 
 中文正式叫法为**「授权契约」**，把「能力」这个中文词让给 [[Ability（能力）]]，避免 desktop 市场条目与授权层同名不可分辨。
 

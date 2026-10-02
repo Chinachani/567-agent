@@ -7,7 +7,7 @@ import {
 	type Message,
 	type Model,
 	type UserMessage,
-} from "@vetta/ai";
+} from "@567agent/ai";
 import { describe, expect, it } from "vitest";
 import {
 	AgentCoreTurnEngine,

@@ -1,4 +1,4 @@
-import type { SessionExecutionMode } from "@vetta/runtime-core";
+import type { SessionExecutionMode } from "@567agent/runtime-core";
 import type { DesktopSessionHistoryInfo } from "./session-access.js";
 
 export type DesktopSessionSearchSourceKind = "conversation" | "claw" | "project" | "batch";

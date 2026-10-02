@@ -3,8 +3,8 @@ import type {
 	ModelCallFrameCompositionContext,
 	RuntimeSnapshotAcquireContext,
 	RuntimeToolDefinition,
-} from "@vetta/runtime-core/kernel";
-import type { McpRuntimeToolSnapshot, McpRuntimeToolView } from "@vetta/runtime-mcp";
+} from "@567agent/runtime-core/kernel";
+import type { McpRuntimeToolSnapshot, McpRuntimeToolView } from "@567agent/runtime-mcp";
 import type {
 	AgentPluginContinuationInvoker,
 	AgentPluginRuntimeConfig,

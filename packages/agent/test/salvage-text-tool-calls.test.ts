@@ -1,5 +1,5 @@
+import type { AssistantMessage, Tool } from "@567agent/ai";
 import { Type } from "@sinclair/typebox";
-import type { AssistantMessage, Tool } from "@vetta/ai";
 import { describe, expect, it } from "vitest";
 import { salvageTextToolCalls } from "../src/salvage-text-tool-calls.js";
 

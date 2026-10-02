@@ -1,4 +1,4 @@
-import type { AssistantMessage, Context, Tool } from "@vetta/ai";
+import type { AssistantMessage, Context, Tool } from "@567agent/ai";
 import type { AgentObservationUpdate } from "../telemetry.js";
 import type { AgentContext, AgentLoopConfig, AgentMessage, AgentTool, AgentToolResult } from "../types.js";
 

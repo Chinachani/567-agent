@@ -1,7 +1,7 @@
-import type { AgentMessage } from "@vetta/agent-core";
-import type { Message } from "@vetta/ai";
-import type { RuntimeMessageEnvelope } from "@vetta/runtime-core";
-import type { ModelCallContextTransformationInput } from "@vetta/runtime-core/kernel";
+import type { AgentMessage } from "@567agent/agent-core";
+import type { Message } from "@567agent/ai";
+import type { RuntimeMessageEnvelope } from "@567agent/runtime-core";
+import type { ModelCallContextTransformationInput } from "@567agent/runtime-core/kernel";
 import { convertToLlm, createCustomMessage } from "../../model-context/index.js";
 import type { CodingAgentContextRuntimeOptions, CodingAgentPinnedModelContext } from "../../runtime-contracts/index.js";
 import { estimateContextTokens, microcompact, reduceContextByPressure } from "../index.js";

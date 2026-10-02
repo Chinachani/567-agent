@@ -1,0 +1,53 @@
+{
+	"name": "@567agent/plugin-sdk",
+	"version": "0.3.7",
+	"type": "module",
+	"description": "567 Agent public entry for @vetta-org/plugin-sdk; shared runtime identity is preserved.",
+	"main": "./dist/index.js",
+	"types": "./dist/index.d.ts",
+	"exports": {
+		".": {
+			"types": "./dist/index.d.ts",
+			"import": "./dist/index.js"
+		},
+		"./manifest": {
+			"types": "./dist/manifest.d.ts",
+			"import": "./dist/manifest.js"
+		},
+		"./npm-package": {
+			"types": "./dist/npm-package.d.ts",
+			"import": "./dist/npm-package.js"
+		},
+		"./logger": {
+			"types": "./dist/logger.d.ts",
+			"import": "./dist/logger.js"
+		},
+		"./tailwind-theme.css": "./dist/tailwind-theme.css"
+	},
+	"license": "Apache-2.0",
+	"files": [
+		"dist",
+		"README.md",
+		"LICENSE",
+		"NOTICE"
+	],
+	"scripts": {
+		"build": "node ../../../scripts/generate-npm-compat.mjs plugin-sdk",
+		"prepack": "node ../../../scripts/generate-npm-compat.mjs plugin-sdk"
+	},
+	"dependencies": {
+		"@vetta-org/plugin-sdk": "0.3.7"
+	},
+	"peerDependencies": {
+		"react": "^19.0.0"
+	},
+	"peerDependenciesMeta": {
+		"react": {
+			"optional": true
+		}
+	},
+	"publishConfig": {
+		"access": "public",
+		"registry": "https://registry.npmjs.org/"
+	}
+}

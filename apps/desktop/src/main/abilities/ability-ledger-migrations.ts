@@ -1,4 +1,4 @@
-import { migrateVersionedConfig, type VersionedConfigMigrationResult } from "@vetta/toolkit/versioned-config";
+import { migrateVersionedConfig, type VersionedConfigMigrationResult } from "@567agent/toolkit/versioned-config";
 
 export const ABILITY_LEDGER_SCHEMA_VERSION = 2;
 

@@ -1,4 +1,4 @@
-import { defineRuntimeObservation, type RuntimeAssemblyOperation } from "@vetta/runtime-core";
+import { defineRuntimeObservation, type RuntimeAssemblyOperation } from "@567agent/runtime-core";
 
 export type CodingAgentSessionInitializationStage =
 	| "ownership"

@@ -55,7 +55,7 @@ describe("createVettaPluginPackage", () => {
 			"locales/en.json",
 			"plugin.json",
 		]);
-		expect(result.outputPath).toBe(join(rootDir, "release", "pack-test-0.1.0.vettapkg"));
+		expect(result.outputPath).toBe(join(rootDir, "release", "pack-test-0.1.0.567plugin"));
 	});
 
 	it("packages ability details and presentation files", async () => {
@@ -137,6 +137,6 @@ describe("createVettaPluginPackage", () => {
 		});
 
 		await expect(createVettaPluginPackage({ rootDir })).rejects.toThrow('requires "agent.tools.control"');
-		await expect(readFile(join(rootDir, "release", "permission-test-1.0.0.vettapkg"))).rejects.toThrow();
+		await expect(readFile(join(rootDir, "release", "permission-test-1.0.0.567plugin"))).rejects.toThrow();
 	});
 });

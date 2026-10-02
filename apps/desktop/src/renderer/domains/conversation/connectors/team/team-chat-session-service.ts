@@ -1,11 +1,11 @@
-import type { DesktopTeamSessionSnapshot } from "@preload/api-types/team-conversation-display";
 import type {
 	AgentTeamDocument,
 	TeamSessionListItem,
 	TeamSessionReference,
 	TeamSessionWorkspaceSelection,
-} from "@vetta/agent-team";
-import type { SessionExecutionMode } from "@vetta/runtime-core";
+} from "@567agent/agent-team";
+import type { SessionExecutionMode } from "@567agent/runtime-core";
+import type { DesktopTeamSessionSnapshot } from "@preload/api-types/team-conversation-display";
 
 const SESSION_STORAGE_PREFIX = "vetta.agent-team.session.";
 const pendingSessionCreations = new Map<string, Promise<LoadedTeamChatSession>>();

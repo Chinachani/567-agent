@@ -2,8 +2,8 @@ import type {
 	ConversationDocument,
 	RuntimeCustomEntryInput,
 	RuntimeDocumentParticipantContext,
-} from "@vetta/runtime-core";
-import type { SubagentStatus } from "@vetta/runtime-subagents";
+} from "@567agent/runtime-core";
+import type { SubagentStatus } from "@567agent/runtime-subagents";
 import { describe, expect, it, vi } from "vitest";
 import {
 	CODING_AGENT_SUBAGENT_STATE_CUSTOM_TYPE,

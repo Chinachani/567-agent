@@ -7,7 +7,7 @@ vi.mock("../logger.js", () => ({
 	getAppLogger: () => ({ debug: vi.fn(), error: vi.fn(), info: vi.fn(), warn: vi.fn() }),
 }));
 
-import type { TeamSessionDocument } from "@vetta/agent-team";
+import type { TeamSessionDocument } from "@567agent/agent-team";
 import { createLegacyTeamSessionRepository } from "./team-session-repository.js";
 
 const temporaryDirectories: string[] = [];

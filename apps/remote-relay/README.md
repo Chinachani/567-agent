@@ -1,6 +1,6 @@
-# Vetta Remote Relay
+# 567 Agent Remote Relay
 
-Cloudflare Worker and Durable Object implementation for relaying the Vetta remote-control protocol between one mobile client and one desktop client.
+Cloudflare Worker and Durable Object implementation for relaying the 567 Agent remote-control protocol between one mobile client and one desktop client.
 
 ## Security model
 

@@ -164,7 +164,7 @@ scripts/preflight.sh
 | `Stop` | 无 | `check-wave-gate-handoff.sh` | 返回 `decision: "block"`，要求主代理检查未交接任务 |
 | `Stop` | 无 | `set-session-title.sh` | 直接向 Claude transcript 追加自定义标题事件 |
 
-CDT 的 `Stop` 兼容尤其需要谨慎：Vetta 必须在 Hook 阻止停止后继续模型循环，并在重入时发送 `stop_hook_active: true`。否则同一个 Hook 会反复阻止停止。`set-session-title.sh` 直接依赖 Claude transcript JSONL 私有格式，不能在 Vetta 中原样视为有效功能；应诊断为“脚本可执行，但目标 transcript 协议不兼容”，未来改用 Vetta 会话标题 API。
+CDT 的 `Stop` 兼容尤其需要谨慎：Vetta 必须在 Hook 阻止停止后继续模型循环，并在重入时发送 `stop_hook_active: true`。否则同一个 Hook 会反复阻止停止。`set-session-title.sh` 直接依赖 Claude transcript JSONL 私有格式，不能在 Vetta 中原样视为有效功能；应诊断为“脚本可执行，但目标 transcript 协议不兼容”，未来改用 567 Agent 会话标题 API。
 
 ## Vetta 首期兼容范围
 

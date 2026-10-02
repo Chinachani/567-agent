@@ -1,4 +1,4 @@
-import { CapabilityHub } from "@vetta/capability-runtime";
+import { CapabilityHub } from "@567agent/capability-runtime";
 import {
 	type BrowserRuntimeStatus,
 	CAPABILITY_ERROR_CODES,

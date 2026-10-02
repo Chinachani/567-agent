@@ -1,5 +1,5 @@
-import type { AgentBlueprint, AgentTeamDocument, TeamDefinition } from "@vetta/agent-team";
-import { createAgentTeamFixture, pluginBlueprintId } from "@vetta/agent-team";
+import type { AgentBlueprint, AgentTeamDocument, TeamDefinition } from "@567agent/agent-team";
+import { createAgentTeamFixture, pluginBlueprintId } from "@567agent/agent-team";
 import { describe, expect, it } from "vitest";
 import {
 	type PluginPresetDeclarations,

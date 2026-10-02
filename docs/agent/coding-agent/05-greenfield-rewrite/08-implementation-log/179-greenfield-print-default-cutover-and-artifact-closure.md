@@ -31,7 +31,7 @@ Legacy `SessionManager` 在没有 `--session-dir` 时会按 cwd 计算默认目�
 - 显式目录原样优先。
 - 未提供目录时沿用既有 cwd 安全编码和 Coding Agent sessions 根目录。
 - 负责创建解析后的默认目录。
-- 通过 `@vetta/coding-agent/bootstrap` 暴露给 CLI Composition Root。
+- 通过 `@567agent/coding-agent/bootstrap` 暴露给 CLI Composition Root。
 
 Legacy `getDefaultSessionDir()` 改为委托该策略，因此旧新 Runtime 不再各自维护默认目录规则。
 

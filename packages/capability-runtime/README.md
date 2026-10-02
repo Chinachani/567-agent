@@ -1,4 +1,4 @@
-# @vetta/capability-runtime
+# @567agent/capability-runtime
 
 Host-side capability registries, provider routing, exact Capability ID grants, access sessions, constraints, and audit hooks.
 

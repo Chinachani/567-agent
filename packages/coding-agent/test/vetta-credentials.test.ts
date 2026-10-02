@@ -6,7 +6,7 @@ import {
 	normalizeVettaBaseUrl,
 	vettaApiUrl,
 	vettaCredentialsPath,
-} from "@vetta/runtime-node/mcp";
+} from "@567agent/runtime-node/mcp";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 
 const ENV_KEYS = ["VETTA_HOME", "VETTA_API_TOKEN", "VETTA_API_BASE_URL", "VETTA_SERVER_URL"] as const;

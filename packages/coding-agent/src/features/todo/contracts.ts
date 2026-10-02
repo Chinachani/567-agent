@@ -41,4 +41,4 @@ export interface CodingAgentTodoRuntime extends RuntimeDocumentParticipant {
 	dispose(): Promise<void>;
 }
 
-import type { RuntimeDocumentParticipant } from "@vetta/runtime-core";
+import type { RuntimeDocumentParticipant } from "@567agent/runtime-core";

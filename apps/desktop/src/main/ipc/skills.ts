@@ -3,7 +3,7 @@ import { cpSync, existsSync, readdirSync, readFileSync, statSync, writeFileSync 
 import { mkdir, rm, writeFile } from "node:fs/promises";
 import { homedir } from "node:os";
 import { dirname, join, sep } from "node:path";
-import { getVettaHomePath } from "@vetta/action-rpc";
+import { getVettaHomePath } from "@567agent/action-rpc";
 import AdmZip from "adm-zip";
 import { ipcMain } from "electron";
 import { recordAbilityInstall } from "../abilities/ability-ledger.js";

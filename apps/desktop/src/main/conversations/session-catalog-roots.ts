@@ -1,6 +1,6 @@
 import { join } from "node:path";
-import { codingAgentSessionShardPath } from "@vetta/coding-agent/bootstrap";
-import type { RuntimeConversationSessionRoot } from "@vetta/runtime-node/conversation";
+import { codingAgentSessionShardPath } from "@567agent/coding-agent/bootstrap";
+import type { RuntimeConversationSessionRoot } from "@567agent/runtime-node/conversation";
 import {
 	DEFAULT_CONVERSATION_CWD,
 	DEFAULT_CONVERSATION_SESSION_DIR,

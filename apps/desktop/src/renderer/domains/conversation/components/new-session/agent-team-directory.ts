@@ -1,5 +1,5 @@
+import type { AgentTeamDocument } from "@567agent/agent-team";
 import { useLocalizedAgentTeamDocument } from "@shared/agent-teams/agent-team-localization";
-import type { AgentTeamDocument } from "@vetta/agent-team";
 import { useEffect, useState } from "react";
 
 /**

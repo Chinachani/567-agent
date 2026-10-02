@@ -124,7 +124,7 @@ export function stagedFiles(gitImpl = git) {
 	return out.split("\0").filter(Boolean);
 }
 
-export function changedFiles(baseRef = "origin/dev", gitImpl = git) {
+export function changedFiles(baseRef = "origin/main", gitImpl = git) {
 	const mergeBase = gitImpl(["merge-base", "HEAD", baseRef]);
 	const committed = gitImpl(["diff", "--name-only", "-z", `${mergeBase}...HEAD`]);
 	const workingTree = gitImpl(["diff", "--name-only", "-z", "HEAD"]);
@@ -137,7 +137,7 @@ export function changedFiles(baseRef = "origin/dev", gitImpl = git) {
 		.sort();
 }
 
-export function parseBaseArgs(args, defaultBase = "origin/dev") {
+export function parseBaseArgs(args, defaultBase = "origin/main") {
 	let base = defaultBase;
 	for (let i = 0; i < args.length; i++) {
 		const arg = args[i];
@@ -174,7 +174,7 @@ export function normalizeRepoPath(input, root = repoRoot) {
 }
 
 /** Parse a Git base plus optional task-owned files for changed-file quality commands. */
-export function parseFileSelectionArgs(args, defaultBase = "origin/dev", root = repoRoot) {
+export function parseFileSelectionArgs(args, defaultBase = "origin/main", root = repoRoot) {
 	let base = defaultBase;
 	const files = [];
 	for (let i = 0; i < args.length; i += 1) {

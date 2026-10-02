@@ -1,10 +1,10 @@
-# @vetta/ecosystem-adapter
+# @567agent/ecosystem-adapter
 
 外部 Agent 生态兼容层。包内的通用能力与具体生态 profile 分离：
 
-- `@vetta/ecosystem-adapter/hooks`：Hook 领域模型、调度器和命令执行器。
-- `@vetta/ecosystem-adapter/codex/hooks`：版本化 Codex Hook 配置与协议语义。
-- `@vetta/ecosystem-adapter/claude-code/hooks`：版本化 Claude Code Hook 配置与协议语义。
+- `@567agent/ecosystem-adapter/hooks`：Hook 领域模型、调度器和命令执行器。
+- `@567agent/ecosystem-adapter/codex/hooks`：版本化 Codex Hook 配置与协议语义。
+- `@567agent/ecosystem-adapter/claude-code/hooks`：版本化 Claude Code Hook 配置与协议语义。
 
 根导出提供 `createEcosystemHookRuntime()`。运行时只依赖 `EcosystemHookAdapter` 接口，负责统一的 session/turn 状态、多 adapter 聚合和 Stop 安全阀；默认注册 Codex 与 Claude 两个 adapter。通过 `adapterFactories` 可替换默认集合，通过 `additionalAdapterFactories` 可追加其他生态实现，调用方生命周期无需增加新的 `xxHooks` 字段。
 
@@ -16,13 +16,13 @@ Claude Code profile 固定为 `claude-code-hooks/2.1.211`。它复用通用 disp
 
 **Codex**
 
-1. `~/.vetta/.codex/hooks.json`（`VETTA_HOME` 可覆盖 vetta 根）
-2. `<cwd>/.vetta/.codex/hooks.json`
+1. `~/.567agent/.codex/hooks.json`（`VETTA_HOME` 可覆盖 vetta 根）
+2. `<cwd>/.567agent/.codex/hooks.json`
 
 **Claude Code**
 
-1. `~/.vetta/.claude/settings.json`（`"hooks"` 字段）
-2. `<cwd>/.vetta/.claude/settings.json`、`<cwd>/.vetta/.claude/settings.local.json`
+1. `~/.567agent/.claude/settings.json`（`"hooks"` 字段）
+2. `<cwd>/.567agent/.claude/settings.json`、`<cwd>/.567agent/.claude/settings.local.json`
 3. 插件：显式 `hooks/hooks.json` + `CLAUDE_PLUGIN_ROOT` 或 `profileId: claude-code-hooks/*`
 
 **不读**顶层 `~/.codex` / `~/.claude` 或项目根 `.codex` / `.claude`，避免加载无关官方 hook。文件格式仍与 [Codex Hooks](https://developers.openai.com/codex/hooks)、[Claude Code Hooks](https://code.claude.com/docs/en/hooks) 一致。缺失文件在 discovery 时静默跳过（ENOENT）。配置只在每个 Agent Session 首次触发 Hook 时加载一次。
@@ -38,5 +38,7 @@ Vitest 安装在 monorepo 根 `devDependencies`；本包只保留 `vitest.config
 ```bash
 bun run test
 # 或指定文件
-bunx vitest --run test/default-hook-config-layers.test.ts
+bun ../../scripts/quality/run-vitest.mjs --run test/default-hook-config-layers.test.ts
 ```
+
+旧 `.vetta` Hook 配置在对应的新 profile 尚未配置时回退读取；新旧配置不会同时执行。显式自定义目录只读取指定位置。

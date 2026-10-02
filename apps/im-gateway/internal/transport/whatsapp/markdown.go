@@ -5,7 +5,7 @@ import (
 	"regexp"
 	"strings"
 
-	"vetta-im-gateway/internal/transport"
+	"github.com/Chinachani/567-agent/apps/im-gateway/internal/transport"
 )
 
 // WhatsApp understands *bold*, _italic_, ~strikethrough~, `inline code` and

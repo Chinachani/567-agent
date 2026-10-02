@@ -5,7 +5,7 @@ import {
 	REMOTE_DESKTOP_PROTOCOL_VERSION,
 	REMOTE_DESKTOP_WEBSOCKET_PROTOCOL,
 	type RemoteDesktopSignal,
-} from "@vetta/remote-desktop/protocol";
+} from "@567agent/remote-desktop/protocol";
 import { relayInfo, relayWarn } from "./relay-log.js";
 import { RoomAuthorization } from "./room-authorization.js";
 

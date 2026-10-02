@@ -76,7 +76,7 @@ Greenfield Host 现在只对 `--resume` 返回 `unsupported-session-selection`�
 - 禁止该文件使用 `LegacyCodingAgentSessionBackend`；
 - 其他 CLI 生产模块仍不能直接导入 Legacy Runtime Adapter。
 
-CLI Vitest 配置补充既有 `@vetta/coding-agent/runtime-host` 公开子路径映射，使测试与生产 package
+CLI Vitest 配置补充既有 `@567agent/coding-agent/runtime-host` 公开子路径映射，使测试与生产 package
 exports 一致。
 
 ### 5. Schema 选择

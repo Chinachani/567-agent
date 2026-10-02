@@ -1,6 +1,6 @@
-# Vetta Docs Site
+# 567 Agent Docs Site
 
-Vetta 的公开产品与开发者文档站，使用 Next.js 和 Fumadocs 构建。
+567 Agent 的公开产品与开发者文档站，使用 Next.js 和 Fumadocs 构建。
 
 ## 内容边界
 
@@ -54,7 +54,7 @@ Fumadocs 搜索索引由站点内容生成，因此需要通过构建后的站�
 多语言实现分为三层，新增语言时不要在组件中添加 `language === ...` 分支：
 
 - Fumadocs 自带的搜索、目录、分页和侧边栏文案在 `lib/i18n.ts` 通过 `defineI18n().translations().extend(uiTranslations())` 注册。
-- Vetta 自定义 UI 文案集中在同一文件的 `messages` 字典中，并通过 `satisfies Record<DocsLanguage, DocsMessages>` 检查每种语言是否补齐。
+- 567 Agent 自定义 UI 文案集中在同一文件的 `messages` 字典中，并通过 `satisfies Record<DocsLanguage, DocsMessages>` 检查每种语言是否补齐。
 - 页面标题、描述和侧边栏名称必须来自对应语言目录的 MDX 与 `meta.json`；不再维护独立的英文标题映射。
 
 新增语言的顺序是：先准备完整的语言目录，再在 `lib/i18n.ts` 注册语言和 locale 元数据，补齐 `messages`、页面 MDX、`meta.json` 和内容检查，最后才将该语言加入公开支持列表。生产环境使用 `fallbackLanguage: null`，缺页直接暴露为不可用，不会混入其他语言内容。

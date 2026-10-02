@@ -2,7 +2,7 @@ import type { FSWatcher } from "node:fs";
 import { watch } from "node:fs";
 import { readdir, stat } from "node:fs/promises";
 import { join, resolve } from "node:path";
-import { resolveNodeConfigurationValue } from "@vetta/runtime-node/host";
+import { resolveNodeConfigurationValue } from "@567agent/runtime-node/host";
 import { BrowserWindow, clipboard, ipcMain } from "electron";
 import type {
 	McpConfigData,

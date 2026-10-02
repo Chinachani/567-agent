@@ -53,7 +53,7 @@ export default definePlugin({
 			name: OPEN_TOOL_ID,
 			label: "Open Cowart canvas",
 			description:
-				"Open the Cowart infinite-canvas (tldraw) activity panel in Vetta Desktop. Use when the user asks to open, launch, or show the Cowart canvas / infinite canvas. Pass the user project directory as projectDir when known; never the plugin install path. Canvas data lives under <projectDir>/canvas. Agent-side IO also uses Cowart MCP tools (get_cowart_canvas_state, insert_cowart_image, …).",
+				"Open the Cowart infinite-canvas (tldraw) activity panel in 567 Agent. Use when the user asks to open, launch, or show the Cowart canvas / infinite canvas. Pass the user project directory as projectDir when known; never the plugin install path. Canvas data lives under <projectDir>/canvas. Agent-side IO also uses Cowart MCP tools (get_cowart_canvas_state, insert_cowart_image, …).",
 			scope_use: ["project", "conversation"],
 			parameters: {
 				type: "object",

@@ -1,4 +1,4 @@
-import type { ConversationDocument, RuntimeMessageEnvelope, RuntimeSessionValueIndex } from "@vetta/runtime-core";
+import type { ConversationDocument, RuntimeMessageEnvelope, RuntimeSessionValueIndex } from "@567agent/runtime-core";
 import type { CodingAgentRuntimeAgentIdentity, CodingAgentRuntimeSessionControls } from "../contracts/index.js";
 import type { CodingAgentSessionHookController, CodingAgentSessionResourceIndexes } from "./resource-lifecycle.js";
 

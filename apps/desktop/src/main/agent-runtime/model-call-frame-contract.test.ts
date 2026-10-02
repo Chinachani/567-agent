@@ -1,19 +1,19 @@
 import { mkdir, mkdtemp, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import type { Api, Model } from "@vetta/ai";
-import { createCodingAgentRuntimeSessionSelection } from "@vetta/coding-agent/composition";
-import { CONFIG_DIR_NAME, ENV_AGENT_DIR, getAgentDir } from "@vetta/coding-agent/config";
+import type { Api, Model } from "@567agent/ai";
+import { createCodingAgentRuntimeSessionSelection } from "@567agent/coding-agent/composition";
+import { CONFIG_DIR_NAME, ENV_AGENT_DIR, getAgentDir } from "@567agent/coding-agent/config";
 import {
 	type CodingAgentPluginRuntimeSource,
 	type CodingAgentRuntimeModelSource,
 	createCodingAgentMcpRuntimeToolSource,
 	createCodingAgentPluginMcpRuntime,
-} from "@vetta/coding-agent/host-services";
-import type { AgentPluginRuntimeConfig } from "@vetta/coding-agent/plugin-runtime";
-import { ALL_SCENARIOS, type ConversationScenario } from "@vetta/coding-agent/profile";
-import { RuntimeHost } from "@vetta/runtime-core";
-import { DesktopRuntimeBackendPool } from "@vetta/runtime-desktop";
+} from "@567agent/coding-agent/host-services";
+import type { AgentPluginRuntimeConfig } from "@567agent/coding-agent/plugin-runtime";
+import { ALL_SCENARIOS, type ConversationScenario } from "@567agent/coding-agent/profile";
+import { RuntimeHost } from "@567agent/runtime-core";
+import { DesktopRuntimeBackendPool } from "@567agent/runtime-desktop";
 import { afterAll, afterEach, beforeAll, describe, expect, it } from "vitest";
 import {
 	type OpenAiResponsesTestServer,

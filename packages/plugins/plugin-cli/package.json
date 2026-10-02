@@ -1,7 +1,7 @@
 {
 	"name": "@vetta-org/plugin-cli",
 	"version": "0.1.7",
-	"description": "Install npm-distributed plugins into Vetta Desktop",
+	"description": "Install npm-distributed plugins into 567 Agent",
 	"type": "module",
 	"main": "./dist/index.js",
 	"types": "./dist/index.d.ts",
@@ -29,7 +29,7 @@
 		"@types/node": "^22.10.5",
 		"@types/npm-package-arg": "^6.1.4",
 		"@vetta-org/plugin-sdk": "workspace:*",
-		"@vetta/action-rpc": "workspace:*",
+		"@567agent/action-rpc": "workspace:*",
 		"npm-package-arg": "^14.0.0",
 		"tar": "^7.5.22",
 		"typescript": "^5.9.2",

@@ -910,7 +910,7 @@ function registerCowartVettaOpenTool(mcpServer) {
     {
       title: "Open Cowart canvas (Vetta)",
       description:
-        "Open/use the Cowart canvas for the active user project in Vetta Desktop. Pass projectDir as the user workspace (not the plugin install directory). Returns canvas storage paths; the host plugin should open the Cowart activity tab. Use other Cowart MCP tools for state and image IO.",
+        "Open/use the Cowart canvas for the active user project in 567 Agent. Pass projectDir as the user workspace (not the plugin install directory). Returns canvas storage paths; the host plugin should open the Cowart activity tab. Use other Cowart MCP tools for state and image IO.",
       inputSchema: {
         projectDir: z.string().trim().optional(),
         canvasDir: z.string().trim().optional(),
@@ -925,7 +925,7 @@ function registerCowartVettaOpenTool(mcpServer) {
             type: "text",
             text: [
               "Cowart is running in Vetta mode (no Codex MCP App widget host).",
-              "Open or focus the Cowart activity tab in Vetta Desktop for the canvas UI.",
+              "Open or focus the Cowart activity tab in 567 Agent for the canvas UI.",
               `projectDir: ${paths.projectDir}`,
               `canvasDir: ${paths.canvasDir}`,
               "Canvas data lives under canvas/pages/<page-id>/cowart-canvas.json",

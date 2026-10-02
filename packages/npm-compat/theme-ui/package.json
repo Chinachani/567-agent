@@ -1,0 +1,172 @@
+{
+	"name": "@567agent/theme-ui",
+	"version": "0.1.1",
+	"type": "module",
+	"description": "567 Agent public entry for @vetta-org/theme-ui; shared runtime identity is preserved.",
+	"main": "./dist/index.js",
+	"types": "./dist/index.d.ts",
+	"exports": {
+		"./markdown": {
+			"types": "./dist/markdown.d.ts",
+			"import": "./dist/markdown.js"
+		},
+		".": {
+			"types": "./dist/index.d.ts",
+			"import": "./dist/index.js"
+		},
+		"./appearance": {
+			"types": "./dist/appearance.d.ts",
+			"import": "./dist/appearance.js"
+		},
+		"./action-approval": {
+			"types": "./dist/action-approval.d.ts",
+			"import": "./dist/action-approval.js"
+		},
+		"./activity": {
+			"types": "./dist/activity.d.ts",
+			"import": "./dist/activity.js"
+		},
+		"./activity/code-preview": {
+			"types": "./dist/activity/code-preview.d.ts",
+			"import": "./dist/activity/code-preview.js"
+		},
+		"./activity/html-preview": {
+			"types": "./dist/activity/html-preview.d.ts",
+			"import": "./dist/activity/html-preview.js"
+		},
+		"./activity/markdown-preview": {
+			"types": "./dist/activity/markdown-preview.d.ts",
+			"import": "./dist/activity/markdown-preview.js"
+		},
+		"./batch-tasks": {
+			"types": "./dist/batch-tasks.d.ts",
+			"import": "./dist/batch-tasks.js"
+		},
+		"./app": {
+			"types": "./dist/app.d.ts",
+			"import": "./dist/app.js"
+		},
+		"./app-boot": {
+			"types": "./dist/app-boot.d.ts",
+			"import": "./dist/app-boot.js"
+		},
+		"./app-shell": {
+			"types": "./dist/app-shell.d.ts",
+			"import": "./dist/app-shell.js"
+		},
+		"./chat": {
+			"types": "./dist/chat.d.ts",
+			"import": "./dist/chat.js"
+		},
+		"./file-preview": {
+			"types": "./dist/file-preview.d.ts",
+			"import": "./dist/file-preview.js"
+		},
+		"./file-explorer": {
+			"types": "./dist/file-explorer.d.ts",
+			"import": "./dist/file-explorer.js"
+		},
+		"./flowing": {
+			"types": "./dist/flowing.d.ts",
+			"import": "./dist/flowing.js"
+		},
+		"./flowing-chat": {
+			"types": "./dist/flowing-chat.d.ts",
+			"import": "./dist/flowing-chat.js"
+		},
+		"./knowledge": {
+			"types": "./dist/knowledge.d.ts",
+			"import": "./dist/knowledge.js"
+		},
+		"./layout": {
+			"types": "./dist/layout.d.ts",
+			"import": "./dist/layout.js"
+		},
+		"./plugin-ui": {
+			"types": "./dist/plugin-ui.d.ts",
+			"import": "./dist/plugin-ui.js"
+		},
+		"./overlays": {
+			"types": "./dist/overlays.d.ts",
+			"import": "./dist/overlays.js"
+		},
+		"./project": {
+			"types": "./dist/project.d.ts",
+			"import": "./dist/project.js"
+		},
+		"./settings": {
+			"types": "./dist/settings.d.ts",
+			"import": "./dist/settings.js"
+		},
+		"./shared": {
+			"types": "./dist/shared.d.ts",
+			"import": "./dist/shared.js"
+		},
+		"./sidebar": {
+			"types": "./dist/sidebar.d.ts",
+			"import": "./dist/sidebar.js"
+		},
+		"./skills": {
+			"types": "./dist/skills.d.ts",
+			"import": "./dist/skills.js"
+		},
+		"./scheduler": {
+			"types": "./dist/scheduler.d.ts",
+			"import": "./dist/scheduler.js"
+		},
+		"./styles.css": "./dist/styles.css"
+	},
+	"license": "Apache-2.0",
+	"files": [
+		"dist",
+		"README.md",
+		"LICENSE",
+		"NOTICE"
+	],
+	"scripts": {
+		"build": "node ../../../scripts/generate-npm-compat.mjs theme-ui",
+		"prepack": "node ../../../scripts/generate-npm-compat.mjs theme-ui"
+	},
+	"dependencies": {
+		"@vetta-org/theme-ui": "0.1.1"
+	},
+	"peerDependencies": {
+		"@xyflow/react": "^12.0.0",
+		"canvas-confetti": "^1.9.0",
+		"motion": "^12.0.0",
+		"react": "^19.0.0",
+		"react-dom": "^19.0.0",
+		"react-markdown": "^10.0.0",
+		"react-virtuoso": "^4.0.0",
+		"remark-gfm": "^4.0.0",
+		"shiki": ">=3.0.0",
+		"three": "^0.185.0"
+	},
+	"peerDependenciesMeta": {
+		"@xyflow/react": {
+			"optional": true
+		},
+		"canvas-confetti": {
+			"optional": true
+		},
+		"react-markdown": {
+			"optional": true
+		},
+		"react-virtuoso": {
+			"optional": true
+		},
+		"remark-gfm": {
+			"optional": true
+		},
+		"shiki": {
+			"optional": true
+		},
+		"three": {
+			"optional": true
+		}
+	},
+	"publishConfig": {
+		"access": "public",
+		"registry": "https://registry.npmjs.org/"
+	}
+}

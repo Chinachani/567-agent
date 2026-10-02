@@ -11,7 +11,7 @@
  */
 
 import { join } from "node:path";
-import * as knowledge from "@vetta/runtime-knowledge";
+import * as knowledge from "@567agent/runtime-knowledge";
 import { getKnowledgeRoot } from "./knowledge-layout.js";
 
 export type KnowledgeProcessStatus = "processed" | "stale" | "failed" | "unprocessed";

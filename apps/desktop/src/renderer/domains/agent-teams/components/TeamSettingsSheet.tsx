@@ -3,7 +3,7 @@ import { ModelSelect } from "@shared/components/ModelSelect";
 import { useModelOptions } from "@shared/components/ModelSelect/useModelOptions";
 import type { TeamMemberModelPreference, TeamMemberModelSelection } from "../../../../shared/agent-team-member-model";
 import { resolveReasoning } from "@shared/components/ModelSelect/resolveReasoning";
-import type { AgentProfile, TeamDefinition, TeamMemberAssignment } from "@vetta/agent-team";
+import type { AgentProfile, TeamDefinition, TeamMemberAssignment } from "@567agent/agent-team";
 import { AgentAvatarView } from "@vetta-org/theme-ui/chat";
 import { DetailDrawer, DetailDrawerEnter } from "@vetta-org/theme-ui/overlays";
 import {

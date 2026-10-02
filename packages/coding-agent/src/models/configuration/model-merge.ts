@@ -1,4 +1,4 @@
-import type { Api, Model, OpenAICompletionsCompat, OpenAIResponsesCompat } from "@vetta/ai";
+import type { Api, Model, OpenAICompletionsCompat, OpenAIResponsesCompat } from "@567agent/ai";
 import {
 	type CodingAgentConfigurationValueResolver,
 	literalCodingAgentConfigurationValueResolver,

@@ -1,5 +1,5 @@
-import type { AgentTeamDocument, TeamSessionWorkspaceSelection, TeamUserMessageMention } from "@vetta/agent-team";
-import type { PromptAttachmentRef, SessionExecutionMode } from "@vetta/runtime-core";
+import type { AgentTeamDocument, TeamSessionWorkspaceSelection, TeamUserMessageMention } from "@567agent/agent-team";
+import type { PromptAttachmentRef, SessionExecutionMode } from "@567agent/runtime-core";
 
 export interface TeamSessionSendHandoff {
 	readonly sessionId: string;

@@ -9,10 +9,10 @@ import (
 	"testing"
 	"time"
 
-	"vetta-im-gateway/internal/command"
-	"vetta-im-gateway/internal/router"
-	"vetta-im-gateway/internal/state"
-	"vetta-im-gateway/internal/transport/mock"
+	"github.com/Chinachani/567-agent/apps/im-gateway/internal/command"
+	"github.com/Chinachani/567-agent/apps/im-gateway/internal/router"
+	"github.com/Chinachani/567-agent/apps/im-gateway/internal/state"
+	"github.com/Chinachani/567-agent/apps/im-gateway/internal/transport/mock"
 )
 
 // TestEndToEnd_MockTransport_HelpCommand wires a mock transport ↔ router ↔

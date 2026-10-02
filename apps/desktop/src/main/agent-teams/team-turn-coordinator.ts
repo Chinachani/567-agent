@@ -17,9 +17,9 @@ import {
 	type TeamWorkItem,
 	teamUserMessageId,
 	validateTeamMessageMentions,
-} from "@vetta/agent-team";
-import type { PromptAttachmentRef, RuntimeHost } from "@vetta/runtime-core";
-import type { SessionContextRecord } from "@vetta/runtime-core/kernel";
+} from "@567agent/agent-team";
+import type { PromptAttachmentRef, RuntimeHost } from "@567agent/runtime-core";
+import type { SessionContextRecord } from "@567agent/runtime-core/kernel";
 import { stopSessionBackgroundWork } from "../agent-runtime/stop-session-work.js";
 import { getAppLogger } from "../logger.js";
 import { resolveTeamMemberModel } from "./resolve-team-member-model.js";

@@ -10,8 +10,8 @@ import {
 	AuthStorage,
 	createCodingAgentHostWithServices,
 	createCodingAgentModelRuntime,
-} from "@vetta/coding-agent/host-services";
-import { NodeTransactionalTextStorage } from "@vetta/runtime-node/host";
+} from "@567agent/coding-agent/host-services";
+import { NodeTransactionalTextStorage } from "@567agent/runtime-node/host";
 
 // The Node host explicitly chooses ~/.vetta/agent/auth.json.
 // CodingAgentModelRuntime loads built-in + custom models from ~/.vetta/agent/models.json

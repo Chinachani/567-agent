@@ -1,5 +1,5 @@
-import { getVettaHomePath } from "@vetta/action-rpc";
-import { runFileMigrations } from "@vetta/toolkit/file-migrations";
+import { getVettaHomePath } from "@567agent/action-rpc";
+import { runFileMigrations } from "@567agent/toolkit/file-migrations";
 import type { getAppLogger } from "../../logger.js";
 import { appMonitorFileMigration000To1 } from "./000_to_1.js";
 import { appMonitorFileMigration001To2 } from "./001_to_2.js";

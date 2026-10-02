@@ -2,13 +2,13 @@
 
 *[中文](./build-modes.md)*
 
-Vetta Desktop ships in two editions, selected by the build-time flag `VETTA_CLOUD_ENABLED`. An unconfigured development session remains serv-less, but **packaging requires an explicit `true` or `false`** so release builds never guess their edition.
+567 Agent ships in two editions, selected by the build-time flag `VETTA_CLOUD_ENABLED`. An unconfigured development session remains serv-less, but **packaging requires an explicit `true` or `false`** so release builds never guess their edition.
 
 | | **open-source (serv-less)** | **commercial (Vetta Serv)** |
 | --- | --- | --- |
 | Flag | `VETTA_CLOUD_ENABLED=false` | `VETTA_CLOUD_ENABLED=true` |
 | Account login / OAuth | ❌ not in the bundle | ✅ |
-| Vetta Go model channel | ❌ | ✅ |
+| 567 Agent Go model channel | ❌ | ✅ |
 | Subscription / credits / quota | ❌ | ✅ |
 | Ability marketplace source | Multiple GitHub sources (environment-configured or user-added) | Cloud marketplace (Vetta Serv); optional GitHub sources |
 | Remote model catalog | ❌ | ✅ |

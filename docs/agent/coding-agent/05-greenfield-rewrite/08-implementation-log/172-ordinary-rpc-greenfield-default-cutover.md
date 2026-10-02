@@ -81,7 +81,7 @@ HTML 导出同样直接消费 V2 `ConversationDocument`，不为了兼容旧导�
 
 - 新增 Greenfield RPC Retry、Bash、统计、AgentMessage 投影、Thinking level 解析与 V2 HTML 导出辅助能力。
 - 公开 RPC 子路径和包入口导出完整 Greenfield Profile 与外围能力。
-- CLI 只消费 Coding Agent 的公开边界，不跨包直接依赖其内部实现，也不把 `@vetta/agent-core` 或 `@vetta/ai` 的类型逻辑复制到宿主层。
+- CLI 只消费 Coding Agent 的公开边界，不跨包直接依赖其内部实现，也不把 `@567agent/agent-core` 或 `@567agent/ai` 的类型逻辑复制到宿主层。
 
 ## TypeBox / Zod 判断
 

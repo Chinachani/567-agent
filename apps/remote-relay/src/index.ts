@@ -1,4 +1,4 @@
-import { REMOTE_DESKTOP_WEBSOCKET_PROTOCOL } from "@vetta/remote-desktop/protocol";
+import { REMOTE_DESKTOP_WEBSOCKET_PROTOCOL } from "@567agent/remote-desktop/protocol";
 import { pairingSecretFromHeaders, parseRelayRoute, sha256 } from "./auth.js";
 import { relayInfo, relayWarn } from "./relay-log.js";
 import { RemoteDesktopRoom } from "./remote-desktop-room.js";

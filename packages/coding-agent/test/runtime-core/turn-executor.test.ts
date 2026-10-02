@@ -1,4 +1,4 @@
-import type { RuntimeSession } from "@vetta/runtime-core";
+import type { RuntimeSession } from "@567agent/runtime-core";
 import { describe, expect, it, vi } from "vitest";
 import {
 	type CodingAgentTurnExecutor,

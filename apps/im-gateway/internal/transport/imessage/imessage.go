@@ -33,8 +33,8 @@ import (
 
 	_ "modernc.org/sqlite"
 
-	"vetta-im-gateway/internal/transport"
-	"vetta-im-gateway/internal/transport/inbox"
+	"github.com/Chinachani/567-agent/apps/im-gateway/internal/transport"
+	"github.com/Chinachani/567-agent/apps/im-gateway/internal/transport/inbox"
 )
 
 // pollQuery selects every message row past the cursor, joined to its

@@ -9,7 +9,7 @@ const PACKAGE_ROOT = "packages/coding-agent";
 const ROOT_ENTRY = `${SOURCE_ROOT}/index.ts`;
 const COMPOSITION_ENTRY = `${SOURCE_ROOT}/composition/index.ts`;
 const HISTORICAL_ROOT = `${SOURCE_ROOT}/sessions/legacy`;
-const PACKAGE_SPECIFIER = "@vetta/coding-agent";
+const PACKAGE_SPECIFIER = "@567agent/coding-agent";
 const RETIRED_LAYER_TERM = String.fromCharCode(112, 114, 111, 100, 117, 99, 116);
 const RETIRED_LAYER_TERM_PATTERN = new RegExp(
 	`\\b${RETIRED_LAYER_TERM}\\b|\\b${RETIRED_LAYER_TERM}[A-Z]|\\b${RETIRED_LAYER_TERM[0].toUpperCase()}${RETIRED_LAYER_TERM.slice(1)}[A-Z]|\\b${RETIRED_LAYER_TERM}[-_]`,
@@ -36,7 +36,7 @@ const COMPOSITION_PUBLIC_SOURCE_ROOTS = Object.freeze([
 	`${SOURCE_ROOT}/sessions/setup/`,
 	`${SOURCE_ROOT}/tool-results/`,
 ]);
-const COMPOSITION_PUBLIC_EXTERNAL_SOURCES = new Set(["@vetta/runtime-storage/conversation"]);
+const COMPOSITION_PUBLIC_EXTERNAL_SOURCES = new Set(["@567agent/runtime-storage/conversation"]);
 const PLATFORM_PERSISTENCE_COMPOSITION_ROOTS = Object.freeze([
 	{
 		path: "apps/cli-host/src/rpc/runtime-host/cli-session-assembly.ts",
@@ -140,7 +140,7 @@ export function findCodingAgentArchitectureViolations(state) {
 		const target = resolveSourceTarget(edge.path, edge.specifier);
 		if (
 			isAdapterPath(edge.path) &&
-			(edge.specifier.startsWith("node:") || edge.specifier.startsWith("@vetta/runtime-node"))
+			(edge.specifier.startsWith("node:") || edge.specifier.startsWith("@567agent/runtime-node"))
 		) {
 			violations.push(
 				`${edge.path}:${edge.line}: Adapter must consume platform-neutral facts, not a Node implementation`,
@@ -171,7 +171,7 @@ export function findCodingAgentArchitectureViolations(state) {
 		}
 		if (
 			edge.path.startsWith(`${HISTORICAL_ROOT}/`) &&
-			(edge.specifier.startsWith("node:") || edge.specifier.startsWith("@vetta/runtime-node"))
+			(edge.specifier.startsWith("node:") || edge.specifier.startsWith("@567agent/runtime-node"))
 		) {
 			violations.push(
 				`${edge.path}:${edge.line}: historical format policy must consume host-provided file operations`,
@@ -255,7 +255,7 @@ function checkPortableProductDomainBoundary(state, violations) {
 	for (const edge of state.edges) {
 		if (
 			portableRoots.some((root) => edge.path.startsWith(root)) &&
-			(edge.specifier.startsWith("node:") || edge.specifier.startsWith("@vetta/runtime-node"))
+			(edge.specifier.startsWith("node:") || edge.specifier.startsWith("@567agent/runtime-node"))
 		) {
 			violations.push(`${edge.path}:${edge.line}: portable product domain must consume host-provided capabilities`);
 		}
@@ -285,7 +285,7 @@ function checkPortableProductDomainBoundary(state, violations) {
 			state.edges.some(
 				(edge) =>
 					edge.path === productIdentity.path &&
-					(edge.specifier.startsWith("node:") || edge.specifier.startsWith("@vetta/runtime-node")),
+					(edge.specifier.startsWith("node:") || edge.specifier.startsWith("@567agent/runtime-node")),
 			))
 	) {
 		violations.push(`${productIdentity.path}: identity must remain portable and side-effect free`);
@@ -417,7 +417,7 @@ function checkBootstrapBoundary(state, violations) {
 	for (const edge of state.edges) {
 		if (
 			edge.path.startsWith(bootstrapRoot) &&
-			(edge.specifier.startsWith("node:") || edge.specifier.startsWith("@vetta/runtime-node"))
+			(edge.specifier.startsWith("node:") || edge.specifier.startsWith("@567agent/runtime-node"))
 		) {
 			violations.push(`${edge.path}:${edge.line}: Coding Agent Bootstrap must not select a Node implementation`);
 		}
@@ -469,7 +469,7 @@ function checkToolResultArtifactBoundary(state, violations) {
 	for (const edge of state.edges) {
 		if (
 			edge.path === policyPath &&
-			(edge.specifier.startsWith("node:") || edge.specifier.startsWith("@vetta/runtime-node"))
+			(edge.specifier.startsWith("node:") || edge.specifier.startsWith("@567agent/runtime-node"))
 		) {
 			violations.push(`${edge.path}:${edge.line}: Tool Result policy must consume an Artifact Store contract`);
 		}
@@ -539,7 +539,7 @@ function checkResourceAccessBoundary(state, violations) {
 	for (const edge of state.edges) {
 		if (
 			portableResourcePaths.has(edge.path) &&
-			(edge.specifier.startsWith("node:") || edge.specifier.startsWith("@vetta/runtime-node"))
+			(edge.specifier.startsWith("node:") || edge.specifier.startsWith("@567agent/runtime-node"))
 		) {
 			violations.push(
 				`${edge.path}:${edge.line}: portable resource access must consume ResourceAccessPort, not a Node implementation`,
@@ -610,7 +610,7 @@ function checkExecutionModeHostBoundary(state, violations) {
 		if (edge.path.startsWith(sandboxPolicyRoot) && edge.specifier.startsWith("node:")) {
 			violations.push(`${edge.path}:${edge.line}: OS sandbox implementation belongs to runtime-node`);
 		}
-		if (edge.path.startsWith(sandboxPolicyRoot) && edge.specifier.startsWith("@vetta/runtime-node")) {
+		if (edge.path.startsWith(sandboxPolicyRoot) && edge.specifier.startsWith("@567agent/runtime-node")) {
 			violations.push(`${edge.path}:${edge.line}: sandbox policy must consume injected Host Services`);
 		}
 	}
@@ -638,7 +638,7 @@ function checkWorkspaceFactsBoundary(state, violations) {
 	for (const edge of state.edges) {
 		if (
 			productPaths.has(edge.path) &&
-			(edge.specifier.startsWith("node:") || edge.specifier.startsWith("@vetta/runtime-node"))
+			(edge.specifier.startsWith("node:") || edge.specifier.startsWith("@567agent/runtime-node"))
 		) {
 			violations.push(
 				`${edge.path}:${edge.line}: Workspace facts product policy must consume host-provided facts or file access`,
@@ -678,7 +678,7 @@ function checkModelInputImageBoundary(state, violations) {
 	for (const edge of state.edges) {
 		if (
 			portablePaths.has(edge.path) &&
-			(edge.specifier.startsWith("node:") || edge.specifier.startsWith("@vetta/runtime-node"))
+			(edge.specifier.startsWith("node:") || edge.specifier.startsWith("@567agent/runtime-node"))
 		) {
 			violations.push(`${edge.path}:${edge.line}: Model input image policy must consume a host-provided processor`);
 		}
@@ -708,7 +708,7 @@ function checkModelDomainBoundary(state, violations) {
 	for (const edge of state.edges) {
 		if (
 			edge.path.startsWith(modelRoot) &&
-			(edge.specifier.startsWith("node:") || edge.specifier.startsWith("@vetta/runtime-node"))
+			(edge.specifier.startsWith("node:") || edge.specifier.startsWith("@567agent/runtime-node"))
 		) {
 			violations.push(`${edge.path}:${edge.line}: Model product policy must consume host-provided state`);
 		}
@@ -737,7 +737,7 @@ function checkHtmlExportBoundary(state, violations) {
 	for (const edge of state.edges) {
 		if (
 			edge.path.startsWith(exportRoot) &&
-			(edge.specifier.startsWith("node:") || edge.specifier.startsWith("@vetta/runtime-node"))
+			(edge.specifier.startsWith("node:") || edge.specifier.startsWith("@567agent/runtime-node"))
 		) {
 			violations.push(`${edge.path}:${edge.line}: HTML export product logic must consume host file adapters`);
 		}
@@ -761,7 +761,7 @@ function checkThemeDomainBoundary(state, violations) {
 	for (const edge of state.edges) {
 		if (
 			edge.path.startsWith(themeRoot) &&
-			(edge.specifier.startsWith("node:") || edge.specifier.startsWith("@vetta/runtime-node"))
+			(edge.specifier.startsWith("node:") || edge.specifier.startsWith("@567agent/runtime-node"))
 		) {
 			violations.push(
 				`${edge.path}:${edge.line}: Theme product policy must consume host-provided environment ports`,
@@ -812,7 +812,7 @@ function checkExtensionModuleBoundary(state, violations) {
 	for (const edge of state.edges) {
 		if (
 			edge.path.startsWith(`${SOURCE_ROOT}/extensions/`) &&
-			(edge.specifier.startsWith("node:") || edge.specifier.startsWith("@vetta/runtime-node"))
+			(edge.specifier.startsWith("node:") || edge.specifier.startsWith("@567agent/runtime-node"))
 		) {
 			violations.push(`${edge.path}:${edge.line}: Extension semantics must not depend on Node implementations`);
 		}
@@ -910,7 +910,7 @@ function checkKnowledgeRuntimeBoundary(state, violations) {
 	for (const edge of state.edges) {
 		if (
 			edge.path.startsWith(featureRoot) &&
-			(edge.specifier.startsWith("node:") || edge.specifier.startsWith("@vetta/runtime-node"))
+			(edge.specifier.startsWith("node:") || edge.specifier.startsWith("@567agent/runtime-node"))
 		) {
 			violations.push(`${edge.path}:${edge.line}: Knowledge Feature must consume portable operations`);
 		}
@@ -956,7 +956,7 @@ function checkKnowledgeRuntimeBoundary(state, violations) {
 		const importsFactory = state.edges.some(
 			(edge) =>
 				edge.path === path &&
-				edge.specifier === "@vetta/runtime-node/host" &&
+				edge.specifier === "@567agent/runtime-node/host" &&
 				edge.names.includes("createNodeKnowledgeRuntime"),
 		);
 		if (!importsFactory || !/\bknowledgeRuntime\s*:/.test(file.text)) {
@@ -974,7 +974,7 @@ function checkMemoryRuntimeBoundary(state, violations) {
 	for (const edge of state.edges) {
 		if (
 			edge.path.startsWith(memoryRoot) &&
-			(edge.specifier.startsWith("node:") || edge.specifier.startsWith("@vetta/runtime-node"))
+			(edge.specifier.startsWith("node:") || edge.specifier.startsWith("@567agent/runtime-node"))
 		) {
 			violations.push(`${edge.path}:${edge.line}: Memory semantics must consume portable storage ports`);
 		}
@@ -1013,7 +1013,7 @@ function checkMemoryRuntimeBoundary(state, violations) {
 		const importsStorage = state.edges.some(
 			(edge) =>
 				edge.path === path &&
-				edge.specifier === "@vetta/runtime-node/host" &&
+				edge.specifier === "@567agent/runtime-node/host" &&
 				edge.names.includes("NodeTextFileStorage"),
 		);
 		if (!importsStorage || !/\bcreateMemoryRolloverRuntime\s*:/.test(file.text)) {
@@ -1030,7 +1030,7 @@ function checkAskUserQuestionToolOwnership(state, violations) {
 	for (const edge of state.edges) {
 		if (
 			edge.path.startsWith(featureRoot) &&
-			(edge.specifier.startsWith("node:") || edge.specifier.startsWith("@vetta/runtime-node"))
+			(edge.specifier.startsWith("node:") || edge.specifier.startsWith("@567agent/runtime-node"))
 		) {
 			violations.push(`${edge.path}:${edge.line}: Ask User Question Feature must consume portable Runtime ports`);
 		}
@@ -1062,7 +1062,7 @@ function checkInvokeSkillToolOwnership(state, violations) {
 	for (const edge of state.edges) {
 		if (
 			edge.path.startsWith(skillRoot) &&
-			(edge.specifier.startsWith("node:") || edge.specifier.startsWith("@vetta/runtime-node"))
+			(edge.specifier.startsWith("node:") || edge.specifier.startsWith("@567agent/runtime-node"))
 		) {
 			violations.push(`${edge.path}:${edge.line}: Skill semantics must consume portable Runtime and resource ports`);
 		}
@@ -1117,7 +1117,7 @@ function checkSubagentControlToolOwnership(state, violations) {
 	for (const edge of state.edges) {
 		if (
 			edge.path.startsWith(productToolRoot) &&
-			(edge.specifier.startsWith("node:") || edge.specifier.startsWith("@vetta/runtime-node"))
+			(edge.specifier.startsWith("node:") || edge.specifier.startsWith("@567agent/runtime-node"))
 		) {
 			violations.push(`${edge.path}:${edge.line}: Subagent control Tools must consume portable Runtime Ports`);
 		}
@@ -1161,11 +1161,11 @@ function checkPortableProductToolOwnership(state, violations) {
 	for (const edge of state.edges) {
 		if (
 			featureRoots.some((root) => edge.path.startsWith(root)) &&
-			(edge.specifier.startsWith("node:") || edge.specifier.startsWith("@vetta/runtime-node"))
+			(edge.specifier.startsWith("node:") || edge.specifier.startsWith("@567agent/runtime-node"))
 		) {
 			violations.push(`${edge.path}:${edge.line}: portable Coding Agent Tool Features must consume Runtime ports`);
 		}
-		if (portableProductCompositionPaths.has(edge.path) && edge.specifier.startsWith("@vetta/runtime-node")) {
+		if (portableProductCompositionPaths.has(edge.path) && edge.specifier.startsWith("@567agent/runtime-node")) {
 			violations.push(
 				`${edge.path}:${edge.line}: Coding Agent product Tool composition must consume host factories`,
 			);
@@ -1249,7 +1249,7 @@ function checkRpcHostBoundary(state, violations) {
 		const importsPort = state.edges.some(
 			(edge) =>
 				edge.path === nodeClientTransportPath &&
-				edge.specifier === "@vetta/coding-agent/rpc" &&
+				edge.specifier === "@567agent/coding-agent/rpc" &&
 				edge.names.includes("RpcClientTransport"),
 		);
 		if (!importsPort || !/implements\s+RpcClientTransport/.test(nodeClientTransport.text)) {
@@ -1266,7 +1266,7 @@ function checkSdkSessionIdentityRuntimeBoundary(state, violations) {
 	for (const edge of state.edges) {
 		if (
 			edge.path === runtimeFactoryPath &&
-			(edge.specifier.startsWith("node:") || edge.specifier.startsWith("@vetta/runtime-node"))
+			(edge.specifier.startsWith("node:") || edge.specifier.startsWith("@567agent/runtime-node"))
 		) {
 			violations.push(`${edge.path}:${edge.line}: SDK Session factory must consume an identity runtime Port`);
 		}
@@ -1291,7 +1291,7 @@ function checkSdkSessionIdentityRuntimeBoundary(state, violations) {
 		for (const edge of state.edges) {
 			if (
 				edge.path === sessionHostPath &&
-				(edge.specifier.startsWith("node:") || edge.specifier.startsWith("@vetta/runtime-node"))
+				(edge.specifier.startsWith("node:") || edge.specifier.startsWith("@567agent/runtime-node"))
 			) {
 				violations.push(`${edge.path}:${edge.line}: public SDK mapping must not select Node implementations`);
 			}
@@ -1340,20 +1340,20 @@ function checkToolEnvironmentBoundary(state, violations) {
 		}
 	}
 	for (const edge of state.edges) {
-		if (edge.path === toolCompositionPath && edge.specifier === "@vetta/runtime-node/coding") {
+		if (edge.path === toolCompositionPath && edge.specifier === "@567agent/runtime-node/coding") {
 			violations.push(
 				`${edge.path}:${edge.line}: Coding Agent tool composition must consume ToolEnvironment, not Node tools`,
 			);
 		}
 		if (
 			edge.path.startsWith(pathPolicyRoot) &&
-			(edge.specifier.startsWith("node:") || edge.specifier.startsWith("@vetta/runtime-node"))
+			(edge.specifier.startsWith("node:") || edge.specifier.startsWith("@567agent/runtime-node"))
 		) {
 			violations.push(`${edge.path}:${edge.line}: Coding Agent path policy must consume Host path boundaries`);
 		}
 		if (
 			(edge.path === sessionExecutionPath || edge.path === sandboxRegistrationPath) &&
-			(edge.specifier.startsWith("node:") || edge.specifier.startsWith("@vetta/runtime-node"))
+			(edge.specifier.startsWith("node:") || edge.specifier.startsWith("@567agent/runtime-node"))
 		) {
 			violations.push(`${edge.path}:${edge.line}: Session execution must consume its Host environment Port`);
 		}
@@ -1411,7 +1411,7 @@ function checkPromptRequestAdapterBoundary(state, violations) {
 			edge.path === adapterPath &&
 			(edge.specifier.startsWith("../../plugins/") ||
 				edge.specifier.startsWith("../../extensions/") ||
-				edge.specifier.startsWith("@vetta/ecosystem-adapter"))
+				edge.specifier.startsWith("@567agent/ecosystem-adapter"))
 		) {
 			violations.push(`${edge.path}:${edge.line}: Prompt request Adapter must delegate domain policy`);
 		}
@@ -1438,7 +1438,7 @@ function checkNodeStateBackendBoundary(state, violations) {
 	for (const edge of state.edges) {
 		if (
 			edge.path.startsWith(`${SOURCE_ROOT}/settings/`) &&
-			(edge.specifier.startsWith("node:") || edge.specifier.startsWith("@vetta/runtime-node"))
+			(edge.specifier.startsWith("node:") || edge.specifier.startsWith("@567agent/runtime-node"))
 		) {
 			violations.push(
 				`${edge.path}:${edge.line}: Settings semantics must consume SettingsStoragePort, not a Node backend`,
@@ -1455,7 +1455,7 @@ function checkCodingAgentCompositionPersistenceBoundary(state, violations) {
 	for (const edge of state.edges) {
 		if (
 			edge.path.startsWith(`${SOURCE_ROOT}/composition/`) &&
-			edge.specifier === "@vetta/runtime-node/conversation"
+			edge.specifier === "@567agent/runtime-node/conversation"
 		) {
 			violations.push(
 				`${edge.path}:${edge.line}: Coding Agent Composition must consume a persistence Port, not a Node implementation`,
@@ -1478,7 +1478,7 @@ function checkPlatformPersistenceCompositionRoots(state, violations) {
 		const importsFactory = state.edges.some(
 			(edge) =>
 				edge.path === requirement.path &&
-				edge.specifier === "@vetta/runtime-node/conversation" &&
+				edge.specifier === "@567agent/runtime-node/conversation" &&
 				edge.names.includes(requirement.factory),
 		);
 		if (!importsFactory) {
@@ -1647,7 +1647,7 @@ function readCurrentInput() {
 		.filter(
 			(file) =>
 				!file.path.startsWith(`${PACKAGE_ROOT}/`) &&
-				(file.text.includes("@vetta/coding-agent") ||
+				(file.text.includes("@567agent/coding-agent") ||
 					file.path === "packages/runtime-node/src/coding/index.ts" ||
 					file.path.startsWith("packages/runtime-node/src/coding/tools/kb-")),
 		);

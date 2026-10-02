@@ -1,10 +1,10 @@
 # 快速开始
 
-从零搭建、构建、安装、调试一个 Vetta 桌面插件。
+从零搭建、构建、安装、调试一个 567 Agent 桌面插件。
 
 ## 0. 在仓库外开发（推荐给 Agent）
 
-你不需要 Vetta 的源码仓库，也不需要插件工作台。任意空目录里：
+你不需要 567 Agent 的源码仓库，也不需要插件工作台。任意空目录里：
 
 ```bash
 npx @vetta-org/plugin-cli init --id my-plugin --name "My Plugin"
@@ -26,7 +26,7 @@ SDK 版本。这条命令按 Node 的解析规则找，拿回来的永远是当�
 最新文档做不到这一点——那会教你写出用户宿主还不支持的东西，而 UI 槽位这类缺失不会在构建期
 暴露，装上去只是静默跳过。
 
-装进正在运行的 Vetta：
+装进正在运行的 567 Agent：
 
 ```bash
 npm run install:vetta          # = vite build && vetta-plugin pack && vetta-plugin-cli add .
@@ -47,7 +47,7 @@ npx vetta-plugin-cli reload my-plugin   # 提示有 pending 版本时
 ## 前置条件
 
 - Node / Bun（仓库统一用 [Bun](https://bun.sh)）。
-- 一个 Vetta 桌面 App（用于安装调试）。
+- 一个 567 Agent 桌面 App（用于安装调试）。
 - 插件用 React 19 + TypeScript + Vite，经 **Module Federation** 打成 remote。
 
 ## 1. 项目结构
@@ -123,7 +123,7 @@ export default defineConfig({
       entry: "./src/index.tsx", // 入口（默认即此）
       expose: "./plugin",       // 暴露名（默认 "./plugin"，与 plugin.json.moduleFederation.expose 一致）
       // hostUi: true,           // 仅在导入 @vetta-org/ui 时开启
-      // package: true,         // 见 §5：构建后自动产出 release/<id>-<version>.vettapkg
+      // package: true,         // 见 §5：构建后自动产出 release/<id>-<version>.567plugin
     }),
   ],
   esbuild: { jsx: "automatic", jsxImportSource: "react" },
@@ -195,13 +195,13 @@ export default definePlugin({
 bunx vite build      # 产出 dist/（mf-manifest.json + remoteEntry.js + style.css）
 ```
 
-发布需要一个 **`.vettapkg` 插件包**。它使用 ZIP 容器，根目录放 `plugin.json`，其下 `dist/`。两种方式：
+发布需要一个 **`.567plugin` 插件包**。它使用 ZIP 容器，根目录放 `plugin.json`，其下 `dist/`。两种方式：
 
-- **自动**：`vettaPluginFederation({ ..., package: true })`，`vite build` 后自动产出 `release/<id>-<version>.vettapkg`（打包 `plugin.json` + `dist/` + 清单声明的 `styles` / `agent.promptPaths` / `agent.skillPaths`；存在 `ability.json` 时也打包它和 `presentation/`）。
-- **手动**：自行用 ZIP 容器打包 `plugin.json` 与 `dist/`，并使用 `.vettapkg` 扩展名：
+- **自动**：`vettaPluginFederation({ ..., package: true })`，`vite build` 后自动产出 `release/<id>-<version>.567plugin`（打包 `plugin.json` + `dist/` + 清单声明的 `styles` / `agent.promptPaths` / `agent.skillPaths`；存在 `ability.json` 时也打包它和 `presentation/`）。
+- **手动**：自行用 ZIP 容器打包 `plugin.json` 与 `dist/`，并使用 `.567plugin` 扩展名：
 
   ```text
-  my-plugin.vettapkg
+  my-plugin.567plugin
     plugin.json
     ability.json                 # 可选
     presentation/               # 使用 ability.json 时可选
@@ -216,7 +216,7 @@ bunx vite build      # 产出 dist/（mf-manifest.json + remoteEntry.js + style.
 > 能力详情是可选的；需要 showcase、功能网格、图片或长篇 Markdown 时见 [ability-details.md](./ability-details.md)。
 
 GitHub 能力市场有两种分发合同：schema v1/v2 从 `source.path` 目录直接安装，
-所以该目录必须包含构建后的 `dist/`；schema v3 从 `releases[]` 指向的固定 `.vettapkg`
+所以该目录必须包含构建后的 `dist/`；schema v3 从 `releases[]` 指向的固定 `.567plugin`
 安装，市场仓库的 `source.path` 只放详情资源，`dist/` 和插件包留在制品存储。
 每个新版本写明已经发布的最低 App 版本、实际使用的 `pluginApiVersion`、插件包 URL
 和 SHA-256；市场会按用户 App 与宿主 API 版本选择可安装的版本。见仓库的
@@ -229,7 +229,7 @@ GitHub 能力市场有两种分发合同：schema v1/v2 从 `source.path` 目录
 
 通过桌面 App **设置 → 插件**（或独立插件页）安装：
 
-- **本地插件包**：选择本地 `.vettapkg` 文件（`installFromArchive`）。旧 `.zip` 插件包仍可导入，但新发布应使用专用扩展名。
+- **本地插件包**：选择本地 `.567plugin` 文件（`installFromArchive`）。旧 `.vettapkg` 和 `.zip` 插件包仍可导入，但新发布应使用专用扩展名。
 - **远程 URL**：填写 zip 下载地址（`installFromUrl`）。
 
 安装后用户插件落在：
@@ -249,11 +249,11 @@ GitHub 能力市场有两种分发合同：schema v1/v2 从 `source.path` 目录
 ```json
 {
   "operation": "install-from-path",
-  "path": "/abs/path/to/my-plugin-0.1.2.vettapkg"
+  "path": "/abs/path/to/my-plugin-0.1.2.567plugin"
 }
 ```
 
-- 路径：本机可读 **`.vettapkg` 绝对路径**（不限 cwd；兼容旧 `.zip`）。
+- 路径：本机可读 **`.567plugin` 绝对路径**（不限 cwd；兼容旧 `.zip`）。
 - 用户确认后：按 `plugin.json` **一次授予声明权限**并默认**启用**。
 - Desktop API：`window.vetta.plugins.installFromPath(path, { grantedPermissions?, enable? })`。
 - 不可覆盖系统插件 id。
@@ -266,7 +266,7 @@ GitHub 能力市场有两种分发合同：schema v1/v2 从 `source.path` 目录
 
 ## 8. 调试闭环（dev loop）
 
-1. 插件工作台制作的用户插件首次先点「应用到 Vetta」；安装、授权和启用完成后，工作台会等待工程内的 `vetta-plugin dev` 真正就绪，再把热更新标为运行中。
+1. 插件工作台制作的用户插件首次先点「应用到 567 Agent」；安装、授权和启用完成后，工作台会等待工程内的 `vetta-plugin dev` 真正就绪，再把热更新标为运行中。
 2. 后续可在插件工作台开关热更新；开发进程由 Desktop 主进程持有，关闭工作台面板不会中止，不需要另开 `vite build --watch`。
 3. 修改 React 组件或 CSS 后由 Vite HMR 直接更新，组件状态在 Fast Refresh 可保留时不会丢失。
 4. 修改插件入口、`plugin.json`、locale 或 agent 资源时，宿主只替换当前插件的 activation，其他插件不重载。

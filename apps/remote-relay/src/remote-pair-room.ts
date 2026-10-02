@@ -1,5 +1,5 @@
 import { DurableObject } from "cloudflare:workers";
-import { encodeRemoteFrame, parseRemoteFrame, type RemoteFrame, type RemoteHello } from "@vetta/remote-control";
+import { encodeRemoteFrame, parseRemoteFrame, type RemoteFrame, type RemoteHello } from "@567agent/remote-control";
 import type { RelayRole } from "./auth.js";
 import { REMOTE_WEBSOCKET_PROTOCOL } from "./auth.js";
 import { relayInfo, relayWarn } from "./relay-log.js";

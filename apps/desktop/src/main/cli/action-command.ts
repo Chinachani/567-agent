@@ -1,5 +1,5 @@
 import { writeSync } from "node:fs";
-import { ActionRpcError, createActionRpcClient } from "@vetta/action-rpc";
+import { ActionRpcError, createActionRpcClient } from "@567agent/action-rpc";
 import { readLocalRpcServerEndpoint } from "../local-rpc/endpoint-file.js";
 
 export type ActionCliCommand =
@@ -21,17 +21,17 @@ interface ActionCliResponse {
 const HELP_TEXT = `Vetta action command line interface
 
 Usage:
-  Vetta.exe action search [query] [--domain <domain>]
-  Vetta.exe action describe <action-id>
-  Vetta.exe action run <action-id> [json-input]
-  Vetta.exe action -h
-  Vetta.exe action --help
+  567-Agent.exe action search [query] [--domain <domain>]
+  567-Agent.exe action describe <action-id>
+  567-Agent.exe action run <action-id> [json-input]
+  567-Agent.exe action -h
+  567-Agent.exe action --help
 
 Description:
-  Operate the running Vetta Desktop app through its local action RPC.
+  Operate the running 567 Agent app through its local action RPC.
   The GUI must already be running. Do not guess action ids or parameters
   from memory; discover them at runtime.
-  Built-in actions operate Vetta Desktop itself; plugin-provided actions
+  Built-in actions operate 567 Agent itself; plugin-provided actions
   may own other resources, as declared in their usage. Developing a website,
   creating a React project, installing framework plugins, or implementing
   application cron jobs belongs to that project's tools, not App Actions.
@@ -54,10 +54,10 @@ Capability areas (high-level only; live catalog comes from search):
   batch-tasks, scheduler, knowledge, plugins, im, webhook, downloads, updater
 
 Examples:
-  Vetta.exe action search ""
-  Vetta.exe action search "model"
-  Vetta.exe action describe models.query
-  Vetta.exe action run models.query "{\\"operation\\":\\"help\\"}"
+  567-Agent.exe action search ""
+  567-Agent.exe action search "model"
+  567-Agent.exe action describe models.query
+  567-Agent.exe action run models.query "{\\"operation\\":\\"help\\"}"
 
 JSON input:
   In PowerShell and POSIX shells, wrap the JSON argument in single quotes.

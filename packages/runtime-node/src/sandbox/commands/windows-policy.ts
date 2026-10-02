@@ -1,7 +1,7 @@
 import { homedir } from "node:os";
 import { dirname, join, resolve as resolvePath } from "node:path";
-import { getVettaConfigDirName } from "@vetta/action-rpc";
-import type { SandboxShellGrant } from "@vetta/runtime-core/sandbox";
+import { getVettaConfigDirName } from "@567agent/action-rpc";
+import type { SandboxShellGrant } from "@567agent/runtime-core/sandbox";
 
 type HostEnvironment = Readonly<Record<string, string | undefined>>;
 
