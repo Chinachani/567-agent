@@ -8,7 +8,6 @@ import org.agent567.android.app.AppPreferences
 import org.agent567.android.core.VettaConfig
 import org.agent567.android.core.auth.InMemoryTokenStore
 import org.agent567.android.core.auth.SettingsSecretStore
-import org.agent567.android.core.net.RefreshOutcome
 import org.agent567.android.core.net.TokenRefresher
 import org.agent567.android.core.net.createBareHttpClient
 import org.agent567.android.core.net.createVettaHttpClient
@@ -57,10 +56,23 @@ class GroupModelsHostTest {
         }
         val bare = createBareHttpClient(config)
         lateinit var api: VettaApi
-        val refresher = TokenRefresher(tokens, { api.refreshTokensWithAccountRecovery(it) }, null)
+        val refresher = TokenRefresher(
+            tokens,
+            { api.refreshTokensWithAccountRecovery(it) },
+            null,
+            onRenewed = { outcome ->
+                preferences.authToken = outcome.accessToken
+                preferences.authRefreshToken = outcome.refreshToken
+                outcome.user?.let { user ->
+                    preferences.authUsername = user.nickname.ifBlank { user.username }
+                    preferences.authQuotaUsd = user.quotaUsd
+                    preferences.authUserId = user.id
+                }
+            },
+        )
         val client = createVettaHttpClient(config, tokens, refresher)
         try {
-            api = VettaApi(client, bare, config, tokens, preferences)
+            api = VettaApi(client, bare, config, tokens, refresher, preferences)
             val catalog = api.goModels("B")
             assertTrue(loginCalled, "Expired refresh cookie should trigger password login")
             assertTrue(retriedWithFreshToken, "Original request should retry with the password-login token")
@@ -104,9 +116,11 @@ class GroupModelsHostTest {
         val config = VettaConfig("http://127.0.0.1:${server.address.port}")
         val tokens = InMemoryTokenStore("expired-token", "session=valid-cookie")
         val bare = createBareHttpClient(config)
-        val client = createVettaHttpClient(config, tokens, TokenRefresher(tokens, { RefreshOutcome.Transient }, null))
+        lateinit var api: VettaApi
+        val refresher = TokenRefresher(tokens, { refreshToken -> api.refreshTokensWithAccountRecovery(refreshToken) }, null)
+        val client = createVettaHttpClient(config, tokens, refresher)
         try {
-            val api = VettaApi(client, bare, config, tokens)
+            api = VettaApi(client, bare, config, tokens, refresher)
             val catalog = api.goModels("B")
             assertTrue(refreshCalled, "Expected /api/user/auth/refresh to be called with session cookie")
             assertEquals(listOf("refreshed-model-1", "refreshed-model-2"), catalog.goModels().map { it.id })
@@ -148,9 +162,12 @@ class GroupModelsHostTest {
         val config = VettaConfig("http://127.0.0.1:${server.address.port}")
         val tokens = InMemoryTokenStore("user-token", "user-token")
         val bare = createBareHttpClient(config)
-        val client = createVettaHttpClient(config, tokens, TokenRefresher(tokens, { RefreshOutcome.Transient }, null))
+        lateinit var api: VettaApi
+        val refresher = TokenRefresher(tokens, { refreshToken -> api.refreshTokensWithAccountRecovery(refreshToken) }, null)
+        val client = createVettaHttpClient(config, tokens, refresher)
         try {
-            val catalog = VettaApi(client, bare, config, tokens).goModels("B")
+            api = VettaApi(client, bare, config, tokens, refresher)
+            val catalog = api.goModels("B")
             assertTrue(createdGroupBToken)
             assertEquals(listOf("B-model"), catalog.goModels().map { it.id }, requests.toString())
         } finally {
@@ -183,9 +200,11 @@ class GroupModelsHostTest {
         val config = VettaConfig("http://127.0.0.1:${server.address.port}")
         val tokens = InMemoryTokenStore("sk-test-token", "sk-test-token")
         val bare = createBareHttpClient(config)
-        val client = createVettaHttpClient(config, tokens, TokenRefresher(tokens, { RefreshOutcome.Transient }, null))
+        lateinit var api: VettaApi
+        val refresher = TokenRefresher(tokens, { refreshToken -> api.refreshTokensWithAccountRecovery(refreshToken) }, null)
+        val client = createVettaHttpClient(config, tokens, refresher)
         try {
-            val api = VettaApi(client, bare, config, tokens)
+            api = VettaApi(client, bare, config, tokens, refresher)
             assertTrue(api.goModels().goModels().isEmpty(), "On temporary 503 error, models should be empty rather than fake fallback models")
             assertEquals(listOf("restored-model"), api.goModels().goModels().map { it.id })
         } finally {

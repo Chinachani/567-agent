@@ -42,6 +42,9 @@ import org.agent567.android.core.model.ModelsCatalog
 import org.agent567.android.core.model.ProviderModels
 import org.agent567.android.core.model.SubscriptionStatus
 import org.agent567.android.core.model.User
+import org.agent567.android.core.net.TokenRefresher
+import org.agent567.android.core.net.isRefreshCredentialRejected
+import org.agent567.android.core.net.isAccountLoginRejected
 import org.agent567.android.core.net.RefreshOutcome
 import org.agent567.android.core.net.VettaJson
 import org.agent567.android.core.net.parseEnvelope
@@ -79,12 +82,19 @@ internal class VettaApi(
     private val bareClient: HttpClient,
     private val config: VettaConfig,
     private val tokenStore: TokenStore,
+    private val tokenRefresher: TokenRefresher,
     private val preferences: org.agent567.android.app.AppPreferences? = null,
 ) {
     suspend fun loginWithAccount(account: String, password: String): AuthSession {
+        val session = requestAccountSession(account, password)
+        tokenRefresher.installSession(session.accessToken, session.refreshToken)
+        return session
+    }
+
+    private suspend fun requestAccountSession(account: String, password: String): AuthSession {
         try {
             val response =
-                client.post("api/user/login") {
+                bareClient.post("${config.apiBaseUrl.trimEnd('/')}/api/user/login") {
                     setBody(NewApiLoginRequestDto(username = account, password = password))
                 }
             val rawText = response.bodyAsTextSafe()
@@ -92,6 +102,10 @@ internal class VettaApi(
                 throw parseFailure(response.status.value, rawText)
             }
 
+            val loginRoot = VettaJson.parseToJsonElement(rawText) as? JsonObject
+            if ((loginRoot?.get("success") as? JsonPrimitive)?.content == "false") {
+                throw parseFailure(response.status.value, rawText)
+            }
             var token: String? = null
             var userDto: UserDto? = null
             runCatching {
@@ -113,7 +127,7 @@ internal class VettaApi(
                 val cookieHeader = rawCookies.map { it.split(";")[0] }.joinToString("; ")
                 if (cookieHeader.isNotBlank()) {
                     runCatching {
-                        val refreshRes = client.post("api/user/auth/refresh") {
+                        val refreshRes = bareClient.post("${config.apiBaseUrl.trimEnd('/')}/api/user/auth/refresh") {
                             header(HttpHeaders.Cookie, cookieHeader)
                         }
                         val refText = refreshRes.bodyAsTextSafe()
@@ -148,9 +162,9 @@ internal class VettaApi(
                 refreshToken = effectiveRefreshToken,
                 user = effectiveUser.toDomain(),
             )
-            tokenStore.save(token!!, effectiveRefreshToken)
             return session
         } catch (e: Exception) {
+            if (e is CancellationException) throw e
             throw e.toVettaException()
         }
     }
@@ -158,7 +172,7 @@ internal class VettaApi(
     suspend fun loginWithAccessToken(token: String): AuthSession {
         try {
             val response =
-                client.get("api/user/self") {
+                bareClient.get("${config.apiBaseUrl.trimEnd('/')}/api/user/self") {
                     header(HttpHeaders.Authorization, "Bearer $token")
                 }
             val text = response.bodyAsTextSafe()
@@ -171,9 +185,10 @@ internal class VettaApi(
                 refreshToken = token,
                 user = userDto.toDomain(),
             )
-            tokenStore.save(token, token)
+            tokenRefresher.installSession(token, token)
             return session
         } catch (e: Exception) {
+            if (e is CancellationException) throw e
             throw e.toVettaException()
         }
     }
@@ -196,9 +211,8 @@ internal class VettaApi(
                 val refreshRes = bareClient.post("${config.apiBaseUrl.trimEnd('/')}/api/user/auth/refresh") {
                     header(HttpHeaders.Cookie, refreshToken)
                 }
-                if (refreshRes.status.value in 400..403) {
-                    return RefreshOutcome.Unauthorized
-                }
+                val text = refreshRes.bodyAsText()
+                if (isRefreshCredentialRejected(refreshRes.status.value, text)) return RefreshOutcome.Unauthorized
                 if (!refreshRes.status.isSuccess()) {
                     return RefreshOutcome.Transient
                 }
@@ -210,16 +224,16 @@ internal class VettaApi(
                     refreshToken
                 }
 
-                val text = refreshRes.bodyAsTextSafe()
                 val root = org.agent567.android.core.net.VettaJson.parseToJsonElement(text) as? kotlinx.serialization.json.JsonObject
                 val data = root?.get("data") as? kotlinx.serialization.json.JsonObject
                 val newAccessToken = (data?.get("access_token") as? kotlinx.serialization.json.JsonPrimitive)?.content
 
                 if (!newAccessToken.isNullOrBlank()) {
-                    tokenStore.save(newAccessToken, newCookieHeader)
                     return RefreshOutcome.Ok(newAccessToken, newCookieHeader)
                 }
-                return RefreshOutcome.Unauthorized
+                return RefreshOutcome.Transient
+            } catch (error: CancellationException) {
+                throw error
             } catch (_: Exception) {
                 return RefreshOutcome.Transient
             }
@@ -230,7 +244,7 @@ internal class VettaApi(
 
     suspend fun refreshTokensWithAccountRecovery(refreshToken: String): RefreshOutcome {
         when (val outcome = refreshTokens(refreshToken)) {
-            is RefreshOutcome.Ok, RefreshOutcome.Transient -> return outcome
+            is RefreshOutcome.Ok, RefreshOutcome.Transient, RefreshOutcome.AccountRejected -> return outcome
             RefreshOutcome.Unauthorized -> Unit
         }
 
@@ -240,21 +254,15 @@ internal class VettaApi(
         val password = savedPreferences.authPassword?.takeIf { it.isNotBlank() } ?: return RefreshOutcome.Unauthorized
 
         return try {
-            val session = loginWithAccount(account, password)
-            savedPreferences.authToken = session.accessToken
-            savedPreferences.authRefreshToken = session.refreshToken
-            savedPreferences.authUsername = session.user.nickname.ifBlank { session.user.username }
-            savedPreferences.authQuotaUsd = session.user.quotaUsd
-            savedPreferences.authUserId = session.user.id
-            RefreshOutcome.Ok(session.accessToken, session.refreshToken)
+            val session = requestAccountSession(account, password)
+            RefreshOutcome.Ok(session.accessToken, session.refreshToken, session.user)
         } catch (error: kotlinx.coroutines.CancellationException) {
             throw error
+        } catch (error: VettaException.Unauthorized) {
+            RefreshOutcome.AccountRejected
         } catch (error: VettaException.Api) {
-            if (error.httpStatus == 401 || error.httpStatus == 403) {
-                RefreshOutcome.Unauthorized
-            } else {
-                RefreshOutcome.Transient
-            }
+            if (isAccountLoginRejected(error.httpStatus, error.message)) RefreshOutcome.AccountRejected
+            else RefreshOutcome.Transient
         } catch (_: Exception) {
             RefreshOutcome.Transient
         }
@@ -266,7 +274,7 @@ internal class VettaApi(
         var token = tokenStore.accessToken.orEmpty()
         var response = action(token)
         if (response.status.value == 401 && !tokenStore.refreshToken.isNullOrBlank()) {
-            val outcome = refreshTokensWithAccountRecovery(tokenStore.refreshToken!!)
+            val outcome = tokenRefresher.refresh(token)
             if (outcome is RefreshOutcome.Ok) {
                 token = outcome.accessToken
                 response = action(token)
@@ -276,7 +284,7 @@ internal class VettaApi(
     }
 
     suspend fun logout() {
-        tokenStore.clear()
+        tokenRefresher.clearSession()
     }
 
     suspend fun sendVerificationCode(email: String): String {
@@ -1204,7 +1212,7 @@ internal class VettaApi(
                     setBody(body)
                 }
             val session = response.parseEnvelope<LoginResponseDto>().toSession()
-            tokenStore.save(session.accessToken, session.refreshToken)
+            tokenRefresher.installSession(session.accessToken, session.refreshToken)
             session
         } catch (e: Exception) {
             throw e.toVettaException()

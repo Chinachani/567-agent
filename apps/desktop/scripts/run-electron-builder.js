@@ -1,8 +1,9 @@
 import { execFileSync, execSync } from "node:child_process";
-import { existsSync } from "node:fs";
+import { existsSync, readFileSync } from "node:fs";
 import { tmpdir } from "node:os";
-import { join } from "node:path";
+import { join, resolve } from "node:path";
 import { pathToFileURL } from "node:url";
+import { buildLinuxTargets } from "./linux-target-builds.mjs";
 import { LINUX_RELEASE_TARGETS } from "./linux-packaging-contract.mjs";
 import { WINDOWS_RELEASE_TARGETS } from "./windows-packaging-contract.mjs";
 
@@ -147,7 +148,7 @@ export function resolveElectronBuilderPublishMode(explicitMode) {
 	return publishMode;
 }
 
-function main() {
+async function main() {
 	assertBuildStageExists();
 	const cliOptions = parseCliOptions(process.argv.slice(2));
 
@@ -170,37 +171,70 @@ function main() {
 		throw new Error("The inno target creates custom artifacts; publish them through the release workflow.");
 	}
 	const publishMode = resolveElectronBuilderPublishMode(cliOptions.publish);
-	const args = [
-		"electron-builder",
-		`--project=${buildStageDir}`,
-		`--config=${builderConfigPath}`,
-		platformArgMap[platform],
-		...electronBuilderTargets,
-		...archs.map((arch) => archArgMap[arch]),
-		`--publish=${publishMode}`,
-	];
-
-	console.log(
-		`[run-electron-builder] platform=${platform} archs=${archs.join(",")} targets=${targets.join(",")} stage=${buildStageDir}`,
-	);
-
-	const localBuilderBin = join(import.meta.dirname, "..", "node_modules", ".bin", process.platform === "win32" ? "electron-builder.cmd" : "electron-builder");
-	if (existsSync(localBuilderBin)) {
-		if (process.platform === "win32") {
-			const command = [`"${localBuilderBin}"`, ...args.slice(1).map((value) => (value.includes(" ") ? `"${value}"` : value))].join(" ");
-			execSync(command, { stdio: "inherit" });
+	const baseArgs = ["electron-builder", `--project=${buildStageDir}`, `--config=${builderConfigPath}`];
+	console.log(`[run-electron-builder] platform=${platform} archs=${archs.join(",")} targets=${targets.join(",")} stage=${buildStageDir}`);
+	const execute = (args, cwd) => {
+		const localBuilderBin = join(
+			import.meta.dirname,
+			"..",
+			"node_modules",
+			".bin",
+			process.platform === "win32" ? "electron-builder.cmd" : "electron-builder",
+		);
+		if (existsSync(localBuilderBin)) {
+			if (process.platform === "win32") {
+				const command = [
+					`"${localBuilderBin}"`,
+					...args.slice(1).map((value) => (value.includes(" ") ? `"${value}"` : value)),
+				].join(" ");
+				execSync(command, { stdio: "inherit", cwd });
+			} else {
+				execFileSync(localBuilderBin, args.slice(1), { stdio: "inherit", cwd });
+			}
+		} else if (process.platform === "win32") {
+			const command = ["bunx", ...args.map((value) => (value.includes(" ") ? `"${value}"` : value))].join(" ");
+			execSync(command, { stdio: "inherit", cwd });
 		} else {
-			execFileSync(localBuilderBin, args.slice(1), { stdio: "inherit" });
+			execFileSync("bunx", args, { stdio: "inherit", cwd });
 		}
-	} else if (process.platform === "win32") {
-		const command = ["bunx", ...args.map((value) => (value.includes(" ") ? `"${value}"` : value))].join(" ");
-		execSync(command, {
-			stdio: "inherit",
+	};
+	const run = (batch, mode) =>
+		execute([
+			...baseArgs,
+			platformArgMap[platform],
+			...batch,
+			...archs.map((arch) => archArgMap[arch]),
+			`--publish=${mode}`,
+		]);
+	if (platform === "linux") {
+		const config = JSON.parse(readFileSync(builderConfigPath, "utf8"));
+		if (typeof config.directories?.output !== "string") {
+			throw new Error("The Linux build configuration must define directories.output.");
+		}
+		const releaseDir = resolve(buildStageDir, config.directories.output);
+		await buildLinuxTargets({
+			targets: electronBuilderTargets,
+			releaseDir,
+			run: (batch) => run(batch, "never"),
+			publish: publishMode === "never" ? undefined : (files) => {
+				const version = JSON.parse(readFileSync(join(buildStageDir, "package.json"), "utf8")).version;
+				execute(
+					[
+						"electron-builder",
+					"publish",
+					"--files",
+					...files,
+					"--version",
+					version,
+					`--config=${builderConfigPath}`,
+					`--policy=${publishMode}`,
+				],
+					buildStageDir,
+				);
+			},
 		});
 	} else {
-		execFileSync("bunx", args, {
-			stdio: "inherit",
-		});
+		run(electronBuilderTargets, publishMode);
 	}
 
 	if (usesInno) {
@@ -212,4 +246,6 @@ function main() {
 	}
 }
 
-if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) main();
+if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {
+	main().catch((error) => { console.error(error); process.exitCode = 1; });
+}

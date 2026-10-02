@@ -1,6 +1,6 @@
 import { execFile } from "node:child_process";
 import { createHash } from "node:crypto";
-import { createReadStream } from "node:fs";
+import { createReadStream, readFileSync } from "node:fs";
 import { mkdtemp, readdir, readFile, rm, stat } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { basename, join, resolve } from "node:path";
@@ -12,7 +12,7 @@ import { parse } from "yaml";
 const execFileAsync = promisify(execFile);
 const packageDir = resolve(import.meta.dirname, "..");
 const defaultReleaseDir = join(packageDir, "release");
-const expectedBundleIdentifier = "com.vetta.desktop";
+export const expectedBundleIdentifier = JSON.parse(readFileSync(join(packageDir, "package.json"), "utf8")).desktopAppId;
 
 function getArtifactFileName(value) {
 	if (typeof value !== "string" || value.length === 0) {

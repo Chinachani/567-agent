@@ -1,4 +1,5 @@
-import { spawnSync } from "node:child_process";
+import { execFileSync, spawnSync } from "node:child_process";
+import { join } from "node:path";
 
 /**
  * 等待 Squirrel.Mac 把 ShipIt 的 launchd 作业提交完成。
@@ -19,11 +20,20 @@ import { spawnSync } from "node:child_process";
  * launchd 才会 spawn ShipIt 完成替换。
  */
 
-/**
- * ShipIt 的 launchd 作业 label。必须与 electron-builder 配置里的 `appId` 一致
- * （见 scripts/prepare-pack.js 与 scripts/verify-mac-update.mjs）。
- */
-export const MACOS_SHIPIT_JOB_LABEL = "com.vetta.desktop.ShipIt";
+/** Read the installed bundle identity, including older branded builds. */
+export function getMacInstallerJobLabel(
+	resourcesPath: string,
+	readIdentifier: (plistPath: string) => string = (plistPath) =>
+		execFileSync("/usr/libexec/PlistBuddy", ["-c", "Print :CFBundleIdentifier", plistPath], {
+			encoding: "utf8",
+			timeout: 5_000,
+			stdio: ["ignore", "pipe", "ignore"],
+		}),
+): string {
+	const identifier = readIdentifier(join(resourcesPath, "..", "Info.plist")).trim();
+	if (!/^[A-Za-z0-9][A-Za-z0-9.-]*$/.test(identifier)) throw new Error("Invalid macOS bundle identifier");
+	return `${identifier}.ShipIt`;
+}
 
 export interface InstallerHandoffOptions {
 	/** launchd 作业 label，形如 `<bundleId>.ShipIt`。 */

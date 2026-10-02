@@ -236,7 +236,7 @@ class AppViewModel(
                 return@launch
             }
             if (container.tokenStore.accessToken.isNullOrBlank() || container.tokenStore.refreshToken.isNullOrBlank()) {
-                container.tokenStore.save(token, refreshToken ?: token)
+                container.client.auth.installSession(token, refreshToken ?: token)
             }
             if (container.preferences.authToken.isNullOrBlank()) {
                 container.preferences.authToken = token
@@ -1067,7 +1067,7 @@ class AppViewModel(
 
     private suspend fun forceLogout(keepLocalSessions: Boolean, message: String? = null) {
         streamJob?.cancel()
-        container.tokenStore.clear()
+        container.client.auth.clearLocalSession()
         container.preferences.clearAuthSnapshot()
         if (!keepLocalSessions) {
             container.sessionStore.sessions.value.map { it.id }.forEach {

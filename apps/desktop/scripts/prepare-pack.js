@@ -660,13 +660,13 @@ const extraResources = resolveExtraResources();
 
 // Write electron-builder config
 const builderConfig = {
-	appId: "com.api567.agent",
+	appId: JSON.parse(readFileSync(join(projectRoot, "package.json"), "utf8")).desktopAppId,
 	// Linux package paths are machine-facing identifiers, so keep them kebab-case.
 	// Other platforms retain the branded display/product name.
 	productName:
 		resolvePlatformFamilies().size === 1 && resolvePlatformFamilies().has("linux") ? "567-agent" : "567 Agent",
 	executableName: "567-Agent",
-	afterPack: join(projectRoot, "scripts", "windows-version-layout.mjs"),
+	afterPack: join(projectRoot, "scripts", "desktop-after-pack.mjs"),
 	electronVersion,
 	electronLanguages: ["zh-CN", "en-US"],
 	npmRebuild: false,

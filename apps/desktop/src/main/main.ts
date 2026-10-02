@@ -448,7 +448,7 @@ if (!gotSingleLock) {
 			// Privacy 在 socket 层拦截 Node 默认 fetch 对 192.168.x / 10.x
 			// 等私网地址的访问，OpenAI/Anthropic SDK 在这种情况下只能抛
 			// "Connection error."。必须复用主进程对话页同款的两步规避：
-			// 先触发 TCC 探针让 com.vetta.desktop 拿到 LAN 授权，再把
+			// 先触发 TCC 探针让当前 app bundle 拿到 LAN 授权，再把
 			// globalThis.fetch 换成 electron.net.fetch（Chromium 网络栈，
 			// 不被 LNP 拦截）。PDF / OCR CLI 不需要这条，因为它们不发
 			// 跨进程网络请求。
@@ -481,7 +481,7 @@ if (!gotSingleLock) {
 		const appLifecycle = registerAppLifecycleIpc();
 
 		// 必须放在 whenReady 之后：早于 ready 调用时主进程 bundle identity
-		// 尚未在 launchd/TCC 子系统注册，syscall 关联不到 com.vetta.desktop，
+		// 尚未在 launchd/TCC 子系统注册，syscall 关联不到当前 app bundle，
 		// 探针白发。
 		registerLocalNetworkAccess();
 

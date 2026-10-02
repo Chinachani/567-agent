@@ -43,14 +43,17 @@ class AuthRepository internal constructor(
 
     suspend fun refresh(): RefreshOutcome = tokenRefresher.refresh()
 
+    suspend fun installSession(accessToken: String, refreshToken: String) {
+        tokenRefresher.installSession(accessToken, refreshToken)
+    }
+
     suspend fun logout() {
-        runCatching { api.logout() }
-        tokenStore.clear()
+        tokenRefresher.clearSession()
     }
 
     suspend fun me(): User = api.me()
 
-    fun clearLocalSession() {
-        tokenStore.clear()
+    suspend fun clearLocalSession() {
+        tokenRefresher.clearSession()
     }
 }

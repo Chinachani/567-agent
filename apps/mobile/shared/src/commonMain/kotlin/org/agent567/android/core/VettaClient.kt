@@ -52,9 +52,20 @@ class VettaClient private constructor(
                     tokenStore = tokenStore,
                     refreshAction = { refreshToken -> api.refreshTokensWithAccountRecovery(refreshToken) },
                     onUnauthorized = onUnauthorized,
+                    onRenewed = { outcome ->
+                        preferences?.let { prefs ->
+                            prefs.authToken = outcome.accessToken
+                            prefs.authRefreshToken = outcome.refreshToken
+                            outcome.user?.let { user ->
+                                prefs.authUsername = user.nickname.ifBlank { user.username }
+                                prefs.authQuotaUsd = user.quotaUsd
+                                prefs.authUserId = user.id
+                            }
+                        }
+                    },
                 )
             val client = createVettaHttpClient(config, tokenStore, refresher)
-            api = VettaApi(client, bare, config, tokenStore, preferences)
+            api = VettaApi(client, bare, config, tokenStore, refresher, preferences)
 
             return VettaClient(
                 config = config,

@@ -12,7 +12,7 @@ import {
 	isVersionedWindowsExecutable,
 	resolveInnoUpdateStoreRoot,
 } from "./inno-windows-update.js";
-import { handOffToInstaller, MACOS_SHIPIT_JOB_LABEL } from "./mac-installer-handoff.js";
+import { getMacInstallerJobLabel, handOffToInstaller } from "./mac-installer-handoff.js";
 import { runQuitCleanup } from "./quit-cleanup.js";
 import { markPendingUpdateRelaunch } from "./update-relaunch-marker.js";
 import { ElectronUpdaterEngine } from "./updater-engine.js";
@@ -107,11 +107,16 @@ const prepareQuit = async () => {
 // Electron 的正常退出流程结束不了它。Windows 的 app.relaunch() 同样只在进程
 // 真正退出后才生效，不 exit 就是「指针切了、新版本起不来」。
 const finalizeQuit = async () => {
-	if (process.platform === "darwin") {
-		const result = await handOffToInstaller({ label: MACOS_SHIPIT_JOB_LABEL });
-		console.info(`[updater] installer handoff: ${result}; exiting so the installer can replace the app`);
+	try {
+		if (process.platform === "darwin") {
+			const result = await handOffToInstaller({ label: getMacInstallerJobLabel(process.resourcesPath) });
+			console.info(`[updater] installer handoff: ${result}; exiting so the installer can replace the app`);
+		}
+	} catch (error) {
+		console.warn("[updater] installer handoff failed; exiting to release the application", error);
+	} finally {
+		app.exit(0);
 	}
-	app.exit(0);
 };
 const updaterEngine = new ElectronUpdaterEngine(autoUpdater, innoWindowsUpdate, nativeMacUpdateEvents, {
 	prepare: prepareQuit,

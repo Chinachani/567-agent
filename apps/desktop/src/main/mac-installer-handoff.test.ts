@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from "vitest";
 
-import { handOffToInstaller, waitForInstallerHandoff } from "./mac-installer-handoff";
+import { getMacInstallerJobLabel, handOffToInstaller, waitForInstallerHandoff } from "./mac-installer-handoff";
 
 describe("waitForInstallerHandoff", () => {
 	it("returns as soon as the installer job shows up", async () => {
@@ -89,5 +89,29 @@ describe("handOffToInstaller", () => {
 				sleep: async () => {},
 			}),
 		).resolves.toBe("start-failed");
+	});
+});
+
+describe("installed bundle identity", () => {
+	it.each(["com.api567.agent", "com.vetta.desktop", "com.example.qa"])(
+		"hands off to the actual %s installer",
+		async (identifier) => {
+			const read = vi.fn(() => `${identifier}\n`);
+			const label = getMacInstallerJobLabel("/Applications/567 Agent.app/Contents/Resources", read);
+			expect(read).toHaveBeenCalledWith("/Applications/567 Agent.app/Contents/Info.plist");
+			const start = vi.fn(() => true);
+			await expect(
+				handOffToInstaller({ label, probe: (value) => value === `${identifier}.ShipIt`, start }),
+			).resolves.toBe("started");
+			expect(start).toHaveBeenCalledWith(`${identifier}.ShipIt`);
+		},
+	);
+	it("rejects an invalid or unreadable bundle identity", () => {
+		expect(() => getMacInstallerJobLabel("/tmp", () => "")).toThrow("Invalid macOS bundle identifier");
+		expect(() =>
+			getMacInstallerJobLabel("/tmp", () => {
+				throw new Error("missing plist");
+			}),
+		).toThrow("missing plist");
 	});
 });

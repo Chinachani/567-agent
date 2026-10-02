@@ -15,8 +15,6 @@ import io.ktor.http.ContentType
 import io.ktor.http.HttpHeaders
 import io.ktor.http.contentType
 import io.ktor.serialization.kotlinx.json.json
-import kotlinx.coroutines.sync.Mutex
-import kotlinx.coroutines.sync.withLock
 import org.agent567.android.core.VettaConfig
 import org.agent567.android.core.auth.TokenStore
 import org.agent567.android.core.error.VettaException
@@ -28,46 +26,17 @@ import org.agent567.android.core.error.VettaException
  * - [Transient]：网络/5xx，保留会话
  */
 sealed class RefreshOutcome {
-    data class Ok(val accessToken: String, val refreshToken: String) : RefreshOutcome()
+    data class Ok(val accessToken: String, val refreshToken: String, val user: org.agent567.android.core.model.User? = null) : RefreshOutcome()
 
     data object Unauthorized : RefreshOutcome()
 
     data object Transient : RefreshOutcome()
+
+    data object AccountRejected : RefreshOutcome()
 }
 
 fun interface UnauthorizedHandler {
     fun onUnauthorized()
-}
-
-internal class TokenRefresher(
-    private val tokenStore: TokenStore,
-    private val refreshAction: suspend (refreshToken: String) -> RefreshOutcome,
-    private val onUnauthorized: UnauthorizedHandler?,
-) {
-    private val mutex = Mutex()
-
-    suspend fun refresh(): RefreshOutcome =
-        mutex.withLock {
-            val refresh = tokenStore.refreshToken
-            if (refresh.isNullOrBlank()) {
-                onUnauthorized?.onUnauthorized()
-                return@withLock RefreshOutcome.Unauthorized
-            }
-            val outcome =
-                runCatching { refreshAction(refresh) }
-                    .getOrElse { RefreshOutcome.Transient }
-            when (outcome) {
-                is RefreshOutcome.Ok -> {
-                    tokenStore.save(outcome.accessToken, outcome.refreshToken)
-                }
-                RefreshOutcome.Unauthorized -> {
-                    tokenStore.clear()
-                    onUnauthorized?.onUnauthorized()
-                }
-                RefreshOutcome.Transient -> Unit
-            }
-            outcome
-        }
 }
 
 internal fun createVettaHttpClient(
@@ -113,11 +82,11 @@ internal fun createVettaHttpClient(
                     }
                 }
                 refreshTokens {
-                    when (val outcome = tokenRefresher.refresh()) {
+                    when (val outcome = tokenRefresher.refresh(oldTokens?.accessToken)) {
                         is RefreshOutcome.Ok ->
                             BearerTokens(outcome.accessToken, outcome.refreshToken)
                         RefreshOutcome.Unauthorized -> null
-                        RefreshOutcome.Transient -> null
+                        RefreshOutcome.Transient, RefreshOutcome.AccountRejected -> null
                     }
                 }
                 sendWithoutRequest { request ->
