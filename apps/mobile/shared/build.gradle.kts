@@ -37,9 +37,11 @@ object AppVersion {
 }
 
 tasks.configureEach {
-    if (name.startsWith("compile") && name.contains("Kotlin")) {
-        dependsOn(generateMobileVersionSource)
-    }
+	// KMP uses task names such as compileAndroidMain (without "Kotlin") for
+	// Android source-set compilations, so match all compile tasks in this module.
+	if (name.startsWith("compile")) {
+		dependsOn(generateMobileVersionSource)
+	}
 }
 
 kotlin {
