@@ -62,12 +62,12 @@ export function resolvePackagedE2eBinaryPath(packageRoot, platform = process.pla
 	const releaseRoot = join(packageRoot, "release");
 	const candidates =
 		platform === "win32"
-			? [resolveWindowsVersionedBinary(join(releaseRoot, "win-unpacked"))]
-			: platform === "darwin"
+		? [resolveWindowsVersionedBinary(join(releaseRoot, "win-unpacked"))]
+		: platform === "darwin"
 				? [
-						join(releaseRoot, "mac-arm64", "Vetta.app", "Contents", "MacOS", "Vetta"),
-						join(releaseRoot, "mac", "Vetta.app", "Contents", "MacOS", "Vetta"),
-						join(releaseRoot, "mac-x64", "Vetta.app", "Contents", "MacOS", "Vetta"),
+						join(releaseRoot, "mac-arm64", "567 Agent.app", "Contents", "MacOS", "567 Agent"),
+						join(releaseRoot, "mac", "567 Agent.app", "Contents", "MacOS", "567 Agent"),
+						join(releaseRoot, "mac-x64", "567 Agent.app", "Contents", "MacOS", "567 Agent"),
 					]
 				: platform === "linux"
 				? [join(releaseRoot, "linux-unpacked", "567-agent")]

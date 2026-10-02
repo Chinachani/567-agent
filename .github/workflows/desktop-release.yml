@@ -468,9 +468,10 @@ jobs:
           BUILD_VERSION: ${{ needs.prepare.outputs.build-version }}
         run: |
           rm -rf apps/desktop/release
-          # Use a workspace-relative destination: Git Bash's MSYS path conversion
-          # corrupts the Windows GITHUB_WORKSPACE value when it is passed to tar -C.
-          tar -xf "${RUNNER_TEMP}/release-checkpoint/release-build.tar" -C apps/desktop
+          # GNU tar on Windows parses a drive-letter path as a remote host. Convert
+          # both paths to Git Bash POSIX paths explicitly before passing them to tar.
+          tar -xf "$(cygpath -u "${RUNNER_TEMP}/release-checkpoint/release-build.tar")" \
+            -C "$(cygpath -u "${GITHUB_WORKSPACE}/apps/desktop")"
           SIGNATURE="$(cat apps/desktop/release/require-mac-signature.txt)"
           case "${SIGNATURE}" in 0|1) ;; *) echo "Invalid signature requirement" >&2; exit 1 ;; esac
           echo "VETTA_REQUIRE_MAC_SIGNATURE=${SIGNATURE}" >> "${GITHUB_ENV}"

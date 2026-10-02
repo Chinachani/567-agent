@@ -86,9 +86,8 @@ describe("Desktop release workflow contracts", () => {
 			verifySteps.findIndex((step) => step.name === "Verify platform updater artifacts"),
 		);
 		const restore = verifySteps.find((step) => step.name === "Restore build checkpoint");
+		expect(restore?.run).toContain("cygpath -u");
 		expect(restore?.run).toContain("release-checkpoint/release-build.tar");
-		expect(restore?.run).toContain("-C apps/desktop");
-		expect(restore?.run).not.toContain("GITHUB_WORKSPACE/apps/desktop");
 		for (const target of ["publish-r2", "publish-github"]) {
 			expect(jobs[target].needs).toContain("verify");
 			expect(jobs[target].steps.find((step) => step.uses === "actions/download-artifact@v4").with.pattern).toBe(
@@ -100,6 +99,11 @@ describe("Desktop release workflow contracts", () => {
 	it("restores a failed verification attempt with original bytes, executable modes, symlinks and candidate version", () => {
 		const root = mkdtempSync(join(tmpdir(), "vetta-release-checkpoint-"));
 		try {
+			const bin = join(root, "bin");
+			mkdirSync(bin);
+			const cygpath = join(bin, "cygpath");
+			writeFileSync(cygpath, '#!/usr/bin/env bash\nprintf "%s\\n" "$2"\n');
+			chmodSync(cygpath, 0o755);
 			const desktop = join(root, "apps/desktop");
 			const release = join(desktop, "release");
 			const runnerTemp = join(root, "runner");
@@ -117,6 +121,7 @@ describe("Desktop release workflow contracts", () => {
 				RUNNER_TEMP: runnerTemp,
 				GITHUB_WORKSPACE: root,
 				GITHUB_ENV: envFile,
+				PATH: `${bin}:${process.env.PATH ?? ""}`,
 				VETTA_REQUIRE_MAC_SIGNATURE: "1",
 				BUILD_VERSION: "0.5.59",
 			};
