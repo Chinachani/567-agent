@@ -55,11 +55,6 @@ on:
         type: choice
         options: [default, r2, github]
         default: default
-      allow_published_release_update:
-        description: "Allow an explicit stable dispatch to add or replace assets on an existing public GitHub Release."
-        type: boolean
-        required: false
-        default: false
       notes:
         description: "Shown on the run summary. Not a secret; do not paste keys."
         type: string
@@ -676,7 +671,6 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
           BUILD_VERSION: ${{ needs.prepare.outputs.build-version }}
-          ALLOW_PUBLISHED_RELEASE_UPDATE: ${{ github.event.inputs.allow_published_release_update }}
         shell: bash
         run: |
           VERSION="${BUILD_VERSION:-$(node -p "require('./apps/desktop/package.json').version")}"
@@ -685,16 +679,11 @@ jobs:
           if gh release view "${TAG}" >/dev/null 2>&1; then
             IS_DRAFT="$(gh release view "${TAG}" --json isDraft --jq .isDraft)"
             if [[ "${IS_DRAFT}" != "true" ]]; then
-              if [[ "${ALLOW_PUBLISHED_RELEASE_UPDATE}" != "true" ]]; then
-                echo "Refusing to modify published release ${TAG} without allow_published_release_update=true." >&2
-                exit 1
-              fi
-              echo "Updating published release ${TAG} as explicitly requested."
-              gh release edit "${TAG}" --notes-file "${NOTES_FILE}"
-            else
-              echo "Resuming draft release ${TAG}"
-              gh release edit "${TAG}" --notes-file "${NOTES_FILE}"
+              echo "Refusing to modify published release ${TAG}." >&2
+              exit 1
             fi
+            echo "Resuming draft release ${TAG}"
+            gh release edit "${TAG}" --notes-file "${NOTES_FILE}"
           else
             gh release create "${TAG}" --draft --notes-file "${NOTES_FILE}" --title "567 Agent ${VERSION}" --target "${GITHUB_SHA}"
           fi
