@@ -5947,7 +5947,10 @@ export default function App() {
     }
 
     async function loadRemoteCanvasSnapshot() {
-      remoteLoadController?.abort()
+      // callServerTool is an IPC request and cannot be canceled by AbortSignal.
+      // Keep only one refresh in flight; otherwise a slow older snapshot can
+      // arrive after a newer one and mutate the live tldraw store out of order.
+      if (remoteLoadController) return
       const controller = new AbortController()
       remoteLoadController = controller
 
@@ -5956,6 +5959,7 @@ export default function App() {
 
       try {
         const nextSnapshot = await refreshCowartCanvasSnapshot(controller.signal)
+        if (controller.signal.aborted || remoteLoadController !== controller) return
         const effectivePreserve =
           preserveLocalChanges || (preFetchStore && storeChangedSinceSnapshot(editor, preFetchStore))
         const { changedRecords, skippedRecords: nextSkippedRecords } = applyRemoteCanvasSnapshot(

@@ -1,4 +1,5 @@
 import org.jetbrains.kotlin.gradle.dsl.JvmTarget
+import java.util.Properties
 
 plugins {
     alias(libs.plugins.androidApplication)
@@ -31,6 +32,12 @@ val migrationKeyPassword = providers.gradleProperty("VETTA_ANDROID_MIGRATION_KEY
 	.orElse(providers.environmentVariable("VETTA_ANDROID_MIGRATION_KEY_PASSWORD"))
 	.orNull
 
+val mobileVersion = Properties().apply {
+	rootProject.file("version.properties").inputStream().use(::load)
+}
+val mobileVersionName = mobileVersion.getProperty("versionName")
+val mobileVersionCode = mobileVersion.getProperty("versionCode").toInt()
+
 kotlin {
     compilerOptions {
         jvmTarget = JvmTarget.JVM_11
@@ -46,7 +53,7 @@ dependencies {
 }
 
 android {
-    namespace = "org.vetta.android"
+    namespace = "org.agent567.android"
     compileSdk = libs.versions.android.compileSdk.get().toInt()
 
     signingConfigs {
@@ -68,8 +75,8 @@ android {
         applicationId = "com.api567.agent"
         minSdk = libs.versions.android.minSdk.get().toInt()
         targetSdk = libs.versions.android.targetSdk.get().toInt()
-        versionCode = 10104
-        versionName = "1.1.3"
+        versionCode = mobileVersionCode
+        versionName = mobileVersionName
     }
     packaging {
         resources {

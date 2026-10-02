@@ -1,5 +1,18 @@
-import { describe, expect, it } from "vitest";
+import { mkdtempSync, rmSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
+import { afterAll, describe, expect, it } from "vitest";
 import { NewApiService } from "./newapi-service.js";
+
+const previousHome = process.env.VETTA_HOME;
+const isolatedHome = mkdtempSync(join(tmpdir(), "567-newapi-service-test-"));
+process.env.VETTA_HOME = isolatedHome;
+
+afterAll(() => {
+	if (previousHome === undefined) delete process.env.VETTA_HOME;
+	else process.env.VETTA_HOME = previousHome;
+	rmSync(isolatedHome, { recursive: true, force: true });
+});
 
 describe("NewApiService quota and rate-limiting", () => {
 	it("returns cached quota without network call when cache is fresh", async () => {

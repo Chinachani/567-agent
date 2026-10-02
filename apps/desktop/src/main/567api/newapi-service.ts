@@ -34,9 +34,16 @@ function getVettaHomePath(): string {
 }
 
 import { BrowserWindow } from "electron";
+import { getDesktopCredentialVault } from "../credentials/desktop-credential-vault.js";
 import { getAppLogger } from "../logger.js";
 import { getDesktopModelSettingsService } from "../models/model-settings-host.js";
 import type { ModelDefinition } from "../models/model-settings-service.js";
+import {
+	AccessTokenRefreshCoordinator,
+	RefreshCookieRejectedError,
+	refreshWithAccountRecovery,
+} from "./access-token-refresh.js";
+import { loadAccountCredentials, removeAccountCredentials, saveAccountCredentials } from "./account-credentials.js";
 import { containsNonAscii, decryptSecret, encryptSecret, getSecurityHeaders } from "./security.js";
 
 const log = getAppLogger("567api");
@@ -302,6 +309,7 @@ export class NewApiService {
 	private static instance: NewApiService;
 	private currentSession: Api567Session = { isLoggedIn: false };
 	private rateLimitedUntil = 0;
+	private readonly accessTokenRefresh = new AccessTokenRefreshCoordinator();
 	private refreshQuotaPromise: Promise<{ success: boolean; quota?: number; quotaUsd?: number }> | null = null;
 
 	private constructor() {
@@ -821,47 +829,134 @@ export class NewApiService {
 
 		if (this.currentSession.cookie) {
 			log.info("Refreshing access token via session refresh cookie...");
-			try {
-				const refreshRes = await request<{
-					success: boolean;
-					data?: {
-						access_token?: string;
-						user?: { quota?: number; username?: string; display_name?: string };
-					};
-				}>(`${BASE_SERVER}/api/user/auth/refresh`, {
-					method: "POST",
-					headers: { Cookie: this.currentSession.cookie },
-				});
-
-				const rawCookies = refreshRes.headers["set-cookie"];
-				if (rawCookies) {
-					const cookieHeader = (Array.isArray(rawCookies) ? rawCookies : [rawCookies])
-						.map((c) => c.split(";")[0])
-						.join("; ");
-					this.currentSession.cookie = cookieHeader;
-				}
-
-				if (refreshRes.data?.success && refreshRes.data.data?.access_token) {
-					this.currentSession.accessToken = refreshRes.data.data.access_token;
-					const userData = refreshRes.data.data.user;
-					if (userData) {
-						if (typeof userData.quota === "number") {
-							this.currentSession.quota = userData.quota;
-							this.currentSession.quotaUsd = Number((userData.quota / QUOTA_PER_USD).toFixed(2));
-						}
-						if (userData.display_name || userData.username) {
-							this.currentSession.username = userData.display_name || userData.username;
-						}
-					}
-					this.saveSession(this.currentSession);
-					return this.currentSession.accessToken;
-				}
-			} catch (err) {
-				log.warn("Failed to refresh access token:", err);
-			}
+			return this.accessTokenRefresh.run(() => this.refreshAccountSession());
 		}
 
 		throw new Error("567 API 会话已过期，请重新登录");
+	}
+
+	private async refreshAccessTokenWithCookie(): Promise<string> {
+		try {
+			const refreshRes = await request<{
+				success: boolean;
+				message?: string;
+				code?: number | string;
+				data?: {
+					access_token?: string;
+					user?: { quota?: number; username?: string; display_name?: string };
+				};
+			}>(`${BASE_SERVER}/api/user/auth/refresh`, {
+				method: "POST",
+				headers: { Cookie: this.currentSession.cookie ?? "" },
+			});
+
+			const rawCookies = refreshRes.headers["set-cookie"];
+			let rotatedCookie = false;
+			if (rawCookies && refreshRes.status >= 200 && refreshRes.status < 400) {
+				const cookieHeader = (Array.isArray(rawCookies) ? rawCookies : [rawCookies])
+					.map((cookie) => cookie.split(";")[0]?.trim() ?? "")
+					.filter((cookie) => cookie && cookie.slice(cookie.indexOf("=") + 1).length > 0)
+					.join("; ");
+				if (cookieHeader) {
+					this.currentSession.cookie = cookieHeader;
+					rotatedCookie = true;
+				}
+			}
+
+			if (refreshRes.data?.success && refreshRes.data.data?.access_token) {
+				this.currentSession.accessToken = refreshRes.data.data.access_token;
+				const userData = refreshRes.data.data.user;
+				if (typeof userData?.quota === "number") {
+					this.currentSession.quota = userData.quota;
+					this.currentSession.quotaUsd = Number((userData.quota / QUOTA_PER_USD).toFixed(2));
+				}
+				if (userData?.display_name || userData?.username) {
+					this.currentSession.username = userData.display_name || userData.username;
+				}
+				this.saveSession(this.currentSession);
+				return this.currentSession.accessToken;
+			}
+
+			if (rotatedCookie) this.saveSession(this.currentSession);
+			const message = typeof refreshRes.data?.message === "string" ? refreshRes.data.message.slice(0, 200) : "";
+			log.warn("567api access-token refresh rejected", {
+				status: refreshRes.status,
+				code: refreshRes.data?.code,
+				message,
+			});
+			const code = Number(refreshRes.data?.code);
+			const rejectedByMessage = /过期|失效|无效|unauthori[sz]ed|expired|invalid.*(cookie|session|token)/i.test(
+				message,
+			);
+			if (
+				refreshRes.status === 401 ||
+				refreshRes.status === 403 ||
+				code === 401 ||
+				code === 403 ||
+				rejectedByMessage
+			) {
+				const status = refreshRes.status === 403 || code === 403 ? 403 : 401;
+				throw new RefreshCookieRejectedError("567 API refresh cookie was rejected", status);
+			}
+		} catch (error) {
+			if (error instanceof RefreshCookieRejectedError) throw error;
+			log.warn("Failed to refresh access token:", error);
+		}
+		throw new Error("567 API 会话续期失败，请稍后重试");
+	}
+
+	private refreshAccountSession(): Promise<string> {
+		return refreshWithAccountRecovery(
+			() => this.refreshAccessTokenWithCookie(),
+			() => {
+				try {
+					return loadAccountCredentials(getDesktopCredentialVault());
+				} catch (error) {
+					log.warn("Could not read saved 567 API account credentials:", error);
+					return undefined;
+				}
+			},
+			(credentials) => this.loginSilentlyWithPassword(credentials.username, credentials.password),
+		);
+	}
+
+	private async loginSilentlyWithPassword(username: string, password: string): Promise<string> {
+		const loginRes = await request<{
+			success: boolean;
+			message?: string;
+			data?: {
+				access_token?: string;
+				user?: { quota?: number; username?: string; display_name?: string };
+				username?: string;
+				display_name?: string;
+				quota?: number;
+			};
+		}>(`${BASE_SERVER}/api/user/login`, { method: "POST", body: { username, password } });
+		if (!loginRes.data?.success) {
+			throw new Error(loginRes.data?.message || "567 API 账户自动登录失败，请重新登录");
+		}
+		const cookies = loginRes.headers["set-cookie"] || [];
+		const cookie = (Array.isArray(cookies) ? cookies : [cookies])
+			.map((value) => value.split(";")[0]?.trim() ?? "")
+			.filter((value) => value && value.slice(value.indexOf("=") + 1).length > 0)
+			.join("; ");
+		const user = loginRes.data.data?.user || loginRes.data.data;
+		this.currentSession = {
+			...this.currentSession,
+			isLoggedIn: true,
+			authType: "account",
+			username: user?.display_name || user?.username || username,
+			accessToken: loginRes.data.data?.access_token,
+			cookie: cookie || this.currentSession.cookie,
+			quota: user?.quota ?? this.currentSession.quota,
+			quotaUsd:
+				user?.quota === undefined ? this.currentSession.quotaUsd : Number((user.quota / QUOTA_PER_USD).toFixed(2)),
+			lastUpdated: new Date().toISOString(),
+		};
+		this.saveSession(this.currentSession);
+		if (!this.currentSession.accessToken) return this.refreshAccessTokenWithCookie();
+		log.info("567 API account session restored after refresh-cookie rejection");
+		return this.currentSession.accessToken;
 	}
 
 	/**
@@ -892,9 +987,15 @@ export class NewApiService {
 
 		if (res.status === 401 && this.currentSession.cookie && this.currentSession.authType === "account") {
 			log.warn("Access token expired (HTTP 401), refreshing token and retrying request...");
-			this.currentSession.accessToken = undefined;
 			try {
-				token = await this.ensureValidAccessToken();
+				token = await this.accessTokenRefresh.afterUnauthorized(
+					token,
+					() => this.currentSession.accessToken,
+					() => {
+						this.currentSession.accessToken = undefined;
+					},
+					() => this.refreshAccountSession(),
+				);
 				res = await request<T>(urlStr, {
 					...options,
 					headers: {
@@ -989,6 +1090,11 @@ export class NewApiService {
 					message: selfRes.data?.message || `账户访问令牌验证失败 (HTTP ${selfRes.status})`,
 				};
 			}
+			try {
+				removeAccountCredentials(getDesktopCredentialVault());
+			} catch (error) {
+				log.warn("Could not remove saved 567 API account credentials:", error);
+			}
 
 			const rawData = selfRes.data.data;
 			const userData = rawData.user || rawData;
@@ -1005,7 +1111,6 @@ export class NewApiService {
 				quotaUsd,
 				lastUpdated: new Date().toISOString(),
 			};
-
 			// 登录成功后拉取可用分组元数据，并自动接入核心推荐分组
 			await this.getAvailableGroups(true);
 			try {
@@ -1083,6 +1188,18 @@ export class NewApiService {
 				quotaUsd,
 				lastUpdated: new Date().toISOString(),
 			};
+			try {
+				if (
+					!saveAccountCredentials(getDesktopCredentialVault(), {
+						username: username.trim(),
+						password: password.trim(),
+					})
+				) {
+					log.warn("Secure storage unavailable; 567 API password re-login will require manual login");
+				}
+			} catch (error) {
+				log.warn("Could not securely save 567 API account credentials:", error);
+			}
 
 			// 登录成功后拉取可用分组元数据，并自动接入核心推荐分组
 			await this.getAvailableGroups(true);
@@ -1595,6 +1712,11 @@ export class NewApiService {
 	 * 退出登录
 	 */
 	public async logout(): Promise<void> {
+		try {
+			removeAccountCredentials(getDesktopCredentialVault());
+		} catch (error) {
+			log.warn("Could not remove saved 567 API account credentials:", error);
+		}
 		this.saveSession({ isLoggedIn: false });
 
 		try {

@@ -48,7 +48,8 @@
 		"allowedHosts": [
 			"cdn.jsdelivr.net",
 			"raw.githubusercontent.com",
-			"stylekit.top"
+			"stylekit.top",
+			"www.stylekit.top"
 		]
 	},
 	"commands": [

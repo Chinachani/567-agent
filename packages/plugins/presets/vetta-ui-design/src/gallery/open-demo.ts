@@ -1,4 +1,5 @@
 import type { DesignSystem } from "../design-systems/types";
+import type { PluginContext } from "@vetta-org/plugin-sdk";
 import { getPluginCtx } from "../plugin-context";
 import { designSystemDemoHtml } from "./DesignSystemDemo";
 
@@ -6,15 +7,15 @@ import { designSystemDemoHtml } from "./DesignSystemDemo";
  * 把一套体系的 HTML demo 交给系统默认浏览器。
  *
  * `ui.openExternal` 只放行 http/https，demo 又是随清单送达的内联文本，没有可直接
- * 打开的线上地址（raw/jsDelivr 都按 text/plain 回，浏览器只会显示源码）。所以走
- * 已有的 `command.run("node")` 通道：把 demo 写进系统临时目录，再用平台默认打开器
- * 拉起浏览器。HTML 经 env 传递，不进 argv，也不落在任何项目目录里。
+ * 打开的线上地址（raw/jsDelivr 都按 text/plain 回，浏览器只会显示源码）。通过
+ * Plugin FS API 将 demo 暂存到当前 workspace，再让 node 复制到系统临时目录并打开。
+ * 大段 HTML 不经进程环境变量，避免 Linux/macOS 的 E2BIG。
  */
 
 /** 落盘文件名只由 slug 组成；slug 在 remote-catalog 已收紧到 kebab-case，这里再兜一层。 */
 export function demoTempFileName(systemId: string): string {
 	const safe = systemId.replace(/[^a-z0-9-]/gi, "").slice(0, 64) || "demo";
-	return `vetta-demo-${safe}.html`;
+	return `567agent-demo-${safe}.html`;
 }
 
 /**
@@ -23,10 +24,10 @@ export function demoTempFileName(systemId: string): string {
  */
 export const OPEN_DEMO_SCRIPT = [
 	'const fs=require("fs"),os=require("os"),path=require("path"),cp=require("child_process");',
-	"const html=process.env.VETD_DEMO_HTML,name=process.env.VETD_DEMO_FILE;",
-	'if(!html||!name){console.error("missing demo payload");process.exit(2);}',
+	"const source=process.env.VETD_DEMO_SOURCE,name=process.env.VETD_DEMO_FILE;",
+	'if(!source||!name){console.error("missing demo source");process.exit(2);}',
 	"const file=path.join(os.tmpdir(),path.basename(name));",
-	"fs.writeFileSync(file,html);",
+	"fs.copyFileSync(source,file);",
 	'const win=process.platform==="win32";',
 	'const cmd=process.platform==="darwin"?"open":win?"cmd":"xdg-open";',
 	'const args=win?["/c","start","",file]:[file];',
@@ -38,12 +39,25 @@ export const OPEN_DEMO_SCRIPT = [
 export async function openDemoInBrowser(system: DesignSystem): Promise<boolean> {
 	const html = designSystemDemoHtml(system);
 	if (html === null) return false;
-	const result = await getPluginCtx().command.run("node", ["-e", OPEN_DEMO_SCRIPT], {
-		env: { VETD_DEMO_HTML: html, VETD_DEMO_FILE: demoTempFileName(system.id) },
-		timeoutMs: 10_000,
-	});
-	if (result.exitCode !== 0) {
-		throw new Error(result.stderr.trim() || `open demo exited with ${result.exitCode}`);
-	}
+	await openHtmlDemoInBrowser(getPluginCtx(), html, system.id);
 	return true;
+}
+
+export async function openHtmlDemoInBrowser(ctx: PluginContext, html: string, systemId: string): Promise<void> {
+	const { workspacePath } = await ctx.official.projects.list();
+	const separator = workspacePath.includes("\\") ? "\\" : "/";
+	const sourcePath = `${workspacePath.replace(/[\\/]+$/, "")}${separator}.567agent-demo-${crypto.randomUUID()}.html`;
+	await ctx.fs.writeFile(sourcePath, html);
+	try {
+		const result = await ctx.command.run("node", ["-e", OPEN_DEMO_SCRIPT], {
+			cwd: workspacePath,
+			env: { VETD_DEMO_SOURCE: sourcePath, VETD_DEMO_FILE: demoTempFileName(systemId) },
+			timeoutMs: 10_000,
+		});
+		if (result.exitCode !== 0) {
+			throw new Error(result.stderr.trim() || `open demo exited with ${result.exitCode}`);
+		}
+	} finally {
+		await ctx.fs.delete(sourcePath).catch(() => undefined);
+	}
 }

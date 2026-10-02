@@ -2,6 +2,7 @@ import { createSocket } from "node:dgram";
 import { createConnection } from "node:net";
 import { app, net } from "electron";
 import { shouldLogFetchFailure } from "./fetch-diagnostics-policy.js";
+import { recordLinuxGpuCrash } from "./linux-gpu-recovery.js";
 import {
 	type AppLogLevel,
 	configureAppLogging,
@@ -218,6 +219,14 @@ export function installMainDiagnostics(): void {
 
 	app.on("child-process-gone", (_event, details) => {
 		diagnosticsLog.error("child-process-gone", details);
+		if (process.platform === "linux" && details.type === "GPU" && details.reason === "crashed") {
+			try {
+				const crashCount = recordLinuxGpuCrash(app.getPath("userData"));
+				diagnosticsLog.warn("Linux GPU crash recorded", { recentCrashes: crashCount });
+			} catch (error) {
+				diagnosticsLog.warn("failed to record Linux GPU crash", error);
+			}
+		}
 	});
 
 	app.on("will-quit", (_event) => {

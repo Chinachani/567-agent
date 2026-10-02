@@ -1,4 +1,5 @@
 import org.jetbrains.kotlin.gradle.dsl.JvmTarget
+import java.util.Properties
 
 plugins {
     alias(libs.plugins.kotlinMultiplatform)
@@ -8,9 +9,42 @@ plugins {
     alias(libs.plugins.kotlinSerialization)
 }
 
+val mobileVersionFile = rootProject.file("version.properties")
+val generatedVersionDir = layout.buildDirectory.dir("generated/app-version/commonMain/kotlin")
+val generateMobileVersionSource = tasks.register("generateMobileVersionSource") {
+    inputs.file(mobileVersionFile)
+    outputs.dir(generatedVersionDir)
+    doLast {
+        val properties = Properties().apply { mobileVersionFile.inputStream().use(::load) }
+        val versionName = properties.getProperty("versionName")
+        val versionCode = properties.getProperty("versionCode").toInt()
+        require(versionName.matches(Regex("[0-9]+\\.[0-9]+\\.[0-9]+"))) {
+            "Invalid mobile versionName: $versionName"
+        }
+        require(versionCode > 0) { "Invalid mobile versionCode: $versionCode" }
+        val output = generatedVersionDir.get().file("org/agent567/android/AppVersion.kt").asFile
+        output.parentFile.mkdirs()
+        output.writeText(
+            """package org.agent567.android
+
+object AppVersion {
+    const val NAME = "$versionName"
+    const val CODE = $versionCode
+}
+""",
+        )
+    }
+}
+
+tasks.configureEach {
+    if (name.startsWith("compile") && name.contains("Kotlin")) {
+        dependsOn(generateMobileVersionSource)
+    }
+}
+
 kotlin {
     android {
-        namespace = "org.vetta.android.shared"
+        namespace = "org.agent567.android.shared"
         compileSdk = libs.versions.android.compileSdk.get().toInt()
         minSdk = libs.versions.android.minSdk.get().toInt()
 
@@ -57,6 +91,9 @@ kotlin {
 
             implementation(libs.multiplatform.settings)
             implementation(libs.multiplatform.settings.no.arg)
+        }
+        commonMain {
+            kotlin.srcDir(generatedVersionDir)
         }
         androidMain.dependencies {
             implementation(libs.compose.uiToolingPreview)

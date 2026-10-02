@@ -39,7 +39,10 @@ function sourceText(): string {
 }
 
 describe("plugin.json 权限声明", () => {
-	const manifest = JSON.parse(readFileSync(join(ROOT, "plugin.json"), "utf8")) as { permissions: string[] };
+	const manifest = JSON.parse(readFileSync(join(ROOT, "plugin.json"), "utf8")) as {
+		permissions: string[];
+		network?: { allowedHosts?: string[] };
+	};
 	const declared = new Set(manifest.permissions);
 	const source = sourceText();
 
@@ -51,4 +54,8 @@ describe("plugin.json 权限声明", () => {
 			}
 		});
 	}
+
+	it("允许 StyleKit 的规范域名及 www 域名", () => {
+		expect(manifest.network?.allowedHosts).toEqual(expect.arrayContaining(["stylekit.top", "www.stylekit.top"]));
+	});
 });

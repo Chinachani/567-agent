@@ -1,5 +1,5 @@
 import { spawnSync } from "node:child_process";
-import { mkdtemp, mkdir, readFile, rm, writeFile } from "node:fs/promises";
+import { mkdtemp, mkdir, readFile, readdir, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import type {
@@ -10,8 +10,8 @@ import type {
 	PluginContext,
 } from "@vetta-org/plugin-sdk";
 import { afterEach, describe, expect, it } from "vitest";
-import { engineFilesHash } from "../src/engine/engine-files";
-import { engineReady, migrateLegacyEngine, waitForSpawnExit } from "../src/engine/engine-manager";
+import { ENGINE_FILES, engineFilesHash } from "../src/engine/engine-files";
+import { engineReady, materializeEngine, migrateLegacyEngine, waitForSpawnExit } from "../src/engine/engine-manager";
 
 const temporaryDirectories: string[] = [];
 
@@ -23,6 +23,7 @@ const runNode: PluginCommandApi["run"] = async (file, args = [], options) => {
 	if (file !== "node") throw new Error(`Unexpected command: ${file}`);
 	const result = spawnSync(process.execPath, args, {
 		encoding: "utf8",
+		cwd: options?.cwd,
 		env: { ...process.env, ...options?.env },
 	});
 	if (result.error) throw result.error;
@@ -44,6 +45,30 @@ async function temporaryHome(): Promise<string> {
 }
 
 describe("design engine data migration", () => {
+	it("materializes the engine through a cleaned workspace file instead of a large environment value", async () => {
+		const workspace = await temporaryHome();
+		const engineRoot = join(workspace, "engine");
+		const context = {
+			command: {
+				run: async (file: string, args: readonly string[], options?: { cwd?: string; env?: Record<string, string> }) => {
+					expect(options?.env).not.toHaveProperty("VETD_ENGINE_FILES");
+					return runNode(file, [...args], options);
+				},
+			},
+			fs: {
+				writeFile: (path: string, content: string) => writeFile(path, content),
+				delete: (path: string) => rm(path, { force: true }),
+			},
+			official: { projects: { list: async () => ({ workspacePath: workspace, projects: [], archivedProjects: [] }) } },
+		} as unknown as PluginContext;
+
+		await materializeEngine(context, engineRoot);
+
+		expect(await readFile(join(engineRoot, "package.json"), "utf8")).toBe(ENGINE_FILES["package.json"]);
+		expect(await readFile(join(engineRoot, ".files-hash"), "utf8")).toBe(engineFilesHash());
+		expect((await readdir(workspace)).some((name) => name.startsWith(".567agent-engine-bootstrap.json"))).toBe(false);
+	});
+
 	it("moves the legacy engine tree into the plugin data directory", async () => {
 		const home = await temporaryHome();
 		const legacyRoot = join(home, ".vetta", "design-engine");

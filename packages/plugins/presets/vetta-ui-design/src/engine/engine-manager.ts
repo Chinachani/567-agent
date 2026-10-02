@@ -38,15 +38,18 @@ export interface EngineServer {
 
 const BOOTSTRAP_SCRIPT = [
 	"const fs=require('fs'),p=require('path');",
-	"const root=process.env.VETD_ENGINE_ROOT;",
-	"if(!root)throw new Error('VETD_ENGINE_ROOT missing');",
-	"const files=JSON.parse(Buffer.from(process.env.VETD_ENGINE_FILES,'base64').toString('utf8'));",
+	"if(!process.env.VETD_ENGINE_ROOT)throw new Error('VETD_ENGINE_ROOT missing');",
+	"const root=p.resolve(process.env.VETD_ENGINE_ROOT);",
+	"const files=JSON.parse(fs.readFileSync(process.env.VETD_ENGINE_PAYLOAD_FILE,'utf8'));",
 	"for(const[rel,content]of Object.entries(files)){",
-	"const t=p.join(root,rel);fs.mkdirSync(p.dirname(t),{recursive:true});fs.writeFileSync(t,content,'utf8');",
+	"const t=p.resolve(root,rel);if(t!==root&&!t.startsWith(root+p.sep))throw new Error('invalid engine file path');",
+	"fs.mkdirSync(p.dirname(t),{recursive:true});fs.writeFileSync(t,content,'utf8');",
 	"}",
 	"fs.writeFileSync(p.join(root,'.files-hash'),process.env.VETD_ENGINE_HASH??'','utf8');",
 	"console.log('ok');",
 ].join("");
+
+const ENGINE_BOOTSTRAP_FILE = ".567agent-engine-bootstrap.json";
 
 const MIGRATE_SCRIPT = [
 	"const fs=require('fs'),p=require('path');",
@@ -144,28 +147,26 @@ export async function migrateLegacyEngine(ctx: PluginContext, home: string): Pro
 	}
 }
 
-function base64FromText(text: string): string {
-	const bytes = new TextEncoder().encode(text);
-	let binary = "";
-	const chunk = 0x8000;
-	for (let i = 0; i < bytes.length; i += chunk) {
-		binary += String.fromCharCode(...bytes.subarray(i, i + chunk));
-	}
-	return btoa(binary);
-}
-
-async function materializeEngine(ctx: PluginContext, engineRoot: string): Promise<void> {
-	const payload = base64FromText(JSON.stringify(ENGINE_FILES));
-	const result = await ctx.command.run("node", ["-e", BOOTSTRAP_SCRIPT], {
-		env: {
-			VETD_ENGINE_ROOT: engineRoot,
-			VETD_ENGINE_FILES: payload,
-			VETD_ENGINE_HASH: engineFilesHash(),
-		},
-		timeoutMs: 30_000,
-	});
-	if (result.exitCode !== 0) {
-		throw new Error(`engine materialize failed: ${result.stderr || result.stdout}`);
+export async function materializeEngine(ctx: PluginContext, engineRoot: string): Promise<void> {
+	const { workspacePath } = await ctx.official.projects.list();
+	const separator = workspacePath.includes("\\") ? "\\" : "/";
+	const stagingPath = `${workspacePath.replace(/[\\/]+$/, "")}${separator}${ENGINE_BOOTSTRAP_FILE}-${crypto.randomUUID()}`;
+	await ctx.fs.writeFile(stagingPath, JSON.stringify(ENGINE_FILES));
+	try {
+		const result = await ctx.command.run("node", ["-e", BOOTSTRAP_SCRIPT], {
+			cwd: workspacePath,
+			env: {
+				VETD_ENGINE_ROOT: engineRoot,
+				VETD_ENGINE_PAYLOAD_FILE: stagingPath,
+				VETD_ENGINE_HASH: engineFilesHash(),
+			},
+			timeoutMs: 30_000,
+		});
+		if (result.exitCode !== 0) {
+			throw new Error(`engine materialize failed: ${result.stderr || result.stdout}`);
+		}
+	} finally {
+		await ctx.fs.delete(stagingPath).catch(() => undefined);
 	}
 }
 

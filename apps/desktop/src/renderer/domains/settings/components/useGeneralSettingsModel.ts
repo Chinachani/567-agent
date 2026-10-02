@@ -96,7 +96,7 @@ export function useGeneralSettingsModel(): GeneralSettingsModel {
 	}, [setWorkspacePath]);
 
 	const resetWorkspace = useCallback(async () => {
-		const defaultPath = "~/.vetta/workspace";
+		const defaultPath = "~/.567agent/workspace";
 		setWorkspacePath(defaultPath);
 		localStorage.setItem("vetta-workspace-path", defaultPath);
 		await window.vetta.config.set({ workspacePath: defaultPath });

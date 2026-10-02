@@ -6,7 +6,8 @@
 	"scripts": {
 		"build:mcp": "node scripts/build-mcp.mjs",
 		"build": "node scripts/build-mcp.mjs && bunx vite build",
-		"check": "bunx tsc --noEmit"
+		"check": "bunx tsc --noEmit",
+		"test": "bun ../../../../scripts/quality/run-vitest.mjs --run"
 	},
 	"dependencies": {
 		"@modelcontextprotocol/ext-apps": "^1.7.4",
@@ -20,6 +21,7 @@
 		"zod": "^4.4.3"
 	},
 	"devDependencies": {
+		"@testing-library/react": "16.3.2",
 		"@tailwindcss/vite": "^4.1.12",
 		"@types/node": "^22.10.5",
 		"@types/react": "^19.1.1",
@@ -29,6 +31,7 @@
 		"esbuild": "^0.25.0",
 		"react": "19.1.1",
 		"react-dom": "19.1.1",
+		"jsdom": "26.1.0",
 		"tailwindcss": "^4.1.12",
 		"typescript": "^5.9.2",
 		"vite": "^7.1.7"

@@ -114,7 +114,7 @@ export function CanvasPanel() {
 					</div>
 				}
 			>
-				<CowartApp />
+				<CowartApp key={projectDir} />
 			</Suspense>
 		</div>
 	);

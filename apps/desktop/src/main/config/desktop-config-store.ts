@@ -7,6 +7,7 @@ import { atomicWriteJSON } from "@vetta/toolkit/atomic-write";
 import { isLanguagePreference, type LanguagePreference } from "../../shared/i18n/config.js";
 import { normalizeShortcutsConfig, type ShortcutsConfig } from "../../shared/shortcuts.js";
 import { isAgentMode } from "../agent-modes/index.js";
+import { migrateLegacyWorkspace } from "./legacy-workspace-migration.js";
 
 export interface ProjectEntry {
 	path: string;
@@ -238,12 +239,13 @@ export function readConfigSync(): DesktopConfig {
 }
 
 function parseDesktopConfig(parsed: Record<string, unknown>): DesktopConfig {
+	const migratedWorkspace = migrateLegacyWorkspace(parsed);
 	return {
-		projects: migrateProjectEntries(parsed.projects),
-		archivedProjects: migrateProjectEntries(parsed.archivedProjects),
+		projects: migrateProjectEntries(migratedWorkspace.projects),
+		archivedProjects: migrateProjectEntries(migratedWorkspace.archivedProjects),
 		workspacePath:
-			typeof parsed.workspacePath === "string"
-				? expandTildePath(parsed.workspacePath)
+			typeof migratedWorkspace.workspacePath === "string"
+				? expandTildePath(migratedWorkspace.workspacePath)
 				: DEFAULT_CONFIG.workspacePath,
 		defaultExecutionMode: normalizeExecutionMode(parsed.defaultExecutionMode),
 		// 兼容 0.x 的旧字段名 agentMode（当时语义是全局工作模式），老用户配置不丢。

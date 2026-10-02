@@ -8,7 +8,7 @@ import { parse } from "yaml";
 const execFileAsync = promisify(execFile);
 const packageDir = resolve(import.meta.dirname, "..");
 const defaultReleaseDir = join(packageDir, "release");
-const requiredPayloadPaths = ["/opt/Vetta/Vetta", "/opt/Vetta/resources/package-type"];
+const requiredPayloadPaths = ["/opt/567-agent/567-agent", "/opt/567-agent/resources/package-type"];
 
 function requireValue(value, label) {
 	if (typeof value !== "string" || value.trim().length === 0) {
@@ -34,7 +34,7 @@ export function parseDebFields(output) {
 export function parseDebContents(output) {
 	return output
 		.split(/\r?\n/)
-		.map((line) => line.match(/\s(\.\/\S+?)(?:\s+->\s+\S+)?$/)?.[1])
+		.map((line) => line.match(/\s(\.\/.+?)(?:\s+->\s+.+)?$/)?.[1])
 		.filter(Boolean)
 		.map((filePath) => filePath.replace(/^\./, ""));
 }
@@ -55,11 +55,15 @@ function verifyPayload(format, paths) {
 			throw new Error(`[verify-linux-packages] ${format} package is missing ${requiredPath}`);
 		}
 	}
-	if (![...pathSet].some((filePath) => /^\/usr\/share\/applications\/[^/]+\.desktop$/.test(filePath))) {
-		throw new Error(`[verify-linux-packages] ${format} package has no desktop entry`);
+	if (!pathSet.has("/usr/share/applications/567-agent.desktop")) {
+		throw new Error(`[verify-linux-packages] ${format} package is missing /usr/share/applications/567-agent.desktop`);
 	}
-	if (![...pathSet].some((filePath) => filePath.startsWith("/usr/share/icons/hicolor/") && filePath.endsWith(".png"))) {
-		throw new Error(`[verify-linux-packages] ${format} package has no hicolor icon`);
+	if (
+		![...pathSet].some(
+			(filePath) => filePath.startsWith("/usr/share/icons/hicolor/") && filePath.endsWith("/apps/567-agent.png"),
+		)
+	) {
+		throw new Error(`[verify-linux-packages] ${format} package has no 567-agent hicolor icon`);
 	}
 }
 
@@ -74,8 +78,8 @@ function verifyIdentity(format, actual, expected) {
 }
 
 export function verifyLinuxPackageInspection({ expectedVersion, deb, rpm }) {
-	verifyIdentity("Debian", deb, { name: "vetta", version: expectedVersion, arch: "amd64" });
-	verifyIdentity("RPM", rpm, { name: "vetta", version: expectedVersion, arch: "x86_64" });
+	verifyIdentity("Debian", deb, { name: "567-agent", version: expectedVersion, arch: "amd64" });
+	verifyIdentity("RPM", rpm, { name: "567-agent", version: expectedVersion, arch: "x86_64" });
 	verifyPayload("Debian", deb.paths);
 	verifyPayload("RPM", rpm.paths);
 }

@@ -62,7 +62,7 @@
     },
     "apps/desktop": {
       "name": "@vetta/desktop",
-      "version": "1.1.5",
+      "version": "1.1.6",
       "dependencies": {
         "@dagrejs/dagre": "^3.0.0",
         "@fontsource-variable/geist": "^5.2.8",
@@ -703,12 +703,14 @@
       },
       "devDependencies": {
         "@tailwindcss/vite": "^4.1.12",
+        "@testing-library/react": "16.3.2",
         "@types/node": "^22.10.5",
         "@types/react": "^19.1.1",
         "@types/react-dom": "^19.1.1",
         "@vetta-org/plugin-sdk": "workspace:*",
         "@vetta-org/plugin-vite": "workspace:*",
         "esbuild": "^0.25.0",
+        "jsdom": "26.1.0",
         "react": "19.1.1",
         "react-dom": "19.1.1",
         "tailwindcss": "^4.1.12",

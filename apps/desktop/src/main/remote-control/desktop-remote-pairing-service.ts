@@ -2,6 +2,7 @@ import { randomBytes } from "node:crypto";
 import { hostname } from "node:os";
 import type { RemoteConnectionState } from "@vetta/remote-control";
 import { type DesktopConfig, readDesktopConfig, updateDesktopConfig } from "../config/desktop-config-store.js";
+import type { CredentialVault } from "../credentials/credential-vault.js";
 import { getDesktopCredentialVault } from "../credentials/desktop-credential-vault.js";
 import { getAppLogger } from "../logger.js";
 import { getDesktopLocalRelay } from "./desktop-local-relay.js";
@@ -42,7 +43,7 @@ export interface DesktopRemotePairingState {
 }
 
 export class DesktopRemotePairingService {
-	private readonly vault = getDesktopCredentialVault();
+	private readonly vault: Pick<CredentialVault, "isAvailable" | "get" | "put" | "remove">;
 	private state: DesktopRemotePairingState = {
 		status: "idle",
 		inputEnabled: false,
@@ -52,7 +53,12 @@ export class DesktopRemotePairingService {
 	private localRelayCertificate: DesktopLocalRelayCertificate | undefined;
 	private connectionState: RemoteConnectionState = "idle";
 
-	constructor(private readonly options: DesktopRemotePairingServiceOptions) {}
+	constructor(
+		private readonly options: DesktopRemotePairingServiceOptions,
+		vault: Pick<CredentialVault, "isAvailable" | "get" | "put" | "remove"> = getDesktopCredentialVault(),
+	) {
+		this.vault = vault;
+	}
 
 	getState(): DesktopRemotePairingState {
 		return { ...this.state };
@@ -61,7 +67,22 @@ export class DesktopRemotePairingService {
 	async restore(): Promise<void> {
 		const config = await readDesktopConfig();
 		const remote = config.remoteControl;
-		const secret = this.readDesktopSecret();
+		let secret: string | undefined;
+		try {
+			secret = this.readDesktopSecret();
+		} catch (error) {
+			const message = "Saved remote pairing credentials could not be decrypted; create a new pairing.";
+			this.state = {
+				status: "error",
+				inputEnabled: remote?.inputEnabled === true,
+				inputSupported: false,
+				error: message,
+			};
+			log.warn("remote pairing credentials could not be restored; stored data was preserved", {
+				error: error instanceof Error ? error.message : String(error),
+			});
+			return;
+		}
 		if (!remote?.pairingId || !remote.relayBaseUrl || !secret) return;
 		this.state = {
 			status: "ready",

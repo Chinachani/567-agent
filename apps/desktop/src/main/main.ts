@@ -56,6 +56,7 @@ import {
 import { syncQuickPanelTrigger } from "./ipc/quickpanel.js";
 import { registerKnowledgeIpc } from "./knowledge/ipc.js";
 import { reloadKnowledgePoller, shutdownKnowledgePoller } from "./knowledge/poller.js";
+import { shouldUseLinuxSoftwareRendering } from "./linux-gpu-recovery.js";
 import { getLocalRpcServerEndpointFilePath } from "./local-rpc/endpoint-file.js";
 import { type DesktopLocalRpcServerHandle, startDesktopLocalRpcServer } from "./local-rpc/server.js";
 import { getAppLogger } from "./logger.js";
@@ -251,6 +252,12 @@ if (isCliMode) {
 // safeStorage 按 app 名字定位主密钥，名字分叉会让两侧各持一把密钥，
 // 共享 ~/.vetta 时表现为凭据"丢失"并互相覆盖（见 shared/app-identity.ts）。
 app.name = APP_RUNTIME_NAME;
+
+if (!isCliMode && process.platform === "linux" && shouldUseLinuxSoftwareRendering(app.getPath("userData"))) {
+	app.commandLine.appendSwitch("disable-gpu");
+	app.commandLine.appendSwitch("disable-gpu-shader-disk-cache");
+	mainLog.warn("repeated Linux GPU crashes detected; using software rendering for this launch");
+}
 
 let ipcTeardown: IpcTeardown | undefined;
 let teardownSchedulerIpc: (() => void) | undefined;

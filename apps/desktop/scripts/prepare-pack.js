@@ -262,7 +262,7 @@ if (preparedSpeechModel) {
 // manually below.
 const appPkg = {
 	name: "567-agent",
-	desktopName: "567-Agent",
+	desktopName: "567-agent",
 	version: appVersion,
 	description: "567 Agent - AI Desktop & Coding Assistant",
 	author: LINUX_PACKAGE_METADATA.author,
@@ -660,7 +660,10 @@ const extraResources = resolveExtraResources();
 // Write electron-builder config
 const builderConfig = {
 	appId: "com.api567.agent",
-	productName: "567 Agent",
+	// Linux package paths are machine-facing identifiers, so keep them kebab-case.
+	// Other platforms retain the branded display/product name.
+	productName:
+		resolvePlatformFamilies().size === 1 && resolvePlatformFamilies().has("linux") ? "567-agent" : "567 Agent",
 	executableName: "567-Agent",
 	afterPack: join(projectRoot, "scripts", "windows-version-layout.mjs"),
 	electronVersion,
@@ -746,10 +749,12 @@ const builderConfig = {
 	},
 	linux: {
 		target: LINUX_RELEASE_TARGETS,
+		executableName: "567-agent",
 		syncDesktopName: true,
-		artifactName: "${productName}-${version}.${ext}",
+		artifactName: "567-agent-${version}.${ext}",
 		desktop: {
 			entry: {
+				Name: "567 Agent",
 				StartupWMClass: "567-agent",
 			},
 		},
@@ -763,7 +768,7 @@ const builderConfig = {
 	},
 	deb: {
 		packageName: "567-agent",
-		artifactName: "${productName}-${version}-amd64.${ext}",
+		artifactName: "567-agent-${version}-amd64.${ext}",
 		priority: "optional",
 		synopsis: "567 Agent - AI Desktop & Coding Assistant",
 		description: "567 Agent is an all-in-one AI coding and desktop assistant deeply integrated with 567 API.",
