@@ -40,6 +40,20 @@ describe("extensions discovery", () => {
 		}
 	`;
 
+	it("loads extensions from both branded and legacy project directories", async () => {
+		for (const [directory, filename, tool] of [
+			[".567agent", "new.ts", "new_tool"],
+			[".vetta", "old.ts", "legacy_tool"],
+		]) {
+			const root = path.join(tempDir, directory, "extensions");
+			fs.mkdirSync(root, { recursive: true });
+			fs.writeFileSync(path.join(root, filename), extensionCodeWithTool(tool));
+		}
+		const result = await discoverAndLoadExtensions([], tempDir, tempDir);
+		expect(result.errors).toEqual([]);
+		expect(result.extensions.map((extension) => path.basename(extension.path))).toEqual(["new.ts", "old.ts"]);
+	});
+
 	it("discovers direct .ts files in extensions/", async () => {
 		fs.writeFileSync(path.join(extensionsDir, "foo.ts"), extensionCode);
 		fs.writeFileSync(path.join(extensionsDir, "bar.ts"), extensionCode);

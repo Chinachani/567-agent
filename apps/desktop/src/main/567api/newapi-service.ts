@@ -40,6 +40,8 @@ import { getDesktopModelSettingsService } from "../models/model-settings-host.js
 import type { ModelDefinition } from "../models/model-settings-service.js";
 import {
 	AccessTokenRefreshCoordinator,
+	AccountLoginRejectedError,
+	isRefreshCookieRejected,
 	RefreshCookieRejectedError,
 	refreshWithAccountRecovery,
 } from "./access-token-refresh.js";
@@ -885,16 +887,7 @@ export class NewApiService {
 				message,
 			});
 			const code = Number(refreshRes.data?.code);
-			const rejectedByMessage = /过期|失效|无效|unauthori[sz]ed|expired|invalid.*(cookie|session|token)/i.test(
-				message,
-			);
-			if (
-				refreshRes.status === 401 ||
-				refreshRes.status === 403 ||
-				code === 401 ||
-				code === 403 ||
-				rejectedByMessage
-			) {
+			if (isRefreshCookieRejected({ status: refreshRes.status, code, message })) {
 				const status = refreshRes.status === 403 || code === 403 ? 403 : 401;
 				throw new RefreshCookieRejectedError("567 API refresh cookie was rejected", status);
 			}
@@ -933,7 +926,9 @@ export class NewApiService {
 			};
 		}>(`${BASE_SERVER}/api/user/login`, { method: "POST", body: { username, password } });
 		if (!loginRes.data?.success) {
-			throw new Error(loginRes.data?.message || "567 API 账户自动登录失败，请重新登录");
+			const message = loginRes.data?.message || "567 API 账户自动登录失败，请重新登录";
+			if (loginRes.status < 500 && loginRes.status !== 429) throw new AccountLoginRejectedError(message);
+			throw new Error(message);
 		}
 		const cookies = loginRes.headers["set-cookie"] || [];
 		const cookie = (Array.isArray(cookies) ? cookies : [cookies])
@@ -1111,6 +1106,7 @@ export class NewApiService {
 				quotaUsd,
 				lastUpdated: new Date().toISOString(),
 			};
+			this.accessTokenRefresh.reset();
 			// 登录成功后拉取可用分组元数据，并自动接入核心推荐分组
 			await this.getAvailableGroups(true);
 			try {
@@ -1188,6 +1184,7 @@ export class NewApiService {
 				quotaUsd,
 				lastUpdated: new Date().toISOString(),
 			};
+			this.accessTokenRefresh.reset();
 			try {
 				if (
 					!saveAccountCredentials(getDesktopCredentialVault(), {
@@ -1712,6 +1709,7 @@ export class NewApiService {
 	 * 退出登录
 	 */
 	public async logout(): Promise<void> {
+		this.accessTokenRefresh.reset();
 		try {
 			removeAccountCredentials(getDesktopCredentialVault());
 		} catch (error) {

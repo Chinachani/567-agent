@@ -1,20 +1,23 @@
+import { CONFIG_DIR_NAME, LEGACY_CONFIG_DIR_NAME } from "../../identity.js";
 import type { ResourceAccessPort, ResourceDirectoryEntry, ResourceFileInfo } from "../contracts/resource-access.js";
 import { parseFrontmatter } from "../shared/frontmatter.js";
 import type { LoadPromptTemplatesOptions, PromptTemplate } from "./contracts.js";
 
-const CONFIG_DIRECTORY = ".vetta";
-
 export async function loadPromptTemplates(options: LoadPromptTemplatesOptions): Promise<PromptTemplate[]> {
 	const { resourceAccess: access, cwd, signal } = options;
-	const agentDir = options.agentDir ?? access.paths.join(access.paths.homeDirectory(), CONFIG_DIRECTORY, "agent");
+	const agentDir = options.agentDir ?? access.paths.join(access.paths.homeDirectory(), CONFIG_DIR_NAME, "agent");
 	const includeDefaults = options.includeDefaults ?? true;
 	const userPromptsDir = access.paths.join(agentDir, "prompts");
-	const projectPromptsDir = access.paths.resolve(cwd, CONFIG_DIRECTORY, "prompts");
+	const projectPromptsDirs = [CONFIG_DIR_NAME, LEGACY_CONFIG_DIR_NAME].map((name) =>
+		access.paths.resolve(cwd, name, "prompts"),
+	);
 	const templates: PromptTemplate[] = [];
 
 	if (includeDefaults) {
 		templates.push(...(await loadTemplatesFromDirectory(access, userPromptsDir, "user", "(user)", signal)));
-		templates.push(...(await loadTemplatesFromDirectory(access, projectPromptsDir, "project", "(project)", signal)));
+		for (const directory of projectPromptsDirs) {
+			templates.push(...(await loadTemplatesFromDirectory(access, directory, "project", "(project)", signal)));
+		}
 	}
 
 	for (const rawPath of options.promptPaths ?? []) {
@@ -27,7 +30,7 @@ export async function loadPromptTemplates(options: LoadPromptTemplatesOptions): 
 			continue;
 		}
 		if (!info) continue;
-		const { source, label } = sourceInfo(access, resolvedPath, userPromptsDir, projectPromptsDir, includeDefaults);
+		const { source, label } = sourceInfo(access, resolvedPath, userPromptsDir, projectPromptsDirs, includeDefaults);
 		if (info.kind === "directory") {
 			templates.push(...(await loadTemplatesFromDirectory(access, resolvedPath, source, label, signal)));
 		} else if (info.kind === "file" && resolvedPath.endsWith(".md")) {
@@ -123,12 +126,13 @@ function sourceInfo(
 	access: ResourceAccessPort,
 	resolvedPath: string,
 	userPromptsDir: string,
-	projectPromptsDir: string,
+	projectPromptsDirs: readonly string[],
 	includeDefaults: boolean,
 ): { source: string; label: string } {
 	if (!includeDefaults) {
 		if (isUnderPath(access, resolvedPath, userPromptsDir)) return { source: "user", label: "(user)" };
-		if (isUnderPath(access, resolvedPath, projectPromptsDir)) return { source: "project", label: "(project)" };
+		if (projectPromptsDirs.some((directory) => isUnderPath(access, resolvedPath, directory)))
+			return { source: "project", label: "(project)" };
 	}
 	const base = access.paths.basename(resolvedPath).replace(/\.md$/, "") || "path";
 	return { source: "path", label: `(path:${base})` };

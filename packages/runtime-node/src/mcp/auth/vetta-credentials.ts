@@ -10,8 +10,8 @@
  */
 
 import { readFileSync } from "node:fs";
-import { homedir } from "node:os";
 import { join } from "node:path";
+import { getVettaHomePath } from "@vetta/action-rpc";
 
 export interface VettaCredentials {
 	/** 服务根，不含 API 前缀 */
@@ -24,7 +24,7 @@ export const VETTA_API_PREFIX = "/api/v1";
 
 /** 凭据文件路径：`~/.vetta/auth.json`，显式运行时目录或 VETTA_HOME 可覆盖根目录。 */
 export function vettaCredentialsPath(vettaHome?: string): string {
-	const home = vettaHome?.trim() || process.env.VETTA_HOME?.trim() || join(homedir(), ".vetta");
+	const home = vettaHome?.trim() || getVettaHomePath();
 	return join(home, "auth.json");
 }
 

@@ -13,8 +13,8 @@
  */
 
 import { chmodSync, mkdirSync, rmSync, writeFileSync } from "node:fs";
-import { homedir } from "node:os";
 import { dirname, join } from "node:path";
+import { getVettaHomePath } from "@vetta/action-rpc";
 import { DEFAULT_SERVER_URL } from "../../constants.js";
 import { getAppLogger } from "../../logger.js";
 
@@ -31,8 +31,7 @@ interface StoredCredentials {
 }
 
 function credentialsPath(): string {
-	const home = process.env.VETTA_HOME?.trim() || join(homedir(), ".vetta");
-	return join(home, "auth.json");
+	return join(getVettaHomePath(), "auth.json");
 }
 
 /**

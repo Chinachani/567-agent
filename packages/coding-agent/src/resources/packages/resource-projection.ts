@@ -1,3 +1,4 @@
+import { LEGACY_CONFIG_DIR_NAME } from "../../identity.js";
 import type { ResourceAccessPort } from "../contracts/resource-access.js";
 import type {
 	ResolvedResourcePath,
@@ -301,6 +302,26 @@ export class ResourceProjector {
 			projectSettings.themes ?? [],
 			projectBaseDir,
 		);
+		const legacyBaseDir = this.resourceAccess.paths.join(this.locations.cwd, LEGACY_CONFIG_DIR_NAME);
+		if (legacyBaseDir !== projectBaseDir) {
+			const legacyDirs = this.resourceDirs(legacyBaseDir);
+			const legacyMetadata = { ...projectMetadata, baseDir: legacyBaseDir };
+			const collectors = {
+				extensions: collectAutoExtensionEntries,
+				skills: collectAutoSkillEntries,
+				prompts: collectAutoPromptEntries,
+				themes: collectAutoThemeEntries,
+			};
+			for (const kind of RESOURCE_KINDS) {
+				await add(
+					kind,
+					collectors[kind](discoveryOptions, legacyDirs[kind]),
+					legacyMetadata,
+					projectSettings[kind] ?? [],
+					legacyBaseDir,
+				);
+			}
+		}
 		await add(
 			"extensions",
 			collectAutoExtensionEntries(discoveryOptions, userDirs.extensions),

@@ -38,7 +38,7 @@ describe("resource package location ports", () => {
 		});
 
 		expect(locations.resolvePath("~/shared")).toBe("/home/test/shared");
-		expect(locations.baseDir("project")).toBe("/workspace/project/.vetta");
+		expect(locations.baseDir("project")).toBe("/workspace/project/.567agent");
 		expect(locations.npmInstallPath({ type: "npm", spec: "demo", name: "demo", pinned: false }, "user")).toBe(
 			"/global/node_modules/demo",
 		);
@@ -46,7 +46,7 @@ describe("resource package location ports", () => {
 		if (git.type !== "git") throw new Error("expected git source");
 		expect(locations.gitInstallPath(git, "temporary")).toBe("/tmp/pi-extensions/git-github.com/01234567/user/repo");
 		expect(digestInputs).toEqual(["git-github.com-user/repo"]);
-		expect(locations.identity("./tools", "project")).toBe("local:/workspace/project/.vetta/tools");
+		expect(locations.identity("./tools", "project")).toBe("local:/workspace/project/.567agent/tools");
 		expect(locations.normalizeForSettings("/workspace/project/shared", "project")).toBe("../shared");
 	});
 });

@@ -55,6 +55,23 @@ describe("SessionResourceRuntime", () => {
 	});
 
 	describe("reload", () => {
+		it("reloads new and legacy project prompts together and keeps the new version on collision", async () => {
+			for (const [directory, body] of [
+				[CONFIG_DIR_NAME, "New shared prompt"],
+				[".vetta", "Old shared prompt"],
+			]) {
+				const prompts = join(cwd, directory, "prompts");
+				mkdirSync(prompts, { recursive: true });
+				writeFileSync(join(prompts, "shared.md"), body);
+			}
+			writeFileSync(join(cwd, ".vetta", "prompts", "legacy.md"), "Legacy unique prompt");
+			const loader = createCodingAgentSessionResourceRuntime({ cwd, agentDir });
+			await loader.reload();
+			expect(loader.getPrompts().prompts.map(({ name, content }) => [name, content])).toEqual([
+				["shared", "New shared prompt"],
+				["legacy", "Legacy unique prompt"],
+			]);
+		});
 		it("should initialize with empty results before reload", () => {
 			const loader = createCodingAgentSessionResourceRuntime({ cwd, agentDir });
 

@@ -9,6 +9,32 @@ import { loadPromptTemplates } from "../src/resources/prompts/index.js";
 import { loadPromptResources } from "../src/resources/runtime/prompt-resource-state.js";
 
 describe("Prompt template ResourceAccessPort", () => {
+	it("loads branded home prompts and both project directories, preferring new project prompts on collision", async () => {
+		const files = new Map([
+			["/home/.567agent/agent/prompts/user.md", "User prompt"],
+			["/workspace/.567agent/prompts/shared.md", "New project prompt"],
+			["/workspace/.vetta/prompts/shared.md", "Legacy project prompt"],
+			["/workspace/.vetta/prompts/legacy.md", "Legacy unique prompt"],
+		]);
+		const templates = await loadPromptTemplates({
+			resourceAccess: createMemoryResourceAccess(files),
+			cwd: "/workspace",
+		});
+		expect(templates.map(({ name, content }) => [name, content])).toEqual([
+			["user", "User prompt"],
+			["shared", "New project prompt"],
+			["shared", "Legacy project prompt"],
+			["legacy", "Legacy unique prompt"],
+		]);
+		const resources = await loadPromptResources({
+			resourceAccess: createMemoryResourceAccess(files),
+			cwd: "/workspace",
+			agentDir: "/home/.567agent/agent",
+			paths: ["/workspace/.567agent/prompts", "/workspace/.vetta/prompts"],
+			disabled: false,
+		});
+		expect(resources.prompts.find((prompt) => prompt.name === "shared")?.content).toBe("New project prompt");
+	});
 	it("materializes templates in user, project, then explicit source order", async () => {
 		const files = new Map([
 			["/agent/prompts/review.md", promptDocument("Review changes", "User body")],

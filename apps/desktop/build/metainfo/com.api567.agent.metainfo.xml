@@ -15,9 +15,9 @@
   </description>
   <url type="homepage">https://api.567.wiki</url>
   <url type="help">https://api.567.wiki</url>
-  <launchable type="desktop-id">567-Agent.desktop</launchable>
+  <launchable type="desktop-id">567-agent.desktop</launchable>
   <provides>
-    <binary>567-Agent</binary>
+    <binary>567-agent</binary>
   </provides>
   <categories>
     <category>Utility</category>

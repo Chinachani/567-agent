@@ -98,7 +98,7 @@ jobs:
         env:
           VETTA_BUILD_ENV: test
           VETTA_CLOUD_ENABLED: "false"
-          VETTA_OPEN_MARKETPLACE_REPOSITORY: openvetta/vetta-official-marketplace
+          VETTA_OPEN_MARKETPLACE_REPOSITORY: Chinachani/567-agent-marketplace
           VETTA_SPEECH_INPUT_ENABLED: "false"
           VETTA_UPDATE_GITHUB_OWNER: openvetta
           VETTA_UPDATE_GITHUB_REPO: open-vetta

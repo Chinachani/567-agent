@@ -1,3 +1,4 @@
+import { CONFIG_DIR_NAME, LEGACY_CONFIG_DIR_NAME } from "../../../identity.js";
 import type {
 	ResourceAccessPort,
 	ResourceDirectoryEntry,
@@ -5,7 +6,6 @@ import type {
 	ResourcePathPort,
 } from "../../../resources/contracts/resource-access.js";
 
-const CONFIG_DIRECTORY = ".vetta";
 const UNICODE_SPACES = /[\u00A0\u2000-\u200A\u202F\u205F\u3000]/g;
 
 interface ExtensionManifest {
@@ -45,13 +45,9 @@ export async function discoverExtensionPaths(options: {
 		}
 	};
 
-	addPaths(
-		await discoverExtensionsInDirectory(
-			access,
-			access.paths.join(options.cwd, CONFIG_DIRECTORY, "extensions"),
-			signal,
-		),
-	);
+	for (const name of [CONFIG_DIR_NAME, LEGACY_CONFIG_DIR_NAME]) {
+		addPaths(await discoverExtensionsInDirectory(access, access.paths.join(options.cwd, name, "extensions"), signal));
+	}
 	addPaths(await discoverExtensionsInDirectory(access, access.paths.join(options.agentDir, "extensions"), signal));
 
 	for (const configuredPath of options.configuredPaths) {
