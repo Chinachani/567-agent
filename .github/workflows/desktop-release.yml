@@ -468,10 +468,15 @@ jobs:
           BUILD_VERSION: ${{ needs.prepare.outputs.build-version }}
         run: |
           rm -rf apps/desktop/release
+          ARCHIVE_PATH="${RUNNER_TEMP}/release-checkpoint/release-build.tar"
+          TARGET_PATH="${GITHUB_WORKSPACE}/apps/desktop"
           # GNU tar on Windows parses a drive-letter path as a remote host. Convert
-          # both paths to Git Bash POSIX paths explicitly before passing them to tar.
-          tar -xf "$(cygpath -u "${RUNNER_TEMP}/release-checkpoint/release-build.tar")" \
-            -C "$(cygpath -u "${GITHUB_WORKSPACE}/apps/desktop")"
+          # both paths to Git Bash POSIX paths there; macOS and Linux already use POSIX paths.
+          if [[ "${RUNNER_OS}" == "Windows" ]]; then
+            ARCHIVE_PATH="$(cygpath -u "${ARCHIVE_PATH}")"
+            TARGET_PATH="$(cygpath -u "${TARGET_PATH}")"
+          fi
+          tar -xf "${ARCHIVE_PATH}" -C "${TARGET_PATH}"
           SIGNATURE="$(cat apps/desktop/release/require-mac-signature.txt)"
           case "${SIGNATURE}" in 0|1) ;; *) echo "Invalid signature requirement" >&2; exit 1 ;; esac
           echo "VETTA_REQUIRE_MAC_SIGNATURE=${SIGNATURE}" >> "${GITHUB_ENV}"

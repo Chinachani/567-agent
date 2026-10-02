@@ -73,18 +73,24 @@ async function extractZip(packagePath, destination) {
 	await execFileAsync("tar.exe", ["-xf", packagePath, "-C", destination]);
 }
 
+export function windowsMsiInstallArguments(packagePath, destination, logPath) {
+	return [
+		"/i",
+		packagePath,
+		"/qn",
+		"/norestart",
+		"ALLUSERS=1",
+		`APPLICATIONFOLDER=${destination}`,
+		"/L*V",
+		logPath,
+	];
+}
+
 async function installMsiForVerification(packagePath, destination, logPath) {
 	try {
-		await execFileAsync("msiexec.exe", [
-			"/i",
-			packagePath,
-			"/qn",
-			"/norestart",
-			"ALLUSERS=1",
-			`INSTALLDIR=${destination}`,
-			"/L*V",
-			logPath,
-		], { timeout: 180_000 });
+		await execFileAsync("msiexec.exe", windowsMsiInstallArguments(packagePath, destination, logPath), {
+			timeout: 180_000,
+		});
 	} catch (error) {
 		const log = await readMsiLog(logPath);
 		throw new Error(
@@ -122,13 +128,9 @@ async function findInstalledMsiProduct() {
 
 async function uninstallMsiProduct(productCode, logPath) {
 	if (!/^\{[0-9a-f-]{36}\}$/i.test(productCode)) return;
-	try {
-		await execFileAsync("msiexec.exe", ["/x", productCode, "/qn", "/norestart", "/L*V", logPath], {
-			timeout: 180_000,
-		});
-	} catch (error) {
-		console.warn(`[verify-windows-packages] could not remove temporary MSI installation: ${error.message}`);
-	}
+	await execFileAsync("msiexec.exe", ["/x", productCode, "/qn", "/norestart", "/L*V", logPath], {
+		timeout: 180_000,
+	});
 }
 
 export async function verifyWindowsPackages({ releaseDir = defaultReleaseDir } = {}) {
@@ -157,6 +159,9 @@ export async function verifyWindowsPackages({ releaseDir = defaultReleaseDir } =
 		}
 		await installMsiForVerification(msiPath, msiRoot, msiLogPath);
 		installedProduct = await findInstalledMsiProduct();
+		if (!installedProduct?.productCode || !/^\{[0-9a-f-]{36}\}$/i.test(installedProduct.productCode)) {
+			throw new Error("[verify-windows-packages] MSI install completed without a registered product code");
+		}
 		const installRoots = [installedProduct?.installLocation, msiRoot].filter(Boolean);
 		let verifiedMsiRoot;
 		let lastError;

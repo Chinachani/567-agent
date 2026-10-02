@@ -87,6 +87,7 @@ describe("Desktop release workflow contracts", () => {
 		);
 		const restore = verifySteps.find((step) => step.name === "Restore build checkpoint");
 		expect(restore?.run).toContain("cygpath -u");
+		expect(restore?.run).toMatch(/if \[\[ "\$\{RUNNER_OS\}" == "Windows" \]\]/);
 		expect(restore?.run).toContain("release-checkpoint/release-build.tar");
 		for (const target of ["publish-r2", "publish-github"]) {
 			expect(jobs[target].needs).toContain("verify");

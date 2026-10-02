@@ -7,6 +7,7 @@ import { windowsSupplementalArtifactNames } from "./windows-packaging-contract.m
 import {
 	readExpectedWindowsVersion,
 	verifyExtractedWindowsLayout,
+	windowsMsiInstallArguments,
 } from "./verify-windows-packages.mjs";
 
 async function createLayout(root, version) {
@@ -59,4 +60,19 @@ test("Windows package verification uses the Inno update manifest version", async
 	} finally {
 		await rm(releaseDir, { recursive: true, force: true });
 	}
+});
+
+test("Windows MSI verification silently installs into the inspected application folder", () => {
+	const args = windowsMsiInstallArguments("567-Agent.msi", "C:\\temp\\msi", "C:\\temp\\install.log");
+	assert.deepEqual(args, [
+		"/i",
+		"567-Agent.msi",
+		"/qn",
+		"/norestart",
+		"ALLUSERS=1",
+		"APPLICATIONFOLDER=C:\\temp\\msi",
+		"/L*V",
+		"C:\\temp\\install.log",
+	]);
+	assert.equal(args.some((argument) => argument.startsWith("INSTALLDIR=")), false);
 });
