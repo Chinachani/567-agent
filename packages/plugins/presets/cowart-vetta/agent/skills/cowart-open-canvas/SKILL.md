@@ -3,11 +3,11 @@ name: cowart-open-canvas
 description: Open the Cowart infinite canvas (tldraw) in 567 Agent. Use when the user asks to open, launch, view, or work in the Cowart canvas or wants an infinite canvas for visual planning/image work.
 ---
 
-# Cowart Open Canvas (Vetta 1:1)
+# Cowart Open Canvas (567 Agent)
 
 ## Host mapping
 
-| Codex | Vetta |
+| Codex | 567 Agent |
 |-------|--------|
 | MCP App widget (`ui://widget/...`) | Activity panel tab with full tldraw `App` |
 | `window.cowartMcp` bridge | Plugin installs the same bridge via `ctx.fs` + `conversation.sendPrompt` |

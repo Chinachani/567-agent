@@ -195,5 +195,12 @@
 		"shiki": "^4.0.2",
 		"three": "^0.185.0",
 		"typescript": "^5.9.2"
+	},
+	"author": "567wiki <907746241@qq.com>",
+	"license": "Apache-2.0",
+	"repository": {
+		"type": "git",
+		"url": "git+https://github.com/Chinachani/567-agent.git",
+		"directory": "packages/theme-ui"
 	}
 }

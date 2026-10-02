@@ -14,7 +14,7 @@ export interface MockupOptions {
 	/** Export with an alpha background; `background` is then ignored. */
 	transparent: boolean;
 	shadow: boolean;
-	/** Show the Vetta watermark. */
+	/** Show the 567 Agent watermark. */
 	brand: boolean;
 	scale: 1 | 2;
 	perPage: FramesPerPage;

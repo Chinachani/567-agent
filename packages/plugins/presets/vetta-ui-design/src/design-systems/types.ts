@@ -35,7 +35,7 @@ export interface DesignSystem {
 	resources: readonly DesignResource[];
 	/** 完整 theme.css 内容（含 @theme 块），应用时原样写入。 */
 	themeCss: string;
-	/** Vetta 定制版 DESIGN.md 内容（不含 frontmatter，写入时由 apply 拼接）。 */
+	/** 567 Agent 定制版 DESIGN.md 内容（不含 frontmatter，写入时由 apply 拼接）。 */
 	designMd: string;
 	/** 内容出处，写进 DESIGN.md frontmatter 的 `source:`；缺省用内置的上游地址。 */
 	source?: string;

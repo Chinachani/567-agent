@@ -89,6 +89,6 @@ Fumadocs 搜索索引由站点内容生成，因此需要通过构建后的站�
 
 GitHub Actions [`.github/workflows/docs-site.yml`](../../.github/workflows/docs-site.yml) 在同样的路径变更上跑 typecheck、测试和 `next build`，不重复执行 `vercel deploy`。
 
-默认 canonical 为 `https://docs.openvetta.com`；其他环境可通过 `DOCS_SITE_URL` 覆盖。
+默认 canonical 暂用 GitHub 仓库地址 `https://github.com/Chinachani/567-agent`；正式文档域名确定后，可通过 `DOCS_SITE_URL` 覆盖。
 
 仓库根 [`.vercelignore`](../../.vercelignore) 会作用于整个 Vercel 上传。顶层目录规则必须以 `/` 锚定，尤其不能使用未锚定的 `docs`：它会同时排除 `apps/docs-site/content/docs`，使构建表面成功但 sitemap、LLM 索引和全部文档路由为空。部署合同由 `test/deployment.test.ts` 守护。

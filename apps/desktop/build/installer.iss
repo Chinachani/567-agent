@@ -16,7 +16,7 @@ AppId={{A2B92798-AB76-4F6B-A9B9-C252DBCB617C}
 AppName=567 Agent
 AppVerName=567 Agent {#AppVersion}
 AppVersion={#AppVersion}
-AppPublisher=567 API
+AppPublisher=567wiki
 DefaultDirName={localappdata}\Programs\567Agent
 DefaultGroupName=567 Agent
 OutputDir={#OutputDir}
@@ -73,10 +73,10 @@ Root: HKCU; Subkey: "Software\Classes\.vettapkg"; ValueType: string; ValueName: 
 Root: HKCU; Subkey: "Software\Classes\567Agent.PluginPackage"; ValueType: string; ValueName: ""; ValueData: "567 Agent Plugin Package"; Flags: uninsdeletekey; Check: IsNotBackgroundUpdate
 Root: HKCU; Subkey: "Software\Classes\567Agent.PluginPackage\DefaultIcon"; ValueType: string; ValueName: ""; ValueData: "{app}\567-Agent.exe,0"; Check: IsNotBackgroundUpdate
 Root: HKCU; Subkey: "Software\Classes\567Agent.PluginPackage\shell\open\command"; ValueType: string; ValueName: ""; ValueData: """{app}\567-Agent.exe"" ""%1"""; Check: IsNotBackgroundUpdate
-Root: HKCR; Subkey: ".567design"; ValueType: string; ValueName: ""; ValueData: "567Agent.DesignShare"; Flags: uninsdeletevalue
-Root: HKCR; Subkey: "567Agent.DesignShare"; ValueType: string; ValueName: ""; ValueData: "567 Agent 设计分享包"; Flags: uninsdeletekey
-Root: HKCR; Subkey: "567Agent.DesignShare\DefaultIcon"; ValueType: string; ValueName: ""; ValueData: "{app}\567-Agent.exe,0"
-Root: HKCR; Subkey: "567Agent.DesignShare\shell\open\command"; ValueType: string; ValueName: ""; ValueData: """{app}\567-Agent.exe"" ""%1"""
+Root: HKCU; Subkey: "Software\Classes\.567design"; ValueType: string; ValueName: ""; ValueData: "567Agent.DesignShare"; Flags: uninsdeletevalue; Check: IsNotBackgroundUpdate
+Root: HKCU; Subkey: "Software\Classes\567Agent.DesignShare"; ValueType: string; ValueName: ""; ValueData: "567 Agent 设计分享包"; Flags: uninsdeletekey; Check: IsNotBackgroundUpdate
+Root: HKCU; Subkey: "Software\Classes\567Agent.DesignShare\DefaultIcon"; ValueType: string; ValueName: ""; ValueData: "{app}\567-Agent.exe,0"; Check: IsNotBackgroundUpdate
+Root: HKCU; Subkey: "Software\Classes\567Agent.DesignShare\shell\open\command"; ValueType: string; ValueName: ""; ValueData: """{app}\567-Agent.exe"" ""%1"""; Check: IsNotBackgroundUpdate
 Root: HKCU; Subkey: "Software\Classes\agent567"; ValueType: string; ValueName: ""; ValueData: "URL:567 Agent Protocol"; Flags: uninsdeletekey; Check: IsNotBackgroundUpdate
 Root: HKCU; Subkey: "Software\Classes\agent567"; ValueType: string; ValueName: "URL Protocol"; ValueData: ""; Check: IsNotBackgroundUpdate
 Root: HKCU; Subkey: "Software\Classes\agent567\DefaultIcon"; ValueType: string; ValueName: ""; ValueData: "{app}\567-Agent.exe,0"; Check: IsNotBackgroundUpdate

@@ -7,8 +7,8 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { recordSettingsUsage } from "./recordSettingsUsage";
 
-/** 官网定价页（升级套餐外链目标） */
-const PRICING_URL = "https://openvetta.com/pricing";
+/** 567 API 账户中心（管理套餐与额度） */
+const API_ACCOUNT_URL = "https://api.567.wiki/console/personal";
 
 export type ModelCost = { cacheRead: number; cacheWrite: number; input: number; output: number };
 export type RemoteModel = {
@@ -36,7 +36,7 @@ export interface SubscriptionWindowViewModel {
 export interface SubscriptionCardsModel {
 	actions: {
 		refresh: () => Promise<void>;
-		/** 打开官网定价页（ADR-0051：desktop 不做站内支付，仅外链引流） */
+		/** 打开 567 API 账户中心管理套餐 */
 		upgrade?: () => void;
 	};
 	expiry: string | null;
@@ -139,9 +139,8 @@ export function useSubscriptionCardsModel(): SubscriptionCardsModel {
 	);
 
 	const handleUpgrade = useCallback(() => {
-		// ADR-0051：desktop 不内嵌收银台（3DS/银行跳转在 BrowserWindow 里不可靠），外链官网定价页
-		void window.vetta.shell.openExternal(PRICING_URL);
-		recordSettingsUsage({ tab: "subscription", action: "selected", target: "upgrade-pricing-link" });
+		void window.vetta.shell.openExternal(API_ACCOUNT_URL);
+		recordSettingsUsage({ tab: "subscription", action: "selected", target: "api-account-center-link" });
 	}, []);
 
 	return {

@@ -27,7 +27,25 @@ const SAFE_RESPONSE_HEADERS = new Set([
  * Agent and Runtime. Raw request bodies and causes remain on the internal error only.
  */
 export function normalizeProviderError<TApi extends Api>(error: unknown, model: Model<TApi>): AIError {
-	if (isAIError(error)) return error;
+	if (isAIError(error)) {
+		if (error.code !== AI_ERROR_CODES.TRANSPORT_FAILED || isKnownNetworkFailure(error.cause) !== true) return error;
+		if (error.retryableWasSpecified) return error;
+		return new AIError(error.code, error.message, {
+			provider: error.provider,
+			modelId: error.modelId,
+			statusCode: error.statusCode,
+			requestId: error.requestId,
+			providerCode: error.providerCode,
+			phase: error.phase,
+			url: error.url,
+			responseHeaders: error.responseHeaders,
+			responseBodyPreview: error.responseBodyPreview,
+			retryAfterMs: error.retryAfterMs,
+			metadata: error.metadata,
+			cause: error.cause,
+			retryable: true,
+		});
+	}
 
 	const structuredError = readStructuredProviderError(error);
 	const statusCode = readStatusCode(error) ?? structuredError?.statusCode;
@@ -40,6 +58,7 @@ export function normalizeProviderError<TApi extends Api>(error: unknown, model: 
 	const url = readUrl(error);
 	const phase = readPhase(error);
 	const retryableOverride = readRetryableOverride(error);
+	const knownNetworkFailure = isKnownNetworkFailure(error);
 	const options: AIErrorOptions = {
 		provider: model.provider,
 		modelId: model.id,
@@ -81,7 +100,7 @@ export function normalizeProviderError<TApi extends Api>(error: unknown, model: 
 		...options,
 		retryable:
 			retryableOverride ??
-			isKnownNetworkFailure(error) ??
+			knownNetworkFailure ??
 			(/^Retryable HTTP Error:/i.test(message) || isRetryableProviderFailure(message, statusCode)),
 	});
 }
@@ -325,10 +344,16 @@ function isKnownNetworkFailure(error: unknown): boolean | undefined {
 	const code = typeof record?.code === "string" ? record.code : "";
 	const message = readMessage(error);
 	if (/^(?:APIConnectionError|APITimeoutError|FetchError)$/u.test(name)) return true;
-	if (/^(?:ECONNRESET|ECONNREFUSED|EPIPE|ENETUNREACH|EHOSTUNREACH|ETIMEDOUT|UND_ERR_CONNECT_TIMEOUT)$/u.test(code)) {
+	if (
+		/^(?:ECONNRESET|ECONNREFUSED|EPIPE|ENETUNREACH|EHOSTUNREACH|ETIMEDOUT|UND_ERR_CONNECT_TIMEOUT|(?:net::)?ERR_(?:NETWORK_CHANGED|INTERNET_DISCONNECTED|CONNECTION_(?:CLOSED|RESET|REFUSED)|TIMED_OUT|ADDRESS_UNREACHABLE|NAME_NOT_RESOLVED|NAME_RESOLUTION_FAILED|PROXY_CONNECTION_FAILED|TUNNEL_CONNECTION_FAILED))$/u.test(
+			code,
+		)
+	) {
 		return true;
 	}
-	if (/^fetch failed$/iu.test(message)) return true;
+	if (/^fetch failed$/iu.test(message) || /\bnet::ERR_(?:NETWORK_CHANGED|INTERNET_DISCONNECTED)\b/u.test(message)) {
+		return true;
+	}
 	const cause = record?.cause;
 	return cause === undefined ? undefined : isKnownNetworkFailure(cause);
 }

@@ -321,7 +321,7 @@ it("宿主还没有会话（新会话页）时，先建会话再派活", async (
 		await Promise.resolve();
 	});
 
-	expect(createSession).toHaveBeenCalledWith("/w");
+	expect(createSession).toHaveBeenCalledWith("/w", { navigate: false });
 	expect(sendPrompt).toHaveBeenCalledTimes(1);
 });
 

@@ -120,7 +120,7 @@ export function registerDesignTools(ctx: PluginContext): void {
 		// 反向触发段（Do NOT / Only for）是误调防线的第一层：这个工具会在用户工作区
 		// 里建一整棵目录，模型在「写个页面」这种指令上最容易把它当成实现路径。
 		description:
-			"Create a new Vetta UI Design document (a `<name>.vetd/` directory holding design.json + sources) in the current workspace and open it on the design canvas. Requires the product type (or an explicit frame size) — that is what the design defaults to, so decide it from the user's request BEFORE calling. Each frames/<id>.tsx is one canvas frame AND one route — invoke the vetta-ui-design skill for the rules before writing any of them.\nDo NOT use when the user is writing or modifying code in an existing codebase — implement the page directly in that repo's own framework instead.\nOnly for standalone visual exploration decoupled from any codebase, when the user asked for a design/mockup rather than working code.",
+			"Create a new 567 Agent UI Design document (a `<name>.vetd/` directory holding design.json + sources) in the current workspace and open it on the design canvas. Requires the product type (or an explicit frame size) — that is what the design defaults to, so decide it from the user's request BEFORE calling. Each frames/<id>.tsx is one canvas frame AND one route — invoke the vetta-ui-design skill for the rules before writing any of them.\nDo NOT use when the user is writing or modifying code in an existing codebase — implement the page directly in that repo's own framework instead.\nOnly for standalone visual exploration decoupled from any codebase, when the user asked for a design/mockup rather than working code.",
 		parameters: {
 			type: "object",
 			properties: {
@@ -420,7 +420,7 @@ export function registerDesignTools(ctx: PluginContext): void {
 		name: "vetd_status",
 		label: "%tool.vetd_status%",
 		description:
-			"Inspect the Vetta UI Design state: workspace designs, the open design, frames, shared UI, source-only `issues`, `renderVerification`, pending notes and engine diagnostics. `issues: []` only means the source checks are clear; it is never proof that UI verification passed. `renderVerification` reports which latest captures are clean, stale, unverified, or still have measured issues. Call this once before editing an existing design; use vetd_screenshot batches for subsequent verification.\nDo NOT use to survey a code repository, locate its UI source files or read its build state — use the ordinary file search and read tools instead.\nOnly for .vetd design documents and the design canvas.",
+			"Inspect the 567 Agent UI Design state: workspace designs, the open design, frames, shared UI, source-only `issues`, `renderVerification`, pending notes and engine diagnostics. `issues: []` only means the source checks are clear; it is never proof that UI verification passed. `renderVerification` reports which latest captures are clean, stale, unverified, or still have measured issues. Call this once before editing an existing design; use vetd_screenshot batches for subsequent verification.\nDo NOT use to survey a code repository, locate its UI source files or read its build state — use the ordinary file search and read tools instead.\nOnly for .vetd design documents and the design canvas.",
 		parameters: { type: "object", properties: {}, additionalProperties: false },
 		scope_use: SCOPE_USE,
 		handler: async ({ host, session }) => {

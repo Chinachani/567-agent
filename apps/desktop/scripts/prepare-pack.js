@@ -249,6 +249,10 @@ assertPackagedMainHasNoWorkspaceImports(join(projectRoot, "dist/main"));
 rmSync(buildStageDir, { recursive: true, force: true });
 mkdirSync(buildStageDir, { recursive: true });
 
+// Ship the project license and attribution notice with the desktop application.
+cpSync(join(projectRoot, "..", "..", "LICENSE"), join(buildStageDir, "LICENSE"));
+cpSync(join(projectRoot, "..", "..", "NOTICE"), join(buildStageDir, "NOTICE"));
+
 const preparedSpeechModel = await prepareSpeechModels({
 	env: process.env,
 	platformTags: resolvePlatformTagsFromEnv(),
@@ -706,7 +710,7 @@ const builderConfig = {
 		// 用户的本地模型（Ollama / LM Studio / vLLM 等）通常监听在局域网
 		// 明文 HTTP（http://192.168.x.x:port）。macOS 14+ 的 TCC 与 ATS 默认
 		// 会静默拦截这种请求，表现为 Finder 双击启动后随机出现 "Connection
-		// error."，而从终端启动 Vetta 时 launchd context 不同会偶发放行。
+		// error."，而从终端启动 567 Agent 时 launchd context 不同会偶发放行。
 		// 三个 key 缺一不可：
 		//   - NSAppTransportSecurity.NSAllowsLocalNetworking：放开局域网明文 HTTP
 		//   - NSLocalNetworkUsageDescription：macOS 14+ 触发本地网络权限弹窗
@@ -716,7 +720,7 @@ const builderConfig = {
 				NSAllowsLocalNetworking: true,
 			},
 			NSLocalNetworkUsageDescription:
-				"Vetta 需要访问本地网络以连接你在局域网内运行的 AI 模型服务（如 Ollama、LM Studio、vLLM 等）。",
+				"567 Agent 需要访问本地网络以连接你在局域网内运行的 AI 模型服务（如 Ollama、LM Studio、vLLM 等）。",
 			NSBonjourServices: ["_http._tcp", "_https._tcp"],
 		},
 	},
@@ -726,7 +730,7 @@ const builderConfig = {
 	// 位置必须与那里的 ICON_CENTERS_X_2X 对齐）。
 	// 未签名构建为三图标：多出的「修复已损坏.app」由 scripts/build-mac-repair-helper.js
 	// osacompile 生成，用户首次需 control-click → 「打开」绕过 Gatekeeper，
-	// 之后弹原生密码框对 /Applications/Vetta.app 执行 xattr -dr com.apple.quarantine。
+	// 之后弹原生密码框对 /Applications/567 Agent.app 执行 xattr -dr com.apple.quarantine。
 	// 签名+公证构建不存在「已损坏」问题，退回两图标常规版式。
 	dmg: {
 		background: "build/background.png",
@@ -735,7 +739,7 @@ const builderConfig = {
 		iconTextSize: 12,
 		contents: macSigning.enabled
 			? [
-					{ x: 180, y: 200, type: "file" }, // Vetta.app（electron-builder 自动填入产物路径）
+					{ x: 180, y: 200, type: "file" }, // 567 Agent.app（electron-builder 自动填入产物路径）
 					{ x: 480, y: 200, type: "link", path: "/Applications" },
 				]
 			: [

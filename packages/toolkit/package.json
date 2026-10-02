@@ -1,7 +1,9 @@
 {
 	"name": "@567agent/toolkit",
 	"version": "0.0.1",
-	"description": "Shared Node utilities for the Vetta monorepo (config, fs helpers, …).",
+	"description": "Shared Node utilities for the 567 Agent monorepo (config, fs helpers, …).",
+	"author": "567wiki <907746241@qq.com>",
+	"license": "Apache-2.0",
 	"type": "module",
 	"main": "./dist/index.js",
 	"types": "./dist/index.d.ts",
@@ -27,7 +29,9 @@
 			"import": "./dist/file-migrations.js"
 		}
 	},
-	"files": ["dist"],
+	"files": [
+		"dist"
+	],
 	"scripts": {
 		"clean": "rm -rf dist",
 		"build": "tsgo -p tsconfig.build.json"
@@ -35,5 +39,10 @@
 	"devDependencies": {
 		"@types/node": "^22.10.5",
 		"typescript": "^5.9.2"
+	},
+	"repository": {
+		"type": "git",
+		"url": "git+https://github.com/Chinachani/567-agent.git",
+		"directory": "packages/toolkit"
 	}
 }

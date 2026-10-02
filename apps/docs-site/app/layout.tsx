@@ -2,6 +2,7 @@ import { Analytics } from "@vercel/analytics/next";
 import { cn } from "@/lib/cn";
 import { displaySerif } from "@/lib/fonts";
 import { getRequestLanguage, localeConfig } from "@/lib/i18n";
+import { DEFAULT_DOCS_SITE_URL } from "@/lib/site";
 import { buildRootMetadata } from "@/lib/seo/metadata";
 import type { Metadata } from "next";
 import { headers } from "next/headers";
@@ -12,7 +13,7 @@ export const metadata: Metadata = buildRootMetadata();
 
 export default async function RootLayout({ children }: { children: ReactNode }) {
 	const requestHeaders = await headers();
-	const language = getRequestLanguage(new Request("https://docs.openvetta.com/", { headers: requestHeaders }));
+	const language = getRequestLanguage(new Request(`${DEFAULT_DOCS_SITE_URL}/`, { headers: requestHeaders }));
 
 	return (
 		<html

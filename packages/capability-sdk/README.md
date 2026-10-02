@@ -1,6 +1,6 @@
 # @vetta-org/capability-sdk
 
-Host- and system-neutral capability contracts for Vetta.
+Host- and system-neutral capability contracts for 567 Agent.
 
 The package exports stable capability tokens, IDs, input/output types, constraints, grants, session contracts, and error codes. Plugin, Theme, Action, and host-specific adapters live with their owning upper layer and depend on this package; this package does not depend on or expose them.
 

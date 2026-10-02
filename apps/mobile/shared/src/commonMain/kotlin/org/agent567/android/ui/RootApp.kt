@@ -325,6 +325,8 @@ fun RootApp(
                     themeMode = state.themeMode,
                     autoResumeLastSession = state.autoResumeLastSession,
                     motionEnabled = state.motionEnabled,
+                    migrationBackupLimitMb = state.migrationBackupLimitMb,
+                    onMigrationBackupLimitMb = vm::setMigrationBackupLimitMb,
                     onThemeMode = vm::setThemeMode,
                     onAutoResumeLastSession = vm::setAutoResumeLastSession,
                     onMotionEnabled = vm::setMotionEnabled,

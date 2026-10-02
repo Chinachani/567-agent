@@ -216,7 +216,7 @@ export function NotesLayer({
 							outlineOffset: opened ? 2 : undefined,
 						}}
 					>
-						{/* 头像即状态：待处理是提问的人，已处理是回复过的 Vetta。 */}
+						{/* 头像即状态：待处理是提问的人，已处理是回复过的 567 Agent。 */}
 						<NotePin resolved={resolved} size={28} number={resolved ? null : (number ?? null)} />
 					</button>
 				);
@@ -360,7 +360,7 @@ function NoteThread({
 	);
 }
 
-/** 一条 thread 消息：头像 + 名字 + 气泡，Vetta 的用主题色底与之区分。 */
+/** 一条 thread 消息：头像 + 名字 + 气泡，567 Agent 的用主题色底与之区分。 */
 function NoteMessageRow({ author, text }: { author: "user" | "agent"; text: string }) {
 	const { t } = useTranslation();
 	const isAgent = author === "agent";
@@ -369,7 +369,7 @@ function NoteMessageRow({ author, text }: { author: "user" | "agent"; text: stri
 			<NoteAvatar author={author} size={18} />
 			<div className="min-w-0 flex-1">
 				<span className="mb-0.5 block text-[10px] font-medium text-muted-foreground">
-					{isAgent ? "Vetta" : t("notes.author.user")}
+					{isAgent ? "567 Agent" : t("notes.author.user")}
 				</span>
 				<div
 					className={`rounded-lg rounded-tl-[3px] px-2 py-1.5 text-xs leading-relaxed whitespace-pre-wrap ${

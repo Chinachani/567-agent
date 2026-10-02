@@ -1,4 +1,4 @@
-import { useTranslation } from "@vetta-org/plugin-sdk";
+import { type ConversationState, useTranslation } from "@vetta-org/plugin-sdk";
 import { type ReactNode, useCallback, useEffect, useState } from "react";
 import { TemplateGalleryDialog } from "../cards/TemplateGalleryDialog";
 import {
@@ -17,8 +17,30 @@ import { ConfirmDialog } from "./ConfirmDialog";
 
 interface DesignSystemDialogProps {
 	session: DesignSession;
+	cwd: string | null;
 	open: boolean;
 	onClose(): void;
+}
+
+async function currentConversation(): Promise<ConversationState> {
+	return new Promise((resolve) => {
+		let disposed = false;
+		const subscription = getPluginCtx().conversation.on((event) => {
+			if (disposed || event.type !== "conversation-changed") return;
+			disposed = true;
+			subscription.dispose();
+			resolve(event.conversation);
+		});
+	});
+}
+
+async function ensureConversationForDesign(cwd: string | null): Promise<void> {
+	const conversation = getPluginCtx().conversation;
+	if (!cwd) throw new Error("无法确定设计项目目录，未提交给 AI。请从项目会话打开画布后重试。");
+	const active = await currentConversation();
+	if (!active.id || active.cwd !== cwd) {
+		await conversation.createSession(cwd, { navigate: false });
+	}
 }
 
 /** 待二次确认的应用/还原动作。 */
@@ -42,10 +64,10 @@ function ConfirmLayer({ children }: { children: ReactNode }) {
 /**
  * 画布工具栏的「设计资源」入口：直接复用会话里那张选择卡的模板 Dialog（宫格 +
  * 底部应用），只是多接了画布侧的执行链路——零 frame 直写 theme.css + DESIGN.md；
- * 有 frame 先确认，落 DESIGN.md 后交给 Vetta 按规范全量重设（应用前自动整包备份，
+ * 有 frame 先确认，落 DESIGN.md 后交给 567 Agent 按规范全量重设（应用前自动整包备份，
  * 可一键还原）。
  */
-export function DesignSystemDialog({ session, open, onClose }: DesignSystemDialogProps) {
+export function DesignSystemDialog({ session, cwd, open, onClose }: DesignSystemDialogProps) {
 	const { t } = useTranslation();
 	const [appliedId, setAppliedId] = useState<string | null>(null);
 	const [backupAvailable, setBackupAvailable] = useState(false);
@@ -73,17 +95,23 @@ export function DesignSystemDialog({ session, open, onClose }: DesignSystemDialo
 			void (async () => {
 				try {
 					const ctx = getPluginCtx();
+					// 独立打开画布时可能还没有聊天会话。先在当前设计项目目录创建会话，
+					// 避免 UI 显示“已发送”但 prompt 因无会话而被丢弃。
+					if (session.manifest.frames.length > 0) await ensureConversationForDesign(cwd);
 					const result = await applyDesignSystem(ctx.fs, session.vetdPath, systemId);
 					if (result.mode === "restyle") {
-						// sendPrompt 要整轮跑完才 resolve，不 await；发送失败单独报。
-						void ctx.conversation.sendPrompt(buildRestylePrompt(system, result, ctx.i18n.locale)).catch(
-							(error: unknown) => {
-								notify({ message: t("ds.apply.failed"), error });
-							},
+						const receipt = await ctx.conversation.sendPrompt(
+							buildRestylePrompt(system, result, ctx.i18n.locale),
 						);
+						if (receipt.status === "failed") {
+							throw new Error(receipt.error?.message || "设计修改请求未能提交给 AI。");
+						}
 						notify({
-							message: t("ds.apply.restyle.sent", { name: system.name, count: result.frames.length }),
-							variant: "success",
+							message: t(
+								receipt.status === "queued" ? "ds.apply.restyle.queued" : "ds.apply.restyle.sent",
+								{ name: system.name, count: result.frames.length },
+							),
+							variant: receipt.status === "queued" ? "info" : "success",
 							durationMs: 4000,
 						});
 					} else {

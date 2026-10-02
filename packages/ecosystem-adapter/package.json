@@ -2,6 +2,7 @@
 	"name": "@567agent/ecosystem-adapter",
 	"version": "0.0.1",
 	"description": "Compatibility adapters for external agent ecosystems",
+	"author": "567wiki <907746241@qq.com>",
 	"type": "module",
 	"main": "./dist/index.js",
 	"types": "./dist/index.d.ts",
@@ -23,7 +24,11 @@
 			"import": "./dist/claude-code/hooks/index.js"
 		}
 	},
-	"files": ["dist", "CHANGELOG.md", "README.md"],
+	"files": [
+		"dist",
+		"CHANGELOG.md",
+		"README.md"
+	],
 	"scripts": {
 		"clean": "shx rm -rf dist",
 		"build": "tsgo -p tsconfig.build.json",
@@ -38,6 +43,11 @@
 		"typescript": "^5.9.2"
 	},
 	"license": "MIT",
+	"repository": {
+		"type": "git",
+		"url": "git+https://github.com/Chinachani/567-agent.git",
+		"directory": "packages/ecosystem-adapter"
+	},
 	"engines": {
 		"node": ">=20.0.0"
 	}

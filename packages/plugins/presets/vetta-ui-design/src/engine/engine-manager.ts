@@ -50,6 +50,8 @@ const BOOTSTRAP_SCRIPT = [
 ].join("");
 
 const ENGINE_BOOTSTRAP_FILE = ".567agent-engine-bootstrap.json";
+const DEPENDENCY_INSTALL_MARKER = ".567agent-dependency-install-hash";
+const DEPENDENCY_INSTALL_PENDING_MARKER = ".567agent-dependencies-installing";
 
 const MIGRATE_SCRIPT = [
 	"const fs=require('fs'),p=require('path');",
@@ -73,8 +75,24 @@ const ENGINE_READY_SCRIPT = [
 	"if(!root)throw new Error('VETD_ENGINE_ROOT missing');",
 	"let hash=null;",
 	"try{hash=fs.readFileSync(p.join(root,'.files-hash'),'utf8')}catch(err){if(err.code!=='ENOENT')throw err}",
+	"let depsHash=null;",
+	"try{depsHash=fs.readFileSync(p.join(root,'node_modules',process.env.VETD_ENGINE_INSTALL_MARKER),'utf8')}catch(err){if(err.code!=='ENOENT')throw err}",
+	"const installPending=fs.existsSync(p.join(root,process.env.VETD_ENGINE_PENDING_MARKER));",
 	"const vite=fs.existsSync(p.join(root,'node_modules','vite','package.json'));",
-	"process.stdout.write(JSON.stringify({hash,vite}));",
+	"process.stdout.write(JSON.stringify({hash,depsHash,installPending,vite}));",
+].join("");
+
+const MARK_DEPENDENCIES_PENDING_SCRIPT = [
+	"const fs=require('fs'),p=require('path');",
+	"fs.writeFileSync(p.join(process.env.VETD_ENGINE_ROOT,process.env.VETD_ENGINE_PENDING_MARKER),'installing','utf8');",
+].join("");
+
+const MARK_DEPENDENCIES_INSTALLED_SCRIPT = [
+	"const fs=require('fs'),p=require('path');",
+	"const root=process.env.VETD_ENGINE_ROOT,marker=process.env.VETD_ENGINE_INSTALL_MARKER,hash=process.env.VETD_ENGINE_DEPENDENCY_HASH;",
+	"if(!root||!marker||!hash)throw new Error('engine dependency marker env missing');",
+	"fs.writeFileSync(p.join(root,'node_modules',marker),hash,'utf8');",
+	"fs.rmSync(p.join(root,process.env.VETD_ENGINE_PENDING_MARKER),{force:true});",
 ].join("");
 
 /**
@@ -105,6 +123,14 @@ const servers = new Map<string, EngineServer>();
 
 function engineBaseDir(home: string): string {
 	return `${home}/.vetta/plugin-data/vetta-ui-design/design-engine`;
+}
+
+function engineDependencyHash(): string {
+	let hash = 5381;
+	for (const text of [ENGINE_FILES["package.json"], ENGINE_FILES["package-lock.json"]]) {
+		for (let i = 0; i < text.length; i++) hash = ((hash << 5) + hash + text.charCodeAt(i)) | 0;
+	}
+	return (hash >>> 0).toString(36);
 }
 
 function legacyEngineBaseDir(home: string): string {
@@ -199,8 +225,11 @@ async function runNpm(
 				if (exit.exitCode === 0) resolveInstall();
 				else {
 					void handle.status().then((status) => {
-						const tail = status.recentOutput.split("\n").filter(Boolean).slice(-8).join("\n");
-						rejectInstall(new Error(`npm ${args[0]} exited with ${exit.exitCode ?? exit.signal}\n${tail}`));
+						const tail = status.recentOutput.split("\n").filter(Boolean).slice(-30).join("\n");
+						const repair = /MODULE_NOT_FOUND/.test(tail)
+							? "\nNode/npm 运行环境缺少必要模块。请打开“设置 → 环境”，重新安装 Node 后再试。"
+							: "";
+						rejectInstall(new Error(`npm ${args[0]} exited with ${exit.exitCode ?? exit.signal}${tail ? `\n${tail}` : ""}${repair}`));
 					});
 				}
 			});
@@ -217,12 +246,27 @@ async function installDependencies(
 	engineRoot: string,
 	onProgress: (progress: EngineProgress) => void,
 ): Promise<void> {
+	const pending = await ctx.command.run("node", ["-e", MARK_DEPENDENCIES_PENDING_SCRIPT], {
+		env: { VETD_ENGINE_ROOT: engineRoot, VETD_ENGINE_PENDING_MARKER: DEPENDENCY_INSTALL_PENDING_MARKER },
+		timeoutMs: 30_000,
+	});
+	if (pending.exitCode !== 0) throw new Error(`engine dependency install preparation failed: ${pending.stderr || pending.stdout}`);
 	// `ci` 而不是 `install`：模板连 package-lock.json 一起 materialize，所以这里的树
 	// 永远与 lock 同源，不需要再向 registry 解析一遍版本范围。--prefer-offline 让第二个
 	// 引擎版本直接吃托管 npm 缓存。
 	await runNpm(ctx, engineRoot, ["ci", "--no-audit", "--no-fund", "--prefer-offline"], (outputTail) => {
 		onProgress({ phase: "installing", outputTail });
 	});
+	const marked = await ctx.command.run("node", ["-e", MARK_DEPENDENCIES_INSTALLED_SCRIPT], {
+		env: {
+			VETD_ENGINE_ROOT: engineRoot,
+			VETD_ENGINE_INSTALL_MARKER: DEPENDENCY_INSTALL_MARKER,
+			VETD_ENGINE_PENDING_MARKER: DEPENDENCY_INSTALL_PENDING_MARKER,
+			VETD_ENGINE_DEPENDENCY_HASH: engineDependencyHash(),
+		},
+		timeoutMs: 30_000,
+	});
+	if (marked.exitCode !== 0) throw new Error(`engine dependency verification failed: ${marked.stderr || marked.stdout}`);
 }
 
 /**
@@ -283,7 +327,11 @@ async function pruneOldEngines(ctx: PluginContext): Promise<void> {
 
 export async function engineReady(ctx: PluginContext, engineRoot: string): Promise<boolean> {
 	const result = await ctx.command.run("node", ["-e", ENGINE_READY_SCRIPT], {
-		env: { VETD_ENGINE_ROOT: engineRoot },
+		env: {
+			VETD_ENGINE_ROOT: engineRoot,
+			VETD_ENGINE_INSTALL_MARKER: DEPENDENCY_INSTALL_MARKER,
+			VETD_ENGINE_PENDING_MARKER: DEPENDENCY_INSTALL_PENDING_MARKER,
+		},
 		timeoutMs: 30_000,
 	});
 	if (result.exitCode !== 0) {
@@ -294,13 +342,20 @@ export async function engineReady(ctx: PluginContext, engineRoot: string): Promi
 		typeof readiness !== "object" ||
 		readiness === null ||
 		!("hash" in readiness) ||
+		!("depsHash" in readiness) ||
+		!("installPending" in readiness) ||
 		!("vite" in readiness) ||
 		(readiness.hash !== null && typeof readiness.hash !== "string") ||
+		(readiness.depsHash !== null && typeof readiness.depsHash !== "string") ||
+		typeof readiness.installPending !== "boolean" ||
 		typeof readiness.vite !== "boolean"
 	) {
 		throw new Error("engine readiness check returned invalid output");
 	}
-	return readiness.hash === engineFilesHash() && readiness.vite;
+	return readiness.hash === engineFilesHash() &&
+		!readiness.installPending &&
+		(readiness.depsHash === null || readiness.depsHash === engineDependencyHash()) &&
+		readiness.vite;
 }
 
 /**

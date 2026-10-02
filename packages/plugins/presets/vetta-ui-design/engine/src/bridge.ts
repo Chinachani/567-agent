@@ -571,7 +571,7 @@ export function installBridge(host: BridgeHost): void {
 			case "capture": {
 				const requestId = typeof data.requestId === "string" ? data.requestId : "";
 				// keepHighlight: bake the selected-element outline into the shot (used by
-				// "让 Vetta 调整" so the model SEES which element the user means).
+				// "让 567 Agent 调整" so the model SEES which element the user means).
 				const keepHighlight = data.keepHighlight === true && selected !== null;
 				// Mockup export asks for a higher ratio so the composed image stays
 				// crisp when scaled up; 2 keeps the historical behaviour.

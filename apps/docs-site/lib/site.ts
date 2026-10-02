@@ -1,6 +1,6 @@
 import { getDocsMessages, localeConfig, type DocsLanguage } from "./i18n";
 
-export const DEFAULT_DOCS_SITE_URL = "https://docs.openvetta.com";
+export const DEFAULT_DOCS_SITE_URL = "https://github.com/Chinachani/567-agent";
 
 export const site = {
 	name: "567 Agent",
@@ -134,7 +134,7 @@ export function toCanonicalPath(path: string): string {
 }
 
 export function toAbsoluteUrl(path: string, origin = getSiteOrigin()): string {
-	return new URL(toCanonicalPath(path), `${origin}/`).href;
+	return `${origin.replace(/\/+$/, "")}${toCanonicalPath(path)}`;
 }
 
 export function toMarkdownPath(path: string): string {

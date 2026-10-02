@@ -1,9 +1,9 @@
 ---
 name: plugin-workbench
 description: >
-  Create, implement, build, pack, install, reload, and manage Vetta desktop plugins
-  for non-developers. Use whenever the user wants a Vetta plugin, plugin scaffolding,
-  apply a `.vettapkg` package to Vetta, edit plugin.json name/guidingWords, or debug plugin load/install.
+  Create, implement, build, pack, install, reload, and manage 567 Agent desktop plugins
+  for non-developers. Use whenever the user wants a 567 Agent plugin, plugin scaffolding,
+  apply a `.vettapkg` package to 567 Agent, edit plugin.json name/guidingWords, or debug plugin load/install.
   Requires the Plugin Workbench input-bar toggle (hard isolation). The plugin handbook ships
   inside the project's own @vetta-org/plugin-sdk; locate it with the bundled CLI's docs command.
 ---
@@ -103,7 +103,7 @@ node "{workbenchRoot}/agent/cli/vetta-plugin-cli.js" docs --json
 | 展示名 `name` | 用户可见品牌 |
 | `permissions` 列表 | 安全；对照 permissions.md 向用户解释再写入 |
 | 要解决的问题 / MVP 范围 | 避免一次做全家桶 |
-| 是否立即安装到本机 | 构建后是否引导用户在面板点「应用到 Vetta」 |
+| 是否立即安装到本机 | 构建后是否引导用户在面板点「应用到 567 Agent」 |
 | 扩展点类型（用户没说时） | activity-tab / 工具 / 引导词 / 预览 / … |
 
 ---
@@ -155,7 +155,7 @@ node "{workbenchRoot}/scripts/check-manifest.mjs" "{pluginRoot}"
 改一个**已安装**的插件前，先 `plugins.query` → `get {id}` 看返回项有没有 `devWatch` 字段：
 
 - **`devWatch` 存在（热更新已开启）**：改完工程源码或 `plugin.json` 即结束——vite watch 构建成功后自动重载；dev 会话内新增 permissions/commands 也会自动放行。**禁止**再走 4.4/4.5 或 reload。若 `devWatch.status === "error"`，提示用户看面板错误或拨一下热更新开关。仅当用户明确要**持久**写入注册表（关热更新/重启后仍生效）时，才用 `workbench_offer_reinstall` 让用户点卡片「重新安装」。
-- **`devWatch` 不存在**：走 4.4→4.5 常规流程（构建打包后引导用户在面板点「应用到 Vetta」）。
+- **`devWatch` 不存在**：走 4.4→4.5 常规流程（构建打包后引导用户在面板点「应用到 567 Agent」）。
 
 ### 4.4 构建打包（强制脚本）
 
@@ -167,14 +167,14 @@ node "{workbenchRoot}/scripts/build-and-pack.mjs" "{pluginRoot}"
 - 解析 stdout JSON：`packagePath`、`id`、`version`
 - 失败：读 stderr，按 getting-started / styling 修；缺依赖或 registry 问题 → AskUserQuestion
 
-### 4.5 安装到本机 Vetta（引导用户在面板点击，不要弹确认）
+### 4.5 安装到本机 567 Agent（引导用户在面板点击，不要弹确认）
 
 打包完成后**不要调用** `plugins.manage` 的 `install-from-path`（会弹确认 sheet，工作台流程已废弃此路径）。改为告知用户：
 
-> 打开右侧活动面板「制作插件」→ 对应工程卡片 → 点 **「应用到 Vetta」**（面板安装一次完成授权 + 启用，无确认弹窗）。
+> 打开右侧活动面板「制作插件」→ 对应工程卡片 → 点 **「应用到 567 Agent」**（面板安装一次完成授权 + 启用，无确认弹窗）。
 
 - 应用成功后面板会**默认开启「热更新」**：之后你改源码即自动构建+重载（§4.3.5），无需再次应用。用户可手动关掉。  
-- 再次应用（热更新被关掉时）：build-and-pack 后再请用户点「应用到 Vetta」（应用后会重新默认开启热更新）。  
+- 再次应用（热更新被关掉时）：build-and-pack 后再请用户点「应用到 567 Agent」（应用后会重新默认开启热更新）。
 - 不可覆盖系统插件 id。
 
 ### 4.6 改 name / guidingWords
@@ -194,7 +194,7 @@ Activity Tab「制作插件」（同样受 toggle 硬隔离）：扫描 cwd、�
 
 每张工程卡片有 **「热更新」开关（已安装后默认开）**：宿主把插件 dev 链接到工程目录并常驻 `vetta-plugin dev`；React / CSS 走 HMR，其余资源定向重载（无需 bump/重打包/手动 reload）。适合迭代调试。
 
-已安装时还有 **「重新安装」**（与消息卡按钮同路径）：强制 build-and-pack → 把权限/命令**持久写入注册表** → **刷新整个 Vetta 窗口**。日常改代码 / 改 plugin.json 靠热更新即可（dev 会话内权限声明自动放行）；重新安装用于落盘授权或热更新异常时兜底。首次安装仍用「应用到 Vetta」。
+已安装时还有 **「重新安装」**（与消息卡按钮同路径）：强制 build-and-pack → 把权限/命令**持久写入注册表** → **刷新整个 567 Agent 窗口**。日常改代码 / 改 plugin.json 靠热更新即可（dev 会话内权限声明自动放行）；重新安装用于落盘授权或热更新异常时兜底。首次安装仍用「应用到 567 Agent」。
 
 ---
 

@@ -224,7 +224,7 @@ Preset 和 external 插件直接纳入根 `package.json` 定义的 workspace。�
   },
   "styles": ["dist/style.css"],
   "permissions": ["ui.slot.global"],
-  "author": "Vetta"
+  "author": "567 Agent"
 }
 ```
 

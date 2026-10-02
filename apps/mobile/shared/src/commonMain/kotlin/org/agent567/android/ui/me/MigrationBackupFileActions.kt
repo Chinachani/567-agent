@@ -7,8 +7,10 @@ data class MigrationBackupFileActions(
     val open: () -> Unit,
 )
 
+enum class MigrationBackupFileError { TooLarge, Access }
+
 @Composable
 expect fun rememberMigrationBackupFileActions(
-    onOpened: (ByteArray?) -> Unit,
-    onSaved: (Boolean) -> Unit,
+    onOpened: (ByteArray?, MigrationBackupFileError?) -> Unit,
+    onSaved: (Boolean, MigrationBackupFileError?) -> Unit,
 ): MigrationBackupFileActions

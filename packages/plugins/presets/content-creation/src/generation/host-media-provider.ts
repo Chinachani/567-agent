@@ -306,7 +306,7 @@ function createModelEntries(provider: PluginMediaProviderDescriptor): HostMediaM
 					modelId: outputKinds.length === 1 ? provider.id : `${provider.id}:${outputKind}`,
 					displayName:
 						provider.displayName ??
-						(provider.id === "desktop-app:vetta" && outputKind === "image" ? "Vetta Image" : provider.id),
+						(provider.id === "desktop-app:vetta" && outputKind === "image" ? "567 Agent Image" : provider.id),
 					outputKind,
 					modes,
 					aspectRatios: unique(capabilities.flatMap((capability) => capability.aspectRatios ?? [])),

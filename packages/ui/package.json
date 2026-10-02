@@ -14,7 +14,9 @@
 			"import": "./src/utils.ts"
 		}
 	},
-	"files": ["src"],
+	"files": [
+		"src"
+	],
 	"publishConfig": {
 		"access": "public",
 		"registry": "https://registry.npmjs.org/"
@@ -39,5 +41,12 @@
 		"@types/react": "^19.1.1",
 		"@types/react-dom": "^19.2.3",
 		"typescript": "^5.9.2"
+	},
+	"author": "567wiki <907746241@qq.com>",
+	"license": "Apache-2.0",
+	"repository": {
+		"type": "git",
+		"url": "git+https://github.com/Chinachani/567-agent.git",
+		"directory": "packages/ui"
 	}
 }

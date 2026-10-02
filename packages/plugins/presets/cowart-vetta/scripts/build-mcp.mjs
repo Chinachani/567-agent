@@ -1,5 +1,5 @@
 /**
- * Bundle mcp/server.mjs for Vetta system-plugin install (read-only roots).
+ * Bundle mcp/server.mjs for 567 Agent system-plugin install (read-only roots).
  * Sets COWART_VETTA paths at build time via env when running.
  */
 import { build } from "esbuild";
@@ -18,7 +18,7 @@ await build({
   target: "node20",
   outfile,
   packages: "bundle",
-  // Force Vetta mode at bundle time so dead-code elimination drops tldraw/widget paths.
+  // Force 567 Agent mode at bundle time so dead-code elimination drops tldraw/widget paths.
   define: {
     "process.env.COWART_VETTA": '"1"',
     "process.env.COWART_DISABLE_WIDGET": '"1"',

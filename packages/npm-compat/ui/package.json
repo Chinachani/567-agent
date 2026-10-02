@@ -3,6 +3,7 @@
 	"version": "0.1.0",
 	"type": "module",
 	"description": "567 Agent public entry for @vetta-org/ui; shared runtime identity is preserved.",
+	"author": "567wiki <907746241@qq.com>",
 	"main": "./dist/index.js",
 	"types": "./dist/index.d.ts",
 	"exports": {
@@ -16,6 +17,11 @@
 		}
 	},
 	"license": "Apache-2.0",
+	"repository": {
+		"type": "git",
+		"url": "git+https://github.com/Chinachani/567-agent.git",
+		"directory": "packages/npm-compat/ui"
+	},
 	"files": [
 		"dist",
 		"README.md",

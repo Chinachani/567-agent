@@ -1,9 +1,9 @@
 ---
 name: vetta-ui-design
-description: "Build and edit design documents (.vetd) on the Vetta design canvas — app screens, landing pages, slides, posters, infographics. Use when the user asks for a UI design, mockup, screen, deck, or poster, or attaches a design frame/element from the canvas. Frames are real React (TSX) routes, not pictures. Do NOT use for ordinary front-end work in the user's own codebase — building, styling or reworking pages of a real app is that repo's job, and none of the vetd_* tools or canvas rules here apply to it."
+description: "Build and edit design documents (.vetd) on the 567 Agent design canvas — app screens, landing pages, slides, posters, infographics. Use when the user asks for a UI design, mockup, screen, deck, or poster, or attaches a design frame/element from the canvas. Frames are real React (TSX) routes, not pictures. Do NOT use for ordinary front-end work in the user's own codebase — building, styling or reworking pages of a real app is that repo's job, and none of the vetd_* tools or canvas rules here apply to it."
 ---
 
-# Vetta UI Design
+# 567 Agent UI Design
 
 A design document is ONE directory — `login-app.vetd/` — holding everything:
 
@@ -89,7 +89,7 @@ same way. The templates below are already correct on all of it:
 - No remote image URLs (`<img>`, `background-image`) — they break screenshots.
   Import from `assets/`, or use a gradient/token color/Iconify glyph.
 - Normal formatting, one element per line for nested markup. Everything on one
-  line destroys element→source mapping, and the user's "Ask Vetta" edits then
+  line destroys element→source mapping, and the user's "Ask 567 Agent" edits then
   point every element at the same line.
 - One default export per frame, rendering edge-to-edge — no page margins.
 - react, react-router, Tailwind v4 and Iconify are always there. Anything else

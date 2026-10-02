@@ -15,7 +15,7 @@ const CowartApp = lazy(() =>
 
 /**
  * Full Cowart tldraw canvas in the activity tab.
- * Codex widget host → Vetta: bridge via installCowartVettaBridge (ctx.fs + sendPrompt).
+ * Codex widget host → 567 Agent: bridge via installCowartVettaBridge (ctx.fs + sendPrompt).
  */
 export function CanvasPanel() {
 	const { t } = useTranslation();

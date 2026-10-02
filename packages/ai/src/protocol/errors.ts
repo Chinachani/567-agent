@@ -86,6 +86,8 @@ export class AIError extends Error {
 	readonly [AI_ERROR_MARKER] = true;
 	readonly code: AIErrorCode;
 	readonly retryable: boolean;
+	/** Whether retryability was explicitly supplied, so network heuristics do not override a caller decision. */
+	readonly retryableWasSpecified: boolean;
 	readonly statusCode?: number;
 	readonly provider?: Provider;
 	readonly modelId?: string;
@@ -103,6 +105,7 @@ export class AIError extends Error {
 		this.name = "AIError";
 		this.code = code;
 		this.retryable = options.retryable ?? false;
+		this.retryableWasSpecified = options.retryable !== undefined;
 		this.statusCode = options.statusCode;
 		this.provider = options.provider;
 		this.modelId = options.modelId;

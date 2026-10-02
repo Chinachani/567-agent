@@ -1,6 +1,6 @@
 # @567agent/runtime-tools
 
-Vetta 平台无关的 Coding Tool 协议包。包根与 `@567agent/runtime-tools/coding` 暴露同一套合同。
+567 Agent 平台无关的 Coding Tool 协议包。包根与 `@567agent/runtime-tools/coding` 暴露同一套合同。
 
 ## 本包拥有
 

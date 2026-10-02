@@ -348,7 +348,7 @@ export function ExportMockupDialog() {
 		return renderMockupToCanvas(fresh, current, logo, slotsPerPage);
 	};
 
-	/** 逐页合成。Vetta 标识只出现在第一页，多页时不该每页重复一次。 */
+	/** 逐页合成。567 Agent 标识只出现在第一页，多页时不该每页重复一次。 */
 	const composeAllPages = async (current: MockupOptions): Promise<HTMLCanvasElement[]> => {
 		const rendered: HTMLCanvasElement[] = [];
 		for (const [index, pageShots] of pages.entries()) {

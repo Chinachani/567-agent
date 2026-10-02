@@ -11,7 +11,9 @@
 		},
 		"./markdown.css": "./src/markdown.css"
 	},
-	"files": ["src"],
+	"files": [
+		"src"
+	],
 	"scripts": {
 		"check": "tsgo --noEmit -p tsconfig.json"
 	},
@@ -26,5 +28,12 @@
 	"devDependencies": {
 		"@types/react": "^19.1.1",
 		"typescript": "^5.9.2"
+	},
+	"author": "567wiki <907746241@qq.com>",
+	"license": "Apache-2.0",
+	"repository": {
+		"type": "git",
+		"url": "git+https://github.com/Chinachani/567-agent.git",
+		"directory": "packages/markdown"
 	}
 }

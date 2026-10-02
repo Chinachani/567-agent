@@ -1,11 +1,11 @@
 ---
 name: cowart-image-edit
-description: Revise a Cowart canvas image from an annotation screenshot using Vetta edit_image, then place the result with Cowart MCP. Use when the user submits a Cowart annotation edit or asks to clean up an annotated screenshot into a revised bitmap beside the original.
+description: Revise a Cowart canvas image from an annotation screenshot using 567 Agent edit_image, then place the result with Cowart MCP. Use when the user submits a Cowart annotation edit or asks to clean up an annotated screenshot into a revised bitmap beside the original.
 ---
 
-# Cowart Image Edit (Vetta)
+# Cowart Image Edit (567 Agent)
 
-## Vetta image tools (required)
+## 567 Agent image tools (required)
 
 | Intent | Tool |
 |--------|------|

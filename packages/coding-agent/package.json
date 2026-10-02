@@ -103,7 +103,9 @@
 		"docs",
 		"examples",
 		"banner.txt",
-		"CHANGELOG.md"
+		"CHANGELOG.md",
+		"LICENSE",
+		"NOTICE"
 	],
 	"scripts": {
 		"clean": "shx rm -rf dist",
@@ -173,8 +175,13 @@
 		"tui",
 		"agent"
 	],
-	"author": "Mario Zechner",
+	"author": "567wiki <907746241@qq.com>",
 	"license": "MIT",
+	"repository": {
+		"type": "git",
+		"url": "git+https://github.com/Chinachani/567-agent.git",
+		"directory": "packages/coding-agent"
+	},
 	"engines": {
 		"node": ">=20.0.0"
 	}

@@ -106,6 +106,30 @@ describe("normalizeProviderError", () => {
 		expect(normalizeProviderError(source, model)).toBe(source);
 	});
 
+	it("keeps an explicit non-retryable decision for a network transport error", () => {
+		const cause = Object.assign(new Error("connection reset"), { code: "ECONNRESET" });
+		const source = new AIError("AI_TRANSPORT_FAILED", "connection reset", {
+			retryable: false,
+			metadata: { source: "batch-job" },
+			cause,
+		});
+
+		expect(normalizeProviderError(source, model)).toBe(source);
+	});
+
+	it("makes a default network transport error retryable without dropping metadata", () => {
+		const cause = Object.assign(new Error("connection reset"), { code: "ECONNRESET" });
+		const source = new AIError("AI_TRANSPORT_FAILED", "connection reset", {
+			metadata: { source: "provider" },
+			cause,
+		});
+
+		expect(normalizeProviderError(source, model)).toMatchObject({
+			retryable: true,
+			metadata: { source: "provider" },
+		});
+	});
+
 	it("maps statusless failures to non-retryable transport errors", () => {
 		expect(normalizeProviderError(new Error("socket closed"), model)).toMatchObject({
 			code: "AI_TRANSPORT_FAILED",

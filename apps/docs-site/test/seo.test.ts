@@ -25,10 +25,13 @@ describe("site URL helpers", () => {
 		expect(toCanonicalPath("/product/models/")).toBe("/product/models/");
 		expect(toMarkdownPath("/product/models/")).toBe("/product/models.md");
 		expect(toAbsoluteUrl("/getting-started/", origin)).toBe(`${origin}/getting-started/`);
+		expect(toAbsoluteUrl("/opengraph-image/", "https://github.com/Chinachani/567-agent")).toBe(
+			"https://github.com/Chinachani/567-agent/opengraph-image/",
+		);
 	});
 
 	it("prefers DOCS_SITE_URL without a trailing slash", () => {
-		expect(getSiteOrigin("https://docs.openvetta.com/")).toBe(DEFAULT_DOCS_SITE_URL);
+		expect(getSiteOrigin("https://github.com/Chinachani/567-agent/")).toBe(DEFAULT_DOCS_SITE_URL);
 	});
 });
 

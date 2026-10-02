@@ -99,9 +99,8 @@ bun run pack:test                           # 等价于 VETTA_BUILD_ENV=test
 
 ```bash
 VETTA_CLOUD_ENABLED=true
-VETTA_SERVER_URL=https://api.openvetta.com/api/v1
-VETTA_SITE_URL=https://www.openvetta.com
-VETTA_UPDATE_PROVIDER=generic
+VETTA_SERVER_URL=https://api.567.wiki/api/v1
+VETTA_SITE_URL=https://api.567.wiki
 VETTA_UPDATE_PROVIDER=github
 VETTA_UPDATE_GITHUB_OWNER=Chinachani
 VETTA_UPDATE_GITHUB_REPO=567-agent
@@ -205,7 +204,7 @@ VETTA_UPDATE_URL=https://updates.example.com/desktop/test
 
 GitHub 能力源在两种版本中均读取 `VETTA_OPEN_MARKETPLACE_REPOSITORY` Variable，手动运行时可由
 `marketplace_repository` 表单覆盖；均未配置就不内置 GitHub 源。想随开源包提供官方仓库时，将 Variable
-设为 `https://github.com/openvetta/vetta-official-marketplace`，不用修改代码。商业版未配置时只有云市场。
+设为 `https://github.com/Chinachani/567-agent-marketplace`，不用修改代码。商业版未配置时只有云市场。
 
 **fork 不配任何 Variables 就得到开源版构建。** 官方商业版把这些放到 Settings → Environments → `desktop-production` → Environment variables（密钥走 Environment secrets）：
 

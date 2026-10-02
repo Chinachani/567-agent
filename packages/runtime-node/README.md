@@ -1,6 +1,6 @@
 # @567agent/runtime-node
 
-Vetta Runtime 协议的共享 Node.js 实现层。
+567 Agent Runtime 协议的共享 Node.js 实现层。
 
 本包拥有文件系统、进程、锁、本地持久化及 Node Coding Tool 的具体行为，可由 Desktop、CLI
 和服务端 Node Host 复用。产品或平台 Composition Root 负责选择和配置适配器；协议包不包含 Node I/O。

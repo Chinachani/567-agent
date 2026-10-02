@@ -92,7 +92,7 @@ export function createSocialImage(): ImageResponse {
 					letterSpacing: 1,
 				}}
 			>
-				<div style={{ display: "flex" }}>docs.openvetta.com</div>
+				<div style={{ display: "flex" }}>567 Agent Docs</div>
 				<div style={{ display: "flex", color: "#dd6b55", letterSpacing: 3 }}>LOCAL FIRST</div>
 			</div>
 		</div>,

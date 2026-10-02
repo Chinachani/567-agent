@@ -32,7 +32,9 @@
 	},
 	"files": [
 		"dist",
-		"README.md"
+		"README.md",
+		"LICENSE",
+		"NOTICE"
 	],
 	"scripts": {
 		"clean": "rm -rf dist",
@@ -72,11 +74,11 @@
 		"unified",
 		"api"
 	],
-	"author": "Mario Zechner",
+	"author": "567wiki <907746241@qq.com>",
 	"license": "MIT",
 	"repository": {
 		"type": "git",
-		"url": "git+https://github.com/badlogic/pi-mono.git",
+		"url": "git+https://github.com/Chinachani/567-agent.git",
 		"directory": "packages/ai"
 	},
 	"engines": {

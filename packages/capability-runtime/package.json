@@ -14,7 +14,9 @@
 			"import": "./dist/access.js"
 		}
 	},
-	"files": ["dist"],
+	"files": [
+		"dist"
+	],
 	"scripts": {
 		"clean": "rm -rf dist",
 		"build": "tsgo -p tsconfig.build.json",
@@ -26,5 +28,12 @@
 	"devDependencies": {
 		"@types/node": "^22.10.5",
 		"typescript": "^5.9.2"
+	},
+	"author": "567wiki <907746241@qq.com>",
+	"license": "Apache-2.0",
+	"repository": {
+		"type": "git",
+		"url": "git+https://github.com/Chinachani/567-agent.git",
+		"directory": "packages/capability-runtime"
 	}
 }

@@ -1,6 +1,6 @@
 # @567agent/runtime-mcp
 
-Vetta 平台无关的 MCP 协议、Port 与 Runtime 状态协调层。
+567 Agent 平台无关的 MCP 协议、Port 与 Runtime 状态协调层。
 
 ## 本包拥有
 
@@ -16,7 +16,7 @@ Vetta 平台无关的 MCP 协议、Port 与 Runtime 状态协调层。
 
 - 文件配置、凭证和 OAuth 状态文件读写
 - stdio 子进程、HTTP SDK Client、网络请求和具体 Client Factory
-- SDK OAuth Provider、Device Flow 网络执行和内置 Vetta MCP 组装
+- SDK OAuth Provider、Device Flow 网络执行和内置 MCP 组装
 - Desktop 回调页面、系统浏览器、配置路径、UI 或交互授权策略
 
 Node 实现由 `@567agent/runtime-node/mcp` 提供；Desktop 专属交互由 `runtime-desktop` 或

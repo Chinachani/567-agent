@@ -1808,7 +1808,7 @@
   "vision": "Vision",
   "creditsPerMTok": "Credits/MTok",
   "unlimitedQuota": "Unlimited · Enjoy unlimited quota",
-  "upgradePlan": "Upgrade",
+  "upgradePlan": "Manage plan",
   "expiryDate": "Expires {{date}}",
   "viewModelsCount": "View {{count}} models",
   "noModelsRefresh": "No models. Click refresh above.",

@@ -1,11 +1,11 @@
 ---
 name: cowart-image-gen
-description: Generate a bitmap for the Cowart canvas via Vetta generate_image, then insert or replace via Cowart MCP. Use when the user asks to create, fill, replace, or place an AI-generated image on a Cowart canvas.
+description: Generate a bitmap for the Cowart canvas via 567 Agent generate_image, then insert or replace via Cowart MCP. Use when the user asks to create, fill, replace, or place an AI-generated image on a Cowart canvas.
 ---
 
-# Cowart Image Gen (Vetta)
+# Cowart Image Gen (567 Agent)
 
-## Vetta image tools (required)
+## 567 Agent image tools (required)
 
 | Intent | Tool |
 |--------|------|
@@ -16,7 +16,7 @@ Do **not** use an `imagegen` skill or ad-hoc scripts. After the bitmap exists on
 
 ## Preconditions
 
-Cowart MCP tools should be available (plugin **cowart-vetta** enabled). Prefer opening the canvas first (`open_cowart_canvas`).
+Cowart MCP tools should be available (the Cowart canvas plugin is enabled). Prefer opening the canvas first (`open_cowart_canvas`).
 
 ## Workflow
 

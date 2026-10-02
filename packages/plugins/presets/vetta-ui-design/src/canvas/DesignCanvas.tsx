@@ -86,7 +86,7 @@ interface DesignCanvasProps {
 	session: DesignSession;
 	/** 当前设计的备注（与 session 同生命周期，CanvasTab 创建）。 */
 	notes: NotesStore;
-	/** 活动面板的 cwd，备注面板的「让 Vetta 处理」会话闸口用。 */
+	/** 活动面板的 cwd，备注面板的「让 567 Agent 处理」会话闸口用。 */
 	cwd: string | null;
 	port: number;
 	bridge: BridgeHub;
@@ -1246,7 +1246,7 @@ export function DesignCanvas({
 
 	/**
 	 * 备注自动派活：只要会话空闲，落下的备注就自己交给 agent。用户不必再去点「让
-	 * Vetta 处理」——那个按钮退居兜底。
+	 * 567 Agent 处理」——那个按钮退居兜底。
 	 */
 	useNotesAutoDispatch(notes, cwd);
 
@@ -1716,6 +1716,7 @@ export function DesignCanvas({
 
 			<DesignSystemDialog
 				session={session}
+				cwd={cwd}
 				open={designDialogOpen}
 				onClose={() => setDesignDialogOpen(false)}
 			/>

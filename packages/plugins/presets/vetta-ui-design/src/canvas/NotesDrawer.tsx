@@ -32,7 +32,7 @@ interface NotesDrawerProps {
 }
 
 /**
- * 左侧备注抽屉：待处理/已处理两段、让 Vetta 处理（全部/单条）、清空已处理。
+ * 左侧备注抽屉：待处理/已处理两段、让 567 Agent 处理（全部/单条）、清空已处理。
  * 宽度限死不推挤画布（画布本来就吃宽度），关掉即恢复。
  */
 export function NotesDrawer({ store, session, cwd, onLocate, offsetTop, onClose }: NotesDrawerProps) {
@@ -278,7 +278,7 @@ function NoteRow({
 					</span>
 					{lastAgent ? (
 						<span className="mt-1 flex items-start gap-1 text-[10px] leading-snug text-muted-foreground">
-							<span className="shrink-0 font-medium">Vetta</span>
+							<span className="shrink-0 font-medium">567 Agent</span>
 							<span className="min-w-0 flex-1 truncate">{lastAgent.text}</span>
 						</span>
 					) : null}

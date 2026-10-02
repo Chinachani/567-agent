@@ -1,15 +1,15 @@
 ---
 name: install-ability
-description: 在本机 Vetta 中安装能力——插件（plugin）、Skill/场景（scene）与 MCP 服务器。用户说「装一个插件 / install plugin / 从能力市场安装 / 加一个 MCP server / 配置 MCP / 装个 skill」，或插件装完没生效、需要 reload、pending 版本没应用时使用。不用于安装 npm 依赖、IDE 插件、浏览器扩展，也不用于开发插件（那是 plugin-workbench）或创作 Skill（那是 create-skill）。
+description: 在本机 567 Agent 中安装能力——插件（plugin）、Skill/场景（scene）与 MCP 服务器。用户说「装一个插件 / install plugin / 从能力市场安装 / 加一个 MCP server / 配置 MCP / 装个 skill」，或插件装完没生效、需要 reload、pending 版本没应用时使用。不用于安装 npm 依赖、IDE 插件、浏览器扩展，也不用于开发插件（那是 plugin-workbench）或创作 Skill（那是 create-skill）。
 metadata:
   version: 1.0.0
-  author: Vetta
+  author: 567 Agent
   category: 开发
 ---
 
-# 在 Vetta 中安装能力
+# 在 567 Agent 中安装能力
 
-Vetta 的能力分三种，安装路径互不相同。**先分类，再动手**。
+567 Agent 的能力分三种，安装路径互不相同。**先分类，再动手**。
 
 | 用户给的东西 | 类型 | 安装路径 |
 | --- | --- | --- |

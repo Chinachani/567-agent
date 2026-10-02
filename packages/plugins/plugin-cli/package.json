@@ -2,6 +2,8 @@
 	"name": "@vetta-org/plugin-cli",
 	"version": "0.1.7",
 	"description": "Install npm-distributed plugins into 567 Agent",
+	"author": "567wiki <907746241@qq.com>",
+	"license": "Apache-2.0",
 	"type": "module",
 	"main": "./dist/index.js",
 	"types": "./dist/index.d.ts",
@@ -41,5 +43,10 @@
 	},
 	"engines": {
 		"node": ">=20.0.0"
+	},
+	"repository": {
+		"type": "git",
+		"url": "git+https://github.com/Chinachani/567-agent.git",
+		"directory": "packages/plugins/plugin-cli"
 	}
 }

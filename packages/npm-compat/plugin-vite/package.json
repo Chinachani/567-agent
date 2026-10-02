@@ -3,6 +3,7 @@
 	"version": "0.2.4",
 	"type": "module",
 	"description": "567 Agent public entry for @vetta-org/plugin-vite; shared runtime identity is preserved.",
+	"author": "567wiki <907746241@qq.com>",
 	"main": "./dist/index.js",
 	"types": "./dist/index.d.ts",
 	"exports": {
@@ -17,6 +18,11 @@
 		}
 	},
 	"license": "Apache-2.0",
+	"repository": {
+		"type": "git",
+		"url": "git+https://github.com/Chinachani/567-agent.git",
+		"directory": "packages/npm-compat/plugin-vite"
+	},
 	"bin": {
 		"vetta-plugin": "./dist/bin/vetta-plugin.js"
 	},

@@ -1,5 +1,5 @@
 /**
- * Maps Codex MCP App widget bridge → Vetta plugin host APIs.
+ * Maps Codex MCP App widget bridge → 567 Agent plugin host APIs.
  * App.jsx talks to window.cowartMcp / window.openai; we install those shims.
  */
 import type { PluginContext, PluginFsApi } from "@vetta-org/plugin-sdk";
@@ -103,7 +103,7 @@ async function saveSnapshot(fs: PluginFsApi, projectDir: string, snapshot: unkno
 		return { ok: true, storage: "legacy-single-file", paths: [path] };
 	}
 
-	// Full multi-page split is complex (asset localization). For Vetta 1:1 UX we still
+	// Full multi-page split is complex (asset localization). For 567 Agent 1:1 UX we still
 	// persist a merged snapshot per page file + root legacy for MCP compatibility.
 	const paths: string[] = [];
 	const legacyPath = joinPath(canvasDir, CANVAS_FILE);
@@ -317,7 +317,7 @@ export function installCowartVettaBridge(options: CowartBridgeOptions): () => vo
 				// Agent-facing tools remain on MCP process; UI rarely calls these via bridge.
 				return {
 					isError: true,
-					content: [{ type: "text", text: `${name} should be invoked via agent MCP tools in Vetta.` }],
+					content: [{ type: "text", text: `${name} should be invoked via agent MCP tools in 567 Agent.` }],
 				};
 			}
 
@@ -337,7 +337,7 @@ export function installCowartVettaBridge(options: CowartBridgeOptions): () => vo
 	const cowartMcp = {
 		callServerTool: async (req: { name: string; arguments?: Record<string, unknown> }) => callServerTool(req),
 		/**
-		 * Dispatch a follow-up into the active Vetta conversation.
+		 * Dispatch a follow-up into the active 567 Agent conversation.
 		 * Must not await the full agent turn — session.prompt only resolves when the
 		 * agent finishes, which would leave AI Image/HTML/Slides UI stuck on「发送中」
 		 * while generate_image / edit_image run for a long time.

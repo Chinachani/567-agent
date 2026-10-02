@@ -7,7 +7,7 @@ import { MANIFEST_FILE } from "../vetd/manifest-types";
 import { SHARE_EXTENSION } from "./share-format";
 
 const BUILD_DIR = ".vetd-build";
-// `.notes.json` 是用户和 Vetta 之间的工作批注，不是设计内容，分享包不带。
+// `.notes.json` 是用户和 567 Agent 之间的工作批注，不是设计内容，分享包不带。
 // `design.json` 在包里单独以 manifest.json 落一份，不重复进 design/。
 const EXCLUDED_PREFIXES = [`${BUILD_DIR}/`, "node_modules/", ".snapshots/", ".notes.json", MANIFEST_FILE];
 

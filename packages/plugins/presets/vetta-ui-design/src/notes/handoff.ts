@@ -5,7 +5,7 @@ import type { NotesStore } from "./notes-store";
 import { pendingNotes } from "./types";
 
 /**
- * 「让 Vetta 处理」的会话闸口与发送动作。抽屉与气泡 thread 弹层共用，保证两个
+ * 「让 567 Agent 处理」的会话闸口与发送动作。抽屉与气泡 thread 弹层共用，保证两个
  * 入口的可用性判断和提示词完全一致。
  *
  * 备注内容不进 prompt：agent 收到指令后自己调 vetd_notes 拉全量（含现截的编号
@@ -72,18 +72,23 @@ export function useNotesHandoff(cwd: string | null): NotesHandoff {
 	const blockedReason = blocked === null ? null : BLOCK_MESSAGES[blocked];
 
 	const send = (prompt: string): void => {
-		// sendPrompt 要整轮跑完才 resolve，不 await；发送失败单独报（与设计体系 Dialog 同型）。
 		const conversationApi = getPluginCtx().conversation;
 		const fail = (error: unknown): void => notify({ message: t("notes.handoff.failed"), error });
+		const sendToAgent = async (): Promise<void> => {
+			const receipt = await conversationApi.sendPrompt(prompt);
+			if (receipt.status === "failed") {
+				throw new Error(receipt.error?.message || t("notes.handoff.failed"));
+			}
+		};
 		if (sendNeedsSession && cwd !== null) {
 			// createSession resolve 时会话已就绪，可以直接接 sendPrompt。
 			void conversationApi
-				.createSession(cwd)
-				.then(() => conversationApi.sendPrompt(prompt))
+				.createSession(cwd, { navigate: false })
+				.then(sendToAgent)
 				.catch(fail);
 			return;
 		}
-		void conversationApi.sendPrompt(prompt).catch(fail);
+		void sendToAgent().catch(fail);
 	};
 
 	return {
@@ -131,7 +136,7 @@ const AUTO_DISPATCH_DEBOUNCE_MS = 1_500;
 
 /**
  * 备注自动派活：只要会话空闲，新落下的（以及重开的）备注就自己交给 agent，不必等
- * 用户去点「让 Vetta 处理」。宿主还停在新会话页（没有活跃会话）时也照派——先建一个
+ * 用户去点「让 567 Agent 处理」。宿主还停在新会话页（没有活跃会话）时也照派——先建一个
  * 会话再说话，否则「贴了备注左边却毫无动静」。
  *
  * 「新」的界限由 store 划：load 时磁盘上的存量全部记成已交付，所以打开一个设计稿

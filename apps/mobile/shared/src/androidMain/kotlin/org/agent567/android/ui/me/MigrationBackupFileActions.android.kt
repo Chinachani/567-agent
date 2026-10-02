@@ -11,17 +11,16 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.platform.LocalContext
+import org.agent567.android.data.session.MIGRATION_BACKUP_MAX_BYTES
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import java.io.ByteArrayOutputStream
 
-private const val MAX_ARCHIVE_BYTES = 50 * 1024 * 1024
-
 @Composable
 actual fun rememberMigrationBackupFileActions(
-    onOpened: (ByteArray?) -> Unit,
-    onSaved: (Boolean) -> Unit,
+    onOpened: (ByteArray?, MigrationBackupFileError?) -> Unit,
+    onSaved: (Boolean, MigrationBackupFileError?) -> Unit,
 ): MigrationBackupFileActions {
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
@@ -30,19 +29,21 @@ actual fun rememberMigrationBackupFileActions(
         val bytes = pendingBytes
         pendingBytes = null
         if (uri == null || bytes == null) {
-            onSaved(false)
+            onSaved(false, null)
         } else {
             scope.launch {
-                onSaved(withContext(Dispatchers.IO) { writeBackup(context, uri, bytes) })
+                val error = withContext(Dispatchers.IO) { writeBackup(context, uri, bytes) }
+                onSaved(error == null, error)
             }
         }
     }
     val openLauncher = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri ->
         if (uri == null) {
-            onOpened(null)
+            onOpened(null, null)
         } else {
             scope.launch {
-                onOpened(withContext(Dispatchers.IO) { readBackup(context, uri) })
+                val result = withContext(Dispatchers.IO) { readBackupResult(context, uri) }
+                onOpened(result.first, result.second)
             }
         }
     }
@@ -57,16 +58,19 @@ actual fun rememberMigrationBackupFileActions(
     }
 }
 
-private fun writeBackup(context: Context, uri: Uri, bytes: ByteArray): Boolean =
-    runCatching {
-        require(bytes.size <= MAX_ARCHIVE_BYTES)
+private fun writeBackup(context: Context, uri: Uri, bytes: ByteArray): MigrationBackupFileError? {
+    if (bytes.size > MIGRATION_BACKUP_MAX_BYTES) return MigrationBackupFileError.TooLarge
+    return try {
         context.contentResolver.openOutputStream(uri, "w")?.use { output -> output.write(bytes) }
             ?: error("无法写入迁移文件")
-        true
-    }.getOrDefault(false)
+        null
+    } catch (_: Exception) {
+        MigrationBackupFileError.Access
+    }
+}
 
-private fun readBackup(context: Context, uri: Uri): ByteArray? =
-    runCatching {
+private fun readBackupResult(context: Context, uri: Uri): Pair<ByteArray?, MigrationBackupFileError?> =
+    try {
         val input = context.contentResolver.openInputStream(uri) ?: error("无法读取迁移文件")
         input.use { stream ->
             val output = ByteArrayOutputStream()
@@ -76,9 +80,13 @@ private fun readBackup(context: Context, uri: Uri): ByteArray? =
                 val count = stream.read(buffer)
                 if (count < 0) break
                 total += count
-                require(total <= MAX_ARCHIVE_BYTES) { "迁移文件超过 50 MB" }
+                if (total > MIGRATION_BACKUP_MAX_BYTES) {
+                    return@use Pair(null, MigrationBackupFileError.TooLarge)
+                }
                 output.write(buffer, 0, count)
             }
-            output.toByteArray()
+            Pair(output.toByteArray(), null)
         }
-    }.getOrNull()
+    } catch (_: Exception) {
+        Pair(null, MigrationBackupFileError.Access)
+    }

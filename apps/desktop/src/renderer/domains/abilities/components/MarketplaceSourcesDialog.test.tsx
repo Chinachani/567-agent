@@ -120,14 +120,14 @@ describe("MarketplaceSourcesDialog", () => {
 		await user.click(screen.getByText("abilities:sources.actions.add"));
 		await user.type(
 			screen.getByPlaceholderText("abilities:sources.form.repositoryPlaceholder"),
-			"openvetta/vetta-official-marketplace",
+			"Chinachani/567-agent-marketplace",
 		);
 		await user.type(screen.getByPlaceholderText("abilities:sources.form.credentialPlaceholder"), "github-token");
 		await user.click(screen.getByText("abilities:sources.form.submitAdd"));
 
 		await waitFor(() =>
 			expect(onAdd).toHaveBeenCalledWith({
-				repository: "openvetta/vetta-official-marketplace",
+				repository: "Chinachani/567-agent-marketplace",
 				ref: "main",
 				credential: "github-token",
 		}),

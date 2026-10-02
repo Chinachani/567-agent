@@ -1,4 +1,4 @@
-# Vetta Plugins
+# 567 Agent Plugins
 
 本目录集中维护插件 SDK、构建工具、系统插件和外置插件示例，所有包统一纳入
 仓库根 workspace。

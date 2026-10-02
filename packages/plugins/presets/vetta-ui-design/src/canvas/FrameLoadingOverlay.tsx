@@ -4,7 +4,7 @@ import { BotFace, FluidBackdrop, overlayScale, PALETTES } from "./activity-visua
 /**
  * frame 启动占位：还没有任何位图、活体也没画出来之前盖在容器上的那一层。
  *
- * 用的是活动态浮层同一套形象语言（流体背景 + 胶囊里的 Vetta 头像），而不是一个
+ * 用的是活动态浮层同一套形象语言（流体背景 + 胶囊里的 567 Agent 头像），而不是一个
  * 通用 spinner——进画布时满屏 frame 一起加载，那是用户见到这个产品的第一眼。
  * 头像用 think：此刻是「在等它起来」，不是 agent 在改稿；配色也取最安静的蓝灰
  * （见 PALETTES.loading），免得被误读成 agent 正在干活。

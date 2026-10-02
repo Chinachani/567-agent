@@ -10,7 +10,7 @@
 				"showcase": {
 					"template": "chat-over-canvas",
 					"canvas": "design",
-					"brand_name": "Vetta UI Design",
+					"brand_name": "567 Agent UI Design",
 					"user_prompt": "做一个桌面端数据看板，并把统计卡片调整得更紧凑。",
 					"assistant_reply": "我会创建真实 React 画框；你选中画框或元素后，还可以继续用自然语言定向修改。"
 				}
@@ -26,7 +26,7 @@
 					},
 					{
 						"title": "选中后修改",
-						"description": "把画框或具体元素交给 Vetta，缩小修改范围。",
+						"description": "把画框或具体元素交给 567 Agent，缩小修改范围。",
 						"icon": "solar:cursor-square-linear"
 					},
 					{
@@ -55,7 +55,7 @@
 						"showcase": {
 							"template": "chat-over-canvas",
 							"canvas": "design",
-							"brand_name": "Vetta UI Design",
+							"brand_name": "567 Agent UI Design",
 							"user_prompt": "Design a desktop analytics dashboard and make the metric cards more compact.",
 							"assistant_reply": "I’ll create real React frames. Select a frame or element later to request a focused change in natural language."
 						}

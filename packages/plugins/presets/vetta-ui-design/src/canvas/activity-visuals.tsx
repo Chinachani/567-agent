@@ -1,5 +1,5 @@
 /**
- * frame 浮层的视觉零件：Vetta 形象（BotFace）、混沌流体背景（FluidBackdrop）与
+ * frame 浮层的视觉零件：567 Agent 形象（BotFace）、混沌流体背景（FluidBackdrop）与
  * 各态色板。活动态浮层（读/改/写）与启动占位（loading）共用同一套形象语言，
  * 所以从 FrameActivityOverlay 里提出来独立成模块。
  *

@@ -194,7 +194,7 @@ describe("refreshDesignCatalog 的请求预算", () => {
 });
 
 describe("StyleKit 目录接入", () => {
-	it("将 StyleKit 风格与 Vetta 设计模板合并到画廊目录", async () => {
+	it("将 StyleKit 风格与 567 Agent 设计模板合并到画廊目录", async () => {
 		const { ctx, stylekitRequests } = fakeCtx({
 			responses: [
 				{ ok: true, status: 200, body: catalogOf(["vetta-one"]) },

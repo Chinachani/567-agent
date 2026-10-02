@@ -2,7 +2,7 @@
 	"mcpServers": {
 		"cowart-mcp": {
 			"displayName": "Cowart Canvas MCP",
-			"description": "Project-backed Cowart canvas state and image tools for Vetta.",
+			"description": "Project-backed Cowart canvas state and image tools for 567 Agent.",
 			"command": "node",
 			"args": ["./scripts/start-mcp.mjs"],
 			"cwd": ".",

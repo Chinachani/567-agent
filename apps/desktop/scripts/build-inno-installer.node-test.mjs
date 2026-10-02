@@ -22,7 +22,7 @@ test("writes updater config into the version directory installed by Inno", async
 
 		const config = await readFile(join(resourcesDir, "app-update.yml"), "utf8");
 		assert.match(config, /provider: generic/);
-		assert.match(config, /url: https:\/\/releases\.openvetta\.com\/desktop\/test/);
+		assert.match(config, /url: https:\/\/updates\.example\.com\/desktop\/test/);
 		assert.match(config, /useMultipleRangeRequest: true/);
 		assert.match(config, /updaterCacheDirName: vetta-updater/);
 	} finally {

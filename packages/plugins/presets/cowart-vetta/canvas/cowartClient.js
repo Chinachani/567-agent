@@ -1,6 +1,6 @@
 /**
- * Cowart storage client — Codex widget bridge OR Vetta host bridge (window.cowartMcp).
- * Adapted for Vetta: hasCowartWidgetBridge() is true when the plugin installs cowartMcp.
+ * Cowart storage client — Codex widget bridge OR 567 Agent host bridge (window.cowartMcp).
+ * Adapted for 567 Agent: hasCowartWidgetBridge() is true when the plugin installs cowartMcp.
  */
 
 const TOOL_GET_CANVAS_STATE = "get_cowart_canvas_state";
@@ -50,7 +50,7 @@ function bridgeReady() {
 }
 
 /**
- * Wait until Vetta host installs window.cowartMcp + toolOutput projectDir.
+ * Wait until 567 Agent host installs window.cowartMcp + toolOutput projectDir.
  * Unlike Codex, bridge can briefly disappear during React Strict Mode remount —
  * never call callServerTool until ready again.
  */

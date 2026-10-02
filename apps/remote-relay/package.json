@@ -18,5 +18,6 @@
 		"@cloudflare/vitest-pool-workers": "0.12.21",
 		"@cloudflare/workers-types": "^5.20260819.1",
 		"wrangler": "^4.39.0"
-	}
+	},
+	"license": "Apache-2.0"
 }

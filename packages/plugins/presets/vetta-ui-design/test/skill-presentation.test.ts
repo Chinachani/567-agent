@@ -2,7 +2,7 @@ import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import { describe, expect, it } from "vitest";
 
-describe("Vetta Design skill presentation", () => {
+describe("567 Agent Design skill presentation", () => {
 	it("publishes one product-named skill while keeping other plugin skills hidden by default", () => {
 		const manifest = JSON.parse(readFileSync(join(__dirname, "../plugin.json"), "utf8")) as {
 			agent?: {
@@ -26,6 +26,6 @@ describe("Vetta Design skill presentation", () => {
 				},
 			},
 		});
-		expect(zh["plugin.name"]).toBe("Vetta 设计");
+		expect(zh["plugin.name"]).toBe("567 Agent 设计");
 	});
 });

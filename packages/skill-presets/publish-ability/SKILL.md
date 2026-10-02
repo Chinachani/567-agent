@@ -1,13 +1,13 @@
 ---
 name: publish-ability
-description: Publish a skill, scene, MCP server, plugin, or bundle to the Vetta ability marketplace. Use when the user asks to upload/publish/submit an ability, put a plugin on the marketplace, share a skill with other users, or migrate an existing package into Vetta.
+description: Publish a skill, scene, MCP server, plugin, or bundle to the 567 Agent ability marketplace. Use when the user asks to upload/publish/submit an ability, put a plugin on the marketplace, share a skill with other users, or migrate an existing package into 567 Agent.
 metadata:
   version: 2.1.0
-  author: Vetta
+  author: 567 Agent
   category: 开发
 ---
 
-# Publish an Ability to the Vetta Marketplace
+# Publish an Ability to the 567 Agent Marketplace
 
 Submitting is a **local** action: it reads an archive from the user's disk, so it runs through
 the bundled script rather than a tool call.

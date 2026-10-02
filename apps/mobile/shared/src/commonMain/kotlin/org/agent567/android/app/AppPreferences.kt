@@ -7,6 +7,7 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import org.agent567.android.core.auth.SecretStore
 import org.agent567.android.core.auth.SettingsSecretStore
+import org.agent567.android.data.session.MIGRATION_BACKUP_LIMIT_OPTIONS_MB
 
 enum class ThemeMode {
     System,
@@ -42,6 +43,9 @@ class AppPreferences(
 
     private val _confirmBeforeDelete = MutableStateFlow(readBoolean(KEY_CONFIRM_DELETE, true))
     val confirmBeforeDelete: StateFlow<Boolean> = _confirmBeforeDelete.asStateFlow()
+
+    private val _migrationBackupLimitMb = MutableStateFlow(readMigrationBackupLimitMb())
+    val migrationBackupLimitMb: StateFlow<Int> = _migrationBackupLimitMb.asStateFlow()
 
     var lastSessionId: String?
         get() = settings.getStringOrNull(KEY_LAST_SESSION)?.takeIf { it.isNotBlank() }
@@ -206,6 +210,12 @@ class AppPreferences(
         _confirmBeforeDelete.value = enabled
     }
 
+    fun setMigrationBackupLimitMb(limitMb: Int) {
+        require(limitMb in MIGRATION_BACKUP_LIMIT_OPTIONS_MB)
+        settings[KEY_MIGRATION_BACKUP_LIMIT_MB] = limitMb.toString()
+        _migrationBackupLimitMb.value = limitMb
+    }
+
     private fun readBoolean(key: String, default: Boolean): Boolean =
         runCatching { settings.getBooleanOrNull(key) }.getOrNull()
             ?: runCatching { settings.getStringOrNull(key)?.toBooleanStrictOrNull() }.getOrNull()
@@ -213,6 +223,11 @@ class AppPreferences(
 
     private fun readServerUrl(): String =
         settings.getStringOrNull(KEY_SERVER_URL)?.takeIf { it.isNotBlank() } ?: DEFAULT_SERVER_URL
+
+    private fun readMigrationBackupLimitMb(): Int =
+        settings.getStringOrNull(KEY_MIGRATION_BACKUP_LIMIT_MB)?.toIntOrNull()
+            ?.takeIf { it in MIGRATION_BACKUP_LIMIT_OPTIONS_MB }
+            ?: MIGRATION_BACKUP_LIMIT_OPTIONS_MB.first()
 
     companion object {
         /** 与 desktop `.env.development` 同源默认，可在设置中覆盖。 */
@@ -223,6 +238,7 @@ class AppPreferences(
         private const val KEY_AUTO_RESUME = "vetta.prefs.auto_resume"
         private const val KEY_MOTION_ENABLED = "vetta.prefs.motion_enabled"
         private const val KEY_CONFIRM_DELETE = "vetta.prefs.confirm_delete"
+        private const val KEY_MIGRATION_BACKUP_LIMIT_MB = "vetta.prefs.migration_backup_limit_mb"
         private const val KEY_LAST_SESSION = "vetta.prefs.last_session"
         private const val KEY_LAST_MODEL = "vetta.prefs.last_model"
         private const val KEY_REMOTE_RESUME = "vetta.prefs.remote_resume"

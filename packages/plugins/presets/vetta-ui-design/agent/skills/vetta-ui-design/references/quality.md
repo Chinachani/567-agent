@@ -107,7 +107,7 @@ clean, not when the code reads correctly.
 ## Why remote image URLs are banned
 
 The ban in SKILL.md is not a style preference. Screenshots (canvas thumbnails,
-"Ask Vetta" edits, exported renders) must re-`fetch` every image and inline it as a data
+"Ask 567 Agent" edits, exported renders) must re-`fetch` every image and inline it as a data
 URL — a browser cannot export a canvas tainted by a cross-origin image. So a
 remote URL that renders perfectly on screen will still:
 

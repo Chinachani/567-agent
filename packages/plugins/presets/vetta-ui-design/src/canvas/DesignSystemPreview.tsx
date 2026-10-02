@@ -1,6 +1,45 @@
-import { memo, useMemo } from "react";
+import { memo, useEffect, useMemo, useState } from "react";
 import { parsePreviewTokens, tint } from "../design-systems/preview-tokens";
 import type { DesignSystem } from "../design-systems/types";
+import { getPluginCtx } from "../plugin-context";
+
+const coverRequests = new Map<string, Promise<string | null>>();
+const MAX_CACHED_COVERS = 16;
+const MAX_COVER_BYTES_BASE64 = 700_000;
+
+function loadCover(url: string): Promise<string | null> {
+	const cached = coverRequests.get(url);
+	if (cached) {
+		coverRequests.delete(url);
+		coverRequests.set(url, cached);
+		return cached;
+	}
+	const request = getPluginCtx()
+		.network.request<string>({ url, method: "GET", responseType: "base64", timeoutMs: 10_000 })
+		.then((response) => {
+			const contentType = Object.entries(response.headers).find(([name]) => name.toLowerCase() === "content-type")?.[1];
+			const mime = contentType?.split(";")[0]?.trim().toLowerCase();
+			if (
+				!response.ok ||
+				typeof response.body !== "string" ||
+				response.body.length === 0 ||
+				response.body.length > MAX_COVER_BYTES_BASE64 ||
+				!mime ||
+				!["image/svg+xml", "image/png", "image/jpeg", "image/webp"].includes(mime)
+			) {
+				return null;
+			}
+			return `data:${mime};base64,${response.body}`;
+		})
+		.catch(() => null);
+	coverRequests.set(url, request);
+	while (coverRequests.size > MAX_CACHED_COVERS) {
+		const oldest = coverRequests.keys().next().value;
+		if (oldest === undefined) break;
+		coverRequests.delete(oldest);
+	}
+	return request;
+}
 
 /**
  * 一张通用产品界面缩略图：顶栏 + 侧栏 + 统计卡 + 主按钮 + 列表行。
@@ -19,6 +58,20 @@ export const DesignSystemPreview = memo(function DesignSystemPreview({
 	system: DesignSystem;
 	className?: string;
 }) {
+	const coverUrl = system.resources.find((resource) => resource.role === "cover" && resource.encoding === "binary");
+	const [cover, setCover] = useState<string | null>(null);
+	useEffect(() => {
+		let active = true;
+		setCover(null);
+		if (coverUrl?.encoding === "binary") {
+			void loadCover(coverUrl.url).then((source) => {
+				if (active) setCover(source);
+			});
+		}
+		return () => {
+			active = false;
+		};
+	}, [coverUrl]);
 	const tokens = useMemo(() => parsePreviewTokens(system.themeCss), [system.themeCss]);
 	const { colors, radius, shadow } = tokens;
 	const fg = colors["surface-foreground"];
@@ -33,9 +86,18 @@ export const DesignSystemPreview = memo(function DesignSystemPreview({
 
 	return (
 		<div
-			className={`pointer-events-none flex w-full select-none flex-col overflow-hidden border ${className ?? "h-[164px]"}`}
+			className={`pointer-events-none relative flex w-full select-none flex-col overflow-hidden border ${className ?? "h-[164px]"}`}
 			style={{ background: colors.surface, borderColor: border, borderRadius: r("xl", "8px") }}
 		>
+			{cover ? (
+				<img
+					src={cover}
+					alt=""
+					className="absolute inset-0 size-full object-cover"
+					onError={() => setCover(null)}
+				/>
+			) : (
+				<>
 			{/* 顶栏：窗口点 + 搜索框 */}
 			<div
 				className="flex h-7 shrink-0 items-center gap-1.5 border-b px-2"
@@ -118,6 +180,8 @@ export const DesignSystemPreview = memo(function DesignSystemPreview({
 					</div>
 				</div>
 			</div>
+				</>
+			)}
 		</div>
 	);
 })

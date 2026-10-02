@@ -4,11 +4,11 @@ export const LINUX_RELEASE_EXTENSIONS = Object.freeze([".AppImage", ".deb", ".rp
 
 export const LINUX_PACKAGE_METADATA = Object.freeze({
 	author: Object.freeze({
-		name: "567 API",
-		email: "support@567.wiki",
+		name: "567wiki",
+		email: "907746241@qq.com",
 	}),
 	homepage: "https://api.567.wiki",
-	license: "Commercial",
-	maintainer: "567 API <support@567.wiki>",
-	vendor: "567 API",
+	license: "Apache-2.0",
+	maintainer: "567wiki <907746241@qq.com>",
+	vendor: "567wiki",
 });

@@ -755,7 +755,7 @@
 	mask-image: linear-gradient(to bottom, #000 calc(100% - 36px), transparent 100%);
 }
 
-/* Vetta 头像：复用 .vetd-bot 的形象语言（圆头 + 双眼），静态版。 */
+/* 567 Agent 头像：复用 .vetd-bot 的形象语言（圆头 + 双眼），静态版。 */
 .vetd-note-face {
 	position: relative;
 	display: block;

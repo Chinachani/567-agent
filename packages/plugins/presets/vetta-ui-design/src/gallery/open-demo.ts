@@ -31,8 +31,11 @@ export const OPEN_DEMO_SCRIPT = [
 	'const win=process.platform==="win32";',
 	'const cmd=process.platform==="darwin"?"open":win?"cmd":"xdg-open";',
 	'const args=win?["/c","start","",file]:[file];',
-	'const child=cp.spawn(cmd,args,{detached:true,stdio:"ignore"});',
-	"child.unref();",
+	'const child=cp.spawn(cmd,args,{detached:!win,stdio:"ignore",windowsHide:true});',
+	'let settled=false;const timer=setTimeout(()=>{if(settled)return;settled=true;child.unref();process.exit(0);},1200);',
+	'child.once("error",error=>{if(settled)return;settled=true;clearTimeout(timer);console.error("browser launcher failed: "+error.message);process.exit(1);});',
+	'child.once("close",code=>{if(settled)return;settled=true;clearTimeout(timer);if(code!==0){console.error("browser launcher exited with "+code);process.exit(code||1);}});',
+	'child.once("spawn",()=>{if(!win)child.unref();});',
 ].join("\n");
 
 /** 没有 demo 的体系返回 false（按钮本不该出现）；执行失败抛错，由调用方 notify。 */

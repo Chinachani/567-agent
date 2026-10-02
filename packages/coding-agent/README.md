@@ -1,6 +1,6 @@
 # @567agent/coding-agent
 
-Vetta Coding Agent 的能力、策略与稳定 API 语义层。
+567 Agent Coding Agent 的能力、策略与稳定 API 语义层。
 
 会话独占 Agent Instance，并支持[配置模板、会话覆盖与版本恢复](./docs/agent-configuration.md)。
 

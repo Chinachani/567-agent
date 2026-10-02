@@ -3,6 +3,7 @@
 	"version": "0.3.7",
 	"type": "module",
 	"description": "567 Agent public entry for @vetta-org/plugin-sdk; shared runtime identity is preserved.",
+	"author": "567wiki <907746241@qq.com>",
 	"main": "./dist/index.js",
 	"types": "./dist/index.d.ts",
 	"exports": {
@@ -25,6 +26,11 @@
 		"./tailwind-theme.css": "./dist/tailwind-theme.css"
 	},
 	"license": "Apache-2.0",
+	"repository": {
+		"type": "git",
+		"url": "git+https://github.com/Chinachani/567-agent.git",
+		"directory": "packages/npm-compat/plugin-sdk"
+	},
 	"files": [
 		"dist",
 		"README.md",

@@ -13,7 +13,7 @@ Runtime-owned Knowledge capability for Agent hosts.
 
 - Agent Session or model execution
 - Tool schemas and model-visible descriptions
-- Desktop UI, polling schedules or the default Vetta home directory
+- Desktop UI, polling schedules or the default 567 Agent home directory
 
 Hosts must pass the Knowledge root explicitly. Node application hosts can bind this package through
 `createNodeKnowledgeRuntime(root)` from `@567agent/runtime-node/host`; this package never selects the default

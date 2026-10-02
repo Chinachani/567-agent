@@ -1,4 +1,4 @@
-# Contributing to Open Vetta
+# Contributing to 567 Agent
 
 <p align="center"><b>English</b> · <a href="CONTRIBUTING.zh-CN.md">简体中文</a></p>
 
@@ -14,10 +14,10 @@ Questions, half-formed ideas, and “is this still maintained?” belong in [Git
 
 | If you want to… | You are adding | Where it lives | Size |
 |---|---|---|---|
-| Add a desktop plugin | a plugin package | [`packages/plugins/`](packages/plugins/) · handbook in [`docs/plugin/`](docs/plugin/) · public guide at [docs.openvetta.com/plugins](https://docs.openvetta.com/plugins/getting-started/) | one package + `plugin.json` |
+| Add a desktop plugin | a plugin package | [`packages/plugins/`](packages/plugins/) · handbook in [`docs/plugin/`](docs/plugin/) · guide at [`getting-started.md`](docs/plugin/getting-started.md) | one package + `plugin.json` |
 | Add a reusable way of working | a skill | [`packages/skill-presets/`](packages/skill-presets/) or a GitHub marketplace source — see [`docs/open-marketplace.md`](docs/open-marketplace.md) | one folder with `SKILL.md` |
-| Change how the app looks | a theme | [`packages/themes/`](packages/themes/) · [`docs/theme/`](docs/theme/) · [theme guide](https://docs.openvetta.com/themes/getting-started/) | one theme package |
-| Publish an installable ability | a marketplace entry | [`openvetta/vetta-official-marketplace`](https://github.com/openvetta/vetta-official-marketplace) using [the marketplace format](docs/open-marketplace.md) | one directory + manifest row |
+| Change how the app looks | a theme | [`packages/themes/`](packages/themes/) · [`docs/theme/`](docs/theme/) · [`theme guide`](docs/theme/README.md) | one theme package |
+| Publish an installable ability | a marketplace entry | [`Chinachani/567-agent-marketplace`](https://github.com/Chinachani/567-agent-marketplace) using [the marketplace format](docs/open-marketplace.md) | one directory + manifest row |
 | Improve product or developer docs | a docs page | [`apps/docs-site/content/docs/`](apps/docs-site/content/docs/) | one MDX file |
 | Translate UI copy | i18n strings | desktop locale catalogs; never hardcode user-visible text | one PR |
 | Fix a bug or add a product feature | code | `apps/` or `packages/` that already own the behavior | normal PR |

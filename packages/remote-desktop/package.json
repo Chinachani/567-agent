@@ -1,7 +1,9 @@
 {
 	"name": "@567agent/remote-desktop",
 	"version": "0.0.1",
-	"description": "WebRTC screen and remote input contracts for Vetta",
+	"description": "WebRTC screen and remote input contracts for 567 Agent",
+	"author": "567wiki <907746241@qq.com>",
+	"license": "Apache-2.0",
 	"type": "module",
 	"main": "./dist/index.js",
 	"types": "./dist/index.d.ts",
@@ -15,7 +17,9 @@
 			"import": "./dist/protocol-entry.js"
 		}
 	},
-	"files": ["dist"],
+	"files": [
+		"dist"
+	],
 	"scripts": {
 		"clean": "rm -rf dist",
 		"build": "tsgo -p tsconfig.build.json",
@@ -25,5 +29,10 @@
 	"devDependencies": {
 		"electron": "^34.2.0",
 		"typescript": "^5.9.2"
+	},
+	"repository": {
+		"type": "git",
+		"url": "git+https://github.com/Chinachani/567-agent.git",
+		"directory": "packages/remote-desktop"
 	}
 }

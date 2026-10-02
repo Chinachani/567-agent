@@ -1,6 +1,6 @@
 ---
 name: remotion-video
-description: Create, modify, and render Remotion React video projects in the current Vetta conversation workspace. Use for requests to make programmatic videos, motion graphics, animated explainers, social videos, data videos, or to edit an existing Remotion composition and export it as MP4.
+description: Create, modify, and render Remotion React video projects in the current 567 Agent conversation workspace. Use for requests to make programmatic videos, motion graphics, animated explainers, social videos, data videos, or to edit an existing Remotion composition and export it as MP4.
 ---
 
 # Remotion Video

@@ -62,7 +62,7 @@ export function buildResourceIndex(systemName: string, written: readonly DesignR
 	return [
 		`# ${systemName} — style reference pack`,
 		"",
-		"Written by the Vetta design sidebar when the user picked this style.",
+		"Written by the 567 Agent design sidebar when the user picked this style.",
 		"Files in this pack:",
 		"",
 		...written.map((resource) => {
@@ -108,6 +108,8 @@ async function writeResources(system: DesignSystem, targetRoot: string): Promise
 	const ctx = getPluginCtx();
 	const written: DesignResource[] = [];
 	for (const resource of system.resources) {
+		// Covers are gallery-only thumbnails, not project design references.
+		if (resource.role === "cover") continue;
 		const target = `${targetRoot}/${resource.path}`;
 		try {
 			const slash = target.lastIndexOf("/");

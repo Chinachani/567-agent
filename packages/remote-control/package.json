@@ -1,7 +1,9 @@
 {
 	"name": "@567agent/remote-control",
 	"version": "0.0.1",
-	"description": "Platform-neutral remote control protocol and test transport for Vetta",
+	"description": "Platform-neutral remote control protocol and test transport for 567 Agent",
+	"author": "567wiki <907746241@qq.com>",
+	"license": "Apache-2.0",
 	"type": "module",
 	"main": "./dist/index.js",
 	"types": "./dist/index.d.ts",
@@ -11,7 +13,10 @@
 			"import": "./dist/index.js"
 		}
 	},
-	"files": ["dist", "schemas"],
+	"files": [
+		"dist",
+		"schemas"
+	],
 	"scripts": {
 		"clean": "rm -rf dist",
 		"build": "tsgo -p tsconfig.build.json",
@@ -22,5 +27,10 @@
 		"ajv": "^8.20.0",
 		"@types/node": "^22.10.5",
 		"typescript": "^5.9.2"
+	},
+	"repository": {
+		"type": "git",
+		"url": "git+https://github.com/Chinachani/567-agent.git",
+		"directory": "packages/remote-control"
 	}
 }

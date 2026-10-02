@@ -1,5 +1,5 @@
 name: Bug report
-description: Something is not working as expected in Open Vetta.
+description: Something is not working as expected in 567 Agent.
 title: "[Bug]: "
 labels: ["bug"]
 body:
@@ -8,10 +8,10 @@ body:
       value: |
         Thanks for the report. A reproducible description is much faster to fix.
 
-        提交前请先搜索 [open issues](https://github.com/openvetta/open-vetta/issues?q=is%3Aissue) 和 [Discussions](https://github.com/openvetta/open-vetta/discussions)。用法问题请走 Discussions，不要开 Issue。
+        提交前请先搜索 [open issues](https://github.com/Chinachani/567-agent/issues?q=is%3Aissue) 和 [Discussions](https://github.com/Chinachani/567-agent/discussions)。用法问题请走 Discussions，不要开 Issue。
 
         Before you submit:
-        - Search [open issues](https://github.com/openvetta/open-vetta/issues?q=is%3Aissue) and [Discussions](https://github.com/openvetta/open-vetta/discussions).
+        - Search [open issues](https://github.com/Chinachani/567-agent/issues?q=is%3Aissue) and [Discussions](https://github.com/Chinachani/567-agent/discussions).
         - Usage questions belong in Discussions, not here.
         - Do not paste API keys, tokens, cookies, or private files.
 
@@ -42,7 +42,7 @@ body:
       label: Steps to reproduce
       description: Minimal steps that reliably reproduce the problem.
       placeholder: |
-        1. Open Open Vetta
+        1. Open 567 Agent
         2. …
         3. See error
     validations:
@@ -59,9 +59,9 @@ body:
   - type: input
     id: version
     attributes:
-      label: Open Vetta version
+      label: 567 Agent version
       description: Settings → General, or `apps/desktop/package.json` if you built from source.
-      placeholder: e.g. 0.5.41
+      placeholder: e.g. 1.1.7
     validations:
       required: true
 
@@ -70,7 +70,7 @@ body:
     attributes:
       label: How did you install it?
       options:
-        - Official installer (openvetta.com)
+        - GitHub Releases installer
         - Built from source (lite)
         - Built from source (full / VETTA_CLOUD_ENABLED)
         - Other

@@ -102,8 +102,8 @@ test("Linux afterPack clears the FPM package marker before target packaging", as
 
 test("Windows installer registers and opens 567design files", () => {
 	const installer = readFileSync(join(desktopRoot, "build", "installer.iss"), "utf8");
-	assert.match(installer, /Subkey: "\.567design"/);
+	assert.ok(installer.includes('Subkey: "Software\\Classes\\.567design"'));
 	assert.match(installer, /567 Agent 设计分享包/);
-	assert.match(installer, /Subkey: "567Agent\.DesignShare\\shell\\open\\command"/);
+	assert.ok(installer.includes('Subkey: "Software\\Classes\\567Agent.DesignShare\\shell\\open\\command"'));
 	assert.match(installer, /ValueData: """\{app\}\\567-Agent\.exe"" ""%1"""/);
 });

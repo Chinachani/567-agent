@@ -660,7 +660,7 @@ export async function readCowartCanvasState(args = {}, { hydrateAssets = false }
 }
 
 export async function saveCowartCanvasSnapshot(args = {}, snapshot) {
-  // Vetta system plugin ships without tldraw; skip TL store sanitize there.
+  // 567 Agent system plugin ships without tldraw; skip TL store sanitize there.
   // Codex/full builds still use canvasSnapshot.js (depends on `tldraw`).
   let sanitized;
   if (process.env.COWART_VETTA === "1" || process.env.COWART_DISABLE_WIDGET === "1") {

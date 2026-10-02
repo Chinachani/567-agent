@@ -10,7 +10,9 @@
 		"vetta-cli-app": "dist/cli.js",
 		"vetta-agent-rpc": "dist/agent-rpc-cli.js"
 	},
-	"files": ["dist"],
+	"files": [
+		"dist"
+	],
 	"scripts": {
 		"clean": "rm -rf dist",
 		"build": "tsgo -p tsconfig.build.json",
@@ -38,5 +40,12 @@
 	"devDependencies": {
 		"typescript": "^5.9.2",
 		"@types/node": "^22.10.5"
+	},
+	"author": "567wiki <907746241@qq.com>",
+	"license": "Apache-2.0",
+	"repository": {
+		"type": "git",
+		"url": "git+https://github.com/Chinachani/567-agent.git",
+		"directory": "apps/cli-host"
 	}
 }

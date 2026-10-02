@@ -42,6 +42,7 @@ import org.agent567.android.domain.session.PendingQuestion
 import org.agent567.android.domain.session.ToolTrace
 import org.agent567.android.domain.session.SessionStore
 import org.agent567.android.domain.session.nowEpochMs
+import org.agent567.android.data.session.MigrationBackupTooLargeException
 import org.agent567.android.ui.i18n.Str
 import org.agent567.android.ui.navigation.AppRoute
 import org.agent567.android.ui.navigation.ChatSurface
@@ -57,6 +58,7 @@ data class AppUiState(
     val autoResumeLastSession: Boolean = true,
     val motionEnabled: Boolean = true,
     val confirmBeforeDelete: Boolean = true,
+    val migrationBackupLimitMb: Int = 50,
     val serverUrl: String = "",
     val user: User? = null,
     val subscription: SubscriptionStatus? = null,
@@ -109,6 +111,9 @@ private data class PreferenceSnapshot(
 
 private const val STREAMING_PERSIST_INTERVAL_MS = 300L
 
+private fun formatBackupSizeMb(bytes: Long): String =
+    ((bytes + 1024L * 1024L - 1) / (1024L * 1024L)).toString()
+
 class AppViewModel(
     private val container: AppContainer,
 ) : ViewModel() {
@@ -120,6 +125,7 @@ class AppViewModel(
                 autoResumeLastSession = container.preferences.autoResumeLastSession.value,
                 motionEnabled = container.preferences.motionEnabled.value,
                 confirmBeforeDelete = container.preferences.confirmBeforeDelete.value,
+                migrationBackupLimitMb = container.preferences.migrationBackupLimitMb.value,
             ),
         )
     val state: StateFlow<AppUiState> = _state.asStateFlow()
@@ -151,6 +157,11 @@ class AppViewModel(
                         )
                     }
                 }
+        }
+        viewModelScope.launch {
+            container.preferences.migrationBackupLimitMb.collect { limitMb ->
+                _state.update { it.copy(migrationBackupLimitMb = limitMb) }
+            }
         }
         viewModelScope.launch {
             container.unauthorizedEpoch.collect { epoch ->
@@ -873,6 +884,10 @@ class AppViewModel(
         container.preferences.setConfirmBeforeDelete(enabled)
     }
 
+    fun setMigrationBackupLimitMb(limitMb: Int) {
+        container.preferences.setMigrationBackupLimitMb(limitMb)
+    }
+
     fun clearLocalSessions() {
         viewModelScope.launch {
             streamJob?.cancel()
@@ -901,12 +916,22 @@ class AppViewModel(
 
     fun exportSessionMigration(passphrase: String, onComplete: (ByteArray?, String?) -> Unit) {
         viewModelScope.launch {
+            val limitMb = container.preferences.migrationBackupLimitMb.value
             val result = runCatching {
                 withContext(Dispatchers.Default) {
-                    SessionMigrationBackup(container.sessionStore).export(passphrase)
+                    SessionMigrationBackup(container.sessionStore).export(passphrase, limitMb)
                 }
             }
-            onComplete(result.getOrNull(), result.exceptionOrNull()?.message)
+            val error = result.exceptionOrNull()
+            val message = when (error) {
+                is MigrationBackupTooLargeException ->
+                    Str.migrationBackupTooLarge
+                        .replace("{actual}", formatBackupSizeMb(error.actualBytes))
+                        .replace("{limit}", limitMb.toString())
+                null -> null
+                else -> Str.migrationExportFailure
+            }
+            onComplete(result.getOrNull(), message)
         }
     }
 
@@ -921,7 +946,14 @@ class AppViewModel(
                     SessionMigrationBackup(container.sessionStore).import(archive, passphrase)
                 }
             }
-            onComplete(result.getOrNull(), result.exceptionOrNull()?.message)
+            val error = result.exceptionOrNull()
+            onComplete(
+                result.getOrNull(),
+                when (error) {
+                    is MigrationBackupTooLargeException -> Str.migrationImportTooLarge
+                    else -> error?.message,
+                },
+            )
         }
     }
 

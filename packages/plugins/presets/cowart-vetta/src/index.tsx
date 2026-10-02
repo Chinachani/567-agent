@@ -71,7 +71,7 @@ export default definePlugin({
 					ok: true,
 					opened: "activity-tab:cowart-vetta:canvas",
 					projectDir,
-					hint: "Cowart tldraw canvas is open in the activity panel. UI persists via Vetta fs bridge to project/canvas; agent tools use plugin-scoped MCP.",
+					hint: "Cowart tldraw canvas is open in the activity panel. UI persists via the 567 Agent file bridge to project/canvas; agent tools use plugin-scoped MCP.",
 				};
 			},
 		});

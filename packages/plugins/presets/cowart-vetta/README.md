@@ -1,6 +1,6 @@
 # cowart-vetta (1:1 host mapping)
 
-Vetta external plugin adapted from [zhongerxin/Cowart](https://github.com/zhongerxin/Cowart).
+567 Agent external plugin adapted from [zhongerxin/Cowart](https://github.com/zhongerxin/Cowart).
 
 ## This is NOT a system plugin
 
@@ -8,9 +8,9 @@ It lives under `packages/plugins/externals/` (not `presets/`), so it ships as a
 **user-installable** plugin: build the zip, install it in Desktop, grant the
 declared permissions, and enable/disable or remove it like other external plugins.
 
-## Capability map (Codex → Vetta)
+## Capability map (Codex → 567 Agent)
 
-| Codex native | Vetta native |
+| Codex native | 567 Agent native |
 |--------------|--------------|
 | MCP App widget (`ui://widget/...`) | Activity tab + full **tldraw** `canvas/App.jsx` |
 | `window.cowartMcp.callServerTool` | Plugin bridge → `ctx.fs` (same `project/canvas` layout) |
@@ -23,7 +23,7 @@ declared permissions, and enable/disable or remove it like other external plugin
 ```text
 src/                 # definePlugin, CanvasPanel, vetta bridge
 canvas/              # upstream App.jsx + styles/assets (tldraw UI)
-mcp/ + scripts/      # agent MCP (stdio), Vetta-safe bundle
+mcp/ + scripts/      # agent MCP (stdio), 567 Agent-safe bundle
 agent/skills/        # open / image-gen / image-edit
 .mcp.json
 plugin.json
@@ -51,4 +51,4 @@ Do not `process.exit` after loading the server — `connect()` resolves when rea
 
 ## Attribution
 
-Upstream Cowart by ZHONG XIN. Vetta host adaptation for internal use.
+Upstream Cowart by ZHONG XIN. 567 Agent host adaptation for internal use.

@@ -103,9 +103,8 @@ This is what our team uses for official releases. Your production endpoint, upda
 
 ```bash
 VETTA_CLOUD_ENABLED=true
-VETTA_SERVER_URL=https://api.openvetta.com/api/v1
-VETTA_SITE_URL=https://www.openvetta.com
-VETTA_UPDATE_PROVIDER=generic
+VETTA_SERVER_URL=https://api.567.wiki/api/v1
+VETTA_SITE_URL=https://api.567.wiki
 VETTA_UPDATE_PROVIDER=github
 VETTA_UPDATE_GITHUB_OWNER=Chinachani
 VETTA_UPDATE_GITHUB_REPO=567-agent
@@ -210,7 +209,7 @@ The update source is build configuration and is independent of the operating sys
 Both editions read the `VETTA_OPEN_MARKETPLACE_REPOSITORY` Variable, optionally overridden by the
 `marketplace_repository` input on manual runs. If neither is configured, no GitHub source is bundled.
 To include the official source in an open-source distribution, set the Variable to
-`https://github.com/openvetta/vetta-official-marketplace`; no code changes are needed.
+`https://github.com/Chinachani/567-agent-marketplace`; no code changes are needed.
 An unconfigured commercial build uses only the cloud marketplace.
 
 **A fork with no Variables set produces an open-source build.** For an official commercial build, put these on Settings → Environments → `desktop-production` → Environment variables (credentials stay in Environment secrets):

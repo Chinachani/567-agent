@@ -1,6 +1,6 @@
 # @567agent/remote-desktop
 
-Platform-neutral contracts and browser WebRTC orchestration for Vetta screen viewing and remote input.
+Platform-neutral contracts and browser WebRTC orchestration for 567 Agent screen viewing and remote input.
 
 This package is deliberately separate from `@567agent/remote-control`: chat/session traffic remains replayable request/event protocol traffic, while desktop media uses WebRTC and input uses an ordered DataChannel.
 

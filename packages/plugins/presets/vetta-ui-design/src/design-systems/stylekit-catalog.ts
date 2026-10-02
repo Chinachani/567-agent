@@ -54,8 +54,8 @@ function parseStyle(value: unknown): DesignSystem | null {
 	const slug = value.slug;
 	const name = shortText(value.name);
 	const description = shortText(value.description);
-	const descriptionEn = shortText(value.descriptionEn) ?? description;
 	if (typeof slug !== "string" || !/^[a-z0-9][a-z0-9-]{0,63}$/.test(slug) || !name || !description) return null;
+	const descriptionEn = shortText(value.descriptionEn) ?? description;
 	if (!isRecord(value.colors)) return null;
 	const primary = color(value.colors.primary);
 	const background = color(value.colors.secondary);
@@ -65,6 +65,11 @@ function parseStyle(value: unknown): DesignSystem | null {
 		? value.keywords.map(shortText).filter((keyword): keyword is string => keyword !== null).slice(0, 30)
 		: [];
 	const nameEn = shortText(value.nameEn) ?? slug;
+	// StyleKit's catalog supplies a relative SVG cover. Accept only the canonical
+	// slug-derived path so an API response cannot make the plugin fetch arbitrary URLs.
+	const cover = value.cover === `/styles/${slug}.svg`
+		? `https://www.stylekit.top/styles/${slug}.svg`
+		: null;
 	const themeCss = `/* StyleKit · ${nameEn} · https://github.com/AnxForever/stylekit */\n@theme {\n\t--color-primary: ${primary};\n\t--color-background: ${background};\n${accents[0] ? `\t--color-accent: ${accents[0]};\n` : ""}}\n`;
 	const designMd = [
 		`# ${name} (${nameEn})`,
@@ -81,6 +86,7 @@ function parseStyle(value: unknown): DesignSystem | null {
 	const resources: DesignResource[] = [
 		{ path: "DESIGN.md", role: "spec", encoding: "text", content: designMd, bytes: designMd.length },
 		{ path: "theme.css", role: "theme", encoding: "text", content: themeCss, bytes: themeCss.length },
+		...(cover ? [{ path: "cover.svg", role: "cover" as const, encoding: "binary" as const, url: cover, bytes: 0 }] : []),
 	];
 	return {
 		id: `stylekit-${slug}`,

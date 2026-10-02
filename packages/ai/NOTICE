@@ -1,0 +1,9 @@
+This package is derived in part from pi-mono.
+
+Copyright (c) Mario Zechner
+Source: https://github.com/badlogic/pi-mono
+License: MIT
+
+The agent loop, provider abstraction, and extension mechanism originate from
+that work and have been substantially rewritten and extended for 567 Agent.
+See LICENSE for the applicable MIT license and retained copyright notices.

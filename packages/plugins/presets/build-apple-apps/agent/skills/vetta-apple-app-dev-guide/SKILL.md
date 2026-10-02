@@ -1,12 +1,12 @@
 ---
 name: vetta-apple-app-dev-guide
 alias: 构建 Apple App
-description: Build Apple apps inside Vetta — drive the iOS Simulator shown in the Vetta panel (boot, build, install, launch, read the screen through the accessibility tree, tap, swipe, type), and write or review SwiftUI with the bundled guides for components and navigation, Liquid Glass on iOS 26+, and performance audits. Use whenever the task involves an iOS/iPadOS/macOS app, an Xcode or SwiftPM project, SwiftUI code, or a Simulator.
+description: Build Apple apps inside 567 Agent — drive the iOS Simulator shown in the 567 Agent panel (boot, build, install, launch, read the screen through the accessibility tree, tap, swipe, type), and write or review SwiftUI with the bundled guides for components and navigation, Liquid Glass on iOS 26+, and performance audits. Use whenever the task involves an iOS/iPadOS/macOS app, an Xcode or SwiftPM project, SwiftUI code, or a Simulator.
 ---
 
-# Building Apple Apps in Vetta
+# Building Apple Apps in 567 Agent
 
-macOS with Xcode only. This skill covers two things: driving the Simulator that Vetta mirrors in
+macOS with Xcode only. This skill covers two things: driving the Simulator that 567 Agent mirrors in
 its panel, and writing SwiftUI that holds up.
 
 Keep this page in context and open a reference only when the task actually reaches it. Everything
@@ -27,7 +27,7 @@ Two binaries cover everything:
 - `xcrun simctl` / `xcodebuild` — device lifecycle, build, install, launch, logs.
 - `baguette` — screen capture, gesture injection and the accessibility tree.
 
-The Vetta panel may already be mirroring a device, and the user is watching it. Reuse the booted
+The 567 Agent panel may already be mirroring a device, and the user is watching it. Reuse the booted
 device instead of creating another one — otherwise your work happens somewhere they cannot see.
 Both of you drive the same device, so narrate what you are about to do before a destructive step.
 

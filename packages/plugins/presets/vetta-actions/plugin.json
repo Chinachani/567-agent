@@ -11,6 +11,6 @@
 	},
 	"permissions": ["app.actions.register", "app.actionHandler.execute"],
 	"description": "%plugin.description%",
-	"author": "Vetta",
+	"author": "567 Agent",
 	"defaultLocale": "zh"
 }

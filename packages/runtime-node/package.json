@@ -1,7 +1,9 @@
 {
 	"name": "@567agent/runtime-node",
 	"version": "0.0.1",
-	"description": "Shared Node.js runtime adapters for Vetta agents",
+	"description": "Shared Node.js runtime adapters for 567 Agent",
+	"author": "567wiki <907746241@qq.com>",
+	"license": "Apache-2.0",
 	"type": "module",
 	"main": "./dist/index.js",
 	"types": "./dist/index.d.ts",
@@ -76,5 +78,10 @@
 	},
 	"engines": {
 		"node": ">=20.0.0"
+	},
+	"repository": {
+		"type": "git",
+		"url": "git+https://github.com/Chinachani/567-agent.git",
+		"directory": "packages/runtime-node"
 	}
 }

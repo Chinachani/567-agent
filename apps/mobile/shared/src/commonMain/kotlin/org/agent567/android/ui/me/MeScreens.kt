@@ -39,6 +39,7 @@ import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.TextButton
+import androidx.compose.material3.RadioButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
@@ -59,6 +60,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import org.agent567.android.core.model.SubscriptionStatus
 import org.agent567.android.core.model.User
+import org.agent567.android.data.session.MIGRATION_BACKUP_LIMIT_OPTIONS_MB
 import org.agent567.android.ui.components.PrimaryBlackButton
 import org.agent567.android.ui.components.EmptyState
 import org.agent567.android.ui.components.QuotaMeter
@@ -443,6 +445,8 @@ fun SettingsScreen(
     themeMode: org.agent567.android.app.ThemeMode,
     autoResumeLastSession: Boolean,
     motionEnabled: Boolean,
+    migrationBackupLimitMb: Int,
+    onMigrationBackupLimitMb: (Int) -> Unit,
     onThemeMode: (org.agent567.android.app.ThemeMode) -> Unit,
     onAutoResumeLastSession: (Boolean) -> Unit,
     onMotionEnabled: (Boolean) -> Unit,
@@ -460,16 +464,27 @@ fun SettingsScreen(
     var migrationPasswordConfirm by remember { mutableStateOf("") }
     var pendingMigrationArchive by remember { mutableStateOf<ByteArray?>(null) }
     var migrationNotice by remember { mutableStateOf<String?>(null) }
+    var showMigrationLimitDialog by remember { mutableStateOf(false) }
     val migrationFiles = rememberMigrationBackupFileActions(
-        onOpened = { bytes ->
-            if (bytes != null) {
+        onOpened = { bytes, error ->
+            if (error != null) {
+                migrationNotice = when (error) {
+                    MigrationBackupFileError.TooLarge -> Str.migrationImportTooLarge
+                    MigrationBackupFileError.Access -> Str.migrationFileReadFailure
+                }
+            } else if (bytes != null) {
                 pendingMigrationArchive = bytes
                 migrationPassword = ""
                 migrationDialog = MigrationDialog.Import
             }
         },
-        onSaved = { saved ->
-            migrationNotice = if (saved) Str.migrationExportSuccess else Str.migrationExportFailure
+        onSaved = { saved, error ->
+            migrationNotice = when {
+                saved -> Str.migrationExportSuccess
+                error == null -> null
+                error == MigrationBackupFileError.TooLarge -> Str.migrationSaveTooLarge
+                else -> Str.migrationSaveFailure
+            }
         },
     )
     Scaffold(
@@ -527,13 +542,20 @@ fun SettingsScreen(
             Spacer(Modifier.height(28.dp))
             SectionHeader(title = Str.dataSection)
             Text(
-                Str.migrationBackupHint,
+                Str.migrationBackupHint.replace("{limit}", migrationBackupLimitMb.toString()),
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.vettaExtra.secondaryText,
                 modifier = Modifier.padding(horizontal = 4.dp, vertical = 2.dp),
             )
             Spacer(Modifier.height(10.dp))
             VettaListGroup {
+                ProfileRow(
+                    Icons.Default.Settings,
+                    Str.migrationBackupLimit,
+                    "$migrationBackupLimitMb MB",
+                    onClick = { showMigrationLimitDialog = true },
+                    showDivider = true,
+                )
                 ProfileRow(
                     Icons.Default.FileDownload,
                     Str.exportChatHistory,
@@ -653,9 +675,45 @@ fun SettingsScreen(
         )
     }
 
+    if (showMigrationLimitDialog) {
+        AlertDialog(
+            onDismissRequest = { showMigrationLimitDialog = false },
+            title = { Text(Str.migrationBackupLimit) },
+            text = {
+                Column {
+                    Text(Str.migrationBackupLimitDescription)
+                    MIGRATION_BACKUP_LIMIT_OPTIONS_MB.forEach { limitMb ->
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .clickable {
+                                    onMigrationBackupLimitMb(limitMb)
+                                    showMigrationLimitDialog = false
+                                },
+                            verticalAlignment = Alignment.CenterVertically,
+                        ) {
+                            RadioButton(
+                                selected = migrationBackupLimitMb == limitMb,
+                                onClick = {
+                                    onMigrationBackupLimitMb(limitMb)
+                                    showMigrationLimitDialog = false
+                                },
+                            )
+                            Text("$limitMb MB")
+                        }
+                    }
+                }
+            },
+            confirmButton = {
+                TextButton(onClick = { showMigrationLimitDialog = false }) { Text(Str.close) }
+            },
+        )
+    }
+
     migrationNotice?.let { message ->
         AlertDialog(
             onDismissRequest = { migrationNotice = null },
+            title = { Text(Str.migrationDialogTitle) },
             text = { Text(message) },
             confirmButton = { TextButton(onClick = { migrationNotice = null }) { Text(Str.confirm) } },
         )

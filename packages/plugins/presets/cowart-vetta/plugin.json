@@ -30,7 +30,7 @@
 		"mcpServers": "./.mcp.json"
 	},
 	"description": "%plugin.description%",
-	"author": "Vetta (adapted from zhongerxin/Cowart)",
+	"author": "567 Agent (adapted from zhongerxin/Cowart)",
 	"defaultLocale": "zh",
 	"guidingWords": [
 		"%guidingWords.openCanvas%",

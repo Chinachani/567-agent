@@ -51,6 +51,8 @@ import org.agent567.android.core.net.parseEnvelope
 import org.agent567.android.core.net.parseFailure
 import org.agent567.android.core.net.toVettaException
 
+private const val IMAGE_GENERATION_TIMEOUT_MS = 300_000L
+
 /**
  * 对 567 API / Gateway 的薄封装。
  * - 认证与用户：`https://api.567.wiki/api/user/`
@@ -794,6 +796,10 @@ internal class VettaApi(
                 )
 
                 val res = bareClient.post(url) {
+                    timeout {
+                        requestTimeoutMillis = IMAGE_GENERATION_TIMEOUT_MS
+                        socketTimeoutMillis = IMAGE_GENERATION_TIMEOUT_MS
+                    }
                     setBody(body.toString())
                     contentType(ContentType.Application.Json)
                     if (apiKey.isNotBlank()) {
@@ -864,6 +870,10 @@ internal class VettaApi(
             )
 
             val chatRes = bareClient.post(chatUrl) {
+                timeout {
+                    requestTimeoutMillis = IMAGE_GENERATION_TIMEOUT_MS
+                    socketTimeoutMillis = IMAGE_GENERATION_TIMEOUT_MS
+                }
                 setBody(chatBody.toString())
                 contentType(ContentType.Application.Json)
                 if (apiKey.isNotBlank()) {

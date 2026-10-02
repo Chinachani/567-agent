@@ -1,4 +1,4 @@
-/* Scoped for Vetta activity panel embed — never target html/body/#root (pollutes host). */
+/* Scoped for 567 Agent activity panel embed — never target html/body/#root (pollutes host). */
 .cowart-vetta-canvas-host,
 .cowart-vetta-canvas-host * {
   box-sizing: border-box;

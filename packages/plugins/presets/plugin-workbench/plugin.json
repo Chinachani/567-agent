@@ -32,7 +32,7 @@
 		}
 	},
 	"description": "%plugin.description%",
-	"author": "Vetta",
+	"author": "567 Agent",
 	"guidingWords": ["%guidingWords.createPlugin%", "%guidingWords.applyPlugin%"],
 	"contributionMode": {
 		"hardIsolation": true
