@@ -363,6 +363,14 @@ describe("Desktop release workflow contracts", () => {
 		expect(qualityJob).toContain("node scripts/release/release-notes.mjs --check");
 	});
 
+	it("requires an explicit dispatch input before updating a published GitHub Release", () => {
+		expect(workflow).toContain("allow_published_release_update:");
+		expect(workflow).toContain("default: false");
+		expect(workflow).toContain("ALLOW_PUBLISHED_RELEASE_UPDATE: ${{ github.event.inputs.allow_published_release_update }}");
+		expect(workflow).toContain("without allow_published_release_update=true");
+		expect(workflow).toContain("Updating published release ${TAG} as explicitly requested.");
+	});
+
 	it("provides an isolated test-channel workflow for real install and restart upgrades", () => {
 		expect(upgradeWorkflow).toContain("baseline_version:");
 		expect(upgradeWorkflow).toContain("candidate_version:");
