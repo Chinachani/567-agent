@@ -73,14 +73,14 @@ async function extractZip(packagePath, destination) {
 	await execFileAsync("tar.exe", ["-xf", packagePath, "-C", destination]);
 }
 
-async function extractMsi(packagePath, destination) {
+async function installMsiForVerification(packagePath, destination) {
 	const logPath = join(destination, "msiexec.log");
 	try {
 		await execFileAsync("msiexec.exe", [
-			"/a",
+			"/i",
 			packagePath,
 			"/qn",
-			`TARGETDIR=${destination}`,
+			`INSTALLDIR=${destination}`,
 			"/L*V",
 			logPath,
 		]);
@@ -94,7 +94,7 @@ async function extractMsi(packagePath, destination) {
 			.catch(() => "");
 		const excerpt = log.split(/\r?\n/).slice(-80).join("\n");
 		throw new Error(
-			`[verify-windows-packages] MSI administrative extraction failed. msiexec log tail:\n${excerpt}`,
+			`[verify-windows-packages] MSI silent installation failed. msiexec log tail:\n${excerpt}`,
 			{ cause: error },
 		);
 	}
@@ -115,7 +115,7 @@ export async function verifyWindowsPackages({ releaseDir = defaultReleaseDir } =
 	const zipRoot = join(extractionRoot, "zip");
 	await Promise.all([mkdir(msiRoot, { recursive: true }), mkdir(zipRoot, { recursive: true })]);
 	try {
-		await extractMsi(msiPath, msiRoot);
+		await installMsiForVerification(msiPath, msiRoot);
 		await extractZip(zipPath, zipRoot);
 		await Promise.all([
 			verifyExtractedWindowsLayout(msiRoot, expectedVersion),
