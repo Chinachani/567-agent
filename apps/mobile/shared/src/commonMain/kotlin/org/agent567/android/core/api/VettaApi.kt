@@ -266,7 +266,7 @@ internal class VettaApi(
         var token = tokenStore.accessToken.orEmpty()
         var response = action(token)
         if (response.status.value == 401 && !tokenStore.refreshToken.isNullOrBlank()) {
-            val outcome = refreshTokens(tokenStore.refreshToken!!)
+            val outcome = refreshTokensWithAccountRecovery(tokenStore.refreshToken!!)
             if (outcome is RefreshOutcome.Ok) {
                 token = outcome.accessToken
                 response = action(token)
