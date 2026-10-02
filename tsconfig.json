@@ -84,6 +84,7 @@
 			"@vetta-org/plugin-sdk/npm-package": ["./packages/plugins/plugin-sdk/src/npm-package.ts"],
 			"@vetta-org/plugin-sdk/*": ["./packages/plugins/plugin-sdk/src/*"],
 			"@vetta-org/plugin-vite": ["./packages/plugins/plugin-vite/src/index.ts"],
+			"@vetta-org/plugin-vite/cli": ["./packages/plugins/plugin-vite/src/cli.ts"],
 			"@vetta-org/plugin-vite/pack": ["./packages/plugins/plugin-vite/src/pack.ts"],
 			"@vetta-org/plugin-vite/*": ["./packages/plugins/plugin-vite/src/*"],
 			"@vetta-org/plugin-cli": ["./packages/plugins/plugin-cli/src/index.ts"],
@@ -182,6 +183,7 @@
 			"@567agent/plugin-sdk/npm-package": ["./packages/npm-compat/plugin-sdk/src/npm-package.ts"],
 			"@567agent/plugin-sdk/logger": ["./packages/npm-compat/plugin-sdk/src/logger.ts"],
 			"@567agent/plugin-vite": ["./packages/npm-compat/plugin-vite/src/index.ts"],
+			"@567agent/plugin-vite/cli": ["./packages/npm-compat/plugin-vite/src/cli.ts"],
 			"@567agent/plugin-vite/pack": ["./packages/npm-compat/plugin-vite/src/pack.ts"]
 		}
 	},
