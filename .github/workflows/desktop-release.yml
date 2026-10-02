@@ -506,15 +506,15 @@ jobs:
           docker run --rm --volume "${PWD}/release:/release:ro" ubuntu:24.04 bash -euo pipefail -c '
             apt-get update
             apt-get install --yes /release/*.deb
-            test -x /opt/Vetta/Vetta
-            test "$(cat /opt/Vetta/resources/package-type)" = "deb"
-            find /usr/share/applications -maxdepth 1 -type f -iname "*vetta*.desktop" -print -quit | grep -q .
+            test -x /opt/567-agent/567-agent
+            test "$(cat /opt/567-agent/resources/package-type)" = "deb"
+            test -f /usr/share/applications/567-agent.desktop
           '
           docker run --rm --volume "${PWD}/release:/release:ro" fedora:latest bash -euo pipefail -c '
             dnf install --assumeyes --nogpgcheck /release/*.rpm
-            test -x /opt/Vetta/Vetta
-            test "$(cat /opt/Vetta/resources/package-type)" = "rpm"
-            find /usr/share/applications -maxdepth 1 -type f -iname "*vetta*.desktop" -print -quit | grep -q .
+            test -x /opt/567-agent/567-agent
+            test "$(cat /opt/567-agent/resources/package-type)" = "rpm"
+            test -f /usr/share/applications/567-agent.desktop
           '
 
       - name: Run packaged app and updater E2E

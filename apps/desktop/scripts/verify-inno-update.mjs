@@ -67,7 +67,7 @@ export async function verifyInnoUpdate({ installerPath, verificationManifestPath
 	try {
 		await runInstaller(installerPath, storeRoot, version);
 		await Promise.all([
-			assertFile(join(installedVersionDir, "Vetta.exe")),
+			assertFile(join(installedVersionDir, "567-Agent.exe")),
 			assertFile(join(installedVersionDir, "resources", "app.asar")),
 			assertFile(join(installedVersionDir, ".install-complete")),
 		]);

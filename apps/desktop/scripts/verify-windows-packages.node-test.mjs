@@ -13,9 +13,9 @@ async function createLayout(root, version) {
 	const versionDir = join(root, "versions", version);
 	await mkdir(join(versionDir, "resources"), { recursive: true });
 	await Promise.all([
-		writeFile(join(root, "Vetta.exe"), "launcher"),
+		writeFile(join(root, "567-Agent.exe"), "launcher"),
 		writeFile(join(root, "current.json"), `${JSON.stringify({ version })}\n`),
-		writeFile(join(versionDir, "Vetta.exe"), "application"),
+		writeFile(join(versionDir, "567-Agent.exe"), "application"),
 		writeFile(join(versionDir, "resources", "app.asar"), "archive"),
 	]);
 }

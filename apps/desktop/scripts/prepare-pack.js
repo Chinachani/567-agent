@@ -744,7 +744,7 @@ const builderConfig = {
 	},
 	win: {
 		target: ["dir"],
-		artifactName: "${productName}-${version}-win-${arch}.${ext}",
+		artifactName: "567-Agent-${version}-win-${arch}.${ext}",
 		icon: "build/icon.ico",
 	},
 	linux: {

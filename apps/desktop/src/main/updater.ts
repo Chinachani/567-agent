@@ -1,6 +1,5 @@
 import { readFileSync } from "node:fs";
 import { mkdir, readFile, writeFile } from "node:fs/promises";
-import { homedir } from "node:os";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { getVettaHomePath } from "@vetta/action-rpc";
@@ -141,13 +140,9 @@ interface UpgradeE2eState {
 }
 
 function upgradeE2eStatePaths(): string[] {
-	return [
-		process.env.VETTA_E2E_UPGRADE_STATE?.trim(),
-		join(getVettaHomePath(), "desktop-upgrade-e2e.json"),
-		// ShipIt can relaunch without the test environment. Keep one fallback marker
-		// under the runner user's normal Vetta home so the second process can find it.
-		join(homedir(), ".vetta", "desktop-upgrade-e2e.json"),
-	].filter((path, index, paths): path is string => Boolean(path) && paths.indexOf(path) === index);
+	return [process.env.VETTA_E2E_UPGRADE_STATE?.trim(), join(getVettaHomePath(), "desktop-upgrade-e2e.json")].filter(
+		(path, index, paths): path is string => Boolean(path) && paths.indexOf(path) === index,
+	);
 }
 
 async function readUpgradeE2eState(paths: readonly string[]): Promise<{ path: string; state: UpgradeE2eState } | null> {

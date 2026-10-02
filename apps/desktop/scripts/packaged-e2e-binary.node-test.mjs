@@ -12,7 +12,7 @@ import {
 
 test("Linux unpacked E2E uses the built AppImage as the updater runtime image", async () => {
 	const packageRoot = await mkdtemp(join(tmpdir(), "vetta-packaged-e2e-"));
-	const appImage = join(packageRoot, "release", "Vetta-1.2.3.AppImage");
+	const appImage = join(packageRoot, "release", "567-agent-1.2.3.AppImage");
 	await mkdir(join(packageRoot, "release"), { recursive: true });
 	await writeFile(appImage, "appimage");
 
@@ -42,7 +42,7 @@ test("Linux packaged E2E rejects unsafe or missing AppImage paths", async () => 
 test("Linux packaged E2E stages an isolated AppImage before updater tests", async () => {
 	const packageRoot = await mkdtemp(join(tmpdir(), "vetta-packaged-e2e-"));
 	const temporaryRoot = await mkdtemp(join(tmpdir(), "vetta-packaged-e2e-stage-"));
-	const releaseAppImage = join(packageRoot, "release", "Vetta-1.2.3.AppImage");
+	const releaseAppImage = join(packageRoot, "release", "567-agent-1.2.3.AppImage");
 	await mkdir(join(packageRoot, "release"), { recursive: true });
 	await writeFile(releaseAppImage, "release-appimage");
 
@@ -64,16 +64,29 @@ test("Linux packaged E2E stages an isolated AppImage before updater tests", asyn
 test("Windows packaged E2E drives the versioned Electron binary instead of the detached launcher", async () => {
 	const packageRoot = await mkdtemp(join(tmpdir(), "vetta-packaged-e2e-"));
 	const unpackedRoot = join(packageRoot, "release", "win-unpacked");
-	const versionedBinary = join(unpackedRoot, "versions", "1.2.3", "Vetta.exe");
+	const versionedBinary = join(unpackedRoot, "versions", "1.2.3", "567-Agent.exe");
 	await mkdir(join(unpackedRoot, "versions", "1.2.3"), { recursive: true });
 	await Promise.all([
-		writeFile(join(unpackedRoot, "Vetta.exe"), "launcher"),
+		writeFile(join(unpackedRoot, "567-Agent.exe"), "launcher"),
 		writeFile(join(unpackedRoot, "current.json"), '{"version":"1.2.3"}\n'),
 		writeFile(versionedBinary, "electron"),
 	]);
 
 	try {
 		assert.equal(resolvePackagedE2eBinaryPath(packageRoot, "win32"), versionedBinary);
+	} finally {
+		await rm(packageRoot, { recursive: true, force: true });
+	}
+});
+
+test("Linux packaged E2E launches the kebab-case application binary", async () => {
+	const packageRoot = await mkdtemp(join(tmpdir(), "vetta-packaged-e2e-"));
+	const binary = join(packageRoot, "release", "linux-unpacked", "567-agent");
+	await mkdir(join(packageRoot, "release", "linux-unpacked"), { recursive: true });
+	await writeFile(binary, "electron");
+
+	try {
+		assert.equal(resolvePackagedE2eBinaryPath(packageRoot, "linux"), binary);
 	} finally {
 		await rm(packageRoot, { recursive: true, force: true });
 	}

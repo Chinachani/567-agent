@@ -214,8 +214,10 @@ describe("Desktop release workflow contracts", () => {
 		expect(workflow).toContain("ubuntu:24.04");
 		expect(workflow).toContain("fedora:latest");
 		expect(workflow).toContain("dnf install --assumeyes --nogpgcheck");
-		expect(workflow).toContain('test "$(cat /opt/Vetta/resources/package-type)" = "deb"');
-		expect(workflow).toContain('test "$(cat /opt/Vetta/resources/package-type)" = "rpm"');
+		expect(workflow).toContain("test -x /opt/567-agent/567-agent");
+		expect(workflow).toContain('test "$(cat /opt/567-agent/resources/package-type)" = "deb"');
+		expect(workflow).toContain('test "$(cat /opt/567-agent/resources/package-type)" = "rpm"');
+		expect(workflow).toContain("test -f /usr/share/applications/567-agent.desktop");
 		expect(workflow).toContain("apps/desktop/release/*.AppImage");
 		expect(workflow).toContain("apps/desktop/release/*.deb");
 		expect(workflow).toContain("apps/desktop/release/*.rpm");

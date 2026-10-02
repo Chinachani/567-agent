@@ -3,7 +3,7 @@ import { chmod, mkdir, readFile, rename, rm, writeFile } from "node:fs/promises"
 import { spawn } from "node:child_process";
 import { Readable } from "node:stream";
 import { pipeline } from "node:stream/promises";
-import { homedir, tmpdir } from "node:os";
+import { tmpdir } from "node:os";
 import { basename, join } from "node:path";
 import { pathToFileURL } from "node:url";
 import { parse } from "yaml";
@@ -89,7 +89,7 @@ async function resolveCandidate(baseUrl, expectedVersion) {
 
 function baselineArtifactName(buildVersion) {
 	if (platform === "win32") return `Vetta-${buildVersion}-win-x64.exe`;
-	if (platform === "linux") return `Vetta-${buildVersion}.AppImage`;
+	if (platform === "linux") return `567.Agent-${buildVersion}.AppImage`;
 	return architecture === "arm64" ? `Vetta-${buildVersion}-arm64-mac.zip` : `Vetta-${buildVersion}-mac.zip`;
 }
 
@@ -208,7 +208,6 @@ async function main() {
 		const result = await waitForVerification(state, child, 15 * 60 * 1000);
 		console.log(`[desktop-upgrade-e2e] verified ${result.currentVersion}; log=${logPath}`);
 	}
-	await rm(join(homedir(), ".vetta", "desktop-upgrade-e2e.json"), { force: true });
 	await rm(root, { recursive: true, force: true });
 }
 

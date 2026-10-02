@@ -36,7 +36,7 @@ test("writes a stable versioned file manifest for pre-publish verification", asy
 	const versionDir = join(sourceDir, "version");
 	await mkdir(join(versionDir, "resources"), { recursive: true });
 	await Promise.all([
-		writeFile(join(versionDir, "Vetta.exe"), "exe"),
+		writeFile(join(versionDir, "567-Agent.exe"), "exe"),
 		writeFile(join(versionDir, "resources", "app.asar"), "asar"),
 	]);
 
@@ -45,8 +45,8 @@ test("writes a stable versioned file manifest for pre-publish verification", asy
 		assert.deepEqual(JSON.parse(await readFile(manifestPath, "utf8")), {
 			version: "1.2.3",
 			files: [
+				{ path: "567-Agent.exe", size: 3 },
 				{ path: "resources/app.asar", size: 4 },
-				{ path: "Vetta.exe", size: 3 },
 			],
 		});
 	} finally {
