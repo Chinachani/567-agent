@@ -79,10 +79,10 @@ test("Windows packaged E2E drives the versioned Electron binary instead of the d
 	}
 });
 
-test("macOS packaged E2E launches the renamed application binary", async () => {
+test("macOS packaged E2E launches the packaged app bundle and executable", async () => {
 	const packageRoot = await mkdtemp(join(tmpdir(), "vetta-packaged-e2e-"));
-	const binary = join(packageRoot, "release", "mac-arm64", "567 Agent.app", "Contents", "MacOS", "567 Agent");
-	await mkdir(join(packageRoot, "release", "mac-arm64", "567 Agent.app", "Contents", "MacOS"), { recursive: true });
+	const binary = join(packageRoot, "release", "mac-arm64", "567-Agent.app", "Contents", "MacOS", "567-Agent");
+	await mkdir(join(packageRoot, "release", "mac-arm64", "567-Agent.app", "Contents", "MacOS"), { recursive: true });
 	await writeFile(binary, "electron");
 
 	try {

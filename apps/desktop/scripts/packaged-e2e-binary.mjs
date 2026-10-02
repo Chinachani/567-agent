@@ -65,9 +65,9 @@ export function resolvePackagedE2eBinaryPath(packageRoot, platform = process.pla
 		? [resolveWindowsVersionedBinary(join(releaseRoot, "win-unpacked"))]
 		: platform === "darwin"
 				? [
-						join(releaseRoot, "mac-arm64", "567 Agent.app", "Contents", "MacOS", "567 Agent"),
-						join(releaseRoot, "mac", "567 Agent.app", "Contents", "MacOS", "567 Agent"),
-						join(releaseRoot, "mac-x64", "567 Agent.app", "Contents", "MacOS", "567 Agent"),
+						join(releaseRoot, "mac-arm64", "567-Agent.app", "Contents", "MacOS", "567-Agent"),
+						join(releaseRoot, "mac", "567-Agent.app", "Contents", "MacOS", "567-Agent"),
+						join(releaseRoot, "mac-x64", "567-Agent.app", "Contents", "MacOS", "567-Agent"),
 					]
 				: platform === "linux"
 				? [join(releaseRoot, "linux-unpacked", "567-agent")]

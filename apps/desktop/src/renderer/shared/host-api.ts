@@ -20,3 +20,21 @@ function bindHostAccess(value: unknown, owner?: object): unknown {
 }
 
 export const hostApi = bindHostAccess(rawApi) as DesktopApi;
+
+// The WebDriver packaged E2E runs in Chromium's page world, outside this
+// renderer module's host-access wrapper. Expose only updater operations needed
+// by that test, and only for a local app launched under WebDriver.
+if (window.navigator.webdriver && window.location.protocol === "file:") {
+	Object.defineProperty(window, "vettaE2e", {
+		configurable: false,
+		enumerable: false,
+		value: Object.freeze({
+			updater: Object.freeze({
+				check: hostApi.updater.check,
+				download: hostApi.updater.download,
+				getState: hostApi.updater.getState,
+			}),
+		}),
+		writable: false,
+	});
+}
