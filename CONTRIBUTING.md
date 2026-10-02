@@ -6,7 +6,7 @@ Thanks for considering a contribution. This repository is the open-source client
 
 The highest-leverage contributions are usually one folder — a plugin, a skill, a theme, a marketplace entry, or a docs page — not a framework rewrite. This guide tells you where each kind of change goes and what a PR has to clear.
 
-Questions, half-formed ideas, and “is this still maintained?” belong in [GitHub Discussions](https://github.com/openvetta/open-vetta/discussions), not Issues.
+Questions, half-formed ideas, and “is this still maintained?” belong in [GitHub Discussions](https://github.com/Chinachani/567-agent/discussions), not Issues.
 
 ---
 
@@ -22,7 +22,7 @@ Questions, half-formed ideas, and “is this still maintained?” belong in [Git
 | Translate UI copy | i18n strings | desktop locale catalogs; never hardcode user-visible text | one PR |
 | Fix a bug or add a product feature | code | `apps/` or `packages/` that already own the behavior | normal PR |
 
-If you are not sure which row you are in, [open a Discussion](https://github.com/openvetta/open-vetta/discussions/new?category=ideas) first.
+If you are not sure which row you are in, [open a Discussion](https://github.com/Chinachani/567-agent/discussions/new?category=ideas) first.
 
 ---
 
@@ -31,7 +31,7 @@ If you are not sure which row you are in, [open a Discussion](https://github.com
 The short path is in [`QUICKSTART.md`](QUICKSTART.md). TL;DR:
 
 ```bash
-git clone https://github.com/openvetta/open-vetta.git
+git clone https://github.com/Chinachani/567-agent.git
 cd open-vetta
 git checkout dev
 bun install                 # Bun 1.3+
@@ -89,7 +89,7 @@ If you are unsure, open a Discussion before writing the code.
 
 ## Security
 
-Report vulnerabilities privately via [GitHub Security Advisories](https://github.com/openvetta/open-vetta/security/advisories/new). Do not file a public issue. Details in [`SECURITY.md`](SECURITY.md).
+Report vulnerabilities privately via [GitHub Security Advisories](https://github.com/Chinachani/567-agent/security/advisories/new). Do not file a public issue. Details in [`SECURITY.md`](SECURITY.md).
 
 ---
 

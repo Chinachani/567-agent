@@ -35,6 +35,7 @@ test("collectArtifacts uploads updater files and matching Windows supplements be
 		]);
 
 		assert.deepEqual(await collectArtifacts(directory), [
+			"567-Agent-1.2.3-win-x64.msi",
 			"567-Agent-1.2.3-win-x64.zip",
 			"Vetta Setup 1.2.3.exe",
 			"Vetta Setup 1.2.3.exe.blockmap",

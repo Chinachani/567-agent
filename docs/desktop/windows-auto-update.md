@@ -44,10 +44,10 @@ Windows 只需要发布一个 EXE 安装包及其 blockmap，不需要为了自�
 
 | 构建用途 | `VETTA_UPDATE_PROVIDER` | 更新源 | 建议地址 |
 |---|---|---|---|
-| 官方稳定版 | `generic` | R2 + Cloudflare CDN | `https://releases.openvetta.com/desktop/stable` |
-| 本地闭环测试 | `generic` | R2 独立前缀 | `https://releases.openvetta.com/desktop/test` |
-| 开源版本 | `github` | 公开 GitHub Releases | 仓库 Release |
-| 未配置 provider | (默认) | R2 + Cloudflare CDN | 使用 stable 默认地址 |
+| 默认公开稳定版 | `github` | 公开 GitHub Releases | `https://github.com/Chinachani/567-agent/releases` |
+| 自建更新源 | `generic` | R2 或静态 HTTP/CDN | 由发布者配置 `VETTA_UPDATE_URL` |
+| 本地闭环测试 | `generic` | 自建测试前缀 | `https://updates.example.com/desktop/test`（示例） |
+| 未配置 provider | (默认) | 公开 GitHub Releases | `Chinachani/567-agent` |
 
 R2 推荐对象布局：
 
@@ -199,10 +199,10 @@ Windows 发布 EXE 的原因：
 
 ```dotenv
 VETTA_UPDATE_PROVIDER=generic
-VETTA_UPDATE_URL=https://releases.openvetta.com/desktop/test
+VETTA_UPDATE_URL=https://updates.example.com/desktop/test
 ```
 
-构建脚本默认 `VETTA_BUILD_ENV=development`，`prepare-pack.js` 显式调用 `loadBuildEnv()` 读取 `.env.development`；Shell 中显式设置的变量优先级更高。未设置 `VETTA_UPDATE_PROVIDER` 时默认使用 `generic`，更新地址默认为 `https://releases.openvetta.com/desktop/stable`，因此会生成 `app-update.yml`。打包不支持无更新源配置；`VETTA_UPDATE_PROVIDER=none` 会在构建期直接失败。
+构建脚本默认 `VETTA_BUILD_ENV=development`，`prepare-pack.js` 显式调用 `loadBuildEnv()` 读取 `.env.development`；Shell 中显式设置的变量优先级更高。未设置 `VETTA_UPDATE_PROVIDER` 时默认使用 `github`，仓库为 `Chinachani/567-agent`。自建 generic 更新源必须同时配置 `VETTA_UPDATE_URL`。打包不支持无更新源配置；`VETTA_UPDATE_PROVIDER=none` 会在构建期直接失败。
 
 直接调用底层发布命令时，发布期变量必须写在 Shell 里：
 
@@ -212,7 +212,7 @@ export VETTA_R2_ACCESS_KEY_ID=<access-key-id>
 export VETTA_R2_SECRET_ACCESS_KEY=<secret-access-key>
 export VETTA_R2_BUCKET=vetta-releases
 export VETTA_R2_PREFIX=desktop/test
-export VETTA_UPDATE_URL=https://releases.openvetta.com/desktop/test
+export VETTA_UPDATE_URL=https://updates.example.com/desktop/test
 ```
 
 原因：`publish-update-artifacts-r2.mjs` 直接读 `process.env`，不调用 `loadBuildEnv()`；而 `publish:updates:r2` 是 `bun run` 拉起 `node` 子进程，Bun 的 dotenv 自动加载只作用于 Bun 运行时自身的进程，不会传给它 spawn 的 node。凭据缺失时报 `[publish-updates-r2] missing VETTA_R2_ACCOUNT_ID`。
@@ -232,7 +232,7 @@ VETTA_R2_ACCESS_KEY_ID=<access-key-id>
 VETTA_R2_SECRET_ACCESS_KEY=<secret-access-key>
 VETTA_R2_BUCKET=vetta-releases
 VETTA_R2_PREFIX=desktop/test
-VETTA_UPDATE_URL=https://releases.openvetta.com/desktop/test
+VETTA_UPDATE_URL=https://updates.example.com/desktop/test
 ```
 
 R2 Token 只授予目标 Bucket 的对象读写权限。凭据只供发布脚本访问 R2 S3 API，不会写入桌面安装包；安装包只包含公开更新 URL。
@@ -367,8 +367,8 @@ CDN 命中可减少 R2 Class B 读取；回源未命中仍会产生 R2 操作。
 差分下载要求自定义域名对 EXE 支持标准字节范围请求。应返回 `206 Partial Content` 和正确的 `Content-Range`。
 
 ```powershell
-curl.exe -I "https://releases.openvetta.com/desktop/test/Vetta-<version>-win-x64.exe"
-curl.exe -r 0-1023 -o NUL -D - "https://releases.openvetta.com/desktop/test/Vetta-<version>-win-x64.exe"
+curl.exe -I "https://updates.example.com/desktop/test/Vetta-<version>-win-x64.exe"
+curl.exe -r 0-1023 -o NUL -D - "https://updates.example.com/desktop/test/Vetta-<version>-win-x64.exe"
 ```
 
 第二条响应应为 206。当前 `generic` provider 设置了 `useMultipleRangeRequest=true`：electron-updater 先把相邻变化块合并为下载区间，再把最多 1000 个差分任务中的远程区间放进一个 multipart Range 请求，避免跨地域链路逐个串行请求。
@@ -376,7 +376,7 @@ curl.exe -r 0-1023 -o NUL -D - "https://releases.openvetta.com/desktop/test/Vett
 还必须验证多区间响应：
 
 ```powershell
-curl.exe -H "Range: bytes=0-9,100-109" -o NUL -D - "https://releases.openvetta.com/desktop/test/Vetta-<version>-win-x64.exe"
+curl.exe -H "Range: bytes=0-9,100-109" -o NUL -D - "https://updates.example.com/desktop/test/Vetta-<version>-win-x64.exe"
 ```
 
 响应必须是 `206 Partial Content`，且 `Content-Type` 包含 `multipart/byteranges; boundary=...`。只支持单区间 206 不足以启用 multipart Range。
@@ -400,7 +400,7 @@ curl.exe -H "Range: bytes=0-9,100-109" -o NUL -D - "https://releases.openvetta.c
 
 ```text
 VETTA_UPDATE_PROVIDER=generic
-VETTA_UPDATE_URL=https://releases.openvetta.com/desktop/stable
+VETTA_UPDATE_URL=https://updates.example.com/desktop/stable
 VETTA_R2_PREFIX=desktop/stable
 ```
 

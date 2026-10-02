@@ -32,20 +32,20 @@ test("resolves provider-specific public feed bases", () => {
 	);
 	assert.equal(
 		resolveUpdateFeedBase({
-			env: { VETTA_UPDATE_PROVIDER: "github", VETTA_UPDATE_GITHUB_OWNER: "openvetta", VETTA_UPDATE_GITHUB_REPO: "open-vetta" },
+		env: { VETTA_UPDATE_PROVIDER: "github", VETTA_UPDATE_GITHUB_OWNER: "Chinachani", VETTA_UPDATE_GITHUB_REPO: "567-agent" },
 			version,
 		}),
-		"https://github.com/openvetta/open-vetta/releases/download/v0.5.46/",
+		"https://github.com/Chinachani/567-agent/releases/download/v0.5.46/",
 	);
 });
 
 test("accepts a Git tag version with the leading v", () => {
 	assert.equal(
 		resolveUpdateFeedBase({
-			env: { VETTA_UPDATE_PROVIDER: "github", VETTA_UPDATE_GITHUB_OWNER: "openvetta", VETTA_UPDATE_GITHUB_REPO: "open-vetta" },
+		env: { VETTA_UPDATE_PROVIDER: "github", VETTA_UPDATE_GITHUB_OWNER: "Chinachani", VETTA_UPDATE_GITHUB_REPO: "567-agent" },
 		version: "v0.5.46",
 		}),
-		"https://github.com/openvetta/open-vetta/releases/download/v0.5.46/",
+		"https://github.com/Chinachani/567-agent/releases/download/v0.5.46/",
 	);
 });
 

@@ -38,7 +38,7 @@ marketplace. See [GitHub marketplace format](../open-marketplace.md) for source 
 
 ## Building the open-source edition
 
-Windows, macOS, and Linux use the same entry point. It selects the host platform, disables cloud, and uses updates from the `openvetta/open-vetta` GitHub Releases page. GitHub ability sources come only from environment configuration, not script defaults.
+Windows, macOS, and Linux use the same entry point. It selects the host platform, disables cloud, and uses updates from the `Chinachani/567-agent` GitHub Releases page. GitHub ability sources come only from environment configuration, not script defaults.
 
 ```bash
 cd apps/desktop
@@ -106,7 +106,9 @@ VETTA_CLOUD_ENABLED=true
 VETTA_SERVER_URL=https://api.openvetta.com/api/v1
 VETTA_SITE_URL=https://www.openvetta.com
 VETTA_UPDATE_PROVIDER=generic
-VETTA_UPDATE_URL=https://releases.openvetta.com/desktop/stable
+VETTA_UPDATE_PROVIDER=github
+VETTA_UPDATE_GITHUB_OWNER=Chinachani
+VETTA_UPDATE_GITHUB_REPO=567-agent
 VETTA_R2_BUCKET=vetta-releases
 VETTA_R2_PREFIX=desktop/stable
 VETTA_TENANT=common
@@ -120,7 +122,7 @@ VETTA_CLOUD_ENABLED=true
 VETTA_SERVER_URL=http://127.0.0.1:8080/api/v1
 # The default provider is stable; override VETTA_UPDATE_URL for a dedicated test feed.
 VETTA_UPDATE_PROVIDER=generic
-VETTA_UPDATE_URL=https://releases.openvetta.com/desktop/test
+VETTA_UPDATE_URL=https://updates.example.com/desktop/test
 ```
 
 ---

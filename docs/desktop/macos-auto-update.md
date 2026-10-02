@@ -237,8 +237,9 @@ security find-identity -v -p codesigning        # 期望 1 valid identity
 
 ```dotenv
 # apps/desktop/.env.development
-VETTA_UPDATE_PROVIDER=generic
-VETTA_UPDATE_URL=https://releases.openvetta.com/desktop/test
+VETTA_UPDATE_PROVIDER=github
+VETTA_UPDATE_GITHUB_OWNER=Chinachani
+VETTA_UPDATE_GITHUB_REPO=567-agent
 ```
 
 ```bash
@@ -247,7 +248,7 @@ export VETTA_R2_ACCESS_KEY_ID=<access-key-id>
 export VETTA_R2_SECRET_ACCESS_KEY=<secret-access-key>
 export VETTA_R2_BUCKET=vetta-releases
 export VETTA_R2_PREFIX=desktop/test
-export VETTA_UPDATE_URL=https://releases.openvetta.com/desktop/test
+export VETTA_UPDATE_URL=https://updates.example.com/desktop/test
 export VETTA_REQUIRE_MAC_SIGNATURE=1
 ```
 

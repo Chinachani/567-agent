@@ -8,7 +8,7 @@ Run 567 Agent from this repository; upstream Open Vetta installers are listed be
 
 Open Vetta offers installers for macOS, Windows, and Linux; these are not 567 Agent installers:
 
-**→ [www.openvetta.com/download](https://www.openvetta.com/download)**
+**→ [GitHub Releases](https://github.com/Chinachani/567-agent/releases)**
 
 The installers and product guides above belong to upstream Open Vetta. This repository contains the 567 Agent source; configure your model (BYOK) and permissions when running from source.
 

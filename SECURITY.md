@@ -8,7 +8,7 @@ This repository is the Open Vetta client. Security fixes land on the `dev` branc
 
 **Do not open a public GitHub issue** for a security report.
 
-Use [GitHub Private Vulnerability Reporting](https://github.com/openvetta/open-vetta/security/advisories/new) so only maintainers see the details.
+Use [GitHub Private Vulnerability Reporting](https://github.com/Chinachani/567-agent/security/advisories/new) so only maintainers see the details.
 
 Please include:
 

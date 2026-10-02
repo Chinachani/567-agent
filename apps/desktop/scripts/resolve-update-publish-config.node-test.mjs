@@ -2,19 +2,19 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import { resolveUpdatePublishConfig } from "./resolve-update-publish-config.mjs";
 
-const DEFAULT_UPDATE_URL = "https://releases.openvetta.com/desktop/stable";
-
-test("defaults packaged builds to the official stable update feed", () => {
+test("defaults packaged builds to the 567 Agent GitHub Releases feed", () => {
 	assert.deepEqual(resolveUpdatePublishConfig({}), {
-		provider: "generic",
-		url: DEFAULT_UPDATE_URL,
-		useMultipleRangeRequest: true,
+		provider: "github",
+		owner: "Chinachani",
+		repo: "567-agent",
+		releaseType: "release",
 	});
 });
 
 test("allows an explicit update URL to override the stable default", () => {
 	assert.deepEqual(
 		resolveUpdatePublishConfig({
+			VETTA_UPDATE_PROVIDER: "generic",
 			VETTA_UPDATE_URL: "https://releases.example.com/desktop/test/",
 		}),
 		{
@@ -32,9 +32,15 @@ test("rejects a package without an update provider", () => {
 	);
 });
 
-test("still requires GitHub coordinates for the GitHub provider", () => {
-	assert.throws(
-		() => resolveUpdatePublishConfig({ VETTA_UPDATE_PROVIDER: "github" }),
-		/VETTA_UPDATE_GITHUB_OWNER is required/,
-	);
+test("allows repository coordinates to override the default GitHub feed", () => {
+	assert.deepEqual(resolveUpdatePublishConfig({
+		VETTA_UPDATE_PROVIDER: "github",
+		VETTA_UPDATE_GITHUB_OWNER: "example",
+		VETTA_UPDATE_GITHUB_REPO: "desktop",
+	}), {
+		provider: "github",
+		owner: "example",
+		repo: "desktop",
+		releaseType: "release",
+	});
 });

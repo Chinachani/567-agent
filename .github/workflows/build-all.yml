@@ -87,6 +87,7 @@ jobs:
             artifact_path: |
               apps/desktop/release/*.exe
               apps/desktop/release/*.blockmap
+              apps/desktop/release/*.msi
               apps/desktop/release/*.zip
               apps/desktop/release/latest.yml
 

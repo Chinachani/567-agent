@@ -8,7 +8,7 @@
 
 Open Vetta 上游提供 macOS、Windows、Linux 安装包；这些不是 567 Agent 的安装包：
 
-**→ [www.openvetta.com/download](https://www.openvetta.com/download)**
+**→ [GitHub Releases](https://github.com/Chinachani/567-agent/releases)**
 
 上述安装包和产品文档属于上游 Open Vetta。本仓库提供 567 Agent 源码；从源码运行时可自行配置模型（BYOK）和权限。
 

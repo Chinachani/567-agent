@@ -489,8 +489,8 @@ jobs:
         working-directory: apps/desktop
         run: bun run ${{ matrix.verify }}
 
-      # latest.yml 描述自定义 Inno 更新包；便携 ZIP 也需保留 launcher + versions/<version> 布局。
-      - name: Verify portable Windows package
+      # Inno 负责自动更新；MSI 做独立安装验证，ZIP 检查便携启动器布局。
+      - name: Verify Windows installer and packages
         if: matrix.platform == 'windows'
         working-directory: apps/desktop
         run: bun run verify:packages:windows
@@ -555,6 +555,7 @@ jobs:
             apps/desktop/release/*.deb
             apps/desktop/release/*.dmg
             apps/desktop/release/*.exe
+            apps/desktop/release/*.msi
             apps/desktop/release/*.rpm
             apps/desktop/release/*.zip
             apps/desktop/release/latest*.yml
@@ -676,7 +677,7 @@ jobs:
             echo "Resuming draft release ${TAG}"
             gh release edit "${TAG}" --notes-file "${NOTES_FILE}"
           else
-            gh release create "${TAG}" --draft --notes-file "${NOTES_FILE}" --title "Vetta ${VERSION}" --target "${GITHUB_SHA}"
+            gh release create "${TAG}" --draft --notes-file "${NOTES_FILE}" --title "567 Agent ${VERSION}" --target "${GITHUB_SHA}"
           fi
           find apps/desktop/release -maxdepth 1 -type f -print0 \
             | xargs -0 gh release upload "${TAG}" --clobber

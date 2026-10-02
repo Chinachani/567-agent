@@ -1,6 +1,7 @@
 const SUPPORTED_PROVIDERS = new Set(["generic", "github"]);
-const DEFAULT_UPDATE_PROVIDER = "generic";
-const DEFAULT_UPDATE_URL = "https://releases.openvetta.com/desktop/stable";
+const DEFAULT_UPDATE_PROVIDER = "github";
+const DEFAULT_UPDATE_GITHUB_OWNER = "Chinachani";
+const DEFAULT_UPDATE_GITHUB_REPO = "567-agent";
 
 function requireValue(env, key, provider) {
 	const value = env[key]?.trim();
@@ -28,15 +29,15 @@ export function resolveUpdatePublishConfig(env = process.env) {
 	if (provider === "generic") {
 		return {
 			provider: "generic",
-			url: normalizeHttpUrl(env.VETTA_UPDATE_URL?.trim() || DEFAULT_UPDATE_URL),
+			url: normalizeHttpUrl(requireValue(env, "VETTA_UPDATE_URL", provider)),
 			useMultipleRangeRequest: true,
 		};
 	}
 
 	return {
 		provider: "github",
-		owner: requireValue(env, "VETTA_UPDATE_GITHUB_OWNER", provider),
-		repo: requireValue(env, "VETTA_UPDATE_GITHUB_REPO", provider),
+		owner: env.VETTA_UPDATE_GITHUB_OWNER?.trim() || DEFAULT_UPDATE_GITHUB_OWNER,
+		repo: env.VETTA_UPDATE_GITHUB_REPO?.trim() || DEFAULT_UPDATE_GITHUB_REPO,
 		releaseType: "release",
 	};
 }

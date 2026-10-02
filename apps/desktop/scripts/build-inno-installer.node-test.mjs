@@ -15,7 +15,7 @@ test("writes updater config into the version directory installed by Inno", async
 	try {
 		const publishConfig = resolveUpdatePublishConfig({
 			VETTA_UPDATE_PROVIDER: "generic",
-			VETTA_UPDATE_URL: "https://releases.openvetta.com/desktop/test",
+			VETTA_UPDATE_URL: "https://updates.example.com/desktop/test",
 		});
 		assert.ok(publishConfig);
 		await writeAppUpdateConfig(sourceDir, version, publishConfig);

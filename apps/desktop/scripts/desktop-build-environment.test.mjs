@@ -10,6 +10,7 @@ const commercialEnv = {
 	VETTA_CLOUD_ENABLED: "true",
 	VETTA_SERVER_URL: "https://api.example.com/api/v1",
 	VETTA_UPDATE_PROVIDER: "generic",
+	VETTA_UPDATE_URL: "https://updates.example.com/desktop/stable",
 	VETTA_VENDOR_PLATFORM: "win32-x64",
 };
 

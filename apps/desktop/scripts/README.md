@@ -208,7 +208,7 @@ bun run package:linux:tar.gz
 
 每个入口都有对应的 `:test` 变体，例如 `bun run package:linux:deb:test`。原有 `dist:linux:*` 命令保留为兼容别名。单格式构建只会在 `latest-linux.yml` 中登记该次生成的目标；正式发布仍必须使用 `package:linux`，由发布门禁要求 AppImage、DEB 和 RPM 同时存在。
 
-Windows 同样提供单独打包入口；不带格式的入口会一次生成自定义 Inno 安装器和 ZIP，`portable` 保留为按需构建格式。MSI 仍可手动按需构建，但不参与正式发布：
+Windows 不带格式的打包入口会生成自定义 Inno 安装器、MSI 和便携 ZIP。Inno 安装器提供应用内自动更新；MSI 面向组织部署，按 Windows Installer 流程安装；ZIP 可解压即用：
 
 ```bash
 bun run package:win
@@ -220,7 +220,7 @@ bun run package:win:portable
 
 这些入口也都有 `:test` 变体，原有 `dist:win:*` 是兼容别名。`latest.yml` 始终只引用支持现有版本目录切换和差分更新的 Inno 安装器；ZIP 是同版本的便携分发包，不会改写自动更新清单。
 
-正式发布 workflow 会先运行根 `check`、质量脚本测试和 Desktop packaging 测试，全部通过后才启动四个 Windows / macOS 双架构 / Linux 构建任务。Windows x64 在同一次构建中生成 Inno 和 ZIP，Linux x64 在同一次 electron-builder 调用中生成 AppImage、DEB 和 RPM，避免多个目标分别覆盖更新清单。每个平台构建后都会启动真实 packaged 应用并运行启动与 updater E2E，再校验 updater metadata、hash、blockmap 和可安装内容；ZIP 会在 Windows 上检查版本目录，DEB/RPM 还会分别在 Ubuntu/Fedora 容器中完成真实安装。真正发布到 R2 或 GitHub 后，再由 `verify-update-feed.mjs` 通过公开 URL 检查三平台 metadata 与其引用的安装包是否可读。
+正式发布 workflow 会先运行根 `check`、质量脚本测试和 Desktop packaging 测试，全部通过后才启动四个 Windows / macOS 双架构 / Linux 构建任务。Windows x64 在同一次构建中生成 Inno、MSI 和 ZIP，Linux x64 在同一次 electron-builder 调用中生成 AppImage、DEB 和 RPM，避免多个目标分别覆盖更新清单。每个平台构建后都会启动真实 packaged 应用并运行启动与 updater E2E，再校验 updater metadata、hash、blockmap 和可安装内容；Windows 会分别真实安装 MSI 并检查 ZIP 版本目录，DEB/RPM 还会在 Ubuntu/Fedora 容器中完成真实安装。真正发布到 GitHub Releases 或显式配置的 R2 后，再由 `verify-update-feed.mjs` 检查更新 metadata 与引用的安装包是否可读。
 
 ## Desktop 自动更新发布
 
@@ -228,7 +228,7 @@ bun run package:win:portable
 
 - `VETTA_UPDATE_PROVIDER=generic`：R2、自建对象存储或任意静态 HTTP/CDN。
 - `VETTA_UPDATE_PROVIDER=github`：公开 GitHub Releases。
-- 未设置 `VETTA_UPDATE_PROVIDER`：默认使用 stable 更新源 `https://releases.openvetta.com/desktop/stable`。
+- 未设置 `VETTA_UPDATE_PROVIDER`：默认使用 `Chinachani/567-agent` GitHub Releases。
 - `VETTA_UPDATE_PROVIDER=none`：不受支持，打包时直接失败；所有可打包产物都必须有更新源配置。
 
 发布 workflow 的最后一步会执行 `node scripts/verify-update-feed.mjs`：它读取三平台 metadata，确认版本与本次发布版本一致，并对每个引用的安装包执行公开可读性检查。CDN 不支持 HEAD 时会回退到 Range GET。只有不发布的手动构建跳过公开 feed 检查；手动 `test` / `stable` 发布与 tag 发布一样会在上传后执行该检查。
@@ -236,7 +236,7 @@ bun run package:win:portable
 正式环境默认读取：
 
 ```text
-https://releases.openvetta.com/desktop/stable
+https://github.com/Chinachani/567-agent/releases
 ```
 
 ### 使用 test 通道验证真实升级
@@ -287,7 +287,7 @@ VETTA_R2_ACCESS_KEY_ID
 VETTA_R2_SECRET_ACCESS_KEY
 VETTA_R2_BUCKET
 VETTA_R2_PREFIX=desktop/stable
-VETTA_UPDATE_URL=https://releases.openvetta.com/desktop/stable
+VETTA_UPDATE_URL=https://example.com/desktop/stable
 ```
 
 脚本解析 `latest*.yml`，发布清单引用的版本化安装包、对应 blockmap，以及与清单版本精确匹配的 Windows ZIP 补充制品；大文件使用 16 MiB S3 multipart 分片。上传前会读取公开通道的现有清单，拒绝用更低版本覆盖；安装包经公开域名验证可读后才覆盖 `latest*.yml`，避免客户端读到尚未完整发布的版本。R2 自定义域名应对安装包启用长期缓存；`latest*.yml` 保持短缓存，不要被 Cache Everything 规则强制长缓存。

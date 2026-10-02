@@ -34,7 +34,7 @@ GitHub 提交不会自动发布到 Vetta Serv 市场。来源与升级语义见 
 
 ## 开源版构建
 
-Windows、macOS、Linux 使用同一个入口；脚本按当前宿主选择平台，关闭 cloud，并通过 `openvetta/open-vetta` 的 GitHub Releases 更新。GitHub 能力来源仅取环境配置，不由脚本自动补充。
+Windows、macOS、Linux 使用同一个入口；脚本按当前宿主选择平台，关闭 cloud，并通过 `Chinachani/567-agent` 的 GitHub Releases 更新。GitHub 能力来源仅取环境配置，不由脚本自动补充。
 
 ```bash
 cd apps/desktop
@@ -102,7 +102,9 @@ VETTA_CLOUD_ENABLED=true
 VETTA_SERVER_URL=https://api.openvetta.com/api/v1
 VETTA_SITE_URL=https://www.openvetta.com
 VETTA_UPDATE_PROVIDER=generic
-VETTA_UPDATE_URL=https://releases.openvetta.com/desktop/stable
+VETTA_UPDATE_PROVIDER=github
+VETTA_UPDATE_GITHUB_OWNER=Chinachani
+VETTA_UPDATE_GITHUB_REPO=567-agent
 VETTA_R2_BUCKET=vetta-releases
 VETTA_R2_PREFIX=desktop/stable
 VETTA_TENANT=common
@@ -116,7 +118,7 @@ VETTA_CLOUD_ENABLED=true
 VETTA_SERVER_URL=http://127.0.0.1:8080/api/v1
 # 未配置 provider 时默认使用 stable 更新源；测试专用地址可显式覆盖 VETTA_UPDATE_URL。
 VETTA_UPDATE_PROVIDER=generic
-VETTA_UPDATE_URL=https://releases.openvetta.com/desktop/test
+VETTA_UPDATE_URL=https://updates.example.com/desktop/test
 ```
 
 ---

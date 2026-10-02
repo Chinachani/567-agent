@@ -6,7 +6,7 @@
 
 最有杠杆的贡献通常是一个目录——插件、Skill、主题、市场条目或文档页——而不是框架重写。本文说明每类改动该放哪里，以及 PR 要过的门槛。
 
-提问、半成型想法、「这个项目还维护吗」请走 [GitHub Discussions](https://github.com/openvetta/open-vetta/discussions)，不要开 Issue。
+提问、半成型想法、「这个项目还维护吗」请走 [GitHub Discussions](https://github.com/Chinachani/567-agent/discussions)，不要开 Issue。
 
 ---
 
@@ -22,7 +22,7 @@
 | 翻译界面文案 | i18n 词条 | 桌面端语言包；用户可见文案不得硬编码 | 一个 PR |
 | 修 bug 或加产品功能 | 代码 | 已经拥有该行为的 `apps/` 或 `packages/` | 正常 PR |
 
-拿不准自己属于哪一行，先开 [Discussion](https://github.com/openvetta/open-vetta/discussions/new?category=ideas)。
+拿不准自己属于哪一行，先开 [Discussion](https://github.com/Chinachani/567-agent/discussions/new?category=ideas)。
 
 ---
 
@@ -31,7 +31,7 @@
 最短路径见 [`QUICKSTART.zh-CN.md`](QUICKSTART.zh-CN.md)。摘要：
 
 ```bash
-git clone https://github.com/openvetta/open-vetta.git
+git clone https://github.com/Chinachani/567-agent.git
 cd open-vetta
 git checkout dev
 bun install                 # 需要 Bun 1.3+
@@ -89,7 +89,7 @@ PR 请发到 **`dev`**，不要发到 `main`。`dev` 是集成分支，`main` �
 
 ## 安全
 
-漏洞请通过 [GitHub Security Advisories](https://github.com/openvetta/open-vetta/security/advisories/new) 私下报告，不要开公开 Issue。详见 [`SECURITY.md`](SECURITY.md)。
+漏洞请通过 [GitHub Security Advisories](https://github.com/Chinachani/567-agent/security/advisories/new) 私下报告，不要开公开 Issue。详见 [`SECURITY.md`](SECURITY.md)。
 
 ---
 

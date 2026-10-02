@@ -2,7 +2,7 @@ import { createHash } from "node:crypto";
 import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 
-const DEFAULT_APP_REPOSITORY = "openvetta/open-vetta";
+const DEFAULT_APP_REPOSITORY = "Chinachani/567-agent";
 const MAX_ARTIFACT_BYTES = 50 * 1024 * 1024;
 const MAX_REDIRECTS = 5;
 
