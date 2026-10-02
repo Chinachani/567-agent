@@ -85,6 +85,10 @@ describe("Desktop release workflow contracts", () => {
 		expect(verifySteps.findIndex((step) => step.name === "Restore build checkpoint")).toBeLessThan(
 			verifySteps.findIndex((step) => step.name === "Verify platform updater artifacts"),
 		);
+		const restore = verifySteps.find((step) => step.name === "Restore build checkpoint");
+		expect(restore?.run).toContain("release-checkpoint/release-build.tar");
+		expect(restore?.run).toContain("-C apps/desktop");
+		expect(restore?.run).not.toContain("GITHUB_WORKSPACE/apps/desktop");
 		for (const target of ["publish-r2", "publish-github"]) {
 			expect(jobs[target].needs).toContain("verify");
 			expect(jobs[target].steps.find((step) => step.uses === "actions/download-artifact@v4").with.pattern).toBe(

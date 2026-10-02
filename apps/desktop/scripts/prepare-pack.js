@@ -680,6 +680,7 @@ const builderConfig = {
 	fileAssociations: [VETTA_PLUGIN_FILE_ASSOCIATION, LEGACY_PLUGIN_FILE_ASSOCIATION, VETTA_DESIGN_SHARE_FILE_ASSOCIATION],
 	mac: {
 		target: ["dmg", "zip"],
+		artifactName: "567-Agent-${version}-${arch}-mac.${ext}",
 		category: "public.app-category.productivity",
 		icon: "build/icon.icns",
 		// 签名/公证开关由 resolveMacSigning() 按环境变量决定（见

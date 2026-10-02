@@ -83,6 +83,7 @@ test("macOS packaging and update verification share the configured bundle identi
 	const verifyScript = readFileSync(join(desktopRoot, "scripts/verify-mac-update.mjs"), "utf8");
 	assert.equal(desktopManifest.desktopAppId, "com.api567.agent");
 	assert.ok(packScript.includes("desktopAppId"));
+	assert.ok(packScript.includes('artifactName: "567-Agent-${version}-${arch}-mac.${ext}"'));
 	assert.ok(verifyScript.includes("desktopAppId"));
 });
 
