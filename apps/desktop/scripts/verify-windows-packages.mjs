@@ -75,14 +75,23 @@ async function extractZip(packagePath, destination) {
 
 async function extractMsi(packagePath, destination) {
 	const logPath = join(destination, "msiexec.log");
-	await execFileAsync("msiexec.exe", [
-		"/a",
-		packagePath,
-		"/qn",
-		`TARGETDIR=${destination}`,
-		"/L*V",
-		logPath,
-	]);
+	try {
+		await execFileAsync("msiexec.exe", [
+			"/a",
+			packagePath,
+			"/qn",
+			`TARGETDIR=${destination}`,
+			"/L*V",
+			logPath,
+		]);
+	} catch (error) {
+		const log = await readFile(logPath, "utf8").catch(() => "");
+		const excerpt = log.split(/\r?\n/).slice(-80).join("\n");
+		throw new Error(
+			`[verify-windows-packages] MSI administrative extraction failed. msiexec log tail:\n${excerpt}`,
+			{ cause: error },
+		);
+	}
 }
 
 export async function verifyWindowsPackages({ releaseDir = defaultReleaseDir } = {}) {
