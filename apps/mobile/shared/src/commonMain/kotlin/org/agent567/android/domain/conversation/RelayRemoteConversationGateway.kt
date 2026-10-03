@@ -6,6 +6,7 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.cancelAndJoin
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -18,6 +19,7 @@ import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.withTimeoutOrNull
 import kotlinx.serialization.json.buildJsonObject
 import kotlinx.serialization.json.JsonElement
 import kotlinx.serialization.json.JsonObject
@@ -50,6 +52,8 @@ import org.agent567.android.domain.remote.protocol.RemoteError
 import org.agent567.android.domain.remote.protocol.RemoteErrorCode
 import org.agent567.android.domain.remote.protocol.RemoteRequestMethod
 
+private val RECONNECT_DELAYS_MS = listOf(1_000L, 2_000L, 5_000L, 10_000L, 30_000L)
+
 class RelayRemoteConversationGateway(
     private val scope: CoroutineScope = CoroutineScope(SupervisorJob() + Dispatchers.Default),
     private val transportFactory: (url: String) -> org.agent567.android.domain.remote.connection.RemoteTransport = { url ->
@@ -61,53 +65,59 @@ class RelayRemoteConversationGateway(
     private var connection: RemoteConnection? = null
     private var connectionStateJob: Job? = null
     private var metricsJob: Job? = null
+    private var reconnectJob: Job? = null
+    private var activeTargets: List<String> = emptyList()
+    private var connectionGeneration = 0L
     private val remoteSessionIds = mutableMapOf<String, String>()
 
     override val devices: StateFlow<List<DesktopDevice>> = _devices
 
-    override suspend fun connect(target: String): Boolean {
-        val url = normalizeRelayUrl(target)
+    override suspend fun connect(target: String): Boolean = connect(listOf(target))
+
+    override suspend fun connect(targets: List<String>): Boolean {
+        require(targets.isNotEmpty()) { "At least one remote target is required" }
+        // Invalidate old reconnect work before waiting for cancellation so it
+        // cannot publish a stale connection while this connect call takes over.
+        connectionGeneration += 1
+        val generation = connectionGeneration
+        val oldReconnectJob = reconnectJob
+        reconnectJob = null
+        oldReconnectJob?.cancelAndJoin()
+        activeTargets = targets.distinct()
         val old = connection
         connectionStateJob?.cancel()
         connectionStateJob = null
         metricsJob?.cancel()
         metricsJob = null
         old?.close()
-        val next =
-            RemoteConnection(
-                transport = transportFactory(url),
-                options =
-                    RemoteConnectionOptions(
-                        role = RemoteRole.Mobile,
-                        deviceId = "mobile-${target.hashCode().toUInt().toString(16)}",
-                        deviceName = "567 Agent Mobile",
-                        capabilities = RemoteCapabilities(chat = true, sessionRead = true),
-                        connectionId = "mobile-${kotlin.random.Random.nextLong().toULong().toString(16)}",
-                    ),
-                scope = scope,
-                logger = PlatformRemoteLogger,
-                now = now,
-        )
-        connection = next
-        connectionStateJob = scope.launch {
-            next.state.collect { state ->
-                val status =
-                    when (state) {
-                        RemoteConnectionState.Online -> DeviceStatus.Online
-                        RemoteConnectionState.Connecting,
-                        RemoteConnectionState.Reconnecting,
-                        RemoteConnectionState.Recovering,
-                        -> DeviceStatus.Connecting
-                        RemoteConnectionState.Idle -> DeviceStatus.Connecting
-                        RemoteConnectionState.Closed,
-                        RemoteConnectionState.Failed,
-                        -> DeviceStatus.Offline
-                    }
-                _devices.updateStatus(status)
+        var selectedTarget: String? = null
+        var selectedConnection: RemoteConnection? = null
+        var lastFailure: Throwable? = null
+        for (candidate in activeTargets) {
+            val next = createConnection(normalizeRelayUrl(candidate), candidate)
+            connection = next
+            observeConnection(next, candidate, generation, reconnectEnabled = false)
+            try {
+                next.connect()
+                waitUntilOnline(next)
+                selectedTarget = candidate
+                selectedConnection = next
+                break
+            } catch (error: Throwable) {
+                if (error is CancellationException) throw error
+                lastFailure = error
+                runCatching { next.close() }
             }
         }
-        next.connect()
-        waitUntilOnline(next)
+        val next = selectedConnection ?: run {
+            connectionStateJob?.cancel()
+            connectionStateJob = null
+            connection = null
+            throw lastFailure ?: RemoteConversationException("无法连接桌面设备")
+        }
+        val target = requireNotNull(selectedTarget)
+        val url = normalizeRelayUrl(target)
+        observeConnection(next, target, generation, reconnectEnabled = true)
         val snapshot = next.snapshot()
         val connectedAtEpochMs = now()
         val diagnostics = requestDiagnostics(next)
@@ -129,12 +139,13 @@ class RelayRemoteConversationGateway(
         metricsJob = scope.launch {
             var nextDiagnosticsAt = now() + METRICS_DIAGNOSTICS_INTERVAL_MS
             var latestDiagnostics = diagnostics
-            while (isActive && connection === next) {
-                if (next.state.value == RemoteConnectionState.Online && now() >= nextDiagnosticsAt) {
-                    requestDiagnostics(next)?.let { latestDiagnostics = it }
+            while (isActive) {
+                val current = connection ?: break
+                if (current.state.value == RemoteConnectionState.Online && now() >= nextDiagnosticsAt) {
+                    requestDiagnostics(current)?.let { latestDiagnostics = it }
                     nextDiagnosticsAt = now() + METRICS_DIAGNOSTICS_INTERVAL_MS
                 }
-                val latest = next.snapshot()
+                val latest = current.snapshot()
                 _devices.updateMetrics(
                     connectedDuration = formatConnectionDuration(now() - connectedAtEpochMs),
                     latencyMs = latest.lastRttMs?.toIntOrNull(),
@@ -147,6 +158,11 @@ class RelayRemoteConversationGateway(
     }
 
     override suspend fun disconnect(deviceId: String) {
+        connectionGeneration += 1
+        activeTargets = emptyList()
+        val oldReconnectJob = reconnectJob
+        reconnectJob = null
+        oldReconnectJob?.cancelAndJoin()
         connectionStateJob?.cancel()
         connectionStateJob = null
         metricsJob?.cancel()
@@ -155,6 +171,96 @@ class RelayRemoteConversationGateway(
         connection = null
         remoteSessionIds.clear()
         _devices.value = emptyList()
+    }
+
+    private fun createConnection(url: String, target: String): RemoteConnection =
+        RemoteConnection(
+            transport = transportFactory(url),
+            options =
+                RemoteConnectionOptions(
+                    role = RemoteRole.Mobile,
+                    deviceId = "mobile-${activeTargets.firstOrNull()?.hashCode()?.toUInt()?.toString(16) ?: target.hashCode().toUInt().toString(16)}",
+                    deviceName = "567 Agent Mobile",
+                    capabilities = RemoteCapabilities(chat = true, sessionRead = true),
+                    connectionId = "mobile-${kotlin.random.Random.nextLong().toULong().toString(16)}",
+                ),
+            scope = scope,
+            logger = PlatformRemoteLogger,
+            now = now,
+        )
+
+    private fun observeConnection(
+        next: RemoteConnection,
+        target: String,
+        generation: Long,
+        reconnectEnabled: Boolean,
+    ) {
+        connectionStateJob?.cancel()
+        connectionStateJob = scope.launch {
+            next.state.collect { state ->
+                if (connection !== next || generation != connectionGeneration) return@collect
+                val status =
+                    when (state) {
+                        RemoteConnectionState.Online -> DeviceStatus.Online
+                        RemoteConnectionState.Connecting,
+                        RemoteConnectionState.Reconnecting,
+                        RemoteConnectionState.Recovering,
+                        -> DeviceStatus.Connecting
+                        RemoteConnectionState.Idle -> DeviceStatus.Connecting
+                        RemoteConnectionState.Closed,
+                        RemoteConnectionState.Failed,
+                        -> DeviceStatus.Offline
+                    }
+                _devices.updateStatus(status)
+                if (reconnectEnabled && (state == RemoteConnectionState.Reconnecting || state == RemoteConnectionState.Failed)) {
+                    scheduleReconnect(target, generation)
+                }
+            }
+        }
+    }
+
+    private fun scheduleReconnect(target: String, generation: Long) {
+        if (reconnectJob?.isActive == true || generation != connectionGeneration) return
+        reconnectJob = scope.launch {
+            var delayIndex = 0
+            while (true) {
+                val delayMs = RECONNECT_DELAYS_MS[delayIndex.coerceAtMost(RECONNECT_DELAYS_MS.lastIndex)]
+                delay(delayMs)
+                if (generation != connectionGeneration || target !in activeTargets) return@launch
+                val previous = connection
+                runCatching { previous?.close() }
+                var reconnected = false
+                for (candidate in activeTargets) {
+                    if (generation != connectionGeneration || candidate !in activeTargets) return@launch
+                    val next = createConnection(normalizeRelayUrl(candidate), candidate)
+                    connection = next
+                    observeConnection(next, candidate, generation, reconnectEnabled = false)
+                    try {
+                        next.connect()
+                        waitUntilOnline(next)
+                        if (connection === next && generation == connectionGeneration) {
+                            observeConnection(next, candidate, generation, reconnectEnabled = true)
+                            _devices.update { devices ->
+                                devices.map { it.copy(host = normalizeRelayUrl(candidate), status = DeviceStatus.Online) }
+                            }
+                            reconnected = true
+                            break
+                        }
+                    } catch (error: Throwable) {
+                        if (error is CancellationException) throw error
+                        runCatching { next.close() }
+                    }
+                }
+                if (reconnected) {
+                    // Keep the completed Job reference until its body has
+                    // actually returned. Clearing it here opens a tiny window
+                    // where a concurrent state event can start a duplicate loop.
+                    return@launch
+                }
+                _devices.updateStatus(DeviceStatus.Connecting)
+                delayIndex += 1
+            }
+        }
     }
 
     override fun stream(
@@ -291,7 +397,10 @@ class RelayRemoteConversationGateway(
     }
 
     private suspend fun waitUntilOnline(connection: RemoteConnection) {
-        kotlinx.coroutines.withTimeout(3_000) { connection.state.first { it == RemoteConnectionState.Online } }
+        val connected = withTimeoutOrNull(3_000) {
+            connection.state.first { it == RemoteConnectionState.Online }
+        }
+        if (connected == null) throw RemoteConversationException("等待桌面连接超时")
     }
 
     private suspend fun requestDiagnostics(connection: RemoteConnection): DeviceDiagnostics? {

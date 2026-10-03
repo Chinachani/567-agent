@@ -1,4 +1,4 @@
-import { mkdtempSync, rmSync, writeFileSync } from "node:fs";
+import { mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import type { IncomingMessage } from "node:http";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
@@ -10,6 +10,7 @@ const network = vi.hoisted(() => ({
 	refreshMessage: "Cookie 已过期",
 	refreshStatus: 401,
 	loginRejected: true,
+	secureStorageAvailable: true,
 }));
 
 vi.mock("node:https", async () => {
@@ -65,7 +66,7 @@ vi.mock("node:https", async () => {
 vi.mock("electron", () => ({
 	BrowserWindow: { getAllWindows: () => [] },
 	safeStorage: {
-		isEncryptionAvailable: () => true,
+		isEncryptionAvailable: () => network.secureStorageAvailable,
 		getSelectedStorageBackend: () => "gnome_libsecret",
 		encryptString: (value: string) => Buffer.from(value),
 		decryptString: (value: Buffer) => value.toString(),
@@ -91,6 +92,7 @@ describe("account balance recovery through the desktop service", () => {
 		network.refreshMessage = "Cookie 已过期";
 		network.refreshStatus = 401;
 		network.loginRejected = true;
+		network.secureStorageAvailable = true;
 		const { encryptSecret } = await import("./security.js");
 		writeFileSync(
 			join(root, "567api-session.json"),
@@ -132,5 +134,45 @@ describe("account balance recovery through the desktop service", () => {
 		network.refreshMessage = "参数无效，请重新登录后检查";
 		expect(await service.refreshQuota(true)).toEqual({ success: false });
 		expect(network.calls.some((path) => path.endsWith("/login"))).toBe(false);
+	});
+
+	it("preserves encrypted session data when the OS keyring is temporarily unavailable", async () => {
+		const path = join(root, "567api-session.json");
+		const savedContents = readFileSync(path, "utf8");
+		network.secureStorageAvailable = false;
+		vi.resetModules();
+		try {
+			const module = await import("./newapi-service.js");
+			const recoveredService = module.NewApiService.getInstance();
+			expect(recoveredService.getRawSession().isLoggedIn).toBe(false);
+			expect(readFileSync(path, "utf8")).toBe(savedContents);
+		} finally {
+			network.secureStorageAvailable = true;
+		}
+	});
+
+	it("does not let image preferences overwrite an encrypted session when keyring access is unavailable", async () => {
+		vi.resetModules();
+		network.secureStorageAvailable = true;
+		const { encryptSecret } = await import("./security.js");
+		const sessionPath = join(root, "567api-session.json");
+		writeFileSync(
+			sessionPath,
+			JSON.stringify({
+				isLoggedIn: true,
+				authType: "account",
+				username: "user",
+				accessToken: encryptSecret("still-valid-token"),
+				cookie: encryptSecret("still-valid-cookie"),
+			}),
+		);
+		const originalSession = readFileSync(sessionPath, "utf8");
+		network.secureStorageAvailable = false;
+
+		const { NewApiService: ReloadedNewApiService } = await import("./newapi-service.js");
+		const recoveringService = ReloadedNewApiService.getInstance();
+		expect(await recoveringService.setImageGroup("images")).toMatchObject({ success: false });
+		expect(await recoveringService.setImageModel("image-model")).toMatchObject({ success: false });
+		expect(readFileSync(sessionPath, "utf8")).toBe(originalSession);
 	});
 });

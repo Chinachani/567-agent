@@ -114,6 +114,32 @@ describe("UpdaterService", () => {
 		});
 	});
 
+	it("surfaces missing update configuration as an actionable check error", async () => {
+		const service = new UpdaterService(new FakeUpdateEngine(), "1.1.9", true, translate);
+
+		await service.check();
+
+		expect(service.getState()).toMatchObject({
+			phase: "error",
+			error: "updater.errors.configurationUnavailable",
+		});
+	});
+
+	it("surfaces a rejected update check instead of reporting the app as up to date", async () => {
+		const engine = new FakeUpdateEngine();
+		engine.checkForUpdates = async () => {
+			throw new Error("feed unavailable");
+		};
+		const service = new UpdaterService(engine, "1.1.9", true, translate);
+
+		await service.check();
+
+		expect(service.getState()).toMatchObject({
+			phase: "error",
+			error: "updater.errors.checkFailed",
+		});
+	});
+
 	it("reports progress and marks the downloaded update ready", async () => {
 		const engine = createAvailableEngine();
 		const service = new UpdaterService(engine, "0.5.21", true, translate);

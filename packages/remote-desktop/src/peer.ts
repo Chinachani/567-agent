@@ -86,12 +86,18 @@ export class RemoteDesktopHost {
 		this.inputChannel?.close();
 		for (const sender of this.peer.getSenders()) sender.track?.stop();
 		this.peer.close();
-		void this.sendSignal({
-			type: "end",
-			protocolVersion: REMOTE_DESKTOP_PROTOCOL_VERSION,
-			sessionId: this.options.sessionId,
-			reason,
-		});
+		try {
+			void Promise.resolve(
+				this.sendSignal({
+					type: "end",
+					protocolVersion: REMOTE_DESKTOP_PROTOCOL_VERSION,
+					sessionId: this.options.sessionId,
+					reason,
+				}),
+			).catch(() => undefined);
+		} catch {
+			// Closing locally remains successful when the signaling transport is already gone.
+		}
 	}
 
 	get connectionState(): RTCPeerConnectionState {
@@ -255,12 +261,18 @@ export class RemoteDesktopViewer {
 		this.closed = true;
 		this.inputChannel?.close();
 		this.peer.close();
-		void this.sendSignal({
-			type: "end",
-			protocolVersion: REMOTE_DESKTOP_PROTOCOL_VERSION,
-			sessionId: this.options.sessionId,
-			reason,
-		});
+		try {
+			void Promise.resolve(
+				this.sendSignal({
+					type: "end",
+					protocolVersion: REMOTE_DESKTOP_PROTOCOL_VERSION,
+					sessionId: this.options.sessionId,
+					reason,
+				}),
+			).catch(() => undefined);
+		} catch {
+			// Closing locally remains successful when the signaling transport is already gone.
+		}
 	}
 
 	get connectionState(): RTCPeerConnectionState {

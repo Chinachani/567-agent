@@ -471,6 +471,23 @@ export class FileConversationRepository
 			}
 			throw error;
 		}
+		if (!text.endsWith("\n")) {
+			const lastCompleteLine = text.lastIndexOf("\n");
+			if (lastCompleteLine < 0) return parseConversationFile(text, sessionId);
+			const completeText = text.slice(0, lastCompleteLine + 1);
+			// Only discard a torn tail after proving that the complete prefix is valid.
+			parseConversationFile(completeText, sessionId);
+			const path = this.conversationPath(sessionId);
+			const temporaryPath = `${path}.${randomUUID()}.repair`;
+			try {
+				await writeFile(temporaryPath, completeText, { encoding: "utf8", mode: 0o600 });
+				await rename(temporaryPath, path);
+			} catch (error) {
+				await rm(temporaryPath, { force: true }).catch(() => undefined);
+				throw error;
+			}
+			text = completeText;
+		}
 
 		return parseConversationFile(text, sessionId);
 	}

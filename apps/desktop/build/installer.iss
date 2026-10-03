@@ -136,7 +136,7 @@ var
   SourceInstallerPath: String;
   TemporaryInstallerPath: String;
 begin
-  CacheDirectory := ExpandConstant('{localappdata}\567agent-updater');
+  CacheDirectory := ExpandConstant('{localappdata}\567-agent-updater');
   CachedBlockmapPath := AddBackslash(CacheDirectory) + 'current.blockmap';
   CachedInstallerPath := AddBackslash(CacheDirectory) + 'installer.exe';
   SourceInstallerPath := ExpandConstant('{srcexe}');

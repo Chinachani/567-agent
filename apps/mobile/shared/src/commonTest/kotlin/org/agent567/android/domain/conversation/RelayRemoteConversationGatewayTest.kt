@@ -5,12 +5,15 @@ import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.receiveAsFlow
 import kotlinx.coroutines.test.runTest
+import kotlinx.coroutines.test.advanceTimeBy
+import kotlinx.coroutines.test.runCurrent
 import kotlinx.serialization.json.buildJsonObject
 import kotlinx.serialization.json.put
 import kotlinx.serialization.json.buildJsonArray
 import org.agent567.android.core.model.ChatMessage
 import org.agent567.android.core.model.ChatRole
 import org.agent567.android.core.model.ChatStreamEvent
+import org.agent567.android.domain.device.DeviceStatus
 import org.agent567.android.domain.remote.connection.RemoteTransport
 import org.agent567.android.domain.remote.protocol.RemoteEvent
 import org.agent567.android.domain.remote.protocol.RemoteEventName
@@ -24,6 +27,78 @@ import kotlin.test.assertFailsWith
 
 @OptIn(ExperimentalCoroutinesApi::class)
 class RelayRemoteConversationGatewayTest {
+    @Test
+    fun reconnectsAutomaticallyAfterTransportDrop() =
+        runTest {
+            val transports = mutableListOf<FakeGatewayTransport>()
+            val gateway = RelayRemoteConversationGateway(
+                scope = backgroundScope,
+                transportFactory = { FakeGatewayTransport().also(transports::add) },
+                now = { 1_000L },
+            )
+            gateway.connect("fake-relay")
+            assertEquals(1, transports.size)
+
+            transports.single().drop()
+            runCurrent()
+            advanceTimeBy(1_000L)
+            runCurrent()
+
+            assertEquals(2, transports.size)
+            assertEquals(DeviceStatus.Online, gateway.devices.value.single().status)
+            gateway.disconnect("desktop-1")
+        }
+
+    @Test
+    fun reconnectFallsBackFromStaleLanTargetToCloudTarget() =
+        runTest {
+            var lanAttempts = 0
+            val transports = mutableListOf<Pair<String, FakeGatewayTransport>>()
+            val gateway = RelayRemoteConversationGateway(
+                scope = backgroundScope,
+                transportFactory = { url ->
+                    val acceptsHello = !url.contains("lan-host") || ++lanAttempts == 1
+                    FakeGatewayTransport(acceptHello = acceptsHello).also { transports += url to it }
+                },
+                now = { 1_000L },
+            )
+            gateway.connect(listOf("wss://lan-host/relay/pair/mobile", "wss://cloud-host/relay/pair/mobile"))
+            assertEquals("wss://lan-host/relay/pair/mobile", gateway.devices.value.single().host)
+
+            transports.first().second.drop()
+            runCurrent()
+            advanceTimeBy(4_000L)
+            runCurrent()
+
+            assertEquals("wss://cloud-host/relay/pair/mobile", gateway.devices.value.single().host)
+            assertEquals(DeviceStatus.Online, gateway.devices.value.single().status)
+            gateway.disconnect("desktop-1")
+        }
+
+    @Test
+    fun connectFallsBackToCloudWhenLanHandshakeTimesOut() =
+        runTest {
+            val attemptedUrls = mutableListOf<String>()
+            val gateway = RelayRemoteConversationGateway(
+                scope = backgroundScope,
+                transportFactory = { url ->
+                    attemptedUrls += url
+                    FakeGatewayTransport(acceptHello = !url.contains("lan-host"))
+                },
+                now = { 1_000L },
+            )
+
+            gateway.connect(listOf("wss://lan-host/relay/pair/mobile", "wss://cloud-host/relay/pair/mobile"))
+
+            assertEquals(
+                listOf("wss://lan-host/relay/pair/mobile", "wss://cloud-host/relay/pair/mobile"),
+                attemptedUrls,
+            )
+            assertEquals("wss://cloud-host/relay/pair/mobile", gateway.devices.value.single().host)
+            assertEquals(DeviceStatus.Online, gateway.devices.value.single().status)
+            gateway.disconnect("desktop-1")
+        }
+
     @Test
     fun firstPromptAcceptsOpaqueSessionIdFromDesktopEvent() =
         runTest {
@@ -122,6 +197,7 @@ private class FakeGatewayTransport(
     private val richEvents: Boolean = false,
     private val terminalErrorCode: String? = null,
     private val disconnectOnPrompt: Boolean = false,
+    private val acceptHello: Boolean = true,
 ) : RemoteTransport {
     private val channel = Channel<RemoteFrame>(Channel.UNLIMITED)
     override val incoming: Flow<RemoteFrame> = channel.receiveAsFlow()
@@ -131,7 +207,7 @@ private class FakeGatewayTransport(
     override suspend fun send(frame: RemoteFrame) {
         when (frame) {
             is org.agent567.android.domain.remote.protocol.RemoteHello ->
-                channel.send(RemoteHelloAck(connectionId = frame.connectionId, peerDeviceId = "desktop-1"))
+                if (acceptHello) channel.send(RemoteHelloAck(connectionId = frame.connectionId, peerDeviceId = "desktop-1"))
             is RemoteRequest -> {
                 if (frame.method == org.agent567.android.domain.remote.protocol.RemoteRequestMethod.DiagnosticsSnapshot) {
                     channel.send(
@@ -199,6 +275,10 @@ private class FakeGatewayTransport(
     }
 
     override suspend fun close() {
+        channel.close()
+    }
+
+    fun drop() {
         channel.close()
     }
 }

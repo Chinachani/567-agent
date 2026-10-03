@@ -23,7 +23,7 @@ function version(value, name) {
 	return value;
 }
 
-function compareVersions(left, right) {
+export function compareVersions(left, right) {
 	const a = left.split(".").map(Number);
 	const b = right.split(".").map(Number);
 	for (let index = 0; index < 3; index += 1) {
@@ -44,18 +44,18 @@ function feedBase(value) {
 	return `${url.toString().replace(/\/+$/, "")}/`;
 }
 
-function metadataFile() {
+export function metadataFile() {
 	if (platform === "win32") return "latest.yml";
 	if (platform === "darwin") return "latest-mac.yml";
 	return "latest-linux.yml";
 }
 
-function artifactMatches(fileName) {
+export function artifactMatches(fileName, targetPlatform = platform, targetArchitecture = architecture) {
 	const lower = fileName.toLowerCase();
-	if (platform === "win32") return lower.endsWith(".exe") && lower.includes("-win-x64");
-	if (platform === "linux") return lower.endsWith(".appimage");
+	if (targetPlatform === "win32") return lower.endsWith(".exe") && lower.includes("-win-x64");
+	if (targetPlatform === "linux") return lower.endsWith(".appimage");
 	if (!lower.endsWith(".zip")) return false;
-	return architecture === "arm64" ? lower.includes("arm64") : !lower.includes("arm64");
+	return targetArchitecture === "arm64" ? lower.includes("arm64") : lower.includes("-x64-");
 }
 
 async function fetchResponse(url) {
@@ -87,10 +87,12 @@ async function resolveCandidate(baseUrl, expectedVersion) {
 	return { metadataUrl: metadataUrl.toString(), artifactUrl: new URL(reference, metadataUrl).toString() };
 }
 
-function baselineArtifactName(buildVersion) {
-	if (platform === "win32") return `Vetta-${buildVersion}-win-x64.exe`;
-	if (platform === "linux") return `567.Agent-${buildVersion}.AppImage`;
-	return architecture === "arm64" ? `Vetta-${buildVersion}-arm64-mac.zip` : `Vetta-${buildVersion}-mac.zip`;
+export function baselineArtifactName(buildVersion, targetPlatform = platform, targetArchitecture = architecture) {
+	if (targetPlatform === "win32") return `567-Agent-${buildVersion}-win-x64.exe`;
+	if (targetPlatform === "linux") return `567-agent-${buildVersion}.AppImage`;
+	return targetArchitecture === "arm64"
+		? `567-Agent-${buildVersion}-arm64-mac.zip`
+		: `567-Agent-${buildVersion}-x64-mac.zip`;
 }
 
 async function installBaseline(installerPath, installRoot) {
@@ -107,7 +109,7 @@ async function installBaseline(installerPath, installRoot) {
 			child.once("error", reject);
 			child.once("exit", (code) => (code === 0 ? resolve() : reject(new Error(`Inno exited with ${code}`))));
 		});
-		return join(installRoot, "Vetta.exe");
+		return join(installRoot, "567-Agent.exe");
 	}
 	if (platform === "linux") {
 		await chmod(installerPath, 0o755);
@@ -120,11 +122,11 @@ async function installBaseline(installerPath, installRoot) {
 		child.once("error", reject);
 		child.once("exit", (code) => (code === 0 ? resolve() : reject(new Error(`ditto exited with ${code}`))));
 	});
-	const appPath = join(extractedRoot, "Vetta.app");
-	const installedApp = join(installRoot, "Vetta.app");
+	const appPath = join(extractedRoot, "567-Agent.app");
+	const installedApp = join(installRoot, "567-Agent.app");
 	await rm(installedApp, { recursive: true, force: true });
 	await rename(appPath, installedApp);
-	return join(installedApp, "Contents", "MacOS", "Vetta");
+	return join(installedApp, "Contents", "MacOS", "567-Agent");
 }
 
 function statePath(home) {
@@ -210,8 +212,6 @@ async function main() {
 	}
 	await rm(root, { recursive: true, force: true });
 }
-
-export { artifactMatches, baselineArtifactName, compareVersions, metadataFile };
 
 if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {
 	main().catch((error) => {

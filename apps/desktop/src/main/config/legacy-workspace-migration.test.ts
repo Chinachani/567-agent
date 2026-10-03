@@ -1,8 +1,12 @@
 import { existsSync, mkdirSync, mkdtempSync, readdirSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
-import { join } from "node:path";
+import { join, win32 } from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
-import { type LegacyWorkspacePaths, migrateLegacyWorkspace } from "./legacy-workspace-migration.js";
+import {
+	type LegacyWorkspacePaths,
+	migrateLegacyWorkspace,
+	rewriteLegacyWorkspacePath,
+} from "./legacy-workspace-migration.js";
 
 const roots: string[] = [];
 
@@ -11,6 +15,18 @@ afterEach(() => {
 });
 
 describe("migrateLegacyWorkspace", () => {
+	it("preserves project paths on another Windows drive during workspace migration", () => {
+		expect(
+			rewriteLegacyWorkspacePath(
+				"D:\\Projects\\client",
+				"C:\\Users\\test\\.vetta\\workspace",
+				"C:\\Users\\test\\.567agent\\workspace",
+				"C:\\Users\\test",
+				win32,
+			),
+		).toBe("D:\\Projects\\client");
+	});
+
 	it("moves the old default and rewrites registered project paths", () => {
 		const paths = createPaths();
 		mkdirSync(paths.legacyWorkspace, { recursive: true });

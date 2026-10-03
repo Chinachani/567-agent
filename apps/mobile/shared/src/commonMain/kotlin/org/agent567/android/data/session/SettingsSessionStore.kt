@@ -163,7 +163,7 @@ class SettingsSessionStore(
 
     override suspend fun importMigrationData(serialized: String): Int =
         withStorageLock {
-            require(serialized.length <= MAX_MIGRATION_JSON_CHARS) { "迁移文件过大" }
+            require(serialized.encodeToByteArray().size <= MAX_MIGRATION_JSON_BYTES) { "迁移文件过大" }
             val archive = VettaJson.decodeFromString(SessionMigrationArchiveDto.serializer(), serialized)
             require(archive.schemaVersion == MIGRATION_SCHEMA_VERSION) { "不支持的迁移文件版本" }
             require(archive.sessions.size <= MAX_MIGRATION_SESSIONS) { "迁移文件包含过多会话" }
@@ -268,7 +268,7 @@ class SettingsSessionStore(
     companion object {
         private const val KEY_SESSIONS = "vetta.session.index"
         private const val MIGRATION_SCHEMA_VERSION = 1
-        private const val MAX_MIGRATION_JSON_CHARS = 100 * 1024 * 1024
+        private const val MAX_MIGRATION_JSON_BYTES = MIGRATION_BACKUP_MAX_BYTES
         private const val MAX_MIGRATION_SESSIONS = 20_000
         private const val MAX_MIGRATION_MESSAGES = 200_000
     }

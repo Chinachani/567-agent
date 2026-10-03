@@ -12,6 +12,11 @@ interface RemoteConversationGateway {
 
     suspend fun connect(target: String): Boolean
 
+    suspend fun connect(targets: List<String>): Boolean {
+        for (target in targets) if (connect(target)) return true
+        return false
+    }
+
     suspend fun disconnect(deviceId: String)
 
     fun stream(

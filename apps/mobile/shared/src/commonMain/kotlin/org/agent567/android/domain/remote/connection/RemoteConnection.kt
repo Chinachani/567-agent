@@ -135,6 +135,9 @@ class RemoteConnection(
             )
         } catch (error: Throwable) {
             _state.value = RemoteConnectionState.Failed
+            runCatching { incomingJob?.cancelAndJoin() }
+            incomingJob = null
+            runCatching { transport.close() }
             throw error
         }
     }

@@ -3,6 +3,7 @@ import { mkdtemp, mkdir, readFile, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import test from "node:test";
+import { readFileSync } from "node:fs";
 import { writeAppUpdateConfig, writeInnoVerificationManifest } from "./build-inno-installer.mjs";
 import { resolveUpdatePublishConfig } from "./resolve-update-publish-config.mjs";
 
@@ -18,16 +19,22 @@ test("writes updater config into the version directory installed by Inno", async
 			VETTA_UPDATE_URL: "https://updates.example.com/desktop/test",
 		});
 		assert.ok(publishConfig);
-		await writeAppUpdateConfig(sourceDir, version, publishConfig);
+		await writeAppUpdateConfig(join(sourceDir, "versions", version), publishConfig);
 
 		const config = await readFile(join(resourcesDir, "app-update.yml"), "utf8");
 		assert.match(config, /provider: generic/);
 		assert.match(config, /url: https:\/\/updates\.example\.com\/desktop\/test/);
 		assert.match(config, /useMultipleRangeRequest: true/);
-		assert.match(config, /updaterCacheDirName: vetta-updater/);
+		assert.match(config, /updaterCacheDirName: 567-agent-updater/);
 	} finally {
 		await rm(sourceDir, { recursive: true, force: true });
 	}
+});
+
+test("Inno bootstrap and electron-updater share one cache directory", () => {
+	const installer = readFileSync(new URL("../build/installer.iss", import.meta.url), "utf8");
+	assert.match(installer, /\\567-agent-updater/);
+	assert.doesNotMatch(installer, /\\567agent-updater/);
 });
 
 test("writes a stable versioned file manifest for pre-publish verification", async () => {

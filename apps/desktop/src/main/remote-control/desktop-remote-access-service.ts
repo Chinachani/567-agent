@@ -12,6 +12,10 @@ export interface DesktopRemoteAccessOptions {
 	readonly pairingToken?: string;
 	readonly controlTarget?: string;
 	readonly webSocketCaCertificate?: string;
+	readonly controlTargets?: readonly {
+		readonly target: string;
+		readonly webSocketCaCertificate?: string;
+	}[];
 	readonly conversationCwd: string;
 	readonly onStateChange?: (state: RemoteConnectionState) => void;
 }
@@ -19,44 +23,58 @@ export interface DesktopRemoteAccessOptions {
 interface ActiveConnector {
 	readonly connector: DesktopRemoteConnector;
 	readonly unsubscribe: () => void;
+	readonly options: DesktopRemoteAccessOptions & {
+		readonly target: string;
+		readonly webSocketCaCertificate?: string;
+	};
+	reconnectTimer?: ReturnType<typeof setTimeout>;
+	reconnectPending: boolean;
+	reconnectDelayMs: number;
 }
 
 const log = getAppLogger("remote-access");
-let active: ActiveConnector | undefined;
-let reconnectTimer: ReturnType<typeof setTimeout> | undefined;
-let reconnectPending = false;
+const active = new Map<string, ActiveConnector>();
+const targetStates = new Map<string, RemoteConnectionState>();
 let generation = 0;
-let reconnectDelayMs = 1_000;
 
 export async function startDesktopRemoteAccess(options: DesktopRemoteAccessOptions): Promise<void> {
-	if (active || reconnectTimer) return;
+	if (active.size > 0) return;
 	const runGeneration = ++generation;
-	await connect(options, runGeneration);
+	const targets = options.controlTargets ?? [
+		{
+			target: options.controlTarget ?? `${options.controlUrl}#${options.pairingToken}`,
+			webSocketCaCertificate: options.webSocketCaCertificate,
+		},
+	];
+	await Promise.all(targets.map((target, index) => connect(options, target, `target-${index}`, runGeneration)));
 }
 
 export async function stopDesktopRemoteAccess(): Promise<void> {
 	generation += 1;
-	if (reconnectTimer) clearTimeout(reconnectTimer);
-	reconnectTimer = undefined;
-	reconnectPending = false;
-	const current = active;
-	active = undefined;
-	current?.unsubscribe();
-	if (current) await current.connector.stop();
-	reconnectDelayMs = 1_000;
+	const current = [...active.values()];
+	active.clear();
+	targetStates.clear();
+	for (const entry of current) {
+		if (entry.reconnectTimer) clearTimeout(entry.reconnectTimer);
+		entry.unsubscribe();
+	}
+	await Promise.all(current.map((entry) => entry.connector.stop()));
 	log.info("remote access connector stopped");
 }
 
-async function connect(options: DesktopRemoteAccessOptions, runGeneration: number): Promise<void> {
+async function connect(
+	baseOptions: DesktopRemoteAccessOptions,
+	target: { readonly target: string; readonly webSocketCaCertificate?: string },
+	key: string,
+	runGeneration: number,
+): Promise<void> {
 	if (runGeneration !== generation) return;
+	const options = { ...baseOptions, ...target };
 	const deviceId = `desktop-${hostname()
 		.replace(/[^A-Za-z0-9_-]/g, "-")
 		.slice(0, 64)}`;
 	const connection = new RemoteConnection(
-		new WebSocketRemoteTransport(
-			options.controlTarget ?? `${options.controlUrl}#${options.pairingToken}`,
-			createDesktopWebSocketFactory(options.webSocketCaCertificate),
-		),
+		new WebSocketRemoteTransport(options.target, createDesktopWebSocketFactory(options.webSocketCaCertificate)),
 		{
 			role: "desktop",
 			deviceId,
@@ -74,13 +92,26 @@ async function connect(options: DesktopRemoteAccessOptions, runGeneration: numbe
 	});
 	const connector = new DesktopRemoteConnector(connection, operations);
 	const unsubscribe = connection.onEvent((event) => {
-		if (event.type === "state") options.onStateChange?.(event.state);
-		if (event.type === "state" && event.state === "online") reconnectDelayMs = 1_000;
+		if (event.type === "state") {
+			targetStates.set(key, event.state);
+			options.onStateChange?.(aggregateState());
+		}
+		if (event.type === "state" && event.state === "online") {
+			const current = active.get(key);
+			if (current) current.reconnectDelayMs = 1_000;
+		}
 		if (event.type === "state" && (event.state === "reconnecting" || event.state === "failed")) {
-			void scheduleReconnect(options, runGeneration);
+			void scheduleReconnect(key, runGeneration);
 		}
 	});
-	active = { connector, unsubscribe };
+	const entry: ActiveConnector = {
+		connector,
+		unsubscribe,
+		options,
+		reconnectPending: false,
+		reconnectDelayMs: 1_000,
+	};
+	active.set(key, entry);
 	try {
 		await connector.start();
 		log.info("remote access connector started", { deviceId });
@@ -88,28 +119,36 @@ async function connect(options: DesktopRemoteAccessOptions, runGeneration: numbe
 		log.warn("remote access connection attempt failed", {
 			error: error instanceof Error ? error.message : String(error),
 		});
-		await scheduleReconnect(options, runGeneration);
+		await scheduleReconnect(key, runGeneration);
 	}
 }
 
-async function scheduleReconnect(options: DesktopRemoteAccessOptions, runGeneration: number): Promise<void> {
-	if (runGeneration !== generation || reconnectTimer || reconnectPending) return;
-	reconnectPending = true;
-	const current = active;
-	active = undefined;
-	current?.unsubscribe();
-	if (current) await current.connector.stop().catch(() => undefined);
+async function scheduleReconnect(key: string, runGeneration: number): Promise<void> {
+	const current = active.get(key);
+	if (!current || runGeneration !== generation || current.reconnectTimer || current.reconnectPending) return;
+	current.reconnectPending = true;
+	current.unsubscribe();
+	await current.connector.stop().catch(() => undefined);
 	if (runGeneration !== generation) {
-		reconnectPending = false;
+		current.reconnectPending = false;
 		return;
 	}
-	const delayMs = reconnectDelayMs;
-	reconnectDelayMs = Math.min(30_000, reconnectDelayMs * 2);
-	reconnectTimer = setTimeout(() => {
-		reconnectTimer = undefined;
-		void connect(options, runGeneration);
+	const delayMs = current.reconnectDelayMs;
+	current.reconnectDelayMs = Math.min(30_000, current.reconnectDelayMs * 2);
+	current.reconnectTimer = setTimeout(() => {
+		current.reconnectTimer = undefined;
+		void connect(current.options, current.options, key, runGeneration);
 	}, delayMs);
-	reconnectTimer.unref?.();
-	reconnectPending = false;
-	log.info("remote access reconnect scheduled", { delayMs });
+	current.reconnectTimer.unref?.();
+	current.reconnectPending = false;
+	log.info("remote access reconnect scheduled", { delayMs, key });
+}
+
+function aggregateState(): RemoteConnectionState {
+	const states = [...targetStates.values()];
+	if (states.includes("online")) return "online";
+	if (states.includes("connecting")) return "connecting";
+	if (states.includes("reconnecting") || states.includes("recovering")) return "reconnecting";
+	if (states.length > 0 && states.every((state) => state === "failed")) return "failed";
+	return states.at(-1) ?? "idle";
 }

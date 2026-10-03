@@ -106,7 +106,7 @@ desktop/
 ### 4.3 差分下载缓存
 
 ```text
-%LOCALAPPDATA%\vetta-updater\
+%LOCALAPPDATA%\567-agent-updater\
   installer.exe                     # 当前版本安装包基线
   current.blockmap                  # electron-updater 管理的基线 blockmap
 ```
@@ -172,7 +172,7 @@ Windows 自定义流程把进度划分为：
 - 更早的 `%LOCALAPPDATA%\Vetta\versions\*` 会被物理删除。
 - 手动重新安装会删除后台活动指针，优先回到安装包内置版本；遗留的后台版本目录可能要到下一次成功更新后才被清理。
 - 正常卸载会删除后台版本目录、安装临时目录和活动指针。
-- `%LOCALAPPDATA%\vetta-updater` 当前不在 Inno 的卸载清理列表中，卸载后可能残留一个安装包缓存；这是已知清理边界。
+- `%LOCALAPPDATA%\567-agent-updater` 当前不在 Inno 的卸载清理列表中，卸载后可能残留一个安装包缓存；这是已知清理边界。
 
 ## 6. 为什么使用 EXE，而不是 ZIP
 
@@ -650,7 +650,7 @@ install failed
 4. 检查版本目录是否完整。
 5. 查看主进程日志中最后一个 updater 阶段。
 6. 如果 Inno 失败，保存对应 `install.log`。
-7. 检查 `%LOCALAPPDATA%\vetta-updater\installer.exe` 的时间和大小。
+7. 检查 `%LOCALAPPDATA%\567-agent-updater\installer.exe` 的时间和大小。
 8. 验证 CDN HEAD、Range 206 和 `latest.yml` 缓存。
 9. 最后再决定重试、手动修复安装或发布更高修复版本。
 

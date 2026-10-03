@@ -539,19 +539,45 @@ describe("FileConversationRepository", () => {
 		});
 	});
 
-	it("detects an incomplete final record", async () => {
+	it("recovers an incomplete final record while preserving the valid conversation prefix", async () => {
 		const { repository, rootDir } = await createRepository();
 		await repository.create({
 			sessionId: "session-1",
 			createdAt: 100,
 		});
+		await repository.append("session-1", 0, [
+			started("session-1", "turn-1"),
+			message("session-1", "turn-1", "keep this turn"),
+			completed("session-1", "turn-1"),
+		]);
 		const conversationFile = (await readdir(rootDir)).find((file) => file.endsWith(".conversation.jsonl"));
 		expect(conversationFile).toBeDefined();
 		await appendFile(join(rootDir, conversationFile ?? ""), '{"recordType":"conversation.event"', "utf8");
 
+		await expect(repository.load("session-1")).resolves.toMatchObject({
+			sessionId: "session-1",
+			createdAt: 100,
+			version: 3,
+			messages: [{ role: "user", content: "keep this turn" }],
+		});
+		await expect(readFile(join(rootDir, conversationFile ?? ""), "utf8")).resolves.toMatch(/\n$/);
+	});
+
+	it("does not truncate a torn tail when an earlier conversation record is corrupt", async () => {
+		const { repository, rootDir } = await createRepository();
+		await repository.create({ sessionId: "session-1", createdAt: 100 });
+		await repository.append("session-1", 0, [started("session-1", "turn-1")]);
+		const conversationFile = (await readdir(rootDir)).find((file) => file.endsWith(".conversation.jsonl"));
+		expect(conversationFile).toBeDefined();
+		const path = join(rootDir, conversationFile ?? "");
+		const original = await readFile(path, "utf8");
+		const corruptedPrefix = `not-json${original.slice(original.indexOf("\n"))}{"incomplete":`;
+		await writeFile(path, corruptedPrefix, "utf8");
+
 		await expect(repository.load("session-1")).rejects.toMatchObject({
 			code: CONVERSATION_STORAGE_ERROR_CODES.CORRUPT,
 		});
+		await expect(readFile(path, "utf8")).resolves.toBe(corruptedPrefix);
 	});
 
 	it("detects a complete JSON record with an invalid domain payload", async () => {

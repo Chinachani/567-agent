@@ -5,7 +5,7 @@ import { createRequire } from "node:module";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { pathToFileURL } from "node:url";
-import { stringify } from "yaml";
+import { writeAppUpdateConfig } from "./desktop-after-pack.mjs";
 
 const require = createRequire(import.meta.url);
 const { appBuilderPath } = require("app-builder-bin");
@@ -44,18 +44,7 @@ function unpackedDirectory(arch) {
 	return join(releaseDir, "win-unpacked");
 }
 
-export async function writeAppUpdateConfig(sourceDir, version, publishConfig) {
-	const appUpdateConfigPath = join(sourceDir, "versions", version, "resources", "app-update.yml");
-	if (publishConfig) {
-		await writeFile(
-			appUpdateConfigPath,
-			stringify({ ...publishConfig, updaterCacheDirName: "vetta-updater" }),
-			"utf8",
-		);
-		return;
-	}
-	await rm(appUpdateConfigPath, { force: true });
-}
+export { writeAppUpdateConfig };
 
 async function collectVerificationFiles(root, relativeRoot = "") {
 	const files = [];
@@ -90,7 +79,7 @@ async function main() {
 	}
 
 	const publishConfig = Array.isArray(builderConfig.publish) ? builderConfig.publish[0] : undefined;
-	await writeAppUpdateConfig(sourceDir, version, publishConfig);
+	await writeAppUpdateConfig(join(sourceDir, "versions", version), publishConfig);
 	if (publishConfig) {
 		console.log(`[build-inno] wrote app-update.yml for ${publishConfig.provider}`);
 	}

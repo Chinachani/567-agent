@@ -146,7 +146,7 @@ export class UpdaterService {
 			const result = await this.engine.checkForUpdates();
 			if (!result) {
 				this.setState({
-					phase: "idle",
+					phase: "error",
 					error: this.translate("updater.errors.configurationUnavailable"),
 				});
 				return this.getState();
@@ -183,7 +183,7 @@ export class UpdaterService {
 		} catch (error) {
 			console.error("[updater] check failed", error);
 			this.setState({
-				phase: "idle",
+				phase: "error",
 				error: this.translate("updater.errors.checkFailed"),
 			});
 		}

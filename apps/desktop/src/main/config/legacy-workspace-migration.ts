@@ -1,6 +1,6 @@
 import { existsSync, mkdirSync, readdirSync, renameSync, rmdirSync } from "node:fs";
 import { homedir } from "node:os";
-import { dirname, join, relative, resolve, sep } from "node:path";
+import { dirname, isAbsolute, join, relative, resolve, sep } from "node:path";
 
 const DEFAULT_CONFIG_DIR_NAME = ".567agent";
 
@@ -15,6 +15,38 @@ export interface LegacyWorkspacePaths {
 	readonly userHome: string;
 	readonly legacyWorkspace: string;
 	readonly canonicalWorkspace: string;
+}
+
+interface WorkspacePathApi {
+	resolve(...paths: string[]): string;
+	relative(from: string, to: string): string;
+	join(...paths: string[]): string;
+	isAbsolute(path: string): boolean;
+	sep: string;
+}
+
+const nativeWorkspacePathApi: WorkspacePathApi = { resolve, relative, join, isAbsolute, sep };
+
+export function rewriteLegacyWorkspacePath(
+	value: string,
+	legacyWorkspace: string,
+	canonicalWorkspace: string,
+	userHome: string,
+	pathApi: WorkspacePathApi = nativeWorkspacePathApi,
+): string {
+	const absolute = pathApi.resolve(expandTilde(value, userHome));
+	const legacyRoot = pathApi.resolve(legacyWorkspace);
+	const child = pathApi.relative(legacyRoot, absolute);
+	if (
+		child === ".." ||
+		child.startsWith(`..${pathApi.sep}`) ||
+		pathApi.isAbsolute(child) ||
+		/^[A-Za-z]:[\\/]/.test(child) ||
+		absolute === legacyRoot
+	) {
+		return value;
+	}
+	return pathApi.join(canonicalWorkspace, child);
 }
 
 /**
@@ -58,12 +90,8 @@ export function migrateLegacyWorkspace(
 	}
 	if (!existsSync(paths.canonicalWorkspace)) return { ...config, workspacePath: configuredPath };
 
-	const rewritePath = (value: string): string => {
-		const absolute = resolve(expandTilde(value, paths.userHome));
-		const child = relative(resolve(paths.legacyWorkspace), absolute);
-		if (child === ".." || child.startsWith(`..${sep}`) || absolute === resolve(paths.legacyWorkspace)) return value;
-		return join(paths.canonicalWorkspace, child);
-	};
+	const rewritePath = (value: string): string =>
+		rewriteLegacyWorkspacePath(value, paths.legacyWorkspace, paths.canonicalWorkspace, paths.userHome);
 	const rewriteEntries = (value: unknown): unknown => {
 		if (!Array.isArray(value)) return value;
 		return value.map((entry: unknown) => {

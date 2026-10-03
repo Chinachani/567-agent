@@ -262,9 +262,9 @@ if [[ "${CHANNEL}" == "local" ]]; then
 	echo "  1. 起分发服务（另开一个终端，必须保持运行）："
 	echo "       bun run --cwd apps/desktop serve:updates:local"
 	echo "  2. 首次：装 release/ 里的 DMG 到 /Applications，然后播种差分基线："
-	echo "       cp release/Vetta-${VERSION}-arm64-mac.zip ~/Library/Caches/vetta-updater/update.zip"
+	echo "       cp release/567-Agent-${VERSION}-arm64-mac.zip ~/Library/Caches/567-agent-updater/update.zip"
 	echo "  3. 再构建一个更高版本，从终端启动旧版验证更新："
-	echo "       /Applications/Vetta.app/Contents/MacOS/Vetta"
+	echo "       /Applications/567 Agent.app/Contents/MacOS/567-Agent"
 	echo "  详见 docs/desktop/macos-auto-update.md 第 7 节"
 	exit 0
 fi

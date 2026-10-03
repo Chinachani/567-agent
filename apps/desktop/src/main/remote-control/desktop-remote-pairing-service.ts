@@ -108,6 +108,7 @@ export class DesktopRemotePairingService {
 				remote.inputEnabled === true,
 				undefined,
 				this.localRelayCertificate,
+				normalizeRelayBaseUrl(remote.relayBaseUrl),
 			);
 			this.state = {
 				...this.state,
@@ -150,7 +151,15 @@ export class DesktopRemotePairingService {
 		});
 		const lanUrl = localRelay.getLanUrl();
 		await this.persistRemoteConfig({ relayBaseUrl: relay, pairingId, inputEnabled: false });
-		await this.startActive(lanUrl, pairingId, desktopSecret, false, bootstrapSecret, this.localRelayCertificate);
+		await this.startActive(
+			lanUrl,
+			pairingId,
+			desktopSecret,
+			false,
+			bootstrapSecret,
+			this.localRelayCertificate,
+			relay,
+		);
 		this.state = {
 			status: "ready",
 			relayBaseUrl: relay,
@@ -193,22 +202,32 @@ export class DesktopRemotePairingService {
 		inputEnabled: boolean,
 		bootstrapSecret?: string,
 		localRelayCertificate?: DesktopLocalRelayCertificate,
+		cloudRelay?: string,
 	): Promise<void> {
-		const targetParams = new URLSearchParams({
+		const cloudParams = new URLSearchParams({
 			pairing: desktopSecret,
 			...(bootstrapSecret ? { bootstrap: bootstrapSecret } : {}),
 		});
-		if (localRelayCertificate) targetParams.set("fingerprint", localRelayCertificate.fingerprint);
-		const controlTarget = `${relay}/v1/relay/${pairingId}/desktop#${targetParams.toString()}`;
-		const signalingTarget = `${relay}/v1/desktop/${pairingId}/host#${new URLSearchParams({ pairing: desktopSecret, ...(localRelayCertificate ? { fingerprint: localRelayCertificate.fingerprint } : {}) }).toString()}`;
+		const lanParams = new URLSearchParams(cloudParams);
+		if (localRelayCertificate) lanParams.set("fingerprint", localRelayCertificate.fingerprint);
+		const controlTargets = [
+			...(cloudRelay ? [{ target: `${cloudRelay}/v1/relay/${pairingId}/desktop#${cloudParams.toString()}` }] : []),
+			{
+				target: `${relay}/v1/relay/${pairingId}/desktop#${lanParams.toString()}`,
+				webSocketCaCertificate: localRelayCertificate?.certificate,
+			},
+		];
+		const signalingTargets = [
+			...(cloudRelay ? [`${cloudRelay}/v1/desktop/${pairingId}/host#${cloudParams.toString()}`] : []),
+			`${relay}/v1/desktop/${pairingId}/host#${lanParams.toString()}`,
+		];
 		await startDesktopRemoteAccess({
-			controlTarget,
-			webSocketCaCertificate: localRelayCertificate?.certificate,
+			controlTargets,
 			conversationCwd: this.options.conversationCwd,
 			onStateChange: (state) => this.handleConnectionState(state),
 		});
 		this.host = await startDesktopRemoteDesktopHost({
-			signalingTarget,
+			signalingTargets,
 			inputEnabled,
 			appRoot: this.options.appRoot,
 			isPackaged: this.options.isPackaged,
@@ -277,10 +296,14 @@ export class DesktopRemotePairingService {
 
 function normalizeRelayBaseUrl(value: string | undefined): string | undefined {
 	if (!value) return undefined;
-	const parsed = new URL(value.trim());
-	if (parsed.protocol !== "https:" && parsed.protocol !== "wss:") return undefined;
-	const protocol = parsed.protocol === "https:" ? "wss:" : parsed.protocol;
-	return `${protocol}//${parsed.host}${parsed.pathname}`.replace(/\/$/, "");
+	try {
+		const parsed = new URL(value.trim());
+		if (parsed.protocol !== "https:" && parsed.protocol !== "wss:") return undefined;
+		const protocol = parsed.protocol === "https:" ? "wss:" : parsed.protocol;
+		return `${protocol}//${parsed.host}${parsed.pathname}`.replace(/\/$/, "");
+	} catch {
+		return undefined;
+	}
 }
 
 function buildInviteUri(

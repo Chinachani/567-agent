@@ -20,18 +20,11 @@ function pickBestModel(models: ModelDefinition[]): ModelDefinition | undefined {
 }
 
 import { createHash } from "node:crypto";
-import { existsSync, readFileSync, writeFileSync } from "node:fs";
+import { existsSync, mkdirSync, readFileSync, renameSync, rmSync, writeFileSync } from "node:fs";
 import http from "node:http";
 import https from "node:https";
-import os from "node:os";
-import { join } from "node:path";
-
-function getVettaHomePath(): string {
-	const explicit = process.env.VETTA_HOME;
-	if (explicit) return explicit;
-	const dirName = process.env.VETTA_CONFIG_DIR || ".567agent";
-	return join(os.homedir(), dirName);
-}
+import { dirname, join } from "node:path";
+import { getVettaHomePath } from "@567agent/action-rpc";
 
 import { BrowserWindow } from "electron";
 import { getDesktopCredentialVault } from "../credentials/desktop-credential-vault.js";
@@ -46,7 +39,13 @@ import {
 	refreshWithAccountRecovery,
 } from "./access-token-refresh.js";
 import { loadAccountCredentials, removeAccountCredentials, saveAccountCredentials } from "./account-credentials.js";
-import { containsNonAscii, decryptSecret, encryptSecret, getSecurityHeaders } from "./security.js";
+import {
+	containsNonAscii,
+	decryptSecret,
+	encryptSecret,
+	getSecurityHeaders,
+	isSecureCredentialStorageAvailable,
+} from "./security.js";
 
 const log = getAppLogger("567api");
 
@@ -310,6 +309,7 @@ function fetchPageHtml(urlStr: string, redirectCount = 0): Promise<{ html: strin
 export class NewApiService {
 	private static instance: NewApiService;
 	private currentSession: Api567Session = { isLoggedIn: false };
+	private preservedEncryptedSession = false;
 	private rateLimitedUntil = 0;
 	private readonly accessTokenRefresh = new AccessTokenRefreshCoordinator();
 	private refreshQuotaPromise: Promise<{ success: boolean; quota?: number; quotaUsd?: number }> | null = null;
@@ -392,6 +392,9 @@ export class NewApiService {
 	}
 
 	public async setImageGroup(groupName: string): Promise<{ success: boolean; message?: string }> {
+		if (this.preservedEncryptedSession && !this.currentSession.accessToken) {
+			return { success: false, message: "凭据暂时无法解密，图像设置未保存；请恢复系统密钥环后重启应用" };
+		}
 		this.currentSession.imageGroup = groupName;
 		this.saveSession(this.currentSession);
 		log.info(`567api image group set to: ${groupName}`);
@@ -399,6 +402,9 @@ export class NewApiService {
 	}
 
 	public async setImageModel(modelName: string): Promise<{ success: boolean; message?: string }> {
+		if (this.preservedEncryptedSession && !this.currentSession.accessToken) {
+			return { success: false, message: "凭据暂时无法解密，图像设置未保存；请恢复系统密钥环后重启应用" };
+		}
 		this.currentSession.imageModel = modelName;
 		this.saveSession(this.currentSession);
 		log.info(`567api image model set to: ${modelName}`);
@@ -677,16 +683,53 @@ export class NewApiService {
 	}
 
 	private loadSession(): void {
+		this.preservedEncryptedSession = false;
 		try {
 			const path = getSessionFilePath();
 			if (existsSync(path)) {
 				const content = readFileSync(path, "utf8");
 				const raw = JSON.parse(content);
-				this.currentSession = {
-					...raw,
+				const encrypted = [raw.accessToken, raw.apiKey, raw.cookie].map(
+					(value) => typeof value === "string" && value.startsWith("enc:"),
+				);
+				if (encrypted.some(Boolean) && !isSecureCredentialStorageAvailable()) {
+					// Keep the on-disk session intact while the OS keyring is temporarily
+					// unavailable. A later launch can decrypt it without forcing logout.
+					this.currentSession = {
+						...raw,
+						isLoggedIn: false,
+						accessToken: undefined,
+						apiKey: undefined,
+						cookie: undefined,
+					};
+					this.preservedEncryptedSession = true;
+					log.warn("OS credential storage is unavailable; preserving the saved 567 API session");
+					return;
+				}
+				const decrypted = {
 					accessToken: decryptSecret(raw.accessToken),
 					apiKey: decryptSecret(raw.apiKey),
 					cookie: decryptSecret(raw.cookie),
+				};
+				const decryptionFailed =
+					(encrypted[0] && !decrypted.accessToken) ||
+					(encrypted[1] && !decrypted.apiKey) ||
+					(encrypted[2] && !decrypted.cookie);
+				if (decryptionFailed) {
+					this.currentSession = {
+						...raw,
+						isLoggedIn: false,
+						accessToken: undefined,
+						apiKey: undefined,
+						cookie: undefined,
+					};
+					this.preservedEncryptedSession = true;
+					log.warn("Saved 567 API credentials could not be decrypted; preserving the session file for recovery");
+					return;
+				}
+				this.currentSession = {
+					...raw,
+					...decrypted,
 				};
 				if (this.currentSession.isLoggedIn && !this.currentSession.accessToken) {
 					void this.ensureValidAccessToken().catch((err) => {
@@ -712,7 +755,16 @@ export class NewApiService {
 				apiKey: encryptSecret(session.apiKey),
 				cookie: encryptSecret(session.cookie),
 			};
-			writeFileSync(path, JSON.stringify(toSave, null, 2), "utf8");
+			const temporaryPath = `${path}.${process.pid}.${Date.now()}.tmp`;
+			mkdirSync(dirname(path), { recursive: true });
+			try {
+				writeFileSync(temporaryPath, JSON.stringify(toSave, null, 2), { encoding: "utf8", mode: 0o600 });
+				renameSync(temporaryPath, path);
+				this.preservedEncryptedSession = false;
+			} catch (error) {
+				rmSync(temporaryPath, { force: true });
+				throw error;
+			}
 			void this.broadcastStatus();
 		} catch (err) {
 			log.error("Failed to save 567api session:", err);

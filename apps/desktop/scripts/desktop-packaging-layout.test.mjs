@@ -12,7 +12,7 @@ import {
 	LEGACY_PLUGIN_FILE_ASSOCIATION,
 } from "./desktop-packaging-layout.mjs";
 import { APP_NAME, BUNDLE_ID, infoPlistContents } from "./build-appshot-helper.js";
-import desktopAfterPack from "./desktop-after-pack.mjs";
+import desktopAfterPack, { getPackedAppRootDir, writeAppUpdateConfig } from "./desktop-after-pack.mjs";
 
 const desktopRoot = join(import.meta.dirname, "..");
 
@@ -97,6 +97,57 @@ test("Linux afterPack clears the FPM package marker before target packaging", as
 		assert.equal(existsSync(join(markerDir, "package-type")), false);
 	} finally {
 		await rm(directory, { recursive: true, force: true });
+	}
+});
+
+test("afterPack writes updater metadata using one cache directory for every install format", async () => {
+	const directory = await mkdtemp(join(tmpdir(), "desktop-after-pack-app-"));
+	try {
+		const resources = join(directory, "resources");
+		await mkdir(resources);
+		await writeAppUpdateConfig(directory, [{ provider: "github", owner: "Chinachani", repo: "567-agent" }]);
+		const updateConfigPath = join(resources, "app-update.yml");
+		const updateConfig = readFileSync(updateConfigPath, "utf8");
+		assert.match(updateConfig, /provider: github/);
+		assert.match(updateConfig, /owner: Chinachani/);
+		assert.match(updateConfig, /updaterCacheDirName: 567-agent-updater/);
+		await writeAppUpdateConfig(directory, undefined);
+		assert.equal(existsSync(updateConfigPath), false);
+	} finally {
+		await rm(directory, { recursive: true, force: true });
+	}
+});
+
+test("afterPack embeds the same updater cache name in Linux and macOS app payloads", async () => {
+	for (const platform of ["linux", "darwin"]) {
+		const directory = await mkdtemp(join(tmpdir(), `desktop-after-pack-${platform}-`));
+		try {
+			const appRoot = platform === "darwin" ? join(directory, "567 Agent.app", "Contents") : directory;
+			const resources = join(appRoot, platform === "darwin" ? "Resources" : "resources");
+			await mkdir(resources, { recursive: true });
+			await desktopAfterPack({
+				electronPlatformName: platform,
+				appOutDir: directory,
+				packager: {
+					appInfo: { productFilename: "567 Agent" },
+					config: { publish: [{ provider: "github", owner: "Chinachani", repo: "567-agent" }] },
+				},
+			});
+			if (platform === "darwin") {
+				assert.equal(
+					getPackedAppRootDir({
+						electronPlatformName: platform,
+						appOutDir: directory,
+						packager: { appInfo: { productFilename: "567 Agent" } },
+					}),
+					appRoot,
+				);
+			}
+			assert.match(readFileSync(join(resources, "app-update.yml"), "utf8"), /updaterCacheDirName: 567-agent-updater/);
+			assert.equal(existsSync(join(directory, "resources", "app-update.yml")), platform === "linux");
+		} finally {
+			await rm(directory, { recursive: true, force: true });
+		}
 	}
 });
 

@@ -18,13 +18,7 @@ private class AndroidKeystoreSecretStore(private val settings: Settings) : Secre
     override fun get(key: String): String? {
         val stored = settings.getStringOrNull(key) ?: return null
         if (!stored.startsWith(PREFIX)) {
-            try {
-                put(key, stored)
-            } catch (_: Exception) {
-                settings.remove(key)
-                return null
-            }
-            return stored
+            return migratePlaintextSecret(stored) { put(key, it) }
         }
         val parts = stored.removePrefix(PREFIX).split(':', limit = 2)
         if (parts.size != 2) {

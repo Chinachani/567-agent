@@ -73,6 +73,24 @@ class RemoteConnectionTest {
         }
 
     @Test
+    fun failedHandshakeClosesTheTransportAndItsOwnedResources() =
+        runTest {
+            var closed = false
+            val transport = object : RemoteTransport {
+                override val incoming: Flow<RemoteFrame> = kotlinx.coroutines.flow.emptyFlow()
+                override suspend fun connect() = error("TLS connection failed")
+                override suspend fun send(frame: RemoteFrame) = Unit
+                override suspend fun close() { closed = true }
+            }
+            val connection = connection(transport = transport, scope = backgroundScope)
+
+            assertFailsWith<IllegalStateException> { connection.connect() }
+
+            assertTrue(closed)
+            assertEquals(RemoteConnectionState.Failed, connection.state.value)
+        }
+
+    @Test
     fun eventGapRequestsResumeAndDuplicateIsIgnored() =
         runTest {
             val transport = FakeRemoteTransport()
@@ -147,7 +165,7 @@ class RemoteConnectionTest {
         }
 
     private fun connection(
-        transport: FakeRemoteTransport,
+        transport: RemoteTransport,
         scope: kotlinx.coroutines.CoroutineScope,
         logger: RemoteLogger = NoopRemoteLogger,
         now: () -> Long = { 100L },

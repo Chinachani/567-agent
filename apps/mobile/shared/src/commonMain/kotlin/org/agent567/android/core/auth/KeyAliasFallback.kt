@@ -14,3 +14,8 @@ internal fun decryptWithLegacyKeystoreAlias(
     runCatching { migrate(legacyValue) }
     return legacyValue
 }
+
+internal fun migratePlaintextSecret(value: String, migrate: (String) -> Unit): String {
+    runCatching { migrate(value) }
+    return value
+}

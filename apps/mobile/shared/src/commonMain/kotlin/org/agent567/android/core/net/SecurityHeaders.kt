@@ -22,7 +22,7 @@ object SecurityHeaders {
         val signature = hmacSha256(CLIENT_SECRET_KEY, signPayload)
 
         val headers = mutableMapOf(
-            "X-567-Client" to "567-Agent-Desktop",
+            "X-567-Client" to "567-Agent-Android",
             "X-567-Version" to clientVersion,
             "X-567-Device-Id" to deviceId,
             "X-567-Timestamp" to timestamp,

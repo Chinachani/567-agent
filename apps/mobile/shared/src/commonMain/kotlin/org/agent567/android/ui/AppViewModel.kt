@@ -32,6 +32,7 @@ import org.agent567.android.domain.chat.shouldClearPendingImagesOnSessionChange
 import org.agent567.android.domain.error.ErrorMapper
 import org.agent567.android.domain.error.UiError
 import org.agent567.android.domain.error.UiErrorAction
+import org.agent567.android.domain.remote.createSecureRemoteResumeSecret
 import org.agent567.android.domain.device.DesktopDevice
 import org.agent567.android.domain.device.SessionListItem
 import org.agent567.android.domain.session.ConversationOrigin
@@ -255,39 +256,8 @@ class AppViewModel(
             if (container.preferences.authRefreshToken.isNullOrBlank() && !refreshToken.isNullOrBlank()) {
                 container.preferences.authRefreshToken = refreshToken
             }
-            val loginType = container.preferences.authLoginType
-            val account = container.preferences.authAccount
-            val password = container.preferences.authPassword
-
-            if (loginType == "account" && !account.isNullOrBlank() && !password.isNullOrBlank()) {
-                viewModelScope.launch {
-                    try {
-                        val session = container.client.auth.loginWithAccount(account, password)
-                        container.preferences.authToken = session.accessToken
-                        container.preferences.authRefreshToken = session.refreshToken
-                        container.preferences.authUsername = session.user.nickname.ifBlank { session.user.username }
-                        container.preferences.authQuotaUsd = session.user.quotaUsd
-                        container.preferences.authUserId = session.user.id
-                        _state.update { it.copy(user = session.user) }
-                        loadWorkspace(openLastSession = false)
-                    } catch (_: Throwable) {
-                    }
-                }
-            } else if (loginType == "token" && !account.isNullOrBlank()) {
-                viewModelScope.launch {
-                    try {
-                        val session = container.client.auth.loginWithAccessToken(account)
-                        container.preferences.authToken = session.accessToken
-                        container.preferences.authUsername = session.user.nickname.ifBlank { session.user.username }
-                        container.preferences.authQuotaUsd = session.user.quotaUsd
-                        container.preferences.authUserId = session.user.id
-                        _state.update { it.copy(user = session.user) }
-                        loadWorkspace(openLastSession = false)
-                    } catch (_: Throwable) {
-                    }
-                }
-            }
-
+            // Reuse the persisted session. Authenticated API calls refresh tokens through
+            // TokenRefresher, which only falls back to account login after refresh rejection.
             loadWorkspace(openLastSession = container.preferences.autoResumeLastSession.value)
         }
     }
@@ -535,13 +505,9 @@ class AppViewModel(
                             }
                         }
                     }
-                var connected = false
-                for (candidate in candidateTargets) {
-                    if (runCatching { container.remoteConversationGateway.connect(candidate) }.getOrDefault(false)) {
-                        connected = true
-                        break
-                    }
-                }
+                val connected = runCatching {
+                    container.remoteConversationGateway.connect(candidateTargets)
+                }.getOrDefault(false)
                 if (connected) {
                     _state.update { it.copy(mainAccessGranted = true) }
                     if (invite != null && resume != null) {
@@ -568,10 +534,7 @@ class AppViewModel(
         }
     }
 
-    private fun newRemoteResumeSecret(): String =
-        buildString(43) {
-            repeat(43) { append("ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789-_".random()) }
-        }
+    private fun newRemoteResumeSecret(): String = createSecureRemoteResumeSecret()
 
     fun disconnectDesktop(deviceId: String) {
         viewModelScope.launch {

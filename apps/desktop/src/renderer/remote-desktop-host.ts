@@ -6,23 +6,85 @@ declare global {
 	}
 }
 
+interface RelayRoute {
+	readonly target: string;
+	signaling?: WebSocketRemoteDesktopSignaling;
+	host?: RemoteDesktopHost;
+	stream?: MediaStream;
+	reconnectTimer?: ReturnType<typeof setTimeout>;
+	connecting: boolean;
+	closed: boolean;
+}
+
 const params = new URLSearchParams(window.location.search);
-const target = params.get("target");
 const sessionId = params.get("sessionId");
-if (!target || !sessionId) throw new Error("remote desktop host target is missing");
+let targets: string[];
+try {
+	const parsed: unknown = JSON.parse(params.get("targets") ?? "[]");
+	targets = Array.isArray(parsed) ? parsed.filter((target): target is string => typeof target === "string") : [];
+} catch {
+	targets = [];
+}
+if (!sessionId || targets.length === 0) throw new Error("remote desktop host targets are missing");
 
-const signaling = new WebSocketRemoteDesktopSignaling(target);
-let host: RemoteDesktopHost | undefined;
-let stream: MediaStream | undefined;
-let isStarting = false;
+const routes: RelayRoute[] = targets.map((target) => ({ target, connecting: false, closed: false }));
 
-async function startHostWithStream(): Promise<void> {
-	if (host || isStarting) return;
-	isStarting = true;
+for (const route of routes) void connectRoute(route);
+
+async function connectRoute(route: RelayRoute): Promise<void> {
+	if (route.closed || route.connecting) return;
+	route.connecting = true;
+	const signaling = new WebSocketRemoteDesktopSignaling(route.target);
+	route.signaling = signaling;
 	try {
-		console.info("peer ready received, requesting display media capture...");
-		stream = await navigator.mediaDevices.getDisplayMedia({ video: true, audio: false });
-		host = new RemoteDesktopHost(
+		await signaling.connect({
+			async onSignal(signal) {
+				if (signal.type === "peer_ready") {
+					await startHostForRoute(route, signaling);
+					return;
+				}
+				if (route.host) {
+					try {
+						await route.host.acceptSignal(signal);
+					} catch (error) {
+						console.warn("remote desktop signal handling failed", {
+							error: error instanceof Error ? error.message : String(error),
+							target: safeTarget(route.target),
+						});
+						cleanupRoute(route);
+					}
+				}
+			},
+			onClose(reason) {
+				console.warn("remote desktop signaling closed", { reason, target: safeTarget(route.target) });
+				cleanupRoute(route);
+				scheduleReconnect(route);
+			},
+		});
+		console.info("remote desktop signaling connected", { target: safeTarget(route.target) });
+	} catch (error) {
+		console.warn("remote desktop signaling connection failed", {
+			error: error instanceof Error ? error.message : String(error),
+			target: safeTarget(route.target),
+		});
+		cleanupRoute(route);
+		scheduleReconnect(route);
+	} finally {
+		route.connecting = false;
+	}
+}
+
+async function startHostForRoute(route: RelayRoute, signaling: WebSocketRemoteDesktopSignaling): Promise<void> {
+	if (route.host || route.closed) return;
+	try {
+		const stream = await navigator.mediaDevices.getDisplayMedia({ video: true, audio: false });
+		if (route.closed || route.signaling !== signaling) {
+			stream.getTracks().forEach((track) => {
+				track.stop();
+			});
+			return;
+		}
+		const host = new RemoteDesktopHost(
 			{
 				sessionId: sessionId!,
 				logger: {
@@ -31,34 +93,53 @@ async function startHostWithStream(): Promise<void> {
 					warn: (message, fields) => console.warn(message, fields),
 				},
 			},
-			async (signal) => signaling.send(signal),
+			(signal) => signaling.send(signal),
 			(message) => window.vettaRemoteDesktop?.onInput(message),
 		);
+		route.stream = stream;
+		route.host = host;
 		await host.start(stream, { waitForPeerReady: false });
-		console.info("remote desktop host started successfully with active stream");
-	} catch (err) {
-		console.warn("display media capture failed or cancelled by user", err);
-		isStarting = false;
+		console.info("remote desktop stream started", { target: safeTarget(route.target) });
+	} catch (error) {
+		console.warn("remote desktop capture or startup failed", {
+			error: error instanceof Error ? error.message : String(error),
+			target: safeTarget(route.target),
+		});
+		cleanupRoute(route);
 	}
 }
 
-await signaling.connect({
-	async onSignal(signal) {
-		if (signal.type === "peer_ready") {
-			await startHostWithStream();
-			return;
-		}
-		if (host) {
-			void host.acceptSignal(signal);
-		}
-	},
-	onClose(reason) {
-		console.warn("remote desktop signaling closed", reason);
-		stream?.getTracks().forEach((t) => {
-			t.stop();
-		});
-		setTimeout(() => window.location.reload(), 2_000);
-	},
-});
+function cleanupRoute(route: RelayRoute): void {
+	route.host?.close("failed");
+	route.host = undefined;
+	route.stream?.getTracks().forEach((track) => {
+		track.stop();
+	});
+	route.stream = undefined;
+}
 
-console.info("remote desktop host signaling connected, waiting for mobile peer_ready...");
+function scheduleReconnect(route: RelayRoute): void {
+	if (route.closed || route.reconnectTimer) return;
+	route.reconnectTimer = setTimeout(() => {
+		route.reconnectTimer = undefined;
+		void connectRoute(route);
+	}, 2_000);
+}
+
+function safeTarget(target: string): string {
+	try {
+		const url = new URL(target.split("#", 1)[0]!);
+		return `${url.origin}${url.pathname}`;
+	} catch {
+		return "invalid target";
+	}
+}
+
+window.addEventListener("pagehide", () => {
+	for (const route of routes) {
+		route.closed = true;
+		if (route.reconnectTimer) clearTimeout(route.reconnectTimer);
+		cleanupRoute(route);
+		void route.signaling?.close();
+	}
+});

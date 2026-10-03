@@ -10,6 +10,7 @@ export interface DesktopRemoteDesktopHostOptions {
 	readonly signalingUrl?: string;
 	readonly pairingToken?: string;
 	readonly signalingTarget?: string;
+	readonly signalingTargets?: readonly string[];
 	readonly inputEnabled: boolean;
 	readonly appRoot: string;
 	readonly isPackaged: boolean;
@@ -32,14 +33,21 @@ export async function startDesktopRemoteDesktopHost(
 	options: DesktopRemoteDesktopHostOptions,
 ): Promise<DesktopRemoteDesktopHostHandle> {
 	if (activeHost) return activeHost;
-	const sessionId =
-		remoteDesktopSessionId(options.signalingTarget ?? options.signalingUrl ?? "") ?? `desktop-${randomUUID()}`;
+	const signalingTargets = options.signalingTargets ?? [
+		options.signalingTarget ?? `${options.signalingUrl}#${options.pairingToken}`,
+	];
+	const sessionId = remoteDesktopSessionId(signalingTargets[0] ?? "") ?? `desktop-${randomUUID()}`;
 	const input = createSystemInputAdapter({ enabled: options.inputEnabled });
 	input.setEnabled(options.inputEnabled);
 	const paths = resolveDesktopRemoteDesktopHostPaths(options);
 	const hostSession = session.fromPartition(`vetta-remote-desktop-${sessionId}`);
-	const expectedFingerprint = readTargetFingerprint(options.signalingTarget ?? options.signalingUrl ?? "");
-	const allowedOrigin = readTargetOrigin(options.signalingTarget ?? options.signalingUrl ?? "");
+	const pinnedOrigins = new Map(
+		signalingTargets.flatMap((target) => {
+			const fingerprint = readTargetFingerprint(target);
+			const origin = readTargetOrigin(target);
+			return fingerprint && origin ? [[origin, fingerprint] as const] : [];
+		}),
+	);
 	const window = new BrowserWindow({
 		show: false,
 		width: 1280,
@@ -66,10 +74,9 @@ export async function startDesktopRemoteDesktopHost(
 			callback(false);
 			return;
 		}
+		const expectedFingerprint = pinnedOrigins.get(origin);
 		const matches =
 			expectedFingerprint !== undefined &&
-			allowedOrigin !== undefined &&
-			origin === allowedOrigin &&
 			certificate.fingerprint.replaceAll(":", "").toLowerCase() === expectedFingerprint;
 		if (!matches) {
 			callback(false);
@@ -129,15 +136,14 @@ export async function startDesktopRemoteDesktopHost(
 		});
 		displayMediaHandlerInstalled = true;
 
-		const target = options.signalingTarget ?? `${options.signalingUrl}#${options.pairingToken}`;
 		if (options.isPackaged) {
 			await window.loadFile(paths.pagePath, {
-				query: { target, sessionId },
+				query: { targets: JSON.stringify(signalingTargets), sessionId },
 			});
 		} else {
 			const page = `${options.devServerUrl ?? "http://127.0.0.1:3020"}/remote-desktop-host.html`;
 			await window.loadURL(
-				`${page}?target=${encodeURIComponent(target)}&sessionId=${encodeURIComponent(sessionId)}`,
+				`${page}?targets=${encodeURIComponent(JSON.stringify(signalingTargets))}&sessionId=${encodeURIComponent(sessionId)}`,
 			);
 		}
 	} catch (error) {

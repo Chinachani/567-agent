@@ -56,4 +56,16 @@ class KeyAliasFallbackTest {
 
         assertNull(value)
     }
+
+    @Test
+    fun plaintextMigrationFailureKeepsTheSecretReadableForRetry() {
+        var attemptedValue: String? = null
+        val value = migratePlaintextSecret("legacy-password") {
+            attemptedValue = it
+            error("Keystore unavailable")
+        }
+
+        assertEquals("legacy-password", attemptedValue)
+        assertEquals("legacy-password", value)
+    }
 }

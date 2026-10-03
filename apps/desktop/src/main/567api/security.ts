@@ -2,6 +2,7 @@ import { createDecipheriv, createHash, createHmac, randomBytes, scryptSync } fro
 import { existsSync, readFileSync, writeFileSync } from "node:fs";
 import os from "node:os";
 import { join } from "node:path";
+import { getVettaHomePath } from "@567agent/action-rpc";
 import { ElectronSafeStorageCryptography } from "../credentials/electron-safe-storage-cryptography.js";
 
 /**
@@ -19,11 +20,8 @@ const SALT_PARTS = ["567", "Api", "Secure", "Token", "2026", "AntiLeech", "v1"];
 const CLIENT_SECRET_KEY = createHash("sha256").update(SALT_PARTS.join("::#@!")).digest("hex");
 const secureStorage = new ElectronSafeStorageCryptography();
 
-function getVettaHomePath(): string {
-	const explicit = process.env.VETTA_HOME;
-	if (explicit) return explicit;
-	const dirName = process.env.VETTA_CONFIG_DIR || ".567agent";
-	return join(os.homedir(), dirName);
+export function isSecureCredentialStorageAvailable(): boolean {
+	return secureStorage.isAvailable();
 }
 
 let cachedFingerprint: string | undefined;
@@ -161,11 +159,13 @@ export function decryptSecret(ciphertext?: string): string | undefined {
 			return undefined;
 		}
 	}
-	if (!ciphertext.startsWith("enc:v1:")) return ciphertext;
+	if (!ciphertext.startsWith("enc:v1:")) return ciphertext.startsWith("enc:") ? undefined : ciphertext;
 
 	try {
 		const parts = ciphertext.split(":");
-		if (parts.length < 5) return ciphertext;
+		if (parts.length !== 5 || !/^[0-9a-f]+$/i.test(parts[2]) || !/^[0-9a-f]+$/i.test(parts[3])) {
+			return undefined;
+		}
 		const iv = Buffer.from(parts[2], "hex");
 		const tag = Buffer.from(parts[3], "hex");
 		const enc = parts[4];

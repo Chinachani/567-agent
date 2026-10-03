@@ -52,6 +52,8 @@ export class DesktopLocalRelay {
 		this.credentials = credentials;
 
 		return new Promise<number>((resolve, reject) => {
+			let fallbackAttempted = false;
+			let startupSettled = false;
 			const server = createServer({ cert: tls.certificate, key: tls.privateKey }, (req, res) => {
 				if (req.url === "/health") {
 					res.writeHead(200, { "Content-Type": "application/json" });
@@ -95,6 +97,7 @@ export class DesktopLocalRelay {
 			});
 
 			server.listen(preferredPort, "0.0.0.0", () => {
+				startupSettled = true;
 				this.server = server;
 				this.wss = wss;
 				const addr = server.address();
@@ -104,10 +107,18 @@ export class DesktopLocalRelay {
 			});
 
 			server.on("error", (err: unknown) => {
+				if (startupSettled) {
+					log.warn("local relay server reported an error after startup", {
+						error: err instanceof Error ? err.message : String(err),
+					});
+					return;
+				}
 				const msg = err instanceof Error ? err.message : String(err);
 				log.warn("local relay listen error, trying fallback port", { error: msg });
-				if (preferredPort !== 0) {
+				if (preferredPort !== 0 && !fallbackAttempted) {
+					fallbackAttempted = true;
 					server.listen(0, "0.0.0.0", () => {
+						startupSettled = true;
 						this.server = server;
 						this.wss = wss;
 						const addr = server.address();
@@ -116,6 +127,9 @@ export class DesktopLocalRelay {
 						resolve(this.port);
 					});
 				} else {
+					startupSettled = true;
+					this.credentials = undefined;
+					this.wss = undefined;
 					reject(err);
 				}
 			});
