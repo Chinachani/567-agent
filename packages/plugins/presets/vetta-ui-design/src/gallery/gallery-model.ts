@@ -7,6 +7,7 @@
  * 代价是用户手动挪进子目录的设计收不到，这是明确取舍。
  */
 import type { PluginFsApi, PluginOfficialSessionSummary } from "@vetta-org/plugin-sdk";
+import type { DesignSystem } from "../design-systems/types";
 import { designNameOf, MANIFEST_FILE } from "../vetd/manifest-types";
 import { migrateLegacyDesign } from "../vetd/migrate";
 
@@ -143,6 +144,22 @@ export function filterGalleryProjects<T extends GalleryProject>(projects: readon
 			project.name.toLowerCase().includes(needle) ||
 			project.designs.some((design) => design.name.toLowerCase().includes(needle)),
 	);
+}
+
+/** 搜索风格库并按分类筛选；搜索会匹配名称、摘要、id 与分类 key。 */
+export function filterDesignSystems<T extends DesignSystem>(
+	systems: readonly T[],
+	keyword: string,
+	category: string,
+): T[] {
+	const needle = keyword.trim().toLowerCase();
+	return systems.filter((system) => {
+		if (category !== "all" && system.category !== category) return false;
+		if (!needle) return true;
+		return [system.id, system.name, system.blurb, system.tagline?.en, system.tagline?.zh, system.category].some(
+			(value) => value?.toLowerCase().includes(needle),
+		);
+	});
 }
 
 /**

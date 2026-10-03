@@ -2,7 +2,8 @@ import { useTranslation } from "@vetta-org/plugin-sdk";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { ConfirmDialog } from "../canvas/ConfirmDialog";
 import { SHARE_EXTENSION, SHARE_PREVIEW_EXTENSIONS } from "../export/share-format";
-import { refreshDesignCatalog } from "../design-systems/index";
+import { refreshDesignCatalog, useCatalogState } from "../design-systems/index";
+import { designSystemCategoryLabel } from "../design-systems/labels";
 import { getPluginCtx, notify } from "../plugin-context";
 import { GALLERY_VIEW_ID } from "../tab-ids";
 import { AllProjectsView } from "./AllProjectsView";
@@ -13,6 +14,7 @@ import { DesignSystemGrid } from "./DesignSystemGrid";
 import { GalleryCard } from "./GalleryCard";
 import { GalleryHero } from "./GalleryHero";
 import { GalleryToolbarLeft, GalleryToolbarRight } from "./GalleryToolbar";
+import { GalleryScrollProgress } from "./GalleryScrollProgress";
 import { SectionHeader } from "./SectionHeader";
 import { hasMoreProjects, homeVisibleCount, PROJECT_GRID_CLASS } from "./gallery-layout";
 import { useGalleryColumns } from "./use-gallery-columns";
@@ -27,7 +29,12 @@ import {
 } from "./gallery-actions";
 import type { DesignSystem } from "../design-systems/types";
 import { filterGalleryProjects, type GalleryDesign } from "./gallery-model";
-import { type GalleryCard as GalleryCardData, getCachedSnapshot, isGalleryAbortError, loadGallery } from "./gallery-store";
+import {
+	type GalleryCard as GalleryCardData,
+	getCachedSnapshot,
+	isGalleryAbortError,
+	loadGallery,
+} from "./gallery-store";
 import { openProjectFromGallery, startDesignProject } from "./open-project";
 import { startDesignFromSystem } from "./start-from-system";
 
@@ -42,6 +49,7 @@ export function GalleryView() {
 	const [snapshot, setSnapshot] = useState(() => getCachedSnapshot());
 	const [loading, setLoading] = useState(!getCachedSnapshot());
 	const [keyword, setKeyword] = useState("");
+	const [styleCategory, setStyleCategory] = useState("all");
 	const [menu, setMenu] = useState<CardMenuAnchor | null>(null);
 	const [creating, setCreating] = useState(false);
 	/** 首页（≤3 行资产 + 风格库）或全部设计列表页。 */
@@ -53,6 +61,9 @@ export function GalleryView() {
 	const [busy, setBusy] = useState(false);
 	const [dragging, setDragging] = useState(false);
 	const [archiveTarget, setArchiveTarget] = useState<GalleryCardData | null>(null);
+	const galleryScrollRef = useRef<HTMLDivElement | null>(null);
+	const galleryContentRef = useRef<HTMLDivElement | null>(null);
+	const { systems } = useCatalogState();
 	/** 右键菜单的定位基准：菜单是这个容器的 absolute 子节点。 */
 	const rootRef = useRef<HTMLDivElement | null>(null);
 	/** Hero 的「逛逛风格库」滚动目标。 */
@@ -169,7 +180,10 @@ export function GalleryView() {
 			});
 			const file = picked[0];
 			if (!file) return;
-			await importBytes(file.name, Uint8Array.from(atob(file.data), (char) => char.charCodeAt(0)));
+			await importBytes(
+				file.name,
+				Uint8Array.from(atob(file.data), (char) => char.charCodeAt(0)),
+			);
 		} catch (error) {
 			notify({ message: t("gallery.import.failed"), error });
 		}
@@ -227,6 +241,10 @@ export function GalleryView() {
 
 	// memo 不只是省一次 filter：AllProjectsView 以数组引用变化为「重置分页」的信号。
 	const cards = useMemo(() => filterGalleryProjects(snapshot?.cards ?? [], keyword), [snapshot, keyword]);
+	const styleCategories = useMemo(
+		() => [...new Set(systems.map((system) => system.category))].sort((a, b) => a.localeCompare(b)),
+		[systems],
+	);
 	const designCount = useMemo(() => cards.reduce((total, card) => total + card.designs.length, 0), [cards]);
 	const empty = !loading && (snapshot?.cards.length ?? 0) === 0;
 
@@ -250,8 +268,8 @@ export function GalleryView() {
 	}, []);
 
 	/**
-	 * 页头接管。首页把工具栏长在 Hero 里（见 GalleryHero 的说明），页头因此只需要
-	 * 收掉宿主标题、留作窗口拖拽区；「全部设计」列表页没有 Hero，工具栏回到页头。
+	 * 页头接管。两种页面状态都保留宿主正常占位，防止滚动内容被账户区和窗口控件盖住；
+	 * 「全部设计」列表页在页头只放返回和计数，搜索/筛选固定在滚动内容顶部。
 	 *
 	 * 刻意不写依赖数组——节点闭包着 keyword / loading / busy 等每次渲染都可能变的
 	 * 状态，漏一个依赖就会让页头里的搜索框停在旧值上。写入是幂等的 store.set，
@@ -259,22 +277,13 @@ export function GalleryView() {
 	 */
 	useEffect(() => {
 		if (view !== "projects") {
-			// immersive：页头浮在画廊之上，Hero 从窗口第一像素开始铺，
-			// 不再被 44px 页头推出一条谁也画不了的空带。
-			getPluginCtx().ui.setWorkspaceViewHeader(GALLERY_VIEW_ID, { hideTitle: true, immersive: true });
+			// 保留宿主页头高度，Hero 从窗口控件和账户信息下方开始。
+			getPluginCtx().ui.setWorkspaceViewHeader(GALLERY_VIEW_ID, { hideTitle: true });
 			return;
 		}
 		getPluginCtx().ui.setWorkspaceViewHeader(GALLERY_VIEW_ID, {
 			hideTitle: true,
-			left: (
-				<GalleryToolbarLeft
-					view={view}
-					count={cards.length}
-					keyword={keyword}
-					onKeywordChange={setKeyword}
-					onBack={() => setView("home")}
-				/>
-			),
+			left: <GalleryToolbarLeft view={view} count={cards.length} onBack={() => setView("home")} />,
 			right: (
 				<GalleryToolbarRight
 					loading={loading}
@@ -298,8 +307,6 @@ export function GalleryView() {
 			empty={empty}
 			loading={loading}
 			busy={busy}
-			keyword={keyword}
-			onKeywordChange={setKeyword}
 			onRefresh={() => void refresh({ forceCatalog: true })}
 			onImport={() => void onPickImport()}
 			onCreate={() => setCreating(true)}
@@ -323,76 +330,134 @@ export function GalleryView() {
 			}}
 			onDrop={onDrop}
 		>
-			<div className="vetd-gallery-scroll flex-1 overflow-y-auto overflow-x-hidden px-5 pb-8">
-				{view === "projects" ? (
-					// 全部设计：整页宫格，滚动到底部自动翻页。
-					<>
-						<AllProjectsView cards={cards} onOpen={openCard} onCardContextMenu={openCardMenu} />
-						{cards.length === 0 ? (
-							<p className="mt-8 text-center text-xs text-muted-foreground">{t("gallery.search.noMatch")}</p>
-						) : null}
-					</>
-				) : empty ? (
-					// 空态：Hero 换一句更具引导性的副标题，风格库紧随其后当首屏主角——
-					// 点一套风格就能开工，比对着空白画布想第一句话快。
-					<>
-						{hero}
-						<div ref={stylesRef}>
-							<DesignSystemGrid busy={busy} onPick={setDetailSystem} />
-						</div>
-					</>
-				) : (
-					<>
-						{hero}
-						<section>
-							<SectionHeader
-								title={t("gallery.section.mine")}
-								badge={t("gallery.count", { count: cards.length })}
-								action={
-									overflowing ? (
-										<button
-											type="button"
-											onClick={() => setView("projects")}
-											className="group flex shrink-0 items-center gap-1 rounded-lg px-2 py-1 text-xs text-muted-foreground transition-colors hover:bg-accent/60 hover:text-foreground"
-										>
-											{t("gallery.section.more")}
-											<svg
-												viewBox="0 0 24 24"
-												className="size-3 transition-transform duration-200 group-hover:translate-x-0.5"
-												fill="none"
-												stroke="currentColor"
-												strokeWidth="2"
-												aria-hidden
-											>
-												<path d="M10 6l6 6-6 6" strokeLinecap="round" strokeLinejoin="round" />
-											</svg>
-										</button>
-									) : null
-								}
+			<div ref={galleryScrollRef} className="vetd-gallery-scroll flex-1 overflow-y-auto overflow-x-hidden px-5 pb-8">
+				<div ref={galleryContentRef}>
+					<div className="sticky top-0 z-30 -mx-5 mb-5 flex flex-wrap items-center gap-2 border-b border-border/70 bg-background/90 px-5 py-3 pr-7 shadow-sm backdrop-blur-md">
+						<div className="relative min-w-[180px] flex-1 sm:max-w-sm sm:flex-none">
+							<svg
+								viewBox="0 0 24 24"
+								className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground"
+								fill="none"
+								stroke="currentColor"
+								strokeWidth="2"
+								aria-hidden
+							>
+								<circle cx="11" cy="11" r="7" />
+								<path d="M20 20l-3.5-3.5" strokeLinecap="round" />
+							</svg>
+							<input
+								value={keyword}
+								onChange={(event) => setKeyword(event.target.value)}
+								placeholder={t("gallery.search")}
+								aria-label={t("gallery.search")}
+								className="h-9 w-full rounded-xl border border-border/70 bg-card/80 pl-9 pr-3 text-xs text-foreground outline-none transition-colors placeholder:text-muted-foreground focus:border-primary"
 							/>
-							<div ref={homeGridRef} className={PROJECT_GRID_CLASS}>
-								{cards.slice(0, homeCount).map((card) => (
-									<GalleryCard
-										key={card.cwd}
-										card={card}
-										onOpen={() => openCard(card)}
-										onContextMenu={(event) => openCardMenu(event, card)}
-									/>
-								))}
-							</div>
-						</section>
-						{cards.length === 0 ? (
-							<p className="mt-8 text-center text-xs text-muted-foreground">{t("gallery.search.noMatch")}</p>
-						) : null}
-
-						{/* 风格库排在用户自己的作品之后，同一套宫格、跟着一起滚。 */}
-						<div ref={stylesRef}>
-							<DesignSystemGrid divided busy={busy} onPick={setDetailSystem} />
 						</div>
-					</>
-				)}
-			</div>
+						{view === "home" ? (
+							<select
+								value={styleCategory}
+								onChange={(event) => setStyleCategory(event.target.value)}
+								aria-label={t("gallery.filter.category")}
+								className="h-9 min-w-32 rounded-xl border border-border/70 bg-card/80 px-3 text-xs text-foreground outline-none focus:border-primary"
+							>
+								<option value="all">{t("gallery.filter.allCategories")}</option>
+								{styleCategories.map((category) => (
+									<option key={category} value={category}>
+										{designSystemCategoryLabel({ category }, t)}
+									</option>
+								))}
+							</select>
+						) : null}
+						<div className="flex-1" />
+						<span className="text-[11px] tabular-nums text-muted-foreground">
+							{t("gallery.count", { count: cards.length })}
+						</span>
+					</div>
+					{view === "projects" ? (
+						// 全部设计：整页宫格，滚动到底部自动翻页。
+						<>
+							<AllProjectsView cards={cards} onOpen={openCard} onCardContextMenu={openCardMenu} />
+							{cards.length === 0 ? (
+								<p className="mt-8 text-center text-xs text-muted-foreground">{t("gallery.search.noMatch")}</p>
+							) : null}
+						</>
+					) : empty ? (
+						// 空态：Hero 换一句更具引导性的副标题，风格库紧随其后当首屏主角——
+						// 点一套风格就能开工，比对着空白画布想第一句话快。
+						<>
+							{hero}
+							<div ref={stylesRef}>
+								<DesignSystemGrid
+									busy={busy}
+									keyword={keyword}
+									category={styleCategory}
+									onPick={setDetailSystem}
+								/>
+							</div>
+						</>
+					) : (
+						<>
+							{hero}
+							<section>
+								<SectionHeader
+									title={t("gallery.section.mine")}
+									badge={t("gallery.count", { count: cards.length })}
+									action={
+										overflowing ? (
+											<button
+												type="button"
+												onClick={() => setView("projects")}
+												className="group flex shrink-0 items-center gap-1 rounded-lg px-2 py-1 text-xs text-muted-foreground transition-colors hover:bg-accent/60 hover:text-foreground"
+											>
+												{t("gallery.section.more")}
+												<svg
+													viewBox="0 0 24 24"
+													className="size-3 transition-transform duration-200 group-hover:translate-x-0.5"
+													fill="none"
+													stroke="currentColor"
+													strokeWidth="2"
+													aria-hidden
+												>
+													<path d="M10 6l6 6-6 6" strokeLinecap="round" strokeLinejoin="round" />
+												</svg>
+											</button>
+										) : null
+									}
+								/>
+								<div ref={homeGridRef} className={PROJECT_GRID_CLASS}>
+									{cards.slice(0, homeCount).map((card) => (
+										<GalleryCard
+											key={card.cwd}
+											card={card}
+											onOpen={() => openCard(card)}
+											onContextMenu={(event) => openCardMenu(event, card)}
+										/>
+									))}
+								</div>
+							</section>
+							{cards.length === 0 ? (
+								<p className="mt-8 text-center text-xs text-muted-foreground">{t("gallery.search.noMatch")}</p>
+							) : null}
 
+							{/* 风格库排在用户自己的作品之后，同一套宫格、跟着一起滚。 */}
+							<div ref={stylesRef}>
+								<DesignSystemGrid
+									divided
+									busy={busy}
+									keyword={keyword}
+									category={styleCategory}
+									onPick={setDetailSystem}
+								/>
+							</div>
+						</>
+					)}
+				</div>
+			</div>
+			<GalleryScrollProgress
+				scrollRef={galleryScrollRef}
+				contentRef={galleryContentRef}
+				label={t("gallery.scroll.progress")}
+			/>
 
 			{menu ? (
 				<CardContextMenu

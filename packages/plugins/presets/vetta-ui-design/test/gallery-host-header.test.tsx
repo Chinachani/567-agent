@@ -113,12 +113,12 @@ async function mountGallery(): Promise<void> {
 }
 
 describe("画廊与宿主页头", () => {
-	it("首页声明沉浸式页头（浮在画廊之上），不往页头塞工具栏", async () => {
+	it("首页让宿主页头占据正常布局空间，避免内容滚到窗口控件下方", async () => {
 		await mountGallery();
 
 		const header = lastHeader();
 		expect(header?.hideTitle).toBe(true);
-		expect(header?.immersive).toBe(true);
+		expect(header?.immersive).not.toBe(true);
 		expect(header?.left).toBeUndefined();
 		expect(header?.right).toBeUndefined();
 		act(() => root.unmount());
@@ -159,7 +159,8 @@ describe("画廊与宿主页头", () => {
 		expect(header?.immersive).not.toBe(true);
 		expect(header?.left).toBeTruthy();
 		expect(header?.right).toBeTruthy();
-		expect(headerHost.querySelector('input[aria-label="gallery.search"]')).not.toBeNull();
+		expect(headerHost.querySelector('input[aria-label="gallery.search"]')).toBeNull();
+		expect(host.querySelector('input[aria-label="gallery.search"]')).not.toBeNull();
 		act(() => root.unmount());
 	});
 

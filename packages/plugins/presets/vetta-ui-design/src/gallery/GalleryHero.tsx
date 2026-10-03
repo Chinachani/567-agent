@@ -4,11 +4,10 @@ import { SHARE_EXTENSION } from "../export/share-format";
 import { HeroArtwork } from "./HeroArtwork";
 
 /**
- * 画廊首页的 Hero，同时也是首页唯一的工具栏。
+ * 画廊首页的 Hero。搜索与分类筛选由滚动时固定的 GalleryView 工具条承载。
  *
- * 首页刻意不再往宿主页头塞控件：一条系统工具栏 + 一块门面是两套语言，用户先看到的
- * 是「设置界面」而不是「作品墙」。搜索与三个动作直接长在 Hero 里，页头只留窗口拖拽区。
- * 「全部设计」列表页反过来——那里没有 Hero，工具栏仍回到页头（见 GalleryToolbar）。
+ * 首页不再往宿主页头塞控件；创建、导入和刷新仍放在 Hero，搜索与分类筛选固定在内容顶部。
+ * 「全部设计」列表页复用同一条固定工具栏，宿主页头只保留返回和窗口拖拽区。
  *
  * 不做成卡片：Hero 是页面本身的顶部，加了圆角描边就变成「页面里的一个控件」。
  * 层次全部由光晕、点阵与底部发丝线承担。
@@ -21,8 +20,6 @@ export interface GalleryHeroProps {
 	empty: boolean;
 	loading: boolean;
 	busy: boolean;
-	keyword: string;
-	onKeywordChange: (keyword: string) => void;
 	onRefresh: () => void;
 	onImport: () => void;
 	onCreate: () => void;
@@ -35,8 +32,6 @@ export function GalleryHero({
 	empty,
 	loading,
 	busy,
-	keyword,
-	onKeywordChange,
 	onRefresh,
 	onImport,
 	onCreate,
@@ -57,9 +52,7 @@ export function GalleryHero({
 
 	return (
 		// -mx-5 让光晕与发丝线通版铺到内容区两侧，Hero 因此是「页面顶部」而不是页面里的一块卡片
-		// pt-12：上端 44px 处在宿主浮动页头（拖拽区）之下，文字要从它下面开始；
-		// 光晕与点阵照常铺满这 44px，Hero 因此是从窗口顶端长出来的。
-		<section className="vetd-hero relative isolate -mx-5 mb-7 overflow-hidden px-5 pb-6 pt-12">
+		<section className="vetd-hero relative isolate -mx-5 mb-7 overflow-hidden px-5 pb-6 pt-6">
 			<div className="vetd-hero-glow pointer-events-none absolute inset-0 -z-10" aria-hidden />
 			<div className="vetd-hero-dots pointer-events-none absolute inset-0 -z-10" aria-hidden />
 			{/* 插画在窄屏直接不渲染：挤到文字上会两边都难看。整幅收在 Hero 内，
@@ -75,34 +68,20 @@ export function GalleryHero({
 				</p>
 
 				<div className="mt-5 flex flex-wrap items-center gap-2">
-					<div className="relative">
-						<svg
-							viewBox="0 0 24 24"
-							className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground"
-							fill="none"
-							stroke="currentColor"
-							strokeWidth="2"
-							aria-hidden
-						>
-							<circle cx="11" cy="11" r="7" />
-							<path d="M20 20l-3.5-3.5" strokeLinecap="round" />
-						</svg>
-						<input
-							value={keyword}
-							onChange={(event) => onKeywordChange(event.target.value)}
-							placeholder={t("gallery.search")}
-							aria-label={t("gallery.search")}
-							className="vetd-hero-field h-9 w-64 rounded-xl pl-9 pr-3 text-xs text-foreground outline-none transition-all placeholder:text-muted-foreground focus:w-72"
-						/>
-					</div>
-
 					<button
 						type="button"
 						onClick={onCreate}
 						disabled={busy}
 						className="flex h-9 items-center gap-1.5 rounded-xl bg-primary px-3.5 text-xs font-medium text-primary-foreground shadow-sm transition-all hover:-translate-y-px hover:shadow-md disabled:translate-y-0 disabled:opacity-40 disabled:shadow-none"
 					>
-						<svg viewBox="0 0 24 24" className="size-3.5" fill="none" stroke="currentColor" strokeWidth="2.5" aria-hidden>
+						<svg
+							viewBox="0 0 24 24"
+							className="size-3.5"
+							fill="none"
+							stroke="currentColor"
+							strokeWidth="2.5"
+							aria-hidden
+						>
 							<path d="M12 5v14M5 12h14" strokeLinecap="round" />
 						</svg>
 						{t("gallery.hero.create")}

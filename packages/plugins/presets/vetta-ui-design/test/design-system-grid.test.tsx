@@ -2,8 +2,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 vi.mock("@vetta-org/plugin-sdk", () => ({
 	useTranslation: () => ({
-		t: (key: string, params?: Record<string, string>) =>
-			params ? `${key}:${Object.values(params).join(",")}` : key,
+		t: (key: string, params?: Record<string, string>) => (params ? `${key}:${Object.values(params).join(",")}` : key),
 		locale: "zh",
 	}),
 }));
@@ -38,6 +37,10 @@ function system(id: string, name: string): DesignSystem {
 		themeCss: "@theme { --color-primary: #000; }",
 		designMd: `# ${name}`,
 	};
+}
+
+function categorizedSystem(id: string, name: string, category: string): DesignSystem {
+	return { ...system(id, name), category };
 }
 
 let host: HTMLDivElement;
@@ -112,6 +115,17 @@ describe("DesignSystemGrid", () => {
 			"gallery.styles.view:Linear",
 			"gallery.styles.view:Stripe",
 		]);
+	});
+
+	it("按搜索词和分类筛选风格库", () => {
+		setDesignSystems([
+			categorizedSystem("linear", "Linear", "dev"),
+			categorizedSystem("stripe", "Stripe", "finance"),
+		]);
+		render(<DesignSystemGrid busy={false} keyword="line" onPick={() => {}} />);
+		expect(tiles().map((tile) => tile.getAttribute("aria-label"))).toEqual(["gallery.styles.view:Linear"]);
+		render(<DesignSystemGrid busy={false} category="finance" onPick={() => {}} />);
+		expect(tiles().map((tile) => tile.getAttribute("aria-label"))).toEqual(["gallery.styles.view:Stripe"]);
 	});
 
 	it("悬停点燃对应卡片的 demo 预览，移开熄灭", () => {

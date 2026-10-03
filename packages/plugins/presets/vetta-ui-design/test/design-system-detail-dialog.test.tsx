@@ -2,8 +2,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 vi.mock("@vetta-org/plugin-sdk", () => ({
 	useTranslation: () => ({
-		t: (key: string, params?: Record<string, string>) =>
-			params ? `${key}:${Object.values(params).join(",")}` : key,
+		t: (key: string, params?: Record<string, string>) => (params ? `${key}:${Object.values(params).join(",")}` : key),
 		locale: "zh",
 	}),
 }));
@@ -106,11 +105,19 @@ describe("DesignSystemDetailDialog", () => {
 		expect(buttonByText("gallery.detail.use")?.disabled).toBe(true);
 	});
 
-	it("只有带 demo 的体系才有「在浏览器打开」", () => {
+	it("有 demo 时可在应用内全屏预览，不带 demo 时不显示入口", () => {
 		render(<DesignSystemDetailDialog system={withDemo} busy={false} onUse={() => {}} onClose={() => {}} />);
-		expect(buttonByText("gallery.detail.openDemo")).not.toBeNull();
+		const expand = buttonByText("gallery.detail.expandDemo");
+		expect(expand).not.toBeNull();
+		act(() => expand?.dispatchEvent(new MouseEvent("click", { bubbles: true })));
+		const previewFrame = document.body.querySelector('[role="dialog"][aria-modal="true"] iframe');
+		expect(previewFrame?.getAttribute("srcdoc")).toBe(DEMO_HTML);
+		expect(previewFrame?.getAttribute("sandbox")).toBe("");
+		act(() => buttonByText("gallery.detail.closePreview")?.dispatchEvent(new MouseEvent("click", { bubbles: true })));
+		expect(document.body.querySelector('[role="dialog"][aria-modal="true"]')).toBeNull();
+
 		render(<DesignSystemDetailDialog system={system()} busy={false} onUse={() => {}} onClose={() => {}} />);
-		expect(buttonByText("gallery.detail.openDemo")).toBeNull();
+		expect(buttonByText("gallery.detail.expandDemo")).toBeNull();
 	});
 
 	it("Esc 关闭", () => {

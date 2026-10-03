@@ -13,12 +13,10 @@ export interface GalleryToolbarLeftProps {
 	/** 「全部设计」列表页会多一个返回键和计数。 */
 	view: "home" | "projects";
 	count: number;
-	keyword: string;
-	onKeywordChange: (keyword: string) => void;
 	onBack: () => void;
 }
 
-export function GalleryToolbarLeft({ view, count, keyword, onKeywordChange, onBack }: GalleryToolbarLeftProps) {
+export function GalleryToolbarLeft({ view, count, onBack }: GalleryToolbarLeftProps) {
 	const { t } = useTranslation();
 	return (
 		<div className="no-drag flex min-w-0 items-center gap-2">
@@ -30,7 +28,14 @@ export function GalleryToolbarLeft({ view, count, keyword, onKeywordChange, onBa
 					title={t("gallery.projects.back")}
 					className="flex size-6 shrink-0 items-center justify-center rounded-lg text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
 				>
-					<svg viewBox="0 0 24 24" className="size-4" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden>
+					<svg
+						viewBox="0 0 24 24"
+						className="size-4"
+						fill="none"
+						stroke="currentColor"
+						strokeWidth="2"
+						aria-hidden
+					>
 						<path d="M14 6l-6 6 6 6" strokeLinecap="round" strokeLinejoin="round" />
 					</svg>
 				</button>
@@ -43,26 +48,6 @@ export function GalleryToolbarLeft({ view, count, keyword, onKeywordChange, onBa
 					{t("gallery.count", { count })}
 				</span>
 			) : null}
-			<div className="relative ml-1">
-				<svg
-					viewBox="0 0 24 24"
-					className="pointer-events-none absolute left-2.5 top-1/2 size-3.5 -translate-y-1/2 text-muted-foreground"
-					fill="none"
-					stroke="currentColor"
-					strokeWidth="2"
-					aria-hidden
-				>
-					<circle cx="11" cy="11" r="7" />
-					<path d="M20 20l-3.5-3.5" strokeLinecap="round" />
-				</svg>
-				<input
-					value={keyword}
-					onChange={(event) => onKeywordChange(event.target.value)}
-					placeholder={t("gallery.search")}
-					aria-label={t("gallery.search")}
-					className="w-52 rounded-lg border border-transparent bg-accent/60 py-1.5 pl-8 pr-2.5 text-xs text-foreground outline-none transition-colors placeholder:text-muted-foreground focus:border-primary focus:bg-card"
-				/>
-			</div>
 		</div>
 	);
 }

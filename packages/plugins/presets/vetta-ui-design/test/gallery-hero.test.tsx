@@ -41,7 +41,6 @@ afterEach(() => {
 function mount(props: Partial<React.ComponentProps<typeof GalleryHero>> = {}) {
 	const onCreate = vi.fn();
 	const onBrowseStyles = vi.fn();
-	const onKeywordChange = vi.fn();
 	const onRefresh = vi.fn();
 	const onImport = vi.fn();
 	act(() => {
@@ -52,8 +51,6 @@ function mount(props: Partial<React.ComponentProps<typeof GalleryHero>> = {}) {
 				empty={false}
 				loading={false}
 				busy={false}
-				keyword=""
-				onKeywordChange={onKeywordChange}
 				onRefresh={onRefresh}
 				onImport={onImport}
 				onCreate={onCreate}
@@ -62,7 +59,7 @@ function mount(props: Partial<React.ComponentProps<typeof GalleryHero>> = {}) {
 			/>,
 		);
 	});
-	return { onCreate, onBrowseStyles, onKeywordChange, onRefresh, onImport };
+	return { onCreate, onBrowseStyles, onRefresh, onImport };
 }
 
 function buttonWith(text: string): HTMLButtonElement | undefined {
@@ -95,18 +92,8 @@ describe("画廊 Hero", () => {
 		expect(host.querySelectorAll("li")).toHaveLength(0);
 	});
 
-	it("Hero 自带首页工具栏：搜索、刷新、导入各自回调", () => {
-		const { onKeywordChange, onRefresh, onImport } = mount();
-
-		const input = host.querySelector<HTMLInputElement>('input[aria-label="gallery.search"]');
-		expect(input).not.toBeNull();
-		act(() => {
-			const setter = Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, "value")?.set;
-			setter?.call(input, "alpha");
-			input?.dispatchEvent(new Event("input", { bubbles: true }));
-		});
-		expect(onKeywordChange).toHaveBeenCalledWith("alpha");
-
+	it("Hero 的刷新与导入按钮各自回调", () => {
+		const { onRefresh, onImport } = mount();
 		act(() => host.querySelector<HTMLButtonElement>('[aria-label="gallery.action.refresh"]')?.click());
 		expect(onRefresh).toHaveBeenCalledOnce();
 

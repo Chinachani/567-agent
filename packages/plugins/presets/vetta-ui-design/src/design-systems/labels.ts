@@ -32,6 +32,6 @@ export function designSystemTagline(
 	return translated(`ds.tagline.${system.id}`, t) ?? system.blurb;
 }
 
-export function designSystemCategoryLabel(system: DesignSystem, t: (key: string) => string): string {
+export function designSystemCategoryLabel(system: Pick<DesignSystem, "category">, t: (key: string) => string): string {
 	return translated(`ds.category.${system.category}`, t) ?? humanize(system.category);
 }

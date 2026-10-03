@@ -4,10 +4,9 @@ import { DesignSystemPreview } from "../canvas/DesignSystemPreview";
 import { designSystemCategoryLabel, designSystemTagline } from "../design-systems/labels";
 import { parsePreviewTokens } from "../design-systems/preview-tokens";
 import type { DesignSystem } from "../design-systems/types";
-import { getPluginCtx, notify } from "../plugin-context";
+import { getPluginCtx } from "../plugin-context";
 import { PluginPortal } from "../plugin-portal";
 import { DesignSystemDemo, designSystemDemoHtml } from "./DesignSystemDemo";
-import { openDemoInBrowser } from "./open-demo";
 
 interface DesignSystemDetailDialogProps {
 	system: DesignSystem;
@@ -21,13 +20,15 @@ interface DesignSystemDetailDialogProps {
 const PALETTE_KEYS = ["primary", "accent", "surface", "surface-raised", "surface-foreground", "muted", "danger"];
 
 /**
- * 一套设计体系的详情 Dialog:大图 demo 自动滚动预览 + 配色 + 元信息,
- * 右下角「使用」进新建流程,demo 也可以丢给系统浏览器全尺寸看。
+ * 一套设计体系的详情 Dialog：大图 demo 自动滚动预览 + 配色 + 元信息，
+ * 右下角「使用」进新建流程；demo 可在应用内展开为全屏预览。
  */
 export function DesignSystemDetailDialog({ system, busy, onUse, onClose }: DesignSystemDetailDialogProps) {
 	const { t, locale } = useTranslation();
-	const [opening, setOpening] = useState(false);
-	const hasDemo = designSystemDemoHtml(system) !== null;
+	const [expandedPreview, setExpandedPreview] = useState(false);
+	const [actionError, setActionError] = useState<string | null>(null);
+	const demoHtml = designSystemDemoHtml(system);
+	const hasDemo = demoHtml !== null;
 	const palette = useMemo(() => {
 		const { colors } = parsePreviewTokens(system.themeCss);
 		return PALETTE_KEYS.map((key) => ({ key, value: colors[key] })).filter(
@@ -42,30 +43,19 @@ export function DesignSystemDetailDialog({ system, busy, onUse, onClose }: Desig
 		const onKeyDown = (event: KeyboardEvent): void => {
 			if (event.key !== "Escape") return;
 			event.stopPropagation();
-			onClose();
+			if (expandedPreview) setExpandedPreview(false);
+			else onClose();
 		};
 		window.addEventListener("keydown", onKeyDown, true);
 		return () => window.removeEventListener("keydown", onKeyDown, true);
-	}, [onClose]);
-
-	const onOpenDemo = async (): Promise<void> => {
-		setOpening(true);
-		try {
-			if (await openDemoInBrowser(system)) {
-				notify({ message: t("gallery.detail.openDemo.hint"), durationMs: 4000 });
-			}
-		} catch (error) {
-			notify({ message: t("gallery.detail.openDemo.failed"), error });
-		} finally {
-			setOpening(false);
-		}
-	};
+	}, [expandedPreview, onClose]);
 
 	const onOpenSource = (): void => {
 		if (!system.source) return;
+		setActionError(null);
 		void getPluginCtx()
 			.ui.openExternal(system.source)
-			.catch((error: unknown) => notify({ message: t("gallery.detail.openDemo.failed"), error }));
+			.catch(() => setActionError(t("gallery.detail.source.failed")));
 	};
 
 	return (
@@ -101,7 +91,14 @@ export function DesignSystemDetailDialog({ system, busy, onUse, onClose }: Desig
 							onClick={onClose}
 							className="flex size-7 items-center justify-center rounded-lg text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
 						>
-							<svg viewBox="0 0 24 24" className="size-4" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden>
+							<svg
+								viewBox="0 0 24 24"
+								className="size-4"
+								fill="none"
+								stroke="currentColor"
+								strokeWidth="2"
+								aria-hidden
+							>
 								<path d="M6 6l12 12M18 6L6 18" strokeLinecap="round" />
 							</svg>
 						</button>
@@ -110,10 +107,22 @@ export function DesignSystemDetailDialog({ system, busy, onUse, onClose }: Desig
 					<div className="min-h-0 flex-1 overflow-y-auto px-5 py-4">
 						{/* 大图预览:有 demo 就常开自动滚动,让这页一直「活着」;没有就用 token 色板。 */}
 						{hasDemo ? (
-							<DesignSystemDemo system={system} active className="aspect-[16/10] rounded-xl border border-border" />
+							<DesignSystemDemo
+								system={system}
+								active
+								className="aspect-[16/10] rounded-xl border border-border"
+							/>
 						) : (
 							<DesignSystemPreview system={system} className="aspect-[16/10]" />
 						)}
+						{actionError ? (
+							<p
+								role="alert"
+								className="mt-3 rounded-lg border border-destructive/30 bg-destructive/10 px-3 py-2 text-xs text-destructive"
+							>
+								{actionError}
+							</p>
+						) : null}
 
 						<p className="mt-4 text-sm leading-relaxed text-foreground">{tagline}</p>
 						{blurb ? <p className="mt-1 text-xs leading-relaxed text-muted-foreground">{blurb}</p> : null}
@@ -150,7 +159,14 @@ export function DesignSystemDetailDialog({ system, busy, onUse, onClose }: Desig
 									className="flex items-center gap-1 text-primary hover:underline"
 								>
 									{t("gallery.detail.source")}
-									<svg viewBox="0 0 24 24" className="size-3" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden>
+									<svg
+										viewBox="0 0 24 24"
+										className="size-3"
+										fill="none"
+										stroke="currentColor"
+										strokeWidth="2"
+										aria-hidden
+									>
 										<path d="M7 17L17 7M9 7h8v8" strokeLinecap="round" strokeLinejoin="round" />
 									</svg>
 								</button>
@@ -163,14 +179,10 @@ export function DesignSystemDetailDialog({ system, busy, onUse, onClose }: Desig
 						{hasDemo ? (
 							<button
 								type="button"
-								disabled={opening}
-								onClick={() => void onOpenDemo()}
+								onClick={() => setExpandedPreview(true)}
 								className="flex items-center gap-1.5 rounded-lg border border-border px-3 py-1.5 text-xs text-foreground transition-colors hover:bg-accent disabled:opacity-40"
 							>
-								{opening ? (
-									<span className="size-3 animate-spin rounded-full border-[1.5px] border-muted-foreground/40 border-t-muted-foreground" />
-								) : null}
-								{t("gallery.detail.openDemo")}
+								{t("gallery.detail.expandDemo")}
 							</button>
 						) : null}
 						<button
@@ -184,6 +196,34 @@ export function DesignSystemDetailDialog({ system, busy, onUse, onClose }: Desig
 					</div>
 				</div>
 			</div>
+			{expandedPreview && demoHtml ? (
+				<div
+					className="fixed inset-0 z-[1100] flex flex-col bg-background"
+					role="dialog"
+					aria-modal="true"
+					aria-label={t("gallery.detail.demoPreview", { name: system.name })}
+				>
+					<div className="flex h-12 shrink-0 items-center gap-3 border-b border-border px-4">
+						<h2 className="min-w-0 flex-1 truncate text-sm font-medium text-foreground">
+							{t("gallery.detail.demoPreview", { name: system.name })}
+						</h2>
+						<button
+							type="button"
+							autoFocus
+							onClick={() => setExpandedPreview(false)}
+							className="rounded-lg border border-border px-3 py-1.5 text-xs text-foreground hover:bg-accent"
+						>
+							{t("gallery.detail.closePreview")}
+						</button>
+					</div>
+					<iframe
+						title={t("gallery.detail.demoPreview", { name: system.name })}
+						sandbox=""
+						srcDoc={demoHtml}
+						className="min-h-0 flex-1 border-0 bg-white"
+					/>
+				</div>
+			) : null}
 		</PluginPortal>
 	);
 }
