@@ -1,5 +1,5 @@
 import { useTranslation } from "@vetta-org/plugin-sdk";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { DesignSystemPreview } from "../canvas/DesignSystemPreview";
 import { designSystemCategoryLabel, designSystemTagline } from "../design-systems/labels";
 import { parsePreviewTokens } from "../design-systems/preview-tokens";
@@ -27,6 +27,11 @@ export function DesignSystemDetailDialog({ system, busy, onUse, onClose }: Desig
 	const { t, locale } = useTranslation();
 	const [expandedPreview, setExpandedPreview] = useState(false);
 	const [actionError, setActionError] = useState<string | null>(null);
+	const previewDialogRef = useRef<HTMLDivElement | null>(null);
+	const previewCloseRef = useRef<HTMLButtonElement | null>(null);
+	const previewTriggerRef = useRef<HTMLButtonElement | null>(null);
+	const previewReturnFocusRef = useRef<HTMLElement | null>(null);
+	const onCloseRef = useRef(onClose);
 	const demoHtml = designSystemDemoHtml(system);
 	const hasDemo = demoHtml !== null;
 	const palette = useMemo(() => {
@@ -40,15 +45,52 @@ export function DesignSystemDetailDialog({ system, busy, onUse, onClose }: Desig
 	const blurb = system.blurb !== tagline ? system.blurb : null;
 
 	useEffect(() => {
+		onCloseRef.current = onClose;
+	}, [onClose]);
+
+	useEffect(() => {
+		if (expandedPreview) previewCloseRef.current?.focus();
 		const onKeyDown = (event: KeyboardEvent): void => {
-			if (event.key !== "Escape") return;
-			event.stopPropagation();
-			if (expandedPreview) setExpandedPreview(false);
-			else onClose();
+			if (event.key === "Escape") {
+				event.stopPropagation();
+				if (expandedPreview) setExpandedPreview(false);
+				else onCloseRef.current();
+				return;
+			}
+			if (!expandedPreview || event.key !== "Tab") return;
+			const dialog = previewDialogRef.current;
+			if (!dialog) return;
+			const focusable = [...dialog.querySelectorAll<HTMLElement>(
+				'button:not([disabled]), iframe, a[href], input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])',
+			)].filter((element) => element.tabIndex >= 0);
+			if (focusable.length === 0) {
+				event.preventDefault();
+				return;
+			}
+			const first = focusable[0];
+			const last = focusable[focusable.length - 1];
+			if (event.shiftKey && (document.activeElement === first || !dialog.contains(document.activeElement))) {
+				event.preventDefault();
+				last.focus();
+			} else if (!event.shiftKey && (document.activeElement === last || !dialog.contains(document.activeElement))) {
+				event.preventDefault();
+				first.focus();
+			}
 		};
 		window.addEventListener("keydown", onKeyDown, true);
-		return () => window.removeEventListener("keydown", onKeyDown, true);
-	}, [expandedPreview, onClose]);
+		return () => {
+			window.removeEventListener("keydown", onKeyDown, true);
+			if (expandedPreview) {
+				if (previewReturnFocusRef.current?.isConnected) previewReturnFocusRef.current.focus();
+				previewReturnFocusRef.current = null;
+			}
+		};
+	}, [expandedPreview]);
+
+	const openExpandedPreview = (): void => {
+		previewReturnFocusRef.current = previewTriggerRef.current;
+		setExpandedPreview(true);
+	};
 
 	const onOpenSource = (): void => {
 		if (!system.source) return;
@@ -179,7 +221,8 @@ export function DesignSystemDetailDialog({ system, busy, onUse, onClose }: Desig
 						{hasDemo ? (
 							<button
 								type="button"
-								onClick={() => setExpandedPreview(true)}
+								ref={previewTriggerRef}
+								onClick={openExpandedPreview}
 								className="flex items-center gap-1.5 rounded-lg border border-border px-3 py-1.5 text-xs text-foreground transition-colors hover:bg-accent disabled:opacity-40"
 							>
 								{t("gallery.detail.expandDemo")}
@@ -198,6 +241,8 @@ export function DesignSystemDetailDialog({ system, busy, onUse, onClose }: Desig
 			</div>
 			{expandedPreview && demoHtml ? (
 				<div
+					ref={previewDialogRef}
+					data-expanded-preview-dialog
 					className="fixed inset-0 z-[1100] flex flex-col bg-background"
 					role="dialog"
 					aria-modal="true"
@@ -209,7 +254,7 @@ export function DesignSystemDetailDialog({ system, busy, onUse, onClose }: Desig
 						</h2>
 						<button
 							type="button"
-							autoFocus
+							ref={previewCloseRef}
 							onClick={() => setExpandedPreview(false)}
 							className="rounded-lg border border-border px-3 py-1.5 text-xs text-foreground hover:bg-accent"
 						>
@@ -218,6 +263,7 @@ export function DesignSystemDetailDialog({ system, busy, onUse, onClose }: Desig
 					</div>
 					<iframe
 						title={t("gallery.detail.demoPreview", { name: system.name })}
+						tabIndex={0}
 						sandbox=""
 						srcDoc={demoHtml}
 						className="min-h-0 flex-1 border-0 bg-white"

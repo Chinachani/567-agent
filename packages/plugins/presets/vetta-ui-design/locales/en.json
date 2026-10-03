@@ -247,7 +247,7 @@
 	"gallery.search.noMatch": "No matching design",
 	"gallery.filter.category": "Filter styles by category",
 	"gallery.filter.allCategories": "All styles",
-	"gallery.scroll.progress": "Page scroll progress",
+	"gallery.scroll.progress": "Page scrollbar",
 	"gallery.styles.title": "Start from a style",
 	"gallery.styles.hint": "Click a style for details, then start a new design with it",
 	"gallery.styles.view": "View the {{name}} style",

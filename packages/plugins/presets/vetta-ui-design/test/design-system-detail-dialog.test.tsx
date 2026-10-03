@@ -120,6 +120,24 @@ describe("DesignSystemDetailDialog", () => {
 		expect(buttonByText("gallery.detail.expandDemo")).toBeNull();
 	});
 
+	it("全屏预览将焦点限制在弹窗内，关闭后还原到打开按钮", () => {
+		render(<DesignSystemDetailDialog system={withDemo} busy={false} onUse={() => {}} onClose={() => {}} />);
+		const trigger = buttonByText("gallery.detail.expandDemo");
+		trigger?.focus();
+		act(() => trigger?.dispatchEvent(new MouseEvent("click", { bubbles: true })));
+		const close = buttonByText("gallery.detail.closePreview");
+		const frame = document.body.querySelector<HTMLIFrameElement>('[data-expanded-preview-dialog] iframe');
+		expect(document.activeElement).toBe(close);
+		expect(frame).not.toBeNull();
+
+		frame?.focus();
+		act(() => window.dispatchEvent(new KeyboardEvent("keydown", { key: "Tab", bubbles: true })));
+		expect(document.activeElement).toBe(close);
+
+		act(() => close?.dispatchEvent(new MouseEvent("click", { bubbles: true })));
+		expect(document.activeElement).toBe(trigger);
+	});
+
 	it("Esc 关闭", () => {
 		const closed: true[] = [];
 		render(

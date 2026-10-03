@@ -330,7 +330,11 @@ export function GalleryView() {
 			}}
 			onDrop={onDrop}
 		>
-			<div ref={galleryScrollRef} className="vetd-gallery-scroll flex-1 overflow-y-auto overflow-x-hidden px-5 pb-8">
+			<div
+				id="design-gallery-scroll"
+				ref={galleryScrollRef}
+				className="vetd-gallery-scroll flex-1 overflow-y-auto overflow-x-hidden px-5 pb-8"
+			>
 				<div ref={galleryContentRef}>
 					<div className="sticky top-0 z-30 -mx-5 mb-5 flex flex-wrap items-center gap-2 border-b border-border/70 bg-background/90 px-5 py-3 pr-7 shadow-sm backdrop-blur-md">
 						<div className="relative min-w-[180px] flex-1 sm:max-w-sm sm:flex-none">
@@ -386,7 +390,7 @@ export function GalleryView() {
 						// 点一套风格就能开工，比对着空白画布想第一句话快。
 						<>
 							{hero}
-							<div ref={stylesRef}>
+							<div ref={stylesRef} className="scroll-mt-16">
 								<DesignSystemGrid
 									busy={busy}
 									keyword={keyword}
@@ -440,7 +444,7 @@ export function GalleryView() {
 							) : null}
 
 							{/* 风格库排在用户自己的作品之后，同一套宫格、跟着一起滚。 */}
-							<div ref={stylesRef}>
+							<div ref={stylesRef} className="scroll-mt-16">
 								<DesignSystemGrid
 									divided
 									busy={busy}
@@ -457,6 +461,7 @@ export function GalleryView() {
 				scrollRef={galleryScrollRef}
 				contentRef={galleryContentRef}
 				label={t("gallery.scroll.progress")}
+				controlsId="design-gallery-scroll"
 			/>
 
 			{menu ? (

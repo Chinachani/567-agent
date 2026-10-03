@@ -247,7 +247,7 @@
 	"gallery.search.noMatch": "没有匹配的设计",
 	"gallery.filter.category": "按风格分类筛选",
 	"gallery.filter.allCategories": "全部风格",
-	"gallery.scroll.progress": "页面滚动进度",
+	"gallery.scroll.progress": "页面滚动条",
 	"gallery.styles.title": "从一套风格开始",
 	"gallery.styles.hint": "点一套风格看详情，一键开一份用它的新设计",
 	"gallery.styles.view": "查看「{{name}}」风格详情",

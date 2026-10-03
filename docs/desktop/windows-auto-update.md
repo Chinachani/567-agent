@@ -72,11 +72,11 @@ desktop/
 默认安装目录：
 
 ```text
-%LOCALAPPDATA%\Programs\Vetta\
-  Vetta.exe                         # Go 稳定启动器
+%LOCALAPPDATA%\Programs\567Agent\
+  567-Agent.exe                     # Go 稳定启动器
   current.json                      # 安装包内置版本指针
   versions\<bundled-version>\       # 随安装包携带的 Electron 应用
-    Vetta.exe
+    567-Agent.exe
     resources\app.asar
 ```
 
@@ -85,7 +85,7 @@ desktop/
 ### 4.2 后台更新目录
 
 ```text
-%LOCALAPPDATA%\Vetta\
+%LOCALAPPDATA%\567Agent\
   current.json                      # 后台更新的活动版本指针
   versions\<version>\               # 后台准备的新版本
   installer\<version-pid-time>\     # Inno 临时进度与失败日志
@@ -124,8 +124,8 @@ desktop/
   -> 发现更高版本
   -> 20 秒后自动下载（也可手动触发）
   -> electron-updater 校验并差分重建完整 EXE
-  -> Inno 静默展开到 %LOCALAPPDATA%\Vetta\versions\<new>
-  -> 校验 Vetta.exe、resources/app.asar、.install-complete
+  -> Inno 静默展开到 %LOCALAPPDATA%\567Agent\versions\<new>
+  -> 校验 567-Agent.exe、resources/app.asar、.install-complete
   -> 提升 EXE 为下一次差分基线
   -> 状态变为 ready，提示更新并重启
   -> 写 current.json（pending=true）
@@ -160,8 +160,8 @@ Windows 自定义流程把进度划分为：
 
 点击“更新并重启”不会再次运行安装程序。此时完整版本目录已经准备好，激活动作只做三件事：
 
-1. 原子写入 `%LOCALAPPDATA%\Vetta\current.json`，记录新旧版本并设 `pending=true`。
-2. 使用 `app.relaunch({ execPath: <new Vetta.exe> })` 启动新版本。
+1. 原子写入 `%LOCALAPPDATA%\567Agent\current.json`，记录新旧版本并设 `pending=true`。
+2. 使用 `app.relaunch({ execPath: <new 567-Agent.exe> })` 启动新版本。
 3. 退出旧版本。
 
 如果新版本在健康确认前退出，用户下次从桌面快捷方式启动时，稳定启动器读取到 pending 并回退上一版本。
@@ -169,7 +169,7 @@ Windows 自定义流程把进度划分为：
 ### 5.4 旧版本清理
 
 - 新版本健康后只保留当前版本和 `previousVersion`。
-- 更早的 `%LOCALAPPDATA%\Vetta\versions\*` 会被物理删除。
+- 更早的 `%LOCALAPPDATA%\567Agent\versions\*` 会被物理删除。
 - 手动重新安装会删除后台活动指针，优先回到安装包内置版本；遗留的后台版本目录可能要到下一次成功更新后才被清理。
 - 正常卸载会删除后台版本目录、安装临时目录和活动指针。
 - `%LOCALAPPDATA%\567-agent-updater` 当前不在 Inno 的卸载清理列表中，卸载后可能残留一个安装包缓存；这是已知清理边界。
@@ -305,7 +305,7 @@ bun run --cwd apps/desktop publish:updates:r2
 
 1. 在临时目录以后台模式运行刚构建的 Inno EXE。
 2. 对照 `.files.json` 验证文件数量和每个文件大小。
-3. 验证 `Vetta.exe`、`resources/app.asar` 和 `.install-complete`。
+3. 验证 `567-Agent.exe`、`resources/app.asar` 和 `.install-complete`。
 4. 解析 `latest*.yml`，只选择清单实际引用的产物。
 5. 对大文件使用 16 MiB multipart、4 路并发上传。
 6. 通过公开更新域名 HEAD 验证安装包和 blockmap。
@@ -323,7 +323,7 @@ bun run --cwd apps/desktop publish:updates:r2
 ### 7.5 客户端验证
 
 1. 安装并启动一个更低版本的 test 构建。
-2. 确认进程实际路径是该版本的 `Vetta.exe`。
+2. 确认进程实际路径是该版本的 `567-Agent.exe`。
 3. 上传更高版本后，在旧客户端点击检查更新，或等待启动检查。
 4. 观察网络阶段、Inno 本地准备阶段以及 ready 弹窗。
 5. 点击更新并重启。
@@ -333,16 +333,16 @@ bun run --cwd apps/desktop publish:updates:r2
 PowerShell 检查示例：
 
 ```powershell
-Get-Content "$env:LOCALAPPDATA\Vetta\current.json"
-Get-ChildItem "$env:LOCALAPPDATA\Vetta\versions"
-Get-CimInstance Win32_Process -Filter "Name = 'Vetta.exe'" |
+Get-Content "$env:LOCALAPPDATA\567Agent\current.json"
+Get-ChildItem "$env:LOCALAPPDATA\567Agent\versions"
+Get-CimInstance Win32_Process -Filter "Name = '567-Agent.exe'" |
   Select-Object ProcessId, ExecutablePath
 ```
 
 成功标准：
 
 - `current.json.version` 是新版本且 `pending=false`。
-- 运行进程来自 `%LOCALAPPDATA%\Vetta\versions\<new>\Vetta.exe`。
+- 运行进程来自 `%LOCALAPPDATA%\567Agent\versions\<new>\567-Agent.exe`。
 - 版本目录只保留新版本和上一版本。
 - 主进程日志出现 `differential cache baseline promoted` 和 `downloaded Windows version is ready`。
 - 下一次小版本更新的实际下载量显著小于完整 EXE。
@@ -472,7 +472,7 @@ const { autoUpdater } = electronUpdater;
 
 **原因**：这是旧的“覆盖/卸载当前安装目录”模型与正在运行的文件、旧 NSIS/Inno 安装状态冲突的典型表现，不是 R2 下载问题。
 
-**修复**：后台更新不再卸载或覆盖当前安装目录，而是写入 `%LOCALAPPDATA%\Vetta\versions\<new>`；后台 Inno 设置 `Uninstallable=no`、不创建卸载注册项。
+**修复**：后台更新不再卸载或覆盖当前安装目录，而是写入 `%LOCALAPPDATA%\567Agent\versions\<new>`；后台 Inno 设置 `Uninstallable=no`、不创建卸载注册项。
 
 如果手动执行修复安装仍遇到该提示，应完全退出 Vetta（包括托盘和子进程）后重试。不要把手动修复安装当作正常自动更新步骤。
 
@@ -492,7 +492,7 @@ const { autoUpdater } = electronUpdater;
 
 ready 弹窗只会在以下三项同时存在后出现：
 
-- `<version>\Vetta.exe`
+- `<version>\567-Agent.exe`
 - `<version>\resources\app.asar`
 - `<version>\.install-complete`
 
@@ -511,8 +511,8 @@ ready 弹窗只会在以下三项同时存在后出现：
 
 先区分三个阶段：
 
-1. `%LOCALAPPDATA%\Vetta\current.json` 没有写成新版本：激活动作没有完成，检查主进程的 `install failed`。
-2. 指针已更新但没有新版本进程：检查新版本 `Vetta.exe` 是否存在、启动日志和缺失模块错误。
+1. `%LOCALAPPDATA%\567Agent\current.json` 没有写成新版本：激活动作没有完成，检查主进程的 `install failed`。
+2. 指针已更新但没有新版本进程：检查新版本 `567-Agent.exe` 是否存在、启动日志和缺失模块错误。
 3. 新版本进程存在但没有窗口：按下一节检查启动器的隐藏窗口问题。
 
 如果用户在后台准备期间主动关闭应用，这是允许的边界情况。detached Inno 可能继续完成版本目录，但本次进程不会再弹 ready 对话框或写活动指针；重新启动旧版本并再次检查/下载时，客户端会复用已经完整的目标版本目录。
@@ -632,7 +632,7 @@ install failed
 ### 12.2 Inno 失败日志
 
 ```text
-%LOCALAPPDATA%\Vetta\installer\<version-pid-time>\install.log
+%LOCALAPPDATA%\567Agent\installer\<version-pid-time>\install.log
 ```
 
 成功时工作目录会异步删除；失败时刻意保留。重点检查：
@@ -646,7 +646,7 @@ install failed
 
 1. 记录客户端版本、`latest.yml` 版本和更新源 URL。
 2. 记录 `current.json`，不要先手工修改。
-3. 检查正在运行的 `Vetta.exe`/安装器路径。
+3. 检查正在运行的 `567-Agent.exe`/安装器路径。
 4. 检查版本目录是否完整。
 5. 查看主进程日志中最后一个 updater 阶段。
 6. 如果 Inno 失败，保存对应 `install.log`。
