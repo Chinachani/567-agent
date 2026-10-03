@@ -387,5 +387,7 @@ bun run prepare:workspace:dev
 - 与 `admin` 包完全独立，可安全并行开发
 - 消费 `@567agent/runtime-core` 的事件契约，契约变更需同步适配
 - 主进程和渲染进程通过 IPC 通信，注意安全边界
+- 发布脚本生成 updater 元数据或安装清单时，必须把实际写入逻辑放到可直接调用的函数，并用回归测试执行该写入、再用生产解析器读回并断言结构；只检查源码文本或只验证打包输入不足以覆盖发布产物。
+- 修改 Windows/Linux/macOS 打包与发布脚本时，运行对应的脚本测试，并验证该脚本生成的关键发布文件；打 tag 前必须确认目标文件可解析、版本与文件名一致，避免错误只在平台 runner 的最终打包阶段暴露。
 - desktop 类型检查：仓库根目录 `bun run check` **已包含** `bunx tsc --noEmit -p apps/desktop/tsconfig.json`（在 Biome + monorepo `tsgo` 之后）。
 - 单独排查时也可：`cd apps/desktop && bunx tsc --noEmit`，或在仓库根目录 `bunx tsc --noEmit -p apps/desktop/tsconfig.json`。不要在仓库根目录裸跑 `bunx tsc --noEmit`（那会用根 tsconfig，**查不到** desktop / i18n 等类型错误）。

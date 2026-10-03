@@ -5,6 +5,7 @@ import { createRequire } from "node:module";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { pathToFileURL } from "node:url";
+import { stringify } from "yaml";
 import { writeAppUpdateConfig } from "./desktop-after-pack.mjs";
 
 const require = createRequire(import.meta.url);
@@ -63,6 +64,10 @@ export async function writeInnoVerificationManifest(sourceVersionDir, manifestPa
 	const files = await collectVerificationFiles(sourceVersionDir);
 	files.sort((left, right) => left.path.localeCompare(right.path));
 	await writeFile(manifestPath, `${JSON.stringify({ version, files }, null, 2)}\n`, "utf8");
+}
+
+export async function writeInnoUpdateMetadata(releaseDirectory, metadata) {
+	await writeFile(join(releaseDirectory, "latest.yml"), stringify(metadata), "utf8");
 }
 
 async function main() {
@@ -138,7 +143,7 @@ async function main() {
 			? { releaseNotes: builderConfig.releaseInfo.releaseNotes }
 			: {}),
 	};
-	await writeFile(join(releaseDir, "latest.yml"), stringify(metadata), "utf8");
+	await writeInnoUpdateMetadata(releaseDir, metadata);
 	console.log(`[build-inno] created ${fileName}, ${fileName}.blockmap, ${fileName}.files.json, latest.yml`);
 }
 

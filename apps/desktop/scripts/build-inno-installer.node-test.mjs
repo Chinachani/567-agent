@@ -4,7 +4,12 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import test from "node:test";
 import { readFileSync } from "node:fs";
-import { writeAppUpdateConfig, writeInnoVerificationManifest } from "./build-inno-installer.mjs";
+import { parse } from "yaml";
+import {
+	writeAppUpdateConfig,
+	writeInnoUpdateMetadata,
+	writeInnoVerificationManifest,
+} from "./build-inno-installer.mjs";
 import { resolveUpdatePublishConfig } from "./resolve-update-publish-config.mjs";
 
 test("writes updater config into the version directory installed by Inno", async () => {
@@ -58,5 +63,24 @@ test("writes a stable versioned file manifest for pre-publish verification", asy
 		});
 	} finally {
 		await rm(sourceDir, { recursive: true, force: true });
+	}
+});
+
+test("writes parseable latest.yml metadata for the Inno installer", async () => {
+	const releaseDir = await mkdtemp(join(tmpdir(), "vetta-inno-test-"));
+	const metadata = {
+		version: "1.2.3",
+		files: [{ url: "567-Agent-1.2.3-win-x64.exe", sha512: "dGVzdA==", size: 1234 }],
+		path: "567-Agent-1.2.3-win-x64.exe",
+		sha512: "dGVzdA==",
+		releaseDate: "2026-10-03T00:00:00.000Z",
+		releaseNotes: "Windows update metadata regression test",
+	};
+
+	try {
+		await writeInnoUpdateMetadata(releaseDir, metadata);
+		assert.deepEqual(parse(await readFile(join(releaseDir, "latest.yml"), "utf8")), metadata);
+	} finally {
+		await rm(releaseDir, { recursive: true, force: true });
 	}
 });
