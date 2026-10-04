@@ -56,6 +56,7 @@ class EntryAndProfileScreenTest {
         composeRule.setContent {
             VettaTheme(ThemeMode.Light) {
                 MeScreen(
+                    themeMode = ThemeMode.Light,
                     user = null,
                     subscription = null,
                     onlineDeviceCount = 0,
@@ -81,11 +82,13 @@ class EntryAndProfileScreenTest {
         composeRule.setContent {
             VettaTheme(ThemeMode.Light) {
                 MeScreen(
+                    themeMode = ThemeMode.Light,
                     user = null,
                     subscription = null,
                     onlineDeviceCount = 0,
                     onOpenPlan = { opened += "plan" },
                     onOpenSettings = { opened += "settings" },
+                    onOpenDataSettings = { opened += "data" },
                     onOpenDevices = { opened += "devices" },
                     onOpenAbout = { opened += "about" },
                     onLogin = {},
@@ -95,11 +98,11 @@ class EntryAndProfileScreenTest {
         }
 
         composeRule.onNodeWithText(Str.connectedDevices).performClick()
-        composeRule.onNodeWithText(Str.generalSettings).performClick()
-        composeRule.onNodeWithText(Str.loginToViewPlan).performClick()
+        composeRule.onNodeWithText(Str.behavior).performClick()
+        composeRule.onNodeWithText(Str.dataSection).performClick()
         composeRule.onNodeWithText(Str.aboutUs).performClick()
 
-        assertTrue(opened == listOf("devices", "settings", "plan", "about"))
+        assertTrue(opened == listOf("devices", "settings", "data", "about"))
     }
 
     @Test
@@ -242,6 +245,7 @@ class EntryAndProfileScreenTest {
         composeRule.setContent {
             VettaTheme(ThemeMode.Light) {
                 MeScreen(
+                    themeMode = ThemeMode.Light,
                     user = User(id = 1, username = "tester", nickname = "Tester"),
                     subscription = null,
                     onlineDeviceCount = 0,
@@ -267,6 +271,7 @@ class EntryAndProfileScreenTest {
         composeRule.setContent {
             VettaTheme(ThemeMode.Light) {
                 MeScreen(
+                    themeMode = ThemeMode.Light,
                     user = User(id = 1, username = "tester", nickname = "Tester"),
                     subscription = null,
                     onlineDeviceCount = 0,

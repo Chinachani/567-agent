@@ -475,6 +475,9 @@ export interface AbilityDetail {
 }
 
 export interface MarketAbility {
+	detailDeferred?: boolean;
+	reviewStatus?: "unreviewed";
+	classificationSource?: "automatic" | "maintainer";
 	/** 机器标识，与 type 联合唯一。 */
 	slug: string;
 	type: AbilityType;
@@ -490,6 +493,8 @@ export interface MarketAbility {
 	/** 分类译名，取 `category_i18n[locale] ?? category` 得到展示名；无译名时字段缺省。 */
 	category_i18n?: Record<string, string>;
 	tags: string[];
+	/** Open-marketplace MCP candidates stay informational until a maintainer approves installation metadata. */
+	installable?: boolean;
 	/** 产物摘要，安装前校验；mcp / bundle 恒为空。 */
 	sha256: string;
 	download_count: number;

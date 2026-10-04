@@ -2,11 +2,11 @@
  * 能力页统一模型：数据源（useAbilityData）+ 操作层（useAbilityActions）+ 搜索过滤。
  * 五种 type 共用同一份条目集合，列表页与详情页都从这里取。
  */
-import { useCallback, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { usePluginTextResolver } from "../../plugins/runtime/plugin-i18n";
 import { useMcpSettingsModel } from "../../settings/components/useMcpSettingsModel";
-import { isAbilityListedInDiscover, queryAbilityCatalog } from "../lib/ability-catalog-query";
+import { filterAbilityCatalog, isAbilityListedInDiscover, queryAbilityCatalog } from "../lib/ability-catalog-query";
 import { localizeMarketAbility } from "../lib/ability-presentation";
 import {
 	buildBundleAbilities,
@@ -35,6 +35,8 @@ export function useAbilitiesModel(options: UseAbilitiesModelOptions = {}): Abili
 	const { t, i18n } = useTranslation("settings");
 	const [scope, setScope] = useState<AbilityScope>(options.initialScope ?? "discover");
 	const [searchQuery, setSearchQuery] = useState(options.initialSearchQuery ?? "");
+	const [typeFilter, setTypeFilter] = useState<AbilityItem["type"] | "">("");
+	const [category, setCategory] = useState("");
 	const [visiblePages, setVisiblePages] = useState(1);
 
 	const data = useAbilityData();
@@ -101,22 +103,62 @@ export function useAbilitiesModel(options: UseAbilitiesModelOptions = {}): Abili
 
 	const changeScope = useCallback((nextScope: AbilityScope) => {
 		setScope(nextScope);
+		setTypeFilter("");
+		setCategory("");
 		setVisiblePages(1);
 	}, []);
 	const changeSearchQuery = useCallback((value: string) => {
 		setSearchQuery(value);
 		setVisiblePages(1);
 	}, []);
+	const changeCategory = useCallback((value: string) => {
+		setCategory(value);
+		setVisiblePages(1);
+	}, []);
+	const changeTypeFilter = useCallback((value: AbilityItem["type"] | "") => {
+		setTypeFilter(value);
+		setCategory("");
+		setVisiblePages(1);
+	}, []);
+
+	const facetItems = useMemo(
+		() => filterAbilityCatalog(allItems, { scope, keyword: searchQuery }),
+		[allItems, scope, searchQuery],
+	);
+	const availableTypes = useMemo(
+		() =>
+			(["mcp", "skill", "scene", "plugin", "bundle"] as const).filter((type) =>
+				facetItems.some((item) => item.type === type),
+			),
+		[facetItems],
+	);
+	const categories = useMemo(
+		() => groupAbilities(facetItems.filter((item) => !typeFilter || item.type === typeFilter)),
+		[facetItems, typeFilter],
+	);
+	useEffect(() => {
+		if (data.loading) return;
+		if (typeFilter && !availableTypes.includes(typeFilter)) {
+			setTypeFilter("");
+			setCategory("");
+			setVisiblePages(1);
+		} else if (category && !categories.some((group) => group.category === category)) {
+			setCategory("");
+			setVisiblePages(1);
+		}
+	}, [availableTypes, categories, category, typeFilter, data.loading]);
 
 	const catalogPage = useMemo(
 		() =>
 			queryAbilityCatalog(allItems, {
 				scope,
 				keyword: searchQuery,
+				types: typeFilter ? [typeFilter] : undefined,
+				category,
 				page: 1,
 				pageSize: visiblePages * ABILITY_PAGE_SIZE,
 			}),
-		[allItems, scope, searchQuery, visiblePages],
+		[allItems, scope, searchQuery, typeFilter, category, visiblePages],
 	);
 	const items = catalogPage.items;
 
@@ -125,7 +167,8 @@ export function useAbilitiesModel(options: UseAbilitiesModelOptions = {}): Abili
 	const bannerIcons = useMemo<AbilityBannerIcon[]>(
 		() =>
 			allItems
-				.filter((item) => item.fromMarket && isAbilityListedInDiscover(item))
+				.filter((item) => item.fromMarket && isAbilityListedInDiscover(item) && item.reviewStatus !== "unreviewed")
+				.slice(0, 48)
 				.map((item) => ({ id: item.id, type: item.type, icon: item.icon })),
 		[allItems],
 	);
@@ -160,6 +203,12 @@ export function useAbilitiesModel(options: UseAbilitiesModelOptions = {}): Abili
 		setScope: changeScope,
 		searchQuery,
 		setSearchQuery: changeSearchQuery,
+		typeFilter,
+		availableTypes,
+		setTypeFilter: changeTypeFilter,
+		category,
+		setCategory: changeCategory,
+		categories,
 		items,
 		totalItems: catalogPage.total,
 		hasMore: items.length < catalogPage.total,

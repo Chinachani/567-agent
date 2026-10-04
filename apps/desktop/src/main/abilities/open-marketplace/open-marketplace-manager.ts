@@ -3,6 +3,7 @@ import { join } from "node:path";
 import type {
 	AddMarketplaceSourceInput,
 	MarketplaceSource,
+	OpenMarketplaceAbility,
 	OpenMarketplaceCatalog,
 	OpenMarketplaceMcpRuntimeProgress,
 	OpenMarketplaceSnapshot,
@@ -23,6 +24,7 @@ import { OpenMarketplaceService } from "./open-marketplace-service.js";
 const log = getAppLogger("open-marketplace");
 
 interface MarketplaceWorker {
+	getDiscoveryDetail?(slug: string, version: string): Promise<OpenMarketplaceAbility>;
 	list(): Promise<OpenMarketplaceSnapshot>;
 	listCached(): Promise<OpenMarketplaceSnapshot>;
 	refresh(): Promise<OpenMarketplaceSnapshot>;
@@ -148,6 +150,14 @@ export class OpenMarketplaceManager {
 		const source = this.requireSource(sourceId);
 		if (!source.enabled) throw new Error(`Marketplace source is disabled: ${sourceId}`);
 		await this.workerFor(source).install(type, slug);
+	}
+
+	async getDiscoveryDetail(sourceId: string, slug: string, version: string): Promise<OpenMarketplaceAbility> {
+		const source = this.requireSource(sourceId);
+		if (!source.enabled) throw new Error("Marketplace source is disabled");
+		const worker = this.workerFor(source);
+		if (!worker.getDiscoveryDetail) throw new Error("Discovery details are unavailable");
+		return worker.getDiscoveryDetail(slug, version);
 	}
 
 	async prepareMcp(

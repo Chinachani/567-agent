@@ -11,6 +11,8 @@ const CANVAS_FILE = "cowart-canvas.json";
 
 export type CowartBridgeOptions = {
 	projectDir: string;
+	canvasDir?: string;
+	sessionPath?: string;
 	fs: PluginFsApi;
 	sendPrompt: (text: string) => Promise<void>;
 };
@@ -53,8 +55,7 @@ async function writeJson(fs: PluginFsApi, path: string, payload: unknown): Promi
 	await fs.writeFile(path, `${JSON.stringify(payload, null, 2)}\n`, "utf8");
 }
 
-async function loadSnapshot(fs: PluginFsApi, projectDir: string) {
-	const canvasDir = canvasDirOf(projectDir);
+async function loadSnapshot(fs: PluginFsApi, canvasDir: string) {
 	const pagesDir = joinPath(canvasDir, "pages");
 	const manifestPath = joinPath(pagesDir, "manifest.json");
 	const legacyPath = joinPath(canvasDir, CANVAS_FILE);
@@ -87,11 +88,10 @@ async function loadSnapshot(fs: PluginFsApi, projectDir: string) {
 	return { snapshot: null, path: pagesDir, storage: "empty" as const };
 }
 
-async function saveSnapshot(fs: PluginFsApi, projectDir: string, snapshot: unknown) {
+async function saveSnapshot(fs: PluginFsApi, canvasDir: string, snapshot: unknown) {
 	if (!isCanvasSnapshot(snapshot)) {
 		return { ok: false, storage: "invalid", paths: [] as string[] };
 	}
-	const canvasDir = canvasDirOf(projectDir);
 	const pagesDir = joinPath(canvasDir, "pages");
 	const pages = Object.values(snapshot.store).filter(
 		(record) => record && typeof record === "object" && (record as { typeName?: string }).typeName === "page",
@@ -138,8 +138,7 @@ function parseDataUrl(src: string): { mimeType: string; base64: string } | null 
 	return { mimeType: match[1] || "application/octet-stream", base64: match[2] };
 }
 
-function assetFileFromUrl(projectDir: string, assetUrl: string): string | null {
-	const canvasDir = canvasDirOf(projectDir);
+function assetFileFromUrl(canvasDir: string, assetUrl: string): string | null {
 	if (assetUrl.startsWith(PAGE_ASSETS_ROUTE)) {
 		const rest = assetUrl.slice(PAGE_ASSETS_ROUTE.length);
 		const [pageEnc, ...fileParts] = rest.split("/");
@@ -182,18 +181,18 @@ function extractPromptText(message: unknown): string {
 }
 
 export function installCowartVettaBridge(options: CowartBridgeOptions): () => void {
-	const { projectDir, fs, sendPrompt } = options;
-	const canvasDir = canvasDirOf(projectDir);
+	const { projectDir, fs, sendPrompt, sessionPath } = options;
+	const canvasDir = options.canvasDir?.trim() || canvasDirOf(projectDir);
 
 	const callServerTool = async (request: { name: string; arguments?: Record<string, unknown> }) => {
 		const name = request.name;
 		// 显式标注：展开 Record<string, unknown> 不会带出索引签名，缺了它
 		// args.snapshot / args.dataUrl 等调用方参数会被判成不存在。
-		const args: Record<string, unknown> = { projectDir, canvasDir, ...(request.arguments ?? {}) };
+		const args: Record<string, unknown> = { ...(request.arguments ?? {}), projectDir, canvasDir };
 
 		try {
 			if (name === "get_cowart_canvas_state") {
-				const loaded = await loadSnapshot(fs, projectDir);
+				const loaded = await loadSnapshot(fs, canvasDir);
 				const viewStateFile = joinPath(canvasDir, "cowart-view-state.json");
 				const viewRaw = await readJson(fs, viewStateFile);
 				const selectionFile = joinPath(canvasDir, "cowart-selection.json");
@@ -220,7 +219,7 @@ export function installCowartVettaBridge(options: CowartBridgeOptions): () => vo
 
 			if (name === "save_cowart_canvas_state") {
 				const snapshot = args.snapshot;
-				const result = await saveSnapshot(fs, projectDir, snapshot);
+				const result = await saveSnapshot(fs, canvasDir, snapshot);
 				return { structuredContent: result };
 			}
 
@@ -269,7 +268,7 @@ export function installCowartVettaBridge(options: CowartBridgeOptions): () => vo
 
 			if (name === "read_cowart_page_asset") {
 				const assetUrl = String(args.assetUrl || "");
-				const filePath = assetFileFromUrl(projectDir, assetUrl);
+				const filePath = assetFileFromUrl(canvasDir, assetUrl);
 				if (!filePath) throw new Error(`Unsupported asset URL: ${assetUrl}`);
 				const file = await fs.readFile(filePath);
 				const content =
@@ -293,7 +292,7 @@ export function installCowartVettaBridge(options: CowartBridgeOptions): () => vo
 				const dataUrl = String(args.dataUrl || "");
 				const fileName = String(args.fileName || `export-${Date.now()}.bin`);
 				const parsed = parseDataUrl(dataUrl);
-				const exportDir = joinPath(projectDir, "canvas", "exports");
+				const exportDir = joinPath(canvasDir, "exports");
 				await fs.createDirectory(exportDir);
 				const filePath = joinPath(exportDir, fileName);
 				if (parsed) {
@@ -345,7 +344,12 @@ export function installCowartVettaBridge(options: CowartBridgeOptions): () => vo
 		sendFollowUpMessage: async (message: unknown) => {
 			const text = extractPromptText(message);
 			if (!text.trim()) throw new Error("Missing follow-up prompt text");
-			const sendPromise = sendPrompt(text);
+			const canvasContext = [
+				"Use Cowart MCP tools with these paths for this canvas:",
+				`projectDir=${JSON.stringify(projectDir)}`,
+				`canvasDir=${JSON.stringify(canvasDir)}`,
+			].join(" ");
+			const sendPromise = sendPrompt(`${text}\n\n${canvasContext}`);
 			// Fail fast on immediate setup errors (no session / validation).
 			// After a short grace window, resolve so canvas UI can leave "sending".
 			const outcome = await Promise.race([
@@ -375,7 +379,7 @@ export function installCowartVettaBridge(options: CowartBridgeOptions): () => vo
 	(window as unknown as { cowartMcp: typeof cowartMcp }).cowartMcp = cowartMcp;
 	(window as unknown as { openai: Record<string, unknown> }).openai = {
 		...(typeof previousOpenai === "object" && previousOpenai ? previousOpenai : {}),
-		toolOutput: { projectDir, canvasDir, mode: "vetta" },
+		toolOutput: { projectDir, canvasDir, sessionPath, mode: "vetta" },
 		hostCapabilities: { message: { image: false }, followUp: true },
 		sendFollowUpMessage: cowartMcp.sendFollowUpMessage,
 	};
@@ -408,8 +412,13 @@ type BridgeHold = {
 let bridgeHold: BridgeHold | null = null;
 const BRIDGE_RELEASE_MS = 100;
 
-export function installBridgeFromPluginContext(ctx: PluginContext, projectDir: string): () => void {
-	const key = projectDir;
+export function installBridgeFromPluginContext(
+	ctx: PluginContext,
+	projectDir: string,
+	canvasDir: string,
+	sessionPath: string,
+): () => void {
+	const key = `${projectDir}\0${canvasDir}\0${sessionPath}`;
 	if (bridgeHold?.releaseTimer != null) {
 		clearTimeout(bridgeHold.releaseTimer);
 		bridgeHold.releaseTimer = null;
@@ -420,8 +429,13 @@ export function installBridgeFromPluginContext(ctx: PluginContext, projectDir: s
 			key,
 			dispose: installCowartVettaBridge({
 				projectDir,
+				canvasDir,
+				sessionPath,
 				fs: ctx.fs,
-				sendPrompt: (text) => ctx.conversation.sendPrompt(text),
+				sendPrompt: async (text) => {
+					const receipt = await ctx.conversation.sendPrompt(text);
+					if (receipt.status === "failed") throw new Error(receipt.error?.message || "Could not send the canvas prompt");
+				},
 			}),
 			refs: 0,
 			releaseTimer: null,

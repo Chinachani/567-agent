@@ -10,6 +10,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.tooling.preview.Preview
+import org.agent567.android.diagnostics.MobileDiagnostics
 
 class MainActivity : ComponentActivity() {
     private var pendingPairingInvite by mutableStateOf<String?>(null)
@@ -17,6 +18,7 @@ class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         enableEdgeToEdge()
         super.onCreate(savedInstanceState)
+        MobileDiagnostics.initialize(applicationContext)
         pendingPairingInvite = pairingInviteFrom(intent)
 
         setContent {

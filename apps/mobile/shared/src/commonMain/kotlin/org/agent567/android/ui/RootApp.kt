@@ -1,9 +1,9 @@
 package org.agent567.android.ui
 
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
-import androidx.compose.animation.Crossfade
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.core.tween
 import androidx.compose.animation.fadeIn
@@ -15,6 +15,7 @@ import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
@@ -42,9 +43,11 @@ import org.agent567.android.ui.i18n.Str
 import org.agent567.android.ui.me.MeScreen
 import org.agent567.android.ui.me.PlanScreen
 import org.agent567.android.ui.me.SettingsScreen
+import org.agent567.android.ui.me.SettingsSection
 import org.agent567.android.ui.me.AboutScreen
 import org.agent567.android.ui.navigation.AppRoute
 import org.agent567.android.ui.navigation.ChatSurface
+import org.agent567.android.ui.theme.vettaExtra
 import org.agent567.android.ui.navigation.MainTab
 import org.agent567.android.ui.navigation.PlatformBackHandler
 import org.agent567.android.ui.navigation.hasInAppBackDestination
@@ -91,6 +94,7 @@ fun RootApp(
         }
     }
 
+    CompositionLocalProvider(LocalMotionEnabled provides state.motionEnabled) {
     VettaTheme(themeMode = state.themeMode) {
         if (!state.bootstrapped || state.route is AppRoute.Boot) {
             Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
@@ -99,13 +103,8 @@ fun RootApp(
             return@VettaTheme
         }
 
-        Box(Modifier.fillMaxSize()) {
-            Crossfade(
-                targetState = state.route,
-                animationSpec = tween(durationMillis = if (state.motionEnabled) 200 else 0),
-                label = "app route transition",
-            ) { route ->
-            when (route) {
+        Box(Modifier.fillMaxSize().background(MaterialTheme.vettaExtra.pageBackground)) {
+            when (val route = state.route) {
             AppRoute.Boot -> Unit
             AppRoute.Welcome ->
                 WelcomeScreen(
@@ -141,12 +140,7 @@ fun RootApp(
                     },
                 ) { padding ->
                     Box(Modifier.padding(padding).fillMaxSize()) {
-                        Crossfade(
-                            targetState = state.mainTab,
-                            animationSpec = tween(durationMillis = if (state.motionEnabled) 200 else 0),
-                            label = "main tab transition",
-                        ) { tab ->
-                            when (tab) {
+                            when (state.mainTab) {
                             MainTab.Home ->
                                 HomeScreen(
                                     primaryDevice =
@@ -202,6 +196,7 @@ fun RootApp(
                             MainTab.Me ->
                                 MeScreen(
                                     user = state.user,
+                                    themeMode = state.themeMode,
                                     subscription = state.subscription,
                                     activeGroup = state.active567Group,
                                     availableGroups = state.available567Groups,
@@ -214,6 +209,8 @@ fun RootApp(
                                     catalogLoading = state.catalogLoading,
                                     onOpenPlan = vm::openPlan,
                                     onOpenSettings = vm::openSettings,
+                                    onOpenDataSettings = vm::openDataSettings,
+                                    onThemeMode = vm::setThemeMode,
                                     onOpenDevices = { vm.selectMainTab(MainTab.Discover) },
                                     onOpenAbout = vm::openAbout,
                                     onLogin = vm::openLogin,
@@ -222,7 +219,6 @@ fun RootApp(
                                     onCreatePayOrder = vm::createPayOrder,
                                 )
                             }
-                        }
                     }
                 }
             }
@@ -322,18 +318,32 @@ fun RootApp(
                 )
             AppRoute.Settings ->
                 SettingsScreen(
-                    themeMode = state.themeMode,
+                    section = SettingsSection.Behavior,
                     autoResumeLastSession = state.autoResumeLastSession,
                     motionEnabled = state.motionEnabled,
                     migrationBackupLimitMb = state.migrationBackupLimitMb,
                     onMigrationBackupLimitMb = vm::setMigrationBackupLimitMb,
-                    onThemeMode = vm::setThemeMode,
                     onAutoResumeLastSession = vm::setAutoResumeLastSession,
                     onMotionEnabled = vm::setMotionEnabled,
                     onClearLocalData = vm::clearLocalSessions,
                     onExportMigration = vm::exportSessionMigration,
                     onImportMigration = vm::importSessionMigration,
-                    onOpenAbout = vm::openAbout,
+                    onBack = vm::navigateBackFromSecondary,
+                    confirmBeforeDelete = state.confirmBeforeDelete,
+                    onConfirmBeforeDelete = vm::setConfirmBeforeDelete,
+                )
+            AppRoute.SettingsData ->
+                SettingsScreen(
+                    section = SettingsSection.Data,
+                    autoResumeLastSession = state.autoResumeLastSession,
+                    motionEnabled = state.motionEnabled,
+                    migrationBackupLimitMb = state.migrationBackupLimitMb,
+                    onMigrationBackupLimitMb = vm::setMigrationBackupLimitMb,
+                    onAutoResumeLastSession = vm::setAutoResumeLastSession,
+                    onMotionEnabled = vm::setMotionEnabled,
+                    onClearLocalData = vm::clearLocalSessions,
+                    onExportMigration = vm::exportSessionMigration,
+                    onImportMigration = vm::importSessionMigration,
                     onBack = vm::navigateBackFromSecondary,
                     confirmBeforeDelete = state.confirmBeforeDelete,
                     onConfirmBeforeDelete = vm::setConfirmBeforeDelete,
@@ -341,14 +351,13 @@ fun RootApp(
             AppRoute.About ->
                 AboutScreen(onBack = vm::navigateBackFromSecondary, onCheckUpdate = vm::checkAppUpdate)
             }
-            }
             val pending = state.pendingQuestion
             val currentChatHasPending = state.route is AppRoute.Chat && pending?.sessionId == state.currentSessionId
             AnimatedVisibility(
                 visible = pending != null && !currentChatHasPending,
                 modifier = Modifier.align(Alignment.TopCenter),
-                enter = fadeIn(tween(200)) + slideInVertically(tween(200)) { -it },
-                exit = fadeOut(tween(180)) + slideOutVertically(tween(180)) { -it },
+                enter = fadeIn(tween(optionalMotionDuration(state.motionEnabled, 200))) + slideInVertically(tween(optionalMotionDuration(state.motionEnabled, 200))) { -it },
+                exit = fadeOut(tween(optionalMotionDuration(state.motionEnabled, 180))) + slideOutVertically(tween(optionalMotionDuration(state.motionEnabled, 180))) { -it },
             ) {
                 PendingQuestionNotice(
                     onOpen = {
@@ -364,6 +373,7 @@ fun RootApp(
                 )
             }
         }
+    }
     }
 }
 

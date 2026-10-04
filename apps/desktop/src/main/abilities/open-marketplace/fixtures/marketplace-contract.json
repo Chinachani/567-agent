@@ -1,0 +1,139 @@
+{
+  "manifest": {
+    "schemaVersion": 3,
+    "name": "contract-fixture",
+    "marketplaceVersion": "2026.10.05.1",
+    "repository": "https://github.com/Chinachani/567-agent-marketplace",
+    "minAppVersion": "1.0.0",
+    "abilities": [
+      {
+        "type": "mcp",
+        "slug": "reference",
+        "name": "Reference MCP",
+        "version": "1.0.0",
+        "source": {
+          "path": "mcps/reference"
+        },
+        "mcpMetadata": {
+          "installable": true
+        }
+      }
+    ]
+  },
+  "discovery": {
+    "schemaVersion": 1,
+    "catalogVersion": "2026.10.05.1",
+    "category": "cad-3d",
+    "abilities": [
+      {
+        "type": "mcp",
+        "slug": "blender-contract",
+        "name": "Blender",
+        "description": "Blender MCP",
+        "version": "1.0.0",
+        "configVersion": 1,
+        "license": "",
+        "author": "",
+        "classificationSource": "automatic",
+        "category": "cad-3d",
+        "categoryI18n": {
+          "zh": "CAD 与 3D",
+          "en": "CAD and 3D"
+        },
+        "tags": [
+          "3d-modeling",
+          "blender"
+        ],
+        "mcpMetadata": {
+          "runtimeMode": "unknown",
+          "platforms": [
+            "unknown"
+          ],
+          "permissionScopes": [
+            "unknown"
+          ],
+          "authentication": "unknown",
+          "publisherType": "unknown",
+          "installable": false
+        },
+        "detail": {
+          "i18n": {
+            "zh": {
+              "name": "Blender",
+              "description": "Blender MCP",
+              "tags": [
+                "3d-modeling",
+                "blender"
+              ]
+            }
+          },
+          "meta": []
+        },
+        "source": {
+          "path": "mcps/discovery",
+          "contentSha256": "44136fa355b3678a1146ad16f7e8649e94fb4fc21fe77e8310c060f61caaff8a"
+        }
+      }
+    ]
+  },
+  "index": {
+    "schemaVersion": 1,
+    "catalogVersion": "2026.10.05.1",
+    "marketplaceVersion": "2026.10.05.1",
+    "recordCount": 1,
+    "categories": {
+      "cad-3d": 1
+    },
+    "shards": [
+      {
+        "path": "shards/mcp-cad-3d-0000.json",
+        "category": "cad-3d",
+        "sha256": "65019b7292542c392153b14ddba7a5002248b938d87e4e0ebc8f5e05f282deb4",
+        "sizeBytes": 774,
+        "count": 1
+      }
+    ],
+    "searchShards": [
+      {
+        "path": "search/mcp-cad-3d-0000.json",
+        "category": "cad-3d",
+        "sha256": "cca653f051232f55d3206d70b92cce2b2538422875e87eeb12f9b4542e4d059c",
+        "sizeBytes": 438,
+        "count": 1
+      }
+    ]
+  },
+  "search": {
+    "schemaVersion": 1,
+    "catalogVersion": "2026.10.05.1",
+    "category": "cad-3d",
+    "abilities": [
+      {
+        "type": "mcp",
+        "slug": "blender-contract",
+        "name": "Blender",
+        "version": "1.0.0",
+        "configVersion": 1,
+        "category": "cad-3d",
+        "tags": [
+          "3d-modeling",
+          "blender"
+        ],
+        "classificationSource": "automatic",
+        "description": "Blender MCP",
+        "license": "",
+        "author": "",
+        "icon": "",
+        "detail": {
+          "i18n": {
+            "zh": {}
+          }
+        },
+        "mcpMetadata": {
+          "installable": false
+        },
+        "detailShard": "shards/mcp-cad-3d-0000.json"
+      }
+    ]
+  }
+}

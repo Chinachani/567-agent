@@ -98,7 +98,7 @@ fun NewConversationScreen(
                         icon = Icons.Default.Computer,
                         actionLabel = Str.connectDesktop,
                         onAction = onConnectDesktop,
-                        modifier = Modifier.fillMaxWidth().heightIn(min = 320.dp),
+                        modifier = Modifier.fillMaxWidth().heightIn(min = 240.dp),
                     )
                 } else {
                     devices.forEachIndexed { index, device ->

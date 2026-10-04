@@ -1,6 +1,8 @@
+import { Button } from "@shared/components/ui/button";
 import { DetailDrawer } from "@vetta-org/theme-ui/overlays";
 import { lazy, Suspense, useRef } from "react";
 import { useTranslation } from "react-i18next";
+import { useDiscoveryDetail } from "../../hooks/useDiscoveryDetail";
 import type { AbilitiesModel } from "../../types";
 import { loadAbilityDetailView } from "./loadAbilityDetailView";
 
@@ -26,6 +28,7 @@ export function AbilityDetailSheet({
 	const lastItemRef = useRef(item);
 	if (item) lastItemRef.current = item;
 	const visibleItem = item ?? lastItemRef.current;
+	const discovery = useDiscoveryDetail(visibleItem, detailId !== null);
 
 	return (
 		<DetailDrawer
@@ -36,7 +39,9 @@ export function AbilityDetailSheet({
 			onExited={onExited}
 		>
 			{visibleItem ? (
-				<div className="min-h-0 flex-1 overflow-hidden">
+				<div className="min-h-0 flex-1 overflow-hidden flex flex-col">
+                    {discovery.loading && <p role="status" className="px-5 py-3 text-sm text-muted-foreground">{t("detail.loadingRemote")}</p>}
+                    {discovery.error && <div role="alert" className="px-5 py-3 text-sm"><span>{t("detail.remoteFailure")}</span><Button variant="link" size="sm" onClick={discovery.retry}>{t("detail.retryRemote")}</Button></div>}
 					<Suspense
 						fallback={
 							<div className="flex h-full flex-col items-center justify-center gap-2 text-muted-foreground/60">
@@ -45,7 +50,7 @@ export function AbilityDetailSheet({
 							</div>
 						}
 					>
-						<AbilityDetailView item={visibleItem} model={model} onBack={onClose} />
+						<AbilityDetailView item={discovery.item ?? visibleItem} model={model} onBack={onClose} />
 					</Suspense>
 				</div>
 			) : (

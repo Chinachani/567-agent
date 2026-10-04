@@ -128,6 +128,7 @@
     "relayConfigured": "Secure relay configured",
     "create": "Generate QR code",
     "creating": "Generating",
+    "createFailed": "Couldn't create the pairing. Check the app logs and try again.",
     "qrAlt": "567 Agent phone pairing QR code",
     "qrHint": "Open Remote access on your phone and scan this code. After the first connection, it cannot bind another device.",
     "empty": "Generate a QR code to scan from your phone",

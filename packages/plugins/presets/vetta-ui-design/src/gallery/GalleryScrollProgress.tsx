@@ -30,6 +30,7 @@ export function GalleryScrollProgress({
 }) {
 	const trackRef = useRef<HTMLDivElement | null>(null);
 	const dragRef = useRef<DragState | null>(null);
+	const [dragging, setDragging] = useState(false);
 	const [metrics, setMetrics] = useState<ScrollMetrics>({
 		scrollTop: 0,
 		maxScroll: 0,
@@ -103,6 +104,7 @@ export function GalleryScrollProgress({
 			scrollTo(thumbTravel > 0 ? (nextThumbTop / thumbTravel) * metrics.maxScroll : 0);
 		}
 		dragRef.current = { pointerId: event.pointerId, grabOffset };
+		setDragging(true);
 		event.currentTarget.setPointerCapture?.(event.pointerId);
 		event.preventDefault();
 	};
@@ -119,6 +121,7 @@ export function GalleryScrollProgress({
 	const stopDrag = (event: PointerEvent<HTMLDivElement>): void => {
 		if (dragRef.current?.pointerId !== event.pointerId) return;
 		dragRef.current = null;
+		setDragging(false);
 		if (event.currentTarget.hasPointerCapture?.(event.pointerId)) {
 			event.currentTarget.releasePointerCapture?.(event.pointerId);
 		}
@@ -173,7 +176,7 @@ export function GalleryScrollProgress({
 		>
 			<div
 				data-scroll-thumb
-				className={`w-1 rounded-full bg-primary/75 transition-[background-color,width] duration-150 hover:w-1.5 hover:bg-primary ${dragRef.current ? "w-1.5 bg-primary" : ""}`}
+				className={`w-1 rounded-full bg-primary/75 transition-[background-color,width] duration-150 hover:w-1.5 hover:bg-primary ${dragging ? "w-1.5 bg-primary" : ""}`}
 				style={{ height: `${thumbHeight}px`, transform: `translateY(${thumbTop}px)` }}
 			/>
 		</div>

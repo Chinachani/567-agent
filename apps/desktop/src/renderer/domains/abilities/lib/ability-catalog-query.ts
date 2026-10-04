@@ -1,4 +1,5 @@
 import type { AbilityItem, AbilityScope } from "../types";
+import { abilityCategoryKey, normalizeAbilityCategory } from "./ability-categories";
 import { isMarketAbilityListed } from "./merge-ability-catalogs";
 
 export interface AbilityCatalogQuery {
@@ -66,19 +67,9 @@ export function isAbilityListedInPersonal(item: AbilityItem): boolean {
 }
 
 export function queryAbilityCatalog(items: AbilityItem[], query: AbilityCatalogQuery): AbilityCatalogPage {
-	const keyword = query.keyword?.trim().toLowerCase() ?? "";
-	const types = query.types ? new Set(query.types) : null;
-	const sourceIds = query.sourceIds ? new Set(query.sourceIds) : null;
 	const page = Number.isInteger(query.page) && query.page > 0 ? query.page : 1;
 	const pageSize = Number.isInteger(query.pageSize) && query.pageSize > 0 ? query.pageSize : 60;
-	const isPublic = query.scope === "discover" || (query.scope as string) === "public";
-	const filtered = items
-		.filter((item) => (isPublic ? isAbilityListedInDiscover(item) : isAbilityListedInPersonal(item)))
-		.filter((item) => !keyword || item.searchTerms.some((term) => term.toLowerCase().includes(keyword)))
-		.filter((item) => !query.category || item.category === query.category)
-		.filter((item) => !types || types.has(item.type))
-		.filter((item) => !sourceIds || sourceIds.has(sourceId(item)))
-		.sort(compareAbilities);
+	const filtered = filterAbilityCatalog(items, query).sort(compareAbilities);
 	// 内置能力随 App 分发、数量有限，整组返回不参与分页：它们 downloadCount 为 0 会排在最后，
 	// 若按扁平列表切片，「Vetta 内置」分组只会出现零星几条，分组计数也跟着显示成已加载数。
 	const builtin = filtered.filter((item) => item.isBuiltin);
@@ -91,4 +82,23 @@ export function queryAbilityCatalog(items: AbilityItem[], query: AbilityCatalogQ
 		pageSize,
 		pageCount: Math.ceil(paged.length / pageSize),
 	};
+}
+
+/** Facets use the same predicates as the page, without pagination or sorting. */
+export function filterAbilityCatalog(
+	items: AbilityItem[],
+	query: Omit<AbilityCatalogQuery, "page" | "pageSize">,
+): AbilityItem[] {
+	const keyword = query.keyword?.trim().toLowerCase() ?? "";
+	const types = query.types ? new Set(query.types) : null;
+	const sources = query.sourceIds ? new Set(query.sourceIds) : null;
+	const isPublic = query.scope === "discover" || (query.scope as string) === "public";
+	return items.filter(
+		(item) =>
+			(isPublic ? isAbilityListedInDiscover(item) : isAbilityListedInPersonal(item)) &&
+			(!keyword || item.searchTerms.some((term) => term.toLowerCase().includes(keyword))) &&
+			(!query.category || abilityCategoryKey(item) === normalizeAbilityCategory(query.category)) &&
+			(!types || types.has(item.type)) &&
+			(!sources || sources.has(sourceId(item))),
+	);
 }

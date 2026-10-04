@@ -12,12 +12,14 @@ import {
 	type AbilityItem,
 } from "../types";
 
+import { abilityCategoryKey } from "./ability-categories";
+
 export function groupAbilities(items: AbilityItem[]): AbilityGroup[] {
 	const byCategory = new Map<string, AbilityItem[]>();
 	// 不同来源可能只提供部分语言：逐语言补齐，冲突时保留先到的非空译名。
 	const i18nByCategory = new Map<string, Record<string, string>>();
 	for (const item of items) {
-		const key = item.isBuiltin ? ABILITY_CATEGORY_VETTA_BUILTIN : item.category || ABILITY_CATEGORY_UNCATEGORIZED;
+		const key = abilityCategoryKey(item);
 		const bucket = byCategory.get(key);
 		if (bucket) bucket.push(item);
 		else byCategory.set(key, [item]);

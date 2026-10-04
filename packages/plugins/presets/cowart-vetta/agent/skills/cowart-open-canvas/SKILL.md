@@ -11,20 +11,20 @@ description: Open the Cowart infinite canvas (tldraw) in 567 Agent. Use when the
 |-------|--------|
 | MCP App widget (`ui://widget/...`) | Activity panel tab with full tldraw `App` |
 | `window.cowartMcp` bridge | Plugin installs the same bridge via `ctx.fs` + `conversation.sendPrompt` |
-| Canvas files under project | `<projectDir>/canvas/` (shared with MCP tools) |
+| Canvas files under project | New sidebar canvases use `<projectDir>/canvas/sessions/<session-id>/`; legacy project canvas remains readable |
 
 ## Workflow
 
 1. Call plugin tool `open_cowart_canvas` (opens the Cowart activity tab at max width).
 2. Optionally call MCP `render_cowart_canvas_widget` with `projectDir` = **user workspace** to confirm storage paths.
-3. Canvas data:
+3. New canvas data is stored under the user project directory, never in the plugin install path. UI follow-up prompts include the active `projectDir` and `canvasDir`; pass both explicitly to Cowart MCP tools. Existing project-level data is left untouched. Typical paths:
 
 ```text
-canvas/cowart-canvas.json
-canvas/pages/<page-id>/cowart-canvas.json
-canvas/pages/<page-id>/assets/
-canvas/cowart-selection.json
-canvas/cowart-view-state.json
+canvas/sessions/<session-id>/cowart-canvas.json
+canvas/sessions/<session-id>/pages/<page-id>/cowart-canvas.json
+canvas/sessions/<session-id>/pages/<page-id>/assets/
+canvas/sessions/<session-id>/cowart-selection.json
+canvas/sessions/<session-id>/cowart-view-state.json
 ```
 
 4. User draws/annotates in the panel. Agent uses MCP tools (`get_cowart_*`, `insert_cowart_image`, …) for programmatic canvas IO. UI AI actions send follow-up prompts into the active conversation.

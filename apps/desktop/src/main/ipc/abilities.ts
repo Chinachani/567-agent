@@ -131,6 +131,15 @@ export function registerAbilitiesIpc(): () => void {
 		return snapshot;
 	});
 	ipcMain.handle("vetta:abilities:list-open-marketplaces", () => openMarketplace.list());
+	ipcMain.handle(
+		"vetta:abilities:get-discovery-detail",
+		(_event, sourceId: unknown, slug: unknown, version: unknown) =>
+			openMarketplace.getDiscoveryDetail(
+				requireString(sourceId, "sourceId"),
+				requireString(slug, "slug"),
+				requireString(version, "catalogVersion"),
+			),
+	);
 	ipcMain.handle("vetta:abilities:refresh-open-marketplaces", () => openMarketplace.refresh());
 	ipcMain.handle("vetta:abilities:list-marketplace-sources", () => openMarketplace.listSources());
 	ipcMain.handle("vetta:abilities:add-marketplace-source", (_event, input: unknown) =>
@@ -225,6 +234,7 @@ export function registerAbilitiesIpc(): () => void {
 		ipcMain.removeHandler("vetta:abilities:list-open-marketplace");
 		ipcMain.removeHandler("vetta:abilities:refresh-open-marketplace");
 		ipcMain.removeHandler("vetta:abilities:list-open-marketplaces");
+		ipcMain.removeHandler("vetta:abilities:get-discovery-detail");
 		ipcMain.removeHandler("vetta:abilities:refresh-open-marketplaces");
 		ipcMain.removeHandler("vetta:abilities:get-open-mcp-setup-status");
 		ipcMain.removeHandler("vetta:abilities:list-marketplace-sources");

@@ -6,6 +6,7 @@ import AdmZip from "adm-zip";
 import type {
 	GitHubMarketplaceOrigin,
 	OpenMarketplaceAbility,
+	OpenMarketplaceDetail,
 	OpenMarketplaceMcpRuntimeProgress,
 	OpenMarketplaceSnapshot,
 } from "../../../preload/api-types/abilities.js";
@@ -17,7 +18,9 @@ import { loadMarketplaceCatalog } from "./marketplace-catalog.js";
 import { isAppVersionCompatible, isValidAppVersion } from "./marketplace-compatibility.js";
 import { selectMarketplacePluginReleases } from "./marketplace-plugin-releases.js";
 import { type MarketplaceManifest, parseMarketplaceManifest } from "./marketplace-schema.js";
-import { DEFAULT_MARKETPLACE_SOURCE_ID } from "./official-marketplace-source.js";
+import { type McpDiscoveryAbility, parseMcpDiscoveryShard } from "./mcp-discovery-catalog.js";
+import { McpDiscoveryFeed } from "./mcp-discovery-feed.js";
+import { DEFAULT_MARKETPLACE_SOURCE_ID, OFFICIAL_MARKETPLACE_REPOSITORY } from "./official-marketplace-source.js";
 
 const STATE_SCHEMA_VERSION = 1;
 const DEFAULT_SYNC_INTERVAL_MS = 24 * 60 * 60 * 1000;
@@ -114,6 +117,7 @@ interface OpenMarketplaceState {
 	ref: string;
 	archiveUrl: string;
 	marketplaceVersion: string;
+	discoveryVersion?: string;
 	archiveSha256: string;
 	syncedAt: string;
 }
@@ -170,6 +174,7 @@ function parseState(input: unknown): OpenMarketplaceState | null {
 		ref: state.ref,
 		archiveUrl: state.archiveUrl,
 		marketplaceVersion: state.marketplaceVersion,
+		discoveryVersion: typeof state.discoveryVersion === "string" ? state.discoveryVersion : undefined,
 		archiveSha256: state.archiveSha256,
 		syncedAt: state.syncedAt,
 	};
@@ -290,6 +295,49 @@ function toOpenMarketplaceAbility(
 		config,
 		detail: { ...ability.detail, meta },
 		origin,
+		...(ability.type === "mcp" ? { installable: ability.config.mcp !== undefined } : {}),
+	};
+}
+
+function toDiscoveryMarketplaceAbility(
+	sourceId: string,
+	manifest: Pick<MarketplaceManifest, "name" | "repository">,
+	version: string,
+	ability: McpDiscoveryAbility,
+): OpenMarketplaceAbility {
+	const origin: GitHubMarketplaceOrigin = {
+		kind: "github-marketplace",
+		sourceId,
+		marketplace: manifest.name,
+		marketplaceVersion: version,
+		repository: manifest.repository,
+		ref: "catalog",
+	};
+	const meta = [...(ability.detail.meta ?? [])];
+	if (!meta.some((entry) => entry.key === "repository")) {
+		meta.push({ key: "repository", value: manifest.repository });
+	}
+	return {
+		listed: true,
+		installable: false,
+		reviewStatus: "unreviewed",
+		detailDeferred: Boolean(ability.detailShard),
+		classificationSource: ability.classificationSource,
+		slug: ability.slug,
+		type: "mcp",
+		name: ability.name,
+		description: ability.description,
+		license: ability.license,
+		version: ability.version,
+		configVersion: ability.configVersion,
+		author: ability.author,
+		icon: ability.icon,
+		category: ability.category,
+		categoryI18n: ability.categoryI18n,
+		tags: ability.tags,
+		config: {},
+		detail: { ...ability.detail, meta } as OpenMarketplaceDetail,
+		origin,
 	};
 }
 
@@ -319,6 +367,8 @@ export class OpenMarketplaceService {
 	private snapshotCleanupInFlight: Promise<void> | undefined;
 	private snapshotCleanupRequested = false;
 	/** 进程内快照：避免同会话反复 list 时对每个 ability 包做全量校验。 */
+	private readonly discoveryFeed?: McpDiscoveryFeed;
+	private discoverySync: Promise<void> | undefined;
 	private memorySnapshot: OpenMarketplaceSnapshot | undefined;
 
 	constructor(options: OpenMarketplaceServiceOptions) {
@@ -339,6 +389,16 @@ export class OpenMarketplaceService {
 		this.hostApiVersion = options.hostApiVersion ?? PLUGIN_API_VERSION;
 		this.fetchArchive = options.fetchArchive ?? fetch;
 		this.fetchManifest = options.fetchManifest ?? fetch;
+		if (
+			this.sourceRef === "main" &&
+			this.repository.toLowerCase() === OFFICIAL_MARKETPLACE_REPOSITORY.toLowerCase()
+		) {
+			this.discoveryFeed = new McpDiscoveryFeed({
+				rootDir: this.rootDir,
+				repository: this.repository,
+				fetch: this.fetchManifest,
+			});
+		}
 		this.getAccessToken = options.getAccessToken ?? (() => undefined);
 		this.now = options.now ?? (() => new Date());
 		this.syncIntervalMs = options.syncIntervalMs ?? DEFAULT_SYNC_INTERVAL_MS;
@@ -392,9 +452,11 @@ export class OpenMarketplaceService {
 
 	async refresh(): Promise<OpenMarketplaceSnapshot> {
 		try {
+			if (this.backgroundUpdate) await this.backgroundUpdate;
 			const snapshot = await this.syncOnce();
 			this.lastUpdateCheckAt = this.now().getTime();
 			this.memorySnapshot = snapshot;
+			this.scheduleDiscoverySync();
 			return snapshot;
 		} catch (error) {
 			const cached = this.memorySnapshot ?? (await this.readCachedSnapshot());
@@ -439,6 +501,24 @@ export class OpenMarketplaceService {
 				ref: this.sourceRef,
 			},
 			this.getAccessToken(),
+		);
+	}
+
+	async getDiscoveryDetail(slug: string, version: string): Promise<OpenMarketplaceAbility> {
+		if (!/^[a-z0-9][a-z0-9-]{0,63}$/.test(slug) || !/^[A-Za-z0-9][A-Za-z0-9._-]{0,63}$/.test(version))
+			throw new Error("Invalid discovery identity");
+		const snapshot = this.memorySnapshot ?? (await this.listCached());
+		const row = snapshot.abilities.find(
+			(entry) =>
+				entry.slug === slug && entry.reviewStatus === "unreviewed" && entry.origin.marketplaceVersion === version,
+		);
+		if (!row || !this.discoveryFeed) throw new Error("Discovery details are unavailable; refresh the catalog");
+		const full = await this.discoveryFeed.detail(slug, version);
+		return toDiscoveryMarketplaceAbility(
+			this.sourceId,
+			{ name: row.origin.marketplace, repository: row.origin.repository },
+			version,
+			full,
 		);
 	}
 
@@ -561,17 +641,34 @@ export class OpenMarketplaceService {
 		if (!active) return null;
 		const elapsed = this.now().getTime() - Date.parse(active.state.syncedAt);
 		this.scheduleSnapshotCleanup();
+		const packagedAbilities = active.manifest.abilities.map((ability) =>
+			toOpenMarketplaceAbility(
+				this.sourceId,
+				this.sourceRef,
+				active.manifest,
+				ability,
+				active.listedSlugs.has(ability.slug),
+			),
+		);
+		const discovery = await this.discoveryFeed?.cached();
+		const discoveryAbilities =
+			discovery?.abilities ??
+			(active.state.discoveryVersion ? await this.readCachedDiscovery(active.state.discoveryVersion) : []);
+		const packagedKeys = new Set(packagedAbilities.map((ability) => `${ability.type}:${ability.slug}`));
+		const discoveredAbilities = discoveryAbilities
+			.filter((ability) => !packagedKeys.has(`mcp:${ability.slug}`))
+			.map((ability) =>
+				toDiscoveryMarketplaceAbility(
+					this.sourceId,
+					active.manifest,
+					discovery?.status.version ?? active.state.discoveryVersion ?? "legacy",
+					ability,
+				),
+			);
 		return {
 			sourceId: this.sourceId,
-			abilities: active.manifest.abilities.map((ability) =>
-				toOpenMarketplaceAbility(
-					this.sourceId,
-					this.sourceRef,
-					active.manifest,
-					ability,
-					active.listedSlugs.has(ability.slug),
-				),
-			),
+			abilities: [...packagedAbilities, ...discoveredAbilities],
+			discovery: discovery?.status,
 			marketplaceVersion: active.manifest.marketplaceVersion,
 			repository: active.manifest.repository,
 			syncedAt: active.state.syncedAt,
@@ -716,7 +813,7 @@ export class OpenMarketplaceService {
 					: marketplaceManifestUrl(this.repository, this.sourceRef),
 				{
 					headers: token
-						? githubApiHeaders("application/vnd.github+json", token)
+						? githubApiHeaders("application/vnd.github.raw+json", token)
 						: githubHeaders("application/json"),
 					redirect: "follow",
 					signal: controller.signal,
@@ -736,6 +833,8 @@ export class OpenMarketplaceService {
 			if (payload == null || typeof payload !== "object" || Array.isArray(payload)) {
 				throw new Error("GitHub manifest response is invalid");
 			}
+			if ("schemaVersion" in payload) return parseMarketplaceManifest(payload);
+			// Accept older GitHub API adapters while requesting raw content for files over 1 MiB.
 			const content = (payload as Record<string, unknown>).content;
 			if (typeof content !== "string") throw new Error("GitHub manifest response has no content");
 			return parseMarketplaceManifest(
@@ -743,6 +842,48 @@ export class OpenMarketplaceService {
 			);
 		} finally {
 			clearTimeout(timer);
+		}
+	}
+
+	private async readCachedDiscovery(version: string): Promise<McpDiscoveryAbility[]> {
+		if (!/^[A-Za-z0-9][A-Za-z0-9._-]{0,63}$/.test(version)) return [];
+		try {
+			const payload: unknown = JSON.parse(
+				await readFile(join(this.rootDir, "discovery", version, "catalog.json"), "utf8"),
+			);
+			if (!Array.isArray(payload)) return [];
+			return payload.flatMap((entry) => {
+				try {
+					const category =
+						entry && typeof entry === "object" && !Array.isArray(entry)
+							? (entry as Record<string, unknown>).category
+							: undefined;
+					const parsed = parseMcpDiscoveryShard(
+						{ schemaVersion: 1, catalogVersion: version, category, abilities: [entry] },
+						version,
+					)[0];
+					return parsed ? [parsed] : [];
+				} catch {
+					return [];
+				}
+			});
+		} catch {
+			return [];
+		}
+	}
+
+	private async pruneDiscoverySnapshots(activeVersion: string): Promise<void> {
+		const root = join(this.rootDir, "discovery");
+		const entries = await readdir(root, { withFileTypes: true }).catch(() => []);
+		for (const entry of entries) {
+			if (entry.name === activeVersion || !/^[A-Za-z0-9][A-Za-z0-9._-]{0,63}$/.test(entry.name)) continue;
+			const path = join(root, entry.name);
+			try {
+				const details = await lstat(path);
+				if (details.isDirectory() && !details.isSymbolicLink()) await rm(path, { recursive: true, force: true });
+			} catch {
+				// Discovery cache cleanup is best effort; the active package snapshot stays usable.
+			}
 		}
 	}
 
@@ -798,12 +939,52 @@ export class OpenMarketplaceService {
 		const remoteManifest = await this.downloadManifest();
 		this.assertManifestCompatible(remoteManifest);
 		const state = await this.readState();
-		if (state && this.matchesCurrentSource(state) && state.marketplaceVersion === remoteManifest.marketplaceVersion) {
-			return;
+		if (
+			!state ||
+			!this.matchesCurrentSource(state) ||
+			state.marketplaceVersion !== remoteManifest.marketplaceVersion
+		) {
+			const snapshot = await this.syncOnce();
+			this.memorySnapshot = snapshot;
+			this.onBackgroundUpdate?.(snapshot);
 		}
-		const snapshot = await this.syncOnce();
-		this.memorySnapshot = snapshot;
-		this.onBackgroundUpdate?.(snapshot);
+		this.scheduleDiscoverySync();
+	}
+
+	/** Browse-only discovery never blocks package activation or installation. */
+	private scheduleDiscoverySync(): void {
+		if (!this.discoveryFeed || this.discoverySync || !this.memorySnapshot?.marketplaceVersion) return;
+		const marketplaceVersion = this.memorySnapshot.marketplaceVersion;
+		const update = (async () => {
+			const active = await this.readActiveMarketplace();
+			if (!active) return;
+			await this.discoveryFeed?.sync(marketplaceVersion, (discovery) => {
+				const current = this.memorySnapshot;
+				if (!current || current.marketplaceVersion !== marketplaceVersion) return;
+				const packaged = current.abilities.filter((ability) => ability.reviewStatus !== "unreviewed");
+				const packagedKeys = new Set(packaged.map((ability) => `${ability.type}:${ability.slug}`));
+				const abilities = discovery.abilities
+					.filter((ability) => !packagedKeys.has(`mcp:${ability.slug}`))
+					.map((ability) =>
+						toDiscoveryMarketplaceAbility(
+							this.sourceId,
+							active.manifest,
+							discovery.status.version ?? "legacy",
+							ability,
+						),
+					);
+				this.memorySnapshot = { ...current, abilities: [...packaged, ...abilities], discovery: discovery.status };
+				this.onBackgroundUpdate?.(this.memorySnapshot);
+			});
+		})()
+			.catch((error: unknown) => {
+				log.warn("MCP discovery sync failed", { sourceId: this.sourceId }, error);
+			})
+			.finally(() => {
+				if (this.discoverySync === update) this.discoverySync = undefined;
+				if (this.memorySnapshot?.marketplaceVersion !== marketplaceVersion) this.scheduleDiscoverySync();
+			});
+		this.discoverySync = update;
 	}
 
 	private logSyncFailure(
@@ -895,6 +1076,8 @@ export class OpenMarketplaceService {
 
 			const previousState = await this.readState();
 			const sameSourceState = previousState && this.matchesCurrentSource(previousState) ? previousState : null;
+			const discoveryVersion = sameSourceState?.discoveryVersion;
+
 			if (
 				sameSourceState?.marketplaceVersion === manifest.marketplaceVersion &&
 				sameSourceState.archiveSha256 !== archiveSha256
@@ -917,12 +1100,14 @@ export class OpenMarketplaceService {
 				ref: this.sourceRef,
 				archiveUrl: this.archiveUrl,
 				marketplaceVersion: manifest.marketplaceVersion,
+				discoveryVersion,
 				archiveSha256,
 				syncedAt: this.now().toISOString(),
 			};
 			const temporaryStatePath = join(temporaryRoot, "state.json");
 			await writeFile(temporaryStatePath, JSON.stringify(state, null, 2), "utf-8");
 			await rename(temporaryStatePath, this.statePath);
+			if (discoveryVersion) await this.pruneDiscoverySnapshots(discoveryVersion);
 			// presentation 中的本地图标 URL 包含绝对路径；激活后必须从正式快照目录重新解析，
 			// 不能继续返回即将被 finally 删除的 temporaryRoot 路径。
 			const activeSnapshot = await this.readCachedSnapshot();

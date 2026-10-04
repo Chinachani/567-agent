@@ -412,6 +412,7 @@ describe("CI unit test coverage", () => {
 	it("builds the Android app and runs host tests when Mobile changes", () => {
 		expect(mobileWorkflow).toContain('      - "apps/mobile/**"');
 		expect(mobileWorkflow).toContain(":shared:testAndroidHostTest");
+		expect(mobileWorkflow).toContain(":shared:compileAndroidDeviceTest");
 		expect(mobileWorkflow).toContain(":androidApp:assembleDebug");
 	});
 

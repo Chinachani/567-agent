@@ -27,6 +27,11 @@ export function AbilityStatusBadges({ item }: { item: AbilityItem }): JSX.Elemen
 		(item.type === "skill" && item.skillProvenance?.kind === "builtin");
 	return (
 		<>
+			{item.reviewStatus === "unreviewed" && (
+				<span className="inline-flex shrink-0 items-center rounded-full bg-muted px-1.5 py-0.5 text-[10px] font-medium text-muted-foreground">
+					{t("status.unreviewed")}
+				</span>
+			)}
 			{isPreset && (
 				<span className="inline-flex shrink-0 items-center rounded-full bg-muted px-1.5 py-0.5 text-[10px] font-medium text-muted-foreground">
 					{t("status.builtin")}
@@ -34,7 +39,7 @@ export function AbilityStatusBadges({ item }: { item: AbilityItem }): JSX.Elemen
 			)}
 			{item.sameNameIds?.length ? (
 				<span className="inline-flex shrink-0 items-center rounded-full bg-primary/10 px-1.5 py-0.5 text-[10px] font-medium text-primary">
-					{t("status.sameName", { count: item.sameNameIds.length })}
+					{t("status.sameName", { count: item.sameNameCount ?? item.sameNameIds.length })}
 				</span>
 			) : null}
 			{item.installed && !item.enabled && (

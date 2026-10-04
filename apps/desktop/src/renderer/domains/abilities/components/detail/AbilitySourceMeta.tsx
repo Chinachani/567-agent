@@ -66,8 +66,13 @@ export function AbilitySourceRelations({
 			{sameNameItems.length > 0 ? (
 				<div>
 					<h3 className="text-[11px] font-medium text-muted-foreground/70">
-						{t("detail.source.sameNameTitle", { count: sameNameItems.length })}
+						{t("detail.source.sameNameTitle", { count: item.sameNameCount ?? sameNameItems.length })}
 					</h3>
+					{(item.sameNameCount ?? 0) > sameNameItems.length && (
+						<p className="mt-1 text-[11px] text-muted-foreground">
+							{t("detail.source.sameNamePreview", { count: sameNameItems.length })}
+						</p>
+					)}
 					<ul className="mt-2 flex flex-col gap-1.5">
 						{sameNameItems.map((candidate) => {
 							const text = resolveText(candidate);

@@ -182,9 +182,24 @@ export interface OpenMarketplaceAbilityConfig {
 	members?: OpenMarketplaceBundleMember[];
 }
 
+export interface OpenMarketplaceDiscoveryStatus {
+	version: string | null;
+	total: number;
+	loaded: number;
+	failedShards: number;
+	invalidRecords: number;
+	syncing: boolean;
+	error?: "network" | "timeout" | "rate-limited" | "content-invalid" | "not-found" | "forbidden";
+}
+
 export interface OpenMarketplaceAbility {
+	detailDeferred?: boolean;
+	reviewStatus?: "unreviewed";
+	classificationSource?: "automatic" | "maintainer";
 	/** Derived from top-level marketplace registration; absent on older snapshots means listed. */
 	listed?: boolean;
+	/** MCP discovery rows are visible in the catalog but remain read-only until curated. */
+	installable?: boolean;
 	slug: string;
 	type: "skill" | "scene" | "mcp" | "plugin" | "bundle";
 	name: string;
@@ -204,6 +219,7 @@ export interface OpenMarketplaceAbility {
 }
 
 export interface OpenMarketplaceSnapshot {
+	discovery?: OpenMarketplaceDiscoveryStatus;
 	sourceId: string;
 	abilities: OpenMarketplaceAbility[];
 	marketplaceVersion: string | null;
@@ -294,6 +310,7 @@ export interface DesktopAbilitiesApi {
 	refreshOpenMarketplace(): Promise<OpenMarketplaceSnapshot>;
 	/** 聚合所有已启用来源；搜索、筛选与分页均由客户端本地完成。 */
 	listOpenMarketplaces(): Promise<OpenMarketplaceCatalog>;
+	getDiscoveryDetail(sourceId: string, slug: string, catalogVersion: string): Promise<OpenMarketplaceAbility>;
 	/** 强制刷新所有已启用来源，单个来源失败不会中止其它来源。 */
 	refreshOpenMarketplaces(): Promise<OpenMarketplaceCatalog>;
 	listMarketplaceSources(): Promise<MarketplaceSource[]>;

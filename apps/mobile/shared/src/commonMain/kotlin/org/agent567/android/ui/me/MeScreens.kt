@@ -12,6 +12,7 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
@@ -84,6 +85,7 @@ fun formatUsd(usd: Double): String {
 fun MeScreen(
     user: User?,
     subscription: SubscriptionStatus?,
+    themeMode: org.agent567.android.app.ThemeMode,
     activeGroup: String? = null,
     availableGroups: Map<String, org.agent567.android.core.api.ApiGroupInfoDto> = emptyMap(),
     onlineDeviceCount: Int,
@@ -92,6 +94,8 @@ fun MeScreen(
     catalogLoading: Boolean = false,
     onOpenPlan: () -> Unit = {},
     onOpenSettings: () -> Unit = {},
+    onOpenDataSettings: () -> Unit = {},
+    onThemeMode: (org.agent567.android.app.ThemeMode) -> Unit = {},
     onOpenDevices: () -> Unit = {},
     onOpenAbout: () -> Unit = {},
     onLogin: () -> Unit = {},
@@ -218,7 +222,42 @@ fun MeScreen(
             Spacer(Modifier.height(16.dp))
             SectionHeader(title = Str.settings)
             VettaListGroup {
-                ProfileRow(Icons.Default.Settings, Str.generalSettings, null, onOpenSettings, showDivider = false)
+                Column(Modifier.fillMaxWidth()) {
+                    Row(
+                        modifier = Modifier.fillMaxWidth().padding(vertical = 10.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                    ) {
+                        Column(Modifier.weight(1f)) {
+                            Text(Str.appearance, style = MaterialTheme.typography.bodyLarge)
+                            Text(
+                                Str.appearanceHint,
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.vettaExtra.secondaryText,
+                                modifier = Modifier.padding(top = 2.dp),
+                            )
+                        }
+                        ThemeModeSelector(
+                            themeMode = themeMode,
+                            onThemeMode = onThemeMode,
+                        )
+                    }
+                    androidx.compose.material3.HorizontalDivider(color = MaterialTheme.vettaExtra.border)
+                }
+                ProfileRow(
+                    Icons.Default.CheckCircle,
+                    Str.behavior,
+                    null,
+                    onOpenSettings,
+                    subtitle = Str.settingsBehaviorSummary,
+                )
+                ProfileRow(
+                    Icons.Default.FileDownload,
+                    Str.dataSection,
+                    null,
+                    onOpenDataSettings,
+                    subtitle = Str.settingsDataSummary,
+                    showDivider = false,
+                )
             }
 
             Spacer(Modifier.height(16.dp))
@@ -442,18 +481,16 @@ fun PlanScreen(
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun SettingsScreen(
-    themeMode: org.agent567.android.app.ThemeMode,
+    section: SettingsSection,
     autoResumeLastSession: Boolean,
     motionEnabled: Boolean,
     migrationBackupLimitMb: Int,
     onMigrationBackupLimitMb: (Int) -> Unit,
-    onThemeMode: (org.agent567.android.app.ThemeMode) -> Unit,
     onAutoResumeLastSession: (Boolean) -> Unit,
     onMotionEnabled: (Boolean) -> Unit,
     onClearLocalData: () -> Unit,
     onExportMigration: (String, (ByteArray?, String?) -> Unit) -> Unit,
     onImportMigration: (ByteArray, String, (Int?, String?) -> Unit) -> Unit,
-    onOpenAbout: () -> Unit,
     onBack: () -> Unit,
     confirmBeforeDelete: Boolean,
     onConfirmBeforeDelete: (Boolean) -> Unit,
@@ -464,7 +501,15 @@ fun SettingsScreen(
     var migrationPasswordConfirm by remember { mutableStateOf("") }
     var pendingMigrationArchive by remember { mutableStateOf<ByteArray?>(null) }
     var migrationNotice by remember { mutableStateOf<String?>(null) }
+    var diagnosticsNotice by remember { mutableStateOf<String?>(null) }
     var showMigrationLimitDialog by remember { mutableStateOf(false) }
+    val diagnosticsFiles = rememberDiagnosticsFileActions { saved ->
+        diagnosticsNotice = when (saved) {
+            true -> Str.diagnosticsExportSuccess
+            false -> Str.diagnosticsExportFailure
+            null -> null
+        }
+    }
     val migrationFiles = rememberMigrationBackupFileActions(
         onOpened = { bytes, error ->
             if (error != null) {
@@ -491,7 +536,12 @@ fun SettingsScreen(
         containerColor = MaterialTheme.vettaExtra.pageBackground,
         topBar = {
             TopAppBar(
-                title = { Text(Str.settings, style = MaterialTheme.typography.titleMedium) },
+                title = {
+                    Text(
+                        if (section == SettingsSection.Behavior) Str.behavior else Str.dataSection,
+                        style = MaterialTheme.typography.titleMedium,
+                    )
+                },
                 navigationIcon = {
                     IconButton(onClick = onBack) {
                         Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = Str.back)
@@ -507,94 +557,90 @@ fun SettingsScreen(
         Column(
             Modifier
                 .padding(padding)
+                .fillMaxSize()
                 .verticalScroll(rememberScrollState())
-                .padding(start = 16.dp, top = 8.dp, end = 16.dp, bottom = 40.dp),
+                .padding(start = 16.dp, top = 16.dp, end = 16.dp, bottom = 40.dp),
         ) {
-            SectionHeader(title = Str.appearance)
-            Text(
-                Str.appearanceHint,
-                style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.vettaExtra.secondaryText,
-                modifier = Modifier.padding(horizontal = 4.dp, vertical = 2.dp),
-            )
-            Spacer(Modifier.height(10.dp))
-            ThemeModeSelector(themeMode = themeMode, onThemeMode = onThemeMode)
-
-            Spacer(Modifier.height(28.dp))
-            SectionHeader(title = Str.behavior)
-            VettaListGroup {
-                PreferenceSwitchRow(
-                    title = Str.autoResume,
-                    subtitle = Str.autoResumeHint,
-                    checked = autoResumeLastSession,
-                    onCheckedChange = onAutoResumeLastSession,
-                    showDivider = true,
-                )
-                PreferenceSwitchRow(
-                    title = Str.pageMotion,
-                    subtitle = Str.pageMotionHint,
-                    checked = motionEnabled,
-                    onCheckedChange = onMotionEnabled,
-                    showDivider = false,
-                )
-            }
-
-            Spacer(Modifier.height(28.dp))
-            SectionHeader(title = Str.dataSection)
-            Text(
-                Str.migrationBackupHint.replace("{limit}", migrationBackupLimitMb.toString()),
-                style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.vettaExtra.secondaryText,
-                modifier = Modifier.padding(horizontal = 4.dp, vertical = 2.dp),
-            )
-            Spacer(Modifier.height(10.dp))
-            VettaListGroup {
-                ProfileRow(
-                    Icons.Default.Settings,
-                    Str.migrationBackupLimit,
-                    "$migrationBackupLimitMb MB",
-                    onClick = { showMigrationLimitDialog = true },
-                    showDivider = true,
-                )
-                ProfileRow(
-                    Icons.Default.FileDownload,
-                    Str.exportChatHistory,
-                    null,
-            onClick = {
-                migrationPassword = ""
-                migrationPasswordConfirm = ""
-                migrationDialog = MigrationDialog.Export
-                    },
-                    showDivider = true,
-                )
-                ProfileRow(
-                    Icons.Default.FileUpload,
-                    Str.importChatHistory,
-                    null,
-                    onClick = migrationFiles.open,
-                    showDivider = true,
-                )
-                ProfileRow(
-                    Icons.Default.DeleteSweep,
-                    Str.clearLocalData,
-                    null,
-                    onClick = { confirmClearLocalData = true },
-                    showDivider = true,
-                    subtitle = Str.clearLocalDataHint,
-                )
-                PreferenceSwitchRow(
-                    title = Str.confirmDeleteSession,
-                    subtitle = Str.confirmDeleteSessionHint,
-                    checked = confirmBeforeDelete,
-                    onCheckedChange = onConfirmBeforeDelete,
-                    showDivider = false,
-                )
-            }
-
-            Spacer(Modifier.height(28.dp))
-            SectionHeader(title = Str.aboutSection)
-            VettaListGroup {
-                ProfileRow(Icons.Default.Info, Str.aboutVetta, Str.versionNumber.removePrefix("版本 "), onOpenAbout, showDivider = false)
+            when (section) {
+                SettingsSection.Behavior -> {
+                        Text(
+                            Str.settingsBehaviorSummary,
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.vettaExtra.secondaryText,
+                            modifier = Modifier.padding(horizontal = 4.dp, vertical = 2.dp),
+                        )
+                        Spacer(Modifier.height(10.dp))
+                        VettaListGroup {
+                            PreferenceSwitchRow(
+                                title = Str.autoResume,
+                                subtitle = Str.autoResumeHint,
+                                checked = autoResumeLastSession,
+                                onCheckedChange = onAutoResumeLastSession,
+                                showDivider = true,
+                            )
+                            PreferenceSwitchRow(
+                                title = Str.pageMotion,
+                                subtitle = Str.pageMotionHint,
+                                checked = motionEnabled,
+                                onCheckedChange = onMotionEnabled,
+                                showDivider = false,
+                            )
+                        }
+                }
+                SettingsSection.Data -> {
+                        Text(
+                            Str.migrationBackupHint.replace("{limit}", migrationBackupLimitMb.toString()),
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.vettaExtra.secondaryText,
+                            modifier = Modifier.padding(horizontal = 4.dp, vertical = 2.dp),
+                        )
+                        Spacer(Modifier.height(10.dp))
+                        VettaListGroup {
+                            ProfileRow(
+                                Icons.Default.Settings,
+                                Str.migrationBackupLimit,
+                                "$migrationBackupLimitMb MB",
+                                onClick = { showMigrationLimitDialog = true },
+                            )
+                            ProfileRow(
+                                Icons.Default.FileDownload,
+                                Str.exportChatHistory,
+                                null,
+                                onClick = {
+                                    migrationPassword = ""
+                                    migrationPasswordConfirm = ""
+                                    migrationDialog = MigrationDialog.Export
+                                },
+                            )
+                            ProfileRow(
+                                Icons.Default.FileUpload,
+                                Str.importChatHistory,
+                                null,
+                                onClick = migrationFiles.open,
+                            )
+                            ProfileRow(
+                                Icons.Default.FileDownload,
+                                Str.exportDiagnostics,
+                                null,
+                                onClick = diagnosticsFiles.export,
+                                subtitle = Str.exportDiagnosticsHint,
+                            )
+                            ProfileRow(
+                                Icons.Default.DeleteSweep,
+                                Str.clearLocalData,
+                                null,
+                                onClick = { confirmClearLocalData = true },
+                                subtitle = Str.clearLocalDataHint,
+                            )
+                            PreferenceSwitchRow(
+                                title = Str.confirmDeleteSession,
+                                subtitle = Str.confirmDeleteSessionHint,
+                                checked = confirmBeforeDelete,
+                                onCheckedChange = onConfirmBeforeDelete,
+                                showDivider = false,
+                            )
+                        }
+                }
             }
         }
     }
@@ -719,6 +765,15 @@ fun SettingsScreen(
         )
     }
 
+    diagnosticsNotice?.let { message ->
+        AlertDialog(
+            onDismissRequest = { diagnosticsNotice = null },
+            title = { Text(Str.diagnosticsDialogTitle) },
+            text = { Text(message) },
+            confirmButton = { TextButton(onClick = { diagnosticsNotice = null }) { Text(Str.confirm) } },
+        )
+    }
+
     if (confirmClearLocalData) {
         VettaConfirmDialog(
             title = Str.clearLocalDataTitle,
@@ -735,37 +790,25 @@ fun SettingsScreen(
 
 private enum class MigrationDialog { Export, Import }
 
+enum class SettingsSection { Behavior, Data }
+
 @Composable
 private fun ThemeModeSelector(
     themeMode: org.agent567.android.app.ThemeMode,
     onThemeMode: (org.agent567.android.app.ThemeMode) -> Unit,
 ) {
-    val modes =
-        listOf(
-            org.agent567.android.app.ThemeMode.System to Str.themeSystem,
-            org.agent567.android.app.ThemeMode.Light to Str.themeLight,
-            org.agent567.android.app.ThemeMode.Dark to Str.themeDark,
-        )
-    androidx.compose.foundation.layout.Row(
-        modifier = Modifier.fillMaxWidth(),
-        horizontalArrangement = androidx.compose.foundation.layout.Arrangement.spacedBy(8.dp),
+    val (currentLabel, nextMode) = when (themeMode) {
+        org.agent567.android.app.ThemeMode.System -> Str.themeSystem to org.agent567.android.app.ThemeMode.Light
+        org.agent567.android.app.ThemeMode.Light -> Str.themeLight to org.agent567.android.app.ThemeMode.Dark
+        org.agent567.android.app.ThemeMode.Dark -> Str.themeDark to org.agent567.android.app.ThemeMode.System
+    }
+    TextButton(
+        onClick = { onThemeMode(nextMode) },
+        contentPadding = androidx.compose.foundation.layout.PaddingValues(horizontal = 8.dp, vertical = 4.dp),
     ) {
-        modes.forEach { (mode, label) ->
-            val selected = themeMode == mode
-            Text(
-                text = label,
-                style = MaterialTheme.typography.labelLarge,
-                color = if (selected) MaterialTheme.colorScheme.onPrimary else MaterialTheme.colorScheme.onSurface,
-                modifier =
-                    Modifier
-                        .weight(1f)
-                        .clip(MaterialTheme.shapes.medium)
-                        .background(if (selected) MaterialTheme.colorScheme.primary else MaterialTheme.vettaExtra.chipBackground)
-                        .clickable { onThemeMode(mode) }
-                        .padding(vertical = 13.dp),
-                textAlign = androidx.compose.ui.text.style.TextAlign.Center,
-            )
-        }
+        Text(currentLabel, maxLines = 1)
+        Spacer(Modifier.width(4.dp))
+        Icon(Icons.Default.Refresh, contentDescription = null, modifier = Modifier.size(16.dp))
     }
 }
 
@@ -1045,9 +1088,14 @@ fun TopupDialog(
         Column(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(horizontal = 24.dp)
-                .verticalScroll(rememberScrollState()),
+                .fillMaxHeight(0.92f)
+                .padding(horizontal = 24.dp),
         ) {
+            Column(
+                modifier = Modifier
+                    .weight(1f)
+                    .verticalScroll(rememberScrollState()),
+            ) {
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.SpaceBetween,
@@ -1184,42 +1232,6 @@ fun TopupDialog(
                     }
                 }
 
-                Spacer(Modifier.height(20.dp))
-                PrimaryBlackButton(
-                    text = if (loading) "正在创建订单..." else "前往支付",
-                    onClick = {
-                        val finalAmt = customAmountText.toIntOrNull() ?: selectedAmount
-                        if (finalAmt < 1) {
-                            message = "金额不能少于 1 元"
-                            isError = true
-                            return@PrimaryBlackButton
-                        }
-                        loading = true
-                        message = null
-                        initialQuota = user?.quota
-                        onCreatePayOrder(finalAmt, payMethod, { payResult ->
-                            loading = false
-                            payingNotice = true
-                            // 优先尝试唤醒原生 App
-                            val launched = if (!payResult.urlScheme.isNullOrBlank()) {
-                                runCatching {
-                                    uriHandler.openUri(payResult.urlScheme)
-                                    true
-                                }.getOrDefault(false)
-                            } else false
-
-                            if (!launched) {
-                                // 兜底调起收银台网页（拉卡拉页面具备跳转微信与支付宝能力）
-                                runCatching { uriHandler.openUri(payResult.payUrl) }
-                            }
-                        }, { err ->
-                            loading = false
-                            message = err
-                            isError = true
-                        })
-                    },
-                    enabled = !loading,
-                )
             } else {
                 // 卡密兑换
                 Text("输入兑换码 / 卡密", style = MaterialTheme.typography.labelMedium.copy(fontWeight = androidx.compose.ui.text.font.FontWeight.Bold))
@@ -1231,31 +1243,66 @@ fun TopupDialog(
                     singleLine = true,
                     label = { Text("卡密 (CDKEY)") },
                 )
-                Spacer(Modifier.height(20.dp))
+            }
+                Spacer(Modifier.height(16.dp))
+            }
+
+            Spacer(Modifier.height(8.dp))
+            if (!paySuccess) {
                 PrimaryBlackButton(
-                    text = if (loading) "正在兑换..." else "立即兑换",
+                    text = when {
+                        loading && activeTab == 0 -> "正在创建订单..."
+                        loading -> "正在兑换..."
+                        activeTab == 0 -> "前往支付"
+                        else -> "立即兑换"
+                    },
                     onClick = {
-                        if (cdkeyText.isBlank()) {
+                        if (activeTab == 0) {
+                            val finalAmt = customAmountText.toIntOrNull() ?: selectedAmount
+                            if (finalAmt < 1) {
+                                message = "金额不能少于 1 元"
+                                isError = true
+                            } else {
+                                loading = true
+                                message = null
+                                initialQuota = user?.quota
+                                onCreatePayOrder(finalAmt, payMethod, { payResult ->
+                                    loading = false
+                                    payingNotice = true
+                                    val launched = if (!payResult.urlScheme.isNullOrBlank()) {
+                                        runCatching {
+                                            uriHandler.openUri(payResult.urlScheme)
+                                            true
+                                        }.getOrDefault(false)
+                                    } else false
+                                    if (!launched) runCatching { uriHandler.openUri(payResult.payUrl) }
+                                }, { err ->
+                                    loading = false
+                                    message = err
+                                    isError = true
+                                })
+                            }
+                        } else if (cdkeyText.isBlank()) {
                             message = "请输入卡密"
                             isError = true
-                            return@PrimaryBlackButton
-                        }
-                        loading = true
-                        message = null
-                        onTopupWithKey(cdkeyText.trim()) { ok, msg ->
-                            loading = false
-                            isError = !ok
-                            message = msg
-                            if (ok) {
-                                cdkeyText = ""
-                                onRefreshQuota()
+                        } else {
+                            loading = true
+                            message = null
+                            onTopupWithKey(cdkeyText.trim()) { ok, msg ->
+                                loading = false
+                                isError = !ok
+                                message = msg
+                                if (ok) {
+                                    cdkeyText = ""
+                                    onRefreshQuota()
+                                }
                             }
                         }
                     },
-                    enabled = !loading && cdkeyText.isNotBlank(),
+                    enabled = !loading && (activeTab == 0 || cdkeyText.isNotBlank()),
                 )
             }
-            Spacer(Modifier.height(32.dp))
+            Spacer(Modifier.height(8.dp))
         }
     }
 }

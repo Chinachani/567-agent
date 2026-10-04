@@ -31,6 +31,7 @@ fun presentTool(toolName: String, arguments: String?): ToolPresentation {
             toolName == "edit" || toolName == "edit_file" -> Str.toolEditFile
             toolName == "bash" || toolName == "shell" -> Str.toolRunCommand
             toolName == "ask_user_question" -> Str.toolAskQuestion
+            toolName == "generate_image" -> Str.toolGenerateImage
             toolName == "grep" || toolName == "find" || toolName == "ls" || toolName == "dir_tree" || toolName == "tree" ->
                 Str.toolSearchFiles
             else -> Str.toolAction

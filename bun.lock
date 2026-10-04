@@ -62,7 +62,7 @@
     },
     "apps/desktop": {
       "name": "@567agent/desktop",
-      "version": "1.2.2",
+      "version": "1.2.3",
       "dependencies": {
         "@567agent/action-rpc": "workspace:*",
         "@567agent/agent-team": "workspace:*",
@@ -791,7 +791,7 @@
     },
     "packages/plugins/presets/cowart-vetta": {
       "name": "@567agent/plugin-cowart-vetta",
-      "version": "0.1.8",
+      "version": "0.1.10",
       "dependencies": {
         "@modelcontextprotocol/ext-apps": "^1.7.4",
         "@modelcontextprotocol/sdk": "^1.29.0",
@@ -998,7 +998,7 @@
     },
     "packages/plugins/presets/vetta-ui-design": {
       "name": "@567agent/plugin-vetta-ui-design",
-      "version": "0.1.15",
+      "version": "0.1.16",
       "dependencies": {
         "fflate": "^0.8.2",
         "isomorphic-git": "^1.41.3",
@@ -1318,6 +1318,7 @@
     "@cloudflare/vitest-pool-workers@0.12.21": "patches/@cloudflare%2Fvitest-pool-workers@0.12.21.patch",
   },
   "overrides": {
+    "@peculiar/asn1-schema": "2.10.0",
     "@types/react": "19.2.17",
     "@wdio/native-utils": "2.6.0",
     "rimraf": "6.1.2",
@@ -2239,7 +2240,7 @@
 
     "@peculiar/asn1-rsa": ["@peculiar/asn1-rsa@2.10.0", "https://registry.npmmirror.com/@peculiar/asn1-rsa/-/asn1-rsa-2.10.0.tgz", { "dependencies": { "@peculiar/asn1-schema": "^2.10.0", "@peculiar/asn1-x509": "^2.10.0", "asn1js": "^3.0.10", "tslib": "^2.8.1" } }, "sha512-4Jvmwlh3gZAhNZ4/u7JSyLuce9hofOFZ4o3PYKAccCImGnyaT5CMym/ATgvAvqpOYFNW531oPZvJlEBhJy9VfA=="],
 
-    "@peculiar/asn1-schema": ["@peculiar/asn1-schema@2.8.0", "https://registry.npmmirror.com/@peculiar/asn1-schema/-/asn1-schema-2.8.0.tgz", { "dependencies": { "@peculiar/utils": "^2.0.2", "asn1js": "^3.0.10", "tslib": "^2.8.1" } }, "sha512-7YT0U/ze0tF2QOBbE15gKZwy5tvgGyLRiRHLzhlbOpf7BT032oBSd0haZqXn5W6l26WLlu3dyxzjM+2638/z2Q=="],
+    "@peculiar/asn1-schema": ["@peculiar/asn1-schema@2.10.0", "https://registry.npmmirror.com/@peculiar/asn1-schema/-/asn1-schema-2.10.0.tgz", { "dependencies": { "@peculiar/utils": "^2.0.2", "asn1js": "^3.0.10", "tslib": "^2.8.1" } }, "sha512-GhokD41lV4gQrrLYm3wCkHfBOnJrnhDMgt4XeMW8gzfE1UdJqIuSwsE+ggf82XBjUXRJylcm+KIGQFa4utIVLw=="],
 
     "@peculiar/asn1-x509": ["@peculiar/asn1-x509@2.10.0", "https://registry.npmmirror.com/@peculiar/asn1-x509/-/asn1-x509-2.10.0.tgz", { "dependencies": { "@peculiar/asn1-schema": "^2.10.0", "@peculiar/utils": "^2.0.2", "asn1js": "^3.0.10", "tslib": "^2.8.1" } }, "sha512-ucNVg8+ANveTpMN3fy9lA2alryONdXc2A4cEG2hMniWbvQt+YOZoe8BI80YYNO8FBcuDY1qbDQ4uQGQVraHxGA=="],
 
@@ -5622,24 +5623,6 @@
     "@module-federation/dts-plugin/ws": ["ws@8.21.0", "https://registry.npmmirror.com/ws/-/ws-8.21.0.tgz", { "peerDependencies": { "bufferutil": "^4.0.1", "utf-8-validate": ">=5.0.2" }, "optionalPeers": ["bufferutil", "utf-8-validate"] }, "sha512-Vsp28b7DRcimFQvrqu2Wek3z1iYxDCWqHYB8Qsnk/S4RfaCQzPGPyBNuVjJV3cd6UiKtUtp6sNM77gWvzcCH+g=="],
 
     "@noble/curves/@noble/hashes": ["@noble/hashes@1.8.0", "https://registry.npmmirror.com/@noble/hashes/-/hashes-1.8.0.tgz", {}, "sha512-jCs9ldd7NwzpgXDIf6P3+NrHh9/sD6CQdxHyjQI+h/6rDNo88ypBxxz45UDuZHz9r3tNz7N/VInSVoVdtXEI4A=="],
-
-    "@peculiar/asn1-cms/@peculiar/asn1-schema": ["@peculiar/asn1-schema@2.10.0", "https://registry.npmmirror.com/@peculiar/asn1-schema/-/asn1-schema-2.10.0.tgz", { "dependencies": { "@peculiar/utils": "^2.0.2", "asn1js": "^3.0.10", "tslib": "^2.8.1" } }, "sha512-GhokD41lV4gQrrLYm3wCkHfBOnJrnhDMgt4XeMW8gzfE1UdJqIuSwsE+ggf82XBjUXRJylcm+KIGQFa4utIVLw=="],
-
-    "@peculiar/asn1-csr/@peculiar/asn1-schema": ["@peculiar/asn1-schema@2.10.0", "https://registry.npmmirror.com/@peculiar/asn1-schema/-/asn1-schema-2.10.0.tgz", { "dependencies": { "@peculiar/utils": "^2.0.2", "asn1js": "^3.0.10", "tslib": "^2.8.1" } }, "sha512-GhokD41lV4gQrrLYm3wCkHfBOnJrnhDMgt4XeMW8gzfE1UdJqIuSwsE+ggf82XBjUXRJylcm+KIGQFa4utIVLw=="],
-
-    "@peculiar/asn1-ecc/@peculiar/asn1-schema": ["@peculiar/asn1-schema@2.10.0", "https://registry.npmmirror.com/@peculiar/asn1-schema/-/asn1-schema-2.10.0.tgz", { "dependencies": { "@peculiar/utils": "^2.0.2", "asn1js": "^3.0.10", "tslib": "^2.8.1" } }, "sha512-GhokD41lV4gQrrLYm3wCkHfBOnJrnhDMgt4XeMW8gzfE1UdJqIuSwsE+ggf82XBjUXRJylcm+KIGQFa4utIVLw=="],
-
-    "@peculiar/asn1-pfx/@peculiar/asn1-schema": ["@peculiar/asn1-schema@2.10.0", "https://registry.npmmirror.com/@peculiar/asn1-schema/-/asn1-schema-2.10.0.tgz", { "dependencies": { "@peculiar/utils": "^2.0.2", "asn1js": "^3.0.10", "tslib": "^2.8.1" } }, "sha512-GhokD41lV4gQrrLYm3wCkHfBOnJrnhDMgt4XeMW8gzfE1UdJqIuSwsE+ggf82XBjUXRJylcm+KIGQFa4utIVLw=="],
-
-    "@peculiar/asn1-pkcs8/@peculiar/asn1-schema": ["@peculiar/asn1-schema@2.10.0", "https://registry.npmmirror.com/@peculiar/asn1-schema/-/asn1-schema-2.10.0.tgz", { "dependencies": { "@peculiar/utils": "^2.0.2", "asn1js": "^3.0.10", "tslib": "^2.8.1" } }, "sha512-GhokD41lV4gQrrLYm3wCkHfBOnJrnhDMgt4XeMW8gzfE1UdJqIuSwsE+ggf82XBjUXRJylcm+KIGQFa4utIVLw=="],
-
-    "@peculiar/asn1-pkcs9/@peculiar/asn1-schema": ["@peculiar/asn1-schema@2.10.0", "https://registry.npmmirror.com/@peculiar/asn1-schema/-/asn1-schema-2.10.0.tgz", { "dependencies": { "@peculiar/utils": "^2.0.2", "asn1js": "^3.0.10", "tslib": "^2.8.1" } }, "sha512-GhokD41lV4gQrrLYm3wCkHfBOnJrnhDMgt4XeMW8gzfE1UdJqIuSwsE+ggf82XBjUXRJylcm+KIGQFa4utIVLw=="],
-
-    "@peculiar/asn1-rsa/@peculiar/asn1-schema": ["@peculiar/asn1-schema@2.10.0", "https://registry.npmmirror.com/@peculiar/asn1-schema/-/asn1-schema-2.10.0.tgz", { "dependencies": { "@peculiar/utils": "^2.0.2", "asn1js": "^3.0.10", "tslib": "^2.8.1" } }, "sha512-GhokD41lV4gQrrLYm3wCkHfBOnJrnhDMgt4XeMW8gzfE1UdJqIuSwsE+ggf82XBjUXRJylcm+KIGQFa4utIVLw=="],
-
-    "@peculiar/asn1-x509/@peculiar/asn1-schema": ["@peculiar/asn1-schema@2.10.0", "https://registry.npmmirror.com/@peculiar/asn1-schema/-/asn1-schema-2.10.0.tgz", { "dependencies": { "@peculiar/utils": "^2.0.2", "asn1js": "^3.0.10", "tslib": "^2.8.1" } }, "sha512-GhokD41lV4gQrrLYm3wCkHfBOnJrnhDMgt4XeMW8gzfE1UdJqIuSwsE+ggf82XBjUXRJylcm+KIGQFa4utIVLw=="],
-
-    "@peculiar/asn1-x509-attr/@peculiar/asn1-schema": ["@peculiar/asn1-schema@2.10.0", "https://registry.npmmirror.com/@peculiar/asn1-schema/-/asn1-schema-2.10.0.tgz", { "dependencies": { "@peculiar/utils": "^2.0.2", "asn1js": "^3.0.10", "tslib": "^2.8.1" } }, "sha512-GhokD41lV4gQrrLYm3wCkHfBOnJrnhDMgt4XeMW8gzfE1UdJqIuSwsE+ggf82XBjUXRJylcm+KIGQFa4utIVLw=="],
 
     "@pierre/diffs/diff": ["diff@9.0.0", "https://registry.npmmirror.com/diff/-/diff-9.0.0.tgz", {}, "sha512-svtcdpS8CgJyqAjEQIXdb3OjhFVVYjzGAPO8WGCmRbrml64SPw/jJD4GoE98aR7r25A0XcgrK3F02yw9R/vhQw=="],
 

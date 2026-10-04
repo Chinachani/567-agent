@@ -79,9 +79,11 @@ describe("GalleryScrollProgress", () => {
 		expect(scrollbar?.querySelector<HTMLElement>("[data-scroll-thumb]")?.style.height).toBe("100px");
 		act(() => scrollbar?.dispatchEvent(pointerEvent("pointerdown", 1, 200)));
 		expect(scrollElement.scrollTop).toBe(250);
+		expect(scrollbar?.querySelector("[data-scroll-thumb]")?.className).toContain("w-1.5 bg-primary");
 		act(() => scrollbar?.dispatchEvent(pointerEvent("pointermove", 1, 225)));
 		expect(scrollElement.scrollTop).toBe(375);
 		act(() => scrollbar?.dispatchEvent(pointerEvent("pointerup", 1, 225)));
+		expect(scrollbar?.querySelector("[data-scroll-thumb]")?.className).not.toContain("w-1.5 bg-primary");
 	});
 
 	it("supports arrow, page, home and end keyboard navigation", () => {

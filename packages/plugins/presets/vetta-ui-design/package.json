@@ -1,6 +1,6 @@
 {
 	"name": "@567agent/plugin-vetta-ui-design",
-	"version": "0.1.15",
+	"version": "0.1.16",
 	"private": true,
 	"type": "module",
 	"scripts": {

@@ -22,6 +22,8 @@ import org.agent567.android.ui.connect.DiscoverConnectScreen
 import org.agent567.android.ui.connect.NewConversationScreen
 import org.agent567.android.ui.home.HomeScreen
 import org.agent567.android.ui.i18n.Str
+import org.agent567.android.ui.me.MeScreen
+import org.agent567.android.ui.me.SettingsSection
 import org.agent567.android.ui.me.SettingsScreen
 import org.agent567.android.ui.sessions.SessionsScreen
 import org.agent567.android.ui.theme.VettaTheme
@@ -265,27 +267,15 @@ class MainScreenInteractionsTest {
     }
 
     @Test
-    fun settingsThemeSelectionCallsStateCallback() {
+    fun profileAppearanceButtonCyclesToNextTheme() {
         var selected: ThemeMode? = null
         composeRule.setContent {
             VettaTheme(ThemeMode.Light) {
-                SettingsScreen(
-                    themeMode = ThemeMode.Light,
-                    autoResumeLastSession = true,
-                    motionEnabled = true,
-                    onThemeMode = { selected = it },
-                    onAutoResumeLastSession = {},
-                    onMotionEnabled = {},
-                    onClearLocalData = {},
-                    onOpenAbout = {},
-                    onBack = {},
-                    confirmBeforeDelete = true,
-                    onConfirmBeforeDelete = {},
-                )
+                MeScreen(user = null, subscription = null, themeMode = ThemeMode.Light,
+                    onlineDeviceCount = 0, onThemeMode = { selected = it })
             }
         }
-
-        composeRule.onNodeWithText(Str.themeDark).performClick()
+        composeRule.onNodeWithText(Str.themeLight).performClick()
         assertEquals(ThemeMode.Dark, selected)
     }
 
@@ -295,14 +285,16 @@ class MainScreenInteractionsTest {
         composeRule.setContent {
             VettaTheme(ThemeMode.Light) {
                 SettingsScreen(
-                    themeMode = ThemeMode.Light,
+                    section = SettingsSection.Behavior,
+                    migrationBackupLimitMb = 50,
+                    onMigrationBackupLimitMb = {},
+                    onExportMigration = { _, _ -> },
+                    onImportMigration = { _, _, _ -> },
                     autoResumeLastSession = true,
                     motionEnabled = true,
-                    onThemeMode = {},
                     onAutoResumeLastSession = { values += it },
                     onMotionEnabled = { values += it },
                     onClearLocalData = {},
-                    onOpenAbout = {},
                     onBack = {},
                     confirmBeforeDelete = true,
                     onConfirmBeforeDelete = { values += it },
@@ -323,14 +315,16 @@ class MainScreenInteractionsTest {
         composeRule.setContent {
             VettaTheme(ThemeMode.Light) {
                 SettingsScreen(
-                    themeMode = ThemeMode.Light,
+                    section = SettingsSection.Data,
+                    migrationBackupLimitMb = 50,
+                    onMigrationBackupLimitMb = {},
+                    onExportMigration = { _, _ -> },
+                    onImportMigration = { _, _, _ -> },
                     autoResumeLastSession = true,
                     motionEnabled = true,
-                    onThemeMode = {},
                     onAutoResumeLastSession = {},
                     onMotionEnabled = {},
                     onClearLocalData = { cleared = true },
-                    onOpenAbout = {},
                     onBack = {},
                     confirmBeforeDelete = true,
                     onConfirmBeforeDelete = {},
@@ -345,27 +339,15 @@ class MainScreenInteractionsTest {
     }
 
     @Test
-    fun settingsAboutRowCallsNavigationCallback() {
+    fun profileAboutRowCallsNavigationCallback() {
         var opened = false
         composeRule.setContent {
             VettaTheme(ThemeMode.Light) {
-                SettingsScreen(
-                    themeMode = ThemeMode.Light,
-                    autoResumeLastSession = true,
-                    motionEnabled = true,
-                    onThemeMode = {},
-                    onAutoResumeLastSession = {},
-                    onMotionEnabled = {},
-                    onClearLocalData = {},
-                    onOpenAbout = { opened = true },
-                    onBack = {},
-                    confirmBeforeDelete = true,
-                    onConfirmBeforeDelete = {},
-                )
+                MeScreen(user = null, subscription = null, themeMode = ThemeMode.Light,
+                    onlineDeviceCount = 0, onOpenAbout = { opened = true })
             }
         }
-
-        composeRule.onNodeWithText(Str.aboutVetta).performClick()
+        composeRule.onNodeWithText(Str.aboutUs).performClick()
         assertTrue(opened)
     }
 

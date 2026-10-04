@@ -129,6 +129,18 @@ export function useOpenMarketplaceData() {
 		failedNames.length ? i18n.t("abilities:error.sourcesFailed", { names: failedNames.join(", ") }) : null,
 		outdatedNames.length ? i18n.t("abilities:error.sourcesOutdated", { names: outdatedNames.join(", ") }) : null,
 	].filter((message): message is string => message !== null);
+	for (const snapshot of catalog.snapshots) {
+		const discovery = snapshot.discovery;
+		if (!discovery?.error && !discovery?.invalidRecords) continue;
+		messages.push(
+			i18n.t("abilities:discovery.failed", {
+				name: snapshot.source.name,
+				loaded: discovery.loaded,
+				total: discovery.total,
+				reason: i18n.t(`abilities:discovery.reason.${discovery.error ?? "content-invalid"}`),
+			}),
+		);
+	}
 	const error = loadFailed ? i18n.t("abilities:error.loadFailed") : messages.join(" ") || null;
 	return { catalog, refreshing, error, load, refreshSource, addSource, updateSource, removeSource, clearCredential };
 }

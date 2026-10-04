@@ -297,7 +297,7 @@ it("seeds the search keyword from an external deep link and lets the page take o
 	expect(mine.result.current.scope).toBe("mine");
 });
 
-it("renders abilities in a flat grid by default when ENABLE_ABILITY_CATEGORIES is false", async () => {
+it("groups abilities by category by default while preserving both rows", async () => {
 	const repository = "https://github.com/example/flat";
 	const source: MarketplaceSource = {
 		id: "flat-source", name: "Flat", type: "github", repository,
@@ -332,4 +332,30 @@ it("renders abilities in a flat grid by default when ENABLE_ABILITY_CATEGORIES i
 	expect(screen.getByText("Skill A")).toBeTruthy();
 	expect(screen.getByText("Skill B")).toBeTruthy();
 	view.unmount();
+});
+
+it("refreshes discovery, hides empty filter options, merges aliases and exposes safety information", async () => {
+ const repository = "https://github.com/example/discovery";
+ const source: MarketplaceSource = { id: "discovery", name: "Discovery", type: "github", repository, archiveUrl: `${repository}/archive/main.zip`, ref: "main", enabled: true, builtin: false, autoUpdate: true, priority: 100, createdAt: "2026-10-04", updatedAt: "2026-10-04" };
+ const base = { type: "mcp" as const, description: "SQL storage", version: "1", configVersion: 1, author: "", license: "", icon: "", tags: [], config: {}, detail: {}, origin: { kind: "github-marketplace" as const, sourceId: source.id, marketplace: "demo", marketplaceVersion: "1", repository }, categoryI18n: { en: "Data and databases", zh: "数据与数据库" } };
+ const snapshot: OpenMarketplaceSourceSnapshot = { source, sourceId: source.id, marketplaceVersion: "1", repository, syncedAt: source.updatedAt, stale: false, abilities: [{ ...base, slug: "postgres", name: "Postgres", category: "Database", config: { mcp: { type: "http", url: "https://example.com/mcp" } } }, { ...base, slug: "sqlite", name: "SQLite", category: "data-databases", installable: false, reviewStatus: "unreviewed", classificationSource: "automatic" }] };
+ const catalog: OpenMarketplaceCatalog = { sources: [source], snapshots: [snapshot], abilities: snapshot.abilities, failedSourceIds: [] };
+ const refresh = vi.fn(async () => structuredClone(catalog));
+ Object.defineProperty(window, "vetta", { configurable: true, value: { abilities: { getLedger: async () => ({}), listLocalPresentations: async () => ({}), getOpenMcpSetupStatus: async () => ({}), listOpenMarketplaces: async () => structuredClone(catalog), refreshOpenMarketplaces: refresh, onOpenMarketplacesUpdated: () => () => undefined }, skills: { getMarketManifest: async () => ({}), list: async () => [] }, plugins: { listAll: async () => [] }, mcp: { get: async () => ({ mcpServers: {} }) } } });
+ initI18n(); await i18n.changeLanguage("en");
+ function Page() { return <AbilitiesPageView model={useAbilitiesModel()} />; }
+ render(<Page />);
+ await waitFor(() => expect(screen.getByText("SQLite")).toBeTruthy());
+ const user = userEvent.setup();
+ await user.click(screen.getByRole("button", { name: "Refresh" }));
+ await waitFor(() => expect(refresh).toHaveBeenCalled());
+ const typeSelect = screen.getByRole("combobox", { name: "Filter abilities by type" });
+ expect(typeSelect.querySelectorAll("option")).toHaveLength(2);
+ const categorySelect = screen.getByRole("combobox", { name: "Filter abilities by category" });
+ expect(categorySelect.querySelectorAll("option")).toHaveLength(2);
+ await user.selectOptions(typeSelect, "mcp");
+ await user.selectOptions(categorySelect, "data-databases");
+ await user.type(screen.getByRole("textbox", { name: "Search abilities" }), "sqlite");
+ expect(screen.queryByText("Postgres")).toBeNull();
+ expect(screen.getByText("Unreviewed · Safety unknown")).toBeTruthy();
 });

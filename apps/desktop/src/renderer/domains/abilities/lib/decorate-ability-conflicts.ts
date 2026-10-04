@@ -32,12 +32,18 @@ export function decorateAbilityConflicts(items: AbilityItem[]): AbilityItem[] {
 	}
 
 	const sameNameIds = new Map<string, string[]>();
+	const sameNameCounts = new Map<string, number>();
 	for (const group of sameNameGroups.values()) {
 		if (group.length < 2) continue;
+		const preview = group.slice(0, 33);
 		for (const item of group) {
+			sameNameCounts.set(item.id, group.length - 1);
 			sameNameIds.set(
 				item.id,
-				group.filter((candidate) => candidate.id !== item.id).map((candidate) => candidate.id),
+				preview
+					.filter((candidate) => candidate.id !== item.id)
+					.slice(0, 32)
+					.map((candidate) => candidate.id),
 			);
 		}
 	}
@@ -57,7 +63,9 @@ export function decorateAbilityConflicts(items: AbilityItem[]): AbilityItem[] {
 
 	return items.map((item) => ({
 		...item,
-		...(sameNameIds.has(item.id) ? { sameNameIds: sameNameIds.get(item.id) } : {}),
+		...(sameNameIds.has(item.id)
+			? { sameNameIds: sameNameIds.get(item.id), sameNameCount: sameNameCounts.get(item.id) }
+			: {}),
 		...(installConflictIds.has(item.id) ? { installConflictIds: installConflictIds.get(item.id) } : {}),
 	}));
 }

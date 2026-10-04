@@ -1,14 +1,17 @@
 {
 	"id": "cowart-vetta",
 	"name": "%plugin.name%",
-	"version": "0.1.9",
+	"version": "0.1.10",
 	"pluginApiVersion": "^2.0.0",
 	"entry": "dist/mf-manifest.json",
 	"moduleFederation": {
 		"remoteName": "cowart_vetta",
 		"expose": "./plugin"
 	},
-	"styles": ["dist/style.css", "dist/style2.css"],
+	"styles": [
+		"dist/style.css",
+		"dist/style2.css"
+	],
 	"icon": "assets/app-icon.png",
 	"permissions": [
 		"ui.slot.workspace-view",
@@ -26,7 +29,9 @@
 		"fs.write"
 	],
 	"agent": {
-		"skillPaths": ["agent/skills"],
+		"skillPaths": [
+			"agent/skills"
+		],
 		"mcpServers": "./.mcp.json"
 	},
 	"description": "%plugin.description%",

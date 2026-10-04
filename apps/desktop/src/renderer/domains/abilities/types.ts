@@ -68,6 +68,8 @@ export type AbilityOperation =
 export type AbilityOperationProgress = Omit<OpenMarketplaceMcpRuntimeProgress, "sourceId" | "slug">;
 
 export interface AbilityBase {
+	reviewStatus?: "unreviewed";
+	classificationSource?: "automatic" | "maintainer";
 	/** 来源感知的目录唯一标识；同 type + slug 可以跨来源并存。 */
 	id: string;
 	slug: string;
@@ -115,6 +117,8 @@ export interface AbilityBase {
 	detail?: AbilityDetail;
 	/** 同类型、同展示名或同 slug 的其它目录条目。 */
 	sameNameIds?: string[];
+	/** Total matches; links are bounded to avoid quadratic catalog memory. */
+	sameNameCount?: number;
 	/** 已占用同一物理安装位置的其它来源条目；显式替换流程完成前禁止覆盖。 */
 	installConflictIds?: string[];
 	searchTerms: string[];
@@ -194,7 +198,14 @@ export interface AbilitiesModel {
 	setScope: (scope: AbilityScope) => void;
 	searchQuery: string;
 	setSearchQuery: (value: string) => void;
-	/** 经 scope + 搜索过滤后的结果。 */
+	availableTypes?: AbilityItem["type"][];
+	typeFilter: AbilityItem["type"] | "";
+	setTypeFilter: (type: AbilityItem["type"] | "") => void;
+	category: string;
+	setCategory: (category: string) => void;
+	/** 当前分区中可供筛选的分类。 */
+	categories: AbilityGroup[];
+	/** 经 scope + 搜索 + 分类过滤后的结果。 */
 	items: AbilityItem[];
 	/** 经 scope + 搜索过滤后的总数；items 只包含当前已展开的本地分页。 */
 	totalItems: number;

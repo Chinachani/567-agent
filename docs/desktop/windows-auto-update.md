@@ -55,12 +55,12 @@ R2 推荐对象布局：
 desktop/
   stable/
     latest.yml
-    Vetta-<version>-win-x64.exe
-    Vetta-<version>-win-x64.exe.blockmap
+    567-Agent-<version>-win-x64.exe
+    567-Agent-<version>-win-x64.exe.blockmap
   test/
     latest.yml
-    Vetta-<version>-win-x64.exe
-    Vetta-<version>-win-x64.exe.blockmap
+    567-Agent-<version>-win-x64.exe
+    567-Agent-<version>-win-x64.exe.blockmap
 ```
 
 `stable` 和 `test` 必须同时在客户端 URL、R2 前缀和 Cloudflare 路由上保持一致，不能只改其中一个。
@@ -287,9 +287,9 @@ Windows 构建产物：
 
 ```text
 apps/desktop/release/
-  Vetta-0.5.57-win-x64.exe
-  Vetta-0.5.57-win-x64.exe.blockmap
-  Vetta-0.5.57-win-x64.exe.files.json
+  567-Agent-<version>-win-x64.exe
+  567-Agent-<version>-win-x64.exe.blockmap
+  567-Agent-<version>-win-x64.exe.files.json
   latest.yml
 ```
 
@@ -367,8 +367,8 @@ CDN 命中可减少 R2 Class B 读取；回源未命中仍会产生 R2 操作。
 差分下载要求自定义域名对 EXE 支持标准字节范围请求。应返回 `206 Partial Content` 和正确的 `Content-Range`。
 
 ```powershell
-curl.exe -I "https://updates.example.com/desktop/test/Vetta-<version>-win-x64.exe"
-curl.exe -r 0-1023 -o NUL -D - "https://updates.example.com/desktop/test/Vetta-<version>-win-x64.exe"
+curl.exe -I "https://updates.example.com/desktop/test/567-Agent-<version>-win-x64.exe"
+curl.exe -r 0-1023 -o NUL -D - "https://updates.example.com/desktop/test/567-Agent-<version>-win-x64.exe"
 ```
 
 第二条响应应为 206。当前 `generic` provider 设置了 `useMultipleRangeRequest=true`：electron-updater 先把相邻变化块合并为下载区间，再把最多 1000 个差分任务中的远程区间放进一个 multipart Range 请求，避免跨地域链路逐个串行请求。
@@ -376,7 +376,7 @@ curl.exe -r 0-1023 -o NUL -D - "https://updates.example.com/desktop/test/Vetta-<
 还必须验证多区间响应：
 
 ```powershell
-curl.exe -H "Range: bytes=0-9,100-109" -o NUL -D - "https://updates.example.com/desktop/test/Vetta-<version>-win-x64.exe"
+curl.exe -H "Range: bytes=0-9,100-109" -o NUL -D - "https://updates.example.com/desktop/test/567-Agent-<version>-win-x64.exe"
 ```
 
 响应必须是 `206 Partial Content`，且 `Content-Type` 包含 `multipart/byteranges; boundary=...`。只支持单区间 206 不足以启用 multipart Range。

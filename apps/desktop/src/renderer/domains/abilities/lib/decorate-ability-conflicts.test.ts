@@ -52,6 +52,13 @@ function findItem(items: AbilityItem[], id: string): AbilityItem {
 }
 
 describe("decorateAbilityConflicts", () => {
+	it("bounds same-name links for large discovery catalogs while retaining the exact count", () => {
+		const items = decorateAbilityConflicts(
+			Array.from({ length: 1000 }, (_, index) => marketSkill(`candidate-${index}`, { title: "MCP Server" })),
+		);
+		expect(items[500].sameNameCount).toBe(999);
+		expect(items.every((item) => item.sameNameIds?.length === 32 && !item.sameNameIds.includes(item.id))).toBe(true);
+	});
 	it("通用 Agent 目录的同名 skill 不阻塞市场安装", () => {
 		const items = decorateAbilityConflicts([marketSkill("xlsx"), genericAgentSkill("xlsx")]);
 		expect(findItem(items, "server:server:skill:xlsx").installConflictIds).toBeUndefined();

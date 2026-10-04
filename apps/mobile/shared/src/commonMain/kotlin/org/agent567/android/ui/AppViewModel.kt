@@ -394,6 +394,8 @@ class AppViewModel(
 
     fun openSettings() = navigate(AppRoute.Settings)
 
+    fun openDataSettings() = navigate(AppRoute.SettingsData)
+
 
     fun checkAppUpdate(onResult: (org.agent567.android.core.api.AppUpdateCheckResult) -> Unit) {
         viewModelScope.launch {
@@ -715,7 +717,6 @@ class AppViewModel(
         _state.update {
             it.copy(
                 active567Group = group,
-                groupPickerOpen = false,
                 catalogLoading = cached.isEmpty(),
                 models = if (cached.isNotEmpty()) cached else it.models,
                 selectedModelId = immediateSelected ?: it.selectedModelId,

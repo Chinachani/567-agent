@@ -3,6 +3,7 @@ import { useEffect } from "react";
 import { lazy, Suspense, useLayoutEffect, useMemo, useState, type ComponentType } from "react";
 import { installBridgeFromPluginContext } from "./vettaCowartBridge";
 import { getPluginContext } from "./pluginContext";
+import { getSessionCanvasDir } from "./canvas-session-path";
 
 /**
  * Lazy-load the full tldraw canvas. Eager import of App.jsx (~2MB + tldraw)
@@ -12,6 +13,13 @@ import { getPluginContext } from "./pluginContext";
 const CowartApp = lazy(() =>
 	import("../canvas/App.jsx").then((mod) => ({ default: mod.default as ComponentType })),
 );
+
+function joinPath(root: string, ...parts: string[]): string {
+	const sep = root.includes("\\") && !root.includes("/") ? "\\" : "/";
+	return [root.replace(/[/\\]+$/, ""), ...parts.map((part) => part.replace(/^[/\\]+|[/\\]+$/g, ""))]
+		.filter(Boolean)
+		.join(sep);
+}
 
 /**
  * Full Cowart tldraw canvas in the activity tab.
@@ -26,6 +34,11 @@ export function CanvasPanel() {
 	const [error, setError] = useState<string | null>(null);
 
 	const [fallbackDir, setFallbackDir] = useState<string | null>(null);
+	const [canvasStorage, setCanvasStorage] = useState<{
+		projectDir: string;
+		sessionPath: string;
+		canvasDir: string;
+	} | null>(null);
 
 	useEffect(() => {
 		if (activityTab?.cwd || convo?.cwd) return;
@@ -57,17 +70,53 @@ export function CanvasPanel() {
 		}
 		return fallbackDir;
 	}, [activityTab?.cwd, convo?.cwd, ctx, fallbackDir]);
+	const sessionPath = convo?.sessionPath?.trim() || null;
+
+	useEffect(() => {
+		if (!ctx || !projectDir || !sessionPath) {
+			setCanvasStorage(null);
+			return;
+		}
+		let cancelled = false;
+		setError(null);
+		setCanvasStorage(null);
+		const sessionCanvasDir = getSessionCanvasDir(projectDir, sessionPath);
+		const legacyCanvasDir = joinPath(projectDir, "canvas");
+		void ctx.fs
+			.stat(sessionCanvasDir)
+			.then(async (sessionCanvas) => {
+				if (cancelled) return;
+				if (sessionCanvas) {
+					setCanvasStorage({ projectDir, sessionPath, canvasDir: sessionCanvasDir });
+					return;
+				}
+				const legacyCanvas = await ctx.fs.stat(legacyCanvasDir);
+				if (!cancelled) {
+					setCanvasStorage({ projectDir, sessionPath, canvasDir: legacyCanvas ? legacyCanvasDir : sessionCanvasDir });
+				}
+			})
+			.catch((cause: unknown) => {
+				if (!cancelled) setError(cause instanceof Error ? cause.message : String(cause));
+			});
+		return () => {
+			cancelled = true;
+		};
+	}, [ctx, projectDir, sessionPath]);
+	const canvasDir =
+		canvasStorage?.projectDir === projectDir && canvasStorage.sessionPath === sessionPath
+			? canvasStorage.canvasDir
+			: null;
 
 	// useLayoutEffect: install bridge before child App effects call loadCowartCanvasState.
 	useLayoutEffect(() => {
-		if (!ctx || !projectDir) {
+		if (!ctx || !projectDir || !canvasDir || !sessionPath) {
 			setReady(false);
 			return;
 		}
 		setError(null);
 		let dispose: (() => void) | undefined;
 		try {
-			dispose = installBridgeFromPluginContext(ctx, projectDir);
+			dispose = installBridgeFromPluginContext(ctx, projectDir, canvasDir, sessionPath);
 			setReady(true);
 		} catch (err) {
 			setError(err instanceof Error ? err.message : String(err));
@@ -77,13 +126,21 @@ export function CanvasPanel() {
 			dispose?.();
 			// Keep ready true during Strict Mode remount gap — bridge is ref-counted.
 		};
-	}, [ctx, projectDir]);
+	}, [ctx, projectDir, canvasDir, sessionPath]);
 
 	if (!projectDir) {
 		return (
 			<div className="cowart-vetta-panel">
 				<h2>{t("panel.title")}</h2>
 				<p className="cowart-vetta-muted">{t("panel.noCwd")}</p>
+			</div>
+		);
+	}
+
+	if (!sessionPath || !canvasDir) {
+		return (
+			<div className="cowart-vetta-panel">
+				<p className="cowart-vetta-muted">{t("panel.waitingForSession")}</p>
 			</div>
 		);
 	}
@@ -114,7 +171,7 @@ export function CanvasPanel() {
 					</div>
 				}
 			>
-				<CowartApp key={projectDir} />
+				<CowartApp key={canvasDir} />
 			</Suspense>
 		</div>
 	);

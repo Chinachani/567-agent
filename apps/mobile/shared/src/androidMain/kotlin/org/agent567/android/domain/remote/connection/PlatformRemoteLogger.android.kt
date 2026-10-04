@@ -1,22 +1,35 @@
 package org.agent567.android.domain.remote.connection
 
 import android.util.Log
+import org.agent567.android.diagnostics.MobileDiagnostics
 
 actual object PlatformRemoteLogger : RemoteLogger {
     override fun debug(message: String, fields: Map<String, Any?>) {
-        runCatching { Log.d(TAG, format(message, fields)) }
+        log("DEBUG", message, fields) { Log.d(TAG, it) }
     }
 
     override fun info(message: String, fields: Map<String, Any?>) {
-        runCatching { Log.i(TAG, format(message, fields)) }
+        log("INFO", message, fields) { Log.i(TAG, it) }
     }
 
     override fun warn(message: String, fields: Map<String, Any?>) {
-        runCatching { Log.w(TAG, format(message, fields)) }
+        log("WARN", message, fields) { Log.w(TAG, it) }
+    }
+
+    private inline fun log(level: String, message: String, fields: Map<String, Any?>, write: (String) -> Int) {
+        val formatted = format(message, fields)
+        runCatching { write(formatted) }
+        val safeFields = fields.filterKeys { it.lowercase() in DIAGNOSTIC_FIELD_ALLOWLIST }
+        runCatching { MobileDiagnostics.record(level, format(message, safeFields)) }
     }
 
     private fun format(message: String, fields: Map<String, Any?>): String =
         if (fields.isEmpty()) message else "$message ${fields.entries.joinToString { "${it.key}=${it.value}" }}"
 
     private const val TAG = "VettaRemote"
+    private val DIAGNOSTIC_FIELD_ALLOWLIST = setOf(
+        "state", "attempt", "attemptnumber", "status", "code", "error", "reason", "type",
+        "expected", "received", "reconnectcount", "sequence", "durationms", "bytes",
+        "connectionstate", "signalstate", "iceconnectionstate",
+    )
 }

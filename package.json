@@ -151,6 +151,7 @@
 	},
 	"overrides": {
 		"@types/react": "19.2.17",
+		"@peculiar/asn1-schema": "2.10.0",
 		"rimraf": "6.1.2",
 		"@wdio/native-utils": "2.6.0"
 	},

@@ -20,6 +20,7 @@ export function RemotePairingSettings(): JSX.Element {
 	});
 	const [qr, setQr] = useState<string>();
 	const [qrError, setQrError] = useState(false);
+	const [createError, setCreateError] = useState<string>();
 	const [busy, setBusy] = useState(false);
 
 	useEffect(() => {
@@ -45,6 +46,7 @@ export function RemotePairingSettings(): JSX.Element {
 		let cancelled = false;
 		setQr(undefined);
 		setQrError(false);
+		setCreateError(undefined);
 		void createQrCodeDataUrl(state.inviteUri, 280)
 			.then((dataUrl) => {
 				if (!cancelled) setQr(dataUrl);
@@ -61,11 +63,16 @@ export function RemotePairingSettings(): JSX.Element {
 
 	const create = async (): Promise<void> => {
 		setBusy(true);
+		setQr(undefined);
+		setQrError(false);
+		setCreateError(undefined);
 		try {
 			const targetRelay = relayUrl.trim() || DEFAULT_RELAY;
 			localStorage.setItem("567.remote.relay_url", targetRelay);
+			setCreateError(undefined);
 			setState(await window.vetta.remotePairing.create(targetRelay));
-		} catch {
+		} catch (error) {
+			setCreateError(error instanceof Error ? error.message : t("remote.createFailed"));
 			setState((current) => ({ ...current, status: "error" }));
 		} finally {
 			setBusy(false);
@@ -149,12 +156,17 @@ export function RemotePairingSettings(): JSX.Element {
 				</div>
 
 				<div className="mt-4 min-h-[310px] overflow-hidden border-y border-border/50 py-5">
+					{createError ? <p role="alert" className="mb-3 text-center text-[12px] text-destructive">{createError}</p> : null}
 					{qr ? (
 						<div className="flex flex-col items-center animate-in fade-in zoom-in-95 duration-200">
 							<img
 								src={qr}
 								alt={t("remote.qrAlt")}
 								className="h-[280px] w-[280px] rounded-lg bg-white p-2"
+								onError={() => {
+									setQr(undefined);
+									setQrError(true);
+								}}
 							/>
 							<p className="mt-3 max-w-[360px] text-center text-[12px] leading-relaxed text-muted-foreground">
 								{t("remote.qrHint")}

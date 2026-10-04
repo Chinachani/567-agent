@@ -12,6 +12,8 @@ export function createAbilitiesApi(ipc: IpcRenderer): Pick<DesktopApi, "abilitie
 			listOpenMarketplace: () => ipc.invoke("vetta:abilities:list-open-marketplace"),
 			refreshOpenMarketplace: () => ipc.invoke("vetta:abilities:refresh-open-marketplace"),
 			listOpenMarketplaces: () => ipc.invoke("vetta:abilities:list-open-marketplaces"),
+			getDiscoveryDetail: (sourceId, slug, catalogVersion) =>
+				ipc.invoke("vetta:abilities:get-discovery-detail", sourceId, slug, catalogVersion),
 			refreshOpenMarketplaces: () => ipc.invoke("vetta:abilities:refresh-open-marketplaces"),
 			listMarketplaceSources: () => ipc.invoke("vetta:abilities:list-marketplace-sources"),
 			addMarketplaceSource: (input) => ipc.invoke("vetta:abilities:add-marketplace-source", input),

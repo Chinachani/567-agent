@@ -363,7 +363,10 @@ describe("OpenMarketplaceService", () => {
 		const rootDir = await temporaryRoot();
 		const zip = archive();
 		const fetchArchive = vi.fn(async (_url: string, init?: RequestInit) => {
-			expect(init?.headers).toMatchObject({ Authorization: "Bearer secret-token" });
+			expect(init?.headers).toMatchObject({
+				Authorization: "Bearer secret-token",
+				Accept: "application/vnd.github+json",
+			});
 			expect(init?.redirect).toBe("follow");
 			return response(zip);
 		});
@@ -412,7 +415,10 @@ describe("OpenMarketplaceService", () => {
 		});
 		await initial.refresh();
 		const fetchManifest = vi.fn(async (_url: string, init?: RequestInit) => {
-			expect(init?.headers).toMatchObject({ Authorization: "Bearer secret-token" });
+			expect(init?.headers).toMatchObject({
+				Authorization: "Bearer secret-token",
+				Accept: "application/vnd.github.raw+json",
+			});
 			return githubManifestResponse(zip);
 		});
 		const service = new OpenMarketplaceService({
@@ -430,6 +436,36 @@ describe("OpenMarketplaceService", () => {
 			"https://api.github.com/repos/example/vetta-abilities/contents/.vetta/marketplace.json?ref=main",
 			expect.objectContaining({ redirect: "follow" }),
 		);
+	});
+
+	it("refreshes authenticated catalogs above GitHub's 1 MiB JSON limit through raw content", async () => {
+		const rootDir = await temporaryRoot();
+		const zip = archive();
+		const initial = new OpenMarketplaceService({
+			appVersion: APP_VERSION,
+			rootDir,
+			fetchArchive: async () => response(zip),
+		});
+		await initial.refresh();
+		const body = await manifestResponse(zip).text();
+		const payload = JSON.stringify({ ...JSON.parse(body), padding: "x".repeat(1024 * 1024) });
+		const fetchManifest = vi.fn(async (_url: string, init?: RequestInit) => {
+			expect(init?.headers).toMatchObject({
+				Accept: "application/vnd.github.raw+json",
+				Authorization: "Bearer token",
+			});
+			return new Response(payload);
+		});
+		const service = new OpenMarketplaceService({
+			appVersion: APP_VERSION,
+			rootDir,
+			getAccessToken: () => "token",
+			fetchManifest,
+		});
+		const cached = await service.list();
+		expect(cached.error).toBeUndefined();
+		await vi.waitFor(() => expect(fetchManifest).toHaveBeenCalledOnce());
+		await vi.waitFor(async () => expect((await service.listCached()).error).toBeUndefined());
 	});
 
 	it.each([
@@ -805,6 +841,7 @@ describe("OpenMarketplaceService", () => {
 		});
 		expect(mcp).toMatchObject({
 			slug: "context7",
+			installable: true,
 			configVersion: 3,
 			config: { mcp: { type: "http", url: "https://mcp.context7.com/mcp" } },
 			origin: { kind: "github-marketplace", sourceId: "vetta-official" },
@@ -1155,4 +1192,102 @@ describe("OpenMarketplaceService", () => {
 			ref: "main",
 		});
 	});
+});
+
+it("activates installable packages before discovery and publishes unreviewed MCP entries independently", async () => {
+	const rootDir = await temporaryRoot();
+	const { createHash } = await import("node:crypto");
+	const revision = "b".repeat(40);
+	const body = Buffer.from(
+		JSON.stringify({
+			schemaVersion: 1,
+			catalogVersion: "catalog-1",
+			category: "cad-3d",
+			abilities: [
+				{
+					type: "mcp",
+					slug: "blender-discovery",
+					name: "Blender",
+					description: "Blender MCP",
+					version: "1.0.0",
+					configVersion: 1,
+					license: "",
+					author: "",
+					category: "cad-3d",
+					tags: ["blender"],
+					detail: {},
+					mcpMetadata: { installable: false },
+					classificationSource: "automatic",
+				},
+			],
+		}),
+	);
+	const index = {
+		schemaVersion: 1,
+		catalogVersion: "catalog-1",
+		marketplaceVersion: "2026.07.1",
+		recordCount: 1,
+		categories: { "cad-3d": 1 },
+		shards: [
+			{
+				path: "shards/mcp-cad-3d-0000.json",
+				category: "cad-3d",
+				sha256: createHash("sha256").update(body).digest("hex"),
+				sizeBytes: body.length,
+				count: 1,
+			},
+		],
+	};
+	let release!: () => void;
+	const pending = new Promise<void>((resolve) => {
+		release = resolve;
+	});
+	const onBackgroundUpdate = vi.fn();
+	const service = new OpenMarketplaceService({
+		appVersion: APP_VERSION,
+		rootDir,
+		repository: "https://github.com/Chinachani/567-agent-marketplace",
+		fetchArchive: async () => response(archive()),
+		fetchManifest: async (url) => {
+			if (url.includes("/git/ref/")) {
+				await pending;
+				return Response.json({ object: { sha: revision } });
+			}
+			if (url.endsWith("/index.json")) return Response.json(index);
+			if (url.endsWith("0000.json")) return response(body);
+			return manifestResponse(archive());
+		},
+		onBackgroundUpdate,
+	});
+	const initial = await service.refresh();
+	expect(initial.abilities.map((entry) => entry.slug)).toEqual(["demo-skill"]);
+	release();
+	await vi.waitFor(() =>
+		expect(onBackgroundUpdate).toHaveBeenCalledWith(
+			expect.objectContaining({ discovery: expect.objectContaining({ loaded: 1, total: 1, syncing: false }) }),
+		),
+	);
+	const snapshot = await service.listCached();
+	expect(snapshot.error).toBeUndefined();
+	expect(snapshot.abilities.find((entry) => entry.slug === "blender-discovery")).toMatchObject({
+		listed: true,
+		installable: false,
+		icon: "",
+		reviewStatus: "unreviewed",
+		classificationSource: "automatic",
+		config: {},
+	});
+	const detail = await service.getDiscoveryDetail("blender-discovery", "catalog-1");
+	expect(detail).toMatchObject({
+		installable: false,
+		reviewStatus: "unreviewed",
+		config: {},
+		description: "Blender MCP",
+	});
+	await expect(service.getDiscoveryDetail("blender-discovery", "stale-version")).rejects.toThrow("unavailable");
+	const completedUpdates = () =>
+		onBackgroundUpdate.mock.calls.filter(([value]) => value.discovery?.syncing === false).length;
+	const previousUpdates = completedUpdates();
+	await expect(service.prepareMcp("blender-discovery")).rejects.toThrow("Open ability not found");
+	await vi.waitFor(() => expect(completedUpdates()).toBeGreaterThan(previousUpdates));
 });

@@ -1,7 +1,7 @@
 import type { TFunction } from "i18next";
 import { describe, expect, it } from "vitest";
 import type { PluginAbility, SkillAbility } from "../types";
-import { queryAbilityCatalog } from "./ability-catalog-query";
+import { filterAbilityCatalog, queryAbilityCatalog } from "./ability-catalog-query";
 import { buildMcpAbilities } from "./build-ability-items";
 
 function ability(index: number, overrides: Partial<SkillAbility> = {}): SkillAbility {
@@ -68,6 +68,22 @@ function pluginAbility(index: number, overrides: Partial<PluginAbility> = {}): P
 }
 
 describe("queryAbilityCatalog", () => {
+	it("uses canonical categories and nonempty search/type facets consistently", () => {
+		const items = [
+			ability(0, { category: "Database", searchTerms: ["postgres"] }),
+			ability(1, { category: "data-databases", searchTerms: ["sqlite"] }),
+			pluginAbility(0, { category: "Documents", searchTerms: ["editor"] }),
+		];
+		expect(
+			queryAbilityCatalog(items, { scope: "discover", category: "data-databases", page: 1, pageSize: 60 }).total,
+		).toBe(2);
+		expect(
+			filterAbilityCatalog(items, { scope: "discover", keyword: "sqlite", types: ["skill"] }).map(
+				(item) => item.slug,
+			),
+		).toEqual([items[1].slug]);
+		expect(filterAbilityCatalog(items, { scope: "discover", keyword: "sqlite", types: ["plugin"] })).toEqual([]);
+	});
 	it("paginates the in-memory catalog without changing the source", () => {
 		const items = Array.from({ length: 125 }, (_, index) => ability(index));
 

@@ -36,6 +36,18 @@ function ability(slug: string, overrides: Partial<SkillAbility> = {}): SkillAbil
 }
 
 describe("groupAbilities", () => {
+	it("merges canonical marketplace categories with known server aliases", () => {
+		const groups = groupAbilities([
+			ability("legacy", { category: "Database" }),
+			ability("canonical", { category: "data-databases" }),
+			ability("uncategorized", { category: "uncategorized" }),
+			ability("empty", { category: "" }),
+		]);
+		expect(groups.map((group) => [group.category, group.items.length])).toEqual([
+			["data-databases", 2],
+			[ABILITY_CATEGORY_UNCATEGORIZED, 2],
+		]);
+	});
 	it("combines missing languages across sources without merging translated category identities", () => {
 		const items = [
 			ability("first", { category: "Documents", categoryI18n: { en: "Documents", zh: " " } }),

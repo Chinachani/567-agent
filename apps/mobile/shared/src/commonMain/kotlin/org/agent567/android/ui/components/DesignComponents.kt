@@ -7,15 +7,19 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ColumnScope
+import androidx.compose.foundation.layout.defaultMinSize
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.RowScope
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.horizontalScroll
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Button
@@ -29,6 +33,8 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.semantics.Role
+import androidx.compose.foundation.selection.selectable
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
@@ -135,12 +141,19 @@ fun SectionHeader(
     ) {
         Text(title, style = MaterialTheme.typography.titleMedium)
         if (action != null && onAction != null) {
-            Text(
-                action,
-                style = MaterialTheme.typography.bodyMedium,
-                color = MaterialTheme.vettaExtra.secondaryText,
-                modifier = Modifier.clickable(onClick = onAction),
-            )
+            Box(
+                modifier = Modifier
+                    .heightIn(min = 48.dp)
+                    .clickable(role = Role.Button, onClick = onAction)
+                    .padding(horizontal = 8.dp),
+                contentAlignment = Alignment.Center,
+            ) {
+                Text(
+                    action,
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.vettaExtra.secondaryText,
+                )
+            }
         }
     }
 }
@@ -199,33 +212,43 @@ fun FilterChipRow(
     modifier: Modifier = Modifier,
 ) {
     Row(
-        modifier = modifier.fillMaxWidth(),
+        modifier = modifier.fillMaxWidth().horizontalScroll(rememberScrollState()),
         horizontalArrangement = Arrangement.spacedBy(8.dp),
     ) {
         options.forEachIndexed { index, label ->
             val selected = index == selectedIndex
-            Text(
-                text = label,
-                style = MaterialTheme.typography.labelLarge,
-                color =
-                    if (selected) {
-                        MaterialTheme.colorScheme.onPrimary
-                    } else {
-                        MaterialTheme.colorScheme.onSurface
-                    },
-                modifier =
-                    Modifier
-                        .clip(RoundedCornerShape(20.dp))
-                        .background(
-                            if (selected) {
-                                MaterialTheme.colorScheme.primary
-                            } else {
-                                MaterialTheme.vettaExtra.chipBackground
-                            },
-                        )
-                        .clickable { onSelect(index) }
-                        .padding(horizontal = 14.dp, vertical = 8.dp),
-            )
+            Box(
+                modifier = Modifier
+                    .defaultMinSize(minHeight = 48.dp)
+                    .selectable(
+                            selected = selected,
+                            role = Role.RadioButton,
+                            onClick = { onSelect(index) },
+                    ),
+                contentAlignment = Alignment.Center,
+            ) {
+                Text(
+                    text = label,
+                    style = MaterialTheme.typography.labelLarge,
+                    color =
+                        if (selected) {
+                            MaterialTheme.colorScheme.onPrimary
+                        } else {
+                            MaterialTheme.colorScheme.onSurface
+                        },
+                    modifier =
+                        Modifier
+                            .clip(RoundedCornerShape(20.dp))
+                            .background(
+                                if (selected) {
+                                    MaterialTheme.colorScheme.primary
+                                } else {
+                                    MaterialTheme.vettaExtra.chipBackground
+                                },
+                            )
+                            .padding(horizontal = 14.dp, vertical = 8.dp),
+                )
+            }
         }
     }
 }

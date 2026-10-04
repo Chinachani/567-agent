@@ -233,6 +233,7 @@ export const marketplaceManifestSchema = z
 		name: z.string().regex(SLUG_PATTERN),
 		displayName: z.string().min(1).optional(),
 		marketplaceVersion: z.string().regex(VERSION_PATTERN),
+		discoveryVersion: z.string().regex(VERSION_PATTERN).optional(),
 		repository: z.string().url(),
 		minAppVersion: appVersionSchema,
 		abilities: z.array(marketplaceAbilitySchema),

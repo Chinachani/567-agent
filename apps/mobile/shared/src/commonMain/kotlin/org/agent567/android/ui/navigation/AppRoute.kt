@@ -43,5 +43,7 @@ sealed class AppRoute {
 
     data object Settings : AppRoute()
 
+    data object SettingsData : AppRoute()
+
     data object About : AppRoute()
 }

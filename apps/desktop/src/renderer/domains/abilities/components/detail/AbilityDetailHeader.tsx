@@ -41,6 +41,12 @@ export function AbilityDetailHeader({
 
 	return (
 		<div className="flex flex-col gap-4">
+			{item.reviewStatus === "unreviewed" && (
+				<div className="rounded-lg bg-muted/60 px-3 py-2 text-[12px] text-muted-foreground">
+					<p>{t("discovery.warning")}</p>
+					{item.classificationSource && <p className="mt-1">{t(`discovery.classification.${item.classificationSource}`)}</p>}
+				</div>
+			)}
 			<div className="flex items-start gap-4">
 				<AbilityIcon icon={item.icon} type={item.type} className="h-14 w-14 rounded-2xl" iconClassName="h-7 w-7" />
 				<div className="min-w-0 flex-1">

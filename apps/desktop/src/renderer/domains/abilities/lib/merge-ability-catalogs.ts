@@ -19,6 +19,10 @@ function toMarketAbility(
 ): OpenCatalogMarketAbility {
 	return {
 		listed: ability.listed,
+		detailDeferred: ability.detailDeferred,
+		installable: ability.installable,
+		reviewStatus: ability.reviewStatus,
+		classificationSource: ability.classificationSource,
 		slug: ability.slug,
 		type: ability.type,
 		name: ability.name,

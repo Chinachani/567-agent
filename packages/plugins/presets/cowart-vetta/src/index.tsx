@@ -1,5 +1,6 @@
 import { definePlugin } from "@vetta-org/plugin-sdk";
 import { CanvasPanel } from "./CanvasPanel";
+import { CanvasWorkspaceLauncher } from "./CanvasWorkspaceLauncher";
 import { setPluginContext } from "./pluginContext";
 import "./style.css";
 
@@ -34,10 +35,10 @@ export default definePlugin({
 
 		ctx.ui.registerWorkspaceView({
 			id: WORKSPACE_VIEW_ID,
-			label: "%tab.label%",
+			label: "%launcher.label%",
 			icon: "icon-[solar--pallete-2-linear]",
 			description: "%plugin.description%",
-			component: CanvasPanel,
+			component: CanvasWorkspaceLauncher,
 		});
 
 		ctx.ui.registerActivityTab({
@@ -53,7 +54,7 @@ export default definePlugin({
 			name: OPEN_TOOL_ID,
 			label: "Open Cowart canvas",
 			description:
-				"Open the Cowart infinite-canvas (tldraw) activity panel in 567 Agent. Use when the user asks to open, launch, or show the Cowart canvas / infinite canvas. Pass the user project directory as projectDir when known; never the plugin install path. Canvas data lives under <projectDir>/canvas. Agent-side IO also uses Cowart MCP tools (get_cowart_canvas_state, insert_cowart_image, …).",
+				"Open the Cowart infinite-canvas (tldraw) activity panel in 567 Agent. Use when the user asks to open, launch, or show the Cowart canvas / infinite canvas. Pass the user project directory as projectDir when known; never the plugin install path. New sidebar canvases are isolated under <projectDir>/canvas/sessions/<session-id>. When a canvas UI follow-up includes canvasDir, pass it explicitly to Cowart MCP tools so they access the active conversation's board.",
 			scope_use: ["project", "conversation"],
 			parameters: {
 				type: "object",
@@ -71,7 +72,7 @@ export default definePlugin({
 					ok: true,
 					opened: "activity-tab:cowart-vetta:canvas",
 					projectDir,
-					hint: "Cowart tldraw canvas is open in the activity panel. UI persists via the 567 Agent file bridge to project/canvas; agent tools use plugin-scoped MCP.",
+					hint: "Cowart tldraw canvas is open in the activity panel. New canvases are stored per conversation under project/canvas/sessions; pass the active canvasDir explicitly to Cowart MCP tools.",
 				};
 			},
 		});

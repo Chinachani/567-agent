@@ -373,7 +373,9 @@ function createMcpAbility(input: McpBuildInput, state: LocalAbilityState, t: TFu
 		localVersion,
 		installed,
 		enabled: installed && !(server?.disabled ?? false),
-		readonly: false,
+		readonly: Boolean(entry && entry.installable === false),
+		reviewStatus: entry?.reviewStatus,
+		classificationSource: entry?.classificationSource,
 		needsUpdate: installed && Boolean(entry && localVersion) && (localVersion !== entry?.version || configOutdated),
 		setupRequired: installed && (needsSecrets || (usesOAuth && !authorized) || !setupCompleted),
 		...(postInstallSetup ? { postInstallSetup } : {}),
@@ -423,11 +425,10 @@ function findMcpLedgerEntry(
 	catalogId: string,
 	source: AbilityCatalogSource,
 	slug: string,
+	indexed: ReadonlyMap<string, { entry: AbilityLedgerEntry; runtimeName: string }>,
 ): { entry: AbilityLedgerEntry; runtimeName: string } | undefined {
-	for (const [key, entry] of Object.entries(ledger)) {
-		if (!key.startsWith("mcp:") || entry.catalogId !== catalogId) continue;
-		return { entry, runtimeName: entry.runtimeName ?? key.slice("mcp:".length) };
-	}
+	const match = indexed.get(catalogId);
+	if (match) return match;
 	const legacy = ledger[physicalLedgerKey("mcp", slug)];
 	if (!ledgerEntryMatchesCatalog(legacy, catalogId, source)) return undefined;
 	return { entry: legacy, runtimeName: legacy.runtimeName ?? slug };
@@ -438,6 +439,11 @@ export function buildMcpAbilities(
 	state: LocalAbilityState,
 	t: TFunction<"settings">,
 ): McpAbility[] {
+	const indexedLedger = new Map<string, { entry: AbilityLedgerEntry; runtimeName: string }>();
+	for (const [key, entry] of Object.entries(state.ledger)) {
+		if (!key.startsWith("mcp:") || !entry.catalogId || indexedLedger.has(entry.catalogId)) continue;
+		indexedLedger.set(entry.catalogId, { entry, runtimeName: entry.runtimeName ?? key.slice(4) });
+	}
 	const marketEntries = market.filter((entry) => entry.type === "mcp");
 	const slugCounts = new Map<string, number>();
 	for (const entry of marketEntries) slugCounts.set(entry.slug, (slugCounts.get(entry.slug) ?? 0) + 1);
@@ -448,7 +454,7 @@ export function buildMcpAbilities(
 	for (const entry of marketEntries) {
 		const catalogSource = getMarketCatalogSource(entry);
 		const id = buildMarketAbilityId(entry);
-		const ledgerMatch = findMcpLedgerEntry(state.ledger, id, catalogSource, entry.slug);
+		const ledgerMatch = findMcpLedgerEntry(state.ledger, id, catalogSource, entry.slug, indexedLedger);
 		const hasCatalogConflict = (slugCounts.get(entry.slug) ?? 0) > 1;
 		const preferredName = hasCatalogConflict ? qualifiedMcpServerName(entry.slug, id) : entry.slug;
 		const serverName =

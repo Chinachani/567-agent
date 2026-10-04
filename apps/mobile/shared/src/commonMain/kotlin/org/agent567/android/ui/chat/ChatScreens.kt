@@ -93,6 +93,7 @@ import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.RadioButton
+import androidx.compose.material3.SheetValue
 import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.material3.rememberModalBottomSheetState
@@ -104,6 +105,7 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.snapshotFlow
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -112,8 +114,10 @@ import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.foundation.layout.WindowInsets
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.flow.first
 import androidx.compose.runtime.withFrameNanos
 import org.agent567.android.core.model.ChatRole
 import org.agent567.android.core.model.LlmModel
@@ -127,6 +131,7 @@ import org.agent567.android.domain.session.ToolTrace
 import org.agent567.android.ui.components.EmptyState
 import org.agent567.android.ui.components.ListRow
 import org.agent567.android.ui.components.VettaErrorBanner
+import org.agent567.android.ui.LocalMotionEnabled
 import org.agent567.android.ui.i18n.Str
 import org.agent567.android.ui.media.imageBitmapFromBase64
 import org.agent567.android.ui.media.rememberImagePicker
@@ -142,7 +147,7 @@ fun RotatingRefreshIcon(
     contentDescription: String? = null,
     modifier: Modifier = Modifier,
 ) {
-    val rotation by if (isRefreshing) {
+    val rotation by if (isRefreshing && LocalMotionEnabled.current) {
         val transition = rememberInfiniteTransition()
         transition.animateFloat(
             initialValue = 0f,
@@ -281,7 +286,12 @@ fun ChatScreen(
             TopAppBar(
                 title = {
                     Column {
-                        Text(title, maxLines = 1, style = MaterialTheme.typography.titleMedium)
+                        Text(
+                            title,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis,
+                            style = MaterialTheme.typography.titleMedium,
+                        )
                         Text(
                             if (isStreaming) {
                                 streamingStatusLabel(streamingStatus)
@@ -292,6 +302,8 @@ fun ChatScreen(
                             },
                             style = MaterialTheme.typography.labelSmall,
                             color = MaterialTheme.vettaExtra.secondaryText,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis,
                         )
                     }
                 },
@@ -306,7 +318,7 @@ fun ChatScreen(
                             onClick = onOpenGroupPicker,
                             shape = RoundedCornerShape(16.dp),
                             color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.6f),
-                            modifier = Modifier.padding(end = 8.dp),
+                            modifier = Modifier.padding(end = 8.dp).widthIn(max = 148.dp),
                         ) {
                             Row(
                                 verticalAlignment = Alignment.CenterVertically,
@@ -317,6 +329,8 @@ fun ChatScreen(
                                     style = MaterialTheme.typography.labelMedium.copy(fontWeight = FontWeight.Medium),
                                     color = MaterialTheme.colorScheme.primary,
                                     maxLines = 1,
+                                    overflow = TextOverflow.Ellipsis,
+                                    modifier = Modifier.widthIn(max = 104.dp),
                                 )
                                 Spacer(Modifier.width(2.dp))
                                 Icon(
@@ -384,7 +398,7 @@ fun ChatScreen(
                             onClick = onOpenModelPicker,
                             shape = RoundedCornerShape(12.dp),
                             color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f),
-                            modifier = Modifier.weight(1f, fill = false),
+                            modifier = Modifier.weight(1f),
                         ) {
                             Row(
                                 verticalAlignment = Alignment.CenterVertically,
@@ -401,6 +415,8 @@ fun ChatScreen(
                                     if (activeGroup == null) "请选择主分组" else (selectedModel?.name ?: "选择主模型"),
                                     style = MaterialTheme.typography.labelSmall.copy(fontWeight = FontWeight.Medium),
                                     maxLines = 1,
+                                    overflow = TextOverflow.Ellipsis,
+                                    modifier = Modifier.weight(1f),
                                 )
                                 Icon(
                                     Icons.Default.ArrowDropDown,
@@ -415,7 +431,7 @@ fun ChatScreen(
                             onClick = onOpenImagePicker,
                             shape = RoundedCornerShape(12.dp),
                             color = if (imageGenEnabled) MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.6f) else MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f),
-                            modifier = Modifier.weight(1f, fill = false),
+                            modifier = Modifier.weight(1f),
                         ) {
                             Row(
                                 verticalAlignment = Alignment.CenterVertically,
@@ -433,6 +449,8 @@ fun ChatScreen(
                                     style = MaterialTheme.typography.labelSmall.copy(fontWeight = FontWeight.Medium),
                                     color = if (imageGenEnabled) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant,
                                     maxLines = 1,
+                                    overflow = TextOverflow.Ellipsis,
+                                    modifier = Modifier.weight(1f),
                                 )
                                 Icon(
                                     Icons.Default.ArrowDropDown,
@@ -663,9 +681,26 @@ fun ChatScreen(
     }
 
     if (groupPickerOpen) {
+        val groupSheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
+        var groupSheetClosing by remember { mutableStateOf(false) }
+        val finishClosingGroupPicker = {
+            if (!groupSheetClosing) {
+                groupSheetClosing = true
+                scope.launch {
+                    if (groupSheetState.targetValue != SheetValue.Hidden) {
+                        groupSheetState.hide()
+                    }
+                    snapshotFlow { groupSheetState.currentValue }
+                        .first { it == SheetValue.Hidden }
+                    onCloseGroupPicker()
+                }
+            }
+        }
         ModalBottomSheet(
-            onDismissRequest = onCloseGroupPicker,
-            sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true),
+            // A drag may already be animating toward Hidden when this callback runs.
+            // Reuse that transition instead of starting a competing hide animation.
+            onDismissRequest = finishClosingGroupPicker,
+            sheetState = groupSheetState,
         ) {
             Column(Modifier.padding(horizontal = 16.dp, vertical = 8.dp)) {
                 Row(
@@ -702,7 +737,7 @@ fun ChatScreen(
                                 .background(if (isSelected) MaterialTheme.colorScheme.primary.copy(alpha = 0.08f) else Color.Transparent)
                                 .clickable {
                                     onSelectGroup?.invoke(groupName)
-                                    onCloseGroupPicker()
+                                    finishClosingGroupPicker()
                                 }
                                 .padding(vertical = 12.dp, horizontal = 10.dp),
                             horizontalArrangement = Arrangement.SpaceBetween,
@@ -898,6 +933,8 @@ private fun ImagePreviewModal(
                     Icon(Icons.Default.Close, contentDescription = "关闭", tint = Color.White)
                 }
                 val isSuccess = saveStatus?.contains("成功") == true || saveStatus?.contains("已保存") == true
+                val saveButtonContentColor =
+                    if (isSuccess) Color.White else MaterialTheme.colorScheme.onPrimary
                 androidx.compose.material3.FilledTonalButton(
                     onClick = {
                         if (!isSaving) {
@@ -911,11 +948,11 @@ private fun ImagePreviewModal(
                     shape = RoundedCornerShape(20.dp),
                     colors = androidx.compose.material3.ButtonDefaults.filledTonalButtonColors(
                         containerColor = if (isSuccess) Color(0xFF2E7D32) else MaterialTheme.colorScheme.primary,
-                        contentColor = Color.White,
+                        contentColor = saveButtonContentColor,
                     ),
                 ) {
-                    if (isSuccess) {
-                        Icon(Icons.Default.Check, contentDescription = null, modifier = Modifier.size(16.dp), tint = Color.White)
+                if (isSuccess) {
+                        Icon(Icons.Default.Check, contentDescription = null, modifier = Modifier.size(16.dp), tint = saveButtonContentColor)
                         Spacer(Modifier.width(4.dp))
                     }
                     Text(
@@ -1125,11 +1162,7 @@ private fun MessageBubble(
                             }
                         }
                         message.content.isBlank() && message.status == MessageStatus.Streaming -> {
-                            Text(
-                                "…",
-                                modifier = Modifier.padding(horizontal = 14.dp, vertical = 10.dp),
-                                style = MaterialTheme.typography.bodyLarge,
-                            )
+                            ThinkingTypewriter()
                         }
                         message.content.isBlank() && message.status == MessageStatus.Error -> {
                             Text(
@@ -1222,6 +1255,9 @@ private fun ToolTraceRow(tool: ToolTrace) {
                 .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.42f))
                 .animateContentSize(),
     ) {
+        val presentation = presentTool(tool.toolName, tool.arguments)
+        val isImageTool = tool.toolName == "generate_image"
+        val isActive = tool.phase !in setOf("completed", "error", "failed", "cancelled")
         Row(
             Modifier
                 .fillMaxWidth()
@@ -1229,7 +1265,6 @@ private fun ToolTraceRow(tool: ToolTrace) {
                 .padding(horizontal = 10.dp, vertical = 7.dp),
             verticalAlignment = Alignment.CenterVertically,
         ) {
-            val presentation = presentTool(tool.toolName, tool.arguments)
             Icon(
                 imageVector = toolIcon(tool.toolName),
                 contentDescription = presentation.label,
@@ -1237,24 +1272,66 @@ private fun ToolTraceRow(tool: ToolTrace) {
                 modifier = Modifier.size(18.dp),
             )
             Spacer(Modifier.width(8.dp))
-            Text(
-                text = buildString {
-                    append(presentation.label)
-                    presentation.summary?.let {
-                        append(" · ")
-                        append(it)
+            if (isImageTool) {
+                Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Text(
+                            text = presentation.label,
+                            style = MaterialTheme.typography.labelMedium.copy(fontWeight = FontWeight.SemiBold),
+                            color = MaterialTheme.colorScheme.onSurface,
+                            modifier = Modifier.weight(1f),
+                        )
+                        if (isActive) {
+                            CircularProgressIndicator(
+                                modifier = Modifier.size(15.dp),
+                                strokeWidth = 2.dp,
+                                color = MaterialTheme.colorScheme.primary,
+                            )
+                            Spacer(Modifier.width(5.dp))
+                            Text(
+                                Str.toolImageGenerating,
+                                style = MaterialTheme.typography.labelSmall,
+                                color = MaterialTheme.colorScheme.primary,
+                            )
+                        } else {
+                            Text(
+                                if (tool.phase == "completed") Str.toolCompleted else Str.toolIncomplete,
+                                style = MaterialTheme.typography.labelSmall,
+                                color = toolTint(tool.phase),
+                            )
+                        }
                     }
-                    append(" · ")
-                    append(toolPhaseLabel(tool.phase))
-                    tool.phaseLabel?.takeIf { it.isNotBlank() }?.let {
+                    Text(
+                        text = tool.phaseLabel?.takeIf { it.isNotBlank() }
+                            ?: if (isActive) Str.toolImageProgress else toolPhaseLabel(tool.phase),
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.vettaExtra.secondaryText,
+                        maxLines = 2,
+                        overflow = TextOverflow.Ellipsis,
+                    )
+                }
+            } else {
+                Text(
+                    text = buildString {
+                        append(presentation.label)
+                        presentation.summary?.let {
+                            append(" · ")
+                            append(it)
+                        }
                         append(" · ")
-                        append(it)
-                    }
-                },
-                style = MaterialTheme.typography.labelMedium,
-                color = MaterialTheme.colorScheme.onSurface,
-                modifier = Modifier.weight(1f),
-            )
+                        append(toolPhaseLabel(tool.phase))
+                        tool.phaseLabel?.takeIf { it.isNotBlank() }?.let {
+                            append(" · ")
+                            append(it)
+                        }
+                    },
+                    style = MaterialTheme.typography.labelMedium,
+                    color = MaterialTheme.colorScheme.onSurface,
+                    modifier = Modifier.weight(1f),
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                )
+            }
             if (hasDetail) {
                 Icon(
                     imageVector = if (expanded) Icons.Default.ExpandLess else Icons.Default.ExpandMore,
@@ -1409,7 +1486,7 @@ private fun toolIcon(name: String): ImageVector =
 private fun toolTint(phase: String) =
     when (phase) {
         "completed" -> MaterialTheme.colorScheme.primary
-        "failed" -> MaterialTheme.colorScheme.error.copy(alpha = 0.72f)
+        "failed", "error" -> MaterialTheme.colorScheme.error.copy(alpha = 0.72f)
         else -> MaterialTheme.colorScheme.onSurfaceVariant
     }
 
@@ -1432,6 +1509,33 @@ private fun streamingStatusLabel(status: String?): String =
         "background" -> Str.backgroundWork
         else -> Str.streaming
     }
+
+@Composable
+private fun ThinkingTypewriter() {
+    val label = Str.thinkingPlaceholder
+    val motionEnabled = LocalMotionEnabled.current
+    var visibleCharacters by remember(label, motionEnabled) { mutableStateOf(if (motionEnabled) 0 else label.length) }
+
+    LaunchedEffect(label, motionEnabled) {
+        if (!motionEnabled) return@LaunchedEffect
+        while (true) {
+            for (count in 1..label.length) {
+                delay(110L)
+                visibleCharacters = count
+            }
+            delay(650L)
+            visibleCharacters = 0
+            delay(160L)
+        }
+    }
+
+    Text(
+        text = label.take(visibleCharacters),
+        modifier = Modifier.padding(horizontal = 14.dp, vertical = 10.dp),
+        style = MaterialTheme.typography.bodyLarge,
+        color = MaterialTheme.colorScheme.onSurfaceVariant,
+    )
+}
 
 @Composable
 private fun QuestionPrompt(
