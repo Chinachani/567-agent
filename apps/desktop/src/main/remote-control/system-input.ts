@@ -2,10 +2,12 @@ import { createRequire } from "node:module";
 import type { RemoteInputMessage } from "@567agent/remote-desktop";
 import { systemPreferences } from "electron";
 import type * as Koffi from "koffi";
+import type { RemotePairingState } from "../../preload/api-types/remote-pairing.js";
 import { getAppLogger } from "../logger.js";
 
 export interface SystemInputAdapter {
 	readonly supported: boolean;
+	readonly unsupportedReason?: NonNullable<RemotePairingState["inputSupportReason"]>;
 	setEnabled(enabled: boolean): void;
 	apply(message: RemoteInputMessage): void;
 }
@@ -39,17 +41,25 @@ export function createSystemInputAdapter(options: { readonly enabled: boolean })
 		adapter.setEnabled(options.enabled);
 		return adapter;
 	} catch (error) {
+		const unsupportedReason =
+			process.platform === "win32"
+				? "windows_api_unavailable"
+				: process.platform === "linux"
+					? "x11_libraries_unavailable"
+					: "unsupported_platform";
 		log.warn("remote input adapter initialization failed", {
 			platform: process.platform,
+			reason: unsupportedReason,
 			error: error instanceof Error ? error.message : String(error),
 		});
+		return unsupportedInputAdapter(unsupportedReason);
 	}
-	return unsupportedInputAdapter("unsupported_platform");
 }
 
-function unsupportedInputAdapter(reason: string): SystemInputAdapter {
+function unsupportedInputAdapter(reason: NonNullable<SystemInputAdapter["unsupportedReason"]>): SystemInputAdapter {
 	return {
 		supported: false,
+		unsupportedReason: reason,
 		setEnabled: () => undefined,
 		apply(message) {
 			log.debug("remote input ignored", { type: message.type, reason });

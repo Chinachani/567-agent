@@ -1,6 +1,7 @@
 import type { InstalledPlugin } from "@preload/api";
 import { readSidebarState, subscribeSidebarState } from "@shared/app-shell/sidebar-state";
 import type { ActivityTabKey } from "@shared/lib/project-profile";
+import { createQrCodeDataUrl } from "@shared/lib/qr-code-data-url";
 import {
 	activeInputActionIdsAtom,
 	activeSessionAtom,
@@ -43,7 +44,6 @@ import type {
 	PluginWorkspaceViewHeader,
 } from "@vetta-org/plugin-sdk";
 import { getDefaultStore } from "jotai";
-import QRCode from "qrcode";
 import { type ComponentType, createElement, type ReactNode } from "react";
 import { explicitTabVisibility, withPluginTabVisibility } from "./attached-tabs";
 import type { PluginAgentApiRegistration } from "./plugin-agent-context";
@@ -910,7 +910,7 @@ export function createPluginUiApi({
 		registerAbilityDetailSlot,
 		createQrCode: (text) => {
 			if (typeof text !== "string" || text.trim().length === 0) throw new Error("QR code text is required");
-			return QRCode.toDataURL(text, { width: 280, margin: 1, errorCorrectionLevel: "M" });
+			return createQrCodeDataUrl(text, 280);
 		},
 		registerFilePreview,
 		registerActivityTab,

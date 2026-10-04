@@ -5,6 +5,13 @@ export interface RemotePairingState {
 	inviteUri?: string;
 	inputEnabled: boolean;
 	inputSupported: boolean;
+	inputSupportReason?:
+		| "windows_api_unavailable"
+		| "x11_display_unavailable"
+		| "x11_libraries_unavailable"
+		| "x11_open_display_failed"
+		| "accessibility_permission_required"
+		| "unsupported_platform";
 	error?: string;
 }
 

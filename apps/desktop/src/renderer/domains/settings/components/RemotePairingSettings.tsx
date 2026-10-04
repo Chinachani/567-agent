@@ -1,10 +1,10 @@
 import { Button } from "@shared/components/ui/button";
 import { Input } from "@shared/components/ui/input";
 import { Switch } from "@shared/components/ui/switch";
-import QRCode from "qrcode";
 import { useEffect, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 import type { RemotePairingState } from "../../../../preload/api-types/remote-pairing";
+import { createQrCodeDataUrl } from "@shared/lib/qr-code-data-url";
 
 const DEFAULT_RELAY = "https://567-agent-relay.907746241.workers.dev";
 
@@ -19,6 +19,7 @@ export function RemotePairingSettings(): JSX.Element {
 		return localStorage.getItem("567.remote.relay_url") || DEFAULT_RELAY;
 	});
 	const [qr, setQr] = useState<string>();
+	const [qrError, setQrError] = useState(false);
 	const [busy, setBusy] = useState(false);
 
 	useEffect(() => {
@@ -38,9 +39,22 @@ export function RemotePairingSettings(): JSX.Element {
 	useEffect(() => {
 		if (!state.inviteUri) {
 			setQr(undefined);
+			setQrError(false);
 			return;
 		}
-		void QRCode.toDataURL(state.inviteUri, { width: 280, margin: 1, errorCorrectionLevel: "M" }).then(setQr);
+		let cancelled = false;
+		setQr(undefined);
+		setQrError(false);
+		void createQrCodeDataUrl(state.inviteUri, 280)
+			.then((dataUrl) => {
+				if (!cancelled) setQr(dataUrl);
+			})
+			.catch(() => {
+				if (!cancelled) setQrError(true);
+			});
+		return () => {
+			cancelled = true;
+		};
 	}, [state.inviteUri]);
 
 	const statusLabel = useMemo(() => t(`remote.status.${state.status}`), [state.status, t]);
@@ -149,7 +163,9 @@ export function RemotePairingSettings(): JSX.Element {
 					) : (
 						<div className="flex min-h-[270px] flex-col items-center justify-center text-muted-foreground">
 							<span className="icon-[solar--smartphone-rotate-angle-linear] h-9 w-9" />
-							<p className="mt-3 text-[12px]">{t("remote.empty")}</p>
+							<p role={qrError ? "alert" : undefined} className={`mt-3 text-[12px] ${qrError ? "text-destructive" : ""}`}>
+								{qrError ? t("remote.qrRenderError") : t("remote.empty")}
+							</p>
 						</div>
 					)}
 				</div>
@@ -160,7 +176,9 @@ export function RemotePairingSettings(): JSX.Element {
 					<div>
 						<h2 className="text-[14px] font-semibold text-foreground">{t("remote.inputTitle")}</h2>
 						<p className="mt-1 text-[12px] leading-relaxed text-muted-foreground">
-							{t("remote.inputDescription")}
+							{state.inputSupported || !state.inputSupportReason
+								? t("remote.inputDescription")
+								: t(`remote.inputSupport.${state.inputSupportReason}`)}
 						</p>
 					</div>
 					<Switch

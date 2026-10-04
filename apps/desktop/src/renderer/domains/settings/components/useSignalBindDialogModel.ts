@@ -1,5 +1,5 @@
 import type { ImSignalBindEvent } from "@preload/api";
-import QRCode from "qrcode";
+import { createQrCodeDataUrl } from "@shared/lib/qr-code-data-url";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 
@@ -112,12 +112,7 @@ export function useSignalBindDialogModel({
 		const uri = state.qrUri;
 		if (!uri) return;
 		let cancelled = false;
-		QRCode.toDataURL(uri, {
-			errorCorrectionLevel: "M",
-			margin: 1,
-			width: 240,
-			color: { dark: "#000000", light: "#ffffff" },
-		})
+		createQrCodeDataUrl(uri, 240)
 			.then((dataUrl) => {
 				if (!cancelled) {
 					setState((prev) => (prev.qrUri === uri ? { ...prev, qrDataUrl: dataUrl } : prev));
@@ -191,6 +186,7 @@ export function useSignalBindDialogModel({
 	const bodyKind = (() => {
 		if (bound) return "bound" as const;
 		if (cliMissing) return "failed" as const;
+		if (state.error) return "failed" as const;
 		if (state.phase === "idle" || state.phase === "starting") return "loading" as const;
 		if (state.phase === "failed") return "failed" as const;
 		if (state.phase === "confirmed") return "confirmed" as const;

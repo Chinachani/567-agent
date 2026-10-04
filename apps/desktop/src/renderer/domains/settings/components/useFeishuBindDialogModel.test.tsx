@@ -13,9 +13,10 @@ vi.mock("react-i18next", () => ({
 	}),
 }));
 
-vi.mock("qrcode", () => ({
-	default: { toDataURL: async (text: string) => `data:image/png;base64,${btoa(text)}` },
+const { mockQrToString } = vi.hoisted(() => ({
+	mockQrToString: vi.fn(async () => '<svg xmlns="http://www.w3.org/2000/svg"></svg>'),
 }));
+vi.mock("qrcode", () => ({ default: { toString: mockQrToString } }));
 
 const { useFeishuBindDialogModel } = await import("./useFeishuBindDialogModel.js");
 
@@ -80,6 +81,7 @@ function renderDialog(
 describe("useFeishuBindDialogModel", () => {
 	beforeEach(() => {
 		vi.useRealTimers();
+		mockQrToString.mockResolvedValue('<svg xmlns="http://www.w3.org/2000/svg"></svg>');
 	});
 
 	it("打开后自动发起注册并把验证链接渲染成二维码", async () => {
@@ -162,6 +164,22 @@ describe("useFeishuBindDialogModel", () => {
 		await waitFor(() => {
 			expect(result.current.bodyKind).toBe("failed");
 			expect(result.current.error).toBe("授权被拒绝，可重新扫码。");
+		});
+	});
+
+	it("二维码渲染失败时显示可重试错误，而不是一直显示加载动画", async () => {
+		const stub = installFeishuStub();
+		mockQrToString.mockRejectedValueOnce(new Error("canvas unavailable"));
+
+		const { result } = renderDialog();
+		await waitFor(() => expect(stub.startBindCalls).toBe(1));
+		act(() => {
+			stub.emit({ kind: "qr", type: "feishu_qr", url: "https://accounts.feishu.cn/app/registration?code=A", expireIn: 600, attempt: 1 });
+		});
+
+		await waitFor(() => {
+			expect(result.current.bodyKind).toBe("failed");
+			expect(result.current.error).toBe("qrRenderError");
 		});
 	});
 

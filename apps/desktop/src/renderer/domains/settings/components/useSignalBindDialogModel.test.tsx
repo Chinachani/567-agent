@@ -13,9 +13,10 @@ vi.mock("react-i18next", () => ({
 	}),
 }));
 
-vi.mock("qrcode", () => ({
-	default: { toDataURL: async (text: string) => `data:image/png;base64,${btoa(text)}` },
+const { mockQrToString } = vi.hoisted(() => ({
+	mockQrToString: vi.fn(async () => '<svg xmlns="http://www.w3.org/2000/svg"></svg>'),
 }));
+vi.mock("qrcode", () => ({ default: { toString: mockQrToString } }));
 
 const { useSignalBindDialogModel } = await import("./useSignalBindDialogModel.js");
 
@@ -83,6 +84,7 @@ function renderDialog(
 describe("useSignalBindDialogModel", () => {
 	beforeEach(() => {
 		vi.useRealTimers();
+		mockQrToString.mockResolvedValue('<svg xmlns="http://www.w3.org/2000/svg"></svg>');
 	});
 
 	it("未安装 signal-cli 时不发起绑定，只展示安装命令", async () => {
@@ -155,6 +157,22 @@ describe("useSignalBindDialogModel", () => {
 		await waitFor(() => {
 			expect(result.current.bodyKind).toBe("failed");
 			expect(result.current.error).toBe("signal-cli link: exit status 1");
+		});
+	});
+
+	it("二维码渲染失败时显示可重试错误，而不是一直显示加载动画", async () => {
+		const stub = installSignalStub();
+		mockQrToString.mockRejectedValueOnce(new Error("canvas unavailable"));
+
+		const { result } = renderDialog();
+		await waitFor(() => expect(stub.startBindCalls).toBe(1));
+		act(() => {
+			stub.emit({ kind: "qr", type: "signal_qr", uri: "sgnl://linkdevice?uuid=x", attempt: 1 });
+		});
+
+		await waitFor(() => {
+			expect(result.current.bodyKind).toBe("failed");
+			expect(result.current.error).toBe("qrRenderError");
 		});
 	});
 

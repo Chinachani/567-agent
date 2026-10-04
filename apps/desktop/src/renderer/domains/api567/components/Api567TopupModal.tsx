@@ -1,5 +1,6 @@
 import { Button } from "@shared/components/ui/button";
 import { Input } from "@shared/components/ui/input";
+import { createQrCodeDataUrl } from "@shared/lib/qr-code-data-url";
 import {
 	ArrowLeft,
 	Check,
@@ -15,7 +16,6 @@ import {
 	Wallet,
 	X,
 } from "lucide-react";
-import QRCode from "qrcode";
 import React, { useEffect, useState } from "react";
 import { useApi567 } from "../hooks/useApi567";
 
@@ -105,11 +105,7 @@ export function Api567TopupModal(): JSX.Element | null {
 					setQrDataUrl(res.qrCode);
 				} else {
 					try {
-						const dataUrl = await QRCode.toDataURL(res.qrCode, {
-							width: 260,
-							margin: 1,
-							errorCorrectionLevel: "M",
-						});
+						const dataUrl = await createQrCodeDataUrl(res.qrCode, 260);
 						setQrDataUrl(dataUrl);
 					} catch (qrErr) {
 						console.warn("QRCode generation failed, fallback to url:", qrErr);

@@ -1,6 +1,7 @@
 import { randomBytes } from "node:crypto";
 import { hostname } from "node:os";
 import type { RemoteConnectionState } from "@567agent/remote-control";
+import type { RemotePairingState } from "../../preload/api-types/remote-pairing.js";
 import { type DesktopConfig, readDesktopConfig, updateDesktopConfig } from "../config/desktop-config-store.js";
 import type { CredentialVault } from "../credentials/credential-vault.js";
 import { getDesktopCredentialVault } from "../credentials/desktop-credential-vault.js";
@@ -39,6 +40,7 @@ export interface DesktopRemotePairingState {
 	readonly inviteUri?: string;
 	readonly inputEnabled: boolean;
 	readonly inputSupported: boolean;
+	readonly inputSupportReason?: RemotePairingState["inputSupportReason"];
 	readonly error?: string;
 }
 
@@ -115,6 +117,7 @@ export class DesktopRemotePairingService {
 				status: this.connectionState === "online" ? "connected" : this.state.status,
 				inputEnabled: remote.inputEnabled === true && this.host?.inputSupported === true,
 				inputSupported: this.host?.inputSupported === true,
+				inputSupportReason: this.host?.inputSupportReason,
 			};
 			log.info("remote pairing restored", { pairingId: remote.pairingId });
 		} catch (error) {
@@ -167,6 +170,7 @@ export class DesktopRemotePairingService {
 			inviteUri: buildInviteUri(relay, pairingId, bootstrapSecret, lanUrl, this.localRelayCertificate.fingerprint),
 			inputEnabled: false,
 			inputSupported: this.host?.inputSupported === true,
+			inputSupportReason: this.host?.inputSupportReason,
 		};
 		log.info("remote pairing created", { pairingId, host: hostname() });
 		return this.getState();

@@ -131,8 +131,17 @@
     "qrAlt": "567 Agent 手机配对二维码",
     "qrHint": "在手机端打开远程连接并扫描。完成首次连接后，此二维码将不能绑定其他设备。",
     "empty": "生成二维码后即可在手机上扫描",
+    "qrRenderError": "二维码生成失败，请重新生成；若仍失败，请检查应用日志。",
     "inputTitle": "允许远程输入",
-    "inputDescription": "允许已配对手机控制鼠标和键盘。macOS 还需要在系统设置中授予辅助功能权限。",
+    "inputDescription": "允许已配对手机控制鼠标和键盘。",
+    "inputSupport": {
+      "windows_api_unavailable": "Windows 输入组件未能加载。请重新安装应用；如果仍不可用，请查看应用日志。",
+      "x11_display_unavailable": "当前桌面没有可用的 X11 显示。Linux 远程输入需要 X11 或 XWayland 会话。",
+      "x11_libraries_unavailable": "缺少 Linux 输入依赖库。请安装 libX11 和 libXtst 后重启应用。",
+      "x11_open_display_failed": "无法连接到 X11 显示。请确认应用运行在图形桌面会话中。",
+      "accessibility_permission_required": "macOS 需要在系统设置中授予 567 Agent 辅助功能权限。",
+      "unsupported_platform": "当前系统暂不支持远程输入。"
+    },
     "revoke": "撤销配对",
     "status": {
       "idle": "未配对",

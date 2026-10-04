@@ -131,8 +131,17 @@
     "qrAlt": "567 Agent phone pairing QR code",
     "qrHint": "Open Remote access on your phone and scan this code. After the first connection, it cannot bind another device.",
     "empty": "Generate a QR code to scan from your phone",
+    "qrRenderError": "Couldn't generate the QR code. Try again; if it still fails, check the app logs.",
     "inputTitle": "Allow remote input",
-    "inputDescription": "Allow the paired phone to control the mouse and keyboard. macOS also requires Accessibility permission in System Settings.",
+    "inputDescription": "Allow the paired phone to control the mouse and keyboard.",
+    "inputSupport": {
+      "windows_api_unavailable": "The Windows input component could not load. Reinstall the app; if the problem remains, check the app logs.",
+      "x11_display_unavailable": "No X11 display is available. Linux remote input requires an X11 or XWayland session.",
+      "x11_libraries_unavailable": "Linux input libraries are missing. Install libX11 and libXtst, then restart the app.",
+      "x11_open_display_failed": "Couldn't connect to the X11 display. Make sure the app is running in a graphical desktop session.",
+      "accessibility_permission_required": "macOS requires 567 Agent to have Accessibility permission in System Settings.",
+      "unsupported_platform": "Remote input is not supported on this system."
+    },
     "revoke": "Revoke pairing",
     "status": {
       "idle": "Not paired",

@@ -70,7 +70,10 @@ describe("DesktopRemotePairingService.restore", () => {
 			privateKey: "local-key",
 			fingerprint: "a".repeat(64),
 		});
-		mocks.startDesktopRemoteDesktopHost.mockResolvedValue({ inputSupported: true });
+		mocks.startDesktopRemoteDesktopHost.mockResolvedValue({
+			inputSupported: false,
+			inputSupportReason: "x11_display_unavailable",
+		});
 		const service = new DesktopRemotePairingService(
 			{
 				appRoot: "/app",
@@ -82,6 +85,10 @@ describe("DesktopRemotePairingService.restore", () => {
 		);
 
 		await service.create();
+		expect(service.getState()).toMatchObject({
+			inputSupported: false,
+			inputSupportReason: "x11_display_unavailable",
+		});
 
 		const accessOptions = mocks.startDesktopRemoteAccess.mock.calls[0]?.[0];
 		expect(accessOptions.controlTargets).toHaveLength(2);

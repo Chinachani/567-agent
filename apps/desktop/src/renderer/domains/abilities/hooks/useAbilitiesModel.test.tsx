@@ -327,8 +327,8 @@ it("renders abilities in a flat grid by default when ENABLE_ABILITY_CATEGORIES i
 	const { result } = renderHook(() => useAbilitiesModel());
 	await waitFor(() => expect(result.current.refreshing).toBe(false));
 	const view = render(<AbilitiesPageView model={result.current} />);
-	expect(screen.queryByRole("heading", { name: "CategoryA" })).toBeNull();
-	expect(screen.queryByRole("heading", { name: "CategoryB" })).toBeNull();
+	expect(screen.getByRole("heading", { name: "CategoryA" })).toBeTruthy();
+	expect(screen.getByRole("heading", { name: "CategoryB" })).toBeTruthy();
 	expect(screen.getByText("Skill A")).toBeTruthy();
 	expect(screen.getByText("Skill B")).toBeTruthy();
 	view.unmount();

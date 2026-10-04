@@ -1,5 +1,5 @@
 import type { ImWechatBindEvent } from "@preload/api";
-import QRCode from "qrcode";
+import { createQrCodeDataUrl } from "@shared/lib/qr-code-data-url";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 
@@ -95,12 +95,7 @@ export function useWechatBindDialogModel({
 		const url = state.qrUrl;
 		if (!url) return;
 		let cancelled = false;
-		QRCode.toDataURL(url, {
-			errorCorrectionLevel: "M",
-			margin: 1,
-			width: 240,
-			color: { dark: "#000000", light: "#ffffff" },
-		})
+		createQrCodeDataUrl(url, 240)
 			.then((dataUrl) => {
 				if (!cancelled) {
 					setState((prev) => (prev.qrUrl === url ? { ...prev, qrDataUrl: dataUrl } : prev));
@@ -181,6 +176,7 @@ export function useWechatBindDialogModel({
 
 	const bodyKind = (() => {
 		if (bound) return "bound" as const;
+		if (state.error) return "failed" as const;
 		if (state.phase === "idle" || state.phase === "starting") return "loading" as const;
 		if (state.phase === "failed") return "failed" as const;
 		if (state.phase === "confirmed") return "confirmed" as const;

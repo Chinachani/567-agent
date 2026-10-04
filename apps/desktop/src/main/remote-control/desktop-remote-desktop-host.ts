@@ -1,6 +1,7 @@
 import { randomUUID } from "node:crypto";
 import { decodeRemoteInputMessage } from "@567agent/remote-desktop";
 import { BrowserWindow, desktopCapturer, ipcMain, session, webContents } from "electron";
+import type { RemotePairingState } from "../../preload/api-types/remote-pairing.js";
 import { getAppLogger } from "../logger.js";
 import { registerRemoteDesktopVideoPermission } from "../speech-input/media-permissions.js";
 import { resolveDesktopRemoteDesktopHostPaths } from "./desktop-remote-desktop-host-paths.js";
@@ -20,6 +21,7 @@ export interface DesktopRemoteDesktopHostOptions {
 export interface DesktopRemoteDesktopHostHandle {
 	readonly sessionId: string;
 	readonly inputSupported: boolean;
+	readonly inputSupportReason?: RemotePairingState["inputSupportReason"];
 	revokeInput(): void;
 	grantInput(): void;
 	stop(): Promise<void>;
@@ -160,6 +162,7 @@ export async function startDesktopRemoteDesktopHost(
 	const handle: DesktopRemoteDesktopHostHandle = {
 		sessionId,
 		inputSupported: input.supported,
+		inputSupportReason: input.unsupportedReason,
 		revokeInput() {
 			input.setEnabled(false);
 		},
