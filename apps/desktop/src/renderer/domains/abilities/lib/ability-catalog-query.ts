@@ -1,3 +1,4 @@
+import { MCP_MAIN_CATEGORIES } from "@/shared/lib/mcp-catalog-metadata";
 import type { AbilityItem, AbilityScope } from "../types";
 import { isMarketAbilityListed } from "./merge-ability-catalogs";
 
@@ -5,10 +6,22 @@ export interface AbilityCatalogQuery {
 	scope: AbilityScope;
 	keyword?: string;
 	category?: string;
+	tags?: string[];
 	types?: AbilityItem["type"][];
 	sourceIds?: string[];
 	page: number;
 	pageSize: number;
+}
+
+export interface AbilityFacetOption {
+	value: string;
+	count: number;
+	categoryI18n?: Record<string, string>;
+}
+
+export interface AbilityCatalogFacets {
+	categories: AbilityFacetOption[];
+	tags: AbilityFacetOption[];
 }
 
 export interface AbilityCatalogPage {
@@ -28,6 +41,40 @@ export function compareAbilities(a: AbilityItem, b: AbilityItem): number {
 
 function sourceId(item: AbilityItem): string {
 	return item.catalogSource.id;
+}
+
+/** Facet options come from the complete scope so choosing a filter never hides its own option. */
+export function getAbilityCatalogFacets(items: AbilityItem[], scope: AbilityScope): AbilityCatalogFacets {
+	const isPublic = scope === "discover" || (scope as string) === "public";
+	const eligible = items.filter(
+		(item) => item.type === "mcp" && (isPublic ? isAbilityListedInDiscover(item) : isAbilityListedInPersonal(item)),
+	);
+	const categoryCounts = new Map<string, { count: number; categoryI18n?: Record<string, string> }>(
+		MCP_MAIN_CATEGORIES.map((category) => [category, { count: 0 }]),
+	);
+	const tagCounts = new Map<string, number>();
+	for (const item of eligible) {
+		const category = item.category || "uncategorized";
+		const current = categoryCounts.get(category);
+		categoryCounts.set(category, {
+			count: (current?.count ?? 0) + 1,
+			...(current?.categoryI18n || item.categoryI18n
+				? { categoryI18n: { ...(item.categoryI18n ?? {}), ...(current?.categoryI18n ?? {}) } }
+				: {}),
+		});
+		for (const tag of new Set(item.tags)) tagCounts.set(tag, (tagCounts.get(tag) ?? 0) + 1);
+	}
+	const categories = Array.from(categoryCounts, ([value, entry]) => ({ value, ...entry })).sort((a, b) => {
+		if (a.value === "uncategorized") return 1;
+		if (b.value === "uncategorized") return -1;
+		return a.value.localeCompare(b.value);
+	});
+	return {
+		categories,
+		tags: Array.from(tagCounts, ([value, count]) => ({ value, count })).sort((a, b) =>
+			a.value.localeCompare(b.value),
+		),
+	};
 }
 
 /** 是否为通用 Skill（~/.agents/skills 等通用 Agent 技能目录）。 */
@@ -68,6 +115,7 @@ export function isAbilityListedInPersonal(item: AbilityItem): boolean {
 export function queryAbilityCatalog(items: AbilityItem[], query: AbilityCatalogQuery): AbilityCatalogPage {
 	const keyword = query.keyword?.trim().toLowerCase() ?? "";
 	const types = query.types ? new Set(query.types) : null;
+	const tags = query.tags?.length ? query.tags : null;
 	const sourceIds = query.sourceIds ? new Set(query.sourceIds) : null;
 	const page = Number.isInteger(query.page) && query.page > 0 ? query.page : 1;
 	const pageSize = Number.isInteger(query.pageSize) && query.pageSize > 0 ? query.pageSize : 60;
@@ -75,7 +123,8 @@ export function queryAbilityCatalog(items: AbilityItem[], query: AbilityCatalogQ
 	const filtered = items
 		.filter((item) => (isPublic ? isAbilityListedInDiscover(item) : isAbilityListedInPersonal(item)))
 		.filter((item) => !keyword || item.searchTerms.some((term) => term.toLowerCase().includes(keyword)))
-		.filter((item) => !query.category || item.category === query.category)
+		.filter((item) => !query.category || (item.category || "uncategorized") === query.category)
+		.filter((item) => !tags || tags.every((tag) => item.tags.includes(tag)))
 		.filter((item) => !types || types.has(item.type))
 		.filter((item) => !sourceIds || sourceIds.has(sourceId(item)))
 		.sort(compareAbilities);

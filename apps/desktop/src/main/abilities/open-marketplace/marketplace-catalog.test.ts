@@ -57,6 +57,45 @@ function fixture() {
 }
 
 describe("loadMarketplaceCatalog", () => {
+	it("loads discovery-only MCP entries without an install package", () => {
+		const root = mkdtempSync(join(tmpdir(), "vetta-mcp-discovery-test-"));
+		roots.push(root);
+		mkdirSync(join(root, "mcps/discovery"), { recursive: true });
+		const raw = {
+			schemaVersion: 3,
+			name: "test",
+			marketplaceVersion: "1.0.0",
+			repository: "https://github.com/example/market",
+			minAppVersion: "0.5.58",
+			abilities: [
+				{
+					type: "mcp",
+					slug: "blender-mcp",
+					name: "Blender MCP",
+					version: "1.0.0",
+					category: "uncategorized",
+					tags: [],
+					source: { path: "mcps/discovery" },
+					mcpMetadata: {
+						runtimeMode: "unknown",
+						platforms: ["unknown"],
+						permissionScopes: ["unknown"],
+						authentication: "unknown",
+						publisherType: "unknown",
+						installable: false,
+					},
+				},
+			],
+		};
+		const ability = loadMarketplaceCatalog(root, parseMarketplaceManifest(raw)).abilities[0];
+		expect(ability).toMatchObject({
+			type: "mcp",
+			slug: "blender-mcp",
+			config: {},
+			mcpMetadata: { installable: false },
+		});
+	});
+
 	it("resolves unlisted packages and localized presentation without changing the declared listings", () => {
 		const { root, raw } = fixture();
 		const manifest = parseMarketplaceManifest(raw);

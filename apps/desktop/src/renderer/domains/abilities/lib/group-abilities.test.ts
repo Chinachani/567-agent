@@ -94,4 +94,13 @@ describe("groupAbilities", () => {
 
 		expect(groups.map((group) => group.category)).toEqual(["General"]);
 	});
+
+	it("keeps the controlled uncategorized MCP category at the end", () => {
+		const groups = groupAbilities([
+			ability("uncategorized-mcp", { category: "uncategorized" }),
+			ability("categorized-mcp", { category: "cad-3d" }),
+		]);
+		expect(groups.map((group) => group.category)).toEqual(["cad-3d", ABILITY_CATEGORY_UNCATEGORIZED]);
+		expect(groups[1]?.items.map((item) => item.slug)).toEqual(["uncategorized-mcp"]);
+	});
 });

@@ -1,7 +1,7 @@
 import type { TFunction } from "i18next";
 import { describe, expect, it } from "vitest";
-import type { PluginAbility, SkillAbility } from "../types";
-import { queryAbilityCatalog } from "./ability-catalog-query";
+import type { AbilityItem, PluginAbility, SkillAbility } from "../types";
+import { getAbilityCatalogFacets, queryAbilityCatalog } from "./ability-catalog-query";
 import { buildMcpAbilities } from "./build-ability-items";
 
 function ability(index: number, overrides: Partial<SkillAbility> = {}): SkillAbility {
@@ -221,6 +221,34 @@ describe("queryAbilityCatalog", () => {
 		});
 
 		expect(page.items.map((item) => item.id)).toEqual([github.id]);
+	});
+
+	it("filters by category and requires every selected feature tag", () => {
+		const asMcp = (item: SkillAbility): AbilityItem => ({ ...item, type: "mcp" }) as unknown as AbilityItem;
+		const cad = asMcp(ability(1, { category: "cad-3d", tags: ["cad", "blender"] }));
+		const otherCad = asMcp(ability(2, { category: "cad-3d", tags: ["cad"] }));
+		const uncategorized = asMcp(ability(3, { category: "", tags: ["blender"] }));
+		const items = [cad, otherCad, uncategorized];
+
+		const filtered = queryAbilityCatalog(items, {
+			scope: "discover",
+			category: "cad-3d",
+			tags: ["cad", "blender"],
+			page: 1,
+			pageSize: 60,
+		});
+		expect(filtered.items.map((item) => item.id)).toEqual([cad.id]);
+		const fallback = queryAbilityCatalog(items, {
+			scope: "discover",
+			category: "uncategorized",
+			page: 1,
+			pageSize: 60,
+		});
+		expect(fallback.items.map((item) => item.id)).toEqual([uncategorized.id]);
+		const facets = getAbilityCatalogFacets(items, "discover");
+		expect(facets.categories.find((option) => option.value === "uncategorized")?.count).toBe(1);
+		expect(facets.categories.find((option) => option.value === "cad-3d")?.count).toBe(2);
+		expect(facets.tags.find((option) => option.value === "cad")?.count).toBe(2);
 	});
 
 	it("sorts deterministically and limits mine to installed personal abilities", () => {

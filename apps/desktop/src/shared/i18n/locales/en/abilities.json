@@ -27,13 +27,20 @@
 	"search": {
 		"placeholder": "Search abilities"
 	},
+	"filters": {
+		"category": "Filter by category",
+		"allCategories": "All categories",
+		"tags": "Feature tags",
+		"clear": "Clear filters"
+	},
 	"status": {
 		"setupRequired": "Setup required",
 		"disabled": "Disabled",
 		"updateAvailable": "Update available",
 		"openSource": "Open source",
 		"sameName": "{{count}} with same name",
-		"builtin": "Built-in"
+		"builtin": "Built-in",
+		"catalogOnly": "Catalog only"
 	},
 	"card": {
 		"noDescription": "No description"
@@ -197,6 +204,20 @@
 	},
 	"mcp": {
 		"title": "Connection setup",
+		"metadataTitle": "MCP information",
+		"publisherType": "Publisher status",
+		"runtimeMode": "Runtime mode",
+		"platforms": "Platforms",
+		"permissionScopes": "Permission scopes",
+		"authentication": "Authentication",
+		"discoveryOnly": "This entry currently links to upstream directory information and cannot be installed directly from 567 Agent.",
+		"runtimeModes": {"stdio": "Local process (stdio)", "streamable-http": "Streamable HTTP", "sse": "SSE", "manual": "Manual setup", "unknown": "Unknown"},
+		"publisherTypes": {"vendor-official": "Vendor official", "project-official": "Project official", "community": "Community maintained", "unknown": "Unknown"},
+		"platformValues": {"windows": "Windows", "macos": "macOS", "linux": "Linux", "any": "Cross-platform", "unknown": "Unknown"},
+		"permissionValues": {"filesystem-read": "Read files", "filesystem-write": "Write files", "network": "Network access", "execute-code": "Execute code", "database-read": "Read databases", "database-write": "Write databases", "desktop-control": "Control desktop apps", "external-service": "Access external services", "unknown": "Unknown"},
+		"authenticationValues": {"none": "None", "api-key": "API key", "oauth": "OAuth", "credentials": "Account credentials", "software-license": "Software license", "unknown": "Unknown"},
+		"categories": {"ai-agents": "AI and agents", "automation": "Automation", "cad-3d": "CAD and 3D", "communication": "Communication", "creative-media": "Creative and media", "data-databases": "Data and databases", "developer-tools": "Developer tools", "knowledge-memory": "Knowledge and memory", "productivity": "Productivity", "system-tools": "System tools", "web-search": "Web and search"},
+		"tags": {"3d-modeling": "3D modeling", "ai": "AI", "automation": "Automation", "browser": "Browser", "cad": "CAD", "cloud": "Cloud services", "communication": "Communication", "data-analysis": "Data analysis", "database": "Database", "documents": "Documents", "email": "Email", "filesystem": "File system", "finance": "Finance", "image-generation": "Image generation", "issue-tracking": "Issue tracking", "memory": "Memory", "maps": "Maps", "search": "Search", "security": "Security", "developer-tools": "Developer tools", "video-generation": "Video generation", "blender": "Blender", "freecad": "FreeCAD", "solidworks": "SolidWorks", "git": "Git"},
 		"secretsLead": "This connection needs the following credentials before it can be used:",
 		"oauth": "Account authorization",
 		"oauthAuthorized": "Authorized",

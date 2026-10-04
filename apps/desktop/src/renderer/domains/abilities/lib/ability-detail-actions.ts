@@ -17,6 +17,7 @@ export function resolveAbilityStatus(item: AbilityItem): AbilityStatus {
 
 export function resolveAbilityPrimaryAction(item: AbilityItem, status: AbilityStatus): AbilityPrimaryAction {
 	if (status === "readonly") return "none";
+	if (item.type === "mcp" && item.mcpMetadata?.installable === false && !item.installed) return "none";
 	if (item.needsUpdate && item.installed) return "update";
 	if (status === "available") return "add";
 	if (status === "setup_required") return "setup";

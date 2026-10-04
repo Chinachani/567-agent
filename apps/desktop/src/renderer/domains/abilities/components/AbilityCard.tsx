@@ -166,12 +166,16 @@ export function AbilityCard({ item, model }: { item: AbilityItem; model: Abiliti
 						<Button
 							variant="ghost"
 							size="icon-sm"
-							aria-label={t("actions.add")}
-							title={t("actions.add")}
+							aria-label={item.type === "mcp" && item.mcpMetadata?.installable === false ? t("actions.viewDetails") : t("actions.add")}
+							title={item.type === "mcp" && item.mcpMetadata?.installable === false ? t("actions.viewDetails") : t("actions.add")}
 							className="rounded-lg border border-transparent bg-transparent text-muted-foreground/60 transition-colors hover:border-border hover:bg-muted hover:text-foreground"
-							onClick={() => (item.type === "bundle" ? openDetail() : model.install(item))}
+							onClick={() =>
+								item.type === "bundle" || (item.type === "mcp" && item.mcpMetadata?.installable === false)
+									? openDetail()
+									: model.install(item)
+							}
 						>
-							<span className="icon-[solar--add-linear] h-4 w-4" />
+							<span className={item.type === "mcp" && item.mcpMetadata?.installable === false ? "icon-[solar--eye-linear] h-4 w-4" : "icon-[solar--add-linear] h-4 w-4"} />
 						</Button>
 					)}
 				</div>

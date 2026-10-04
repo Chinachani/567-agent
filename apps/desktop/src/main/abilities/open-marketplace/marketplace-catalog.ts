@@ -59,7 +59,9 @@ export function loadMarketplaceCatalog(root: string, manifest: MarketplaceManife
 		if (!ability.source) continue;
 		const sourceDir = packageDirectory(root, ability.source.path);
 		if (ability.type === "mcp") {
-			ability.config = validateOpenMarketplaceMcp(sourceDir, ability);
+			if (ability.mcpMetadata?.installable !== false) {
+				ability.config = validateOpenMarketplaceMcp(sourceDir, ability);
+			}
 		} else if (ability.type === "plugin") {
 			if (!ability.releases) ability.config = validateOpenMarketplacePlugin(sourceDir, ability);
 		} else if (ability.type !== "bundle") {

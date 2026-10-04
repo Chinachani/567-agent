@@ -30,6 +30,7 @@ function toMarketAbility(
 		category: ability.category,
 		category_i18n: ability.categoryI18n,
 		tags: ability.tags,
+		...(ability.mcpMetadata ? { mcpMetadata: ability.mcpMetadata } : {}),
 		sha256: "",
 		download_count: 0,
 		config: ability.config,

@@ -1,5 +1,5 @@
 import { SegmentedControl } from "@vetta-org/theme-ui/shared";
-import { Button } from "@vetta-org/ui";
+import { Button, Popover, PopoverContent, PopoverTrigger, Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@vetta-org/ui";
 import { motion } from "motion/react";
 import { useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
@@ -21,6 +21,29 @@ import { AddAbilityMenu } from "./AddAbilityMenu";
 import { MarketplaceSourcesDialog } from "./MarketplaceSourcesDialog";
 
 const easeOut = [0.22, 1, 0.36, 1] as const;
+const MCP_CATEGORY_LABEL_KEYS = {
+	"ai-agents": "mcp.categories.ai-agents",
+	automation: "mcp.categories.automation",
+	"cad-3d": "mcp.categories.cad-3d",
+	communication: "mcp.categories.communication",
+	"creative-media": "mcp.categories.creative-media",
+	"data-databases": "mcp.categories.data-databases",
+	"developer-tools": "mcp.categories.developer-tools",
+	"knowledge-memory": "mcp.categories.knowledge-memory",
+	productivity: "mcp.categories.productivity",
+	"system-tools": "mcp.categories.system-tools",
+	"web-search": "mcp.categories.web-search",
+} as const;
+const MCP_TAG_LABEL_KEYS = {
+	"3d-modeling": "mcp.tags.3d-modeling", ai: "mcp.tags.ai", automation: "mcp.tags.automation",
+	browser: "mcp.tags.browser", cad: "mcp.tags.cad", cloud: "mcp.tags.cloud",
+	communication: "mcp.tags.communication", "data-analysis": "mcp.tags.data-analysis", database: "mcp.tags.database",
+	documents: "mcp.tags.documents", email: "mcp.tags.email", filesystem: "mcp.tags.filesystem",
+	finance: "mcp.tags.finance", "image-generation": "mcp.tags.image-generation", "issue-tracking": "mcp.tags.issue-tracking",
+	memory: "mcp.tags.memory", maps: "mcp.tags.maps", search: "mcp.tags.search", security: "mcp.tags.security",
+	"developer-tools": "mcp.tags.developer-tools", "video-generation": "mcp.tags.video-generation",
+	blender: "mcp.tags.blender", freecad: "mcp.tags.freecad", solidworks: "mcp.tags.solidworks", git: "mcp.tags.git",
+} as const;
 
 export interface AbilitiesPageViewProps {
 	model: AbilitiesModel;
@@ -36,6 +59,24 @@ export function AbilitiesPageView({
 	const skillFileInputRef = useRef<HTMLInputElement>(null);
 	const pluginFileInputRef = useRef<HTMLInputElement>(null);
 	const [sourcesDialogOpen, setSourcesDialogOpen] = useState(false);
+	const [tagsPopoverOpen, setTagsPopoverOpen] = useState(false);
+	const hasActiveFilters = Boolean(model.searchQuery || model.selectedCategory || model.selectedTags.length > 0);
+	const categoryLabel = (value: string): string => {
+		if (value === ABILITY_CATEGORY_UNCATEGORIZED || value === "uncategorized") return t("group.uncategorized");
+		const key = MCP_CATEGORY_LABEL_KEYS[value as keyof typeof MCP_CATEGORY_LABEL_KEYS];
+		return key ? t(key) : value;
+	};
+	const tagLabel = (value: string): string => {
+		const key = MCP_TAG_LABEL_KEYS[value as keyof typeof MCP_TAG_LABEL_KEYS];
+		return key ? t(key) : value;
+	};
+	const toggleTag = (tag: string): void => {
+		model.setSelectedTags(
+			model.selectedTags.includes(tag)
+				? model.selectedTags.filter((value) => value !== tag)
+				: [...model.selectedTags, tag],
+		);
+	};
 
 	return (
 		<div className="relative flex h-full w-full flex-1 flex-col overflow-hidden">
@@ -114,6 +155,51 @@ export function AbilitiesPageView({
 							/>
 						</div>
 						<div className="flex items-center gap-2">
+							{model.scope === "discover" && (model.availableCategories.length > 0 || model.availableTags.length > 0) ? (
+								<>
+									<Select
+										value={model.selectedCategory || "__all_categories__"}
+										onValueChange={(value) => model.setSelectedCategory(value === "__all_categories__" ? "" : value)}
+									>
+										<SelectTrigger aria-label={t("filters.category")} className="h-8 w-44 text-[12px]">
+											<SelectValue />
+										</SelectTrigger>
+										<SelectContent>
+											<SelectItem value="__all_categories__">{t("filters.allCategories")}</SelectItem>
+											{model.availableCategories.map((option) => (
+												<SelectItem key={option.value} value={option.value}>
+													{categoryLabel(option.value)} ({option.count})
+												</SelectItem>
+											))}
+										</SelectContent>
+									</Select>
+									<Popover open={tagsPopoverOpen} onOpenChange={setTagsPopoverOpen}>
+										<PopoverTrigger asChild>
+											<Button variant="secondary" size="sm" aria-label={t("filters.tags")}>
+												{t("filters.tags")}{model.selectedTags.length ? ` (${model.selectedTags.length})` : ""}
+											</Button>
+										</PopoverTrigger>
+										<PopoverContent align="start" className="max-h-72 w-64 gap-1 overflow-y-auto p-2">
+											<p className="px-2 pb-1 text-[11px] font-medium text-muted-foreground">{t("filters.tags")}</p>
+											{model.availableTags.map((option) => (
+												<label key={option.value} className="flex cursor-pointer items-center gap-2 rounded-md px-2 py-1.5 text-[12px] hover:bg-accent">
+													<input
+														type="checkbox"
+														checked={model.selectedTags.includes(option.value)}
+														onChange={() => toggleTag(option.value)}
+														className="accent-primary"
+													/>
+													<span className="min-w-0 flex-1 truncate">{tagLabel(option.value)}</span>
+													<span className="tabular-nums text-muted-foreground">{option.count}</span>
+												</label>
+											))}
+										</PopoverContent>
+									</Popover>
+									{(model.selectedCategory || model.selectedTags.length > 0) && (
+										<Button variant="ghost" size="sm" onClick={model.clearFilters}>{t("filters.clear")}</Button>
+									)}
+								</>
+							) : null}
 							<Button variant="ghost" size="sm" onClick={() => setSourcesDialogOpen(true)}>
 								<span className="icon-[mdi--github] h-3.5 w-3.5" />
 								{t("sources.trigger")}
@@ -154,14 +240,14 @@ export function AbilitiesPageView({
 								<span className="icon-[solar--magic-stick-3-linear] h-10 w-10 text-muted-foreground/50" />
 								<div>
 									<p className="text-[13px] font-semibold text-foreground">
-										{model.searchQuery
+										{hasActiveFilters
 											? t("empty.noMatch")
 											: model.scope === "discover" || (model.scope as string) === "public"
 												? t("empty.discover")
 												: t("empty.mine")}
 									</p>
 									<p className="mt-1 text-[11px] text-muted-foreground/60">
-										{model.searchQuery ? t("empty.noMatchHint") : t("empty.hint")}
+										{hasActiveFilters ? t("empty.noMatchHint") : t("empty.hint")}
 									</p>
 								</div>
 							</div>

@@ -7,6 +7,7 @@ import type {
 	GitHubMarketplaceOrigin,
 	InstalledPlugin,
 	MarketplaceSource,
+	McpCatalogMetadata,
 	OpenMarketplaceCatalog,
 	OpenMarketplaceMcpRuntimeProgress,
 	PluginPermission,
@@ -16,6 +17,7 @@ import type {
 import type { AbilityDetail, AbilityMember, AbilityType, MarketAbility } from "@shared/lib/api";
 import type { McpSettingsModel } from "../settings/components/useMcpSettingsModel";
 import type { BuiltinMcpPreset } from "../settings/mcp/builtin-mcp-presets";
+import type { AbilityFacetOption } from "./lib/ability-catalog-query";
 
 /**
  * 能力市场分区：
@@ -129,6 +131,7 @@ export interface SkillAbility extends AbilityBase {
 
 export interface McpAbility extends AbilityBase {
 	type: "mcp";
+	mcpMetadata?: McpCatalogMetadata;
 	/** mcp.json 里的 key。 */
 	serverName: string;
 	preset?: BuiltinMcpPreset;
@@ -194,6 +197,13 @@ export interface AbilitiesModel {
 	setScope: (scope: AbilityScope) => void;
 	searchQuery: string;
 	setSearchQuery: (value: string) => void;
+	selectedCategory: string;
+	setSelectedCategory: (value: string) => void;
+	selectedTags: string[];
+	setSelectedTags: (values: string[]) => void;
+	availableCategories: AbilityFacetOption[];
+	availableTags: AbilityFacetOption[];
+	clearFilters: () => void;
 	/** 经 scope + 搜索过滤后的结果。 */
 	items: AbilityItem[];
 	/** 经 scope + 搜索过滤后的总数；items 只包含当前已展开的本地分页。 */

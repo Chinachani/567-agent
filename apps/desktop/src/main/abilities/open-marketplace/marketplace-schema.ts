@@ -1,11 +1,109 @@
 import { posix } from "node:path";
 import { z } from "zod";
+import { MCP_FEATURE_TAGS, MCP_MAIN_CATEGORIES } from "@/shared/lib/mcp-catalog-metadata";
 import { compareAppVersions, isValidAppVersion } from "./marketplace-compatibility.js";
 
 const SLUG_PATTERN = /^[a-z0-9][a-z0-9-]{0,63}$/;
 const VERSION_PATTERN = /^[A-Za-z0-9][A-Za-z0-9._-]{0,63}$/;
 const appVersionSchema = z.string().trim().refine(isValidAppVersion, "Must be a semantic app version");
 const stableVersionSchema = z.string().regex(/^(0|[1-9]\d*)\.(0|[1-9]\d*)\.(0|[1-9]\d*)$/);
+const LEGACY_MCP_CATEGORY: Record<string, (typeof MCP_MAIN_CATEGORIES)[number]> = {
+	AI: "ai-agents",
+	Automation: "automation",
+	Database: "data-databases",
+	Data: "data-databases",
+	Design: "creative-media",
+	Development: "developer-tools",
+	Media: "creative-media",
+	Productivity: "productivity",
+	Research: "ai-agents",
+	System: "system-tools",
+	Web: "web-search",
+};
+
+const mcpCategorySchema = z
+	.string()
+	.default("")
+	.transform((value) => {
+		const normalized = value.trim().toLowerCase();
+		return (
+			MCP_MAIN_CATEGORIES.find((category) => category === normalized) ??
+			LEGACY_MCP_CATEGORY[value] ??
+			"uncategorized"
+		);
+	});
+
+const LEGACY_MCP_TAGS: Record<string, (typeof MCP_FEATURE_TAGS)[number] | null> = {
+	文件: "filesystem",
+	本地: "filesystem",
+	本地文件: "filesystem",
+	MCP: null,
+	网页: "browser",
+	爬取: "browser",
+	抓取: "browser",
+	联网: "search",
+	搜索: "search",
+	数据库: "database",
+	Postgres: "database",
+	SQL: "database",
+	SQLite: "database",
+	GitHub: "git",
+	Git: "git",
+	代码仓库: "developer-tools",
+	开源: "developer-tools",
+	记忆: "memory",
+	知识图谱: "memory",
+	长期上下文: "memory",
+	推理: "ai",
+	规划: "ai",
+	Brave: "search",
+	"3D": "3d-modeling",
+	CAD: "cad",
+	Blender: "blender",
+	FreeCAD: "freecad",
+	SolidWorks: "solidworks",
+};
+
+const mcpTagsSchema = z
+	.array(z.string())
+	.max(64)
+	.transform((values) =>
+		Array.from(
+			new Set(
+				values
+					.map((value) => {
+						const normalized = value.trim().toLowerCase().replaceAll(" ", "-");
+						return MCP_FEATURE_TAGS.find((tag) => tag === normalized) ?? LEGACY_MCP_TAGS[value] ?? null;
+					})
+					.filter((value): value is (typeof MCP_FEATURE_TAGS)[number] => value !== null),
+			),
+		).slice(0, 3),
+	);
+
+const mcpMetadataSchema = z
+	.object({
+		runtimeMode: z.enum(["stdio", "streamable-http", "sse", "manual", "unknown"]),
+		platforms: z.array(z.enum(["windows", "macos", "linux", "any", "unknown"])).max(5),
+		permissionScopes: z
+			.array(
+				z.enum([
+					"filesystem-read",
+					"filesystem-write",
+					"network",
+					"execute-code",
+					"database-read",
+					"database-write",
+					"desktop-control",
+					"external-service",
+					"unknown",
+				]),
+			)
+			.max(9),
+		authentication: z.enum(["none", "api-key", "oauth", "credentials", "software-license", "unknown"]),
+		publisherType: z.enum(["vendor-official", "project-official", "community", "unknown"]),
+		installable: z.boolean(),
+	})
+	.strict();
 
 export const marketplaceMetaEntrySchema = z
 	.object({
@@ -137,6 +235,12 @@ export const marketplaceDetailSchema = detailLocaleSchema.extend({
 	i18n: z.record(z.string(), detailLocaleSchema).optional(),
 });
 
+const mcpDetailLocaleSchema = detailLocaleSchema.extend({ tags: mcpTagsSchema.optional() });
+const mcpDetailSchema = marketplaceDetailSchema.extend({
+	tags: mcpTagsSchema.optional(),
+	i18n: z.record(z.string(), mcpDetailLocaleSchema).optional(),
+});
+
 const sourceSchema = z.object({ path: z.string().min(1) }).passthrough();
 const pluginReleaseSchema = z.object({
 	version: stableVersionSchema,
@@ -198,6 +302,10 @@ const pluginAbilitySchema = abilityBaseSchema.extend({
 });
 const mcpAbilitySchema = abilityBaseSchema.extend({
 	type: z.literal("mcp"),
+	category: mcpCategorySchema,
+	tags: mcpTagsSchema.default([]),
+	detail: mcpDetailSchema.default({}),
+	mcpMetadata: mcpMetadataSchema.optional(),
 	source: sourceSchema,
 	config: z
 		.object({ mcp: z.record(z.string(), z.unknown()).optional() })

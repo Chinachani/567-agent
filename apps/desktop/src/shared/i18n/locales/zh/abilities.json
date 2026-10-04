@@ -27,13 +27,20 @@
 	"search": {
 		"placeholder": "搜索能力"
 	},
+	"filters": {
+		"category": "按分类筛选",
+		"allCategories": "全部分类",
+		"tags": "功能标签",
+		"clear": "清除筛选"
+	},
 	"status": {
 		"setupRequired": "需要配置",
 		"disabled": "已禁用",
 		"updateAvailable": "可更新",
 		"openSource": "开源",
 		"sameName": "{{count}} 个同名",
-		"builtin": "内建"
+		"builtin": "内建",
+		"catalogOnly": "仅目录"
 	},
 	"card": {
 		"noDescription": "暂无能力说明"
@@ -197,6 +204,20 @@
 	},
 	"mcp": {
 		"title": "连接配置",
+		"metadataTitle": "MCP 信息",
+		"publisherType": "维护来源",
+		"runtimeMode": "运行方式",
+		"platforms": "支持平台",
+		"permissionScopes": "权限范围",
+		"authentication": "认证要求",
+		"discoveryOnly": "当前仅提供上游目录信息，暂不能从 567 Agent 直接安装。",
+		"runtimeModes": {"stdio": "本地进程（stdio）", "streamable-http": "Streamable HTTP", "sse": "SSE", "manual": "手动配置", "unknown": "未知"},
+		"publisherTypes": {"vendor-official": "厂商官方", "project-official": "项目官方", "community": "社区维护", "unknown": "未知"},
+		"platformValues": {"windows": "Windows", "macos": "macOS", "linux": "Linux", "any": "跨平台", "unknown": "未知"},
+		"permissionValues": {"filesystem-read": "读取文件", "filesystem-write": "写入文件", "network": "网络访问", "execute-code": "执行代码", "database-read": "读取数据库", "database-write": "写入数据库", "desktop-control": "控制桌面应用", "external-service": "访问外部服务", "unknown": "未知"},
+		"authenticationValues": {"none": "无需认证", "api-key": "API Key", "oauth": "OAuth", "credentials": "账号凭证", "software-license": "软件许可证", "unknown": "未知"},
+		"categories": {"ai-agents": "AI 与 Agent", "automation": "自动化", "cad-3d": "CAD 与 3D", "communication": "沟通协作", "creative-media": "创意与媒体", "data-databases": "数据与数据库", "developer-tools": "开发工具", "knowledge-memory": "知识与记忆", "productivity": "效率工具", "system-tools": "系统工具", "web-search": "网页与搜索"},
+		"tags": {"3d-modeling": "3D 建模", "ai": "AI", "automation": "自动化", "browser": "浏览器", "cad": "CAD", "cloud": "云服务", "communication": "沟通", "data-analysis": "数据分析", "database": "数据库", "documents": "文档", "email": "邮件", "filesystem": "文件系统", "finance": "金融", "image-generation": "图像生成", "issue-tracking": "问题跟踪", "memory": "记忆", "maps": "地图", "search": "搜索", "security": "安全", "developer-tools": "开发工具", "video-generation": "视频生成", "blender": "Blender", "freecad": "FreeCAD", "solidworks": "SolidWorks", "git": "Git"},
 		"secretsLead": "该连接需要以下凭证，配置后方可使用：",
 		"oauth": "账户授权",
 		"oauthAuthorized": "已授权",

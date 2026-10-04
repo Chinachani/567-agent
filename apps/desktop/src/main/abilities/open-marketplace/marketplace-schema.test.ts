@@ -204,6 +204,44 @@ describe("parseMarketplaceManifest", () => {
 		]);
 	});
 
+	it("normalizes MCP categories to the controlled enum and preserves typed metadata", () => {
+		const manifest = validManifest();
+		(manifest.abilities as Array<Record<string, unknown>>).push({
+			type: "mcp",
+			slug: "blender-mcp",
+			name: "Blender MCP",
+			version: "1.0.0",
+			category: "cad-3d",
+			tags: ["Blender", "CAD", "uncontrolled", "3d-modeling"],
+			detail: { i18n: { zh: { name: "Blender MCP", tags: ["blender", "uncontrolled"] } } },
+			source: { path: "mcps/discovery" },
+			mcpMetadata: {
+				runtimeMode: "stdio",
+				platforms: ["linux"],
+				permissionScopes: ["execute-code"],
+				authentication: "none",
+				publisherType: "community",
+				installable: false,
+			},
+		});
+		(manifest.abilities as Array<Record<string, unknown>>).push({
+			type: "mcp",
+			slug: "unknown-mcp",
+			name: "Unknown MCP",
+			version: "1.0.0",
+			category: "unreviewed-category",
+			source: { path: "mcps/discovery" },
+		});
+		const parsed = parseMarketplaceManifest(manifest);
+		expect(parsed.abilities[1]).toMatchObject({
+			category: "cad-3d",
+			tags: ["blender", "cad", "3d-modeling"],
+			detail: { i18n: { zh: { tags: ["blender"] } } },
+			mcpMetadata: { runtimeMode: "stdio", installable: false },
+		});
+		expect(parsed.abilities[2]?.category).toBe("uncategorized");
+	});
+
 	it("rejects inline MCP configuration", () => {
 		const manifest = validManifest();
 		(manifest.abilities as Array<Record<string, unknown>>).push({

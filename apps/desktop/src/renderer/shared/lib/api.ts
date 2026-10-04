@@ -1,4 +1,4 @@
-import type { McpServerConfigData, RefreshOutcome } from "@preload/api";
+import type { McpCatalogMetadata, McpServerConfigData, RefreshOutcome } from "@preload/api";
 import { i18n } from "@shared/i18n";
 import type { SkillPresentation } from "@vetta-org/capability-sdk";
 
@@ -490,6 +490,7 @@ export interface MarketAbility {
 	/** 分类译名，取 `category_i18n[locale] ?? category` 得到展示名；无译名时字段缺省。 */
 	category_i18n?: Record<string, string>;
 	tags: string[];
+	mcpMetadata?: McpCatalogMetadata;
 	/** 产物摘要，安装前校验；mcp / bundle 恒为空。 */
 	sha256: string;
 	download_count: number;

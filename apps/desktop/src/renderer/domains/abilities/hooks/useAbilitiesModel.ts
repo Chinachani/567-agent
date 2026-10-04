@@ -6,7 +6,7 @@ import { useCallback, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { usePluginTextResolver } from "../../plugins/runtime/plugin-i18n";
 import { useMcpSettingsModel } from "../../settings/components/useMcpSettingsModel";
-import { isAbilityListedInDiscover, queryAbilityCatalog } from "../lib/ability-catalog-query";
+import { getAbilityCatalogFacets, isAbilityListedInDiscover, queryAbilityCatalog } from "../lib/ability-catalog-query";
 import { localizeMarketAbility } from "../lib/ability-presentation";
 import {
 	buildBundleAbilities,
@@ -35,6 +35,8 @@ export function useAbilitiesModel(options: UseAbilitiesModelOptions = {}): Abili
 	const { t, i18n } = useTranslation("settings");
 	const [scope, setScope] = useState<AbilityScope>(options.initialScope ?? "discover");
 	const [searchQuery, setSearchQuery] = useState(options.initialSearchQuery ?? "");
+	const [selectedCategory, setSelectedCategory] = useState("");
+	const [selectedTags, setSelectedTags] = useState<string[]>([]);
 	const [visiblePages, setVisiblePages] = useState(1);
 
 	const data = useAbilityData();
@@ -102,21 +104,41 @@ export function useAbilitiesModel(options: UseAbilitiesModelOptions = {}): Abili
 	const changeScope = useCallback((nextScope: AbilityScope) => {
 		setScope(nextScope);
 		setVisiblePages(1);
+		setSelectedCategory("");
+		setSelectedTags([]);
 	}, []);
 	const changeSearchQuery = useCallback((value: string) => {
 		setSearchQuery(value);
 		setVisiblePages(1);
 	}, []);
+	const changeCategory = useCallback((value: string) => {
+		setSelectedCategory(value);
+		setVisiblePages(1);
+	}, []);
+	const changeTags = useCallback((values: string[]) => {
+		setSelectedTags(values);
+		setVisiblePages(1);
+	}, []);
+	const clearFilters = useCallback(() => {
+		setSelectedCategory("");
+		setSelectedTags([]);
+		setVisiblePages(1);
+	}, []);
+
+	const facets = useMemo(() => getAbilityCatalogFacets(allItems, scope), [allItems, scope]);
 
 	const catalogPage = useMemo(
 		() =>
 			queryAbilityCatalog(allItems, {
 				scope,
 				keyword: searchQuery,
+				category: selectedCategory,
+				tags: selectedTags,
+				types: selectedCategory || selectedTags.length ? ["mcp"] : undefined,
 				page: 1,
 				pageSize: visiblePages * ABILITY_PAGE_SIZE,
 			}),
-		[allItems, scope, searchQuery, visiblePages],
+		[allItems, scope, searchQuery, selectedCategory, selectedTags, visiblePages],
 	);
 	const items = catalogPage.items;
 
@@ -160,6 +182,13 @@ export function useAbilitiesModel(options: UseAbilitiesModelOptions = {}): Abili
 		setScope: changeScope,
 		searchQuery,
 		setSearchQuery: changeSearchQuery,
+		selectedCategory,
+		setSelectedCategory: changeCategory,
+		selectedTags,
+		setSelectedTags: changeTags,
+		availableCategories: facets.categories,
+		availableTags: facets.tags,
+		clearFilters,
 		items,
 		totalItems: catalogPage.total,
 		hasMore: items.length < catalogPage.total,

@@ -27,6 +27,11 @@ export function AbilityStatusBadges({ item }: { item: AbilityItem }): JSX.Elemen
 		(item.type === "skill" && item.skillProvenance?.kind === "builtin");
 	return (
 		<>
+			{item.type === "mcp" && item.mcpMetadata?.installable === false && (
+				<span className="inline-flex shrink-0 items-center rounded-full bg-muted px-1.5 py-0.5 text-[10px] font-medium text-muted-foreground">
+					{t("status.catalogOnly")}
+				</span>
+			)}
 			{isPreset && (
 				<span className="inline-flex shrink-0 items-center rounded-full bg-muted px-1.5 py-0.5 text-[10px] font-medium text-muted-foreground">
 					{t("status.builtin")}

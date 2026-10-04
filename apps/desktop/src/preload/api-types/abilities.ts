@@ -142,6 +142,26 @@ export interface OpenMarketplaceDetail extends OpenMarketplaceDetailLocale {
 	i18n?: Record<string, OpenMarketplaceDetailLocale>;
 }
 
+/** Reviewed, stable metadata used to describe and filter MCP catalog entries. */
+export interface McpCatalogMetadata {
+	runtimeMode: "stdio" | "streamable-http" | "sse" | "manual" | "unknown";
+	platforms: Array<"windows" | "macos" | "linux" | "any" | "unknown">;
+	permissionScopes: Array<
+		| "filesystem-read"
+		| "filesystem-write"
+		| "network"
+		| "execute-code"
+		| "database-read"
+		| "database-write"
+		| "desktop-control"
+		| "external-service"
+		| "unknown"
+	>;
+	authentication: "none" | "api-key" | "oauth" | "credentials" | "software-license" | "unknown";
+	publisherType: "vendor-official" | "project-official" | "community" | "unknown";
+	installable: boolean;
+}
+
 /** 本地能力包解析后的产品呈现；原始相对资源路径不会越过主进程边界。 */
 export interface LocalAbilityPresentation {
 	icon?: string;
@@ -198,6 +218,8 @@ export interface OpenMarketplaceAbility {
 	/** Display labels only; category remains the stable grouping identity. */
 	categoryI18n?: Record<string, string>;
 	tags: string[];
+	/** Present on MCP records; omitted on legacy catalog entries. */
+	mcpMetadata?: McpCatalogMetadata;
 	config: OpenMarketplaceAbilityConfig;
 	detail: OpenMarketplaceDetail;
 	origin: GitHubMarketplaceOrigin;

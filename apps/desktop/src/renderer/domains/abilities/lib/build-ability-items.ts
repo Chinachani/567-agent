@@ -367,6 +367,7 @@ function createMcpAbility(input: McpBuildInput, state: LocalAbilityState, t: TFu
 		category: entry?.category ?? "",
 		categoryI18n: entry?.category_i18n,
 		tags: entry?.tags ?? [],
+		...(entry?.mcpMetadata ? { mcpMetadata: entry.mcpMetadata } : {}),
 		author: entry?.author ?? "",
 		license: entry?.license ?? "",
 		version: entry?.version ?? localVersion ?? "",

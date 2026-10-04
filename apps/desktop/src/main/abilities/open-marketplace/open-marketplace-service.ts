@@ -287,6 +287,7 @@ function toOpenMarketplaceAbility(
 		category: ability.category,
 		categoryI18n: ability.categoryI18n,
 		tags: ability.tags,
+		...(ability.type === "mcp" && ability.mcpMetadata ? { mcpMetadata: ability.mcpMetadata } : {}),
 		config,
 		detail: { ...ability.detail, meta },
 		origin,
