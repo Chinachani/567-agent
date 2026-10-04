@@ -58,7 +58,11 @@ export async function generateCompatPackages(repoRoot = root, selected = Object.
 		const manifest = {
 			name: `@567agent/${name}`, version: original.version, type: "module",
 			description: `567 Agent public entry for ${original.name}; shared runtime identity is preserved.`,
+			...(original.author ? { author: original.author } : {}),
 			main: "./dist/index.js", types: "./dist/index.d.ts", exports, license: "Apache-2.0",
+			...(original.repository ? {
+				repository: { ...original.repository, directory: `packages/npm-compat/${name}` },
+			} : {}),
 			...(Object.keys(bin).length ? { bin } : {}), files: ["dist", "README.md", "LICENSE", "NOTICE"],
 			scripts: {
 				build: `node ../../../scripts/generate-npm-compat.mjs ${name}`,
