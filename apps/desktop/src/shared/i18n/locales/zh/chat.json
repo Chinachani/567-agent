@@ -338,6 +338,7 @@
 	},
 	"dropZone": {
 		"externalRef": "图片自动作为附件，其他文件作为引用",
+		"failed": "拖入的文件暂时无法添加到会话，请重试或通过附件按钮选择。",
 		"internalRef": "来自项目内的引用",
 		"releaseToRef": "松开以引用文件"
 	},

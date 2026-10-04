@@ -7,7 +7,7 @@ description: Choose the correct build, preserve local data, and diagnose upgrade
 
 Use [GitHub Releases](https://github.com/Chinachani/567-agent/releases) for released installers. The repository is also the source for development builds; do not mix a development data directory with a production profile unless the build explicitly documents that compatibility.
 
-Windows x64 releases provide three formats. The Inno `.exe` installer is recommended for most users and participates in in-app updates. Use `.msi` for standard Windows Installer deployment, or extract `.zip` and run `567 Agent.exe` without installing. MSI and ZIP are supplemental downloads; in-app updates still use the Inno installer.
+Windows x64 releases provide three formats. The Inno `.exe` installer is recommended for most users and participates in in-app updates. Use `.msi` for standard Windows Installer deployment, or extract `.zip` and run `567-Agent.exe` without installing. MSI and ZIP are supplemental downloads; in-app updates still use the Inno installer.
 
 Linux releases currently target x64 and provide AppImage, DEB, and RPM packages. Use AppImage without installing, DEB on Debian/Ubuntu, or RPM on Fedora/RHEL-family distributions:
 
@@ -15,14 +15,14 @@ Linux releases currently target x64 and provide AppImage, DEB, and RPM packages.
 VERSION=x.y.z # Replace with the downloaded version
 
 # Debian / Ubuntu
-sudo apt install "./vetta_${VERSION}_amd64.deb"
+sudo apt install "./567-agent-${VERSION}-amd64.deb"
 
 # Fedora / RHEL family; direct-download RPMs are not GPG-signed yet
-sudo dnf install --nogpgcheck "./vetta-${VERSION}.x86_64.rpm"
+sudo dnf install --nogpgcheck "./567-agent-${VERSION}.rpm"
 
 # AppImage
-chmod +x "./567 Agent-${VERSION}.AppImage"
-"./567 Agent-${VERSION}.AppImage"
+chmod +x "./567-agent-${VERSION}.AppImage"
+"./567-agent-${VERSION}.AppImage"
 ```
 
 The DEB and RPM files are currently distributed directly over HTTPS rather than through an APT or DNF repository. After installation, the app updater continues using the same package format.

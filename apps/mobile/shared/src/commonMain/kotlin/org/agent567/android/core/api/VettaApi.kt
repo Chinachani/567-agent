@@ -447,22 +447,19 @@ internal class VettaApi(
             throw e.toVettaException()
         }
 
-    suspend fun subscriptionMe(): SubscriptionStatus =
-        try {
-            val user = me()
-            val cents = (user.quota.toDouble() / 500000.0 * 100.0 + 0.5).toLong()
-            val usdStr = "${cents / 100}.${(cents % 100).toString().padStart(2, '0')}"
-            SubscriptionStatus(
-                active = true,
-                isDefault = true,
-                goEnabled = true,
-                tierName = "567 API",
-                badgeText = "567",
-                description = "额度: $$usdStr",
-            )
-        } catch (_: Exception) {
-            SubscriptionStatus(active = true, isDefault = true, tierName = "567 API", badgeText = "567")
-        }
+    suspend fun subscriptionMe(): SubscriptionStatus {
+        val user = me()
+        val cents = (user.quota.toDouble() / 500000.0 * 100.0 + 0.5).toLong()
+        val usdStr = "${cents / 100}.${(cents % 100).toString().padStart(2, '0')}"
+        return SubscriptionStatus(
+            active = true,
+            isDefault = true,
+            goEnabled = true,
+            tierName = "567 API",
+            badgeText = "567",
+            description = "额度: $$usdStr",
+        )
+    }
 
     suspend fun getAvailableGroups(): Map<String, ApiGroupInfoDto> {
         return try {
@@ -1178,8 +1175,24 @@ internal class VettaApi(
                 header(HttpHeaders.UserAgent, "567-Agent-Mobile")
             }
             val text = response.bodyAsTextSafe()
+            if (!response.status.isSuccess()) {
+                throw VettaException.Api(
+                    httpStatus = response.status.value,
+                    code = null,
+                    message = "GitHub release lookup failed",
+                    rawBody = text,
+                )
+            }
             val root = org.agent567.android.core.net.VettaJson.parseToJsonElement(text) as? kotlinx.serialization.json.JsonObject
             val tagName = (root?.get("tag_name") as? kotlinx.serialization.json.JsonPrimitive)?.content.orEmpty()
+            if (tagName.isBlank()) {
+                throw VettaException.Api(
+                    httpStatus = response.status.value,
+                    code = null,
+                    message = "GitHub response did not include a release tag",
+                    rawBody = text,
+                )
+            }
             val body = (root?.get("body") as? kotlinx.serialization.json.JsonPrimitive)?.content.orEmpty()
             val assets = root?.get("assets") as? kotlinx.serialization.json.JsonArray
             var apkUrl: String? = null
@@ -1204,6 +1217,7 @@ internal class VettaApi(
                 apkUrl = apkUrl,
             )
         } catch (e: Exception) {
+            if (e is CancellationException) throw e
             AppUpdateCheckResult(
                 hasUpdate = false,
                 latestVersion = "v${AppVersion.NAME}",

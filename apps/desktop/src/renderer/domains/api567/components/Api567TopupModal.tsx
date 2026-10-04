@@ -17,11 +17,15 @@ import {
 	X,
 } from "lucide-react";
 import React, { useEffect, useState } from "react";
+import { useTranslation } from "react-i18next";
 import { useApi567 } from "../hooks/useApi567";
 
 const QUICK_AMOUNTS = [10, 20, 50, 100, 200];
+const PAYMENT_POLL_INTERVAL_MS = 5_000;
+const PAYMENT_POLL_TIMEOUT_MS = 15 * 60_000;
 
 export function Api567TopupModal(): JSX.Element | null {
+	const { t } = useTranslation("common");
 	const {
 		status,
 		topupModalOpen,
@@ -44,29 +48,44 @@ export function Api567TopupModal(): JSX.Element | null {
 	const [fallbackUrl, setFallbackUrl] = useState<string | null>(null);
 	const [paidAmount, setPaidAmount] = useState<number>(20);
 	const [initialQuota, setInitialQuota] = useState<number | null>(null);
+	const [paymentStartedAt, setPaymentStartedAt] = useState<number | null>(null);
+	const [paymentPollExpired, setPaymentPollExpired] = useState(false);
 
 	const [paying, setPaying] = useState(false);
 	const [refreshingQuota, setRefreshingQuota] = useState(false);
 	const [errorMsg, setErrorMsg] = useState<string | null>(null);
 
-	// 轮询余额变动：在付款码或收银台视图下，每 2 秒静默检测到账
+	// 轮询余额变动；超时后停止后台请求，保留手动核对入口。
 	useEffect(() => {
-		if (!topupModalOpen || (payView !== "qrcode" && payView !== "iframe") || initialQuota === null) return;
+		if (
+			!topupModalOpen ||
+			(payView !== "qrcode" && payView !== "iframe") ||
+			initialQuota === null ||
+			paymentStartedAt === null ||
+			paymentPollExpired
+		) return;
+		const remainingMs = Math.max(0, paymentStartedAt + PAYMENT_POLL_TIMEOUT_MS - Date.now());
+		const timeout = setTimeout(() => setPaymentPollExpired(true), remainingMs);
 		const timer = setInterval(async () => {
-			const res = await refreshQuota(true, true);
+			const res = await refreshQuota(false, true);
 			if (res.success && res.quotaUsd !== undefined && res.quotaUsd > initialQuota + 0.001) {
 				setPayView("success");
 				clearInterval(timer);
+				clearTimeout(timeout);
 				setTimeout(() => {
 					setTopupModalOpen(false);
 					setPayView("input");
 					setQrDataUrl(null);
 					setFallbackUrl(null);
+					setPaymentStartedAt(null);
 				}, 1800);
 			}
-		}, 2000);
-		return () => clearInterval(timer);
-	}, [topupModalOpen, payView, initialQuota, refreshQuota, setTopupModalOpen]);
+		}, PAYMENT_POLL_INTERVAL_MS);
+		return () => {
+			clearTimeout(timeout);
+			clearInterval(timer);
+		};
+	}, [topupModalOpen, payView, initialQuota, paymentStartedAt, paymentPollExpired, refreshQuota, setTopupModalOpen]);
 
 	// 重置弹窗状态
 	const handleClose = () => {
@@ -75,6 +94,8 @@ export function Api567TopupModal(): JSX.Element | null {
 		setErrorMsg(null);
 		setQrDataUrl(null);
 		setFallbackUrl(null);
+		setPaymentStartedAt(null);
+		setPaymentPollExpired(false);
 	};
 
 	if (!topupModalOpen) return null;
@@ -90,9 +111,17 @@ export function Api567TopupModal(): JSX.Element | null {
 
 		setPaying(true);
 		setPaidAmount(finalAmount);
-		setInitialQuota(status.quotaUsd ?? 0);
 
 		try {
+			const refreshedQuota = await refreshQuota(true, true);
+			const quotaBeforePayment = refreshedQuota.success ? refreshedQuota.quotaUsd : undefined;
+			if (quotaBeforePayment === undefined) {
+				setErrorMsg(t("topupStatus.baselineUnavailable"));
+				return;
+			}
+			setInitialQuota(quotaBeforePayment);
+			setPaymentPollExpired(false);
+
 			const res = await createPayOrder(finalAmount, paymentMethod);
 			if (!res.success) {
 				setErrorMsg(res.message || "未能创建支付订单，请稍后重试");
@@ -101,26 +130,36 @@ export function Api567TopupModal(): JSX.Element | null {
 
 			// 优先尝试原生二维码渲染
 			if (res.qrCode) {
+				let generatedQr: string | null = null;
 				if (res.qrCode.startsWith("data:image/") || (res.qrCode.startsWith("http") && res.qrCode.includes(".png"))) {
-					setQrDataUrl(res.qrCode);
+					generatedQr = res.qrCode;
 				} else {
 					try {
-						const dataUrl = await createQrCodeDataUrl(res.qrCode, 260);
-						setQrDataUrl(dataUrl);
+						generatedQr = await createQrCodeDataUrl(res.qrCode, 260);
 					} catch (qrErr) {
 						console.warn("QRCode generation failed, fallback to url:", qrErr);
-						setQrDataUrl(null);
 					}
 				}
 				if (res.payUrl) setFallbackUrl(res.payUrl);
-				setPayView("qrcode");
+				if (generatedQr) {
+					setQrDataUrl(generatedQr);
+					setPayView("qrcode");
+				} else if (res.payUrl) {
+					setQrDataUrl(null);
+					setPayView("iframe");
+				} else {
+					setErrorMsg(t("topupStatus.qrUnavailable"));
+				}
 			} else if (res.payUrl) {
 				// 二维码提取未命中，优雅走方案 3：内置收银台 iframe 兜底
 				setFallbackUrl(res.payUrl);
 				setPayView("iframe");
 			} else {
-				setErrorMsg("支付服务未返回有效的付款链接，请稍后重试");
+				setErrorMsg(t("topupStatus.paymentUrlUnavailable"));
 			}
+			if (res.success && (res.qrCode || res.payUrl)) setPaymentStartedAt(Date.now());
+		} catch (error) {
+			setErrorMsg(error instanceof Error ? error.message : t("topupStatus.orderFailed"));
 		} finally {
 			setPaying(false);
 		}
@@ -264,6 +303,11 @@ export function Api567TopupModal(): JSX.Element | null {
 								<span>等待支付中，付款后将自动确认到账...</span>
 							</div>
 						</div>
+						{paymentPollExpired && (
+							<p role="status" className="mt-2 text-xs text-amber-600 dark:text-amber-400">
+								{t("topupStatus.pollingPaused")}
+							</p>
+						)}
 
 						{/* 底部操作条 */}
 						<div className="mt-4 flex w-full gap-2 border-t pt-3">
@@ -323,6 +367,11 @@ export function Api567TopupModal(): JSX.Element | null {
 								className="h-full w-full border-0"
 							/>
 						</div>
+						{paymentPollExpired && (
+							<p role="status" className="mt-2 text-xs text-amber-600 dark:text-amber-400">
+								{t("topupStatus.pollingPausedManual")}
+							</p>
+						)}
 						<div className="mt-3 flex items-center justify-between border-t pt-3">
 							<Button
 								variant="outline"

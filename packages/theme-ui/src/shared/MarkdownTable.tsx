@@ -166,12 +166,12 @@ export function MarkdownTableRow({ children }: { children: ReactNode }): JSX.Ele
 /**
  * 单元格排版：
  * - `max-w-[34ch]`：短单元格取自然宽度不折行，只有长文本到 34ch 才换行。
- * - `word-break/overflow-wrap: normal`：抵消 `.markdown-body break-words` 的逐字断行，
- *   否则「业务大区 / 单元」会被拆成一列竖排汉字。
+ * - `word-break: normal` 保持中文按词语和标点自然换行；`overflow-wrap: anywhere` 只在
+ *   长 URL、代码或其它无空格字段撑破单元格时提供断点，避免文字覆盖相邻列。
  * - `style` 必须透传：remark-gfm 把 `|---:|` 的对齐信息放在这里，丢了数字列就没法右对齐。
  */
 const CELL_CLASS =
-	"max-w-[34ch] px-4 py-2.5 align-middle first:pl-5 last:pr-5 [overflow-wrap:normal] [word-break:normal] [text-wrap:pretty]";
+	"max-w-[34ch] px-4 py-2.5 align-middle first:pl-5 last:pr-5 [overflow-wrap:anywhere] [word-break:normal] [text-wrap:pretty]";
 
 export function MarkdownTableHeaderCell({
 	children,

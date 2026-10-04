@@ -311,6 +311,7 @@ fun RootApp(
             AppRoute.Plan ->
                 PlanScreen(
                     subscription = state.subscription,
+                    subscriptionLoadFailed = state.subscriptionLoadFailed,
                     loggedIn = state.user != null,
                     onBack = vm::navigateBackFromSecondary,
                     onRefresh = vm::refreshCatalog,

@@ -674,8 +674,8 @@ if (!gotSingleLock) {
 			},
 		);
 
-		ipcMain.handle("vetta:tray:set-quit-behavior", (_event, hideToTray: boolean) => {
-			setHideToTrayOnClose(hideToTray);
+		ipcMain.handle("vetta:tray:set-quit-behavior", async (_event, hideToTray: boolean) => {
+			await setHideToTrayOnClose(hideToTray);
 		});
 
 		ipcMain.handle("vetta:tray:get-quit-behavior", () => {

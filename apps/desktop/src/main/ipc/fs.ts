@@ -20,6 +20,7 @@ import type {
 	FsTextPreviewResult,
 } from "../../preload/fs-types.js";
 import { FS_READ_TEXT_PREVIEW_CHANNEL } from "../../preload/fs-types.js";
+import { findAnyShortcutBindingConflict, normalizeShortcutBindings } from "../../shared/shortcuts.js";
 import {
 	type AppshotConfig,
 	type AppshotGesture,
@@ -400,8 +401,15 @@ export function registerFsIpc(): () => void {
 	ipcMain.handle(CHANNELS.CONFIG_SET, async (_event, config: unknown) => {
 		if (typeof config !== "object" || config === null) throw new Error("Invalid config");
 		const patch = config as Partial<DesktopConfig>;
-		const next = await updateDesktopConfig(
-			(current): DesktopConfig => ({
+		const next = await updateDesktopConfig((current): DesktopConfig => {
+			const shortcutsConfig =
+				patch.shortcuts !== undefined ? normalizeShortcuts(patch.shortcuts) : current.shortcuts;
+			if (patch.shortcuts !== undefined) {
+				const bindings = normalizeShortcutBindings(shortcutsConfig?.bindings);
+				const conflict = findAnyShortcutBindingConflict(bindings);
+				if (conflict) throw new Error(`Shortcut conflict: ${conflict.actionId} and ${conflict.conflict}`);
+			}
+			return {
 				projects: patch.projects ?? current.projects,
 				archivedProjects: patch.archivedProjects ?? current.archivedProjects,
 				workspacePath: patch.workspacePath ?? current.workspacePath,
@@ -431,14 +439,14 @@ export function registerFsIpc(): () => void {
 						? normalizeKnowledgeBase({ ...current.knowledgeBase, ...patch.knowledgeBase })
 						: current.knowledgeBase,
 				// bindings 整表替换（支持 reset 删键）；GUI/Action 均传完整 map。
-				shortcuts: patch.shortcuts !== undefined ? normalizeShortcuts(patch.shortcuts) : current.shortcuts,
+				shortcuts: shortcutsConfig,
 				quickPanel:
 					patch.quickPanel !== undefined
 						? normalizeQuickPanel({ ...current.quickPanel, ...patch.quickPanel })
 						: current.quickPanel,
 				appshot: patch.appshot !== undefined ? mergeAppshotConfig(current.appshot, patch.appshot) : current.appshot,
-			}),
-		);
+			};
+		});
 		// Allow all known roots for file operations
 		for (const p of next.projects) allowProjectRoot(p.path);
 		for (const p of next.archivedProjects) allowProjectRoot(p.path);

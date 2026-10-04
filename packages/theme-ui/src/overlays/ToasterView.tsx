@@ -34,6 +34,9 @@ export function ToasterView({ closeTitle, onAction, onDismiss, toasts }: Toaster
 					return (
 						<motion.div
 							key={toast.id}
+							role={toast.variant === "error" ? "alert" : "status"}
+							aria-live={toast.variant === "error" ? "assertive" : "polite"}
+							aria-atomic="true"
 							layout
 							initial={{ opacity: 0, y: 16, scale: 0.96 }}
 							animate={{ opacity: 1, y: 0, scale: 1 }}

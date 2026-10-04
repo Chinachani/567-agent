@@ -524,11 +524,22 @@ export class ImHost {
 	// wechat bind flow API
 	// =========================================================================
 
+	private async waitForBindReady(isReady: () => boolean): Promise<boolean> {
+		const deadline = Date.now() + 5000;
+		while (!isReady() && Date.now() < deadline) {
+			await new Promise((resolve) => setTimeout(resolve, 100));
+		}
+		return isReady();
+	}
+
+	private bindReadyTimeout(): { ok: false; error: string } {
+		return { ok: false, error: "消息桥接启动超时，请重试；如果持续失败，请检查近期日志。" };
+	}
+
 	/**
-	 * Begin (or restart) a wechat QR scan flow. The sidecar must already
-	 * be running with wechat as the active transport (handled by the
-	 * UI clicking "扫码绑定" → setConfig({transport:"wechat",enabled:true}) →
-	 * sidecar boots into awaiting_bind → this method).
+	 * Begin (or restart) a wechat QR scan flow. This method ensures that
+	 * wechat is the active transport, waits for the sidecar to enter its
+	 * bind-ready state, then sends the QR request.
 	 */
 	async startWechatBind(): Promise<{ ok: boolean; error?: string }> {
 		// Make sure the sidecar is running and configured for wechat. If
@@ -545,12 +556,12 @@ export class ImHost {
 		}
 		// Wait briefly for the sidecar to actually be running. The
 		// SidecarManager spawn → ready handshake takes a few hundred ms.
-		const deadline = Date.now() + 5000;
-		while (Date.now() < deadline) {
-			if (this.statusStore.get().transport === "awaiting_bind" || this.config.wechat.bound) {
-				break;
-			}
-			await new Promise((r) => setTimeout(r, 100));
+		if (
+			!(await this.waitForBindReady(
+				() => this.statusStore.get().transport === "awaiting_bind" || this.config.wechat.bound,
+			))
+		) {
+			return this.bindReadyTimeout();
 		}
 		this.manager.startWechatBind();
 		return { ok: true };
@@ -618,12 +629,12 @@ export class ImHost {
 				return { ok: false, error: flip.error ?? "切换到 WhatsApp 失败" };
 			}
 		}
-		const deadline = Date.now() + 5000;
-		while (Date.now() < deadline) {
-			if (this.statusStore.get().transport === "awaiting_bind" || this.config.whatsapp.bound) {
-				break;
-			}
-			await new Promise((r) => setTimeout(r, 100));
+		if (
+			!(await this.waitForBindReady(
+				() => this.statusStore.get().transport === "awaiting_bind" || this.config.whatsapp.bound,
+			))
+		) {
+			return this.bindReadyTimeout();
 		}
 		this.manager.startWhatsappBind();
 		return { ok: true };
@@ -690,11 +701,13 @@ export class ImHost {
 				return { ok: false, error: flip.error ?? "切换到飞书失败" };
 			}
 		}
-		const deadline = Date.now() + 5000;
-		while (Date.now() < deadline) {
-			const status = this.statusStore.get().transport;
-			if (status === "awaiting_bind" || status === "online") break;
-			await new Promise((r) => setTimeout(r, 100));
+		if (
+			!(await this.waitForBindReady(() => {
+				const status = this.statusStore.get().transport;
+				return status === "awaiting_bind" || status === "online";
+			}))
+		) {
+			return this.bindReadyTimeout();
 		}
 		this.manager.startFeishuBind();
 		return { ok: true };
@@ -742,12 +755,12 @@ export class ImHost {
 				return { ok: false, error: flip.error ?? "切换到 Signal 失败" };
 			}
 		}
-		const deadline = Date.now() + 5000;
-		while (Date.now() < deadline) {
-			if (this.statusStore.get().transport === "awaiting_bind" || this.config.signal.bound) {
-				break;
-			}
-			await new Promise((r) => setTimeout(r, 100));
+		if (
+			!(await this.waitForBindReady(
+				() => this.statusStore.get().transport === "awaiting_bind" || this.config.signal.bound,
+			))
+		) {
+			return this.bindReadyTimeout();
 		}
 		this.manager.startSignalBind();
 		return { ok: true };
@@ -922,6 +935,7 @@ export class ImHost {
 		// touch. The transport selector defaults to whatever was in the
 		// previous config so callers can update enabled / feishu without
 		// resetting the user's choice.
+		const previousTransport = this.config.transport;
 		const nextTransport: ImTransportSelector = payload.transport ?? this.config.transport;
 
 		// agentModel handling: `undefined` in the payload means "no change",
@@ -1041,6 +1055,12 @@ export class ImHost {
 
 		// Apply runtime change.
 		if (this.config.enabled && this.hasRequiredCredentials()) {
+			if (nextTransport !== previousTransport) {
+				// Status is global to the sidecar. Clear the old channel's state
+				// before applying the new config so e.g. "awaiting_bind" from a
+				// previous QR flow is not shown on the newly selected channel.
+				this.statusStore.patch({ transport: "connecting", lastError: undefined });
+			}
 			if (this.manager.getCurrentChild()) {
 				await this.manager.applyConfig(this.buildSidecarConfig());
 			} else {

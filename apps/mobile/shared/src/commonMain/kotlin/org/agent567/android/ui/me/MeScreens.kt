@@ -8,16 +8,19 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.selection.toggleable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.wrapContentHeight
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.verticalScroll
@@ -390,6 +393,7 @@ private enum class AboutDocument {
 fun PlanScreen(
     subscription: SubscriptionStatus?,
     loggedIn: Boolean,
+    subscriptionLoadFailed: Boolean = false,
     onBack: () -> Unit,
     onRefresh: () -> Unit,
     onLogin: () -> Unit,
@@ -436,6 +440,7 @@ fun PlanScreen(
             VettaListGroup {
                 Text(
                     when {
+                        subscription == null && subscriptionLoadFailed -> Str.subscriptionUnavailable
                         subscription == null -> Str.loading
                         !subscription.goEnabled -> Str.planDisabled
                         !subscription.active -> Str.planInactive
@@ -853,7 +858,9 @@ fun AboutScreen(
     val uriHandler = androidx.compose.ui.platform.LocalUriHandler.current
     var checkingUpdate by remember { mutableStateOf(false) }
     var updateResult by remember { mutableStateOf<org.agent567.android.core.api.AppUpdateCheckResult?>(null) }
+    var updateOpenError by remember { mutableStateOf<String?>(null) }
     var showNoUpdateNotice by remember { mutableStateOf(false) }
+    var updateCheckError by remember { mutableStateOf<String?>(null) }
     var openDocument by remember { mutableStateOf<AboutDocument?>(null) }
     Scaffold(
         containerColor = MaterialTheme.vettaExtra.pageBackground,
@@ -897,6 +904,9 @@ fun AboutScreen(
                             checkingUpdate = false
                             if (result.hasUpdate) {
                                 updateResult = result
+                                updateOpenError = null
+                            } else if (!result.error.isNullOrBlank()) {
+                                updateCheckError = result.error
                             } else {
                                 showNoUpdateNotice = true
                             }
@@ -944,18 +954,31 @@ fun AboutScreen(
                         if (update.releaseNotes.isNotBlank()) update.releaseNotes else "有全新版本可供升级，建议更新以获得最佳使用体验。",
                         style = MaterialTheme.typography.bodyMedium,
                     )
+                    if (!updateOpenError.isNullOrBlank()) {
+                        Spacer(Modifier.height(12.dp))
+                        Text(
+                            updateOpenError.orEmpty(),
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.error,
+                        )
+                    }
                 }
             },
             confirmButton = {
                 androidx.compose.material3.FilledTonalButton(
                     onClick = {
-                        if (!update.apkUrl.isNullOrBlank()) {
-                            runCatching { uriHandler.openUri(update.apkUrl) }
+                        val targetUrl = update.apkUrl?.takeIf(String::isNotBlank)
+                            ?: "https://github.com/Chinachani/567-agent/releases/latest"
+                        try {
+                            uriHandler.openUri(targetUrl)
+                            updateResult = null
+                            updateOpenError = null
+                        } catch (_: Exception) {
+                            updateOpenError = "无法打开下载页面，请检查浏览器或网络后重试。"
                         }
-                        updateResult = null
                     },
                 ) {
-                    Text("GitHub直链")
+                    Text(if (update.apkUrl.isNullOrBlank()) "打开 GitHub 发布页" else "GitHub直链")
                 }
             },
             dismissButton = {
@@ -973,6 +996,14 @@ fun AboutScreen(
             title = "检查更新",
             message = "当前已是最新版本 (v${AppVersion.NAME})，暂无可用更新。",
             onDismiss = { showNoUpdateNotice = false },
+        )
+    }
+
+    updateCheckError?.let { error ->
+        VettaInfoDialog(
+            title = "检查更新失败",
+            message = error,
+            onDismiss = { updateCheckError = null },
         )
     }
 }
@@ -1082,18 +1113,21 @@ fun TopupDialog(
 
     androidx.compose.material3.ModalBottomSheet(
         onDismissRequest = onDismiss,
+        sheetState = androidx.compose.material3.rememberModalBottomSheetState(skipPartiallyExpanded = true),
         containerColor = MaterialTheme.colorScheme.surface,
         dragHandle = { androidx.compose.material3.BottomSheetDefaults.DragHandle() },
     ) {
-        Column(
-            modifier = Modifier
-                .fillMaxWidth()
-                .fillMaxHeight(0.92f)
-                .padding(horizontal = 24.dp),
-        ) {
+        BoxWithConstraints(modifier = Modifier.fillMaxWidth()) {
             Column(
                 modifier = Modifier
-                    .weight(1f)
+                    .fillMaxWidth()
+                    .heightIn(max = maxHeight * 0.9f)
+                    .wrapContentHeight()
+                    .padding(horizontal = 24.dp),
+            ) {
+            Column(
+                modifier = Modifier
+                    .weight(1f, fill = false)
                     .verticalScroll(rememberScrollState()),
             ) {
             Row(
@@ -1303,6 +1337,7 @@ fun TopupDialog(
                 )
             }
             Spacer(Modifier.height(8.dp))
+            }
         }
     }
 }

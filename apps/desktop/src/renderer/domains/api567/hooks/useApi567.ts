@@ -94,7 +94,7 @@ export function useApi567() {
 					showToast({
 						variant: "success",
 						title: "567 API 验证成功",
-						message: "已成功连接 567 API，并根据分组自动接入模型配置！",
+						message: "已成功连接 567 API 账户。",
 					});
 					const latest = await window.vetta.api567.getStatus();
 					setStatus(latest);
@@ -137,7 +137,7 @@ export function useApi567() {
 					showToast({
 						variant: "success",
 						title: "567 API 登录成功",
-						message: `欢迎回来，${username}！API 分组模型已自动接入。`,
+						message: `欢迎回来，${username}！567 API 账户已登录。`,
 					});
 					const latest = await window.vetta.api567.getStatus();
 					setStatus(latest);

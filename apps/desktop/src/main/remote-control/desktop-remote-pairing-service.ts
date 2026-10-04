@@ -260,7 +260,6 @@ export class DesktopRemotePairingService {
 
 	private async persistRemoteConfig(patch: NonNullable<DesktopConfig["remoteControl"]>): Promise<void> {
 		await updateDesktopConfig((config) => {
-			if (!config.remoteControl) return config;
 			return { ...config, remoteControl: { ...config.remoteControl, ...patch } };
 		});
 	}

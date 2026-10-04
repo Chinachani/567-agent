@@ -121,7 +121,6 @@ it("keeps bundle-only members out of discovery and its banner while preserving d
 	const guideId = "github:bundle-source:skill:guide";
 	const bundleId = "github:bundle-source:bundle:research";
 	expect(result.current.items.filter((item) => item.fromMarket).map((item) => item.id)).toEqual([bundleId]);
-	expect(result.current.bannerIcons.map((item) => item.id)).toEqual([bundleId]);
 	const bundle = result.current.findById(bundleId);
 	if (!bundle || bundle.type !== "bundle") throw new Error("Bundle missing");
 	expect(bundle.memberItems.map((item) => item.slug)).toEqual(["guide", "search"]);
@@ -327,8 +326,8 @@ it("groups abilities by category by default while preserving both rows", async (
 	const { result } = renderHook(() => useAbilitiesModel());
 	await waitFor(() => expect(result.current.refreshing).toBe(false));
 	const view = render(<AbilitiesPageView model={result.current} />);
-	expect(screen.getByRole("heading", { name: "CategoryA" })).toBeTruthy();
-	expect(screen.getByRole("heading", { name: "CategoryB" })).toBeTruthy();
+	expect(screen.getByRole("heading", { name: "categorya" })).toBeTruthy();
+	expect(screen.getByRole("heading", { name: "categoryb" })).toBeTruthy();
 	expect(screen.getByText("Skill A")).toBeTruthy();
 	expect(screen.getByText("Skill B")).toBeTruthy();
 	view.unmount();
@@ -347,9 +346,11 @@ it("refreshes discovery, hides empty filter options, merges aliases and exposes 
  render(<Page />);
  await waitFor(() => expect(screen.getByText("SQLite")).toBeTruthy());
  const user = userEvent.setup();
- await user.click(screen.getByRole("button", { name: "Refresh" }));
- await waitFor(() => expect(refresh).toHaveBeenCalled());
- const typeSelect = screen.getByRole("combobox", { name: "Filter abilities by type" });
+	await user.click(screen.getByRole("button", { name: "Refresh" }));
+	await waitFor(() => expect(refresh).toHaveBeenCalled());
+	expect(screen.queryByRole("combobox", { name: "Filter abilities by type" })).toBeNull();
+	await user.click(screen.getByRole("button", { name: "Filter" }));
+	const typeSelect = screen.getByRole("combobox", { name: "Filter abilities by type" });
  expect(typeSelect.querySelectorAll("option")).toHaveLength(2);
  const categorySelect = screen.getByRole("combobox", { name: "Filter abilities by category" });
  expect(categorySelect.querySelectorAll("option")).toHaveLength(2);

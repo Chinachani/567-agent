@@ -610,7 +610,7 @@ VETTA_R2_PREFIX=desktop/test
 ### 12.1 应用日志
 
 ```text
-~/.vetta/desktop-app/logs/main/YYYY-MM-DD.log
+~/.567agent/desktop-app/logs/main/YYYY-MM-DD.log
 ```
 
 重点搜索：

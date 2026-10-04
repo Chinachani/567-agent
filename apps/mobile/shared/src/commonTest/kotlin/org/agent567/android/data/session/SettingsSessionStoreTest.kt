@@ -124,7 +124,7 @@ class SettingsSessionStoreTest {
         }
 
     @Test
-    fun streamingCheckpointRecoversPartialTextWithoutRewritingTheConversationAndFinalCommitClearsIt() =
+    fun interruptedStreamingCheckpointRecoversPartialTextAsRetryableAndClearsIt() =
         runBlocking {
             val settings = MapSettings()
             val store = SettingsSessionStore(settings)
@@ -158,6 +158,11 @@ class SettingsSessionStoreTest {
             )
             val restored = SettingsSessionStore(settings).getMessages(session.id)
             assertEquals(listOf("继续", "部分回答"), restored.map { it.content })
+            assertEquals(MessageStatus.Aborted, restored.last().status)
+            assertEquals(null, settings.getStringOrNull("vetta.session.streaming.${session.id}"))
+
+            val retry = org.agent567.android.domain.chat.prepareRetryTurn(restored)
+            assertEquals("继续", retry?.draft)
 
             store.upsertMessage(assistant.copy(content = "完整回答", status = MessageStatus.Complete))
 

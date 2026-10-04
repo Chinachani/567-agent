@@ -4,7 +4,8 @@
 		"hideWindow": "Hide Window",
 		"quitVetta": "Quit 567 Agent",
 		"quit": "Quit",
-		"hideToTray": "Hide to Tray"
+		"hideToTray": "Hide to Tray",
+		"closeToTray": "Hide to tray when closing the window"
 	},
 	"menu": {
 		"app": {

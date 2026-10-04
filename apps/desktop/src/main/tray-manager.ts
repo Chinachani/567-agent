@@ -1,4 +1,5 @@
 import { app, Menu, nativeImage, Tray } from "electron";
+import { readConfigSync, updateDesktopConfig } from "./config/desktop-config-store.js";
 import { mainT } from "./i18n/index.js";
 import { getAppLogger } from "./logger.js";
 import { getMainWindow, iconPath, macTrayIconPath, showMainWindow } from "./window-manager.js";
@@ -15,7 +16,8 @@ export function getHideToTrayOnClose(): boolean {
 	return hideToTrayOnClose;
 }
 
-export function setHideToTrayOnClose(value: boolean): void {
+export async function setHideToTrayOnClose(value: boolean): Promise<void> {
+	await updateDesktopConfig((config) => ({ ...config, hideToTrayOnClose: value }));
 	hideToTrayOnClose = value;
 	rebuildTrayContextMenu();
 }
@@ -64,7 +66,19 @@ function buildTrayMenu(): Electron.Menu {
 	return Menu.buildFromTemplate([
 		toggleItem,
 		{
-			label: hideToTrayOnClose ? mainT("tray.quit") : mainT("tray.hideToTray"),
+			label: mainT("tray.closeToTray"),
+			type: "checkbox",
+			checked: hideToTrayOnClose,
+			click: (item) => {
+				void setHideToTrayOnClose(item.checked).catch((error: unknown) => {
+					log.error("failed to save close-to-tray preference", error);
+					rebuildTrayContextMenu();
+				});
+			},
+		},
+		{ type: "separator" },
+		{
+			label: mainT("tray.quitVetta"),
 			click: () => {
 				(app as typeof app & { isQuitting?: boolean }).isQuitting = true;
 				if (tray) {
@@ -90,6 +104,7 @@ function loadTrayIcon(): Electron.NativeImage {
 
 export function createTray(): void {
 	if (tray) return;
+	hideToTrayOnClose = readConfigSync().hideToTrayOnClose ?? true;
 
 	const trayIcon = loadTrayIcon();
 	log.debug(`Icon loaded: platform=${process.platform}, isEmpty=${trayIcon.isEmpty()}`);

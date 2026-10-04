@@ -1060,5 +1060,13 @@
 			"project": "Project",
 			"batch": "Batch"
 		}
+	},
+	"topupStatus": {
+		"baselineUnavailable": "The current account balance could not be read, so no payment order was created. Refresh the balance and try again.",
+		"qrUnavailable": "The payment QR code could not be generated and the payment service provided no fallback link. Try again later.",
+		"paymentUrlUnavailable": "The payment service did not return a valid payment link. Try again later.",
+		"orderFailed": "Could not create the payment order. Try again later.",
+		"pollingPaused": "Automatic confirmation has paused. The order is still unconfirmed; if you paid, select “Paid” to refresh the balance.",
+		"pollingPausedManual": "Automatic confirmation has paused. The order is still unconfirmed; if you paid, refresh the balance manually."
 	}
 }

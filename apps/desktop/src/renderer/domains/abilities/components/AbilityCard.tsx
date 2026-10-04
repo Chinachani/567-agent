@@ -119,7 +119,15 @@ function InstalledMoreMenu({
 	);
 }
 
-export function AbilityCard({ item, model }: { item: AbilityItem; model: AbilitiesModel }): JSX.Element {
+export function AbilityCard({
+	item,
+	model,
+	onUnreviewedMcpAdd,
+}: {
+	item: AbilityItem;
+	model: AbilitiesModel;
+	onUnreviewedMcpAdd?: (item: McpAbility) => void;
+}): JSX.Element {
 	const { t } = useTranslation("abilities");
 	const navigate = useNavigate();
 	const { title, description } = useAbilityText()(item);
@@ -130,34 +138,39 @@ export function AbilityCard({ item, model }: { item: AbilityItem; model: Abiliti
 
 	return (
 		<div
-			onClick={openDetail}
 			onPointerEnter={() => void loadAbilityDetailView().catch(() => undefined)}
 			onPointerDown={() => void loadAbilityDetailView().catch(() => undefined)}
 			className={cn(
-				"group relative flex cursor-pointer items-center gap-3 rounded-xl px-3 py-2.5 transition-colors duration-200 hover:bg-accent/60",
+				"group relative flex items-center gap-3 rounded-xl px-3 py-2.5 transition-colors duration-200 hover:bg-accent/60",
 				!item.enabled && item.installed && "opacity-75",
 			)}
 		>
-			<AbilityIcon icon={item.icon} type={item.type} />
-			<div className="min-w-0 flex-1">
-				<div className="flex min-w-0 flex-wrap items-center gap-1.5">
-					<h3 className="truncate text-[13px] font-semibold text-foreground">{title}</h3>
-					<AbilityStatusBadges item={item} />
-				</div>
-				{item.busy ? (
-					<div className="mt-0.5 min-w-0 overflow-hidden text-[11px] leading-relaxed text-muted-foreground">
-						<AbilityOperationStatus
-							operation={item.operation}
-							progress={item.operationProgress}
-							className="max-w-full"
-						/>
-					</div>
-				) : (
-					<p className="mt-0.5 truncate text-[11px] leading-relaxed text-muted-foreground/70">
-						{description || t("card.noDescription")}
-					</p>
-				)}
-			</div>
+			<button
+				type="button"
+				onClick={openDetail}
+				className="flex min-w-0 flex-1 cursor-pointer items-center gap-3 rounded-md text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
+			>
+				<AbilityIcon icon={item.icon} type={item.type} />
+				<span className="min-w-0 flex-1">
+					<span className="flex min-w-0 flex-wrap items-center gap-1.5">
+						<span className="truncate text-[13px] font-semibold text-foreground">{title}</span>
+						<AbilityStatusBadges item={item} />
+					</span>
+					{item.busy ? (
+						<span className="mt-0.5 block min-w-0 overflow-hidden text-[11px] leading-relaxed text-muted-foreground">
+							<AbilityOperationStatus
+								operation={item.operation}
+								progress={item.operationProgress}
+								className="max-w-full"
+							/>
+						</span>
+					) : (
+						<span className="mt-0.5 block truncate text-[11px] leading-relaxed text-muted-foreground/70">
+							{description || t("card.noDescription")}
+						</span>
+					)}
+				</span>
+			</button>
 			{!item.busy && (
 				<div className="shrink-0" onClick={(event) => event.stopPropagation()}>
 					{item.installed ? (
@@ -169,7 +182,16 @@ export function AbilityCard({ item, model }: { item: AbilityItem; model: Abiliti
 							aria-label={t("actions.add")}
 							title={t("actions.add")}
 							className="rounded-lg border border-transparent bg-transparent text-muted-foreground/60 transition-colors hover:border-border hover:bg-muted hover:text-foreground"
-							onClick={() => (item.type === "bundle" ? openDetail() : model.install(item))}
+							onClick={() => {
+								if (item.type === "bundle") {
+									openDetail();
+								} else if (item.type === "mcp" && item.reviewStatus === "unreviewed") {
+									if (onUnreviewedMcpAdd) onUnreviewedMcpAdd(item);
+									else openDetail();
+								} else {
+									model.install(item);
+								}
+							}}
 						>
 							<span className="icon-[solar--add-linear] h-4 w-4" />
 						</Button>

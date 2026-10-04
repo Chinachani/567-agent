@@ -4,7 +4,8 @@
 		"hideWindow": "隐藏窗口",
 		"quitVetta": "退出 567 Agent",
 		"quit": "退出",
-		"hideToTray": "隐藏到托盘"
+		"hideToTray": "隐藏到托盘",
+		"closeToTray": "关闭窗口时最小化到托盘"
 	},
 	"menu": {
 		"app": {

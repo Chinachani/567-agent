@@ -1,7 +1,9 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const mocks = vi.hoisted(() => ({
+	config: {} as Record<string, unknown>,
 	readDesktopConfig: vi.fn(),
+	updateDesktopConfig: vi.fn(),
 	localRelay: undefined as unknown,
 	startDesktopRemoteAccess: vi.fn(),
 	startDesktopRemoteDesktopHost: vi.fn(),
@@ -10,7 +12,7 @@ const mocks = vi.hoisted(() => ({
 
 vi.mock("../config/desktop-config-store.js", () => ({
 	readDesktopConfig: mocks.readDesktopConfig,
-	updateDesktopConfig: vi.fn(),
+	updateDesktopConfig: mocks.updateDesktopConfig,
 }));
 vi.mock("../credentials/desktop-credential-vault.js", () => ({ getDesktopCredentialVault: vi.fn() }));
 vi.mock("./desktop-local-relay.js", () => ({ getDesktopLocalRelay: () => mocks.localRelay }));
@@ -30,9 +32,16 @@ describe("DesktopRemotePairingService.restore", () => {
 	beforeEach(() => {
 		vi.clearAllMocks();
 		mocks.localRelay = undefined;
-		mocks.readDesktopConfig.mockResolvedValue({
+		mocks.config = {
 			remoteControl: { pairingId: "pairing", relayBaseUrl: "wss://relay.example", inputEnabled: true },
-		});
+		};
+		mocks.readDesktopConfig.mockImplementation(async () => mocks.config);
+		mocks.updateDesktopConfig.mockImplementation(
+			async (updater: (config: Record<string, unknown>) => Record<string, unknown>) => {
+				mocks.config = updater(mocks.config);
+				return mocks.config;
+			},
+		);
 	});
 
 	it("reports undecryptable saved credentials without an unhandled rejection or deleting them", async () => {
@@ -99,5 +108,49 @@ describe("DesktopRemotePairingService.restore", () => {
 		expect(hostOptions.signalingTargets).toHaveLength(2);
 		expect(hostOptions.signalingTargets[0]).toContain("wss://relay.example/v1/desktop/");
 		expect(hostOptions.signalingTargets[1]).toContain("fingerprint=");
+	});
+
+	it("persists a newly created pairing so a new service can restore it", async () => {
+		const { DesktopRemotePairingService } = await import("./desktop-remote-pairing-service.js");
+		mocks.localRelay = {
+			getLanIp: () => "192.168.1.20",
+			getLanUrl: () => "wss://192.168.1.20:18789",
+			start: vi.fn(),
+			stop: vi.fn(),
+		};
+		mocks.createDesktopRemoteCertificate.mockResolvedValue({
+			certificate: "local-cert",
+			privateKey: "local-key",
+			fingerprint: "a".repeat(64),
+		});
+		mocks.startDesktopRemoteDesktopHost.mockResolvedValue({ inputSupported: false });
+		const storedCredentials = new Map<string, string>();
+		const vault = {
+			isAvailable: () => true,
+			get: vi.fn((ref: { name: string }) => storedCredentials.get(ref.name)),
+			put: vi.fn((ref: { name: string }, value: string) => storedCredentials.set(ref.name, value)),
+			remove: vi.fn((ref: { name: string }) => storedCredentials.delete(ref.name)),
+		};
+		const options = {
+			appRoot: "/app",
+			isPackaged: true,
+			conversationCwd: "/conversation",
+			defaultRelayBaseUrl: "https://relay.example",
+		};
+		const creator = new DesktopRemotePairingService(options, vault);
+		const created = await creator.create();
+
+		expect(await mocks.readDesktopConfig()).toMatchObject({
+			remoteControl: {
+				pairingId: created.pairingId,
+				relayBaseUrl: "wss://relay.example",
+				inputEnabled: false,
+			},
+		});
+
+		mocks.startDesktopRemoteDesktopHost.mockResolvedValue({ inputSupported: false });
+		const restored = new DesktopRemotePairingService(options, vault);
+		await restored.restore();
+		expect(restored.getState()).toMatchObject({ status: "ready", pairingId: created.pairingId });
 	});
 });

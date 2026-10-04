@@ -4,6 +4,7 @@ import org.agent567.android.AppVersion
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.cancelAndJoin
@@ -63,6 +64,7 @@ data class AppUiState(
     val serverUrl: String = "",
     val user: User? = null,
     val subscription: SubscriptionStatus? = null,
+    val subscriptionLoadFailed: Boolean = false,
     val models: List<LlmModel> = emptyList(),
     val selectedModelId: String? = null,
     val currentSessionId: String? = null,
@@ -337,7 +339,11 @@ class AppViewModel(
             _state.update {
                 it.copy(
                     user = user ?: it.user,
-                    subscription = sub ?: it.subscription,
+                    // A failed subscription lookup must not leave an old
+                    // balance/tier looking current. `sub` is null on lookup
+                    // failure and the UI can then rely on the error state.
+                    subscription = sub,
+                    subscriptionLoadFailed = sub == null,
                     available567Groups = if (groups.isNotEmpty()) groups else it.available567Groups,
                     active567Group = currentGroup,
                     activeImageGroup = currentImageGroup ?: it.activeImageGroup,
@@ -403,6 +409,7 @@ class AppViewModel(
                 val res = container.client.models.checkAppUpdate()
                 onResult(res)
             } catch (t: Throwable) {
+                if (t is CancellationException) throw t
                 onResult(
                     org.agent567.android.core.api.AppUpdateCheckResult(
                         hasUpdate = false,
@@ -1077,6 +1084,7 @@ class AppViewModel(
                 mainAccessGranted = false,
                 user = null,
                 subscription = null,
+                subscriptionLoadFailed = false,
                 models = emptyList(),
                 selectedModelId = null,
                 currentSessionId = null,
@@ -1101,7 +1109,13 @@ class AppViewModel(
         viewModelScope.launch {
             _state.update { it.copy(catalogLoading = true) }
             try {
-                val sub = container.client.subscription.me()
+                val sub = runCatching { container.client.subscription.me() }.getOrNull()
+                _state.update {
+                    it.copy(
+                        subscription = sub,
+                        subscriptionLoadFailed = sub == null,
+                    )
+                }
                 val groups = runCatching { container.client.models.getAvailableGroups() }.getOrDefault(emptyMap())
                 val currentGroup = _state.value.active567Group
                 val models = container.client.models.listGoModels(currentGroup)
@@ -1112,6 +1126,7 @@ class AppViewModel(
                 _state.update {
                     it.copy(
                         subscription = sub,
+                        subscriptionLoadFailed = sub == null,
                         available567Groups = if (groups.isNotEmpty()) groups else it.available567Groups,
                         models = finalModels,
                         selectedModelId = selected,
@@ -1121,7 +1136,10 @@ class AppViewModel(
                 }
             } catch (t: Throwable) {
                 _state.update {
-                    it.copy(catalogLoading = false, globalError = ErrorMapper.from(t))
+                    it.copy(
+                        catalogLoading = false,
+                        globalError = ErrorMapper.from(t),
+                    )
                 }
             }
         }

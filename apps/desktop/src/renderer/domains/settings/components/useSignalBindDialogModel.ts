@@ -86,6 +86,9 @@ export function useSignalBindDialogModel({
 	const { t } = useTranslation("settings");
 	const [state, setState] = useState<SignalDialogState>(initialSignalDialogState);
 	const subUnsubRef = useRef<(() => void) | null>(null);
+	const bindGenerationRef = useRef(0);
+	const openRef = useRef(open);
+	openRef.current = open;
 	// The success screen closes itself after a beat; keep the handle so an
 	// unmount (dialog closed, settings page left) cannot fire it later.
 	const closeTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -93,6 +96,7 @@ export function useSignalBindDialogModel({
 
 	useEffect(
 		() => () => {
+			bindGenerationRef.current += 1;
 			subUnsubRef.current?.();
 			subUnsubRef.current = null;
 			if (closeTimerRef.current) clearTimeout(closeTimerRef.current);
@@ -102,8 +106,11 @@ export function useSignalBindDialogModel({
 
 	useEffect(() => {
 		if (!open) {
+			bindGenerationRef.current += 1;
 			subUnsubRef.current?.();
 			subUnsubRef.current = null;
+			if (closeTimerRef.current) clearTimeout(closeTimerRef.current);
+			closeTimerRef.current = null;
 			setState(initialSignalDialogState);
 		}
 	}, [open]);
@@ -129,8 +136,14 @@ export function useSignalBindDialogModel({
 	}, [state.qrUri, t]);
 
 	const startBind = useCallback(async () => {
+		const generation = ++bindGenerationRef.current;
+		subUnsubRef.current?.();
+		subUnsubRef.current = null;
+		if (closeTimerRef.current) clearTimeout(closeTimerRef.current);
+		closeTimerRef.current = null;
 		setState({ phase: "starting", qrAttempt: 0 });
 		const unsub = await window.vetta.im.signal.subscribeBind((event: ImSignalBindEvent) => {
+			if (generation !== bindGenerationRef.current || !openRef.current) return;
 			switch (event.kind) {
 				case "qr":
 					setState((prev) => ({
@@ -159,7 +172,10 @@ export function useSignalBindDialogModel({
 				case "bound":
 					onConfirmedRefresh();
 					setState((prev) => ({ ...prev, phase: "confirmed" }));
-					closeTimerRef.current = setTimeout(() => onOpenChange(false), 1500);
+					if (closeTimerRef.current) clearTimeout(closeTimerRef.current);
+					closeTimerRef.current = setTimeout(() => {
+						if (generation === bindGenerationRef.current && openRef.current) onOpenChange(false);
+					}, 1500);
 					break;
 				case "unbound":
 					setState(initialSignalDialogState);
@@ -167,11 +183,26 @@ export function useSignalBindDialogModel({
 					break;
 			}
 		});
+		if (generation !== bindGenerationRef.current || !openRef.current) {
+			unsub();
+			return;
+		}
 		subUnsubRef.current = unsub;
 
-		const result = await window.vetta.im.signal.startBind();
-		if (!result.ok) {
-			setState({ phase: "failed", qrAttempt: 0, error: result.error ?? t("bindStartFailed") });
+		try {
+			const result = await window.vetta.im.signal.startBind();
+			if (generation !== bindGenerationRef.current || !openRef.current) return;
+			if (!result.ok) {
+				setState({ phase: "failed", qrAttempt: 0, error: result.error ?? t("bindStartFailed") });
+			}
+		} catch (error) {
+			if (generation === bindGenerationRef.current && openRef.current) {
+				setState({
+					phase: "failed",
+					qrAttempt: 0,
+					error: error instanceof Error ? error.message : t("bindStartFailed"),
+				});
+			}
 		}
 	}, [onConfirmedRefresh, onOpenChange, t]);
 

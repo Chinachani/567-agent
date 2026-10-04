@@ -338,6 +338,7 @@
 	},
 	"dropZone": {
 		"externalRef": "Images are attached automatically; other files are referenced",
+		"failed": "The dropped file could not be added. Try again or choose it with the attachment button.",
 		"internalRef": "Reference from within the project",
 		"releaseToRef": "Release to reference file"
 	},

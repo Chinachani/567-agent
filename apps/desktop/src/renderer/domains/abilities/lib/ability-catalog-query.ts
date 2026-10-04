@@ -1,4 +1,4 @@
-import type { AbilityItem, AbilityScope } from "../types";
+import type { AbilityItem, AbilityReviewFilter, AbilityScope } from "../types";
 import { abilityCategoryKey, normalizeAbilityCategory } from "./ability-categories";
 import { isMarketAbilityListed } from "./merge-ability-catalogs";
 
@@ -7,6 +7,8 @@ export interface AbilityCatalogQuery {
 	keyword?: string;
 	category?: string;
 	types?: AbilityItem["type"][];
+	reviewFilter?: AbilityReviewFilter;
+	tag?: string;
 	sourceIds?: string[];
 	page: number;
 	pageSize: number;
@@ -99,6 +101,9 @@ export function filterAbilityCatalog(
 			(!keyword || item.searchTerms.some((term) => term.toLowerCase().includes(keyword))) &&
 			(!query.category || abilityCategoryKey(item) === normalizeAbilityCategory(query.category)) &&
 			(!types || types.has(item.type)) &&
+			(query.reviewFilter !== "unreviewed" || item.reviewStatus === "unreviewed") &&
+			(!query.tag ||
+				item.tags.some((tag) => tag.trim().toLocaleLowerCase() === query.tag?.trim().toLocaleLowerCase())) &&
 			(!sources || sources.has(sourceId(item))),
 	);
 }

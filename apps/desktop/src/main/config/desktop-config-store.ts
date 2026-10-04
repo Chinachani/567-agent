@@ -50,6 +50,8 @@ export interface DesktopConfig {
 	shortcuts?: ShortcutsConfig;
 	quickPanel?: QuickPanelConfig;
 	appshot?: AppshotConfig;
+	/** Windows/Linux: hide the main window to the tray when the user closes it. Defaults on. */
+	hideToTrayOnClose?: boolean;
 	remoteControl?: {
 		relayBaseUrl?: string;
 		pairingId?: string;
@@ -105,6 +107,7 @@ const DEFAULT_CONFIG: DesktopConfig = {
 	shortcuts: { bindings: {} },
 	quickPanel: { trigger: "none", postSendBehavior: "foreground" },
 	appshot: { enabled: false, gesture: "both-shift" },
+	hideToTrayOnClose: true,
 };
 
 function migrateProjectEntries(entries: unknown): ProjectEntry[] {
@@ -261,6 +264,8 @@ function parseDesktopConfig(parsed: Record<string, unknown>): DesktopConfig {
 		shortcuts: normalizeShortcuts(parsed.shortcuts),
 		quickPanel: normalizeQuickPanel(parsed.quickPanel),
 		appshot: normalizeAppshot(parsed.appshot),
+		hideToTrayOnClose:
+			typeof parsed.hideToTrayOnClose === "boolean" ? parsed.hideToTrayOnClose : DEFAULT_CONFIG.hideToTrayOnClose,
 		remoteControl: normalizeRemoteControl(parsed.remoteControl),
 	};
 }

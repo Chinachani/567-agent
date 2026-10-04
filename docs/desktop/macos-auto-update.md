@@ -136,7 +136,7 @@ desktop/
 ~/Library/Caches/567-agent-updater/
   update.zip                                  # 差分基线
   pending/                                    # 下载中的新版本
-~/Library/Caches/com.vetta.desktop.ShipIt/    # Squirrel 暂存区
+~/Library/Caches/com.api567.agent.ShipIt/    # Squirrel 暂存区
 ```
 
 **从 DMG 安装后的第一次更新必定是全量下载**，日志会打 `Unable to locate previous update.zip for differential download (is this first install?)`。因为 `MacUpdater` 只在 electron-updater 完成一次下载后才写 `update.zip`，而 DMG 安装不经过它。Windows 靠 Inno 安装器的 `SeedUpdaterDifferentialCache()` 播种基线，macOS 没有等价物，也做不出来——基线必须与线上 ZIP 逐字节一致，无法从已安装的 `.app` 反推。第二次更新起才走差分。
@@ -210,7 +210,7 @@ cp apps/desktop/release/567-Agent-0.5.62-arm64-mac.zip ~/Library/Caches/567-agen
 scripts/release-mac.sh local --version 0.5.63
 
 # 5. 从终端启动 0.5.62 验证
-/Applications/Vetta.app/Contents/MacOS/Vetta
+"/Applications/567 Agent.app/Contents/MacOS/567-Agent"
 ```
 
 两个细节决定这个通道能不能测差分：
@@ -288,7 +288,7 @@ bun run merge:updates:mac
 5. `VETTA_REQUIRE_MAC_SIGNATURE=1` 时，用 `ditto` 解包每个 ZIP，校验：
    - 顶层有且只有一个 `.app`
    - `CFBundleShortVersionString` 与清单版本一致
-   - `CFBundleIdentifier` 是 `com.vetta.desktop`
+   - `CFBundleIdentifier` 是 `com.api567.agent`
    - `codesign --verify --deep --strict`
    - `spctl -a -t exec`（Gatekeeper 接受）
    - `xcrun stapler validate`（公证票据已钉入）
@@ -308,7 +308,7 @@ bun run publish:updates:r2
 ### 7.6 客户端验证
 
 1. 安装一个更低版本的 test 构建到 `/Applications`（必须是 `/Applications`，Squirrel 需要能写 app bundle 所在目录）。
-2. 从终端启动以便看日志：`/Applications/Vetta.app/Contents/MacOS/Vetta`
+2. 从终端启动以便看日志：`/Applications/567 Agent.app/Contents/MacOS/567-Agent`
 3. 上传更高版本后，等待启动检查或手动点检查更新。
 4. 观察三行日志的时间间隔：
 
@@ -423,7 +423,7 @@ tag v<version>
 **① launchd 作业状态**——最有信息量的一个：
 
 ```bash
-launchctl print "gui/$(id -u)/com.vetta.desktop.ShipIt"
+launchctl print "gui/$(id -u)/com.api567.agent.ShipIt"
 ```
 
 | 看到什么 | 含义 |
@@ -436,7 +436,7 @@ launchctl print "gui/$(id -u)/com.vetta.desktop.ShipIt"
 **② ShipIt 自己的日志**——Squirrel 只在作业真正 spawn 后才创建这两个文件，**文件不存在本身就是结论**：
 
 ```bash
-cat ~/Library/Caches/com.vetta.desktop.ShipIt/ShipIt_stderr.log
+cat ~/Library/Caches/com.api567.agent.ShipIt/ShipIt_stderr.log
 ```
 
 成功的样子：
@@ -444,15 +444,15 @@ cat ~/Library/Caches/com.vetta.desktop.ShipIt/ShipIt_stderr.log
 ```text
 Detected this as an install request
 Beginning installation
-Moved bundle contents from ... to file:///Applications/Vetta.app/
+Moved bundle contents from ... to file:///Applications/567%20Agent.app/
 Installation completed successfully
-Successfully launched application at file:///Applications/Vetta.app/
+Successfully launched application at file:///Applications/567%20Agent.app/
 ```
 
 **③ 待安装状态**（安装完成后会被清掉）：
 
 ```bash
-plutil -p ~/Library/Caches/com.vetta.desktop.ShipIt/ShipItState.plist
+plutil -p ~/Library/Caches/com.api567.agent.ShipIt/ShipItState.plist
 ```
 
 `updateBundleURL` 指向暂存的新 bundle，可以直接读它的 `Info.plist` 确认暂存的是哪个版本；`launchAfterInstallation` 决定装完是否自动拉起。
@@ -460,11 +460,11 @@ plutil -p ~/Library/Caches/com.vetta.desktop.ShipIt/ShipItState.plist
 **手动推进一次卡住的安装**（也是验证「问题只出在没人启动作业」的最快方式）：
 
 ```bash
-launchctl kickstart "gui/$(id -u)/com.vetta.desktop.ShipIt"
-pkill -f "Vetta.app/Contents/MacOS/Vetta"   # ShipIt 必须等目标退出才替换
+launchctl kickstart "gui/$(id -u)/com.api567.agent.ShipIt"
+pkill -f "567 Agent.app/Contents/MacOS/567-Agent"   # ShipIt 必须等目标退出才替换
 ```
 
-**别用应用窗口判断应用是否还在跑。** 单实例锁会让新启动的实例退出并把老进程的窗口调出来，看着像「重启了但版本没变」，实际是同一个老进程。用 `pgrep -f "Vetta.app/Contents/MacOS/Vetta"` 看 pid，并和 `launchctl print` 里的 `submitted by Vetta[pid]` 对照。
+**别用应用窗口判断应用是否还在跑。** 单实例锁会让新启动的实例退出并把老进程的窗口调出来，看着像「重启了但版本没变」，实际是同一个老进程。用 `pgrep -f "567 Agent.app/Contents/MacOS/567-Agent"` 看 pid，并和 `launchctl print` 里的 `submitted by 567 Agent[pid]` 对照。
 
 ### 10.3 提示重启过早出现（暂存尚未完成）
 
@@ -481,7 +481,7 @@ pkill -f "Vetta.app/Contents/MacOS/Vetta"   # ShipIt 必须等目标退出才替
 ### 10.5 用户报「已损坏」
 
 - 先确认下载的是**新版本**——已发布的旧 DMG 不会追溯获得公证票据。
-- 让用户跑 `xattr -l /Applications/Vetta.app`，若只有 `com.apple.quarantine` 而 app 是公证过的，通常是下载过程被网络中间设备改写导致签名失效，换直链或换网络重下。
+- 让用户跑 `xattr -l "/Applications/567 Agent.app"`，若只有 `com.apple.quarantine` 而 app 是公证过的，通常是下载过程被网络中间设备改写导致签名失效，换直链或换网络重下。
 - 其余排查见 `../deploy/apple-code-signing.md` 第 6 节。
 
 ### 10.6 公证报 vendor 运行时未签名
@@ -489,7 +489,7 @@ pkill -f "Vetta.app/Contents/MacOS/Vetta"   # ShipIt 必须等目标退出才替
 **现象**：`notarytool` 返回 `Invalid`，issues 里全是这种路径：
 
 ```
-Vetta.app/Contents/Resources/vendor/python/cpython-...tar.gz/cpython-...tar/python/bin/python3.13
+567 Agent.app/Contents/Resources/vendor/python/cpython-...tar.gz/cpython-...tar/python/bin/python3.13
   The binary is not signed with a valid Developer ID certificate.
   The signature does not include a secure timestamp.
   The executable does not have the hardened runtime enabled.
@@ -514,7 +514,7 @@ Vetta.app/Contents/Resources/vendor/python/cpython-...tar.gz/cpython-...tar/pyth
 ### 11.1 应用日志
 
 ```text
-~/.vetta/desktop-app/logs/main/YYYY-MM-DD.log
+~/.567agent/desktop-app/logs/main/YYYY-MM-DD.log
 ```
 
 重点搜索：
@@ -529,7 +529,7 @@ download failed
 install failed
 ```
 
-打包应用的 stdout 只有从终端启动才看得到：`/Applications/Vetta.app/Contents/MacOS/Vetta`。
+打包应用的 stdout 只有从终端启动才看得到：`/Applications/567 Agent.app/Contents/MacOS/567-Agent`。
 
 不要记录 R2 Secret、Access Key、Authorization 或 Cookie。
 

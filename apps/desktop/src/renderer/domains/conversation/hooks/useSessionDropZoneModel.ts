@@ -2,6 +2,7 @@ import { recordInputFilesAdded } from "@shared/lib/app-monitor-events";
 import { isImagePath } from "@shared/lib/input-tokens";
 import { isSubPath, pathBasename } from "@shared/lib/utils";
 import { activeSessionAtom, type MentionedFile, mentionedFilesAtom } from "@shared/store/atoms";
+import { showToast } from "@shared/store/toast-atoms";
 import type { SessionDropZoneViewProps } from "@vetta-org/theme-ui/chat";
 import { useAtomValue } from "jotai";
 import { useCallback, useState } from "react";
@@ -171,6 +172,10 @@ export function useSessionDropZoneModel(cwdOverride?: string): SessionDropZoneMo
 		onDragEnter: handleDragEnter,
 		onDragOver: handleDragOver,
 		onDragLeave: handleDragLeave,
-		onDrop: (e) => void handleDrop(e),
+		onDrop: (e) => {
+			void handleDrop(e).catch(() => {
+				showToast({ variant: "error", message: t("dropZone.failed") });
+			});
+		},
 	};
 }

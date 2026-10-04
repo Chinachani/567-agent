@@ -6,7 +6,7 @@
 
 正式版本和各平台文件发布在 [GitHub Releases](https://github.com/Chinachani/567-agent/releases)。请以每个版本页面列出的文件和发布说明为准。
 
-当前最新发布为 **v1.1.4**，提供 Windows 便携 ZIP、Linux AppImage / DEB 和 Android APK。Windows ZIP 解压后运行，不需要安装向导。后续版本计划增加 Windows 安装程序和 MSI，并为 Linux 增加 RPM；这些格式尚未出现在当前 Release 中。
+当前 Release 页面会列出对应版本和平台的可用文件。桌面端发布格式包括 Windows 安装程序、MSI 与便携 ZIP，以及 Linux AppImage、DEB 和 RPM；Android 版本以 Release 页面列出的 APK 为准。
 
 Android 用户如因签名更换而无法覆盖安装，可先导出旧版聊天记录，再卸载旧版并安装新版，最后导入记录。操作步骤见[聊天记录迁移指南](docs/apps/mobile/chat-history-migration.md)。
 
@@ -14,6 +14,7 @@ Android 用户如因签名更换而无法覆盖安装，可先导出旧版聊天
 
 - **桌面 Agent 工作区**：在项目目录中与 Agent 协作，使用模型、工具和本机文件完成编码及其他工作任务。
 - **本机能力与扩展**：项目包含命令和文件工具、MCP、知识库、技能、插件、主题、批量任务及相关运行时模块。具体能力取决于应用构建和配置。
+- **MCP 风险提示**：对尚未人工核验的 MCP，客户端可生成供用户复制给 AI 的评估提示词。项目文档链接只取该 MCP 条目的文档元数据；缺失的作者、许可或文档信息会明确标为未提供，不用市场目录仓库地址代替。风险提示使用 Markdown 标记，表格会为过长字段提供换行。
 - **Android 客户端**：通过 567 API 在手机上直接聊天，或连接桌面端继续会话；支持配对后的桌面远程预览与控制。
 - **IM 网关**：桌面端可托管 Go 编写的网关，将已配置的即时通讯渠道接入本机 Agent。渠道支持情况和配置要求见 [IM 网关说明](apps/im-gateway/README.md)。
 - **本地会话数据**：桌面会话与配置保存在本机；IM 会话可与桌面会话共享。网络请求仍会发送到所配置的模型、567 API 或已启用的集成服务。

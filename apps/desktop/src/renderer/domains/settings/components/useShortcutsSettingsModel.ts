@@ -5,6 +5,7 @@ import {
 	type ShortcutBindings,
 	saveShortcutBindings,
 } from "@shared/lib/shortcuts";
+import { showToast } from "@shared/store/toast-atoms";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { recordSettingsUsage } from "./recordSettingsUsage";
@@ -76,42 +77,67 @@ export function useShortcutsSettingsModel(): ShortcutsSettingsModel {
 	}, []);
 
 	const persistQuickPanel = useCallback(
-		async (patch: { trigger?: QuickPanelTrigger; postSendBehavior?: QuickPanelBehavior }) => {
-			await window.vetta.config.set({ quickPanel: patch });
-			await window.vetta.quickPanel.reloadHotkey();
+		async (patch: { trigger?: QuickPanelTrigger; postSendBehavior?: QuickPanelBehavior }): Promise<boolean> => {
+			try {
+				await window.vetta.config.set({ quickPanel: patch });
+				await window.vetta.quickPanel.reloadHotkey();
+				return true;
+			} catch (error) {
+				showToast({
+					variant: "error",
+					title: t("shortcutSaveFailed"),
+					message: error instanceof Error ? error.message : String(error),
+				});
+				return false;
+			}
 		},
-		[],
+		[t],
 	);
 
-	const handleShortcutChange = useCallback((actionId: string, shortcut: string) => {
-		setCustomShortcuts((prev) => {
-			const next = { ...prev, [actionId]: shortcut };
-			void saveShortcutBindings(next);
-			return next;
-		});
-		recordSettingsUsage({ tab: "shortcuts", action: "changed", target: "shortcut" });
-	}, []);
+	const persistBindings = useCallback(
+		async (next: ShortcutBindings): Promise<void> => {
+			try {
+				await saveShortcutBindings(next);
+				setCustomShortcuts(next);
+			} catch (error) {
+				showToast({
+					variant: "error",
+					title: t("shortcutSaveFailed"),
+					message: error instanceof Error ? error.message : String(error),
+				});
+			}
+		},
+		[t],
+	);
 
-	const handleShortcutReset = useCallback((actionId: string) => {
-		setCustomShortcuts((prev) => {
-			const next = { ...prev };
+	const handleShortcutChange = useCallback(
+		(actionId: string, shortcut: string) => {
+			void persistBindings({ ...customShortcuts, [actionId]: shortcut });
+			recordSettingsUsage({ tab: "shortcuts", action: "changed", target: "shortcut" });
+		},
+		[customShortcuts, persistBindings],
+	);
+
+	const handleShortcutReset = useCallback(
+		(actionId: string) => {
+			const next = { ...customShortcuts };
 			delete next[actionId as keyof typeof next];
-			void saveShortcutBindings(next);
-			return next;
-		});
-		recordSettingsUsage({ tab: "shortcuts", action: "reset", target: "shortcut" });
-	}, []);
+			void persistBindings(next);
+			recordSettingsUsage({ tab: "shortcuts", action: "reset", target: "shortcut" });
+		},
+		[customShortcuts, persistBindings],
+	);
 
 	const handleResetAll = useCallback(() => {
-		setCustomShortcuts({});
-		void saveShortcutBindings({});
+		void persistBindings({});
 		recordSettingsUsage({ tab: "shortcuts", action: "reset", target: "all-shortcuts" });
-	}, []);
+	}, [persistBindings]);
 
 	const handleTriggerChange = useCallback(
 		(value: QuickPanelTrigger) => {
-			setTrigger(value);
-			void persistQuickPanel({ trigger: value });
+			void persistQuickPanel({ trigger: value }).then((saved) => {
+				if (saved) setTrigger(value);
+			});
 			recordSettingsUsage({ tab: "shortcuts", action: "changed", target: "quick-panel-trigger", value });
 		},
 		[persistQuickPanel],
@@ -119,8 +145,9 @@ export function useShortcutsSettingsModel(): ShortcutsSettingsModel {
 
 	const handleBehaviorChange = useCallback(
 		(value: QuickPanelBehavior) => {
-			setBehavior(value);
-			void persistQuickPanel({ postSendBehavior: value });
+			void persistQuickPanel({ postSendBehavior: value }).then((saved) => {
+				if (saved) setBehavior(value);
+			});
 			recordSettingsUsage({ tab: "shortcuts", action: "changed", target: "quick-panel-behavior", value });
 		},
 		[persistQuickPanel],

@@ -599,9 +599,10 @@ textarea:disabled,
 	color: var(--foreground);
 }
 
-/* Focus: no global outline/ring; interactive controls use 1px border color change */
+/* Keyboard focus must remain visible even on custom controls that only use outline-none. */
 :focus-visible {
-	outline: none;
+	outline: 2px solid var(--ring);
+	outline-offset: 2px;
 }
 textarea:focus-visible,
 textarea:focus {

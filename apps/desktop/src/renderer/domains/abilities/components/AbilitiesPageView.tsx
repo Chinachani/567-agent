@@ -1,9 +1,10 @@
 import { SegmentedControl } from "@vetta-org/theme-ui/shared";
-import { Button } from "@vetta-org/ui";
+import { Button, Popover, PopoverContent, PopoverTrigger } from "@vetta-org/ui";
 import { motion } from "motion/react";
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { CapabilitiesTour } from "@shared/tour";
+import { showToast } from "@shared/store/toast-atoms";
 import { SettingsAiAssist } from "../../settings/ai-assist";
 import { resolveCategoryLabel } from "../lib/ability-presentation";
 import {
@@ -13,12 +14,14 @@ import {
 	ENABLE_ABILITY_CATEGORIES,
 	type AbilitiesModel,
 	type AbilityScope,
+	type McpAbility,
 } from "../types";
 import { AbilitiesBanner } from "./AbilitiesBanner";
 import { AbilityCard } from "./AbilityCard";
 import { AbilityMcpDialogs } from "./AbilityMcpDialogs";
 import { AddAbilityMenu } from "./AddAbilityMenu";
 import { MarketplaceSourcesDialog } from "./MarketplaceSourcesDialog";
+import { UnreviewedMcpPromptDialog } from "./UnreviewedMcpPromptDialog";
 
 const easeOut = [0.22, 1, 0.36, 1] as const;
 
@@ -36,7 +39,34 @@ export function AbilitiesPageView({
 	const skillFileInputRef = useRef<HTMLInputElement>(null);
 	const pluginFileInputRef = useRef<HTMLInputElement>(null);
 	const [sourcesDialogOpen, setSourcesDialogOpen] = useState(false);
-	const hasActiveFilter = Boolean(model.searchQuery || model.typeFilter || model.category);
+	const [filtersOpen, setFiltersOpen] = useState(false);
+	const [unreviewedMcp, setUnreviewedMcp] = useState<McpAbility | null>(null);
+	const wasRefreshing = useRef(model.refreshing);
+	const hasActiveFilter = Boolean(
+		model.searchQuery || model.typeFilter || model.category || model.reviewFilter !== "all" || model.tagFilter,
+	);
+	const activeFilterCount = [model.typeFilter, model.category, model.reviewFilter !== "all", model.tagFilter].filter(Boolean).length;
+
+	useEffect(() => {
+		if (wasRefreshing.current && !model.refreshing) {
+			const statuses = model.marketplaceCatalog.snapshots
+				.map((snapshot) => snapshot.discovery)
+				.filter((status): status is NonNullable<typeof status> => Boolean(status));
+			if (statuses.length > 0) {
+				const loaded = statuses.reduce((sum, status) => sum + status.loaded, 0);
+				const total = statuses.reduce((sum, status) => sum + status.total, 0);
+				const incomplete = statuses.some((status) => status.failedShards > 0 || status.error);
+				showToast({
+					variant: incomplete ? "warning" : "success",
+					title: t("discovery.toastTitle"),
+					message: t(incomplete ? "discovery.toastIncomplete" : "discovery.toastLoaded", { loaded, total }),
+					durationMs: incomplete ? 0 : 4500,
+					...(incomplete ? { action: { label: t("actions.refresh"), onClick: model.refresh } } : {}),
+				});
+			}
+		}
+		wasRefreshing.current = model.refreshing;
+	}, [model.marketplaceCatalog.snapshots, model.refresh, model.refreshing, t]);
 
 	return (
 		<div className="relative flex h-full w-full flex-1 flex-col overflow-hidden">
@@ -84,11 +114,11 @@ export function AbilitiesPageView({
 						</motion.div>
 					</div>
 
-					<AbilitiesBanner icons={model.bannerIcons} />
+					<AbilitiesBanner />
 
-					<div className="sticky top-0 z-30 -mx-8 flex flex-wrap items-center justify-between gap-3 border-b border-border/70 bg-background/95 px-8 py-3 shadow-sm backdrop-blur-md">
-						<div data-tour="capabilities-search-add" className="flex min-w-0 flex-wrap items-center gap-2">
-							<div className="relative w-56 min-w-[150px] shrink-0">
+					<div className="sticky top-0 z-30 -mx-8 flex flex-col gap-2 border-b border-border/70 bg-background/95 px-8 py-3 shadow-sm backdrop-blur-md">
+						<div data-tour="capabilities-search-add" className="flex min-w-0 items-center gap-2">
+							<div className="relative min-w-0 flex-1">
 								<span className="icon-[solar--magnifer-linear] absolute left-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-muted-foreground/40" />
 								<input
 									type="text"
@@ -99,36 +129,48 @@ export function AbilitiesPageView({
 									className="h-8 w-full rounded-lg bg-secondary pl-8 pr-3 text-[12px] text-foreground placeholder:text-muted-foreground/40 transition-colors hover:bg-accent focus:bg-accent focus:outline-none"
 								/>
 							</div>
-							<select
-								aria-label={t("filter.type")}
-								value={model.typeFilter}
-								onChange={(event) => model.setTypeFilter(event.target.value as typeof model.typeFilter)}
-								className="h-8 max-w-36 rounded-lg border border-border/70 bg-secondary px-2.5 text-[12px] text-foreground outline-none transition-colors hover:bg-accent focus:border-primary"
-							>
-								<option value="">{t("filter.allTypes")}</option>
-								{(model.availableTypes ?? Array.from(new Set(model.allItems.map((item) => item.type)))).map((type) => (
-									<option key={type} value={type}>{t(`type.${type}`)}</option>
-								))}
-							</select>
-							<select
-								aria-label={t("filter.category")}
-								value={model.category}
-								onChange={(event) => model.setCategory(event.target.value)}
-								className="h-8 max-w-44 rounded-lg border border-border/70 bg-secondary px-2.5 text-[12px] text-foreground outline-none transition-colors hover:bg-accent focus:border-primary"
-							>
-								<option value="">{t("filter.allCategories")}</option>
-								{model.categories.map((group) => (
-									<option key={group.category} value={group.category}>
-										{group.category === ABILITY_CATEGORY_UNCATEGORIZED
-											? t("group.uncategorized")
-											: group.category === ABILITY_CATEGORY_CONNECTORS
-												? t("group.connectors")
-												: group.category === ABILITY_CATEGORY_VETTA_BUILTIN
-													? t("group.vettaBuiltin")
-													: resolveCategoryLabel(group.category, group.categoryI18n, i18n.language)}
-									</option>
-								))}
-							</select>
+							<Popover open={filtersOpen} onOpenChange={setFiltersOpen}>
+								<PopoverTrigger asChild>
+									<Button variant={activeFilterCount > 0 ? "secondary" : "outline"} size="sm" className="h-8 shrink-0">
+										<span className="icon-[solar--filter-linear] h-3.5 w-3.5" />
+										{t("filter.trigger")}
+										{activeFilterCount > 0 && <span className="ml-0.5 tabular-nums">{activeFilterCount}</span>}
+									</Button>
+								</PopoverTrigger>
+								<PopoverContent align="start" className="w-72">
+									<p className="px-1 text-[12px] font-semibold">{t("filter.title")}</p>
+									<label className="flex flex-col gap-1 text-[11px] text-muted-foreground">
+										{t("filter.type")}
+										<select aria-label={t("filter.type")} value={model.typeFilter} onChange={(event) => model.setTypeFilter(event.target.value as typeof model.typeFilter)} className="h-8 rounded-md border border-border bg-background px-2 text-[12px] text-foreground">
+											<option value="">{t("filter.allTypes")}</option>
+											{(model.availableTypes ?? Array.from(new Set(model.allItems.map((item) => item.type))).filter(Boolean)).map((type) => <option key={type} value={type}>{t(`type.${type}`)}</option>)}
+										</select>
+									</label>
+									<label className="flex flex-col gap-1 text-[11px] text-muted-foreground">
+										{t("filter.category")}
+										<select aria-label={t("filter.category")} value={model.category} onChange={(event) => model.setCategory(event.target.value)} className="h-8 rounded-md border border-border bg-background px-2 text-[12px] text-foreground">
+											<option value="">{t("filter.allCategories")}</option>
+											{model.categories.map((group) => <option key={group.category} value={group.category}>{group.category === ABILITY_CATEGORY_UNCATEGORIZED ? t("group.uncategorized") : group.category === ABILITY_CATEGORY_CONNECTORS ? t("group.connectors") : group.category === ABILITY_CATEGORY_VETTA_BUILTIN ? t("group.vettaBuiltin") : resolveCategoryLabel(group.category, group.categoryI18n, i18n.language)}</option>)}
+										</select>
+									</label>
+									<label className="flex flex-col gap-1 text-[11px] text-muted-foreground">
+										{t("filter.review")}
+										<select aria-label={t("filter.review")} value={model.reviewFilter} onChange={(event) => model.setReviewFilter(event.target.value as typeof model.reviewFilter)} className="h-8 rounded-md border border-border bg-background px-2 text-[12px] text-foreground">
+											<option value="all">{t("filter.allReviewStatuses")}</option><option value="unreviewed">{t("filter.unreviewed")}</option>
+										</select>
+									</label>
+									<label className="flex flex-col gap-1 text-[11px] text-muted-foreground">
+										{t("filter.tag")}
+										<select aria-label={t("filter.tag")} value={model.tagFilter} onChange={(event) => model.setTagFilter(event.target.value)} className="h-8 rounded-md border border-border bg-background px-2 text-[12px] text-foreground">
+											<option value="">{t("filter.allTags")}</option>
+											{model.availableTags.map((tag) => <option key={tag.toLocaleLowerCase()} value={tag}>{tag}</option>)}
+										</select>
+									</label>
+									<div className="flex justify-end pt-1">
+										<Button type="button" variant="ghost" size="sm" disabled={activeFilterCount === 0} onClick={() => { model.setTypeFilter(""); model.setCategory(""); model.setReviewFilter("all"); model.setTagFilter(""); }}>{t("filter.clear")}</Button>
+									</div>
+								</PopoverContent>
+							</Popover>
 							<AddAbilityMenu
 								importing={model.importing}
 								onImportSkill={() => {
@@ -145,7 +187,7 @@ export function AbilitiesPageView({
 								}}
 							/>
 						</div>
-						<div className="flex items-center gap-2">
+						<div className="flex items-center justify-end gap-2">
 							<Button variant="ghost" size="sm" onClick={() => setSourcesDialogOpen(true)}>
 								<span className="icon-[mdi--github] h-3.5 w-3.5" />
 								{t("sources.trigger")}
@@ -168,15 +210,6 @@ export function AbilitiesPageView({
 							</div>
 						</div>
 					</div>
-
-					{model.marketplaceCatalog.snapshots.filter((snapshot) => snapshot.discovery).map((snapshot) => (
-						<p key={snapshot.sourceId} role="status" className="text-[12px] text-muted-foreground">
-							{t(snapshot.discovery?.syncing ? "discovery.loading" : "discovery.loaded", {
-								loaded: snapshot.discovery?.loaded,
-								total: snapshot.discovery?.total,
-							})}
-						</p>
-					))}
 
 					{model.errors.length > 0 && (
 						<div className="flex items-start gap-2 rounded-lg bg-muted/60 px-3 py-2 text-[12px] text-muted-foreground/70">
@@ -227,7 +260,7 @@ export function AbilitiesPageView({
 											</div>
 											<div className="grid grid-cols-[repeat(auto-fill,minmax(min(260px,100%),1fr))] gap-x-3 gap-y-0.5">
 												{group.items.map((item) => (
-													<AbilityCard key={item.id} item={item} model={model} />
+													<AbilityCard key={item.id} item={item} model={model} onUnreviewedMcpAdd={setUnreviewedMcp} />
 												))}
 											</div>
 										</section>
@@ -235,7 +268,7 @@ export function AbilitiesPageView({
 								) : (
 									<div className="grid grid-cols-[repeat(auto-fill,minmax(min(260px,100%),1fr))] gap-x-3 gap-y-0.5">
 										{model.items.map((item) => (
-											<AbilityCard key={item.id} item={item} model={model} />
+											<AbilityCard key={item.id} item={item} model={model} onUnreviewedMcpAdd={setUnreviewedMcp} />
 										))}
 									</div>
 								)}
@@ -253,6 +286,13 @@ export function AbilitiesPageView({
 			</div>
 
 			<AbilityMcpDialogs mcp={model.mcp} />
+			<UnreviewedMcpPromptDialog
+				item={unreviewedMcp}
+				open={unreviewedMcp !== null}
+				onOpenChange={(open) => {
+					if (!open) setUnreviewedMcp(null);
+				}}
+			/>
 			{sourcesDialogOpen && (
 				<MarketplaceSourcesDialog
 					sources={model.marketplaceSources}

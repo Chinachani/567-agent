@@ -13,7 +13,7 @@ import type {
 	SkillProvenance,
 	UpdateMarketplaceSourceInput,
 } from "@preload/api";
-import type { AbilityDetail, AbilityMember, AbilityType, MarketAbility } from "@shared/lib/api";
+import type { AbilityDetail, AbilityMember, MarketAbility } from "@shared/lib/api";
 import type { McpSettingsModel } from "../settings/components/useMcpSettingsModel";
 import type { BuiltinMcpPreset } from "../settings/mcp/builtin-mcp-presets";
 
@@ -23,6 +23,7 @@ import type { BuiltinMcpPreset } from "../settings/mcp/builtin-mcp-presets";
  * - "mine" / "personal"：个人能力（通用 skill + 手动安装的能力）
  */
 export type AbilityScope = "discover" | "mine" | "public" | "personal";
+export type AbilityReviewFilter = "all" | "unreviewed";
 export type AbilityCatalogSource =
 	| { kind: "builtin"; id: "builtin" }
 	| { kind: "local"; id: "local" }
@@ -185,14 +186,6 @@ export interface AbilityGroup {
 	items: AbilityItem[];
 }
 
-/** Banner 轮播图标源（与「发现」列表同源）。 */
-export interface AbilityBannerIcon {
-	id: string;
-	/** 无图时按 type 落默认图。 */
-	type: AbilityType;
-	icon?: string;
-}
-
 export interface AbilitiesModel {
 	scope: AbilityScope;
 	setScope: (scope: AbilityScope) => void;
@@ -203,6 +196,11 @@ export interface AbilitiesModel {
 	setTypeFilter: (type: AbilityItem["type"] | "") => void;
 	category: string;
 	setCategory: (category: string) => void;
+	reviewFilter: AbilityReviewFilter;
+	setReviewFilter: (filter: AbilityReviewFilter) => void;
+	tagFilter: string;
+	setTagFilter: (tag: string) => void;
+	availableTags: string[];
 	/** 当前分区中可供筛选的分类。 */
 	categories: AbilityGroup[];
 	/** 经 scope + 搜索 + 分类过滤后的结果。 */
@@ -215,7 +213,6 @@ export interface AbilitiesModel {
 	groups: AbilityGroup[];
 	/** 未经任何过滤的全集，供详情页按 id 查找。 */
 	allItems: AbilityItem[];
-	bannerIcons: AbilityBannerIcon[];
 	loading: boolean;
 	refreshing: boolean;
 	errors: string[];

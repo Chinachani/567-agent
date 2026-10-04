@@ -1060,5 +1060,13 @@
 			"project": "项目",
 			"batch": "批量"
 		}
+	},
+	"topupStatus": {
+		"baselineUnavailable": "暂时无法读取当前账户额度，未创建支付订单。请刷新额度后重试。",
+		"qrUnavailable": "付款二维码生成失败，支付服务也未提供备用链接。请稍后重试。",
+		"paymentUrlUnavailable": "支付服务未返回有效的付款链接，请稍后重试。",
+		"orderFailed": "创建支付订单失败，请稍后重试。",
+		"pollingPaused": "自动确认已暂停。订单状态尚未确认；如已付款，请点“已支付”刷新额度。",
+		"pollingPausedManual": "自动确认已暂停。订单状态尚未确认；如已付款，请手动刷新额度。"
 	}
 }

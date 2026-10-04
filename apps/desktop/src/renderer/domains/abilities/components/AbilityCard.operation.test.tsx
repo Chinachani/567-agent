@@ -98,4 +98,27 @@ describe("AbilityCard operation feedback", () => {
 		expect(screen.getByText("Helps with a familiar task")).toBeTruthy();
 		expect(screen.getByRole("button", { name: "actions.add" })).toBeTruthy();
 	});
+
+	it("routes an unreviewed MCP add action through the explicit review prompt", () => {
+		const onUnreviewedMcpAdd = vi.fn();
+		const item = {
+			...ability(),
+			type: "mcp",
+			reviewStatus: "unreviewed",
+			origin: {
+				kind: "github-marketplace",
+				sourceId: "official",
+				marketplace: "official",
+				marketplaceVersion: "1.0.0",
+				repository: "https://github.com/example/mcp",
+				ref: "catalog",
+			},
+		} as unknown as AbilityItem;
+
+		render(<AbilityCard item={item} model={model} onUnreviewedMcpAdd={onUnreviewedMcpAdd} />);
+		screen.getByRole("button", { name: "actions.add" }).click();
+
+		expect(onUnreviewedMcpAdd).toHaveBeenCalledWith(item);
+		expect(model.install).not.toHaveBeenCalled();
+	});
 });

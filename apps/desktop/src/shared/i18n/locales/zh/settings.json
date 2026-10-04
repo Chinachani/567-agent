@@ -1110,6 +1110,7 @@
   "resetShortcuts": "重置快捷键",
   "shortcutPlaceholder": "请按下快捷键…",
   "shortcutHint": "点击快捷键区域后按下新的组合键即可录制。修改后立即生效，无需重启。",
+  "shortcutSaveFailed": "快捷键未保存",
   "quickPanelTrigger": "呼出方式",
   "quickPanelTriggerDescription": "双击功能键全局唤出快捷面板",
   "quickPanelTriggerHintMac": "首次使用需在「系统设置 › 隐私与安全性 › 输入监控」中授权 567 Agent",

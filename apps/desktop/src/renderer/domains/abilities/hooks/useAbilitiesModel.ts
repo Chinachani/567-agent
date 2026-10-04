@@ -6,7 +6,8 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { usePluginTextResolver } from "../../plugins/runtime/plugin-i18n";
 import { useMcpSettingsModel } from "../../settings/components/useMcpSettingsModel";
-import { filterAbilityCatalog, isAbilityListedInDiscover, queryAbilityCatalog } from "../lib/ability-catalog-query";
+import { filterAbilityCatalog, queryAbilityCatalog } from "../lib/ability-catalog-query";
+import { abilityCategoryKey } from "../lib/ability-categories";
 import { localizeMarketAbility } from "../lib/ability-presentation";
 import {
 	buildBundleAbilities,
@@ -18,7 +19,7 @@ import {
 import { decorateAbilityConflicts } from "../lib/decorate-ability-conflicts";
 import { groupAbilities } from "../lib/group-abilities";
 import { withLocalAbilityPresentation } from "../lib/local-ability-presentation";
-import type { AbilitiesModel, AbilityBannerIcon, AbilityGroup, AbilityItem, AbilityScope } from "../types";
+import type { AbilitiesModel, AbilityGroup, AbilityItem, AbilityReviewFilter, AbilityScope } from "../types";
 import { useAbilityActions } from "./useAbilityActions";
 import { useAbilityData } from "./useAbilityData";
 
@@ -37,6 +38,8 @@ export function useAbilitiesModel(options: UseAbilitiesModelOptions = {}): Abili
 	const [searchQuery, setSearchQuery] = useState(options.initialSearchQuery ?? "");
 	const [typeFilter, setTypeFilter] = useState<AbilityItem["type"] | "">("");
 	const [category, setCategory] = useState("");
+	const [reviewFilter, setReviewFilter] = useState<AbilityReviewFilter>("all");
+	const [tagFilter, setTagFilter] = useState("");
 	const [visiblePages, setVisiblePages] = useState(1);
 
 	const data = useAbilityData();
@@ -105,6 +108,8 @@ export function useAbilitiesModel(options: UseAbilitiesModelOptions = {}): Abili
 		setScope(nextScope);
 		setTypeFilter("");
 		setCategory("");
+		setReviewFilter("all");
+		setTagFilter("");
 		setVisiblePages(1);
 	}, []);
 	const changeSearchQuery = useCallback((value: string) => {
@@ -115,9 +120,16 @@ export function useAbilitiesModel(options: UseAbilitiesModelOptions = {}): Abili
 		setCategory(value);
 		setVisiblePages(1);
 	}, []);
+	const changeReviewFilter = useCallback((value: AbilityReviewFilter) => {
+		setReviewFilter(value);
+		setVisiblePages(1);
+	}, []);
+	const changeTagFilter = useCallback((value: string) => {
+		setTagFilter(value);
+		setVisiblePages(1);
+	}, []);
 	const changeTypeFilter = useCallback((value: AbilityItem["type"] | "") => {
 		setTypeFilter(value);
-		setCategory("");
 		setVisiblePages(1);
 	}, []);
 
@@ -133,8 +145,34 @@ export function useAbilitiesModel(options: UseAbilitiesModelOptions = {}): Abili
 		[facetItems],
 	);
 	const categories = useMemo(
-		() => groupAbilities(facetItems.filter((item) => !typeFilter || item.type === typeFilter)),
-		[facetItems, typeFilter],
+		() =>
+			groupAbilities(
+				facetItems.filter(
+					(item) =>
+						(!typeFilter || item.type === typeFilter) &&
+						(reviewFilter !== "unreviewed" || item.reviewStatus === "unreviewed") &&
+						(!tagFilter || item.tags.some((tag) => tag.toLocaleLowerCase() === tagFilter.toLocaleLowerCase())),
+				),
+			),
+		[facetItems, typeFilter, reviewFilter, tagFilter],
+	);
+	const availableTags = useMemo(
+		() =>
+			Array.from(
+				new Map(
+					facetItems
+						.filter(
+							(item) =>
+								(!typeFilter || item.type === typeFilter) &&
+								(!category || abilityCategoryKey(item) === category) &&
+								(reviewFilter !== "unreviewed" || item.reviewStatus === "unreviewed"),
+						)
+						.flatMap((item) => item.tags)
+						.map((tag) => [tag.trim().toLocaleLowerCase(), tag.trim()] as const)
+						.filter(([key, value]) => key && value),
+				).values(),
+			).sort((a, b) => a.localeCompare(b, i18n.language)),
+		[facetItems, typeFilter, category, reviewFilter, i18n.language],
 	);
 	useEffect(() => {
 		if (data.loading) return;
@@ -146,7 +184,11 @@ export function useAbilitiesModel(options: UseAbilitiesModelOptions = {}): Abili
 			setCategory("");
 			setVisiblePages(1);
 		}
-	}, [availableTypes, categories, category, typeFilter, data.loading]);
+		if (tagFilter && !availableTags.some((tag) => tag.toLocaleLowerCase() === tagFilter.toLocaleLowerCase())) {
+			setTagFilter("");
+			setVisiblePages(1);
+		}
+	}, [availableTypes, availableTags, categories, category, tagFilter, typeFilter, data.loading]);
 
 	const catalogPage = useMemo(
 		() =>
@@ -155,23 +197,16 @@ export function useAbilitiesModel(options: UseAbilitiesModelOptions = {}): Abili
 				keyword: searchQuery,
 				types: typeFilter ? [typeFilter] : undefined,
 				category,
+				reviewFilter,
+				tag: tagFilter,
 				page: 1,
 				pageSize: visiblePages * ABILITY_PAGE_SIZE,
 			}),
-		[allItems, scope, searchQuery, typeFilter, category, visiblePages],
+		[allItems, scope, searchQuery, typeFilter, category, reviewFilter, tagFilter, visiblePages],
 	);
 	const items = catalogPage.items;
 
 	const groups = useMemo<AbilityGroup[]>(() => groupAbilities(items), [items]);
-
-	const bannerIcons = useMemo<AbilityBannerIcon[]>(
-		() =>
-			allItems
-				.filter((item) => item.fromMarket && isAbilityListedInDiscover(item) && item.reviewStatus !== "unreviewed")
-				.slice(0, 48)
-				.map((item) => ({ id: item.id, type: item.type, icon: item.icon })),
-		[allItems],
-	);
 
 	const findById = useCallback(
 		(id: string) => {
@@ -208,6 +243,11 @@ export function useAbilitiesModel(options: UseAbilitiesModelOptions = {}): Abili
 		setTypeFilter: changeTypeFilter,
 		category,
 		setCategory: changeCategory,
+		reviewFilter,
+		setReviewFilter: changeReviewFilter,
+		tagFilter,
+		setTagFilter: changeTagFilter,
+		availableTags,
 		categories,
 		items,
 		totalItems: catalogPage.total,
@@ -215,7 +255,6 @@ export function useAbilitiesModel(options: UseAbilitiesModelOptions = {}): Abili
 		loadMore: () => setVisiblePages((current) => current + 1),
 		groups,
 		allItems,
-		bannerIcons,
 		// mcpConfig 缺省时 buildMcpAbilities 按空表处理，不必再挡整表转圈。
 		loading: data.loading,
 		refreshing: data.refreshing,

@@ -2,7 +2,7 @@
 	"plugin.name": "Cowart Canvas",
 	"plugin.description": "Infinite canvas capability pack: Cowart MCP tools + skills, opened from the 567 Agent activity panel. Adapted from zhongerxin/Cowart.",
 	"tab.label": "Cowart",
-	"launcher.label": "New Canvas",
+	"launcher.label": "Canvas",
 	"panel.title": "Cowart Canvas",
 	"panel.subtitle": "Project-local tldraw canvas (Codex widget → 567 Agent activity tab)",
 	"panel.cwd": "Project",

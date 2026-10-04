@@ -1,9 +1,11 @@
 import { useLexicalComposerContext } from "@lexical/react/LexicalComposerContext";
 import { activeSessionAtom } from "@shared/store/atoms";
 import { recordInputImagesAdded } from "@shared/lib/app-monitor-events";
+import { showToast } from "@shared/store/toast-atoms";
 import { useAtomValue } from "jotai";
 import { COMMAND_PRIORITY_CRITICAL, PASTE_COMMAND } from "lexical";
 import { useEffect } from "react";
+import { useTranslation } from "react-i18next";
 import { createClipboardInsertionParts } from "../clipboard-message-parts";
 import { insertClipboardMessage } from "../clipboard-message";
 import { $insertInputParts } from "../inputEditorHandle";
@@ -26,6 +28,7 @@ export function PasteImagePlugin({
 	readonly local?: boolean;
 } = {}): null {
 	const [editor] = useLexicalComposerContext();
+	const { t } = useTranslation("chat");
 	const activeSession = useAtomValue(activeSessionAtom);
 	const effectiveRuntimeId = runtimeId === undefined ? activeSession?.runtimeId ?? null : runtimeId;
 
@@ -42,13 +45,18 @@ export function PasteImagePlugin({
 				clipboardImages.kind === "vetta-message"
 					? persistBase64Images(clipboardImages.images, effectiveRuntimeId, "paste")
 					: persistImageFiles(clipboardImages.files, effectiveRuntimeId, "paste");
-			void persist.then((paths) => {
-				if (clipboardImages.kind === "vetta-message") {
-					insert(clipboardImages.messageText, paths);
-				} else {
-					insert("", paths);
-				}
-			});
+			void persist
+				.then((paths) => {
+					if (clipboardImages.kind === "vetta-message") {
+						insert(clipboardImages.messageText, paths);
+					} else {
+						insert("", paths);
+					}
+				})
+				.catch((error: unknown) => {
+					console.warn("[input-editor] pasted image could not be saved:", error);
+					showToast({ variant: "error", message: t("dropZone.failed") });
+				});
 		};
 
 		return editor.registerCommand(
@@ -89,7 +97,7 @@ export function PasteImagePlugin({
 			},
 			COMMAND_PRIORITY_CRITICAL,
 		);
-	}, [editor, effectiveRuntimeId, local]);
+	}, [editor, effectiveRuntimeId, local, t]);
 
 	return null;
 }

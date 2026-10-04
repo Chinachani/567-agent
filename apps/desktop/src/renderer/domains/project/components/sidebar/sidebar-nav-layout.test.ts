@@ -275,4 +275,21 @@ describe("版本迁移", () => {
 		expect(migrateSidebarNavLayout(full, 0)).toEqual(full);
 		expect(full.pinned.length).toBe(MAX_PINNED_NAV_ITEMS - 1);
 	});
+
+	it("v2：把画布入口移到设计入口之后，置顶满时保留其它入口到收纳区", () => {
+		const migrated = migrateSidebarNavLayout(
+			{
+				pinned: ["/abilities", "workspace:vetta-ui-design/gallery", "/agents", "/knowledge"],
+				more: ["workspace:cowart-vetta/canvas", "/batch-tasks"],
+			},
+			1,
+		);
+		expect(migrated.pinned).toEqual([
+			"/abilities",
+			"workspace:vetta-ui-design/gallery",
+			"workspace:cowart-vetta/canvas",
+			"/agents",
+		]);
+		expect(migrated.more).toEqual(["/knowledge", "/batch-tasks"]);
+	});
 });

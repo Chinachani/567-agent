@@ -232,14 +232,20 @@ class SettingsSessionStore(
         val checkpoint = settings.getStringOrNull(streamingMessageKey(sessionId))?.let { checkpointJson ->
             runCatching { VettaJson.decodeFromString(MessageDto.serializer(), checkpointJson).toDomain() }.getOrNull()
         }?.takeIf { it.status == MessageStatus.Streaming }
-            ?: return messages
-        val checkpointIndex = messages.indexOfFirst { it.id == checkpoint.id }
-        if (checkpointIndex < 0) return (messages + checkpoint).sortedBy { it.createdAtEpochMs }
-        if (messages[checkpointIndex].status == MessageStatus.Streaming) {
-            return messages.toMutableList().also { it[checkpointIndex] = checkpoint }
-                .sortedBy { it.createdAtEpochMs }
+        val recovered = messages.toMutableList()
+        if (checkpoint != null) {
+            val checkpointIndex = recovered.indexOfFirst { it.id == checkpoint.id }
+            if (checkpointIndex < 0) recovered.add(checkpoint)
+            else if (recovered[checkpointIndex].status == MessageStatus.Streaming) recovered[checkpointIndex] = checkpoint
         }
-        return messages
+        val reconciled = recovered.map { message ->
+            if (message.status == MessageStatus.Streaming) message.copy(status = MessageStatus.Aborted) else message
+        }.sortedBy { it.createdAtEpochMs }
+        if (reconciled != messages || checkpoint != null) {
+            persistMessages(sessionId, reconciled)
+            settings.remove(streamingMessageKey(sessionId))
+        }
+        return reconciled
     }
 
     private fun persistMessages(sessionId: String, messages: List<LocalMessage>) {

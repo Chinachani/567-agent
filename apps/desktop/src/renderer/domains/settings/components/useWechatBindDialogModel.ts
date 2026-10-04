@@ -82,11 +82,28 @@ export function useWechatBindDialogModel({
 	const { t } = useTranslation("settings");
 	const [state, setState] = useState<WechatDialogState>(initialWechatDialogState);
 	const subUnsubRef = useRef<(() => void) | null>(null);
+	const bindGenerationRef = useRef(0);
+	const openRef = useRef(open);
+	const closeTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+	openRef.current = open;
+
+	useEffect(
+		() => () => {
+			bindGenerationRef.current += 1;
+			subUnsubRef.current?.();
+			subUnsubRef.current = null;
+			if (closeTimerRef.current) clearTimeout(closeTimerRef.current);
+		},
+		[],
+	);
 
 	useEffect(() => {
 		if (!open) {
+			bindGenerationRef.current += 1;
 			subUnsubRef.current?.();
 			subUnsubRef.current = null;
+			if (closeTimerRef.current) clearTimeout(closeTimerRef.current);
+			closeTimerRef.current = null;
 			setState(initialWechatDialogState);
 		}
 	}, [open]);
@@ -112,8 +129,14 @@ export function useWechatBindDialogModel({
 	}, [state.qrUrl, t]);
 
 	const startBind = useCallback(async () => {
+		const generation = ++bindGenerationRef.current;
+		subUnsubRef.current?.();
+		subUnsubRef.current = null;
+		if (closeTimerRef.current) clearTimeout(closeTimerRef.current);
+		closeTimerRef.current = null;
 		setState({ phase: "starting", qrAttempt: 0 });
 		const unsub = await window.vetta.im.wechat.subscribeBind((event: ImWechatBindEvent) => {
+			if (generation !== bindGenerationRef.current || !openRef.current) return;
 			switch (event.kind) {
 				case "qr":
 					setState((prev) => ({
@@ -148,7 +171,10 @@ export function useWechatBindDialogModel({
 				case "bound":
 					onConfirmedRefresh();
 					setState((prev) => ({ ...prev, phase: "confirmed" }));
-					setTimeout(() => onOpenChange(false), 1500);
+					if (closeTimerRef.current) clearTimeout(closeTimerRef.current);
+					closeTimerRef.current = setTimeout(() => {
+						if (generation === bindGenerationRef.current && openRef.current) onOpenChange(false);
+					}, 1500);
 					break;
 				case "unbound":
 					setState(initialWechatDialogState);
@@ -156,15 +182,30 @@ export function useWechatBindDialogModel({
 					break;
 			}
 		});
+		if (generation !== bindGenerationRef.current || !openRef.current) {
+			unsub();
+			return;
+		}
 		subUnsubRef.current = unsub;
 
-		const result = await window.vetta.im.wechat.startBind();
-		if (!result.ok) {
-			setState({
-				phase: "failed",
-				qrAttempt: 0,
-				error: result.error ?? t("bindStartFailed"),
-			});
+		try {
+			const result = await window.vetta.im.wechat.startBind();
+			if (generation !== bindGenerationRef.current || !openRef.current) return;
+			if (!result.ok) {
+				setState({
+					phase: "failed",
+					qrAttempt: 0,
+					error: result.error ?? t("bindStartFailed"),
+				});
+			}
+		} catch (error) {
+			if (generation === bindGenerationRef.current && openRef.current) {
+				setState({
+					phase: "failed",
+					qrAttempt: 0,
+					error: error instanceof Error ? error.message : t("bindStartFailed"),
+				});
+			}
 		}
 	}, [onConfirmedRefresh, onOpenChange, t]);
 

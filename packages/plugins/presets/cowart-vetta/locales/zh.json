@@ -2,7 +2,7 @@
 	"plugin.name": "无限画布",
 	"plugin.description": "无限画布（tldraw）能力包：聚合 Cowart MCP 工具与技能，在 567 Agent 活动面板中打开画布工作区。改编自 zhongerxin/Cowart。",
 	"tab.label": "画布",
-	"launcher.label": "新建画布",
+	"launcher.label": "画布",
 	"panel.title": "无限画布",
 	"panel.subtitle": "项目本地 tldraw 无限画布（Codex widget → 567 Agent 活动面板）",
 	"panel.cwd": "当前项目",

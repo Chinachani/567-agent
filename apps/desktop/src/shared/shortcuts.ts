@@ -176,6 +176,18 @@ export function findShortcutBindingConflict(
 	return null;
 }
 
+/** Find the first duplicate among all effective shortcuts in a complete binding map. */
+export function findAnyShortcutBindingConflict(
+	bindings: ShortcutBindings,
+): { readonly actionId: ShortcutActionId; readonly conflict: ShortcutActionId; readonly shortcut: string } | null {
+	for (const action of SHORTCUT_ACTIONS) {
+		const shortcut = getEffectiveShortcut(action.id, bindings);
+		const conflict = findShortcutBindingConflict(action.id, shortcut, bindings);
+		if (conflict) return { actionId: action.id, conflict, shortcut };
+	}
+	return null;
+}
+
 export function listShortcutBindingsSnapshot(bindings: ShortcutBindings = {}) {
 	return SHORTCUT_ACTIONS.map((action) => {
 		const shortcut = getEffectiveShortcut(action.id, bindings);

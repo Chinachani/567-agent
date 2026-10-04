@@ -21,6 +21,7 @@ const mocks = vi.hoisted(() => ({
 	),
 	pasteUserMessage: vi.fn(),
 	recordInputImagesAdded: vi.fn(),
+	showToast: vi.fn(),
 }));
 
 vi.mock("@lexical/react/LexicalComposerContext", () => ({
@@ -44,6 +45,8 @@ vi.mock("../persistImages", () => ({
 vi.mock("@shared/lib/app-monitor-events", () => ({
 	recordInputImagesAdded: mocks.recordInputImagesAdded,
 }));
+vi.mock("@shared/store/toast-atoms", () => ({ showToast: mocks.showToast }));
+vi.mock("react-i18next", () => ({ useTranslation: () => ({ t: (key: string) => key }) }));
 
 const { PasteImagePlugin } = await import("./PasteImagePlugin");
 

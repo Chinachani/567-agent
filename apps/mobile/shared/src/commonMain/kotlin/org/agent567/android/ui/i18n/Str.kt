@@ -213,6 +213,7 @@ object Str {
     const val planActive = "使用中"
     const val planInactive = "暂无有效方案"
     const val planDisabled = "服务未开放"
+    const val subscriptionUnavailable = "暂时无法获取账户信息，请检查网络后重试"
     const val planDefault = "默认方案"
     const val loginToViewPlan = "登录后查看套餐与额度"
     const val remaining = "剩余"

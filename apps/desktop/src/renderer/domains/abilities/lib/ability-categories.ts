@@ -24,7 +24,12 @@ const CATEGORY_ALIASES: Readonly<Record<string, string>> = {
 };
 export function normalizeAbilityCategory(category: string): string {
 	const trimmed = category.trim();
-	return CATEGORY_ALIASES[trimmed.toLowerCase()] ?? (trimmed || ABILITY_CATEGORY_UNCATEGORIZED);
+	if (!trimmed) return ABILITY_CATEGORY_UNCATEGORIZED;
+	const canonical = trimmed
+		.normalize("NFKC")
+		.toLocaleLowerCase()
+		.replace(/[\s_]+/g, "-");
+	return CATEGORY_ALIASES[canonical] ?? canonical;
 }
 export function abilityCategoryKey(item: AbilityItem): string {
 	return item.isBuiltin ? ABILITY_CATEGORY_VETTA_BUILTIN : normalizeAbilityCategory(item.category);

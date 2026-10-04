@@ -409,16 +409,10 @@ export function useImBridgeSettingsModel(): ImBridgeSettingsModel {
 		setFeishuDialogOpen(true);
 	}, []);
 
-	// Opening the scan dialog flips the active transport the way the wechat
-	// and signal ones do, so the sidecar is already parked in awaiting_bind
-	// by the time the QR shows up.
 	const handleOpenFeishuBindDialog = useCallback(() => {
 		if (!config) return;
 		setSaveError(null);
 		setSaveOk(null);
-		if (!config.feishu.appId && (config.transport !== "feishu" || !config.enabled)) {
-			void window.vetta.im.setConfig({ enabled: true, transport: "feishu" });
-		}
 		setFeishuBindDialogOpen(true);
 	}, [config]);
 
@@ -549,16 +543,10 @@ export function useImBridgeSettingsModel(): ImBridgeSettingsModel {
 		}
 	}, [config, refreshConfig, t]);
 
-	// Opening the dialog flips the active transport the same way the wechat
-	// one does, so the sidecar is already parked in awaiting_bind by the
-	// time the user is looking at the QR.
 	const handleOpenSignalDialog = useCallback(() => {
 		if (!config) return;
 		setSaveError(null);
 		setSaveOk(null);
-		if (!config.signal.bound && (config.transport !== "signal" || !config.enabled)) {
-			void window.vetta.im.setConfig({ enabled: true, transport: "signal" });
-		}
 		setSignalDialogOpen(true);
 	}, [config]);
 
@@ -566,9 +554,6 @@ export function useImBridgeSettingsModel(): ImBridgeSettingsModel {
 		if (!config) return;
 		setSaveError(null);
 		setSaveOk(null);
-		if (!config.wechat.bound && (config.transport !== "wechat" || !config.enabled)) {
-			void window.vetta.im.setConfig({ enabled: true, transport: "wechat" });
-		}
 		setWechatDialogOpen(true);
 	}, [config]);
 
