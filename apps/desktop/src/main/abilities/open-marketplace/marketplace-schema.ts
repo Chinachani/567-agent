@@ -1,6 +1,6 @@
 import { posix } from "node:path";
 import { z } from "zod";
-import { MCP_FEATURE_TAGS, MCP_MAIN_CATEGORIES } from "@/shared/lib/mcp-catalog-metadata";
+import { MCP_FEATURE_TAGS, MCP_MAIN_CATEGORIES } from "../../../shared/lib/mcp-catalog-metadata";
 import { compareAppVersions, isValidAppVersion } from "./marketplace-compatibility.js";
 
 const SLUG_PATTERN = /^[a-z0-9][a-z0-9-]{0,63}$/;
