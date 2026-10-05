@@ -42,7 +42,7 @@ npx vetta-plugin-cli reload <id>  # 提示有 pending 版本时切换过去
 npx vetta-plugin-cli uninstall  # 卸载
 ```
 
-`install:vetta` 把归档交给正在运行的桌面端校验、授权、安装，**不会**直接写 `~/.vetta/plugins`。
+`install:vetta` 把归档交给正在运行的桌面端校验、授权、安装，**不会**直接写 `~/.567agent/plugins`。
 
 安装一个更新版本只被记录为 pending，应用继续加载当前活动版本，直到 `reload` 才切换。改了代码却看不到变化时，先确认 `plugin.json` 的 `version` 已经提升。
 

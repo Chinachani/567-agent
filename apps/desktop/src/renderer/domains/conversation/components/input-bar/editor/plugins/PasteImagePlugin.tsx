@@ -55,6 +55,7 @@ export function PasteImagePlugin({
 				})
 				.catch((error: unknown) => {
 					console.warn("[input-editor] pasted image could not be saved:", error);
+					if (clipboardImages.kind === "vetta-message") insert(clipboardImages.messageText, []);
 					showToast({ variant: "error", message: t("dropZone.failed") });
 				});
 		};
@@ -66,6 +67,12 @@ export function PasteImagePlugin({
 				const nativeImageFiles = readClipboardImageFiles(event.clipboardData);
 				if (nativeImageFiles.length > 0) {
 					event.preventDefault();
+					let fallbackText = "";
+					try {
+						fallbackText = event.clipboardData.getData("text/plain") || "";
+					} catch (error) {
+						console.warn("[input-editor] clipboard text read failed:", error);
+					}
 					void window.vetta.clipboard
 						.pasteUserMessage(effectiveRuntimeId ?? "draft")
 						.catch((error: unknown) => {
@@ -74,7 +81,13 @@ export function PasteImagePlugin({
 						})
 						.then((richMessage) => {
 							if (!richMessage) {
-								persistClipboardImages({ kind: "files", files: nativeImageFiles });
+								void persistImageFiles(nativeImageFiles, effectiveRuntimeId, "paste")
+									.then((paths) => insert(fallbackText, paths))
+									.catch((error: unknown) => {
+										console.warn("[input-editor] clipboard fallback paste failed:", error);
+										insert(fallbackText, []);
+										showToast({ variant: "error", message: t("dropZone.failed") });
+									});
 								return;
 							}
 							recordInputImagesAdded("paste", richMessage.images);

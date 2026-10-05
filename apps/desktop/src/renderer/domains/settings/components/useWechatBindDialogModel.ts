@@ -150,6 +150,7 @@ export function useWechatBindDialogModel({
 					break;
 				case "status":
 					setState((prev) => {
+						if (prev.phase === "confirmed" && event.status !== "confirmed") return prev;
 						switch (event.status) {
 							case "scanned":
 								return { ...prev, phase: "scanned" };
@@ -195,7 +196,10 @@ export function useWechatBindDialogModel({
 				setState({
 					phase: "failed",
 					qrAttempt: 0,
-					error: result.error ?? t("bindStartFailed"),
+					error:
+						result.error === "IM_BIND_READY_TIMEOUT"
+							? t("bindStartFailed")
+							: (result.error ?? t("bindStartFailed")),
 				});
 			}
 		} catch (error) {

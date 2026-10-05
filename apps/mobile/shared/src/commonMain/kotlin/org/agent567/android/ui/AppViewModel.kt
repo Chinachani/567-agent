@@ -1042,15 +1042,20 @@ class AppViewModel(
     fun createPayOrder(
         amount: Int,
         method: String,
-        onUrlReady: (org.agent567.android.core.PayOrderResult) -> Unit,
+        onUrlReady: (org.agent567.android.core.PayOrderResult, Double) -> Unit,
         onError: (String) -> Unit,
     ) {
         viewModelScope.launch {
             _state.update { it.copy(topupLoading = true, topupMessage = null) }
             try {
+                val freshUser = container.client.auth.me()
+                container.preferences.authUsername = freshUser.nickname.ifBlank { freshUser.username }
+                container.preferences.authQuotaUsd = freshUser.quotaUsd
+                container.preferences.authUserId = freshUser.id
+                _state.update { it.copy(user = freshUser) }
                 val payResult = container.client.subscription.createPayOrder(amount, method)
                 _state.update { it.copy(topupLoading = false) }
-                onUrlReady(payResult)
+                onUrlReady(payResult, freshUser.quotaUsd)
             } catch (t: Throwable) {
                 val err = t.message ?: "创建支付订单失败"
                 _state.update { it.copy(topupLoading = false, topupMessage = err) }
@@ -1141,6 +1146,17 @@ class AppViewModel(
                         globalError = ErrorMapper.from(t),
                     )
                 }
+            }
+        }
+    }
+
+    fun refreshQuota() {
+        viewModelScope.launch {
+            runCatching { container.client.auth.me() }.onSuccess { user ->
+                container.preferences.authUsername = user.nickname.ifBlank { user.username }
+                container.preferences.authQuotaUsd = user.quotaUsd
+                container.preferences.authUserId = user.id
+                _state.update { it.copy(user = user) }
             }
         }
     }
@@ -1765,11 +1781,11 @@ class AppViewModel(
         }
     }
 
-    fun retryLastError() {
+    fun retryLastError(assistantMessageId: String? = null) {
         val sid = _state.value.currentSessionId ?: return
         viewModelScope.launch {
             val messages = container.sessionStore.getMessages(sid)
-            val turn = prepareRetryTurn(messages) ?: return@launch
+            val turn = prepareRetryTurn(messages, assistantMessageId) ?: return@launch
             container.sessionStore.replaceMessages(sid, turn.remainingMessages)
             drafts[sid] = turn.draft
             // 必须同时恢复图片；否则纯图重试会变成 no-op，图文重试会丢图

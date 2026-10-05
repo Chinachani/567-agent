@@ -10,6 +10,7 @@ import org.agent567.android.domain.session.MessageStatus
  * 恢复草稿与**完整图片附件**再发送。
  */
 data class RetryTurn(
+    val assistantMessageId: String,
     val remainingMessages: List<LocalMessage>,
     val draft: String,
     val images: List<MessageImage>,
@@ -19,9 +20,10 @@ data class RetryTurn(
  * 从会话消息列表解析重试载荷。无失败/中止助手气泡时返回 null。
  * 由 [org.agent567.android.ui.AppViewModel.retryLastError] 调用，测试直接驱动本函数。
  */
-fun prepareRetryTurn(messages: List<LocalMessage>): RetryTurn? {
+fun prepareRetryTurn(messages: List<LocalMessage>, assistantMessageId: String? = null): RetryTurn? {
     val lastAssistant =
         messages.lastOrNull {
+            (assistantMessageId == null || it.id == assistantMessageId) &&
             it.role == ChatRole.Assistant &&
                 (it.status == MessageStatus.Error || it.status == MessageStatus.Aborted)
         } ?: return null
@@ -30,6 +32,7 @@ fun prepareRetryTurn(messages: List<LocalMessage>): RetryTurn? {
             it.role == ChatRole.User && it.createdAtEpochMs <= lastAssistant.createdAtEpochMs
         } ?: return null
     return RetryTurn(
+        assistantMessageId = lastAssistant.id,
         remainingMessages =
             messages.filterNot { it.id == lastAssistant.id || it.id == lastUser.id },
         draft = lastUser.content,

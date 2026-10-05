@@ -33,6 +33,7 @@ const IM_CHANNELS = {
 	SIGNAL_UNSUBSCRIBE: "vetta:im:signal:unsubscribe",
 	SIGNAL_BIND_EVENT: "vetta:im:signal:bind-event",
 	FEISHU_START_BIND: "vetta:im:feishu:start-bind",
+	FEISHU_CANCEL_BIND: "vetta:im:feishu:cancel-bind",
 	FEISHU_SUBSCRIBE: "vetta:im:feishu:subscribe",
 	FEISHU_UNSUBSCRIBE: "vetta:im:feishu:unsubscribe",
 	FEISHU_BIND_EVENT: "vetta:im:feishu:bind-event",
@@ -125,6 +126,7 @@ export function createImApi(ipc: IpcRenderer): Pick<DesktopApi, "im"> {
 			},
 			feishu: {
 				startBind: () => ipc.invoke(IM_CHANNELS.FEISHU_START_BIND),
+				cancelBind: () => ipc.invoke(IM_CHANNELS.FEISHU_CANCEL_BIND),
 				subscribeBind: (handler) =>
 					subscribeById(
 						ipc,

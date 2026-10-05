@@ -5,6 +5,8 @@ export interface UnreviewedMcpPromptValues {
 	version: string;
 	license: string;
 	documentation: string;
+	repositoryLabel: string;
+	repository: string;
 }
 
 /** Keep third-party metadata on one line so it cannot escape the prompt's metadata section. */
@@ -36,9 +38,28 @@ export function getUnreviewedMcpDocumentationUrl(
 	}
 }
 
+/** Use an MCP-declared repository when present; catalog URLs remain clearly labeled fallbacks. */
+export function getUnreviewedMcpRepositoryUrl(
+	meta: Array<{ key?: string; label?: string; value: string }> | undefined,
+): string {
+	const entry = meta?.find((item) => {
+		if (item.key === "repository") return true;
+		const label = item.label?.trim().toLocaleLowerCase();
+		return ["仓库", "项目仓库", "源代码", "source code", "repository", "repo"].includes(label ?? "");
+	});
+	const value = entry?.value.trim();
+	if (!value) return "";
+	try {
+		const url = new URL(value);
+		return url.protocol === "https:" || url.protocol === "http:" ? url.toString() : "";
+	} catch {
+		return "";
+	}
+}
+
 export function interpolateUnreviewedMcpPrompt(template: string, values: UnreviewedMcpPromptValues): string {
 	return template.replace(
-		/\{\{(name|description|author|version|license|documentation)\}\}/g,
+		/\{\{(name|description|author|version|license|documentation|repositoryLabel|repository)\}\}/g,
 		(_match, key: keyof UnreviewedMcpPromptValues) => sanitizeUnreviewedMcpPromptValue(values[key]),
 	);
 }

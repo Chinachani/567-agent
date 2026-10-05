@@ -124,7 +124,7 @@ Each entry of `network.allowedHosts` and `browser.allowedHosts` is normalised to
 
 ## Install directory and versions
 
-User plugins are stored per version under `~/.vetta/plugins/<id>/versions/<version>/`. Installing a newer version is only recorded as pending; the app keeps loading the current active version until a reload switches over. While debugging, raise `version` and reload for a change to take effect reliably.
+User plugins are stored per version under `~/.567agent/plugins/<id>/versions/<version>/`. Installing a newer version is only recorded as pending; the app keeps loading the current active version until a reload switches over. While debugging, raise `version` and reload for a change to take effect reliably.
 
 System plugins never enter that directory. They ship with the app, are rediscovered from a read-only location on every start, and have their declared permissions granted in full without the user being able to revoke them.
 

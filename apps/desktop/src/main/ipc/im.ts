@@ -49,6 +49,7 @@ const CHANNELS = {
 	SIGNAL_UNSUBSCRIBE: "vetta:im:signal:unsubscribe",
 	SIGNAL_BIND_EVENT: "vetta:im:signal:bind-event",
 	FEISHU_START_BIND: "vetta:im:feishu:start-bind",
+	FEISHU_CANCEL_BIND: "vetta:im:feishu:cancel-bind",
 	FEISHU_SUBSCRIBE: "vetta:im:feishu:subscribe",
 	FEISHU_UNSUBSCRIBE: "vetta:im:feishu:unsubscribe",
 	FEISHU_BIND_EVENT: "vetta:im:feishu:bind-event",
@@ -315,6 +316,9 @@ export function registerImIpc(webContents: WebContents): () => void {
 	ipcMain.handle(CHANNELS.FEISHU_START_BIND, async () => {
 		return host.startFeishuBind();
 	});
+	ipcMain.handle(CHANNELS.FEISHU_CANCEL_BIND, async () => {
+		return host.cancelFeishuBind();
+	});
 
 	ipcMain.handle(CHANNELS.FEISHU_SUBSCRIBE, () => {
 		feishuCounter += 1;
@@ -369,6 +373,7 @@ export function registerImIpc(webContents: WebContents): () => void {
 		ipcMain.removeHandler(CHANNELS.SIGNAL_SUBSCRIBE);
 		ipcMain.removeHandler(CHANNELS.SIGNAL_UNSUBSCRIBE);
 		ipcMain.removeHandler(CHANNELS.FEISHU_START_BIND);
+		ipcMain.removeHandler(CHANNELS.FEISHU_CANCEL_BIND);
 		ipcMain.removeHandler(CHANNELS.FEISHU_SUBSCRIBE);
 		ipcMain.removeHandler(CHANNELS.FEISHU_UNSUBSCRIBE);
 		for (const entry of subscriptions.values()) {

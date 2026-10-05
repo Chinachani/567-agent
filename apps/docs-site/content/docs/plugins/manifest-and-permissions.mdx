@@ -124,7 +124,7 @@ description: 声明插件身份、加载入口、样式、权限、命令、网�
 
 ## 安装目录与版本
 
-用户插件按版本存放在 `~/.vetta/plugins/<id>/versions/<version>/`。安装一个更新版本只被记录为 pending，应用继续加载当前活动版本，直到触发 reload 才切换。调试时改了代码要提升 `version` 并 reload 才稳妥生效。
+用户插件按版本存放在 `~/.567agent/plugins/<id>/versions/<version>/`。安装一个更新版本只被记录为 pending，应用继续加载当前活动版本，直到触发 reload 才切换。调试时改了代码要提升 `version` 并 reload 才稳妥生效。
 
 系统插件不进这个目录，随应用发布、每次启动从只读目录重新发现，声明的权限自动全量授予且用户不可撤销。
 

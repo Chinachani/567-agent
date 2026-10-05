@@ -173,7 +173,8 @@ export function useSessionDropZoneModel(cwdOverride?: string): SessionDropZoneMo
 		onDragOver: handleDragOver,
 		onDragLeave: handleDragLeave,
 		onDrop: (e) => {
-			void handleDrop(e).catch(() => {
+			void handleDrop(e).catch((error: unknown) => {
+				console.warn("[input-editor] dropped files could not be added to the draft:", error);
 				showToast({ variant: "error", message: t("dropZone.failed") });
 			});
 		},

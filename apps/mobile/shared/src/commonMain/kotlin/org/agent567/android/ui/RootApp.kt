@@ -205,7 +205,7 @@ fun RootApp(
                                             it.status == org.agent567.android.domain.device.DeviceStatus.Online
                                         },
                                     onSelectGroup = vm::setActive567Group,
-                                    onRefreshQuota = vm::refreshCatalog,
+                                    onRefreshQuota = vm::refreshQuota,
                                     catalogLoading = state.catalogLoading,
                                     onOpenPlan = vm::openPlan,
                                     onOpenSettings = vm::openSettings,
@@ -294,6 +294,7 @@ fun RootApp(
                     onDraftChange = vm::onDraftChange,
                     onSend = vm::sendMessage,
                     onStop = vm::stopStreaming,
+                    onRetryAssistant = { vm.retryLastError(it) },
                     onBack = vm::navigateBackFromSecondary,
                     onOpenModelPicker = { vm.setModelPicker(true) },
                     onCloseModelPicker = { vm.setModelPicker(false) },

@@ -66,7 +66,7 @@ When both helper permissions are missing, 567 Agent brings the main window forwa
 | Source file path | Accessibility | Path of the document the window is editing, when readable |
 | App name and window title | Accessibility | Used as the attachment card title |
 
-The text layer only uses what Accessibility exposes. When no text is readable, 567 Agent does not run OCR during capture; it sends the screenshot alone and lets the model read it visually. Screenshots, icons, and text files are written to `~/.vetta/image-cache/appshot/` and follow the same cleanup policy as the image cache, so unused cache directories are removed automatically.
+The text layer only uses what Accessibility exposes. When no text is readable, 567 Agent does not run OCR during capture; it sends the screenshot alone and lets the model read it visually. Screenshots, icons, and text files are written to `~/.567agent/image-cache/appshot/` and follow the same cleanup policy as the image cache, so unused cache directories are removed automatically.
 
 ## After a capture
 
@@ -87,7 +87,7 @@ The text layer only uses what Accessibility exposes. When no text is readable, 5
 
 - Capture is a one-shot action driven by your gesture; nothing records the screen in the background.
 - The scope is the foreground window, not other windows or the rest of the desktop.
-- Snapshots stay in the local `~/.vetta` directory. Their content only reaches the selected model when you send the message.
+- Snapshots stay in the local `~/.567agent` directory. Their content only reaches the selected model when you send the message.
 - With passwords, keys, or customer data on screen, switch windows before the gesture, or remove the attachment before sending.
 
 <Continue>

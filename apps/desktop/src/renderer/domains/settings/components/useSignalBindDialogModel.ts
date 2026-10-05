@@ -157,6 +157,7 @@ export function useSignalBindDialogModel({
 					break;
 				case "status":
 					setState((prev) => {
+						if (prev.phase === "confirmed" && event.status !== "confirmed") return prev;
 						switch (event.status) {
 							case "confirmed":
 								return { ...prev, phase: "confirmed" };
@@ -193,7 +194,14 @@ export function useSignalBindDialogModel({
 			const result = await window.vetta.im.signal.startBind();
 			if (generation !== bindGenerationRef.current || !openRef.current) return;
 			if (!result.ok) {
-				setState({ phase: "failed", qrAttempt: 0, error: result.error ?? t("bindStartFailed") });
+				setState({
+					phase: "failed",
+					qrAttempt: 0,
+					error:
+						result.error === "IM_BIND_READY_TIMEOUT"
+							? t("bindStartFailed")
+							: (result.error ?? t("bindStartFailed")),
+				});
 			}
 		} catch (error) {
 			if (generation === bindGenerationRef.current && openRef.current) {

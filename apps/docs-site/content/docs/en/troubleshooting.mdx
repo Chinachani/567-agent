@@ -49,7 +49,7 @@ Record the time, entry point, and last successful step first. For a report, use 
     **Verify**: Create an empty session and send a short message. If that works while the original task fails, inspect context length, tools, and task-specific models.
 
     <Callout title="Do not expose keys" type="warn">
-      Never put a full access key in logs or issue reports. The default model configuration is `~/.vetta/agent/models.json`.
+      Never put a full access key in logs or issue reports. The default model configuration is `~/.567agent/agent/models.json`.
     </Callout>
   </Accordion>
   <Accordion id="file-access" title="A project file cannot be read or written">
@@ -63,7 +63,7 @@ Record the time, entry point, and last successful step first. For a report, use 
     **Recover**: Use **Retry failed files**. Clearing the knowledge base removes processed results but keeps originals and triggers processing again; confirm quota and time cost first. For an answer problem, ask a question that depends on one completed source and inspect its citation.
   </Accordion>
   <Accordion id="mcp" title="An MCP tool is unavailable">
-    **Check first**: The MCP connector is added and enabled under **Capabilities → My capabilities**, and credentials or OAuth are complete. Inspect the command or URL in `~/.vetta/agent/mcp.json`; STDIO commands must be executable and HTTP URLs must be reachable from the current network.
+    **Check first**: The MCP connector is added and enabled under **Capabilities → My capabilities**, and credentials or OAuth are complete. Inspect the command or URL in `~/.567agent/agent/mcp.json`; STDIO commands must be executable and HTTP URLs must be reachable from the current network.
 
     **Verify**: Use the [MCP minimal verification task](/product/mcp/#minimal-verification-task) to list tools and call one read-only tool. If the connection is healthy but no tools appear, inspect server exposure and refresh the session capabilities.
   </Accordion>

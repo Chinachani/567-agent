@@ -609,6 +609,11 @@ textarea:focus {
 	outline: none;
 	box-shadow: none;
 }
+[contenteditable="true"]:focus-visible,
+[contenteditable="true"]:focus {
+	outline: none;
+	box-shadow: none;
+}
 
 /* Markdown body: readable text should use text-selection cursor. */
 .markdown-body,

@@ -15,6 +15,7 @@
  */
 
 export type QuitCleanup = () => Promise<void>;
+const CLEANUP_TIMEOUT_MS = 15_000;
 
 let cleanup: QuitCleanup | undefined;
 let started = false;
@@ -33,7 +34,23 @@ export function isQuitCleanupStarted(): boolean {
 export async function runQuitCleanup(): Promise<void> {
 	if (started) return;
 	started = true;
-	await cleanup?.();
+	if (!cleanup) return;
+	let timer: ReturnType<typeof setTimeout> | undefined;
+	try {
+		await Promise.race([
+			cleanup(),
+			new Promise<void>((resolve) => {
+				timer = setTimeout(() => {
+					console.error(`[quit-cleanup] cleanup exceeded ${CLEANUP_TIMEOUT_MS}ms; continuing shutdown`);
+					resolve();
+				}, CLEANUP_TIMEOUT_MS);
+			}),
+		]);
+	} catch (error) {
+		console.error("[quit-cleanup] cleanup failed; continuing shutdown:", error);
+	} finally {
+		if (timer) clearTimeout(timer);
+	}
 }
 
 /** 仅供测试重置模块级状态。 */

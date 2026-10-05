@@ -100,10 +100,11 @@ export function useShortcutsSettingsModel(): ShortcutsSettingsModel {
 				await saveShortcutBindings(next);
 				setCustomShortcuts(next);
 			} catch (error) {
+				const message = error instanceof Error ? error.message : String(error);
 				showToast({
 					variant: "error",
 					title: t("shortcutSaveFailed"),
-					message: error instanceof Error ? error.message : String(error),
+					message: message.startsWith("Shortcut conflict:") ? t("shortcutSaveFailed") : message,
 				});
 			}
 		},

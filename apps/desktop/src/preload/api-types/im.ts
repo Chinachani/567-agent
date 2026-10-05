@@ -347,6 +347,8 @@ export interface ImFeishuApi {
 	 * transport to feishu, then asks the bridge for a verification link.
 	 */
 	startBind(): Promise<ImFeishuStartBindResult>;
+	/** Cancel an unfinished scan and restore the channel selected before the dialog opened. */
+	cancelBind(): Promise<ImFeishuStartBindResult>;
 	/** Subscribe to registration events. Resolves to an unsubscribe fn. */
 	subscribeBind(handler: (event: ImFeishuBindEvent) => void): Promise<() => void>;
 }

@@ -126,6 +126,7 @@ import org.agent567.android.domain.error.UiErrorAction
 import org.agent567.android.domain.session.LocalMessage
 import org.agent567.android.domain.session.MessageImage
 import org.agent567.android.domain.session.MessageStatus
+import org.agent567.android.domain.chat.prepareRetryTurn
 import org.agent567.android.domain.session.PendingQuestion
 import org.agent567.android.domain.session.ToolTrace
 import org.agent567.android.ui.components.EmptyState
@@ -192,6 +193,7 @@ fun ChatScreen(
     onDraftChange: (String) -> Unit,
     onSend: () -> Unit,
     onStop: () -> Unit,
+    onRetryAssistant: (String) -> Unit = {},
     onBack: () -> Unit,
     onOpenModelPicker: () -> Unit,
     onCloseModelPicker: () -> Unit,
@@ -218,6 +220,7 @@ fun ChatScreen(
     onSelectImageGroup: (String) -> Unit = {},
     onSelectImageModel: (String) -> Unit = {},
 ) {
+    val retryableAssistantId = remember(messages) { prepareRetryTurn(messages)?.assistantMessageId }
     val listState = rememberLazyListState()
     val scope = rememberCoroutineScope()
     val imeBottomPx = WindowInsets.ime.getBottom(LocalDensity.current)
@@ -502,6 +505,8 @@ fun ChatScreen(
                             message = msg,
                             onImageClick = { previewImage = it },
                             onCopyToast = { toastNotice = it },
+                            canRetry = msg.id == retryableAssistantId,
+                            onRetry = { onRetryAssistant(msg.id) },
                         )
                     }
                 }
@@ -1055,6 +1060,8 @@ private fun MessageBubble(
     message: LocalMessage,
     onImageClick: (MessageImage) -> Unit = {},
     onCopyToast: (String) -> Unit = {},
+    canRetry: Boolean = false,
+    onRetry: () -> Unit = {},
 ) {
     val isUser = message.role == ChatRole.User
     Row(
@@ -1239,6 +1246,16 @@ private fun MessageBubble(
                     color = MaterialTheme.vettaExtra.secondaryText,
                     modifier = Modifier.padding(top = 4.dp, start = 4.dp, end = 4.dp),
                 )
+            }
+            if (!isUser && canRetry && message.status in setOf(MessageStatus.Error, MessageStatus.Aborted)) {
+                TextButton(
+                    onClick = onRetry,
+                    modifier = Modifier.padding(top = 2.dp),
+                ) {
+                    Icon(Icons.Default.Refresh, contentDescription = null, modifier = Modifier.size(14.dp))
+                    Spacer(Modifier.width(4.dp))
+                    Text(Str.retry)
+                }
             }
         }
     }

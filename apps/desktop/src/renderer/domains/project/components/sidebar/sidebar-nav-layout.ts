@@ -235,20 +235,31 @@ export function migrateSidebarNavLayout(layout: SidebarNavLayout, fromVersion: n
 		}
 		if (migration.moveAfter) {
 			const [anchor, moving] = migration.moveAfter;
-			const region = pinned.includes(anchor) ? pinned : more.includes(anchor) ? more : null;
-			if (region) {
-				const movingIndex = region.indexOf(moving);
-				if (movingIndex === region.indexOf(anchor) + 1) continue;
-				pinned.splice(pinned.indexOf(moving), pinned.includes(moving) ? 1 : 0);
-				more = withoutKey(more, moving);
-				const target = region === pinned ? pinned : more;
-				if (target === pinned && !pinned.includes(moving) && pinned.length >= capacity) {
-					const demoted = pinned.pop();
-					if (demoted) more.unshift(demoted);
+			const targetIsPinned = pinned.includes(anchor);
+			const targetBefore = targetIsPinned ? pinned : more;
+			const anchorIndexBefore = targetBefore.indexOf(anchor);
+			if (anchorIndexBefore < 0 || moving === anchor) continue;
+			if (targetBefore[anchorIndexBefore + 1] === moving) continue;
+
+			// A missing anchor is a no-op: never remove the moving item unless its
+			// destination is known to exist in this user's customized layout.
+			pinned.splice(pinned.indexOf(moving), pinned.includes(moving) ? 1 : 0);
+			more = withoutKey(more, moving);
+			if (targetIsPinned && pinned.length >= capacity) {
+				let demoteIndex = -1;
+				for (let index = pinned.length - 1; index >= 0; index -= 1) {
+					if (pinned[index] !== anchor) {
+						demoteIndex = index;
+						break;
+					}
 				}
-				const anchorIndex = target.indexOf(anchor);
-				if (anchorIndex >= 0) target.splice(anchorIndex + 1, 0, moving);
+				if (demoteIndex < 0) continue;
+				more.unshift(pinned[demoteIndex]!);
+				pinned.splice(demoteIndex, 1);
 			}
+			const target = targetIsPinned ? pinned : more;
+			const anchorIndex = target.indexOf(anchor);
+			if (anchorIndex >= 0) target.splice(anchorIndex + 1, 0, moving);
 		}
 	}
 	return { pinned, more };

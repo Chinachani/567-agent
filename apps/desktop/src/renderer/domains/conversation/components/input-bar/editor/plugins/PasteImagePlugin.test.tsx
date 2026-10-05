@@ -2,7 +2,7 @@
 
 import { render, waitFor } from "@testing-library/react";
 import type { LexicalCommand } from "lexical";
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 const mocks = vi.hoisted(() => ({
 	handler: null as ((event: ClipboardEvent) => boolean) | null,
@@ -51,7 +51,12 @@ vi.mock("react-i18next", () => ({ useTranslation: () => ({ t: (key: string) => k
 const { PasteImagePlugin } = await import("./PasteImagePlugin");
 
 describe("PasteImagePlugin", () => {
+	afterEach(() => {
+		vi.restoreAllMocks();
+	});
+
 	beforeEach(() => {
+		vi.spyOn(console, "warn").mockImplementation(() => {});
 		mocks.handler = null;
 		mocks.insertClipboardMessage.mockClear();
 		mocks.persistBase64Images.mockClear();
@@ -76,7 +81,7 @@ describe("PasteImagePlugin", () => {
 			],
 		});
 		const getData = vi.fn(() => {
-			throw new Error("synchronous HTML clipboard read should not run");
+			throw new Error("clipboard text is unavailable");
 		});
 		const event = {
 			clipboardData: {
@@ -94,7 +99,7 @@ describe("PasteImagePlugin", () => {
 
 		expect(mocks.handler?.(event)).toBe(true);
 		expect(preventDefault).toHaveBeenCalledOnce();
-		expect(getData).not.toHaveBeenCalled();
+		expect(getData).toHaveBeenCalledWith("text/plain");
 		await waitFor(() => expect(mocks.pasteUserMessage).toHaveBeenCalledWith("draft"));
 		expect(mocks.persistBase64Images).not.toHaveBeenCalled();
 		expect(mocks.persistImageFiles).not.toHaveBeenCalled();
@@ -116,7 +121,7 @@ describe("PasteImagePlugin", () => {
 		const event = {
 			clipboardData: {
 				items: [{ kind: "file", type: "image/png", getAsFile: () => nativeFile }],
-				getData: vi.fn(),
+				getData: vi.fn((format: string) => (format === "text/plain" ? "copied with image" : "")),
 			},
 			preventDefault,
 		} as unknown as ClipboardEvent;
@@ -124,7 +129,7 @@ describe("PasteImagePlugin", () => {
 		expect(mocks.handler?.(event)).toBe(true);
 		await waitFor(() => expect(mocks.persistImageFiles).toHaveBeenCalledWith([nativeFile], null, "paste"));
 		await waitFor(() =>
-			expect(mocks.insertClipboardMessage).toHaveBeenCalledWith("", [
+			expect(mocks.insertClipboardMessage).toHaveBeenCalledWith("copied with image", [
 				"C:/persisted/one.png",
 				"C:/persisted/two.png",
 			]),

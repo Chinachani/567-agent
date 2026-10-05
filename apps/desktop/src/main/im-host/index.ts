@@ -261,6 +261,9 @@ export class ImHost {
 	private whatsappBindHandlers: Set<(event: WhatsappBindEvent) => void> = new Set();
 	private signalBindHandlers: Set<(event: SignalBindEvent) => void> = new Set();
 	private feishuBindHandlers: Set<(event: FeishuBindEvent) => void> = new Set();
+	private feishuBindRestoreConfig: Pick<ImConfig, "enabled" | "transport"> | null = null;
+	private feishuBindGeneration = 0;
+	private feishuBindStartPromise: Promise<{ ok: boolean; error?: string }> | null = null;
 
 	// Listeners notified after every state_patch is applied. The IPC layer
 	// uses this to broadcast "im session list changed" to the renderer so
@@ -424,6 +427,8 @@ export class ImHost {
 					this.dispatchFeishuBindEvent({ kind: "status", ...event });
 				},
 				onFeishuBound: (event) => {
+					this.feishuBindGeneration += 1;
+					this.feishuBindRestoreConfig = null;
 					// The sidecar keeps no copy on disk: this is the only
 					// moment the freshly minted credentials can be saved.
 					// appSecret must not reach the log.
@@ -533,7 +538,7 @@ export class ImHost {
 	}
 
 	private bindReadyTimeout(): { ok: false; error: string } {
-		return { ok: false, error: "消息桥接启动超时，请重试；如果持续失败，请检查近期日志。" };
+		return { ok: false, error: "IM_BIND_READY_TIMEOUT" };
 	}
 
 	/**
@@ -695,12 +700,30 @@ export class ImHost {
 	 * state this flow fills in.
 	 */
 	async startFeishuBind(): Promise<{ ok: boolean; error?: string }> {
+		if (!this.feishuBindRestoreConfig) {
+			this.feishuBindRestoreConfig = {
+				enabled: this.config.enabled,
+				transport: this.config.transport,
+			};
+		}
+		const generation = ++this.feishuBindGeneration;
+		const startPromise = this.startFeishuBindForGeneration(generation);
+		this.feishuBindStartPromise = startPromise;
+		try {
+			return await startPromise;
+		} finally {
+			if (this.feishuBindStartPromise === startPromise) this.feishuBindStartPromise = null;
+		}
+	}
+
+	private async startFeishuBindForGeneration(generation: number): Promise<{ ok: boolean; error?: string }> {
 		if (this.config.transport !== "feishu" || !this.config.enabled) {
 			const flip = await this.setConfig({ enabled: true, transport: "feishu" });
 			if (!flip.ok) {
 				return { ok: false, error: flip.error ?? "切换到飞书失败" };
 			}
 		}
+		if (generation !== this.feishuBindGeneration) return { ok: false, error: "飞书扫码已取消" };
 		if (
 			!(await this.waitForBindReady(() => {
 				const status = this.statusStore.get().transport;
@@ -709,8 +732,29 @@ export class ImHost {
 		) {
 			return this.bindReadyTimeout();
 		}
+		if (generation !== this.feishuBindGeneration) return { ok: false, error: "飞书扫码已取消" };
 		this.manager.startFeishuBind();
 		return { ok: true };
+	}
+
+	/** Restore the channel that was active before the user opened Feishu QR setup. */
+	async cancelFeishuBind(): Promise<{ ok: boolean; error?: string }> {
+		const restore = this.feishuBindRestoreConfig;
+		if (!restore) return { ok: true };
+		this.feishuBindRestoreConfig = null;
+		this.feishuBindGeneration += 1;
+
+		const pendingStart = this.feishuBindStartPromise;
+		if (pendingStart) await pendingStart;
+		// A successful bind may have completed while cancellation waited for
+		// the sidecar restart. In that case keep Feishu as the active channel.
+		if (this.config.feishu.appId && this.credentials.feishu?.appSecret) return { ok: true };
+
+		const result = await this.setConfig(restore);
+		if (!result.ok) {
+			this.appendLog("warn", `cancel feishu bind restore failed: ${result.error ?? "unknown error"}`);
+		}
+		return result;
 	}
 
 	/** Subscribe to feishu registration events. Returns an unsubscribe fn. */

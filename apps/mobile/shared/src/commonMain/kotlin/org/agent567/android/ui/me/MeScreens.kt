@@ -104,7 +104,7 @@ fun MeScreen(
     onLogin: () -> Unit = {},
     onLogout: (clearLocal: Boolean) -> Unit = {},
     onTopupWithKey: (String, (Boolean, String) -> Unit) -> Unit = { _, _ -> },
-    onCreatePayOrder: (Int, String, (org.agent567.android.core.PayOrderResult) -> Unit, (String) -> Unit) -> Unit = { _, _, _, _ -> },
+    onCreatePayOrder: (Int, String, (org.agent567.android.core.PayOrderResult, Double) -> Unit, (String) -> Unit) -> Unit = { _, _, _, _ -> },
 ) {
     var confirmLogout by remember { mutableStateOf(false) }
     var showGroupDialog by remember { mutableStateOf(false) }
@@ -1078,7 +1078,7 @@ fun TopupDialog(
     user: User?,
     onDismiss: () -> Unit,
     onTopupWithKey: (String, (Boolean, String) -> Unit) -> Unit,
-    onCreatePayOrder: (Int, String, (org.agent567.android.core.PayOrderResult) -> Unit, (String) -> Unit) -> Unit,
+    onCreatePayOrder: (Int, String, (org.agent567.android.core.PayOrderResult, Double) -> Unit, (String) -> Unit) -> Unit,
     onRefreshQuota: () -> Unit,
 ) {
     val uriHandler = androidx.compose.ui.platform.LocalUriHandler.current
@@ -1091,19 +1091,26 @@ fun TopupDialog(
     var message by remember { mutableStateOf<String?>(null) }
     var isError by remember { mutableStateOf(false) }
     var payingNotice by remember { mutableStateOf(false) }
-    var initialQuota by remember { mutableStateOf<Long?>(null) }
+    var initialQuota by remember { mutableStateOf<Double?>(null) }
     var paySuccess by remember { mutableStateOf(false) }
+    var paymentPollExpired by remember { mutableStateOf(false) }
 
-    LaunchedEffect(payingNotice) {
+    LaunchedEffect(payingNotice, paySuccess) {
         if (!payingNotice) return@LaunchedEffect
-        while (!paySuccess) {
-            delay(2500)
+        repeat(180) {
+            if (paySuccess) return@LaunchedEffect
+            delay(5000)
             onRefreshQuota()
+        }
+        if (!paySuccess) {
+            paymentPollExpired = true
+            message = "自动确认已停止；如果已完成支付，请手动刷新余额。"
+            isError = false
         }
     }
 
-    LaunchedEffect(user?.quota) {
-        val curr = user?.quota
+    LaunchedEffect(user?.quotaUsd) {
+        val curr = user?.quotaUsd
         if (payingNotice && initialQuota != null && curr != null && curr > initialQuota!!) {
             paySuccess = true
             delay(1500)
@@ -1252,13 +1259,13 @@ fun TopupDialog(
                 if (payingNotice) {
                     Spacer(Modifier.height(12.dp))
                     Text(
-                        "已调起外部支付收银台，支付成功后可点击下方按钮刷新余额",
+                        if (paymentPollExpired) "自动确认已停止；支付后可手动刷新余额" else "已调起外部支付收银台，支付成功后可点击下方按钮刷新余额",
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.primary,
                     )
                     Spacer(Modifier.height(8.dp))
                     androidx.compose.material3.OutlinedButton(
-                        onClick = { onRefreshQuota() },
+                            onClick = { onRefreshQuota() },
                         modifier = Modifier.fillMaxWidth(),
                         shape = androidx.compose.foundation.shape.RoundedCornerShape(8.dp),
                     ) {
@@ -1299,9 +1306,11 @@ fun TopupDialog(
                             } else {
                                 loading = true
                                 message = null
-                                initialQuota = user?.quota
-                                onCreatePayOrder(finalAmt, payMethod, { payResult ->
+                                paymentPollExpired = false
+                                paySuccess = false
+                                onCreatePayOrder(finalAmt, payMethod, { payResult, freshQuotaUsd ->
                                     loading = false
+                                    initialQuota = freshQuotaUsd
                                     payingNotice = true
                                     val launched = if (!payResult.urlScheme.isNullOrBlank()) {
                                         runCatching {

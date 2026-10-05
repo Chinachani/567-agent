@@ -14,6 +14,7 @@ import { useTranslation } from "react-i18next";
 import type { McpAbility } from "../types";
 import {
 	getUnreviewedMcpDocumentationUrl,
+	getUnreviewedMcpRepositoryUrl,
 	interpolateUnreviewedMcpPrompt,
 } from "../lib/unreviewed-mcp-prompt";
 
@@ -37,6 +38,11 @@ export function UnreviewedMcpPromptDialog({
 			getUnreviewedMcpDocumentationUrl(detail?.i18n?.[language]?.meta) ||
 			getUnreviewedMcpDocumentationUrl(detail?.meta) ||
 			t("unreviewedMcp.metadataNotProvided");
+		const declaredRepository =
+			getUnreviewedMcpRepositoryUrl(detail?.i18n?.[language]?.meta) ||
+			getUnreviewedMcpRepositoryUrl(detail?.meta);
+		const catalogRepository =
+			item.origin?.repository || (item.catalogSource.kind === "github" ? item.catalogSource.repository : "");
 		return interpolateUnreviewedMcpPrompt(t("unreviewedMcp.prompt"), {
 			name: item.title || t("unreviewedMcp.metadataNotProvided"),
 			description: item.description || t("unreviewedMcp.metadataNotProvided"),
@@ -44,6 +50,10 @@ export function UnreviewedMcpPromptDialog({
 			version: item.version || t("unreviewedMcp.metadataNotProvided"),
 			license: item.license || detail?.license || t("unreviewedMcp.metadataNotProvided"),
 			documentation,
+			repositoryLabel: declaredRepository
+				? t("unreviewedMcp.projectRepository")
+				: t("unreviewedMcp.catalogSource"),
+			repository: declaredRepository || catalogRepository || t("unreviewedMcp.metadataNotProvided"),
 		});
 	}, [i18n.language, item, t]);
 

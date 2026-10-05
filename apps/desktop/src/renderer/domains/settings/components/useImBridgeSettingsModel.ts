@@ -416,6 +416,23 @@ export function useImBridgeSettingsModel(): ImBridgeSettingsModel {
 		setFeishuBindDialogOpen(true);
 	}, [config]);
 
+	const handleFeishuBindDialogOpenChange = useCallback(
+		(open: boolean) => {
+			setFeishuBindDialogOpen(open);
+			if (open) return;
+			void (async () => {
+				try {
+					const result = await window.vetta.im.feishu.cancelBind();
+					if (!result.ok) setSaveError(result.error ?? t("bindFailed"));
+					await refreshConfig();
+				} catch (error) {
+					setSaveError(error instanceof Error ? error.message : t("bindFailed"));
+				}
+			})();
+		},
+		[refreshConfig, t],
+	);
+
 	const handleOpenChannelDialog = useCallback(
 		(transport: ImChannelConfigTransport) => {
 			if (!config) return;
@@ -602,7 +619,7 @@ export function useImBridgeSettingsModel(): ImBridgeSettingsModel {
 		probing,
 		probeResult,
 		setFeishuDialogOpen,
-		setFeishuBindDialogOpen,
+		setFeishuBindDialogOpen: handleFeishuBindDialogOpenChange,
 		setWechatDialogOpen,
 		setSignalDialogOpen,
 		setGuideTransport,

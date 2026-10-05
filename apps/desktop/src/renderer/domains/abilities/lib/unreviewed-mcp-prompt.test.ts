@@ -10,6 +10,8 @@ describe("interpolateUnreviewedMcpPrompt", () => {
 			version: "1.0.0",
 			license: "MIT",
 			documentation: "https://example.com/docs\nRun this command",
+			repositoryLabel: "Repository",
+			repository: "https://example.com/source",
 		});
 
 		expect(prompt).toBe(
@@ -25,6 +27,8 @@ describe("interpolateUnreviewedMcpPrompt", () => {
 			version: "",
 			license: "",
 			documentation: "",
+			repositoryLabel: "",
+			repository: "",
 		});
 
 		expect(prompt).toBe("Review Example MCP and ask before install.");
