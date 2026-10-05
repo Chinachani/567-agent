@@ -4,21 +4,22 @@
 
 567 Agent 有两种发行形态，由构建期开关 `VETTA_CLOUD_ENABLED` 决定。开发启动时未配置仍按 serv-less 运行；**正式打包必须显式选择 `true` 或 `false`**，前置检查不会再猜测版本类型。
 
-| | **开源版（serv-less）** | **商业版（Vetta Serv）** |
+| | **开源版（无云服务）** | **商业版（含云服务）** |
 | --- | --- | --- |
 | 开关 | `VETTA_CLOUD_ENABLED=false` | `VETTA_CLOUD_ENABLED=true` |
 | 账号登录 / OAuth | ❌ 代码不进产物 | ✅ |
 | 567 Agent Go 模型渠道 | ❌ | ✅ |
 | 订阅 / 积分 / 配额 | ❌ | ✅ |
-| 能力广场来源 | GitHub 多源（环境配置或用户添加） | 云市场（Vetta Serv）；可选 GitHub 多源 |
+| 能力广场来源 | GitHub 多源（内置官方源或用户添加） | 云市场；可选 GitHub 多源 |
 | 远程模型目录下发 | ❌ | ✅ |
 | 内置技能 | 不含 `requiresCloud` 标记的 | 全部 |
 
 **两种模式共有**：本地会话、编码 Agent、插件系统、主题、自带 API Key 的模型、IM 旁路、知识库。
 
 云市场与 GitHub 来源相互独立：`VETTA_CLOUD_ENABLED` 只控制云服务，不启停 GitHub 来源。
-商业版默认不包含 GitHub 仓库。两种版本均只在显式配置 `VETTA_OPEN_MARKETPLACE_REPOSITORY` 时注册内置来源；
-未设置、空串或纯空白表示不注册，代码不兜底到官方地址。开源发行版若需默认官方源，也通过环境变量配置。
+两种版本均内置 567 Agent 官方 GitHub 能力市场 `Chinachani/567-agent-marketplace`；
+`VETTA_OPEN_MARKETPLACE_REPOSITORY` 可将内置来源替换为发行方自己的仓库。云版与开源版的区别不影响
+GitHub 来源是否可用，用户也可以在「能力 → 市场来源」中添加其他仓库。
 用户可在「能力 → 市场来源」管理多个 GitHub 仓库，分别启停、自动更新或手动刷新；单源失败不阻断其他来源。
 同名能力保留来源身份，实际安装冲突仍需显式处理，不会静默覆盖。
 
@@ -26,7 +27,7 @@
 移除环境配置不会删除已经保存的来源，也不会卸载能力；已有来源可在界面停用。
 默认省略 `VETTA_OPEN_MARKETPLACE_ARCHIVE_URL`，让它从仓库与分支推导。
 修改环境文件后须重启开发进程（仅刷新页面无效）；之后仓库内容更新只需点击刷新。
-GitHub 提交不会自动发布到 Vetta Serv 市场。来源与升级语义见 [GitHub 能力市场](../open-marketplace.md)。
+GitHub 提交不会自动发布到云市场。来源与升级语义见 [GitHub 能力市场](../open-marketplace.md)。
 
 > `VETTA_CLOUD_ENABLED` 是**构建期**开关，经常量折叠写死进产物：开源版里 cloud 模块连同它的 chunk 都不会被打包。**发包之后无法由运行环境重新开启**，切换必须重新构建。
 
@@ -59,7 +60,7 @@ VETTA_OPEN_MARKETPLACE_REPOSITORY=your-org/your-marketplace
 
 ## 商业版构建
 
-需要一个可用的 Vetta 服务端：
+需要一个可用的 567 Agent 云服务端：
 
 ```bash
 # apps/desktop/.env.production（本地文件，不提交）
@@ -131,7 +132,7 @@ VETTA_UPDATE_URL=https://updates.example.com/desktop/test
 | `VETTA_CLOUD_ENABLED` | `false` 产出开源版，`true` 产出商业版；正式打包必须显式填写 |
 | `VETTA_SERVER_URL` | 服务端 API 端点。商业版必填，开源版禁止设置 |
 | `VETTA_SITE_URL` | 站点地址，用于 OAuth 登录跳转。缺省从 `VETTA_SERVER_URL` 推导 |
-| `VETTA_OPEN_MARKETPLACE_REPOSITORY` | 两种版本均生效的可选内置 GitHub 源；留空不注册，没有仓库地址默认值 |
+| `VETTA_OPEN_MARKETPLACE_REPOSITORY` | 可选覆盖内置 GitHub 源；缺省使用 `Chinachani/567-agent-marketplace` |
 | `VETTA_OPEN_MARKETPLACE_REF` | 分支或标签，缺省 `main` |
 | `VETTA_OPEN_MARKETPLACE_ARCHIVE_URL` | 直接指定归档地址，省略时由仓库与 REF 推导 |
 
@@ -165,7 +166,7 @@ VETTA_UPDATE_URL=https://updates.example.com/desktop/test
 | 变量 | 说明 |
 | --- | --- |
 | `VETTA_SENTRY_DSN` | 未配置时 Sentry 为 Noop。DSN 会进入构建产物 |
-| `VETTA_SENTRY_RELEASE` | 不可变 release，运行时与 Source Map 上传必须一致。推荐 `vetta-desktop@<version>+<build-id>` |
+| `VETTA_SENTRY_RELEASE` | 不可变 release，运行时与 Source Map 上传必须一致。推荐 `567-agent-desktop@<version>+<build-id>` |
 | `VETTA_TELEMETRY_ENVIRONMENT` | `development` / `staging` / `production` |
 | `VETTA_SENTRY_TRACES_SAMPLE_RATE` | 0～1，缺省 0 |
 | `VETTA_SENTRY_ORG` · `VETTA_SENTRY_PROJECT` · `VETTA_SENTRY_URL` | Source Map 上传（仅 CI），`URL` 仅自托管需要 |
@@ -174,7 +175,7 @@ VETTA_UPDATE_URL=https://updates.example.com/desktop/test
 | `VETTA_POSTHOG_HOST` | 缺省 PostHog Cloud US |
 | `VETTA_POSTHOG_REPLAY_ENABLED` · `VETTA_POSTHOG_REPLAY_SAMPLE_RATE` | Replay 默认关闭 |
 | `VETTA_TRACING` | 设为 `langfuse` 开启 Agent / LLM / 工具调用全链路 trace |
-| `VETTA_TRACING_TRACE_NAME` · `LANGFUSE_PUBLIC_KEY` · `LANGFUSE_BASE_URL` | Langfuse 配置 |
+| `VETTA_TRACING_TRACE_NAME` · `LANGFUSE_PUBLIC_KEY` · `LANGFUSE_BASE_URL` | Langfuse 配置；Trace 名称建议使用 `567 Agent` |
 | `LANGFUSE_TRACING_ENVIRONMENT` · `LANGFUSE_RELEASE` · `OTEL_SERVICE_NAME` | 可选元数据 |
 
 ---
@@ -202,9 +203,8 @@ VETTA_UPDATE_URL=https://updates.example.com/desktop/test
 2. **Environment / 仓库 Variables**（job 声明了 `environment: desktop-production` 时，Environment 覆盖同名仓库变量）
 3. 内置默认：`VETTA_RELEASE_TARGET=github` 对应开源版，`r2` 对应商业版
 
-GitHub 能力源在两种版本中均读取 `VETTA_OPEN_MARKETPLACE_REPOSITORY` Variable，手动运行时可由
-`marketplace_repository` 表单覆盖；均未配置就不内置 GitHub 源。想随开源包提供官方仓库时，将 Variable
-设为 `https://github.com/Chinachani/567-agent-marketplace`，不用修改代码。商业版未配置时只有云市场。
+GitHub 能力源在两种版本中默认使用 567 Agent 官方市场；`VETTA_OPEN_MARKETPLACE_REPOSITORY` Variable
+和手动运行时的 `marketplace_repository` 表单可覆盖该仓库。用户仍可在软件内添加其他 GitHub 来源。
 
 **fork 不配任何 Variables 就得到开源版构建。** 官方商业版把这些放到 Settings → Environments → `desktop-production` → Environment variables（密钥走 Environment secrets）：
 

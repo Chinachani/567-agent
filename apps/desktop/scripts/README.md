@@ -194,7 +194,7 @@ bun run dist:opensource
 bun run dist:opensource -- --target dir
 ```
 
-该入口读取 `.env.opensource`，固定关闭 cloud、使用 GitHub provider，并为客户端更新仓库提供默认值；fork 可在文件或 shell 中覆盖更新 owner、repo。能力 Marketplace 未配置 `VETTA_OPEN_MARKETPLACE_REPOSITORY` 时内置 Vetta 官方源；fork 可用该变量替换成自己的仓库。
+该入口读取 `.env.opensource`，固定关闭 cloud、使用 GitHub provider，并为客户端更新仓库提供默认值；fork 可在文件或 shell 中覆盖更新 owner、repo。能力 Marketplace 未配置 `VETTA_OPEN_MARKETPLACE_REPOSITORY` 时使用 567 Agent 官方能力市场 `Chinachani/567-agent-marketplace`；fork 可用该变量替换内置仓库。
 
 需要只生成某一种 Linux 格式时，在 `apps/desktop` 使用独立的 `package:*` 入口；不带格式的入口一次生成正式发布使用的 AppImage、DEB 和 RPM：
 

@@ -107,7 +107,7 @@ desktop 自定义导入虽然递归查找 `SKILL.md`，但只选择一个最浅�
 
 外部 `story-setup` 的 generic/OpenClaw 路径会把 Skill 复制到项目根 `skills/{skill-name}/`。Vetta 默认发现路径是：
 
-- 全局 `~/.vetta/agent/skills/` / `~/.agents/skills/`
+- 全局 `~/.567agent/agent/skills/` / `~/.agents/skills/`
 - 项目 `.vetta/skills/` / `.agents/skills/`
 - package 或插件声明的 Skill 路径
 

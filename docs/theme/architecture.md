@@ -61,7 +61,7 @@ UI Implementation Layer
 
 - SDK：`useThemeStorage` / `useThemeStorageValue`（`@vetta-org/theme-sdk/storage`）。
 - Host：按当前 `theme.meta.id` 隔离，主题不能指定其他 themeId。
-- 落盘：main 进程 `~/.vetta/desktop-app/themes/<themeId>/data.json`。
+- 落盘：main 进程 `~/.567agent/desktop-app/themes/<themeId>/data.json`。
 
 详见 [主题自有数据存储](./storage.md)。
 

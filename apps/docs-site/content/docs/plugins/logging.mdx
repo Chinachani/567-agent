@@ -17,7 +17,7 @@ syncLogger.warn("Remote catalog is unavailable", { retryInMs: 5_000 });
 `@vetta-org/plugin-vite` 会在开发和生产构建中读取经过校验的 `plugin.json`，把这个入口绑定到
 当前插件的 `id` 和 `version`。桌面宿主接收日志后统一添加插件标识、限制字段大小、脱敏常见
 敏感字段，并写入 Renderer 日志文件。Windows 默认位置是
-`%USERPROFILE%\.vetta\desktop-app\logs\render\YYYY-MM-DD.log`。
+`%USERPROFILE%\.567agent\desktop-app\logs\render\YYYY-MM-DD.log`。
 
 支持 `debug`、`info`、`warn` 和 `error` 四个级别。第二个参数应当是便于检索的结构化字段；
 不要记录 Token、Cookie、密码、完整请求头或用户内容。宿主脱敏只是最后一道防线，不能代替插件

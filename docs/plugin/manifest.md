@@ -90,7 +90,7 @@ Schema 只描述 `plugin.json` 数据本身；Plugin API 版本是否兼容、�
 用户插件按版本存放：
 
 ```text
-~/.vetta/plugins/<id>/versions/<version>/
+~/.567agent/plugins/<id>/versions/<version>/
 ```
 
 - 安装一个**更新版本**只被记录为 **pending**；App 持续加载当前 `activeVersion`。
@@ -98,7 +98,7 @@ Schema 只描述 `plugin.json` 数据本身；Plugin API 版本是否兼容、�
 - 调试时改了代码要 bump `version` + reload 才稳妥生效（见 [styling-and-pitfalls.md](./styling-and-pitfalls.md#缓存刷新)）。
 - `listPlugins()` 会给出 **`rootPath`**：活动版本包在磁盘上的绝对根（用户插件 = 上表版本目录；系统插件 = `system-plugins/<id>`）。脚本、MCP 相对路径均相对此根解析。
 
-系统插件不进 `~/.vetta/plugins`，见 [system-plugins.md](./system-plugins.md)。
+系统插件不进 `~/.567agent/plugins`，见 [system-plugins.md](./system-plugins.md)。
 
 ## commands
 

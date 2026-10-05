@@ -32,7 +32,7 @@ The short path is in [`QUICKSTART.md`](QUICKSTART.md). TL;DR:
 
 ```bash
 git clone https://github.com/Chinachani/567-agent.git
-cd open-vetta
+cd 567-agent
 git checkout dev
 bun install                 # Bun 1.3+
 cd apps/desktop

@@ -110,7 +110,7 @@ export function getLocalizedSite(language: SiteLanguage = "zh") {
 }
 
 export function getSectionLabel(section: string | undefined, language: SiteLanguage = "zh"): string {
-	return localizedSections[language].labels[section ?? ""] ?? `VETTA / ${getDocsMessages(language).documentation}`;
+	return localizedSections[language].labels[section ?? ""] ?? `567 AGENT / ${getDocsMessages(language).documentation}`;
 }
 
 export function getSectionTitle(section: string | undefined, language: SiteLanguage = "zh"): string {

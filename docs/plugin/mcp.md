@@ -10,7 +10,7 @@
 
 | 源 | 配置位置 | 谁拥有 |
 | --- | --- | --- |
-| **全局** | 用户 `~/.vetta/agent/mcp.json` | 用户设置页可编辑 |
+| **全局** | 用户 `~/.567agent/agent/mcp.json` | 用户设置页可编辑 |
 | **项目** | 项目侧 MCP 配置（若有） | 项目 |
 | **插件** | `plugin.json` → `agent.mcpServers` | 插件包；**不写**用户 mcp.json |
 

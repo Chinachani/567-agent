@@ -35,7 +35,7 @@ bun run verify:ui:pw -- run-code "async (page) => { const all=page.getByRole('bu
 # 有「拒绝」则按需拒绝排空，或确认后点对应主按钮
 
 # 2) 后台发起 actions.run（会挂起直到 UI 确认）
-#    例如 bun/fetch 调 ~/.vetta/action-server.json 的 /rpc
+#    例如 bun/fetch 调 ~/.567agent/action-server.json 的 /rpc
 
 # 3) 再看页面：确认出现的按钮，再点
 bun run verify:ui:pw -- snapshot
@@ -61,7 +61,7 @@ bun apps/cli-host/src/cli.ts action run navigation.query '{"type":"help"}'
 
 1. 验证实例已启动：`bun run verify:ui:start`
 2. 系统插件 `vetta-actions` 已启用并能激活（否则 Catalog 为空）
-3. CLI 可连本地 RPC（`~/.vetta/action-server.json`）
+3. CLI 可连本地 RPC（`~/.567agent/action-server.json`）
 4. `bun run verify:ui:status` 显示 `running` 和 `ui.targetFound` 均为 `true`
 
 ## 相关文档

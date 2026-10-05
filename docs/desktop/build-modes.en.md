@@ -4,23 +4,23 @@
 
 567 Agent ships in two editions, selected by the build-time flag `VETTA_CLOUD_ENABLED`. An unconfigured development session remains serv-less, but **packaging requires an explicit `true` or `false`** so release builds never guess their edition.
 
-| | **open-source (serv-less)** | **commercial (Vetta Serv)** |
+| | **open-source (no cloud services)** | **commercial (cloud services enabled)** |
 | --- | --- | --- |
 | Flag | `VETTA_CLOUD_ENABLED=false` | `VETTA_CLOUD_ENABLED=true` |
 | Account login / OAuth | ❌ not in the bundle | ✅ |
 | 567 Agent Go model channel | ❌ | ✅ |
 | Subscription / credits / quota | ❌ | ✅ |
-| Ability marketplace source | Multiple GitHub sources (environment-configured or user-added) | Cloud marketplace (Vetta Serv); optional GitHub sources |
+| Ability marketplace source | GitHub sources (built-in official source or user-added) | Cloud marketplace; optional GitHub sources |
 | Remote model catalog | ❌ | ✅ |
 | Built-in skills | those without `requiresCloud` | all |
 
 **Available in both modes**: local sessions, the coding agent, the plugin system, themes, bring-your-own-key models, the IM gateway, and the knowledge base.
 
 Cloud and GitHub sources are independent: `VETTA_CLOUD_ENABLED` controls cloud services only.
-Commercial builds do not include a GitHub repository by default. In either edition, a built-in source is registered
-only when `VETTA_OPEN_MARKETPLACE_REPOSITORY` is explicitly configured. Unset, empty, or whitespace-only means
-no registration; there is no hard-coded repository fallback. Open-source distributions can configure the official
-repository through the same environment variable.
+Both editions include the 567 Agent official GitHub marketplace, `Chinachani/567-agent-marketplace`, by default.
+`VETTA_OPEN_MARKETPLACE_REPOSITORY` replaces that built-in source with the distributor's repository. The cloud
+edition does not change whether GitHub sources are available, and users can add other repositories under
+Abilities → Marketplace sources.
 Under Abilities → Marketplace sources, users can add multiple GitHub repositories and independently enable,
 auto-update, or refresh each source. A failing source does not block others. Same-name abilities retain their
 source identities; physical installation conflicts still require explicit resolution instead of silent overwrites.
@@ -29,7 +29,7 @@ source identities; physical installation conflicts still require explicit resolu
 Removing it does not delete persisted sources or uninstall abilities; existing sources can be disabled in the UI.
 Adding sources through the UI does not require rebuilding. Normally omit `VETTA_OPEN_MARKETPLACE_ARCHIVE_URL`
 so it follows the repository and ref. Restart development processes after editing environment files;
-subsequent repository content changes only require Refresh. A GitHub commit does not publish to the Vetta Serv
+subsequent repository content changes only require Refresh. A GitHub commit does not publish to the cloud
 marketplace. See [GitHub marketplace format](../open-marketplace.md) for source and upgrade semantics.
 
 > `VETTA_CLOUD_ENABLED` is a **build-time** flag, inlined as a constant and folded away: in an open-source build the cloud module and its chunks are never bundled. **It cannot be re-enabled at runtime after shipping** — switching editions requires a rebuild.
@@ -63,7 +63,7 @@ Open-source builds reject `VETTA_SERVER_URL` and `VETTA_SITE_URL`: login, the of
 
 ## Building the commercial edition
 
-You need a running Vetta server:
+You need a running 567 Agent cloud service:
 
 ```bash
 # apps/desktop/.env.production (local file, not committed)
@@ -135,7 +135,7 @@ VETTA_UPDATE_URL=https://updates.example.com/desktop/test
 | `VETTA_CLOUD_ENABLED` | `false` produces open-source; `true` produces commercial; packaging requires an explicit value |
 | `VETTA_SERVER_URL` | Server API endpoint. Required for commercial and forbidden in open-source builds |
 | `VETTA_SITE_URL` | Site URL used for the OAuth login redirect. Derived from `VETTA_SERVER_URL` when unset |
-| `VETTA_OPEN_MARKETPLACE_REPOSITORY` | Optional built-in GitHub source for either edition; empty means no registration, with no default repository address |
+| `VETTA_OPEN_MARKETPLACE_REPOSITORY` | Optional override for the built-in GitHub source; defaults to `Chinachani/567-agent-marketplace` |
 | `VETTA_OPEN_MARKETPLACE_REF` | Branch or tag, defaults to `main` |
 | `VETTA_OPEN_MARKETPLACE_ARCHIVE_URL` | Explicit archive URL; derived from repository and ref when omitted |
 
@@ -169,7 +169,7 @@ The update source is build configuration and is independent of the operating sys
 | Variable | Description |
 | --- | --- |
 | `VETTA_SENTRY_DSN` | Sentry is a no-op when unset. The DSN ends up in the bundle |
-| `VETTA_SENTRY_RELEASE` | Immutable release; must match exactly between runtime and source-map upload. Suggested: `vetta-desktop@<version>+<build-id>` |
+| `VETTA_SENTRY_RELEASE` | Immutable release; must match exactly between runtime and source-map upload. Suggested: `567-agent-desktop@<version>+<build-id>` |
 | `VETTA_TELEMETRY_ENVIRONMENT` | `development` / `staging` / `production` |
 | `VETTA_SENTRY_TRACES_SAMPLE_RATE` | 0–1, defaults to 0 |
 | `VETTA_SENTRY_ORG` · `VETTA_SENTRY_PROJECT` · `VETTA_SENTRY_URL` | Source-map upload (CI only); `URL` is for self-hosted Sentry only |
@@ -206,11 +206,9 @@ The update source is build configuration and is independent of the operating sys
 2. **Environment / repository Variables** (when the job sets `environment: desktop-production`, Environment values overlay same-named repository variables)
 3. Built-in defaults: `VETTA_RELEASE_TARGET=github` selects open-source; `r2` selects commercial
 
-Both editions read the `VETTA_OPEN_MARKETPLACE_REPOSITORY` Variable, optionally overridden by the
-`marketplace_repository` input on manual runs. If neither is configured, no GitHub source is bundled.
-To include the official source in an open-source distribution, set the Variable to
-`https://github.com/Chinachani/567-agent-marketplace`; no code changes are needed.
-An unconfigured commercial build uses only the cloud marketplace.
+Both editions include the 567 Agent official GitHub marketplace by default. The
+`VETTA_OPEN_MARKETPLACE_REPOSITORY` Variable and the `marketplace_repository` input on manual runs can
+override it. Users can still add other GitHub sources in the app.
 
 **A fork with no Variables set produces an open-source build.** For an official commercial build, put these on Settings → Environments → `desktop-production` → Environment variables (credentials stay in Environment secrets):
 

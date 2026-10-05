@@ -34,7 +34,7 @@ npx vetta-plugin-cli reload my-plugin   # 提示有 pending 版本时
 ```
 
 `add` 传目录即可（`add .`）：它向上找到最近的 `plugin.json`，再定位该工程打出来的归档，
-交给正在运行的 Desktop 校验、授权、安装，**不直接写** `~/.vetta/plugins`。
+交给正在运行的 Desktop 校验、授权、安装，**不直接写** `~/.567agent/plugins`。
 
 ### 一仓多插件（能力市场 hub）
 
@@ -235,7 +235,7 @@ GitHub 能力市场有两种分发合同：schema v1/v2 从 `source.path` 目录
 安装后用户插件落在：
 
 ```text
-~/.vetta/plugins/<id>/versions/<version>/
+~/.567agent/plugins/<id>/versions/<version>/
 ```
 
 `listPlugins()` 中每条记录含 **`rootPath`**（该版本包的绝对根路径）。

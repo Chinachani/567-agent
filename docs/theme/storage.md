@@ -58,7 +58,7 @@ function SanctumPage() {
 磁盘路径：
 
 ```txt
-~/.vetta/desktop-app/themes/<themeId>/data.json
+~/.567agent/desktop-app/themes/<themeId>/data.json
 ```
 
 文件形状：
@@ -72,7 +72,7 @@ function SanctumPage() {
 }
 ```
 
-注意：这与远程主题包安装目录 `~/.vetta/themes/` 分离，避免包资源与用户数据混放。
+注意：这与远程主题包安装目录 `~/.567agent/themes/` 分离，避免包资源与用户数据混放。
 
 ## 规则
 
@@ -95,7 +95,7 @@ Theme component
       → 内存 cache
       → window.vetta.themes.storage.*        (preload, host only)
         → main theme-data-store
-          → ~/.vetta/desktop-app/themes/<id>/data.json
+          → ~/.567agent/desktop-app/themes/<id>/data.json
 ```
 
 ## 与应用使用情况绑定（修为 / 进度）
@@ -123,7 +123,7 @@ desktop 在主题激活时挂载 `runtime`。xianxia 示例：
 - 组件：`XianxiaCultivationRuntime`（无 UI）
 - 规则：多指标合成 `score`（活跃时长、消息、回合、工具、会话、token、连续活跃天、批量/自动化、知识库、项目、长会话深度等），再按主题自有 `targetScore` 映射 15 境
 - 写入 key：`cultivation`（snapshot version 2）
-- 落盘：`~/.vetta/desktop-app/themes/xianxia/data.json`
+- 落盘：`~/.567agent/desktop-app/themes/xianxia/data.json`
 - 验证：DevTools 日志 `[xianxia-cultivation] synced ...`，或直接读 data.json
 
 ## 暂不支持

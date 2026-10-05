@@ -1,5 +1,7 @@
 # ADR-0121：`.vettapkg` 是可安装插件文件格式
 
+> 历史决策记录：默认用户插件包扩展名已由 [ADR-0126](./0126-567-agent-brand-and-package-compatibility.md) 改为 `.567plugin`；本文保留旧品牌和 `.vettapkg` 合同的决策背景，旧包仍可导入。
+
 - 状态：已接受
 - 日期：2026-09-19
 

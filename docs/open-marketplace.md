@@ -22,9 +22,11 @@ Desktop 的市场来源 ref 配置为 gh-pages，无需另建注册服务或启�
 ## 客户端来源管理
 
 云市场与 GitHub 来源独立启用：开源版只不包含云服务，仍可配置多个 GitHub 仓库；云版可同时浏览两类来源。
-内置官方 GitHub 来源与云市场独立存在。发行方可以通过 `VETTA_OPEN_MARKETPLACE_REPOSITORY` 替换其仓库；
-未配置时使用 OpenVetta 官方仓库。分支由 `VETTA_OPEN_MARKETPLACE_REF` 指定；官方仓库省略时使用
-`gh-pages`，自定义仓库省略时保留 `main` 兼容行为。归档 URL 可单独配置，否则从仓库与分支推导。
+内置 567 Agent 官方 GitHub 来源与云市场独立存在，默认仓库为
+[`Chinachani/567-agent-marketplace`](https://github.com/Chinachani/567-agent-marketplace)。发行方可以通过
+`VETTA_OPEN_MARKETPLACE_REPOSITORY` 将内置来源替换为自己的仓库。分支由
+`VETTA_OPEN_MARKETPLACE_REF` 指定；官方仓库和自定义仓库默认均使用 `main`。
+归档 URL 可单独配置，否则从仓库与分支推导。
 
 在「能力 → 市场来源」可添加多个仓库，分别设置启用、自动更新和分支，并单独刷新。
 内置来源可启停及设置自动更新，但不能在界面修改坐标或删除；自定义来源支持编辑和删除。
@@ -34,8 +36,8 @@ Desktop 的市场来源 ref 配置为 gh-pages，无需另建注册服务或启�
 ### 私有 GitHub 仓库
 
 添加私有仓库时，在表单中填写 GitHub fine-grained personal access token（PAT），权限只需要目标仓库的
-`Contents: Read-only`。令牌按来源单独保存到 Desktop 的系统安全存储，不会写入来源配置、市场快照、日志或发送给
-Vetta 服务；界面只显示“已配置”，不会回显令牌。更新或清除来源时可以分别替换或删除令牌。
+`Contents: Read-only`。令牌按来源单独保存到 Desktop 的系统安全存储，不会写入来源配置、市场快照、日志或发送到云端；
+界面只显示“已配置”，不会回显令牌。更新或清除来源时可以分别替换或删除令牌。
 
 配置令牌后，客户端对 GitHub REST Contents/zipball API 使用 `Authorization: Bearer` 请求头。GitHub 返回的临时归档
 重定向只携带普通下载请求头，不会把令牌转发到签名地址；未配置令牌的公开仓库仍沿用原有匿名 raw/archive 下载路径。
@@ -90,7 +92,7 @@ Vetta 服务；界面只显示“已配置”，不会回显令牌。更新或�
 旧客户端会忽略此可选字段，无需修改 `schemaVersion` 或能力安装版本；内容变更仍须递增 `marketplaceVersion`。
 
 多个来源使用相同 `category` 时仍归为一组，缺少的语言逐项补齐，同一语言保留列表中先出现的非空译名。
-不同分类即使译名相同也不合并。内置的「连接」「Vetta 内置」「未分类」继续使用应用自带的 i18n 文案。
+不同分类即使译名相同也不合并。内置的「连接」「567 Agent 内置」「未分类」继续使用应用自带的 i18n 文案。
 
 ## Plugin、MCP 与 Bundle
 
@@ -176,7 +178,7 @@ node tools/open-vetta/scripts/release/check-plugin-marketplace-publication.mjs .
 }
 ```
 
-MCP 必须有独立包目录。`marketplace.json` 只通过 `source.path` 指向目录，运行配置与可选的受管运行时声明放在目录内的 `mcp.json`。客户端同步时读取并校验该文件，再在用户安装时准备运行时并把解析后的 `server` 写入 `~/.vetta/agent/mcp.json` 的 `mcpServers[slug]`。索引内联 `config.mcp` 会被拒绝，避免索引与包文件形成两个真相源。
+MCP 必须有独立包目录。`marketplace.json` 只通过 `source.path` 指向目录，运行配置与可选的受管运行时声明放在目录内的 `mcp.json`。客户端同步时读取并校验该文件，再在用户安装时准备运行时并把解析后的 `server` 写入 `~/.567agent/agent/mcp.json` 的 `mcpServers[slug]`。索引内联 `config.mcp` 会被拒绝，避免索引与包文件形成两个真相源。
 
 ```json
 {
@@ -494,8 +496,8 @@ bun scripts/quality/run-vitest.mjs --run apps/desktop/src/main/abilities/open-ma
 
 ## 内置来源配置
 
-内置 GitHub 来源不在代码中设置仓库地址，完全由环境变量提供：
+内置 GitHub 来源默认为 567 Agent 官方能力市场，也可由环境变量替换：
 
-- `VETTA_OPEN_MARKETPLACE_REPOSITORY`：GitHub 仓库 URL；未设置时不创建内置来源。
+- `VETTA_OPEN_MARKETPLACE_REPOSITORY`：可选的 GitHub 仓库 URL；未设置时使用 567 Agent 官方能力市场。
 - `VETTA_OPEN_MARKETPLACE_REF`：分支或 ref，默认 `main`。
 - `VETTA_OPEN_MARKETPLACE_ARCHIVE_URL`：可选归档地址；未设置时根据仓库与 ref 推导。

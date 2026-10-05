@@ -32,7 +32,7 @@
 
 ```bash
 git clone https://github.com/Chinachani/567-agent.git
-cd open-vetta
+cd 567-agent
 git checkout dev
 bun install                 # 需要 Bun 1.3+
 cd apps/desktop

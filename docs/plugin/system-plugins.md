@@ -45,10 +45,10 @@ packages/plugins/presets/
 ## 运行时语义
 
 - `source: "system"`，`listPlugins()` 运行时发现并与用户插件合并；每条含 **`rootPath`**（staging / Resources 下的插件根）。
-- **不落用户态目录**：不进 `~/.vetta/plugins`、不写 `plugins-manifest.json`；每次启动从只读 staging 重新发现。
+- **不落用户态目录**：不进 `~/.567agent/plugins`、不写 `plugins-manifest.json`；每次启动从只读 staging 重新发现。
 - **id 冲突**：系统插件优先、id 保留——用户安装同 id 被拒，已存在的同 id 用户插件被遮蔽。
 - **权限**：`plugin.json` 声明的权限**自动全量授予**，用户不可撤。
-- **停用**：默认启用，用户可在设置里关闭（偏好存 `~/.vetta/system-plugin-prefs.json`），但**不可卸载、不可改文件/权限**。
+- **停用**：默认启用，用户可在设置里关闭（偏好存 `~/.567agent/system-plugin-prefs.json`），但**不可卸载、不可改文件/权限**。
 - **更新**：版本随 App，不走用户插件的 pending/reload 更新流。
 - **硬隔离**：若声明 `contributionMode.hardIsolation`，agent 贡献仍受 mode gate（如插件工作台），与用户授权无关。
 

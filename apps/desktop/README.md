@@ -1,6 +1,6 @@
 # @567agent/desktop
 
-Electron desktop host for the Vetta runtime.
+Electron desktop host for the 567 Agent runtime.
 
 ## What It Owns
 
@@ -140,7 +140,7 @@ plugin and theme manifests, then starts the renderer, theme server, and Electron
 
 Normal development is isolated from packaged application data: it defaults to
 `VETTA_CONFIG_DIR=.vetta-dev` and stores the Chromium profile under
-`~/.vetta-dev/electron-user-data`. Packaged builds continue to use `~/.vetta`. Set
+`~/.vetta-dev/electron-user-data`. Packaged builds use `~/.567agent`. Set
 `VETTA_CONFIG_DIR` and `VETTA_DESKTOP_USER_DATA_DIR` together when a custom isolated development
 environment is required.
 
@@ -150,7 +150,7 @@ Two scripts make the common pair explicit:
 
 ```bash
 bun run dev:isolated   # ~/.vetta-dev (same as `bun dev`)
-bun run dev:home       # ~/.vetta
+bun run dev:home       # ~/.vetta (legacy data root)
 ```
 
 Saved credentials are shared too: `safeStorage` derives its master key from the Electron app name, so
@@ -158,10 +158,11 @@ that name is fixed by `src/shared/app-identity.ts` and must stay equal to the na
 packaged `package.json` by `scripts/prepare-pack.js`. Changing it strands every credential already
 encrypted under the old name.
 
-`bun run dev:home` shares `~/.vetta` with packaged builds; do not run both at the same time, since
-the single-instance lock keys on the Chromium profile and will not stop the second process. The
-project-level `<cwd>/.vetta` directory is intentionally fixed and does not follow `VETTA_CONFIG_DIR`
-(see `packages/coding-agent/src/config.ts`).
+`bun run dev:home` explicitly selects the legacy `~/.vetta` data root; packaged builds use
+`~/.567agent`. To run development against the packaged app's data, set `VETTA_CONFIG_DIR=.567agent`.
+Do not run two processes against the same config directory at once: they share the Chromium profile
+and single-instance lock. The project-level `<cwd>/.vetta` directory remains a compatibility path and
+does not follow `VETTA_CONFIG_DIR` (see `packages/coding-agent/src/config.ts`).
 
 Set `VETTA_CONFIG_DIR` on the command line, not in `.env.development`: the dev launcher is plain
 Node and never reads `.env` files, so a value placed there would only reach the vite-inlined main

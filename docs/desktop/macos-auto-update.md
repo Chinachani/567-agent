@@ -215,7 +215,7 @@ scripts/release-mac.sh local --version 0.5.63
 
 两个细节决定这个通道能不能测差分：
 
-- **产物累积不清空**。`~/.vetta/local-updates` 只覆盖 `latest-mac.yml`，旧版本的 zip 与 blockmap 全部保留——差分要读旧版 blockmap（见 5.4）。
+- **产物累积不清空**。`~/.567agent/local-updates` 只覆盖 `latest-mac.yml`，旧版本的 zip 与 blockmap 全部保留——差分要读旧版 blockmap（见 5.4）。
 - **分发服务必须支持 Range**。`scripts/serve-local-updates.mjs` 自己实现了 206；不要随手换成 `python3 -m http.server`，它会无视 Range 头返回 200 全量，差分要么退化要么失败，测出来的结论是假的。
 
 想临时压缩签名耗时，可以再叠 `VETTA_SKIP_VENDOR=1`——更新链路不依赖内置 node/python，而它们解压后是几千个待签名的 Mach-O。

@@ -38,7 +38,7 @@
 - `useSidebarModel`、`usePageHeaderModel`、`useWindowControlsModel` 已作为 SDK facade hook 暴露，真实实现由 desktop 通过 `ThemeHostProvider` 注入。
 - Root global overlays 已开始按 connected container / props-driven view 拆分，审批、登录、文件预览、流转、更新提示等浮层已接入 view override 和 surface slot。
 - 主题模块已支持声明自有页面，desktop 通过固定 `/theme/$themeId/$pageId` 路由承载，并支持 `content` / `main` / `app` 三档受控覆盖范围。
-- 主题自有数据存储：SDK 提供 `useThemeStorage` / `useThemeStorageValue`，desktop host 落盘到 `~/.vetta/desktop-app/themes/<themeId>/data.json`。
+- 主题自有数据存储：SDK 提供 `useThemeStorage` / `useThemeStorageValue`，desktop host 落盘到 `~/.567agent/desktop-app/themes/<themeId>/data.json`。
 - 主题 usage host：`useThemeUsageStats` 暴露 app-monitor 聚合；`ThemeModule.runtime` 可挂载无 UI 同步逻辑。xianxia 用多指标 score 映射境界，写入 theme storage key `cultivation`（与设置页 fanren 成就阶梯无关）。
 
 当前仍未实现：

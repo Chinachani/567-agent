@@ -51,7 +51,7 @@ actual fun rememberMigrationBackupFileActions(
         MigrationBackupFileActions(
             save = { bytes ->
                 pendingBytes = bytes
-                saveLauncher.launch("567-agent-chat-history.vetta-backup")
+                saveLauncher.launch("567-agent-chat-history.567agent-backup")
             },
             open = { openLauncher.launch(arrayOf("*/*")) },
         )
