@@ -2,7 +2,7 @@
 	"name": "@567agent/desktop",
 	"desktopName": "567-Agent",
 	"desktopAppId": "com.api567.agent",
-	"version": "1.2.3",
+	"version": "1.2.4",
 	"description": "567 Agent - 深度绑定 567 API 的全能 AI 编码与桌面智能助手",
 	"author": "567wiki <907746241@qq.com>",
 	"license": "Apache-2.0",
