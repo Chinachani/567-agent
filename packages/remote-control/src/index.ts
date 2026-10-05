@@ -25,7 +25,7 @@ export type {
 	RemoteTransport,
 	RemoteTransportHandlers,
 } from "./types.js";
-export { NOOP_REMOTE_LOGGER, REMOTE_PROTOCOL_VERSION } from "./types.js";
+export { NOOP_REMOTE_LOGGER, REMOTE_PROTOCOL_VERSION, REMOTE_REQUEST_METHODS } from "./types.js";
 export type { RemoteWebSocket, RemoteWebSocketFactory } from "./websocket-transport.js";
 export {
 	BOOTSTRAP_PROTOCOL_PREFIX,

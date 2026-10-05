@@ -52,6 +52,16 @@
 		"questionPending": "A question needs your confirmation. Click to view.",
 		"sessionFallback": "New Session"
 	},
+	"remoteDesktopCapture": {
+		"title": "Share Desktop Screen",
+		"message": "The mobile app is requesting to view this computer's screen.",
+		"detail": "This approval applies to one sharing session. After you choose a source, the paired phone can view and control it live. Avoid sharing windows with sensitive information.",
+		"allowOnce": "Choose a Screen",
+		"cancel": "Cancel",
+		"chooseTitle": "Choose a Sharing Source",
+		"chooseMessage": "Select the screen or window to share with the paired phone.",
+		"noSources": "The system did not provide a shareable screen or window. Check desktop screen-recording permissions and try again."
+	},
 	"pluginPackage": {
 		"confirmTitle": "Install 567 Agent Plugin",
 		"confirmMessage": "Install and enable {{name}} {{version}}?",

@@ -30,6 +30,7 @@ data class ChatSession(
     val origin: ConversationOrigin = ConversationOrigin.Cloud,
     val remoteDeviceId: String? = null,
     val remoteSessionId: String? = null,
+    val titleManuallyEdited: Boolean = false,
 )
 
 data class MessageImage(
@@ -92,3 +93,5 @@ data class PendingQuestion(
 )
 
 expect fun nowEpochMs(): Long
+
+expect fun formatLocalMessageTime(epochMs: Long): String

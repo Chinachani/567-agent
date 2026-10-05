@@ -71,8 +71,7 @@ export function useBatchProjectDialogModel({
 	useEffect(() => {
 		if (!open || !config) return;
 		const allModelKeys = flattenModelKeys(config, remoteProviders as ModelsConfigData["providers"]);
-		const currentSelected = localStorage.getItem("vetta-selected-model") ?? undefined;
-		const fallback = project?.modelKey ?? currentSelected ?? config.defaultModel;
+		const fallback = project?.modelKey ?? config.defaultModel;
 		setData((current) => {
 			if (current.modelKey && allModelKeys.includes(current.modelKey)) return current;
 			if (fallback && allModelKeys.includes(fallback)) return { ...current, modelKey: fallback };

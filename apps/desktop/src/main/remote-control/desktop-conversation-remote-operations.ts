@@ -27,7 +27,17 @@ interface ManagedSession {
 
 export interface DesktopConversationRemoteOperationsOptions {
 	readonly cwd: string;
+	readonly readDefaultModelKey?: () => Promise<string | undefined>;
 	readonly turnTimeoutMs?: number | null;
+}
+
+class DesktopRemoteOperationError extends Error {
+	constructor(
+		readonly code: "SESSION_NOT_OPEN" | "MODEL_UNAVAILABLE",
+		message: string,
+	) {
+		super(message);
+	}
 }
 
 /**
@@ -45,7 +55,19 @@ export class DesktopConversationRemoteOperations implements DesktopRemoteOperati
 			DesktopConversationService,
 			"createSession" | "listSessions" | "openSession" | "runTurn"
 		> &
-			Partial<Pick<DesktopConversationService, "subscribe">>,
+			Partial<
+				Pick<
+					DesktopConversationService,
+					| "subscribe"
+					| "readRemoteModelCatalog"
+					| "readRemoteSessionHistory"
+					| "selectRemoteSessionModel"
+					| "replaceRemoteLastUserTurn"
+					| "deleteRemoteSession"
+					| "generateRemotePromptSuggestions"
+					| "generateRemoteSessionTitle"
+				>
+			>,
 		private readonly options: DesktopConversationRemoteOperationsOptions,
 	) {
 		this.turnTimeoutMs = options.turnTimeoutMs ?? null;
@@ -55,13 +77,33 @@ export class DesktopConversationRemoteOperations implements DesktopRemoteOperati
 		const sessions = await this.conversations.listSessions(this.options.cwd);
 		return sessions.map((session) => ({
 			id: session.id,
-			title: session.firstMessage,
+			title: session.name?.trim() || session.firstMessage,
 			updatedAtEpochMs: session.modifiedAt,
 		}));
 	}
 
+	async deleteSession(sessionId: string): Promise<void> {
+		if (!this.conversations.deleteRemoteSession) {
+			throw new Error("Desktop session deletion is unavailable");
+		}
+		if (this.activeTurns.has(sessionId)) {
+			throw new Error("Stop the active response before deleting this session.");
+		}
+		await this.conversations.deleteRemoteSession(sessionId, this.options.cwd);
+		this.sessions.delete(sessionId);
+	}
+
 	async createSession(): Promise<{ sessionId: string }> {
+		const defaultModelKey = await this.options.readDefaultModelKey?.();
 		const session = await this.conversations.createSession({ cwd: this.options.cwd }, "conversation", "interactive");
+		// SessionConfig does not accept modelKey. Select after runtime initialization so
+		// custom-provider defaults are applied before the session is exposed to the phone.
+		if (defaultModelKey) {
+			if (!this.conversations.selectRemoteSessionModel) {
+				throw new DesktopRemoteOperationError("MODEL_UNAVAILABLE", "Desktop model selection is unavailable");
+			}
+			await this.conversations.selectRemoteSessionModel(session.sessionId, defaultModelKey);
+		}
 		this.sessions.set(session.sessionId, { session });
 		return { sessionId: session.sessionId };
 	}
@@ -77,12 +119,73 @@ export class DesktopConversationRemoteOperations implements DesktopRemoteOperati
 		return { sessionId: session.sessionId };
 	}
 
-	async *prompt(sessionId: string, text: string): AsyncIterable<DesktopRemotePromptEvent> {
+	async readHistory(sessionId: string, offset: number, limit: number) {
+		if (!this.conversations.readRemoteSessionHistory) {
+			throw new DesktopRemoteOperationError("SESSION_NOT_OPEN", "Desktop session history is unavailable");
+		}
+		await this.openSession(sessionId);
+		const session = this.sessions.get(sessionId)?.session;
+		if (!session) throw new DesktopRemoteOperationError("SESSION_NOT_OPEN", "Desktop session is no longer open");
+		return this.conversations.readRemoteSessionHistory(session.sessionId, offset, limit);
+	}
+
+	readModels(sessionId: string): unknown {
+		if (!this.sessions.has(sessionId)) {
+			throw new DesktopRemoteOperationError(
+				"SESSION_NOT_OPEN",
+				"Desktop session must be opened before reading its models",
+			);
+		}
+		if (!this.conversations.readRemoteModelCatalog) {
+			throw new DesktopRemoteOperationError("MODEL_UNAVAILABLE", "Desktop model selection is unavailable");
+		}
+		return this.conversations.readRemoteModelCatalog(sessionId);
+	}
+
+	async selectModel(sessionId: string, modelKey: string): Promise<void> {
+		if (!this.sessions.has(sessionId)) {
+			throw new DesktopRemoteOperationError(
+				"SESSION_NOT_OPEN",
+				"Desktop session must be opened before selecting a model",
+			);
+		}
+		if (!this.conversations.selectRemoteSessionModel) {
+			throw new DesktopRemoteOperationError("MODEL_UNAVAILABLE", "Desktop model selection is unavailable");
+		}
+		await this.conversations.selectRemoteSessionModel(sessionId, modelKey);
+	}
+
+	async readSuggestions(sessionId: string): Promise<readonly string[]> {
+		if (!this.sessions.has(sessionId)) {
+			throw new DesktopRemoteOperationError(
+				"SESSION_NOT_OPEN",
+				"Desktop session must be opened before reading suggestions",
+			);
+		}
+		return (await this.conversations.generateRemotePromptSuggestions?.(sessionId)) ?? [];
+	}
+
+	async *prompt(
+		sessionId: string,
+		text: string,
+		retryPreviousTurn = false,
+		retryTargetMessageId?: string,
+	): AsyncIterable<DesktopRemotePromptEvent> {
 		const managed = this.sessions.get(sessionId);
 		if (!managed) throw new Error("Desktop session must be opened before prompting");
 		if (this.activeTurns.has(sessionId)) throw new Error("Desktop session is already processing a turn");
 		const controller = new AbortController();
 		this.activeTurns.set(sessionId, controller);
+		try {
+			if (retryPreviousTurn) {
+				if (!this.conversations.replaceRemoteLastUserTurn) throw new Error("Remote retry is unavailable");
+				if (retryTargetMessageId === undefined) throw new Error("Retry target is required");
+				await this.conversations.replaceRemoteLastUserTurn(sessionId, retryTargetMessageId);
+			}
+		} catch (error) {
+			this.activeTurns.delete(sessionId);
+			throw error;
+		}
 		const queue = new AsyncPromptQueue();
 		let observedTextDelta = false;
 		let observedText = "";
@@ -118,7 +221,8 @@ export class DesktopConversationRemoteOperations implements DesktopRemoteOperati
 				timeoutMs: this.turnTimeoutMs,
 				signal: controller.signal,
 			})
-			.then((result) => {
+			.then(async (result) => {
+				await this.conversations.generateRemoteSessionTitle?.(managed.session, text, result.assistantText);
 				if ((!hasRuntimeEvents || !observedTextDelta) && result.assistantText) {
 					queue.push({ type: "delta", text: result.assistantText });
 				}
@@ -347,11 +451,37 @@ function questionPayload(request: CodingAgentQuestionFunctionRequest): Record<st
 function preview(value: unknown): string {
 	let text: string;
 	try {
-		text = typeof value === "string" ? value : JSON.stringify(value);
+		if (typeof value === "string") {
+			try {
+				text = JSON.stringify(redactSensitive(JSON.parse(value)));
+			} catch {
+				text = value;
+			}
+		} else {
+			text = JSON.stringify(redactSensitive(value)) ?? String(value);
+		}
 	} catch {
 		text = String(value);
 	}
+	text = text
+		.replace(/\b(Bearer\s+)[A-Za-z0-9._~+/-]+=*/gi, "$1[redacted]")
+		.replace(
+			/\b(api[_-]?key|access[_-]?token|refresh[_-]?token|password|client[_-]?secret)\s*[:=]\s*["']?[^\s,"'}]+/gi,
+			"$1=[redacted]",
+		);
 	return text.length > 1_200 ? `${text.slice(0, 1_200)}…` : text;
+}
+
+function redactSensitive(value: unknown): unknown {
+	if (Array.isArray(value)) return value.map(redactSensitive);
+	if (!value || typeof value !== "object") return value;
+	return Object.fromEntries(
+		Object.entries(value).map(([key, item]) =>
+			/(?:api[_-]?key|access[_-]?token|refresh[_-]?token|authorization|password|secret|cookie)/i.test(key)
+				? [key, "[redacted]"]
+				: [key, redactSensitive(item)],
+		),
+	);
 }
 
 function formatMemory(bytes: number): string {

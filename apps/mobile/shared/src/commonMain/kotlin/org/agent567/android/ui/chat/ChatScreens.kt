@@ -7,6 +7,7 @@ import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
 
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.filled.ArrowDropDown
 import androidx.compose.material.icons.filled.AutoAwesome
@@ -17,6 +18,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -129,6 +131,7 @@ import org.agent567.android.domain.session.MessageStatus
 import org.agent567.android.domain.chat.prepareRetryTurn
 import org.agent567.android.domain.session.PendingQuestion
 import org.agent567.android.domain.session.ToolTrace
+import org.agent567.android.domain.session.formatLocalMessageTime
 import org.agent567.android.ui.components.EmptyState
 import org.agent567.android.ui.components.ListRow
 import org.agent567.android.ui.components.VettaErrorBanner
@@ -178,6 +181,10 @@ fun ChatScreen(
     pendingImages: List<MessageImage>,
     isStreaming: Boolean,
     streamingStatus: String? = null,
+    inputPredictions: List<String> = emptyList(),
+    inputPredictionLoading: Boolean = false,
+    onSelectInputPrediction: (String) -> Unit = {},
+    desktopHistoryLoading: Boolean = false,
     models: List<LlmModel>,
     selectedModel: LlmModel?,
     modelPickerOpen: Boolean,
@@ -388,6 +395,44 @@ fun ChatScreen(
                         )
                     }
                 }
+                if (draft.isBlank() && (inputPredictions.isNotEmpty() || inputPredictionLoading)) {
+                    Row(
+                        modifier = Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()).padding(horizontal = 12.dp, vertical = 4.dp),
+                        horizontalArrangement = Arrangement.spacedBy(8.dp),
+                    ) {
+                        if (inputPredictionLoading) {
+                            Surface(
+                                shape = RoundedCornerShape(50),
+                                color = Color.Transparent,
+                                border = BorderStroke(1.dp, MaterialTheme.vettaExtra.border),
+                            ) {
+                                Text(
+                                    Str.inputPredictionLoading,
+                                    modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp),
+                                    style = MaterialTheme.typography.labelSmall,
+                                    color = MaterialTheme.vettaExtra.secondaryText,
+                                    maxLines = 1,
+                                )
+                            }
+                        }
+                        inputPredictions.forEach { suggestion ->
+                            Surface(
+                                onClick = { onSelectInputPrediction(suggestion) },
+                                shape = RoundedCornerShape(50),
+                                color = Color.Transparent,
+                                border = BorderStroke(1.dp, MaterialTheme.vettaExtra.border),
+                            ) {
+                                Text(
+                                    suggestion,
+                                    modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp),
+                                    style = MaterialTheme.typography.labelSmall,
+                                    maxLines = 1,
+                                    overflow = TextOverflow.Ellipsis,
+                                )
+                            }
+                        }
+                    }
+                }
                 if (surface == ChatSurface.Cloud) {
                     Row(
                         modifier = Modifier
@@ -464,6 +509,33 @@ fun ChatScreen(
                             }
                         }
                     }
+                } else {
+                    Row(
+                        modifier = Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 4.dp),
+                    ) {
+                        Surface(
+                            onClick = onOpenModelPicker,
+                            shape = RoundedCornerShape(12.dp),
+                            color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f),
+                            modifier = Modifier.fillMaxWidth(),
+                        ) {
+                            Row(
+                                verticalAlignment = Alignment.CenterVertically,
+                                modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp),
+                            ) {
+                                Icon(Icons.Default.AutoAwesome, contentDescription = null, modifier = Modifier.size(14.dp))
+                                Spacer(Modifier.width(6.dp))
+                                Text(
+                                    "电脑模型 · ${selectedModel?.name ?: "加载中"}",
+                                    style = MaterialTheme.typography.labelSmall.copy(fontWeight = FontWeight.Medium),
+                                    maxLines = 1,
+                                    overflow = TextOverflow.Ellipsis,
+                                    modifier = Modifier.weight(1f),
+                                )
+                                Icon(Icons.Default.ArrowDropDown, contentDescription = null, modifier = Modifier.size(16.dp))
+                            }
+                        }
+                    }
                 }
                 InputDock(
                     value = draft,
@@ -488,10 +560,16 @@ fun ChatScreen(
                     verticalArrangement = Arrangement.Center,
                     horizontalAlignment = Alignment.CenterHorizontally,
                 ) {
-                    EmptyState(
-                        title = if (surface == ChatSurface.Cloud) Str.useCloudAi else Str.pairDesktop,
-                        subtitle = Str.noSessionsHint,
-                    )
+                    if (desktopHistoryLoading) {
+                        CircularProgressIndicator()
+                        Spacer(Modifier.height(12.dp))
+                        Text(Str.loadingDesktopHistory, color = MaterialTheme.vettaExtra.secondaryText)
+                    } else {
+                        EmptyState(
+                            title = if (surface == ChatSurface.Cloud) Str.useCloudAi else Str.pairDesktop,
+                            subtitle = Str.noSessionsHint,
+                        )
+                    }
                 }
             } else {
                 LazyColumn(
@@ -500,6 +578,15 @@ fun ChatScreen(
                     contentPadding = PaddingValues(horizontal = 14.dp, vertical = 12.dp),
                     verticalArrangement = Arrangement.spacedBy(10.dp),
                 ) {
+                    if (desktopHistoryLoading) {
+                        item {
+                            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.Center) {
+                                CircularProgressIndicator(modifier = Modifier.size(18.dp))
+                                Spacer(Modifier.width(8.dp))
+                                Text(Str.loadingDesktopHistory, color = MaterialTheme.vettaExtra.secondaryText)
+                            }
+                        }
+                    }
                     items(messages, key = { it.id }) { msg ->
                         MessageBubble(
                             message = msg,
@@ -801,7 +888,7 @@ fun ChatScreen(
                     verticalAlignment = Alignment.CenterVertically,
                 ) {
                     Text(
-                        "${activeGroup ?: "当前分组"} · 模型列表",
+                        if (surface == ChatSurface.Desktop) "电脑当前会话 · 模型列表" else "${activeGroup ?: "当前分组"} · 模型列表",
                         style = MaterialTheme.typography.titleMedium,
                     )
                     IconButton(onClick = onRefreshCatalog) {
@@ -1103,6 +1190,10 @@ private fun MessageBubble(
                     Spacer(Modifier.height(6.dp))
                 }
             }
+            if (!isUser && message.toolEvents.isNotEmpty()) {
+                ToolTraceGroup(message.toolEvents)
+                Spacer(Modifier.height(6.dp))
+            }
             SelectionContainer {
                 Surface(
                     shape =
@@ -1195,6 +1286,13 @@ private fun MessageBubble(
                 }
             }
 
+            Text(
+                text = formatLocalMessageTime(message.createdAtEpochMs),
+                style = MaterialTheme.typography.labelSmall,
+                color = MaterialTheme.vettaExtra.secondaryText,
+                modifier = Modifier.padding(top = 3.dp, start = 4.dp, end = 4.dp),
+            )
+
             if (message.content.isNotBlank() && message.status != MessageStatus.Streaming) {
                 val clipboard = androidx.compose.ui.platform.LocalClipboardManager.current
                 var copied by remember { mutableStateOf(false) }
@@ -1216,13 +1314,6 @@ private fun MessageBubble(
                             modifier = Modifier.size(13.dp),
                             tint = MaterialTheme.vettaExtra.secondaryText,
                         )
-                    }
-                }
-            }
-            if (message.toolEvents.isNotEmpty()) {
-                Column(Modifier.padding(top = 6.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                    message.toolEvents.forEach { tool ->
-                        ToolTraceRow(tool)
                     }
                 }
             }
@@ -1255,6 +1346,63 @@ private fun MessageBubble(
                     Icon(Icons.Default.Refresh, contentDescription = null, modifier = Modifier.size(14.dp))
                     Spacer(Modifier.width(4.dp))
                     Text(Str.retry)
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun ToolTraceGroup(tools: List<ToolTrace>) {
+    var expanded by remember(tools.firstOrNull()?.toolCallId) { mutableStateOf(false) }
+    val activeCount = tools.count { it.phase !in setOf("completed", "error", "failed", "cancelled") }
+    Surface(
+        shape = RoundedCornerShape(14.dp),
+        color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.55f),
+        modifier = Modifier.fillMaxWidth().animateContentSize(),
+    ) {
+        Column {
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .clickable { expanded = !expanded }
+                    .padding(horizontal = 12.dp, vertical = 10.dp),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+            ) {
+                Icon(
+                    Icons.Default.Build,
+                    contentDescription = null,
+                    modifier = Modifier.size(18.dp),
+                    tint = if (activeCount > 0) MaterialTheme.colorScheme.primary else MaterialTheme.vettaExtra.secondaryText,
+                )
+                Text(
+                    Str.toolActivity,
+                    style = MaterialTheme.typography.labelLarge.copy(fontWeight = FontWeight.SemiBold),
+                    modifier = Modifier.weight(1f),
+                )
+                Text(
+                    if (activeCount > 0) Str.toolActivityActive else Str.toolActivityComplete,
+                    style = MaterialTheme.typography.labelSmall,
+                    color = if (activeCount > 0) MaterialTheme.colorScheme.primary else MaterialTheme.vettaExtra.secondaryText,
+                )
+                Text(
+                    tools.size.toString(),
+                    style = MaterialTheme.typography.labelSmall,
+                    color = MaterialTheme.vettaExtra.secondaryText,
+                )
+                Icon(
+                    if (expanded) Icons.Default.ExpandLess else Icons.Default.ExpandMore,
+                    contentDescription = if (expanded) Str.hideToolDetails else Str.showToolDetails,
+                    tint = MaterialTheme.vettaExtra.secondaryText,
+                )
+            }
+            if (expanded) {
+                Column(
+                    modifier = Modifier.padding(start = 8.dp, end = 8.dp, bottom = 8.dp),
+                    verticalArrangement = Arrangement.spacedBy(4.dp),
+                ) {
+                    tools.forEach { tool -> ToolTraceRow(tool) }
                 }
             }
         }
@@ -1517,13 +1665,14 @@ private fun toolPhaseLabel(phase: String): String =
     }
 
 private fun streamingStatusLabel(status: String?): String =
-    when (status) {
-        "thinking" -> Str.thinking
-        "reconnecting" -> Str.reconnecting
-        "retrying" -> Str.retrying
-        "compacting" -> Str.compacting
-        "preparing" -> Str.preparing
-        "background" -> Str.backgroundWork
+    when {
+        status?.startsWith("tool:") == true -> "正在处理：${status.removePrefix("tool:").take(48)}"
+        status == "thinking" -> Str.thinking
+        status == "reconnecting" -> Str.reconnecting
+        status == "retrying" -> Str.retrying
+        status == "compacting" -> Str.compacting
+        status == "preparing" -> Str.preparing
+        status == "background" -> Str.backgroundWork
         else -> Str.streaming
     }
 

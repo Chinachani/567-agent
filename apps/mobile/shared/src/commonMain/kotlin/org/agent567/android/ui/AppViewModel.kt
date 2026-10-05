@@ -5,10 +5,14 @@ import org.agent567.android.AppVersion
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.CoroutineStart
+import kotlinx.coroutines.Deferred
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
+import kotlinx.coroutines.async
 import kotlinx.coroutines.cancelAndJoin
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.currentCoroutineContext
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
@@ -22,6 +26,7 @@ import org.agent567.android.app.AppContainer
 import org.agent567.android.app.ThemeMode
 import org.agent567.android.data.session.SessionMigrationBackup
 import org.agent567.android.core.model.ChatRole
+import org.agent567.android.core.model.ChatMessage
 import org.agent567.android.core.model.ChatStreamEvent
 import org.agent567.android.core.model.LlmModel
 import org.agent567.android.core.model.SubscriptionStatus
@@ -30,6 +35,9 @@ import org.agent567.android.core.model.User
 import org.agent567.android.core.net.RefreshOutcome
 import org.agent567.android.domain.chat.prepareRetryTurn
 import org.agent567.android.domain.chat.shouldClearPendingImagesOnSessionChange
+import org.agent567.android.domain.conversation.RemoteSessionModelCatalog
+import org.agent567.android.domain.conversation.RemoteDesktopSessionSummary
+import org.agent567.android.domain.conversation.RemoteConversationException
 import org.agent567.android.domain.error.ErrorMapper
 import org.agent567.android.domain.error.UiError
 import org.agent567.android.domain.error.UiErrorAction
@@ -59,6 +67,7 @@ data class AppUiState(
     val themeMode: ThemeMode = ThemeMode.System,
     val autoResumeLastSession: Boolean = true,
     val motionEnabled: Boolean = true,
+    val inputPredictionEnabled: Boolean = true,
     val confirmBeforeDelete: Boolean = true,
     val migrationBackupLimitMb: Int = 50,
     val serverUrl: String = "",
@@ -67,6 +76,8 @@ data class AppUiState(
     val subscriptionLoadFailed: Boolean = false,
     val models: List<LlmModel> = emptyList(),
     val selectedModelId: String? = null,
+    val desktopModels: List<LlmModel> = emptyList(),
+    val desktopSelectedModelId: String? = null,
     val currentSessionId: String? = null,
     val messages: List<LocalMessage> = emptyList(),
     val draft: String = "",
@@ -74,6 +85,8 @@ data class AppUiState(
     val isStreaming: Boolean = false,
     /** 面向用户的短状态，不透传 Desktop 内部思考文本或异常原文。 */
     val streamingStatus: String? = null,
+    val inputPredictions: List<String> = emptyList(),
+    val inputPredictionLoading: Boolean = false,
     val modelPickerOpen: Boolean = false,
     val available567Groups: Map<String, org.agent567.android.core.api.ApiGroupInfoDto> = emptyMap(),
     val active567Group: String? = null,
@@ -86,6 +99,8 @@ data class AppUiState(
     val imageModelsLoading: Boolean = false,
     val imageGroupExpanded: Boolean = false,
     val remoteConnecting: Boolean = false,
+    val desktopSessionsLoading: Boolean = false,
+    val desktopSessionsError: String? = null,
     val globalError: UiError? = null,
     val authError: UiError? = null,
     val authLoading: Boolean = false,
@@ -100,6 +115,8 @@ data class AppUiState(
     val discoverChannelIndex: Int = 0,
     val newConversationChannelIndex: Int = 0,
     val devices: List<DesktopDevice> = emptyList(),
+    val remoteDesktopSessions: List<RemoteDesktopSessionSummary> = emptyList(),
+    val desktopHistoryLoading: Boolean = false,
     val pendingQuestion: PendingQuestion? = null,
     val isQuestionSubmitting: Boolean = false,
 )
@@ -127,14 +144,22 @@ class AppViewModel(
                 serverUrl = container.preferences.serverUrl.value,
                 autoResumeLastSession = container.preferences.autoResumeLastSession.value,
                 motionEnabled = container.preferences.motionEnabled.value,
+                inputPredictionEnabled = container.preferences.inputPredictionEnabled.value,
                 confirmBeforeDelete = container.preferences.confirmBeforeDelete.value,
                 migrationBackupLimitMb = container.preferences.migrationBackupLimitMb.value,
             ),
         )
     val state: StateFlow<AppUiState> = _state.asStateFlow()
 
-    private var streamJob: Job? = null
+    private val streamJobs = mutableMapOf<String, Job>()
+    private val streamStatuses = mutableMapOf<String, String>()
     private var messagesCollectJob: Job? = null
+    private var desktopSessionsJob: Job? = null
+    private var desktopHistoryJob: Job? = null
+    private val inputPredictionJobs = mutableMapOf<String, Job>()
+    private val inputPredictionsBySession = mutableMapOf<String, List<String>>()
+    private val inputPredictionLoadingSessions = mutableSetOf<String>()
+    private val desktopSessionModelJobs = mutableMapOf<String, Deferred<Pair<String, RemoteSessionModelCatalog>?>>()
     private val drafts = mutableMapOf<String, String>()
     private var pendingLoginAction: PendingLoginAction? = null
 
@@ -167,6 +192,11 @@ class AppViewModel(
             }
         }
         viewModelScope.launch {
+            container.preferences.inputPredictionEnabled.collect { enabled ->
+                _state.update { it.copy(inputPredictionEnabled = enabled) }
+            }
+        }
+        viewModelScope.launch {
             container.unauthorizedEpoch.collect { epoch ->
                 if (epoch > 0) {
                     forceLogout(keepLocalSessions = true, message = "登录已失效，请重新登录")
@@ -174,8 +204,19 @@ class AppViewModel(
             }
         }
         viewModelScope.launch {
+            var hadOnlineDevice = container.remoteConversationGateway.devices.value.any {
+                it.status == org.agent567.android.domain.device.DeviceStatus.Online
+            }
             container.remoteConversationGateway.devices.collect { devices ->
                 _state.update { it.copy(devices = devices) }
+                val hasOnlineDevice = devices.any { it.status == org.agent567.android.domain.device.DeviceStatus.Online }
+                if (hasOnlineDevice) {
+                    _state.update { it.copy(desktopSessionsError = null) }
+                }
+                if (!hadOnlineDevice && hasOnlineDevice && _state.value.sessionFilterIndex == 1) {
+                    loadDesktopSessions()
+                }
+                hadOnlineDevice = hasOnlineDevice
             }
         }
         bootstrap()
@@ -247,6 +288,7 @@ class AppViewModel(
                     )
                 }
                 restorePendingQuestion()
+                restorePairedDesktopConnection()
                 return@launch
             }
             if (container.tokenStore.accessToken.isNullOrBlank() || container.tokenStore.refreshToken.isNullOrBlank()) {
@@ -261,6 +303,7 @@ class AppViewModel(
             // Reuse the persisted session. Authenticated API calls refresh tokens through
             // TokenRefresher, which only falls back to account login after refresh rejection.
             loadWorkspace(openLastSession = container.preferences.autoResumeLastSession.value)
+            restorePairedDesktopConnection()
         }
     }
 
@@ -381,6 +424,7 @@ class AppViewModel(
             )
         }
         restorePendingQuestion()
+        restorePairedDesktopConnection()
     }
 
     /** 从本地消息恢复尚未回答的问题，让重启后仍能从主壳进入正确会话。 */
@@ -522,6 +566,9 @@ class AppViewModel(
                     if (invite != null && resume != null) {
                         container.preferences.remotePairingId = invite.pairingId
                         container.preferences.remoteResumeSecret = resume
+                        container.preferences.remoteRelayBaseUrl = invite.relayBaseUrl
+                        container.preferences.remoteLanBaseUrl = invite.lanBaseUrl
+                        container.preferences.remoteLanCertificateFingerprint = invite.lanCertificateFingerprint
                     }
                     val device = container.remoteConversationGateway.devices.value.firstOrNull()
                     if (device != null) openDeviceDetail(device.id)
@@ -548,7 +595,79 @@ class AppViewModel(
     fun disconnectDesktop(deviceId: String) {
         viewModelScope.launch {
             runCatching { container.remoteConversationGateway.disconnect(deviceId) }
+            container.preferences.remotePairingId = null
+            container.preferences.remoteResumeSecret = null
+            container.preferences.remoteRelayBaseUrl = null
+            container.preferences.remoteLanBaseUrl = null
+            container.preferences.remoteLanCertificateFingerprint = null
             navigateBackFromSecondary()
+        }
+    }
+
+    private fun restorePairedDesktopConnection() {
+        if (_state.value.remoteConnecting || container.remoteConversationGateway.devices.value.any {
+                it.status == org.agent567.android.domain.device.DeviceStatus.Online
+            }
+        ) return
+        val pairingId = container.preferences.remotePairingId ?: return
+        val resumeSecret = container.preferences.remoteResumeSecret ?: return
+        val relayUrl = container.preferences.remoteRelayBaseUrl ?: return
+        val lanUrl = container.preferences.remoteLanBaseUrl
+        val fingerprint = container.preferences.remoteLanCertificateFingerprint
+        val invite = org.agent567.android.domain.remote.PairingInvite(
+            relayBaseUrl = relayUrl,
+            pairingId = pairingId,
+            bootstrapSecret = "",
+            lanBaseUrl = lanUrl,
+            lanCertificateFingerprint = fingerprint,
+        )
+        val targets = buildList {
+            if (!lanUrl.isNullOrBlank() && !fingerprint.isNullOrBlank()) {
+                add(
+                    org.agent567.android.domain.remote.buildMobileResumeTarget(
+                        invite.copy(relayBaseUrl = lanUrl),
+                        resumeSecret,
+                    ),
+                )
+            }
+            add(
+                org.agent567.android.domain.remote.buildMobileResumeTarget(
+                    invite.copy(lanBaseUrl = null, lanCertificateFingerprint = null),
+                    resumeSecret,
+                ),
+            )
+        }
+        _state.update { it.copy(remoteConnecting = true) }
+        viewModelScope.launch {
+            try {
+                var connected = false
+                for (attempt in 0..2) {
+                    if (attempt > 0) delay(attempt * 2_000L)
+                    connected = try {
+                        container.remoteConversationGateway.connect(targets)
+                    } catch (cancelled: CancellationException) {
+                        throw cancelled
+                    } catch (_: Throwable) {
+                        false
+                    }
+                    if (connected) break
+                }
+                if (connected) {
+                    _state.update { state ->
+                        val route = when (state.route) {
+                            AppRoute.Boot, AppRoute.Welcome -> AppRoute.Main(MainTab.Home)
+                            else -> state.route
+                        }
+                        state.copy(
+                            mainAccessGranted = true,
+                            route = route,
+                            mainTab = (route as? AppRoute.Main)?.tab ?: state.mainTab,
+                        )
+                    }
+                }
+            } finally {
+                _state.update { it.copy(remoteConnecting = false) }
+            }
         }
     }
 
@@ -558,6 +677,115 @@ class AppViewModel(
 
     fun setSessionFilter(index: Int) {
         _state.update { it.copy(sessionFilterIndex = index) }
+        if (index == 1) loadDesktopSessions()
+    }
+
+    fun openDesktopSessions() {
+        _state.update { it.copy(mainTab = MainTab.Sessions, sessionFilterIndex = 1) }
+        navigate(AppRoute.Main(MainTab.Sessions))
+        loadDesktopSessions()
+    }
+
+    fun refreshDesktopSessions() {
+        loadDesktopSessions()
+    }
+
+    fun openPhoneSessions() {
+        _state.update { it.copy(mainTab = MainTab.Sessions, sessionFilterIndex = 2) }
+        navigate(AppRoute.Main(MainTab.Sessions))
+    }
+
+    private fun loadDesktopSessions() {
+        if (desktopSessionsJob?.isActive == true) return
+        desktopSessionsJob = viewModelScope.launch {
+            val devices = container.remoteConversationGateway.devices.value
+            val device = devices.firstOrNull {
+                it.status == org.agent567.android.domain.device.DeviceStatus.Online
+            }
+            if (device == null) {
+                _state.update {
+                    it.copy(
+                        // Pair restoration can complete after this screen first renders. Do not
+                        // report "connect first" during that window or leave a stale red error.
+                        desktopSessionsLoading = devices.any { item -> item.status == org.agent567.android.domain.device.DeviceStatus.Connecting } ||
+                            (devices.isEmpty() && container.preferences.remotePairingId != null),
+                        desktopSessionsError = if (devices.isEmpty() && container.preferences.remotePairingId == null) {
+                            Str.desktopSessionConnectFirst
+                        } else null,
+                    )
+                }
+                return@launch
+            }
+            _state.update { it.copy(desktopSessionsLoading = true, desktopSessionsError = null) }
+            try {
+                val summaries = container.remoteConversationGateway.listDesktopSessions(device.id)
+                    ?: throw RemoteConversationException("电脑暂时无法读取会话列表，请确认设备在线")
+                val currentDesktopIds = summaries.mapTo(mutableSetOf()) { it.id }
+                val staleMirrors = container.sessionStore.sessions.value.filter { session ->
+                    session.origin == ConversationOrigin.Desktop &&
+                        session.remoteDeviceId == device.id &&
+                        session.remoteSessionId != null &&
+                        session.remoteSessionId !in currentDesktopIds
+                }
+                staleMirrors.forEach { stale ->
+                    if (_state.value.currentSessionId == stale.id) {
+                        cancelStream(stale.id)
+                        navigateBackFromSecondary()
+                    }
+                    container.sessionStore.deleteSession(stale.id)
+                    drafts.remove(stale.id)
+                    if (container.preferences.lastSessionId == stale.id) {
+                        container.preferences.lastSessionId = null
+                    }
+                }
+                summaries.forEach { summary ->
+                    val mirror = container.sessionStore.sessions.value.firstOrNull {
+                        it.origin == ConversationOrigin.Desktop &&
+                            it.remoteDeviceId == device.id &&
+                            it.remoteSessionId == summary.id
+                    }
+                    if (mirror != null && !mirror.titleManuallyEdited && mirror.title != summary.title) {
+                        container.sessionStore.updateSession(mirror.copy(title = summary.title))
+                    }
+                }
+                _state.update {
+                    it.copy(remoteDesktopSessions = summaries, desktopSessionsLoading = false, desktopSessionsError = null)
+                }
+            } catch (error: Throwable) {
+                val stillOnline = container.remoteConversationGateway.devices.value.any {
+                    it.id == device.id && it.status == org.agent567.android.domain.device.DeviceStatus.Online
+                }
+                _state.update {
+                    it.copy(
+                        desktopSessionsLoading = false,
+                        desktopSessionsError = if (stillOnline) error.message ?: Str.desktopSessionLoadError else null,
+                    )
+                }
+            }
+        }
+    }
+
+    fun openDesktopSession(remoteSessionId: String, title: String) {
+        viewModelScope.launch {
+            val device = container.remoteConversationGateway.devices.value.firstOrNull {
+                it.status == org.agent567.android.domain.device.DeviceStatus.Online
+            } ?: run {
+                _state.update { it.copy(globalError = ErrorMapper.from(RemoteConversationException("请先连接电脑"))) }
+                return@launch
+            }
+            val existing = container.sessionStore.sessions.value.firstOrNull {
+                it.origin == ConversationOrigin.Desktop &&
+                    it.remoteDeviceId == device.id &&
+                    it.remoteSessionId == remoteSessionId
+            }
+            val session = existing ?: container.sessionStore.createSession(
+                title = title,
+                origin = ConversationOrigin.Desktop,
+                remoteDeviceId = device.id,
+                remoteSessionId = remoteSessionId,
+            )
+            openChat(session.id, ChatSurface.Desktop, session.title, device.id)
+        }
     }
 
     fun openChat(
@@ -567,6 +795,10 @@ class AppViewModel(
         deviceId: String? = null,
     ) {
         val previousSessionId = _state.value.currentSessionId
+        if (surface != ChatSurface.Desktop || sessionId == null) {
+            desktopHistoryJob?.cancel()
+            _state.update { it.copy(desktopHistoryLoading = false) }
+        }
         val clearPending =
             shouldClearPendingImagesOnSessionChange(previousSessionId, sessionId)
         navigate(
@@ -579,6 +811,11 @@ class AppViewModel(
         )
         if (sessionId != null) {
             attachSession(sessionId, clearPendingImages = clearPending)
+            if (surface == ChatSurface.Desktop) {
+                val session = container.sessionStore.sessions.value.firstOrNull { it.id == sessionId }
+                if (session?.remoteSessionId != null) loadDesktopSessionDetail(sessionId, session.remoteSessionId)
+                else refreshDesktopSessionModels(sessionId)
+            }
         } else {
             detachSessionMessages()
             _state.update {
@@ -586,8 +823,50 @@ class AppViewModel(
                     currentSessionId = null,
                     messages = emptyList(),
                     draft = "",
+                    isStreaming = false,
+                    streamingStatus = null,
+                    inputPredictions = emptyList(),
+                    inputPredictionLoading = false,
+                    pendingQuestion = null,
                     pendingImages = if (clearPending) emptyList() else it.pendingImages,
                 )
+            }
+        }
+    }
+
+    private fun loadDesktopSessionDetail(localSessionId: String, remoteSessionId: String) {
+        desktopHistoryJob?.cancel()
+        desktopHistoryJob = viewModelScope.launch {
+            _state.update { it.copy(desktopHistoryLoading = true) }
+            try {
+                val history = container.remoteConversationGateway.readDesktopSessionHistory(localSessionId, remoteSessionId)
+                    ?: throw RemoteConversationException("电脑暂时无法读取这段会话，请确认设备在线")
+                val cachedMessages = container.sessionStore.getMessages(localSessionId).associateBy { it.id }
+                val messages = history.map { item ->
+                    val messageId = "desktop-${remoteSessionId}-${item.id}"
+                    val cached = cachedMessages[messageId]
+                    LocalMessage(
+                        id = messageId,
+                        sessionId = localSessionId,
+                        role = item.role,
+                        content = item.text,
+                        status = item.status,
+                        createdAtEpochMs = item.timestamp,
+                        // Tool traces and usage arrive live and are cached locally; the
+                        // compact remote history endpoint only returns text and timestamps.
+                        toolEvents = cached?.toolEvents.orEmpty(),
+                        usage = cached?.usage,
+                        contextPercent = cached?.contextPercent,
+                    )
+                }
+                container.sessionStore.replaceMessages(localSessionId, messages)
+                refreshDesktopSessionModels(localSessionId)
+            } catch (error: Throwable) {
+                if (error !is CancellationException) {
+                    _state.update { it.copy(globalError = ErrorMapper.from(error)) }
+                }
+            } finally {
+                _state.update { it.copy(desktopHistoryLoading = false) }
             }
         }
     }
@@ -597,11 +876,30 @@ class AppViewModel(
     }
 
     fun navigateBackFromSecondary() {
+        deleteEmptyDraftSessionOnExit()
         // QR pairing is an independent entry path; a connected Desktop is enough to use the main shell.
         if (_state.value.mainAccessGranted || _state.value.user != null || _state.value.devices.isNotEmpty()) {
             navigate(AppRoute.Main(_state.value.mainTab))
         } else {
             navigate(AppRoute.Welcome)
+        }
+    }
+
+    private fun deleteEmptyDraftSessionOnExit() {
+        if (_state.value.route !is AppRoute.Chat) return
+        val sessionId = _state.value.currentSessionId ?: return
+        if (_state.value.isStreaming || _state.value.draft.isNotBlank() || _state.value.pendingImages.isNotEmpty()) return
+        viewModelScope.launch {
+            val session = container.sessionStore.getSession(sessionId) ?: return@launch
+            // A remote Desktop session is owned by the computer. Only remove the
+            // empty local placeholder created by the mobile "new chat" action.
+            if (session.remoteSessionId != null || container.sessionStore.getMessages(sessionId).isNotEmpty()) return@launch
+            container.sessionStore.deleteSession(sessionId)
+            drafts.remove(sessionId)
+            inputPredictionJobs.remove(sessionId)?.cancel()
+            inputPredictionsBySession.remove(sessionId)
+            inputPredictionLoadingSessions.remove(sessionId)
+            if (container.preferences.lastSessionId == sessionId) container.preferences.lastSessionId = null
         }
     }
 
@@ -626,11 +924,66 @@ class AppViewModel(
 
     fun setModelPicker(open: Boolean) {
         _state.update { it.copy(modelPickerOpen = open) }
+        if (open && (_state.value.route as? AppRoute.Chat)?.surface == ChatSurface.Desktop) {
+            refreshDesktopSessionModels()
+        }
+    }
+
+    fun refreshDesktopSessionModels(sessionId: String? = _state.value.currentSessionId) {
+        val localSessionId = sessionId ?: return
+        viewModelScope.launch {
+            _state.update { it.copy(catalogLoading = true) }
+            try {
+                ensureDesktopSessionModels(localSessionId)
+                _state.update { it.copy(catalogLoading = false) }
+            } catch (error: Throwable) {
+                _state.update { it.copy(catalogLoading = false, globalError = ErrorMapper.from(error)) }
+            }
+        }
+    }
+
+    private suspend fun ensureDesktopSessionModels(localSessionId: String): Pair<String, RemoteSessionModelCatalog>? {
+        val job = desktopSessionModelJobs[localSessionId] ?: viewModelScope.async {
+            val session = container.sessionStore.getSession(localSessionId)
+                ?: throw RemoteConversationException("找不到当前桌面会话")
+            if (session.origin != ConversationOrigin.Desktop) return@async null
+            val result = if (session.remoteSessionId != null) {
+                val catalog = container.remoteConversationGateway.readDesktopSessionModels(
+                    localSessionId,
+                    session.remoteSessionId,
+                ) ?: throw RemoteConversationException("无法读取电脑端模型列表")
+                session.remoteSessionId to catalog
+            } else {
+                val deviceId = session.remoteDeviceId
+                    ?: throw RemoteConversationException("此会话没有关联电脑设备")
+                container.remoteConversationGateway.createDesktopSession(localSessionId, deviceId)
+                    ?: return@async null
+            }
+            val (remoteSessionId, catalog) = result
+            val current = catalog.models.firstOrNull { it.id == catalog.currentModelId }
+            container.sessionStore.updateSession(
+                session.copy(
+                    remoteSessionId = remoteSessionId,
+                    modelId = current?.id ?: session.modelId,
+                    modelName = current?.name ?: session.modelName,
+                ),
+            )
+            _state.update {
+                it.copy(desktopModels = catalog.models, desktopSelectedModelId = catalog.currentModelId)
+            }
+            result
+        }.also { created ->
+            desktopSessionModelJobs[localSessionId] = created
+            created.invokeOnCompletion {
+                if (desktopSessionModelJobs[localSessionId] === created) desktopSessionModelJobs.remove(localSessionId)
+            }
+        }
+        return job.await()
     }
 
     val sessionListItems: StateFlow<List<SessionListItem>> =
         combine(container.sessionStore.sessions, _state) { sessionList, s ->
-            sessionList.map { session ->
+            val localItems = sessionList.map { session ->
                 val remoteDevice = session.remoteDeviceId?.let { id -> s.devices.firstOrNull { it.id == id } }
                 SessionListItem(
                     id = session.id,
@@ -649,7 +1002,29 @@ class AppViewModel(
                         },
                     timeLabel = relativeTime(session.updatedAtEpochMs),
                     isCloud = session.origin == ConversationOrigin.Cloud,
+                    remoteSessionId = session.remoteSessionId,
                 )
+            }
+            val knownRemoteIds = sessionList.mapNotNull { it.remoteSessionId }.toSet()
+            val remoteItems = s.remoteDesktopSessions
+                .filterNot { it.id in knownRemoteIds }
+                .map { summary ->
+                    SessionListItem(
+                        id = "remote:${summary.id}",
+                        title = summary.title,
+                        subtitle = Str.desktopDevice,
+                        sourceLabel = Str.desktopDevice,
+                        timeLabel = relativeTime(summary.updatedAtEpochMs),
+                        isCloud = false,
+                        remoteSessionId = summary.id,
+                    )
+                }
+            (localItems + remoteItems).sortedByDescending { item ->
+                if (item.remoteSessionId != null) {
+                    s.remoteDesktopSessions.firstOrNull { it.id == item.remoteSessionId }?.updatedAtEpochMs ?: 0L
+                } else {
+                    sessionList.firstOrNull { it.id == item.id }?.updatedAtEpochMs ?: 0L
+                }
             }
         }.stateIn(viewModelScope, SharingStarted.Eagerly, emptyList())
 
@@ -684,8 +1059,26 @@ class AppViewModel(
 
     fun onDraftChange(value: String) {
         val sid = _state.value.currentSessionId
-        if (sid != null) drafts[sid] = value
-        _state.update { it.copy(draft = value) }
+        if (sid != null) {
+            drafts[sid] = value
+            if (value.isNotBlank()) {
+                inputPredictionJobs.remove(sid)?.cancel()
+                inputPredictionsBySession.remove(sid)
+                inputPredictionLoadingSessions.remove(sid)
+            }
+        }
+        _state.update {
+            it.copy(
+                draft = value,
+                inputPredictions = if (value.isNotBlank()) emptyList() else sid?.let(inputPredictionsBySession::get).orEmpty(),
+                inputPredictionLoading = sid != null && sid in inputPredictionLoadingSessions,
+            )
+        }
+    }
+
+    fun selectInputPrediction(value: String) {
+        onDraftChange(value)
+        _state.update { it.copy(inputPredictions = emptyList()) }
     }
 
     fun addPendingImages(images: List<MessageImage>) {
@@ -825,18 +1218,44 @@ class AppViewModel(
     }
 
     fun selectModel(model: LlmModel) {
-        container.preferences.lastModelId = model.id
-        _state.update { it.copy(selectedModelId = model.id, modelPickerOpen = false) }
         val sid = _state.value.currentSessionId
         if (sid != null) {
             viewModelScope.launch {
                 val session = container.sessionStore.getSession(sid) ?: return@launch
-                if (session.origin != ConversationOrigin.Cloud) return@launch
-                container.sessionStore.updateSession(
-                    session.copy(modelId = model.id, modelName = model.name),
-                )
+                if (session.origin == ConversationOrigin.Desktop) {
+                    try {
+                        val ready = ensureDesktopSessionModels(sid)
+                            ?: throw RemoteConversationException("电脑会话尚未准备好，请稍后重试")
+                        val catalog = container.remoteConversationGateway.selectDesktopSessionModel(
+                            sid,
+                            ready.first,
+                            model.id,
+                        ) ?: throw RemoteConversationException("无法切换电脑端模型，请确认电脑仍在线")
+                        val selected = catalog.models.firstOrNull { it.id == catalog.currentModelId } ?: model
+                        // ensureDesktopSessionModels may have just persisted the remote session id.
+                        // Re-read before updating model metadata so this copy does not overwrite it.
+                        val latestSession = container.sessionStore.getSession(sid) ?: session
+                        container.sessionStore.updateSession(latestSession.copy(modelId = selected.id, modelName = selected.name))
+                        _state.update {
+                            it.copy(
+                                desktopModels = catalog.models,
+                                desktopSelectedModelId = catalog.currentModelId ?: selected.id,
+                                modelPickerOpen = false,
+                            )
+                        }
+                    } catch (error: Throwable) {
+                        _state.update { it.copy(globalError = ErrorMapper.from(error)) }
+                    }
+                    return@launch
+                }
+                container.preferences.lastModelId = model.id
+                _state.update { it.copy(selectedModelId = model.id, modelPickerOpen = false) }
+                container.sessionStore.updateSession(session.copy(modelId = model.id, modelName = model.name))
             }
+            return
         }
+        container.preferences.lastModelId = model.id
+        _state.update { it.copy(selectedModelId = model.id, modelPickerOpen = false) }
     }
 
     fun setThemeMode(mode: ThemeMode) {
@@ -851,6 +1270,17 @@ class AppViewModel(
         container.preferences.setMotionEnabled(enabled)
     }
 
+    fun setInputPredictionEnabled(enabled: Boolean) {
+        container.preferences.setInputPredictionEnabled(enabled)
+        if (!enabled) {
+            inputPredictionJobs.values.forEach(Job::cancel)
+            inputPredictionJobs.clear()
+            inputPredictionsBySession.clear()
+            inputPredictionLoadingSessions.clear()
+            _state.update { it.copy(inputPredictions = emptyList(), inputPredictionLoading = false) }
+        }
+    }
+
     fun setConfirmBeforeDelete(enabled: Boolean) {
         container.preferences.setConfirmBeforeDelete(enabled)
     }
@@ -861,8 +1291,7 @@ class AppViewModel(
 
     fun clearLocalSessions() {
         viewModelScope.launch {
-            streamJob?.cancel()
-            streamJob = null
+            cancelAllStreams()
             messagesCollectJob?.cancel()
             messagesCollectJob = null
             container.sessionStore.sessions.value.map { it.id }.forEach { id ->
@@ -1066,7 +1495,7 @@ class AppViewModel(
 
     fun logout(clearLocalSessions: Boolean) {
         viewModelScope.launch {
-            streamJob?.cancel()
+            cancelAllStreams()
             runCatching { container.client.auth.logout() }
             container.preferences.clearAuthSnapshot()
             forceLogout(keepLocalSessions = !clearLocalSessions)
@@ -1074,7 +1503,7 @@ class AppViewModel(
     }
 
     private suspend fun forceLogout(keepLocalSessions: Boolean, message: String? = null) {
-        streamJob?.cancel()
+        cancelAllStreams()
         container.client.auth.clearLocalSession()
         container.preferences.clearAuthSnapshot()
         if (!keepLocalSessions) {
@@ -1167,7 +1596,6 @@ class AppViewModel(
             return
         }
         viewModelScope.launch {
-            streamJob?.cancel()
             val model = currentModel() ?: _state.value.models.firstOrNull()
             val session =
                 container.sessionStore.createSession(
@@ -1223,9 +1651,46 @@ class AppViewModel(
 
     fun deleteSession(sessionId: String) {
         viewModelScope.launch {
-            if (_state.value.currentSessionId == sessionId) {
-                streamJob?.cancel()
+            val session = container.sessionStore.sessions.value.firstOrNull { it.id == sessionId }
+            val remoteSessionId = session?.remoteSessionId
+                ?: sessionId.removePrefix("remote:").takeIf { sessionId.startsWith("remote:") }
+            if (remoteSessionId != null) {
+                val deviceId = session?.remoteDeviceId ?: container.remoteConversationGateway.devices.value
+                    .firstOrNull { it.status == org.agent567.android.domain.device.DeviceStatus.Online }
+                    ?.id
+                if (deviceId == null) {
+                    _state.update { it.copy(globalError = ErrorMapper.from(RemoteConversationException("请先连接电脑再删除电脑会话"))) }
+                    return@launch
+                }
+                try {
+                    val deleted = container.remoteConversationGateway.deleteDesktopSession(deviceId, remoteSessionId)
+                    if (deleted != true) throw RemoteConversationException("电脑暂时无法删除这段会话，请确认设备在线")
+                } catch (error: Throwable) {
+                    if (error !is CancellationException) {
+                        _state.update { it.copy(globalError = ErrorMapper.from(error)) }
+                    }
+                    return@launch
+                }
+                session?.let {
+                    cancelStream(it.id)
+                    if (_state.value.currentSessionId == it.id) {
+                        navigateBackFromSecondary()
+                    }
+                    container.sessionStore.deleteSession(it.id)
+                    drafts.remove(it.id)
+                    if (container.preferences.lastSessionId == it.id) {
+                        container.preferences.lastSessionId = null
+                    }
+                }
+                _state.update { state ->
+                    state.copy(
+                        remoteDesktopSessions = state.remoteDesktopSessions.filterNot { it.id == remoteSessionId },
+                        pendingQuestion = state.pendingQuestion?.takeIf { it.sessionId != sessionId },
+                    )
+                }
+                return@launch
             }
+            cancelStream(sessionId)
             container.sessionStore.deleteSession(sessionId)
             drafts.remove(sessionId)
             if (container.preferences.lastSessionId == sessionId) {
@@ -1244,14 +1709,99 @@ class AppViewModel(
         viewModelScope.launch {
             val session = container.sessionStore.getSession(sessionId) ?: return@launch
             val cleaned = title.trim().ifBlank { SessionStore.DEFAULT_TITLE }
-            container.sessionStore.updateSession(session.copy(title = cleaned))
+            container.sessionStore.updateSession(session.copy(title = cleaned, titleManuallyEdited = true))
         }
     }
 
-    fun sendMessage() {
+    private suspend fun generatePhoneSessionTitle(
+        sessionId: String,
+        firstMessage: String,
+        modelId: String,
+        groupName: String?,
+    ) {
+        val session = container.sessionStore.getSession(sessionId) ?: return
+        if (session.titleManuallyEdited || session.title != SessionStore.DEFAULT_TITLE) return
+        try {
+            val title = buildString {
+                container.client.chat.stream(
+                    model = modelId,
+                    messages = listOf(
+                        ChatMessage(
+                            ChatRole.System,
+                            "为这段对话起一个简短、具体的标题，遵循电脑端对话列表的命名风格。使用用户消息的语言；中文控制在 2 到 12 个字，其他语言不超过 8 个词。只输出标题，不要引号、解释或 Markdown。",
+                        ),
+                        ChatMessage(ChatRole.User, firstMessage),
+                    ),
+                    temperature = 0.2,
+                    groupName = groupName,
+                ).collect { event ->
+                    if (event is ChatStreamEvent.Delta && length < 160) append(event.text.take(160 - length))
+                    if (event is ChatStreamEvent.Error) throw event.exception
+                }
+            }.trim().trim('"', '\'', '`', '“', '”', '「', '」').replace(Regex("\\s+"), " ")
+                .removePrefix("标题：")
+                .removePrefix("标题:")
+                .take(80)
+                .trim()
+            updatePhoneAutoTitle(sessionId, title.ifBlank { firstMessage.take(40) })
+        } catch (error: Throwable) {
+            if (error is CancellationException) throw error
+            updatePhoneAutoTitle(sessionId, firstMessage.take(40))
+        }
+    }
+
+    private suspend fun updatePhoneAutoTitle(sessionId: String, title: String) {
+        if (title.isBlank()) return
+        val latest = container.sessionStore.getSession(sessionId) ?: return
+        if (!latest.titleManuallyEdited && latest.title == SessionStore.DEFAULT_TITLE) {
+            container.sessionStore.updateSession(latest.copy(title = title.trim()))
+        }
+    }
+
+    private suspend fun generateInputPredictions(
+        modelId: String,
+        groupName: String?,
+        conversation: String,
+    ): List<String> {
+        if (conversation.isBlank()) return emptyList()
+        return try {
+            val output = buildString {
+                container.client.chat.stream(
+                    model = modelId,
+                    messages = listOf(
+                        ChatMessage(
+                            ChatRole.System,
+                            "根据最近对话，预测用户接下来最可能发送的 0 到 3 条短消息。使用用户的第一人称和对话语言，只输出建议内容，每条单独一行，不要解释。没有自然后续时不输出内容。",
+                        ),
+                        ChatMessage(ChatRole.User, conversation),
+                    ),
+                    temperature = 0.5,
+                    groupName = groupName,
+                ).collect { event ->
+                    if (event is ChatStreamEvent.Delta && length < 1200) append(event.text.take(1200 - length))
+                    if (event is ChatStreamEvent.Error) throw event.exception
+                }
+            }
+            output.lineSequence()
+                .map { it.trim().replace(Regex("^(?:[-*•]|\\d+[.、)])\\s*"), "").trim('"', '\'', '`') }
+                .filter { it.length in 2..120 }
+                .distinct()
+                .take(3)
+                .toList()
+        } catch (error: Throwable) {
+            if (error is CancellationException) throw error
+            emptyList()
+        }
+    }
+
+    fun sendMessage() = sendMessage(retryPreviousTurn = false)
+
+    private fun sendMessage(retryPreviousTurn: Boolean) {
         val text = _state.value.draft.trim()
         val images = _state.value.pendingImages
-        if ((text.isEmpty() && images.isEmpty()) || _state.value.isStreaming) return
+        val activeSessionId = _state.value.currentSessionId
+        if ((text.isEmpty() && images.isEmpty()) || activeSessionId?.let { streamJobs[it]?.isActive == true } == true) return
+        activeSessionId?.let { inputPredictionJobs.remove(it)?.cancel() }
 
         viewModelScope.launch {
             val route = _state.value.route as? AppRoute.Chat
@@ -1315,7 +1865,18 @@ class AppViewModel(
             }
 
             val sid = sessionId
-            val session = container.sessionStore.getSession(sid) ?: return@launch
+            var session = container.sessionStore.getSession(sid) ?: return@launch
+            if (session.origin == ConversationOrigin.Desktop &&
+                (session.remoteSessionId == null || desktopSessionModelJobs.containsKey(sid))
+            ) {
+                try {
+                    ensureDesktopSessionModels(sid)
+                    session = container.sessionStore.getSession(sid) ?: return@launch
+                } catch (error: Throwable) {
+                    _state.update { it.copy(globalError = ErrorMapper.from(error)) }
+                    return@launch
+                }
+            }
             if (session.origin == ConversationOrigin.Cloud && model == null && session.modelId == null) {
                 showNoModelError()
                 return@launch
@@ -1330,6 +1891,10 @@ class AppViewModel(
                     createdAtEpochMs = nowEpochMs(),
                     images = images,
                 )
+            val isFirstUserMessage = !retryPreviousTurn && container.sessionStore.getMessages(sid).none { it.role == ChatRole.User }
+            val titleModelId = model?.id ?: session.modelId
+            val titleGroupName = _state.value.active567Group
+            val titlePrompt = text.take(1200).ifBlank { if (images.isNotEmpty()) "用户发送了一张图片" else "" }
             val assistantId = newMessageId()
             val assistantMsg =
                 LocalMessage(
@@ -1343,8 +1908,19 @@ class AppViewModel(
             container.sessionStore.upsertMessage(userMsg)
             container.sessionStore.upsertMessage(assistantMsg)
             drafts[sid] = ""
-            _state.update {
-                it.copy(draft = "", pendingImages = emptyList(), isStreaming = true, streamingStatus = "running", globalError = null)
+            inputPredictionsBySession.remove(sid)
+            inputPredictionLoadingSessions.remove(sid)
+            streamStatuses[sid] = "running"
+            updateVisibleSession(sid) {
+                it.copy(
+                    draft = "",
+                    pendingImages = emptyList(),
+                    isStreaming = true,
+                    streamingStatus = "running",
+                    inputPredictions = emptyList(),
+                    inputPredictionLoading = false,
+                    globalError = null,
+                )
             }
 
             val history =
@@ -1356,9 +1932,7 @@ class AppViewModel(
                             it.hasVisualContent
                     }.map { it.toChatMessage() }
 
-            streamJob?.cancel()
-            streamJob =
-                viewModelScope.launch {
+            val streamJob = viewModelScope.launch(start = CoroutineStart.LAZY) {
                     var assembled = ""
                     var toolEvents = emptyList<ToolTrace>()
                     var usage: TokenUsage? = null
@@ -1406,6 +1980,7 @@ class AppViewModel(
                                 messages = history,
                                 groupName = _state.value.active567Group,
                                 imageGenModel = if (_state.value.imageGenEnabled) _state.value.activeImageModel else null,
+                                retryPreviousTurn = retryPreviousTurn,
                             )
                             .collect { event ->
                                 when (event) {
@@ -1423,6 +1998,17 @@ class AppViewModel(
                                         // A response to a pending question may resume with a tool event.
                                         // The tool event is the durable boundary that clears the prompt.
                                         pendingQuestion = null
+                                        if (event.phase in setOf("call", "generating", "started", "updated", "phase", "arguments")) {
+                                            val activity = event.phaseLabel
+                                                ?.replace(Regex("[\\r\\n\\t]"), " ")
+                                                ?.trim()
+                                                ?.take(48)
+                                                ?.takeIf(String::isNotBlank)
+                                                ?: event.toolName.take(48)
+                                            setStreamStatus(sid, "tool:$activity")
+                                        } else if (streamStatuses[sid]?.startsWith("tool:") == true) {
+                                            setStreamStatus(sid, "running")
+                                        }
                                         val isImageGen = event.toolName == "generate_image"
                                         if (isImageGen && event.phase == "call") {
                                             var promptArg = event.arguments.orEmpty()
@@ -1584,7 +2170,7 @@ class AppViewModel(
                                                             errorMessage = failMsg,
                                                         )
                                                     )
-                                                    _state.update {
+                                                    updateVisibleSession(sid) {
                                                         it.copy(
                                                             globalError = UiError(
                                                                 title = "生图失败",
@@ -1595,6 +2181,21 @@ class AppViewModel(
                                                     }
                                                 }
                                             }
+                                        } else {
+                                            toolEvents = mergeToolTrace(
+                                                toolEvents,
+                                                ToolTrace(
+                                                    phase = event.phase,
+                                                    toolCallId = event.toolCallId,
+                                                    toolName = event.toolName,
+                                                    detail = event.detail?.take(1200),
+                                                    durationMs = event.durationMs,
+                                                    arguments = event.arguments?.take(1200),
+                                                    result = event.result?.take(1200),
+                                                    phaseLabel = event.phaseLabel?.take(160),
+                                                ),
+                                            )
+                                            persistAssistant()
                                         }
                                     }
                                     is ChatStreamEvent.UserInputRequired -> {
@@ -1604,7 +2205,7 @@ class AppViewModel(
                                         }
                                         pendingQuestion = PendingQuestion(sid, event.requestId, event.questions)
                                         persistAssistant()
-                                        _state.update { it.copy(pendingQuestion = pendingQuestion) }
+                                        updateVisibleSession(sid) { it.copy(pendingQuestion = pendingQuestion) }
                                     }
                                     is ChatStreamEvent.State -> {
                                         when (event.value) {
@@ -1614,16 +2215,17 @@ class AppViewModel(
                                                 contextPercent = event.contextPercent
                                                 persistAssistant()
                                             }
-                                            "error" ->
-                                                _state.update {
+                                            "error" -> {
+                                                setStreamStatus(sid, null)
+                                                updateVisibleSession(sid) {
                                                     it.copy(
-                                                        streamingStatus = null,
                                                         globalError = UiError(title = "桌面执行失败", message = event.detail ?: "请在电脑端检查模型配置和运行日志后重试"),
                                                     )
                                                 }
-                                            "thinking", "running", "reconnecting" -> _state.update { it.copy(streamingStatus = event.value) }
-                                            "retrying", "compacting", "preparing", "background" -> _state.update { it.copy(streamingStatus = event.value) }
-                                            "completed", "aborted" -> _state.update { it.copy(streamingStatus = null) }
+                                            }
+                                            "thinking", "running", "reconnecting" -> setStreamStatus(sid, event.value)
+                                            "retrying", "compacting", "preparing", "background" -> setStreamStatus(sid, event.value)
+                                            "completed", "aborted" -> setStreamStatus(sid, null)
                                         }
                                     }
                                     is ChatStreamEvent.Finished -> Unit
@@ -1631,7 +2233,104 @@ class AppViewModel(
                                         flushPendingPersist()
                                         pendingQuestion = null
                                         persistAssistant(MessageStatus.Complete)
-                                        _state.update { it.copy(pendingQuestion = null, streamingStatus = null) }
+                                        updateVisibleSession(sid) { it.copy(pendingQuestion = null) }
+                                        setStreamStatus(sid, null)
+                                        val predictionModelId = model?.id ?: session.modelId
+                                        if (
+                                            container.preferences.inputPredictionEnabled.value &&
+                                            session.origin == ConversationOrigin.Cloud &&
+                                            predictionModelId != null &&
+                                            assembled.isNotBlank()
+                                        ) {
+                                            val conversation = buildString {
+                                                history.takeLast(6).forEach { message ->
+                                                    val role = if (message.role == ChatRole.User) "用户" else "助手"
+                                                    append(role).append("：").append(message.textContent.take(700)).append('\n')
+                                                }
+                                                append("助手：").append(assembled.take(1600))
+                                            }.takeLast(4000)
+                                            val predictionSessionId = sid
+                                            val predictionGroup = titleGroupName
+                                            inputPredictionJobs.remove(predictionSessionId)?.cancel()
+                                            inputPredictionsBySession.remove(predictionSessionId)
+                                            inputPredictionLoadingSessions.add(predictionSessionId)
+                                            updateVisibleSession(predictionSessionId) {
+                                                it.copy(inputPredictionLoading = true, inputPredictions = emptyList())
+                                            }
+                                            val predictionJob = viewModelScope.launch(start = CoroutineStart.LAZY) {
+                                                try {
+                                                    val suggestions = generateInputPredictions(
+                                                        predictionModelId,
+                                                        predictionGroup,
+                                                        conversation,
+                                                    )
+                                                    val draftIsBlank = drafts[predictionSessionId].orEmpty().isBlank()
+                                                    if (container.preferences.inputPredictionEnabled.value && draftIsBlank) {
+                                                        inputPredictionsBySession[predictionSessionId] = suggestions
+                                                    }
+                                                    updateVisibleSession(predictionSessionId) {
+                                                        it.copy(inputPredictions = if (draftIsBlank) suggestions else emptyList())
+                                                    }
+                                                } finally {
+                                                    inputPredictionLoadingSessions.remove(predictionSessionId)
+                                                    if (inputPredictionJobs[predictionSessionId] === currentCoroutineContext()[Job]) {
+                                                        inputPredictionJobs.remove(predictionSessionId)
+                                                    }
+                                                    updateVisibleSession(predictionSessionId) {
+                                                        it.copy(inputPredictionLoading = false)
+                                                    }
+                                                }
+                                            }
+                                            inputPredictionJobs[predictionSessionId] = predictionJob
+                                            predictionJob.start()
+                                        } else if (
+                                            container.preferences.inputPredictionEnabled.value &&
+                                            session.origin == ConversationOrigin.Desktop &&
+                                            assembled.isNotBlank()
+                                        ) {
+                                            val remoteSessionId = session.remoteSessionId
+                                                ?: container.conversationRouter.resolvedRemoteSessionId(session.id)
+                                            val desktopDeviceId = session.remoteDeviceId
+                                            if (remoteSessionId != null && desktopDeviceId != null) {
+                                                val predictionSessionId = sid
+                                                inputPredictionJobs.remove(predictionSessionId)?.cancel()
+                                                inputPredictionsBySession.remove(predictionSessionId)
+                                                inputPredictionLoadingSessions.add(predictionSessionId)
+                                                updateVisibleSession(predictionSessionId) {
+                                                    it.copy(inputPredictionLoading = true, inputPredictions = emptyList())
+                                                }
+                                                val predictionJob = viewModelScope.launch(start = CoroutineStart.LAZY) {
+                                                    try {
+                                                        val suggestions = try {
+                                                            container.remoteConversationGateway
+                                                                .readDesktopPromptSuggestions(predictionSessionId, remoteSessionId)
+                                                                .orEmpty()
+                                                        } catch (cancelled: CancellationException) {
+                                                            throw cancelled
+                                                        } catch (_: Throwable) {
+                                                            emptyList()
+                                                        }
+                                                        val draftIsBlank = drafts[predictionSessionId].orEmpty().isBlank()
+                                                        if (container.preferences.inputPredictionEnabled.value && draftIsBlank) {
+                                                            inputPredictionsBySession[predictionSessionId] = suggestions
+                                                        }
+                                                        updateVisibleSession(predictionSessionId) {
+                                                            it.copy(inputPredictions = if (draftIsBlank) suggestions else emptyList())
+                                                        }
+                                                    } finally {
+                                                        inputPredictionLoadingSessions.remove(predictionSessionId)
+                                                        if (inputPredictionJobs[predictionSessionId] === currentCoroutineContext()[Job]) {
+                                                            inputPredictionJobs.remove(predictionSessionId)
+                                                        }
+                                                        updateVisibleSession(predictionSessionId) {
+                                                            it.copy(inputPredictionLoading = false)
+                                                        }
+                                                    }
+                                                }
+                                                inputPredictionJobs[predictionSessionId] = predictionJob
+                                                predictionJob.start()
+                                            }
+                                        }
                                     }
                                     is ChatStreamEvent.Error -> {
                                         flushPendingPersist()
@@ -1647,13 +2346,34 @@ class AppViewModel(
                                                 contextPercent = contextPercent,
                                             ),
                                         )
-                                        _state.update { it.copy(globalError = ui) }
+                                        updateVisibleSession(sid) { it.copy(globalError = ui) }
                                     }
                                 }
                             }
-                        if (session.origin == ConversationOrigin.Desktop && session.remoteSessionId == null) {
-                            container.conversationRouter.resolvedRemoteSessionId(session.id)?.let { remoteId ->
-                                container.sessionStore.updateSession(session.copy(remoteSessionId = remoteId))
+                        if (session.origin == ConversationOrigin.Desktop) {
+                            val remoteId = session.remoteSessionId
+                                ?: container.conversationRouter.resolvedRemoteSessionId(session.id)
+                            if (remoteId != null) {
+                                val syncedTitle = session.remoteDeviceId?.let { deviceId ->
+                                    runCatching {
+                                        container.remoteConversationGateway.listDesktopSessions(deviceId)
+                                            ?.firstOrNull { it.id == remoteId }?.title
+                                    }.getOrNull()
+                                }
+                                val latestSession = container.sessionStore.getSession(sid) ?: session
+                                container.sessionStore.updateSession(
+                                    latestSession.copy(
+                                        remoteSessionId = remoteId,
+                                        title = syncedTitle?.takeIf { it.isNotBlank() }
+                                            ?.takeUnless { latestSession.titleManuallyEdited }
+                                            ?: latestSession.title,
+                                    ),
+                                )
+                            }
+                        }
+                        if (session.origin == ConversationOrigin.Cloud && isFirstUserMessage && titlePrompt.isNotBlank() && titleModelId != null) {
+                            viewModelScope.launch {
+                                generatePhoneSessionTitle(sid, titlePrompt, titleModelId, titleGroupName)
                             }
                         }
                         // 正常结束后若仍 streaming 则 complete
@@ -1689,13 +2409,17 @@ class AppViewModel(
                             )
                         }
                         if (t !is kotlinx.coroutines.CancellationException) {
-                            _state.update { it.copy(globalError = ui) }
+                            updateVisibleSession(sid) { it.copy(globalError = ui) }
                         }
                     } finally {
                         pendingPersist?.cancel()
-                        _state.update { it.copy(isStreaming = false, streamingStatus = null) }
+                        if (streamJobs[sid] === currentCoroutineContext()[Job]) streamJobs.remove(sid)
+                        streamStatuses.remove(sid)
+                        updateVisibleSession(sid) { it.copy(isStreaming = false, streamingStatus = null) }
                     }
                 }
+            streamJobs[sid] = streamJob
+            streamJob.start()
         }
     }
 
@@ -1757,9 +2481,8 @@ class AppViewModel(
     }
 
     fun stopStreaming() {
-        streamJob?.cancel()
-        streamJob = null
         val sid = _state.value.currentSessionId ?: return
+        cancelStream(sid)
         viewModelScope.launch {
             container.sessionStore.getSession(sid)?.let { session ->
                 runCatching { container.conversationRouter.abort(session) }
@@ -1771,10 +2494,8 @@ class AppViewModel(
             if (streaming != null) {
                 container.sessionStore.upsertMessage(streaming.copy(status = MessageStatus.Aborted, pendingQuestion = null))
             }
-            _state.update { state ->
+            updateVisibleSession(sid) { state ->
                 state.copy(
-                    isStreaming = false,
-                    streamingStatus = null,
                     pendingQuestion = state.pendingQuestion?.takeIf { it.sessionId != sid },
                 )
             }
@@ -1796,7 +2517,7 @@ class AppViewModel(
                     globalError = null,
                 )
             }
-            sendMessage()
+            sendMessage(retryPreviousTurn = true)
         }
     }
 
@@ -1837,6 +2558,11 @@ class AppViewModel(
             it.copy(
                 currentSessionId = sessionId,
                 draft = draft,
+                isStreaming = streamJobs[sessionId]?.isActive == true,
+                streamingStatus = streamStatuses[sessionId],
+                inputPredictions = if (draft.isBlank()) inputPredictionsBySession[sessionId].orEmpty() else emptyList(),
+                inputPredictionLoading = sessionId in inputPredictionLoadingSessions && draft.isBlank(),
+                pendingQuestion = null,
                 pendingImages = if (clearPendingImages) emptyList() else it.pendingImages,
             )
         }
@@ -1859,6 +2585,29 @@ class AppViewModel(
     private fun detachSessionMessages() {
         messagesCollectJob?.cancel()
         messagesCollectJob = null
+    }
+
+    private fun updateVisibleSession(sessionId: String, transform: (AppUiState) -> AppUiState) {
+        _state.update { state -> if (state.currentSessionId == sessionId) transform(state) else state }
+    }
+
+    private fun setStreamStatus(sessionId: String, status: String?) {
+        if (status == null) streamStatuses.remove(sessionId) else streamStatuses[sessionId] = status
+        updateVisibleSession(sessionId) { it.copy(streamingStatus = status) }
+    }
+
+    private fun cancelStream(sessionId: String) {
+        streamJobs.remove(sessionId)?.cancel()
+        streamStatuses.remove(sessionId)
+        updateVisibleSession(sessionId) { it.copy(isStreaming = false, streamingStatus = null) }
+    }
+
+    private fun cancelAllStreams() {
+        val jobs = streamJobs.values.toList()
+        streamJobs.clear()
+        streamStatuses.clear()
+        jobs.forEach(Job::cancel)
+        _state.update { it.copy(isStreaming = false, streamingStatus = null) }
     }
 
     private fun currentModel(): LlmModel? {

@@ -2,6 +2,7 @@ import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
 import * as AjvModule from "ajv/dist/2020.js";
 import { describe, expect, it } from "vitest";
+import { REMOTE_REQUEST_METHODS } from "../src/index.js";
 
 const schema = JSON.parse(readFileSync(resolve(__dirname, "../schemas/remote-frame.schema.json"), "utf8"));
 const AjvConstructor = (
@@ -16,6 +17,10 @@ const AjvConstructor = (
 const validate = new AjvConstructor({ strict: true }).compile(schema);
 
 describe("remote control JSON Schema", () => {
+	it("keeps the schema request method list aligned with the protocol implementation", () => {
+		expect(schema.$defs.request.properties.method.enum).toEqual([...REMOTE_REQUEST_METHODS]);
+	});
+
 	it("accepts the language-neutral hello contract", () => {
 		expect(
 			validate({

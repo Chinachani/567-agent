@@ -119,9 +119,9 @@ export function registerMcpActions(ctx: PluginContext): void {
 		id: "mcp.query",
 		publicId: "mcp.query",
 		title: "查询 MCP 服务器",
-		summary: "列出或查看本地 MCP server 配置。",
-		description: '对象参数；operation 为 "help"、"list" 或 "get"。headers/env 中的密钥字段会脱敏。',
-		keywords: ["mcp", "MCP", "服务器", "tools", "stdio", "http"],
+		summary: "列出或查看已配置的本地 MCP server；不搜索能力市场。",
+		description: '对象参数；operation 为 "help"、"list" 或 "get"。headers/env 中的密钥字段会脱敏。查找尚未安装的 MCP 使用 marketplace.search，type 设为 mcp。',
+		keywords: ["mcp", "MCP", "已配置服务器", "tools", "stdio", "http"],
 		effect: "read",
 		inputSchema: querySchema,
 		examples: queryExamples,
@@ -129,7 +129,7 @@ export function registerMcpActions(ctx: PluginContext): void {
 			if (input.operation === "help") {
 				return {
 					guidance:
-						"写操作使用 mcp.manage。会话会在下次 prompt 时按需 reload MCP。upsert 时 env/headers 中的密钥请省略，审批弹窗可让用户手填。",
+						"mcp.query 只读已配置服务器，不搜索市场；查找市场条目使用 marketplace.search，写操作使用 mcp.manage。会话会在下次 prompt 时按需 reload MCP。upsert 时 env/headers 中的密钥请省略，审批弹窗可让用户手填。",
 					actions: [
 						{ id: "mcp.query", inputSchema: querySchema, examples: queryExamples },
 						{ id: "mcp.manage", inputSchema: manageSchema, examples: manageExamples },

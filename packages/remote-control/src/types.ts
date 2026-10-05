@@ -10,6 +10,22 @@ export type RemoteConnectionState =
 	| "closed"
 	| "failed";
 
+export const REMOTE_REQUEST_METHODS = [
+	"session.list",
+	"session.delete",
+	"session.create",
+	"session.open",
+	"session.history",
+	"session.prompt",
+	"session.models",
+	"session.model.select",
+	"session.suggestions",
+	"session.respond",
+	"session.abort",
+	"session.resume",
+	"diagnostics.snapshot",
+] as const;
+
 export interface RemoteCapabilities {
 	readonly chat: boolean;
 	readonly sessionRead: boolean;
@@ -40,14 +56,7 @@ export interface RemoteHelloAck {
 export interface RemoteRequest {
 	readonly type: "request";
 	readonly requestId: string;
-	readonly method:
-		| "session.list"
-		| "session.open"
-		| "session.prompt"
-		| "session.respond"
-		| "session.abort"
-		| "session.resume"
-		| "diagnostics.snapshot";
+	readonly method: (typeof REMOTE_REQUEST_METHODS)[number];
 	readonly sessionId?: string;
 	readonly payload?: unknown;
 }

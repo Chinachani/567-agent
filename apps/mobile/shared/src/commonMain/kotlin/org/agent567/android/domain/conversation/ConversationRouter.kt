@@ -16,6 +16,7 @@ class ConversationRouter(
         messages: List<ChatMessage>,
         groupName: String? = null,
         imageGenModel: String? = null,
+        retryPreviousTurn: Boolean = false,
     ): Flow<ChatStreamEvent> =
         when (session.origin) {
             ConversationOrigin.Cloud -> {
@@ -26,7 +27,7 @@ class ConversationRouter(
             ConversationOrigin.Desktop -> {
                 val deviceId = session.remoteDeviceId
                     ?: throw RemoteConversationException("此会话缺少桌面设备信息，请重新创建")
-                remoteGateway.stream(session.id, deviceId, session.remoteSessionId, messages)
+                remoteGateway.stream(session.id, deviceId, session.remoteSessionId, messages, retryPreviousTurn)
             }
         }
 

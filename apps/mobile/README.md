@@ -2,6 +2,10 @@
 
 Android 客户端提供两种对话方式：连接 567 Agent 继续桌面会话，或在手机上通过 567 API 直接对话。远程桌面预览可查看画面并发送输入；它与手机端直接对话使用不同的连接配置。
 
+会话列表按设备来源分区。手机端可按需读取已连接 Desktop 的会话目录；打开某条 Desktop 会话后，才从电脑拉取消息历史并在手机本地缓存。同步方向是 Desktop 到手机，Desktop 不读取手机端会话。
+
+手机端默认会在云端对话结束后生成最多三条后续提问建议，可在「我的 → 设置 → 使用体验 → 预测下一句」关闭。远程桌面首次显示画面时，Desktop 会要求本机用户确认并选择要共享的屏幕或窗口；取消或系统未提供屏幕来源时，手机会显示对应状态。
+
 ## 用户指南
 
 - [聊天记录迁移](../../docs/apps/mobile/chat-history-migration.md)：签名更换、重装前导出和导入本地会话。
@@ -16,8 +20,11 @@ Android 客户端提供两种对话方式：连接 567 Agent 继续桌面会话�
 
 ```bash
 ./gradlew :androidApp:assembleDebug
+./gradlew :androidApp:assembleDebugTest
 ./gradlew :shared:testAndroidHostTest
 ```
+
+`assembleDebugTest` 会生成可与正式应用并行安装的测试版（包名 `com.api567.agent.test`）。
 
 连接已启动的 Android 设备或模拟器运行仪器测试：
 

@@ -14,6 +14,7 @@ import androidx.compose.material.icons.filled.ChatBubbleOutline
 import androidx.compose.material.icons.filled.DeleteOutline
 import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.MoreVert
+import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
@@ -21,6 +22,7 @@ import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
@@ -55,6 +57,9 @@ fun SessionsScreen(
     onRenameSession: (sessionId: String, title: String) -> Unit,
     onDeleteSession: (sessionId: String) -> Unit,
     confirmBeforeDelete: Boolean = true,
+    desktopSessionsLoading: Boolean = false,
+    desktopSessionsError: String? = null,
+    onRefreshDesktopSessions: () -> Unit = {},
 ) {
     var openMenuSessionId by remember { mutableStateOf<String?>(null) }
     var renameTarget by remember { mutableStateOf<SessionListItem?>(null) }
@@ -78,6 +83,13 @@ fun SessionsScreen(
         topBar = {
             TopAppBar(
                 title = { Text(Str.sessionsTitle, style = MaterialTheme.typography.titleMedium) },
+                actions = {
+                    if (filterIndex == 1) {
+                        IconButton(onClick = onRefreshDesktopSessions, enabled = !desktopSessionsLoading) {
+                            Icon(Icons.Default.Refresh, contentDescription = Str.refreshDesktopSessions)
+                        }
+                    }
+                },
                 colors =
                     TopAppBarDefaults.topAppBarColors(
                         containerColor = MaterialTheme.vettaExtra.pageBackground,
@@ -105,8 +117,24 @@ fun SessionsScreen(
                 selectedIndex = filterIndex,
                 onSelect = onFilterChange,
             )
+            if (filterIndex == 1 && !desktopSessionsError.isNullOrBlank()) {
+                Text(
+                    desktopSessionsError,
+                    color = MaterialTheme.colorScheme.error,
+                    style = MaterialTheme.typography.bodySmall,
+                    modifier = Modifier.padding(vertical = 6.dp),
+                )
+            }
             Spacer(Modifier.height(12.dp))
-            if (filtered.isEmpty()) {
+            if (filtered.isEmpty() && filterIndex == 1 && desktopSessionsLoading) {
+                Box(Modifier.fillMaxSize(), contentAlignment = androidx.compose.ui.Alignment.Center) {
+                    androidx.compose.foundation.layout.Column(horizontalAlignment = androidx.compose.ui.Alignment.CenterHorizontally) {
+                        CircularProgressIndicator()
+                        Spacer(Modifier.height(12.dp))
+                        Text(Str.loadingDesktopSessions, color = MaterialTheme.vettaExtra.secondaryText)
+                    }
+                }
+            } else if (filtered.isEmpty()) {
                 EmptyState(
                     title = if (query.isBlank()) Str.noSessions else Str.noSessionsMatch,
                     subtitle = if (query.isBlank()) Str.noSessionsHint else null,
@@ -134,15 +162,17 @@ fun SessionsScreen(
                                         expanded = openMenuSessionId == item.id,
                                         onDismissRequest = { openMenuSessionId = null },
                                     ) {
-                                        DropdownMenuItem(
-                                            text = { Text(Str.rename) },
-                                            leadingIcon = { Icon(Icons.Default.Edit, contentDescription = null) },
-                                            onClick = {
-                                                openMenuSessionId = null
-                                                renameTitle = item.title
-                                                renameTarget = item
-                                            },
-                                        )
+                                        if (item.remoteSessionId == null) {
+                                            DropdownMenuItem(
+                                                text = { Text(Str.rename) },
+                                                leadingIcon = { Icon(Icons.Default.Edit, contentDescription = null) },
+                                                onClick = {
+                                                    openMenuSessionId = null
+                                                    renameTitle = item.title
+                                                    renameTarget = item
+                                                },
+                                            )
+                                        }
                                         DropdownMenuItem(
                                             text = { Text(Str.delete) },
                                             leadingIcon = { Icon(Icons.Default.DeleteOutline, contentDescription = null) },

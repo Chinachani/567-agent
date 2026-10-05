@@ -34,6 +34,8 @@ import org.agent567.android.core.model.ChatMessage
 import org.agent567.android.core.model.ChatQuestion
 import org.agent567.android.core.model.ChatQuestionOption
 import org.agent567.android.core.model.ChatStreamEvent
+import org.agent567.android.core.model.ChatRole
+import org.agent567.android.core.model.LlmModel
 import org.agent567.android.core.model.TokenUsage
 import org.agent567.android.domain.device.ConnectChannel
 import org.agent567.android.domain.device.DesktopDevice
@@ -51,6 +53,8 @@ import org.agent567.android.domain.remote.protocol.RemoteEventName
 import org.agent567.android.domain.remote.protocol.RemoteError
 import org.agent567.android.domain.remote.protocol.RemoteErrorCode
 import org.agent567.android.domain.remote.protocol.RemoteRequestMethod
+import org.agent567.android.domain.conversation.RemoteSessionModelCatalog
+import org.agent567.android.domain.session.MessageStatus
 
 private val RECONNECT_DELAYS_MS = listOf(1_000L, 2_000L, 5_000L, 10_000L, 30_000L)
 
@@ -173,6 +177,177 @@ class RelayRemoteConversationGateway(
         _devices.value = emptyList()
     }
 
+    override suspend fun listDesktopSessions(deviceId: String): List<RemoteDesktopSessionSummary>? {
+        val active = connection ?: return null
+        if (active.state.value != RemoteConnectionState.Online) return null
+        if (_devices.value.none { it.id == deviceId }) return null
+        val payload = active.request(RemoteRequestMethod.SessionList) as? JsonObject
+            ?: throw RemoteConversationException("电脑没有返回会话列表")
+        return (payload["sessions"] as? JsonArray).orEmpty().mapNotNull { value ->
+            val item = value as? JsonObject ?: return@mapNotNull null
+            val id = item.stringValue("id")?.takeIf(String::isNotBlank) ?: return@mapNotNull null
+            RemoteDesktopSessionSummary(
+                id = id,
+                title = item.stringValue("title")?.takeIf(String::isNotBlank) ?: "电脑会话",
+                updatedAtEpochMs = item.longValue("updatedAtEpochMs") ?: now(),
+            )
+        }
+    }
+
+    override suspend fun deleteDesktopSession(deviceId: String, remoteSessionId: String): Boolean? {
+        val active = connection ?: return null
+        if (active.state.value != RemoteConnectionState.Online) return null
+        if (_devices.value.none { it.id == deviceId }) return null
+        active.request(RemoteRequestMethod.SessionDelete, sessionId = remoteSessionId)
+        remoteSessionIds.entries.removeAll { it.value == remoteSessionId }
+        return true
+    }
+
+    override suspend fun readDesktopSessionHistory(
+        localSessionId: String,
+        remoteSessionId: String,
+    ): List<RemoteDesktopHistoryMessage>? {
+        val active = connection ?: return null
+        if (active.state.value != RemoteConnectionState.Online) return null
+        val opened = active.request(RemoteRequestMethod.SessionOpen, sessionId = remoteSessionId)
+        val resolvedId = (opened as? JsonObject)?.get("sessionId")?.jsonPrimitive?.contentOrNull ?: remoteSessionId
+        remoteSessionIds[localSessionId] = resolvedId
+        val messages = mutableListOf<RemoteDesktopHistoryMessage>()
+        var offset = 0
+        while (true) {
+            val page = try {
+                active.request(
+                    method = RemoteRequestMethod.SessionHistory,
+                    payload = buildJsonObject {
+                        put("offset", offset)
+                        put("limit", HISTORY_PAGE_SIZE)
+                    },
+                    sessionId = resolvedId,
+                    timeoutMs = LEGACY_SESSION_CREATE_TIMEOUT_MS,
+                ) as? JsonObject ?: throw RemoteConversationException("电脑没有返回会话记录")
+            } catch (error: RemoteRequestException) {
+                if (error.remoteError.code == RemoteErrorCode.RequestTimeout) {
+                    throw RemoteConversationException("当前电脑端版本暂不支持读取历史会话，请升级后再试")
+                }
+                throw error
+            }
+            val rawMessages = (page["messages"] as? JsonArray).orEmpty()
+            val pageMessages = rawMessages.mapNotNull { value ->
+                val item = value as? JsonObject ?: return@mapNotNull null
+                val role = when (item.stringValue("role")) {
+                    "user" -> ChatRole.User
+                    "assistant" -> ChatRole.Assistant
+                    else -> return@mapNotNull null
+                }
+                val text = item.stringValue("text").orEmpty()
+                if (text.isBlank()) return@mapNotNull null
+                RemoteDesktopHistoryMessage(
+                    id = item.stringValue("id")?.takeIf(String::isNotBlank) ?: "${item.longValue("timestamp") ?: offset}",
+                    role = role,
+                    text = text,
+                    timestamp = item.longValue("timestamp") ?: now(),
+                    status = if (item["failed"]?.jsonPrimitive?.booleanOrNull == true) MessageStatus.Error else MessageStatus.Complete,
+                )
+            }
+            messages += pageMessages
+            offset += rawMessages.size
+            if (rawMessages.size < HISTORY_PAGE_SIZE) break
+        }
+        return messages
+    }
+
+    override suspend fun createDesktopSession(
+        localSessionId: String,
+        deviceId: String,
+    ): Pair<String, RemoteSessionModelCatalog>? {
+        val active = connection ?: return null
+        if (active.state.value != RemoteConnectionState.Online) return null
+        val payload = try {
+            active.request(
+                method = RemoteRequestMethod.SessionCreate,
+                timeoutMs = LEGACY_SESSION_CREATE_TIMEOUT_MS,
+            )
+        } catch (error: RemoteRequestException) {
+            // Older desktops ignore unknown request methods. Fall back to the
+            // protocol-v1 implicit session creation performed by session.prompt.
+            if (error.remoteError.code == RemoteErrorCode.RequestTimeout) return null
+            throw error
+        }
+        val response = payload?.jsonObject ?: throw RemoteConversationException("桌面没有返回会话信息")
+        val remoteId = response["sessionId"]?.jsonPrimitive?.contentOrNull
+            ?: throw RemoteConversationException("桌面没有返回会话编号")
+        remoteSessionIds[localSessionId] = remoteId
+        return remoteId to parseModelCatalog(response["modelCatalog"])
+    }
+
+    override suspend fun readDesktopSessionModels(
+        localSessionId: String,
+        remoteSessionId: String,
+    ): RemoteSessionModelCatalog? {
+        val active = connection ?: return null
+        if (active.state.value != RemoteConnectionState.Online) return null
+        val opened = active.request(method = RemoteRequestMethod.SessionOpen, sessionId = remoteSessionId)
+        val resolvedId = (opened as? JsonObject)?.get("sessionId")?.jsonPrimitive?.contentOrNull ?: remoteSessionId
+        remoteSessionIds[localSessionId] = resolvedId
+        val modelPayload = try {
+            active.request(
+                method = RemoteRequestMethod.SessionModels,
+                sessionId = resolvedId,
+                timeoutMs = LEGACY_SESSION_CREATE_TIMEOUT_MS,
+            )
+        } catch (error: RemoteRequestException) {
+            if (error.remoteError.code == RemoteErrorCode.RequestTimeout) return null
+            throw error
+        }
+        return parseModelCatalog(modelPayload)
+    }
+
+    override suspend fun selectDesktopSessionModel(
+        localSessionId: String,
+        remoteSessionId: String,
+        modelId: String,
+    ): RemoteSessionModelCatalog? {
+        val active = connection ?: return null
+        if (active.state.value != RemoteConnectionState.Online) return null
+        val opened = active.request(method = RemoteRequestMethod.SessionOpen, sessionId = remoteSessionId)
+        val resolvedId = (opened as? JsonObject)?.get("sessionId")?.jsonPrimitive?.contentOrNull ?: remoteSessionId
+        remoteSessionIds[localSessionId] = resolvedId
+        val payload = buildJsonObject { put("modelKey", modelId) }
+        return parseModelCatalog(
+            active.request(
+                method = RemoteRequestMethod.SessionModelSelect,
+                payload = payload,
+                sessionId = resolvedId,
+                timeoutMs = LEGACY_SESSION_CREATE_TIMEOUT_MS,
+            ),
+        )
+    }
+
+    override suspend fun readDesktopPromptSuggestions(
+        localSessionId: String,
+        remoteSessionId: String,
+    ): List<String>? {
+        val active = connection ?: return null
+        if (active.state.value != RemoteConnectionState.Online) return null
+        val resolvedId = remoteSessionIds[localSessionId] ?: run {
+            val opened = active.request(method = RemoteRequestMethod.SessionOpen, sessionId = remoteSessionId)
+            (opened as? JsonObject)?.get("sessionId")?.jsonPrimitive?.contentOrNull ?: remoteSessionId
+        }
+        remoteSessionIds[localSessionId] = resolvedId
+        return try {
+            val payload = active.request(
+                method = RemoteRequestMethod.SessionSuggestions,
+                sessionId = resolvedId,
+                timeoutMs = LEGACY_SESSION_CREATE_TIMEOUT_MS,
+            ) as? JsonObject ?: return emptyList()
+            (payload["suggestions"] as? JsonArray).orEmpty().mapNotNull { item ->
+                item.jsonPrimitive.contentOrNull?.takeIf(String::isNotBlank)
+            }.take(3)
+        } catch (error: RemoteRequestException) {
+            if (error.remoteError.code == RemoteErrorCode.RequestTimeout) emptyList() else throw error
+        }
+    }
+
     private fun createConnection(url: String, target: String): RemoteConnection =
         RemoteConnection(
             transport = transportFactory(url),
@@ -268,6 +443,7 @@ class RelayRemoteConversationGateway(
         deviceId: String,
         remoteSessionId: String?,
         messages: List<ChatMessage>,
+        retryPreviousTurn: Boolean,
     ): Flow<ChatStreamEvent> =
         channelFlow {
             val active = connection ?: throw RemoteConversationException("请先连接桌面设备")
@@ -318,10 +494,38 @@ class RelayRemoteConversationGateway(
                             send(event)
                             if (event is ChatStreamEvent.State && event.value in TERMINAL_REMOTE_STATES) terminal.complete(event)
                         }
-		}
+            }
 
             try {
-                val payload = buildJsonObject { put("text", messages.lastOrNull()?.textContent.orEmpty()) }
+                var retryTargetMessageId: String? = null
+                if (retryPreviousTurn) {
+                    val targetSessionId = remoteSessionId ?: remoteSessionIds[localSessionId]
+                    if (targetSessionId != null) {
+                        val latestCatalog = try {
+                            parseModelCatalog(
+                                active.request(
+                                    method = RemoteRequestMethod.SessionModels,
+                                    sessionId = targetSessionId,
+                                    timeoutMs = LEGACY_SESSION_CREATE_TIMEOUT_MS,
+                                ),
+                            )
+                        } catch (error: RemoteRequestException) {
+                            if (error.remoteError.code != RemoteErrorCode.RequestTimeout) throw error
+                            throw RemoteConversationException("当前电脑端版本不支持安全重试，请更新电脑端后再试")
+                        }
+                        retryTargetMessageId = latestCatalog.lastUserMessageId
+                        if (retryTargetMessageId == null) {
+                            throw RemoteConversationException("电脑端没有提供可校验的重试目标，请更新电脑端后再试")
+                        }
+                    }
+                }
+                val payload = buildJsonObject {
+                    put("text", messages.lastOrNull()?.textContent.orEmpty())
+                    if (retryPreviousTurn) {
+                        put("retryPreviousTurn", true)
+                        retryTargetMessageId?.let { put("retryTargetMessageId", it) }
+                    }
+                }
                 val result = try {
                     active.request(
                         method = org.agent567.android.domain.remote.protocol.RemoteRequestMethod.SessionPrompt,
@@ -454,6 +658,36 @@ class RelayRemoteConversationGateway(
     }
 }
 
+private fun parseModelCatalog(element: JsonElement?): RemoteSessionModelCatalog {
+    val root = element as? JsonObject ?: return RemoteSessionModelCatalog(currentModelId = null, models = emptyList())
+    val currentModelId = root["currentModelId"]?.jsonPrimitive?.contentOrNull
+    val models = (root["models"] as? JsonArray).orEmpty().mapNotNull { value ->
+        val model = value as? JsonObject ?: return@mapNotNull null
+        val id = model["id"]?.jsonPrimitive?.contentOrNull ?: return@mapNotNull null
+        val modelId = model["modelId"]?.jsonPrimitive?.contentOrNull ?: id.substringAfter('/', id)
+        val providerName = model["providerName"]?.jsonPrimitive?.contentOrNull ?: id.substringBefore('/', "Desktop")
+        val input = (model["input"] as? JsonArray).orEmpty().mapNotNull { it.jsonPrimitive.contentOrNull }
+        val reasoningLevels = (model["reasoningLevels"] as? JsonArray).orEmpty().mapNotNull { it.jsonPrimitive.contentOrNull }
+        LlmModel(
+            id = id,
+            modelId = modelId,
+            name = model["name"]?.jsonPrimitive?.contentOrNull ?: modelId,
+            providerName = providerName,
+            reasoning = model["reasoning"]?.jsonPrimitive?.booleanOrNull ?: false,
+            input = input,
+            contextWindow = model["contextWindow"]?.jsonPrimitive?.longOrNull,
+            maxTokens = model["maxTokens"]?.jsonPrimitive?.longOrNull,
+            reasoningLevels = reasoningLevels,
+            defaultReasoningLevel = model["defaultReasoningLevel"]?.jsonPrimitive?.contentOrNull,
+        )
+    }
+    return RemoteSessionModelCatalog(
+        currentModelId = currentModelId,
+        models = models,
+        lastUserMessageId = root["lastUserMessageId"]?.jsonPrimitive?.contentOrNull,
+    )
+}
+
 private fun decodeConversationEvent(name: RemoteEventName, payload: JsonElement?): ChatStreamEvent? {
 	val objectValue = payload as? JsonObject ?: return null
 	return when (name) {
@@ -527,7 +761,9 @@ private fun String?.toRemoteErrorCode(): RemoteErrorCode =
     }
 
 private const val METRICS_REFRESH_INTERVAL_MS = 1_000L
+private const val LEGACY_SESSION_CREATE_TIMEOUT_MS = 1_500L
 private const val METRICS_DIAGNOSTICS_INTERVAL_MS = 5_000L
+private const val HISTORY_PAGE_SIZE = 100
 
 private data class DeviceDiagnostics(
     val osLabel: String?,

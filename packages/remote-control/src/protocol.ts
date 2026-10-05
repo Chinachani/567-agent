@@ -10,17 +10,10 @@ import type {
 	RemoteResponse,
 	RemoteResume,
 } from "./types.js";
+import { REMOTE_REQUEST_METHODS } from "./types.js";
 
 const roles = new Set(["mobile", "desktop"]);
-const requestMethods = new Set([
-	"session.list",
-	"session.open",
-	"session.prompt",
-	"session.respond",
-	"session.abort",
-	"session.resume",
-	"diagnostics.snapshot",
-]);
+const requestMethods = new Set<string>(REMOTE_REQUEST_METHODS);
 const eventNames = new Set([
 	"device.status",
 	"session.state",

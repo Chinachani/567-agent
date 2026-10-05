@@ -33,4 +33,5 @@ data class SessionListItem(
     val timeLabel: String,
     val isCloud: Boolean,
     val favorite: Boolean = false,
+    val remoteSessionId: String? = null,
 )

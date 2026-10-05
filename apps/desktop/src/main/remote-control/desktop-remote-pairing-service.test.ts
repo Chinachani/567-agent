@@ -70,7 +70,7 @@ describe("DesktopRemotePairingService.restore", () => {
 		const { DesktopRemotePairingService } = await import("./desktop-remote-pairing-service.js");
 		mocks.localRelay = {
 			getLanIp: () => "192.168.1.20",
-			getLanUrl: () => "wss://192.168.1.20:18789",
+			getLanUrl: () => "https://192.168.1.20:18789",
 			start: vi.fn(),
 			stop: vi.fn(),
 		};
@@ -114,7 +114,7 @@ describe("DesktopRemotePairingService.restore", () => {
 		const { DesktopRemotePairingService } = await import("./desktop-remote-pairing-service.js");
 		mocks.localRelay = {
 			getLanIp: () => "192.168.1.20",
-			getLanUrl: () => "wss://192.168.1.20:18789",
+			getLanUrl: () => "https://192.168.1.20:18789",
 			start: vi.fn(),
 			stop: vi.fn(),
 		};
@@ -143,7 +143,7 @@ describe("DesktopRemotePairingService.restore", () => {
 		expect(await mocks.readDesktopConfig()).toMatchObject({
 			remoteControl: {
 				pairingId: created.pairingId,
-				relayBaseUrl: "wss://relay.example",
+				relayBaseUrl: "https://relay.example",
 				inputEnabled: false,
 			},
 		});

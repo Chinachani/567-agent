@@ -489,10 +489,12 @@ fun SettingsScreen(
     section: SettingsSection,
     autoResumeLastSession: Boolean,
     motionEnabled: Boolean,
+    inputPredictionEnabled: Boolean,
     migrationBackupLimitMb: Int,
     onMigrationBackupLimitMb: (Int) -> Unit,
     onAutoResumeLastSession: (Boolean) -> Unit,
     onMotionEnabled: (Boolean) -> Unit,
+    onInputPredictionEnabled: (Boolean) -> Unit,
     onClearLocalData: () -> Unit,
     onExportMigration: (String, (ByteArray?, String?) -> Unit) -> Unit,
     onImportMigration: (ByteArray, String, (Int?, String?) -> Unit) -> Unit,
@@ -588,6 +590,13 @@ fun SettingsScreen(
                                 subtitle = Str.pageMotionHint,
                                 checked = motionEnabled,
                                 onCheckedChange = onMotionEnabled,
+                                showDivider = true,
+                            )
+                            PreferenceSwitchRow(
+                                title = Str.inputPrediction,
+                                subtitle = Str.inputPredictionHint,
+                                checked = inputPredictionEnabled,
+                                onCheckedChange = onInputPredictionEnabled,
                                 showDivider = false,
                             )
                         }

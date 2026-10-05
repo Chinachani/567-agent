@@ -13,7 +13,7 @@
 #   --yes                   跳过 stable 的二次确认。
 #
 # local 通道用于快速验证更新链路本身：保留签名（Squirrel.Mac 必需）但跳过公证，
-# 省掉每轮 10~30 分钟的 Apple 排队；产物落到 ~/.vetta/local-updates 并由
+# 省掉每轮 10~30 分钟的 Apple 排队；产物落到 ~/.567agent/local-updates 并由
 # `bun run serve:updates:local` 分发。多个版本会累积在该目录——差分下载需要读
 # **旧版本**的 blockmap。未公证产物不可分发，test/stable 的发布门禁会用
 # `stapler validate` 挡住它们。
@@ -97,7 +97,7 @@ esac
 
 # ── 凭据 ──────────────────────────────────────────────────────────────────────
 
-LOCAL_UPDATE_DIR="${VETTA_LOCAL_UPDATE_DIR:-${HOME}/.vetta/local-updates}"
+LOCAL_UPDATE_DIR="${VETTA_LOCAL_UPDATE_DIR:-${HOME}/.567agent/local-updates}"
 LOCAL_UPDATE_PORT="${VETTA_LOCAL_UPDATE_PORT:-8080}"
 
 [[ -f "${SIGNING_ENV}" ]] || die "找不到签名凭据 ${SIGNING_ENV}（见 docs/deploy/apple-code-signing.md）"

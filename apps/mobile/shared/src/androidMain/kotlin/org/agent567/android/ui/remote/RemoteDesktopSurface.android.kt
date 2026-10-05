@@ -4,9 +4,13 @@ import androidx.compose.foundation.focusable
 import androidx.compose.foundation.gestures.detectDragGestures
 import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.padding
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
+import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.getValue
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
@@ -18,7 +22,11 @@ import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.IntSize
+import androidx.compose.ui.unit.dp
 import androidx.compose.ui.viewinterop.AndroidView
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Surface
+import androidx.compose.material3.Text
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
 import androidx.lifecycle.compose.LocalLifecycleOwner
@@ -27,6 +35,7 @@ import androidx.lifecycle.compose.LocalLifecycleOwner
 actual fun RemoteDesktopSurface(target: String, modifier: Modifier) {
     val context = LocalContext.current
     val session = remember(target) { NativeRemoteDesktopSession(context.applicationContext, target) }
+    val captureMessage by session.captureMessage.collectAsState()
     val focusRequester = remember { FocusRequester() }
     var size = remember { IntSize.Zero }
     DisposableEffect(session) {
@@ -86,6 +95,16 @@ actual fun RemoteDesktopSurface(target: String, modifier: Modifier) {
             },
     ) {
         AndroidView(modifier = Modifier.matchParentSize(), factory = { session.createRenderer() })
+        captureMessage?.let { message ->
+            Surface(
+                modifier = Modifier.align(Alignment.Center).padding(20.dp),
+                color = MaterialTheme.colorScheme.surface.copy(alpha = 0.94f),
+                contentColor = MaterialTheme.colorScheme.onSurface,
+                shape = MaterialTheme.shapes.medium,
+            ) {
+                Text(message, modifier = Modifier.padding(horizontal = 20.dp, vertical = 14.dp))
+            }
+        }
     }
 }
 

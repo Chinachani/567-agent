@@ -1,7 +1,7 @@
 import { Button } from "@shared/components/ui/button";
 import { Input } from "@shared/components/ui/input";
 import { Switch } from "@shared/components/ui/switch";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import type { RemotePairingState } from "../../../../preload/api-types/remote-pairing";
 import { createQrCodeDataUrl } from "@shared/lib/qr-code-data-url";
@@ -16,8 +16,9 @@ export function RemotePairingSettings(): JSX.Element {
 		inputSupported: false,
 	});
 	const [relayUrl, setRelayUrl] = useState(() => {
-		return localStorage.getItem("567.remote.relay_url") || DEFAULT_RELAY;
+		return toHttpsRelayBaseUrl(localStorage.getItem("567.remote.relay_url") || DEFAULT_RELAY);
 	});
+	const relayUrlEdited = useRef(false);
 	const [qr, setQr] = useState<string>();
 	const [qrError, setQrError] = useState(false);
 	const [createError, setCreateError] = useState<string>();
@@ -27,8 +28,8 @@ export function RemotePairingSettings(): JSX.Element {
 		const sync = (): void => {
 			void window.vetta.remotePairing.getState().then((next) => {
 				setState(next);
-				if (next.relayBaseUrl) {
-					setRelayUrl(next.relayBaseUrl);
+				if (next.relayBaseUrl && !relayUrlEdited.current) {
+					setRelayUrl(toHttpsRelayBaseUrl(next.relayBaseUrl));
 				}
 			});
 		};
@@ -68,9 +69,15 @@ export function RemotePairingSettings(): JSX.Element {
 		setCreateError(undefined);
 		try {
 			const targetRelay = relayUrl.trim() || DEFAULT_RELAY;
-			localStorage.setItem("567.remote.relay_url", targetRelay);
+			localStorage.setItem("567.remote.relay_url", toHttpsRelayBaseUrl(targetRelay));
 			setCreateError(undefined);
-			setState(await window.vetta.remotePairing.create(targetRelay));
+			const next = await window.vetta.remotePairing.create(targetRelay);
+			setState(next);
+			if (next.relayBaseUrl) {
+				const canonicalRelay = toHttpsRelayBaseUrl(next.relayBaseUrl);
+				setRelayUrl(canonicalRelay);
+				localStorage.setItem("567.remote.relay_url", canonicalRelay);
+			}
 		} catch (error) {
 			setCreateError(error instanceof Error ? error.message : t("remote.createFailed"));
 			setState((current) => ({ ...current, status: "error" }));
@@ -130,6 +137,7 @@ export function RemotePairingSettings(): JSX.Element {
 								type="button"
 								className="text-[11px] text-primary hover:underline"
 								onClick={() => {
+									relayUrlEdited.current = true;
 									setRelayUrl(DEFAULT_RELAY);
 									localStorage.removeItem("567.remote.relay_url");
 								}}
@@ -143,7 +151,10 @@ export function RemotePairingSettings(): JSX.Element {
 							id="relay-url-input"
 							type="url"
 							value={relayUrl}
-							onChange={(e) => setRelayUrl(e.target.value)}
+							onChange={(e) => {
+								relayUrlEdited.current = true;
+								setRelayUrl(e.target.value);
+							}}
 							placeholder={DEFAULT_RELAY}
 							className="h-8 flex-1 text-xs font-mono"
 						/>
@@ -156,6 +167,19 @@ export function RemotePairingSettings(): JSX.Element {
 				</div>
 
 				<div className="mt-4 min-h-[310px] overflow-hidden border-y border-border/50 py-5">
+					{state.pairingWarnings?.map((warning) => (
+						<div
+							key={warning}
+							className="mb-4 flex items-start justify-between gap-4 rounded-md border border-amber-500/40 bg-amber-500/10 p-3 text-[12px] text-amber-200"
+						>
+							<p>{t(`remote.warning.${warning}`)}</p>
+							{warning === "certificate_changed" ? (
+								<Button size="sm" variant="outline" disabled={busy} onClick={() => void create()}>
+									{t("remote.create")}
+								</Button>
+							) : null}
+						</div>
+					))}
 					{createError ? <p role="alert" className="mb-3 text-center text-[12px] text-destructive">{createError}</p> : null}
 					{qr ? (
 						<div className="flex flex-col items-center animate-in fade-in zoom-in-95 duration-200">
@@ -208,4 +232,14 @@ export function RemotePairingSettings(): JSX.Element {
 			</section>
 		</div>
 	);
+}
+
+function toHttpsRelayBaseUrl(value: string): string {
+	try {
+		const parsed = new URL(value.trim());
+		if (parsed.protocol === "wss:") parsed.protocol = "https:";
+		return `${parsed.protocol}//${parsed.host}${parsed.pathname}`.replace(/\/$/, "");
+	} catch {
+		return value.trim();
+	}
 }

@@ -10,6 +10,7 @@ import { getDesktopLocalRelay } from "./desktop-local-relay.js";
 import {
 	createDesktopLocalRelayCertificate,
 	type DesktopLocalRelayCertificate,
+	isDesktopLocalRelayCertificateAuthority,
 } from "./desktop-local-relay-certificate.js";
 import { startDesktopRemoteAccess, stopDesktopRemoteAccess } from "./desktop-remote-access-service.js";
 import {
@@ -41,6 +42,7 @@ export interface DesktopRemotePairingState {
 	readonly inputEnabled: boolean;
 	readonly inputSupported: boolean;
 	readonly inputSupportReason?: RemotePairingState["inputSupportReason"];
+	readonly pairingWarnings?: RemotePairingState["pairingWarnings"];
 	readonly error?: string;
 }
 
@@ -53,6 +55,7 @@ export class DesktopRemotePairingService {
 	};
 	private host: DesktopRemoteDesktopHostHandle | undefined;
 	private localRelayCertificate: DesktopLocalRelayCertificate | undefined;
+	private certificateChangedForUpgrade = false;
 	private connectionState: RemoteConnectionState = "idle";
 
 	constructor(
@@ -69,6 +72,7 @@ export class DesktopRemotePairingService {
 	async restore(): Promise<void> {
 		const config = await readDesktopConfig();
 		const remote = config.remoteControl;
+		const relay = normalizeRelayBaseUrl(remote?.relayBaseUrl);
 		let secret: string | undefined;
 		try {
 			secret = this.readDesktopSecret();
@@ -85,17 +89,25 @@ export class DesktopRemotePairingService {
 			});
 			return;
 		}
-		if (!remote?.pairingId || !remote.relayBaseUrl || !secret) return;
+		if (!remote?.pairingId || !relay || !secret) return;
 		this.state = {
 			status: "ready",
-			relayBaseUrl: remote.relayBaseUrl,
+			relayBaseUrl: relay,
 			pairingId: remote.pairingId,
 			inputEnabled: remote.inputEnabled === true,
 			inputSupported: false,
 		};
 		try {
 			const localRelay = getDesktopLocalRelay();
-			this.localRelayCertificate = await this.getLocalRelayCertificate(localRelay.getLanIp());
+			const lanIp = localRelay.getLanIp();
+			this.localRelayCertificate = await this.getLocalRelayCertificate(lanIp);
+			this.state = {
+				...this.state,
+				pairingWarnings: [
+					...(this.certificateChangedForUpgrade ? ["certificate_changed" as const] : []),
+					...(lanIp === "127.0.0.1" ? ["lan_unavailable" as const] : []),
+				],
+			};
 			await localRelay.start(this.localRelayCertificate, {
 				pairingId: remote.pairingId,
 				desktopSecret: secret,
@@ -110,8 +122,11 @@ export class DesktopRemotePairingService {
 				remote.inputEnabled === true,
 				undefined,
 				this.localRelayCertificate,
-				normalizeRelayBaseUrl(remote.relayBaseUrl),
+				relay,
 			);
+			if (remote.relayBaseUrl !== relay) {
+				await this.persistRemoteConfig({ relayBaseUrl: relay });
+			}
 			this.state = {
 				...this.state,
 				status: this.connectionState === "online" ? "connected" : this.state.status,
@@ -136,6 +151,7 @@ export class DesktopRemotePairingService {
 		if (!relay) throw new Error("请输入有效的中继地址");
 		if (!this.vault.isAvailable()) throw new Error("当前系统无法使用安全凭据存储");
 		await this.revoke(false);
+		this.certificateChangedForUpgrade = false;
 		const pairingId = randomBytes(24).toString("base64url");
 		const desktopSecret = randomBytes(32).toString("base64url");
 		const bootstrapSecret = randomBytes(32).toString("base64url");
@@ -145,7 +161,8 @@ export class DesktopRemotePairingService {
 			{ kind: "remote-desktop", consumer: "desktop" },
 		);
 		const localRelay = getDesktopLocalRelay();
-		this.localRelayCertificate = await this.getLocalRelayCertificate(localRelay.getLanIp(), true);
+		const lanIp = localRelay.getLanIp();
+		this.localRelayCertificate = await this.getLocalRelayCertificate(lanIp, true);
 		await localRelay.start(this.localRelayCertificate, {
 			pairingId,
 			desktopSecret,
@@ -171,6 +188,7 @@ export class DesktopRemotePairingService {
 			inputEnabled: false,
 			inputSupported: this.host?.inputSupported === true,
 			inputSupportReason: this.host?.inputSupportReason,
+			pairingWarnings: lanIp === "127.0.0.1" ? ["lan_unavailable"] : [],
 		};
 		log.info("remote pairing created", { pairingId, host: hostname() });
 		return this.getState();
@@ -214,16 +232,22 @@ export class DesktopRemotePairingService {
 		});
 		const lanParams = new URLSearchParams(cloudParams);
 		if (localRelayCertificate) lanParams.set("fingerprint", localRelayCertificate.fingerprint);
+		const lanWebSocketRelay = toWebSocketBaseUrl(relay);
+		const cloudWebSocketRelay = cloudRelay ? toWebSocketBaseUrl(cloudRelay) : undefined;
 		const controlTargets = [
-			...(cloudRelay ? [{ target: `${cloudRelay}/v1/relay/${pairingId}/desktop#${cloudParams.toString()}` }] : []),
+			...(cloudWebSocketRelay
+				? [{ target: `${cloudWebSocketRelay}/v1/relay/${pairingId}/desktop#${cloudParams.toString()}` }]
+				: []),
 			{
-				target: `${relay}/v1/relay/${pairingId}/desktop#${lanParams.toString()}`,
+				target: `${lanWebSocketRelay}/v1/relay/${pairingId}/desktop#${lanParams.toString()}`,
 				webSocketCaCertificate: localRelayCertificate?.certificate,
 			},
 		];
 		const signalingTargets = [
-			...(cloudRelay ? [`${cloudRelay}/v1/desktop/${pairingId}/host#${cloudParams.toString()}`] : []),
-			`${relay}/v1/desktop/${pairingId}/host#${lanParams.toString()}`,
+			...(cloudWebSocketRelay
+				? [`${cloudWebSocketRelay}/v1/desktop/${pairingId}/host#${cloudParams.toString()}`]
+				: []),
+			`${lanWebSocketRelay}/v1/desktop/${pairingId}/host#${lanParams.toString()}`,
 		];
 		await startDesktopRemoteAccess({
 			controlTargets,
@@ -270,7 +294,10 @@ export class DesktopRemotePairingService {
 		if (stored) {
 			try {
 				const parsed = JSON.parse(stored) as DesktopLocalRelayCertificate;
-				if (parsed.certificate && parsed.privateKey && parsed.fingerprint) return parsed;
+				if (parsed.certificate && parsed.privateKey && parsed.fingerprint) {
+					if (isDesktopLocalRelayCertificateAuthority(parsed.certificate)) return parsed;
+					this.certificateChangedForUpgrade = true;
+				}
 			} catch {
 				// Replace malformed local relay credentials with a fresh certificate.
 			}
@@ -302,11 +329,18 @@ function normalizeRelayBaseUrl(value: string | undefined): string | undefined {
 	try {
 		const parsed = new URL(value.trim());
 		if (parsed.protocol !== "https:" && parsed.protocol !== "wss:") return undefined;
-		const protocol = parsed.protocol === "https:" ? "wss:" : parsed.protocol;
+		const protocol = parsed.protocol === "wss:" ? "https:" : parsed.protocol;
 		return `${protocol}//${parsed.host}${parsed.pathname}`.replace(/\/$/, "");
 	} catch {
 		return undefined;
 	}
+}
+
+function toWebSocketBaseUrl(value: string): string {
+	const parsed = new URL(value);
+	if (parsed.protocol === "https:") parsed.protocol = "wss:";
+	if (parsed.protocol !== "wss:") throw new Error("中继地址必须使用 HTTPS/WSS");
+	return `${parsed.protocol}//${parsed.host}${parsed.pathname}`.replace(/\/$/, "");
 }
 
 function buildInviteUri(

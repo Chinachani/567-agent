@@ -112,6 +112,24 @@ export interface PluginOfficialSkillInfo {
 	type: "skill" | "scene";
 }
 
+export interface PluginOfficialMarketplaceAbility {
+	type: "skill" | "scene" | "mcp" | "plugin" | "bundle";
+	slug: string;
+	name: string;
+	description: string;
+	author: string;
+	version: string;
+	license: string;
+	category: string;
+	tags: string[];
+	docsUrl?: string;
+	repositoryUrl?: string;
+	sourceId: string;
+	reviewStatus?: "unreviewed";
+	installable?: boolean;
+	metadataIncomplete?: boolean;
+}
+
 export type PluginOfficialInstalledSkill = {
 	name: string;
 	version: string;
@@ -443,6 +461,14 @@ export interface PluginOfficialNavigationOpenInput {
 
 /** 仅宿主验证为官方来源的插件可以调用；普通插件调用时由宿主拒绝。 */
 export interface PluginOfficialApi {
+	marketplace: {
+		/** 搜索桌面端当前已加载的能力市场快照；不会自行扫描目录或访问网络。 */
+		search(input: {
+			query: string;
+			type?: PluginOfficialMarketplaceAbility["type"];
+			limit?: number;
+		}): Promise<{ results: PluginOfficialMarketplaceAbility[]; stale: boolean; failedSourceCount: number }>;
+	};
 	general: {
 		getSettings(): Promise<PluginOfficialGeneralSettings>;
 		setSettings(input: PluginOfficialGeneralSettingsUpdate): Promise<PluginOfficialGeneralSettingsUpdate>;

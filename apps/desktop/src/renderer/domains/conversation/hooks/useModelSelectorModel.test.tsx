@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 
-import { SELECTED_MODEL_STORAGE_KEY, selectedModelAtom } from "@shared/store/atoms";
+import { selectedModelAtom } from "@shared/store/atoms";
 import { act, renderHook } from "@testing-library/react";
 import { createStore, Provider } from "jotai";
 import type { ReactNode } from "react";
@@ -41,10 +41,7 @@ beforeEach(() => {
 	localStorage.clear();
 });
 
-it("remembers a model picked in a scoped composer as the global new-session preference", () => {
-	// 团队输入框的选择只经 scope 生效时，全局偏好会一直停在一个早已不可用的旧模型上，
-	// 刷新后普通输入框就显示并发送那个模型。
-	localStorage.setItem(SELECTED_MODEL_STORAGE_KEY, "vetta-go/stale");
+it("updates the current window model without persisting a cross-window preference", () => {
 	const store = createStore();
 	store.set(selectedModelAtom, "vetta-go/stale");
 	const scope: ModelSelectorScope = {
@@ -59,5 +56,5 @@ it("remembers a model picked in a scoped composer as the global new-session pref
 
 	expect(scope.onModelSelect).toHaveBeenCalledWith("cli-proxy-api.google/gemini-3.8-flash-high", undefined);
 	expect(store.get(selectedModelAtom)).toBe("cli-proxy-api.google/gemini-3.8-flash-high");
-	expect(localStorage.getItem(SELECTED_MODEL_STORAGE_KEY)).toBe("cli-proxy-api.google/gemini-3.8-flash-high");
+	expect(localStorage.length).toBe(0);
 });

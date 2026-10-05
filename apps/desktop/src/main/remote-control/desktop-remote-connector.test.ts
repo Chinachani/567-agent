@@ -3,6 +3,70 @@ import { describe, expect, it } from "vitest";
 import { DesktopRemoteConnector, type DesktopRemoteOperations } from "./desktop-remote-connector.js";
 
 describe("DesktopRemoteConnector", () => {
+	it("exposes desktop model selection and preserves the retry target", async () => {
+		const relay = new FakeRelay();
+		const mobile = new RemoteConnection(relay.createTransport("pair-models", "mobile"), {
+			role: "mobile",
+			deviceId: "phone-models",
+			deviceName: "Phone",
+			capabilities: { chat: true, sessionRead: true },
+			connectionId: "mobile-models",
+		});
+		const desktop = new RemoteConnection(relay.createTransport("pair-models", "desktop"), {
+			role: "desktop",
+			deviceId: "desktop-models",
+			deviceName: "Desktop",
+			capabilities: { chat: true, sessionRead: true },
+			connectionId: "desktop-models",
+		});
+		let selectedModel = "provider/model-a";
+		let retryArguments: unknown[] = [];
+		const operations: DesktopRemoteOperations = {
+			listSessions: async () => [],
+			createSession: async () => ({ sessionId: "session-models" }),
+			openSession: async (sessionId) => ({ sessionId }),
+			readModels: () => ({
+				currentModelId: selectedModel,
+				lastUserMessageId: "user-turn-1",
+				models: [{ id: selectedModel }],
+			}),
+			selectModel: async (_sessionId, modelKey) => {
+				selectedModel = modelKey;
+			},
+			prompt: async function* (...args) {
+				retryArguments = args;
+				yield { type: "state", payload: { state: "completed" } };
+			},
+			abort: async () => undefined,
+			resume: async () => undefined,
+			diagnostics: async () => ({}),
+		};
+		const connector = new DesktopRemoteConnector(desktop, operations);
+		await mobile.connect();
+		await connector.start();
+
+		await expect(mobile.request("session.create")).resolves.toMatchObject({
+			sessionId: "session-models",
+			modelCatalog: { currentModelId: "provider/model-a" },
+		});
+		await mobile.request("session.model.select", { modelKey: "provider/model-b" }, "session-models");
+		await mobile.request(
+			"session.prompt",
+			{
+				text: "redo",
+				retryPreviousTurn: true,
+				retryTargetMessageId: "user-turn-1",
+			},
+			"session-models",
+		);
+		await waitFor(() => retryArguments.length > 0);
+		expect(selectedModel).toBe("provider/model-b");
+		expect(retryArguments).toEqual(["session-models", "redo", true, "user-turn-1"]);
+
+		await connector.stop();
+		await mobile.close();
+	});
+
 	it("maps protocol requests to desktop operations and streams events", async () => {
 		const relay = new FakeRelay();
 		const mobile = new RemoteConnection(relay.createTransport("pair-1", "mobile"), {

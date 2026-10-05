@@ -147,10 +147,11 @@ fun RootApp(
                                         state.devices.firstOrNull {
                                             it.status == org.agent567.android.domain.device.DeviceStatus.Online
                                         },
-                                    recentSessions = sessionItems.take(5),
+                                    recentSessions = sessionItems.filter { it.isCloud }.take(5),
                                     onOpenDevice = vm::openDeviceDetail,
                                     onOpenDevices = { vm.selectMainTab(MainTab.Discover) },
-                                    onOpenSessions = { vm.selectMainTab(MainTab.Sessions) },
+                                    onOpenSessions = vm::openPhoneSessions,
+                                    onOpenDesktopSessions = vm::openDesktopSessions,
                                     onOpenSession = { id ->
                                         val item = vm.sessionListItems().firstOrNull { it.id == id }
                                         vm.openChat(
@@ -167,6 +168,9 @@ fun RootApp(
                                     sessions = sessionItems,
                                     query = state.sessionQuery,
                                     filterIndex = state.sessionFilterIndex,
+                                    desktopSessionsLoading = state.desktopSessionsLoading,
+                                    desktopSessionsError = state.desktopSessionsError,
+                                    onRefreshDesktopSessions = vm::refreshDesktopSessions,
                                     onQueryChange = vm::setSessionQuery,
                                     onFilterChange = vm::setSessionFilter,
                                     onNewConversation = { vm.openNewConversation(0) },
@@ -174,11 +178,15 @@ fun RootApp(
                                     onDeleteSession = vm::deleteSession,
                                     confirmBeforeDelete = state.confirmBeforeDelete,
                                     onOpenSession = { item ->
-                                        vm.openChat(
-                                            sessionId = item.id,
-                                            surface = if (item.isCloud) ChatSurface.Cloud else ChatSurface.Desktop,
-                                            title = item.title,
-                                        )
+                                        if (item.remoteSessionId != null) {
+                                            vm.openDesktopSession(item.remoteSessionId, item.title)
+                                        } else {
+                                            vm.openChat(
+                                                sessionId = item.id,
+                                                surface = if (item.isCloud) ChatSurface.Cloud else ChatSurface.Desktop,
+                                                title = item.title,
+                                            )
+                                        }
                                     },
                                 )
                             MainTab.Discover ->
@@ -250,9 +258,12 @@ fun RootApp(
                     onConnectDesktop = { vm.selectMainTab(MainTab.Discover) },
                 )
             is AppRoute.Chat -> {
-                val selected =
-                    state.models.firstOrNull { it.id == state.selectedModelId }
-                        ?: state.models.firstOrNull()
+                val chatModels = if (route.surface == ChatSurface.Desktop) state.desktopModels else state.models
+                val selected = if (route.surface == ChatSurface.Desktop) {
+                    chatModels.firstOrNull { it.id == state.desktopSelectedModelId } ?: chatModels.firstOrNull()
+                } else {
+                    chatModels.firstOrNull { it.id == state.selectedModelId } ?: chatModels.firstOrNull()
+                }
                 val title =
                     route.title.ifBlank {
                         sessions.firstOrNull { it.id == state.currentSessionId }?.title
@@ -266,7 +277,11 @@ fun RootApp(
                     pendingImages = state.pendingImages,
                     isStreaming = state.isStreaming,
                     streamingStatus = state.streamingStatus,
-                    models = state.models,
+                    inputPredictions = state.inputPredictions,
+                    inputPredictionLoading = state.inputPredictionLoading,
+                    onSelectInputPrediction = vm::selectInputPrediction,
+                    desktopHistoryLoading = state.desktopHistoryLoading,
+                    models = chatModels,
                     selectedModel = selected,
                     modelPickerOpen = state.modelPickerOpen,
                     activeGroup = state.active567Group,
@@ -275,7 +290,11 @@ fun RootApp(
                     onOpenGroupPicker = { vm.setGroupPickerOpen(true) },
                     onCloseGroupPicker = { vm.setGroupPickerOpen(false) },
                     onSelectGroup = vm::setActive567Group,
-                    onRefreshCatalog = vm::refreshCatalog,
+                    onRefreshCatalog = if (route.surface == ChatSurface.Desktop) {
+                        { vm.refreshDesktopSessionModels() }
+                    } else {
+                        vm::refreshCatalog
+                    },
                     catalogLoading = state.catalogLoading,
                     activeImageGroup = state.activeImageGroup,
                     activeImageModel = state.activeImageModel,
@@ -323,10 +342,12 @@ fun RootApp(
                     section = SettingsSection.Behavior,
                     autoResumeLastSession = state.autoResumeLastSession,
                     motionEnabled = state.motionEnabled,
+                    inputPredictionEnabled = state.inputPredictionEnabled,
                     migrationBackupLimitMb = state.migrationBackupLimitMb,
                     onMigrationBackupLimitMb = vm::setMigrationBackupLimitMb,
                     onAutoResumeLastSession = vm::setAutoResumeLastSession,
                     onMotionEnabled = vm::setMotionEnabled,
+                    onInputPredictionEnabled = vm::setInputPredictionEnabled,
                     onClearLocalData = vm::clearLocalSessions,
                     onExportMigration = vm::exportSessionMigration,
                     onImportMigration = vm::importSessionMigration,
@@ -339,10 +360,12 @@ fun RootApp(
                     section = SettingsSection.Data,
                     autoResumeLastSession = state.autoResumeLastSession,
                     motionEnabled = state.motionEnabled,
+                    inputPredictionEnabled = state.inputPredictionEnabled,
                     migrationBackupLimitMb = state.migrationBackupLimitMb,
                     onMigrationBackupLimitMb = vm::setMigrationBackupLimitMb,
                     onAutoResumeLastSession = vm::setAutoResumeLastSession,
                     onMotionEnabled = vm::setMotionEnabled,
+                    onInputPredictionEnabled = vm::setInputPredictionEnabled,
                     onClearLocalData = vm::clearLocalSessions,
                     onExportMigration = vm::exportSessionMigration,
                     onImportMigration = vm::importSessionMigration,

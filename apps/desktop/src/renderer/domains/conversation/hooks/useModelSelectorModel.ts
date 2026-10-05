@@ -4,7 +4,6 @@ import {
 	activeSessionAtom,
 	modelSupportsImagesAtom,
 	reasoningByModelAtom,
-	SELECTED_MODEL_STORAGE_KEY,
 	selectedModelAtom,
 } from "@shared/store/atoms";
 import { modelCatalog } from "@shared/store/model-catalog";
@@ -24,14 +23,6 @@ export interface ModelSelectorScope {
 	readonly reasoning?: string;
 	readonly onModelSelect: (modelKey: string, defaultReasoning?: string) => void;
 	readonly onReasoningSelect: (reasoning: string) => void;
-}
-
-function persistSelectedModel(key: string): void {
-	try {
-		localStorage.setItem(SELECTED_MODEL_STORAGE_KEY, key);
-	} catch {
-		// ignore persistence errors (private mode / quota)
-	}
 }
 
 /** options 尚未加载（如远程 catalog）时，用 modelKey 拼一个最小 option 供触发器展示。 */
@@ -112,7 +103,6 @@ export function useModelSelectorModel({
 				scope.onModelSelect(defaultKey, defaultReasoning);
 			} else {
 				setSelectedModel(defaultKey);
-				persistSelectedModel(defaultKey);
 			}
 		}
 	}, [selectedModel, defaultKey, setSelectedModel, scope, options]);
@@ -139,11 +129,9 @@ export function useModelSelectorModel({
 				const defaultReasoning = resolveReasoning(options.find((option) => option.key === key))?.default;
 				scope.onModelSelect(key, defaultReasoning);
 			}
-			// 用户手动选择的就是“上次使用的模型”，无论在哪个输入框选的都记为全局新会话偏好；
-			// 否则 scoped 选择不落全局，刷新后普通输入框会回到一个早已不可用的旧模型。
+			// 当前窗口的新会话暂用此选择；新窗口和新会话入口会重新读取配置默认值。
 			// 已有会话另写 session settings。
 			setSelectedModel(key);
-			persistSelectedModel(key);
 			if (!scope && updateActiveSession && activeSession?.runtimeId) {
 				void window.vetta.session.updateSettings(activeSession.runtimeId, { modelKey: key });
 			}

@@ -53,11 +53,29 @@ enum class RemoteRequestMethod {
     @SerialName("session.list")
     SessionList,
 
+    @SerialName("session.delete")
+    SessionDelete,
+
+    @SerialName("session.create")
+    SessionCreate,
+
     @SerialName("session.open")
     SessionOpen,
 
+    @SerialName("session.history")
+    SessionHistory,
+
     @SerialName("session.prompt")
     SessionPrompt,
+
+    @SerialName("session.models")
+    SessionModels,
+
+    @SerialName("session.model.select")
+    SessionModelSelect,
+
+    @SerialName("session.suggestions")
+    SessionSuggestions,
 
     @SerialName("session.respond")
     SessionRespond,

@@ -47,7 +47,6 @@ import {
 	finalizeMessage,
 	finishAssistantTurn,
 	getActiveAssistantTurnStartedAt,
-	getChatStreamOwner,
 	handleToolEnd,
 	handleToolPhase,
 	handleToolStart,
@@ -150,11 +149,7 @@ export function useSessionEventController({ activeSessionRef }: SessionEventCont
 		pendingThinkingDeltaRef.current = "";
 		pendingDeltaSessionRef.current = null;
 
-		if (
-			owningSession &&
-			(getChatStreamOwner() !== owningSession || activeSessionRef.current?.runtimeId !== owningSession)
-		)
-			return;
+		if (owningSession && activeSessionRef.current?.runtimeId !== owningSession) return;
 		if (hasAssistantEvents || textDelta || thinkingDelta) {
 			setChatMessages((previous) => {
 				if (hasAssistantEvents) return conversationProjectionRef.current.flush(previous);
@@ -181,10 +176,10 @@ export function useSessionEventController({ activeSessionRef }: SessionEventCont
 			// the new session's atom. activeSessionRef is updated synchronously
 			// above and reflects the latest user-facing session.
 			if (activeSessionRef.current?.runtimeId !== sessionId) return;
-			// 归属闸门：activeSessionRef 是实例级的，只能证明「本实例最后打开的是它」。
-			// 真正代表用户当前会话的是模块级 owner，它在 openSession 一进入就被置空——
-			// 切走后旧会话的事件到此为止。
-			if (getChatStreamOwner() !== sessionId) return;
+			// Remote turns can be initiated outside this renderer (for example from
+			// the paired phone), so the local stream-owner token may be empty or belong
+			// to another view. The active-session guard is the relevant isolation
+			// boundary: accept this session's events only while it is the visible one.
 			if (event.type === "session.context.state") {
 				setContextUsage({
 					percent: event.state.usage.percent,

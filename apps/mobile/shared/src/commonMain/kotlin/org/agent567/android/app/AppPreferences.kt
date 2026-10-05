@@ -41,6 +41,9 @@ class AppPreferences(
     private val _motionEnabled = MutableStateFlow(readBoolean(KEY_MOTION_ENABLED, true))
     val motionEnabled: StateFlow<Boolean> = _motionEnabled.asStateFlow()
 
+    private val _inputPredictionEnabled = MutableStateFlow(readBoolean(KEY_INPUT_PREDICTION_ENABLED, true))
+    val inputPredictionEnabled: StateFlow<Boolean> = _inputPredictionEnabled.asStateFlow()
+
     private val _confirmBeforeDelete = MutableStateFlow(readBoolean(KEY_CONFIRM_DELETE, true))
     val confirmBeforeDelete: StateFlow<Boolean> = _confirmBeforeDelete.asStateFlow()
 
@@ -69,6 +72,24 @@ class AppPreferences(
         get() = settings.getStringOrNull(KEY_REMOTE_PAIRING_ID)?.takeIf { it.isNotBlank() }
         set(value) {
             if (value.isNullOrBlank()) settings.remove(KEY_REMOTE_PAIRING_ID) else settings[KEY_REMOTE_PAIRING_ID] = value
+        }
+
+    var remoteRelayBaseUrl: String?
+        get() = settings.getStringOrNull(KEY_REMOTE_RELAY_URL)?.takeIf { it.isNotBlank() }
+        set(value) {
+            if (value.isNullOrBlank()) settings.remove(KEY_REMOTE_RELAY_URL) else settings[KEY_REMOTE_RELAY_URL] = value
+        }
+
+    var remoteLanBaseUrl: String?
+        get() = settings.getStringOrNull(KEY_REMOTE_LAN_URL)?.takeIf { it.isNotBlank() }
+        set(value) {
+            if (value.isNullOrBlank()) settings.remove(KEY_REMOTE_LAN_URL) else settings[KEY_REMOTE_LAN_URL] = value
+        }
+
+    var remoteLanCertificateFingerprint: String?
+        get() = settings.getStringOrNull(KEY_REMOTE_LAN_FINGERPRINT)?.takeIf { it.isNotBlank() }
+        set(value) {
+            if (value.isNullOrBlank()) settings.remove(KEY_REMOTE_LAN_FINGERPRINT) else settings[KEY_REMOTE_LAN_FINGERPRINT] = value
         }
 
     var active567Group: String?
@@ -205,6 +226,11 @@ class AppPreferences(
         _motionEnabled.value = enabled
     }
 
+    fun setInputPredictionEnabled(enabled: Boolean) {
+        settings[KEY_INPUT_PREDICTION_ENABLED] = enabled
+        _inputPredictionEnabled.value = enabled
+    }
+
     fun setConfirmBeforeDelete(enabled: Boolean) {
         settings[KEY_CONFIRM_DELETE] = enabled
         _confirmBeforeDelete.value = enabled
@@ -237,12 +263,16 @@ class AppPreferences(
         private const val KEY_THEME = "vetta.prefs.theme"
         private const val KEY_AUTO_RESUME = "vetta.prefs.auto_resume"
         private const val KEY_MOTION_ENABLED = "vetta.prefs.motion_enabled"
+        private const val KEY_INPUT_PREDICTION_ENABLED = "vetta.prefs.input_prediction_enabled"
         private const val KEY_CONFIRM_DELETE = "vetta.prefs.confirm_delete"
         private const val KEY_MIGRATION_BACKUP_LIMIT_MB = "vetta.prefs.migration_backup_limit_mb"
         private const val KEY_LAST_SESSION = "vetta.prefs.last_session"
         private const val KEY_LAST_MODEL = "vetta.prefs.last_model"
         private const val KEY_REMOTE_RESUME = "vetta.prefs.remote_resume"
         private const val KEY_REMOTE_PAIRING_ID = "vetta.prefs.remote_pairing_id"
+        private const val KEY_REMOTE_RELAY_URL = "vetta.prefs.remote_relay_url"
+        private const val KEY_REMOTE_LAN_URL = "vetta.prefs.remote_lan_url"
+        private const val KEY_REMOTE_LAN_FINGERPRINT = "vetta.prefs.remote_lan_fingerprint"
         private const val KEY_ACTIVE_567_GROUP = "vetta.prefs.active_567_group"
         private const val KEY_ACTIVE_IMAGE_GROUP = "vetta.prefs.active_image_group"
         private const val KEY_ACTIVE_IMAGE_MODEL = "vetta.prefs.active_image_model"

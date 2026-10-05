@@ -17,12 +17,14 @@ import org.agent567.android.app.AppContainer
 import org.agent567.android.app.AppPreferences
 import org.agent567.android.core.auth.InMemoryTokenStore
 import org.agent567.android.core.model.ChatMessage
+import org.agent567.android.core.model.LlmModel
 import org.agent567.android.core.model.ChatQuestion
 import org.agent567.android.core.model.ChatQuestionOption
 import org.agent567.android.core.model.ChatRole
 import org.agent567.android.core.model.ChatStreamEvent
 import org.agent567.android.data.session.SettingsSessionStore
 import org.agent567.android.domain.conversation.RemoteConversationGateway
+import org.agent567.android.domain.conversation.RemoteSessionModelCatalog
 import org.agent567.android.domain.device.ConnectChannel
 import org.agent567.android.domain.device.DesktopDevice
 import org.agent567.android.domain.device.DeviceStatus
@@ -406,6 +408,7 @@ private data class StreamCall(
     val deviceId: String,
     val remoteSessionId: String?,
     val messages: List<ChatMessage>,
+    val retryPreviousTurn: Boolean,
 )
 
 private class FakeRemoteConversationGateway : RemoteConversationGateway {
@@ -447,14 +450,32 @@ private class FakeRemoteConversationGateway : RemoteConversationGateway {
         devices.value = emptyList()
     }
 
+    override suspend fun createDesktopSession(
+        localSessionId: String,
+        deviceId: String,
+    ): Pair<String, RemoteSessionModelCatalog> =
+        "remote-$localSessionId" to
+            RemoteSessionModelCatalog(
+                currentModelId = null,
+                models = listOf(
+                    LlmModel(
+                        id = "provider/model",
+                        modelId = "model",
+                        name = "Model",
+                        providerName = "Provider",
+                    ),
+                ),
+            )
+
     override fun stream(
         localSessionId: String,
         deviceId: String,
         remoteSessionId: String?,
         messages: List<ChatMessage>,
+        retryPreviousTurn: Boolean,
     ): Flow<ChatStreamEvent> =
         flow {
-            streamCalls += StreamCall(deviceId, remoteSessionId, messages)
+            streamCalls += StreamCall(deviceId, remoteSessionId, messages, retryPreviousTurn)
             for (event in streamEvents) emit(event)
             streamCompletion?.await()
         }

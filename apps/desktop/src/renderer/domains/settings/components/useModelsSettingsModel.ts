@@ -360,9 +360,6 @@ export function useModelsSettingsModel(): ModelsSettingsModel {
 			const modelKey = `${providerName}/${modelId}`;
 			const newDefault = config.defaultModel === modelKey ? undefined : modelKey;
 			await saveConfig({ ...config, defaultModel: newDefault });
-			if (newDefault) {
-				localStorage.setItem("vetta-selected-model", newDefault);
-			}
 			recordSettingsUsage({
 				tab: "models",
 				action: newDefault ? "selected" : "reset",

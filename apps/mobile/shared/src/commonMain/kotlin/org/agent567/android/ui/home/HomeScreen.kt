@@ -20,6 +20,7 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
@@ -35,7 +36,6 @@ import org.agent567.android.ui.components.SectionHeader
 import org.agent567.android.ui.components.StatusDot
 import org.agent567.android.ui.components.ListRow
 import org.agent567.android.ui.components.VettaListGroup
-import org.agent567.android.ui.components.EmptyState
 import org.agent567.android.ui.i18n.Str
 import org.agent567.android.ui.theme.vettaExtra
 
@@ -47,6 +47,7 @@ fun HomeScreen(
     onOpenDevice: (String) -> Unit,
     onOpenDevices: () -> Unit,
     onOpenSessions: () -> Unit,
+    onOpenDesktopSessions: () -> Unit = {},
     onOpenSession: (String) -> Unit,
     onNewConversation: () -> Unit,
     onUseCloudAi: () -> Unit,
@@ -93,19 +94,22 @@ fun HomeScreen(
                     )
                 }
             } else {
-                EmptyState(
-                    title = Str.disconnected,
-                    subtitle = Str.noDevicesHint,
-                    icon = Icons.Default.Computer,
-                    actionLabel = Str.connectTitle,
-                    onAction = onOpenDevices,
-                    modifier = Modifier.fillMaxWidth(),
-                )
+                VettaListGroup {
+                    ListRow(
+                        title = Str.disconnected,
+                        subtitle = Str.noDevicesHint,
+                        leading = { Icon(Icons.Default.Computer, contentDescription = null, modifier = Modifier.size(24.dp)) },
+                        trailing = {
+                            TextButton(onClick = onOpenDevices) { Text(Str.connectTitle) }
+                        },
+                        showDivider = false,
+                    )
+                }
             }
 
             Spacer(Modifier.height(20.dp))
             SectionHeader(
-                title = Str.recentSessions,
+                title = Str.phoneSessions,
                 action = Str.viewAll,
                 onAction = onOpenSessions,
             )
@@ -125,6 +129,10 @@ fun HomeScreen(
                     )
                 }
             }
+
+            Spacer(Modifier.height(20.dp))
+            SectionHeader(title = Str.desktopSessions)
+            SecondaryOutlineButton(text = Str.openDesktopSessions, onClick = onOpenDesktopSessions)
 
             Spacer(Modifier.height(20.dp))
             SectionHeader(title = Str.quickStart)

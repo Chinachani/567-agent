@@ -10,6 +10,7 @@ import io.ktor.websocket.Frame
 import io.ktor.websocket.close
 import io.ktor.websocket.readText
 import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.flow.Flow
@@ -59,6 +60,16 @@ class KtorWebSocketRemoteTransport(
                     for (frame in socket.incoming) {
                         if (frame is Frame.Text) incomingChannel.send(RemoteProtocol.decode(frame.readText()))
                     }
+                } catch (cancelled: CancellationException) {
+                    throw cancelled
+                } catch (error: Throwable) {
+                    // A network handoff commonly aborts the underlying TCP socket.
+                    // Let RemoteConnection observe the closed incoming flow and run
+                    // its reconnect loop instead of crashing the Android process.
+                    PlatformRemoteLogger.warn(
+                        "remote websocket reader stopped",
+                        mapOf("message" to error.message),
+                    )
                 } finally {
                     incomingChannel.close()
                 }
@@ -73,10 +84,13 @@ class KtorWebSocketRemoteTransport(
     override suspend fun close() {
         readerJob?.cancel()
         readerJob = null
-        session?.close()
-        session = null
-        activeClient?.close()
-        activeClient = null
+        try {
+            session?.close()
+        } finally {
+            session = null
+            activeClient?.close()
+            activeClient = null
+        }
     }
 
     private data class Target(val url: String, val pairingToken: String?, val resumeToken: String?, val fingerprint: String?)

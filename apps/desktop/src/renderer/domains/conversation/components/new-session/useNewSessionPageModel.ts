@@ -22,14 +22,16 @@ import {
 	pendingSessionCreationAtom,
 	promptAttachmentAtom,
 	readSessionManagerFn,
+	selectedModelAtom,
 	sendMessageFnRef,
 	sessionExecutionModeAtom,
 	switchSessionInputDraftScope,
 } from "@shared/store/atoms";
+import { localModelsConfigAtom } from "@shared/store/model-catalog";
 import { useNavigate, useSearch } from "@tanstack/react-router";
 import type { NewSessionHeroIdentity } from "@vetta-org/theme-ui";
 import { useAtomValue, useSetAtom } from "jotai";
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import type { TeamChatActions, TeamChatViewModel } from "../../connectors/team/teamChatModel";
 import { useSkillList } from "../../hooks/useSkillList";
@@ -138,6 +140,9 @@ export function useNewSessionPageModel(): NewSessionPageModel {
 	const setContextUsage = useSetAtom(contextUsageAtom);
 	const setCompactionEligibility = useSetAtom(contextCompactionEligibilityAtom);
 	const setActiveSession = useSetAtom(activeSessionAtom);
+	const setSelectedModel = useSetAtom(selectedModelAtom);
+	const configuredDefaultModel = useAtomValue(localModelsConfigAtom)?.defaultModel ?? null;
+	const initializedDefaultModel = useRef(false);
 	const setPendingSessionCreation = useSetAtom(pendingSessionCreationAtom);
 	const setLastActiveSession = useSetAtom(lastActiveSessionAtom);
 	const setPromptAttachment = useSetAtom(promptAttachmentAtom);
@@ -158,6 +163,11 @@ export function useNewSessionPageModel(): NewSessionPageModel {
 	const setConfirm = useSetAtom(confirmDialogAtom);
 	const [preparingProject, setPreparingProject] = useState(false);
 	const { selection: currentSelection, applyCreatedProject } = projectSelection;
+	useEffect(() => {
+		// 新会话不继承上一个会话或其他窗口的模型选择。
+		setSelectedModel(null);
+		initializedDefaultModel.current = false;
+	}, [setSelectedModel]);
 
 	// 待创建项目落盘 → 发送，失败则保留输入与选择、只弹错误，不导航。
 	const prepareCwd = useCallback(
@@ -280,6 +290,12 @@ export function useNewSessionPageModel(): NewSessionPageModel {
 		setLastActiveSession,
 		setCompactionEligibility,
 	]);
+
+	useEffect(() => {
+		if (initializedDefaultModel.current || !configuredDefaultModel) return;
+		setSelectedModel(configuredDefaultModel);
+		initializedDefaultModel.current = true;
+	}, [configuredDefaultModel, setSelectedModel]);
 
 	useEffect(() => {
 		setHeaderTitle(t("appShell.routeTitles.chat"));

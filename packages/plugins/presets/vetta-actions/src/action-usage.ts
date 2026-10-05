@@ -61,6 +61,12 @@ const DOMAIN_USAGE = {
 		avoidWhen: "使用当前可用的 Skill、编写 SKILL.md，或仅因任务涉及某能力就自行安装。",
 		alternatives: "使用已有能力调用 invoke_skill；创作 Skill 修改其项目文件。",
 	},
+	marketplace: {
+		target: "567 Agent 应用内已加载的能力市场目录",
+		useWhen: "用户要发现、搜索、比较或推荐可添加到 567 Agent 的 MCP、Skill、场景、插件或能力包。",
+		avoidWhen: "查询本机已经安装的能力配置、调用已连接的 MCP 工具，或开发能力本身。",
+		alternatives: "已安装 Skill/场景用 skills.query；已配置 MCP 用 mcp.query；调用工具用 tool_search。",
+	},
 	plugins: {
 		target: "567 Agent 的已安装插件和插件安装流程",
 		useWhen: "用户要求在 Vetta 中安装、查询、启停、重载或卸载插件。",

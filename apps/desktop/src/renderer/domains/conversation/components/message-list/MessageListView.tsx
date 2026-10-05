@@ -73,8 +73,8 @@ export function MessageListView({
 		return null;
 	}, [messages]);
 	const sessionUsages = useMemo<readonly Usage[]>(
-		() => collectAgentUsages(viewportPhase === "initial" ? messages.slice(-4) : messages),
-		[messages, viewportPhase],
+		() => collectAgentUsages(messages),
+		[messages],
 	);
 	const sessionUsagesRef = useRef(sessionUsages);
 	sessionUsagesRef.current = sessionUsages;

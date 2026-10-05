@@ -15,6 +15,9 @@ import kotlinx.coroutines.Job
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.cancel
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.buildJsonObject
@@ -26,6 +29,7 @@ import kotlinx.serialization.json.put
 import org.agent567.android.domain.remote.connection.PlatformRemoteLogger
 import org.agent567.android.core.net.platformHttpClientEngine
 import org.agent567.android.core.net.pinnedWebSocketHttpClient
+import org.agent567.android.ui.i18n.Str
 import org.webrtc.DataChannel
 import org.webrtc.EglBase
 import org.webrtc.IceCandidate
@@ -68,6 +72,8 @@ class NativeRemoteDesktopSession(private val context: Context, private val targe
     private var stopped = false
     private var remoteDescriptionSet = false
     private val pendingCandidates = mutableListOf<IceCandidate>()
+    private val _captureMessage = MutableStateFlow<String?>(Str.remoteCaptureWaiting)
+    val captureMessage: StateFlow<String?> = _captureMessage.asStateFlow()
 
     fun createRenderer(): SurfaceViewRenderer = SurfaceViewRenderer(context).also {
         renderer = it
@@ -158,7 +164,10 @@ class NativeRemoteDesktopSession(private val context: Context, private val targe
             createPeerConnection()
             for (frame in socket.incoming) if (frame is Frame.Text) handleSignal(frame.readText())
         } catch (error: Throwable) {
-            if (!stopped) PlatformRemoteLogger.warn("native WebRTC session failed", mapOf("error" to (error.message ?: error::class.simpleName)))
+            if (!stopped) {
+                _captureMessage.value = Str.remoteCaptureUnavailable
+                PlatformRemoteLogger.warn("native WebRTC session failed", mapOf("error" to (error.message ?: error::class.simpleName)))
+            }
         }
     }
 
@@ -184,6 +193,7 @@ class NativeRemoteDesktopSession(private val context: Context, private val targe
                 val track = receiver.track() as? VideoTrack ?: return
                 remoteVideoTrack = track
                 renderer?.let(track::addSink)
+                _captureMessage.value = null
                 PlatformRemoteLogger.info("native WebRTC video track attached")
             }
         })
@@ -228,6 +238,12 @@ class NativeRemoteDesktopSession(private val context: Context, private val targe
                         signal["candidate"]?.jsonPrimitive?.content ?: return,
                     )
                     if (remoteDescriptionSet) peerConnection?.addIceCandidate(candidate) else pendingCandidates += candidate
+                }
+                "end" -> {
+                    _captureMessage.value = when (signal["reason"]?.jsonPrimitive?.contentOrNull) {
+                        "capture_denied" -> Str.remoteCaptureDenied
+                        else -> Str.remoteCaptureUnavailable
+                    }
                 }
             }
         }

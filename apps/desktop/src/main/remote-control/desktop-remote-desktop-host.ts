@@ -1,9 +1,14 @@
 import { randomUUID } from "node:crypto";
 import { decodeRemoteInputMessage } from "@567agent/remote-desktop";
-import { BrowserWindow, desktopCapturer, ipcMain, session, webContents } from "electron";
+import { BrowserWindow, desktopCapturer, dialog, ipcMain, session, webContents } from "electron";
 import type { RemotePairingState } from "../../preload/api-types/remote-pairing.js";
+import { mainT } from "../i18n/index.js";
 import { getAppLogger } from "../logger.js";
-import { registerRemoteDesktopVideoPermission } from "../speech-input/media-permissions.js";
+import {
+	configureRemoteDesktopHostMediaPermissions,
+	registerRemoteDesktopVideoPermission,
+} from "../speech-input/media-permissions.js";
+import { getMainWindow } from "../window-manager.js";
 import { resolveDesktopRemoteDesktopHostPaths } from "./desktop-remote-desktop-host-paths.js";
 import { createSystemInputAdapter } from "./system-input.js";
 
@@ -62,6 +67,7 @@ export async function startDesktopRemoteDesktopHost(
 			preload: paths.preloadPath,
 		},
 	});
+	const unregisterHostMediaPermissions = configureRemoteDesktopHostMediaPermissions(hostSession);
 	const onCertificateError = (
 		event: Electron.Event,
 		url: string,
@@ -102,13 +108,39 @@ export async function startDesktopRemoteDesktopHost(
 			log.warn("invalid remote desktop IPC input rejected", { sessionId });
 		}
 	};
+	const onRequestCapture = (_event: Electron.IpcMainEvent, routeIndex: unknown): void => {
+		if (_event.sender.id !== window.webContents.id) return;
+		if (
+			typeof routeIndex !== "number" ||
+			!Number.isSafeInteger(routeIndex) ||
+			routeIndex < 0 ||
+			routeIndex >= signalingTargets.length
+		) {
+			log.warn("invalid remote desktop capture route rejected", { sessionId });
+			return;
+		}
+		log.info("remote desktop peer is ready; requesting display capture", { sessionId, routeIndex });
+		void window.webContents
+			.executeJavaScript(
+				`window.dispatchEvent(new CustomEvent("vetta:remote-desktop:capture-request", { detail: ${routeIndex} }))`,
+				true,
+			)
+			.catch((error: unknown) => log.warn("remote desktop capture activation failed", { sessionId, error }));
+	};
 	ipcMain.on("vetta:remote-desktop:input", onInput);
+	ipcMain.on("vetta:remote-desktop:request-capture", onRequestCapture);
 	let displayMediaHandlerInstalled = false;
 	try {
-		// Electron supplies the first physical display to getDisplayMedia in the
-		// hidden renderer. No screen pixels or credentials pass through the relay.
-		session.defaultSession.setDisplayMediaRequestHandler((request, callback) => {
+		// The hidden renderer must never silently capture the first screen. Ask for
+		// explicit, per-session consent and let the user choose the source first.
+		hostSession.setDisplayMediaRequestHandler((request, callback) => {
 			const requestingWebContents = request.frame ? webContents.fromFrame(request.frame) : undefined;
+			log.info("remote desktop display capture requested", {
+				sessionId,
+				webContentsMatches: requestingWebContents?.id === window.webContents.id,
+				videoRequested: request.videoRequested,
+				audioRequested: request.audioRequested,
+			});
 			if (requestingWebContents?.id !== window.webContents.id || !request.videoRequested || request.audioRequested) {
 				log.warn("remote desktop display media request rejected", {
 					sessionId,
@@ -119,22 +151,51 @@ export async function startDesktopRemoteDesktopHost(
 				callback({ video: undefined });
 				return;
 			}
-			void desktopCapturer
-				.getSources({ types: ["screen"] })
-				.then((sources) => {
-					const source = sources[0];
-					if (source) {
-						log.info("remote desktop screen capture granted", { sessionId, sourceCount: sources.length });
-						callback({ video: source });
-						return;
-					}
-					log.warn("remote desktop screen capture source unavailable", { sessionId });
-					callback({ video: undefined });
-				})
-				.catch((error: unknown) => {
-					log.warn("remote desktop screen capture enumeration failed", { sessionId, error });
-					callback({ video: undefined });
+			void (async () => {
+				const consent = await showRemoteDesktopDialog({
+					type: "question",
+					title: mainT("remoteDesktopCapture.title"),
+					message: mainT("remoteDesktopCapture.message"),
+					detail: mainT("remoteDesktopCapture.detail"),
+					buttons: [mainT("remoteDesktopCapture.allowOnce"), mainT("remoteDesktopCapture.cancel")],
+					defaultId: 0,
+					cancelId: 1,
 				});
+				if (consent.response !== 0 || window.isDestroyed()) {
+					callback({ video: undefined });
+					return;
+				}
+				const sources = await desktopCapturer.getSources({ types: ["screen", "window"] });
+				if (sources.length === 0) {
+					log.warn("remote desktop screen capture source unavailable", { sessionId });
+					await showRemoteDesktopDialog({
+						type: "warning",
+						title: mainT("remoteDesktopCapture.title"),
+						message: mainT("remoteDesktopCapture.noSources"),
+						buttons: [mainT("remoteDesktopCapture.cancel")],
+					});
+					callback({ video: undefined });
+					return;
+				}
+				const sourceChoice = await showRemoteDesktopDialog({
+					type: "question",
+					title: mainT("remoteDesktopCapture.chooseTitle"),
+					message: mainT("remoteDesktopCapture.chooseMessage"),
+					buttons: [mainT("remoteDesktopCapture.cancel"), ...sources.map((source) => source.name)],
+					defaultId: 1,
+					cancelId: 0,
+				});
+				const source = sources[sourceChoice.response - 1];
+				if (!source || window.isDestroyed()) {
+					callback({ video: undefined });
+					return;
+				}
+				log.info("remote desktop screen capture granted", { sessionId, sourceCount: sources.length });
+				callback({ video: source });
+			})().catch((error: unknown) => {
+				log.warn("remote desktop screen capture request failed", { sessionId, error });
+				callback({ video: undefined });
+			});
 		});
 		displayMediaHandlerInstalled = true;
 
@@ -151,9 +212,11 @@ export async function startDesktopRemoteDesktopHost(
 	} catch (error) {
 		input.setEnabled(false);
 		unregisterVideoPermission();
+		unregisterHostMediaPermissions();
 		window.webContents.removeListener("certificate-error", onCertificateError);
 		ipcMain.removeListener("vetta:remote-desktop:input", onInput);
-		if (displayMediaHandlerInstalled) session.defaultSession.setDisplayMediaRequestHandler(null);
+		ipcMain.removeListener("vetta:remote-desktop:request-capture", onRequestCapture);
+		if (displayMediaHandlerInstalled) hostSession.setDisplayMediaRequestHandler(null);
 		if (!window.isDestroyed()) window.destroy();
 		throw error;
 	}
@@ -172,9 +235,11 @@ export async function startDesktopRemoteDesktopHost(
 		async stop() {
 			input.setEnabled(false);
 			unregisterVideoPermission();
+			unregisterHostMediaPermissions();
 			window.webContents.removeListener("certificate-error", onCertificateError);
-			session.defaultSession.setDisplayMediaRequestHandler(null);
+			hostSession.setDisplayMediaRequestHandler(null);
 			ipcMain.removeListener("vetta:remote-desktop:input", onInput);
+			ipcMain.removeListener("vetta:remote-desktop:request-capture", onRequestCapture);
 			if (!window.isDestroyed()) window.destroy();
 			activeHost = undefined;
 			log.info("remote desktop host stopped", { sessionId });
@@ -189,6 +254,11 @@ function readTargetFingerprint(target: string): string | undefined {
 	if (!fragment) return undefined;
 	const value = new URLSearchParams(fragment).get("fingerprint")?.toLowerCase();
 	return value && /^[a-f0-9]{64}$/.test(value) ? value : undefined;
+}
+
+function showRemoteDesktopDialog(options: Electron.MessageBoxOptions): Promise<Electron.MessageBoxReturnValue> {
+	const parent = getMainWindow();
+	return parent && !parent.isDestroyed() ? dialog.showMessageBox(parent, options) : dialog.showMessageBox(options);
 }
 
 function readTargetOrigin(target: string): string | undefined {

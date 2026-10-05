@@ -3,6 +3,7 @@ import type { RemoteConnectionState } from "@567agent/remote-control";
 import { RemoteConnection, WebSocketRemoteTransport } from "@567agent/remote-control";
 import { getDesktopConversationService } from "../conversations/desktop-conversation-service.js";
 import { getAppLogger } from "../logger.js";
+import { getDesktopModelSettingsService } from "../models/model-settings-host.js";
 import { DesktopConversationRemoteOperations } from "./desktop-conversation-remote-operations.js";
 import { DesktopRemoteConnector } from "./desktop-remote-connector.js";
 import { createDesktopWebSocketFactory } from "./desktop-websocket.js";
@@ -89,6 +90,7 @@ async function connect(
 	);
 	const operations = new DesktopConversationRemoteOperations(getDesktopConversationService(), {
 		cwd: options.conversationCwd,
+		readDefaultModelKey: async () => (await getDesktopModelSettingsService().getConfig()).defaultModel,
 	});
 	const connector = new DesktopRemoteConnector(connection, operations);
 	const unsubscribe = connection.onEvent((event) => {

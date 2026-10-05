@@ -1,7 +1,10 @@
 import { stat } from "node:fs/promises";
 import { extname, isAbsolute, resolve } from "node:path";
 import type { AgentTeamDocument } from "@567agent/agent-team";
-import { CODING_AGENT_SESSION_TITLE_GENERATE } from "@567agent/coding-agent/session-extensions";
+import {
+	CODING_AGENT_NEXT_PROMPT_SUGGESTIONS,
+	CODING_AGENT_SESSION_TITLE_GENERATE,
+} from "@567agent/coding-agent/session-extensions";
 import {
 	isSessionError,
 	type PromptRequest,
@@ -77,6 +80,33 @@ export interface DesktopConversationSession {
 	source: DesktopConversationSource;
 	/** 生效的 Agent 绑定；渲染层据此展示回合头像与昵称。降级或未绑定时缺省。 */
 	agentProfileId?: string;
+}
+
+export interface DesktopConversationRemoteModel {
+	readonly id: string;
+	readonly modelId: string;
+	readonly name: string;
+	readonly providerName: string;
+	readonly reasoning: boolean;
+	readonly input: readonly string[];
+	readonly contextWindow: number;
+	readonly maxTokens?: number;
+	readonly reasoningLevels?: readonly string[];
+	readonly defaultReasoningLevel?: string;
+}
+
+export interface DesktopConversationRemoteModelCatalog {
+	readonly currentModelId: string | null;
+	readonly lastUserMessageId: string | null;
+	readonly models: readonly DesktopConversationRemoteModel[];
+}
+
+export interface DesktopConversationRemoteHistoryMessage {
+	readonly id: string;
+	readonly role: "user" | "assistant";
+	readonly text: string;
+	readonly timestamp: number;
+	readonly failed?: boolean;
 }
 
 export interface DesktopConversationTurnResult {
@@ -328,6 +358,115 @@ export class DesktopConversationService {
 		);
 	}
 
+	readRemoteModelCatalog(sessionId: string): DesktopConversationRemoteModelCatalog {
+		const current = this.runtime.readSessionCurrentModel(sessionId);
+		const lastUserMessageId = [...this.runtime.getFullHistory(sessionId)]
+			.reverse()
+			.find((entry) => entry.type === "message" && entry.message.role === "user");
+		const models = this.runtime.readSessionAvailableModels(sessionId).map((model) => ({
+			id: `${model.provider}/${model.id}`,
+			modelId: model.id,
+			name: model.name,
+			providerName: model.provider,
+			reasoning: model.reasoning,
+			input: model.input,
+			contextWindow: model.contextWindow,
+			...(model.maxTokens !== undefined ? { maxTokens: model.maxTokens } : {}),
+			...(model.reasoningLevels ? { reasoningLevels: model.reasoningLevels } : {}),
+			...(model.defaultReasoningLevel ? { defaultReasoningLevel: model.defaultReasoningLevel } : {}),
+		}));
+		return {
+			currentModelId: current ? `${current.provider}/${current.id}` : null,
+			lastUserMessageId: lastUserMessageId?.type === "message" ? (lastUserMessageId.entryId ?? null) : null,
+			models,
+		};
+	}
+
+	readRemoteSessionHistory(
+		sessionId: string,
+		offset: number,
+		limit: number,
+	): readonly DesktopConversationRemoteHistoryMessage[] {
+		if (!Number.isSafeInteger(offset) || offset < 0 || !Number.isSafeInteger(limit) || limit < 1 || limit > 100) {
+			throw new DesktopConversationError("INVALID_SESSION_PATH", "Invalid remote history page.");
+		}
+		const messages = this.runtime.getMessages(sessionId);
+		return messages
+			.flatMap((message, index) => {
+				if (message.role !== "user" && message.role !== "assistant") return [];
+				const text =
+					typeof message.content === "string"
+						? message.content
+						: message.content
+								.filter((part) => part.type === "text")
+								.map((part) => part.text)
+								.join("\n");
+				const hasImage =
+					typeof message.content !== "string" && message.content.some((part) => part.type === "image");
+				return [
+					{
+						id: `${message.timestamp}-${index}`,
+						role: message.role,
+						text: hasImage ? `${text}${text ? "\n" : ""}[图片附件]` : text,
+						timestamp: message.timestamp,
+						...(message.role === "assistant" && message.errorMessage ? { failed: true } : {}),
+					},
+				];
+			})
+			.slice(offset, offset + limit);
+	}
+
+	async generateRemotePromptSuggestions(sessionId: string): Promise<readonly string[]> {
+		const config = await readDesktopConfig();
+		if (config.experimental?.promptPrediction !== true) return [];
+		const conversation = this.runtime
+			.getMessages(sessionId)
+			.filter((message) => message.role === "user" || message.role === "assistant")
+			.slice(-8)
+			.map((message) => {
+				const text =
+					typeof message.content === "string"
+						? message.content
+						: message.content
+								.filter((part) => part.type === "text")
+								.map((part) => part.text)
+								.join("\n");
+				const speaker = message.role === "user" ? "用户" : "助手";
+				return speaker + "：" + text.slice(-1200);
+			})
+			.join("\n")
+			.slice(-4000);
+		if (!conversation.trim()) return [];
+		return this.runtime.invokeSessionExtension(sessionId, CODING_AGENT_NEXT_PROMPT_SUGGESTIONS, { conversation });
+	}
+
+	async selectRemoteSessionModel(sessionId: string, modelKey: string): Promise<void> {
+		const exists = this.runtime
+			.readSessionAvailableModels(sessionId)
+			.some((model) => `${model.provider}/${model.id}` === modelKey);
+		if (!exists) {
+			throw Object.assign(new Error("The selected model is not available in this desktop session."), {
+				code: "MODEL_UNAVAILABLE",
+			});
+		}
+		await this.runtime.updateSettings(sessionId, { modelKey });
+	}
+
+	async replaceRemoteLastUserTurn(sessionId: string, expectedEntryId: string): Promise<void> {
+		const lastUser = [...this.runtime.getFullHistory(sessionId)]
+			.reverse()
+			.find((entry) => entry.type === "message" && entry.message.role === "user");
+		if (lastUser?.type !== "message" || !lastUser.entryId) {
+			throw new Error("The desktop session has no retryable user turn.");
+		}
+		if (lastUser.entryId !== expectedEntryId) {
+			throw Object.assign(new Error("The desktop conversation changed; refresh it before retrying."), {
+				code: "STALE_RETRY_TARGET",
+			});
+		}
+		await this.runtime.replaceLastUserMessage(sessionId, lastUser.entryId);
+	}
+
 	async compactSessionContext(
 		session: DesktopConversationSession,
 		customInstructions?: string,
@@ -394,6 +533,51 @@ export class DesktopConversationService {
 				access: (await this.runtime.resolveSessionAccess(session.path)) ?? UNAVAILABLE_RUNTIME_SESSION_ACCESS,
 			})),
 		);
+	}
+
+	async deleteRemoteSession(sessionId: string, cwd: string): Promise<void> {
+		const session = (await this.listSessions(cwd)).find((item) => item.id === sessionId);
+		if (!session) {
+			throw new DesktopConversationError("SESSION_NOT_FOUND", "The desktop session was not found.");
+		}
+		await this.runtime.deleteSession(session.path);
+		emitConversationListChanged({ cwd: resolveSessionListCwd(cwd), sessionPath: session.path });
+	}
+
+	async generateRemoteSessionTitle(
+		session: DesktopConversationSession,
+		userText: string,
+		assistantText: string,
+	): Promise<string | undefined> {
+		const messages = this.runtime.getMessages(session.sessionId);
+		if (messages.filter((message) => message.role === "user").length !== 1) return undefined;
+		let existing: string | undefined;
+		try {
+			existing = session.listCwd
+				? (await this.listSessions(session.listCwd)).find((item) => item.id === session.sessionId)?.name?.trim()
+				: undefined;
+		} catch (error) {
+			log.warn("failed to inspect remote conversation title", error);
+		}
+		if (existing) return existing;
+		try {
+			const generated = await this.runtime.invokeSessionExtension(
+				session.sessionId,
+				CODING_AGENT_SESSION_TITLE_GENERATE,
+				{ userText, assistantText },
+			);
+			const title = generated
+				?.trim()
+				.replace(/[\r\n]+/g, " ")
+				.slice(0, 80);
+			if (!title || !session.sessionPath || !session.listCwd) return undefined;
+			await this.runtime.renameSessionById(session.sessionId, title);
+			emitConversationListChanged({ cwd: session.listCwd, sessionPath: session.sessionPath });
+			return title;
+		} catch (error) {
+			log.warn("remote conversation auto-title failed", error);
+			return undefined;
+		}
 	}
 
 	async promptInteractiveSession(

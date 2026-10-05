@@ -104,20 +104,11 @@ class SettingsSessionStore(
             settings.remove(streamingMessageKey(message.sessionId))
             messageFlow(message.sessionId).value = sorted
 
-            // 触摸会话更新时间；首条用户消息生成标题
+            // 触摸会话更新时间。标题由发送首条消息后的 AI 命名流程生成。
             val sessions = loadSessionsRaw().toMutableList()
             val sIdx = sessions.indexOfFirst { it.id == message.sessionId }
             if (sIdx >= 0) {
-                var dto = sessions[sIdx]
-                dto = dto.copy(updatedAtEpochMs = nowEpochMs())
-                if (
-                    message.role == ChatRole.User &&
-                    dto.title == SessionStore.DEFAULT_TITLE &&
-                    message.content.isNotBlank()
-                ) {
-                    dto = dto.copy(title = message.content.trim().take(40))
-                }
-                sessions[sIdx] = dto
+                sessions[sIdx] = sessions[sIdx].copy(updatedAtEpochMs = nowEpochMs())
                 persistSessions(sessions.sortedByDescending { it.updatedAtEpochMs })
             }
         }
@@ -309,6 +300,7 @@ private data class SessionDto(
     val origin: String = ConversationOrigin.Cloud.name,
     val remoteDeviceId: String? = null,
     val remoteSessionId: String? = null,
+    val titleManuallyEdited: Boolean = false,
 )
 
 @Serializable
@@ -391,6 +383,7 @@ private fun SessionDto.toDomain() =
         origin = ConversationOrigin.entries.firstOrNull { it.name == origin } ?: ConversationOrigin.Cloud,
         remoteDeviceId = remoteDeviceId,
         remoteSessionId = remoteSessionId,
+        titleManuallyEdited = titleManuallyEdited,
     )
 
 private fun ChatSession.toDto() =
@@ -405,6 +398,7 @@ private fun ChatSession.toDto() =
         origin = origin.name,
         remoteDeviceId = remoteDeviceId,
         remoteSessionId = remoteSessionId,
+        titleManuallyEdited = titleManuallyEdited,
     )
 
 private fun MessageDto.toDomain() =

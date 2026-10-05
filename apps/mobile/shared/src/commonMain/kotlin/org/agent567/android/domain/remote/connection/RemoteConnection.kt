@@ -146,15 +146,26 @@ class RemoteConnection(
         if (_state.value == RemoteConnectionState.Closed) return
         _state.value = RemoteConnectionState.Closed
         rejectPending(RemoteErrorCode.TransportClosed, "Remote connection closed")
-        incomingJob?.cancelAndJoin()
+        val reader = incomingJob
         incomingJob = null
-        transport.close()
+        try {
+            reader?.cancelAndJoin()
+        } finally {
+            try {
+                transport.close()
+            } catch (error: kotlinx.coroutines.CancellationException) {
+                throw error
+            } catch (error: Throwable) {
+                logger.warn("remote transport close failed", mapOf("message" to error.message))
+            }
+        }
     }
 
     suspend fun request(
         method: RemoteRequestMethod,
         payload: JsonElement? = null,
         sessionId: String? = null,
+        timeoutMs: Long = options.requestTimeoutMs,
     ): JsonElement? {
         check(_state.value == RemoteConnectionState.Online) {
             "Remote connection is ${_state.value.name.lowercase()}"
@@ -173,7 +184,7 @@ class RemoteConnection(
                     payload = payload,
                 ),
             )
-            return withTimeout(options.requestTimeoutMs) { result.await() }
+            return withTimeout(timeoutMs) { result.await() }
         } catch (error: kotlinx.coroutines.TimeoutCancellationException) {
             mutex.withLock { pending.remove(requestId) }
             lastErrorCode = RemoteErrorCode.RequestTimeout

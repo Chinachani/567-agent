@@ -6,6 +6,7 @@ import { registerDownloadsActions } from "./domains/downloads";
 import { registerGeneralActions } from "./domains/general";
 import { registerImActions } from "./domains/im";
 import { registerKnowledgeActions } from "./domains/knowledge";
+import { registerMarketplaceActions } from "./domains/marketplace";
 import { registerMcpActions } from "./domains/mcp";
 import { registerModelsActions } from "./domains/models";
 import { registerNavigationActions } from "./domains/navigation";
@@ -25,6 +26,7 @@ export default definePlugin({
 		registerUpdaterActions(ctx);
 		registerWebhookActions(ctx);
 		registerSkillsActions(ctx);
+		registerMarketplaceActions(ctx);
 		registerShortcutsActions(ctx);
 		registerImActions(ctx);
 		registerMcpActions(ctx);

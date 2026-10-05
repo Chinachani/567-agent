@@ -13,7 +13,7 @@ import { pathToFileURL } from "node:url";
 // 目录里会累积多个版本：差分需要读**旧版本**的 blockmap（URL 由新版号替换成旧版号
 // 推出），因此发布新版本时只覆盖 latest-mac.yml，旧产物一律保留。
 
-const defaultRoot = join(process.env.HOME ?? "", ".vetta", "local-updates");
+const defaultRoot = join(process.env.HOME ?? "", ".567agent", "local-updates");
 
 function contentTypeFor(fileName) {
 	const lower = fileName.toLowerCase();

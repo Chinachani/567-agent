@@ -32,7 +32,7 @@ export type RemoteDesktopSignal =
 			readonly type: "end";
 			readonly protocolVersion: typeof REMOTE_DESKTOP_PROTOCOL_VERSION;
 			readonly sessionId: string;
-			readonly reason: "completed" | "revoked" | "failed" | "peer_closed";
+			readonly reason: "completed" | "revoked" | "failed" | "peer_closed" | "capture_denied" | "capture_unavailable";
 	  };
 
 export type RemoteInputMessage =

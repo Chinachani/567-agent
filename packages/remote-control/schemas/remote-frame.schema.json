@@ -41,7 +41,7 @@
       "type": "object", "additionalProperties": false, "required": ["type", "requestId", "method"],
       "properties": {
         "type": { "const": "request" }, "requestId": { "$ref": "#/$defs/id" },
-        "method": { "enum": ["session.list", "session.open", "session.prompt", "session.respond", "session.abort", "session.resume", "diagnostics.snapshot"] },
+        "method": { "enum": ["session.list", "session.delete", "session.create", "session.open", "session.history", "session.prompt", "session.models", "session.model.select", "session.suggestions", "session.respond", "session.abort", "session.resume", "diagnostics.snapshot"] },
         "sessionId": { "$ref": "#/$defs/id" }, "payload": true
       }
     },

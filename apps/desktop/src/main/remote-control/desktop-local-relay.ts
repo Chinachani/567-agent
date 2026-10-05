@@ -1,6 +1,13 @@
 import { createServer, type Server } from "node:https";
 import { networkInterfaces } from "node:os";
-import { encodeRemoteFrame, parseRemoteFrame, type RemoteFrame, type RemoteHello } from "@567agent/remote-control";
+import {
+	encodeRemoteFrame,
+	parseRemoteFrame,
+	REMOTE_REQUEST_METHODS,
+	type RemoteFrame,
+	type RemoteHello,
+	type RemoteResponse,
+} from "@567agent/remote-control";
 import { encodeRemoteDesktopSignal, REMOTE_DESKTOP_PROTOCOL_VERSION } from "@567agent/remote-desktop/protocol";
 import { WebSocket, WebSocketServer } from "ws";
 import { getAppLogger } from "../logger.js";
@@ -8,6 +15,9 @@ import { getAppLogger } from "../logger.js";
 const log = getAppLogger("local-relay");
 const DEFAULT_PORT = 18789;
 const _REMOTE_WEBSOCKET_PROTOCOL = "vetta.remote.v1";
+const KNOWN_REMOTE_REQUEST_METHODS = new Set<string>(REMOTE_REQUEST_METHODS);
+const VIRTUAL_INTERFACE_NAME =
+	/(?:^|[^a-z0-9])(?:tun|tap|wg|wireguard|wintun|utun|vpn|tunnel|tailscale|zerotier|zt|clash|sing[-_ ]?box|docker|podman|veth|virbr|vmnet|vbox|hyper[-_ ]?v|vEthernet|bridge|br-)[a-z0-9._-]*(?:$|[^a-z0-9])/i;
 
 export interface DesktopLocalRelayTlsOptions {
 	readonly certificate: string;
@@ -164,23 +174,18 @@ export class DesktopLocalRelay {
 
 	getLanIp(): string {
 		const nets = networkInterfaces();
-		for (const name of Object.keys(nets)) {
-			for (const net of nets[name] ?? []) {
-				if (net.family === "IPv4" && !net.internal) {
-					if (net.address.startsWith("192.168.") || net.address.startsWith("10.")) {
-						return net.address;
-					}
-				}
-			}
-		}
-		for (const name of Object.keys(nets)) {
-			for (const net of nets[name] ?? []) {
-				if (net.family === "IPv4" && !net.internal) {
-					return net.address;
-				}
-			}
-		}
-		return "127.0.0.1";
+		const candidates = Object.entries(nets).flatMap(([name, entries]) =>
+			(entries ?? [])
+				.filter((entry) => entry.family === "IPv4" && !entry.internal && isPrivateIPv4(entry.address))
+				.map((entry) => ({ name, address: entry.address, virtual: VIRTUAL_INTERFACE_NAME.test(name) })),
+		);
+		const physicalCandidates = candidates.filter((candidate) => !candidate.virtual);
+		const preferred = (physicalCandidates.length > 0 ? physicalCandidates : candidates).sort((left, right) => {
+			const subnetRank = (address: string): number =>
+				address.startsWith("192.168.") ? 0 : address.startsWith("10.") ? 1 : 2;
+			return subnetRank(left.address) - subnetRank(right.address);
+		});
+		return preferred[0]?.address ?? "127.0.0.1";
 	}
 
 	getLanUrl(): string {
@@ -223,6 +228,20 @@ export class DesktopLocalRelay {
 				try {
 					frame = parseRemoteFrame(line);
 				} catch {
+					const unsupported = readUnsupportedRequest(line);
+					if (role === "mobile" && unsupported) {
+						const response: RemoteResponse = {
+							type: "response",
+							requestId: unsupported.requestId,
+							success: false,
+							error: {
+								code: "invalid_frame",
+								message: "Unsupported remote request method",
+								retryable: false,
+							},
+						};
+						ws.send(encodeRemoteFrame(response));
+					}
 					continue;
 				}
 
@@ -338,6 +357,42 @@ export class DesktopLocalRelay {
 			}
 		});
 	}
+}
+
+function readUnsupportedRequest(line: string): { requestId: string; method: string } | undefined {
+	try {
+		const value: unknown = JSON.parse(line);
+		if (typeof value !== "object" || value === null || Array.isArray(value)) return undefined;
+		const frame = value as Record<string, unknown>;
+		if (
+			frame.type !== "request" ||
+			typeof frame.requestId !== "string" ||
+			frame.requestId.length === 0 ||
+			frame.requestId.length > 256 ||
+			typeof frame.method !== "string" ||
+			frame.method.length === 0 ||
+			frame.method.length > 128
+		) {
+			return undefined;
+		}
+		return !KNOWN_REMOTE_REQUEST_METHODS.has(frame.method)
+			? { requestId: frame.requestId, method: frame.method }
+			: undefined;
+	} catch {
+		return undefined;
+	}
+}
+
+function isPrivateIPv4(address: string): boolean {
+	const octets = address.split(".").map(Number);
+	if (octets.length !== 4 || octets.some((octet) => !Number.isInteger(octet) || octet < 0 || octet > 255)) {
+		return false;
+	}
+	return (
+		octets[0] === 10 ||
+		(octets[0] === 172 && octets[1] >= 16 && octets[1] <= 31) ||
+		(octets[0] === 192 && octets[1] === 168)
+	);
 }
 
 function readRequestedProtocols(value: string | string[] | undefined): ReadonlySet<string> {

@@ -133,6 +133,10 @@
     "qrHint": "在手机端打开远程连接并扫描。完成首次连接后，此二维码将不能绑定其他设备。",
     "empty": "生成二维码后即可在手机上扫描",
     "qrRenderError": "二维码生成失败，请重新生成；若仍失败，请检查应用日志。",
+    "warning": {
+      "certificate_changed": "本次升级更新了本地远控证书。旧手机保存的证书指纹已失效；点击生成二维码并在手机上重新扫码配对后，局域网远控和屏幕共享才能恢复。",
+      "lan_unavailable": "没有检测到可用的局域网 IPv4 地址。云端中继仍可连接；局域网连接和屏幕共享需要电脑与手机处于可互通网络。"
+    },
     "inputTitle": "允许远程输入",
     "inputDescription": "允许已配对手机控制鼠标和键盘。",
     "inputSupport": {
@@ -152,7 +156,7 @@
     },
     "relayUrlLabel": "中继服务器地址 (Relay URL)",
     "resetDefaultRelay": "重置为默认地址",
-    "relayUrlHint": "默认使用公共中继。也支持填入您在 Cloudflare Workers 自建的私有地址。"
+    "relayUrlHint": "默认使用公共中继。自建时填写 HTTPS 基础地址，例如 https://relay.example.com；不要附加 /v1/relay 路径。应用会自动建立安全连接。"
   },
   "general": "常规",
   "appearance": {

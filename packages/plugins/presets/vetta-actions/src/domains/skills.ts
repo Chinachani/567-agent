@@ -84,10 +84,10 @@ export function registerSkillsActions(ctx: PluginContext): void {
 		id: "skills.query",
 		publicId: "skills.query",
 		title: "查询能力",
-		summary: "列出可见能力（skill/scene），或读取本地安装清单。对应能力页。",
+		summary: "列出已安装/当前工作区可见的 skill/scene，或读取本地安装清单；不搜索市场目录。",
 		description:
-			'对象参数；operation 为 "help"、"list" 或 "manifest"。list 可传 cwd 以包含项目级能力。安装请用 skills.manage install-from-market。',
-		keywords: ["能力", "abilities", "技能", "skill", "scene", "技能广场", "能力页", "manifest", "市场"],
+			'对象参数；operation 为 "help"、"list" 或 "manifest"。list 可传 cwd 以包含项目级能力。查找待安装能力请用 marketplace.search；安装请用 skills.manage install-from-market。',
+		keywords: ["能力", "abilities", "技能", "skill", "scene", "能力页", "manifest", "已安装能力"],
 		effect: "read",
 		inputSchema: querySchema,
 		examples: queryExamples,
@@ -95,7 +95,7 @@ export function registerSkillsActions(ctx: PluginContext): void {
 			if (input.operation === "help") {
 				return {
 					guidance:
-						"产品「能力页」管理 skill/scene（公共 Action id 仍为 skills.*）。list/manifest 只读；install-from-market / set-enabled / uninstall 用 skills.manage。MCP/插件能力用 mcp.* / plugins.*。",
+						"skills.query 只列出已安装或工作区可见的 skill/scene，不搜索市场。待发现/推荐的市场能力使用 marketplace.search；安装使用 skills.manage。MCP 配置用 mcp.*，插件配置用 plugins.*。",
 					actions: [
 						{ id: "skills.query", inputSchema: querySchema, examples: queryExamples },
 						{ id: "skills.manage", inputSchema: manageSchema, examples: manageExamples },

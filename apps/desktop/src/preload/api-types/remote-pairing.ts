@@ -12,6 +12,7 @@ export interface RemotePairingState {
 		| "x11_open_display_failed"
 		| "accessibility_permission_required"
 		| "unsupported_platform";
+	pairingWarnings?: Array<"certificate_changed" | "lan_unavailable">;
 	error?: string;
 }
 

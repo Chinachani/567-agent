@@ -8,6 +8,14 @@ export interface DesktopRemoteSessionSummary {
 	readonly updatedAtEpochMs?: number;
 }
 
+export interface DesktopRemoteHistoryMessage {
+	readonly id: string;
+	readonly role: "user" | "assistant";
+	readonly text: string;
+	readonly timestamp: number;
+	readonly failed?: boolean;
+}
+
 export interface DesktopRemotePromptEvent {
 	readonly type: "delta" | "tool" | "input" | "state";
 	readonly text?: string;
@@ -16,9 +24,19 @@ export interface DesktopRemotePromptEvent {
 
 export interface DesktopRemoteOperations {
 	listSessions(): Promise<readonly DesktopRemoteSessionSummary[]>;
+	deleteSession?(sessionId: string): Promise<void>;
+	readHistory?(sessionId: string, offset: number, limit: number): Promise<readonly DesktopRemoteHistoryMessage[]>;
 	createSession(): Promise<{ sessionId: string }>;
 	openSession(sessionId: string): Promise<{ sessionId: string }>;
-	prompt(sessionId: string, text: string): AsyncIterable<DesktopRemotePromptEvent>;
+	readModels?(sessionId: string): unknown;
+	selectModel?(sessionId: string, modelKey: string): Promise<void>;
+	readSuggestions?(sessionId: string): Promise<readonly string[]>;
+	prompt(
+		sessionId: string,
+		text: string,
+		retryPreviousTurn?: boolean,
+		retryTargetMessageId?: string,
+	): AsyncIterable<DesktopRemotePromptEvent>;
 	abort(sessionId: string): Promise<void>;
 	respond?(sessionId: string, requestId: string, result: CodingAgentQuestionResult): Promise<void>;
 	resume(sessionId: string, lastEventSequence: number): Promise<void>;
@@ -59,21 +77,59 @@ export class DesktopRemoteConnector {
 		switch (request.method) {
 			case "session.list":
 				return { sessions: await this.operations.listSessions() };
+			case "session.delete": {
+				if (!this.operations.deleteSession) throw new Error("Desktop session deletion is unavailable");
+				await this.operations.deleteSession(requireSessionId(request));
+				return { deleted: true };
+			}
+			case "session.create": {
+				const created = await this.operations.createSession();
+				return {
+					...created,
+					modelCatalog: this.operations.readModels?.(created.sessionId) ?? { currentModelId: null, models: [] },
+				};
+			}
 			case "session.open":
 				return await this.operations.openSession(requireSessionId(request));
+			case "session.history": {
+				if (!this.operations.readHistory) throw new Error("Desktop session history is unavailable");
+				const { offset, limit } = readHistoryPage(request);
+				return { messages: await this.operations.readHistory(requireSessionId(request), offset, limit) };
+			}
+			case "session.models":
+				if (!this.operations.readModels) throw new Error("Desktop model selection is unavailable");
+				return this.operations.readModels(requireSessionId(request));
+			case "session.model.select": {
+				const sessionId = requireSessionId(request);
+				if (!this.operations.selectModel || !this.operations.readModels) {
+					throw new Error("Desktop model selection is unavailable");
+				}
+				await this.operations.selectModel(sessionId, readModelKey(request));
+				return this.operations.readModels(sessionId);
+			}
+			case "session.suggestions": {
+				if (!this.operations.readSuggestions) throw new Error("Desktop prompt suggestions are unavailable");
+				return { suggestions: await this.operations.readSuggestions(requireSessionId(request)) };
+			}
 			case "session.prompt": {
-				const sessionId = request.sessionId ?? (await this.operations.createSession()).sessionId;
+				const sessionId = request.sessionId
+					? (await this.operations.openSession(request.sessionId)).sessionId
+					: (await this.operations.createSession()).sessionId;
 				const text = readPromptText(request);
-				void this.runPrompt(sessionId, text).catch(async (error: unknown) => {
-					if (this.connection.getSnapshot().state === "online") {
-						const remoteError = toRemoteError(error);
-						await this.connection.emitEvent(
-							"session.state",
-							{ state: "error", code: remoteError.code, message: remoteError.message },
-							sessionId,
-						);
-					}
-				});
+				const retryPreviousTurn = readRetryPreviousTurn(request);
+				const retryTargetMessageId = retryPreviousTurn ? readRetryTargetMessageId(request) : undefined;
+				void this.runPrompt(sessionId, text, retryPreviousTurn, retryTargetMessageId).catch(
+					async (error: unknown) => {
+						if (this.connection.getSnapshot().state === "online") {
+							const remoteError = toRemoteError(error);
+							await this.connection.emitEvent(
+								"session.state",
+								{ state: "error", code: remoteError.code, message: remoteError.message },
+								sessionId,
+							);
+						}
+					},
+				);
 				return { accepted: true, sessionId };
 			}
 			case "session.abort":
@@ -95,8 +151,13 @@ export class DesktopRemoteConnector {
 		}
 	}
 
-	private async runPrompt(sessionId: string, text: string): Promise<{ completed: true; sessionId: string }> {
-		for await (const event of this.operations.prompt(sessionId, text)) {
+	private async runPrompt(
+		sessionId: string,
+		text: string,
+		retryPreviousTurn: boolean,
+		retryTargetMessageId?: string,
+	): Promise<{ completed: true; sessionId: string }> {
+		for await (const event of this.operations.prompt(sessionId, text, retryPreviousTurn, retryTargetMessageId)) {
 			if (event.type === "delta" && event.text) {
 				await this.connection.emitEvent("session.message", { kind: "delta", text: event.text }, sessionId);
 				continue;
@@ -113,6 +174,30 @@ export class DesktopRemoteConnector {
 		}
 		return { completed: true, sessionId };
 	}
+}
+
+function readModelKey(request: RemoteRequest): string {
+	if (!isRecord(request.payload) || typeof request.payload.modelKey !== "string" || !request.payload.modelKey) {
+		throw new Error("modelKey is required");
+	}
+	return request.payload.modelKey;
+}
+
+function readRetryPreviousTurn(request: RemoteRequest): boolean {
+	if (!isRecord(request.payload)) return false;
+	if (request.payload.retryPreviousTurn === undefined) return false;
+	if (typeof request.payload.retryPreviousTurn !== "boolean") throw new Error("retryPreviousTurn must be boolean");
+	return request.payload.retryPreviousTurn;
+}
+
+function readRetryTargetMessageId(request: RemoteRequest): string | undefined {
+	if (!isRecord(request.payload) || typeof request.payload.retryTargetMessageId !== "string") {
+		throw new Error("retryTargetMessageId is required for remote retry");
+	}
+	if (request.payload.retryTargetMessageId.length === 0) {
+		throw new Error("retryTargetMessageId must be a non-empty string");
+	}
+	return request.payload.retryTargetMessageId;
 }
 
 function readQuestionRequestId(request: RemoteRequest): string {
@@ -147,6 +232,16 @@ function requireSessionId(request: RemoteRequest): string {
 	return request.sessionId;
 }
 
+function readHistoryPage(request: RemoteRequest): { offset: number; limit: number } {
+	if (!isRecord(request.payload)) throw new Error("history page is required");
+	const { offset, limit } = request.payload;
+	if (!Number.isSafeInteger(offset) || (offset as number) < 0) throw new Error("history offset is invalid");
+	if (!Number.isSafeInteger(limit) || (limit as number) < 1 || (limit as number) > 100) {
+		throw new Error("history limit must be between 1 and 100");
+	}
+	return { offset: offset as number, limit: limit as number };
+}
+
 function readPromptText(request: RemoteRequest): string {
 	if (!isRecord(request.payload) || typeof request.payload.text !== "string" || !request.payload.text.trim()) {
 		throw new Error("prompt payload text is required");
@@ -177,6 +272,15 @@ function toRemoteError(error: unknown): RemoteError {
 	const operationCode = isRecord(error) && typeof error.code === "string" ? error.code : undefined;
 	if (operationCode === "SESSION_NOT_FOUND") {
 		return remoteError("not_found", "Desktop session was not found", false);
+	}
+	if (operationCode === "SESSION_NOT_OPEN") {
+		return remoteError("not_found", "Desktop session is no longer open", false);
+	}
+	if (operationCode === "MODEL_UNAVAILABLE") {
+		return remoteError("invalid_frame", "The selected model is no longer available", false);
+	}
+	if (operationCode === "STALE_RETRY_TARGET") {
+		return remoteError("invalid_frame", "The desktop conversation changed; refresh it before retrying.", false);
 	}
 	if (operationCode === "SESSION_BUSY") {
 		return remoteError("busy", "Desktop session is already processing a turn", true);

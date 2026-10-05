@@ -52,6 +52,16 @@
 		"questionPending": "有问题待确认，点击查看",
 		"sessionFallback": "新会话"
 	},
+	"remoteDesktopCapture": {
+		"title": "共享桌面画面",
+		"message": "手机端正在请求查看此电脑的画面。",
+		"detail": "仅共享一次；选择屏幕后，手机端可实时查看并控制画面。请勿共享含有敏感信息的窗口。",
+		"allowOnce": "继续选择画面",
+		"cancel": "取消",
+		"chooseTitle": "选择共享来源",
+		"chooseMessage": "选择要共享给已配对手机的屏幕或窗口。",
+		"noSources": "系统没有提供可共享的屏幕或窗口。请检查桌面环境的屏幕录制权限后重试。"
+	},
 	"pluginPackage": {
 		"confirmTitle": "安装 567 Agent 插件",
 		"confirmMessage": "安装并启用 {{name}} {{version}}？",

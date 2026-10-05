@@ -336,17 +336,12 @@ export const promptSuggestionsAtom = atom<Record<string, string[]>>({});
  */
 export const promptPredictingAtom = atom<Record<string, boolean>>({});
 
-/** 新会话全局模型偏好（localStorage）；已有会话仍以 session settings 为准 pull 覆盖。 */
-export const SELECTED_MODEL_STORAGE_KEY = "vetta-selected-model";
-
 /**
  * 当前选中模型，格式 "provider/modelId"。
- * - 新会话 / 欢迎页：从 localStorage 的全局偏好恢复，用户切换时写回。
+ * - 新会话：由模型设置中的 defaultModel 初始化，用户当前窗口内可临时切换。
  * - 打开已有会话：由后端 session settings pull 覆盖为该会话模型。
  */
-export const selectedModelAtom = atom<string | null>(
-	typeof localStorage !== "undefined" ? localStorage.getItem(SELECTED_MODEL_STORAGE_KEY) : null,
-);
+export const selectedModelAtom = atom<string | null>(null);
 
 /**
  * Per-model reasoning level memory: maps modelKey ("provider/modelId") → chosen level value.

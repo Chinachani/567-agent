@@ -133,6 +133,10 @@
     "qrHint": "Open Remote access on your phone and scan this code. After the first connection, it cannot bind another device.",
     "empty": "Generate a QR code to scan from your phone",
     "qrRenderError": "Couldn't generate the QR code. Try again; if it still fails, check the app logs.",
+    "warning": {
+      "certificate_changed": "This update replaced the local remote-access certificate. Phones paired before the update have an outdated certificate fingerprint. Generate a new QR code and scan it on each phone to restore LAN access and screen sharing.",
+      "lan_unavailable": "No usable LAN IPv4 address was detected. Cloud relay can still connect; LAN access and screen sharing require the computer and phone to share a reachable network."
+    },
     "inputTitle": "Allow remote input",
     "inputDescription": "Allow the paired phone to control the mouse and keyboard.",
     "inputSupport": {
@@ -152,7 +156,7 @@
     },
     "relayUrlLabel": "Relay Server URL",
     "resetDefaultRelay": "Reset to default",
-    "relayUrlHint": "Uses public relay by default. Custom Cloudflare Worker relay URLs are also supported."
+    "relayUrlHint": "The public relay is used by default. For a self-hosted relay, enter its HTTPS base URL, such as https://relay.example.com. Don't append /v1/relay; the app sets up the secure connection."
   },
   "general": "General",
   "appearance": {

@@ -2,11 +2,15 @@ import { RemoteDesktopHost, WebSocketRemoteDesktopSignaling } from "@567agent/re
 
 declare global {
 	interface Window {
-		vettaRemoteDesktop?: { onInput(message: unknown): void };
+		vettaRemoteDesktop?: {
+			requestCapture(routeIndex: number): void;
+			onInput(message: unknown): void;
+		};
 	}
 }
 
 interface RelayRoute {
+	readonly index: number;
 	readonly target: string;
 	signaling?: WebSocketRemoteDesktopSignaling;
 	host?: RemoteDesktopHost;
@@ -27,7 +31,7 @@ try {
 }
 if (!sessionId || targets.length === 0) throw new Error("remote desktop host targets are missing");
 
-const routes: RelayRoute[] = targets.map((target) => ({ target, connecting: false, closed: false }));
+const routes: RelayRoute[] = targets.map((target, index) => ({ index, target, connecting: false, closed: false }));
 
 for (const route of routes) void connectRoute(route);
 
@@ -40,7 +44,10 @@ async function connectRoute(route: RelayRoute): Promise<void> {
 		await signaling.connect({
 			async onSignal(signal) {
 				if (signal.type === "peer_ready") {
-					await startHostForRoute(route, signaling);
+					console.info("remote desktop peer is ready; requesting display capture", {
+						target: safeTarget(route.target),
+					});
+					window.vettaRemoteDesktop?.requestCapture(route.index);
 					return;
 				}
 				if (route.host) {
@@ -74,6 +81,15 @@ async function connectRoute(route: RelayRoute): Promise<void> {
 	}
 }
 
+window.addEventListener("vetta:remote-desktop:capture-request", (event) => {
+	const routeIndex = (event as CustomEvent<unknown>).detail;
+	if (typeof routeIndex !== "number" || !Number.isSafeInteger(routeIndex)) return;
+	const route = routes[routeIndex];
+	const signaling = route?.signaling;
+	if (!route || !signaling) return;
+	void startHostForRoute(route, signaling);
+});
+
 async function startHostForRoute(route: RelayRoute, signaling: WebSocketRemoteDesktopSignaling): Promise<void> {
 	if (route.host || route.closed) return;
 	try {
@@ -105,6 +121,22 @@ async function startHostForRoute(route: RelayRoute, signaling: WebSocketRemoteDe
 			error: error instanceof Error ? error.message : String(error),
 			target: safeTarget(route.target),
 		});
+		try {
+			await signaling.send({
+				type: "end",
+				protocolVersion: 1,
+				sessionId: sessionId!,
+				reason:
+					error instanceof DOMException && ["NotAllowedError", "AbortError"].includes(error.name)
+						? "capture_denied"
+						: "capture_unavailable",
+			});
+		} catch (signalError) {
+			console.warn("remote desktop capture failure could not be reported", {
+				error: signalError instanceof Error ? signalError.message : String(signalError),
+				target: safeTarget(route.target),
+			});
+		}
 		cleanupRoute(route);
 	}
 }

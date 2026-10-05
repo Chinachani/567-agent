@@ -34,7 +34,11 @@ export function decodeRemoteDesktopSignal(value: unknown): RemoteDesktopSignal {
 	}
 	if (type === "end") {
 		const reason = text(input.reason, "reason", 32);
-		if (!new Set(["completed", "revoked", "failed", "peer_closed"]).has(reason)) {
+		if (
+			!new Set(["completed", "revoked", "failed", "peer_closed", "capture_denied", "capture_unavailable"]).has(
+				reason,
+			)
+		) {
 			throw new RemoteDesktopProtocolError("unsupported end reason");
 		}
 		return {

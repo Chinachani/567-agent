@@ -35,6 +35,42 @@ export function registerRemoteDesktopVideoPermission(webContentsId: number): () 
 	return () => remoteDesktopVideoWebContentsIds.delete(webContentsId);
 }
 
+/** The remote desktop host uses an isolated Electron session, so its media
+ * permission policy must be installed on that session rather than the main
+ * window's default session. */
+export function configureRemoteDesktopHostMediaPermissions(session: Session): () => void {
+	session.setPermissionCheckHandler((webContents, permission, _origin, details) => {
+		if (permission !== "media") return false;
+		return isAllowedDesktopMediaRequest({
+			stage: "check",
+			mainWebContentsMatches: false,
+			remoteDesktopWebContentsMatches: webContents !== null && remoteDesktopVideoWebContentsIds.has(webContents.id),
+			isMainFrame: details.isMainFrame,
+			mediaTypes: [(details as PermissionCheckHandlerHandlerDetails).mediaType ?? "unknown"],
+		});
+	});
+	session.setPermissionRequestHandler((webContents, permission, callback, details) => {
+		if (permission !== "media") {
+			callback(false);
+			return;
+		}
+		const request = details as MediaAccessPermissionRequest;
+		callback(
+			isAllowedDesktopMediaRequest({
+				stage: "request",
+				mainWebContentsMatches: false,
+				remoteDesktopWebContentsMatches: remoteDesktopVideoWebContentsIds.has(webContents.id),
+				isMainFrame: request.isMainFrame,
+				mediaTypes: request.mediaTypes ?? [],
+			}),
+		);
+	});
+	return () => {
+		session.setPermissionCheckHandler(null);
+		session.setPermissionRequestHandler(null);
+	};
+}
+
 export function configureMainWindowMediaPermissions(session: Session, mainWebContents: WebContents): void {
 	session.setPermissionCheckHandler((webContents, permission, _origin, details) => {
 		if (permission !== "media") return true;
