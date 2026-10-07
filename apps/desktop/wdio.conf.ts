@@ -25,9 +25,9 @@ const packageVersion = (JSON.parse(readFileSync(path.join(packageRoot, "package.
 }).version;
 
 /** Set to `1` to use electron-builder unpacked output (`release/*-unpacked`). */
-const usePackaged = process.env.VETTA_E2E_PACKAGED === "1";
-const packagedArtifactRoot = process.env.VETTA_E2E_PACKAGED_ROOT?.trim()
-	? path.resolve(process.env.VETTA_E2E_PACKAGED_ROOT)
+const usePackaged = process.env.AGENT567_E2E_PACKAGED === "1";
+const packagedArtifactRoot = process.env.AGENT567_E2E_PACKAGED_ROOT?.trim()
+	? path.resolve(process.env.AGENT567_E2E_PACKAGED_ROOT)
 	: packageRoot;
 let updateFeedServer: Server | undefined;
 let stagedAppImageRoot: string | undefined;
@@ -87,10 +87,10 @@ function resolveElectronServiceOptions(): {
 }
 
 // Child Electron inherits these: isolated config dir + skip dev DevTools.
-process.env.VETTA_E2E = "1";
-process.env.VETTA_CONFIG_DIR = process.env.VETTA_CONFIG_DIR ?? configDirName;
-// App data roots under VETTA_HOME; user-data-dir only isolates Chromium profile.
-process.env.VETTA_HOME = process.env.VETTA_HOME ?? path.join(homedir(), configDirName);
+process.env.AGENT567_E2E = "1";
+process.env.AGENT567_CONFIG_DIR = process.env.AGENT567_CONFIG_DIR ?? configDirName;
+// App data roots under AGENT567_HOME; user-data-dir only isolates Chromium profile.
+process.env.AGENT567_HOME = process.env.AGENT567_HOME ?? path.join(homedir(), configDirName);
 
 const electronServiceOptions = resolveElectronServiceOptions();
 const specRetryOptions = resolveElectronE2eSpecRetryOptions({
@@ -136,7 +136,7 @@ export const config = {
 		timeout: 120_000,
 	},
 	onPrepare: async () => {
-		if (!usePackaged || process.env.VETTA_E2E_UPDATE_FEED === "0") return;
+		if (!usePackaged || process.env.AGENT567_E2E_UPDATE_FEED === "0") return;
 		const fixture = await startUpdateFeedFixture({
 			version: packageVersion,
 			downloadable: process.platform === "linux",
@@ -144,7 +144,7 @@ export const config = {
 			metadataDelayMs: 1_000,
 		});
 		updateFeedServer = fixture.server;
-		process.env.VETTA_E2E_UPDATE_URL = fixture.url;
+		process.env.AGENT567_E2E_UPDATE_URL = fixture.url;
 		console.log(`[wdio] packaged E2E update feed: ${fixture.url}`);
 	},
 	onComplete: () => {

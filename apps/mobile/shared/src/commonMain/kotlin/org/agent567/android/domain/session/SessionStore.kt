@@ -10,7 +10,15 @@ interface SessionStore {
 
     suspend fun getSession(id: String): ChatSession?
 
+    suspend fun refresh() = Unit
+
     suspend fun getMessages(sessionId: String): List<LocalMessage>
+
+    /** Saves pending/legacy image payloads and returns file-backed message metadata. */
+    suspend fun persistMessageImages(images: List<MessageImage>): List<MessageImage> = images
+
+    /** Reads one file-backed image only when a request or export needs its bytes. */
+    suspend fun readMessageImageBytes(image: MessageImage): ByteArray? = image.pendingBytes
 
     suspend fun createSession(
         title: String = DEFAULT_TITLE,
@@ -19,6 +27,7 @@ interface SessionStore {
         origin: ConversationOrigin = ConversationOrigin.Cloud,
         remoteDeviceId: String? = null,
         remoteSessionId: String? = null,
+        remoteSessionCreatedOnMobile: Boolean = false,
     ): ChatSession
 
     suspend fun updateSession(session: ChatSession)
@@ -32,7 +41,10 @@ interface SessionStore {
 
     suspend fun replaceMessages(sessionId: String, messages: List<LocalMessage>)
 
-    suspend fun exportMigrationData(): String
+    suspend fun exportMigrationData(
+        maxBytes: Long,
+        onProgress: (completed: Int, total: Int) -> Unit = { _, _ -> },
+    ): String
 
     suspend fun importMigrationData(serialized: String): Int
 

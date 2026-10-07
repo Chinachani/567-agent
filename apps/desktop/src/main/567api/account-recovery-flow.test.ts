@@ -7,11 +7,15 @@ import type { NewApiService } from "./newapi-service.js";
 
 const network = vi.hoisted(() => ({
 	calls: [] as string[],
+	home: "",
 	refreshMessage: "Cookie 已过期",
 	refreshStatus: 401,
 	loginRejected: true,
+	offline: false,
 	secureStorageAvailable: true,
 }));
+
+vi.mock("@567agent/action-rpc", () => ({ getVettaHomePath: () => network.home }));
 
 vi.mock("node:https", async () => {
 	const { EventEmitter } = await import("node:events");
@@ -29,6 +33,15 @@ vi.mock("node:https", async () => {
 					destroy: (error: Error) => request.emit("error", error),
 					end: () => {
 						network.calls.push(url.pathname);
+						if (network.offline) {
+							queueMicrotask(() =>
+								request.emit(
+									"error",
+									Object.assign(new Error("Network is unreachable"), { code: "ENETUNREACH" }),
+								),
+							);
+							return;
+						}
 						const isRefresh = url.pathname.endsWith("/refresh");
 						const isLogin = url.pathname.endsWith("/login");
 						const unauthorized =
@@ -87,11 +100,13 @@ describe("account balance recovery through the desktop service", () => {
 		vi.resetModules();
 		vi.useFakeTimers();
 		root = mkdtempSync(join(tmpdir(), "567-account-recovery-"));
-		vi.stubEnv("VETTA_HOME", root);
+		network.home = root;
+		vi.stubEnv("AGENT567_HOME", root);
 		network.calls = [];
 		network.refreshMessage = "Cookie 已过期";
 		network.refreshStatus = 401;
 		network.loginRejected = true;
+		network.offline = false;
 		network.secureStorageAvailable = true;
 		const { encryptSecret } = await import("./security.js");
 		writeFileSync(
@@ -117,9 +132,10 @@ describe("account balance recovery through the desktop service", () => {
 		rmSync(root, { recursive: true, force: true });
 	});
 
-	it("preserves account data and stops repeated failed automatic logins until manual login succeeds", async () => {
+	it("clears login after explicit automatic credential rejection and allows manual recovery", async () => {
 		expect(await service.refreshQuota(true)).toEqual({ success: false });
-		expect(service.getRawSession().isLoggedIn).toBe(true);
+		expect(service.getRawSession()).toEqual({ isLoggedIn: false });
+		expect(JSON.parse(readFileSync(join(root, "567api-session.json"), "utf8"))).toEqual({ isLoggedIn: false });
 		expect(network.calls.filter((path) => path.endsWith("/login"))).toHaveLength(1);
 		const callsAfterFailure = network.calls.length;
 		for (let i = 0; i < 3; i++) expect(await service.refreshQuota(true)).toEqual({ success: false });
@@ -129,11 +145,51 @@ describe("account balance recovery through the desktop service", () => {
 		expect(await service.refreshQuota(true)).toEqual({ success: true, quota: 500000, quotaUsd: 1 });
 	});
 
+	it("preserves the login when a 403 refresh response may come from a network interceptor", async () => {
+		network.refreshStatus = 403;
+		network.refreshMessage = "Forbidden by upstream network policy";
+
+		expect(await service.refreshQuota(true)).toEqual({ success: false });
+		expect(service.getRawSession()).toMatchObject({ isLoggedIn: true, username: "user" });
+		expect(JSON.parse(readFileSync(join(root, "567api-session.json"), "utf8"))).toMatchObject({ isLoggedIn: true });
+		expect(network.calls.some((path) => path.endsWith("/login"))).toBe(false);
+	});
+
 	it("does not use a saved password for an invalid-parameter refresh response", async () => {
 		network.refreshStatus = 400;
 		network.refreshMessage = "参数无效，请重新登录后检查";
 		expect(await service.refreshQuota(true)).toEqual({ success: false });
 		expect(network.calls.some((path) => path.endsWith("/login"))).toBe(false);
+	});
+
+	it("preserves a saved cookie when startup refresh fails because the network is unreachable", async () => {
+		const sessionPath = join(root, "567api-session.json");
+		const saved = JSON.parse(readFileSync(sessionPath, "utf8")) as Record<string, unknown>;
+		delete saved.accessToken;
+		writeFileSync(sessionPath, JSON.stringify(saved));
+		network.offline = true;
+		vi.resetModules();
+		const module = await import("./newapi-service.js");
+		service = module.NewApiService.getInstance();
+		for (let i = 0; i < 20; i++) await Promise.resolve();
+
+		expect(service.getRawSession()).toMatchObject({ isLoggedIn: true, username: "user" });
+		expect(JSON.parse(readFileSync(sessionPath, "utf8"))).toMatchObject({ isLoggedIn: true });
+	});
+
+	it("clears the persisted login when startup refresh is explicitly rejected", async () => {
+		const sessionPath = join(root, "567api-session.json");
+		const saved = JSON.parse(readFileSync(sessionPath, "utf8")) as Record<string, unknown>;
+		delete saved.accessToken;
+		writeFileSync(sessionPath, JSON.stringify(saved));
+		vi.resetModules();
+		const module = await import("./newapi-service.js");
+		service = module.NewApiService.getInstance();
+		await vi.advanceTimersByTimeAsync(0);
+		for (let i = 0; i < 30; i++) await Promise.resolve();
+
+		expect(service.getRawSession()).toEqual({ isLoggedIn: false });
+		expect(JSON.parse(readFileSync(sessionPath, "utf8"))).toEqual({ isLoggedIn: false });
 	});
 
 	it("preserves encrypted session data when the OS keyring is temporarily unavailable", async () => {

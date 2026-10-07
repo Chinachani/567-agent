@@ -22,7 +22,7 @@ ADR-0088 将浏览器进程、profile、策略与生命周期收敛为 Desktop F
    Skill 在首次使用时检查版本、Vetta 私有 `npm_config_prefix` 与浏览器健康状态；CLI 缺失或过旧时自行安装锁定版本，
    浏览器缺失时自行下载 Chrome for Testing。它不得在私有 prefix 缺失时回落系统级全局安装，也不得自动执行绕过
    版本锁定的升级或会清理状态的修复。插件面板继续提供人工安装、升级与诊断兜底。
-3. 每个 Coding Agent Session 的命令环境注入宿主确认的 `VETTA_AGENT_SESSION_ID`。Skill 要求所有浏览器与页面
+3. 每个 Coding Agent Session 的命令环境注入宿主确认的 `AGENT567_AGENT_SESSION_ID`。Skill 要求所有浏览器与页面
    状态操作显式以该值作为 `--session`，并使用 `--pin-tab`；安装、诊断和内置手册读取不绑定 session。同一
    Agent Session 的连续操作复用自己的浏览器；不同 Agent Session 不从 cwd 推导或共享 session。
 4. 同一任务操作多个账号时，以 `<agent-session-id>-<account-key>` 形成独立 upstream session，并用稳定
@@ -52,7 +52,7 @@ Capability 两条执行路径”的结论；ADR-0088 对 Plugin API、Foundation
   为每个新命令增加 Tool Schema。
 - Browser Skill 的运行时安装属于已请求浏览器任务的准备步骤；自动安装仅限 Vetta 私有 npm prefix 中的锁定 CLI
   与缺失的 Chrome for Testing，失败后有限停止并转交插件面板，不扩大为任意系统包安装权限。
-- `VETTA_AGENT_SESSION_ID` 成为 Coding Agent 命令环境的公开宿主合同；宿主提供的值覆盖调用方同名 env。
+- `AGENT567_AGENT_SESSION_ID` 成为 Coding Agent 命令环境的公开宿主合同；宿主提供的值覆盖调用方同名 env。
 - Agent CLI 的 Chrome、daemon 和持久状态不受 `ctx.browser` 的 namespace、revision、取消与关闭生命周期管理；
   故障诊断需要区分 CLI 与 Capability 两条路径。
 - 关闭 Agent Runtime 不等价于立即关闭 CLI daemon；Skill 在任务结束时执行 `agent-browser close`，upstream

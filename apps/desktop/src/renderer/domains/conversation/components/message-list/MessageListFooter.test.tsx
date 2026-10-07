@@ -1,5 +1,5 @@
 // @vitest-environment jsdom
-import { Provider, createStore } from "jotai";
+import { Provider, createStore, getDefaultStore } from "jotai";
 import { act, render, renderHook, screen } from "@testing-library/react";
 import type { ReactNode } from "react";
 import type * as ThemeChat from "@vetta-org/theme-ui/chat";
@@ -36,7 +36,7 @@ vi.mock("../../../plugins/components/PluginTurnCardHost", () => ({ PluginTurnCar
 vi.mock("./AssistantMessage", () => ({ StreamingIndicator: () => null }));
 vi.mock("./WorkflowFooterItems", () => ({ WorkflowFooterItems: () => null }));
 
-import { retryProgressAtom } from "@shared/store/atoms";
+import { activeSessionAtom, retryProgressAtom } from "@shared/store/atoms";
 import { setChatStreamOwner } from "../../services/chat-service";
 import { useSessionEventController } from "../../hooks/useSessionEventController";
 import { MessageListFooter } from "./MessageListFooter";
@@ -44,8 +44,14 @@ import { MessageListFooter } from "./MessageListFooter";
 describe("MessageListFooter retry progress", () => {
 	const store = createStore();
 
-	beforeEach(() => store.set(retryProgressAtom, null));
-	afterEach(() => setChatStreamOwner(null));
+	beforeEach(() => {
+		store.set(retryProgressAtom, null);
+		getDefaultStore().set(activeSessionAtom, null);
+	});
+	afterEach(() => {
+		setChatStreamOwner(null);
+		getDefaultStore().set(activeSessionAtom, null);
+	});
 
 	it("shows the reconnect attempt and a user-friendly reason", () => {
 		store.set(retryProgressAtom, {
@@ -66,9 +72,9 @@ describe("MessageListFooter retry progress", () => {
 
 	it("重试开始后首段思考恢复时移除重连卡，后续重试仍可重新显示", () => {
 		setChatStreamOwner("session-1");
-		const activeSessionRef = {
-			current: { runtimeId: "session-1", cwd: "/workspace", sessionPath: "/sessions/session-1.jsonl" },
-		};
+		const activeSession = { runtimeId: "session-1", cwd: "/workspace", sessionPath: "/sessions/session-1.jsonl" };
+		getDefaultStore().set(activeSessionAtom, activeSession);
+		const activeSessionRef = { current: activeSession };
 		const wrapper = ({ children }: { children: ReactNode }) => <Provider store={store}>{children}</Provider>;
 		const { result } = renderHook(() => useSessionEventController({ activeSessionRef }), { wrapper });
 		render(<MessageListFooter isCompacting={false} waiting />, { wrapper });

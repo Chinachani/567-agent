@@ -26,6 +26,7 @@ import { getAppLanguage } from "../i18n/index.js";
 import { getAppLogger } from "../logger.js";
 import { listPlugins, pluginAgentContributionService } from "../plugins/plugin-catalog.js";
 import { shouldListSkill } from "./skill-list-policy.js";
+import { assertValidSkillName } from "./skill-name.js";
 import { buildPluginSkillSources, findPluginSkillSource, resolvePluginSkillPresentation } from "./skill-provenance.js";
 
 const skillsLog = getAppLogger("skills");
@@ -242,6 +243,7 @@ export class SkillService {
 	}
 
 	setEnabled(name: string, enabled: boolean): { name: string; enabled: boolean } {
+		assertValidSkillName(name);
 		const manifest = readSkillsManifest();
 		const entry = manifest[name];
 		if (!entry) throw new Error(`Skill "${name}" is not installed`);
@@ -259,12 +261,14 @@ export class SkillService {
 	}
 
 	toggle(name: string): { name: string; enabled: boolean } {
+		assertValidSkillName(name);
 		const entry = readSkillsManifest()[name];
 		if (!entry) throw new Error(`Skill "${name}" is not installed`);
 		return this.setEnabled(name, !entry.enabled);
 	}
 
 	async uninstall(name: string, type?: InstalledSkillType): Promise<void> {
+		assertValidSkillName(name);
 		const manifest = readSkillsManifest();
 		const itemType: InstalledSkillType =
 			type === "scene" ? "scene" : type === "skill" ? "skill" : manifest[name]?.type === "scene" ? "scene" : "skill";

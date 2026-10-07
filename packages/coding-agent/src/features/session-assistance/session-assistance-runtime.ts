@@ -79,7 +79,7 @@ export class CodingAgentSessionAssistanceRuntime {
 		});
 	}
 
-	async generateNextPrompts(conversation: string): Promise<readonly string[]> {
+	async generateNextPrompts(conversation: string, signal?: AbortSignal): Promise<readonly string[]> {
 		const trimmed = conversation.trim().slice(0, 4000);
 		if (!trimmed) return [];
 		const promptText =
@@ -92,43 +92,48 @@ export class CodingAgentSessionAssistanceRuntime {
 			`- You MUST submit the result by calling the provide_prompt_suggestions tool.\n\n` +
 			`<conversation>\n${trimmed}\n</conversation>`;
 
-		const result = await this.runWithFailover("next-prompts.generate", async ({ model, apiKey, reasoning }) => {
-			const stream = await (this.options.streamFn ?? streamSimple)(
-				model,
-				{
-					systemPrompt:
-						"You are an input predictor. Imitate the user's voice to predict their next message, in the language the user is writing in. You MUST call the provide_prompt_suggestions tool and submit 0-3 concrete first-person questions or instructions in the suggestions field, with no analysis or reasoning.",
-					messages: [
-						{
-							role: "user" as const,
-							content: [{ type: "text" as const, text: promptText }],
-							timestamp: this.now(),
-						},
-					],
-					tools: [SUGGESTIONS_TOOL],
-				},
-				{ apiKey, maxTokens: 800, reasoning, sessionId: this.options.readSessionId() },
-			);
-			const response = await stream.result();
-			if (response.stopReason === "error") {
-				throw toModelFailure(normalizeAssistantMessageError(response, model));
-			}
-			const toolCall = response.content.find(
-				(content): content is ToolCall => content.type === "toolCall" && content.name === SUGGESTIONS_TOOL.name,
-			);
-			if (toolCall) {
-				const rawList = (toolCall.arguments as { suggestions?: unknown }).suggestions;
-				return Array.isArray(rawList) ? cleanSuggestionList(rawList) : [];
-			}
-			const fromText = sanitizeSuggestions(readText(response.content));
-			return fromText.length > 0 ? fromText : sanitizeSuggestions(readThinking(response.content));
-		});
+		const result = await this.runWithFailover(
+			"next-prompts.generate",
+			async ({ model, apiKey, reasoning }) => {
+				const stream = await (this.options.streamFn ?? streamSimple)(
+					model,
+					{
+						systemPrompt:
+							"You are an input predictor. Imitate the user's voice to predict their next message, in the language the user is writing in. You MUST call the provide_prompt_suggestions tool and submit 0-3 concrete first-person questions or instructions in the suggestions field, with no analysis or reasoning.",
+						messages: [
+							{
+								role: "user" as const,
+								content: [{ type: "text" as const, text: promptText }],
+								timestamp: this.now(),
+							},
+						],
+						tools: [SUGGESTIONS_TOOL],
+					},
+					{ apiKey, maxTokens: 800, reasoning, sessionId: this.options.readSessionId(), signal },
+				);
+				const response = await stream.result();
+				if (response.stopReason === "error") {
+					throw toModelFailure(normalizeAssistantMessageError(response, model));
+				}
+				const toolCall = response.content.find(
+					(content): content is ToolCall => content.type === "toolCall" && content.name === SUGGESTIONS_TOOL.name,
+				);
+				if (toolCall) {
+					const rawList = (toolCall.arguments as { suggestions?: unknown }).suggestions;
+					return Array.isArray(rawList) ? cleanSuggestionList(rawList) : [];
+				}
+				const fromText = sanitizeSuggestions(readText(response.content));
+				return fromText.length > 0 ? fromText : sanitizeSuggestions(readThinking(response.content));
+			},
+			signal,
+		);
 		return result ?? [];
 	}
 
 	private async runWithFailover<T>(
 		operation: "title.generate" | "next-prompts.generate",
 		run: (candidate: CodingAgentSessionAssistanceCandidate) => Promise<T | null>,
+		signal?: AbortSignal,
 	): Promise<T | null> {
 		this.options.observationPublisher?.record(CODING_AGENT_SESSION_ASSISTANCE_OBSERVATION, {
 			operation,
@@ -136,6 +141,7 @@ export class CodingAgentSessionAssistanceRuntime {
 		});
 		const candidates = await resolveSessionAssistanceCandidates(this.options.models, this.now);
 		for (const [index, candidate] of candidates.entries()) {
+			if (signal?.aborted) throw signal.reason ?? new DOMException("Operation cancelled", "AbortError");
 			const startedAt = this.now();
 			try {
 				const value = await run(candidate);
@@ -162,6 +168,7 @@ export class CodingAgentSessionAssistanceRuntime {
 					resultCount: 0,
 				});
 			} catch (error) {
+				if (signal?.aborted) throw signal.reason ?? error;
 				markModelCooldown(candidate.key, this.now);
 				this.options.observationPublisher?.record(CODING_AGENT_SESSION_ASSISTANCE_OBSERVATION, {
 					operation,

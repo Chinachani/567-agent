@@ -416,7 +416,12 @@ export class DesktopConversationService {
 			.slice(offset, offset + limit);
 	}
 
-	async generateRemotePromptSuggestions(sessionId: string): Promise<readonly string[]> {
+	/** Returns whether any persisted history entry exists, including image-only or non-text turns. */
+	hasRemoteSessionContent(sessionId: string): boolean {
+		return this.runtime.getFullHistory(sessionId).length > 0;
+	}
+
+	async generateRemotePromptSuggestions(sessionId: string, signal?: AbortSignal): Promise<readonly string[]> {
 		const config = await readDesktopConfig();
 		if (config.experimental?.promptPrediction !== true) return [];
 		const conversation = this.runtime
@@ -432,12 +437,17 @@ export class DesktopConversationService {
 								.map((part) => part.text)
 								.join("\n");
 				const speaker = message.role === "user" ? "用户" : "助手";
-				return speaker + "：" + text.slice(-1200);
+				return `${speaker}：${text.slice(-1200)}`;
 			})
 			.join("\n")
 			.slice(-4000);
 		if (!conversation.trim()) return [];
-		return this.runtime.invokeSessionExtension(sessionId, CODING_AGENT_NEXT_PROMPT_SUGGESTIONS, { conversation });
+		return this.runtime.invokeSessionExtension(
+			sessionId,
+			CODING_AGENT_NEXT_PROMPT_SUGGESTIONS,
+			{ conversation },
+			signal,
+		);
 	}
 
 	async selectRemoteSessionModel(sessionId: string, modelKey: string): Promise<void> {

@@ -162,14 +162,14 @@ async function main() {
 	if (!["win32", "darwin", "linux"].includes(platform)) {
 		throw new Error(`[desktop-upgrade-e2e] unsupported platform: ${platform}`);
 	}
-	const baseUrl = feedBase(required("VETTA_DESKTOP_UPGRADE_URL"));
-	const baselineVersion = version(required("VETTA_DESKTOP_UPGRADE_BASELINE"), "baseline version");
-	const candidateVersion = version(required("VETTA_DESKTOP_UPGRADE_CANDIDATE"), "candidate version");
+	const baseUrl = feedBase(required("AGENT567_DESKTOP_UPGRADE_URL"));
+	const baselineVersion = version(required("AGENT567_DESKTOP_UPGRADE_BASELINE"), "baseline version");
+	const candidateVersion = version(required("AGENT567_DESKTOP_UPGRADE_CANDIDATE"), "candidate version");
 	if (compareVersions(candidateVersion, baselineVersion) <= 0) {
 		throw new Error("[desktop-upgrade-e2e] candidate version must be greater than baseline version");
 	}
 
-	const requestedWorkdir = process.env.VETTA_DESKTOP_UPGRADE_WORKDIR?.trim();
+	const requestedWorkdir = process.env.AGENT567_DESKTOP_UPGRADE_WORKDIR?.trim();
 	const root = await import("node:fs/promises").then(({ mkdtemp }) =>
 		mkdtemp(join(requestedWorkdir || tmpdir(), "vetta-upgrade-e2e-")),
 	);
@@ -193,13 +193,13 @@ async function main() {
 	console.log(`[desktop-upgrade-e2e] candidate ${candidate.artifactUrl}`);
 	const environment = {
 		...process.env,
-		VETTA_E2E: "1",
-		VETTA_E2E_UPGRADE: "1",
-		VETTA_E2E_UPDATE_URL: baseUrl,
-		VETTA_E2E_UPGRADE_STATE: state,
-		VETTA_HOME: home,
-		VETTA_CONFIG_DIR: ".vetta-upgrade-e2e",
-		VETTA_SPEECH_INPUT_ENABLED: "false",
+		AGENT567_E2E: "1",
+		AGENT567_E2E_UPGRADE: "1",
+		AGENT567_E2E_UPDATE_URL: baseUrl,
+		AGENT567_E2E_UPGRADE_STATE: state,
+		AGENT567_HOME: home,
+		AGENT567_CONFIG_DIR: ".vetta-upgrade-e2e",
+		AGENT567_SPEECH_INPUT_ENABLED: "false",
 	};
 	if (platform === "linux") {
 		const child = launch(binary, environment, logPath);

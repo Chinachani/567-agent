@@ -109,11 +109,11 @@ fun RootApp(
             AppRoute.Welcome ->
                 WelcomeScreen(
                     connecting = state.remoteConnecting,
-                    error = state.globalError,
+                    error = state.remoteError,
                     onLogin = vm::openLogin,
                     onScanPairing = vm::connectDesktop,
                     onSkip = vm::skipWelcome,
-                    onClearError = vm::clearGlobalError,
+                    onClearError = vm::clearRemoteError,
                 )
             AppRoute.Login ->
                 LoginScreen(
@@ -171,6 +171,7 @@ fun RootApp(
                                     desktopSessionsLoading = state.desktopSessionsLoading,
                                     desktopSessionsError = state.desktopSessionsError,
                                     onRefreshDesktopSessions = vm::refreshDesktopSessions,
+                                    onRefreshSessions = vm::refreshSessions,
                                     onQueryChange = vm::setSessionQuery,
                                     onFilterChange = vm::setSessionFilter,
                                     onNewConversation = { vm.openNewConversation(0) },
@@ -198,8 +199,8 @@ fun RootApp(
                                     onConnectManual = vm::connectDesktop,
                                     onUseCloud = vm::openCloudConversation,
                                     remoteConnecting = state.remoteConnecting,
-                                    error = state.globalError,
-                                    onClearError = vm::clearGlobalError,
+                                    error = state.remoteError,
+                                    onClearError = vm::clearRemoteError,
                                 )
                             MainTab.Me ->
                                 MeScreen(
@@ -215,6 +216,7 @@ fun RootApp(
                                     onSelectGroup = vm::setActive567Group,
                                     onRefreshQuota = vm::refreshQuota,
                                     catalogLoading = state.catalogLoading,
+                                    quotaRefreshing = state.quotaRefreshing,
                                     onOpenPlan = vm::openPlan,
                                     onOpenSettings = vm::openSettings,
                                     onOpenDataSettings = vm::openDataSettings,
@@ -309,7 +311,7 @@ fun RootApp(
                     onToggleImageGen = vm::setImageGenEnabled,
                     onSelectImageGroup = vm::setActiveImageGroup,
                     onSelectImageModel = vm::setActiveImageModel,
-                    globalError = state.globalError,
+                    chatError = state.chatError,
                     onDraftChange = vm::onDraftChange,
                     onSend = vm::sendMessage,
                     onStop = vm::stopStreaming,
@@ -319,7 +321,7 @@ fun RootApp(
                     onCloseModelPicker = { vm.setModelPicker(false) },
                     onSelectModel = vm::selectModel,
                     onErrorAction = vm::handleErrorAction,
-                    onDismissError = vm::clearGlobalError,
+                    onDismissError = vm::clearChatError,
                     onImagesPicked = vm::addPendingImages,
                     onRemovePendingImage = vm::removePendingImage,
                     pendingQuestion = state.pendingQuestion?.takeIf { it.sessionId == state.currentSessionId },

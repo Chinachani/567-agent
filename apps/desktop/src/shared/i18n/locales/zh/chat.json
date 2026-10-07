@@ -332,6 +332,27 @@
 			}
 		}
 	},
+	"markdown": {
+		"preview": "预览",
+		"source": "源码",
+		"run": "在独立窗口运行",
+		"stop": "停止",
+		"waiting": "生成完成后显示预览。",
+		"paused": "预览已停止，重新运行将从头加载页面。",
+		"tooLarge": "内容过大，暂不生成预览。仍可查看和复制源码。",
+		"failed": "无法渲染此内容，已保留源码。",
+		"staticHtml": "静态预览。可在独立窗口运行 JavaScript；外部资源不可用。",
+		"running": "已打开独立交互预览，30 秒后自动关闭。",
+		"svg": "SVG 预览",
+		"html": "HTML 预览",
+		"loading": "正在生成预览…",
+		"retry": "重试",
+		"enlarge": "放大",
+		"save": "另存为",
+		"diagram": "图表",
+		"imageFailed": "图片加载失败。",
+		"actionFailed": "操作失败，请重试。"
+	},
 	"copyButton": {
 		"copied": "已复制",
 		"label": "复制"
@@ -396,6 +417,9 @@
 		},
 		"planMode": {
 			"label": "计划模式"
+		},
+		"goalMode": {
+			"label": "目标模式"
 		}
 	},
 	"inputBar": {
@@ -496,6 +520,7 @@
 		"layoutStacked": "收纳"
 	},
 	"messageList": {
+		"scrollToBottom": "回到最新消息",
 		"userMessage": {
 			"expand": "展开消息",
 			"sceneBadge": "场景",
@@ -1008,5 +1033,28 @@
 		"actionCreate": "新建页面",
 		"actionUpdate": "更新页面",
 		"originalLocation": "原位置：{{path}}"
+	},
+	"goalMode": {
+		"dialog": {
+			"cancel": "取消",
+			"clear": "清除目标",
+			"createDescription": "567 Agent 会持续迭代，直到目标完成、受阻或暂停。",
+			"manageDescription": "查看当前目标状态，或恢复和清除目标。",
+			"objectiveLabel": "目标",
+			"objectivePlaceholder": "描述一个具体、可验证的最终结果…",
+			"resume": "继续目标",
+			"start": "开始执行",
+			"statusLabel": "状态",
+			"title": "目标模式",
+			"usage": "已使用 {{used}} Token · 自动续跑 {{count}} 次"
+		},
+		"operationFailed": "目标操作失败",
+		"status": {
+			"active": "执行中",
+			"blocked": "受阻",
+			"complete": "已完成",
+			"paused": "已暂停",
+			"usage_limited": "用量受限"
+		}
 	}
 }

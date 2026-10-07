@@ -6,12 +6,16 @@ import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.emitAll
+import kotlinx.coroutines.flow.flow
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 import kotlinx.serialization.Serializable
+import kotlin.io.encoding.Base64
+import kotlin.io.encoding.ExperimentalEncodingApi
 import org.agent567.android.core.model.ChatRole
 import org.agent567.android.core.model.ChatQuestion
 import org.agent567.android.core.model.ChatQuestionOption
@@ -20,6 +24,8 @@ import org.agent567.android.core.net.VettaJson
 import org.agent567.android.domain.session.ChatSession
 import org.agent567.android.domain.session.ConversationOrigin
 import org.agent567.android.domain.session.LocalMessage
+import org.agent567.android.domain.session.MessageImage
+import org.agent567.android.domain.session.MessageImageFileStore
 import org.agent567.android.domain.session.MessageStatus
 import org.agent567.android.domain.session.PendingQuestion
 import org.agent567.android.domain.session.SessionStore
@@ -33,6 +39,7 @@ import kotlin.random.Random
 class SettingsSessionStore(
     private val settings: Settings = Settings(),
     private val storageDispatcher: kotlinx.coroutines.CoroutineDispatcher = Dispatchers.IO,
+    private val imageFiles: MessageImageFileStore = org.agent567.android.domain.session.createPlatformMessageImageFileStore(),
 ) : SessionStore {
     private val mutex = Mutex()
     private val _sessions = MutableStateFlow(loadSessionsSorted())
@@ -40,11 +47,22 @@ class SettingsSessionStore(
 
     private val messagesFlows = MutableStateFlow<Map<String, MutableStateFlow<List<LocalMessage>>>>(emptyMap())
 
-    override fun observeMessages(sessionId: String): Flow<List<LocalMessage>> =
-        messageFlow(sessionId)
+    override fun observeMessages(sessionId: String): Flow<List<LocalMessage>> = flow {
+        // Legacy JSON migration and image metadata repair can be substantial. Defer
+        // loading until collection and run it under the same IO mutex as mutations.
+        val messages = withStorageLock { messageFlow(sessionId) }
+        emitAll(messages)
+    }
 
     override suspend fun getSession(id: String): ChatSession? =
         _sessions.value.firstOrNull { it.id == id }
+
+    override suspend fun refresh() {
+        withStorageLock {
+            _sessions.value = loadSessionsRaw().map { it.toDomain() }
+                .sortedWith(compareByDescending<ChatSession> { it.pinned }.thenByDescending { it.updatedAtEpochMs })
+        }
+    }
 
     override suspend fun getMessages(sessionId: String): List<LocalMessage> =
         withStorageLock { messageFlow(sessionId).value }
@@ -56,6 +74,7 @@ class SettingsSessionStore(
         origin: ConversationOrigin,
         remoteDeviceId: String?,
         remoteSessionId: String?,
+        remoteSessionCreatedOnMobile: Boolean,
     ): ChatSession =
         withStorageLock {
             val now = nowEpochMs()
@@ -70,6 +89,7 @@ class SettingsSessionStore(
                     origin = origin,
                     remoteDeviceId = remoteDeviceId,
                     remoteSessionId = remoteSessionId,
+                    remoteSessionCreatedOnMobile = remoteSessionCreatedOnMobile,
                 )
             val next = (loadSessionsRaw() + session.toDto()).sortedByDescending { it.updatedAtEpochMs }
             persistSessions(next)
@@ -87,8 +107,13 @@ class SettingsSessionStore(
 
     override suspend fun deleteSession(id: String) {
         withStorageLock {
+            val messages = loadMessages(id)
             persistSessions(loadSessionsRaw().filterNot { it.id == id })
             settings.remove(messagesKey(id))
+            val messageIds = loadMessageIndex(id)
+            messageIds.forEach { settings.remove(messageKey(id, it)) }
+            (messages.flatMap { it.images }.mapNotNull { it.storageKey }).distinct().forEach(imageFiles::delete)
+            settings.remove(messageIndexKey(id))
             settings.remove(streamingMessageKey(id))
             messagesFlows.update { it - id }
         }
@@ -96,12 +121,20 @@ class SettingsSessionStore(
 
     override suspend fun upsertMessage(message: LocalMessage) {
         withStorageLock {
-            val current = loadMessages(message.sessionId).toMutableList()
+            val current = messageFlow(message.sessionId).value.toMutableList()
             val idx = current.indexOfFirst { it.id == message.id }
-            if (idx >= 0) current[idx] = message else current.add(message)
+            val previousImages = current.getOrNull(idx)?.images.orEmpty()
+            val normalized = normalizeMessageForPersistence(message)
+            if (idx >= 0) current[idx] = normalized else current.add(normalized)
             val sorted = current.sortedBy { it.createdAtEpochMs }
-            persistMessages(message.sessionId, sorted)
             settings.remove(streamingMessageKey(message.sessionId))
+            if (settings.getStringOrNull(messageIndexKey(message.sessionId)) == null) {
+                persistMessages(message.sessionId, sorted)
+            } else {
+                persistMessageRecord(normalized)
+                if (idx < 0) persistMessageIndex(message.sessionId, sorted.map { it.id })
+            }
+            deleteUnreferencedImages(previousImages, normalized.images)
             messageFlow(message.sessionId).value = sorted
 
             // 触摸会话更新时间。标题由发送首条消息后的 AI 命名流程生成。
@@ -118,43 +151,82 @@ class SettingsSessionStore(
         withStorageLock {
             val current = messageFlow(message.sessionId).value.toMutableList()
             val idx = current.indexOfFirst { it.id == message.id }
-            if (idx >= 0) current[idx] = message else current.add(message)
+            val previousImages = current.getOrNull(idx)?.images.orEmpty()
+            val normalized = normalizeMessageForPersistence(message)
+            if (idx >= 0) current[idx] = normalized else current.add(normalized)
             val sorted = current.sortedBy { it.createdAtEpochMs }
-            settings[streamingMessageKey(message.sessionId)] =
-                VettaJson.encodeToString(MessageDto.serializer(), message.toDto())
+            settings.remove(streamingMessageKey(message.sessionId))
+            if (settings.getStringOrNull(messageIndexKey(message.sessionId)) == null) {
+                persistMessages(message.sessionId, sorted)
+            } else {
+                persistMessageRecord(normalized)
+                if (idx < 0) persistMessageIndex(message.sessionId, sorted.map { it.id })
+            }
+            deleteUnreferencedImages(previousImages, normalized.images)
             messageFlow(message.sessionId).value = sorted
         }
     }
 
     override suspend fun replaceMessages(sessionId: String, messages: List<LocalMessage>) {
         withStorageLock {
+            val previousImages = messageFlow(sessionId).value.flatMap { it.images }
             val sorted = messages.sortedBy { it.createdAtEpochMs }
-            persistMessages(sessionId, sorted)
+            val persisted = persistMessages(sessionId, sorted)
+            deleteUnreferencedImages(previousImages, persisted.flatMap { it.images })
             settings.remove(streamingMessageKey(sessionId))
-            messageFlow(sessionId).value = sorted
+            messageFlow(sessionId).value = persisted
         }
     }
 
-    override suspend fun exportMigrationData(): String =
+    override suspend fun persistMessageImages(images: List<MessageImage>): List<MessageImage> =
+        withStorageLock { images.map(::persistImage) }
+
+    override suspend fun readMessageImageBytes(image: MessageImage): ByteArray? =
+        withStorageLock { readImageBytes(image) }
+
+    override suspend fun exportMigrationData(
+        maxBytes: Long,
+        onProgress: (completed: Int, total: Int) -> Unit,
+    ): String =
         withStorageLock {
             val sessions = loadSessionsRaw()
+            var estimatedBytes = 0L
+            val messagesBySession = mutableListOf<SessionMigrationMessagesDto>()
+            sessions.forEachIndexed { index, session ->
+                try {
+                    val items = mutableListOf<MessageDto>()
+                    loadMessages(session.id).forEach { message ->
+                        estimatedBytes += message.content.utf8ByteCount()
+                        if (estimatedBytes > maxBytes) {
+                            throw MigrationBackupTooLargeException(estimatedBytes, maxBytes)
+                        }
+                        items += message.toMigrationDto { imageBytes ->
+                            estimatedBytes += imageBytes
+                            if (estimatedBytes > maxBytes) {
+                                throw MigrationBackupTooLargeException(estimatedBytes, maxBytes)
+                            }
+                        }
+                    }
+                    messagesBySession += SessionMigrationMessagesDto(
+                        sessionId = session.id,
+                        items = items,
+                    )
+                } finally {
+                    onProgress(index + 1, sessions.size)
+                }
+            }
             val archive =
                 SessionMigrationArchiveDto(
                     exportedAtEpochMs = nowEpochMs(),
                     sessions = sessions,
-                    messages = sessions.map { session ->
-                        SessionMigrationMessagesDto(
-                            sessionId = session.id,
-                            items = loadMessages(session.id).map { it.toDto() },
-                        )
-                    },
+                    messages = messagesBySession,
                 )
             VettaJson.encodeToString(SessionMigrationArchiveDto.serializer(), archive)
         }
 
     override suspend fun importMigrationData(serialized: String): Int =
         withStorageLock {
-            require(serialized.encodeToByteArray().size <= MAX_MIGRATION_JSON_BYTES) { "迁移文件过大" }
+            require(serialized.utf8LengthAtMost(MAX_MIGRATION_JSON_BYTES.toLong())) { "迁移文件过大" }
             val archive = VettaJson.decodeFromString(SessionMigrationArchiveDto.serializer(), serialized)
             require(archive.schemaVersion == MIGRATION_SCHEMA_VERSION) { "不支持的迁移文件版本" }
             require(archive.sessions.size <= MAX_MIGRATION_SESSIONS) { "迁移文件包含过多会话" }
@@ -175,9 +247,9 @@ class SettingsSessionStore(
             // stops midway, incomplete imports stay invisible and can safely be retried.
             imported.forEach { session ->
                 val items = messagesBySession[session.id]?.items.orEmpty()
-                persistMessages(session.id, items.map { it.toDomain() })
+                val persisted = persistMessages(session.id, items.map { it.toDomain() })
                 settings.remove(streamingMessageKey(session.id))
-                messageFlow(session.id).value = items.map { it.toDomain() }
+                messageFlow(session.id).value = persisted
             }
             val mergedSessions = (loadSessionsRaw() + imported).sortedByDescending { it.updatedAtEpochMs }
             persistSessions(mergedSessions)
@@ -215,39 +287,286 @@ class SettingsSessionStore(
     }
 
     private fun loadMessages(sessionId: String): List<LocalMessage> {
-        val messages = settings.getStringOrNull(messagesKey(sessionId))?.let { json ->
-            runCatching {
-                VettaJson.decodeFromString(MessageListDto.serializer(), json).items.map { it.toDomain() }
-            }.getOrDefault(emptyList())
-        }.orEmpty()
-        val checkpoint = settings.getStringOrNull(streamingMessageKey(sessionId))?.let { checkpointJson ->
-            runCatching { VettaJson.decodeFromString(MessageDto.serializer(), checkpointJson).toDomain() }.getOrNull()
-        }?.takeIf { it.status == MessageStatus.Streaming }
-        val recovered = messages.toMutableList()
-        if (checkpoint != null) {
-            val checkpointIndex = recovered.indexOfFirst { it.id == checkpoint.id }
-            if (checkpointIndex < 0) recovered.add(checkpoint)
-            else if (recovered[checkpointIndex].status == MessageStatus.Streaming) recovered[checkpointIndex] = checkpoint
-        }
-        val reconciled = recovered.map { message ->
-            if (message.status == MessageStatus.Streaming) message.copy(status = MessageStatus.Aborted) else message
-        }.sortedBy { it.createdAtEpochMs }
-        if (reconciled != messages || checkpoint != null) {
-            persistMessages(sessionId, reconciled)
-            settings.remove(streamingMessageKey(sessionId))
-        }
-        return reconciled
+        return runCatching {
+            val indexedMessages = settings.getStringOrNull(messageIndexKey(sessionId))?.let {
+                loadMessageIndex(sessionId).mapNotNull { id ->
+                    settings.getStringOrNull(messageKey(sessionId, id))?.let { json ->
+                        runCatching { VettaJson.decodeFromString(MessageDto.serializer(), json).toDomain() }.getOrNull()
+                    }
+                }
+            }
+            val messages = indexedMessages?.let { indexed ->
+                if (indexed.any { message -> message.images.any { it.base64Data.isNotBlank() || it.pendingBytes != null } }) {
+                    persistMessages(sessionId, indexed)
+                } else {
+                    indexed
+                }
+            } ?: settings.getStringOrNull(messagesKey(sessionId))?.let { json ->
+                migrateLegacyMessages(sessionId, json)
+            }.orEmpty()
+            val checkpoint = settings.getStringOrNull(streamingMessageKey(sessionId))?.let { checkpointJson ->
+                runCatching { VettaJson.decodeFromString(MessageDto.serializer(), checkpointJson).toDomain() }.getOrNull()
+            }?.takeIf { it.status == MessageStatus.Streaming }
+            val recovered = messages.toMutableList()
+            if (checkpoint != null) {
+                val checkpointIndex = recovered.indexOfFirst { it.id == checkpoint.id }
+                if (checkpointIndex < 0) recovered.add(checkpoint)
+                else if (recovered[checkpointIndex].status == MessageStatus.Streaming) recovered[checkpointIndex] = checkpoint
+            }
+            val reconciled = recovered.map { message ->
+                if (message.status == MessageStatus.Streaming) message.copy(status = MessageStatus.Aborted) else message
+            }.sortedBy { it.createdAtEpochMs }
+            if (reconciled != messages || checkpoint != null) {
+                persistMessages(sessionId, reconciled)
+                settings.remove(streamingMessageKey(sessionId))
+            }
+            reconciled
+        }.getOrDefault(emptyList())
     }
 
-    private fun persistMessages(sessionId: String, messages: List<LocalMessage>) {
-        settings[messagesKey(sessionId)] =
-            VettaJson.encodeToString(
-                MessageListDto.serializer(),
-                MessageListDto(messages.map { it.toDto() }),
-            )
+    private fun persistMessages(sessionId: String, messages: List<LocalMessage>): List<LocalMessage> {
+        val oldIds = loadMessageIndex(sessionId).toSet()
+        val oldImageKeys = oldIds.flatMap { id ->
+            settings.getStringOrNull(messageKey(sessionId, id))?.let { json ->
+                runCatching { VettaJson.decodeFromString(MessageDto.serializer(), json).images.mapNotNull { it.storageKey } }
+                    .getOrDefault(emptyList())
+            }.orEmpty()
+        }.toSet()
+        val persisted = messages.map(::normalizeMessageForPersistence)
+        persisted.forEach(::persistMessageRecord)
+        val nextIds = persisted.map { it.id }
+        persistMessageIndex(sessionId, nextIds)
+        (oldIds - nextIds.toSet()).forEach { settings.remove(messageKey(sessionId, it)) }
+        val referencedImages = persisted.flatMap { it.images }.mapNotNull { it.storageKey }.toSet()
+        (oldImageKeys - referencedImages).forEach(imageFiles::delete)
+        settings.remove(messagesKey(sessionId))
+        return persisted
+    }
+
+    private fun persistMessageRecord(message: LocalMessage) {
+        settings[messageKey(message.sessionId, message.id)] =
+            VettaJson.encodeToString(MessageDto.serializer(), message.toDto())
+    }
+
+    private fun persistMessageIndex(sessionId: String, ids: List<String>) {
+        settings[messageIndexKey(sessionId)] =
+            VettaJson.encodeToString(MessageIndexDto.serializer(), MessageIndexDto(ids.distinct()))
+    }
+
+    private fun loadMessageIndex(sessionId: String): List<String> =
+        settings.getStringOrNull(messageIndexKey(sessionId))?.let { json ->
+            runCatching { VettaJson.decodeFromString(MessageIndexDto.serializer(), json).ids }.getOrDefault(emptyList())
+        }.orEmpty()
+
+    private fun normalizeMessageForPersistence(message: LocalMessage): LocalMessage =
+        message.copy(
+            content = if (message.role == ChatRole.Assistant) message.content.boundedForStorage(MAX_STORED_ASSISTANT_CHARS) else message.content,
+            images = message.images.map(::persistImage),
+            toolEvents = message.toolEvents.takeLast(MAX_STORED_TOOL_EVENTS).map { event ->
+                event.copy(
+                    detail = event.detail?.boundedForStorage(MAX_STORED_TOOL_FIELD_CHARS),
+                    arguments = event.arguments?.boundedForStorage(MAX_STORED_TOOL_FIELD_CHARS),
+                    result = event.result?.boundedForStorage(MAX_STORED_TOOL_FIELD_CHARS),
+                    phaseLabel = event.phaseLabel?.boundedForStorage(256),
+                )
+            },
+        )
+
+    private fun String.boundedForStorage(limit: Int): String {
+        if (length <= limit) return this
+        val marker = "\n[内容过长，已截断]"
+        return take(limit - marker.length) + marker
+    }
+
+    private fun persistImage(image: MessageImage): MessageImage {
+        if (image.pendingBytes == null && image.base64Data.isBlank()) return image
+        val key = image.storageKey ?: newId()
+        val stored = runCatching {
+            if (image.pendingBytes != null) {
+                imageFiles.writeBytes(key, image.pendingBytes)
+            } else {
+                imageFiles.writeBase64(key, image.base64Data)
+            }
+        }.getOrDefault(false)
+        if (!stored) return image
+        return image.copy(base64Data = "", storageKey = key, pendingBytes = null)
+    }
+
+    private fun deleteUnreferencedImages(previous: List<MessageImage>, next: List<MessageImage>) {
+        val nextKeys = next.mapNotNull { it.storageKey }.toSet()
+        previous.mapNotNull { it.storageKey }.distinct().filterNot { it in nextKeys }.forEach(imageFiles::delete)
+    }
+
+    /** Migrates the legacy all-messages JSON one record at a time to avoid decoding every Base64 image together. */
+    private fun migrateLegacyMessages(sessionId: String, json: String): List<LocalMessage> {
+        val arrayStart = findItemsArrayStart(json) ?: error("旧聊天记录格式无效")
+        val migrated = mutableListOf<LocalMessage>()
+        val messageIds = mutableSetOf<String>()
+        val writtenIds = mutableListOf<String>()
+        val imageKeys = mutableListOf<String>()
+        try {
+            var index = arrayStart + 1
+            var ended = false
+            while (index < json.length) {
+                while (index < json.length && (json[index].isWhitespace() || json[index] == ',')) index++
+                if (index >= json.length) break
+                if (json[index] == ']') {
+                    ended = true
+                    break
+                }
+                check(json[index] == '{') { "旧聊天记录格式无效" }
+                val end = findJsonObjectEnd(json, index) ?: error("旧聊天记录格式不完整")
+                val dto = VettaJson.decodeFromString(MessageDto.serializer(), json.substring(index, end + 1))
+                check(dto.sessionId == sessionId) { "旧聊天记录会话归属无效" }
+                val normalized = normalizeMessageForPersistence(dto.toDomain())
+                check(messageIds.add(normalized.id)) { "旧聊天记录包含重复消息" }
+                writtenIds += normalized.id
+                imageKeys += normalized.images.mapNotNull { it.storageKey }
+                persistMessageRecord(normalized)
+                migrated += normalized
+                index = end + 1
+            }
+            check(ended) { "旧聊天记录格式不完整" }
+            persistMessageIndex(sessionId, migrated.map { it.id })
+        } catch (error: Throwable) {
+            writtenIds.forEach { settings.remove(messageKey(sessionId, it)) }
+            imageKeys.forEach(imageFiles::delete)
+            throw error
+        }
+        settings.remove(messagesKey(sessionId))
+        return migrated
+    }
+
+    private fun findItemsArrayStart(json: String): Int? {
+        val key = "\"items\""
+        val keyStart = json.indexOf(key)
+        if (keyStart < 0) return null
+        val colon = json.indexOf(':', keyStart + key.length)
+        if (colon < 0) return null
+        val bracket = json.indexOf('[', colon + 1)
+        return bracket.takeIf { it >= 0 }
+    }
+
+    private fun findJsonObjectEnd(json: String, start: Int): Int? {
+        var depth = 0
+        var inString = false
+        var escaped = false
+        for (index in start until json.length) {
+            val char = json[index]
+            if (inString) {
+                if (escaped) escaped = false
+                else if (char == '\\') escaped = true
+                else if (char == '"') inString = false
+            } else {
+                when (char) {
+                    '"' -> inString = true
+                    '{' -> depth++
+                    '}' -> {
+                        depth--
+                        if (depth == 0) return index
+                    }
+                }
+            }
+        }
+        return null
+    }
+
+    private fun String.utf8LengthAtMost(limit: Long): Boolean {
+        var bytes = 0L
+        var index = 0
+        while (index < length) {
+            val char = this[index]
+            bytes += when {
+                char.code <= 0x7F -> 1
+                char.code <= 0x7FF -> 2
+                char.isHighSurrogate() && index + 1 < length && this[index + 1].isLowSurrogate() -> {
+                    index++
+                    4
+                }
+                else -> 3
+            }
+            if (bytes > limit) return false
+            index++
+        }
+        return true
+    }
+
+    @OptIn(ExperimentalEncodingApi::class)
+    private fun readImageBytes(image: MessageImage): ByteArray? {
+        image.pendingBytes?.let { return it }
+        if (image.base64Data.isNotBlank()) {
+            if (image.base64Data.length > org.agent567.android.domain.session.MAX_MESSAGE_IMAGE_BASE64_CHARS) return null
+            return runCatching {
+                val payload = image.base64Data.substringAfter(',', image.base64Data)
+                    .filterNot(Char::isWhitespace)
+                    .replace('-', '+')
+                    .replace('_', '/')
+                val padded = payload + "=".repeat((4 - payload.length % 4) % 4)
+                Base64.decode(padded)
+            }.getOrNull()
+        }
+        return image.storageKey?.let(imageFiles::readBytes)
+    }
+
+    @OptIn(ExperimentalEncodingApi::class)
+    private fun LocalMessage.toMigrationDto(consumeImageBytes: (Long) -> Unit = {}): MessageDto {
+        var missingImages = 0
+        val imageDtos = images.mapNotNull { image ->
+            val inline = if (image.base64Data.isNotBlank()) {
+                consumeImageBytes(image.base64Data.length.toLong())
+                image.base64Data
+            } else {
+                readImageBytes(image)?.let { bytes ->
+                    consumeImageBytes(((bytes.size.toLong() + 2) / 3) * 4)
+                    Base64.encode(bytes)
+                }
+            }
+            if (inline == null) {
+                missingImages++
+                null
+            } else {
+                MessageImageDto(
+                    id = image.id,
+                    mimeType = image.mimeType,
+                    fileName = image.fileName,
+                    base64Data = inline,
+                )
+            }
+        }
+        val message = toDto()
+        return message.copy(
+            content = if (missingImages == 0) message.content else {
+                message.content + "\n\n[备份提示：原记录中有 $missingImages 张图片文件缺失，未能导出]"
+            },
+            images = imageDtos,
+        )
     }
 
     private fun messagesKey(sessionId: String) = "vetta.session.messages.$sessionId"
+
+    private fun String.utf8ByteCount(): Long {
+        var bytes = 0L
+        var index = 0
+        while (index < length) {
+            val char = this[index]
+            bytes += when {
+                char.code <= 0x7f -> 1
+                char.code <= 0x7ff -> 2
+                char.isHighSurrogate() && index + 1 < length && this[index + 1].isLowSurrogate() -> {
+                    index++
+                    4
+                }
+                else -> 3
+            }
+            index++
+        }
+        return bytes
+    }
+
+    private fun messageIndexKey(sessionId: String) = "vetta.session.messages.v2.$sessionId.index"
+
+    private fun messageKey(sessionId: String, messageId: String) =
+        "vetta.session.messages.v2.$sessionId.item.$messageId"
 
     private fun streamingMessageKey(sessionId: String) = "vetta.session.streaming.$sessionId"
 
@@ -264,6 +583,9 @@ class SettingsSessionStore(
 
     companion object {
         private const val KEY_SESSIONS = "vetta.session.index"
+        private const val MAX_STORED_ASSISTANT_CHARS = 1_000_000
+        private const val MAX_STORED_TOOL_FIELD_CHARS = 8 * 1024
+        private const val MAX_STORED_TOOL_EVENTS = 80
         private const val MIGRATION_SCHEMA_VERSION = 1
         private const val MAX_MIGRATION_JSON_BYTES = MIGRATION_BACKUP_MAX_BYTES
         private const val MAX_MIGRATION_SESSIONS = 20_000
@@ -300,11 +622,12 @@ private data class SessionDto(
     val origin: String = ConversationOrigin.Cloud.name,
     val remoteDeviceId: String? = null,
     val remoteSessionId: String? = null,
+    val remoteSessionCreatedOnMobile: Boolean = false,
     val titleManuallyEdited: Boolean = false,
 )
 
 @Serializable
-private data class MessageListDto(val items: List<MessageDto> = emptyList())
+private data class MessageIndexDto(val ids: List<String> = emptyList())
 
 @Serializable
 private data class MessageDto(
@@ -368,7 +691,9 @@ private data class MessageImageDto(
     val id: String,
     val mimeType: String,
     val fileName: String? = null,
-    val base64Data: String,
+    /** Legacy/import-export payload. Normal session records store only [storageKey]. */
+    val base64Data: String? = null,
+    val storageKey: String? = null,
 )
 
 private fun SessionDto.toDomain() =
@@ -383,6 +708,7 @@ private fun SessionDto.toDomain() =
         origin = ConversationOrigin.entries.firstOrNull { it.name == origin } ?: ConversationOrigin.Cloud,
         remoteDeviceId = remoteDeviceId,
         remoteSessionId = remoteSessionId,
+        remoteSessionCreatedOnMobile = remoteSessionCreatedOnMobile,
         titleManuallyEdited = titleManuallyEdited,
     )
 
@@ -398,6 +724,7 @@ private fun ChatSession.toDto() =
         origin = origin.name,
         remoteDeviceId = remoteDeviceId,
         remoteSessionId = remoteSessionId,
+        remoteSessionCreatedOnMobile = remoteSessionCreatedOnMobile,
         titleManuallyEdited = titleManuallyEdited,
     )
 
@@ -416,7 +743,8 @@ private fun MessageDto.toDomain() =
                     id = it.id,
                     mimeType = it.mimeType,
                     fileName = it.fileName,
-                    base64Data = it.base64Data,
+                    base64Data = it.base64Data.orEmpty(),
+                    storageKey = it.storageKey,
                 )
             },
         toolEvents = toolEvents.map {
@@ -451,7 +779,8 @@ private fun LocalMessage.toDto() =
                     id = it.id,
                     mimeType = it.mimeType,
                     fileName = it.fileName,
-                    base64Data = it.base64Data,
+                    base64Data = null,
+                    storageKey = it.storageKey,
                 )
             },
         toolEvents = toolEvents.map {

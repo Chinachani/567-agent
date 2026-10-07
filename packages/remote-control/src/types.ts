@@ -13,6 +13,7 @@ export type RemoteConnectionState =
 export const REMOTE_REQUEST_METHODS = [
 	"session.list",
 	"session.delete",
+	"session.delete.empty",
 	"session.create",
 	"session.open",
 	"session.history",
@@ -20,6 +21,8 @@ export const REMOTE_REQUEST_METHODS = [
 	"session.models",
 	"session.model.select",
 	"session.suggestions",
+	"session.suggestions.cancel",
+	"session.image.read",
 	"session.respond",
 	"session.abort",
 	"session.resume",

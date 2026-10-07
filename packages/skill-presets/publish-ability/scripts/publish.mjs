@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 /**
- * 把一个本地能力包提交到 Vetta 能力市场。
+ * 把一个本地能力包提交到 567 Agent 能力市场。
  *
  * 为什么是脚本而不是 MCP 工具：内建 vetta MCP 是**远程**服务，跑在服务端，摸不到
  * 用户磁盘上的 .zip / .tar.gz。上传天生是本地动作，所以它走 skill 内置脚本——
@@ -111,7 +111,7 @@ async function main() {
 
 	const credentials = loadCredentials();
 	if (!credentials) {
-		fail("未登录：读不到 ~/.vetta/auth.json。请先在 Vetta 客户端登录后重试。");
+		fail("未登录：读不到 ~/.567agent/auth.json。请先在 567 Agent 桌面端登录后重试。");
 	}
 
 	const form = new FormData();
@@ -144,7 +144,7 @@ async function main() {
 			body: form,
 		});
 	} catch (error) {
-		fail(`无法连接 Vetta 服务（${credentials.baseUrl}）：${error.message}`);
+		fail(`无法连接 567 Agent API（${credentials.baseUrl}）：${error.message}`);
 	}
 
 	const text = await response.text();

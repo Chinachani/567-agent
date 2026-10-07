@@ -13,7 +13,7 @@ beforeAll(async () => {
 		[resolve(__dirname, "../../../../../packages/remote-control/scripts/fake-relay-server.ts")],
 		{
 			cwd: resolve(__dirname, "../../../../../packages/remote-control"),
-			env: { ...process.env, VETTA_FAKE_RELAY_PORT: String(relayPort) },
+			env: { ...process.env, AGENT567_FAKE_RELAY_PORT: String(relayPort) },
 			stdio: "ignore",
 		},
 	);

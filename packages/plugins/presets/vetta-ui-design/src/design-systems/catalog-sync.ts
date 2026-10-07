@@ -1,7 +1,7 @@
 import { readJsonFile, type PluginContext } from "@vetta-org/plugin-sdk";
 import { parseRemoteCatalog } from "./remote-catalog";
-import { parseStyleKitCatalog, STYLEKIT_CATALOG_URL } from "./stylekit-catalog";
-import { designSystems, markCatalogFailed, markCatalogLoading, setDesignSystems } from "./registry";
+import { parseStyleKitCatalog } from "./stylekit-catalog";
+import { markCatalogFailed, markCatalogLoading, setDesignSystems } from "./registry";
 import type { DesignSystem } from "./types";
 
 /**
@@ -16,31 +16,31 @@ import type { DesignSystem } from "./types";
  */
 
 /**
- * 候选源，按顺序尝试，第一个拿到且校验通过的生效。
- *
- * raw 排前面是有代价换来的结论：jsDelivr 更快、国内可达性也更好，但它对 `@main` 这种
- * 浮动引用会缓存「分支→commit」的解析结果（`s-maxage=43200`），而 purge 单个文件刷不掉
- * 它——实测推送后调 purge 返回 finished，内容依然是半天前的。资源要能随时更新，就不能
- * 让首选源有一个最长 12 小时、且无法主动清除的延迟。
- *
- * raw 是 `max-age=300`，配合下面的 ETag 条件请求，稳定状态下每次检查只是一个 304。
- * jsDelivr 留作兜底：raw 拉不到时，一份可能旧一点的清单也好过没有。
+ * 统一风格库的候选源，按顺序尝试。raw 优先，jsDelivr 仅作回退；两个地址指向同一 catalog。
+ * 旧目录缓存仍会在新源不可用时作为迁移期离线回退，但不会再发起旧源或 StyleKit API 请求。
  *
  * 新增地址必须同时加进 plugin.json 的 `network.allowedHosts`（宿主按 host 白名单放行，
  * 且**每一跳重定向都会重新校验**，所以会跳转的地址要把跳转目标也声明上）。
  */
-export const DESIGN_CATALOG_SOURCES: readonly string[] = [
-	"https://raw.githubusercontent.com/openvetta/vetta-design-templates/main/.vetta/design-templates.json",
-	"https://cdn.jsdelivr.net/gh/openvetta/vetta-design-templates@main/.vetta/design-templates.json",
+export const STYLE_LIBRARY_CATALOG_SOURCES: readonly string[] = [
+	"https://raw.githubusercontent.com/Chinachani/567-agent-style-library/main/.vetta/design-templates.json",
+	"https://cdn.jsdelivr.net/gh/Chinachani/567-agent-style-library@main/.vetta/design-templates.json",
 ];
 
+/** 仅用于已有 StyleKit 缓存的过渡期离线解析。 */
 const STYLEKIT_CACHE_KEY = "design-catalog/stylekit.json";
 
-/** 上一次成功拉取到的清单原文，存插件私有 storage。 */
-const CACHE_KEY = "design-catalog/latest.json";
+/** 旧版 Vetta 目录缓存，升级离线时用于显示已有风格。 */
+const LEGACY_CATALOG_CACHE_KEY = "design-catalog/latest.json";
+
+/** 新版统一风格库缓存，不与旧缓存合并，避免已删除的条目复活。 */
+const LIBRARY_CACHE_KEY = "design-catalog/567-style-library.json";
+
+const LEGACY_DESIGN_CATALOG_SOURCE =
+	"https://raw.githubusercontent.com/openvetta/vetta-design-templates/main/.vetta/design-templates.json";
 
 /** 清单在资源仓库中的固定位置。 */
-const CATALOG_PATH_IN_REPO = ".vetta/design-templates.json";
+const STYLE_LIBRARY_CATALOG_PATH = ".vetta/design-templates.json";
 
 /**
  * 由清单地址推出仓库根地址。
@@ -49,8 +49,8 @@ const CATALOG_PATH_IN_REPO = ".vetta/design-templates.json";
  * 是相对清单所在目录解析的——直接拿清单地址当 base 会多出一段 `.vetta/`。
  */
 export function repoRootUrl(catalogUrl: string): string {
-	if (catalogUrl.endsWith(CATALOG_PATH_IN_REPO)) {
-		return catalogUrl.slice(0, catalogUrl.length - CATALOG_PATH_IN_REPO.length);
+	if (catalogUrl.endsWith(STYLE_LIBRARY_CATALOG_PATH)) {
+		return catalogUrl.slice(0, catalogUrl.length - STYLE_LIBRARY_CATALOG_PATH.length);
 	}
 	try {
 		return new URL("./", catalogUrl).toString();
@@ -105,9 +105,9 @@ function headerValue(headers: Record<string, string> | undefined, name: string):
 	return hit?.[1];
 }
 
-/** 依次尝试候选源；成功则替换列表并写缓存。 */
-async function applyRemote(ctx: PluginContext, cached: CachedCatalog | null, now: number): Promise<boolean> {
-	for (const url of DESIGN_CATALOG_SOURCES) {
+/** 依次尝试统一目录镜像；成功则整体替换列表并写新版缓存。 */
+async function applyLibrary(ctx: PluginContext, cached: CachedCatalog | null, now: number): Promise<boolean> {
+	for (const url of STYLE_LIBRARY_CATALOG_SOURCES) {
 		try {
 			// ETag 只在同源之间有意义：换了源，服务端不认识上一个源发的标识。
 			const conditional = cached?.sourceUrl === url && cached.etag ? { "if-none-match": cached.etag } : null;
@@ -124,17 +124,17 @@ async function applyRemote(ctx: PluginContext, cached: CachedCatalog | null, now
 			// 内容没变：不重新解析，只把「刚查过」记下来，下一个 TTL 周期前不再打扰。
 			if (response.status === 304 && cached) {
 				await ctx.storage
-					.writeFile(CACHE_KEY, JSON.stringify({ ...cached, fetchedAt: new Date(now).toISOString() }, null, 2), "utf8")
+					.writeFile(LIBRARY_CACHE_KEY, JSON.stringify({ ...cached, fetchedAt: new Date(now).toISOString() }, null, 2), "utf8")
 					.catch(() => {});
 				return true;
 			}
 			if (!response.ok) continue;
 
-				const parsed = parseRemoteCatalog(response.body, repoRootUrl(url));
+			const parsed = parseRemoteCatalog(response.body, repoRootUrl(url));
 			if (!parsed) continue;
 			if (!setDesignSystems(parsed.systems)) continue;
 			await ctx.storage
-				.writeFile(CACHE_KEY, JSON.stringify({
+				.writeFile(LIBRARY_CACHE_KEY, JSON.stringify({
 					catalog: response.body,
 					fetchedAt: new Date(now).toISOString(),
 					sourceUrl: url,
@@ -159,7 +159,7 @@ async function applyRemote(ctx: PluginContext, cached: CachedCatalog | null, now
 export interface RefreshOptions {
 	/**
 	 * 跳过 TTL 强制联网。用户主动点刷新时用——他要的就是「现在去看有没有新的」，
-	 * 这时再拿「6 小时内不打扰」挡住他就是在跟他对着干。
+	 * 这时再拿缓存周期挡住他就是在跟他对着干。
 	 */
 	force?: boolean;
 }
@@ -172,98 +172,57 @@ export async function refreshDesignCatalog(
 	markCatalogLoading();
 	let cached: CachedCatalog | null = null;
 	try {
-		cached = asCache(await readJsonFile<CachedCatalog>(ctx.storage, CACHE_KEY));
+		cached = asCache(await readJsonFile<CachedCatalog>(ctx.storage, LIBRARY_CACHE_KEY));
 	} catch {
 		cached = null;
 	}
 
+	let hasUsableCatalog = false;
 	if (cached) {
-		// 二进制资源的地址按当初拿到这份清单的源来拼；缓存里记了 sourceUrl 就用它。
-		const parsed = parseRemoteCatalog(cached.catalog, repoRootUrl(cached.sourceUrl ?? DESIGN_CATALOG_SOURCES[0]));
+		const parsed = parseRemoteCatalog(cached.catalog, repoRootUrl(cached.sourceUrl ?? STYLE_LIBRARY_CATALOG_SOURCES[0]));
 		if (parsed) {
 			setDesignSystems(parsed.systems);
+			hasUsableCatalog = true;
 			// 缓存还新鲜就到此为止：这是把请求量从「每次启动」压到「每 TTL 一次」的关键。
 			// 用户主动刷新时例外——先用缓存渲染避免白屏，但一定要去问一次最新的。
-			if (!options.force && isCacheFresh(cached.fetchedAt, now)) {
-				await applyStyleKit(ctx, now, options.force);
-				return;
-			}
+			if (!options.force && isCacheFresh(cached.fetchedAt, now)) return;
 		} else {
 			// 缓存内容已经不可用（格式变了/坏了），别拿它的 ETag 去做条件请求。
 			cached = null;
 		}
 	}
 
-	const remoteApplied = await applyRemote(ctx, cached, now);
-	const stylekitApplied = await applyStyleKit(ctx, now, options.force);
-	if (!remoteApplied && !stylekitApplied) markCatalogFailed();
-}
-
-async function applyStyleKit(ctx: PluginContext, now: number, force = false): Promise<boolean> {
-	let cached: CachedCatalog | null = null;
-	try {
-		cached = asCache(await readJsonFile<CachedCatalog>(ctx.storage, STYLEKIT_CACHE_KEY));
-	} catch {
-		cached = null;
-	}
-	let stylekitSystems = cached ? parseStyleKitCatalog(cached.catalog) : null;
-	if (stylekitSystems && !force && isCacheFresh(cached?.fetchedAt ?? "", now)) {
-		setDesignSystems(mergeSystems(designSystems(), stylekitSystems));
-		return true;
-	}
-	try {
-		const conditional = cached?.sourceUrl === STYLEKIT_CATALOG_URL && cached.etag ? { "if-none-match": cached.etag } : null;
-		const response = await ctx.network.request<unknown>({
-			url: STYLEKIT_CATALOG_URL,
-			method: "GET",
-			responseType: "json",
-			timeoutMs: REQUEST_TIMEOUT_MS,
-			...(conditional ? { headers: conditional } : {}),
-		});
-		if (response.status === 304 && cached && stylekitSystems) {
-			setDesignSystems(mergeSystems(designSystems(), stylekitSystems));
-			await ctx.storage.writeFile(
-				STYLEKIT_CACHE_KEY,
-				JSON.stringify({ ...cached, fetchedAt: new Date(now).toISOString() }, null, 2),
-				"utf8",
-			).catch(() => {});
-			return true;
-		}
-		if (!response.ok) {
-			if (stylekitSystems) setDesignSystems(mergeSystems(designSystems(), stylekitSystems));
-			return stylekitSystems !== null;
-		}
-		stylekitSystems = parseStyleKitCatalog(response.body);
-		if (!stylekitSystems) {
-			if (cached) {
-				const fallback = parseStyleKitCatalog(cached.catalog);
-				if (fallback) setDesignSystems(mergeSystems(designSystems(), fallback));
-				return fallback !== null;
+	// 统一库首次联网之前先恢复旧版本缓存，避免升级后离线启动时列表突然变空。
+	// 这是只读迁移回退；一旦统一库可用就整体替换，不再把旧 StyleKit 列表并回去。
+	if (!hasUsableCatalog) {
+		const legacySystems: DesignSystem[] = [];
+		try {
+			const legacy = asCache(await readJsonFile<CachedCatalog>(ctx.storage, LEGACY_CATALOG_CACHE_KEY));
+			if (legacy) {
+				const parsed = parseRemoteCatalog(
+					legacy.catalog,
+					repoRootUrl(legacy.sourceUrl ?? LEGACY_DESIGN_CATALOG_SOURCE),
+				);
+				if (parsed) legacySystems.push(...parsed.systems);
 			}
-			return false;
+		} catch {
+			// 迁移缓存损坏时继续尝试 StyleKit 的旧缓存。
 		}
-		setDesignSystems(mergeSystems(designSystems(), stylekitSystems));
-		await ctx.storage
-			.writeFile(
-				STYLEKIT_CACHE_KEY,
-				JSON.stringify(
-					{
-						catalog: response.body,
-						fetchedAt: new Date(now).toISOString(),
-						sourceUrl: STYLEKIT_CATALOG_URL,
-						etag: headerValue(response.headers, "etag"),
-					} satisfies CachedCatalog,
-					null,
-					2,
-				),
-				"utf8",
-			)
-			.catch(() => {});
-		return true;
-	} catch {
-		if (stylekitSystems) setDesignSystems(mergeSystems(designSystems(), stylekitSystems));
-		return stylekitSystems !== null;
+		try {
+			const legacy = asCache(await readJsonFile<CachedCatalog>(ctx.storage, STYLEKIT_CACHE_KEY));
+			const systems = legacy ? parseStyleKitCatalog(legacy.catalog) : null;
+			if (systems) legacySystems.push(...systems);
+		} catch {
+			// 迁移缓存损坏时仍可请求统一目录。
+		}
+		if (legacySystems.length > 0) {
+			setDesignSystems(mergeSystems([], legacySystems));
+			hasUsableCatalog = true;
+		}
 	}
+
+	const remoteApplied = await applyLibrary(ctx, cached, now);
+	if (!remoteApplied && !hasUsableCatalog) markCatalogFailed();
 }
 
 function mergeSystems(current: readonly DesignSystem[], incoming: readonly DesignSystem[]): DesignSystem[] {

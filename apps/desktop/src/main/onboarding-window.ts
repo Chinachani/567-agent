@@ -13,7 +13,7 @@ const isMac = process.platform === "darwin";
 
 const appRoot = app.isPackaged ? app.getAppPath() : process.cwd();
 const resDir = app.isPackaged ? appRoot : join(appRoot, "dist");
-const devServerUrl = process.env.VETTA_DESKTOP_DEV_URL;
+const devServerUrl = process.env.AGENT567_DESKTOP_DEV_URL;
 const onboardingPreloadPath = join(resDir, "preload/onboarding.js");
 
 const ONBOARDING_WIDTH = 440;

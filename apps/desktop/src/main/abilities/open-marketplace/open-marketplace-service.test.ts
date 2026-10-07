@@ -14,9 +14,9 @@ vi.mock("../../logger", () => ({ getAppLogger: () => marketplaceLog }));
 
 const temporaryRoots: string[] = [];
 const APP_VERSION = "0.5.11";
-const originalRepository = process.env.VETTA_OPEN_MARKETPLACE_REPOSITORY;
-const originalRef = process.env.VETTA_OPEN_MARKETPLACE_REF;
-const originalArchiveUrl = process.env.VETTA_OPEN_MARKETPLACE_ARCHIVE_URL;
+const originalRepository = process.env.AGENT567_OPEN_MARKETPLACE_REPOSITORY;
+const originalRef = process.env.AGENT567_OPEN_MARKETPLACE_REF;
+const originalArchiveUrl = process.env.AGENT567_OPEN_MARKETPLACE_ARCHIVE_URL;
 
 function restoreEnvironment(name: string, value: string | undefined): void {
 	if (value === undefined) delete process.env[name];
@@ -303,16 +303,16 @@ function githubManifestResponse(buffer: Buffer): Response {
 
 beforeEach(() => {
 	marketplaceLog.error.mockClear();
-	process.env.VETTA_OPEN_MARKETPLACE_REPOSITORY = "https://github.com/example/vetta-abilities";
-	process.env.VETTA_OPEN_MARKETPLACE_REF = "main";
-	delete process.env.VETTA_OPEN_MARKETPLACE_ARCHIVE_URL;
+	process.env.AGENT567_OPEN_MARKETPLACE_REPOSITORY = "https://github.com/example/vetta-abilities";
+	process.env.AGENT567_OPEN_MARKETPLACE_REF = "main";
+	delete process.env.AGENT567_OPEN_MARKETPLACE_ARCHIVE_URL;
 });
 
 afterEach(async () => {
 	await Promise.all(temporaryRoots.splice(0).map((root) => rm(root, { recursive: true, force: true })));
-	restoreEnvironment("VETTA_OPEN_MARKETPLACE_REPOSITORY", originalRepository);
-	restoreEnvironment("VETTA_OPEN_MARKETPLACE_REF", originalRef);
-	restoreEnvironment("VETTA_OPEN_MARKETPLACE_ARCHIVE_URL", originalArchiveUrl);
+	restoreEnvironment("AGENT567_OPEN_MARKETPLACE_REPOSITORY", originalRepository);
+	restoreEnvironment("AGENT567_OPEN_MARKETPLACE_REF", originalRef);
+	restoreEnvironment("AGENT567_OPEN_MARKETPLACE_ARCHIVE_URL", originalArchiveUrl);
 });
 
 describe("OpenMarketplaceService", () => {

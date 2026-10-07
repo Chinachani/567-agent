@@ -17,8 +17,8 @@ describe("official Action usage", () => {
 		} as unknown as PluginContext;
 		await plugin.activate(ctx);
 
-		expect(registrations).toHaveLength(37);
-		expect(new Set(registrations.map(({ publicId }) => publicId)).size).toBe(37);
+		expect(registrations).toHaveLength(38);
+		expect(new Set(registrations.map(({ publicId }) => publicId)).size).toBe(38);
 		for (const registration of registrations) {
 			expect(registration.publicId).toBe(registration.id);
 			expect(registration.usage?.target, registration.id).toContain("567 Agent");

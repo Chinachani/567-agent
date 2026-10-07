@@ -121,7 +121,7 @@ npx @vetta-org/plugin-cli reload demo
 
 Reload follows the same Desktop approval flow as the UI and reports the active version after approval.
 
-Use `--json` for machine-readable output. Set `VETTA_CONFIG_DIR` or `VETTA_HOME` when targeting an isolated
+Use `--json` for machine-readable output. Set `AGENT567_CONFIG_DIR` or `AGENT567_HOME` when targeting an isolated
 Desktop environment.
 
 ## Publisher contract

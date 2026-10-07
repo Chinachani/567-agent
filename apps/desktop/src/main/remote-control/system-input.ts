@@ -149,6 +149,24 @@ function createWindowsInputAdapter(): SystemInputAdapter {
 					{ type: 1, u: { ki: { wVk: 0, wScan: scan, dwFlags: flags, time: 0, dwExtraInfo: 0 } } },
 					koffi.sizeof(INPUT),
 				);
+				return;
+			}
+			if (message.type === "text") {
+				for (const unit of message.text) {
+					const code = unit.codePointAt(0);
+					if (code === undefined) continue;
+					const units =
+						code > 0xffff ? [0xd800 + ((code - 0x10000) >> 10), 0xdc00 + ((code - 0x10000) & 0x3ff)] : [code];
+					for (const wScan of units) {
+						for (const dwFlags of [0x0004, 0x0004 | 0x0002]) {
+							SendInput(
+								1,
+								{ type: 1, u: { ki: { wVk: 0, wScan, dwFlags, time: 0, dwExtraInfo: 0 } } },
+								koffi.sizeof(INPUT),
+							);
+						}
+					}
+				}
 			}
 		},
 	};
@@ -165,6 +183,9 @@ function createMacInputAdapter(): SystemInputAdapter {
 	const _CGPoint = koffi.struct("CGPoint", { x: "double", y: "double" });
 	const CGEventCreateMouseEvent = coreGraphics.func("void *CGEventCreateMouseEvent(void *, uint32, CGPoint, uint32)");
 	const CGEventCreateKeyboardEvent = coreGraphics.func("void *CGEventCreateKeyboardEvent(void *, uint16, bool)");
+	const CGEventKeyboardSetUnicodeString = coreGraphics.func(
+		"void CGEventKeyboardSetUnicodeString(void *, size_t, uint16_t *)",
+	);
 	const CGEventCreateScrollWheelEvent = coreGraphics.func(
 		"void *CGEventCreateScrollWheelEvent(void *, uint32, uint32, int32, int32)",
 	);
@@ -211,6 +232,24 @@ function createMacInputAdapter(): SystemInputAdapter {
 			if (message.type === "key") {
 				const keyCode = macVirtualKey(message.code);
 				if (keyCode !== undefined) post(CGEventCreateKeyboardEvent(null, keyCode, message.action === "down"));
+				return;
+			}
+			if (message.type === "text") {
+				const units = Array.from(message.text).flatMap((character) => {
+					const code = character.codePointAt(0) ?? 0;
+					return code > 0xffff ? [0xd800 + ((code - 0x10000) >> 10), 0xdc00 + ((code - 0x10000) & 0x3ff)] : [code];
+				});
+				const buffer = new Uint16Array(units);
+				const event = CGEventCreateKeyboardEvent(null, 0, true);
+				if (event) {
+					CGEventKeyboardSetUnicodeString(event, buffer.length, buffer);
+					post(event);
+				}
+				const keyUp = CGEventCreateKeyboardEvent(null, 0, false);
+				if (keyUp) {
+					CGEventKeyboardSetUnicodeString(keyUp, buffer.length, buffer);
+					post(keyUp);
+				}
 			}
 		},
 	};
@@ -268,6 +307,47 @@ function createLinuxX11InputAdapter(): SystemInputAdapter {
 				const keysym = XStringToKeysym(linuxKeySym(message.code));
 				const keyCode = XKeysymToKeycode(display, keysym);
 				if (keyCode) XTestFakeKeyEvent(display, keyCode, message.action === "down", 0);
+			} else if (message.type === "text") {
+				for (const character of message.text) {
+					const code = character.codePointAt(0);
+					if (code === undefined) continue;
+					const keyName =
+						character === "\n" ? "Return" : character === "\t" ? "Tab" : character === " " ? "space" : character;
+					const shiftedPunctuation: Record<string, string> = {
+						"!": "1",
+						"@": "2",
+						"#": "3",
+						$: "4",
+						"%": "5",
+						"^": "6",
+						"&": "7",
+						"*": "8",
+						"(": "9",
+						")": "0",
+						_: "-",
+						"+": "=",
+						"{": "[",
+						"}": "]",
+						"|": "\\",
+						":": ";",
+						'"': "'",
+						"<": ",",
+						">": ".",
+						"?": "/",
+						"~": "`",
+					};
+					const shifted = /^[A-Z]$/.test(character) || character in shiftedPunctuation;
+					const lookupName = shiftedPunctuation[character] ?? (shifted ? character.toLowerCase() : keyName);
+					const keysym = XStringToKeysym(lookupName);
+					const keyCode = XKeysymToKeycode(display, keysym);
+					if (keyCode) {
+						const shiftKeyCode = shifted ? XKeysymToKeycode(display, XStringToKeysym("Shift_L")) : 0;
+						if (shiftKeyCode) XTestFakeKeyEvent(display, shiftKeyCode, true, 0);
+						XTestFakeKeyEvent(display, keyCode, true, 0);
+						XTestFakeKeyEvent(display, keyCode, false, 0);
+						if (shiftKeyCode) XTestFakeKeyEvent(display, shiftKeyCode, false, 0);
+					}
+				}
 			}
 			XFlush(display);
 		},

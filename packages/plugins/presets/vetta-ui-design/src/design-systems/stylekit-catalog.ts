@@ -1,6 +1,7 @@
 import type { DesignResource, DesignSystem } from "./types";
 
-export const STYLEKIT_CATALOG_URL = "https://stylekit.top/api/styles";
+// Parses previously cached StyleKit entries during the upgrade. Runtime catalog
+// refreshes now use the unified 567 Agent library and never call the StyleKit API.
 
 const MAX_STYLES = 200;
 const MAX_TEXT = 500;

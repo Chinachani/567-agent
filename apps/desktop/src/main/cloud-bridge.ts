@@ -2,7 +2,7 @@
  * 宿主侧云服务挂载点（主进程）。
  *
  * cloud 模块启动时经 `setCloudBridge()` 注入实现；lite 构建
- * （VETTA_CLOUD_ENABLED=false）不加载 cloud 模块，bridge 恒为 null，
+ * （AGENT567_CLOUD_ENABLED=false）不加载 cloud 模块，bridge 恒为 null，
  * 宿主功能按「无云端」优雅降级。宿主代码只准 import 本文件，
  * 不得直接 import `cloud/` 内部实现。
  *
@@ -38,7 +38,7 @@ export type CloudRefreshOutcome =
 export interface CloudBridge {
 	/** 云端 provider 目录（567 Agent Go 等远程模型）。 */
 	fetchRemoteProviders(): Promise<RemoteProvidersResult>;
-	/** 经 vetta 服务端 `/api/v1` 的带鉴权中转（图像生成等增值能力）。 */
+	/** 经 567 Agent API `/api/v1` 的带鉴权中转（图像生成等增值能力）。 */
 	requestGateway<T = unknown>(request: VettaGatewayRequest, signal?: AbortSignal): Promise<VettaGatewayResponse<T>>;
 	/** 主进程内部 token refresh（单飞）。 */
 	tryRefreshAccessToken(): Promise<CloudRefreshOutcome>;
@@ -57,5 +57,5 @@ export function getCloudBridge(): CloudBridge | null {
 
 /** 云服务不可用时的统一网关失败回执（envelope 形状，调用方按 !ok 处理）。 */
 export function gatewayUnavailableResponse<T = unknown>(): VettaGatewayResponse<T> {
-	return { ok: false, status: 0, code: -1, message: "Vetta cloud services are not available in this build" };
+	return { ok: false, status: 0, code: -1, message: "Cloud services are not available in this build" };
 }

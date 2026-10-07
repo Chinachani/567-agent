@@ -1,7 +1,7 @@
 /**
  * 567 Agent 官方能力市场坐标。
  *
- * 发行方可以用 `VETTA_OPEN_MARKETPLACE_REPOSITORY` 把内置来源替换成自己的 fork；
+ * 发行方可以用 `AGENT567_OPEN_MARKETPLACE_REPOSITORY` 把内置来源替换成自己的 fork；
  * 未配置时客户端始终注册官方源。内置来源属于发行方，用户不可删除、不可停用。
  */
 

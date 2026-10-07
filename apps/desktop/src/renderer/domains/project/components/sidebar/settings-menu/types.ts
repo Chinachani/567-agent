@@ -18,7 +18,7 @@ export interface SettingsMenuModel {
 	/** Claw 徽章 tooltip 文案。 */
 	clawTitle: string;
 	open: boolean;
-	/** 云服务（登录/订阅）是否编入本构建；lite 下隐藏账户区段。 */
+	/** 云服务是否编入本构建；lite 下隐藏配额区段。 */
 	cloudEnabled: boolean;
 	subscriptionTierName?: string;
 	themeOptions: SettingsMenuThemeOption[];
@@ -28,7 +28,6 @@ export interface SettingsMenuModel {
 		username?: string | null;
 	} | null;
 	actions: {
-		login(): void;
 		logout(): void;
 		openSettings(): void;
 		setMode(mode: ThemeMode, event: React.MouseEvent<HTMLButtonElement>): void;

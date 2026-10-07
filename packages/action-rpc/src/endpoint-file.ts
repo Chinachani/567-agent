@@ -4,14 +4,14 @@ import { homedir } from "node:os";
 import { join } from "node:path";
 import type { ActionRpcEndpoint } from "./types.js";
 
-export const ACTION_RPC_ENDPOINT_FILE_ENV = "VETTA_ACTION_RPC_ENDPOINT_FILE";
-export const VETTA_HOME_ENV = "VETTA_HOME";
-export const VETTA_CONFIG_DIR_ENV = "VETTA_CONFIG_DIR";
+export const ACTION_RPC_ENDPOINT_FILE_ENV = "AGENT567_ACTION_RPC_ENDPOINT_FILE";
+export const AGENT567_HOME_ENV = "AGENT567_HOME";
+export const AGENT567_CONFIG_DIR_ENV = "AGENT567_CONFIG_DIR";
 
 /**
  * 默认配置目录名（即品牌名）。这是整个仓库配置目录的唯一来源——
  * 既用于用户主目录根（~/<name>），也用于项目内目录（projectDir/<name>）。
- * 改品牌只改这一处；按环境隔离（如 dev）则用 VETTA_CONFIG_DIR 覆盖。
+ * 改品牌只改这一处；按环境隔离（如 dev）则用 AGENT567_CONFIG_DIR 覆盖。
  */
 export const DEFAULT_CONFIG_DIR_NAME = ".567agent";
 
@@ -38,19 +38,19 @@ function expandTilde(p: string): string {
 }
 
 /**
- * 配置目录名。VETTA_CONFIG_DIR 覆盖，否则用默认品牌名。
+ * 配置目录名。AGENT567_CONFIG_DIR 覆盖，否则用默认品牌名。
  * 用户主目录根与项目内目录都从它派生，保证两者始终一致。
  */
 export function getVettaConfigDirName(): string {
-	return process.env[VETTA_CONFIG_DIR_ENV] || DEFAULT_CONFIG_DIR_NAME;
+	return process.env[AGENT567_CONFIG_DIR_ENV] || DEFAULT_CONFIG_DIR_NAME;
 }
 
 /**
- * 用户主目录下的数据根。VETTA_HOME（绝对路径，支持 ~ 展开）作为逃生口优先，
+ * 用户主目录下的数据根。AGENT567_HOME（绝对路径，支持 ~ 展开）作为逃生口优先，
  * 否则为 ~/<configDirName>。
  */
 export function getVettaHomePath(): string {
-	const explicit = process.env[VETTA_HOME_ENV];
+	const explicit = process.env[AGENT567_HOME_ENV];
 	if (explicit) return expandTilde(explicit);
 	const newHome = join(homedir(), getVettaConfigDirName());
 	migrateLegacyHomeIfNeeded(newHome);

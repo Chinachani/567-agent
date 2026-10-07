@@ -40,13 +40,15 @@ export function createDesktopProviderObservationRuntime(
 	options: CreateDesktopProviderObservationRuntimeOptions = {},
 ): DesktopProviderObservationRuntime | undefined {
 	const environment = options.environment ?? process.env;
-	if (environment.VETTA_UI_VERIFICATION !== "1") return undefined;
-	const runId = environment.VETTA_PROVIDER_OBSERVATION_RUN_ID;
+	if (environment.AGENT567_UI_VERIFICATION !== "1") return undefined;
+	const runId = environment.AGENT567_PROVIDER_OBSERVATION_RUN_ID;
 	if (!runId) return undefined;
 	if (!RUN_ID_PATTERN.test(runId)) {
-		throw new Error("VETTA_PROVIDER_OBSERVATION_RUN_ID must contain 1-64 letters, numbers, underscores, or hyphens");
+		throw new Error(
+			"AGENT567_PROVIDER_OBSERVATION_RUN_ID must contain 1-64 letters, numbers, underscores, or hyphens",
+		);
 	}
-	const capture = parseCapture(environment.VETTA_PROVIDER_OBSERVATION_CAPTURE);
+	const capture = parseCapture(environment.AGENT567_PROVIDER_OBSERVATION_CAPTURE);
 	const namespace = (options.cacheService ?? getApplicationCacheService()).namespace(CACHE_NAMESPACE);
 	const tracePath = namespace.path(`${runId}.ndjson`);
 	const sink = new NdjsonProviderObservationSink(namespace.ensure(), tracePath);
@@ -71,7 +73,7 @@ export function createDesktopProviderObservationRuntime(
 function parseCapture(value: string | undefined): ProviderObservationCapture {
 	if (value === undefined || value === "metadata") return "metadata";
 	if (value === "payload" || value === "wire") return value;
-	throw new Error("VETTA_PROVIDER_OBSERVATION_CAPTURE must be metadata, payload, or wire");
+	throw new Error("AGENT567_PROVIDER_OBSERVATION_CAPTURE must be metadata, payload, or wire");
 }
 
 export class NdjsonProviderObservationSink implements ProviderObservationSink {

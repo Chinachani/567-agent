@@ -35,6 +35,34 @@ describe("remote desktop host negotiation", () => {
 		await host.acceptSignal({ type: "peer_ready", protocolVersion: 1 });
 		expect(peer.createOffer).toHaveBeenLastCalledWith({ iceRestart: true });
 	});
+
+	it("keeps an established direct peer when the viewer rejoins signaling", async () => {
+		const peer = fakePeerConnection();
+		const mutableConnection = peer.connection as unknown as { connectionState: RTCPeerConnectionState };
+		const sendSignal = vi.fn();
+		const onViewerReplaced = vi.fn();
+		const host = new RemoteDesktopHost(
+			{
+				sessionId: "pairing_0123456789abcdefghijklmnop",
+				createPeerConnection: () => peer.connection,
+			},
+			sendSignal,
+			() => undefined,
+		);
+
+		await host.start(fakeStream(), { waitForPeerReady: true, onViewerReplaced });
+		await host.acceptSignal({ type: "peer_ready", protocolVersion: 1 });
+		mutableConnection.connectionState = "connected";
+		peer.connection.onconnectionstatechange?.(new Event("connectionstatechange"));
+		await host.acceptSignal({ type: "peer_ready", protocolVersion: 1 });
+
+		expect(peer.createOffer).toHaveBeenCalledTimes(1);
+		expect(onViewerReplaced).not.toHaveBeenCalled();
+
+		mutableConnection.connectionState = "failed";
+		peer.connection.onconnectionstatechange?.(new Event("connectionstatechange"));
+		expect(onViewerReplaced).toHaveBeenCalledOnce();
+	});
 });
 
 function fakePeerConnection(): {

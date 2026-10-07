@@ -24,7 +24,7 @@ import { createLangfuseRuntimeTracerFromEnv } from "@567agent/runtime-telemetry/
 const tracer = createLangfuseRuntimeTracerFromEnv();
 ```
 
-Set `VETTA_TRACING=langfuse` plus Langfuse credentials (`LANGFUSE_PUBLIC_KEY`, `LANGFUSE_SECRET_KEY`, optional `LANGFUSE_BASE_URL`) to enable it.
+Set `AGENT567_TRACING=langfuse` plus Langfuse credentials (`LANGFUSE_PUBLIC_KEY`, `LANGFUSE_SECRET_KEY`, optional `LANGFUSE_BASE_URL`) to enable it.
 
 ## Runtime Observation adapters
 

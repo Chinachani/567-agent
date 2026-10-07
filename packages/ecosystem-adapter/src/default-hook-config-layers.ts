@@ -14,7 +14,7 @@ export interface BuildDefaultHookConfigLayersOptions {
 	/**
 	 * Vetta user data root.
 	 * Default: `~/.567agent` (HOME / USERPROFILE / os.homedir()).
-	 * Coding Agent should pass `getVettaHomePath()` so `VETTA_HOME` applies.
+	 * Coding Agent should pass `getVettaHomePath()` so `AGENT567_HOME` applies.
 	 */
 	vettaHome?: string;
 	/**

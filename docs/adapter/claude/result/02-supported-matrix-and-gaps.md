@@ -41,7 +41,7 @@
 | 场景 | 行为 |
 | --- | --- |
 | `node xxx.cjs` / 非 shell 命令 | 走默认 shell（Windows 为 cmd） |
-| `*.sh` / `bash ...` | 优先 Git Bash / `VETTA_BASH`；找不到则 **spawn_failed** 明确提示，**不回退 cmd** |
+| `*.sh` / `bash ...` | 优先 Git Bash / `AGENT567_BASH`；找不到则 **spawn_failed** 明确提示，**不回退 cmd** |
 | 本机实测 | 无 Git Bash；WSL `system32\bash.exe` 被刻意跳过 |
 | 上游 council/cdt `.sh` | **可加载**，**默认无法在本机原样执行** |
 

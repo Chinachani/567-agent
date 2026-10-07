@@ -11,7 +11,7 @@ description: 查找模型、设置、MCP、能力、会话和项目级配置，�
 | --- | --- |
 | `~/.567agent/agent/settings.json` | Coding Agent 全局设置 |
 | `~/.567agent/agent/models.json` | 自定义 Provider 和模型覆盖 |
-| `~/.567agent/agent/auth.json` | 登录、OAuth 或手动凭证记录 |
+| `~/.567agent/agent/auth.json` | NewAPI access token |
 | `~/.567agent/agent/mcp.json` | MCP 服务配置 |
 | `~/.567agent/agent/sessions/` | 按安全 cwd 组织的会话文件 |
 | `~/.567agent/abilities.json` | 已安装能力索引 |
@@ -19,7 +19,7 @@ description: 查找模型、设置、MCP、能力、会话和项目级配置，�
 | `~/.567agent/scene/` | 用户级场景 |
 | `~/.567agent/plugins/` | 用户级插件 |
 
-可以使用 `VETTA_CODING_AGENT_DIR` 覆盖 Agent 目录，但宿主、sidecar 和迁移工具必须使用同一值，避免会话和配置分裂。
+可以使用 `AGENT567_CODING_AGENT_DIR` 覆盖 Agent 目录，但宿主、sidecar 和迁移工具必须使用同一值，避免会话和配置分裂。
 
 ## 项目路径
 

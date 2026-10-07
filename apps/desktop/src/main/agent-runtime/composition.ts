@@ -157,7 +157,7 @@ export function createDesktopRuntimeComposition(): DesktopRuntimeComposition {
 				resolveModePrompt: getModePrompt,
 				sessionExtensionFunctions,
 				knowledgeRuntime:
-					process.env.VETTA_KNOWLEDGE_DISABLED === "1"
+					process.env.AGENT567_KNOWLEDGE_DISABLED === "1"
 						? undefined
 						: createNodeKnowledgeRuntime(getKnowledgeRoot()),
 				createMemoryRolloverRuntime: (options) => {

@@ -56,9 +56,9 @@ function resolveVerificationEnv(layout, state) {
 	if (!state?.runtimeCanary) return environment;
 	return {
 		...environment,
-		VETTA_CODING_AGENT_DIR: state.runtimeCanary.agentDir,
-		VETTA_DESKTOP_RUNTIME_CANARY: "1",
-		VETTA_HOME: state.runtimeCanary.vettaHome,
+		AGENT567_CODING_AGENT_DIR: state.runtimeCanary.agentDir,
+		AGENT567_DESKTOP_RUNTIME_CANARY: "1",
+		AGENT567_HOME: state.runtimeCanary.vettaHome,
 	};
 }
 
@@ -597,8 +597,8 @@ async function startDesktopVerificationProcess(layout, runtimeCanary, desktopGen
 		cwd: desktopRoot,
 		env: {
 			...resolveVerificationEnv(layout, state),
-			VETTA_DEBUG_CDP_PORT: String(cdpPort),
-			VETTA_DESKTOP_DEV_PORT: String(rendererPort),
+			AGENT567_DEBUG_CDP_PORT: String(cdpPort),
+			AGENT567_DESKTOP_DEV_PORT: String(rendererPort),
 		},
 		stdio: "inherit",
 		windowsHide: true,

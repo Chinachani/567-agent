@@ -91,6 +91,35 @@ describe("CodingAgentSessionAssistanceRuntime", () => {
 		});
 	});
 
+	it("forwards cancellation to the provider stream and does not fail over after abort", async () => {
+		const current = createModel("session-assistance-cancel", "current");
+		const fallback = createModel("session-assistance-cancel", "fallback");
+		const view = createView(current, [fallback], async (model) => `key:${model.id}`);
+		const controller = new AbortController();
+		let providerSignal: AbortSignal | undefined;
+		const streamFn = vi.fn<StreamFn>((_model, _request, options) => {
+			const signal = options?.signal;
+			if (!signal) throw new Error("Provider signal was not forwarded");
+			providerSignal = signal;
+			const result = new Promise<AssistantMessage>((_resolve, reject) => {
+				signal.addEventListener("abort", () => reject(signal.reason), { once: true });
+			});
+			return { result: () => result } as ReturnType<StreamFn>;
+		});
+		const runtime = new CodingAgentSessionAssistanceRuntime({
+			models: view,
+			readSessionId: () => "cancel-session",
+			streamFn,
+		});
+
+		const generation = runtime.generateNextPrompts("用户：继续", controller.signal);
+		await vi.waitFor(() => expect(providerSignal).toBeDefined());
+		controller.abort(new DOMException("Cancelled by caller", "AbortError"));
+
+		await expect(generation).rejects.toThrow("Cancelled by caller");
+		expect(streamFn).toHaveBeenCalledOnce();
+	});
+
 	it("sanitizes product title and suggestion fallbacks without leaking prose", () => {
 		expect(sanitizeAutoTitle('  "修复 Runtime 架构。"  ')).toBe("修复 Runtime 架构");
 		expect(sanitizeSuggestions('analysis [step 1]\n["继续重构", "补充测试"]')).toEqual(["继续重构", "补充测试"]);

@@ -2,7 +2,7 @@ import { spawn } from "node:child_process";
 import { existsSync } from "node:fs";
 import { readdir, readFile, rm, writeFile } from "node:fs/promises";
 import { isAbsolute, join, relative } from "node:path";
-import { ACTION_RPC_ENDPOINT_FILE_ENV, VETTA_HOME_ENV } from "@567agent/action-rpc";
+import { ACTION_RPC_ENDPOINT_FILE_ENV, AGENT567_HOME_ENV } from "@567agent/action-rpc";
 import { parseWikiPage } from "@567agent/runtime-knowledge";
 import { z } from "zod";
 import {
@@ -649,7 +649,7 @@ async function runVettaAction(
 	return await runProcess(installedCliPath, ["action", ...args], cwd, {
 		...process.env,
 		[ACTION_RPC_ENDPOINT_FILE_ENV]: endpointFilePath,
-		[VETTA_HOME_ENV]: vettaHome,
+		[AGENT567_HOME_ENV]: vettaHome,
 	});
 }
 
@@ -788,7 +788,7 @@ async function runVettaDebug(
 	const result = await runProcess(installedCliPath, ["debug", "run", debugId, JSON.stringify(input)], cwd, {
 		...process.env,
 		[ACTION_RPC_ENDPOINT_FILE_ENV]: endpointFilePath,
-		[VETTA_HOME_ENV]: vettaHome,
+		[AGENT567_HOME_ENV]: vettaHome,
 	});
 	if (result.code !== 0) {
 		throw new Error(

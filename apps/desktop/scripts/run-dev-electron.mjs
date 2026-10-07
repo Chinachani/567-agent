@@ -9,10 +9,10 @@ import { resolveSystemPluginSelection } from "./stage-system-plugins.mjs";
 const projectRoot = join(import.meta.dirname, "..");
 
 function resolveRendererPort() {
-	const rawPort = process.env.VETTA_DESKTOP_DEV_PORT ?? "3020";
+	const rawPort = process.env.AGENT567_DESKTOP_DEV_PORT ?? "3020";
 	const port = Number(rawPort);
 	if (!Number.isInteger(port) || port < 1 || port > 65_535) {
-		throw new Error(`Invalid VETTA_DESKTOP_DEV_PORT: ${rawPort}`);
+		throw new Error(`Invalid AGENT567_DESKTOP_DEV_PORT: ${rawPort}`);
 	}
 	return port;
 }
@@ -53,10 +53,10 @@ function canConnect(port) {
 }
 
 export function resolveDevLaunchEnvironment(environment = process.env, homeDirectory = homedir()) {
-	const verificationEnabled = environment.VETTA_UI_VERIFICATION === "1";
+	const verificationEnabled = environment.AGENT567_UI_VERIFICATION === "1";
 	const configDir =
-		environment.VETTA_CONFIG_DIR?.trim() || (verificationEnabled ? ".vetta-ui-verify" : ".vetta-dev");
-	const configuredUserDataDir = environment.VETTA_DESKTOP_USER_DATA_DIR?.trim();
+		environment.AGENT567_CONFIG_DIR?.trim() || (verificationEnabled ? ".vetta-ui-verify" : ".vetta-dev");
+	const configuredUserDataDir = environment.AGENT567_DESKTOP_USER_DATA_DIR?.trim();
 	const userDataDir = configuredUserDataDir
 		? resolve(configuredUserDataDir)
 		: join(homeDirectory, configDir, "electron-user-data");
@@ -67,19 +67,21 @@ export function resolveDevPluginIds(
 	environment = process.env,
 	tenantResolver = resolveSystemPluginSelection,
 ) {
-	if (Object.hasOwn(environment, "VETTA_PLUGIN_DEV")) {
-		return environment.VETTA_PLUGIN_DEV ?? "";
+	if (Object.hasOwn(environment, "AGENT567_PLUGIN_DEV") || Object.hasOwn(environment, "AGENT567_PLUGIN_DEV")) {
+		return environment.AGENT567_PLUGIN_DEV ?? "";
 	}
-	const tenant = tenantResolver(environment.VETTA_TENANT, "development");
+	const tenant = tenantResolver(environment.AGENT567_TENANT, "development");
 	return tenant.pluginIds ? Array.from(tenant.pluginIds).sort().join(",") : "";
 }
 
 export function resolveDevProcessEnvironment(environment = process.env) {
+	const autoApprove = environment.AGENT567_DEV_AUTO_APPROVE_ACTIONS ?? "1";
 	return {
 		...environment,
 		// Keep local action/plugin iteration frictionless without weakening packaged builds.
 		// Set to "0" when manually testing the approval flow in development.
-		VETTA_DEV_AUTO_APPROVE_ACTIONS: environment.VETTA_DEV_AUTO_APPROVE_ACTIONS ?? "1",
+		AGENT567_DEV_AUTO_APPROVE_ACTIONS: autoApprove,
+		AGENT567_DEV_AUTO_APPROVE_ACTIONS: autoApprove,
 	};
 }
 
@@ -91,8 +93,8 @@ async function main() {
 	const { configDir, userDataDir } = resolveDevLaunchEnvironment();
 	const pluginIds = resolveDevPluginIds();
 	const electronArgs = [];
-	if (process.env.VETTA_UI_VERIFICATION === "1") {
-		if (process.env.VETTA_DESKTOP_RUNTIME_CANARY === "1") {
+	if (process.env.AGENT567_UI_VERIFICATION === "1") {
+		if (process.env.AGENT567_DESKTOP_RUNTIME_CANARY === "1") {
 			electronArgs.push("--disable-gpu");
 			electronArgs.push("--no-sandbox");
 		}
@@ -107,9 +109,9 @@ async function main() {
 		cwd: projectRoot,
 		env: {
 			...resolveDevProcessEnvironment(),
-			VETTA_CONFIG_DIR: configDir,
-			VETTA_DESKTOP_DEV_URL: rendererUrl,
-			VETTA_PLUGIN_DEV: pluginIds,
+			AGENT567_CONFIG_DIR: configDir,
+			AGENT567_DESKTOP_DEV_URL: rendererUrl,
+			AGENT567_PLUGIN_DEV: pluginIds,
 		},
 		stdio: "inherit",
 	});

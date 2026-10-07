@@ -67,6 +67,12 @@ internal fun createVettaHttpClient(
                         }
                     }
                 level = LogLevel.HEADERS
+                sanitizeHeader { header ->
+                    header.equals(HttpHeaders.Authorization, ignoreCase = true) ||
+                        header.equals(HttpHeaders.Cookie, ignoreCase = true) ||
+                        header.equals(HttpHeaders.SetCookie, ignoreCase = true) ||
+                        header.equals("Proxy-Authorization", ignoreCase = true)
+                }
             }
         }
 

@@ -37,6 +37,12 @@ describe("chatUrlTransform", () => {
 		expect(chatUrlTransform("javascript:alert(1)")).toBe("");
 	});
 
+	test("allows image data URLs while blocking non-image data URLs", () => {
+		const image = "data:image/png;base64,iVBORw0KGgo=";
+		expect(chatUrlTransform(image)).toBe(image);
+		expect(chatUrlTransform("data:text/html,<script>alert(1)</script>")).toBe("");
+	});
+
 	test("keeps https and posix absolute", () => {
 		expect(chatUrlTransform("https://example.com/a")).toBe("https://example.com/a");
 		expect(chatUrlTransform("/tmp/a.html")).toBe("/tmp/a.html");

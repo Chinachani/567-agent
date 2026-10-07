@@ -8,9 +8,9 @@ import { fail, isDirectRun, ok, repoRoot, WORKSPACE_PACKAGES } from "./lib.mjs";
 
 const REQUIRED_GLOBAL_DEPENDENCIES = ["tsconfig.base.json", ".env", ".env.*"];
 const REQUIRED_BUILD_INPUTS = ["$TURBO_DEFAULT$", "!test/**", "!tests/**", "!README*", "!CHANGELOG*"];
-const REQUIRED_BUILD_ENV = ["NODE_ENV", "VETTA_PLUGIN_DEV_WATCH", "VETTA_PLUGIN_DOCS_SRC", "VETD_SRC"];
+const REQUIRED_BUILD_ENV = ["NODE_ENV", "AGENT567_PLUGIN_DEV_WATCH", "AGENT567_PLUGIN_DOCS_SRC", "VETD_SRC"];
 const REQUIRED_BUILD_OUTPUTS = ["dist/**", "release/**", ".next/**", "!.next/cache/**"];
-const REQUIRED_DESKTOP_BUILD_ENV = ["NODE_ENV", "VETTA_*", "VETD_*"];
+const REQUIRED_DESKTOP_BUILD_ENV = ["NODE_ENV", "API567_*", "AGENT567_*", "VETD_*"];
 const REQUIRED_DOCS_BUILD_ENV = ["DOCS_SITE_URL", "NODE_ENV"];
 const PLUGIN_WORKBENCH_DOCS_INPUT = "$TURBO_ROOT$/docs/plugin/**";
 
@@ -116,7 +116,10 @@ export function findTurboConfigurationProblems({
 	if (!desktopManifest.scripts?.build?.includes("build:presets:prebuilt")) {
 		problems.push("Desktop build 必须复用 Turbo 已构建的 plugin tooling");
 	}
-	if (!desktopManifest.scripts?.["build:presets:prebuilt"]?.includes("VETTA_SKIP_PLUGIN_TOOLING_BUILD=1")) {
+	if (
+		!desktopManifest.scripts?.["build:presets:prebuilt"]?.includes("AGENT567_SKIP_PLUGIN_TOOLING_BUILD=1") &&
+		!desktopManifest.scripts?.["build:presets:prebuilt"]?.includes("AGENT567_SKIP_PLUGIN_TOOLING_BUILD=1")
+	) {
 		problems.push("Desktop 缺少 prebuilt preset 构建入口");
 	}
 

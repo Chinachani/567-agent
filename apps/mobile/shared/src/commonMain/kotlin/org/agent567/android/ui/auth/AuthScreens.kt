@@ -39,6 +39,8 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
+import androidx.compose.runtime.LaunchedEffect
+import kotlinx.coroutines.delay
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.vector.ImageVector
@@ -172,7 +174,14 @@ fun LoginScreen(
     var regConfirmPassword by remember { mutableStateOf("") }
     var regAffCode by remember { mutableStateOf("") }
     var sendingCode by remember { mutableStateOf(false) }
+    var codeCooldownSeconds by remember { mutableStateOf(0) }
     var codeNotice by remember { mutableStateOf<String?>(null) }
+    LaunchedEffect(codeCooldownSeconds) {
+        if (codeCooldownSeconds > 0) {
+            delay(1_000)
+            codeCooldownSeconds -= 1
+        }
+    }
     var localError by remember { mutableStateOf<String?>(null) }
 
     Scaffold(
@@ -261,15 +270,23 @@ fun LoginScreen(
                                 sendingCode = false
                                 if (ok) {
                                     codeNotice = msg
+                                    codeCooldownSeconds = 60
                                 } else {
                                     localError = msg
                                 }
                             }
                         },
-                        enabled = !sendingCode && regEmail.isNotBlank(),
+                        enabled = !sendingCode && codeCooldownSeconds == 0 && regEmail.isNotBlank(),
                         modifier = Modifier.height(48.dp),
                     ) {
-                        Text(if (sendingCode) "发送中..." else "获取验证码", style = MaterialTheme.typography.labelMedium)
+                        Text(
+                            when {
+                                sendingCode -> "发送中..."
+                                codeCooldownSeconds > 0 -> "${codeCooldownSeconds}秒后重试"
+                                else -> "获取验证码"
+                            },
+                            style = MaterialTheme.typography.labelMedium,
+                        )
                     }
                 }
                 Spacer(Modifier.height(10.dp))
@@ -326,7 +343,7 @@ fun LoginScreen(
                             return@PrimaryBlackButton
                         }
                         localError = null
-                        onRegister(regUsername.trim(), regPassword.trim(), regEmail.trim(), regCode.trim(), regAffCode.trim().takeIf { it.isNotBlank() })
+                        onRegister(regUsername.trim(), regPassword, regEmail.trim(), regCode.trim(), regAffCode.trim().takeIf { it.isNotBlank() })
                     },
                     enabled = !loading && regUsername.isNotBlank() && regEmail.isNotBlank() && regCode.isNotBlank() && regPassword.isNotBlank(),
                 )

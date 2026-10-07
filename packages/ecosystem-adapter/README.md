@@ -16,7 +16,7 @@ Claude Code profile 固定为 `claude-code-hooks/2.1.211`。它复用通用 disp
 
 **Codex**
 
-1. `~/.567agent/.codex/hooks.json`（`VETTA_HOME` 可覆盖 vetta 根）
+1. `~/.567agent/.codex/hooks.json`（`AGENT567_HOME` 可覆盖 vetta 根）
 2. `<cwd>/.567agent/.codex/hooks.json`
 
 **Claude Code**

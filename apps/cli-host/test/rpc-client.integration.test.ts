@@ -14,7 +14,7 @@ const __dirname = dirname(fileURLToPath(import.meta.url));
 // Live Provider tests require explicit opt-in; a credential inherited from the
 // developer shell must never cause the default offline suite to use a paid API.
 describe.skipIf(
-	process.env.VETTA_LIVE_PROVIDER_TESTS !== "1" ||
+	process.env.AGENT567_LIVE_PROVIDER_TESTS !== "1" ||
 		(!process.env.ANTHROPIC_API_KEY && !process.env.ANTHROPIC_OAUTH_TOKEN),
 )("RPC mode", () => {
 	let client: RpcClient;
@@ -25,7 +25,7 @@ describe.skipIf(
 		client = new RpcClient({
 			cliPath: join(__dirname, "..", "dist", "agent-rpc-cli.js"),
 			cwd: join(__dirname, ".."),
-			env: { PI_CODING_AGENT_DIR: sessionDir, VETTA_HOME: sessionDir, HOME: sessionDir, USERPROFILE: sessionDir },
+			env: { PI_CODING_AGENT_DIR: sessionDir, AGENT567_HOME: sessionDir, HOME: sessionDir, USERPROFILE: sessionDir },
 			provider: "anthropic",
 			model: "claude-sonnet-4-5",
 		});

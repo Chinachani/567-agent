@@ -9,7 +9,7 @@ import type { ForegroundCommandOperations } from "@567agent/runtime-tools";
 import { getSandboxShellGrant } from "../sandbox-permissions.js";
 import type { NodeSandboxEnvironment, NodeSandboxShell } from "./contracts.js";
 
-const MACOS_ENV_WHITELIST = ["PATH", "LANG", "LC_ALL", "TERM", "VETTA_CLI_APP_PATH"] as const;
+const MACOS_ENV_WHITELIST = ["PATH", "LANG", "LC_ALL", "TERM", "AGENT567_CLI_APP_PATH"] as const;
 
 export interface MacosSeatbeltCommandOptions {
 	readonly sandboxExecPath?: string;
@@ -40,7 +40,7 @@ function findOnPathUnix(binary: string): string | undefined {
 }
 
 export function resolveMacosSandboxExecPath(explicitPath?: string): string {
-	const candidate = explicitPath?.trim() || process.env.VETTA_MACOS_SANDBOX_EXEC_PATH?.trim();
+	const candidate = explicitPath?.trim() || process.env.AGENT567_MACOS_SANDBOX_EXEC_PATH?.trim();
 	if (candidate) {
 		if (isAbsolute(candidate) && existsSync(candidate)) return candidate;
 		const resolved = findOnPathUnix(candidate);
@@ -104,7 +104,7 @@ export function buildMacosSandboxProfile(cwd: string, tempRoot: string, grant: S
 }
 
 function resolveVettaCliAppPath(env: NodeSandboxEnvironment | undefined): string | undefined {
-	const value = env?.VETTA_CLI_APP_PATH ?? process.env.VETTA_CLI_APP_PATH;
+	const value = env?.AGENT567_CLI_APP_PATH ?? process.env.AGENT567_CLI_APP_PATH;
 	return typeof value === "string" && value.length > 0 && existsSync(value) ? value : undefined;
 }
 
@@ -135,7 +135,7 @@ function buildSandboxEnv(
 		const value =
 			key === "PATH" && vettaShimDir
 				? [vettaShimDir, baseEnv.PATH].filter((item): item is string => Boolean(item)).join(delimiter)
-				: key === "VETTA_CLI_APP_PATH"
+				: key === "AGENT567_CLI_APP_PATH"
 					? resolveVettaCliAppPath(env)
 					: baseEnv[key];
 		if (typeof value === "string" && value.length > 0) nextEnv[key] = value;

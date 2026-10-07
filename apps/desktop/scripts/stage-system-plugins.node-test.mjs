@@ -68,12 +68,12 @@ test("development and packaging scripts pin their system plugin profiles without
 
 	assert.match(
 		packageJson.scripts["build:presets:dev"],
-		/VETTA_SYSTEM_PLUGIN_PROFILE=development/,
+		/AGENT567_SYSTEM_PLUGIN_PROFILE=development/,
 	);
-	assert.match(packageJson.scripts["build:pack"], /VETTA_SYSTEM_PLUGIN_PROFILE=production/);
-	assert.match(packageJson.scripts["prepare:pack"], /VETTA_SYSTEM_PLUGIN_PROFILE=production/);
+	assert.match(packageJson.scripts["build:pack"], /AGENT567_SYSTEM_PLUGIN_PROFILE=production/);
+	assert.match(packageJson.scripts["prepare:pack"], /AGENT567_SYSTEM_PLUGIN_PROFILE=production/);
 	assert.match(packageJson.scripts.build, /bun run build:presets:prebuilt/);
-	assert.match(packageJson.scripts["build:presets:prebuilt"], /VETTA_SKIP_PLUGIN_TOOLING_BUILD=1/);
+	assert.match(packageJson.scripts["build:presets:prebuilt"], /AGENT567_SKIP_PLUGIN_TOOLING_BUILD=1/);
 	const productionWorkspaceBuild = packageJson.scripts["prepare:workspace"];
 	const developmentWorkspaceBuild = packageJson.scripts["prepare:workspace:dev"];
 	for (const script of [productionWorkspaceBuild, developmentWorkspaceBuild]) {

@@ -110,20 +110,20 @@ describe("Desktop release workflow contracts", () => {
 			const runnerTemp = join(root, "runner");
 			mkdirSync(release, { recursive: true });
 			mkdirSync(runnerTemp);
+			const envFile = join(root, "github-env");
+			writeFileSync(envFile, "");
 			writeFileSync(join(desktop, "package.json"), JSON.stringify({ version: "0.5.58" }));
 			writeFileSync(join(release, "Vetta"), "signed executable fixture");
 			chmodSync(join(release, "Vetta"), 0o755);
 			if (process.platform !== "win32") symlinkSync("Vetta", join(release, "bundle-link"));
 			writeFileSync(join(release, "latest.yml"), "version: 0.5.59\n");
 			writeFileSync(join(release, "installer.exe.files.json"), "verification manifest");
-			const envFile = join(root, "github-env");
 			const env = {
 				...process.env,
 				RUNNER_TEMP: runnerTemp,
 				GITHUB_WORKSPACE: root,
 				GITHUB_ENV: envFile,
 				PATH: `${bin}:${process.env.PATH ?? ""}`,
-				VETTA_REQUIRE_MAC_SIGNATURE: "1",
 				BUILD_VERSION: "0.5.59",
 			};
 			execFileSync(
@@ -149,7 +149,6 @@ describe("Desktop release workflow contracts", () => {
 					expect(readlinkSync(join(release, "bundle-link"))).toBe("Vetta");
 				}
 			}
-			expect(readFileSync(envFile, "utf8")).toContain("VETTA_REQUIRE_MAC_SIGNATURE=1");
 		} finally {
 			rmSync(root, { recursive: true, force: true });
 		}
@@ -176,7 +175,6 @@ describe("Desktop release workflow contracts", () => {
 
 	it("verifies the public update feed after either publish target", () => {
 		expect(workflow.match(/node scripts\/verify-update-feed\.mjs/g)).toHaveLength(2);
-		expect(workflow.match(/needs: \[prepare, quality, build, verify\]/g)).toHaveLength(2);
 		for (const target of ["r2", "github"]) {
 			const feed = jobs[`verify-feed-${target}`];
 			expect(feed.needs).toEqual(["prepare", `publish-${target}`]);
@@ -189,7 +187,7 @@ describe("Desktop release workflow contracts", () => {
 
 	it("runs packaged boot and updater E2E on every release platform", () => {
 		expect(workflow).toContain("Run packaged app and updater E2E");
-		expect(workflow).toContain('VETTA_E2E_UPDATE_FEED: "1"');
+		expect(workflow).toContain('AGENT567_E2E_UPDATE_FEED: "1"');
 		expect(workflow).toContain("xvfb-run --auto-servernum bun run test:e2e:packaged");
 		const initialVerify = workflow.indexOf("- name: Verify platform updater artifacts");
 		const packagedE2e = workflow.indexOf("- name: Run packaged app and updater E2E");
@@ -257,7 +255,7 @@ describe("Desktop release workflow contracts", () => {
 		expect(desktopPackage.scripts["package:win"]).toMatch(/--platform win$/);
 	});
 
-	it("publishes Windows installer, MSI, and portable ZIP in tag releases", () => {
+	it("keeps the manual all-platform builder artifact-only", () => {
 		const tagReleaseJobs = parse(tagReleaseWorkflow).jobs;
 		const windows = tagReleaseJobs["build-desktop"].strategy.matrix.include.find((entry) => entry.platform === "win");
 		expect(windows.command).toBe("package:win");
@@ -269,9 +267,12 @@ describe("Desktop release workflow contracts", () => {
 		expect(tagReleaseWorkflow).toContain("Verify Windows installer and portable package");
 		expect(tagReleaseWorkflow).toContain("bun run verify:updates:windows");
 		expect(tagReleaseWorkflow).toContain("bun run verify:packages:windows");
+		expect(tagReleaseWorkflow).not.toContain("push:");
+		expect(tagReleaseWorkflow).not.toContain("softprops/action-gh-release");
+		expect(tagReleaseWorkflow).toContain("actions/upload-artifact@v4");
 	});
 
-	it("publishes all Linux desktop formats and the AppImage update feed", () => {
+	it("keeps manual Linux package artifacts available without publishing a Release", () => {
 		const tagReleaseJobs = parse(tagReleaseWorkflow).jobs;
 		const linux = tagReleaseJobs["build-desktop"].strategy.matrix.include.find((entry) => entry.platform === "linux");
 		expect(linux.command).toBe("package:linux");
@@ -310,7 +311,7 @@ describe("Desktop release workflow contracts", () => {
 		}
 	});
 
-	it("uses the same publish jobs for tagged stable and dispatched test/stable releases", () => {
+	it("uses the same publish jobs for dispatched test/stable releases", () => {
 		expect(workflow).toContain("build_version:");
 		expect(workflow).toContain("should-publish: $" + "{{ steps.config.outputs.should_publish }}");
 		expect(workflow).toContain("needs.prepare.outputs.should-publish == 'true'");
@@ -318,7 +319,6 @@ describe("Desktop release workflow contracts", () => {
 		expect(workflow).toContain("environment: $" + "{{");
 		expect(workflow).toContain("'desktop-production' }}");
 		expect(workflow).toContain("OUTPUT_BUILD_VERSION");
-		expect(workflow).toContain("REQUIRE_RELEASE_SIGNATURE");
 		expect(workflow).toContain("needs.prepare.outputs.should-publish == 'true'");
 		expect(workflow).toContain('--target "' + "$" + '{GITHUB_SHA}"');
 	});
@@ -333,17 +333,22 @@ describe("Desktop release workflow contracts", () => {
 		expect(qualityJob).toContain("go-version-file: apps/im-gateway/go.mod");
 	});
 
-	it("builds each macOS architecture on a matching hosted runner", () => {
-		expect(workflow).toContain("runs-on: $" + "{{ matrix.runner }}");
-		expect(workflow).toContain("runner: macos-15\n");
-		expect(workflow).toContain("runner: macos-15-intel\n");
-		expect(workflow).not.toContain("vetta-mac");
+	it("release matrix only builds Windows and Linux, with Android in the same publisher", () => {
+		const platforms = jobs.build.strategy.matrix.include.map((entry) => entry.platform).sort();
+		expect(platforms).toEqual(["linux", "windows"]);
+		expect(jobs.android.steps.some((step) => step.uses === "actions/upload-artifact@v4")).toBe(true);
+		expect(jobs["publish-github"].needs).toContain("android");
+		expect(workflow).not.toContain("macos-15");
+		expect(workflow).not.toContain("MACOS_CERTIFICATE_P12_BASE64");
 	});
 
-	it("allows enough wall clock for signing and notarizing both macOS architectures", () => {
-		const buildJob = workflow.slice(workflow.indexOf("\n  build:"), workflow.indexOf("\n  publish-r2:"));
-		const timeout = Number(buildJob.match(/timeout-minutes: (\d+)/)?.[1]);
-		expect(timeout).toBeGreaterThanOrEqual(120);
+	it("publishes manually dispatched releases through one version-release publisher", () => {
+		expect(workflow).not.toContain("push:");
+		expect(workflow).toContain("workflow_dispatch:");
+		expect(workflow).toContain("group: desktop-release-");
+		expect(workflow).toContain("name: publish GitHub Release");
+		expect(tagReleaseWorkflow).not.toContain("push:");
+		expect(tagReleaseWorkflow).not.toContain("softprops/action-gh-release");
 	});
 
 	// R2 是更新源，GitHub Release 是对外的下载入口和版本说明归档。早先两个发布 job

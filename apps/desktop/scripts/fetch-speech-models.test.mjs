@@ -11,7 +11,7 @@ test("only Windows x64 artifacts require the speech model", () => {
 	assert.equal(requiresWindowsSpeechModel(["darwin-arm64"], {}), false);
 	assert.equal(requiresWindowsSpeechModel(["linux-x64"], {}), false);
 	assert.equal(
-		requiresWindowsSpeechModel(["win32-x64"], { VETTA_SPEECH_INPUT_ENABLED: "false" }),
+		requiresWindowsSpeechModel(["win32-x64"], { AGENT567_SPEECH_INPUT_ENABLED: "false" }),
 		false,
 	);
 });
@@ -77,7 +77,7 @@ test("does not read or download the model for a disabled Windows build", async (
 	let requested = false;
 	const messages = [];
 	const result = await prepareSpeechModels({
-		env: { VETTA_SPEECH_INPUT_ENABLED: "false" },
+		env: { AGENT567_SPEECH_INPUT_ENABLED: "false" },
 		platformTags: ["win32-x64"],
 		manifestPath: "missing.json",
 		fetchImpl: async () => {
@@ -88,7 +88,7 @@ test("does not read or download the model for a disabled Windows build", async (
 	});
 	assert.equal(result, null);
 	assert.equal(requested, false);
-	assert.deepEqual(messages, ["[speech-models] skipped: VETTA_SPEECH_INPUT_ENABLED=false"]);
+	assert.deepEqual(messages, ["[speech-models] skipped: AGENT567_SPEECH_INPUT_ENABLED=false"]);
 });
 
 test("rejects a corrupt download without publishing a model file", async () => {

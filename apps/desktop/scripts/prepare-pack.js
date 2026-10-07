@@ -28,7 +28,7 @@ import {
 import { stageSystemSkills } from "./stage-system-skills.mjs";
 import { stageSystemThemesFromArchives } from "./stage-system-themes.mjs";
 
-// 从 .env.<mode>/.env 注入构建期变量（如 VETTA_TENANT），命令行内联优先。
+// 从 .env.<mode>/.env 注入构建期变量（如 AGENT567_TENANT），命令行内联优先。
 const buildEnvMode = loadBuildEnv();
 const buildEnvironment = validateDesktopBuildEnvironment({ env: process.env, mode: buildEnvMode });
 const updatePublishConfig = buildEnvironment.updateConfig;
@@ -64,9 +64,9 @@ const electronPkgPath = require.resolve("electron/package.json");
 const electronVersion = JSON.parse(readFileSync(electronPkgPath, "utf8")).version;
 
 // 正式发布以 apps/desktop/package.json 为唯一真源。本地更新闭环测试可用
-// VETTA_DESKTOP_BUILD_VERSION 生成更高版本产物，不修改源码版本或创建 tag。
+// AGENT567_DESKTOP_BUILD_VERSION 生成更高版本产物，不修改源码版本或创建 tag。
 const packageVersion = JSON.parse(readFileSync(join(projectRoot, "package.json"), "utf8")).version;
-const buildVersionOverride = process.env.VETTA_DESKTOP_BUILD_VERSION?.trim();
+const buildVersionOverride = process.env.AGENT567_DESKTOP_BUILD_VERSION?.trim();
 const appVersion = buildVersionOverride || packageVersion;
 if (!/^\d+\.\d+\.\d+$/.test(appVersion)) {
 	throw new Error(`[prepare-pack] invalid desktop version: ${appVersion}`);
@@ -78,7 +78,7 @@ const releaseInfo =
 	appVersion === packageVersion ? resolveReleaseInfo(join(projectRoot, "CHANGELOG.md"), appVersion) : undefined;
 
 function resolveCliAppCompileTargets() {
-	const rawTargets = process.env.VETTA_CLI_TARGET_PLATFORMS ?? process.env.VETTA_VENDOR_PLATFORM;
+	const rawTargets = process.env.AGENT567_CLI_TARGET_PLATFORMS ?? process.env.AGENT567_VENDOR_PLATFORM;
 	const platformTags =
 		typeof rawTargets === "string" && rawTargets.trim().length > 0
 			? rawTargets
@@ -142,7 +142,7 @@ console.log(
 		? `[prepare-pack] speech input enabled for ${speechInputBuildConfig.platformTags.join(", ")}`
 		: speechInputBuildConfig.configuredEnabled
 			? `[prepare-pack] speech input skipped for ${speechInputBuildConfig.platformTags.join(", ")}`
-			: "[prepare-pack] speech input disabled by VETTA_SPEECH_INPUT_ENABLED=false",
+			: "[prepare-pack] speech input disabled by AGENT567_SPEECH_INPUT_ENABLED=false",
 );
 
 // 签名配置已经由统一构建环境检查解析；这里仅负责把结果映射到 builder 配置。
@@ -152,7 +152,7 @@ if (!macSigning.enabled) {
 	console.log(`[prepare-pack] macOS 签名与公证已启用（team=${macSigning.teamId}）`);
 } else {
 	console.warn(
-		`[prepare-pack] macOS 已签名但跳过公证（team=${macSigning.teamId}，VETTA_SKIP_NOTARIZE=1）——` +
+		`[prepare-pack] macOS 已签名但跳过公证（team=${macSigning.teamId}，AGENT567_SKIP_NOTARIZE=1）——` +
 			"仅供本地更新闭环，产物不可分发",
 	);
 }
@@ -237,7 +237,7 @@ function assertPackagedMainHasNoWorkspaceImports(mainOutputDir) {
 	if (invalidImports.length > 0) {
 		throw new Error(
 			"[prepare-pack] desktop main output contains external @vetta workspace imports. " +
-				"Rebuild main with VETTA_BUILD_ENV=production before packaging:\n" +
+				"Rebuild main with AGENT567_BUILD_ENV=production before packaging:\n" +
 				invalidImports.join("\n"),
 		);
 	}
@@ -394,7 +394,7 @@ if (existsSync(imGatewayDistDir)) {
 // The bundled main-*.js (Vite output) contains `@567agent/coding-agent`'s JS
 // but not its on-disk package tree. Stage the full dist plus metadata into
 // Resources/coding-agent/. macOS/Linux agent-rpc-command.ts uses it as
-// VETTA_PACKAGE_DIR for assets; Windows additionally runs a bundled
+// AGENT567_PACKAGE_DIR for assets; Windows additionally runs a bundled
 // cli-app Runtime Selector via ELECTRON_RUN_AS_NODE because GUI Electron
 // stdio is not reliable for RPC.
 const stagedCodingAgentDir = join(buildStageDir, "coding-agent");
@@ -530,17 +530,17 @@ if (existsSync(runtimeCoreSandboxDir)) {
 // Resources/vendor/{node,python}/,首启时由 main 进程解压到 ~/.vetta/runtimes/。
 // 这是普通用户「下载下来就有环境」的本体。Node 走 npmmirror、Python 走 GitHub
 // (国内无稳定公共镜像,故必须内置)。构建机有网即可;无法联网的构建可设
-// VETTA_SKIP_VENDOR=1 跳过(产物退化为「面板手动下载」,不推荐发版用)。
+// AGENT567_SKIP_VENDOR=1 跳过(产物退化为「面板手动下载」,不推荐发版用)。
 //
-// 默认按构建宿主平台;跨平台打包请设 VETTA_VENDOR_PLATFORM,取值与
+// 默认按构建宿主平台;跨平台打包请设 AGENT567_VENDOR_PLATFORM,取值与
 // src/main/runtimes/manifest.json 的 platforms 键一致(如 darwin-arm64 /
 // win32-x64 / linux-x64)。
 async function stageVendorRuntimes() {
-	if (process.env.VETTA_SKIP_VENDOR === "1") {
-		console.warn("[prepare-pack] VETTA_SKIP_VENDOR=1 —— 跳过内置运行时,产物将依赖面板手动下载");
+	if (process.env.AGENT567_SKIP_VENDOR === "1") {
+		console.warn("[prepare-pack] AGENT567_SKIP_VENDOR=1 —— 跳过内置运行时,产物将依赖面板手动下载");
 		return;
 	}
-	const platformTag = process.env.VETTA_VENDOR_PLATFORM || `${process.platform}-${process.arch}`;
+	const platformTag = process.env.AGENT567_VENDOR_PLATFORM || `${process.platform}-${process.arch}`;
 	const stagedVendorDir = join(buildStageDir, "vendor");
 	const archives = await prepareVendorRuntimes({ platformTag });
 	for (const { type, def, entry, archivePath } of archives) {

@@ -22,7 +22,7 @@ describe("buildBuiltinMcpServers", () => {
 	});
 
 	it("baseUrl 自带 API 前缀时不重复拼接", () => {
-		// 桌面端注入的 VETTA_SERVER_URL 本身就带 /api/v1，手工配的通常只到域名，
+		// 桌面端注入的 API567_BASE_URL 本身就带 /api/v1，手工配的通常只到域名，
 		// 不归一就会拼出 /api/v1/api/v1/mcp 而 404
 		const config = build({ baseUrl: "https://api.example.com/api/v1", token: "t" })[VETTA_BUILTIN_MCP_NAME];
 

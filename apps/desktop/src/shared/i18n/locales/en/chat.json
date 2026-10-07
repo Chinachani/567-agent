@@ -332,6 +332,27 @@
 			}
 		}
 	},
+	"markdown": {
+		"preview": "Preview",
+		"source": "Source",
+		"run": "Run in separate window",
+		"stop": "Stop",
+		"waiting": "Preview will appear when generation finishes.",
+		"paused": "Preview stopped. Run again to restart the page.",
+		"tooLarge": "This content is too large to preview. You can still view and copy its source.",
+		"failed": "Could not render this content. Its source is shown instead.",
+		"staticHtml": "Static preview. Run JavaScript in a separate window; external resources are unavailable.",
+		"running": "Interactive preview opened in a separate window. Closes after 30 seconds.",
+		"svg": "SVG preview",
+		"html": "HTML preview",
+		"loading": "Preparing preview…",
+		"retry": "Retry",
+		"enlarge": "Enlarge",
+		"save": "Save as",
+		"diagram": "Diagram",
+		"imageFailed": "Could not load image.",
+		"actionFailed": "Action failed. Please retry."
+	},
 	"copyButton": {
 		"copied": "Copied",
 		"label": "Copy"
@@ -396,6 +417,9 @@
 		},
 		"planMode": {
 			"label": "Plan mode"
+		},
+		"goalMode": {
+			"label": "Goal mode"
 		}
 	},
 	"inputBar": {
@@ -496,6 +520,7 @@
 		"layoutStacked": "Stacked"
 	},
 	"messageList": {
+		"scrollToBottom": "Jump to latest message",
 		"userMessage": {
 			"expand": "Expand message",
 			"sceneBadge": "Scene",
@@ -1008,5 +1033,28 @@
 		"actionCreate": "Create page",
 		"actionUpdate": "Update page",
 		"originalLocation": "Original: {{path}}"
+	},
+	"goalMode": {
+		"dialog": {
+			"cancel": "Cancel",
+			"clear": "Clear goal",
+			"createDescription": "567 Agent keeps iterating until the goal is complete, blocked, or paused.",
+			"manageDescription": "Review the current goal, resume it, or clear it.",
+			"objectiveLabel": "Goal",
+			"objectivePlaceholder": "Describe a concrete, verifiable final outcome…",
+			"resume": "Resume goal",
+			"start": "Start working",
+			"statusLabel": "Status",
+			"title": "Goal mode",
+			"usage": "{{used}} tokens used · {{count}} automatic continuations"
+		},
+		"operationFailed": "Goal operation failed",
+		"status": {
+			"active": "Active",
+			"blocked": "Blocked",
+			"complete": "Complete",
+			"paused": "Paused",
+			"usage_limited": "Usage limited"
+		}
 	}
 }

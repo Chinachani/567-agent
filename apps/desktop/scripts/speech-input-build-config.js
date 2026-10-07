@@ -1,4 +1,4 @@
-export const SPEECH_INPUT_ENABLED_ENV = "VETTA_SPEECH_INPUT_ENABLED";
+export const SPEECH_INPUT_ENABLED_ENV = "AGENT567_SPEECH_INPUT_ENABLED";
 
 export function resolveSpeechInputTargetTags(
 	env = process.env,
@@ -6,7 +6,7 @@ export function resolveSpeechInputTargetTags(
 	arch = process.arch,
 ) {
 	const configured =
-		env.VETTA_IM_GATEWAY_TARGET_PLATFORMS ?? env.VETTA_CLI_TARGET_PLATFORMS ?? env.VETTA_VENDOR_PLATFORM;
+		env.AGENT567_IM_GATEWAY_TARGET_PLATFORMS ?? env.AGENT567_CLI_TARGET_PLATFORMS ?? env.AGENT567_VENDOR_PLATFORM;
 	return typeof configured === "string" && configured.trim().length > 0
 		? configured
 				.split(",")
@@ -16,7 +16,7 @@ export function resolveSpeechInputTargetTags(
 }
 
 function parseConfiguredEnabled(env) {
-	const configured = env[SPEECH_INPUT_ENABLED_ENV];
+	const configured = env.AGENT567_SPEECH_INPUT_ENABLED;
 	if (configured === undefined) return true;
 	const raw = configured.trim();
 	if (raw === "true") return true;

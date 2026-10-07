@@ -1,12 +1,11 @@
 import type { PluginContext } from "@vetta-org/plugin-sdk";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import {
-	DESIGN_CATALOG_SOURCES,
 	isCacheFresh,
 	refreshDesignCatalog,
 	repoRootUrl,
+	STYLE_LIBRARY_CATALOG_SOURCES,
 } from "../src/design-systems/catalog-sync";
-import { STYLEKIT_CATALOG_URL } from "../src/design-systems/stylekit-catalog";
 import { catalogState, designSystems, resetDesignSystems } from "../src/design-systems/registry";
 
 const NOW = Date.parse("2026-08-11T12:00:00.000Z");
@@ -39,6 +38,7 @@ interface RequestLog {
 
 interface FakeOptions {
 	cached?: unknown;
+	cacheByPath?: Record<string, unknown>;
 	/** 按调用顺序返回；返回 null 表示这一次抛错（模拟离线）。 */
 	responses?: Array<{ ok: boolean; status: number; body: unknown; headers?: Record<string, string> } | null>;
 }
@@ -55,13 +55,15 @@ function assertJsonSafe(value: Record<string, unknown>): void {
 function fakeCtx(options: FakeOptions) {
 	const writes: unknown[] = [];
 	const requests: RequestLog[] = [];
-	const stylekitRequests: RequestLog[] = [];
 	/** 原样留存的请求对象，用来断言可选字段是「没有这个键」而不是「值为 undefined」。 */
 	const sent: Record<string, unknown>[] = [];
 	let call = 0;
 	const ctx = {
 		storage: {
-			readFile: async () => (options.cached === undefined ? null : JSON.stringify(options.cached)),
+			readFile: async (path: string) => {
+				const value = options.cacheByPath?.[path] ?? options.cached;
+				return value === undefined ? null : JSON.stringify(value);
+			},
 			writeFile: async (_path: string, value: string) => {
 				writes.push(JSON.parse(value) as unknown);
 				return { revision: "test", changedPaths: ["design-catalog/latest.json"] };
@@ -74,22 +76,21 @@ function fakeCtx(options: FakeOptions) {
 				assertJsonSafe(request);
 				sent.push(request);
 				const requestLog = { url: request.url, headers: request.headers };
-				if (request.url === STYLEKIT_CATALOG_URL) stylekitRequests.push(requestLog);
-				else requests.push(requestLog);
+				requests.push(requestLog);
 				const next = options.responses?.[call++];
 				if (!next) throw new Error("offline");
 				return next;
 			},
 		},
 	} as unknown as PluginContext;
-	return { ctx, writes, requests, stylekitRequests, sent };
+	return { ctx, writes, requests, sent };
 }
 
 function cacheOf(slugs: string[], overrides: Partial<Record<string, unknown>> = {}) {
 	return {
 		catalog: catalogOf(slugs),
 		fetchedAt: new Date(NOW).toISOString(),
-		sourceUrl: DESIGN_CATALOG_SOURCES[0],
+		sourceUrl: STYLE_LIBRARY_CATALOG_SOURCES[0],
 		etag: 'W/"abc"',
 		...overrides,
 	};
@@ -172,7 +173,7 @@ describe("refreshDesignCatalog 的请求预算", () => {
 			responses: [{ ok: true, status: 200, body: catalogOf(["fresh"]) }],
 		});
 		await refreshDesignCatalog(ctx, NOW + 7 * HOUR);
-		expect(requests[0].url).toBe(DESIGN_CATALOG_SOURCES[0]);
+		expect(requests[0].url).toBe(STYLE_LIBRARY_CATALOG_SOURCES[0]);
 		expect(requests[0].headers).toBeUndefined();
 	});
 
@@ -188,42 +189,22 @@ describe("refreshDesignCatalog 的请求预算", () => {
 			responses: [null, { ok: true, status: 200, body: catalogOf(["from-fallback"]) }],
 		});
 		await refreshDesignCatalog(ctx, NOW);
-		expect(requests.map((request) => request.url)).toEqual([...DESIGN_CATALOG_SOURCES]);
+		expect(requests.map((request) => request.url)).toEqual([...STYLE_LIBRARY_CATALOG_SOURCES]);
 		expect(designSystems().map((system) => system.id)).toEqual(["from-fallback"]);
 	});
 });
 
-describe("StyleKit 目录接入", () => {
-	it("将 StyleKit 风格与 567 Agent 设计模板合并到画廊目录", async () => {
-		const { ctx, stylekitRequests } = fakeCtx({
-			responses: [
-				{ ok: true, status: 200, body: catalogOf(["vetta-one"]) },
-				{
-					ok: true,
-					status: 200,
-					body: {
-						total: 1,
-						styles: [
-							{
-								slug: "editorial",
-								name: "编辑杂志风",
-								nameEn: "Editorial",
-								description: "暖米色留白。",
-								descriptionEn: "Warm editorial style.",
-								category: "minimal",
-								colors: { primary: "#222222", secondary: "#F7F6F3", accent: ["#816d70"] },
-							},
-						],
-					},
-				},
-			],
+describe("统一风格库目录", () => {
+	it("只请求统一 catalog，由目录提供两路上游的合并结果", async () => {
+		const { ctx, requests } = fakeCtx({
+			responses: [{ ok: true, status: 200, body: catalogOf(["vetta-one", "stylekit-editorial"]) }],
 		});
 		await refreshDesignCatalog(ctx, NOW);
-		expect(stylekitRequests.map((request) => request.url)).toEqual([STYLEKIT_CATALOG_URL]);
+		expect(requests.map((request) => request.url)).toEqual([STYLE_LIBRARY_CATALOG_SOURCES[0]]);
 		expect(designSystems().map((system) => system.id)).toEqual(["vetta-one", "stylekit-editorial"]);
 	});
 
-	it("离线时复用本地 StyleKit 缓存", async () => {
+	it("迁移期间离线时复用本地 StyleKit 旧缓存", async () => {
 		const cachedStyleKit = {
 			catalog: {
 				styles: [
@@ -239,11 +220,46 @@ describe("StyleKit 目录接入", () => {
 				],
 			},
 			fetchedAt: new Date(NOW).toISOString(),
-			sourceUrl: STYLEKIT_CATALOG_URL,
+			sourceUrl: "https://stylekit.top/api/styles",
 		};
-		const { ctx } = fakeCtx({ cached: cachedStyleKit, responses: [null, null] });
+		const { ctx, requests } = fakeCtx({
+			cacheByPath: { "design-catalog/stylekit.json": cachedStyleKit },
+			responses: [null, null],
+		});
 		await refreshDesignCatalog(ctx, NOW + MINUTE);
 		expect(designSystems().map((system) => system.id)).toContain("stylekit-neo-brutalist");
+		expect(requests.map((request) => request.url)).toEqual([...STYLE_LIBRARY_CATALOG_SOURCES]);
+	});
+
+	it("统一目录上线后整体替换两份旧缓存，避免旧条目复活", async () => {
+		const oldCatalog = {
+			...cacheOf(["legacy-template"]),
+			sourceUrl: "https://raw.githubusercontent.com/openvetta/vetta-design-templates/main/.vetta/design-templates.json",
+		};
+		const oldStyleKit = {
+			catalog: {
+				styles: [{
+					slug: "neo-brutalist",
+					name: "新野兽派",
+					description: "粗线条和高对比。",
+					category: "expressive",
+					colors: { primary: "#111111", secondary: "#ffffff", accent: ["#ff006e"] },
+				}],
+			},
+			fetchedAt: new Date(NOW).toISOString(),
+			sourceUrl: "https://stylekit.top/api/styles",
+		};
+		const { ctx } = fakeCtx({
+			cacheByPath: {
+				"design-catalog/latest.json": oldCatalog,
+				"design-catalog/stylekit.json": oldStyleKit,
+			},
+			responses: [{ ok: true, status: 200, body: catalogOf(["unified-only"]) }],
+		});
+
+		await refreshDesignCatalog(ctx, NOW + MINUTE);
+
+		expect(designSystems().map((system) => system.id)).toEqual(["unified-only"]);
 	});
 });
 
@@ -254,7 +270,7 @@ describe("refreshDesignCatalog 的回退链", () => {
 		});
 		await refreshDesignCatalog(ctx, NOW);
 		expect(designSystems().map((system) => system.id)).toEqual(["alpha", "beta"]);
-		expect(writes[0]).toMatchObject({ etag: 'W/"new"', sourceUrl: DESIGN_CATALOG_SOURCES[0] });
+		expect(writes[0]).toMatchObject({ etag: 'W/"new"', sourceUrl: STYLE_LIBRARY_CATALOG_SOURCES[0] });
 	});
 
 	it("网络全挂时沿用缓存，不清空列表", async () => {
@@ -334,19 +350,23 @@ describe("refreshDesignCatalog 的回退链", () => {
 
 describe("源顺序", () => {
 	it("raw 排首位：jsDelivr 对 @main 的解析缓存 purge 不掉，最长会晚 12 小时", () => {
-		expect(DESIGN_CATALOG_SOURCES[0]).toContain("raw.githubusercontent.com");
-		expect(DESIGN_CATALOG_SOURCES[1]).toContain("cdn.jsdelivr.net");
+		expect(STYLE_LIBRARY_CATALOG_SOURCES[0]).toBe(
+			"https://raw.githubusercontent.com/Chinachani/567-agent-style-library/main/.vetta/design-templates.json",
+		);
+		expect(STYLE_LIBRARY_CATALOG_SOURCES[1]).toBe(
+			"https://cdn.jsdelivr.net/gh/Chinachani/567-agent-style-library@main/.vetta/design-templates.json",
+		);
 	});
 });
 
 describe("repoRootUrl", () => {
 	it("剥掉清单自身的路径，得到仓库根", () => {
 		// 资源地址是相对仓库根的；直接拿清单地址当 base 会多出一段 .vetta/。
-		expect(repoRootUrl(DESIGN_CATALOG_SOURCES[0])).toBe(
-			"https://raw.githubusercontent.com/openvetta/vetta-design-templates/main/",
+		expect(repoRootUrl(STYLE_LIBRARY_CATALOG_SOURCES[0])).toBe(
+			"https://raw.githubusercontent.com/Chinachani/567-agent-style-library/main/",
 		);
-		expect(repoRootUrl(DESIGN_CATALOG_SOURCES[1])).toBe(
-			"https://cdn.jsdelivr.net/gh/openvetta/vetta-design-templates@main/",
+		expect(repoRootUrl(STYLE_LIBRARY_CATALOG_SOURCES[1])).toBe(
+			"https://cdn.jsdelivr.net/gh/Chinachani/567-agent-style-library@main/",
 		);
 	});
 

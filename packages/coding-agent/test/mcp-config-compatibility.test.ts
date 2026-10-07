@@ -26,14 +26,14 @@ describe("MCP config compatibility", () => {
 
 	it("merges project overrides and expands project and environment variables", async () => {
 		const fixture = await createFixture();
-		process.env.VETTA_MCP_CONFIG_TEST_TOKEN = "resolved-token";
+		process.env.AGENT567_MCP_CONFIG_TEST_TOKEN = "resolved-token";
 		try {
 			await writeJson(join(fixture.agentDir, "mcp.json"), {
 				mcpServers: {
 					shared: { command: "global", args: ["--global"], env: { TOKEN: "global" } },
 					remote: {
 						type: "http",
-						url: `https://example.test/${configVariable("VETTA_MCP_CONFIG_TEST_TOKEN")}`,
+						url: `https://example.test/${configVariable("AGENT567_MCP_CONFIG_TEST_TOKEN")}`,
 					},
 				},
 			});
@@ -42,7 +42,7 @@ describe("MCP config compatibility", () => {
 					shared: {
 						command: "project",
 						cwd: configVariable("PROJECT_ROOT"),
-						env: { TOKEN: configVariable("VETTA_MCP_CONFIG_TEST_TOKEN") },
+						env: { TOKEN: configVariable("AGENT567_MCP_CONFIG_TEST_TOKEN") },
 					},
 				},
 			});
@@ -61,7 +61,7 @@ describe("MCP config compatibility", () => {
 				},
 			});
 		} finally {
-			delete process.env.VETTA_MCP_CONFIG_TEST_TOKEN;
+			delete process.env.AGENT567_MCP_CONFIG_TEST_TOKEN;
 		}
 	});
 

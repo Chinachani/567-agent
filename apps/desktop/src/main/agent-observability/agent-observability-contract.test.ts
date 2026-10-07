@@ -18,10 +18,10 @@ describe("Desktop Agent observability contract", () => {
 	it("persists native execution and correlates instances, Turns and immutable configuration revisions", async () => {
 		const directory = await mkdtemp(join(tmpdir(), "desktop-agent-trace-contract-"));
 		await writeFile(join(directory, ".git"), "");
-		vi.stubEnv("VETTA_HOME", directory);
-		vi.stubEnv("VETTA_CODING_AGENT_DIR", join(directory, "agent"));
+		vi.stubEnv("AGENT567_HOME", directory);
+		vi.stubEnv("AGENT567_CODING_AGENT_DIR", join(directory, "agent"));
 		vi.stubEnv("USERPROFILE", directory);
-		vi.stubEnv("VETTA_TRACING", "");
+		vi.stubEnv("AGENT567_TRACING", "");
 		const path = join(directory, "agent-traces.json");
 		const observability = createDesktopAgentObservability(directory, { warn: vi.fn() });
 		const hub = new RuntimeObservationHub();

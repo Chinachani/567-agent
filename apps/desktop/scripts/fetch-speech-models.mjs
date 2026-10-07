@@ -134,7 +134,7 @@ export async function prepareSpeechModels({
 	const buildConfig = resolveSpeechInputBuildConfig({ env, platformTags });
 	if (!buildConfig.enabled) {
 		if (!buildConfig.configuredEnabled) {
-			log("[speech-models] skipped: VETTA_SPEECH_INPUT_ENABLED=false");
+			log("[speech-models] skipped: AGENT567_SPEECH_INPUT_ENABLED=false");
 			return null;
 		}
 		log(`[speech-models] skipped for targets: ${platformTags.join(", ")}`);

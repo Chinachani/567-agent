@@ -136,7 +136,7 @@ supports_posix_bash = true
 1. `invoke_skill` 向 Skill 上下文注入兼容 profile。
 2. oh-story 插件调用 Skill 时默认附加 `target_cli=codex` 参数。
 
-长期应向上游提交一个极小兼容补充：检测 `VETTA_RUNTIME=1` 或宿主 capability 后将 Vetta 视为 Codex-compatible。该补充若被上游接受，Vetta snapshot 不再需要任何 setup overlay。
+长期应向上游提交一个极小兼容补充：检测 `AGENT567_RUNTIME=1` 或宿主 capability 后将 Vetta 视为 Codex-compatible。该补充若被上游接受，Vetta snapshot 不再需要任何 setup overlay。
 
 部署后 Vetta 监听下列文件并热更新，不要求用户新开会话：
 
@@ -312,8 +312,8 @@ Windows 优先执行 `commandWindows`，并用 `cmd.exe /d /s /c` 保持其 CMD 
 
 - `CODEX_PROJECT_DIR`
 - `CLAUDE_PROJECT_DIR`
-- `VETTA_PROJECT_DIR`
-- `VETTA_RUNTIME=1`
+- `AGENT567_PROJECT_DIR`
+- `AGENT567_RUNTIME=1`
 - 托管 Node/Python/POSIX runtime PATH
 
 ### Hook stdout

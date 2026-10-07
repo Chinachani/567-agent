@@ -104,6 +104,7 @@ kotlin {
             implementation(libs.kotlinx.coroutines.android)
             implementation(libs.androidx.activity.compose)
             implementation(libs.androidx.core.ktx)
+            implementation(libs.androidx.exifinterface)
             implementation(libs.webrtc.android)
             implementation(libs.androidx.camera.camera2)
             implementation(libs.androidx.camera.lifecycle)

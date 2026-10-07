@@ -2,12 +2,14 @@
 
 *[中文](./build-modes.md)*
 
-567 Agent ships in two editions, selected by the build-time flag `VETTA_CLOUD_ENABLED`. An unconfigured development session remains serv-less, but **packaging requires an explicit `true` or `false`** so release builds never guess their edition.
+567 Agent ships in two editions, selected by the build-time flag `AGENT567_CLOUD_ENABLED`. An unconfigured development session remains serv-less, but **packaging requires an explicit `true` or `false`** so release builds never guess their edition.
+
+Desktop build and release settings use the `AGENT567_*` prefix, while the NewAPI endpoint and token use `API567_BASE_URL` and `API567_API_TOKEN`. The old `VETTA_*` and `NEWAPI_BASE_URL` names have been removed; builds read only the new names.
 
 | | **open-source (no cloud services)** | **commercial (cloud services enabled)** |
 | --- | --- | --- |
-| Flag | `VETTA_CLOUD_ENABLED=false` | `VETTA_CLOUD_ENABLED=true` |
-| Account login / OAuth | ❌ not in the bundle | ✅ |
+| Flag | `AGENT567_CLOUD_ENABLED=false` | `AGENT567_CLOUD_ENABLED=true` |
+| NewAPI cloud services | ❌ not in the bundle | ✅ |
 | 567 Agent Go model channel | ❌ | ✅ |
 | Subscription / credits / quota | ❌ | ✅ |
 | Ability marketplace source | GitHub sources (built-in official source or user-added) | Cloud marketplace; optional GitHub sources |
@@ -16,23 +18,23 @@
 
 **Available in both modes**: local sessions, the coding agent, the plugin system, themes, bring-your-own-key models, the IM gateway, and the knowledge base.
 
-Cloud and GitHub sources are independent: `VETTA_CLOUD_ENABLED` controls cloud services only.
+Cloud and GitHub sources are independent: `AGENT567_CLOUD_ENABLED` controls cloud services only.
 Both editions include the 567 Agent official GitHub marketplace, `Chinachani/567-agent-marketplace`, by default.
-`VETTA_OPEN_MARKETPLACE_REPOSITORY` replaces that built-in source with the distributor's repository. The cloud
+`AGENT567_OPEN_MARKETPLACE_REPOSITORY` replaces that built-in source with the distributor's repository. The cloud
 edition does not change whether GitHub sources are available, and users can add other repositories under
 Abilities → Marketplace sources.
 Under Abilities → Marketplace sources, users can add multiple GitHub repositories and independently enable,
 auto-update, or refresh each source. A failing source does not block others. Same-name abilities retain their
 source identities; physical installation conflicts still require explicit resolution instead of silent overwrites.
 
-`VETTA_OPEN_MARKETPLACE_REPOSITORY` optionally declares the distribution's built-in source.
+`AGENT567_OPEN_MARKETPLACE_REPOSITORY` optionally declares the distribution's built-in source.
 Removing it does not delete persisted sources or uninstall abilities; existing sources can be disabled in the UI.
-Adding sources through the UI does not require rebuilding. Normally omit `VETTA_OPEN_MARKETPLACE_ARCHIVE_URL`
+Adding sources through the UI does not require rebuilding. Normally omit `AGENT567_OPEN_MARKETPLACE_ARCHIVE_URL`
 so it follows the repository and ref. Restart development processes after editing environment files;
 subsequent repository content changes only require Refresh. A GitHub commit does not publish to the cloud
 marketplace. See [GitHub marketplace format](../open-marketplace.md) for source and upgrade semantics.
 
-> `VETTA_CLOUD_ENABLED` is a **build-time** flag, inlined as a constant and folded away: in an open-source build the cloud module and its chunks are never bundled. **It cannot be re-enabled at runtime after shipping** — switching editions requires a rebuild.
+> `AGENT567_CLOUD_ENABLED` is a **build-time** flag, inlined as a constant and folded away: in an open-source build the cloud module and its chunks are never bundled. **It cannot be re-enabled at runtime after shipping** — switching editions requires a rebuild.
 
 ---
 
@@ -54,33 +56,30 @@ bun run dist:opensource -- --target dir
 Forks can override GitHub and marketplace coordinates in `apps/desktop/.env.opensource`:
 
 ```bash
-VETTA_UPDATE_GITHUB_OWNER=your-org
-VETTA_UPDATE_GITHUB_REPO=your-fork
-VETTA_OPEN_MARKETPLACE_REPOSITORY=your-org/your-marketplace
+AGENT567_UPDATE_GITHUB_OWNER=your-org
+AGENT567_UPDATE_GITHUB_REPO=your-fork
+AGENT567_OPEN_MARKETPLACE_REPOSITORY=your-org/your-marketplace
 ```
 
-Open-source builds reject `VETTA_SERVER_URL` and `VETTA_SITE_URL`: login, the official marketplace, and the remote model catalog are absent from the bundle.
+Open-source builds reject `API567_BASE_URL`: commercial NewAPI services, the official marketplace, and the remote model catalog are absent from the bundle.
 
 ## Building the commercial edition
 
-You need a running 567 Agent cloud service:
+You need a running NewAPI service:
 
 ```bash
 # apps/desktop/.env.production (local file, not committed)
-VETTA_CLOUD_ENABLED=true
-VETTA_SERVER_URL=https://api.example.com/api/v1
-VETTA_SITE_URL=https://www.example.com
+AGENT567_CLOUD_ENABLED=true
+API567_BASE_URL=https://api.example.com/api/v1
 ```
 
-Then run `bun run dist:desktop` (or `dist:win`, `dist:mac`, or `dist:linux`) from `apps/desktop`. Commercial builds default to the `generic` provider and the official stable update feed; self-hosted deployments should explicitly override `VETTA_UPDATE_URL`.
+Then run `bun run dist:desktop` (or `dist:win`, `dist:mac`, or `dist:linux`) from `apps/desktop`. Commercial builds default to the `generic` provider and the official stable update feed; self-hosted deployments should explicitly override `AGENT567_UPDATE_URL`.
 
 On Linux, `bun run package:linux` builds AppImage, DEB, and RPM together. Use `package:linux:appimage`, `package:linux:deb`, `package:linux:rpm`, or `package:linux:tar.gz` to build one format; append `:test` to the same command to use the test build environment.
 
 On Windows, `bun run package:win` builds Inno, MSI, and ZIP together. Use `package:win:inno`, `package:win:msi`, `package:win:zip`, or `package:win:portable` to build one format; each command also has a `:test` variant. The updater manifest continues to reference only Inno; MSI and ZIP are supplemental downloads.
 
-`VETTA_SERVER_URL` is required for commercial builds, and production builds require HTTPS. Missing or invalid settings fail before old output is cleaned, dependencies are downloaded, or compilation begins.
-
-`VETTA_SITE_URL` is optional; it is derived from `VETTA_SERVER_URL` by stripping the `api.` prefix and mapping port `8080` to `3000`.
+`API567_BASE_URL` is required for commercial builds, and production builds require HTTPS. Missing or invalid settings fail before old output is cleaned, dependencies are downloaded, or compilation begins.
 
 ---
 
@@ -88,11 +87,11 @@ On Windows, `bun run package:win` builds Inno, MSI, and ZIP together. Use `packa
 
 No `.env.*` file is tracked in git. `apps/desktop/.env.example` is the variable index — copy it to `.env.development` and edit.
 
-When packaging, `VETTA_BUILD_ENV=<mode>` selects which `.env.<mode>` to load:
+When packaging, `AGENT567_BUILD_ENV=<mode>` selects which `.env.<mode>` to load:
 
 ```bash
-VETTA_BUILD_ENV=production bun run pack     # reads .env.production
-bun run pack:test                           # same as VETTA_BUILD_ENV=test
+AGENT567_BUILD_ENV=production bun run pack     # reads .env.production
+bun run pack:test                           # same as AGENT567_BUILD_ENV=test
 ```
 
 Precedence: **inline on the command line > process environment > `.env.<mode>` > `.env` > code defaults**.
@@ -102,26 +101,25 @@ Precedence: **inline on the command line > process environment > `.env.<mode>` >
 This is what our team uses for official releases. Your production endpoint, update source and tenant are almost certainly different:
 
 ```bash
-VETTA_CLOUD_ENABLED=true
-VETTA_SERVER_URL=https://api.567.wiki/api/v1
-VETTA_SITE_URL=https://api.567.wiki
-VETTA_UPDATE_PROVIDER=github
-VETTA_UPDATE_GITHUB_OWNER=Chinachani
-VETTA_UPDATE_GITHUB_REPO=567-agent
-VETTA_R2_BUCKET=vetta-releases
-VETTA_R2_PREFIX=desktop/stable
-VETTA_TENANT=common
-VETTA_SPEECH_INPUT_ENABLED=false
+AGENT567_CLOUD_ENABLED=true
+API567_BASE_URL=https://api.567.wiki/api/v1
+AGENT567_UPDATE_PROVIDER=github
+AGENT567_UPDATE_GITHUB_OWNER=Chinachani
+AGENT567_UPDATE_GITHUB_REPO=567-agent
+AGENT567_R2_BUCKET=vetta-releases
+AGENT567_R2_PREFIX=desktop/stable
+AGENT567_TENANT=common
+AGENT567_SPEECH_INPUT_ENABLED=false
 ```
 
 ### Reference: a typical `.env.test`
 
 ```bash
-VETTA_CLOUD_ENABLED=true
-VETTA_SERVER_URL=http://127.0.0.1:8080/api/v1
-# The default provider is stable; override VETTA_UPDATE_URL for a dedicated test feed.
-VETTA_UPDATE_PROVIDER=generic
-VETTA_UPDATE_URL=https://updates.example.com/desktop/test
+AGENT567_CLOUD_ENABLED=true
+API567_BASE_URL=http://127.0.0.1:8080/api/v1
+# The default provider is stable; override AGENT567_UPDATE_URL for a dedicated test feed.
+AGENT567_UPDATE_PROVIDER=generic
+AGENT567_UPDATE_URL=https://updates.example.com/desktop/test
 ```
 
 ---
@@ -132,35 +130,34 @@ VETTA_UPDATE_URL=https://updates.example.com/desktop/test
 
 | Variable | Description |
 | --- | --- |
-| `VETTA_CLOUD_ENABLED` | `false` produces open-source; `true` produces commercial; packaging requires an explicit value |
-| `VETTA_SERVER_URL` | Server API endpoint. Required for commercial and forbidden in open-source builds |
-| `VETTA_SITE_URL` | Site URL used for the OAuth login redirect. Derived from `VETTA_SERVER_URL` when unset |
-| `VETTA_OPEN_MARKETPLACE_REPOSITORY` | Optional override for the built-in GitHub source; defaults to `Chinachani/567-agent-marketplace` |
-| `VETTA_OPEN_MARKETPLACE_REF` | Branch or tag, defaults to `main` |
-| `VETTA_OPEN_MARKETPLACE_ARCHIVE_URL` | Explicit archive URL; derived from repository and ref when omitted |
+| `AGENT567_CLOUD_ENABLED` | `false` produces open-source; `true` produces commercial; packaging requires an explicit value |
+| `API567_BASE_URL` | Server API endpoint. Required for commercial and forbidden in open-source builds |
+| `AGENT567_OPEN_MARKETPLACE_REPOSITORY` | Optional override for the built-in GitHub source; defaults to `Chinachani/567-agent-marketplace` |
+| `AGENT567_OPEN_MARKETPLACE_REF` | Branch or tag, defaults to `main` |
+| `AGENT567_OPEN_MARKETPLACE_ARCHIVE_URL` | Explicit archive URL; derived from repository and ref when omitted |
 
 ### Build-time trimming
 
 | Variable | Description |
 | --- | --- |
-| `VETTA_SPEECH_INPUT_ENABLED` | `false` excludes the speech models, the Sherpa native runtime and the speech entry point. Enabled by default |
-| `VETTA_TENANT` | System-plugin tenant, decides which presets get packaged. See `packages/plugins/tenants.json` |
-| `VETTA_BUILD_ENV` | Selects which `.env.<mode>` to load |
+| `AGENT567_SPEECH_INPUT_ENABLED` | `false` excludes the speech models, the Sherpa native runtime and the speech entry point. Enabled by default |
+| `AGENT567_TENANT` | System-plugin tenant, decides which presets get packaged. See `packages/plugins/tenants.json` |
+| `AGENT567_BUILD_ENV` | Selects which `.env.<mode>` to load |
 
 ### Development toggles
 
 | Variable | Description |
 | --- | --- |
-| `VETTA_SHOW_UI_THEME` | `true` reveals the "UI theme" section in appearance settings |
+| `AGENT567_SHOW_UI_THEME` | `true` reveals the "UI theme" section in appearance settings |
 
 ### Auto-update
 
 | Variable | Description |
 | --- | --- |
-| `VETTA_UPDATE_PROVIDER` | Commercial requires `generic` (the default); open-source requires `github` |
-| `VETTA_UPDATE_URL` | For `generic`: R2, self-hosted object storage, or any static HTTP/CDN root |
-| `VETTA_UPDATE_GITHUB_OWNER` · `VETTA_UPDATE_GITHUB_REPO` | For `github` |
-| `VETTA_R2_BUCKET` · `VETTA_R2_PREFIX` | R2 upload target, used only by `publish:updates:r2` |
+| `AGENT567_UPDATE_PROVIDER` | Commercial requires `generic` (the default); open-source requires `github` |
+| `AGENT567_UPDATE_URL` | For `generic`: R2, self-hosted object storage, or any static HTTP/CDN root |
+| `AGENT567_UPDATE_GITHUB_OWNER` · `AGENT567_UPDATE_GITHUB_REPO` | For `github` |
+| `AGENT567_R2_BUCKET` · `AGENT567_R2_PREFIX` | R2 upload target, used only by `publish:updates:r2` |
 
 The update source is build configuration and is independent of the operating system; switching providers requires no client code changes. Platform details: [macOS](./macos-auto-update.md), [Windows](./windows-auto-update.md).
 
@@ -168,17 +165,17 @@ The update source is build configuration and is independent of the operating sys
 
 | Variable | Description |
 | --- | --- |
-| `VETTA_SENTRY_DSN` | Sentry is a no-op when unset. The DSN ends up in the bundle |
-| `VETTA_SENTRY_RELEASE` | Immutable release; must match exactly between runtime and source-map upload. Suggested: `567-agent-desktop@<version>+<build-id>` |
-| `VETTA_TELEMETRY_ENVIRONMENT` | `development` / `staging` / `production` |
-| `VETTA_SENTRY_TRACES_SAMPLE_RATE` | 0–1, defaults to 0 |
-| `VETTA_SENTRY_ORG` · `VETTA_SENTRY_PROJECT` · `VETTA_SENTRY_URL` | Source-map upload (CI only); `URL` is for self-hosted Sentry only |
-| `VETTA_MAIN_SOURCEMAP` | Emit a main-process source map for local stack debugging without uploading |
-| `VETTA_POSTHOG_KEY` | Project API Key (starts with `phc_`), **not** a Personal API Key. Ends up in the renderer bundle |
-| `VETTA_POSTHOG_HOST` | Defaults to PostHog Cloud US |
-| `VETTA_POSTHOG_REPLAY_ENABLED` · `VETTA_POSTHOG_REPLAY_SAMPLE_RATE` | Replay is off by default |
-| `VETTA_TRACING` | Set to `langfuse` to trace agent / LLM / tool calls end to end |
-| `VETTA_TRACING_TRACE_NAME` · `LANGFUSE_PUBLIC_KEY` · `LANGFUSE_BASE_URL` | Langfuse configuration |
+| `AGENT567_SENTRY_DSN` | Sentry is a no-op when unset. The DSN ends up in the bundle |
+| `AGENT567_SENTRY_RELEASE` | Immutable release; must match exactly between runtime and source-map upload. Suggested: `567-agent-desktop@<version>+<build-id>` |
+| `AGENT567_TELEMETRY_ENVIRONMENT` | `development` / `staging` / `production` |
+| `AGENT567_SENTRY_TRACES_SAMPLE_RATE` | 0–1, defaults to 0 |
+| `AGENT567_SENTRY_ORG` · `AGENT567_SENTRY_PROJECT` · `AGENT567_SENTRY_URL` | Source-map upload (CI only); `URL` is for self-hosted Sentry only |
+| `AGENT567_MAIN_SOURCEMAP` | Emit a main-process source map for local stack debugging without uploading |
+| `AGENT567_POSTHOG_KEY` | Project API Key (starts with `phc_`), **not** a Personal API Key. Ends up in the renderer bundle |
+| `AGENT567_POSTHOG_HOST` | Defaults to PostHog Cloud US |
+| `AGENT567_POSTHOG_REPLAY_ENABLED` · `AGENT567_POSTHOG_REPLAY_SAMPLE_RATE` | Replay is off by default |
+| `AGENT567_TRACING` | Set to `langfuse` to trace agent / LLM / tool calls end to end |
+| `AGENT567_TRACING_TRACE_NAME` · `LANGFUSE_PUBLIC_KEY` · `LANGFUSE_BASE_URL` | Langfuse configuration |
 | `LANGFUSE_TRACING_ENVIRONMENT` · `LANGFUSE_RELEASE` · `OTEL_SERVICE_NAME` | Optional metadata |
 
 ---
@@ -187,14 +184,15 @@ The update source is build configuration and is independent of the operating sys
 
 **Never put these in any `.env` file.** Inject them through the shell environment or CI secrets:
 
-- **Cloudflare R2 upload credentials**: `VETTA_R2_ACCOUNT_ID`, `VETTA_R2_ACCESS_KEY_ID`, `VETTA_R2_SECRET_ACCESS_KEY`
+- **Cloudflare R2 upload credentials**: `AGENT567_R2_ACCOUNT_ID`, `AGENT567_R2_ACCESS_KEY_ID`, `AGENT567_R2_SECRET_ACCESS_KEY`
+- **Android signing**: `AGENT567_ANDROID_KEYSTORE_BASE64`, `AGENT567_ANDROID_KEYSTORE_PASSWORD`, `AGENT567_ANDROID_KEY_ALIAS`, `AGENT567_ANDROID_KEY_PASSWORD`
 - **macOS signing and notarization**: `CSC_LINK`, `CSC_KEY_PASSWORD`, `APPLE_ID`, `APPLE_TEAM_ID`, `APPLE_API_*`
   CI variants: `MACOS_CERTIFICATE_P12_BASE64`, `MACOS_CERTIFICATE_PASSWORD`, `APPLE_API_KEY_P8_BASE64`, `APPLE_API_KEY_ID`, `APPLE_API_ISSUER`
   Set none of them and you get an unsigned package; to sign, all of them are required. See [apple-code-signing.md](../deploy/apple-code-signing.md)
-- **Sentry source-map upload**: `VETTA_SENTRY_AUTH_TOKEN`
+- **Sentry source-map upload**: `AGENT567_SENTRY_AUTH_TOKEN`
 - **Langfuse**: `LANGFUSE_SECRET_KEY`
 
-`VETTA_REQUIRE_MAC_SIGNATURE=1` is only used by the macOS CI artifact verification step; it is not client configuration.
+`AGENT567_REQUIRE_MAC_SIGNATURE=1` is only used by the macOS CI artifact verification step; it is not client configuration.
 
 ---
 
@@ -204,28 +202,25 @@ The update source is build configuration and is independent of the operating sys
 
 1. **Actions → desktop-release → Run workflow form** (`workflow_dispatch` only; `default` / empty means no override)
 2. **Environment / repository Variables** (when the job sets `environment: desktop-production`, Environment values overlay same-named repository variables)
-3. Built-in defaults: `VETTA_RELEASE_TARGET=github` selects open-source; `r2` selects commercial
+3. Built-in defaults: `AGENT567_RELEASE_TARGET=github` with cloud disabled, which produces an open-source GitHub Release
 
 Both editions include the 567 Agent official GitHub marketplace by default. The
-`VETTA_OPEN_MARKETPLACE_REPOSITORY` Variable and the `marketplace_repository` input on manual runs can
+`AGENT567_OPEN_MARKETPLACE_REPOSITORY` Variable and the `marketplace_repository` input on manual runs can
 override it. Users can still add other GitHub sources in the app.
 
-**A fork with no Variables set produces an open-source build.** For an official commercial build, put these on Settings → Environments → `desktop-production` → Environment variables (credentials stay in Environment secrets):
+**A fork with no Variables set produces an open-source build.** For the official commercial GitHub Release, set these under Settings → Environments → `desktop-production` → Environment variables:
 
 ```
-VETTA_CLOUD_ENABLED = true
-VETTA_SERVER_URL    = https://api.example.com/api/v1
-VETTA_SITE_URL      = https://www.example.com
-VETTA_RELEASE_TARGET = r2
-VETTA_UPDATE_URL     = https://releases.example.com/desktop/stable
-VETTA_R2_BUCKET      = vetta-releases
-VETTA_R2_PREFIX      = desktop/stable
+AGENT567_CLOUD_ENABLED = true
+API567_BASE_URL = https://api.567.wiki/api/v1
+AGENT567_RELEASE_TARGET = github
+AGENT567_UPDATE_URL = https://github.com/Chinachani/567-agent/releases/latest/download
 ```
 
-Optional: `VETTA_UPDATE_URL_TEST` / `VETTA_R2_PREFIX_TEST` (and `_STABLE`). Choosing channel `test` on a manual run prefers those; otherwise a trailing `stable` / `test` / `beta` / `prod` / `production` segment is rewritten.
+The commercial GitHub build uses the generic updater and requires `AGENT567_UPDATE_URL`. The design library is fixed to `Chinachani/567-agent-style-library` and needs no GitHub Variable. R2 publishing requires `AGENT567_RELEASE_TARGET=r2`, `AGENT567_UPDATE_URL`, `AGENT567_R2_BUCKET`, and `AGENT567_R2_PREFIX`. The test channel is R2-only and must use isolated `desktop-test` settings, `AGENT567_UPDATE_URL_TEST`, `AGENT567_R2_PREFIX_TEST`, and R2 Secrets; it must never point at the production feed.
 
-The form can override the edition, server URLs, tenant, speech input, publish target, and channel. GitHub + open-source and R2 + commercial must stay paired. **Do not type R2 keys, certificates, or DSNs into the form** — those stay in Secrets.
+The form can override the edition, server URL, tenant, speech input, publish target, and channel. `AGENT567_CLOUD_ENABLED=true` works with GitHub or R2. **Do not type signing keys, R2 credentials, or DSNs into the form** — those stay in Secrets.
 
 The release matrix waits for a dedicated quality job first: the root `bun run check`, quality-script tests, and Desktop packaging contract tests must pass before any platform build starts. Each platform then verifies updater metadata, hashes, blockmaps, and installable contents.
 
-`workflow_dispatch` only builds and keeps an Actions artifact, and prints the resolved config on the job summary; it does not verify a live update feed. Only a release tag matching the `package.json` version publishes to R2 / GitHub Releases. After publishing, the workflow checks `latest.yml`, `latest-mac.yml`, `latest-linux.yml`, and every referenced artifact through the public URL. The form is visible only after this workflow exists on the repository default branch.
+Matching release tags and `workflow_dispatch` runs resolved to `stable` / `test` publish through the release workflow; other manual runs keep Actions artifacts only. The current workflow releases Windows, Linux, and Android builds, and does not build macOS. It verifies desktop updater metadata and the referenced installable packages after publishing. The form is visible only after this workflow exists on the repository default branch.

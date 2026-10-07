@@ -238,7 +238,6 @@ export function createSystemApi(
 		},
 		settings: {
 			getServerUrl: () => ipc.invoke("vetta:settings:get-server-url"),
-			getSiteUrl: () => ipc.invoke("vetta:settings:get-site-url"),
 			getServerToken: () => ipc.invoke("vetta:settings:get-server-token"),
 			setServerToken: (token) => ipc.invoke("vetta:settings:set-server-token", token),
 			getServerRefreshToken: () => ipc.invoke("vetta:settings:get-server-refresh-token"),
@@ -269,11 +268,7 @@ export function createSystemApi(
 		},
 		auth: {
 			openExternal: (url) => ipc.invoke("vetta:shell:open-external", url),
-			startOAuth: () => ipc.invoke("vetta:auth:start-oauth"),
-			reopenOAuth: () => ipc.invoke("vetta:auth:reopen-oauth"),
 			refreshToken: () => ipc.invoke("vetta:auth:refresh-token"),
-			onOAuthCallback: (handler) => onIpcEvent(ipc, "vetta:auth:oauth-callback", handler),
-			onOAuthRejected: (handler) => onIpcVoidEvent(ipc, "vetta:auth:oauth-rejected", handler),
 			onUnauthorized: (handler) => onIpcVoidEvent(ipc, "vetta:auth:unauthorized", handler),
 			onTokenRefreshed: (handler) => onIpcEvent(ipc, "vetta:auth:token-refreshed", handler),
 		},

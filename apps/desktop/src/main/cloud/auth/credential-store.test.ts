@@ -24,9 +24,15 @@ beforeAll(async () => {
 
 beforeEach(() => {
 	isolated.home = mkdtempSync(join(tmpdir(), "567-auth-home-"));
-	for (const name of ["VETTA_HOME", "VETTA_CONFIG_DIR", "VETTA_API_TOKEN", "VETTA_API_BASE_URL", "VETTA_SERVER_URL"])
+	for (const name of [
+		"AGENT567_HOME",
+		"AGENT567_CONFIG_DIR",
+		"API567_API_TOKEN",
+		"API567_BASE_URL",
+		"API567_BASE_URL",
+	])
 		vi.stubEnv(name, "");
-	vi.stubEnv("VETTA_SERVER_URL", "https://test.invalid");
+	vi.stubEnv("API567_BASE_URL", "https://test.invalid");
 });
 afterEach(() => {
 	vi.unstubAllEnvs();

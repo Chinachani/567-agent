@@ -84,7 +84,9 @@ export async function refreshWithAccountRecovery(
 	try {
 		return await refresh();
 	} catch (error) {
-		if (!(error instanceof RefreshCookieRejectedError)) throw error;
+		// HTTP 403 is ambiguous: gateways and network filters commonly intercept it.
+		// Do not send a saved password or treat the account as rejected based on that response.
+		if (!(error instanceof RefreshCookieRejectedError) || error.status === 403) throw error;
 		const credentials = loadCredentials();
 		if (!credentials) throw error;
 		return login(credentials);

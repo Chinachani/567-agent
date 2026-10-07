@@ -4,15 +4,15 @@ import { app } from "electron";
 // ---------------------------------------------------------------------------
 // Coding-agent RPC CLI mode
 // ---------------------------------------------------------------------------
-// When the parent process spawns Vetta.app with `--agent-rpc` (followed by
+// When the parent process spawns 567 Agent.app with `--agent-rpc` (followed by
 // the coding-agent CLI args), main.ts short-circuits into this command:
 // we forward everything after `--agent-rpc` to `@567agent/cli-host`'s runtime
 // host. The host owns one production Runtime; scenario flags only select
 // Coding Agent capabilities such as the IM host bridge.
 //
-// Production-only motivation: a packaged Vetta.app does not ship a
+// Production-only motivation: a packaged 567 Agent.app does not ship a
 // standalone `vetta` CLI on PATH, so im-gateway cannot spawn coding-agent
-// as a subprocess by name. Reusing Vetta.app's own executable avoids
+// as a subprocess by name. Reusing 567 Agent.app's own executable avoids
 // shipping a second binary.
 
 const AGENT_RPC_FLAG = "--agent-rpc";
@@ -37,7 +37,7 @@ export function parseAgentRpcCommand(argv: string[]): string[] | null {
  * package.json). The agent's `getPackageDir()` walks up from `__dirname`
  * looking for a `package.json`, which inside an Electron asar bundle lands
  * on the host app's package.json — wrong tree, missing assets. We override
- * via `VETTA_PACKAGE_DIR` (the env var coding-agent's config.ts already
+ * via `AGENT567_PACKAGE_DIR` (the env var coding-agent's config.ts already
  * honours) so theme + export-html lookups succeed.
  *
  * Layout matched by prepare-pack.js / extraResources:
@@ -94,8 +94,8 @@ async function loadRuntimeCredentialInjector(): Promise<
 
 export async function runAgentRpcCommand(args: string[]): Promise<number> {
 	try {
-		if (!process.env.VETTA_PACKAGE_DIR && !process.env.PI_PACKAGE_DIR) {
-			process.env.VETTA_PACKAGE_DIR = resolveCodingAgentPackageDir();
+		if (!process.env.AGENT567_PACKAGE_DIR && !process.env.PI_PACKAGE_DIR) {
+			process.env.AGENT567_PACKAGE_DIR = resolveCodingAgentPackageDir();
 		}
 		const { runAgentRuntimeCli } = await import("@567agent/cli-host");
 		const injectRuntimeCredentials = await loadRuntimeCredentialInjector();

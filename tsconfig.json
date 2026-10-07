@@ -159,6 +159,7 @@
 			"@567agent/theme-ui/activity/code-preview": ["./packages/npm-compat/theme-ui/src/activity/code-preview.ts"],
 			"@567agent/theme-ui/activity/html-preview": ["./packages/npm-compat/theme-ui/src/activity/html-preview.ts"],
 			"@567agent/theme-ui/activity/markdown-preview": ["./packages/npm-compat/theme-ui/src/activity/markdown-preview.ts"],
+			"@567agent/theme-ui/bottom-panel": ["./packages/npm-compat/theme-ui/src/bottom-panel.ts"],
 			"@567agent/theme-ui/batch-tasks": ["./packages/npm-compat/theme-ui/src/batch-tasks.ts"],
 			"@567agent/theme-ui/app": ["./packages/npm-compat/theme-ui/src/app.ts"],
 			"@567agent/theme-ui/app-boot": ["./packages/npm-compat/theme-ui/src/app-boot.ts"],

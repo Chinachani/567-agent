@@ -51,7 +51,7 @@ function marketEntry(parameters: Parameter[]): MarketAbility {
 		updated_at: "",
 		configVersion: 2,
 		config: {
-			mcp: { command: "${VETTA_MCP_EXECUTABLE}", args: ["-transport=stdio"] },
+			mcp: { command: "${AGENT567_MCP_EXECUTABLE}", args: ["-transport=stdio"] },
 			mcp_browser_auth: false,
 			mcp_parameters: parameters,
 		},

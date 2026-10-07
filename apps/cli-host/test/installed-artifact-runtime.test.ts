@@ -1168,8 +1168,8 @@ function createIsolatedArtifactEnv(currentFixture: AgentRpcFixture): NodeJS.Proc
 	env.HOME = currentFixture.root;
 	env.NO_COLOR = "1";
 	env.USERPROFILE = currentFixture.root;
-	env.VETTA_CODING_AGENT_DIR = currentFixture.agentDir;
-	env.VETTA_HOME = join(currentFixture.root, "home");
+	env.AGENT567_CODING_AGENT_DIR = currentFixture.agentDir;
+	env.AGENT567_HOME = join(currentFixture.root, "home");
 	return env;
 }
 

@@ -65,7 +65,7 @@ describe("AbilityCard operation feedback", () => {
 
 		const status = screen.getByRole("status");
 		expect(status.textContent).toBe("operation.installing");
-		expect(status.closest("button")).toBeNull();
+		expect((status.closest("button") as HTMLButtonElement).disabled).toBe(true);
 		expect(screen.queryByText("Helps with a familiar task")).toBeNull();
 		expect(screen.queryByRole("button", { name: "actions.add" })).toBeNull();
 
@@ -90,7 +90,7 @@ describe("AbilityCard operation feedback", () => {
 
 		const status = screen.getByRole("status");
 		expect(status.textContent).toBe("operation.removing");
-		expect(status.closest("button")).toBeNull();
+		expect((status.closest("button") as HTMLButtonElement).disabled).toBe(true);
 		expect(screen.queryByText("Helps with a familiar task")).toBeNull();
 		expect(screen.queryByRole("button", { name: "actions.more" })).toBeNull();
 

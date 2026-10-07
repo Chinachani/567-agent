@@ -9,7 +9,12 @@ export function useRouteErrorPageModel({
 	const message = error instanceof Error ? error.message : String(error);
 
 	useEffect(() => {
-		console.error("[router error]", error);
+		// Chromium's `console-message` event only persists the rendered message, not
+		// the Error object. Include the stack and route explicitly so failed lazy
+		// imports identify the chunk instead of being reduced to "Unexpected token".
+		const route = window.location.hash.split("?")[0] || "#/";
+		const detail = error instanceof Error ? (error.stack ?? `${error.name}: ${error.message}`) : String(error);
+		console.error(`[router error] route=${route} ${detail.replace(/\s+/g, " ")}`);
 	}, [error]);
 
 	return useMemo(

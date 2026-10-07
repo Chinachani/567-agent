@@ -23,6 +23,10 @@
 			"types": "./dist/action-approval.d.ts",
 			"import": "./dist/action-approval.js"
 		},
+		"./bottom-panel": {
+			"types": "./dist/bottom-panel.d.ts",
+			"import": "./dist/bottom-panel.js"
+		},
 		"./activity": {
 			"types": "./dist/activity.d.ts",
 			"import": "./dist/activity.js"

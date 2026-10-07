@@ -83,7 +83,7 @@ Fumadocs 搜索索引由站点内容生成，因此需要通过构建后的站�
 公开站点由 Vercel Git 集成自动发布，不必再跑 `vercel deploy`。
 
 - 项目：`vetta-docs`，Root Directory 为 `apps/docs-site`
-- 生产分支：`dev` → https://vetta-docs.vercel.app
+- 生产分支：`dev`；生产域名由 Vercel 项目配置决定。
 - PR 与其他分支：Preview 部署
 - 是否跳过未受影响的提交由 Vercel 项目自身的 monorepo 检测负责；不要添加依赖 Git 历史的 `ignoreCommand`，因为上传阶段会排除 `.git`
 

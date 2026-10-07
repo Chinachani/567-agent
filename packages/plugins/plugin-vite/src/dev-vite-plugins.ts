@@ -5,13 +5,13 @@ import { parsePluginManifest } from "@vetta-org/plugin-sdk/manifest";
 import type { HMRPayload, Plugin, PluginOption, ResolvedConfig } from "vite";
 import { emitVettaPluginDevEvent } from "./dev-events.js";
 
-export const VETTA_PLUGIN_DEV_ENTRY_ID = "virtual:vetta-plugin-dev-entry";
+export const AGENT567_PLUGIN_DEV_ENTRY_ID = "virtual:vetta-plugin-dev-entry";
 
-const RESOLVED_DEV_ENTRY_ID = `\0${VETTA_PLUGIN_DEV_ENTRY_ID}`;
+const RESOLVED_DEV_ENTRY_ID = `\0${AGENT567_PLUGIN_DEV_ENTRY_ID}`;
 const DEV_PREAMBLE_PATH = "/@vetta-plugin-dev-preamble";
 
 export function isVettaPluginDevServer(): boolean {
-	return process.env.VETTA_PLUGIN_DEV_SERVER === "1";
+	return process.env.AGENT567_PLUGIN_DEV_SERVER === "1";
 }
 
 function readPluginId(config: ResolvedConfig): string {
@@ -30,14 +30,14 @@ function createDevEntryPlugin(entry: string): Plugin {
 			entryUrl = `/${relative(config.root, resolve(config.root, entry)).replaceAll("\\", "/")}`;
 		},
 		resolveId(id) {
-			return id === VETTA_PLUGIN_DEV_ENTRY_ID ? RESOLVED_DEV_ENTRY_ID : undefined;
+			return id === AGENT567_PLUGIN_DEV_ENTRY_ID ? RESOLVED_DEV_ENTRY_ID : undefined;
 		},
 		load(id) {
 			if (id !== RESOLVED_DEV_ENTRY_ID) return;
 			return `
 import * as pluginModule from ${JSON.stringify(entryUrl)};
 
-const moduleStore = globalThis.__VETTA_PLUGIN_DEV_MODULES__ ??= new Map();
+const moduleStore = globalThis.__AGENT567_PLUGIN_DEV_MODULES__ ??= new Map();
 moduleStore.set(${JSON.stringify(pluginId)}, pluginModule);
 
 export * from ${JSON.stringify(entryUrl)};

@@ -10,9 +10,11 @@ import kotlinx.coroutines.Deferred
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.async
+import kotlinx.coroutines.awaitAll
 import kotlinx.coroutines.cancelAndJoin
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.currentCoroutineContext
+import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
@@ -22,6 +24,8 @@ import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
+import kotlin.io.encoding.Base64
+import kotlin.io.encoding.ExperimentalEncodingApi
 import org.agent567.android.app.AppContainer
 import org.agent567.android.app.ThemeMode
 import org.agent567.android.data.session.SessionMigrationBackup
@@ -101,11 +105,15 @@ data class AppUiState(
     val remoteConnecting: Boolean = false,
     val desktopSessionsLoading: Boolean = false,
     val desktopSessionsError: String? = null,
-    val globalError: UiError? = null,
+    /** 配对与设备管理错误，只在连接相关页面展示。 */
+    val remoteError: UiError? = null,
+    /** 当前聊天的错误提示；切换会话时清空，后台任务不得写入。 */
+    val chatError: UiError? = null,
     val authError: UiError? = null,
     val authLoading: Boolean = false,
     val loginModeEmail: Boolean = false,
     val catalogLoading: Boolean = false,
+    val quotaRefreshing: Boolean = false,
     val passwordVisible: Boolean = false,
     val sessionQuery: String = "",
     val topupDialogOpen: Boolean = false,
@@ -129,10 +137,23 @@ private data class PreferenceSnapshot(
     val confirmDelete: Boolean,
 )
 
-private const val STREAMING_PERSIST_INTERVAL_MS = 300L
+private const val STREAMING_PERSIST_INTERVAL_MS = 1_000L
+private const val NEW_SESSION_SEND_RESERVATION = "__new-session-send__"
+private const val REMOTE_GENERATED_IMAGE_CHUNK_BYTES = 48 * 1024
+private const val REMOTE_GENERATED_IMAGE_MAX_BYTES = 12 * 1024 * 1024
+private const val MAX_ASSISTANT_MESSAGE_CHARS = 1_000_000
+private const val MAX_TOOL_TRACE_FIELD_CHARS = 8 * 1024
+private const val MAX_TOOL_TRACE_EVENTS = 80
+private const val MAX_REQUEST_IMAGE_CONTEXT_BYTES = 12 * 1024 * 1024
 
 private fun formatBackupSizeMb(bytes: Long): String =
     ((bytes + 1024L * 1024L - 1) / (1024L * 1024L)).toString()
+
+private fun safeRemoteConnectionError(error: Throwable): String =
+    (error.message ?: "Connection failed")
+        .replace(Regex("(?i)(pairing|resume|bootstrap|fingerprint)=([^&\\s]+)"), "\$1=[redacted]")
+        .replace(Regex("(?i)wss?://[^\\s]+"), "<remote-url>")
+        .take(240)
 
 class AppViewModel(
     private val container: AppContainer,
@@ -152,6 +173,9 @@ class AppViewModel(
     val state: StateFlow<AppUiState> = _state.asStateFlow()
 
     private val streamJobs = mutableMapOf<String, Job>()
+    private val pendingSendReservations = mutableSetOf<String>()
+    private val retryPreparingSessions = mutableSetOf<String>()
+    private val remoteImageFetches = mutableSetOf<String>()
     private val streamStatuses = mutableMapOf<String, String>()
     private var messagesCollectJob: Job? = null
     private var desktopSessionsJob: Job? = null
@@ -323,7 +347,6 @@ class AppViewModel(
                 route = AppRoute.Main(it.mainTab),
                 currentSessionId = routeSession,
                 catalogLoading = true,
-                globalError = null,
             )
         }
         restorePendingQuestion()
@@ -402,7 +425,6 @@ class AppViewModel(
             _state.update {
                 it.copy(
                     catalogLoading = false,
-                    globalError = ErrorMapper.from(t),
                 )
             }
         }
@@ -419,7 +441,6 @@ class AppViewModel(
                 mainAccessGranted = true,
                 route = AppRoute.Main(MainTab.Home),
                 mainTab = MainTab.Home,
-                globalError = null,
                 authError = null,
             )
         }
@@ -510,7 +531,7 @@ class AppViewModel(
             _state.update {
                 it.copy(
                     route = AppRoute.Welcome,
-                    globalError =
+                    remoteError =
                         UiError(
                             title = Str.invalidPairingInvite,
                             message = Str.invalidPairingInviteHint,
@@ -520,13 +541,13 @@ class AppViewModel(
             }
             return
         }
-        navigate(AppRoute.Welcome)
         connectDesktop(target)
     }
 
     fun connectDesktop(target: String) {
         if (_state.value.remoteConnecting) return
-        _state.update { it.copy(remoteConnecting = true, globalError = null) }
+        val routeBeforeConnect = _state.value.route
+        _state.update { it.copy(remoteConnecting = true, remoteError = null) }
         viewModelScope.launch {
             try {
                 val invite = org.agent567.android.domain.remote.parsePairingInvite(target)
@@ -558,9 +579,20 @@ class AppViewModel(
                             }
                         }
                     }
-                val connected = runCatching {
-                    container.remoteConversationGateway.connect(candidateTargets)
-                }.getOrDefault(false)
+                val connected =
+                    try {
+                        container.remoteConversationGateway.connect(candidateTargets)
+                    } catch (error: Throwable) {
+                        if (error is CancellationException) throw error
+                        org.agent567.android.domain.remote.connection.PlatformRemoteLogger.warn(
+                            "remote pairing connection failed",
+                            mapOf(
+                                "errorType" to error::class.simpleName,
+                                "error" to safeRemoteConnectionError(error),
+                            ),
+                        )
+                        false
+                    }
                 if (connected) {
                     _state.update { it.copy(mainAccessGranted = true) }
                     if (invite != null && resume != null) {
@@ -571,12 +603,18 @@ class AppViewModel(
                         container.preferences.remoteLanCertificateFingerprint = invite.lanCertificateFingerprint
                     }
                     val device = container.remoteConversationGateway.devices.value.firstOrNull()
-                    if (device != null) openDeviceDetail(device.id)
+                    when {
+                        routeBeforeConnect is AppRoute.Chat -> Unit
+                        (routeBeforeConnect is AppRoute.Welcome ||
+                            routeBeforeConnect is AppRoute.Main && routeBeforeConnect.tab == MainTab.Discover) && device != null ->
+                            openDeviceDetail(device.id)
+                        routeBeforeConnect is AppRoute.Welcome -> navigate(AppRoute.Main(MainTab.Discover))
+                    }
                     return@launch
                 }
                 _state.update {
                     it.copy(
-                        globalError =
+                        remoteError =
                             UiError(
                                 title = Str.remoteConnectFailed,
                                 message = Str.remoteConnectFailedHint,
@@ -690,6 +728,13 @@ class AppViewModel(
         loadDesktopSessions()
     }
 
+    fun refreshSessions() {
+        viewModelScope.launch {
+            container.sessionStore.refresh()
+            if (_state.value.sessionFilterIndex != 2) loadDesktopSessions()
+        }
+    }
+
     fun openPhoneSessions() {
         _state.update { it.copy(mainTab = MainTab.Sessions, sessionFilterIndex = 2) }
         navigate(AppRoute.Main(MainTab.Sessions))
@@ -720,25 +765,59 @@ class AppViewModel(
             try {
                 val summaries = container.remoteConversationGateway.listDesktopSessions(device.id)
                     ?: throw RemoteConversationException("电脑暂时无法读取会话列表，请确认设备在线")
-                val currentDesktopIds = summaries.mapTo(mutableSetOf()) { it.id }
-                val staleMirrors = container.sessionStore.sessions.value.filter { session ->
+                val summaryIds = summaries.mapTo(mutableSetOf()) { it.id }
+                val emptyRemoteDrafts = container.sessionStore.sessions.value.filter { session ->
                     session.origin == ConversationOrigin.Desktop &&
+                        session.remoteSessionCreatedOnMobile &&
                         session.remoteDeviceId == device.id &&
                         session.remoteSessionId != null &&
-                        session.remoteSessionId !in currentDesktopIds
+                        session.remoteSessionId in summaryIds &&
+                        drafts[session.id].isNullOrBlank() &&
+                        streamJobs[session.id]?.isActive != true &&
+                        (_state.value.currentSessionId != session.id || _state.value.pendingImages.isEmpty()) &&
+                        (_state.value.route as? AppRoute.Chat)?.sessionId != session.id
                 }
-                staleMirrors.forEach { stale ->
-                    if (_state.value.currentSessionId == stale.id) {
-                        cancelStream(stale.id)
-                        navigateBackFromSecondary()
-                    }
-                    container.sessionStore.deleteSession(stale.id)
-                    drafts.remove(stale.id)
-                    if (container.preferences.lastSessionId == stale.id) {
-                        container.preferences.lastSessionId = null
+                val removedDrafts = emptyRemoteDrafts.chunked(4).flatMap { batch ->
+                    coroutineScope {
+                        batch.map { draft ->
+                            async {
+                                val remoteId = draft.remoteSessionId ?: return@async null
+                                if (container.sessionStore.getMessages(draft.id).isNotEmpty()) return@async null
+                                if (!isEmptyRemoteDraftStillDisposable(draft.id)) return@async null
+                                val deleted = try {
+                                    container.remoteConversationGateway.deleteEmptyDesktopSession(device.id, remoteId)
+                                } catch (error: CancellationException) {
+                                    throw error
+                                } catch (_: Throwable) {
+                                    false
+                                }
+                                if (deleted == true) draft to remoteId else null
+                            }
+                        }.awaitAll().filterNotNull()
                     }
                 }
-                summaries.forEach { summary ->
+                val removedRemoteDraftIds = removedDrafts.mapTo(mutableSetOf()) { it.second }
+                removedDrafts.forEach { (draft, _) ->
+                    if (isEmptyRemoteDraftStillDisposable(draft.id) && container.sessionStore.getMessages(draft.id).isEmpty()) {
+                        cancelInputPredictionsForSession(draft.id)
+                        container.sessionStore.deleteSession(draft.id)
+                        drafts.remove(draft.id)
+                        if (container.preferences.lastSessionId == draft.id) {
+                            container.preferences.lastSessionId = null
+                        }
+                    } else {
+                        // The remote draft was removed while the user reopened it.
+                        // Keep the local mirror and let the next send create a fresh remote session.
+                        container.sessionStore.getSession(draft.id)?.let { latest ->
+                            container.sessionStore.updateSession(latest.copy(remoteSessionId = null))
+                        }
+                    }
+                }
+                val visibleSummaries = summaries.filterNot { it.id in removedRemoteDraftIds }
+                // Keep cached mirrors when the Desktop no longer lists a session.
+                // The list can be stale during reconnects or partial history reads;
+                // silently deleting the local copy would make that loss permanent.
+                visibleSummaries.forEach { summary ->
                     val mirror = container.sessionStore.sessions.value.firstOrNull {
                         it.origin == ConversationOrigin.Desktop &&
                             it.remoteDeviceId == device.id &&
@@ -749,7 +828,7 @@ class AppViewModel(
                     }
                 }
                 _state.update {
-                    it.copy(remoteDesktopSessions = summaries, desktopSessionsLoading = false, desktopSessionsError = null)
+                    it.copy(remoteDesktopSessions = visibleSummaries, desktopSessionsLoading = false, desktopSessionsError = null)
                 }
             } catch (error: Throwable) {
                 val stillOnline = container.remoteConversationGateway.devices.value.any {
@@ -770,7 +849,7 @@ class AppViewModel(
             val device = container.remoteConversationGateway.devices.value.firstOrNull {
                 it.status == org.agent567.android.domain.device.DeviceStatus.Online
             } ?: run {
-                _state.update { it.copy(globalError = ErrorMapper.from(RemoteConversationException("请先连接电脑"))) }
+                _state.update { it.copy(remoteError = ErrorMapper.from(RemoteConversationException("请先连接电脑"))) }
                 return@launch
             }
             val existing = container.sessionStore.sessions.value.firstOrNull {
@@ -822,6 +901,7 @@ class AppViewModel(
                 it.copy(
                     currentSessionId = null,
                     messages = emptyList(),
+                    chatError = null,
                     draft = "",
                     isStreaming = false,
                     streamingStatus = null,
@@ -841,10 +921,23 @@ class AppViewModel(
             try {
                 val history = container.remoteConversationGateway.readDesktopSessionHistory(localSessionId, remoteSessionId)
                     ?: throw RemoteConversationException("电脑暂时无法读取这段会话，请确认设备在线")
-                val cachedMessages = container.sessionStore.getMessages(localSessionId).associateBy { it.id }
-                val messages = history.map { item ->
+                val cachedMessageList = container.sessionStore.getMessages(localSessionId)
+                val cachedMessages = cachedMessageList.associateBy { it.id }
+                val matchedCachedMessageIds = mutableSetOf<String>()
+                val remoteMessages = history.map { item ->
                     val messageId = "desktop-${remoteSessionId}-${item.id}"
                     val cached = cachedMessages[messageId]
+                        ?: cachedMessageList.asSequence()
+                            .filter { it.id !in matchedCachedMessageIds && it.role == item.role }
+                            .filter {
+                                it.content == item.text ||
+                                    (it.role == ChatRole.User && it.images.isNotEmpty() && item.text.contains("[图片附件]"))
+                            }
+                            .sortedWith(
+                                compareBy<LocalMessage> { kotlin.math.abs(it.createdAtEpochMs - item.timestamp) },
+                            )
+                            .firstOrNull()
+                    cached?.let { matchedCachedMessageIds += it.id }
                     LocalMessage(
                         id = messageId,
                         sessionId = localSessionId,
@@ -854,16 +947,56 @@ class AppViewModel(
                         createdAtEpochMs = item.timestamp,
                         // Tool traces and usage arrive live and are cached locally; the
                         // compact remote history endpoint only returns text and timestamps.
+                        images = cached?.images.orEmpty(),
                         toolEvents = cached?.toolEvents.orEmpty(),
                         usage = cached?.usage,
                         contextPercent = cached?.contextPercent,
                     )
                 }
+                val remoteMessageIds = remoteMessages.mapTo(mutableSetOf()) { it.id }
+                // User messages stay Complete locally even when the paired Desktop
+                // request fails. Detect the failed turn from its following assistant
+                // message, and avoid duplicating a prompt that Desktop did receive.
+                val unsyncedFailedTurnMessages = cachedMessageList.mapIndexedNotNull { index, userMessage ->
+                    val assistantMessage = cachedMessageList.getOrNull(index + 1)
+                    if (
+                        userMessage.role != ChatRole.User ||
+                        assistantMessage?.role != ChatRole.Assistant ||
+                        assistantMessage.status !in setOf(MessageStatus.Error, MessageStatus.Aborted) ||
+                        userMessage.id in remoteMessageIds
+                    ) {
+                        return@mapIndexedNotNull null
+                    }
+                    val echoedByDesktop = remoteMessages.any { remote ->
+                        remote.role == ChatRole.User &&
+                            kotlin.math.abs(remote.createdAtEpochMs - userMessage.createdAtEpochMs) <= 60_000L &&
+                            (
+                                userMessage.content.isNotBlank() && remote.content == userMessage.content ||
+                                    userMessage.images.isNotEmpty() && remote.content.contains("[图片附件]")
+                                )
+                    }
+                    if (echoedByDesktop) null else listOf(userMessage, assistantMessage)
+                }
+                val inFlightMessages = cachedMessageList.filter { message ->
+                    message.status == MessageStatus.Streaming || message.status == MessageStatus.Pending
+                }.flatMap { activeMessage ->
+                    val index = cachedMessageList.indexOfFirst { it.id == activeMessage.id }
+                    listOfNotNull(cachedMessageList.getOrNull(index - 1), activeMessage)
+                }.distinctBy { it.id }.filter { local ->
+                    remoteMessages.none { remote ->
+                        remote.role == local.role &&
+                            remote.content == local.content &&
+                            kotlin.math.abs(remote.createdAtEpochMs - local.createdAtEpochMs) <= 60_000L
+                    }
+                }
+                val messages = (remoteMessages + unsyncedFailedTurnMessages.flatten() + inFlightMessages)
+                    .distinctBy { it.id }
+                    .sortedBy { it.createdAtEpochMs }
                 container.sessionStore.replaceMessages(localSessionId, messages)
                 refreshDesktopSessionModels(localSessionId)
             } catch (error: Throwable) {
                 if (error !is CancellationException) {
-                    _state.update { it.copy(globalError = ErrorMapper.from(error)) }
+                    setSessionError(localSessionId, error, desktopOnly = true)
                 }
             } finally {
                 _state.update { it.copy(desktopHistoryLoading = false) }
@@ -876,34 +1009,88 @@ class AppViewModel(
     }
 
     fun navigateBackFromSecondary() {
-        deleteEmptyDraftSessionOnExit()
+        val exitingSessionId = (_state.value.route as? AppRoute.Chat)?.sessionId
         // QR pairing is an independent entry path; a connected Desktop is enough to use the main shell.
         if (_state.value.mainAccessGranted || _state.value.user != null || _state.value.devices.isNotEmpty()) {
             navigate(AppRoute.Main(_state.value.mainTab))
         } else {
             navigate(AppRoute.Welcome)
         }
+        if (exitingSessionId != null) deleteEmptyDraftSessionOnExit(exitingSessionId)
     }
 
-    private fun deleteEmptyDraftSessionOnExit() {
-        if (_state.value.route !is AppRoute.Chat) return
-        val sessionId = _state.value.currentSessionId ?: return
-        if (_state.value.isStreaming || _state.value.draft.isNotBlank() || _state.value.pendingImages.isNotEmpty()) return
+    private fun deleteEmptyDraftSessionOnExit(sessionId: String) {
+        if (streamJobs[sessionId]?.isActive == true ||
+            (_state.value.currentSessionId == sessionId &&
+                (_state.value.draft.isNotBlank() || _state.value.pendingImages.isNotEmpty()))
+        ) return
         viewModelScope.launch {
             val session = container.sessionStore.getSession(sessionId) ?: return@launch
-            // A remote Desktop session is owned by the computer. Only remove the
-            // empty local placeholder created by the mobile "new chat" action.
-            if (session.remoteSessionId != null || container.sessionStore.getMessages(sessionId).isNotEmpty()) return@launch
+            // A remote Desktop session is owned by the computer. Only remove an
+            // empty draft created from mobile, and delete its remote counterpart
+            // before removing the local mirror. Existing Desktop sessions are
+            // never inferred to be disposable from an empty local mirror.
+            if (!isEmptyRemoteDraftStillDisposable(sessionId)) return@launch
+            if (container.sessionStore.getMessages(sessionId).isNotEmpty()) return@launch
+            if (session.origin == ConversationOrigin.Desktop && session.remoteSessionId != null) {
+                if (!session.remoteSessionCreatedOnMobile) return@launch
+                val deviceId = session.remoteDeviceId ?: return@launch
+                val deviceOnline = container.remoteConversationGateway.devices.value.any {
+                    it.id == deviceId && it.status == org.agent567.android.domain.device.DeviceStatus.Online
+                }
+                if (deviceOnline) {
+                    val deleted = runCatching {
+                        container.remoteConversationGateway.deleteEmptyDesktopSession(deviceId, session.remoteSessionId)
+                    }.getOrNull()
+                    if (deleted != true) return@launch
+                    // The user may have reopened this chat while the remote delete
+                    // was in flight. Preserve its local state and detach the deleted
+                    // remote identity instead of erasing the user's new draft.
+                    if (!isEmptyRemoteDraftStillDisposable(sessionId)) {
+                        container.sessionStore.getSession(sessionId)?.let { latest ->
+                            container.sessionStore.updateSession(latest.copy(remoteSessionId = null))
+                        }
+                        return@launch
+                    }
+                } else {
+                    // Keep the empty mirror as a deletion tombstone. The next time
+                    // the Desktop session list loads, it retries deleting the remote draft.
+                    return@launch
+                }
+            } else if (session.remoteSessionId != null) {
+                return@launch
+            }
+            if (!isEmptyRemoteDraftStillDisposable(sessionId)) return@launch
             container.sessionStore.deleteSession(sessionId)
             drafts.remove(sessionId)
-            inputPredictionJobs.remove(sessionId)?.cancel()
-            inputPredictionsBySession.remove(sessionId)
-            inputPredictionLoadingSessions.remove(sessionId)
+            cancelInputPredictionsForSession(sessionId)
             if (container.preferences.lastSessionId == sessionId) container.preferences.lastSessionId = null
         }
     }
 
+    private fun isEmptyRemoteDraftStillDisposable(sessionId: String): Boolean {
+        val current = _state.value
+        return streamJobs[sessionId]?.isActive != true &&
+            drafts[sessionId].isNullOrBlank() &&
+            (current.currentSessionId != sessionId || current.pendingImages.isEmpty()) &&
+            (current.route as? AppRoute.Chat)?.sessionId != sessionId
+    }
+
+    private fun cancelInputPredictionsForSession(sessionId: String) {
+        inputPredictionJobs.remove(sessionId)?.cancel()
+        inputPredictionsBySession.remove(sessionId)
+        inputPredictionLoadingSessions.remove(sessionId)
+    }
+
     fun handleSystemBack() {
+        if (_state.value.imagePickerOpen) {
+            setImagePickerOpen(false)
+            return
+        }
+        if (_state.value.groupPickerOpen) {
+            setGroupPickerOpen(false)
+            return
+        }
         if (_state.value.modelPickerOpen) {
             setModelPicker(false)
             return
@@ -919,7 +1106,14 @@ class AppViewModel(
     }
 
     private fun navigate(route: AppRoute) {
-        _state.update { it.copy(route = route, authError = null) }
+        _state.update {
+            it.copy(
+                route = route,
+                authError = null,
+                groupPickerOpen = false,
+                imagePickerOpen = false,
+            )
+        }
     }
 
     fun setModelPicker(open: Boolean) {
@@ -937,7 +1131,8 @@ class AppViewModel(
                 ensureDesktopSessionModels(localSessionId)
                 _state.update { it.copy(catalogLoading = false) }
             } catch (error: Throwable) {
-                _state.update { it.copy(catalogLoading = false, globalError = ErrorMapper.from(error)) }
+                _state.update { it.copy(catalogLoading = false) }
+                setSessionError(localSessionId, error, desktopOnly = true)
             }
         }
     }
@@ -1053,8 +1248,12 @@ class AppViewModel(
         _state.update { it.copy(authError = null) }
     }
 
-    fun clearGlobalError() {
-        _state.update { it.copy(globalError = null) }
+    fun clearRemoteError() {
+        _state.update { it.copy(remoteError = null) }
+    }
+
+    fun clearChatError() {
+        _state.update { it.copy(chatError = null) }
     }
 
     fun onDraftChange(value: String) {
@@ -1244,7 +1443,7 @@ class AppViewModel(
                             )
                         }
                     } catch (error: Throwable) {
-                        _state.update { it.copy(globalError = ErrorMapper.from(error)) }
+                        setSessionError(sid, error, desktopOnly = true)
                     }
                     return@launch
                 }
@@ -1314,12 +1513,24 @@ class AppViewModel(
         }
     }
 
-    fun exportSessionMigration(passphrase: String, onComplete: (ByteArray?, String?) -> Unit) {
+    fun exportSessionMigration(
+        passphrase: String,
+        onProgress: (String) -> Unit = {},
+        onComplete: (ByteArray?, String?) -> Unit,
+    ) {
         viewModelScope.launch {
             val limitMb = container.preferences.migrationBackupLimitMb.value
             val result = runCatching {
                 withContext(Dispatchers.Default) {
-                    SessionMigrationBackup(container.sessionStore).export(passphrase, limitMb)
+                    SessionMigrationBackup(container.sessionStore).export(passphrase, limitMb) { progress ->
+                        val message = when (progress.stage) {
+                            org.agent567.android.data.session.MigrationBackupProgress.Stage.Collecting ->
+                                if (progress.total > 0) "正在读取会话 ${progress.completed}/${progress.total}…" else Str.migrationProgressCollecting
+                            org.agent567.android.data.session.MigrationBackupProgress.Stage.Encrypting -> Str.migrationProgressEncrypting
+                            else -> Str.migrationProgressCollecting
+                        }
+                        viewModelScope.launch { onProgress(message) }
+                    }
                 }
             }
             val error = result.exceptionOrNull()
@@ -1327,7 +1538,7 @@ class AppViewModel(
                 is MigrationBackupTooLargeException ->
                     Str.migrationBackupTooLarge
                         .replace("{actual}", formatBackupSizeMb(error.actualBytes))
-                        .replace("{limit}", limitMb.toString())
+                        .replace("{limit}", formatBackupSizeMb(error.limitBytes))
                 null -> null
                 else -> Str.migrationExportFailure
             }
@@ -1338,12 +1549,20 @@ class AppViewModel(
     fun importSessionMigration(
         archive: ByteArray,
         passphrase: String,
+        onProgress: (String) -> Unit = {},
         onComplete: (Int?, String?) -> Unit,
     ) {
         viewModelScope.launch {
             val result = runCatching {
                 withContext(Dispatchers.Default) {
-                    SessionMigrationBackup(container.sessionStore).import(archive, passphrase)
+                    SessionMigrationBackup(container.sessionStore).import(archive, passphrase) { progress ->
+                        val message = when (progress.stage) {
+                            org.agent567.android.data.session.MigrationBackupProgress.Stage.Decrypting -> Str.migrationProgressDecrypting
+                            org.agent567.android.data.session.MigrationBackupProgress.Stage.Importing -> Str.migrationProgressImporting
+                            else -> Str.migrationProgressImporting
+                        }
+                        viewModelScope.launch { onProgress(message) }
+                    }
                 }
             }
             val error = result.exceptionOrNull()
@@ -1351,6 +1570,7 @@ class AppViewModel(
                 result.getOrNull(),
                 when (error) {
                     is MigrationBackupTooLargeException -> Str.migrationImportTooLarge
+                        .replace("{limit}", formatBackupSizeMb(error.limitBytes))
                     else -> error?.message
                 },
             )
@@ -1565,14 +1785,12 @@ class AppViewModel(
                         models = finalModels,
                         selectedModelId = selected,
                         catalogLoading = false,
-                        globalError = null,
                     )
                 }
             } catch (t: Throwable) {
                 _state.update {
                     it.copy(
                         catalogLoading = false,
-                        globalError = ErrorMapper.from(t),
                     )
                 }
             }
@@ -1581,11 +1799,18 @@ class AppViewModel(
 
     fun refreshQuota() {
         viewModelScope.launch {
-            runCatching { container.client.auth.me() }.onSuccess { user ->
+            _state.update { it.copy(quotaRefreshing = true) }
+            try {
+                val user = container.client.auth.me()
                 container.preferences.authUsername = user.nickname.ifBlank { user.username }
                 container.preferences.authQuotaUsd = user.quotaUsd
                 container.preferences.authUserId = user.id
                 _state.update { it.copy(user = user) }
+            } catch (error: Throwable) {
+                if (error is CancellationException) throw error
+                // Keep current account data; do not broadcast refresh failures into chat.
+            } finally {
+                _state.update { it.copy(quotaRefreshing = false) }
             }
         }
     }
@@ -1623,7 +1848,7 @@ class AppViewModel(
             if (device == null) {
                 _state.update {
                     it.copy(
-                        globalError =
+                        remoteError =
                             UiError(
                                 title = Str.desktopUnavailable,
                                 message = Str.desktopUnavailableHint,
@@ -1639,6 +1864,7 @@ class AppViewModel(
                     title = Str.conversationWith.replace("%s", device.name),
                     origin = ConversationOrigin.Desktop,
                     remoteDeviceId = deviceId,
+                    remoteSessionCreatedOnMobile = true,
                 )
             openChat(
                 sessionId = session.id,
@@ -1659,7 +1885,7 @@ class AppViewModel(
                     .firstOrNull { it.status == org.agent567.android.domain.device.DeviceStatus.Online }
                     ?.id
                 if (deviceId == null) {
-                    _state.update { it.copy(globalError = ErrorMapper.from(RemoteConversationException("请先连接电脑再删除电脑会话"))) }
+                    _state.update { it.copy(remoteError = ErrorMapper.from(RemoteConversationException("请先连接电脑再删除电脑会话"))) }
                     return@launch
                 }
                 try {
@@ -1667,7 +1893,7 @@ class AppViewModel(
                     if (deleted != true) throw RemoteConversationException("电脑暂时无法删除这段会话，请确认设备在线")
                 } catch (error: Throwable) {
                     if (error !is CancellationException) {
-                        _state.update { it.copy(globalError = ErrorMapper.from(error)) }
+                        _state.update { it.copy(remoteError = ErrorMapper.from(error)) }
                     }
                     return@launch
                 }
@@ -1800,7 +2026,12 @@ class AppViewModel(
         val text = _state.value.draft.trim()
         val images = _state.value.pendingImages
         val activeSessionId = _state.value.currentSessionId
-        if ((text.isEmpty() && images.isEmpty()) || activeSessionId?.let { streamJobs[it]?.isActive == true } == true) return
+        if ((text.isEmpty() && images.isEmpty()) || activeSessionId?.let {
+                streamJobs[it]?.isActive == true || it in retryPreparingSessions
+            } == true
+        ) return
+        val sendReservation = activeSessionId ?: NEW_SESSION_SEND_RESERVATION
+        if (NEW_SESSION_SEND_RESERVATION in pendingSendReservations || !pendingSendReservations.add(sendReservation)) return
         activeSessionId?.let { inputPredictionJobs.remove(it)?.cancel() }
 
         viewModelScope.launch {
@@ -1827,8 +2058,8 @@ class AppViewModel(
                 }
                 if (origin == ConversationOrigin.Desktop && route?.deviceId == null) {
                     _state.update {
-                        it.copy(
-                            globalError =
+                        if (it.route != route || it.currentSessionId != null) it else it.copy(
+                            chatError =
                                 UiError(
                                     title = Str.desktopUnavailable,
                                     message = Str.desktopSessionMissingHint,
@@ -1873,12 +2104,19 @@ class AppViewModel(
                     ensureDesktopSessionModels(sid)
                     session = container.sessionStore.getSession(sid) ?: return@launch
                 } catch (error: Throwable) {
-                    _state.update { it.copy(globalError = ErrorMapper.from(error)) }
+                        setSessionError(sid, error, desktopOnly = true)
                     return@launch
                 }
             }
             if (session.origin == ConversationOrigin.Cloud && model == null && session.modelId == null) {
                 showNoModelError()
+                return@launch
+            }
+            val persistedImages = try {
+                container.sessionStore.persistMessageImages(images)
+            } catch (error: Exception) {
+                pendingSendReservations.remove(sendReservation)
+                setSessionError(sid, error)
                 return@launch
             }
             val userMsg =
@@ -1889,7 +2127,7 @@ class AppViewModel(
                     content = text,
                     status = MessageStatus.Complete,
                     createdAtEpochMs = nowEpochMs(),
-                    images = images,
+                    images = persistedImages,
                 )
             val isFirstUserMessage = !retryPreviousTurn && container.sessionStore.getMessages(sid).none { it.role == ChatRole.User }
             val titleModelId = model?.id ?: session.modelId
@@ -1919,32 +2157,36 @@ class AppViewModel(
                     streamingStatus = "running",
                     inputPredictions = emptyList(),
                     inputPredictionLoading = false,
-                    globalError = null,
+                    chatError = null,
                 )
             }
 
-            val history =
+            val historyMessages =
                 container.sessionStore
                     .getMessages(sid)
                     .filter {
                         it.id != assistantId &&
                             it.status != MessageStatus.Error &&
                             it.hasVisualContent
-                    }.map { it.toChatMessage() }
+                    }
+            val history = buildChatHistory(historyMessages)
 
             val streamJob = viewModelScope.launch(start = CoroutineStart.LAZY) {
                     var assembled = ""
                     var toolEvents = emptyList<ToolTrace>()
+                    var assistantImages = assistantMsg.images
                     var usage: TokenUsage? = null
                     var contextPercent: Int? = null
                     var pendingQuestion: PendingQuestion? = null
                     var hasPublishedDelta = false
+                    var responseTruncated = false
                     var pendingPersist: Job? = null
 
                     suspend fun persistAssistant(status: MessageStatus = MessageStatus.Streaming) {
                         val snapshot = assistantMsg.copy(
                             content = assembled,
                             status = status,
+                            images = assistantImages,
                             toolEvents = toolEvents,
                             usage = usage,
                             contextPercent = contextPercent,
@@ -1985,7 +2227,14 @@ class AppViewModel(
                             .collect { event ->
                                 when (event) {
                                     is ChatStreamEvent.Delta -> {
-                                        assembled += event.text
+                                        val remaining = MAX_ASSISTANT_MESSAGE_CHARS - assembled.length
+                                        if (remaining > 0) {
+                                            assembled += event.text.take(remaining)
+                                        }
+                                        if (event.text.length > remaining && !responseTruncated) {
+                                            assembled += "\n\n[回复过长，后续内容已省略]"
+                                            responseTruncated = true
+                                        }
                                         if (!hasPublishedDelta) {
                                             hasPublishedDelta = true
                                             persistAssistant()
@@ -1997,6 +2246,7 @@ class AppViewModel(
                                         flushPendingPersist()
                                         // A response to a pending question may resume with a tool event.
                                         // The tool event is the durable boundary that clears the prompt.
+                                        val isImageGen = event.toolName == "generate_image"
                                         pendingQuestion = null
                                         if (event.phase in setOf("call", "generating", "started", "updated", "phase", "arguments")) {
                                             val activity = event.phaseLabel
@@ -2005,11 +2255,26 @@ class AppViewModel(
                                                 ?.take(48)
                                                 ?.takeIf(String::isNotBlank)
                                                 ?: event.toolName.take(48)
-                                            setStreamStatus(sid, "tool:$activity")
+                                            setStreamStatus(
+                                                sid,
+                                                if (isImageGen && event.phase == "call") "tool:generate_image" else "tool:$activity",
+                                            )
                                         } else if (streamStatuses[sid]?.startsWith("tool:") == true) {
                                             setStreamStatus(sid, "running")
                                         }
-                                        val isImageGen = event.toolName == "generate_image"
+                                        if (
+                                            event.images.isNotEmpty() &&
+                                            event.phase in setOf("completed", "complete") &&
+                                            session.origin == ConversationOrigin.Desktop
+                                        ) {
+                                            fetchDesktopGeneratedImages(
+                                                localSessionId = sid,
+                                                assistantMessageId = assistantId,
+                                                remoteSessionId = session.remoteSessionId
+                                                    ?: container.conversationRouter.resolvedRemoteSessionId(session.id),
+                                                images = event.images,
+                                            )
+                                        }
                                         if (isImageGen && event.phase == "call") {
                                             var promptArg = event.arguments.orEmpty()
                                             var isEdit = false
@@ -2024,18 +2289,18 @@ class AppViewModel(
                                             // 自动溯源上下文历史图片：优先匹配用户本轮上传，支持单图修改与多图融合创作
                                             val allSessionMsgs = container.sessionStore.getMessages(sid)
                                             val lastUserMsg = allSessionMsgs.filter { it.role == ChatRole.User }.lastOrNull()
-                                            val userAttachedImages = lastUserMsg?.images?.filter { it.base64Data.isNotBlank() } ?: emptyList()
+                                            val userAttachedImages = lastUserMsg?.images.orEmpty()
 
                                             val refImages = if (userAttachedImages.isNotEmpty()) {
                                                 // 用户本条消息直接附带了图片（例如上传2张图并要求融合），严格以用户本次上传的图片为准！
-                                                userAttachedImages.map { it.base64Data }
+                                                loadImageBase64WithinBudget(userAttachedImages)
                                             } else {
                                                 // 用户未在本次发送附带图片，从会话历史中追溯生成或上传的图片
-                                                val historyImages = allSessionMsgs.flatMap { it.images }.filter { it.base64Data.isNotBlank() }
+                                                val historyImages = allSessionMsgs.flatMap { it.images }
                                                 val editKeywords = listOf("改", "换", "修改", "替换", "参考", "融合", "结合", "加上", "去掉", "调成", "edit", "modify", "change", "replace", "fuse", "combine")
                                                 val shouldAttachRef = isEdit || (historyImages.isNotEmpty() && editKeywords.any { promptArg.contains(it) })
                                                 if (shouldAttachRef) {
-                                                    historyImages.takeLast(3).map { it.base64Data }
+                                                    loadImageBase64WithinBudget(historyImages.takeLast(3))
                                                 } else {
                                                     emptyList()
                                                 }
@@ -2066,119 +2331,125 @@ class AppViewModel(
 
                                             val imgModel = _state.value.activeImageModel ?: "gemini-3.1-flash-image"
                                             val imgGroup = _state.value.activeImageGroup
-                                            viewModelScope.launch {
-                                                try {
-                                                    val res = container.client.models.generateImage(
-                                                        prompt = promptArg,
-                                                        model = imgModel,
-                                                        groupName = imgGroup,
-                                                        referenceImages = refImages,
-                                                    )
-                                                    val b64 = res.b64Json
-                                                    val url = res.url
-                                                    val finalB64 = if (!b64.isNullOrBlank()) {
-                                                        b64.trim()
-                                                    } else if (!url.isNullOrBlank()) {
-                                                        try {
-                                                            val bytes = container.client.models.downloadImageBytesDirect(url)
-                                                            @OptIn(kotlin.io.encoding.ExperimentalEncodingApi::class)
-                                                            kotlin.io.encoding.Base64.encode(bytes)
-                                                        } catch (_: Throwable) {
-                                                            ""
-                                                        }
-                                                    } else {
+                                            try {
+                                                val res = container.client.models.generateImage(
+                                                    prompt = promptArg,
+                                                    model = imgModel,
+                                                    groupName = imgGroup,
+                                                    referenceImages = refImages,
+                                                )
+                                                val b64 = res.b64Json
+                                                val url = res.url
+                                                val finalB64 = if (!b64.isNullOrBlank()) {
+                                                    b64.trim()
+                                                } else if (!url.isNullOrBlank()) {
+                                                    try {
+                                                        val bytes = container.client.models.downloadImageBytesDirect(url)
+                                                        @OptIn(kotlin.io.encoding.ExperimentalEncodingApi::class)
+                                                        kotlin.io.encoding.Base64.encode(bytes)
+                                                    } catch (cancelled: CancellationException) {
+                                                        throw cancelled
+                                                    } catch (_: Throwable) {
                                                         ""
                                                     }
+                                                } else {
+                                                    ""
+                                                }
 
-                                                    val hasValidImage = finalB64.isNotBlank()
-                                                    val cleanText = res.textContent?.trim()?.takeIf { it.isNotBlank() && !it.equals("null", ignoreCase = true) }
-                                                    val resultDesc = if (hasValidImage) {
-                                                        "成功生成图片"
-                                                    } else if (cleanText != null) {
-                                                        cleanText
-                                                    } else {
-                                                        "未检测到图片数据，建议在右下角切换为 DALL-E 3 或 FLUX 等生图模型重试"
-                                                    }
+                                                val hasValidImage = finalB64.isNotBlank()
+                                                val cleanText = res.textContent?.trim()?.takeIf { it.isNotBlank() && !it.equals("null", ignoreCase = true) }
+                                                val resultDesc = if (hasValidImage) {
+                                                    "成功生成图片"
+                                                } else if (cleanText != null) {
+                                                    cleanText
+                                                } else {
+                                                    "未检测到图片数据，建议在右下角切换为 DALL-E 3 或 FLUX 等生图模型重试"
+                                                }
 
-                                                    val doneLabel = if (hasValidImage) {
-                                                        if (refImages.size > 1) "多图融合重绘完成" else if (refImages.isNotEmpty()) "基于原图修改完成" else "画面绘制完成"
-                                                    } else {
-                                                        "生图完成"
-                                                    }
-                                                    val updatedTools = mergeToolTrace(
-                                                        toolEvents,
-                                                        ToolTrace(
-                                                            phase = "completed",
-                                                            toolCallId = event.toolCallId,
-                                                            toolName = "generate_image",
-                                                            detail = if (hasValidImage) doneLabel else resultDesc,
-                                                            arguments = promptArg,
-                                                            result = resultDesc,
-                                                            phaseLabel = doneLabel,
-                                                        ),
-                                                    )
-                                                    toolEvents = updatedTools
+                                                val doneLabel = if (hasValidImage) {
+                                                    if (refImages.size > 1) "多图融合重绘完成" else if (refImages.isNotEmpty()) "基于原图修改完成" else "画面绘制完成"
+                                                } else {
+                                                    "生图完成"
+                                                }
+                                                val updatedTools = mergeToolTrace(
+                                                    toolEvents,
+                                                    ToolTrace(
+                                                        phase = "completed",
+                                                        toolCallId = event.toolCallId,
+                                                        toolName = "generate_image",
+                                                        detail = if (hasValidImage) doneLabel else resultDesc,
+                                                        arguments = promptArg,
+                                                        result = resultDesc,
+                                                        phaseLabel = doneLabel,
+                                                    ),
+                                                )
+                                                toolEvents = updatedTools
 
-                                                    val newImages = if (hasValidImage) {
-                                                        listOf(
-                                                            MessageImage(
-                                                                id = "gen-${newMessageId()}",
-                                                                mimeType = "image/png",
-                                                                fileName = "generated.png",
-                                                                base64Data = finalB64,
-                                                            )
-                                                        )
-                                                    } else {
-                                                        emptyList()
-                                                    }
-
-                                                    val currentMsg = container.sessionStore.getMessages(sid).firstOrNull { it.id == assistantId }
-                                                    val currentImages = (currentMsg?.images ?: assistantMsg.images) + newImages
-                                                    val descSuffix = if (cleanText != null) "\n\n" + cleanText else ""
-                                                    val finalContent = if (assembled.isBlank()) {
-                                                        if (hasValidImage) "画面绘制完成$descSuffix" else resultDesc
-                                                    } else {
-                                                        assembled + descSuffix
-                                                    }
-
-                                                    container.sessionStore.upsertMessage(
-                                                        (currentMsg ?: assistantMsg).copy(
-                                                            content = finalContent,
-                                                            status = MessageStatus.Complete,
-                                                            images = currentImages,
-                                                            toolEvents = updatedTools,
+                                                val newImages = if (hasValidImage) {
+                                                    listOf(
+                                                        MessageImage(
+                                                            id = "gen-${newMessageId()}",
+                                                            mimeType = "image/png",
+                                                            fileName = "generated.png",
+                                                            base64Data = finalB64,
                                                         )
                                                     )
-                                                } catch (e: Throwable) {
-                                                    val failMsg = e.message ?: "请求失败"
-                                                    val failTools = mergeToolTrace(
-                                                        toolEvents,
-                                                        ToolTrace(
-                                                            phase = "error",
-                                                            toolCallId = event.toolCallId,
-                                                            toolName = "generate_image",
-                                                            detail = "生图失败: $failMsg",
-                                                            phaseLabel = "生图失败",
-                                                        ),
+                                                } else {
+                                                    emptyList()
+                                                }
+
+                                                val currentMsg = container.sessionStore.getMessages(sid).firstOrNull { it.id == assistantId }
+                                                val currentImages = (currentMsg?.images ?: assistantMsg.images) + newImages
+                                                val descSuffix = if (cleanText != null) "\n\n" + cleanText else ""
+                                                val finalContent = if (assembled.isBlank()) {
+                                                    if (hasValidImage) "画面绘制完成$descSuffix" else resultDesc
+                                                } else {
+                                                    assembled + descSuffix
+                                                }
+
+                                                container.sessionStore.upsertMessage(
+                                                    (currentMsg ?: assistantMsg).copy(
+                                                        content = finalContent,
+                                                        status = MessageStatus.Complete,
+                                                        images = currentImages,
+                                                        toolEvents = updatedTools,
                                                     )
-                                                    toolEvents = failTools
-                                                    val currentMsg = container.sessionStore.getMessages(sid).firstOrNull { it.id == assistantId }
-                                                    container.sessionStore.upsertMessage(
-                                                        (currentMsg ?: assistantMsg).copy(
-                                                            status = MessageStatus.Complete,
-                                                            toolEvents = failTools,
-                                                            errorMessage = failMsg,
+                                                )
+                                                assistantImages = container.sessionStore
+                                                    .getMessages(sid)
+                                                    .firstOrNull { it.id == assistantId }
+                                                    ?.images
+                                                    ?: currentImages
+                                            } catch (e: Throwable) {
+                                                if (e is CancellationException) throw e
+                                                val failMsg = e.message ?: "请求失败"
+                                                val failTools = mergeToolTrace(
+                                                    toolEvents,
+                                                    ToolTrace(
+                                                        phase = "error",
+                                                        toolCallId = event.toolCallId,
+                                                        toolName = "generate_image",
+                                                        detail = "生图失败: $failMsg",
+                                                        phaseLabel = "生图失败",
+                                                    ),
+                                                )
+                                                toolEvents = failTools
+                                                val currentMsg = container.sessionStore.getMessages(sid).firstOrNull { it.id == assistantId }
+                                                container.sessionStore.upsertMessage(
+                                                    (currentMsg ?: assistantMsg).copy(
+                                                        status = MessageStatus.Complete,
+                                                        toolEvents = failTools,
+                                                        errorMessage = failMsg,
+                                                    )
+                                                )
+                                                updateVisibleSession(sid) {
+                                                    it.copy(
+                                                        chatError = UiError(
+                                                            title = "生图失败",
+                                                            message = failMsg,
+                                                            action = UiErrorAction.None,
                                                         )
                                                     )
-                                                    updateVisibleSession(sid) {
-                                                        it.copy(
-                                                            globalError = UiError(
-                                                                title = "生图失败",
-                                                                message = failMsg,
-                                                                action = UiErrorAction.None,
-                                                            )
-                                                        )
-                                                    }
                                                 }
                                             }
                                         } else {
@@ -2217,9 +2488,12 @@ class AppViewModel(
                                             }
                                             "error" -> {
                                                 setStreamStatus(sid, null)
-                                                updateVisibleSession(sid) {
+                                                updateVisibleDesktopSession(sid) {
                                                     it.copy(
-                                                        globalError = UiError(title = "桌面执行失败", message = event.detail ?: "请在电脑端检查模型配置和运行日志后重试"),
+                                                        chatError = UiError(
+                                                            title = "桌面执行失败",
+                                                            message = event.detail ?: "请在电脑端检查模型配置和运行日志后重试",
+                                                        ),
                                                     )
                                                 }
                                             }
@@ -2340,13 +2614,14 @@ class AppViewModel(
                                             assistantMsg.copy(
                                                 content = assembled,
                                                 status = MessageStatus.Error,
+                                                images = assistantImages,
                                                 errorMessage = ui.message,
                                                 toolEvents = toolEvents,
                                                 usage = usage,
                                                 contextPercent = contextPercent,
                                             ),
                                         )
-                                        updateVisibleSession(sid) { it.copy(globalError = ui) }
+                                        setSessionError(sid, event.exception)
                                     }
                                 }
                             }
@@ -2394,6 +2669,7 @@ class AppViewModel(
                             container.sessionStore.upsertMessage(
                                 assistantMsg.copy(
                                     content = assembled,
+                                    images = assistantImages,
                                     status =
                                         if (t is kotlinx.coroutines.CancellationException) {
                                             MessageStatus.Aborted
@@ -2409,7 +2685,7 @@ class AppViewModel(
                             )
                         }
                         if (t !is kotlinx.coroutines.CancellationException) {
-                            updateVisibleSession(sid) { it.copy(globalError = ui) }
+                            setSessionError(sid, t)
                         }
                     } finally {
                         pendingPersist?.cancel()
@@ -2419,8 +2695,9 @@ class AppViewModel(
                     }
                 }
             streamJobs[sid] = streamJob
+            pendingSendReservations.remove(sendReservation)
             streamJob.start()
-        }
+        }.invokeOnCompletion { pendingSendReservations.remove(sendReservation) }
     }
 
     fun toggleQuestionOption(question: String, label: String) {
@@ -2437,19 +2714,153 @@ class AppViewModel(
     }
 
     private fun mergeToolTrace(existing: List<ToolTrace>, next: ToolTrace): List<ToolTrace> {
-        val index = existing.indexOfFirst { it.toolCallId == next.toolCallId }
-        if (index < 0) return existing + next
+        val bounded = next.copy(
+            detail = next.detail?.boundedForStorage(),
+            arguments = next.arguments?.boundedForStorage(),
+            result = next.result?.boundedForStorage(),
+            phaseLabel = next.phaseLabel?.boundedForStorage(256),
+        )
+        val index = existing.indexOfFirst { it.toolCallId == bounded.toolCallId }
+        if (index < 0) return (existing + bounded).takeLast(MAX_TOOL_TRACE_EVENTS)
         return existing.toMutableList().also {
             val previous = it[index]
             it[index] =
-                next.copy(
-                    detail = next.detail ?: previous.detail,
-                    durationMs = next.durationMs ?: previous.durationMs,
-                    arguments = next.arguments ?: previous.arguments,
-                    result = next.result ?: previous.result,
-                    phaseLabel = next.phaseLabel ?: previous.phaseLabel,
+                bounded.copy(
+                    detail = bounded.detail ?: previous.detail,
+                    durationMs = bounded.durationMs ?: previous.durationMs,
+                    arguments = bounded.arguments ?: previous.arguments,
+                    result = bounded.result ?: previous.result,
+                    phaseLabel = bounded.phaseLabel ?: previous.phaseLabel,
                 )
         }
+    }
+
+    private suspend fun buildChatHistory(messages: List<LocalMessage>): List<ChatMessage> {
+        val selectedImageData = mutableMapOf<String, String>()
+        var totalImageBytes = 0
+        val candidates = messages.flatMap { message -> message.images.map { message.id to it } }.asReversed()
+        for ((messageId, image) in candidates) {
+            if (selectedImageData.size >= 3 || totalImageBytes >= MAX_REQUEST_IMAGE_CONTEXT_BYTES) break
+            val bytes = container.sessionStore.readMessageImageBytes(image) ?: continue
+            if (bytes.isEmpty() || bytes.size > MAX_REQUEST_IMAGE_CONTEXT_BYTES - totalImageBytes) continue
+            selectedImageData["$messageId:${image.storageKey ?: image.id}"] = encodeImageBytes(bytes)
+            totalImageBytes += bytes.size
+        }
+        return messages.map { message ->
+            val resolvedImages = message.images.mapNotNull { image ->
+                val encoded = selectedImageData["${message.id}:${image.storageKey ?: image.id}"] ?: return@mapNotNull null
+                image.copy(base64Data = encoded, pendingBytes = null)
+            }
+            message.copy(images = resolvedImages).toChatMessage()
+        }
+    }
+
+    private suspend fun loadImageBase64WithinBudget(images: List<MessageImage>): List<String> {
+        val loaded = mutableListOf<Pair<Int, String>>()
+        var totalBytes = 0
+        for (index in images.indices.reversed()) {
+            if (loaded.size >= 3 || totalBytes >= MAX_REQUEST_IMAGE_CONTEXT_BYTES) break
+            val bytes = container.sessionStore.readMessageImageBytes(images[index]) ?: continue
+            if (bytes.isEmpty() || bytes.size > MAX_REQUEST_IMAGE_CONTEXT_BYTES - totalBytes) continue
+            loaded += index to encodeImageBytes(bytes)
+            totalBytes += bytes.size
+        }
+        return loaded.sortedBy { it.first }.map { it.second }
+    }
+
+    @OptIn(ExperimentalEncodingApi::class)
+    private fun encodeImageBytes(bytes: ByteArray): String = Base64.encode(bytes)
+
+    private fun String.boundedForStorage(limit: Int = MAX_TOOL_TRACE_FIELD_CHARS): String =
+        if (length <= limit) this else take(limit) + "\n[内容过长，已截断]"
+
+    private fun fetchDesktopGeneratedImages(
+        localSessionId: String,
+        assistantMessageId: String,
+        remoteSessionId: String?,
+        images: List<org.agent567.android.core.model.RemoteGeneratedImageRef>,
+    ) {
+        val targetRemoteId = remoteSessionId ?: return
+        images.take(4).forEach { ref ->
+            val fetchKey = "$localSessionId:$assistantMessageId:${ref.id}"
+            if (!remoteImageFetches.add(fetchKey)) return@forEach
+            viewModelScope.launch {
+                try {
+                    val encoded = StringBuilder()
+                    var offset = 0
+                    var expectedSize = -1
+                    var mimeType = ref.mimeType
+                    var transferFailed = false
+                    while (offset < REMOTE_GENERATED_IMAGE_MAX_BYTES) {
+                        val chunk = container.remoteConversationGateway.readDesktopGeneratedImageChunk(
+                            localSessionId = localSessionId,
+                            remoteSessionId = targetRemoteId,
+                            imageId = ref.id,
+                            offset = offset,
+                            length = REMOTE_GENERATED_IMAGE_CHUNK_BYTES,
+                        )
+                        if (chunk == null) {
+                            transferFailed = true
+                            break
+                        }
+                        if (expectedSize < 0) expectedSize = chunk.sizeBytes
+                        if (chunk.sizeBytes != expectedSize || chunk.sizeBytes > REMOTE_GENERATED_IMAGE_MAX_BYTES) {
+                            transferFailed = true
+                            break
+                        }
+                        mimeType = chunk.mimeType
+                        encoded.append(chunk.dataBase64)
+                        @OptIn(kotlin.io.encoding.ExperimentalEncodingApi::class)
+                        val bytesRead = kotlin.io.encoding.Base64.decode(chunk.dataBase64).size
+                        if (bytesRead <= 0) {
+                            transferFailed = true
+                            break
+                        }
+                        offset += bytesRead
+                        if (offset >= expectedSize) break
+                    }
+                    if (transferFailed || expectedSize <= 0 || offset != expectedSize) {
+                        updateVisibleDesktopSession(localSessionId) {
+                            it.copy(chatError = UiError(
+                                title = "图片暂时无法加载",
+                                message = "电脑端图片传输未完成，请确认设备在线后重新打开会话。",
+                                action = UiErrorAction.None,
+                            ))
+                        }
+                        return@launch
+                    }
+                    val image = org.agent567.android.domain.session.MessageImage(
+                        id = "gen-remote-${ref.id}",
+                        mimeType = mimeType,
+                        fileName = "generated-${ref.id.take(8)}.${imageExtension(mimeType)}",
+                        base64Data = encoded.toString(),
+                    )
+                    val message = container.sessionStore.getMessages(localSessionId)
+                        .firstOrNull { it.id == assistantMessageId } ?: return@launch
+                    if (message.images.none { it.id == image.id }) {
+                        container.sessionStore.upsertMessage(message.copy(images = message.images + image))
+                    }
+                } catch (error: Throwable) {
+                    if (error is CancellationException) throw error
+                    updateVisibleDesktopSession(localSessionId) {
+                        it.copy(chatError = UiError(
+                            title = "图片暂时无法加载",
+                            message = "请确认电脑仍在线后重新打开会话。",
+                            action = UiErrorAction.None,
+                        ))
+                    }
+                } finally {
+                    remoteImageFetches.remove(fetchKey)
+                }
+            }
+        }
+    }
+
+    private fun imageExtension(mimeType: String): String = when (mimeType.lowercase()) {
+        "image/jpeg", "image/jpg" -> "jpg"
+        "image/webp" -> "webp"
+        "image/gif" -> "gif"
+        else -> "png"
     }
 
     fun submitQuestion() {
@@ -2473,7 +2884,7 @@ class AppViewModel(
                     if (message != null) container.sessionStore.upsertMessage(message.copy(pendingQuestion = null))
                     _state.update { state -> state.copy(pendingQuestion = state.pendingQuestion?.takeIf { it.requestId != pending.requestId }) }
                 }
-                    .onFailure { error -> _state.update { it.copy(globalError = ErrorMapper.from(error)) } }
+                    .onFailure { error -> setSessionError(session.id, error, desktopOnly = true) }
             } finally {
                 _state.update { it.copy(isQuestionSubmitting = false) }
             }
@@ -2504,42 +2915,66 @@ class AppViewModel(
 
     fun retryLastError(assistantMessageId: String? = null) {
         val sid = _state.value.currentSessionId ?: return
+        if (streamJobs[sid]?.isActive == true || sid in pendingSendReservations || !retryPreparingSessions.add(sid)) return
         viewModelScope.launch {
-            val messages = container.sessionStore.getMessages(sid)
-            val turn = prepareRetryTurn(messages, assistantMessageId) ?: return@launch
-            container.sessionStore.replaceMessages(sid, turn.remainingMessages)
-            drafts[sid] = turn.draft
-            // 必须同时恢复图片；否则纯图重试会变成 no-op，图文重试会丢图
-            _state.update {
-                it.copy(
-                    draft = turn.draft,
-                    pendingImages = turn.images,
-                    globalError = null,
-                )
+            try {
+                if (streamJobs[sid]?.isActive == true) return@launch
+                val messages = container.sessionStore.getMessages(sid)
+                val turn = prepareRetryTurn(messages, assistantMessageId) ?: return@launch
+                val retryImages = turn.images.map { image ->
+                    if (image.storageKey == null || image.pendingBytes != null || image.base64Data.isNotBlank()) {
+                        image
+                    } else {
+                        val bytes = container.sessionStore.readMessageImageBytes(image)
+                        if (bytes == null) {
+                            updateVisibleSession(sid) {
+                                it.copy(chatError = UiError(
+                                    title = "无法重试这条消息",
+                                    message = "原消息的图片文件已缺失。为避免丢失原记录，请先检查聊天记录后再重试。",
+                                ))
+                            }
+                            return@launch
+                        }
+                        image.copy(storageKey = null, pendingBytes = bytes)
+                    }
+                }
+                container.sessionStore.replaceMessages(sid, turn.remainingMessages)
+                drafts[sid] = turn.draft
+                // 必须同时恢复图片；否则纯图重试会变成 no-op，图文重试会丢图
+                _state.update {
+                    it.copy(
+                        draft = turn.draft,
+                        pendingImages = retryImages,
+                        chatError = null,
+                    )
+                }
+                retryPreparingSessions.remove(sid)
+                sendMessage(retryPreviousTurn = true)
+            } finally {
+                retryPreparingSessions.remove(sid)
             }
-            sendMessage(retryPreviousTurn = true)
         }
     }
 
     fun handleErrorAction(action: UiErrorAction) {
         when (action) {
             UiErrorAction.Retry -> {
-                clearGlobalError()
+                clearChatError()
                 if (_state.value.route is AppRoute.Chat) retryLastError() else refreshCatalog()
             }
             UiErrorAction.OpenPlan -> {
-                clearGlobalError()
+                clearChatError()
                 openPlan()
             }
             UiErrorAction.ReLogin -> {
-                clearGlobalError()
+                clearChatError()
                 viewModelScope.launch { forceLogout(keepLocalSessions = true) }
             }
             UiErrorAction.OpenSettings -> {
-                clearGlobalError()
+                clearChatError()
                 openSettings()
             }
-            UiErrorAction.None -> clearGlobalError()
+            UiErrorAction.None -> clearChatError()
         }
     }
 
@@ -2557,6 +2992,7 @@ class AppViewModel(
         _state.update {
             it.copy(
                 currentSessionId = sessionId,
+                chatError = null,
                 draft = draft,
                 isStreaming = streamJobs[sessionId]?.isActive == true,
                 streamingStatus = streamStatuses[sessionId],
@@ -2591,6 +3027,20 @@ class AppViewModel(
         _state.update { state -> if (state.currentSessionId == sessionId) transform(state) else state }
     }
 
+    private suspend fun setSessionError(sessionId: String, error: Throwable, desktopOnly: Boolean = false) {
+        val session = container.sessionStore.getSession(sessionId) ?: return
+        if (desktopOnly && session.origin != ConversationOrigin.Desktop) return
+        if (error is RemoteConversationException && session.origin != ConversationOrigin.Desktop) return
+        val uiError = ErrorMapper.from(error)
+        updateVisibleSession(sessionId) { it.copy(chatError = uiError) }
+    }
+
+    private suspend fun updateVisibleDesktopSession(sessionId: String, transform: (AppUiState) -> AppUiState) {
+        val session = container.sessionStore.getSession(sessionId) ?: return
+        if (session.origin != ConversationOrigin.Desktop) return
+        updateVisibleSession(sessionId, transform)
+    }
+
     private fun setStreamStatus(sessionId: String, status: String?) {
         if (status == null) streamStatuses.remove(sessionId) else streamStatuses[sessionId] = status
         updateVisibleSession(sessionId) { it.copy(streamingStatus = status) }
@@ -2618,7 +3068,7 @@ class AppViewModel(
     private fun showNoModelError() {
         _state.update {
             it.copy(
-                globalError =
+                chatError =
                     UiError(
                         title = Str.noModels,
                         message = Str.noModelsHint,

@@ -51,7 +51,7 @@ import org.agent567.android.core.net.parseEnvelope
 import org.agent567.android.core.net.parseFailure
 import org.agent567.android.core.net.toVettaException
 
-private const val IMAGE_GENERATION_TIMEOUT_MS = 300_000L
+private const val IMAGE_GENERATION_TIMEOUT_MS = 600_000L
 
 /**
  * 对 567 API / Gateway 的薄封装。

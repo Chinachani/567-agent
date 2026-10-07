@@ -24,6 +24,9 @@ import org.agent567.android.core.model.ChatRole
 import org.agent567.android.core.model.ChatStreamEvent
 import org.agent567.android.data.session.SettingsSessionStore
 import org.agent567.android.domain.conversation.RemoteConversationGateway
+import org.agent567.android.domain.conversation.RemoteConversationException
+import org.agent567.android.domain.conversation.RemoteDesktopHistoryMessage
+import org.agent567.android.domain.conversation.RemoteDesktopSessionSummary
 import org.agent567.android.domain.conversation.RemoteSessionModelCatalog
 import org.agent567.android.domain.device.ConnectChannel
 import org.agent567.android.domain.device.DesktopDevice
@@ -37,6 +40,7 @@ import org.agent567.android.domain.session.MessageStatus
 import org.agent567.android.domain.session.PendingQuestion
 import org.agent567.android.ui.i18n.Str
 import org.agent567.android.ui.navigation.AppRoute
+import org.agent567.android.ui.navigation.ChatSurface
 import org.agent567.android.ui.navigation.MainTab
 import kotlin.test.AfterTest
 import kotlin.test.BeforeTest
@@ -89,7 +93,7 @@ class AppViewModelRemoteConversationTest {
             assertEquals(ChatRole.Assistant, messages.last().role)
             assertEquals("桌面端回复", messages.last().content)
             assertEquals(MessageStatus.Complete, messages.last().status)
-            assertEquals(null, viewModel.state.value.globalError)
+            assertEquals(null, viewModel.state.value.chatError)
         }
 
     @Test
@@ -167,6 +171,161 @@ class AppViewModelRemoteConversationTest {
         }
 
     @Test
+    fun loadingDesktopHistoryKeepsUnsentFailedUserTurnVisible() =
+        runTest(dispatcher) {
+            val gateway = FakeRemoteConversationGateway()
+            gateway.desktopHistory = emptyList()
+            val container = container(gateway)
+            val session = container.sessionStore.createSession(
+                title = "Remote session",
+                origin = ConversationOrigin.Desktop,
+                remoteDeviceId = "desktop-1",
+                remoteSessionId = "remote-existing",
+            )
+            container.sessionStore.upsertMessage(
+                LocalMessage(
+                    id = "failed-user-turn",
+                    sessionId = session.id,
+                    role = ChatRole.User,
+                    content = "请继续刚才的任务",
+                    status = MessageStatus.Complete,
+                    createdAtEpochMs = 100,
+                ),
+            )
+            container.sessionStore.upsertMessage(
+                LocalMessage(
+                    id = "failed-assistant-turn",
+                    sessionId = session.id,
+                    role = ChatRole.Assistant,
+                    content = "",
+                    status = MessageStatus.Error,
+                    createdAtEpochMs = 101,
+                    errorMessage = "电脑连接中断",
+                ),
+            )
+            val viewModel = AppViewModel(container)
+            advanceUntilIdle()
+
+            viewModel.openChat(session.id, ChatSurface.Desktop, session.title, "desktop-1")
+            advanceUntilIdle()
+
+            assertEquals(
+                listOf("failed-user-turn", "failed-assistant-turn"),
+                container.sessionStore.getMessages(session.id).map { it.id },
+            )
+        }
+
+    @Test
+    fun delayedDesktopHistoryFailureDoesNotLeakIntoCloudChat() =
+        runTest(dispatcher) {
+            val pendingHistory = CompletableDeferred<List<RemoteDesktopHistoryMessage>>()
+            val gateway = FakeRemoteConversationGateway().apply { pendingDesktopHistory = pendingHistory }
+            val container = container(gateway)
+            val desktopSession = container.sessionStore.createSession(
+                title = "Remote session",
+                origin = ConversationOrigin.Desktop,
+                remoteDeviceId = "desktop-1",
+                remoteSessionId = "remote-desktop-session",
+            )
+            val cloudSession = container.sessionStore.createSession(
+                title = "Cloud session",
+                origin = ConversationOrigin.Cloud,
+            )
+            val viewModel = AppViewModel(container)
+            advanceUntilIdle()
+
+            viewModel.openChat(desktopSession.id, ChatSurface.Desktop, desktopSession.title, "desktop-1")
+            runCurrent()
+            viewModel.openChat(cloudSession.id, ChatSurface.Cloud, cloudSession.title)
+            pendingHistory.completeExceptionally(RemoteConversationException("无法连接桌面设备"))
+            advanceUntilIdle()
+
+            assertEquals(cloudSession.id, viewModel.state.value.currentSessionId)
+            assertEquals(null, viewModel.state.value.chatError)
+            assertEquals(null, viewModel.state.value.remoteError)
+        }
+
+    @Test
+    fun refreshingDesktopSessionsDoesNotDeleteDesktopCreatedEmptySessions() =
+        runTest(dispatcher) {
+            val gateway = FakeRemoteConversationGateway().apply {
+                desktopSessions = listOf(RemoteDesktopSessionSummary("desktop-created-empty", "Draft", 1_000))
+            }
+            val container = container(gateway)
+            val session = container.sessionStore.createSession(
+                title = "Draft",
+                origin = ConversationOrigin.Desktop,
+                remoteDeviceId = "desktop-1",
+                remoteSessionId = "desktop-created-empty",
+            )
+            val viewModel = AppViewModel(container)
+            advanceUntilIdle()
+
+            viewModel.openDesktopSessions()
+            advanceUntilIdle()
+
+            assertTrue(gateway.emptySessionDeleteCalls.isEmpty())
+            assertEquals(session.id, container.sessionStore.getSession(session.id)?.id)
+        }
+
+    @Test
+    fun refreshingDesktopSessionsKeepsMobileDraftsThatHaveUnsentText() =
+        runTest(dispatcher) {
+            val gateway = FakeRemoteConversationGateway().apply {
+                desktopSessions = listOf(RemoteDesktopSessionSummary("mobile-created-empty", "Draft", 1_000))
+            }
+            val container = container(gateway)
+            val session = container.sessionStore.createSession(
+                title = "Draft",
+                origin = ConversationOrigin.Desktop,
+                remoteDeviceId = "desktop-1",
+                remoteSessionId = "mobile-created-empty",
+                remoteSessionCreatedOnMobile = true,
+            )
+            val viewModel = AppViewModel(container)
+            advanceUntilIdle()
+            viewModel.openChat(session.id, ChatSurface.Desktop, session.title, "desktop-1")
+            advanceUntilIdle()
+            viewModel.onDraftChange("尚未发送的内容")
+            viewModel.navigateBackFromSecondary()
+            advanceUntilIdle()
+
+            viewModel.openDesktopSessions()
+            advanceUntilIdle()
+
+            assertTrue(gateway.emptySessionDeleteCalls.isEmpty())
+            assertEquals(session.id, container.sessionStore.getSession(session.id)?.id)
+        }
+
+    @Test
+    fun retryingFailedDesktopTurnForwardsRetryAndTargetTurn() =
+        runTest(dispatcher) {
+            val gateway = FakeRemoteConversationGateway().apply {
+                streamEvents = listOf(ChatStreamEvent.Error(IllegalStateException("连接中断")))
+            }
+            val container = container(gateway)
+            val viewModel = AppViewModel(container)
+            advanceUntilIdle()
+            viewModel.startDesktopConversation("desktop-1")
+            advanceUntilIdle()
+            val sessionId = assertNotNull(viewModel.state.value.currentSessionId)
+            viewModel.onDraftChange("请继续刚才的任务")
+            viewModel.sendMessage()
+            advanceUntilIdle()
+
+            val failedAssistant = container.sessionStore.getMessages(sessionId).last { it.role == ChatRole.Assistant }
+            assertEquals(MessageStatus.Error, failedAssistant.status)
+            gateway.streamEvents = listOf(ChatStreamEvent.Delta("已重试"), ChatStreamEvent.Done)
+
+            viewModel.retryLastError(failedAssistant.id)
+            advanceUntilIdle()
+
+            assertEquals(2, gateway.streamCalls.size)
+            assertTrue(gateway.streamCalls.last().retryPreviousTurn)
+            assertEquals("请继续刚才的任务", gateway.streamCalls.last().messages.single().textContent)
+        }
+
+    @Test
     fun pendingDesktopQuestionIsRestoredIntoMainShellAfterViewModelRecreation() =
         runTest(dispatcher) {
             val settings = MapSettings()
@@ -213,7 +372,7 @@ class AppViewModelRemoteConversationTest {
             advanceUntilIdle()
 
             assertTrue(container.sessionStore.sessions.value.isEmpty())
-            assertEquals("桌面设备不可用", viewModel.state.value.globalError?.title)
+            assertEquals("桌面设备不可用", viewModel.state.value.remoteError?.title)
         }
 
     @Test
@@ -307,7 +466,30 @@ class AppViewModelRemoteConversationTest {
             advanceUntilIdle()
 
             assertFalse(viewModel.state.value.remoteConnecting)
-            assertEquals(Str.remoteConnectFailed, viewModel.state.value.globalError?.title)
+            assertEquals(Str.remoteConnectFailed, viewModel.state.value.remoteError?.title)
+            assertEquals(null, viewModel.state.value.chatError)
+        }
+
+    @Test
+    fun retryingDesktopConnectionClearsPreviousRemoteError() =
+        runTest(dispatcher) {
+            val gateway = FakeRemoteConversationGateway().apply {
+                connectResults = listOf(false, true)
+            }
+            val viewModel = AppViewModel(container(gateway))
+            advanceUntilIdle()
+
+            viewModel.connectDesktop("wss://relay.example.test/room")
+            advanceUntilIdle()
+            assertEquals(Str.remoteConnectFailed, viewModel.state.value.remoteError?.title)
+            assertEquals(null, viewModel.state.value.chatError)
+
+            viewModel.connectDesktop("wss://relay.example.test/room")
+            advanceUntilIdle()
+
+            assertEquals(null, viewModel.state.value.remoteError)
+            assertFalse(viewModel.state.value.remoteConnecting)
+            assertEquals(2, gateway.connectCalls)
         }
 
     @Test
@@ -322,8 +504,8 @@ class AppViewModelRemoteConversationTest {
 
             assertEquals(0, gateway.connectCalls)
             assertEquals(AppRoute.Welcome, viewModel.state.value.route)
-            assertEquals(Str.invalidPairingInvite, viewModel.state.value.globalError?.title)
-            assertEquals(Str.invalidPairingInviteHint, viewModel.state.value.globalError?.message)
+            assertEquals(Str.invalidPairingInvite, viewModel.state.value.remoteError?.title)
+            assertEquals(Str.invalidPairingInviteHint, viewModel.state.value.remoteError?.message)
         }
 
     @Test
@@ -342,7 +524,7 @@ class AppViewModelRemoteConversationTest {
             assertTrue(gateway.connectTargets.single().startsWith("wss://relay.example/v1/relay/"))
             assertEquals(AppRoute.DeviceDetail("desktop-1"), viewModel.state.value.route)
             assertTrue(viewModel.state.value.mainAccessGranted)
-            assertEquals(null, viewModel.state.value.globalError)
+            assertEquals(null, viewModel.state.value.remoteError)
         }
 
     @Test
@@ -369,7 +551,7 @@ class AppViewModelRemoteConversationTest {
                 ),
                 gateway.connectTargets,
             )
-            assertEquals(null, viewModel.state.value.globalError)
+            assertEquals(null, viewModel.state.value.remoteError)
         }
 
     @Test
@@ -389,7 +571,7 @@ class AppViewModelRemoteConversationTest {
 
             assertEquals("existing-pairing", preferences.remotePairingId)
             assertEquals("existing-resume", preferences.remoteResumeSecret)
-            assertEquals(Str.remoteConnectFailed, viewModel.state.value.globalError?.title)
+            assertEquals(Str.remoteConnectFailed, viewModel.state.value.remoteError?.title)
         }
 
     private fun container(
@@ -439,6 +621,10 @@ private class FakeRemoteConversationGateway : RemoteConversationGateway {
     var connectResults: List<Boolean> = emptyList()
     var connectCalls = 0
     val connectTargets = mutableListOf<String>()
+    var desktopHistory: List<RemoteDesktopHistoryMessage> = emptyList()
+    var pendingDesktopHistory: CompletableDeferred<List<RemoteDesktopHistoryMessage>>? = null
+    var desktopSessions: List<RemoteDesktopSessionSummary> = emptyList()
+    val emptySessionDeleteCalls = mutableListOf<String>()
 
     override suspend fun connect(target: String): Boolean {
         connectTargets += target
@@ -448,6 +634,13 @@ private class FakeRemoteConversationGateway : RemoteConversationGateway {
 
     override suspend fun disconnect(deviceId: String) {
         devices.value = emptyList()
+    }
+
+    override suspend fun listDesktopSessions(deviceId: String): List<RemoteDesktopSessionSummary> = desktopSessions
+
+    override suspend fun deleteEmptyDesktopSession(deviceId: String, remoteSessionId: String): Boolean {
+        emptySessionDeleteCalls += remoteSessionId
+        return true
     }
 
     override suspend fun createDesktopSession(
@@ -466,6 +659,11 @@ private class FakeRemoteConversationGateway : RemoteConversationGateway {
                     ),
                 ),
             )
+
+    override suspend fun readDesktopSessionHistory(
+        localSessionId: String,
+        remoteSessionId: String,
+    ): List<RemoteDesktopHistoryMessage> = pendingDesktopHistory?.await() ?: desktopHistory
 
     override fun stream(
         localSessionId: String,

@@ -1,5 +1,5 @@
 import type { SessionEvent } from "@567agent/runtime-core";
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import { DesktopConversationRemoteOperations } from "./desktop-conversation-remote-operations.js";
 
 describe("DesktopConversationRemoteOperations", () => {
@@ -47,6 +47,121 @@ describe("DesktopConversationRemoteOperations", () => {
 			{ type: "state", payload: { state: "completed", stopReason: "stop" } },
 		]);
 		expect(observedTimeout).toBeNull();
+	});
+
+	it("refuses conditional deletion when the remote conversation has messages", async () => {
+		const session = {
+			sessionId: "existing-session",
+			sessionPath: "C:/work/.567agent/sessions/existing.jsonl",
+			cwd: "C:/work",
+			listCwd: "C:/work",
+			source: "interactive" as const,
+		};
+		const deleteRemoteSession = vi.fn(async () => undefined);
+		const conversations = {
+			createSession: async () => session,
+			listSessions: async () => [
+				{
+					id: session.sessionId,
+					path: session.sessionPath,
+					name: "Existing",
+					firstMessage: "hello",
+					cwd: session.cwd,
+					modifiedAt: 1,
+					access: { readHistory: true, resume: true, rename: true, delete: true },
+				},
+			],
+			openSession: async () => session,
+			runTurn: async () => ({
+				...session,
+				status: "completed" as const,
+				stopReason: "stop",
+				assistantText: "",
+				messageCount: 0,
+			}),
+			readRemoteSessionHistory: () => [],
+			hasRemoteSessionContent: () => true,
+			deleteRemoteSession,
+		};
+		const operations = new DesktopConversationRemoteOperations(conversations, { cwd: "C:/work" });
+
+		await expect(operations.deleteEmptySession(session.sessionId)).resolves.toBe(false);
+		expect(deleteRemoteSession).not.toHaveBeenCalled();
+	});
+
+	it("conditionally deletes a truly empty remote draft", async () => {
+		const session = {
+			sessionId: "empty-session",
+			sessionPath: "C:/work/.567agent/sessions/empty.jsonl",
+			cwd: "C:/work",
+			listCwd: "C:/work",
+			source: "interactive" as const,
+		};
+		const deleteRemoteSession = vi.fn(async () => undefined);
+		const conversations = {
+			createSession: async () => session,
+			listSessions: async () => [
+				{
+					id: session.sessionId,
+					path: session.sessionPath,
+					name: "",
+					firstMessage: "",
+					cwd: session.cwd,
+					modifiedAt: 1,
+					access: { readHistory: true, resume: true, rename: true, delete: true },
+				},
+			],
+			openSession: async () => session,
+			runTurn: async () => ({
+				...session,
+				status: "completed" as const,
+				stopReason: "stop",
+				assistantText: "",
+				messageCount: 0,
+			}),
+			readRemoteSessionHistory: () => [],
+			hasRemoteSessionContent: () => false,
+			deleteRemoteSession,
+		};
+		const operations = new DesktopConversationRemoteOperations(conversations, { cwd: "C:/work" });
+
+		await expect(operations.deleteEmptySession(session.sessionId)).resolves.toBe(true);
+		expect(deleteRemoteSession).toHaveBeenCalledWith(session.sessionId, "C:/work");
+	});
+
+	it("finishes the remote turn without waiting for AI title generation", async () => {
+		const session = {
+			sessionId: "title-session",
+			sessionPath: "C:/work/.567agent/sessions/title.jsonl",
+			cwd: "C:/work",
+			listCwd: "C:/work",
+			source: "interactive" as const,
+		};
+		let finishTitle: ((title: string) => void) | undefined;
+		const titleJob = new Promise<string>((resolve) => {
+			finishTitle = resolve;
+		});
+		const conversations = {
+			createSession: async () => session,
+			listSessions: async () => [],
+			openSession: async () => session,
+			runTurn: async () => ({
+				...session,
+				status: "completed" as const,
+				stopReason: "stop",
+				assistantText: "answer",
+				messageCount: 2,
+			}),
+			generateRemoteSessionTitle: vi.fn(() => titleJob),
+		};
+		const operations = new DesktopConversationRemoteOperations(conversations, { cwd: "C:/work" });
+		await operations.createSession();
+		const events = [];
+		for await (const event of operations.prompt(session.sessionId, "question")) events.push(event);
+
+		expect(events.at(-1)).toMatchObject({ type: "state", payload: { state: "completed" } });
+		expect(conversations.generateRemoteSessionTitle).toHaveBeenCalledOnce();
+		finishTitle?.("Generated title");
 	});
 
 	it("forwards runtime deltas and tool lifecycle events as they arrive", async () => {

@@ -1,14 +1,14 @@
 import { mkdtemp, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { VETTA_HOME_ENV } from "@567agent/action-rpc";
+import { AGENT567_HOME_ENV } from "@567agent/action-rpc";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { DesktopConfig } from "./desktop-config-store.js";
 
 const temporaryRoots: string[] = [];
 let previousHome: string | undefined;
 
-/** desktop-config.json 的路径在模块加载时算好，所以每个用例重置模块并重设 VETTA_HOME。 */
+/** desktop-config.json 的路径在模块加载时算好，所以每个用例重置模块并重设 AGENT567_HOME。 */
 async function loadStoreWithConfig(config: Record<string, unknown> | undefined): Promise<{
 	readDesktopConfig: () => Promise<DesktopConfig>;
 	updateDesktopConfig: (
@@ -17,7 +17,7 @@ async function loadStoreWithConfig(config: Record<string, unknown> | undefined):
 }> {
 	const home = await mkdtemp(join(tmpdir(), "vetta-config-"));
 	temporaryRoots.push(home);
-	process.env[VETTA_HOME_ENV] = home;
+	process.env[AGENT567_HOME_ENV] = home;
 	if (config) {
 		await writeFile(join(home, "desktop-config.json"), JSON.stringify(config), "utf8");
 	}
@@ -26,12 +26,12 @@ async function loadStoreWithConfig(config: Record<string, unknown> | undefined):
 }
 
 beforeEach(() => {
-	previousHome = process.env[VETTA_HOME_ENV];
+	previousHome = process.env[AGENT567_HOME_ENV];
 });
 
 afterEach(async () => {
-	if (previousHome === undefined) delete process.env[VETTA_HOME_ENV];
-	else process.env[VETTA_HOME_ENV] = previousHome;
+	if (previousHome === undefined) delete process.env[AGENT567_HOME_ENV];
+	else process.env[AGENT567_HOME_ENV] = previousHome;
 	await Promise.all(temporaryRoots.splice(0).map((root) => rm(root, { recursive: true, force: true })));
 });
 

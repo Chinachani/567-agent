@@ -56,11 +56,11 @@ desktop/
 
 ## 4. 双架构与元数据合并
 
-内置的 node / python 运行时按 `VETTA_VENDOR_PLATFORM` **单架构落盘**，一次 electron-builder 调用出不了两套正确产物，因此 arm64 与 x64 必须分两次构建：
+内置的 node / python 运行时按 `AGENT567_VENDOR_PLATFORM` **单架构落盘**，一次 electron-builder 调用出不了两套正确产物，因此 arm64 与 x64 必须分两次构建：
 
 ```json
-"dist:mac:arm64": "cross-env VETTA_VENDOR_PLATFORM=darwin-arm64 VETTA_CLI_TARGET_PLATFORMS=darwin-arm64 ... --arch arm64"
-"dist:mac:x64":   "cross-env VETTA_VENDOR_PLATFORM=darwin-x64   VETTA_CLI_TARGET_PLATFORMS=darwin-x64   ... --arch x64"
+"dist:mac:arm64": "cross-env AGENT567_VENDOR_PLATFORM=darwin-arm64 AGENT567_CLI_TARGET_PLATFORMS=darwin-arm64 ... --arch arm64"
+"dist:mac:x64":   "cross-env AGENT567_VENDOR_PLATFORM=darwin-x64   AGENT567_CLI_TARGET_PLATFORMS=darwin-x64   ... --arch x64"
 ```
 
 而 electron-builder 两次都写同名的 `latest-mac.yml`（`getUpdateInfoFileName` 只给 Linux 加架构后缀），多架构合并只发生在**单个进程的内存里**，分两次构建时后一次会直接覆盖前一次。
@@ -179,9 +179,9 @@ scripts/release-mac.sh test  --version 0.5.60 --skip-publish    # 构建与校�
 
 `--check-only` 之外的任何调用都会先 `rm -rf release/` 再构建，别拿真实版本号试探参数。
 
-脚本会自动 `source` 两个凭据文件，并直接注入构建期的 `VETTA_UPDATE_PROVIDER` / `VETTA_UPDATE_URL`，**因此不依赖 `.env.development` 里有没有配这两项**。
+脚本会自动 `source` 两个凭据文件，并直接注入构建期的 `AGENT567_UPDATE_PROVIDER` / `AGENT567_UPDATE_URL`，**因此不依赖 `.env.development` 里有没有配这两项**。
 
-前置校验包括：凭据文件存在且字段完整、钥匙串里有可用签名身份、`VETTA_R2_PREFIX` 与 `VETTA_UPDATE_URL` 的末段都等于目标通道、版本号格式合法、**版本严格高于该通道线上已有版本**（同名版本化对象禁止覆盖）。`stable` 额外拒绝 `--version`（正式版本以 `package.json` 为唯一真源）并要求输入版本号二次确认。
+前置校验包括：凭据文件存在且字段完整、钥匙串里有可用签名身份、`AGENT567_R2_PREFIX` 与 `AGENT567_UPDATE_URL` 的末段都等于目标通道、版本号格式合法、**版本严格高于该通道线上已有版本**（同名版本化对象禁止覆盖）。`stable` 额外拒绝 `--version`（正式版本以 `package.json` 为唯一真源）并要求输入版本号二次确认。
 
 下面各节是这个脚本每一步在做什么，手动排查时按需单独执行。
 
@@ -218,7 +218,7 @@ scripts/release-mac.sh local --version 0.5.63
 - **产物累积不清空**。`~/.567agent/local-updates` 只覆盖 `latest-mac.yml`，旧版本的 zip 与 blockmap 全部保留——差分要读旧版 blockmap（见 5.4）。
 - **分发服务必须支持 Range**。`scripts/serve-local-updates.mjs` 自己实现了 206；不要随手换成 `python3 -m http.server`，它会无视 Range 头返回 200 全量，差分要么退化要么失败，测出来的结论是假的。
 
-想临时压缩签名耗时，可以再叠 `VETTA_SKIP_VENDOR=1`——更新链路不依赖内置 node/python，而它们解压后是几千个待签名的 Mach-O。
+想临时压缩签名耗时，可以再叠 `AGENT567_SKIP_VENDOR=1`——更新链路不依赖内置 node/python，而它们解压后是几千个待签名的 Mach-O。
 
 ### 7.1 前提：签名凭据
 
@@ -237,38 +237,38 @@ security find-identity -v -p codesigning        # 期望 1 valid identity
 
 ```dotenv
 # apps/desktop/.env.development
-VETTA_UPDATE_PROVIDER=github
-VETTA_UPDATE_GITHUB_OWNER=Chinachani
-VETTA_UPDATE_GITHUB_REPO=567-agent
+AGENT567_UPDATE_PROVIDER=github
+AGENT567_UPDATE_GITHUB_OWNER=Chinachani
+AGENT567_UPDATE_GITHUB_REPO=567-agent
 ```
 
 ```bash
-export VETTA_R2_ACCOUNT_ID=<account-id>
-export VETTA_R2_ACCESS_KEY_ID=<access-key-id>
-export VETTA_R2_SECRET_ACCESS_KEY=<secret-access-key>
-export VETTA_R2_BUCKET=vetta-releases
-export VETTA_R2_PREFIX=desktop/test
-export VETTA_UPDATE_URL=https://updates.example.com/desktop/test
-export VETTA_REQUIRE_MAC_SIGNATURE=1
+export AGENT567_R2_ACCOUNT_ID=<account-id>
+export AGENT567_R2_ACCESS_KEY_ID=<access-key-id>
+export AGENT567_R2_SECRET_ACCESS_KEY=<secret-access-key>
+export AGENT567_R2_BUCKET=vetta-releases
+export AGENT567_R2_PREFIX=desktop/test
+export AGENT567_UPDATE_URL=https://updates.example.com/desktop/test
+export AGENT567_REQUIRE_MAC_SIGNATURE=1
 ```
 
 ### 7.3 构建测试版本
 
-与 Windows 一样用 `VETTA_DESKTOP_BUILD_VERSION` 覆盖版本号，不改 `package.json`、不打 tag：
+与 Windows 一样用 `AGENT567_DESKTOP_BUILD_VERSION` 覆盖版本号，不改 `package.json`、不打 tag：
 
 ```bash
 cd apps/desktop
 rm -rf release                                  # 残留清单会让发布脚本判定版本不唯一
-VETTA_DESKTOP_BUILD_VERSION=0.5.60 bun run dist:mac:arm64
-VETTA_REQUIRE_MAC_SIGNATURE=1 bun run verify:updates:mac
+AGENT567_DESKTOP_BUILD_VERSION=0.5.60 bun run dist:mac:arm64
+AGENT567_REQUIRE_MAC_SIGNATURE=1 bun run verify:updates:mac
 ```
 
 只测本机架构时到此为止。要同时发双架构，复现 CI 的重命名与合并：
 
 ```bash
 mv release/latest-mac.yml release/latest-mac-arm64.yml
-VETTA_DESKTOP_BUILD_VERSION=0.5.60 bun run dist:mac:x64
-VETTA_REQUIRE_MAC_SIGNATURE=1 bun run verify:updates:mac
+AGENT567_DESKTOP_BUILD_VERSION=0.5.60 bun run dist:mac:x64
+AGENT567_REQUIRE_MAC_SIGNATURE=1 bun run verify:updates:mac
 mv release/latest-mac.yml release/latest-mac-x64.yml
 bun run merge:updates:mac
 ```
@@ -285,7 +285,7 @@ bun run merge:updates:mac
 2. 每个产物存在，且大小与 SHA-512 与清单一致。
 3. 顶层 `path` / `sha512` 与对应产物一致。
 4. 每个 ZIP 都有非空 `.blockmap`。
-5. `VETTA_REQUIRE_MAC_SIGNATURE=1` 时，用 `ditto` 解包每个 ZIP，校验：
+5. `AGENT567_REQUIRE_MAC_SIGNATURE=1` 时，用 `ditto` 解包每个 ZIP，校验：
    - 顶层有且只有一个 `.app`
    - `CFBundleShortVersionString` 与清单版本一致
    - `CFBundleIdentifier` 是 `com.api567.agent`
@@ -366,14 +366,14 @@ APPLE_TEAM_ID
 
 签名步骤仍会优先使用 runner 环境已提供的凭据，只有在 runner 没提供时才回退到上述 Secret——这条分支留给本地或自持签名机，托管 runner 上永远走 Secret 路径。两者都没有时，tag 发版直接失败，`workflow_dispatch` 允许产出未签名测试包。
 
-注意：只要 Secret 配齐，**非发布的 `workflow_dispatch` 演练也会签名并公证**，因为开关只看凭据是否完整。想快速验证构建可以设 `VETTA_SKIP_NOTARIZE=1` 只签名不公证。
+注意：只要 Secret 配齐，**非发布的 `workflow_dispatch` 演练也会签名并公证**，因为开关只看凭据是否完整。想快速验证构建可以设 `AGENT567_SKIP_NOTARIZE=1` 只签名不公证。
 
 ### 9.3 CI 上的 macOS 流程
 
 ```text
 tag v<version>
   -> 校验 tag 名与 apps/desktop/package.json 版本一致
-  -> 读取签名凭据，打开 VETTA_REQUIRE_MAC_SIGNATURE=1
+  -> 读取签名凭据，打开 AGENT567_REQUIRE_MAC_SIGNATURE=1
   -> 清理上一轮的 release/（复用工作目录的 runner 才会有残留）
   -> dist:mac:<arch>
   -> verify:updates:mac
@@ -507,7 +507,7 @@ pkill -f "567 Agent.app/Contents/MacOS/567-Agent"   # ShipIt 必须等目标退�
 
 ### 10.7 公证返回 Invalid（其它嵌套二进制）
 
-产物里有没签到的嵌套 Mach-O 二进制。`Contents/Resources/` 下带了 `im-gateway`、`cli-host`、`vendor/node`、`vendor/python`、`appshot` 等一堆可执行文件，用 `xcrun notarytool log <submissionId>` 看具体路径。排查时可先 `VETTA_SKIP_VENDOR=1` 摘掉内置运行时缩小范围。
+产物里有没签到的嵌套 Mach-O 二进制。`Contents/Resources/` 下带了 `im-gateway`、`cli-host`、`vendor/node`、`vendor/python`、`appshot` 等一堆可执行文件，用 `xcrun notarytool log <submissionId>` 看具体路径。排查时可先 `AGENT567_SKIP_VENDOR=1` 摘掉内置运行时缩小范围。
 
 ## 11. 日志与诊断
 
@@ -572,11 +572,11 @@ install failed
 ### 构建
 
 - [ ] 版本号高于已发布版本。
-- [ ] stable 使用 `package.json` 正式版本；test 才使用 `VETTA_DESKTOP_BUILD_VERSION` 覆盖。
+- [ ] stable 使用 `package.json` 正式版本；test 才使用 `AGENT567_DESKTOP_BUILD_VERSION` 覆盖。
 - [ ] 签名凭据齐全，`security find-identity` 有 1 valid identity。
 - [ ] arm64 与 x64 都已构建，且属于同一版本。
 - [ ] `merge:updates:mac` 已执行，`latest-mac.yml` 同时引用两套 ZIP 与 DMG。
-- [ ] `VETTA_REQUIRE_MAC_SIGNATURE=1 bun run verify:updates:mac` 通过。
+- [ ] `AGENT567_REQUIRE_MAC_SIGNATURE=1 bun run verify:updates:mac` 通过。
 
 ### R2/Cloudflare
 

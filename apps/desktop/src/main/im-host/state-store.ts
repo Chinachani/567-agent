@@ -1,5 +1,6 @@
 import { existsSync, readFileSync } from "node:fs";
-import { join } from "node:path";
+import { homedir } from "node:os";
+import { isAbsolute, join, relative, resolve, sep } from "node:path";
 import { getVettaHomePath } from "@567agent/action-rpc";
 import { atomicWriteJSON } from "@567agent/toolkit/atomic-write";
 import type { SessionStateEntry } from "./host-protocol.js";
@@ -42,13 +43,51 @@ export function loadImState(filePath = DEFAULT_PATH): ImStateFile {
 			// 不能向 v3 迁移——sessionPath 已经是死引用，直接重置让每个 chat 重起。
 			return { version: STATE_VERSION, sessions: [] };
 		}
+		const storedSessions = Array.isArray(parsed.sessions) ? (parsed.sessions as SessionStateEntry[]) : [];
+		const sessions = storedSessions.map(rebaseLegacyImSessionPath);
+		if (sessions.some((session, index) => session.sessionPath !== storedSessions[index]?.sessionPath)) {
+			try {
+				atomicWriteJSON(filePath, { version: STATE_VERSION, sessions });
+			} catch {
+				// The normalized in-memory entries are still usable for this launch;
+				// a later state patch can persist them if the file is temporarily read-only.
+			}
+		}
 		return {
 			version: STATE_VERSION,
-			sessions: Array.isArray(parsed.sessions) ? (parsed.sessions as SessionStateEntry[]) : [],
+			sessions,
 		};
 	} catch {
 		return { version: STATE_VERSION, sessions: [] };
 	}
+}
+
+/**
+ * The config-root rename from `~/.vetta` to `~/.567agent` moved the IM
+ * session files but older v3 routing entries kept their absolute paths. Map
+ * only those legacy IM paths, and only when the corresponding file exists at
+ * the current configured location (including an explicit AGENT567_HOME).
+ */
+function rebaseLegacyImSessionPath(entry: SessionStateEntry): SessionStateEntry {
+	if (typeof entry.sessionPath !== "string" || !isAbsolute(entry.sessionPath)) return entry;
+
+	const legacyRoot = resolve(homedir(), ".vetta", "im-gateway", "conversation", ".vetta", "sessions");
+	const currentRoot = resolve(getVettaHomePath(), "im-gateway", "conversation", ".vetta", "sessions");
+	if (legacyRoot === currentRoot) return entry;
+
+	const relativePath = relative(legacyRoot, resolve(entry.sessionPath));
+	if (
+		!relativePath ||
+		isAbsolute(relativePath) ||
+		relativePath === ".." ||
+		relativePath.startsWith(`..${sep}`) ||
+		relativePath.includes(sep)
+	) {
+		return entry;
+	}
+
+	const currentPath = join(currentRoot, relativePath);
+	return existsSync(currentPath) ? { ...entry, sessionPath: currentPath } : entry;
 }
 
 export function saveImState(state: ImStateFile, filePath = DEFAULT_PATH): void {

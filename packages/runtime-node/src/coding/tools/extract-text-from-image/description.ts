@@ -2,7 +2,7 @@ export const EXTRACT_TEXT_FROM_IMAGE_TOOL_DESCRIPTION = `Extract text from an im
 
 Runs entirely locally — no network calls. Designed for screenshots, scanned single pages, photographed documents.
 
-This tool calls the 567 Agent executable in command-line OCR mode. 567 Agent must be installed, or VETTA_DESKTOP_EXE must point to the desktop executable.
+This tool calls the 567 Agent executable in command-line OCR mode. 567 Agent must be installed, or AGENT567_DESKTOP_EXE must point to the desktop executable.
 
 Input
   - input: path to an image file. Supported extensions: .png .jpg .jpeg .webp .bmp .gif

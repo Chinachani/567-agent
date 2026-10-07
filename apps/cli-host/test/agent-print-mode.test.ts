@@ -563,9 +563,9 @@ async function runAgentCli(
 				cwd: fixture.workspace,
 				env: {
 					...process.env,
-					VETTA_CODING_AGENT_DIR: fixture.agentDir,
-					VETTA_HOME: join(fixture.root, "home"),
-					VETTA_PACKAGE_DIR: undefined,
+					AGENT567_CODING_AGENT_DIR: fixture.agentDir,
+					AGENT567_HOME: join(fixture.root, "home"),
+					AGENT567_PACKAGE_DIR: undefined,
 				},
 				stdio: "pipe",
 				windowsHide: true,

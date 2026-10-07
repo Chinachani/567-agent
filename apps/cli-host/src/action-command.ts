@@ -48,7 +48,7 @@ type ActionSubcommandDefinition = {
 	run: (client: ActionRpcClient, command: ActionCommand) => Promise<unknown> | unknown;
 };
 
-const HELP_TEXT = `Vetta action command line interface
+const HELP_TEXT = `567 Agent action command line interface
 
 Usage:
   vetta action search [query] [--domain <domain>]

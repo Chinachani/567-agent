@@ -17,7 +17,7 @@ beforeAll(async () => {
 	isolatedUserHome = await mkdtemp(join(tmpdir(), "vetta-im-runtime-host-home-"));
 	vi.stubEnv("HOME", isolatedUserHome);
 	vi.stubEnv("USERPROFILE", isolatedUserHome);
-	vi.stubEnv("VETTA_HOME", isolatedUserHome);
+	vi.stubEnv("AGENT567_HOME", isolatedUserHome);
 });
 
 afterAll(async () => {

@@ -242,7 +242,7 @@ describe("UpdaterService", () => {
 		expect(engine.cancelCalls).toBe(0);
 		expect(service.getState().phase).toBe("downloading");
 
-		engine.completeDownload(["/Applications/Vetta.app"]);
+		engine.completeDownload(["/Applications/567 Agent.app"]);
 		await downloadPromise;
 		expect(service.getState().phase).toBe("ready");
 	});

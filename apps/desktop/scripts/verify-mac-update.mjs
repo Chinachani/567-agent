@@ -156,7 +156,7 @@ export async function verifyMacUpdate({ releaseDir = defaultReleaseDir, requireS
 	const zipArtifacts = await verifyBlockmaps(artifacts);
 
 	const shouldVerifySignature =
-		requireSignature ?? process.env.VETTA_REQUIRE_MAC_SIGNATURE === "1";
+		requireSignature ?? process.env.AGENT567_REQUIRE_MAC_SIGNATURE === "1";
 	if (shouldVerifySignature) {
 		for (const artifact of zipArtifacts) await verifySignedZip(artifact.filePath, document.version);
 		console.info(`[verify-mac-update] signed and notarized Mac update verified: ${document.version}`);

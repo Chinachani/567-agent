@@ -1,7 +1,7 @@
 import { cloudEnabled } from "@shared/components/cloud-slots";
 import { useImOnline } from "@shared/hooks/useImOnline";
 import { useThemeActions } from "@shared/hooks/useTheme";
-import { authUserAtom, loginPopoverOpenAtom, type ThemeMode, themeModeAtom } from "@shared/store/atoms";
+import { authUserAtom, type ThemeMode, themeModeAtom } from "@shared/store/atoms";
 import { cloudLogoutAtom, subscriptionStatusAtom } from "@shared/store/auth-atoms";
 import { useNavigate } from "@tanstack/react-router";
 import { useAtomValue, useSetAtom } from "jotai";
@@ -15,7 +15,6 @@ export function useSettingsMenuModel(open: boolean, setOpen: (open: boolean) => 
 	const mode = useAtomValue(themeModeAtom);
 	const { setMode } = useThemeActions();
 	const navigate = useNavigate();
-	const setLoginOpen = useSetAtom(loginPopoverOpenAtom);
 	// 不再经 useAuth 取登录态：那个 hook 同时挂载整套云会话 effects，属于
 	// App 根部 <CloudAuthBoot /> 的职责；这里只读原子状态 + 写登出 atom。
 	const user = useAtomValue(authUserAtom);
@@ -50,10 +49,6 @@ export function useSettingsMenuModel(open: boolean, setOpen: (open: boolean) => 
 		themeOptions,
 		user,
 		actions: {
-			login: () => {
-				setOpen(false);
-				setLoginOpen(true);
-			},
 			logout: () => {
 				setOpen(false);
 				logout();

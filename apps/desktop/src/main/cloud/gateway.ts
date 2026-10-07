@@ -6,7 +6,7 @@ import { tryRefreshAccessToken } from "./auth-session.js";
 
 export type { VettaGatewayRequest, VettaGatewayResponse };
 
-const log = getAppLogger("vetta-gateway");
+const log = getAppLogger("api567-gateway");
 
 const DEFAULT_TIMEOUT_MS = 300_000;
 const MAX_TIMEOUT_MS = 300_000;
@@ -68,7 +68,7 @@ function unwrap<T>(status: number, body: string): VettaGatewayResponse<T> {
 	return result;
 }
 
-/** Authenticated Vetta `/api/v1` transport. Callers never receive the token. */
+/** Authenticated 567 Agent API `/api/v1` transport. Callers never receive the token. */
 export async function requestVettaGateway<T = unknown>(
 	request: VettaGatewayRequest,
 	signal?: AbortSignal,

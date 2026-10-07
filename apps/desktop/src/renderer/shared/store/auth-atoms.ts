@@ -19,7 +19,6 @@ localStorage.removeItem("vetta-refresh-token");
 
 export const authTokenAtom = atom<string | null>(null);
 export const authUserAtom = atom<AuthUser | null>(null);
-export const loginPopoverOpenAtom = atom<boolean>(false);
 
 /**
  * 登出：只清服务器侧状态（token / user / 远程 providers / SSE）。

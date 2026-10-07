@@ -1,4 +1,8 @@
-import { RemoteDesktopHost, WebSocketRemoteDesktopSignaling } from "@567agent/remote-desktop";
+import {
+	REMOTE_DESKTOP_PROTOCOL_VERSION,
+	RemoteDesktopHost,
+	WebSocketRemoteDesktopSignaling,
+} from "@567agent/remote-desktop";
 
 declare global {
 	interface Window {
@@ -17,6 +21,7 @@ interface RelayRoute {
 	stream?: MediaStream;
 	reconnectTimer?: ReturnType<typeof setTimeout>;
 	connecting: boolean;
+	capturing: boolean;
 	closed: boolean;
 }
 
@@ -31,7 +36,13 @@ try {
 }
 if (!sessionId || targets.length === 0) throw new Error("remote desktop host targets are missing");
 
-const routes: RelayRoute[] = targets.map((target, index) => ({ index, target, connecting: false, closed: false }));
+const routes: RelayRoute[] = targets.map((target, index) => ({
+	index,
+	target,
+	connecting: false,
+	capturing: false,
+	closed: false,
+}));
 
 for (const route of routes) void connectRoute(route);
 
@@ -64,7 +75,8 @@ async function connectRoute(route: RelayRoute): Promise<void> {
 			},
 			onClose(reason) {
 				console.warn("remote desktop signaling closed", { reason, target: safeTarget(route.target) });
-				cleanupRoute(route);
+				const directPeerIsAlive = route.host?.connectionState === "connected";
+				if (!directPeerIsAlive) cleanupRoute(route);
 				scheduleReconnect(route);
 			},
 		});
@@ -74,7 +86,7 @@ async function connectRoute(route: RelayRoute): Promise<void> {
 			error: error instanceof Error ? error.message : String(error),
 			target: safeTarget(route.target),
 		});
-		cleanupRoute(route);
+		if (route.host?.connectionState !== "connected") cleanupRoute(route);
 		scheduleReconnect(route);
 	} finally {
 		route.connecting = false;
@@ -91,7 +103,8 @@ window.addEventListener("vetta:remote-desktop:capture-request", (event) => {
 });
 
 async function startHostForRoute(route: RelayRoute, signaling: WebSocketRemoteDesktopSignaling): Promise<void> {
-	if (route.host || route.closed) return;
+	if (route.host || route.capturing || route.closed) return;
+	route.capturing = true;
 	try {
 		const stream = await navigator.mediaDevices.getDisplayMedia({ video: true, audio: false });
 		if (route.closed || route.signaling !== signaling) {
@@ -109,12 +122,35 @@ async function startHostForRoute(route: RelayRoute, signaling: WebSocketRemoteDe
 					warn: (message, fields) => console.warn(message, fields),
 				},
 			},
-			(signal) => signaling.send(signal),
+			async (signal) => {
+				const activeSignaling = route.signaling;
+				if (!activeSignaling?.connected) return;
+				try {
+					await activeSignaling.send(signal);
+				} catch (signalError) {
+					console.warn("remote desktop signal not sent", {
+						type: signal.type,
+						error: signalError instanceof Error ? signalError.message : String(signalError),
+						target: safeTarget(route.target),
+					});
+				}
+			},
 			(message) => window.vettaRemoteDesktop?.onInput(message),
 		);
 		route.stream = stream;
 		route.host = host;
-		await host.start(stream, { waitForPeerReady: false });
+		await host.start(stream, {
+			waitForPeerReady: false,
+			onViewerReplaced: () => {
+				cleanupRoute(route);
+				if (route.signaling?.connected) window.vettaRemoteDesktop?.requestCapture(route.index);
+			},
+			onConnectionStateChange: (state) => {
+				if (state !== "failed" && state !== "closed") return;
+				cleanupRoute(route);
+				if (route.signaling?.connected) window.vettaRemoteDesktop?.requestCapture(route.index);
+			},
+		});
 		console.info("remote desktop stream started", { target: safeTarget(route.target) });
 	} catch (error) {
 		console.warn("remote desktop capture or startup failed", {
@@ -124,7 +160,7 @@ async function startHostForRoute(route: RelayRoute, signaling: WebSocketRemoteDe
 		try {
 			await signaling.send({
 				type: "end",
-				protocolVersion: 1,
+				protocolVersion: REMOTE_DESKTOP_PROTOCOL_VERSION,
 				sessionId: sessionId!,
 				reason:
 					error instanceof DOMException && ["NotAllowedError", "AbortError"].includes(error.name)
@@ -138,6 +174,8 @@ async function startHostForRoute(route: RelayRoute, signaling: WebSocketRemoteDe
 			});
 		}
 		cleanupRoute(route);
+	} finally {
+		route.capturing = false;
 	}
 }
 

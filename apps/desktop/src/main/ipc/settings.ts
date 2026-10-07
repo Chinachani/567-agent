@@ -1,6 +1,6 @@
 import { ipcMain } from "electron";
 import { readAgentSettingsDocument, updateAgentSettingsDocument } from "../agent-settings/settings-document-store.js";
-import { DEFAULT_SERVER_URL, DEFAULT_SITE_URL } from "../constants.js";
+import { DEFAULT_SERVER_URL } from "../constants.js";
 import {
 	listPresetProviders,
 	refreshPresetCatalog,
@@ -38,10 +38,6 @@ export function registerSettingsIpc(): () => void {
 
 	ipcMain.handle("vetta:settings:get-server-url", () => {
 		return DEFAULT_SERVER_URL;
-	});
-
-	ipcMain.handle("vetta:settings:get-site-url", () => {
-		return DEFAULT_SITE_URL;
 	});
 
 	// 预设服务商目录内置在客户端(见 ADR-0050);模型清单取自 models.dev 公共目录,免 key 可见。

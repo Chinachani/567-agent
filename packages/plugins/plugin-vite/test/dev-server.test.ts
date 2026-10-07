@@ -101,7 +101,7 @@ describe("startVettaPluginDevServer", () => {
 		const virtualEntryText = await virtualEntry.text();
 		expect(virtualEntry.status).toBe(200);
 		expect(virtualEntry.headers.get("content-type")).toContain("javascript");
-		expect(virtualEntryText).toContain("__VETTA_PLUGIN_DEV_MODULES__");
+		expect(virtualEntryText).toContain("__AGENT567_PLUGIN_DEV_MODULES__");
 		expect(virtualEntryText).toContain("triggeredBy");
 		const virtualLoggerText = await virtualLogger.text();
 		expect(virtualLogger.status).toBe(200);

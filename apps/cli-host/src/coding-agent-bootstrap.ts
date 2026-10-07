@@ -4,7 +4,7 @@ import {
 	type CodingAgentBootstrapDiagnostics,
 	createCodingAgentBootstrap,
 } from "@567agent/coding-agent/bootstrap";
-import { ENV_SERVER_URL, getAgentDir } from "@567agent/coding-agent/config";
+import { ENV_API567_BASE_URL, ENV_SERVER_URL, getAgentDir } from "@567agent/coding-agent/config";
 import { createCodingAgentAuthRuntime, createCodingAgentModelRuntime } from "@567agent/coding-agent/host-services";
 import {
 	NodeTransactionalTextStorage,
@@ -47,7 +47,7 @@ export async function createCliCodingAgentBootstrap(
 		settingsManager,
 		authStorage,
 		modelRegistry,
-		serverUrlOverride: process.env[ENV_SERVER_URL],
+		serverUrlOverride: process.env[ENV_API567_BASE_URL] || process.env[ENV_SERVER_URL],
 		createResourceRuntime: ({ parsed, settings }) =>
 			createCliSessionResourceRuntime({
 				cwd,

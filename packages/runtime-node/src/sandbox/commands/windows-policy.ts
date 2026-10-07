@@ -67,10 +67,10 @@ export function buildWindowsSandboxPolicy(options: WindowsSandboxPolicyOptions):
 		optionalEnvDir(options.env, "PIP_CONFIG_FILE"),
 	]);
 	const actionRpcReadRoots = compactPaths([
-		optionalEnvPath(options.env, "VETTA_HOME"),
-		optionalEnvDir(options.env, "VETTA_ACTION_RPC_ENDPOINT_FILE"),
-		optionalEnvDir(options.env, "VETTA_DESKTOP_EXE"),
-		optionalEnvDir(options.env, "VETTA_CLI_APP_PATH"),
+		optionalEnvPath(options.env, "AGENT567_HOME"),
+		optionalEnvDir(options.env, "AGENT567_ACTION_RPC_ENDPOINT_FILE"),
+		optionalEnvDir(options.env, "AGENT567_DESKTOP_EXE"),
+		optionalEnvDir(options.env, "AGENT567_CLI_APP_PATH"),
 	]);
 	const packageManagerWriteRoots = compactPaths([
 		optionalEnvPath(options.env, "npm_config_prefix"),
@@ -78,8 +78,8 @@ export function buildWindowsSandboxPolicy(options: WindowsSandboxPolicyOptions):
 		optionalEnvPath(options.env, "npm_config_cache"),
 		optionalEnvPath(options.env, "NPM_CONFIG_CACHE"),
 		optionalEnvPath(options.env, "PIP_CACHE_DIR"),
-		optionalEnvPath(options.env, "VETTA_MANAGED_PYTHON_SITE_PACKAGES"),
-		optionalEnvPath(options.env, "VETTA_MANAGED_PYTHON_SCRIPTS"),
+		optionalEnvPath(options.env, "AGENT567_MANAGED_PYTHON_SITE_PACKAGES"),
+		optionalEnvPath(options.env, "AGENT567_MANAGED_PYTHON_SCRIPTS"),
 	]);
 	const allowReadRoots = uniqueResolved([
 		options.cwd,

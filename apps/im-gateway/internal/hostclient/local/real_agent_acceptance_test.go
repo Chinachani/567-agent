@@ -13,8 +13,8 @@ import (
 )
 
 const (
-	realAgentBinaryEnv     = "VETTA_TEST_AGENT_BIN"
-	realAgentPackageDirEnv = "VETTA_TEST_PACKAGE_DIR"
+	realAgentBinaryEnv     = "AGENT567_TEST_AGENT_BIN"
+	realAgentPackageDirEnv = "AGENT567_TEST_PACKAGE_DIR"
 	realAgentReply         = "IM_REAL_AGENT_REPLY"
 	realAgentFileContent   = "IM real Agent tool loop content"
 )
@@ -63,8 +63,8 @@ func TestRealAgent_IMToolLoopAndResume(t *testing.T) {
 		CloseTimeout:     15 * time.Second,
 		ExtraEnv: map[string]string{
 			"NO_COLOR":               "1",
-			"VETTA_CODING_AGENT_DIR": agentDir,
-			"VETTA_PACKAGE_DIR":      packageDir,
+			"AGENT567_CODING_AGENT_DIR": agentDir,
+			"AGENT567_PACKAGE_DIR":      packageDir,
 		},
 	})
 

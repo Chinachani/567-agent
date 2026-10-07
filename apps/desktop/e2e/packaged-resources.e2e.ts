@@ -1,4 +1,4 @@
-const packaged = process.env.VETTA_E2E_PACKAGED === "1";
+const packaged = process.env.AGENT567_E2E_PACKAGED === "1";
 
 describe("567 Agent packaged resources", () => {
 	(packaged ? it : it.skip)("loads the remote desktop host entry from the packaged layout", async () => {

@@ -40,6 +40,7 @@ import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.TextButton
@@ -95,6 +96,7 @@ fun MeScreen(
     onSelectGroup: (String) -> Unit = {},
     onRefreshQuota: () -> Unit = {},
     catalogLoading: Boolean = false,
+    quotaRefreshing: Boolean = false,
     onOpenPlan: () -> Unit = {},
     onOpenSettings: () -> Unit = {},
     onOpenDataSettings: () -> Unit = {},
@@ -180,8 +182,8 @@ fun MeScreen(
                                     Text("充值", style = MaterialTheme.typography.labelMedium)
                                 }
                                 Spacer(Modifier.width(6.dp))
-                                IconButton(onClick = onRefreshQuota) {
-                                    RotatingRefreshIcon(isRefreshing = catalogLoading, contentDescription = "刷新余额")
+                                IconButton(onClick = onRefreshQuota, enabled = !quotaRefreshing) {
+                                    RotatingRefreshIcon(isRefreshing = quotaRefreshing, contentDescription = "刷新余额")
                                 }
                             }
                         }
@@ -496,8 +498,8 @@ fun SettingsScreen(
     onMotionEnabled: (Boolean) -> Unit,
     onInputPredictionEnabled: (Boolean) -> Unit,
     onClearLocalData: () -> Unit,
-    onExportMigration: (String, (ByteArray?, String?) -> Unit) -> Unit,
-    onImportMigration: (ByteArray, String, (Int?, String?) -> Unit) -> Unit,
+    onExportMigration: (String, (String) -> Unit, (ByteArray?, String?) -> Unit) -> Unit,
+    onImportMigration: (ByteArray, String, (String) -> Unit, (Int?, String?) -> Unit) -> Unit,
     onBack: () -> Unit,
     confirmBeforeDelete: Boolean,
     onConfirmBeforeDelete: (Boolean) -> Unit,
@@ -508,6 +510,8 @@ fun SettingsScreen(
     var migrationPasswordConfirm by remember { mutableStateOf("") }
     var pendingMigrationArchive by remember { mutableStateOf<ByteArray?>(null) }
     var migrationNotice by remember { mutableStateOf<String?>(null) }
+    var migrationProgress by remember { mutableStateOf<String?>(null) }
+    var migrationBusy by remember { mutableStateOf(false) }
     var diagnosticsNotice by remember { mutableStateOf<String?>(null) }
     var showMigrationLimitDialog by remember { mutableStateOf(false) }
     val diagnosticsFiles = rememberDiagnosticsFileActions { saved ->
@@ -533,7 +537,7 @@ fun SettingsScreen(
         onSaved = { saved, error ->
             migrationNotice = when {
                 saved -> Str.migrationExportSuccess
-                error == null -> null
+                error == null -> Str.migrationSaveCancelled
                 error == MigrationBackupFileError.TooLarge -> Str.migrationSaveTooLarge
                 else -> Str.migrationSaveFailure
             }
@@ -662,7 +666,9 @@ fun SettingsScreen(
     migrationDialog?.let { mode ->
         AlertDialog(
             onDismissRequest = {
+                if (migrationBusy) return@AlertDialog
                 migrationDialog = null
+                pendingMigrationArchive?.fill(0)
                 pendingMigrationArchive = null
             },
             title = { Text(if (mode == MigrationDialog.Export) Str.migrationExportTitle else Str.migrationImportTitle) },
@@ -674,39 +680,52 @@ fun SettingsScreen(
                         Text(Str.migrationImportMergeHint, style = MaterialTheme.typography.bodySmall)
                     }
                     Spacer(Modifier.height(12.dp))
-                    OutlinedTextField(
-                        value = migrationPassword,
-                        onValueChange = { if (it.length <= 128) migrationPassword = it },
-                        singleLine = true,
-                        visualTransformation = PasswordVisualTransformation(),
-                        label = { Text(Str.migrationPasswordLabel) },
-                    )
-                    if (mode == MigrationDialog.Export) {
-                        Spacer(Modifier.height(8.dp))
+                    if (migrationBusy) {
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            CircularProgressIndicator(modifier = Modifier.size(20.dp), strokeWidth = 2.dp)
+                            Spacer(Modifier.width(10.dp))
+                            Text(migrationProgress ?: Str.migrationProgressCollecting)
+                        }
+                        Spacer(Modifier.height(12.dp))
+                    }
+                    if (!migrationBusy) {
                         OutlinedTextField(
-                            value = migrationPasswordConfirm,
-                            onValueChange = { if (it.length <= 128) migrationPasswordConfirm = it },
+                            value = migrationPassword,
+                            onValueChange = { if (it.length <= 128) migrationPassword = it },
                             singleLine = true,
                             visualTransformation = PasswordVisualTransformation(),
-                            label = { Text(Str.migrationPasswordConfirmLabel) },
+                            label = { Text(Str.migrationPasswordLabel) },
                         )
-                        if (migrationPasswordConfirm.isNotEmpty() && migrationPasswordConfirm != migrationPassword) {
-                            Text(Str.migrationPasswordMismatch, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.error)
+                        if (mode == MigrationDialog.Export) {
+                            Spacer(Modifier.height(8.dp))
+                            OutlinedTextField(
+                                value = migrationPasswordConfirm,
+                                onValueChange = { if (it.length <= 128) migrationPasswordConfirm = it },
+                                singleLine = true,
+                                visualTransformation = PasswordVisualTransformation(),
+                                label = { Text(Str.migrationPasswordConfirmLabel) },
+                            )
+                            if (migrationPasswordConfirm.isNotEmpty() && migrationPasswordConfirm != migrationPassword) {
+                                Text(Str.migrationPasswordMismatch, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.error)
+                            }
                         }
                     }
                 }
             },
             confirmButton = {
                 TextButton(
-                    enabled = migrationPassword.length >= 8 &&
+                    enabled = !migrationBusy && migrationPassword.length >= 8 &&
                         (mode == MigrationDialog.Import || migrationPassword == migrationPasswordConfirm),
                     onClick = {
                         val password = migrationPassword
                         migrationPassword = ""
                         migrationPasswordConfirm = ""
-                        migrationDialog = null
+                        migrationBusy = true
+                        migrationProgress = Str.migrationProgressCollecting
                         if (mode == MigrationDialog.Export) {
-                            onExportMigration(password) { bytes, error ->
+                            onExportMigration(password, { migrationProgress = it }) { bytes, error ->
+                                migrationBusy = false
+                                migrationDialog = null
                                 if (bytes != null) migrationFiles.save(bytes)
                                 else migrationNotice = error ?: Str.migrationExportFailure
                             }
@@ -714,13 +733,19 @@ fun SettingsScreen(
                             val archive = pendingMigrationArchive
                             pendingMigrationArchive = null
                             if (archive != null) {
-                                onImportMigration(archive, password) { count, error ->
+                                onImportMigration(archive, password, { migrationProgress = it }) { count, error ->
+                                    migrationBusy = false
+                                    migrationDialog = null
                                     migrationNotice = if (count != null) {
                                         "${Str.migrationImportSuccess}（$count 个会话）"
                                     } else {
                                         error ?: Str.migrationFileReadFailure
                                     }
                                 }
+                            } else {
+                                migrationBusy = false
+                                migrationDialog = null
+                                migrationNotice = Str.migrationFileReadFailure
                             }
                         }
                     },
@@ -728,8 +753,11 @@ fun SettingsScreen(
             },
             dismissButton = {
                 TextButton(onClick = {
+                    if (migrationBusy) return@TextButton
                     migrationDialog = null
+                    pendingMigrationArchive?.fill(0)
                     pendingMigrationArchive = null
+                    migrationProgress = null
                 }) { Text(Str.cancel) }
             },
         )
@@ -1308,8 +1336,12 @@ fun TopupDialog(
                     },
                     onClick = {
                         if (activeTab == 0) {
-                            val finalAmt = customAmountText.toIntOrNull() ?: selectedAmount
-                            if (finalAmt < 1) {
+                            val customAmount = customAmountText.trim()
+                            val finalAmt = if (customAmount.isEmpty()) selectedAmount else customAmount.toIntOrNull()
+                            if (finalAmt == null) {
+                                message = "请输入有效的整数金额"
+                                isError = true
+                            } else if (finalAmt < 1) {
                                 message = "金额不能少于 1 元"
                                 isError = true
                             } else {

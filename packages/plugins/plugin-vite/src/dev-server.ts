@@ -9,12 +9,12 @@ import {
 } from "@vetta-org/plugin-sdk/manifest";
 import { watch } from "chokidar";
 import { createServer, isCSSRequest, type ViteDevServer } from "vite";
-import { VETTA_PLUGIN_DEV_ENTRY_ID } from "./dev-vite-plugins.js";
+import { AGENT567_PLUGIN_DEV_ENTRY_ID } from "./dev-vite-plugins.js";
 import {
 	emitVettaPluginDevEvent,
 	setVettaPluginDevEventListener,
 	type VettaPluginDevEvent,
-	VETTA_PLUGIN_DEV_PROTOCOL_VERSION,
+	AGENT567_PLUGIN_DEV_PROTOCOL_VERSION,
 } from "./dev-events.js";
 import { hasOpaqueResourceQuery } from "./request-query.js";
 
@@ -26,7 +26,7 @@ export interface VettaPluginDevServer {
 }
 
 function debugDevServer(message: string): void {
-	if (process.env.VETTA_PLUGIN_DEV_DEBUG === "1") {
+	if (process.env.AGENT567_PLUGIN_DEV_DEBUG === "1") {
 		process.stderr.write(`[vetta-plugin dev] ${message}\n`);
 	}
 }
@@ -118,7 +118,7 @@ async function assertDevEntryAvailable(entryUrl: string): Promise<void> {
 
 async function assertDevModuleGraphAvailable(server: ViteDevServer, rootDir: string): Promise<void> {
 	const environment = server.environments.client;
-	const pendingUrls = [VETTA_PLUGIN_DEV_ENTRY_ID];
+	const pendingUrls = [AGENT567_PLUGIN_DEV_ENTRY_ID];
 	const transformedUrls = new Set<string>();
 	while (pendingUrls.length > 0) {
 		const moduleUrl = pendingUrls.pop();
@@ -153,7 +153,7 @@ export async function startVettaPluginDevServer(
 	rootDir: string,
 	onEvent: (event: VettaPluginDevEvent) => void,
 ): Promise<VettaPluginDevServer> {
-	process.env.VETTA_PLUGIN_DEV_SERVER = "1";
+	process.env.AGENT567_PLUGIN_DEV_SERVER = "1";
 	setVettaPluginDevEventListener(onEvent);
 
 	let manifest = await readManifest(rootDir);
@@ -240,7 +240,7 @@ export async function startVettaPluginDevServer(
 	}
 	const readyEvent: VettaPluginDevEvent = {
 		type: "ready",
-		protocolVersion: VETTA_PLUGIN_DEV_PROTOCOL_VERSION,
+		protocolVersion: AGENT567_PLUGIN_DEV_PROTOCOL_VERSION,
 		pluginId: manifest.id,
 		entryUrl,
 		origin,

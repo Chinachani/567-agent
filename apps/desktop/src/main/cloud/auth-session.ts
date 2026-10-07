@@ -1,7 +1,7 @@
 /**
- * Vetta 云服务的登录会话（主进程侧）：token 持久化 / refresh 单飞 / 带鉴权的服务端请求。
+ * 567 Agent API 的访问令牌会话（主进程侧）：token 持久化 / refresh 单飞 / 带鉴权的服务端请求。
  *
- * 本文件属于 cloud 模块——lite 构建（VETTA_CLOUD_ENABLED=false）不注册相关 IPC。
+ * 本文件属于 cloud 模块——lite 构建（AGENT567_CLOUD_ENABLED=false）不注册相关 IPC。
  * 从 ipc/settings.ts 抽出：settings.json 的读写仍复用宿主的 readSettings/updateSettings
  * （跨进程锁语义见那边的注释），本文件只拥有「云会话」这一职责。
  */

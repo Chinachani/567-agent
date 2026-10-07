@@ -67,7 +67,7 @@ Dev 是 attach-only Profile，没有对应的 `start` 或 `stop`。如果普通�
 开发中的外置插件应继续复用 Dev Profile。安装新 zip 即激活新版本（ADR-0113），不需要再补一次重载；`reload` 保留为「重新读盘刷新」，用于插件目录被就地改动的场景：
 
 ```powershell
-$env:VETTA_CONFIG_DIR = ".vetta-dev"
+$env:AGENT567_CONFIG_DIR = ".vetta-dev"
 bun packages/plugins/plugin-cli/src/cli.ts add C:\path\to\plugin.zip --json
 bun packages/plugins/plugin-cli/src/cli.ts reload plugin-id --json
 ```
@@ -130,7 +130,7 @@ bun run verify:ui:debug -- runtime-canary
 - 本地确定性 Provider 已停止；
 - Scheduler 与 Batch Provider 请求没有因重启重复执行。
 
-Canary 使用独立的 `VETTA_HOME`、Coding Agent 目录、Electron user data、工作区和本地 Provider，
+Canary 使用独立的 `AGENT567_HOME`、Coding Agent 目录、Electron user data、工作区和本地 Provider，
 不读取或修改用户的真实模型、认证及会话数据。该命令会主动结束两代验证实例；完成后不需要再执行
 `verify:ui:stop`。
 

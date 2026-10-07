@@ -3,26 +3,16 @@ import { Button } from "@vetta-org/ui";
 import { AnimatePresence, LayoutGroup, motion } from "motion/react";
 import type { SetupWizardModel } from "../hooks/useSetupWizard";
 import type { SetupWizardStepId } from "../steps";
-import { CloudLoginStep } from "@shared/components/cloud-slots";
 import { LanguageAppearanceStep } from "./steps/LanguageAppearanceStep";
 import { PermissionsStep } from "./steps/PermissionsStep";
 import { WelcomeStep } from "./steps/WelcomeStep";
 
-function StepBody({
-	onLoginSuccess,
-	step,
-}: {
-	onLoginSuccess: () => void;
-	step: SetupWizardStepId;
-}): JSX.Element {
+function StepBody({ step }: { step: SetupWizardStepId }): JSX.Element {
 	switch (step) {
 		case "permissions":
 			return <PermissionsStep />;
 		case "languageAppearance":
 			return <LanguageAppearanceStep />;
-		case "login":
-			// lite 构建下 steps 列表不含 login，此分支不可达（槽位渲染 null 兜底）
-			return <CloudLoginStep onSuccess={onLoginSuccess} />;
 		case "welcome":
 			return <WelcomeStep />;
 	}
@@ -102,7 +92,7 @@ export function SetupWizardView({ model }: { model: SetupWizardModel }): JSX.Ele
 							exit={{ opacity: 0, y: -10, filter: "blur(6px)" }}
 							transition={{ duration: 0.32, ease: easeOut }}
 						>
-							<StepBody step={currentStep} onLoginSuccess={actions.next} />
+							<StepBody step={currentStep} />
 						</motion.div>
 					</AnimatePresence>
 				</div>

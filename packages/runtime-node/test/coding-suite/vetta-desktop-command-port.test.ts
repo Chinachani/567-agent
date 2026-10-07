@@ -8,7 +8,7 @@ describe("Node 567 Agent command port", () => {
 	it("prefers the explicit environment executable without reading configuration", async () => {
 		const readTextFile = vi.fn<() => Promise<string>>();
 		const port = createNodeVettaDesktopCommandPort({
-			environment: { VETTA_DESKTOP_EXE: "C:\\tools\\Vetta.exe" },
+			environment: { AGENT567_DESKTOP_EXE: "C:\\tools\\Vetta.exe" },
 			fileExists: async (filePath) => filePath === "C:\\tools\\Vetta.exe",
 			readTextFile,
 		});
@@ -39,12 +39,12 @@ describe("Node 567 Agent command port", () => {
 			platform: "darwin",
 			environment: {},
 			vettaHomePath: "/home/test/.vetta",
-			fileExists: async (filePath) => filePath === "/Applications/Vetta.app/Contents/MacOS/Vetta",
+			fileExists: async (filePath) => filePath === "/Applications/567 Agent.app/Contents/MacOS/567-Agent",
 			readTextFile: async () => JSON.stringify({ vettaAppPath: "/old/Vetta" }),
 		});
 
 		await expect(port.locate()).resolves.toEqual({
-			path: "/Applications/Vetta.app/Contents/MacOS/Vetta",
+			path: "/Applications/567 Agent.app/Contents/MacOS/567-Agent",
 			staleConfiguredPath: "/old/Vetta",
 		});
 	});

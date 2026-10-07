@@ -56,7 +56,7 @@ describe("groupAbilities", () => {
 		];
 		const before = structuredClone(items);
 		const groups = groupAbilities(items);
-		expect(groups.map((group) => group.category)).toEqual(["Documents", "Other"]);
+		expect(groups.map((group) => group.category)).toEqual(["documents", "other"]);
 		expect(groups[0]?.categoryI18n).toEqual({ en: "Documents", zh: "文档" });
 		expect(groups[0]?.items.map((item) => item.slug)).toEqual(["first", "second"]);
 		expect(items).toEqual(before);
@@ -78,7 +78,7 @@ describe("groupAbilities", () => {
 
 		expect(groups.map((group) => group.category)).toEqual([
 			ABILITY_CATEGORY_CONNECTORS,
-			"General",
+			"general",
 			ABILITY_CATEGORY_VETTA_BUILTIN,
 			ABILITY_CATEGORY_UNCATEGORIZED,
 		]);
@@ -97,13 +97,13 @@ describe("groupAbilities", () => {
 			ability("market-skill", { category: "Design" }),
 		]);
 
-		expect(groups.map((group) => group.category)).toEqual(["Design", ABILITY_CATEGORY_VETTA_BUILTIN]);
+		expect(groups.map((group) => group.category)).toEqual(["design", ABILITY_CATEGORY_VETTA_BUILTIN]);
 		expect(groups[0]?.items.map((item) => item.slug)).toEqual(["market-skill"]);
 	});
 
 	it("drops empty synthetic groups", () => {
 		const groups = groupAbilities([ability("market-skill")]);
 
-		expect(groups.map((group) => group.category)).toEqual(["General"]);
+		expect(groups.map((group) => group.category)).toEqual(["general"]);
 	});
 });

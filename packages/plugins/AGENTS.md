@@ -93,21 +93,21 @@
 - `build:presets:dev` 强制使用 `development`；`prepare:desktop-pack` 及所有 `pack` / `dist`
   入口强制使用 `production`，避免发布时因本地环境变量带入开发插件。
 
-构建/开发时通过 `VETTA_TENANT` 环境变量选择租户（缺省取 `default`）：
+构建/开发时通过 `AGENT567_TENANT` 环境变量选择租户（缺省取 `default`）：
 
 ```bash
 # dev：仅构建并 staging 当前租户的系统插件
 cd apps/desktop
-VETTA_TENANT=common bun run dev
+AGENT567_TENANT=common bun run dev
 
-# 打包 App：build:presets 与 prepare-pack 都读取同一 VETTA_TENANT
-VETTA_TENANT=common bun run dist:win
+# 打包 App：build:presets 与 prepare-pack 都读取同一 AGENT567_TENANT
+AGENT567_TENANT=common bun run dist:win
 ```
 
 `build-presets.mjs` 只构建/staging 当前 profile + 租户的插件，切换组合时会自动清理
 `.artifacts/system-plugins` 下不属于该组合的旧插件；`prepare-pack.js` 只把该
 profile + 租户的 zip 制品打入 `Resources/system-plugins`。同一次构建务必使用一致的
-`VETTA_SYSTEM_PLUGIN_PROFILE` 与 `VETTA_TENANT`，否则打包阶段会因缺少对应 zip 而报错。
+`AGENT567_SYSTEM_PLUGIN_PROFILE` 与 `AGENT567_TENANT`，否则打包阶段会因缺少对应 zip 而报错。
 
 若租户包含 `plugin-workbench`，`build-presets.mjs` 在算缓存哈希之前会先跑
 `presets/plugin-workbench/scripts/bundle-cli.mjs`，把 `plugin-cli` 的构建产物内置到该插件包内

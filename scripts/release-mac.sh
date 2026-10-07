@@ -22,7 +22,7 @@
 #   ~/.config/vetta/mac-signing.env    签名与公证（通道无关）
 #   ~/.config/vetta/r2-<channel>.env   R2 凭据与通道配置（local 通道不需要）
 #
-# 构建期的 VETTA_UPDATE_PROVIDER / VETTA_UPDATE_URL 由本脚本直接注入，
+# 构建期的 AGENT567_UPDATE_PROVIDER / AGENT567_UPDATE_URL 由本脚本直接注入，
 # 因此不依赖 apps/desktop/.env.development 里有没有配这两项。
 
 set -euo pipefail
@@ -97,8 +97,8 @@ esac
 
 # ── 凭据 ──────────────────────────────────────────────────────────────────────
 
-LOCAL_UPDATE_DIR="${VETTA_LOCAL_UPDATE_DIR:-${HOME}/.567agent/local-updates}"
-LOCAL_UPDATE_PORT="${VETTA_LOCAL_UPDATE_PORT:-8080}"
+LOCAL_UPDATE_DIR="${AGENT567_LOCAL_UPDATE_DIR:-${HOME}/.567agent/local-updates}"
+LOCAL_UPDATE_PORT="${AGENT567_LOCAL_UPDATE_PORT:-8080}"
 
 [[ -f "${SIGNING_ENV}" ]] || die "找不到签名凭据 ${SIGNING_ENV}（见 docs/deploy/apple-code-signing.md）"
 # shellcheck source=/dev/null
@@ -106,9 +106,9 @@ source "${SIGNING_ENV}"
 
 if [[ "${CHANNEL}" == "local" ]]; then
 	# 本地通道不碰 R2，也不需要通道凭据文件；跳过公证换取迭代速度。
-	export VETTA_SKIP_NOTARIZE=1
-	export VETTA_UPDATE_URL="http://127.0.0.1:${LOCAL_UPDATE_PORT}"
-	unset VETTA_REQUIRE_MAC_SIGNATURE
+	export AGENT567_SKIP_NOTARIZE=1
+	export AGENT567_UPDATE_URL="http://127.0.0.1:${LOCAL_UPDATE_PORT}"
+	unset AGENT567_REQUIRE_MAC_SIGNATURE
 else
 	CHANNEL_ENV="${HOME}/.config/vetta/r2-${CHANNEL}.env"
 	[[ -f "${CHANNEL_ENV}" ]] || die "找不到通道配置 ${CHANNEL_ENV}"
@@ -121,14 +121,14 @@ fi
 step "前置校验"
 
 if [[ "${CHANNEL}" != "local" ]]; then
-	for name in VETTA_R2_ACCOUNT_ID VETTA_R2_ACCESS_KEY_ID VETTA_R2_SECRET_ACCESS_KEY VETTA_R2_BUCKET VETTA_R2_PREFIX VETTA_UPDATE_URL; do
+	for name in AGENT567_R2_ACCOUNT_ID AGENT567_R2_ACCESS_KEY_ID AGENT567_R2_SECRET_ACCESS_KEY AGENT567_R2_BUCKET AGENT567_R2_PREFIX AGENT567_UPDATE_URL; do
 		[[ -n "${!name:-}" ]] || die "${CHANNEL_ENV} 缺少 ${name}"
 	done
 
-	[[ "${VETTA_R2_PREFIX##*/}" == "${CHANNEL}" ]] ||
-		die "通道不一致：VETTA_R2_PREFIX=${VETTA_R2_PREFIX} 的末段不是 ${CHANNEL}"
-	[[ "${VETTA_UPDATE_URL##*/}" == "${CHANNEL}" ]] ||
-		die "通道不一致：VETTA_UPDATE_URL=${VETTA_UPDATE_URL} 的末段不是 ${CHANNEL}"
+	[[ "${AGENT567_R2_PREFIX##*/}" == "${CHANNEL}" ]] ||
+		die "通道不一致：AGENT567_R2_PREFIX=${AGENT567_R2_PREFIX} 的末段不是 ${CHANNEL}"
+	[[ "${AGENT567_UPDATE_URL##*/}" == "${CHANNEL}" ]] ||
+		die "通道不一致：AGENT567_UPDATE_URL=${AGENT567_UPDATE_URL} 的末段不是 ${CHANNEL}"
 fi
 
 [[ -n "${CSC_LINK:-}${CSC_NAME:-}" ]] || die "${SIGNING_ENV} 缺少 CSC_LINK 或 CSC_NAME"
@@ -162,7 +162,7 @@ if [[ "${CHANNEL}" == "local" ]]; then
 	ONLINE_VERSION="$(awk '/^version:/ { print $2; exit }' "${LOCAL_UPDATE_DIR}/latest-mac.yml" 2>/dev/null || true)"
 else
 	ONLINE_VERSION="$(
-		curl -fsS --max-time 20 "${VETTA_UPDATE_URL}/latest-mac.yml?cachebust=$$" 2>/dev/null |
+		curl -fsS --max-time 20 "${AGENT567_UPDATE_URL}/latest-mac.yml?cachebust=$$" 2>/dev/null |
 			awk '/^version:/ { print $2; exit }'
 	)" || ONLINE_VERSION=""
 fi
@@ -179,12 +179,12 @@ else
 	echo "    ${CHANNEL} 线上还没有 macOS 产物"
 fi
 
-echo "    通道       ${CHANNEL}  ->  ${VETTA_UPDATE_URL}"
+echo "    通道       ${CHANNEL}  ->  ${AGENT567_UPDATE_URL}"
 echo "    版本       ${VERSION}$([[ "${VERSION}" != "${PACKAGE_VERSION}" ]] && echo "（package.json 是 ${PACKAGE_VERSION}，QA 覆盖）" || true)"
 echo "    架构       ${ARCH}"
 echo "    签名身份   ${APPLE_TEAM_ID}"
 if [[ "${CHANNEL}" == "local" ]]; then
-	echo "    公证       跳过（VETTA_SKIP_NOTARIZE=1，产物不可分发）"
+	echo "    公证       跳过（AGENT567_SKIP_NOTARIZE=1，产物不可分发）"
 	echo "    分发目录   ${LOCAL_UPDATE_DIR}"
 fi
 
@@ -202,10 +202,10 @@ fi
 
 # ── 构建 ──────────────────────────────────────────────────────────────────────
 
-export VETTA_UPDATE_PROVIDER="generic"
-export VETTA_DESKTOP_BUILD_VERSION="${VERSION}"
+export AGENT567_UPDATE_PROVIDER="generic"
+export AGENT567_DESKTOP_BUILD_VERSION="${VERSION}"
 # local 通道的产物没有公证票据，stapler 校验必然失败，因此不打开这个门禁。
-[[ "${CHANNEL}" == "local" ]] || export VETTA_REQUIRE_MAC_SIGNATURE=1
+[[ "${CHANNEL}" == "local" ]] || export AGENT567_REQUIRE_MAC_SIGNATURE=1
 
 cd "${DESKTOP_DIR}"
 
@@ -269,7 +269,7 @@ if [[ "${CHANNEL}" == "local" ]]; then
 	exit 0
 fi
 
-step "发布到 ${VETTA_UPDATE_URL}"
+step "发布到 ${AGENT567_UPDATE_URL}"
 bun run --cwd "${DESKTOP_DIR}" publish:updates:r2
 
 step "完成：${VERSION} 已发布到 ${CHANNEL}"

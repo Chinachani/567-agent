@@ -3,16 +3,18 @@ package org.agent567.android.ui.remote
 import android.content.Context
 import io.ktor.client.HttpClient
 import io.ktor.client.plugins.websocket.DefaultClientWebSocketSession
-import io.ktor.client.plugins.websocket.WebSockets
 import io.ktor.client.plugins.websocket.webSocketSession
 import io.ktor.http.HttpHeaders
 import io.ktor.http.takeFrom
 import io.ktor.websocket.Frame
 import io.ktor.websocket.readText
 import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.cancel
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -27,7 +29,10 @@ import kotlinx.serialization.json.jsonPrimitive
 import kotlinx.serialization.json.int
 import kotlinx.serialization.json.put
 import org.agent567.android.domain.remote.connection.PlatformRemoteLogger
-import org.agent567.android.core.net.platformHttpClientEngine
+import org.agent567.android.domain.remote.SignalingDrop
+import org.agent567.android.domain.remote.SignalingRetry
+import org.agent567.android.domain.remote.RemoteStreamStats
+import org.agent567.android.core.net.platformWebSocketHttpClient
 import org.agent567.android.core.net.pinnedWebSocketHttpClient
 import org.agent567.android.ui.i18n.Str
 import org.webrtc.DataChannel
@@ -57,14 +62,15 @@ class NativeRemoteDesktopSession(private val context: Context, private val targe
         if (fingerprint != null && !fingerprint.matches(Regex("[a-f0-9]{64}"))) {
             error("Invalid pinned certificate fingerprint")
         }
-        if (fingerprint == null) HttpClient(platformHttpClientEngine()) { install(WebSockets) }
+        if (fingerprint == null) platformWebSocketHttpClient()
         else pinnedWebSocketHttpClient(fingerprint)
     }
     private val eglBase = EglBase.create()
     private var factory: PeerConnectionFactory? = null
     private var peerConnection: PeerConnection? = null
     private var signalingJob: Job? = null
-    private var signaling: DefaultClientWebSocketSession? = null
+    private var statsJob: Job? = null
+    @Volatile private var signaling: DefaultClientWebSocketSession? = null
     private var inputChannel: DataChannel? = null
     private var sequence = 1L
     private var renderer: SurfaceViewRenderer? = null
@@ -72,8 +78,18 @@ class NativeRemoteDesktopSession(private val context: Context, private val targe
     private var stopped = false
     private var remoteDescriptionSet = false
     private val pendingCandidates = mutableListOf<IceCandidate>()
+    private val signalingRetry = SignalingRetry()
+    private val signalingNetworkLabel = if (target.isPrivateNetworkTarget()) "局域网" else "公网/中继"
+    private var lastStatsTotals: RemoteStreamStats.FrameTotals? = null
+    @Volatile private var directlyConnected = false
     private val _captureMessage = MutableStateFlow<String?>(Str.remoteCaptureWaiting)
     val captureMessage: StateFlow<String?> = _captureMessage.asStateFlow()
+    private val _connectionDetails = MutableStateFlow<String?>(null)
+    val connectionDetails: StateFlow<String?> = _connectionDetails.asStateFlow()
+    private val _streamStats = MutableStateFlow<RemoteStreamStats?>(null)
+    val streamStats: StateFlow<RemoteStreamStats?> = _streamStats.asStateFlow()
+    private val _textInputSupported = MutableStateFlow(false)
+    val textInputSupported: StateFlow<Boolean> = _textInputSupported.asStateFlow()
 
     fun createRenderer(): SurfaceViewRenderer = SurfaceViewRenderer(context).also {
         renderer = it
@@ -92,8 +108,12 @@ class NativeRemoteDesktopSession(private val context: Context, private val targe
     fun stop() {
         if (stopped) return
         stopped = true
+        _textInputSupported.value = false
         signalingJob?.cancel()
         signalingJob = null
+        statsJob?.cancel()
+        statsJob = null
+        _streamStats.value = null
         inputChannel?.dispose()
         peerConnection?.dispose()
         factory?.dispose()
@@ -139,6 +159,15 @@ class NativeRemoteDesktopSession(private val context: Context, private val targe
         })
     }
 
+    fun sendText(text: String) {
+        if (text.isBlank()) return
+        sendInput(buildJsonObject {
+            put("type", "text")
+            put("sequence", sequence++)
+            put("text", text.take(256))
+        })
+    }
+
     private fun sendInput(payload: JsonObject) {
         val channel = inputChannel ?: return
         if (channel.state() != DataChannel.State.OPEN) return
@@ -155,18 +184,50 @@ class NativeRemoteDesktopSession(private val context: Context, private val targe
                 .setVideoEncoderFactory(org.webrtc.DefaultVideoEncoderFactory(eglBase.eglBaseContext, true, true))
                 .createPeerConnectionFactory()
             val (socketUrl, token) = splitTarget(target)
-            val socket = client.webSocketSession {
-                url.takeFrom(socketUrl)
-                headers.append(HttpHeaders.SecWebSocketProtocol, listOf("vetta.desktop.v1", "vetta.pairing.$token").joinToString(", "))
+            while (!stopped) {
+                try {
+                    _connectionDetails.value = if (peerConnection == null) "正在连接${signalingNetworkLabel}信令…" else "正在恢复${signalingNetworkLabel}信令…"
+                    val socket = client.webSocketSession {
+                        url.takeFrom(socketUrl)
+                        headers.append(HttpHeaders.SecWebSocketProtocol, listOf("vetta.desktop.v1", "vetta.pairing.$token").joinToString(", "))
+                    }
+                    signaling = socket
+                    signalingRetry.reopened()
+                    _connectionDetails.value = "${signalingNetworkLabel}信令已连接"
+                    PlatformRemoteLogger.info("native WebRTC signaling connected")
+                    if (peerConnection == null) createPeerConnection()
+                    for (frame in socket.incoming) if (frame is Frame.Text) handleSignal(frame.readText())
+                } catch (error: CancellationException) {
+                    throw error
+                } catch (error: Throwable) {
+                    if (stopped || !directlyConnected) throw error
+                    val detail = safeConnectionDetail(error)
+                    _connectionDetails.value = "信令暂时断开，屏幕直连保持中：$detail"
+                    PlatformRemoteLogger.warn("native WebRTC signaling lost", mapOf("error" to detail))
+                }
+                signaling?.cancel()
+                signaling = null
+                if (stopped) break
+                when (val drop = signalingRetry.dropped(directlyConnected)) {
+                    SignalingDrop.Stop -> {
+                        if (_captureMessage.value == Str.remoteCaptureWaiting) {
+                            _captureMessage.value = Str.remoteCaptureUnavailable
+                            _connectionDetails.value = "${signalingNetworkLabel}信令已断开，屏幕直连尚未建立"
+                        }
+                        break
+                    }
+                    is SignalingDrop.Reconnect -> {
+                        _connectionDetails.value = "屏幕直连正常，${drop.afterMs / 1_000} 秒后重试局域网信令"
+                        delay(drop.afterMs)
+                    }
+                }
             }
-            signaling = socket
-            PlatformRemoteLogger.info("native WebRTC signaling connected")
-            createPeerConnection()
-            for (frame in socket.incoming) if (frame is Frame.Text) handleSignal(frame.readText())
         } catch (error: Throwable) {
             if (!stopped) {
                 _captureMessage.value = Str.remoteCaptureUnavailable
-                PlatformRemoteLogger.warn("native WebRTC session failed", mapOf("error" to (error.message ?: error::class.simpleName)))
+                val detail = safeConnectionDetail(error)
+                _connectionDetails.value = "${signalingNetworkLabel}远程连接失败：$detail"
+                PlatformRemoteLogger.warn("native WebRTC session failed", mapOf("error" to detail))
             }
         }
     }
@@ -180,6 +241,20 @@ class NativeRemoteDesktopSession(private val context: Context, private val targe
             override fun onSignalingChange(state: PeerConnection.SignalingState) = Unit
             override fun onIceConnectionChange(state: PeerConnection.IceConnectionState) {
                 PlatformRemoteLogger.info("native WebRTC ICE state", mapOf("state" to state.name))
+                if (state == PeerConnection.IceConnectionState.CONNECTED || state == PeerConnection.IceConnectionState.COMPLETED) {
+                    directlyConnected = true
+                    _connectionDetails.value = "屏幕已通过 WebRTC 直连"
+                    sampleStats()
+                }
+                if (state == PeerConnection.IceConnectionState.FAILED) {
+                    directlyConnected = false
+                    _captureMessage.value = Str.remoteCaptureFailed
+                    if (signaling == null) scope.launch { stop() }
+                }
+                if (state == PeerConnection.IceConnectionState.CLOSED) {
+                    directlyConnected = false
+                    if (signaling == null) scope.launch { stop() }
+                }
             }
             override fun onIceConnectionReceivingChange(receiving: Boolean) = Unit
             override fun onIceGatheringChange(state: PeerConnection.IceGatheringState) = Unit
@@ -187,7 +262,26 @@ class NativeRemoteDesktopSession(private val context: Context, private val targe
             override fun onIceCandidatesRemoved(candidates: Array<out IceCandidate>) = Unit
             override fun onAddStream(stream: MediaStream) = Unit
             override fun onRemoveStream(stream: MediaStream) = Unit
-            override fun onDataChannel(channel: DataChannel) { if (channel.label() == INPUT_CHANNEL) inputChannel = channel }
+            override fun onDataChannel(channel: DataChannel) {
+                if (channel.label() != INPUT_CHANNEL || inputChannel != null) {
+                    channel.dispose()
+                    return
+                }
+                inputChannel = channel
+                channel.registerObserver(object : DataChannel.Observer {
+                    override fun onBufferedAmountChange(previousAmount: Long) = Unit
+                    override fun onStateChange() = Unit
+                    override fun onMessage(buffer: DataChannel.Buffer) {
+                        if (buffer.binary) return
+                        val bytes = ByteArray(buffer.data.remaining())
+                        buffer.data.get(bytes)
+                        val message = runCatching { json.parseToJsonElement(bytes.decodeToString()).jsonObject }.getOrNull() ?: return
+                        if (message["type"]?.jsonPrimitive?.contentOrNull == "capabilities") {
+                            _textInputSupported.value = message["textInput"]?.jsonPrimitive?.contentOrNull == "true"
+                        }
+                    }
+                })
+            }
             override fun onRenegotiationNeeded() = Unit
             override fun onAddTrack(receiver: RtpReceiver, streams: Array<out MediaStream>) {
                 val track = receiver.track() as? VideoTrack ?: return
@@ -241,8 +335,12 @@ class NativeRemoteDesktopSession(private val context: Context, private val targe
                 }
                 "end" -> {
                     _captureMessage.value = when (signal["reason"]?.jsonPrimitive?.contentOrNull) {
+                        "completed" -> Str.remoteCaptureCompleted
+                        "revoked" -> Str.remoteCaptureRevoked
                         "capture_denied" -> Str.remoteCaptureDenied
-                        else -> Str.remoteCaptureUnavailable
+                        "capture_unavailable" -> Str.remoteCaptureUnavailable
+                        "peer_closed" -> Str.remoteCapturePeerClosed
+                        else -> Str.remoteCaptureFailed
                     }
                 }
             }
@@ -250,7 +348,58 @@ class NativeRemoteDesktopSession(private val context: Context, private val targe
     }
 
     private fun sendSignal(signal: JsonObject) {
-        scope.launch { signaling?.send(Frame.Text(signal.toString() + "\n")) }
+        scope.launch {
+            val active = signaling ?: return@launch
+            runCatching { active.send(Frame.Text(signal.toString() + "\n")) }
+                .onFailure { error ->
+                    if (!stopped) {
+                        val detail = safeConnectionDetail(error)
+                        _connectionDetails.value = "局域网信令发送失败，正在恢复：$detail"
+                        PlatformRemoteLogger.warn(
+                            "native WebRTC signal send failed",
+                            mapOf("type" to signal["type"]?.jsonPrimitive?.contentOrNull, "error" to detail),
+                        )
+                        if (signaling === active) active.cancel()
+                    }
+                }
+        }
+    }
+
+    private fun sampleStats() {
+        if (statsJob?.isActive == true) return
+        statsJob = scope.launch {
+            while (!stopped) {
+                val peer = peerConnection ?: break
+                val report = CompletableDeferred<List<RemoteStreamStats.Entry>>()
+                peer.getStats { stats ->
+                    report.complete(stats.statsMap.values.map { stat ->
+                        RemoteStreamStats.Entry(stat.id, stat.type, stat.members)
+                    })
+                }
+                val (next, totals) = RemoteStreamStats.read(report.await(), lastStatsTotals)
+                lastStatsTotals = totals
+                _streamStats.value = next
+                delay(1_000)
+            }
+        }
+    }
+
+    private fun safeConnectionDetail(error: Throwable): String {
+        val raw = error.message?.takeIf(String::isNotBlank) ?: error::class.simpleName.orEmpty()
+        val withoutTarget = raw.replace(target, target.substringBefore('#'))
+        return withoutTarget
+            .replace(Regex("(?i)(pairing|resume|bootstrap|fingerprint)=([^&\\s]+)"), "$1=[redacted]")
+            .take(240)
+    }
+
+    private fun String.isPrivateNetworkTarget(): Boolean {
+        val host = runCatching { android.net.Uri.parse(substringBefore('#')).host?.lowercase() }.getOrNull()
+            ?: return false
+        if (host == "localhost" || host.endsWith(".local") || host.startsWith("10.") || host.startsWith("192.168.") || host.startsWith("169.254.")) {
+            return true
+        }
+        val octets = host.split('.').mapNotNull(String::toIntOrNull)
+        return octets.size == 4 && octets[0] == 172 && octets[1] in 16..31
     }
 
     private fun candidateSignal(candidate: IceCandidate) = buildJsonObject {

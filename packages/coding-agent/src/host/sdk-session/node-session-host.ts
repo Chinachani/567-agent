@@ -24,7 +24,7 @@ import { createCodingAgentAuthRuntime } from "../../auth/index.js";
 import { createCodingAgentMemoryRolloverRuntime } from "../../composition/memory-runtime.js";
 import { createCodingAgentHtmlExportRuntime } from "../../export-html/index.js";
 import { CODING_AGENT_ASK_USER_QUESTION_FUNCTION } from "../../features/ask-user-question/contracts.js";
-import { CONFIG_DIR_NAME, DEFAULT_SERVER_URL, ENV_SERVER_URL } from "../../identity.js";
+import { CONFIG_DIR_NAME, DEFAULT_SERVER_URL, ENV_API567_BASE_URL } from "../../identity.js";
 import { createCodingAgentMcpRuntimeToolSource } from "../../mcp/runtime/tool-source.js";
 import { detectWorkspaceFacts, probeWorkspaceSignals } from "../../model-context/workspace-facts.js";
 import { createCodingAgentModelRuntime } from "../../models/index.js";
@@ -132,7 +132,7 @@ async function createCodingAgentSdkSessionComposition(
 	const mcpToolResultPolicy = createMcpToolResultPolicy({ artifactStore: resultArtifacts.mcp });
 
 	if (!hostContext.modelRegistry) {
-		let serverUrl = options.serverUrl ?? process.env[ENV_SERVER_URL] ?? settingsManager.getServerUrl();
+		let serverUrl = options.serverUrl ?? process.env[ENV_API567_BASE_URL] ?? settingsManager.getServerUrl();
 		if (!serverUrl) {
 			serverUrl = DEFAULT_SERVER_URL;
 			if (options.serverUrl === undefined) settingsManager.setServerUrl(serverUrl);
@@ -246,9 +246,9 @@ async function createCodingAgentSdkSessionComposition(
 			createToolEnvironment: createCodingAgentNodeToolEnvironment,
 			createSessionExecutionEnvironment: createCodingAgentNodeSessionExecutionEnvironment,
 			codingToolResultPolicy: createCodingAgentCodingToolResultPolicy({ artifactStore: resultArtifacts.coding }),
-			ocrMaxConcurrent: resolvePositiveInteger(process.env.VETTA_KB_OCR_CONCURRENCY),
+			ocrMaxConcurrent: resolvePositiveInteger(process.env.AGENT567_KB_OCR_CONCURRENCY),
 			knowledgeRuntime:
-				process.env.VETTA_KNOWLEDGE_DISABLED === "1" ? undefined : createNodeKnowledgeRuntime(getKnowledgeDir()),
+				process.env.AGENT567_KNOWLEDGE_DISABLED === "1" ? undefined : createNodeKnowledgeRuntime(getKnowledgeDir()),
 			createMemoryRolloverRuntime: (memoryOptions) => {
 				const memoryFile = memoryOptions.memoryFile ?? join(memoryOptions.cwd, "MEMORY.md");
 				return createCodingAgentMemoryRolloverRuntime({
@@ -281,7 +281,7 @@ async function createCodingAgentSdkSessionComposition(
 			tracing: {
 				captureContent: true,
 				detail: "standard",
-				traceName: options.tracingTraceName ?? process.env.VETTA_TRACING_TRACE_NAME ?? "coding-agent run",
+				traceName: options.tracingTraceName ?? process.env.AGENT567_TRACING_TRACE_NAME ?? "coding-agent run",
 				metadata: {
 					...options.tracingMetadata,
 					app: "coding-agent",

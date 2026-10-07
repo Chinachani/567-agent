@@ -60,17 +60,24 @@ interface VettaExecutableLocationOptions {
 async function findVettaExecutable(
 	options: VettaExecutableLocationOptions,
 ): Promise<{ path: string; staleConfiguredPath?: string }> {
-	const environmentPath = options.environment.VETTA_DESKTOP_EXE;
+	const environmentPath = options.environment.AGENT567_DESKTOP_EXE;
 	if (environmentPath && (await options.fileExists(environmentPath))) return { path: environmentPath };
 	const configuredPath = await readConfiguredVettaAppPath(options);
 	if (configuredPath && (await options.fileExists(configuredPath))) return { path: configuredPath };
 	const candidates =
 		options.platform === "win32"
 			? [
+					nodePath.join(options.environment.LOCALAPPDATA ?? "", "Programs", "567 Agent", "567-Agent.exe"),
+					nodePath.join(options.environment.ProgramFiles ?? "C:\\Program Files", "567 Agent", "567-Agent.exe"),
 					nodePath.join(options.environment.LOCALAPPDATA ?? "", "Programs", "Vetta", "Vetta.exe"),
 					nodePath.join(options.environment.ProgramFiles ?? "C:\\Program Files", "Vetta", "Vetta.exe"),
 				]
-			: ["/Applications/Vetta.app/Contents/MacOS/Vetta", "/usr/local/bin/vetta-desktop"];
+			: [
+					"/Applications/567 Agent.app/Contents/MacOS/567-Agent",
+					"/Applications/Vetta.app/Contents/MacOS/Vetta",
+					"/usr/local/bin/567-agent",
+					"/usr/local/bin/vetta-desktop",
+				];
 	for (const candidate of candidates) {
 		if (candidate && (await options.fileExists(candidate))) {
 			return { path: candidate, staleConfiguredPath: configuredPath };
@@ -78,7 +85,7 @@ async function findVettaExecutable(
 	}
 	const staleNote = configuredPath ? ` Configured vettaAppPath is stale: ${configuredPath}` : "";
 	throw new Error(
-		`567 Agent executable not found. Set VETTA_DESKTOP_EXE or start 567 Agent once to write vettaAppPath.${staleNote}`,
+		`567 Agent executable not found. Set AGENT567_DESKTOP_EXE or start 567 Agent once to write vettaAppPath.${staleNote}`,
 	);
 }
 

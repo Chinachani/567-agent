@@ -101,8 +101,8 @@ describe("publish.mjs", () => {
 	}
 
 	const authEnv = (extra = {}) => ({
-		VETTA_API_TOKEN: "test-token",
-		VETTA_API_BASE_URL: baseUrl,
+		API567_API_TOKEN: "test-token",
+		API567_BASE_URL: baseUrl,
 		...extra,
 	});
 
@@ -125,8 +125,8 @@ describe("publish.mjs", () => {
 	});
 
 	it("baseUrl 自带 API 前缀时不重复拼接", async () => {
-		// 桌面端注入的 VETTA_SERVER_URL 本身就带 /api/v1
-		await runScript(["--input", writePayload(validPayload())], authEnv({ VETTA_API_BASE_URL: `${baseUrl}/api/v1` }));
+		// 桌面端注入的 API567_BASE_URL 本身就带 /api/v1
+		await runScript(["--input", writePayload(validPayload())], authEnv({ API567_BASE_URL: `${baseUrl}/api/v1` }));
 
 		expect(received[0].url).toBe("/api/v1/abilities/submit");
 	});
@@ -178,9 +178,9 @@ describe("publish.mjs", () => {
 
 	it("未登录时给出可操作的提示，且不发请求", async () => {
 		const result = await runScript(["--input", writePayload(validPayload())], {
-			VETTA_API_TOKEN: "",
-			VETTA_API_BASE_URL: "",
-			VETTA_HOME: workdir, // 该目录下没有 auth.json
+			API567_API_TOKEN: "",
+			API567_BASE_URL: "",
+			AGENT567_HOME: workdir, // 该目录下没有 auth.json
 		});
 
 		expect(result.code).toBe(1);
@@ -193,9 +193,9 @@ describe("publish.mjs", () => {
 		writeFileSync(join(workdir, "auth.json"), JSON.stringify({ baseUrl, token: "file-token" }));
 
 		const result = await runScript(["--input", writePayload(validPayload())], {
-			VETTA_API_TOKEN: "",
-			VETTA_API_BASE_URL: "",
-			VETTA_HOME: workdir,
+			API567_API_TOKEN: "",
+			API567_BASE_URL: "",
+			AGENT567_HOME: workdir,
 		});
 
 		expect(result.code).toBe(0);
@@ -226,7 +226,7 @@ describe("publish.mjs", () => {
 
 		const result = await runScript(
 			["--input", writePayload(validPayload())],
-			{ VETTA_API_TOKEN: "t", VETTA_API_BASE_URL: url },
+			{ API567_API_TOKEN: "t", API567_BASE_URL: url },
 		);
 
 		expect(result.code).toBe(1);
@@ -247,7 +247,7 @@ describe("publish.mjs", () => {
 
 		const result = await runScript(
 			["--input", writePayload(validPayload())],
-			{ VETTA_API_TOKEN: "t", VETTA_API_BASE_URL: url },
+			{ API567_API_TOKEN: "t", API567_BASE_URL: url },
 		);
 
 		expect(result.code).toBe(1);
@@ -256,9 +256,9 @@ describe("publish.mjs", () => {
 
 	it("连不上服务时报出 baseUrl 便于定位", async () => {
 		const result = await runScript(["--input", writePayload(validPayload())], {
-			VETTA_API_TOKEN: "t",
+			API567_API_TOKEN: "t",
 			// 未监听的端口
-			VETTA_API_BASE_URL: "http://127.0.0.1:1",
+			API567_BASE_URL: "http://127.0.0.1:1",
 		});
 
 		expect(result.code).toBe(1);
@@ -284,7 +284,7 @@ describe("publish.mjs", () => {
 
 		const result = await runScript(
 			["--input", writePayload(validPayload())],
-			{ VETTA_API_TOKEN: "t", VETTA_API_BASE_URL: url },
+			{ API567_API_TOKEN: "t", API567_BASE_URL: url },
 		);
 
 		expect(result.payload.has_pending).toBe(true);

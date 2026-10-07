@@ -46,6 +46,35 @@ describe("useMessageFeedScrollModel", () => {
 		expect(frames).toHaveLength(0);
 	});
 
+	it("shows a return-to-bottom control after scrolling far into history", () => {
+		vi.stubGlobal(
+			"ResizeObserver",
+			class {
+				observe() {}
+				disconnect() {}
+			},
+		);
+		const { result } = renderHook(() =>
+			useMessageFeedScrollModel({ active: false, items: [{ id: "one" }], resetKey: "return-to-bottom" }),
+		);
+		const element = document.createElement("div");
+		Object.defineProperties(element, {
+			scrollHeight: { configurable: true, value: 1600 },
+			clientHeight: { configurable: true, value: 400 },
+			scrollTop: { configurable: true, writable: true, value: 100 },
+		});
+		act(() => result.current.scrollerRef(element));
+		act(() => element.dispatchEvent(new Event("scroll")));
+		expect(result.current.showScrollToBottom).toBe(true);
+
+		const scrollToIndex = vi.fn();
+		(result.current.virtuosoRef as { current: VirtuosoHandle | null }).current = {
+			scrollToIndex,
+		} as unknown as VirtuosoHandle;
+		act(() => result.current.scrollToBottom());
+		expect(scrollToIndex).toHaveBeenCalledWith({ index: "LAST", align: "end", behavior: "smooth" });
+	});
+
 	it("coalesces resize-follow corrections into one animation frame", () => {
 		const frames: FrameRequestCallback[] = [];
 		let notifyResize: (() => void) | undefined;

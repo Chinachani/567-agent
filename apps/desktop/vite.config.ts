@@ -74,41 +74,41 @@ function hostApiAccessTransform(): Plugin {
 }
 
 export default defineConfig(({ mode }) => {
-	const env = loadEnv(mode, process.cwd(), "VETTA_");
+	const env = loadEnv(mode, process.cwd(), ["AGENT567_"]);
 	for (const [key, value] of Object.entries(process.env)) {
-		if (key.startsWith("VETTA_") && value !== undefined) env[key] = value;
+		if (key.startsWith("AGENT567_") && value !== undefined) env[key] = value;
 	}
 	const speechInputBuildConfig = resolveSpeechInputBuildConfig({ env });
 	const themeDevelopmentEnabled =
-		(process.env.VETTA_THEME_DEV_SERVER ?? env.VETTA_THEME_DEV_SERVER) === "1";
-	const rawDevServerPort = process.env.VETTA_DESKTOP_DEV_PORT ?? env.VETTA_DESKTOP_DEV_PORT ?? "3020";
+		(process.env.AGENT567_THEME_DEV_SERVER ?? env.AGENT567_THEME_DEV_SERVER) === "1";
+	const rawDevServerPort = process.env.AGENT567_DESKTOP_DEV_PORT ?? env.AGENT567_DESKTOP_DEV_PORT ?? "3020";
 	const devServerPort = Number(rawDevServerPort);
 	if (!Number.isInteger(devServerPort) || devServerPort < 1 || devServerPort > 65_535) {
-		throw new Error(`Invalid VETTA_DESKTOP_DEV_PORT: ${rawDevServerPort}`);
+		throw new Error(`Invalid AGENT567_DESKTOP_DEV_PORT: ${rawDevServerPort}`);
 	}
-	// 外观「界面主题」区段：默认隐藏；VETTA_SHOW_UI_THEME=true 时展示（shell > .env）
-	const showUiTheme = process.env.VETTA_SHOW_UI_THEME ?? env.VETTA_SHOW_UI_THEME ?? "";
+	// 外观「界面主题」区段：默认隐藏；AGENT567_SHOW_UI_THEME=true 时展示（shell > .env）
+	const showUiTheme = process.env.AGENT567_SHOW_UI_THEME ?? env.AGENT567_SHOW_UI_THEME ?? "";
 	const sentry = createSentryBuildSetup(env, "dist/renderer");
 
 	return {
 		define: {
-			"process.env.VETTA_SHOW_UI_THEME": JSON.stringify(showUiTheme),
-			// 云服务构建期开关：默认 false（lite）；只有 VETTA_CLOUD_ENABLED=true 才产出完全体。
+			"process.env.AGENT567_SHOW_UI_THEME": JSON.stringify(showUiTheme),
+			// 云服务构建期开关：默认 false（lite）。
 			// cloud 分支经常量折叠被整体裁掉（含动态 import 的 chunk）。
-			"process.env.VETTA_CLOUD_ENABLED": JSON.stringify(
-				(process.env.VETTA_CLOUD_ENABLED ?? env.VETTA_CLOUD_ENABLED) === "true" ? "true" : "false",
+			"process.env.AGENT567_CLOUD_ENABLED": JSON.stringify(
+				env.AGENT567_CLOUD_ENABLED === "true" ? "true" : "false",
 			),
 			[`process.env.${SPEECH_INPUT_ENABLED_ENV}`]: JSON.stringify(String(speechInputBuildConfig.enabled)),
-			"process.env.VETTA_SENTRY_ENABLED": JSON.stringify(
-				readValue(env, "VETTA_SENTRY_DSN") ? "true" : "false",
+			"process.env.AGENT567_SENTRY_ENABLED": JSON.stringify(
+				readValue(env, "AGENT567_SENTRY_DSN") ? "true" : "false",
 			),
-			"process.env.VETTA_POSTHOG_KEY": JSON.stringify(readValue(env, "VETTA_POSTHOG_KEY") ?? ""),
-			"process.env.VETTA_POSTHOG_HOST": JSON.stringify(readValue(env, "VETTA_POSTHOG_HOST") ?? ""),
-			"process.env.VETTA_POSTHOG_REPLAY_ENABLED": JSON.stringify(
-				readValue(env, "VETTA_POSTHOG_REPLAY_ENABLED") ?? "",
+			"process.env.AGENT567_POSTHOG_KEY": JSON.stringify(readValue(env, "AGENT567_POSTHOG_KEY") ?? ""),
+			"process.env.AGENT567_POSTHOG_HOST": JSON.stringify(readValue(env, "AGENT567_POSTHOG_HOST") ?? ""),
+			"process.env.AGENT567_POSTHOG_REPLAY_ENABLED": JSON.stringify(
+				readValue(env, "AGENT567_POSTHOG_REPLAY_ENABLED") ?? "",
 			),
-			"process.env.VETTA_POSTHOG_REPLAY_SAMPLE_RATE": JSON.stringify(
-				readValue(env, "VETTA_POSTHOG_REPLAY_SAMPLE_RATE") ?? "",
+			"process.env.AGENT567_POSTHOG_REPLAY_SAMPLE_RATE": JSON.stringify(
+				readValue(env, "AGENT567_POSTHOG_REPLAY_SAMPLE_RATE") ?? "",
 			),
 		},
 		plugins: [
@@ -129,6 +129,7 @@ export default defineConfig(({ mode }) => {
 				"@vetta-org/theme-ui": path.resolve(__dirname, "../../packages/theme-ui/src"),
 				"@vetta-org/ui": path.resolve(__dirname, "../../packages/ui/src/index.ts"),
 				"@567agent/remote-desktop": path.resolve(__dirname, "../../packages/remote-desktop/src/index.ts"),
+				"@smithy/node-http-handler": path.resolve(__dirname, "../../packages/ai/src/utils/empty.ts"),
 				"@": path.resolve(__dirname, "./src"),
 			},
 		},

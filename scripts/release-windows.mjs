@@ -16,12 +16,11 @@ const bunExecutable = process.platform === "win32" ? "bun.exe" : "bun";
 const requireFromDesktop = createRequire(desktopPackagePath);
 const { parse: parseEnv } = requireFromDesktop("dotenv");
 const stableEnvironmentKeys = [
-	"VETTA_SERVER_URL",
-	"VETTA_SITE_URL",
-	"VETTA_UPDATE_PROVIDER",
-	"VETTA_UPDATE_URL",
-	"VETTA_R2_BUCKET",
-	"VETTA_R2_PREFIX",
+	"API567_BASE_URL",
+	"AGENT567_UPDATE_PROVIDER",
+	"AGENT567_UPDATE_URL",
+	"AGENT567_R2_BUCKET",
+	"AGENT567_R2_PREFIX",
 ];
 
 function usage(exitCode = 1) {
@@ -109,7 +108,11 @@ function loadEnvironment(channel) {
 function enforceStableEnvironment() {
 	const productionEnvironmentPath = join(desktopDir, ".env.production");
 	const productionEnvironment = parseEnv(readFileSync(productionEnvironmentPath));
+	const api567BaseUrl = productionEnvironment.API567_BASE_URL?.trim();
+	if (!api567BaseUrl) fail(".env.production 缺少 API567_BASE_URL");
+	process.env.API567_BASE_URL = api567BaseUrl;
 	for (const name of stableEnvironmentKeys) {
+		if (name === "API567_BASE_URL") continue;
 		const value = productionEnvironment[name]?.trim();
 		if (!value) fail(`.env.production 缺少 ${name}`);
 		process.env[name] = value;
@@ -135,13 +138,13 @@ function updateUrlPrefix(value) {
 	try {
 		url = new URL(value);
 	} catch {
-		fail(`VETTA_UPDATE_URL 不是合法 URL：${value}`);
+		fail(`AGENT567_UPDATE_URL 不是合法 URL：${value}`);
 	}
 	if (url.protocol !== "https:" && url.protocol !== "http:") {
-		fail("VETTA_UPDATE_URL 必须使用 http 或 https");
+		fail("AGENT567_UPDATE_URL 必须使用 http 或 https");
 	}
 	if (url.username || url.password || url.search || url.hash) {
-		fail("VETTA_UPDATE_URL 不能包含凭据、查询参数或 hash");
+		fail("AGENT567_UPDATE_URL 不能包含凭据、查询参数或 hash");
 	}
 	return decodeURIComponent(url.pathname)
 		.split("/")
@@ -167,7 +170,7 @@ function isGreaterVersion(candidate, current) {
 
 function resolveInnoCompiler() {
 	const candidates = [
-		process.env.VETTA_INNO_SETUP_COMPILER?.trim(),
+		process.env.AGENT567_INNO_SETUP_COMPILER?.trim(),
 		process.env.LOCALAPPDATA
 			? join(process.env.LOCALAPPDATA, "Programs", "Inno Setup 6", "ISCC.exe")
 			: undefined,
@@ -177,7 +180,7 @@ function resolveInnoCompiler() {
 			: undefined,
 	].filter(Boolean);
 	const compiler = candidates.find((candidate) => existsSync(candidate));
-	if (!compiler) fail("找不到 Inno Setup 6；请安装后重试，或设置 VETTA_INNO_SETUP_COMPILER");
+	if (!compiler) fail("找不到 Inno Setup 6；请安装后重试，或设置 AGENT567_INNO_SETUP_COMPILER");
 	return compiler;
 }
 
@@ -226,9 +229,10 @@ async function verifyPackagedStableEnvironment(version) {
 	const appAsarPath = join(releaseDir, "win-unpacked", "versions", version, "resources", "app.asar");
 	if (!existsSync(appAsarPath)) fail(`找不到待校验的 app.asar：${appAsarPath}`);
 
-	const expectedEnvironment = new Map(
-		["VETTA_SERVER_URL", "VETTA_SITE_URL"].map((name) => [name, requireEnvironment(name)]),
-	);
+	const expectedEnvironment = new Map([[
+		"API567_BASE_URL",
+		requireEnvironment("API567_BASE_URL"),
+	]]);
 	const developmentEnvironmentPath = join(desktopDir, ".env.development");
 	const developmentEnvironment = existsSync(developmentEnvironmentPath)
 		? parseEnv(readFileSync(developmentEnvironmentPath))
@@ -289,23 +293,23 @@ async function main() {
 	}
 	parseVersion(version, "目标");
 
-	process.env.VETTA_UPDATE_PROVIDER = "generic";
-	process.env.VETTA_BUILD_ENV = options.channel === "stable" ? "production" : "development";
-	const updateUrl = requireEnvironment("VETTA_UPDATE_URL");
-	const r2Prefix = normalizePrefix(requireEnvironment("VETTA_R2_PREFIX"));
+	process.env.AGENT567_UPDATE_PROVIDER = "generic";
+	process.env.AGENT567_BUILD_ENV = options.channel === "stable" ? "production" : "development";
+	const updateUrl = requireEnvironment("AGENT567_UPDATE_URL");
+	const r2Prefix = normalizePrefix(requireEnvironment("AGENT567_R2_PREFIX"));
 	const urlPrefix = updateUrlPrefix(updateUrl);
 	if (r2Prefix !== urlPrefix) {
-		fail(`通道路径不一致：VETTA_R2_PREFIX=${r2Prefix}，VETTA_UPDATE_URL path=${urlPrefix}`);
+		fail(`通道路径不一致：AGENT567_R2_PREFIX=${r2Prefix}，AGENT567_UPDATE_URL path=${urlPrefix}`);
 	}
 	if (r2Prefix.split("/").at(-1) !== options.channel) {
-		fail(`VETTA_R2_PREFIX=${r2Prefix} 的末段不是 ${options.channel}`);
+		fail(`AGENT567_R2_PREFIX=${r2Prefix} 的末段不是 ${options.channel}`);
 	}
 	if (!options.skipPublish) {
 		for (const name of [
-			"VETTA_R2_ACCOUNT_ID",
-			"VETTA_R2_ACCESS_KEY_ID",
-			"VETTA_R2_SECRET_ACCESS_KEY",
-			"VETTA_R2_BUCKET",
+			"AGENT567_R2_ACCOUNT_ID",
+			"AGENT567_R2_ACCESS_KEY_ID",
+			"AGENT567_R2_SECRET_ACCESS_KEY",
+			"AGENT567_R2_BUCKET",
 		]) {
 			requireEnvironment(name);
 		}
@@ -318,8 +322,8 @@ async function main() {
 	console.log(
 		`    版本       ${version}${version !== packageVersion ? `（package.json 是 ${packageVersion}，QA 覆盖）` : ""}`,
 	);
-	console.log(`    构建环境   ${process.env.VETTA_BUILD_ENV}`);
-	console.log(`    服务地址   ${process.env.VETTA_SERVER_URL}`);
+	console.log(`    构建环境   ${process.env.AGENT567_BUILD_ENV}`);
+	console.log(`    服务地址   ${process.env.API567_BASE_URL}`);
 	console.log(`    Inno       ${innoCompiler}`);
 	console.log(`    线上版本   ${onlineVersion ?? "尚无 Windows 产物"}`);
 	console.log(`    配置文件   ${loadedFiles.length > 0 ? loadedFiles.join("，") : "仅使用当前 Shell"}`);
@@ -336,8 +340,8 @@ async function main() {
 	}
 
 	const childEnvironment = { ...process.env };
-	if (options.channel === "test") childEnvironment.VETTA_DESKTOP_BUILD_VERSION = version;
-	else delete childEnvironment.VETTA_DESKTOP_BUILD_VERSION;
+	if (options.channel === "test") childEnvironment.AGENT567_DESKTOP_BUILD_VERSION = version;
+	else delete childEnvironment.AGENT567_DESKTOP_BUILD_VERSION;
 
 	step("清理 desktop-app/release/");
 	await rm(releaseDir, { recursive: true, force: true });

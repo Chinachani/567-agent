@@ -146,14 +146,14 @@ export async function createCliSessionAssembly(options: CliSessionAssemblyOption
 			initialModel: options.initialModel,
 			initialThinkingLevel: options.initialThinkingLevel,
 			streamFn: createLoopbackSessionAffinityStream(),
-			ocrMaxConcurrent: resolvePositiveInteger(process.env.VETTA_KB_OCR_CONCURRENCY),
+			ocrMaxConcurrent: resolvePositiveInteger(process.env.AGENT567_KB_OCR_CONCURRENCY),
 			cwd: bootstrap.cwd,
 			workspaceFacts: detectWorkspaceFacts(bootstrap.cwd, (cwd) =>
 				probeWorkspaceSignals(cwd, nodeWorkspaceFactsFileSource),
 			),
 			agentDir: bootstrap.agentDir,
 			knowledgeRuntime:
-				process.env.VETTA_KNOWLEDGE_DISABLED === "1" ? undefined : createNodeKnowledgeRuntime(getKnowledgeDir()),
+				process.env.AGENT567_KNOWLEDGE_DISABLED === "1" ? undefined : createNodeKnowledgeRuntime(getKnowledgeDir()),
 			createMemoryRolloverRuntime: createCliMemoryRolloverRuntime,
 			hookConfigLayers: buildDefaultHookConfigLayers({
 				cwd: bootstrap.cwd,

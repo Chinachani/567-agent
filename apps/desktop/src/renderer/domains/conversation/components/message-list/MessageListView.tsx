@@ -1,7 +1,10 @@
 import { MessageFeed, MessageFeedLayout } from "@vetta-org/theme-ui/chat";
+import { Button } from "@shared/components/ui/button";
 import { useMessageFeedActiveItem } from "@shared/components/message-feed/useMessageFeedActiveItem";
 import { useCallback, useMemo, useRef } from "react";
 import type { ReactNode } from "react";
+import { ArrowDown } from "lucide-react";
+import { useTranslation } from "react-i18next";
 import type { Usage } from "@567agent/ai/protocol";
 import { conversationItemRenderKey } from "@shared/conversation";
 import { MessageRow } from "./MessageRendering";
@@ -46,6 +49,7 @@ export function MessageListView({
 	sessionId?: MessageListProps["sessionId"];
 	pendingLabel?: MessageListProps["pendingLabel"];
 }): JSX.Element {
+	const { t } = useTranslation("chat");
 	const {
 		isStreaming,
 		messages,
@@ -172,6 +176,19 @@ export function MessageListView({
 								/>
 							</MessageFeedLayout.RailContent>
 						</MessageFeedLayout.LeftRail> : null}
+						{scroll.showScrollToBottom ? (
+							<Button
+								type="button"
+								variant="outline"
+								size="icon"
+								className="absolute bottom-3 left-1/2 z-30 -translate-x-1/2 rounded-full border-border/60 bg-background/90 text-muted-foreground shadow-md backdrop-blur-sm transition-colors hover:bg-accent hover:text-foreground"
+								aria-label={t("messageList.scrollToBottom")}
+								title={t("messageList.scrollToBottom")}
+								onClick={scroll.scrollToBottom}
+							>
+								<ArrowDown className="size-4" aria-hidden="true" />
+							</Button>
+						) : null}
 					</div>
 				</MessageFeedLayout.Frame>
 			</MessageFeed.Root>

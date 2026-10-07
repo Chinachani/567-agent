@@ -88,7 +88,7 @@ The toolbar also carries select, hand, **new frame** (drag out an empty frame an
 
 **Design systems** in the control bar — and the style library in the gallery — offer complete palettes and rules. Applying one to a design that already has frames means 567 Agent restyles all of them, which takes a while. The state before the change is backed up automatically, so **restore** is always available.
 
-The library includes the public [StyleKit](https://stylekit.top/zh) catalog. Choosing a style copies its palette and design notes into the new design, and the catalog is cached locally.
+The library loads design systems from the unified 567 Agent style library, which combines upstream catalogs while preserving source and license details. Choosing a style copies its palette and design notes into the new design. The catalog is cached locally and remains available offline.
 
 If the design already contains a `DESIGN.md`, a system has been applied before, and applying a new one overwrites it (also restorable).
 
@@ -145,7 +145,7 @@ Right-click a `.vetd` directory in the file tree to open it on the design canvas
 ## Troubleshooting
 
 - **The design engine fails to start**: if it reports that the managed Node runtime is unavailable, install Node under **Settings → Environments** and retry. A failed dependency install is usually a network problem.
-- **The style library will not load**: it is fetched from an online resource repository and is unavailable offline. Create a blank design instead.
+- **The style library will not load**: the first load requires a network connection. After a successful load, the catalog is cached locally and remains available offline. If no cache exists yet, create a blank design and refresh the library after reconnecting.
 - **A frame reports a build failure**: the source has an error. Hand that frame to 567 Agent and let it fix the reported line.
 - **A design is missing from the gallery**: confirm the `.vetd` directory sits at the project root and the project is not archived, then click **Refresh**.
 - **A card has no cover**: a design that has never been opened on this machine — freshly cloned or imported — has no cover yet. Open its canvas once.

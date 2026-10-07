@@ -28,7 +28,8 @@ actual object PlatformRemoteLogger : RemoteLogger {
 
     private const val TAG = "VettaRemote"
     private val DIAGNOSTIC_FIELD_ALLOWLIST = setOf(
-        "state", "attempt", "attemptnumber", "status", "code", "error", "reason", "type",
+        "state", "attempt", "attemptnumber", "status", "code", "error", "errortype", "reason", "type",
+        "target", "phase",
         "expected", "received", "reconnectcount", "sequence", "durationms", "bytes",
         "connectionstate", "signalstate", "iceconnectionstate",
     )

@@ -91,8 +91,8 @@ export async function startConfiguredPluginDevWatches(
 ): Promise<PluginDevBootstrapResult> {
 	const projects = await resolveConfiguredPluginDevProjects({
 		desktopAppDir,
-		pluginIds: splitValues(environment.VETTA_PLUGIN_DEV, ","),
-		pluginRoots: splitValues(environment.VETTA_PLUGIN_DEV_ROOTS, delimiter),
+		pluginIds: splitValues(environment.AGENT567_PLUGIN_DEV, ","),
+		pluginRoots: splitValues(environment.AGENT567_PLUGIN_DEV_ROOTS, delimiter),
 	});
 	const ready: PluginDevProject[] = [];
 	const failures: PluginDevBootstrapFailure[] = [];

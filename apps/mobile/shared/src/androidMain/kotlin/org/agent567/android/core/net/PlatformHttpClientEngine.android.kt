@@ -5,6 +5,7 @@ import io.ktor.client.engine.HttpClientEngineFactory
 import io.ktor.client.engine.okhttp.OkHttp
 import io.ktor.client.plugins.websocket.WebSockets
 import java.security.MessageDigest
+import java.util.concurrent.TimeUnit
 import java.security.cert.CertificateException
 import java.security.cert.X509Certificate
 import javax.net.ssl.HostnameVerifier
@@ -12,6 +13,13 @@ import javax.net.ssl.SSLContext
 import javax.net.ssl.X509TrustManager
 
 actual fun platformHttpClientEngine(): HttpClientEngineFactory<*> = OkHttp
+
+actual fun platformWebSocketHttpClient(): HttpClient = HttpClient(OkHttp) {
+    install(WebSockets)
+    engine {
+        config { pingInterval(20, TimeUnit.SECONDS) }
+    }
+}
 
 actual fun pinnedWebSocketHttpClient(certificateFingerprint: String): HttpClient {
     val expected = certificateFingerprint.lowercase()
@@ -37,6 +45,7 @@ actual fun pinnedWebSocketHttpClient(certificateFingerprint: String): HttpClient
                     val certificate = session.peerCertificates.firstOrNull() as? X509Certificate
                     certificate?.sha256Fingerprint() == expected
                 })
+                pingInterval(20, TimeUnit.SECONDS)
             }
         }
     }

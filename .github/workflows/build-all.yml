@@ -1,13 +1,10 @@
-name: Build & Release All Platforms
+name: Build All Platforms (Artifacts Only)
 
 on:
   workflow_dispatch:
-  push:
-    tags:
-      - "v*"
 
 permissions:
-  contents: write
+  contents: read
 
 jobs:
   build-android:
@@ -34,36 +31,35 @@ jobs:
 
       - name: Build signed Release APK
         env:
-          VETTA_ANDROID_KEYSTORE_BASE64: ${{ secrets.VETTA_ANDROID_KEYSTORE_BASE64 }}
-          VETTA_ANDROID_KEYSTORE_PASSWORD: ${{ secrets.VETTA_ANDROID_KEYSTORE_PASSWORD }}
-          VETTA_ANDROID_KEY_ALIAS: ${{ secrets.VETTA_ANDROID_KEY_ALIAS }}
-          VETTA_ANDROID_KEY_PASSWORD: ${{ secrets.VETTA_ANDROID_KEY_PASSWORD }}
+          AGENT567_ANDROID_KEYSTORE_BASE64: ${{ secrets.AGENT567_ANDROID_KEYSTORE_BASE64 }}
+          AGENT567_ANDROID_KEYSTORE_PASSWORD: ${{ secrets.AGENT567_ANDROID_KEYSTORE_PASSWORD }}
+          AGENT567_ANDROID_KEY_ALIAS: ${{ secrets.AGENT567_ANDROID_KEY_ALIAS }}
+          AGENT567_ANDROID_KEY_PASSWORD: ${{ secrets.AGENT567_ANDROID_KEY_PASSWORD }}
         run: |
           chmod +x gradlew
           set -euo pipefail
-          : "${VETTA_ANDROID_KEYSTORE_BASE64:?Missing VETTA_ANDROID_KEYSTORE_BASE64 secret}"
-          : "${VETTA_ANDROID_KEYSTORE_PASSWORD:?Missing VETTA_ANDROID_KEYSTORE_PASSWORD secret}"
-          : "${VETTA_ANDROID_KEY_ALIAS:?Missing VETTA_ANDROID_KEY_ALIAS secret}"
-          : "${VETTA_ANDROID_KEY_PASSWORD:?Missing VETTA_ANDROID_KEY_PASSWORD secret}"
+          : "${AGENT567_ANDROID_KEYSTORE_BASE64:?Missing AGENT567_ANDROID_KEYSTORE_BASE64 secret}"
+          : "${AGENT567_ANDROID_KEYSTORE_PASSWORD:?Missing AGENT567_ANDROID_KEYSTORE_PASSWORD secret}"
+          : "${AGENT567_ANDROID_KEY_ALIAS:?Missing AGENT567_ANDROID_KEY_ALIAS secret}"
+          : "${AGENT567_ANDROID_KEY_PASSWORD:?Missing AGENT567_ANDROID_KEY_PASSWORD secret}"
           umask 077
           KEYSTORE_PATH="$RUNNER_TEMP/567-agent-release.jks"
           trap 'rm -f "$KEYSTORE_PATH"' EXIT
-          printf '%s' "$VETTA_ANDROID_KEYSTORE_BASE64" | base64 --decode > "$KEYSTORE_PATH"
-          export VETTA_ANDROID_KEYSTORE_PATH="$KEYSTORE_PATH"
+          printf '%s' "$AGENT567_ANDROID_KEYSTORE_BASE64" | base64 --decode > "$KEYSTORE_PATH"
+          export AGENT567_ANDROID_KEYSTORE_PATH="$KEYSTORE_PATH"
           ./gradlew --no-daemon :androidApp:assembleRelease
           VERSION="$(sed -n 's/^versionName=//p' version.properties)"
           test -n "$VERSION"
           mkdir -p androidApp/build/outputs/apk/release
           cp androidApp/build/outputs/apk/release/androidApp-release.apk "androidApp/build/outputs/apk/release/567-agent-${VERSION}.apk"
 
-      - name: Publish Android APK to Release
-        if: startsWith(github.ref, 'refs/tags/v')
-        uses: softprops/action-gh-release@v2
+      - name: Upload Android APK artifact
+        uses: actions/upload-artifact@v4
         with:
-          files: apps/mobile/androidApp/build/outputs/apk/release/567-agent-*.apk
-          body_path: ${{ github.workspace }}/.github/release-notes/${{ github.ref_name }}.md
-          draft: false
-          prerelease: false
+          name: build-all-android
+          path: apps/mobile/androidApp/build/outputs/apk/release/567-agent-*.apk
+          if-no-files-found: error
+          retention-days: 7
 
   build-desktop:
     name: Build Desktop (${{ matrix.platform }})
@@ -137,12 +133,12 @@ jobs:
 
       - name: Package Desktop App
         env:
-          VETTA_SPEECH_INPUT_ENABLED: "false"
-          VETTA_BUILD_ENV: "opensource"
-          VETTA_CLOUD_ENABLED: "false"
-          VETTA_UPDATE_PROVIDER: "github"
-          VETTA_UPDATE_GITHUB_OWNER: "Chinachani"
-          VETTA_UPDATE_GITHUB_REPO: "567-agent"
+          AGENT567_SPEECH_INPUT_ENABLED: "false"
+          AGENT567_BUILD_ENV: "opensource"
+          AGENT567_CLOUD_ENABLED: "false"
+          AGENT567_UPDATE_PROVIDER: "github"
+          AGENT567_UPDATE_GITHUB_OWNER: "Chinachani"
+          AGENT567_UPDATE_GITHUB_REPO: "567-agent"
         run: |
           cd apps/desktop
           bun run ${{ matrix.command }}
@@ -154,11 +150,10 @@ jobs:
           bun run verify:updates:windows
           bun run verify:packages:windows
 
-      - name: Publish Desktop Artifact to Release
-        if: startsWith(github.ref, 'refs/tags/v')
-        uses: softprops/action-gh-release@v2
+      - name: Upload Desktop artifact
+        uses: actions/upload-artifact@v4
         with:
-          files: ${{ matrix.artifact_path }}
-          body_path: ${{ github.workspace }}/.github/release-notes/${{ github.ref_name }}.md
-          draft: false
-          prerelease: false
+          name: build-all-${{ matrix.platform }}
+          path: ${{ matrix.artifact_path }}
+          if-no-files-found: error
+          retention-days: 7

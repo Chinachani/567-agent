@@ -14,6 +14,11 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withTimeout
+import kotlinx.coroutines.withContext
+import kotlinx.coroutines.NonCancellable
+import kotlinx.coroutines.withTimeoutOrNull
+import kotlinx.serialization.json.buildJsonObject
+import kotlinx.serialization.json.put
 import kotlinx.serialization.json.JsonElement
 import org.agent567.android.domain.remote.protocol.REMOTE_PROTOCOL_VERSION
 import org.agent567.android.domain.remote.protocol.RemoteAck
@@ -91,6 +96,7 @@ class RemoteConnection(
     private var incomingJob: Job? = null
     private var requestCounter = 0L
     private var peerDeviceId: String? = null
+    private val peerSupportedMethods = MutableStateFlow<Set<String>>(emptySet())
     private var lastEventSequence = 0L
     private var lastAckSequence = 0L
     private var reconnectCount = 0
@@ -100,6 +106,12 @@ class RemoteConnection(
     val state: StateFlow<RemoteConnectionState> = _state.asStateFlow()
     val events: SharedFlow<RemoteConnectionEvent> = _events.asSharedFlow()
 
+    fun setPeerSupportedMethods(methods: Set<String>) {
+        peerSupportedMethods.value = methods
+    }
+
+    fun supportsPeerMethod(method: String): Boolean = method in peerSupportedMethods.value
+
     suspend fun connect() {
         if (_state.value == RemoteConnectionState.Online || _state.value == RemoteConnectionState.Connecting) return
         _state.value =
@@ -108,6 +120,7 @@ class RemoteConnection(
             } else {
                 RemoteConnectionState.Reconnecting
             }
+        peerSupportedMethods.value = emptySet()
         try {
             incomingJob?.cancelAndJoin()
             incomingJob = scope.launch {
@@ -187,6 +200,7 @@ class RemoteConnection(
             return withTimeout(timeoutMs) { result.await() }
         } catch (error: kotlinx.coroutines.TimeoutCancellationException) {
             mutex.withLock { pending.remove(requestId) }
+            cancelSuggestionRequest(method, requestId, sessionId)
             lastErrorCode = RemoteErrorCode.RequestTimeout
             val remoteError =
                 RemoteError(
@@ -198,7 +212,30 @@ class RemoteConnection(
             throw RemoteRequestException(remoteError)
         } catch (error: Throwable) {
             mutex.withLock { pending.remove(requestId) }
+            if (error is kotlinx.coroutines.CancellationException) {
+                cancelSuggestionRequest(method, requestId, sessionId)
+            }
             throw error
+        }
+    }
+
+    private suspend fun cancelSuggestionRequest(method: RemoteRequestMethod, requestId: String, sessionId: String?) {
+        if (
+            method != RemoteRequestMethod.SessionSuggestions ||
+            _state.value != RemoteConnectionState.Online ||
+            !supportsPeerMethod("session.suggestions.cancel")
+        ) return
+        withContext(NonCancellable) {
+            withTimeoutOrNull(1_000) {
+                runCatching {
+                    request(
+                        method = RemoteRequestMethod.SessionSuggestionsCancel,
+                        payload = buildJsonObject { put("requestId", requestId) },
+                        sessionId = sessionId,
+                        timeoutMs = 1_000,
+                    )
+                }
+            }
         }
     }
 
@@ -293,6 +330,7 @@ class RemoteConnection(
     private suspend fun handleTransportClosed(reason: String?) {
         if (_state.value == RemoteConnectionState.Closed || _state.value == RemoteConnectionState.Failed) return
         reconnectCount += 1
+        peerSupportedMethods.value = emptySet()
         rejectPending(RemoteErrorCode.TransportClosed, "Remote transport closed")
         logger.warn(
             "remote transport closed",

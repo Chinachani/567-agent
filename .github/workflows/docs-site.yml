@@ -1,8 +1,8 @@
 # Docs site: verify on path changes. Vercel Git deploys the site.
 #
 # - PR / push touching apps/docs-site: typecheck, test, and `next build`
-# - Push to `dev` with docs-site changes: Vercel production
-#   (https://vetta-docs.vercel.app). Unrelated monorepo commits are skipped
+# - Push to `dev` with docs-site changes: Vercel production using the domain
+#   configured in the Vercel project. Unrelated monorepo commits are skipped
 #   by apps/docs-site/vercel.json ignoreCommand (turbo query affected).
 # - Other branches and PRs: Vercel preview deployments, same ignore rule.
 #

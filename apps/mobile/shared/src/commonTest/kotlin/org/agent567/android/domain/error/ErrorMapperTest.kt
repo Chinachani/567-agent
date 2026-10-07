@@ -65,9 +65,19 @@ class ErrorMapperTest {
     }
 
     @Test
-    fun doesNotExposeRemoteConversationMessage() {
-        val ui = ErrorMapper.from(RemoteConversationException("relay target contained a secret"))
+    fun preservesActionableRemoteConversationMessage() {
+        val ui = ErrorMapper.from(RemoteConversationException("当前电脑端版本不支持安全重试，请更新电脑端后再试"))
 
-        assertEquals("请确认 Desktop 在线后重试", ui.message)
+        assertEquals("当前电脑端版本不支持安全重试，请更新电脑端后再试", ui.message)
+    }
+
+    @Test
+    fun truncatesRemoteErrorWithoutSplittingJoinedEmoji() {
+        val family = "👨‍👩‍👧‍👦"
+        val message = "a".repeat(296) + family + "tail"
+        val ui = ErrorMapper.from(RemoteConversationException(message))
+
+        assertEquals(296, ui.message.count { it == 'a' })
+        assertEquals("a".repeat(296), ui.message)
     }
 }

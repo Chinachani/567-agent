@@ -1,5 +1,6 @@
 export type * from "./api-types/567api.js";
 
+import type { DesktopMarkdownApi } from "../shared/markdown-ipc.js";
 import type { Api567Api } from "./api-types/567api.js";
 import type { DesktopAbilitiesApi } from "./api-types/abilities.js";
 import type { DesktopActionApprovalApi } from "./api-types/action-approval.js";
@@ -109,6 +110,7 @@ export interface DesktopApi {
 	models: DesktopModelsApi;
 	mcp: DesktopMcpApi;
 	media: DesktopMediaApi;
+	markdown: DesktopMarkdownApi;
 	settings: DesktopSettingsApi;
 	subscription: DesktopSubscriptionApi;
 	shell: DesktopShellApi;

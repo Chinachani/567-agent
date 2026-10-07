@@ -1,4 +1,9 @@
-import { ABILITY_CATEGORY_UNCATEGORIZED, ABILITY_CATEGORY_VETTA_BUILTIN, type AbilityItem } from "../types";
+import {
+	ABILITY_CATEGORY_CONNECTORS,
+	ABILITY_CATEGORY_UNCATEGORIZED,
+	ABILITY_CATEGORY_VETTA_BUILTIN,
+	type AbilityItem,
+} from "../types";
 
 // Merge only documented aliases. Two unrelated categories sharing a translation keep their identities.
 const CATEGORY_ALIASES: Readonly<Record<string, string>> = {
@@ -25,6 +30,13 @@ const CATEGORY_ALIASES: Readonly<Record<string, string>> = {
 export function normalizeAbilityCategory(category: string): string {
 	const trimmed = category.trim();
 	if (!trimmed) return ABILITY_CATEGORY_UNCATEGORIZED;
+	if (
+		trimmed === ABILITY_CATEGORY_CONNECTORS ||
+		trimmed === ABILITY_CATEGORY_UNCATEGORIZED ||
+		trimmed === ABILITY_CATEGORY_VETTA_BUILTIN
+	) {
+		return trimmed;
+	}
 	const canonical = trimmed
 		.normalize("NFKC")
 		.toLocaleLowerCase()

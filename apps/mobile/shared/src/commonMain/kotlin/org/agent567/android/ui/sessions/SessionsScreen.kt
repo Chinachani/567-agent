@@ -60,6 +60,7 @@ fun SessionsScreen(
     desktopSessionsLoading: Boolean = false,
     desktopSessionsError: String? = null,
     onRefreshDesktopSessions: () -> Unit = {},
+    onRefreshSessions: () -> Unit = onRefreshDesktopSessions,
 ) {
     var openMenuSessionId by remember { mutableStateOf<String?>(null) }
     var renameTarget by remember { mutableStateOf<SessionListItem?>(null) }
@@ -84,10 +85,11 @@ fun SessionsScreen(
             TopAppBar(
                 title = { Text(Str.sessionsTitle, style = MaterialTheme.typography.titleMedium) },
                 actions = {
-                    if (filterIndex == 1) {
-                        IconButton(onClick = onRefreshDesktopSessions, enabled = !desktopSessionsLoading) {
-                            Icon(Icons.Default.Refresh, contentDescription = Str.refreshDesktopSessions)
-                        }
+                    IconButton(
+                        onClick = onRefreshSessions,
+                        enabled = filterIndex != 1 || !desktopSessionsLoading,
+                    ) {
+                        Icon(Icons.Default.Refresh, contentDescription = Str.refreshSessions)
                     }
                 },
                 colors =

@@ -7,6 +7,7 @@ const ACTIVE_MAX_SCROLL_LERP_RATIO = 0.28;
 const SCROLL_DISTANCE_FOR_MAX_RATIO = 900;
 const IDLE_MEASURE_EVERY_N_FRAMES = 4;
 const MAX_CACHED_FEED_STATES = 24;
+const SCROLL_TO_BOTTOM_THRESHOLD_PX = 500;
 
 interface CachedFeedState {
 	readonly itemIdentity: string | null;
@@ -66,7 +67,9 @@ export interface MessageFeedScrollModel {
 	readonly onAtBottomChange: (atBottom: boolean) => void;
 	readonly scrollerElement: HTMLElement | null;
 	readonly scrollerRef: (element: HTMLElement | Window | null) => void;
+	readonly scrollToBottom: () => void;
 	readonly scrollToItem: (index: number) => void;
+	readonly showScrollToBottom: boolean;
 	readonly virtuosoRef: React.RefObject<VirtuosoHandle | null>;
 	readonly restoreStateFrom?: StateSnapshot;
 }
@@ -98,6 +101,7 @@ export function useMessageFeedScrollModel<T>({
 	const restoreStateFrom = readCachedFeedState(resetKey, items.length, itemIdentity);
 	const scrollerElementRef = useRef<HTMLElement | null>(null);
 	const [scrollerElement, setScrollerElement] = useState<HTMLElement | null>(null);
+	const [showScrollToBottom, setShowScrollToBottom] = useState(false);
 	const layoutResizingRef = useRef(layoutResizing);
 	const previousLayoutResizingRef = useRef(layoutResizing);
 	layoutResizingRef.current = layoutResizing;
@@ -184,6 +188,12 @@ export function useMessageFeedScrollModel<T>({
 		[startFollowingBottom],
 	);
 
+	const scrollToBottom = useCallback(() => {
+		shouldFollowBottomRef.current = true;
+		setShowScrollToBottom(false);
+		virtuosoRef.current?.scrollToIndex({ index: "LAST", align: "end", behavior: "smooth" });
+	}, []);
+
 	const scrollToItem = useCallback(
 		(index: number) => {
 			stopFollowingBottom();
@@ -217,6 +227,7 @@ export function useMessageFeedScrollModel<T>({
 	useEffect(() => {
 		if (previousResetKeyRef.current === resetKey) return;
 		previousResetKeyRef.current = resetKey;
+		setShowScrollToBottom(false);
 		if (lerpAnimationFrameRef.current !== null) {
 			cancelAnimationFrame(lerpAnimationFrameRef.current);
 			lerpAnimationFrameRef.current = null;
@@ -278,6 +289,16 @@ export function useMessageFeedScrollModel<T>({
 		if (next) next.style.overflowAnchor = "none";
 	}, []);
 
+	const updateScrollPosition = useCallback(() => {
+		const element = scrollerElementRef.current;
+		if (!element) {
+			setShowScrollToBottom(false);
+			return;
+		}
+		const distanceFromBottom = Math.max(0, element.scrollHeight - element.clientHeight - element.scrollTop);
+		setShowScrollToBottom(distanceFromBottom > SCROLL_TO_BOTTOM_THRESHOLD_PX);
+	}, []);
+
 	const snapToBottom = useCallback(() => {
 		snapAnimationFrameRef.current = null;
 		const element = scrollerElementRef.current;
@@ -300,8 +321,10 @@ export function useMessageFeedScrollModel<T>({
 		element.addEventListener("wheel", onWheel, { passive: true });
 		element.addEventListener("touchstart", onTouchStart, { passive: true });
 		element.addEventListener("touchmove", onTouchMove, { passive: true });
+		element.addEventListener("scroll", updateScrollPosition, { passive: true });
 		element.addEventListener("scroll", scheduleStateCapture, { passive: true });
 		const resizeObserver = new ResizeObserver(() => {
+			updateScrollPosition();
 			if (layoutResizingRef.current || snapAnimationFrameRef.current !== null) return;
 			snapAnimationFrameRef.current = requestAnimationFrame(snapToBottom);
 		});
@@ -310,6 +333,7 @@ export function useMessageFeedScrollModel<T>({
 			element.removeEventListener("wheel", onWheel);
 			element.removeEventListener("touchstart", onTouchStart);
 			element.removeEventListener("touchmove", onTouchMove);
+			element.removeEventListener("scroll", updateScrollPosition);
 			element.removeEventListener("scroll", scheduleStateCapture);
 			resizeObserver.disconnect();
 			if (stateCaptureFrameRef.current !== null) {
@@ -322,7 +346,16 @@ export function useMessageFeedScrollModel<T>({
 				snapAnimationFrameRef.current = null;
 			}
 		};
-	}, [captureState, onTouchMove, onTouchStart, onWheel, scheduleStateCapture, scrollerElement, snapToBottom]);
+	}, [
+		captureState,
+		onTouchMove,
+		onTouchStart,
+		onWheel,
+		scheduleStateCapture,
+		scrollerElement,
+		snapToBottom,
+		updateScrollPosition,
+	]);
 
 	useEffect(
 		() => () => {
@@ -334,5 +367,14 @@ export function useMessageFeedScrollModel<T>({
 		[captureState],
 	);
 
-	return { onAtBottomChange, restoreStateFrom, scrollerElement, scrollerRef, scrollToItem, virtuosoRef };
+	return {
+		onAtBottomChange,
+		restoreStateFrom,
+		scrollerElement,
+		scrollerRef,
+		scrollToBottom,
+		scrollToItem,
+		showScrollToBottom,
+		virtuosoRef,
+	};
 }

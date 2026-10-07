@@ -25,9 +25,9 @@ const FILE_SUFFIX = roleFileSuffix(detectProcessRole());
 // agent-rpc 子进程的 stdout 跑 coding-agent 的 RPC NDJSON 协议，绝不能镜像日志到
 // console——electron-log 的 node console transport 在 require 时就快照了原始
 // console.*（→ 真实 stdout），main.ts 把 console 改写为 stderr 对它无效，dev 下
-// agent-rpc 继承 VETTA_DESKTOP_DEV_URL 会让镜像打开并污染协议。故与角色解耦。
+// agent-rpc 继承 AGENT567_DESKTOP_DEV_URL 会让镜像打开并污染协议。故与角色解耦。
 const SHOULD_MIRROR_LOGS_TO_CONSOLE =
-	process.env.VETTA_DESKTOP_DEV_URL !== undefined && detectProcessRole() !== "agent-rpc";
+	process.env.AGENT567_DESKTOP_DEV_URL !== undefined && detectProcessRole() !== "agent-rpc";
 
 let appLoggingConfigured = false;
 let consolePatched = false;
@@ -143,7 +143,7 @@ function configureLogger(logger: ElectronLogger, type: AppLogType): void {
 	if (logger.transports.ipc) {
 		logger.transports.ipc.level = false;
 	}
-	logger.transports.file.setAppName("Vetta");
+	logger.transports.file.setAppName("567 Agent");
 	// 角色化文件名：GUI 不带后缀（保持 `<日期>.log`），sidecar/CLI 带 role+pid，
 	// 不再与主进程共写同一文件，消除并发追加与归档 rename 的竞态。
 	logger.transports.file.fileName = `${type}${FILE_SUFFIX}.log`;

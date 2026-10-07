@@ -1,12 +1,14 @@
 package org.agent567.android.domain.conversation
 
 import kotlinx.coroutines.ExperimentalCoroutinesApi
+import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.receiveAsFlow
 import kotlinx.coroutines.test.runTest
 import kotlinx.coroutines.test.advanceTimeBy
 import kotlinx.coroutines.test.runCurrent
+import kotlinx.coroutines.launch
 import kotlinx.serialization.json.buildJsonObject
 import kotlinx.serialization.json.put
 import kotlinx.serialization.json.buildJsonArray
@@ -191,6 +193,53 @@ class RelayRemoteConversationGatewayTest {
 
             assertEquals(org.agent567.android.domain.remote.protocol.RemoteErrorCode.TransportClosed, error.remoteError.code)
         }
+
+    @Test
+    fun emptyDraftCleanupUsesTheDesktopGuardedDeleteMethod() =
+        runTest {
+            val transport = FakeGatewayTransport(conditionalDeleteResult = false)
+            val gateway = RelayRemoteConversationGateway(scope = backgroundScope, transportFactory = { transport }, now = { 1_000L })
+            gateway.connect("fake-relay")
+
+            gateway.listDesktopSessions("desktop-1")
+
+            assertEquals(false, gateway.deleteEmptyDesktopSession("desktop-1", "existing-session"))
+
+            gateway.disconnect("desktop-1")
+        }
+
+    @Test
+    fun doesNotSendGuardedDeleteToPeersThatDoNotAdvertiseIt() =
+        runTest {
+            val transport = FakeGatewayTransport(supportedMethods = emptyList())
+            val gateway = RelayRemoteConversationGateway(scope = backgroundScope, transportFactory = { transport }, now = { 1_000L })
+            gateway.connect("fake-relay")
+            gateway.listDesktopSessions("desktop-1")
+
+            assertEquals(false, gateway.deleteEmptyDesktopSession("desktop-1", "empty-session"))
+            assertEquals(0, transport.emptyDeleteRequestCount)
+            gateway.disconnect("desktop-1")
+        }
+
+    @Test
+    fun retriesTheFirstHistoryPageOnceAfterProbeTimeout() =
+        runTest {
+            val transport = FakeGatewayTransport(firstHistoryTimeouts = 1)
+            val gateway = RelayRemoteConversationGateway(scope = backgroundScope, transportFactory = { transport }, now = { 1_000L })
+            gateway.connect("fake-relay")
+            val result = CompletableDeferred<List<RemoteDesktopHistoryMessage>?>()
+
+            backgroundScope.launch {
+                result.complete(gateway.readDesktopSessionHistory("local-session", "desktop-session"))
+            }
+            runCurrent()
+            advanceTimeBy(5_000L)
+            runCurrent()
+
+            assertEquals(emptyList(), result.await())
+            assertEquals(2, transport.historyRequestCount)
+            gateway.disconnect("desktop-1")
+        }
 }
 
 private class FakeGatewayTransport(
@@ -198,8 +247,15 @@ private class FakeGatewayTransport(
     private val terminalErrorCode: String? = null,
     private val disconnectOnPrompt: Boolean = false,
     private val acceptHello: Boolean = true,
+    private val conditionalDeleteResult: Boolean = true,
+    private val supportedMethods: List<String> = listOf("session.delete.empty"),
+    private val firstHistoryTimeouts: Int = 0,
 ) : RemoteTransport {
     private val channel = Channel<RemoteFrame>(Channel.UNLIMITED)
+    var historyRequestCount: Int = 0
+        private set
+    var emptyDeleteRequestCount: Int = 0
+        private set
     override val incoming: Flow<RemoteFrame> = channel.receiveAsFlow()
 
     override suspend fun connect() = Unit
@@ -209,6 +265,21 @@ private class FakeGatewayTransport(
             is org.agent567.android.domain.remote.protocol.RemoteHello ->
                 if (acceptHello) channel.send(RemoteHelloAck(connectionId = frame.connectionId, peerDeviceId = "desktop-1"))
             is RemoteRequest -> {
+                if (frame.method == org.agent567.android.domain.remote.protocol.RemoteRequestMethod.SessionList) {
+                    channel.send(
+                        RemoteResponse(
+                            requestId = frame.requestId,
+                            success = true,
+                            payload = buildJsonObject {
+                                put("sessions", kotlinx.serialization.json.buildJsonArray { })
+                                put("supportedMethods", kotlinx.serialization.json.buildJsonArray {
+                                    supportedMethods.forEach { add(kotlinx.serialization.json.JsonPrimitive(it)) }
+                                })
+                            },
+                        ),
+                    )
+                    return
+                }
                 if (frame.method == org.agent567.android.domain.remote.protocol.RemoteRequestMethod.DiagnosticsSnapshot) {
                     channel.send(
                         RemoteResponse(
@@ -219,6 +290,27 @@ private class FakeGatewayTransport(
                                 put("cpu", "Test CPU")
                                 put("ram", "16 GB")
                             },
+                        ),
+                    )
+                    return
+                }
+                if (frame.method == org.agent567.android.domain.remote.protocol.RemoteRequestMethod.SessionOpen) {
+                    channel.send(RemoteResponse(frame.requestId, success = true, payload = buildJsonObject { put("sessionId", frame.sessionId ?: "desktop-session") }))
+                    return
+                }
+                if (frame.method == org.agent567.android.domain.remote.protocol.RemoteRequestMethod.SessionHistory) {
+                    historyRequestCount += 1
+                    if (historyRequestCount <= firstHistoryTimeouts) return
+                    channel.send(RemoteResponse(frame.requestId, success = true, payload = buildJsonObject { put("messages", buildJsonArray { }) }))
+                    return
+                }
+                if (frame.method == org.agent567.android.domain.remote.protocol.RemoteRequestMethod.SessionDeleteEmpty) {
+                    emptyDeleteRequestCount += 1
+                    channel.send(
+                        RemoteResponse(
+                            requestId = frame.requestId,
+                            success = true,
+                            payload = buildJsonObject { put("deleted", conditionalDeleteResult) },
                         ),
                     )
                     return

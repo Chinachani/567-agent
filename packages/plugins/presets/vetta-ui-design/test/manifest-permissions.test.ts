@@ -55,7 +55,10 @@ describe("plugin.json 权限声明", () => {
 		});
 	}
 
-	it("允许 StyleKit 的规范域名及 www 域名", () => {
-		expect(manifest.network?.allowedHosts).toEqual(expect.arrayContaining(["stylekit.top", "www.stylekit.top"]));
+	it("只允许风格库的清单和资源域名", () => {
+		expect(manifest.network?.allowedHosts).toEqual(
+			expect.arrayContaining(["raw.githubusercontent.com", "cdn.jsdelivr.net"]),
+		);
+		expect(manifest.network?.allowedHosts).not.toContain("stylekit.top");
 	});
 });

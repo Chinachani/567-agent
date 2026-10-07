@@ -45,12 +45,12 @@ const previousService: PluginServiceProviderManifest = {
 			},
 		},
 	},
-	process: { args: ["--port=:${" + "VETTA_SERVICE_PORT}"] },
+	process: { args: ["--port=:${" + "AGENT567_SERVICE_PORT}"] },
 	health: { path: "/health" },
 };
 const updatedService: PluginServiceProviderManifest = {
 	...previousService,
-	process: { args: ["--headless=false", "--port=:${" + "VETTA_SERVICE_PORT}"] },
+	process: { args: ["--headless=false", "--port=:${" + "AGENT567_SERVICE_PORT}"] },
 };
 
 function createInstalledPlugin(): InstalledPlugin {

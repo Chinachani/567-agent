@@ -147,6 +147,8 @@ export function AbilityCard({
 		>
 			<button
 				type="button"
+				disabled={item.busy}
+				aria-busy={item.busy}
 				onClick={openDetail}
 				className="flex min-w-0 flex-1 cursor-pointer items-center gap-3 rounded-md text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
 			>

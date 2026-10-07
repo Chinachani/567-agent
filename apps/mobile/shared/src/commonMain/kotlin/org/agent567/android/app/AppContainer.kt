@@ -70,6 +70,10 @@ class AppContainer(
             return AppContainer(
                 preferences = AppPreferences(settings, secrets),
                 tokenStore = SettingsTokenStore(settings, secretStore = secrets),
+                sessionStore = SettingsSessionStore(
+                    settings = settings,
+                    imageFiles = org.agent567.android.domain.session.createPlatformMessageImageFileStore(),
+                ),
             )
         }
     }

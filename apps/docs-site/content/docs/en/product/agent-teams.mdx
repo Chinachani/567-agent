@@ -236,7 +236,7 @@ The workspace is fixed when the session is created:
 
 | Choice at creation | Working directory |
 | --- | --- |
-| No project selected | A new directory owned by this session, under `VETTA_HOME/agent-teams/session-workspaces/` |
+| No project selected | A new directory owned by this session, under `AGENT567_HOME/agent-teams/session-workspaces/` |
 | A project selected | That project's directory |
 
 The coordination runtime and every member share that one directory, so files a member writes are visible to the others — **files are their real shared workbench**, while messages carry only conclusions.
@@ -245,7 +245,7 @@ Team sessions use the same underlying storage format as ordinary conversations, 
 
 ### A team is a set of files
 
-Teams and agents live under `VETTA_HOME/agent-teams/` (`~/.567agent` by default in production):
+Teams and agents live under `AGENT567_HOME/agent-teams/` (`~/.567agent` by default in production):
 
 <Files>
   <Folder name="agent-teams" defaultOpen>

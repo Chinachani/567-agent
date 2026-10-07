@@ -55,7 +55,7 @@ Desktop IM Composition
 当前灰度入口为：
 
 ```text
-VETTA_IM_AGENT_RUNTIME=greenfield-im
+AGENT567_IM_AGENT_RUNTIME=greenfield-im
 ```
 
 未设置、空字符串或显式 `legacy` 均选择 Legacy；其他值直接报错，不静默猜测。构造函数同时保留类型化

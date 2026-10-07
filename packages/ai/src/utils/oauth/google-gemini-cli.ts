@@ -227,7 +227,7 @@ async function pollOperation(
  */
 async function discoverProject(accessToken: string, onProgress?: (message: string) => void): Promise<string> {
 	// Check for user-provided project ID via environment variable
-	const envProjectId = process.env.GOOGLE_CLOUD_PROJECT || process.env.GOOGLE_CLOUD_PROJECT_ID;
+	const envProjectId = process.env.GOOGLE_CLOUD_PROJECT_ID;
 
 	const headers = {
 		Authorization: `Bearer ${accessToken}`,

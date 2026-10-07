@@ -22,7 +22,7 @@ export interface VettaCredentials {
 
 export const VETTA_API_PREFIX = "/api/v1";
 
-/** 凭据文件路径：`~/.567agent/auth.json`，显式运行时目录或 VETTA_HOME 可覆盖根目录。 */
+/** 凭据文件路径：`~/.567agent/auth.json`，显式运行时目录或 AGENT567_HOME 可覆盖根目录。 */
 export function vettaCredentialsPath(vettaHome?: string): string {
 	const home = vettaHome?.trim() || getVettaHomePath();
 	return join(home, "auth.json");
@@ -31,8 +31,8 @@ export function vettaCredentialsPath(vettaHome?: string): string {
 /**
  * 归一 baseUrl 为**服务根**（不含 API 前缀），拼接一律交给 vettaApiUrl。
  *
- * 必须容忍两种写法：桌面端注入的 `VETTA_SERVER_URL` 本身就带 `/api/v1`，
- * 而手工设 `VETTA_API_BASE_URL` 的人通常只写到域名。两者不统一就会拼出
+ * 必须容忍两种写法：桌面端注入的 `API567_BASE_URL` 本身就带 `/api/v1`，
+ * 而旧脚本设的 `API567_BASE_URL` 通常只写到域名。两者不统一就会拼出
  * `/api/v1/api/v1/...` 而 404。
  */
 export function normalizeVettaBaseUrl(raw: string): string {
@@ -50,8 +50,8 @@ export function vettaApiUrl(baseUrl: string, path: string): string {
  * 环境变量优先是为 CI 与本地联调留的口子，也让本模块无需真实登录即可测试。
  */
 export function loadVettaCredentials(vettaHome?: string): VettaCredentials | null {
-	const envToken = process.env.VETTA_API_TOKEN?.trim();
-	const envBase = process.env.VETTA_API_BASE_URL?.trim() || process.env.VETTA_SERVER_URL?.trim();
+	const envToken = process.env.API567_API_TOKEN?.trim();
+	const envBase = process.env.API567_BASE_URL?.trim();
 	if (envToken && envBase) {
 		return { baseUrl: normalizeVettaBaseUrl(envBase), token: envToken };
 	}

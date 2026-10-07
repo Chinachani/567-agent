@@ -102,6 +102,11 @@ export function decodeRemoteInputMessage(value: unknown): RemoteInputMessage {
 			modifiers: modifiers(input.modifiers),
 		};
 	}
+	if (type === "text") {
+		const value = text(input.text, "text", 256);
+		if (value.trim().length === 0) throw new RemoteDesktopProtocolError("text must not be blank");
+		return { type, sequence, text: value };
+	}
 	if (type === "heartbeat") {
 		return { type, sequence, sentAt: integer(input.sentAt, "sentAt", 0, Number.MAX_SAFE_INTEGER) };
 	}
@@ -147,6 +152,7 @@ function inputFields(value: unknown): readonly string[] {
 	if (type === "pointer.button") return ["type", "sequence", "x", "y", "button", "action"];
 	if (type === "pointer.scroll") return ["type", "sequence", "deltaX", "deltaY"];
 	if (type === "key") return ["type", "sequence", "code", "action", "modifiers"];
+	if (type === "text") return ["type", "sequence", "text"];
 	if (type === "heartbeat") return ["type", "sequence", "sentAt"];
 	return ["type", "sequence"];
 }

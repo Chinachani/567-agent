@@ -13,6 +13,7 @@ import { createConversationTagsApi } from "./apis/conversation-tags.js";
 import { createDownloadsApi } from "./apis/downloads.js";
 import { createI18nApi } from "./apis/i18n.js";
 import { createImApi } from "./apis/im.js";
+import { createMarkdownApi } from "./apis/markdown.js";
 import { createNotificationApi } from "./apis/notification.js";
 import { createPluginsApi } from "./apis/plugins.js";
 import { createQuickPanelApi } from "./apis/quick-panel.js";
@@ -58,6 +59,7 @@ const rawApi: Omit<DesktopApi, "hostAccess"> = {
 	...createI18nApi(ipcRenderer),
 	...createTelemetryApi(ipcRenderer),
 	...createSystemApi(ipcRenderer, webUtils),
+	...createMarkdownApi(ipcRenderer),
 	...create567Api(ipcRenderer),
 };
 

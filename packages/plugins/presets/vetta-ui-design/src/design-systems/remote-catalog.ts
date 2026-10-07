@@ -13,7 +13,7 @@ const MAX_SPEC_BYTES = 64 * 1024;
 const MAX_THEME_BYTES = 32 * 1024;
 const MAX_SHORT_TEXT = 500;
 /** 一次清单最多接受的条目数，防止畸形源撑爆选择器。 */
-const MAX_ENTRIES = 200;
+const MAX_ENTRIES = 1000;
 /** 单个条目最多带多少份资源，以及单份资源的体积上限。 */
 const MAX_RESOURCES_PER_ENTRY = 60;
 const MAX_RESOURCE_BYTES = 8 * 1024 * 1024;

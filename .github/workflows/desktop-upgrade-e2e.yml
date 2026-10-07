@@ -12,7 +12,7 @@ on:
         type: string
         required: true
       update_url:
-        description: "Optional test feed override. Empty uses desktop-test Environment VETTA_UPDATE_URL_TEST."
+        description: "Optional test feed override. Empty uses desktop-test Environment AGENT567_UPDATE_URL_TEST."
         type: string
         required: false
       notes:
@@ -57,12 +57,12 @@ jobs:
       - name: Run real install, update, quit, restart and version check
         working-directory: apps/desktop
         env:
-          VETTA_DESKTOP_UPGRADE_URL: ${{ inputs.update_url || vars.VETTA_UPDATE_URL_TEST }}
-          VETTA_DESKTOP_UPGRADE_BASELINE: ${{ inputs.baseline_version }}
-          VETTA_DESKTOP_UPGRADE_CANDIDATE: ${{ inputs.candidate_version }}
-          VETTA_DESKTOP_UPGRADE_WORKDIR: ${{ runner.temp }}
-          VETTA_E2E: "1"
-          VETTA_SPEECH_INPUT_ENABLED: "false"
+          AGENT567_DESKTOP_UPGRADE_URL: ${{ inputs.update_url || vars.AGENT567_UPDATE_URL_TEST }}
+          AGENT567_DESKTOP_UPGRADE_BASELINE: ${{ inputs.baseline_version }}
+          AGENT567_DESKTOP_UPGRADE_CANDIDATE: ${{ inputs.candidate_version }}
+          AGENT567_DESKTOP_UPGRADE_WORKDIR: ${{ runner.temp }}
+          AGENT567_E2E: "1"
+          AGENT567_SPEECH_INPUT_ENABLED: "false"
         shell: bash
         run: |
           if [[ "${{ matrix.platform }}" == "linux" ]]; then
@@ -85,7 +85,7 @@ jobs:
       - name: Write test-channel upgrade summary
         if: always()
         env:
-          SUMMARY_FEED: ${{ inputs.update_url || vars.VETTA_UPDATE_URL_TEST }}
+          SUMMARY_FEED: ${{ inputs.update_url || vars.AGENT567_UPDATE_URL_TEST }}
           SUMMARY_NOTES: ${{ inputs.notes }}
         shell: bash
         run: |

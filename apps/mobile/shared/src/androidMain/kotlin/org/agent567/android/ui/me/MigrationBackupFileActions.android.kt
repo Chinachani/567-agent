@@ -12,6 +12,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.platform.LocalContext
 import org.agent567.android.data.session.MIGRATION_BACKUP_MAX_BYTES
+import org.agent567.android.data.session.runtimeMigrationByteLimit
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
@@ -29,10 +30,17 @@ actual fun rememberMigrationBackupFileActions(
         val bytes = pendingBytes
         pendingBytes = null
         if (uri == null || bytes == null) {
+            bytes?.fill(0)
             onSaved(false, null)
         } else {
             scope.launch {
-                val error = withContext(Dispatchers.IO) { writeBackup(context, uri, bytes) }
+                val error = withContext(Dispatchers.IO) {
+                    try {
+                        writeBackup(context, uri, bytes)
+                    } finally {
+                        bytes.fill(0)
+                    }
+                }
                 onSaved(error == null, error)
             }
         }
@@ -59,7 +67,7 @@ actual fun rememberMigrationBackupFileActions(
 }
 
 private fun writeBackup(context: Context, uri: Uri, bytes: ByteArray): MigrationBackupFileError? {
-    if (bytes.size > MIGRATION_BACKUP_MAX_BYTES) return MigrationBackupFileError.TooLarge
+    if (bytes.size > runtimeMigrationByteLimit(MIGRATION_BACKUP_MAX_BYTES)) return MigrationBackupFileError.TooLarge
     return try {
         context.contentResolver.openOutputStream(uri, "w")?.use { output -> output.write(bytes) }
             ?: error("无法写入迁移文件")
@@ -71,6 +79,7 @@ private fun writeBackup(context: Context, uri: Uri, bytes: ByteArray): Migration
 
 private fun readBackupResult(context: Context, uri: Uri): Pair<ByteArray?, MigrationBackupFileError?> =
     try {
+        val safeLimit = runtimeMigrationByteLimit(MIGRATION_BACKUP_MAX_BYTES)
         val input = context.contentResolver.openInputStream(uri) ?: error("无法读取迁移文件")
         input.use { stream ->
             val output = ByteArrayOutputStream()
@@ -80,7 +89,7 @@ private fun readBackupResult(context: Context, uri: Uri): Pair<ByteArray?, Migra
                 val count = stream.read(buffer)
                 if (count < 0) break
                 total += count
-                if (total > MIGRATION_BACKUP_MAX_BYTES) {
+                if (total > safeLimit) {
                     return@use Pair(null, MigrationBackupFileError.TooLarge)
                 }
                 output.write(buffer, 0, count)

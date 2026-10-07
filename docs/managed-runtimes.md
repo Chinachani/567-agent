@@ -78,15 +78,15 @@ PIP_TRUSTED_HOST    = pypi.tuna.tsinghua.edu.cn
 
 - 缓存:`.vendor-version` 标记,同机重复打包版本未变则跳过下载(tmpdir 清掉则重下,非持久缓存)。
 - 解压:统一用系统 `tar`(Win10 1803+ 自带 bsdtar,zip/tar.gz 通吃)。
-- **构建期外部依赖**:构建机必须能访问 npmmirror + GitHub。GitHub 不通则 python 这步失败 → 打包失败;逃生口 `VETTA_SKIP_VENDOR=1`(出无内置包,退化为面板手动下载)。
+- **构建期外部依赖**:构建机必须能访问 npmmirror + GitHub。GitHub 不通则 python 这步失败 → 打包失败;逃生口 `AGENT567_SKIP_VENDOR=1`(出无内置包,退化为面板手动下载)。
 
 ## 7. 多平台打包(必须分平台,二进制不通用)
 
 node/python 是**原生平台+架构专属二进制**,不能跨平台共用。vendor **刻意只装单目标平台**(im-gateway 那种全量内置对 ~140MB/平台的运行时会让安装包膨胀到 ~700MB,不可取)。
 
-- 默认按构建宿主:`platformTag = process.env.VETTA_VENDOR_PLATFORM || \`${process.platform}-${process.arch}\``。
+- 默认按构建宿主:`platformTag = process.env.AGENT567_VENDOR_PLATFORM || \`${process.platform}-${process.arch}\``。
 - 标准做法:**CI 矩阵每平台原生打**(arm64 mac 打 mac-arm64、Windows 打 win32-x64……),各自自动拿对二进制。
-- 交叉打包:设 `VETTA_VENDOR_PLATFORM`(取值同 manifest 键:`darwin-arm64` / `darwin-x64` / `linux-x64` / `linux-arm64` / `win32-x64`)+ 让 electron-builder 也指向同一目标。
+- 交叉打包:设 `AGENT567_VENDOR_PLATFORM`(取值同 manifest 键:`darwin-arm64` / `darwin-x64` / `linux-x64` / `linux-arm64` / `win32-x64`)+ 让 electron-builder 也指向同一目标。
 - 平台不支持(如 `win32-arm64` manifest 无此项)→ 打包**直接抛错**,不出坏包。
 - **当前不支持 mac universal**:python vendor 解压目录两种架构都叫 `python/` 会撞名;要支持需改成按架构分子目录 + 运行时按 `process.arch` 选。
 
@@ -102,4 +102,4 @@ node/python 是**原生平台+架构专属二进制**,不能跨平台共用。ve
 - **验 agent 真用托管版**(决定性):在 Vetta 对话框让 agent 跑
   `which node && node --version && which python3 && echo "npm=$npm_config_registry"`,
   `which node` 指向 `~/.567agent/runtimes/...` 即端到端生效。对照:自己终端跑应仍是系统版(证明作用域隔离)。
-- 出无内置包做对照:`VETTA_SKIP_VENDOR=1`。
+- 出无内置包做对照:`AGENT567_SKIP_VENDOR=1`。

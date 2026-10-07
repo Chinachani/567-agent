@@ -14,8 +14,8 @@ test("defaults packaged builds to the 567 Agent GitHub Releases feed", () => {
 test("allows an explicit update URL to override the stable default", () => {
 	assert.deepEqual(
 		resolveUpdatePublishConfig({
-			VETTA_UPDATE_PROVIDER: "generic",
-			VETTA_UPDATE_URL: "https://releases.example.com/desktop/test/",
+			AGENT567_UPDATE_PROVIDER: "generic",
+			AGENT567_UPDATE_URL: "https://releases.example.com/desktop/test/",
 		}),
 		{
 			provider: "generic",
@@ -27,16 +27,16 @@ test("allows an explicit update URL to override the stable default", () => {
 
 test("rejects a package without an update provider", () => {
 	assert.throws(
-		() => resolveUpdatePublishConfig({ VETTA_UPDATE_PROVIDER: "none" }),
+		() => resolveUpdatePublishConfig({ AGENT567_UPDATE_PROVIDER: "none" }),
 		/expected generic or github/,
 	);
 });
 
 test("allows repository coordinates to override the default GitHub feed", () => {
 	assert.deepEqual(resolveUpdatePublishConfig({
-		VETTA_UPDATE_PROVIDER: "github",
-		VETTA_UPDATE_GITHUB_OWNER: "example",
-		VETTA_UPDATE_GITHUB_REPO: "desktop",
+		AGENT567_UPDATE_PROVIDER: "github",
+		AGENT567_UPDATE_GITHUB_OWNER: "example",
+		AGENT567_UPDATE_GITHUB_REPO: "desktop",
 	}), {
 		provider: "github",
 		owner: "example",

@@ -45,6 +45,55 @@ describe("desktop signaling websocket", () => {
 		expect(url).toBe("wss://relay.test/v1/desktop/pairing_abcdefghijklmnopqrstuvwx/viewer");
 		expect(protocols).toEqual([REMOTE_DESKTOP_WEBSOCKET_PROTOCOL, "vetta.pairing.mobile_resume"]);
 	});
+
+	it("can reconnect after a signaling drop without stale sockets affecting the new connection", async () => {
+		const sockets: RemoteDesktopWebSocket[] = [];
+		let closes = 0;
+		const signaling = new WebSocketRemoteDesktopSignaling("wss://relay.test/host", () => {
+			const socket = fakeSocket();
+			sockets.push(socket);
+			queueMicrotask(() => socket.onopen?.());
+			return socket;
+		});
+		const handlers = {
+			onSignal: () => undefined,
+			onClose: () => {
+				closes += 1;
+			},
+		};
+
+		await signaling.connect(handlers);
+		expect(signaling.connected).toBe(true);
+		sockets[0]!.onclose?.({ reason: "relay restarted" });
+		expect(signaling.connected).toBe(false);
+		expect(closes).toBe(1);
+
+		await signaling.connect(handlers);
+		expect(signaling.connected).toBe(true);
+		sockets[0]!.onclose?.({ reason: "stale socket" });
+		expect(signaling.connected).toBe(true);
+		expect(closes).toBe(1);
+	});
+
+	it("reports an established signaling socket error as a connection drop", async () => {
+		const socket = fakeSocket();
+		let closes = 0;
+		const signaling = new WebSocketRemoteDesktopSignaling("wss://relay.test/host", () => {
+			queueMicrotask(() => socket.onopen?.());
+			return socket;
+		});
+		await signaling.connect({
+			onSignal: () => undefined,
+			onClose: () => {
+				closes += 1;
+			},
+		});
+
+		socket.onerror?.();
+
+		expect(signaling.connected).toBe(false);
+		expect(closes).toBe(1);
+	});
 });
 
 function fakeSocket(): RemoteDesktopWebSocket {

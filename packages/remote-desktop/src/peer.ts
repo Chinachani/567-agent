@@ -9,6 +9,10 @@ export type RemoteDesktopSignalSender = (signal: RemoteDesktopSignal) => void | 
 export interface RemoteDesktopHostStartOptions {
 	/** Wait for the relay to confirm that a viewer is online before creating an offer. */
 	readonly waitForPeerReady?: boolean;
+	/** Recreate the host when the viewer rejoins signaling but its existing direct peer has dropped. */
+	readonly onViewerReplaced?: () => void;
+	/** Observe peer state so a host can distinguish relay loss from a dead direct connection. */
+	readonly onConnectionStateChange?: (state: RTCPeerConnectionState) => void;
 }
 
 export class RemoteDesktopHost {
@@ -22,6 +26,9 @@ export class RemoteDesktopHost {
 	private peerReady = false;
 	private hasNegotiated = false;
 	private negotiation: Promise<void> | undefined;
+	private onViewerReplaced: (() => void) | undefined;
+	private onConnectionStateChange: ((state: RTCPeerConnectionState) => void) | undefined;
+	private viewerRejoined = false;
 
 	constructor(
 		private readonly options: RemoteDesktopPeerOptions,
@@ -42,16 +49,25 @@ export class RemoteDesktopHost {
 			});
 		};
 		this.peer.onconnectionstatechange = () => {
+			const state = this.peer.connectionState;
 			this.logger.info("remote desktop host peer state", {
 				sessionId: options.sessionId,
-				state: this.peer.connectionState,
+				state,
 			});
+			this.onConnectionStateChange?.(state);
+			if (this.viewerRejoined && state !== "connected" && this.onViewerReplaced && !this.closed) {
+				this.viewerRejoined = false;
+				this.logger.info("remote desktop viewer replaced", { sessionId: options.sessionId, state });
+				this.onViewerReplaced();
+			}
 		};
 	}
 
 	async start(stream: MediaStream, startOptions: RemoteDesktopHostStartOptions = {}): Promise<void> {
 		if (this.closed) throw new Error("remote desktop host is closed");
 		if (this.started) throw new Error("remote desktop host is already started");
+		this.onViewerReplaced = startOptions.onViewerReplaced;
+		this.onConnectionStateChange = startOptions.onConnectionStateChange;
 		if (stream.getVideoTracks().length === 0) throw new Error("screen stream must contain a video track");
 		for (const track of stream.getTracks()) this.peer.addTrack(track, stream);
 		this.inputChannel = this.peer.createDataChannel("vetta-input-v1", { ordered: true });
@@ -64,6 +80,15 @@ export class RemoteDesktopHost {
 		const frame = decodeRemoteDesktopSignal(signal);
 		if (frame.type === "peer_ready") {
 			this.peerReady = true;
+			if (this.hasNegotiated && this.peer.connectionState === "connected") {
+				this.viewerRejoined = true;
+				this.logger.info("remote desktop viewer rejoined signaling", { sessionId: this.options.sessionId });
+				return;
+			}
+			if (this.hasNegotiated && this.onViewerReplaced) {
+				this.onViewerReplaced();
+				return;
+			}
 			if (this.started) await this.negotiate();
 			return;
 		}
@@ -105,6 +130,9 @@ export class RemoteDesktopHost {
 	}
 
 	private configureInputChannel(channel: RTCDataChannel): void {
+		channel.onopen = () => {
+			channel.send(JSON.stringify({ type: "capabilities", textInput: true }));
+		};
 		channel.onmessage = (event) => {
 			if (typeof event.data !== "string") {
 				this.logger.warn("remote desktop binary input rejected", { sessionId: this.options.sessionId });

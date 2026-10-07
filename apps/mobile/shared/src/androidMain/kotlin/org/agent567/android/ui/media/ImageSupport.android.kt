@@ -1,25 +1,135 @@
 package org.agent567.android.ui.media
 
 import android.graphics.BitmapFactory
+import android.graphics.Bitmap
+import android.graphics.Matrix
+import android.Manifest
+import android.content.Context
+import android.content.ContentValues
+import android.content.pm.PackageManager
+import android.os.Build
+import android.os.Environment
+import android.provider.MediaStore
+import android.util.LruCache
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.exifinterface.media.ExifInterface
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.ui.graphics.ImageBitmap
 import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.platform.LocalContext
+import org.agent567.android.data.session.MessageImageFileSystem
+import org.agent567.android.domain.session.MessageImage
+import java.io.ByteArrayInputStream
+import java.io.ByteArrayOutputStream
+import java.io.File
+import java.io.InputStream
+import java.security.MessageDigest
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 
+private val decodedImageCache = object : LruCache<String, ImageBitmap>(16 * 1024 * 1024) {
+    override fun sizeOf(key: String, value: ImageBitmap): Int =
+        (value.width.toLong() * value.height.toLong() * 4L).coerceAtMost(Int.MAX_VALUE.toLong()).toInt()
+}
+
 actual fun imageBitmapFromBytes(bytes: ByteArray): ImageBitmap? {
-    val bitmap = BitmapFactory.decodeByteArray(bytes, 0, bytes.size) ?: return null
-    return bitmap.asImageBitmap()
+    val cacheKey = bytes.sha256Key()
+    decodedImageCache.get(cacheKey)?.let { return it }
+    val bounds = BitmapFactory.Options().apply { inJustDecodeBounds = true }
+    BitmapFactory.decodeByteArray(bytes, 0, bytes.size, bounds)
+    val options = scaledBitmapOptions(bounds.outWidth, bounds.outHeight)
+    val decoded = BitmapFactory.decodeByteArray(bytes, 0, bytes.size, options) ?: return null
+    val exif = runCatching { ExifInterface(ByteArrayInputStream(bytes)) }.getOrNull()
+    val bitmap = exif?.let { orientBitmap(decoded, it.rotationDegrees, it.isFlipped) } ?: decoded
+    return bitmap.asImageBitmap().also { decodedImageCache.put(cacheKey, it) }
+}
+
+actual fun imageBitmapFromStorageKey(key: String): ImageBitmap? {
+    val root = MessageImageFileSystem.directory() ?: return null
+    if (!key.matches(Regex("[A-Za-z0-9_-]{1,96}"))) return null
+    val file = File(root, "$key.img")
+    if (!file.isFile || file.length() !in 1L..MAX_MESSAGE_IMAGE_BYTES.toLong()) return null
+    val cacheKey = "${file.absolutePath}:${file.length()}:${file.lastModified()}"
+    decodedImageCache.get(cacheKey)?.let { return it }
+    val bounds = BitmapFactory.Options().apply { inJustDecodeBounds = true }
+    BitmapFactory.decodeFile(file.absolutePath, bounds)
+    val options = scaledBitmapOptions(bounds.outWidth, bounds.outHeight)
+    val decoded = BitmapFactory.decodeFile(file.absolutePath, options) ?: return null
+    val exif = runCatching { ExifInterface(file.absolutePath) }.getOrNull()
+    val bitmap = exif?.let { orientBitmap(decoded, it.rotationDegrees, it.isFlipped) } ?: decoded
+    return bitmap.asImageBitmap().also {
+        decodedImageCache.put(cacheKey, it)
+    }
 }
 
 @Composable
-actual fun rememberImagePicker(onPicked: (List<PickedImage>) -> Unit): () -> Unit {
+actual fun rememberImageCapture(
+    onPicked: (PickedImage) -> Unit,
+    onRejected: (Int) -> Unit,
+): () -> Unit {
+    val context = LocalContext.current
+    val launcher = rememberLauncherForActivityResult(ActivityResultContracts.TakePicturePreview()) { bitmap ->
+        if (bitmap == null) return@rememberLauncherForActivityResult
+        try {
+            var compressed = false
+            val bytes = ByteArrayOutputStream().use { output ->
+                compressed = bitmap.compress(Bitmap.CompressFormat.JPEG, 92, output)
+                output.toByteArray()
+            }
+            if (!compressed || bytes.isEmpty() || bytes.size > MAX_PICKED_IMAGE_BYTES) {
+                onRejected(1)
+            } else {
+                onPicked(PickedImage("image/jpeg", "567-agent-camera-${System.currentTimeMillis()}.jpg", bytes))
+            }
+        } finally {
+            bitmap.recycle()
+        }
+    }
+    val permissionLauncher = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { granted ->
+        if (granted) launcher.launch(null)
+    }
+    return remember(context, launcher, permissionLauncher, onPicked, onRejected) {
+        {
+            if (context.checkSelfPermission(Manifest.permission.CAMERA) == PackageManager.PERMISSION_GRANTED) {
+                launcher.launch(null)
+            } else {
+                permissionLauncher.launch(Manifest.permission.CAMERA)
+            }
+        }
+    }
+}
+
+private fun orientBitmap(bitmap: Bitmap, rotationDegrees: Int, flipped: Boolean): Bitmap {
+    if (rotationDegrees == 0 && !flipped) return bitmap
+    val matrix = Matrix().apply {
+        postRotate(rotationDegrees.toFloat())
+        if (flipped) postScale(-1f, 1f)
+    }
+    return Bitmap.createBitmap(bitmap, 0, 0, bitmap.width, bitmap.height, matrix, true)
+        .also { if (it !== bitmap) bitmap.recycle() }
+}
+
+private fun ByteArray.sha256Key(): String =
+    MessageDigest.getInstance("SHA-256").digest(this).joinToString("") { byte -> "%02x".format(byte) }
+
+private fun scaledBitmapOptions(width: Int, height: Int): BitmapFactory.Options {
+    var sample = 1
+    while (width / sample > 1280 || height / sample > 1280) sample *= 2
+    return BitmapFactory.Options().apply {
+        inSampleSize = sample
+        inPreferredConfig = android.graphics.Bitmap.Config.ARGB_8888
+    }
+}
+
+@Composable
+actual fun rememberImagePicker(
+    onPicked: (List<PickedImage>) -> Unit,
+    onRejected: (Int) -> Unit,
+): () -> Unit {
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
     val launcher =
@@ -27,78 +137,150 @@ actual fun rememberImagePicker(onPicked: (List<PickedImage>) -> Unit): () -> Uni
             contract = ActivityResultContracts.GetMultipleContents(),
         ) { uris ->
             scope.launch {
+                var rejectedCount = (uris.size - MAX_PICKED_IMAGE_COUNT).coerceAtLeast(0)
                 val picked = withContext(Dispatchers.IO) {
-                    uris.mapNotNull { uri ->
+                    uris.take(MAX_PICKED_IMAGE_COUNT).mapNotNull { uri ->
                         runCatching {
                             val mime = context.contentResolver.getType(uri) ?: "image/jpeg"
-                            if (!mime.startsWith("image/")) return@runCatching null
+                            if (!mime.startsWith("image/")) {
+                                rejectedCount++
+                                return@runCatching null
+                            }
                             val bytes =
-                                context.contentResolver.openInputStream(uri)?.use { it.readBytes() }
-                                    ?: return@runCatching null
-                            // 限制单图约 4MB，避免 Settings 持久化爆表
-                            if (bytes.size > 4 * 1024 * 1024) return@runCatching null
+                                context.contentResolver.openInputStream(uri)?.use { it.readUpTo(MAX_PICKED_IMAGE_BYTES + 1) }
+                                    ?: run {
+                                        rejectedCount++
+                                        return@runCatching null
+                                    }
+                            // 限制单图约 4MB，读取时也设上限，避免先把超大文件全部载入内存。
+                            if (bytes.size > MAX_PICKED_IMAGE_BYTES) {
+                                rejectedCount++
+                                return@runCatching null
+                            }
                             val name = uri.lastPathSegment
                             PickedImage(mimeType = mime, fileName = name, bytes = bytes)
-                        }.getOrNull()
+                        }.getOrElse {
+                            rejectedCount++
+                            null
+                        }
                     }
                 }
                 if (picked.isNotEmpty()) {
                     onPicked(picked)
                 }
+                if (rejectedCount > 0) onRejected(rejectedCount)
             }
         }
-    return remember(launcher) {
+    return remember(launcher, onPicked, onRejected) {
         { launcher.launch("image/*") }
     }
 }
 
 @Composable
-actual fun rememberImageSaver(): (String, (Boolean, String) -> Unit) -> Unit {
+actual fun rememberImageSaver(): (MessageImage, (Boolean, String) -> Unit) -> Unit {
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
     return remember(context, scope) {
-        { base64Data, onResult ->
+        { image, onResult ->
             scope.launch {
                 val result = withContext(Dispatchers.IO) {
-                    try {
-                        val cleanB64 = if (base64Data.contains(",")) base64Data.substringAfter(",") else base64Data
-                        val bytes = android.util.Base64.decode(cleanB64, android.util.Base64.DEFAULT)
-                        val bitmap = BitmapFactory.decodeByteArray(bytes, 0, bytes.size)
-                        if (bitmap == null) {
-                            false to "图片解析失败"
-                        } else {
-                            val filename = "567_Agent_${System.currentTimeMillis()}.png"
-                            var saved = false
-                            if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.Q) {
-                                val contentValues = android.content.ContentValues().apply {
-                                    put(android.provider.MediaStore.MediaColumns.DISPLAY_NAME, filename)
-                                    put(android.provider.MediaStore.MediaColumns.MIME_TYPE, "image/png")
-                                    put(android.provider.MediaStore.MediaColumns.RELATIVE_PATH, android.os.Environment.DIRECTORY_PICTURES + "/567Agent")
-                                }
-                                val uri = context.contentResolver.insert(android.provider.MediaStore.Images.Media.EXTERNAL_CONTENT_URI, contentValues)
-                                if (uri != null) {
-                                    context.contentResolver.openOutputStream(uri)?.use { os ->
-                                        saved = bitmap.compress(android.graphics.Bitmap.CompressFormat.PNG, 100, os)
-                                    }
-                                }
-                            } else {
-                                val imagesDir = android.os.Environment.getExternalStoragePublicDirectory(android.os.Environment.DIRECTORY_PICTURES)
-                                val appDir = java.io.File(imagesDir, "567Agent").apply { if (!exists()) mkdirs() }
-                                val file = java.io.File(appDir, filename)
-                                java.io.FileOutputStream(file).use { os ->
-                                    saved = bitmap.compress(android.graphics.Bitmap.CompressFormat.PNG, 100, os)
-                                }
-                                // 触发系统相册扫描
-                                android.media.MediaScannerConnection.scanFile(context, arrayOf(file.absolutePath), arrayOf("image/png"), null)
-                            }
-                            if (saved) true to "图片已保存至系统相册" else false to "保存失败，请检查存储权限"
-                        }
-                    } catch (e: Exception) {
-                        false to "保存异常: ${e.message}"
-                    }
+                    saveMessageImageToGallery(context, image)
                 }
                 onResult(result.first, result.second)
             }
         }
     }
+}
+
+private fun saveMessageImageToGallery(context: Context, image: MessageImage): Pair<Boolean, String> {
+    return try {
+        val mimeType = image.mimeType.takeIf { it.startsWith("image/") } ?: "image/png"
+        val suppliedName = image.fileName.orEmpty()
+            .substringAfterLast('/')
+            .substringAfterLast('\\')
+            .filterNot { it.isISOControl() }
+        val baseName = suppliedName.substringBeforeLast('.', suppliedName)
+            .trim('.', ' ')
+            .take(80)
+            .ifBlank { "567_Agent_${System.currentTimeMillis()}" }
+        // Derive the suffix from the payload MIME type; user supplied filenames
+        // may have a stale extension (notably HEIC images renamed as JPEG).
+        val filename = "$baseName.${mimeType.fileExtension()}"
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+            val values = ContentValues().apply {
+                put(MediaStore.MediaColumns.DISPLAY_NAME, filename)
+                put(MediaStore.MediaColumns.MIME_TYPE, mimeType)
+                put(MediaStore.MediaColumns.RELATIVE_PATH, Environment.DIRECTORY_PICTURES + "/567Agent")
+            }
+            val uri = context.contentResolver.insert(MediaStore.Images.Media.EXTERNAL_CONTENT_URI, values)
+            if (uri == null) {
+                false to "无法创建相册图片"
+            } else {
+                val saved = openImageStream(image)?.use { input ->
+                    context.contentResolver.openOutputStream(uri)?.use { output -> input.copyTo(output) }
+                } != null
+                if (!saved) context.contentResolver.delete(uri, null, null)
+                if (saved) true to "图片已保存至系统相册" else false to "保存失败，请重试"
+            }
+        } else {
+            val imagesDir = Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_PICTURES)
+            val appDir = File(imagesDir, "567Agent").apply { if (!exists()) mkdirs() }
+            val file = File(appDir, filename)
+            val saved = openImageStream(image)?.use { input -> file.outputStream().use { output -> input.copyTo(output) } } != null
+            if (saved) {
+                android.media.MediaScannerConnection.scanFile(context, arrayOf(file.absolutePath), arrayOf(mimeType), null)
+                true to "图片已保存至系统相册"
+            } else {
+                file.delete()
+                false to "保存失败，请重试"
+            }
+        }
+    } catch (error: Exception) {
+        false to "保存异常: ${error.message}"
+    }
+}
+
+private fun openImageStream(image: MessageImage): InputStream? {
+    return when {
+        image.storageKey != null -> {
+            val root = MessageImageFileSystem.directory() ?: return null
+            if (!image.storageKey.matches(Regex("[A-Za-z0-9_-]{1,96}"))) return null
+            File(root, "${image.storageKey}.img").takeIf(File::isFile)?.inputStream()
+        }
+        image.pendingBytes != null -> ByteArrayInputStream(image.pendingBytes)
+        image.base64Data.isNotBlank() -> {
+            if (image.base64Data.length > MAX_MESSAGE_IMAGE_BASE64_CHARS) return null
+            val payload = image.base64Data.substringAfter(',', image.base64Data)
+            ByteArrayInputStream(android.util.Base64.decode(payload, android.util.Base64.DEFAULT))
+        }
+        else -> null
+    }
+}
+
+private fun InputStream.readUpTo(maxBytes: Int): ByteArray {
+    val output = java.io.ByteArrayOutputStream(minOf(maxBytes, 64 * 1024))
+    val buffer = ByteArray(16 * 1024)
+    while (output.size() < maxBytes) {
+        val count = read(buffer, 0, minOf(buffer.size, maxBytes - output.size()))
+        if (count < 0) break
+        output.write(buffer, 0, count)
+    }
+    return output.toByteArray()
+}
+
+private const val MAX_PICKED_IMAGE_BYTES = 4 * 1024 * 1024
+private const val MAX_PICKED_IMAGE_COUNT = 6
+private const val MAX_MESSAGE_IMAGE_BYTES = 12 * 1024 * 1024
+private const val MAX_MESSAGE_IMAGE_BASE64_CHARS = 16 * 1024 * 1024 + 16
+
+private fun String.fileExtension(): String = when (lowercase()) {
+    "image/jpeg", "image/jpg" -> "jpg"
+    "image/webp" -> "webp"
+    "image/gif" -> "gif"
+    "image/heic" -> "heic"
+    "image/heif" -> "heif"
+    "image/avif" -> "avif"
+    "image/heic-sequence" -> "heic"
+    "image/heif-sequence" -> "heif"
+    else -> "png"
 }

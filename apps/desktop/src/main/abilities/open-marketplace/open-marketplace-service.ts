@@ -375,15 +375,15 @@ export class OpenMarketplaceService {
 		const marketplaceCache = getApplicationCacheService().namespace("marketplace");
 		this.sourceId = options.sourceId ?? DEFAULT_MARKETPLACE_SOURCE_ID;
 		this.rootDir = options.rootDir ?? marketplaceCache.path(this.sourceId);
-		this.sourceRef = options.sourceRef ?? process.env.VETTA_OPEN_MARKETPLACE_REF ?? "main";
-		const configuredRepository = options.repository ?? process.env.VETTA_OPEN_MARKETPLACE_REPOSITORY;
+		this.sourceRef = options.sourceRef ?? process.env.AGENT567_OPEN_MARKETPLACE_REF ?? "main";
+		const configuredRepository = options.repository ?? process.env.AGENT567_OPEN_MARKETPLACE_REPOSITORY;
 		if (!configuredRepository?.trim()) {
 			throw new Error("Open marketplace repository is not configured");
 		}
 		this.repository = configuredRepository.trim().replace(/\/$/, "");
 		this.archiveUrl =
 			options.archiveUrl ??
-			(options.repository ? undefined : process.env.VETTA_OPEN_MARKETPLACE_ARCHIVE_URL?.trim() || undefined) ??
+			(options.repository ? undefined : process.env.AGENT567_OPEN_MARKETPLACE_ARCHIVE_URL?.trim() || undefined) ??
 			`${this.repository}/archive/refs/heads/${this.sourceRef.split("/").map(encodeURIComponent).join("/")}.zip`;
 		this.appVersion = isValidAppVersion(options.appVersion) ? options.appVersion : "1.0.0";
 		this.hostApiVersion = options.hostApiVersion ?? PLUGIN_API_VERSION;

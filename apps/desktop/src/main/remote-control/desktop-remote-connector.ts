@@ -25,12 +25,24 @@ export interface DesktopRemotePromptEvent {
 export interface DesktopRemoteOperations {
 	listSessions(): Promise<readonly DesktopRemoteSessionSummary[]>;
 	deleteSession?(sessionId: string): Promise<void>;
+	deleteEmptySession?(sessionId: string): Promise<boolean>;
 	readHistory?(sessionId: string, offset: number, limit: number): Promise<readonly DesktopRemoteHistoryMessage[]>;
+	readGeneratedImageChunk?(
+		sessionId: string,
+		imageId: string,
+		offset: number,
+		length: number,
+	): Promise<{
+		mimeType: string;
+		sizeBytes: number;
+		dataBase64: string;
+	} | null>;
+	readonly canReadGeneratedImages?: boolean;
 	createSession(): Promise<{ sessionId: string }>;
 	openSession(sessionId: string): Promise<{ sessionId: string }>;
 	readModels?(sessionId: string): unknown;
 	selectModel?(sessionId: string, modelKey: string): Promise<void>;
-	readSuggestions?(sessionId: string): Promise<readonly string[]>;
+	readSuggestions?(sessionId: string, signal?: AbortSignal): Promise<readonly string[]>;
 	prompt(
 		sessionId: string,
 		text: string,
@@ -45,6 +57,7 @@ export interface DesktopRemoteOperations {
 
 export class DesktopRemoteConnector {
 	private unsubscribe: (() => void) | undefined;
+	private readonly activeSuggestionRequests = new Map<string, { sessionId: string; controller: AbortController }>();
 
 	constructor(
 		private readonly connection: RemoteConnection,
@@ -65,22 +78,47 @@ export class DesktopRemoteConnector {
 	}
 
 	private async handleRequest(request: RemoteRequest): Promise<void> {
+		const suggestionController = request.method === "session.suggestions" ? new AbortController() : undefined;
+		const suggestionSessionId = suggestionController ? request.sessionId : undefined;
+		if (suggestionController && suggestionSessionId) {
+			this.activeSuggestionRequests.set(request.requestId, {
+				sessionId: suggestionSessionId,
+				controller: suggestionController,
+			});
+		}
 		try {
-			const payload = await this.dispatch(request);
+			const payload = await this.dispatch(request, suggestionController?.signal);
+			if (suggestionController?.signal.aborted) return;
 			await this.connection.respond(request.requestId, { success: true, payload });
 		} catch (error) {
+			if (suggestionController?.signal.aborted) return;
 			await this.connection.respond(request.requestId, { success: false, error: toRemoteError(error) });
+		} finally {
+			if (suggestionController) this.activeSuggestionRequests.delete(request.requestId);
 		}
 	}
 
-	private async dispatch(request: RemoteRequest): Promise<unknown> {
+	private async dispatch(request: RemoteRequest, signal?: AbortSignal): Promise<unknown> {
 		switch (request.method) {
 			case "session.list":
-				return { sessions: await this.operations.listSessions() };
+				return {
+					sessions: await this.operations.listSessions(),
+					supportedMethods: [
+						...(this.operations.deleteEmptySession ? ["session.delete.empty"] : []),
+						...(this.operations.readSuggestions ? ["session.suggestions.cancel"] : []),
+						...(this.operations.readGeneratedImageChunk && this.operations.canReadGeneratedImages !== false
+							? ["session.image.read"]
+							: []),
+					],
+				};
 			case "session.delete": {
 				if (!this.operations.deleteSession) throw new Error("Desktop session deletion is unavailable");
 				await this.operations.deleteSession(requireSessionId(request));
 				return { deleted: true };
+			}
+			case "session.delete.empty": {
+				if (!this.operations.deleteEmptySession) throw new Error("Safe empty-session deletion is unavailable");
+				return { deleted: await this.operations.deleteEmptySession(requireSessionId(request)) };
 			}
 			case "session.create": {
 				const created = await this.operations.createSession();
@@ -96,6 +134,11 @@ export class DesktopRemoteConnector {
 				const { offset, limit } = readHistoryPage(request);
 				return { messages: await this.operations.readHistory(requireSessionId(request), offset, limit) };
 			}
+			case "session.image.read": {
+				if (!this.operations.readGeneratedImageChunk) throw new Error("Desktop image transfer is unavailable");
+				const { imageId, offset, length } = readImageChunkRequest(request);
+				return await this.operations.readGeneratedImageChunk(requireSessionId(request), imageId, offset, length);
+			}
 			case "session.models":
 				if (!this.operations.readModels) throw new Error("Desktop model selection is unavailable");
 				return this.operations.readModels(requireSessionId(request));
@@ -109,7 +152,24 @@ export class DesktopRemoteConnector {
 			}
 			case "session.suggestions": {
 				if (!this.operations.readSuggestions) throw new Error("Desktop prompt suggestions are unavailable");
-				return { suggestions: await this.operations.readSuggestions(requireSessionId(request)) };
+				return { suggestions: await this.operations.readSuggestions(requireSessionId(request), signal) };
+			}
+			case "session.suggestions.cancel": {
+				const payload = request.payload;
+				if (
+					!payload ||
+					typeof payload !== "object" ||
+					!("requestId" in payload) ||
+					typeof payload.requestId !== "string"
+				) {
+					throw new Error("Suggestion cancellation target is invalid");
+				}
+				const sessionId = requireSessionId(request);
+				const active = this.activeSuggestionRequests.get(payload.requestId);
+				const matchesSession = active?.sessionId === sessionId;
+				if (matchesSession && !active.controller.signal.aborted)
+					active.controller.abort(new DOMException("Cancelled by mobile", "AbortError"));
+				return { cancelled: Boolean(matchesSession) };
 			}
 			case "session.prompt": {
 				const sessionId = request.sessionId
@@ -240,6 +300,17 @@ function readHistoryPage(request: RemoteRequest): { offset: number; limit: numbe
 		throw new Error("history limit must be between 1 and 100");
 	}
 	return { offset: offset as number, limit: limit as number };
+}
+
+function readImageChunkRequest(request: RemoteRequest): { imageId: string; offset: number; length: number } {
+	if (!isRecord(request.payload)) throw new Error("image range is required");
+	const { imageId, offset, length } = request.payload;
+	if (typeof imageId !== "string" || !/^[a-zA-Z0-9._-]{1,128}$/.test(imageId)) throw new Error("image id is invalid");
+	if (!Number.isSafeInteger(offset) || (offset as number) < 0) throw new Error("image offset is invalid");
+	if (!Number.isSafeInteger(length) || (length as number) < 1 || (length as number) > 48 * 1024) {
+		throw new Error("image range length is invalid");
+	}
+	return { imageId, offset: offset as number, length: length as number };
 }
 
 function readPromptText(request: RemoteRequest): string {

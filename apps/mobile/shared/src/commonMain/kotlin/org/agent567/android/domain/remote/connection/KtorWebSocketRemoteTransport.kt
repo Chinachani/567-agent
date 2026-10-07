@@ -2,7 +2,6 @@ package org.agent567.android.domain.remote.connection
 
 import io.ktor.client.HttpClient
 import io.ktor.client.plugins.websocket.DefaultClientWebSocketSession
-import io.ktor.client.plugins.websocket.WebSockets
 import io.ktor.client.plugins.websocket.webSocketSession
 import io.ktor.http.HttpHeaders
 import io.ktor.http.takeFrom
@@ -16,8 +15,8 @@ import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.receiveAsFlow
 import kotlinx.coroutines.launch
-import org.agent567.android.core.net.platformHttpClientEngine
 import org.agent567.android.core.net.pinnedWebSocketHttpClient
+import org.agent567.android.core.net.platformWebSocketHttpClient
 import org.agent567.android.domain.remote.protocol.RemoteFrame
 import org.agent567.android.domain.remote.protocol.RemoteProtocol
 
@@ -26,7 +25,9 @@ class KtorWebSocketRemoteTransport(
     private val scope: CoroutineScope,
     private val client: HttpClient? = null,
 ) : RemoteTransport {
-    private val incomingChannel = Channel<RemoteFrame>(Channel.UNLIMITED)
+    // Bound queued protocol frames so an unresponsive consumer cannot grow the
+    // Android process heap without limit. send() back-pressures the reader.
+    private val incomingChannel = Channel<RemoteFrame>(capacity = 256)
     private var session: DefaultClientWebSocketSession? = null
     private var readerJob: Job? = null
     private var activeClient: HttpClient? = null
@@ -38,7 +39,7 @@ class KtorWebSocketRemoteTransport(
         val fingerprint = target.fingerprint
 		val client =
 			(this.client ?: if (fingerprint == null) {
-				HttpClient(platformHttpClientEngine()) { install(WebSockets) }
+				platformWebSocketHttpClient()
 			} else {
 				pinnedWebSocketHttpClient(fingerprint)
 			}).also { activeClient = it }

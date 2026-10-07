@@ -261,7 +261,7 @@ export class DesktopRuntimeBackendPool implements RuntimeHostSessionBackend {
 				this.options.compositionDefaults.modelInputImageProcessor ?? nodeModelInputImageProcessor,
 			ocrMaxConcurrent:
 				this.options.compositionDefaults.ocrMaxConcurrent ??
-				resolvePositiveInteger(process.env.VETTA_KB_OCR_CONCURRENCY),
+				resolvePositiveInteger(process.env.AGENT567_KB_OCR_CONCURRENCY),
 			createConversationPersistence:
 				this.options.compositionDefaults.createConversationPersistence ??
 				(({ conversationDir }) => createFileConversationPersistence(conversationDir)),

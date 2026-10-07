@@ -153,13 +153,13 @@ func runHostWithIO(opts hostOptions) int {
 			if hclocalOpts.ExtraEnv == nil {
 				hclocalOpts.ExtraEnv = map[string]string{}
 			}
-			hclocalOpts.ExtraEnv["VETTA_PACKAGE_DIR"] = initFrame.CodingAgent.PackageDir
+			hclocalOpts.ExtraEnv["AGENT567_PACKAGE_DIR"] = initFrame.CodingAgent.PackageDir
 		}
 		if initFrame.CodingAgent.ServerURL != "" {
 			if hclocalOpts.ExtraEnv == nil {
 				hclocalOpts.ExtraEnv = map[string]string{}
 			}
-			hclocalOpts.ExtraEnv["VETTA_SERVER_URL"] = initFrame.CodingAgent.ServerURL
+			hclocalOpts.ExtraEnv["API567_BASE_URL"] = initFrame.CodingAgent.ServerURL
 		}
 		emitLog("info", "coding-agent binary configured by parent",
 			map[string]any{

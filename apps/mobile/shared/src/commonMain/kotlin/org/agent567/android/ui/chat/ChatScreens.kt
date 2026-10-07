@@ -1,6 +1,7 @@
 package org.agent567.android.ui.chat
 
 import androidx.compose.foundation.gestures.detectTransformGestures
+import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.window.Dialog
@@ -21,6 +22,7 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
@@ -94,6 +96,7 @@ import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.RadioButton
 import androidx.compose.material3.SheetValue
 import androidx.compose.material3.TopAppBar
@@ -137,8 +140,10 @@ import org.agent567.android.ui.components.ListRow
 import org.agent567.android.ui.components.VettaErrorBanner
 import org.agent567.android.ui.LocalMotionEnabled
 import org.agent567.android.ui.i18n.Str
-import org.agent567.android.ui.media.imageBitmapFromBase64
+import org.agent567.android.ui.media.rememberMessageImageBitmap
+import org.agent567.android.ui.media.MessageImageLoadState
 import org.agent567.android.ui.media.rememberImagePicker
+import org.agent567.android.ui.media.rememberImageCapture
 import org.agent567.android.ui.navigation.ChatSurface
 import org.agent567.android.ui.theme.vettaExtra
 
@@ -196,7 +201,7 @@ fun ChatScreen(
     onSelectGroup: ((String) -> Unit)? = null,
     onRefreshCatalog: () -> Unit = {},
     catalogLoading: Boolean = false,
-    globalError: UiError?,
+    chatError: UiError?,
     onDraftChange: (String) -> Unit,
     onSend: () -> Unit,
     onStop: () -> Unit,
@@ -232,21 +237,40 @@ fun ChatScreen(
     val scope = rememberCoroutineScope()
     val imeBottomPx = WindowInsets.ime.getBottom(LocalDensity.current)
     var attachedSessionId by remember { mutableStateOf<String?>(null) }
+    var toastNotice by remember { mutableStateOf<String?>(null) }
+    var attachmentChooserOpen by remember { mutableStateOf(false) }
     val currentSessionId = messages.firstOrNull()?.sessionId
 
+    fun appendPickedImages(picked: List<org.agent567.android.ui.media.PickedImage>) {
+        val available = (6 - pendingImages.size).coerceAtLeast(0)
+        if (picked.size > available) toastNotice = Str.imageAttachmentLimit
+        if (available == 0) return
+        onImagesPicked(
+            picked.take(available).map {
+                MessageImage(
+                    id = "pending-${it.fileName}-${it.bytes.size}-${it.bytes.hashCode()}",
+                    mimeType = it.mimeType,
+                    fileName = it.fileName,
+                    pendingBytes = it.bytes,
+                )
+            },
+        )
+    }
+
     val launchPicker =
-        rememberImagePicker { picked ->
-            onImagesPicked(
-                picked.map {
-                    MessageImage(
-                        id = "pending-${it.fileName}-${it.bytes.size}-${it.bytes.hashCode()}",
-                        mimeType = it.mimeType,
-                        fileName = it.fileName,
-                        base64Data = it.toBase64(),
-                    )
-                },
-            )
-        }
+        rememberImagePicker(
+            onPicked = ::appendPickedImages,
+            onRejected = { count ->
+                toastNotice = "有 $count 张图片超过大小限制或无法读取，未添加（单张上限 4MB）"
+            },
+        )
+
+    val launchCamera = rememberImageCapture(
+        onPicked = { appendPickedImages(listOf(it)) },
+        onRejected = { count ->
+            toastNotice = "有 $count 张图片超过大小限制，未添加（单张上限 4MB）"
+        },
+    )
 
     // 1. 会话初次进入或切换会话时，无论消息多少，瞬间精确定位至最底部最新消息
     LaunchedEffect(currentSessionId, messages.isNotEmpty()) {
@@ -283,7 +307,6 @@ fun ChatScreen(
 
     val imageSaver = org.agent567.android.ui.media.rememberImageSaver()
     var previewImage by remember { mutableStateOf<MessageImage?>(null) }
-    var toastNotice by remember { mutableStateOf<String?>(null) }
 
     val canSend =
         !isStreaming &&
@@ -367,9 +390,9 @@ fun ChatScreen(
                     .navigationBarsPadding()
                     .imePadding(),
             ) {
-                if (globalError != null) {
+                if (chatError != null) {
                     VettaErrorBanner(
-                        error = globalError,
+                        error = chatError,
                         onDismiss = onDismissError,
                         onAction = onErrorAction,
                         modifier = Modifier.padding(horizontal = 12.dp, vertical = 6.dp),
@@ -544,7 +567,7 @@ fun ChatScreen(
                     onValueChange = onDraftChange,
                     onSend = onSend,
                     onStop = onStop,
-                    onAttach = launchPicker,
+                    onAttach = { attachmentChooserOpen = true },
                 )
             }
         },
@@ -590,6 +613,7 @@ fun ChatScreen(
                     items(messages, key = { it.id }) { msg ->
                         MessageBubble(
                             message = msg,
+                            streamingStatus = streamingStatus,
                             onImageClick = { previewImage = it },
                             onCopyToast = { toastNotice = it },
                             canRetry = msg.id == retryableAssistantId,
@@ -770,6 +794,28 @@ fun ChatScreen(
                 Spacer(Modifier.height(28.dp))
             }
         }
+    }
+
+    if (attachmentChooserOpen) {
+        AlertDialog(
+            onDismissRequest = { attachmentChooserOpen = false },
+            title = { Text(Str.addImage) },
+            text = {
+                Column {
+                    TextButton(onClick = {
+                        attachmentChooserOpen = false
+                        launchPicker()
+                    }) { Text(Str.chooseImageFromGallery) }
+                    TextButton(onClick = {
+                        attachmentChooserOpen = false
+                        launchCamera()
+                    }) { Text(Str.captureImage) }
+                }
+            },
+            confirmButton = {
+                TextButton(onClick = { attachmentChooserOpen = false }) { Text(Str.cancel) }
+            },
+        )
     }
 
     if (groupPickerOpen) {
@@ -966,12 +1012,13 @@ fun ChatScreen(
 private fun ImagePreviewModal(
     image: MessageImage,
     onDismiss: () -> Unit,
-    imageSaver: (String, (Boolean, String) -> Unit) -> Unit,
+    imageSaver: (MessageImage, (Boolean, String) -> Unit) -> Unit,
 ) {
-    var scale by remember { mutableStateOf(1f) }
-    var offset by remember { mutableStateOf(Offset.Zero) }
+    var scale by remember(image.id) { mutableStateOf(1f) }
+    var offset by remember(image.id) { mutableStateOf(Offset.Zero) }
     var saveStatus by remember { mutableStateOf<String?>(null) }
     var isSaving by remember { mutableStateOf(false) }
+    var saveSucceeded by remember { mutableStateOf(false) }
 
     Dialog(
         onDismissRequest = onDismiss,
@@ -982,33 +1029,81 @@ private fun ImagePreviewModal(
                 .fillMaxSize()
                 .background(Color.Black),
         ) {
-            val bmp = remember(image.id) { imageBitmapFromBase64(image.base64Data) }
-            if (bmp != null) {
-                Box(
-                    modifier = Modifier
-                        .fillMaxSize()
-                        .pointerInput(Unit) {
-                            detectTransformGestures { _, pan, zoom, _ ->
-                                scale = (scale * zoom).coerceIn(0.8f, 5f)
-                                offset += pan
-                            }
-                        },
-                    contentAlignment = Alignment.Center,
-                ) {
-                    Image(
-                        bitmap = bmp,
-                        contentDescription = "查看大图",
+            val imageState = rememberMessageImageBitmap(image)
+            when (imageState) {
+                is MessageImageLoadState.Loaded -> {
+                val bmp = imageState.bitmap
+                BoxWithConstraints(Modifier.fillMaxSize()) {
+                    val density = LocalDensity.current
+                    val viewportWidthPx = with(density) { maxWidth.toPx() }
+                    val viewportHeightPx = with(density) { maxHeight.toPx() }
+                    val imageSize = generatedImageSize(maxWidth, maxHeight, bmp.width, bmp.height)
+                    val imageWidthPx = with(density) { imageSize.width.toPx() }
+                    val imageHeightPx = with(density) { imageSize.height.toPx() }
+                    Box(
                         modifier = Modifier
-                            .fillMaxWidth()
-                            .graphicsLayer(
-                                scaleX = scale,
-                                scaleY = scale,
-                                translationX = offset.x,
-                                translationY = offset.y,
-                            ),
-                        contentScale = androidx.compose.ui.layout.ContentScale.Fit,
-                    )
+                            .fillMaxSize()
+                            .pointerInput(imageSize, maxWidth, maxHeight) {
+                                detectTransformGestures { centroid, pan, zoom, _ ->
+                                    val nextScale = (scale * zoom).coerceIn(1f, 5f)
+                                    val factor = nextScale / scale
+                                    val center = Offset(size.width / 2f, size.height / 2f)
+                                    val nextOffset =
+                                        Offset(
+                                            x = (offset.x + center.x - centroid.x) * factor + centroid.x - center.x + pan.x,
+                                            y = (offset.y + center.y - centroid.y) * factor + centroid.y - center.y + pan.y,
+                                        )
+                                    scale = nextScale
+                                    offset = clampImagePreviewOffset(
+                                        nextOffset,
+                                        nextScale,
+                                        imageWidthPx,
+                                        imageHeightPx,
+                                        viewportWidthPx,
+                                        viewportHeightPx,
+                                    )
+                                }
+                            }
+                            .pointerInput(image.id, imageSize, maxWidth, maxHeight) {
+                                detectTapGestures(onDoubleTap = {
+                                    if (scale > 1.05f) {
+                                        scale = 1f
+                                        offset = Offset.Zero
+                                    } else {
+                                        val fillHeightScale = viewportHeightPx / imageHeightPx
+                                        val fillWidthScale = viewportWidthPx / imageWidthPx
+                                        scale = minOf(2.4f, maxOf(1.7f, minOf(fillHeightScale, fillWidthScale)))
+                                    }
+                                })
+                            },
+                        contentAlignment = Alignment.Center,
+                    ) {
+                        Image(
+                            bitmap = bmp,
+                            contentDescription = "查看大图，双击缩放，双指缩放和拖动",
+                            modifier = Modifier
+                                .width(imageSize.width)
+                                .height(imageSize.height)
+                                .graphicsLayer(
+                                    scaleX = scale,
+                                    scaleY = scale,
+                                    translationX = offset.x,
+                                    translationY = offset.y,
+                                ),
+                            contentScale = androidx.compose.ui.layout.ContentScale.Fit,
+                        )
+                    }
                 }
+                }
+                MessageImageLoadState.Loading -> CircularProgressIndicator(
+                    modifier = Modifier.align(Alignment.Center),
+                    color = Color.White,
+                )
+                MessageImageLoadState.Failed -> Text(
+                    text = "图片暂时无法读取",
+                    color = Color.White,
+                    modifier = Modifier.align(Alignment.Center),
+                )
             }
 
             Row(
@@ -1024,15 +1119,16 @@ private fun ImagePreviewModal(
                 ) {
                     Icon(Icons.Default.Close, contentDescription = "关闭", tint = Color.White)
                 }
-                val isSuccess = saveStatus?.contains("成功") == true || saveStatus?.contains("已保存") == true
+                val isSuccess = saveSucceeded
                 val saveButtonContentColor =
                     if (isSuccess) Color.White else MaterialTheme.colorScheme.onPrimary
                 androidx.compose.material3.FilledTonalButton(
                     onClick = {
                         if (!isSaving) {
                             isSaving = true
-                            imageSaver(image.base64Data) { ok, msg ->
+                            imageSaver(image) { ok, msg ->
                                 isSaving = false
+                                saveSucceeded = ok
                                 saveStatus = msg
                             }
                         }
@@ -1070,7 +1166,7 @@ private fun ImagePreviewModal(
                         verticalAlignment = Alignment.CenterVertically,
                         horizontalArrangement = Arrangement.spacedBy(8.dp),
                     ) {
-                        val isSuccess = saveStatus!!.contains("成功") || saveStatus!!.contains("已保存")
+                        val isSuccess = saveSucceeded
                         if (isSuccess) {
                             Icon(Icons.Default.Check, contentDescription = null, tint = Color(0xFF81C784), modifier = Modifier.size(20.dp))
                         }
@@ -1083,6 +1179,7 @@ private fun ImagePreviewModal(
                 LaunchedEffect(saveStatus) {
                     kotlinx.coroutines.delay(2000)
                     saveStatus = null
+                    saveSucceeded = false
                 }
             }
         }
@@ -1101,10 +1198,11 @@ private fun PendingImageRow(
     ) {
         items(images, key = { it.id }) { image ->
             Box {
-                val bmp = remember(image.id) { imageBitmapFromBase64(image.base64Data) }
-                if (bmp != null) {
+                val imageState = rememberMessageImageBitmap(image)
+                when (imageState) {
+                    is MessageImageLoadState.Loaded -> {
                     Image(
-                        bitmap = bmp,
+                        bitmap = imageState.bitmap,
                         contentDescription = image.fileName ?: Str.attach,
                         modifier =
                             Modifier
@@ -1113,15 +1211,21 @@ private fun PendingImageRow(
                                 .clickable { onImageClick(image) },
                         contentScale = ContentScale.Crop,
                     )
-                } else {
+                    }
+                    MessageImageLoadState.Loading, MessageImageLoadState.Failed -> {
                     Surface(
                         modifier = Modifier.size(72.dp),
                         shape = RoundedCornerShape(10.dp),
                         color = MaterialTheme.colorScheme.surfaceVariant,
                     ) {
                         Box(contentAlignment = Alignment.Center) {
-                            Text(Str.imagePlaceholder, style = MaterialTheme.typography.labelSmall)
+                            if (imageState == MessageImageLoadState.Loading) {
+                                CircularProgressIndicator(modifier = Modifier.size(18.dp), strokeWidth = 2.dp)
+                            } else {
+                                Text("图片暂不可用", style = MaterialTheme.typography.labelSmall)
+                            }
                         }
+                    }
                     }
                 }
                 IconButton(
@@ -1145,12 +1249,18 @@ private fun PendingImageRow(
 @Composable
 private fun MessageBubble(
     message: LocalMessage,
+    streamingStatus: String? = null,
     onImageClick: (MessageImage) -> Unit = {},
     onCopyToast: (String) -> Unit = {},
     canRetry: Boolean = false,
     onRetry: () -> Unit = {},
 ) {
     val isUser = message.role == ChatRole.User
+    val shouldShowTextBubble =
+        message.content.isNotBlank() ||
+            message.status == MessageStatus.Streaming ||
+            message.status == MessageStatus.Error ||
+            message.status == MessageStatus.Aborted
     Row(
         modifier = Modifier.fillMaxWidth(),
         horizontalArrangement = if (isUser) Arrangement.End else Arrangement.Start,
@@ -1160,29 +1270,85 @@ private fun MessageBubble(
             horizontalAlignment = if (isUser) Alignment.End else Alignment.Start,
         ) {
             if (message.images.isNotEmpty()) {
-                LazyRow(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                    items(message.images, key = { it.id }) { image ->
-                        val bmp = remember(image.id) { imageBitmapFromBase64(image.base64Data) }
-                        if (bmp != null) {
-                            val isGen = image.id.startsWith("gen-")
+                val referenceImages = message.images.filterNot { it.id.startsWith("gen-") }
+                val generatedImages = message.images.filter { it.id.startsWith("gen-") }
+                if (referenceImages.isNotEmpty()) {
+                    LazyRow(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                        items(referenceImages, key = { it.id }) { image ->
+                        val imageState = rememberMessageImageBitmap(image)
+                        when (imageState) {
+                        is MessageImageLoadState.Loaded -> {
                             Image(
-                                bitmap = bmp,
+                                bitmap = imageState.bitmap,
                                 contentDescription = image.fileName ?: Str.attach,
                                 modifier =
-                                    if (isGen) {
-                                        Modifier
-                                            .fillMaxWidth()
-                                            .heightIn(max = 280.dp)
-                                            .clip(RoundedCornerShape(12.dp))
-                                            .clickable { onImageClick(image) }
-                                    } else {
-                                        Modifier
-                                            .size(120.dp)
-                                            .clip(RoundedCornerShape(12.dp))
-                                            .clickable { onImageClick(image) }
-                                    },
-                                contentScale = if (isGen) ContentScale.Fit else ContentScale.Crop,
+                                    Modifier
+                                        .size(120.dp)
+                                        .clip(RoundedCornerShape(12.dp))
+                                        .clickable { onImageClick(image) },
+                                contentScale = ContentScale.Crop,
                             )
+                        }
+                        MessageImageLoadState.Loading, MessageImageLoadState.Failed -> {
+                            Surface(
+                                modifier = Modifier
+                                    .size(width = 180.dp, height = 120.dp)
+                                    .clip(RoundedCornerShape(12.dp)),
+                                color = MaterialTheme.colorScheme.surfaceVariant,
+                            ) {
+                                Box(contentAlignment = Alignment.Center) {
+                                    if (imageState == MessageImageLoadState.Loading) {
+                                        CircularProgressIndicator(modifier = Modifier.size(20.dp), strokeWidth = 2.dp)
+                                    } else {
+                                        Text("图片暂时无法读取", color = MaterialTheme.vettaExtra.secondaryText)
+                                    }
+                                }
+                            }
+                        }
+                        }
+                    }
+                    }
+                }
+                generatedImages.forEach { image ->
+                    when (val imageState = rememberMessageImageBitmap(image)) {
+                        is MessageImageLoadState.Loaded -> {
+                            val bitmap = imageState.bitmap
+                            BoxWithConstraints(Modifier.fillMaxWidth()) {
+                                val imageSize = generatedImageSize(
+                                    maxWidth = maxWidth,
+                                    maxHeight = 460.dp,
+                                    imageWidthPx = bitmap.width,
+                                    imageHeightPx = bitmap.height,
+                                )
+                                Image(
+                                    bitmap = bitmap,
+                                    contentDescription = image.fileName ?: Str.attach,
+                                    modifier = Modifier
+                                        .width(imageSize.width)
+                                        .height(imageSize.height)
+                                        .align(if (isUser) Alignment.CenterEnd else Alignment.CenterStart)
+                                        .clip(RoundedCornerShape(16.dp))
+                                        .clickable { onImageClick(image) },
+                                    contentScale = ContentScale.Fit,
+                                )
+                            }
+                        }
+                        MessageImageLoadState.Loading, MessageImageLoadState.Failed -> {
+                            Surface(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .heightIn(min = 180.dp, max = 280.dp)
+                                    .clip(RoundedCornerShape(16.dp)),
+                                color = MaterialTheme.colorScheme.surfaceVariant,
+                            ) {
+                                Box(contentAlignment = Alignment.Center) {
+                                    if (imageState == MessageImageLoadState.Loading) {
+                                        CircularProgressIndicator(modifier = Modifier.size(20.dp), strokeWidth = 2.dp)
+                                    } else {
+                                        Text("图片暂时无法读取", color = MaterialTheme.vettaExtra.secondaryText)
+                                    }
+                                }
+                            }
                         }
                     }
                 }
@@ -1194,93 +1360,95 @@ private fun MessageBubble(
                 ToolTraceGroup(message.toolEvents)
                 Spacer(Modifier.height(6.dp))
             }
-            SelectionContainer {
-                Surface(
-                    shape =
-                        RoundedCornerShape(
-                            topStart = 16.dp,
-                            topEnd = 16.dp,
-                            bottomStart = if (isUser) 16.dp else 4.dp,
-                            bottomEnd = if (isUser) 4.dp else 16.dp,
-                        ),
-                    color =
-                        if (isUser) {
-                            MaterialTheme.colorScheme.primary
-                        } else {
-                            MaterialTheme.colorScheme.surfaceVariant
-                        },
-                    contentColor =
-                        if (isUser) {
-                            MaterialTheme.colorScheme.onPrimary
-                        } else {
-                            MaterialTheme.colorScheme.onSurfaceVariant
-                        },
-                ) {
-                    when {
-                        isUser -> {
-                            var isExpanded by remember(message.id) { mutableStateOf(false) }
-                            val lineCount = remember(message.content) { message.content.lines().size }
-                            val isLong = remember(message.content) { lineCount > 8 || message.content.length > 240 }
+            if (shouldShowTextBubble) {
+                SelectionContainer {
+                    Surface(
+                        shape =
+                            RoundedCornerShape(
+                                topStart = 16.dp,
+                                topEnd = 16.dp,
+                                bottomStart = if (isUser) 16.dp else 4.dp,
+                                bottomEnd = if (isUser) 4.dp else 16.dp,
+                            ),
+                        color =
+                            if (isUser) {
+                                MaterialTheme.colorScheme.primary
+                            } else {
+                                MaterialTheme.colorScheme.surfaceVariant
+                            },
+                        contentColor =
+                            if (isUser) {
+                                MaterialTheme.colorScheme.onPrimary
+                            } else {
+                                MaterialTheme.colorScheme.onSurfaceVariant
+                            },
+                    ) {
+                        when {
+                            isUser -> {
+                                var isExpanded by remember(message.id) { mutableStateOf(false) }
+                                val lineCount = remember(message.content) { message.content.lines().size }
+                                val isLong = remember(message.content) { lineCount > 8 || message.content.length > 240 }
 
-                            Column(modifier = Modifier.padding(horizontal = 14.dp, vertical = 10.dp)) {
-                                Text(
-                                    text =
-                                        message.content.ifBlank {
-                                            if (message.images.isNotEmpty()) " " else ""
-                                        },
-                                    maxLines = if (isExpanded) Int.MAX_VALUE else 8,
-                                    overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis,
-                                    style = MaterialTheme.typography.bodyLarge,
-                                )
-                                if (isLong) {
-                                    Spacer(Modifier.height(6.dp))
-                                    androidx.compose.foundation.text.selection.DisableSelection {
-                                        Row(
-                                            modifier = Modifier
-                                                .clip(RoundedCornerShape(6.dp))
-                                                .clickable { isExpanded = !isExpanded }
-                                                .padding(horizontal = 6.dp, vertical = 4.dp),
-                                            verticalAlignment = Alignment.CenterVertically,
-                                            horizontalArrangement = Arrangement.spacedBy(4.dp),
-                                        ) {
-                                            Text(
-                                                text = if (isExpanded) "收起" else "展开全文",
-                                                style = MaterialTheme.typography.labelSmall,
-                                                color = MaterialTheme.colorScheme.onPrimary.copy(alpha = 0.9f),
-                                            )
-                                            Icon(
-                                                imageVector = if (isExpanded) Icons.Default.ExpandLess else Icons.Default.ExpandMore,
-                                                contentDescription = if (isExpanded) "收起" else "展开",
-                                                tint = MaterialTheme.colorScheme.onPrimary.copy(alpha = 0.9f),
-                                                modifier = Modifier.size(16.dp),
-                                            )
+                                Column(modifier = Modifier.padding(horizontal = 14.dp, vertical = 10.dp)) {
+                                    Text(
+                                        text =
+                                            message.content.ifBlank {
+                                                if (message.images.isNotEmpty()) " " else ""
+                                            },
+                                        maxLines = if (isExpanded) Int.MAX_VALUE else 8,
+                                        overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis,
+                                        style = MaterialTheme.typography.bodyLarge,
+                                    )
+                                    if (isLong) {
+                                        Spacer(Modifier.height(6.dp))
+                                        androidx.compose.foundation.text.selection.DisableSelection {
+                                            Row(
+                                                modifier = Modifier
+                                                    .clip(RoundedCornerShape(6.dp))
+                                                    .clickable { isExpanded = !isExpanded }
+                                                    .padding(horizontal = 6.dp, vertical = 4.dp),
+                                                verticalAlignment = Alignment.CenterVertically,
+                                                horizontalArrangement = Arrangement.spacedBy(4.dp),
+                                            ) {
+                                                Text(
+                                                    text = if (isExpanded) "收起" else "展开全文",
+                                                    style = MaterialTheme.typography.labelSmall,
+                                                    color = MaterialTheme.colorScheme.onPrimary.copy(alpha = 0.9f),
+                                                )
+                                                Icon(
+                                                    imageVector = if (isExpanded) Icons.Default.ExpandLess else Icons.Default.ExpandMore,
+                                                    contentDescription = if (isExpanded) "收起" else "展开",
+                                                    tint = MaterialTheme.colorScheme.onPrimary.copy(alpha = 0.9f),
+                                                    modifier = Modifier.size(16.dp),
+                                                )
+                                            }
                                         }
                                     }
                                 }
                             }
-                        }
-                        message.content.isBlank() && message.status == MessageStatus.Streaming -> {
-                            ThinkingTypewriter()
-                        }
-                        message.content.isBlank() && message.status == MessageStatus.Error -> {
-                            Text(
-                                Str.responseFailed,
-                                modifier = Modifier.padding(horizontal = 14.dp, vertical = 10.dp),
-                                style = MaterialTheme.typography.bodyLarge,
-                            )
-                        }
-                        message.content.isBlank() && message.status == MessageStatus.Aborted -> {
-                            Text(
-                                Str.responseStopped,
-                                modifier = Modifier.padding(horizontal = 14.dp, vertical = 10.dp),
-                                style = MaterialTheme.typography.bodyLarge,
-                            )
-                        }
-                        else -> {
-                            MarkdownContent(
-                                source = message.content,
-                                modifier = Modifier.padding(horizontal = 12.dp, vertical = 10.dp),
-                            )
+                            message.content.isBlank() && message.status == MessageStatus.Streaming -> {
+                                ThinkingTypewriter(streamingPlaceholderLabel(streamingStatus))
+                            }
+                            message.content.isBlank() && message.status == MessageStatus.Error -> {
+                                Text(
+                                    Str.responseFailed,
+                                    modifier = Modifier.padding(horizontal = 14.dp, vertical = 10.dp),
+                                    style = MaterialTheme.typography.bodyLarge,
+                                )
+                            }
+                            message.content.isBlank() && message.status == MessageStatus.Aborted -> {
+                                Text(
+                                    Str.responseStopped,
+                                    modifier = Modifier.padding(horizontal = 14.dp, vertical = 10.dp),
+                                    style = MaterialTheme.typography.bodyLarge,
+                                )
+                            }
+                            else -> {
+                                MarkdownContent(
+                                    source = message.content,
+                                    modifier = Modifier.padding(horizontal = 12.dp, vertical = 10.dp),
+                                )
+                            }
                         }
                     }
                 }
@@ -1666,6 +1834,7 @@ private fun toolPhaseLabel(phase: String): String =
 
 private fun streamingStatusLabel(status: String?): String =
     when {
+        status == "tool:generate_image" -> Str.toolImageGenerating
         status?.startsWith("tool:") == true -> "正在处理：${status.removePrefix("tool:").take(48)}"
         status == "thinking" -> Str.thinking
         status == "reconnecting" -> Str.reconnecting
@@ -1676,9 +1845,15 @@ private fun streamingStatusLabel(status: String?): String =
         else -> Str.streaming
     }
 
+private fun streamingPlaceholderLabel(status: String?): String =
+    when {
+        status == "tool:generate_image" -> "${Str.toolImageGenerating}…"
+        status?.startsWith("tool:") == true -> "正在处理：${status.removePrefix("tool:").take(48)}"
+        else -> Str.thinkingPlaceholder
+    }
+
 @Composable
-private fun ThinkingTypewriter() {
-    val label = Str.thinkingPlaceholder
+private fun ThinkingTypewriter(label: String) {
     val motionEnabled = LocalMotionEnabled.current
     var visibleCharacters by remember(label, motionEnabled) { mutableStateOf(if (motionEnabled) 0 else label.length) }
 

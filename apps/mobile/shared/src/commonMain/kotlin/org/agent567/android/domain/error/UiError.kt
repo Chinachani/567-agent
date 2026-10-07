@@ -49,7 +49,8 @@ object ErrorMapper {
             is RemoteConversationException ->
                 UiError(
                     title = "桌面连接不可用",
-                    message = "请确认 Desktop 在线后重试",
+                    message = e.message?.takeIf { it.isNotBlank() }?.takeCodePoints(300)
+                        ?: "请确认 Desktop 在线后重试",
                     action = UiErrorAction.Retry,
                 )
             is RemoteRequestException -> mapRemoteRequest(e)
@@ -165,4 +166,48 @@ object ErrorMapper {
                 )
         }
     }
+}
+
+private fun String.takeCodePoints(maxCodePoints: Int): String {
+    if (maxCodePoints <= 0 || isEmpty()) return ""
+    var index = 0
+    var count = 0
+    while (index < length && count < maxCodePoints) {
+        val first = this[index]
+        index += if (
+            first in '\uD800'..'\uDBFF' &&
+            index + 1 < length && this[index + 1] in '\uDC00'..'\uDFFF'
+        ) {
+            2
+        } else {
+            1
+        }
+        count++
+    }
+    // Avoid cutting a multi-code-point emoji sequence (for example, a family
+    // joined with U+200D) in the middle when applying the UI length limit.
+    while (index > 0 && index < length) {
+        val previousStart = previousCodePointStart(index)
+        val previous = codePointAt(previousStart)
+        val next = codePointAt(index)
+        if (previous == 0x200D) {
+            index = previousStart
+            if (index > 0) index = previousCodePointStart(index)
+        } else if (next == 0x200D) {
+            index = previousStart
+        } else {
+            break
+        }
+    }
+    return substring(0, index)
+}
+
+private fun String.previousCodePointStart(end: Int): Int =
+    if (end >= 2 && this[end - 1] in '\uDC00'..'\uDFFF' && this[end - 2] in '\uD800'..'\uDBFF') end - 2 else end - 1
+
+private fun String.codePointAt(start: Int): Int {
+    val first = this[start].code
+    return if (first in 0xD800..0xDBFF && start + 1 < length && this[start + 1] in '\uDC00'..'\uDFFF') {
+        0x10000 + ((first - 0xD800) shl 10) + (this[start + 1].code - 0xDC00)
+    } else first
 }

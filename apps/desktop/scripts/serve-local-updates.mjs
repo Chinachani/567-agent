@@ -99,8 +99,8 @@ export function createLocalUpdateServer(root) {
 }
 
 export async function main() {
-	const root = resolve(process.env.VETTA_LOCAL_UPDATE_DIR || defaultRoot);
-	const port = Number(process.env.VETTA_LOCAL_UPDATE_PORT || 8080);
+	const root = resolve(process.env.AGENT567_LOCAL_UPDATE_DIR || defaultRoot);
+	const port = Number(process.env.AGENT567_LOCAL_UPDATE_PORT || 8080);
 	const entries = await readdir(root).catch(() => undefined);
 	if (!entries) {
 		throw new Error(`[serve-local-updates] 分发目录不存在：${root}（先跑 scripts/release-mac.sh local）`);

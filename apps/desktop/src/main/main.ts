@@ -2,8 +2,7 @@ import "./telemetry/bootstrap.js";
 import { mkdir, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { URL } from "node:url";
-import { getVettaHomePath, VETTA_HOME_ENV } from "@567agent/action-rpc";
+import { AGENT567_HOME_ENV, getVettaHomePath } from "@567agent/action-rpc";
 import { app, type BrowserWindow, dialog, ipcMain, nativeImage, nativeTheme, protocol, session, shell } from "electron";
 import { APP_RUNTIME_NAME } from "../shared/app-identity.js";
 import {
@@ -31,7 +30,6 @@ import { parseAgentRpcCommand, runAgentRpcCommand } from "./cli/agent-rpc-comman
 import { parseHelpCliCommand, runHelpCliCommand } from "./cli/help-command.js";
 import { parseOcrCliCommand, runOcrCliCommand } from "./cli/ocr-command.js";
 import { parsePdfCliCommand, runPdfCliCommand } from "./cli/pdf-command.js";
-import type { CloudMainHandle } from "./cloud/index.js";
 import { ensureDevCliShim, ensureDevVettaCliShim, ensureVettaCommandShim } from "./dev-cli-shim.js";
 import {
 	getDiagnosticsLogPath,
@@ -113,8 +111,6 @@ fixPath();
 app.setName("567 Agent");
 app.setAppUserModelId("com.api567.agent");
 
-const PROTOCOL = "agent567";
-const LEGACY_PROTOCOL = "vetta";
 // registerSchemesAsPrivileged 整个进程只能调用一次且须在 ready 前：
 // 所有自定义 scheme（插件、主题、应用资源、媒体流）的特权声明在此合并注册。
 protocol.registerSchemesAsPrivileged([
@@ -208,10 +204,10 @@ const mainLog = getAppLogger("main");
 const rendererCdp = configureRendererCdp({
 	isCliMode,
 	isPackaged: app.isPackaged,
-	devServerUrl: process.env.VETTA_DESKTOP_DEV_URL,
-	portValue: process.env.VETTA_DEBUG_CDP_PORT,
+	devServerUrl: process.env.AGENT567_DESKTOP_DEV_URL,
+	portValue: process.env.AGENT567_DEBUG_CDP_PORT,
 });
-process.env[VETTA_HOME_ENV] = getVettaHomePath();
+process.env[AGENT567_HOME_ENV] = getVettaHomePath();
 
 if (isCliMode) {
 	const cliUserDataDir =
@@ -314,51 +310,6 @@ function attachMainWindowLifecycle(mainWindow: BrowserWindow): void {
 	});
 }
 
-// Register custom protocol for OAuth callback
-// Windows dev mode: must pass electron.exe path and app entry as args,
-// otherwise the URL gets interpreted as a module path.
-if (!isCliMode) {
-	if (!app.isPackaged && process.platform === "win32") {
-		app.setAsDefaultProtocolClient(PROTOCOL, process.execPath, [devMainEntryPath]);
-		app.setAsDefaultProtocolClient(LEGACY_PROTOCOL, process.execPath, [devMainEntryPath]);
-	} else {
-		app.setAsDefaultProtocolClient(PROTOCOL);
-		app.setAsDefaultProtocolClient(LEGACY_PROTOCOL);
-	}
-}
-
-// 云服务模块句柄：lite 构建（VETTA_CLOUD_ENABLED=false）恒为 null。
-let cloudMain: CloudMainHandle | null = null;
-
-function handleProtocolUrl(rawUrl: string): void {
-	try {
-		const parsed = new URL(rawUrl);
-		// OAuth 回调（vetta://oauth/callback）由 cloud 模块处理；
-		// lite 构建没有 cloud 模块，深链直接忽略。
-		cloudMain?.handleProtocolUrl(parsed);
-	} catch {
-		// Ignore malformed URLs
-	}
-}
-
-function receiveProtocolUrl(rawUrl: string): void {
-	handleProtocolUrl(rawUrl);
-	const mainWindow = getMainWindow();
-	if (mainWindow) {
-		if (mainWindow.isMinimized()) mainWindow.restore();
-		// loopback 回调时前台是浏览器，只 focus 窗口不足以把应用抢回来。
-		if (isMac) app.focus({ steal: true });
-		mainWindow.focus();
-	}
-}
-
-// macOS: app may already be running when protocol URL is opened
-app.on("open-url", (event, url) => {
-	event.preventDefault();
-	receiveProtocolUrl(url);
-});
-
-// Windows/Linux: second instance passes URL via argv
 const gotSingleLock = isCliMode ? true : app.requestSingleInstanceLock();
 const pluginPackageOpenService = isCliMode ? undefined : createDesktopPluginPackageOpenService();
 pluginPackageOpenService?.enqueueFromArgv(process.argv);
@@ -405,12 +356,6 @@ if (!gotSingleLock) {
 	app.exit(0);
 } else {
 	app.on("second-instance", (_event, argv) => {
-		const protocolUrl = argv.find(
-			(arg) => arg.startsWith(`${PROTOCOL}://`) || arg.startsWith(`${LEGACY_PROTOCOL}://`),
-		);
-		if (protocolUrl) {
-			handleProtocolUrl(protocolUrl);
-		}
 		pluginPackageOpenService?.enqueueFromArgv(argv);
 		enqueueDesignShareFromArgv(argv);
 		showMainWindow();
@@ -513,19 +458,19 @@ if (!gotSingleLock) {
 				return win;
 			},
 		});
-		const remoteControlUrl = process.env.VETTA_REMOTE_CONTROL_URL;
-		const remotePairingToken = process.env.VETTA_REMOTE_PAIRING_TOKEN;
+		const remoteControlUrl = process.env.AGENT567_REMOTE_CONTROL_URL;
+		const remotePairingToken = process.env.AGENT567_REMOTE_PAIRING_TOKEN;
 		const remoteDesktopTarget =
-			process.env.VETTA_REMOTE_DESKTOP_SIGNALING_URL ?? desktopSignalingTarget(remoteControlUrl);
-		const remoteDesktopToken = process.env.VETTA_REMOTE_DESKTOP_PAIRING_TOKEN ?? remotePairingToken;
+			process.env.AGENT567_REMOTE_DESKTOP_SIGNALING_URL ?? desktopSignalingTarget(remoteControlUrl);
+		const remoteDesktopToken = process.env.AGENT567_REMOTE_DESKTOP_PAIRING_TOKEN ?? remotePairingToken;
 		if (remoteDesktopTarget && remoteDesktopToken) {
 			void startDesktopRemoteDesktopHost({
 				signalingUrl: remoteDesktopTarget,
 				pairingToken: remoteDesktopToken,
-				inputEnabled: process.env.VETTA_REMOTE_DESKTOP_INPUT_ENABLED === "true",
+				inputEnabled: process.env.AGENT567_REMOTE_DESKTOP_INPUT_ENABLED === "true",
 				appRoot,
 				isPackaged: app.isPackaged,
-				devServerUrl: process.env.VETTA_DESKTOP_DEV_URL,
+				devServerUrl: process.env.AGENT567_DESKTOP_DEV_URL,
 			}).catch((error: unknown) => {
 				mainLog.error("remote desktop host failed to start", error);
 			});
@@ -692,11 +637,11 @@ if (!gotSingleLock) {
 			await openExternalUrl(url);
 		});
 
-		// Vetta 云服务（登录 / 订阅 / 远程模型）：构建期开关。lite 构建下该分支
+		// 567 Agent API 云端能力（订阅 / 远程模型）：构建期开关。lite 构建下该分支
 		// 被常量折叠，整个 cloud chunk 不进产物。
 		if (isCloudBuildEnabled()) {
 			const { startCloudMain } = await import("./cloud/index.js");
-			cloudMain = startCloudMain({ receiveProtocolUrl });
+			startCloudMain();
 		} else {
 			ipcMain.handle("vetta:models:fetch-remote", async () => ({ providers: {} }));
 			ipcMain.handle("vetta:subscription:status", async () => ({ isPro: false }));
@@ -771,8 +716,8 @@ if (!gotSingleLock) {
 						cliAppRoot: join(appRoot, "..", "cli-host"),
 					});
 				}
-				process.env.VETTA_DESKTOP_EXE = vettaAppPath;
-				process.env.VETTA_CLI_APP_PATH = vettaCliPath;
+				process.env.AGENT567_DESKTOP_EXE = vettaAppPath;
+				process.env.AGENT567_CLI_APP_PATH = vettaCliPath;
 				await ensureVettaCommandShim(vettaCliPath);
 				await persistVettaCliPaths({ vettaAppPath, vettaCliAppPath: vettaCliPath });
 			} catch (err) {
@@ -796,10 +741,10 @@ if (!gotSingleLock) {
 		const remotePairingService = new DesktopRemotePairingService({
 			appRoot,
 			isPackaged: app.isPackaged,
-			devServerUrl: process.env.VETTA_DESKTOP_DEV_URL,
+			devServerUrl: process.env.AGENT567_DESKTOP_DEV_URL,
 			conversationCwd: join(getVettaHomePath(), "conversation"),
 			defaultRelayBaseUrl:
-				process.env.VETTA_REMOTE_RELAY_BASE_URL || "https://567-agent-relay.907746241.workers.dev",
+				process.env.AGENT567_REMOTE_RELAY_BASE_URL || "https://567-agent-relay.907746241.workers.dev",
 		});
 
 		let schedulerIpcReady = false;

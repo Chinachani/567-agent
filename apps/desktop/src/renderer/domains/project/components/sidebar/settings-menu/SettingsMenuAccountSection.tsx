@@ -11,9 +11,7 @@ export function SettingsMenuAccountSection({ model }: SettingsMenuAccountSection
 	return (
 		<ThemeSettingsMenuAccountSection
 			loggedIn={Boolean(model.user)}
-			loginLabel={t("sidebar.login")}
 			logoutLabel={t("sidebar.logout")}
-			onLogin={model.actions.login}
 			onLogout={model.actions.logout}
 		/>
 	);

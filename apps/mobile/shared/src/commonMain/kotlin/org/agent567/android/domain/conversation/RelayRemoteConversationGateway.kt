@@ -24,9 +24,11 @@ import kotlinx.serialization.json.buildJsonObject
 import kotlinx.serialization.json.JsonElement
 import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.JsonArray
+import kotlinx.serialization.json.JsonPrimitive
 import kotlinx.serialization.json.contentOrNull
 import kotlinx.serialization.json.booleanOrNull
 import kotlinx.serialization.json.longOrNull
+import kotlinx.serialization.json.intOrNull
 import kotlinx.serialization.json.jsonObject
 import kotlinx.serialization.json.jsonPrimitive
 import kotlinx.serialization.json.put
@@ -35,6 +37,7 @@ import org.agent567.android.core.model.ChatQuestion
 import org.agent567.android.core.model.ChatQuestionOption
 import org.agent567.android.core.model.ChatStreamEvent
 import org.agent567.android.core.model.ChatRole
+import org.agent567.android.core.model.RemoteGeneratedImageRef
 import org.agent567.android.core.model.LlmModel
 import org.agent567.android.core.model.TokenUsage
 import org.agent567.android.domain.device.ConnectChannel
@@ -97,19 +100,40 @@ class RelayRemoteConversationGateway(
         var selectedTarget: String? = null
         var selectedConnection: RemoteConnection? = null
         var lastFailure: Throwable? = null
-        for (candidate in activeTargets) {
+        for ((index, candidate) in activeTargets.withIndex()) {
+            val targetKind = remoteTargetKind(candidate)
+            var phase = "websocket_connect"
             val next = createConnection(normalizeRelayUrl(candidate), candidate)
             connection = next
             observeConnection(next, candidate, generation, reconnectEnabled = false)
+            PlatformRemoteLogger.info(
+                "remote connection attempt started",
+                mapOf("attempt" to index + 1, "target" to targetKind),
+            )
             try {
                 next.connect()
+                phase = "hello_ack"
                 waitUntilOnline(next)
+                PlatformRemoteLogger.info(
+                    "remote connection attempt succeeded",
+                    mapOf("attempt" to index + 1, "target" to targetKind),
+                )
                 selectedTarget = candidate
                 selectedConnection = next
                 break
             } catch (error: Throwable) {
                 if (error is CancellationException) throw error
                 lastFailure = error
+                PlatformRemoteLogger.warn(
+                    "remote connection attempt failed",
+                    mapOf(
+                        "attempt" to index + 1,
+                        "target" to targetKind,
+                        "phase" to phase,
+                        "errorType" to error::class.simpleName,
+                        "error" to safeRemoteConnectionError(error),
+                    ),
+                )
                 runCatching { next.close() }
             }
         }
@@ -183,6 +207,7 @@ class RelayRemoteConversationGateway(
         if (_devices.value.none { it.id == deviceId }) return null
         val payload = active.request(RemoteRequestMethod.SessionList) as? JsonObject
             ?: throw RemoteConversationException("电脑没有返回会话列表")
+        updatePeerSupportedMethods(active, payload)
         return (payload["sessions"] as? JsonArray).orEmpty().mapNotNull { value ->
             val item = value as? JsonObject ?: return@mapNotNull null
             val id = item.stringValue("id")?.takeIf(String::isNotBlank) ?: return@mapNotNull null
@@ -203,6 +228,16 @@ class RelayRemoteConversationGateway(
         return true
     }
 
+    override suspend fun deleteEmptyDesktopSession(deviceId: String, remoteSessionId: String): Boolean? {
+        val active = connection ?: return null
+        if (_devices.value.none { it.id == deviceId } || active.state.value != RemoteConnectionState.Online) return null
+        if (!active.supportsPeerMethod("session.delete.empty")) return false
+        val result = active.request(RemoteRequestMethod.SessionDeleteEmpty, sessionId = remoteSessionId) as? JsonObject
+        if (result?.get("deleted")?.jsonPrimitive?.booleanOrNull != true) return false
+        remoteSessionIds.entries.removeAll { it.value == remoteSessionId }
+        return true
+    }
+
     override suspend fun readDesktopSessionHistory(
         localSessionId: String,
         remoteSessionId: String,
@@ -216,18 +251,10 @@ class RelayRemoteConversationGateway(
         var offset = 0
         while (true) {
             val page = try {
-                active.request(
-                    method = RemoteRequestMethod.SessionHistory,
-                    payload = buildJsonObject {
-                        put("offset", offset)
-                        put("limit", HISTORY_PAGE_SIZE)
-                    },
-                    sessionId = resolvedId,
-                    timeoutMs = LEGACY_SESSION_CREATE_TIMEOUT_MS,
-                ) as? JsonObject ?: throw RemoteConversationException("电脑没有返回会话记录")
+                requestHistoryPage(active, resolvedId, offset, retryFirstPageTimeout = offset == 0)
             } catch (error: RemoteRequestException) {
                 if (error.remoteError.code == RemoteErrorCode.RequestTimeout) {
-                    throw RemoteConversationException("当前电脑端版本暂不支持读取历史会话，请升级后再试")
+                    throw RemoteConversationException("读取电脑会话超时，请确认连接后重试；如果桌面端版本较旧，请更新后再试")
                 }
                 throw error
             }
@@ -256,6 +283,64 @@ class RelayRemoteConversationGateway(
         return messages
     }
 
+    override suspend fun readDesktopGeneratedImageChunk(
+        localSessionId: String,
+        remoteSessionId: String,
+        imageId: String,
+        offset: Int,
+        length: Int,
+    ): RemoteDesktopImageChunk? {
+        val active = connection ?: return null
+        if (active.state.value != RemoteConnectionState.Online) return null
+        if (imageId.isBlank() || offset < 0 || length !in 1..(48 * 1024)) return null
+        if (!active.supportsPeerMethod("session.image.read")) {
+            val methods = active.request(RemoteRequestMethod.SessionList) as? JsonObject ?: return null
+            updatePeerSupportedMethods(active, methods)
+            if (!active.supportsPeerMethod("session.image.read")) return null
+        }
+        val resolvedId = remoteSessionIds[localSessionId] ?: remoteSessionId
+        val response = active.request(
+            method = RemoteRequestMethod.SessionImageRead,
+            sessionId = resolvedId,
+            payload = buildJsonObject {
+                put("imageId", imageId)
+                put("offset", offset)
+                put("length", length)
+            },
+            timeoutMs = REMOTE_IMAGE_CHUNK_TIMEOUT_MS,
+        ) as? JsonObject ?: return null
+        val size = response.intValue("sizeBytes") ?: return null
+        if (size !in 1..REMOTE_IMAGE_MAX_BYTES) return null
+        return RemoteDesktopImageChunk(
+            mimeType = response.stringValue("mimeType")?.takeIf { it.startsWith("image/") } ?: "image/png",
+            sizeBytes = size,
+            dataBase64 = response.stringValue("dataBase64") ?: return null,
+        )
+    }
+
+    private suspend fun requestHistoryPage(
+        active: RemoteConnection,
+        sessionId: String,
+        offset: Int,
+        retryFirstPageTimeout: Boolean,
+    ): JsonObject {
+        suspend fun request() = active.request(
+            method = RemoteRequestMethod.SessionHistory,
+            payload = buildJsonObject {
+                put("offset", offset)
+                put("limit", HISTORY_PAGE_SIZE)
+            },
+            sessionId = sessionId,
+            timeoutMs = if (offset == 0) REMOTE_HISTORY_PROBE_TIMEOUT_MS else REMOTE_HISTORY_PAGE_TIMEOUT_MS,
+        ) as? JsonObject ?: throw RemoteConversationException("电脑没有返回会话记录")
+        return try {
+            request()
+        } catch (error: RemoteRequestException) {
+            if (!retryFirstPageTimeout || error.remoteError.code != RemoteErrorCode.RequestTimeout) throw error
+            request()
+        }
+    }
+
     override suspend fun createDesktopSession(
         localSessionId: String,
         deviceId: String,
@@ -265,7 +350,7 @@ class RelayRemoteConversationGateway(
         val payload = try {
             active.request(
                 method = RemoteRequestMethod.SessionCreate,
-                timeoutMs = LEGACY_SESSION_CREATE_TIMEOUT_MS,
+                timeoutMs = REMOTE_PROTOCOL_FALLBACK_TIMEOUT_MS,
             )
         } catch (error: RemoteRequestException) {
             // Older desktops ignore unknown request methods. Fall back to the
@@ -293,7 +378,7 @@ class RelayRemoteConversationGateway(
             active.request(
                 method = RemoteRequestMethod.SessionModels,
                 sessionId = resolvedId,
-                timeoutMs = LEGACY_SESSION_CREATE_TIMEOUT_MS,
+                timeoutMs = REMOTE_PROTOCOL_FALLBACK_TIMEOUT_MS,
             )
         } catch (error: RemoteRequestException) {
             if (error.remoteError.code == RemoteErrorCode.RequestTimeout) return null
@@ -318,7 +403,7 @@ class RelayRemoteConversationGateway(
                 method = RemoteRequestMethod.SessionModelSelect,
                 payload = payload,
                 sessionId = resolvedId,
-                timeoutMs = LEGACY_SESSION_CREATE_TIMEOUT_MS,
+                timeoutMs = REMOTE_PROTOCOL_FALLBACK_TIMEOUT_MS,
             ),
         )
     }
@@ -338,7 +423,7 @@ class RelayRemoteConversationGateway(
             val payload = active.request(
                 method = RemoteRequestMethod.SessionSuggestions,
                 sessionId = resolvedId,
-                timeoutMs = LEGACY_SESSION_CREATE_TIMEOUT_MS,
+                timeoutMs = REMOTE_PROMPT_SUGGESTIONS_TIMEOUT_MS,
             ) as? JsonObject ?: return emptyList()
             (payload["suggestions"] as? JsonArray).orEmpty().mapNotNull { item ->
                 item.jsonPrimitive.contentOrNull?.takeIf(String::isNotBlank)
@@ -506,7 +591,7 @@ class RelayRemoteConversationGateway(
                                 active.request(
                                     method = RemoteRequestMethod.SessionModels,
                                     sessionId = targetSessionId,
-                                    timeoutMs = LEGACY_SESSION_CREATE_TIMEOUT_MS,
+                                    timeoutMs = REMOTE_PROTOCOL_FALLBACK_TIMEOUT_MS,
                                 ),
                             )
                         } catch (error: RemoteRequestException) {
@@ -698,6 +783,12 @@ private fun decodeConversationEvent(name: RemoteEventName, payload: JsonElement?
 			val toolName = objectValue.stringValue("toolName") ?: "tool"
 			val arguments = objectValue.stringValue("args")
 			val result = objectValue.stringValue("result")
+            val images = (objectValue["images"] as? JsonArray).orEmpty().mapNotNull { item ->
+                val ref = item as? JsonObject ?: return@mapNotNull null
+                val id = ref.stringValue("id")?.takeIf(String::isNotBlank) ?: return@mapNotNull null
+                val mimeType = ref.stringValue("mimeType")?.takeIf { it.startsWith("image/") } ?: "image/png"
+                RemoteGeneratedImageRef(id, mimeType)
+            }
             ChatStreamEvent.Tool(
                 phase = phase,
                 toolCallId = callId,
@@ -707,6 +798,7 @@ private fun decodeConversationEvent(name: RemoteEventName, payload: JsonElement?
                 arguments = arguments,
                 result = result,
                 phaseLabel = objectValue.stringValue("label"),
+                images = images,
             )
 		}
 		RemoteEventName.SessionInput -> {
@@ -745,6 +837,15 @@ private fun decodeConversationEvent(name: RemoteEventName, payload: JsonElement?
 
 private fun JsonObject.stringValue(key: String): String? = get(key)?.jsonPrimitive?.contentOrNull
 private fun JsonObject.longValue(key: String): Long? = get(key)?.jsonPrimitive?.longOrNull
+private fun JsonObject.intValue(key: String): Int? = get(key)?.jsonPrimitive?.intOrNull
+
+private fun updatePeerSupportedMethods(active: RemoteConnection, payload: JsonObject) {
+    active.setPeerSupportedMethods(
+        (payload["supportedMethods"] as? JsonArray).orEmpty().mapNotNull {
+            (it as? JsonPrimitive)?.contentOrNull
+        }.toSet(),
+    )
+}
 
 private val TERMINAL_REMOTE_STATES = setOf("completed", "error", "aborted")
 
@@ -760,8 +861,29 @@ private fun String?.toRemoteErrorCode(): RemoteErrorCode =
         else -> RemoteErrorCode.InternalError
     }
 
+private fun remoteTargetKind(target: String): String {
+    val host = target.substringBefore('#').substringAfter("://", "").substringBefore('/').substringBefore(':')
+    val octets = host.split('.').mapNotNull(String::toIntOrNull)
+    val privateIpv4 =
+        octets.size == 4 && octets.all { it in 0..255 } &&
+            (octets[0] == 10 || octets[0] == 192 && octets[1] == 168 ||
+                octets[0] == 172 && octets[1] in 16..31)
+    return if (host.equals("localhost", ignoreCase = true) || privateIpv4) "lan" else "relay"
+}
+
+private fun safeRemoteConnectionError(error: Throwable): String =
+    (error.message ?: "Connection failed")
+        .replace(Regex("(?i)(pairing|resume|bootstrap|fingerprint)=([^&\\s]+)"), "\$1=[redacted]")
+        .replace(Regex("(?i)wss?://[^\\s]+"), "<remote-url>")
+        .take(240)
+
 private const val METRICS_REFRESH_INTERVAL_MS = 1_000L
-private const val LEGACY_SESSION_CREATE_TIMEOUT_MS = 1_500L
+private const val REMOTE_PROTOCOL_FALLBACK_TIMEOUT_MS = 5_000L
+private const val REMOTE_HISTORY_PROBE_TIMEOUT_MS = 5_000L
+private const val REMOTE_HISTORY_PAGE_TIMEOUT_MS = 30_000L
+private const val REMOTE_IMAGE_MAX_BYTES = 12 * 1024 * 1024
+private const val REMOTE_IMAGE_CHUNK_TIMEOUT_MS = 15_000L
+private const val REMOTE_PROMPT_SUGGESTIONS_TIMEOUT_MS = 60_000L
 private const val METRICS_DIAGNOSTICS_INTERVAL_MS = 5_000L
 private const val HISTORY_PAGE_SIZE = 100
 

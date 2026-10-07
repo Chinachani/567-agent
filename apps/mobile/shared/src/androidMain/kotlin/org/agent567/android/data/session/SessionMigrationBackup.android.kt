@@ -39,6 +39,13 @@ internal actual fun decryptMigrationPayload(archive: ByteArray, passphrase: Stri
     }
 }
 
+internal actual fun runtimeMigrationByteLimit(absoluteLimit: Int): Int {
+    // Export/import temporarily hold the serialized model, plaintext and cipher
+    // output together. Keep this work below roughly one eighth of the VM heap.
+    val heapSafeLimit = (Runtime.getRuntime().maxMemory() / 8L).coerceAtMost(Int.MAX_VALUE.toLong()).toInt()
+    return minOf(absoluteLimit, heapSafeLimit)
+}
+
 private fun deriveKey(passphrase: String, salt: ByteArray): SecretKeySpec {
     val passwordBytes = passphrase.encodeToByteArray()
     return try {

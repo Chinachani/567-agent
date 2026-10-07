@@ -14,7 +14,7 @@ const remoteReloadTokens = new Map<string, string>();
 const pluginDevRuntimePromises = new Map<string, Promise<void>>();
 
 interface PluginDevModuleGlobal {
-	__VETTA_PLUGIN_DEV_MODULES__?: Map<string, unknown>;
+	__AGENT567_PLUGIN_DEV_MODULES__?: Map<string, unknown>;
 }
 
 async function ensurePluginDevRuntime(plugin: InstalledPlugin): Promise<void> {
@@ -34,7 +34,7 @@ async function ensurePluginDevRuntime(plugin: InstalledPlugin): Promise<void> {
 }
 
 function getLatestPluginDevModule(pluginId: string): unknown {
-	return (globalThis as typeof globalThis & PluginDevModuleGlobal).__VETTA_PLUGIN_DEV_MODULES__?.get(pluginId);
+	return (globalThis as typeof globalThis & PluginDevModuleGlobal).__AGENT567_PLUGIN_DEV_MODULES__?.get(pluginId);
 }
 
 /** Propagates the manifest reload token to the federation remote entry URL. */

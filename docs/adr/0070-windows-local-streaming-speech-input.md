@@ -16,7 +16,7 @@ binding 是同步原生调用；若直接在 Electron 主进程中加载和解�
 ## 决策
 
 - 首版平台合同固定为 `win32-x64`。完整构建默认启用语音；设置严格的构建期开关
-  `VETTA_SPEECH_INPUT_ENABLED=false` 可生成不含语音能力的轻量产物。Renderer 仅在构建能力启用且平台为
+  `AGENT567_SPEECH_INPUT_ENABLED=false` 可生成不含语音能力的轻量产物。Renderer 仅在构建能力启用且平台为
   Windows 时显示麦克风入口；其他情况不调用语音 IPC。
 - 使用 `sherpa-onnx-win-x64@1.13.5` 和
   `sherpa-onnx-streaming-zipformer-zh-int8-2025-06-30`。原生运行时进入 Windows 安装包并从 asar 解包；

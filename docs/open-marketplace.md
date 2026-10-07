@@ -24,8 +24,8 @@ Desktop 的市场来源 ref 配置为 gh-pages，无需另建注册服务或启�
 云市场与 GitHub 来源独立启用：开源版只不包含云服务，仍可配置多个 GitHub 仓库；云版可同时浏览两类来源。
 内置 567 Agent 官方 GitHub 来源与云市场独立存在，默认仓库为
 [`Chinachani/567-agent-marketplace`](https://github.com/Chinachani/567-agent-marketplace)。发行方可以通过
-`VETTA_OPEN_MARKETPLACE_REPOSITORY` 将内置来源替换为自己的仓库。分支由
-`VETTA_OPEN_MARKETPLACE_REF` 指定；官方仓库和自定义仓库默认均使用 `main`。
+`AGENT567_OPEN_MARKETPLACE_REPOSITORY` 将内置来源替换为自己的仓库。分支由
+`AGENT567_OPEN_MARKETPLACE_REF` 指定；官方仓库和自定义仓库默认均使用 `main`。
 归档 URL 可单独配置，否则从仓库与分支推导。
 
 在「能力 → 市场来源」可添加多个仓库，分别设置启用、自动更新和分支，并单独刷新。
@@ -242,11 +242,11 @@ SHA-256；首期支持直接可执行文件与 ZIP，不执行仓库或产物提
     }
   },
   "server": {
-    "command": "${VETTA_MCP_EXECUTABLE}",
+    "command": "${AGENT567_MCP_EXECUTABLE}",
     "args": ["--stdio"],
     "env": {
-      "COOKIES_PATH": "${VETTA_MCP_DATA_DIR}/cookies.json",
-      "BROWSER_CACHE": "${VETTA_MCP_CACHE_DIR}/browser"
+      "COOKIES_PATH": "${AGENT567_MCP_DATA_DIR}/cookies.json",
+      "BROWSER_CACHE": "${AGENT567_MCP_CACHE_DIR}/browser"
     }
   }
 }
@@ -255,11 +255,11 @@ SHA-256；首期支持直接可执行文件与 ZIP，不执行仓库或产物提
 上例中的仓库地址和 SHA-256 仅用于说明字段形状，发布时必须替换为实际 Release
 产物及其校验值；客户端不会接受非 HTTPS 下载地址。
 
-`server.command` 必须精确等于 `${VETTA_MCP_EXECUTABLE}`。`args`、`env` 与 `cwd` 还可以使用：
+`server.command` 必须精确等于 `${AGENT567_MCP_EXECUTABLE}`。`args`、`env` 与 `cwd` 还可以使用：
 
-- `${VETTA_MCP_RUNTIME_DIR}`：当前版本运行目录；
-- `${VETTA_MCP_DATA_DIR}`：升级和卸载运行文件时保留的用户数据目录；
-- `${VETTA_MCP_CACHE_DIR}`：可再生成缓存目录。
+- `${AGENT567_MCP_RUNTIME_DIR}`：当前版本运行目录；
+- `${AGENT567_MCP_DATA_DIR}`：升级和卸载运行文件时保留的用户数据目录；
+- `${AGENT567_MCP_CACHE_DIR}`：可再生成缓存目录。
 
 Desktop 先下载、校验、解包并验证可执行文件，再解析占位符。最终写入 `mcp.json` 的仍是标准 stdio MCP 配置。
 更新失败时保留原版本；卸载默认只移除运行文件，不删除登录态。完整决策见
@@ -470,20 +470,20 @@ abilities/mcp/context7/
 先在市场源码分支生成本地候选分发：
 
 ```powershell
-$env:VETTA_PYTHON = python -c "import sys; print(sys.executable)"
+$env:AGENT567_PYTHON = python -c "import sys; print(sys.executable)"
 node scripts/marketplace.mjs build --output .marketplace-build/local-e2e
 ```
 
 再在 Desktop 仓库把候选目录和制品目录分别传给隔离测试：
 
 ```powershell
-$env:VETTA_MARKETPLACE_CANDIDATE_ROOT = 'C:\path\to\marketplace\.marketplace-build\local-e2e\site'
-$env:VETTA_MARKETPLACE_CANDIDATE_ARTIFACTS = 'C:\path\to\marketplace\.marketplace-build\local-e2e\artifacts'
+$env:AGENT567_MARKETPLACE_CANDIDATE_ROOT = 'C:\path\to\marketplace\.marketplace-build\local-e2e\site'
+$env:AGENT567_MARKETPLACE_CANDIDATE_ARTIFACTS = 'C:\path\to\marketplace\.marketplace-build\local-e2e\artifacts'
 bun scripts/quality/run-vitest.mjs --run apps/desktop/src/main/abilities/open-marketplace/marketplace-candidate.local.test.ts
 ```
 
 该检查读取生成的精简分发目录和真实 `.vettapkg`，
-以临时 `VETTA_HOME` 走 Desktop 同步、版本选择、下载校验和插件安装，再检查旧版客户端的升级提示。
+以临时 `AGENT567_HOME` 走 Desktop 同步、版本选择、下载校验和插件安装，再检查旧版客户端的升级提示。
 所有网络请求都由本地文件响应替代；不启动日常 Desktop，也不发布仓库或制品。未设置环境变量时该测试跳过。
 
 ## 本地缓存身份
@@ -498,6 +498,6 @@ bun scripts/quality/run-vitest.mjs --run apps/desktop/src/main/abilities/open-ma
 
 内置 GitHub 来源默认为 567 Agent 官方能力市场，也可由环境变量替换：
 
-- `VETTA_OPEN_MARKETPLACE_REPOSITORY`：可选的 GitHub 仓库 URL；未设置时使用 567 Agent 官方能力市场。
-- `VETTA_OPEN_MARKETPLACE_REF`：分支或 ref，默认 `main`。
-- `VETTA_OPEN_MARKETPLACE_ARCHIVE_URL`：可选归档地址；未设置时根据仓库与 ref 推导。
+- `AGENT567_OPEN_MARKETPLACE_REPOSITORY`：可选的 GitHub 仓库 URL；未设置时使用 567 Agent 官方能力市场。
+- `AGENT567_OPEN_MARKETPLACE_REF`：分支或 ref，默认 `main`。
+- `AGENT567_OPEN_MARKETPLACE_ARCHIVE_URL`：可选归档地址；未设置时根据仓库与 ref 推导。

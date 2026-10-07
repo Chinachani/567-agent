@@ -96,7 +96,7 @@ console.log(r);
 若要在 Windows 原样执行 `.sh`，先安装 Git Bash 或设置：
 
 ```powershell
-$env:VETTA_BASH = "C:\Program Files\Git\bin\bash.exe"
+$env:AGENT567_BASH = "C:\Program Files\Git\bin\bash.exe"
 ```
 
 并保证 `jq` 等脚本依赖在 Bash PATH 中。

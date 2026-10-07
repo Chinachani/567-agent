@@ -3,7 +3,6 @@ import { cancelProactiveRefresh, scheduleProactiveRefresh } from "@shared/lib/to
 import {
 	authTokenAtom,
 	authUserAtom,
-	loginPopoverOpenAtom,
 	remoteProvidersAtom,
 	sseClientAtom,
 	sseConnectionStateAtom,
@@ -17,7 +16,6 @@ import { setProductAnalyticsUser } from "../../../telemetry/product-analytics";
 export function useAuth() {
 	const [token, setToken] = useAtom(authTokenAtom);
 	const [user, setUser] = useAtom(authUserAtom);
-	const setLoginOpen = useSetAtom(loginPopoverOpenAtom);
 	const setRemoteProviders = useSetAtom(remoteProvidersAtom);
 	const setSubscriptionStatus = useSetAtom(subscriptionStatusAtom);
 	const sseClient = useAtomValue(sseClientAtom);
@@ -90,28 +88,6 @@ export function useAuth() {
 		scheduleProactiveRefresh(token);
 		return () => cancelProactiveRefresh();
 	}, [token]);
-
-	// Listen for OAuth callback from main process
-	useEffect(() => {
-		const cleanup = window.vetta.auth.onOAuthCallback((data) => {
-			setToken(data.token);
-			if (data.refreshToken) {
-				void window.vetta.settings.setServerRefreshToken(data.refreshToken);
-			} else {
-				// 本次登录没带 refresh 时，绝不能留着上一次登录的旧值：它多半已被轮换
-				// 作废，下次刷新出示它会被服务端按重放处理，直接撤掉整条链。
-				// 宁可没有 refresh（access 到期后重新登录一次），也不要一个会踢人的旧值。
-				void window.vetta.settings.setServerRefreshToken(undefined);
-			}
-			setLoginOpen(false);
-			void window.vetta.settings.setServerToken(data.token);
-			void fetchCurrentUser(data.token)
-				.then((u) => setUser(u))
-				.catch(console.error);
-			// 远程模型拉取由下面的 token effect 统一负责
-		});
-		return cleanup;
-	}, [setToken, setUser, setLoginOpen]);
 
 	// 登录态变化时刷新远程模型列表与套餐状态；登出时清空。
 	useEffect(() => {

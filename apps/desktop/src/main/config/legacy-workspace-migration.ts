@@ -122,7 +122,8 @@ function expandTilde(value: string, userHome: string): string {
 
 function defaultPaths(): LegacyWorkspacePaths {
 	const userHome = homedir();
-	const configHome = process.env.VETTA_HOME || join(userHome, process.env.VETTA_CONFIG_DIR || DEFAULT_CONFIG_DIR_NAME);
+	const configHome =
+		process.env.AGENT567_HOME || join(userHome, process.env.AGENT567_CONFIG_DIR || DEFAULT_CONFIG_DIR_NAME);
 	return {
 		configHome,
 		userHome,

@@ -1,4 +1,4 @@
-const packaged = process.env.VETTA_E2E_PACKAGED === "1";
+const packaged = process.env.AGENT567_E2E_PACKAGED === "1";
 const UPDATE_TIMEOUT_MS = 60_000;
 
 describe("567 Agent packaged updater", () => {

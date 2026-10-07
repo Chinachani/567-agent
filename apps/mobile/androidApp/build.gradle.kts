@@ -6,30 +6,46 @@ plugins {
     alias(libs.plugins.composeCompiler)
 }
 
-val releaseStorePath = providers.gradleProperty("VETTA_ANDROID_KEYSTORE_PATH")
-	.orElse(providers.environmentVariable("VETTA_ANDROID_KEYSTORE_PATH"))
+val releaseStorePath = providers.gradleProperty("AGENT567_ANDROID_KEYSTORE_PATH")
+	.orElse(providers.environmentVariable("AGENT567_ANDROID_KEYSTORE_PATH"))
+	.orElse(providers.gradleProperty("AGENT567_ANDROID_KEYSTORE_PATH"))
+	.orElse(providers.environmentVariable("AGENT567_ANDROID_KEYSTORE_PATH"))
 	.orNull
-val releaseStorePassword = providers.gradleProperty("VETTA_ANDROID_KEYSTORE_PASSWORD")
-	.orElse(providers.environmentVariable("VETTA_ANDROID_KEYSTORE_PASSWORD"))
+val releaseStorePassword = providers.gradleProperty("AGENT567_ANDROID_KEYSTORE_PASSWORD")
+	.orElse(providers.environmentVariable("AGENT567_ANDROID_KEYSTORE_PASSWORD"))
+	.orElse(providers.gradleProperty("AGENT567_ANDROID_KEYSTORE_PASSWORD"))
+	.orElse(providers.environmentVariable("AGENT567_ANDROID_KEYSTORE_PASSWORD"))
 	.orNull
-val releaseKeyAlias = providers.gradleProperty("VETTA_ANDROID_KEY_ALIAS")
-	.orElse(providers.environmentVariable("VETTA_ANDROID_KEY_ALIAS"))
+val releaseKeyAlias = providers.gradleProperty("AGENT567_ANDROID_KEY_ALIAS")
+	.orElse(providers.environmentVariable("AGENT567_ANDROID_KEY_ALIAS"))
+	.orElse(providers.gradleProperty("AGENT567_ANDROID_KEY_ALIAS"))
+	.orElse(providers.environmentVariable("AGENT567_ANDROID_KEY_ALIAS"))
 	.orNull
-val releaseKeyPassword = providers.gradleProperty("VETTA_ANDROID_KEY_PASSWORD")
-	.orElse(providers.environmentVariable("VETTA_ANDROID_KEY_PASSWORD"))
+val releaseKeyPassword = providers.gradleProperty("AGENT567_ANDROID_KEY_PASSWORD")
+	.orElse(providers.environmentVariable("AGENT567_ANDROID_KEY_PASSWORD"))
+	.orElse(providers.gradleProperty("AGENT567_ANDROID_KEY_PASSWORD"))
+	.orElse(providers.environmentVariable("AGENT567_ANDROID_KEY_PASSWORD"))
 	.orNull
 
-val migrationStorePath = providers.gradleProperty("VETTA_ANDROID_MIGRATION_KEYSTORE_PATH")
-	.orElse(providers.environmentVariable("VETTA_ANDROID_MIGRATION_KEYSTORE_PATH"))
+val migrationStorePath = providers.gradleProperty("AGENT567_ANDROID_MIGRATION_KEYSTORE_PATH")
+	.orElse(providers.environmentVariable("AGENT567_ANDROID_MIGRATION_KEYSTORE_PATH"))
+	.orElse(providers.gradleProperty("AGENT567_ANDROID_MIGRATION_KEYSTORE_PATH"))
+	.orElse(providers.environmentVariable("AGENT567_ANDROID_MIGRATION_KEYSTORE_PATH"))
 	.orNull
-val migrationStorePassword = providers.gradleProperty("VETTA_ANDROID_MIGRATION_KEYSTORE_PASSWORD")
-	.orElse(providers.environmentVariable("VETTA_ANDROID_MIGRATION_KEYSTORE_PASSWORD"))
+val migrationStorePassword = providers.gradleProperty("AGENT567_ANDROID_MIGRATION_KEYSTORE_PASSWORD")
+	.orElse(providers.environmentVariable("AGENT567_ANDROID_MIGRATION_KEYSTORE_PASSWORD"))
+	.orElse(providers.gradleProperty("AGENT567_ANDROID_MIGRATION_KEYSTORE_PASSWORD"))
+	.orElse(providers.environmentVariable("AGENT567_ANDROID_MIGRATION_KEYSTORE_PASSWORD"))
 	.orNull
-val migrationKeyAlias = providers.gradleProperty("VETTA_ANDROID_MIGRATION_KEY_ALIAS")
-	.orElse(providers.environmentVariable("VETTA_ANDROID_MIGRATION_KEY_ALIAS"))
+val migrationKeyAlias = providers.gradleProperty("AGENT567_ANDROID_MIGRATION_KEY_ALIAS")
+	.orElse(providers.environmentVariable("AGENT567_ANDROID_MIGRATION_KEY_ALIAS"))
+	.orElse(providers.gradleProperty("AGENT567_ANDROID_MIGRATION_KEY_ALIAS"))
+	.orElse(providers.environmentVariable("AGENT567_ANDROID_MIGRATION_KEY_ALIAS"))
 	.orNull
-val migrationKeyPassword = providers.gradleProperty("VETTA_ANDROID_MIGRATION_KEY_PASSWORD")
-	.orElse(providers.environmentVariable("VETTA_ANDROID_MIGRATION_KEY_PASSWORD"))
+val migrationKeyPassword = providers.gradleProperty("AGENT567_ANDROID_MIGRATION_KEY_PASSWORD")
+	.orElse(providers.environmentVariable("AGENT567_ANDROID_MIGRATION_KEY_PASSWORD"))
+	.orElse(providers.gradleProperty("AGENT567_ANDROID_MIGRATION_KEY_PASSWORD"))
+	.orElse(providers.environmentVariable("AGENT567_ANDROID_MIGRATION_KEY_PASSWORD"))
 	.orNull
 
 val mobileVersion = Properties().apply {

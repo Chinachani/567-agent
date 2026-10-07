@@ -71,7 +71,7 @@ Standalone 编译入口现在：
 Print 测试不再执行临时 `.mjs` Bundle，而是通过正式 `compile-standalone.mjs` 生成并直接运行仓库外单文件可执行产物。测试进程不注入：
 
 - `--session-dir`。
-- `VETTA_PACKAGE_DIR`。
+- `AGENT567_PACKAGE_DIR`。
 - 工作区 Bun 运行时入口。
 
 18 项场景覆盖默认/显式 Runtime、JSON/Text、piped stdin、附件、完整 Tool Loop、Tool 错误、Provider HTTP/断连/401、retry、Extension 错误与回退、跨进程 continue、旧会话回退和 control 命令。

@@ -1,3 +1,4 @@
+import { spawnSync } from "node:child_process";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 const fetchMock = vi.fn();
@@ -51,7 +52,7 @@ vi.mock("node:fs", async () => {
 });
 
 vi.mock("node:child_process", () => ({
-	execSync: vi.fn(),
+	spawnSync: vi.fn(() => ({ status: 0, stdout: "", stderr: "", error: undefined })),
 }));
 
 import { setCloudBridge } from "../cloud-bridge.js";
@@ -76,6 +77,12 @@ afterEach(() => {
 });
 
 describe("installSkillFromMarketSlug", () => {
+	it("rejects unsafe slugs before making a request", async () => {
+		const { installSkillFromMarketSlug } = await import("./skill-market-install.js");
+		await expect(installSkillFromMarketSlug("skill", "../demo;touch-pwned")).rejects.toThrow(/Invalid skill name/);
+		expect(fetchMock).not.toHaveBeenCalled();
+	});
+
 	it("fetches info and archive then installs", async () => {
 		const infoBody = {
 			code: 0,
@@ -115,6 +122,20 @@ describe("installSkillFromMarketSlug", () => {
 			"https://api.example.com/api/v1/abilities/skill/demo/download",
 			expect.objectContaining({ headers: expect.any(Object) }),
 		);
+	});
+});
+
+describe("skill archive extraction", () => {
+	it("rejects parent traversal archive members before extraction", async () => {
+		vi.mocked(spawnSync).mockReturnValueOnce({
+			status: 0,
+			stdout: "package/SKILL.md\n../outside.txt\n",
+			stderr: "",
+			error: undefined,
+		} as never);
+		const { extractTarGz } = await import("./tar-extract.js");
+		expect(() => extractTarGz("archive.tar.gz", "C:/tmp/skills/demo")).toThrow(/Unsafe path/);
+		expect(spawnSync).toHaveBeenCalledTimes(1);
 	});
 });
 

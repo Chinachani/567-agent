@@ -18,7 +18,7 @@ interface ActionCliResponse {
 	};
 }
 
-const HELP_TEXT = `Vetta action command line interface
+const HELP_TEXT = `567 Agent action command line interface
 
 Usage:
   567-Agent.exe action search [query] [--domain <domain>]

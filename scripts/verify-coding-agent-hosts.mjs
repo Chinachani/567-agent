@@ -51,8 +51,8 @@ try {
 		repositoryRoot,
 	);
 	await run("IM Gateway and real Agent suite", "go", ["test", "./...", "-count=1"], imGatewayDir, {
-		VETTA_TEST_AGENT_BIN: binaryPath,
-		VETTA_TEST_PACKAGE_DIR: packageDir,
+		AGENT567_TEST_AGENT_BIN: binaryPath,
+		AGENT567_TEST_PACKAGE_DIR: packageDir,
 	});
 } finally {
 	await rm(artifactRoot, { force: true, recursive: true });

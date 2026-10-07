@@ -37,7 +37,7 @@ export function createLangfuseRuntimeTracer(options: LangfuseRuntimeTracerOption
 }
 
 export function createLangfuseRuntimeTracerFromEnv(env: NodeJS.ProcessEnv = process.env): RuntimeTracer | undefined {
-	if (env.VETTA_TRACING !== "langfuse") {
+	if (env.AGENT567_TRACING !== "langfuse") {
 		return undefined;
 	}
 

@@ -201,7 +201,7 @@ export interface SessionStateEntry {
  * Overrides how the sidecar invokes the coding-agent subprocess. When
  * omitted, the sidecar falls back to `vetta` on PATH — only valid in dev
  * where workspace linking puts it there. Production must populate this so
- * the sidecar can spawn the packaged Vetta.app executable (which detects
+ * the sidecar can spawn the packaged 567 Agent.app executable (which detects
  * `--agent-rpc` in argv and short-circuits into coding-agent's main).
  *
  * Final argv: [bin, ...prefixArgs, "--mode", "rpc", "--cwd", <cwd>, ...].
@@ -217,7 +217,7 @@ export interface CodingAgentSpec {
 	runAsNode?: boolean;
 	/**
 	 * Forwarded to the spawned coding-agent subprocess as
-	 * `VETTA_PACKAGE_DIR`. The agent's `getPackageDir()` falls back to
+	 * `AGENT567_PACKAGE_DIR`. The agent's `getPackageDir()` falls back to
 	 * walking up `__dirname` to find `package.json`, which lands on the
 	 * host bundle's tree once coding-agent is Vite-bundled into Electron's
 	 * main process. Setting this explicitly points at the staged
@@ -226,7 +226,7 @@ export interface CodingAgentSpec {
 	 */
 	packageDir?: string;
 	/**
-	 * Forwarded as `VETTA_SERVER_URL`. coding-agent's main.ts reads this env
+	 * Forwarded as `API567_BASE_URL`. coding-agent's main.ts reads this env
 	 * ahead of `~/.vetta/agent/settings.json`, so an IM-session subprocess
 	 * uses the host's compile-time gateway URL instead of any stale
 	 * `serverUrl` left in the settings file (e.g. from a previous dev/LAN

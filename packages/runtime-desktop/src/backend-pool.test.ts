@@ -28,7 +28,7 @@ import { DesktopRuntimeBackendPool } from "./backend-pool.js";
 import { DesktopRuntimeSessionCatalog } from "./session-catalog.js";
 
 /** `getAgentDir()` 的环境变量开关；缺省会话落点由它决定，测试不得写进真实 `~/.vetta/agent`。 */
-const AGENT_DIR_ENV = "VETTA_CODING_AGENT_DIR";
+const AGENT_DIR_ENV = "AGENT567_CODING_AGENT_DIR";
 
 interface CodingAgentTestSessionConfig extends SessionConfig {
 	readonly scenario?: ConversationScenario;

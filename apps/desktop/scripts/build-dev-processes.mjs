@@ -23,7 +23,7 @@ const envInputs = [
 	join(desktopRoot, ".env.development.local"),
 ];
 
-const developmentEnv = { ...process.env, VETTA_BUILD_ENV: "development" };
+const developmentEnv = { ...process.env, AGENT567_BUILD_ENV: "development" };
 const tasks = [
 	{
 		name: "preload",
@@ -122,7 +122,7 @@ async function updateHashWithPath(hash, path) {
 async function hashPaths(paths, env) {
 	const hash = createHash("sha256");
 	for (const path of paths) await updateHashWithPath(hash, path);
-	for (const [key, value] of Object.entries(env).filter(([key]) => key.startsWith("VETTA_")).sort()) {
+	for (const [key, value] of Object.entries(env).filter(([key]) => key.startsWith("AGENT567_")).sort()) {
 		hash.update(key);
 		hash.update(value ?? "");
 	}

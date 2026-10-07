@@ -1,7 +1,7 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://openvetta.com/schemas/remote-frame.v1.json",
-  "title": "Vetta Remote Control Frame v1",
+  "title": "567 Agent Remote Control Frame v1",
   "oneOf": [
     { "$ref": "#/$defs/hello" }, { "$ref": "#/$defs/helloAck" }, { "$ref": "#/$defs/request" },
     { "$ref": "#/$defs/response" }, { "$ref": "#/$defs/event" }, { "$ref": "#/$defs/ack" }, { "$ref": "#/$defs/resume" }
@@ -41,7 +41,7 @@
       "type": "object", "additionalProperties": false, "required": ["type", "requestId", "method"],
       "properties": {
         "type": { "const": "request" }, "requestId": { "$ref": "#/$defs/id" },
-        "method": { "enum": ["session.list", "session.delete", "session.create", "session.open", "session.history", "session.prompt", "session.models", "session.model.select", "session.suggestions", "session.respond", "session.abort", "session.resume", "diagnostics.snapshot"] },
+        "method": { "enum": ["session.list", "session.delete", "session.delete.empty", "session.create", "session.open", "session.history", "session.prompt", "session.models", "session.model.select", "session.suggestions", "session.suggestions.cancel", "session.image.read", "session.respond", "session.abort", "session.resume", "diagnostics.snapshot"] },
         "sessionId": { "$ref": "#/$defs/id" }, "payload": true
       }
     },

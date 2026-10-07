@@ -53,6 +53,25 @@ const BASE_SERVER = "https://api.567.wiki";
 const BASE_V1 = "https://api.567.wiki/v1";
 const QUOTA_PER_USD = 500000;
 
+function isExplicitAuthenticationFailure(error: unknown): boolean {
+	if (error instanceof AccountLoginRejectedError) return true;
+	if (error instanceof RefreshCookieRejectedError) return error.status !== 403;
+	if (typeof error !== "object" || error === null) return false;
+	const candidate = error as { status?: unknown; statusCode?: unknown; code?: unknown; cause?: unknown };
+	const status = Number(candidate.status ?? candidate.statusCode);
+	if (status === 403 || Number(candidate.code) === 403) return false;
+	if (status === 401) return true;
+	if (
+		typeof candidate.code === "string" &&
+		/^(?:401|UNAUTHORIZED|AUTHENTICATION_FAILED|INVALID_CREDENTIALS)$/i.test(candidate.code)
+	) {
+		return true;
+	}
+	return (
+		candidate.cause !== undefined && candidate.cause !== error && isExplicitAuthenticationFailure(candidate.cause)
+	);
+}
+
 export interface Api567GroupInfo {
 	name: string;
 	desc: string;
@@ -733,9 +752,15 @@ export class NewApiService {
 				};
 				if (this.currentSession.isLoggedIn && !this.currentSession.accessToken) {
 					void this.ensureValidAccessToken().catch((err) => {
-						log.warn("Stale session detected without valid token, clearing session:", err);
-						this.currentSession = { isLoggedIn: false };
-						this.saveSession(this.currentSession);
+						if (isExplicitAuthenticationFailure(err)) {
+							this.accessTokenRefresh.reset();
+							this.saveSession({ isLoggedIn: false });
+							log.warn("The saved 567 API session was rejected; cleared its local session:", err);
+							return;
+						}
+						// Network and service failures are not proof that credentials were
+						// revoked. Keep the saved session so a later online request can retry.
+						log.warn("Could not refresh the saved 567 API session; preserving it for retry:", err);
 					});
 				}
 			}
@@ -1052,6 +1077,10 @@ export class NewApiService {
 				});
 			} catch (refreshErr) {
 				log.warn("Failed to refresh token after 401:", refreshErr);
+				if (isExplicitAuthenticationFailure(refreshErr) && this.currentSession.isLoggedIn) {
+					log.warn("The 567 API explicitly rejected the active session; clearing the local login");
+					await this.logout();
+				}
 			}
 		}
 

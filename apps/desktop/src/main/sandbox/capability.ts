@@ -136,7 +136,7 @@ function findOnPathUnix(binary: string): string | undefined {
 }
 
 function resolveMacosSandboxExecPath(): string | undefined {
-	const explicitPath = process.env.VETTA_MACOS_SANDBOX_EXEC_PATH?.trim();
+	const explicitPath = process.env.AGENT567_MACOS_SANDBOX_EXEC_PATH?.trim();
 	if (explicitPath) {
 		if (isAbsolute(explicitPath)) {
 			if (!existsSync(explicitPath)) {

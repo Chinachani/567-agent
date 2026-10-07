@@ -1,7 +1,11 @@
 package org.agent567.android.ui.media
 
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.produceState
 import androidx.compose.ui.graphics.ImageBitmap
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
+import org.agent567.android.domain.session.MessageImage
 import kotlin.io.encoding.Base64
 import kotlin.io.encoding.ExperimentalEncodingApi
 
@@ -16,20 +20,57 @@ data class PickedImage(
 
 expect fun imageBitmapFromBytes(bytes: ByteArray): ImageBitmap?
 
+expect fun imageBitmapFromStorageKey(key: String): ImageBitmap?
+
+@Composable
+expect fun rememberImageCapture(
+    onPicked: (PickedImage) -> Unit,
+    onRejected: (Int) -> Unit,
+): () -> Unit
+
+@Composable
+fun rememberMessageImageBitmap(image: MessageImage): MessageImageLoadState =
+    produceState<MessageImageLoadState>(MessageImageLoadState.Loading, image.id, image.storageKey, image.base64Data, image.pendingBytes) {
+        val bitmap = withContext(Dispatchers.IO) {
+            when {
+                image.storageKey != null -> imageBitmapFromStorageKey(image.storageKey)
+                image.pendingBytes != null -> imageBitmapFromBytes(image.pendingBytes)
+                image.base64Data.isNotBlank() -> imageBitmapFromBase64(image.base64Data)
+                else -> null
+            }
+        }
+        value = if (bitmap != null) MessageImageLoadState.Loaded(bitmap) else MessageImageLoadState.Failed
+    }.value
+
+sealed class MessageImageLoadState {
+    object Loading : MessageImageLoadState()
+    data class Loaded(val bitmap: ImageBitmap) : MessageImageLoadState()
+    object Failed : MessageImageLoadState()
+}
+
 @OptIn(ExperimentalEncodingApi::class)
 fun imageBitmapFromBase64(base64: String): ImageBitmap? =
     runCatching {
-        imageBitmapFromBytes(Base64.decode(base64))
+        val trimmed = base64.trim()
+        val payload = trimmed.substringAfter(',', trimmed)
+            .filterNot { it.isWhitespace() }
+            .replace('-', '+')
+            .replace('_', '/')
+        val padded = payload + "=".repeat((4 - payload.length % 4) % 4)
+        imageBitmapFromBytes(Base64.decode(padded))
     }.getOrNull()
 
 /**
  * 平台图片选择器。返回启动函数；Android 走系统相册多选。
  */
 @Composable
-expect fun rememberImagePicker(onPicked: (List<PickedImage>) -> Unit): () -> Unit
+expect fun rememberImagePicker(
+    onPicked: (List<PickedImage>) -> Unit,
+    onRejected: (Int) -> Unit,
+): () -> Unit
 
 /**
- * 平台图片保存到系统相册函数。返回 (base64Data, onResult) -> Unit
+ * 平台图片保存到系统相册函数。返回 (image, onResult) -> Unit
  */
 @Composable
-expect fun rememberImageSaver(): (String, (Boolean, String) -> Unit) -> Unit
+expect fun rememberImageSaver(): (MessageImage, (Boolean, String) -> Unit) -> Unit

@@ -28,6 +28,15 @@ interface ManagedSession {
 export interface DesktopConversationRemoteOperationsOptions {
 	readonly cwd: string;
 	readonly readDefaultModelKey?: () => Promise<string | undefined>;
+	readonly readGeneratedImageChunk?: (
+		id: string,
+		offset: number,
+		length: number,
+	) => Promise<{
+		mimeType: string;
+		sizeBytes: number;
+		dataBase64: string;
+	} | null>;
 	readonly turnTimeoutMs?: number | null;
 }
 
@@ -47,8 +56,10 @@ class DesktopRemoteOperationError extends Error {
 export class DesktopConversationRemoteOperations implements DesktopRemoteOperations {
 	private readonly sessions = new Map<string, ManagedSession>();
 	private readonly activeTurns = new Map<string, AbortController>();
+	private readonly deletingSessions = new Set<string>();
 	private readonly questionResolvers = new Map<string, (result: CodingAgentQuestionResult) => void>();
 	private readonly turnTimeoutMs: number | null;
+	readonly canReadGeneratedImages: boolean;
 
 	constructor(
 		private readonly conversations: Pick<
@@ -61,6 +72,7 @@ export class DesktopConversationRemoteOperations implements DesktopRemoteOperati
 					| "subscribe"
 					| "readRemoteModelCatalog"
 					| "readRemoteSessionHistory"
+					| "hasRemoteSessionContent"
 					| "selectRemoteSessionModel"
 					| "replaceRemoteLastUserTurn"
 					| "deleteRemoteSession"
@@ -71,6 +83,7 @@ export class DesktopConversationRemoteOperations implements DesktopRemoteOperati
 		private readonly options: DesktopConversationRemoteOperationsOptions,
 	) {
 		this.turnTimeoutMs = options.turnTimeoutMs ?? null;
+		this.canReadGeneratedImages = options.readGeneratedImageChunk !== undefined;
 	}
 
 	async listSessions(): Promise<readonly DesktopRemoteSessionSummary[]> {
@@ -86,11 +99,38 @@ export class DesktopConversationRemoteOperations implements DesktopRemoteOperati
 		if (!this.conversations.deleteRemoteSession) {
 			throw new Error("Desktop session deletion is unavailable");
 		}
-		if (this.activeTurns.has(sessionId)) {
+		if (this.activeTurns.has(sessionId) || this.deletingSessions.has(sessionId)) {
 			throw new Error("Stop the active response before deleting this session.");
 		}
-		await this.conversations.deleteRemoteSession(sessionId, this.options.cwd);
-		this.sessions.delete(sessionId);
+		this.deletingSessions.add(sessionId);
+		try {
+			await this.conversations.deleteRemoteSession(sessionId, this.options.cwd);
+			this.sessions.delete(sessionId);
+		} finally {
+			this.deletingSessions.delete(sessionId);
+		}
+	}
+
+	async deleteEmptySession(sessionId: string): Promise<boolean> {
+		if (!this.conversations.deleteRemoteSession) {
+			throw new Error("Desktop session deletion is unavailable");
+		}
+		if (!this.conversations.hasRemoteSessionContent) return false;
+		await this.openSession(sessionId);
+		if (
+			this.conversations.hasRemoteSessionContent(sessionId) ||
+			this.activeTurns.has(sessionId) ||
+			this.deletingSessions.has(sessionId)
+		)
+			return false;
+		this.deletingSessions.add(sessionId);
+		try {
+			await this.conversations.deleteRemoteSession(sessionId, this.options.cwd);
+			this.sessions.delete(sessionId);
+			return true;
+		} finally {
+			this.deletingSessions.delete(sessionId);
+		}
 	}
 
 	async createSession(): Promise<{ sessionId: string }> {
@@ -142,6 +182,17 @@ export class DesktopConversationRemoteOperations implements DesktopRemoteOperati
 		return this.conversations.readRemoteModelCatalog(sessionId);
 	}
 
+	async readGeneratedImageChunk(sessionId: string, imageId: string, offset: number, length: number) {
+		if (!this.sessions.has(sessionId)) {
+			throw new DesktopRemoteOperationError(
+				"SESSION_NOT_OPEN",
+				"Desktop session must be opened before reading images",
+			);
+		}
+		if (!this.options.readGeneratedImageChunk) return null;
+		return this.options.readGeneratedImageChunk(imageId, offset, length);
+	}
+
 	async selectModel(sessionId: string, modelKey: string): Promise<void> {
 		if (!this.sessions.has(sessionId)) {
 			throw new DesktopRemoteOperationError(
@@ -155,14 +206,14 @@ export class DesktopConversationRemoteOperations implements DesktopRemoteOperati
 		await this.conversations.selectRemoteSessionModel(sessionId, modelKey);
 	}
 
-	async readSuggestions(sessionId: string): Promise<readonly string[]> {
+	async readSuggestions(sessionId: string, signal?: AbortSignal): Promise<readonly string[]> {
 		if (!this.sessions.has(sessionId)) {
 			throw new DesktopRemoteOperationError(
 				"SESSION_NOT_OPEN",
 				"Desktop session must be opened before reading suggestions",
 			);
 		}
-		return (await this.conversations.generateRemotePromptSuggestions?.(sessionId)) ?? [];
+		return (await this.conversations.generateRemotePromptSuggestions?.(sessionId, signal)) ?? [];
 	}
 
 	async *prompt(
@@ -173,7 +224,9 @@ export class DesktopConversationRemoteOperations implements DesktopRemoteOperati
 	): AsyncIterable<DesktopRemotePromptEvent> {
 		const managed = this.sessions.get(sessionId);
 		if (!managed) throw new Error("Desktop session must be opened before prompting");
-		if (this.activeTurns.has(sessionId)) throw new Error("Desktop session is already processing a turn");
+		if (this.activeTurns.has(sessionId) || this.deletingSessions.has(sessionId)) {
+			throw new Error("Desktop session is already processing or being deleted");
+		}
 		const controller = new AbortController();
 		this.activeTurns.set(sessionId, controller);
 		try {
@@ -221,8 +274,10 @@ export class DesktopConversationRemoteOperations implements DesktopRemoteOperati
 				timeoutMs: this.turnTimeoutMs,
 				signal: controller.signal,
 			})
-			.then(async (result) => {
-				await this.conversations.generateRemoteSessionTitle?.(managed.session, text, result.assistantText);
+			.then((result) => {
+				void Promise.resolve()
+					.then(() => this.conversations.generateRemoteSessionTitle?.(managed.session, text, result.assistantText))
+					.catch(() => undefined);
 				if ((!hasRuntimeEvents || !observedTextDelta) && result.assistantText) {
 					queue.push({ type: "delta", text: result.assistantText });
 				}
@@ -401,7 +456,8 @@ function mapRuntimeEvent(event: SessionEvent, observedText = ""): DesktopRemoteP
 				type: "tool",
 				payload: { phase: "phase", toolCallId: event.toolCallId, toolName: event.toolName, label: event.label },
 			};
-		case "tool.end":
+		case "tool.end": {
+			const images = event.isError ? [] : extractGeneratedImageRefs(event.result);
 			return {
 				type: "tool",
 				payload: {
@@ -409,9 +465,11 @@ function mapRuntimeEvent(event: SessionEvent, observedText = ""): DesktopRemoteP
 					toolCallId: event.toolCallId,
 					toolName: event.toolName,
 					result: preview(event.result),
+					...(images.length > 0 ? { images } : {}),
 					durationMs: event.durationMs,
 				},
 			};
+		}
 		case "retry.start":
 			return {
 				type: "state",
@@ -470,6 +528,30 @@ function preview(value: unknown): string {
 			"$1=[redacted]",
 		);
 	return text.length > 1_200 ? `${text.slice(0, 1_200)}…` : text;
+}
+
+function extractGeneratedImageRefs(value: unknown): Array<{ id: string; mimeType: string }> {
+	let parsed: unknown = value;
+	if (typeof parsed === "string") {
+		const marker = /<vetta-images>([\s\S]*?)<\/vetta-images>/.exec(parsed);
+		try {
+			parsed = JSON.parse(marker?.[1] ?? parsed);
+		} catch {
+			return [];
+		}
+	}
+	if (typeof parsed !== "object" || parsed === null) return [];
+	const images = Array.isArray(parsed) ? parsed : (parsed as Record<string, unknown>).images;
+	if (!Array.isArray(images)) return [];
+	const seen = new Set<string>();
+	return images.flatMap((entry) => {
+		if (typeof entry !== "object" || entry === null || Array.isArray(entry)) return [];
+		const { id, mimeType } = entry as Record<string, unknown>;
+		if (typeof id !== "string" || !/^[a-zA-Z0-9._-]{1,128}$/.test(id) || seen.has(id)) return [];
+		const safeMimeType = typeof mimeType === "string" && mimeType.startsWith("image/") ? mimeType : "image/png";
+		seen.add(id);
+		return [{ id, mimeType: safeMimeType }];
+	});
 }
 
 function redactSensitive(value: unknown): unknown {

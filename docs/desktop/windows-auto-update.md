@@ -42,10 +42,10 @@ Windows 只需要发布一个 EXE 安装包及其 blockmap，不需要为了自�
 
 ## 3. 更新源拓扑
 
-| 构建用途 | `VETTA_UPDATE_PROVIDER` | 更新源 | 建议地址 |
+| 构建用途 | `AGENT567_UPDATE_PROVIDER` | 更新源 | 建议地址 |
 |---|---|---|---|
 | 默认公开稳定版 | `github` | 公开 GitHub Releases | `https://github.com/Chinachani/567-agent/releases` |
-| 自建更新源 | `generic` | R2 或静态 HTTP/CDN | 由发布者配置 `VETTA_UPDATE_URL` |
+| 自建更新源 | `generic` | R2 或静态 HTTP/CDN | 由发布者配置 `AGENT567_UPDATE_URL` |
 | 本地闭环测试 | `generic` | 自建测试前缀 | `https://updates.example.com/desktop/test`（示例） |
 | 未配置 provider | (默认) | 公开 GitHub Releases | `Chinachani/567-agent` |
 
@@ -179,7 +179,7 @@ Windows 自定义流程把进度划分为：
 Windows 发布 EXE 的原因：
 
 - 用户首次安装、手动修复安装和自动更新只维护一种产物。
-- Inno 能注册卸载项、快捷方式和 `vetta://` 协议。
+- Inno 能注册卸载项和快捷方式。
 - 后台模式可以使用同一 EXE 静默写入指定版本目录。
 - electron-updater 可以对 EXE 生成外置 blockmap，并不要求必须使用 ZIP。
 - 代码签名接入后也只需要签名同一个安装产物。
@@ -198,24 +198,24 @@ Windows 发布 EXE 的原因：
 构建期变量写在已忽略的 `apps/desktop/.env.development`：
 
 ```dotenv
-VETTA_UPDATE_PROVIDER=generic
-VETTA_UPDATE_URL=https://updates.example.com/desktop/test
+AGENT567_UPDATE_PROVIDER=generic
+AGENT567_UPDATE_URL=https://updates.example.com/desktop/test
 ```
 
-构建脚本默认 `VETTA_BUILD_ENV=development`，`prepare-pack.js` 显式调用 `loadBuildEnv()` 读取 `.env.development`；Shell 中显式设置的变量优先级更高。未设置 `VETTA_UPDATE_PROVIDER` 时默认使用 `github`，仓库为 `Chinachani/567-agent`。自建 generic 更新源必须同时配置 `VETTA_UPDATE_URL`。打包不支持无更新源配置；`VETTA_UPDATE_PROVIDER=none` 会在构建期直接失败。
+构建脚本默认 `AGENT567_BUILD_ENV=development`，`prepare-pack.js` 显式调用 `loadBuildEnv()` 读取 `.env.development`；Shell 中显式设置的变量优先级更高。未设置 `AGENT567_UPDATE_PROVIDER` 时默认使用 `github`，仓库为 `Chinachani/567-agent`。自建 generic 更新源必须同时配置 `AGENT567_UPDATE_URL`。打包不支持无更新源配置；`AGENT567_UPDATE_PROVIDER=none` 会在构建期直接失败。
 
 直接调用底层发布命令时，发布期变量必须写在 Shell 里：
 
 ```bash
-export VETTA_R2_ACCOUNT_ID=<account-id>
-export VETTA_R2_ACCESS_KEY_ID=<access-key-id>
-export VETTA_R2_SECRET_ACCESS_KEY=<secret-access-key>
-export VETTA_R2_BUCKET=vetta-releases
-export VETTA_R2_PREFIX=desktop/test
-export VETTA_UPDATE_URL=https://updates.example.com/desktop/test
+export AGENT567_R2_ACCOUNT_ID=<account-id>
+export AGENT567_R2_ACCESS_KEY_ID=<access-key-id>
+export AGENT567_R2_SECRET_ACCESS_KEY=<secret-access-key>
+export AGENT567_R2_BUCKET=vetta-releases
+export AGENT567_R2_PREFIX=desktop/test
+export AGENT567_UPDATE_URL=https://updates.example.com/desktop/test
 ```
 
-原因：`publish-update-artifacts-r2.mjs` 直接读 `process.env`，不调用 `loadBuildEnv()`；而 `publish:updates:r2` 是 `bun run` 拉起 `node` 子进程，Bun 的 dotenv 自动加载只作用于 Bun 运行时自身的进程，不会传给它 spawn 的 node。凭据缺失时报 `[publish-updates-r2] missing VETTA_R2_ACCOUNT_ID`。
+原因：`publish-update-artifacts-r2.mjs` 直接读 `process.env`，不调用 `loadBuildEnv()`；而 `publish:updates:r2` 是 `bun run` 拉起 `node` 子进程，Bun 的 dotenv 自动加载只作用于 Bun 运行时自身的进程，不会传给它 spawn 的 node。凭据缺失时报 `[publish-updates-r2] missing AGENT567_R2_ACCOUNT_ID`。
 
 推荐使用仓库的一键脚本，它会读取频道配置并把变量显式传给构建和发布子进程：
 
@@ -227,12 +227,12 @@ export VETTA_UPDATE_URL=https://updates.example.com/desktop/test
 频道私有文件示例：
 
 ```dotenv
-VETTA_R2_ACCOUNT_ID=<account-id>
-VETTA_R2_ACCESS_KEY_ID=<access-key-id>
-VETTA_R2_SECRET_ACCESS_KEY=<secret-access-key>
-VETTA_R2_BUCKET=vetta-releases
-VETTA_R2_PREFIX=desktop/test
-VETTA_UPDATE_URL=https://updates.example.com/desktop/test
+AGENT567_R2_ACCOUNT_ID=<account-id>
+AGENT567_R2_ACCESS_KEY_ID=<access-key-id>
+AGENT567_R2_SECRET_ACCESS_KEY=<secret-access-key>
+AGENT567_R2_BUCKET=vetta-releases
+AGENT567_R2_PREFIX=desktop/test
+AGENT567_UPDATE_URL=https://updates.example.com/desktop/test
 ```
 
 R2 Token 只授予目标 Bucket 的对象读写权限。凭据只供发布脚本访问 R2 S3 API，不会写入桌面安装包；安装包只包含公开更新 URL。
@@ -266,14 +266,14 @@ bun scripts/release-windows.mjs stable --skip-publish
 bun scripts/release-windows.mjs stable --yes
 ```
 
-`test` 会设置 `VETTA_BUILD_ENV=development` 并通过 `VETTA_DESKTOP_BUILD_VERSION` 覆盖版本；`stable` 会设置 `VETTA_BUILD_ENV=production`，同时清除外部遗留的版本覆盖值，并用 `.env.production` 强制覆盖服务器、站点和发布目标。Inno 构建完成后还会扫描最终 `app.asar`：必须包含生产服务器/站点地址，且不得包含 `.env.development` 中不同的地址，否则在 R2 上传前终止。
+`test` 会设置 `AGENT567_BUILD_ENV=development` 并通过 `AGENT567_DESKTOP_BUILD_VERSION` 覆盖版本；`stable` 会设置 `AGENT567_BUILD_ENV=production`，同时清除外部遗留的版本覆盖值，并用 `.env.production` 强制覆盖服务器、站点和发布目标。Inno 构建完成后还会扫描最终 `app.asar`：必须包含生产服务器/站点地址，且不得包含 `.env.development` 中不同的地址，否则在 R2 上传前终止。
 
 ### 7.3 手动构建一个更高的测试版本
 
 测试版本可以通过环境变量覆盖，不修改 `package.json`，也不创建 Git tag：
 
 ```powershell
-$env:VETTA_DESKTOP_BUILD_VERSION = "0.5.57"
+$env:AGENT567_DESKTOP_BUILD_VERSION = "0.5.57"
 bun run --cwd apps/desktop dist:win
 ```
 
@@ -396,26 +396,26 @@ curl.exe -H "Range: bytes=0-9,100-109" -o NUL -D - "https://updates.example.com/
 
 ### 9.1 R2 stable
 
-正式版本以 `apps/desktop/package.json` 为版本真源，不使用 `VETTA_DESKTOP_BUILD_VERSION` 覆盖。配置：
+正式版本以 `apps/desktop/package.json` 为版本真源，不使用 `AGENT567_DESKTOP_BUILD_VERSION` 覆盖。配置：
 
 ```text
-VETTA_UPDATE_PROVIDER=generic
-VETTA_UPDATE_URL=https://updates.example.com/desktop/stable
-VETTA_R2_PREFIX=desktop/stable
+AGENT567_UPDATE_PROVIDER=generic
+AGENT567_UPDATE_URL=https://updates.example.com/desktop/stable
+AGENT567_R2_PREFIX=desktop/stable
 ```
 
 必须先在 test 完成真实的“旧安装版 → CDN → 新版本 → 重启”闭环，再发布 stable。不要用 stable 通道迭代更新功能。
 
-test 与 stable 是两个独立版本序列：`VETTA_DESKTOP_BUILD_VERSION` 只用于 test 客户端之间的版本比较，不决定正式版从哪个数字开始。正式版只要求高于 stable 通道已经发布的版本，并始终与 `apps/desktop/package.json` 一致。
+test 与 stable 是两个独立版本序列：`AGENT567_DESKTOP_BUILD_VERSION` 只用于 test 客户端之间的版本比较，不决定正式版从哪个数字开始。正式版只要求高于 stable 通道已经发布的版本，并始终与 `apps/desktop/package.json` 一致。
 
 ### 9.2 GitHub Releases
 
 开源包构建配置：
 
 ```text
-VETTA_UPDATE_PROVIDER=github
-VETTA_UPDATE_GITHUB_OWNER=<owner>
-VETTA_UPDATE_GITHUB_REPO=<repository>
+AGENT567_UPDATE_PROVIDER=github
+AGENT567_UPDATE_GITHUB_OWNER=<owner>
+AGENT567_UPDATE_GITHUB_REPO=<repository>
 ```
 
 公开 Release 的客户端读取不需要 GitHub Token。桌面端使用标准 `v<version>` tag；tag 属于 desktop 发版，不应使用 coding-agent 专用 tag 语义。
@@ -544,7 +544,7 @@ ready 弹窗只会在以下三项同时存在后出现：
 
 1. 新版本是否严格高于客户端版本。
 2. 客户端安装包内 `app-update.yml` 是否指向 test，而不是 stable/GitHub。
-3. `VETTA_UPDATE_URL` path 是否与 `VETTA_R2_PREFIX` 一致。
+3. `AGENT567_UPDATE_URL` path 是否与 `AGENT567_R2_PREFIX` 一致。
 4. 公网 `latest.yml` 是否已经是新版本。
 5. Cloudflare 是否缓存了旧 `latest.yml`。
 6. `latest.yml` 引用的文件名、大小、SHA-512 是否对应当前 EXE。
@@ -568,8 +568,8 @@ ready 弹窗只会在以下三项同时存在后出现：
 测试链路必须同时使用：
 
 ```text
-VETTA_UPDATE_URL=.../desktop/test
-VETTA_R2_PREFIX=desktop/test
+AGENT567_UPDATE_URL=.../desktop/test
+AGENT567_R2_PREFIX=desktop/test
 ```
 
 当前发布脚本会校验 URL path 与 R2 prefix，并拒绝把版本覆盖值上传到最后一段为 `stable` 的前缀。旧对象无需为每次测试手动删除；版本化文件保留有助于追溯，清理应使用独立生命周期策略。

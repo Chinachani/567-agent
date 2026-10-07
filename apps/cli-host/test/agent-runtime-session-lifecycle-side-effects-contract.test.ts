@@ -177,7 +177,7 @@ async function runLifecycleScenario(): Promise<LifecycleObservation> {
 		await writeProjectHookConfigs(fixture, auditPath);
 		process = startAgentRpc(executable, fixture, {
 			extraArgs: ["--extension", extensionPath],
-			env: { VETTA_TEST_FAIL_HOOK: "SessionEnd" },
+			env: { AGENT567_TEST_FAIL_HOOK: "SessionEnd" },
 		});
 
 		const source = readIdentity(await process.request("runtime-source-state", "get_state"));
@@ -288,7 +288,7 @@ async function writeProjectHookConfigs(fixture: AgentRpcFixture, auditPath: stri
 			sessionFile: input.transcript_path,
 			detail: input.source ?? input.reason,
 		}) + "\\n", "utf8");
-		if (process.env.VETTA_TEST_FAIL_HOOK === input.hook_event_name) process.exitCode = 9;
+		if (process.env.AGENT567_TEST_FAIL_HOOK === input.hook_event_name) process.exitCode = 9;
 		`,
 		"utf8",
 	);

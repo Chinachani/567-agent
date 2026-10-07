@@ -956,7 +956,7 @@ export interface DesktopPluginsApi {
 	/** Fired when plugins are installed/uninstalled/enabled/reloaded (host should re-load remotes). */
 	onPluginsChanged(listener: (event?: PluginsChangedEvent) => void): () => void;
 	networkRequest<T = unknown>(sessionId: string, request: PluginNetworkRequest): Promise<PluginNetworkResponse<T>>;
-	/** 带登录身份打 Vetta 服务端；仅 official 插件的 session 会被主进程放行（ADR-0056）。 */
+	/** 带当前 API 身份访问 567 Agent API；仅 official 插件的 session 会被主进程放行（ADR-0056）。 */
 	gatewayRequest<T = unknown>(sessionId: string, request: PluginGatewayRequest): Promise<PluginGatewayResponse<T>>;
 	secretsGet(sessionId: string, key: string): Promise<string | undefined>;
 	secretsHas(sessionId: string, key: string): Promise<boolean>;

@@ -33,12 +33,12 @@ const ENV_WHITELIST = [
 	"PIP_TRUSTED_HOST",
 	"PIP_CONFIG_FILE",
 	"PIP_CACHE_DIR",
-	"VETTA_MANAGED_PYTHON_SITE_PACKAGES",
-	"VETTA_MANAGED_PYTHON_SCRIPTS",
-	"VETTA_HOME",
-	"VETTA_ACTION_RPC_ENDPOINT_FILE",
-	"VETTA_DESKTOP_EXE",
-	"VETTA_CLI_APP_PATH",
+	"AGENT567_MANAGED_PYTHON_SITE_PACKAGES",
+	"AGENT567_MANAGED_PYTHON_SCRIPTS",
+	"AGENT567_HOME",
+	"AGENT567_ACTION_RPC_ENDPOINT_FILE",
+	"AGENT567_DESKTOP_EXE",
+	"AGENT567_CLI_APP_PATH",
 ] as const;
 
 type WindowsSandboxBackend = "auto" | "elevated" | "unelevated";
@@ -59,7 +59,7 @@ export function resolveWindowsSandboxHostPath(explicitPath?: string): string {
 			resolvePath(rootDir, relativeDir, WINDOWS_SANDBOX_HOST_FILENAME),
 		),
 	);
-	const candidates = [explicitPath, process.env.VETTA_WINDOWS_SANDBOX_HOST_PATH, ...autoDetectedCandidates].filter(
+	const candidates = [explicitPath, process.env.AGENT567_WINDOWS_SANDBOX_HOST_PATH, ...autoDetectedCandidates].filter(
 		(value): value is string => typeof value === "string" && value.trim().length > 0,
 	);
 
@@ -69,13 +69,13 @@ export function resolveWindowsSandboxHostPath(explicitPath?: string): string {
 
 	const searched = candidates.map((item) => `  - ${item}`).join("\n");
 	throw new Error(
-		`Windows sandbox host not found. Set VETTA_WINDOWS_SANDBOX_HOST_PATH or place ${WINDOWS_SANDBOX_HOST_FILENAME} in packages/runtime-core/sandbox/bin.` +
+		`Windows sandbox host not found. Set AGENT567_WINDOWS_SANDBOX_HOST_PATH or place ${WINDOWS_SANDBOX_HOST_FILENAME} in packages/runtime-core/sandbox/bin.` +
 			`\nSearched:\n${searched}`,
 	);
 }
 
 function resolveVettaCliAppPath(env: NodeSandboxEnvironment | undefined): string | undefined {
-	const value = env?.VETTA_CLI_APP_PATH ?? process.env.VETTA_CLI_APP_PATH;
+	const value = env?.AGENT567_CLI_APP_PATH ?? process.env.AGENT567_CLI_APP_PATH;
 	return typeof value === "string" && value.length > 0 && existsSync(value) ? value : undefined;
 }
 
@@ -102,17 +102,17 @@ function buildSandboxEnv(
 		const value =
 			key === "PATH" && vettaShimDir
 				? [vettaShimDir, baseEnv.PATH].filter((item): item is string => Boolean(item)).join(delimiter)
-				: key === "VETTA_CLI_APP_PATH"
+				: key === "AGENT567_CLI_APP_PATH"
 					? resolveVettaCliAppPath(sourceEnv)
 					: baseEnv[key];
 		if (typeof value === "string" && value.length > 0) args.push("--env", `${key}=${value}`);
 	}
-	args.push("--env", `TEMP=${tempRoot}`, "--env", `TMP=${tempRoot}`, "--env", "VETTA_WINDOWS_SANDBOX=1");
+	args.push("--env", `TEMP=${tempRoot}`, "--env", `TMP=${tempRoot}`, "--env", "AGENT567_WINDOWS_SANDBOX=1");
 	return args;
 }
 
 function resolveWindowsSandboxBackend(): WindowsSandboxBackend {
-	const raw = process.env.VETTA_WINDOWS_SANDBOX_BACKEND?.trim().toLowerCase();
+	const raw = process.env.AGENT567_WINDOWS_SANDBOX_BACKEND?.trim().toLowerCase();
 	return raw === "auto" || raw === "elevated" || raw === "unelevated" ? raw : "auto";
 }
 

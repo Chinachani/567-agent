@@ -25,10 +25,10 @@ const LINUX_ENV_WHITELIST = [
 	"PIP_TRUSTED_HOST",
 	"PIP_CONFIG_FILE",
 	"PIP_CACHE_DIR",
-	"VETTA_HOME",
-	"VETTA_ACTION_RPC_ENDPOINT_FILE",
-	"VETTA_DESKTOP_EXE",
-	"VETTA_CLI_APP_PATH",
+	"AGENT567_HOME",
+	"AGENT567_ACTION_RPC_ENDPOINT_FILE",
+	"AGENT567_DESKTOP_EXE",
+	"AGENT567_CLI_APP_PATH",
 ] as const;
 const SANDBOX_HOME = "/tmp/vetta-home";
 const SANDBOX_BIN_DIR = "/vetta-bin";
@@ -63,7 +63,7 @@ function findOnPathUnix(binary: string): string | undefined {
 }
 
 export function resolveLinuxBubblewrapPath(explicitPath?: string): string {
-	const explicitCandidates = [explicitPath, process.env.VETTA_LINUX_BWRAP_PATH].filter(
+	const explicitCandidates = [explicitPath, process.env.AGENT567_LINUX_BWRAP_PATH].filter(
 		(value): value is string => typeof value === "string" && value.trim().length > 0,
 	);
 	for (const candidate of explicitCandidates) {
@@ -78,7 +78,7 @@ export function resolveLinuxBubblewrapPath(explicitPath?: string): string {
 	}
 	const searched = [...explicitCandidates, ...pathCandidates].map((item) => `  - ${item}`).join("\n");
 	throw new Error(
-		"Linux sandbox requires bubblewrap. Install `bwrap`/`bubblewrap` or set VETTA_LINUX_BWRAP_PATH." +
+		"Linux sandbox requires bubblewrap. Install `bwrap`/`bubblewrap` or set AGENT567_LINUX_BWRAP_PATH." +
 			`\nSearched:\n${searched}`,
 	);
 }
@@ -155,10 +155,10 @@ function collectEnvReadOnlyMounts(env: NodeSandboxEnvironment | undefined): {
 		existingDir(env?.NPM_CONFIG_CACHE ?? process.env.NPM_CONFIG_CACHE),
 		existingDir(env?.PIP_CACHE_DIR ?? process.env.PIP_CACHE_DIR),
 	].filter((path): path is string => path !== undefined);
-	const vettaHome = env?.VETTA_HOME ?? process.env.VETTA_HOME;
+	const vettaHome = env?.AGENT567_HOME ?? process.env.AGENT567_HOME;
 	const endpointFile =
-		env?.VETTA_ACTION_RPC_ENDPOINT_FILE ??
-		process.env.VETTA_ACTION_RPC_ENDPOINT_FILE ??
+		env?.AGENT567_ACTION_RPC_ENDPOINT_FILE ??
+		process.env.AGENT567_ACTION_RPC_ENDPOINT_FILE ??
 		(vettaHome ? join(vettaHome, "action-server.json") : undefined);
 	const files = [
 		env?.npm_config_userconfig ?? process.env.npm_config_userconfig,
@@ -175,7 +175,7 @@ function readConfiguredVettaPaths(env: NodeSandboxEnvironment | undefined): {
 	readonly vettaAppPath?: string;
 	readonly vettaCliAppPath?: string;
 } {
-	const configPath = join(env?.VETTA_HOME ?? getVettaHomePath(), "desktop-config.json");
+	const configPath = join(env?.AGENT567_HOME ?? getVettaHomePath(), "desktop-config.json");
 	try {
 		const parsed = JSON.parse(readFileSync(configPath, "utf-8")) as {
 			vettaAppPath?: unknown;
@@ -192,13 +192,13 @@ function readConfiguredVettaPaths(env: NodeSandboxEnvironment | undefined): {
 
 function resolveVettaDesktopExe(env: NodeSandboxEnvironment | undefined): string | undefined {
 	return existingFile(
-		env?.VETTA_DESKTOP_EXE ?? process.env.VETTA_DESKTOP_EXE ?? readConfiguredVettaPaths(env).vettaAppPath,
+		env?.AGENT567_DESKTOP_EXE ?? process.env.AGENT567_DESKTOP_EXE ?? readConfiguredVettaPaths(env).vettaAppPath,
 	);
 }
 
 function resolveVettaCliAppPath(env: NodeSandboxEnvironment | undefined): string | undefined {
 	return existingFile(
-		env?.VETTA_CLI_APP_PATH ?? process.env.VETTA_CLI_APP_PATH ?? readConfiguredVettaPaths(env).vettaCliAppPath,
+		env?.AGENT567_CLI_APP_PATH ?? process.env.AGENT567_CLI_APP_PATH ?? readConfiguredVettaPaths(env).vettaCliAppPath,
 	);
 }
 
@@ -276,9 +276,9 @@ export function buildLinuxSandboxArgs(
 		const value =
 			key === "PATH"
 				? pathValue
-				: key === "VETTA_DESKTOP_EXE"
+				: key === "AGENT567_DESKTOP_EXE"
 					? vettaDesktopExe
-					: key === "VETTA_CLI_APP_PATH"
+					: key === "AGENT567_CLI_APP_PATH"
 						? vettaCliAppPath
 						: baseEnv[key];
 		if (typeof value === "string" && value.length > 0) args.push("--setenv", key, value);

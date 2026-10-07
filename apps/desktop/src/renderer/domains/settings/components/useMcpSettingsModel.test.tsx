@@ -30,7 +30,7 @@ describe("useMcpSettingsModel managed runtime parameters", () => {
 			name: "xiaohongshu",
 			displayName: "Xiaohongshu",
 			description: "",
-			config: { type: "http", url: "${VETTA_MCP_URL}" },
+			config: { type: "http", url: "${AGENT567_MCP_URL}" },
 			secrets: [{ envKey: "XHS_PROXY", required: false, secret: false }],
 		};
 		const { result } = renderHook(() => useMcpSettingsModel());

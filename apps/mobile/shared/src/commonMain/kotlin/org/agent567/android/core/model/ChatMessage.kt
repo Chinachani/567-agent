@@ -70,6 +70,7 @@ sealed class ChatStreamEvent {
         val arguments: String? = null,
         val result: String? = null,
         val phaseLabel: String? = null,
+        val images: List<RemoteGeneratedImageRef> = emptyList(),
     ) : ChatStreamEvent()
 
     data class UserInputRequired(
@@ -94,6 +95,11 @@ sealed class ChatStreamEvent {
 
     data class Error(val exception: Throwable) : ChatStreamEvent()
 }
+
+data class RemoteGeneratedImageRef(
+    val id: String,
+    val mimeType: String,
+)
 
 data class ChatQuestion(
     val question: String,

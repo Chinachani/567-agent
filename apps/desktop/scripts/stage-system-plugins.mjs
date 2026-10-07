@@ -8,13 +8,13 @@ export const tenantsConfigPath = join(desktopAppDir, "..", "..", "packages", "pl
 export const devSystemPluginsDir = join(desktopAppDir, ".artifacts", "system-plugins");
 
 // 解析当前构建/开发使用的租户与系统插件 profile，返回应打包的插件 id 集合。
-// 租户由 VETTA_TENANT 指定，profile 由 VETTA_SYSTEM_PLUGIN_PROFILE 指定；
+// 租户由 AGENT567_TENANT 指定，profile 由 AGENT567_SYSTEM_PLUGIN_PROFILE 指定；
 // 两者缺省时分别取 tenants.json 的 default / defaultProfile。
 // 无 tenants.json 时返回 pluginIds=null，表示不过滤（打包全部 preset），保持向后兼容。
 export function resolveSystemPluginSelection(explicitTenant, explicitProfile) {
-	const requestedTenant = explicitTenant ?? process.env.VETTA_TENANT ?? undefined;
+	const requestedTenant = explicitTenant ?? process.env.AGENT567_TENANT ?? undefined;
 	const requestedProfile =
-		explicitProfile ?? process.env.VETTA_SYSTEM_PLUGIN_PROFILE ?? undefined;
+		explicitProfile ?? process.env.AGENT567_SYSTEM_PLUGIN_PROFILE ?? undefined;
 
 	let config = null;
 	try {

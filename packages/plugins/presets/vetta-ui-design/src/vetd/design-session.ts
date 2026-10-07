@@ -30,6 +30,15 @@ function finiteNumber(value: unknown): value is number {
 	return typeof value === "number" && Number.isFinite(value);
 }
 
+function isFrameMeta(value: unknown): value is { width: number; height: number; title: string } {
+	return (
+		isRecord(value) &&
+		finiteNumber(value.width) &&
+		finiteNumber(value.height) &&
+		typeof value.title === "string"
+	);
+}
+
 /** Converts externally edited manifest data into the complete internal frame contract. */
 function recoverFrameEntry(value: unknown): RecoveredFrameEntry | null {
 	if (!isRecord(value)) return null;
@@ -40,11 +49,7 @@ function recoverFrameEntry(value: unknown): RecoveredFrameEntry | null {
 
 	const title = typeof value.title === "string" ? value.title : value.id;
 	const rawMeta = value.meta;
-	const hasMeta =
-		isRecord(rawMeta) &&
-		finiteNumber(rawMeta.width) &&
-		finiteNumber(rawMeta.height) &&
-		typeof rawMeta.title === "string";
+	const hasMeta = isFrameMeta(rawMeta);
 	return {
 		frame: {
 			id: value.id,

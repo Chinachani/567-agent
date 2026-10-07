@@ -160,14 +160,18 @@ export function useSessionOpener(): SessionOpenerController {
 				if (!sameActiveSession(activeSessionRef.current, session)) setActiveSession(session);
 				activeSessionRef.current = session;
 			};
-			// 消息流所有权即刻释放：下面的 navigate / session.create 都是 await，
-			// 期间上一个会话仍在流式输出，而视图（乐观用户气泡 + 路由）已经切到新会话。
-			// 不在这里断开归属，旧会话的 tool.phase / delta 会写进新会话的消息流。
-			setChatStreamOwner(null);
 			const shouldNavigate = options?.navigate !== false;
 			const navigateBeforeCreate =
 				sessionPath === undefined && shouldNavigate && options?.navigateBeforeCreate === true;
 			const stageExistingSessionOpen = isExistingSessionOpen && shouldNavigate;
+			// Release stream ownership before any awaited route change or session creation.
+			// In the staged new-session flow, detach the old event target immediately so late
+			// tool and delta events cannot land in the new conversation's message list.
+			setChatStreamOwner(null);
+			if (navigateBeforeCreate) {
+				activeSessionRef.current = null;
+				setActiveSession(null);
+			}
 			const clearOwnPendingTransition = (): void => {
 				if (navigateBeforeCreate) {
 					setPendingSessionCreation((current) => (current?.interactionId === interactionId ? null : current));
@@ -322,7 +326,7 @@ export function useSessionOpener(): SessionOpenerController {
 			const isBatchProject = batchProjectsRef.current.some((project) => project.id === cwd);
 			const projectType = getProjects().find((project) => project.cwd === cwd)?.type;
 			const sessionKind = isBatchSession || isBatchProject || projectType === "batch" ? "other" : "conversation";
-			// 对话场景显式下发（不依赖 sessionKind，避免改 kind 牵动 VETTA_CLI/子目录等行为）：
+			// 对话场景显式下发（不依赖 sessionKind，避免改 kind 牵动 AGENT567_CLI/子目录等行为）：
 			// - 批量 → "batch"（与 batch-task-executor 一致，重开不退化成 project，输入栏 badge 不复活）。
 			// - 默认「对话」项目（cwd 归一到 defaultConversationCwd）→ "conversation"。
 			// - 其余交互式项目 → "project"。此前普通项目被 sessionKind="conversation" 误标成

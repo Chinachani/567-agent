@@ -7,8 +7,8 @@ import { validateOpenMarketplaceMcp } from "./open-marketplace-mcp";
 
 const temporaryRoots: string[] = [];
 const DEMO_API_KEY_PLACEHOLDER = `\${DEMO_API_KEY}`;
-const PORT_TOKEN = `\${VETTA_MCP_PORT}`;
-const URL_TOKEN = `\${VETTA_MCP_URL}`;
+const PORT_TOKEN = `\${AGENT567_MCP_PORT}`;
+const URL_TOKEN = `\${AGENT567_MCP_URL}`;
 
 async function fixture(
 	server: Record<string, unknown>,
@@ -304,6 +304,6 @@ describe("validateOpenMarketplaceMcp", () => {
 			},
 		);
 
-		expect(() => validateOpenMarketplaceMcp(root, ability)).toThrow(/VETTA_MCP_PORT/);
+		expect(() => validateOpenMarketplaceMcp(root, ability)).toThrow(/AGENT567_MCP_PORT/);
 	});
 });

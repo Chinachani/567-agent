@@ -15,7 +15,8 @@ const usage = Type.Object(
 );
 const contentBlock = Type.Union([
 	objectWithType("text", { text: Type.String() }),
-	objectWithType("thinking", { thinking: Type.String(), signature: Type.String() }),
+	// Anthropic compatible gateways may omit the initially empty signature and send it later.
+	objectWithType("thinking", { thinking: Type.String(), signature: Type.Optional(Type.String()) }),
 	objectWithType("redacted_thinking", { data: Type.String() }),
 	objectWithType("tool_use", { id: Type.String(), name: Type.String(), input: Type.Unknown() }),
 	objectWithType("server_tool_use"),

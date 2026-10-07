@@ -10,7 +10,7 @@ interface RelayRoom {
 }
 
 const rooms = new Map<string, RelayRoom>();
-const port = Number(process.env.VETTA_FAKE_RELAY_PORT ?? 8787);
+const port = Number(process.env.AGENT567_FAKE_RELAY_PORT ?? 8787);
 
 const server = Bun.serve<{ pairingId: string; role: ClientRole }>({
 	port,

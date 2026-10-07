@@ -61,8 +61,8 @@ Desktop 新增的 Catalog Adapter 只负责：
 新增启动环境变量：
 
 ```text
-VETTA_DESKTOP_AGENT_RUNTIME=legacy
-VETTA_DESKTOP_AGENT_RUNTIME=greenfield
+AGENT567_DESKTOP_AGENT_RUNTIME=legacy
+AGENT567_DESKTOP_AGENT_RUNTIME=greenfield
 ```
 
 语义：

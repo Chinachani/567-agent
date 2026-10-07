@@ -25,7 +25,7 @@ function readableArchive(path, filename) {
 }
 
 export async function prepareVendorRuntimes({
-	platformTag = process.env.VETTA_VENDOR_PLATFORM || `${process.platform}-${process.arch}`,
+	platformTag = process.env.AGENT567_VENDOR_PLATFORM || `${process.platform}-${process.arch}`,
 	manifest = JSON.parse(readFileSync(manifestPath, "utf8")),
 	cacheDir = VENDOR_CACHE_DIR,
 	fetchImpl = fetch,

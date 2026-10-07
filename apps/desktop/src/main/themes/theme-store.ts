@@ -67,7 +67,7 @@ function discoverFrom(baseDir: string, source: DesktopThemePackageSource): Deskt
 			if (manifest.id !== entry) continue;
 			const development =
 				!app.isPackaged &&
-				process.env.VETTA_THEME_DEV_SERVER === "1" &&
+				process.env.AGENT567_THEME_DEV_SERVER === "1" &&
 				source === "builtin" &&
 				manifest.development !== undefined
 					? manifest.development

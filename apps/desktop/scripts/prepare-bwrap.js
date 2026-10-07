@@ -9,8 +9,8 @@ const projectRoot = join(import.meta.dirname, "..");
 const runtimeCoreLinuxSandboxDir = join(projectRoot, "..", "..", "packages", "runtime-core", "sandbox", "linux");
 const supportedArchs = new Set(["x64", "arm64"]);
 
-const bubblewrapVersion = process.env.VETTA_BWRAP_VERSION?.trim() || "0.11.0";
-const targetArchs = (process.env.VETTA_BWRAP_TARGET_ARCHS?.trim() || process.arch)
+const bubblewrapVersion = process.env.AGENT567_BWRAP_VERSION?.trim() || "0.11.0";
+const targetArchs = (process.env.AGENT567_BWRAP_TARGET_ARCHS?.trim() || process.arch)
 	.split(",")
 	.map((value) => value.trim())
 	.filter(Boolean);
@@ -140,8 +140,8 @@ async function buildForCurrentArch(arch) {
 }
 
 async function main() {
-	if (process.env.VETTA_SKIP_BWRAP_BUILD === "true") {
-		console.log("[prepare-bwrap] skipped via VETTA_SKIP_BWRAP_BUILD=true");
+	if (process.env.AGENT567_SKIP_BWRAP_BUILD === "true") {
+		console.log("[prepare-bwrap] skipped via AGENT567_SKIP_BWRAP_BUILD=true");
 		return;
 	}
 

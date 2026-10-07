@@ -1,4 +1,3 @@
-import { execSync } from "node:child_process";
 import { cpSync, existsSync, readdirSync, readFileSync, statSync, writeFileSync } from "node:fs";
 import { mkdir, rm, writeFile } from "node:fs/promises";
 import { homedir } from "node:os";
@@ -11,6 +10,7 @@ import { getBuiltinSkillPaths } from "../builtin-skills.js";
 import { pluginAgentContributionService } from "../plugins/plugin-catalog.js";
 import { parseFrontmatter, rewriteFrontmatterDescription } from "../skills/skill-frontmatter.js";
 import { installSkillFromMarketArchive, installSkillFromMarketSlug } from "../skills/skill-market-install.js";
+import { assertValidSkillName } from "../skills/skill-name.js";
 import {
 	getDesktopSkillService,
 	getSkillBaseDir,
@@ -19,13 +19,8 @@ import {
 	recordSkillResourceEvent,
 	writeSkillsManifest,
 } from "../skills/skill-service.js";
+import { extractTarGz } from "../skills/tar-extract.js";
 import { allowProjectRoot } from "./fs.js";
-
-function assertNonEmptyString(value: unknown, fieldName: string): asserts value is string {
-	if (typeof value !== "string" || value.trim().length === 0) {
-		throw new Error(`Invalid ${fieldName}`);
-	}
-}
 
 const tmpBaseDir = join(getVettaHomePath(), "tmp");
 
@@ -87,7 +82,7 @@ export function registerSkillsIpc(): () => void {
 	ipcMain.handle(
 		"vetta:skills:install-from-market",
 		async (_event, name: unknown, archiveBuffer: unknown, type: unknown, meta: unknown) => {
-			assertNonEmptyString(name, "name");
+			assertValidSkillName(name);
 			if (!(archiveBuffer instanceof ArrayBuffer) && !Buffer.isBuffer(archiveBuffer)) {
 				throw new Error("Invalid archive buffer");
 			}
@@ -105,18 +100,18 @@ export function registerSkillsIpc(): () => void {
 
 	/** Action / 官方插件：按市场 slug 下载并安装能力（skill/scene）。 */
 	ipcMain.handle("vetta:skills:install-from-market-slug", async (_event, type: unknown, slug: unknown) => {
-		assertNonEmptyString(slug, "slug");
+		assertValidSkillName(slug);
 		const itemType: "skill" | "scene" = type === "scene" ? "scene" : "skill";
 		return installSkillFromMarketSlug(itemType, slug);
 	});
 
 	ipcMain.handle("vetta:skills:uninstall", async (_event, name: unknown, type: unknown) => {
-		assertNonEmptyString(name, "name");
+		assertValidSkillName(name);
 		await skills.uninstall(name, type === "scene" ? "scene" : type === "skill" ? "skill" : undefined);
 	});
 
 	ipcMain.handle("vetta:skills:toggle", async (_event, name: unknown) => {
-		assertNonEmptyString(name, "name");
+		assertValidSkillName(name);
 		return skills.toggle(name);
 	});
 
@@ -125,7 +120,7 @@ export function registerSkillsIpc(): () => void {
 	});
 
 	ipcMain.handle("vetta:skills:get-skill-md-path", async (_event, name: unknown, type: unknown) => {
-		assertNonEmptyString(name, "name");
+		assertValidSkillName(name);
 		const itemType: "skill" | "scene" = type === "scene" ? "scene" : "skill";
 		const skillMd = join(getSkillBaseDir(itemType), name, "SKILL.md");
 		if (existsSync(skillMd)) {
@@ -168,7 +163,7 @@ export function registerSkillsIpc(): () => void {
 				const tmpFile = join(tmpBaseDir, `_import_${stamp}.tar.gz`);
 				try {
 					await writeFile(tmpFile, buffer);
-					execSync(`tar -xzf "${tmpFile}" -C "${extractDir}"`, { timeout: 30000 });
+					extractTarGz(tmpFile, extractDir);
 				} finally {
 					await rm(tmpFile, { force: true }).catch(() => {});
 				}

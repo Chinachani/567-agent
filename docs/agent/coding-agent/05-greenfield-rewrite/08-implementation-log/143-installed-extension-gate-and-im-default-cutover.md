@@ -19,7 +19,7 @@ Greenfield 不是 coding-agent 内核的全局隐式默认。不同宿主仍可�
 Desktop IM 的 `coding-agent` 启动规格默认值改为 `greenfield-im`。CLI 的通用选择器、旧会话格式识别和
 显式参数语义不变。
 
-`VETTA_IM_AGENT_RUNTIME=legacy` 仍是明确的进程级回滚开关。空值和未配置值选择 Greenfield，未知值
+`AGENT567_IM_AGENT_RUNTIME=legacy` 仍是明确的进程级回滚开关。空值和未配置值选择 Greenfield，未知值
 继续抛错，避免拼写错误静默改变运行时。
 
 ### 2. 安装产物必须验证能力选择，而不只是验证可启动

@@ -64,6 +64,11 @@ export type RemoteInputMessage =
 			readonly modifiers?: readonly ("alt" | "control" | "meta" | "shift")[];
 	  }
 	| {
+			readonly type: "text";
+			readonly sequence: number;
+			readonly text: string;
+	  }
+	| {
 			readonly type: "heartbeat";
 			readonly sequence: number;
 			readonly sentAt: number;

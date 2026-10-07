@@ -21,7 +21,7 @@ import kotlin.test.assertNotNull
 
 private const val LIVE_INVITE_FILE_ARGUMENT = "vettaLiveInviteFile"
 private const val LIVE_CONNECTION_MODE_ARGUMENT = "vettaLiveConnectionMode"
-private const val EXPECTED_REPLY_MARKER = "VETTA_REMOTE_E2E_OK"
+private const val EXPECTED_REPLY_MARKER = "AGENT567_REMOTE_E2E_OK"
 
 /**
  * Opt-in production-path acceptance test. It requires a live Desktop pairing invite and may call a paid model.

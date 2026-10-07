@@ -44,7 +44,8 @@ export function createCodingAgentSessionAssistanceExtension(): SessionExtensionD
 					{
 						kind: "endpoint",
 						token: CODING_AGENT_NEXT_PROMPT_SUGGESTIONS,
-						handle: ({ conversation }) => requireRuntime(runtime).generateNextPrompts(conversation),
+						handle: ({ conversation }, signal) =>
+							requireRuntime(runtime).generateNextPrompts(conversation, signal),
 					},
 				],
 				dispose() {

@@ -38,12 +38,12 @@ The renderer captures 16 kHz mono PCM with an AudioWorklet. Recognition runs in 
 utility process so native initialization and decoding do not block the main process. See
 [`ADR-0070`](../../docs/adr/0070-windows-local-streaming-speech-input.md).
 
-Windows speech input is enabled in builds by default. Set `VETTA_SPEECH_INPUT_ENABLED=false` before
+Windows speech input is enabled in builds by default. Set `AGENT567_SPEECH_INPUT_ENABLED=false` before
 running the complete build or packaging command to produce an artifact without the speech model,
 Sherpa native runtime, speech utility-process entry, microphone permission, or Renderer microphone entry:
 
 ```powershell
-$env:VETTA_SPEECH_INPUT_ENABLED="false"
+$env:AGENT567_SPEECH_INPUT_ENABLED="false"
 bun run dist:opensource
 ```
 
@@ -130,7 +130,7 @@ Observation Hub. Trace/span remains the native execution signal within observabi
 usage and parent linkage are preserved without collecting content. The Runtime composition owns and closes these resources.
 Internal queries remain session-scoped; no global UI query singleton or diagnostic IPC remains. The v1 `agent-traces.json`
 path and retention limits (7 days, 5,000 records, 16 MiB) stay compatible. Degradation is reported through safe structured logs
-and internal query health. Remote export still requires explicit `VETTA_TRACING=langfuse` configuration.
+and internal query health. Remote export still requires explicit `AGENT567_TRACING=langfuse` configuration.
 
 ### Local development
 
@@ -139,12 +139,12 @@ uses the root Turborepo task graph and local cache to build changed workspace pr
 plugin and theme manifests, then starts the renderer, theme server, and Electron process in parallel.
 
 Normal development is isolated from packaged application data: it defaults to
-`VETTA_CONFIG_DIR=.vetta-dev` and stores the Chromium profile under
+`AGENT567_CONFIG_DIR=.vetta-dev` and stores the Chromium profile under
 `~/.vetta-dev/electron-user-data`. Packaged builds use `~/.567agent`. Set
-`VETTA_CONFIG_DIR` and `VETTA_DESKTOP_USER_DATA_DIR` together when a custom isolated development
+`AGENT567_CONFIG_DIR` and `AGENT567_DESKTOP_USER_DATA_DIR` together when a custom isolated development
 environment is required.
 
-Because the Chromium profile is derived from the config directory, switching `VETTA_CONFIG_DIR`
+Because the Chromium profile is derived from the config directory, switching `AGENT567_CONFIG_DIR`
 switches the whole environment — data root and browser profile — with no shared state between them.
 Two scripts make the common pair explicit:
 
@@ -159,26 +159,26 @@ packaged `package.json` by `scripts/prepare-pack.js`. Changing it strands every 
 encrypted under the old name.
 
 `bun run dev:home` explicitly selects the legacy `~/.vetta` data root; packaged builds use
-`~/.567agent`. To run development against the packaged app's data, set `VETTA_CONFIG_DIR=.567agent`.
+`~/.567agent`. To run development against the packaged app's data, set `AGENT567_CONFIG_DIR=.567agent`.
 Do not run two processes against the same config directory at once: they share the Chromium profile
 and single-instance lock. The project-level `<cwd>/.vetta` directory remains a compatibility path and
-does not follow `VETTA_CONFIG_DIR` (see `packages/coding-agent/src/config.ts`).
+does not follow `AGENT567_CONFIG_DIR` (see `packages/coding-agent/src/config.ts`).
 
-Set `VETTA_CONFIG_DIR` on the command line, not in `.env.development`: the dev launcher is plain
+Set `AGENT567_CONFIG_DIR` on the command line, not in `.env.development`: the dev launcher is plain
 Node and never reads `.env` files, so a value placed there would only reach the vite-inlined main
 process and would disagree with the launcher-derived Chromium profile.
 
 Main-process sourcemaps are disabled by default to keep startup builds fast. Set
-`VETTA_MAIN_SOURCEMAP=true` when source-mapped Electron stack traces are needed.
+`AGENT567_MAIN_SOURCEMAP=true` when source-mapped Electron stack traces are needed.
 
 Persistent Renderer logs keep user-operation signals, warnings, and errors by default, while omitting
 high-frequency plugin registration, activity-tab resolution, theme loading, and routine Vite HMR records.
-DevTools still shows those console messages. Set `VETTA_RENDERER_VERBOSE_LOGS=1` before starting Desktop
+DevTools still shows those console messages. Set `AGENT567_RENDERER_VERBOSE_LOGS=1` before starting Desktop
 when a diagnostic session needs the complete Renderer console stream in the log files.
 
 Development automatically starts plugin dev servers for every preset selected by the active
-`VETTA_TENANT`, so preset source, manifest, locale, and agent resource changes reload without an
-App restart. Set `VETTA_PLUGIN_DEV` to a comma-separated list to limit development to specific
+`AGENT567_TENANT`, so preset source, manifest, locale, and agent resource changes reload without an
+App restart. Set `AGENT567_PLUGIN_DEV` to a comma-separated list to limit development to specific
 plugins, or set it to an empty string to disable plugin dev servers and use staged archives only.
 Each project uses its own exported `@vetta-org/plugin-vite/cli`. The stable staged or installed
 plugin remains active until the development server completes its versioned ready handshake; an
@@ -200,7 +200,7 @@ bun run dist:opensource -- --target dir
 bun run test:e2e:packaged
 ```
 
-Runtime sets `VETTA_E2E=1`, `VETTA_CONFIG_DIR=.vetta-e2e`, and isolates Chromium profile under `.wdio-electron-user-data`.
+Runtime sets `AGENT567_E2E=1`, `AGENT567_CONFIG_DIR=.vetta-e2e`, and isolates Chromium profile under `.wdio-electron-user-data`.
 When a user explicitly requests agent-driven UI verification, use repo-root `verify:ui:*` (Playwright); UI changes alone do not trigger it. This WebdriverIO suite targets formal E2E / CI.
 
 Current `e2e/smoke.e2e.ts` batch-1 covers boot only: main-process ready/version, main window `index.html`, config/userData isolation, and a `dialog` mock probe. It does not cover login, chat, or other product flows.

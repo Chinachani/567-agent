@@ -1,6 +1,6 @@
 import { pathBasename, toVettaFileUrl } from "@shared/lib/utils";
 import type { InputBarContextMenuViewProps } from "@vetta-org/theme-ui/chat";
-import { memo, useMemo } from "react";
+import { Fragment, memo, useMemo } from "react";
 import { useTranslation } from "react-i18next";
 import { InputBar } from "../InputBar";
 import type { ActiveActionCapsule } from "./ActiveActionCapsules";
@@ -22,6 +22,7 @@ import { useInputActionBarModel } from "../useInputActionBarModel";
 import { useDefaultContextRingModel } from "../../hooks/useContextRingModel";
 import { useDefaultExecutionModeSelectorModel } from "../../hooks/useExecutionModeSelectorModel";
 import { usePlanModeModel } from "../../hooks/usePlanModeModel";
+import { GoalModeDialog } from "../GoalModeDialog";
 
 /** 普通 Chat 的默认配方；每项能力由独立 source/model 提供，其他 Connector 可自行取舍。 */
 export const DefaultInputBarConnector = memo(function DefaultInputBarConnector(props: ConnectedInputBarProps): JSX.Element {
@@ -185,5 +186,10 @@ export const DefaultInputBarConnector = memo(function DefaultInputBarConnector(p
 		},
 	};
 
-	return <InputBar model={model} />;
+	return (
+		<Fragment>
+			<InputBar model={model} />
+			<GoalModeDialog />
+		</Fragment>
+	);
 });

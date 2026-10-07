@@ -47,7 +47,7 @@ Desktop selector 新增结构化决策：
 - `source`：`default | environment`。
 
 `desktop-runtime-decision.ts` 在进程模块初始化时只解析一次
-`VETTA_DESKTOP_AGENT_RUNTIME`。Runtime 组合和 Knowledge Poller 均直接消费这一个对象，原有
+`AGENT567_DESKTOP_AGENT_RUNTIME`。Runtime 组合和 Knowledge Poller 均直接消费这一个对象，原有
 `resolveDesktopAgentRuntimeBackend` 继续作为兼容函数保留。
 
 ### 2. 增加会话路由观察合同

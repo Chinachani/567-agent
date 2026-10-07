@@ -24,52 +24,56 @@ function toolkitSourceAlias(): Plugin {
 }
 
 export default defineConfig(({ mode }) => {
-	// 允许通过 VETTA_BUILD_ENV 覆盖构建模式，方便 dist:*:test 等组合脚本从外层注入，
+	// 允许通过 AGENT567_BUILD_ENV 覆盖构建模式，方便 dist:*:test 等组合脚本从外层注入，
 	// 而不必给每个平台/格式的脚本都复刻一遍。
 	// 默认值：vite build 命令的 mode（不指定时为 production）。
-	const effectiveMode = process.env.VETTA_BUILD_ENV || mode;
-	const env = loadEnv(effectiveMode, process.cwd(), "VETTA_");
+	const effectiveMode = process.env.AGENT567_BUILD_ENV || mode;
+	const env = loadEnv(effectiveMode, process.cwd(), ["AGENT567_", "API567_"]);
 	for (const [key, value] of Object.entries(process.env)) {
-		if (key.startsWith("VETTA_") && value !== undefined) env[key] = value;
+		if ((key.startsWith("AGENT567_") || key.startsWith("API567_")) && value !== undefined) {
+			env[key] = value;
+		}
 	}
+	env.API567_BASE_URL = env.API567_BASE_URL?.trim() || "";
 	const speechInputBuildConfig = resolveSpeechInputBuildConfig({ env });
 	const developmentWorkspacePackages =
 		effectiveMode === "development"
 			? [/^@567agent\/(?:action-rpc|ai|coding-agent|remote-control|runtime-core)(?:\/|$)/]
 			: [];
-	const sourcemapEnabled = (process.env.VETTA_MAIN_SOURCEMAP ?? env.VETTA_MAIN_SOURCEMAP) === "true";
+	const sourcemapEnabled = (process.env.AGENT567_MAIN_SOURCEMAP) === "true";
 	const sentry = createSentryBuildSetup(env, "dist/main");
 
 	// 云服务构建期开关：默认关闭（lite）；只有显式 true 才产出完全体。
-	const cloudEnabled = env.VETTA_CLOUD_ENABLED === "true";
+	const cloudEnabled = env.AGENT567_CLOUD_ENABLED === "true";
 
-	// SERVER_URL 只对完全体是必需的——lite 里登录、网关、官方市场都不进产物。
-	if (cloudEnabled && !env.VETTA_SERVER_URL) {
+	// NewAPI 服务地址只对商业完整版是必需的——lite 里云端能力不进产物。
+	if (cloudEnabled && !env.API567_BASE_URL) {
 		throw new Error(
-			`[vite.main.config] VETTA_CLOUD_ENABLED=true 需要 VETTA_SERVER_URL，请检查 .env.${effectiveMode}（mode=${effectiveMode}）`,
+			`[vite.main.config] AGENT567_CLOUD_ENABLED=true 需要 API567_BASE_URL，请检查 .env.${effectiveMode}（mode=${effectiveMode}）`,
 		);
 	}
 	console.log(
-		`[vite.main.config] mode=${effectiveMode}, cloud=${cloudEnabled}, VETTA_SERVER_URL=${env.VETTA_SERVER_URL ?? "(unset)"}, speechInput=${speechInputBuildConfig.enabled}`,
+		`[vite.main.config] mode=${effectiveMode}, cloud=${cloudEnabled}, API567_BASE_URL=${env.API567_BASE_URL ?? "(unset)"}, speechInput=${speechInputBuildConfig.enabled}`,
 	);
 
-	// 将 .env.<mode> 中的 VETTA_* 变量内联到构建产物
+	// 将 .env.<mode> 中允许的 AGENT567_* 与 API567_* 变量内联到构建产物
 	const define: Record<string, string> = {};
 	for (const [key, value] of Object.entries(env)) {
 		define[`process.env.${key}`] = JSON.stringify(value);
 	}
+	define["process.env.API567_BASE_URL"] = JSON.stringify(env.API567_BASE_URL);
 	define[`process.env.${SPEECH_INPUT_ENABLED_ENV}`] = JSON.stringify(String(speechInputBuildConfig.enabled));
 	// 未配置时按 false（lite）内联，保证 cloud 判断能被常量折叠掉。
-	define["process.env.VETTA_CLOUD_ENABLED"] = JSON.stringify(cloudEnabled ? "true" : "false");
+	define["process.env.AGENT567_CLOUD_ENABLED"] = JSON.stringify(cloudEnabled ? "true" : "false");
 	// GitHub 来源只由显式配置注册；固化空值，防止打包后意外继承启动环境的默认源。
-	define["process.env.VETTA_OPEN_MARKETPLACE_REPOSITORY"] = JSON.stringify(
-		env.VETTA_OPEN_MARKETPLACE_REPOSITORY?.trim() || "",
+	define["process.env.AGENT567_OPEN_MARKETPLACE_REPOSITORY"] = JSON.stringify(
+		env.AGENT567_OPEN_MARKETPLACE_REPOSITORY?.trim() || "",
 	);
-	define["process.env.VETTA_OPEN_MARKETPLACE_REF"] = JSON.stringify(
-		env.VETTA_OPEN_MARKETPLACE_REF?.trim() || "main",
+	define["process.env.AGENT567_OPEN_MARKETPLACE_REF"] = JSON.stringify(
+		env.AGENT567_OPEN_MARKETPLACE_REF?.trim() || "main",
 	);
-	define["process.env.VETTA_OPEN_MARKETPLACE_ARCHIVE_URL"] = JSON.stringify(
-		env.VETTA_OPEN_MARKETPLACE_ARCHIVE_URL?.trim() || "",
+	define["process.env.AGENT567_OPEN_MARKETPLACE_ARCHIVE_URL"] = JSON.stringify(
+		env.AGENT567_OPEN_MARKETPLACE_ARCHIVE_URL?.trim() || "",
 	);
 
 	return {

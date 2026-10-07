@@ -4,8 +4,8 @@ import { join } from "node:path";
 import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
 
 /**
- * DEFAULT_CONVERSATION_CWD 在模块加载时由 VETTA_HOME 派生，因此本文件不做静态导入：
- * 先把 VETTA_HOME 指到临时目录，再动态加载被测模块，让「对话」根落在可控位置。
+ * DEFAULT_CONVERSATION_CWD 在模块加载时由 AGENT567_HOME 派生，因此本文件不做静态导入：
+ * 先把 AGENT567_HOME 指到临时目录，再动态加载被测模块，让「对话」根落在可控位置。
  */
 describe("「对话」根目录下会话工作区的列举可见性", () => {
 	const uuidDirName = "0c558d85-6603-4e52-81a4-ba686d57a3e4";
@@ -16,8 +16,8 @@ describe("「对话」根目录下会话工作区的列举可见性", () => {
 
 	beforeAll(async () => {
 		vettaHome = await mkdtemp(join(tmpdir(), "vetta-conv-visibility-"));
-		previousVettaHome = process.env.VETTA_HOME;
-		process.env.VETTA_HOME = vettaHome;
+		previousVettaHome = process.env.AGENT567_HOME;
+		process.env.AGENT567_HOME = vettaHome;
 		vi.resetModules();
 		service = await import("./filesystem-service.js");
 		const config = await import("../config/desktop-config-store.js");
@@ -33,9 +33,9 @@ describe("「对话」根目录下会话工作区的列举可见性", () => {
 
 	afterAll(async () => {
 		if (previousVettaHome === undefined) {
-			delete process.env.VETTA_HOME;
+			delete process.env.AGENT567_HOME;
 		} else {
-			process.env.VETTA_HOME = previousVettaHome;
+			process.env.AGENT567_HOME = previousVettaHome;
 		}
 		vi.resetModules();
 		if (vettaHome) await rm(vettaHome, { recursive: true, force: true });

@@ -143,6 +143,31 @@ class RemoteConnectionTest {
         }
 
     @Test
+    fun doesNotSendSuggestionCancelToAnUnnegotiatedLegacyPeer() =
+        runTest {
+            val transport = FakeRemoteTransport()
+            val connection = connection(transport = transport, scope = backgroundScope)
+            connection.connect()
+            runCurrent()
+            transport.receive(RemoteHelloAck(connectionId = "connection-1", peerDeviceId = "desktop-1"))
+            runCurrent()
+
+            val requestJob = launch {
+                runCatching {
+                    connection.request(RemoteRequestMethod.SessionSuggestions, sessionId = "session-1", timeoutMs = 100)
+                }
+            }
+            runCurrent()
+            advanceUntilIdle()
+            requestJob.join()
+
+            assertEquals(
+                listOf(RemoteRequestMethod.SessionSuggestions),
+                transport.sent.filterIsInstance<RemoteRequest>().map { it.method },
+            )
+        }
+
+    @Test
     fun metadataLogsNeverContainPayloadText() =
         runTest {
             val logger = RecordingLogger()

@@ -3,7 +3,7 @@ package org.agent567.android.core
 import org.agent567.android.AppVersion
 
 /**
- * 与 desktop `VETTA_SERVER_URL` 对齐的客户端配置。
+ * 与 desktop `API567_BASE_URL` 对齐的客户端配置。
  *
  * 推荐格式：`http(s)://host:port/api/v1`
  * - REST API 落在 [apiBaseUrl]

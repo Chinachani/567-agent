@@ -82,16 +82,26 @@ export class DesktopLocalRelay {
 				const desktopMatch = /^\/v1\/desktop\/([^/]+)\/(host|viewer)$/.exec(url.pathname);
 
 				if (!relayMatch && !desktopMatch) {
+					log.warn("local relay websocket rejected", { reason: "unknown_route" });
 					socket.destroy();
 					return;
 				}
 				const requestedProtocols = readRequestedProtocols(request.headers["sec-websocket-protocol"]);
 				const resumeSecret = this.authorizeConnection(relayMatch ?? desktopMatch!, requestedProtocols);
 				if (resumeSecret === false) {
+					log.warn("local relay websocket rejected", {
+						channel: relayMatch ? "control" : "screen",
+						role: (relayMatch ?? desktopMatch)![2],
+						reason: "credential_rejected",
+					});
 					socket.destroy();
 					return;
 				}
 
+				log.info("local relay websocket accepted", {
+					channel: relayMatch ? "control" : "screen",
+					role: (relayMatch ?? desktopMatch)![2],
+				});
 				wss.handleUpgrade(request, socket, head, (ws) => {
 					if (relayMatch) {
 						this.handleRelayConnection(
@@ -228,6 +238,7 @@ export class DesktopLocalRelay {
 				try {
 					frame = parseRemoteFrame(line);
 				} catch {
+					log.warn("local relay frame rejected", { role, reason: "invalid_frame" });
 					const unsupported = readUnsupportedRequest(line);
 					if (role === "mobile" && unsupported) {
 						const response: RemoteResponse = {
@@ -248,6 +259,11 @@ export class DesktopLocalRelay {
 				if (frame.type === "hello") {
 					if (role === "desktop") room!.desktopHello = frame;
 					else room!.mobileHello = frame;
+					log.info("local relay hello received", {
+						role,
+						protocolVersion: frame.protocolVersion,
+						peerSocketConnected: role === "desktop" ? Boolean(room!.mobile) : Boolean(room!.desktop),
+					});
 
 					if (room!.desktop && room!.mobile && room!.desktopHello && room!.mobileHello) {
 						room!.mobile.send(
@@ -278,7 +294,13 @@ export class DesktopLocalRelay {
 			}
 		});
 
-		ws.on("close", () => {
+		ws.on("close", (code) => {
+			log.info("local relay websocket closed", {
+				role,
+				code,
+				helloReceived: role === "desktop" ? Boolean(room!.desktopHello) : Boolean(room!.mobileHello),
+				peerHelloReceived: role === "desktop" ? Boolean(room!.mobileHello) : Boolean(room!.desktopHello),
+			});
 			if (role === "desktop" && room!.desktop === ws) {
 				room!.desktop = undefined;
 				room!.desktopHello = undefined;

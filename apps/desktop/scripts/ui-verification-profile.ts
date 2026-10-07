@@ -142,18 +142,18 @@ export function createProfileEnvironment(
 ): NodeJS.ProcessEnv {
   const profileEnvironment: NodeJS.ProcessEnv = {
     ...environment,
-    VETTA_CONFIG_DIR: layout.configDir,
-    VETTA_HOME: layout.vettaHome,
-    VETTA_CODING_AGENT_DIR: join(layout.vettaHome, "agent"),
-    VETTA_DESKTOP_USER_DATA_DIR: layout.userDataDir,
-    VETTA_ACTION_RPC_ENDPOINT_FILE: layout.endpointFile,
-    VETTA_THEME_DEV_SERVER: "0",
+    AGENT567_CONFIG_DIR: layout.configDir,
+    AGENT567_HOME: layout.vettaHome,
+    AGENT567_CODING_AGENT_DIR: join(layout.vettaHome, "agent"),
+    AGENT567_DESKTOP_USER_DATA_DIR: layout.userDataDir,
+    AGENT567_ACTION_RPC_ENDPOINT_FILE: layout.endpointFile,
+    AGENT567_THEME_DEV_SERVER: "0",
   };
 
   if (layout.profile !== "dev") {
-    profileEnvironment.VETTA_UI_VERIFICATION = "1";
+    profileEnvironment.AGENT567_UI_VERIFICATION = "1";
   } else {
-    delete profileEnvironment.VETTA_UI_VERIFICATION;
+    delete profileEnvironment.AGENT567_UI_VERIFICATION;
   }
 
   return profileEnvironment;

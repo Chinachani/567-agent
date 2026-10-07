@@ -96,21 +96,21 @@ jobs:
       - name: Build unpacked Desktop package
         working-directory: apps/desktop
         env:
-          VETTA_BUILD_ENV: test
-          VETTA_CLOUD_ENABLED: "false"
-          VETTA_OPEN_MARKETPLACE_REPOSITORY: Chinachani/567-agent-marketplace
-          VETTA_SPEECH_INPUT_ENABLED: "false"
-          VETTA_UPDATE_GITHUB_OWNER: ${{ github.repository_owner }}
-          VETTA_UPDATE_GITHUB_REPO: ${{ github.event.repository.name }}
-          VETTA_UPDATE_PROVIDER: github
+          AGENT567_BUILD_ENV: test
+          AGENT567_CLOUD_ENABLED: "false"
+          AGENT567_OPEN_MARKETPLACE_REPOSITORY: Chinachani/567-agent-marketplace
+          AGENT567_SPEECH_INPUT_ENABLED: "false"
+          AGENT567_UPDATE_GITHUB_OWNER: ${{ github.repository_owner }}
+          AGENT567_UPDATE_GITHUB_REPO: ${{ github.event.repository.name }}
+          AGENT567_UPDATE_PROVIDER: github
         run: bun run ${{ matrix.build-command }}
 
       - name: Run packaged Electron smoke and updater E2E
         working-directory: apps/desktop
         env:
-          VETTA_E2E_PACKAGED: "1"
-          VETTA_BUILD_ENV: test
-          VETTA_SPEECH_INPUT_ENABLED: "false"
+          AGENT567_E2E_PACKAGED: "1"
+          AGENT567_BUILD_ENV: test
+          AGENT567_SPEECH_INPUT_ENABLED: "false"
         shell: bash
         run: |
           if [[ "${{ matrix.platform }}" == "Linux" ]]; then

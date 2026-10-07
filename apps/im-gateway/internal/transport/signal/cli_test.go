@@ -25,7 +25,7 @@ import (
 	"github.com/Chinachani/567-agent/apps/im-gateway/internal/transport"
 )
 
-const fakeCLIEnv = "VETTA_FAKE_SIGNAL_CLI"
+const fakeCLIEnv = "AGENT567_FAKE_SIGNAL_CLI"
 
 const fakeAccount = "+15551234567"
 
@@ -65,12 +65,12 @@ func TestHelperSignalCLI(t *testing.T) {
 			break
 		}
 	}
-	if dest := os.Getenv("VETTA_FAKE_SIGNAL_ARGS_FILE"); dest != "" {
+	if dest := os.Getenv("AGENT567_FAKE_SIGNAL_ARGS_FILE"); dest != "" {
 		_ = os.WriteFile(dest, []byte(strings.Join(args, "\n")), 0o600)
 	}
 	switch {
 	case hasArg(args, "listAccounts"):
-		if os.Getenv("VETTA_FAKE_SIGNAL_NO_ACCOUNT") == "1" {
+		if os.Getenv("AGENT567_FAKE_SIGNAL_NO_ACCOUNT") == "1" {
 			fmt.Println("[]")
 		} else {
 			fmt.Printf("[{\"number\":%q,\"path\":\"/tmp\"}]\n", fakeAccount)
@@ -78,7 +78,7 @@ func TestHelperSignalCLI(t *testing.T) {
 		os.Exit(0)
 	case hasArg(args, "link"):
 		fmt.Println("some banner line")
-		if os.Getenv("VETTA_FAKE_SIGNAL_NO_URI") == "1" {
+		if os.Getenv("AGENT567_FAKE_SIGNAL_NO_URI") == "1" {
 			// Mirrors an unreachable-Signal run: no URI, non-zero exit.
 			fmt.Fprintln(os.Stderr, "Link request timed out, please try again.")
 			os.Exit(1)
@@ -240,7 +240,7 @@ func TestLink_EmitsURIAndResolvesAccount(t *testing.T) {
 
 func TestLink_DefaultDeviceName(t *testing.T) {
 	argsFile := filepath.Join(t.TempDir(), "link-args.txt")
-	t.Setenv("VETTA_FAKE_SIGNAL_ARGS_FILE", argsFile)
+	t.Setenv("AGENT567_FAKE_SIGNAL_ARGS_FILE", argsFile)
 	// Inspect link arguments before listAccounts overwrites the helper's log.
 	seen := false
 	account, err := Link(context.Background(), CLIOptions{Path: fakeCLI(t), ConfigDir: t.TempDir()}, "", func(string) {
@@ -259,7 +259,7 @@ func TestLink_DefaultDeviceName(t *testing.T) {
 }
 
 func TestLink_NoAccountAfterSuccess(t *testing.T) {
-	t.Setenv("VETTA_FAKE_SIGNAL_NO_ACCOUNT", "1")
+	t.Setenv("AGENT567_FAKE_SIGNAL_NO_ACCOUNT", "1")
 	opts := CLIOptions{Path: fakeCLI(t), ConfigDir: t.TempDir()}
 
 	if _, err := Link(context.Background(), opts, "Vetta", nil); err == nil {
@@ -495,7 +495,7 @@ func TestJVMProxyArgs_NonProxyHostsKeepsLoopbackDirect(t *testing.T) {
 
 func TestGlobalArgs_ProxyPropertiesPrecedeSubcommand(t *testing.T) {
 	argsFile := filepath.Join(t.TempDir(), "args")
-	t.Setenv("VETTA_FAKE_SIGNAL_ARGS_FILE", argsFile)
+	t.Setenv("AGENT567_FAKE_SIGNAL_ARGS_FILE", argsFile)
 	opts := CLIOptions{Path: fakeCLI(t), ConfigDir: t.TempDir(), ProxyURL: "http://127.0.0.1:1080"}
 
 	if _, err := ListAccounts(context.Background(), opts); err != nil {
@@ -525,7 +525,7 @@ func TestGlobalArgs_ProxyPropertiesPrecedeSubcommand(t *testing.T) {
 // failure: with Signal unreachable, signal-cli prints no URI and exits 1.
 // The caller must learn that, not just "exit status 1".
 func TestLink_NoURIReportsUnreachable(t *testing.T) {
-	t.Setenv("VETTA_FAKE_SIGNAL_NO_URI", "1")
+	t.Setenv("AGENT567_FAKE_SIGNAL_NO_URI", "1")
 	opts := CLIOptions{Path: fakeCLI(t), ConfigDir: t.TempDir()}
 
 	_, err := Link(context.Background(), opts, "Vetta", func(string) {

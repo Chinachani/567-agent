@@ -43,7 +43,9 @@ export function useMessageListScrollModel({
 		onAtBottomChange: feed.onAtBottomChange,
 		scrollerElement: feed.scrollerElement,
 		scrollerRef: feed.scrollerRef,
+		scrollToBottom: feed.scrollToBottom,
 		scrollToMessage: feed.scrollToItem,
+		showScrollToBottom: feed.showScrollToBottom,
 		virtuosoRef: feed.virtuosoRef,
 		restoreStateFrom: feed.restoreStateFrom,
 	};

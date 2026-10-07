@@ -7,7 +7,7 @@ import { APP_NAME, ENV_AGENT_DIR, ENV_PACKAGE_DIR, ENV_SHARE_VIEWER_URL, PACKAGE
 
 export { getVettaHomePath } from "@567agent/action-rpc";
 
-declare const VETTA_COMPILED_PACKAGE_METADATA: unknown;
+declare const AGENT567_COMPILED_PACKAGE_METADATA: unknown;
 
 const moduleFilename = fileURLToPath(import.meta.url);
 const moduleDirectory = dirname(moduleFilename);
@@ -136,7 +136,8 @@ function loadPackageManifest(): unknown {
 			return undefined;
 		}
 	}
-	if (isBunBinary && typeof VETTA_COMPILED_PACKAGE_METADATA !== "undefined") return VETTA_COMPILED_PACKAGE_METADATA;
+	if (isBunBinary && typeof AGENT567_COMPILED_PACKAGE_METADATA !== "undefined")
+		return AGENT567_COMPILED_PACKAGE_METADATA;
 	return undefined;
 }
 

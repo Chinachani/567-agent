@@ -1,11 +1,11 @@
 ---
 title: Troubleshooting
-description: Locate failures by layer, then diagnose login, models, files, knowledge, MCP, plugins, batch tasks, and automation.
+description: Locate failures by layer, then diagnose NewAPI, models, files, knowledge, MCP, plugins, batch tasks, and automation.
 ---
 
 <Takeaways>
   <li>Preserve the failure state instead of clicking retry repeatedly</li>
-  <li>Narrow the scope from account and model to workspace, capability, and task</li>
+  <li>Narrow the scope from service and model to workspace, capability, and task</li>
   <li>Check UI state, execution history, and real artifacts together</li>
 </Takeaways>
 
@@ -23,7 +23,7 @@ Record the time, entry point, and last successful step first. For a report, use 
 
 | Symptom | Likely layer | First check |
 | --- | --- | --- |
-| No session can answer | Login, model, or network | Select a verified model in a new session |
+| No session can answer | NewAPI, model, or network | Select a verified model in a new session |
 | Only one project fails | Worktree, project instructions, or permissions | Path exists and sandbox permits the action |
 | One external tool fails | MCP process, URL, or authorization | Connector state under **Capabilities → My capabilities** |
 | Success but no file | Acceptance rule or path | Tool record and target directory, not only the final reply |
@@ -33,11 +33,6 @@ Record the time, entry point, and last successful step first. For a report, use 
 ## Diagnose by symptom
 
 <Accordions type="single">
-  <Accordion id="login-failed" title="Login failed or the authorization link expired">
-    **Check first**: Verify the system clock, network access to the authentication service, and that the browser returns to the app after authorization.
-
-    **Recover**: Use **Reauthorize** or **Open link again** in the login dialog. For an enterprise account, record the time and organization and contact its administrator; do not attach browser cookies.
-  </Accordion>
   <Accordion id="model-failed" title="The model cannot be called">
     **Check first**:
 

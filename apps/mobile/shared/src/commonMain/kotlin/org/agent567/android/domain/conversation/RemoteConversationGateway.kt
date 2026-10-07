@@ -30,6 +30,12 @@ data class RemoteDesktopHistoryMessage(
     val status: MessageStatus = MessageStatus.Complete,
 )
 
+data class RemoteDesktopImageChunk(
+    val mimeType: String,
+    val sizeBytes: Int,
+    val dataBase64: String,
+)
+
 interface RemoteConversationGateway {
     val devices: StateFlow<List<DesktopDevice>>
 
@@ -46,10 +52,20 @@ interface RemoteConversationGateway {
 
     suspend fun deleteDesktopSession(deviceId: String, remoteSessionId: String): Boolean? = null
 
+    suspend fun deleteEmptyDesktopSession(deviceId: String, remoteSessionId: String): Boolean? = null
+
     suspend fun readDesktopSessionHistory(
         localSessionId: String,
         remoteSessionId: String,
     ): List<RemoteDesktopHistoryMessage>? = null
+
+    suspend fun readDesktopGeneratedImageChunk(
+        localSessionId: String,
+        remoteSessionId: String,
+        imageId: String,
+        offset: Int,
+        length: Int,
+    ): RemoteDesktopImageChunk? = null
 
     suspend fun createDesktopSession(localSessionId: String, deviceId: String): Pair<String, RemoteSessionModelCatalog>? = null
 

@@ -30,6 +30,8 @@ data class ChatSession(
     val origin: ConversationOrigin = ConversationOrigin.Cloud,
     val remoteDeviceId: String? = null,
     val remoteSessionId: String? = null,
+    /** This mirror represents a new Desktop session initiated from the mobile app. */
+    val remoteSessionCreatedOnMobile: Boolean = false,
     val titleManuallyEdited: Boolean = false,
 )
 
@@ -37,7 +39,12 @@ data class MessageImage(
     val id: String,
     val mimeType: String,
     val fileName: String? = null,
-    val base64Data: String,
+    /** Inline data is only held while composing, importing legacy data, or making a request. */
+    val base64Data: String = "",
+    /** App-private image file key. Message metadata persists this instead of image bytes. */
+    val storageKey: String? = null,
+    /** Raw picker bytes stay unencoded until the SessionStore writes the image file. */
+    val pendingBytes: ByteArray? = null,
 ) {
     fun toContentPart(): ChatContentPart.Image =
         ChatContentPart.Image(mimeType = mimeType, base64Data = base64Data)

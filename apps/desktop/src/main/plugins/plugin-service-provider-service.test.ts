@@ -28,7 +28,7 @@ async function fixture() {
 	await mkdir(cacheDirectory);
 	await writeFile(
 		join(root, "config.tpl"),
-		`port=\${VETTA_SERVICE_PORT}\nruntime=\${VETTA_SERVICE_RUNTIME_DIR}\nkey=\${VETTA_SERVICE_SECRET_API_KEY}`,
+		`port=\${AGENT567_SERVICE_PORT}\nruntime=\${AGENT567_SERVICE_RUNTIME_DIR}\nkey=\${AGENT567_SERVICE_SECRET_API_KEY}`,
 	);
 	const manifest: PluginServiceProviderManifest = {
 		id: "bridge",
@@ -38,7 +38,7 @@ async function fixture() {
 			{ source: "config.tpl", destination: "generated.conf", mode: "render" },
 			{ source: "config.tpl", destination: "user.conf", mode: "create" },
 		],
-		process: { args: ["--config", `\${VETTA_SERVICE_CACHE_DIR}/generated.conf`] },
+		process: { args: ["--config", `\${AGENT567_SERVICE_CACHE_DIR}/generated.conf`] },
 		health: { path: "/health", credentialId: "api-key" },
 	};
 	const plugin: InstalledPlugin = {

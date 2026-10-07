@@ -105,6 +105,7 @@ describe("DesktopRemoteConnector", () => {
 		await connector.start();
 		await expect(mobile.request("session.list")).resolves.toEqual({
 			sessions: [{ id: "session-1", title: "Project" }],
+			supportedMethods: [],
 		});
 		await expect(mobile.request("session.prompt", { text: "hello" })).resolves.toEqual({
 			accepted: true,
@@ -113,6 +114,64 @@ describe("DesktopRemoteConnector", () => {
 		await waitFor(() => events.length === 2);
 		expect(events).toEqual([{ kind: "delta", text: "reply:hello" }, { state: "completed" }]);
 
+		await connector.stop();
+	});
+
+	it("cancels an in-flight remote suggestion request", async () => {
+		const relay = new FakeRelay();
+		const mobile = new RemoteConnection(relay.createTransport("pair-cancel-suggestions", "mobile"), {
+			role: "mobile",
+			deviceId: "phone-cancel",
+			deviceName: "Phone",
+			capabilities: { chat: true, sessionRead: true },
+			connectionId: "mobile-cancel",
+			now: () => 10,
+		});
+		const desktop = new RemoteConnection(relay.createTransport("pair-cancel-suggestions", "desktop"), {
+			role: "desktop",
+			deviceId: "desktop-cancel",
+			deviceName: "Desktop",
+			capabilities: { chat: true, sessionRead: true },
+			connectionId: "desktop-cancel",
+		});
+		let suggestionSignal: AbortSignal | undefined;
+		let suggestionRequestId: string | undefined;
+		desktop.onEvent((event) => {
+			if (event.type === "remote-request" && event.request.method === "session.suggestions") {
+				suggestionRequestId = event.request.requestId;
+			}
+		});
+		const operations: DesktopRemoteOperations = {
+			listSessions: async () => [],
+			createSession: async () => ({ sessionId: "session-cancel" }),
+			openSession: async (sessionId) => ({ sessionId }),
+			readSuggestions: async (_sessionId, signal) => {
+				suggestionSignal = signal;
+				return await new Promise<readonly string[]>((_resolve, reject) => {
+					signal?.addEventListener("abort", () => reject(signal.reason), { once: true });
+				});
+			},
+			prompt: async function* () {},
+			abort: async () => undefined,
+			resume: async () => undefined,
+			diagnostics: async () => ({}),
+		};
+		const connector = new DesktopRemoteConnector(desktop, operations);
+		await mobile.connect();
+		await connector.start();
+		await expect(mobile.request("session.list")).resolves.toMatchObject({
+			supportedMethods: ["session.suggestions.cancel"],
+		});
+
+		const suggestions = mobile.request("session.suggestions", undefined, "session-cancel");
+		await waitFor(() => suggestionSignal !== undefined && suggestionRequestId !== undefined);
+		await mobile.request("session.suggestions.cancel", { requestId: suggestionRequestId }, "another-session");
+		expect(suggestionSignal?.aborted).toBe(false);
+		await mobile.request("session.suggestions.cancel", { requestId: suggestionRequestId }, "session-cancel");
+		await waitFor(() => suggestionSignal?.aborted === true);
+
+		await mobile.close();
+		await expect(suggestions).rejects.toThrow();
 		await connector.stop();
 	});
 

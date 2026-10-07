@@ -189,9 +189,9 @@ export function createAgentRpcProcessEnv(
 		LOCALAPPDATA: join(fixture.root, "local-app-data"),
 		NO_COLOR: "1",
 		USERPROFILE: fixture.root,
-		VETTA_CODING_AGENT_DIR: fixture.agentDir,
-		VETTA_HOME: join(fixture.root, "home"),
-		VETTA_PACKAGE_DIR: join(repositoryRoot, "packages", "coding-agent"),
+		AGENT567_CODING_AGENT_DIR: fixture.agentDir,
+		AGENT567_HOME: join(fixture.root, "home"),
+		AGENT567_PACKAGE_DIR: join(repositoryRoot, "packages", "coding-agent"),
 		...options.overrides,
 	};
 }

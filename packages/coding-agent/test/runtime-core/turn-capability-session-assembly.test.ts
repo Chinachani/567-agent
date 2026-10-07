@@ -590,8 +590,8 @@ function isolatedDirectory(prefix: string): string {
 	const root = mkdtempSync(join(tmpdir(), prefix));
 	writeFileSync(join(root, ".git"), "");
 	vi.stubEnv("USERPROFILE", root);
-	vi.stubEnv("VETTA_HOME", join(root, "home"));
-	vi.stubEnv("VETTA_CODING_AGENT_DIR", join(root, "agent"));
+	vi.stubEnv("AGENT567_HOME", join(root, "home"));
+	vi.stubEnv("AGENT567_CODING_AGENT_DIR", join(root, "agent"));
 	return root;
 }
 

@@ -32,7 +32,7 @@ packages/plugins/presets/
 ## 环境与租户打包（tenants.json）
 
 `packages/plugins/tenants.json` 先按开发/生产 profile，再按业务租户定义
-**preset id 完整列表**（非增量）。环境变量 **`VETTA_TENANT`** 选择租户
+**preset id 完整列表**（非增量）。环境变量 **`AGENT567_TENANT`** 选择租户
 （缺省取 `default` 指向的租户名）。
 
 - `build:presets:dev` 使用 `development` profile；`prepare:desktop-pack` 及所有 `pack` /

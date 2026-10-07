@@ -9,7 +9,7 @@ import {
 } from "@567agent/runtime-node/mcp";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 
-const ENV_KEYS = ["VETTA_HOME", "VETTA_API_TOKEN", "VETTA_API_BASE_URL", "VETTA_SERVER_URL"] as const;
+const ENV_KEYS = ["AGENT567_HOME", "API567_API_TOKEN", "API567_BASE_URL", "NEWAPI_BASE_URL"] as const;
 
 describe("vetta credentials", () => {
 	let home: string;
@@ -19,7 +19,7 @@ describe("vetta credentials", () => {
 		saved = Object.fromEntries(ENV_KEYS.map((k) => [k, process.env[k]]));
 		for (const key of ENV_KEYS) delete process.env[key];
 		home = mkdtempSync(join(tmpdir(), "vetta-creds-"));
-		process.env.VETTA_HOME = home;
+		process.env.AGENT567_HOME = home;
 	});
 
 	afterEach(() => {
@@ -77,18 +77,25 @@ describe("vetta credentials", () => {
 
 	it("环境变量优先于文件", () => {
 		writeAuthFile({ baseUrl: "https://file.example.com", token: "file-token" });
-		process.env.VETTA_API_TOKEN = "env-token";
-		process.env.VETTA_API_BASE_URL = "https://env.example.com";
+		process.env.API567_API_TOKEN = "env-token";
+		process.env.API567_BASE_URL = "https://env.example.com";
 
 		expect(loadVettaCredentials()).toEqual({ baseUrl: "https://env.example.com", token: "env-token" });
 	});
 
-	it("VETTA_SERVER_URL 可作为 baseUrl 来源", () => {
+	it("API567_BASE_URL 可作为 baseUrl 来源", () => {
 		// 桌面端给子进程注入的是这个变量
-		process.env.VETTA_API_TOKEN = "env-token";
-		process.env.VETTA_SERVER_URL = "https://desktop.example.com/api/v1";
+		process.env.API567_API_TOKEN = "env-token";
+		process.env.API567_BASE_URL = "https://desktop.example.com/api/v1";
 
 		expect(loadVettaCredentials()).toEqual({ baseUrl: "https://desktop.example.com", token: "env-token" });
+	});
+
+	it("does not read NEWAPI_BASE_URL", () => {
+		process.env.API567_API_TOKEN = "env-token";
+		process.env.NEWAPI_BASE_URL = "https://legacy.example.com/api/v1";
+
+		expect(loadVettaCredentials()).toBeNull();
 	});
 
 	it("每次调用都重读文件，不缓存", () => {

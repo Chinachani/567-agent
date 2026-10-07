@@ -1363,7 +1363,7 @@ describe("Turborepo build orchestration", () => {
 			expect.arrayContaining(["dist/**", "release/**", ".next/**", "!.next/cache/**"]),
 		);
 		expect(turboConfig.tasks.build.env).toEqual(
-			expect.arrayContaining(["NODE_ENV", "VETTA_PLUGIN_DEV_WATCH", "VETTA_PLUGIN_DOCS_SRC", "VETD_SRC"]),
+			expect.arrayContaining(["NODE_ENV", "AGENT567_PLUGIN_DEV_WATCH", "AGENT567_PLUGIN_DOCS_SRC", "VETD_SRC"]),
 		);
 		const docsBuild = turboConfig.tasks["@567agent/docs-site#build"];
 		expect(docsBuild.env).toEqual(["DOCS_SITE_URL", "NODE_ENV"]);
@@ -1384,7 +1384,7 @@ describe("Turborepo build orchestration", () => {
 			expect.arrayContaining(["^build", "@vetta-org/plugin-vite#build"]),
 		);
 		expect(turboConfig.tasks["@567agent/desktop#build"].env).toEqual(
-			expect.arrayContaining(["NODE_ENV", "VETTA_*", "VETD_*"]),
+			expect.arrayContaining(["NODE_ENV", "API567_*", "AGENT567_*", "VETD_*"]),
 		);
 		expect(turboConfig.remoteCache).toEqual({ enabled: false, signature: true });
 	});

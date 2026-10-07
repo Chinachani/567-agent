@@ -39,11 +39,11 @@ describe("UI verification profiles", () => {
       homeDirectory: root,
       runtimeRoot: join(root, "runtime"),
     });
-    const environment = createProfileEnvironment(layout, { VETTA_UI_VERIFICATION: "stale" });
+    const environment = createProfileEnvironment(layout, { AGENT567_UI_VERIFICATION: "stale" });
 
     expect(layout.statePath).toBeNull();
     expect(layout.vettaHome).toBe(join(root, ".vetta-dev"));
-    expect(environment.VETTA_UI_VERIFICATION).toBeUndefined();
+    expect(environment.AGENT567_UI_VERIFICATION).toBeUndefined();
   });
 });
 

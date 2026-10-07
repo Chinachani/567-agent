@@ -38,8 +38,8 @@ const { autoUpdater } = electronUpdater;
  * changing the update source in production builds.
  */
 function configureE2eUpdateFeed(): void {
-	if (!app.isPackaged || process.env.VETTA_E2E !== "1") return;
-	const feedUrl = process.env.VETTA_E2E_UPDATE_URL?.trim();
+	if (!app.isPackaged || process.env.AGENT567_E2E !== "1") return;
+	const feedUrl = process.env.AGENT567_E2E_UPDATE_URL?.trim();
 	if (!feedUrl) return;
 	try {
 		const parsedUrl = new URL(feedUrl);
@@ -145,7 +145,7 @@ interface UpgradeE2eState {
 }
 
 function upgradeE2eStatePaths(): string[] {
-	return [process.env.VETTA_E2E_UPGRADE_STATE?.trim(), join(getVettaHomePath(), "desktop-upgrade-e2e.json")].filter(
+	return [process.env.AGENT567_E2E_UPGRADE_STATE?.trim(), join(getVettaHomePath(), "desktop-upgrade-e2e.json")].filter(
 		(path, index, paths): path is string => Boolean(path) && paths.indexOf(path) === index,
 	);
 }
@@ -195,7 +195,7 @@ export async function runUpgradeE2e(): Promise<void> {
 	}
 	// ShipIt may start the relaunched macOS process without inheriting the shell
 	// environment. The persisted installing marker is the only second-launch opt-in.
-	if (process.env.VETTA_E2E !== "1" && state.phase !== "installing") return;
+	if (process.env.AGENT567_E2E !== "1" && state.phase !== "installing") return;
 
 	const current = getAppVersion();
 	if (state.phase === "installing") {

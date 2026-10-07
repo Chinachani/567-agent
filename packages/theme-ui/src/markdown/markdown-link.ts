@@ -38,6 +38,12 @@ function toPosixSeparators(path: string): string {
  * library default (blocks `javascript:` etc.).
  */
 export function chatUrlTransform(url: string): string {
+	// Markdown image data URLs are used by some providers for generated images.
+	// Restrict this exception to image MIME types; defaultUrlTransform continues
+	// to reject active content such as data:text/html and javascript:.
+	if (/^data:image\/[a-z0-9.+-]+(?:;|,)/i.test(url)) {
+		return url;
+	}
 	// Windows drive: C:\… C:/… or rehype-encoded C:%5C…
 	if (/^[A-Za-z]:[\\/]/.test(url) || /^[A-Za-z]:%5[Cc]/i.test(url)) {
 		return url;

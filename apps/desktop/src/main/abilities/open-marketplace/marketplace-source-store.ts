@@ -128,11 +128,11 @@ function parseSource(value: unknown): MarketplaceSource | null {
 }
 
 function createDefaultSources(now: Date): MarketplaceSource[] {
-	const configuredRepository = process.env.VETTA_OPEN_MARKETPLACE_REPOSITORY?.trim();
+	const configuredRepository = process.env.AGENT567_OPEN_MARKETPLACE_REPOSITORY?.trim();
 	// 发行方可用 fork 仓库替换官方源；未配置时始终注册 Vetta 官方源。
 	const normalizedRepository = normalizeGitHubRepository(configuredRepository || OFFICIAL_MARKETPLACE_REPOSITORY);
 	const defaultRef = normalizedRepository === OFFICIAL_MARKETPLACE_REPOSITORY ? OFFICIAL_MARKETPLACE_REF : "main";
-	const ref = validateRef(process.env.VETTA_OPEN_MARKETPLACE_REF, defaultRef);
+	const ref = validateRef(process.env.AGENT567_OPEN_MARKETPLACE_REF, defaultRef);
 	const timestamp = now.toISOString();
 	return [
 		{
@@ -141,7 +141,8 @@ function createDefaultSources(now: Date): MarketplaceSource[] {
 			type: "github",
 			repository: normalizedRepository,
 			archiveUrl:
-				process.env.VETTA_OPEN_MARKETPLACE_ARCHIVE_URL?.trim() || marketplaceArchiveUrl(normalizedRepository, ref),
+				process.env.AGENT567_OPEN_MARKETPLACE_ARCHIVE_URL?.trim() ||
+				marketplaceArchiveUrl(normalizedRepository, ref),
 			ref,
 			enabled: true,
 			builtin: true,

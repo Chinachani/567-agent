@@ -72,7 +72,7 @@ export function createNodeMcpSupervisor(options: NodeMcpSupervisorOptions): Node
 						redirectUri: oauthStore.load(serverName)?.redirectUri ?? PLACEHOLDER_REDIRECT_URI,
 						onRedirect: () => undefined,
 						store: oauthStore,
-						clientName: options.oauthClientName ?? "Vetta",
+						clientName: options.oauthClientName ?? "567 Agent",
 						clientId: httpConfig.oauthClientId,
 					});
 				},

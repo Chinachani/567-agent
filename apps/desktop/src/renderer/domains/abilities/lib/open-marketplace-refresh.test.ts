@@ -53,11 +53,11 @@ function archive(includeX: boolean): Response {
 }
 
 beforeEach(() => {
-	vi.stubEnv("VETTA_CLOUD_ENABLED", "true");
-	vi.stubEnv("VETTA_BUILD_ENV", "development");
-	vi.stubEnv("VETTA_OPEN_MARKETPLACE_REPOSITORY", repository);
-	vi.stubEnv("VETTA_OPEN_MARKETPLACE_REF", "main");
-	vi.stubEnv("VETTA_OPEN_MARKETPLACE_ARCHIVE_URL", undefined);
+	vi.stubEnv("AGENT567_CLOUD_ENABLED", "true");
+	vi.stubEnv("AGENT567_BUILD_ENV", "development");
+	vi.stubEnv("AGENT567_OPEN_MARKETPLACE_REPOSITORY", repository);
+	vi.stubEnv("AGENT567_OPEN_MARKETPLACE_REF", "main");
+	vi.stubEnv("AGENT567_OPEN_MARKETPLACE_ARCHIVE_URL", undefined);
 });
 
 afterEach(async () => {

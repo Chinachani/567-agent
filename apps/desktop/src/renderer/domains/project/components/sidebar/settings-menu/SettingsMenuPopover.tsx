@@ -32,8 +32,8 @@ export function SettingsMenuPopover({ model }: SettingsMenuPopoverProps): JSX.El
 				<SettingsMenuThemeSection model={model} />
 				<SettingsMenuQuotaSection model={model} />
 				<SettingsMenuDivider />
-				{/* 登录/登出属于云服务：lite 构建整段隐藏 */}
-				{model.cloudEnabled && (
+				{/* 仅保留已登录用户的登出入口；云账号登录暂未开放。 */}
+				{model.cloudEnabled && model.user && (
 					<>
 						<SettingsMenuAccountSection model={model} />
 						<SettingsMenuDivider />

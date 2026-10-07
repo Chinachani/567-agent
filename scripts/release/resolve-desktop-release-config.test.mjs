@@ -39,7 +39,7 @@ describe("resolveDesktopReleaseConfig", () => {
 			releaseTarget: "github",
 			shouldPublish: true,
 			updateProvider: "github",
-			serverUrl: "",
+			api567BaseUrl: "",
 		});
 	});
 
@@ -47,32 +47,33 @@ describe("resolveDesktopReleaseConfig", () => {
 		const fromVars = resolveDesktopReleaseConfig({
 			eventName: "push",
 			refType: "tag",
-			vars: { VETTA_OPEN_MARKETPLACE_REF: "marketplace-v3" },
+			vars: { AGENT567_OPEN_MARKETPLACE_REF: "marketplace-v3" },
 		});
 		expect(fromVars.marketplaceRef).toBe("marketplace-v3");
 		expect(toGithubOutput(fromVars)).toContain("marketplace_ref=marketplace-v3");
-		expect(toGithubEnv(fromVars)).toContain("VETTA_OPEN_MARKETPLACE_REF=marketplace-v3");
+		expect(toGithubEnv(fromVars)).toContain("AGENT567_OPEN_MARKETPLACE_REF=marketplace-v3");
 		expect(resolveDesktopReleaseConfig({
-			vars: { VETTA_OPEN_MARKETPLACE_REF: "main" },
+			vars: { AGENT567_OPEN_MARKETPLACE_REF: "main" },
 			inputs: { marketplace_ref: "marketplace-v3" },
 		}).marketplaceRef).toBe("marketplace-v3");
 		expect(resolveDesktopReleaseConfig({
 			eventName: "push",
-			vars: { VETTA_OPEN_MARKETPLACE_REF: "main" },
+			vars: { AGENT567_OPEN_MARKETPLACE_REF: "main" },
 			inputs: { marketplace_ref: "marketplace-v3" },
 		}).marketplaceRef).toBe("main");
 	});
 
 	it.each(["github", "r2"])("uses only explicit marketplace configuration for %s releases", (releaseTarget) => {
 		const vars = {
-			VETTA_RELEASE_TARGET: releaseTarget,
-			VETTA_SERVER_URL: "https://api.example.com/api/v1",
+			AGENT567_RELEASE_TARGET: releaseTarget,
+			API567_BASE_URL: "https://api.example.com/api/v1",
+			AGENT567_UPDATE_URL: "https://releases.example.com/desktop/stable",
 		};
 		expect(resolveDesktopReleaseConfig({ vars }).marketplaceRepository).toBe("");
-		const configured = { ...vars, VETTA_OPEN_MARKETPLACE_REPOSITORY: "example/catalog" };
+		const configured = { ...vars, AGENT567_OPEN_MARKETPLACE_REPOSITORY: "example/catalog" };
 		const fromVars = resolveDesktopReleaseConfig({ vars: configured });
 		expect(fromVars.marketplaceRepository).toBe("example/catalog");
-		expect(toGithubEnv(fromVars)).toContain("VETTA_OPEN_MARKETPLACE_REPOSITORY=example/catalog");
+		expect(toGithubEnv(fromVars)).toContain("AGENT567_OPEN_MARKETPLACE_REPOSITORY=example/catalog");
 		expect(resolveDesktopReleaseConfig({
 			vars: configured,
 			inputs: { marketplace_repository: "example/override" },
@@ -87,21 +88,30 @@ describe("resolveDesktopReleaseConfig", () => {
 	it("uses Environment/repo vars on a tag and ignores leftover form inputs", () => {
 		const config = resolveDesktopReleaseConfig({
 			eventName: "push",
-			inputs: { cloud_enabled: "false", server_url: "https://evil.example" },
+			inputs: { cloud_enabled: "false", api567_base_url: "https://evil.example" },
 			vars: {
-				VETTA_CLOUD_ENABLED: "true",
-				VETTA_RELEASE_TARGET: "r2",
-				VETTA_SERVER_URL: "https://api.example.com/api/v1",
-				VETTA_UPDATE_URL: "https://releases.example.com/desktop/stable",
+				AGENT567_CLOUD_ENABLED: "true",
+				AGENT567_RELEASE_TARGET: "r2",
+				API567_BASE_URL: "https://api.example.com/api/v1",
+				AGENT567_UPDATE_URL: "https://releases.example.com/desktop/stable",
 			},
 		});
 		expect(config).toMatchObject({
 			cloudEnabled: "true",
 			releaseTarget: "r2",
-			serverUrl: "https://api.example.com/api/v1",
+			api567BaseUrl: "https://api.example.com/api/v1",
 			updateProvider: "generic",
 			updateUrl: "https://releases.example.com/desktop/stable",
 		});
+	});
+
+	it("does not read the old NEWAPI_BASE_URL release variable", () => {
+		expect(() => resolveDesktopReleaseConfig({
+			vars: {
+				AGENT567_RELEASE_TARGET: "r2",
+				NEWAPI_BASE_URL: "https://legacy.example.com/api/v1",
+			},
+		})).toThrow(/API567_BASE_URL/);
 	});
 
 	it("lets workflow_dispatch inputs override vars", () => {
@@ -111,16 +121,16 @@ describe("resolveDesktopReleaseConfig", () => {
 				channel: "test",
 				cloud_enabled: "true",
 				release_target: "r2",
-				server_url: "https://api.staging.example.com/api/v1",
+				api567_base_url: "https://api.staging.example.com/api/v1",
 			},
 			vars: {
-				VETTA_CLOUD_ENABLED: "true",
-				VETTA_R2_PREFIX: "desktop/stable",
-				VETTA_SERVER_URL: "https://api.example.com/api/v1",
-				VETTA_UPDATE_URL: "https://releases.example.com/desktop/stable",
+				AGENT567_CLOUD_ENABLED: "true",
+				AGENT567_R2_PREFIX: "desktop/stable",
+				API567_BASE_URL: "https://api.example.com/api/v1",
+				AGENT567_UPDATE_URL: "https://releases.example.com/desktop/stable",
 			},
 		});
-		expect(config.serverUrl).toBe("https://api.staging.example.com/api/v1");
+		expect(config.api567BaseUrl).toBe("https://api.staging.example.com/api/v1");
 		expect(config.updateUrl).toBe("https://releases.example.com/desktop/test");
 		expect(config.r2Prefix).toBe("desktop/test");
 	});
@@ -152,11 +162,11 @@ describe("resolveDesktopReleaseConfig", () => {
 			eventName: "workflow_dispatch",
 			inputs: { channel: "test", release_target: "r2" },
 			vars: {
-				VETTA_SERVER_URL: "https://api.example.com/api/v1",
-				VETTA_R2_PREFIX: "desktop/stable",
-				VETTA_R2_PREFIX_TEST: "desktop/nightly",
-				VETTA_UPDATE_URL: "https://releases.example.com/desktop/stable",
-				VETTA_UPDATE_URL_TEST: "https://releases.example.com/desktop/nightly",
+				API567_BASE_URL: "https://api.example.com/api/v1",
+				AGENT567_R2_PREFIX: "desktop/stable",
+				AGENT567_R2_PREFIX_TEST: "desktop/nightly",
+				AGENT567_UPDATE_URL: "https://releases.example.com/desktop/stable",
+				AGENT567_UPDATE_URL_TEST: "https://releases.example.com/desktop/nightly",
 			},
 		});
 		expect(config.updateUrl).toBe("https://releases.example.com/desktop/nightly");
@@ -167,11 +177,14 @@ describe("resolveDesktopReleaseConfig", () => {
 		const config = resolveDesktopReleaseConfig({
 			eventName: "workflow_dispatch",
 			inputs: { channel: "test", build_version: "0.5.47", release_target: "r2" },
-			vars: { VETTA_SERVER_URL: "https://api.example.com/api/v1" },
+			vars: {
+				API567_BASE_URL: "https://api.example.com/api/v1",
+				AGENT567_UPDATE_URL: "https://releases.example.com/desktop/stable",
+			},
 		});
 		expect(config.buildVersion).toBe("0.5.47");
-		expect(toGithubEnv(config)).toContain("VETTA_DESKTOP_BUILD_VERSION=0.5.47");
-		expect(toGithubEnv(config)).toContain("VETTA_RELEASE_PUBLISH=true");
+		expect(toGithubEnv(config)).toContain("AGENT567_DESKTOP_BUILD_VERSION=0.5.47");
+		expect(toGithubEnv(config)).toContain("AGENT567_RELEASE_PUBLISH=true");
 		expect(toGithubOutput(config)).toContain("build_version=0.5.47");
 	});
 
@@ -198,9 +211,9 @@ describe("resolveDesktopReleaseConfig", () => {
 			resolveDesktopReleaseConfig({
 				eventName: "push",
 				vars: {
-					VETTA_RELEASE_CHANNEL: "test",
-					VETTA_RELEASE_TARGET: "r2",
-					VETTA_SERVER_URL: "https://api.example.com/api/v1",
+					AGENT567_RELEASE_CHANNEL: "test",
+					AGENT567_RELEASE_TARGET: "r2",
+					API567_BASE_URL: "https://api.example.com/api/v1",
 				},
 			}),
 		).toThrow(/only available through workflow_dispatch/);
@@ -213,16 +226,37 @@ describe("resolveDesktopReleaseConfig", () => {
 				inputs: { cloud_enabled: "true", release_target: "r2" },
 				vars: {},
 			}),
-		).toThrow(/VETTA_SERVER_URL/);
+		).toThrow(/API567_BASE_URL/);
 	});
 
-	it("rejects mixing release targets and desktop editions", () => {
+	it("allows commercial builds on GitHub Releases and uses the generic updater feed", () => {
+		const config = resolveDesktopReleaseConfig({
+			eventName: "workflow_dispatch",
+			inputs: { release_target: "github", cloud_enabled: "true", channel: "stable" },
+			vars: {
+				API567_BASE_URL: "https://api.567.wiki/api/v1",
+				AGENT567_UPDATE_URL: "https://github.com/Chinachani/567-agent/releases/latest/download",
+			},
+		});
+		expect(config).toMatchObject({
+			releaseTarget: "github",
+			cloudEnabled: "true",
+			api567BaseUrl: "https://api.567.wiki/api/v1",
+			updateProvider: "generic",
+			updateUrl: "https://github.com/Chinachani/567-agent/releases/latest/download",
+			shouldPublish: true,
+		});
+	});
+
+	it("requires a generic updater URL for commercial GitHub Releases", () => {
 		expect(() =>
 			resolveDesktopReleaseConfig({
 				eventName: "workflow_dispatch",
 				inputs: { release_target: "github", cloud_enabled: "true" },
+				vars: { API567_BASE_URL: "https://api.567.wiki/api/v1" },
 			}),
-		).toThrow(/open-source build/);
+		).toThrow(/AGENT567_UPDATE_URL/);
+
 		expect(() =>
 			resolveDesktopReleaseConfig({
 				eventName: "workflow_dispatch",
@@ -237,15 +271,15 @@ describe("resolveDesktopReleaseConfig", () => {
 				eventName: "workflow_dispatch",
 				inputs: { release_target: "r2" },
 				vars: {
-					VETTA_SERVER_URL: "https://api.example.com/api/v1",
-					VETTA_UPDATE_URL: "https://releases.example.com/desktop/stable",
+					API567_BASE_URL: "https://api.example.com/api/v1",
+					AGENT567_UPDATE_URL: "https://releases.example.com/desktop/stable",
 				},
 			}),
 		);
-		expect(env).toContain("VETTA_UPDATE_PROVIDER=generic");
-		expect(env).toContain("VETTA_UPDATE_URL=https://releases.example.com/desktop/stable");
-		expect(env).toContain("VETTA_CLOUD_ENABLED=true");
-		expect(env).not.toContain("VETTA_TENANT=");
+		expect(env).toContain("AGENT567_UPDATE_PROVIDER=generic");
+		expect(env).toContain("AGENT567_UPDATE_URL=https://releases.example.com/desktop/stable");
+		expect(env).toContain("AGENT567_CLOUD_ENABLED=true");
+		expect(env).not.toContain("AGENT567_TENANT=");
 	});
 
 	it("writes GitHub output lines for the workflow", () => {

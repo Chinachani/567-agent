@@ -1264,7 +1264,7 @@ usage、缺失模型和释放；独立恢复合同验证首次 Turn 前关闭并
 ### 2.37 Knowledge Poller Greenfield opt-in 与多批写入差分
 
 第 119 轮没有新增 Knowledge 专用 Runtime 配置，而是复用 Desktop 已有进程级
-`VETTA_DESKTOP_AGENT_RUNTIME` selector。缺省、空值和 `legacy` 继续选择 Legacy；只有显式
+`AGENT567_DESKTOP_AGENT_RUNTIME` selector。缺省、空值和 `legacy` 继续选择 Legacy；只有显式
 `greenfield` 才让 Knowledge Poller 组合 Greenfield Factory。环境变量解析留在 Desktop 进程边界，
 Coding Agent Composition 只接收已经类型化的选择结果和共享 ModelRegistry 来源。
 

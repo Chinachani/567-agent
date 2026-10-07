@@ -1,6 +1,6 @@
 import { randomUUID } from "node:crypto";
 import type { Dirent } from "node:fs";
-import { access, copyFile, cp, mkdir, readdir, readFile, rename, rm, stat, writeFile } from "node:fs/promises";
+import { access, copyFile, cp, mkdir, open, readdir, readFile, rename, rm, stat, writeFile } from "node:fs/promises";
 import { dirname, isAbsolute, join, relative, resolve, sep } from "node:path";
 import { getVettaHomePath } from "@567agent/action-rpc";
 import type { PluginPutBlobInput, PluginStoredBlob, PluginStoredBlobRef } from "@vetta-org/plugin-sdk";
@@ -389,6 +389,38 @@ export async function getPluginBlobFile(pluginId: string, id: string): Promise<P
 	} catch (error) {
 		if ((error as NodeJS.ErrnoException).code === "ENOENT") return null;
 		throw error;
+	}
+}
+
+export async function readPluginBlobRange(
+	pluginId: string,
+	id: string,
+	offset: number,
+	length: number,
+): Promise<{ mimeType: string; sizeBytes: number; dataBase64: string } | null> {
+	if (!SAFE_SEGMENT.test(id) || id === "." || id === "..") throw new Error("Invalid blob id");
+	if (
+		!Number.isSafeInteger(offset) ||
+		offset < 0 ||
+		!Number.isSafeInteger(length) ||
+		length < 1 ||
+		length > 48 * 1024
+	) {
+		throw new Error("Invalid blob range");
+	}
+	const blob = await getPluginBlobFile(pluginId, id);
+	if (!blob || offset >= blob.sizeBytes) return null;
+	const chunk = Buffer.alloc(Math.min(length, blob.sizeBytes - offset));
+	const file = await open(blob.path, "r");
+	try {
+		const { bytesRead } = await file.read(chunk, 0, chunk.length, offset);
+		return {
+			mimeType: blob.mimeType,
+			sizeBytes: blob.sizeBytes,
+			dataBase64: chunk.subarray(0, bytesRead).toString("base64"),
+		};
+	} finally {
+		await file.close();
 	}
 }
 

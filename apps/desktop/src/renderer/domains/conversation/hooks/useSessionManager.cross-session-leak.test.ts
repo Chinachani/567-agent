@@ -1,10 +1,10 @@
 // @vitest-environment jsdom
 
-import type { ChatConversationItem, OpenSessionOptions, SessionExecutionMode } from "@shared/store/atoms";
 import { getDefaultStore } from "jotai";
 import { act, createElement, Fragment } from "react";
 import { createRoot, type Root } from "react-dom/client";
 import { afterEach, beforeEach, expect, it, vi } from "vitest";
+import type { ChatConversationItem, OpenSessionOptions, SessionExecutionMode } from "../../../shared/store/chat-atoms";
 
 const mocks = vi.hoisted(() => ({
 	applyLocalRename: vi.fn(),
@@ -107,7 +107,7 @@ function toolPhases(messages: readonly ChatConversationItem[]): string[] {
 }
 
 it("会话 A 仍在流式输出时新建会话 B，A 的事件不得写进 B 的消息流", { timeout: 30_000 }, async () => {
-	const { activeSessionAtom, chatMessagesAtom, inputValueAtom } = await import("@shared/store/atoms");
+	const { activeSessionAtom, chatMessagesAtom, inputValueAtom } = await import("../../../shared/store/chat-atoms");
 	const { useSessionManager } = await import("./useSessionManager");
 	const store = getDefaultStore();
 	store.set(activeSessionAtom, null);

@@ -34,8 +34,8 @@ describe("Desktop RuntimeHost production contract", () => {
 	const fixtures: RuntimeFixture[] = [];
 	beforeEach(async () => {
 		const directory = await temporaryDirectory("desktop-runtime-home-");
-		vi.stubEnv("VETTA_HOME", directory);
-		vi.stubEnv("VETTA_CODING_AGENT_DIR", join(directory, "agent"));
+		vi.stubEnv("AGENT567_HOME", directory);
+		vi.stubEnv("AGENT567_CODING_AGENT_DIR", join(directory, "agent"));
 		vi.stubEnv("USERPROFILE", directory);
 	});
 

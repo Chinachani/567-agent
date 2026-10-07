@@ -97,24 +97,24 @@ export function resolveDesktopReleaseConfig(request = {}) {
 		return firstExplicit(inputValue, ...varValues) || fallback;
 	};
 
-	const releaseTarget = pick("release_target", "VETTA_RELEASE_TARGET", "github");
+	const releaseTarget = pick("release_target", "AGENT567_RELEASE_TARGET", "github");
 	if (!RELEASE_TARGETS.has(releaseTarget)) {
 		throw new Error(`release_target must be github or r2 (received ${JSON.stringify(releaseTarget)})`);
 	}
 	const configuredCloudEnabled = parseFlag(
-		pick("cloud_enabled", "VETTA_CLOUD_ENABLED"),
+		pick("cloud_enabled", "AGENT567_CLOUD_ENABLED"),
 		"cloud_enabled",
 	);
 	const cloudEnabled = configuredCloudEnabled || (releaseTarget === "github" ? "false" : "true");
-	if (releaseTarget === "github" && cloudEnabled !== "false") {
-		throw new Error("GitHub Releases can only publish the open-source build (cloud_enabled=false)");
-	}
 	if (releaseTarget === "r2" && cloudEnabled !== "true") {
 		throw new Error("R2 can only publish the commercial build (cloud_enabled=true)");
 	}
-	const speechInput = parseFlag(pick("speech_input", "VETTA_SPEECH_INPUT_ENABLED"), "speech_input");
+	const speechInput = parseFlag(
+		pick("speech_input", "AGENT567_SPEECH_INPUT_ENABLED"),
+		"speech_input",
+	);
 
-	const channel = pick("channel", "VETTA_RELEASE_CHANNEL", "default");
+	const channel = pick("channel", "AGENT567_RELEASE_CHANNEL", "default");
 	if (!CHANNELS.has(channel)) {
 		throw new Error(`channel must be default, stable, or test (received ${JSON.stringify(channel)})`);
 	}
@@ -124,7 +124,7 @@ export function resolveDesktopReleaseConfig(request = {}) {
 	if (eventName !== "workflow_dispatch" && channel === "test") {
 		throw new Error("the test channel is only available through workflow_dispatch");
 	}
-	const buildVersion = pick("build_version", "VETTA_TEST_BUILD_VERSION");
+	const buildVersion = pick("build_version", "AGENT567_TEST_BUILD_VERSION");
 	if (buildVersion && channel !== "test") {
 		throw new Error("build_version is only allowed for the test channel");
 	}
@@ -135,28 +135,31 @@ export function resolveDesktopReleaseConfig(request = {}) {
 		(eventName === "push" && refType === "tag") ||
 		(eventName === "workflow_dispatch" && (channel === "test" || channel === "stable"));
 
-	const serverUrl = cloudEnabled === "true" ? pick("server_url", "VETTA_SERVER_URL") : "";
-	const siteUrl = cloudEnabled === "true" ? pick("site_url", "VETTA_SITE_URL") : "";
-	const marketplaceRepository = pick("marketplace_repository", "VETTA_OPEN_MARKETPLACE_REPOSITORY");
-	const marketplaceRef = pick("marketplace_ref", "VETTA_OPEN_MARKETPLACE_REF", "main");
-	const tenant = pick("tenant", "VETTA_TENANT");
+	const api567BaseUrl = cloudEnabled === "true" ? pick("api567_base_url", "API567_BASE_URL") : "";
+	const marketplaceRepository = pick("marketplace_repository", "AGENT567_OPEN_MARKETPLACE_REPOSITORY");
+	const marketplaceRef = pick("marketplace_ref", "AGENT567_OPEN_MARKETPLACE_REF", "main");
+	const tenant = pick("tenant", "AGENT567_TENANT");
 	const notes = acceptInputs ? normalizeToken(inputs.notes).replaceAll(/\s+/g, " ") : "";
 
-	let updateUrl = pick("update_url", "VETTA_UPDATE_URL");
-	let r2Bucket = pick("r2_bucket", "VETTA_R2_BUCKET");
-	let r2Prefix = pick("r2_prefix", "VETTA_R2_PREFIX");
+	let updateUrl = pick("update_url", "AGENT567_UPDATE_URL");
+	let r2Bucket = pick("r2_bucket", "AGENT567_R2_BUCKET");
+	let r2Prefix = pick("r2_prefix", "AGENT567_R2_PREFIX");
 
 	if (channel === "test") {
-		updateUrl = firstExplicit(acceptInputs ? inputs.update_url : "", vars.VETTA_UPDATE_URL_TEST, replaceLastPathSegment(updateUrl, "test"), updateUrl);
-		r2Prefix = firstExplicit(acceptInputs ? inputs.r2_prefix : "", vars.VETTA_R2_PREFIX_TEST, replaceLastPathSegment(r2Prefix, "test"), r2Prefix);
+		updateUrl = firstExplicit(acceptInputs ? inputs.update_url : "", vars.AGENT567_UPDATE_URL_TEST, replaceLastPathSegment(updateUrl, "test"), updateUrl);
+		r2Prefix = firstExplicit(acceptInputs ? inputs.r2_prefix : "", vars.AGENT567_R2_PREFIX_TEST, replaceLastPathSegment(r2Prefix, "test"), r2Prefix);
 	} else if (channel === "stable") {
-		updateUrl = firstExplicit(acceptInputs ? inputs.update_url : "", vars.VETTA_UPDATE_URL_STABLE, updateUrl);
-		r2Prefix = firstExplicit(acceptInputs ? inputs.r2_prefix : "", vars.VETTA_R2_PREFIX_STABLE, r2Prefix);
+		updateUrl = firstExplicit(acceptInputs ? inputs.update_url : "", vars.AGENT567_UPDATE_URL_STABLE, updateUrl);
+		r2Prefix = firstExplicit(acceptInputs ? inputs.r2_prefix : "", vars.AGENT567_R2_PREFIX_STABLE, r2Prefix);
 	}
-	if (releaseTarget === "github") updateUrl = "";
+	const updateProvider = cloudEnabled === "true" || releaseTarget === "r2" ? "generic" : "github";
+	if (updateProvider === "github") updateUrl = "";
 
-	if (cloudEnabled === "true" && !serverUrl) {
-		throw new Error("VETTA_SERVER_URL is required when VETTA_CLOUD_ENABLED=true");
+	if (cloudEnabled === "true" && !api567BaseUrl) {
+		throw new Error("API567_BASE_URL is required when AGENT567_CLOUD_ENABLED=true");
+	}
+	if (cloudEnabled === "true" && !updateUrl) {
+		throw new Error("AGENT567_UPDATE_URL is required for commercial builds using generic auto-updates");
 	}
 
 	return {
@@ -170,11 +173,10 @@ export function resolveDesktopReleaseConfig(request = {}) {
 		r2Prefix,
 		releaseTarget,
 		shouldPublish,
-		serverUrl,
-		siteUrl,
+		api567BaseUrl,
 		speechInput,
 		tenant,
-		updateProvider: releaseTarget === "r2" ? "generic" : "github",
+		updateProvider,
 		updateUrl,
 	};
 }
@@ -194,8 +196,7 @@ export function toGithubOutput(config) {
 		`r2_prefix=${config.r2Prefix}`,
 		`release_target=${config.releaseTarget}`,
 		`should_publish=${config.shouldPublish}`,
-		`server_url=${config.serverUrl}`,
-		`site_url=${config.siteUrl}`,
+		`api567_base_url=${config.api567BaseUrl}`,
 		`speech_input=${config.speechInput}`,
 		`tenant=${config.tenant}`,
 		`update_provider=${config.updateProvider}`,
@@ -208,19 +209,21 @@ export function toGithubOutput(config) {
  */
 export function toGithubEnv(config) {
 	const entries = [
-		["VETTA_DESKTOP_BUILD_VERSION", config.buildVersion],
-		["VETTA_RELEASE_PUBLISH", config.shouldPublish ? "true" : "false"],
-		["VETTA_CLOUD_ENABLED", config.cloudEnabled],
-		["VETTA_SERVER_URL", config.serverUrl],
-		["VETTA_SITE_URL", config.siteUrl],
-		["VETTA_OPEN_MARKETPLACE_REPOSITORY", config.marketplaceRepository],
-		["VETTA_OPEN_MARKETPLACE_REF", config.marketplaceRef],
-		["VETTA_TENANT", config.tenant],
-		["VETTA_SPEECH_INPUT_ENABLED", config.speechInput],
-		["VETTA_UPDATE_PROVIDER", config.updateProvider],
-		["VETTA_UPDATE_URL", config.updateUrl],
-		["VETTA_R2_BUCKET", config.r2Bucket],
-		["VETTA_R2_PREFIX", config.r2Prefix],
+		["AGENT567_BUILD_ENV", config.channel === "test" ? "test" : "production"],
+		["AGENT567_CLOUD_ENABLED", config.cloudEnabled],
+		["AGENT567_RELEASE_TARGET", config.releaseTarget],
+		["AGENT567_RELEASE_CHANNEL", config.channel],
+		["AGENT567_TEST_BUILD_VERSION", config.buildVersion],
+		["AGENT567_OPEN_MARKETPLACE_REPOSITORY", config.marketplaceRepository],
+		["AGENT567_OPEN_MARKETPLACE_REF", config.marketplaceRef],
+		["AGENT567_TENANT", config.tenant],
+		["AGENT567_SPEECH_INPUT_ENABLED", config.speechInput],
+		["AGENT567_UPDATE_PROVIDER", config.updateProvider],
+		["AGENT567_UPDATE_URL", config.updateUrl],
+		["AGENT567_R2_BUCKET", config.r2Bucket],
+		["AGENT567_R2_PREFIX", config.r2Prefix],
+		["AGENT567_DESKTOP_BUILD_VERSION", config.buildVersion],
+		["AGENT567_RELEASE_PUBLISH", config.shouldPublish ? "true" : "false"],
 	];
 	return entries
 		.filter(([, value]) => value !== "")
@@ -236,8 +239,7 @@ export function toSummaryMarkdown(config) {
 		["build_version", config.buildVersion || "(package version)"],
 		["channel", config.channel],
 		["cloud_enabled", config.cloudEnabled || "(invalid: unset)"],
-		["server_url", config.serverUrl || "(unset)"],
-		["site_url", config.siteUrl || "(unset)"],
+		["api567_base_url", config.api567BaseUrl || "(unset)"],
 		["marketplace_repository", config.marketplaceRepository || "(unset)"],
 		["marketplace_ref", config.marketplaceRef],
 		["tenant", config.tenant || "(unset)"],
@@ -268,30 +270,28 @@ function readRequestFromEnv(env = process.env) {
 			r2_bucket: env.INPUT_R2_BUCKET,
 			r2_prefix: env.INPUT_R2_PREFIX,
 			release_target: env.INPUT_RELEASE_TARGET,
-			server_url: env.INPUT_SERVER_URL,
-			site_url: env.INPUT_SITE_URL,
+			api567_base_url: env.INPUT_API567_BASE_URL,
 			speech_input: env.INPUT_SPEECH_INPUT,
 			tenant: env.INPUT_TENANT,
 			update_url: env.INPUT_UPDATE_URL,
 		},
 		vars: {
-			VETTA_TEST_BUILD_VERSION: env.VAR_TEST_BUILD_VERSION,
-			VETTA_CLOUD_ENABLED: env.VAR_CLOUD_ENABLED,
-			VETTA_OPEN_MARKETPLACE_REPOSITORY: env.VAR_MARKETPLACE_REPOSITORY,
-			VETTA_OPEN_MARKETPLACE_REF: env.VAR_MARKETPLACE_REF,
-			VETTA_R2_BUCKET: env.VAR_R2_BUCKET,
-			VETTA_R2_PREFIX: env.VAR_R2_PREFIX,
-			VETTA_R2_PREFIX_STABLE: env.VAR_R2_PREFIX_STABLE,
-			VETTA_R2_PREFIX_TEST: env.VAR_R2_PREFIX_TEST,
-			VETTA_RELEASE_CHANNEL: env.VAR_RELEASE_CHANNEL,
-			VETTA_RELEASE_TARGET: env.VAR_RELEASE_TARGET,
-			VETTA_SERVER_URL: env.VAR_SERVER_URL,
-			VETTA_SITE_URL: env.VAR_SITE_URL,
-			VETTA_SPEECH_INPUT_ENABLED: env.VAR_SPEECH_INPUT,
-			VETTA_TENANT: env.VAR_TENANT,
-			VETTA_UPDATE_URL: env.VAR_UPDATE_URL,
-			VETTA_UPDATE_URL_STABLE: env.VAR_UPDATE_URL_STABLE,
-			VETTA_UPDATE_URL_TEST: env.VAR_UPDATE_URL_TEST,
+			API567_BASE_URL: env.VAR_API567_BASE_URL,
+			AGENT567_TEST_BUILD_VERSION: env.VAR_TEST_BUILD_VERSION,
+			AGENT567_CLOUD_ENABLED: env.VAR_CLOUD_ENABLED,
+			AGENT567_OPEN_MARKETPLACE_REPOSITORY: env.VAR_MARKETPLACE_REPOSITORY,
+			AGENT567_OPEN_MARKETPLACE_REF: env.VAR_MARKETPLACE_REF,
+			AGENT567_R2_BUCKET: env.VAR_R2_BUCKET,
+			AGENT567_R2_PREFIX: env.VAR_R2_PREFIX,
+			AGENT567_R2_PREFIX_STABLE: env.VAR_R2_PREFIX_STABLE,
+			AGENT567_R2_PREFIX_TEST: env.VAR_R2_PREFIX_TEST,
+			AGENT567_RELEASE_CHANNEL: env.VAR_RELEASE_CHANNEL,
+			AGENT567_RELEASE_TARGET: env.VAR_RELEASE_TARGET,
+			AGENT567_SPEECH_INPUT_ENABLED: env.VAR_SPEECH_INPUT,
+			AGENT567_TENANT: env.VAR_TENANT,
+			AGENT567_UPDATE_URL: env.VAR_UPDATE_URL,
+			AGENT567_UPDATE_URL_STABLE: env.VAR_UPDATE_URL_STABLE,
+			AGENT567_UPDATE_URL_TEST: env.VAR_UPDATE_URL_TEST,
 		},
 	};
 }
@@ -308,8 +308,7 @@ function readConfigFromOutputs(env = process.env) {
 		r2Prefix: normalizeToken(env.OUTPUT_R2_PREFIX),
 		releaseTarget: normalizeToken(env.OUTPUT_RELEASE_TARGET) || "github",
 		shouldPublish: normalizeToken(env.OUTPUT_SHOULD_PUBLISH) === "true",
-		serverUrl: normalizeToken(env.OUTPUT_SERVER_URL),
-		siteUrl: normalizeToken(env.OUTPUT_SITE_URL),
+		api567BaseUrl: normalizeToken(env.OUTPUT_API567_BASE_URL),
 		speechInput: normalizeToken(env.OUTPUT_SPEECH_INPUT),
 		tenant: normalizeToken(env.OUTPUT_TENANT),
 		updateProvider: normalizeToken(env.OUTPUT_UPDATE_PROVIDER),

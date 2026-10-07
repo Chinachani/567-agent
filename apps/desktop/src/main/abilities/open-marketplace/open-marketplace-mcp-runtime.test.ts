@@ -10,8 +10,8 @@ import { OpenMarketplaceMcpRuntimeInstaller } from "./open-marketplace-mcp-runti
 
 const temporaryRoots: string[] = [];
 const PLATFORM_TAG = "win32-x64";
-const PORT_TOKEN = `\${VETTA_MCP_PORT}`;
-const URL_TOKEN = `\${VETTA_MCP_URL}`;
+const PORT_TOKEN = `\${AGENT567_MCP_PORT}`;
+const URL_TOKEN = `\${AGENT567_MCP_URL}`;
 
 async function temporaryRoot(): Promise<string> {
 	const root = await mkdtemp(join(tmpdir(), "vetta-mcp-runtime-test-"));
@@ -39,9 +39,9 @@ function runtime(
 		process: {
 			args: [`-port=:${PORT_TOKEN}`],
 			env: {
-				DATA: `\${VETTA_MCP_DATA_DIR}`,
-				CACHE: `\${VETTA_MCP_CACHE_DIR}`,
-				RUNTIME: `\${VETTA_MCP_RUNTIME_DIR}`,
+				DATA: `\${AGENT567_MCP_DATA_DIR}`,
+				CACHE: `\${AGENT567_MCP_CACHE_DIR}`,
+				RUNTIME: `\${AGENT567_MCP_RUNTIME_DIR}`,
 			},
 		},
 		service: { kind: "http-mcp", path: "/mcp", readyTimeoutMs: 300_000 },

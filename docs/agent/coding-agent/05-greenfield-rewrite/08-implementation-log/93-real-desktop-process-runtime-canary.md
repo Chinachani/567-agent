@@ -57,9 +57,9 @@ Provider 为每次执行创建独立目录，并写入：
 
 Desktop 仅在本次验证进程中接收：
 
-- `VETTA_HOME`；
-- `VETTA_CODING_AGENT_DIR`；
-- `VETTA_DESKTOP_AGENT_RUNTIME=greenfield`。
+- `AGENT567_HOME`；
+- `AGENT567_CODING_AGENT_DIR`；
+- `AGENT567_DESKTOP_AGENT_RUNTIME=greenfield`。
 
 因此 Canary 不读取或覆盖用户真实模型、认证、Skill 和会话数据。Provider 固定响应两轮文本，
 并在第三轮发出既有 `ask_user_question` 工具调用，以验证真实的 `input_required` 和中止路径。

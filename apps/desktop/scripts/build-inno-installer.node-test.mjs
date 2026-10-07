@@ -20,8 +20,8 @@ test("writes updater config into the version directory installed by Inno", async
 
 	try {
 		const publishConfig = resolveUpdatePublishConfig({
-			VETTA_UPDATE_PROVIDER: "generic",
-			VETTA_UPDATE_URL: "https://updates.example.com/desktop/test",
+			AGENT567_UPDATE_PROVIDER: "generic",
+			AGENT567_UPDATE_URL: "https://updates.example.com/desktop/test",
 		});
 		assert.ok(publishConfig);
 		await writeAppUpdateConfig(join(sourceDir, "versions", version), publishConfig);

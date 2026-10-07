@@ -4,6 +4,7 @@ import { RemoteConnection, WebSocketRemoteTransport } from "@567agent/remote-con
 import { getDesktopConversationService } from "../conversations/desktop-conversation-service.js";
 import { getAppLogger } from "../logger.js";
 import { getDesktopModelSettingsService } from "../models/model-settings-host.js";
+import { readPluginBlobRange } from "../plugins/plugin-storage-service.js";
 import { DesktopConversationRemoteOperations } from "./desktop-conversation-remote-operations.js";
 import { DesktopRemoteConnector } from "./desktop-remote-connector.js";
 import { createDesktopWebSocketFactory } from "./desktop-websocket.js";
@@ -91,6 +92,7 @@ async function connect(
 	const operations = new DesktopConversationRemoteOperations(getDesktopConversationService(), {
 		cwd: options.conversationCwd,
 		readDefaultModelKey: async () => (await getDesktopModelSettingsService().getConfig()).defaultModel,
+		readGeneratedImageChunk: (id, offset, length) => readPluginBlobRange("image-gen", id, offset, length),
 	});
 	const connector = new DesktopRemoteConnector(connection, operations);
 	const unsubscribe = connection.onEvent((event) => {

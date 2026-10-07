@@ -1,6 +1,7 @@
 import {
 	isCodingAgentMcpReloadStarted,
 	readCodingAgentBackgroundTasksObservation,
+	readCodingAgentGoalObservation,
 	readCodingAgentMcpReloadFinished,
 	readCodingAgentPlanModeObservation,
 	readCodingAgentSubagentsObservation,
@@ -10,6 +11,7 @@ import type { SessionEvent } from "@567agent/runtime-core";
 import { createConversationUserMessage } from "@shared/conversation";
 import { i18n } from "@shared/i18n";
 import {
+	activeSessionAtom,
 	activeSessionStreamingAtom,
 	activeToolNamesAtom,
 	type BackgroundTask,
@@ -18,6 +20,7 @@ import {
 	chatMessagesAtom,
 	contextCompactionEligibilityAtom,
 	contextUsageAtom,
+	goalStateBySessionAtom,
 	isCompactingAtom,
 	isReloadingMcpAtom,
 	lastTurnUsageAtom,
@@ -96,6 +99,7 @@ export function useSessionEventController({ activeSessionRef }: SessionEventCont
 	const setSubagents = useSetAtom(subagentsBySessionAtom);
 	const setActiveToolNames = useSetAtom(activeToolNamesAtom);
 	const setTodoItems = useSetAtom(todoItemsBySessionAtom);
+	const setGoalStates = useSetAtom(goalStateBySessionAtom);
 	const setPlanModeStates = useSetAtom(planModeStateBySessionAtom);
 	const setPromptSuggestions = useSetAtom(promptSuggestionsAtom);
 	const setPromptPredicting = useSetAtom(promptPredictingAtom);
@@ -171,11 +175,29 @@ export function useSessionEventController({ activeSessionRef }: SessionEventCont
 
 	const createSessionEventHandler = useCallback(
 		(sessionId: string) => (event: SessionEvent) => {
-			// Defensive guard: if user has already switched away to another
-			// session, drop this event so its delta/state can't bleed into
-			// the new session's atom. activeSessionRef is updated synchronously
-			// above and reflects the latest user-facing session.
-			if (activeSessionRef.current?.runtimeId !== sessionId) return;
+			// Only message-stream events mutate the currently rendered transcript. Other
+			// session events include compaction/context and reconnect/status updates that
+			// must still settle even if the active session atom has not mounted yet.
+			const isMessageStreamEvent =
+				event.channel === "assistant" ||
+				event.type === "session.lifecycle" ||
+				event.type === "thinking.delta" ||
+				event.type === "message.delta" ||
+				event.type === "message.final" ||
+				event.type === "toolcall.start" ||
+				event.type === "tool.start" ||
+				event.type === "tool.update" ||
+				event.type === "tool.phase" ||
+				event.type === "tool.end" ||
+				event.type === "error" ||
+				event.type === "usage.update";
+			if (
+				isMessageStreamEvent &&
+				(activeSessionRef.current?.runtimeId !== sessionId ||
+					getDefaultStore().get(activeSessionAtom)?.runtimeId !== sessionId)
+			) {
+				return;
+			}
 			// Remote turns can be initiated outside this renderer (for example from
 			// the paired phone), so the local stream-owner token may be empty or belong
 			// to another view. The active-session guard is the relevant isolation
@@ -207,6 +229,12 @@ export function useSessionEventController({ activeSessionRef }: SessionEventCont
 				queueStore.set(setQueuePausedAtom, { runtimeId: sessionId, paused: event.paused });
 				const consumedEntries = diffConsumedQueueEntries(prevQueue, nextQueue);
 				if (consumedEntries.length > 0) {
+					if (
+						activeSessionRef.current?.runtimeId !== sessionId ||
+						queueStore.get(activeSessionAtom)?.runtimeId !== sessionId
+					) {
+						return;
+					}
 					// 同一 turn 内接力消费：把上一段流先落定、并切断 assistant 草稿——
 					// 否则后续 delta 仍按 draftId 续写进用户气泡**之前**的旧回复气泡里，
 					// 第二条回复会显示在它自己的用户消息上方（ADR-0060）。
@@ -600,6 +628,16 @@ export function useSessionEventController({ activeSessionRef }: SessionEventCont
 					if (sid) setPlanModeStates((prev) => ({ ...prev, [sid]: planModeState }));
 					return;
 				}
+				const goalState = readCodingAgentGoalObservation(event);
+				if (goalState !== undefined) {
+					setGoalStates((previous) => {
+						const next = { ...previous };
+						if (goalState) next[sessionId] = goalState;
+						else delete next[sessionId];
+						return next;
+					});
+					return;
+				}
 				const items = readCodingAgentTodoObservation(event);
 				if (!items) return;
 				const sid = activeSessionRef.current?.runtimeId;
@@ -634,6 +672,7 @@ export function useSessionEventController({ activeSessionRef }: SessionEventCont
 			setPlanModeStates,
 			setPromptSuggestions,
 			setRetryProgress,
+			setGoalStates,
 			setSubagents,
 			setTodoItems,
 			setCompactionEligibility,

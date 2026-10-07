@@ -1,6 +1,5 @@
 import { useState } from "react";
 import { AnimatePresence } from "motion/react";
-import { CloudLoginPopover } from "@shared/components/cloud-slots";
 import { Popover, PopoverTrigger } from "@shared/components/ui/popover";
 import { useThemeComponent } from "@vetta-org/theme-sdk";
 import { SettingsMenuPopover } from "./SettingsMenuPopover";
@@ -31,9 +30,6 @@ export function SettingsMenu(): JSX.Element {
 					{open && <SettingsMenuPopover model={model} />}
 				</AnimatePresence>
 			</Popover>
-			{/* 授权登录浮层：与设置菜单同锚在侧边栏底部，点「登录」后接替它显示（lite 构建为 null） */}
-			<CloudLoginPopover />
 		</div>
 	);
 }
-

@@ -6,7 +6,7 @@ import type { Plugin, PluginOption } from "vite";
 import {
 	createVettaPluginDevPlugins,
 	isVettaPluginDevServer,
-	VETTA_PLUGIN_DEV_ENTRY_ID,
+	AGENT567_PLUGIN_DEV_ENTRY_ID,
 } from "./dev-vite-plugins.js";
 import { createPluginBuildWarningFilter } from "./build-warning-filter.js";
 import { createHostThemeBridgePlugin } from "./host-theme.js";
@@ -249,14 +249,14 @@ export function vettaPluginFederation(options: VettaPluginFederationOptions): Pl
 		...federation({
 			...createVettaPluginFederationConfig(options),
 			exposes: {
-				[options.expose ?? "./plugin"]: devServer ? VETTA_PLUGIN_DEV_ENTRY_ID : entry,
+				[options.expose ?? "./plugin"]: devServer ? AGENT567_PLUGIN_DEV_ENTRY_ID : entry,
 			},
 		}),
 		createPluginStyleScopePlugin(),
 		createPermissionContractPlugin(),
 	];
 	// 兼容旧宿主的 build-watch 流程：增量构建时不重复打 zip。
-	if (options.package !== false && process.env.VETTA_PLUGIN_DEV_WATCH !== "1") {
+	if (options.package !== false && process.env.AGENT567_PLUGIN_DEV_WATCH !== "1") {
 		plugins.push(createPackagePlugin(packageOptions));
 	}
 	return plugins;

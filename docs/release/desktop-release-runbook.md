@@ -24,17 +24,16 @@
 
 | 维度 | 可选值 | 作用 |
 | --- | --- | --- |
-| 触发器 | tag / `workflow_dispatch` | 决定版本来源和是否允许表单输入 |
+| 触发器 | `workflow_dispatch` | 唯一发布入口；选择 branch/ref 并填写发布参数 |
 | `channel` | `default` / `stable` / `test` | 决定是否发布、更新 URL 和 R2 prefix |
 | `release_target` | `github` / `r2` | 决定自动更新源是 GitHub Release 还是商业 R2。两种取值都会发 GitHub Release（test channel 除外）|
-| `cloud_enabled` | `false` / `true` | 决定开源版或商业版；GitHub 与 `false`、R2 与 `true` 必须配对 |
+| `cloud_enabled` | `false` / `true` | 决定开源版或商业版；两种版本均可发布到 GitHub，商业版也可选择 R2 更新源 |
 
-tag 和手动 stable/test 使用同一套构建、校验和发布 jobs。差异只在输入和发布环境：tag 隐式表达正式发布，手动运行显式选择 channel。
+当前 workflow 只由 `workflow_dispatch` 触发。正式发布与 test 发布都必须在 Actions 中手动选择 branch/ref 和 channel。
 
 ```mermaid
 flowchart LR
-    T[匹配 v<package-version> tag] --> P[prepare]
-    D[workflow_dispatch] --> P
+    D[workflow_dispatch] --> P[prepare]
     P --> Q[check + quality + packaging tests]
     Q --> B[Windows + macOS arm64/x64 + Linux build]
     B --> V[platform artifact checks + packaged updater E2E]
@@ -42,20 +41,19 @@ flowchart LR
     A --> R{shouldPublish}
     R -->|false: default dispatch| E[结束，保留临时 Artifact]
     R -->|test| RT[desktop-test / R2 test]
-    R -->|stable 或匹配 tag| RS[desktop-production / R2 与 GitHub Release]
+    R -->|stable| RS[desktop-production / R2 与 GitHub Release]
     RT --> F[公开 feed 校验]
     RS --> F
 ```
 
 `shouldPublish` 由解析器统一计算，当前规则是：
 
-- 匹配的 tag push：发布。
 - `workflow_dispatch + channel=test`：发布到 R2 test。
 - `workflow_dispatch + channel=stable`：发布到 stable。
 - 非 test 的发布都会同时创建 GitHub Release，正文取自 `.github/release-notes/v<version>.md`：
   `release_target=r2` 时 R2 仍是自动更新源，GitHub Release 承担对外下载入口与版本说明归档。
 - 其它手动运行（通常是 `channel=default`）：只构建，不发布。
-- `test` 不能由 tag 触发；`build_version` 只能用于 test channel。
+- `build_version` 只能用于 test channel。
 
 ## Channel 说明
 
@@ -77,7 +75,7 @@ flowchart LR
 
 ### `stable`
 
-正式生产更新通道。可以通过匹配版本的 tag 发布，也可以在 `desktop-production` Environment 审批后手动选择 `channel=stable`。两者进入相同发布 job。
+正式生产更新通道。通过 `workflow_dispatch` 在 `desktop-production` Environment 审批后手动选择 `channel=stable` 发布。
 
 ## GitHub 配置
 
@@ -96,23 +94,37 @@ flowchart LR
 
 常用非敏感变量如下。变量名必须与脚本一致，不要在 workflow 表单里粘贴密钥。
 
+开源 GitHub 发布可以使用默认值。商业版可发布到 GitHub Releases 或 R2。`desktop-production` 与 `desktop-test` 是独立 Environment；商业 test 构建也要在 `desktop-test` 配好自己的商业版/API 与更新源变量。工作流只读取 `AGENT567_*` 和 `API567_*` 正式名称。
+
+GitHub Settings → Environments 中，按发布方式设置：
+
+| 发布方式 | Environment Variables | 说明 |
+| --- | --- | --- |
+| 开源 GitHub 发布 | 无必需变量 | 使用仓库默认值；`desktop-release` 生成的 Android Release APK 仍需要下方四个签名 Secrets。 |
+| 商业 GitHub 发布 | `AGENT567_CLOUD_ENABLED=true`、`API567_BASE_URL=https://api.567.wiki/api/v1`、`AGENT567_UPDATE_URL=https://github.com/Chinachani/567-agent/releases/latest/download` | `AGENT567_RELEASE_TARGET=github` 可省略，默认即为 `github`。配置在实际发布所用的 Environment 中。 |
+| 商业 R2 发布 | 上述商业/API 设置、`AGENT567_RELEASE_TARGET=r2`、`AGENT567_R2_BUCKET`、`AGENT567_R2_PREFIX`、`AGENT567_UPDATE_URL` | 默认和 stable 发布走通用配置；若配置 channel 专用路径，再增加对应的 `_STABLE` / `_TEST` prefix 与 URL，并确保它们一致。 |
+| 商业 test 通道 | `desktop-test` 中设置商业/API 配置、`AGENT567_RELEASE_TARGET=r2`、`AGENT567_R2_BUCKET`、`AGENT567_R2_PREFIX_TEST`、`AGENT567_UPDATE_URL_TEST` | test 只能发布到 R2；feed、R2 prefix 和 R2 Secrets 均须与 production 隔离。 |
+
+Android 发布签名用 Repository Secrets，而不是 Variables；R2 凭据放在相应的 Environment Secrets。下表列出其它可选变量。设计库固定从 567 风格库同步，不需要配置 GitHub Variable。
+
 | 变量 | 说明 |
 | --- | --- |
-| `VETTA_RELEASE_TARGET` | 默认发布目标，商业版通常为 `r2`，开源 fork 为 `github` |
-| `VETTA_RELEASE_CHANNEL` | 默认 channel；正式环境建议为 `stable` 或留空由 tag 语义决定 |
-| `VETTA_CLOUD_ENABLED` | 商业版 `true`，开源版 `false` |
-| `VETTA_SERVER_URL` | 商业版必填，必须是 HTTPS |
-| `VETTA_SITE_URL` | 商业版站点地址，可选但应与部署环境一致 |
-| `VETTA_TENANT` | 租户标识，可选 |
-| `VETTA_SPEECH_INPUT_ENABLED` | `true` 或 `false` |
-| `VETTA_UPDATE_PROVIDER` | R2 使用 `generic`，GitHub 使用 `github`；通常由 target 推导 |
-| `VETTA_UPDATE_URL` | 默认更新源根路径 |
-| `VETTA_UPDATE_URL_STABLE` / `_TEST` | stable/test 专用公开更新 URL，优先于通用 URL |
-| `VETTA_R2_BUCKET` | R2 bucket |
-| `VETTA_R2_PREFIX` | 默认 R2 prefix |
-| `VETTA_R2_PREFIX_STABLE` / `_TEST` | stable/test 专用 prefix，必须与公开 URL path 对应 |
-| `VETTA_TEST_BUILD_VERSION` | 仅 test 可使用；手动表单的 `build_version` 优先级更高 |
-| `VETTA_OPEN_MARKETPLACE_REPOSITORY` | 仅开源版使用的 Marketplace 地址 |
+| `AGENT567_RELEASE_TARGET` | `github` 或 `r2`；默认 `github` |
+| `AGENT567_RELEASE_CHANNEL` | 默认 channel；也可在运行 `workflow_dispatch` 时选择 channel |
+| `AGENT567_CLOUD_ENABLED` | 商业版 `true`，开源版 `false` |
+| `API567_BASE_URL` | 商业版必填，必须是 HTTPS |
+| `AGENT567_TENANT` | 租户标识，可选 |
+| `AGENT567_SPEECH_INPUT_ENABLED` | `true` 或 `false` |
+| `AGENT567_UPDATE_PROVIDER` | 通常由发布目标和版本形态推导，无须手动设置 |
+| `AGENT567_UPDATE_URL` | 商业版 generic 更新源根路径；GitHub 商业版指向 Releases `latest/download`，R2 可作为 stable/test 的回退值 |
+| `AGENT567_UPDATE_URL_STABLE` / `_TEST` | stable/test 专用公开更新 URL，优先于通用 URL |
+| `AGENT567_R2_BUCKET` | 选择 R2 发布时必填 |
+| `AGENT567_R2_PREFIX` | 通用 R2 prefix；channel 专用 prefix 优先 |
+| `AGENT567_R2_PREFIX_STABLE` / `_TEST` | stable/test 专用 prefix，必须与公开 URL path 对应 |
+| `AGENT567_TEST_BUILD_VERSION` | 仅 test 可使用；手动表单的 `build_version` 优先级更高 |
+| `AGENT567_OPEN_MARKETPLACE_REPOSITORY` | 可选覆盖内置能力市场仓库；默认使用 567 Agent 官方能力市场 |
+
+设计库固定从 [567 Agent Style Library](https://github.com/Chinachani/567-agent-style-library) 拉取，不需要额外 GitHub Variable。Marketplace 与设计库是两个独立来源。
 
 Sentry 和 PostHog 是可选能力，不是商业版本的强制发布条件。配置其中任一能力时，必须满足对应字段的完整性和 URL/采样率校验；源映射上传凭据只放 Actions Secrets，不放 Variables 或 dispatch 表单。
 
@@ -121,12 +133,16 @@ Sentry 和 PostHog 是可选能力，不是商业版本的强制发布条件。�
 R2 发布需要：
 
 ```text
-VETTA_R2_ACCOUNT_ID
-VETTA_R2_ACCESS_KEY_ID
-VETTA_R2_SECRET_ACCESS_KEY
+AGENT567_R2_ACCOUNT_ID
+AGENT567_R2_ACCESS_KEY_ID
+AGENT567_R2_SECRET_ACCESS_KEY
 ```
 
-macOS 正式签名/公证使用以下 CI Secrets（构建跑在 `macos-15` / `macos-15-intel` 托管 runner 上）：
+R2 发布只读取 `AGENT567_R2_*` Secrets。
+
+以上三项需要加到对应的 GitHub Environment Secrets。Android keystore Secrets 必须设置在 Repository secrets，因为 Android job 不绑定 GitHub Environment。
+
+当前 GitHub Release workflow 不构建 macOS。以下签名配置仅供自行运行 macOS 本地发布流程时参考，不需要添加到当前 Release workflow：
 
 ```text
 MACOS_CERTIFICATE_P12_BASE64
@@ -137,40 +153,34 @@ APPLE_API_ISSUER
 APPLE_TEAM_ID
 ```
 
-所有会发布的构建都要求 macOS 签名和公证。缺少凭据时应让 job 失败；只有不发布的手动构建允许未签名。
+Android 发布签名（`desktop-release` workflow）使用：
+
+```text
+AGENT567_ANDROID_KEYSTORE_BASE64
+AGENT567_ANDROID_KEYSTORE_PASSWORD
+AGENT567_ANDROID_KEY_ALIAS
+AGENT567_ANDROID_KEY_PASSWORD
+```
+
+Android 签名只读取 `AGENT567_ANDROID_*` Secrets。
+
+Release workflow 构建 Windows、Linux 和 Android，不再构建 macOS。GitHub 商业版无需 R2 凭据；选择 R2 时才需要上述 R2 Secrets。Android Release APK 需要完整配置四个 Android 签名 Secrets。
 
 ## 正式发布操作
-
-### 推荐：推送版本 tag
-
-1. 更新 `apps/desktop/package.json` 版本。
-2. 完成对应版本的发布说明 `.github/release-notes/v<version>.md`，它会作为 GitHub Release 的正文；缺失时 quality job 直接失败（`node scripts/release/release-notes.mjs --check`）。
-3. 确认 `desktop-production` 的 server、更新源、R2、签名和可选遥测配置完整。
-4. 合并目标 commit。
-5. 创建并推送完全匹配的 tag：
-
-   ```text
-   v<apps/desktop/package.json version>
-   ```
-
-   例如 package 版本是 `0.5.47`，tag 必须是 `v0.5.47`。
-
-6. 等待 `desktop-release`：先看 `prepare` 的 resolved config，再看 quality、四个平台 build、制品校验、E2E 和最终公网 feed 校验。
-
-不匹配的 `v*` tag 会被 scope job 忽略，不会打包或发布。正式 tag 不能携带 test channel 语义。
 
 ### 手动正式发布
 
 需要从指定 branch/ref 发布时，可以手动运行：
 
-1. 选择目标 ref。
-2. 选择 `channel=stable`。
-3. 选择 `release_target=r2`（商业版）或 `github`（开源版）。
-4. 不填写 `build_version`；正式版本来自该 ref 的 `package.json`。
-5. 检查 job summary 中的 `cloud_enabled`、server、更新 URL、R2 prefix 和 `should_publish=true`。
-6. 通过 `desktop-production` Environment 审批。
+1. 更新 `apps/desktop/package.json` 版本并准备 `.github/release-notes/v<version>.md`。
+2. 合并目标 commit。
+3. 在 Actions 中手动运行 `desktop-release` 并选择目标 branch/ref。
+4. 选择 `channel=stable` 和 `release_target=r2`（商业版）或 `github`（开源版）。
+5. 不填写 `build_version`；正式版本来自所选 ref 的 `package.json`。
+6. 检查 job summary 中的 `cloud_enabled`、server、更新 URL、R2 prefix 和 `should_publish=true`。
+7. 通过 `desktop-production` Environment 审批。
 
-GitHub target 的手动发布会以当前 workflow SHA 创建对应版本 Release；R2 target 不要求先有 tag，但仍应保留 commit、workflow run 和版本号之间的发布记录。
+发布会以所选 ref 对应的 workflow SHA 创建版本 Release；请保留 commit、workflow run 和版本号之间的发布记录。
 
 ## Test 升级验收操作
 
@@ -180,8 +190,8 @@ GitHub target 的手动发布会以当前 workflow SHA 创建对应版本 Releas
 
 1. 使用 `desktop-release` 手动运行发布 test 基线：选择 `release_target=r2`、`channel=test`，填写当前基线版本的 `build_version`，例如 `0.5.46`。
 2. 再运行一次相同 workflow，发布更高版本的 test 候选，例如 `0.5.47`。
-3. 确认两次运行都通过构建、平台制品校验、packaged updater E2E、R2 上传和公开 feed 校验，并且版本化安装包仍保留在 `VETTA_R2_PREFIX_TEST`。
-4. 确认 `desktop-test` Environment 的 `VETTA_UPDATE_URL_TEST` 与 `VETTA_R2_PREFIX_TEST` 对应同一个公开 feed。通常不需要在升级 workflow 中手动填写 `update_url`。
+3. 确认两次运行都通过构建、平台制品校验、packaged updater E2E、R2 上传和公开 feed 校验，并且版本化安装包仍保留在 `AGENT567_R2_PREFIX_TEST`。
+4. 确认 `desktop-test` Environment 的 `AGENT567_UPDATE_URL_TEST` 与 `AGENT567_R2_PREFIX_TEST` 对应同一个公开 feed。通常不需要在升级 workflow 中手动填写 `update_url`。
 
 ### 触发真实升级验证
 
@@ -191,7 +201,7 @@ GitHub target 的手动发布会以当前 workflow SHA 创建对应版本 Releas
 | --- | --- |
 | `baseline_version` | 已发布的 test 基线，例如 `0.5.46` |
 | `candidate_version` | 已发布的更高 test 候选，例如 `0.5.47` |
-| `update_url` | 可留空，默认读取 `desktop-test` Environment 的 `VETTA_UPDATE_URL_TEST` |
+| `update_url` | 可留空，默认读取 `desktop-test` Environment 的 `AGENT567_UPDATE_URL_TEST` |
 | `notes` | 可选，仅写入本次运行摘要 |
 
 workflow 会在 Windows、macOS、Linux runner 上并行执行，分别：
@@ -246,22 +256,22 @@ R2 的 `latest*.yml` 不能先于安装包公开。版本化安装包和旧版 b
 
 通常表示旧包没有更新 provider 或更新源配置。当前构建入口会默认使用官方 stable 更新源，但应检查：
 
-- `VETTA_UPDATE_PROVIDER` 是否为 `generic` 或 `github`；
-- `VETTA_UPDATE_URL` 是否为 HTTPS 且无凭据/query/hash；
+- `AGENT567_UPDATE_PROVIDER` 是否为 `generic` 或 `github`；
+- `AGENT567_UPDATE_URL` 是否为 HTTPS 且无凭据/query/hash；
 - 是否误设置了不支持的 `none`；
 - 安装包是否来自旧版本或错误的 build 环境。
 
 ### test 发布后 stable 客户端看不到更新
 
-这是预期隔离行为。test 包必须使用 test URL，stable 包只读取 stable URL。检查 job summary、`VETTA_UPDATE_URL_TEST`、`VETTA_R2_PREFIX_TEST` 和 CDN path 是否一致。
+这是预期隔离行为。test 包必须使用 test URL，stable 包只读取 stable URL。检查 job summary、`AGENT567_UPDATE_URL_TEST`、`AGENT567_R2_PREFIX_TEST` 和 CDN path 是否一致。
 
 ### feed 有 metadata 但客户端下载失败
 
 先检查 metadata 引用的每一个安装包和 blockmap 是否可公开读取，再检查 SHA-512、文件大小、缓存头和 URL path。不要只检查 `latest.yml` 的 HTTP 200。
 
-### macOS 发布 job 没有上传
+### macOS 制品
 
-发布型 job 缺少签名/公证凭据会主动失败，这是保护 stable/test feed 的门禁，不应通过关闭 `VETTA_REQUIRE_MAC_SIGNATURE` 绕过。
+当前 `desktop-release` workflow 不构建或发布 macOS 制品。上面的 Apple 签名变量只适用于独立的本地 macOS 发布流程；不要为 GitHub Release workflow 配置它们。
 
 ### 手动运行没有发布
 
@@ -274,7 +284,7 @@ workflow 不允许用 `--clobber` 修改已公开 Release。只有未公开的 d
 ## 修改发布流程时的维护清单
 
 - 同时检查 workflow、解析器、解析器单测和 workflow 合同测试。
-- 保持 tag、手动 stable、手动 test 的质量门禁一致；差异只能在 channel、Environment 和发布目标。
+- 保持手动 stable、手动 test 的质量门禁一致；差异只能在 channel、Environment 和发布目标。
 - 新增 channel 时集中扩展解析器的 `CHANNELS`、URL/prefix 解析、`shouldPublish` 规则、Environment 映射、测试和本文，不要在多个 job 手写条件。
 - 变更 updater 配置后运行：
 

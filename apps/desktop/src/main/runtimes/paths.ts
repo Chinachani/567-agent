@@ -35,7 +35,7 @@ export function runtimeVersion(type: RuntimeType): string {
 	return RUNTIME_MANIFEST[type].version;
 }
 
-/** ~/.vetta —— 与 coding-agent 的 agent 目录同根，尊重 VETTA_CODING_AGENT_DIR 覆盖。 */
+/** ~/.vetta —— 与 coding-agent 的 agent 目录同根，尊重 AGENT567_CODING_AGENT_DIR 覆盖。 */
 export function vettaRootDir(): string {
 	return dirname(getAgentDir());
 }

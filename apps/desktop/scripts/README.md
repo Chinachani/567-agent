@@ -11,7 +11,7 @@
 
 ## 主进程 sourcemap
 
-`vite.main.config.ts` 只在 `VETTA_BUILD_ENV=development` 或 Vite mode 为 `development` 时生成 sourcemap。
+`vite.main.config.ts` 只在 `AGENT567_BUILD_ENV=development` 或 Vite mode 为 `development` 时生成 sourcemap。
 
 原因：
 
@@ -53,9 +53,9 @@
 
 目标平台来源优先级：
 
-1. `VETTA_IM_GATEWAY_TARGET_PLATFORMS`
-2. `VETTA_CLI_TARGET_PLATFORMS`
-3. `VETTA_VENDOR_PLATFORM`
+1. `AGENT567_IM_GATEWAY_TARGET_PLATFORMS`
+2. `AGENT567_CLI_TARGET_PLATFORMS`
+3. `AGENT567_VENDOR_PLATFORM`
 4. 当前构建宿主平台 `${process.platform}-${process.arch}`
 
 原因：
@@ -65,8 +65,8 @@
 
 影响：
 
-- `dist:win` 等脚本已经设置 `VETTA_VENDOR_PLATFORM` 和 `VETTA_CLI_TARGET_PLATFORMS`，因此会只打包目标平台 sidecar。
-- 如需一次构建多个平台的 sidecar，可显式设置 `VETTA_IM_GATEWAY_TARGET_PLATFORMS=win32-x64,linux-x64`。
+- `dist:win` 等脚本已经设置 `AGENT567_VENDOR_PLATFORM` 和 `AGENT567_CLI_TARGET_PLATFORMS`，因此会只打包目标平台 sidecar。
+- 如需一次构建多个平台的 sidecar，可显式设置 `AGENT567_IM_GATEWAY_TARGET_PLATFORMS=win32-x64,linux-x64`。
 
 ## Electron locales
 
@@ -90,16 +90,16 @@
 
 ## Windows 语音输入构建开关
 
-`VETTA_SPEECH_INPUT_ENABLED` 是严格的构建期开关，只接受 `true` 或 `false`，未设置时默认启用。
+`AGENT567_SPEECH_INPUT_ENABLED` 是严格的构建期开关，只接受 `true` 或 `false`，未设置时默认启用。
 它与目标平台共同决定语音能力：只有开关启用且目标包含 `win32-x64` 时才构建语音输入。
 `build` / `pack` / `dist` 及纯 Node 构建脚本默认统一读取 `.env.production`；开发启动器显式读取
-`.env.development`，`dist:*:test` 的 `VETTA_BUILD_ENV=test` 仍优先读取 `.env.test`。Shell 中直接设置的
+`.env.development`，`dist:*:test` 的 `AGENT567_BUILD_ENV=test` 仍优先读取 `.env.test`。Shell 中直接设置的
 变量优先级最高。
 
 关闭版 Windows 包示例：
 
 ```powershell
-$env:VETTA_SPEECH_INPUT_ENABLED="false"
+$env:AGENT567_SPEECH_INPUT_ENABLED="false"
 bun run dist:win
 ```
 
@@ -179,7 +179,7 @@ cd apps/desktop && bun run build:main
 
 所有 `dist:*` / `pack:*` 命令都会先执行 `bun run validate:pack-env`，而且检查发生在清理旧产物、准备原生依赖和编译之前。`prepare-pack.js` 还会复用同一校验器做第二道防线。检查覆盖：
 
-- `VETTA_CLOUD_ENABLED` 必须明确为 `true`（商业版）或 `false`（开源版）；
+- `AGENT567_CLOUD_ENABLED` 必须明确为 `true`（商业版）或 `false`（开源版）；
 - 商业版必须有合法的服务端 URL，并使用 `generic` 更新源；开源版必须使用 GitHub 更新源；
 - 两种版本均仅在环境变量显式配置仓库时注册内置 GitHub Marketplace，配置必须通过 GitHub URL 校验；
 - Windows、macOS、Linux 目标标签、语音开关、生产插件租户；
@@ -194,7 +194,7 @@ bun run dist:opensource
 bun run dist:opensource -- --target dir
 ```
 
-该入口读取 `.env.opensource`，固定关闭 cloud、使用 GitHub provider，并为客户端更新仓库提供默认值；fork 可在文件或 shell 中覆盖更新 owner、repo。能力 Marketplace 未配置 `VETTA_OPEN_MARKETPLACE_REPOSITORY` 时使用 567 Agent 官方能力市场 `Chinachani/567-agent-marketplace`；fork 可用该变量替换内置仓库。
+该入口读取 `.env.opensource`，固定关闭 cloud、使用 GitHub provider，并为客户端更新仓库提供默认值；fork 可在文件或 shell 中覆盖更新 owner、repo。能力 Marketplace 未配置 `AGENT567_OPEN_MARKETPLACE_REPOSITORY` 时使用 567 Agent 官方能力市场 `Chinachani/567-agent-marketplace`；fork 可用该变量替换内置仓库。
 
 需要只生成某一种 Linux 格式时，在 `apps/desktop` 使用独立的 `package:*` 入口；不带格式的入口一次生成正式发布使用的 AppImage、DEB 和 RPM：
 
@@ -226,12 +226,12 @@ bun run package:win:portable
 
 客户端统一使用 `electron-updater`，更新源由打包时的环境变量决定，与目标操作系统无关：
 
-- `VETTA_UPDATE_PROVIDER=generic`：R2、自建对象存储或任意静态 HTTP/CDN。
-- `VETTA_UPDATE_PROVIDER=github`：公开 GitHub Releases。
-- 未设置 `VETTA_UPDATE_PROVIDER`：默认使用 `Chinachani/567-agent` GitHub Releases。
-- `VETTA_UPDATE_PROVIDER=none`：不受支持，打包时直接失败；所有可打包产物都必须有更新源配置。
+- `AGENT567_UPDATE_PROVIDER=generic`：R2、自建对象存储或任意静态 HTTP/CDN。
+- `AGENT567_UPDATE_PROVIDER=github`：公开 GitHub Releases。
+- 未设置 `AGENT567_UPDATE_PROVIDER`：默认使用 `Chinachani/567-agent` GitHub Releases。
+- `AGENT567_UPDATE_PROVIDER=none`：不受支持，打包时直接失败；所有可打包产物都必须有更新源配置。
 
-发布 workflow 的最后一步会执行 `node scripts/verify-update-feed.mjs`：它读取三平台 metadata，确认版本与本次发布版本一致，并对每个引用的安装包执行公开可读性检查。CDN 不支持 HEAD 时会回退到 Range GET。只有不发布的手动构建跳过公开 feed 检查；手动 `test` / `stable` 发布与 tag 发布一样会在上传后执行该检查。
+发布 workflow 的最后一步会执行 `node scripts/verify-update-feed.mjs`：它读取当前发布矩阵的 Windows 与 Linux metadata，确认版本与本次发布版本一致，并对每个引用的安装包执行公开可读性检查。CDN 不支持 HEAD 时会回退到 Range GET。macOS metadata 仅在显式传入校验清单时检查。只有不发布的手动构建跳过公开 feed 检查；手动 `test` / `stable` 发布与 tag 发布一样会在上传后执行该检查。
 
 正式环境默认读取：
 
@@ -243,8 +243,8 @@ https://github.com/Chinachani/567-agent/releases
 
 完整的安装、重启和版本切换验证应使用独立的 `test` 通道，不要覆盖 stable。通过 `desktop-release` 的
 `workflow_dispatch` 选择 `release_target=r2`、`channel=test`，并为升级候选填写递增的 `build_version`
-（例如当前 test 为 `0.5.46` 时填写 `0.5.47`）。配置会自动切换到 `VETTA_R2_PREFIX_TEST` /
-`VETTA_UPDATE_URL_TEST`，并使用 `desktop-test` Environment；`build_version` 在 stable/default 通道会被拒绝。
+（例如当前 test 为 `0.5.46` 时填写 `0.5.47`）。配置会自动切换到 `AGENT567_R2_PREFIX_TEST` /
+`AGENT567_UPDATE_URL_TEST`，并使用 `desktop-test` Environment；`build_version` 在 stable/default 通道会被拒绝。
 
 建议先发布一个 test 基线版本，再发布更高的 test 候选版本。随后运行仓库的 `desktop-upgrade-e2e` Action，填写
 `baseline_version` 和 `candidate_version`；Action 会在 Windows、macOS、Linux runner 上下载并安装基线包，启动真实
@@ -265,7 +265,7 @@ electron-builder 会随各平台产物生成更新清单：
 bun run publish:updates:r2
 ```
 
-发布前会按当前目录中的平台清单执行门禁：Windows 在 Windows 上校验 Inno 版本，并解包 ZIP 检查启动器、`current.json` 与版本目录；macOS 校验 `latest-mac.yml`、ZIP、大小、SHA-512 和 blockmap；Linux 普通校验命令兼容只生成 AppImage 的开发/PR 构建，正式发布命令还要求清单同时引用 AppImage、DEB 和 RPM，并检查两个原生包的名称、版本、架构、可执行文件、desktop entry、图标与 `package-type`。在 macOS 正式签名构建中还应设置 `VETTA_REQUIRE_MAC_SIGNATURE=1`，此时会解压 ZIP 并执行 `codesign`、`spctl` 与 `stapler` 校验。也可以单独执行：
+发布前会按当前目录中的平台清单执行门禁：Windows 在 Windows 上校验 Inno 版本，并解包 ZIP 检查启动器、`current.json` 与版本目录；macOS 校验 `latest-mac.yml`、ZIP、大小、SHA-512 和 blockmap；Linux 普通校验命令兼容只生成 AppImage 的开发/PR 构建，正式发布命令还要求清单同时引用 AppImage、DEB 和 RPM，并检查两个原生包的名称、版本、架构、可执行文件、desktop entry、图标与 `package-type`。在 macOS 正式签名构建中还应设置 `AGENT567_REQUIRE_MAC_SIGNATURE=1`，此时会解压 ZIP 并执行 `codesign`、`spctl` 与 `stapler` 校验。也可以单独执行：
 
 ```bash
 bun run verify:updates:windows
@@ -282,19 +282,19 @@ Windows 的运行时安装与 ZIP 解包校验只能在 Windows 执行；R2 汇�
 上传脚本要求通过 CI Secret 注入：
 
 ```text
-VETTA_R2_ACCOUNT_ID
-VETTA_R2_ACCESS_KEY_ID
-VETTA_R2_SECRET_ACCESS_KEY
-VETTA_R2_BUCKET
-VETTA_R2_PREFIX=desktop/stable
-VETTA_UPDATE_URL=https://example.com/desktop/stable
+AGENT567_R2_ACCOUNT_ID
+AGENT567_R2_ACCESS_KEY_ID
+AGENT567_R2_SECRET_ACCESS_KEY
+AGENT567_R2_BUCKET
+AGENT567_R2_PREFIX=desktop/stable
+AGENT567_UPDATE_URL=https://example.com/desktop/stable
 ```
 
 脚本解析 `latest*.yml`，发布清单引用的版本化安装包、对应 blockmap，以及与清单版本精确匹配的 Windows ZIP 补充制品；大文件使用 16 MiB S3 multipart 分片。上传前会读取公开通道的现有清单，拒绝用更低版本覆盖；安装包经公开域名验证可读后才覆盖 `latest*.yml`，避免客户端读到尚未完整发布的版本。R2 自定义域名应对安装包启用长期缓存；`latest*.yml` 保持短缓存，不要被 Cache Everything 规则强制长缓存。
 
 ### 发布到 GitHub Releases
 
-开源构建使用专用入口。仓库工作流默认将 GitHub Releases 与开源版配对；官方仓库设置 `VETTA_RELEASE_TARGET=r2` 后切到商业版与 R2：
+开源构建使用专用入口。仓库工作流默认将 GitHub Releases 与开源版配对；官方仓库设置 `AGENT567_RELEASE_TARGET=r2` 后切到商业版与 R2：
 
 ```bash
 bun run dist:opensource

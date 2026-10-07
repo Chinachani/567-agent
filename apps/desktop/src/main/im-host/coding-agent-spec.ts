@@ -40,7 +40,7 @@ function resolveCodingAgentPackageDir(): string {
  * Build the {@link CodingAgentSpec} that the im-gateway sidecar uses to
  * spawn one coding-agent subprocess per IM session.
  *
- * Production: Vetta.app's executable. macOS/Linux use `--agent-rpc`, which
+ * Production: 567 Agent.app's executable. macOS/Linux use `--agent-rpc`, which
  * main.ts detects before window/UI bring-up. Windows runs the staged
  * coding-agent CLI under `ELECTRON_RUN_AS_NODE=1`, because GUI Electron
  * mode closes stdio too early for the RPC handshake.
@@ -49,7 +49,7 @@ function resolveCodingAgentPackageDir(): string {
  * production argv shape so the sidecar code path stays identical.
  *
  * `packageDir` is always populated so the sidecar forwards it as
- * `VETTA_PACKAGE_DIR` to the child — the only reliable way for the
+ * `AGENT567_PACKAGE_DIR` to the child — the only reliable way for the
  * bundled agent to find its on-disk assets.
  */
 export interface BuildCodingAgentSpecOptions {
@@ -73,7 +73,7 @@ export function buildCodingAgentSpec(opts: BuildCodingAgentSpecOptions = {}): Co
 		: [];
 
 	// Inject the host's compile-time server URL into the subprocess env.
-	// coding-agent's main.ts reads `process.env.VETTA_SERVER_URL` ahead of
+	// coding-agent's main.ts reads `process.env.API567_BASE_URL` ahead of
 	// `~/.vetta/agent/settings.json`, which avoids the prod failure where a
 	// stale `serverUrl` (e.g. left over from a dev/LAN login) causes
 	// `loadRemoteModels` to 401 against the wrong gateway — remote providers

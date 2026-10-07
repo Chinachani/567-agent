@@ -20,7 +20,7 @@ function resolveBundledWindowsSandboxHostPath(): string {
 }
 
 export function resolveWindowsSandboxHostBinary(): ResolvedWindowsSandboxHostBinary | undefined {
-	const explicitPath = process.env.VETTA_WINDOWS_SANDBOX_HOST_PATH?.trim();
+	const explicitPath = process.env.AGENT567_WINDOWS_SANDBOX_HOST_PATH?.trim();
 
 	if (explicitPath) {
 		if (!existsSync(explicitPath)) {

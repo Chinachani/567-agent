@@ -25,14 +25,14 @@ function createFetch() {
 test("resolves provider-specific public feed bases", () => {
 	assert.equal(
 		resolveUpdateFeedBase({
-			env: { VETTA_UPDATE_PROVIDER: "generic", VETTA_UPDATE_URL: "https://updates.example.com/desktop/stable" },
+			env: { AGENT567_UPDATE_PROVIDER: "generic", AGENT567_UPDATE_URL: "https://updates.example.com/desktop/stable" },
 			version,
 		}),
 		"https://updates.example.com/desktop/stable/",
 	);
 	assert.equal(
 		resolveUpdateFeedBase({
-		env: { VETTA_UPDATE_PROVIDER: "github", VETTA_UPDATE_GITHUB_OWNER: "Chinachani", VETTA_UPDATE_GITHUB_REPO: "567-agent" },
+		env: { AGENT567_UPDATE_PROVIDER: "github", AGENT567_UPDATE_GITHUB_OWNER: "Chinachani", AGENT567_UPDATE_GITHUB_REPO: "567-agent" },
 			version,
 		}),
 		"https://github.com/Chinachani/567-agent/releases/download/v0.5.46/",
@@ -42,25 +42,37 @@ test("resolves provider-specific public feed bases", () => {
 test("accepts a Git tag version with the leading v", () => {
 	assert.equal(
 		resolveUpdateFeedBase({
-		env: { VETTA_UPDATE_PROVIDER: "github", VETTA_UPDATE_GITHUB_OWNER: "Chinachani", VETTA_UPDATE_GITHUB_REPO: "567-agent" },
+		env: { AGENT567_UPDATE_PROVIDER: "github", AGENT567_UPDATE_GITHUB_OWNER: "Chinachani", AGENT567_UPDATE_GITHUB_REPO: "567-agent" },
 		version: "v0.5.46",
 		}),
 		"https://github.com/Chinachani/567-agent/releases/download/v0.5.46/",
 	);
 });
 
-test("verifies all platform metadata and referenced artifacts", async () => {
+test("verifies only metadata published by the Windows and Linux release matrix", async () => {
 	const fake = createFetch();
 	const result = await verifyUpdateFeed({
-		env: { VETTA_UPDATE_PROVIDER: "generic", VETTA_UPDATE_URL: "https://updates.example.com/desktop/stable" },
+		env: { AGENT567_UPDATE_PROVIDER: "generic", AGENT567_UPDATE_URL: "https://updates.example.com/desktop/stable" },
 		version,
 		fetchImpl: fake.fetchImpl,
 		retryDelayMs: 0,
 	});
-	assert.equal(result.metadataFiles.length, 3);
-	assert.equal(result.artifacts.length, 3);
-	assert.equal(fake.calls.filter((call) => call.method === "GET").length, 3);
-	assert.equal(fake.calls.filter((call) => call.method === "HEAD").length, 3);
+	assert.deepEqual(result.metadataFiles, ["latest.yml", "latest-linux.yml"]);
+	assert.equal(result.artifacts.length, 2);
+	assert.equal(fake.calls.filter((call) => call.method === "GET").length, 2);
+	assert.equal(fake.calls.filter((call) => call.method === "HEAD").length, 2);
+});
+
+test("allows macOS metadata to be opted into when a macOS release is published", async () => {
+	const fake = createFetch();
+	const result = await verifyUpdateFeed({
+		env: { AGENT567_UPDATE_PROVIDER: "generic", AGENT567_UPDATE_URL: "https://updates.example.com/desktop/stable" },
+		version,
+		metadataFiles: ["latest.yml", "latest-linux.yml", "latest-mac.yml"],
+		fetchImpl: fake.fetchImpl,
+		retryDelayMs: 0,
+	});
+	assert.ok(result.metadataFiles.includes("latest-mac.yml"));
 });
 
 test("falls back to a ranged GET when a CDN rejects HEAD", async () => {
@@ -70,7 +82,7 @@ test("falls back to a ranged GET when a CDN rejects HEAD", async () => {
 		return fake.fetchImpl(url, init);
 	};
 	await verifyUpdateFeed({
-		env: { VETTA_UPDATE_PROVIDER: "generic", VETTA_UPDATE_URL: "https://updates.example.com/desktop/stable" },
+		env: { AGENT567_UPDATE_PROVIDER: "generic", AGENT567_UPDATE_URL: "https://updates.example.com/desktop/stable" },
 		version,
 		metadataFiles: ["latest-linux.yml"],
 		fetchImpl,
@@ -83,7 +95,7 @@ test("rejects a feed that serves a different release version", async () => {
 	const fake = createFetch();
 	assert.rejects(
 		verifyUpdateFeed({
-			env: { VETTA_UPDATE_PROVIDER: "generic", VETTA_UPDATE_URL: "https://updates.example.com/desktop/stable" },
+			env: { AGENT567_UPDATE_PROVIDER: "generic", AGENT567_UPDATE_URL: "https://updates.example.com/desktop/stable" },
 			version: "0.5.47",
 			metadataFiles: ["latest.yml"],
 			fetchImpl: fake.fetchImpl,
