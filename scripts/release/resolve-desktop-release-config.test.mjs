@@ -279,6 +279,7 @@ describe("resolveDesktopReleaseConfig", () => {
 		expect(env).toContain("AGENT567_UPDATE_PROVIDER=generic");
 		expect(env).toContain("AGENT567_UPDATE_URL=https://releases.example.com/desktop/stable");
 		expect(env).toContain("AGENT567_CLOUD_ENABLED=true");
+		expect(env).toContain("API567_BASE_URL=https://api.example.com/api/v1");
 		expect(env).not.toContain("AGENT567_TENANT=");
 	});
 

@@ -343,7 +343,7 @@ describe("Desktop release workflow contracts", () => {
 	});
 
 	it("publishes manually dispatched releases through one version-release publisher", () => {
-		expect(workflow).not.toContain("push:");
+		expect(parse(workflow).on.push.tags).toEqual(["v*"]);
 		expect(workflow).toContain("workflow_dispatch:");
 		expect(workflow).toContain("group: desktop-release-");
 		expect(workflow).toContain("name: publish GitHub Release");
