@@ -211,6 +211,7 @@ export function toGithubEnv(config) {
 	const entries = [
 		["AGENT567_BUILD_ENV", config.channel === "test" ? "test" : "production"],
 		["AGENT567_CLOUD_ENABLED", config.cloudEnabled],
+		["API567_BASE_URL", config.api567BaseUrl],
 		["AGENT567_RELEASE_TARGET", config.releaseTarget],
 		["AGENT567_RELEASE_CHANNEL", config.channel],
 		["AGENT567_TEST_BUILD_VERSION", config.buildVersion],
