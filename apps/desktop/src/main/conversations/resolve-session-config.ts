@@ -1,4 +1,4 @@
-import { VETTA_CLI_GUIDANCE } from "@567agent/coding-agent/cli-guidance";
+import { AGENT567_CLI_GUIDANCE } from "@567agent/coding-agent/cli-guidance";
 import { createCodingAgentRuntimeSessionSelection } from "@567agent/coding-agent/composition";
 import type { AgentConfigurationSelection, ConversationScenario } from "@567agent/coding-agent/profile";
 import type {
@@ -87,8 +87,8 @@ export async function resolveDesktopSessionConfig(
 	const appendSystemPrompt =
 		isConversation && desktopConfig.experimental?.vettaCli === true
 			? config?.appendSystemPrompt
-				? `${config.appendSystemPrompt}\n\n${VETTA_CLI_GUIDANCE}`
-				: VETTA_CLI_GUIDANCE
+				? `${config.appendSystemPrompt}\n\n${AGENT567_CLI_GUIDANCE}`
+				: AGENT567_CLI_GUIDANCE
 			: config?.appendSystemPrompt;
 	const agentMode = await resolveSessionAgentMode(config?.sessionPath, desktopConfig.defaultAgentMode ?? "work");
 	const {

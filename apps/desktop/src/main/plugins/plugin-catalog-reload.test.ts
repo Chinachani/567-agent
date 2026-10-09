@@ -16,7 +16,7 @@ const testPaths = vi.hoisted(() => {
 	};
 });
 
-vi.mock("@567agent/action-rpc", () => ({ getVettaHomePath: () => testPaths.home }));
+vi.mock("@567agent/action-rpc", () => ({ getAgent567HomePath: () => testPaths.home }));
 vi.mock("electron", () => ({
 	app: { isPackaged: true, resourcesPath: testPaths.resources },
 	webContents: { getAllWebContents: () => [] },

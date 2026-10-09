@@ -73,9 +73,9 @@ export function recordInputContextUsed(input: InputContextUsageInput): void {
 	});
 }
 
-function recordEvent(event: Parameters<typeof window.vetta.appMonitor.recordEvent>[0]): void {
+function recordEvent(event: Parameters<typeof window.agent567.appMonitor.recordEvent>[0]): void {
 	try {
-		window.vetta.appMonitor.recordEvent(event);
+		window.agent567.appMonitor.recordEvent(event);
 	} catch {
 		// Monitoring is best-effort and must not affect input behavior.
 	}

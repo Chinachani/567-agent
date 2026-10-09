@@ -1,3 +1,4 @@
+import { createHash } from "node:crypto";
 import { FakeRelay, RemoteConnection } from "@567agent/remote-control";
 import { describe, expect, it } from "vitest";
 import { DesktopRemoteConnector, type DesktopRemoteOperations } from "./desktop-remote-connector.js";
@@ -117,6 +118,135 @@ describe("DesktopRemoteConnector", () => {
 		await connector.stop();
 	});
 
+	it("receives a checksummed encrypted archive only when LAN transfer is enabled", async () => {
+		const relay = new FakeRelay();
+		const mobile = new RemoteConnection(relay.createTransport("pair-migration", "mobile"), {
+			role: "mobile",
+			deviceId: "phone-migration",
+			deviceName: "Phone",
+			capabilities: { chat: true, sessionRead: true },
+			connectionId: "mobile-migration",
+		});
+		const desktop = new RemoteConnection(relay.createTransport("pair-migration", "desktop"), {
+			role: "desktop",
+			deviceId: "desktop-migration",
+			deviceName: "Desktop",
+			capabilities: { chat: true, sessionRead: true },
+			connectionId: "desktop-migration",
+		});
+		let imported: { bytes: Buffer; passphrase: string } | undefined;
+		let desktopApproved = false;
+		const operations: DesktopRemoteOperations = {
+			listSessions: async () => [],
+			createSession: async () => ({ sessionId: "session-new" }),
+			openSession: async (sessionId) => ({ sessionId }),
+			prompt: async function* () {},
+			abort: async () => undefined,
+			resume: async () => undefined,
+			diagnostics: async () => ({}),
+			canReceiveSessionMigration: true,
+			confirmSessionMigrationArchive: async () => {
+				desktopApproved = true;
+				return true;
+			},
+			receiveEncryptedSessionMigrationArchive: async (bytes, passphrase) => {
+				expect(desktopApproved).toBe(true);
+				imported = { bytes: Buffer.from(bytes), passphrase };
+				return { importedSessions: 1 };
+			},
+		};
+		const connector = new DesktopRemoteConnector(desktop, operations);
+		await mobile.connect();
+		await connector.start();
+		await expect(mobile.request("session.list")).resolves.toMatchObject({
+			supportedMethods: expect.arrayContaining([
+				"session.migration.receive.start",
+				"session.migration.receive.chunk",
+				"session.migration.receive.finish",
+				"session.migration.receive.import",
+			]),
+		});
+		const bytes = Buffer.from("encrypted archive");
+		await mobile.request("session.migration.receive.start", {
+			transferId: "transfer_migration_1",
+			totalBytes: bytes.length,
+			sha256: createHash("sha256").update(bytes).digest("hex"),
+		});
+		await mobile.request("session.migration.receive.chunk", {
+			transferId: "transfer_migration_1",
+			index: 0,
+			dataBase64: bytes.toString("base64"),
+		});
+		await expect(
+			mobile.request("session.migration.receive.finish", {
+				transferId: "transfer_migration_1",
+			}),
+		).resolves.toEqual({ accepted: true });
+		await mobile.request("session.migration.receive.import", {
+			transferId: "transfer_migration_1",
+			passphrase: "secure-password",
+		});
+		expect(imported).toEqual({ bytes, passphrase: "secure-password" });
+		await connector.stop();
+	});
+
+	it("returns the migration import detail instead of a generic remote operation error", async () => {
+		const relay = new FakeRelay();
+		const mobile = new RemoteConnection(relay.createTransport("pair-migration-error", "mobile"), {
+			role: "mobile",
+			deviceId: "phone-migration-error",
+			deviceName: "Phone",
+			capabilities: { chat: true, sessionRead: true },
+		});
+		const desktop = new RemoteConnection(relay.createTransport("pair-migration-error", "desktop"), {
+			role: "desktop",
+			deviceId: "desktop-migration-error",
+			deviceName: "Desktop",
+			capabilities: { chat: true, sessionRead: true },
+		});
+		const operations: DesktopRemoteOperations = {
+			listSessions: async () => [],
+			createSession: async () => ({ sessionId: "session-new" }),
+			openSession: async (sessionId) => ({ sessionId }),
+			prompt: async function* () {},
+			abort: async () => undefined,
+			resume: async () => undefined,
+			diagnostics: async () => ({}),
+			canReceiveSessionMigration: true,
+			confirmSessionMigrationArchive: async () => true,
+			receiveEncryptedSessionMigrationArchive: async () => {
+				throw Object.assign(new Error("message 2 (assistant): invalid record schema"), {
+					code: "SESSION_MIGRATION_IMPORT_FAILED",
+				});
+			},
+		};
+		const connector = new DesktopRemoteConnector(desktop, operations);
+		await mobile.connect();
+		await connector.start();
+		const bytes = Buffer.from("encrypted archive");
+		await mobile.request("session.migration.receive.start", {
+			transferId: "transfer_migration_error",
+			totalBytes: bytes.length,
+			sha256: createHash("sha256").update(bytes).digest("hex"),
+		});
+		await mobile.request("session.migration.receive.chunk", {
+			transferId: "transfer_migration_error",
+			index: 0,
+			dataBase64: bytes.toString("base64"),
+		});
+		await mobile.request("session.migration.receive.finish", { transferId: "transfer_migration_error" });
+
+		await expect(
+			mobile.request("session.migration.receive.import", {
+				transferId: "transfer_migration_error",
+				passphrase: "secure-password",
+			}),
+		).rejects.toMatchObject({
+			message: expect.stringContaining("电脑端导入会话备份失败：message 2 (assistant): invalid record schema"),
+		});
+		await connector.stop();
+	});
+
 	it("cancels an in-flight remote suggestion request", async () => {
 		const relay = new FakeRelay();
 		const mobile = new RemoteConnection(relay.createTransport("pair-cancel-suggestions", "mobile"), {
@@ -226,7 +356,7 @@ describe("DesktopRemoteConnector", () => {
 		expect(errors.at(-1)).toEqual({
 			state: "error",
 			code: "unauthorized",
-			message: "Desktop model authentication failed",
+			message: "电脑端模型认证失败，请检查默认模型和 API 密钥",
 		});
 
 		await connector.stop();

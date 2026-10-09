@@ -2,7 +2,7 @@ import { createDecipheriv, createHash, createHmac, randomBytes, scryptSync } fro
 import { existsSync, readFileSync, writeFileSync } from "node:fs";
 import os from "node:os";
 import { join } from "node:path";
-import { getVettaHomePath } from "@567agent/action-rpc";
+import { getAgent567HomePath } from "@567agent/action-rpc";
 import { ElectronSafeStorageCryptography } from "../credentials/electron-safe-storage-cryptography.js";
 
 /**
@@ -32,7 +32,7 @@ let cachedFingerprint: string | undefined;
 export function getClientFingerprint(): string {
 	if (cachedFingerprint) return cachedFingerprint;
 
-	const idFilePath = join(getVettaHomePath(), "desktop-app", "device-fingerprint.id");
+	const idFilePath = join(getAgent567HomePath(), "desktop-app", "device-fingerprint.id");
 	if (existsSync(idFilePath)) {
 		try {
 			const saved = readFileSync(idFilePath, "utf8").trim();

@@ -56,7 +56,7 @@ function Content({ approval }: { approval: ActiveActionApproval }): JSX.Element 
 	useEffect(() => {
 		if (!input?.id) return;
 		let cancelled = false;
-		void window.vetta.webhook
+		void window.agent567.webhook
 			.list()
 			.then((items) => {
 				if (!cancelled) setEndpoint(items.find((item) => item.id === input.id) ?? null);

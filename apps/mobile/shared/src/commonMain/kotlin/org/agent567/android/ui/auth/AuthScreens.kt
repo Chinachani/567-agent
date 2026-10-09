@@ -51,11 +51,11 @@ import androidx.compose.ui.text.input.VisualTransformation
 import androidx.compose.ui.unit.dp
 import org.agent567.android.domain.error.UiError
 import org.agent567.android.ui.components.PrimaryBlackButton
-import org.agent567.android.ui.components.VettaTextField
-import org.agent567.android.ui.components.VettaErrorBanner
+import org.agent567.android.ui.components.Agent567TextField
+import org.agent567.android.ui.components.Agent567ErrorBanner
 import org.agent567.android.ui.i18n.Str
 import org.agent567.android.ui.remote.PairingScannerButton
-import org.agent567.android.ui.theme.vettaExtra
+import org.agent567.android.ui.theme.agent567Extra
 
 @Composable
 fun WelcomeScreen(
@@ -80,7 +80,7 @@ fun WelcomeScreen(
         Text(
             Str.welcomeSubtitle,
             style = MaterialTheme.typography.bodyMedium,
-            color = MaterialTheme.vettaExtra.secondaryText,
+            color = MaterialTheme.agent567Extra.secondaryText,
         )
         Spacer(Modifier.height(28.dp))
         FeatureRow(Icons.Default.Computer, Str.featureDesktop, Str.featureDesktopDesc)
@@ -101,11 +101,11 @@ fun WelcomeScreen(
             onClick = onSkip,
             modifier = Modifier.align(Alignment.CenterHorizontally),
         ) {
-            Text(Str.skipForNow, color = MaterialTheme.vettaExtra.secondaryText)
+            Text(Str.skipForNow, color = MaterialTheme.agent567Extra.secondaryText)
         }
         if (error != null) {
             Spacer(Modifier.height(12.dp))
-            VettaErrorBanner(error = error, onDismiss = onClearError)
+            Agent567ErrorBanner(error = error, onDismiss = onClearError)
         }
         if (connecting) {
             Spacer(Modifier.height(12.dp))
@@ -118,7 +118,7 @@ fun WelcomeScreen(
                 Text(
                     Str.connectingDesktop,
                     style = MaterialTheme.typography.labelLarge,
-                    color = MaterialTheme.vettaExtra.secondaryText,
+                    color = MaterialTheme.agent567Extra.secondaryText,
                 )
             }
         }
@@ -143,7 +143,7 @@ private fun FeatureRow(
         Column {
             Text(title, style = MaterialTheme.typography.titleSmall)
             Spacer(Modifier.height(2.dp))
-            Text(desc, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.vettaExtra.secondaryText)
+            Text(desc, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.agent567Extra.secondaryText)
         }
     }
 }
@@ -185,7 +185,7 @@ fun LoginScreen(
     var localError by remember { mutableStateOf<String?>(null) }
 
     Scaffold(
-        containerColor = MaterialTheme.vettaExtra.pageBackground,
+        containerColor = MaterialTheme.agent567Extra.pageBackground,
         topBar = {
             TopAppBar(
                 title = { Text(Str.loginTitle, style = MaterialTheme.typography.titleMedium) },
@@ -196,7 +196,7 @@ fun LoginScreen(
                 },
                 colors =
                     TopAppBarDefaults.topAppBarColors(
-                        containerColor = MaterialTheme.vettaExtra.pageBackground,
+                        containerColor = MaterialTheme.agent567Extra.pageBackground,
                     ),
             )
         },
@@ -214,11 +214,11 @@ fun LoginScreen(
             Text(
                 if (isRegisterMode) "注册 567 API 账户，畅享全能 AI 编码体验" else Str.loginSubtitle,
                 style = MaterialTheme.typography.bodyMedium,
-                color = MaterialTheme.vettaExtra.secondaryText,
+                color = MaterialTheme.agent567Extra.secondaryText,
             )
             Spacer(Modifier.height(16.dp))
             if (error != null) {
-                VettaErrorBanner(error = error, onDismiss = onClearError)
+                Agent567ErrorBanner(error = error, onDismiss = onClearError)
                 Spacer(Modifier.height(12.dp))
             }
             if (localError != null) {
@@ -240,7 +240,7 @@ fun LoginScreen(
 
             if (isRegisterMode) {
                 // 注册表单
-                VettaTextField(
+                Agent567TextField(
                     value = regUsername,
                     onValueChange = { regUsername = it; localError = null },
                     modifier = Modifier.fillMaxWidth(),
@@ -249,7 +249,7 @@ fun LoginScreen(
                 )
                 Spacer(Modifier.height(10.dp))
                 Row(modifier = Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
-                    VettaTextField(
+                    Agent567TextField(
                         value = regEmail,
                         onValueChange = { regEmail = it; localError = null },
                         modifier = Modifier.weight(1f),
@@ -290,7 +290,7 @@ fun LoginScreen(
                     }
                 }
                 Spacer(Modifier.height(10.dp))
-                VettaTextField(
+                Agent567TextField(
                     value = regCode,
                     onValueChange = { regCode = it; localError = null },
                     modifier = Modifier.fillMaxWidth(),
@@ -299,7 +299,7 @@ fun LoginScreen(
                     keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
                 )
                 Spacer(Modifier.height(10.dp))
-                VettaTextField(
+                Agent567TextField(
                     value = regPassword,
                     onValueChange = { regPassword = it; localError = null },
                     modifier = Modifier.fillMaxWidth(),
@@ -309,7 +309,7 @@ fun LoginScreen(
                     keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Password),
                 )
                 Spacer(Modifier.height(10.dp))
-                VettaTextField(
+                Agent567TextField(
                     value = regConfirmPassword,
                     onValueChange = { regConfirmPassword = it; localError = null },
                     modifier = Modifier.fillMaxWidth(),
@@ -319,7 +319,7 @@ fun LoginScreen(
                     keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Password),
                 )
                 Spacer(Modifier.height(10.dp))
-                VettaTextField(
+                Agent567TextField(
                     value = regAffCode,
                     onValueChange = { regAffCode = it },
                     modifier = Modifier.fillMaxWidth(),
@@ -355,7 +355,7 @@ fun LoginScreen(
                 }
             } else {
                 // 登录表单
-                VettaTextField(
+                Agent567TextField(
                     value = account,
                     onValueChange = { account = it },
                     modifier = Modifier.fillMaxWidth(),
@@ -377,7 +377,7 @@ fun LoginScreen(
                 )
                 if (!loginModeEmail) {
                     Spacer(Modifier.height(12.dp))
-                    VettaTextField(
+                    Agent567TextField(
                         value = password,
                         onValueChange = { password = it },
                         modifier = Modifier.fillMaxWidth(),

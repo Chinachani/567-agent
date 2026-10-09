@@ -1,14 +1,22 @@
 import { ipcMain } from "electron";
 import type { DesktopRemotePairingService } from "../remote-control/desktop-remote-pairing-service.js";
+import { installLinuxInputDependencies } from "../remote-control/install-linux-input-dependencies.js";
 
 export function registerRemotePairingIpc(service: DesktopRemotePairingService): () => void {
 	ipcMain.handle("vetta:remote-pairing:get-state", () => service.getState());
 	ipcMain.handle("vetta:remote-pairing:create", async (_event, relayBaseUrl: unknown) =>
 		service.create(typeof relayBaseUrl === "string" ? relayBaseUrl : undefined),
 	);
+	ipcMain.handle("vetta:remote-pairing:reset-certificate", async (_event, relayBaseUrl: unknown) =>
+		service.resetCertificate(typeof relayBaseUrl === "string" ? relayBaseUrl : undefined),
+	);
+	ipcMain.handle("vetta:remote-pairing:set-auto-share-screen", async (_event, enabled: unknown) =>
+		service.setAutoShareScreen(enabled === true),
+	);
 	ipcMain.handle("vetta:remote-pairing:set-input-enabled", async (_event, enabled: unknown) =>
 		service.setInputEnabled(enabled === true),
 	);
+	ipcMain.handle("vetta:remote-pairing:install-input-dependencies", () => installLinuxInputDependencies());
 	ipcMain.handle("vetta:remote-pairing:revoke", async () => {
 		await service.revoke();
 		return service.getState();
@@ -16,7 +24,10 @@ export function registerRemotePairingIpc(service: DesktopRemotePairingService): 
 	return () => {
 		ipcMain.removeHandler("vetta:remote-pairing:get-state");
 		ipcMain.removeHandler("vetta:remote-pairing:create");
+		ipcMain.removeHandler("vetta:remote-pairing:reset-certificate");
+		ipcMain.removeHandler("vetta:remote-pairing:set-auto-share-screen");
 		ipcMain.removeHandler("vetta:remote-pairing:set-input-enabled");
+		ipcMain.removeHandler("vetta:remote-pairing:install-input-dependencies");
 		ipcMain.removeHandler("vetta:remote-pairing:revoke");
 	};
 }

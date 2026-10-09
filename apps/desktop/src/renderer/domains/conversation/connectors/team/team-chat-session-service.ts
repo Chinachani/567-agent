@@ -31,8 +31,8 @@ export interface CreateReservedTeamChatSessionOptions {
 
 export async function loadTeamChatBootstrap(teamId: string): Promise<TeamChatBootstrap> {
 	const [document, sessions] = await Promise.all([
-		window.vetta.agentTeams.list(),
-		window.vetta.agentTeams.listSessions(teamId),
+		window.agent567.agentTeams.list(),
+		window.agent567.agentTeams.listSessions(teamId),
 	]);
 	if (!document.teams.some((team) => team.id === teamId)) {
 		throw new Error(`Agent team not found: ${teamId}`);
@@ -86,7 +86,7 @@ export async function createReservedTeamChatSession({
 	document,
 	workspace,
 }: CreateReservedTeamChatSessionOptions): Promise<LoadedTeamChatSession> {
-	const snapshot = await window.vetta.agentTeams.createSessionRecord(teamId, {
+	const snapshot = await window.agent567.agentTeams.createSessionRecord(teamId, {
 		sessionId,
 		executionMode,
 		...(workspace ? { workspace } : {}),
@@ -109,7 +109,8 @@ async function createTeamChatSessionInternal(
 	if (document && !document.teams.some((team) => team.id === teamId)) {
 		throw new Error(`Agent team not found: ${teamId}`);
 	}
-	const createSessionRecord = window.vetta.agentTeams.createSessionRecord ?? window.vetta.agentTeams.createSession;
+	const createSessionRecord =
+		window.agent567.agentTeams.createSessionRecord ?? window.agent567.agentTeams.createSession;
 	const snapshot = await createSessionRecord(teamId);
 	const storageKey = `${SESSION_STORAGE_PREFIX}${teamId}`;
 	window.localStorage.setItem(storageKey, JSON.stringify(toReference(snapshot)));
@@ -132,7 +133,7 @@ async function openTeamChatSession(
 		typeof reference === "string"
 			? reference
 			: { id: reference.id, coordinationSessionPath: reference.coordinationSessionPath };
-	const snapshot = await window.vetta.agentTeams.getSession(ipcReference);
+	const snapshot = await window.agent567.agentTeams.getSession(ipcReference);
 	window.localStorage.setItem(storageKey, JSON.stringify(toReference(snapshot)));
 	return { document, snapshot, sessions: withTeamChatSnapshot(sessions, snapshot) };
 }

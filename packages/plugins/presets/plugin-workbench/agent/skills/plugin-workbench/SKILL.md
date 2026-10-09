@@ -179,7 +179,7 @@ node "{workbenchRoot}/scripts/build-and-pack.mjs" "{pluginRoot}"
 
 ### 4.6 改 name / guidingWords
 
-只改 **工程源码** `plugin.json`，再 4.4 → 4.5。禁止改 `~/.vetta/plugins/...` 已装目录当真相源。
+只改 **工程源码** `plugin.json`，再 4.4 → 4.5。禁止改 `~/.567agent/plugins/...` 已装目录当真相源。
 
 ### 4.7 卸载 / 重载 / 重新安装
 

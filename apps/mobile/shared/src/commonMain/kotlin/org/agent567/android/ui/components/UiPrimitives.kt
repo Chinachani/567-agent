@@ -35,11 +35,11 @@ import androidx.compose.ui.text.input.VisualTransformation
 import org.agent567.android.domain.error.UiError
 import org.agent567.android.domain.error.UiErrorAction
 import org.agent567.android.ui.i18n.Str
-import org.agent567.android.ui.theme.vettaExtra
+import org.agent567.android.ui.theme.agent567Extra
 
 /** 统一输入层级、边框和高度，避免各页面自行拼接 Material 输入框。 */
 @Composable
-fun VettaTextField(
+fun Agent567TextField(
     value: String,
     onValueChange: (String) -> Unit,
     modifier: Modifier = Modifier,
@@ -67,14 +67,14 @@ fun VettaTextField(
         shape = RoundedCornerShape(14.dp),
         colors =
             OutlinedTextFieldDefaults.colors(
-                unfocusedBorderColor = MaterialTheme.vettaExtra.border,
+                unfocusedBorderColor = MaterialTheme.agent567Extra.border,
                 focusedBorderColor = MaterialTheme.colorScheme.onSurface,
             ),
     )
 }
 
 @Composable
-fun VettaConfirmDialog(
+fun Agent567ConfirmDialog(
     title: String,
     message: String,
     confirmLabel: String,
@@ -95,7 +95,7 @@ fun VettaConfirmDialog(
 }
 
 @Composable
-fun VettaChoiceDialog(
+fun Agent567ChoiceDialog(
     title: String,
     message: String,
     primaryLabel: String,
@@ -121,7 +121,7 @@ fun VettaChoiceDialog(
 }
 
 @Composable
-fun VettaInfoDialog(
+fun Agent567InfoDialog(
     title: String,
     message: String,
     onDismiss: () -> Unit,
@@ -137,7 +137,7 @@ fun VettaInfoDialog(
 }
 
 @Composable
-fun VettaTextInputDialog(
+fun Agent567TextInputDialog(
     title: String,
     value: String,
     label: String,
@@ -149,7 +149,7 @@ fun VettaTextInputDialog(
         onDismissRequest = onDismiss,
         title = { Text(title) },
         text = {
-            VettaTextField(
+            Agent567TextField(
                 value = value,
                 onValueChange = onValueChange,
                 modifier = Modifier.fillMaxWidth(),
@@ -167,7 +167,7 @@ fun VettaTextInputDialog(
 }
 
 @Composable
-fun VettaErrorBanner(
+fun Agent567ErrorBanner(
     error: UiError,
     onDismiss: (() -> Unit)? = null,
     onAction: ((UiErrorAction) -> Unit)? = null,
@@ -176,9 +176,9 @@ fun VettaErrorBanner(
     Surface(
         modifier = modifier.fillMaxWidth(),
         shape = RoundedCornerShape(12.dp),
-        color = MaterialTheme.vettaExtra.chipBackground,
+        color = MaterialTheme.agent567Extra.chipBackground,
         contentColor = MaterialTheme.colorScheme.onSurface,
-        border = BorderStroke(1.dp, MaterialTheme.vettaExtra.border),
+        border = BorderStroke(1.dp, MaterialTheme.agent567Extra.border),
     ) {
         Column(Modifier.padding(14.dp)) {
             Text(error.title, style = MaterialTheme.typography.titleSmall)
@@ -284,7 +284,7 @@ fun EmptyState(
             Icon(
                 imageVector = icon,
                 contentDescription = null,
-                tint = MaterialTheme.vettaExtra.secondaryText,
+                tint = MaterialTheme.agent567Extra.secondaryText,
                 modifier = Modifier.size(36.dp),
             )
             Spacer(Modifier.height(12.dp))

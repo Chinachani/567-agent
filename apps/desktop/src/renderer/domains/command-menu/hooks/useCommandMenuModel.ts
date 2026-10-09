@@ -55,7 +55,7 @@ function useCommandMenuToggleKey(enabled: boolean): string {
 			setKey(getEffectiveShortcut(OPEN_COMMAND_MENU_ACTION, bindings) || OPEN_COMMAND_MENU_DEFAULT_KEY);
 		};
 		void loadShortcutBindings().then(apply);
-		const unsubscribe = window.vetta.config.onShortcutsChanged((event) => apply(event.bindings ?? {}));
+		const unsubscribe = window.agent567.config.onShortcutsChanged((event) => apply(event.bindings ?? {}));
 		return () => {
 			active = false;
 			unsubscribe();
@@ -98,7 +98,7 @@ function useInstalledAbilities(enabled: boolean): {
 		loadedRef.current = true;
 		let active = true;
 		setLoading(true);
-		void Promise.all([window.vetta.skills.list(), window.vetta.plugins.listAll()])
+		void Promise.all([window.agent567.skills.list(), window.agent567.plugins.listAll()])
 			.then(([skills, plugins]) => {
 				if (active) setData({ skills, plugins });
 			})
@@ -256,7 +256,7 @@ export function useCommandMenuModel({ onOpenSession }: UseCommandMenuModelArgs):
 					// 用户选中项目是想继续干活，不是想看项目概览：落到最新一条会话上。
 					// listSessions 是本地调用，且只在真的选中某个项目时才发一次。
 					void (async () => {
-						const sessions = await window.vetta.session.listSessions(action.cwd).catch(() => []);
+						const sessions = await window.agent567.session.listSessions(action.cwd).catch(() => []);
 						const latest = pickLatestOpenableSession(sessions);
 						if (latest?.target === "interactive") {
 							await onOpenSession(action.cwd, latest.session.path);

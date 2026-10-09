@@ -269,7 +269,7 @@ export function TeamComposerConnector({
 			return;
 		}
 		const additions = Array.from(event.dataTransfer.files)
-			.map((file) => window.vetta.fs.pathForFile(file))
+			.map((file) => window.agent567.fs.pathForFile(file))
 			.filter((path): path is string => Boolean(path))
 			.map(attachmentFromPath);
 		if (additions.length > 0) actions.addAttachments(additions);

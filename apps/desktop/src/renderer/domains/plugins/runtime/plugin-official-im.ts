@@ -1,8 +1,8 @@
 import type { PluginOfficialApi } from "@vetta-org/plugin-sdk";
 
 export function createOfficialImApi(assertOfficial: () => void, capabilitySessionId: string): PluginOfficialApi["im"] {
-	const im = window.vetta.plugins.internalCapabilities.im;
-	const models = window.vetta.plugins.internalCapabilities.models;
+	const im = window.agent567.plugins.internalCapabilities.im;
+	const models = window.agent567.plugins.internalCapabilities.models;
 	return {
 		getStatus: async () => {
 			assertOfficial();
@@ -30,8 +30,8 @@ export function createOfficialImApi(assertOfficial: () => void, capabilitySessio
 		},
 		setFeishuConfig: async (input) => {
 			assertOfficial();
-			const current = await window.vetta.im.getConfig();
-			const result = await window.vetta.im.setConfig({
+			const current = await window.agent567.im.getConfig();
+			const result = await window.agent567.im.setConfig({
 				enabled: input.enabled ?? current.enabled,
 				transport: "feishu",
 				feishu: {

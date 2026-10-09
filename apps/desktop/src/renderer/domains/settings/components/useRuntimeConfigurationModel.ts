@@ -63,12 +63,12 @@ export function useRuntimeConfigurationModel(): RuntimeConfigurationModel {
 	useEffect(() => {
 		let cancelled = false;
 		const load = async (): Promise<void> => {
-			const next = await window.vetta.runtimeConfiguration.list();
+			const next = await window.agent567.runtimeConfiguration.list();
 			if (!cancelled) setCatalog(next);
 		};
 		void load();
-		const unsubscribe = window.vetta.runtimeConfiguration.onChanged(() => void load());
-		const unsubscribeProviders = window.vetta.plugins.onOcrProvidersChanged(() => void load());
+		const unsubscribe = window.agent567.runtimeConfiguration.onChanged(() => void load());
+		const unsubscribeProviders = window.agent567.plugins.onOcrProvidersChanged(() => void load());
 		return () => {
 			cancelled = true;
 			unsubscribe();
@@ -78,9 +78,11 @@ export function useRuntimeConfigurationModel(): RuntimeConfigurationModel {
 
 	const update = (configurationId: string, path: readonly string[], value: RuntimeConfigurationJsonValue): void => {
 		setCatalog((current) => (current ? patchCatalog(current, configurationId, path, value) : current));
-		void window.vetta.runtimeConfiguration.set(configurationId, setAtPath({}, path, value)).then(setCatalog, () => {
-			void window.vetta.runtimeConfiguration.list().then(setCatalog);
-		});
+		void window.agent567.runtimeConfiguration
+			.set(configurationId, setAtPath({}, path, value))
+			.then(setCatalog, () => {
+				void window.agent567.runtimeConfiguration.list().then(setCatalog);
+			});
 		recordSettingsUsage({
 			tab: "agent",
 			action: "changed",

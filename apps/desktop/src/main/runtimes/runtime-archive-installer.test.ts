@@ -1,5 +1,17 @@
 import { spawnSync } from "node:child_process";
-import { chmod, lstat, mkdir, mkdtemp, readdir, readFile, readlink, rm, symlink, writeFile } from "node:fs/promises";
+import {
+	chmod,
+	copyFile,
+	lstat,
+	mkdir,
+	mkdtemp,
+	readdir,
+	readFile,
+	readlink,
+	rm,
+	symlink,
+	writeFile,
+} from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
@@ -7,6 +19,16 @@ import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { installRuntimeArchive, installRuntimeDirectory } from "./runtime-archive-installer";
 
 let testRoot = "";
+const fixtureVersion = process.platform === "win32" ? process.version.slice(1) : "22.22.2";
+
+async function writeRuntimeFixture(path: string): Promise<void> {
+	if (process.platform === "win32") {
+		await copyFile(process.execPath, path);
+		return;
+	}
+	await writeFile(path, `#!/bin/sh\necho v${fixtureVersion}\n`, "utf8");
+	await chmod(path, 0o755);
+}
 
 beforeEach(async () => {
 	testRoot = await mkdtemp(join(tmpdir(), "vetta-runtime-archive-"));
@@ -21,7 +43,7 @@ describe("installRuntimeArchive", () => {
 		const sourceRoot = join(testRoot, "source");
 		const sourceRuntime = join(sourceRoot, "runtime", "bin");
 		await mkdir(sourceRuntime, { recursive: true });
-		await writeFile(join(sourceRuntime, "tool"), "new-runtime", "utf8");
+		await writeRuntimeFixture(join(sourceRuntime, "node"));
 
 		const archivePath = join(testRoot, "runtime.tar.gz");
 		const archive = spawnSync("tar", ["-czf", archivePath, "-C", sourceRoot, "runtime"], {
@@ -38,9 +60,11 @@ describe("installRuntimeArchive", () => {
 			archiveType: "tar.gz",
 			innerDirectory: "runtime",
 			targetDirectory,
+			executablePath: join(targetDirectory, "bin", "node"),
+			expectedVersion: fixtureVersion,
 		});
 
-		await expect(readFile(join(targetDirectory, "bin", "tool"), "utf8")).resolves.toBe("new-runtime");
+		await expect(readFile(join(targetDirectory, "bin", "node"))).resolves.toBeInstanceOf(Buffer);
 		await expect(readFile(join(targetDirectory, "stale"), "utf8")).rejects.toThrow();
 		await expect(readdir(join(testRoot, "managed"))).resolves.toEqual(["22.22.2"]);
 	});
@@ -49,7 +73,7 @@ describe("installRuntimeArchive", () => {
 		const sourceRoot = join(testRoot, "source");
 		const sourceRuntime = join(sourceRoot, "node-v22.22.2-win-x64");
 		await mkdir(sourceRuntime, { recursive: true });
-		await writeFile(join(sourceRuntime, "node.exe"), "node-runtime", "utf8");
+		await writeRuntimeFixture(join(sourceRuntime, "node.exe"));
 
 		const archivePath = join(testRoot, "node.zip");
 		const archive = spawnSync("tar", ["-a", "-cf", archivePath, "-C", sourceRoot, "node-v22.22.2-win-x64"], {
@@ -63,9 +87,11 @@ describe("installRuntimeArchive", () => {
 			archiveType: "zip",
 			innerDirectory: "node-v22.22.2-win-x64",
 			targetDirectory,
+			executablePath: join(targetDirectory, "node.exe"),
+			expectedVersion: fixtureVersion,
 		});
 
-		await expect(readFile(join(targetDirectory, "node.exe"), "utf8")).resolves.toBe("node-runtime");
+		await expect(readFile(join(targetDirectory, "node.exe"))).resolves.toBeInstanceOf(Buffer);
 	});
 
 	it("preserves an existing runtime when extraction fails", async () => {
@@ -81,11 +107,41 @@ describe("installRuntimeArchive", () => {
 				archiveType: "tar.gz",
 				innerDirectory: "python",
 				targetDirectory,
+				executablePath: join(targetDirectory, "bin", "python3"),
+				expectedVersion: fixtureVersion,
 			}),
 		).rejects.toThrow("extract failed");
 
 		await expect(readFile(join(targetDirectory, "python.exe"), "utf8")).resolves.toBe("existing-runtime");
 		await expect(readdir(join(testRoot, "managed"))).resolves.toEqual(["3.13.12"]);
+	});
+
+	it("preserves an existing runtime when the staged executable fails its version check", async () => {
+		const sourceRoot = join(testRoot, "source");
+		const sourceRuntime = join(sourceRoot, "runtime", "bin");
+		await mkdir(sourceRuntime, { recursive: true });
+		await writeRuntimeFixture(join(sourceRuntime, "node"));
+
+		const archivePath = join(testRoot, "runtime.tar.gz");
+		const archive = spawnSync("tar", ["-czf", archivePath, "-C", sourceRoot, "runtime"], { encoding: "utf8" });
+		expect(archive.status, archive.stderr || archive.stdout).toBe(0);
+
+		const targetDirectory = join(testRoot, "managed", "22.22.2");
+		await mkdir(targetDirectory, { recursive: true });
+		await writeFile(join(targetDirectory, "node"), "previous-good-runtime", "utf8");
+
+		await expect(
+			installRuntimeArchive({
+				archivePath,
+				archiveType: "tar.gz",
+				innerDirectory: "runtime",
+				targetDirectory,
+				executablePath: join(targetDirectory, "bin", "node"),
+				expectedVersion: "0.0.0",
+			}),
+		).rejects.toThrow("runtime health check failed");
+
+		await expect(readFile(join(targetDirectory, "node"), "utf8")).resolves.toBe("previous-good-runtime");
 	});
 });
 
@@ -93,15 +149,22 @@ describe("installRuntimeDirectory", () => {
 	it("copies a bundled runtime directory over the target", async () => {
 		const sourceDirectory = join(testRoot, "vendor", "python");
 		await mkdir(join(sourceDirectory, "bin"), { recursive: true });
-		await writeFile(join(sourceDirectory, "bin", "python3.13"), "bundled-runtime", "utf8");
+		await writeRuntimeFixture(join(sourceDirectory, "bin", "python3.13"));
 
 		const targetDirectory = join(testRoot, "managed", "3.13.12");
 		await mkdir(targetDirectory, { recursive: true });
 		await writeFile(join(targetDirectory, "stale"), "stale", "utf8");
 
-		await installRuntimeDirectory({ sourceDirectory, targetDirectory });
+		await installRuntimeDirectory({
+			sourceDirectory,
+			targetDirectory,
+			executablePath: join(targetDirectory, "bin", "python3.13"),
+			expectedVersion: fixtureVersion,
+		});
 
-		await expect(readFile(join(targetDirectory, "bin", "python3.13"), "utf8")).resolves.toBe("bundled-runtime");
+		await expect(readFile(join(targetDirectory, "bin", "python3.13"), "utf8")).resolves.toContain(
+			`v${fixtureVersion}`,
+		);
 		await expect(readFile(join(targetDirectory, "stale"), "utf8")).rejects.toThrow();
 		await expect(readdir(join(testRoot, "managed"))).resolves.toEqual(["3.13.12"]);
 	});
@@ -112,12 +175,17 @@ describe("installRuntimeDirectory", () => {
 		const sourceDirectory = join(testRoot, "vendor", "python");
 		await mkdir(join(sourceDirectory, "bin"), { recursive: true });
 		const realBinary = join(sourceDirectory, "bin", "python3.13");
-		await writeFile(realBinary, "bundled-runtime", "utf8");
+		await writeRuntimeFixture(realBinary);
 		await chmod(realBinary, 0o755);
 		await symlink("python3.13", join(sourceDirectory, "bin", "python3"));
 
 		const targetDirectory = join(testRoot, "managed", "3.13.12");
-		await installRuntimeDirectory({ sourceDirectory, targetDirectory });
+		await installRuntimeDirectory({
+			sourceDirectory,
+			targetDirectory,
+			executablePath: join(targetDirectory, "bin", "python3"),
+			expectedVersion: fixtureVersion,
+		});
 
 		const copiedLink = join(targetDirectory, "bin", "python3");
 		await expect(lstat(copiedLink).then((info) => info.isSymbolicLink())).resolves.toBe(true);
@@ -132,7 +200,12 @@ describe("installRuntimeDirectory", () => {
 		await writeFile(join(targetDirectory, "python3"), "existing-runtime", "utf8");
 
 		await expect(
-			installRuntimeDirectory({ sourceDirectory: join(testRoot, "vendor", "absent"), targetDirectory }),
+			installRuntimeDirectory({
+				sourceDirectory: join(testRoot, "vendor", "absent"),
+				targetDirectory,
+				executablePath: join(targetDirectory, "python3"),
+				expectedVersion: fixtureVersion,
+			}),
 		).rejects.toThrow();
 
 		await expect(readFile(join(targetDirectory, "python3"), "utf8")).resolves.toBe("existing-runtime");

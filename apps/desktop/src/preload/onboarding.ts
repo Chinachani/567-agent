@@ -80,3 +80,4 @@ const api: OnboardingBridge = {
 };
 
 contextBridge.exposeInMainWorld("vettaOnboarding", api);
+contextBridge.exposeInMainWorld("agent567Onboarding", api);

@@ -3,7 +3,7 @@ import { existsSync, realpathSync } from "node:fs";
 import { mkdir, mkdtemp, rm, writeFile } from "node:fs/promises";
 import { homedir, tmpdir } from "node:os";
 import { delimiter, isAbsolute, join } from "node:path";
-import { getVettaConfigDirName } from "@567agent/action-rpc";
+import { getAgent567ConfigDirName } from "@567agent/action-rpc";
 import type { SandboxShellGrant } from "@567agent/runtime-core/sandbox";
 import type { ForegroundCommandOperations } from "@567agent/runtime-tools";
 import { getSandboxShellGrant } from "../sandbox-permissions.js";
@@ -84,7 +84,7 @@ export function buildMacosSandboxProfile(cwd: string, tempRoot: string, grant: S
 		join(homeDir, ".docker"),
 		join(homeDir, ".config", "gcloud"),
 		join(homeDir, "Library", "Keychains"),
-		join(homeDir, getVettaConfigDirName()),
+		join(homeDir, getAgent567ConfigDirName()),
 		join(homeDir, ".pi"),
 	].filter((path) => path !== realCwd && !realCwd.startsWith(`${path}/`));
 	const grantWriteRoots = (grant?.allowWriteRoots ?? []).filter((path) => existsSync(path)).map(normalizeExistingPath);
@@ -103,23 +103,27 @@ export function buildMacosSandboxProfile(cwd: string, tempRoot: string, grant: S
 	].join("\n");
 }
 
-function resolveVettaCliAppPath(env: NodeSandboxEnvironment | undefined): string | undefined {
+function resolveAgent567CliAppPath(env: NodeSandboxEnvironment | undefined): string | undefined {
 	const value = env?.AGENT567_CLI_APP_PATH ?? process.env.AGENT567_CLI_APP_PATH;
 	return typeof value === "string" && value.length > 0 && existsSync(value) ? value : undefined;
 }
 
-async function createVettaCliShim(
+async function createAgent567CliShim(
 	tempRoot: string,
 	env: NodeSandboxEnvironment | undefined,
 ): Promise<string | undefined> {
-	const vettaCliAppPath = resolveVettaCliAppPath(env);
-	if (!vettaCliAppPath) return undefined;
+	const agent567CliAppPath = resolveAgent567CliAppPath(env);
+	if (!agent567CliAppPath) return undefined;
 	const shimDir = join(tempRoot, "bin");
 	await mkdir(shimDir, { recursive: true });
-	await writeFile(join(shimDir, "vetta"), ["#!/usr/bin/env sh", `exec "${vettaCliAppPath}" "$@"`, ""].join("\n"), {
-		encoding: "utf8",
-		mode: 0o755,
-	});
+	await writeFile(
+		join(shimDir, "567-agent"),
+		["#!/usr/bin/env sh", `exec "${agent567CliAppPath}" "$@"`, ""].join("\n"),
+		{
+			encoding: "utf8",
+			mode: 0o755,
+		},
+	);
 	return shimDir;
 }
 
@@ -127,16 +131,16 @@ function buildSandboxEnv(
 	cwd: string,
 	tempRoot: string,
 	env: NodeSandboxEnvironment | undefined,
-	vettaShimDir: string | undefined,
+	agent567ShimDir: string | undefined,
 ): NodeJS.ProcessEnv {
 	const baseEnv = env ?? process.env;
 	const nextEnv: NodeJS.ProcessEnv = {};
 	for (const key of MACOS_ENV_WHITELIST) {
 		const value =
-			key === "PATH" && vettaShimDir
-				? [vettaShimDir, baseEnv.PATH].filter((item): item is string => Boolean(item)).join(delimiter)
+			key === "PATH" && agent567ShimDir
+				? [agent567ShimDir, baseEnv.PATH].filter((item): item is string => Boolean(item)).join(delimiter)
 				: key === "AGENT567_CLI_APP_PATH"
-					? resolveVettaCliAppPath(env)
+					? resolveAgent567CliAppPath(env)
 					: baseEnv[key];
 		if (typeof value === "string" && value.length > 0) nextEnv[key] = value;
 	}
@@ -156,16 +160,16 @@ export function createMacosSeatbeltCommandOperations(
 			new Promise<{ exitCode: number | null }>((resolve, reject) => {
 				void (async () => {
 					if (!existsSync(cwd)) return reject(new Error(`Working directory does not exist: ${cwd}`));
-					const tempRoot = await mkdtemp(join(tmpdir(), "vetta-macos-sandbox-"));
+					const tempRoot = await mkdtemp(join(tmpdir(), "567-agent-macos-sandbox-"));
 					await mkdir(join(tempRoot, "home"), { recursive: true });
 					await mkdir(join(tempRoot, "tmp"), { recursive: true });
-					const vettaShimDir = await createVettaCliShim(tempRoot, env);
+					const agent567ShimDir = await createAgent567CliShim(tempRoot, env);
 					const profilePath = join(tempRoot, "profile.sb");
 					await writeFile(profilePath, buildMacosSandboxProfile(cwd, tempRoot, getSandboxShellGrant(cwd)), "utf8");
 					const child = spawn(sandboxExecPath, ["-f", profilePath, shell.executable, ...shell.args, command], {
 						cwd,
 						detached: true,
-						env: buildSandboxEnv(cwd, tempRoot, env, vettaShimDir),
+						env: buildSandboxEnv(cwd, tempRoot, env, agent567ShimDir),
 						stdio: ["ignore", "pipe", "pipe"],
 					});
 					let timedOut = false;

@@ -86,6 +86,22 @@ export function extractText(content: unknown): string {
 		.join("");
 }
 
+function extractUserImages(content: unknown): Array<{ data: string; mimeType: string; name: string }> {
+	if (!Array.isArray(content)) return [];
+	return content.flatMap((part, index) => {
+		if (!part || typeof part !== "object") return [];
+		const image = part as { type?: unknown; data?: unknown; mimeType?: unknown; name?: unknown };
+		if (image.type !== "image" || typeof image.data !== "string" || typeof image.mimeType !== "string") return [];
+		return [
+			{
+				data: image.data,
+				mimeType: image.mimeType,
+				name: typeof image.name === "string" && image.name.trim() ? image.name : `image-${index + 1}`,
+			},
+		];
+	});
+}
+
 /** Extract text from an array of result content blocks. */
 export function extractResultText(result: unknown): string {
 	if (typeof result === "string") return result;
@@ -369,7 +385,12 @@ export function messageToBlocks(content: unknown, toolStatus: ToolCallBlock["sta
 				toolCallId: String(part.id ?? ""),
 				toolName: String(part.name),
 				args: (part.arguments as Record<string, unknown>) ?? {},
-				status: toolStatus,
+				status: part.isError === true ? "error" : toolStatus,
+				...(typeof part.result === "string" ? { result: part.result } : {}),
+				...(typeof part.isError === "boolean" ? { isError: part.isError } : {}),
+				...(typeof part.durationMs === "number" && Number.isFinite(part.durationMs)
+					? { durationMs: part.durationMs }
+					: {}),
 			});
 		}
 	}
@@ -506,6 +527,7 @@ export function historyToChat(
 			const userMsg = createConversationUserMessage({
 				id: `hist-user-${messages.length}`,
 				text,
+				images: extractUserImages(m.content),
 				promptRef: legacyPromptRef,
 				// Only absolute (panel/system) prefixes; hand-typed @text stays in body.
 				// Exclude image-cache so system images/appshot don't become file badges.
@@ -705,6 +727,7 @@ export function fullHistoryToChat(entries: HistoryEntry[]): ChatConversationItem
 				parentId,
 				branch: branch ? { siblings: branch.siblings, index: branch.index } : undefined,
 				text,
+				images: extractUserImages(m.content),
 				promptRef: pendingPromptRef ?? legacyPromptRef,
 				attachments: pendingAttachments,
 				timestamp: m.timestamp,

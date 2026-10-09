@@ -1,7 +1,7 @@
 import { chmodSync, existsSync, mkdirSync, readFileSync, statSync, writeFileSync } from "node:fs";
 import { rm } from "node:fs/promises";
 import { dirname, join } from "node:path";
-import { getVettaHomePath } from "@567agent/action-rpc";
+import { getAgent567HomePath } from "@567agent/action-rpc";
 import { resolvePluginText } from "@vetta-org/plugin-sdk";
 import type { AppMonitorResourceOperation } from "../../preload/api-types/app-monitor.js";
 import type { SkillPresentation, SkillProvenance } from "../../preload/api-types/skills.js";
@@ -30,9 +30,9 @@ import { assertValidSkillName } from "./skill-name.js";
 import { buildPluginSkillSources, findPluginSkillSource, resolvePluginSkillPresentation } from "./skill-provenance.js";
 
 const skillsLog = getAppLogger("skills");
-const skillsBaseDir = join(getVettaHomePath(), "skills");
-const sceneBaseDir = join(getVettaHomePath(), "scene");
-const manifestPath = join(getVettaHomePath(), "skills-manifest.json");
+const skillsBaseDir = join(getAgent567HomePath(), "skills");
+const sceneBaseDir = join(getAgent567HomePath(), "scene");
+const manifestPath = join(getAgent567HomePath(), "skills-manifest.json");
 
 export type InstalledSkillType = "skill" | "scene";
 

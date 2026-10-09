@@ -8,10 +8,11 @@ import { getAgentDir } from "@567agent/coding-agent/config";
 const execFileAsync = promisify(execFile);
 
 const DEV_CLI_DIR = ".desktop-dev";
-const LAUNCHER_SOURCE_NAME = "vetta-dev-cli-launcher.js";
-const LAUNCHER_BINARY_BASE_NAME = "vetta-dev-cli-launcher";
-const AGENT567_CLI_BINARY_BASE_NAME = "vetta-cli-app";
-const AGENT567_COMMAND_NAMES = process.platform === "win32" ? ["vetta.exe"] : ["vetta"];
+const LAUNCHER_SOURCE_NAME = "567agent-dev-cli-launcher.js";
+const LAUNCHER_BINARY_BASE_NAME = "567agent-dev-cli-launcher";
+const AGENT567_CLI_BINARY_BASE_NAME = "567-agent-cli-app";
+const AGENT567_COMMAND_NAMES = process.platform === "win32" ? ["567-agent.exe"] : ["567-agent"];
+const LEGACY_VETTA_COMMAND_NAMES = process.platform === "win32" ? ["vetta.exe"] : ["vetta"];
 const WINDOWS_LEGACY_VETTA_COMMAND_NAMES = ["vetta.cmd", "vetta"];
 
 interface DevCliShimOptions {
@@ -145,7 +146,7 @@ function getLauncherBinaryName(): string {
 	return process.platform === "win32" ? `${LAUNCHER_BINARY_BASE_NAME}.exe` : LAUNCHER_BINARY_BASE_NAME;
 }
 
-function getVettaCliBinaryName(): string {
+function getAgent567CliBinaryName(): string {
 	return process.platform === "win32" ? `${AGENT567_CLI_BINARY_BASE_NAME}.exe` : AGENT567_CLI_BINARY_BASE_NAME;
 }
 
@@ -193,10 +194,10 @@ export async function ensureDevCliShim(options: DevCliShimOptions): Promise<stri
 	return binaryPath;
 }
 
-export async function ensureDevVettaCliShim(options: DevVettaCliShimOptions): Promise<string> {
+export async function ensureDevAgent567CliShim(options: DevVettaCliShimOptions): Promise<string> {
 	const shimDir = join(options.appRoot, DEV_CLI_DIR, getCurrentPlatformArchId());
 	const sourceDir = join(options.cliAppRoot, "src");
-	const binaryPath = join(shimDir, getVettaCliBinaryName());
+	const binaryPath = join(shimDir, getAgent567CliBinaryName());
 	await mkdir(shimDir, { recursive: true });
 
 	try {
@@ -219,12 +220,15 @@ export async function ensureDevVettaCliShim(options: DevVettaCliShimOptions): Pr
 	return binaryPath;
 }
 
-function createVettaCommandShim(vettaCliAppPath: string): string {
+/** @deprecated Use ensureDevAgent567CliShim. */
+export const ensureDevVettaCliShim = ensureDevAgent567CliShim;
+
+function createAgent567CommandShim(agent567CliAppPath: string): string {
 	if (process.platform === "win32") {
-		return ["@echo off", `"${vettaCliAppPath}" %*`, ""].join("\r\n");
+		return ["@echo off", `"${agent567CliAppPath}" %*`, ""].join("\r\n");
 	}
 
-	return ["#!/usr/bin/env sh", `exec "${vettaCliAppPath}" "$@"`, ""].join("\n");
+	return ["#!/usr/bin/env sh", `exec "${agent567CliAppPath}" "$@"`, ""].join("\n");
 }
 
 async function removeLegacyWindowsCommandShims(binDir: string): Promise<void> {
@@ -240,17 +244,17 @@ async function removeLegacyWindowsCommandShims(binDir: string): Promise<void> {
 	);
 }
 
-export async function ensureVettaCommandShim(vettaCliAppPath: string): Promise<string> {
-	await assertExecutable(vettaCliAppPath);
+export async function ensureAgent567CommandShim(agent567CliAppPath: string): Promise<string> {
+	await assertExecutable(agent567CliAppPath);
 	const binDir = join(getAgentDir(), "bin");
 	await mkdir(binDir, { recursive: true });
 	await removeLegacyWindowsCommandShims(binDir);
-	const shimPaths = AGENT567_COMMAND_NAMES.map((name) => join(binDir, name));
+	const shimPaths = [...AGENT567_COMMAND_NAMES, ...LEGACY_VETTA_COMMAND_NAMES].map((name) => join(binDir, name));
 	await Promise.all(
 		shimPaths.map((shimPath) =>
 			process.platform === "win32" && shimPath.endsWith(".exe")
-				? copyFileIfChanged(vettaCliAppPath, shimPath)
-				: writeFileIfChanged(shimPath, createVettaCommandShim(vettaCliAppPath)),
+				? copyFileIfChanged(agent567CliAppPath, shimPath)
+				: writeFileIfChanged(shimPath, createAgent567CommandShim(agent567CliAppPath)),
 		),
 	);
 	for (const shimPath of shimPaths) {
@@ -260,5 +264,8 @@ export async function ensureVettaCommandShim(vettaCliAppPath: string): Promise<s
 		}
 		await assertExecutable(shimPath);
 	}
-	return shimPaths[0];
+	return join(binDir, AGENT567_COMMAND_NAMES[0]);
 }
+
+/** @deprecated Use ensureAgent567CommandShim. */
+export const ensureVettaCommandShim = ensureAgent567CommandShim;

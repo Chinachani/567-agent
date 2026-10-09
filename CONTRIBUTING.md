@@ -36,7 +36,7 @@ cd 567-agent
 git checkout dev
 bun install                 # Bun 1.3+
 cd apps/desktop
-bun run dev                 # Vite renderer + Electron, isolated in ~/.vetta-dev
+bun run dev                 # Vite renderer + Electron, isolated in ~/.567agent-dev
 ```
 
 Do **not** run `bun run dev` or `bun run build` at the repository root — those compile libraries, they do not launch the app. Do **not** run bare `bun test`; use `bun run test:pkg <name>` or `bun scripts/quality/run-vitest.mjs --run <file>`.

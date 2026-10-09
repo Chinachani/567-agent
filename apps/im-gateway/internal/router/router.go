@@ -17,6 +17,11 @@ import (
 	"github.com/Chinachani/567-agent/apps/im-gateway/internal/transport"
 )
 
+const (
+	conversationIdleTTL    = 10 * time.Minute
+	maxConversationWorkers = 512
+)
+
 // Router is the gateway's central message dispatcher. It implements
 // transport.MessageHandler so transports can hand it inbound messages
 // directly. The router decides whether each message is a slash-command
@@ -39,10 +44,11 @@ type Router struct {
 	// the conversation root. Set via SetDatedCwd by the embedded host runtime.
 	datedCwd bool
 
-	mu     sync.Mutex
-	queues map[string]chan transport.InboundMessage
-	closed bool
-	done   chan struct{}
+	mu              sync.Mutex
+	queues          map[string]chan transport.InboundMessage
+	inflightSenders map[string]int
+	closed          bool
+	done            chan struct{}
 
 	senders sync.WaitGroup
 	wg      sync.WaitGroup
@@ -64,6 +70,7 @@ func New(
 		pool:            pool,
 		conversationCwd: conversationCwd,
 		queues:          make(map[string]chan transport.InboundMessage),
+		inflightSenders: make(map[string]int),
 		done:            make(chan struct{}),
 	}
 }
@@ -109,14 +116,27 @@ func (r *Router) HandleInbound(ctx context.Context, msg transport.InboundMessage
 	key := convKey(msg.UserID, msg.ChatID)
 	q, ok := r.queues[key]
 	if !ok {
+		if len(r.queues) >= maxConversationWorkers {
+			r.mu.Unlock()
+			return fmt.Errorf("router: too many active conversations; retry later")
+		}
 		q = make(chan transport.InboundMessage, 32)
 		r.queues[key] = q
 		r.wg.Add(1)
-		go r.processConversation(ctx, q)
+		go r.processConversation(ctx, key, q)
 	}
+	r.inflightSenders[key]++
 	r.senders.Add(1)
 	r.mu.Unlock()
-	defer r.senders.Done()
+	defer func() {
+		r.mu.Lock()
+		r.inflightSenders[key]--
+		if r.inflightSenders[key] <= 0 {
+			delete(r.inflightSenders, key)
+		}
+		r.mu.Unlock()
+		r.senders.Done()
+	}()
 
 	select {
 	case q <- msg:
@@ -148,9 +168,13 @@ func convKey(userID, chatID string) string {
 }
 
 func (r *Router) nextInbound(queue <-chan transport.InboundMessage) (transport.InboundMessage, bool) {
+	timer := time.NewTimer(conversationIdleTTL)
+	defer timer.Stop()
 	select {
 	case msg := <-queue:
 		return msg, true
+	case <-timer.C:
+		return transport.InboundMessage{}, false
 	case <-r.done:
 		// Shutdown waits until all admitted senders finish before closing done,
 		// so the remaining buffer can now be drained without another sender
@@ -170,7 +194,7 @@ func (r *Router) nextInbound(queue <-chan transport.InboundMessage) (transport.I
 // Messages that arrive while a turn is live fold into it — merged into the
 // initial prompt during the acquire window, or steered into the running agent
 // afterwards. The turn ends at agent_end; the next message starts a fresh one.
-func (r *Router) processConversation(ctx context.Context, queue chan transport.InboundMessage) {
+func (r *Router) processConversation(ctx context.Context, key string, queue chan transport.InboundMessage) {
 	defer r.wg.Done()
 
 	// pending carries a message that was dequeued but turned out to belong to
@@ -184,7 +208,10 @@ func (r *Router) processConversation(ctx context.Context, queue chan transport.I
 		} else {
 			m, ok := r.nextInbound(queue)
 			if !ok {
-				return
+				if r.removeIdleConversation(key, queue) {
+					return
+				}
+				continue
 			}
 			seed = m
 		}
@@ -205,6 +232,16 @@ func (r *Router) processConversation(ctx context.Context, queue chan transport.I
 		}
 		pending = next
 	}
+}
+
+func (r *Router) removeIdleConversation(key string, queue chan transport.InboundMessage) bool {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	if r.queues[key] != queue || len(queue) != 0 || r.inflightSenders[key] != 0 {
+		return false
+	}
+	delete(r.queues, key)
+	return true
 }
 
 // tryCommand dispatches msg through the command router. handled=true means it

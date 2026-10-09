@@ -392,7 +392,7 @@ export function useSidebarModel({
 		let unsub: (() => void) | null = null;
 		void (async () => {
 			try {
-				const unsubFn = await window.vetta.im.subscribeStatus(
+				const unsubFn = await window.agent567.im.subscribeStatus(
 					(s) => setImOnline(s.transport === "online" || s.transport === "connecting"),
 					() => {},
 				);
@@ -403,7 +403,7 @@ export function useSidebarModel({
 				unsub = unsubFn;
 				// Initial push from subscribeStatus races with our listener
 				// attachment, so fetch once explicitly to seed state.
-				const current = await window.vetta.im.getStatus();
+				const current = await window.agent567.im.getStatus();
 				if (!cancelled) setImOnline(current.transport === "online" || current.transport === "connecting");
 			} catch {
 				// ignore; badge stays hidden

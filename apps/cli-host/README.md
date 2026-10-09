@@ -5,7 +5,7 @@ CLI and process composition roots around `@567agent/coding-agent`.
 ## What It Owns
 
 - process entrypoint for the CLI app
-- the `vetta`, `vetta-agent`, and `vetta-agent-rpc` executable entrypoints
+- the `567-agent` and `567-agent-rpc` executable entrypoints (legacy `vetta*` aliases remain available)
 - host-profile selection for Print, RPC, and IM RPC execution
 - dedicated JSONL RPC sidecar entrypoint
 - Node RPC Client and child-process lifecycle
@@ -16,7 +16,7 @@ CLI and process composition roots around `@567agent/coding-agent`.
 All Agent commands use the single production runtime. IM capabilities are enabled by the host profile rather than a runtime selector:
 
 ```text
-vetta-agent-rpc --mode rpc \
+567-agent-rpc --mode rpc \
   --enable-host-bridge \
   --scenario im-claw \
   --session-dir <conversation-directory>

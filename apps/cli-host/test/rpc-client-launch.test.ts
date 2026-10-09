@@ -15,7 +15,7 @@ function nodeRuntimeEnv(): Record<string, string> {
 describe("RpcClient process launch", () => {
 	it("uses the canonical installed RPC executable by default", () => {
 		expect(resolveRpcClientProcessLaunch(undefined, ["--mode", "rpc"])).toEqual({
-			command: "vetta-agent-rpc",
+			command: "567-agent-rpc",
 			args: ["--mode", "rpc"],
 		});
 	});

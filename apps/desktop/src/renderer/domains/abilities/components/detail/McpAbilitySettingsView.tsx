@@ -58,7 +58,7 @@ export function McpAbilitySettingsView({
 		setClearing(true);
 		setError(undefined);
 		try {
-			await window.vetta.mcp.clearSetupLogin(item.serverName);
+			await window.agent567.mcp.clearSetupLogin(item.serverName);
 			setConfirmClear(false);
 			status?.retry();
 			model.refresh();

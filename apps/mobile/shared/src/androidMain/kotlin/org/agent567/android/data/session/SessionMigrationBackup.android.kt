@@ -1,6 +1,7 @@
 package org.agent567.android.data.session
 
 import java.security.SecureRandom
+import java.security.MessageDigest
 import javax.crypto.Cipher
 import javax.crypto.Mac
 import javax.crypto.spec.GCMParameterSpec
@@ -45,6 +46,9 @@ internal actual fun runtimeMigrationByteLimit(absoluteLimit: Int): Int {
     val heapSafeLimit = (Runtime.getRuntime().maxMemory() / 8L).coerceAtMost(Int.MAX_VALUE.toLong()).toInt()
     return minOf(absoluteLimit, heapSafeLimit)
 }
+
+internal actual fun sha256MigrationArchive(archive: ByteArray): String =
+    MessageDigest.getInstance("SHA-256").digest(archive).joinToString("") { byte -> "%02x".format(byte) }
 
 private fun deriveKey(passphrase: String, salt: ByteArray): SecretKeySpec {
     val passwordBytes = passphrase.encodeToByteArray()

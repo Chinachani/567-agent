@@ -4,18 +4,18 @@
  * 背景：`ModelSettingsService` 落盘时会把明文 key 从 `models.json` 移到
  * safeStorage 保险库，只在 provider 上留 `credentialRef`。主进程对话页靠
  * `DesktopModelCredentialStore.syncToAuthStorage()` 在进程内补回凭据，但
- * Claw（im-gateway → `Vetta --agent-rpc`）是**另一个进程**，它经 `@567agent/cli-host`
+ * Claw（im-gateway → `567-agent --agent-rpc`）是**另一个进程**，它经 `@567agent/cli-host`
  * 自建 bootstrap，只读 `models.json` / `auth.json`，不认识 `credentialRef`。
  * 缺凭据时 coding-agent 的 ModelRuntime 会回落到本地 provider 的 "no auth"
  * 占位串并把它当 Bearer 发出去，远端 provider（deepseek 等）随即报 401。
  *
  * 子进程同样是 Electron，且 `app.name` 与主进程一致（见 shared/app-identity.ts），
- * 保险库又存在共享的 `~/.vetta/desktop-app/credentials`（不是 userData），
+ * 保险库又存在共享的 `~/.567agent/desktop-app/credentials`（不是 userData），
  * 所以子进程可以自己解密——明文 key 不需要经过 argv 或环境变量外传。
  */
 import { readFile } from "node:fs/promises";
 import { join } from "node:path";
-import { getVettaHomePath } from "@567agent/action-rpc";
+import { getAgent567HomePath } from "@567agent/action-rpc";
 import type { CodingAgentAuthRuntime } from "@567agent/coding-agent/host-services";
 
 /** 只取注入需要的字段；models.json 的完整 schema 由 coding-agent 校验。 */
@@ -37,7 +37,7 @@ export interface SyncAgentRpcModelCredentialsOptions {
 
 /** 默认 models.json 位置；与 ModelSettingsService 的落盘路径保持一致。 */
 export function defaultModelsJsonPath(): string {
-	return join(getVettaHomePath(), "agent", "models.json");
+	return join(getAgent567HomePath(), "agent", "models.json");
 }
 
 /**

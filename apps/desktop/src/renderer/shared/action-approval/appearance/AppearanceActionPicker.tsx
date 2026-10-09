@@ -1,4 +1,4 @@
-import { STOAT_CURSOR_PREVIEW_URL, type CursorStyle } from "@shared/theme/cursor";
+import type { CursorStyle } from "@shared/theme/cursor";
 import { THEMES } from "@shared/theme/themes";
 import {
 	AppearanceActionPickerView,
@@ -43,20 +43,12 @@ export function AppearanceActionPicker({
 	);
 
 	const cursors = useMemo<AppearanceCursorOption[]>(
-		() => [
-			{
-				value: "default",
-				label: t("cursorDefaultTitle"),
-				hint: t("cursorDefaultHint"),
-				icon: "icon-[mdi--cursor-default-outline]",
-			},
-			{
-				value: "stoat",
-				label: t("cursorStoatTitle"),
-				hint: t("cursorStoatHint"),
-				preview: STOAT_CURSOR_PREVIEW_URL,
-			},
-		],
+		() => [{
+			value: "default",
+			label: t("cursorDefaultTitle"),
+			hint: t("cursorDefaultHint"),
+			icon: "icon-[mdi--cursor-default-outline]",
+		}],
 		[t],
 	);
 

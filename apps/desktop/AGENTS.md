@@ -282,8 +282,8 @@ useEffect(() => {
 
 主进程需要持久化可重新生成或重新下载的内容时，统一使用
 `src/main/cache/application-cache-service.ts` 的 `ApplicationCacheService`，并为每个业务模块分配独立的
-kebab-case namespace。默认根目录为 `~/.vetta/cache/`，例如 Marketplace 使用
-`~/.vetta/cache/marketplace/`；不要再直接拼接 `*-cache` 或 `open-marketplace` 目录。
+kebab-case namespace。默认根目录为 `~/.567agent/cache/`，例如 Marketplace 使用
+`~/.567agent/cache/marketplace/`；不要再直接拼接 `*-cache` 或 `open-marketplace` 目录。
 
 缓存中不得保存用户配置、安装台账、正式安装内容、凭证或其他不可重建数据。删除某个 cache namespace
 必须不影响其他 namespace 和正式功能；临时文件使用 namespace 的 `createTemporaryDirectory()`，需要清理时使用
@@ -303,7 +303,7 @@ desktop 的文本日志统一由 `src/main/logger.ts` 管理。新增或修改�
 ### 日志位置
 
 ```text
-~/.vetta/desktop-app/logs/
+~/.567agent/desktop-app/logs/
 ├── main/YYYY-MM-DD.log
 ├── render/YYYY-MM-DD.log
 └── im/YYYY-MM-DD.log
@@ -313,7 +313,7 @@ desktop 的文本日志统一由 `src/main/logger.ts` 管理。新增或修改�
 - `render/`：浏览器渲染进程日志。由 `BrowserWindow.webContents` 的 `console-message` 事件转发到主进程后写入。
 - `im/`：IM sidecar / im-gateway 相关日志。IM 设置页最近日志仍来自内存环形缓冲，但同一批日志也会持久化到这里。
 
-不要再把当天日志写到 `main.log`。旧版本遗留的 `~/.vetta/desktop-app/logs/main.log` 会在启动时迁移到 `main/legacy.*.migration.log`。
+不要再把当天日志写到 `main.log`。旧版本遗留的 `~/.567agent/desktop-app/logs/main.log` 会在启动时迁移到 `main/legacy.*.migration.log`。
 
 ### 使用方式
 

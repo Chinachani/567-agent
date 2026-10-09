@@ -1,4 +1,4 @@
-// 567 Agent Design Engine — shared vite template (materialized to ~/.vetta/design-engine/<version>/).
+// 567 Agent Design Engine — shared vite template (materialized to ~/.567agent/design-engine/<version>/).
 // The design bundle dir (x.vetd/) is mounted via the VETD_SRC env var; the engine itself
 // never contains user content. See ADR-0053.
 import { readdirSync, watch } from "node:fs";

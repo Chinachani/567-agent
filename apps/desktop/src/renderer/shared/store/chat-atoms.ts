@@ -332,7 +332,7 @@ export const promptSuggestionsAtom = atom<Record<string, string[]>>({});
 
 /**
  * 输入预测「生成中」状态，按会话 runtimeId 索引。生成调用在飞时为 true，
- * 用于在该会话末条 assistant 消息的操作栏右侧显示「Vetta 正在预测…」闪光提示。
+ * 用于在该会话末条 assistant 消息的操作栏右侧显示「567 Agent 正在预测…」闪光提示。
  */
 export const promptPredictingAtom = atom<Record<string, boolean>>({});
 

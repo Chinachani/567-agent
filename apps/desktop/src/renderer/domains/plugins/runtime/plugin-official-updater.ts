@@ -4,7 +4,7 @@ export function createOfficialUpdaterApi(
 	assertOfficial: () => void,
 	capabilitySessionId: string,
 ): PluginOfficialApi["updater"] {
-	const updater = window.vetta.plugins.internalCapabilities.updater;
+	const updater = window.agent567.plugins.internalCapabilities.updater;
 	return {
 		getState: async () => {
 			assertOfficial();

@@ -22,6 +22,11 @@ data class RemoteDesktopSessionSummary(
     val updatedAtEpochMs: Long,
 )
 
+data class RemoteDesktopSessionCatalog(
+    val sessions: List<RemoteDesktopSessionSummary>,
+    val failedDirectoryCount: Int = 0,
+)
+
 data class RemoteDesktopHistoryMessage(
     val id: String,
     val role: ChatRole,
@@ -34,6 +39,25 @@ data class RemoteDesktopImageChunk(
     val mimeType: String,
     val sizeBytes: Int,
     val dataBase64: String,
+)
+
+data class RemoteToolboxAbility(
+    val slug: String,
+    val type: String,
+    val name: String,
+    val description: String,
+    val version: String,
+    val author: String,
+    val category: String,
+    val tags: List<String>,
+    val installable: Boolean,
+    val installed: Boolean,
+)
+
+data class RemotePromptFileAttachment(
+    val fileName: String,
+    val mimeType: String,
+    val bytes: ByteArray,
 )
 
 interface RemoteConversationGateway {
@@ -49,6 +73,9 @@ interface RemoteConversationGateway {
     suspend fun disconnect(deviceId: String)
 
     suspend fun listDesktopSessions(deviceId: String): List<RemoteDesktopSessionSummary>? = null
+
+    suspend fun readDesktopSessionCatalog(deviceId: String): RemoteDesktopSessionCatalog? =
+        listDesktopSessions(deviceId)?.let { RemoteDesktopSessionCatalog(it) }
 
     suspend fun deleteDesktopSession(deviceId: String, remoteSessionId: String): Boolean? = null
 
@@ -67,6 +94,14 @@ interface RemoteConversationGateway {
         length: Int,
     ): RemoteDesktopImageChunk? = null
 
+    suspend fun sendEncryptedSessionMigrationArchive(
+        deviceId: String,
+        archive: ByteArray,
+        passphrase: String,
+        onAwaitingApproval: () -> Unit = {},
+        onProgress: (completedChunks: Int, totalChunks: Int) -> Unit = { _, _ -> },
+    ): Boolean? = null
+
     suspend fun createDesktopSession(localSessionId: String, deviceId: String): Pair<String, RemoteSessionModelCatalog>? = null
 
     suspend fun readDesktopSessionModels(localSessionId: String, remoteSessionId: String): RemoteSessionModelCatalog? = null
@@ -79,6 +114,10 @@ interface RemoteConversationGateway {
 
     suspend fun readDesktopPromptSuggestions(localSessionId: String, remoteSessionId: String): List<String>? = null
 
+    suspend fun readDesktopToolbox(deviceId: String): List<RemoteToolboxAbility>? = null
+
+    suspend fun installDesktopToolboxAbility(deviceId: String, type: String, slug: String): Boolean? = null
+
     fun stream(
         localSessionId: String,
         deviceId: String,
@@ -86,6 +125,16 @@ interface RemoteConversationGateway {
         messages: List<ChatMessage>,
         retryPreviousTurn: Boolean = false,
     ): Flow<ChatStreamEvent>
+
+    fun streamWithAttachments(
+        localSessionId: String,
+        deviceId: String,
+        remoteSessionId: String?,
+        messages: List<ChatMessage>,
+        retryPreviousTurn: Boolean,
+        promptText: String,
+        files: List<RemotePromptFileAttachment>,
+    ): Flow<ChatStreamEvent> = stream(localSessionId, deviceId, remoteSessionId, messages, retryPreviousTurn)
 
     fun resolvedRemoteSessionId(localSessionId: String): String?
 

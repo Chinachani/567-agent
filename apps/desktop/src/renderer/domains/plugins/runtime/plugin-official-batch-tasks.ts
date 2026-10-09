@@ -4,7 +4,7 @@ export function createOfficialBatchTasksApi(
 	assertOfficial: () => void,
 	capabilitySessionId: string,
 ): PluginOfficialApi["batchTasks"] {
-	const batchTasks = window.vetta.plugins.internalCapabilities.batchTasks;
+	const batchTasks = window.agent567.plugins.internalCapabilities.batchTasks;
 	return {
 		listProjects: async () => {
 			assertOfficial();

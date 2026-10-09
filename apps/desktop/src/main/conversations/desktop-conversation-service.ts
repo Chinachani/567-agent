@@ -23,6 +23,7 @@ import { ensureLegacyAgentTeamOwnershipCatalog } from "../agent-teams/team-owner
 import { monitorRuntimeSession } from "../app-monitor/app-monitor-service.js";
 import { allowProjectRoot, readDesktopConfig } from "../ipc/fs.js";
 import { getAppLogger } from "../logger.js";
+import { ensureMobileImportProject } from "../projects/mobile-import-project.js";
 import { getSharedRuntime } from "../runtime.js";
 import { assertSandboxAvailableForMode } from "../sandbox/capability.js";
 import { emitConversationListChanged } from "./conversation-list-events.js";
@@ -30,6 +31,7 @@ import {
 	type ConversationOwnershipCatalogPort,
 	conversationOwnershipCatalog,
 } from "./conversation-ownership-catalog.js";
+import { importMobileSessionArchive, type MobileArchiveImportResult } from "./import-mobile-session-archive.js";
 import {
 	type DesktopCodingAgentSessionConfig,
 	type DesktopConversationSource,
@@ -40,6 +42,7 @@ import { readSessionAgentBinding, recordSessionAgentBinding } from "./session-ag
 import { recordSessionAgentMode } from "./session-agent-mode-store.js";
 import { type ResolvedSessionAgentProfile, resolveSessionAgentProfile } from "./session-agent-profile.js";
 import { DesktopSessionCreationTrace } from "./session-creation-trace.js";
+import type { SessionMigrationArchive } from "./session-migration-backup.js";
 import {
 	isConversationCwd,
 	readDesktopSessionHeader,
@@ -174,6 +177,25 @@ export class DesktopConversationService {
 		/** Agent 目录读取口，仅为单测可注入而外露；缺省走主进程共享的 agentTeamStore。 */
 		private readonly readAgentTeamDocument: () => Promise<AgentTeamDocument> = () => agentTeamStore.read(),
 	) {}
+
+	async importSessionMigrationArchive(
+		archive: SessionMigrationArchive,
+		cwd: string,
+	): Promise<MobileArchiveImportResult> {
+		const importableSessions = archive.sessions.some((session) => session.origin !== "Desktop");
+		const targetCwd = importableSessions ? (await ensureMobileImportProject()).path : cwd;
+		const imported = await importMobileSessionArchive(archive, {
+			runtime: this.runtime,
+			conversationService: this,
+			cwd: targetCwd,
+		});
+		if (importableSessions) {
+			for (const sessionPath of imported.sessionPaths) {
+				emitConversationListChanged({ cwd: targetCwd, sessionPath });
+			}
+		}
+		return imported;
+	}
 
 	/**
 	 * 解析本次会话生效的 Agent 绑定。
@@ -343,9 +365,13 @@ export class DesktopConversationService {
 		}
 		const header = await readDesktopSessionHeader(absolutePath);
 		if (!header) {
-			throw new DesktopConversationError("INVALID_SESSION_PATH", "Session file has no valid Vetta session header.", {
-				sessionPath: absolutePath,
-			});
+			throw new DesktopConversationError(
+				"INVALID_SESSION_PATH",
+				"Session file has no valid 567 Agent session header.",
+				{
+					sessionPath: absolutePath,
+				},
+			);
 		}
 		return this.createSession(
 			{
@@ -526,14 +552,17 @@ export class DesktopConversationService {
 		}
 	}
 
-	async listSessions(cwd: string): Promise<DesktopSessionHistoryInfo[]> {
+	async listSessions(cwd: string, sessionDir?: string): Promise<DesktopSessionHistoryInfo[]> {
 		if (!isAbsolute(cwd)) {
 			throw new DesktopConversationError("INVALID_SESSION_PATH", "cwd must be an absolute path.");
 		}
 		const absoluteCwd = resolve(cwd);
 		allowProjectRoot(absoluteCwd);
 		await this.ensureOwnershipReady?.();
-		const catalogSessions = await this.runtime.listSessions(absoluteCwd, resolveSessionDirForCwd(absoluteCwd));
+		const catalogSessions = await this.runtime.listSessions(
+			absoluteCwd,
+			sessionDir ?? resolveSessionDirForCwd(absoluteCwd),
+		);
 		const sessions = this.ownershipCatalog
 			? await this.ownershipCatalog.filterUserSessions(catalogSessions)
 			: catalogSessions;
@@ -545,8 +574,8 @@ export class DesktopConversationService {
 		);
 	}
 
-	async deleteRemoteSession(sessionId: string, cwd: string): Promise<void> {
-		const session = (await this.listSessions(cwd)).find((item) => item.id === sessionId);
+	async deleteRemoteSession(sessionId: string, cwd: string, sessionDir?: string): Promise<void> {
+		const session = (await this.listSessions(cwd, sessionDir)).find((item) => item.id === sessionId);
 		if (!session) {
 			throw new DesktopConversationError("SESSION_NOT_FOUND", "The desktop session was not found.");
 		}

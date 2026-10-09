@@ -40,11 +40,11 @@ export function useUpdateCheckerModel(): UpdateCheckerViewProps {
 			latestVersion: state.latestVersion,
 			onCheck: () => {
 				setBusy(true);
-				void window.vetta.updater.check().finally(() => setBusy(false));
+				void window.agent567.updater.check().finally(() => setBusy(false));
 			},
 			onPrimary: () => {
 				if (state.phase === "available") {
-					void window.vetta.updater.download();
+					void window.agent567.updater.download();
 					return;
 				}
 				if (state.phase === "ready") {

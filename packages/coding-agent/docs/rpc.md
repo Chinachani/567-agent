@@ -15,7 +15,7 @@ vetta --mode rpc [options]
 常用：`--provider` / `--model` / `--session` / `--session-dir` / `--continue` / `--no-session` / `--enable-host-bridge` / `--memory-mode`。
 
 - 工作目录 = 进程 cwd（无运行时改 cwd 命令）。
-- 默认会话目录：`~/.vetta/agent/sessions/<safe-cwd>/`。
+- 默认会话目录：`~/.567agent/agent/sessions/<safe-cwd>/`。
 - **一进程一活动会话**；同文件禁止多 writer。
 - 旧 JSONL v1–v3 会非破坏导入为 V2 conversation 后再恢复。
 

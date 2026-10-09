@@ -1,7 +1,7 @@
 import { existsSync, readFileSync, rmSync } from "node:fs";
 import { readFile, rm, stat } from "node:fs/promises";
 import { isAbsolute, join, resolve } from "node:path";
-import { getVettaHomePath } from "@567agent/action-rpc";
+import { getAgent567HomePath } from "@567agent/action-rpc";
 import {
 	parsePluginCommandNames as parseCommands,
 	parsePluginManifest as parseManifest,
@@ -47,12 +47,12 @@ export { PLUGIN_API_VERSION } from "./plugin-api-version.js";
 export const CORE_ACTION_PLUGIN_ID = "vetta-actions";
 
 const REQUIRED_SYSTEM_PLUGIN_IDS = new Set<string>([CORE_ACTION_PLUGIN_ID]);
-const pluginsBaseDir = join(getVettaHomePath(), "plugins");
-const manifestPath = join(getVettaHomePath(), "plugins-manifest.json");
-const tmpBaseDir = join(getVettaHomePath(), "tmp", "plugins");
+const pluginsBaseDir = join(getAgent567HomePath(), "plugins");
+const manifestPath = join(getAgent567HomePath(), "plugins-manifest.json");
+const tmpBaseDir = join(getAgent567HomePath(), "tmp", "plugins");
 const MAX_LOCAL_PLUGIN_PACKAGE_BYTES = 512 * 1024 * 1024;
 // 系统插件的用户态偏好（目前仅停用开关），与用户插件注册表分离（ADR-0024）。
-const systemPrefsPath = join(getVettaHomePath(), "system-plugin-prefs.json");
+const systemPrefsPath = join(getAgent567HomePath(), "system-plugin-prefs.json");
 const pluginRegistry = new PluginRegistryStore(manifestPath, pluginsBaseDir);
 const systemPluginPreferences = new SystemPluginPreferenceStore(systemPrefsPath);
 
@@ -278,7 +278,7 @@ export async function installPluginFromUrl(url: string, options?: PluginInstallO
 	return installPluginFromArchive(buffer, { ...options, source: "remote" });
 }
 
-/** Install from a local Vetta package path; legacy .zip remains importable. */
+/** Install from a local 567 Agent plugin package path; legacy archives remain importable. */
 export async function installPluginFromPath(
 	filePath: string,
 	options?: PluginInstallOptions,
@@ -487,7 +487,7 @@ export function reloadPlugin(id: string): InstalledPlugin {
 	pluginRegistry.write(registry);
 	// 台账（ADR-0049）跟着改写为实际生效的版本。
 	recordAbilityInstall("plugin", plugin.id, plugin.activeVersion);
-	// dev 链接期间：注册表照常收敛到实际版本（否则「应用到 Vetta」的新版本会被吞掉，
+	// dev 链接期间：注册表照常收敛到实际版本（否则「应用到 567 Agent」的新版本会被吞掉，
 	// 关热更新后回落旧版本），但返回值与广播叠加 dev 快照（资源仍从工程加载）。
 	if (pluginDevLinkService.has(id)) {
 		return pluginDevLinkService.refresh(id);

@@ -4,7 +4,7 @@ export function createOfficialAgentApi(
 	assertOfficial: () => void,
 	capabilitySessionId: string,
 ): PluginOfficialApi["agent"] {
-	const agentSettings = window.vetta.plugins.internalCapabilities.agentSettings;
+	const agentSettings = window.agent567.plugins.internalCapabilities.agentSettings;
 	return {
 		getExperimental: async () => {
 			assertOfficial();

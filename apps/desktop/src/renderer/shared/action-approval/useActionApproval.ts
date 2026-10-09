@@ -47,7 +47,7 @@ export function useActionApproval(presentation: string): ActiveActionApproval | 
 	const respond = useCallback(
 		(approved: boolean, input?: DesktopActionJsonValue) => {
 			if (!request || !beginResponse(request.approvalId)) return;
-			void window.vetta.actionApproval
+			void window.agent567.actionApproval
 				.respond(request.approvalId, approved, input)
 				.then((accepted) => {
 					if (!accepted) {

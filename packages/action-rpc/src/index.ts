@@ -5,8 +5,8 @@ export {
 	AGENT567_HOME_ENV,
 	DEFAULT_CONFIG_DIR_NAME,
 	getActionRpcEndpointFilePath,
-	getVettaConfigDirName,
-	getVettaHomePath,
+	getAgent567ConfigDirName,
+	getAgent567HomePath,
 	readActionRpcEndpoint,
 } from "./endpoint-file.js";
 export { ActionRpcError } from "./errors.js";

@@ -50,6 +50,13 @@ data class MessageImage(
         ChatContentPart.Image(mimeType = mimeType, base64Data = base64Data)
 }
 
+data class MessageFileAttachment(
+    val id: String,
+    val fileName: String,
+    val mimeType: String,
+    val sizeBytes: Long,
+)
+
 data class LocalMessage(
     val id: String,
     val sessionId: String,
@@ -59,6 +66,8 @@ data class LocalMessage(
     val createdAtEpochMs: Long,
     val errorMessage: String? = null,
     val images: List<MessageImage> = emptyList(),
+    /** File bytes stay on the desktop; the phone stores display metadata only. */
+    val files: List<MessageFileAttachment> = emptyList(),
     val toolEvents: List<ToolTrace> = emptyList(),
     val usage: TokenUsage? = null,
     val contextPercent: Int? = null,
@@ -78,7 +87,7 @@ data class LocalMessage(
     }
 
     val hasVisualContent: Boolean
-        get() = content.isNotBlank() || images.isNotEmpty()
+        get() = content.isNotBlank() || images.isNotEmpty() || files.isNotEmpty()
 }
 
 data class ToolTrace(

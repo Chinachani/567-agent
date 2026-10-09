@@ -32,7 +32,7 @@ describe("migrateLegacyWorkspace", () => {
 		mkdirSync(paths.legacyWorkspace, { recursive: true });
 		writeFileSync(join(paths.legacyWorkspace, "design.txt"), "keep");
 		const config = {
-			workspacePath: "~/.vetta/workspace",
+			workspacePath: "~/.567agent/workspace",
 			projects: [{ path: join(paths.legacyWorkspace, "design") }],
 			archivedProjects: [join(paths.legacyWorkspace, "old")],
 		};
@@ -66,7 +66,7 @@ describe("migrateLegacyWorkspace", () => {
 		const customWorkspace = join(paths.userHome, "work", "project");
 		const configured = migrateLegacyWorkspace({ workspacePath: customWorkspace }, paths);
 		const customHome = { ...paths, configHome: join(paths.userHome, ".custom-agent") };
-		const customConfig = migrateLegacyWorkspace({ workspacePath: "~/.vetta/workspace" }, customHome);
+		const customConfig = migrateLegacyWorkspace({ workspacePath: "~/.567agent/workspace" }, customHome);
 
 		expect(configured.workspacePath).toBe(customWorkspace);
 		expect(customConfig.workspacePath).toBe(paths.legacyWorkspace);

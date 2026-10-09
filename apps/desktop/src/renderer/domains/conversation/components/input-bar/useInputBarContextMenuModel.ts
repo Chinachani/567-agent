@@ -86,7 +86,7 @@ export function useInputBarContextMenuModel({
 		if (!hasSession) return;
 		void (async () => {
 			try {
-				const rich = await window.vetta.clipboard.pasteUserMessage(activeRuntimeId ?? "draft");
+				const rich = await window.agent567.clipboard.pasteUserMessage(activeRuntimeId ?? "draft");
 				if (rich) {
 					recordInputImagesAdded("paste", rich.images);
 					insertClipboardMessage(

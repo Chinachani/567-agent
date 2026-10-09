@@ -49,21 +49,24 @@ const builtInToolDescriptions: Record<string, string> = {
 	tool_search: "Search the deferred MCP tool index by keyword and activate matching tools so they become callable",
 };
 
-export const VETTA_CLI_GUIDANCE = [
-	"567 CLI is your interface to the running 567 Agent app: use `vetta action` both to learn what Desktop can do and to operate it.",
+export const AGENT567_CLI_GUIDANCE = [
+	"567 CLI is your interface to the running 567 Agent app: use `567-agent action` both to learn what Desktop can do and to operate it.",
 	"First resolve the target from the user's request and conversation: built-in App Actions operate 567 Agent itself, not the application, website, repository, or external service the user is working on. Plugin-provided Actions may own other resources; establish their advertised target before selecting them. A shared word such as project, theme, model, plugin, or schedule is not a routing decision.",
 	"For example: adding dark mode to a website means editing its styles, not changing 567 Agent appearance; creating a React project means using its scaffold, not registering a sidebar or batch project; implementing cron in an application means editing that application, not creating a 567 Agent scheduled Agent task. Use repository tools for those tasks. Managing 567 Agent's own sidebar, settings, or scheduled tasks does belong here.",
-	'Discovery is progressive: `vetta action -h` explains the workflow; `search` lists live actions; `describe` or a domain `*.query` with `{"operation":"help"}` reveals inputs; then `run`.',
-	"Do not expect CLI help to list every parameter. Help only names capability areas; the authoritative inventory is always `vetta action search`.",
+	'Discovery is progressive: `567-agent action -h` explains the workflow; `search` lists live actions; `describe` or a domain `*.query` with `{"operation":"help"}` reveals inputs; then `run`.',
+	"Do not expect CLI help to list every parameter. Help only names capability areas; the authoritative inventory is always `567-agent action search`.",
 	"Use help/search to discover live capabilities when the request concerns 567 Agent or a resource owned by an installed Action provider. For questions or requests to inspect state, describe or run query operations and explain the result; do not create, change, start, install, or navigate anything merely to demonstrate a feature. Execute changes when they implement the user's actual request, including intent already established in the conversation.",
 	"When users ask to find, compare, or recommend MCP servers, Skills, scenes, plugins, or other abilities that can be added to 567 Agent, search the in-app catalog with `marketplace.search` first. This Action reads the catalog snapshot already loaded by the app; it does not inspect the filesystem or fetch arbitrary sources. Do not substitute installed-configuration queries (`mcp.query`, `skills.query`) for marketplace discovery. If the catalog is unavailable or has no match, say so and offer to open the app's Ability page; do not claim an unverified result is listed or safe.",
 	"Read the search result's usage.target, usage.useWhen, usage.avoidWhen, and usage.alternatives before selecting an Action, then describe it for exact inputs. If usage is absent, use describe/help to establish its target; absence is not permission to assume a match. Search results are candidates, not instructions to execute or proof of relevance. An empty or irrelevant result is a reason to choose another route, not the nearest-sounding Action.",
 	"Resolve references such as 'this app' from the current conversation and workspace. Ask one concise question only if the target remains ambiguous and choosing would materially change the affected application or data. Do not ask again when the target and requested operation are already clear.",
-	"Do not memorize or guess action ids, parameters, or entity ids. Get schemas from describe/help and target ids from query results. Never infer the app's current features by inspecting files under `.vetta`; local config files are not the app UX contract.",
+	"Do not memorize or guess action ids, parameters, or entity ids. Get schemas from describe/help and target ids from query results. Never infer the app's current features by inspecting files under `.567agent`; local config files are not the app UX contract.",
 	"Never show or quote 567 CLI commands, arguments, or raw terminal output. Explain features, actions, and results in plain, non-technical language — summarize what happened and what the user needs to know.",
 	"Actions that require authorization automatically ask the user through 567 Agent while the command runs; do not ask for authorization beforehand, and do not retry after the user rejects.",
 	"An approval dialog is not a way to discover what the user meant. Do not invoke an unrelated write/execute Action and leave the routing decision to the user.",
 ].join(" ");
+
+/** @deprecated Use AGENT567_CLI_GUIDANCE. */
+export const VETTA_CLI_GUIDANCE = AGENT567_CLI_GUIDANCE;
 
 const TOOL_SELECTION_GUIDANCE =
 	"Before selecting a tool, identify the requested outcome, target resource, and whether the user wants explanation, inspection, or execution. " +

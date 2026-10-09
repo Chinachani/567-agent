@@ -34,7 +34,7 @@ import org.agent567.android.ui.auth.LoginScreen
 import org.agent567.android.ui.auth.WelcomeScreen
 import org.agent567.android.ui.chat.ChatScreen
 import org.agent567.android.ui.components.LoadingBlock
-import org.agent567.android.ui.components.VettaBottomBar
+import org.agent567.android.ui.components.Agent567BottomBar
 import org.agent567.android.ui.connect.DeviceDetailScreen
 import org.agent567.android.ui.connect.DiscoverConnectScreen
 import org.agent567.android.ui.connect.NewConversationScreen
@@ -47,12 +47,13 @@ import org.agent567.android.ui.me.SettingsSection
 import org.agent567.android.ui.me.AboutScreen
 import org.agent567.android.ui.navigation.AppRoute
 import org.agent567.android.ui.navigation.ChatSurface
-import org.agent567.android.ui.theme.vettaExtra
+import org.agent567.android.ui.theme.agent567Extra
 import org.agent567.android.ui.navigation.MainTab
 import org.agent567.android.ui.navigation.PlatformBackHandler
 import org.agent567.android.ui.navigation.hasInAppBackDestination
 import org.agent567.android.ui.sessions.SessionsScreen
-import org.agent567.android.ui.theme.VettaTheme
+import org.agent567.android.ui.toolbox.ToolboxScreen
+import org.agent567.android.ui.theme.Agent567Theme
 import kotlin.reflect.KClass
 
 val LocalAppContainer =
@@ -94,16 +95,20 @@ fun RootApp(
         }
     }
 
+    LaunchedEffect(state.route) {
+        (state.route as? AppRoute.DeviceCapabilities)?.let { vm.refreshToolbox(it.deviceId) }
+    }
+
     CompositionLocalProvider(LocalMotionEnabled provides state.motionEnabled) {
-    VettaTheme(themeMode = state.themeMode) {
+    Agent567Theme(themeMode = state.themeMode) {
         if (!state.bootstrapped || state.route is AppRoute.Boot) {
             Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
                 LoadingBlock()
             }
-            return@VettaTheme
+            return@Agent567Theme
         }
 
-        Box(Modifier.fillMaxSize().background(MaterialTheme.vettaExtra.pageBackground)) {
+        Box(Modifier.fillMaxSize().background(MaterialTheme.agent567Extra.pageBackground)) {
             when (val route = state.route) {
             AppRoute.Boot -> Unit
             AppRoute.Welcome ->
@@ -133,9 +138,10 @@ fun RootApp(
                 Scaffold(
                     contentWindowInsets = androidx.compose.foundation.layout.WindowInsets(0, 0, 0, 0),
                     bottomBar = {
-                        VettaBottomBar(
+                        Agent567BottomBar(
                             selected = state.mainTab,
                             onSelect = vm::selectMainTab,
+                            showLabels = state.showBottomNavLabels,
                         )
                     },
                 ) { padding ->
@@ -170,6 +176,7 @@ fun RootApp(
                                     filterIndex = state.sessionFilterIndex,
                                     desktopSessionsLoading = state.desktopSessionsLoading,
                                     desktopSessionsError = state.desktopSessionsError,
+                                    desktopSessionsWarning = state.desktopSessionsWarning,
                                     onRefreshDesktopSessions = vm::refreshDesktopSessions,
                                     onRefreshSessions = vm::refreshSessions,
                                     onQueryChange = vm::setSessionQuery,
@@ -239,11 +246,29 @@ fun RootApp(
                 } else {
                     DeviceDetailScreen(
                         device = device,
+                        autoRequestDesktopScreen = state.autoRequestDesktopScreen,
                         onBack = vm::navigateBackFromSecondary,
                         onDisconnect = { vm.disconnectDesktop(device.id) },
                         onNewChat = { vm.startDesktopConversation(device.id) },
+                        onOpenCapabilities = { vm.openDeviceCapabilities(device.id) },
                     )
                 }
+            }
+            is AppRoute.DeviceCapabilities -> {
+                val device = state.devices.firstOrNull { it.id == route.deviceId }
+                ToolboxScreen(
+                    title = "电脑端能力管理",
+                    abilities = state.toolboxAbilities,
+                    query = state.toolboxQuery,
+                    loading = state.toolboxLoading,
+                    error = state.toolboxError,
+                    onBack = { vm.openDeviceDetail(route.deviceId) },
+                    onQueryChange = vm::setToolboxQuery,
+                    onRefresh = { vm.refreshToolbox(route.deviceId) },
+                    onInstall = vm::installToolboxAbility,
+                    onConnectDesktop = { vm.selectMainTab(MainTab.Discover) },
+                    deviceName = device?.name,
+                )
             }
             is AppRoute.NewConversation ->
                 NewConversationScreen(
@@ -277,6 +302,7 @@ fun RootApp(
                     messages = state.messages,
                     draft = state.draft,
                     pendingImages = state.pendingImages,
+                    pendingFiles = state.pendingFiles,
                     isStreaming = state.isStreaming,
                     streamingStatus = state.streamingStatus,
                     inputPredictions = state.inputPredictions,
@@ -324,6 +350,8 @@ fun RootApp(
                     onDismissError = vm::clearChatError,
                     onImagesPicked = vm::addPendingImages,
                     onRemovePendingImage = vm::removePendingImage,
+                    onAddPendingFile = vm::addPendingDocument,
+                    onRemovePendingFile = vm::removePendingDocument,
                     pendingQuestion = state.pendingQuestion?.takeIf { it.sessionId == state.currentSessionId },
                     questionSubmitting = state.isQuestionSubmitting,
                     onToggleQuestionOption = vm::toggleQuestionOption,
@@ -352,10 +380,15 @@ fun RootApp(
                     onInputPredictionEnabled = vm::setInputPredictionEnabled,
                     onClearLocalData = vm::clearLocalSessions,
                     onExportMigration = vm::exportSessionMigration,
+                    onSendMigration = vm::sendSessionMigrationToDesktop,
                     onImportMigration = vm::importSessionMigration,
                     onBack = vm::navigateBackFromSecondary,
                     confirmBeforeDelete = state.confirmBeforeDelete,
                     onConfirmBeforeDelete = vm::setConfirmBeforeDelete,
+                    autoRequestDesktopScreen = state.autoRequestDesktopScreen,
+                    onAutoRequestDesktopScreen = vm::setAutoRequestDesktopScreen,
+                    showBottomNavLabels = state.showBottomNavLabels,
+                    onShowBottomNavLabels = vm::setShowBottomNavLabels,
                 )
             AppRoute.SettingsData ->
                 SettingsScreen(
@@ -370,10 +403,15 @@ fun RootApp(
                     onInputPredictionEnabled = vm::setInputPredictionEnabled,
                     onClearLocalData = vm::clearLocalSessions,
                     onExportMigration = vm::exportSessionMigration,
+                    onSendMigration = vm::sendSessionMigrationToDesktop,
                     onImportMigration = vm::importSessionMigration,
                     onBack = vm::navigateBackFromSecondary,
                     confirmBeforeDelete = state.confirmBeforeDelete,
                     onConfirmBeforeDelete = vm::setConfirmBeforeDelete,
+                    autoRequestDesktopScreen = state.autoRequestDesktopScreen,
+                    onAutoRequestDesktopScreen = vm::setAutoRequestDesktopScreen,
+                    showBottomNavLabels = state.showBottomNavLabels,
+                    onShowBottomNavLabels = vm::setShowBottomNavLabels,
                 )
             AppRoute.About ->
                 AboutScreen(onBack = vm::navigateBackFromSecondary, onCheckUpdate = vm::checkAppUpdate)

@@ -131,7 +131,7 @@ const knowledgeMonitorSchema = z
 try {
 	const statePath = readArgument("--state-file");
 	const state = runtimeCanaryHostStateSchema.parse(JSON.parse(await readFile(statePath, "utf8")));
-	const endpointFilePath = join(state.runtimeCanary.vettaHome, "action-server.json");
+	const endpointFilePath = join(state.runtimeCanary.agent567Home, "action-server.json");
 	await waitFor(
 		() => existsSync(state.runtimeCanary.installedCliPath),
 		30_000,
@@ -141,11 +141,11 @@ try {
 		throw new Error(`Runtime Canary CLI must be installed outside the repository: ${state.runtimeCanary.installedCliPath}`);
 	}
 	const invokeDebug: RuntimeCanaryDebugInvoker = async (debugId, input) =>
-		await runVettaDebug(
+		await runAgent567Debug(
 			state.runtimeCanary.installedCliPath,
 			state.runtimeCanary.workspace,
 			endpointFilePath,
-			state.runtimeCanary.vettaHome,
+			state.runtimeCanary.agent567Home,
 			debugId,
 			input,
 		);
@@ -242,11 +242,11 @@ try {
 	await rm(pendingRawPath, { force: true });
 
 	const restartedInvokeDebug: RuntimeCanaryDebugInvoker = async (debugId, input) =>
-		await runVettaDebug(
+		await runAgent567Debug(
 			activeRestartedState.runtimeCanary.installedCliPath,
 			activeRestartedState.runtimeCanary.workspace,
 			endpointFilePath,
-			activeRestartedState.runtimeCanary.vettaHome,
+			activeRestartedState.runtimeCanary.agent567Home,
 			debugId,
 			input,
 		);
@@ -361,7 +361,7 @@ try {
 		throw new Error("Restarted Runtime Canary prompts were not persisted to the conversation");
 	}
 	const monitor = knowledgeMonitorSchema.parse(
-		JSON.parse(await readFile(join(state.runtimeCanary.vettaHome, "app-monitor", "summary.json"), "utf8")),
+		JSON.parse(await readFile(join(state.runtimeCanary.agent567Home, "app-monitor", "summary.json"), "utf8")),
 	);
 	if (
 		monitor.knowledgeBase.processingRounds !== 3 ||
@@ -453,7 +453,7 @@ async function waitForKnowledgeActionProvider(
 				state.runtimeCanary.installedCliPath,
 				state.runtimeCanary.workspace,
 				endpointFilePath,
-				state.runtimeCanary.vettaHome,
+				state.runtimeCanary.agent567Home,
 				["search", "knowledge"],
 			);
 			return result.code === 0 && result.stdout.includes("knowledge.manage");
@@ -471,7 +471,7 @@ async function startApprovedKnowledgeScan(
 		state.runtimeCanary.installedCliPath,
 		state.runtimeCanary.workspace,
 		endpointFilePath,
-		state.runtimeCanary.vettaHome,
+		state.runtimeCanary.agent567Home,
 		["run", "knowledge.manage", JSON.stringify({ operation: "scan-now" })],
 	);
 	await approveNextKnowledgeAction(state.cdpPort);
@@ -522,8 +522,8 @@ async function installKnowledgeNotificationAudit(cdpPort: number, reset: boolean
 				record,
 				processingHandler,
 				statusesHandler,
-				offProcessing: window.vetta.knowledge.onProcessingChanged(processingHandler),
-				offStatuses: window.vetta.knowledge.onStatusesChanged(statusesHandler),
+				offProcessing: window.agent567.knowledge.onProcessingChanged(processingHandler),
+				offStatuses: window.agent567.knowledge.onStatusesChanged(statusesHandler),
 			};
 			return true;
 		})()`,
@@ -643,13 +643,13 @@ async function runVettaAction(
 	installedCliPath: string,
 	cwd: string,
 	endpointFilePath: string,
-	vettaHome: string,
+	agent567Home: string,
 	args: string[],
 ): Promise<ProcessResult> {
 	return await runProcess(installedCliPath, ["action", ...args], cwd, {
 		...process.env,
 		[ACTION_RPC_ENDPOINT_FILE_ENV]: endpointFilePath,
-		[AGENT567_HOME_ENV]: vettaHome,
+		[AGENT567_HOME_ENV]: agent567Home,
 	});
 }
 
@@ -777,18 +777,18 @@ async function readJsonFile<T>(path: string, schema: z.ZodType<T>): Promise<T> {
 	return schema.parse(JSON.parse(await readFile(path, "utf8")));
 }
 
-async function runVettaDebug(
+async function runAgent567Debug(
 	installedCliPath: string,
 	cwd: string,
 	endpointFilePath: string,
-	vettaHome: string,
+	agent567Home: string,
 	debugId: string,
 	input: unknown,
 ): Promise<unknown> {
 	const result = await runProcess(installedCliPath, ["debug", "run", debugId, JSON.stringify(input)], cwd, {
 		...process.env,
 		[ACTION_RPC_ENDPOINT_FILE_ENV]: endpointFilePath,
-		[AGENT567_HOME_ENV]: vettaHome,
+		[AGENT567_HOME_ENV]: agent567Home,
 	});
 	if (result.code !== 0) {
 		throw new Error(

@@ -125,8 +125,8 @@ export function useImageGenerationSettingsModel(): ImageGenerationSettingsModel 
 		setLoading(true);
 		try {
 			const [nextProviders, config] = await Promise.all([
-				window.vetta.media.listProviders(),
-				window.vetta.config.get(),
+				window.agent567.media.listProviders(),
+				window.agent567.config.get(),
 			]);
 			setProviders(nextProviders);
 			setTextToImageProviderId(normalizeProviderId(config.imageGeneration?.textToImageProviderId));
@@ -140,7 +140,7 @@ export function useImageGenerationSettingsModel(): ImageGenerationSettingsModel 
 
 	useEffect(() => {
 		void load();
-		return window.vetta.plugins.onMediaProvidersChanged(() => void load());
+		return window.agent567.plugins.onMediaProvidersChanged(() => void load());
 	}, [load]);
 
 	const setRoute = useCallback(
@@ -160,7 +160,7 @@ export function useImageGenerationSettingsModel(): ImageGenerationSettingsModel 
 					? { textToImageProviderId: providerId, textToImageModelId: modelId }
 					: { imageToImageProviderId: providerId, imageToImageModelId: modelId };
 			try {
-				await window.vetta.config.set({ imageGeneration: patch });
+				await window.agent567.config.set({ imageGeneration: patch });
 				recordSettingsUsage({
 					tab: "agent",
 					action: providerId ? "selected" : "reset",

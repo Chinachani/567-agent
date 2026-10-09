@@ -4,7 +4,7 @@ export function createOfficialWebhookApi(
 	assertOfficial: () => void,
 	capabilitySessionId: string,
 ): PluginOfficialApi["webhook"] {
-	const webhook = window.vetta.plugins.internalCapabilities.webhook;
+	const webhook = window.agent567.plugins.internalCapabilities.webhook;
 	return {
 		list: async () => {
 			assertOfficial();

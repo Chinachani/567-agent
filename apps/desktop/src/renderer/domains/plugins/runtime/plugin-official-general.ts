@@ -4,7 +4,7 @@ export function createOfficialGeneralApi(
 	assertOfficial: () => void,
 	capabilitySessionId: string,
 ): PluginOfficialApi["general"] {
-	const generalSettings = window.vetta.plugins.internalCapabilities.generalSettings;
+	const generalSettings = window.agent567.plugins.internalCapabilities.generalSettings;
 	return {
 		getSettings: async () => {
 			assertOfficial();

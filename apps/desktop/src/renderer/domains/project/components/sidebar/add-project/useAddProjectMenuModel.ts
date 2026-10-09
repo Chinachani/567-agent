@@ -31,7 +31,7 @@ export function useAddProjectMenuModel(): {
 
 	const handleImport = async (): Promise<void> => {
 		setOpen(false);
-		const result = await window.vetta.project.import();
+		const result = await window.agent567.project.import();
 		if (!result) return;
 		if ("error" in result) {
 			setConfirm({

@@ -7,8 +7,9 @@ import { fileURLToPath } from "node:url";
 import { requireReleaseNotes } from "./release/release-notes.mjs";
 
 const DESKTOP_PACKAGE_PATH = "apps/desktop/package.json";
+const MOBILE_VERSION_PATH = "apps/mobile/version.properties";
 const LOCKFILE_PATH = "bun.lock";
-const RELEASE_FILES = [DESKTOP_PACKAGE_PATH, LOCKFILE_PATH];
+const RELEASE_FILES = [DESKTOP_PACKAGE_PATH, MOBILE_VERSION_PATH, LOCKFILE_PATH];
 
 function run(command, args, options = {}) {
 	console.log(`$ ${command} ${args.join(" ")}`);
@@ -21,6 +22,28 @@ function run(command, args, options = {}) {
 
 function readDesktopPackage() {
 	return JSON.parse(readFileSync(DESKTOP_PACKAGE_PATH, "utf8"));
+}
+
+function mobileVersionCode(version) {
+	const match = /^(\d+)\.(\d+)\.(\d+)$/.exec(version);
+	if (!match) throw new Error(`Invalid mobile release version: ${version}`);
+	const [, major, minor, patch] = match;
+	const values = [Number(major), Number(minor), Number(patch)];
+	if (values.some((value) => !Number.isSafeInteger(value) || value > 99)) {
+		throw new Error(`Mobile version components must be between 0 and 99: ${version}`);
+	}
+	return values[0] * 10_000 + values[1] * 100 + values[2];
+}
+
+function updateMobileVersion(version) {
+	const properties = readFileSync(MOBILE_VERSION_PATH, "utf8");
+	const next = properties
+		.replace(/^versionName=.*$/m, `versionName=${version}`)
+		.replace(/^versionCode=.*$/m, `versionCode=${mobileVersionCode(version)}`);
+	if (next === properties && !properties.includes(`versionName=${version}`)) {
+		throw new Error("Could not update Android version.properties");
+	}
+	writeFileSync(MOBILE_VERSION_PATH, next);
 }
 
 export function bumpVersion(version, bumpType) {
@@ -118,6 +141,7 @@ function main() {
 
 	desktopPackage.version = version;
 	writeFileSync(DESKTOP_PACKAGE_PATH, `${JSON.stringify(desktopPackage, null, "\t")}\n`);
+	updateMobileVersion(version);
 	run("bun", ["install", "--lockfile-only"]);
 	assertOnlyReleaseFilesChanged();
 

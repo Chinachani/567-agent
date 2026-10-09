@@ -122,7 +122,7 @@ export function useFilesPanelModel(cwd?: string | null): FilesPanelViewProps {
 			variant: "danger",
 			onConfirm: async () => {
 				try {
-					await window.vetta.session.clearDefaultArtifacts(clearArtifactsScope);
+					await window.agent567.session.clearDefaultArtifacts(clearArtifactsScope);
 				} catch (err: unknown) {
 					setErrorToast(err instanceof Error ? err.message : t("fileExplorer.clearArtifactsFailed"));
 					return;
@@ -236,7 +236,7 @@ export function useFilesPanelModel(cwd?: string | null): FilesPanelViewProps {
 
 			const pending = creatingEntry;
 			setCreatingEntry({ ...pending, error: null, busy: true });
-			void window.vetta.fs
+			void window.agent567.fs
 				.createEntry(pending.parentPath, name, pending.kind)
 				.then(async (entry) => {
 					await refreshDir(pending.parentPath);
@@ -370,12 +370,12 @@ export function useFilesPanelModel(cwd?: string | null): FilesPanelViewProps {
 	const onExternalDrop = useCallback(
 		(files: readonly File[], destinationDirectory: string) => {
 			if (!rootDir || files.length === 0) return;
-			const paths = files.map((file) => window.vetta.fs.pathForFile(file)).filter(Boolean);
+			const paths = files.map((file) => window.agent567.fs.pathForFile(file)).filter(Boolean);
 			if (isProjectInternalDrop(paths, rootDir)) {
 				onFileMove(paths, destinationDirectory);
 				return;
 			}
-			void window.vetta.fs
+			void window.agent567.fs
 				.prepareDrop(files, destinationDirectory)
 				.then((plan) => {
 					setConflictPolicy("keep-both");
@@ -390,7 +390,7 @@ export function useFilesPanelModel(cwd?: string | null): FilesPanelViewProps {
 	);
 
 	const onNativeDragStart = useCallback((paths: readonly string[]) => {
-		window.vetta.fs.startDrag(paths);
+		window.agent567.fs.startDrag(paths);
 	}, []);
 
 	const onPrefetchNativeDragIcons = useCallback((entries: readonly FileExplorerDragEntry[]) => {
@@ -411,13 +411,13 @@ export function useFilesPanelModel(cwd?: string | null): FilesPanelViewProps {
 
 	const cancelTransfer = useCallback(() => {
 		if (!transferPlan || transferBusyRef.current) return;
-		void window.vetta.fs.cancelDrop(transferPlan.id);
+		void window.agent567.fs.cancelDrop(transferPlan.id);
 		setTransferPlan(null);
 	}, [transferPlan]);
 
 	useEffect(() => {
 		return () => {
-			if (transferPlan) void window.vetta.fs.cancelDrop(transferPlan.id);
+			if (transferPlan) void window.agent567.fs.cancelDrop(transferPlan.id);
 		};
 	}, [transferPlan]);
 
@@ -427,7 +427,7 @@ export function useFilesPanelModel(cwd?: string | null): FilesPanelViewProps {
 			transferBusyRef.current = true;
 			setTransferBusy(true);
 			try {
-				const result = await window.vetta.fs.commitDrop(transferPlan.id, action, conflictPolicy);
+				const result = await window.agent567.fs.commitDrop(transferPlan.id, action, conflictPolicy);
 				const failures = result.items.filter((item) => item.status === "failed");
 				if (failures.length > 0) {
 					setErrorToast(t("fileExplorer.transfer.failedCount", { count: failures.length }));
@@ -465,14 +465,14 @@ export function useFilesPanelModel(cwd?: string | null): FilesPanelViewProps {
 				destinationOverride ??
 				resolvePasteDirectory(rootDir, selection.focusedEntry, selection.selectedEntries);
 			const sourcePaths = clipboard.entries.map((entry) => entry.path);
-			void window.vetta.fs
+			void window.agent567.fs
 				.prepareTransfer(sourcePaths, destinationDirectory)
 				.then(async (plan) => {
 					transferBusyRef.current = true;
 					setTransferBusy(true);
 					try {
 						// keep-both handles same-folder duplicates and name conflicts without a prompt.
-						const result = await window.vetta.fs.commitDrop(plan.id, "copy", "keep-both");
+						const result = await window.agent567.fs.commitDrop(plan.id, "copy", "keep-both");
 						const failures = result.items.filter((item) => item.status === "failed");
 						if (failures.length > 0) {
 							setErrorToast(t("fileExplorer.transfer.failedCount", { count: failures.length }));
@@ -482,7 +482,7 @@ export function useFilesPanelModel(cwd?: string | null): FilesPanelViewProps {
 					} catch (error: unknown) {
 						console.warn("[file-explorer] paste commit failed", error);
 						setErrorToast(t("fileExplorer.transfer.commitFailed"));
-						void window.vetta.fs.cancelDrop(plan.id);
+						void window.agent567.fs.cancelDrop(plan.id);
 					} finally {
 						transferBusyRef.current = false;
 						setTransferBusy(false);

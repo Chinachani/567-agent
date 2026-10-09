@@ -178,6 +178,40 @@ begin
   Log('Updater differential cache seeded: ' + CachedInstallerPath);
 end;
 
+procedure CleanupOldBundledVersions();
+var
+  VersionsDirectory: String;
+  FindRec: TFindRec;
+  CandidateDirectory: String;
+begin
+  if IsBackgroundUpdate() then
+    exit;
+
+  VersionsDirectory := AddBackslash(ExpandConstant('{app}')) + 'versions';
+  if not DirExists(VersionsDirectory) then
+    exit;
+
+  if FindFirst(AddBackslash(VersionsDirectory) + '*', FindRec) then
+  begin
+    try
+      repeat
+        if ((FindRec.Attributes and FILE_ATTRIBUTE_DIRECTORY) <> 0) and
+           (FindRec.Name <> '.') and (FindRec.Name <> '..') and
+           (FindRec.Name <> '{#AppVersion}') then
+        begin
+          CandidateDirectory := AddBackslash(VersionsDirectory) + FindRec.Name;
+          if DelTree(CandidateDirectory, True, True, True) then
+            Log('Removed stale bundled version directory: ' + CandidateDirectory)
+          else
+            Log('Unable to remove stale bundled version directory: ' + CandidateDirectory);
+        end;
+      until not FindNext(FindRec);
+    finally
+      FindClose(FindRec);
+    end;
+  end;
+end;
+
 var
   LastReportedProgress: Integer;
 
@@ -222,6 +256,7 @@ begin
     begin
       SeedUpdaterDifferentialCache();
       DeleteFile(ExpandConstant('{localappdata}\567Agent\current.json'));
+      CleanupOldBundledVersions();
     end;
   end;
 end;

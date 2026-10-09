@@ -1,6 +1,6 @@
-import { randomUUID } from "node:crypto";
+import { randomUUID, X509Certificate } from "node:crypto";
 import { decodeRemoteInputMessage } from "@567agent/remote-desktop";
-import { BrowserWindow, desktopCapturer, dialog, ipcMain, session, webContents } from "electron";
+import { BrowserWindow, desktopCapturer, dialog, ipcMain, screen, session, webContents } from "electron";
 import type { RemotePairingState } from "../../preload/api-types/remote-pairing.js";
 import { mainT } from "../i18n/index.js";
 import { getAppLogger } from "../logger.js";
@@ -18,6 +18,8 @@ export interface DesktopRemoteDesktopHostOptions {
 	readonly signalingTarget?: string;
 	readonly signalingTargets?: readonly string[];
 	readonly inputEnabled: boolean;
+	readonly autoShareScreen?: boolean;
+	readonly onAutoShareScreenChange?: (enabled: boolean) => Promise<void>;
 	readonly appRoot: string;
 	readonly isPackaged: boolean;
 	readonly devServerUrl?: string;
@@ -29,6 +31,7 @@ export interface DesktopRemoteDesktopHostHandle {
 	readonly inputSupportReason?: RemotePairingState["inputSupportReason"];
 	revokeInput(): void;
 	grantInput(): void;
+	setAutoShareScreen(enabled: boolean): void;
 	stop(): Promise<void>;
 }
 
@@ -67,6 +70,7 @@ export async function startDesktopRemoteDesktopHost(
 			preload: paths.preloadPath,
 		},
 	});
+	let autoShareScreen = options.autoShareScreen === true;
 	const unregisterHostMediaPermissions = configureRemoteDesktopHostMediaPermissions(hostSession);
 	const onCertificateError = (
 		event: Electron.Event,
@@ -79,14 +83,26 @@ export async function startDesktopRemoteDesktopHost(
 		try {
 			origin = new URL(url).origin;
 		} catch {
+			log.warn("remote desktop signaling certificate rejected", { sessionId, reason: "invalid_origin" });
 			callback(false);
 			return;
 		}
 		const expectedFingerprint = pinnedOrigins.get(origin);
-		const matches =
-			expectedFingerprint !== undefined &&
-			certificate.fingerprint.replaceAll(":", "").toLowerCase() === expectedFingerprint;
+		let actualFingerprint: string | undefined;
+		try {
+			actualFingerprint = new X509Certificate(certificate.data).fingerprint256.replaceAll(":", "").toLowerCase();
+		} catch {
+			actualFingerprint = undefined;
+		}
+		const matches = expectedFingerprint !== undefined && actualFingerprint === expectedFingerprint;
 		if (!matches) {
+			log.warn("remote desktop signaling certificate rejected", {
+				sessionId,
+				origin,
+				error: _error,
+				pinnedOriginConfigured: expectedFingerprint !== undefined,
+				fingerprintMatches: false,
+			});
 			callback(false);
 			return;
 		}
@@ -95,13 +111,22 @@ export async function startDesktopRemoteDesktopHost(
 	};
 	window.webContents.on("certificate-error", onCertificateError);
 	const unregisterVideoPermission = registerRemoteDesktopVideoPermission(window.webContents.id);
-	window.webContents.on("console-message", (_event, level, message) => {
-		const fields = { sessionId, level };
-		if (level >= 2) log.warn(`renderer: ${message}`, fields);
-		else log.info(`renderer: ${message}`, fields);
+	window.webContents.on("console-message", (_event, levelOrDetails, legacyMessage) => {
+		// Electron versions have emitted both the legacy (level, message) pair and
+		// a details object. Normalize both so signaling errors keep their cause.
+		const details =
+			typeof levelOrDetails === "number" ? { level: levelOrDetails, message: legacyMessage ?? "" } : levelOrDetails;
+		const fields = { sessionId, level: details.level };
+		if (details.level >= 2) log.warn(`renderer: ${details.message}`, fields);
+		else log.info(`renderer: ${details.message}`, fields);
 	});
+	let captureSourceSupportsRemoteInput = false;
 	const onInput = (_event: Electron.IpcMainEvent, message: unknown): void => {
 		if (_event.sender.id !== window.webContents.id) return;
+		if (!captureSourceSupportsRemoteInput) {
+			log.warn("remote desktop input rejected for unsupported capture source", { sessionId });
+			return;
+		}
 		try {
 			input.apply(decodeRemoteInputMessage(message));
 		} catch {
@@ -152,18 +177,26 @@ export async function startDesktopRemoteDesktopHost(
 				return;
 			}
 			void (async () => {
-				const consent = await showRemoteDesktopDialog({
-					type: "question",
-					title: mainT("remoteDesktopCapture.title"),
-					message: mainT("remoteDesktopCapture.message"),
-					detail: mainT("remoteDesktopCapture.detail"),
-					buttons: [mainT("remoteDesktopCapture.allowOnce"), mainT("remoteDesktopCapture.cancel")],
-					defaultId: 0,
-					cancelId: 1,
-				});
-				if (consent.response !== 0 || window.isDestroyed()) {
-					callback({ video: undefined });
-					return;
+				if (!autoShareScreen) {
+					const consent = await showRemoteDesktopDialog({
+						type: "question",
+						title: mainT("remoteDesktopCapture.title"),
+						message: mainT("remoteDesktopCapture.message"),
+						detail: mainT("remoteDesktopCapture.detail"),
+						checkboxLabel: mainT("remoteDesktopCapture.rememberDevice"),
+						checkboxChecked: false,
+						buttons: [mainT("remoteDesktopCapture.allowOnce"), mainT("remoteDesktopCapture.cancel")],
+						defaultId: 0,
+						cancelId: 1,
+					});
+					if (consent.response !== 0 || window.isDestroyed()) {
+						callback({ video: undefined });
+						return;
+					}
+					if (consent.checkboxChecked) {
+						autoShareScreen = true;
+						await options.onAutoShareScreenChange?.(true);
+					}
 				}
 				const sources = await desktopCapturer.getSources({ types: ["screen", "window"] });
 				if (sources.length === 0) {
@@ -177,19 +210,34 @@ export async function startDesktopRemoteDesktopHost(
 					callback({ video: undefined });
 					return;
 				}
-				const sourceChoice = await showRemoteDesktopDialog({
-					type: "question",
-					title: mainT("remoteDesktopCapture.chooseTitle"),
-					message: mainT("remoteDesktopCapture.chooseMessage"),
-					buttons: [mainT("remoteDesktopCapture.cancel"), ...sources.map((source) => source.name)],
-					defaultId: 1,
-					cancelId: 0,
-				});
-				const source = sources[sourceChoice.response - 1];
+				const primaryDisplayId = String(screen.getPrimaryDisplay().id);
+				const primaryScreen = sources.find(
+					(source) => source.id.startsWith("screen:") && source.display_id === primaryDisplayId,
+				);
+				let source = autoShareScreen ? primaryScreen : undefined;
+				if (!source) {
+					const sourceChoice = await showRemoteDesktopDialog({
+						type: "question",
+						title: mainT("remoteDesktopCapture.chooseTitle"),
+						message: mainT("remoteDesktopCapture.chooseMessage"),
+						buttons: [
+							mainT("remoteDesktopCapture.cancel"),
+							...sources.map(
+								(candidate, index) =>
+									candidate.name.trim() || mainT("remoteDesktopCapture.sourceFallback", { index: index + 1 }),
+							),
+						],
+						defaultId: 1,
+						cancelId: 0,
+					});
+					source = sources[sourceChoice.response - 1];
+				}
 				if (!source || window.isDestroyed()) {
 					callback({ video: undefined });
 					return;
 				}
+				captureSourceSupportsRemoteInput =
+					source.id.startsWith("screen:") && source.display_id === primaryDisplayId;
 				log.info("remote desktop screen capture granted", { sessionId, sourceCount: sources.length });
 				callback({ video: source });
 			})().catch((error: unknown) => {
@@ -231,6 +279,9 @@ export async function startDesktopRemoteDesktopHost(
 		},
 		grantInput() {
 			input.setEnabled(true);
+		},
+		setAutoShareScreen(enabled) {
+			autoShareScreen = enabled;
 		},
 		async stop() {
 			input.setEnabled(false);

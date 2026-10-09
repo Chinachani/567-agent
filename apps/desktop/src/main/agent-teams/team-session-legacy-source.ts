@@ -1,10 +1,10 @@
 import type { Dirent } from "node:fs";
 import { readdir, readFile } from "node:fs/promises";
 import { basename, extname, join } from "node:path";
-import { getVettaHomePath } from "@567agent/action-rpc";
+import { getAgent567HomePath } from "@567agent/action-rpc";
 import { parseTeamSessionDocument, type TeamSessionDocument } from "@567agent/agent-team";
 
-export const LEGACY_TEAM_SESSION_ROOT = join(getVettaHomePath(), "desktop-app", "agent-teams", "sessions");
+export const LEGACY_TEAM_SESSION_ROOT = join(getAgent567HomePath(), "desktop-app", "agent-teams", "sessions");
 
 export interface LegacyTeamSessionSource {
 	list?(): Promise<readonly TeamSessionDocument[]>;

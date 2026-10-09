@@ -1,10 +1,10 @@
 import { readFile } from "node:fs/promises";
 import { resolve } from "node:path";
-import { getVettaHomePath } from "@567agent/action-rpc";
+import { getAgent567HomePath } from "@567agent/action-rpc";
 import type { TeamSessionWorkspaceKind } from "@567agent/agent-team";
 import { atomicWriteJSONAsync } from "@567agent/toolkit/atomic-write";
 
-const CATALOG_PATH = resolve(getVettaHomePath(), "conversation-ownership.v1.json");
+const CATALOG_PATH = resolve(getAgent567HomePath(), "conversation-ownership.v1.json");
 
 export type ConversationOwner = {
 	readonly kind: "agent-team";

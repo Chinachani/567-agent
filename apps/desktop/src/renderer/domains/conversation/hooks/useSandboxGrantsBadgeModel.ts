@@ -62,7 +62,7 @@ export function useSandboxGrantsBadgeModel(): SandboxGrantsBadgeModel | null {
 			return;
 		}
 		try {
-			const result = await window.vetta.session.listSandboxGrants(sessionId);
+			const result = await window.agent567.session.listSandboxGrants(sessionId);
 			setGrants(result);
 		} catch {
 			// Ignore — IPC may be torn down during navigation.
@@ -93,7 +93,7 @@ export function useSandboxGrantsBadgeModel(): SandboxGrantsBadgeModel | null {
 	const handleRevoke = useCallback(
 		async (grantId: string) => {
 			if (!sessionId) return;
-			await window.vetta.session.revokeSandboxGrant(sessionId, grantId);
+			await window.agent567.session.revokeSandboxGrant(sessionId, grantId);
 			await refresh();
 		},
 		[sessionId, refresh],
@@ -101,7 +101,7 @@ export function useSandboxGrantsBadgeModel(): SandboxGrantsBadgeModel | null {
 
 	const handleRevokeAll = useCallback(async () => {
 		if (!sessionId) return;
-		await window.vetta.session.revokeAllSandboxGrants(sessionId);
+		await window.agent567.session.revokeAllSandboxGrants(sessionId);
 		await refresh();
 	}, [sessionId, refresh]);
 

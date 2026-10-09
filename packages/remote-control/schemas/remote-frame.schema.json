@@ -41,7 +41,7 @@
       "type": "object", "additionalProperties": false, "required": ["type", "requestId", "method"],
       "properties": {
         "type": { "const": "request" }, "requestId": { "$ref": "#/$defs/id" },
-        "method": { "enum": ["session.list", "session.delete", "session.delete.empty", "session.create", "session.open", "session.history", "session.prompt", "session.models", "session.model.select", "session.suggestions", "session.suggestions.cancel", "session.image.read", "session.respond", "session.abort", "session.resume", "diagnostics.snapshot"] },
+        "method": { "enum": ["session.list", "session.delete", "session.delete.empty", "session.create", "session.open", "session.history", "session.prompt", "session.models", "session.model.select", "session.suggestions", "session.suggestions.cancel", "session.image.read", "session.attachment.transfer.start", "session.attachment.transfer.chunk", "session.attachment.transfer.finish", "session.attachment.transfer.cancel", "session.migration.receive.start", "session.migration.receive.chunk", "session.migration.receive.finish", "session.migration.receive.import", "session.migration.receive.cancel", "session.respond", "session.abort", "session.resume", "toolbox.list", "toolbox.install", "diagnostics.snapshot"] },
         "sessionId": { "$ref": "#/$defs/id" }, "payload": true
       }
     },

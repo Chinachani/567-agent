@@ -8,6 +8,8 @@ const CHANNELS = {
 	CREATE: "vetta:session:create",
 	LIST_PROJECTS: "vetta:session:list-projects",
 	LIST_SESSIONS: "vetta:session:list-sessions",
+	MIGRATION_EXPORT: "vetta:session:migration-export",
+	MIGRATION_IMPORT: "vetta:session:migration-import",
 	SESSIONS_CHANGED: "vetta:session:sessions-changed",
 	PROMPT: "vetta:session:prompt",
 	CONTINUE: "vetta:session:continue",
@@ -100,6 +102,9 @@ export function createSessionApi(ipc: IpcRenderer): Pick<DesktopApi, "session"> 
 			create: (config, kind, traceContext) => ipc.invoke(CHANNELS.CREATE, config, kind, traceContext),
 			listProjects: () => ipc.invoke(CHANNELS.LIST_PROJECTS),
 			listSessions: (cwd) => ipc.invoke(CHANNELS.LIST_SESSIONS, cwd),
+			exportMigrationArchive: (sessionIds, passphrase, cwd, scopes) =>
+				ipc.invoke(CHANNELS.MIGRATION_EXPORT, { sessionIds, passphrase, cwd, scopes }),
+			importMigrationArchive: (passphrase) => ipc.invoke(CHANNELS.MIGRATION_IMPORT, passphrase),
 			searchSessions: (request, onEvent) => subscribeSessionSearch(ipc, request, onEvent),
 			onSessionsChanged: (handler) => onIpcEvent(ipc, CHANNELS.SESSIONS_CHANGED, handler),
 			prompt: (sessionId, request, traceContext) => ipc.invoke(CHANNELS.PROMPT, sessionId, request, traceContext),

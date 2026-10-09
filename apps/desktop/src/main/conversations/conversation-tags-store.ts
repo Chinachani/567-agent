@@ -1,6 +1,6 @@
 import { existsSync, readFileSync } from "node:fs";
 import { join } from "node:path";
-import { getVettaHomePath } from "@567agent/action-rpc";
+import { getAgent567HomePath } from "@567agent/action-rpc";
 import { atomicWriteJSON } from "@567agent/toolkit/atomic-write";
 import {
 	type ConversationTagsSnapshot,
@@ -16,13 +16,13 @@ import {
 } from "../../shared/conversation-tags.js";
 
 /**
- * 会话标签仓库：~/.vetta/desktop-app/conversation-tags.json 的单一写者。
+ * 会话标签仓库：~/.567agent/desktop-app/conversation-tags.json 的单一写者。
  *
  * 启动读一次进内存，之后所有变更改内存再原子落盘，永不重新读盘——
  * 写入是同步的且中间没有 await，因此「读-改-写」不存在交错窗口。
  */
 
-const DEFAULT_PATH = join(getVettaHomePath(), "desktop-app", "conversation-tags.json");
+const DEFAULT_PATH = join(getAgent567HomePath(), "desktop-app", "conversation-tags.json");
 
 export function defaultConversationTagsPath(): string {
 	return DEFAULT_PATH;

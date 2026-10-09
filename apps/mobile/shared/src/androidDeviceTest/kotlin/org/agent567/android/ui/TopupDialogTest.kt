@@ -7,7 +7,7 @@ import androidx.compose.ui.test.onNodeWithText
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import org.agent567.android.app.ThemeMode
 import org.agent567.android.ui.me.TopupDialog
-import org.agent567.android.ui.theme.VettaTheme
+import org.agent567.android.ui.theme.Agent567Theme
 import org.junit.Rule
 import org.junit.runner.RunWith
 import kotlin.test.Test
@@ -20,7 +20,7 @@ class TopupDialogTest {
     @Test
     fun opensWithPaymentActionVisibleWithoutDragging() {
         composeRule.setContent {
-            VettaTheme(ThemeMode.Light) {
+            Agent567Theme(ThemeMode.Light) {
                 TopupDialog(
                     user = null,
                     onDismiss = {},

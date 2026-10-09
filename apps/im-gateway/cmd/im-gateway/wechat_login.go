@@ -70,7 +70,7 @@ func printWechatUsage(w *os.File) {
 
 func runWechatLogin(args []string) int {
 	fs := flag.NewFlagSet("wechat login", flag.ContinueOnError)
-	configPath := fs.String("config", "", "path to config.yaml (default: ~/.vetta/im-gateway/config.yaml)")
+	configPath := fs.String("config", "", "path to config.yaml (default: ~/.567agent/im-gateway/config.yaml)")
 	if err := fs.Parse(args); err != nil {
 		return 2
 	}

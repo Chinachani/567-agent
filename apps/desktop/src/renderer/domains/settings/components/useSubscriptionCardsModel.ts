@@ -78,7 +78,7 @@ export function useSubscriptionCardsModel(): SubscriptionCardsModel {
 		try {
 			const [, sub] = await Promise.all([
 				modelCatalog.revalidate({ force: true, sources: ["remote"] }),
-				window.vetta.subscription.getStatus(),
+				window.agent567.subscription.getStatus(),
 			]);
 			if (sub.status) setSubscriptionStatus(sub.status);
 			recordSettingsUsage({ tab: "subscription", action: "refreshed", target: "status" });
@@ -90,7 +90,7 @@ export function useSubscriptionCardsModel(): SubscriptionCardsModel {
 	}, [setSubscriptionStatus]);
 
 	useEffect(() => {
-		void window.vetta.subscription
+		void window.agent567.subscription
 			.getStatus()
 			.then((sub) => {
 				if (sub.status) setSubscriptionStatus(sub.status);
@@ -139,7 +139,7 @@ export function useSubscriptionCardsModel(): SubscriptionCardsModel {
 	);
 
 	const handleUpgrade = useCallback(() => {
-		void window.vetta.shell.openExternal(API_ACCOUNT_URL);
+		void window.agent567.shell.openExternal(API_ACCOUNT_URL);
 		recordSettingsUsage({ tab: "subscription", action: "selected", target: "api-account-center-link" });
 	}, []);
 

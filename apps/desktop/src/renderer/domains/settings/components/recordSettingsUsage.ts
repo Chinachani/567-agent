@@ -7,7 +7,7 @@ export function recordSettingsUsage(input: {
 	value?: string;
 }): void {
 	try {
-		window.vetta.appMonitor.recordEvent({
+		window.agent567.appMonitor.recordEvent({
 			type: "settings.changed",
 			tab: input.tab,
 			action: input.action,

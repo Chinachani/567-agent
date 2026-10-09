@@ -10,7 +10,6 @@
 package inbox
 
 import (
-	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -27,22 +26,34 @@ func Persist(dir, filename string, b []byte) (string, error) {
 	if err := os.MkdirAll(dayDir, 0o755); err != nil {
 		return "", fmt.Errorf("create inbox dir: %w", err)
 	}
-	path := filepath.Join(dayDir, filename)
-	if _, err := os.Stat(path); err == nil {
-		ext := filepath.Ext(filename)
-		stem := strings.TrimSuffix(filename, ext)
-		for n := 1; n < 1000; n++ {
-			candidate := filepath.Join(dayDir, fmt.Sprintf("%s-%d%s", stem, n, ext))
-			if _, err := os.Stat(candidate); errors.Is(err, os.ErrNotExist) {
-				path = candidate
-				break
-			}
+	filename = filepath.Base(filename)
+	ext := filepath.Ext(filename)
+	stem := strings.TrimSuffix(filename, ext)
+	for n := 0; n <= 1_000_000; n++ {
+		candidateName := filename
+		if n > 0 {
+			candidateName = fmt.Sprintf("%s-%d%s", stem, n, ext)
 		}
+		path := filepath.Join(dayDir, candidateName)
+		file, err := os.OpenFile(path, os.O_WRONLY|os.O_CREATE|os.O_EXCL, 0o644)
+		if err != nil {
+			if os.IsExist(err) {
+				continue
+			}
+			return "", fmt.Errorf("create inbox file: %w", err)
+		}
+		if _, err := file.Write(b); err != nil {
+			_ = file.Close()
+			_ = os.Remove(path)
+			return "", fmt.Errorf("write inbox file: %w", err)
+		}
+		if err := file.Close(); err != nil {
+			_ = os.Remove(path)
+			return "", fmt.Errorf("close inbox file: %w", err)
+		}
+		return path, nil
 	}
-	if err := os.WriteFile(path, b, 0o644); err != nil {
-		return "", fmt.Errorf("write inbox file: %w", err)
-	}
-	return path, nil
+	return "", fmt.Errorf("allocate inbox file name: too many collisions for %q", filename)
 }
 
 // SanitizeForFilename keeps only characters safe across mac/linux/windows

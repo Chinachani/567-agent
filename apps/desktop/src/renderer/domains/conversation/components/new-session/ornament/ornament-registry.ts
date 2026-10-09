@@ -6,7 +6,6 @@ import { HandOrnament } from "./presets/HandOrnament";
 import { MarioOrnament } from "./presets/MarioOrnament";
 import { OrbitOrnament } from "./presets/OrbitOrnament";
 import { TorchOrnament } from "./presets/TorchOrnament";
-import { ViviOrnament } from "./presets/ViviOrnament";
 
 export interface OrnamentProps {
 	/** 是否允许自动播放动画（跟随「头像动效」偏好）。 */
@@ -28,6 +27,5 @@ export const ORNAMENT_COMPONENTS: Record<OrnamentId, ComponentType<OrnamentProps
 	none: null,
 	orbit: OrbitOrnament,
 	torch: TorchOrnament,
-	vivi: ViviOrnament,
 	well: EnergyWellOrnament,
 };

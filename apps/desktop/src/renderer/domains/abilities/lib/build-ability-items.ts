@@ -217,7 +217,7 @@ export function buildSkillAbilities(market: MarketAbility[], state: LocalAbility
 	}
 
 	// 运行时列出、但不进台账的只读 skill：随 App 分发的内置（source=builtin）走 builtin 来源，
-	// `~/.agents/skills` 里用户自己放的、插件贡献的都是本地来源，不能算 Vetta 内置。
+	// `~/.agents/skills` 里用户自己放的、插件贡献的都是本地来源，不能算 567 Agent 内置。
 	for (const skill of localSkills) {
 		if (claimedNames.has(`${skill.type}:${skill.name}`)) continue;
 		if (!isSkillVisibleOnSurface(skill, "abilityCatalog")) continue;

@@ -44,4 +44,28 @@ class GeneratedImageLayoutTest {
         assertEquals(200f, clamped.x)
         assertEquals(0f, clamped.y)
     }
+
+    @Test
+    fun longScreenshotOpensAtReadableWidthAndStartsAtItsTopEdge() {
+        val scale = initialImagePreviewScale(
+            viewportWidthPx = 400f,
+            imageWidthPx = 100f,
+            imageHeightPx = 900f,
+        )
+        val offset = initialImagePreviewOffset(
+            scale = scale,
+            imageWidthPx = 100f,
+            imageHeightPx = 900f,
+            viewportWidthPx = 400f,
+            viewportHeightPx = 600f,
+        )
+
+        assertEquals(4f, scale)
+        assertEquals(1500f, offset.y)
+    }
+
+    @Test
+    fun ordinaryPortraitPhotoKeepsFitToViewportScale() {
+        assertEquals(1f, initialImagePreviewScale(400f, 300f, 500f))
+    }
 }

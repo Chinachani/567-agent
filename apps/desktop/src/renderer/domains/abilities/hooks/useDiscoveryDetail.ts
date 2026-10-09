@@ -22,7 +22,7 @@ export function useDiscoveryDetail(item: AbilityItem | null, open: boolean) {
 		if (!open || !deferred || !sourceId || !slug || !version) return;
 		let active = true;
 		setState({ key, attempt });
-		void window.vetta.abilities.getDiscoveryDetail(sourceId, slug, version).then(
+		void window.agent567.abilities.getDiscoveryDetail(sourceId, slug, version).then(
 			(detail) => {
 				if (active) setState({ key, attempt, detail });
 			},

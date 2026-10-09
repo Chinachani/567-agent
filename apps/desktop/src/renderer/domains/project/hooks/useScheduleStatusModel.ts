@@ -30,7 +30,7 @@ export function useScheduleStatusModel(cwd: string): ScheduleStatusViewProps | n
 	}, [refreshTasks]);
 
 	useEffect(() => {
-		const unsubscribe = window.vetta.scheduler.onTaskEvent(() => {
+		const unsubscribe = window.agent567.scheduler.onTaskEvent(() => {
 			void refreshTasks();
 		});
 		return unsubscribe;

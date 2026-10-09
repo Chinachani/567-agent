@@ -8,9 +8,9 @@ import {
 	createRenderPdfPageToolRegistration,
 	RenderPdfPageProcessAbortedError,
 } from "../tools/render-pdf-page/index.js";
+import { createNodeAgent567DesktopCommandPort } from "./agent567-desktop-command-port.js";
 import { createNodeCommandProcessHost, NodeCommandProcessAbortedError } from "./command-process.js";
 import { createNodeDocToPdfOperations } from "./doc-to-pdf-operations.js";
-import { createNodeVettaDesktopCommandPort } from "./vetta-desktop-command-port.js";
 
 export interface NodeSpecializedToolRegistrationOptions {
 	readonly executionGate: AsyncExecutionGate;
@@ -23,7 +23,7 @@ export function createNodeSpecializedToolRegistrations(
 	options: NodeSpecializedToolRegistrationOptions,
 ): readonly CodingToolRegistration[] {
 	const commandProcess = options.commandProcess ?? createNodeCommandProcessHost();
-	const desktop = createNodeVettaDesktopCommandPort({ commandProcess });
+	const desktop = createNodeAgent567DesktopCommandPort({ commandProcess });
 
 	return [
 		createDocToPdfToolRegistration(cwd, {

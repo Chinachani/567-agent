@@ -87,7 +87,7 @@ export function useScheduleExecutionTabPanelModel(cwd: string): ScheduleExecutio
 	const loadRecords = useCallback(async (targetTasks: ScheduledTask[]) => {
 		const entries = await Promise.all(
 			targetTasks.map(async (task) => {
-				const records = await window.vetta.scheduler.getRecords(task.id);
+				const records = await window.agent567.scheduler.getRecords(task.id);
 				return [task.id, records] as const;
 			}),
 		);
@@ -107,7 +107,7 @@ export function useScheduleExecutionTabPanelModel(cwd: string): ScheduleExecutio
 	}, [projectTasks, loadRecords]);
 
 	useEffect(() => {
-		const unsubscribe = window.vetta.scheduler.onTaskEvent(async () => {
+		const unsubscribe = window.agent567.scheduler.onTaskEvent(async () => {
 			await refreshTasks();
 		});
 		return unsubscribe;

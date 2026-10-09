@@ -13,6 +13,8 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
+import kotlinx.serialization.ExperimentalSerializationApi
+import kotlinx.serialization.EncodeDefault
 import kotlinx.serialization.Serializable
 import kotlin.io.encoding.Base64
 import kotlin.io.encoding.ExperimentalEncodingApi
@@ -20,7 +22,7 @@ import org.agent567.android.core.model.ChatRole
 import org.agent567.android.core.model.ChatQuestion
 import org.agent567.android.core.model.ChatQuestionOption
 import org.agent567.android.core.model.TokenUsage
-import org.agent567.android.core.net.VettaJson
+import org.agent567.android.core.net.Agent567Json
 import org.agent567.android.domain.session.ChatSession
 import org.agent567.android.domain.session.ConversationOrigin
 import org.agent567.android.domain.session.LocalMessage
@@ -189,7 +191,10 @@ class SettingsSessionStore(
         onProgress: (completed: Int, total: Int) -> Unit,
     ): String =
         withStorageLock {
-            val sessions = loadSessionsRaw()
+            // Desktop sessions are local mirrors of conversations owned by the
+            // paired computer. Their cached messages must not be migrated back
+            // to that computer as newly created duplicate conversations.
+            val sessions = loadSessionsRaw().filter { it.origin != ConversationOrigin.Desktop.name }
             var estimatedBytes = 0L
             val messagesBySession = mutableListOf<SessionMigrationMessagesDto>()
             sessions.forEachIndexed { index, session ->
@@ -221,13 +226,13 @@ class SettingsSessionStore(
                     sessions = sessions,
                     messages = messagesBySession,
                 )
-            VettaJson.encodeToString(SessionMigrationArchiveDto.serializer(), archive)
+            Agent567Json.encodeToString(SessionMigrationArchiveDto.serializer(), archive)
         }
 
     override suspend fun importMigrationData(serialized: String): Int =
         withStorageLock {
             require(serialized.utf8LengthAtMost(MAX_MIGRATION_JSON_BYTES.toLong())) { "迁移文件过大" }
-            val archive = VettaJson.decodeFromString(SessionMigrationArchiveDto.serializer(), serialized)
+            val archive = Agent567Json.decodeFromString(SessionMigrationArchiveDto.serializer(), serialized)
             require(archive.schemaVersion == MIGRATION_SCHEMA_VERSION) { "不支持的迁移文件版本" }
             require(archive.sessions.size <= MAX_MIGRATION_SESSIONS) { "迁移文件包含过多会话" }
             require(archive.sessions.map { it.id }.distinct().size == archive.sessions.size) { "迁移文件包含重复会话" }
@@ -273,13 +278,13 @@ class SettingsSessionStore(
     private fun loadSessionsRaw(): List<SessionDto> {
         val json = settings.getStringOrNull(KEY_SESSIONS) ?: return emptyList()
         return runCatching {
-            VettaJson.decodeFromString(SessionListDto.serializer(), json).items
+            Agent567Json.decodeFromString(SessionListDto.serializer(), json).items
         }.getOrDefault(emptyList())
     }
 
     private fun persistSessions(items: List<SessionDto>) {
         settings[KEY_SESSIONS] =
-            VettaJson.encodeToString(SessionListDto.serializer(), SessionListDto(items))
+            Agent567Json.encodeToString(SessionListDto.serializer(), SessionListDto(items))
         _sessions.value =
             items
                 .map { it.toDomain() }
@@ -291,7 +296,7 @@ class SettingsSessionStore(
             val indexedMessages = settings.getStringOrNull(messageIndexKey(sessionId))?.let {
                 loadMessageIndex(sessionId).mapNotNull { id ->
                     settings.getStringOrNull(messageKey(sessionId, id))?.let { json ->
-                        runCatching { VettaJson.decodeFromString(MessageDto.serializer(), json).toDomain() }.getOrNull()
+                        runCatching { Agent567Json.decodeFromString(MessageDto.serializer(), json).toDomain() }.getOrNull()
                     }
                 }
             }
@@ -305,7 +310,7 @@ class SettingsSessionStore(
                 migrateLegacyMessages(sessionId, json)
             }.orEmpty()
             val checkpoint = settings.getStringOrNull(streamingMessageKey(sessionId))?.let { checkpointJson ->
-                runCatching { VettaJson.decodeFromString(MessageDto.serializer(), checkpointJson).toDomain() }.getOrNull()
+                runCatching { Agent567Json.decodeFromString(MessageDto.serializer(), checkpointJson).toDomain() }.getOrNull()
             }?.takeIf { it.status == MessageStatus.Streaming }
             val recovered = messages.toMutableList()
             if (checkpoint != null) {
@@ -328,7 +333,7 @@ class SettingsSessionStore(
         val oldIds = loadMessageIndex(sessionId).toSet()
         val oldImageKeys = oldIds.flatMap { id ->
             settings.getStringOrNull(messageKey(sessionId, id))?.let { json ->
-                runCatching { VettaJson.decodeFromString(MessageDto.serializer(), json).images.mapNotNull { it.storageKey } }
+                runCatching { Agent567Json.decodeFromString(MessageDto.serializer(), json).images.mapNotNull { it.storageKey } }
                     .getOrDefault(emptyList())
             }.orEmpty()
         }.toSet()
@@ -345,17 +350,17 @@ class SettingsSessionStore(
 
     private fun persistMessageRecord(message: LocalMessage) {
         settings[messageKey(message.sessionId, message.id)] =
-            VettaJson.encodeToString(MessageDto.serializer(), message.toDto())
+            Agent567Json.encodeToString(MessageDto.serializer(), message.toDto())
     }
 
     private fun persistMessageIndex(sessionId: String, ids: List<String>) {
         settings[messageIndexKey(sessionId)] =
-            VettaJson.encodeToString(MessageIndexDto.serializer(), MessageIndexDto(ids.distinct()))
+            Agent567Json.encodeToString(MessageIndexDto.serializer(), MessageIndexDto(ids.distinct()))
     }
 
     private fun loadMessageIndex(sessionId: String): List<String> =
         settings.getStringOrNull(messageIndexKey(sessionId))?.let { json ->
-            runCatching { VettaJson.decodeFromString(MessageIndexDto.serializer(), json).ids }.getOrDefault(emptyList())
+            runCatching { Agent567Json.decodeFromString(MessageIndexDto.serializer(), json).ids }.getOrDefault(emptyList())
         }.orEmpty()
 
     private fun normalizeMessageForPersistence(message: LocalMessage): LocalMessage =
@@ -388,7 +393,7 @@ class SettingsSessionStore(
                 imageFiles.writeBase64(key, image.base64Data)
             }
         }.getOrDefault(false)
-        if (!stored) return image
+        check(stored) { "图片附件写入本地存储失败，聊天记录未能安全保存" }
         return image.copy(base64Data = "", storageKey = key, pendingBytes = null)
     }
 
@@ -416,7 +421,7 @@ class SettingsSessionStore(
                 }
                 check(json[index] == '{') { "旧聊天记录格式无效" }
                 val end = findJsonObjectEnd(json, index) ?: error("旧聊天记录格式不完整")
-                val dto = VettaJson.decodeFromString(MessageDto.serializer(), json.substring(index, end + 1))
+                val dto = Agent567Json.decodeFromString(MessageDto.serializer(), json.substring(index, end + 1))
                 check(dto.sessionId == sessionId) { "旧聊天记录会话归属无效" }
                 val normalized = normalizeMessageForPersistence(dto.toDomain())
                 check(messageIds.add(normalized.id)) { "旧聊天记录包含重复消息" }
@@ -594,7 +599,9 @@ class SettingsSessionStore(
 }
 
 @Serializable
+@OptIn(ExperimentalSerializationApi::class)
 private data class SessionMigrationArchiveDto(
+    @EncodeDefault(EncodeDefault.Mode.ALWAYS)
     val schemaVersion: Int = 1,
     val exportedAtEpochMs: Long,
     val sessions: List<SessionDto>,
@@ -639,6 +646,7 @@ private data class MessageDto(
     val createdAtEpochMs: Long,
     val errorMessage: String? = null,
     val images: List<MessageImageDto> = emptyList(),
+    val files: List<MessageFileDto> = emptyList(),
     val toolEvents: List<ToolTraceDto> = emptyList(),
     val usage: TokenUsageDto? = null,
     val contextPercent: Int? = null,
@@ -696,6 +704,14 @@ private data class MessageImageDto(
     val storageKey: String? = null,
 )
 
+@Serializable
+private data class MessageFileDto(
+    val id: String,
+    val fileName: String,
+    val mimeType: String,
+    val sizeBytes: Long,
+)
+
 private fun SessionDto.toDomain() =
     ChatSession(
         id = id,
@@ -747,6 +763,14 @@ private fun MessageDto.toDomain() =
                     storageKey = it.storageKey,
                 )
             },
+        files = files.map {
+            org.agent567.android.domain.session.MessageFileAttachment(
+                id = it.id,
+                fileName = it.fileName,
+                mimeType = it.mimeType,
+                sizeBytes = it.sizeBytes,
+            )
+        },
         toolEvents = toolEvents.map {
             org.agent567.android.domain.session.ToolTrace(
                 phase = it.phase,
@@ -783,6 +807,9 @@ private fun LocalMessage.toDto() =
                     storageKey = it.storageKey,
                 )
             },
+        files = files.map {
+            MessageFileDto(it.id, it.fileName, it.mimeType, it.sizeBytes)
+        },
         toolEvents = toolEvents.map {
             ToolTraceDto(
                 phase = it.phase,

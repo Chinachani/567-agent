@@ -82,7 +82,7 @@ export interface FeishuConfig {
  *   - `enabled`: tells the sidecar to select wechat as the active transport
  *   - `statePath`: absolute path to the persistent credentials JSON,
  *     letting the parent override the wechat package's default
- *     `~/.vetta/im-gateway/wechat.json` so the file lives next to other
+ *     `~/.567agent/im-gateway/wechat.json` so the file lives next to other
  *     desktop-app vetta data.
  */
 export interface WechatConfig {
@@ -193,7 +193,7 @@ export interface SessionStateEntry {
  * but the parent should never rely on that.
  *
  * `conversationCwd` is the absolute cwd shared by all IM sessions
- * (`DEFAULT_IM_CONVERSATION_CWD`, `~/.vetta/im-gateway/conversation`). It
+ * (`DEFAULT_IM_CONVERSATION_CWD`, `~/.567agent/im-gateway/conversation`). It
  * is physically separate from desktop-app's "对话" cwd (ADR-0005) so the
  * two sides don't share sessions or generated artifacts.
  */
@@ -227,7 +227,7 @@ export interface CodingAgentSpec {
 	packageDir?: string;
 	/**
 	 * Forwarded as `API567_BASE_URL`. coding-agent's main.ts reads this env
-	 * ahead of `~/.vetta/agent/settings.json`, so an IM-session subprocess
+	 * ahead of `~/.567agent/agent/settings.json`, so an IM-session subprocess
 	 * uses the host's compile-time gateway URL instead of any stale
 	 * `serverUrl` left in the settings file (e.g. from a previous dev/LAN
 	 * login). Without it, prod desktop-app + stale settings produced

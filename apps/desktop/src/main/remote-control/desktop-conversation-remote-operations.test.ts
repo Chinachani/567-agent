@@ -1,8 +1,214 @@
 import type { SessionEvent } from "@567agent/runtime-core";
 import { describe, expect, it, vi } from "vitest";
+import { encryptSessionMigrationArchive } from "../conversations/session-migration-backup.js";
 import { DesktopConversationRemoteOperations } from "./desktop-conversation-remote-operations.js";
 
+const { errorLog } = vi.hoisted(() => ({ errorLog: vi.fn() }));
+vi.mock("../window-manager.js", () => ({ getMainWindow: () => undefined }));
+vi.mock("../i18n/index.js", () => ({ mainT: (key: string) => key }));
+vi.mock("../logger.js", () => ({
+	getAppLogger: () => ({
+		debug: () => undefined,
+		error: errorLog,
+		info: () => undefined,
+		warn: () => undefined,
+	}),
+}));
+
 describe("DesktopConversationRemoteOperations", () => {
+	it("logs the detailed migration import exception and preserves its diagnostic detail", async () => {
+		errorLog.mockClear();
+		const failure = new Error("message 1 (user): conversation write capability is unavailable");
+		const conversations = {
+			createSession: async () => ({
+				sessionId: "unused",
+				sessionPath: "C:/default/.567agent/sessions/unused.jsonl",
+				cwd: "C:/default",
+				listCwd: "C:/default",
+				source: "interactive" as const,
+			}),
+			listSessions: async () => [],
+			openSession: async () => ({
+				sessionId: "unused",
+				sessionPath: "C:/default/.567agent/sessions/unused.jsonl",
+				cwd: "C:/default",
+				listCwd: "C:/default",
+				source: "interactive" as const,
+			}),
+			runTurn: async () => ({
+				sessionId: "unused",
+				sessionPath: "C:/default/.567agent/sessions/unused.jsonl",
+				cwd: "C:/default",
+				status: "completed" as const,
+				stopReason: "stop",
+				assistantText: "",
+				messageCount: 0,
+			}),
+			importSessionMigrationArchive: async () => {
+				throw failure;
+			},
+		};
+		const operations = new DesktopConversationRemoteOperations(conversations, {
+			cwd: "C:/default",
+			allowSessionMigrationTransfer: true,
+		});
+		const archive = {
+			schemaVersion: 1,
+			exportedAtEpochMs: 1,
+			sessions: [],
+			messages: [],
+		};
+		const encrypted = encryptSessionMigrationArchive(Buffer.from(JSON.stringify(archive)), "secure-password");
+
+		await expect(
+			operations.receiveEncryptedSessionMigrationArchive(encrypted, "secure-password"),
+		).rejects.toMatchObject({
+			code: "SESSION_MIGRATION_IMPORT_FAILED",
+			message: expect.stringContaining(
+				"导入会话失败：message 1 (user): conversation write capability is unavailable",
+			),
+		});
+		expect(errorLog).toHaveBeenCalledWith("mobile conversation archive import failed", {
+			error: expect.objectContaining({
+				message: expect.stringContaining("导入会话失败"),
+				stack: expect.stringContaining("conversation write capability is unavailable"),
+				cause: expect.objectContaining({
+					message: failure.message,
+					stack: expect.stringContaining("conversation write capability is unavailable"),
+				}),
+			}),
+		});
+	});
+
+	it("reports decrypt and archive-format failures to the phone with causes logged", async () => {
+		errorLog.mockClear();
+		const conversations = {
+			createSession: async () => ({
+				sessionId: "unused",
+				sessionPath: "C:/default/.567agent/sessions/unused.jsonl",
+				cwd: "C:/default",
+				listCwd: "C:/default",
+				source: "interactive" as const,
+			}),
+			listSessions: async () => [],
+			openSession: async () => ({
+				sessionId: "unused",
+				sessionPath: "C:/default/.567agent/sessions/unused.jsonl",
+				cwd: "C:/default",
+				listCwd: "C:/default",
+				source: "interactive" as const,
+			}),
+			runTurn: async () => ({
+				sessionId: "unused",
+				sessionPath: "C:/default/.567agent/sessions/unused.jsonl",
+				cwd: "C:/default",
+				status: "completed" as const,
+				stopReason: "stop",
+				assistantText: "",
+				messageCount: 0,
+			}),
+		};
+		const operations = new DesktopConversationRemoteOperations(conversations, {
+			cwd: "C:/default",
+			allowSessionMigrationTransfer: true,
+		});
+		const encrypted = encryptSessionMigrationArchive(Buffer.from("{}"), "secure-password");
+		await expect(
+			operations.receiveEncryptedSessionMigrationArchive(encrypted, "wrong-password"),
+		).rejects.toMatchObject({
+			code: "SESSION_MIGRATION_IMPORT_FAILED",
+			message: expect.stringMatching(/备份密码不正确.*The password is incorrect/i),
+		});
+
+		const invalidArchive = encryptSessionMigrationArchive(Buffer.from("not-json"), "secure-password");
+		await expect(
+			operations.receiveEncryptedSessionMigrationArchive(invalidArchive, "secure-password"),
+		).rejects.toMatchObject({
+			code: "SESSION_MIGRATION_IMPORT_FAILED",
+			message: expect.stringMatching(/备份包为空或损坏.*Migration backup contents are invalid/i),
+		});
+		expect(errorLog).toHaveBeenCalledTimes(2);
+		const loggedError = errorLog.mock.lastCall?.[1].error as {
+			message: string;
+			cause?: {
+				message?: string;
+				cause?: { name?: string };
+			};
+		};
+		expect(loggedError.message).toContain("备份包为空或损坏");
+		expect(loggedError.cause?.message).toBe("Migration backup contents are invalid");
+		expect(loggedError.cause?.cause?.name).toBe("SyntaxError");
+	});
+
+	it("lists sessions from every configured desktop root and opens project sessions by their owning cwd", async () => {
+		const defaultSession = {
+			id: "default-session",
+			path: "C:/default/.567agent/sessions/default.jsonl",
+			name: "Default chat",
+			firstMessage: "hello",
+			modifiedAt: 1,
+			cwd: "C:/default",
+			access: { readHistory: true, resume: true, rename: true, delete: true },
+		};
+		const projectSession = {
+			...defaultSession,
+			id: "project-session",
+			path: "C:/projects/a1/.567agent/sessions/project.jsonl",
+			name: "A1 chat",
+			cwd: "C:/projects/a1",
+		};
+		const opened = {
+			sessionId: projectSession.id,
+			sessionPath: projectSession.path,
+			cwd: projectSession.cwd,
+			listCwd: projectSession.cwd,
+			source: "interactive" as const,
+		};
+		const listSessions = vi.fn(async (cwd: string, sessionDir?: string) => {
+			if (cwd === "C:/default") return [defaultSession];
+			if (cwd === "C:/projects/a1" && sessionDir === "C:/projects/a1/.567agent/sessions") {
+				return [projectSession];
+			}
+			return [];
+		});
+		const openSession = vi.fn(async () => opened);
+		const deleteRemoteSession = vi.fn(async () => undefined);
+		const conversations = {
+			createSession: async () => opened,
+			listSessions,
+			openSession,
+			deleteRemoteSession,
+			runTurn: async () => ({
+				...opened,
+				status: "completed" as const,
+				stopReason: "stop",
+				assistantText: "",
+				messageCount: 0,
+			}),
+		};
+		const operations = new DesktopConversationRemoteOperations(conversations, {
+			cwd: "C:/default",
+			sessionRoots: [
+				{ cwd: "C:/default" },
+				{ cwd: "C:/projects/a1", sessionDir: "C:/projects/a1/.567agent/sessions" },
+			],
+		});
+
+		expect(await operations.listSessions()).toEqual([
+			{ id: "default-session", title: "Default chat", updatedAtEpochMs: 1 },
+			{ id: "project-session", title: "A1 chat", updatedAtEpochMs: 1 },
+		]);
+		await expect(operations.openSession("project-session")).resolves.toEqual({ sessionId: "project-session" });
+		expect(listSessions).toHaveBeenCalledWith("C:/projects/a1", "C:/projects/a1/.567agent/sessions");
+		expect(openSession).toHaveBeenCalledWith(projectSession.path, "sandbox", "interactive");
+		await operations.deleteSession("project-session");
+		expect(deleteRemoteSession).toHaveBeenCalledWith(
+			"project-session",
+			"C:/projects/a1",
+			"C:/projects/a1/.567agent/sessions",
+		);
+	});
+
 	it("creates an opaque remote session then translates a turn into protocol events", async () => {
 		const session = {
 			sessionId: "runtime-session-1",
@@ -126,7 +332,7 @@ describe("DesktopConversationRemoteOperations", () => {
 		const operations = new DesktopConversationRemoteOperations(conversations, { cwd: "C:/work" });
 
 		await expect(operations.deleteEmptySession(session.sessionId)).resolves.toBe(true);
-		expect(deleteRemoteSession).toHaveBeenCalledWith(session.sessionId, "C:/work");
+		expect(deleteRemoteSession).toHaveBeenCalledWith(session.sessionId, "C:/work", undefined);
 	});
 
 	it("finishes the remote turn without waiting for AI title generation", async () => {

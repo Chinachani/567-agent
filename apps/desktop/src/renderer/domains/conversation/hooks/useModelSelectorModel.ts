@@ -25,6 +25,14 @@ export interface ModelSelectorScope {
 	readonly onReasoningSelect: (reasoning: string) => void;
 }
 
+export function isImageGenerationModel(option: ModelOption): boolean {
+	const tags = option.tags?.map((tag) => tag.toLowerCase()) ?? [];
+	if (tags.some((tag) => tag === "image-generation" || tag === "image-gen" || tag === "image-generation-only")) {
+		return true;
+	}
+	return /(?:^|[-/])(?:gpt-)?image(?:[-/]|$)|(?:^|[-/])imagen(?:[-/]|$)/i.test(option.modelId);
+}
+
 /** options 尚未加载（如远程 catalog）时，用 modelKey 拼一个最小 option 供触发器展示。 */
 function fallbackOptionFromKey(key: string): ModelOption {
 	const slash = key.indexOf("/");
@@ -57,9 +65,23 @@ export function useModelSelectorModel({
 	const selectedModel = scope ? scope.modelKey : globalSelectedModel;
 	const activeSession = useAtomValue(activeSessionAtom);
 	const setModelSupportsImages = useSetAtom(modelSupportsImagesAtom);
-	const { options, grouped, defaultKey, iconFor, labelFor } = useModelOptions();
+	const { options, defaultKey, iconFor, labelFor } = useModelOptions();
+	const chatOptions = useMemo(() => options.filter((option) => !isImageGenerationModel(option)), [options]);
+	const chatGrouped = useMemo(() => {
+		const groups = new Map<string, ModelOption[]>();
+		for (const option of chatOptions) {
+			const models = groups.get(option.provider) ?? [];
+			models.push(option);
+			groups.set(option.provider, models);
+		}
+		return groups;
+	}, [chatOptions]);
+	const chatDefaultKey = chatOptions.some((option) => option.key === defaultKey) ? defaultKey : chatOptions[0]?.key;
 
-	const catalogOption = useMemo(() => options.find((m) => m.key === selectedModel) ?? null, [options, selectedModel]);
+	const catalogOption = useMemo(
+		() => chatOptions.find((m) => m.key === selectedModel) ?? null,
+		[chatOptions, selectedModel],
+	);
 	// 有 key 但 catalog 未就绪时仍展示 modelId，避免闪「选择模型」。
 	const selectedOption = useMemo(() => {
 		if (catalogOption) return catalogOption;
@@ -97,21 +119,26 @@ export function useModelSelectorModel({
 
 	// Auto-apply the configured default model when nothing is selected yet.
 	useEffect(() => {
-		if (!selectedModel && defaultKey) {
+		const selectedIsImageOnly =
+			selectedModel !== null &&
+			options.some((option) => option.key === selectedModel && isImageGenerationModel(option));
+		if ((!selectedModel || selectedIsImageOnly) && chatDefaultKey) {
 			if (scope) {
-				const defaultReasoning = resolveReasoning(options.find((option) => option.key === defaultKey))?.default;
-				scope.onModelSelect(defaultKey, defaultReasoning);
+				const defaultReasoning = resolveReasoning(
+					chatOptions.find((option) => option.key === chatDefaultKey),
+				)?.default;
+				scope.onModelSelect(chatDefaultKey, defaultReasoning);
 			} else {
-				setSelectedModel(defaultKey);
+				setSelectedModel(chatDefaultKey);
 			}
 		}
-	}, [selectedModel, defaultKey, setSelectedModel, scope, options]);
+	}, [selectedModel, chatDefaultKey, setSelectedModel, scope, chatOptions, options]);
 
 	// Keep image-support flag in sync with the resolved catalog selection only.
 	useEffect(() => {
-		if (options.length === 0) return;
+		if (chatOptions.length === 0) return;
 		setModelSupportsImages(catalogOption?.supportsImage ?? false);
-	}, [options.length, catalogOption, setModelSupportsImages]);
+	}, [chatOptions.length, catalogOption, setModelSupportsImages]);
 
 	// Persist the effective default level for the selected model when none is remembered,
 	// so the prompt sender always has a value to send (per-model memory seeded with default).
@@ -126,17 +153,17 @@ export function useModelSelectorModel({
 	const handleModelSelect = useCallback(
 		(key: string) => {
 			if (scope) {
-				const defaultReasoning = resolveReasoning(options.find((option) => option.key === key))?.default;
+				const defaultReasoning = resolveReasoning(chatOptions.find((option) => option.key === key))?.default;
 				scope.onModelSelect(key, defaultReasoning);
 			}
 			// 当前窗口的新会话暂用此选择；新窗口和新会话入口会重新读取配置默认值。
 			// 已有会话另写 session settings。
 			setSelectedModel(key);
 			if (!scope && updateActiveSession && activeSession?.runtimeId) {
-				void window.vetta.session.updateSettings(activeSession.runtimeId, { modelKey: key });
+				void window.agent567.session.updateSettings(activeSession.runtimeId, { modelKey: key });
 			}
 		},
-		[setSelectedModel, activeSession, updateActiveSession, scope, options],
+		[setSelectedModel, activeSession, updateActiveSession, scope, chatOptions],
 	);
 
 	/**
@@ -145,13 +172,13 @@ export function useModelSelectorModel({
 	 */
 	const multiplierLabelFor = useCallback(
 		(option: { key: string }): string | undefined => {
-			const multiplier = options.find((candidate) => candidate.key === option.key)?.multiplier;
+			const multiplier = chatOptions.find((candidate) => candidate.key === option.key)?.multiplier;
 			if (!multiplier) return undefined;
 			return multiplier.input === 0 && multiplier.output === 0
 				? t("modelSelect.free")
 				: t("modelSelect.multiplier", { value: fmtMultiplier(multiplier.input) });
 		},
-		[options, t],
+		[chatOptions, t],
 	);
 
 	// 打开模型菜单时按 TTL 后台重校验目录，服务端增删模型无需重启即可看到。
@@ -170,11 +197,11 @@ export function useModelSelectorModel({
 
 	return {
 		// 已有选中 key 时即使 options 还在加载也展示触发器，避免空白/占位闪烁。
-		empty: options.length === 0 && !selectedModel,
+		empty: chatOptions.length === 0 && !selectedModel,
 		viewProps: {
 			currentLevel,
-			defaultKey,
-			groups: [...grouped.entries()].map(([provider, models]) => ({
+			defaultKey: chatDefaultKey,
+			groups: [...chatGrouped.entries()].map(([provider, models]) => ({
 				icon: iconFor(provider),
 				label: labelFor(provider),
 				models,

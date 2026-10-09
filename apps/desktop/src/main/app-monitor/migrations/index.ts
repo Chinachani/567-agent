@@ -1,4 +1,4 @@
-import { getVettaHomePath } from "@567agent/action-rpc";
+import { getAgent567HomePath } from "@567agent/action-rpc";
 import { runFileMigrations } from "@567agent/toolkit/file-migrations";
 import type { getAppLogger } from "../../logger.js";
 import { appMonitorFileMigration000To1 } from "./000_to_1.js";
@@ -10,7 +10,7 @@ export async function runAppMonitorFileMigrations(logger: ReturnType<typeof getA
 	const result = await runFileMigrations({
 		logger,
 		migrations: APP_MONITOR_FILE_MIGRATIONS,
-		root: getVettaHomePath(),
+		root: getAgent567HomePath(),
 		statePath: "app-monitor/.migrations.json",
 	});
 	if (result.applied.length > 0) {

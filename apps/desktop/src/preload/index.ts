@@ -69,4 +69,7 @@ const api: DesktopApi = {
 	...hostGate.api,
 };
 
+// Preserve the old name for installed plugins while first-party renderer code
+// moves to the 567 Agent bridge.
 contextBridge.exposeInMainWorld("vetta", api);
+contextBridge.exposeInMainWorld("agent567", api);

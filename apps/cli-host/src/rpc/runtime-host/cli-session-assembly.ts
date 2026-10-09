@@ -12,7 +12,7 @@ import {
 	createCodingAgentRuntimeHostSessionConfig,
 	createCodingAgentSessionSetupSeedInitializer,
 } from "@567agent/coding-agent/composition";
-import { getKnowledgeDir, getVettaHomePath } from "@567agent/coding-agent/config";
+import { getAgent567HomePath, getKnowledgeDir } from "@567agent/coding-agent/config";
 import {
 	createCodingAgentMcpRuntimeToolSource,
 	createCodingAgentPluginMcpRuntime,
@@ -157,7 +157,7 @@ export async function createCliSessionAssembly(options: CliSessionAssemblyOption
 			createMemoryRolloverRuntime: createCliMemoryRolloverRuntime,
 			hookConfigLayers: buildDefaultHookConfigLayers({
 				cwd: bootstrap.cwd,
-				vettaHome: getVettaHomePath(),
+				agent567Home: getAgent567HomePath(),
 			}),
 			scenario,
 			activation:

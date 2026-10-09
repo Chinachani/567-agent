@@ -27,7 +27,7 @@ const IMAGE_REFS_OPEN = "<vetta-images>";
 const IMAGE_REFS_CLOSE = "</vetta-images>";
 const SCOPE_USE = ["im-claw", "conversation", "project", "cli"] as const;
 const HISTORY_TAB_ID = "history";
-const BUILTIN_VETTA_PROVIDER_ID = "desktop-app:vetta";
+const BUILTIN_API567_PROVIDER_ID = "desktop-app:api567";
 const AUTO_PROVIDER_ID = "__auto__";
 
 const sizeSchema = {
@@ -158,7 +158,7 @@ export function selectImageProvider(
 			retryable: false,
 		});
 	}
-	const provider = candidates.find((candidate) => candidate.id === BUILTIN_VETTA_PROVIDER_ID) ?? candidates[0];
+	const provider = candidates.find((candidate) => candidate.id === BUILTIN_API567_PROVIDER_ID) ?? candidates[0];
 	if (!provider) {
 		throw new PluginMediaError({
 			code: "provider-unavailable",

@@ -73,7 +73,7 @@ export function useRefreshBillingOnOpen(): (open: boolean, userPresent: boolean)
 
 	return (open: boolean, userPresent: boolean): void => {
 		if (!open || !userPresent) return;
-		void window.vetta.subscription
+		void window.agent567.subscription
 			.getStatus()
 			.then((result) => {
 				if (result.status) setSubscriptionStatus(result.status);
@@ -90,6 +90,6 @@ export function useRefreshBillingOnOpen(): (open: boolean, userPresent: boolean)
 export function useSyncUpdateOnOpen(): (open: boolean) => void {
 	return (open: boolean): void => {
 		if (!open) return;
-		void window.vetta.updater.sync().catch(console.error);
+		void window.agent567.updater.sync().catch(console.error);
 	};
 }

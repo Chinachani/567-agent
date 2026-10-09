@@ -13,7 +13,7 @@ export interface LoadPromptTemplatesOptions {
 	readonly resourceAccess: ResourceAccessPort;
 	/** Working directory used for project-local and relative explicit paths. */
 	readonly cwd: string;
-	/** Agent configuration directory. Defaults to ~/.vetta/agent. */
+	/** Agent configuration directory. Defaults to ~/.567agent/agent. */
 	readonly agentDir?: string;
 	/** Explicit prompt template files or directories. */
 	readonly promptPaths?: readonly string[];

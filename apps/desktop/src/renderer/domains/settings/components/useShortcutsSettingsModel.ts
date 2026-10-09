@@ -65,10 +65,10 @@ export function useShortcutsSettingsModel(): ShortcutsSettingsModel {
 
 	useEffect(() => {
 		void loadShortcutBindings().then(setCustomShortcuts);
-		const unsubShortcuts = window.vetta.config.onShortcutsChanged((event) => {
+		const unsubShortcuts = window.agent567.config.onShortcutsChanged((event) => {
 			setCustomShortcuts(event.bindings ?? {});
 		});
-		void window.vetta.config.get().then((config) => {
+		void window.agent567.config.get().then((config) => {
 			const qp = config.quickPanel;
 			setTrigger(qp?.trigger === "mod" || qp?.trigger === "alt" || qp?.trigger === "shift" ? qp.trigger : "none");
 			setBehavior(qp?.postSendBehavior === "background" ? "background" : "foreground");
@@ -79,8 +79,8 @@ export function useShortcutsSettingsModel(): ShortcutsSettingsModel {
 	const persistQuickPanel = useCallback(
 		async (patch: { trigger?: QuickPanelTrigger; postSendBehavior?: QuickPanelBehavior }): Promise<boolean> => {
 			try {
-				await window.vetta.config.set({ quickPanel: patch });
-				await window.vetta.quickPanel.reloadHotkey();
+				await window.agent567.config.set({ quickPanel: patch });
+				await window.agent567.quickPanel.reloadHotkey();
 				return true;
 			} catch (error) {
 				showToast({

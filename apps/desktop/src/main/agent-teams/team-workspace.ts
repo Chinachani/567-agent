@@ -1,6 +1,6 @@
 import { mkdir } from "node:fs/promises";
 import { join } from "node:path";
-import { getVettaHomePath } from "@567agent/action-rpc";
+import { getAgent567HomePath } from "@567agent/action-rpc";
 import type { TeamSessionWorkspaceKind, TeamSessionWorkspaceSelection } from "@567agent/agent-team";
 import { readDesktopConfig } from "../config/desktop-config-store.js";
 import { sameProjectPath } from "../projects/project-path.js";
@@ -21,7 +21,7 @@ export interface TeamWorkspaceDependencies {
 }
 
 /** Legacy Team-owned workspace retained for existing session and storage migration compatibility. */
-export async function resolveTeamWorkspacePath(teamId: string, rootDirectory = getVettaHomePath()): Promise<string> {
+export async function resolveTeamWorkspacePath(teamId: string, rootDirectory = getAgent567HomePath()): Promise<string> {
 	const root = join(rootDirectory, "agent-teams");
 	const index = await readAgentTeamStorageIndex(root);
 	const directory = index.teams[teamId];
@@ -32,7 +32,7 @@ export async function resolveTeamWorkspacePath(teamId: string, rootDirectory = g
 export async function createTeamSessionWorkspace(
 	teamId: string,
 	sessionId: string,
-	rootDirectory = getVettaHomePath(),
+	rootDirectory = getAgent567HomePath(),
 ): Promise<Pick<TeamSessionWorkspace, "id" | "cwd">> {
 	const root = join(rootDirectory, "agent-teams");
 	const index = await readAgentTeamStorageIndex(root);

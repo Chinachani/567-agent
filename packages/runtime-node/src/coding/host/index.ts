@@ -1,5 +1,11 @@
 export type { CodingToolExecutable, CodingToolExecutableResolver } from "@567agent/runtime-tools/coding";
 export {
+	createNodeAgent567DesktopCommandPort,
+	createNodeVettaDesktopCommandPort,
+	type NodeAgent567DesktopCommandPortOptions,
+	type NodeVettaDesktopCommandPortOptions,
+} from "./agent567-desktop-command-port.js";
+export {
 	createNodeHostBashExecutor,
 	type NodeHostBashExecutionOptions,
 	type NodeHostBashExecutor,
@@ -63,7 +69,3 @@ export {
 	createNodeHostCodingToolEnvironment,
 	type NodeHostCodingToolEnvironmentOptions,
 } from "./tool-environment.js";
-export {
-	createNodeVettaDesktopCommandPort,
-	type NodeVettaDesktopCommandPortOptions,
-} from "./vetta-desktop-command-port.js";

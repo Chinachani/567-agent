@@ -73,6 +73,7 @@ class AppViewModelRemoteConversationTest {
             advanceUntilIdle()
 
             assertTrue(viewModel.state.value.models.isEmpty())
+            assertEquals("gemini-3.1-flash-image", viewModel.state.value.activeImageModel)
             assertEquals("desktop-1", viewModel.state.value.devices.single().id)
 
             viewModel.startDesktopConversation("desktop-1")
@@ -266,6 +267,30 @@ class AppViewModelRemoteConversationTest {
 
             assertTrue(gateway.emptySessionDeleteCalls.isEmpty())
             assertEquals(session.id, container.sessionStore.getSession(session.id)?.id)
+        }
+
+    @Test
+    fun refreshingDesktopSessionsDeletesOnlyMobileCreatedEmptyDraftMirrors() =
+        runTest(dispatcher) {
+            val gateway = FakeRemoteConversationGateway().apply {
+                desktopSessions = listOf(RemoteDesktopSessionSummary("mobile-created-empty", "Draft", 1_000))
+            }
+            val container = container(gateway)
+            val session = container.sessionStore.createSession(
+                title = "Draft",
+                origin = ConversationOrigin.Desktop,
+                remoteDeviceId = "desktop-1",
+                remoteSessionId = "mobile-created-empty",
+                remoteSessionCreatedOnMobile = true,
+            )
+            val viewModel = AppViewModel(container)
+            advanceUntilIdle()
+
+            viewModel.openDesktopSessions()
+            advanceUntilIdle()
+
+            assertEquals(listOf("mobile-created-empty"), gateway.emptySessionDeleteCalls)
+            assertEquals(null, container.sessionStore.getSession(session.id))
         }
 
     @Test

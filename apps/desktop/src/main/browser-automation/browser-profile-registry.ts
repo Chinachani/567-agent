@@ -2,7 +2,7 @@ import { createHash } from "node:crypto";
 import type { Dirent } from "node:fs";
 import { access, cp, mkdir, readdir, readFile, rm, writeFile } from "node:fs/promises";
 import { dirname, join, resolve } from "node:path";
-import { getVettaHomePath } from "@567agent/action-rpc";
+import { getAgent567HomePath } from "@567agent/action-rpc";
 import type { BrowserSessionProfile, BrowserSource } from "@vetta-org/capability-sdk";
 import type {
 	BrowserAutomationLogger,
@@ -33,7 +33,7 @@ export class BrowserProfileRegistry {
 	private legacyMigration?: Promise<void>;
 
 	constructor(options: BrowserProfileRegistryOptions = {}) {
-		this.baseDirectory = options.baseDirectory ?? join(getVettaHomePath(), "browser-automation", "namespaces");
+		this.baseDirectory = options.baseDirectory ?? join(getAgent567HomePath(), "browser-automation", "namespaces");
 		this.legacyBrowserPluginProfile = options.legacyBrowserPluginProfile;
 		this.logger = options.logger;
 	}

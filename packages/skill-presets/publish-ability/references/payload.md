@@ -164,7 +164,7 @@ A plugin whose package already carries its own translations:
   "detail": {
     "name": "Lottie Studio",
     "description": "用 AI 生成并预览 Lottie 动画",
-    "author": "Vetta Labs",
+    "author": "567 Agent Labs",
     "license": "MIT",
     "icon": "solar:magic-stick-3-bold",
     "tags": ["设计", "动画"],

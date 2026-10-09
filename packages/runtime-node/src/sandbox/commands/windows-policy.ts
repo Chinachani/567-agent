@@ -1,6 +1,6 @@
 import { homedir } from "node:os";
 import { dirname, join, resolve as resolvePath } from "node:path";
-import { getVettaConfigDirName } from "@567agent/action-rpc";
+import { getAgent567ConfigDirName } from "@567agent/action-rpc";
 import type { SandboxShellGrant } from "@567agent/runtime-core/sandbox";
 
 type HostEnvironment = Readonly<Record<string, string | undefined>>;
@@ -52,7 +52,7 @@ export function getWindowsSensitiveDenyRoots(env: HostEnvironment | undefined = 
 			join(homeDir, ".docker"),
 			appData ? join(appData, "gcloud") : undefined,
 			appData ? join(appData, "Vetta") : undefined,
-			join(homeDir, getVettaConfigDirName(), "agent"),
+			join(homeDir, getAgent567ConfigDirName(), "agent"),
 			join(homeDir, ".pi"),
 		]),
 	);

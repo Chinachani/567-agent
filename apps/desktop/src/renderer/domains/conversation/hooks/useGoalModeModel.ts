@@ -52,19 +52,19 @@ export function useGoalModeModel(): GoalModeModel {
 	);
 
 	const start = useCallback(
-		(objective: string) => run(() => window.vetta.session.startGoal(runtimeId!, objective)),
+		(objective: string) => run(() => window.agent567.session.startGoal(runtimeId!, objective)),
 		[run, runtimeId],
 	);
 	const pause = useCallback(
-		() => (state ? run(() => window.vetta.session.pauseGoal(runtimeId!, state.goalId)) : Promise.resolve()),
+		() => (state ? run(() => window.agent567.session.pauseGoal(runtimeId!, state.goalId)) : Promise.resolve()),
 		[run, runtimeId, state],
 	);
 	const resume = useCallback(
-		() => (state ? run(() => window.vetta.session.resumeGoal(runtimeId!, state.goalId)) : Promise.resolve()),
+		() => (state ? run(() => window.agent567.session.resumeGoal(runtimeId!, state.goalId)) : Promise.resolve()),
 		[run, runtimeId, state],
 	);
 	const clear = useCallback(
-		() => (state ? run(() => window.vetta.session.clearGoal(runtimeId!, state.goalId)) : Promise.resolve()),
+		() => (state ? run(() => window.agent567.session.clearGoal(runtimeId!, state.goalId)) : Promise.resolve()),
 		[run, runtimeId, state],
 	);
 	const onToggle = useCallback(() => {

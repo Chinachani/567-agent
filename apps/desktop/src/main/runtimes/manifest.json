@@ -1,5 +1,5 @@
 {
-	"$comment": "运行时来源清单(ADR-0011)。单一推荐版本;每平台 filename/dir 用字面量避免模板拼接漂移。node 走 npmmirror 兜底官方;python(python-build-standalone)仅使用 GitHub 官方发布,首启主路径靠内置 vendor 拷贝,sources 用于升级/装非内置版本(将来插入自建 CDN 作首位)。",
+	"$comment": "运行时来源清单(ADR-0011)。单一推荐版本;每平台 filename/dir 用字面量避免模板拼接漂移。node 走 npmmirror 兜底官方;python-build-standalone 优先走 NJU GitHub Release 镜像并回退官方,首启主路径靠内置 vendor 拷贝,sources 用于升级/装非内置版本。",
 	"node": {
 		"version": "22.22.2",
 		"sources": [
@@ -18,6 +18,7 @@
 		"version": "3.13.12",
 		"release": "20260203",
 		"sources": [
+			"https://mirror.nju.edu.cn/github-release/astral-sh/python-build-standalone/{release}/{filename}",
 			"https://github.com/astral-sh/python-build-standalone/releases/download/{release}/{filename}"
 		],
 		"platforms": {

@@ -28,18 +28,18 @@ const debugCommandSchema = z.discriminatedUnion("type", [
 type DebugCommand = z.infer<typeof debugCommandSchema>;
 type DebugErrorCommand = z.infer<typeof debugErrorCommandSchema>;
 
-const HELP_TEXT = `Vetta Debug command line interface
+const HELP_TEXT = `567 Agent Debug command line interface
 
 Usage:
-  vetta debug search [query] [--category <category>]
-  vetta debug describe <debug-id>
-  vetta debug run <debug-id> [json-input]
-  vetta debug -h
-  vetta debug --help
+  567-agent debug search [query] [--category <category>]
+  567-agent debug describe <debug-id>
+  567-agent debug run <debug-id> [json-input]
+  567-agent debug -h
+  567-agent debug --help
 
 Description:
-  Operate development-only Vetta Debug capabilities through the same local
-  RPC server used by Vetta actions. The development Desktop app must already
+  Operate development-only 567 Agent Debug capabilities through the same local
+  RPC server used by 567 Agent actions. The development Desktop app must already
   be running. Packaged builds do not register the Debug runtime.
 
 Progressive discovery:
@@ -49,9 +49,9 @@ Progressive discovery:
   4. run <debug-id> [json-input]  execute the capability
 
 Examples:
-  vetta debug search ""
-  vetta debug describe debug.info
-  vetta debug run debug.info '{}'
+  567-agent debug search ""
+  567-agent debug describe debug.info
+  567-agent debug run debug.info '{}'
 
 Output:
   stdout contains one JSON object:

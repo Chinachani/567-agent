@@ -112,7 +112,7 @@ function buildProfile(cwd: string, meta: Record<string, unknown> | null): Projec
 export async function getProjectProfile(cwd: string): Promise<ProjectProfile> {
 	let meta: Record<string, unknown> | null = null;
 	try {
-		meta = await window.vetta.project.readMeta(cwd);
+		meta = await window.agent567.project.readMeta(cwd);
 	} catch {
 		meta = null;
 	}

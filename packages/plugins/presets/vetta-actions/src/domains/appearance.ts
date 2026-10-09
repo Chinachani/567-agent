@@ -14,7 +14,7 @@ type ThemeManageInput =
 			type: "set";
 			mode?: "light" | "dark" | "auto";
 			themeId?: string;
-			cursorStyle?: "default" | "stoat";
+			cursorStyle?: "default";
 			approvalUi?: string;
 	  }
 	| { type: "set-language"; language: "zh" | "en"; approvalUi?: string };
@@ -35,7 +35,7 @@ const manageSchema: PluginJsonSchema = {
 				type: { const: "set" },
 				mode: { enum: ["light", "dark", "auto"] },
 				themeId: { type: "string", minLength: 1 },
-				cursorStyle: { enum: ["default", "stoat"] },
+				cursorStyle: { enum: ["default"] },
 				approvalUi: {
 					enum: ["appearance.theme-change", "appearance.picker", "generic"],
 				},

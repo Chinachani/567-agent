@@ -92,7 +92,7 @@ function syncContext(): void {
 	};
 	setRendererTelemetryContext(context);
 	try {
-		window.vetta.telemetry.setContext(context);
+		window.agent567.telemetry.setContext(context);
 	} catch {
 		// Telemetry IPC must not affect the renderer lifecycle.
 	}

@@ -15,7 +15,7 @@
  */
 
 import type { McpHttpServerConfig } from "../protocol/index.js";
-import { loadVettaCredentials, vettaApiUrl } from "./vetta-credentials.js";
+import { api567ApiUrl, loadApi567Credentials } from "./api567-credentials.js";
 
 /**
  * 内置 vetta server 的运行时名。
@@ -46,7 +46,7 @@ export interface BuildBuiltinMcpOptions {
 	/** 客户端版本，写进版本头。省略时服务端按最老客户端对待。 */
 	clientVersion?: string;
 	/** 覆盖凭据读取，测试用。 */
-	loadCredentials?: typeof loadVettaCredentials;
+	loadCredentials?: typeof loadApi567Credentials;
 }
 
 /**
@@ -57,7 +57,7 @@ export interface BuildBuiltinMcpOptions {
  * 拿到，无需重启。
  */
 export function buildBuiltinMcpServers(options: BuildBuiltinMcpOptions = {}): Record<string, McpHttpServerConfig> {
-	const load = options.loadCredentials ?? loadVettaCredentials;
+	const load = options.loadCredentials ?? loadApi567Credentials;
 	const credentials = load();
 	if (!credentials) return {};
 
@@ -69,7 +69,7 @@ export function buildBuiltinMcpServers(options: BuildBuiltinMcpOptions = {}): Re
 	return {
 		[VETTA_BUILTIN_MCP_NAME]: {
 			type: "http",
-			url: vettaApiUrl(credentials.baseUrl, VETTA_BUILTIN_MCP_PATH),
+			url: api567ApiUrl(credentials.baseUrl, VETTA_BUILTIN_MCP_PATH),
 			headers,
 			startupTimeout: BUILTIN_STARTUP_TIMEOUT_MS,
 			// 凭据按请求解析而不是写进 headers：access token 会轮换，写死在连接上

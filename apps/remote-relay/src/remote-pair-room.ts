@@ -112,7 +112,9 @@ export class RemotePairRoom extends DurableObject<Env> {
 					this.rejectSocket(socket, attachment, "invalid_handshake");
 					return;
 				}
-				this.acceptHello(socket, attachment, frame);
+				const accepted = await this.acceptHello(socket, attachment, frame);
+				if (!accepted) return;
+				attachment = readAttachment(socket);
 				continue;
 			}
 			if (frame.type === "hello" || frame.type === "hello_ack") {
@@ -154,18 +156,20 @@ export class RemotePairRoom extends DurableObject<Env> {
 		relayInfo("room_expired");
 	}
 
-	private acceptHello(socket: WebSocket, attachment: ConnectionAttachment, hello: RemoteHello): void {
+	private async acceptHello(
+		socket: WebSocket,
+		attachment: ConnectionAttachment,
+		hello: RemoteHello,
+	): Promise<boolean> {
 		if (attachment.role === "mobile" && attachment.credentialMode === "bootstrap") {
-			void this.authorization.consumeBootstrap(attachment.resumeHash).then((consumed) => {
-				if (!consumed) {
-					this.rejectSocket(socket, attachment, "bootstrap_already_consumed");
-					return;
-				}
-				this.finishHello(socket, attachment, hello);
-			});
-			return;
+			const consumed = await this.authorization.consumeBootstrap(attachment.resumeHash);
+			if (!consumed) {
+				this.rejectSocket(socket, attachment, "bootstrap_already_consumed");
+				return false;
+			}
 		}
 		this.finishHello(socket, attachment, hello);
+		return true;
 	}
 
 	private finishHello(socket: WebSocket, attachment: ConnectionAttachment, hello: RemoteHello): void {

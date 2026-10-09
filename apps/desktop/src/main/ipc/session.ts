@@ -1,6 +1,6 @@
 import { randomUUID } from "node:crypto";
 import { type Dirent, type FSWatcher, watch } from "node:fs";
-import { mkdir, readdir, rm } from "node:fs/promises";
+import { mkdir, readdir, readFile, rename, rm, stat, writeFile } from "node:fs/promises";
 import { basename, join, resolve } from "node:path";
 import { codingAgentSessionShardPath } from "@567agent/coding-agent/bootstrap";
 import type {
@@ -36,7 +36,7 @@ import {
 import type { SessionEvent, SessionExecutionMode, SettingsPatch } from "@567agent/runtime-core";
 import { sessionExtensionObservation } from "@567agent/runtime-core/session-extensions";
 import { isMcpJsonValue, type McpJsonObject } from "@567agent/runtime-mcp";
-import { BrowserWindow, ipcMain, type WebContents } from "electron";
+import { BrowserWindow, dialog, ipcMain, type OpenDialogOptions, type WebContents } from "electron";
 import type { DesktopMcpAppResourceRead, DesktopMcpAppToolCall } from "../../shared/mcp-app.js";
 import type { DesktopMcpElicitationResponse, DesktopMcpElicitationValue } from "../../shared/mcp-interaction.js";
 import { PLUGIN_CONTRIBUTION_CHANNELS } from "../../shared/plugin-ipc.js";
@@ -50,6 +50,7 @@ import { onConversationListChanged } from "../conversations/conversation-list-ev
 import { assertOrdinaryConversationPath } from "../conversations/conversation-ownership-guard.js";
 import { getDesktopConversationService } from "../conversations/desktop-conversation-service.js";
 import { DesktopGoalController } from "../conversations/desktop-goal-controller.js";
+import { buildDesktopSessionMigrationArchive } from "../conversations/desktop-session-migration.js";
 import { desktopSessionSearch } from "../conversations/desktop-session-search.js";
 import {
 	collectRunningInteractiveSessionIds,
@@ -63,6 +64,12 @@ import { parsePromptRequest } from "../conversations/prompt-request-schema.js";
 import type { DesktopCodingAgentSessionConfig } from "../conversations/resolve-session-config.js";
 import { getDesktopSandboxAuthorizationBroker } from "../conversations/sandbox-authorization-broker.js";
 import { selectSessionHistoryPreview } from "../conversations/session-history-preview.js";
+import {
+	decryptSessionMigrationArchive,
+	encryptSessionMigrationArchive,
+	parseSessionMigrationArchive,
+	SESSION_MIGRATION_MAX_BYTES,
+} from "../conversations/session-migration-backup.js";
 import { isConversationSubCwd, readSessionCwdFromHeader } from "../conversations/session-paths.js";
 import { listRuntimeSessionProjects, listSessionHistory } from "../conversations/session-query-service.js";
 import { slimSessionEventForIpc } from "../conversations/slim-session-event-for-ipc.js";
@@ -154,6 +161,8 @@ const CHANNELS = {
 	CREATE: "vetta:session:create",
 	LIST_PROJECTS: "vetta:session:list-projects",
 	LIST_SESSIONS: "vetta:session:list-sessions",
+	MIGRATION_EXPORT: "vetta:session:migration-export",
+	MIGRATION_IMPORT: "vetta:session:migration-import",
 	SESSIONS_CHANGED: "vetta:session:sessions-changed",
 	PROMPT: "vetta:session:prompt",
 	CONTINUE: "vetta:session:continue",
@@ -965,6 +974,131 @@ export function registerSessionIpc(webContents: WebContents): () => void {
 	ipcMain.handle(CHANNELS.LIST_SESSIONS, async (_event, cwd: unknown) => {
 		assertNonEmptyString(cwd, "cwd");
 		return listSessionHistory(cwd);
+	});
+
+	ipcMain.handle(CHANNELS.MIGRATION_EXPORT, async (event, rawRequest: unknown) => {
+		if (!rawRequest || typeof rawRequest !== "object" || Array.isArray(rawRequest)) {
+			throw new TypeError("Invalid migration export request");
+		}
+		const request = rawRequest as {
+			sessionIds?: unknown;
+			passphrase?: unknown;
+			cwd?: unknown;
+			scopes?: unknown;
+		};
+		if (!Array.isArray(request.sessionIds) || request.sessionIds.length === 0 || request.sessionIds.length > 20_000) {
+			throw new TypeError("Choose one or more conversations to export");
+		}
+		if (request.sessionIds.some((id) => typeof id !== "string" || id.length === 0)) {
+			throw new TypeError("Invalid conversation selection");
+		}
+		if (new Set(request.sessionIds).size !== request.sessionIds.length) {
+			throw new TypeError("Conversation selection contains duplicates");
+		}
+		assertNonEmptyString(request.passphrase, "passphrase");
+		const scopes = Array.isArray(request.scopes)
+			? request.scopes.map((scope) => {
+					if (!scope || typeof scope !== "object") throw new TypeError("Invalid migration export scope");
+					const value = scope as { cwd?: unknown; sessionIds?: unknown };
+					assertNonEmptyString(value.cwd, "scope.cwd");
+					if (!Array.isArray(value.sessionIds) || value.sessionIds.some((id) => typeof id !== "string")) {
+						throw new TypeError("Invalid migration export scope session ids");
+					}
+					return { cwd: value.cwd, sessionIds: value.sessionIds as string[] };
+				})
+			: [
+					{
+						cwd: request.cwd === undefined ? DEFAULT_CONVERSATION_CWD : (request.cwd as string),
+						sessionIds: request.sessionIds as string[],
+					},
+				];
+		const selected = (
+			await Promise.all(
+				scopes.map(async ({ cwd, sessionIds }) => {
+					assertNonEmptyString(cwd, "cwd");
+					const sessions = await listSessionHistory(cwd);
+					const selectedIds = new Set(sessionIds);
+					const matches = sessions.filter((session) => selectedIds.has(session.id));
+					if (matches.length !== selectedIds.size || matches.some((session) => !session.access.readHistory)) {
+						throw new Error("Some selected conversations are unavailable for export");
+					}
+					return matches;
+				}),
+			)
+		).flat();
+		const requestedCount = scopes.reduce((total, scope) => total + scope.sessionIds.length, 0);
+		if (
+			selected.length !== requestedCount ||
+			new Set(selected.map((session) => session.path)).size !== selected.length
+		) {
+			throw new Error("Some selected conversations are unavailable for export");
+		}
+		const historyByPath = new Map(
+			selected.map((session) => [session.path, runtime.readSessionHistoryFromFile(resolve(session.path)).history]),
+		);
+		const archive = await buildDesktopSessionMigrationArchive(selected, historyByPath);
+		const plaintext = Buffer.from(JSON.stringify(archive), "utf8");
+		let encrypted: Buffer | undefined;
+		try {
+			if (plaintext.byteLength > SESSION_MIGRATION_MAX_BYTES) throw new Error("Migration archive is too large");
+			encrypted = encryptSessionMigrationArchive(plaintext, request.passphrase);
+		} finally {
+			plaintext.fill(0);
+		}
+		const saveOptions = {
+			defaultPath: "567-agent-conversations.567backup",
+			filters: [{ name: "567 Agent backup", extensions: ["567backup"] }],
+		};
+		const parent = BrowserWindow.fromWebContents(event.sender);
+		const result = parent
+			? await dialog.showSaveDialog(parent, saveOptions)
+			: await dialog.showSaveDialog(saveOptions);
+		if (result.canceled || !result.filePath) {
+			encrypted?.fill(0);
+			return { canceled: true };
+		}
+		const destination = resolve(result.filePath);
+		const temporaryPath = `${destination}.${randomUUID()}.tmp`;
+		try {
+			await writeFile(temporaryPath, encrypted!, { flag: "wx", mode: 0o600 });
+			await rename(temporaryPath, destination);
+		} catch (error) {
+			await rm(temporaryPath, { force: true }).catch(() => undefined);
+			throw error;
+		} finally {
+			encrypted?.fill(0);
+		}
+		return { canceled: false, sessionCount: selected.length };
+	});
+
+	ipcMain.handle(CHANNELS.MIGRATION_IMPORT, async (event, passphrase: unknown) => {
+		assertNonEmptyString(passphrase, "passphrase");
+		const openOptions: OpenDialogOptions = {
+			properties: ["openFile"],
+			filters: [{ name: "567 Agent backup", extensions: ["567backup"] }],
+		};
+		const parent = BrowserWindow.fromWebContents(event.sender);
+		const result = parent
+			? await dialog.showOpenDialog(parent, openOptions)
+			: await dialog.showOpenDialog(openOptions);
+		if (result.canceled || result.filePaths.length === 0) return { canceled: true };
+		const sourcePath = result.filePaths[0];
+		if (!sourcePath) return { canceled: true };
+		const sourceStat = await stat(sourcePath);
+		if (!sourceStat.isFile() || sourceStat.size > SESSION_MIGRATION_MAX_BYTES) {
+			throw new Error("Migration backup is too large or is not a regular file");
+		}
+		const encrypted = await readFile(sourcePath);
+		let plaintext: Buffer | undefined;
+		try {
+			plaintext = decryptSessionMigrationArchive(encrypted, passphrase);
+			const archive = parseSessionMigrationArchive(plaintext);
+			const imported = await conversationService.importSessionMigrationArchive(archive, DEFAULT_CONVERSATION_CWD);
+			return { canceled: false, ...imported };
+		} finally {
+			encrypted.fill(0);
+			plaintext?.fill(0);
+		}
 	});
 
 	ipcMain.handle(SESSION_SEARCH_CHANNELS.start, (event, requestId: unknown, request: unknown) => {

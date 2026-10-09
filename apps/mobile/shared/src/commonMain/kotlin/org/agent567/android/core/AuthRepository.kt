@@ -1,7 +1,7 @@
 package org.agent567.android.core
 
 import kotlinx.coroutines.flow.StateFlow
-import org.agent567.android.core.api.VettaApi
+import org.agent567.android.core.api.Agent567Api
 import org.agent567.android.core.auth.StoredTokens
 import org.agent567.android.core.auth.TokenStore
 import org.agent567.android.core.model.AuthSession
@@ -10,7 +10,7 @@ import org.agent567.android.core.net.RefreshOutcome
 import org.agent567.android.core.net.TokenRefresher
 
 class AuthRepository internal constructor(
-    private val api: VettaApi,
+    private val api: Agent567Api,
     private val tokenStore: TokenStore,
     private val tokenRefresher: TokenRefresher,
 ) {

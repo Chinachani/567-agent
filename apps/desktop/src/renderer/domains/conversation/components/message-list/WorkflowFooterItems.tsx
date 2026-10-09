@@ -70,7 +70,7 @@ export function WorkflowFooterItems(): JSX.Element | null {
 	const handleStop = useCallback(
 		(id: string) => {
 			if (!runtimeId) return;
-			void window.vetta.session.interruptSubagent?.(runtimeId, id);
+			void window.agent567.session.interruptSubagent?.(runtimeId, id);
 		},
 		[runtimeId],
 	);

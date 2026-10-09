@@ -6,7 +6,7 @@ import { LATEST_CODEX_HOOK_PROFILE_ID } from "./codex/hooks/latest/profile.js";
 import type { HookConfigLayer, HookConfigSource } from "./hooks/types.js";
 
 /** Project / user config directory basename (brand default). */
-export const VETTA_HOOK_CONFIG_DIR_NAME = ".567agent";
+export const AGENT567_HOOK_CONFIG_DIR_NAME = ".567agent";
 
 export interface BuildDefaultHookConfigLayersOptions {
 	/** Session project working directory. */
@@ -14,9 +14,9 @@ export interface BuildDefaultHookConfigLayersOptions {
 	/**
 	 * Vetta user data root.
 	 * Default: `~/.567agent` (HOME / USERPROFILE / os.homedir()).
-	 * Coding Agent should pass `getVettaHomePath()` so `AGENT567_HOME` applies.
+	 * Coding Agent should pass `getAgent567HomePath()` so `AGENT567_HOME` applies.
 	 */
-	vettaHome?: string;
+	agent567Home?: string;
 	/**
 	 * Project config directory name under cwd. Default: `.567agent`.
 	 * Override only for tests or non-standard layouts.
@@ -24,7 +24,7 @@ export interface BuildDefaultHookConfigLayersOptions {
 	configDirName?: string;
 	/**
 	 * Override home directory (tests). Default: HOME / USERPROFILE / os.homedir().
-	 * Used only when `vettaHome` is omitted.
+	 * Used only when `agent567Home` is omitted.
 	 */
 	homeDir?: string;
 	/** Environment for HOME resolution. Default process.env. */
@@ -37,8 +37,8 @@ export interface BuildDefaultHookConfigLayersOptions {
  * Mirrors official Codex/Claude directory layout **inside** Vetta roots:
  *
  * 1. User:
- *    - `<vettaHome>/.codex/hooks.json`
- *    - `<vettaHome>/.claude/settings.json`
+ *    - `<agent567Home>/.codex/hooks.json`
+ *    - `<agent567Home>/.claude/settings.json`
  * 2. Project:
  *    - `<cwd>/.vetta/.codex/hooks.json`
  *    - `<cwd>/.vetta/.claude/settings.json`
@@ -55,14 +55,14 @@ export interface BuildDefaultHookConfigLayersOptions {
 export function buildDefaultHookConfigLayers(options: BuildDefaultHookConfigLayersOptions): HookConfigLayer[] {
 	const env = options.env ?? process.env;
 	const homeDir = options.homeDir ?? resolveHomeDir(env);
-	const vettaHome = options.vettaHome ?? join(homeDir, VETTA_HOOK_CONFIG_DIR_NAME);
-	const configDirName = options.configDirName ?? VETTA_HOOK_CONFIG_DIR_NAME;
+	const agent567Home = options.agent567Home ?? join(homeDir, AGENT567_HOOK_CONFIG_DIR_NAME);
+	const configDirName = options.configDirName ?? AGENT567_HOOK_CONFIG_DIR_NAME;
 	const projectVettaDir = join(options.cwd, configDirName);
 
-	const legacyHome = options.vettaHome === undefined ? join(homeDir, ".vetta") : undefined;
+	const legacyHome = options.agent567Home === undefined ? join(homeDir, ".vetta") : undefined;
 	const legacyProject = options.configDirName === undefined ? join(options.cwd, ".vetta") : undefined;
-	const userCodexDir = selectProfileDirectory(vettaHome, legacyHome, ".codex", ["hooks.json"]);
-	const userClaudeDir = selectProfileDirectory(vettaHome, legacyHome, ".claude", ["settings.json"]);
+	const userCodexDir = selectProfileDirectory(agent567Home, legacyHome, ".codex", ["hooks.json"]);
+	const userClaudeDir = selectProfileDirectory(agent567Home, legacyHome, ".claude", ["settings.json"]);
 	const projectCodexDir = selectProfileDirectory(projectVettaDir, legacyProject, ".codex", ["hooks.json"]);
 	const projectClaudeDir = selectProfileDirectory(projectVettaDir, legacyProject, ".claude", [
 		"settings.json",

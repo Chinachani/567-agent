@@ -4,7 +4,7 @@ export function createOfficialKnowledgeApi(
 	assertOfficial: () => void,
 	capabilitySessionId: string,
 ): PluginOfficialApi["knowledge"] {
-	const knowledge = window.vetta.plugins.internalCapabilities.knowledge;
+	const knowledge = window.agent567.plugins.internalCapabilities.knowledge;
 	return {
 		list: async () => {
 			assertOfficial();

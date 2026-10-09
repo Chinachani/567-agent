@@ -1,12 +1,12 @@
 package org.agent567.android.core
 
 import org.agent567.android.core.api.ApiGroupInfoDto
-import org.agent567.android.core.api.VettaApi
+import org.agent567.android.core.api.Agent567Api
 import org.agent567.android.core.model.LlmModel
 import org.agent567.android.core.model.ModelsCatalog
 
 class ModelsRepository internal constructor(
-    private val api: VettaApi,
+    private val api: Agent567Api,
 ) {
     suspend fun fetchGoModelsCatalog(group: String? = null): ModelsCatalog = api.goModels(group)
 

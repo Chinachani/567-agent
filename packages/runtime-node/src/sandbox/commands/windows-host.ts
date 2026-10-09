@@ -74,36 +74,36 @@ export function resolveWindowsSandboxHostPath(explicitPath?: string): string {
 	);
 }
 
-function resolveVettaCliAppPath(env: NodeSandboxEnvironment | undefined): string | undefined {
+function resolveAgent567CliAppPath(env: NodeSandboxEnvironment | undefined): string | undefined {
 	const value = env?.AGENT567_CLI_APP_PATH ?? process.env.AGENT567_CLI_APP_PATH;
 	return typeof value === "string" && value.length > 0 && existsSync(value) ? value : undefined;
 }
 
-async function createVettaCliShim(
+async function createAgent567CliShim(
 	tempRoot: string,
 	env: NodeSandboxEnvironment | undefined,
 ): Promise<string | undefined> {
-	const vettaCliAppPath = resolveVettaCliAppPath(env);
-	if (!vettaCliAppPath) return undefined;
+	const agent567CliAppPath = resolveAgent567CliAppPath(env);
+	if (!agent567CliAppPath) return undefined;
 	const shimDir = join(tempRoot, "bin");
 	await mkdir(shimDir, { recursive: true });
-	await copyFile(vettaCliAppPath, join(shimDir, "vetta.exe"));
+	await copyFile(agent567CliAppPath, join(shimDir, "567-agent.exe"));
 	return shimDir;
 }
 
 function buildSandboxEnv(
 	sourceEnv: NodeSandboxEnvironment | undefined,
 	tempRoot: string,
-	vettaShimDir: string | undefined,
+	agent567ShimDir: string | undefined,
 ): string[] {
 	const baseEnv = sourceEnv ?? process.env;
 	const args: string[] = ["--clear-env"];
 	for (const key of ENV_WHITELIST) {
 		const value =
-			key === "PATH" && vettaShimDir
-				? [vettaShimDir, baseEnv.PATH].filter((item): item is string => Boolean(item)).join(delimiter)
+			key === "PATH" && agent567ShimDir
+				? [agent567ShimDir, baseEnv.PATH].filter((item): item is string => Boolean(item)).join(delimiter)
 				: key === "AGENT567_CLI_APP_PATH"
-					? resolveVettaCliAppPath(sourceEnv)
+					? resolveAgent567CliAppPath(sourceEnv)
 					: baseEnv[key];
 		if (typeof value === "string" && value.length > 0) args.push("--env", `${key}=${value}`);
 	}
@@ -143,9 +143,9 @@ export function createWindowsSandboxCommandOperations(sandboxHostPath?: string):
 		exec: (command, cwd, { onData, signal, timeout, env }) =>
 			new Promise<{ exitCode: number | null }>((resolve, reject) => {
 				void (async () => {
-					const tempRoot = await mkdtemp(join(tmpdir(), "vetta-windows-sandbox-"));
+					const tempRoot = await mkdtemp(join(tmpdir(), "567-agent-windows-sandbox-"));
 					await mkdir(join(tempRoot, "home"), { recursive: true });
-					const vettaShimDir = await createVettaCliShim(tempRoot, env);
+					const agent567ShimDir = await createAgent567CliShim(tempRoot, env);
 					const shellCommand = resolveWindowsShellCommand();
 					const policy = buildWindowsSandboxPolicy({
 						cwd,
@@ -167,7 +167,7 @@ export function createWindowsSandboxCommandOperations(sandboxHostPath?: string):
 						policy.tempRoot,
 						"--network",
 						policy.allowNetwork ? "default" : "none",
-						...buildSandboxEnv(env, policy.tempRoot, vettaShimDir),
+						...buildSandboxEnv(env, policy.tempRoot, agent567ShimDir),
 					];
 					for (const root of policy.allowReadRoots) args.push("--read-root", root);
 					for (const root of policy.allowWriteRoots) args.push("--write-root", root);

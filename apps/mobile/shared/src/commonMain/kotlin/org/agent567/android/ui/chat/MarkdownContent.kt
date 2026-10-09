@@ -46,7 +46,7 @@ import org.agent567.android.ui.i18n.Str
 /**
  * Shared Markdown boundary for assistant text and tool details.
  *
- * The renderer owns parsing and document structure. Vetta owns only the Material 3 tokens and
+ * The renderer owns parsing and document structure. Agent567 owns only the Material 3 tokens and
  * code-fence chrome, keeping the message surface consistent with the rest of the app.
  */
 @Composable
@@ -56,7 +56,8 @@ fun MarkdownContent(
     onSurface: Boolean = false,
 ) {
     val textColor = if (onSurface) MaterialTheme.colorScheme.onPrimary else MaterialTheme.colorScheme.onSurface
-    val state = rememberMarkdownState(source, retainState = true)
+    val responsiveSource = remember(source) { renderResponsiveMarkdownTables(source) }
+    val state = rememberMarkdownState(responsiveSource, retainState = true)
     val components = remember {
         markdownComponents(
             codeFence = { model ->
@@ -179,3 +180,119 @@ fun CodeBlockChrome(
         }
     }
 }
+
+
+/**
+ * Tables are too wide for a phone message bubble. Render each row as a separate blockquote card,
+ * with one hard line break per cell, so rows and values remain visually distinct on a narrow screen.
+ */
+private fun renderResponsiveMarkdownTables(source: String): String {
+    val lines = source.lines()
+    val output = mutableListOf<String>()
+    var index = 0
+    var fenceCharacter: Char? = null
+    var fenceLength = 0
+
+    while (index < lines.size) {
+        val line = lines[index]
+        val trimmed = line.trimStart()
+        val fence = markdownFence(trimmed)
+        if (fence != null) {
+            if (fenceCharacter == null) {
+                fenceCharacter = fence.first
+                fenceLength = fence.second
+            } else if (fence.first == fenceCharacter && fence.second >= fenceLength) {
+                fenceCharacter = null
+                fenceLength = 0
+            }
+            output += line
+            index += 1
+            continue
+        }
+
+        if (fenceCharacter == null && index + 1 < lines.size) {
+            val headers = splitMarkdownTableRow(line)
+            val separators = splitMarkdownTableRow(lines[index + 1])
+            if (headers != null && separators != null && isMarkdownTableSeparator(separators)) {
+                val rows = mutableListOf<List<String>>()
+                index += 2
+                while (index < lines.size) {
+                    val row = splitMarkdownTableRow(lines[index]) ?: break
+                    rows += row
+                    index += 1
+                }
+
+                val renderedRows = rows.mapIndexed { rowIndex, row ->
+                    val cells = headers.indices.map { column ->
+                        val label = headers[column].ifBlank { "列 ${column + 1}" }
+                        val value = row.getOrNull(column).orEmpty()
+                        "**$label：**${if (value.isBlank()) "" else " $value"}"
+                    }
+                    (listOf("**第 ${rowIndex + 1} 行**") + cells)
+                        .joinToString("  \n") { "> $it" }
+                }.ifEmpty {
+                    listOf(
+                        headers.mapIndexed { column, header ->
+                            "**${header.ifBlank { "列 ${column + 1}" }}**"
+                        }.joinToString("  \n") { "> $it" },
+                    )
+                }
+                if (output.isNotEmpty() && output.last().isNotBlank()) output += ""
+                output += renderedRows.joinToString("\n\n")
+                if (index < lines.size && lines[index].isNotBlank()) output += ""
+                continue
+            }
+        }
+
+        output += line
+        index += 1
+    }
+    return output.joinToString("\n")
+}
+
+private fun markdownFence(line: String): Pair<Char, Int>? {
+    val trimmed = line.trimStart()
+    val marker = trimmed.firstOrNull()?.takeIf { it == '`' || it == '~' } ?: return null
+    val length = trimmed.takeWhile { it == marker }.length
+    return if (length >= 3) marker to length else null
+}
+
+private fun splitMarkdownTableRow(line: String): List<String>? {
+    val trimmed = line.trim()
+    if ('|' !in trimmed || trimmed.startsWith('>')) return null
+
+    val cells = mutableListOf<String>()
+    val cell = StringBuilder()
+    var escaped = false
+    var codeTicks = 0
+    var index = 0
+    while (index < trimmed.length) {
+        val character = trimmed[index]
+        if (escaped) {
+            cell.append(character)
+            escaped = false
+        } else if (character == '\\') {
+            cell.append(character)
+            escaped = true
+        } else if (character == '`') {
+            var tickCount = 1
+            while (index + tickCount < trimmed.length && trimmed[index + tickCount] == '`') tickCount += 1
+            repeat(tickCount) { cell.append('`') }
+            codeTicks = if (codeTicks == 0) tickCount else if (codeTicks == tickCount) 0 else codeTicks
+            index += tickCount - 1
+        } else if (character == '|' && codeTicks == 0) {
+            cells += cell.toString().trim()
+            cell.clear()
+        } else {
+            cell.append(character)
+        }
+        index += 1
+    }
+    cells += cell.toString().trim()
+    if (trimmed.startsWith('|') && cells.firstOrNull().isNullOrEmpty()) cells.removeAt(0)
+    if (trimmed.endsWith('|') && cells.lastOrNull().isNullOrEmpty()) cells.removeAt(cells.lastIndex)
+    return cells.takeIf { it.isNotEmpty() }
+}
+
+private fun isMarkdownTableSeparator(cells: List<String>): Boolean =
+    cells.isNotEmpty() && cells.all { cell -> cell.matches(Regex(":?-{3,}:?")) }

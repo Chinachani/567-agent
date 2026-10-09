@@ -24,7 +24,7 @@ export function SidebarCommandMenuTrigger(): JSX.Element {
 			if (active) setShortcut(getEffectiveShortcut("open-command-menu", bindings));
 		};
 		void loadShortcutBindings().then(apply);
-		return window.vetta.config.onShortcutsChanged((event) => apply(event.bindings ?? {}));
+		return window.agent567.config.onShortcutsChanged((event) => apply(event.bindings ?? {}));
 	}, []);
 
 	const label = t("commandMenu.trigger");

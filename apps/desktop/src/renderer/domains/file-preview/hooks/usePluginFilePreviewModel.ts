@@ -61,7 +61,7 @@ export function usePluginFilePreviewModel(
 } {
 	const file = useMemo<PluginPreviewFile>(() => {
 		const readRaw = async (): Promise<{ content: string; encoding: "utf8" | "base64" }> => {
-			if (item.path) return await window.vetta.fs.readFile(item.path);
+			if (item.path) return await window.agent567.fs.readFile(item.path);
 			if (item.url) {
 				const res = await fetch(item.url);
 				if (!res.ok) throw new Error(`HTTP ${res.status}`);
@@ -104,20 +104,20 @@ export function usePluginFilePreviewModel(
 				if (!path) return { dispose() {} };
 				const slash = Math.max(path.lastIndexOf("/"), path.lastIndexOf("\\"));
 				const dir = slash > 0 ? path.slice(0, slash) : path;
-				void window.vetta.fs.watchDir(dir);
-				const unsub = window.vetta.fs.onDirChanged((changed) => {
+				void window.agent567.fs.watchDir(dir);
+				const unsub = window.agent567.fs.onDirChanged((changed) => {
 					if (changed === dir) listener();
 				});
 				return {
 					dispose() {
 						unsub();
-						void window.vetta.fs.unwatchDir(dir);
+						void window.agent567.fs.unwatchDir(dir);
 					},
 				};
 			},
 			getAudioMetadata: async () => {
 				if (!item.path) return null;
-				return await window.vetta.media.getAudioMetadata(item.path);
+				return await window.agent567.media.getAudioMetadata(item.path);
 			},
 		};
 	}, [item, ext]);

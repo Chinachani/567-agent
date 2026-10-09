@@ -85,7 +85,7 @@ type FeishuConfig struct {
 //     the active transport;
 //   - the absolute path to the persistent state file (so the parent can
 //     keep that file alongside its other vetta data and override the
-//     ~/.vetta/im-gateway/wechat.json default).
+//     ~/.567agent/im-gateway/wechat.json default).
 type WechatConfig struct {
 	Enabled   bool   `json:"enabled"`
 	StatePath string `json:"statePath,omitempty"`
@@ -233,7 +233,7 @@ type CodingAgentSpec struct {
 	PackageDir string `json:"packageDir,omitempty"`
 	// ServerURL, when non-empty, is forwarded to the spawned subprocess as
 	// the `API567_BASE_URL` environment variable. coding-agent's main.ts
-	// otherwise reads serverUrl from `~/.vetta/agent/settings.json`, which
+	// otherwise reads serverUrl from `~/.567agent/agent/settings.json`, which
 	// may carry a stale LAN address (test env / fresh dev login residue)
 	// that produces 401 on the prod gateway. With this env present the
 	// agent ignores the settings residue and uses the host-injected URL.

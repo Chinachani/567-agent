@@ -138,7 +138,7 @@ export function useSessionDropZoneModel(cwdOverride?: string): SessionDropZoneMo
 				}
 				if (!isDirectory && file.type === "" && file.size === 0) isDirectory = true;
 
-				const path = window.vetta.fs.pathForFile(file);
+				const path = window.agent567.fs.pathForFile(file);
 				if (path && rootDirectory && isSubPath(path, rootDirectory)) {
 					otherEntries.push({ path, name: file.name || pathBasename(path), isDirectory, sizeBytes: file.size });
 					continue;

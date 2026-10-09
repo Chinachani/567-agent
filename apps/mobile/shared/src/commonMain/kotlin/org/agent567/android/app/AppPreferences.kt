@@ -35,7 +35,7 @@ class AppPreferences(
     private val _themeMode = MutableStateFlow(ThemeMode.fromStorage(settings.getStringOrNull(KEY_THEME)))
     val themeMode: StateFlow<ThemeMode> = _themeMode.asStateFlow()
 
-    private val _autoResumeLastSession = MutableStateFlow(readBoolean(KEY_AUTO_RESUME, true))
+    private val _autoResumeLastSession = MutableStateFlow(readBoolean(KEY_AUTO_RESUME, false))
     val autoResumeLastSession: StateFlow<Boolean> = _autoResumeLastSession.asStateFlow()
 
     private val _motionEnabled = MutableStateFlow(readBoolean(KEY_MOTION_ENABLED, true))
@@ -43,6 +43,12 @@ class AppPreferences(
 
     private val _inputPredictionEnabled = MutableStateFlow(readBoolean(KEY_INPUT_PREDICTION_ENABLED, true))
     val inputPredictionEnabled: StateFlow<Boolean> = _inputPredictionEnabled.asStateFlow()
+
+    private val _autoRequestDesktopScreen = MutableStateFlow(readBoolean(KEY_AUTO_REQUEST_DESKTOP_SCREEN, false))
+    val autoRequestDesktopScreen: StateFlow<Boolean> = _autoRequestDesktopScreen.asStateFlow()
+
+    private val _showBottomNavLabels = MutableStateFlow(readBoolean(KEY_SHOW_BOTTOM_NAV_LABELS, true))
+    val showBottomNavLabels: StateFlow<Boolean> = _showBottomNavLabels.asStateFlow()
 
     private val _confirmBeforeDelete = MutableStateFlow(readBoolean(KEY_CONFIRM_DELETE, true))
     val confirmBeforeDelete: StateFlow<Boolean> = _confirmBeforeDelete.asStateFlow()
@@ -173,13 +179,13 @@ class AppPreferences(
         }
     }
 
-    fun getCachedGroupKey(group: String?): String? {
-        val key = KEY_CACHE_GROUP_KEY_PREFIX + (group ?: "default")
+    fun getCachedGroupKey(group: String?, namespace: String = "legacy"): String? {
+        val key = KEY_CACHE_GROUP_KEY_PREFIX + namespace + "." + (group ?: "default")
         return secretStore.get(key)?.takeIf { it.isNotBlank() }
     }
 
-    fun setCachedGroupKey(group: String?, apiKey: String?) {
-        val key = KEY_CACHE_GROUP_KEY_PREFIX + (group ?: "default")
+    fun setCachedGroupKey(group: String?, apiKey: String?, namespace: String = "legacy") {
+        val key = KEY_CACHE_GROUP_KEY_PREFIX + namespace + "." + (group ?: "default")
         if (apiKey.isNullOrBlank()) {
             secretStore.remove(key)
         } else {
@@ -199,7 +205,7 @@ class AppPreferences(
     }
 
     var imageGenEnabled: Boolean
-        get() = settings.getBoolean(KEY_IMAGE_GEN_ENABLED, defaultValue = false)
+        get() = settings.getBoolean(KEY_IMAGE_GEN_ENABLED, defaultValue = true)
         set(value) {
             settings.putBoolean(KEY_IMAGE_GEN_ENABLED, value)
         }
@@ -229,6 +235,16 @@ class AppPreferences(
     fun setInputPredictionEnabled(enabled: Boolean) {
         settings[KEY_INPUT_PREDICTION_ENABLED] = enabled
         _inputPredictionEnabled.value = enabled
+    }
+
+    fun setAutoRequestDesktopScreen(enabled: Boolean) {
+        settings[KEY_AUTO_REQUEST_DESKTOP_SCREEN] = enabled
+        _autoRequestDesktopScreen.value = enabled
+    }
+
+    fun setShowBottomNavLabels(enabled: Boolean) {
+        settings[KEY_SHOW_BOTTOM_NAV_LABELS] = enabled
+        _showBottomNavLabels.value = enabled
     }
 
     fun setConfirmBeforeDelete(enabled: Boolean) {
@@ -264,6 +280,8 @@ class AppPreferences(
         private const val KEY_AUTO_RESUME = "vetta.prefs.auto_resume"
         private const val KEY_MOTION_ENABLED = "vetta.prefs.motion_enabled"
         private const val KEY_INPUT_PREDICTION_ENABLED = "vetta.prefs.input_prediction_enabled"
+        private const val KEY_AUTO_REQUEST_DESKTOP_SCREEN = "567agent.prefs.auto_request_desktop_screen"
+        private const val KEY_SHOW_BOTTOM_NAV_LABELS = "567agent.prefs.show_bottom_nav_labels"
         private const val KEY_CONFIRM_DELETE = "vetta.prefs.confirm_delete"
         private const val KEY_MIGRATION_BACKUP_LIMIT_MB = "vetta.prefs.migration_backup_limit_mb"
         private const val KEY_LAST_SESSION = "vetta.prefs.last_session"

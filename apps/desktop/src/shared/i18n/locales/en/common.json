@@ -442,8 +442,8 @@
 			"experimentalSectionTitle": "Experimental features",
 			"experimentalSectionDescription": "Same toggles as Settings → Agent. You can adjust them before confirming.",
 			"experimentalFields": {
-				"vettaCli": "567 Agent CLI (vetta)",
-				"vettaCliDesc": "Allow calling local capabilities from the terminal with the vetta command",
+				"vettaCli": "567 Agent CLI",
+				"vettaCliDesc": "Allow calling local capabilities from the terminal with the 567-agent command",
 				"promptPrediction": "Input prediction",
 				"promptPredictionDesc": "Suggest possible follow-up text while typing; may use a little quota",
 				"agentSkills": "Agent skill extensions",

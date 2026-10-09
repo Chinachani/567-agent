@@ -6,7 +6,7 @@ import io.ktor.http.isSuccess
 import kotlinx.serialization.serializer
 import org.agent567.android.core.api.ApiEnvelope
 import org.agent567.android.core.api.OpenAiErrorBody
-import org.agent567.android.core.error.VettaException
+import org.agent567.android.core.error.Agent567Exception
 
 internal suspend inline fun <reified T> HttpResponse.parseEnvelope(): T {
     val text = bodyAsText()
@@ -15,16 +15,16 @@ internal suspend inline fun <reified T> HttpResponse.parseEnvelope(): T {
     }
     val envelope =
         runCatching {
-            VettaJson.decodeFromString(ApiEnvelope.serializer(serializer<T>()), text)
+            Agent567Json.decodeFromString(ApiEnvelope.serializer(serializer<T>()), text)
         }.getOrElse { cause ->
-            throw VettaException.Protocol("无法解析 API 响应", cause)
+            throw Agent567Exception.Protocol("无法解析 API 响应", cause)
         }
     if (!envelope.isSuccessful) {
         val errCode = envelope.code ?: -1
         if (status.value == 401 || errCode in UNAUTHORIZED_CODES) {
-            throw VettaException.Unauthorized(envelope.message.ifBlank { "未授权" }, errCode)
+            throw Agent567Exception.Unauthorized(envelope.message.ifBlank { "未授权" }, errCode)
         }
-        throw VettaException.Api(
+        throw Agent567Exception.Api(
             httpStatus = status.value,
             code = errCode,
             message = envelope.message.ifBlank { "请求失败" },
@@ -37,7 +37,7 @@ internal suspend inline fun <reified T> HttpResponse.parseEnvelope(): T {
             @Suppress("UNCHECKED_CAST")
             return null as T
         }
-        throw VettaException.Protocol("API 响应 data 为空")
+        throw Agent567Exception.Protocol("API 响应 data 为空")
     }
     return data
 }
@@ -47,10 +47,10 @@ internal suspend fun HttpResponse.ensureSuccessOrThrow() {
     throw parseFailure(status.value, bodyAsText())
 }
 
-internal fun parseFailure(httpStatus: Int, body: String): VettaException {
+internal fun parseFailure(httpStatus: Int, body: String): Agent567Exception {
     // 优先业务信封（忽略 data 形状）
     runCatching {
-        val element = VettaJson.parseToJsonElement(body)
+        val element = Agent567Json.parseToJsonElement(body)
         val obj = element as? kotlinx.serialization.json.JsonObject
         val code = (obj?.get("code") as? kotlinx.serialization.json.JsonPrimitive)?.content?.toIntOrNull()
         val success = (obj?.get("success") as? kotlinx.serialization.json.JsonPrimitive)?.content?.toBooleanStrictOrNull()
@@ -59,12 +59,12 @@ internal fun parseFailure(httpStatus: Int, body: String): VettaException {
         if (success == false || (code != null && code != 0)) {
             val errCode = code ?: -1
             if (httpStatus == 401 || errCode in UNAUTHORIZED_CODES) {
-                return VettaException.Unauthorized(
+                return Agent567Exception.Unauthorized(
                     message = message.ifBlank { "未授权" },
                     code = errCode,
                 )
             }
-            return VettaException.Api(
+            return Agent567Exception.Api(
                 httpStatus = httpStatus,
                 code = code,
                 message = message.ifBlank { "HTTP $httpStatus" },
@@ -75,14 +75,14 @@ internal fun parseFailure(httpStatus: Int, body: String): VettaException {
 
     // 网关 OpenAI 错误体
     runCatching {
-        VettaJson.decodeFromString(OpenAiErrorBody.serializer(), body)
+        Agent567Json.decodeFromString(OpenAiErrorBody.serializer(), body)
     }.getOrNull()?.let { openai ->
         val message =
             openai.error?.message
                 ?: openai.message
                 ?: "HTTP $httpStatus"
         if (httpStatus == 401 && (message.contains("Invalid token", ignoreCase = true) || message.contains("permission", ignoreCase = true) || message.contains("token", ignoreCase = true))) {
-            return VettaException.Api(
+            return Agent567Exception.Api(
                 httpStatus = 401,
                 code = openai.error?.code,
                 message = "当前分组下该模型鉴权失败或无权限，请更换模型或分组重试",
@@ -90,9 +90,9 @@ internal fun parseFailure(httpStatus: Int, body: String): VettaException {
             )
         }
         if (httpStatus == 401) {
-            return VettaException.Unauthorized(message, openai.error?.code)
+            return Agent567Exception.Unauthorized(message, openai.error?.code)
         }
-        return VettaException.Api(
+        return Agent567Exception.Api(
             httpStatus = httpStatus,
             code = openai.error?.code,
             message = message,
@@ -102,16 +102,16 @@ internal fun parseFailure(httpStatus: Int, body: String): VettaException {
 
     if (httpStatus == 401) {
         if (body.contains("Invalid token", ignoreCase = true) || body.contains("permission", ignoreCase = true)) {
-            return VettaException.Api(
+            return Agent567Exception.Api(
                 httpStatus = 401,
                 code = null,
                 message = "当前分组下该模型鉴权失败或无权限，请更换模型或分组重试",
                 rawBody = body,
             )
         }
-        return VettaException.Unauthorized(body.ifBlank { "未授权" })
+        return Agent567Exception.Unauthorized(body.ifBlank { "未授权" })
     }
-    return VettaException.Api(
+    return Agent567Exception.Api(
         httpStatus = httpStatus,
         code = null,
         message = body.ifBlank { "HTTP $httpStatus" },

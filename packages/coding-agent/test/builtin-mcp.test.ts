@@ -1,14 +1,14 @@
 import {
+	type Api567Credentials,
 	buildBuiltinMcpServers,
 	VETTA_BUILTIN_MCP_NAME,
 	VETTA_CLIENT_VERSION_HEADER,
-	type VettaCredentials,
 } from "@567agent/runtime-node/mcp";
 import { describe, expect, it } from "vitest";
 
-const CREDENTIALS: VettaCredentials = { baseUrl: "https://api.example.com", token: "tok-1" };
+const CREDENTIALS: Api567Credentials = { baseUrl: "https://api.example.com", token: "tok-1" };
 
-function build(credentials: VettaCredentials | null, clientVersion = "1.2.3") {
+function build(credentials: Api567Credentials | null, clientVersion = "1.2.3") {
 	return buildBuiltinMcpServers({ clientVersion, loadCredentials: () => credentials });
 }
 
@@ -62,7 +62,7 @@ describe("buildBuiltinMcpServers", () => {
 	});
 
 	it("每次解析 header 都重读凭据，拿到轮换后的 token", () => {
-		let current: VettaCredentials | null = { baseUrl: "https://api.example.com", token: "old" };
+		let current: Api567Credentials | null = { baseUrl: "https://api.example.com", token: "old" };
 		const servers = buildBuiltinMcpServers({ loadCredentials: () => current });
 		const resolve = servers[VETTA_BUILTIN_MCP_NAME].resolveHeaders;
 
@@ -74,7 +74,7 @@ describe("buildBuiltinMcpServers", () => {
 
 	it("登出后不再带 Authorization", () => {
 		// 带一个空 Bearer 造成的错误比干脆的 401 难定位得多
-		let current: VettaCredentials | null = CREDENTIALS;
+		let current: Api567Credentials | null = CREDENTIALS;
 		const servers = buildBuiltinMcpServers({ loadCredentials: () => current });
 		const resolve = servers[VETTA_BUILTIN_MCP_NAME].resolveHeaders;
 

@@ -55,6 +55,7 @@ export class AgentSession {
 	private readonly continuationContext: SessionContextRecord[] = [];
 	private readonly nextTurnContext: SessionContextRecord[] = [];
 	private contextWrite: Promise<void> = Promise.resolve();
+	private sendQueuedNowTail: Promise<void> = Promise.resolve();
 	private readonly continuationWaiters: Array<{
 		resolve(): void;
 		reject(error: unknown): void;
@@ -318,19 +319,40 @@ export class AgentSession {
 	): Promise<
 		{ readonly status: "missing" } | { readonly status: "started"; readonly turn: Promise<SessionSendResult> }
 	> {
+		let release!: () => void;
+		const previous = this.sendQueuedNowTail;
+		this.sendQueuedNowTail = new Promise<void>((resolve) => {
+			release = resolve;
+		});
+		await previous;
+		try {
+			return await this.sendQueuedNowLocked(id);
+		} finally {
+			release();
+		}
+	}
+
+	private async sendQueuedNowLocked(
+		id: string,
+	): Promise<
+		{ readonly status: "missing" } | { readonly status: "started"; readonly turn: Promise<SessionSendResult> }
+	> {
 		if (this.currentState === "closed" || this.currentState === "closing") {
 			throw sessionClosedError();
 		}
 		if (this.currentState === "recovery_required") throw turnPersistenceError();
 		if (this.activeQueueOperation) return { status: "missing" };
-		// 先取出条目再打断：确保这条消息绝不因中途失败而丢失在「已出队未发送」状态——
-		// takeById 失败即早退，成功后它只存在于本调用栈，随 startTurn 进入持久化。
-		const input = this.inputQueue.takeById(id);
-		if (!input) return { status: "missing" };
 		if (this.currentState !== "idle") {
 			await this.cancel("send queued message now");
 		}
 		await this.contextWrite;
+		if (this.currentState !== "idle") {
+			return { status: "missing" };
+		}
+		// Do not remove the queue item until all awaited work is complete. If another
+		// send claims the session while cancellation/persistence is draining, it stays queued.
+		const input = this.inputQueue.takeById(id);
+		if (!input) return { status: "missing" };
 		// cancel 的 pause-on-terminal 会冻结其余排队条目；用户点「立即发送」表达的
 		// 是继续消费，解除暂停让它们在新 turn 的自然停止点接力。
 		this.inputQueue.resume();

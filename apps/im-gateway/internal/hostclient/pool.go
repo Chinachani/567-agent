@@ -39,6 +39,7 @@ type ProcessPool struct {
 	entries map[string]*list.Element // sessionPath → list element
 	lru     *list.List               // front = MRU, back = LRU
 	closed  bool
+	opening int
 }
 
 type pooledSession struct {
@@ -128,18 +129,22 @@ func (p *ProcessPool) Acquire(ctx context.Context, cwd, sessionPath string) (*Ac
 	// Miss: may need to evict before opening a new session. Note we do
 	// the eviction *before* the OpenSession call so the new session is
 	// counted under the cap from the start.
-	if len(p.entries) >= p.maxSize {
+	if len(p.entries)+p.opening >= p.maxSize {
 		if err := p.evictOldestIdleLocked(); err != nil {
 			p.mu.Unlock()
 			return nil, fmt.Errorf("hostclient: pool full and no idle session to evict: %w", err)
 		}
 	}
+	p.opening++
 	p.mu.Unlock()
 
 	// Open without holding the mutex — OpenSession may take seconds
 	// (handshake) and we don't want other Acquire calls to block on it.
 	session, err := p.client.OpenSession(ctx, cwd, sessionPath)
 	if err != nil {
+		p.mu.Lock()
+		p.opening--
+		p.mu.Unlock()
 		return nil, err
 	}
 
@@ -165,6 +170,7 @@ func (p *ProcessPool) Acquire(ctx context.Context, cwd, sessionPath string) (*Ac
 
 	p.mu.Lock()
 	defer p.mu.Unlock()
+	p.opening--
 
 	// Race: another goroutine may have opened the same resolved path
 	// while we were waiting for handshake. If so, close ours and reuse

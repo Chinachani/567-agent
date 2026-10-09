@@ -42,7 +42,7 @@ it("keeps a new cross-project session visible until the disk list confirms it", 
 	const store = getDefaultStore();
 	expect(store.get(sessionsMapAtom).get(cwd)).toContainEqual(session);
 
-	vi.mocked(window.vetta.session.listSessions).mockResolvedValueOnce([session]);
+	vi.mocked(window.agent567.session.listSessions).mockResolvedValueOnce([session]);
 	await act(async () => {
 		await result.current.loadSessions(cwd);
 	});

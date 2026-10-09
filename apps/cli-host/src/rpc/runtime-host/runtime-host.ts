@@ -231,7 +231,7 @@ export async function runPrintRuntimeHost(prepared: PrintRuntimeHostReady): Prom
 			processFiles: processCliFileArguments,
 		});
 		if (invocation.kind === "interactive-unsupported") {
-			throw new Error("交互式终端模式已移除。请使用 --print 进行单次执行，或使用 Vetta 桌面应用。");
+			throw new Error("交互式终端模式已移除。请使用 --print 进行单次执行，或使用 567 Agent 桌面应用。");
 		}
 		await runPrintMode(prepared.printSession, invocation.options, nodePrintOutput);
 	} finally {

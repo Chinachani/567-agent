@@ -22,6 +22,8 @@ export const RESUME_PROTOCOL_PREFIX = "vetta.resume.";
 export class WebSocketRemoteTransport implements RemoteTransport {
 	private socket: RemoteWebSocket | undefined;
 	private handlers: RemoteTransportHandlers | undefined;
+	private connectReject: ((error: Error) => void) | undefined;
+	private connectTimer: ReturnType<typeof setTimeout> | undefined;
 
 	constructor(
 		private readonly url: string,
@@ -42,10 +44,18 @@ export class WebSocketRemoteTransport implements RemoteTransport {
 		const socket = this.createSocket(url, protocols);
 		this.socket = socket;
 		socket.onmessage = (event) => this.handleMessage(event.data);
-		socket.onclose = (event) => this.handlers?.onClose(event.reason);
+		socket.onclose = (event) => {
+			this.settleConnect(new Error(event.reason || "remote websocket closed before opening"));
+			this.handlers?.onClose(event.reason);
+		};
 		await new Promise<void>((resolve, reject) => {
-			socket.onopen = () => resolve();
-			socket.onerror = () => reject(new Error("remote websocket connection failed"));
+			this.connectReject = reject;
+			this.connectTimer = setTimeout(
+				() => this.settleConnect(new Error("remote websocket connection timed out")),
+				15_000,
+			);
+			socket.onopen = () => this.settleConnect(undefined, resolve);
+			socket.onerror = () => this.settleConnect(new Error("remote websocket connection failed"));
 		});
 	}
 
@@ -55,8 +65,18 @@ export class WebSocketRemoteTransport implements RemoteTransport {
 	}
 
 	async close(): Promise<void> {
+		this.settleConnect(new Error("remote websocket connection closed"));
 		this.socket?.close();
 		this.socket = undefined;
+	}
+
+	private settleConnect(error?: Error, resolve?: () => void): void {
+		if (this.connectTimer) clearTimeout(this.connectTimer);
+		this.connectTimer = undefined;
+		const reject = this.connectReject;
+		this.connectReject = undefined;
+		if (error) reject?.(error);
+		else resolve?.();
 	}
 
 	private handleMessage(data: unknown): void {

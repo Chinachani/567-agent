@@ -1,0 +1,43 @@
+name: android-debug-apk
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  build-debug-apk:
+    name: Build installable Android debug APK
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    defaults:
+      run:
+        working-directory: apps/mobile
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Java
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "21"
+
+      - name: Set up Gradle
+        uses: gradle/actions/setup-gradle@v4
+        with:
+          cache-disabled: true
+
+      - name: Assemble debug APK
+        run: |
+          chmod +x gradlew
+          ./gradlew --no-daemon :androidApp:assembleDebug
+
+      - name: Upload debug APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: 567-agent-android-debug-apk
+          path: apps/mobile/androidApp/build/outputs/apk/debug/*.apk
+          if-no-files-found: error
+          retention-days: 7

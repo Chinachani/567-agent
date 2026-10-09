@@ -12,6 +12,8 @@ export function EnvironmentSettingsView({ model }: EnvironmentSettingsViewProps)
 		<ThemeEnvironmentSettingsView
 			busy={model.busy}
 			error={model.error}
+			progress={model.progress}
+			logs={model.logs}
 			headerAction={<SettingsAiAssist tabId="environment" />}
 			labels={model.labels}
 			mirrors={model.status?.mirrors ?? null}

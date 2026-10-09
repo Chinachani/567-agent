@@ -42,7 +42,21 @@
 			"emptyClawTitle": "还没有 Claw 记录",
 			"emptyTagTitle": "该标签下暂无会话",
 			"emptyTagDescription": "可以从会话右键菜单为它打上这个标签",
-			"emptyClawDescription": "通过微信、飞书等渠道与 Claw 对话后，记录会出现在这里"
+			"emptyClawDescription": "通过微信、飞书等渠道与 Claw 对话后，记录会出现在这里",
+			"batchSelect": "选择会话",
+			"batchSelected": "已选择 {{count}} 条",
+			"batchSelectAll": "全选",
+			"batchClearSelection": "清空选择",
+			"batchDelete": "删除",
+			"batchExport": "导出备份",
+			"batchPassword": "备份密码（8–128 位）",
+			"batchCancel": "取消",
+			"batchPasswordLength": "请输入 8 到 128 个字符的备份密码。",
+			"batchExported": "已导出 {{count}} 条会话。",
+			"batchDeleteTitle": "删除所选会话",
+			"batchDeleteMessage": "将永久删除 {{count}} 条会话及其历史记录，此操作不可恢复。",
+			"batchDeleteConfirm": "永久删除",
+			"batchDeletePartial": "有 {{count}} 条会话删除失败，仍保留在选择中。"
 		},
 		"teams": {
 			"title": "团队",
@@ -166,7 +180,7 @@
 	},
 	"exportDialog": {
 		"title": "导出项目",
-		"message": "确定要导出项目「{{name}}」吗？\n\n将打包当前项目目录下的所有文件，包括 .vetta/sessions 历史、batch 任务工作目录与状态。文件锁（*.lock）会被排除。",
+		"message": "确定要导出项目「{{name}}」吗？\n\n将打包当前项目目录下的所有文件，包括 .567agent/sessions 历史、batch 任务工作目录与状态。文件锁（*.lock）会被排除。",
 		"confirm": "导出",
 		"failedTitle": "导出失败",
 		"failedConfirm": "好的"

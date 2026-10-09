@@ -11,7 +11,7 @@ const RPC_CLIENT_STARTUP_SETTLE_MS = 100;
 const RPC_CLIENT_STOP_GRACE_MS = 1_000;
 
 export interface NodeRpcClientTransportOptions {
-	/** Path to a JavaScript CLI entry point. Defaults to the installed `vetta-agent-rpc` executable. */
+	/** Path to a JavaScript CLI entry point. Defaults to the installed `567-agent-rpc` executable. */
 	readonly cliPath?: string;
 	readonly cwd?: string;
 	readonly env?: Readonly<Record<string, string>>;
@@ -29,7 +29,7 @@ export function resolveRpcClientProcessLaunch(
 	cliPath: string | undefined,
 	args: readonly string[],
 ): RpcClientProcessLaunch {
-	return cliPath ? { command: "node", args: [cliPath, ...args] } : { command: "vetta-agent-rpc", args: [...args] };
+	return cliPath ? { command: "node", args: [cliPath, ...args] } : { command: "567-agent-rpc", args: [...args] };
 }
 
 export class NodeRpcClientTransport implements RpcClientTransport {

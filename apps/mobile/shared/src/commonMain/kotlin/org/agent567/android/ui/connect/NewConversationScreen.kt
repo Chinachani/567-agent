@@ -36,7 +36,7 @@ import org.agent567.android.ui.components.PrimaryBlackButton
 import org.agent567.android.ui.components.SectionHeader
 import org.agent567.android.ui.components.ListRow
 import org.agent567.android.ui.i18n.Str
-import org.agent567.android.ui.theme.vettaExtra
+import org.agent567.android.ui.theme.agent567Extra
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -55,7 +55,7 @@ fun NewConversationScreen(
     val channels = listOf(Str.pairDesktop, Str.channelCloud)
 
     Scaffold(
-        containerColor = MaterialTheme.vettaExtra.pageBackground,
+        containerColor = MaterialTheme.agent567Extra.pageBackground,
         topBar = {
             TopAppBar(
                 title = { Text(Str.newConversation, style = MaterialTheme.typography.titleMedium) },
@@ -66,7 +66,7 @@ fun NewConversationScreen(
                 },
                 colors =
                     TopAppBarDefaults.topAppBarColors(
-                        containerColor = MaterialTheme.vettaExtra.pageBackground,
+                        containerColor = MaterialTheme.agent567Extra.pageBackground,
                     ),
             )
         },
@@ -85,7 +85,7 @@ fun NewConversationScreen(
                 Text(
                     Str.featureCloudDesc,
                     style = MaterialTheme.typography.bodyMedium,
-                    color = MaterialTheme.vettaExtra.secondaryText,
+                    color = MaterialTheme.agent567Extra.secondaryText,
                 )
                 Spacer(Modifier.height(20.dp))
                 PrimaryBlackButton(text = Str.startConversation, onClick = onStartCloud)

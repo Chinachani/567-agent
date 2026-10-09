@@ -117,7 +117,8 @@ export interface AppFileDragIconEntry {
  */
 export async function cacheAppFileDragIcons(
 	entries: readonly AppFileDragIconEntry[],
-	cacheDragIcon: (path: string, pngDataUrl: string) => void = (path, png) => window.vetta.fs.cacheDragIcon(path, png),
+	cacheDragIcon: (path: string, pngDataUrl: string) => void = (path, png) =>
+		window.agent567.fs.cacheDragIcon(path, png),
 ): Promise<void> {
 	const seen = new Set<string>();
 	for (const entry of entries) {

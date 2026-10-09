@@ -53,7 +53,7 @@ export function useAgentTeamResources(): AgentTeamResources {
 
 	const reload = useCallback(async () => {
 		try {
-			setDocument(await window.vetta.agentTeams.list());
+			setDocument(await window.agent567.agentTeams.list());
 			setError(undefined);
 		} catch (cause) {
 			setError(agentTeamErrorMessage(cause));
@@ -68,7 +68,7 @@ export function useAgentTeamResources(): AgentTeamResources {
 	 * 头像同样随插件走。
 	 */
 	useEffect(() => {
-		return window.vetta.agentTeams.onChanged(() => {
+		return window.agent567.agentTeams.onChanged(() => {
 			void loadAgentTeamConfigurationResources()
 				.then((resources) => {
 					setDocument(resources.document);

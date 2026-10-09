@@ -37,10 +37,6 @@ vi.mock("./presets/TorchOrnament", () => ({
 	TorchOrnament: () => <div data-testid="torch" />,
 }));
 
-vi.mock("./presets/ViviOrnament", () => ({
-	ViviOrnament: () => <div data-testid="vivi" />,
-}));
-
 function renderSlot(ornamentId: OrnamentId): void {
 	useHeroOrnament.mockReturnValue({ ornamentId });
 	render(<HeroOrnamentSlot autoplay={false} mounted />);
@@ -55,12 +51,10 @@ describe("HeroOrnamentSlot", () => {
 		renderSlot("none");
 
 		expect(screen.queryByTestId("blaze")).toBeNull();
-		expect(screen.queryByTestId("vivi")).toBeNull();
 	});
 
 	it.each([
 		["blaze", "blaze"],
-		["vivi", "vivi"],
 		["orbit", "orbit"],
 		["torch", "torch"],
 		["mario", "mario"],

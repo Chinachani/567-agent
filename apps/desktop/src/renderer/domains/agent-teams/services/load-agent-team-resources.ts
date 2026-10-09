@@ -13,12 +13,12 @@ export interface AgentTeamConfigurationResources {
 
 export async function loadAgentTeamConfigurationResources(): Promise<AgentTeamConfigurationResources> {
 	const [document, blueprints, skills, skillManifest, mcpConfig, plugins] = await Promise.all([
-		window.vetta.agentTeams.list(),
-		window.vetta.agentTeams.listBlueprints(),
-		window.vetta.skills.list(),
-		window.vetta.skills.getMarketManifest(),
-		window.vetta.mcp.get(),
-		window.vetta.plugins.listAll(),
+		window.agent567.agentTeams.list(),
+		window.agent567.agentTeams.listBlueprints(),
+		window.agent567.skills.list(),
+		window.agent567.skills.getMarketManifest(),
+		window.agent567.mcp.get(),
+		window.agent567.plugins.listAll(),
 	]);
 	return {
 		document,

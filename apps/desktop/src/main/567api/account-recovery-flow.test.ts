@@ -15,7 +15,7 @@ const network = vi.hoisted(() => ({
 	secureStorageAvailable: true,
 }));
 
-vi.mock("@567agent/action-rpc", () => ({ getVettaHomePath: () => network.home }));
+vi.mock("@567agent/action-rpc", () => ({ getAgent567HomePath: () => network.home }));
 
 vi.mock("node:https", async () => {
 	const { EventEmitter } = await import("node:events");

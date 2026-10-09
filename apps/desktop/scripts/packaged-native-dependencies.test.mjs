@@ -44,15 +44,12 @@ test("stages every dependency the main bundle marks external", () => {
 	}
 });
 
-test("keeps ws in every artifact and koffi only on Windows", () => {
+test("keeps ws and koffi in every desktop artifact", () => {
 	for (const platform of ["darwin", "win32", "linux"]) {
 		const result = resolvePackagedNativeDependencies(new Set([platform]));
 		assert.ok(result.required.includes("ws"), `${platform} 产物缺少 ws`);
-	}
-	assert.ok(resolvePackagedNativeDependencies(new Set(["win32"])).required.includes("koffi"));
-	assert.ok(resolvePackagedNativeDependencies(new Set(["win32"])).asarUnpack.includes("node_modules/koffi/**/*"));
-	for (const platform of ["darwin", "linux"]) {
-		assert.ok(!resolvePackagedNativeDependencies(new Set([platform])).required.includes("koffi"));
+		assert.ok(result.required.includes("koffi"), `${platform} 产物缺少 koffi`);
+		assert.ok(result.asarUnpack.includes("node_modules/koffi/**/*"), `${platform} 产物未解包 koffi`);
 	}
 });
 

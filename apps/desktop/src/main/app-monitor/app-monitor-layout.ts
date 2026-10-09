@@ -1,10 +1,10 @@
 import { join } from "node:path";
-import { getVettaHomePath } from "@567agent/action-rpc";
+import { getAgent567HomePath } from "@567agent/action-rpc";
 
 const MONTH_KEY_PATTERN = /^\d{4}-\d{2}$/;
 
 export function appMonitorRootPath(): string {
-	return join(getVettaHomePath(), "app-monitor");
+	return join(getAgent567HomePath(), "app-monitor");
 }
 
 export function appMonitorSummaryPath(): string {

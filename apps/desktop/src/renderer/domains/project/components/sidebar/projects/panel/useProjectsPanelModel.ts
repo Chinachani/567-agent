@@ -263,7 +263,7 @@ export function useProjectsPanelModel({
 		(session: SidebarConversationInfo) => {
 			if (session.kind === "agent-team") {
 				const wasActive = activeTeamSessionId === session.teamSessionId;
-				void window.vetta.agentTeams
+				void window.agent567.agentTeams
 					.deleteSession({ id: session.teamSessionId, coordinationSessionPath: session.path })
 					.then(() => {
 						notifyTeamSessionsChanged(session.teamId);
@@ -433,7 +433,7 @@ export function useProjectsPanelModel({
 				confirmLabel: t("sidebar.dialogs.clearConfirm"),
 				variant: "danger",
 				onConfirm: async () => {
-					await window.vetta.session.clearDefaultConversation("conversation");
+					await window.agent567.session.clearDefaultConversation("conversation");
 					forgetPendingSessions(cwd);
 					const removedPaths = new Set(allSessions.map((session) => session.path));
 					removePinnedSessions(removedPaths);
@@ -470,7 +470,7 @@ export function useProjectsPanelModel({
 				confirmLabel: t("sidebar.dialogs.clearConfirm"),
 				variant: "danger",
 				onConfirm: async () => {
-					await window.vetta.session.clearDefaultConversation("claw");
+					await window.agent567.session.clearDefaultConversation("claw");
 					forgetPendingSessions(imCwd);
 					const removedPaths = new Set(imSessions.map((session) => session.path));
 					removePinnedSessions(removedPaths);

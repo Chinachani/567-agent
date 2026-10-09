@@ -143,7 +143,7 @@ export const SegmentRenderer = memo(function SegmentRenderer({
 	} else if (segment.type === "progress_divider") {
 		content = <ProgressDivider block={segment.block} />;
 	} else {
-		switch (segment.block.type) {
+			switch (segment.block.type) {
 			case "text":
 				content = <TextBlockView text={segment.block.text} isStreamingTail={isStreamingTail} />;
 				break;

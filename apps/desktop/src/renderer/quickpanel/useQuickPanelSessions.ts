@@ -4,6 +4,7 @@ import type { QuickPanelBridge, QuickPanelSession } from "../../shared/quickpane
 declare global {
 	interface Window {
 		vettaQuickPanel?: QuickPanelBridge;
+		agent567QuickPanel?: QuickPanelBridge;
 	}
 }
 
@@ -31,14 +32,14 @@ export function useQuickPanelSessions(): QuickPanelItem[] {
 	const [pending, setPending] = useState<ReadonlySet<string>>(() => new Set());
 
 	const refresh = useCallback(async () => {
-		const bridge = window.vettaQuickPanel;
+		const bridge = window.agent567QuickPanel;
 		if (!bridge) return;
 		const list = await bridge.listRecent(RECENT_LIMIT);
 		setSessions(list);
 	}, []);
 
 	useEffect(() => {
-		const bridge = window.vettaQuickPanel;
+		const bridge = window.agent567QuickPanel;
 		if (!bridge) return;
 		void refresh();
 		const offShown = bridge.onShown(() => {

@@ -2,7 +2,7 @@ import { createReadStream } from "node:fs";
 import { stat } from "node:fs/promises";
 import { extname, isAbsolute, join, relative, resolve } from "node:path";
 import { Readable } from "node:stream";
-import { getVettaHomePath } from "@567agent/action-rpc";
+import { getAgent567HomePath } from "@567agent/action-rpc";
 import { type CustomScheme, protocol } from "electron";
 import { assertPathReadableForPreview } from "./ipc/fs.js";
 import { createEphemeralMediaToken, resolveEphemeralMediaToken } from "./media-token-store.js";
@@ -53,7 +53,7 @@ const MEDIA_MIME: Record<string, string> = {
 	pptx: "application/vnd.openxmlformats-officedocument.presentationml.presentation",
 };
 const MIME_TYPE_PATTERN = /^[a-z0-9][a-z0-9!#$&^_.+-]*\/[a-z0-9][a-z0-9!#$&^_.+-]*$/i;
-const PLUGIN_DATA_ROOT = resolve(join(getVettaHomePath(), "plugin-data"));
+const PLUGIN_DATA_ROOT = resolve(join(getAgent567HomePath(), "plugin-data"));
 
 function isPluginDataPath(path: string): boolean {
 	const relation = relative(PLUGIN_DATA_ROOT, resolve(path));

@@ -9,7 +9,7 @@ import {
  * 项目硬删除时清空该 cwd 的会话存储。
  *
  * 会话文件不在项目目录里，而是在按 cwd 路径算出的全局分片目录
- * （`~/.vetta/agent/sessions/--<路径>--`，见 `codingAgentSessionShardPath`）。
+ * （`~/.567agent/agent/sessions/--<路径>--`，见 `codingAgentSessionShardPath`）。
  * 只删项目目录不会动它，于是同路径重建项目时旧会话会原样复活。
  */
 export interface ProjectSessionPurgeDependencies {

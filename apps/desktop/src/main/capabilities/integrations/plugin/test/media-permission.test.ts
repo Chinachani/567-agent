@@ -29,7 +29,7 @@ describe("PluginCapabilityAdapter media permission", () => {
 		await expect(adapter.listMediaProviders(sessionId)).resolves.toHaveLength(1);
 		await expect(
 			adapter.submitMedia(sessionId, {
-				providerId: "desktop-app:vetta",
+				providerId: "desktop-app:api567",
 				operation: "generate",
 				kind: "image",
 				mode: "text-to-image",
@@ -56,7 +56,7 @@ describe("PluginCapabilityAdapter media permission", () => {
 		const sessionId = adapter.openSession("media-consumer");
 
 		await adapter.submitMedia(sessionId, {
-			providerId: "desktop-app:vetta",
+			providerId: "desktop-app:api567",
 			operation: "generate",
 			kind: "image",
 			mode: "image-to-image",
@@ -96,7 +96,7 @@ describe("PluginCapabilityAdapter media permission", () => {
 
 		expect(() =>
 			adapter.submitMedia(sessionId, {
-				providerId: "desktop-app:vetta",
+				providerId: "desktop-app:api567",
 				operation: "generate",
 				kind: "image",
 				mode: "image-to-image",

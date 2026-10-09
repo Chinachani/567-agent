@@ -45,5 +45,5 @@ export async function copyUserMessageToClipboard(text: string, imageSources: rea
 		return;
 	}
 	const images = await Promise.all(imageSources.map(resolveImageSource));
-	await window.vetta.clipboard.writeUserMessage({ text, images });
+	await window.agent567.clipboard.writeUserMessage({ text, images });
 }

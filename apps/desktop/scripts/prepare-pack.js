@@ -44,11 +44,11 @@ const cliAppDir = join(projectRoot, "..", "cli-host");
 const runtimeCoreWindowsSandboxDir = join(projectRoot, "..", "..", "packages", "runtime-core", "sandbox", "bin");
 const runtimeCoreSandboxDir = join(projectRoot, "..", "..", "packages", "runtime-core", "sandbox", "linux");
 const cliAppCompileTargets = {
-	"darwin-arm64": { platformTag: "darwin-arm64", bunTarget: "bun-darwin-arm64", binaryName: "vetta" },
-	"darwin-x64": { platformTag: "darwin-x64", bunTarget: "bun-darwin-x64", binaryName: "vetta" },
-	"linux-arm64": { platformTag: "linux-arm64", bunTarget: "bun-linux-arm64", binaryName: "vetta" },
-	"linux-x64": { platformTag: "linux-x64", bunTarget: "bun-linux-x64", binaryName: "vetta" },
-	"win32-x64": { platformTag: "win32-x64", bunTarget: "bun-windows-x64", binaryName: "vetta.exe" },
+	"darwin-arm64": { platformTag: "darwin-arm64", bunTarget: "bun-darwin-arm64", binaryName: "567-agent" },
+	"darwin-x64": { platformTag: "darwin-x64", bunTarget: "bun-darwin-x64", binaryName: "567-agent" },
+	"linux-arm64": { platformTag: "linux-arm64", bunTarget: "bun-linux-arm64", binaryName: "567-agent" },
+	"linux-x64": { platformTag: "linux-x64", bunTarget: "bun-linux-x64", binaryName: "567-agent" },
+	"win32-x64": { platformTag: "win32-x64", bunTarget: "bun-windows-x64", binaryName: "567-agent.exe" },
 };
 const imGatewayTargetByPlatformTag = {
 	"darwin-arm64": { arch: "arm64", os: "darwin" },
@@ -445,9 +445,9 @@ if (!existsSync(bundledAgentRpcCli)) {
 // vetta CLI app (extraResources)
 // =============================================================================
 //
-// The agent-facing `vetta` command is @567agent/cli-host, not the desktop
+// The agent-facing `567-agent` command is @567agent/cli-host, not the desktop
 // executable. Stage it into Resources/cli-app/ so Desktop can write
-// ~/.vetta/agent/bin/vetta as a stable shim to this entry.
+// ~/.567agent/agent/bin/567-agent as a stable shim to this entry.
 const stagedCliAppDir = join(buildStageDir, "cli-app");
 rmSync(stagedCliAppDir, { recursive: true, force: true });
 mkdirSync(stagedCliAppDir, { recursive: true });
@@ -461,7 +461,7 @@ for (const target of resolveCliAppCompileTargets()) {
 	const stagedCliAppBinDir = join(stagedCliAppDir, "bin", target.platformTag);
 	const stagedCliAppBinary = join(stagedCliAppBinDir, target.binaryName);
 	mkdirSync(stagedCliAppBinDir, { recursive: true });
-	console.log(`[prepare-pack] compiling vetta CLI (${target.platformTag}) -> ${stagedCliAppBinary}`);
+	console.log(`[prepare-pack] compiling 567 Agent CLI (${target.platformTag}) -> ${stagedCliAppBinary}`);
 	execFileSync(process.platform === "win32" ? "bun.exe" : "bun", [
 		join(cliAppDir, "scripts", "compile-standalone.mjs"),
 		"--target",
@@ -527,7 +527,7 @@ if (existsSync(runtimeCoreSandboxDir)) {
 // =============================================================================
 //
 // 把当前构建目标平台的 Node + Python(python-build-standalone)原始归档内置进
-// Resources/vendor/{node,python}/,首启时由 main 进程解压到 ~/.vetta/runtimes/。
+// Resources/vendor/{node,python}/,首启时由 main 进程解压到 ~/.567agent/runtimes/。
 // 这是普通用户「下载下来就有环境」的本体。Node 走 npmmirror、Python 走 GitHub
 // (国内无稳定公共镜像,故必须内置)。构建机有网即可;无法联网的构建可设
 // AGENT567_SKIP_VENDOR=1 跳过(产物退化为「面板手动下载」,不推荐发版用)。
@@ -779,6 +779,7 @@ const builderConfig = {
 		packageName: "567-agent",
 		artifactName: "567-agent-${version}-amd64.${ext}",
 		priority: "optional",
+		depends: ["libx11-6", "libxtst6"],
 		synopsis: "567 Agent - AI Desktop & Coding Assistant",
 		description: "567 Agent is an all-in-one AI coding and desktop assistant deeply integrated with 567 API.",
 	},

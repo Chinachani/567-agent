@@ -198,7 +198,7 @@ export function createExtractTextFromPdfTool(
 			reportPhase?.("read");
 			const document = parseOcrJsonDocument(await readFile(response.output, "utf8"));
 			const staleNote = desktop.staleConfiguredPath
-				? `\nNote: configured vettaAppPath was stale and a fallback path was used: ${desktop.staleConfiguredPath}`
+				? `\nNote: configured agent567AppPath was stale and a fallback path was used: ${desktop.staleConfiguredPath}`
 				: "";
 			return {
 				content: [

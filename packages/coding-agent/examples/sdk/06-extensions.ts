@@ -5,7 +5,7 @@
  * They provide a unified system for extensions, custom tools, commands, and more.
  *
  * By default, extension files are discovered from:
- * - ~/.vetta/agent/extensions/
+ * - ~/.567agent/agent/extensions/
  * - <cwd>/.vetta/extensions/
  * - Paths specified in settings.json "extensions" array
  *

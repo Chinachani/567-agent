@@ -223,7 +223,7 @@ export function useSessionMessageSender({ bumpSuggestionToken }: SessionMessageS
 			let persistedImages: PersistedImageResult[] = [];
 			if (images) {
 				try {
-					persistedImages = await window.vetta.dialog.persistImages(
+					persistedImages = await window.agent567.dialog.persistImages(
 						session.runtimeId,
 						images.map((img) => ({ id: img.id, data: img.data, mimeType: img.mimeType })),
 					);
@@ -314,21 +314,21 @@ export function useSessionMessageSender({ bumpSuggestionToken }: SessionMessageS
 							resolve();
 						};
 						const timer = setTimeout(finish, 8000);
-						unsubscribe = window.vetta.session.onRunningChanged((p) => {
+						unsubscribe = window.agent567.session.onRunningChanged((p) => {
 							if (p.sessionId === session.runtimeId && p.running === false) finish();
 						});
 						if (!isTargetSessionStreaming()) {
 							finish();
 							return;
 						}
-						void window.vetta.session.abort(session.runtimeId).catch((err) => {
+						void window.agent567.session.abort(session.runtimeId).catch((err) => {
 							console.error("[useSessionManager.sendMessage] abort before edit failed:", err);
 						});
 					});
 				}
 				try {
-					await window.vetta.session.replaceLastUserMessage(session.runtimeId, pendingEdit.entryId);
-					const history = await window.vetta.session.getFullHistory(session.runtimeId);
+					await window.agent567.session.replaceLastUserMessage(session.runtimeId, pendingEdit.entryId);
+					const history = await window.agent567.session.getFullHistory(session.runtimeId);
 					setTargetSessionMessages(fullHistoryToChat(history));
 					clearTargetPendingEdit();
 				} catch (err) {
@@ -370,7 +370,7 @@ export function useSessionMessageSender({ bumpSuggestionToken }: SessionMessageS
 						: undefined;
 					if (rollback) {
 						try {
-							await window.vetta.session.replaceLastUserMessage(session.runtimeId, rollback.entryId);
+							await window.agent567.session.replaceLastUserMessage(session.runtimeId, rollback.entryId);
 							setTargetSessionMessages((prev) => prev.slice(0, rollback.truncateFrom));
 						} catch (err) {
 							// 回退失败就按普通追加发送；宁可重复也不丢消息。
@@ -447,7 +447,11 @@ export function useSessionMessageSender({ bumpSuggestionToken }: SessionMessageS
 					const legacyText = attachments.length
 						? `${attachments.map((attachment) => `@${attachment.path}`).join("\n")}\n${text}`
 						: text;
-					await window.vetta.batchTasks.resumeTaskWithText(pausedBatch.projectId, pausedBatch.taskId, legacyText);
+					await window.agent567.batchTasks.resumeTaskWithText(
+						pausedBatch.projectId,
+						pausedBatch.taskId,
+						legacyText,
+					);
 				} catch (err) {
 					const message = err instanceof Error ? err.message : String(err);
 					console.error("[useSessionManager.sendMessage] resumeTaskWithText rejected:", err);
@@ -467,7 +471,7 @@ export function useSessionMessageSender({ bumpSuggestionToken }: SessionMessageS
 					const items = todoItemsMapRef.current.get(session.runtimeId) ?? [];
 					if (items.length > 0 && items.every((i) => i.status === "done")) {
 						try {
-							await window.vetta.session.clearTodos(session.runtimeId);
+							await window.agent567.session.clearTodos(session.runtimeId);
 						} catch (err) {
 							console.error("[useSessionManager.sendMessage] clearTodos failed:", err);
 						}
@@ -594,7 +598,7 @@ export function useSessionMessageSender({ bumpSuggestionToken }: SessionMessageS
 				// 不再让插件集合变化把每次发送挡住最长 5 秒。
 				await waitForPluginHostFirstReady();
 				perfSendMark("prompt-ipc-start", interactionId);
-				const promptPromise = window.vetta.session.prompt(
+				const promptPromise = window.agent567.session.prompt(
 					session.runtimeId,
 					promptReq,
 					interactionId ? { interactionId } : undefined,
@@ -676,7 +680,7 @@ export function useSessionMessageSender({ bumpSuggestionToken }: SessionMessageS
 
 	const abortMessage = useCallback(async () => {
 		if (!activeSession?.runtimeId) return;
-		await window.vetta.session.abort(activeSession.runtimeId);
+		await window.agent567.session.abort(activeSession.runtimeId);
 	}, [activeSession]);
 
 	// 立即发送某条排队消息（队列面板点击 / 拖拽后即时发）。ADR-0060：打断与续发在
@@ -688,7 +692,7 @@ export function useSessionMessageSender({ bumpSuggestionToken }: SessionMessageS
 			// 过期而跳过，避免冲掉新一轮的用户气泡（判活机制见 message-queue-atoms）。
 			bumpQueuedDispatchSeq(runtimeId);
 			try {
-				await window.vetta.session.sendQueuedMessageNow(runtimeId, id);
+				await window.agent567.session.sendQueuedMessageNow(runtimeId, id);
 			} catch (err) {
 				const message = err instanceof Error ? err.message : String(err);
 				console.error("[useSessionManager.sendQueuedNow] failed:", err);

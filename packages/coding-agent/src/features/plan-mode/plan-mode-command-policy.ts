@@ -220,6 +220,10 @@ function classifySegment(segmentWords: readonly string[]): PlanModeCommandVerdic
 	if (firstProgramIndex !== 0) {
 		return deny("environment assignments can change command resolution or execution");
 	}
+	const programWord = segmentWords[firstProgramIndex];
+	if (programWord?.includes("/") || programWord?.includes("\\")) {
+		return deny("Plan mode does not execute path-qualified programs");
+	}
 	const program = normalizeProgram(segmentWords[firstProgramIndex]);
 	if (!program) return ALLOWED;
 	const args = segmentWords.slice(firstProgramIndex + 1);

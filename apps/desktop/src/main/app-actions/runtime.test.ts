@@ -101,7 +101,7 @@ describe("AppActionRuntime logging", () => {
 
 describe("development approval policy", () => {
 	it("does not invoke the approval broker for a write action in dev", async () => {
-		vi.stubEnv("AGENT567_CONFIG_DIR", ".vetta-dev");
+		vi.stubEnv("AGENT567_CONFIG_DIR", ".567agent-dev");
 		vi.stubEnv("AGENT567_DEV_AUTO_APPROVE_ACTIONS", "1");
 		const approvalRequester = { request: vi.fn(async () => ({ approved: false })) };
 		const run = vi.fn(async () => ({ status: "ok" as const }));
@@ -128,13 +128,13 @@ describe("development approval policy", () => {
 		expect(
 			shouldBypassActionApproval(
 				{ source: "local-server" },
-				{ AGENT567_CONFIG_DIR: ".vetta-dev", AGENT567_DEV_AUTO_APPROVE_ACTIONS: "1" },
+				{ AGENT567_CONFIG_DIR: ".567agent-dev", AGENT567_DEV_AUTO_APPROVE_ACTIONS: "1" },
 			),
 		).toBe(true);
 		expect(
 			shouldBypassActionApproval(
 				{ source: "local-server" },
-				{ AGENT567_CONFIG_DIR: ".vetta-dev", AGENT567_DEV_AUTO_APPROVE_ACTIONS: "0" },
+				{ AGENT567_CONFIG_DIR: ".567agent-dev", AGENT567_DEV_AUTO_APPROVE_ACTIONS: "0" },
 			),
 		).toBe(false);
 	});
@@ -149,7 +149,7 @@ describe("development approval policy", () => {
 		expect(
 			shouldBypassActionApproval(
 				{ source: "internal" },
-				{ AGENT567_CONFIG_DIR: ".vetta-dev", AGENT567_DEV_AUTO_APPROVE_ACTIONS: "1" },
+				{ AGENT567_CONFIG_DIR: ".567agent-dev", AGENT567_DEV_AUTO_APPROVE_ACTIONS: "1" },
 			),
 		).toBe(false);
 	});

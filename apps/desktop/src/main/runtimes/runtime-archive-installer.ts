@@ -1,18 +1,23 @@
 import { spawnSync } from "node:child_process";
-import { existsSync } from "node:fs";
+import { chmodSync, existsSync } from "node:fs";
 import { cp, mkdir, mkdtemp, rename, rm, stat } from "node:fs/promises";
-import { basename, dirname, join } from "node:path";
+import { basename, dirname, join, relative } from "node:path";
+import { probeRuntimeExecutable } from "./runtime-health.js";
 
 export interface RuntimeArchiveInstallOptions {
 	archivePath: string;
 	archiveType: "tar.gz" | "zip";
 	innerDirectory: string;
 	targetDirectory: string;
+	executablePath: string;
+	expectedVersion: string;
 }
 
 export interface RuntimeDirectoryInstallOptions {
 	sourceDirectory: string;
 	targetDirectory: string;
+	executablePath: string;
+	expectedVersion: string;
 }
 
 function extractArchive(archivePath: string, destination: string, archiveType: string): void {
@@ -37,6 +42,7 @@ async function installViaStaging(
 	targetDirectory: string,
 	stagingPrefix: string,
 	prepare: (stagingDirectory: string) => Promise<string>,
+	validate: (preparedDirectory: string) => void,
 ): Promise<void> {
 	const targetParent = dirname(targetDirectory);
 	await mkdir(targetParent, { recursive: true });
@@ -48,6 +54,7 @@ async function installViaStaging(
 		if (!preparedInfo?.isDirectory()) {
 			throw new Error(`runtime payload is missing directory: ${preparedDirectory}`);
 		}
+		validate(preparedDirectory);
 
 		await rm(targetDirectory, { recursive: true, force: true });
 		await rename(preparedDirectory, targetDirectory);
@@ -59,10 +66,15 @@ async function installViaStaging(
 }
 
 export async function installRuntimeArchive(options: RuntimeArchiveInstallOptions): Promise<void> {
-	await installViaStaging(options.targetDirectory, "extract", async (stagingDirectory) => {
-		extractArchive(options.archivePath, stagingDirectory, options.archiveType);
-		return join(stagingDirectory, options.innerDirectory);
-	});
+	await installViaStaging(
+		options.targetDirectory,
+		"extract",
+		async (stagingDirectory) => {
+			extractArchive(options.archivePath, stagingDirectory, options.archiveType);
+			return join(stagingDirectory, options.innerDirectory);
+		},
+		(preparedDirectory) => validateRuntimePayload(options, preparedDirectory),
+	);
 }
 
 /**
@@ -71,15 +83,43 @@ export async function installRuntimeArchive(options: RuntimeArchiveInstallOption
  * 复制保留符号链接与权限位，因此二进制上的代码签名不受影响。
  */
 export async function installRuntimeDirectory(options: RuntimeDirectoryInstallOptions): Promise<void> {
-	await installViaStaging(options.targetDirectory, "copy", async (stagingDirectory) => {
-		const preparedDirectory = join(stagingDirectory, "payload");
-		// verbatimSymlinks 不可省：默认会把相对链接（python3 -> python3.13）重写成
-		// 指向源目录的绝对路径，安装后就指回了 app bundle 内部，更新替换 .app 时悬空。
-		await cp(options.sourceDirectory, preparedDirectory, {
-			recursive: true,
-			preserveTimestamps: true,
-			verbatimSymlinks: true,
-		});
-		return preparedDirectory;
-	});
+	await installViaStaging(
+		options.targetDirectory,
+		"copy",
+		async (stagingDirectory) => {
+			const preparedDirectory = join(stagingDirectory, "payload");
+			// verbatimSymlinks 不可省：默认会把相对链接（python3 -> python3.13）重写成
+			// 指向源目录的绝对路径，安装后就指回了 app bundle 内部，更新替换 .app 时悬空。
+			await cp(options.sourceDirectory, preparedDirectory, {
+				recursive: true,
+				preserveTimestamps: true,
+				verbatimSymlinks: true,
+			});
+			return preparedDirectory;
+		},
+		(preparedDirectory) => validateRuntimePayload(options, preparedDirectory),
+	);
+}
+
+function validateRuntimePayload(
+	options: Pick<
+		RuntimeArchiveInstallOptions | RuntimeDirectoryInstallOptions,
+		"executablePath" | "expectedVersion" | "targetDirectory"
+	>,
+	preparedDirectory: string,
+): void {
+	const executablePath = join(preparedDirectory, relative(options.targetDirectory, options.executablePath));
+	if (process.platform !== "win32") {
+		try {
+			chmodSync(executablePath, 0o755);
+		} catch {
+			// The health probe below reports a useful failure while preserving the old install.
+		}
+	}
+	const health = probeRuntimeExecutable(executablePath, options.expectedVersion);
+	if (!health.ready) {
+		throw new Error(
+			`runtime health check failed (${options.expectedVersion}): ${health.error ?? "version mismatch"}`,
+		);
+	}
 }

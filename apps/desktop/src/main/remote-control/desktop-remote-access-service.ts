@@ -1,7 +1,11 @@
 import { hostname } from "node:os";
 import type { RemoteConnectionState } from "@567agent/remote-control";
 import { RemoteConnection, WebSocketRemoteTransport } from "@567agent/remote-control";
+import { app } from "electron";
+import { readAbilityLedger } from "../abilities/ability-ledger.js";
+import { getOpenMarketplaceManager } from "../abilities/open-marketplace/open-marketplace-manager.js";
 import { getDesktopConversationService } from "../conversations/desktop-conversation-service.js";
+import { resolveDesktopRuntimeSessionRoots } from "../conversations/session-catalog-roots.js";
 import { getAppLogger } from "../logger.js";
 import { getDesktopModelSettingsService } from "../models/model-settings-host.js";
 import { readPluginBlobRange } from "../plugins/plugin-storage-service.js";
@@ -17,6 +21,7 @@ export interface DesktopRemoteAccessOptions {
 	readonly controlTargets?: readonly {
 		readonly target: string;
 		readonly webSocketCaCertificate?: string;
+		readonly allowSessionMigrationTransfer?: boolean;
 	}[];
 	readonly conversationCwd: string;
 	readonly onStateChange?: (state: RemoteConnectionState) => void;
@@ -28,6 +33,7 @@ interface ActiveConnector {
 	readonly options: DesktopRemoteAccessOptions & {
 		readonly target: string;
 		readonly webSocketCaCertificate?: string;
+		readonly allowSessionMigrationTransfer?: boolean;
 	};
 	reconnectTimer?: ReturnType<typeof setTimeout>;
 	reconnectPending: boolean;
@@ -66,7 +72,11 @@ export async function stopDesktopRemoteAccess(): Promise<void> {
 
 async function connect(
 	baseOptions: DesktopRemoteAccessOptions,
-	target: { readonly target: string; readonly webSocketCaCertificate?: string },
+	target: {
+		readonly target: string;
+		readonly webSocketCaCertificate?: string;
+		readonly allowSessionMigrationTransfer?: boolean;
+	},
 	key: string,
 	runGeneration: number,
 ): Promise<void> {
@@ -91,8 +101,50 @@ async function connect(
 	);
 	const operations = new DesktopConversationRemoteOperations(getDesktopConversationService(), {
 		cwd: options.conversationCwd,
+		sessionRoots: resolveDesktopRuntimeSessionRoots(),
 		readDefaultModelKey: async () => (await getDesktopModelSettingsService().getConfig()).defaultModel,
 		readGeneratedImageChunk: (id, offset, length) => readPluginBlobRange("image-gen", id, offset, length),
+		readToolbox: async () => {
+			const catalog = await getOpenMarketplaceManager(app.getVersion()).list();
+			const ledger = readAbilityLedger();
+			const listed = catalog.abilities.slice(0, 300).map((ability) => ({
+				slug: ability.slug,
+				type: ability.type,
+				name: ability.name,
+				description: ability.description.slice(0, 600),
+				version: ability.version,
+				author: ability.author,
+				category: ability.category,
+				tags: ability.tags.slice(0, 12),
+				installable: ability.installable !== false && ["skill", "scene", "plugin"].includes(ability.type),
+				installed: Boolean(ledger[`${ability.type}:${ability.slug}`]),
+			}));
+			const listedKeys = new Set(listed.map((ability) => `${ability.type}:${ability.slug}`));
+			const installedLocal = Object.entries(ledger).flatMap(([key, entry]) => {
+				const separator = key.indexOf(":");
+				if (separator <= 0) return [];
+				const type = key.slice(0, separator);
+				const slug = key.slice(separator + 1);
+				if (listedKeys.has(key) || !["skill", "scene", "plugin", "mcp"].includes(type)) return [];
+				return [
+					{
+						slug,
+						type: type as "skill" | "scene" | "mcp" | "plugin",
+						name: slug,
+						description: "已安装在这台电脑上；详细配置请在桌面端管理。",
+						version: entry.version,
+						author: "",
+						category: "已安装",
+						tags: [],
+						installable: false,
+						installed: true,
+					},
+				];
+			});
+			return [...listed, ...installedLocal].slice(0, 400);
+		},
+		installToolbox: (type, slug) => getOpenMarketplaceManager(app.getVersion()).install(type, slug),
+		allowSessionMigrationTransfer: options.allowSessionMigrationTransfer === true,
 	});
 	const connector = new DesktopRemoteConnector(connection, operations);
 	const unsubscribe = connection.onEvent((event) => {

@@ -16,7 +16,7 @@ import (
 // defaults from internal/config.
 type Options struct {
 	// Bin is the path to the coding-agent binary. If empty, defaults to
-	// "vetta" (the published binary name) and PATH lookup is used.
+	// "567-agent-rpc" and PATH lookup is used (with a legacy vetta fallback).
 	Bin string
 
 	// HandshakeTimeout bounds OpenSession.
@@ -34,7 +34,7 @@ type Options struct {
 	// to match desktop-app's `resolveSessionDirForCwd` convention so
 	// IM-created session .jsonl files appear in the desktop sidebar
 	// under the default "对话" project. Empty → coding-agent falls back
-	// to `~/.vetta/agent/sessions/<encoded-cwd>/`.
+	// to `~/.567agent/agent/sessions/<encoded-cwd>/`.
 	SessionDir string
 
 	// BinPrefixArgs are prepended to the spawned subprocess's argv
@@ -66,8 +66,9 @@ type Options struct {
 }
 
 const (
-	defaultBin = "vetta"
-	// Cold-start budget: the desktop host's agent binary is Vetta.app itself,
+	defaultBin       = "567-agent-rpc"
+	legacyDefaultBin = "vetta-agent-rpc"
+	// Cold-start budget: the desktop host's agent binary is 567 Agent itself,
 	// whose first spawn after launch/update takes ~10s (Electron + asar) vs
 	// ~1s warm. Keep in sync with config.DefaultHandshakeTimeout.
 	defaultHandshakeTimeout = 30 * time.Second
@@ -132,7 +133,15 @@ func (c *Client) OpenSession(ctx context.Context, cwd, sessionPath string) (host
 			args = append(args, "--memory-file", c.opts.MemoryFile)
 		}
 	}
-	cmd := exec.CommandContext(ctx, c.opts.Bin, args...)
+	bin := c.opts.Bin
+	if bin == defaultBin {
+		if _, err := exec.LookPath(bin); err != nil {
+			if _, legacyErr := exec.LookPath(legacyDefaultBin); legacyErr == nil {
+				bin = legacyDefaultBin
+			}
+		}
+	}
+	cmd := exec.CommandContext(ctx, bin, args...)
 	// CRITICAL: explicitly set the subprocess's working directory.
 	// Without this Go's exec.Cmd makes the child inherit the parent's
 	// cwd (= wherever `im-gateway start` was launched from). The agent's

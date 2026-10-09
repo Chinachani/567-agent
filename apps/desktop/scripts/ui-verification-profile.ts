@@ -22,7 +22,7 @@ export interface UiVerificationProfileLayout {
   workspaceId: string;
   sessionName: string;
   configDir: string;
-  vettaHome: string;
+  agent567Home: string;
   userDataDir: string;
   endpointFile: string;
   runtimeDir: string;
@@ -96,15 +96,15 @@ export function resolveProfileLayout(
   const profileRuntimeDir = join(runtimeRoot, options.profile);
 
   if (options.profile === "dev") {
-    const vettaHome = join(homeDirectory, ".vetta-dev");
+    const agent567Home = join(homeDirectory, ".567agent-dev");
     return {
       profile: options.profile,
       workspaceId: options.workspaceId,
-      sessionName: `vetta-dev-${options.workspaceId}`,
-      configDir: ".vetta-dev",
-      vettaHome,
-      userDataDir: join(vettaHome, "electron-user-data"),
-      endpointFile: join(vettaHome, "action-server.json"),
+      sessionName: `567agent-dev-${options.workspaceId}`,
+      configDir: ".567agent-dev",
+      agent567Home,
+      userDataDir: join(agent567Home, "electron-user-data"),
+      endpointFile: join(agent567Home, "action-server.json"),
       runtimeDir: profileRuntimeDir,
       statePath: null,
       artifactDir: join(runtimeRoot, "artifacts", "dev"),
@@ -114,19 +114,19 @@ export function resolveProfileLayout(
   }
 
   const runId = options.profile === "fresh" ? options.runId ?? randomUUID() : null;
-  const vettaHome =
+  const agent567Home =
     options.profile === "fresh"
       ? join(profileRuntimeDir, "runs", runId as string, "home")
-      : join(homeDirectory, ".vetta-ui-debug", options.workspaceId);
-  const configDir = `.vetta-ui-${options.profile}-${options.workspaceId}`;
+      : join(homeDirectory, ".567agent-ui-debug", options.workspaceId);
+  const configDir = `.567agent-ui-${options.profile}-${options.workspaceId}`;
 
   return {
     profile: options.profile,
     workspaceId: options.workspaceId,
     sessionName: `vetta-${options.profile}-${options.workspaceId}`,
     configDir,
-    vettaHome,
-    userDataDir: join(vettaHome, "electron-user-data"),
+    agent567Home,
+    userDataDir: join(agent567Home, "electron-user-data"),
     endpointFile: join(profileRuntimeDir, "action-server.json"),
     runtimeDir: profileRuntimeDir,
     statePath: join(profileRuntimeDir, "host.json"),
@@ -143,8 +143,8 @@ export function createProfileEnvironment(
   const profileEnvironment: NodeJS.ProcessEnv = {
     ...environment,
     AGENT567_CONFIG_DIR: layout.configDir,
-    AGENT567_HOME: layout.vettaHome,
-    AGENT567_CODING_AGENT_DIR: join(layout.vettaHome, "agent"),
+    AGENT567_HOME: layout.agent567Home,
+    AGENT567_CODING_AGENT_DIR: join(layout.agent567Home, "agent"),
     AGENT567_DESKTOP_USER_DATA_DIR: layout.userDataDir,
     AGENT567_ACTION_RPC_ENDPOINT_FILE: layout.endpointFile,
     AGENT567_THEME_DEV_SERVER: "0",

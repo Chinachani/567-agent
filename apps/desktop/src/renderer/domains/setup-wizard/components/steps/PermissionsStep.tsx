@@ -49,7 +49,7 @@ export function PermissionsStep(): JSX.Element {
 
 	const refresh = useCallback(async () => {
 		try {
-			setSnapshot(await window.vetta.permissions.checkAll());
+			setSnapshot(await window.agent567.permissions.checkAll());
 			setError(null);
 		} catch (err) {
 			setError(err instanceof Error ? err.message : String(err));
@@ -67,7 +67,7 @@ export function PermissionsStep(): JSX.Element {
 
 	const openPane = useCallback(async (kind: PermissionKind) => {
 		try {
-			await window.vetta.permissions.openPane(kind);
+			await window.agent567.permissions.openPane(kind);
 		} catch (err) {
 			setError(err instanceof Error ? err.message : String(err));
 		}
@@ -75,7 +75,7 @@ export function PermissionsStep(): JSX.Element {
 
 	const openComputerUse = useCallback(async () => {
 		try {
-			await window.vetta.appshot.openOnboarding();
+			await window.agent567.appshot.openOnboarding();
 		} catch (err) {
 			setError(err instanceof Error ? err.message : String(err));
 		}

@@ -1,10 +1,10 @@
 import { join } from "node:path";
-import { getVettaHomePath } from "@567agent/action-rpc";
+import { getAgent567HomePath } from "@567agent/action-rpc";
 import { getAppLogger } from "../../logger.js";
 import { ManagedHttpRuntimeService, type ManagedHttpRuntimeSpec } from "./open-marketplace-managed-http-runtime.js";
 import { OpenMarketplaceMcpRuntimeInstaller } from "./open-marketplace-mcp-runtime.js";
 
-const mcpRuntimeRoot = join(getVettaHomePath(), "abilities", "mcp");
+const mcpRuntimeRoot = join(getAgent567HomePath(), "abilities", "mcp");
 export const openMarketplaceMcpRuntimeInstaller = new OpenMarketplaceMcpRuntimeInstaller({ rootDir: mcpRuntimeRoot });
 const runtimeService = new ManagedHttpRuntimeService({
 	rootDir: mcpRuntimeRoot,

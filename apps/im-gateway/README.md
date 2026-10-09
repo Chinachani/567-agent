@@ -1,82 +1,35 @@
 # im-gateway
 
-> Drive your local vetta coding-agent from IM platforms (Feishu first).
+`im-gateway` connects configured messaging channels to a local 567 Agent runtime. In the desktop application it runs as a bundled sidecar, managed from **Settings → IM integration**. Its lifetime follows the desktop application; users do not need to install or run the sidecar separately.
 
-Bridges instant messaging platforms (Feishu, with Telegram / DingTalk planned) to a locally running [`coding-agent`](../coding-agent) instance. Lets you talk to your local AI from your phone or desktop IM client without opening the desktop app, while keeping all code, tools, and credentials on your machine.
+## Runtime modes
 
-## Deployment model
+| Mode | Purpose |
+| --- | --- |
+| `host` | Desktop managed mode. Reads the host protocol from stdin and writes events to stdout. |
+| `start`, `init`, `status`, `logs` | Standalone developer and diagnostic commands. Run `im-gateway --help` for the current command options. |
 
-`im-gateway` is **embedded** as a sidecar inside `567 Agent.app`. End users do **not** install or configure this binary directly — they enable IM bridging from `Settings → IM 集成` in the desktop app, fill in their feishu credentials, and the desktop main process spawns this binary as a child process.
+The desktop application owns configuration and credentials for bundled use. Standalone mode reads its configuration from the user's 567 Agent data directory. Do not copy production credentials into test or development profiles.
 
-The sidecar's lifecycle is strictly bound to the desktop app: completely quitting 567 Agent (including the tray icon) terminates the sidecar and stops receiving feishu events. There is no `launchd` / `systemd` daemon mode, by design.
+## Channel support
 
-## Subcommands
+The repository contains transports for Feishu, Telegram, Slack, Discord, Signal, iMessage, WeChat, and WhatsApp. Which channel can be enabled depends on the current desktop build, operating system, provider setup, and channel configuration. Follow the channel-specific setup instructions under [`docs/`](docs/) and the settings shown by the application; the presence of a transport in source does not guarantee availability on every platform.
 
-| Subcommand | Audience | Purpose |
-|---|---|---|
-| `host` | **End users** (driven by desktop) | Embedded mode. Reads NDJSON config from stdin, emits NDJSON events on stdout. Lifecycle bound to parent process. No filesystem state. |
-| `start` | Developers | Standalone mode. Reads `~/.vetta/im-gateway/config.yaml`. Useful for local debugging of router / bridge / transport without running the full desktop app. |
-| `init` | Developers | Generate yaml config templates for `start` mode. |
-| `status` / `logs` | Developers | Inspect a running `start`-mode process. |
+Text and attachment handling is transport-specific. Consult the corresponding transport documentation and verify platform limits before sending large files. Group behavior, message editing, and rich media support also vary by channel.
 
-The `host` subcommand is the only one wired into the user deployment path. Everything else exists for hacking on im-gateway internals.
+## Development
 
-## Status
+The gateway uses Go. From this directory:
 
-**Pre-alpha.** First milestone focuses on personal mode plus Feishu, with the desktop app embedding `im-gateway` as a sidecar.
-
-## How it works
-
-```
-┌──────────────┐    ┌─────────────────┐    ┌────────────────────────┐
-│  Feishu /    │───▶│  im-gateway     │───▶│ coding-agent --mode    │
-│  Telegram    │    │  (this package) │    │ rpc (subprocess pool)  │
-│  ...         │    │                 │    │                        │
-└──────────────┘    └─────────────────┘    └────────────────────────┘
-                            │                        │
-                            ▼                                ▼
-                    ~/.vetta/im-gateway/         ~/.vetta/conversation/
-                    state.json                   .vetta/sessions/<id>.jsonl
-                    config.yaml                  (shared with desktop's
-                                                  default "对话" project)
+```bash
+go test ./...
+go build ./...
 ```
 
-- **All IM sessions live in `~/.vetta/conversation`** — the same default "对话" project desktop uses, so a conversation started in IM shows up in the desktop sidebar (with an "IM" badge) and vice-versa. No `/projects` / `/use` switching.
-- **Same session files** as the desktop app — pick up a conversation in IM, continue it on your laptop, single-writer enforced via the `<file>.lock` protocol added to `SessionManager`
-- **Routes by `(im_user, chatID)`** — private chat and group chat are independent sessions for the same user
-- **Process pool** keyed by absolute session path; LRU eviction; one subprocess per active conversation
-- **Transport interface** so adding telegram / dingtalk later is purely additive
+When changing the host protocol, keep the desktop counterpart in `apps/desktop/src/main/im-host/host-protocol.ts` aligned. The runtime RPC contract is documented in [`packages/coding-agent/docs/rpc.md`](../../packages/coding-agent/docs/rpc.md).
 
-## Architecture
+## Related documentation
 
-```
-internal/
-  transport/    # IMTransport interface + feishu / mock implementations
-  command/      # /new /whoami /help command parser
-  router/       # (im_user, chatID) → session routing in conversationCwd
-  bridge/       # agent event stream → IM message translation
-  hostclient/   # HostClient interface + local (subprocess) implementation
-  state/        # router state persistence (atomic write)
-  config/       # yaml + env + keychain credential loader
-  logger/       # zap-based structured logging
-cmd/
-  im-gateway/   # CLI entry: start / init / status / logs
-docs/           # feishu-setup, troubleshooting
-```
-
-## Reference docs
-
-| Document | Purpose |
-|---|---|
-| [docs/feishu-setup.md](docs/feishu-setup.md) | Feishu app setup checklist for local debugging |
-| [docs/troubleshooting.md](docs/troubleshooting.md) | Common runtime failures and recovery steps |
-| [docs/ilink-protocol.md](docs/ilink-protocol.md) | Reverse-engineered iLink protocol notes for the WeChat transport |
-| [packages/coding-agent/docs/rpc.md](../../packages/coding-agent/docs/rpc.md) | The JSON protocol this gateway speaks to drive sessions |
-
-## First-milestone scope (Non-Goals)
-
-- ❌ Group chat (private chat first; groups in a follow-up change)
-- ❌ Image / file attachments
-- ❌ Enterprise / multi-tenant mode (interface preserves the extension point)
-- ❌ Windows (macOS + linux first)
-- ❌ Modifying `desktop` / `coding-agent` / `api`
+- [`docs/feishu-setup.md`](docs/feishu-setup.md)
+- [`docs/troubleshooting.md`](docs/troubleshooting.md)
+- [`docs/ilink-protocol.md`](docs/ilink-protocol.md)

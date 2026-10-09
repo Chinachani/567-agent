@@ -83,7 +83,7 @@ export function TeamSettingsSheet({
 		if (!open) return;
 		let active = true;
 		setMemberModels({});
-		void window.vetta.agentTeams.listMemberModels(team.id).then((models) => {
+		void window.agent567.agentTeams.listMemberModels(team.id).then((models) => {
 			if (active) setMemberModels(models);
 		}).catch((cause: unknown) => {
 			if (active) setModelError(cause instanceof Error ? cause.message : String(cause));
@@ -95,7 +95,7 @@ export function TeamSettingsSheet({
 		setModelSaving(memberId);
 		setModelError(undefined);
 		try {
-			setMemberModels(await window.vetta.agentTeams.setMemberModel(team.id, memberId, selection));
+			setMemberModels(await window.agent567.agentTeams.setMemberModel(team.id, memberId, selection));
 		} catch (cause) {
 			setModelError(cause instanceof Error ? cause.message : String(cause));
 		} finally {

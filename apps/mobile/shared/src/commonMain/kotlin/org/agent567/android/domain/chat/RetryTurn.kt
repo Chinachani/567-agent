@@ -3,6 +3,7 @@ package org.agent567.android.domain.chat
 import org.agent567.android.core.model.ChatRole
 import org.agent567.android.domain.session.LocalMessage
 import org.agent567.android.domain.session.MessageImage
+import org.agent567.android.domain.session.MessageFileAttachment
 import org.agent567.android.domain.session.MessageStatus
 
 /**
@@ -14,6 +15,7 @@ data class RetryTurn(
     val remainingMessages: List<LocalMessage>,
     val draft: String,
     val images: List<MessageImage>,
+    val files: List<MessageFileAttachment>,
 )
 
 /**
@@ -37,6 +39,7 @@ fun prepareRetryTurn(messages: List<LocalMessage>, assistantMessageId: String? =
             messages.filterNot { it.id == lastAssistant.id || it.id == lastUser.id },
         draft = lastUser.content,
         images = lastUser.images,
+        files = lastUser.files,
     )
 }
 

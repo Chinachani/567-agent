@@ -6,7 +6,7 @@
 
 | 范围 | 路径 |
 |------|------|
-| 全局 | `~/.vetta/agent/mcp.json` |
+| 全局 | `~/.567agent/agent/mcp.json` |
 | 项目 | `<cwd>/.vetta/mcp.json` |
 
 项目覆盖同名全局项。示例：`mcp.example.json`。
@@ -31,7 +31,7 @@
 ```
 
 - `env` 支持 `${VAR}`；`cwd` 支持 `${PROJECT_ROOT}`。
-- HTTP 远程 server 由运行时支持（含 OAuth 流程时凭证在 `~/.vetta/agent/mcp-auth/`，不写回 `mcp.json`）。
+- HTTP 远程 server 由运行时支持（含 OAuth 流程时凭证在 `~/.567agent/agent/mcp-auth/`，不写回 `mcp.json`）。
 - 插件可贡献第三配置源（不回写用户文件），命名 `plugin-<id>-<local>`。见仓库 ADR-0040。
 
 ## 行为

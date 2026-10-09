@@ -143,7 +143,7 @@ it("keeps bundle-only members out of discovery and its banner while preserving d
 	await waitFor(() => expect(result.current.refreshing).toBe(false));
 	installed = { guide: { name: "guide", version: "1.0.0", installedAt: "2026-08-30", enabled: false, source: "market", type: "skill" } };
 	// Supply the stable source identity of an already installed member, as recorded before unlisting.
-	window.vetta.abilities.getLedger = async () => ({ "skill:guide": { type: "skill", version: "1.0.0", configVersion: 1, installedAt: "2026-08-30", origin: base.origin, catalogId: guideId, slug: "guide" } });
+	window.agent567.abilities.getLedger = async () => ({ "skill:guide": { type: "skill", version: "1.0.0", configVersion: 1, installedAt: "2026-08-30", origin: base.origin, catalogId: guideId, slug: "guide" } });
 	act(() => { result.current.setSearchQuery(""); result.current.setScope("mine"); result.current.refresh(); });
 	await waitFor(() => expect(result.current.findById(guideId)).toMatchObject({ id: guideId, installed: true, enabled: false, needsUpdate: true }));
 	expect(result.current.items.filter((item) => item.id === guideId)).toHaveLength(0);

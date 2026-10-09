@@ -19,7 +19,7 @@ export function AgentAvatarPicker({ value, onChange }: AgentAvatarPickerProps): 
 		setUploading(true);
 		setError(undefined);
 		try {
-			const uploaded = await window.vetta.agentTeams.uploadAvatar();
+			const uploaded = await window.agent567.agentTeams.uploadAvatar();
 			if (uploaded) onChange(uploaded);
 		} catch (cause) {
 			setError(t("profile.avatarUploadFailed", { error: cause instanceof Error ? cause.message : String(cause) }));

@@ -20,7 +20,7 @@ export function useGlobalShortcuts(handler: ShortcutHandler): {
 
 	useEffect(() => {
 		void loadShortcutBindings().then(setCustomShortcuts);
-		const unsubscribe = window.vetta.config.onShortcutsChanged((event) => {
+		const unsubscribe = window.agent567.config.onShortcutsChanged((event) => {
 			setCustomShortcuts(event.bindings ?? {});
 		});
 		return unsubscribe;
@@ -61,7 +61,7 @@ export function useEffectiveShortcut(actionId: Parameters<typeof getEffectiveSho
 		void loadShortcutBindings().then((bindings) => {
 			if (mounted) setCustomShortcuts(bindings);
 		});
-		const unsubscribe = window.vetta.config.onShortcutsChanged?.((event) => {
+		const unsubscribe = window.agent567.config.onShortcutsChanged?.((event) => {
 			setCustomShortcuts(event.bindings ?? {});
 		});
 		return () => {

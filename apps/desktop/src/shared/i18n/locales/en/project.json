@@ -42,7 +42,21 @@
 			"emptyClawTitle": "No Claw records yet",
 			"emptyTagTitle": "No conversations with this tag",
 			"emptyTagDescription": "Tag a conversation from its context menu",
-			"emptyClawDescription": "Chat with Claw via WeChat, Feishu, and other channels to see records here"
+			"emptyClawDescription": "Chat with Claw via WeChat, Feishu, and other channels to see records here",
+			"batchSelect": "Select conversations",
+			"batchSelected": "{{count}} selected",
+			"batchSelectAll": "Select all",
+			"batchClearSelection": "Clear selection",
+			"batchDelete": "Delete",
+			"batchExport": "Export backup",
+			"batchPassword": "Backup password (8–128 characters)",
+			"batchCancel": "Cancel",
+			"batchPasswordLength": "Enter a backup password between 8 and 128 characters.",
+			"batchExported": "Exported {{count}} conversations.",
+			"batchDeleteTitle": "Delete selected conversations",
+			"batchDeleteMessage": "Permanently delete {{count}} conversations and their history? This cannot be undone.",
+			"batchDeleteConfirm": "Delete permanently",
+			"batchDeletePartial": "{{count}} conversations could not be deleted and remain selected."
 		},
 		"teams": {
 			"title": "Teams",
@@ -166,7 +180,7 @@
 	},
 	"exportDialog": {
 		"title": "Export project",
-		"message": "Export project \"{{name}}\"?\n\nThis will package all files under the current project directory, including .vetta/sessions history and batch task working directories and state. File locks (*.lock) are excluded.",
+		"message": "Export project \"{{name}}\"?\n\nThis will package all files under the current project directory, including .567agent/sessions history and batch task working directories and state. File locks (*.lock) are excluded.",
 		"confirm": "Export",
 		"failedTitle": "Export failed",
 		"failedConfirm": "OK"

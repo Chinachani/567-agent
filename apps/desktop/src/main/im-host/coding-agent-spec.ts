@@ -74,7 +74,7 @@ export function buildCodingAgentSpec(opts: BuildCodingAgentSpecOptions = {}): Co
 
 	// Inject the host's compile-time server URL into the subprocess env.
 	// coding-agent's main.ts reads `process.env.API567_BASE_URL` ahead of
-	// `~/.vetta/agent/settings.json`, which avoids the prod failure where a
+	// `~/.567agent/agent/settings.json`, which avoids the prod failure where a
 	// stale `serverUrl` (e.g. left over from a dev/LAN login) causes
 	// `loadRemoteModels` to 401 against the wrong gateway — remote providers
 	// (vetta-go et al.) disappear and the agent exits with

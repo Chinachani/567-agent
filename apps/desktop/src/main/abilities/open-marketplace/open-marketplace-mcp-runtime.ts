@@ -145,7 +145,7 @@ async function downloadArtifact(
 	const timer = setTimeout(() => controller.abort(), DOWNLOAD_TIMEOUT_MS);
 	try {
 		const response = await fetchArtifact(url, {
-			headers: { Accept: "application/octet-stream", "User-Agent": "Vetta-Desktop" },
+			headers: { Accept: "application/octet-stream", "User-Agent": "567-Agent-Desktop" },
 			redirect: "follow",
 			signal: controller.signal,
 		});

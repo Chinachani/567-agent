@@ -107,7 +107,7 @@ export function createOfficialModelsApi(
 	assertOfficial: () => void,
 	capabilitySessionId: string,
 ): PluginOfficialApi["models"] {
-	const models = window.vetta.plugins.internalCapabilities.models;
+	const models = window.agent567.plugins.internalCapabilities.models;
 	const listMerged = async (): Promise<{
 		defaultModel: string | null;
 		providers: PluginOfficialProviderSummary[];

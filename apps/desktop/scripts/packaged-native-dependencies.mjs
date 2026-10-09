@@ -21,9 +21,9 @@ const DEFINITIONS = [
 	// 远程接入的中继连接（desktop-websocket）在主进程顶层静态 import，必须随包分发。
 	// 纯 JS，无平台差异，也不需要 unpack。
 	{ name: "ws", platforms: "all", unpack: false },
-	// Windows 远程输入注入通过 koffi 调用 user32.dll：原生模块（dlopen），必须 unpack。
-	// 只有 win32 产物会走到这条路径（createRequire 懒加载）。
-	{ name: "koffi", platforms: ["win32"], unpack: true },
+	// 远程输入注入在 Windows、macOS 和 Linux X11 上都通过 koffi 调用系统 API。
+	// 原生模块必须随目标平台构建并 unpack。
+	{ name: "koffi", platforms: "all", unpack: true },
 ];
 
 function matchesPlatform(definition, platformFamilies) {

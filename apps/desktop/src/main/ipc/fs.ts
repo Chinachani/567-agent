@@ -43,7 +43,7 @@ import {
 	normalizeQuickPanel,
 	normalizeShortcuts,
 	type ProjectEntry,
-	persistVettaCliPaths,
+	persistAgent567CliPaths,
 	type QuickPanelConfig,
 	type QuickPanelTrigger,
 	readConfigSync,
@@ -88,11 +88,11 @@ export interface LinuxSandboxConfigState {
 export interface DesktopConfigSnapshot extends DesktopConfig {
 	sandbox: SandboxCapability;
 	linuxSandbox: LinuxSandboxConfigState;
-	/** 默认「对话」项目的绝对路径（~/.vetta/conversation），主进程已确保目录存在。 */
+	/** 默认「对话」项目的绝对路径（~/.567agent/conversation），主进程已确保目录存在。 */
 	defaultConversationCwd: string;
-	/** im-gateway 自己的 cwd（~/.vetta/im-gateway/conversation）。Claw tab 据此判定一条 session 是否来自 IM。 */
+	/** im-gateway 自己的 cwd（~/.567agent/im-gateway/conversation）。Claw tab 据此判定一条 session 是否来自 IM。 */
 	defaultImConversationCwd: string;
-	/** 知识库加工特殊项目的绝对路径（~/.vetta/knowledges/processing_records）。 */
+	/** 知识库加工特殊项目的绝对路径（~/.567agent/knowledges/processing_records）。 */
 	knowledgeProcessingCwd: string;
 }
 
@@ -108,7 +108,7 @@ export {
 	KB_PROCESSING_CWD,
 	KB_PROCESSING_SESSION_DIR,
 	type KnowledgeBaseConfig,
-	persistVettaCliPaths,
+	persistAgent567CliPaths,
 	type ProjectEntry,
 	type QuickPanelConfig,
 	type QuickPanelTrigger,
@@ -422,8 +422,8 @@ export function registerFsIpc(): () => void {
 						? normalizeAgentMode(patch.defaultAgentMode)
 						: current.defaultAgentMode,
 				debugMode: patch.debugMode ?? current.debugMode,
-				vettaAppPath: patch.vettaAppPath ?? current.vettaAppPath,
-				vettaCliAppPath: patch.vettaCliAppPath ?? current.vettaCliAppPath,
+				agent567AppPath: patch.agent567AppPath ?? patch.vettaAppPath ?? current.agent567AppPath,
+				agent567CliAppPath: patch.agent567CliAppPath ?? patch.vettaCliAppPath ?? current.agent567CliAppPath,
 				notificationsEnabled: patch.notificationsEnabled ?? current.notificationsEnabled,
 				language: patch.language ?? current.language,
 				experimental:

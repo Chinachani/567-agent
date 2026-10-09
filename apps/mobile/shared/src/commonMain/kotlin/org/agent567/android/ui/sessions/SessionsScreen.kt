@@ -38,11 +38,11 @@ import org.agent567.android.domain.device.SessionListItem
 import org.agent567.android.ui.components.FilterChipRow
 import org.agent567.android.ui.components.EmptyState
 import org.agent567.android.ui.components.ListRow
-import org.agent567.android.ui.components.VettaTextField
-import org.agent567.android.ui.components.VettaConfirmDialog
-import org.agent567.android.ui.components.VettaTextInputDialog
+import org.agent567.android.ui.components.Agent567TextField
+import org.agent567.android.ui.components.Agent567ConfirmDialog
+import org.agent567.android.ui.components.Agent567TextInputDialog
 import org.agent567.android.ui.i18n.Str
-import org.agent567.android.ui.theme.vettaExtra
+import org.agent567.android.ui.theme.agent567Extra
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -59,6 +59,7 @@ fun SessionsScreen(
     confirmBeforeDelete: Boolean = true,
     desktopSessionsLoading: Boolean = false,
     desktopSessionsError: String? = null,
+    desktopSessionsWarning: String? = null,
     onRefreshDesktopSessions: () -> Unit = {},
     onRefreshSessions: () -> Unit = onRefreshDesktopSessions,
 ) {
@@ -80,7 +81,7 @@ fun SessionsScreen(
         }
 
     Scaffold(
-        containerColor = MaterialTheme.vettaExtra.pageBackground,
+        containerColor = MaterialTheme.agent567Extra.pageBackground,
         topBar = {
             TopAppBar(
                 title = { Text(Str.sessionsTitle, style = MaterialTheme.typography.titleMedium) },
@@ -94,7 +95,7 @@ fun SessionsScreen(
                 },
                 colors =
                     TopAppBarDefaults.topAppBarColors(
-                        containerColor = MaterialTheme.vettaExtra.pageBackground,
+                        containerColor = MaterialTheme.agent567Extra.pageBackground,
                     ),
             )
         },
@@ -105,7 +106,7 @@ fun SessionsScreen(
                 .fillMaxSize()
                 .padding(horizontal = 16.dp),
         ) {
-            VettaTextField(
+            Agent567TextField(
                 value = query,
                 onValueChange = onQueryChange,
                 modifier = Modifier.fillMaxWidth(),
@@ -127,13 +128,21 @@ fun SessionsScreen(
                     modifier = Modifier.padding(vertical = 6.dp),
                 )
             }
+            if (filterIndex == 1 && !desktopSessionsWarning.isNullOrBlank()) {
+                Text(
+                    desktopSessionsWarning,
+                    color = MaterialTheme.colorScheme.tertiary,
+                    style = MaterialTheme.typography.bodySmall,
+                    modifier = Modifier.padding(vertical = 6.dp),
+                )
+            }
             Spacer(Modifier.height(12.dp))
             if (filtered.isEmpty() && filterIndex == 1 && desktopSessionsLoading) {
                 Box(Modifier.fillMaxSize(), contentAlignment = androidx.compose.ui.Alignment.Center) {
                     androidx.compose.foundation.layout.Column(horizontalAlignment = androidx.compose.ui.Alignment.CenterHorizontally) {
                         CircularProgressIndicator()
                         Spacer(Modifier.height(12.dp))
-                        Text(Str.loadingDesktopSessions, color = MaterialTheme.vettaExtra.secondaryText)
+                        Text(Str.loadingDesktopSessions, color = MaterialTheme.agent567Extra.secondaryText)
                     }
                 }
             } else if (filtered.isEmpty()) {
@@ -157,7 +166,7 @@ fun SessionsScreen(
                                         Icon(
                                             Icons.Default.MoreVert,
                                             contentDescription = Str.sessionActions,
-                                            tint = MaterialTheme.vettaExtra.secondaryText,
+                                            tint = MaterialTheme.agent567Extra.secondaryText,
                                         )
                                     }
                                     DropdownMenu(
@@ -201,7 +210,7 @@ fun SessionsScreen(
     }
 
     renameTarget?.let { target ->
-        VettaTextInputDialog(
+        Agent567TextInputDialog(
             title = Str.renameSession,
             value = renameTitle,
             label = Str.sessionName,
@@ -215,7 +224,7 @@ fun SessionsScreen(
     }
 
     deleteTarget?.let { target ->
-        VettaConfirmDialog(
+        Agent567ConfirmDialog(
             title = Str.deleteSession,
             message = Str.deleteSessionConfirm,
             confirmLabel = Str.delete,

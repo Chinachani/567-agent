@@ -1,5 +1,5 @@
 import { cn } from "@vetta-org/ui";
-import type { JSX, Ref } from "react";
+import type { JSX, ReactNode, Ref } from "react";
 import { RunningPulseDot } from "../sidebar/RunningPulseDot";
 import { PROJECT_TYPE_ICONS, type ProjectTypeIconKey } from "./types";
 
@@ -18,6 +18,7 @@ export interface ProjectRowViewProps {
 	onOpenContextMenu: (event: React.MouseEvent) => void;
 	projectCwd: string;
 	projectType: ProjectTypeIconKey;
+	trailingAction?: ReactNode;
 	rowRef?: Ref<HTMLDivElement>;
 }
 
@@ -36,6 +37,7 @@ export function ProjectRowView({
 	onOpenContextMenu,
 	projectCwd,
 	projectType,
+	trailingAction,
 	rowRef,
 }: ProjectRowViewProps): JSX.Element {
 	return (
@@ -85,7 +87,8 @@ export function ProjectRowView({
 			>
 				{displayName}
 			</button>
-			<div className="relative flex shrink-0 items-center">
+			<div className="relative flex shrink-0 items-center gap-1">
+				{trailingAction}
 				{badge && (
 					<span className="rounded-sm bg-accent px-1 py-px text-[10px] text-muted-foreground group-hover:hidden">
 						{badge}

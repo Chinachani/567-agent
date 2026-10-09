@@ -4,7 +4,7 @@ export function createOfficialSchedulerApi(
 	assertOfficial: () => void,
 	capabilitySessionId: string,
 ): PluginOfficialApi["scheduler"] {
-	const scheduler = window.vetta.plugins.internalCapabilities.scheduler;
+	const scheduler = window.agent567.plugins.internalCapabilities.scheduler;
 	return {
 		listTasks: async () => {
 			assertOfficial();

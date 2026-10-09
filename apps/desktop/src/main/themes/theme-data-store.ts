@@ -1,7 +1,7 @@
 import { existsSync } from "node:fs";
 import { readFile, unlink } from "node:fs/promises";
 import { join } from "node:path";
-import { getVettaHomePath } from "@567agent/action-rpc";
+import { getAgent567HomePath } from "@567agent/action-rpc";
 import { atomicWriteJSONAsync } from "@567agent/toolkit/atomic-write";
 import {
 	assertThemeStorageWritable,
@@ -24,7 +24,7 @@ const memoryCache = new Map<string, Record<string, ThemeStorageJson>>();
 const writeQueues = new Map<string, Promise<void>>();
 
 function themesDataRoot(): string {
-	return join(getVettaHomePath(), "desktop-app", "themes");
+	return join(getAgent567HomePath(), "desktop-app", "themes");
 }
 
 function themeDir(themeId: string): string {

@@ -39,12 +39,13 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
-import org.agent567.android.ui.theme.vettaExtra
+import org.agent567.android.ui.theme.agent567Extra
 
 @Composable
-fun VettaCard(
+fun Agent567Card(
     modifier: Modifier = Modifier,
     onClick: (() -> Unit)? = null,
+    contentPadding: PaddingValues = PaddingValues(16.dp),
     content: @Composable ColumnScope.() -> Unit,
 ) {
     val shape = RoundedCornerShape(16.dp)
@@ -60,15 +61,15 @@ fun VettaCard(
         border =
             androidx.compose.foundation.BorderStroke(
                 1.dp,
-                MaterialTheme.vettaExtra.border,
+                MaterialTheme.agent567Extra.border,
             ),
-        content = { Column(Modifier.padding(16.dp), content = content) },
+        content = { Column(Modifier.padding(contentPadding), content = content) },
     )
 }
 
 /** 无边界的内容分组，用于设置和列表，避免每一项都被包装成独立卡片。 */
 @Composable
-fun VettaListGroup(
+fun Agent567ListGroup(
     modifier: Modifier = Modifier,
     content: @Composable ColumnScope.() -> Unit,
 ) {
@@ -94,8 +95,8 @@ fun PrimaryBlackButton(
             ButtonDefaults.buttonColors(
                 containerColor = MaterialTheme.colorScheme.primary,
                 contentColor = MaterialTheme.colorScheme.onPrimary,
-                disabledContainerColor = MaterialTheme.vettaExtra.chipBackground,
-                disabledContentColor = MaterialTheme.vettaExtra.secondaryText,
+                disabledContainerColor = MaterialTheme.agent567Extra.chipBackground,
+                disabledContentColor = MaterialTheme.agent567Extra.secondaryText,
             ),
     ) {
         Text(text, style = MaterialTheme.typography.labelLarge)
@@ -152,7 +153,7 @@ fun SectionHeader(
                 Text(
                     action,
                     style = MaterialTheme.typography.bodyMedium,
-                    color = MaterialTheme.vettaExtra.secondaryText,
+                    color = MaterialTheme.agent567Extra.secondaryText,
                 )
             }
         }
@@ -170,7 +171,7 @@ fun StatusDot(
                 .size(8.dp)
                 .clip(CircleShape)
                 .background(
-                    if (online) MaterialTheme.vettaExtra.success else MaterialTheme.vettaExtra.secondaryText,
+                    if (online) MaterialTheme.agent567Extra.success else MaterialTheme.agent567Extra.secondaryText,
                 ),
     )
 }
@@ -183,15 +184,15 @@ fun StatusChip(
 ) {
     val bg =
         if (positive) {
-            MaterialTheme.vettaExtra.success.copy(alpha = 0.12f)
+            MaterialTheme.agent567Extra.success.copy(alpha = 0.12f)
         } else {
-            MaterialTheme.vettaExtra.chipBackground
+            MaterialTheme.agent567Extra.chipBackground
         }
     val fg =
         if (positive) {
-            MaterialTheme.vettaExtra.success
+            MaterialTheme.agent567Extra.success
         } else {
-            MaterialTheme.vettaExtra.secondaryText
+            MaterialTheme.agent567Extra.secondaryText
         }
     Text(
         text = text,
@@ -244,7 +245,7 @@ fun FilterChipRow(
                                 if (selected) {
                                     MaterialTheme.colorScheme.primary
                                 } else {
-                                    MaterialTheme.vettaExtra.chipBackground
+                                    MaterialTheme.agent567Extra.chipBackground
                                 },
                             )
                             .padding(horizontal = 14.dp, vertical = 8.dp),
@@ -289,7 +290,7 @@ fun ListRow(
                     Text(
                         subtitle,
                         style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.vettaExtra.secondaryText,
+                        color = MaterialTheme.agent567Extra.secondaryText,
                         maxLines = 1,
                         overflow = TextOverflow.Ellipsis,
                     )
@@ -300,7 +301,7 @@ fun ListRow(
             }
         }
         if (showDivider) {
-            HorizontalDivider(color = MaterialTheme.vettaExtra.border)
+            HorizontalDivider(color = MaterialTheme.agent567Extra.border)
         }
     }
 }
@@ -315,7 +316,7 @@ fun PageScaffoldContent(
         modifier =
             modifier
                 .fillMaxWidth()
-                .background(MaterialTheme.vettaExtra.pageBackground)
+                .background(MaterialTheme.agent567Extra.pageBackground)
                 .padding(contentPadding),
         content = content,
     )

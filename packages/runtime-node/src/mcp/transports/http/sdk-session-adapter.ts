@@ -12,6 +12,7 @@ import type {
 	McpClientInfo,
 	McpElicitationCreateParams,
 	McpJsonObject,
+	McpRequestOptions,
 	McpSamplingCreateMessageParams,
 	McpServerInteractionHandlers,
 } from "../../protocol/index.js";
@@ -33,12 +34,12 @@ export interface McpHttpSdkSession {
 	getProtocolVersion?(): string | undefined;
 	getServerVersion(): { name: string; version: string } | undefined;
 	getServerCapabilities(): McpCapabilities | undefined;
-	listTools(cursor?: string): Promise<unknown>;
-	callTool(name: string, args?: McpJsonObject): Promise<unknown>;
-	listResources(cursor?: string): Promise<unknown>;
-	readResource(uri: string): Promise<unknown>;
-	listPrompts(cursor?: string): Promise<unknown>;
-	getPrompt(name: string, args?: Record<string, string>): Promise<unknown>;
+	listTools(cursor?: string, options?: McpRequestOptions): Promise<unknown>;
+	callTool(name: string, args?: McpJsonObject, options?: McpRequestOptions): Promise<unknown>;
+	listResources(cursor?: string, options?: McpRequestOptions): Promise<unknown>;
+	readResource(uri: string, options?: McpRequestOptions): Promise<unknown>;
+	listPrompts(cursor?: string, options?: McpRequestOptions): Promise<unknown>;
+	getPrompt(name: string, args?: Record<string, string>, options?: McpRequestOptions): Promise<unknown>;
 	close(): Promise<void>;
 }
 
@@ -83,28 +84,28 @@ class DefaultMcpHttpSdkSession implements McpHttpSdkSession {
 		return this.client.getServerCapabilities() as McpCapabilities | undefined;
 	}
 
-	async listTools(cursor?: string): Promise<unknown> {
-		return this.client.listTools(cursor ? { cursor } : undefined);
+	async listTools(cursor?: string, options?: McpRequestOptions): Promise<unknown> {
+		return this.client.listTools(cursor ? { cursor } : undefined, options);
 	}
 
-	async callTool(name: string, args?: McpJsonObject): Promise<unknown> {
-		return this.client.callTool({ name, arguments: args });
+	async callTool(name: string, args?: McpJsonObject, options?: McpRequestOptions): Promise<unknown> {
+		return this.client.callTool({ name, arguments: args }, undefined, options);
 	}
 
-	async listResources(cursor?: string): Promise<unknown> {
-		return this.client.listResources(cursor ? { cursor } : undefined);
+	async listResources(cursor?: string, options?: McpRequestOptions): Promise<unknown> {
+		return this.client.listResources(cursor ? { cursor } : undefined, options);
 	}
 
-	async readResource(uri: string): Promise<unknown> {
-		return this.client.readResource({ uri });
+	async readResource(uri: string, options?: McpRequestOptions): Promise<unknown> {
+		return this.client.readResource({ uri }, options);
 	}
 
-	async listPrompts(cursor?: string): Promise<unknown> {
-		return this.client.listPrompts(cursor ? { cursor } : undefined);
+	async listPrompts(cursor?: string, options?: McpRequestOptions): Promise<unknown> {
+		return this.client.listPrompts(cursor ? { cursor } : undefined, options);
 	}
 
-	async getPrompt(name: string, args?: Record<string, string>): Promise<unknown> {
-		return this.client.getPrompt({ name, arguments: args });
+	async getPrompt(name: string, args?: Record<string, string>, options?: McpRequestOptions): Promise<unknown> {
+		return this.client.getPrompt({ name, arguments: args }, options);
 	}
 
 	async close(): Promise<void> {

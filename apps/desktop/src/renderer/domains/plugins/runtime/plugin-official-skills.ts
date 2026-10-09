@@ -4,7 +4,7 @@ export function createOfficialSkillsApi(
 	assertOfficial: () => void,
 	capabilitySessionId: string,
 ): PluginOfficialApi["skills"] {
-	const skills = window.vetta.plugins.internalCapabilities.skills;
+	const skills = window.agent567.plugins.internalCapabilities.skills;
 	return {
 		list: async (cwd) => {
 			assertOfficial();
@@ -25,7 +25,7 @@ export function createOfficialSkillsApi(
 		installFromMarket: async (type, slug) => {
 			assertOfficial();
 			// 市场下载走主进程鉴权/匿名通道，不经 capability session。
-			return window.vetta.skills.installFromMarketSlug(type, slug);
+			return window.agent567.skills.installFromMarketSlug(type, slug);
 		},
 	};
 }

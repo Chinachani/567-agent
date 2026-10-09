@@ -37,7 +37,7 @@
 
 ## 阶段 2：本地 appearance 配置
 
-状态：基础协议已拆到 `packages/theme-sdk`，装饰和应用 UI 已拆到 `packages/theme-ui`，Xianxia 已作为独立内置主题包接入。
+状态：基础协议已拆到 `packages/theme-sdk`，装饰和应用 UI 已拆到 `packages/theme-ui`。主题内容从独立风格库同步。
 
 目标：
 
@@ -51,7 +51,7 @@
 ```txt
 packages/themes/
   builtin/
-    xianxia/
+    <curated-theme>/
   remote/
 ```
 

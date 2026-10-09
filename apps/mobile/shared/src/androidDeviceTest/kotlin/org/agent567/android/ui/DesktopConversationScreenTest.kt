@@ -32,7 +32,7 @@ import org.agent567.android.ui.connect.DeviceDetailScreen
 import org.agent567.android.ui.connect.NewConversationScreen
 import org.agent567.android.ui.i18n.Str
 import org.agent567.android.ui.navigation.ChatSurface
-import org.agent567.android.ui.theme.VettaTheme
+import org.agent567.android.ui.theme.Agent567Theme
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertTrue
@@ -46,7 +46,7 @@ class DesktopConversationScreenTest {
     fun desktopChatRendersMarkdownToolsAndPendingQuestion() {
         var submitted = false
         composeRule.setContent {
-            VettaTheme(ThemeMode.Light) {
+            Agent567Theme(ThemeMode.Light) {
                 ChatScreen(
                     title = "TEST-DESKTOP",
                     surface = ChatSurface.Desktop,
@@ -135,7 +135,7 @@ class DesktopConversationScreenTest {
         var disconnected = false
         var backed = false
         composeRule.setContent {
-            VettaTheme(ThemeMode.Light) {
+            Agent567Theme(ThemeMode.Light) {
                 DeviceDetailScreen(
                     device =
                         DesktopDevice(
@@ -168,7 +168,7 @@ class DesktopConversationScreenTest {
     fun desktopChatEnablesSendWithoutCloudModel() {
         var sent = false
         composeRule.setContent {
-            VettaTheme(ThemeMode.Light) {
+            Agent567Theme(ThemeMode.Light) {
                 ChatScreen(
                     title = "TEST-DESKTOP",
                     surface = ChatSurface.Desktop,
@@ -202,7 +202,7 @@ class DesktopConversationScreenTest {
     @Test
     fun desktopChatShowsAttributionOnceWithoutBottomDuplication() {
         composeRule.setContent {
-            VettaTheme(ThemeMode.Light) {
+            Agent567Theme(ThemeMode.Light) {
                 ChatScreen(
                     title = "TEST-DESKTOP",
                     surface = ChatSurface.Desktop,
@@ -236,7 +236,7 @@ class DesktopConversationScreenTest {
     fun streamingChatShowsStopAction() {
         var stopped = false
         composeRule.setContent {
-            VettaTheme(ThemeMode.Light) {
+            Agent567Theme(ThemeMode.Light) {
                 ChatScreen(
                     title = "TEST-DESKTOP",
                     surface = ChatSurface.Desktop,
@@ -270,7 +270,7 @@ class DesktopConversationScreenTest {
     @Test
     fun streamingChatShowsHumanReadableRuntimeStatus() {
         composeRule.setContent {
-            VettaTheme(ThemeMode.Light) {
+            Agent567Theme(ThemeMode.Light) {
                 ChatScreen(
                     title = "TEST-DESKTOP",
                     surface = ChatSurface.Desktop,
@@ -306,7 +306,7 @@ class DesktopConversationScreenTest {
         var removedId: String? = null
         val image = MessageImage(id = "pending-1", mimeType = "image/png", base64Data = "")
         composeRule.setContent {
-            VettaTheme(ThemeMode.Light) {
+            Agent567Theme(ThemeMode.Light) {
                 ChatScreen(
                     title = "TEST-DESKTOP",
                     surface = ChatSurface.Desktop,
@@ -350,7 +350,7 @@ class DesktopConversationScreenTest {
     fun partialChatFailureUsesCompactStatusInsteadOfRepeatingDetails() {
         val friendlyError = "连接已断开，请重试"
         composeRule.setContent {
-            VettaTheme(ThemeMode.Light) {
+            Agent567Theme(ThemeMode.Light) {
                 ChatScreen(
                     title = "TEST-DESKTOP",
                     surface = ChatSurface.Desktop,
@@ -395,7 +395,7 @@ class DesktopConversationScreenTest {
     fun emptyChatFailureShowsDetailsOnlyInRetryBanner() {
         val friendlyError = "请在电脑端检查模型配置和运行日志后重试"
         composeRule.setContent {
-            VettaTheme(ThemeMode.Light) {
+            Agent567Theme(ThemeMode.Light) {
                 ChatScreen(
                     title = "TEST-DESKTOP",
                     surface = ChatSurface.Desktop,
@@ -453,7 +453,7 @@ class DesktopConversationScreenTest {
                 status = DeviceStatus.Online,
             )
         composeRule.setContent {
-            VettaTheme(ThemeMode.Light) {
+            Agent567Theme(ThemeMode.Light) {
                 NewConversationScreen(
                     devices = listOf(device),
                     channelIndex = 0,
@@ -475,7 +475,7 @@ class DesktopConversationScreenTest {
     fun newConversationWithoutOnlineDesktopOffersConnectionPath() {
         var connectRequested = false
         composeRule.setContent {
-            VettaTheme(ThemeMode.Light) {
+            Agent567Theme(ThemeMode.Light) {
                 NewConversationScreen(
                     devices = emptyList(),
                     channelIndex = 0,
@@ -499,7 +499,7 @@ class DesktopConversationScreenTest {
         val second = LlmModel("second", "second", "Model B", "Provider")
         var selected: LlmModel? = null
         composeRule.setContent {
-            VettaTheme(ThemeMode.Light) {
+            Agent567Theme(ThemeMode.Light) {
                 ChatScreen(
                     title = Str.channelCloud,
                     surface = ChatSurface.Cloud,

@@ -60,8 +60,10 @@ export function wrapWorkspaceGuard<TInput extends object>(
 		async execute(request) {
 			const sessionId = options.getSessionId?.() ?? request.sessionId;
 			const requestedPath = extractPathFromParams(request.input);
+			let resolvedRequest = request;
 			if (requestedPath) {
 				const access = await options.toolSet.hostServices.resolveWorkspacePathAccess(requestedPath, options.cwd);
+				resolvedRequest = { ...request, input: { ...request.input, path: access.targetPath } as TInput };
 				options.toolSet.hostServices.assertPathNotDenied(access.targetBoundary, tool.name);
 				options.toolSet.hostServices.assertPathNotDenied(access.targetPath, tool.name);
 				if (!access.allowed) {
@@ -91,7 +93,13 @@ export function wrapWorkspaceGuard<TInput extends object>(
 								requestedPath,
 								options.cwd,
 							);
-							if (currentAccess.allowed) return tool.execute(request);
+							if (currentAccess.allowed) {
+								resolvedRequest = {
+									...request,
+									input: { ...request.input, path: currentAccess.targetPath } as TInput,
+								};
+								return tool.execute(resolvedRequest);
+							}
 							throw new Error(
 								`Access denied by sandbox: "${requestedPath}" is outside workspace root for tool "${tool.name}".` +
 									`\nworkspace=${currentAccess.workspaceRoot}` +
@@ -107,7 +115,7 @@ export function wrapWorkspaceGuard<TInput extends object>(
 					}
 				}
 			}
-			return tool.execute(request);
+			return tool.execute(resolvedRequest);
 		},
 	};
 }

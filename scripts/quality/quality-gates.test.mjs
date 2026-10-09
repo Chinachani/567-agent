@@ -380,6 +380,7 @@ describe("CI unit test coverage", () => {
 	const workflow = readFileSync(join(repoRoot, ".github/workflows/quality.yml"), "utf8");
 	const imGatewayWorkflow = readFileSync(join(repoRoot, ".github/workflows/im-gateway.yml"), "utf8");
 	const mobileWorkflow = readFileSync(join(repoRoot, ".github/workflows/mobile.yml"), "utf8");
+	const androidDebugWorkflow = readFileSync(join(repoRoot, ".github/workflows/android-debug-apk.yml"), "utf8");
 	const rootManifest = JSON.parse(readFileSync(join(repoRoot, "package.json"), "utf8"));
 
 	it("runs affected workspace tests on Linux, macOS, and Windows with complete Git history", () => {
@@ -414,6 +415,13 @@ describe("CI unit test coverage", () => {
 		expect(mobileWorkflow).toContain(":shared:testAndroidHostTest");
 		expect(mobileWorkflow).toContain(":shared:compileAndroidDeviceTest");
 		expect(mobileWorkflow).toContain(":androidApp:assembleDebug");
+	});
+
+	it("provides a manually dispatched Android debug APK artifact workflow", () => {
+		expect(androidDebugWorkflow).toContain("workflow_dispatch:");
+		expect(androidDebugWorkflow).toContain(":androidApp:assembleDebug");
+		expect(androidDebugWorkflow).toContain("actions/upload-artifact@v4");
+		expect(androidDebugWorkflow).toContain("567-agent-android-debug-apk");
 	});
 
 	it("limits path-filtered app checks to branch pushes", () => {

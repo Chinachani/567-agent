@@ -5,10 +5,10 @@ import type {
 } from "@567agent/coding-agent/composition";
 import {
 	CONFIG_DIR_NAME,
+	getAgent567HomePath,
 	getAgentDir,
 	getSceneDir,
 	getUserSkillsDir,
-	getVettaHomePath,
 } from "@567agent/coding-agent/config";
 import {
 	configureThemeRuntime,
@@ -92,7 +92,7 @@ export function createDesktopSessionResourceRuntime(
 		skillLocations: {
 			sceneDir: getSceneDir(),
 			managedSkillsDir: getUserSkillsDir(),
-			manifestPath: host.resourceAccess.paths.join(getVettaHomePath(), "skills-manifest.json"),
+			manifestPath: host.resourceAccess.paths.join(getAgent567HomePath(), "skills-manifest.json"),
 		},
 	});
 }

@@ -10,6 +10,7 @@ declare global {
 			requestCapture(routeIndex: number): void;
 			onInput(message: unknown): void;
 		};
+		agent567RemoteDesktop?: Window["vettaRemoteDesktop"];
 	}
 }
 
@@ -55,37 +56,43 @@ async function connectRoute(route: RelayRoute): Promise<void> {
 		await signaling.connect({
 			async onSignal(signal) {
 				if (signal.type === "peer_ready") {
-					console.info("remote desktop peer is ready; requesting display capture", {
-						target: safeTarget(route.target),
-					});
-					window.vettaRemoteDesktop?.requestCapture(route.index);
+					console.info(
+						diagnostic("remote desktop peer is ready; requesting display capture", {
+							target: safeTarget(route.target),
+						}),
+					);
+					window.agent567RemoteDesktop?.requestCapture(route.index);
 					return;
 				}
 				if (route.host) {
 					try {
 						await route.host.acceptSignal(signal);
 					} catch (error) {
-						console.warn("remote desktop signal handling failed", {
-							error: error instanceof Error ? error.message : String(error),
-							target: safeTarget(route.target),
-						});
+						console.warn(
+							diagnostic("remote desktop signal handling failed", {
+								error: error instanceof Error ? error.message : String(error),
+								target: safeTarget(route.target),
+							}),
+						);
 						cleanupRoute(route);
 					}
 				}
 			},
 			onClose(reason) {
-				console.warn("remote desktop signaling closed", { reason, target: safeTarget(route.target) });
+				console.warn(diagnostic("remote desktop signaling closed", { reason, target: safeTarget(route.target) }));
 				const directPeerIsAlive = route.host?.connectionState === "connected";
 				if (!directPeerIsAlive) cleanupRoute(route);
 				scheduleReconnect(route);
 			},
 		});
-		console.info("remote desktop signaling connected", { target: safeTarget(route.target) });
+		console.info(diagnostic("remote desktop signaling connected", { target: safeTarget(route.target) }));
 	} catch (error) {
-		console.warn("remote desktop signaling connection failed", {
-			error: error instanceof Error ? error.message : String(error),
-			target: safeTarget(route.target),
-		});
+		console.warn(
+			diagnostic("remote desktop signaling connection failed", {
+				error: error instanceof Error ? error.message : String(error),
+				target: safeTarget(route.target),
+			}),
+		);
 		if (route.host?.connectionState !== "connected") cleanupRoute(route);
 		scheduleReconnect(route);
 	} finally {
@@ -128,14 +135,16 @@ async function startHostForRoute(route: RelayRoute, signaling: WebSocketRemoteDe
 				try {
 					await activeSignaling.send(signal);
 				} catch (signalError) {
-					console.warn("remote desktop signal not sent", {
-						type: signal.type,
-						error: signalError instanceof Error ? signalError.message : String(signalError),
-						target: safeTarget(route.target),
-					});
+					console.warn(
+						diagnostic("remote desktop signal not sent", {
+							type: signal.type,
+							error: signalError instanceof Error ? signalError.message : String(signalError),
+							target: safeTarget(route.target),
+						}),
+					);
 				}
 			},
-			(message) => window.vettaRemoteDesktop?.onInput(message),
+			(message) => window.agent567RemoteDesktop?.onInput(message),
 		);
 		route.stream = stream;
 		route.host = host;
@@ -143,20 +152,22 @@ async function startHostForRoute(route: RelayRoute, signaling: WebSocketRemoteDe
 			waitForPeerReady: false,
 			onViewerReplaced: () => {
 				cleanupRoute(route);
-				if (route.signaling?.connected) window.vettaRemoteDesktop?.requestCapture(route.index);
+				if (route.signaling?.connected) window.agent567RemoteDesktop?.requestCapture(route.index);
 			},
 			onConnectionStateChange: (state) => {
 				if (state !== "failed" && state !== "closed") return;
 				cleanupRoute(route);
-				if (route.signaling?.connected) window.vettaRemoteDesktop?.requestCapture(route.index);
+				if (route.signaling?.connected) window.agent567RemoteDesktop?.requestCapture(route.index);
 			},
 		});
-		console.info("remote desktop stream started", { target: safeTarget(route.target) });
+		console.info(diagnostic("remote desktop stream started", { target: safeTarget(route.target) }));
 	} catch (error) {
-		console.warn("remote desktop capture or startup failed", {
-			error: error instanceof Error ? error.message : String(error),
-			target: safeTarget(route.target),
-		});
+		console.warn(
+			diagnostic("remote desktop capture or startup failed", {
+				error: error instanceof Error ? error.message : String(error),
+				target: safeTarget(route.target),
+			}),
+		);
 		try {
 			await signaling.send({
 				type: "end",
@@ -168,10 +179,12 @@ async function startHostForRoute(route: RelayRoute, signaling: WebSocketRemoteDe
 						: "capture_unavailable",
 			});
 		} catch (signalError) {
-			console.warn("remote desktop capture failure could not be reported", {
-				error: signalError instanceof Error ? signalError.message : String(signalError),
-				target: safeTarget(route.target),
-			});
+			console.warn(
+				diagnostic("remote desktop capture failure could not be reported", {
+					error: signalError instanceof Error ? signalError.message : String(signalError),
+					target: safeTarget(route.target),
+				}),
+			);
 		}
 		cleanupRoute(route);
 	} finally {
@@ -203,6 +216,10 @@ function safeTarget(target: string): string {
 	} catch {
 		return "invalid target";
 	}
+}
+
+function diagnostic(message: string, fields: Record<string, unknown>): string {
+	return `${message} ${JSON.stringify(fields)}`;
 }
 
 window.addEventListener("pagehide", () => {

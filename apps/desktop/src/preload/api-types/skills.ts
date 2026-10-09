@@ -85,7 +85,7 @@ export interface DesktopSkillsApi {
 	 * 供 App Action 与官方插件使用。
 	 */
 	installFromMarketSlug(type: "skill" | "scene", slug: string): Promise<SkillMarketInstallResult>;
-	/** 安装类型由包内 SKILL.md 的 `metadata.type` 决定（scene 装进 `~/.vetta/scene/`）。 */
+	/** 安装类型由包内 SKILL.md 的 `metadata.type` 决定（scene 装进 `~/.567agent/scene/`）。 */
 	importCustom(archiveBuffer: ArrayBuffer): Promise<{ name: string; type: "skill" | "scene" }>;
 	uninstall(name: string, type: "skill" | "scene"): Promise<void>;
 	toggle(name: string): Promise<void>;

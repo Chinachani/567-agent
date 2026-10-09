@@ -3,6 +3,7 @@ export interface RemotePairingState {
 	relayBaseUrl?: string;
 	pairingId?: string;
 	inviteUri?: string;
+	autoShareScreen: boolean;
 	inputEnabled: boolean;
 	inputSupported: boolean;
 	inputSupportReason?:
@@ -19,6 +20,9 @@ export interface RemotePairingState {
 export interface RemotePairingApi {
 	getState(): Promise<RemotePairingState>;
 	create(relayBaseUrl?: string): Promise<RemotePairingState>;
+	resetCertificate(relayBaseUrl?: string): Promise<RemotePairingState>;
+	setAutoShareScreen(enabled: boolean): Promise<RemotePairingState>;
 	setInputEnabled(enabled: boolean): Promise<RemotePairingState>;
+	installInputDependencies(): Promise<void>;
 	revoke(): Promise<RemotePairingState>;
 }

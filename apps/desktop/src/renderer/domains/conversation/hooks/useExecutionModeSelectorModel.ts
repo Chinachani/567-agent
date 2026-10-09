@@ -37,7 +37,7 @@ export function useDefaultExecutionModeSelectorModel(): ExecutionModeSelectorVie
 			localStorage.setItem("vetta-session-execution-mode", nextMode);
 			if (!activeSession) return;
 			try {
-				await window.vetta.session.setExecutionMode(activeSession.runtimeId, nextMode);
+				await window.agent567.session.setExecutionMode(activeSession.runtimeId, nextMode);
 			} catch (error) {
 				setMode(previousMode);
 				localStorage.setItem("vetta-session-execution-mode", previousMode);
@@ -57,7 +57,7 @@ export function useExecutionModeSelectorModel(binding: ExecutionModeSelectorBind
 	const disabled = binding.isStreaming || isSwitching;
 
 	useEffect(() => {
-		void window.vetta.config.get().then((config) => {
+		void window.agent567.config.get().then((config) => {
 			const capability = config.sandbox ?? config.linuxSandbox;
 			if (capability?.status === "unavailable") {
 				const reason = capability.reason ?? "unknown_error";

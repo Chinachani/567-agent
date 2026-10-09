@@ -42,7 +42,7 @@ export function ThemeRuntimeProvider({ children }: { children: ReactNode }): JSX
 		const start = performance.now();
 		console.info(`[theme-runtime] selectTheme "${themeId}"`);
 		const listStart = performance.now();
-		const themes = await window.vetta.themes.list();
+		const themes = await window.agent567.themes.list();
 		console.debug(`[theme-runtime] themes.list complete count=${themes.length} elapsed=${formatMs(listStart)}`);
 		setAvailableThemes(themes);
 		if (themeId === DEFAULT_THEME_MODULE.meta.id) {

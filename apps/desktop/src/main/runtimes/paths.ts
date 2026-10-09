@@ -35,17 +35,17 @@ export function runtimeVersion(type: RuntimeType): string {
 	return RUNTIME_MANIFEST[type].version;
 }
 
-/** ~/.vetta —— 与 coding-agent 的 agent 目录同根，尊重 AGENT567_CODING_AGENT_DIR 覆盖。 */
+/** ~/.567agent —— 与 coding-agent 的 agent 目录同根，尊重 AGENT567_CODING_AGENT_DIR 覆盖。 */
 export function vettaRootDir(): string {
 	return dirname(getAgentDir());
 }
 
-/** ~/.vetta/runtimes —— [[托管运行时]] 落地根目录。 */
+/** ~/.567agent/runtimes —— [[托管运行时]] 落地根目录。 */
 export function runtimesDir(): string {
 	return join(vettaRootDir(), "runtimes");
 }
 
-/** 某运行时某版本的安装目录：~/.vetta/runtimes/<type>/<version>/ */
+/** 某运行时某版本的安装目录：~/.567agent/runtimes/<type>/<version>/ */
 export function installDir(type: RuntimeType, version: string = runtimeVersion(type)): string {
 	return join(runtimesDir(), type, version);
 }
@@ -91,7 +91,7 @@ export function pipCacheDir(): string {
 	return join(runtimesDir(), ".pip-cache");
 }
 
-/** 本地安装登记表路径：~/.vetta/runtimes/.cache/registry.json */
+/** 本地安装登记表路径：~/.567agent/runtimes/.cache/registry.json */
 export function registryPath(): string {
 	return join(runtimesDir(), ".cache", "registry.json");
 }

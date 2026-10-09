@@ -59,17 +59,25 @@ describe("plan mode command policy", () => {
 
 describe("plan mode tool policy", () => {
 	it("keeps only read-only and argument-gated tools on the model tool surface", () => {
-		for (const name of ["read", "grep", "glob", "dir_tree", "bash", "shell", "spawn_agent", "exit_plan_mode"]) {
+		for (const name of ["read", "grep", "glob", "dir_tree", "spawn_agent", "exit_plan_mode"]) {
 			expect(isToolVisibleInPlanMode(name)).toBe(true);
 		}
-		for (const name of ["write", "edit", "doc_to_pdf", "kb_write_page", "dispatch_workflows", "mcp__github__push"]) {
+		for (const name of [
+			"write",
+			"edit",
+			"bash",
+			"shell",
+			"doc_to_pdf",
+			"kb_write_page",
+			"dispatch_workflows",
+			"mcp__github__push",
+		]) {
 			expect(isToolVisibleInPlanMode(name)).toBe(false);
 		}
 	});
 
-	it("gates command tools by their command and refuses background execution", () => {
-		expect(evaluatePlanModeToolCall("bash", { command: "git status" })).toEqual({ allowed: true });
-		expect(evaluatePlanModeToolCall("bash", { command: "git status", run_in_background: true }).allowed).toBe(false);
+	it("blocks shell execution because executable identity cannot be guaranteed read-only", () => {
+		expect(evaluatePlanModeToolCall("bash", { command: "git status" }).allowed).toBe(false);
 		expect(evaluatePlanModeToolCall("shell", { command: "Remove-Item x" }).allowed).toBe(false);
 		expect(evaluatePlanModeToolCall("bash", {}).allowed).toBe(false);
 	});

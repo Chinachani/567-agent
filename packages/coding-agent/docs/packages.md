@@ -20,7 +20,7 @@ vetta list
 
 临时试跑：`vetta -e npm:@scope/pkg`（不写 settings）。
 
-包默认装到 `~/.vetta/agent/` 或项目 `.vetta/` 下的 npm/git 缓存；settings 的 `packages` 数组记录源。
+包默认装到 `~/.567agent/agent/` 或项目 `.vetta/` 下的 npm/git 缓存；settings 的 `packages` 数组记录源。
 
 **安全：包内扩展可执行任意代码，安装前审查。**
 

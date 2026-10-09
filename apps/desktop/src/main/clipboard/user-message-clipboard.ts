@@ -98,7 +98,7 @@ async function resolveImageSource(
 	return decodeImageDataUrl(`data:${mimeType};base64,${bytes.toString("base64")}`, dependencies);
 }
 
-/** Write one atomic multi-format clipboard entry for Vetta and external rich-text editors. */
+/** Write one atomic multi-format clipboard entry for 567 Agent and external rich-text editors. */
 export async function writeUserMessageClipboard(
 	request: UserMessageClipboardWriteRequest,
 	dependencies: UserMessageClipboardDependencies = DEFAULT_DEPENDENCIES,
@@ -114,7 +114,7 @@ export async function writeUserMessageClipboard(
 	});
 }
 
-/** Read only Vetta-authored rich messages; arbitrary clipboard HTML stays in main. */
+/** Read only 567 Agent-authored rich messages; arbitrary clipboard HTML stays in main. */
 export function readUserMessageClipboard(
 	dependencies: Pick<Clipboard, "readHTML" | "readText"> = clipboard,
 ): UserMessageClipboardReadResult | null {

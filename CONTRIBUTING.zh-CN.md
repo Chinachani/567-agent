@@ -36,7 +36,7 @@ cd 567-agent
 git checkout dev
 bun install                 # 需要 Bun 1.3+
 cd apps/desktop
-bun run dev                 # Vite renderer + Electron，数据在 ~/.vetta-dev
+bun run dev                 # Vite renderer + Electron，数据在 ~/.567agent-dev
 ```
 
 **不要**在仓库根目录跑 `bun run dev` 或 `bun run build`——那是编译核心库，不会启动应用。**不要**直接跑 `bun test`；用 `bun run test:pkg <name>` 或 `bun scripts/quality/run-vitest.mjs --run <file>`。

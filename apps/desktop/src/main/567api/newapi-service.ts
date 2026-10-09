@@ -24,7 +24,7 @@ import { existsSync, mkdirSync, readFileSync, renameSync, rmSync, writeFileSync 
 import http from "node:http";
 import https from "node:https";
 import { dirname, join } from "node:path";
-import { getVettaHomePath } from "@567agent/action-rpc";
+import { getAgent567HomePath } from "@567agent/action-rpc";
 
 import { BrowserWindow } from "electron";
 import { getDesktopCredentialVault } from "../credentials/desktop-credential-vault.js";
@@ -128,7 +128,7 @@ export interface RawNewApiToken {
 }
 
 function getSessionFilePath(): string {
-	return join(getVettaHomePath(), "567api-session.json");
+	return join(getAgent567HomePath(), "567api-session.json");
 }
 
 interface HttpResponse<T = unknown> {

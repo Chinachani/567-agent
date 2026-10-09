@@ -1,6 +1,6 @@
 import { getDocsMessages, localeConfig, type DocsLanguage } from "./i18n";
 
-export const DEFAULT_DOCS_SITE_URL = "https://github.com/Chinachani/567-agent";
+export const DEFAULT_DOCS_SITE_URL = "http://localhost:3000";
 
 export const site = {
 	name: "567 Agent",
@@ -122,8 +122,21 @@ export function getSectionLandingPath(section: string | undefined): string {
 }
 
 export function getSiteOrigin(envUrl = process.env.DOCS_SITE_URL): string {
-	const raw = envUrl?.trim() || DEFAULT_DOCS_SITE_URL;
-	return raw.replace(/\/+$/, "");
+	const configuredUrl = envUrl?.trim();
+	if (!configuredUrl && process.env.NODE_ENV === "production") {
+		throw new Error("DOCS_SITE_URL must be configured for production builds");
+	}
+	const raw = configuredUrl || DEFAULT_DOCS_SITE_URL;
+	let parsed: URL;
+	try {
+		parsed = new URL(raw);
+	} catch {
+		throw new Error("DOCS_SITE_URL must be a valid absolute URL");
+	}
+	if (parsed.protocol !== "https:" && parsed.hostname !== "localhost") {
+		throw new Error("DOCS_SITE_URL must use HTTPS (localhost is allowed for development)");
+	}
+	return parsed.origin;
 }
 
 export function toCanonicalPath(path: string): string {

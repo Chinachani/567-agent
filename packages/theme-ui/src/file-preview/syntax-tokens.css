@@ -3,12 +3,7 @@
  * Inspired by VS Code Dark+ / Light+.
  *
  * Hosts that already define `[data-mode]` can rely on these as baselines.
- * Themes override any subset, e.g.:
- *
- *   [data-theme="xianxia"] {
- *     --syntax-keyword: #c9a227;
- *     --syntax-string: #7d9b76;
- *   }
+ * Themes may override any subset of these variables.
  */
 
 :root,

@@ -53,6 +53,7 @@ export function ModelsProviderFormView({
 					<label className="mb-1 block text-[11px] text-muted-foreground">{labels.providerName}</label>
 					<InputField
 						value={form.name}
+						aria-label={labels.providerName}
 						onChange={(value) => onChange({ name: value })}
 						placeholder={labels.namePlaceholder}
 					/>
@@ -69,6 +70,7 @@ export function ModelsProviderFormView({
 					<label className="mb-1 block text-[11px] text-muted-foreground">Base URL</label>
 					<InputField
 						value={form.baseUrl}
+						aria-label="Base URL"
 						onChange={(value) => onChange({ baseUrl: value })}
 						placeholder={labels.baseUrlPlaceholder}
 					/>
@@ -79,6 +81,7 @@ export function ModelsProviderFormView({
 						<div className="min-w-0 flex-1">
 							<InputField
 								value={form.apiKey}
+								aria-label="API Key"
 								onChange={(value) => onChange({ apiKey: value })}
 								placeholder={labels.apiKeyPlaceholder}
 								type="password"
@@ -100,6 +103,7 @@ export function ModelsProviderFormView({
 				<div className="col-span-2">
 					<label className="mb-1 block text-[11px] text-muted-foreground">{labels.customHeaders}</label>
 					<textarea
+						aria-label={labels.customHeaders}
 						value={form.headers}
 						onChange={(event) => onChange({ headers: event.target.value })}
 						placeholder={"X-Custom-Header: value\nAuthorization: Bearer xxx"}

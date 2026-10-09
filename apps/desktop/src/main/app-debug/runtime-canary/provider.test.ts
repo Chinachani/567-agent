@@ -42,7 +42,7 @@ describe("Runtime Canary Provider", () => {
 			await readFile(join(provider.fixture.knowledgeRoot, "raws", RUNTIME_CANARY_KNOWLEDGE_SOURCE_PATH), "utf8"),
 		).toBe("Runtime Canary Knowledge Source");
 		const desktopConfig = JSON.parse(
-			await readFile(join(provider.fixture.vettaHome, "desktop-config.json"), "utf8"),
+			await readFile(join(provider.fixture.agent567Home, "desktop-config.json"), "utf8"),
 		) as {
 			projects: Array<{ path: string }>;
 			knowledgeBase: { enabled: boolean; pollIntervalMinutes: number; processingModelKey: string };

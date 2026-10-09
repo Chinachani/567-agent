@@ -137,6 +137,15 @@ export interface DesktopSessionApi {
 	): Promise<{ sessionId: string; sessionPath: string; cwd?: string; agentProfileId?: string }>;
 	listProjects(): Promise<ProjectInfo[]>;
 	listSessions(cwd: string): Promise<DesktopSessionHistoryInfo[]>;
+	exportMigrationArchive(
+		sessionIds: string[],
+		passphrase: string,
+		cwd?: string,
+		scopes?: Array<{ cwd: string; sessionIds: string[] }>,
+	): Promise<{ canceled: boolean; sessionCount?: number }>;
+	importMigrationArchive(
+		passphrase: string,
+	): Promise<{ canceled: boolean; importedSessions?: number; importedMessages?: number }>;
 	searchSessions(
 		request: DesktopSessionSearchRequest,
 		onEvent: (event: DesktopSessionSearchEvent) => void,

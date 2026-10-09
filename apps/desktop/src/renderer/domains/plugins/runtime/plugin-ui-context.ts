@@ -446,10 +446,10 @@ export function createPluginUiApi({
 		const namespacedId = `${plugin.id}:${contribution.id}`;
 		if (hardIsolation) {
 			// Register mode gate immediately so agent contributions stay stripped until toggle on (ADR-0041).
-			void window.vetta.plugins.registerModeGate(plugin.id);
+			void window.agent567.plugins.registerModeGate(plugin.id);
 			// 会话恢复可能早于插件加载：若工作集已含本 action，立刻放行 contribution。
 			if (getDefaultStore().get(activeInputActionIdsAtom).has(namespacedId)) {
-				void window.vetta.plugins.setContributionMode(plugin.id, true);
+				void window.agent567.plugins.setContributionMode(plugin.id, true);
 			}
 		}
 		const normalized: PluginInputActionContribution = {
@@ -464,7 +464,7 @@ export function createPluginUiApi({
 				const veto = userOnToggle?.(active);
 				if (veto === false) return false;
 				if (hardIsolation) {
-					void window.vetta.plugins.setContributionMode(plugin.id, active);
+					void window.agent567.plugins.setContributionMode(plugin.id, active);
 				}
 			},
 			decoratePrompt: contribution.decoratePrompt,
@@ -476,7 +476,7 @@ export function createPluginUiApi({
 				const index = inputActions.findIndex((action) => action.id === normalized.id);
 				if (index >= 0) inputActions.splice(index, 1);
 				if (hardIsolation) {
-					void window.vetta.plugins.setContributionMode(plugin.id, false);
+					void window.agent567.plugins.setContributionMode(plugin.id, false);
 				}
 				onChanged();
 			},
@@ -829,13 +829,13 @@ export function createPluginUiApi({
 		if (defaultFileName.trim().length === 0) {
 			throw new Error("captureRegion() default file name is required");
 		}
-		return window.vetta.window.captureRegion(rect, defaultFileName);
+		return window.agent567.window.captureRegion(rect, defaultFileName);
 	};
 	const copyImage: PluginContext["ui"]["copyImage"] = (dataUrl) => {
 		if (typeof dataUrl !== "string" || !dataUrl.startsWith("data:image/")) {
 			throw new Error("copyImage() requires a data:image/... URL");
 		}
-		return window.vetta.clipboard.writeImage(dataUrl);
+		return window.agent567.clipboard.writeImage(dataUrl);
 	};
 	const openExternal: PluginContext["ui"]["openExternal"] = async (url) => {
 		createPluginPermissionApi(plugin).require("shell.openExternal");
@@ -850,7 +850,7 @@ export function createPluginUiApi({
 		if (parsed.protocol !== "http:" && parsed.protocol !== "https:") {
 			throw new Error(`openExternal() only accepts http/https URLs, got: ${parsed.protocol}`);
 		}
-		await window.vetta.shell.openExternal(parsed.toString());
+		await window.agent567.shell.openExternal(parsed.toString());
 	};
 	const onSidebarStateChanged: PluginContext["ui"]["onSidebarStateChanged"] = (listener) => {
 		if (typeof listener !== "function") {

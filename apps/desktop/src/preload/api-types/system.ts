@@ -1,5 +1,6 @@
 import type { RuntimeStatus, RuntimesStatus, RuntimeType } from "../../main/runtimes/types.js";
 import type { UserMessageClipboardPasteResult, UserMessageClipboardWriteRequest } from "../../shared/clipboard.js";
+import type { RuntimeInstallProgress } from "../../shared/runtime-install-progress.js";
 
 export interface DesktopShellApi {
 	showInFolder(fullPath: string): Promise<void>;
@@ -99,6 +100,7 @@ export interface DesktopRuntimesApi {
 	getStatus(): Promise<RuntimesStatus>;
 	/** 强制重新获取(内置 vendor 拷贝,失败回退下载)推荐版本。 */
 	reinstall(type: RuntimeType): Promise<RuntimeStatus>;
+	onProgress(handler: (progress: RuntimeInstallProgress) => void): () => void;
 	/** 重新探测系统已装运行时。 */
 	redetect(): Promise<RuntimesStatus>;
 }

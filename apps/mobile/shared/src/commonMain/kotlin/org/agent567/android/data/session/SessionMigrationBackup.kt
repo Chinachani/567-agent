@@ -116,3 +116,5 @@ internal expect fun encryptMigrationPayload(plaintext: ByteArray, passphrase: St
 internal expect fun decryptMigrationPayload(archive: ByteArray, passphrase: String): ByteArray
 
 internal expect fun runtimeMigrationByteLimit(absoluteLimit: Int): Int
+
+internal expect fun sha256MigrationArchive(archive: ByteArray): String

@@ -2,9 +2,9 @@ package org.agent567.android.core.chat
 
 import org.agent567.android.core.api.ChatCompletionChunkDto
 import org.agent567.android.core.api.toDomain
-import org.agent567.android.core.error.VettaException
+import org.agent567.android.core.error.Agent567Exception
 import org.agent567.android.core.model.ChatStreamEvent
-import org.agent567.android.core.net.VettaJson
+import org.agent567.android.core.net.Agent567Json
 
 /**
  * 解析 OpenAI 兼容 SSE 单行（`data: {...}` / `data: [DONE]`）
@@ -22,10 +22,10 @@ object OpenAiSseParser {
 
         val chunk =
             runCatching {
-                VettaJson.decodeFromString(ChatCompletionChunkDto.serializer(), data)
+                Agent567Json.decodeFromString(ChatCompletionChunkDto.serializer(), data)
             }.getOrElse { cause ->
                 return ChatStreamEvent.Error(
-                    VettaException.Protocol("无法解析 SSE chunk", cause),
+                    Agent567Exception.Protocol("无法解析 SSE chunk", cause),
                 )
             }
 
@@ -81,7 +81,7 @@ object OpenAiSseParser {
         val trimmed = jsonText.trim()
         if (!trimmed.startsWith("{")) return emptyList()
         return try {
-            val root = VettaJson.parseToJsonElement(trimmed) as? kotlinx.serialization.json.JsonObject ?: return emptyList()
+            val root = Agent567Json.parseToJsonElement(trimmed) as? kotlinx.serialization.json.JsonObject ?: return emptyList()
             val choices = root["choices"] as? kotlinx.serialization.json.JsonArray
             val firstChoice = choices?.firstOrNull() as? kotlinx.serialization.json.JsonObject
             val message = firstChoice?.get("message") as? kotlinx.serialization.json.JsonObject
@@ -139,5 +139,62 @@ object OpenAiSseParser {
         } catch (_: Exception) {
             emptyList()
         }
+    }
+}
+
+/** Stateful parser for one HTTP stream. Tool calls are emitted only after the
+ * provider signals a terminal tool-call chunk, so argument fragments cannot
+ * trigger duplicate paid actions. */
+class OpenAiSseStreamParser {
+    private data class PendingToolCall(var id: String = "", var name: String = "", var arguments: String = "")
+    private val pending = linkedMapOf<Int, PendingToolCall>()
+
+    fun parseLine(line: String): List<ChatStreamEvent> {
+        val trimmed = line.trim()
+        if (!trimmed.startsWith("data:")) return emptyList()
+        val data = trimmed.removePrefix("data:").trim()
+        if (data == "[DONE]") return flushTools() + ChatStreamEvent.Done
+        if (data.isEmpty()) return emptyList()
+        val chunk = runCatching {
+            Agent567Json.decodeFromString(ChatCompletionChunkDto.serializer(), data)
+        }.getOrElse { cause ->
+            return listOf(ChatStreamEvent.Error(Agent567Exception.Protocol("无法解析 SSE chunk", cause)))
+        }
+        val choice = chunk.choices.firstOrNull()
+        val toolCalls = choice?.delta?.toolCalls.orEmpty()
+        for (part in toolCalls) {
+            val call = pending.getOrPut(part.index) { PendingToolCall() }
+            part.id?.takeIf(String::isNotBlank)?.let { call.id = it }
+            part.function?.name?.takeIf(String::isNotBlank)?.let { call.name = it }
+            part.function?.arguments?.let { call.arguments += it }
+        }
+        val output = mutableListOf<ChatStreamEvent>()
+        if (toolCalls.isEmpty()) {
+            OpenAiSseParser.parseLine(line)?.let(output::add)
+        }
+        if (choice?.finishReason != null) {
+            output += flushTools()
+            if (toolCalls.isNotEmpty()) {
+                output += ChatStreamEvent.Finished(choice.finishReason, chunk.usage?.toDomain())
+            }
+        }
+        return output
+    }
+
+    private fun flushTools(): List<ChatStreamEvent> {
+        val calls = pending.values.mapNotNull { call ->
+            if (call.id.isBlank() || call.name.isBlank() || call.arguments.isBlank()) return@mapNotNull null
+            (runCatching { Agent567Json.parseToJsonElement(call.arguments) }.getOrNull()
+                as? kotlinx.serialization.json.JsonObject) ?: return@mapNotNull null
+            ChatStreamEvent.Tool(
+                phase = "call",
+                toolCallId = call.id,
+                toolName = call.name,
+                arguments = call.arguments,
+                phaseLabel = "正在构思画面...",
+            )
+        }
+        pending.clear()
+        return calls
     }
 }

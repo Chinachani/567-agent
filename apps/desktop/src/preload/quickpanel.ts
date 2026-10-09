@@ -95,3 +95,4 @@ const api: QuickPanelBridge = {
 };
 
 contextBridge.exposeInMainWorld("vettaQuickPanel", api);
+contextBridge.exposeInMainWorld("agent567QuickPanel", api);

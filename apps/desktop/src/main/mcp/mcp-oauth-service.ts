@@ -1,5 +1,5 @@
 import { join } from "node:path";
-import { getVettaHomePath } from "@567agent/action-rpc";
+import { getAgent567HomePath } from "@567agent/action-rpc";
 import { McpDeviceCodeRequestError, runMcpBrowserOAuthFlow } from "@567agent/runtime-mcp";
 import {
 	createMcpBrowserOAuthSdkSession,
@@ -111,7 +111,7 @@ let desktopMcpOAuthService: DesktopMcpOAuthService | undefined;
 
 export function getDesktopMcpOAuthService(): DesktopMcpOAuthService {
 	desktopMcpOAuthService ??= new DesktopMcpOAuthService({
-		authDirectory: join(getVettaHomePath(), "agent", "mcp-auth"),
+		authDirectory: join(getAgent567HomePath(), "agent", "mcp-auth"),
 		openUrl: openExternalUrl,
 	});
 	return desktopMcpOAuthService;

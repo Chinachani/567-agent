@@ -41,7 +41,7 @@ function expandTilde(p: string): string {
  * 配置目录名。AGENT567_CONFIG_DIR 覆盖，否则用默认品牌名。
  * 用户主目录根与项目内目录都从它派生，保证两者始终一致。
  */
-export function getVettaConfigDirName(): string {
+export function getAgent567ConfigDirName(): string {
 	return process.env[AGENT567_CONFIG_DIR_ENV] || DEFAULT_CONFIG_DIR_NAME;
 }
 
@@ -49,18 +49,21 @@ export function getVettaConfigDirName(): string {
  * 用户主目录下的数据根。AGENT567_HOME（绝对路径，支持 ~ 展开）作为逃生口优先，
  * 否则为 ~/<configDirName>。
  */
-export function getVettaHomePath(): string {
+export function getAgent567HomePath(): string {
 	const explicit = process.env[AGENT567_HOME_ENV];
 	if (explicit) return expandTilde(explicit);
-	const newHome = join(homedir(), getVettaConfigDirName());
-	migrateLegacyHomeIfNeeded(newHome);
+	const configDirName = getAgent567ConfigDirName();
+	const newHome = join(homedir(), configDirName);
+	if (configDirName === DEFAULT_CONFIG_DIR_NAME) {
+		migrateLegacyHomeIfNeeded(newHome);
+	}
 	return newHome;
 }
 
 export function getActionRpcEndpointFilePath(): string {
 	const envPath = process.env[ACTION_RPC_ENDPOINT_FILE_ENV];
 	if (envPath) return envPath;
-	return join(getVettaHomePath(), "action-server.json");
+	return join(getAgent567HomePath(), "action-server.json");
 }
 
 function parseActionRpcEndpoint(value: unknown, endpointFilePath: string): ActionRpcEndpoint {

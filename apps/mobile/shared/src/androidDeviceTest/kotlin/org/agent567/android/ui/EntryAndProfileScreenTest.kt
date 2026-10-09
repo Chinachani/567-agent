@@ -18,7 +18,7 @@ import org.agent567.android.ui.i18n.Str
 import org.agent567.android.ui.me.MeScreen
 import org.agent567.android.ui.me.AboutScreen
 import org.agent567.android.ui.me.PlanScreen
-import org.agent567.android.ui.theme.VettaTheme
+import org.agent567.android.ui.theme.Agent567Theme
 import kotlin.test.Test
 import kotlin.test.assertTrue
 
@@ -31,7 +31,7 @@ class EntryAndProfileScreenTest {
     fun welcomePresentsLoginScanAndSkipAsRealActions() {
         var skipped = false
         composeRule.setContent {
-            VettaTheme(ThemeMode.Light) {
+            Agent567Theme(ThemeMode.Light) {
                 WelcomeScreen(
                     connecting = false,
                     error = null,
@@ -54,7 +54,7 @@ class EntryAndProfileScreenTest {
     fun loggedOutProfileUsesReadableStateAndOffersLogin() {
         var loginRequested = false
         composeRule.setContent {
-            VettaTheme(ThemeMode.Light) {
+            Agent567Theme(ThemeMode.Light) {
                 MeScreen(
                     themeMode = ThemeMode.Light,
                     user = null,
@@ -80,7 +80,7 @@ class EntryAndProfileScreenTest {
     fun profileNavigationRowsOpenTheirDestinations() {
         val opened = mutableListOf<String>()
         composeRule.setContent {
-            VettaTheme(ThemeMode.Light) {
+            Agent567Theme(ThemeMode.Light) {
                 MeScreen(
                     themeMode = ThemeMode.Light,
                     user = null,
@@ -108,12 +108,12 @@ class EntryAndProfileScreenTest {
     @Test
     fun aboutScreenShowsProductIdentity() {
         composeRule.setContent {
-            VettaTheme(ThemeMode.Light) {
+            Agent567Theme(ThemeMode.Light) {
                 AboutScreen(onBack = {})
             }
         }
 
-        composeRule.onNodeWithText(Str.aboutVetta).assertIsDisplayed()
+        composeRule.onNodeWithText(Str.aboutAgent567).assertIsDisplayed()
         composeRule.onNodeWithText(Str.versionNumber).assertIsDisplayed()
         composeRule.onNodeWithText(Str.aboutDescription).assertIsDisplayed()
     }
@@ -121,7 +121,7 @@ class EntryAndProfileScreenTest {
     @Test
     fun aboutDocumentsOpenReadableDialogs() {
         composeRule.setContent {
-            VettaTheme(ThemeMode.Light) {
+            Agent567Theme(ThemeMode.Light) {
                 AboutScreen(onBack = {})
             }
         }
@@ -138,7 +138,7 @@ class EntryAndProfileScreenTest {
     fun aboutBackButtonCallsNavigationCallback() {
         var navigatedBack = false
         composeRule.setContent {
-            VettaTheme(ThemeMode.Light) {
+            Agent567Theme(ThemeMode.Light) {
                 AboutScreen(onBack = { navigatedBack = true })
             }
         }
@@ -151,7 +151,7 @@ class EntryAndProfileScreenTest {
     fun loginFormSubmitsEnteredCredentials() {
         var credentials: Pair<String, String>? = null
         composeRule.setContent {
-            VettaTheme(ThemeMode.Light) {
+            Agent567Theme(ThemeMode.Light) {
                 LoginScreen(
                     loading = false,
                     error = null,
@@ -178,7 +178,7 @@ class EntryAndProfileScreenTest {
         val modeChanges = mutableListOf<Boolean>()
         val visibilityChanges = mutableListOf<Boolean>()
         composeRule.setContent {
-            VettaTheme(ThemeMode.Light) {
+            Agent567Theme(ThemeMode.Light) {
                 LoginScreen(
                     loading = false,
                     error = null,
@@ -204,7 +204,7 @@ class EntryAndProfileScreenTest {
     fun loggedOutPlanOffersLoginAction() {
         var loginRequested = false
         composeRule.setContent {
-            VettaTheme(ThemeMode.Light) {
+            Agent567Theme(ThemeMode.Light) {
                 PlanScreen(
                     subscription = null,
                     loggedIn = false,
@@ -224,7 +224,7 @@ class EntryAndProfileScreenTest {
     fun loggedInPlanRefreshUsesRetryAction() {
         var refreshed = false
         composeRule.setContent {
-            VettaTheme(ThemeMode.Light) {
+            Agent567Theme(ThemeMode.Light) {
                 PlanScreen(
                     subscription = null,
                     loggedIn = true,
@@ -243,7 +243,7 @@ class EntryAndProfileScreenTest {
     fun logoutDialogCanClearLocalSessions() {
         var clearLocal: Boolean? = null
         composeRule.setContent {
-            VettaTheme(ThemeMode.Light) {
+            Agent567Theme(ThemeMode.Light) {
                 MeScreen(
                     themeMode = ThemeMode.Light,
                     user = User(id = 1, username = "tester", nickname = "Tester"),
@@ -269,7 +269,7 @@ class EntryAndProfileScreenTest {
     fun logoutDialogCanPreserveLocalSessions() {
         var clearLocal: Boolean? = null
         composeRule.setContent {
-            VettaTheme(ThemeMode.Light) {
+            Agent567Theme(ThemeMode.Light) {
                 MeScreen(
                     themeMode = ThemeMode.Light,
                     user = User(id = 1, username = "tester", nickname = "Tester"),

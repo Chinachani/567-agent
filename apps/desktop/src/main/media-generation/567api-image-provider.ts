@@ -31,11 +31,12 @@ export function create567ApiImageProvider(
 			const service = NewApiService.getInstance();
 			const imageModels = service.getAvailableImageModels();
 			const configuredModel = service.getImageModel();
+			const preferredDefaultModel = imageModels.find((model) => model.id === "gemini-3.1-flash-image")?.id;
 			const defaultModelId =
 				imageModels.length > 0
 					? configuredModel && imageModels.some((m) => m.id === configuredModel)
 						? configuredModel
-						: imageModels[0].id
+						: (preferredDefaultModel ?? imageModels[0].id)
 					: undefined;
 			return {
 				id: providerId,

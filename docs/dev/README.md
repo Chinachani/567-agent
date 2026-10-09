@@ -4,8 +4,8 @@
 
 仓库入口负责启动隔离的验证实例、发现动态 CDP 端口、维护 Playwright session，并自动选择 `567 Agent` 主窗口。不要在提示词或脚本中写死端口、session 名、tab 下标或 snapshot ref。
 
-Vetta Debug 的会话操作参数见 [Vetta Debug](./vetta-debug.md)；真实模型、多轮工具和上下文缓存实验见
-[Vetta Debug 真实 Provider 实战](./vetta-debug-real-provider-runbook.md)。
+567 Agent Debug 的会话操作参数见 [567 Agent Debug](./567-agent-debug.md)；真实模型、多轮工具和上下文缓存实验见
+[567 Agent Debug 真实 Provider 实战](./567-agent-debug-real-provider-runbook.md)。
 
 ## 使用授权
 
@@ -15,13 +15,13 @@ Vetta Debug 的会话操作参数见 [Vetta Debug](./vetta-debug.md)；真实模
 
 ## 验证 Profile
 
-所有命令都在仓库根目录执行。三个 Profile 使用不同的 Vetta home、Electron user data、Action RPC endpoint 和 Playwright session，因此可以与普通开发应用同时运行：
+所有命令都在仓库根目录执行。三个 Profile 使用不同的 567 Agent 数据目录、Electron user data、Action RPC endpoint 和 Playwright session，因此可以与普通开发应用同时运行：
 
 | Profile | 用途 | 数据生命周期 |
 | --- | --- | --- |
 | Fresh | 初始化、首次启动、空状态流程；也是无后缀命令的默认值 | 每次启动创建新的临时 home，从不复用上一次数据 |
-| Debug | 反复调试模型和 Agent 流程 | 使用当前工作树专属的 `~/.vetta-ui-debug/<workspace-id>`，重启后保留 |
-| Dev | 调试已经由 Desktop `dev` 命令启动的普通开发应用 | 只附着 `~/.vetta-dev`，验证脚本不会启动、同步或停止它 |
+| Debug | 反复调试模型和 Agent 流程 | 使用当前工作树专属的 `~/.567agent-ui-debug/<workspace-id>`，重启后保留 |
+| Dev | 调试已经由 Desktop `dev` 命令启动的普通开发应用 | 只附着 `~/.567agent-dev`，验证脚本不会启动、同步或停止它 |
 
 Fresh 标准流程：
 
@@ -34,7 +34,7 @@ bun run verify:ui:stop
 
 `verify:ui:start`、`status`、`pw`、`attach`、`debug`、`stop` 继续作为 Fresh 的兼容别名。`start` 会在后台启动实例，等待主 Renderer 的 CDP target 可用并完成 Playwright 附着后才返回；失败会在 120 秒内退出并给出 `logPath`，不再无限等待。
 
-Debug 首次启动时，从 `~/.vetta-dev` 白名单播种模型配置；之后使用自己的持久数据：
+Debug 首次启动时，从 `~/.567agent-dev` 白名单播种模型配置；之后使用自己的持久数据：
 
 ```powershell
 bun run verify:ui:start:debug
@@ -67,7 +67,7 @@ Dev 是 attach-only Profile，没有对应的 `start` 或 `stop`。如果普通�
 开发中的外置插件应继续复用 Dev Profile。安装新 zip 即激活新版本（ADR-0113），不需要再补一次重载；`reload` 保留为「重新读盘刷新」，用于插件目录被就地改动的场景：
 
 ```powershell
-$env:AGENT567_CONFIG_DIR = ".vetta-dev"
+$env:AGENT567_CONFIG_DIR = ".567agent-dev"
 bun packages/plugins/plugin-cli/src/cli.ts add C:\path\to\plugin.zip --json
 bun packages/plugins/plugin-cli/src/cli.ts reload plugin-id --json
 ```
@@ -96,7 +96,7 @@ bun run verify:ui:pw:dev -- run-code --filename=C:\path\to\ui-probe.js
 
 若附着日志停在 `<ws connected>` 后超时，先运行 `verify:ui:status:dev`。状态现在会报告 `devtoolsTargetCount`；存在 DevTools target 时，关闭已经失效的 DevTools 窗口后重试，保留 567 Agent 主窗口。附着失败的错误也会保留 Playwright 输出尾部并给出这一诊断，不再只显示泛化的 `Unable to attach`。
 
-需要通过 Vetta Debug 创建或继续真实 Agent 会话时，统一经仓库入口调用：
+需要通过 567 Agent Debug 创建或继续真实 Agent 会话时，统一经仓库入口调用：
 
 ```powershell
 bun run verify:ui:debug -- <Debug CLI 参数>
@@ -147,7 +147,7 @@ App Action 写操作会弹出审批 UI。Agent 应先读取当前页面上的实
 
 ## 覆盖范围
 
-CDP 主要覆盖 Electron Renderer。以下内容需要结合 Vetta Debug 状态、持久化数据、主进程日志或专门的 Electron 集成测试验证：
+CDP 主要覆盖 Electron Renderer。以下内容需要结合 567 Agent Debug 状态、持久化数据、主进程日志或专门的 Electron 集成测试验证：
 
 - 原生文件选择器和系统 Dialog
 - 系统托盘菜单

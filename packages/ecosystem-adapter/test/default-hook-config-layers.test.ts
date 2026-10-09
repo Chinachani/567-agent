@@ -93,10 +93,10 @@ describe("buildDefaultHookConfigLayers", () => {
 		expect(paths.some((p) => p.includes("/demo/.claude/") && !p.includes("/.vetta/"))).toBe(false);
 	});
 
-	it("honors explicit vettaHome", () => {
+	it("honors explicit agent567Home", () => {
 		const layers = buildDefaultHookConfigLayers({
 			cwd: "/p",
-			vettaHome: "/custom/vetta",
+			agent567Home: "/custom/vetta",
 			env: {},
 		});
 		const paths = layers.flatMap((l) => (l.sources ?? []).map((s) => s.path.replace(/\\/g, "/")));
@@ -155,16 +155,16 @@ describe("vetta-nested path discovery", () => {
 	it("loads Codex handlers from .vetta/.codex and ignores top-level official + Claude", async () => {
 		const home = await makeTempDir("vetta-codex-home-");
 		const project = await makeTempDir("vetta-codex-proj-");
-		const vettaHome = join(home, ".vetta");
+		const agent567Home = join(home, ".vetta");
 
-		await mkdir(join(vettaHome, ".codex"), { recursive: true });
+		await mkdir(join(agent567Home, ".codex"), { recursive: true });
 		await mkdir(join(project, ".vetta", ".codex"), { recursive: true });
 		// Top-level official + Claude must be ignored by default layers
 		await mkdir(join(home, ".codex"), { recursive: true });
 		await mkdir(join(project, ".codex"), { recursive: true });
 		await mkdir(join(project, ".vetta", ".claude"), { recursive: true });
 
-		await writeFile(join(vettaHome, ".codex", "hooks.json"), sessionStartHooks("echo codex-user"), "utf8");
+		await writeFile(join(agent567Home, ".codex", "hooks.json"), sessionStartHooks("echo codex-user"), "utf8");
 		await writeFile(join(project, ".vetta", ".codex", "hooks.json"), sessionStartHooks("echo codex-project"), "utf8");
 		await writeFile(join(home, ".codex", "hooks.json"), sessionStartHooks("echo official-user"), "utf8");
 		await writeFile(join(project, ".codex", "hooks.json"), sessionStartHooks("echo official-project"), "utf8");
@@ -187,15 +187,19 @@ describe("vetta-nested path discovery", () => {
 	it("loads Claude handlers from .vetta/.claude settings including extra keys", async () => {
 		const home = await makeTempDir("vetta-claude-home-");
 		const project = await makeTempDir("vetta-claude-proj-");
-		const vettaHome = join(home, ".vetta");
+		const agent567Home = join(home, ".vetta");
 
-		await mkdir(join(vettaHome, ".claude"), { recursive: true });
+		await mkdir(join(agent567Home, ".claude"), { recursive: true });
 		await mkdir(join(project, ".vetta", ".claude"), { recursive: true });
 		await mkdir(join(home, ".claude"), { recursive: true });
 		await mkdir(join(project, ".claude"), { recursive: true });
 		await mkdir(join(project, ".vetta", ".codex"), { recursive: true });
 
-		await writeFile(join(vettaHome, ".claude", "settings.json"), claudeSettingsWithHooks("echo claude-user"), "utf8");
+		await writeFile(
+			join(agent567Home, ".claude", "settings.json"),
+			claudeSettingsWithHooks("echo claude-user"),
+			"utf8",
+		);
 		await writeFile(
 			join(project, ".vetta", ".claude", "settings.json"),
 			claudeSettingsWithHooks("echo claude-project"),

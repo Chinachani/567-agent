@@ -314,7 +314,7 @@ export function useTeamChatModel(
 			if (!session) return;
 			setError(undefined);
 			try {
-				const next = await window.vetta.agentTeams.updateModelSettings(session.id, {
+				const next = await window.agent567.agentTeams.updateModelSettings(session.id, {
 					modelKey,
 					...(reasoning ? { reasoning } : {}),
 				});
@@ -344,7 +344,7 @@ export function useTeamChatModel(
 		if (!session?.id) return;
 		let mounted = true;
 		let unsubscribe: (() => void) | undefined;
-		const subscription = window.vetta.agentTeams.subscribe(session.id, (event) => {
+		const subscription = window.agent567.agentTeams.subscribe(session.id, (event) => {
 			const eventSessionId =
 				event.type === "session-snapshot" || event.type === "session-updated"
 					? event.teamSessionId
@@ -450,7 +450,7 @@ export function useTeamChatModel(
 		async (mode: SessionExecutionMode) => {
 			if (!session) return;
 			try {
-				const next = await window.vetta.agentTeams.setExecutionMode(session.id, mode);
+				const next = await window.agent567.agentTeams.setExecutionMode(session.id, mode);
 				setSnapshot(next);
 			} catch (cause) {
 				setError({ message: errorMessage(cause) });
@@ -585,12 +585,12 @@ export function useTeamChatModel(
 	);
 	const selectFiles = useCallback(async () => {
 		if (!session && !createNewSession && !preferredSessionId) return;
-		const paths = await window.vetta.dialog.selectFiles(session?.cwd || undefined);
+		const paths = await window.agent567.dialog.selectFiles(session?.cwd || undefined);
 		addAttachments(paths.map(toFileAttachment));
 	}, [addAttachments, createNewSession, preferredSessionId, session]);
 	const selectImages = useCallback(async () => {
 		if (!session && !createNewSession && !preferredSessionId) return;
-		const selected = await window.vetta.dialog.selectImages();
+		const selected = await window.agent567.dialog.selectImages();
 		const paths = await persistBase64Images(selected, session?.id ?? null, "image-dialog");
 		addAttachments(paths.map(toImageAttachment));
 	}, [addAttachments, createNewSession, preferredSessionId, session]);
@@ -722,7 +722,7 @@ export function useTeamChatModel(
 				// 落进会话：否则“未配置会话取全局默认”的兜底会写入可能已失效的全局模型，而
 				// 委派任务不带 modelKey、只认 session.modelSettings。
 				if (activeHandoff?.modelKey && loaded && !loaded.snapshot.session.modelSettings) {
-					const snapshot = await window.vetta.agentTeams.updateModelSettings(loaded.snapshot.session.id, {
+					const snapshot = await window.agent567.agentTeams.updateModelSettings(loaded.snapshot.session.id, {
 						modelKey: activeHandoff.modelKey,
 						...(activeHandoff.reasoning ? { reasoning: activeHandoff.reasoning } : {}),
 					});
@@ -745,7 +745,7 @@ export function useTeamChatModel(
 					setStatus("ready");
 					return;
 				}
-				const next = await window.vetta.agentTeams.sendMessage(readySession.id, {
+				const next = await window.agent567.agentTeams.sendMessage(readySession.id, {
 					requestId,
 					text,
 					memberMentions: sentMemberMentions,
@@ -870,7 +870,7 @@ export function useTeamChatModel(
 		setStatus("ready");
 		if (!target) return;
 		try {
-			await window.vetta.agentTeams.abort(target.id);
+			await window.agent567.agentTeams.abort(target.id);
 		} catch (cause) {
 			if (request) cancelledRequests.current.delete(request.requestId);
 			setError({ message: errorMessage(cause) });

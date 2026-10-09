@@ -33,7 +33,7 @@ vi.mock("./skill-service.js", () => ({
 }));
 
 vi.mock("@567agent/action-rpc", () => ({
-	getVettaHomePath: () => "C:/tmp/vetta-home",
+	getAgent567HomePath: () => "C:/tmp/vetta-home",
 }));
 
 vi.mock("node:fs/promises", () => ({

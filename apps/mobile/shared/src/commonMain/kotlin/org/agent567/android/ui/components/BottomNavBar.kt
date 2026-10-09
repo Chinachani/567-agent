@@ -1,6 +1,12 @@
 package org.agent567.android.ui.components
 
+import androidx.compose.foundation.background
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.ChatBubbleOutline
 import androidx.compose.material.icons.filled.Devices
@@ -18,15 +24,19 @@ import androidx.compose.material3.NavigationBarItemDefaults
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.unit.dp
 import org.agent567.android.ui.i18n.Str
 import org.agent567.android.ui.navigation.MainTab
-import org.agent567.android.ui.theme.vettaExtra
+import org.agent567.android.ui.theme.agent567Extra
 
 @Composable
-fun VettaBottomBar(
+fun Agent567BottomBar(
     selected: MainTab,
     onSelect: (MainTab) -> Unit,
+    showLabels: Boolean = true,
     modifier: Modifier = Modifier,
 ) {
     val items =
@@ -38,7 +48,7 @@ fun VettaBottomBar(
         )
     NavigationBar(
         modifier = modifier.fillMaxWidth(),
-        containerColor = MaterialTheme.colorScheme.surface,
+        containerColor = MaterialTheme.colorScheme.surface.copy(alpha = 0.94f),
         contentColor = MaterialTheme.colorScheme.onSurface,
     ) {
         items.forEach { item ->
@@ -47,21 +57,32 @@ fun VettaBottomBar(
                 selected = selectedTab,
                 onClick = { onSelect(item.tab) },
                 icon = {
-                    Icon(
-                        imageVector = if (selectedTab) item.selectedIcon else item.icon,
-                        contentDescription = item.label,
-                    )
+                    Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                        Icon(
+                            imageVector = if (selectedTab) item.selectedIcon else item.icon,
+                            contentDescription = item.label,
+                        )
+                        Spacer(Modifier.size(4.dp))
+                        if (selectedTab) {
+                            Box(Modifier.size(4.dp).background(MaterialTheme.colorScheme.primary, CircleShape))
+                        } else {
+                            Spacer(Modifier.size(4.dp))
+                        }
+                    }
                 },
-                label = {
-                    Text(item.label, style = MaterialTheme.typography.labelSmall)
+                label = if (showLabels) {
+                    { Text(item.label, style = MaterialTheme.typography.labelSmall) }
+                } else {
+                    null
                 },
+                alwaysShowLabel = showLabels,
                 colors =
                     NavigationBarItemDefaults.colors(
                         selectedIconColor = MaterialTheme.colorScheme.onSurface,
                         selectedTextColor = MaterialTheme.colorScheme.onSurface,
-                        unselectedIconColor = MaterialTheme.vettaExtra.secondaryText,
-                        unselectedTextColor = MaterialTheme.vettaExtra.secondaryText,
-                        indicatorColor = MaterialTheme.vettaExtra.chipBackground,
+                        unselectedIconColor = MaterialTheme.agent567Extra.secondaryText,
+                        unselectedTextColor = MaterialTheme.agent567Extra.secondaryText,
+                        indicatorColor = Color.Transparent,
                     ),
             )
         }

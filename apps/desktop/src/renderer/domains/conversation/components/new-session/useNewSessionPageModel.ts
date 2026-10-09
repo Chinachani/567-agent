@@ -309,11 +309,11 @@ export function useNewSessionPageModel(): NewSessionPageModel {
 	}, [contextLabel, setHeaderTitle, setHeaderTitleBadge, setHeaderTitleHidden, t]);
 
 	useEffect(() => {
-		void window.vetta.window.isAlwaysOnTop().then(setPinned);
+		void window.agent567.window.isAlwaysOnTop().then(setPinned);
 	}, []);
 
 	const handleTogglePin = useCallback(async () => {
-		const next = await window.vetta.window.toggleAlwaysOnTop();
+		const next = await window.agent567.window.toggleAlwaysOnTop();
 		setPinned(next);
 	}, []);
 

@@ -158,3 +158,12 @@ test("Windows installer registers and opens 567design files", () => {
 	assert.ok(installer.includes('Subkey: "Software\\Classes\\567Agent.DesignShare\\shell\\open\\command"'));
 	assert.match(installer, /ValueData: """\{app\}\\567-Agent\.exe"" ""%1"""/);
 });
+
+test("Windows manual installs remove stale bundled versions but retain the installed version", () => {
+	const installer = readFileSync(join(desktopRoot, "build", "installer.iss"), "utf8");
+	assert.match(installer, /procedure CleanupOldBundledVersions\(\)/);
+	assert.match(installer, /FindFirst\(AddBackslash\(VersionsDirectory\) \+ '\*', FindRec\)/);
+	assert.match(installer, /FindRec\.Name <> '\{#AppVersion\}'/);
+	assert.match(installer, /DelTree\(CandidateDirectory, True, True, True\)/);
+	assert.match(installer, /SeedUpdaterDifferentialCache\(\);\s+DeleteFile\(ExpandConstant\('\{localappdata\}\\567Agent\\current\.json'\)\);\s+CleanupOldBundledVersions\(\);/);
+});

@@ -40,13 +40,16 @@ import org.agent567.android.core.net.RefreshOutcome
 import org.agent567.android.domain.chat.prepareRetryTurn
 import org.agent567.android.domain.chat.shouldClearPendingImagesOnSessionChange
 import org.agent567.android.domain.conversation.RemoteSessionModelCatalog
+import org.agent567.android.domain.conversation.RemotePromptFileAttachment
 import org.agent567.android.domain.conversation.RemoteDesktopSessionSummary
+import org.agent567.android.domain.conversation.RemoteToolboxAbility
 import org.agent567.android.domain.conversation.RemoteConversationException
 import org.agent567.android.domain.error.ErrorMapper
 import org.agent567.android.domain.error.UiError
 import org.agent567.android.domain.error.UiErrorAction
 import org.agent567.android.domain.remote.createSecureRemoteResumeSecret
 import org.agent567.android.domain.device.DesktopDevice
+import org.agent567.android.domain.device.DeviceStatus
 import org.agent567.android.domain.device.SessionListItem
 import org.agent567.android.domain.session.ConversationOrigin
 import org.agent567.android.domain.session.LocalMessage
@@ -58,6 +61,14 @@ import org.agent567.android.domain.session.SessionStore
 import org.agent567.android.domain.session.nowEpochMs
 import org.agent567.android.data.session.MigrationBackupTooLargeException
 import org.agent567.android.ui.i18n.Str
+import org.agent567.android.ui.media.PendingFileAttachment
+import org.agent567.android.domain.session.MessageFileAttachment
+import org.agent567.android.ui.media.MAX_MESSAGE_IMAGE_TOTAL_BYTES
+import org.agent567.android.ui.media.MAX_MESSAGE_FILE_COUNT
+import org.agent567.android.ui.media.MAX_MESSAGE_FILE_TOTAL_BYTES
+import org.agent567.android.ui.media.MAX_PICKED_IMAGE_COUNT
+import org.agent567.android.ui.media.byteSize
+import org.agent567.android.ui.media.pickedByteSize
 import org.agent567.android.ui.navigation.AppRoute
 import org.agent567.android.ui.navigation.ChatSurface
 import org.agent567.android.ui.navigation.MainTab
@@ -72,6 +83,8 @@ data class AppUiState(
     val autoResumeLastSession: Boolean = true,
     val motionEnabled: Boolean = true,
     val inputPredictionEnabled: Boolean = true,
+    val autoRequestDesktopScreen: Boolean = false,
+    val showBottomNavLabels: Boolean = true,
     val confirmBeforeDelete: Boolean = true,
     val migrationBackupLimitMb: Int = 50,
     val serverUrl: String = "",
@@ -86,6 +99,7 @@ data class AppUiState(
     val messages: List<LocalMessage> = emptyList(),
     val draft: String = "",
     val pendingImages: List<MessageImage> = emptyList(),
+    val pendingFiles: List<PendingFileAttachment> = emptyList(),
     val isStreaming: Boolean = false,
     /** 面向用户的短状态，不透传 Desktop 内部思考文本或异常原文。 */
     val streamingStatus: String? = null,
@@ -97,7 +111,7 @@ data class AppUiState(
     val groupPickerOpen: Boolean = false,
     val activeImageGroup: String? = null,
     val activeImageModel: String? = null,
-    val imageGenEnabled: Boolean = false,
+    val imageGenEnabled: Boolean = true,
     val imagePickerOpen: Boolean = false,
     val availableImageModels: List<String> = emptyList(),
     val imageModelsLoading: Boolean = false,
@@ -105,6 +119,7 @@ data class AppUiState(
     val remoteConnecting: Boolean = false,
     val desktopSessionsLoading: Boolean = false,
     val desktopSessionsError: String? = null,
+    val desktopSessionsWarning: String? = null,
     /** 配对与设备管理错误，只在连接相关页面展示。 */
     val remoteError: UiError? = null,
     /** 当前聊天的错误提示；切换会话时清空，后台任务不得写入。 */
@@ -123,6 +138,10 @@ data class AppUiState(
     val discoverChannelIndex: Int = 0,
     val newConversationChannelIndex: Int = 0,
     val devices: List<DesktopDevice> = emptyList(),
+    val toolboxAbilities: List<RemoteToolboxAbility> = emptyList(),
+    val toolboxLoading: Boolean = false,
+    val toolboxError: String? = null,
+    val toolboxQuery: String = "",
     val remoteDesktopSessions: List<RemoteDesktopSessionSummary> = emptyList(),
     val desktopHistoryLoading: Boolean = false,
     val pendingQuestion: PendingQuestion? = null,
@@ -144,6 +163,7 @@ private const val REMOTE_GENERATED_IMAGE_MAX_BYTES = 12 * 1024 * 1024
 private const val MAX_ASSISTANT_MESSAGE_CHARS = 1_000_000
 private const val MAX_TOOL_TRACE_FIELD_CHARS = 8 * 1024
 private const val MAX_TOOL_TRACE_EVENTS = 80
+private const val MAX_REQUEST_IMAGE_COUNT = 6
 private const val MAX_REQUEST_IMAGE_CONTEXT_BYTES = 12 * 1024 * 1024
 
 private fun formatBackupSizeMb(bytes: Long): String =
@@ -166,6 +186,8 @@ class AppViewModel(
                 autoResumeLastSession = container.preferences.autoResumeLastSession.value,
                 motionEnabled = container.preferences.motionEnabled.value,
                 inputPredictionEnabled = container.preferences.inputPredictionEnabled.value,
+                autoRequestDesktopScreen = container.preferences.autoRequestDesktopScreen.value,
+                showBottomNavLabels = container.preferences.showBottomNavLabels.value,
                 confirmBeforeDelete = container.preferences.confirmBeforeDelete.value,
                 migrationBackupLimitMb = container.preferences.migrationBackupLimitMb.value,
             ),
@@ -186,6 +208,7 @@ class AppViewModel(
     private val desktopSessionModelJobs = mutableMapOf<String, Deferred<Pair<String, RemoteSessionModelCatalog>?>>()
     private val drafts = mutableMapOf<String, String>()
     private var pendingLoginAction: PendingLoginAction? = null
+    private var pendingNewChatDraft = ""
 
     init {
         viewModelScope.launch {
@@ -218,6 +241,16 @@ class AppViewModel(
         viewModelScope.launch {
             container.preferences.inputPredictionEnabled.collect { enabled ->
                 _state.update { it.copy(inputPredictionEnabled = enabled) }
+            }
+        }
+        viewModelScope.launch {
+            container.preferences.autoRequestDesktopScreen.collect { enabled ->
+                _state.update { it.copy(autoRequestDesktopScreen = enabled) }
+            }
+        }
+        viewModelScope.launch {
+            container.preferences.showBottomNavLabels.collect { enabled ->
+                _state.update { it.copy(showBottomNavLabels = enabled) }
             }
         }
         viewModelScope.launch {
@@ -294,7 +327,7 @@ class AppViewModel(
                 it.copy(
                     active567Group = savedGroup,
                     activeImageGroup = savedImageGroup,
-                    activeImageModel = savedImageModel,
+                    activeImageModel = savedImageModel ?: DEFAULT_IMAGE_MODEL,
                     imageGenEnabled = savedImageEnabled,
                     user = cachedUser,
                     models = initialCachedModels,
@@ -338,17 +371,25 @@ class AppViewModel(
         } else {
             null
         }
-        val routeSession = lastSession?.id
+        val route = lastSession?.let { session ->
+            AppRoute.Chat(
+                sessionId = session.id,
+                surface = if (session.origin == ConversationOrigin.Desktop) ChatSurface.Desktop else ChatSurface.Cloud,
+                title = session.title,
+                deviceId = session.remoteDeviceId,
+            )
+        } ?: AppRoute.Main(MainTab.Home)
 
         _state.update {
             it.copy(
                 bootstrapped = true,
                 mainAccessGranted = true,
-                route = AppRoute.Main(it.mainTab),
-                currentSessionId = routeSession,
+                route = route,
+                currentSessionId = lastSession?.id,
                 catalogLoading = true,
             )
         }
+        if (lastSession != null) attachSession(lastSession.id)
         restorePendingQuestion()
 
         try {
@@ -430,7 +471,13 @@ class AppViewModel(
         }
     }
 
-    fun openWelcome() = navigate(AppRoute.Welcome)
+    fun openWelcome() {
+        if (_state.value.route == AppRoute.Login) {
+            pendingLoginAction = null
+            pendingNewChatDraft = ""
+        }
+        navigate(AppRoute.Welcome)
+    }
 
     fun openLogin() = navigate(AppRoute.Login)
 
@@ -497,7 +544,7 @@ class AppViewModel(
             pendingLoginAction = PendingLoginAction.CloudConversation
             openLogin()
         } else {
-            newChat()
+            newChat(pendingNewChatDraft.also { pendingNewChatDraft = "" })
         }
     }
 
@@ -511,7 +558,59 @@ class AppViewModel(
         }
     }
 
+    fun setToolboxQuery(query: String) {
+        _state.update { it.copy(toolboxQuery = query) }
+    }
+
+    fun refreshToolbox(deviceId: String? = null) {
+        val devices = container.remoteConversationGateway.devices.value
+        val device = devices.firstOrNull { it.id == deviceId && it.status == DeviceStatus.Online }
+            ?: if (deviceId == null) devices.firstOrNull { it.status == DeviceStatus.Online } else null
+        if (device == null) {
+            _state.update { it.copy(toolboxAbilities = emptyList(), toolboxLoading = false, toolboxError = "请先连接一台电脑") }
+            return
+        }
+        if (_state.value.toolboxLoading) return
+        _state.update { it.copy(toolboxLoading = true, toolboxError = null) }
+        viewModelScope.launch {
+            try {
+                val abilities = container.remoteConversationGateway.readDesktopToolbox(device.id)
+                    ?: throw RemoteConversationException("电脑连接已断开，请重新连接后刷新")
+                _state.update { it.copy(toolboxAbilities = abilities, toolboxLoading = false, toolboxError = null) }
+            } catch (error: Throwable) {
+                if (error is CancellationException) throw error
+                _state.update { it.copy(toolboxLoading = false, toolboxError = ErrorMapper.from(error).message) }
+            }
+        }
+    }
+
+    fun installToolboxAbility(ability: RemoteToolboxAbility) {
+        if (!ability.installable || ability.installed || ability.type !in setOf("skill", "scene", "plugin")) return
+        val targetDeviceId = (_state.value.route as? AppRoute.DeviceCapabilities)?.deviceId
+        val devices = container.remoteConversationGateway.devices.value
+        val device = devices.firstOrNull { it.id == targetDeviceId && it.status == DeviceStatus.Online }
+            ?: (if (targetDeviceId == null) devices.firstOrNull { it.status == DeviceStatus.Online } else null)
+            ?: run {
+                _state.update { it.copy(toolboxError = "请先连接一台电脑") }
+                return
+            }
+        viewModelScope.launch {
+            _state.update { it.copy(toolboxLoading = true, toolboxError = null) }
+            try {
+                container.remoteConversationGateway.installDesktopToolboxAbility(device.id, ability.type, ability.slug)
+                    ?: throw RemoteConversationException("电脑连接已断开，请重新连接后重试")
+                val abilities = container.remoteConversationGateway.readDesktopToolbox(device.id).orEmpty()
+                _state.update { it.copy(toolboxAbilities = abilities, toolboxLoading = false, toolboxError = null) }
+            } catch (error: Throwable) {
+                if (error is CancellationException) throw error
+                _state.update { it.copy(toolboxLoading = false, toolboxError = ErrorMapper.from(error).message) }
+            }
+        }
+    }
+
     fun openDeviceDetail(deviceId: String) = navigate(AppRoute.DeviceDetail(deviceId))
+
+    fun openDeviceCapabilities(deviceId: String) = navigate(AppRoute.DeviceCapabilities(deviceId))
 
     fun openNewConversation(channelIndex: Int = 0) {
         _state.update { it.copy(newConversationChannelIndex = channelIndex) }
@@ -702,6 +801,13 @@ class AppViewModel(
                             mainTab = (route as? AppRoute.Main)?.tab ?: state.mainTab,
                         )
                     }
+                    val restoredRoute = _state.value.route as? AppRoute.Chat
+                    if (restoredRoute?.surface == ChatSurface.Desktop && restoredRoute.sessionId != null) {
+                        val session = container.sessionStore.getSession(restoredRoute.sessionId)
+                        if (session?.remoteSessionId != null) {
+                            loadDesktopSessionDetail(session.id, session.remoteSessionId)
+                        }
+                    }
                 }
             } finally {
                 _state.update { it.copy(remoteConnecting = false) }
@@ -757,14 +863,16 @@ class AppViewModel(
                         desktopSessionsError = if (devices.isEmpty() && container.preferences.remotePairingId == null) {
                             Str.desktopSessionConnectFirst
                         } else null,
+                        desktopSessionsWarning = null,
                     )
                 }
                 return@launch
             }
-            _state.update { it.copy(desktopSessionsLoading = true, desktopSessionsError = null) }
+            _state.update { it.copy(desktopSessionsLoading = true, desktopSessionsError = null, desktopSessionsWarning = null) }
             try {
-                val summaries = container.remoteConversationGateway.listDesktopSessions(device.id)
+                val catalog = container.remoteConversationGateway.readDesktopSessionCatalog(device.id)
                     ?: throw RemoteConversationException("电脑暂时无法读取会话列表，请确认设备在线")
+                val summaries = catalog.sessions
                 val summaryIds = summaries.mapTo(mutableSetOf()) { it.id }
                 val emptyRemoteDrafts = container.sessionStore.sessions.value.filter { session ->
                     session.origin == ConversationOrigin.Desktop &&
@@ -774,7 +882,7 @@ class AppViewModel(
                         session.remoteSessionId in summaryIds &&
                         drafts[session.id].isNullOrBlank() &&
                         streamJobs[session.id]?.isActive != true &&
-                        (_state.value.currentSessionId != session.id || _state.value.pendingImages.isEmpty()) &&
+                        (_state.value.currentSessionId != session.id || (_state.value.pendingImages.isEmpty() && _state.value.pendingFiles.isEmpty())) &&
                         (_state.value.route as? AppRoute.Chat)?.sessionId != session.id
                 }
                 val removedDrafts = emptyRemoteDrafts.chunked(4).flatMap { batch ->
@@ -828,7 +936,14 @@ class AppViewModel(
                     }
                 }
                 _state.update {
-                    it.copy(remoteDesktopSessions = visibleSummaries, desktopSessionsLoading = false, desktopSessionsError = null)
+                    it.copy(
+                        remoteDesktopSessions = visibleSummaries,
+                        desktopSessionsLoading = false,
+                        desktopSessionsError = null,
+                        desktopSessionsWarning = if (catalog.failedDirectoryCount > 0) {
+                            Str.desktopSessionPartialLoadWarning
+                        } else null,
+                    )
                 }
             } catch (error: Throwable) {
                 val stillOnline = container.remoteConversationGateway.devices.value.any {
@@ -837,6 +952,7 @@ class AppViewModel(
                 _state.update {
                     it.copy(
                         desktopSessionsLoading = false,
+                        desktopSessionsWarning = null,
                         desktopSessionsError = if (stillOnline) error.message ?: Str.desktopSessionLoadError else null,
                     )
                 }
@@ -909,6 +1025,7 @@ class AppViewModel(
                     inputPredictionLoading = false,
                     pendingQuestion = null,
                     pendingImages = if (clearPending) emptyList() else it.pendingImages,
+                    pendingFiles = if (clearPending) emptyList() else it.pendingFiles,
                 )
             }
         }
@@ -1022,7 +1139,7 @@ class AppViewModel(
     private fun deleteEmptyDraftSessionOnExit(sessionId: String) {
         if (streamJobs[sessionId]?.isActive == true ||
             (_state.value.currentSessionId == sessionId &&
-                (_state.value.draft.isNotBlank() || _state.value.pendingImages.isNotEmpty()))
+                (_state.value.draft.isNotBlank() || _state.value.pendingImages.isNotEmpty() || _state.value.pendingFiles.isNotEmpty()))
         ) return
         viewModelScope.launch {
             val session = container.sessionStore.getSession(sessionId) ?: return@launch
@@ -1072,7 +1189,7 @@ class AppViewModel(
         val current = _state.value
         return streamJobs[sessionId]?.isActive != true &&
             drafts[sessionId].isNullOrBlank() &&
-            (current.currentSessionId != sessionId || current.pendingImages.isEmpty()) &&
+            (current.currentSessionId != sessionId || (current.pendingImages.isEmpty() && current.pendingFiles.isEmpty())) &&
             (current.route as? AppRoute.Chat)?.sessionId != sessionId
     }
 
@@ -1097,6 +1214,10 @@ class AppViewModel(
         }
         when (_state.value.route) {
             AppRoute.Login -> openWelcome()
+            is AppRoute.DeviceCapabilities -> {
+                val deviceId = (_state.value.route as AppRoute.DeviceCapabilities).deviceId
+                openDeviceDetail(deviceId)
+            }
             AppRoute.Boot,
             AppRoute.Welcome,
             is AppRoute.Main,
@@ -1283,12 +1404,38 @@ class AppViewModel(
     fun addPendingImages(images: List<MessageImage>) {
         if (images.isEmpty()) return
         _state.update { state ->
-            state.copy(pendingImages = (state.pendingImages + images).distinctBy { it.id }.take(6))
+            val accepted = state.pendingImages.toMutableList()
+            val existingIds = accepted.mapTo(mutableSetOf()) { it.id }
+            var remainingBytes = (MAX_MESSAGE_IMAGE_TOTAL_BYTES - accepted.sumOf { it.pickedByteSize() }).coerceAtLeast(0)
+            for (image in images) {
+                if (accepted.size >= MAX_PICKED_IMAGE_COUNT || !existingIds.add(image.id)) continue
+                val size = image.pickedByteSize()
+                if (size > remainingBytes) continue
+                accepted += image
+                remainingBytes -= size
+            }
+            state.copy(pendingImages = accepted)
         }
     }
 
     fun removePendingImage(id: String) {
         _state.update { it.copy(pendingImages = it.pendingImages.filterNot { img -> img.id == id }) }
+    }
+
+    fun addPendingDocument(document: PendingFileAttachment) {
+        _state.update { current ->
+            if (
+                current.pendingFiles.any { it.id == document.id } ||
+                document.byteSize() !in 1..org.agent567.android.ui.media.MAX_MESSAGE_FILE_BYTES ||
+                current.pendingFiles.size >= MAX_MESSAGE_FILE_COUNT ||
+                current.pendingFiles.sumOf { it.byteSize() } + document.byteSize() > MAX_MESSAGE_FILE_TOTAL_BYTES
+            ) current
+            else current.copy(pendingFiles = current.pendingFiles + document)
+        }
+    }
+
+    fun removePendingDocument(id: String) {
+        _state.update { it.copy(pendingFiles = it.pendingFiles.filterNot { document -> document.id == id }) }
     }
 
     fun setGroupPickerOpen(open: Boolean) {
@@ -1480,6 +1627,14 @@ class AppViewModel(
         }
     }
 
+    fun setAutoRequestDesktopScreen(enabled: Boolean) {
+        container.preferences.setAutoRequestDesktopScreen(enabled)
+    }
+
+    fun setShowBottomNavLabels(enabled: Boolean) {
+        container.preferences.setShowBottomNavLabels(enabled)
+    }
+
     fun setConfirmBeforeDelete(enabled: Boolean) {
         container.preferences.setConfirmBeforeDelete(enabled)
     }
@@ -1504,6 +1659,7 @@ class AppViewModel(
                     messages = emptyList(),
                     draft = "",
                     pendingImages = emptyList(),
+                    pendingFiles = emptyList(),
                     pendingQuestion = null,
                     isStreaming = false,
                     streamingStatus = null,
@@ -1544,6 +1700,51 @@ class AppViewModel(
             }
             onComplete(result.getOrNull(), message)
         }
+    }
+
+    fun sendSessionMigrationToDesktop(
+        passphrase: String,
+        onProgress: (String) -> Unit = {},
+        onComplete: (Boolean, String?) -> Unit,
+    ) {
+        viewModelScope.launch {
+            val device = container.remoteConversationGateway.devices.value.firstOrNull {
+                it.status == DeviceStatus.Online
+            }
+            if (device == null) {
+                onComplete(false, Str.migrationSendNoDevice)
+                return@launch
+            }
+            val limitMb = container.preferences.migrationBackupLimitMb.value
+            val result = runCatching {
+                val archive = withContext(Dispatchers.Default) {
+                    SessionMigrationBackup(container.sessionStore).export(passphrase, limitMb)
+                }
+                try {
+                    val sent = container.remoteConversationGateway.sendEncryptedSessionMigrationArchive(
+                        device.id,
+                        archive,
+                        passphrase,
+                        onAwaitingApproval = { onProgress(Str.migrationSendAwaitingApproval) },
+                    ) { completed, total ->
+                        onProgress("${Str.migrationSendProgress} $completed/$total")
+                    }
+                    when (sent) {
+                        true -> true
+                        false -> throw IllegalStateException(Str.migrationSendUnsupported)
+                        null -> throw IllegalStateException(Str.migrationSendNoDevice)
+                    }
+                } finally {
+                    archive.fill(0)
+                }
+            }
+            val error = result.exceptionOrNull()
+            onComplete(result.getOrDefault(false), error?.message)
+        }
+    }
+
+    private companion object {
+        const val DEFAULT_IMAGE_MODEL = "gemini-3.1-flash-image"
     }
 
     fun importSessionMigration(
@@ -1745,6 +1946,7 @@ class AppViewModel(
                 messages = emptyList(),
                 draft = "",
                 pendingImages = emptyList(),
+                pendingFiles = emptyList(),
                 isStreaming = false,
                 streamingStatus = null,
                 pendingQuestion = null,
@@ -1815,7 +2017,7 @@ class AppViewModel(
         }
     }
 
-    fun newChat() {
+    fun newChat(initialDraft: String = pendingNewChatDraft.also { pendingNewChatDraft = "" }) {
         if (container.tokenStore.accessToken == null) {
             openLogin()
             return
@@ -1832,8 +2034,8 @@ class AppViewModel(
                 _state.update { it.copy(selectedModelId = model.id) }
             }
             container.preferences.lastSessionId = session.id
-            drafts[session.id] = ""
-            _state.update { it.copy(pendingImages = emptyList()) }
+            drafts[session.id] = initialDraft
+            _state.update { it.copy(pendingImages = emptyList(), pendingFiles = emptyList()) }
             openChat(
                 sessionId = session.id,
                 surface = ChatSurface.Cloud,
@@ -2023,10 +2225,12 @@ class AppViewModel(
     fun sendMessage() = sendMessage(retryPreviousTurn = false)
 
     private fun sendMessage(retryPreviousTurn: Boolean) {
-        val text = _state.value.draft.trim()
+        val stateAtSend = _state.value
+        val documents = stateAtSend.pendingFiles
+        val text = stateAtSend.draft
         val images = _state.value.pendingImages
         val activeSessionId = _state.value.currentSessionId
-        if ((text.isEmpty() && images.isEmpty()) || activeSessionId?.let {
+        if ((text.isEmpty() && images.isEmpty() && documents.isEmpty()) || activeSessionId?.let {
                 streamJobs[it]?.isActive == true || it in retryPreparingSessions
             } == true
         ) return
@@ -2038,6 +2242,20 @@ class AppViewModel(
             val route = _state.value.route as? AppRoute.Chat
             val isDesktop = route?.surface == ChatSurface.Desktop ||
                 _state.value.currentSessionId?.let { container.sessionStore.getSession(it)?.origin == ConversationOrigin.Desktop } == true
+            if (documents.isNotEmpty() && !isDesktop) {
+                val error = UiError(
+                    title = Str.sendFileUnsupportedTitle,
+                    message = Str.sendFileUnsupportedMessage,
+                    action = UiErrorAction.None,
+                )
+                if (_state.value.currentSessionId == null) {
+                    _state.update { it.copy(chatError = error) }
+                } else {
+                    updateVisibleSession(_state.value.currentSessionId.orEmpty()) { it.copy(chatError = error) }
+                }
+                pendingSendReservations.remove(sendReservation)
+                return@launch
+            }
             if (!isDesktop && container.tokenStore.accessToken.isNullOrBlank()) {
                 openLogin()
                 return@launch
@@ -2128,11 +2346,20 @@ class AppViewModel(
                     status = MessageStatus.Complete,
                     createdAtEpochMs = nowEpochMs(),
                     images = persistedImages,
+                    files = documents.map { file ->
+                        MessageFileAttachment(file.id, file.fileName, file.mimeType, file.bytes.size.toLong())
+                    },
                 )
             val isFirstUserMessage = !retryPreviousTurn && container.sessionStore.getMessages(sid).none { it.role == ChatRole.User }
             val titleModelId = model?.id ?: session.modelId
             val titleGroupName = _state.value.active567Group
-            val titlePrompt = text.take(1200).ifBlank { if (images.isNotEmpty()) "用户发送了一张图片" else "" }
+            val titlePrompt = text.take(1200).ifBlank {
+                when {
+                    images.isNotEmpty() -> "用户发送了图片"
+                    documents.isNotEmpty() -> "用户发送了文件：${documents.take(3).joinToString { it.fileName }}"
+                    else -> ""
+                }
+            }
             val assistantId = newMessageId()
             val assistantMsg =
                 LocalMessage(
@@ -2153,6 +2380,7 @@ class AppViewModel(
                 it.copy(
                     draft = "",
                     pendingImages = emptyList(),
+                    pendingFiles = emptyList(),
                     isStreaming = true,
                     streamingStatus = "running",
                     inputPredictions = emptyList(),
@@ -2169,7 +2397,8 @@ class AppViewModel(
                             it.status != MessageStatus.Error &&
                             it.hasVisualContent
                     }
-            val history = buildChatHistory(historyMessages)
+            val builtHistory = buildChatHistory(historyMessages)
+            val history = builtHistory
 
             val streamJob = viewModelScope.launch(start = CoroutineStart.LAZY) {
                     var assembled = ""
@@ -2223,6 +2452,14 @@ class AppViewModel(
                                 groupName = _state.value.active567Group,
                                 imageGenModel = if (_state.value.imageGenEnabled) _state.value.activeImageModel else null,
                                 retryPreviousTurn = retryPreviousTurn,
+                                desktopPromptText = stateAtSend.draft,
+                                desktopFiles = documents.map { document ->
+                                    RemotePromptFileAttachment(
+                                        fileName = document.fileName,
+                                        mimeType = document.mimeType,
+                                        bytes = document.bytes,
+                                    )
+                                },
                             )
                             .collect { event ->
                                 when (event) {
@@ -2279,7 +2516,7 @@ class AppViewModel(
                                             var promptArg = event.arguments.orEmpty()
                                             var isEdit = false
                                             try {
-                                                val argsObj = org.agent567.android.core.net.VettaJson.parseToJsonElement(event.arguments.orEmpty()) as? kotlinx.serialization.json.JsonObject
+                                                val argsObj = org.agent567.android.core.net.Agent567Json.parseToJsonElement(event.arguments.orEmpty()) as? kotlinx.serialization.json.JsonObject
                                                 promptArg = (argsObj?.get("prompt") as? kotlinx.serialization.json.JsonPrimitive)?.content ?: promptArg
                                                 val actionStr = (argsObj?.get("action") as? kotlinx.serialization.json.JsonPrimitive)?.content
                                                 isEdit = actionStr == "edit"
@@ -2686,6 +2923,9 @@ class AppViewModel(
                         }
                         if (t !is kotlinx.coroutines.CancellationException) {
                             setSessionError(sid, t)
+                            if (documents.isNotEmpty()) {
+                                updateVisibleSession(sid) { it.copy(pendingFiles = documents) }
+                            }
                         }
                     } finally {
                         pendingPersist?.cancel()
@@ -2740,7 +2980,7 @@ class AppViewModel(
         var totalImageBytes = 0
         val candidates = messages.flatMap { message -> message.images.map { message.id to it } }.asReversed()
         for ((messageId, image) in candidates) {
-            if (selectedImageData.size >= 3 || totalImageBytes >= MAX_REQUEST_IMAGE_CONTEXT_BYTES) break
+            if (selectedImageData.size >= MAX_REQUEST_IMAGE_COUNT || totalImageBytes >= MAX_REQUEST_IMAGE_CONTEXT_BYTES) break
             val bytes = container.sessionStore.readMessageImageBytes(image) ?: continue
             if (bytes.isEmpty() || bytes.size > MAX_REQUEST_IMAGE_CONTEXT_BYTES - totalImageBytes) continue
             selectedImageData["$messageId:${image.storageKey ?: image.id}"] = encodeImageBytes(bytes)
@@ -2759,7 +2999,7 @@ class AppViewModel(
         val loaded = mutableListOf<Pair<Int, String>>()
         var totalBytes = 0
         for (index in images.indices.reversed()) {
-            if (loaded.size >= 3 || totalBytes >= MAX_REQUEST_IMAGE_CONTEXT_BYTES) break
+            if (loaded.size >= MAX_REQUEST_IMAGE_COUNT || totalBytes >= MAX_REQUEST_IMAGE_CONTEXT_BYTES) break
             val bytes = container.sessionStore.readMessageImageBytes(images[index]) ?: continue
             if (bytes.isEmpty() || bytes.size > MAX_REQUEST_IMAGE_CONTEXT_BYTES - totalBytes) continue
             loaded += index to encodeImageBytes(bytes)
@@ -2822,8 +3062,8 @@ class AppViewModel(
                     if (transferFailed || expectedSize <= 0 || offset != expectedSize) {
                         updateVisibleDesktopSession(localSessionId) {
                             it.copy(chatError = UiError(
-                                title = "图片暂时无法加载",
-                                message = "电脑端图片传输未完成，请确认设备在线后重新打开会话。",
+                                title = Str.desktopImageLoadErrorTitle,
+                                message = Str.desktopImageTransferIncomplete,
                                 action = UiErrorAction.None,
                             ))
                         }
@@ -2844,8 +3084,8 @@ class AppViewModel(
                     if (error is CancellationException) throw error
                     updateVisibleDesktopSession(localSessionId) {
                         it.copy(chatError = UiError(
-                            title = "图片暂时无法加载",
-                            message = "请确认电脑仍在线后重新打开会话。",
+                            title = Str.desktopImageLoadErrorTitle,
+                            message = Str.desktopImageDeviceOffline,
                             action = UiErrorAction.None,
                         ))
                     }
@@ -2921,6 +3161,15 @@ class AppViewModel(
                 if (streamJobs[sid]?.isActive == true) return@launch
                 val messages = container.sessionStore.getMessages(sid)
                 val turn = prepareRetryTurn(messages, assistantMessageId) ?: return@launch
+                if (turn.files.isNotEmpty()) {
+                    updateVisibleSession(sid) {
+                        it.copy(chatError = UiError(
+                            title = Str.retryFileAttachmentUnavailableTitle,
+                            message = Str.retryFileAttachmentUnavailableMessage,
+                        ))
+                    }
+                    return@launch
+                }
                 val retryImages = turn.images.map { image ->
                     if (image.storageKey == null || image.pendingBytes != null || image.base64Data.isNotBlank()) {
                         image
@@ -2929,8 +3178,8 @@ class AppViewModel(
                         if (bytes == null) {
                             updateVisibleSession(sid) {
                                 it.copy(chatError = UiError(
-                                    title = "无法重试这条消息",
-                                    message = "原消息的图片文件已缺失。为避免丢失原记录，请先检查聊天记录后再重试。",
+                                    title = Str.retryMissingImageTitle,
+                                    message = Str.retryMissingImageMessage,
                                 ))
                             }
                             return@launch
@@ -3000,6 +3249,7 @@ class AppViewModel(
                 inputPredictionLoading = sessionId in inputPredictionLoadingSessions && draft.isBlank(),
                 pendingQuestion = null,
                 pendingImages = if (clearPendingImages) emptyList() else it.pendingImages,
+                pendingFiles = if (clearPendingImages) emptyList() else it.pendingFiles,
             )
         }
         messagesCollectJob =

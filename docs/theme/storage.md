@@ -118,13 +118,7 @@ import { useThemeStorage, useThemeUsageStats } from "@vetta-org/theme-sdk";
 runtime: [MyCultivationRuntime]
 ```
 
-desktop 在主题激活时挂载 `runtime`。xianxia 示例：
-
-- 组件：`XianxiaCultivationRuntime`（无 UI）
-- 规则：多指标合成 `score`（活跃时长、消息、回合、工具、会话、token、连续活跃天、批量/自动化、知识库、项目、长会话深度等），再按主题自有 `targetScore` 映射 15 境
-- 写入 key：`cultivation`（snapshot version 2）
-- 落盘：`~/.567agent/desktop-app/themes/xianxia/data.json`
-- 验证：DevTools 日志 `[xianxia-cultivation] synced ...`，或直接读 data.json
+desktop 在主题激活时挂载 `runtime`。主题运行时应使用 SDK 的 storage hook，并把数据写入自己的 namespace；具体键和迁移版本由主题模块维护。
 
 ## 暂不支持
 

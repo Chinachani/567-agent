@@ -69,7 +69,7 @@ export function useAgentCenterModel(copy: AgentLibraryCopy) {
 			const created = await createAgent();
 			if (!created) return undefined;
 			try {
-				const updated = await window.vetta.agentTeams.updateAgent(created.id, {
+				const updated = await window.agent567.agentTeams.updateAgent(created.id, {
 					expectedRevision: created.revision,
 					name: input.name.trim() || created.name,
 					description: input.description,

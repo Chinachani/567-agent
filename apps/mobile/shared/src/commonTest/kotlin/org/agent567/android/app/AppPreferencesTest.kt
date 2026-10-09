@@ -6,6 +6,16 @@ import kotlin.test.assertEquals
 
 class AppPreferencesTest {
     @Test
+    fun autoResumeLastSessionIsOffForNewInstalls() {
+        assertEquals(false, AppPreferences(MapSettings()).autoResumeLastSession.value)
+    }
+
+    @Test
+    fun imageGenerationIsEnabledByDefault() {
+        assertEquals(true, AppPreferences(MapSettings()).imageGenEnabled)
+    }
+
+    @Test
     fun newInstallUsesLightThemeByDefault() {
         assertEquals(ThemeMode.Light, AppPreferences(MapSettings()).themeMode.value)
     }

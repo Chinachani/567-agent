@@ -1,6 +1,6 @@
 package org.agent567.android.domain.error
 
-import org.agent567.android.core.error.VettaException
+import org.agent567.android.core.error.Agent567Exception
 import org.agent567.android.domain.conversation.RemoteConversationException
 import org.agent567.android.domain.remote.connection.RemoteRequestException
 import org.agent567.android.domain.remote.protocol.RemoteError
@@ -13,7 +13,7 @@ class ErrorMapperTest {
     fun mapsQuotaToOpenPlan() {
         val ui =
             ErrorMapper.from(
-                VettaException.Api(httpStatus = 429, code = 42902, message = "额度尽"),
+                Agent567Exception.Api(httpStatus = 429, code = 42902, message = "额度尽"),
             )
         assertEquals(UiErrorAction.OpenPlan, ui.action)
         assertEquals("额度已用尽", ui.title)
@@ -21,7 +21,7 @@ class ErrorMapperTest {
 
     @Test
     fun mapsUnauthorized() {
-        val ui = ErrorMapper.from(VettaException.Unauthorized())
+        val ui = ErrorMapper.from(Agent567Exception.Unauthorized())
         assertEquals(UiErrorAction.ReLogin, ui.action)
     }
 
@@ -54,7 +54,7 @@ class ErrorMapperTest {
     fun doesNotExposeUnknownApiMessage() {
         val ui =
             ErrorMapper.from(
-                VettaException.Api(
+                Agent567Exception.Api(
                     httpStatus = 500,
                     code = 50000,
                     message = "upstream secret response",

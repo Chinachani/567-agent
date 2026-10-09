@@ -67,7 +67,7 @@ export function useSchedulerTaskFieldsModel({
 	}, [value.cron, value.isOnce]);
 
 	useEffect(() => {
-		void window.vetta.config.get().then((config) => {
+		void window.agent567.config.get().then((config) => {
 			setDefaultExecutionMode(config.defaultExecutionMode ?? "full-access");
 			const capability = config.sandbox ?? config.linuxSandbox;
 			if (capability?.status === "unavailable") {

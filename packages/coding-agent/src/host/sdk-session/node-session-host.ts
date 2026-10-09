@@ -36,7 +36,7 @@ import { CodingAgentSdkExtensionTransitionAdapter } from "../coding-agent-sdk-ex
 import { CodingAgentSdkResourceSourceAdapter } from "../coding-agent-sdk-resource-source-adapter.js";
 import { resolveCodingAgentSessionDir } from "../coding-agent-session-storage.js";
 import { createCodingAgentExtensionEventHost } from "../extensions/event-host.js";
-import { getAgentDir, getExportTemplateDir, getKnowledgeDir, getVettaHomePath, VERSION } from "../node-config.js";
+import { getAgent567HomePath, getAgentDir, getExportTemplateDir, getKnowledgeDir, VERSION } from "../node-config.js";
 import { createCodingAgentNodeSettingsRuntime } from "../node-state-services.js";
 import { createCodingAgentNodeSessionExecutionEnvironment } from "../tool-environment/node/node-session-execution-environment.js";
 import { createCodingAgentNodeToolEnvironment } from "../tool-environment/node/node-tool-environment.js";
@@ -269,7 +269,7 @@ async function createCodingAgentSdkSessionComposition(
 			agentDir,
 			scenario: options.scenario,
 			activation,
-			hookConfigLayers: buildDefaultHookConfigLayers({ cwd, vettaHome: getVettaHomePath() }),
+			hookConfigLayers: buildDefaultHookConfigLayers({ cwd, agent567Home: getAgent567HomePath() }),
 			additionalHookAdapterFactories: options.additionalHookAdapterFactories,
 			enableSubagents: options.enableSubagents,
 			createSubagentId: randomUUID,

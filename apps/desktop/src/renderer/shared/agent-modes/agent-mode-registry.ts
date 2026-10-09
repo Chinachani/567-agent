@@ -14,7 +14,7 @@ const listeners = new Set<() => void>();
 
 function ensureFetched(): void {
 	if (cached || inflight) return;
-	inflight = window.vetta.session
+	inflight = window.agent567.session
 		.getAgentModes()
 		.then((modes) => {
 			cached = modes;

@@ -139,7 +139,7 @@ export function useNewSessionTeamDraft({
 		if (loadRef.current) return loadRef.current;
 		setLoading(true);
 		setError(null);
-		const request = window.vetta.agentTeams
+		const request = window.agent567.agentTeams
 			.list()
 			.then((next) => {
 				setDocument(next);
@@ -301,11 +301,11 @@ export function useNewSessionTeamDraft({
 		return {
 			setDraft: setDraftAndAttachments,
 			selectFiles: async () =>
-				addAttachments((await window.vetta.dialog.selectFiles()).map((path) => toAttachment(path, "file"))),
+				addAttachments((await window.agent567.dialog.selectFiles()).map((path) => toAttachment(path, "file"))),
 			selectImages: async () =>
 				addAttachments(
-					(await persistBase64Images(await window.vetta.dialog.selectImages(), null, "image-dialog")).map((path) =>
-						toAttachment(path, "image"),
+					(await persistBase64Images(await window.agent567.dialog.selectImages(), null, "image-dialog")).map(
+						(path) => toAttachment(path, "image"),
 					),
 				),
 			removeAttachment,

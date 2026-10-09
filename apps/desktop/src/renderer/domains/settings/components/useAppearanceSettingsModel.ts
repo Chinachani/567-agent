@@ -6,7 +6,7 @@ import { useNewSessionTexture } from "@shared/hooks/useNewSessionTexture";
 import { useSidebarStyle } from "@shared/hooks/useSidebarStyle";
 import { useTheme } from "@shared/hooks/useTheme";
 import type { ThemeMode } from "@shared/store/atoms";
-import { type CursorStyle, STOAT_CURSOR_PREVIEW_URL } from "@shared/theme/cursor";
+import type { CursorStyle } from "@shared/theme/cursor";
 import { NEW_SESSION_TEXTURE_CATALOG, type NewSessionTextureId } from "@shared/theme/new-session-texture";
 import { ORNAMENT_CATALOG, type OrnamentId } from "@shared/theme/ornament";
 import { useThemeRuntime } from "@shared/theme/runtime";
@@ -18,7 +18,6 @@ import { useTranslation } from "react-i18next";
 import { isAppearanceUiThemeEnabled } from "@/shared/feature-flags";
 import type { LanguagePreference } from "@/shared/i18n/config";
 import defaultThemePreview from "../assets/default.webp";
-import xianxiaThemePreview from "../assets/xianxia.webp";
 import { SETTINGS_SECTION } from "../registry";
 import { recordSettingsUsage } from "./recordSettingsUsage";
 
@@ -180,12 +179,6 @@ const UI_THEME_OPTIONS = [
 		hintKey: "uiThemeDefaultHint",
 		preview: defaultThemePreview,
 	},
-	{
-		id: "xianxia",
-		labelKey: "uiThemeXianxia",
-		hintKey: "uiThemeXianxiaHint",
-		preview: xianxiaThemePreview,
-	},
 ] as const;
 
 const CURSOR_OPTIONS = [
@@ -194,12 +187,6 @@ const CURSOR_OPTIONS = [
 		labelKey: "cursorDefaultTitle",
 		hintKey: "cursorDefaultHint",
 		icon: "icon-[mdi--cursor-default-outline]",
-	},
-	{
-		id: "stoat" as const,
-		labelKey: "cursorStoatTitle",
-		hintKey: "cursorStoatHint",
-		preview: STOAT_CURSOR_PREVIEW_URL,
 	},
 ] as const;
 
@@ -283,7 +270,7 @@ export function useAppearanceSettingsModel(): AppearanceSettingsModel {
 				active: cursorStyle === option.id,
 				label: t(option.labelKey),
 				hint: t(option.hintKey),
-				preview: "preview" in option ? option.preview : undefined,
+				preview: undefined,
 				icon: "icon" in option ? option.icon : undefined,
 			})),
 		[cursorStyle, t],

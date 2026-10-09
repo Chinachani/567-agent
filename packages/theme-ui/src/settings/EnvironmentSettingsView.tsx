@@ -28,11 +28,23 @@ export interface EnvironmentSettingsViewLabels {
 		readonly runtime: string;
 	};
 	readonly title: string;
+	readonly progress: string;
+	readonly logs: string;
+}
+
+export interface EnvironmentInstallProgressView {
+	readonly type: EnvironmentRuntimeKindView;
+	readonly phase: string;
+	readonly downloadedBytes?: number;
+	readonly totalBytes?: number;
+	readonly message: string;
 }
 
 export interface EnvironmentSettingsViewProps {
 	readonly busy: EnvironmentRuntimeKindView | null;
 	readonly error: string | null;
+	readonly progress: EnvironmentInstallProgressView | null;
+	readonly logs: readonly string[];
 	readonly headerAction?: ReactNode;
 	readonly labels: EnvironmentSettingsViewLabels;
 	readonly mirrors?: {
@@ -116,6 +128,8 @@ function RuntimeCard({
 export function EnvironmentSettingsView({
 	busy,
 	error,
+	progress,
+	logs,
 	headerAction,
 	labels,
 	mirrors,
@@ -139,6 +153,32 @@ export function EnvironmentSettingsView({
 					{error}
 				</div>
 			)}
+
+			{busy && progress?.type === busy ? (
+				<div className="mb-4 rounded-lg border border-border bg-card px-4 py-3">
+					<div className="flex items-center justify-between gap-3 text-[12px] text-foreground">
+						<span>{labels.progress}: {progress.message}</span>
+						{progress.totalBytes ? (
+							<span className="shrink-0 text-muted-foreground">
+								{Math.min(100, Math.round(((progress.downloadedBytes ?? 0) / progress.totalBytes) * 100))}%
+							</span>
+						) : null}
+					</div>
+					{progress.totalBytes ? (
+						<progress
+							className="mt-2 h-1.5 w-full overflow-hidden rounded-full accent-primary"
+							max={progress.totalBytes}
+							value={Math.min(progress.downloadedBytes ?? 0, progress.totalBytes)}
+						/>
+					) : <div className="mt-2 h-1.5 w-full animate-pulse rounded-full bg-muted" />}
+					<details className="mt-2 text-[11px] text-muted-foreground">
+						<summary className="cursor-pointer">{labels.logs}</summary>
+						<div className="mt-2 max-h-32 overflow-auto rounded bg-muted/60 p-2 font-mono">
+							{logs.map((line, index) => <div key={`${index}-${line}`}>{line}</div>)}
+						</div>
+					</details>
+				</div>
+			) : null}
 
 			<SettingSection title={labels.sections.runtime} section={runtimeSection}>
 				{status ? (

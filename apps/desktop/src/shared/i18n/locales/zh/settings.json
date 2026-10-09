@@ -128,6 +128,8 @@
     "relayConfigured": "安全中继已配置",
     "create": "生成二维码",
     "creating": "生成中",
+    "resetCertificate": "重置本机证书并重新配对",
+    "resetCertificateConfirm": "重置本机远控证书会撤销当前配对，使所有已配对手机的证书指纹失效，并生成新的配对二维码。所有手机都需要重新扫码。继续吗？",
     "createFailed": "创建配对失败，请检查应用日志后重试。",
     "qrAlt": "567 Agent 手机配对二维码",
     "qrHint": "在手机端打开远程连接并扫描。完成首次连接后，此二维码将不能绑定其他设备。",
@@ -139,13 +141,21 @@
     },
     "inputTitle": "允许远程输入",
     "inputDescription": "允许已配对手机控制鼠标和键盘。",
+    "autoShareTitle": "自动共享屏幕",
+    "autoShareDescription": "开启后，此配对手机连接时会自动共享主屏幕，不再询问应用内确认。操作系统仍可能要求授予屏幕录制权限。",
     "inputSupport": {
       "windows_api_unavailable": "Windows 输入组件未能加载。请重新安装应用；如果仍不可用，请查看应用日志。",
       "x11_display_unavailable": "当前桌面没有可用的 X11 显示。Linux 远程输入需要 X11 或 XWayland 会话。",
-      "x11_libraries_unavailable": "缺少 Linux 输入依赖库。请安装 libX11 和 libXtst 后重启应用。",
+      "x11_libraries_unavailable": "Linux 远程输入缺少系统依赖库。可以一键安装，完成后重启 567 Agent。",
       "x11_open_display_failed": "无法连接到 X11 显示。请确认应用运行在图形桌面会话中。",
       "accessibility_permission_required": "macOS 需要在系统设置中授予 567 Agent 辅助功能权限。",
       "unsupported_platform": "当前系统暂不支持远程输入。"
+    },
+    "installInputDependencies": "一键安装输入支持",
+    "installingInputDependencies": "正在安装…",
+    "inputInstall": {
+      "success": "依赖已安装。请重启 567 Agent 后启用远程输入。",
+      "error": "安装未完成。请确认授权并检查系统包管理器后重试。"
     },
     "revoke": "撤销配对",
     "status": {
@@ -232,6 +242,8 @@
   "webhookDescription": "配置通知的 Webhook 集成。",
   "petDescription": "桌宠外观、动画和行为。",
   "environmentDescription": "配置环境变量和运行时设置。",
+  "environmentReinstallFailed": "运行时重新获取失败：{{detail}}。请检查网络与运行时目录权限后重试；当前文件未通过验证时不会标记为可用。",
+  "environmentRuntimeHealthCheckFailed": "运行时版本自检未通过，请重新获取或查看诊断日志。",
   "archivedProjectsDescription": "管理已归档项目，可以恢复或删除它们。",
   "permissionsDescription": "管理应用程序权限和访问控制。",
   "searchSettings": "搜索设置",
@@ -1075,8 +1087,6 @@
   "themeSystem": "跟随系统",
   "uiThemeDefault": "默认主题",
   "uiThemeDefaultHint": "使用标准桌面界面",
-  "uiThemeXianxia": "修仙主题",
-  "uiThemeXianxiaHint": "使用修仙风格界面",
   "uiThemeUnavailable": "尽请期待",
   "colorThemes": {
     "mono": "默认",
@@ -1177,14 +1187,10 @@
   "section_appearance-cursor": "鼠标指针",
   "cursorDefaultTitle": "默认指针",
   "cursorDefaultHint": "使用系统原生鼠标指针。",
-  "cursorStoatTitle": "白鼬",
-  "cursorStoatHint": "使用应用内置的白鼬鼠标指针样式。",
   "section_appearance-ornament": "装饰件",
   "ornamentHint": "新会话页输入框上方那块挂饰位",
   "ornamentNoneTitle": "无",
   "ornamentNoneHint": "空着这块位置，页面更清爽。",
-  "ornamentViviTitle": "Vivi",
-  "ornamentViviHint": "567 Agent 的白鼬 Vivi，会不时眨眼、挥手、从输入框上爬过。",
   "ornamentOrbitTitle": "星轨",
   "ornamentOrbitHint": "一枚实时演算的着色器球，表面的丝缕会缓慢流转。",
   "ornamentTorchTitle": "火把",
@@ -1371,7 +1377,7 @@
       "automation": "例如：每天早上 9 点自动跑一段整理工作…",
       "im": "例如：开启 Claw 并帮我配置飞书…",
       "webhook": "例如：新增一个任务完成时推送的渠道…",
-      "appearance": "例如：切到深色模式，并把指针换成白鼬…",
+      "appearance": "例如：切到深色模式，并调整界面外观…",
       "pet": "例如：显示桌宠，并把气泡换成节日样式…",
       "environment": "例如：检查 Node/Python 运行时是否正常…",
       "shortcuts": "例如：看看全局快捷键，或恢复默认…",
@@ -1452,7 +1458,7 @@
       "appearance": {
         "dark": "切换到深色模式",
         "theme": "换一个界面主题",
-        "cursor": "把鼠标指针改成白鼬样式"
+        "cursor": "使用系统默认鼠标指针"
       },
       "pet": {
         "show": "显示桌宠",
@@ -2161,5 +2167,16 @@
   "feishuManual": "手动填写 App ID / App Secret",
   "feishuUnbindApp": "解绑应用",
   "feishuQrExpired": "二维码已过期，请重新扫码",
-  "pleaseBindFeishu": "请先扫码接入飞书机器人"
+  "pleaseBindFeishu": "请先扫码接入飞书机器人",
+  "migrationTitle": "数据与备份",
+  "migrationDescription": "使用密码加密导出或导入 567 Agent 会话记录，包括消息、工具记录和图片。密码请妥善保存，遗失后无法恢复。",
+  "migrationPassword": "备份密码（8–128 个字符）",
+  "migrationPasswordLength": "请输入 8 到 128 个字符的备份密码。",
+  "migrationExportAll": "导出全部会话",
+  "migrationExportCurrent": "导出当前会话",
+  "migrationImport": "导入备份",
+  "migrationExported": "已导出 {{count}} 个会话。",
+  "migrationImported": "已导入 {{count}} 个会话。",
+  "environmentInstallProgress": "运行时安装进度",
+  "environmentInstallLogs": "查看安装记录"
 }

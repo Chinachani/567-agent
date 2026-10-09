@@ -13,7 +13,7 @@ export function createOfficialShellApi(assertOfficial: () => void): PluginOffici
 			if (typeof path !== "string" || path.trim().length === 0) {
 				throw new Error("official.shell.showItemInFolder: path is required");
 			}
-			await window.vetta.shell.showItemInFolder(path);
+			await window.agent567.shell.showItemInFolder(path);
 		},
 	};
 }

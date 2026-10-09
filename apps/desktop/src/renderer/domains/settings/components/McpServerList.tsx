@@ -78,7 +78,7 @@ function McpDiscoverBody({
 
 	return (
 		<div>
-			{/* MCP 广场来自 Vetta 官方市场；lite 构建无云服务，因此整段隐藏。 */}
+			{/* MCP 广场来自 567 Agent 官方市场；lite 构建无云服务，因此整段隐藏。 */}
 			{cloudEnabled && (
 				<section>
 					<div className="mb-3 flex flex-wrap items-center justify-between gap-3">

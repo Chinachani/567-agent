@@ -36,7 +36,7 @@ export function useSessionContextMenuModel(
 	}, [onClose, session.path, setRenamingSessionPath]);
 
 	const handleOpenInFolder = useCallback(() => {
-		void window.vetta.shell.showInFolder(session.cwd);
+		void window.agent567.shell.showInFolder(session.cwd);
 		onClose();
 	}, [onClose, session.cwd]);
 
@@ -75,7 +75,7 @@ export function useSessionContextMenuModel(
 					dotColor: tag.color,
 					checked,
 					onSelect: () => {
-						void window.vetta.conversationTags.assign({
+						void window.agent567.conversationTags.assign({
 							sessionPath: session.path,
 							tagId: tag.id,
 							assigned: !checked,

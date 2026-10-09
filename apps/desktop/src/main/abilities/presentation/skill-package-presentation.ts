@@ -12,7 +12,7 @@ function isRecord(value: unknown): value is Record<string, unknown> {
 }
 
 /**
- * 通用 Skill 规范没有图标字段。Vetta 的产品呈现扩展因此放在 namespaced metadata 下，
+ * 通用 Skill 规范没有图标字段。567 Agent 的产品呈现扩展因此放在 namespaced metadata 下，
  * 不改变 Skill 的运行时身份或调用语义。
  */
 export function readDeclaredSkillIconReference(content: string): string | undefined {

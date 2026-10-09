@@ -2,7 +2,7 @@
  * Minimal SDK Usage
  *
  * Uses all defaults: discovers skills, extensions, tools, context files
- * from cwd and ~/.vetta/agent. Model chosen from settings or first available.
+ * from cwd and ~/.567agent/agent. Model chosen from settings or first available.
  */
 
 import { createCodingAgentSession } from "@567agent/coding-agent/sdk";

@@ -5,7 +5,7 @@
  * change agent behavior based on extension state.
  *
  * Usage:
- * 1. Copy this file to ~/.vetta/agent/extensions/ or your project's .vetta/extensions/
+ * 1. Copy this file to ~/.567agent/agent/extensions/ or your project's .vetta/extensions/
  * 2. Use /pirate to toggle pirate mode
  * 3. When enabled, the agent will respond like a pirate
  */

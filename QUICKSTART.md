@@ -30,12 +30,12 @@ cd apps/desktop
 bun run dev
 ```
 
-That starts the Vite renderer, the theme dev server, and Electron together. The process uses `~/.vetta-dev`, so your installed-app data in `~/.vetta` is left alone.
+That starts the Vite renderer, the theme dev server, and Electron together. The process uses `~/.567agent-dev`, leaving your installed-app data in `~/.567agent` alone.
 
 | Command | Data root | When to use it |
 |---|---|---|
-| `bun run dev` | `~/.vetta-dev` | Default sandbox |
-| `bun run dev:home` | `~/.vetta` | You want the dev build to read and write real user data |
+| `bun run dev` | `~/.567agent-dev` | Default sandbox |
+| `bun run dev:installed-data` | `~/.567agent` | You want the dev build to read and write installed-app data |
 
 `bun run dev` **at the repository root** only watches core libraries. It does not launch the app.
 

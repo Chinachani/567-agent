@@ -9,10 +9,10 @@
 //
 // Developer / debug subcommands (NOT in the user deployment path):
 //
-//	im-gateway init      Generate ~/.vetta/im-gateway/config.yaml + credentials.yaml
+//	im-gateway init      Generate ~/.567agent/im-gateway/config.yaml + credentials.yaml
 //	im-gateway start     Connect to the configured IM and start serving
 //	im-gateway status    Print connection / pool status of a running gateway
-//	im-gateway logs      Tail ~/.vetta/im-gateway/logs/im-gateway.log
+//	im-gateway logs      Tail ~/.567agent/im-gateway/logs/im-gateway.log
 //	im-gateway feishu register
 //	                     Scan-to-create a Feishu app and print its credentials
 package main
@@ -128,7 +128,7 @@ func runInit(_ []string) int {
 
 func runStart(args []string) int {
 	fs := flag.NewFlagSet("start", flag.ContinueOnError)
-	configPath := fs.String("config", "", "path to config.yaml (default: ~/.vetta/im-gateway/config.yaml)")
+	configPath := fs.String("config", "", "path to config.yaml (default: ~/.567agent/im-gateway/config.yaml)")
 	transportOverride := fs.String("transport", "", "override transport name (mock | feishu)")
 	if err := fs.Parse(args); err != nil {
 		return 2
@@ -336,12 +336,12 @@ func buildSignalTransport(cfg *config.Config) (transport.Transport, error) {
 		accounts, err := signalcli.ListAccounts(ctx, cli)
 		if err != nil {
 			if errors.Is(err, signalcli.ErrCLINotFound) {
-				return nil, fmt.Errorf("%w — install it first (%s), then link a device with `signal-cli link -n Vetta`", err, signalcli.InstallHint())
+				return nil, fmt.Errorf("%w — install it first (%s), then link a device with `signal-cli link -n 567 Agent`", err, signalcli.InstallHint())
 			}
 			return nil, err
 		}
 		if len(accounts) == 0 {
-			return nil, errors.New("signal: signal-cli has no linked account — run `signal-cli link -n Vetta` and scan the QR from Signal → Linked devices")
+			return nil, errors.New("signal: signal-cli has no linked account — run `signal-cli link -n 567 Agent` and scan the QR from Signal → Linked devices")
 		}
 		opts.Account = accounts[0]
 	}
@@ -509,7 +509,7 @@ func printUsage(w *os.File) {
 	fmt.Fprintln(w, "  host      Embedded mode: read NDJSON config from stdin, emit events on stdout")
 	fmt.Fprintln(w)
 	fmt.Fprintln(w, "Developer / debug commands:")
-	fmt.Fprintln(w, "  init      Generate config + credentials templates at ~/.vetta/im-gateway/")
+	fmt.Fprintln(w, "  init      Generate config + credentials templates at ~/.567agent/im-gateway/")
 	fmt.Fprintln(w, "  start     Run the gateway")
 	fmt.Fprintln(w, "  status    Show running gateway status")
 	fmt.Fprintln(w, "  logs      Print or tail the gateway log file (-f to follow)")

@@ -38,7 +38,7 @@ bun run build:presets
 开发环境会先把 `development` profile 中当前租户的插件 staging 到
 `apps/desktop/.artifacts/system-plugins/`，再默认为它们建立内存 dev 链接并启动
 开发服务器；关闭 dev 链接时回落 staging。
-Preset 不会安装到 `~/.vetta/plugins`。
+Preset 不会安装到 `~/.567agent/plugins`。
 
 ## 通过 npm 分发外置插件
 

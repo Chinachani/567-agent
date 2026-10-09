@@ -198,12 +198,12 @@ export function useRootLayoutModel(): RootLayoutModel {
 	// 时报其 sessionPath，否则 null。主进程据此 + 窗口聚焦态做系统通知抑制判定。
 	useEffect(() => {
 		const sessionPath = currentPath === "/" ? activeSession?.sessionPath || null : null;
-		void window.vetta.notification.setForegroundSession(sessionPath);
+		void window.agent567.notification.setForegroundSession(sessionPath);
 	}, [currentPath, activeSession]);
 
 	// 点击系统通知 → 主进程已前台化窗口，这里把对应 session 打开并路由到聊天页。
 	useEffect(() => {
-		return window.vetta.notification.onNavigate((payload) => {
+		return window.agent567.notification.onNavigate((payload) => {
 			if (payload.type === "agent-turn-complete" || payload.type === "agent-question-pending") {
 				void openSession(payload.cwd, payload.sessionPath);
 			}
@@ -213,7 +213,7 @@ export function useRootLayoutModel(): RootLayoutModel {
 	// 快捷面板回车 → 主进程已据 postSendBehavior 处理窗口聚焦，这里在默认「对话」目录下
 	// 新建会话并直接发送 prompt（复用通知路由同款 openSession + sendMessage）。
 	useEffect(() => {
-		return window.vetta.quickPanel.onRunPrompt(({ text }) => {
+		return window.agent567.quickPanel.onRunPrompt(({ text }) => {
 			const cwd = defaultConversationCwd;
 			if (!cwd || !text.trim()) return;
 			void (async () => {
@@ -229,7 +229,7 @@ export function useRootLayoutModel(): RootLayoutModel {
 
 	useEffect(() => {
 		const store = getDefaultStore();
-		const unsubCaptured = window.vetta.appshot.onCaptured((payload) => {
+		const unsubCaptured = window.agent567.appshot.onCaptured((payload) => {
 			store.set(appshotAttachmentAtom, {
 				id: payload.id,
 				appName: payload.appName,
@@ -248,7 +248,7 @@ export function useRootLayoutModel(): RootLayoutModel {
 			}
 			store.set(focusInputRequestAtom, (previous) => previous + 1);
 		});
-		const unsubCaptureError = window.vetta.appshot.onCaptureError((payload) => {
+		const unsubCaptureError = window.agent567.appshot.onCaptureError((payload) => {
 			const message =
 				payload.reason === "self-capture"
 					? i18n.t("chat:appshot.errorSelfCapture")
@@ -269,9 +269,9 @@ export function useRootLayoutModel(): RootLayoutModel {
 		() =>
 			syncPendingInteractions<DesktopUserQuestionRequest>(
 				{
-					onRequest: (handler) => window.vetta.session.onQuestionRequest(handler),
-					onResolved: (handler) => window.vetta.session.onQuestionResolved(handler),
-					listPending: () => window.vetta.session.listPendingQuestions(),
+					onRequest: (handler) => window.agent567.session.onQuestionRequest(handler),
+					onResolved: (handler) => window.agent567.session.onQuestionResolved(handler),
+					listPending: () => window.agent567.session.listPendingQuestions(),
 				},
 				setPendingQuestions,
 				(error) => console.warn("[RootLayout] sync pending questions failed", error),
@@ -284,9 +284,9 @@ export function useRootLayoutModel(): RootLayoutModel {
 		() =>
 			syncPendingInteractions<DesktopMcpElicitationRequest>(
 				{
-					onRequest: (handler) => window.vetta.session.onMcpElicitationRequest(handler),
-					onResolved: (handler) => window.vetta.session.onMcpElicitationResolved(handler),
-					listPending: () => window.vetta.session.listPendingMcpElicitations(),
+					onRequest: (handler) => window.agent567.session.onMcpElicitationRequest(handler),
+					onResolved: (handler) => window.agent567.session.onMcpElicitationResolved(handler),
+					listPending: () => window.agent567.session.listPendingMcpElicitations(),
 				},
 				setPendingMcpElicitations,
 				(error) => console.warn("[RootLayout] sync pending MCP elicitations failed", error),
@@ -299,9 +299,9 @@ export function useRootLayoutModel(): RootLayoutModel {
 		() =>
 			syncPendingInteractions<CodingAgentPlanReviewRequest>(
 				{
-					onRequest: (handler) => window.vetta.session.onPlanReviewRequest(handler),
-					onResolved: (handler) => window.vetta.session.onPlanReviewResolved(handler),
-					listPending: () => window.vetta.session.listPendingPlanReviews(),
+					onRequest: (handler) => window.agent567.session.onPlanReviewRequest(handler),
+					onResolved: (handler) => window.agent567.session.onPlanReviewResolved(handler),
+					listPending: () => window.agent567.session.listPendingPlanReviews(),
 				},
 				setPendingPlanReviews,
 				(error) => console.warn("[RootLayout] sync pending plan reviews failed", error),
@@ -317,10 +317,10 @@ export function useRootLayoutModel(): RootLayoutModel {
 			latest = tasks;
 			setMcpTasks(groupMcpTasksBySession(tasks));
 		};
-		const unsubscribe = window.vetta.session.onMcpTasksChanged((event: DesktopMcpTasksChangedEvent) => {
+		const unsubscribe = window.agent567.session.onMcpTasksChanged((event: DesktopMcpTasksChangedEvent) => {
 			if (active) apply(event.tasks);
 		});
-		void window.vetta.session
+		void window.agent567.session
 			.listMcpTasks()
 			.then((snapshot) => {
 				if (active && latest === undefined) apply(snapshot);
@@ -332,11 +332,15 @@ export function useRootLayoutModel(): RootLayoutModel {
 		};
 	}, [setMcpTasks]);
 
-	const grantQueueRef = useRef<Parameters<Parameters<typeof window.vetta.session.onSandboxGrantRequest>[0]>[0][]>([]);
+	const grantQueueRef = useRef<Parameters<Parameters<typeof window.agent567.session.onSandboxGrantRequest>[0]>[0][]>(
+		[],
+	);
 	const grantActiveRef = useRef(false);
 
 	useEffect(() => {
-		const showGrant = (request: Parameters<Parameters<typeof window.vetta.session.onSandboxGrantRequest>[0]>[0]) => {
+		const showGrant = (
+			request: Parameters<Parameters<typeof window.agent567.session.onSandboxGrantRequest>[0]>[0],
+		) => {
 			grantActiveRef.current = true;
 			const showNext = () => {
 				const nextRequest = grantQueueRef.current.shift();
@@ -353,25 +357,25 @@ export function useRootLayoutModel(): RootLayoutModel {
 				message: request.message,
 				sensitive: request.sensitive,
 				onConfirm: () => {
-					void window.vetta.session.respondToSandboxGrant(request.requestId, "allow_once");
+					void window.agent567.session.respondToSandboxGrant(request.requestId, "allow_once");
 					setSandboxPermissionDrawer(null);
 					showNext();
 				},
 				onCancel: () => {
-					void window.vetta.session.respondToSandboxGrant(request.requestId, "deny");
+					void window.agent567.session.respondToSandboxGrant(request.requestId, "deny");
 					setSandboxPermissionDrawer(null);
 					showNext();
 				},
 				onAllowSession: request.sensitive
 					? undefined
 					: () => {
-							void window.vetta.session.respondToSandboxGrant(request.requestId, "allow_session");
+							void window.agent567.session.respondToSandboxGrant(request.requestId, "allow_session");
 							setSandboxPermissionDrawer(null);
 							showNext();
 						},
 			});
 		};
-		return window.vetta.session.onSandboxGrantRequest((request) => {
+		return window.agent567.session.onSandboxGrantRequest((request) => {
 			if (grantActiveRef.current) {
 				grantQueueRef.current.push(request);
 				return;
@@ -386,10 +390,10 @@ export function useRootLayoutModel(): RootLayoutModel {
 	const setScheduledSessionPaths = useSetAtom(scheduledSessionPathsAtom);
 	useEffect(() => {
 		// 启动时拉取已有定时 session 路径，供侧栏识别并挂图标。
-		void window.vetta.scheduler.getScheduledSessionPaths().then((paths) => {
+		void window.agent567.scheduler.getScheduledSessionPaths().then((paths) => {
 			setScheduledSessionPaths(new Set(paths));
 		});
-		return window.vetta.scheduler.onTaskEvent((event) => {
+		return window.agent567.scheduler.onTaskEvent((event) => {
 			if (event.type !== "task.started") return;
 			if (!event.sessionPath || !event.cwd) return;
 			setScheduledSessionPaths((prev) => new Set(prev).add(event.sessionPath));

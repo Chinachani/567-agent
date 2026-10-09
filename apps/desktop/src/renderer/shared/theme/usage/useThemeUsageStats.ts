@@ -30,7 +30,7 @@ export function useThemeUsageStats(): ThemeUsageModel {
 
 	const refresh = useCallback(async (): Promise<void> => {
 		try {
-			const next = await window.vetta.appMonitor.getAchievementUsage();
+			const next = await window.agent567.appMonitor.getAchievementUsage();
 			setStats(next);
 			setStatus("ready");
 		} catch (error) {

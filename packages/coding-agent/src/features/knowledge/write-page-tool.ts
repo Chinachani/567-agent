@@ -6,7 +6,7 @@ import type { ConversationScenario } from "../../profiles/index.js";
 import type { CodingAgentRuntimeToolRegistration } from "../../runtime-contracts/index.js";
 import type { CodingAgentKnowledgeWriteOperations } from "./contracts.js";
 
-export const CODING_AGENT_KNOWLEDGE_WRITE_PAGE_TOOL_DESCRIPTION = `Write (create or update) a single wiki page in the LLM knowledge base at ~/.vetta/knowledges/.
+export const CODING_AGENT_KNOWLEDGE_WRITE_PAGE_TOOL_DESCRIPTION = `Write (create or update) a single wiki page in the LLM knowledge base at ~/.567agent/knowledges/.
 
 This is the ONLY way to write wiki pages. It enforces the closed frontmatter schema (exactly: id, source, source_path, source_hash, tags, title, summary, created_at, updated_at, orphaned_at), assigns a stable page id, and refreshes the tags.json / manifest.json caches automatically. Do not hand-write wiki .md files with the generic write tool.
 

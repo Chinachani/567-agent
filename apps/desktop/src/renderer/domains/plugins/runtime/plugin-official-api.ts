@@ -30,7 +30,7 @@ export function createPluginOfficialApi(capabilitySessionId: string): PluginOffi
 		marketplace: {
 			search: async ({ query, type, limit }) => {
 				assertOfficial();
-				const catalog = await window.vetta.abilities.listOpenMarketplaces();
+				const catalog = await window.agent567.abilities.listOpenMarketplaces();
 				const normalizedQuery = query.trim().toLocaleLowerCase();
 				const latinTerms = normalizedQuery.match(/[a-z0-9+#._-]+/g) ?? [];
 				const cjkTerms = (normalizedQuery.match(/[\u3400-\u9fff]+/g) ?? [])

@@ -41,14 +41,14 @@ export async function loadPlugin(plugin: InstalledPlugin, onChanged: () => void)
 		const sessionId = capabilitySessionId;
 		capabilitySessionId = undefined;
 		pluginRendererCapabilityHost.closeSession(sessionId);
-		await window.vetta.plugins.internalCapabilities.closeSession(sessionId);
+		await window.agent567.plugins.internalCapabilities.closeSession(sessionId);
 	};
 	try {
-		await window.vetta.plugins.beginAgentContributionsLoad(plugin.id, activationId);
+		await window.agent567.plugins.beginAgentContributionsLoad(plugin.id, activationId);
 		debugPluginAgent("began dynamic agent contribution activation", { pluginId: plugin.id, activationId });
 		definition = await loadPluginDefinition(plugin);
 		const pendingRuntimeRegistrations: Promise<void>[] = [];
-		capabilitySessionId = await window.vetta.plugins.internalCapabilities.openSession(plugin.id);
+		capabilitySessionId = await window.agent567.plugins.internalCapabilities.openSession(plugin.id);
 		pluginRendererCapabilityHost.bindSession(capabilitySessionId, plugin);
 		const secretsApi = createPluginSecretsApi(plugin, capabilitySessionId, disposers);
 		const context = createPluginContext({
@@ -70,7 +70,7 @@ export async function loadPlugin(plugin: InstalledPlugin, onChanged: () => void)
 			activationId,
 		});
 		await Promise.all(pendingRuntimeRegistrations);
-		await window.vetta.plugins.commitAgentContributionsLoad(plugin.id, activationId);
+		await window.agent567.plugins.commitAgentContributionsLoad(plugin.id, activationId);
 		debugPluginAgent("load complete", {
 			pluginId: plugin.id,
 			runtimeContributionsRegistered: pendingRuntimeRegistrations.length,
@@ -90,7 +90,7 @@ export async function loadPlugin(plugin: InstalledPlugin, onChanged: () => void)
 				}
 			} finally {
 				try {
-					await window.vetta.plugins.clearAgentContributions(plugin.id, activationId);
+					await window.agent567.plugins.clearAgentContributions(plugin.id, activationId);
 					debugPluginAgent("cleared dynamic agent contributions on dispose", {
 						pluginId: plugin.id,
 						activationId,
@@ -113,10 +113,10 @@ export async function loadPlugin(plugin: InstalledPlugin, onChanged: () => void)
 				console.error(`Plugin ${plugin.id} failed to deactivate after activation failure`, deactivateError);
 			});
 		}
-		await window.vetta.plugins.abortAppActionActivation(plugin.id, activationId).catch((abortError: unknown) => {
+		await window.agent567.plugins.abortAppActionActivation(plugin.id, activationId).catch((abortError: unknown) => {
 			console.error(`Plugin ${plugin.id} failed to abort app action activation`, abortError);
 		});
-		await window.vetta.plugins.clearAgentContributions(plugin.id, activationId).catch((clearError: unknown) => {
+		await window.agent567.plugins.clearAgentContributions(plugin.id, activationId).catch((clearError: unknown) => {
 			console.error(`Plugin ${plugin.id} failed to clear contributions after activation failure`, clearError);
 		});
 		disposeLocalContributions();

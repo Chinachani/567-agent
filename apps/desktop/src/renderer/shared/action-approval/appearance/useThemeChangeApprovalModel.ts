@@ -21,7 +21,7 @@ function isThemeSetInput(input: DesktopActionApprovalRequest["input"]): input is
 		value.type === "set" &&
 		(value.mode === undefined || value.mode === "light" || value.mode === "dark" || value.mode === "auto") &&
 		(value.themeId === undefined || typeof value.themeId === "string") &&
-		(value.cursorStyle === undefined || value.cursorStyle === "default" || value.cursorStyle === "stoat")
+		(value.cursorStyle === undefined || value.cursorStyle === "default")
 	);
 }
 

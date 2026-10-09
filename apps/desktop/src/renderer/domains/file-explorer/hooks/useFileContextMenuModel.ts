@@ -33,9 +33,9 @@ export function useFileContextMenuModel(input: {
 	const onOpenInFolder = useCallback(() => {
 		const target = isRoot ? entry : singleTarget;
 		if (target.isDirectory) {
-			void window.vetta.shell.showInFolder(target.path);
+			void window.agent567.shell.showInFolder(target.path);
 		} else {
-			void window.vetta.shell.showItemInFolder(target.path);
+			void window.agent567.shell.showItemInFolder(target.path);
 		}
 		onClose();
 	}, [entry, isRoot, singleTarget, onClose]);

@@ -62,6 +62,8 @@ import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.automirrored.filled.HelpOutline
 import androidx.compose.material.icons.automirrored.filled.Send
 import androidx.compose.material.icons.filled.AttachFile
+import androidx.compose.material.icons.filled.PhotoCamera
+import androidx.compose.material.icons.filled.PhotoLibrary
 import androidx.compose.material.icons.filled.Build
 import androidx.compose.material.icons.filled.Brush
 import androidx.compose.material3.Switch
@@ -84,6 +86,7 @@ import androidx.compose.material.icons.filled.ExpandMore
 import androidx.compose.material.icons.filled.FolderOpen
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.filled.Stop
+import androidx.compose.material.icons.filled.Tune
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FilledIconButton
 import androidx.compose.material3.Icon
@@ -118,6 +121,7 @@ import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.foundation.layout.WindowInsets
@@ -137,15 +141,24 @@ import org.agent567.android.domain.session.ToolTrace
 import org.agent567.android.domain.session.formatLocalMessageTime
 import org.agent567.android.ui.components.EmptyState
 import org.agent567.android.ui.components.ListRow
-import org.agent567.android.ui.components.VettaErrorBanner
+import org.agent567.android.ui.components.Agent567ErrorBanner
 import org.agent567.android.ui.LocalMotionEnabled
 import org.agent567.android.ui.i18n.Str
 import org.agent567.android.ui.media.rememberMessageImageBitmap
+import org.agent567.android.ui.media.PendingFileAttachment
+import org.agent567.android.ui.media.rememberFileAttachmentPicker
 import org.agent567.android.ui.media.MessageImageLoadState
 import org.agent567.android.ui.media.rememberImagePicker
 import org.agent567.android.ui.media.rememberImageCapture
+import org.agent567.android.ui.media.MAX_MESSAGE_IMAGE_TOTAL_BYTES
+import org.agent567.android.ui.media.MAX_PICKED_IMAGE_COUNT
+import org.agent567.android.ui.media.MAX_MESSAGE_FILE_BYTES
+import org.agent567.android.ui.media.MAX_MESSAGE_FILE_COUNT
+import org.agent567.android.ui.media.MAX_MESSAGE_FILE_TOTAL_BYTES
+import org.agent567.android.ui.media.byteSize
+import org.agent567.android.ui.media.pickedByteSize
 import org.agent567.android.ui.navigation.ChatSurface
-import org.agent567.android.ui.theme.vettaExtra
+import org.agent567.android.ui.theme.agent567Extra
 
 internal fun chatImeScrollTarget(imeBottomPx: Int, lastMessageIndex: Int): Int? =
     lastMessageIndex.takeIf { imeBottomPx > 0 && it >= 0 }
@@ -184,6 +197,7 @@ fun ChatScreen(
     messages: List<LocalMessage>,
     draft: String,
     pendingImages: List<MessageImage>,
+    pendingFiles: List<PendingFileAttachment> = emptyList(),
     isStreaming: Boolean,
     streamingStatus: String? = null,
     inputPredictions: List<String> = emptyList(),
@@ -214,13 +228,15 @@ fun ChatScreen(
     onDismissError: () -> Unit,
     onImagesPicked: (List<MessageImage>) -> Unit,
     onRemovePendingImage: (String) -> Unit,
+    onAddPendingFile: (PendingFileAttachment) -> Unit = {},
+    onRemovePendingFile: (String) -> Unit = {},
     pendingQuestion: PendingQuestion? = null,
     questionSubmitting: Boolean = false,
     onToggleQuestionOption: (String, String) -> Unit = { _, _ -> },
     onSubmitQuestion: () -> Unit = {},
     activeImageGroup: String? = null,
     activeImageModel: String? = null,
-    imageGenEnabled: Boolean = false,
+    imageGenEnabled: Boolean = true,
     imagePickerOpen: Boolean = false,
     availableImageModels: List<String> = emptyList(),
     imageModelsLoading: Boolean = false,
@@ -239,37 +255,66 @@ fun ChatScreen(
     var attachedSessionId by remember { mutableStateOf<String?>(null) }
     var toastNotice by remember { mutableStateOf<String?>(null) }
     var attachmentChooserOpen by remember { mutableStateOf(false) }
+    val attachmentSheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
     val currentSessionId = messages.firstOrNull()?.sessionId
 
     fun appendPickedImages(picked: List<org.agent567.android.ui.media.PickedImage>) {
-        val available = (6 - pendingImages.size).coerceAtLeast(0)
-        if (picked.size > available) toastNotice = Str.imageAttachmentLimit
-        if (available == 0) return
-        onImagesPicked(
-            picked.take(available).map {
-                MessageImage(
-                    id = "pending-${it.fileName}-${it.bytes.size}-${it.bytes.hashCode()}",
-                    mimeType = it.mimeType,
-                    fileName = it.fileName,
-                    pendingBytes = it.bytes,
-                )
-            },
-        )
+        var remainingBytes = (MAX_MESSAGE_IMAGE_TOTAL_BYTES - pendingImages.sumOf { it.pickedByteSize() }).coerceAtLeast(0)
+        val availableCount = (MAX_PICKED_IMAGE_COUNT - pendingImages.size).coerceAtLeast(0)
+        val accepted = mutableListOf<MessageImage>()
+        var rejectedCount = (picked.size - availableCount).coerceAtLeast(0)
+        for (image in picked.take(availableCount)) {
+            if (image.bytes.isEmpty() || image.bytes.size > remainingBytes) {
+                rejectedCount++
+                continue
+            }
+            accepted += MessageImage(
+                id = "pending-${image.fileName}-${image.bytes.size}-${image.bytes.hashCode()}",
+                mimeType = image.mimeType,
+                fileName = image.fileName,
+                pendingBytes = image.bytes,
+            )
+            remainingBytes -= image.bytes.size
+        }
+        if (accepted.isNotEmpty()) onImagesPicked(accepted)
+        if (rejectedCount > 0) toastNotice = Str.imageAttachmentRejected
     }
 
     val launchPicker =
         rememberImagePicker(
             onPicked = ::appendPickedImages,
-            onRejected = { count ->
-                toastNotice = "有 $count 张图片超过大小限制或无法读取，未添加（单张上限 4MB）"
-            },
+            onRejected = { toastNotice = Str.imageAttachmentRejected },
         )
 
     val launchCamera = rememberImageCapture(
         onPicked = { appendPickedImages(listOf(it)) },
-        onRejected = { count ->
-            toastNotice = "有 $count 张图片超过大小限制，未添加（单张上限 4MB）"
+        onRejected = { toastNotice = Str.imageAttachmentRejected },
+    )
+
+    val launchFilePicker = rememberFileAttachmentPicker(
+        onPicked = { pickedFiles ->
+            var countRemaining = (MAX_MESSAGE_FILE_COUNT - pendingFiles.size).coerceAtLeast(0)
+            var bytesRemaining = (MAX_MESSAGE_FILE_TOTAL_BYTES - pendingFiles.sumOf { it.byteSize() }).coerceAtLeast(0)
+            pickedFiles.forEach { picked ->
+                if (countRemaining <= 0) {
+                    toastNotice = Str.documentAttachmentLimit
+                } else if (picked.bytes.isEmpty() || picked.bytes.size > MAX_MESSAGE_FILE_BYTES || picked.bytes.size > bytesRemaining) {
+                    toastNotice = Str.documentAttachmentRejected
+                } else {
+                    onAddPendingFile(
+                        PendingFileAttachment(
+                            id = "file-${picked.fileName.hashCode()}-${picked.bytes.size}-${picked.bytes.hashCode()}",
+                            fileName = picked.fileName,
+                            mimeType = picked.mimeType,
+                            bytes = picked.bytes,
+                        ),
+                    )
+                    countRemaining--
+                    bytesRemaining -= picked.bytes.size
+                }
+            }
         },
+        onRejected = { toastNotice = Str.documentAttachmentRejected },
     )
 
     // 1. 会话初次进入或切换会话时，无论消息多少，瞬间精确定位至最底部最新消息
@@ -311,10 +356,11 @@ fun ChatScreen(
     val canSend =
         !isStreaming &&
             (surface == ChatSurface.Desktop || selectedModel != null) &&
-            (draft.isNotBlank() || pendingImages.isNotEmpty())
+            (draft.isNotBlank() || pendingImages.isNotEmpty() || pendingFiles.isNotEmpty())
+    val maxInputHeight = (LocalConfiguration.current.screenHeightDp * 0.35f).dp
 
     Scaffold(
-        containerColor = MaterialTheme.vettaExtra.pageBackground,
+        containerColor = MaterialTheme.agent567Extra.pageBackground,
         topBar = {
             TopAppBar(
                 title = {
@@ -325,19 +371,15 @@ fun ChatScreen(
                             overflow = TextOverflow.Ellipsis,
                             style = MaterialTheme.typography.titleMedium,
                         )
-                        Text(
-                            if (isStreaming) {
-                                streamingStatusLabel(streamingStatus)
-                            } else if (surface == ChatSurface.Desktop) {
-                                Str.generatedByDesktop
-                            } else {
-                                selectedModel?.name ?: Str.channelCloud
-                            },
-                            style = MaterialTheme.typography.labelSmall,
-                            color = MaterialTheme.vettaExtra.secondaryText,
-                            maxLines = 1,
-                            overflow = TextOverflow.Ellipsis,
-                        )
+                        if (isStreaming) {
+                            Text(
+                                streamingStatusLabel(streamingStatus),
+                                style = MaterialTheme.typography.labelSmall,
+                                color = MaterialTheme.agent567Extra.secondaryText,
+                                maxLines = 1,
+                                overflow = TextOverflow.Ellipsis,
+                            )
+                        }
                     }
                 },
                 navigationIcon = {
@@ -347,38 +389,14 @@ fun ChatScreen(
                 },
                 actions = {
                     if (surface == ChatSurface.Cloud) {
-                        Surface(
-                            onClick = onOpenGroupPicker,
-                            shape = RoundedCornerShape(16.dp),
-                            color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.6f),
-                            modifier = Modifier.padding(end = 8.dp).widthIn(max = 148.dp),
-                        ) {
-                            Row(
-                                verticalAlignment = Alignment.CenterVertically,
-                                modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp),
-                            ) {
-                                Text(
-                                    activeGroup ?: "点击选择分组",
-                                    style = MaterialTheme.typography.labelMedium.copy(fontWeight = FontWeight.Medium),
-                                    color = MaterialTheme.colorScheme.primary,
-                                    maxLines = 1,
-                                    overflow = TextOverflow.Ellipsis,
-                                    modifier = Modifier.widthIn(max = 104.dp),
-                                )
-                                Spacer(Modifier.width(2.dp))
-                                Icon(
-                                    Icons.Default.ArrowDropDown,
-                                    contentDescription = null,
-                                    modifier = Modifier.size(18.dp),
-                                    tint = MaterialTheme.colorScheme.primary,
-                                )
-                            }
+                        IconButton(onClick = onOpenGroupPicker) {
+                            Icon(Icons.Default.Tune, contentDescription = "选择模型分组", tint = MaterialTheme.agent567Extra.secondaryText)
                         }
                     }
                 },
                 colors =
                     TopAppBarDefaults.topAppBarColors(
-                        containerColor = MaterialTheme.vettaExtra.pageBackground,
+                        containerColor = MaterialTheme.agent567Extra.pageBackground.copy(alpha = 0.92f),
                     ),
             )
         },
@@ -386,12 +404,11 @@ fun ChatScreen(
             Column(
                 Modifier
                     .fillMaxWidth()
-                    .background(MaterialTheme.colorScheme.surface)
                     .navigationBarsPadding()
                     .imePadding(),
             ) {
                 if (chatError != null) {
-                    VettaErrorBanner(
+                    Agent567ErrorBanner(
                         error = chatError,
                         onDismiss = onDismissError,
                         onAction = onErrorAction,
@@ -403,6 +420,35 @@ fun ChatScreen(
                         images = pendingImages,
                         onRemove = onRemovePendingImage,
                     )
+                }
+                if (pendingFiles.isNotEmpty()) {
+                    LazyRow(
+                        modifier = Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 4.dp),
+                        horizontalArrangement = Arrangement.spacedBy(8.dp),
+                    ) {
+                        items(pendingFiles, key = { it.id }) { document ->
+                            Surface(
+                                shape = RoundedCornerShape(12.dp),
+                                color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.64f),
+                                border = BorderStroke(1.dp, MaterialTheme.agent567Extra.border),
+                            ) {
+                                Row(
+                                    modifier = Modifier.padding(start = 10.dp, end = 4.dp, top = 4.dp, bottom = 4.dp),
+                                    verticalAlignment = Alignment.CenterVertically,
+                                    horizontalArrangement = Arrangement.spacedBy(6.dp),
+                                ) {
+                                    Icon(Icons.Default.AttachFile, contentDescription = null, modifier = Modifier.size(16.dp))
+                                    Column(Modifier.widthIn(max = 180.dp)) {
+                                        Text(document.fileName, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                                        Text("${document.mimeType} · ${formatAttachmentSize(document.bytes.size.toLong())}", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.agent567Extra.secondaryText, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                                    }
+                                    IconButton(onClick = { onRemovePendingFile(document.id) }, modifier = Modifier.size(30.dp)) {
+                                        Icon(Icons.Default.Close, contentDescription = Str.removeDocumentAttachment, modifier = Modifier.size(16.dp))
+                                    }
+                                }
+                            }
+                        }
+                    }
                 }
                 AnimatedVisibility(
                     visible = pendingQuestion != null,
@@ -427,13 +473,13 @@ fun ChatScreen(
                             Surface(
                                 shape = RoundedCornerShape(50),
                                 color = Color.Transparent,
-                                border = BorderStroke(1.dp, MaterialTheme.vettaExtra.border),
+                                border = BorderStroke(1.dp, MaterialTheme.agent567Extra.border.copy(alpha = 0.75f)),
                             ) {
                                 Text(
                                     Str.inputPredictionLoading,
                                     modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp),
                                     style = MaterialTheme.typography.labelSmall,
-                                    color = MaterialTheme.vettaExtra.secondaryText,
+                                    color = MaterialTheme.agent567Extra.secondaryText,
                                     maxLines = 1,
                                 )
                             }
@@ -443,7 +489,7 @@ fun ChatScreen(
                                 onClick = { onSelectInputPrediction(suggestion) },
                                 shape = RoundedCornerShape(50),
                                 color = Color.Transparent,
-                                border = BorderStroke(1.dp, MaterialTheme.vettaExtra.border),
+                                border = BorderStroke(1.dp, MaterialTheme.agent567Extra.border.copy(alpha = 0.75f)),
                             ) {
                                 Text(
                                     suggestion,
@@ -467,24 +513,25 @@ fun ChatScreen(
                         // 1. 主模型胶囊
                         Surface(
                             onClick = onOpenModelPicker,
-                            shape = RoundedCornerShape(12.dp),
-                            color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f),
-                            modifier = Modifier.weight(1f),
+                            shape = RoundedCornerShape(8.dp),
+                            color = MaterialTheme.agent567Extra.chipBackground.copy(alpha = 0.7f),
+                            border = BorderStroke(1.dp, MaterialTheme.agent567Extra.border.copy(alpha = 0.6f)),
+                            modifier = Modifier.weight(1f).height(32.dp),
                         ) {
                             Row(
                                 verticalAlignment = Alignment.CenterVertically,
-                                modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp),
+                                modifier = Modifier.padding(horizontal = 8.dp),
                             ) {
                                 Icon(
                                     Icons.Default.AutoAwesome,
                                     contentDescription = null,
-                                    modifier = Modifier.size(13.dp),
+                                    modifier = Modifier.size(14.dp),
                                     tint = MaterialTheme.colorScheme.primary,
                                 )
                                 Spacer(Modifier.width(4.dp))
                                 Text(
                                     if (activeGroup == null) "请选择主分组" else (selectedModel?.name ?: "选择主模型"),
-                                    style = MaterialTheme.typography.labelSmall.copy(fontWeight = FontWeight.Medium),
+                                    style = MaterialTheme.typography.labelSmall,
                                     maxLines = 1,
                                     overflow = TextOverflow.Ellipsis,
                                     modifier = Modifier.weight(1f),
@@ -492,7 +539,7 @@ fun ChatScreen(
                                 Icon(
                                     Icons.Default.ArrowDropDown,
                                     contentDescription = null,
-                                    modifier = Modifier.size(16.dp),
+                                    modifier = Modifier.size(14.dp),
                                 )
                             }
                         }
@@ -500,25 +547,26 @@ fun ChatScreen(
                         // 2. 独立画图模型胶囊（并列双胶囊）
                         Surface(
                             onClick = onOpenImagePicker,
-                            shape = RoundedCornerShape(12.dp),
-                            color = if (imageGenEnabled) MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.6f) else MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f),
-                            modifier = Modifier.weight(1f),
+                            shape = RoundedCornerShape(8.dp),
+                            color = MaterialTheme.agent567Extra.chipBackground.copy(alpha = 0.7f),
+                            border = BorderStroke(1.dp, MaterialTheme.agent567Extra.border.copy(alpha = 0.6f)),
+                            modifier = Modifier.weight(1f).height(32.dp),
                         ) {
                             Row(
                                 verticalAlignment = Alignment.CenterVertically,
-                                modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp),
+                                modifier = Modifier.padding(horizontal = 8.dp),
                             ) {
                                 Icon(
                                     Icons.Default.Brush,
                                     contentDescription = null,
-                                    modifier = Modifier.size(13.dp),
+                                    modifier = Modifier.size(14.dp),
                                     tint = if (imageGenEnabled) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant,
                                 )
                                 Spacer(Modifier.width(4.dp))
                                 Text(
-                                    if (!imageGenEnabled) "绘图: 关闭" else (activeImageModel?.let { "绘图: $it" } ?: "配置绘图"),
-                                    style = MaterialTheme.typography.labelSmall.copy(fontWeight = FontWeight.Medium),
-                                    color = if (imageGenEnabled) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant,
+                                    if (!imageGenEnabled) "绘图: 已关闭" else (activeImageModel?.let { "绘图: $it" } ?: "配置绘图"),
+                                    style = MaterialTheme.typography.labelSmall,
+                                    color = if (imageGenEnabled) MaterialTheme.colorScheme.primary else MaterialTheme.agent567Extra.secondaryText,
                                     maxLines = 1,
                                     overflow = TextOverflow.Ellipsis,
                                     modifier = Modifier.weight(1f),
@@ -526,8 +574,8 @@ fun ChatScreen(
                                 Icon(
                                     Icons.Default.ArrowDropDown,
                                     contentDescription = null,
-                                    modifier = Modifier.size(16.dp),
-                                    tint = if (imageGenEnabled) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant,
+                                    modifier = Modifier.size(14.dp),
+                                    tint = if (imageGenEnabled) MaterialTheme.colorScheme.primary else MaterialTheme.agent567Extra.secondaryText,
                                 )
                             }
                         }
@@ -568,6 +616,7 @@ fun ChatScreen(
                     onSend = onSend,
                     onStop = onStop,
                     onAttach = { attachmentChooserOpen = true },
+                    maxHeight = maxInputHeight,
                 )
             }
         },
@@ -586,7 +635,7 @@ fun ChatScreen(
                     if (desktopHistoryLoading) {
                         CircularProgressIndicator()
                         Spacer(Modifier.height(12.dp))
-                        Text(Str.loadingDesktopHistory, color = MaterialTheme.vettaExtra.secondaryText)
+                        Text(Str.loadingDesktopHistory, color = MaterialTheme.agent567Extra.secondaryText)
                     } else {
                         EmptyState(
                             title = if (surface == ChatSurface.Cloud) Str.useCloudAi else Str.pairDesktop,
@@ -606,7 +655,7 @@ fun ChatScreen(
                             Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.Center) {
                                 CircularProgressIndicator(modifier = Modifier.size(18.dp))
                                 Spacer(Modifier.width(8.dp))
-                                Text(Str.loadingDesktopHistory, color = MaterialTheme.vettaExtra.secondaryText)
+                                Text(Str.loadingDesktopHistory, color = MaterialTheme.agent567Extra.secondaryText)
                             }
                         }
                     }
@@ -658,7 +707,7 @@ fun ChatScreen(
                         Text(
                             if (imageGenEnabled) "已启用" else "已关闭",
                             style = MaterialTheme.typography.labelMedium,
-                            color = if (imageGenEnabled) MaterialTheme.colorScheme.primary else MaterialTheme.vettaExtra.secondaryText,
+                            color = if (imageGenEnabled) MaterialTheme.colorScheme.primary else MaterialTheme.agent567Extra.secondaryText,
                         )
                         Spacer(Modifier.width(8.dp))
                         Switch(
@@ -670,7 +719,7 @@ fun ChatScreen(
                 Text(
                     "开启后，对话时主模型可自动调用画图工具扩写提示词并生成画面",
                     style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.vettaExtra.secondaryText,
+                    color = MaterialTheme.agent567Extra.secondaryText,
                 )
                 Spacer(Modifier.height(16.dp))
 
@@ -741,11 +790,11 @@ fun ChatScreen(
 
                     // 第二级：展现该分组下的生图模型
                     Text("绘图模型", style = MaterialTheme.typography.labelLarge.copy(fontWeight = FontWeight.Bold))
-                    Text("选择生成画面的底层模型", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.vettaExtra.secondaryText)
+                    Text("选择生成画面的底层模型", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.agent567Extra.secondaryText)
                     Spacer(Modifier.height(8.dp))
 
                     if (activeImageGroup == null) {
-                        Text("请先在上方选择画图分组", style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.vettaExtra.secondaryText)
+                        Text("请先在上方选择画图分组", style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.agent567Extra.secondaryText)
                     } else if (imageModelsLoading) {
                         Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.padding(vertical = 12.dp)) {
                             CircularProgressIndicator(modifier = Modifier.size(18.dp), strokeWidth = 2.dp)
@@ -753,7 +802,7 @@ fun ChatScreen(
                             Text("正在拉取该分组的绘图模型...", style = MaterialTheme.typography.bodyMedium)
                         }
                     } else if (availableImageModels.isEmpty()) {
-                        Text("该分组下未检索到模型或通道未开放", style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.vettaExtra.secondaryText)
+                        Text("该分组下未检索到模型或通道未开放", style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.agent567Extra.secondaryText)
                     } else {
                         Column {
                             availableImageModels.forEach { modelName ->
@@ -797,25 +846,38 @@ fun ChatScreen(
     }
 
     if (attachmentChooserOpen) {
-        AlertDialog(
+        ModalBottomSheet(
             onDismissRequest = { attachmentChooserOpen = false },
-            title = { Text(Str.addImage) },
-            text = {
-                Column {
-                    TextButton(onClick = {
-                        attachmentChooserOpen = false
-                        launchPicker()
-                    }) { Text(Str.chooseImageFromGallery) }
-                    TextButton(onClick = {
-                        attachmentChooserOpen = false
-                        launchCamera()
-                    }) { Text(Str.captureImage) }
-                }
-            },
-            confirmButton = {
-                TextButton(onClick = { attachmentChooserOpen = false }) { Text(Str.cancel) }
-            },
-        )
+            sheetState = attachmentSheetState,
+            shape = RoundedCornerShape(topStart = 24.dp, topEnd = 24.dp),
+        ) {
+            Column(Modifier.fillMaxWidth().padding(horizontal = 16.dp).padding(bottom = 20.dp)) {
+                AttachmentActionRow(
+                    icon = Icons.Default.PhotoLibrary,
+                    title = Str.choosePhoto,
+                    subtitle = Str.choosePhotoHint,
+                    onClick = {
+                        scope.launch { attachmentSheetState.hide(); attachmentChooserOpen = false; launchPicker() }
+                    },
+                )
+                AttachmentActionRow(
+                    icon = Icons.Default.PhotoCamera,
+                    title = Str.takePhoto,
+                    subtitle = Str.takePhotoHint,
+                    onClick = {
+                        scope.launch { attachmentSheetState.hide(); attachmentChooserOpen = false; launchCamera() }
+                    },
+                )
+                AttachmentActionRow(
+                    icon = Icons.Default.AttachFile,
+                    title = Str.importDocument,
+                    subtitle = Str.importDocumentHint,
+                    onClick = {
+                        scope.launch { attachmentSheetState.hide(); attachmentChooserOpen = false; launchFilePicker() }
+                    },
+                )
+            }
+        }
     }
 
     if (groupPickerOpen) {
@@ -852,7 +914,7 @@ fun ChatScreen(
                     }
                 }
                 Spacer(Modifier.height(4.dp))
-                Text("纵向选择分组，切换后立即自动加载对应模型", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.vettaExtra.secondaryText)
+                Text("纵向选择分组，切换后立即自动加载对应模型", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.agent567Extra.secondaryText)
                 Spacer(Modifier.height(12.dp))
 
                 val sortedGroups = remember(availableGroups, activeGroup) {
@@ -907,7 +969,7 @@ fun ChatScreen(
                                 }
                                 if (!info?.desc.isNullOrBlank()) {
                                     Spacer(Modifier.height(2.dp))
-                                    Text(info?.desc.orEmpty(), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.vettaExtra.secondaryText)
+                                    Text(info?.desc.orEmpty(), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.agent567Extra.secondaryText)
                                 }
                             }
                             if (isSelected) {
@@ -1009,6 +1071,30 @@ fun ChatScreen(
 }
 
 @Composable
+private fun AttachmentActionRow(
+    icon: ImageVector,
+    title: String,
+    subtitle: String,
+    onClick: () -> Unit,
+) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(14.dp))
+            .clickable(onClick = onClick)
+            .padding(horizontal = 12.dp, vertical = 12.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Icon(icon, contentDescription = null, modifier = Modifier.size(24.dp), tint = MaterialTheme.colorScheme.primary)
+        Spacer(Modifier.width(14.dp))
+        Column {
+            Text(title, style = MaterialTheme.typography.bodyLarge.copy(fontWeight = FontWeight.Medium))
+            Text(subtitle, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.agent567Extra.secondaryText)
+        }
+    }
+}
+
+@Composable
 private fun ImagePreviewModal(
     image: MessageImage,
     onDismiss: () -> Unit,
@@ -1040,6 +1126,17 @@ private fun ImagePreviewModal(
                     val imageSize = generatedImageSize(maxWidth, maxHeight, bmp.width, bmp.height)
                     val imageWidthPx = with(density) { imageSize.width.toPx() }
                     val imageHeightPx = with(density) { imageSize.height.toPx() }
+                    LaunchedEffect(image.id, imageWidthPx, imageHeightPx, viewportWidthPx, viewportHeightPx) {
+                        val initialScale = initialImagePreviewScale(viewportWidthPx, imageWidthPx, imageHeightPx)
+                        scale = initialScale
+                        offset = initialImagePreviewOffset(
+                            scale = initialScale,
+                            imageWidthPx = imageWidthPx,
+                            imageHeightPx = imageHeightPx,
+                            viewportWidthPx = viewportWidthPx,
+                            viewportHeightPx = viewportHeightPx,
+                        )
+                    }
                     Box(
                         modifier = Modifier
                             .fillMaxSize()
@@ -1300,7 +1397,7 @@ private fun MessageBubble(
                                     if (imageState == MessageImageLoadState.Loading) {
                                         CircularProgressIndicator(modifier = Modifier.size(20.dp), strokeWidth = 2.dp)
                                     } else {
-                                        Text("图片暂时无法读取", color = MaterialTheme.vettaExtra.secondaryText)
+                                        Text("图片暂时无法读取", color = MaterialTheme.agent567Extra.secondaryText)
                                     }
                                 }
                             }
@@ -1345,7 +1442,7 @@ private fun MessageBubble(
                                     if (imageState == MessageImageLoadState.Loading) {
                                         CircularProgressIndicator(modifier = Modifier.size(20.dp), strokeWidth = 2.dp)
                                     } else {
-                                        Text("图片暂时无法读取", color = MaterialTheme.vettaExtra.secondaryText)
+                                        Text("图片暂时无法读取", color = MaterialTheme.agent567Extra.secondaryText)
                                     }
                                 }
                             }
@@ -1359,6 +1456,26 @@ private fun MessageBubble(
             if (!isUser && message.toolEvents.isNotEmpty()) {
                 ToolTraceGroup(message.toolEvents)
                 Spacer(Modifier.height(6.dp))
+            }
+            if (message.files.isNotEmpty()) {
+                Surface(
+                    shape = RoundedCornerShape(12.dp),
+                    color = MaterialTheme.colorScheme.surfaceVariant,
+                    contentColor = MaterialTheme.colorScheme.onSurfaceVariant,
+                ) {
+                    Column(Modifier.padding(horizontal = 12.dp, vertical = 8.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                        message.files.forEach { file ->
+                            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                                Icon(Icons.Default.AttachFile, contentDescription = null, modifier = Modifier.size(16.dp))
+                                Column(Modifier.weight(1f)) {
+                                    Text(file.fileName, style = MaterialTheme.typography.bodyMedium, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                                    Text("${file.mimeType} · ${formatAttachmentSize(file.sizeBytes)}", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.agent567Extra.secondaryText, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                                }
+                            }
+                        }
+                    }
+                }
+                Spacer(Modifier.height(4.dp))
             }
             if (shouldShowTextBubble) {
                 SelectionContainer {
@@ -1393,7 +1510,7 @@ private fun MessageBubble(
                                     Text(
                                         text =
                                             message.content.ifBlank {
-                                                if (message.images.isNotEmpty()) " " else ""
+                                                if (message.images.isNotEmpty() || message.files.isNotEmpty()) " " else ""
                                             },
                                         maxLines = if (isExpanded) Int.MAX_VALUE else 8,
                                         overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis,
@@ -1457,7 +1574,7 @@ private fun MessageBubble(
             Text(
                 text = formatLocalMessageTime(message.createdAtEpochMs),
                 style = MaterialTheme.typography.labelSmall,
-                color = MaterialTheme.vettaExtra.secondaryText,
+                color = MaterialTheme.agent567Extra.secondaryText,
                 modifier = Modifier.padding(top = 3.dp, start = 4.dp, end = 4.dp),
             )
 
@@ -1480,7 +1597,7 @@ private fun MessageBubble(
                             if (copied) Icons.Default.Check else Icons.Default.ContentCopy,
                             contentDescription = "复制内容",
                             modifier = Modifier.size(13.dp),
-                            tint = MaterialTheme.vettaExtra.secondaryText,
+                            tint = MaterialTheme.agent567Extra.secondaryText,
                         )
                     }
                 }
@@ -1494,7 +1611,7 @@ private fun MessageBubble(
                         message.contextPercent?.let { append(" · ${Str.contextUsed} $it%") }
                     },
                     style = MaterialTheme.typography.labelSmall,
-                    color = MaterialTheme.vettaExtra.secondaryText,
+                    color = MaterialTheme.agent567Extra.secondaryText,
                     modifier = Modifier.padding(top = 4.dp, start = 4.dp, end = 4.dp),
                 )
             }
@@ -1502,7 +1619,7 @@ private fun MessageBubble(
                 Text(
                     Str.responseInterrupted,
                     style = MaterialTheme.typography.labelSmall,
-                    color = MaterialTheme.vettaExtra.secondaryText,
+                    color = MaterialTheme.agent567Extra.secondaryText,
                     modifier = Modifier.padding(top = 4.dp, start = 4.dp, end = 4.dp),
                 )
             }
@@ -1519,6 +1636,16 @@ private fun MessageBubble(
         }
     }
 }
+
+private fun formatAttachmentSize(sizeBytes: Long): String =
+    when {
+        sizeBytes < 1024 -> "$sizeBytes B"
+        sizeBytes < 1024 * 1024 -> "${sizeBytes / 1024} KB"
+        else -> {
+            val tenths = sizeBytes * 10 / (1024 * 1024)
+            "${tenths / 10}.${tenths % 10} MB"
+        }
+    }
 
 @Composable
 private fun ToolTraceGroup(tools: List<ToolTrace>) {
@@ -1542,7 +1669,7 @@ private fun ToolTraceGroup(tools: List<ToolTrace>) {
                     Icons.Default.Build,
                     contentDescription = null,
                     modifier = Modifier.size(18.dp),
-                    tint = if (activeCount > 0) MaterialTheme.colorScheme.primary else MaterialTheme.vettaExtra.secondaryText,
+                    tint = if (activeCount > 0) MaterialTheme.colorScheme.primary else MaterialTheme.agent567Extra.secondaryText,
                 )
                 Text(
                     Str.toolActivity,
@@ -1552,17 +1679,17 @@ private fun ToolTraceGroup(tools: List<ToolTrace>) {
                 Text(
                     if (activeCount > 0) Str.toolActivityActive else Str.toolActivityComplete,
                     style = MaterialTheme.typography.labelSmall,
-                    color = if (activeCount > 0) MaterialTheme.colorScheme.primary else MaterialTheme.vettaExtra.secondaryText,
+                    color = if (activeCount > 0) MaterialTheme.colorScheme.primary else MaterialTheme.agent567Extra.secondaryText,
                 )
                 Text(
                     tools.size.toString(),
                     style = MaterialTheme.typography.labelSmall,
-                    color = MaterialTheme.vettaExtra.secondaryText,
+                    color = MaterialTheme.agent567Extra.secondaryText,
                 )
                 Icon(
                     if (expanded) Icons.Default.ExpandLess else Icons.Default.ExpandMore,
                     contentDescription = if (expanded) Str.hideToolDetails else Str.showToolDetails,
-                    tint = MaterialTheme.vettaExtra.secondaryText,
+                    tint = MaterialTheme.agent567Extra.secondaryText,
                 )
             }
             if (expanded) {
@@ -1638,7 +1765,7 @@ private fun ToolTraceRow(tool: ToolTrace) {
                         text = tool.phaseLabel?.takeIf { it.isNotBlank() }
                             ?: if (isActive) Str.toolImageProgress else toolPhaseLabel(tool.phase),
                         style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.vettaExtra.secondaryText,
+                        color = MaterialTheme.agent567Extra.secondaryText,
                         maxLines = 2,
                         overflow = TextOverflow.Ellipsis,
                     )
@@ -1669,7 +1796,7 @@ private fun ToolTraceRow(tool: ToolTrace) {
                 Icon(
                     imageVector = if (expanded) Icons.Default.ExpandLess else Icons.Default.ExpandMore,
                     contentDescription = if (expanded) Str.hideToolDetails else Str.showToolDetails,
-                    tint = MaterialTheme.vettaExtra.secondaryText,
+                    tint = MaterialTheme.agent567Extra.secondaryText,
                 )
             }
         }
@@ -1710,7 +1837,7 @@ private fun ToolTraceRow(tool: ToolTrace) {
                     Text(
                         text = "${Str.toolDuration} ${duration}ms",
                         style = MaterialTheme.typography.labelSmall,
-                        color = MaterialTheme.vettaExtra.secondaryText,
+                        color = MaterialTheme.agent567Extra.secondaryText,
                     )
                 }
             }
@@ -1734,7 +1861,7 @@ private fun ToolDetailSection(label: String, value: String?) {
     val textToCopy = remember(content) {
         if (content.trimStart().startsWith('{')) {
             try {
-                val obj = org.agent567.android.core.net.VettaJson.parseToJsonElement(content) as? kotlinx.serialization.json.JsonObject
+                val obj = org.agent567.android.core.net.Agent567Json.parseToJsonElement(content) as? kotlinx.serialization.json.JsonObject
                 (obj?.get("prompt") as? kotlinx.serialization.json.JsonPrimitive)?.content ?: content
             } catch (_: Exception) {
                 content
@@ -1756,7 +1883,7 @@ private fun ToolDetailSection(label: String, value: String?) {
             Text(
                 text = label,
                 style = MaterialTheme.typography.labelSmall.copy(fontWeight = FontWeight.SemiBold),
-                color = MaterialTheme.vettaExtra.secondaryText,
+                color = MaterialTheme.agent567Extra.secondaryText,
             )
             Surface(
                 onClick = {
@@ -1774,13 +1901,13 @@ private fun ToolDetailSection(label: String, value: String?) {
                         imageVector = if (copied) Icons.Default.Check else Icons.Default.ContentCopy,
                         contentDescription = if (copied) "已复制" else "复制",
                         modifier = Modifier.size(13.dp),
-                        tint = if (copied) MaterialTheme.colorScheme.primary else MaterialTheme.vettaExtra.secondaryText,
+                        tint = if (copied) MaterialTheme.colorScheme.primary else MaterialTheme.agent567Extra.secondaryText,
                     )
                     Spacer(Modifier.width(3.dp))
                     Text(
                         text = if (copied) "已复制" else "复制",
                         style = MaterialTheme.typography.labelSmall,
-                        color = if (copied) MaterialTheme.colorScheme.primary else MaterialTheme.vettaExtra.secondaryText,
+                        color = if (copied) MaterialTheme.colorScheme.primary else MaterialTheme.agent567Extra.secondaryText,
                     )
                 }
             }
@@ -1896,7 +2023,7 @@ private fun QuestionPrompt(
         Text(Str.pendingDesktopQuestionTitle, style = MaterialTheme.typography.titleSmall)
         pending.questions.forEach { question ->
             if (question.header.isNotBlank()) {
-                Text(question.header, style = MaterialTheme.typography.labelMedium, color = MaterialTheme.vettaExtra.secondaryText)
+                Text(question.header, style = MaterialTheme.typography.labelMedium, color = MaterialTheme.agent567Extra.secondaryText)
             }
             Text(question.question, style = MaterialTheme.typography.bodyMedium)
             question.options.forEach { option ->
@@ -1932,13 +2059,21 @@ private fun InputDock(
     onSend: () -> Unit,
     onStop: () -> Unit,
     onAttach: () -> Unit,
+    maxHeight: androidx.compose.ui.unit.Dp,
 ) {
-    Surface(tonalElevation = 2.dp, shadowElevation = 4.dp) {
+    Surface(
+        shape = RoundedCornerShape(24.dp),
+        color = MaterialTheme.colorScheme.surface.copy(alpha = 0.96f),
+        tonalElevation = 2.dp,
+        shadowElevation = 6.dp,
+        border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.55f)),
+        modifier = Modifier.fillMaxWidth().padding(horizontal = 8.dp, vertical = 6.dp),
+    ) {
         Row(
             modifier =
                 Modifier
                     .fillMaxWidth()
-                    .padding(horizontal = 8.dp, vertical = 10.dp),
+                    .padding(horizontal = 4.dp, vertical = 5.dp),
             verticalAlignment = Alignment.Bottom,
         ) {
             IconButton(onClick = onAttach, enabled = !isStreaming) {
@@ -1948,7 +2083,7 @@ private fun InputDock(
                 modifier =
                     Modifier
                         .weight(1f)
-                        .heightIn(min = 44.dp, max = 140.dp)
+                        .heightIn(min = 44.dp, max = maxHeight)
                         .clip(RoundedCornerShape(18.dp))
                         .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.55f))
                         .padding(horizontal = 14.dp, vertical = 10.dp),

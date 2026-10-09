@@ -1,6 +1,6 @@
 import { readFile } from "node:fs/promises";
 import { join } from "node:path";
-import { getVettaHomePath } from "@567agent/action-rpc";
+import { getAgent567HomePath } from "@567agent/action-rpc";
 import { atomicWriteJSON } from "@567agent/toolkit/atomic-write";
 import { BrowserWindow, net } from "electron";
 import { getAppLogger } from "../../logger.js";
@@ -21,7 +21,7 @@ import { MODELS_DEV_SNAPSHOT } from "./models-dev-snapshot.generated.js";
 const presetLog = getAppLogger("preset-providers");
 
 const FETCH_TIMEOUT_MS = 15_000;
-const CATALOG_PATH = join(getVettaHomePath(), "agent", "models-dev-cache.json");
+const CATALOG_PATH = join(getAgent567HomePath(), "agent", "models-dev-cache.json");
 /** 后台同步间隔:12 小时。上游模型目录变动没那么快,再密就是白烧流量。 */
 const AUTO_SYNC_INTERVAL_MS = 12 * 60 * 60 * 1000;
 

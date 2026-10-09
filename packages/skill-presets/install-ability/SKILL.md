@@ -19,13 +19,13 @@ metadata:
 | 用户自己写的 / 仓库里的 SKILL.md | Skill / 场景 | 交给 `create-skill` skill（§3.2） |
 | `command` + `args`，或一个 MCP 的 http url | MCP | `mcp.manage upsert`（§4） |
 
-分不清时**先问用户**，不要凭包名猜类型：npm 上的 `@modelcontextprotocol/server-*` 是 MCP，不是 Vetta 插件。
+分不清时**先问用户**，不要凭包名猜类型：npm 上的 `@modelcontextprotocol/server-*` 是 MCP，不是 567 Agent 插件。
 
 ## 1. 通用前置
 
 - **只在用户明确要求安装时执行**。当前任务缺某个工具，不构成自行安装能力的理由。
 - 所有写操作都会弹宿主审批。用户拒绝就**停下并如实报告**，不要改走别的路子达成同一效果。
-- **禁止直接改注册表**：`~/.vetta/plugins/`、`~/.vetta/plugins-manifest.json`、`~/.vetta/skills-manifest.json`（市场安装的部分）、`~/.vetta/agent/mcp.json` 都由宿主维护，手写会与宿主状态错位。
+- **禁止直接改注册表**：`~/.567agent/plugins/`、`~/.567agent/plugins-manifest.json`、`~/.567agent/skills-manifest.json`（市场安装的部分）、`~/.567agent/agent/mcp.json` 都由宿主维护，手写会与宿主状态错位。
 - 安装源来自用户。第三方 zip / http 链接在安装前把来源念给用户确认一次。
 
 ## 2. 插件
@@ -87,7 +87,7 @@ plugins.manage {"operation":"install-from-url","url":"https://…/x.zip"}
 plugins.manage {"operation":"reload","id":"<plugin-id>"}
 ```
 
-本地路径安装用 `install-from-path`（zip 绝对路径 + `"enable": true`）。若目标是「制作插件」工作台里的工程，改为引导用户点面板的「应用到 Vetta」，那条路径不弹确认。
+本地路径安装用 `install-from-path`（zip 绝对路径 + `"enable": true`）。若目标是「制作插件」工作台里的工程，改为引导用户点面板的「应用到 567 Agent」，那条路径不弹确认。
 
 ### 2.5 退出码
 
@@ -115,7 +115,7 @@ Skill 不需要 reload，装完即进入能力页。校验：`skills.query {"ope
 
 ### 3.2 本地 / 自己写的 Skill
 
-不要在这里手搓目录和清单——按 `create-skill` skill 的流程做（全局 `~/.vetta/skills/<name>/`、项目 `<root>/.vetta/skills/<name>/`、插件 `agent/skills/<name>/` 各有各的注册方式）。
+不要在这里手搓目录和清单——按 `create-skill` skill 的流程做（全局 `~/.567agent/skills/<name>/`、项目 `<root>/.vetta/skills/<name>/`、插件 `agent/skills/<name>/` 各有各的注册方式）。
 
 ### 3.3 启停与卸载
 

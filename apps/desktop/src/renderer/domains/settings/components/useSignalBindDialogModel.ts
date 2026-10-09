@@ -142,7 +142,7 @@ export function useSignalBindDialogModel({
 		if (closeTimerRef.current) clearTimeout(closeTimerRef.current);
 		closeTimerRef.current = null;
 		setState({ phase: "starting", qrAttempt: 0 });
-		const unsub = await window.vetta.im.signal.subscribeBind((event: ImSignalBindEvent) => {
+		const unsub = await window.agent567.im.signal.subscribeBind((event: ImSignalBindEvent) => {
 			if (generation !== bindGenerationRef.current || !openRef.current) return;
 			switch (event.kind) {
 				case "qr":
@@ -191,7 +191,7 @@ export function useSignalBindDialogModel({
 		subUnsubRef.current = unsub;
 
 		try {
-			const result = await window.vetta.im.signal.startBind();
+			const result = await window.agent567.im.signal.startBind();
 			if (generation !== bindGenerationRef.current || !openRef.current) return;
 			if (!result.ok) {
 				setState({

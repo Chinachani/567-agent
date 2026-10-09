@@ -31,15 +31,15 @@ export const authUserAtom = atom<AuthUser | null>(null);
  * 登出入口不渲染，本 atom 不可达。
  */
 export const cloudLogoutAtom = atom(null, (get, set) => {
-	void window.vetta.settings
+	void window.agent567.settings
 		.getServerRefreshToken()
 		.then((storedRefresh) => logoutOnServer(storedRefresh))
 		// 服务端登出失败（网络等）不阻塞本地登出，只留痕
 		.catch((err) => console.warn("[cloudLogout] logoutOnServer failed:", err))
-		.finally(() => window.vetta.settings.setServerRefreshToken(undefined));
+		.finally(() => window.agent567.settings.setServerRefreshToken(undefined));
 	set(authTokenAtom, null);
 	set(authUserAtom, null);
-	void window.vetta.settings.setServerToken(undefined);
+	void window.agent567.settings.setServerToken(undefined);
 	set(remoteProvidersAtom, {});
 	get(sseClientAtom).disconnect();
 });

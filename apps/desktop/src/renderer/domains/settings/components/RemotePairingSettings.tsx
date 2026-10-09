@@ -12,6 +12,7 @@ export function RemotePairingSettings(): JSX.Element {
 	const { t } = useTranslation("settings");
 	const [state, setState] = useState<RemotePairingState>({
 		status: "idle",
+		autoShareScreen: false,
 		inputEnabled: false,
 		inputSupported: false,
 	});
@@ -23,10 +24,12 @@ export function RemotePairingSettings(): JSX.Element {
 	const [qrError, setQrError] = useState(false);
 	const [createError, setCreateError] = useState<string>();
 	const [busy, setBusy] = useState(false);
+	const [installingInput, setInstallingInput] = useState(false);
+	const [inputInstallResult, setInputInstallResult] = useState<"success" | "error" | undefined>();
 
 	useEffect(() => {
 		const sync = (): void => {
-			void window.vetta.remotePairing.getState().then((next) => {
+			void window.agent567.remotePairing.getState().then((next) => {
 				setState(next);
 				if (next.relayBaseUrl && !relayUrlEdited.current) {
 					setRelayUrl(toHttpsRelayBaseUrl(next.relayBaseUrl));
@@ -71,7 +74,31 @@ export function RemotePairingSettings(): JSX.Element {
 			const targetRelay = relayUrl.trim() || DEFAULT_RELAY;
 			localStorage.setItem("567.remote.relay_url", toHttpsRelayBaseUrl(targetRelay));
 			setCreateError(undefined);
-			const next = await window.vetta.remotePairing.create(targetRelay);
+			const next = await window.agent567.remotePairing.create(targetRelay);
+			setState(next);
+			if (next.relayBaseUrl) {
+				const canonicalRelay = toHttpsRelayBaseUrl(next.relayBaseUrl);
+				setRelayUrl(canonicalRelay);
+				localStorage.setItem("567.remote.relay_url", canonicalRelay);
+			}
+		} catch (error) {
+			setCreateError(error instanceof Error ? error.message : t("remote.createFailed"));
+			setState((current) => ({ ...current, status: "error" }));
+		} finally {
+			setBusy(false);
+		}
+	};
+
+	const resetCertificate = async (): Promise<void> => {
+		if (!window.confirm(t("remote.resetCertificateConfirm"))) return;
+		setBusy(true);
+		setQr(undefined);
+		setQrError(false);
+		setCreateError(undefined);
+		try {
+			const targetRelay = relayUrl.trim() || DEFAULT_RELAY;
+			localStorage.setItem("567.remote.relay_url", toHttpsRelayBaseUrl(targetRelay));
+			const next = await window.agent567.remotePairing.resetCertificate(targetRelay);
 			setState(next);
 			if (next.relayBaseUrl) {
 				const canonicalRelay = toHttpsRelayBaseUrl(next.relayBaseUrl);
@@ -88,15 +115,36 @@ export function RemotePairingSettings(): JSX.Element {
 
 	const setInputEnabled = async (enabled: boolean): Promise<void> => {
 		try {
-			setState(await window.vetta.remotePairing.setInputEnabled(enabled));
+			setState(await window.agent567.remotePairing.setInputEnabled(enabled));
 		} catch {
 			setState((current) => ({ ...current, status: "error" }));
 		}
 	};
 
+	const setAutoShareScreen = async (enabled: boolean): Promise<void> => {
+		try {
+			setState(await window.agent567.remotePairing.setAutoShareScreen(enabled));
+		} catch {
+			setState((current) => ({ ...current, status: "error" }));
+		}
+	};
+
+	const installInputDependencies = async (): Promise<void> => {
+		setInstallingInput(true);
+		setInputInstallResult(undefined);
+		try {
+			await window.agent567.remotePairing.installInputDependencies();
+			setInputInstallResult("success");
+		} catch {
+			setInputInstallResult("error");
+		} finally {
+			setInstallingInput(false);
+		}
+	};
+
 	const revoke = async (): Promise<void> => {
 		try {
-			setState(await window.vetta.remotePairing.revoke());
+			setState(await window.agent567.remotePairing.revoke());
 		} catch {
 			setState((current) => ({ ...current, status: "error" }));
 		}
@@ -205,9 +253,32 @@ export function RemotePairingSettings(): JSX.Element {
 						</div>
 					)}
 				</div>
+				{state.pairingId ? (
+					<div className="mt-3 flex justify-end">
+						<Button variant="outline" size="sm" disabled={busy} onClick={() => void resetCertificate()}>
+							<span className="icon-[solar--key-minimalistic-square-3-linear] h-4 w-4" />
+							{t("remote.resetCertificate")}
+						</Button>
+					</div>
+				) : null}
 			</section>
 
 			<section id="remote-permissions">
+				{state.pairingId ? (
+					<div className="flex items-center justify-between gap-4 border-b border-border/50 py-3">
+						<div>
+						<h2 className="text-[14px] font-semibold text-foreground">{t("remote.autoShareTitle")}</h2>
+						<p className="mt-1 text-[12px] leading-relaxed text-muted-foreground">
+							{t("remote.autoShareDescription")}
+						</p>
+					</div>
+					<Switch
+						checked={state.autoShareScreen}
+						disabled={state.status === "error"}
+						onCheckedChange={(enabled) => void setAutoShareScreen(enabled)}
+					/>
+					</div>
+				) : null}
 				<div className="flex items-center justify-between gap-4 py-3">
 					<div>
 						<h2 className="text-[14px] font-semibold text-foreground">{t("remote.inputTitle")}</h2>
@@ -223,6 +294,18 @@ export function RemotePairingSettings(): JSX.Element {
 						onCheckedChange={(enabled) => void setInputEnabled(enabled)}
 					/>
 				</div>
+				{state.inputSupportReason === "x11_libraries_unavailable" ? (
+					<div className="mb-3 flex flex-wrap items-center gap-2">
+						<Button variant="outline" size="sm" disabled={installingInput} onClick={() => void installInputDependencies()}>
+							{installingInput ? t("remote.installingInputDependencies") : t("remote.installInputDependencies")}
+						</Button>
+						{inputInstallResult ? (
+							<p role={inputInstallResult === "error" ? "alert" : "status"} className="text-[12px] text-muted-foreground">
+								{t(`remote.inputInstall.${inputInstallResult}`)}
+							</p>
+						) : null}
+					</div>
+				) : null}
 				{state.status === "ready" || state.status === "connected" ? (
 					<Button variant="outline" onClick={() => void revoke()}>
 						<span className="icon-[solar--link-broken-linear] h-4 w-4" />

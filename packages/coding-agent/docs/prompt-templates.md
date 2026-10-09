@@ -4,7 +4,7 @@ Markdown 片段，以 `/文件名` 展开为完整提示。
 
 ## 位置
 
-- 全局：`~/.vetta/agent/prompts/*.md`
+- 全局：`~/.567agent/agent/prompts/*.md`
 - 项目：`<cwd>/.vetta/prompts/*.md`
 - 包 / settings `prompts` / CLI `--prompt-template`
 - `--no-prompt-templates` 关闭发现

@@ -1,6 +1,6 @@
 import { readFile } from "node:fs/promises";
 import { join } from "node:path";
-import { getVettaHomePath } from "@567agent/action-rpc";
+import { getAgent567HomePath } from "@567agent/action-rpc";
 import { net } from "electron";
 import { getCloudBridge } from "../cloud-bridge.js";
 
@@ -27,7 +27,7 @@ export async function probeModelProvider(ref: {
 	// 1) Local models.json first.
 	let provider: { baseUrl?: string } | undefined;
 	try {
-		const raw = await readFile(join(getVettaHomePath(), "agent", "models.json"), "utf8");
+		const raw = await readFile(join(getAgent567HomePath(), "agent", "models.json"), "utf8");
 		const parsed = JSON.parse(raw) as {
 			providers?: Record<string, { baseUrl?: string }>;
 		};

@@ -7,22 +7,26 @@ function createAccessToken(): string {
 	return Array.from(bytes, (byte) => byte.toString(16).padStart(2, "0")).join("");
 }
 
-function protectValue(value: unknown, owner: object | undefined, token: string): unknown {
+function protectValue(value: unknown, owner: object | undefined, token: string, isClaimed: () => boolean): unknown {
 	if (typeof value === "function") {
 		const fn = value as ProtectedFunction;
 		return (providedToken: unknown, ...args: unknown[]) => {
-			if (providedToken !== token) throw new Error("Host API access denied");
-			return Reflect.apply(fn, owner, args);
+			if (providedToken === token) return Reflect.apply(fn, owner, args);
+			// First-party renderer modules still call the shared bridge directly.
+			// Once its bootstrap claims access, those calls must not treat their
+			// first application argument as the private token.
+			if (isClaimed()) return Reflect.apply(fn, owner, [providedToken, ...args]);
+			throw new Error("Host API access denied");
 		};
 	}
 	if (Array.isArray(value)) {
-		return value.map((item) => protectValue(item, value, token));
+		return value.map((item) => protectValue(item, value, token, isClaimed));
 	}
 	if (value === null || typeof value !== "object") return value;
 
 	const protectedObject: Record<string, unknown> = {};
 	for (const [key, nestedValue] of Object.entries(value)) {
-		protectedObject[key] = protectValue(nestedValue, value, token);
+		protectedObject[key] = protectValue(nestedValue, value, token, isClaimed);
 	}
 	return protectedObject;
 }
@@ -36,7 +40,7 @@ export function createHostAccessGate<T extends object>(
 	const token = createAccessToken();
 	let claimed = false;
 	return {
-		api: protectValue(rawApi, undefined, token) as T,
+		api: protectValue(rawApi, undefined, token, () => claimed) as T,
 		hostAccess: {
 			claim: () => {
 				if (claimed) throw new Error("Host API access token has already been claimed");

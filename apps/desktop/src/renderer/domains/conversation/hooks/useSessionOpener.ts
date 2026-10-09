@@ -277,7 +277,7 @@ export function useSessionOpener(): SessionOpenerController {
 			let previewPresentation: Promise<void> | undefined;
 			if (stageExistingSessionOpen) {
 				markSessionSwitch("session-preview-history-start");
-				previewPresentation = window.vetta.session
+				previewPresentation = window.agent567.session
 					.openViewer(sessionPath, { tailTurns: 2 })
 					.then(async (snapshot) => {
 						markSessionSwitch("session-preview-history-loaded");
@@ -339,11 +339,11 @@ export function useSessionOpener(): SessionOpenerController {
 					: isDefaultConversation
 						? "conversation"
 						: "project";
-			let createResult: Awaited<ReturnType<typeof window.vetta.session.create>>;
+			let createResult: Awaited<ReturnType<typeof window.agent567.session.create>>;
 			try {
 				perfSendMark("session-create-start", interactionId);
 				markSessionSwitch("session-create-start");
-				createResult = await window.vetta.session.create(
+				createResult = await window.agent567.session.create(
 					{
 						cwd,
 						sessionPath,
@@ -436,7 +436,7 @@ export function useSessionOpener(): SessionOpenerController {
 			let resolvedSessionPath: string;
 			try {
 				resolvedSessionPath =
-					canonicalSessionPath || (await window.vetta.session.getSessionPath(sessionId)) || sessionPath || "";
+					canonicalSessionPath || (await window.agent567.session.getSessionPath(sessionId)) || sessionPath || "";
 			} catch (error) {
 				failSessionHydration("path", error);
 				return;
@@ -459,7 +459,7 @@ export function useSessionOpener(): SessionOpenerController {
 				markSessionSwitch("session-subscribe-start");
 				let unsubscribeFn: () => void;
 				try {
-					unsubscribeFn = await window.vetta.session.subscribe(sessionId, createSessionEventHandler(sessionId));
+					unsubscribeFn = await window.agent567.session.subscribe(sessionId, createSessionEventHandler(sessionId));
 				} catch (error) {
 					failSessionHydration("subscribe", error);
 					return false;
@@ -511,8 +511,8 @@ export function useSessionOpener(): SessionOpenerController {
 			perfSendMark("session-state-load-start", interactionId);
 			markSessionSwitch("session-hydration-start");
 			const historyPromise =
-				sessionPath === undefined ? Promise.resolve([]) : window.vetta.session.getFullHistory(sessionId);
-			const statePromise = window.vetta.session.getState(sessionId);
+				sessionPath === undefined ? Promise.resolve([]) : window.agent567.session.getFullHistory(sessionId);
+			const statePromise = window.agent567.session.getState(sessionId);
 			let state: Awaited<typeof statePromise>;
 			try {
 				state = await statePromise;
@@ -542,7 +542,7 @@ export function useSessionOpener(): SessionOpenerController {
 			if (sessionPath === undefined) {
 				const desired = selectedModelRef.current;
 				if (desired && desired !== backendModelKey) {
-					void window.vetta.session.updateSettings(sessionId, { modelKey: desired });
+					void window.agent567.session.updateSettings(sessionId, { modelKey: desired });
 				}
 			}
 
@@ -654,7 +654,7 @@ export function useSessionOpener(): SessionOpenerController {
 
 			// kernel 队列镜像初始化（ADR-0060）：整体替换、不做消费差分——后台期间被
 			// 消费的条目由历史重放呈现，这里只要拿到当前真实队列与 paused 状态。
-			void window.vetta.session
+			void window.agent567.session
 				.getQueueState(sessionId)
 				.then((state) => {
 					if (activeSessionRef.current?.runtimeId !== sessionId) return;

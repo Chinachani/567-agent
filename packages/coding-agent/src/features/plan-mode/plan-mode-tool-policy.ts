@@ -1,5 +1,3 @@
-import { classifyPlanModeCommand } from "./plan-mode-command-policy.js";
-
 export const CODING_AGENT_EXIT_PLAN_MODE_TOOL_NAME = "exit_plan_mode";
 
 export type PlanModeToolVerdict = { readonly allowed: true } | { readonly allowed: false; readonly reason: string };
@@ -36,14 +34,12 @@ const READ_ONLY_TOOL_NAMES: ReadonlySet<string> = new Set([
 	CODING_AGENT_EXIT_PLAN_MODE_TOOL_NAME,
 ]);
 
-/** 同一个工具既能读又能写：保留在工具面上，由调用参数决定是否放行。 */
-const COMMAND_TOOL_NAMES: ReadonlySet<string> = new Set(["bash", "shell"]);
 const SPAWN_AGENT_TOOL_NAME = "spawn_agent";
 const READ_ONLY_SUBAGENT_TYPE = "explorer";
 
 /** 工具面（schema）闸门：Plan 模式下该工具是否出现在模型的工具数组里。 */
 export function isToolVisibleInPlanMode(toolName: string): boolean {
-	return READ_ONLY_TOOL_NAMES.has(toolName) || COMMAND_TOOL_NAMES.has(toolName) || toolName === SPAWN_AGENT_TOOL_NAME;
+	return READ_ONLY_TOOL_NAMES.has(toolName) || toolName === SPAWN_AGENT_TOOL_NAME;
 }
 
 /**
@@ -70,10 +66,8 @@ export function evaluatePlanModeToolCall(
 	input: Readonly<Record<string, unknown>>,
 ): PlanModeToolVerdict {
 	if (READ_ONLY_TOOL_NAMES.has(toolName)) return ALLOWED;
-	if (COMMAND_TOOL_NAMES.has(toolName)) {
-		if (input.run_in_background === true) return deny(toolName, "background commands are not allowed");
-		const verdict = classifyPlanModeCommand(typeof input.command === "string" ? input.command : "");
-		return verdict.allowed ? ALLOWED : deny(toolName, verdict.reason);
+	if (toolName === "bash" || toolName === "shell") {
+		return deny(toolName, "shell executables cannot be verified as read-only; use the dedicated read-only tools");
 	}
 	if (toolName === SPAWN_AGENT_TOOL_NAME) {
 		return input.agent_type === READ_ONLY_SUBAGENT_TYPE

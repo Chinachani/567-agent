@@ -240,6 +240,7 @@ export class RemoteDesktopViewer {
 			}
 			this.inputChannel = event.channel;
 			event.channel.onopen = () => this.inputReadyResolve?.();
+			event.channel.onclose = () => this.inputReadyResolve?.();
 		};
 		this.peer.onconnectionstatechange = () => {
 			this.logger.info("remote desktop viewer peer state", {
@@ -276,6 +277,7 @@ export class RemoteDesktopViewer {
 
 	async sendInput(message: RemoteInputCommand): Promise<void> {
 		await this.inputReady;
+		if (this.closed) throw new Error("remote desktop viewer is closed");
 		if (!this.inputChannel || this.inputChannel.readyState !== "open") {
 			throw new Error("remote input channel is not open");
 		}
@@ -287,6 +289,7 @@ export class RemoteDesktopViewer {
 	close(reason: Extract<RemoteDesktopSignal, { type: "end" }>["reason"] = "completed"): void {
 		if (this.closed) return;
 		this.closed = true;
+		this.inputReadyResolve?.();
 		this.inputChannel?.close();
 		this.peer.close();
 		try {

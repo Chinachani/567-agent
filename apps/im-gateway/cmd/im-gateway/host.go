@@ -123,7 +123,7 @@ func runHostWithIO(opts hostOptions) int {
 
 	// Mirror desktop-app's resolveSessionDirForCwd convention: the IM
 	// conversation cwd stores its sessions under <cwd>/.vetta/sessions/
-	// instead of the global ~/.vetta/agent/sessions/<encoded-cwd>/. desktop-
+	// instead of the global ~/.567agent/agent/sessions/<encoded-cwd>/. desktop-
 	// app's Claw tab reads from this same directory to render IM sessions
 	// read-only.
 	hclocalOpts := hclocal.Options{

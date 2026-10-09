@@ -11,7 +11,7 @@ function hasExternalFiles(event: DragEvent): boolean {
 
 function toSourcePaths(dataTransfer: DataTransfer): string[] {
 	return Array.from(dataTransfer.files)
-		.map((file) => window.vetta.fs.pathForFile(file))
+		.map((file) => window.agent567.fs.pathForFile(file))
 		.filter(Boolean);
 }
 

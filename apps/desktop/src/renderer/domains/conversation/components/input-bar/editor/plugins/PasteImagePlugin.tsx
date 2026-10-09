@@ -17,7 +17,7 @@ import {
 } from "./clipboard-images";
 
 /**
- * 粘贴图片 → 立即落盘 → 插入行内缩略图 token。Vetta 富消息剪贴板还会
+ * 粘贴图片 → 立即落盘 → 插入行内缩略图 token。567 Agent 富消息剪贴板还会
  * 恢复正文并用新落盘路径替换旧图片 token；纯文本仍走 Lexical 默认实现。
  */
 export function PasteImagePlugin({
@@ -73,7 +73,7 @@ export function PasteImagePlugin({
 					} catch (error) {
 						console.warn("[input-editor] clipboard text read failed:", error);
 					}
-					void window.vetta.clipboard
+					void window.agent567.clipboard
 						.pasteUserMessage(effectiveRuntimeId ?? "draft")
 						.catch((error: unknown) => {
 							console.warn("[input-editor] rich clipboard paste failed:", error);

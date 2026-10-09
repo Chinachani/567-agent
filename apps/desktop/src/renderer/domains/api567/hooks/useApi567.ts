@@ -19,9 +19,9 @@ export function useApi567() {
 
 	const loadAvailableGroups = useCallback(
 		async (force = false) => {
-			if (!window.vetta?.api567?.getAvailableGroups) return;
+			if (!window.agent567?.api567?.getAvailableGroups) return;
 			try {
-				const groups = await window.vetta.api567.getAvailableGroups(force);
+				const groups = await window.agent567.api567.getAvailableGroups(force);
 				if (groups && Object.keys(groups).length > 0) {
 					setAvailableGroups(groups);
 				}
@@ -34,12 +34,12 @@ export function useApi567() {
 
 	useEffect(() => {
 		let isMounted = true;
-		if (!window.vetta?.api567) {
+		if (!window.agent567?.api567) {
 			setInitialCheckDone(true);
 			return;
 		}
 
-		window.vetta.api567
+		window.agent567.api567
 			.getStatus()
 			.then((initialStatus) => {
 				if (isMounted) {
@@ -53,9 +53,9 @@ export function useApi567() {
 							void loadAvailableGroups(false);
 						}
 						if (initialStatus.quota === undefined) {
-							void window.vetta.api567.refreshQuota(false).then(async (res) => {
+							void window.agent567.api567.refreshQuota(false).then(async (res) => {
 								if (res.success && isMounted) {
-									const latest = await window.vetta.api567.getStatus();
+									const latest = await window.agent567.api567.getStatus();
 									setStatus(latest);
 								}
 							});
@@ -70,7 +70,7 @@ export function useApi567() {
 				}
 			});
 
-		const unsubscribe = window.vetta.api567.onStatusChanged((newStatus) => {
+		const unsubscribe = window.agent567.api567.onStatusChanged((newStatus) => {
 			if (isMounted) {
 				setStatus(newStatus);
 			}
@@ -89,14 +89,14 @@ export function useApi567() {
 			}
 			setLoading(true);
 			try {
-				const res = await window.vetta.api567.loginWithAccessToken(token.trim());
+				const res = await window.agent567.api567.loginWithAccessToken(token.trim());
 				if (res.success) {
 					showToast({
 						variant: "success",
 						title: "567 API 验证成功",
 						message: "已成功连接 567 API 账户。",
 					});
-					const latest = await window.vetta.api567.getStatus();
+					const latest = await window.agent567.api567.getStatus();
 					setStatus(latest);
 					void loadAvailableGroups();
 				} else {
@@ -129,7 +129,7 @@ export function useApi567() {
 			}
 			setLoading(true);
 			try {
-				const res = await window.vetta.api567.loginWithPassword({
+				const res = await window.agent567.api567.loginWithPassword({
 					username: username.trim(),
 					password: password.trim(),
 				});
@@ -139,7 +139,7 @@ export function useApi567() {
 						title: "567 API 登录成功",
 						message: `欢迎回来，${username}！567 API 账户已登录。`,
 					});
-					const latest = await window.vetta.api567.getStatus();
+					const latest = await window.agent567.api567.getStatus();
 					setStatus(latest);
 					void loadAvailableGroups();
 				} else {
@@ -168,14 +168,14 @@ export function useApi567() {
 	const syncGroup = useCallback(
 		async (groupName: string) => {
 			try {
-				const res = await window.vetta.api567.syncGroup(groupName);
+				const res = await window.agent567.api567.syncGroup(groupName);
 				if (res.success) {
 					showToast({
 						variant: "success",
 						title: "分组接入成功",
 						message: `已为分组 [${groupName}] 自动关联密钥并同步模型`,
 					});
-					const latest = await window.vetta.api567.getStatus();
+					const latest = await window.agent567.api567.getStatus();
 					setStatus(latest);
 				} else {
 					showToast({
@@ -200,13 +200,13 @@ export function useApi567() {
 	const removeGroup = useCallback(
 		async (groupName: string) => {
 			try {
-				const res = await window.vetta.api567.removeGroup(groupName);
+				const res = await window.agent567.api567.removeGroup(groupName);
 				if (res.success) {
 					showToast({
 						variant: "info",
 						message: `已移除分组 [${groupName}]`,
 					});
-					const latest = await window.vetta.api567.getStatus();
+					const latest = await window.agent567.api567.getStatus();
 					setStatus(latest);
 				}
 				return res;
@@ -221,13 +221,13 @@ export function useApi567() {
 	const setActiveGroup = useCallback(
 		async (groupName: string) => {
 			try {
-				const res = await window.vetta.api567.setActiveGroup(groupName);
+				const res = await window.agent567.api567.setActiveGroup(groupName);
 				if (res.success) {
 					showToast({
 						variant: "success",
 						message: `主力分组已切换为: ${groupName}`,
 					});
-					const latest = await window.vetta.api567.getStatus();
+					const latest = await window.agent567.api567.getStatus();
 					setStatus(latest);
 				}
 				return res;
@@ -242,13 +242,13 @@ export function useApi567() {
 	const setImageGroup = useCallback(
 		async (groupName: string) => {
 			try {
-				const res = await window.vetta.api567.setImageGroup(groupName);
+				const res = await window.agent567.api567.setImageGroup(groupName);
 				if (res.success) {
 					showToast({
 						variant: "success",
 						message: `画图分组已设置为: ${groupName}`,
 					});
-					const latest = await window.vetta.api567.getStatus();
+					const latest = await window.agent567.api567.getStatus();
 					setStatus(latest);
 				}
 				return res;
@@ -263,13 +263,13 @@ export function useApi567() {
 	const setImageModel = useCallback(
 		async (modelName: string) => {
 			try {
-				const res = await window.vetta.api567.setImageModel(modelName);
+				const res = await window.agent567.api567.setImageModel(modelName);
 				if (res.success) {
 					showToast({
 						variant: "success",
 						message: `画图模型已设置为: ${modelName}`,
 					});
-					const latest = await window.vetta.api567.getStatus();
+					const latest = await window.agent567.api567.getStatus();
 					setStatus(latest);
 				}
 				return res;
@@ -283,10 +283,10 @@ export function useApi567() {
 
 	const refreshGroups = useCallback(async () => {
 		try {
-			if (window.vetta?.api567?.refreshGroups) {
-				await window.vetta.api567.refreshGroups();
+			if (window.agent567?.api567?.refreshGroups) {
+				await window.agent567.api567.refreshGroups();
 			}
-			const latest = await window.vetta.api567.getStatus();
+			const latest = await window.agent567.api567.getStatus();
 			setStatus(latest);
 		} catch (err) {
 			console.error("Failed to refresh groups:", err);
@@ -296,7 +296,7 @@ export function useApi567() {
 	const refreshQuota = useCallback(
 		async (force = false, silent = false): Promise<{ success: boolean; quota?: number; quotaUsd?: number }> => {
 			try {
-				const res = await window.vetta.api567.refreshQuota(force);
+				const res = await window.agent567.api567.refreshQuota(force);
 				if (res.success) {
 					if (!silent) {
 						showToast({
@@ -305,7 +305,7 @@ export function useApi567() {
 							message: `当前可用额度: $${res.quotaUsd !== undefined ? res.quotaUsd.toFixed(2) : "0.00"}`,
 						});
 					}
-					const latest = await window.vetta.api567.getStatus();
+					const latest = await window.agent567.api567.getStatus();
 					setStatus(latest);
 					return res;
 				} else {
@@ -331,7 +331,7 @@ export function useApi567() {
 			return { success: false, message: "请输入有效的邮箱地址" };
 		}
 		try {
-			const res = await window.vetta.api567.sendVerificationCode(email.trim());
+			const res = await window.agent567.api567.sendVerificationCode(email.trim());
 			if (res.success) {
 				showToast({ variant: "success", title: "验证码已发送", message: "请查看您的邮箱并输入验证码" });
 			} else {
@@ -355,14 +355,14 @@ export function useApi567() {
 		}) => {
 			setLoading(true);
 			try {
-				const res = await window.vetta.api567.register(params);
+				const res = await window.agent567.api567.register(params);
 				if (res.success) {
 					showToast({
 						variant: "success",
 						title: "567 API 注册成功",
 						message: `欢迎加入，${params.username}！已为您自动登录并配置初始模型。`,
 					});
-					const latest = await window.vetta.api567.getStatus();
+					const latest = await window.agent567.api567.getStatus();
 					setStatus(latest);
 					void loadAvailableGroups();
 				} else {
@@ -392,14 +392,14 @@ export function useApi567() {
 			}
 			setLoading(true);
 			try {
-				const res = await window.vetta.api567.topupWithKey(key.trim());
+				const res = await window.agent567.api567.topupWithKey(key.trim());
 				if (res.success) {
 					showToast({
 						variant: "success",
 						title: "充值成功",
 						message: res.message || "卡密兑换成功，额度已实时到账！",
 					});
-					const latest = await window.vetta.api567.getStatus();
+					const latest = await window.agent567.api567.getStatus();
 					setStatus(latest);
 				} else {
 					showToast({
@@ -422,7 +422,7 @@ export function useApi567() {
 
 	const createPayOrder = useCallback(async (amount: number, method: "alipay" | "wxpay") => {
 		try {
-			return await window.vetta.api567.createPayOrder(amount, method);
+			return await window.agent567.api567.createPayOrder(amount, method);
 		} catch (err) {
 			const msg = err instanceof Error ? err.message : String(err);
 			showToast({ variant: "error", title: "订单创建失败", message: msg });
@@ -432,7 +432,7 @@ export function useApi567() {
 
 	const logout = useCallback(async () => {
 		try {
-			await window.vetta.api567.logout();
+			await window.agent567.api567.logout();
 			setStatus({ isLoggedIn: false });
 			showToast({
 				variant: "info",

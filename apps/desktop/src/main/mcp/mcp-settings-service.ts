@@ -1,6 +1,6 @@
 import { readFile } from "node:fs/promises";
 import { join } from "node:path";
-import { getVettaHomePath } from "@567agent/action-rpc";
+import { getAgent567HomePath } from "@567agent/action-rpc";
 import { atomicWriteJSON } from "@567agent/toolkit/atomic-write";
 import type { McpServerDetail, McpServerSummary, McpServerUpsertData } from "@vetta-org/capability-sdk";
 import type { AppMonitorEvent, AppMonitorResourceSource } from "../../preload/api-types/app-monitor.js";
@@ -22,7 +22,7 @@ export interface McpSettingsServiceOptions {
 	readonly recordEvent?: (event: Extract<AppMonitorEvent, { type: "resource.lifecycle" }>) => void;
 }
 
-const MCP_CONFIG_PATH = join(getVettaHomePath(), "agent", "mcp.json");
+const MCP_CONFIG_PATH = join(getAgent567HomePath(), "agent", "mcp.json");
 const DEFAULT_MCP_CONFIG: McpConfigData = { mcpServers: {} };
 
 export async function readMcpConfig(): Promise<McpConfigData> {

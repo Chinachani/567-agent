@@ -31,7 +31,8 @@ describe("site URL helpers", () => {
 	});
 
 	it("prefers DOCS_SITE_URL without a trailing slash", () => {
-		expect(getSiteOrigin("https://github.com/Chinachani/567-agent/")).toBe(DEFAULT_DOCS_SITE_URL);
+		expect(getSiteOrigin("https://docs.example.test/")).toBe("https://docs.example.test");
+		expect(DEFAULT_DOCS_SITE_URL).toBe("http://localhost:3000");
 	});
 });
 

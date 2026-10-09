@@ -1,6 +1,6 @@
 package org.agent567.android.domain.error
 
-import org.agent567.android.core.error.VettaException
+import org.agent567.android.core.error.Agent567Exception
 import org.agent567.android.domain.conversation.RemoteConversationException
 import org.agent567.android.domain.remote.connection.RemoteRequestException
 import org.agent567.android.domain.remote.protocol.RemoteErrorCode
@@ -25,27 +25,27 @@ data class UiError(
 
 object ErrorMapper {
     fun from(throwable: Throwable): UiError =
-        when (val e = throwable as? VettaException ?: throwable) {
-            is VettaException.Unauthorized ->
+        when (val e = throwable as? Agent567Exception ?: throwable) {
+            is Agent567Exception.Unauthorized ->
                 UiError(
                     title = "需要重新登录",
                     message = "登录状态已失效，请重新登录",
                     action = UiErrorAction.ReLogin,
                     technicalCode = e.code,
                 )
-            is VettaException.Network ->
+            is Agent567Exception.Network ->
                 UiError(
                     title = "网络异常",
                     message = "暂时连不上服务器，请检查网络后重试",
                     action = UiErrorAction.Retry,
                 )
-            is VettaException.Protocol ->
+            is Agent567Exception.Protocol ->
                 UiError(
                     title = "响应异常",
                     message = "服务器返回了无法理解的内容，请稍后重试",
                     action = UiErrorAction.Retry,
                 )
-            is VettaException.Api -> mapApi(e)
+            is Agent567Exception.Api -> mapApi(e)
             is RemoteConversationException ->
                 UiError(
                     title = "桌面连接不可用",
@@ -99,7 +99,7 @@ object ErrorMapper {
                 )
         }
 
-    private fun mapApi(e: VettaException.Api): UiError {
+    private fun mapApi(e: Agent567Exception.Api): UiError {
         val code = e.code
         return when (code) {
             40301 ->

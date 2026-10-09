@@ -107,6 +107,9 @@ export function CheckboxField({
 		<label className="flex cursor-pointer select-none items-center gap-2">
 			<button
 				type="button"
+				role="checkbox"
+				aria-checked={checked}
+				aria-label={label}
 				onClick={() => onChange(!checked)}
 				className={cn(
 					"flex h-4 w-4 items-center justify-center rounded border transition-colors",

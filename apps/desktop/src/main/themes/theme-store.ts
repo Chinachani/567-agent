@@ -1,6 +1,6 @@
 import { existsSync, readdirSync, readFileSync, statSync } from "node:fs";
 import { join, resolve } from "node:path";
-import { getVettaHomePath } from "@567agent/action-rpc";
+import { getAgent567HomePath } from "@567agent/action-rpc";
 import { app } from "electron";
 import type { DesktopThemePackage, DesktopThemePackageSource } from "../../preload/api-types/themes.js";
 
@@ -28,7 +28,7 @@ function systemThemesBaseDir(): string {
 }
 
 function remoteThemesBaseDir(): string {
-	return join(getVettaHomePath(), "themes");
+	return join(getAgent567HomePath(), "themes");
 }
 
 function parseManifest(path: string): ThemeManifest {
@@ -97,8 +97,7 @@ export function listThemes(): DesktopThemePackage[] {
 	const builtin = discoverFrom(systemThemesBaseDir(), "builtin");
 	const builtinIds = new Set(builtin.map((theme) => theme.id));
 	const remote = discoverFrom(remoteThemesBaseDir(), "remote").filter((theme) => !builtinIds.has(theme.id));
-	const themes = [...builtin, ...remote];
-	return app.isPackaged ? themes.filter((theme) => theme.id !== "xianxia") : themes;
+	return [...builtin, ...remote];
 }
 
 export function resolveThemeFilePath(themeId: string, source: DesktopThemePackageSource, relativePath: string): string {

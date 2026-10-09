@@ -19,7 +19,7 @@ export function useAgentAvatarResolver(): (subject: AvatarSubject) => string {
 	useEffect(() => {
 		let active = true;
 		// 组件测试里没有 preload 桥；拿不到就用兜底头像，不该让组件渲染不出来。
-		const blueprints = window.vetta?.agentTeams?.listBlueprints?.();
+		const blueprints = window.agent567?.agentTeams?.listBlueprints?.();
 		if (!blueprints) return;
 		void blueprints
 			.then((resolved) => {

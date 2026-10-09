@@ -4,7 +4,7 @@
 
 567 Agent 有两种发行形态，由构建期开关 `AGENT567_CLOUD_ENABLED` 决定。开发启动时未配置仍按 serv-less 运行；**正式打包必须显式选择 `true` 或 `false`**，前置检查不会再猜测版本类型。
 
-桌面构建与发布配置统一使用 `AGENT567_*` 前缀；NewAPI 地址和令牌使用 `API567_BASE_URL`、`API567_API_TOKEN`。旧 `VETTA_*` 与 `NEWAPI_BASE_URL` 名称已移除，构建只读取新名称。
+桌面构建与发布配置统一使用 `AGENT567_*` 前缀；NewAPI 地址和令牌使用 `API567_BASE_URL`、`API567_API_TOKEN`。旧 `VETTA_*` 与 `NEWAPI_BASE_URL` 名称不再作为配置读取，构建只读取新名称。
 
 | | **开源版（无云服务）** | **商业版（含云服务）** |
 | --- | --- | --- |
@@ -103,7 +103,7 @@ API567_BASE_URL=https://api.567.wiki/api/v1
 AGENT567_UPDATE_PROVIDER=github
 AGENT567_UPDATE_GITHUB_OWNER=Chinachani
 AGENT567_UPDATE_GITHUB_REPO=567-agent
-AGENT567_R2_BUCKET=vetta-releases
+AGENT567_R2_BUCKET=567-agent-releases
 AGENT567_R2_PREFIX=desktop/stable
 AGENT567_TENANT=common
 AGENT567_SPEECH_INPUT_ENABLED=false

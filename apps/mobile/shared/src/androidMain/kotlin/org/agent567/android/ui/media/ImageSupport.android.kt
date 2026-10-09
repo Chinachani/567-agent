@@ -10,6 +10,7 @@ import android.content.pm.PackageManager
 import android.os.Build
 import android.os.Environment
 import android.provider.MediaStore
+import android.provider.OpenableColumns
 import android.util.LruCache
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
@@ -137,15 +138,15 @@ actual fun rememberImagePicker(
             contract = ActivityResultContracts.GetMultipleContents(),
         ) { uris ->
             scope.launch {
-                var rejectedCount = (uris.size - MAX_PICKED_IMAGE_COUNT).coerceAtLeast(0)
-                val picked = withContext(Dispatchers.IO) {
-                    uris.take(MAX_PICKED_IMAGE_COUNT).mapNotNull { uri ->
-                        runCatching {
-                            val mime = context.contentResolver.getType(uri) ?: "image/jpeg"
-                            if (!mime.startsWith("image/")) {
-                                rejectedCount++
-                                return@runCatching null
-                            }
+            var rejectedCount = (uris.size - MAX_PICKED_IMAGE_COUNT).coerceAtLeast(0)
+            val picked = withContext(Dispatchers.IO) {
+                uris.take(MAX_PICKED_IMAGE_COUNT).mapNotNull { uri ->
+                    runCatching {
+                        val mime = normalizeSupportedImageMimeType(context.contentResolver.getType(uri))
+                        if (mime == null) {
+                            rejectedCount++
+                            return@runCatching null
+                        }
                             val bytes =
                                 context.contentResolver.openInputStream(uri)?.use { it.readUpTo(MAX_PICKED_IMAGE_BYTES + 1) }
                                     ?: run {
@@ -153,12 +154,16 @@ actual fun rememberImagePicker(
                                         return@runCatching null
                                     }
                             // 限制单图约 4MB，读取时也设上限，避免先把超大文件全部载入内存。
-                            if (bytes.size > MAX_PICKED_IMAGE_BYTES) {
-                                rejectedCount++
-                                return@runCatching null
-                            }
-                            val name = uri.lastPathSegment
-                            PickedImage(mimeType = mime, fileName = name, bytes = bytes)
+                        if (bytes.size > MAX_PICKED_IMAGE_BYTES) {
+                            rejectedCount++
+                            return@runCatching null
+                        }
+                        if (!imageSignatureMatches(bytes, mime) || !imageHasReadableDimensions(bytes)) {
+                            rejectedCount++
+                            return@runCatching null
+                        }
+                        val name = uri.lastPathSegment
+                        PickedImage(mimeType = mime, fileName = name, bytes = bytes)
                         }.getOrElse {
                             rejectedCount++
                             null
@@ -175,6 +180,73 @@ actual fun rememberImagePicker(
         { launcher.launch("image/*") }
     }
 }
+
+@Composable
+actual fun rememberFileAttachmentPicker(
+    onPicked: (List<PickedFileAttachment>) -> Unit,
+    onRejected: () -> Unit,
+): () -> Unit {
+    val context = LocalContext.current
+    val scope = rememberCoroutineScope()
+    val launcher = rememberLauncherForActivityResult(ActivityResultContracts.OpenMultipleDocuments()) { uris ->
+        if (uris.isEmpty()) return@rememberLauncherForActivityResult
+        scope.launch {
+            val files = withContext(Dispatchers.IO) {
+                uris.take(MAX_MESSAGE_FILE_COUNT).mapNotNull { uri ->
+                    runCatching {
+                        val name = context.contentResolver.query(uri, arrayOf(OpenableColumns.DISPLAY_NAME), null, null, null)
+                            ?.use { cursor ->
+                                if (cursor.moveToFirst()) cursor.getString(0)?.takeIf(String::isNotBlank) else null
+                            }
+                            ?: uri.lastPathSegment?.substringAfterLast('/')?.substringAfterLast(':')?.takeIf(String::isNotBlank)
+                            ?: "attachment"
+                        val mime = context.contentResolver.getType(uri)
+                            ?.substringBefore(';')
+                            ?.trim()
+                            ?.takeIf { it.matches(Regex("[A-Za-z0-9.+-]{1,127}/[A-Za-z0-9.+-]{1,127}")) }
+                            ?: "application/octet-stream"
+                        val bytes = context.contentResolver.openInputStream(uri)?.use {
+                            it.readUpTo(MAX_MESSAGE_FILE_BYTES + 1)
+                        } ?: return@runCatching null
+                        if (bytes.isEmpty() || bytes.size > MAX_MESSAGE_FILE_BYTES) return@runCatching null
+                        PickedFileAttachment(name, mime.lowercase(), bytes)
+                    }.getOrNull()
+                }
+            }
+            if (files.isNotEmpty()) onPicked(files)
+            if (files.size != uris.size) onRejected()
+        }
+    }
+    return remember(launcher) { { launcher.launch(arrayOf("*/*")) } }
+}
+
+private fun normalizeSupportedImageMimeType(rawMimeType: String?): String? =
+    when (rawMimeType?.substringBefore(';')?.trim()?.lowercase()) {
+        "image/jpeg", "image/jpg" -> "image/jpeg"
+        "image/png" -> "image/png"
+        "image/webp" -> "image/webp"
+        else -> null
+    }
+
+private fun imageSignatureMatches(bytes: ByteArray, mimeType: String): Boolean =
+    when (mimeType) {
+        "image/jpeg" -> bytes.size >= 3 && bytes[0] == 0xFF.toByte() && bytes[1] == 0xD8.toByte() && bytes[2] == 0xFF.toByte()
+        "image/png" -> bytes.size >= 8 && bytes.copyOfRange(0, 8).contentEquals(
+            byteArrayOf(0x89.toByte(), 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A),
+        )
+        "image/webp" -> bytes.size >= 12 &&
+            bytes.copyOfRange(0, 4).decodeToString() == "RIFF" &&
+            bytes.copyOfRange(8, 12).decodeToString() == "WEBP"
+        else -> false
+    }
+
+private fun imageHasReadableDimensions(bytes: ByteArray): Boolean {
+    val bounds = BitmapFactory.Options().apply { inJustDecodeBounds = true }
+    BitmapFactory.decodeByteArray(bytes, 0, bytes.size, bounds)
+    return bounds.outWidth > 0 && bounds.outHeight > 0
+}
+
+private const val MAX_MESSAGE_IMAGE_BYTES = 12 * 1024 * 1024
 
 @Composable
 actual fun rememberImageSaver(): (MessageImage, (Boolean, String) -> Unit) -> Unit {
@@ -268,9 +340,6 @@ private fun InputStream.readUpTo(maxBytes: Int): ByteArray {
     return output.toByteArray()
 }
 
-private const val MAX_PICKED_IMAGE_BYTES = 4 * 1024 * 1024
-private const val MAX_PICKED_IMAGE_COUNT = 6
-private const val MAX_MESSAGE_IMAGE_BYTES = 12 * 1024 * 1024
 private const val MAX_MESSAGE_IMAGE_BASE64_CHARS = 16 * 1024 * 1024 + 16
 
 private fun String.fileExtension(): String = when (lowercase()) {

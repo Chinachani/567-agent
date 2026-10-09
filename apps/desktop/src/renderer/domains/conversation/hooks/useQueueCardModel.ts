@@ -46,7 +46,7 @@ export function useQueueCardModel(runtimeId: string): QueueCardModel {
 			const byId = new Map(fullItems.map((item) => [item.id, item]));
 			const next = orderedIds.map((id) => byId.get(id)).filter((item) => item !== undefined);
 			setQueue({ runtimeId, items: next });
-			void window.vetta.session.reorderQueuedMessages(runtimeId, [...orderedIds]).catch((err) => {
+			void window.agent567.session.reorderQueuedMessages(runtimeId, [...orderedIds]).catch((err) => {
 				console.warn("[useQueueCardModel] reorder failed", err);
 			});
 		},
@@ -59,7 +59,7 @@ export function useQueueCardModel(runtimeId: string): QueueCardModel {
 			// 记账保证该条目不被误判为「已消费」而补出用户气泡。
 			markQueueEntrySelfRemoved(id);
 			setQueue({ runtimeId, items: fullItems.filter((item) => item.id !== id) });
-			void window.vetta.session.removeQueuedMessage(runtimeId, id).catch((err) => {
+			void window.agent567.session.removeQueuedMessage(runtimeId, id).catch((err) => {
 				console.warn("[useQueueCardModel] remove failed", err);
 			});
 		},
@@ -84,7 +84,7 @@ export function useQueueCardModel(runtimeId: string): QueueCardModel {
 						label: t("inputBar.drawer.queuePaused"),
 						resumeLabel: t("inputBar.drawer.queueResume"),
 						onResume: () => {
-							void window.vetta.session.resumeQueue(runtimeId).catch((err) => {
+							void window.agent567.session.resumeQueue(runtimeId).catch((err) => {
 								console.warn("[useQueueCardModel] resumeQueue failed", err);
 							});
 						},

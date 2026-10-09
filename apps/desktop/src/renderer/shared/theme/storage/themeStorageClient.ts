@@ -40,7 +40,7 @@ function getOrCreate(themeId: string): CacheEntry {
 function ensureChangeSubscription(): void {
 	if (changeSubscriptionStarted) return;
 	changeSubscriptionStarted = true;
-	window.vetta.themes.storage.onChanged((event) => {
+	window.agent567.themes.storage.onChanged((event) => {
 		if (!isValidThemeStorageThemeId(event.themeId)) return;
 		const entry = getOrCreate(event.themeId);
 		entry.data = event.data;
@@ -63,7 +63,7 @@ function ensureLoaded(themeId: string): CacheEntry {
 
 	entry.status = "loading";
 	const loadStartedAt = entry.revision;
-	entry.loadPromise = window.vetta.themes.storage
+	entry.loadPromise = window.agent567.themes.storage
 		.getAll(themeId)
 		.then((data) => {
 			const current = getOrCreate(themeId);
@@ -150,7 +150,7 @@ export function createThemeStorage(themeId: string): ThemeStorage {
 				return;
 			}
 			applyLocalData(themeId, next);
-			void window.vetta.themes.storage.set(themeId, key, value).then(
+			void window.agent567.themes.storage.set(themeId, key, value).then(
 				(data) => applyLocalData(themeId, data),
 				(error) => {
 					console.error(
@@ -168,7 +168,7 @@ export function createThemeStorage(themeId: string): ThemeStorage {
 			const next = { ...entry.data };
 			delete next[key];
 			applyLocalData(themeId, next);
-			void window.vetta.themes.storage.remove(themeId, key).then(
+			void window.agent567.themes.storage.remove(themeId, key).then(
 				(data) => applyLocalData(themeId, data),
 				(error) => {
 					console.error(
@@ -183,7 +183,7 @@ export function createThemeStorage(themeId: string): ThemeStorage {
 			const entry = ensureLoaded(themeId);
 			const previous = entry.data;
 			applyLocalData(themeId, {});
-			void window.vetta.themes.storage.clear(themeId).then(
+			void window.agent567.themes.storage.clear(themeId).then(
 				(data) => applyLocalData(themeId, data),
 				(error) => {
 					console.error(

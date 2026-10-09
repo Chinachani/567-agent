@@ -341,7 +341,7 @@ export class MediaProviderRegistry {
 				input.providerId === "desktop-app:api567" ||
 				input.providerId === "desktop-app:567api")
 		) {
-			provider = this.providers.get("desktop-app:api567") || this.providers.get("desktop-app:vetta");
+			provider = this.providers.get("desktop-app:api567");
 		}
 		const logContext = this.createLogContext(input, provider?.registration.descriptor);
 		this.logger.info("media job submitted", logContext.fields);

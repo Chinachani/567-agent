@@ -13,7 +13,7 @@ export function initializeMainErrorMonitoring(): void {
 		Sentry.init({
 			dsn: sentryDsn,
 			environment: readEnv("AGENT567_TELEMETRY_ENVIRONMENT") ?? (app.isPackaged ? "production" : "development"),
-			release: readEnv("AGENT567_SENTRY_RELEASE") ?? `vetta-desktop@${app.getVersion()}`,
+			release: readEnv("AGENT567_SENTRY_RELEASE") ?? `567-agent-desktop@${app.getVersion()}`,
 			sendDefaultPii: false,
 			attachScreenshot: false,
 			tracesSampleRate: parseSampleRate(readEnv("AGENT567_SENTRY_TRACES_SAMPLE_RATE")),

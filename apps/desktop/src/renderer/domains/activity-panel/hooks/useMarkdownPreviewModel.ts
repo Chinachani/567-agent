@@ -11,7 +11,7 @@ export function useMarkdownPreviewModel(): MarkdownPreviewModel {
 	const theme = useAtomValue(resolvedThemeAtom);
 
 	const onOpenExternal = useCallback((href: string) => {
-		void window.vetta.shell.openExternal(href);
+		void window.agent567.shell.openExternal(href);
 	}, []);
 
 	return {

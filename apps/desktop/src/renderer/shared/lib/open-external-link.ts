@@ -15,5 +15,5 @@ export function openExternalLink(event: MouseEvent<HTMLAnchorElement>, href: str
 	if (!isExternalLink(href)) return;
 
 	event.preventDefault();
-	void window.vetta.shell.openExternal(href);
+	void window.agent567.shell.openExternal(href);
 }

@@ -2,12 +2,14 @@ package org.agent567.android.ui
 
 import androidx.activity.ComponentActivity
 import androidx.compose.ui.test.assertIsDisplayed
+import androidx.compose.ui.test.assertCountEquals
 import androidx.compose.ui.test.onNodeWithContentDescription
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.onAllNodesWithText
 import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.performTextClearance
 import androidx.compose.ui.test.performTextInput
+import androidx.compose.ui.test.performScrollTo
 import androidx.compose.ui.test.junit4.v2.createAndroidComposeRule
 import androidx.compose.runtime.mutableStateOf
 import androidx.test.ext.junit.runners.AndroidJUnit4
@@ -26,7 +28,7 @@ import org.agent567.android.ui.me.MeScreen
 import org.agent567.android.ui.me.SettingsSection
 import org.agent567.android.ui.me.SettingsScreen
 import org.agent567.android.ui.sessions.SessionsScreen
-import org.agent567.android.ui.theme.VettaTheme
+import org.agent567.android.ui.theme.Agent567Theme
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertTrue
@@ -40,7 +42,7 @@ class MainScreenInteractionsTest {
     fun emptyHomeOffersConnectionAction() {
         var opened = false
         composeRule.setContent {
-            VettaTheme(ThemeMode.Light) {
+            Agent567Theme(ThemeMode.Light) {
                 HomeScreen(
                     primaryDevice = null,
                     recentSessions = emptyList(),
@@ -71,7 +73,7 @@ class MainScreenInteractionsTest {
                 status = DeviceStatus.Online,
             )
         composeRule.setContent {
-            VettaTheme(ThemeMode.Light) {
+            Agent567Theme(ThemeMode.Light) {
                 HomeScreen(
                     primaryDevice = device,
                     recentSessions = emptyList(),
@@ -90,10 +92,46 @@ class MainScreenInteractionsTest {
     }
 
     @Test
+    fun homeShowsOnlyThreeRecentSessionsAndOffersAllSessionsEntry() {
+        var openedAllSessions = false
+        val sessions = (1..4).map { index ->
+            SessionListItem(
+                id = "session-$index",
+                title = "Conversation $index",
+                subtitle = "",
+                sourceLabel = Str.filterDesktop,
+                timeLabel = "just now",
+                isCloud = false,
+            )
+        }
+        composeRule.setContent {
+            Agent567Theme(ThemeMode.Light) {
+                HomeScreen(
+                    primaryDevice = null,
+                    recentSessions = sessions,
+                    onOpenDevice = {},
+                    onOpenDevices = {},
+                    onOpenSessions = { openedAllSessions = true },
+                    onOpenSession = {},
+                    onNewConversation = {},
+                    onUseCloudAi = {},
+                )
+            }
+        }
+
+        composeRule.onNodeWithText("Conversation 1").assertIsDisplayed()
+        composeRule.onNodeWithText("Conversation 3").assertIsDisplayed()
+        composeRule.onAllNodesWithText("Conversation 4").assertCountEquals(0)
+        composeRule.onNodeWithText("查看全部会话 (4)").performScrollTo().performClick()
+
+        assertTrue(openedAllSessions)
+    }
+
+    @Test
     fun homeQuickActionsOpenConversationFlows() {
         val opened = mutableListOf<String>()
         composeRule.setContent {
-            VettaTheme(ThemeMode.Light) {
+            Agent567Theme(ThemeMode.Light) {
                 HomeScreen(
                     primaryDevice = null,
                     recentSessions = emptyList(),
@@ -125,7 +163,7 @@ class MainScreenInteractionsTest {
                 isCloud = false,
             )
         composeRule.setContent {
-            VettaTheme(ThemeMode.Light) {
+            Agent567Theme(ThemeMode.Light) {
                 SessionsScreen(
                     sessions = listOf(item),
                     query = "",
@@ -148,7 +186,7 @@ class MainScreenInteractionsTest {
     fun emptySessionsOffersNewConversationAction() {
         var opened = false
         composeRule.setContent {
-            VettaTheme(ThemeMode.Light) {
+            Agent567Theme(ThemeMode.Light) {
                 SessionsScreen(
                     sessions = emptyList(),
                     query = "",
@@ -181,7 +219,7 @@ class MainScreenInteractionsTest {
         var renamed: Pair<String, String>? = null
         var deletedId: String? = null
         composeRule.setContent {
-            VettaTheme(ThemeMode.Light) {
+            Agent567Theme(ThemeMode.Light) {
                 SessionsScreen(
                     sessions = listOf(item),
                     query = "",
@@ -223,7 +261,7 @@ class MainScreenInteractionsTest {
             )
         var deletedId: String? = null
         composeRule.setContent {
-            VettaTheme(ThemeMode.Light) {
+            Agent567Theme(ThemeMode.Light) {
                 SessionsScreen(
                     sessions = listOf(item),
                     query = "",
@@ -249,7 +287,7 @@ class MainScreenInteractionsTest {
     fun cloudConversationActionIsConnectedToCallback() {
         var started = false
         composeRule.setContent {
-            VettaTheme(ThemeMode.Light) {
+            Agent567Theme(ThemeMode.Light) {
                 NewConversationScreen(
                     devices = emptyList(),
                     channelIndex = 1,
@@ -270,7 +308,7 @@ class MainScreenInteractionsTest {
     fun profileAppearanceButtonCyclesToNextTheme() {
         var selected: ThemeMode? = null
         composeRule.setContent {
-            VettaTheme(ThemeMode.Light) {
+            Agent567Theme(ThemeMode.Light) {
                 MeScreen(user = null, subscription = null, themeMode = ThemeMode.Light,
                     onlineDeviceCount = 0, onThemeMode = { selected = it })
             }
@@ -283,7 +321,7 @@ class MainScreenInteractionsTest {
     fun settingsBehaviorSwitchesCallStateCallbacks() {
         val values = mutableListOf<Boolean>()
         composeRule.setContent {
-            VettaTheme(ThemeMode.Light) {
+            Agent567Theme(ThemeMode.Light) {
                 SettingsScreen(
                     section = SettingsSection.Behavior,
                     migrationBackupLimitMb = 50,
@@ -297,6 +335,7 @@ class MainScreenInteractionsTest {
                     onMotionEnabled = { values += it },
                     onInputPredictionEnabled = {},
                     onClearLocalData = {},
+                    onSendMigration = { _, _, _ -> },
                     onBack = {},
                     confirmBeforeDelete = true,
                     onConfirmBeforeDelete = { values += it },
@@ -315,7 +354,7 @@ class MainScreenInteractionsTest {
     fun settingsClearLocalDataRequiresConfirmationAndCallsCallback() {
         var cleared = false
         composeRule.setContent {
-            VettaTheme(ThemeMode.Light) {
+            Agent567Theme(ThemeMode.Light) {
                 SettingsScreen(
                     section = SettingsSection.Data,
                     migrationBackupLimitMb = 50,
@@ -329,6 +368,7 @@ class MainScreenInteractionsTest {
                     onMotionEnabled = {},
                     onInputPredictionEnabled = {},
                     onClearLocalData = { cleared = true },
+                    onSendMigration = { _, _, _ -> },
                     onBack = {},
                     confirmBeforeDelete = true,
                     onConfirmBeforeDelete = {},
@@ -346,7 +386,7 @@ class MainScreenInteractionsTest {
     fun profileAboutRowCallsNavigationCallback() {
         var opened = false
         composeRule.setContent {
-            VettaTheme(ThemeMode.Light) {
+            Agent567Theme(ThemeMode.Light) {
                 MeScreen(user = null, subscription = null, themeMode = ThemeMode.Light,
                     onlineDeviceCount = 0, onOpenAbout = { opened = true })
             }
@@ -359,7 +399,7 @@ class MainScreenInteractionsTest {
     fun sessionFilterSelectionCallsStateCallback() {
         var selected = -1
         composeRule.setContent {
-            VettaTheme(ThemeMode.Light) {
+            Agent567Theme(ThemeMode.Light) {
                 SessionsScreen(
                     sessions = emptyList(),
                     query = "",
@@ -390,7 +430,7 @@ class MainScreenInteractionsTest {
                 channel = ConnectChannel.Remote,
             )
         composeRule.setContent {
-            VettaTheme(ThemeMode.Light) {
+            Agent567Theme(ThemeMode.Light) {
                 DiscoverConnectScreen(
                     devices = listOf(device),
                     channelIndex = 1,
@@ -412,7 +452,7 @@ class MainScreenInteractionsTest {
         var manualHost: String? = null
         val channelIndex = mutableStateOf(0)
         composeRule.setContent {
-            VettaTheme(ThemeMode.Light) {
+            Agent567Theme(ThemeMode.Light) {
                 DiscoverConnectScreen(
                     devices = emptyList(),
                     channelIndex = channelIndex.value,

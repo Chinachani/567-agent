@@ -1,5 +1,5 @@
 import { join } from "node:path";
-import { getVettaHomePath } from "@567agent/action-rpc";
+import { getAgent567HomePath } from "@567agent/action-rpc";
 import { getAppLogger } from "../logger.js";
 import { AgentBrowserEngine } from "./agent-browser-engine.js";
 import { BrowserAutomationService } from "./browser-automation-service.js";
@@ -25,7 +25,7 @@ export function getBrowserAutomationService(): BrowserAutomationService {
 		engine: new AgentBrowserEngine(processRunner),
 		runtime: new BrowserRuntimeManager(processRunner, logger),
 		profiles: new BrowserProfileRegistry({
-			legacyBrowserPluginProfile: join(getVettaHomePath(), "plugin-data", "browser", "profile"),
+			legacyBrowserPluginProfile: join(getAgent567HomePath(), "plugin-data", "browser", "profile"),
 			logger,
 		}),
 		logger,

@@ -33,7 +33,7 @@ export function useAppInit(): void {
 				.catch(console.error);
 		}
 		// Sync workspace path from config file
-		void window.vetta.config.get().then((config) => {
+		void window.agent567.config.get().then((config) => {
 			if (config.workspacePath) {
 				setWorkspacePath(config.workspacePath);
 				localStorage.setItem("vetta-workspace-path", config.workspacePath);

@@ -53,7 +53,7 @@ describe("StructuredClipboardPlugin", () => {
 			{ kind: "text", text: "12" },
 			{ kind: "member", memberId: "member-1", handle: "flower", label: "Flower", meta: "研发" },
 			{ kind: "text", text: " " },
-			{ kind: "file", path: "C:/Users/admin/.vetta-dev/conversation/content-creation.json", isDirectory: false },
+			{ kind: "file", path: "C:/Users/admin/.567agent-dev/conversation/content-creation.json", isDirectory: false },
 			{ kind: "text", text: " 1212.com" },
 		];
 		selectedEditorSegments(source);
@@ -66,7 +66,7 @@ describe("StructuredClipboardPlugin", () => {
 		} as unknown as ClipboardEvent;
 		act(() => harness.editor?.dispatchCommand(COPY_COMMAND, copyEvent));
 		expect(copyEvent.preventDefault).toHaveBeenCalledOnce();
-		expect(clipboard.get("text/plain")).toBe("12 @flower @C:/Users/admin/.vetta-dev/conversation/content-creation.json 1212.com");
+		expect(clipboard.get("text/plain")).toBe("12 @flower @C:/Users/admin/.567agent-dev/conversation/content-creation.json 1212.com");
 
 		selectedEditorSegments([]);
 		const pasteEvent = {

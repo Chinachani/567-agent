@@ -22,7 +22,7 @@ export function createOfficialPluginsApi(
 	assertOfficial: () => void,
 	capabilitySessionId: string,
 ): PluginOfficialApi["plugins"] {
-	const pluginSystem = window.vetta.plugins.internalCapabilities.pluginSystem;
+	const pluginSystem = window.agent567.plugins.internalCapabilities.pluginSystem;
 	return {
 		list: async () => {
 			assertOfficial();
@@ -56,19 +56,19 @@ export function createOfficialPluginsApi(
 		},
 		grantPermissions: async (id, permissions) => {
 			assertOfficial();
-			return summarizePlugin(await window.vetta.plugins.grantPermissions(id, permissions));
+			return summarizePlugin(await window.agent567.plugins.grantPermissions(id, permissions));
 		},
 		startDevWatch: async (id, projectDir) => {
 			assertOfficial();
-			return summarizePlugin(await window.vetta.plugins.startDevWatch(capabilitySessionId, id, projectDir));
+			return summarizePlugin(await window.agent567.plugins.startDevWatch(capabilitySessionId, id, projectDir));
 		},
 		stopDevWatch: async (id) => {
 			assertOfficial();
-			await window.vetta.plugins.stopDevWatch(capabilitySessionId, id);
+			await window.agent567.plugins.stopDevWatch(capabilitySessionId, id);
 		},
 		onChanged: (handler) => {
 			assertOfficial();
-			return window.vetta.plugins.onPluginsChanged(handler);
+			return window.agent567.plugins.onPluginsChanged(handler);
 		},
 	};
 }

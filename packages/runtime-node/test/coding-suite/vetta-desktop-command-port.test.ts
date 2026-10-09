@@ -22,7 +22,7 @@ describe("Node 567 Agent command port", () => {
 		const port = createNodeVettaDesktopCommandPort({
 			platform: "linux",
 			environment: {},
-			vettaHomePath: "/home/test/.vetta",
+			agent567HomePath: "/home/test/.vetta",
 			fileExists: async (filePath) => filePath === "/opt/vetta/Vetta",
 			readTextFile: async (filePath) => {
 				requestedFiles.push(filePath);
@@ -38,7 +38,7 @@ describe("Node 567 Agent command port", () => {
 		const port = createNodeVettaDesktopCommandPort({
 			platform: "darwin",
 			environment: {},
-			vettaHomePath: "/home/test/.vetta",
+			agent567HomePath: "/home/test/.vetta",
 			fileExists: async (filePath) => filePath === "/Applications/567 Agent.app/Contents/MacOS/567-Agent",
 			readTextFile: async () => JSON.stringify({ vettaAppPath: "/old/Vetta" }),
 		});
@@ -53,12 +53,12 @@ describe("Node 567 Agent command port", () => {
 		const port = createNodeVettaDesktopCommandPort({
 			platform: "linux",
 			environment: {},
-			vettaHomePath: "/home/test/.vetta",
+			agent567HomePath: "/home/test/.vetta",
 			fileExists: async () => false,
 			readTextFile: async () => JSON.stringify({ vettaAppPath: "/old/Vetta" }),
 		});
 
-		await expect(port.locate()).rejects.toThrow("Configured vettaAppPath is stale: /old/Vetta");
+		await expect(port.locate()).rejects.toThrow("Configured agent567AppPath is stale: /old/Vetta");
 	});
 
 	it("maps Node process cancellation to the platform-neutral command error", async () => {

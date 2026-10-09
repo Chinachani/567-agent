@@ -1,12 +1,12 @@
 import { existsSync, readFileSync } from "node:fs";
 import { join } from "node:path";
-import { getVettaHomePath } from "@567agent/action-rpc";
+import { getAgent567HomePath } from "@567agent/action-rpc";
 import { atomicWriteJSON } from "@567agent/toolkit/atomic-write";
 import { type ImTransportSelector, isImTransportSelector } from "./channels.js";
 
 /**
  * Non-secret IM bridge configuration. Stored in plaintext under
- *   ~/.vetta/desktop-app/im-config.json
+ *   ~/.567agent/desktop-app/im-config.json
  *
  * Sensitive fields (App Secret, Verification Token, Encrypt Key, bot
  * tokens) live in credential-store.ts; this file only carries the toggles
@@ -23,7 +23,7 @@ export type { ImTransportSelector };
 /**
  * Optional override telling coding-agent which model to use for IM
  * sessions. When undefined, IM sessions fall back to whatever model the
- * user's agent settings (`~/.vetta/agent/settings.json`) point at — same
+ * user's agent settings (`~/.567agent/agent/settings.json`) point at — same
  * behaviour as the desktop "对话" page. When set, the spec is forwarded
  * to the spawned agent-rpc subprocess via `--model <provider>:<model>`
  * (or just `<model>` if provider is omitted).
@@ -99,7 +99,7 @@ export interface ImConfig {
 	agentModel?: ImAgentModelRef;
 }
 
-const DEFAULT_PATH = join(getVettaHomePath(), "desktop-app", "im-config.json");
+const DEFAULT_PATH = join(getAgent567HomePath(), "desktop-app", "im-config.json");
 
 export function defaultImConfigPath(): string {
 	return DEFAULT_PATH;
@@ -207,7 +207,7 @@ export function saveImConfig(config: ImConfig, filePath = DEFAULT_PATH): void {
  * directory and survives reinstalls in the usual place.
  */
 export function defaultWechatStatePath(): string {
-	return join(getVettaHomePath(), "desktop-app", "im-wechat.json");
+	return join(getAgent567HomePath(), "desktop-app", "im-wechat.json");
 }
 
 /**
@@ -216,7 +216,7 @@ export function defaultWechatStatePath(): string {
  * defaultWechatStatePath().
  */
 export function defaultWhatsappStatePath(): string {
-	return join(getVettaHomePath(), "desktop-app", "im-whatsapp.db");
+	return join(getAgent567HomePath(), "desktop-app", "im-whatsapp.db");
 }
 
 /**
@@ -228,5 +228,5 @@ export function defaultWhatsappStatePath(): string {
  * their own purposes.
  */
 export function defaultSignalConfigDir(): string {
-	return join(getVettaHomePath(), "desktop-app", "im-signal-cli");
+	return join(getAgent567HomePath(), "desktop-app", "im-signal-cli");
 }

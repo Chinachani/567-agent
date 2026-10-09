@@ -14,7 +14,7 @@
 
 import { chmodSync, mkdirSync, rmSync, writeFileSync } from "node:fs";
 import { dirname, join } from "node:path";
-import { getVettaHomePath } from "@567agent/action-rpc";
+import { getAgent567HomePath } from "@567agent/action-rpc";
 import { DEFAULT_SERVER_URL } from "../../constants.js";
 import { getAppLogger } from "../../logger.js";
 
@@ -22,7 +22,7 @@ const log = getAppLogger("auth");
 
 /**
  * 与外部消费者共用的契约，字段只增不改。
- * 现有读方：coding-agent 的 `core/mcp/vetta-credentials.ts`、
+ * 现有读方：coding-agent 的 `core/mcp/api567-credentials.ts`、
  * skill-presets 的 `publish-ability/scripts/publish.mjs`。
  */
 interface StoredCredentials {
@@ -31,7 +31,7 @@ interface StoredCredentials {
 }
 
 function credentialsPath(): string {
-	return join(getVettaHomePath(), "auth.json");
+	return join(getAgent567HomePath(), "auth.json");
 }
 
 /**

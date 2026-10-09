@@ -63,17 +63,17 @@ export function useKnowledgeBasePageModel() {
 
 	const enableKnowledgeBase = useCallback(() => {
 		void (async () => {
-			await window.vetta.config.set({ knowledgeBase: { enabled: true } });
-			await window.vetta.knowledge.reload();
+			await window.agent567.config.set({ knowledgeBase: { enabled: true } });
+			await window.agent567.knowledge.reload();
 			setKnowledgeBaseEnabled(true);
 		})();
 	}, [setKnowledgeBaseEnabled]);
 
 	const openProcessingRecords = useCallback(() => {
 		void (async () => {
-			const config = await window.vetta.config.get();
+			const config = await window.agent567.config.get();
 			const cwd = config.knowledgeProcessingCwd;
-			const list = cwd ? ((await window.vetta.session.listSessions(cwd)) as SessionInfo[]) : [];
+			const list = cwd ? ((await window.agent567.session.listSessions(cwd)) as SessionInfo[]) : [];
 			if (list.length === 0) {
 				confirm({
 					title: t("settings:kbPageRecordsEmptyTitle"),
@@ -122,11 +122,11 @@ export function useKnowledgeBasePageModel() {
 			try {
 				let kbId = targetId;
 				if (!kbId) {
-					await window.vetta.knowledge.create(name);
+					await window.agent567.knowledge.create(name);
 					kbId = name;
 				}
 				if (sourcePaths.length > 0) {
-					await window.vetta.knowledge.addFiles(kbId, sourcePaths, false);
+					await window.agent567.knowledge.addFiles(kbId, sourcePaths, false);
 				}
 				await refresh();
 				setActiveId(kbId);
@@ -141,7 +141,7 @@ export function useKnowledgeBasePageModel() {
 		async (newName: string) => {
 			if (!activeBase) return;
 			try {
-				await window.vetta.knowledge.rename(activeBase.id, newName);
+				await window.agent567.knowledge.rename(activeBase.id, newName);
 				await refresh();
 				setActiveId(newName);
 			} catch (err) {
@@ -155,7 +155,7 @@ export function useKnowledgeBasePageModel() {
 		if (!activeBase) return;
 		const remaining = knowledgeBases.filter((base) => base.id !== activeBase.id);
 		try {
-			await window.vetta.knowledge.delete(activeBase.id);
+			await window.agent567.knowledge.delete(activeBase.id);
 			setActiveId(remaining[0]?.id ?? null);
 			await refresh();
 		} catch (err) {

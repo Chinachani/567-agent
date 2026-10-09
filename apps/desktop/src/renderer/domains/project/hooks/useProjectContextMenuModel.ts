@@ -61,7 +61,7 @@ export function useProjectContextMenuModel({
 	}, [onClose, onOpenClawSettings]);
 
 	const handleOpenInFolder = useCallback(() => {
-		void window.vetta.shell.showInFolder(cwd);
+		void window.agent567.shell.showInFolder(cwd);
 		onClose();
 	}, [cwd, onClose]);
 

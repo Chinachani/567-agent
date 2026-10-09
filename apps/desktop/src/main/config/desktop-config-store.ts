@@ -2,7 +2,7 @@ import { readFileSync } from "node:fs";
 import { readFile } from "node:fs/promises";
 import { homedir } from "node:os";
 import { join } from "node:path";
-import { getVettaHomePath } from "@567agent/action-rpc";
+import { getAgent567HomePath } from "@567agent/action-rpc";
 import { atomicWriteJSON } from "@567agent/toolkit/atomic-write";
 import { isLanguagePreference, type LanguagePreference } from "../../shared/i18n/config.js";
 import { normalizeShortcutsConfig, type ShortcutsConfig } from "../../shared/shortcuts.js";
@@ -16,7 +16,7 @@ export interface ProjectEntry {
 
 /** 实验性功能开关分组（设置页「Agent配置 → 扩展功能」）。新增实验项只加一个键。 */
 export interface ExperimentalConfig {
-	/** Vetta CLI 提示词：开启后仅注入桌面端对话会话。缺省开。 */
+	/** 567 Agent CLI 提示词：开启后仅注入桌面端对话会话。缺省开。 */
 	vettaCli?: boolean;
 	/** 输入预测：每轮正常回答后预测用户下一个可能输入的 prompt。缺省关。 */
 	promptPrediction?: boolean;
@@ -38,7 +38,11 @@ export interface DesktopConfig {
 	workspacePath: string;
 	defaultExecutionMode: "sandbox" | "full-access";
 	debugMode?: boolean;
+	agent567AppPath?: string;
+	agent567CliAppPath?: string;
+	/** @deprecated Read only for migrating existing desktop-config.json files. */
 	vettaAppPath?: string;
+	/** @deprecated Read only for migrating existing desktop-config.json files. */
 	vettaCliAppPath?: string;
 	notificationsEnabled?: boolean;
 	language?: LanguagePreference;
@@ -56,6 +60,7 @@ export interface DesktopConfig {
 		relayBaseUrl?: string;
 		pairingId?: string;
 		inputEnabled?: boolean;
+		autoShareScreen?: boolean;
 	};
 }
 
@@ -86,18 +91,18 @@ export interface KnowledgeBaseConfig {
 	ocrConcurrency?: number;
 }
 
-export const DEFAULT_CONVERSATION_CWD = join(getVettaHomePath(), "conversation");
+export const DEFAULT_CONVERSATION_CWD = join(getAgent567HomePath(), "conversation");
 export const DEFAULT_CONVERSATION_SESSION_DIR = join(DEFAULT_CONVERSATION_CWD, ".vetta", "sessions");
-export const DEFAULT_IM_CONVERSATION_CWD = join(getVettaHomePath(), "im-gateway", "conversation");
+export const DEFAULT_IM_CONVERSATION_CWD = join(getAgent567HomePath(), "im-gateway", "conversation");
 export const DEFAULT_IM_CONVERSATION_SESSION_DIR = join(DEFAULT_IM_CONVERSATION_CWD, ".vetta", "sessions");
-export const KB_PROCESSING_CWD = join(getVettaHomePath(), "knowledges", "processing_records");
+export const KB_PROCESSING_CWD = join(getAgent567HomePath(), "knowledges", "processing_records");
 export const KB_PROCESSING_SESSION_DIR = join(KB_PROCESSING_CWD, ".vetta", "sessions");
 
-const CONFIG_PATH = join(getVettaHomePath(), "desktop-config.json");
+const CONFIG_PATH = join(getAgent567HomePath(), "desktop-config.json");
 const DEFAULT_CONFIG: DesktopConfig = {
 	projects: [],
 	archivedProjects: [],
-	workspacePath: join(getVettaHomePath(), "workspace"),
+	workspacePath: join(getAgent567HomePath(), "workspace"),
 	defaultExecutionMode: "full-access",
 	defaultAgentMode: "work",
 	debugMode: false,
@@ -254,8 +259,18 @@ function parseDesktopConfig(parsed: Record<string, unknown>): DesktopConfig {
 		// 兼容 0.x 的旧字段名 agentMode（当时语义是全局工作模式），老用户配置不丢。
 		defaultAgentMode: normalizeAgentMode(parsed.defaultAgentMode ?? parsed.agentMode),
 		debugMode: typeof parsed.debugMode === "boolean" ? parsed.debugMode : false,
-		vettaAppPath: typeof parsed.vettaAppPath === "string" ? parsed.vettaAppPath : undefined,
-		vettaCliAppPath: typeof parsed.vettaCliAppPath === "string" ? parsed.vettaCliAppPath : undefined,
+		agent567AppPath:
+			typeof parsed.agent567AppPath === "string"
+				? parsed.agent567AppPath
+				: typeof parsed.vettaAppPath === "string"
+					? parsed.vettaAppPath
+					: undefined,
+		agent567CliAppPath:
+			typeof parsed.agent567CliAppPath === "string"
+				? parsed.agent567CliAppPath
+				: typeof parsed.vettaCliAppPath === "string"
+					? parsed.vettaCliAppPath
+					: undefined,
 		notificationsEnabled: typeof parsed.notificationsEnabled === "boolean" ? parsed.notificationsEnabled : true,
 		language: isLanguagePreference(parsed.language) ? parsed.language : undefined,
 		experimental: normalizeExperimental(parsed.experimental),
@@ -277,6 +292,7 @@ function normalizeRemoteControl(value: unknown): DesktopConfig["remoteControl"] 
 		relayBaseUrl: typeof input.relayBaseUrl === "string" ? input.relayBaseUrl : undefined,
 		pairingId: typeof input.pairingId === "string" ? input.pairingId : undefined,
 		inputEnabled: input.inputEnabled === true,
+		autoShareScreen: input.autoShareScreen === true,
 	};
 }
 
@@ -311,12 +327,19 @@ async function withDesktopConfigMutation<T>(operation: () => Promise<T>): Promis
 	}
 }
 
-export async function persistVettaCliPaths(paths: { vettaAppPath: string; vettaCliAppPath: string }): Promise<void> {
+export async function persistAgent567CliPaths(paths: {
+	agent567AppPath: string;
+	agent567CliAppPath: string;
+}): Promise<void> {
 	await updateDesktopConfig((config) => {
-		if (config.vettaAppPath === paths.vettaAppPath && config.vettaCliAppPath === paths.vettaCliAppPath) return config;
+		if (config.agent567AppPath === paths.agent567AppPath && config.agent567CliAppPath === paths.agent567CliAppPath)
+			return config;
 		return { ...config, ...paths };
 	});
 }
+
+/** @deprecated Use persistAgent567CliPaths. */
+export const persistVettaCliPaths = persistAgent567CliPaths;
 
 export function expandTildePath(path: string): string {
 	if (path.startsWith("~/") || path === "~") {

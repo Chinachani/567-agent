@@ -139,8 +139,8 @@ uses the root Turborepo task graph and local cache to build changed workspace pr
 plugin and theme manifests, then starts the renderer, theme server, and Electron process in parallel.
 
 Normal development is isolated from packaged application data: it defaults to
-`AGENT567_CONFIG_DIR=.vetta-dev` and stores the Chromium profile under
-`~/.vetta-dev/electron-user-data`. Packaged builds use `~/.567agent`. Set
+`AGENT567_CONFIG_DIR=.567agent-dev` and stores the Chromium profile under
+`~/.567agent-dev/electron-user-data`. Packaged builds use `~/.567agent`. Set
 `AGENT567_CONFIG_DIR` and `AGENT567_DESKTOP_USER_DATA_DIR` together when a custom isolated development
 environment is required.
 
@@ -149,8 +149,8 @@ switches the whole environment — data root and browser profile — with no sha
 Two scripts make the common pair explicit:
 
 ```bash
-bun run dev:isolated   # ~/.vetta-dev (same as `bun dev`)
-bun run dev:home       # ~/.vetta (legacy data root)
+bun run dev:isolated   # ~/.567agent-dev (same as `bun dev`)
+bun run dev:installed-data # ~/.567agent (installed-app data)
 ```
 
 Saved credentials are shared too: `safeStorage` derives its master key from the Electron app name, so
@@ -158,8 +158,8 @@ that name is fixed by `src/shared/app-identity.ts` and must stay equal to the na
 packaged `package.json` by `scripts/prepare-pack.js`. Changing it strands every credential already
 encrypted under the old name.
 
-`bun run dev:home` explicitly selects the legacy `~/.vetta` data root; packaged builds use
-`~/.567agent`. To run development against the packaged app's data, set `AGENT567_CONFIG_DIR=.567agent`.
+`bun run dev:installed-data` selects the same `~/.567agent` data root as packaged builds.
+The first normal launch migrates an existing `~/.567agent` data directory into `~/.567agent`.
 Do not run two processes against the same config directory at once: they share the Chromium profile
 and single-instance lock. The project-level `<cwd>/.vetta` directory remains a compatibility path and
 does not follow `AGENT567_CONFIG_DIR` (see `packages/coding-agent/src/config.ts`).

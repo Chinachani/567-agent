@@ -26,7 +26,7 @@ describe("media domain capabilities", () => {
 		expect(
 			DOMAIN_MEDIA_CAPABILITIES.SUBMIT.parseInput({
 				ownerId: "image-gen",
-				providerId: "desktop-app:vetta",
+				providerId: "desktop-app:api567",
 				operation: MEDIA_OPERATIONS.GENERATE,
 				kind: MEDIA_KINDS.IMAGE,
 				mode: MEDIA_GENERATION_MODES.TEXT_TO_IMAGE,
@@ -37,7 +37,7 @@ describe("media domain capabilities", () => {
 			}),
 		).toEqual({
 			ownerId: "image-gen",
-			providerId: "desktop-app:vetta",
+			providerId: "desktop-app:api567",
 			operation: "generate",
 			kind: "image",
 			mode: "text-to-image",

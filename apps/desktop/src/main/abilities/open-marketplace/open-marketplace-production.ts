@@ -1,5 +1,5 @@
 import { basename, join } from "node:path";
-import { getVettaHomePath } from "@567agent/action-rpc";
+import { getAgent567HomePath } from "@567agent/action-rpc";
 import type {
 	GitHubMarketplaceOrigin,
 	OpenMarketplaceMcpRuntimeProgress,
@@ -37,7 +37,7 @@ import { createOpenMarketplacePluginArchive, validateOpenMarketplacePlugin } fro
 
 const dependencies: OpenMarketplaceInstallerDependencies = {
 	getBaseDir: getSkillBaseDir,
-	tmpBaseDir: join(getVettaHomePath(), "tmp"),
+	tmpBaseDir: join(getAgent567HomePath(), "tmp"),
 	readManifest: readSkillsManifest,
 	writeManifest: writeSkillsManifest,
 	recordInstall: (type, slug, version, metadata) => recordAbilityInstall(type, slug, version, metadata),

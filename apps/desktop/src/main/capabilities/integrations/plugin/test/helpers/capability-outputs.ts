@@ -149,7 +149,7 @@ function domainOutput(capabilityId: CapabilityId): unknown {
 	if (capabilityId === DOMAIN_MEDIA_CAPABILITIES.LIST_PROVIDERS.id) {
 		return [
 			{
-				id: "desktop-app:vetta",
+				id: "desktop-app:api567",
 				ownerId: "desktop-app",
 				protocolVersion: MEDIA_PROTOCOL_VERSION,
 				capabilities: [{ operation: "generate", kind: "image", modes: ["text-to-image", "image-to-image"] }],

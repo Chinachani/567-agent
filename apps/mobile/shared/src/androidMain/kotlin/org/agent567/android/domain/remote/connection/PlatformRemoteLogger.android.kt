@@ -26,7 +26,7 @@ actual object PlatformRemoteLogger : RemoteLogger {
     private fun format(message: String, fields: Map<String, Any?>): String =
         if (fields.isEmpty()) message else "$message ${fields.entries.joinToString { "${it.key}=${it.value}" }}"
 
-    private const val TAG = "VettaRemote"
+    private const val TAG = "Agent567Remote"
     private val DIAGNOSTIC_FIELD_ALLOWLIST = setOf(
         "state", "attempt", "attemptnumber", "status", "code", "error", "errortype", "reason", "type",
         "target", "phase",

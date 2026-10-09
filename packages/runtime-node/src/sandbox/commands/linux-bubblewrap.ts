@@ -2,7 +2,7 @@ import { spawn, spawnSync } from "node:child_process";
 import { chmodSync, existsSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { delimiter, isAbsolute, join, resolve as resolvePath } from "node:path";
-import { getVettaHomePath } from "@567agent/action-rpc";
+import { getAgent567HomePath } from "@567agent/action-rpc";
 import type { SandboxShellGrant } from "@567agent/runtime-core/sandbox";
 import type { ForegroundCommandOperations } from "@567agent/runtime-tools";
 import { getSandboxShellGrant } from "../sandbox-permissions.js";
@@ -30,8 +30,8 @@ const LINUX_ENV_WHITELIST = [
 	"AGENT567_DESKTOP_EXE",
 	"AGENT567_CLI_APP_PATH",
 ] as const;
-const SANDBOX_HOME = "/tmp/vetta-home";
-const SANDBOX_BIN_DIR = "/vetta-bin";
+const SANDBOX_HOME = "/tmp/567-agent-home";
+const SANDBOX_BIN_DIR = "/567-agent-bin";
 const STANDARD_READ_ONLY_ROOTS = ["/usr", "/bin", "/sbin", "/lib", "/lib64", "/etc"] as const;
 
 export interface LinuxBubblewrapCommandOptions {
@@ -155,11 +155,11 @@ function collectEnvReadOnlyMounts(env: NodeSandboxEnvironment | undefined): {
 		existingDir(env?.NPM_CONFIG_CACHE ?? process.env.NPM_CONFIG_CACHE),
 		existingDir(env?.PIP_CACHE_DIR ?? process.env.PIP_CACHE_DIR),
 	].filter((path): path is string => path !== undefined);
-	const vettaHome = env?.AGENT567_HOME ?? process.env.AGENT567_HOME;
+	const agent567Home = env?.AGENT567_HOME ?? process.env.AGENT567_HOME;
 	const endpointFile =
 		env?.AGENT567_ACTION_RPC_ENDPOINT_FILE ??
 		process.env.AGENT567_ACTION_RPC_ENDPOINT_FILE ??
-		(vettaHome ? join(vettaHome, "action-server.json") : undefined);
+		(agent567Home ? join(agent567Home, "action-server.json") : undefined);
 	const files = [
 		env?.npm_config_userconfig ?? process.env.npm_config_userconfig,
 		env?.NPM_CONFIG_USERCONFIG ?? process.env.NPM_CONFIG_USERCONFIG,
@@ -171,45 +171,59 @@ function collectEnvReadOnlyMounts(env: NodeSandboxEnvironment | undefined): {
 	return { dirs, files };
 }
 
-function readConfiguredVettaPaths(env: NodeSandboxEnvironment | undefined): {
-	readonly vettaAppPath?: string;
-	readonly vettaCliAppPath?: string;
+function readConfiguredAgent567Paths(env: NodeSandboxEnvironment | undefined): {
+	readonly agent567AppPath?: string;
+	readonly agent567CliAppPath?: string;
 } {
-	const configPath = join(env?.AGENT567_HOME ?? getVettaHomePath(), "desktop-config.json");
+	const configPath = join(env?.AGENT567_HOME ?? getAgent567HomePath(), "desktop-config.json");
 	try {
 		const parsed = JSON.parse(readFileSync(configPath, "utf-8")) as {
+			agent567AppPath?: unknown;
+			agent567CliAppPath?: unknown;
 			vettaAppPath?: unknown;
 			vettaCliAppPath?: unknown;
 		};
 		return {
-			vettaAppPath: typeof parsed.vettaAppPath === "string" ? parsed.vettaAppPath : undefined,
-			vettaCliAppPath: typeof parsed.vettaCliAppPath === "string" ? parsed.vettaCliAppPath : undefined,
+			agent567AppPath:
+				typeof parsed.agent567AppPath === "string"
+					? parsed.agent567AppPath
+					: typeof parsed.vettaAppPath === "string"
+						? parsed.vettaAppPath
+						: undefined,
+			agent567CliAppPath:
+				typeof parsed.agent567CliAppPath === "string"
+					? parsed.agent567CliAppPath
+					: typeof parsed.vettaCliAppPath === "string"
+						? parsed.vettaCliAppPath
+						: undefined,
 		};
 	} catch {
 		return {};
 	}
 }
 
-function resolveVettaDesktopExe(env: NodeSandboxEnvironment | undefined): string | undefined {
+function resolveAgent567DesktopExe(env: NodeSandboxEnvironment | undefined): string | undefined {
 	return existingFile(
-		env?.AGENT567_DESKTOP_EXE ?? process.env.AGENT567_DESKTOP_EXE ?? readConfiguredVettaPaths(env).vettaAppPath,
+		env?.AGENT567_DESKTOP_EXE ?? process.env.AGENT567_DESKTOP_EXE ?? readConfiguredAgent567Paths(env).agent567AppPath,
 	);
 }
 
-function resolveVettaCliAppPath(env: NodeSandboxEnvironment | undefined): string | undefined {
+function resolveAgent567CliAppPath(env: NodeSandboxEnvironment | undefined): string | undefined {
 	return existingFile(
-		env?.AGENT567_CLI_APP_PATH ?? process.env.AGENT567_CLI_APP_PATH ?? readConfiguredVettaPaths(env).vettaCliAppPath,
+		env?.AGENT567_CLI_APP_PATH ??
+			process.env.AGENT567_CLI_APP_PATH ??
+			readConfiguredAgent567Paths(env).agent567CliAppPath,
 	);
 }
 
-function createVettaCliShim(
+function createAgent567CliShim(
 	env: NodeSandboxEnvironment | undefined,
 ): { readonly hostDir: string; readonly hostPath: string } | undefined {
-	const vettaCliAppPath = resolveVettaCliAppPath(env);
-	if (!vettaCliAppPath) return undefined;
-	const hostDir = mkdtempSync(join(tmpdir(), "vetta-linux-sandbox-bin-"));
-	const hostPath = join(hostDir, "vetta");
-	writeFileSync(hostPath, ["#!/usr/bin/env sh", `exec "${vettaCliAppPath}" "$@"`, ""].join("\n"), "utf8");
+	const agent567CliAppPath = resolveAgent567CliAppPath(env);
+	if (!agent567CliAppPath) return undefined;
+	const hostDir = mkdtempSync(join(tmpdir(), "567-agent-linux-sandbox-bin-"));
+	const hostPath = join(hostDir, "567-agent");
+	writeFileSync(hostPath, ["#!/usr/bin/env sh", `exec "${agent567CliAppPath}" "$@"`, ""].join("\n"), "utf8");
 	chmodSync(hostPath, 0o755);
 	return { hostDir, hostPath };
 }
@@ -220,7 +234,7 @@ export function buildLinuxSandboxArgs(
 	shell: NodeSandboxShell,
 	env: NodeSandboxEnvironment | undefined,
 	grant: SandboxShellGrant | undefined,
-	vettaCliShimPath: string | undefined,
+	agent567CliShimPath: string | undefined,
 ): string[] {
 	const args: string[] = ["--die-with-parent", "--new-session", "--unshare-pid", "--unshare-ipc", "--unshare-uts"];
 	const createdDirs = new Set<string>();
@@ -232,18 +246,21 @@ export function buildLinuxSandboxArgs(
 		mountedRoots.add(root);
 	}
 	const readOnlyMounts = collectEnvReadOnlyMounts(env);
-	const vettaDesktopExe = resolveVettaDesktopExe(env);
-	const vettaCliAppPath = resolveVettaCliAppPath(env);
-	const vettaDesktopExeDir = vettaDesktopExe ? resolvePath(vettaDesktopExe, "..") : undefined;
-	const vettaCliAppDir = vettaCliAppPath ? resolvePath(vettaCliAppPath, "..") : undefined;
+	const writableRoots = new Set((grant?.allowWriteRoots ?? []).map((root) => resolvePath(root)));
+	const agent567DesktopExe = resolveAgent567DesktopExe(env);
+	const agent567CliAppPath = resolveAgent567CliAppPath(env);
+	const agent567DesktopExeDir = agent567DesktopExe ? resolvePath(agent567DesktopExe, "..") : undefined;
+	const agent567CliAppDir = agent567CliAppPath ? resolvePath(agent567CliAppPath, "..") : undefined;
 	for (const root of Array.from(new Set([...collectPathDirs(env), ...readOnlyMounts.dirs]))) {
 		if (mountedRoots.has(root)) continue;
+		if (writableRoots.has(root)) continue;
 		appendParentDirs(args, root, createdDirs);
 		args.push("--ro-bind", root, root);
 		mountedRoots.add(root);
 	}
 	for (const file of Array.from(new Set(readOnlyMounts.files))) {
 		if (mountedRoots.has(file)) continue;
+		if (writableRoots.has(file)) continue;
 		appendParentDirs(args, file, createdDirs);
 		args.push("--ro-bind", file, file);
 		mountedRoots.add(file);
@@ -251,15 +268,15 @@ export function buildLinuxSandboxArgs(
 	args.push("--proc", "/proc", "--dev", "/dev", "--tmpfs", "/tmp");
 	appendParentDirs(args, cwd, new Set());
 	args.push("--bind", cwd, cwd);
-	for (const root of [vettaDesktopExeDir, vettaCliAppDir]) {
+	for (const root of [agent567DesktopExeDir, agent567CliAppDir]) {
 		if (!root || mountedRoots.has(root)) continue;
 		appendParentDirs(args, root, createdDirs);
 		args.push("--ro-bind", root, root);
 		mountedRoots.add(root);
 	}
-	if (vettaCliShimPath) args.push("--dir", SANDBOX_BIN_DIR, "--ro-bind", vettaCliShimPath, `${SANDBOX_BIN_DIR}/vetta`);
-	for (const root of grant?.allowWriteRoots ?? []) {
-		const normalizedRoot = resolvePath(root);
+	if (agent567CliShimPath)
+		args.push("--dir", SANDBOX_BIN_DIR, "--ro-bind", agent567CliShimPath, `${SANDBOX_BIN_DIR}/567-agent`);
+	for (const normalizedRoot of writableRoots) {
 		if (!existsSync(normalizedRoot) || mountedRoots.has(normalizedRoot)) continue;
 		appendParentDirs(args, normalizedRoot, createdDirs);
 		args.push("--bind", normalizedRoot, normalizedRoot);
@@ -268,7 +285,7 @@ export function buildLinuxSandboxArgs(
 	args.push("--dir", SANDBOX_HOME);
 
 	const baseEnv = env ?? process.env;
-	const pathValue = vettaCliShimPath
+	const pathValue = agent567CliShimPath
 		? [SANDBOX_BIN_DIR, baseEnv.PATH].filter((value): value is string => Boolean(value)).join(delimiter)
 		: baseEnv.PATH;
 	args.push("--clearenv");
@@ -277,9 +294,9 @@ export function buildLinuxSandboxArgs(
 			key === "PATH"
 				? pathValue
 				: key === "AGENT567_DESKTOP_EXE"
-					? vettaDesktopExe
+					? agent567DesktopExe
 					: key === "AGENT567_CLI_APP_PATH"
-						? vettaCliAppPath
+						? agent567CliAppPath
 						: baseEnv[key];
 		if (typeof value === "string" && value.length > 0) args.push("--setenv", key, value);
 	}
@@ -298,14 +315,14 @@ export function createLinuxBubblewrapCommandOperations(
 		exec: (command, cwd, { onData, signal, timeout, env }) =>
 			new Promise<{ exitCode: number | null }>((resolve, reject) => {
 				if (!existsSync(cwd)) return reject(new Error(`Working directory does not exist: ${cwd}`));
-				const vettaCliShim = createVettaCliShim(env);
+				const agent567CliShim = createAgent567CliShim(env);
 				const args = buildLinuxSandboxArgs(
 					command,
 					cwd,
 					shell,
 					env,
 					getSandboxShellGrant(cwd),
-					vettaCliShim?.hostPath,
+					agent567CliShim?.hostPath,
 				);
 				const child = spawn(bubblewrapPath, args, { cwd, detached: true, stdio: ["ignore", "pipe", "pipe"] });
 				let timedOut = false;
@@ -326,7 +343,7 @@ export function createLinuxBubblewrapCommandOperations(
 				const cleanup = () => {
 					if (timeoutHandle) clearTimeout(timeoutHandle);
 					signal?.removeEventListener("abort", onAbort);
-					if (vettaCliShim) rmSync(vettaCliShim.hostDir, { recursive: true, force: true });
+					if (agent567CliShim) rmSync(agent567CliShim.hostDir, { recursive: true, force: true });
 				};
 				child.on("error", (error) => {
 					cleanup();

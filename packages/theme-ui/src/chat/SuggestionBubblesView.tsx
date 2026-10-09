@@ -43,7 +43,7 @@ export function SuggestionBubblesView({
 									transition={{ ...SOFT, delay: i * 0.03 }}
 									onClick={() => onSend(s)}
 									title={sendTooltip}
-									className="group flex max-w-full items-center gap-1.5 rounded-full border border-border/70 bg-card px-3 py-1.5 text-left text-[12.5px] text-muted-foreground transition-colors hover:border-primary/30 hover:bg-accent/60 hover:text-foreground"
+									className="group flex max-w-full items-center gap-1.5 rounded-full border border-border/70 bg-transparent px-3 py-1.5 text-left text-[12.5px] text-muted-foreground transition-colors hover:border-primary/30 hover:bg-transparent hover:text-foreground"
 								>
 									<span className="icon-[solar--magic-stick-3-linear] h-3.5 w-3.5 shrink-0 text-primary/70" />
 									<span className="truncate">{s}</span>

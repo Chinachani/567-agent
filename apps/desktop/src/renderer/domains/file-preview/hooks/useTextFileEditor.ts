@@ -41,7 +41,7 @@ export function useTextFileEditor(path: string, refreshNonce: number): TextFileE
 			const requestId = ++loadRequestIdRef.current;
 			setLoadStatus((current) => (hasDocumentRef.current ? current : "loading"));
 			try {
-				const snapshot = await window.vetta.fs.readEditableTextFile(path);
+				const snapshot = await window.agent567.fs.readEditableTextFile(path);
 				if (requestId !== loadRequestIdRef.current) return;
 				setDocuments((current) => {
 					const next = new Map(current);
@@ -74,15 +74,15 @@ export function useTextFileEditor(path: string, refreshNonce: number): TextFileE
 	useEffect(() => {
 		const slash = Math.max(path.lastIndexOf("/"), path.lastIndexOf("\\"));
 		const directory = slash > 0 ? path.slice(0, slash) : path;
-		void window.vetta.fs.watchDir(directory);
-		const unsubscribe = window.vetta.fs.onDirChanged((changedDirectory) => {
+		void window.agent567.fs.watchDir(directory);
+		const unsubscribe = window.agent567.fs.onDirChanged((changedDirectory) => {
 			if (changedDirectory === directory && !savingRef.current) {
 				void loadFromDisk(false);
 			}
 		});
 		return () => {
 			unsubscribe();
-			void window.vetta.fs.unwatchDir(directory);
+			void window.agent567.fs.unwatchDir(directory);
 		};
 	}, [loadFromDisk, path]);
 
@@ -110,7 +110,7 @@ export function useTextFileEditor(path: string, refreshNonce: number): TextFileE
 			setSaving(true);
 			setSaveError(null);
 			try {
-				const result = await window.vetta.fs.saveEditableTextFile(path, contentToSave, {
+				const result = await window.agent567.fs.saveEditableTextFile(path, contentToSave, {
 					expectedRevision: document.revision,
 					force,
 					hasBom: document.hasBom,

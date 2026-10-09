@@ -2,7 +2,7 @@ package org.agent567.android.core.net
 
 import kotlinx.serialization.json.Json
 
-internal val VettaJson: Json =
+internal val Agent567Json: Json =
     Json {
         ignoreUnknownKeys = true
         isLenient = true

@@ -106,7 +106,7 @@ batch-tasks 已经有队列、并发、每任务一会话，看起来很接近�
 | 项 | 说明 | 缓解 |
 | --- | --- | --- |
 | `official.sessions` 是高权能力 | preset 可创建真实会话并发 prompt | 官方来源门控；preset 权限在 manifest 显式声明且不可撤销，审阅 preset 时需重点核这一条 |
-| 主题 SDK 合同扩展 | `SidebarNavItem` / `SidebarModel` 新增字段与 action | 全部可选新增；`SidebarNavigation` 未收到 `onNavMove` + `navCustomizeLabels` 时退化为改造前行为，既有主题（xianxia）无需改动 |
+| 主题 SDK 合同扩展 | `SidebarNavItem` / `SidebarModel` 新增字段与 action | 全部可选新增；`SidebarNavigation` 未收到 `onNavMove` + `navCustomizeLabels` 时退化为改造前行为，既有主题模块无需改动 |
 | 拖拽用原生 HTML5 DnD | 未引入 dnd 库 | 与仓库既有做法一致（TabBar / FileTree）；键盘可达性靠 pin 按钮补齐（拖拽本身不可键盘操作，属已知限制） |
 | 未做真机 UI 验证 | 本轮未跑 `verify:ui:*` 流程 | 交互逻辑已抽为纯函数并单测覆盖；渲染层建议在下一轮做一次人工走查，重点看拖拽落位指示线与置顶区满员时的置灰反馈 |
 | 看板状态存插件私有存储 | 不参与项目内版本管理，不跨设备同步 | 当前定位是个人工作台，符合预期；若将来要多端同步需另立方案 |

@@ -1,7 +1,7 @@
 /**
  * Shared design-engine lifecycle (ADR-0053/0054):
  *
- * 1. Migrate the legacy ~/.vetta/design-engine directory into this plugin's
+ * 1. Migrate the legacy ~/.567agent/design-engine directory into this plugin's
  *    data namespace, then materialize the engine template there via `node -e`.
  * 2. One-time `npm ci` through ctx.command.spawn against the materialized
  *    package-lock.json (the managed runtime env points npm at the configured

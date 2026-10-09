@@ -8,7 +8,7 @@ const HostHeaders = globalThis.Headers;
 
 async function getApiBase(): Promise<string> {
 	if (cachedBaseUrl) return cachedBaseUrl;
-	cachedBaseUrl = await window.vetta.settings.getServerUrl();
+	cachedBaseUrl = await window.agent567.settings.getServerUrl();
 	return cachedBaseUrl;
 }
 
@@ -63,7 +63,7 @@ export async function tryRefreshAccessToken(): Promise<RefreshOutcome> {
 	if (refreshInFlight) return refreshInFlight;
 	refreshInFlight = (async (): Promise<RefreshOutcome> => {
 		try {
-			return await window.vetta.auth.refreshToken();
+			return await window.agent567.auth.refreshToken();
 		} catch {
 			// IPC 异常按暂时性处理，不登出。
 			return { status: "transient" };
@@ -79,7 +79,7 @@ export async function tryRefreshAccessToken(): Promise<RefreshOutcome> {
 /**
  * 主进程广播 refresh 结果后只通知内存订阅者，不在 renderer 持久化凭据。
  */
-window.vetta?.auth?.onTokenRefreshed?.((next) => {
+window.agent567?.auth?.onTokenRefreshed?.((next) => {
 	notifyTokenRefreshed(next);
 });
 
@@ -312,7 +312,7 @@ export interface AbilityMember {
 
 /** raw.config：客户端运行时读，按 type 取不同字段。 */
 export interface AbilityConfig {
-	/** type=mcp：原样写入 `~/.vetta/agent/mcp.json` 的配置块。 */
+	/** type=mcp：原样写入 `~/.567agent/agent/mcp.json` 的配置块。 */
 	mcp?: Record<string, unknown>;
 	/** type=plugin：以 zip 内 plugin.json 为准，admin 不可改。 */
 	api_version?: string;
@@ -539,7 +539,7 @@ export async function fetchAbilityInfo(type: AbilityType, slug: string, token?: 
 
 /** mcp / bundle 没有业务服务端归档；GitHub MCP 的受管运行时由 Desktop Ability 安装器处理。 */
 export async function downloadAbility(type: AbilityType, slug: string, token?: string | null): Promise<ArrayBuffer> {
-	const serverUrl = await window.vetta.settings.getServerUrl();
+	const serverUrl = await window.agent567.settings.getServerUrl();
 	const resp = await hostFetch(
 		`${serverUrl}/abilities/${encodeURIComponent(type)}/${encodeURIComponent(slug)}/download`,
 		{

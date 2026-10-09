@@ -38,18 +38,18 @@ export interface RuntimeCanaryProvider {
 }
 
 export async function startRuntimeCanaryProvider(rootDir: string): Promise<RuntimeCanaryProvider> {
-	const vettaHome = join(rootDir, "home");
-	const agentDir = join(vettaHome, "agent");
+	const agent567Home = join(rootDir, "home");
+	const agentDir = join(agent567Home, "agent");
 	const workspace = join(rootDir, "workspace");
 	const batchSourceDirectories: [string, string] = [
 		join(rootDir, "batch-source-one"),
 		join(rootDir, "batch-source-two"),
 	];
 	const requestLogPath = join(rootDir, "provider-requests.ndjson");
-	const knowledgeRoot = join(vettaHome, "knowledges");
+	const knowledgeRoot = join(agent567Home, "knowledges");
 	const knowledgeSourceContent = "Runtime Canary Knowledge Source";
 	const knowledgeSourceHash = createHash("sha256").update(knowledgeSourceContent).digest("hex");
-	const installedCliPath = join(agentDir, "bin", process.platform === "win32" ? "vetta.exe" : "vetta");
+	const installedCliPath = join(agentDir, "bin", process.platform === "win32" ? "567-agent.exe" : "567-agent");
 	await Promise.all([
 		mkdir(agentDir, { recursive: true }),
 		mkdir(workspace, { recursive: true }),
@@ -146,7 +146,7 @@ export async function startRuntimeCanaryProvider(rootDir: string): Promise<Runti
 		throw new Error("Expected Runtime Canary Provider TCP address");
 	}
 	const fixture: RuntimeCanaryFixture = {
-		vettaHome,
+		agent567Home,
 		agentDir,
 		workspace,
 		providerBaseUrl: `http://127.0.0.1:${address.port}`,
@@ -174,7 +174,7 @@ export async function startRuntimeCanaryProvider(rootDir: string): Promise<Runti
 }
 
 async function writeRuntimeCapabilities(fixture: RuntimeCanaryFixture): Promise<void> {
-	const rootDir = dirname(fixture.vettaHome);
+	const rootDir = dirname(fixture.agent567Home);
 	const skillDir = join(fixture.agentDir, "skills", "runtime-canary");
 	const mcpServerPath = join(rootDir, "runtime-canary-mcp.mjs");
 	await mkdir(skillDir, { recursive: true });
@@ -284,7 +284,7 @@ async function writeFixtureConfiguration(fixture: RuntimeCanaryFixture): Promise
 			}),
 		),
 		writeFile(
-			join(fixture.vettaHome, "desktop-config.json"),
+			join(fixture.agent567Home, "desktop-config.json"),
 			JSON.stringify(
 				{
 					projects: [{ path: fixture.workspace, name: "Runtime Canary" }],

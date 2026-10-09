@@ -8,6 +8,7 @@ import { PermissionRow } from "./PermissionRow";
 declare global {
 	interface Window {
 		vettaOnboarding?: OnboardingBridge;
+		agent567Onboarding?: OnboardingBridge;
 	}
 }
 
@@ -22,7 +23,7 @@ export function OnboardingApp(): JSX.Element {
 	const autoCloseTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
 	const refresh = useCallback(async () => {
-		const bridge = window.vettaOnboarding;
+		const bridge = window.agent567Onboarding;
 		if (!bridge) return;
 		try {
 			const perms = await bridge.checkPermissions();
@@ -44,7 +45,7 @@ export function OnboardingApp(): JSX.Element {
 
 	// 主进程推送的权限更新（check/request-permissions 调用后）。
 	useEffect(() => {
-		const bridge = window.vettaOnboarding;
+		const bridge = window.agent567Onboarding;
 		if (!bridge) return;
 		return bridge.onPermissionsUpdated((perms) => {
 			setPermissions(perms);
@@ -54,7 +55,7 @@ export function OnboardingApp(): JSX.Element {
 
 	// helper.app 缺失/startDrag 抛异常时主进程会推送该事件，用于给用户可见反馈（否则拖拽悄无声息失败）。
 	useEffect(() => {
-		const bridge = window.vettaOnboarding;
+		const bridge = window.agent567Onboarding;
 		if (!bridge) return;
 		return bridge.onDragError(() => setDragError(true));
 	}, []);
@@ -67,7 +68,7 @@ export function OnboardingApp(): JSX.Element {
 	useEffect(() => {
 		if (!allGranted) return;
 		autoCloseTimer.current = setTimeout(() => {
-			void window.vettaOnboarding?.close();
+			void window.agent567Onboarding?.close();
 		}, AUTO_CLOSE_DELAY_MS);
 		return () => {
 			if (autoCloseTimer.current !== null) clearTimeout(autoCloseTimer.current);
@@ -75,16 +76,16 @@ export function OnboardingApp(): JSX.Element {
 	}, [allGranted]);
 
 	const handleOpenPane = useCallback((kind: "accessibility" | "screen-recording") => {
-		void window.vettaOnboarding?.openPane(kind);
+		void window.agent567Onboarding?.openPane(kind);
 	}, []);
 
 	const handleDragStart = useCallback(() => {
 		setDragError(false);
-		window.vettaOnboarding?.startDrag();
+		window.agent567Onboarding?.startDrag();
 	}, []);
 
 	const handleClose = useCallback(() => {
-		void window.vettaOnboarding?.close();
+		void window.agent567Onboarding?.close();
 	}, []);
 
 	return (

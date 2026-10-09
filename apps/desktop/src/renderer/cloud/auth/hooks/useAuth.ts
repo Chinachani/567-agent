@@ -38,7 +38,7 @@ export function useAuth() {
 		if (bootstrappedRef.current) return;
 		bootstrappedRef.current = true;
 		if (token) return;
-		void window.vetta.settings.getServerToken().then((stored) => {
+		void window.agent567.settings.getServerToken().then((stored) => {
 			if (!stored) return;
 			setToken(stored);
 		});
@@ -67,7 +67,7 @@ export function useAuth() {
 
 	// 主进程在 refresh 失败时广播 unauthorized
 	useEffect(() => {
-		return window.vetta.auth.onUnauthorized(() => {
+		return window.agent567.auth.onUnauthorized(() => {
 			logout();
 		});
 	}, [logout]);
@@ -102,7 +102,7 @@ export function useAuth() {
 		// 401 时主进程返回 {}，会无条件覆盖旧的远程 providers，
 		// 否则 ModelSelector 仍会展示已失效的线上模型。
 		void modelCatalog.revalidate({ force: true, sources: ["remote"] });
-		void window.vetta.subscription
+		void window.agent567.subscription
 			.getStatus()
 			.then((result) => {
 				// 拉取成功才覆盖；失败(status:null)保持内存态不变，UI 用 localStorage 缓存回退。
@@ -114,7 +114,7 @@ export function useAuth() {
 	// SSE: connect when token is available, disconnect on logout
 	useEffect(() => {
 		if (!token) return;
-		void window.vetta.settings.getServerUrl().then((baseUrl) => {
+		void window.agent567.settings.getServerUrl().then((baseUrl) => {
 			sseClient.connect(baseUrl, token);
 		});
 		const unsubState = sseClient.onStateChange(setSseState);

@@ -1,6 +1,6 @@
 import { spawnSync } from "node:child_process";
 import { existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
-import { chmod } from "node:fs/promises";
+import { chmod, open } from "node:fs/promises";
 import { delimiter, join } from "node:path";
 import { atomicWriteJSON } from "@567agent/toolkit/atomic-write";
 import { getAppLogger } from "../logger.js";
@@ -23,7 +23,8 @@ import {
 	vendorRuntimeDir,
 } from "./paths.js";
 import { installRuntimeArchive, installRuntimeDirectory } from "./runtime-archive-installer.js";
-import type { RuntimeRegistryData, RuntimeStatus, RuntimesStatus } from "./types.js";
+import { probeRuntimeExecutable } from "./runtime-health.js";
+import type { RuntimeInstallProgress, RuntimeRegistryData, RuntimeStatus, RuntimesStatus } from "./types.js";
 
 const log = getAppLogger("runtimes");
 
@@ -32,6 +33,7 @@ const log = getAppLogger("runtimes");
 const SYSTEM_PATH_SNAPSHOT = process.env.PATH ?? process.env.Path ?? "";
 
 const RUNTIME_TYPES: RuntimeType[] = ["node", "python"];
+const RUNTIME_PROBE_TTL_MS = 30_000;
 
 function emptyRegistry(): RuntimeRegistryData {
 	return { version: 1, binaries: {}, systemDetection: {} };
@@ -45,6 +47,7 @@ function parseVersion(raw: string): string | undefined {
 
 export class RuntimeManager {
 	private data: RuntimeRegistryData = emptyRegistry();
+	private readonly probeCache = new Map<RuntimeType, { checkedAt: number; executablePath: string; ready: boolean }>();
 
 	private loadRegistry(): void {
 		try {
@@ -99,14 +102,14 @@ export class RuntimeManager {
 		delete this.data.systemDetection[type];
 	}
 
-	/** 内置 vendor → ~/.vetta/runtimes 首启安装。返回是否完成 seed。 */
+	/** 内置 vendor → ~/.567agent/runtimes 首启安装。返回是否完成 seed。 */
 	private async seedFromVendor(type: RuntimeType): Promise<boolean> {
 		const entry = platformEntry(type);
 		if (!entry) return false;
 		const version = runtimeVersion(type);
 		const target = installDir(type, version);
 		const marker = join(target, ".vendor-version");
-		if (existsSync(executablePathFor(type, version)) && this.readMarker(marker) === version) {
+		if (this.isReady(type) && this.readMarker(marker) === version) {
 			return true; // 已 seed 且版本一致,跳过安装
 		}
 
@@ -138,18 +141,26 @@ export class RuntimeManager {
 			archiveType: entry.archive,
 			innerDirectory: entry.dir,
 			targetDirectory: target,
+			executablePath: executablePathFor(type, version),
+			expectedVersion: version,
 		});
 		await this.finishInstall(type, version);
 	}
 
 	private async installDirectory(type: RuntimeType, sourceDirectory: string, version: string): Promise<void> {
-		await installRuntimeDirectory({ sourceDirectory, targetDirectory: installDir(type, version) });
+		await installRuntimeDirectory({
+			sourceDirectory,
+			targetDirectory: installDir(type, version),
+			executablePath: executablePathFor(type, version),
+			expectedVersion: version,
+		});
 		await this.finishInstall(type, version);
 	}
 
 	private async finishInstall(type: RuntimeType, version: string): Promise<void> {
 		await this.makeExecutable(type, version);
 		writeFileSync(join(installDir(type, version), ".vendor-version"), version);
+		this.probeCache.delete(type);
 	}
 
 	private readMarker(path: string): string | undefined {
@@ -174,7 +185,10 @@ export class RuntimeManager {
 	 * 下载兜底(升级 / 无内置 vendor 时)。从 sources 列表逐个尝试,解压到安装目录。
 	 * 这是次要路径——首启主路径是 seedFromVendor。无网络时会失败,由调用方容错。
 	 */
-	private async download(type: RuntimeType): Promise<boolean> {
+	private async download(
+		type: RuntimeType,
+		onProgress?: (progress: RuntimeInstallProgress) => void,
+	): Promise<boolean> {
 		const entry = platformEntry(type);
 		if (!entry) return false;
 		const def = RUNTIME_MANIFEST[type];
@@ -189,7 +203,8 @@ export class RuntimeManager {
 		for (const url of urls) {
 			try {
 				log.info(`downloading ${type} from ${url}`);
-				await this.fetchToFile(url, tmpFile);
+				await this.fetchToFile(url, tmpFile, type, onProgress);
+				onProgress?.({ type, phase: "installing", message: "正在解压并安装运行时", updatedAt: Date.now() });
 				await this.installArchive(type, tmpFile, entry, version);
 				rmSync(tmpFile, { force: true });
 				return true;
@@ -200,20 +215,70 @@ export class RuntimeManager {
 		return false;
 	}
 
-	private async fetchToFile(url: string, dest: string): Promise<void> {
+	private async fetchToFile(
+		url: string,
+		dest: string,
+		type: RuntimeType,
+		onProgress?: (progress: RuntimeInstallProgress) => void,
+	): Promise<void> {
 		const controller = new AbortController();
 		const timer = setTimeout(() => controller.abort(), 180_000);
 		try {
 			const res = await fetch(url, { signal: controller.signal, redirect: "follow" });
 			if (!res.ok) throw new Error(`HTTP ${res.status}`);
-			writeFileSync(dest, Buffer.from(await res.arrayBuffer()));
+			if (!res.body) throw new Error("Runtime download has no response body");
+			const totalBytes = Number(res.headers.get("content-length")) || undefined;
+			let downloadedBytes = 0;
+			let lastProgressAt = 0;
+			const output = await open(dest, "w");
+			const reader = res.body.getReader();
+			try {
+				while (true) {
+					const { done, value } = await reader.read();
+					if (done) break;
+					const chunk = value;
+					const bytes = Buffer.from(chunk);
+					await output.write(bytes);
+					downloadedBytes += bytes.byteLength;
+					const now = Date.now();
+					if (now - lastProgressAt >= 150 || (totalBytes !== undefined && downloadedBytes >= totalBytes)) {
+						lastProgressAt = now;
+						onProgress?.({
+							type,
+							phase: "downloading",
+							downloadedBytes,
+							...(totalBytes ? { totalBytes } : {}),
+							message: "正在下载运行时文件",
+							updatedAt: now,
+						});
+					}
+				}
+			} finally {
+				reader.releaseLock();
+				await output.close();
+			}
 		} finally {
 			clearTimeout(timer);
 		}
 	}
 
 	private isReady(type: RuntimeType): boolean {
-		return existsSync(executablePathFor(type));
+		const executablePath = executablePathFor(type);
+		if (!existsSync(executablePath)) {
+			this.probeCache.delete(type);
+			return false;
+		}
+		const now = Date.now();
+		const cached = this.probeCache.get(type);
+		if (cached?.executablePath === executablePath && now - cached.checkedAt < RUNTIME_PROBE_TTL_MS) {
+			return cached.ready;
+		}
+
+		const health = probeRuntimeExecutable(executablePath, runtimeVersion(type));
+		const ready = health.ready;
+		if (!ready) log.warn(`${type} runtime health check failed`, health);
+		this.probeCache.set(type, { checkedAt: now, executablePath, ready });
+		return ready;
 	}
 
 	/** 返回已就绪的托管运行时可执行文件，供插件服务等宿主子进程使用。 */
@@ -643,19 +708,35 @@ export class RuntimeManager {
 	}
 
 	/** 面板「升级/重新获取」:强制重新 seed/下载推荐版本,再刷新 env。 */
-	async reinstall(type: RuntimeType): Promise<RuntimeStatus> {
+	async reinstall(type: RuntimeType, onProgress?: (progress: RuntimeInstallProgress) => void): Promise<RuntimeStatus> {
 		const target = installDir(type);
-		rmSync(join(target, ".vendor-version"), { force: true });
-		const seeded = await this.seedFromVendor(type);
-		if (!seeded) await this.download(type);
-		if (this.isReady(type)) {
+		try {
+			onProgress?.({ type, phase: "preparing", message: "正在准备运行时安装", updatedAt: Date.now() });
+			rmSync(join(target, ".vendor-version"), { force: true });
+			const seeded = await this.seedFromVendor(type);
+			if (seeded) onProgress?.({ type, phase: "installing", message: "正在复制内置运行时", updatedAt: Date.now() });
+			const installed = seeded || (await this.download(type, onProgress));
+			if (!installed) {
+				throw new Error("无法从内置运行时或可用镜像获取安装文件；请检查网络后重试。");
+			}
+			this.probeCache.delete(type);
+			onProgress?.({ type, phase: "verifying", message: "正在验证运行时版本与可执行性", updatedAt: Date.now() });
+			if (!this.isReady(type)) {
+				throw new Error("安装文件已获取，但运行时自检未通过；旧版本文件已保留。");
+			}
 			this.recordManaged(type);
 			await this.ensureNpm(type);
 			await this.ensurePip(type);
+			this.saveRegistry();
+			this.applyEnv();
+			onProgress?.({ type, phase: "ready", message: "运行时已就绪", updatedAt: Date.now() });
+			return this.statusFor(type);
+		} catch (error) {
+			log.error(`reinstall ${type} failed`, error);
+			const normalized = error instanceof Error ? error : new Error(String(error));
+			onProgress?.({ type, phase: "error", message: normalized.message, updatedAt: Date.now() });
+			throw normalized;
 		}
-		this.saveRegistry();
-		this.applyEnv();
-		return this.statusFor(type);
 	}
 
 	/** 面板「重新探测系统运行时」。 */

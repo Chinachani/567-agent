@@ -324,7 +324,7 @@ async function handleExport(projectDir: string): Promise<ExportProjectResult> {
 	const projectName = basename(projectDir);
 	const saveResult = await dialog.showSaveDialog({
 		title: "导出项目",
-		defaultPath: `${projectName}.vetta.zip`,
+		defaultPath: `${projectName}.567.zip`,
 		filters: [{ name: mainT("projectExportFileType"), extensions: ["zip"] }],
 	});
 	if (saveResult.canceled || !saveResult.filePath) {

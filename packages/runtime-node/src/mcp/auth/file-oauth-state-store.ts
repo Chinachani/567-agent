@@ -1,3 +1,4 @@
+import { createHash } from "node:crypto";
 import { existsSync, mkdirSync, readFileSync, unlinkSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import {
@@ -16,17 +17,17 @@ export class FileMcpOAuthStateStore implements McpOAuthStateStore {
 	constructor(private readonly options: FileMcpOAuthStateStoreOptions) {}
 
 	getPath(serverName: string): string {
-		return join(this.options.authDirectory, `${sanitizeServerName(serverName)}.json`);
+		const identity = createHash("sha256").update(serverName.trim()).digest("hex").slice(0, 24);
+		return join(this.options.authDirectory, `${sanitizeServerName(serverName)}-${identity}.json`);
 	}
 
 	load(serverName: string): McpOAuthStoredState | undefined {
 		const path = this.getPath(serverName);
-		if (!existsSync(path)) return undefined;
-		try {
-			return parseMcpOAuthStoredState(JSON.parse(readFileSync(path, "utf-8")));
-		} catch {
-			return undefined;
-		}
+		const state =
+			this.readState(path) ??
+			this.readState(join(this.options.authDirectory, `${sanitizeServerName(serverName)}.json`));
+		if (state && !existsSync(path)) this.save(serverName, state);
+		return state;
 	}
 
 	save(serverName: string, state: McpOAuthStoredState): void {
@@ -46,6 +47,15 @@ export class FileMcpOAuthStateStore implements McpOAuthStateStore {
 	hasTokens(serverName: string): boolean {
 		const state = this.load(serverName);
 		return Boolean(state?.tokens?.access_token || state?.tokens?.refresh_token);
+	}
+
+	private readState(path: string): McpOAuthStoredState | undefined {
+		if (!existsSync(path)) return undefined;
+		try {
+			return parseMcpOAuthStoredState(JSON.parse(readFileSync(path, "utf-8")));
+		} catch {
+			return undefined;
+		}
 	}
 }
 

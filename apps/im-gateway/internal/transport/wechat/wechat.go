@@ -12,7 +12,7 @@
 //   - Text-only 1-on-1 chats
 //   - QR-scan binding (driven by `im-gateway wechat login`)
 //   - Persistent credentials, long-poll cursor, and per-peer context_token
-//     map under ~/.vetta/im-gateway/wechat.json
+//     map under ~/.567agent/im-gateway/wechat.json
 //   - 24h/10-msg quota tracking per peer (server-side enforced; we shadow
 //     it client-side to fail fast)
 //

@@ -10,6 +10,12 @@ export interface ToolCall {
 	name: string;
 	arguments: Record<string, unknown>;
 	thoughtSignature?: string;
+	/** Historical output retained when importing tool activity from another client. */
+	result?: string;
+	/** Historical error status retained when importing tool activity from another client. */
+	isError?: boolean;
+	/** Historical elapsed time retained when importing tool activity from another client. */
+	durationMs?: number;
 }
 
 export interface Tool<TParameters extends TSchema = TSchema> {

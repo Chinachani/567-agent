@@ -1,6 +1,6 @@
 package org.agent567.android.core
 
-import org.agent567.android.core.api.VettaApi
+import org.agent567.android.core.api.Agent567Api
 import org.agent567.android.core.model.SubscriptionStatus
 
 data class PayOrderResult(
@@ -10,7 +10,7 @@ data class PayOrderResult(
 )
 
 class SubscriptionRepository internal constructor(
-    private val api: VettaApi,
+    private val api: Agent567Api,
 ) {
     suspend fun me(): SubscriptionStatus = api.subscriptionMe()
 

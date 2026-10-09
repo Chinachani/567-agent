@@ -86,6 +86,33 @@ enum class RemoteRequestMethod {
     @SerialName("session.image.read")
     SessionImageRead,
 
+    @SerialName("session.attachment.transfer.start")
+    SessionAttachmentTransferStart,
+
+    @SerialName("session.attachment.transfer.chunk")
+    SessionAttachmentTransferChunk,
+
+    @SerialName("session.attachment.transfer.finish")
+    SessionAttachmentTransferFinish,
+
+    @SerialName("session.attachment.transfer.cancel")
+    SessionAttachmentTransferCancel,
+
+    @SerialName("session.migration.receive.start")
+    SessionMigrationReceiveStart,
+
+    @SerialName("session.migration.receive.chunk")
+    SessionMigrationReceiveChunk,
+
+    @SerialName("session.migration.receive.finish")
+    SessionMigrationReceiveFinish,
+
+    @SerialName("session.migration.receive.import")
+    SessionMigrationReceiveImport,
+
+    @SerialName("session.migration.receive.cancel")
+    SessionMigrationReceiveCancel,
+
     @SerialName("session.respond")
     SessionRespond,
 
@@ -94,6 +121,12 @@ enum class RemoteRequestMethod {
 
     @SerialName("session.resume")
     SessionResume,
+
+    @SerialName("toolbox.list")
+    ToolboxList,
+
+    @SerialName("toolbox.install")
+    ToolboxInstall,
 
     @SerialName("diagnostics.snapshot")
     DiagnosticsSnapshot,

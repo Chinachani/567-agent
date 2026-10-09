@@ -11,7 +11,7 @@ export function AbilityMarkdownBody({ content }: { content: string }): JSX.Eleme
 	const host = useMarkdownHost(null);
 	const labels = useMarkdownLabels();
 	const onOpenExternal = useCallback((href: string) => {
-		void window.vetta.shell.openExternal(href);
+		void window.agent567.shell.openExternal(href);
 	}, []);
 
 	if (!content.trim()) return null;

@@ -103,7 +103,7 @@ npx @vetta-org/plugin-cli add @example/vetta-plugin-demo
 
 The npm package is fetched with lifecycle scripts disabled. The CLI extracts only the archive declared by
 `package.json#vetta`, then asks the running Desktop host to validate, approve, and install it. It never writes
-`~/.vetta/plugins` directly.
+`~/.567agent/plugins` directly.
 
 Local archives and HTTP(S) archives use the same command:
 

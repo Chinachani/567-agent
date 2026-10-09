@@ -122,13 +122,13 @@ profile + 租户的 zip 制品打入 `Resources/system-plugins`。同一次构�
 | 仓库内依赖管理 | 根 workspace 和根 `bun.lock` | 当前仓库示例同样属于根 workspace |
 | Vetta 开发包依赖 | 可使用 `workspace:*` 或与本地包匹配的 semver | 仓库内同左；移出仓库后必须使用已发布版本 |
 | 安装方式 | 随 Desktop 发布，不需要用户安装 | 构建 zip 后由用户安装 |
-| 开发加载 | 构建 zip 后解压到 Desktop `.artifacts/system-plugins`；`bun dev` 默认叠加当前租户全部 preset 的内存 dev 链接 | 从 `~/.vetta/plugins` 读取已安装版本；显式 dev 链接可覆盖 |
+| 开发加载 | 构建 zip 后解压到 Desktop `.artifacts/system-plugins`；`bun dev` 默认叠加当前租户全部 preset 的内存 dev 链接 | 从 `~/.567agent/plugins` 读取已安装版本；显式 dev 链接可覆盖 |
 | App 打包 | 从 `release/<id>-<version>.vettapkg` 解压到 `Resources/system-plugins` | 不随 App 打包 |
 | 插件制品 | `@vetta-org/plugin-vite` 在构建后生成 zip | `@vetta-org/plugin-vite` 在构建后生成安装 zip |
 | 权限 | manifest 中声明的权限自动授予，不可撤销 | 安装后由用户授权 |
 | 生命周期 | 默认启用，可停用，不可卸载，版本随 App | 可安装、更新、重载和卸载 |
 
-Preset 不进入 `~/.vetta/plugins`，也不写 `plugins-manifest.json`。
+Preset 不进入 `~/.567agent/plugins`，也不写 `plugins-manifest.json`。
 
 `plugin-sdk`、`plugin-vite`、`presets/*` 与 `externals/*` 都列在根 workspace
 中，共用根依赖图与锁文件；各插件仍保留独立的 `package.json` 和构建制品。

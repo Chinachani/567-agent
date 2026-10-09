@@ -133,7 +133,7 @@ export function useFeishuBindDialogModel({
 		if (closeTimerRef.current) clearTimeout(closeTimerRef.current);
 		closeTimerRef.current = null;
 		setState({ phase: "starting", qrAttempt: 0 });
-		const unsub = await window.vetta.im.feishu.subscribeBind((event: ImFeishuBindEvent) => {
+		const unsub = await window.agent567.im.feishu.subscribeBind((event: ImFeishuBindEvent) => {
 			if (generation !== bindGenerationRef.current || !openRef.current) return;
 			switch (event.kind) {
 				case "qr":
@@ -185,7 +185,7 @@ export function useFeishuBindDialogModel({
 		subUnsubRef.current = unsub;
 
 		try {
-			const result = await window.vetta.im.feishu.startBind();
+			const result = await window.agent567.im.feishu.startBind();
 			if (generation !== bindGenerationRef.current || !openRef.current) return;
 			if (!result.ok) {
 				setState({

@@ -1,6 +1,6 @@
 import { existsSync, mkdirSync, readFileSync } from "node:fs";
 import { dirname, join } from "node:path";
-import { getVettaHomePath } from "@567agent/action-rpc";
+import { getAgent567HomePath } from "@567agent/action-rpc";
 import { atomicWriteJSON } from "@567agent/toolkit/atomic-write";
 import type {
 	AddMarketplaceSourceInput,
@@ -129,7 +129,7 @@ function parseSource(value: unknown): MarketplaceSource | null {
 
 function createDefaultSources(now: Date): MarketplaceSource[] {
 	const configuredRepository = process.env.AGENT567_OPEN_MARKETPLACE_REPOSITORY?.trim();
-	// 发行方可用 fork 仓库替换官方源；未配置时始终注册 Vetta 官方源。
+	// 发行方可用 fork 仓库替换官方源；未配置时始终注册 567 Agent 官方源。
 	const normalizedRepository = normalizeGitHubRepository(configuredRepository || OFFICIAL_MARKETPLACE_REPOSITORY);
 	const defaultRef = normalizedRepository === OFFICIAL_MARKETPLACE_REPOSITORY ? OFFICIAL_MARKETPLACE_REF : "main";
 	const ref = validateRef(process.env.AGENT567_OPEN_MARKETPLACE_REF, defaultRef);
@@ -160,7 +160,7 @@ export class MarketplaceSourceStore {
 	private readonly defaultSources: MarketplaceSource[];
 
 	constructor(options: MarketplaceSourceStoreOptions = {}) {
-		this.filePath = options.filePath ?? join(getVettaHomePath(), "open-marketplaces", "sources.json");
+		this.filePath = options.filePath ?? join(getAgent567HomePath(), "open-marketplaces", "sources.json");
 		this.now = options.now ?? (() => new Date());
 		this.defaultSources = options.defaultSources ?? createDefaultSources(this.now());
 	}

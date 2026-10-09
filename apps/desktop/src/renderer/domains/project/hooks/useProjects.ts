@@ -111,7 +111,7 @@ export function useProjectActions() {
 			const activeLoad = sessionLoadPromises.get(cwd);
 			if (activeLoad) return activeLoad;
 			setSessionLoadingCwds((prev) => new Set(prev).add(cwd));
-			const loadPromise = window.vetta.session
+			const loadPromise = window.agent567.session
 				.listSessions(cwd)
 				.then((sessions: SessionInfo[]) =>
 					setSessionsMap((prev) => {
@@ -160,7 +160,7 @@ export function useProjectActions() {
 	useEffect(() => {
 		if (!imSubscribed) {
 			imSubscribed = true;
-			window.vetta.im.onSessionChanged(() => {
+			window.agent567.im.onSessionChanged(() => {
 				// Claw 会话写在独立的 IM cwd 下（ADR-0005），fs watcher 监听的也是它；
 				// 桌面「对话」cwd 不会被 sidecar 写，但保留刷新以兼容历史路径。
 				const imCwd = store.get(defaultImConversationCwdAtom);
@@ -171,7 +171,7 @@ export function useProjectActions() {
 		}
 		if (!sessionListSubscribed) {
 			sessionListSubscribed = true;
-			window.vetta.session.onSessionsChanged(({ cwd, sessionPath, session }) => {
+			window.agent567.session.onSessionsChanged(({ cwd, sessionPath, session }) => {
 				if (session && isUsableFirstMessage(session.firstMessage)) {
 					setSessionsMap((prev) => {
 						const sessions = prev.get(cwd) ?? [];
@@ -213,13 +213,13 @@ export function useProjectActions() {
 	const refreshProjects = useCallback(async () => {
 		try {
 			// Read project list from app-specific config file (not shared with CLI)
-			const config = await window.vetta.config.get();
+			const config = await window.agent567.config.get();
 			const entries = config.projects.map((entry) => ({ cwd: entry.path, name: entry.name, sessionCount: 0 }));
 
 			// Read meta.json for each project in parallel to determine type
 			const metaResults = await Promise.all(
 				entries.map(async (entry) => {
-					const meta = await window.vetta.project.readMeta(entry.cwd);
+					const meta = await window.agent567.project.readMeta(entry.cwd);
 					const rawType = meta?.type as string | undefined;
 					const type: ProjectType = rawType === "batch" ? rawType : "normal";
 					return { ...entry, type };
@@ -265,7 +265,7 @@ export function useProjectActions() {
 	useEffect(() => {
 		if (projectsChangedSubscribed) return;
 		projectsChangedSubscribed = true;
-		window.vetta.config.onProjectsChanged(() => {
+		window.agent567.config.onProjectsChanged(() => {
 			void refreshProjectsRef.current();
 		});
 		// 同上：刻意不退订，订阅与 renderer 同寿命。
@@ -276,17 +276,17 @@ export function useProjectActions() {
 		async (name: string): Promise<string> => {
 			const workspacePath = store.get(workspacePathAtom);
 			const projectPath = `${workspacePath}/${name}`;
-			await window.vetta.fs.createDirectory(projectPath);
+			await window.agent567.fs.createDirectory(projectPath);
 			// Read the resolved path back via listSubDirs to get the absolute path
-			const subDirs = await window.vetta.fs.listSubDirs(workspacePath);
+			const subDirs = await window.agent567.fs.listSubDirs(workspacePath);
 			const created = subDirs.find((d) => d.name === name);
 			const resolvedPath = created?.path ?? projectPath;
 
 			// Add to config with the user-provided name
-			const config = await window.vetta.config.get();
+			const config = await window.agent567.config.get();
 			if (!config.projects.some((p) => p.path === resolvedPath)) {
 				config.projects.push({ path: resolvedPath, name });
-				await window.vetta.config.set({ projects: config.projects });
+				await window.agent567.config.set({ projects: config.projects });
 			}
 
 			await refreshProjects();
@@ -298,13 +298,13 @@ export function useProjectActions() {
 
 	/** Open an existing directory and add to config */
 	const openProject = useCallback(async () => {
-		const cwd = await window.vetta.dialog.selectFolder();
+		const cwd = await window.agent567.dialog.selectFolder();
 		if (!cwd) return null;
 
-		const config = await window.vetta.config.get();
+		const config = await window.agent567.config.get();
 		if (!config.projects.some((p) => p.path === cwd)) {
 			config.projects.push({ path: cwd });
-			await window.vetta.config.set({ projects: config.projects });
+			await window.agent567.config.set({ projects: config.projects });
 		}
 
 		await refreshProjects();
@@ -359,9 +359,9 @@ export function useProjectActions() {
 		async (cwd: string) => {
 			// 默认「对话」项目不允许从列表中移除。
 			if (cwd === store.get(defaultConversationCwdAtom)) return;
-			const config = await window.vetta.config.get();
+			const config = await window.agent567.config.get();
 			config.projects = config.projects.filter((p) => p.path !== cwd);
-			await window.vetta.config.set({ projects: config.projects });
+			await window.agent567.config.set({ projects: config.projects });
 			forgetPendingSessions(cwd);
 			await refreshProjects();
 		},
@@ -371,14 +371,14 @@ export function useProjectActions() {
 	const archiveProject = useCallback(
 		async (cwd: string) => {
 			if (cwd === store.get(defaultConversationCwdAtom)) return;
-			const config = await window.vetta.config.get();
+			const config = await window.agent567.config.get();
 			const entry = config.projects.find((p) => p.path === cwd);
 			config.projects = config.projects.filter((p) => p.path !== cwd);
 			const archived = config.archivedProjects ?? [];
 			if (!archived.some((p) => p.path === cwd)) {
 				archived.push(entry ?? { path: cwd });
 			}
-			await window.vetta.config.set({ projects: config.projects, archivedProjects: archived });
+			await window.agent567.config.set({ projects: config.projects, archivedProjects: archived });
 			forgetPendingSessions(cwd);
 			await refreshProjects();
 		},
@@ -387,21 +387,21 @@ export function useProjectActions() {
 
 	const unarchiveProject = useCallback(
 		async (cwd: string) => {
-			const config = await window.vetta.config.get();
+			const config = await window.agent567.config.get();
 			const archived = (config.archivedProjects ?? []).filter((p) => p.path !== cwd);
 			const projects = config.projects.some((p) => p.path === cwd)
 				? config.projects
 				: [...config.projects, { path: cwd }];
-			await window.vetta.config.set({ projects, archivedProjects: archived });
+			await window.agent567.config.set({ projects, archivedProjects: archived });
 			await refreshProjects();
 		},
 		[refreshProjects],
 	);
 
 	const deleteArchivedProject = useCallback(async (cwd: string) => {
-		const config = await window.vetta.config.get();
+		const config = await window.agent567.config.get();
 		const archived = (config.archivedProjects ?? []).filter((p) => p.path !== cwd);
-		await window.vetta.config.set({ archivedProjects: archived });
+		await window.agent567.config.set({ archivedProjects: archived });
 	}, []);
 
 	/** Remove project from config AND delete from disk */
@@ -411,12 +411,12 @@ export function useProjectActions() {
 			// 会话存储在按 cwd 算出的全局分片目录里，不在项目目录内：先清会话再删目录，
 			// 否则同路径重建同名项目时旧会话会连同产物一起复活。清理必须发生在项目仍
 			// 注册于 config 时——分片 root 由 config.projects 推导（composition.ts）。
-			await window.vetta.session.deleteAllForCwd(cwd);
-			const config = await window.vetta.config.get();
+			await window.agent567.session.deleteAllForCwd(cwd);
+			const config = await window.agent567.config.get();
 			config.projects = config.projects.filter((p) => p.path !== cwd);
 			const archived = (config.archivedProjects ?? []).filter((p) => p.path !== cwd);
-			await window.vetta.config.set({ projects: config.projects, archivedProjects: archived });
-			await window.vetta.fs.delete(cwd);
+			await window.agent567.config.set({ projects: config.projects, archivedProjects: archived });
+			await window.agent567.fs.delete(cwd);
 			await refreshProjects();
 		},
 		[refreshProjects, store],
@@ -424,12 +424,12 @@ export function useProjectActions() {
 
 	const deleteSession = useCallback(
 		async (_cwd: string, sessionPath: string) => {
-			await window.vetta.session.delete(sessionPath);
+			await window.agent567.session.delete(sessionPath);
 			for (const pending of pendingLocalSessions.values()) pending.delete(sessionPath);
 			removePinnedSessions([sessionPath]);
 			// 定时任务 session：同步删掉「自动化」里的执行记录，否则历史列表会残留。
 			if (store.get(scheduledSessionPathsAtom).has(sessionPath)) {
-				await window.vetta.scheduler.deleteRecordsBySession(sessionPath);
+				await window.agent567.scheduler.deleteRecordsBySession(sessionPath);
 				setScheduledSessionPaths((prev) => {
 					if (!prev.has(sessionPath)) return prev;
 					const next = new Set(prev);
@@ -520,7 +520,7 @@ export function useProjectActions() {
 
 	const renameSession = useCallback(
 		async (cwd: string, sessionPath: string, name: string) => {
-			await window.vetta.session.rename(sessionPath, name);
+			await window.agent567.session.rename(sessionPath, name);
 			applyLocalRename(cwd, sessionPath, name);
 		},
 		[applyLocalRename],

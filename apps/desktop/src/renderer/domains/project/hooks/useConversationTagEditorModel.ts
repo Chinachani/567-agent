@@ -25,7 +25,7 @@ export function useConversationTagEditorModel(): ConversationTagEditorDialogView
 
 	const create = useCallback(
 		(input: { name: string; color: string }) => {
-			void window.vetta.conversationTags.create({
+			void window.agent567.conversationTags.create({
 				...input,
 				sessionPath: editor?.mode === "create" ? editor.sessionPath : undefined,
 			});
@@ -34,15 +34,15 @@ export function useConversationTagEditorModel(): ConversationTagEditorDialogView
 	);
 
 	const rename = useCallback((input: { id: string; name: string }) => {
-		void window.vetta.conversationTags.update(input);
+		void window.agent567.conversationTags.update(input);
 	}, []);
 
 	const recolor = useCallback((input: { id: string; color: string }) => {
-		void window.vetta.conversationTags.update(input);
+		void window.agent567.conversationTags.update(input);
 	}, []);
 
 	const remove = useCallback((tagId: string) => {
-		void window.vetta.conversationTags.remove(tagId);
+		void window.agent567.conversationTags.remove(tagId);
 	}, []);
 
 	if (!editor) return null;

@@ -84,7 +84,7 @@ describe("image generation media tools", () => {
 		getImageGeneration.mockResolvedValue({});
 		listProviders.mockResolvedValue([
 			{
-				id: "desktop-app:vetta",
+				id: "desktop-app:api567",
 				ownerId: "desktop-app",
 				protocolVersion: 2,
 				capabilities: [
@@ -149,7 +149,7 @@ describe("image generation media tools", () => {
 		).resolves.toMatchObject({ ok: true, images: [image] });
 		expect(submit).toHaveBeenCalledWith({
 			operation: "generate",
-			providerId: "desktop-app:vetta",
+			providerId: "desktop-app:api567",
 			kind: "image",
 			mode: "text-to-image",
 			prompt: "draw a fox",
@@ -161,7 +161,7 @@ describe("image generation media tools", () => {
 		expect(releaseArtifact).toHaveBeenCalledWith(artifact);
 		expect(persist).toHaveBeenCalledWith(
 			{ id: "blob-1", url: "vetta-media://local/blob-1", mimeType: "image/png" },
-			{ providerId: "desktop-app:vetta", sessionId: "session-1" },
+			{ providerId: "desktop-app:api567", sessionId: "session-1" },
 		);
 	});
 
@@ -172,7 +172,7 @@ describe("image generation media tools", () => {
 		});
 		listProviders.mockResolvedValue([
 			{
-				id: "desktop-app:vetta",
+				id: "desktop-app:api567",
 				ownerId: "desktop-app",
 				protocolVersion: 2,
 				capabilities: [{
@@ -274,7 +274,7 @@ describe("image generation media tools", () => {
 describe("selectImageProvider", () => {
 	const providers = [
 		{
-			id: "desktop-app:vetta",
+			id: "desktop-app:api567",
 			ownerId: "desktop-app",
 			protocolVersion: 2 as const,
 			capabilities: [{ operation: "generate" as const, kind: "image" as const, modes: ["text-to-image" as const] }],
@@ -298,7 +298,7 @@ describe("selectImageProvider", () => {
 	});
 
 	it("keeps the built-in provider as the automatic default", () => {
-		expect(selectImageProvider(providers, "text-to-image").id).toBe("desktop-app:vetta");
+		expect(selectImageProvider(providers, "text-to-image").id).toBe("desktop-app:api567");
 	});
 });
 

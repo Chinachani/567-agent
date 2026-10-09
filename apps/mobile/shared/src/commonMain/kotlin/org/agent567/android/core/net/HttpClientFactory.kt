@@ -15,9 +15,9 @@ import io.ktor.http.ContentType
 import io.ktor.http.HttpHeaders
 import io.ktor.http.contentType
 import io.ktor.serialization.kotlinx.json.json
-import org.agent567.android.core.VettaConfig
+import org.agent567.android.core.Agent567Config
 import org.agent567.android.core.auth.TokenStore
-import org.agent567.android.core.error.VettaException
+import org.agent567.android.core.error.Agent567Exception
 
 /**
  * refresh 结果三态，与 desktop 主进程策略对齐：
@@ -39,8 +39,8 @@ fun interface UnauthorizedHandler {
     fun onUnauthorized()
 }
 
-internal fun createVettaHttpClient(
-    config: VettaConfig,
+internal fun createAgent567HttpClient(
+    config: Agent567Config,
     tokenStore: TokenStore,
     tokenRefresher: TokenRefresher,
 ): HttpClient =
@@ -48,7 +48,7 @@ internal fun createVettaHttpClient(
         expectSuccess = false
 
         install(ContentNegotiation) {
-            json(VettaJson)
+            json(Agent567Json)
         }
 
         install(HttpTimeout) {
@@ -63,7 +63,7 @@ internal fun createVettaHttpClient(
                 logger =
                     object : Logger {
                         override fun log(message: String) {
-                            println("[vetta-http] $message")
+                            println("[567agent-http] $message")
                         }
                     }
                 level = LogLevel.HEADERS
@@ -114,11 +114,11 @@ internal fun createVettaHttpClient(
 /**
  * 无 Auth 插件的裸客户端，专用于 refresh，避免递归。
  */
-internal fun createBareHttpClient(config: VettaConfig): HttpClient =
+internal fun createBareHttpClient(config: Agent567Config): HttpClient =
     HttpClient(platformHttpClientEngine()) {
         expectSuccess = false
         install(ContentNegotiation) {
-            json(VettaJson)
+            json(Agent567Json)
         }
         install(HttpTimeout) {
             requestTimeoutMillis = 30_000
@@ -158,8 +158,8 @@ internal fun isAnonymousAuthPath(path: String): Boolean {
         pathOnly.endsWith("/auth/admin/login")
 }
 
-internal fun Throwable.toVettaException(): VettaException =
+internal fun Throwable.toAgent567Exception(): Agent567Exception =
     when (this) {
-        is VettaException -> this
-        else -> VettaException.Network(message ?: "网络错误", this)
+        is Agent567Exception -> this
+        else -> Agent567Exception.Network(message ?: "网络错误", this)
     }

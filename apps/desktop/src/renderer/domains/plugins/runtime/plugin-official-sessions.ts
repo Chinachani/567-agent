@@ -48,17 +48,17 @@ export function createOfficialSessionsApi(capabilitySessionId: string): PluginOf
 				const cwd = assertNonEmpty(input?.cwd, "cwd");
 				// kind "conversation" 走与用户新建会话相同的路径：挂通知订阅、进会话列表，
 				// 这样看板派出去的任务在侧边栏里和手动开的会话长得一样、可被正常接管。
-				const created = await window.vetta.session.create({ cwd }, "conversation");
+				const created = await window.agent567.session.create({ cwd }, "conversation");
 				const title = typeof input?.title === "string" ? input.title.trim() : "";
 				if (title) {
-					await window.vetta.session.rename(created.sessionPath, title).catch((error: unknown) => {
+					await window.agent567.session.rename(created.sessionPath, title).catch((error: unknown) => {
 						console.warn("[official.sessions] rename after create failed", error);
 					});
 				}
 				const modelKey = normalizeModelKey(input?.modelKey);
 				if (modelKey) {
 					// 写会话设置而非只钉单轮：用户之后在对话页手动接着聊，也应该还是这个模型。
-					await window.vetta.session.updateSettings(created.sessionId, { modelKey });
+					await window.agent567.session.updateSettings(created.sessionId, { modelKey });
 				}
 				return created;
 			}),
@@ -67,7 +67,7 @@ export function createOfficialSessionsApi(capabilitySessionId: string): PluginOf
 				assertNonEmpty(sessionId, "sessionId");
 				assertNonEmpty(text, "text");
 				const modelKey = normalizeModelKey(options?.modelKey);
-				const outcome = await window.vetta.session.prompt(sessionId, {
+				const outcome = await window.agent567.session.prompt(sessionId, {
 					text,
 					...(modelKey ? { modelKey } : {}),
 				});
@@ -87,18 +87,18 @@ export function createOfficialSessionsApi(capabilitySessionId: string): PluginOf
 		abort: (sessionId) =>
 			invoke(async () => {
 				assertNonEmpty(sessionId, "sessionId");
-				await window.vetta.session.abort(sessionId);
+				await window.agent567.session.abort(sessionId);
 			}),
 		rename: (sessionPath, name) =>
 			invoke(async () => {
 				assertNonEmpty(sessionPath, "sessionPath");
 				assertNonEmpty(name, "name");
-				await window.vetta.session.rename(sessionPath, name);
+				await window.agent567.session.rename(sessionPath, name);
 			}),
 		list: (cwd) =>
 			invoke(async () => {
 				assertNonEmpty(cwd, "cwd");
-				const sessions = await window.vetta.session.listSessions(cwd);
+				const sessions = await window.agent567.session.listSessions(cwd);
 				return sessions.map((session) => ({
 					path: session.path,
 					cwd: session.cwd,
@@ -107,12 +107,12 @@ export function createOfficialSessionsApi(capabilitySessionId: string): PluginOf
 					access: normalizeAccess(session.access),
 				}));
 			}),
-		listRunning: () => invoke(() => window.vetta.session.listRunning()),
-		listRunningCwds: () => invoke(() => window.vetta.session.listRunningCwds()),
+		listRunning: () => invoke(() => window.agent567.session.listRunning()),
+		listRunningCwds: () => invoke(() => window.agent567.session.listRunningCwds()),
 		onRunningChanged: (handler) => {
 			// 订阅本身是同步注册（返回取消函数），仍需先过官方校验，避免非官方插件拿到广播。
 			pluginRendererCapabilityHost.assertOfficialSession(capabilitySessionId);
-			return window.vetta.session.onRunningChanged((payload) => {
+			return window.agent567.session.onRunningChanged((payload) => {
 				handler({
 					sessionPath: payload.sessionPath,
 					running: payload.running,

@@ -93,7 +93,7 @@ func runFeishuRegister(args []string) int {
 	fmt.Println("  security add-generic-password -s vetta-im-gateway -a feishu_app_id     -w")
 	fmt.Println("  security add-generic-password -s vetta-im-gateway -a feishu_app_secret -w")
 	fmt.Println()
-	fmt.Println("或写入 ~/.vetta/im-gateway/credentials.yaml 的 feishu.appId / feishu.appSecret（文件权限 0600）。")
+	fmt.Println("或写入 ~/.567agent/im-gateway/credentials.yaml 的 feishu.appId / feishu.appSecret（文件权限 0600）。")
 	if res.TenantBrand == "lark" {
 		fmt.Println()
 		fmt.Printf("检测到 Lark 租户：请在 config.yaml 中把 transport.feishu.baseUrl 设为 %s\n", larkOpenBaseURL)

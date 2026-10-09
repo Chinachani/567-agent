@@ -10,7 +10,7 @@ import type { McpConfigSource } from "@567agent/runtime-mcp/config";
 import {
 	buildBuiltinMcpServers,
 	FileMcpOAuthStateStore,
-	loadVettaCredentials,
+	loadApi567Credentials,
 	McpOAuthProvider,
 } from "./auth/index.js";
 import { createMcpClient } from "./client/index.js";
@@ -58,7 +58,7 @@ export function createNodeMcpSupervisor(options: NodeMcpSupervisorOptions): Node
 				? {}
 				: buildBuiltinMcpServers({
 						clientVersion: options.clientVersion,
-						loadCredentials: () => loadVettaCredentials(options.agentDir),
+						loadCredentials: () => loadApi567Credentials(options.agentDir),
 					}),
 		configSource,
 		clientFactory: (name, config, clientOptions) =>

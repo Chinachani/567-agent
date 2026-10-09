@@ -104,11 +104,11 @@ export function useChatViewModel(): ChatViewModelResult {
 	const [pinned, setPinned] = useState(false);
 	const [exporting, setExporting] = useState(false);
 	useEffect(() => {
-		void window.vetta.window.isAlwaysOnTop().then(setPinned);
+		void window.agent567.window.isAlwaysOnTop().then(setPinned);
 	}, []);
 
 	const togglePin = useCallback(async () => {
-		const next = await window.vetta.window.toggleAlwaysOnTop();
+		const next = await window.agent567.window.toggleAlwaysOnTop();
 		setPinned(next);
 	}, []);
 	const finishExport = useCallback(() => setExporting(false), []);

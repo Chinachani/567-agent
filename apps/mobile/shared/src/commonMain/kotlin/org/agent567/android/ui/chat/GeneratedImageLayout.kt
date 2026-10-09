@@ -17,6 +17,34 @@ internal fun generatedImageSize(
     return DpSize(width = width, height = width / aspectRatio)
 }
 
+/** Long screenshots open at a readable width instead of being scaled down to their full height. */
+internal fun initialImagePreviewScale(
+	viewportWidthPx: Float,
+	imageWidthPx: Float,
+	imageHeightPx: Float,
+): Float {
+	if (imageWidthPx <= 0f || imageHeightPx / imageWidthPx < 2f) return 1f
+	return (viewportWidthPx / imageWidthPx).coerceIn(1f, 5f)
+}
+
+internal fun initialImagePreviewOffset(
+	scale: Float,
+	imageWidthPx: Float,
+	imageHeightPx: Float,
+	viewportWidthPx: Float,
+	viewportHeightPx: Float,
+): Offset {
+	val maxY = ((imageHeightPx * scale - viewportHeightPx) / 2f).coerceAtLeast(0f)
+	return clampImagePreviewOffset(
+		offset = Offset(x = 0f, y = maxY),
+		scale = scale,
+		imageWidthPx = imageWidthPx,
+		imageHeightPx = imageHeightPx,
+		viewportWidthPx = viewportWidthPx,
+		viewportHeightPx = viewportHeightPx,
+	)
+}
+
 internal fun clampImagePreviewOffset(
     offset: Offset,
     scale: Float,

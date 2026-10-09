@@ -150,13 +150,13 @@ export function useImBridgeSettingsModel(): ImBridgeSettingsModel {
 	useEffect(() => {
 		let cancelled = false;
 		(async () => {
-			const loadedConfig = await window.vetta.im.getConfig();
+			const loadedConfig = await window.agent567.im.getConfig();
 			if (cancelled) return;
 			setConfig(loadedConfig);
 			setFeishuForm(feishuFormFromConfig(loadedConfig));
 			setChannelForm(channelFormFromConfig(loadedConfig, loadedConfig.transport));
 
-			const unsub = await window.vetta.im.subscribeStatus(
+			const unsub = await window.agent567.im.subscribeStatus(
 				(snap) => setStatus(snap),
 				(log) => setLogs((prev) => [log, ...prev].slice(0, 500)),
 			);
@@ -167,7 +167,7 @@ export function useImBridgeSettingsModel(): ImBridgeSettingsModel {
 			unsubRef.current = unsub;
 
 			try {
-				const detected = await window.vetta.im.detectLegacy();
+				const detected = await window.agent567.im.detectLegacy();
 				if (!cancelled && detected.hasLegacyData) {
 					setLegacy(detected);
 				}
@@ -197,7 +197,7 @@ export function useImBridgeSettingsModel(): ImBridgeSettingsModel {
 	}, []);
 
 	const refreshConfig = useCallback(async () => {
-		const refreshed = await window.vetta.im.getConfig();
+		const refreshed = await window.agent567.im.getConfig();
 		setConfig(refreshed);
 		setFeishuForm(feishuFormFromConfig(refreshed));
 		setChannelForm(channelFormFromConfig(refreshed, refreshed.transport));
@@ -208,7 +208,7 @@ export function useImBridgeSettingsModel(): ImBridgeSettingsModel {
 		if (!legacy || importing) return;
 		setImporting(true);
 		try {
-			const result = await window.vetta.im.importLegacy(legacy);
+			const result = await window.agent567.im.importLegacy(legacy);
 			if (result.ok) {
 				await refreshConfig();
 				setLegacy(null);
@@ -230,7 +230,7 @@ export function useImBridgeSettingsModel(): ImBridgeSettingsModel {
 			setSaveOk(null);
 			setProbeResult(null);
 			try {
-				const result = await window.vetta.im.setConfig({
+				const result = await window.agent567.im.setConfig({
 					enabled: config.enabled,
 					transport: config.transport,
 					agentModel: next,
@@ -257,7 +257,7 @@ export function useImBridgeSettingsModel(): ImBridgeSettingsModel {
 		setProbing(true);
 		setProbeResult(null);
 		try {
-			const result = await window.vetta.im.probeAgentModel(config.agentModel);
+			const result = await window.agent567.im.probeAgentModel(config.agentModel);
 			setProbeResult({
 				ok: result.ok,
 				msg: result.ok ? (result.message ?? t("testOk")) : (result.error ?? t("testUnknown")),
@@ -297,7 +297,7 @@ export function useImBridgeSettingsModel(): ImBridgeSettingsModel {
 					feishu:
 						config.transport === "feishu" ? feishuFormToPayload(config, feishuForm, enabled).feishu : undefined,
 				};
-				const result = await window.vetta.im.setConfig(payload);
+				const result = await window.agent567.im.setConfig(payload);
 				if (!result.ok) {
 					setSaveError(result.error ?? t("saveFailed"));
 				} else {
@@ -319,7 +319,7 @@ export function useImBridgeSettingsModel(): ImBridgeSettingsModel {
 			setSaveError(null);
 			setSaveOk(null);
 			try {
-				const result = await window.vetta.im.setConfig({
+				const result = await window.agent567.im.setConfig({
 					enabled: config.enabled,
 					transport: next,
 				});
@@ -343,7 +343,7 @@ export function useImBridgeSettingsModel(): ImBridgeSettingsModel {
 		if (!ok) return;
 		setSaving(true);
 		try {
-			const result = await window.vetta.im.wechat.logout();
+			const result = await window.agent567.im.wechat.logout();
 			if (!result.ok) {
 				setSaveError(result.error ?? t("unbindError"));
 				return;
@@ -362,7 +362,7 @@ export function useImBridgeSettingsModel(): ImBridgeSettingsModel {
 		setSaveError(null);
 		setSaveOk(null);
 		try {
-			const result = await window.vetta.im.setConfig(feishuFormToPayload(config, feishuForm, config.enabled));
+			const result = await window.agent567.im.setConfig(feishuFormToPayload(config, feishuForm, config.enabled));
 			if (!result.ok) {
 				setSaveError(result.error ?? t("saveFailed"));
 				return;
@@ -382,7 +382,7 @@ export function useImBridgeSettingsModel(): ImBridgeSettingsModel {
 		setTesting(true);
 		setTestResult(null);
 		try {
-			const result = await window.vetta.im.testConnection({
+			const result = await window.agent567.im.testConnection({
 				appId: feishuForm.appId.trim(),
 				appSecret: feishuForm.appSecret,
 				verificationToken: config.feishu.verificationToken || undefined,
@@ -397,7 +397,7 @@ export function useImBridgeSettingsModel(): ImBridgeSettingsModel {
 	}, [config, feishuForm, testing, t]);
 
 	const handleOpenLogs = useCallback(async () => {
-		const initial = await window.vetta.im.getRecentLogs();
+		const initial = await window.agent567.im.getRecentLogs();
 		setLogs(initial);
 		setLogsOpen(true);
 	}, []);
@@ -422,7 +422,7 @@ export function useImBridgeSettingsModel(): ImBridgeSettingsModel {
 			if (open) return;
 			void (async () => {
 				try {
-					const result = await window.vetta.im.feishu.cancelBind();
+					const result = await window.agent567.im.feishu.cancelBind();
 					if (!result.ok) setSaveError(result.error ?? t("bindFailed"));
 					await refreshConfig();
 				} catch (error) {
@@ -462,7 +462,7 @@ export function useImBridgeSettingsModel(): ImBridgeSettingsModel {
 		setChannelError(null);
 		setChannelMessage(null);
 		try {
-			const result = await window.vetta.im.setConfig(
+			const result = await window.agent567.im.setConfig(
 				channelFormToPayload(config, channelDialogTransport, channelForm),
 			);
 			if (!result.ok) {
@@ -482,7 +482,9 @@ export function useImBridgeSettingsModel(): ImBridgeSettingsModel {
 		setChannelError(null);
 		setChannelMessage(null);
 		try {
-			const result = await window.vetta.im.testConnection(channelTestPayload(channelDialogTransport, channelForm));
+			const result = await window.agent567.im.testConnection(
+				channelTestPayload(channelDialogTransport, channelForm),
+			);
 			if (result.ok) setChannelMessage(result.message ?? t("testPass"));
 			else setChannelError(result.error ?? t("testFail"));
 		} finally {
@@ -495,7 +497,7 @@ export function useImBridgeSettingsModel(): ImBridgeSettingsModel {
 		setChannelBusy(true);
 		setChannelError(null);
 		try {
-			const result = await window.vetta.im.whatsapp.startBind();
+			const result = await window.agent567.im.whatsapp.startBind();
 			if (!result.ok) setChannelError(result.error ?? t("bindFailed"));
 			else setChannelMessage(t("bindStarted"));
 		} finally {
@@ -507,7 +509,7 @@ export function useImBridgeSettingsModel(): ImBridgeSettingsModel {
 		if (channelDialogTransport !== "whatsapp" || channelBusy) return;
 		setChannelBusy(true);
 		try {
-			const result = await window.vetta.im.whatsapp.logout();
+			const result = await window.agent567.im.whatsapp.logout();
 			if (!result.ok) setChannelError(result.error ?? t("unbindError"));
 			else await refreshConfig();
 		} finally {
@@ -527,7 +529,7 @@ export function useImBridgeSettingsModel(): ImBridgeSettingsModel {
 			setSaveError(null);
 			setSaveOk(null);
 			try {
-				const result = await window.vetta.im.clearChannel(transport);
+				const result = await window.agent567.im.clearChannel(transport);
 				if (!result.ok) {
 					setSaveError(result.error ?? t("clearChannelFailed"));
 					return;
@@ -547,7 +549,7 @@ export function useImBridgeSettingsModel(): ImBridgeSettingsModel {
 		if (!window.confirm(t("unbindConfirm"))) return;
 		setSaving(true);
 		try {
-			const result = await window.vetta.im.signal.logout();
+			const result = await window.agent567.im.signal.logout();
 			if (!result.ok) {
 				setSaveError(result.error ?? t("unbindError"));
 				return;
@@ -643,7 +645,7 @@ export function useImBridgeSettingsModel(): ImBridgeSettingsModel {
 		onSaveFeishu: handleSaveFeishu,
 		onTestFeishu: handleTestFeishu,
 		onRestart: async () => {
-			await window.vetta.im.restart();
+			await window.agent567.im.restart();
 		},
 		onOpenLogs: handleOpenLogs,
 		onWechatConfirmedRefresh: () => {

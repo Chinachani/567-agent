@@ -1,13 +1,11 @@
 import { bindCapability, type CapabilityRegistry } from "@567agent/capability-runtime";
 import { type Disposable, DOMAIN_MEDIA_CAPABILITIES } from "@vetta-org/capability-sdk";
-import { isCloudBuildEnabled } from "../../shared/feature-flags.js";
 import type { ArtifactStore } from "../artifacts/artifact-store.js";
 import type { JobManager } from "../jobs/job-manager.js";
 import { getAppLogger } from "../logger.js";
 import { create567ApiImageProvider } from "../media-generation/567api-image-provider.js";
 import { MediaArtifactStore } from "../media-generation/media-artifact-store.js";
 import { MediaProviderRegistry } from "../media-generation/media-provider-registry.js";
-import { createVettaImageProvider } from "../media-generation/vetta-image-provider.js";
 
 const DOMAIN_MEDIA_PROVIDER_OWNER = "vetta.domain.media";
 
@@ -35,9 +33,6 @@ export function registerDesktopMediaProviders(
 	const api567ImageRegistration = providers.registerProvider(
 		create567ApiImageProvider(artifacts, "desktop-app:api567"),
 	);
-	const vettaRegistration = isCloudBuildEnabled()
-		? providers.registerProvider(createVettaImageProvider(artifacts))
-		: undefined;
 	const capabilityRegistration = registry.registerOwner(DOMAIN_MEDIA_PROVIDER_OWNER, [
 		bindCapability(DOMAIN_MEDIA_CAPABILITIES.LIST_PROVIDERS, {
 			execute: async () => providers.listProviders(),
@@ -51,7 +46,6 @@ export function registerDesktopMediaProviders(
 			if (desktopMediaRuntime?.providers === providers) desktopMediaRuntime = undefined;
 			capabilityRegistration.dispose();
 			api567ImageRegistration.dispose();
-			vettaRegistration?.dispose();
 		},
 	};
 }

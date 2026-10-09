@@ -2,7 +2,7 @@ import { AsyncLocalStorage } from "node:async_hooks";
 import { randomUUID } from "node:crypto";
 import { homedir, tmpdir } from "node:os";
 import { dirname, isAbsolute, join, relative, resolve as resolvePath } from "node:path";
-import { getVettaConfigDirName } from "@567agent/action-rpc";
+import { getAgent567ConfigDirName } from "@567agent/action-rpc";
 import type { RuntimeSandboxGrantStore } from "@567agent/runtime-core";
 import type {
 	SandboxPermissionCapability,
@@ -161,7 +161,7 @@ export function getSandboxDenyRoots(): string[] {
 		join(homeDir, ".gnupg"),
 		join(homeDir, ".kube"),
 		join(homeDir, ".docker"),
-		join(homeDir, getVettaConfigDirName(), "agent"),
+		join(homeDir, getAgent567ConfigDirName(), "agent"),
 		join(homeDir, ".pi"),
 	];
 	if (process.platform === "darwin") {

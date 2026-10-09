@@ -116,14 +116,14 @@ export function useThemeController(): void {
 		async function syncWithNative() {
 			if (mode !== "auto") {
 				setResolved(mode);
-				await window.vetta.theme.set(mode).catch(() => {});
+				await window.agent567.theme.set(mode).catch(() => {});
 				return;
 			}
 
-			await window.vetta.theme.set("system").catch(() => {});
+			await window.agent567.theme.set("system").catch(() => {});
 			let resolved: ResolvedMode;
 			try {
-				const native = await window.vetta.theme.getNative();
+				const native = await window.agent567.theme.getNative();
 				resolved = native.shouldUseDarkColors ? "dark" : "light";
 			} catch {
 				resolved = resolveThemeMode("auto");
@@ -141,7 +141,7 @@ export function useThemeController(): void {
 
 	// 监听原生主题变化（auto 模式下才响应）。
 	useEffect(() => {
-		const unsubscribe = window.vetta.theme.onNativeChanged((info) => {
+		const unsubscribe = window.agent567.theme.onNativeChanged((info) => {
 			const current = (localStorage.getItem(MODE_STORAGE_KEY) as ThemeMode | null) ?? "dark";
 			if (current !== "auto") return;
 			const r: ResolvedMode = info.shouldUseDarkColors ? "dark" : "light";
@@ -153,13 +153,13 @@ export function useThemeController(): void {
 	}, [setResolved]);
 
 	useEffect(() => {
-		return window.vetta.theme.onModeRequested(({ mode: requestedMode }) => {
+		return window.agent567.theme.onModeRequested(({ mode: requestedMode }) => {
 			void setMode(requestedMode);
 		});
 	}, [setMode]);
 
 	useEffect(() => {
-		return window.vetta.theme.onChangeRequested(async ({ mode: requestedMode, themeId, cursorStyle }) => {
+		return window.agent567.theme.onChangeRequested(async ({ mode: requestedMode, themeId, cursorStyle }) => {
 			if (cursorStyle !== undefined) {
 				setStoredCursorStyle(cursorStyle);
 				setCursorStyleAtom(cursorStyle);
@@ -183,11 +183,11 @@ export function useThemeController(): void {
 	}, [setCursorStyleAtom, setMode, setThemeName, setThemeNameAtom]);
 
 	useEffect(() => {
-		return window.vetta.theme.onStateRequested(getThemeSnapshot);
+		return window.agent567.theme.onStateRequested(getThemeSnapshot);
 	}, []);
 
 	useEffect(() => {
-		return window.vetta.theme.onHelpRequested(() => ({
+		return window.agent567.theme.onHelpRequested(() => ({
 			state: getThemeSnapshot(),
 			themes: THEMES.map(({ id, label }) => {
 				const labelKey = COLOR_THEME_LABEL_KEYS[id as keyof typeof COLOR_THEME_LABEL_KEYS];

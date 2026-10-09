@@ -131,7 +131,7 @@ export function useBuiltinMcpSecretsDialogModel({
 				setValues((current) => ({ ...current, [envKey]: value }));
 			},
 			onOpenHelp: (url: string) => {
-				void window.vetta.auth.openExternal(url);
+				void window.agent567.auth.openExternal(url);
 			},
 			open,
 			primaryHelpUrl: resolvePrimaryHelpUrl(preset),

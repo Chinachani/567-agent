@@ -29,7 +29,7 @@ export const defaultConversationCwdAtom = atom<string>("");
 export const defaultImConversationCwdAtom = atom<string>("");
 
 /**
- * 知识库加工特殊项目 cwd（~/.vetta/knowledges/processing_records）。
+ * 知识库加工特殊项目 cwd（~/.567agent/knowledges/processing_records）。
  * 用于判定一条 session 是否是知识库加工 session：session.path 落在该 cwd 的 sessions 目录下。
  */
 export const knowledgeProcessingCwdAtom = atom<string>("");
@@ -279,7 +279,7 @@ export const sidebarCollapsedAtom = atom<boolean>(false);
 const DEFAULT_WORKSPACE = "~/.567agent/workspace";
 const storedWorkspacePath = localStorage.getItem("vetta-workspace-path");
 export const workspacePathAtom = atom<string>(
-	storedWorkspacePath === "~/.vetta/workspace" ? DEFAULT_WORKSPACE : storedWorkspacePath || DEFAULT_WORKSPACE,
+	storedWorkspacePath === "~/.567agent/workspace" ? DEFAULT_WORKSPACE : storedWorkspacePath || DEFAULT_WORKSPACE,
 );
 
 export const sessionContextMenuAtom = atom<{

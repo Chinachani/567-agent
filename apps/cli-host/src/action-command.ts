@@ -51,11 +51,11 @@ type ActionSubcommandDefinition = {
 const HELP_TEXT = `567 Agent action command line interface
 
 Usage:
-  vetta action search [query] [--domain <domain>]
-  vetta action describe <action-id>
-  vetta action run <action-id> [json-input]
-  vetta action -h
-  vetta action --help
+  567-agent action search [query] [--domain <domain>]
+  567-agent action describe <action-id>
+  567-agent action run <action-id> [json-input]
+  567-agent action -h
+  567-agent action --help
 
 Description:
   Operate the running 567 Agent app through its local action RPC.
@@ -76,12 +76,12 @@ Capability areas (high-level only; live catalog comes from search):
   batch-tasks, scheduler, knowledge, plugins, im, webhook, downloads, updater
 
 Examples:
-  vetta action search ""
-  vetta action search "model"
-  vetta action search "定时" --domain scheduler
-  vetta action describe models.query
-  vetta action run models.query '{"operation":"help"}'
-  vetta action run models.query '{"operation":"list"}'
+  567-agent action search ""
+  567-agent action search "model"
+  567-agent action search "定时" --domain scheduler
+  567-agent action describe models.query
+  567-agent action run models.query '{"operation":"help"}'
+  567-agent action run models.query '{"operation":"list"}'
 
 JSON input:
   In PowerShell and POSIX shells, wrap the JSON argument in single quotes.

@@ -1,6 +1,8 @@
+import type { RuntimeInstallProgress } from "../../shared/runtime-install-progress.js";
 import type { RuntimeType } from "./paths.js";
 
 export type { RuntimeType };
+export type { RuntimeInstallProgress };
 
 /** 运行时来源:内置拷贝 / 下载 / 复用系统。 */
 export type RuntimeSource = "managed" | "system";
@@ -8,7 +10,7 @@ export type RuntimeSource = "managed" | "system";
 /** 单个运行时的对外状态(给 IPC / 设置面板)。 */
 export interface RuntimeStatus {
 	type: RuntimeType;
-	/** 托管版是否就绪(可执行文件存在)。 */
+	/** 托管版是否就绪(可执行文件可运行且版本与清单一致)。 */
 	ready: boolean;
 	/** 推荐(目标)版本。 */
 	recommendedVersion: string;
@@ -40,7 +42,7 @@ interface RegistryEntry {
 	verified: boolean;
 }
 
-/** ~/.vetta/runtimes/.cache/registry.json 的形状。 */
+/** ~/.567agent/runtimes/.cache/registry.json 的形状。 */
 export interface RuntimeRegistryData {
 	version: 1;
 	binaries: Partial<Record<RuntimeType, RegistryEntry>>;

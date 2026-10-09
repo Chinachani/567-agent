@@ -87,7 +87,7 @@ const LEGACY_TEAM_NAMES: Readonly<Record<string, string>> = Object.freeze({
 	"builtin:team:research": "Deep Research",
 	"builtin:team:growth": "Growth & Content",
 	"builtin:team:strategy": "Biz Strategy",
-	"builtin:team:vetta": "Vetta Team",
+	"builtin:team:vetta": "567 Agent Team",
 });
 
 export interface AgentTeamStorageIndex {

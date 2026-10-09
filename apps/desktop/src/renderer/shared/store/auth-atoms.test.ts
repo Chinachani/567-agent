@@ -55,12 +55,12 @@ describe("cloudLogoutAtom", () => {
 		expect(store.get(authUserAtom)).toBeNull();
 		expect(store.get(remoteProvidersAtom)).toEqual({});
 		expect(sse.disconnect).toHaveBeenCalledOnce();
-		expect(window.vetta.settings.setServerToken).toHaveBeenCalledWith(undefined);
+		expect(window.agent567.settings.setServerToken).toHaveBeenCalledWith(undefined);
 
 		// 服务端登出走"读出存量 refresh → 上报 → 清除"的异步链
 		await vi.waitFor(() => {
 			expect(api.logoutOnServer).toHaveBeenCalledWith("stored-refresh");
-			expect(window.vetta.settings.setServerRefreshToken).toHaveBeenCalledWith(undefined);
+			expect(window.agent567.settings.setServerRefreshToken).toHaveBeenCalledWith(undefined);
 		});
 	});
 
@@ -72,7 +72,7 @@ describe("cloudLogoutAtom", () => {
 		store.set(cloudLogoutAtom);
 
 		await vi.waitFor(() => {
-			expect(window.vetta.settings.setServerRefreshToken).toHaveBeenCalledWith(undefined);
+			expect(window.agent567.settings.setServerRefreshToken).toHaveBeenCalledWith(undefined);
 		});
 		expect(store.get(authTokenAtom)).toBeNull();
 	});

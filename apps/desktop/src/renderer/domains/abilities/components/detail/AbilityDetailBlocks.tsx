@@ -86,7 +86,7 @@ function AbilityDetailBlockView({
 							key={`${item.label}-${item.href}`}
 							variant="ghost"
 							className={cn("h-auto w-full justify-between rounded-none px-0 py-3 text-[13px] font-medium", index > 0 && DETAIL_RULE)}
-							onClick={() => void window.vetta.shell.openExternal(item.href)}
+							onClick={() => void window.agent567.shell.openExternal(item.href)}
 						>
 							{item.label}
 							<span className="icon-[solar--arrow-right-up-linear] h-3.5 w-3.5 text-muted-foreground" />

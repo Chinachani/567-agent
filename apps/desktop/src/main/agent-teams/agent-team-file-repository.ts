@@ -1,7 +1,7 @@
 import type { Dirent } from "node:fs";
 import { mkdir, readdir, readFile, rm } from "node:fs/promises";
 import { join } from "node:path";
-import { getVettaHomePath } from "@567agent/action-rpc";
+import { getAgent567HomePath } from "@567agent/action-rpc";
 import type {
 	AgentProfile,
 	AgentTeamDocument,
@@ -29,7 +29,7 @@ import { dropRetiredHostPresets } from "./retired-host-presets.js";
 
 const log = getAppLogger("agent-teams");
 
-const TEAMS_DIR = join(getVettaHomePath(), "agent-teams");
+const TEAMS_DIR = join(getAgent567HomePath(), "agent-teams");
 const INITIALIZED_MARKER = ".initialized";
 const INDEX_FILE = "index.json";
 /** 团队目录下存放成员任务书长文本的位置，一名成员一个 Markdown 文件。 */

@@ -82,9 +82,9 @@ fi
 for platform in "${PLATFORMS[@]}"; do
     echo "Building for $platform..."
 	if [[ "$platform" == "windows-x64" ]]; then
-		bun ../cli-host/scripts/compile-standalone.mjs --entry agent --target=bun-$platform --outfile binaries/$platform/pi.exe
+		bun ../../apps/cli-host/scripts/compile-standalone.mjs --entry agent --target=bun-$platform --outfile binaries/$platform/pi.exe
 	else
-		bun ../cli-host/scripts/compile-standalone.mjs --entry agent --target=bun-$platform --outfile binaries/$platform/pi
+		bun ../../apps/cli-host/scripts/compile-standalone.mjs --entry agent --target=bun-$platform --outfile binaries/$platform/pi
 	fi
 done
 

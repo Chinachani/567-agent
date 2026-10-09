@@ -71,12 +71,16 @@ func applyEnvOverrides(cfg *Config) {
 }
 
 // applyDefaults fills in any zero-valued fields with sensible defaults
-// derived from $HOME/.vetta. Idempotent: calling it twice yields the same
+// derived from the 567 Agent config home. Idempotent: calling it twice yields the same
 // Config.
 func applyDefaults(cfg *Config) error {
-	home, err := os.UserHomeDir()
+	userHome, err := os.UserHomeDir()
 	if err != nil {
 		return fmt.Errorf("resolve home dir: %w", err)
+	}
+	configRoot, err := configHome()
+	if err != nil {
+		return err
 	}
 
 	if cfg.Transport.Name == "" {
@@ -97,8 +101,7 @@ func applyDefaults(cfg *Config) error {
 		cfg.Logging.Level = "info"
 	}
 
-	vettaDir := filepath.Join(home, ".vetta")
-	gatewayDir := filepath.Join(vettaDir, "im-gateway")
+	gatewayDir := filepath.Join(configRoot, "im-gateway")
 	if cfg.Paths.ConversationCwd == "" {
 		cfg.Paths.ConversationCwd = filepath.Join(gatewayDir, "conversation")
 	}
@@ -114,11 +117,11 @@ func applyDefaults(cfg *Config) error {
 	if cfg.Paths.WhatsappState == "" {
 		cfg.Paths.WhatsappState = filepath.Join(gatewayDir, "whatsapp.db")
 	}
-	cfg.Paths.ConversationCwd = expandTilde(cfg.Paths.ConversationCwd, home)
-	cfg.Paths.State = expandTilde(cfg.Paths.State, home)
-	cfg.Paths.LogsDir = expandTilde(cfg.Paths.LogsDir, home)
-	cfg.Paths.WechatState = expandTilde(cfg.Paths.WechatState, home)
-	cfg.Paths.WhatsappState = expandTilde(cfg.Paths.WhatsappState, home)
+	cfg.Paths.ConversationCwd = expandTilde(cfg.Paths.ConversationCwd, userHome)
+	cfg.Paths.State = expandTilde(cfg.Paths.State, userHome)
+	cfg.Paths.LogsDir = expandTilde(cfg.Paths.LogsDir, userHome)
+	cfg.Paths.WechatState = expandTilde(cfg.Paths.WechatState, userHome)
+	cfg.Paths.WhatsappState = expandTilde(cfg.Paths.WhatsappState, userHome)
 	return nil
 }
 

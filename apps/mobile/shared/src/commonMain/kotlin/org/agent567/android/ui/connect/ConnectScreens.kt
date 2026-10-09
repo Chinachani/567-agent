@@ -26,6 +26,7 @@ import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
@@ -37,6 +38,8 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.window.Dialog
+import androidx.compose.ui.window.DialogProperties
 import org.agent567.android.domain.device.DesktopDevice
 import org.agent567.android.domain.device.DeviceStatus
 import org.agent567.android.domain.remote.remoteDesktopViewerTarget
@@ -47,10 +50,10 @@ import org.agent567.android.ui.components.PrimaryBlackButton
 import org.agent567.android.ui.components.SectionHeader
 import org.agent567.android.ui.components.StatusChip
 import org.agent567.android.ui.components.StatusDot
-import org.agent567.android.ui.components.VettaTextField
-import org.agent567.android.ui.components.VettaListGroup
+import org.agent567.android.ui.components.Agent567TextField
+import org.agent567.android.ui.components.Agent567ListGroup
 import org.agent567.android.ui.i18n.Str
-import org.agent567.android.ui.theme.vettaExtra
+import org.agent567.android.ui.theme.agent567Extra
 import org.agent567.android.ui.remote.RemoteDesktopSurface
 import org.agent567.android.ui.remote.PairingScannerButton
 
@@ -71,13 +74,13 @@ fun DiscoverConnectScreen(
     val channels = listOf(Str.channelLan, Str.channelRemote, Str.channelCloud)
 
     Scaffold(
-        containerColor = MaterialTheme.vettaExtra.pageBackground,
+        containerColor = MaterialTheme.agent567Extra.pageBackground,
         topBar = {
             TopAppBar(
                 title = { Text(Str.discoverTitle, style = MaterialTheme.typography.titleMedium) },
                 colors =
                     TopAppBarDefaults.topAppBarColors(
-                        containerColor = MaterialTheme.vettaExtra.pageBackground,
+                        containerColor = MaterialTheme.agent567Extra.pageBackground,
                     ),
             )
         },
@@ -92,11 +95,11 @@ fun DiscoverConnectScreen(
             Text(
                 Str.discoverSubtitle,
                 style = MaterialTheme.typography.bodyMedium,
-                color = MaterialTheme.vettaExtra.secondaryText,
+                color = MaterialTheme.agent567Extra.secondaryText,
             )
             if (error != null) {
                 Spacer(Modifier.height(10.dp))
-                org.agent567.android.ui.components.VettaErrorBanner(error = error, onDismiss = onClearError)
+                org.agent567.android.ui.components.Agent567ErrorBanner(error = error, onDismiss = onClearError)
             }
             if (remoteConnecting) {
                 Spacer(Modifier.height(10.dp))
@@ -110,7 +113,7 @@ fun DiscoverConnectScreen(
                         strokeWidth = 2.dp,
                     )
                     Spacer(Modifier.width(8.dp))
-                    Text("正在连接电脑端...", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.vettaExtra.secondaryText)
+                    Text("正在连接电脑端...", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.agent567Extra.secondaryText)
                 }
             }
             Spacer(Modifier.height(14.dp))
@@ -123,7 +126,7 @@ fun DiscoverConnectScreen(
                     Text(
                         Str.featureCloudDesc,
                         style = MaterialTheme.typography.bodyMedium,
-                        color = MaterialTheme.vettaExtra.secondaryText,
+                        color = MaterialTheme.agent567Extra.secondaryText,
                         modifier = Modifier.padding(horizontal = 4.dp),
                     )
                     Spacer(Modifier.height(18.dp))
@@ -165,7 +168,7 @@ fun DiscoverConnectScreen(
                             trailing = {
                                 StatusDot(online = device.status == DeviceStatus.Online)
                                 Spacer(Modifier.width(12.dp))
-                                Icon(Icons.Default.ChevronRight, contentDescription = null, tint = MaterialTheme.vettaExtra.secondaryText)
+                                Icon(Icons.Default.ChevronRight, contentDescription = null, tint = MaterialTheme.agent567Extra.secondaryText)
                             },
                             onClick = { onOpenDevice(device.id) },
                             showDivider = index < devices.lastIndex,
@@ -175,7 +178,7 @@ fun DiscoverConnectScreen(
                     if (!remote) {
                         SectionHeader(title = Str.manualConnect)
                         Row(verticalAlignment = Alignment.CenterVertically) {
-                            VettaTextField(
+                            Agent567TextField(
                                 value = host,
                                 onValueChange = { host = it },
                                 modifier = Modifier.weight(1f),
@@ -209,10 +212,15 @@ fun DiscoverConnectScreen(
 @Composable
 fun DeviceDetailScreen(
     device: DesktopDevice,
+    autoRequestDesktopScreen: Boolean,
     onBack: () -> Unit,
     onDisconnect: () -> Unit,
     onNewChat: () -> Unit,
+    onOpenCapabilities: () -> Unit,
 ) {
+    var desktopFullscreen by remember(device.id) { mutableStateOf(false) }
+    var desktopPreviewRequested by remember(device.id) { mutableStateOf(autoRequestDesktopScreen) }
+    val desktopTarget = remoteDesktopViewerTarget(device.host)
     val statusLabel =
         when (device.status) {
             DeviceStatus.Online -> Str.deviceConnected
@@ -220,7 +228,7 @@ fun DeviceDetailScreen(
             DeviceStatus.Offline -> Str.disconnected
         }
     Scaffold(
-        containerColor = MaterialTheme.vettaExtra.pageBackground,
+        containerColor = MaterialTheme.agent567Extra.pageBackground,
         topBar = {
             TopAppBar(
                 title = { Text(device.name, style = MaterialTheme.typography.titleMedium) },
@@ -231,7 +239,7 @@ fun DeviceDetailScreen(
                 },
                 colors =
                     TopAppBarDefaults.topAppBarColors(
-                        containerColor = MaterialTheme.vettaExtra.pageBackground,
+                        containerColor = MaterialTheme.agent567Extra.pageBackground,
                     ),
             )
         },
@@ -255,7 +263,15 @@ fun DeviceDetailScreen(
             Spacer(Modifier.height(12.dp))
             PrimaryBlackButton(text = Str.disconnect, onClick = onDisconnect)
 
-            val desktopTarget = remoteDesktopViewerTarget(device.host)
+            Spacer(Modifier.height(12.dp))
+            TextButton(
+                onClick = onOpenCapabilities,
+                enabled = device.status == DeviceStatus.Online,
+                modifier = Modifier.fillMaxWidth(),
+            ) {
+                Text("电脑端能力管理")
+            }
+
             AnimatedVisibility(
                 visible = desktopTarget != null,
                 enter = fadeIn(),
@@ -264,18 +280,41 @@ fun DeviceDetailScreen(
                 desktopTarget?.let {
                     Column {
                         Spacer(Modifier.height(20.dp))
-                        SectionHeader(title = Str.desktopPreview)
-                        RemoteDesktopSurface(
-                            target = it.url,
-                            modifier = Modifier.fillMaxWidth().height(180.dp).clip(RoundedCornerShape(8.dp)),
-                        )
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            verticalAlignment = Alignment.CenterVertically,
+                        ) {
+                            SectionHeader(title = Str.desktopPreview)
+                            if (desktopPreviewRequested) {
+                                Row {
+                                    TextButton(onClick = { desktopPreviewRequested = false }) { Text("停止预览") }
+                                    TextButton(onClick = { desktopFullscreen = true }) { Text(Str.remoteDesktopFullscreen) }
+                                }
+                            }
+                        }
+                        if (!desktopPreviewRequested) {
+                            Text(
+                                "进入设备页不会自动申请屏幕共享。点击后，电脑端会收到屏幕共享请求。",
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.agent567Extra.secondaryText,
+                            )
+                            TextButton(onClick = { desktopPreviewRequested = true }) {
+                                Text("查看电脑屏幕")
+                            }
+                        } else if (!desktopFullscreen) {
+                            RemoteDesktopSurface(
+                                target = it.url,
+                                modifier = Modifier.fillMaxWidth().height(180.dp).clip(RoundedCornerShape(8.dp)),
+                            )
+                        }
                     }
                 }
             }
 
             Spacer(Modifier.height(20.dp))
             SectionHeader(title = Str.systemInfo)
-            VettaListGroup {
+            Agent567ListGroup {
                 SystemInfoRow(Str.operatingSystem, device.osLabel)
                 SystemInfoRow(Str.processor, device.cpu)
                 SystemInfoRow(Str.memory, device.ram)
@@ -290,12 +329,35 @@ fun DeviceDetailScreen(
             Spacer(Modifier.height(24.dp))
         }
     }
+    if (desktopFullscreen && desktopPreviewRequested) {
+        desktopTarget?.let { target ->
+            Dialog(
+                onDismissRequest = { desktopFullscreen = false },
+                properties = DialogProperties(usePlatformDefaultWidth = false, decorFitsSystemWindows = false),
+            ) {
+                androidx.compose.material3.Surface(
+                    modifier = Modifier.fillMaxSize(),
+                    color = androidx.compose.ui.graphics.Color.Black,
+                ) {
+                    androidx.compose.foundation.layout.Box(Modifier.fillMaxSize()) {
+                        RemoteDesktopSurface(target = target.url, modifier = Modifier.fillMaxSize())
+                        TextButton(
+                            modifier = Modifier.align(Alignment.TopStart).padding(8.dp),
+                            onClick = { desktopFullscreen = false },
+                        ) {
+                            Text(Str.exitRemoteDesktopFullscreen, color = androidx.compose.ui.graphics.Color.White)
+                        }
+                    }
+                }
+            }
+        }
+    }
 }
 
 @Composable
 private fun Metric(label: String, value: String) {
     Column {
-        Text(label, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.vettaExtra.secondaryText)
+        Text(label, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.agent567Extra.secondaryText)
         Text(value, style = MaterialTheme.typography.titleMedium)
     }
 }
@@ -307,7 +369,7 @@ private fun SystemInfoRow(label: String, value: String?) {
         horizontalArrangement = Arrangement.SpaceBetween,
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        Text(label, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.vettaExtra.secondaryText)
+        Text(label, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.agent567Extra.secondaryText)
         Text(value ?: Str.notAvailable, style = MaterialTheme.typography.bodySmall)
     }
 }

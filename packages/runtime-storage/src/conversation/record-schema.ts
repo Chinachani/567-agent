@@ -40,6 +40,9 @@ const ToolCallSchema = Type.Object(
 		arguments: Type.Record(Type.String(), Type.Unknown()),
 		thoughtSignature: Type.Optional(Type.String()),
 		partialArgs: Type.Optional(Type.String()),
+		result: Type.Optional(Type.String()),
+		isError: Type.Optional(Type.Boolean()),
+		durationMs: Type.Optional(Type.Number({ minimum: 0 })),
 	},
 	{ additionalProperties: false },
 );

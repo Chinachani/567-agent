@@ -70,7 +70,7 @@ export function useGeneralSettingsModel(): GeneralSettingsModel {
 	const [exportingDiagnostics, setExportingDiagnostics] = useState(false);
 
 	useEffect(() => {
-		void window.vetta.config.get().then((config) => {
+		void window.agent567.config.get().then((config) => {
 			setNotificationsEnabled(config.notificationsEnabled !== false);
 			const mode = config.defaultExecutionMode ?? "full-access";
 			setExecutionMode(mode);
@@ -87,11 +87,11 @@ export function useGeneralSettingsModel(): GeneralSettingsModel {
 	}, [setExecutionMode, t]);
 
 	const selectWorkspace = useCallback(async () => {
-		const selected = await window.vetta.dialog.selectFolder();
+		const selected = await window.agent567.dialog.selectFolder();
 		if (!selected) return;
 		setWorkspacePath(selected);
 		localStorage.setItem("vetta-workspace-path", selected);
-		await window.vetta.config.set({ workspacePath: selected });
+		await window.agent567.config.set({ workspacePath: selected });
 		recordSettingsUsage({ tab: "general", action: "selected", target: "workspace" });
 	}, [setWorkspacePath]);
 
@@ -99,7 +99,7 @@ export function useGeneralSettingsModel(): GeneralSettingsModel {
 		const defaultPath = "~/.567agent/workspace";
 		setWorkspacePath(defaultPath);
 		localStorage.setItem("vetta-workspace-path", defaultPath);
-		await window.vetta.config.set({ workspacePath: defaultPath });
+		await window.agent567.config.set({ workspacePath: defaultPath });
 		recordSettingsUsage({ tab: "general", action: "reset", target: "workspace" });
 	}, [setWorkspacePath]);
 
@@ -112,10 +112,10 @@ export function useGeneralSettingsModel(): GeneralSettingsModel {
 					confirmLabel: t("closeDebugConfirm"),
 					variant: "danger",
 					onConfirm: () => {
-						void window.vetta.debug.clearDebugDir();
+						void window.agent567.debug.clearDebugDir();
 						setDebugMode(false);
 						localStorage.setItem("vetta-debug-mode", "false");
-						void window.vetta.config.set({ debugMode: false });
+						void window.agent567.config.set({ debugMode: false });
 						recordSettingsUsage({ tab: "general", action: "disabled", target: "debug-mode" });
 					},
 				});
@@ -123,7 +123,7 @@ export function useGeneralSettingsModel(): GeneralSettingsModel {
 			}
 			setDebugMode(true);
 			localStorage.setItem("vetta-debug-mode", "true");
-			void window.vetta.config.set({ debugMode: true });
+			void window.agent567.config.set({ debugMode: true });
 			recordSettingsUsage({ tab: "general", action: "enabled", target: "debug-mode" });
 		},
 		[setConfirmDialog, setDebugMode, t],
@@ -133,7 +133,7 @@ export function useGeneralSettingsModel(): GeneralSettingsModel {
 		if (exportingDiagnostics) return;
 		setExportingDiagnostics(true);
 		try {
-			await window.vetta.diagnostics.exportDiagnosticsPackage();
+			await window.agent567.diagnostics.exportDiagnosticsPackage();
 		} catch (error) {
 			console.error("[GeneralSettings] failed to export diagnostics:", error);
 			setConfirmDialog({
@@ -149,7 +149,7 @@ export function useGeneralSettingsModel(): GeneralSettingsModel {
 
 	const toggleNotifications = useCallback((checked: boolean) => {
 		setNotificationsEnabled(checked);
-		void window.vetta.config.set({ notificationsEnabled: checked });
+		void window.agent567.config.set({ notificationsEnabled: checked });
 		recordSettingsUsage({ tab: "general", action: checked ? "enabled" : "disabled", target: "notifications" });
 	}, []);
 
@@ -162,7 +162,7 @@ export function useGeneralSettingsModel(): GeneralSettingsModel {
 			setExecutionMode(nextMode);
 			localStorage.setItem("vetta-session-execution-mode", nextMode);
 			try {
-				await window.vetta.config.set({ defaultExecutionMode: nextMode });
+				await window.agent567.config.set({ defaultExecutionMode: nextMode });
 				recordSettingsUsage({ tab: "general", action: "changed", target: "execution-mode", value: nextMode });
 			} catch (error) {
 				setExecutionMode(previousMode);

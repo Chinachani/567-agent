@@ -156,13 +156,13 @@ export class HttpMcpClient implements McpClientHandle {
 
 	async listTools(cursor?: string, options?: McpRequestOptions): Promise<McpToolsListResult> {
 		if (this.modernClient) return this.modernClient.listTools(cursor, options);
-		return (await this.requireSession().listTools(cursor)) as McpToolsListResult;
+		return (await this.requireSession().listTools(cursor, options)) as McpToolsListResult;
 	}
 
 	async callTool(name: string, args?: McpJsonObject, options?: McpRequestOptions): Promise<McpToolCallResult> {
 		try {
 			if (this.modernClient) return await this.modernClient.callTool(name, args, options);
-			return (await this.requireSession().callTool(name, args)) as McpToolCallResult;
+			return (await this.requireSession().callTool(name, args, options)) as McpToolCallResult;
 		} catch (error) {
 			this.log(`tool call failed tool=${name} error=${getErrorMessage(error)}`);
 			if (isMcpSdkUnauthorizedError(error)) {
@@ -175,22 +175,22 @@ export class HttpMcpClient implements McpClientHandle {
 
 	async listResources(cursor?: string, options?: McpRequestOptions): Promise<McpResourcesListResult> {
 		if (this.modernClient) return this.modernClient.listResources(cursor, options);
-		return (await this.requireSession().listResources(cursor)) as McpResourcesListResult;
+		return (await this.requireSession().listResources(cursor, options)) as McpResourcesListResult;
 	}
 
 	async readResource(uri: string, options?: McpRequestOptions): Promise<McpResourceReadResult> {
 		if (this.modernClient) return this.modernClient.readResource(uri, options);
-		return (await this.requireSession().readResource(uri)) as McpResourceReadResult;
+		return (await this.requireSession().readResource(uri, options)) as McpResourceReadResult;
 	}
 
 	async listPrompts(cursor?: string, options?: McpRequestOptions): Promise<McpPromptsListResult> {
 		if (this.modernClient) return this.modernClient.listPrompts(cursor, options);
-		return (await this.requireSession().listPrompts(cursor)) as McpPromptsListResult;
+		return (await this.requireSession().listPrompts(cursor, options)) as McpPromptsListResult;
 	}
 
 	async getPrompt(params: McpPromptGetParams, options?: McpRequestOptions): Promise<McpPromptGetResult> {
 		if (this.modernClient) return this.modernClient.getPrompt(params, options);
-		return (await this.requireSession().getPrompt(params.name, params.arguments)) as McpPromptGetResult;
+		return (await this.requireSession().getPrompt(params.name, params.arguments, options)) as McpPromptGetResult;
 	}
 
 	async getTask(params: McpGetTaskParams, options?: McpRequestOptions): Promise<McpGetTaskResult> {

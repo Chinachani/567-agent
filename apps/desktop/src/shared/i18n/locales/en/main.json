@@ -55,11 +55,13 @@
 	"remoteDesktopCapture": {
 		"title": "Share Desktop Screen",
 		"message": "The mobile app is requesting to view this computer's screen.",
-		"detail": "This approval applies to one sharing session. After you choose a source, the paired phone can view and control it live. Avoid sharing windows with sensitive information.",
+		"detail": "Sharing applies to this connection by default. After you choose a source, the paired phone can view and control it live. If you remember the device, you can turn off automatic sharing in Settings. Avoid sharing windows with sensitive information.",
+		"rememberDevice": "Remember this paired phone and automatically share the primary screen on future connections",
 		"allowOnce": "Choose a Screen",
 		"cancel": "Cancel",
 		"chooseTitle": "Choose a Sharing Source",
 		"chooseMessage": "Select the screen or window to share with the paired phone.",
+		"sourceFallback": "Sharing source {{index}}",
 		"noSources": "The system did not provide a shareable screen or window. Check desktop screen-recording permissions and try again."
 	},
 	"pluginPackage": {
@@ -74,6 +76,13 @@
 		"installedMessage": "{{name}} {{version}} is installed and enabled.",
 		"failedTitle": "Plugin Installation Failed",
 		"failedMessage": "{{file}} is not a valid 567 Agent plugin package or is incompatible with this version."
+	},
+	"sessionMigration": {
+		"receiveTitle": "Receive mobile conversations",
+		"receiveMessage": "A phone is requesting to import an encrypted conversation backup over the paired local network connection ({{size}}).",
+		"receiveDetail": "Continue only if you trust this phone and the backup source. The import creates new conversations and does not overwrite existing ones.",
+		"receiveConfirm": "Receive and import",
+		"receiveCancel": "Decline"
 	},
 	"mcpOAuth": {
 		"authorizationSuccessful": "Authorization successful",

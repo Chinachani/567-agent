@@ -141,5 +141,6 @@ export interface DesktopApi {
 declare global {
 	interface Window {
 		vetta: DesktopApi;
+		agent567: DesktopApi;
 	}
 }

@@ -1,10 +1,10 @@
 import { existsSync, readdirSync, readFileSync, statSync } from "node:fs";
 import { mkdir, rm, writeFile } from "node:fs/promises";
 import { join } from "node:path";
-import { getVettaHomePath } from "@567agent/action-rpc";
+import { getAgent567HomePath } from "@567agent/action-rpc";
 import type { RequestFileInfo } from "../preload/api.js";
 
-const DEBUG_BASE = join(getVettaHomePath(), "debug");
+const DEBUG_BASE = join(getAgent567HomePath(), "debug");
 
 export function getDebugBasePath(): string {
 	return DEBUG_BASE;

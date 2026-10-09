@@ -233,7 +233,7 @@ For each bound account (`ilink_bot_id`):
 | `<accountId>.sync.json` | `get_updates_buf` (long-poll cursor) | rolled forward on every successful getupdates |
 | `<accountId>.context-tokens.json` | per-peer `{userId: contextToken}` map | refreshed on every inbound |
 
-For our embedded use, we collapse all of these into a single `~/.vetta/im-gateway/wechat-<accountId>.json` written atomically. Single-account is the M1 assumption; the multi-account case can be added later by keying on `ilink_bot_id`.
+For our embedded use, we collapse all of these into a single `~/.567agent/im-gateway/wechat-<accountId>.json` written atomically. Single-account is the M1 assumption; the multi-account case can be added later by keying on `ilink_bot_id`.
 
 ## 5. Long-Poll Loop (pseudocode)
 

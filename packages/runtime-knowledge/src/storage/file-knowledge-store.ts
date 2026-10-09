@@ -51,13 +51,16 @@ export function generatePageId(): string {
 
 // ---------- 目录遍历 ----------
 
-async function walkFiles(dir: string): Promise<string[]> {
+async function walkFiles(dir: string, allowMissing = false): Promise<string[]> {
 	const files: string[] = [];
 	let entries: Dirent[];
 	try {
 		entries = await readdir(dir, { withFileTypes: true });
-	} catch {
-		return files;
+	} catch (error) {
+		if (allowMissing && isNodeError(error, "ENOENT")) return files;
+		throw new Error(`Knowledge scan failed for ${dir}: ${error instanceof Error ? error.message : String(error)}`, {
+			cause: error,
+		});
 	}
 	for (const entry of entries) {
 		if (entry.name.startsWith(".")) continue;
@@ -79,7 +82,7 @@ const toPosix = (p: string): string => (sep === "/" ? p : p.split(sep).join(posi
 /** 扫描 raws/<source>/**，对每个文件算内容 hash。 */
 export async function scanRaws(root: string): Promise<RawFile[]> {
 	const base = rawsDir(root);
-	const files = await walkFiles(base);
+	const files = await walkFiles(base, true);
 	const result: RawFile[] = [];
 	for (const file of files) {
 		const rel = toPosix(relative(base, file));
@@ -108,7 +111,7 @@ export interface WikiScanResult {
 
 export async function scanWikiPages(root: string): Promise<WikiScanResult> {
 	const base = wikiDir(root);
-	const files = (await walkFiles(base)).filter((f) => f.endsWith(".md"));
+	const files = (await walkFiles(base, true)).filter((f) => f.endsWith(".md"));
 	const pages: ScannedWikiPage[] = [];
 	const errors: Array<{ path: string; message: string }> = [];
 	for (const file of files) {

@@ -2,10 +2,10 @@ import { existsSync, readFileSync } from "node:fs";
 import { homedir } from "node:os";
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
-import { getVettaHomePath } from "@567agent/action-rpc";
+import { getAgent567HomePath } from "@567agent/action-rpc";
 import { APP_NAME, ENV_AGENT_DIR, ENV_PACKAGE_DIR, ENV_SHARE_VIEWER_URL, PACKAGE_NAME } from "../identity.js";
 
-export { getVettaHomePath } from "@567agent/action-rpc";
+export { getAgent567HomePath } from "@567agent/action-rpc";
 
 declare const AGENT567_COMPILED_PACKAGE_METADATA: unknown;
 
@@ -152,7 +152,7 @@ export function getShareViewerUrl(gistId: string): string {
 
 export function getAgentDir(): string {
 	const configuredDirectory = process.env[ENV_AGENT_DIR];
-	return configuredDirectory ? expandHomeDirectory(configuredDirectory) : join(getVettaHomePath(), "agent");
+	return configuredDirectory ? expandHomeDirectory(configuredDirectory) : join(getAgent567HomePath(), "agent");
 }
 
 export function getCustomThemesDir(): string {
@@ -192,15 +192,15 @@ export function getDebugLogPath(): string {
 }
 
 export function getSceneDir(): string {
-	return join(getVettaHomePath(), "scene");
+	return join(getAgent567HomePath(), "scene");
 }
 
 export function getUserSkillsDir(): string {
-	return join(getVettaHomePath(), "skills");
+	return join(getAgent567HomePath(), "skills");
 }
 
 export function getKnowledgeDir(): string {
-	return join(getVettaHomePath(), "knowledges");
+	return join(getAgent567HomePath(), "knowledges");
 }
 
 function expandHomeDirectory(path: string): string {

@@ -11,6 +11,7 @@ import kotlinx.coroutines.test.setMain
 import org.agent567.android.app.AppContainer
 import org.agent567.android.app.AppPreferences
 import org.agent567.android.core.auth.InMemoryTokenStore
+import org.agent567.android.core.auth.SettingsTokenStore
 import org.agent567.android.data.session.SettingsSessionStore
 import org.agent567.android.domain.session.MessageImage
 import kotlin.test.AfterTest
@@ -18,6 +19,8 @@ import kotlin.test.BeforeTest
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertTrue
+import org.agent567.android.ui.navigation.AppRoute
+import org.agent567.android.ui.navigation.ChatSurface
 
 /**
  * 驱动真实 [AppViewModel.openChat]：切换会话必须清空 pending 图片，防止串会话发送。
@@ -174,6 +177,31 @@ class AppViewModelSessionPendingTest {
             assertTrue(vm.state.value.route is org.agent567.android.ui.navigation.AppRoute.Main)
             assertEquals("persisted_user", vm.state.value.user?.nickname)
             assertEquals(12.5, vm.state.value.user?.quotaUsd)
+        }
+
+    @Test
+    fun bootstrapRestoresLastSessionRouteOnlyWhenPreferenceIsEnabled() =
+        runTest(dispatcher) {
+            val settings = MapSettings()
+            val preferences = AppPreferences(settings)
+            preferences.setAutoResumeLastSession(true)
+            val tokenStore = SettingsTokenStore(settings)
+            tokenStore.save("restore_test_token", "restore_test_token")
+            val sessionStore = SettingsSessionStore(settings, dispatcher)
+            val session = sessionStore.createSession(title = "Resume me")
+            preferences.lastSessionId = session.id
+
+            val vm = AppViewModel(
+                AppContainer(
+                    preferences = preferences,
+                    tokenStore = tokenStore,
+                    sessionStore = sessionStore,
+                ),
+            )
+            advanceUntilIdle()
+
+            assertEquals(AppRoute.Chat(session.id, ChatSurface.Cloud, "Resume me"), vm.state.value.route)
+            assertEquals(session.id, vm.state.value.currentSessionId)
         }
 
 }

@@ -58,7 +58,7 @@ function resolveVerificationEnv(layout, state) {
 		...environment,
 		AGENT567_CODING_AGENT_DIR: state.runtimeCanary.agentDir,
 		AGENT567_DESKTOP_RUNTIME_CANARY: "1",
-		AGENT567_HOME: state.runtimeCanary.vettaHome,
+		AGENT567_HOME: state.runtimeCanary.agent567Home,
 	};
 }
 
@@ -225,7 +225,7 @@ function createStatusResult(layout, state, uiInfo) {
 		workspaceId,
 		sessionName: layout.sessionName,
 		configDir: layout.configDir,
-		vettaHome: layout.vettaHome,
+		agent567Home: layout.agent567Home,
 		userDataDir: layout.userDataDir,
 		artifactDir: layout.artifactDir,
 		logPath: layout.logPath,
@@ -317,8 +317,8 @@ function prepareProfile(layout, sync = false) {
 	mkdirSync(layout.artifactDir, { recursive: true });
 	if (layout.profile !== "debug") return null;
 	return seedDebugProfile({
-		sourceHome: join(homedir(), ".vetta-dev"),
-		targetHome: layout.vettaHome,
+		sourceHome: join(homedir(), ".567agent-dev"),
+		targetHome: layout.agent567Home,
 		workspacePath: repoRoot,
 		sync,
 	});
@@ -377,7 +377,7 @@ async function startDetached(layout, runtimeCanaryEnabled) {
 					profile: layout.profile,
 					workspaceId,
 					sessionName: layout.sessionName,
-					vettaHome: layout.vettaHome,
+					agent567Home: layout.agent567Home,
 					artifactDir: layout.artifactDir,
 					logPath: layout.logPath,
 					seed,
@@ -427,7 +427,7 @@ async function startRuntimeCanaryProvider(layout) {
 		}
 		const fixture = JSON.parse(readFileSync(readyFilePath, "utf8"));
 		if (
-			typeof fixture?.vettaHome !== "string" ||
+			typeof fixture?.agent567Home !== "string" ||
 			typeof fixture.agentDir !== "string" ||
 			typeof fixture.workspace !== "string" ||
 			typeof fixture.requestLogPath !== "string" ||
@@ -504,7 +504,7 @@ async function serveHost(layout, runtimeCanaryEnabled) {
 			const restartRequest = runtimeCanary ? readRuntimeCanaryRestartRequest(runtimeCanary.state) : null;
 			if (!restartRequest) break;
 
-			const endpointRemoved = !existsSync(join(runtimeCanary.state.vettaHome, "action-server.json"));
+			const endpointRemoved = !existsSync(join(runtimeCanary.state.agent567Home, "action-server.json"));
 			const sessionLocksReleased = restartRequest.sessionPaths.every(
 				(sessionPath) => !existsSync(`${sessionPath}.lock`) && !existsSync(`${sessionPath}.owner.lock`),
 			);
@@ -544,7 +544,7 @@ async function serveHost(layout, runtimeCanaryEnabled) {
 						desktopExitCodes,
 						desktopProcessIds,
 						restartCount,
-						endpointRemoved: !existsSync(join(runtimeCanary.state.vettaHome, "action-server.json")),
+						endpointRemoved: !existsSync(join(runtimeCanary.state.agent567Home, "action-server.json")),
 						providerStopped,
 					},
 					null,

@@ -6,6 +6,8 @@ import type { DesktopThemeChangeRequest } from "../api-types/theme.js";
 import { FS_READ_TEXT_PREVIEW_CHANNEL } from "../fs-types.js";
 import { onIpcEvent, onIpcVoidEvent } from "./helper.js";
 
+const RUNTIMES_PROGRESS_CHANNEL = "vetta:runtimes:progress";
+
 export function createSystemApi(
 	ipc: IpcRenderer,
 	webUtils: WebUtils,
@@ -83,7 +85,7 @@ export function createSystemApi(
 					if (typeof request.themeId === "string") {
 						changeRequest.themeId = request.themeId;
 					}
-					if (request.cursorStyle === "default" || request.cursorStyle === "stoat") {
+					if (request.cursorStyle === "default") {
 						changeRequest.cursorStyle = request.cursorStyle;
 					}
 					void Promise.resolve(handler(changeRequest)).then(
@@ -234,6 +236,7 @@ export function createSystemApi(
 		runtimes: {
 			getStatus: () => ipc.invoke("vetta:runtimes:get-status"),
 			reinstall: (type) => ipc.invoke("vetta:runtimes:reinstall", type),
+			onProgress: (handler) => onIpcEvent(ipc, RUNTIMES_PROGRESS_CHANNEL, handler),
 			redetect: () => ipc.invoke("vetta:runtimes:redetect"),
 		},
 		settings: {

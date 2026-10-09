@@ -7,7 +7,7 @@
  * 会话页只要 id。
  */
 
-export type OrnamentId = "blaze" | "hand" | "mario" | "none" | "orbit" | "torch" | "vivi" | "well";
+export type OrnamentId = "blaze" | "hand" | "mario" | "none" | "orbit" | "torch" | "well";
 
 export const ORNAMENT_STORAGE_KEY = "vetta-hero-ornament";
 
@@ -24,9 +24,6 @@ export interface OrnamentCatalogEntry {
 	readonly preview?: string;
 }
 
-/** Vivi 静帧：与动画素材同目录，走 public 相对路径。 */
-const VIVI_PREVIEW_URL = "./new-session/ferret.webp";
-
 /**
  * 装饰件目录：新增装饰件只要在这里加一项，再在 ornament-registry 里挂上组件。
  * 保留 `as const` 是为了让 i18n key 收敛成字面量类型，`t()` 的键名校验才生效。
@@ -34,7 +31,6 @@ const VIVI_PREVIEW_URL = "./new-session/ferret.webp";
 export const ORNAMENT_CATALOG = [
 	// preview 显式给 undefined：`as const` 下缺字段会让联合类型里读不到 preview。
 	{ id: "none", labelKey: "ornamentNoneTitle", hintKey: "ornamentNoneHint", preview: undefined },
-	{ id: "vivi", labelKey: "ornamentViviTitle", hintKey: "ornamentViviHint", preview: VIVI_PREVIEW_URL },
 	// 燃烧同理：火苗是 mask + 滤镜实时糊出来的，预览卡直接烧一小团。
 	{ id: "blaze", labelKey: "ornamentBlazeTitle", hintKey: "ornamentBlazeHint", preview: undefined },
 	// 火把同理：整枚是 CSS 画出来的，预览卡直接画一根小的。
@@ -55,6 +51,10 @@ export function isOrnamentId(value: string | null | undefined): value is Ornamen
 
 export function getStoredOrnamentId(): OrnamentId {
 	const stored = localStorage.getItem(ORNAMENT_STORAGE_KEY);
+	if (stored === "vivi") {
+		localStorage.setItem(ORNAMENT_STORAGE_KEY, "none");
+		return "none";
+	}
 	return isOrnamentId(stored) ? stored : DEFAULT_ORNAMENT_ID;
 }
 

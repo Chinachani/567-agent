@@ -188,7 +188,7 @@ describe("publish.mjs", () => {
 		expect(received).toHaveLength(0);
 	});
 
-	it("从 ~/.vetta/auth.json 读登录态", async () => {
+	it("从 ~/.567agent/auth.json 读登录态", async () => {
 		// 环境变量是联调口子，正常路径是客户端下沉的凭据文件
 		writeFileSync(join(workdir, "auth.json"), JSON.stringify({ baseUrl, token: "file-token" }));
 

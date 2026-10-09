@@ -27,7 +27,7 @@ the built-in `vetta` MCP server. It is always available and needs no setup.
    | --- | --- | --- |
    | `skill` | A `SKILL.md` workflow | `.zip` / `.tar.gz` containing `SKILL.md` |
    | `scene` | A skill installed into the scene directory | same as `skill` |
-   | `plugin` | A Vetta plugin | `.zip` containing `plugin.json` |
+   | `plugin` | A 567 Agent plugin | `.zip` containing `plugin.json` |
    | `mcp` | One entry in the user's `mcp.json` | none — config only |
    | `bundle` | A named group of already-published abilities | none — references only |
 
@@ -96,7 +96,7 @@ the built-in `vetta` MCP server. It is always available and needs no setup.
 - Input may also arrive on stdin (`cat payload.json | node .../publish.mjs`) if that is more
   convenient than a temp file.
 - The script reads the login token from `~/.567agent/auth.json` itself (and can read the legacy
-  `~/.vetta/auth.json`). If it reports "未登录", tell the user to log in through the 567 Agent
+  `~/.567agent/auth.json`). If it reports "未登录", tell the user to log in through the 567 Agent
   desktop app — do not attempt to pass credentials yourself.
 
 ## Review

@@ -11,6 +11,7 @@ export interface DefaultConversationSectionViewProps {
 	filterSelect: ReactNode;
 	labels: DefaultConversationSectionViewLabels;
 	list: ReactNode;
+	listActions?: ReactNode;
 	onMoreClick: (event: React.MouseEvent<HTMLButtonElement>) => void;
 	onNewSession?: () => void;
 	onOpenContextMenu: (event: React.MouseEvent) => void;
@@ -30,6 +31,7 @@ export function DefaultConversationSectionView({
 	filterSelect,
 	labels,
 	list,
+	listActions,
 	onMoreClick,
 	onNewSession,
 	onOpenContextMenu,
@@ -48,6 +50,7 @@ export function DefaultConversationSectionView({
 			>
 				<div className="flex min-w-0 items-center gap-0.5">{filterSelect}</div>
 				<div className="flex items-center">
+					{listActions}
 					<button
 						type="button"
 						title={labels.more}

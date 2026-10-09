@@ -35,7 +35,7 @@ export function useKnowledgeHistoryPanelModel(cwd: string | null): KnowledgeHist
 			setSessions([]);
 			return;
 		}
-		const list = (await window.vetta.session.listSessions(cwd)) as SessionInfo[];
+		const list = (await window.agent567.session.listSessions(cwd)) as SessionInfo[];
 		setSessions(list);
 	}, [cwd]);
 
@@ -48,7 +48,7 @@ export function useKnowledgeHistoryPanelModel(cwd: string | null): KnowledgeHist
 					if (!cancelled) setSessions([]);
 					return;
 				}
-				const list = (await window.vetta.session.listSessions(cwd)) as SessionInfo[];
+				const list = (await window.agent567.session.listSessions(cwd)) as SessionInfo[];
 				if (!cancelled) setSessions(list);
 			} finally {
 				if (!cancelled) setLoading(false);
@@ -76,7 +76,7 @@ export function useKnowledgeHistoryPanelModel(cwd: string | null): KnowledgeHist
 				void (async () => {
 					setClearing(true);
 					try {
-						await window.vetta.knowledge.clearRecords();
+						await window.agent567.knowledge.clearRecords();
 						setExpanded(false);
 						await reload();
 					} finally {

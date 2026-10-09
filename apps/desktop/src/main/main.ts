@@ -2,7 +2,7 @@ import "./telemetry/bootstrap.js";
 import { mkdir, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { AGENT567_HOME_ENV, getVettaHomePath } from "@567agent/action-rpc";
+import { AGENT567_HOME_ENV, getAgent567HomePath } from "@567agent/action-rpc";
 import { app, type BrowserWindow, dialog, ipcMain, nativeImage, nativeTheme, protocol, session, shell } from "electron";
 import { APP_RUNTIME_NAME } from "../shared/app-identity.js";
 import {
@@ -30,7 +30,7 @@ import { parseAgentRpcCommand, runAgentRpcCommand } from "./cli/agent-rpc-comman
 import { parseHelpCliCommand, runHelpCliCommand } from "./cli/help-command.js";
 import { parseOcrCliCommand, runOcrCliCommand } from "./cli/ocr-command.js";
 import { parsePdfCliCommand, runPdfCliCommand } from "./cli/pdf-command.js";
-import { ensureDevCliShim, ensureDevVettaCliShim, ensureVettaCommandShim } from "./dev-cli-shim.js";
+import { ensureAgent567CommandShim, ensureDevAgent567CliShim, ensureDevCliShim } from "./dev-cli-shim.js";
 import {
 	getDiagnosticsLogPath,
 	installChromiumFetchForMain,
@@ -42,7 +42,7 @@ import { fixPath } from "./fix-path.js";
 import { initAppLanguage, mainT } from "./i18n/index.js";
 import { getImHost } from "./im-host/index.js";
 import { syncAppshotGesture } from "./ipc/appshot.js";
-import { persistVettaCliPaths } from "./ipc/fs.js";
+import { persistAgent567CliPaths } from "./ipc/fs.js";
 import { registerI18nIpc } from "./ipc/i18n.js";
 import {
 	type IpcTeardown,
@@ -124,7 +124,7 @@ const isMac = process.platform === "darwin";
 const appRoot = app.isPackaged ? app.getAppPath() : process.cwd();
 const buildDir = join(appRoot, "build");
 const devMainEntryPath = join(appRoot, "dist/main/index.js");
-const packagedCliBinaryName = process.platform === "win32" ? "vetta.exe" : "vetta";
+const packagedCliBinaryName = process.platform === "win32" ? "567-agent.exe" : "567-agent";
 const packagedCliPlatformTag = `${process.platform}-${process.arch}`;
 const packagedCliAppPath = join(process.resourcesPath, "cli-app", "bin", packagedCliPlatformTag, packagedCliBinaryName);
 // Command-specific parsers run before the top-level help parser so commands
@@ -207,7 +207,7 @@ const rendererCdp = configureRendererCdp({
 	devServerUrl: process.env.AGENT567_DESKTOP_DEV_URL,
 	portValue: process.env.AGENT567_DEBUG_CDP_PORT,
 });
-process.env[AGENT567_HOME_ENV] = getVettaHomePath();
+process.env[AGENT567_HOME_ENV] = getAgent567HomePath();
 
 if (isCliMode) {
 	const cliUserDataDir =
@@ -246,7 +246,7 @@ if (isCliMode) {
 
 // app 名字必须在任何 safeStorage 调用之前固定，且开发态与打包版取同一个值：
 // safeStorage 按 app 名字定位主密钥，名字分叉会让两侧各持一把密钥，
-// 共享 ~/.vetta 时表现为凭据"丢失"并互相覆盖（见 shared/app-identity.ts）。
+// 共享 ~/.567agent 时表现为凭据"丢失"并互相覆盖（见 shared/app-identity.ts）。
 app.name = APP_RUNTIME_NAME;
 
 if (!isCliMode && process.platform === "linux" && shouldUseLinuxSoftwareRendering(app.getPath("userData"))) {
@@ -481,7 +481,7 @@ if (!gotSingleLock) {
 			if (mainWindow.isDestroyed()) return;
 			// 被安装器重启时应用不是活动应用（ShipIt 以守护进程身份拉起），
 			// 窗口 show() 出不来，用户以为没重启。仅这一种情况主动抢焦点。
-			if (consumePendingUpdateRelaunch(getVettaHomePath()) && isMac) {
+			if (consumePendingUpdateRelaunch(getAgent567HomePath()) && isMac) {
 				app.focus({ steal: true });
 			}
 			// Windows: first ShowWindow may be swallowed by STARTUPINFO SW_HIDE
@@ -660,21 +660,21 @@ if (!gotSingleLock) {
 		// 顺带把 in-tree session 目录（<cwd>/.vetta/sessions）也建好，
 		// 让默认项目走与批量项目一致的会话布局，避免设备相关的编码路径。
 		try {
-			await mkdir(join(getVettaHomePath(), "conversation", ".vetta", "sessions"), { recursive: true });
+			await mkdir(join(getAgent567HomePath(), "conversation", ".vetta", "sessions"), { recursive: true });
 		} catch (err) {
 			mainLog.error("failed to ensure default conversation dir", err);
 		}
 		// im-gateway 独立 cwd（ADR-0005）：跟桌面「对话」物理分家。先把空目录建好，
 		// 这样 sidecar 启动前 desktop 的 Claw tab 也能正常 listSessions（拿到空列表）。
 		try {
-			await mkdir(join(getVettaHomePath(), "im-gateway", "conversation", ".vetta", "sessions"), {
+			await mkdir(join(getAgent567HomePath(), "im-gateway", "conversation", ".vetta", "sessions"), {
 				recursive: true,
 			});
 		} catch (err) {
 			mainLog.error("failed to ensure im-gateway conversation dir", err);
 		}
 
-		// 托管运行时(ADR-0011):首启从内置 vendor 拷贝 node/python 到 ~/.vetta/runtimes,
+		// 托管运行时(ADR-0011):首启从内置 vendor 拷贝 node/python 到 ~/.567agent/runtimes,
 		// 再把它们 + 国内镜像源注入全局 process.env。必须早于 getImHost().bootstrap()——
 		// 快速应用已经存在的托管运行时路径；vendor seed、系统探测和 shim 修复放到
 		// 首帧之后执行，避免这些维护工作阻塞窗口出现。
@@ -684,7 +684,7 @@ if (!gotSingleLock) {
 			void startDesktopRemoteAccess({
 				controlUrl: remoteControlUrl,
 				pairingToken: remotePairingToken,
-				conversationCwd: join(getVettaHomePath(), "conversation"),
+				conversationCwd: join(getAgent567HomePath(), "conversation"),
 			}).catch((error: unknown) => {
 				mainLog.error("remote access connector failed to start", error);
 			});
@@ -700,28 +700,28 @@ if (!gotSingleLock) {
 			}
 
 			try {
-				let vettaAppPath: string;
-				let vettaCliPath: string;
+				let agent567AppPath: string;
+				let agent567CliPath: string;
 				if (app.isPackaged) {
-					vettaAppPath = process.execPath;
-					vettaCliPath = packagedCliAppPath;
+					agent567AppPath = process.execPath;
+					agent567CliPath = packagedCliAppPath;
 				} else {
-					vettaAppPath = await ensureDevCliShim({
+					agent567AppPath = await ensureDevCliShim({
 						appRoot,
 						electronPath: process.execPath,
 						mainEntryPath: devMainEntryPath,
 					});
-					vettaCliPath = await ensureDevVettaCliShim({
+					agent567CliPath = await ensureDevAgent567CliShim({
 						appRoot,
 						cliAppRoot: join(appRoot, "..", "cli-host"),
 					});
 				}
-				process.env.AGENT567_DESKTOP_EXE = vettaAppPath;
-				process.env.AGENT567_CLI_APP_PATH = vettaCliPath;
-				await ensureVettaCommandShim(vettaCliPath);
-				await persistVettaCliPaths({ vettaAppPath, vettaCliAppPath: vettaCliPath });
+				process.env.AGENT567_DESKTOP_EXE = agent567AppPath;
+				process.env.AGENT567_CLI_APP_PATH = agent567CliPath;
+				await ensureAgent567CommandShim(agent567CliPath);
+				await persistAgent567CliPaths({ agent567AppPath, agent567CliAppPath: agent567CliPath });
 			} catch (err) {
-				mainLog.error("failed to install vetta CLI paths", err);
+				mainLog.error("failed to install 567 Agent CLI paths", err);
 			}
 		};
 
@@ -742,7 +742,7 @@ if (!gotSingleLock) {
 			appRoot,
 			isPackaged: app.isPackaged,
 			devServerUrl: process.env.AGENT567_DESKTOP_DEV_URL,
-			conversationCwd: join(getVettaHomePath(), "conversation"),
+			conversationCwd: join(getAgent567HomePath(), "conversation"),
 			defaultRelayBaseUrl:
 				process.env.AGENT567_REMOTE_RELAY_BASE_URL || "https://567-agent-relay.907746241.workers.dev",
 		});

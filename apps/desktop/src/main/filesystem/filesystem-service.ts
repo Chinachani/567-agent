@@ -1,6 +1,6 @@
 import { createHash } from "node:crypto";
 import type { Dirent, Stats } from "node:fs";
-import { cp, lstat, mkdir, open, readdir, readFile, realpath, rename, rm, stat, writeFile } from "node:fs/promises";
+import { cp, lstat, mkdir, open, readdir, readFile, realpath, rm, stat, writeFile } from "node:fs/promises";
 import { homedir } from "node:os";
 import { basename, dirname, extname, isAbsolute, join, relative, resolve } from "node:path";
 import {
@@ -88,7 +88,7 @@ export function assertFilesystemPathWithinProject(targetPath: string): void {
 }
 
 /** 同时解析现有祖先路径，阻止项目目录内的符号链接跳出授权根。 */
-export async function assertFilesystemRealPathWithinProject(targetPath: string): Promise<void> {
+export async function assertFilesystemRealPathWithinProject(targetPath: string): Promise<string> {
 	assertFilesystemPathWithinProject(targetPath);
 	let existingPath = resolve(targetPath);
 	while (true) {
@@ -103,10 +103,11 @@ export async function assertFilesystemRealPathWithinProject(targetPath: string):
 		}
 	}
 
-	const canonicalTarget = await realpath(existingPath);
+	const canonicalAncestor = await realpath(existingPath);
+	const canonicalTarget = join(canonicalAncestor, relative(existingPath, resolve(targetPath)));
 	for (const root of allowedRoots) {
 		try {
-			if (isPathWithin(await realpath(root), canonicalTarget)) return;
+			if (isPathWithin(await realpath(root), canonicalTarget)) return canonicalTarget;
 		} catch {
 			// Ignore stale project roots that no longer exist.
 		}
@@ -220,8 +221,7 @@ function decodeEditableText(buffer: Buffer): { content: string; hasBom: boolean;
 }
 
 export async function readEditableTextFile(filePath: string): Promise<FsEditableTextSnapshot> {
-	assertFilesystemPathWithinProject(filePath);
-	const resolved = resolve(filePath);
+	const resolved = await assertFilesystemRealPathWithinProject(filePath);
 	const stats = await stat(resolved);
 	if (!stats.isFile()) throw new Error(FS_EDITABLE_TEXT_ERROR.NOT_FILE);
 	if (stats.size > MAX_EDITABLE_TEXT_FILE_SIZE) throw new Error(FS_EDITABLE_TEXT_ERROR.TOO_LARGE);
@@ -240,8 +240,7 @@ export async function saveEditableTextFile(
 	content: string,
 	options: FsSaveEditableTextOptions,
 ): Promise<FsSaveEditableTextResult> {
-	assertFilesystemPathWithinProject(filePath);
-	const resolved = resolve(filePath);
+	const resolved = await assertFilesystemRealPathWithinProject(filePath);
 	const current = await readFile(resolved);
 	const currentRevision = getFileRevision(current);
 	if (!options.force && currentRevision !== options.expectedRevision) {
@@ -304,8 +303,7 @@ export async function writeFilesystemFile(
 	content: string,
 	encoding: "utf8" | "base64" = "utf8",
 ): Promise<void> {
-	assertFilesystemPathWithinProject(filePath);
-	const resolved = resolve(filePath);
+	const resolved = await assertFilesystemRealPathWithinProject(filePath);
 	await mkdir(dirname(resolved), { recursive: true });
 	if (encoding === "base64") {
 		await writeFile(resolved, Buffer.from(content, "base64"));
@@ -325,28 +323,24 @@ export async function statFilesystemPath(filePath: string): Promise<FsStatResult
 }
 
 export async function renameFilesystemPath(oldPath: string, newPath: string): Promise<void> {
-	assertFilesystemPathWithinProject(oldPath);
-	assertFilesystemPathWithinProject(newPath);
-	await rename(resolve(oldPath), resolve(newPath));
+	const source = await assertFilesystemRealPathWithinProject(oldPath);
+	const destination = await assertFilesystemRealPathWithinProject(newPath);
+	await cp(source, destination, { recursive: true, errorOnExist: true, force: false });
+	await rm(source, { recursive: true, force: true });
 }
 
 export async function deleteFilesystemPath(targetPath: string): Promise<void> {
-	assertFilesystemPathWithinProject(targetPath);
-	await rm(resolve(targetPath), { recursive: true, force: true });
+	const resolved = await assertFilesystemRealPathWithinProject(targetPath);
+	await rm(resolved, { recursive: true, force: true });
 }
 
 export async function moveFilesystemPath(sourcePath: string, destinationDirectory: string): Promise<void> {
-	assertFilesystemPathWithinProject(sourcePath);
-	assertFilesystemPathWithinProject(destinationDirectory);
-	const resolvedSource = resolve(sourcePath);
-	const resolvedDestination = join(resolve(destinationDirectory), basename(resolvedSource));
-	try {
-		await rename(resolvedSource, resolvedDestination);
-	} catch (error: unknown) {
-		if ((error as NodeJS.ErrnoException).code !== "EXDEV") throw error;
-		await cp(resolvedSource, resolvedDestination, { recursive: true, errorOnExist: true, force: false });
-		await rm(resolvedSource, { recursive: true, force: true });
-	}
+	const resolvedSource = await assertFilesystemRealPathWithinProject(sourcePath);
+	const resolvedDirectory = await assertFilesystemRealPathWithinProject(destinationDirectory);
+	const resolvedDestination = join(resolvedDirectory, basename(resolvedSource));
+	await assertFilesystemRealPathWithinProject(resolvedDestination);
+	await cp(resolvedSource, resolvedDestination, { recursive: true, errorOnExist: true, force: false });
+	await rm(resolvedSource, { recursive: true, force: true });
 }
 
 export async function createFilesystemDirectory(dirPath: string): Promise<void> {

@@ -6,6 +6,7 @@ import { applyStoredCursorStyle } from "./shared/theme/cursor";
 import { applyStoredSidebarStyle } from "./shared/theme/sidebar-style";
 import { captureReactError, initializeRendererErrorMonitoring } from "./telemetry/error-monitoring";
 import { initializeViteHmrDiagnostics } from "./telemetry/vite-hmr-diagnostics";
+import "./shared/host-api";
 import "./styles.css";
 
 initializeViteHmrDiagnostics();
@@ -26,7 +27,7 @@ const root = createRoot(rootElement, {
 	onCaughtError: captureReactError,
 	onRecoverableError: captureReactError,
 });
-const appReadyPromise = window.vetta.appLifecycle.whenReady();
+const appReadyPromise = window.agent567.appLifecycle.whenReady();
 
 root.render(<AppBootLoadingView />);
 
@@ -34,7 +35,7 @@ root.render(<AppBootLoadingView />);
 const bootPaintedPromise = new Promise<void>((resolve) => {
 	requestAnimationFrame(() => {
 		requestAnimationFrame(() => {
-			window.vetta.appLifecycle.reportRendererBootPainted();
+			window.agent567.appLifecycle.reportRendererBootPainted();
 			resolve();
 		});
 	});

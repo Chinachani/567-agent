@@ -1,6 +1,6 @@
 import { mkdir, readdir, readFile, rm, stat, writeFile } from "node:fs/promises";
 import { join } from "node:path";
-import { getVettaHomePath } from "@567agent/action-rpc";
+import { getAgent567HomePath } from "@567agent/action-rpc";
 import type { PersistedImageResult, PersistImageFileInput, PersistImageInput } from "../../shared/image-cache.js";
 
 const EXTENSION_BY_MIME_TYPE: Readonly<Record<string, string>> = {
@@ -26,7 +26,7 @@ export interface ImageCacheDependencies {
 }
 
 const DEFAULT_DEPENDENCIES: ImageCacheDependencies = {
-	cacheRoot: join(getVettaHomePath(), "image-cache"),
+	cacheRoot: join(getAgent567HomePath(), "image-cache"),
 	mkdir,
 	readFile,
 	readdir,

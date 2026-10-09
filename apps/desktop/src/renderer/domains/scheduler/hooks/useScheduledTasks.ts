@@ -9,12 +9,12 @@ export function useScheduledTasks() {
 	const [tasks, setTasks] = useAtom(scheduledTasksAtom);
 
 	const refreshTasks = useCallback(async () => {
-		const loaded = await window.vetta.scheduler.getTasks();
+		const loaded = await window.agent567.scheduler.getTasks();
 		setTasks(loaded);
 	}, [setTasks]);
 
 	useEffect(() => {
-		return window.vetta.scheduler.onTaskEvent((event) => {
+		return window.agent567.scheduler.onTaskEvent((event) => {
 			if (event.type === "tasks.changed") {
 				void refreshTasks();
 			}
@@ -23,7 +23,7 @@ export function useScheduledTasks() {
 
 	const createTask = useCallback(
 		async (data: Omit<ScheduledTask, "id" | "createdAt" | "updatedAt" | "lastRunAt" | "lastRunStatus">) => {
-			const task = await window.vetta.scheduler.createTask(data);
+			const task = await window.agent567.scheduler.createTask(data);
 			setTasks((prev) => [...prev, task]);
 
 			return task;
@@ -33,7 +33,7 @@ export function useScheduledTasks() {
 
 	const updateTask = useCallback(
 		async (id: string, patch: Partial<ScheduledTask>) => {
-			await window.vetta.scheduler.updateTask(id, patch);
+			await window.agent567.scheduler.updateTask(id, patch);
 			setTasks((current) =>
 				current.map((task) => (task.id === id ? { ...task, ...patch, updatedAt: Date.now() } : task)),
 			);
@@ -43,7 +43,7 @@ export function useScheduledTasks() {
 
 	const deleteTask = useCallback(
 		async (id: string) => {
-			await window.vetta.scheduler.deleteTask(id);
+			await window.agent567.scheduler.deleteTask(id);
 			setTasks((current) => current.filter((task) => task.id !== id));
 		},
 		[setTasks],
@@ -51,18 +51,18 @@ export function useScheduledTasks() {
 
 	const toggleTask = useCallback(
 		async (id: string) => {
-			await window.vetta.scheduler.toggleTask(id);
+			await window.agent567.scheduler.toggleTask(id);
 			setTasks((prev) => prev.map((t) => (t.id === id ? { ...t, enabled: !t.enabled, updatedAt: Date.now() } : t)));
 		},
 		[setTasks],
 	);
 
 	const runNow = useCallback(async (id: string) => {
-		await window.vetta.scheduler.runTaskNow(id);
+		await window.agent567.scheduler.runTaskNow(id);
 	}, []);
 
 	const abortTask = useCallback(async (id: string) => {
-		await window.vetta.scheduler.abortTask(id);
+		await window.agent567.scheduler.abortTask(id);
 	}, []);
 
 	const getTask = useCallback((id: string) => tasks.find((t) => t.id === id), [tasks]);

@@ -124,8 +124,8 @@ export function Api567LoginPage(): JSX.Element {
 	};
 
 	const openExternal = (url: string) => {
-		if (window.vetta?.shell?.openExternal) {
-			void window.vetta.shell.openExternal(url);
+		if (window.agent567?.shell?.openExternal) {
+			void window.agent567.shell.openExternal(url);
 		} else {
 			window.open(url, "_blank");
 		}

@@ -28,6 +28,8 @@ sealed class AppRoute {
 
     data class DeviceDetail(val deviceId: String) : AppRoute()
 
+    data class DeviceCapabilities(val deviceId: String) : AppRoute()
+
     data class NewConversation(
         val channel: ConnectChannel = ConnectChannel.Lan,
     ) : AppRoute()

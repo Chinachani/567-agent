@@ -55,11 +55,13 @@
 	"remoteDesktopCapture": {
 		"title": "共享桌面画面",
 		"message": "手机端正在请求查看此电脑的画面。",
-		"detail": "仅共享一次；选择屏幕后，手机端可实时查看并控制画面。请勿共享含有敏感信息的窗口。",
+		"detail": "默认仅共享本次连接；选择屏幕后，手机端可实时查看并控制画面。勾选记住设备后，可在设置中随时关闭自动共享。请勿共享含有敏感信息的窗口。",
+		"rememberDevice": "记住此配对手机，并在以后连接时自动共享主屏幕",
 		"allowOnce": "继续选择画面",
 		"cancel": "取消",
 		"chooseTitle": "选择共享来源",
 		"chooseMessage": "选择要共享给已配对手机的屏幕或窗口。",
+		"sourceFallback": "共享来源 {{index}}",
 		"noSources": "系统没有提供可共享的屏幕或窗口。请检查桌面环境的屏幕录制权限后重试。"
 	},
 	"pluginPackage": {
@@ -74,6 +76,13 @@
 		"installedMessage": "{{name}} {{version}} 已安装并启用。",
 		"failedTitle": "无法安装插件",
 		"failedMessage": "{{file}} 不是有效的 567 Agent 插件包，或与当前版本不兼容。"
+	},
+	"sessionMigration": {
+		"receiveTitle": "接收手机对话备份",
+		"receiveMessage": "手机请求通过已配对的局域网连接导入一份加密会话备份（{{size}}）。",
+		"receiveDetail": "仅在你信任这台手机和备份来源时继续。接收后会新增会话，不会覆盖现有对话。",
+		"receiveConfirm": "接收并导入",
+		"receiveCancel": "拒绝"
 	},
 	"mcpOAuth": {
 		"authorizationSuccessful": "授权成功",

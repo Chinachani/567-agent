@@ -89,13 +89,13 @@ export function useAgentSettingsModel(): AgentSettingsModel {
 	const [agentSkillsEnabled, setAgentSkillsEnabled] = useState(true);
 
 	useEffect(() => {
-		void window.vetta.session.getPersonas().then(setPersonas);
-		void window.vetta.session.getPersonalization().then((config) => {
+		void window.agent567.session.getPersonas().then(setPersonas);
+		void window.agent567.session.getPersonalization().then((config) => {
 			setPersonaId(config.personaId);
 			setCustomPrompt(config.customPrompt);
 			setApplied(config);
 		});
-		void window.vetta.config.get().then((config) => {
+		void window.agent567.config.get().then((config) => {
 			setVettaCliEnabled(config.experimental?.vettaCli === true);
 			setPromptPredictionEnabled(config.experimental?.promptPrediction === true);
 			setAgentSkillsEnabled(config.experimental?.agentSkills !== false);
@@ -104,19 +104,19 @@ export function useAgentSettingsModel(): AgentSettingsModel {
 
 	const toggleVettaCli = useCallback((checked: boolean) => {
 		setVettaCliEnabled(checked);
-		void window.vetta.config.set({ experimental: { vettaCli: checked } });
+		void window.agent567.config.set({ experimental: { vettaCli: checked } });
 		recordSettingsUsage({ tab: "agent", action: checked ? "enabled" : "disabled", target: "vetta-cli" });
 	}, []);
 
 	const togglePromptPrediction = useCallback((checked: boolean) => {
 		setPromptPredictionEnabled(checked);
-		void window.vetta.config.set({ experimental: { promptPrediction: checked } });
+		void window.agent567.config.set({ experimental: { promptPrediction: checked } });
 		recordSettingsUsage({ tab: "agent", action: checked ? "enabled" : "disabled", target: "prompt-prediction" });
 	}, []);
 
 	const toggleAgentSkills = useCallback((checked: boolean) => {
 		setAgentSkillsEnabled(checked);
-		void window.vetta.config.set({ experimental: { agentSkills: checked } });
+		void window.agent567.config.set({ experimental: { agentSkills: checked } });
 		recordSettingsUsage({ tab: "agent", action: checked ? "enabled" : "disabled", target: "agent-skills" });
 	}, []);
 
@@ -130,7 +130,7 @@ export function useAgentSettingsModel(): AgentSettingsModel {
 		const startedAt = performance.now();
 		try {
 			const next = { personaId, customPrompt };
-			await window.vetta.session.setPersonalization(next);
+			await window.agent567.session.setPersonalization(next);
 			setApplied(next);
 			recordSettingsUsage({
 				tab: "agent",

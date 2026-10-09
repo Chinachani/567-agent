@@ -4,6 +4,7 @@ import type { RuntimeType } from "../runtimes/types.js";
 
 export const RUNTIMES_CHANNELS = {
 	GET_STATUS: "vetta:runtimes:get-status",
+	PROGRESS: "vetta:runtimes:progress",
 	REINSTALL: "vetta:runtimes:reinstall",
 	REDETECT: "vetta:runtimes:redetect",
 } as const;
@@ -13,11 +14,13 @@ export function registerRuntimesIpc(): () => void {
 		return getRuntimeManager().getStatus();
 	});
 
-	ipcMain.handle(RUNTIMES_CHANNELS.REINSTALL, async (_event, type: unknown) => {
+	ipcMain.handle(RUNTIMES_CHANNELS.REINSTALL, async (event, type: unknown) => {
 		if (type !== "node" && type !== "python") {
 			throw new Error(`invalid runtime type: ${String(type)}`);
 		}
-		return getRuntimeManager().reinstall(type as RuntimeType);
+		return getRuntimeManager().reinstall(type as RuntimeType, (progress) => {
+			if (!event.sender.isDestroyed()) event.sender.send(RUNTIMES_CHANNELS.PROGRESS, progress);
+		});
 	});
 
 	ipcMain.handle(RUNTIMES_CHANNELS.REDETECT, () => {

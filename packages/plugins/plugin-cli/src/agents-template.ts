@@ -64,7 +64,7 @@ export function renderAgentsGuide(input: {
 	return `<!-- vetta-guide-revision: ${AGENTS_GUIDE_REVISION} -->
 # ${input.displayName}
 
-Vetta 桌面插件工程（插件 id：\`${input.pluginId}\`）。
+567 Agent 桌面插件工程（插件 id：\`${input.pluginId}\`）。
 
 **本文件不讲规则，只告诉你去哪读。** 规则在手册里，手册随 SDK 升级；写在这里的任何一条都会
 停在这个工程创建那天。两者冲突时一律以手册为准。

@@ -19,8 +19,11 @@ import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.NonCancellable
+import kotlinx.coroutines.withContext
 import kotlinx.coroutines.withTimeoutOrNull
 import kotlinx.serialization.json.buildJsonObject
+import kotlinx.serialization.json.buildJsonArray
 import kotlinx.serialization.json.JsonElement
 import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.JsonArray
@@ -32,7 +35,11 @@ import kotlinx.serialization.json.intOrNull
 import kotlinx.serialization.json.jsonObject
 import kotlinx.serialization.json.jsonPrimitive
 import kotlinx.serialization.json.put
+import kotlin.io.encoding.Base64
+import kotlin.io.encoding.ExperimentalEncodingApi
+import org.agent567.android.data.session.sha256MigrationArchive
 import org.agent567.android.core.model.ChatMessage
+import org.agent567.android.core.model.ChatContentPart
 import org.agent567.android.core.model.ChatQuestion
 import org.agent567.android.core.model.ChatQuestionOption
 import org.agent567.android.core.model.ChatStreamEvent
@@ -40,6 +47,7 @@ import org.agent567.android.core.model.ChatRole
 import org.agent567.android.core.model.RemoteGeneratedImageRef
 import org.agent567.android.core.model.LlmModel
 import org.agent567.android.core.model.TokenUsage
+import org.agent567.android.ui.i18n.Str
 import org.agent567.android.domain.device.ConnectChannel
 import org.agent567.android.domain.device.DesktopDevice
 import org.agent567.android.domain.device.DeviceStatus
@@ -60,6 +68,8 @@ import org.agent567.android.domain.conversation.RemoteSessionModelCatalog
 import org.agent567.android.domain.session.MessageStatus
 
 private val RECONNECT_DELAYS_MS = listOf(1_000L, 2_000L, 5_000L, 10_000L, 30_000L)
+private const val PROMPT_ATTACHMENT_MAX_COUNT = 10
+private const val PROMPT_ATTACHMENT_MAX_TOTAL_BYTES = 48 * 1024 * 1024
 
 class RelayRemoteConversationGateway(
     private val scope: CoroutineScope = CoroutineScope(SupervisorJob() + Dispatchers.Default),
@@ -76,6 +86,7 @@ class RelayRemoteConversationGateway(
     private var activeTargets: List<String> = emptyList()
     private var connectionGeneration = 0L
     private val remoteSessionIds = mutableMapOf<String, String>()
+    private var migrationTransferCounter = 0L
 
     override val devices: StateFlow<List<DesktopDevice>> = _devices
 
@@ -100,42 +111,51 @@ class RelayRemoteConversationGateway(
         var selectedTarget: String? = null
         var selectedConnection: RemoteConnection? = null
         var lastFailure: Throwable? = null
-        for ((index, candidate) in activeTargets.withIndex()) {
+        var attemptNumber = 0
+        for (candidate in activeTargets) {
             val targetKind = remoteTargetKind(candidate)
-            var phase = "websocket_connect"
-            val next = createConnection(normalizeRelayUrl(candidate), candidate)
-            connection = next
-            observeConnection(next, candidate, generation, reconnectEnabled = false)
-            PlatformRemoteLogger.info(
-                "remote connection attempt started",
-                mapOf("attempt" to index + 1, "target" to targetKind),
-            )
-            try {
-                next.connect()
-                phase = "hello_ack"
-                waitUntilOnline(next)
+            val maxAttempts = if (targetKind == "lan") 2 else 1
+            for (retry in 0 until maxAttempts) {
+                attemptNumber += 1
+                var phase = "websocket_connect"
+                val next = createConnection(normalizeRelayUrl(candidate), candidate)
+                connection = next
+                observeConnection(next, candidate, generation, reconnectEnabled = false)
                 PlatformRemoteLogger.info(
-                    "remote connection attempt succeeded",
-                    mapOf("attempt" to index + 1, "target" to targetKind),
+                    "remote connection attempt started",
+                    mapOf("attempt" to attemptNumber, "target" to targetKind, "retry" to retry),
                 )
-                selectedTarget = candidate
-                selectedConnection = next
-                break
-            } catch (error: Throwable) {
-                if (error is CancellationException) throw error
-                lastFailure = error
-                PlatformRemoteLogger.warn(
-                    "remote connection attempt failed",
-                    mapOf(
-                        "attempt" to index + 1,
-                        "target" to targetKind,
-                        "phase" to phase,
-                        "errorType" to error::class.simpleName,
-                        "error" to safeRemoteConnectionError(error),
-                    ),
-                )
-                runCatching { next.close() }
+                try {
+                    next.connect()
+                    phase = "hello_ack"
+                    waitUntilOnline(next)
+                    PlatformRemoteLogger.info(
+                        "remote connection attempt succeeded",
+                        mapOf("attempt" to attemptNumber, "target" to targetKind, "retry" to retry),
+                    )
+                    selectedTarget = candidate
+                    selectedConnection = next
+                    break
+                } catch (error: Throwable) {
+                    if (error is CancellationException) throw error
+                    lastFailure = error
+                    PlatformRemoteLogger.warn(
+                        "remote connection attempt failed",
+                        mapOf(
+                            "attempt" to attemptNumber,
+                            "target" to targetKind,
+                            "phase" to phase,
+                            "retry" to retry,
+                            "errorType" to error::class.simpleName,
+                            "error" to safeRemoteConnectionError(error),
+                        ),
+                    )
+                    runCatching { next.close() }
+                    if (retry + 1 < maxAttempts && isLanStartupRace(error)) delay(LAN_STARTUP_RETRY_DELAY_MS)
+                    else break
+                }
             }
+            if (selectedConnection != null) break
         }
         val next = selectedConnection ?: run {
             connectionStateJob?.cancel()
@@ -202,13 +222,17 @@ class RelayRemoteConversationGateway(
     }
 
     override suspend fun listDesktopSessions(deviceId: String): List<RemoteDesktopSessionSummary>? {
+        return readDesktopSessionCatalog(deviceId)?.sessions
+    }
+
+    override suspend fun readDesktopSessionCatalog(deviceId: String): RemoteDesktopSessionCatalog? {
         val active = connection ?: return null
         if (active.state.value != RemoteConnectionState.Online) return null
         if (_devices.value.none { it.id == deviceId }) return null
         val payload = active.request(RemoteRequestMethod.SessionList) as? JsonObject
             ?: throw RemoteConversationException("电脑没有返回会话列表")
         updatePeerSupportedMethods(active, payload)
-        return (payload["sessions"] as? JsonArray).orEmpty().mapNotNull { value ->
+        val sessions = (payload["sessions"] as? JsonArray).orEmpty().mapNotNull { value ->
             val item = value as? JsonObject ?: return@mapNotNull null
             val id = item.stringValue("id")?.takeIf(String::isNotBlank) ?: return@mapNotNull null
             RemoteDesktopSessionSummary(
@@ -217,6 +241,55 @@ class RelayRemoteConversationGateway(
                 updatedAtEpochMs = item.longValue("updatedAtEpochMs") ?: now(),
             )
         }
+        return RemoteDesktopSessionCatalog(
+            sessions = sessions,
+            failedDirectoryCount = payload.intValue("failedRootCount")?.coerceAtLeast(0) ?: 0,
+        )
+    }
+
+    override suspend fun readDesktopToolbox(deviceId: String): List<RemoteToolboxAbility>? {
+        val active = connection ?: return null
+        if (active.state.value != RemoteConnectionState.Online || _devices.value.none { it.id == deviceId }) return null
+        val sessionCatalog = active.request(RemoteRequestMethod.SessionList) as? JsonObject
+            ?: throw RemoteConversationException("电脑没有返回能力信息")
+        updatePeerSupportedMethods(active, sessionCatalog)
+        if (!active.supportsPeerMethod("toolbox.list")) {
+            throw RemoteConversationException("请更新电脑端后使用手机工具箱")
+        }
+        val payload = active.request(RemoteRequestMethod.ToolboxList) as? JsonObject
+            ?: throw RemoteConversationException("电脑没有返回工具箱目录")
+        return (payload["abilities"] as? JsonArray).orEmpty().mapNotNull { value ->
+            val item = value as? JsonObject ?: return@mapNotNull null
+            val slug = item.stringValue("slug")?.takeIf(String::isNotBlank) ?: return@mapNotNull null
+            RemoteToolboxAbility(
+                slug = slug,
+                type = item.stringValue("type").orEmpty(),
+                name = item.stringValue("name") ?: slug,
+                description = item.stringValue("description").orEmpty(),
+                version = item.stringValue("version").orEmpty(),
+                author = item.stringValue("author").orEmpty(),
+                category = item.stringValue("category").orEmpty(),
+                tags = (item["tags"] as? JsonArray).orEmpty().mapNotNull { (it as? JsonPrimitive)?.contentOrNull },
+                installable = item["installable"]?.jsonPrimitive?.booleanOrNull ?: false,
+                installed = item["installed"]?.jsonPrimitive?.booleanOrNull ?: false,
+            )
+        }
+    }
+
+    override suspend fun installDesktopToolboxAbility(deviceId: String, type: String, slug: String): Boolean? {
+        val active = connection ?: return null
+        if (active.state.value != RemoteConnectionState.Online || _devices.value.none { it.id == deviceId }) return null
+        if (!active.supportsPeerMethod("toolbox.install")) {
+            throw RemoteConversationException("请更新电脑端后使用手机工具箱安装")
+        }
+        active.request(
+            method = RemoteRequestMethod.ToolboxInstall,
+            payload = buildJsonObject {
+                put("type", type)
+                put("slug", slug)
+            },
+        )
+        return true
     }
 
     override suspend fun deleteDesktopSession(deviceId: String, remoteSessionId: String): Boolean? {
@@ -316,6 +389,108 @@ class RelayRemoteConversationGateway(
             sizeBytes = size,
             dataBase64 = response.stringValue("dataBase64") ?: return null,
         )
+    }
+
+    @OptIn(ExperimentalEncodingApi::class)
+    override suspend fun sendEncryptedSessionMigrationArchive(
+        deviceId: String,
+        archive: ByteArray,
+        passphrase: String,
+        onAwaitingApproval: () -> Unit,
+        onProgress: (completedChunks: Int, totalChunks: Int) -> Unit,
+    ): Boolean? {
+        val active = connection ?: return null
+        if (active.state.value != RemoteConnectionState.Online || _devices.value.none { it.id == deviceId }) return null
+        if (passphrase.length !in 8..128 || archive.isEmpty()) return false
+        listDesktopSessions(deviceId) ?: return null
+        val methods = listOf(
+            "session.migration.receive.start",
+            "session.migration.receive.chunk",
+            "session.migration.receive.finish",
+            "session.migration.receive.import",
+            "session.migration.receive.cancel",
+        )
+        if (methods.any { !active.supportsPeerMethod(it) }) return false
+
+        val chunkSize = 256 * 1024
+        val totalChunks = (archive.size + chunkSize - 1) / chunkSize
+        val transferId = "migration-${now()}-${++migrationTransferCounter}"
+        val sha256 = sha256MigrationArchive(archive)
+        var started = false
+        try {
+            active.request(
+                RemoteRequestMethod.SessionMigrationReceiveStart,
+                buildJsonObject {
+                    put("transferId", transferId)
+                    put("totalBytes", archive.size)
+                    put("sha256", sha256)
+                },
+                timeoutMs = 30_000,
+            )
+            started = true
+            repeat(totalChunks) { index ->
+                val offset = index * chunkSize
+                val chunk = archive.copyOfRange(offset, minOf(offset + chunkSize, archive.size))
+                try {
+                    active.request(
+                        RemoteRequestMethod.SessionMigrationReceiveChunk,
+                        buildJsonObject {
+                            put("transferId", transferId)
+                            put("index", index)
+                            put("dataBase64", Base64.encode(chunk))
+                        },
+                        timeoutMs = 60_000,
+                    )
+                } finally {
+                    chunk.fill(0)
+                }
+                onProgress(index + 1, totalChunks)
+            }
+            onAwaitingApproval()
+            val approval = active.request(
+                RemoteRequestMethod.SessionMigrationReceiveFinish,
+                buildJsonObject { put("transferId", transferId) },
+                timeoutMs = 15 * 60_000,
+            ) as? JsonObject ?: throw RemoteConversationException("电脑未确认接收会话备份")
+            if (approval["accepted"]?.jsonPrimitive?.booleanOrNull != true) {
+                throw RemoteConversationException(Str.migrationSendNotAccepted)
+            }
+            active.request(
+                RemoteRequestMethod.SessionMigrationReceiveImport,
+                buildJsonObject {
+                    put("transferId", transferId)
+                    put("passphrase", passphrase)
+                },
+                timeoutMs = 15 * 60_000,
+            )
+            return true
+        } catch (error: CancellationException) {
+            if (started) {
+                withContext(NonCancellable) {
+                    withTimeoutOrNull(1_000) {
+                        runCatching {
+                            active.request(
+                                RemoteRequestMethod.SessionMigrationReceiveCancel,
+                                buildJsonObject { put("transferId", transferId) },
+                                timeoutMs = 1_000,
+                            )
+                        }
+                    }
+                }
+            }
+            throw error
+        } catch (error: Throwable) {
+            if (started && active.state.value == RemoteConnectionState.Online) {
+                runCatching {
+                    active.request(
+                        RemoteRequestMethod.SessionMigrationReceiveCancel,
+                        buildJsonObject { put("transferId", transferId) },
+                        timeoutMs = 1_000,
+                    )
+                }
+            }
+            throw error
+        }
     }
 
     private suspend fun requestHistoryPage(
@@ -529,6 +704,24 @@ class RelayRemoteConversationGateway(
         remoteSessionId: String?,
         messages: List<ChatMessage>,
         retryPreviousTurn: Boolean,
+    ): Flow<ChatStreamEvent> = streamWithAttachments(
+        localSessionId = localSessionId,
+        deviceId = deviceId,
+        remoteSessionId = remoteSessionId,
+        messages = messages,
+        retryPreviousTurn = retryPreviousTurn,
+        promptText = messages.lastOrNull()?.textContent.orEmpty(),
+        files = emptyList(),
+    )
+
+    override fun streamWithAttachments(
+        localSessionId: String,
+        deviceId: String,
+        remoteSessionId: String?,
+        messages: List<ChatMessage>,
+        retryPreviousTurn: Boolean,
+        promptText: String,
+        files: List<RemotePromptFileAttachment>,
     ): Flow<ChatStreamEvent> =
         channelFlow {
             val active = connection ?: throw RemoteConversationException("请先连接桌面设备")
@@ -604,8 +797,71 @@ class RelayRemoteConversationGateway(
                         }
                     }
                 }
+                val userMessage = messages.lastOrNull { it.role == ChatRole.User }
+                val newImageParts = userMessage?.parts?.filterIsInstance<ChatContentPart.Image>().orEmpty()
+                var promptSessionId = remoteSessionId ?: remoteSessionIds[localSessionId]
+                val hasNewAttachments = !retryPreviousTurn &&
+                    (files.isNotEmpty() || newImageParts.isNotEmpty())
+                if (hasNewAttachments) {
+                    if (!active.supportsPeerMethod("session.attachment.transfer.start")) {
+                        throw RemoteConversationException("当前电脑端不支持接收手机附件，请更新桌面端后重试")
+                    }
+                    if (files.any { it.bytes.isEmpty() || it.bytes.size > PROMPT_ATTACHMENT_MAX_BYTES }) {
+                        throw RemoteConversationException("附件为空或超过 12 MB，请压缩后重试")
+                    }
+                    if (files.size > PROMPT_ATTACHMENT_MAX_COUNT || files.sumOf { it.bytes.size } > PROMPT_ATTACHMENT_MAX_TOTAL_BYTES) {
+                        throw RemoteConversationException("单条消息最多发送 10 个附件，合计不超过 48 MiB")
+                    }
+                    val imageBytesEstimate = newImageParts.sumOf { image ->
+                        val encoded = image.base64Data.substringAfter(";base64,", image.base64Data).filterNot(Char::isWhitespace)
+                        encoded.length.toLong() * 3L / 4L
+                    }
+                    if (files.size + newImageParts.size > PROMPT_ATTACHMENT_MAX_COUNT ||
+                        files.sumOf { it.bytes.size.toLong() } + imageBytesEstimate > PROMPT_ATTACHMENT_MAX_TOTAL_BYTES
+                    ) {
+                        throw RemoteConversationException("单条消息最多发送 10 个附件，合计不超过 48 MiB")
+                    }
+                }
+                if (hasNewAttachments && promptSessionId == null) {
+                    if (!active.supportsPeerMethod("session.create")) {
+                        throw RemoteConversationException("当前电脑端不支持远程附件会话，请更新桌面端后重试")
+                    }
+                    val created = active.request(RemoteRequestMethod.SessionCreate) as? JsonObject
+                    promptSessionId = created?.stringValue("sessionId")
+                        ?: throw RemoteConversationException("电脑端无法创建会话来接收附件")
+                    remoteSessionIds[localSessionId] = promptSessionId
+                }
+                val attachmentIds = mutableListOf<String>()
+                if (!retryPreviousTurn) {
+                    files.forEach { file ->
+                        attachmentIds += transferPromptAttachment(
+                            active = active,
+                            sessionId = promptSessionId,
+                            fileName = file.fileName,
+                            mimeType = file.mimeType,
+                            bytes = file.bytes,
+                        )
+                    }
+                    newImageParts.forEachIndexed { index, image ->
+                        val imageBytes = decodePromptImage(image.base64Data)
+                        try {
+                            attachmentIds += transferPromptAttachment(
+                                active = active,
+                                sessionId = promptSessionId,
+                                fileName = "mobile-image-${index + 1}.${imageExtension(image.mimeType)}",
+                                mimeType = image.mimeType,
+                                bytes = imageBytes,
+                            )
+                        } finally {
+                            imageBytes.fill(0)
+                        }
+                    }
+                }
                 val payload = buildJsonObject {
-                    put("text", messages.lastOrNull()?.textContent.orEmpty())
+                    put("text", promptText)
+                    if (attachmentIds.isNotEmpty()) {
+                        put("attachmentIds", JsonArray(attachmentIds.map(::JsonPrimitive)))
+                    }
                     if (retryPreviousTurn) {
                         put("retryPreviousTurn", true)
                         retryTargetMessageId?.let { put("retryTargetMessageId", it) }
@@ -615,7 +871,7 @@ class RelayRemoteConversationGateway(
                     active.request(
                         method = org.agent567.android.domain.remote.protocol.RemoteRequestMethod.SessionPrompt,
                         payload = payload,
-                        sessionId = remoteSessionId ?: remoteSessionIds[localSessionId],
+                        sessionId = promptSessionId,
                     )
                 } catch (error: Throwable) {
                     if (
@@ -647,6 +903,96 @@ class RelayRemoteConversationGateway(
                 connectionJob.cancel()
             }
         }
+
+    private suspend fun transferPromptAttachment(
+        active: RemoteConnection,
+        sessionId: String?,
+        fileName: String,
+        mimeType: String,
+        bytes: ByteArray,
+    ): String {
+        if (!active.supportsPeerMethod("session.attachment.transfer.start")) {
+            throw RemoteConversationException("当前电脑端不支持接收手机附件，请更新桌面端后重试")
+        }
+        if (bytes.isEmpty() || bytes.size > PROMPT_ATTACHMENT_MAX_BYTES) {
+            throw RemoteConversationException("附件为空或超过 12 MB，请压缩后重试")
+        }
+        val transferId = "mobile-attachment-${now()}-${++migrationTransferCounter}"
+        val digest = sha256MigrationArchive(bytes)
+        val activeSessionId = sessionId
+        try {
+            active.request(
+                method = RemoteRequestMethod.SessionAttachmentTransferStart,
+                payload = buildJsonObject {
+                    put("transferId", transferId)
+                    put("fileName", fileName)
+                    put("mimeType", mimeType)
+                    put("totalBytes", bytes.size)
+                    put("sha256", digest)
+                },
+                sessionId = activeSessionId,
+                timeoutMs = PROMPT_ATTACHMENT_REQUEST_TIMEOUT_MS,
+            )
+            var offset = 0
+            var index = 0
+            while (offset < bytes.size) {
+                val end = minOf(offset + PROMPT_ATTACHMENT_CHUNK_BYTES, bytes.size)
+                val chunk = bytes.copyOfRange(offset, end)
+                val encoded = try {
+                    Base64.encode(chunk)
+                } finally {
+                    chunk.fill(0)
+                }
+                active.request(
+                    method = RemoteRequestMethod.SessionAttachmentTransferChunk,
+                    payload = buildJsonObject {
+                        put("transferId", transferId)
+                        put("index", index)
+                        put("dataBase64", encoded)
+                    },
+                    sessionId = activeSessionId,
+                    timeoutMs = PROMPT_ATTACHMENT_REQUEST_TIMEOUT_MS,
+                )
+                offset = end
+                index += 1
+            }
+            val result = active.request(
+                method = RemoteRequestMethod.SessionAttachmentTransferFinish,
+                payload = buildJsonObject { put("transferId", transferId) },
+                sessionId = activeSessionId,
+                timeoutMs = PROMPT_ATTACHMENT_REQUEST_TIMEOUT_MS,
+            ) as? JsonObject
+            return result?.stringValue("attachmentId")
+                ?: throw RemoteConversationException("电脑端没有确认收到附件，请重新发送")
+        } catch (error: Throwable) {
+            withContext(NonCancellable) {
+                runCatching {
+                    active.request(
+                        method = RemoteRequestMethod.SessionAttachmentTransferCancel,
+                        payload = buildJsonObject { put("transferId", transferId) },
+                        sessionId = activeSessionId,
+                        timeoutMs = 1_000,
+                    )
+                }
+            }
+            throw error
+        }
+    }
+
+    @OptIn(ExperimentalEncodingApi::class)
+    private fun decodePromptImage(value: String): ByteArray {
+        val base64 = value.substringAfter(";base64,", value)
+        return runCatching { Base64.decode(base64) }
+            .getOrElse { throw RemoteConversationException("手机图片格式无法读取，请重新选择后发送") }
+    }
+
+    private fun imageExtension(mimeType: String): String = when (mimeType.lowercase()) {
+        "image/jpeg", "image/jpg" -> "jpg"
+        "image/png" -> "png"
+        "image/gif" -> "gif"
+        "image/webp" -> "webp"
+        else -> "img"
+    }
 
     override fun resolvedRemoteSessionId(localSessionId: String): String? = remoteSessionIds[localSessionId]
 
@@ -877,6 +1223,20 @@ private fun safeRemoteConnectionError(error: Throwable): String =
         .replace(Regex("(?i)wss?://[^\\s]+"), "<remote-url>")
         .take(240)
 
+private fun isLanStartupRace(error: Throwable): Boolean {
+    var cause: Throwable? = error
+    repeat(8) {
+        val current = cause ?: return false
+        if (
+            current::class.simpleName == "ConnectException" ||
+            current.message.orEmpty().contains("connection refused", ignoreCase = true) ||
+            current.message.orEmpty().contains("failed to connect", ignoreCase = true)
+        ) return true
+        cause = current.cause
+    }
+    return false
+}
+
 private const val METRICS_REFRESH_INTERVAL_MS = 1_000L
 private const val REMOTE_PROTOCOL_FALLBACK_TIMEOUT_MS = 5_000L
 private const val REMOTE_HISTORY_PROBE_TIMEOUT_MS = 5_000L
@@ -884,6 +1244,10 @@ private const val REMOTE_HISTORY_PAGE_TIMEOUT_MS = 30_000L
 private const val REMOTE_IMAGE_MAX_BYTES = 12 * 1024 * 1024
 private const val REMOTE_IMAGE_CHUNK_TIMEOUT_MS = 15_000L
 private const val REMOTE_PROMPT_SUGGESTIONS_TIMEOUT_MS = 60_000L
+private const val PROMPT_ATTACHMENT_MAX_BYTES = 12 * 1024 * 1024
+private const val PROMPT_ATTACHMENT_CHUNK_BYTES = 192 * 1024
+private const val PROMPT_ATTACHMENT_REQUEST_TIMEOUT_MS = 15_000L
+private const val LAN_STARTUP_RETRY_DELAY_MS = 500L
 private const val METRICS_DIAGNOSTICS_INTERVAL_MS = 5_000L
 private const val HISTORY_PAGE_SIZE = 100
 

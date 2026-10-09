@@ -5,8 +5,8 @@ import { join } from "node:path";
 import { afterEach, beforeAll, beforeEach, expect, it, vi } from "vitest";
 
 let syncCredentialFile: typeof import("./credential-store.js")["syncCredentialFile"];
-let loadVettaCredentials: typeof import("@567agent/runtime-node/mcp")["loadVettaCredentials"];
-let vettaCredentialsPath: typeof import("@567agent/runtime-node/mcp")["vettaCredentialsPath"];
+let loadApi567Credentials: typeof import("@567agent/runtime-node/mcp")["loadApi567Credentials"];
+let api567CredentialsPath: typeof import("@567agent/runtime-node/mcp")["api567CredentialsPath"];
 
 const isolated = vi.hoisted(() => ({ home: "" }));
 vi.mock("node:os", async (importOriginal) => ({
@@ -19,7 +19,7 @@ vi.mock("../../logger.js", () => ({ getAppLogger: () => ({ warn: () => {} }) }))
 // cost in suite setup so the actual filesystem round trip retains a short limit.
 beforeAll(async () => {
 	({ syncCredentialFile } = await import("./credential-store.js"));
-	({ loadVettaCredentials, vettaCredentialsPath } = await import("@567agent/runtime-node/mcp"));
+	({ loadApi567Credentials, api567CredentialsPath } = await import("@567agent/runtime-node/mcp"));
 }, 30_000);
 
 beforeEach(() => {
@@ -40,12 +40,12 @@ afterEach(() => {
 });
 
 it("writes, rotates, reads, and removes MCP credentials in the branded home without recreating the old directory", async () => {
-	expect(vettaCredentialsPath()).toBe(join(isolated.home, ".567agent", "auth.json"));
+	expect(api567CredentialsPath()).toBe(join(isolated.home, ".567agent", "auth.json"));
 	syncCredentialFile("first-synthetic-token");
-	expect(loadVettaCredentials()?.token).toBe("first-synthetic-token");
+	expect(loadApi567Credentials()?.token).toBe("first-synthetic-token");
 	syncCredentialFile("rotated-synthetic-token");
-	expect(loadVettaCredentials()?.token).toBe("rotated-synthetic-token");
+	expect(loadApi567Credentials()?.token).toBe("rotated-synthetic-token");
 	expect(existsSync(join(isolated.home, ".vetta"))).toBe(false);
 	syncCredentialFile(undefined);
-	expect(loadVettaCredentials()).toBeNull();
+	expect(loadApi567Credentials()).toBeNull();
 });

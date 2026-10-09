@@ -53,8 +53,8 @@ async function load(cwd: string | undefined, language: string): Promise<SkillLis
 	const running = inflight.get(key);
 	if (running) return running;
 	const task = Promise.all([
-		window.vetta.skills.list(cwd),
-		window.vetta.appMonitor.getPromptRefUsage().catch(() => ({}) as AppMonitorPromptRefUsageMap),
+		window.agent567.skills.list(cwd),
+		window.agent567.appMonitor.getPromptRefUsage().catch(() => ({}) as AppMonitorPromptRefUsageMap),
 	])
 		.then(([skills, usage]) => {
 			const data: SkillListData = { skills, usage };

@@ -27,7 +27,7 @@ export function useImageSrc(item: FilePreviewItem): { src: string; error: boolea
 			setError(true);
 			return;
 		}
-		void window.vetta.fs
+		void window.agent567.fs
 			.readFile(item.path)
 			.then(({ content, encoding }) => {
 				if (cancelled) return;

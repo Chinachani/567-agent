@@ -21,7 +21,7 @@ export function usePlanReviewPanelModel(pending: CodingAgentPlanReviewRequest): 
 	const { t } = useTranslation("chat");
 	const respond = useCallback(
 		(result: CodingAgentPlanReviewResult) => {
-			void window.vetta.session.respondToPlanReview(pending.requestId, result).catch((error: unknown) => {
+			void window.agent567.session.respondToPlanReview(pending.requestId, result).catch((error: unknown) => {
 				console.error("[PlanReviewPanel] failed to send the review decision:", error);
 			});
 		},

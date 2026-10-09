@@ -6,8 +6,8 @@ import com.russhwolf.settings.Settings
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
-import org.agent567.android.core.VettaClient
-import org.agent567.android.core.VettaConfig
+import org.agent567.android.core.Agent567Client
+import org.agent567.android.core.Agent567Config
 import org.agent567.android.core.auth.SettingsTokenStore
 import org.agent567.android.core.auth.createPlatformSecretStore
 import org.agent567.android.core.auth.TokenStore
@@ -18,7 +18,7 @@ import org.agent567.android.domain.conversation.RelayRemoteConversationGateway
 import org.agent567.android.domain.session.SessionStore
 
 /**
- * 进程级依赖容器。serverUrl 变更时重建 [VettaClient]，会话与 token 存储保持不变。
+ * 进程级依赖容器。serverUrl 变更时重建 [Agent567Client]，会话与 token 存储保持不变。
  */
 class AppContainer(
     val preferences: AppPreferences = AppPreferences(),
@@ -29,9 +29,9 @@ class AppContainer(
     private val unauthorizedSignal = MutableStateFlow(0L)
     val unauthorizedEpoch: StateFlow<Long> = unauthorizedSignal.asStateFlow()
 
-    private var clientRef: VettaClient = createClient(preferences.serverUrl.value)
+    private var clientRef: Agent567Client = createClient(preferences.serverUrl.value)
 
-    val client: VettaClient
+    val client: Agent567Client
         get() = clientRef
 
     val conversationRouter =
@@ -45,16 +45,16 @@ class AppContainer(
     }
 
     @Synchronized
-    fun recreateClient(serverUrl: String = preferences.serverUrl.value): VettaClient {
+    fun recreateClient(serverUrl: String = preferences.serverUrl.value): Agent567Client {
         runCatching { clientRef.close() }
         clientRef = createClient(serverUrl)
         return clientRef
     }
 
-    private fun createClient(serverUrl: String): VettaClient =
-        VettaClient.create(
+    private fun createClient(serverUrl: String): Agent567Client =
+        Agent567Client.create(
             config =
-                VettaConfig(
+                Agent567Config(
                     serverUrl = serverUrl,
                     userAgent = "567-agent-android/${AppVersion.NAME}",
                 ),

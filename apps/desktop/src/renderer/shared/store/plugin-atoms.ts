@@ -303,7 +303,7 @@ export function syncHardIsolationContributionModes(activeIds: ReadonlySet<string
 		byPlugin.set(action.pluginId, (byPlugin.get(action.pluginId) ?? false) || on);
 	}
 	for (const [pluginId, active] of byPlugin) {
-		void window.vetta.plugins.setContributionMode(pluginId, active);
+		void window.agent567.plugins.setContributionMode(pluginId, active);
 	}
 }
 

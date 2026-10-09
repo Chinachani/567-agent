@@ -4,7 +4,7 @@
 
 ## 发现位置
 
-- 用户：`~/.vetta/skills/`、`~/.vetta/agent/skills/`、`~/.agents/skills/`
+- 用户：`~/.567agent/skills/`、`~/.567agent/agent/skills/`、`~/.agents/skills/`
 - 项目：`<cwd>/.vetta/skills/`、`<cwd>/.agents/skills/`（可沿祖先到 git 根）
 - 包 / settings `skills` / CLI `--skill`
 - `--no-skills` 关闭发现（显式 `--skill` 仍加载）

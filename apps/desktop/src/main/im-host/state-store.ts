@@ -1,7 +1,7 @@
 import { existsSync, readFileSync } from "node:fs";
 import { homedir } from "node:os";
 import { isAbsolute, join, relative, resolve, sep } from "node:path";
-import { getVettaHomePath } from "@567agent/action-rpc";
+import { getAgent567HomePath } from "@567agent/action-rpc";
 import { atomicWriteJSON } from "@567agent/toolkit/atomic-write";
 import type { SessionStateEntry } from "./host-protocol.js";
 
@@ -11,7 +11,7 @@ import type { SessionStateEntry } from "./host-protocol.js";
  * apply them here and atomically rewrite the file. On sidecar (re)start we
  * read this file and replay the snapshot via the init frame.
  *
- * Path: ~/.vetta/desktop-app/im-state.json
+ * Path: ~/.567agent/desktop-app/im-state.json
  *
  * Schema v3: keyed by (userId, chatId). v3 supersedes v2 in everything but
  * version number — ADR-0005 split im-gateway's cwd from the desktop "对话"
@@ -25,7 +25,7 @@ export interface ImStateFile {
 }
 
 const STATE_VERSION = 3;
-const DEFAULT_PATH = join(getVettaHomePath(), "desktop-app", "im-state.json");
+const DEFAULT_PATH = join(getAgent567HomePath(), "desktop-app", "im-state.json");
 
 export function defaultImStatePath(): string {
 	return DEFAULT_PATH;
@@ -63,7 +63,7 @@ export function loadImState(filePath = DEFAULT_PATH): ImStateFile {
 }
 
 /**
- * The config-root rename from `~/.vetta` to `~/.567agent` moved the IM
+ * The config-root rename from `~/.567agent` to `~/.567agent` moved the IM
  * session files but older v3 routing entries kept their absolute paths. Map
  * only those legacy IM paths, and only when the corresponding file exists at
  * the current configured location (including an explicit AGENT567_HOME).
@@ -72,7 +72,7 @@ function rebaseLegacyImSessionPath(entry: SessionStateEntry): SessionStateEntry 
 	if (typeof entry.sessionPath !== "string" || !isAbsolute(entry.sessionPath)) return entry;
 
 	const legacyRoot = resolve(homedir(), ".vetta", "im-gateway", "conversation", ".vetta", "sessions");
-	const currentRoot = resolve(getVettaHomePath(), "im-gateway", "conversation", ".vetta", "sessions");
+	const currentRoot = resolve(getAgent567HomePath(), "im-gateway", "conversation", ".vetta", "sessions");
 	if (legacyRoot === currentRoot) return entry;
 
 	const relativePath = relative(legacyRoot, resolve(entry.sessionPath));

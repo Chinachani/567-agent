@@ -96,7 +96,7 @@ export function createExtractTextFromImageTool(
 			const durationMs = typeof document.meta.durationMs === "number" ? document.meta.durationMs : "?";
 			const engine = typeof document.meta.engine === "string" ? document.meta.engine : "?";
 			const staleNote = desktop.staleConfiguredPath
-				? `\nNote: configured vettaAppPath was stale and a fallback path was used: ${desktop.staleConfiguredPath}`
+				? `\nNote: configured agent567AppPath was stale and a fallback path was used: ${desktop.staleConfiguredPath}`
 				: "";
 			return {
 				content: [

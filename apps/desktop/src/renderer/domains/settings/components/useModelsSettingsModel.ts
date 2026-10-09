@@ -164,7 +164,7 @@ export function useModelsSettingsModel(): ModelsSettingsModel {
 	const saveConfig = useCallback(async (newConfig: ModelsConfigData) => {
 		setSaving(true);
 		try {
-			await window.vetta.models.set(newConfig);
+			await window.agent567.models.set(newConfig);
 			// 刚写过盘，必须绕开 TTL 重新读回主进程规范化后的结果。
 			await modelCatalog.revalidate({ force: true, sources: ["local"] });
 		} finally {
@@ -267,7 +267,7 @@ export function useModelsSettingsModel(): ModelsSettingsModel {
 	const handleCopyProviderApiKey = useCallback(
 		async (name: string): Promise<void> => {
 			try {
-				const copied = await window.vetta.models.copyApiKey(name);
+				const copied = await window.agent567.models.copyApiKey(name);
 				showToast({
 					variant: copied ? "success" : "error",
 					message: t(copied ? "apiKeyCopied" : "apiKeyCopyFailed"),
@@ -387,7 +387,7 @@ export function useModelsSettingsModel(): ModelsSettingsModel {
 		async (providerName: string) => {
 			setFetchingModelsFor(providerName);
 			try {
-				const result = await window.vetta.models.fetchProviderModels(providerName);
+				const result = await window.agent567.models.fetchProviderModels(providerName);
 				const existing = new Set((config?.providers[providerName]?.models || []).map((item) => item.id));
 				setFetchedModels({
 					provider: providerName,

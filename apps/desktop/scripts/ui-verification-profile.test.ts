@@ -26,8 +26,8 @@ describe("UI verification profiles", () => {
     const firstDebug = resolveProfileLayout({ ...shared, profile: "debug" });
     const nextDebug = resolveProfileLayout({ ...shared, profile: "debug" });
 
-    expect(firstFresh.vettaHome).not.toBe(nextFresh.vettaHome);
-    expect(firstDebug.vettaHome).toBe(nextDebug.vettaHome);
+    expect(firstFresh.agent567Home).not.toBe(nextFresh.agent567Home);
+    expect(firstDebug.agent567Home).toBe(nextDebug.agent567Home);
     expect(firstFresh.userDataDir).not.toBe(firstDebug.userDataDir);
   });
 
@@ -42,7 +42,7 @@ describe("UI verification profiles", () => {
     const environment = createProfileEnvironment(layout, { AGENT567_UI_VERIFICATION: "stale" });
 
     expect(layout.statePath).toBeNull();
-    expect(layout.vettaHome).toBe(join(root, ".vetta-dev"));
+    expect(layout.agent567Home).toBe(join(root, ".567agent-dev"));
     expect(environment.AGENT567_UI_VERIFICATION).toBeUndefined();
   });
 });

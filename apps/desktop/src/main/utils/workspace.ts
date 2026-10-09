@@ -1,10 +1,10 @@
 import { readFile } from "node:fs/promises";
 import { homedir } from "node:os";
 import { join } from "node:path";
-import { getVettaHomePath } from "@567agent/action-rpc";
+import { getAgent567HomePath } from "@567agent/action-rpc";
 
-const CONFIG_PATH = join(getVettaHomePath(), "desktop-config.json");
-const DEFAULT_WORKSPACE_PATH = join(getVettaHomePath(), "workspace");
+const CONFIG_PATH = join(getAgent567HomePath(), "desktop-config.json");
+const DEFAULT_WORKSPACE_PATH = join(getAgent567HomePath(), "workspace");
 
 function expandTilde(p: string): string {
 	if (p.startsWith("~/") || p === "~") {

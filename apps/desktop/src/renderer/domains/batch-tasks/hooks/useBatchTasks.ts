@@ -22,7 +22,7 @@ export function useBatchTasks() {
 	const { refreshProjects: refreshConfigProjects } = useProjectActions();
 
 	const refreshProjects = useCallback(async () => {
-		const loadedProjects = await window.vetta.batchTasks.getProjects();
+		const loadedProjects = await window.agent567.batchTasks.getProjects();
 		setProjects(loadedProjects);
 	}, [setProjects]);
 
@@ -39,7 +39,7 @@ export function useBatchTasks() {
 			timeoutMinutes?: number;
 			skill?: SelectedSkill;
 		}) => {
-			const project = await window.vetta.batchTasks.createProject(data);
+			const project = await window.agent567.batchTasks.createProject(data);
 			setProjects((prev) => [...prev, project]);
 			await refreshConfigProjects();
 			return project;
@@ -63,7 +63,7 @@ export function useBatchTasks() {
 				skill?: SelectedSkill | null;
 			},
 		) => {
-			await window.vetta.batchTasks.updateProject(projectId, data);
+			await window.agent567.batchTasks.updateProject(projectId, data);
 			setProjects((prev) =>
 				prev.map((p) => {
 					if (p.id !== projectId) return p;
@@ -106,7 +106,7 @@ export function useBatchTasks() {
 			if (project?.tasks.some((task) => task.status === "running")) {
 				throw new Error(t("error.stopFirst"));
 			}
-			await window.vetta.batchTasks.deleteProject(projectId);
+			await window.agent567.batchTasks.deleteProject(projectId);
 			setProjects((prev) => prev.filter((p) => p.id !== projectId));
 			await refreshConfigProjects();
 		},
@@ -129,28 +129,28 @@ export function useBatchTasks() {
 	);
 
 	const runTask = useCallback(async (projectId: string, taskId: string) => {
-		await window.vetta.batchTasks.runTask(projectId, taskId);
+		await window.agent567.batchTasks.runTask(projectId, taskId);
 	}, []);
 
 	const retryTask = useCallback(async (projectId: string, taskId: string) => {
-		await window.vetta.batchTasks.retryTask(projectId, taskId);
+		await window.agent567.batchTasks.retryTask(projectId, taskId);
 	}, []);
 
 	const stopTask = useCallback(async (projectId: string, taskId: string) => {
-		await window.vetta.batchTasks.stopTask(projectId, taskId);
+		await window.agent567.batchTasks.stopTask(projectId, taskId);
 	}, []);
 
 	const resumeTask = useCallback(async (projectId: string, taskId: string) => {
-		await window.vetta.batchTasks.resumeTask(projectId, taskId);
+		await window.agent567.batchTasks.resumeTask(projectId, taskId);
 	}, []);
 
 	const resumeTaskWithText = useCallback(async (projectId: string, taskId: string, text: string) => {
-		await window.vetta.batchTasks.resumeTaskWithText(projectId, taskId, text);
+		await window.agent567.batchTasks.resumeTaskWithText(projectId, taskId, text);
 	}, []);
 
 	const deleteTask = useCallback(
 		async (projectId: string, taskId: string) => {
-			await window.vetta.batchTasks.deleteTask(projectId, taskId);
+			await window.agent567.batchTasks.deleteTask(projectId, taskId);
 			setProjects((prev) =>
 				prev.map((p) =>
 					p.id === projectId ? { ...p, tasks: p.tasks.filter((t) => t.id !== taskId), updatedAt: Date.now() } : p,
@@ -162,38 +162,38 @@ export function useBatchTasks() {
 
 	const batchDelete = useCallback(
 		async (projectId: string) => {
-			await window.vetta.batchTasks.batchDelete(projectId);
+			await window.agent567.batchTasks.batchDelete(projectId);
 			await refreshProjects();
 		},
 		[refreshProjects],
 	);
 
 	const deleteSession = useCallback(async (sessionPath: string) => {
-		await window.vetta.batchTasks.deleteSession(sessionPath);
+		await window.agent567.batchTasks.deleteSession(sessionPath);
 	}, []);
 
 	const batchStart = useCallback(async (projectId: string) => {
-		await window.vetta.batchTasks.batchStart(projectId);
+		await window.agent567.batchTasks.batchStart(projectId);
 	}, []);
 
 	const batchStop = useCallback(async (projectId: string) => {
-		await window.vetta.batchTasks.batchStop(projectId);
+		await window.agent567.batchTasks.batchStop(projectId);
 	}, []);
 
 	const batchReset = useCallback(
 		async (projectId: string) => {
-			await window.vetta.batchTasks.batchReset(projectId);
+			await window.agent567.batchTasks.batchReset(projectId);
 			await refreshProjects();
 		},
 		[refreshProjects],
 	);
 
 	const batchResetFailed = useCallback(async (projectId: string, taskIds: string[]) => {
-		await window.vetta.batchTasks.batchResetFailed(projectId, taskIds);
+		await window.agent567.batchTasks.batchResetFailed(projectId, taskIds);
 	}, []);
 
 	useEffect(() => {
-		const unsubscribe = window.vetta.batchTasks.onTaskEvent((event) => {
+		const unsubscribe = window.agent567.batchTasks.onTaskEvent((event) => {
 			console.log(`[BatchTaskRenderer] Event received: ${event.type}`, event);
 
 			// 维护后端调度器排队中的 taskId 集合

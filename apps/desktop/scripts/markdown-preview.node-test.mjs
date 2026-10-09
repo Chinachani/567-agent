@@ -61,7 +61,7 @@ test(
 			});
 			await new Promise((resolve) => server.listen(0, "127.0.0.1", resolve));
 			const port = server.address().port;
-			browser = await chromium.launch({ headless: true, channel: process.env.VETTA_TEST_BROWSER || undefined });
+			browser = await chromium.launch({ headless: true, channel: process.env.AGENT567_TEST_BROWSER || undefined });
 			const page = await browser.newPage();
 			page.setDefaultTimeout(5000);
 			const external = [];

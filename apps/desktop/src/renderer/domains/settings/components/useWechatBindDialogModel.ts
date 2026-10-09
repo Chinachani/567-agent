@@ -135,7 +135,7 @@ export function useWechatBindDialogModel({
 		if (closeTimerRef.current) clearTimeout(closeTimerRef.current);
 		closeTimerRef.current = null;
 		setState({ phase: "starting", qrAttempt: 0 });
-		const unsub = await window.vetta.im.wechat.subscribeBind((event: ImWechatBindEvent) => {
+		const unsub = await window.agent567.im.wechat.subscribeBind((event: ImWechatBindEvent) => {
 			if (generation !== bindGenerationRef.current || !openRef.current) return;
 			switch (event.kind) {
 				case "qr":
@@ -190,7 +190,7 @@ export function useWechatBindDialogModel({
 		subUnsubRef.current = unsub;
 
 		try {
-			const result = await window.vetta.im.wechat.startBind();
+			const result = await window.agent567.im.wechat.startBind();
 			if (generation !== bindGenerationRef.current || !openRef.current) return;
 			if (!result.ok) {
 				setState({

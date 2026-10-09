@@ -52,14 +52,14 @@ describe("useBoundAgentParticipants", () => {
 	it("stays empty for an unbound conversation", async () => {
 		const { result } = renderWithSession();
 
-		await waitFor(() => expect(window.vetta.agentTeams.list).not.toHaveBeenCalled());
+		await waitFor(() => expect(window.agent567.agentTeams.list).not.toHaveBeenCalled());
 		expect(result.current).toBeUndefined();
 	});
 
 	it("falls back to the generic author when the bound Agent was deleted", async () => {
 		const { result } = renderWithSession("deleted-agent");
 
-		await waitFor(() => expect(window.vetta.agentTeams.list).toHaveBeenCalled());
+		await waitFor(() => expect(window.agent567.agentTeams.list).toHaveBeenCalled());
 		expect(result.current).toBeUndefined();
 	});
 });

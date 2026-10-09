@@ -30,6 +30,7 @@ import androidx.compose.material.icons.automirrored.filled.KeyboardArrowRight
 import androidx.compose.material.icons.filled.Devices
 import androidx.compose.material.icons.filled.DeleteSweep
 import androidx.compose.material.icons.filled.Info
+import androidx.compose.material.icons.filled.Palette
 import androidx.compose.material.icons.filled.FileDownload
 import androidx.compose.material.icons.filled.FileUpload
 import androidx.compose.material.icons.filled.Check
@@ -70,12 +71,13 @@ import org.agent567.android.ui.components.PrimaryBlackButton
 import org.agent567.android.ui.components.EmptyState
 import org.agent567.android.ui.components.QuotaMeter
 import org.agent567.android.ui.components.SectionHeader
-import org.agent567.android.ui.components.VettaListGroup
-import org.agent567.android.ui.components.VettaConfirmDialog
-import org.agent567.android.ui.components.VettaChoiceDialog
-import org.agent567.android.ui.components.VettaInfoDialog
+import org.agent567.android.ui.components.Agent567ListGroup
+import org.agent567.android.ui.components.Agent567Card
+import org.agent567.android.ui.components.Agent567ConfirmDialog
+import org.agent567.android.ui.components.Agent567ChoiceDialog
+import org.agent567.android.ui.components.Agent567InfoDialog
 import org.agent567.android.ui.i18n.Str
-import org.agent567.android.ui.theme.vettaExtra
+import org.agent567.android.ui.theme.agent567Extra
 
 fun formatUsd(usd: Double): String {
     val cents = (usd * 100.0 + 0.5).toLong()
@@ -116,13 +118,13 @@ fun MeScreen(
     val usdFormatted = user?.let { formatUsd(it.quota.toDouble() / 500000.0) } ?: "0.00"
 
     Scaffold(
-        containerColor = MaterialTheme.vettaExtra.pageBackground,
+        containerColor = MaterialTheme.agent567Extra.pageBackground,
         topBar = {
             TopAppBar(
                 title = { Text(Str.me, style = MaterialTheme.typography.titleMedium) },
                 colors =
                     TopAppBarDefaults.topAppBarColors(
-                        containerColor = MaterialTheme.vettaExtra.pageBackground,
+                        containerColor = MaterialTheme.agent567Extra.pageBackground,
                     ),
             )
         },
@@ -143,7 +145,7 @@ fun MeScreen(
                         Text(
                             contact,
                             style = MaterialTheme.typography.bodySmall,
-                            color = MaterialTheme.vettaExtra.secondaryText,
+                            color = MaterialTheme.agent567Extra.secondaryText,
                         )
                     }
                 }
@@ -151,21 +153,15 @@ fun MeScreen(
 
             if (user != null) {
                 Spacer(Modifier.height(16.dp))
-                androidx.compose.material3.Card(
-                    modifier = Modifier.fillMaxWidth(),
-                    colors = androidx.compose.material3.CardDefaults.cardColors(
-                        containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f)
-                    ),
-                    shape = androidx.compose.foundation.shape.RoundedCornerShape(12.dp),
-                ) {
-                    Column(Modifier.padding(16.dp)) {
+                Agent567Card {
+                    Column {
                         Row(
                             modifier = Modifier.fillMaxWidth(),
                             horizontalArrangement = Arrangement.SpaceBetween,
                             verticalAlignment = Alignment.CenterVertically,
                         ) {
                             Column {
-                                Text("567 API 可用额度", style = MaterialTheme.typography.labelMedium, color = MaterialTheme.vettaExtra.secondaryText)
+                                Text("567 API 可用额度", style = MaterialTheme.typography.labelMedium, color = MaterialTheme.agent567Extra.secondaryText)
                                 Spacer(Modifier.height(4.dp))
                                 Text(
                                     "$$usdFormatted",
@@ -176,8 +172,9 @@ fun MeScreen(
                             Row(verticalAlignment = Alignment.CenterVertically) {
                                 androidx.compose.material3.FilledTonalButton(
                                     onClick = { showTopupDialog = true },
-                                    modifier = Modifier.height(36.dp),
-                                    contentPadding = androidx.compose.foundation.layout.PaddingValues(horizontal = 12.dp, vertical = 4.dp),
+                                    modifier = Modifier.height(32.dp),
+                                    shape = androidx.compose.foundation.shape.RoundedCornerShape(16.dp),
+                                    contentPadding = androidx.compose.foundation.layout.PaddingValues(horizontal = 14.dp, vertical = 0.dp),
                                 ) {
                                     Text("充值", style = MaterialTheme.typography.labelMedium)
                                 }
@@ -188,7 +185,10 @@ fun MeScreen(
                             }
                         }
                         Spacer(Modifier.height(12.dp))
-                        androidx.compose.material3.HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.4f))
+                        androidx.compose.material3.HorizontalDivider(
+                            modifier = Modifier.padding(start = 16.dp),
+                            color = MaterialTheme.agent567Extra.border,
+                        )
                         Spacer(Modifier.height(12.dp))
                         Row(
                             modifier = Modifier
@@ -198,7 +198,7 @@ fun MeScreen(
                             verticalAlignment = Alignment.CenterVertically,
                         ) {
                             Column(Modifier.weight(1f)) {
-                                Text("当前接入分组", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.vettaExtra.secondaryText)
+                                Text("当前接入分组", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.agent567Extra.secondaryText)
                                 Spacer(Modifier.height(2.dp))
                                 Text(
                                     activeGroup ?: "默认分组 (点击切换)",
@@ -220,62 +220,83 @@ fun MeScreen(
 
             Spacer(Modifier.height(20.dp))
             SectionHeader(title = Str.accountAndDevices)
-            VettaListGroup {
-                ProfileRow(Icons.Default.Devices, Str.connectedDevices, "$onlineDeviceCount", onOpenDevices, showDivider = false)
+            Agent567Card {
+                Agent567ListGroup {
+                    ProfileRow(Icons.Default.Devices, Str.connectedDevices, "$onlineDeviceCount", onOpenDevices, showDivider = false)
+                }
             }
 
             Spacer(Modifier.height(16.dp))
             SectionHeader(title = Str.settings)
-            VettaListGroup {
-                Column(Modifier.fillMaxWidth()) {
-                    Row(
-                        modifier = Modifier.fillMaxWidth().padding(vertical = 10.dp),
-                        verticalAlignment = Alignment.CenterVertically,
-                    ) {
-                        Column(Modifier.weight(1f)) {
-                            Text(Str.appearance, style = MaterialTheme.typography.bodyLarge)
-                            Text(
-                                Str.appearanceHint,
-                                style = MaterialTheme.typography.bodySmall,
-                                color = MaterialTheme.vettaExtra.secondaryText,
-                                modifier = Modifier.padding(top = 2.dp),
-                            )
-                        }
-                        ThemeModeSelector(
-                            themeMode = themeMode,
-                            onThemeMode = onThemeMode,
-                        )
+            Agent567Card(contentPadding = androidx.compose.foundation.layout.PaddingValues(12.dp)) {
+                Agent567ListGroup {
+                    val nextThemeMode = when (themeMode) {
+                        org.agent567.android.app.ThemeMode.Light -> org.agent567.android.app.ThemeMode.Dark
+                        org.agent567.android.app.ThemeMode.Dark -> org.agent567.android.app.ThemeMode.System
+                        org.agent567.android.app.ThemeMode.System -> org.agent567.android.app.ThemeMode.Light
                     }
-                    androidx.compose.material3.HorizontalDivider(color = MaterialTheme.vettaExtra.border)
+                    ProfileRow(
+                        Icons.Default.Palette,
+                        Str.appearance,
+                        when (themeMode) {
+                            org.agent567.android.app.ThemeMode.Light -> Str.themeLight
+                            org.agent567.android.app.ThemeMode.Dark -> Str.themeDark
+                            org.agent567.android.app.ThemeMode.System -> Str.themeSystem
+                        },
+                        { onThemeMode(nextThemeMode) },
+                        showDivider = false,
+                        verticalPadding = 8.dp,
+                        dividerStart = 16.dp,
+                    )
+                    androidx.compose.material3.HorizontalDivider(
+                        modifier = Modifier.padding(start = 16.dp),
+                        color = MaterialTheme.agent567Extra.border,
+                    )
+                    ProfileRow(
+                        Icons.Default.CheckCircle,
+                        Str.behavior,
+                        null,
+                        onOpenSettings,
+                        showDivider = false,
+                        verticalPadding = 8.dp,
+                        dividerStart = 16.dp,
+                    )
+                    androidx.compose.material3.HorizontalDivider(
+                        modifier = Modifier.padding(start = 16.dp),
+                        color = MaterialTheme.agent567Extra.border,
+                    )
+                    ProfileRow(
+                        Icons.Default.FileDownload,
+                        Str.dataSection,
+                        null,
+                        onOpenDataSettings,
+                        showDivider = false,
+                        verticalPadding = 8.dp,
+                        dividerStart = 16.dp,
+                    )
                 }
-                ProfileRow(
-                    Icons.Default.CheckCircle,
-                    Str.behavior,
-                    null,
-                    onOpenSettings,
-                    subtitle = Str.settingsBehaviorSummary,
-                )
-                ProfileRow(
-                    Icons.Default.FileDownload,
-                    Str.dataSection,
-                    null,
-                    onOpenDataSettings,
-                    subtitle = Str.settingsDataSummary,
-                    showDivider = false,
-                )
             }
 
             Spacer(Modifier.height(16.dp))
             SectionHeader(title = Str.aboutSection)
-            VettaListGroup {
-                ProfileRow(Icons.Default.Info, Str.aboutUs, Str.versionNumber.removePrefix("版本 "), onOpenAbout, showDivider = false)
+            Agent567Card {
+                Agent567ListGroup {
+                    ProfileRow(Icons.Default.Info, Str.aboutUs, Str.versionNumber.removePrefix("版本 "), onOpenAbout, showDivider = false)
+                }
             }
 
             Spacer(Modifier.height(24.dp))
             if (user == null) {
                 PrimaryBlackButton(text = Str.getStarted, onClick = onLogin)
             } else {
-                PrimaryBlackButton(text = Str.logout, onClick = { confirmLogout = true })
+                Agent567Card {
+                    TextButton(
+                        onClick = { confirmLogout = true },
+                        modifier = Modifier.align(Alignment.CenterHorizontally),
+                    ) {
+                        Text(Str.logout, color = MaterialTheme.colorScheme.error)
+                    }
+                }
             }
             Spacer(Modifier.height(24.dp))
         }
@@ -304,7 +325,7 @@ fun MeScreen(
     }
 
     if (confirmLogout) {
-        VettaChoiceDialog(
+        Agent567ChoiceDialog(
             title = Str.logout,
             message = Str.logoutConfirm,
             primaryLabel = Str.confirmLogout,
@@ -345,12 +366,15 @@ private fun ProfileRow(
     onClick: (() -> Unit)?,
     showDivider: Boolean = true,
     subtitle: String? = null,
+    verticalPadding: androidx.compose.ui.unit.Dp = 14.dp,
+    dividerStart: androidx.compose.ui.unit.Dp = 36.dp,
 ) {
     val rowModifier =
         Modifier
             .fillMaxWidth()
             .then(if (onClick != null) Modifier.clickable(onClick = onClick) else Modifier)
-            .padding(vertical = 14.dp)
+            .heightIn(min = 48.dp)
+            .padding(vertical = verticalPadding)
     Row(
         modifier = rowModifier,
         verticalAlignment = Alignment.CenterVertically,
@@ -364,24 +388,27 @@ private fun ProfileRow(
                 Text(
                     subtitle,
                     style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.vettaExtra.secondaryText,
+                    color = MaterialTheme.agent567Extra.secondaryText,
                 )
             }
         }
         if (!value.isNullOrBlank()) {
-            Text(value, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.vettaExtra.secondaryText)
+            Text(value, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.agent567Extra.secondaryText)
             Spacer(Modifier.width(4.dp))
         }
         if (onClick != null) {
             Icon(
                 Icons.AutoMirrored.Filled.KeyboardArrowRight,
                 contentDescription = null,
-                tint = MaterialTheme.vettaExtra.secondaryText,
+                tint = MaterialTheme.agent567Extra.secondaryText,
             )
         }
     }
     if (showDivider) {
-        androidx.compose.material3.HorizontalDivider(color = MaterialTheme.vettaExtra.border)
+        androidx.compose.material3.HorizontalDivider(
+            modifier = Modifier.padding(start = dividerStart),
+            color = MaterialTheme.agent567Extra.border,
+        )
     }
 }
 
@@ -401,7 +428,7 @@ fun PlanScreen(
     onLogin: () -> Unit,
 ) {
     Scaffold(
-        containerColor = MaterialTheme.vettaExtra.pageBackground,
+        containerColor = MaterialTheme.agent567Extra.pageBackground,
         topBar = {
             TopAppBar(
                 title = { Text(Str.plan, style = MaterialTheme.typography.titleMedium) },
@@ -419,7 +446,7 @@ fun PlanScreen(
                 },
                 colors =
                     TopAppBarDefaults.topAppBarColors(
-                        containerColor = MaterialTheme.vettaExtra.pageBackground,
+                        containerColor = MaterialTheme.agent567Extra.pageBackground,
                     ),
             )
         },
@@ -439,7 +466,7 @@ fun PlanScreen(
                 )
                 return@Column
             }
-            VettaListGroup {
+            Agent567ListGroup {
                 Text(
                     when {
                         subscription == null && subscriptionLoadFailed -> Str.subscriptionUnavailable
@@ -459,13 +486,13 @@ fun PlanScreen(
                     Text(
                         subscription.description.orEmpty(),
                         style = MaterialTheme.typography.bodyMedium,
-                        color = MaterialTheme.vettaExtra.secondaryText,
+                        color = MaterialTheme.agent567Extra.secondaryText,
                     )
                 }
             }
             Spacer(Modifier.height(12.dp))
             subscription?.windows.orEmpty().forEach { w ->
-                VettaListGroup(modifier = Modifier.padding(vertical = 10.dp)) {
+                Agent567ListGroup(modifier = Modifier.padding(vertical = 10.dp)) {
                     QuotaMeter(
                         label =
                             when (w.kind) {
@@ -499,10 +526,15 @@ fun SettingsScreen(
     onInputPredictionEnabled: (Boolean) -> Unit,
     onClearLocalData: () -> Unit,
     onExportMigration: (String, (String) -> Unit, (ByteArray?, String?) -> Unit) -> Unit,
+    onSendMigration: (String, (String) -> Unit, (Boolean, String?) -> Unit) -> Unit,
     onImportMigration: (ByteArray, String, (String) -> Unit, (Int?, String?) -> Unit) -> Unit,
     onBack: () -> Unit,
     confirmBeforeDelete: Boolean,
     onConfirmBeforeDelete: (Boolean) -> Unit,
+    autoRequestDesktopScreen: Boolean = false,
+    onAutoRequestDesktopScreen: (Boolean) -> Unit = {},
+    showBottomNavLabels: Boolean = true,
+    onShowBottomNavLabels: (Boolean) -> Unit = {},
 ) {
     var confirmClearLocalData by remember { mutableStateOf(false) }
     var migrationDialog by remember { mutableStateOf<MigrationDialog?>(null) }
@@ -544,7 +576,7 @@ fun SettingsScreen(
         },
     )
     Scaffold(
-        containerColor = MaterialTheme.vettaExtra.pageBackground,
+        containerColor = MaterialTheme.agent567Extra.pageBackground,
         topBar = {
             TopAppBar(
                 title = {
@@ -560,7 +592,7 @@ fun SettingsScreen(
                 },
                 colors =
                     TopAppBarDefaults.topAppBarColors(
-                        containerColor = MaterialTheme.vettaExtra.pageBackground,
+                        containerColor = MaterialTheme.agent567Extra.pageBackground,
                     ),
             )
         },
@@ -577,88 +609,130 @@ fun SettingsScreen(
                         Text(
                             Str.settingsBehaviorSummary,
                             style = MaterialTheme.typography.bodySmall,
-                            color = MaterialTheme.vettaExtra.secondaryText,
+                            color = MaterialTheme.agent567Extra.secondaryText,
                             modifier = Modifier.padding(horizontal = 4.dp, vertical = 2.dp),
                         )
                         Spacer(Modifier.height(10.dp))
-                        VettaListGroup {
-                            PreferenceSwitchRow(
-                                title = Str.autoResume,
-                                subtitle = Str.autoResumeHint,
-                                checked = autoResumeLastSession,
-                                onCheckedChange = onAutoResumeLastSession,
-                                showDivider = true,
-                            )
-                            PreferenceSwitchRow(
-                                title = Str.pageMotion,
-                                subtitle = Str.pageMotionHint,
-                                checked = motionEnabled,
-                                onCheckedChange = onMotionEnabled,
-                                showDivider = true,
-                            )
-                            PreferenceSwitchRow(
-                                title = Str.inputPrediction,
-                                subtitle = Str.inputPredictionHint,
-                                checked = inputPredictionEnabled,
-                                onCheckedChange = onInputPredictionEnabled,
-                                showDivider = false,
-                            )
+                        Agent567Card {
+                            Agent567ListGroup {
+                                PreferenceSwitchRow(
+                                    title = Str.autoResume,
+                                    subtitle = Str.autoResumeHint,
+                                    checked = autoResumeLastSession,
+                                    onCheckedChange = onAutoResumeLastSession,
+                                    showDivider = true,
+                                )
+                                PreferenceSwitchRow(
+                                    title = Str.pageMotion,
+                                    subtitle = Str.pageMotionHint,
+                                    checked = motionEnabled,
+                                    onCheckedChange = onMotionEnabled,
+                                    showDivider = true,
+                                )
+                                PreferenceSwitchRow(
+                                    title = Str.inputPrediction,
+                                    subtitle = Str.inputPredictionHint,
+                                    checked = inputPredictionEnabled,
+                                    onCheckedChange = onInputPredictionEnabled,
+                                    showDivider = true,
+                                )
+                                PreferenceSwitchRow(
+                                    title = "进入设备页时自动申请屏幕共享",
+                                    subtitle = "关闭后不会自动请求；仍可在设备页手动查看屏幕。",
+                                    checked = autoRequestDesktopScreen,
+                                    onCheckedChange = onAutoRequestDesktopScreen,
+                                    showDivider = true,
+                                )
+                                PreferenceSwitchRow(
+                                    title = "显示底部导航文字",
+                                    subtitle = "控制首页、会话、工具、设备和我的下方是否显示文字。",
+                                    checked = showBottomNavLabels,
+                                    onCheckedChange = onShowBottomNavLabels,
+                                    showDivider = false,
+                                )
+                            }
                         }
                 }
                 SettingsSection.Data -> {
                         Text(
                             Str.migrationBackupHint.replace("{limit}", migrationBackupLimitMb.toString()),
                             style = MaterialTheme.typography.bodySmall,
-                            color = MaterialTheme.vettaExtra.secondaryText,
+                            color = MaterialTheme.agent567Extra.secondaryText,
                             modifier = Modifier.padding(horizontal = 4.dp, vertical = 2.dp),
                         )
                         Spacer(Modifier.height(10.dp))
-                        VettaListGroup {
-                            ProfileRow(
-                                Icons.Default.Settings,
-                                Str.migrationBackupLimit,
-                                "$migrationBackupLimitMb MB",
-                                onClick = { showMigrationLimitDialog = true },
-                            )
-                            ProfileRow(
-                                Icons.Default.FileDownload,
-                                Str.exportChatHistory,
-                                null,
-                                onClick = {
-                                    migrationPassword = ""
-                                    migrationPasswordConfirm = ""
-                                    migrationDialog = MigrationDialog.Export
-                                },
-                            )
-                            ProfileRow(
-                                Icons.Default.FileUpload,
-                                Str.importChatHistory,
-                                null,
-                                onClick = migrationFiles.open,
-                            )
-                            ProfileRow(
-                                Icons.Default.FileDownload,
-                                Str.exportDiagnostics,
-                                null,
-                                onClick = diagnosticsFiles.export,
-                                subtitle = Str.exportDiagnosticsHint,
-                            )
-                            ProfileRow(
-                                Icons.Default.DeleteSweep,
-                                Str.clearLocalData,
-                                null,
-                                onClick = { confirmClearLocalData = true },
-                                subtitle = Str.clearLocalDataHint,
-                            )
-                            PreferenceSwitchRow(
-                                title = Str.confirmDeleteSession,
-                                subtitle = Str.confirmDeleteSessionHint,
-                                checked = confirmBeforeDelete,
-                                onCheckedChange = onConfirmBeforeDelete,
-                                showDivider = false,
-                            )
+                        Agent567Card {
+                            Agent567ListGroup {
+                                ProfileRow(
+                                    Icons.Default.Settings,
+                                    Str.migrationBackupLimit,
+                                    "$migrationBackupLimitMb MB",
+                                    onClick = { showMigrationLimitDialog = true },
+                                )
+                                ProfileRow(
+                                    Icons.Default.FileDownload,
+                                    Str.exportChatHistory,
+                                    null,
+                                    onClick = {
+                                        migrationPassword = ""
+                                        migrationPasswordConfirm = ""
+                                        migrationDialog = MigrationDialog.Export
+                                    },
+                                )
+                                ProfileRow(
+                                    Icons.Default.FileUpload,
+                                    Str.importChatHistory,
+                                    null,
+                                    onClick = migrationFiles.open,
+                                )
+                                ProfileRow(
+                                    Icons.Default.FileDownload,
+                                    Str.exportDiagnostics,
+                                    null,
+                                    onClick = diagnosticsFiles.export,
+                                    subtitle = Str.exportDiagnosticsHint,
+                                )
+                                ProfileRow(
+                                    Icons.Default.DeleteSweep,
+                                    Str.clearLocalData,
+                                    null,
+                                    onClick = { confirmClearLocalData = true },
+                                    subtitle = Str.clearLocalDataHint,
+                                )
+                                PreferenceSwitchRow(
+                                    title = Str.confirmDeleteSession,
+                                    subtitle = Str.confirmDeleteSessionHint,
+                                    checked = confirmBeforeDelete,
+                                    onCheckedChange = onConfirmBeforeDelete,
+                                    showDivider = false,
+                                )
+                            }
                         }
                 }
+            }
+        }
+    }
+
+    fun exportMigration(password: String, sendToDesktop: Boolean) {
+        migrationBusy = true
+        migrationProgress = Str.migrationProgressCollecting
+        if (sendToDesktop) {
+            onSendMigration(password, { migrationProgress = it }) { sent, error ->
+                migrationBusy = false
+                migrationDialog = null
+                migrationNotice = if (sent) Str.migrationSendSuccess else error ?: Str.migrationSendFailure
+            }
+            return
+        }
+        onExportMigration(password, { migrationProgress = it }) { bytes, error ->
+            if (bytes == null) {
+                migrationBusy = false
+                migrationDialog = null
+                migrationNotice = error ?: Str.migrationExportFailure
+            } else {
+                migrationBusy = false
+                migrationDialog = null
+                migrationFiles.save(bytes)
             }
         }
     }
@@ -713,43 +787,58 @@ fun SettingsScreen(
                 }
             },
             confirmButton = {
-                TextButton(
-                    enabled = !migrationBusy && migrationPassword.length >= 8 &&
-                        (mode == MigrationDialog.Import || migrationPassword == migrationPasswordConfirm),
-                    onClick = {
+                val validPassword = !migrationBusy && migrationPassword.length >= 8 &&
+                    (mode == MigrationDialog.Import || migrationPassword == migrationPasswordConfirm)
+                if (mode == MigrationDialog.Export) {
+                    Row {
+                        TextButton(
+                            enabled = validPassword,
+                            onClick = {
+                                val password = migrationPassword
+                                migrationPassword = ""
+                                migrationPasswordConfirm = ""
+                                exportMigration(password, sendToDesktop = false)
+                            },
+                        ) { Text(Str.migrationSaveToFile) }
+                        TextButton(
+                            enabled = validPassword,
+                            onClick = {
+                                val password = migrationPassword
+                                migrationPassword = ""
+                                migrationPasswordConfirm = ""
+                                exportMigration(password, sendToDesktop = true)
+                            },
+                        ) { Text(Str.migrationSendToDesktop) }
+                    }
+                } else {
+                    TextButton(
+                        enabled = validPassword,
+                        onClick = {
                         val password = migrationPassword
                         migrationPassword = ""
                         migrationPasswordConfirm = ""
                         migrationBusy = true
                         migrationProgress = Str.migrationProgressCollecting
-                        if (mode == MigrationDialog.Export) {
-                            onExportMigration(password, { migrationProgress = it }) { bytes, error ->
+                        val archive = pendingMigrationArchive
+                        pendingMigrationArchive = null
+                        if (archive != null) {
+                            onImportMigration(archive, password, { migrationProgress = it }) { count, error ->
                                 migrationBusy = false
                                 migrationDialog = null
-                                if (bytes != null) migrationFiles.save(bytes)
-                                else migrationNotice = error ?: Str.migrationExportFailure
+                                migrationNotice = if (count != null) {
+                                    "${Str.migrationImportSuccess}（$count 个会话）"
+                                } else {
+                                    error ?: Str.migrationFileReadFailure
+                                }
                             }
                         } else {
-                            val archive = pendingMigrationArchive
-                            pendingMigrationArchive = null
-                            if (archive != null) {
-                                onImportMigration(archive, password, { migrationProgress = it }) { count, error ->
-                                    migrationBusy = false
-                                    migrationDialog = null
-                                    migrationNotice = if (count != null) {
-                                        "${Str.migrationImportSuccess}（$count 个会话）"
-                                    } else {
-                                        error ?: Str.migrationFileReadFailure
-                                    }
-                                }
-                            } else {
-                                migrationBusy = false
-                                migrationDialog = null
-                                migrationNotice = Str.migrationFileReadFailure
-                            }
+                            migrationBusy = false
+                            migrationDialog = null
+                            migrationNotice = Str.migrationFileReadFailure
                         }
-                    },
-                ) { Text(Str.migrationContinue) }
+                        },
+                    ) { Text(Str.migrationContinue) }
+                }
             },
             dismissButton = {
                 TextButton(onClick = {
@@ -817,7 +906,7 @@ fun SettingsScreen(
     }
 
     if (confirmClearLocalData) {
-        VettaConfirmDialog(
+        Agent567ConfirmDialog(
             title = Str.clearLocalDataTitle,
             message = Str.clearLocalDataMessage,
             confirmLabel = Str.clearLocalDataAction,
@@ -833,26 +922,6 @@ fun SettingsScreen(
 private enum class MigrationDialog { Export, Import }
 
 enum class SettingsSection { Behavior, Data }
-
-@Composable
-private fun ThemeModeSelector(
-    themeMode: org.agent567.android.app.ThemeMode,
-    onThemeMode: (org.agent567.android.app.ThemeMode) -> Unit,
-) {
-    val (currentLabel, nextMode) = when (themeMode) {
-        org.agent567.android.app.ThemeMode.System -> Str.themeSystem to org.agent567.android.app.ThemeMode.Light
-        org.agent567.android.app.ThemeMode.Light -> Str.themeLight to org.agent567.android.app.ThemeMode.Dark
-        org.agent567.android.app.ThemeMode.Dark -> Str.themeDark to org.agent567.android.app.ThemeMode.System
-    }
-    TextButton(
-        onClick = { onThemeMode(nextMode) },
-        contentPadding = androidx.compose.foundation.layout.PaddingValues(horizontal = 8.dp, vertical = 4.dp),
-    ) {
-        Text(currentLabel, maxLines = 1)
-        Spacer(Modifier.width(4.dp))
-        Icon(Icons.Default.Refresh, contentDescription = null, modifier = Modifier.size(16.dp))
-    }
-}
 
 @Composable
 private fun PreferenceSwitchRow(
@@ -877,12 +946,15 @@ private fun PreferenceSwitchRow(
         Column(Modifier.weight(1f)) {
             Text(title, style = MaterialTheme.typography.bodyLarge)
             Spacer(Modifier.height(2.dp))
-            Text(subtitle, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.vettaExtra.secondaryText)
+            Text(subtitle, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.agent567Extra.secondaryText)
         }
         androidx.compose.material3.Switch(checked = checked, onCheckedChange = null)
     }
     if (showDivider) {
-        androidx.compose.material3.HorizontalDivider(color = MaterialTheme.vettaExtra.border)
+        androidx.compose.material3.HorizontalDivider(
+            modifier = Modifier.padding(start = 16.dp),
+            color = MaterialTheme.agent567Extra.border,
+        )
     }
 }
 
@@ -900,16 +972,16 @@ fun AboutScreen(
     var updateCheckError by remember { mutableStateOf<String?>(null) }
     var openDocument by remember { mutableStateOf<AboutDocument?>(null) }
     Scaffold(
-        containerColor = MaterialTheme.vettaExtra.pageBackground,
+        containerColor = MaterialTheme.agent567Extra.pageBackground,
         topBar = {
             TopAppBar(
-                title = { Text(Str.aboutVetta, style = MaterialTheme.typography.titleMedium) },
+                title = { Text(Str.aboutAgent567, style = MaterialTheme.typography.titleMedium) },
                 navigationIcon = {
                     IconButton(onClick = onBack) {
                         Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = Str.back)
                     }
                 },
-                colors = TopAppBarDefaults.topAppBarColors(containerColor = MaterialTheme.vettaExtra.pageBackground),
+                colors = TopAppBarDefaults.topAppBarColors(containerColor = MaterialTheme.agent567Extra.pageBackground),
             )
         },
     ) { padding ->
@@ -925,11 +997,11 @@ fun AboutScreen(
             Spacer(Modifier.height(16.dp))
             Text(Str.appName, style = MaterialTheme.typography.headlineSmall)
             Spacer(Modifier.height(8.dp))
-            Text(Str.versionNumber, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.vettaExtra.secondaryText)
+            Text(Str.versionNumber, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.agent567Extra.secondaryText)
             Spacer(Modifier.height(24.dp))
-            Text(Str.aboutDescription, style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.vettaExtra.secondaryText)
+            Text(Str.aboutDescription, style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.agent567Extra.secondaryText)
             Spacer(Modifier.height(28.dp))
-            VettaListGroup {
+            Agent567ListGroup {
                 ProfileRow(
                     Icons.Default.Refresh,
                     "检查新版本",
@@ -972,7 +1044,7 @@ fun AboutScreen(
     openDocument?.let { document ->
         val title = if (document == AboutDocument.Licenses) Str.openSourceLicenses else Str.privacyPolicy
         val body = if (document == AboutDocument.Licenses) Str.openSourceLicensesBody else Str.privacyPolicyBody
-        VettaInfoDialog(
+        Agent567InfoDialog(
             title = title,
             message = body,
             onDismiss = { openDocument = null },
@@ -1029,7 +1101,7 @@ fun AboutScreen(
     }
 
     if (showNoUpdateNotice) {
-        VettaInfoDialog(
+        Agent567InfoDialog(
             title = "检查更新",
             message = "当前已是最新版本 (v${AppVersion.NAME})，暂无可用更新。",
             onDismiss = { showNoUpdateNotice = false },
@@ -1037,7 +1109,7 @@ fun AboutScreen(
     }
 
     updateCheckError?.let { error ->
-        VettaInfoDialog(
+        Agent567InfoDialog(
             title = "检查更新失败",
             message = error,
             onDismiss = { updateCheckError = null },
@@ -1064,11 +1136,11 @@ fun GroupSelectionDialog(
         ) {
             Text("选择 567 API 接入分组", style = MaterialTheme.typography.titleMedium)
             Spacer(Modifier.height(4.dp))
-            Text("切换分组将自动接入对应渠道的模型和倍率", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.vettaExtra.secondaryText)
+            Text("切换分组将自动接入对应渠道的模型和倍率", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.agent567Extra.secondaryText)
             Spacer(Modifier.height(16.dp))
 
             if (availableGroups.isEmpty()) {
-                Text("暂无可用分组，请检查网络或重新登录", style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.vettaExtra.secondaryText)
+                Text("暂无可用分组，请检查网络或重新登录", style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.agent567Extra.secondaryText)
             } else {
                 Column(Modifier.verticalScroll(rememberScrollState())) {
                     availableGroups.forEach { (name, info) ->
@@ -1093,7 +1165,7 @@ fun GroupSelectionDialog(
                                 }
                                 if (info.desc.isNotBlank()) {
                                     Spacer(Modifier.height(2.dp))
-                                    Text(info.desc, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.vettaExtra.secondaryText)
+                                    Text(info.desc, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.agent567Extra.secondaryText)
                                 }
                             }
                             if (isSelected) {
@@ -1200,7 +1272,7 @@ fun TopupDialog(
                     )
                     Spacer(Modifier.height(12.dp))
                     Text("充值成功！", style = MaterialTheme.typography.titleMedium.copy(fontWeight = androidx.compose.ui.text.font.FontWeight.Bold))
-                    Text("额度已实时到账并同步", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.vettaExtra.secondaryText)
+                    Text("额度已实时到账并同步", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.agent567Extra.secondaryText)
                 }
                 Spacer(Modifier.height(32.dp))
             } else 
@@ -1228,7 +1300,7 @@ fun TopupDialog(
                         Text(
                             title,
                             style = MaterialTheme.typography.labelMedium.copy(fontWeight = if (isSel) androidx.compose.ui.text.font.FontWeight.Bold else androidx.compose.ui.text.font.FontWeight.Normal),
-                            color = if (isSel) MaterialTheme.colorScheme.primary else MaterialTheme.vettaExtra.secondaryText,
+                            color = if (isSel) MaterialTheme.colorScheme.primary else MaterialTheme.agent567Extra.secondaryText,
                         )
                     }
                 }
@@ -1285,7 +1357,7 @@ fun TopupDialog(
                     }
                 }
                 Spacer(Modifier.height(8.dp))
-                org.agent567.android.ui.components.VettaTextField(
+                org.agent567.android.ui.components.Agent567TextField(
                     value = customAmountText,
                     onValueChange = { customAmountText = it },
                     modifier = Modifier.fillMaxWidth(),
@@ -1314,7 +1386,7 @@ fun TopupDialog(
                 // 卡密兑换
                 Text("输入兑换码 / 卡密", style = MaterialTheme.typography.labelMedium.copy(fontWeight = androidx.compose.ui.text.font.FontWeight.Bold))
                 Spacer(Modifier.height(8.dp))
-                org.agent567.android.ui.components.VettaTextField(
+                org.agent567.android.ui.components.Agent567TextField(
                     value = cdkeyText,
                     onValueChange = { cdkeyText = it; message = null },
                     modifier = Modifier.fillMaxWidth(),

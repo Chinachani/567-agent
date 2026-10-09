@@ -1,4 +1,7 @@
+import { randomUUID } from "node:crypto";
+import { mkdir, writeFile } from "node:fs/promises";
 import { cpus, platform, release, totalmem } from "node:os";
+import { join } from "node:path";
 import type {
 	CodingAgentQuestionFunctionRequest,
 	CodingAgentQuestionResult,
@@ -10,15 +13,27 @@ import {
 	readCodingAgentSubagentsObservation,
 } from "@567agent/coding-agent/session-extensions";
 import type { SessionEvent } from "@567agent/runtime-core";
+import { dialog } from "electron";
 import type {
 	DesktopConversationService,
 	DesktopConversationSession,
 } from "../conversations/desktop-conversation-service.js";
+import type { SessionMigrationArchive } from "../conversations/session-migration-backup.js";
+import {
+	decryptSessionMigrationArchive,
+	parseSessionMigrationArchive,
+	SESSION_MIGRATION_MAX_BYTES,
+} from "../conversations/session-migration-backup.js";
 import { getDesktopUserQuestionBroker } from "../conversations/user-question-broker.js";
+import { mainT } from "../i18n/index.js";
+import { getAppLogger } from "../logger.js";
+import { getMainWindow } from "../window-manager.js";
 import type {
 	DesktopRemoteOperations,
 	DesktopRemotePromptEvent,
+	DesktopRemoteSessionCatalog,
 	DesktopRemoteSessionSummary,
+	DesktopRemoteToolboxAbility,
 } from "./desktop-remote-connector.js";
 
 interface ManagedSession {
@@ -27,6 +42,8 @@ interface ManagedSession {
 
 export interface DesktopConversationRemoteOperationsOptions {
 	readonly cwd: string;
+	readonly sessionRoots?: readonly { readonly cwd: string; readonly sessionDir?: string }[];
+	readonly allowSessionMigrationTransfer?: boolean;
 	readonly readDefaultModelKey?: () => Promise<string | undefined>;
 	readonly readGeneratedImageChunk?: (
 		id: string,
@@ -38,6 +55,8 @@ export interface DesktopConversationRemoteOperationsOptions {
 		dataBase64: string;
 	} | null>;
 	readonly turnTimeoutMs?: number | null;
+	readonly readToolbox?: () => Promise<readonly DesktopRemoteToolboxAbility[]>;
+	readonly installToolbox?: (type: "skill" | "scene" | "plugin", slug: string) => Promise<void>;
 }
 
 class DesktopRemoteOperationError extends Error {
@@ -49,6 +68,17 @@ class DesktopRemoteOperationError extends Error {
 	}
 }
 
+class RemoteSessionMigrationImportError extends Error {
+	readonly code = "SESSION_MIGRATION_IMPORT_FAILED";
+
+	constructor(message: string, options?: ErrorOptions) {
+		super(message, options);
+		this.name = "RemoteSessionMigrationImportError";
+	}
+}
+
+const log = getAppLogger("remote-session-migration");
+
 /**
  * Adapts the existing Desktop conversation ownership boundary to the remote protocol.
  * It keeps runtime session objects in process memory; only opaque IDs cross the relay.
@@ -57,9 +87,17 @@ export class DesktopConversationRemoteOperations implements DesktopRemoteOperati
 	private readonly sessions = new Map<string, ManagedSession>();
 	private readonly activeTurns = new Map<string, AbortController>();
 	private readonly deletingSessions = new Set<string>();
-	private readonly questionResolvers = new Map<string, (result: CodingAgentQuestionResult) => void>();
+	private readonly sessionRoots: readonly { readonly cwd: string; readonly sessionDir?: string }[];
+	private readonly sessionLocations = new Map<string, { readonly cwd: string; readonly sessionDir?: string }>();
+	private readonly questionResolvers = new Map<
+		string,
+		{ readonly sessionId: string; readonly resolve: (result: CodingAgentQuestionResult) => void }
+	>();
 	private readonly turnTimeoutMs: number | null;
 	readonly canReadGeneratedImages: boolean;
+	readonly canReceiveSessionMigration: boolean;
+	readonly readToolbox?: () => Promise<readonly DesktopRemoteToolboxAbility[]>;
+	readonly installToolbox?: (type: "skill" | "scene" | "plugin", slug: string) => Promise<void>;
 
 	constructor(
 		private readonly conversations: Pick<
@@ -78,21 +116,143 @@ export class DesktopConversationRemoteOperations implements DesktopRemoteOperati
 					| "deleteRemoteSession"
 					| "generateRemotePromptSuggestions"
 					| "generateRemoteSessionTitle"
+					| "importSessionMigrationArchive"
 				>
 			>,
 		private readonly options: DesktopConversationRemoteOperationsOptions,
 	) {
 		this.turnTimeoutMs = options.turnTimeoutMs ?? null;
+		this.sessionRoots = options.sessionRoots ?? [{ cwd: options.cwd }];
 		this.canReadGeneratedImages = options.readGeneratedImageChunk !== undefined;
+		this.canReceiveSessionMigration = options.allowSessionMigrationTransfer === true;
+		this.readToolbox = options.readToolbox;
+		this.installToolbox = options.installToolbox;
 	}
 
 	async listSessions(): Promise<readonly DesktopRemoteSessionSummary[]> {
-		const sessions = await this.conversations.listSessions(this.options.cwd);
-		return sessions.map((session) => ({
-			id: session.id,
-			title: session.name?.trim() || session.firstMessage,
-			updatedAtEpochMs: session.modifiedAt,
-		}));
+		return (await this.listSessionCatalog()).sessions;
+	}
+
+	async listSessionCatalog(): Promise<DesktopRemoteSessionCatalog> {
+		const locatedSessions = await Promise.all(
+			this.sessionRoots.map(async (root) => {
+				try {
+					return {
+						root,
+						sessions: await this.conversations.listSessions(root.cwd, root.sessionDir),
+						failed: false,
+					};
+				} catch (error) {
+					log.warn("could not list remote conversation root", {
+						cwd: root.cwd,
+						sessionDir: root.sessionDir,
+						error: formatErrorDetails(error),
+					});
+					return { root, sessions: null, failed: true };
+				}
+			}),
+		);
+		const failedRootCount = locatedSessions.filter(({ failed }) => failed).length;
+		const successfulRootCount = locatedSessions.length - failedRootCount;
+		if (successfulRootCount === 0) {
+			throw new Error("无法读取任何电脑会话目录，请检查目录权限后重试");
+		}
+		const summaries = new Map<string, DesktopRemoteSessionSummary>();
+		this.sessionLocations.clear();
+		for (const { root, sessions } of locatedSessions) {
+			if (sessions === null) continue;
+			for (const session of sessions) {
+				if (summaries.has(session.id)) continue;
+				summaries.set(session.id, {
+					id: session.id,
+					title: session.name?.trim() || session.firstMessage,
+					updatedAtEpochMs: session.modifiedAt,
+				});
+				this.sessionLocations.set(session.id, root);
+			}
+		}
+		return {
+			sessions: [...summaries.values()],
+			failedRootCount,
+		};
+	}
+
+	async confirmSessionMigrationArchive(encrypted: Buffer): Promise<boolean> {
+		if (this.options.allowSessionMigrationTransfer !== true) {
+			throw new Error("Encrypted conversation transfer is available only over a paired LAN connection");
+		}
+		if (encrypted.byteLength > SESSION_MIGRATION_MAX_BYTES) throw new Error("Migration archive is too large");
+		const parent = getMainWindow();
+		const options = {
+			type: "question" as const,
+			title: mainT("sessionMigration.receiveTitle"),
+			message: mainT("sessionMigration.receiveMessage", {
+				size: `${(encrypted.byteLength / (1024 * 1024)).toFixed(1)} MB`,
+			}),
+			detail: mainT("sessionMigration.receiveDetail"),
+			buttons: [mainT("sessionMigration.receiveConfirm"), mainT("sessionMigration.receiveCancel")],
+			defaultId: 1,
+			cancelId: 1,
+			noLink: true,
+		};
+		const result =
+			parent && !parent.isDestroyed()
+				? await dialog.showMessageBox(parent, options)
+				: await dialog.showMessageBox(options);
+		return result.response === 0;
+	}
+
+	async receiveEncryptedSessionMigrationArchive(encrypted: Buffer, passphrase: string) {
+		let stage = "验证备份";
+		try {
+			if (this.options.allowSessionMigrationTransfer !== true) {
+				throw new Error("Encrypted conversation transfer is available only over a paired LAN connection");
+			}
+			if (encrypted.byteLength === 0) throw new Error("Migration backup is empty");
+			if (encrypted.byteLength > SESSION_MIGRATION_MAX_BYTES) throw new Error("Migration archive is too large");
+			if (passphrase.length < 8 || passphrase.length > 128) throw new Error("Invalid migration password length");
+			stage = "解密备份";
+			let plaintext: Buffer;
+			try {
+				plaintext = decryptSessionMigrationArchive(encrypted, passphrase);
+			} catch (error) {
+				const message = error instanceof Error ? error.message : String(error);
+				const reason = /password is incorrect|authentication|auth tag/i.test(message)
+					? "备份密码不正确，或备份数据已损坏"
+					: "备份包为空或损坏";
+				throw migrationImportError(reason, error);
+			}
+			try {
+				stage = "校验备份格式";
+				let archive: SessionMigrationArchive;
+				try {
+					archive = parseSessionMigrationArchive(plaintext);
+				} catch (error) {
+					throw migrationImportError("备份包为空或损坏", error);
+				}
+				if (!this.conversations.importSessionMigrationArchive) {
+					throw migrationImportError(
+						"桌面端当前无法导入会话备份",
+						new Error("Session migration import is unavailable"),
+					);
+				}
+				stage = "导入会话";
+				try {
+					return await this.conversations.importSessionMigrationArchive(archive, this.options.cwd);
+				} catch (error) {
+					throw migrationImportError("导入会话失败", error);
+				}
+			} finally {
+				plaintext.fill(0);
+			}
+		} catch (error) {
+			const wrapped =
+				error instanceof RemoteSessionMigrationImportError ? error : migrationImportError(`${stage}失败`, error);
+			log.error("mobile conversation archive import failed", { error: formatErrorDetails(wrapped) });
+			throw wrapped;
+		} finally {
+			encrypted.fill(0);
+		}
 	}
 
 	async deleteSession(sessionId: string): Promise<void> {
@@ -104,8 +264,10 @@ export class DesktopConversationRemoteOperations implements DesktopRemoteOperati
 		}
 		this.deletingSessions.add(sessionId);
 		try {
-			await this.conversations.deleteRemoteSession(sessionId, this.options.cwd);
+			const location = await this.findSessionLocation(sessionId);
+			await this.conversations.deleteRemoteSession(sessionId, location.cwd, location.sessionDir);
 			this.sessions.delete(sessionId);
+			this.sessionLocations.delete(sessionId);
 		} finally {
 			this.deletingSessions.delete(sessionId);
 		}
@@ -117,6 +279,7 @@ export class DesktopConversationRemoteOperations implements DesktopRemoteOperati
 		}
 		if (!this.conversations.hasRemoteSessionContent) return false;
 		await this.openSession(sessionId);
+		const location = await this.findSessionLocation(sessionId);
 		if (
 			this.conversations.hasRemoteSessionContent(sessionId) ||
 			this.activeTurns.has(sessionId) ||
@@ -125,8 +288,9 @@ export class DesktopConversationRemoteOperations implements DesktopRemoteOperati
 			return false;
 		this.deletingSessions.add(sessionId);
 		try {
-			await this.conversations.deleteRemoteSession(sessionId, this.options.cwd);
+			await this.conversations.deleteRemoteSession(sessionId, location.cwd, location.sessionDir);
 			this.sessions.delete(sessionId);
+			this.sessionLocations.delete(sessionId);
 			return true;
 		} finally {
 			this.deletingSessions.delete(sessionId);
@@ -145,18 +309,47 @@ export class DesktopConversationRemoteOperations implements DesktopRemoteOperati
 			await this.conversations.selectRemoteSessionModel(session.sessionId, defaultModelKey);
 		}
 		this.sessions.set(session.sessionId, { session });
+		this.sessionLocations.set(session.sessionId, { cwd: session.listCwd || this.options.cwd });
 		return { sessionId: session.sessionId };
 	}
 
 	async openSession(sessionId: string): Promise<{ sessionId: string }> {
 		const known = this.sessions.get(sessionId);
 		if (known) return { sessionId };
-		const history = await this.conversations.listSessions(this.options.cwd);
-		const record = history.find((session) => session.id === sessionId);
-		if (!record) throw new Error("Desktop session was not found");
+		const { root, record } = await this.findSession(sessionId);
 		const session = await this.conversations.openSession(record.path, "sandbox", "interactive");
 		this.sessions.set(session.sessionId, { session });
+		this.sessionLocations.set(sessionId, root);
 		return { sessionId: session.sessionId };
+	}
+
+	private async findSessionLocation(sessionId: string) {
+		return (await this.findSession(sessionId)).root;
+	}
+
+	private async findSession(sessionId: string) {
+		const preferred = this.sessionLocations.get(sessionId);
+		const roots = preferred
+			? [preferred, ...this.sessionRoots.filter((root) => root !== preferred)]
+			: this.sessionRoots;
+		for (const root of roots) {
+			try {
+				const record = (await this.conversations.listSessions(root.cwd, root.sessionDir)).find(
+					(session) => session.id === sessionId,
+				);
+				if (record) {
+					this.sessionLocations.set(sessionId, root);
+					return { root, record };
+				}
+			} catch (error) {
+				log.warn("could not inspect remote conversation root", {
+					cwd: root.cwd,
+					sessionDir: root.sessionDir,
+					error: formatErrorDetails(error),
+				});
+			}
+		}
+		throw new Error("Desktop session was not found");
 	}
 
 	async readHistory(sessionId: string, offset: number, limit: number) {
@@ -221,6 +414,10 @@ export class DesktopConversationRemoteOperations implements DesktopRemoteOperati
 		text: string,
 		retryPreviousTurn = false,
 		retryTargetMessageId?: string,
+		remoteAttachments?: {
+			readonly refs: readonly { readonly kind: "file" | "image"; readonly path: string }[];
+			readonly images: readonly { readonly type: "image"; readonly data: string; readonly mimeType: string }[];
+		},
 	): AsyncIterable<DesktopRemotePromptEvent> {
 		const managed = this.sessions.get(sessionId);
 		if (!managed) throw new Error("Desktop session must be opened before prompting");
@@ -264,13 +461,17 @@ export class DesktopConversationRemoteOperations implements DesktopRemoteOperati
 		const unregisterQuestion = getDesktopUserQuestionBroker().registerRemoteHandler(sessionId, async (request) => {
 			queue.push({ type: "input", payload: questionPayload(request) });
 			return await new Promise<CodingAgentQuestionResult>((resolve) => {
-				this.questionResolvers.set(request.requestId, resolve);
+				this.questionResolvers.set(request.requestId, { sessionId, resolve });
 			});
 		});
 		const turn = this.conversations
 			.runTurn({
 				session: managed.session,
-				prompt: { text },
+				prompt: {
+					text,
+					...(remoteAttachments?.refs.length ? { attachments: [...remoteAttachments.refs] } : {}),
+					...(remoteAttachments?.images.length ? { images: [...remoteAttachments.images] } : {}),
+				},
 				timeoutMs: this.turnTimeoutMs,
 				signal: controller.signal,
 			})
@@ -288,8 +489,11 @@ export class DesktopConversationRemoteOperations implements DesktopRemoteOperati
 				throw error;
 			})
 			.finally(() => {
-				for (const resolve of this.questionResolvers.values()) resolve({ cancelled: true, answers: [] });
-				this.questionResolvers.clear();
+				for (const [requestId, pending] of this.questionResolvers) {
+					if (pending.sessionId !== sessionId) continue;
+					this.questionResolvers.delete(requestId);
+					pending.resolve({ cancelled: true, answers: [] });
+				}
 				unsubscribe?.();
 				unregisterQuestion();
 				queue.close();
@@ -305,16 +509,43 @@ export class DesktopConversationRemoteOperations implements DesktopRemoteOperati
 		}
 	}
 
+	async storeRemotePromptAttachment(
+		sessionId: string,
+		fileName: string,
+		mimeType: string,
+		data: Buffer,
+	): Promise<{ readonly kind: "file" | "image"; readonly path: string }> {
+		const managed = this.sessions.get(sessionId);
+		if (!managed)
+			throw new DesktopRemoteOperationError(
+				"SESSION_NOT_OPEN",
+				"Desktop session must be opened before receiving attachments",
+			);
+		if (data.byteLength < 1 || data.byteLength > 12 * 1024 * 1024)
+			throw new Error("Remote attachment exceeds the 12 MB limit");
+		const safeName =
+			fileName
+				.replace(/[/\\\r\n\0]/g, "_")
+				.trim()
+				.slice(0, 180) || "attachment";
+		const attachmentDir = join(managed.session.cwd, ".567agent", "remote-attachments");
+		const path = join(attachmentDir, `${randomUUID()}-${safeName}`);
+		await mkdir(attachmentDir, { recursive: true, mode: 0o700 });
+		await writeFile(path, data, { flag: "wx", mode: 0o600 });
+		return { kind: mimeType.toLowerCase().startsWith("image/") ? "image" : "file", path };
+	}
+
 	async abort(sessionId: string): Promise<void> {
 		this.activeTurns.get(sessionId)?.abort();
 	}
 
 	async respond(sessionId: string, requestId: string, result: CodingAgentQuestionResult): Promise<void> {
 		if (!this.sessions.has(sessionId)) throw new Error("Desktop session must be opened before responding");
-		const resolve = this.questionResolvers.get(requestId);
-		if (!resolve) throw new Error("Question request is no longer pending");
+		const pending = this.questionResolvers.get(requestId);
+		if (!pending || pending.sessionId !== sessionId)
+			throw new Error("Question request is no longer pending for this session");
 		this.questionResolvers.delete(requestId);
-		resolve(result);
+		pending.resolve(result);
 	}
 
 	async resume(_sessionId: string, _lastEventSequence: number): Promise<void> {
@@ -330,6 +561,21 @@ export class DesktopConversationRemoteOperations implements DesktopRemoteOperati
 			ram: formatMemory(totalmem()),
 		};
 	}
+}
+
+function formatErrorDetails(error: unknown): Record<string, unknown> {
+	if (!(error instanceof Error)) return { value: String(error) };
+	return {
+		name: error.name,
+		message: error.message,
+		stack: error.stack,
+		cause: error.cause instanceof Error ? formatErrorDetails(error.cause) : error.cause,
+	};
+}
+
+function migrationImportError(stage: string, error: unknown): RemoteSessionMigrationImportError {
+	const cause = error instanceof Error ? error : new Error(String(error));
+	return new RemoteSessionMigrationImportError(`${stage}：${cause.message}`, { cause });
 }
 
 class AsyncPromptQueue implements AsyncIterable<DesktopRemotePromptEvent> {

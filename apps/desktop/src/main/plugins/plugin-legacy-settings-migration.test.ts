@@ -7,7 +7,7 @@ const home = { path: "" };
 const written = new Map<string, unknown>();
 const existing = new Map<string, unknown>();
 
-vi.mock("@567agent/action-rpc", () => ({ getVettaHomePath: () => home.path }));
+vi.mock("@567agent/action-rpc", () => ({ getAgent567HomePath: () => home.path }));
 vi.mock("./plugin-storage-service.js", () => ({
 	readPluginFile: async (pluginId: string, path: string) => existing.get(`${pluginId}:${path}`) ?? null,
 	writePluginFile: async (pluginId: string, path: string, value: string) => {

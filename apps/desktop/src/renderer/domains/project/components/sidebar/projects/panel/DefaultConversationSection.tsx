@@ -1,6 +1,10 @@
 import type { DefaultConversationFilter, Project } from "@shared/store/atoms";
 import { cn } from "@shared/lib/utils";
+import { Button } from "@shared/components/ui/button";
 import { DefaultConversationSectionView } from "@vetta-org/theme-ui/project";
+import { ListChecks } from "lucide-react";
+import { useState } from "react";
+import { useTranslation } from "react-i18next";
 import { DefaultConversationFilterSelect } from "../../filters/SidebarFilterSelect";
 import { useDefaultConversationSectionModel } from "../../../../hooks/useDefaultConversationSectionModel";
 import { DefaultSessionList } from "./DefaultSessionList";
@@ -36,6 +40,10 @@ export function DefaultConversationSection(
 		onNewSession: props.onNewSession,
 	});
 	const isEmpty = !props.sessionsLoading && props.sessions.length === 0;
+	const { t } = useTranslation("project");
+	const [selectionMode, setSelectionMode] = useState(false);
+	const canSelectSessions =
+		props.defaultConversationFilter !== "claw" && props.sessions.some((session) => session.kind === "conversation");
 
 	return (
 		<DefaultConversationSectionView
@@ -43,6 +51,17 @@ export function DefaultConversationSection(
 			className={props.className}
 			filterSelect={<DefaultConversationFilterSelect />}
 			labels={model.labels}
+			listActions={canSelectSessions && !selectionMode ? (
+				<Button
+					aria-label={t("sidebar.defaultConversation.batchSelect")}
+					title={t("sidebar.defaultConversation.batchSelect")}
+					size="icon-xs"
+					variant="ghost"
+					onClick={() => setSelectionMode(true)}
+				>
+					<ListChecks aria-hidden="true" />
+				</Button>
+			) : null}
 			list={
 				<DefaultSessionList
 					activeSessionPath={props.activeSessionPath}
@@ -56,6 +75,8 @@ export function DefaultConversationSection(
 					onSelectSession={props.onSelectSession}
 					sessions={props.sessions}
 					loading={props.sessionsLoading}
+					selectionMode={selectionMode}
+					onSelectionModeChange={setSelectionMode}
 				/>
 			}
 			onMoreClick={model.actions.openMoreMenu}

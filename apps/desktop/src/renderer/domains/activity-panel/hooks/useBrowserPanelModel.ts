@@ -171,7 +171,7 @@ export function useBrowserPanelModel(): BrowserPanelModel {
 	}, []);
 
 	const openExternal = useCallback(() => {
-		if (currentUrl) void window.vetta.auth.openExternal(currentUrl);
+		if (currentUrl) void window.agent567.auth.openExternal(currentUrl);
 	}, [currentUrl]);
 
 	const labels = useMemo(

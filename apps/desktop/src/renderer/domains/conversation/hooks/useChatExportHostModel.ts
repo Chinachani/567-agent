@@ -40,7 +40,7 @@ export function useChatExportHostModel({
 				if (!root || cancelled) return;
 				const html = await buildChatHtmlDocument(root, title, authUser?.nickname);
 				if (cancelled) return;
-				await window.vetta.dialog.saveHtml(safeFileName(title), html);
+				await window.agent567.dialog.saveHtml(safeFileName(title), html);
 			} catch (error) {
 				console.error("[ChatExport] export failed", error);
 				if (!cancelled) {

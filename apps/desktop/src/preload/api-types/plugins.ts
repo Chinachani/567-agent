@@ -220,7 +220,7 @@ export interface InstalledPlugin {
 	pendingVersion?: string;
 	/**
 	 * Absolute filesystem root of the active plugin package
-	 * (system staging dir, or `~/.vetta/plugins/<id>/versions/<activeVersion>`).
+	 * (system staging dir, or `~/.567agent/plugins/<id>/versions/<activeVersion>`).
 	 */
 	rootPath: string;
 	/** 存在即该插件处于 dev 热更新链接（资源改从工程目录加载）。 */

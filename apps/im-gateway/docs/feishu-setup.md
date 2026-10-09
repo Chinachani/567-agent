@@ -66,7 +66,7 @@ The first-milestone gateway only handles private chats. Open Feishu, search for 
 im-gateway init
 ```
 
-This creates `~/.vetta/im-gateway/config.yaml` and `~/.vetta/im-gateway/credentials.yaml`. Edit the config to select Feishu:
+This creates `~/.567agent/im-gateway/config.yaml` and `~/.567agent/im-gateway/credentials.yaml`. Edit the config to select Feishu:
 
 ```yaml
 transport:

@@ -258,7 +258,7 @@ describe("Vetta CLI Desktop Runtime canary", { timeout: INTEGRATION_TEST_TIMEOUT
 		expect(existsSync(endpointFilePath)).toBe(true);
 
 		const createResponse = completedCliResponseSchema.parse(
-			await runVettaDebug(endpointFilePath, "conversation.create", {
+			await runAgent567Debug(endpointFilePath, "conversation.create", {
 				cwd: workspace,
 				prompt: firstPrompt,
 				executionMode: "full-access",
@@ -274,7 +274,7 @@ describe("Vetta CLI Desktop Runtime canary", { timeout: INTEGRATION_TEST_TIMEOUT
 		expect(existsSync(createResponse.result.sessionPath)).toBe(true);
 
 		const continueResponse = completedCliResponseSchema.parse(
-			await runVettaDebug(endpointFilePath, "conversation.continue", {
+			await runAgent567Debug(endpointFilePath, "conversation.continue", {
 				sessionPath: createResponse.result.sessionPath,
 				prompt: secondPrompt,
 				executionMode: "full-access",
@@ -290,7 +290,7 @@ describe("Vetta CLI Desktop Runtime canary", { timeout: INTEGRATION_TEST_TIMEOUT
 		});
 
 		const compactResponse = compactCliResponseSchema.parse(
-			await runVettaDebug(endpointFilePath, "conversation.compact", {
+			await runAgent567Debug(endpointFilePath, "conversation.compact", {
 				sessionPath: createResponse.result.sessionPath,
 				executionMode: "full-access",
 				customInstructions: "Preserve canary decisions",
@@ -313,7 +313,7 @@ describe("Vetta CLI Desktop Runtime canary", { timeout: INTEGRATION_TEST_TIMEOUT
 		expect(compactResponse.result.summaryChars).toBe(persistedCompaction.summary.length);
 
 		const automaticResponse = completedCliResponseSchema.parse(
-			await runVettaDebug(endpointFilePath, "conversation.create", {
+			await runAgent567Debug(endpointFilePath, "conversation.create", {
 				cwd: workspace,
 				prompt: automaticCompactionPrompt,
 				executionMode: "full-access",
@@ -336,7 +336,7 @@ describe("Vetta CLI Desktop Runtime canary", { timeout: INTEGRATION_TEST_TIMEOUT
 		});
 
 		const automaticContinuationResponse = completedCliResponseSchema.parse(
-			await runVettaDebug(endpointFilePath, "conversation.continue", {
+			await runAgent567Debug(endpointFilePath, "conversation.continue", {
 				sessionPath: automaticResponse.result.sessionPath,
 				prompt: automaticCompactionContinuation,
 				executionMode: "full-access",
@@ -377,7 +377,7 @@ describe("Vetta CLI Desktop Runtime canary", { timeout: INTEGRATION_TEST_TIMEOUT
 		expect(persistedAutomaticCompaction.summary).toContain(compactionSummary);
 
 		const listResponse = listCliResponseSchema.parse(
-			await runVettaDebug(endpointFilePath, "conversation.list", { cwd: workspace, limit: 20 }),
+			await runAgent567Debug(endpointFilePath, "conversation.list", { cwd: workspace, limit: 20 }),
 		);
 		expect(listResponse.result).toContainEqual(
 			expect.objectContaining({
@@ -455,7 +455,7 @@ function isRecord(value: unknown): value is Record<string, unknown> {
 	return typeof value === "object" && value !== null && !Array.isArray(value);
 }
 
-async function runVettaDebug(endpointFilePath: string, debugId: string, input: unknown): Promise<unknown> {
+async function runAgent567Debug(endpointFilePath: string, debugId: string, input: unknown): Promise<unknown> {
 	const result = await runCli(["debug", "run", debugId, JSON.stringify(input)], {
 		...process.env,
 		[ACTION_RPC_ENDPOINT_FILE_ENV]: endpointFilePath,

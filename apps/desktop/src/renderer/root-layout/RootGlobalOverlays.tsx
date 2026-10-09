@@ -27,7 +27,7 @@ import { useThemeComponent } from "@vetta-org/theme-sdk";
 export function RootGlobalOverlays(): JSX.Element {
 	const setFilePreview = useSetAtom(filePreviewAtom);
 	useEffect(
-		() => window.vetta.appLifecycle.onDesignShareOpen(({ filePath }) => {
+		() => window.agent567.appLifecycle.onDesignShareOpen(({ filePath }) => {
 			setFilePreview({ name: filePath.split(/[\\/]/).at(-1) ?? "design.567design", path: filePath });
 		}),
 		[setFilePreview],

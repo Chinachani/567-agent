@@ -1,7 +1,7 @@
 import type { PluginAiApi, PluginPermissionApi } from "@vetta-org/plugin-sdk";
 
 export function createPluginAiApi(permissions: PluginPermissionApi, capabilitySessionId: string): PluginAiApi {
-	const ai = window.vetta.plugins.internalCapabilities.ai;
+	const ai = window.agent567.plugins.internalCapabilities.ai;
 	return {
 		listModels: () => {
 			permissions.require("ai.models.list");

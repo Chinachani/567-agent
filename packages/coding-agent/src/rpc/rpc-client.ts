@@ -67,6 +67,7 @@ export class RpcClient {
 	private startupFailure: Extract<RpcResponse, { success: false }> | undefined;
 	private transportFailure: RpcClientError | undefined;
 	private transportFailureListeners = new Set<RpcTransportFailureListener>();
+	private stopWaiters = new Set<(error: Error) => void>();
 	private started = false;
 	private starting = false;
 
@@ -118,10 +119,17 @@ export class RpcClient {
 	 */
 	async stop(): Promise<void> {
 		if (!this.started && !this.starting) return;
-		await this.transport.stop();
 		this.started = false;
-		this.starting = false;
+		const stopped = new RpcClientError("RPC client stopped", {
+			errorCode: RPC_FAILURE_CODES.CLIENT_NOT_STARTED,
+			phase: "command",
+			recoverability: "user_action",
+		});
+		for (const pending of this.pendingRequests.values()) pending.reject(stopped);
 		this.pendingRequests.clear();
+		for (const reject of [...this.stopWaiters]) reject(stopped);
+		await this.transport.stop();
+		this.starting = false;
 	}
 
 	/**
@@ -386,7 +394,13 @@ export class RpcClient {
 				clearTimeout(timer);
 				unsubscribeEvent();
 				unsubscribeFailure();
+				this.stopWaiters.delete(onStop);
 			};
+			const onStop = (error: Error): void => {
+				cleanup();
+				reject(error);
+			};
+			this.stopWaiters.add(onStop);
 			const timer = setTimeout(() => {
 				cleanup();
 				reject(
@@ -423,7 +437,13 @@ export class RpcClient {
 				clearTimeout(timer);
 				unsubscribeEvent();
 				unsubscribeFailure();
+				this.stopWaiters.delete(onStop);
 			};
+			const onStop = (error: Error): void => {
+				cleanup();
+				reject(error);
+			};
+			this.stopWaiters.add(onStop);
 			const timer = setTimeout(() => {
 				cleanup();
 				reject(

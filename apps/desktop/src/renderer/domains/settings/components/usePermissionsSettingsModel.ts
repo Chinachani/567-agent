@@ -75,7 +75,7 @@ export function usePermissionsSettingsModel(): PermissionsSettingsModel {
 
 	const refresh = useCallback(async () => {
 		try {
-			setSnapshot(await window.vetta.permissions.checkAll());
+			setSnapshot(await window.agent567.permissions.checkAll());
 		} catch (err) {
 			setError(err instanceof Error ? err.message : String(err));
 		}
@@ -94,7 +94,7 @@ export function usePermissionsSettingsModel(): PermissionsSettingsModel {
 
 	const handleOpen = useCallback(async (kind: PermissionKind) => {
 		try {
-			await window.vetta.permissions.openPane(kind);
+			await window.agent567.permissions.openPane(kind);
 		} catch (err) {
 			setError(err instanceof Error ? err.message : String(err));
 		}

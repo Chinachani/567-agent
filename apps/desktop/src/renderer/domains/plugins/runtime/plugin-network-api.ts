@@ -8,7 +8,7 @@ export function createPluginNetworkApi(plugin: InstalledPlugin, capabilitySessio
 	return {
 		request: (request) => {
 			permissions.require("network.fetch");
-			return window.vetta.plugins.networkRequest(capabilitySessionId, normalizePluginNetworkRequest(request));
+			return window.agent567.plugins.networkRequest(capabilitySessionId, normalizePluginNetworkRequest(request));
 		},
 	};
 }

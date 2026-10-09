@@ -4,7 +4,7 @@ export function createOfficialDownloadsApi(
 	assertOfficial: () => void,
 	capabilitySessionId: string,
 ): PluginOfficialApi["downloads"] {
-	const downloads = window.vetta.plugins.internalCapabilities.downloads;
+	const downloads = window.agent567.plugins.internalCapabilities.downloads;
 	return {
 		list: async () => {
 			assertOfficial();

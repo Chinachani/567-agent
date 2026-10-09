@@ -88,7 +88,7 @@ export function PluginGlobalSlotHost(): JSX.Element | null {
 			reloadPlugins();
 		};
 		// Main process install/enable/reload (Action / workbench) → re-load remotes.
-		const unsubMain = window.vetta.plugins.onPluginsChanged(requestMainReload);
+		const unsubMain = window.agent567.plugins.onPluginsChanged(requestMainReload);
 		return unsubMain;
 	}, [reloadPlugins]);
 
@@ -108,7 +108,7 @@ export function PluginGlobalSlotHost(): JSX.Element | null {
 			markPluginHostLoading();
 
 			const previousPlugins = loadedPluginsRef.current;
-			const loadedPlugins = await window.vetta.plugins
+			const loadedPlugins = await window.agent567.plugins
 				.list()
 				.then((installedPlugins) =>
 					loadPluginSnapshot(
@@ -136,7 +136,7 @@ export function PluginGlobalSlotHost(): JSX.Element | null {
 			loadedPluginsRef.current = loadedPlugins;
 			setPlugins(loadedPlugins);
 			try {
-				await window.vetta.plugins.reportAgentContributionHostReady();
+				await window.agent567.plugins.reportAgentContributionHostReady();
 			} catch (error) {
 				console.error("Failed to report plugin contribution host readiness", error);
 			} finally {

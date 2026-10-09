@@ -299,6 +299,10 @@ func (t *Transport) handleCallback(ctx context.Context, cb *callbackQuery, handl
 	_ = t.api.call(ctx, "answerCallbackQuery", map[string]any{
 		"callback_query_id": cb.ID,
 	}, nil)
+	privateChat := cb.Message == nil || cb.Message.Chat.Type == "private"
+	if privateChat && len(t.allowed) > 0 && !t.allowed[cb.From.ID] {
+		return
+	}
 
 	chatID := ""
 	messageID := ""

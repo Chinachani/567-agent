@@ -4,7 +4,7 @@ import { existsSync } from "node:fs";
 import { mkdir, readFile, rename, rm, writeFile } from "node:fs/promises";
 import { createServer } from "node:net";
 import { dirname, isAbsolute, join, relative, resolve, sep } from "node:path";
-import { getVettaHomePath } from "@567agent/action-rpc";
+import { getAgent567HomePath } from "@567agent/action-rpc";
 import type {
 	PluginServiceArtifactPayload,
 	PluginServiceConnection,
@@ -258,7 +258,7 @@ export class PluginServiceProviderService {
 
 	constructor(
 		private readonly dependencies: PluginServiceProviderDependencies = (() => {
-			const rootDirectory = join(getVettaHomePath(), "plugin-services");
+			const rootDirectory = join(getAgent567HomePath(), "plugin-services");
 			return {
 				listPlugins,
 				installer: new PluginServiceRuntimeInstaller(rootDirectory),

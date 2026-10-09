@@ -17,6 +17,8 @@ class ConversationRouter(
         groupName: String? = null,
         imageGenModel: String? = null,
         retryPreviousTurn: Boolean = false,
+        desktopPromptText: String? = null,
+        desktopFiles: List<RemotePromptFileAttachment> = emptyList(),
     ): Flow<ChatStreamEvent> =
         when (session.origin) {
             ConversationOrigin.Cloud -> {
@@ -27,7 +29,15 @@ class ConversationRouter(
             ConversationOrigin.Desktop -> {
                 val deviceId = session.remoteDeviceId
                     ?: throw RemoteConversationException("此会话缺少桌面设备信息，请重新创建")
-                remoteGateway.stream(session.id, deviceId, session.remoteSessionId, messages, retryPreviousTurn)
+                remoteGateway.streamWithAttachments(
+                    session.id,
+                    deviceId,
+                    session.remoteSessionId,
+                    messages,
+                    retryPreviousTurn,
+                    desktopPromptText ?: messages.lastOrNull()?.textContent.orEmpty(),
+                    desktopFiles,
+                )
             }
         }
 
