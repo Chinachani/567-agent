@@ -35,11 +35,18 @@ type ProcessPool struct {
 	// the same session from its sidebar.
 	closeOnIdle bool
 
-	mu      sync.Mutex
-	entries map[string]*list.Element // sessionPath → list element
-	lru     *list.List               // front = MRU, back = LRU
-	closed  bool
-	opening int
+	mu            sync.Mutex
+	entries       map[string]*list.Element // sessionPath → list element
+	lru           *list.List               // front = MRU, back = LRU
+	closed        bool
+	opening       int
+	openingByPath map[string]*pendingSessionOpen
+}
+
+type pendingSessionOpen struct {
+	done       chan struct{}
+	actualPath string
+	err        error
 }
 
 type pooledSession struct {
@@ -56,10 +63,11 @@ func NewProcessPool(client HostClient, maxSize int) *ProcessPool {
 		maxSize = 1
 	}
 	return &ProcessPool{
-		client:  client,
-		maxSize: maxSize,
-		entries: make(map[string]*list.Element),
-		lru:     list.New(),
+		client:        client,
+		maxSize:       maxSize,
+		entries:       make(map[string]*list.Element),
+		lru:           list.New(),
+		openingByPath: make(map[string]*pendingSessionOpen),
 	}
 }
 
@@ -125,6 +133,22 @@ func (p *ProcessPool) Acquire(ctx context.Context, cwd, sessionPath string) (*Ac
 		p.mu.Unlock()
 		return &Acquired{pool: p, sessionPath: sessionPath, Session: ps.session}, nil
 	}
+	if pending, ok := p.openingByPath[sessionPath]; ok {
+		p.mu.Unlock()
+		select {
+		case <-ctx.Done():
+			return nil, ctx.Err()
+		case <-pending.done:
+		}
+		if pending.err != nil {
+			return nil, pending.err
+		}
+		resolvedPath := pending.actualPath
+		if resolvedPath == "" {
+			resolvedPath = sessionPath
+		}
+		return p.Acquire(ctx, cwd, resolvedPath)
+	}
 
 	// Miss: may need to evict before opening a new session. Note we do
 	// the eviction *before* the OpenSession call so the new session is
@@ -136,6 +160,8 @@ func (p *ProcessPool) Acquire(ctx context.Context, cwd, sessionPath string) (*Ac
 		}
 	}
 	p.opening++
+	pending := &pendingSessionOpen{done: make(chan struct{})}
+	p.openingByPath[sessionPath] = pending
 	p.mu.Unlock()
 
 	// Open without holding the mutex — OpenSession may take seconds
@@ -144,6 +170,7 @@ func (p *ProcessPool) Acquire(ctx context.Context, cwd, sessionPath string) (*Ac
 	if err != nil {
 		p.mu.Lock()
 		p.opening--
+		p.finishOpeningLocked(sessionPath, pending, "", err)
 		p.mu.Unlock()
 		return nil, err
 	}
@@ -180,12 +207,14 @@ func (p *ProcessPool) Acquire(ctx context.Context, cwd, sessionPath string) (*Ac
 		ps := elem.Value.(*pooledSession)
 		ps.inFlight++
 		p.lru.MoveToFront(elem)
+		p.finishOpeningLocked(sessionPath, pending, actualPath, nil)
 		return &Acquired{pool: p, sessionPath: actualPath, Session: ps.session}, nil
 	}
 
 	// Race: pool may have been Shutdown while we were opening.
 	if p.closed {
 		_ = session.Close()
+		p.finishOpeningLocked(sessionPath, pending, "", errors.New("hostclient: pool was shut down during open"))
 		return nil, errors.New("hostclient: pool was shut down during open")
 	}
 
@@ -197,7 +226,17 @@ func (p *ProcessPool) Acquire(ctx context.Context, cwd, sessionPath string) (*Ac
 	}
 	elem := p.lru.PushFront(ps)
 	p.entries[actualPath] = elem
+	p.finishOpeningLocked(sessionPath, pending, actualPath, nil)
 	return &Acquired{pool: p, sessionPath: actualPath, Session: session}, nil
+}
+
+func (p *ProcessPool) finishOpeningLocked(requestedPath string, pending *pendingSessionOpen, actualPath string, err error) {
+	pending.actualPath = actualPath
+	pending.err = err
+	if p.openingByPath[requestedPath] == pending {
+		delete(p.openingByPath, requestedPath)
+	}
+	close(pending.done)
 }
 
 func (p *ProcessPool) release(sessionPath string) {

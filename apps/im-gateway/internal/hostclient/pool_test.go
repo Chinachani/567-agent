@@ -280,11 +280,11 @@ func TestProcessPool_ConcurrentAcquireSamePath(t *testing.T) {
 	}
 	wg.Wait()
 
-	// Note: with the current race-resolution policy (the second-arrived
-	// open is closed and the first-arrived is reused), this may produce
-	// MORE than 1 open under contention but only 1 entry in the pool.
 	if pool.Stats().Size != 1 {
 		t.Errorf("expected exactly 1 pool entry for the same path, got %d", pool.Stats().Size)
+	}
+	if got := c.opensFor("/foo.jsonl"); got != 1 {
+		t.Errorf("concurrent acquires for one path should share one open, got %d", got)
 	}
 }
 
