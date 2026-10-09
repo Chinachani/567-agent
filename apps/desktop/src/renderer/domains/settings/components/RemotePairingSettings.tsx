@@ -64,6 +64,7 @@ export function RemotePairingSettings(): JSX.Element {
 	}, [state.inviteUri]);
 
 	const statusLabel = useMemo(() => t(`remote.status.${state.status}`), [state.status, t]);
+	const inputPermissionEnabled = state.inputPermissionEnabled ?? state.inputEnabled;
 
 	const create = async (): Promise<void> => {
 		setBusy(true);
@@ -289,8 +290,11 @@ export function RemotePairingSettings(): JSX.Element {
 						</p>
 					</div>
 					<Switch
-						checked={state.inputEnabled}
-						disabled={(state.status !== "ready" && state.status !== "connected") || !state.inputSupported}
+						checked={inputPermissionEnabled}
+						disabled={
+							(state.status !== "ready" && state.status !== "connected") ||
+							(!state.inputSupported && !inputPermissionEnabled)
+						}
 						onCheckedChange={(enabled) => void setInputEnabled(enabled)}
 					/>
 				</div>

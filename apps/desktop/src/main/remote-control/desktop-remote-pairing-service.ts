@@ -41,6 +41,7 @@ export interface DesktopRemotePairingState {
 	readonly inviteUri?: string;
 	readonly autoShareScreen: boolean;
 	readonly inputEnabled: boolean;
+	readonly inputPermissionEnabled?: boolean;
 	readonly inputSupported: boolean;
 	readonly inputSupportReason?: RemotePairingState["inputSupportReason"];
 	readonly pairingWarnings?: RemotePairingState["pairingWarnings"];
@@ -68,7 +69,13 @@ export class DesktopRemotePairingService {
 	}
 
 	getState(): DesktopRemotePairingState {
-		return { ...this.state };
+		return {
+			...this.state,
+			inputPermissionEnabled: this.state.inputEnabled,
+			inputSupported: this.host?.inputSupported === true,
+			inputEnabled: this.state.inputEnabled && this.host?.inputSupported === true,
+			inputSupportReason: this.host?.inputSupportReason ?? this.state.inputSupportReason,
+		};
 	}
 
 	async restore(): Promise<void> {
@@ -135,7 +142,9 @@ export class DesktopRemotePairingService {
 			this.state = {
 				...this.state,
 				status: this.connectionState === "online" ? "connected" : this.state.status,
-				inputEnabled: remote.inputEnabled === true && this.host?.inputSupported === true,
+				// Keep the user's persisted permission preference even while no
+				// capture source is selected; getState derives the effective value.
+				inputEnabled: remote.inputEnabled === true,
 				autoShareScreen: remote.autoShareScreen === true,
 				inputSupported: this.host?.inputSupported === true,
 				inputSupportReason: this.host?.inputSupportReason,
@@ -309,6 +318,15 @@ export class DesktopRemotePairingService {
 			onAutoShareScreenChange: async (enabled) => {
 				await this.persistRemoteConfig({ autoShareScreen: enabled });
 				this.state = { ...this.state, autoShareScreen: enabled };
+			},
+			onInputCapabilityChange: (supported, reason) => {
+				if (supported && this.state.inputEnabled) this.host?.grantInput();
+				else if (!supported) this.host?.revokeInput();
+				this.state = {
+					...this.state,
+					inputSupported: supported,
+					inputSupportReason: reason,
+				};
 			},
 		});
 	}

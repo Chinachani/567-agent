@@ -104,6 +104,23 @@ export function useFilesPanelModel(cwd?: string | null): FilesPanelViewProps {
 	const [creatingEntry, setCreatingEntry] = useState<FileExplorerCreatingEntry | null>(null);
 	const setRenamingPath = useSetAtom(renamingPathAtom);
 	const renamingPath = useAtomValue(renamingPathAtom);
+	const renameEntryWithFeedback = useCallback(
+		async (oldPath: string, newName: string) => {
+			try {
+				await renameEntry(oldPath, newName);
+			} catch (error) {
+				setErrorToast(
+					error instanceof Error && error.message === FILE_EXPLORER_ENTRY_EXISTS_ERROR
+						? t("fileExplorer.createAlreadyExists")
+						: error instanceof Error
+							? error.message
+							: t("fileExplorer.createFailed"),
+				);
+				throw error;
+			}
+		},
+		[renameEntry, t],
+	);
 
 	const clearArtifactsScope: "conversation" | "claw" | null =
 		rootDir && defaultCwd && rootDir === defaultCwd
@@ -706,7 +723,7 @@ export function useFilesPanelModel(cwd?: string | null): FilesPanelViewProps {
 			onSelectEntry={handleSelectEntry}
 			onSelectPaths={selection.selectPaths}
 			onBackgroundClick={handleBackgroundClick}
-			onRename={renameEntry}
+			onRename={renameEntryWithFeedback}
 			onFileMove={onFileMove}
 			onExternalDrop={onExternalDrop}
 			onNativeDragStart={onNativeDragStart}

@@ -16,11 +16,12 @@ describe("FileMcpOAuthStateStore", () => {
 		await Promise.all(temporaryDirectories.splice(0).map((path) => rm(path, { recursive: true, force: true })));
 	});
 
-	it("uses an explicit directory and preserves the legacy file contract", async () => {
+	it("uses a server-specific hashed filename in the explicit directory", async () => {
 		const authDirectory = await createAuthDirectory();
 		const store = new FileMcpOAuthStateStore({ authDirectory });
 		const path = store.getPath(" remote server/one ");
-		expect(path).toBe(join(authDirectory, "remote_server_one.json"));
+		expect(path.startsWith(`${authDirectory}/`) || path.startsWith(`${authDirectory}\\`)).toBe(true);
+		expect(path).toMatch(/remote_server_one-[a-f0-9]{24}\.json$/);
 
 		store.save(" remote server/one ", {
 			serverUrl: "https://example.test/mcp",

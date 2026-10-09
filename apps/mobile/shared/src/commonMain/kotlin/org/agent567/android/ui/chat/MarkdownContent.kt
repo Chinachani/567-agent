@@ -196,30 +196,44 @@ private fun renderResponsiveMarkdownTables(source: String): String {
     while (index < lines.size) {
         val line = lines[index]
         val trimmed = line.trimStart()
-        val fence = markdownFence(trimmed)
+        val activeFenceCharacter = fenceCharacter
+        if (activeFenceCharacter != null && isMarkdownFenceClose(line, activeFenceCharacter, fenceLength)) {
+            fenceCharacter = null
+            fenceLength = 0
+            output += line
+            index += 1
+            continue
+        }
+        val fence = if (fenceCharacter == null) markdownFence(line) else null
         if (fence != null) {
-            if (fenceCharacter == null) {
-                fenceCharacter = fence.first
-                fenceLength = fence.second
-            } else if (fence.first == fenceCharacter && fence.second >= fenceLength) {
-                fenceCharacter = null
-                fenceLength = 0
-            }
+            fenceCharacter = fence.first
+            fenceLength = fence.second
             output += line
             index += 1
             continue
         }
 
-        if (fenceCharacter == null && index + 1 < lines.size) {
+        if (fenceCharacter == null && leadingIndentColumns(line) < 4 && index + 1 < lines.size) {
             val headers = splitMarkdownTableRow(line)
             val separators = splitMarkdownTableRow(lines[index + 1])
-            if (headers != null && separators != null && isMarkdownTableSeparator(separators)) {
+            if (headers != null && separators != null && headers.size == separators.size && isMarkdownTableSeparator(separators)) {
+                val tableStart = index
                 val rows = mutableListOf<List<String>>()
+                var malformedRow = false
                 index += 2
                 while (index < lines.size) {
                     val row = splitMarkdownTableRow(lines[index]) ?: break
+                    if (row.size != headers.size) {
+                        malformedRow = true
+                        break
+                    }
                     rows += row
                     index += 1
+                }
+                if (malformedRow) {
+                    output += line
+                    index = tableStart + 1
+                    continue
                 }
 
                 val renderedRows = rows.mapIndexed { rowIndex, row ->
@@ -252,9 +266,29 @@ private fun renderResponsiveMarkdownTables(source: String): String {
 
 private fun markdownFence(line: String): Pair<Char, Int>? {
     val trimmed = line.trimStart()
+    if (leadingIndentColumns(line) > 3) return null
     val marker = trimmed.firstOrNull()?.takeIf { it == '`' || it == '~' } ?: return null
     val length = trimmed.takeWhile { it == marker }.length
     return if (length >= 3) marker to length else null
+}
+
+private fun isMarkdownFenceClose(line: String, marker: Char, minimumLength: Int): Boolean {
+    if (leadingIndentColumns(line) > 3) return false
+    val trimmed = line.trimStart()
+    val runLength = trimmed.takeWhile { it == marker }.length
+    return runLength >= minimumLength && trimmed.drop(runLength).all { it == ' ' || it == '\t' }
+}
+
+private fun leadingIndentColumns(line: String): Int {
+    var columns = 0
+    for (character in line) {
+        when (character) {
+            ' ' -> columns += 1
+            '\t' -> return 4
+            else -> return columns
+        }
+    }
+    return columns
 }
 
 private fun splitMarkdownTableRow(line: String): List<String>? {

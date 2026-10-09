@@ -20,6 +20,7 @@ export interface DesktopRemoteDesktopHostOptions {
 	readonly inputEnabled: boolean;
 	readonly autoShareScreen?: boolean;
 	readonly onAutoShareScreenChange?: (enabled: boolean) => Promise<void>;
+	readonly onInputCapabilityChange?: (supported: boolean, reason?: RemotePairingState["inputSupportReason"]) => void;
 	readonly appRoot: string;
 	readonly isPackaged: boolean;
 	readonly devServerUrl?: string;
@@ -121,6 +122,7 @@ export async function startDesktopRemoteDesktopHost(
 		else log.info(`renderer: ${details.message}`, fields);
 	});
 	let captureSourceSupportsRemoteInput = false;
+	let captureSourceSelected = false;
 	const onInput = (_event: Electron.IpcMainEvent, message: unknown): void => {
 		if (_event.sender.id !== window.webContents.id) return;
 		if (!captureSourceSupportsRemoteInput) {
@@ -145,6 +147,10 @@ export async function startDesktopRemoteDesktopHost(
 			return;
 		}
 		log.info("remote desktop peer is ready; requesting display capture", { sessionId, routeIndex });
+		captureSourceSelected = false;
+		captureSourceSupportsRemoteInput = false;
+		input.setEnabled(false);
+		options.onInputCapabilityChange?.(false, input.unsupportedReason ?? "capture_source_not_selected");
 		void window.webContents
 			.executeJavaScript(
 				`window.dispatchEvent(new CustomEvent("vetta:remote-desktop:capture-request", { detail: ${routeIndex} }))`,
@@ -233,11 +239,21 @@ export async function startDesktopRemoteDesktopHost(
 					source = sources[sourceChoice.response - 1];
 				}
 				if (!source || window.isDestroyed()) {
+					captureSourceSelected = false;
+					captureSourceSupportsRemoteInput = false;
+					options.onInputCapabilityChange?.(false);
 					callback({ video: undefined });
 					return;
 				}
+				captureSourceSelected = true;
 				captureSourceSupportsRemoteInput =
 					source.id.startsWith("screen:") && source.display_id === primaryDisplayId;
+				if (!captureSourceSupportsRemoteInput) input.setEnabled(false);
+				options.onInputCapabilityChange?.(
+					input.supported && captureSourceSupportsRemoteInput,
+					input.unsupportedReason ??
+						(captureSourceSelected && !captureSourceSupportsRemoteInput ? "capture_source_read_only" : undefined),
+				);
 				log.info("remote desktop screen capture granted", { sessionId, sourceCount: sources.length });
 				callback({ video: source });
 			})().catch((error: unknown) => {
@@ -272,8 +288,19 @@ export async function startDesktopRemoteDesktopHost(
 
 	const handle: DesktopRemoteDesktopHostHandle = {
 		sessionId,
-		inputSupported: input.supported,
-		inputSupportReason: input.unsupportedReason,
+		get inputSupported() {
+			return input.supported && captureSourceSupportsRemoteInput;
+		},
+		get inputSupportReason() {
+			return (
+				input.unsupportedReason ??
+				(captureSourceSelected && !captureSourceSupportsRemoteInput
+					? "capture_source_read_only"
+					: !captureSourceSelected
+						? "capture_source_not_selected"
+						: undefined)
+			);
+		},
 		revokeInput() {
 			input.setEnabled(false);
 		},

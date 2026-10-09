@@ -55,12 +55,12 @@
 	"remoteDesktopCapture": {
 		"title": "Share Desktop Screen",
 		"message": "The mobile app is requesting to view this computer's screen.",
-		"detail": "Sharing applies to this connection by default. After you choose a source, the paired phone can view and control it live. If you remember the device, you can turn off automatic sharing in Settings. Avoid sharing windows with sensitive information.",
+		"detail": "Sharing applies to this connection by default. After you choose a source, the paired phone can view it live. Remote input is available only on the primary display; windows and secondary displays are view-only. If you remember the device, you can turn off automatic sharing in Settings. Avoid sharing windows with sensitive information.",
 		"rememberDevice": "Remember this paired phone and automatically share the primary screen on future connections",
 		"allowOnce": "Choose a Screen",
 		"cancel": "Cancel",
 		"chooseTitle": "Choose a Sharing Source",
-		"chooseMessage": "Select the screen or window to share with the paired phone.",
+		"chooseMessage": "Select what to share with the paired phone. Windows and secondary displays are view-only; remote input requires the primary display.",
 		"sourceFallback": "Sharing source {{index}}",
 		"noSources": "The system did not provide a shareable screen or window. Check desktop screen-recording permissions and try again."
 	},

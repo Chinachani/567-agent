@@ -140,7 +140,7 @@
       "lan_unavailable": "No usable LAN IPv4 address was detected. Cloud relay can still connect; LAN access and screen sharing require the computer and phone to share a reachable network."
     },
     "inputTitle": "Allow remote input",
-    "inputDescription": "Allow the paired phone to control the mouse and keyboard.",
+    "inputDescription": "Allow the paired phone to control the mouse and keyboard on supported sources. Turning this off revokes input permission.",
     "autoShareTitle": "Automatically share screen",
     "autoShareDescription": "When enabled, this paired phone automatically shares the primary screen without another in-app prompt. The operating system may still require screen-recording permission.",
     "inputSupport": {
@@ -149,6 +149,8 @@
       "x11_libraries_unavailable": "Linux remote input system libraries are missing. Install them in one step, then restart 567 Agent.",
       "x11_open_display_failed": "Couldn't connect to the X11 display. Make sure the app is running in a graphical desktop session.",
       "accessibility_permission_required": "macOS requires 567 Agent to have Accessibility permission in System Settings.",
+      "capture_source_read_only": "The shared window or secondary display is view-only. Select the primary display to enable remote input.",
+      "capture_source_not_selected": "Choose a sharing source to enable remote input. Windows and secondary displays are view-only.",
       "unsupported_platform": "Remote input is not supported on this system."
     },
     "installInputDependencies": "Install input support",

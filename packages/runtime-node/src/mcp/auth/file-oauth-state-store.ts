@@ -23,10 +23,13 @@ export class FileMcpOAuthStateStore implements McpOAuthStateStore {
 
 	load(serverName: string): McpOAuthStoredState | undefined {
 		const path = this.getPath(serverName);
-		const state =
-			this.readState(path) ??
-			this.readState(join(this.options.authDirectory, `${sanitizeServerName(serverName)}.json`));
-		if (state && !existsSync(path)) this.save(serverName, state);
+		const legacyPath = this.getLegacyPath(serverName);
+		if (existsSync(this.getLegacyClearMarkerPath(serverName))) return undefined;
+		const state = this.readState(path) ?? this.readState(legacyPath);
+		if (state && !existsSync(path)) {
+			this.save(serverName, state);
+			if (existsSync(legacyPath)) unlinkSync(legacyPath);
+		}
 		return state;
 	}
 
@@ -37,11 +40,17 @@ export class FileMcpOAuthStateStore implements McpOAuthStateStore {
 			updatedAt: new Date().toISOString(),
 		};
 		writeFileSync(this.getPath(serverName), `${JSON.stringify(payload, null, 2)}\n`, "utf-8");
+		const clearMarker = this.getLegacyClearMarkerPath(serverName);
+		if (existsSync(clearMarker)) unlinkSync(clearMarker);
 	}
 
 	clear(serverName: string): void {
+		mkdirSync(this.options.authDirectory, { recursive: true });
+		writeFileSync(this.getLegacyClearMarkerPath(serverName), "cleared\n", { encoding: "utf-8", mode: 0o600 });
 		const path = this.getPath(serverName);
 		if (existsSync(path)) unlinkSync(path);
+		const legacyPath = this.getLegacyPath(serverName);
+		if (existsSync(legacyPath)) unlinkSync(legacyPath);
 	}
 
 	hasTokens(serverName: string): boolean {
@@ -56,6 +65,14 @@ export class FileMcpOAuthStateStore implements McpOAuthStateStore {
 		} catch {
 			return undefined;
 		}
+	}
+
+	private getLegacyPath(serverName: string): string {
+		return join(this.options.authDirectory, `${sanitizeServerName(serverName)}.json`);
+	}
+
+	private getLegacyClearMarkerPath(serverName: string): string {
+		return `${this.getPath(serverName)}.legacy-cleared`;
 	}
 }
 

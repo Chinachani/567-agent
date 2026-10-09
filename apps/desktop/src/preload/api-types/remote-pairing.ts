@@ -5,6 +5,7 @@ export interface RemotePairingState {
 	inviteUri?: string;
 	autoShareScreen: boolean;
 	inputEnabled: boolean;
+	inputPermissionEnabled?: boolean;
 	inputSupported: boolean;
 	inputSupportReason?:
 		| "windows_api_unavailable"
@@ -12,6 +13,8 @@ export interface RemotePairingState {
 		| "x11_libraries_unavailable"
 		| "x11_open_display_failed"
 		| "accessibility_permission_required"
+		| "capture_source_read_only"
+		| "capture_source_not_selected"
 		| "unsupported_platform";
 	pairingWarnings?: Array<"certificate_changed" | "lan_unavailable">;
 	error?: string;

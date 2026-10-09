@@ -103,7 +103,10 @@ async function prepareMessagesWithAssistantMedia(
 				createdPaths.push(absolutePath);
 				links.push(`![导入的图片](${relativePath})`);
 			}
-			items.push({ ...message, content: [message.content, ...links].filter(Boolean).join("\n\n"), images: [] });
+			const content = message.content
+				.replace(/!?\[导入的图片\]\(\.567agent\/imported-media\/[A-Za-z0-9._-]+\)/g, "")
+				.trim();
+			items.push({ ...message, content: [content, ...links].filter(Boolean).join("\n\n"), images: [] });
 		}
 		groups.set(group.sessionId, items);
 	}

@@ -140,7 +140,7 @@
       "lan_unavailable": "没有检测到可用的局域网 IPv4 地址。云端中继仍可连接；局域网连接和屏幕共享需要电脑与手机处于可互通网络。"
     },
     "inputTitle": "允许远程输入",
-    "inputDescription": "允许已配对手机控制鼠标和键盘。",
+    "inputDescription": "允许已配对手机在支持的共享来源上控制鼠标和键盘；关闭后会撤销输入许可。",
     "autoShareTitle": "自动共享屏幕",
     "autoShareDescription": "开启后，此配对手机连接时会自动共享主屏幕，不再询问应用内确认。操作系统仍可能要求授予屏幕录制权限。",
     "inputSupport": {
@@ -149,6 +149,8 @@
       "x11_libraries_unavailable": "Linux 远程输入缺少系统依赖库。可以一键安装，完成后重启 567 Agent。",
       "x11_open_display_failed": "无法连接到 X11 显示。请确认应用运行在图形桌面会话中。",
       "accessibility_permission_required": "macOS 需要在系统设置中授予 567 Agent 辅助功能权限。",
+      "capture_source_read_only": "当前共享窗口或副屏仅可查看。选择主显示器后才能远程输入。",
+      "capture_source_not_selected": "选择共享来源后才能远程输入；窗口和副屏仅可查看。",
       "unsupported_platform": "当前系统暂不支持远程输入。"
     },
     "installInputDependencies": "一键安装输入支持",

@@ -34,9 +34,13 @@ export function useFileTreeNodeModel(input: {
 	);
 
 	const onRenameSubmit = useCallback(
-		(oldPath: string, newName: string) => {
-			void input.onRename(oldPath, newName);
-			setRenamingPath(null);
+		async (oldPath: string, newName: string) => {
+			try {
+				await input.onRename(oldPath, newName);
+				setRenamingPath(null);
+			} catch {
+				// Keep the edit active so the user can choose another name.
+			}
 		},
 		[input, setRenamingPath],
 	);

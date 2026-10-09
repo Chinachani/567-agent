@@ -115,6 +115,26 @@ export async function assertFilesystemRealPathWithinProject(targetPath: string):
 	throw new Error("Resolved path is outside any known project directory");
 }
 
+/** Resolve and authorize an entry's parent while preserving the final path
+ * component. Mutations must operate on a symlink itself, not its referent. */
+async function resolveFilesystemEntryMutationPath(targetPath: string): Promise<string> {
+	const resolved = resolve(targetPath);
+	// Authorize the canonical parent but keep the caller's path spelling. This
+	// permits projects opened through a symlink root while preserving the final
+	// entry itself (including a symlink) as the mutation target.
+	await assertFilesystemRealPathWithinProject(dirname(resolved));
+	return join(dirname(resolved), basename(resolved));
+}
+
+async function assertFilesystemDestinationDoesNotExist(targetPath: string): Promise<void> {
+	try {
+		await lstat(targetPath);
+		throw new Error(FILE_EXPLORER_ENTRY_EXISTS_ERROR);
+	} catch (error: unknown) {
+		if ((error as NodeJS.ErrnoException).code !== "ENOENT") throw error;
+	}
+}
+
 export function allowProjectRoot(cwd: string): void {
 	allowedRoots.add(resolve(cwd));
 }
@@ -323,23 +343,26 @@ export async function statFilesystemPath(filePath: string): Promise<FsStatResult
 }
 
 export async function renameFilesystemPath(oldPath: string, newPath: string): Promise<void> {
-	const source = await assertFilesystemRealPathWithinProject(oldPath);
-	const destination = await assertFilesystemRealPathWithinProject(newPath);
+	const source = await resolveFilesystemEntryMutationPath(oldPath);
+	const destination = await resolveFilesystemEntryMutationPath(newPath);
+	await assertFilesystemDestinationDoesNotExist(destination);
 	await cp(source, destination, { recursive: true, errorOnExist: true, force: false });
 	await rm(source, { recursive: true, force: true });
 }
 
 export async function deleteFilesystemPath(targetPath: string): Promise<void> {
-	const resolved = await assertFilesystemRealPathWithinProject(targetPath);
+	const resolved = await resolveFilesystemEntryMutationPath(targetPath);
 	await rm(resolved, { recursive: true, force: true });
 }
 
 export async function moveFilesystemPath(sourcePath: string, destinationDirectory: string): Promise<void> {
-	const resolvedSource = await assertFilesystemRealPathWithinProject(sourcePath);
-	const resolvedDirectory = await assertFilesystemRealPathWithinProject(destinationDirectory);
+	const resolvedSource = await resolveFilesystemEntryMutationPath(sourcePath);
+	await assertFilesystemRealPathWithinProject(destinationDirectory);
+	const resolvedDirectory = resolve(destinationDirectory);
 	const resolvedDestination = join(resolvedDirectory, basename(resolvedSource));
-	await assertFilesystemRealPathWithinProject(resolvedDestination);
-	await cp(resolvedSource, resolvedDestination, { recursive: true, errorOnExist: true, force: false });
+	const authorizedDestination = await resolveFilesystemEntryMutationPath(resolvedDestination);
+	await assertFilesystemDestinationDoesNotExist(authorizedDestination);
+	await cp(resolvedSource, authorizedDestination, { recursive: true, errorOnExist: true, force: false });
 	await rm(resolvedSource, { recursive: true, force: true });
 }
 
@@ -356,10 +379,10 @@ export async function createFilesystemEntry(
 	const issue = getFileExplorerEntryNameIssue(name, { windows: process.platform === "win32" });
 	if (issue) throw new Error(`FILE_EXPLORER_INVALID_ENTRY_NAME:${issue}`);
 
+	await assertFilesystemRealPathWithinProject(parentDirectory);
 	const resolvedParent = resolve(parentDirectory);
 	const targetPath = join(resolvedParent, name);
 	if (dirname(targetPath) !== resolvedParent) throw new Error("FILE_EXPLORER_INVALID_ENTRY_NAME:path-separator");
-	assertFilesystemPathWithinProject(targetPath);
 
 	try {
 		if (kind === "directory") {

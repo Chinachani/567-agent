@@ -341,6 +341,10 @@ export class AgentSession {
 			throw sessionClosedError();
 		}
 		if (this.currentState === "recovery_required") throw turnPersistenceError();
+		// A stale or duplicate request must not interrupt unrelated active work.
+		// Queue membership is checked before the first await so the missing case
+		// is side-effect free.
+		if (!this.inputQueue.list().entries.some((item) => item.id === id)) return { status: "missing" };
 		if (this.activeQueueOperation) return { status: "missing" };
 		if (this.currentState !== "idle") {
 			await this.cancel("send queued message now");

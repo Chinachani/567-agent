@@ -207,6 +207,7 @@ export class RemoteDesktopViewer {
 	private closed = false;
 	private nextSequence = 1;
 	private inputReadyResolve: (() => void) | undefined;
+	private inputFailure: Error | undefined;
 	private readonly inputReady = new Promise<void>((resolve) => {
 		this.inputReadyResolve = resolve;
 	});
@@ -243,6 +244,10 @@ export class RemoteDesktopViewer {
 			event.channel.onclose = () => this.inputReadyResolve?.();
 		};
 		this.peer.onconnectionstatechange = () => {
+			if (this.peer.connectionState === "failed") {
+				this.inputFailure = new Error("remote desktop connection failed before input became ready");
+				this.inputReadyResolve?.();
+			}
 			this.logger.info("remote desktop viewer peer state", {
 				sessionId: options.sessionId,
 				state: this.peer.connectionState,
@@ -276,7 +281,18 @@ export class RemoteDesktopViewer {
 	}
 
 	async sendInput(message: RemoteInputCommand): Promise<void> {
-		await this.inputReady;
+		let timeout: ReturnType<typeof setTimeout> | undefined;
+		try {
+			await Promise.race([
+				this.inputReady,
+				new Promise<never>((_, reject) => {
+					timeout = setTimeout(() => reject(new Error("timed out waiting for remote input channel")), 30_000);
+				}),
+			]);
+		} finally {
+			if (timeout) clearTimeout(timeout);
+		}
+		if (this.inputFailure) throw this.inputFailure;
 		if (this.closed) throw new Error("remote desktop viewer is closed");
 		if (!this.inputChannel || this.inputChannel.readyState !== "open") {
 			throw new Error("remote input channel is not open");

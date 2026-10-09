@@ -6,6 +6,10 @@ import org.agent567.android.core.error.Agent567Exception
 import org.agent567.android.core.model.ChatStreamEvent
 import org.agent567.android.core.net.Agent567Json
 
+private const val MAX_TOOL_CALLS = 16
+private const val MAX_TOOL_ARGUMENT_CHARS = 1_000_000
+private const val MAX_TOTAL_TOOL_ARGUMENT_CHARS = 4_000_000
+
 /**
  * 解析 OpenAI 兼容 SSE 单行（`data: {...}` / `data: [DONE]`）
  * 同时支持非流式 JSON 回退解析，确保无论网关是否缓冲都能完整展示内容。
@@ -63,7 +67,7 @@ object OpenAiSseParser {
         }
 
         val finishReason = choice?.finishReason
-        if (finishReason != null || chunk.usage != null) {
+        if (finishReason != null) {
             return ChatStreamEvent.Finished(
                 finishReason = finishReason,
                 usage = chunk.usage?.toDomain(),
@@ -92,21 +96,38 @@ object OpenAiSseParser {
 
             val msgToolCalls = (message?.get("tool_calls") as? kotlinx.serialization.json.JsonArray)
             if (msgToolCalls != null && msgToolCalls.isNotEmpty()) {
-                val first = msgToolCalls.first() as? kotlinx.serialization.json.JsonObject
-                val fn = first?.get("function") as? kotlinx.serialization.json.JsonObject
-                val fnName = (fn?.get("name") as? kotlinx.serialization.json.JsonPrimitive)?.content
-                val fnArgs = (fn?.get("arguments") as? kotlinx.serialization.json.JsonPrimitive)?.content
-                val id = (first?.get("id") as? kotlinx.serialization.json.JsonPrimitive)?.content ?: "call-image-1"
-                return listOf(
-                    ChatStreamEvent.Tool(
+                if (msgToolCalls.size > MAX_TOOL_CALLS) {
+                    return listOf(ChatStreamEvent.Error(Agent567Exception.Protocol("工具调用数量超过安全上限")))
+                }
+                val calls = mutableListOf<ChatStreamEvent>()
+                var totalArgumentChars = 0
+                for (value in msgToolCalls) {
+                    val call = value as? kotlinx.serialization.json.JsonObject
+                        ?: return listOf(ChatStreamEvent.Error(Agent567Exception.Protocol("工具调用格式无效")))
+                    val function = call["function"] as? kotlinx.serialization.json.JsonObject
+                    val name = (function?.get("name") as? kotlinx.serialization.json.JsonPrimitive)?.content
+                    val arguments = (function?.get("arguments") as? kotlinx.serialization.json.JsonPrimitive)?.content
+                    val id = (call["id"] as? kotlinx.serialization.json.JsonPrimitive)?.content
+                    if (id.isNullOrBlank() || name.isNullOrBlank() || arguments.isNullOrBlank()) {
+                        return listOf(ChatStreamEvent.Error(Agent567Exception.Protocol("工具调用缺少完整参数")))
+                    }
+                    totalArgumentChars += arguments.length
+                    if (arguments.length > MAX_TOOL_ARGUMENT_CHARS || totalArgumentChars > MAX_TOTAL_TOOL_ARGUMENT_CHARS) {
+                        return listOf(ChatStreamEvent.Error(Agent567Exception.Protocol("工具参数超过安全长度限制")))
+                    }
+                    val parsedArguments = runCatching { Agent567Json.parseToJsonElement(arguments) }.getOrNull()
+                    if (parsedArguments !is kotlinx.serialization.json.JsonObject) {
+                        return listOf(ChatStreamEvent.Error(Agent567Exception.Protocol("工具调用参数必须是有效 JSON 对象")))
+                    }
+                    calls += ChatStreamEvent.Tool(
                         phase = "call",
                         toolCallId = id,
-                        toolName = fnName ?: "generate_image",
-                        arguments = fnArgs,
+                        toolName = name,
+                        arguments = arguments,
                         phaseLabel = "正在构思画面...",
-                    ),
-                    ChatStreamEvent.Done
-                )
+                    )
+                }
+                return calls + ChatStreamEvent.Done
             }
 
             val content = when (val c = message?.get("content") ?: delta?.get("content")) {
@@ -146,14 +167,22 @@ object OpenAiSseParser {
  * provider signals a terminal tool-call chunk, so argument fragments cannot
  * trigger duplicate paid actions. */
 class OpenAiSseStreamParser {
-    private data class PendingToolCall(var id: String = "", var name: String = "", var arguments: String = "")
+    private data class PendingToolCall(
+        val arguments: StringBuilder = StringBuilder(),
+        var id: String = "",
+        var name: String = "",
+    )
     private val pending = linkedMapOf<Int, PendingToolCall>()
+    private var totalToolArgumentChars = 0
 
     fun parseLine(line: String): List<ChatStreamEvent> {
         val trimmed = line.trim()
         if (!trimmed.startsWith("data:")) return emptyList()
         val data = trimmed.removePrefix("data:").trim()
-        if (data == "[DONE]") return flushTools() + ChatStreamEvent.Done
+        if (data == "[DONE]") {
+            val tools = flushTools()
+            return if (tools.any { it is ChatStreamEvent.Error }) tools else tools + ChatStreamEvent.Done
+        }
         if (data.isEmpty()) return emptyList()
         val chunk = runCatching {
             Agent567Json.decodeFromString(ChatCompletionChunkDto.serializer(), data)
@@ -163,38 +192,67 @@ class OpenAiSseStreamParser {
         val choice = chunk.choices.firstOrNull()
         val toolCalls = choice?.delta?.toolCalls.orEmpty()
         for (part in toolCalls) {
+            if (!pending.containsKey(part.index) && pending.size >= MAX_TOOL_CALLS) {
+                clearTools()
+                return listOf(ChatStreamEvent.Error(Agent567Exception.Protocol("工具调用数量超过安全上限")))
+            }
             val call = pending.getOrPut(part.index) { PendingToolCall() }
             part.id?.takeIf(String::isNotBlank)?.let { call.id = it }
             part.function?.name?.takeIf(String::isNotBlank)?.let { call.name = it }
-            part.function?.arguments?.let { call.arguments += it }
+            part.function?.arguments?.let { fragment ->
+                if (call.arguments.length + fragment.length > MAX_TOOL_ARGUMENT_CHARS ||
+                    totalToolArgumentChars + fragment.length > MAX_TOTAL_TOOL_ARGUMENT_CHARS
+                ) {
+                    clearTools()
+                    return listOf(ChatStreamEvent.Error(Agent567Exception.Protocol("工具参数超过安全长度限制")))
+                }
+                call.arguments.append(fragment)
+                totalToolArgumentChars += fragment.length
+            }
         }
         val output = mutableListOf<ChatStreamEvent>()
         if (toolCalls.isEmpty()) {
-            OpenAiSseParser.parseLine(line)?.let(output::add)
+            val event = OpenAiSseParser.parseLine(line)
+            if (event != null && event !is ChatStreamEvent.Finished) {
+                output += event
+            }
         }
         if (choice?.finishReason != null) {
-            output += flushTools()
-            if (toolCalls.isNotEmpty()) {
-                output += ChatStreamEvent.Finished(choice.finishReason, chunk.usage?.toDomain())
-            }
+            val tools = flushTools()
+            output += tools
+            if (tools.any { it is ChatStreamEvent.Error }) return output
+            output += ChatStreamEvent.Finished(choice.finishReason, chunk.usage?.toDomain())
         }
         return output
     }
 
     private fun flushTools(): List<ChatStreamEvent> {
-        val calls = pending.values.mapNotNull { call ->
-            if (call.id.isBlank() || call.name.isBlank() || call.arguments.isBlank()) return@mapNotNull null
-            (runCatching { Agent567Json.parseToJsonElement(call.arguments) }.getOrNull()
-                as? kotlinx.serialization.json.JsonObject) ?: return@mapNotNull null
-            ChatStreamEvent.Tool(
+        val calls = mutableListOf<ChatStreamEvent>()
+        for (call in pending.values) {
+            val arguments = call.arguments.toString()
+            if (call.id.isBlank() || call.name.isBlank() || arguments.isBlank()) {
+                clearTools()
+                return listOf(ChatStreamEvent.Error(Agent567Exception.Protocol("工具调用缺少完整参数")))
+            }
+            val parsed = runCatching { Agent567Json.parseToJsonElement(arguments) }.getOrNull()
+            if (parsed !is kotlinx.serialization.json.JsonObject) {
+                clearTools()
+                return listOf(ChatStreamEvent.Error(Agent567Exception.Protocol("工具调用参数必须是有效 JSON 对象")))
+            }
+            calls += ChatStreamEvent.Tool(
                 phase = "call",
                 toolCallId = call.id,
                 toolName = call.name,
-                arguments = call.arguments,
+                arguments = arguments,
                 phaseLabel = "正在构思画面...",
             )
         }
-        pending.clear()
+        clearTools()
         return calls
+    }
+
+    private fun clearTools() {
+        pending.clear()
+        totalToolArgumentChars = 0
     }
 }

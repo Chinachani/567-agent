@@ -1141,7 +1141,7 @@ internal class Agent567Api(
                         val sseParser = OpenAiSseStreamParser()
 
                         while (!channel.isClosedForRead) {
-                            val line = channel.readUTF8Line() ?: break
+                            val line = channel.readUTF8Line(MAX_SSE_LINE_CHARS) ?: break
                             if (line.length >= MAX_SSE_LINE_CHARS) {
                                 emit(ChatStreamEvent.Error(Agent567Exception.Protocol("流式响应单行超过安全长度限制")))
                                 return@execute
@@ -1179,6 +1179,7 @@ internal class Agent567Api(
                             if (fallbackEvents.isNotEmpty()) {
                                 for (ev in fallbackEvents) {
                                     emit(ev)
+                                    if (ev is ChatStreamEvent.Error) return@execute
                                     if (ev is ChatStreamEvent.Done) {
                                         sawDone = true
                                     }

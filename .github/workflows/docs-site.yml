@@ -61,4 +61,6 @@ jobs:
         run: bun run --cwd apps/docs-site test
 
       - name: Build
+        env:
+          DOCS_SITE_URL: https://567.wiki
         run: bun run build:docs

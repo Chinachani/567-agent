@@ -70,6 +70,9 @@ export class RpcClient {
 	private stopWaiters = new Set<(error: Error) => void>();
 	private started = false;
 	private starting = false;
+	private stopPromise: Promise<void> | undefined;
+	private startPromise: Promise<void> | undefined;
+	private lifecycleGeneration = 0;
 
 	constructor(private readonly transport: RpcClientTransport) {}
 
@@ -77,7 +80,7 @@ export class RpcClient {
 	 * Start the configured RPC transport.
 	 */
 	async start(): Promise<void> {
-		if (this.started || this.starting) {
+		if (this.started || this.starting || this.stopPromise) {
 			throw new RpcClientError("Client already started", {
 				errorCode: RPC_FAILURE_CODES.INVALID_REQUEST,
 				phase: "startup",
@@ -86,14 +89,33 @@ export class RpcClient {
 		}
 		this.startupFailure = undefined;
 		this.transportFailure = undefined;
+		const generation = ++this.lifecycleGeneration;
 		this.starting = true;
+		let starting: Promise<void>;
 		try {
-			await this.transport.start({
+			starting = this.transport.start({
 				onLine: (line) => this.handleLine(line),
 				onFailure: (error) => this.handleTransportFailure(error),
 			});
-		} finally {
+		} catch (error) {
 			this.starting = false;
+			throw error;
+		}
+		this.startPromise = starting;
+		try {
+			await starting;
+		} finally {
+			if (this.startPromise === starting) {
+				this.startPromise = undefined;
+				this.starting = false;
+			}
+		}
+		if (generation !== this.lifecycleGeneration) {
+			throw new RpcClientError("RPC client start was cancelled by stop", {
+				errorCode: RPC_FAILURE_CODES.CLIENT_NOT_STARTED,
+				phase: "startup",
+				recoverability: "retry_safe",
+			});
 		}
 
 		const transportFailure = this.readTransportFailure();
@@ -118,7 +140,9 @@ export class RpcClient {
 	 * Stop the configured RPC transport.
 	 */
 	async stop(): Promise<void> {
+		if (this.stopPromise) return this.stopPromise;
 		if (!this.started && !this.starting) return;
+		this.lifecycleGeneration += 1;
 		this.started = false;
 		const stopped = new RpcClientError("RPC client stopped", {
 			errorCode: RPC_FAILURE_CODES.CLIENT_NOT_STARTED,
@@ -128,8 +152,13 @@ export class RpcClient {
 		for (const pending of this.pendingRequests.values()) pending.reject(stopped);
 		this.pendingRequests.clear();
 		for (const reject of [...this.stopWaiters]) reject(stopped);
-		await this.transport.stop();
-		this.starting = false;
+		const stopping = this.transport.stop();
+		this.stopPromise = stopping;
+		try {
+			await stopping;
+		} finally {
+			if (this.stopPromise === stopping) this.stopPromise = undefined;
+		}
 	}
 
 	/**
@@ -428,23 +457,34 @@ export class RpcClient {
 	/**
 	 * Collect events until agent becomes idle.
 	 */
-	collectEvents(timeout = RPC_CLIENT_EVENT_TIMEOUT_MS): Promise<AgentEvent[]> {
+	collectEvents(timeout = RPC_CLIENT_EVENT_TIMEOUT_MS, signal?: AbortSignal): Promise<AgentEvent[]> {
 		return new Promise((resolve, reject) => {
 			const events: AgentEvent[] = [];
 			let unsubscribeEvent = (): void => {};
 			let unsubscribeFailure = (): void => {};
+			let timer: ReturnType<typeof setTimeout> | undefined;
 			const cleanup = (): void => {
-				clearTimeout(timer);
+				if (timer) clearTimeout(timer);
 				unsubscribeEvent();
 				unsubscribeFailure();
 				this.stopWaiters.delete(onStop);
+				signal?.removeEventListener("abort", onAbort);
+			};
+			const onAbort = (): void => {
+				cleanup();
+				reject(signal?.reason instanceof Error ? signal.reason : new Error("RPC event collection aborted"));
 			};
 			const onStop = (error: Error): void => {
 				cleanup();
 				reject(error);
 			};
 			this.stopWaiters.add(onStop);
-			const timer = setTimeout(() => {
+			if (signal?.aborted) {
+				onAbort();
+				return;
+			}
+			signal?.addEventListener("abort", onAbort, { once: true });
+			timer = setTimeout(() => {
 				cleanup();
 				reject(
 					new RpcClientError(`Timeout collecting events. Stderr: ${this.getStderr()}`, {
@@ -477,9 +517,36 @@ export class RpcClient {
 		images?: ImageContent[],
 		timeout = RPC_CLIENT_EVENT_TIMEOUT_MS,
 	): Promise<AgentEvent[]> {
-		const eventsPromise = this.collectEvents(timeout);
-		await this.prompt(message, images);
-		return eventsPromise;
+		const collector = new AbortController();
+		// Convert both rejections to values immediately. The event timeout can
+		// fire while prompt() is still waiting for its ACK; otherwise that
+		// rejection is temporarily unobserved and may terminate the host process.
+		const eventsResult = this.collectEvents(timeout, collector.signal).then(
+			(events) => ({ kind: "events", events }) as const,
+			(error: unknown) => ({ kind: "events-error", error }) as const,
+		);
+		const promptResult = this.prompt(message, images).then(
+			() => ({ kind: "ack" }) as const,
+			(error: unknown) => ({ kind: "prompt-error", error }) as const,
+		);
+
+		const first = await Promise.race([eventsResult, promptResult]);
+		if (first.kind === "events-error") throw first.error;
+		if (first.kind === "prompt-error") {
+			collector.abort(first.error);
+			await eventsResult;
+			throw first.error;
+		}
+
+		if (first.kind === "events") {
+			const acknowledgement = await promptResult;
+			if (acknowledgement.kind === "prompt-error") throw acknowledgement.error;
+			return first.events;
+		}
+
+		const completion = await eventsResult;
+		if (completion.kind === "events-error") throw completion.error;
+		return completion.events;
 	}
 
 	// =========================================================================

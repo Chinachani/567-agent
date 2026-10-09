@@ -125,29 +125,37 @@ func (p *ProcessPool) Acquire(ctx context.Context, cwd, sessionPath string) (*Ac
 		return nil, errors.New("hostclient: pool is shut down")
 	}
 
-	// Hit: reuse and bump.
-	if elem, ok := p.entries[sessionPath]; ok {
-		ps := elem.Value.(*pooledSession)
-		ps.inFlight++
-		p.lru.MoveToFront(elem)
-		p.mu.Unlock()
-		return &Acquired{pool: p, sessionPath: sessionPath, Session: ps.session}, nil
+	// Hit: reuse and bump. An empty path requests a new session and has no
+	// reusable identity until OpenSession returns its generated path.
+	if sessionPath != "" {
+		if elem, ok := p.entries[sessionPath]; ok {
+			ps := elem.Value.(*pooledSession)
+			ps.inFlight++
+			p.lru.MoveToFront(elem)
+			p.mu.Unlock()
+			return &Acquired{pool: p, sessionPath: sessionPath, Session: ps.session}, nil
+		}
 	}
-	if pending, ok := p.openingByPath[sessionPath]; ok {
-		p.mu.Unlock()
-		select {
-		case <-ctx.Done():
-			return nil, ctx.Err()
-		case <-pending.done:
+	// An empty path means "create a new session". It has no identity yet,
+	// so coalescing these opens would make unrelated first chats share one
+	// subprocess and one event stream.
+	if sessionPath != "" {
+		if pending, ok := p.openingByPath[sessionPath]; ok {
+			p.mu.Unlock()
+			select {
+			case <-ctx.Done():
+				return nil, ctx.Err()
+			case <-pending.done:
+			}
+			if pending.err != nil {
+				return nil, pending.err
+			}
+			resolvedPath := pending.actualPath
+			if resolvedPath == "" {
+				resolvedPath = sessionPath
+			}
+			return p.Acquire(ctx, cwd, resolvedPath)
 		}
-		if pending.err != nil {
-			return nil, pending.err
-		}
-		resolvedPath := pending.actualPath
-		if resolvedPath == "" {
-			resolvedPath = sessionPath
-		}
-		return p.Acquire(ctx, cwd, resolvedPath)
 	}
 
 	// Miss: may need to evict before opening a new session. Note we do
@@ -161,7 +169,9 @@ func (p *ProcessPool) Acquire(ctx context.Context, cwd, sessionPath string) (*Ac
 	}
 	p.opening++
 	pending := &pendingSessionOpen{done: make(chan struct{})}
-	p.openingByPath[sessionPath] = pending
+	if sessionPath != "" {
+		p.openingByPath[sessionPath] = pending
+	}
 	p.mu.Unlock()
 
 	// Open without holding the mutex — OpenSession may take seconds
@@ -193,6 +203,15 @@ func (p *ProcessPool) Acquire(ctx context.Context, cwd, sessionPath string) (*Ac
 	actualPath := session.SessionPath()
 	if actualPath == "" {
 		actualPath = sessionPath
+	}
+	if actualPath == "" {
+		openErr := errors.New("hostclient: newly opened session did not report its session path")
+		_ = session.Close()
+		p.mu.Lock()
+		p.opening--
+		p.finishOpeningLocked(sessionPath, pending, "", openErr)
+		p.mu.Unlock()
+		return nil, openErr
 	}
 
 	p.mu.Lock()
