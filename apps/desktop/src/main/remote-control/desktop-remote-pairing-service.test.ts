@@ -18,6 +18,7 @@ vi.mock("../credentials/desktop-credential-vault.js", () => ({ getDesktopCredent
 vi.mock("./desktop-local-relay.js", () => ({ getDesktopLocalRelay: () => mocks.localRelay }));
 vi.mock("./desktop-local-relay-certificate.js", () => ({
 	createDesktopLocalRelayCertificate: mocks.createDesktopRemoteCertificate,
+	isDesktopLocalRelayCertificateAuthority: (certificate: string) => certificate === "local-cert",
 }));
 vi.mock("./desktop-remote-access-service.js", () => ({
 	startDesktopRemoteAccess: mocks.startDesktopRemoteAccess,
@@ -60,7 +61,12 @@ describe("DesktopRemotePairingService.restore", () => {
 		);
 
 		await expect(service.restore()).resolves.toBeUndefined();
-		expect(service.getState()).toMatchObject({ status: "error", inputEnabled: true, inputSupported: false });
+		expect(service.getState()).toMatchObject({
+			status: "error",
+			inputPermissionEnabled: true,
+			inputEnabled: false,
+			inputSupported: false,
+		});
 		expect(service.getState().error).toContain("create a new pairing");
 		expect(vault.remove).not.toHaveBeenCalled();
 		expect(vault.put).not.toHaveBeenCalled();

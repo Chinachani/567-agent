@@ -52,6 +52,7 @@ function renderSection(sessionsCwd: string, filter: "conversation" | "claw"): vo
 		<DefaultConversationSection
 			activeSessionPath=""
 			activeTeamSessionId=""
+			onDeleteSession={async () => undefined}
 			defaultConversationFilter={filter}
 			onNewSession={() => {}}
 			onRenameSession={() => {}}

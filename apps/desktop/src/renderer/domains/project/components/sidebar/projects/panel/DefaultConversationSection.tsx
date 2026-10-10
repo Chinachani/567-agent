@@ -17,6 +17,7 @@ interface DefaultConversationSectionProps {
 	defaultConversationFilter: DefaultConversationFilter;
 	listClassName?: string;
 	onNewSession: (cwd: string) => void;
+	onDeleteSession: (session: SidebarConversationInfo) => Promise<void>;
 	onRenameSession: (cwd: string, sessionPath: string, name: string) => void;
 	onSelectSession: (cwd: string, session: SidebarConversationInfo) => void;
 	project: Project;
@@ -70,6 +71,7 @@ export function DefaultConversationSection(
 					cwd={props.sessionsCwd || props.project.cwd}
 					filter={props.defaultConversationFilter}
 					onNewSession={model.actions.newSession}
+					onDeleteSession={props.onDeleteSession}
 					scrollParent={props.scrollParent}
 					onRenameSession={props.onRenameSession}
 					onSelectSession={props.onSelectSession}

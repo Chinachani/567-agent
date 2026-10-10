@@ -3,6 +3,7 @@ import { Button } from "@shared/components/ui/button";
 import { confirmDialogAtom } from "@shared/store/atoms";
 import { ProjectGroupView, SessionRowView } from "@vetta-org/theme-ui/project";
 import { useSetAtom } from "jotai";
+import { showToast } from "@shared/store/toast-atoms";
 import { memo, useCallback, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { CheckSquare2, Download, ListChecks, Trash2, X } from "lucide-react";
@@ -11,7 +12,6 @@ import {
 	useProjectGroupModel,
 } from "../../../hooks/useProjectGroupModel";
 import type { SidebarConversationInfo } from "../../../services/sidebar-conversation-projection";
-import { useProjectActions } from "../../../hooks/useProjects";
 import {
 	selectableConversationSessions,
 	toggleAllSelectedSessionPaths,
@@ -93,6 +93,7 @@ interface ProjectGroupProps {
 	onNavigateProject: (cwd: string) => void;
 	onNewSession: (cwd: string) => void;
 	onSelectSession: (cwd: string, session: SidebarConversationInfo) => void;
+	onDeleteSession: (session: SidebarConversationInfo) => Promise<void>;
 	onRenameSession: (cwd: string, sessionPath: string, name: string) => void;
 }
 
@@ -100,7 +101,6 @@ export const ProjectGroup = memo(function ProjectGroup(props: ProjectGroupProps)
 	const model = useProjectGroupModel(props);
 	const { t } = useTranslation("project");
 	const setConfirmDialog = useSetAtom(confirmDialogAtom);
-	const projectActions = useProjectActions();
 	const [selectionMode, setSelectionMode] = useState(false);
 	const [selectedPaths, setSelectedPaths] = useState<ReadonlySet<string>>(new Set());
 	const [passphrase, setPassphrase] = useState("");
@@ -139,7 +139,10 @@ export const ProjectGroup = memo(function ProjectGroup(props: ProjectGroupProps)
 				props.project.cwd,
 			);
 			if (!result.canceled) {
-				setBatchMessage(t("sidebar.defaultConversation.batchExported", { count: result.sessionCount ?? selectedSessions.length }));
+				showToast({
+					variant: "success",
+					message: t("sidebar.defaultConversation.batchExported", { count: result.sessionCount ?? selectedSessions.length }),
+				});
 				closeSelection();
 			}
 		} catch (error) {
@@ -162,7 +165,7 @@ export const ProjectGroup = memo(function ProjectGroup(props: ProjectGroupProps)
 					const failed: string[] = [];
 					for (const session of selectedSessions) {
 						try {
-							await projectActions.deleteSession(session.cwd, session.path);
+							await props.onDeleteSession(session);
 						} catch {
 							failed.push(session.path);
 						}
@@ -175,7 +178,7 @@ export const ProjectGroup = memo(function ProjectGroup(props: ProjectGroupProps)
 				})();
 			},
 		});
-	}, [closeSelection, projectActions, selectedSessions, setConfirmDialog, t]);
+	}, [closeSelection, props.onDeleteSession, selectedSessions, setConfirmDialog, t]);
 
 	return (
 		<div className="min-w-0">

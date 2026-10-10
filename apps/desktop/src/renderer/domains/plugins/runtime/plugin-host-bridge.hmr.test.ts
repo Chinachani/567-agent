@@ -55,7 +55,7 @@ describe("plugin host bridge HMR lifecycle", () => {
 			respondOcrProvider,
 		};
 		vi.stubGlobal("window", {
-			vetta: {
+			agent567: {
 				plugins,
 				session: { subscribe: async () => () => undefined },
 			},

@@ -118,6 +118,7 @@ export class DesktopRemoteConnector {
 		}
 	>();
 	private readonly approvedMigrationArchives = new Map<string, { encrypted: Buffer; expiresAt: number }>();
+	private readonly pendingMigrationApprovals = new Map<string, { encrypted: Buffer; cancelled: boolean }>();
 
 	constructor(
 		private readonly connection: RemoteConnection,
@@ -135,6 +136,11 @@ export class DesktopRemoteConnector {
 		this.unsubscribe?.();
 		this.unsubscribe = undefined;
 		this.migrationTransfer.cancel();
+		for (const pending of this.pendingMigrationApprovals.values()) {
+			pending.cancelled = true;
+			pending.encrypted.fill(0);
+		}
+		this.pendingMigrationApprovals.clear();
 		this.promptAttachmentTransfer.cancel();
 		this.activePromptAttachment.clear();
 		this.clearStagedPromptAttachments();
@@ -311,7 +317,7 @@ export class DesktopRemoteConnector {
 			case "session.migration.receive.start": {
 				this.requireMigrationTransferSupport();
 				this.pruneExpiredMigrationArchives();
-				if (this.approvedMigrationArchives.size > 0) {
+				if (this.approvedMigrationArchives.size > 0 || this.pendingMigrationApprovals.size > 0) {
 					throw new Error("Import or cancel the previously approved conversation backup first");
 				}
 				this.migrationTransfer.start(readMigrationTransferStart(request));
@@ -325,8 +331,14 @@ export class DesktopRemoteConnector {
 				this.requireMigrationTransferSupport();
 				const transferId = readMigrationTransferId(request);
 				const encrypted = this.migrationTransfer.finish(transferId);
+				const pendingApproval = { encrypted, cancelled: false };
+				this.pendingMigrationApprovals.set(transferId, pendingApproval);
 				try {
-					if (!(await this.operations.confirmSessionMigrationArchive!(encrypted))) {
+					const accepted = await this.operations.confirmSessionMigrationArchive!(encrypted);
+					if (this.pendingMigrationApprovals.get(transferId) !== pendingApproval || pendingApproval.cancelled) {
+						return { accepted: false, cancelled: true };
+					}
+					if (!accepted) {
 						encrypted.fill(0);
 						return { accepted: false };
 					}
@@ -336,6 +348,10 @@ export class DesktopRemoteConnector {
 				} catch (error) {
 					encrypted.fill(0);
 					throw error;
+				} finally {
+					if (this.pendingMigrationApprovals.get(transferId) === pendingApproval) {
+						this.pendingMigrationApprovals.delete(transferId);
+					}
 				}
 			}
 			case "session.migration.receive.import": {
@@ -348,10 +364,13 @@ export class DesktopRemoteConnector {
 				this.requireMigrationTransferSupport();
 				const transferId = readOptionalMigrationTransferId(request);
 				const transferCancelled = this.migrationTransfer.cancel(transferId);
+				const pendingApprovalCancelled = transferId
+					? this.cancelPendingMigrationApproval(transferId)
+					: this.cancelPendingMigrationApprovals();
 				const archiveCancelled = transferId
 					? this.clearApprovedMigrationArchive(transferId)
 					: this.clearApprovedMigrationArchives();
-				return { cancelled: transferCancelled || archiveCancelled };
+				return { cancelled: transferCancelled || pendingApprovalCancelled || archiveCancelled };
 			}
 			case "session.models":
 				if (!this.operations.readModels) throw new Error("Desktop model selection is unavailable");
@@ -454,6 +473,22 @@ export class DesktopRemoteConnector {
 		) {
 			throw new Error("Encrypted conversation transfer is available only over a paired LAN connection");
 		}
+	}
+
+	private cancelPendingMigrationApproval(transferId: string): boolean {
+		const pending = this.pendingMigrationApprovals.get(transferId);
+		if (!pending || pending.cancelled) return false;
+		pending.cancelled = true;
+		pending.encrypted.fill(0);
+		return true;
+	}
+
+	private cancelPendingMigrationApprovals(): boolean {
+		let cancelled = false;
+		for (const transferId of this.pendingMigrationApprovals.keys()) {
+			cancelled = this.cancelPendingMigrationApproval(transferId) || cancelled;
+		}
+		return cancelled;
 	}
 
 	private takeApprovedMigrationArchive(transferId: string): Buffer {
@@ -833,7 +868,9 @@ function toRemoteError(error: unknown): RemoteError {
 	}
 	return {
 		code: "internal_error",
-		message: "电脑端操作失败，请检查模型配置和运行日志后重试",
+		message: /EACCES|EPERM|permission denied|access denied|权限不足|无权访问/i.test(message)
+			? "电脑端无权访问所需目录，请检查目录权限后重试"
+			: "电脑端操作失败，请重试；若持续失败，请检查电脑端日志",
 		retryable: false,
 	};
 }

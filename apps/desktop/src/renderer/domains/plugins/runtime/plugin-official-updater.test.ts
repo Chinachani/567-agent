@@ -19,7 +19,7 @@ describe("createOfficialUpdaterApi", () => {
 		};
 		Object.defineProperty(globalThis, "window", {
 			configurable: true,
-			value: { vetta: { plugins: { internalCapabilities: { updater } } } },
+			value: { agent567: { plugins: { internalCapabilities: { updater } } } },
 		});
 		const assertOfficial = vi.fn();
 		const api = createOfficialUpdaterApi(assertOfficial, "capability-session");

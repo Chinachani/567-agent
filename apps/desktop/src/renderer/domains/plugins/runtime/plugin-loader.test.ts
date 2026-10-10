@@ -54,7 +54,7 @@ beforeEach(() => {
 	mocks.events.length = 0;
 	vi.clearAllMocks();
 	vi.stubGlobal("window", {
-		vetta: {
+		agent567: {
 			plugins: {
 				beginAgentContributionsLoad: async () => mocks.events.push("activation:begin"),
 				commitAgentContributionsLoad: async () => mocks.events.push("agent:commit"),

@@ -305,6 +305,25 @@ export function useProjectsPanelModel({
 		],
 	);
 
+	const deletePanelConversation = useCallback(
+		async (session: SidebarConversationInfo): Promise<void> => {
+			if (session.kind !== "conversation") return;
+			const batchMatch = batchProjects.find((project) =>
+				project.tasks.some((task) => task.sessionPath === session.path),
+			);
+			const task = batchMatch?.tasks.find((item) => item.sessionPath === session.path);
+			if (batchMatch && task) await deleteBatchTask(batchMatch.id, task.id);
+			else await deleteSession(session.cwd, session.path);
+
+			if (activeSessionPathValue !== session.path) return;
+			setActiveSession(null);
+			if (currentPath === "/") {
+				void navigate({ to: "/new-session/$cwd", params: { cwd: encodeURIComponent(session.cwd) } });
+			}
+		},
+		[activeSessionPathValue, batchProjects, currentPath, deleteBatchTask, deleteSession, navigate, setActiveSession],
+	);
+
 	const renamePanelSession = useCallback(
 		(cwd: string, sessionPath: string, name: string) => {
 			void renameSession(cwd, sessionPath, name);
@@ -597,6 +616,7 @@ export function useProjectsPanelModel({
 			collapseBatchProject,
 			collapseProject,
 			deleteProject: deletePanelProject,
+			deleteConversation: deletePanelConversation,
 			deleteSession: deletePanelSession,
 			defaultNewSession,
 			defaultSelectSession,

@@ -211,6 +211,10 @@ jobs:
           NODE_OPTIONS: --max-old-space-size=4096
         run: bun run check
 
+      - name: Test Desktop unit suite
+        working-directory: apps/desktop
+        run: bun run test
+
       - name: Test quality and release configuration
         run: bun run test:quality
 

@@ -34,6 +34,18 @@ function actionSteps(name) {
 }
 
 describe("Desktop release workflow contracts", () => {
+	it("runs the full Desktop unit suite before building release artifacts", () => {
+		const qualitySteps = jobs.quality.steps;
+		const desktopUnitTests = qualitySteps.find((step) => step.name === "Test Desktop unit suite");
+		expect(desktopUnitTests).toMatchObject({
+			"working-directory": "apps/desktop",
+			run: "bun run test",
+		});
+		expect(qualitySteps.indexOf(desktopUnitTests)).toBeLessThan(
+			qualitySteps.findIndex((step) => step.name === "Verify Desktop packaging contract"),
+		);
+	});
+
 	it("saves successful dependency downloads before later build or verification failures", () => {
 		const steps = actionSteps("install-bun-dependencies");
 		const restore = steps.findIndex((step) => step.uses === "actions/cache/restore@v4");

@@ -28,6 +28,7 @@ export function ProjectGroupsSection({
 					onNavigateProject={model.actions.navigateProject}
 					onNewSession={model.actions.batchNewSession}
 					onSelectSession={model.actions.selectSession}
+					onDeleteSession={model.actions.deleteConversation}
 					onRenameSession={model.actions.renameSession}
 				/>
 			))}
@@ -48,6 +49,7 @@ export function ProjectGroupsSection({
 						onNavigateProject={model.actions.navigateProject}
 						onNewSession={model.actions.batchNewSession}
 						onSelectSession={model.actions.selectBatchSession}
+						onDeleteSession={model.actions.deleteConversation}
 						onRenameSession={model.actions.renameSession}
 					/>
 				))}

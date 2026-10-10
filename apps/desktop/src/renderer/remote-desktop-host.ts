@@ -3,6 +3,7 @@ import {
 	RemoteDesktopHost,
 	WebSocketRemoteDesktopSignaling,
 } from "@567agent/remote-desktop";
+import { handleRemoteDesktopPeerReady } from "./remote-desktop-peer-ready.js";
 
 declare global {
 	interface Window {
@@ -61,7 +62,19 @@ async function connectRoute(route: RelayRoute): Promise<void> {
 							target: safeTarget(route.target),
 						}),
 					);
-					window.agent567RemoteDesktop?.requestCapture(route.index);
+					try {
+						await handleRemoteDesktopPeerReady(route.host, () =>
+							window.agent567RemoteDesktop?.requestCapture(route.index),
+						);
+					} catch (error) {
+						console.warn(
+							diagnostic("remote desktop signal handling failed", {
+								error: error instanceof Error ? error.message : String(error),
+								target: safeTarget(route.target),
+							}),
+						);
+						cleanupRoute(route);
+					}
 					return;
 				}
 				if (route.host) {

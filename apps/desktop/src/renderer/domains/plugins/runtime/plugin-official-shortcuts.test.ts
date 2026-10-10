@@ -27,7 +27,7 @@ describe("createOfficialShortcutsApi", () => {
 		};
 		Object.defineProperty(globalThis, "window", {
 			configurable: true,
-			value: { vetta: { plugins: { internalCapabilities: { shortcuts } } } },
+			value: { agent567: { plugins: { internalCapabilities: { shortcuts } } } },
 		});
 		const assertOfficial = vi.fn();
 		const api = createOfficialShortcutsApi(assertOfficial, "capability-session");

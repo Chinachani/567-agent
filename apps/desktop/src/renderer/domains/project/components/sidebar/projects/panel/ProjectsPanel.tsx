@@ -39,6 +39,7 @@ export function ProjectsPanel(props: ProjectsPanelProps): JSX.Element {
 				sessions={model.defaultSessions}
 				sessionsLoading={model.defaultSessionsLoading}
 				onNewSession={model.actions.defaultNewSession}
+				onDeleteSession={model.actions.deleteConversation}
 				onRenameSession={model.actions.renameSession}
 				onSelectSession={model.actions.defaultSelectSession}
 			/>

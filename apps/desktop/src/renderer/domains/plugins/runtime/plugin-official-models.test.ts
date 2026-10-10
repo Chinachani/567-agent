@@ -45,7 +45,7 @@ describe("createOfficialModelsApi", () => {
 		};
 		Object.defineProperty(globalThis, "window", {
 			configurable: true,
-			value: { vetta: { plugins: { internalCapabilities: { models } } } },
+			value: { agent567: { plugins: { internalCapabilities: { models } } } },
 		});
 		const assertOfficial = vi.fn();
 		const api = createOfficialModelsApi(assertOfficial, "capability-session");
@@ -90,7 +90,7 @@ function stubInternalModels(): { list: ReturnType<typeof vi.fn>; validateModelKe
 	};
 	Object.defineProperty(globalThis, "window", {
 		configurable: true,
-		value: { vetta: { plugins: { internalCapabilities: { models: api } } } },
+		value: { agent567: { plugins: { internalCapabilities: { models: api } } } },
 	});
 	return api;
 }

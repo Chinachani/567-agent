@@ -23,7 +23,7 @@ describe("createOfficialWebhookApi", () => {
 		};
 		Object.defineProperty(globalThis, "window", {
 			configurable: true,
-			value: { vetta: { plugins: { internalCapabilities: { webhook } } } },
+			value: { agent567: { plugins: { internalCapabilities: { webhook } } } },
 		});
 		const assertOfficial = vi.fn();
 		const api = createOfficialWebhookApi(assertOfficial, "capability-session");

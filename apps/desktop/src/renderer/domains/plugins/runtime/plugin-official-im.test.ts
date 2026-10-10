@@ -38,7 +38,7 @@ describe("createOfficialImApi", () => {
 		Object.defineProperty(globalThis, "window", {
 			configurable: true,
 			value: {
-				vetta: {
+				agent567: {
 					plugins: { internalCapabilities: { im, models } },
 					im: hostIm,
 				},

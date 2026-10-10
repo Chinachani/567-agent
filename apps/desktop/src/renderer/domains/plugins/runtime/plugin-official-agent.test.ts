@@ -16,7 +16,7 @@ describe("createOfficialAgentApi", () => {
 		};
 		Object.defineProperty(globalThis, "window", {
 			configurable: true,
-			value: { vetta: { plugins: { internalCapabilities: { agentSettings } } } },
+			value: { agent567: { plugins: { internalCapabilities: { agentSettings } } } },
 		});
 		const assertOfficial = vi.fn();
 		const api = createOfficialAgentApi(assertOfficial, "capability-session");

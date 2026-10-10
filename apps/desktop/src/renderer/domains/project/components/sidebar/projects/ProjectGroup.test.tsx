@@ -8,6 +8,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 const setConfirmDialog = vi.fn();
 const deleteSession = vi.fn(async () => undefined);
 const exportMigrationArchive = vi.fn(async () => ({ canceled: false, sessionCount: 1 }));
+const showToast = vi.fn();
 const session: SidebarConversationInfo = {
 	kind: "conversation",
 	id: "project-session",
@@ -51,11 +52,17 @@ const mockModel = {
 
 vi.mock("@shared/store/atoms", () => ({ confirmDialogAtom: {} }));
 vi.mock("jotai", () => ({ useSetAtom: () => setConfirmDialog }));
-vi.mock("../../../hooks/useProjects", () => ({ useProjectActions: () => ({ deleteSession }) }));
+vi.mock("@shared/store/toast-atoms", () => ({ showToast }));
 vi.mock("../../../hooks/useProjectGroupModel", () => ({ useProjectGroupModel: () => mockModel }));
 vi.mock("@vetta-org/theme-ui/project", () => ({
-	ProjectGroupView: (props: { sessions: { sessions: Array<{ key: string }>; renderSession: (item: { key: string }) => JSX.Element } }): JSX.Element => (
-		<div>{props.sessions.sessions.map((item) => props.sessions.renderSession(item))}</div>
+	ProjectGroupView: (props: {
+		projectRow: { trailingAction?: JSX.Element };
+		sessions: { sessions: Array<{ key: string }>; renderSession: (item: { key: string }) => JSX.Element };
+	}): JSX.Element => (
+		<div>
+			{props.projectRow.trailingAction}
+			{props.sessions.sessions.map((item) => props.sessions.renderSession(item))}
+		</div>
 	),
 	SessionRowView: (props: { label: string; onSelect: () => void }): JSX.Element => (
 		<button type="button" onClick={props.onSelect}>{props.label}</button>
@@ -76,6 +83,7 @@ const renderProjectGroup = (): void => {
 			isExpanded
 			activeSessionPath=""
 			activeTeamSessionId=""
+			onDeleteSession={deleteSession}
 			onExpand={() => {}}
 			onCollapse={() => {}}
 			onNavigateProject={() => {}}
@@ -105,7 +113,7 @@ describe("ProjectGroup batch session actions", () => {
 
 		const confirmation = setConfirmDialog.mock.calls[0]?.[0] as { onConfirm: () => void };
 		await act(async () => confirmation.onConfirm());
-		await waitFor(() => expect(deleteSession).toHaveBeenCalledWith(session.cwd, session.path));
+		await waitFor(() => expect(deleteSession).toHaveBeenCalledWith(session));
 	});
 
 	it("exports selected project conversations with their owning cwd", async () => {

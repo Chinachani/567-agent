@@ -262,7 +262,7 @@ export function useFilesPanelModel(cwd?: string | null): FilesPanelViewProps {
 					setCreatingEntry(null);
 				})
 				.catch((error: unknown) => {
-					const message = String(error).includes(FILE_EXPLORER_ENTRY_EXISTS_ERROR)
+					const message = error instanceof Error && error.message === FILE_EXPLORER_ENTRY_EXISTS_ERROR
 						? t("fileExplorer.createAlreadyExists")
 						: t("fileExplorer.createFailed");
 					setCreatingEntry((current) =>

@@ -32,7 +32,7 @@ describe("createOfficialSkillsApi", () => {
 		Object.defineProperty(globalThis, "window", {
 			configurable: true,
 			value: {
-				vetta: {
+				agent567: {
 					plugins: { internalCapabilities: { skills } },
 					skills: { installFromMarketSlug },
 				},

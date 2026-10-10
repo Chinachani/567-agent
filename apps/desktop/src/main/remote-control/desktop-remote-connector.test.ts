@@ -4,6 +4,79 @@ import { describe, expect, it } from "vitest";
 import { DesktopRemoteConnector, type DesktopRemoteOperations } from "./desktop-remote-connector.js";
 
 describe("DesktopRemoteConnector", () => {
+	it("blocks a second migration and cancels an archive while desktop approval is pending", async () => {
+		const relay = new FakeRelay();
+		const mobile = new RemoteConnection(relay.createTransport("pair-migration-pending", "mobile"), {
+			role: "mobile",
+			deviceId: "phone-pending",
+			deviceName: "Phone",
+			capabilities: { chat: true, sessionRead: true },
+		});
+		const desktop = new RemoteConnection(relay.createTransport("pair-migration-pending", "desktop"), {
+			role: "desktop",
+			deviceId: "desktop-pending",
+			deviceName: "Desktop",
+			capabilities: { chat: true, sessionRead: true },
+		});
+		let resolveApproval!: (accepted: boolean) => void;
+		const approval = new Promise<boolean>((resolve) => {
+			resolveApproval = resolve;
+		});
+		let imported = false;
+		const operations: DesktopRemoteOperations = {
+			listSessions: async () => [],
+			createSession: async () => ({ sessionId: "session" }),
+			openSession: async (sessionId) => ({ sessionId }),
+			prompt: async function* () {},
+			abort: async () => undefined,
+			resume: async () => undefined,
+			diagnostics: async () => ({}),
+			canReceiveSessionMigration: true,
+			confirmSessionMigrationArchive: async () => approval,
+			receiveEncryptedSessionMigrationArchive: async () => {
+				imported = true;
+				return {};
+			},
+		};
+		const connector = new DesktopRemoteConnector(desktop, operations);
+		await mobile.connect();
+		await connector.start();
+		const bytes = Buffer.from("encrypted archive");
+		await mobile.request("session.migration.receive.start", {
+			transferId: "migration_pending_1",
+			totalBytes: bytes.length,
+			sha256: createHash("sha256").update(bytes).digest("hex"),
+		});
+		await mobile.request("session.migration.receive.chunk", {
+			transferId: "migration_pending_1",
+			index: 0,
+			dataBase64: bytes.toString("base64"),
+		});
+		const finish = mobile.request("session.migration.receive.finish", { transferId: "migration_pending_1" });
+		await new Promise((resolve) => setTimeout(resolve, 0));
+		await expect(
+			mobile.request("session.migration.receive.start", {
+				transferId: "migration_pending_2",
+				totalBytes: bytes.length,
+				sha256: createHash("sha256").update(bytes).digest("hex"),
+			}),
+		).rejects.toThrow();
+		await expect(
+			mobile.request("session.migration.receive.cancel", { transferId: "migration_pending_1" }),
+		).resolves.toEqual({ cancelled: true });
+		resolveApproval(true);
+		await expect(finish).resolves.toEqual({ accepted: false, cancelled: true });
+		await expect(
+			mobile.request("session.migration.receive.import", {
+				transferId: "migration_pending_1",
+				passphrase: "secure-password",
+			}),
+		).rejects.toThrow();
+		expect(imported).toBe(false);
+		await connector.stop();
+		await mobile.close();
+	});
+
 	it("exposes desktop model selection and preserves the retry target", async () => {
 		const relay = new FakeRelay();
 		const mobile = new RemoteConnection(relay.createTransport("pair-models", "mobile"), {
@@ -62,7 +135,7 @@ describe("DesktopRemoteConnector", () => {
 		);
 		await waitFor(() => retryArguments.length > 0);
 		expect(selectedModel).toBe("provider/model-b");
-		expect(retryArguments).toEqual(["session-models", "redo", true, "user-turn-1"]);
+		expect(retryArguments).toEqual(["session-models", "redo", true, "user-turn-1", { images: [], refs: [] }]);
 
 		await connector.stop();
 		await mobile.close();
@@ -106,7 +179,7 @@ describe("DesktopRemoteConnector", () => {
 		await connector.start();
 		await expect(mobile.request("session.list")).resolves.toEqual({
 			sessions: [{ id: "session-1", title: "Project" }],
-			supportedMethods: [],
+			supportedMethods: ["session.create"],
 		});
 		await expect(mobile.request("session.prompt", { text: "hello" })).resolves.toEqual({
 			accepted: true,
@@ -290,7 +363,7 @@ describe("DesktopRemoteConnector", () => {
 		await mobile.connect();
 		await connector.start();
 		await expect(mobile.request("session.list")).resolves.toMatchObject({
-			supportedMethods: ["session.suggestions.cancel"],
+			supportedMethods: ["session.create", "session.suggestions", "session.suggestions.cancel"],
 		});
 
 		const suggestions = mobile.request("session.suggestions", undefined, "session-cancel");

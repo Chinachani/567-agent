@@ -3,6 +3,7 @@ import { Button } from "@shared/components/ui/button";
 import { confirmDialogAtom } from "@shared/store/atoms";
 import { DefaultSessionListView, DefaultSessionRowView } from "@vetta-org/theme-ui/project";
 import { useSetAtom } from "jotai";
+import { showToast } from "@shared/store/toast-atoms";
 import { memo, useCallback, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { CheckSquare2, Download, Trash2, X } from "lucide-react";
@@ -11,7 +12,6 @@ import {
 	useDefaultSessionListModel,
 } from "../../../../hooks/useDefaultSessionListModel";
 import type { SidebarConversationInfo } from "../../../../services/sidebar-conversation-projection";
-import { useProjectActions } from "../../../../hooks/useProjects";
 import {
 	selectableConversationSessions,
 	toggleAllSelectedSessionPaths,
@@ -100,6 +100,7 @@ interface DefaultSessionListProps {
 	selectionMode: boolean;
 	onSelectionModeChange: (active: boolean) => void;
 	onNewSession?: () => void;
+	onDeleteSession: (session: SidebarConversationInfo) => Promise<void>;
 	onRenameSession: (cwd: string, sessionPath: string, name: string) => void;
 	onSelectSession: (cwd: string, session: SidebarConversationInfo) => void;
 	scrollParent: HTMLElement | null;
@@ -112,7 +113,6 @@ export const DefaultSessionList = memo(function DefaultSessionList(
 	const model = useDefaultSessionListModel(props);
 	const { t } = useTranslation("project");
 	const setConfirmDialog = useSetAtom(confirmDialogAtom);
-	const projectActions = useProjectActions();
 	const selectionMode = props.selectionMode;
 	const [selectedPaths, setSelectedPaths] = useState<ReadonlySet<string>>(new Set());
 	const [passphrase, setPassphrase] = useState("");
@@ -150,7 +150,10 @@ export const DefaultSessionList = memo(function DefaultSessionList(
 				props.cwd,
 			);
 			if (!result.canceled) {
-				setBatchMessage(t("sidebar.defaultConversation.batchExported", { count: result.sessionCount ?? selectedSessions.length }));
+				showToast({
+					variant: "success",
+					message: t("sidebar.defaultConversation.batchExported", { count: result.sessionCount ?? selectedSessions.length }),
+				});
 				setPassphrase("");
 				closeSelection();
 			}
@@ -174,7 +177,7 @@ export const DefaultSessionList = memo(function DefaultSessionList(
 					const failed: string[] = [];
 					for (const item of selectedSessions) {
 						try {
-							await projectActions.deleteSession(item.session.cwd, item.path);
+							await props.onDeleteSession(item.session);
 						} catch {
 							failed.push(item.path);
 						}
@@ -189,7 +192,7 @@ export const DefaultSessionList = memo(function DefaultSessionList(
 				})();
 			},
 		});
-	}, [closeSelection, projectActions, selectedSessions, setConfirmDialog, t]);
+	}, [closeSelection, props.onDeleteSession, selectedSessions, setConfirmDialog, t]);
 	const toggleAll = useCallback(() => {
 		setSelectedPaths((current) =>
 			toggleAllSelectedSessionPaths(current, model.sessions.map((item) => item.session)),

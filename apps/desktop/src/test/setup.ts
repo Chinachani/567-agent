@@ -28,4 +28,18 @@ if (typeof window !== "undefined" && typeof globalThis.localStorage === "undefin
 	}
 }
 
+// Production preload exposes both names as the same bridge. Keep legacy test
+// fixtures that assign window.vetta connected to the current renderer API.
+if (typeof window !== "undefined" && !Object.getOwnPropertyDescriptor(window, "agent567")) {
+	Object.defineProperty(window, "agent567", {
+		configurable: true,
+		get() {
+			return (this as Window & { vetta?: unknown }).vetta;
+		},
+		set(value: unknown) {
+			Object.defineProperty(this, "agent567", { configurable: true, enumerable: true, writable: true, value });
+		},
+	});
+}
+
 afterEach(() => cleanup());

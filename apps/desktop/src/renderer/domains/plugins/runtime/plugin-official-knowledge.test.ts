@@ -14,7 +14,7 @@ describe("createOfficialKnowledgeApi", () => {
 		};
 		Object.defineProperty(globalThis, "window", {
 			configurable: true,
-			value: { vetta: { plugins: { internalCapabilities: { knowledge } } } },
+			value: { agent567: { plugins: { internalCapabilities: { knowledge } } } },
 		});
 		const assertOfficial = vi.fn();
 		const api = createOfficialKnowledgeApi(assertOfficial, "capability-session");

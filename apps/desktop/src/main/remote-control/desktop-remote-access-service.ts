@@ -101,7 +101,7 @@ async function connect(
 	);
 	const operations = new DesktopConversationRemoteOperations(getDesktopConversationService(), {
 		cwd: options.conversationCwd,
-		sessionRoots: resolveDesktopRuntimeSessionRoots(),
+		resolveSessionRoots: resolveDesktopRuntimeSessionRoots,
 		readDefaultModelKey: async () => (await getDesktopModelSettingsService().getConfig()).defaultModel,
 		readGeneratedImageChunk: (id, offset, length) => readPluginBlobRange("image-gen", id, offset, length),
 		readToolbox: async () => {

@@ -43,6 +43,7 @@ interface ManagedSession {
 export interface DesktopConversationRemoteOperationsOptions {
 	readonly cwd: string;
 	readonly sessionRoots?: readonly { readonly cwd: string; readonly sessionDir?: string }[];
+	readonly resolveSessionRoots?: () => readonly { readonly cwd: string; readonly sessionDir?: string }[];
 	readonly allowSessionMigrationTransfer?: boolean;
 	readonly readDefaultModelKey?: () => Promise<string | undefined>;
 	readonly readGeneratedImageChunk?: (
@@ -87,7 +88,7 @@ export class DesktopConversationRemoteOperations implements DesktopRemoteOperati
 	private readonly sessions = new Map<string, ManagedSession>();
 	private readonly activeTurns = new Map<string, AbortController>();
 	private readonly deletingSessions = new Set<string>();
-	private readonly sessionRoots: readonly { readonly cwd: string; readonly sessionDir?: string }[];
+	private readonly resolveSessionRoots: () => readonly { readonly cwd: string; readonly sessionDir?: string }[];
 	private readonly sessionLocations = new Map<string, { readonly cwd: string; readonly sessionDir?: string }>();
 	private readonly questionResolvers = new Map<
 		string,
@@ -122,7 +123,7 @@ export class DesktopConversationRemoteOperations implements DesktopRemoteOperati
 		private readonly options: DesktopConversationRemoteOperationsOptions,
 	) {
 		this.turnTimeoutMs = options.turnTimeoutMs ?? null;
-		this.sessionRoots = options.sessionRoots ?? [{ cwd: options.cwd }];
+		this.resolveSessionRoots = options.resolveSessionRoots ?? (() => options.sessionRoots ?? [{ cwd: options.cwd }]);
 		this.canReadGeneratedImages = options.readGeneratedImageChunk !== undefined;
 		this.canReceiveSessionMigration = options.allowSessionMigrationTransfer === true;
 		this.readToolbox = options.readToolbox;
@@ -134,8 +135,9 @@ export class DesktopConversationRemoteOperations implements DesktopRemoteOperati
 	}
 
 	async listSessionCatalog(): Promise<DesktopRemoteSessionCatalog> {
+		const sessionRoots = this.resolveSessionRoots();
 		const locatedSessions = await Promise.all(
-			this.sessionRoots.map(async (root) => {
+			sessionRoots.map(async (root) => {
 				try {
 					return {
 						root,
@@ -330,8 +332,8 @@ export class DesktopConversationRemoteOperations implements DesktopRemoteOperati
 	private async findSession(sessionId: string) {
 		const preferred = this.sessionLocations.get(sessionId);
 		const roots = preferred
-			? [preferred, ...this.sessionRoots.filter((root) => root !== preferred)]
-			: this.sessionRoots;
+			? [preferred, ...this.resolveSessionRoots().filter((root) => root !== preferred)]
+			: this.resolveSessionRoots();
 		for (const root of roots) {
 			try {
 				const record = (await this.conversations.listSessions(root.cwd, root.sessionDir)).find(

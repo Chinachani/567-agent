@@ -16,6 +16,62 @@ vi.mock("../logger.js", () => ({
 }));
 
 describe("DesktopConversationRemoteOperations", () => {
+	it("resolves session roots again for each catalog refresh", async () => {
+		const roots: { cwd: string; sessionDir?: string }[] = [{ cwd: "C:/default" }];
+		const listSessions = vi.fn(async (cwd: string) =>
+			cwd === "C:/projects/new"
+				? [
+						{
+							id: "new-project-session",
+							path: "C:/projects/new/session.jsonl",
+							name: "New project",
+							firstMessage: "",
+							modifiedAt: 2,
+							cwd,
+							access: { readHistory: true, resume: true, rename: true, delete: true },
+						},
+					]
+				: [],
+		);
+		const conversations = {
+			createSession: async () => ({
+				sessionId: "unused",
+				sessionPath: "",
+				cwd: "",
+				listCwd: "",
+				source: "interactive" as const,
+			}),
+			listSessions,
+			openSession: async () => ({
+				sessionId: "unused",
+				sessionPath: "",
+				cwd: "",
+				listCwd: "",
+				source: "interactive" as const,
+			}),
+			runTurn: async () => ({
+				sessionId: "unused",
+				sessionPath: "",
+				cwd: "",
+				status: "completed" as const,
+				stopReason: "stop",
+				assistantText: "",
+				messageCount: 0,
+			}),
+		};
+		const operations = new DesktopConversationRemoteOperations(conversations, {
+			cwd: "C:/default",
+			resolveSessionRoots: () => roots,
+		});
+
+		expect((await operations.listSessionCatalog()).sessions).toEqual([]);
+		roots.push({ cwd: "C:/projects/new", sessionDir: "C:/projects/new/.567agent/sessions" });
+		expect((await operations.listSessionCatalog()).sessions).toEqual([
+			{ id: "new-project-session", title: "New project", updatedAtEpochMs: 2 },
+		]);
+		expect(listSessions).toHaveBeenCalledWith("C:/projects/new", "C:/projects/new/.567agent/sessions");
+	});
+
 	it("logs the detailed migration import exception and preserves its diagnostic detail", async () => {
 		errorLog.mockClear();
 		const failure = new Error("message 1 (user): conversation write capability is unavailable");

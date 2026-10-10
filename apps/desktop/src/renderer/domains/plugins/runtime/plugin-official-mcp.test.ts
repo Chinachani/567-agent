@@ -18,7 +18,7 @@ describe("createOfficialMcpApi", () => {
 		};
 		Object.defineProperty(globalThis, "window", {
 			configurable: true,
-			value: { vetta: { plugins: { internalCapabilities: { mcp } } } },
+			value: { agent567: { plugins: { internalCapabilities: { mcp } } } },
 		});
 		const assertOfficial = vi.fn();
 		const api = createOfficialMcpApi(assertOfficial, "capability-session");
