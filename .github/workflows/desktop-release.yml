@@ -211,6 +211,12 @@ jobs:
           NODE_OPTIONS: --max-old-space-size=4096
         run: bun run check
 
+      # Vitest resolves workspace packages through their generated dist exports.
+      # The clean release runner has no prior desktop build to populate them.
+      - name: Build Desktop workspace dependencies
+        working-directory: apps/desktop
+        run: bun run prepare:workspace
+
       - name: Test Desktop unit suite
         working-directory: apps/desktop
         run: bun run test

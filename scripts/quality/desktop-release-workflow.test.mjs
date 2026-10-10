@@ -36,11 +36,17 @@ function actionSteps(name) {
 describe("Desktop release workflow contracts", () => {
 	it("runs the full Desktop unit suite before building release artifacts", () => {
 		const qualitySteps = jobs.quality.steps;
+		const workspaceBuild = qualitySteps.find((step) => step.name === "Build Desktop workspace dependencies");
 		const desktopUnitTests = qualitySteps.find((step) => step.name === "Test Desktop unit suite");
+		expect(workspaceBuild).toMatchObject({
+			"working-directory": "apps/desktop",
+			run: "bun run prepare:workspace",
+		});
 		expect(desktopUnitTests).toMatchObject({
 			"working-directory": "apps/desktop",
 			run: "bun run test",
 		});
+		expect(qualitySteps.indexOf(workspaceBuild)).toBeLessThan(qualitySteps.indexOf(desktopUnitTests));
 		expect(qualitySteps.indexOf(desktopUnitTests)).toBeLessThan(
 			qualitySteps.findIndex((step) => step.name === "Verify Desktop packaging contract"),
 		);
