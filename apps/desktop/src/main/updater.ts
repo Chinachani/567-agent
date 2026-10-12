@@ -4,7 +4,9 @@ import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { getAgent567HomePath } from "@567agent/action-rpc";
 import { app, autoUpdater as nativeAutoUpdater, powerMonitor } from "electron";
+import type { AppUpdater } from "electron-updater";
 import electronUpdater from "electron-updater";
+import type { AppAdapter } from "electron-updater/out/AppAdapter";
 
 import { mainT } from "./i18n/index.js";
 import {
@@ -17,6 +19,7 @@ import { runQuitCleanup } from "./quit-cleanup.js";
 import { markPendingUpdateRelaunch } from "./update-relaunch-marker.js";
 import { ElectronUpdaterEngine } from "./updater-engine.js";
 import { type UpdaterPhase, UpdaterService, type UpdaterState } from "./updater-service.js";
+import { resolveWindowsDataLayoutFromEnvironment } from "./windows-data-layout.js";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 
@@ -30,7 +33,47 @@ export function getAppVersion(): string {
 
 // electron-updater 是 CommonJS 包；主进程产物为 ESM 且将它 externalize，
 // 因此必须从默认导出解构，不能保留 ESM 命名导入。
-const { autoUpdater } = electronUpdater;
+const { autoUpdater: defaultAutoUpdater, NsisUpdater } = electronUpdater;
+
+class WindowsDataUpdaterAdapter implements AppAdapter {
+	get version(): string {
+		return app.getVersion();
+	}
+	get name(): string {
+		return app.getName();
+	}
+	get isPackaged(): boolean {
+		return app.isPackaged;
+	}
+	get appUpdateConfigPath(): string {
+		return app.isPackaged
+			? join(process.resourcesPath, "app-update.yml")
+			: join(app.getAppPath(), "dev-app-update.yml");
+	}
+	get userDataPath(): string {
+		return app.getPath("userData");
+	}
+	get baseCachePath(): string {
+		return resolveWindowsDataLayoutFromEnvironment().updaterCache;
+	}
+	whenReady(): Promise<void> {
+		return app.whenReady();
+	}
+	relaunch(): void {
+		app.relaunch();
+	}
+	quit(): void {
+		app.quit();
+	}
+	onQuit(handler: (exitCode: number) => void): void {
+		app.once("quit", (_event, exitCode) => handler(exitCode));
+	}
+}
+
+const autoUpdater: AppUpdater =
+	process.platform === "win32" && app.isPackaged
+		? new NsisUpdater(undefined, new WindowsDataUpdaterAdapter())
+		: defaultAutoUpdater;
 
 /**
  * Packaged E2E runs against an explicitly supplied test feed. Keeping this

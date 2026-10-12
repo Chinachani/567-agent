@@ -3,9 +3,11 @@ import { rm as rmPhysicalFallback, statSync } from "node:fs";
 import { mkdir, readdir, readFile, rename, rm, writeFile } from "node:fs/promises";
 import { createRequire } from "node:module";
 import { basename, dirname, join, win32 } from "node:path";
+import { getAgent567HomePath } from "@567agent/action-rpc";
 import type { ProgressInfo, UpdateInfo } from "builder-util-runtime";
 import { CancellationError } from "builder-util-runtime";
 import type { ResolvedUpdateFileInfo } from "electron-updater";
+import { resolveWindowsDataLayout, resolveWindowsDataLayoutFromEnvironment } from "./windows-data-layout.js";
 
 const VERSION_PATTERN = /^[0-9A-Za-z][0-9A-Za-z.+-]{0,63}$/;
 const WINDOWS_EXECUTABLE_NAME = "567-Agent.exe";
@@ -130,7 +132,12 @@ function findWindowsInstaller(
 	return null;
 }
 
-export function buildInnoUpdateArguments(storeRoot: string, progressPath: string, logPath: string): string[] {
+export function buildInnoUpdateArguments(
+	storeRoot: string,
+	dataRoot: string,
+	progressPath: string,
+	logPath: string,
+): string[] {
 	return [
 		"/VERYSILENT",
 		"/SUPPRESSMSGBOXES",
@@ -140,6 +147,7 @@ export function buildInnoUpdateArguments(storeRoot: string, progressPath: string
 		"/SP-",
 		"/VETTAUPDATE=true",
 		`/VETTASTOREROOT=${storeRoot}`,
+		`/VETTADATAROOT=${dataRoot}`,
 		`/VETTAPROGRESS=${progressPath}`,
 		`/LOG=${logPath}`,
 	];
@@ -176,10 +184,16 @@ async function installWithInno(
 				reject(new CancellationError());
 				return;
 			}
-			const child = spawn(installerPath, buildInnoUpdateArguments(storeRoot, progressPath, logPath), {
-				stdio: "ignore",
-				windowsHide: true,
-			});
+			const child = spawn(
+				installerPath,
+				buildInnoUpdateArguments(
+					storeRoot,
+					resolveWindowsDataLayoutFromEnvironment().dataRoot ?? getAgent567HomePath(),
+					progressPath,
+					logPath,
+				),
+				{ stdio: "ignore", windowsHide: true },
+			);
 			let readingProgress = false;
 			const pollProgress = () => {
 				if (readingProgress) return;
@@ -287,9 +301,16 @@ export function isVersionedWindowsExecutable(executablePath: string, version: st
 	);
 }
 
-export function resolveInnoUpdateStoreRoot(localAppData = process.env.LOCALAPPDATA): string {
+export function resolveInnoUpdateStoreRoot(
+	localAppData = process.env.LOCALAPPDATA,
+	dataRoot = process.env.AGENT567_HOME,
+	updateStore = process.env.AGENT567_WINDOWS_UPDATE_STORE,
+): string {
+	if (updateStore?.trim() || dataRoot?.trim()) {
+		return resolveWindowsDataLayout({ localAppData, dataRoot, updateStore }).updateStore;
+	}
 	if (!localAppData) throw new Error("LOCALAPPDATA is unavailable");
-	return win32.resolve(localAppData, "567Agent");
+	return resolveWindowsDataLayout({ localAppData }).updateStore;
 }
 
 export class InnoWindowsUpdateController {

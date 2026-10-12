@@ -40,6 +40,13 @@ test("Inno bootstrap and electron-updater share one cache directory", () => {
 	const installer = readFileSync(new URL("../build/installer.iss", import.meta.url), "utf8");
 	assert.match(installer, /\\567-agent-updater/);
 	assert.doesNotMatch(installer, /\\567agent-updater/);
+	assert.match(installer, /CreateInputDirPage\(\s*wpSelectDir/);
+	assert.match(installer, /ValueName: "DataRoot"; ValueData: "\{code:GetDataRoot\}"/);
+	assert.match(installer, /robocopy\.exe/);
+	assert.match(installer, /windows-updates/);
+	assert.match(installer, /electron-user-data/);
+	assert.match(installer, /updater-cache/);
+	assert.doesNotMatch(installer, /\/MOVE/);
 });
 
 test("writes a stable versioned file manifest for pre-publish verification", async () => {

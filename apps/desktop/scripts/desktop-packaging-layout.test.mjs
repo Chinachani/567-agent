@@ -165,5 +165,5 @@ test("Windows manual installs remove stale bundled versions but retain the insta
 	assert.match(installer, /FindFirst\(AddBackslash\(VersionsDirectory\) \+ '\*', FindRec\)/);
 	assert.match(installer, /FindRec\.Name <> '\{#AppVersion\}'/);
 	assert.match(installer, /DelTree\(CandidateDirectory, True, True, True\)/);
-	assert.match(installer, /SeedUpdaterDifferentialCache\(\);\s+DeleteFile\(ExpandConstant\('\{localappdata\}\\567Agent\\current\.json'\)\);\s+CleanupOldBundledVersions\(\);/);
+	assert.match(installer, /SeedUpdaterDifferentialCache\(\);\s+DeleteFile\(GetUpdateStorePointer\(''\)\);\s+CleanupOldBundledVersions\(\);/);
 });

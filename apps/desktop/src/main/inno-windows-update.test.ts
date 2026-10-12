@@ -310,19 +310,28 @@ describe("Windows Inno update paths", () => {
 	});
 
 	it("uses the stable per-user application root", () => {
-		expect(resolveInnoUpdateStoreRoot("C:\\Users\\test\\AppData\\Local")).toBe(
+		expect(resolveInnoUpdateStoreRoot("C:\\Users\\test\\AppData\\Local", "", "")).toBe(
 			"C:\\Users\\test\\AppData\\Local\\567Agent",
 		);
 	});
 
+	it("uses the selected data root for the Windows update store", () => {
+		expect(resolveInnoUpdateStoreRoot("C:\\Users\\test\\AppData\\Local", "D:\\Agent Data", "")).toBe(
+			"D:\\Agent Data\\windows-updates",
+		);
+	});
+
 	it("builds a fully silent background update command", () => {
-		expect(buildInnoUpdateArguments("C:\\Store Root", "C:\\Temp\\progress", "C:\\Temp\\install.log")).toEqual(
+		expect(
+			buildInnoUpdateArguments("C:\\Store Root", "D:\\Agent Data", "C:\\Temp\\progress", "C:\\Temp\\install.log"),
+		).toEqual(
 			expect.arrayContaining([
 				"/VERYSILENT",
 				"/SUPPRESSMSGBOXES",
 				"/NOCLOSEAPPLICATIONS",
 				"/VETTAUPDATE=true",
 				"/VETTASTOREROOT=C:\\Store Root",
+				"/VETTADATAROOT=D:\\Agent Data",
 			]),
 		);
 	});

@@ -16,6 +16,46 @@ vi.mock("../logger.js", () => ({
 }));
 
 describe("DesktopConversationRemoteOperations", () => {
+	it("returns a typed error when every configured session root is unreadable", async () => {
+		const conversations = {
+			createSession: async () => ({
+				sessionId: "unused",
+				sessionPath: "",
+				cwd: "",
+				listCwd: "",
+				source: "interactive" as const,
+			}),
+			listSessions: async () => {
+				throw new Error("EACCES: permission denied");
+			},
+			openSession: async () => ({
+				sessionId: "unused",
+				sessionPath: "",
+				cwd: "",
+				listCwd: "",
+				source: "interactive" as const,
+			}),
+			runTurn: async () => ({
+				sessionId: "unused",
+				sessionPath: "",
+				cwd: "",
+				status: "completed" as const,
+				stopReason: "stop",
+				assistantText: "",
+				messageCount: 0,
+			}),
+		};
+		const operations = new DesktopConversationRemoteOperations(conversations, {
+			cwd: "C:/default",
+			sessionRoots: [{ cwd: "C:/default" }, { cwd: "C:/secondary" }],
+		});
+
+		await expect(operations.listSessionCatalog()).rejects.toMatchObject({
+			code: "SESSION_ROOTS_UNAVAILABLE",
+			message: "无法读取任何电脑会话目录，请检查目录权限后重试",
+		});
+	});
+
 	it("resolves session roots again for each catalog refresh", async () => {
 		const roots: { cwd: string; sessionDir?: string }[] = [{ cwd: "C:/default" }];
 		const listSessions = vi.fn(async (cwd: string) =>

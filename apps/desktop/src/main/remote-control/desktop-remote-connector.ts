@@ -96,6 +96,7 @@ export interface DesktopRemoteOperations {
 
 export class DesktopRemoteConnector {
 	private unsubscribe: (() => void) | undefined;
+	private connectionGeneration = 0;
 	private readonly activeSuggestionRequests = new Map<string, { sessionId: string; controller: AbortController }>();
 	private readonly migrationTransfer = new EncryptedSessionMigrationTransfer();
 	private readonly promptAttachmentTransfer = new EncryptedSessionMigrationTransfer(
@@ -126,13 +127,17 @@ export class DesktopRemoteConnector {
 	) {}
 
 	async start(): Promise<void> {
+		const generation = ++this.connectionGeneration;
 		this.unsubscribe = this.connection.onEvent((event) => {
-			if (event.type === "remote-request") void this.handleRequest(event.request);
+			if (event.type === "remote-request") {
+				void this.handleRequest(event.request, generation).catch(() => undefined);
+			}
 		});
 		await this.connection.connect();
 	}
 
 	async stop(): Promise<void> {
+		this.connectionGeneration += 1;
 		this.unsubscribe?.();
 		this.unsubscribe = undefined;
 		this.migrationTransfer.cancel();
@@ -148,7 +153,7 @@ export class DesktopRemoteConnector {
 		await this.connection.close();
 	}
 
-	private async handleRequest(request: RemoteRequest): Promise<void> {
+	private async handleRequest(request: RemoteRequest, generation: number): Promise<void> {
 		const suggestionController = request.method === "session.suggestions" ? new AbortController() : undefined;
 		const suggestionSessionId = suggestionController ? request.sessionId : undefined;
 		if (suggestionController && suggestionSessionId) {
@@ -159,10 +164,10 @@ export class DesktopRemoteConnector {
 		}
 		try {
 			const payload = await this.dispatch(request, suggestionController?.signal);
-			if (suggestionController?.signal.aborted) return;
+			if (generation !== this.connectionGeneration || suggestionController?.signal.aborted) return;
 			await this.connection.respond(request.requestId, { success: true, payload });
 		} catch (error) {
-			if (suggestionController?.signal.aborted) return;
+			if (generation !== this.connectionGeneration || suggestionController?.signal.aborted) return;
 			await this.connection.respond(request.requestId, { success: false, error: toRemoteError(error) });
 		} finally {
 			if (suggestionController) this.activeSuggestionRequests.delete(request.requestId);
@@ -318,7 +323,11 @@ export class DesktopRemoteConnector {
 				this.requireMigrationTransferSupport();
 				this.pruneExpiredMigrationArchives();
 				if (this.approvedMigrationArchives.size > 0 || this.pendingMigrationApprovals.size > 0) {
-					throw new Error("Import or cancel the previously approved conversation backup first");
+					const error = new Error(
+						"电脑端仍有一个会话备份确认窗口，请先在电脑端取消或完成该窗口后，再重新发起传输",
+					);
+					Object.assign(error, { code: "MIGRATION_APPROVAL_PENDING" });
+					throw error;
 				}
 				this.migrationTransfer.start(readMigrationTransferStart(request));
 				return { accepted: true, nextChunkIndex: 0 };
@@ -838,6 +847,12 @@ function toRemoteError(error: unknown): RemoteError {
 	const operationCode = isRecord(error) && typeof error.code === "string" ? error.code : undefined;
 	if (operationCode === "SESSION_MIGRATION_IMPORT_FAILED") {
 		return remoteError("internal_error", `电脑端导入会话备份失败：${message.slice(0, 500)}`, false);
+	}
+	if (operationCode === "SESSION_ROOTS_UNAVAILABLE") {
+		return remoteError("internal_error", "无法读取电脑端会话目录，请检查应用对会话目录的访问权限后重试", true);
+	}
+	if (operationCode === "MIGRATION_APPROVAL_PENDING") {
+		return remoteError("busy", message, true);
 	}
 	if (operationCode === "SESSION_NOT_FOUND") {
 		return remoteError("not_found", "找不到这条电脑端会话", false);

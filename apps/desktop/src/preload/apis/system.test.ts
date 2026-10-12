@@ -5,6 +5,24 @@ import { FS_READ_TEXT_PREVIEW_CHANNEL } from "../fs-types";
 import { createSystemApi } from "./system";
 
 describe("createSystemApi fs preview contract", () => {
+	it("normalizes structured duplicate-entry results into the renderer error contract", async () => {
+		const invoke = vi.fn(async () => ({ ok: false, code: "ENTRY_ALREADY_EXISTS" }));
+		const api = createSystemApi({ invoke } as unknown as IpcRenderer, {} as WebUtils);
+
+		await expect(api.fs.createEntry("/workspace", "existing.txt", "file")).rejects.toMatchObject({
+			name: "FileExplorerEntryExistsError",
+			message: "FILE_EXPLORER_ENTRY_EXISTS",
+		});
+	});
+
+	it("returns the entry from a successful structured create-entry response", async () => {
+		const entry = { name: "new.txt", path: "/workspace/new.txt", isDirectory: false, size: 0, modifiedAt: 1 };
+		const invoke = vi.fn(async () => ({ ok: true, entry }));
+		const api = createSystemApi({ invoke } as unknown as IpcRenderer, {} as WebUtils);
+
+		await expect(api.fs.createEntry("/workspace", "new.txt", "file")).resolves.toEqual(entry);
+	});
+
 	it("invokes the shared text-preview channel with the selected path", async () => {
 		const invoke = vi.fn(async () => ({ status: "text", content: "preview", size: 7 }));
 		const api = createSystemApi({ invoke } as unknown as IpcRenderer, {} as WebUtils);

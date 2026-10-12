@@ -6,6 +6,10 @@ export interface FsEntry {
 	modifiedAt: number;
 }
 
+export type FsCreateEntryResult =
+	| { readonly ok: true; readonly entry: FsEntry }
+	| { readonly ok: false; readonly code: "ENTRY_ALREADY_EXISTS" };
+
 /** 递归列文件返回的轻量条目（不含 stat，relPath 相对 root，用于模糊匹配/展示）。 */
 export interface FsFileRef {
 	name: string;

@@ -18,6 +18,66 @@ func writeExecutable(t *testing.T, root string, version string) string {
 	return target
 }
 
+func TestResolveDataLayoutUsesSelectedRoot(t *testing.T) {
+	root := filepath.Join(t.TempDir(), "Data")
+	dataRoot, updateStore, updaterCache := resolveDataLayout(root, "C:/Users/test/AppData/Local")
+	if dataRoot != root || updateStore != filepath.Join(root, "windows-updates") || updaterCache != filepath.Join(root, "updater-cache") {
+		t.Fatalf("unexpected selected data layout: %q %q %q", dataRoot, updateStore, updaterCache)
+	}
+}
+
+func TestResolveDataLayoutKeepsLegacyLocationsWithoutSelection(t *testing.T) {
+	localAppData := filepath.Join(t.TempDir(), "AppData", "Local")
+	dataRoot, updateStore, updaterCache := resolveDataLayout("", localAppData)
+	if dataRoot != "" || updateStore != filepath.Join(localAppData, "567Agent") || updaterCache != filepath.Join(localAppData, "567-agent-updater") {
+		t.Fatalf("unexpected fallback layout: %q %q %q", dataRoot, updateStore, updaterCache)
+	}
+}
+
+func TestEnvironmentWithAgent567PathsReplacesOldValues(t *testing.T) {
+	root := filepath.Join(t.TempDir(), "567 Data")
+	environment := environmentWithAgent567Paths([]string{
+		"PATH=C:/Windows",
+		"AGENT567_HOME=C:/old",
+		"AGENT567_WINDOWS_DATA_ROOT=C:/old",
+		"agent567_desktop_user_data_dir=C:/old/profile",
+	}, root)
+	want := []string{
+		"PATH=C:/Windows",
+		"AGENT567_HOME=" + root,
+		"AGENT567_WINDOWS_DATA_ROOT=" + root,
+		"AGENT567_DESKTOP_USER_DATA_DIR=" + filepath.Join(root, "electron-user-data"),
+		"AGENT567_WINDOWS_UPDATE_STORE=" + filepath.Join(root, "windows-updates"),
+		"AGENT567_UPDATER_CACHE_DIR=" + filepath.Join(root, "updater-cache"),
+	}
+	if len(environment) != len(want) {
+		t.Fatalf("got environment %#v", environment)
+	}
+	for _, expected := range want {
+		found := false
+		for _, actual := range environment {
+			if actual == expected {
+				found = true
+				break
+			}
+		}
+		if !found {
+			t.Fatalf("missing %q in %#v", expected, environment)
+		}
+	}
+}
+
+func TestEnvironmentWithAgent567PathsRemovesUnregisteredOverrides(t *testing.T) {
+	environment := environmentWithAgent567Paths([]string{
+		"PATH=C:/Windows",
+		"AGENT567_WINDOWS_DATA_ROOT=D:/stale",
+		"AGENT567_WINDOWS_UPDATE_STORE=D:/stale/windows-updates",
+	}, "")
+	if len(environment) != 1 || environment[0] != "PATH=C:/Windows" {
+		t.Fatalf("unexpected environment %#v", environment)
+	}
+}
+
 func TestResolveLaunchTargetUsesActiveLocalVersion(t *testing.T) {
 	installRoot := t.TempDir()
 	localRoot := t.TempDir()

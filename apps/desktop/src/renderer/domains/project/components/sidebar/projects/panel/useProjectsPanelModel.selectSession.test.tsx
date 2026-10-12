@@ -423,4 +423,45 @@ describe("useProjectsPanelModel.selectSession", () => {
 		expect(onOpenSession).toHaveBeenCalledTimes(1);
 		expect(onOpenSession).toHaveBeenCalledWith(cwd, "s2");
 	});
+
+	it("批量删除完成时不会清空用户已经切换到的会话", async () => {
+		const cwdA = "/repo/a";
+		const cwdB = "/repo/b";
+		const deletion = deferred<void>();
+		const state = projectsState(new Map());
+		state.deleteSession.mockReturnValue(deletion.promise);
+		useProjectsMock.mockReturnValue(state);
+		getDefaultStore().set(activeSessionAtom, {
+			cwd: cwdA,
+			sessionPath: "session-a",
+			runtimeId: "runtime-a",
+		});
+		const { result, rerender } = renderHook(() =>
+			useProjectsPanelModel({ filter: "all", onOpenSession: vi.fn() }),
+		);
+		let deletionTask!: Promise<void>;
+		act(() => {
+			deletionTask = result.current.actions.deleteConversation({
+				...makeSession("session-a", cwdA),
+				kind: "conversation",
+			});
+		});
+
+		getDefaultStore().set(activeSessionAtom, {
+			cwd: cwdB,
+			sessionPath: "session-b",
+			runtimeId: "runtime-b",
+		});
+		routeMatches = [{ pathname: "/session/$path", params: { path: "session-b" } }];
+		rerender();
+		navigateSpy.mockClear();
+
+		await act(async () => {
+			deletion.resolve();
+			await deletionTask;
+		});
+
+		expect(getDefaultStore().get(activeSessionAtom)?.sessionPath).toBe("session-b");
+		expect(navigateSpy).not.toHaveBeenCalled();
+	});
 });

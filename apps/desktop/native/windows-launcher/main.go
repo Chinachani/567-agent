@@ -7,6 +7,7 @@ import (
 	"os/exec"
 	"path/filepath"
 	"regexp"
+	"strings"
 )
 
 const executableName = "567-Agent.exe"
@@ -90,6 +91,7 @@ func resolveLaunchTarget(installRoot string, localRoot string) string {
 func startDetached(target string, args []string) error {
 	command := exec.Command(target, args...)
 	command.Dir = filepath.Dir(target)
+	command.Env = environmentWithAgent567Paths(os.Environ(), configuredDataRoot())
 	// Do NOT set HideWindow / STARTF_USESHOWWINDOW+SW_HIDE.
 	// That overrides the child GUI process's first ShowWindow and leaves the
 	// Electron main window with WS_VISIBLE cleared (tray-only, no UI).
@@ -98,6 +100,55 @@ func startDetached(target string, args []string) error {
 		return err
 	}
 	return command.Process.Release()
+}
+
+func resolveDataLayout(configuredRoot string, localAppData string) (dataRoot string, updateStore string, updaterCache string) {
+	dataRoot = filepath.Clean(configuredRoot)
+	if configuredRoot == "" {
+		dataRoot = ""
+	}
+	if dataRoot != "" {
+		return dataRoot, filepath.Join(dataRoot, "windows-updates"), filepath.Join(dataRoot, "updater-cache")
+	}
+	legacyRoot := filepath.Join(localAppData, "567Agent")
+	return "", legacyRoot, filepath.Join(localAppData, "567-agent-updater")
+}
+
+func environmentWithAgent567Paths(environment []string, configuredRoot string) []string {
+	managed := map[string]bool{
+		"AGENT567_HOME":                  true,
+		"AGENT567_WINDOWS_DATA_ROOT":     true,
+		"AGENT567_DESKTOP_USER_DATA_DIR": true,
+		"AGENT567_WINDOWS_UPDATE_STORE":  true,
+		"AGENT567_UPDATER_CACHE_DIR":     true,
+	}
+	values := map[string]string{}
+	if configuredRoot != "" {
+		dataRoot, updateStore, updaterCache := resolveDataLayout(configuredRoot, "")
+		values = map[string]string{
+			"AGENT567_HOME":                  dataRoot,
+			"AGENT567_WINDOWS_DATA_ROOT":     dataRoot,
+			"AGENT567_DESKTOP_USER_DATA_DIR": filepath.Join(dataRoot, "electron-user-data"),
+			"AGENT567_WINDOWS_UPDATE_STORE":  updateStore,
+			"AGENT567_UPDATER_CACHE_DIR":     updaterCache,
+		}
+	}
+	result := make([]string, 0, len(environment)+len(values))
+	for _, entry := range environment {
+		separator := strings.IndexByte(entry, '=')
+		if separator < 0 {
+			result = append(result, entry)
+			continue
+		}
+		name := strings.ToUpper(entry[:separator])
+		if !managed[name] {
+			result = append(result, entry)
+		}
+	}
+	for name, value := range values {
+		result = append(result, name+"="+value)
+	}
+	return result
 }
 
 func main() {
@@ -110,7 +161,15 @@ func main() {
 		return
 	}
 	installRoot := filepath.Dir(launcherPath)
-	localRoot := filepath.Join(localAppData, "567Agent")
+	configuredRoot := configuredDataRoot()
+	if configuredRoot != "" {
+		info, statErr := os.Stat(configuredRoot)
+		if statErr != nil || !info.IsDir() {
+			showDataRootUnavailable(configuredRoot)
+			return
+		}
+	}
+	_, localRoot, _ := resolveDataLayout(configuredRoot, localAppData)
 	target := resolveLaunchTarget(installRoot, localRoot)
 	if target == "" {
 		return

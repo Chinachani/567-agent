@@ -64,6 +64,8 @@ export function useProjectsPanelModel({
 	} = useProjects();
 	const teamSidebar = useTeamSidebarConversations(projects.map((project) => project.cwd));
 	const activeSessionPathValue = useAtomValue(activeSessionPathAtom);
+	const activeSessionPathRef = useRef(activeSessionPathValue);
+	activeSessionPathRef.current = activeSessionPathValue;
 	const pendingSessionPath = useAtomValue(pendingSessionPathAtom);
 	const activeSessionCwd = useAtomValue(activeSessionCwdAtom);
 	const store = useStore();
@@ -74,6 +76,8 @@ export function useProjectsPanelModel({
 	const navigate = useNavigate();
 	const matches = useMatches();
 	const currentPath = matches[matches.length - 1]?.pathname ?? "/";
+	const currentPathRef = useRef(currentPath);
+	currentPathRef.current = currentPath;
 	const routeParams = matches[matches.length - 1]?.params as
 		| { path?: string; cwd?: string; sessionId?: string }
 		| undefined;
@@ -315,13 +319,16 @@ export function useProjectsPanelModel({
 			if (batchMatch && task) await deleteBatchTask(batchMatch.id, task.id);
 			else await deleteSession(session.cwd, session.path);
 
-			if (activeSessionPathValue !== session.path) return;
+			// The delete can take long enough for the user to open another session.
+			// Read the latest state after the await so completion only clears the
+			// session that was actually deleted.
+			if (activeSessionPathRef.current !== session.path) return;
 			setActiveSession(null);
-			if (currentPath === "/") {
+			if (currentPathRef.current === "/") {
 				void navigate({ to: "/new-session/$cwd", params: { cwd: encodeURIComponent(session.cwd) } });
 			}
 		},
-		[activeSessionPathValue, batchProjects, currentPath, deleteBatchTask, deleteSession, navigate, setActiveSession],
+		[batchProjects, deleteBatchTask, deleteSession, navigate, setActiveSession],
 	);
 
 	const renamePanelSession = useCallback(

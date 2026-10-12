@@ -11,7 +11,9 @@ import type {
 	McpServerConfigData,
 	McpStdioServerConfigData,
 } from "../../preload/api-types/mcp.js";
+import { FILE_EXPLORER_ENTRY_EXISTS_ERROR } from "../../preload/file-explorer-entry-name.js";
 import type {
+	FsCreateEntryResult,
 	FsEditableTextSnapshot,
 	FsEntry,
 	FsFileRef,
@@ -266,11 +268,18 @@ export function registerFsIpc(): () => void {
 
 	ipcMain.handle(
 		CHANNELS.CREATE_ENTRY,
-		async (_event, parentDirectory: unknown, name: unknown, kind: unknown): Promise<FsEntry> => {
+		async (_event, parentDirectory: unknown, name: unknown, kind: unknown): Promise<FsCreateEntryResult> => {
 			assertNonEmptyString(parentDirectory, "parentDirectory");
 			assertNonEmptyString(name, "name");
 			if (kind !== "file" && kind !== "directory") throw new Error("Invalid kind");
-			return createFilesystemEntry(parentDirectory, name, kind);
+			try {
+				return { ok: true, entry: await createFilesystemEntry(parentDirectory, name, kind) };
+			} catch (error) {
+				if (error instanceof Error && error.message === FILE_EXPLORER_ENTRY_EXISTS_ERROR) {
+					return { ok: false, code: "ENTRY_ALREADY_EXISTS" };
+				}
+				throw error;
+			}
 		},
 	);
 

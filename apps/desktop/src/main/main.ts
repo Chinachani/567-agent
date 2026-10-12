@@ -103,6 +103,7 @@ import {
 	setMainWindowRecreatedHandler,
 	showMainWindow,
 } from "./window-manager.js";
+import { resolveWindowsDataLayoutFromEnvironment } from "./windows-data-layout.js";
 
 // 启动早期修复 GUI 进程的 PATH(补回 homebrew 等登录 shell 路径),必须先于
 // RuntimeManager.applyEnv() 与 coding-agent 的 bash 执行。详见 fix-path.ts。
@@ -248,6 +249,13 @@ if (isCliMode) {
 // safeStorage 按 app 名字定位主密钥，名字分叉会让两侧各持一把密钥，
 // 共享 ~/.567agent 时表现为凭据"丢失"并互相覆盖（见 shared/app-identity.ts）。
 app.name = APP_RUNTIME_NAME;
+
+if (!isCliMode && process.platform === "win32") {
+	const windowsDataLayout = resolveWindowsDataLayoutFromEnvironment();
+	app.setPath("userData", windowsDataLayout.userData);
+	app.setPath("sessionData", windowsDataLayout.sessionData);
+	app.setPath("logs", windowsDataLayout.logs);
+}
 
 if (!isCliMode && process.platform === "linux" && shouldUseLinuxSoftwareRendering(app.getPath("userData"))) {
 	app.commandLine.appendSwitch("disable-gpu");

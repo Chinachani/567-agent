@@ -3,7 +3,7 @@ import { PERSIST_IMAGE_FILES_CHANNEL } from "../../shared/image-cache.js";
 import { PROJECTS_CHANNELS } from "../../shared/projects-ipc.js";
 import type { DesktopApi } from "../api.js";
 import type { DesktopThemeChangeRequest } from "../api-types/theme.js";
-import { FS_READ_TEXT_PREVIEW_CHANNEL } from "../fs-types.js";
+import { FS_READ_TEXT_PREVIEW_CHANNEL, type FsCreateEntryResult } from "../fs-types.js";
 import { onIpcEvent, onIpcVoidEvent } from "./helper.js";
 
 const RUNTIMES_PROGRESS_CHANNEL = "vetta:runtimes:progress";
@@ -157,7 +157,21 @@ export function createSystemApi(
 			cancelDrop: (planId) => ipc.invoke("vetta:file-transfer:cancel-drop", planId),
 			startDrag: (paths) => ipc.send("vetta:file-transfer:start-drag", [...paths]),
 			cacheDragIcon: (path, pngDataUrl) => ipc.send("vetta:file-transfer:cache-drag-icon", path, pngDataUrl),
-			createEntry: (parentDirectory, name, kind) => ipc.invoke("vetta:fs:create-entry", parentDirectory, name, kind),
+			createEntry: async (parentDirectory, name, kind) => {
+				const result = (await ipc.invoke(
+					"vetta:fs:create-entry",
+					parentDirectory,
+					name,
+					kind,
+				)) as FsCreateEntryResult;
+				if (result?.ok === false && result.code === "ENTRY_ALREADY_EXISTS") {
+					const error = new Error("FILE_EXPLORER_ENTRY_EXISTS");
+					error.name = "FileExplorerEntryExistsError";
+					throw error;
+				}
+				if (!result?.ok || !result.entry) throw new Error("Invalid create-entry response");
+				return result.entry;
+			},
 			createDirectory: (dirPath) => ipc.invoke("vetta:fs:create-directory", dirPath),
 			listSubDirs: (dirPath) => ipc.invoke("vetta:fs:list-sub-dirs", dirPath),
 			listFilesRecursive: (rootPath) => ipc.invoke("vetta:fs:list-files-recursive", rootPath),

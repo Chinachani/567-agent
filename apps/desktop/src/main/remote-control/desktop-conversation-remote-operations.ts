@@ -157,7 +157,9 @@ export class DesktopConversationRemoteOperations implements DesktopRemoteOperati
 		const failedRootCount = locatedSessions.filter(({ failed }) => failed).length;
 		const successfulRootCount = locatedSessions.length - failedRootCount;
 		if (successfulRootCount === 0) {
-			throw new Error("无法读取任何电脑会话目录，请检查目录权限后重试");
+			const error = new Error("无法读取任何电脑会话目录，请检查目录权限后重试");
+			Object.assign(error, { code: "SESSION_ROOTS_UNAVAILABLE" });
+			throw error;
 		}
 		const summaries = new Map<string, DesktopRemoteSessionSummary>();
 		this.sessionLocations.clear();

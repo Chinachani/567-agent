@@ -1,6 +1,6 @@
 import { createHash } from "node:crypto";
 import { FakeRelay, RemoteConnection } from "@567agent/remote-control";
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import { DesktopRemoteConnector, type DesktopRemoteOperations } from "./desktop-remote-connector.js";
 
 describe("DesktopRemoteConnector", () => {
@@ -60,7 +60,7 @@ describe("DesktopRemoteConnector", () => {
 				totalBytes: bytes.length,
 				sha256: createHash("sha256").update(bytes).digest("hex"),
 			}),
-		).rejects.toThrow();
+		).rejects.toThrow("电脑端仍有一个会话备份确认窗口");
 		await expect(
 			mobile.request("session.migration.receive.cancel", { transferId: "migration_pending_1" }),
 		).resolves.toEqual({ cancelled: true });
@@ -73,6 +73,103 @@ describe("DesktopRemoteConnector", () => {
 			}),
 		).rejects.toThrow();
 		expect(imported).toBe(false);
+		await connector.stop();
+		await mobile.close();
+	});
+
+	it("does not respond to a migration approval that arrives after the connector stops", async () => {
+		const relay = new FakeRelay();
+		const mobile = new RemoteConnection(relay.createTransport("pair-migration-stop", "mobile"), {
+			role: "mobile",
+			deviceId: "phone-stop",
+			deviceName: "Phone",
+			capabilities: { chat: true, sessionRead: true },
+		});
+		const desktop = new RemoteConnection(relay.createTransport("pair-migration-stop", "desktop"), {
+			role: "desktop",
+			deviceId: "desktop-stop",
+			deviceName: "Desktop",
+			capabilities: { chat: true, sessionRead: true },
+		});
+		let resolveApproval!: (accepted: boolean) => void;
+		const approval = new Promise<boolean>((resolve) => {
+			resolveApproval = resolve;
+		});
+		const operations: DesktopRemoteOperations = {
+			listSessions: async () => [],
+			createSession: async () => ({ sessionId: "session" }),
+			openSession: async (sessionId) => ({ sessionId }),
+			prompt: async function* () {},
+			abort: async () => undefined,
+			resume: async () => undefined,
+			diagnostics: async () => ({}),
+			canReceiveSessionMigration: true,
+			confirmSessionMigrationArchive: async () => approval,
+			receiveEncryptedSessionMigrationArchive: async () => ({}),
+		};
+		const connector = new DesktopRemoteConnector(desktop, operations);
+		await mobile.connect();
+		await connector.start();
+		const bytes = Buffer.from("encrypted archive");
+		await mobile.request("session.migration.receive.start", {
+			transferId: "migration_stop_1",
+			totalBytes: bytes.length,
+			sha256: createHash("sha256").update(bytes).digest("hex"),
+		});
+		await mobile.request("session.migration.receive.chunk", {
+			transferId: "migration_stop_1",
+			index: 0,
+			dataBase64: bytes.toString("base64"),
+		});
+		const respond = vi.spyOn(desktop, "respond");
+		const finish = mobile
+			.request("session.migration.receive.finish", { transferId: "migration_stop_1" })
+			.catch(() => undefined);
+		await new Promise((resolve) => setTimeout(resolve, 0));
+
+		await connector.stop();
+		resolveApproval(true);
+		await finish;
+		await new Promise((resolve) => setTimeout(resolve, 0));
+
+		expect(respond).not.toHaveBeenCalled();
+		await mobile.close();
+	});
+
+	it("returns a specific permission message when no desktop session root can be read", async () => {
+		const relay = new FakeRelay();
+		const mobile = new RemoteConnection(relay.createTransport("pair-session-root-error", "mobile"), {
+			role: "mobile",
+			deviceId: "phone-roots",
+			deviceName: "Phone",
+			capabilities: { chat: true, sessionRead: true },
+		});
+		const desktop = new RemoteConnection(relay.createTransport("pair-session-root-error", "desktop"), {
+			role: "desktop",
+			deviceId: "desktop-roots",
+			deviceName: "Desktop",
+			capabilities: { chat: true, sessionRead: true },
+		});
+		const operations: DesktopRemoteOperations = {
+			listSessions: async () => [],
+			listSessionCatalog: async () => {
+				throw Object.assign(new Error("all roots failed"), { code: "SESSION_ROOTS_UNAVAILABLE" });
+			},
+			createSession: async () => ({ sessionId: "session" }),
+			openSession: async (sessionId) => ({ sessionId }),
+			prompt: async function* () {},
+			abort: async () => undefined,
+			resume: async () => undefined,
+			diagnostics: async () => ({}),
+		};
+		const connector = new DesktopRemoteConnector(desktop, operations);
+		await mobile.connect();
+		await connector.start();
+
+		await expect(mobile.request("session.list")).rejects.toThrow(
+			"无法读取电脑端会话目录，请检查应用对会话目录的访问权限后重试",
+		);
+
 		await connector.stop();
 		await mobile.close();
 	});
