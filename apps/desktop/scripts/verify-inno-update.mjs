@@ -37,6 +37,7 @@ async function runInstaller(installerPath, storeRoot, version) {
 		"/SP-",
 		"/VETTAUPDATE=true",
 		`/VETTASTOREROOT=${storeRoot}`,
+		`/VETTADATAROOT=${storeRoot}`,
 		`/VETTAPROGRESS=${progressPath}`,
 		`/LOG=${logPath}`,
 	];
