@@ -108,6 +108,7 @@ export function useSessionEventController({ activeSessionRef }: SessionEventCont
 	const pendingTextDeltaRef = useRef("");
 	const pendingThinkingDeltaRef = useRef("");
 	const deltaTimerRef = useRef<number | null>(null);
+	const quotaRefreshTimerRef = useRef<number | null>(null);
 	const pendingDeltaSessionRef = useRef<string | null>(null);
 	const conversationProjectionRef = useRef(new ConversationProjection());
 
@@ -171,7 +172,16 @@ export function useSessionEventController({ activeSessionRef }: SessionEventCont
 		}
 	}, [flushDeltas]);
 
-	useEffect(() => resetEventBuffers, [resetEventBuffers]);
+	useEffect(
+		() => () => {
+			resetEventBuffers();
+			if (quotaRefreshTimerRef.current !== null) {
+				window.clearTimeout(quotaRefreshTimerRef.current);
+				quotaRefreshTimerRef.current = null;
+			}
+		},
+		[resetEventBuffers],
+	);
 
 	const createSessionEventHandler = useCallback(
 		(sessionId: string) => (event: SessionEvent) => {
@@ -324,7 +334,11 @@ export function useSessionEventController({ activeSessionRef }: SessionEventCont
 						});
 
 					if (event.phase === "agent_end") {
-						setTimeout(() => {
+						if (quotaRefreshTimerRef.current !== null) {
+							window.clearTimeout(quotaRefreshTimerRef.current);
+						}
+						quotaRefreshTimerRef.current = window.setTimeout(() => {
+							quotaRefreshTimerRef.current = null;
 							void window.agent567.api567?.refreshQuota(true);
 						}, 1000);
 						const active = activeSessionRef.current;
