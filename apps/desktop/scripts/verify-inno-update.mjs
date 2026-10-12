@@ -49,10 +49,13 @@ async function runInstaller(installerPath, storeRoot, version) {
 			clearInterval(keepAlive);
 			reject(error);
 		});
-		child.once("close", (code) => {
+		child.once("close", async (code) => {
 			clearInterval(keepAlive);
 			if (code === 0) resolve();
-			else reject(new Error(`Inno Setup exited with code ${code ?? "unknown"}; log: ${logPath}`));
+			else {
+				const log = await readFile(logPath, "utf8").catch((error) => `Unable to read installer log: ${error}`);
+				reject(new Error(`Inno Setup exited with code ${code ?? "unknown"}; log follows:\n${log.slice(-12000)}`));
+			}
 		});
 	});
 	return logPath;
