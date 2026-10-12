@@ -267,12 +267,19 @@ begin
     (CompareText(Copy(NormalizedChild, 1, Length(ParentPrefix)), ParentPrefix) = 0);
 end;
 
+function GetUserProfileDirectory(): String;
+begin
+  Result := Trim(GetEnv('USERPROFILE'));
+  if Result = '' then
+    Result := ExtractFileDir(ExtractFileDir(ExpandConstant('{userappdata}')));
+end;
+
 function GetSavedDataRoot(): String;
 begin
   Result := '';
   if not RegQueryStringValue(HKCU, AppRegistrySubkey, DataRootValueName, Result) or
      (Trim(Result) = '') then
-    Result := ExpandConstant('{userprofile}\.567agent');
+    Result := AddBackslash(GetUserProfileDirectory()) + '.567agent';
 end;
 
 function GetDataRoot(Value: String): String;
@@ -375,7 +382,7 @@ begin
     exit;
   end;
   DataRoot := NormalizePath(DataRoot);
-  if (Length(DataRoot) <= 3) or PathsAreEqual(DataRoot, ExpandConstant('{userprofile}\.vetta')) or
+  if (Length(DataRoot) <= 3) or PathsAreEqual(DataRoot, AddBackslash(GetUserProfileDirectory()) + '.vetta') or
      PathsAreEqual(DataRoot, ExpandConstant('{app}')) or
      IsNestedPath(ExpandConstant('{app}'), DataRoot) or IsNestedPath(DataRoot, ExpandConstant('{app}')) then
   begin
@@ -398,7 +405,7 @@ begin
 
   DataRoot := GetDataRoot('');
   PreviousDataRoot := GetSavedDataRoot();
-  LegacyDataRoot := ExpandConstant('{userprofile}\.vetta');
+  LegacyDataRoot := AddBackslash(GetUserProfileDirectory()) + '.vetta';
   PreviousUpdateRoot := AddBackslash(PreviousDataRoot) + 'windows-updates';
   if not DirExists(PreviousUpdateRoot) then
     PreviousUpdateRoot := ExpandConstant('{localappdata}\567Agent');

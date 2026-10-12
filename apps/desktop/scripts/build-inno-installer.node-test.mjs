@@ -46,6 +46,8 @@ test("Inno bootstrap and electron-updater share one cache directory", () => {
 	assert.match(installer, /windows-updates/);
 	assert.match(installer, /electron-user-data/);
 	assert.match(installer, /updater-cache/);
+	assert.match(installer, /GetEnv\('USERPROFILE'\)/);
+	assert.doesNotMatch(installer, /\{userprofile\}/i);
 	assert.doesNotMatch(installer, /\/MOVE/);
 });
 
