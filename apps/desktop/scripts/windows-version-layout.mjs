@@ -64,6 +64,7 @@ export function buildWindowsLauncher({ arch, outputPath, sourceDir }) {
 		"-o",
 		outputPath,
 		"main.go",
+		"data_root_windows.go",
 	], {
 		cwd: sourceDir,
 		env: {
