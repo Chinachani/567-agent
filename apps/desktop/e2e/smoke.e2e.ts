@@ -113,9 +113,16 @@ describe("567 Agent smoke — config isolation", () => {
 	});
 
 	it("Chromium userData uses the E2E isolation directory", async () => {
-		const userData = await browser.electron.execute((electron) => electron.app.getPath("userData"));
-		// wdio.conf isolates via --user-data-dir=.wdio-electron-user-data
-		expect(normalizePath(userData)).toContain("wdio-electron-user-data");
+		const profile = await browser.electron.execute((electron) => ({
+			userData: electron.app.getPath("userData"),
+			sessionData: electron.app.getPath("sessionData"),
+			driverProfile: electron.app.commandLine.getSwitchValue("user-data-dir"),
+			environmentProfile: process.env.AGENT567_DESKTOP_USER_DATA_DIR,
+		}));
+		expect(normalizePath(profile.userData)).toContain("wdio-electron-user-data-");
+		expect(normalizePath(profile.userData)).toBe(normalizePath(profile.driverProfile));
+		expect(normalizePath(profile.sessionData)).toBe(normalizePath(profile.driverProfile));
+		expect(normalizePath(profile.environmentProfile ?? "")).toBe(normalizePath(profile.driverProfile));
 	});
 });
 

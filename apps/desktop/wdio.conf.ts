@@ -1,11 +1,12 @@
 import { createRequire } from "node:module";
-import { existsSync, readFileSync, rmSync } from "node:fs";
-import { homedir } from "node:os";
+import { existsSync, mkdtempSync, readFileSync, rmSync } from "node:fs";
+import { homedir, tmpdir } from "node:os";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import type { Server } from "node:http";
 import { startUpdateFeedFixture } from "./e2e/update-feed-fixture.mjs";
 import {
+	configureElectronE2eProfile,
 	resolveElectronE2eServiceOptions,
 	resolveElectronE2eSpecRetryOptions,
 } from "./scripts/electron-e2e-service-options.mjs";
@@ -17,7 +18,6 @@ import {
 
 const packageRoot = path.dirname(fileURLToPath(import.meta.url));
 const mainEntry = path.join(packageRoot, "dist", "main", "index.js");
-const userDataDir = path.join(packageRoot, ".wdio-electron-user-data");
 const configDirName = ".vetta-e2e";
 const require = createRequire(import.meta.url);
 const packageVersion = (JSON.parse(readFileSync(path.join(packageRoot, "package.json"), "utf8")) as {
@@ -53,8 +53,6 @@ function resolveElectronServiceOptions(): {
 	appBinaryPath: string;
 	appArgs: string[];
 } {
-	const isolationArgs = [`--user-data-dir=${userDataDir}`];
-
 	if (usePackaged) {
 		if (process.platform === "linux") {
 			// WDIO drives linux-unpacked/Vetta, but electron-updater only enables its
@@ -69,7 +67,7 @@ function resolveElectronServiceOptions(): {
 			// Windows release/Vetta.exe is a detached stable launcher. ChromeDriver
 			// must drive the versioned Electron executable that it launches.
 			appBinaryPath: resolvePackagedE2eBinaryPath(packagedArtifactRoot),
-			appArgs: isolationArgs,
+			appArgs: [],
 		};
 	}
 
@@ -82,7 +80,7 @@ function resolveElectronServiceOptions(): {
 	return {
 		appBinaryPath: resolveElectronBinaryPath(),
 		// Equivalent to official appEntryPoint mode: electron --app=<main>
-		appArgs: [`--app=${mainEntry}`, ...isolationArgs],
+		appArgs: [`--app=${mainEntry}`],
 	};
 }
 
@@ -134,6 +132,13 @@ export const config = {
 	mochaOpts: {
 		ui: "bdd",
 		timeout: 120_000,
+	},
+	beforeSession: (_config: unknown, capabilities: WebdriverIO.Capabilities) => {
+		// A failed session can leave Electron alive. Each worker/spec retry gets
+		// a fresh profile instead of contending with that process's profile lock.
+		const userDataDir = mkdtempSync(path.join(tmpdir(), "wdio-electron-user-data-"));
+		configureElectronE2eProfile(capabilities, userDataDir);
+		console.log(`[wdio] Electron profile: ${userDataDir}`);
 	},
 	onPrepare: async () => {
 		if (!usePackaged || process.env.AGENT567_E2E_UPDATE_FEED === "0") return;

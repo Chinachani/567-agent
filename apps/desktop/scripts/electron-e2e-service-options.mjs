@@ -1,3 +1,15 @@
+export function configureElectronE2eProfile(capabilities, userDataDir, environment = process.env) {
+	const chromeOptions = capabilities["goog:chromeOptions"];
+	if (!chromeOptions) throw new Error("Electron service did not configure ChromeDriver options");
+	chromeOptions.args = [
+		...(chromeOptions.args ?? []).filter((arg) => !arg.startsWith("--user-data-dir=")),
+		`--user-data-dir=${userDataDir}`,
+	];
+	// Windows startup explicitly sets app.userData/sessionData from this override.
+	// It must match ChromeDriver's directory for DevToolsActivePort discovery.
+	environment.AGENT567_DESKTOP_USER_DATA_DIR = userDataDir;
+}
+
 export function resolveElectronE2eServiceOptions({ platform = process.platform, ci = process.env.CI } = {}) {
 	const options = { clearMocks: true };
 	if (platform !== "linux" || ci !== "true") return options;
