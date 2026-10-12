@@ -150,6 +150,8 @@ class DesktopConversationScreenTest {
                     onBack = { backed = true },
                     onDisconnect = { disconnected = true },
                     onNewChat = { started = true },
+                    autoRequestDesktopScreen = false,
+                    onOpenCapabilities = {},
                 )
             }
         }
