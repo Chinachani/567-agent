@@ -1,3 +1,10 @@
+import type { DesktopUpdaterApi } from "../src/preload/api-types/updater.js";
+
+type UpdaterCheckOutcome = {
+	state: Awaited<ReturnType<DesktopUpdaterApi["check"]>> | null;
+	error: { name: string; message: string; stack?: string } | null;
+};
+
 const packaged = process.env.AGENT567_E2E_PACKAGED === "1";
 const UPDATE_TIMEOUT_MS = 60_000;
 
@@ -74,10 +81,3 @@ describe("567 Agent packaged updater", () => {
 		}
 	});
 });
-import type { DesktopUpdaterApi } from "../src/preload/api-types/updater.js";
-
-type UpdaterCheckOutcome = {
-	state: Awaited<ReturnType<DesktopUpdaterApi["check"]>> | null;
-	error: { name: string; message: string; stack?: string } | null;
-};
-
