@@ -21,7 +21,43 @@ describe("567 Agent packaged updater", () => {
 		// The packaged release is intentionally logged out in CI. Use the renderer's
 		// host-access-wrapped updater API instead of navigating through Settings or
 		// calling the protected raw preload API from WebDriver's page world.
-		const state = await browser.execute(() => window.vettaE2e!.updater.check());
+		await browser.setTimeout({ script: UPDATE_TIMEOUT_MS });
+		const outcome = await browser.executeAsync<UpdaterCheckOutcome, []>((done) => {
+			Promise.resolve()
+				.then(() => window.vettaE2e!.updater.check())
+				.then(
+					(state) => done({ state, error: null }),
+					(error: unknown) => done({
+						state: null,
+						error: error instanceof Error
+							? { name: error.name, message: error.message, stack: error.stack }
+							: { name: "UnknownError", message: String(error), stack: undefined },
+					}),
+				);
+		});
+		console.log("[updater-e2e] check result", JSON.stringify(outcome));
+		if (outcome.error || outcome.state?.phase === "error") {
+			try {
+				const diagnostics = await browser.electron.execute(() => {
+					const fs = process.getBuiltinModule("fs");
+					const path = process.getBuiltinModule("path");
+					const home = process.env.AGENT567_HOME;
+					if (!home) return { error: "E2E home is unset" };
+					const directory = path.join(home, "desktop-app", "logs", "main");
+					return fs.readdirSync(directory)
+						.filter((name) => name.endsWith(".log"))
+						.sort().slice(-2)
+						.map((name) => ({ name, tail: fs.readFileSync(path.join(directory, name), "utf8").slice(-12_000) }));
+				});
+				console.error("[updater-e2e] main diagnostics", JSON.stringify(diagnostics));
+			} catch (error) {
+				console.error("[updater-e2e] could not read main diagnostics", error);
+			}
+		}
+		expect(outcome.error).toBeNull();
+		const state = outcome.state;
+		expect(state).not.toBeNull();
+		if (!state) throw new Error("Updater check returned no state");
 		expect(state.currentVersion).toBe(currentVersion);
 
 		if (process.platform === "linux") {
@@ -34,6 +70,14 @@ describe("567 Agent packaged updater", () => {
 			);
 		} else {
 			expect(state.phase).toBe("idle");
+			expect(state.latestVersion).toBe(currentVersion);
 		}
 	});
 });
+import type { DesktopUpdaterApi } from "../src/preload/api-types/updater.js";
+
+type UpdaterCheckOutcome = {
+	state: Awaited<ReturnType<DesktopUpdaterApi["check"]>> | null;
+	error: { name: string; message: string; stack?: string } | null;
+};
+
