@@ -143,6 +143,14 @@ describe("Desktop RuntimeHost production contract", () => {
 				if (!sessionPath) throw new Error(`${backend} did not persist the Tool Loop session`);
 				const messagesBeforeResume = fixture.runtime.getMessages(created.sessionId);
 				const initial = observeTurn(events, messagesBeforeResume, cwd);
+				const initialTimings = fixture.runtime
+					.getFullHistory(created.sessionId)
+					.filter((entry) => entry.type === "assistant_turn_timing");
+				expect(initialTimings).toHaveLength(1);
+				const timing = initialTimings[0]?.timing;
+				if (!timing) throw new Error("Desktop Tool Loop did not persist its total processing time");
+				expect(timing.durationMs).toBeGreaterThanOrEqual(0);
+				expect(timing.durationMs).toBe(timing.endedAt - timing.startedAt);
 
 				await fixture.dispose();
 				const restartedFixture = createRuntimeFixture(backend, agentStateDir, model);
@@ -156,6 +164,11 @@ describe("Desktop RuntimeHost production contract", () => {
 					executionMode: "full-access",
 				});
 				const restoredMessages = restartedFixture.runtime.getMessages(resumed.sessionId);
+				expect(
+					restartedFixture.runtime
+						.getFullHistory(resumed.sessionId)
+						.filter((entry) => entry.type === "assistant_turn_timing"),
+				).toEqual(initialTimings);
 				const resumedEvents: SessionEvent[] = [];
 				const unsubscribeResumed = restartedFixture.runtime.subscribe(resumed.sessionId, (event) =>
 					resumedEvents.push(event),
@@ -164,6 +177,12 @@ describe("Desktop RuntimeHost production contract", () => {
 				unsubscribeResumed();
 				expect(server.requests).toHaveLength(3);
 				const resumedProviderInput = JSON.stringify(server.requests[2]?.body.input);
+				expect(resumedProviderInput).not.toContain("assistant_turn_timing");
+				expect(
+					restartedFixture.runtime
+						.getFullHistory(resumed.sessionId)
+						.filter((entry) => entry.type === "assistant_turn_timing"),
+				).toHaveLength(2);
 				observations[backend] = {
 					initial,
 					resumed: observeTurn(resumedEvents, restartedFixture.runtime.getMessages(resumed.sessionId), cwd),
@@ -242,6 +261,7 @@ describe("Desktop RuntimeHost production contract", () => {
 			"session.context.state",
 			"session.lifecycle",
 			"session.lifecycle",
+			"session.extension",
 		]);
 	}, 30_000);
 
