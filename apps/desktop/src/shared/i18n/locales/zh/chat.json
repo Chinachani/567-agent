@@ -563,6 +563,7 @@
 			"waiting": "等待模型响应"
 		},
 		"duration": {
+			"total": "本次处理 {{duration}}",
 			"seconds": "{{seconds}}秒",
 			"minutes": "{{minutes}}分 {{seconds}}秒",
 			"hours": "{{hours}}小时 {{minutes}}分"

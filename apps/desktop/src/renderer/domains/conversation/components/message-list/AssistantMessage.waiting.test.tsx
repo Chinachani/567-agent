@@ -11,6 +11,7 @@ vi.mock("react-i18next", () => ({
 	useTranslation: () => ({
 		t: (key: string, values?: Record<string, unknown>) => {
 			if (key === "messageList.streamingPhrases") return [];
+			if (key === "messageList.duration.total") return `Total time ${values?.duration}`;
 			if (key.startsWith("messageList.duration.")) return `${values?.seconds ?? 0}s`;
 			if (key === "messageList.assistantFoldTip.waiting") return `waited ${values?.duration}`;
 			return key;
@@ -21,15 +22,15 @@ vi.mock("react-i18next", () => ({
 vi.mock("@vetta-org/theme-sdk/appearance", () => ({ useThemeSurface: () => null }));
 vi.mock("@shared/components/BotAvatar", () => ({ BotAvatar: () => null }));
 vi.mock("../../hooks/useAssistantMessageModel", () => ({
-	useAssistantMessageModel: () => ({
+	useAssistantMessageModel: ({ message }: { message: { phase: string; durationSeconds?: number } }) => ({
 		conclusionText: "",
 		exportProcessSegments: [],
 		foldData: null,
-		isCurrentlyStreaming: true,
+		isCurrentlyStreaming: message.phase === "streaming" || message.phase === "pending",
 		isPredicting: false,
 		stagedNarration: true,
 		segments: [],
-		durationAvailable: false,
+		durationAvailable: message.durationSeconds !== undefined,
 		streamingTailIndex: -1,
 		workFoldCount: 0,
 	}),
@@ -49,6 +50,23 @@ import { AssistantMessage } from "./AssistantMessage";
 
 describe("AssistantMessage first-response waiting state", () => {
 	beforeEach(() => useExpansionMock.mockClear());
+	it("keeps the total processing time visible on a finished reply", () => {
+		render(
+			<AssistantMessage
+				isStreaming={false}
+				isTailMessage
+				message={createConversationAgentMessage({
+					id: "finished",
+					phase: "completed",
+					text: "done",
+					blocks: [],
+					durationSeconds: 42,
+				})}
+			/>,
+		);
+		expect(screen.getByText("Total time 42s")).toBeTruthy();
+		expect(screen.queryByText("messageList.assistantMessage.processing")).toBeNull();
+	});
 
 	it("projects an empty streaming draft as a waiting assistant message without an ellipsis body", () => {
 		vi.useFakeTimers();

@@ -66,7 +66,7 @@ export function projectConversationDocumentHistory(document: ConversationDocumen
 			continue;
 		}
 		if (entry.type === "custom") {
-			if (entry.customType === ASSISTANT_TURN_TIMING_TYPE) {
+			if (entry.customType === "assistant_turn_timing" || entry.customType === ASSISTANT_TURN_TIMING_TYPE) {
 				const timing = parseAssistantTurnTiming(entry);
 				if (timing) history.push({ type: "assistant_turn_timing", timing, timestamp: entry.timestamp });
 				continue;

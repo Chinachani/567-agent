@@ -27,8 +27,6 @@ export interface SubscriptionWindowViewModel {
 export interface SubscriptionCardsViewModel {
 	actions: {
 		refresh: () => Promise<void>;
-		/** 打开账户中心管理套餐的外链。缺省不渲染按钮。 */
-		upgrade?: () => void;
 	};
 	expiry: string | null;
 	goProvider: RemoteProvider | undefined;
@@ -41,7 +39,6 @@ export interface SubscriptionCardsViewModel {
 		thinking: string;
 		unlimitedQuota: string;
 		updated: string;
-		upgrade?: string;
 		vision: string;
 	};
 	refreshing: boolean;

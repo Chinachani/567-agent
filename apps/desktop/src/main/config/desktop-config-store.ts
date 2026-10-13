@@ -37,6 +37,8 @@ export interface DesktopConfig {
 	archivedProjects: ProjectEntry[];
 	workspacePath: string;
 	defaultExecutionMode: "sandbox" | "full-access";
+	/** GitHub Releases update source. Mirror selection takes effect after restart. */
+	updateSource?: "github" | "gh-proxy";
 	debugMode?: boolean;
 	agent567AppPath?: string;
 	agent567CliAppPath?: string;
@@ -104,6 +106,7 @@ const DEFAULT_CONFIG: DesktopConfig = {
 	archivedProjects: [],
 	workspacePath: join(getAgent567HomePath(), "workspace"),
 	defaultExecutionMode: "full-access",
+	updateSource: "github",
 	defaultAgentMode: "work",
 	debugMode: false,
 	notificationsEnabled: true,
@@ -256,6 +259,7 @@ function parseDesktopConfig(parsed: Record<string, unknown>): DesktopConfig {
 				? expandTildePath(migratedWorkspace.workspacePath)
 				: DEFAULT_CONFIG.workspacePath,
 		defaultExecutionMode: normalizeExecutionMode(parsed.defaultExecutionMode),
+		updateSource: parsed.updateSource === "gh-proxy" ? "gh-proxy" : "github",
 		// 兼容 0.x 的旧字段名 agentMode（当时语义是全局工作模式），老用户配置不丢。
 		defaultAgentMode: normalizeAgentMode(parsed.defaultAgentMode ?? parsed.agentMode),
 		debugMode: typeof parsed.debugMode === "boolean" ? parsed.debugMode : false,

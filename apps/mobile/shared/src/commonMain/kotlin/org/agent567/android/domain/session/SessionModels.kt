@@ -64,6 +64,8 @@ data class LocalMessage(
     val content: String,
     val status: MessageStatus,
     val createdAtEpochMs: Long,
+    /** Total time spent generating this assistant turn, retained after it finishes. */
+    val processingDurationMs: Long? = null,
     val errorMessage: String? = null,
     val images: List<MessageImage> = emptyList(),
     /** File bytes stay on the desktop; the phone stores display metadata only. */

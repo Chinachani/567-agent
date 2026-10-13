@@ -25,6 +25,10 @@ export interface GeneralSettingsViewLabels {
 	readonly startAppGuideAction: string;
 	/** App updates row title, e.g. "当前版本". */
 	readonly appVersion: string;
+	readonly updateSource: string;
+	readonly updateSourceDescription: string;
+	readonly updateSourceOfficial: string;
+	readonly updateSourceAccelerated: string;
 	readonly fullAccess: string;
 	readonly useSandbox: string;
 	readonly export: string;
@@ -46,6 +50,8 @@ export interface GeneralSettingsViewProps {
 	readonly updatesDescription: string;
 	readonly updatesAction: ReactNode;
 	readonly updatesDetail: ReactNode;
+	readonly updateSource: "github" | "gh-proxy";
+	readonly onUpdateSourceChange: (source: "github" | "gh-proxy") => void;
 	readonly executionMode: string;
 	readonly onExecutionModeChange: (mode: string) => void;
 	readonly sandboxUnavailableReason: string | null;
@@ -76,6 +82,8 @@ export function GeneralSettingsView({
 	updatesDescription,
 	updatesAction,
 	updatesDetail,
+	updateSource,
+	onUpdateSourceChange,
 	executionMode,
 	onExecutionModeChange,
 	sandboxUnavailableReason,
@@ -148,6 +156,17 @@ export function GeneralSettingsView({
 					{updatesAction}
 				</SettingRow>
 				{updatesDetail ? <div className="border-b border-border px-5 pb-4">{updatesDetail}</div> : null}
+				<SettingRow title={labels.updateSource} description={labels.updateSourceDescription}>
+					<MotionSelect
+						value={updateSource}
+						onValueChange={(value) => onUpdateSourceChange(value === "gh-proxy" ? "gh-proxy" : "github")}
+						triggerClassName="min-w-[150px]"
+						options={[
+							{ value: "github", label: labels.updateSourceOfficial },
+							{ value: "gh-proxy", label: labels.updateSourceAccelerated },
+						]}
+					/>
+				</SettingRow>
 				<SettingRow title={labels.startAppGuide} description={labels.startAppGuideDescription} border={false}>
 					<Button size="sm" variant="outline" onClick={onStartAppGuide}>
 						{labels.startAppGuideAction}

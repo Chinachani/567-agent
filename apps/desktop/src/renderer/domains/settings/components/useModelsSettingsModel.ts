@@ -429,7 +429,22 @@ export function useModelsSettingsModel(): ModelsSettingsModel {
 
 	const providerNames = useMemo(
 		() =>
-			config ? Object.keys(config.providers).filter((name) => config.providers[name]?.source !== "template") : [],
+			config
+				? Object.keys(config.providers).filter((name) => {
+						const provider = config.providers[name];
+						if (provider?.source === "template") return false;
+						const providerId = name.toLowerCase();
+						const displayName = provider?.displayName?.trim().toLowerCase() ?? "";
+						const baseUrl = provider?.baseUrl?.trim().toLowerCase() ?? "";
+						return !(
+							providerId === "567api" ||
+							providerId.startsWith("567api_") ||
+							displayName === "567 api" ||
+							displayName.startsWith("567 ·") ||
+							baseUrl.includes("api.567.wiki")
+						);
+					})
+				: [],
 		[config],
 	);
 

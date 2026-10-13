@@ -69,7 +69,7 @@ function parseStyle(value: unknown): DesignSystem | null {
 	// StyleKit's catalog supplies a relative SVG cover. Accept only the canonical
 	// slug-derived path so an API response cannot make the plugin fetch arbitrary URLs.
 	const cover = value.cover === `/styles/${slug}.svg`
-		? `https://www.stylekit.top/styles/${slug}.svg`
+		? `https://raw.githubusercontent.com/Chinachani/567-agent-style-library/main/assets/stylekit/${slug}/cover.svg`
 		: null;
 	const themeCss = `/* StyleKit · ${nameEn} · https://github.com/AnxForever/stylekit */\n@theme {\n\t--color-primary: ${primary};\n\t--color-background: ${background};\n${accents[0] ? `\t--color-accent: ${accents[0]};\n` : ""}}\n`;
 	const designMd = [

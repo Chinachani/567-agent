@@ -6,7 +6,8 @@ import { getAgent567HomePath } from "@567agent/action-rpc";
 import { app, autoUpdater as nativeAutoUpdater, powerMonitor } from "electron";
 import type { AppUpdater } from "electron-updater";
 import electronUpdater from "electron-updater";
-
+import { parse as parseYaml } from "yaml";
+import { readConfigSync } from "./config/desktop-config-store.js";
 import { mainT } from "./i18n/index.js";
 import {
 	InnoWindowsUpdateController,
@@ -36,6 +37,33 @@ const { autoUpdater: defaultAutoUpdater } = electronUpdater;
 
 const autoUpdater: AppUpdater =
 	process.platform === "win32" && app.isPackaged ? new WindowsDataUpdater() : defaultAutoUpdater;
+
+/** Opt-in GitHub release acceleration. The official provider remains the default. */
+function configureUpdateSource(): void {
+	if (!app.isPackaged || process.env.AGENT567_E2E === "1" || readConfigSync().updateSource !== "gh-proxy") return;
+	try {
+		const config = parseYaml(readFileSync(join(process.resourcesPath, "app-update.yml"), "utf8")) as Record<
+			string,
+			unknown
+		>;
+		if (config.provider !== "github" || typeof config.owner !== "string" || typeof config.repo !== "string") {
+			console.warn("[updater] GitHub acceleration is unavailable for this update provider");
+			return;
+		}
+		const safePart = /^[A-Za-z0-9_.-]+$/;
+		if (!safePart.test(config.owner) || !safePart.test(config.repo)) {
+			console.warn("[updater] ignored invalid GitHub update repository configuration");
+			return;
+		}
+		const feedUrl = `https://gh-proxy.com/https://github.com/${config.owner}/${config.repo}/releases/latest/download/`;
+		autoUpdater.setFeedURL({ provider: "generic", url: feedUrl, useMultipleRangeRequest: true });
+		console.info(`[updater] GitHub release acceleration enabled: ${feedUrl}`);
+	} catch (error) {
+		console.error("[updater] failed to configure GitHub acceleration; using the packaged update source", error);
+	}
+}
+
+configureUpdateSource();
 
 /**
  * Packaged E2E runs against an explicitly supplied test feed. Keeping this

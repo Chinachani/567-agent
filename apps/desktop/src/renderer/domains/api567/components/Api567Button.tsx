@@ -6,7 +6,7 @@ import {
 	PopoverTitle,
 	PopoverTrigger,
 } from "@shared/components/ui/popover";
-import { Check, ChevronRight, ExternalLink, Layers, LogOut, Plus, RefreshCw, Star, Wallet } from "lucide-react";
+import { Check, ChevronRight, Layers, LogOut, Plus, RefreshCw, Star, Wallet } from "lucide-react";
 import { useState } from "react";
 import { useApi567 } from "../hooks/useApi567";
 
@@ -39,14 +39,6 @@ export function Api567Button(): JSX.Element | null {
 			await syncGroup(groupName);
 		} finally {
 			setSyncingGroup(null);
-		}
-	};
-
-	const openExternal = (url: string) => {
-		if (window.agent567?.shell?.openExternal) {
-			void window.agent567.shell.openExternal(url);
-		} else {
-			window.open(url, "_blank");
 		}
 	};
 
@@ -232,15 +224,6 @@ export function Api567Button(): JSX.Element | null {
 							<span>账户额度充值</span>
 						</span>
 						<ChevronRight className="h-3 w-3 text-muted-foreground" />
-					</Button>
-					<Button
-						variant="outline"
-						size="sm"
-						className="h-7 w-full justify-between text-xs"
-						onClick={() => openExternal("https://api.567.wiki/console/personal")}
-					>
-						<span>567 控制台</span>
-						<ExternalLink className="h-3 w-3 text-muted-foreground" />
 					</Button>
 					<Button
 						variant="ghost"

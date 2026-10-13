@@ -426,6 +426,12 @@ export function registerFsIpc(): () => void {
 					patch.defaultExecutionMode !== undefined
 						? normalizeExecutionMode(patch.defaultExecutionMode)
 						: current.defaultExecutionMode,
+				updateSource:
+					patch.updateSource === "gh-proxy"
+						? "gh-proxy"
+						: patch.updateSource === "github"
+							? "github"
+							: current.updateSource,
 				defaultAgentMode:
 					patch.defaultAgentMode !== undefined
 						? normalizeAgentMode(patch.defaultAgentMode)

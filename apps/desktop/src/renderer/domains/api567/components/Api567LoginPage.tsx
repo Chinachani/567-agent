@@ -3,7 +3,6 @@ import { Button } from "@shared/components/ui/button";
 import { Input } from "@shared/components/ui/input";
 import {
 	ArrowRight,
-	ExternalLink,
 	Key,
 	Lock,
 	Mail,
@@ -123,14 +122,6 @@ export function Api567LoginPage(): JSX.Element {
 		}
 	};
 
-	const openExternal = (url: string) => {
-		if (window.agent567?.shell?.openExternal) {
-			void window.agent567.shell.openExternal(url);
-		} else {
-			window.open(url, "_blank");
-		}
-	};
-
 	return (
 		<div className="relative flex min-h-screen w-full select-none items-center justify-center overflow-hidden bg-background p-4 text-foreground">
 			{/* 背景装饰光晕 */}
@@ -214,16 +205,8 @@ export function Api567LoginPage(): JSX.Element {
 				{activeTab === "token" && (
 					<form onSubmit={handleTokenSubmit} className="flex flex-col gap-4">
 						<div>
-							<div className="mb-1.5 flex items-center justify-between text-xs">
+							<div className="mb-1.5 text-xs">
 								<label className="font-medium text-foreground">系统访问令牌 (Access Token)</label>
-								<button
-									type="button"
-									onClick={() => openExternal("https://api.567.wiki/console/personal")}
-									className="inline-flex items-center gap-1 text-[11px] text-primary hover:underline"
-								>
-									<span>获取访问令牌</span>
-									<ExternalLink className="h-3 w-3" />
-								</button>
 							</div>
 							<Input
 								type="password"
@@ -236,7 +219,7 @@ export function Api567LoginPage(): JSX.Element {
 								className="h-10"
 							/>
 							<p className="mt-1.5 text-[11px] text-muted-foreground leading-relaxed">
-								登录 567 API 网页端后，在「个人设置 → 安全设置 → 系统访问令牌」中生成或复制。
+								粘贴从服务端账户系统获取的访问令牌。
 							</p>
 						</div>
 
@@ -274,15 +257,8 @@ export function Api567LoginPage(): JSX.Element {
 						</div>
 
 						<div>
-							<div className="mb-1.5 flex items-center justify-between text-xs">
+							<div className="mb-1.5 text-xs">
 								<label className="font-medium text-foreground">密码</label>
-								<button
-									type="button"
-									onClick={() => openExternal("https://api.567.wiki")}
-									className="text-[11px] text-muted-foreground hover:text-primary hover:underline"
-								>
-									忘记密码？
-								</button>
 							</div>
 							<Input
 								type="password"
@@ -452,14 +428,6 @@ export function Api567LoginPage(): JSX.Element {
 							className="transition-colors hover:text-primary"
 						>
 							额度充值
-						</button>
-						<span>·</span>
-						<button
-							type="button"
-							onClick={() => openExternal("https://api.567.wiki/docs")}
-							className="transition-colors hover:text-primary"
-						>
-							接口文档
 						</button>
 					</div>
 				</div>

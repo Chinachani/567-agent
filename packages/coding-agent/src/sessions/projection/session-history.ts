@@ -240,7 +240,10 @@ export function entriesToHistory(branch: CodingSessionEntry[], options?: Entries
 				tokensBefore: entry.tokensBefore,
 				timestamp: entry.timestamp,
 			});
-		} else if (entry.type === "custom" && entry.customType === ASSISTANT_TURN_TIMING_TYPE) {
+		} else if (
+			entry.type === "custom" &&
+			(entry.customType === "assistant_turn_timing" || entry.customType === ASSISTANT_TURN_TIMING_TYPE)
+		) {
 			const timing = parseAssistantTurnTiming(entry);
 			if (timing) {
 				entries.push({

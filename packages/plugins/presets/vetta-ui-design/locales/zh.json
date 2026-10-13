@@ -252,6 +252,7 @@
 	"gallery.styles.hint": "点一套风格看详情，一键开一份用它的新设计",
 	"gallery.styles.view": "查看「{{name}}」风格详情",
 	"gallery.count": "{{count}} 个项目",
+	"gallery.styles.count": "{{count}} 种风格",
 	"gallery.section.mine": "我的设计",
 	"gallery.section.more": "查看全部",
 	"gallery.projects.title": "全部设计",

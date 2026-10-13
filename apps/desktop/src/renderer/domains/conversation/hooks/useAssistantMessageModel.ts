@@ -122,7 +122,10 @@ export function useAssistantMessageModel({
 		stagedNarration,
 		workFoldCount,
 		segments,
-		durationAvailable: Boolean(message.durationSeconds && message.durationSeconds > 0) && !isCurrentlyStreaming,
+		durationAvailable:
+			typeof message.durationSeconds === "number" &&
+			Number.isFinite(message.durationSeconds) &&
+			!isCurrentlyStreaming,
 		streamingTailIndex,
 	};
 }

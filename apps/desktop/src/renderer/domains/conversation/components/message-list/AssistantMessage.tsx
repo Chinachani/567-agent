@@ -170,7 +170,7 @@ export const AssistantMessage = memo(function AssistantMessage({
 							<>
 								<span className="text-[11px] text-muted-foreground/20">·</span>
 								<Message.Meta>
-									{formatTurnDuration(message.durationSeconds ?? 0, t)}
+									{t("messageList.duration.total", { duration: formatTurnDuration(message.durationSeconds ?? 0, t) })}
 								</Message.Meta>
 							</>
 						) : null}

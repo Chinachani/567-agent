@@ -124,11 +124,13 @@ class SettingsSessionStoreTest {
                     status = MessageStatus.Complete,
                     createdAtEpochMs = 1,
                     toolEvents = listOf(ToolTrace("completed", "call-1", "read_file", phaseLabel = "读取文件内容")),
+                    processingDurationMs = 129_400,
                 ),
             )
 
-            val restored = SettingsSessionStore(settings).getMessages(session.id).single().toolEvents.single()
-            assertEquals("读取文件内容", restored.phaseLabel)
+            val restored = SettingsSessionStore(settings).getMessages(session.id).single()
+            assertEquals("读取文件内容", restored.toolEvents.single().phaseLabel)
+            assertEquals(129_400L, restored.processingDurationMs)
         }
 
     @Test

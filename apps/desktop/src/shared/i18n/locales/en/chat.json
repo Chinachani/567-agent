@@ -563,6 +563,7 @@
 			"waiting": "Waiting for model response"
 		},
 		"duration": {
+			"total": "Total time {{duration}}",
 			"seconds": "{{seconds}}s",
 			"minutes": "{{minutes}}m {{seconds}}s",
 			"hours": "{{hours}}h {{minutes}}m"

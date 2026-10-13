@@ -86,14 +86,6 @@ export function Api567GroupsSection({
 		}
 	};
 
-	const openExternal = (url: string) => {
-		if (window.agent567?.shell?.openExternal) {
-			void window.agent567.shell.openExternal(url);
-		} else {
-			window.open(url, "_blank");
-		}
-	};
-
 	// 判定分组是否真正已在本地 models.json 中生效
 	const syncedGroupMap = new Map<string, { modelsCount: number; models?: string[]; imageModels?: string[] }>();
 	for (const g of status.groups ?? []) {

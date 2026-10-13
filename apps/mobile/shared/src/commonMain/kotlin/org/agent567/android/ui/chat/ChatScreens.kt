@@ -1571,12 +1571,25 @@ private fun MessageBubble(
                 }
             }
 
-            Text(
-                text = formatLocalMessageTime(message.createdAtEpochMs),
-                style = MaterialTheme.typography.labelSmall,
-                color = MaterialTheme.agent567Extra.secondaryText,
+            Row(
                 modifier = Modifier.padding(top = 3.dp, start = 4.dp, end = 4.dp),
-            )
+                horizontalArrangement = if (isUser) Arrangement.End else Arrangement.Start,
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                Text(
+                    text = formatLocalMessageTime(message.createdAtEpochMs),
+                    style = MaterialTheme.typography.labelSmall,
+                    color = MaterialTheme.agent567Extra.secondaryText,
+                )
+                if (!isUser && message.processingDurationMs != null && message.status != MessageStatus.Streaming) {
+                    Spacer(Modifier.width(8.dp))
+                    Text(
+                        text = "本次处理 ${formatProcessingDuration(message.processingDurationMs)}",
+                        style = MaterialTheme.typography.labelSmall,
+                        color = MaterialTheme.agent567Extra.secondaryText,
+                    )
+                }
+            }
 
             if (message.content.isNotBlank() && message.status != MessageStatus.Streaming) {
                 val clipboard = androidx.compose.ui.platform.LocalClipboardManager.current
@@ -1634,6 +1647,18 @@ private fun MessageBubble(
                 }
             }
         }
+    }
+}
+
+private fun formatProcessingDuration(durationMs: Long): String {
+    val totalSeconds = (durationMs.coerceAtLeast(0L) / 1_000L).coerceAtLeast(1L)
+    val hours = totalSeconds / 3_600L
+    val minutes = (totalSeconds % 3_600L) / 60L
+    val seconds = totalSeconds % 60L
+    return when {
+        hours > 0 -> "${hours}时${minutes}分"
+        minutes > 0 -> "${minutes}分${seconds}秒"
+        else -> "${seconds}秒"
     }
 }
 

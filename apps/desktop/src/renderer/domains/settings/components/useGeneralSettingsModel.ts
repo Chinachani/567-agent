@@ -21,6 +21,7 @@ export interface GeneralSettingsModel {
 		startAppGuide: () => void;
 		toggleDebug: (checked: boolean) => void;
 		toggleNotifications: (checked: boolean) => void;
+		setUpdateSource: (source: "github" | "gh-proxy") => Promise<void>;
 	};
 	debugMode: boolean;
 	executionMode: SessionExecutionMode;
@@ -29,10 +30,15 @@ export interface GeneralSettingsModel {
 	notificationsEnabled: boolean;
 	sandboxUnavailableReason: string | null;
 	workspacePath: string;
+	updateSource: "github" | "gh-proxy";
 }
 
 interface GeneralSettingsLabels {
 	appVersion: string;
+	updateSource: string;
+	updateSourceDescription: string;
+	updateSourceOfficial: string;
+	updateSourceAccelerated: string;
 	debugMode: string;
 	debugModeDescription: string;
 	export: string;
@@ -67,11 +73,13 @@ export function useGeneralSettingsModel(): GeneralSettingsModel {
 	const setConfirmDialog = useSetAtom(confirmDialogAtom);
 	const [sandboxUnavailableReason, setSandboxUnavailableReason] = useState<string | null>(null);
 	const [notificationsEnabled, setNotificationsEnabled] = useState(true);
+	const [updateSource, setUpdateSourceState] = useState<"github" | "gh-proxy">("github");
 	const [exportingDiagnostics, setExportingDiagnostics] = useState(false);
 
 	useEffect(() => {
 		void window.agent567.config.get().then((config) => {
 			setNotificationsEnabled(config.notificationsEnabled !== false);
+			setUpdateSourceState(config.updateSource === "gh-proxy" ? "gh-proxy" : "github");
 			const mode = config.defaultExecutionMode ?? "full-access";
 			setExecutionMode(mode);
 			localStorage.setItem("vetta-session-execution-mode", mode);
@@ -153,6 +161,20 @@ export function useGeneralSettingsModel(): GeneralSettingsModel {
 		recordSettingsUsage({ tab: "general", action: checked ? "enabled" : "disabled", target: "notifications" });
 	}, []);
 
+	const setUpdateSource = useCallback(
+		async (source: "github" | "gh-proxy") => {
+			const previous = updateSource;
+			setUpdateSourceState(source);
+			try {
+				await window.agent567.config.set({ updateSource: source });
+			} catch (error) {
+				setUpdateSourceState(previous);
+				console.error("[GeneralSettings] failed to save update source:", error);
+			}
+		},
+		[updateSource],
+	);
+
 	const changeExecutionMode = useCallback(
 		async (mode: string) => {
 			const nextMode = mode as SessionExecutionMode;
@@ -196,6 +218,10 @@ export function useGeneralSettingsModel(): GeneralSettingsModel {
 				developer: t(SETTINGS_SECTION["general-developer"].titleKey),
 			},
 			appVersion: t("appVersion"),
+			updateSource: t("updateSource.title"),
+			updateSourceDescription: t("updateSource.description"),
+			updateSourceOfficial: t("updateSource.official"),
+			updateSourceAccelerated: t("updateSource.accelerated"),
 			startAppGuide: t("startAppGuide"),
 			startAppGuideAction: t("startAppGuideAction"),
 			startAppGuideDescription: t("startAppGuideDescription"),
@@ -218,6 +244,7 @@ export function useGeneralSettingsModel(): GeneralSettingsModel {
 			startAppGuide,
 			toggleDebug,
 			toggleNotifications,
+			setUpdateSource,
 		},
 		debugMode,
 		executionMode,
@@ -226,5 +253,6 @@ export function useGeneralSettingsModel(): GeneralSettingsModel {
 		notificationsEnabled,
 		sandboxUnavailableReason,
 		workspacePath,
+		updateSource,
 	};
 }

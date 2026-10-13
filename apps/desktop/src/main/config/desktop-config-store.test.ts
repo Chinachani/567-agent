@@ -58,6 +58,21 @@ describe("defaultAgentMode 兼容旧字段名", () => {
 });
 
 describe("updateDesktopConfig", () => {
+	it("keeps the selected update mirror across unrelated settings saves", async () => {
+		const store = await loadStoreWithConfig({ updateSource: "gh-proxy" });
+		expect((await store.readDesktopConfig()).updateSource).toBe("gh-proxy");
+		await store.updateDesktopConfig((config) => ({ ...config, language: "en" }));
+		expect((await store.readDesktopConfig()).updateSource).toBe("gh-proxy");
+	});
+
+	it.each([undefined, "unknown-source"])(
+		"uses GitHub for a missing or unsupported update source (%s)",
+		async (updateSource) => {
+			const store = await loadStoreWithConfig({ updateSource });
+			expect((await store.readDesktopConfig()).updateSource).toBe("github");
+		},
+	);
+
 	it("preserves independent fields when concurrent updates overlap", async () => {
 		const store = await loadStoreWithConfig({});
 		let startFirstMutation!: () => void;

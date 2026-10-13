@@ -1,45 +1,8 @@
 import { memo, useEffect, useMemo, useState } from "react";
+import { loadDesignCover } from "../design-systems/cover-cache";
 import { parsePreviewTokens, tint } from "../design-systems/preview-tokens";
 import type { DesignSystem } from "../design-systems/types";
 import { getPluginCtx } from "../plugin-context";
-
-const coverRequests = new Map<string, Promise<string | null>>();
-const MAX_CACHED_COVERS = 16;
-const MAX_COVER_BYTES_BASE64 = 700_000;
-
-function loadCover(url: string): Promise<string | null> {
-	const cached = coverRequests.get(url);
-	if (cached) {
-		coverRequests.delete(url);
-		coverRequests.set(url, cached);
-		return cached;
-	}
-	const request = getPluginCtx()
-		.network.request<string>({ url, method: "GET", responseType: "base64", timeoutMs: 10_000 })
-		.then((response) => {
-			const contentType = Object.entries(response.headers).find(([name]) => name.toLowerCase() === "content-type")?.[1];
-			const mime = contentType?.split(";")[0]?.trim().toLowerCase();
-			if (
-				!response.ok ||
-				typeof response.body !== "string" ||
-				response.body.length === 0 ||
-				response.body.length > MAX_COVER_BYTES_BASE64 ||
-				!mime ||
-				!["image/svg+xml", "image/png", "image/jpeg", "image/webp"].includes(mime)
-			) {
-				return null;
-			}
-			return `data:${mime};base64,${response.body}`;
-		})
-		.catch(() => null);
-	coverRequests.set(url, request);
-	while (coverRequests.size > MAX_CACHED_COVERS) {
-		const oldest = coverRequests.keys().next().value;
-		if (oldest === undefined) break;
-		coverRequests.delete(oldest);
-	}
-	return request;
-}
 
 /**
  * 一张通用产品界面缩略图：顶栏 + 侧栏 + 统计卡 + 主按钮 + 列表行。
@@ -60,22 +23,45 @@ export const DesignSystemPreview = memo(function DesignSystemPreview({
 }) {
 	const coverUrl = system.resources.find((resource) => resource.role === "cover" && resource.encoding === "binary");
 	const [cover, setCover] = useState<string | null>(null);
+	const [visible, setVisible] = useState(false);
+	const [box, setBox] = useState<HTMLDivElement | null>(null);
+	useEffect(() => {
+		if (!box || visible) return;
+		if (typeof IntersectionObserver === "undefined") {
+			setVisible(true);
+			return;
+		}
+		const observer = new IntersectionObserver(
+			(entries) => {
+				if (entries.some((entry) => entry.isIntersecting)) setVisible(true);
+			},
+			{ rootMargin: "200px" },
+		);
+		observer.observe(box);
+		return () => observer.disconnect();
+	}, [box, visible]);
 	useEffect(() => {
 		let active = true;
 		setCover(null);
-		if (coverUrl?.encoding === "binary") {
-			void loadCover(coverUrl.url).then((source) => {
+		if (visible && coverUrl?.encoding === "binary") {
+			void loadDesignCover(getPluginCtx(), coverUrl.url).then((source) => {
 				if (active) setCover(source);
 			});
 		}
 		return () => {
 			active = false;
 		};
-	}, [coverUrl]);
+	}, [coverUrl, visible]);
 	const tokens = useMemo(() => parsePreviewTokens(system.themeCss), [system.themeCss]);
-	const { colors, radius, shadow } = tokens;
-	const fg = colors["surface-foreground"];
-	const raised = colors["surface-raised"] ?? colors.surface;
+	const { radius, shadow } = tokens;
+	// Compact palettes use background/foreground; full design systems use surface.
+	const surface = tokens.colors.surface ?? tokens.colors.background ?? "var(--background)";
+	const fg =
+		tokens.colors["surface-foreground"] ??
+		tokens.colors.foreground ??
+		(system.vibe === "light" ? "#111111" : "#f5f5f5");
+	const colors: Record<string, string> = { ...tokens.colors, surface, muted: tokens.colors.muted ?? fg };
+	const raised = colors["surface-raised"] ?? surface;
 	const border = colors.border ?? tint(colors.muted, 30);
 	/** 预览是 ~240px 的缩略图，radius 原值会失真地大，按一半呈现质感差异。 */
 	const r = (name: string, fallback: string): string => {
@@ -86,6 +72,7 @@ export const DesignSystemPreview = memo(function DesignSystemPreview({
 
 	return (
 		<div
+			ref={setBox}
 			className={`pointer-events-none relative flex w-full select-none flex-col overflow-hidden border ${className ?? "h-[164px]"}`}
 			style={{ background: colors.surface, borderColor: border, borderRadius: r("xl", "8px") }}
 		>
@@ -98,90 +85,96 @@ export const DesignSystemPreview = memo(function DesignSystemPreview({
 				/>
 			) : (
 				<>
-			{/* 顶栏：窗口点 + 搜索框 */}
-			<div
-				className="flex h-7 shrink-0 items-center gap-1.5 border-b px-2"
-				style={{ background: raised, borderColor: border }}
-			>
-				<span className="size-1.5 rounded-full" style={{ background: tint(colors.muted, 45) }} />
-				<span className="size-1.5 rounded-full" style={{ background: tint(colors.muted, 45) }} />
-				<div
-					className="ml-1 h-3.5 flex-1 border"
-					style={{ background: colors.surface, borderColor: border, borderRadius: r("md", "3px") }}
-				/>
-			</div>
-			<div className="flex min-h-0 flex-1">
-				{/* 侧栏：一条激活项 + 两条普通项 */}
-				<div
-					className="flex w-11 shrink-0 flex-col gap-1 border-r p-1.5"
-					style={{ background: raised, borderColor: border }}
-				>
+					{/* 顶栏：窗口点 + 搜索框 */}
 					<div
-						className="flex h-3 items-center gap-0.5 px-0.5"
-						style={{ background: tint(colors.primary, 18), borderRadius: r("sm", "2px") }}
+						className="flex h-7 shrink-0 items-center gap-1.5 border-b px-2"
+						style={{ background: raised, borderColor: border }}
 					>
-						<span className="size-1 rounded-full" style={{ background: colors.primary }} />
-					</div>
-					<div className="h-3" style={{ background: tint(colors.muted, 18), borderRadius: r("sm", "2px") }} />
-					<div className="h-3" style={{ background: tint(colors.muted, 18), borderRadius: r("sm", "2px") }} />
-				</div>
-				{/* 主区：标题 + 主按钮 → 统计卡 ×2 → 列表行 ×3 */}
-				<div className="flex min-w-0 flex-1 flex-col gap-1.5 p-2">
-					<div className="flex items-center justify-between">
-						<span className="text-[11px] font-bold leading-none" style={{ color: fg }}>
-							Aa
-						</span>
+						<span className="size-1.5 rounded-full" style={{ background: tint(colors.muted, 45) }} />
+						<span className="size-1.5 rounded-full" style={{ background: tint(colors.muted, 45) }} />
 						<div
-							className="flex h-4 w-9 items-center justify-center"
-							style={{ background: colors.primary, borderRadius: r("lg", "4px"), boxShadow: shadow.sm }}
+							className="ml-1 h-3.5 flex-1 border"
+							style={{ background: colors.surface, borderColor: border, borderRadius: r("md", "3px") }}
+						/>
+					</div>
+					<div className="flex min-h-0 flex-1">
+						{/* 侧栏：一条激活项 + 两条普通项 */}
+						<div
+							className="flex w-11 shrink-0 flex-col gap-1 border-r p-1.5"
+							style={{ background: raised, borderColor: border }}
 						>
-							<span
-								className="h-1 w-4 rounded-full"
-								style={{ background: colors["primary-foreground"] ?? "#fff" }}
+							<div
+								className="flex h-3 items-center gap-0.5 px-0.5"
+								style={{ background: tint(colors.primary, 18), borderRadius: r("sm", "2px") }}
+							>
+								<span className="size-1 rounded-full" style={{ background: colors.primary }} />
+							</div>
+							<div
+								className="h-3"
+								style={{ background: tint(colors.muted, 18), borderRadius: r("sm", "2px") }}
+							/>
+							<div
+								className="h-3"
+								style={{ background: tint(colors.muted, 18), borderRadius: r("sm", "2px") }}
 							/>
 						</div>
-					</div>
-					<div className="flex gap-1.5">
-						{[colors.primary, colors.accent].map((bar, index) => (
-							<div
-								// biome-ignore lint/suspicious/noArrayIndexKey: 两张静态占位卡
-								key={index}
-								className="flex-1 border p-1"
-								style={{
-									background: raised,
-									borderColor: border,
-									borderRadius: r("lg", "4px"),
-									boxShadow: shadow.sm,
-								}}
-							>
+						{/* 主区：标题 + 主按钮 → 统计卡 ×2 → 列表行 ×3 */}
+						<div className="flex min-w-0 flex-1 flex-col gap-1.5 p-2">
+							<div className="flex items-center justify-between">
+								<span className="text-[11px] font-bold leading-none" style={{ color: fg }}>
+									Aa
+								</span>
 								<div
-									className="mb-1 h-1 w-6 rounded-full"
-									style={{ background: tint(colors.muted, 45) }}
-								/>
-								<div className="h-1.5 w-9 rounded-full" style={{ background: bar }} />
+									className="flex h-4 w-9 items-center justify-center"
+									style={{ background: colors.primary, borderRadius: r("lg", "4px"), boxShadow: shadow.sm }}
+								>
+									<span
+										className="h-1 w-4 rounded-full"
+										style={{ background: colors["primary-foreground"] ?? "#fff" }}
+									/>
+								</div>
 							</div>
-						))}
-					</div>
-					<div className="flex min-h-0 flex-1 flex-col justify-end gap-1">
-						{[colors.accent, colors.primary, colors.danger].map((dot, index) => (
-							// biome-ignore lint/suspicious/noArrayIndexKey: 三条静态占位行
-							<div key={index} className="flex items-center gap-1">
-								<span className="size-1.5 shrink-0 rounded-full" style={{ background: dot }} />
-								<span
-									className="h-1 flex-1 rounded-full"
-									style={{ background: tint(colors.muted, 28) }}
-								/>
-								<span
-									className="h-1 w-5 shrink-0 rounded-full"
-									style={{ background: tint(colors.muted, 16) }}
-								/>
+							<div className="flex gap-1.5">
+								{[colors.primary, colors.accent].map((bar, index) => (
+									<div
+										// biome-ignore lint/suspicious/noArrayIndexKey: 两张静态占位卡
+										key={index}
+										className="flex-1 border p-1"
+										style={{
+											background: raised,
+											borderColor: border,
+											borderRadius: r("lg", "4px"),
+											boxShadow: shadow.sm,
+										}}
+									>
+										<div
+											className="mb-1 h-1 w-6 rounded-full"
+											style={{ background: tint(colors.muted, 45) }}
+										/>
+										<div className="h-1.5 w-9 rounded-full" style={{ background: bar }} />
+									</div>
+								))}
 							</div>
-						))}
+							<div className="flex min-h-0 flex-1 flex-col justify-end gap-1">
+								{[colors.accent, colors.primary, colors.danger].map((dot, index) => (
+									// biome-ignore lint/suspicious/noArrayIndexKey: 三条静态占位行
+									<div key={index} className="flex items-center gap-1">
+										<span className="size-1.5 shrink-0 rounded-full" style={{ background: dot }} />
+										<span
+											className="h-1 flex-1 rounded-full"
+											style={{ background: tint(colors.muted, 28) }}
+										/>
+										<span
+											className="h-1 w-5 shrink-0 rounded-full"
+											style={{ background: tint(colors.muted, 16) }}
+										/>
+									</div>
+								))}
+							</div>
+						</div>
 					</div>
-				</div>
-			</div>
 				</>
 			)}
 		</div>
 	);
-})
+});

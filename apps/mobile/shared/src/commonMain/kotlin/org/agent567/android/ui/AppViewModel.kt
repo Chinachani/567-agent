@@ -1062,6 +1062,7 @@ class AppViewModel(
                         content = item.text,
                         status = item.status,
                         createdAtEpochMs = item.timestamp,
+                        processingDurationMs = cached?.processingDurationMs,
                         // Tool traces and usage arrive live and are cached locally; the
                         // compact remote history endpoint only returns text and timestamps.
                         images = cached?.images.orEmpty(),
@@ -2415,6 +2416,7 @@ class AppViewModel(
                         val snapshot = assistantMsg.copy(
                             content = assembled,
                             status = status,
+                            processingDurationMs = if (status == MessageStatus.Streaming) null else elapsedSince(assistantMsg.createdAtEpochMs),
                             images = assistantImages,
                             toolEvents = toolEvents,
                             usage = usage,
@@ -2851,6 +2853,7 @@ class AppViewModel(
                                             assistantMsg.copy(
                                                 content = assembled,
                                                 status = MessageStatus.Error,
+                                                processingDurationMs = elapsedSince(assistantMsg.createdAtEpochMs),
                                                 images = assistantImages,
                                                 errorMessage = ui.message,
                                                 toolEvents = toolEvents,
@@ -2891,9 +2894,13 @@ class AppViewModel(
                         // 正常结束后若仍 streaming 则 complete
                         val latest =
                             container.sessionStore.getMessages(sid).firstOrNull { it.id == assistantId }
-                        if (latest?.status == MessageStatus.Streaming) {
+                        if (latest != null && latest.status in setOf(MessageStatus.Streaming, MessageStatus.Complete)) {
                             container.sessionStore.upsertMessage(
-                                latest.copy(status = MessageStatus.Complete, pendingQuestion = null),
+                                latest.copy(
+                                    status = MessageStatus.Complete,
+                                    processingDurationMs = elapsedSince(assistantMsg.createdAtEpochMs),
+                                    pendingQuestion = null,
+                                ),
                             )
                         }
                     } catch (t: Throwable) {
@@ -2913,6 +2920,7 @@ class AppViewModel(
                                         } else {
                                             MessageStatus.Error
                                         },
+                                    processingDurationMs = elapsedSince(assistantMsg.createdAtEpochMs),
                                     errorMessage = if (t is kotlinx.coroutines.CancellationException) null else ui.message,
                                     toolEvents = toolEvents,
                                     usage = usage,
@@ -3143,7 +3151,13 @@ class AppViewModel(
                     it.role == ChatRole.Assistant && it.status == MessageStatus.Streaming
                 }
             if (streaming != null) {
-                container.sessionStore.upsertMessage(streaming.copy(status = MessageStatus.Aborted, pendingQuestion = null))
+                container.sessionStore.upsertMessage(
+                    streaming.copy(
+                        status = MessageStatus.Aborted,
+                        processingDurationMs = elapsedSince(streaming.createdAtEpochMs),
+                        pendingQuestion = null,
+                    ),
+                )
             }
             updateVisibleSession(sid) { state ->
                 state.copy(
@@ -3354,6 +3368,8 @@ class AppViewModel(
     private fun newMessageId(): String =
         "${nowEpochMs().toString(16)}-${Random.nextInt(0, Int.MAX_VALUE).toString(16)}"
 }
+
+private fun elapsedSince(startedAtEpochMs: Long): Long = (nowEpochMs() - startedAtEpochMs).coerceAtLeast(0L)
 
 private fun pickDefaultGroup(available: Map<String, org.agent567.android.core.api.ApiGroupInfoDto>): String? {
     val priorityGroups = listOf(

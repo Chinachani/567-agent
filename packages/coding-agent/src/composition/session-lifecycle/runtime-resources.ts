@@ -22,6 +22,7 @@ import {
 	type CodingAgentToolActivation,
 	selectCodingAgentToolRegistrations,
 } from "../../runtime-contracts/index.js";
+import { AssistantTurnTimingPersistence } from "../../sessions/projection/assistant-turn-timing-persistence.js";
 import type { CodingAgentSubagentRuntime } from "../subagent/runtime.js";
 import type { CodingToolsRuntimeComposition } from "../tool-surface/runtime-tools-composition.js";
 import type { CodingAgentTurnCapabilitySessionAssembly } from "../turn/capability-session-assembly.js";
@@ -99,7 +100,11 @@ export function createCodingAgentSessionRuntimeResources(
 		promptAdapter: options.turnCapabilityAssembly.promptAdapter,
 		snapshotProvider: options.capabilitySnapshotProvider,
 		modelRuntime: options.modelRuntime,
-		documentParticipants: [...options.sessionExtensions.documentParticipants, options.contextRuntime],
+		documentParticipants: [
+			...options.sessionExtensions.documentParticipants,
+			options.contextRuntime,
+			new AssistantTurnTimingPersistence(),
+		],
 		extensionHost,
 		toolController: {
 			readActiveToolNames: () => {

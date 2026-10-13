@@ -3,7 +3,7 @@ import type { JSX } from "react";
 import { useEffect, useRef, useState } from "react";
 import type { SubscriptionCardsViewModel } from "./SubscriptionCardsView";
 
-/** 订阅区操作按钮（刷新 + 升级），渲染在账户页顶部右上角。 */
+/** 订阅区刷新按钮，渲染在账户页顶部右上角。 */
 export function SubscriptionActionsView({ model }: { model: SubscriptionCardsViewModel }): JSX.Element {
 	const [showDone, setShowDone] = useState(false);
 	const prevRefreshing = useRef(model.refreshing);
@@ -46,18 +46,6 @@ export function SubscriptionActionsView({ model }: { model: SubscriptionCardsVie
 					/>
 				)}
 			</Button>
-			{model.actions.upgrade && model.labels.upgrade ? (
-				<Button
-					type="button"
-					variant="default"
-					size="sm"
-					onClick={() => model.actions.upgrade?.()}
-					className="h-7 gap-1.5 px-2 text-[12px] font-medium"
-				>
-					<span className="icon-[solar--course-up-linear] h-3.5 w-3.5" />
-					{model.labels.upgrade}
-				</Button>
-			) : null}
 		</div>
 	);
 }

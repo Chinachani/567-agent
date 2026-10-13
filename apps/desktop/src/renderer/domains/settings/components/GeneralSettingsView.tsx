@@ -23,6 +23,8 @@ export function GeneralSettingsView({ model }: GeneralSettingsViewProps): JSX.El
 				developer: SETTINGS_SECTION["general-developer"],
 			}}
 			workspacePath={model.workspacePath}
+			updateSource={model.updateSource}
+			onUpdateSourceChange={(source) => void model.actions.setUpdateSource(source)}
 			onSelectWorkspace={() => void model.actions.selectWorkspace()}
 			onResetWorkspace={() => void model.actions.resetWorkspace()}
 			updatesDescription={updates.statusText}

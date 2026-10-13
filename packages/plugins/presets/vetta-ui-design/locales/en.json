@@ -252,6 +252,7 @@
 	"gallery.styles.hint": "Click a style for details, then start a new design with it",
 	"gallery.styles.view": "View the {{name}} style",
 	"gallery.count": "{{count}} projects",
+	"gallery.styles.count": "{{count}} styles",
 	"gallery.section.mine": "My designs",
 	"gallery.section.more": "View all",
 	"gallery.projects.title": "All designs",

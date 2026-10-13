@@ -644,6 +644,7 @@ private data class MessageDto(
     val content: String,
     val status: String,
     val createdAtEpochMs: Long,
+    val processingDurationMs: Long? = null,
     val errorMessage: String? = null,
     val images: List<MessageImageDto> = emptyList(),
     val files: List<MessageFileDto> = emptyList(),
@@ -752,6 +753,7 @@ private fun MessageDto.toDomain() =
         content = content,
         status = MessageStatus.entries.firstOrNull { it.name == status } ?: MessageStatus.Complete,
         createdAtEpochMs = createdAtEpochMs,
+        processingDurationMs = processingDurationMs,
         errorMessage = errorMessage,
         images =
             images.map {
@@ -796,6 +798,7 @@ private fun LocalMessage.toDto() =
         content = content,
         status = status.name,
         createdAtEpochMs = createdAtEpochMs,
+        processingDurationMs = processingDurationMs,
         errorMessage = errorMessage,
         images =
             images.map {

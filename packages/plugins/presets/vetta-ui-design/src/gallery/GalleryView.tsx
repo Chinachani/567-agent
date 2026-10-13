@@ -28,7 +28,7 @@ import {
 	revealProject,
 } from "./gallery-actions";
 import type { DesignSystem } from "../design-systems/types";
-import { filterGalleryProjects, type GalleryDesign } from "./gallery-model";
+import { filterDesignSystems, filterGalleryProjects, type GalleryDesign } from "./gallery-model";
 import {
 	type GalleryCard as GalleryCardData,
 	getCachedSnapshot,
@@ -374,7 +374,9 @@ export function GalleryView() {
 						) : null}
 						<div className="flex-1" />
 						<span className="text-[11px] tabular-nums text-muted-foreground">
-							{t("gallery.count", { count: cards.length })}
+							{view === "home"
+								? t("gallery.styles.count", { count: filterDesignSystems(systems, keyword, styleCategory).length })
+								: t("gallery.count", { count: cards.length })}
 						</span>
 					</div>
 					{view === "projects" ? (

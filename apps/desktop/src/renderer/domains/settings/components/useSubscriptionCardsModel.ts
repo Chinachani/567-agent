@@ -7,9 +7,6 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { recordSettingsUsage } from "./recordSettingsUsage";
 
-/** 567 API 账户中心（管理套餐与额度） */
-const API_ACCOUNT_URL = "https://api.567.wiki/console/personal";
-
 export type ModelCost = { cacheRead: number; cacheWrite: number; input: number; output: number };
 export type RemoteModel = {
 	api?: string;
@@ -36,8 +33,6 @@ export interface SubscriptionWindowViewModel {
 export interface SubscriptionCardsModel {
 	actions: {
 		refresh: () => Promise<void>;
-		/** 打开 567 API 账户中心管理套餐 */
-		upgrade?: () => void;
 	};
 	expiry: string | null;
 	goProvider: RemoteProvider | undefined;
@@ -50,7 +45,6 @@ export interface SubscriptionCardsModel {
 		thinking: string;
 		unlimitedQuota: string;
 		updated: string;
-		upgrade?: string;
 		vision: string;
 	};
 	refreshing: boolean;
@@ -117,7 +111,6 @@ export function useSubscriptionCardsModel(): SubscriptionCardsModel {
 			thinking: t("thinking"),
 			unlimitedQuota: t("unlimitedQuota"),
 			updated: t("updated"),
-			upgrade: t("upgradePlan"),
 			vision: t("vision"),
 		}),
 		[t],
@@ -138,15 +131,9 @@ export function useSubscriptionCardsModel(): SubscriptionCardsModel {
 		[subscriptionStatus.windows, now, t],
 	);
 
-	const handleUpgrade = useCallback(() => {
-		void window.agent567.shell.openExternal(API_ACCOUNT_URL);
-		recordSettingsUsage({ tab: "subscription", action: "selected", target: "api-account-center-link" });
-	}, []);
-
 	return {
 		actions: {
 			refresh: handleRefreshRemote,
-			upgrade: handleUpgrade,
 		},
 		expiry: formatExpiry(subscriptionStatus.expires_at),
 		goProvider,

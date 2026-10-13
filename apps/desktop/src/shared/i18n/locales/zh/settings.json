@@ -257,6 +257,12 @@
     "canary": "金丝雀版",
     "title": "更新通道"
   },
+  "updateSource": {
+    "title": "更新下载源",
+    "description": "使用 gh-proxy.com 中转更新清单和安装包。仅在信任该第三方代理时启用，切换后重启应用生效。",
+    "official": "GitHub 官方源",
+    "accelerated": "国内加速代理（gh-proxy.com）"
+  },
   "theme": {
     "light": "亮色",
     "dark": "暗色",
@@ -1831,7 +1837,6 @@
   "vision": "视觉",
   "creditsPerMTok": "积分/百万tok",
   "unlimitedQuota": "无限制 · 畅享不限额度",
-  "upgradePlan": "管理套餐",
   "expiryDate": "到期日 {{date}}",
   "viewModelsCount": "查看 {{count}} 个模型",
   "noModelsRefresh": "暂无模型，点击上方刷新",
