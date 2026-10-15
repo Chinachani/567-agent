@@ -229,17 +229,24 @@ export function enrichFromCatalog(
 	model: ModelDefinition,
 ): ModelDefinition {
 	const meta = lookupCatalogModel(catalog, presetId, model.id)?.model;
+	// Prefix matches remain useful for display metadata, but cannot establish the
+	// context limit of aliases such as a gateway's -high / -preview routes.
+	const capacity = catalog?.providers[presetId]?.[model.id]?.model.contextWindow;
 	return {
 		...model,
+		contextWindowSource:
+			model.contextWindow !== undefined
+				? (model.contextWindowSource ?? "api")
+				: capacity !== undefined
+					? "catalog"
+					: "unknown",
 		...(model.name === undefined && meta?.name !== undefined ? { name: meta.name } : {}),
 		...(model.reasoning === undefined && meta?.reasoning !== undefined ? { reasoning: meta.reasoning } : {}),
 		...(model.reasoningLevels === undefined && meta?.reasoningLevels !== undefined
 			? { reasoningLevels: meta.reasoningLevels }
 			: {}),
 		input: model.input ?? meta?.input ?? ["text"],
-		...(model.contextWindow === undefined && meta?.contextWindow !== undefined
-			? { contextWindow: meta.contextWindow }
-			: {}),
+		...(model.contextWindow === undefined && capacity !== undefined ? { contextWindow: capacity } : {}),
 		...(model.maxTokens === undefined && meta?.maxTokens !== undefined ? { maxTokens: meta.maxTokens } : {}),
 		...(meta?.cost ? { cost: meta.cost } : {}),
 	};

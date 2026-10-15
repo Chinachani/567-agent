@@ -181,7 +181,7 @@ class ModelRuntimeImplementation implements CodingAgentModelRuntime {
 					applyProviderAndModelOverrides(
 						[{ ...model }],
 						local.overrides.get(model.provider),
-						local.modelOverrides.get(model.provider),
+						undefined,
 						this.configurationValueResolver,
 					),
 				)
@@ -189,12 +189,22 @@ class ModelRuntimeImplementation implements CodingAgentModelRuntime {
 					applyProviderAndModelOverrides(
 						getModels(provider as KnownProvider) as Model<Api>[],
 						local.overrides.get(provider),
-						local.modelOverrides.get(provider),
+						undefined,
 						this.configurationValueResolver,
 					),
 				);
 		let combined = mergeModels(builtInModels, local.models);
 		combined = mergeModels(combined, this.remoteModels);
+		// Local and remote additions also need model-specific overrides. Applying
+		// them only to built-ins left managed/custom model capacities unchanged.
+		combined = combined.flatMap((model) =>
+			applyProviderAndModelOverrides(
+				[model],
+				undefined,
+				local.modelOverrides.get(model.provider),
+				this.configurationValueResolver,
+			),
+		);
 		for (const oauthProvider of this.credentials.getOAuthProviders()) {
 			const credential = this.credentials.get(oauthProvider.id);
 			if (credential?.type === "oauth" && oauthProvider.modifyModels) {

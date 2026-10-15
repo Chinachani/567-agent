@@ -2,6 +2,15 @@ package org.agent567.android.app
 
 import com.russhwolf.settings.Settings
 import com.russhwolf.settings.set
+import kotlinx.serialization.encodeToString
+import kotlinx.serialization.decodeFromString
+import kotlinx.serialization.json.JsonArray
+import kotlinx.serialization.json.JsonNull
+import kotlinx.serialization.json.JsonPrimitive
+import org.agent567.android.core.model.ModelContextMetadata
+import org.agent567.android.core.model.CachedModelContext
+import org.agent567.android.core.model.validModelContext
+import org.agent567.android.core.net.Agent567Json
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -168,6 +177,28 @@ class AppPreferences(
         val key = KEY_CACHE_GROUP_MODELS_PREFIX + (group ?: "default")
         val raw = settings.getStringOrNull(key)?.takeIf { it.isNotBlank() } ?: return emptyList()
         return raw.split(",").map { it.trim() }.filter { it.isNotEmpty() }
+    }
+
+    private fun modelContextKey(group: String?, model: String, kind: String = "override", server: String = serverUrl.value): String = "567agent.model-context.v1." + JsonArray(listOf(
+        JsonPrimitive(server.trim().trimEnd('/')), group?.let(::JsonPrimitive) ?: JsonNull, JsonPrimitive(kind), JsonPrimitive(model),
+    )).toString()
+
+    fun getModelContextOverride(group: String?, model: String, server: String = serverUrl.value): Long? = validModelContext(settings.getStringOrNull(modelContextKey(group, model, server = server))?.toLongOrNull())
+
+    fun setModelContextOverride(group: String?, model: String, capacity: Long?) {
+        require(capacity == null || validModelContext(capacity) != null)
+        val key = modelContextKey(group, model)
+        if (capacity == null) settings.remove(key) else settings[key] = capacity.toString()
+    }
+
+    internal fun getCachedModelContexts(group: String?, server: String): Map<String, CachedModelContext> = runCatching {
+        Agent567Json.decodeFromString<Map<String, CachedModelContext>>(settings.getString(modelContextKey(group, "", "metadata", server), "{}"))
+    }.getOrDefault(emptyMap()).filterValues { it.isFresh(System.currentTimeMillis()) }
+
+    fun setCachedModelContexts(group: String?, metadata: Map<String, ModelContextMetadata>, server: String = serverUrl.value) {
+        val now = System.currentTimeMillis()
+        val merged = getCachedModelContexts(group, server) + metadata.mapValues { CachedModelContext(it.value, now) }
+        settings[modelContextKey(group, "", "metadata", server)] = Agent567Json.encodeToString(merged)
     }
 
     fun setCachedGroupModels(group: String?, models: List<String>) {

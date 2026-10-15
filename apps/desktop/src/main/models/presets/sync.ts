@@ -78,7 +78,7 @@ function catalogModelsFor(catalog: ModelsDevCatalog | null, def: PresetProviderD
 	if (!entries) return [];
 	const models = Object.values(entries)
 		.filter((entry) => def.isChatModel(entry.model.id))
-		.map((entry) => entry.model);
+		.map((entry) => ({ ...entry.model, contextWindowSource: "catalog" as const }));
 	return enrichModelsFromCatalog(catalog, def.id, models);
 }
 

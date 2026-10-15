@@ -16,6 +16,7 @@ data class LlmModel(
     val reasoning: Boolean = false,
     val input: List<String> = emptyList(),
     val contextWindow: Long? = null,
+    val contextWindowSource: String = "unknown",
     val maxTokens: Long? = null,
     val multiplier: Double? = null,
     val tags: List<String> = emptyList(),

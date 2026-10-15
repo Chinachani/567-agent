@@ -12,6 +12,7 @@ import type {
 	ModelProviderDetail,
 	ModelProviderUpsertData,
 } from "@vetta-org/capability-sdk";
+import { contextCapacity, type ModelContextSource, resolveModelContext } from "../../shared/model-context.js";
 import type { ModelCredentialStore } from "./model-credential-store.js";
 
 export interface ModelsConfig {
@@ -47,6 +48,7 @@ export interface ModelDefinition {
 	defaultReasoningLevel?: string;
 	input?: string[];
 	contextWindow?: number;
+	contextWindowSource?: ModelContextSource;
 	maxTokens?: number;
 	cost?: { input: number; output: number; cacheRead: number; cacheWrite: number };
 }
@@ -66,13 +68,36 @@ const MODELS_CONFIG_PATH = join(getAgent567HomePath(), "agent", "models.json");
 const DEFAULT_MODELS_CONFIG: ModelsConfig = { providers: {} };
 export const MASKED_MODEL_API_KEY = "***";
 
-function stripLegacyPeripheralFields(config: ModelsConfig): ModelsConfig {
+export function normalizeModelsConfig(config: ModelsConfig): ModelsConfig {
 	const next = { ...config } as ModelsConfig & {
 		peripheralModel?: unknown;
 		peripheralModelReasoningLevel?: unknown;
 	};
 	delete next.peripheralModel;
 	delete next.peripheralModelReasoningLevel;
+	// Older managed catalogs used family-name guesses. Keep their runtime budget
+	// during upgrade, but do not present it as a verified model limit.
+	next.providers = Object.fromEntries(
+		Object.entries(next.providers).map(([id, provider]) => {
+			const managed =
+				(id === "567api" || id.startsWith("567api_")) && provider.headers?.["X-567-Group"] !== undefined;
+			return [
+				id,
+				{
+					...provider,
+					models: provider.models?.map((model) => {
+						const normalized = managed
+							? { ...model, contextWindowSource: model.contextWindowSource ?? ("unknown" as const) }
+							: model;
+						const context = resolveModelContext(normalized);
+						return context.capacity && context.source === "catalog"
+							? { ...normalized, contextWindow: context.capacity, contextWindowSource: context.source }
+							: normalized;
+					}),
+				},
+			];
+		}),
+	);
 	return next;
 }
 
@@ -80,7 +105,7 @@ export function readModelsConfigSync(): ModelsConfig {
 	try {
 		const raw = readFileSync(MODELS_CONFIG_PATH, "utf8");
 		const parsed = JSON.parse(raw) as Partial<ModelsConfig>;
-		return stripLegacyPeripheralFields({
+		return normalizeModelsConfig({
 			...DEFAULT_MODELS_CONFIG,
 			...parsed,
 			providers:
@@ -98,7 +123,7 @@ export async function readModelsConfig(): Promise<ModelsConfig> {
 }
 
 export async function writeModelsConfig(config: ModelsConfig): Promise<void> {
-	atomicWriteJSON(MODELS_CONFIG_PATH, stripLegacyPeripheralFields(config));
+	atomicWriteJSON(MODELS_CONFIG_PATH, normalizeModelsConfig(config));
 }
 
 function maskSecret(value: string | undefined): string | undefined {
@@ -259,6 +284,25 @@ export class ModelSettingsService {
 		});
 	}
 
+	async setContextWindow(providerId: string, modelId: string, capacity: number | null): Promise<void> {
+		if (capacity !== null && contextCapacity(capacity) === undefined) throw new Error("Invalid context window");
+		await this.runMutation(async () => {
+			const current = await this.options.readConfig();
+			if (!Object.hasOwn(current.providers, providerId)) throw new Error("Model provider not found");
+			assertModelKeyExists(current, `${providerId}/${modelId}`, "set-context-window");
+			const next = cloneModelsConfig(current);
+			const provider = next.providers[providerId];
+			const overrides = new Map(Object.entries(provider.modelOverrides ?? {}));
+			const override = { ...overrides.get(modelId) };
+			if (capacity === null) delete override.contextWindow;
+			else override.contextWindow = capacity;
+			if (Object.keys(override).length === 0) overrides.delete(modelId);
+			else overrides.set(modelId, override);
+			provider.modelOverrides = Object.fromEntries(overrides);
+			await this.persist(next, current, "resolved");
+		});
+	}
+
 	async list(): Promise<ModelListResult> {
 		const config = await this.getConfig();
 		return {
@@ -406,6 +450,25 @@ export class ModelSettingsService {
 
 		for (const [providerId, provider] of Object.entries(persisted.providers)) {
 			const currentProvider = current.providers[providerId];
+			if (mode === "renderer" && currentProvider) {
+				// Capacity overrides have a narrow serialized mutation of their own.
+				// A slower catalog refresh must not overwrite a newer save or revive a
+				// manual value after the user has restored automatic detection.
+				const overrides = new Map(
+					Object.entries(provider.modelOverrides ?? {}).map(([id, value]) => {
+						const next = { ...value };
+						delete next.contextWindow;
+						return [id, next] as const;
+					}),
+				);
+				for (const [id, value] of Object.entries(currentProvider.modelOverrides ?? {})) {
+					if (contextCapacity(value.contextWindow) !== undefined)
+						overrides.set(id, { ...overrides.get(id), contextWindow: value.contextWindow });
+				}
+				provider.modelOverrides = Object.fromEntries(
+					[...overrides].filter(([, value]) => Object.keys(value).length > 0),
+				);
+			}
 			const value = provider.apiKey;
 			const currentRef = provider.credentialRef ?? currentProvider?.credentialRef;
 

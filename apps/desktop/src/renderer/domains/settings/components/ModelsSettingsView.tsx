@@ -2,6 +2,7 @@ import { useTranslation } from "react-i18next";
 import { SettingsPageShellView } from "@vetta-org/theme-ui/settings";
 import { SettingsAiAssist } from "../ai-assist";
 import { Api567GroupsSection } from "./Api567GroupsSection";
+import { ModelContextSettings } from "./ModelContextSettings";
 import { ModelsProvidersSection } from "./ModelsProvidersSection";
 import type { ModelsSettingsModel } from "./useModelsSettingsModel";
 
@@ -25,6 +26,7 @@ export function ModelsSettingsView({ model }: { model: ModelsSettingsModel }): J
 			{model.config && (
 				<>
 					<Api567GroupsSection config={model.config} />
+					<ModelContextSettings config={model.config} />
 					<ModelsProvidersSection model={model} />
 				</>
 			)}

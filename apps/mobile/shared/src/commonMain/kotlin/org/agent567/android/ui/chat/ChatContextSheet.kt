@@ -3,6 +3,7 @@ package org.agent567.android.ui.chat
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
@@ -15,6 +16,9 @@ import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.OutlinedButton
+import androidx.compose.material3.OutlinedTextField
+import androidx.compose.foundation.text.KeyboardOptions
+import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
@@ -25,6 +29,8 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.platform.LocalUriHandler
+import org.agent567.android.core.model.parseModelContextCapacityInput
 import org.agent567.android.domain.session.ChatContextSnapshot
 import org.agent567.android.ui.i18n.Str
 
@@ -42,11 +48,15 @@ fun ChatContextSheet(
     onRefresh: () -> Unit,
     onCompact: () -> Unit,
     onAutoChange: (Boolean) -> Unit,
+    onCapacityChange: (Long?) -> Unit = {},
     onReset: () -> Unit,
     onCancel: () -> Unit,
 ) {
     var confirmReset by remember { mutableStateOf(false) }
     var showSummary by remember { mutableStateOf(false) }
+    var showReference by remember(snapshot?.modelKey) { mutableStateOf(false) }
+    var capacityDraft by remember(snapshot?.modelKey, snapshot?.manualContextWindow) { mutableStateOf(snapshot?.manualContextWindow?.toString().orEmpty()) }
+    val uriHandler = LocalUriHandler.current
     val canChange = hasSession && snapshot != null && !loading && !busy && !snapshot.busy
     ModalBottomSheet(onDismissRequest = onDismiss) {
         Column(
@@ -63,6 +73,7 @@ fun ChatContextSheet(
                 }
             }
             snapshot?.let { state ->
+                if (!desktop) state.modelName?.let { Text(it, style = MaterialTheme.typography.titleSmall) }
                 val window = state.contextWindow
                 val used = state.tokens
                 Text(buildString {
@@ -74,6 +85,43 @@ fun ChatContextSheet(
                     }
                 })
                 Text("${Str.contextActiveMessages}: ${state.messageCount}")
+                Text("${Str.contextCapacitySource}: ${when (state.contextWindowSource) {
+                    "manual" -> Str.contextCapacityManual
+                    "api" -> Str.contextCapacityApi
+                    "catalog" -> Str.contextCapacityCatalog
+                    else -> Str.contextCapacityUnknown
+                }}", style = MaterialTheme.typography.bodySmall)
+                if (desktop) Text(Str.contextCapacityDesktop, style = MaterialTheme.typography.bodySmall)
+                else {
+                    val canEditCapacity = state.modelKey != null && !loading && !busy && !state.busy
+                    state.referenceModel?.let { model ->
+                        TextButton(onClick = { showReference = !showReference }) { Text(if (showReference) Str.contextCapacityHideReference else Str.contextCapacityShowReference) }
+                        if (showReference) {
+                            Text("${Str.contextCapacityReference}: $model · ${state.referenceCheckedAt.orEmpty()}\n${Str.contextCapacityInput}: ${state.referenceContextWindow?.toString() ?: Str.contextCapacityUnknown} tokens · ${Str.contextCapacityOutput}: ${state.referenceMaxOutput?.toString() ?: Str.contextCapacityUnknown} tokens", style = MaterialTheme.typography.bodySmall)
+                            ModelCapabilityReference(state.referenceCapabilities, state.referenceMaxInput)
+                            if (state.referenceIsAlias) Text(Str.contextCapacityAliasHint, style = MaterialTheme.typography.bodySmall)
+                            state.referenceUrl?.takeIf { it.startsWith("https://") && !it.endsWith("/v1/models") }?.let { url -> TextButton(onClick = { runCatching { uriHandler.openUri(url) } }) { Text(Str.contextCapacityReferenceLink) } }
+                        }
+                    }
+                    OutlinedTextField(value = capacityDraft, onValueChange = { capacityDraft = it },
+                        label = { Text(Str.contextCapacityOverride) }, placeholder = { Text(Str.contextCapacityAutomatic) },
+                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Ascii), singleLine = true,
+                        enabled = canEditCapacity, modifier = Modifier.fillMaxWidth())
+                    Text(Str.contextCapacityScope, style = MaterialTheme.typography.bodySmall)
+                    val capacity = parseModelContextCapacityInput(capacityDraft)
+                    Text(Str.contextCapacityInputHint + (capacity?.let { " · $it tokens" } ?: ""), style = MaterialTheme.typography.bodySmall)
+                    FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        listOf("32K", "64K", "128K", "1M").forEach { value -> TextButton(onClick = { capacityDraft = value }, enabled = canEditCapacity) { Text(value) } }
+                        state.automaticContextWindow?.let { value -> TextButton(onClick = { capacityDraft = value.toString() }, enabled = canEditCapacity) { Text(Str.contextCapacityFillReference) } }
+                    }
+                    val valid = capacityDraft.isBlank() || capacity != null
+                    if (!valid) Text(Str.contextCapacityInvalid, color = MaterialTheme.colorScheme.error)
+                    Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                        TextButton(onClick = { onCapacityChange(if (capacityDraft.isBlank()) null else capacity) }, enabled = canEditCapacity && valid) { Text(Str.contextCapacitySave) }
+                        TextButton(onClick = { capacityDraft = ""; onCapacityChange(null) }, enabled = canEditCapacity && (state.manualContextWindow != null || capacityDraft.isNotEmpty())) { Text(Str.contextCapacityAutomatic) }
+                    }
+                }
+                if (window == null) Text(Str.contextCapacityUnknownHint, style = MaterialTheme.typography.bodySmall)
                 if (state.estimated) Text(Str.contextEstimateHint, style = MaterialTheme.typography.bodySmall)
                 Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
                     Text(Str.contextAutoCompact, Modifier.weight(1f))

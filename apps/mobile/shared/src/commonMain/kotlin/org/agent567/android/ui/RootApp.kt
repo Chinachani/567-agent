@@ -371,6 +371,7 @@ fun RootApp(
                     onRefresh = vm::refreshChatContext,
                     onCompact = vm::compactChatContext,
                     onAutoChange = vm::setChatAutoCompaction,
+                    onCapacityChange = vm::setChatContextCapacity,
                     onReset = vm::resetChatContext,
                     onCancel = vm::cancelChatContextOperation,
                 )

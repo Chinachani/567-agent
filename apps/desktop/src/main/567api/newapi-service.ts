@@ -25,12 +25,13 @@ import http from "node:http";
 import https from "node:https";
 import { dirname, join } from "node:path";
 import { getAgent567HomePath } from "@567agent/action-rpc";
-
 import { BrowserWindow } from "electron";
 import { getDesktopCredentialVault } from "../credentials/desktop-credential-vault.js";
 import { getAppLogger } from "../logger.js";
+import { enrichModelContexts, parseModelList } from "../models/model-context-metadata.js";
 import { getDesktopModelSettingsService } from "../models/model-settings-host.js";
 import type { ModelDefinition } from "../models/model-settings-service.js";
+import { listPresetProviders } from "../models/presets/sync.js";
 import {
 	AccessTokenRefreshCoordinator,
 	AccountLoginRejectedError,
@@ -265,26 +266,6 @@ export function getProviderIconForGroup(groupName: string): string {
 	if (lower.includes("gpt") || lower.includes("chat")) return "openai";
 	if (lower.includes("国模") || lower.includes("qwen")) return "qwen";
 	return "openai";
-}
-
-function inferModelParams(modelId: string): { contextWindow: number; maxTokens: number } {
-	const lower = modelId.toLowerCase();
-	if (lower.includes("1m") || lower.includes("gemini")) {
-		return { contextWindow: 1000000, maxTokens: 8192 };
-	}
-	if (lower.includes("claude")) {
-		return { contextWindow: 200000, maxTokens: 8192 };
-	}
-	if (lower.includes("o1") || lower.includes("o3")) {
-		return { contextWindow: 200000, maxTokens: 65536 };
-	}
-	if (lower.includes("gpt-4o")) {
-		return { contextWindow: 128000, maxTokens: 4096 };
-	}
-	if (lower.includes("deepseek")) {
-		return { contextWindow: 64000, maxTokens: 8192 };
-	}
-	return { contextWindow: 128000, maxTokens: 4096 };
 }
 
 const NON_CHAT =
@@ -1391,6 +1372,7 @@ export class NewApiService {
 			const config = await service.getConfig();
 
 			config.providers[providerId] = {
+				modelOverrides: config.providers[providerId]?.modelOverrides,
 				baseUrl: BASE_V1,
 				apiKey,
 				displayName,
@@ -1536,60 +1518,55 @@ export class NewApiService {
 		groupName: string,
 		apiKey: string,
 	): Promise<{ modelDefs: ModelDefinition[]; imageModelIds: string[] }> {
-		let rawModelIds: string[] = [];
-
+		let models: ModelDefinition[] = [];
 		if (groupName) {
 			try {
-				const res = await this.requestWithAuth<{
-					success: boolean;
-					data?: string[];
-				}>(`${BASE_SERVER}/api/user/models?group=${encodeURIComponent(groupName)}`);
-				if (res.data?.success && Array.isArray(res.data.data) && res.data.data.length > 0) {
-					rawModelIds = res.data.data;
-				}
-			} catch (err) {
-				log.warn(`Failed to fetch models from /api/user/models for group ${groupName}:`, err);
+				const res = await this.requestWithAuth<{ success: boolean; data?: unknown }>(
+					`${BASE_SERVER}/api/user/models?group=${encodeURIComponent(groupName)}`,
+				);
+				if (res.data?.success) models = parseModelList(res.data.data);
+			} catch (error) {
+				log.warn("Could not fetch group model metadata", error);
 			}
 		}
-
-		if (rawModelIds.length === 0) {
+		if (models.length === 0 || models.some((model) => model.contextWindow === undefined)) {
 			try {
-				const res = await request<{
-					data?: Array<{ id: string }>;
-				}>(`${BASE_V1}/models`, {
-					headers: { Authorization: `Bearer ${apiKey}` },
+				const res = await request<{ data?: unknown }>(`${BASE_V1}/models`, {
+					headers: {
+						Authorization: `Bearer ${apiKey}`,
+						"X-567-Group": encodeURIComponent(groupName || "default"),
+					},
 				});
-				if (res.data?.data && Array.isArray(res.data.data)) {
-					rawModelIds = res.data.data.map((m) => m.id);
+				const listed = parseModelList(res.data?.data);
+				if (models.length === 0) models = listed;
+				else {
+					const metadata = new Map(listed.map((model) => [model.id, model]));
+					models = models.map((model) =>
+						model.contextWindow !== undefined ? model : (metadata.get(model.id) ?? model),
+					);
 				}
-			} catch (err) {
-				log.warn(`Failed to fetch models from /v1/models for group ${groupName}:`, err);
+			} catch (error) {
+				log.warn("Could not fetch compatible model metadata", error);
 			}
 		}
-
 		const desc = this.currentSession.availableGroups?.[groupName]?.desc || "";
 		const isDrawingGroup = /画图|绘图|生图|image|draw|paint|flux/i.test(`${groupName} ${desc}`);
-
-		const isImageModel = (id: string) =>
-			/dall-e|image|imagen|flux|midjourney|draw|paint|diffusion|agnes/i.test(id) || isDrawingGroup;
-		const imageModelIds = rawModelIds.filter(isImageModel);
-
-		let chatModelIds: string[];
-		if (isDrawingGroup) {
-			chatModelIds = rawModelIds;
-		} else {
-			const filtered = rawModelIds.filter((id) => !NON_CHAT.test(id));
-			chatModelIds = filtered.length > 0 ? filtered : rawModelIds;
-		}
-
-		const modelDefs = chatModelIds.map((id) => ({
-			id,
-			name: id,
-			input: ["text", "image"],
-			...inferModelParams(id),
-		}));
-
-		return { modelDefs, imageModelIds };
+		const imageModelIds = models
+			.filter(
+				(model) =>
+					/dall-e|image|imagen|flux|midjourney|draw|paint|diffusion|agnes/i.test(model.id) || isDrawingGroup,
+			)
+			.map((model) => model.id);
+		const filtered = isDrawingGroup ? models : models.filter((model) => !NON_CHAT.test(model.id));
+		const chatModels = filtered.length > 0 ? filtered : models;
+		const catalog = await listPresetProviders();
+		return {
+			modelDefs: enrichModelContexts(
+				chatModels,
+				catalog.providers.flatMap((provider) => provider.catalogModels),
+			),
+			imageModelIds,
+		};
 	}
 
 	/**

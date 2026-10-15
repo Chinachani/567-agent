@@ -1,0 +1,8668 @@
+{
+  "fetchedAt": "2026-10-15T13:18:58.823Z",
+  "sourceUrl": "https://models.dev/api.json",
+  "providers": {
+    "google": 40,
+    "openai": 53,
+    "anthropic": 17,
+    "deepseek": 4,
+    "zai": 18,
+    "moonshotai": 4,
+    "alibaba": 59,
+    "xai": 13,
+    "minimax": 7,
+    "mistral": 42,
+    "volcengine": 16,
+    "cohere": 17,
+    "ai21": 2,
+    "stepfun": 9,
+    "xiaomi": 9,
+    "tencent-tokenhub": 3,
+    "bailing": 2,
+    "meta": 6,
+    "llama": 7,
+    "perplexity": 4,
+    "amazon-bedrock": 17,
+    "nvidia": 40
+  },
+  "models": {
+    "gemini-flash-latest": {
+      "capacity": 1048576,
+      "maxOutputTokens": 65536,
+      "capabilities": {
+        "sourceUrl": "https://models.dev/api.json",
+        "input": [
+          "text",
+          "image",
+          "video",
+          "audio",
+          "pdf"
+        ],
+        "output": [
+          "text"
+        ],
+        "tools": true,
+        "reasoning": true,
+        "temperature": true,
+        "reasoningOptions": [
+          {
+            "type": "effort",
+            "values": [
+              "low",
+              "medium",
+              "high"
+            ]
+          }
+        ]
+      }
+    },
+    "gemma-4-31b-it": {
+      "capacity": 262144,
+      "maxOutputTokens": 32768,
+      "capabilities": {
+        "sourceUrl": "https://models.dev/api.json",
+        "input": [
+          "text",
+          "image"
+        ],
+        "output": [
+          "text"
+        ],
+        "tools": true,
+        "reasoning": true,
+        "temperature": true,
+        "reasoningOptions": [
+          {
+            "type": "toggle"
+          }
+        ]
+      }
+    },
+    "gemini-omni-flash-preview": {
+      "capacity": 131072,
+      "maxOutputTokens": 65536,
+      "capabilities": {
+        "sourceUrl": "https://models.dev/api.json",
+        "input": [
+          "text",
+          "image",
+          "video"
+        ],
+        "output": [
+          "video"
+        ],
+        "tools": false,
+        "reasoning": true,
+        "temperature": true
+      }
+    },
+    "gemini-3.1-flash-image-preview": {
+      "capacity": 65536,
+      "maxOutputTokens": 65536,
+      "capabilities": {
+        "sourceUrl": "https://models.dev/api.json",
+        "input": [
+          "text",
+          "image",
+          "pdf"
+        ],
+        "output": [
+          "text",
+          "image"
+        ],
+        "tools": false,
+        "reasoning": true,
+        "temperature": true,
+        "reasoningOptions": [
+          {
+            "type": "effort",
+            "values": [
+              "minimal",
+              "high"
+            ]
+          }
+        ]
+      }
+    },
+    "veo-3.1-lite-generate-preview": {
+      "capacity": null,
+      "maxOutputTokens": 8192,
+      "capabilities": {
+        "sourceUrl": "https://models.dev/api.json",
+        "input": [
+          "text",
+          "image"
+        ],
+        "output": [
+          "video"
+        ],
+        "tools": false,
+        "reasoning": false,
+        "temperature": false
+      }
+    },
+    "lyria-3-pro-preview": {
+      "capacity": 1048576,
+      "maxOutputTokens": 65536,
+      "capabilities": {
+        "sourceUrl": "https://models.dev/api.json",
+        "input": [
+          "text",
+          "image"
+        ],
+        "output": [
+          "text",
+          "audio"
+        ],
+        "tools": false,
+        "reasoning": false,
+        "temperature": true
+      }
+    },
+    "gemini-3.1-flash-tts-preview": {
+      "capacity": 8192,
+      "maxOutputTokens": 16384,
+      "capabilities": {
+        "sourceUrl": "https://models.dev/api.json",
+        "input": [
+          "text"
+        ],
+        "output": [
+          "audio"
+        ],
+        "tools": false,
+        "reasoning": true,
+        "temperature": true
+      }
+    },
+    "gemini-2.5-flash-image": {
+      "capacity": 32768,
+      "maxOutputTokens": 32768,
+      "capabilities": {
+        "sourceUrl": "https://models.dev/api.json",
+        "input": [
+          "text",
+          "image"
+        ],
+        "output": [
+          "text",
+          "image"
+        ],
+        "tools": false,
+        "reasoning": true,
+        "temperature": true
+      }
+    },
+    "gemini-flash-lite-latest": {
+      "capacity": 1048576,
+      "maxOutputTokens": 65536,
+      "capabilities": {
+        "sourceUrl": "https://models.dev/api.json",
+        "input": [
+          "text",
+          "image",
+          "video",
+          "audio",
+          "pdf"
+        ],
+        "output": [
+          "text"
+        ],
+        "tools": true,
+        "reasoning": true,
+        "temperature": true,
+        "reasoningOptions": [
+          {
+            "type": "effort",
+            "values": [
+              "minimal",
+              "low",
+              "medium",
+              "high"
+            ]
+          }
+        ]
+      }
+    },
+    "gemini-embedding-2": {
+      "capacity": 8192,
+      "maxOutputTokens": 1,
+      "capabilities": {
+        "sourceUrl": "https://models.dev/api.json",
+        "input": [
+          "text",
+          "image",
+          "audio",
+          "video",
+          "pdf"
+        ],
+        "output": [
+          "text"
+        ],
+        "tools": false,
+        "reasoning": false,
+        "temperature": false
+      }
+    },
+    "gemini-3.6-flash": {
+      "capacity": 1048576,
+      "maxOutputTokens": 65536,
+      "capabilities": {
+        "sourceUrl": "https://models.dev/api.json",
+        "input": [
+          "text",
+          "image",
+          "video",
+          "audio",
+          "pdf"
+        ],
+        "output": [
+          "text"
+        ],
+        "tools": true,
+        "reasoning": true,
+        "temperature": true,
+        "reasoningOptions": [
+          {
+            "type": "effort",
+            "values": [
+              "minimal",
+              "low",
+              "medium",
+              "high"
+            ]
+          }
+        ]
+      }
+    },
+    "gemma-4-26b-a4b-it": {
+      "capacity": 262144,
+      "maxOutputTokens": 32768,
+      "capabilities": {
+        "sourceUrl": "https://models.dev/api.json",
+        "input": [
+          "text",
+          "image"
+        ],
+        "output": [
+          "text"
+        ],
+        "tools": true,
+        "reasoning": true,
+        "temperature": true,
+        "reasoningOptions": [
+          {
+            "type": "toggle"
+          }
+        ]
+      }
+    },
+    "gemini-3-pro-image-preview": {
+      "capacity": 131072,
+      "maxOutputTokens": 32768,
+      "capabilities": {
+        "sourceUrl": "https://models.dev/api.json",
+        "input": [
+          "text",
+          "image"
+        ],
+        "output": [
+          "text",
+          "image"
+        ],
+        "tools": false,
+        "reasoning": true,
+        "temperature": true
+      }
+    },
+    "gemini-2.5-pro-preview-tts": {
+      "capacity": 8192,
+      "maxOutputTokens": 16384,
+      "capabilities": {
+        "sourceUrl": "https://models.dev/api.json",
+        "input": [
+          "text"
+        ],
+        "output": [
+          "audio"
+        ],
+        "tools": false,
+        "reasoning": false,
+        "temperature": true
+      }
+    },
+    "gemini-3.5-flash-lite": {
+      "capacity": 1048576,
+      "maxOutputTokens": 65536,
+      "capabilities": {
+        "sourceUrl": "https://models.dev/api.json",
+        "input": [
+          "text",
+          "image",
+          "video",
+          "audio",
+          "pdf"
+        ],
+        "output": [
+          "text"
+        ],
+        "tools": true,
+        "reasoning": true,
+        "temperature": true,
+        "reasoningOptions": [
+          {
+            "type": "effort",
+            "values": [
+              "minimal",
+              "low",
+              "medium",
+              "high"
+            ]
+          }
+        ]
+      }
+    },
+    "gemini-3.1-flash-image": {
+      "capacity": 131072,
+      "maxOutputTokens": 32768,
+      "capabilities": {
+        "sourceUrl": "https://models.dev/api.json",
+        "input": [
+          "text",
+          "image",
+          "video",
+          "pdf"
+        ],
+        "output": [
+          "text",
+          "image"
+        ],
+        "tools": false,
+        "reasoning": true,
+        "temperature": true,
+        "reasoningOptions": [
+          {
+            "type": "effort",
+            "values": [
+              "minimal",
+              "high"
+            ]
+          }
+        ]
+      }
+    },
+    "lyria-3-clip-preview": {
+      "capacity": 1048576,
+      "maxOutputTokens": 65536,
+      "capabilities": {
+        "sourceUrl": "https://models.dev/api.json",
+        "input": [
+          "text",
+          "image"
+        ],
+        "output": [
+          "text",
+          "audio"
+        ],
+        "tools": false,
+        "reasoning": false,
+        "temperature": true
+      }
+    },
+    "gemini-3.1-pro-preview": {
+      "capacity": 1048576,
+      "maxOutputTokens": 65536,
+      "capabilities": {
+        "sourceUrl": "https://models.dev/api.json",
+        "input": [
+          "text",
+          "image",
+          "video",
+          "audio",
+          "pdf"
+        ],
+        "output": [
+          "text"
+        ],
+        "tools": true,
+        "reasoning": true,
+        "temperature": true,
+        "reasoningOptions": [
+          {
+            "type": "effort",
+            "values": [
+              "low",
+              "medium",
+              "high"
+            ]
+          }
+        ]
+      }
+    },
+    "gemini-2.5-computer-use-preview-10-2025": {
+      "capacity": 128000,
+      "maxOutputTokens": 64000,
+      "capabilities": {
+        "sourceUrl": "https://models.dev/api.json",
+        "input": [
+          "text",
+          "image"
+        ],
+        "output": [
+          "text"
+        ],
+        "tools": true,
+        "reasoning": true,
+        "temperature": true
+      }
+    },
+    "gemini-3.5-flash": {
+      "capacity": 1048576,
+      "maxOutputTokens": 65536,
+      "capabilities": {
+        "sourceUrl": "https://models.dev/api.json",
+        "input": [
+          "text",
+          "image",
+          "video",
+          "audio",
+          "pdf"
+        ],
+        "output": [
+          "text"
+        ],
+        "tools": true,
+        "reasoning": true,
+        "temperature": true,
+        "reasoningOptions": [
+          {
+            "type": "effort",
+            "values": [
+              "minimal",
+              "low",
+              "medium",
+              "high"
+            ]
+          }
+        ]
+      }
+    },
+    "gemini-2.5-pro": {
+      "capacity": 1048576,
+      "maxOutputTokens": 65536,
+      "capabilities": {
+        "sourceUrl": "https://models.dev/api.json",
+        "input": [
+          "text",
+          "image",
+          "audio",
+          "video",
+          "pdf"
+        ],
+        "output": [
+          "text"
+        ],
+        "tools": true,
+        "reasoning": true,
+        "temperature": true,
+        "reasoningOptions": [
+          {
+            "type": "budget_tokens",
+            "min": 128,
+            "max": 32768
+          }
+        ]
+      }
+    },
+    "gemini-3-pro-image": {
+      "capacity": 65536,
+      "maxOutputTokens": 32768,
+      "capabilities": {
+        "sourceUrl": "https://models.dev/api.json",
+        "input": [
+          "text",
+          "image"
+        ],
+        "output": [
+          "text",
+          "image"
+        ],
+        "tools": false,
+        "reasoning": true,
+        "temperature": true,
+        "reasoningOptions": [
+          {
+            "type": "effort",
+            "values": [
+              "low",
+              "high"
+            ]
+          }
+        ]
+      }
+    },
+    "gemini-2.5-flash": {
+      "capacity": 1048576,
+      "maxOutputTokens": 65536,
+      "capabilities": {
+        "sourceUrl": "https://models.dev/api.json",
+        "input": [
+          "text",
+          "image",
+          "audio",
+          "video",
+          "pdf"
+        ],
+        "output": [
+          "text"
+        ],
+        "tools": true,
+        "reasoning": true,
+        "temperature": true,
+        "reasoningOptions": [
+          {
+            "type": "toggle"
+          },
+          {
+            "type": "budget_tokens",
+            "min": 0,
+            "max": 24576
+          }
+        ]
+      }
+    },
+    "gemini-2.5-flash-preview-tts": {
+      "capacity": 8192,
+      "maxOutputTokens": 16384,
+      "capabilities": {
+        "sourceUrl": "https://models.dev/api.json",
+        "input": [
+          "text"
+        ],
+        "output": [
+          "audio"
+        ],
+        "tools": false,
+        "reasoning": false,
+        "temperature": true
+      }
+    },
+    "gemini-3.1-flash-lite-image": {
+      "capacity": 65536,
+      "maxOutputTokens": 4096,
+      "capabilities": {
+        "sourceUrl": "https://models.dev/api.json",
+        "input": [
+          "text",
+          "image"
+        ],
+        "output": [
+          "text",
+          "image"
+        ],
+        "tools": true,
+        "reasoning": true,
+        "temperature": true,
+        "reasoningOptions": [
+          {
+            "type": "effort",
+            "values": [
+              "minimal",
+              "high"
+            ]
+          }
+        ]
+      }
+    },
+    "deep-research-preview-04-2026": {
+      "capacity": 131072,
+      "maxOutputTokens": 65536,
+      "capabilities": {
+        "sourceUrl": "https://models.dev/api.json",
+        "input": [
+          "text",
+          "image",
+          "video",
+          "audio",
+          "pdf"
+        ],
+        "output": [
+          "text",
+          "image"
+        ],
+        "tools": true,
+        "reasoning": true,
+        "temperature": true
+      }
+    },
+    "deep-research-max-preview-04-2026": {
+      "capacity": 131072,
+      "maxOutputTokens": 65536,
+      "capabilities": {
+        "sourceUrl": "https://models.dev/api.json",
+        "input": [
+          "text",
+          "image",
+          "video",
+          "audio",
+          "pdf"
+        ],
+        "output": [
+          "text",
+          "image"
+        ],
+        "tools": true,
+        "reasoning": true,
+        "temperature": true
+      }
+    },
+    "veo-3.1-fast-generate-preview": {
+      "capacity": null,
+      "maxOutputTokens": 8192,
+      "capabilities": {
+        "sourceUrl": "https://models.dev/api.json",
+        "input": [
+          "text",
+          "image",
+          "video"
+        ],
+        "output": [
+          "video"
+        ],
+        "tools": false,
+        "reasoning": false,
+        "temperature": false
+      }
+    },
+    "gemini-3.7-flash": {
+      "capacity": 1048576,
+      "maxOutputTokens": 65536,
+      "capabilities": {
+        "sourceUrl": "https://models.dev/api.json",
+        "input": [
+          "text",
+          "image",
+          "video",
+          "audio",
+          "pdf"
+        ],
+        "output": [
+          "text"
+        ],
+        "tools": true,
+        "reasoning": true,
+        "temperature": true,
+        "reasoningOptions": [
+          {
+            "type": "effort",
+            "values": [
+              "low",
+              "medium",
+              "high"
+            ]
+          }
+        ]
+      }
+    },
+    "veo-3.1-generate-preview": {
+      "capacity": null,
+      "maxOutputTokens": 8192,
+      "capabilities": {
+        "sourceUrl": "https://models.dev/api.json",
+        "input": [
+          "text",
+          "image"
+        ],
+        "output": [
+          "video"
+        ],
+        "tools": false,
+        "reasoning": false,
+        "temperature": false
+      }
+    },
+    "gemini-3.1-pro-preview-customtools": {
+      "capacity": 1048576,
+      "maxOutputTokens": 65536,
+      "capabilities": {
+        "sourceUrl": "https://models.dev/api.json",
+        "input": [
+          "text",
+          "image",
+          "video",
+          "audio",
+          "pdf"
+        ],
+        "output": [
+          "text"
+        ],
+        "tools": true,
+        "reasoning": true,
+        "temperature": true,
+        "reasoningOptions": [
+          {
+            "type": "effort",
+            "values": [
+              "low",
+              "medium",
+              "high"
+            ]
+          }
+        ]
+      }
+    },
+    "gemini-3-flash-preview": {
+      "capacity": 1048576,
+      "maxOutputTokens": 65536,
+      "capabilities": {
+        "sourceUrl": "https://models.dev/api.json",
+        "input": [
+          "text",
+          "image",
+          "video",
+          "audio",
+          "pdf"
+        ],
+        "output": [
+          "text"
+        ],
+        "tools": true,
+        "reasoning": true,
+        "temperature": true,
+        "reasoningOptions": [
+          {
+            "type": "effort",
+            "values": [
+              "minimal",
+              "low",
+              "medium",
+              "high"
+            ]
+          }
+        ]
+      }
+    },
+    "gemini-3.8-flash": {
+      "capacity": 1048576,
+      "maxOutputTokens": 65536,
+      "capabilities": {
+        "sourceUrl": "https://models.dev/api.json",
+        "input": [
+          "text",
+          "image",
+          "video",
+          "audio",
+          "pdf"
+        ],
+        "output": [
+          "text"
+        ],
+        "tools": true,
+        "reasoning": true,
+        "temperature": true,
+        "reasoningOptions": [
+          {
+            "type": "effort",
+            "values": [
+              "low",
+              "medium",
+              "high"
+            ]
+          }
+        ]
+      }
+    },
+    "gemini-3.5-live-translate-preview": {
+      "capacity": 16384,
+      "maxOutputTokens": 32768,
+      "capabilities": {
+        "sourceUrl": "https://models.dev/api.json",
+        "input": [
+          "audio"
+        ],
+        "output": [
+          "audio",
+          "text"
+        ],
+        "tools": false,
+        "reasoning": false,
+        "temperature": true
+      }
+    },
+    "gemini-2.5-flash-lite": {
+      "capacity": 1048576,
+      "maxOutputTokens": 65536,
+      "capabilities": {
+        "sourceUrl": "https://models.dev/api.json",
+        "input": [
+          "text",
+          "image",
+          "audio",
+          "video",
+          "pdf"
+        ],
+        "output": [
+          "text"
+        ],
+        "tools": true,
+        "reasoning": true,
+        "temperature": true,
+        "reasoningOptions": [
+          {
+            "type": "toggle"
+          },
+          {
+            "type": "budget_tokens",
+            "min": 512,
+            "max": 24576
+          }
+        ]
+      }
+    },
+    "gemini-embedding-001": {
+      "capacity": 2048,
+      "maxOutputTokens": 1,
+      "capabilities": {
+        "sourceUrl": "https://models.dev/api.json",
+        "input": [
+          "text"
+        ],
+        "output": [
+          "text"
+        ],
+        "tools": false,
+        "reasoning": false,
+        "temperature": false
+      }
+    },
+    "gemini-3.1-flash-lite-preview": {
+      "capacity": 1048576,
+      "maxOutputTokens": 65536,
+      "capabilities": {
+        "sourceUrl": "https://models.dev/api.json",
+        "input": [
+          "text",
+          "image",
+          "video",
+          "audio",
+          "pdf"
+        ],
+        "output": [
+          "text"
+        ],
+        "tools": true,
+        "reasoning": true,
+        "temperature": true,
+        "reasoningOptions": [
+          {
+            "type": "effort",
+            "values": [
+              "minimal",
+              "low",
+              "medium",
+              "high"
+            ]
+          }
+        ]
+      }
+    },
+    "gemini-3.1-flash-live-preview": {
+      "capacity": 131072,
+      "maxOutputTokens": 65536,
+      "capabilities": {
+        "sourceUrl": "https://models.dev/api.json",
+        "input": [
+          "text",
+          "image",
+          "video",
+          "audio"
+        ],
+        "output": [
+          "text",
+          "audio"
+        ],
+        "tools": true,
+        "reasoning": true,
+        "temperature": true,
+        "reasoningOptions": [
+          {
+            "type": "effort",
+            "values": [
+              "minimal",
+              "low",
+              "medium",
+              "high"
+            ]
+          }
+        ]
+      }
+    },
+    "gemini-4-argon": {
+      "capacity": 1048576,
+      "maxOutputTokens": 32768,
+      "capabilities": {
+        "sourceUrl": "https://models.dev/api.json",
+        "input": [
+          "text",
+          "image",
+          "video",
+          "audio",
+          "pdf"
+        ],
+        "output": [
+          "text"
+        ],
+        "tools": true,
+        "reasoning": true,
+        "temperature": true,
+        "reasoningOptions": [
+          {
+            "type": "effort",
+            "values": [
+              "low",
+              "medium",
+              "high"
+            ]
+          }
+        ]
+      }
+    },
+    "gemini-3.1-flash-lite": {
+      "capacity": 1048576,
+      "maxOutputTokens": 65536,
+      "capabilities": {
+        "sourceUrl": "https://models.dev/api.json",
+        "input": [
+          "text",
+          "image",
+          "video",
+          "audio",
+          "pdf"
+        ],
+        "output": [
+          "text"
+        ],
+        "tools": true,
+        "reasoning": true,
+        "temperature": true,
+        "reasoningOptions": [
+          {
+            "type": "effort",
+            "values": [
+              "minimal",
+              "low",
+              "medium",
+              "high"
+            ]
+          }
+        ]
+      }
+    },
+    "chatgpt-image-latest": {
+      "capacity": null,
+      "capabilities": {
+        "sourceUrl": "https://models.dev/api.json",
+        "input": [
+          "text",
+          "image"
+        ],
+        "output": [
+          "text",
+          "image"
+        ],
+        "tools": false,
+        "reasoning": false,
+        "temperature": false
+      }
+    },
+    "gpt-5.4": {
+      "capacity": 1050000,
+      "maxInputTokens": 922000,
+      "maxOutputTokens": 128000,
+      "capabilities": {
+        "sourceUrl": "https://models.dev/api.json",
+        "input": [
+          "text",
+          "image",
+          "pdf"
+        ],
+        "output": [
+          "text"
+        ],
+        "tools": true,
+        "reasoning": true,
+        "temperature": true,
+        "reasoningOptions": [
+          {
+            "type": "effort",
+            "values": [
+              "none",
+              "low",
+              "medium",
+              "high",
+              "xhigh"
+            ]
+          }
+        ]
+      }
+    },
+    "gpt-5.4-pro": {
+      "capacity": 1050000,
+      "maxInputTokens": 922000,
+      "maxOutputTokens": 128000,
+      "capabilities": {
+        "sourceUrl": "https://models.dev/api.json",
+        "input": [
+          "text",
+          "image"
+        ],
+        "output": [
+          "text"
+        ],
+        "tools": true,
+        "reasoning": true,
+        "temperature": false,
+        "reasoningOptions": [
+          {
+            "type": "effort",
+            "values": [
+              "medium",
+              "high",
+              "xhigh"
+            ]
+          }
+        ]
+      }
+    },
+    "gpt-3.5-turbo": {
+      "capacity": 16385,
+      "maxOutputTokens": 4096,
+      "capabilities": {
+        "sourceUrl": "https://models.dev/api.json",
+        "input": [
+          "text"
+        ],
+        "output": [
+          "text"
+        ],
+        "tools": false,
+        "reasoning": false,
+        "temperature": true
+      }
+    },
+    "gpt-5.5-pro": {
+      "capacity": 1050000,
+      "maxInputTokens": 922000,
+      "maxOutputTokens": 128000,
+      "capabilities": {
+        "sourceUrl": "https://models.dev/api.json",
+        "input": [
+          "text",
+          "image",
+          "pdf"
+        ],
+        "output": [
+          "text"
+        ],
+        "tools": true,
+        "reasoning": true,
+        "temperature": false,
+        "reasoningOptions": [
+          {
+            "type": "effort",
+            "values": [
+              "medium",
+              "high",
+              "xhigh"
+            ]
+          }
+        ]
+      }
+    },
+    "text-embedding-3-small": {
+      "capacity": 8191,
+      "maxOutputTokens": 1536,
+      "capabilities": {
+        "sourceUrl": "https://models.dev/api.json",
+        "input": [
+          "text"
+        ],
+        "output": [
+          "text"
+        ],
+        "tools": false,
+        "reasoning": false,
+        "temperature": false
+      }
+    },
+    "gpt-5.4-nano": {
+      "capacity": 400000,
+      "maxInputTokens": 272000,
+      "maxOutputTokens": 128000,
+      "capabilities": {
+        "sourceUrl": "https://models.dev/api.json",
+        "input": [
+          "text",
+          "image"
+        ],
+        "output": [
+          "text"
+        ],
+        "tools": true,
+        "reasoning": true,
+        "temperature": true,
+        "reasoningOptions": [
+          {
+            "type": "effort",
+            "values": [
+              "none",
+              "low",
+              "medium",
+              "high",
+              "xhigh"
+            ]
+          }
+        ]
+      }
+    },
+    "gpt-realtime-2.1": {
+      "capacity": 128000,
+      "maxInputTokens": 96000,
+      "maxOutputTokens": 32000,
+      "capabilities": {
+        "sourceUrl": "https://models.dev/api.json",
+        "input": [
+          "text",
+          "audio",
+          "image"
+        ],
+        "output": [
+          "text",
+          "audio"
+        ],
+        "tools": true,
+        "reasoning": true,
+        "temperature": false,
+        "reasoningOptions": [
+          {
+            "type": "effort",
+            "values": [
+              "minimal",
+              "low",
+              "medium",
+              "high",
+              "xhigh"
+            ]
+          }
+        ]
+      }
+    },
+    "gpt-4o-2024-05-13": {
+      "capacity": 128000,
+      "maxOutputTokens": 4096,
+      "capabilities": {
+        "sourceUrl": "https://models.dev/api.json",
+        "input": [
+          "text",
+          "image"
+        ],
+        "output": [
+          "text"
+        ],
+        "tools": true,
+        "reasoning": false,
+        "temperature": true
+      }
+    },
+    "gpt-4o": {
+      "capacity": 128000,
+      "maxOutputTokens": 16384,
+      "capabilities": {
+        "sourceUrl": "https://models.dev/api.json",
+        "input": [
+          "text",
+          "image",
+          "pdf"
+        ],
+        "output": [
+          "text"
+        ],
+        "tools": true,
+        "reasoning": false,
+        "temperature": true
+      }
+    },
+    "gpt-5-mini": {
+      "capacity": 400000,
+      "maxInputTokens": 272000,
+      "maxOutputTokens": 128000,
+      "capabilities": {
+        "sourceUrl": "https://models.dev/api.json",
+        "input": [
+          "text",
+          "image"
+        ],
+        "output": [
+          "text"
+        ],
+        "tools": true,
+        "reasoning": true,
+        "temperature": false,
+        "reasoningOptions": [
+          {
+            "type": "effort",
+            "values": [
+              "minimal",
+              "low",
+              "medium",
+              "high"
+            ]
+          }
+        ]
+      }
+    },
+    "gpt-image-2": {
+      "capacity": null,
+      "capabilities": {
+        "sourceUrl": "https://models.dev/api.json",
+        "input": [
+          "text",
+          "image"
+        ],
+        "output": [
+          "image"
+        ],
+        "tools": false,
+        "reasoning": false,
+        "temperature": false
+      }
+    },
+    "gpt-5.2-pro": {
+      "capacity": 400000,
+      "maxInputTokens": 272000,
+      "maxOutputTokens": 128000,
+      "capabilities": {
+        "sourceUrl": "https://models.dev/api.json",
+        "input": [
+          "text",
+          "image"
+        ],
+        "output": [
+          "text"
+        ],
+        "tools": true,
+        "reasoning": true,
+        "temperature": false,
+        "reasoningOptions": [
+          {
+            "type": "effort",
+            "values": [
+              "medium",
+              "high",
+              "xhigh"
+            ]
+          }
+        ]
+      }
+    },
+    "o4-mini": {
+      "capacity": 200000,
+      "maxOutputTokens": 100000,
+      "capabilities": {
+        "sourceUrl": "https://models.dev/api.json",
+        "input": [
+          "text",
+          "image"
+        ],
+        "output": [
+          "text"
+        ],
+        "tools": true,
+        "reasoning": true,
+        "temperature": false,
+        "reasoningOptions": [
+          {
+            "type": "effort",
+            "values": [
+              "low",
+              "medium",
+              "high"
+            ]
+          }
+        ]
+      }
+    },
+    "o3-mini": {
+      "capacity": 200000,
+      "maxOutputTokens": 100000,
+      "capabilities": {
+        "sourceUrl": "https://models.dev/api.json",
+        "input": [
+          "text"
+        ],
+        "output": [
+          "text"
+        ],
+        "tools": true,
+        "reasoning": true,
+        "temperature": false,
+        "reasoningOptions": [
+          {
+            "type": "effort",
+            "values": [
+              "low",
+              "medium",
+              "high"
+            ]
+          }
+        ]
+      }
+    },
+    "text-embedding-ada-002": {
+      "capacity": 8192,
+      "maxOutputTokens": 1536,
+      "capabilities": {
+        "sourceUrl": "https://models.dev/api.json",
+        "input": [
+          "text"
+        ],
+        "output": [
+          "text"
+        ],
+        "tools": false,
+        "reasoning": false,
+        "temperature": false
+      }
+    },
+    "gpt-4": {
+      "capacity": 8192,
+      "maxOutputTokens": 8192,
+      "capabilities": {
+        "sourceUrl": "https://models.dev/api.json",
+        "input": [
+          "text"
+        ],
+        "output": [
+          "text"
+        ],
+        "tools": true,
+        "reasoning": false,
+        "temperature": true
+      }
+    },
+    "gpt-5.3-codex": {
+      "capacity": 400000,
+      "maxInputTokens": 272000,
+      "maxOutputTokens": 128000,
+      "capabilities": {
+        "sourceUrl": "https://models.dev/api.json",
+        "input": [
+          "text",
+          "image",
+          "pdf"
+        ],
+        "output": [
+          "text"
+        ],
+        "tools": true,
+        "reasoning": true,
+        "temperature": true,
+        "reasoningOptions": [
+          {
+            "type": "effort",
+            "values": [
+              "none",
+              "low",
+              "medium",
+              "high",
+              "xhigh"
+            ]
+          }
+        ]
+      }
+    },
+    "gpt-4.1-nano": {
+      "capacity": 1047576,
+      "maxOutputTokens": 32768,
+      "capabilities": {
+        "sourceUrl": "https://models.dev/api.json",
+        "input": [
+          "text",
+          "image"
+        ],
+        "output": [
+          "text"
+        ],
+        "tools": true,
+        "reasoning": false,
+        "temperature": true
+      }
+    },
+    "gpt-5-nano": {
+      "capacity": 400000,
+      "maxInputTokens": 272000,
+      "maxOutputTokens": 128000,
+      "capabilities": {
+        "sourceUrl": "https://models.dev/api.json",
+        "input": [
+          "text",
+          "image"
+        ],
+        "output": [
+          "text"
+        ],
+        "tools": true,
+        "reasoning": true,
+        "temperature": false,
+        "reasoningOptions": [
+          {
+            "type": "effort",
+            "values": [
+              "minimal",
+              "low",
+              "medium",
+              "high"
+            ]
+          }
+        ]
+      }
+    },
+    "gpt-5.6": {
+      "capacity": 1050000,
+      "maxInputTokens": 922000,
+      "maxOutputTokens": 128000,
+      "capabilities": {
+        "sourceUrl": "https://models.dev/api.json",
+        "input": [
+          "text",
+          "image",
+          "pdf"
+        ],
+        "output": [
+          "text"
+        ],
+        "tools": true,
+        "reasoning": true,
+        "temperature": false,
+        "reasoningOptions": [
+          {
+            "type": "effort",
+            "values": [
+              "none",
+              "low",
+              "medium",
+              "high",
+              "xhigh",
+              "max"
+            ]
+          }
+        ]
+      }
+    },
+    "gpt-5.2-chat-latest": {
+      "capacity": 128000,
+      "maxOutputTokens": 16384,
+      "capabilities": {
+        "sourceUrl": "https://models.dev/api.json",
+        "input": [
+          "text",
+          "image"
+        ],
+        "output": [
+          "text"
+        ],
+        "tools": true,
+        "reasoning": true,
+        "temperature": false,
+        "reasoningOptions": [
+          {
+            "type": "effort",
+            "values": [
+              "medium"
+            ]
+          }
+        ]
+      }
+    },
+    "o1": {
+      "capacity": 200000,
+      "maxOutputTokens": 100000,
+      "capabilities": {
+        "sourceUrl": "https://models.dev/api.json",
+        "input": [
+          "text",
+          "image",
+          "pdf"
+        ],
+        "output": [
+          "text"
+        ],
+        "tools": true,
+        "reasoning": true,
+        "temperature": false,
+        "reasoningOptions": [
+          {
+            "type": "effort",
+            "values": [
+              "low",
+              "medium",
+              "high"
+            ]
+          }
+        ]
+      }
+    },
+    "gpt-5-pro": {
+      "capacity": 400000,
+      "maxInputTokens": 272000,
+      "maxOutputTokens": 272000,
+      "capabilities": {
+        "sourceUrl": "https://models.dev/api.json",
+        "input": [
+          "text",
+          "image"
+        ],
+        "output": [
+          "text"
+        ],
+        "tools": true,
+        "reasoning": true,
+        "temperature": false,
+        "reasoningOptions": [
+          {
+            "type": "effort",
+            "values": [
+              "high"
+            ]
+          }
+        ]
+      }
+    },
+    "gpt-5.3-codex-spark": {
+      "capacity": 128000,
+      "maxInputTokens": 100000,
+      "maxOutputTokens": 32000,
+      "capabilities": {
+        "sourceUrl": "https://models.dev/api.json",
+        "input": [
+          "text",
+          "image",
+          "pdf"
+        ],
+        "output": [
+          "text"
+        ],
+        "tools": true,
+        "reasoning": true,
+        "temperature": false,
+        "reasoningOptions": [
+          {
+            "type": "effort",
+            "values": [
+              "none",
+              "low",
+              "medium",
+              "high",
+              "xhigh"
+            ]
+          }
+        ]
+      }
+    },
+    "gpt-6.1-sol": {
+      "capacity": 1050000,
+      "maxInputTokens": 922000,
+      "maxOutputTokens": 128000,
+      "capabilities": {
+        "sourceUrl": "https://models.dev/api.json",
+        "input": [
+          "text",
+          "image",
+          "pdf"
+        ],
+        "output": [
+          "text"
+        ],
+        "tools": true,
+        "reasoning": true,
+        "temperature": false,
+        "reasoningOptions": [
+          {
+            "type": "effort",
+            "values": [
+              "low",
+              "medium",
+              "high",
+              "xhigh",
+              "max"
+            ]
+          }
+        ]
+      }
+    },
+    "text-embedding-3-large": {
+      "capacity": 8191,
+      "maxOutputTokens": 3072,
+      "capabilities": {
+        "sourceUrl": "https://models.dev/api.json",
+        "input": [
+          "text"
+        ],
+        "output": [
+          "text"
+        ],
+        "tools": false,
+        "reasoning": false,
+        "temperature": false
+      }
+    },
+    "gpt-4o-2024-08-06": {
+      "capacity": 128000,
+      "maxOutputTokens": 16384,
+      "capabilities": {
+        "sourceUrl": "https://models.dev/api.json",
+        "input": [
+          "text",
+          "image"
+        ],
+        "output": [
+          "text"
+        ],
+        "tools": true,
+        "reasoning": false,
+        "temperature": true
+      }
+    },
+    "gpt-6-astra": {
+      "capacity": 1050000,
+      "maxInputTokens": 922000,
+      "maxOutputTokens": 128000,
+      "capabilities": {
+        "sourceUrl": "https://models.dev/api.json",
+        "input": [
+          "text",
+          "image",
+          "pdf"
+        ],
+        "output": [
+          "text"
+        ],
+        "tools": true,
+        "reasoning": true,
+        "temperature": false,
+        "reasoningOptions": [
+          {
+            "type": "effort",
+            "values": [
+              "low",
+              "medium",
+              "high",
+              "xhigh",
+              "max"
+            ]
+          }
+        ]
+      }
+    },
+    "gpt-5.1": {
+      "capacity": 400000,
+      "maxInputTokens": 272000,
+      "maxOutputTokens": 128000,
+      "capabilities": {
+        "sourceUrl": "https://models.dev/api.json",
+        "input": [
+          "text",
+          "image"
+        ],
+        "output": [
+          "text"
+        ],
+        "tools": true,
+        "reasoning": true,
+        "temperature": true,
+        "reasoningOptions": [
+          {
+            "type": "effort",
+            "values": [
+              "none",
+              "low",
+              "medium",
+              "high"
+            ]
+          }
+        ]
+      }
+    },
+    "gpt-4o-mini": {
+      "capacity": 128000,
+      "maxOutputTokens": 16384,
+      "capabilities": {
+        "sourceUrl": "https://models.dev/api.json",
+        "input": [
+          "text",
+          "image",
+          "pdf"
+        ],
+        "output": [
+          "text"
+        ],
+        "tools": true,
+        "reasoning": false,
+        "temperature": true
+      }
+    },
+    "o3-pro": {
+      "capacity": 200000,
+      "maxOutputTokens": 100000,
+      "capabilities": {
+        "sourceUrl": "https://models.dev/api.json",
+        "input": [
+          "text",
+          "image"
+        ],
+        "output": [
+          "text"
+        ],
+        "tools": true,
+        "reasoning": true,
+        "temperature": false,
+        "reasoningOptions": [
+          {
+            "type": "effort",
+            "values": [
+              "low",
+              "medium",
+              "high"
+            ]
+          }
+        ]
+      }
+    },
+    "gpt-image-1": {
+      "capacity": null,
+      "capabilities": {
+        "sourceUrl": "https://models.dev/api.json",
+        "input": [
+          "text",
+          "image"
+        ],
+        "output": [
+          "image"
+        ],
+        "tools": false,
+        "reasoning": false,
+        "temperature": false
+      }
+    },
+    "gpt-daybreak-blue-latest": {
+      "capacity": 1050000,
+      "maxInputTokens": 922000,
+      "maxOutputTokens": 128000,
+      "capabilities": {
+        "sourceUrl": "https://models.dev/api.json",
+        "input": [
+          "text",
+          "image",
+          "pdf"
+        ],
+        "output": [
+          "text"
+        ],
+        "tools": true,
+        "reasoning": true,
+        "temperature": false,
+        "reasoningOptions": [
+          {
+            "type": "effort",
+            "values": [
+              "none",
+              "low",
+              "medium",
+              "high",
+              "xhigh",
+              "max"
+            ]
+          }
+        ]
+      }
+    },
+    "gpt-5.4-mini": {
+      "capacity": 400000,
+      "maxInputTokens": 272000,
+      "maxOutputTokens": 128000,
+      "capabilities": {
+        "sourceUrl": "https://models.dev/api.json",
+        "input": [
+          "text",
+          "image"
+        ],
+        "output": [
+          "text"
+        ],
+        "tools": true,
+        "reasoning": true,
+        "temperature": true,
+        "reasoningOptions": [
+          {
+            "type": "effort",
+            "values": [
+              "none",
+              "low",
+              "medium",
+              "high",
+              "xhigh"
+            ]
+          }
+        ]
+      }
+    },
+    "gpt-5.6-luna": {
+      "capacity": 1050000,
+      "maxInputTokens": 922000,
+      "maxOutputTokens": 128000,
+      "capabilities": {
+        "sourceUrl": "https://models.dev/api.json",
+        "input": [
+          "text",
+          "image",
+          "pdf"
+        ],
+        "output": [
+          "text"
+        ],
+        "tools": true,
+        "reasoning": true,
+        "temperature": false,
+        "reasoningOptions": [
+          {
+            "type": "effort",
+            "values": [
+              "none",
+              "low",
+              "medium",
+              "high",
+              "xhigh",
+              "max"
+            ]
+          }
+        ]
+      }
+    },
+    "gpt-5.2": {
+      "capacity": 400000,
+      "maxInputTokens": 272000,
+      "maxOutputTokens": 128000,
+      "capabilities": {
+        "sourceUrl": "https://models.dev/api.json",
+        "input": [
+          "text",
+          "image"
+        ],
+        "output": [
+          "text"
+        ],
+        "tools": true,
+        "reasoning": true,
+        "temperature": true,
+        "reasoningOptions": [
+          {
+            "type": "effort",
+            "values": [
+              "none",
+              "low",
+              "medium",
+              "high",
+              "xhigh"
+            ]
+          }
+        ]
+      }
+    },
+    "gpt-5.5": {
+      "capacity": 1050000,
+      "maxInputTokens": 922000,
+      "maxOutputTokens": 128000,
+      "capabilities": {
+        "sourceUrl": "https://models.dev/api.json",
+        "input": [
+          "text",
+          "image",
+          "pdf"
+        ],
+        "output": [
+          "text"
+        ],
+        "tools": true,
+        "reasoning": true,
+        "temperature": false,
+        "reasoningOptions": [
+          {
+            "type": "effort",
+            "values": [
+              "none",
+              "low",
+              "medium",
+              "high",
+              "xhigh"
+            ]
+          }
+        ]
+      }
+    },
+    "gpt-4.1": {
+      "capacity": 1047576,
+      "maxOutputTokens": 32768,
+      "capabilities": {
+        "sourceUrl": "https://models.dev/api.json",
+        "input": [
+          "text",
+          "image",
+          "pdf"
+        ],
+        "output": [
+          "text"
+        ],
+        "tools": true,
+        "reasoning": false,
+        "temperature": true
+      }
+    },
+    "gpt-4o-2024-11-20": {
+      "capacity": 128000,
+      "maxOutputTokens": 16384,
+      "capabilities": {
+        "sourceUrl": "https://models.dev/api.json",
+        "input": [
+          "text",
+          "image"
+        ],
+        "output": [
+          "text"
+        ],
+        "tools": true,
+        "reasoning": false,
+        "temperature": true
+      }
+    },
+    "gpt-4.1-mini": {
+      "capacity": 1047576,
+      "maxOutputTokens": 32768,
+      "capabilities": {
+        "sourceUrl": "https://models.dev/api.json",
+        "input": [
+          "text",
+          "image",
+          "pdf"
+        ],
+        "output": [
+          "text"
+        ],
+        "tools": true,
+        "reasoning": false,
+        "temperature": true
+      }
+    },
+    "gpt-6-luna": {
+      "capacity": 1050000,
+      "maxInputTokens": 922000,
+      "maxOutputTokens": 128000,
+      "capabilities": {
+        "sourceUrl": "https://models.dev/api.json",
+        "input": [
+          "text",
+          "image",
+          "pdf"
+        ],
+        "output": [
+          "text"
+        ],
+        "tools": true,
+        "reasoning": true,
+        "temperature": false,
+        "reasoningOptions": [
+          {
+            "type": "effort",
+            "values": [
+              "none",
+              "low",
+              "medium",
+              "high",
+              "xhigh",
+              "max"
+            ]
+          }
+        ]
+      }
+    },
+    "gpt-5.3-chat-latest": {
+      "capacity": 128000,
+      "maxOutputTokens": 16384,
+      "capabilities": {
+        "sourceUrl": "https://models.dev/api.json",
+        "input": [
+          "text",
+          "image"
+        ],
+        "output": [
+          "text"
+        ],
+        "tools": true,
+        "reasoning": false,
+        "temperature": true
+      }
+    },
+    "gpt-image-1-mini": {
+      "capacity": null,
+      "capabilities": {
+        "sourceUrl": "https://models.dev/api.json",
+        "input": [
+          "text",
+          "image"
+        ],
+        "output": [
+          "text",
+          "image"
+        ],
+        "tools": false,
+        "reasoning": false,
+        "temperature": false
+      }
+    },
+    "gpt-image-1.5": {
+      "capacity": null,
+      "capabilities": {
+        "sourceUrl": "https://models.dev/api.json",
+        "input": [
+          "text",
+          "image"
+        ],
+        "output": [
+          "text",
+          "image"
+        ],
+        "tools": false,
+        "reasoning": false,
+        "temperature": false
+      }
+    },
+    "gpt-5.6-terra": {
+      "capacity": 1050000,
+      "maxInputTokens": 922000,
+      "maxOutputTokens": 128000,
+      "capabilities": {
+        "sourceUrl": "https://models.dev/api.json",
+        "input": [
+          "text",
+          "image",
+          "pdf"
+        ],
+        "output": [
+          "text"
+        ],
+        "tools": true,
+        "reasoning": true,
+        "temperature": false,
+        "reasoningOptions": [
+          {
+            "type": "effort",
+            "values": [
+              "none",
+              "low",
+              "medium",
+              "high",
+              "xhigh",
+              "max"
+            ]
+          }
+        ]
+      }
+    },
+    "gpt-4-turbo": {
+      "capacity": 128000,
+      "maxOutputTokens": 4096,
+      "capabilities": {
+        "sourceUrl": "https://models.dev/api.json",
+        "input": [
+          "text",
+          "image"
+        ],
+        "output": [
+          "text"
+        ],
+        "tools": true,
+        "reasoning": false,
+        "temperature": true
+      }
+    },
+    "gpt-daybreak-red-latest": {
+      "capacity": 400000,
+      "maxInputTokens": 272000,
+      "maxOutputTokens": 128000,
+      "capabilities": {
+        "sourceUrl": "https://models.dev/api.json",
+        "input": [
+          "text",
+          "image"
+        ],
+        "output": [
+          "text"
+        ],
+        "tools": true,
+        "reasoning": true,
+        "temperature": false,
+        "reasoningOptions": [
+          {
+            "type": "effort",
+            "values": [
+              "none",
+              "low",
+              "medium",
+              "high",
+              "xhigh",
+              "max"
+            ]
+          }
+        ]
+      }
+    },
+    "o3": {
+      "capacity": 200000,
+      "maxOutputTokens": 100000,
+      "capabilities": {
+        "sourceUrl": "https://models.dev/api.json",
+        "input": [
+          "text",
+          "image",
+          "pdf"
+        ],
+        "output": [
+          "text"
+        ],
+        "tools": true,
+        "reasoning": true,
+        "temperature": false,
+        "reasoningOptions": [
+          {
+            "type": "effort",
+            "values": [
+              "low",
+              "medium",
+              "high"
+            ]
+          }
+        ]
+      }
+    },
+    "gpt-5": {
+      "capacity": 400000,
+      "maxInputTokens": 272000,
+      "maxOutputTokens": 128000,
+      "capabilities": {
+        "sourceUrl": "https://models.dev/api.json",
+        "input": [
+          "text",
+          "image"
+        ],
+        "output": [
+          "text"
+        ],
+        "tools": true,
+        "reasoning": true,
+        "temperature": false,
+        "reasoningOptions": [
+          {
+            "type": "effort",
+            "values": [
+              "minimal",
+              "low",
+              "medium",
+              "high"
+            ]
+          }
+        ]
+      }
+    },
+    "gpt-5.6-sol": {
+      "capacity": 1050000,
+      "maxInputTokens": 922000,
+      "maxOutputTokens": 128000,
+      "capabilities": {
+        "sourceUrl": "https://models.dev/api.json",
+        "input": [
+          "text",
+          "image",
+          "pdf"
+        ],
+        "output": [
+          "text"
+        ],
+        "tools": true,
+        "reasoning": true,
+        "temperature": false,
+        "reasoningOptions": [
+          {
+            "type": "effort",
+            "values": [
+              "none",
+              "low",
+              "medium",
+              "high",
+              "xhigh",
+              "max"
+            ]
+          }
+        ]
+      }
+    },
+    "gpt-6-sol": {
+      "capacity": 1050000,
+      "maxInputTokens": 922000,
+      "maxOutputTokens": 128000,
+      "capabilities": {
+        "sourceUrl": "https://models.dev/api.json",
+        "input": [
+          "text",
+          "image",
+          "pdf"
+        ],
+        "output": [
+          "text"
+        ],
+        "tools": true,
+        "reasoning": true,
+        "temperature": false,
+        "reasoningOptions": [
+          {
+            "type": "effort",
+            "values": [
+              "none",
+              "low",
+              "medium",
+              "high",
+              "xhigh",
+              "max"
+            ]
+          }
+        ]
+      }
+    },
+    "o1-pro": {
+      "capacity": 200000,
+      "maxOutputTokens": 100000,
+      "capabilities": {
+        "sourceUrl": "https://models.dev/api.json",
+        "input": [
+          "text",
+          "image"
+        ],
+        "output": [
+          "text"
+        ],
+        "tools": true,
+        "reasoning": true,
+        "temperature": false,
+        "reasoningOptions": [
+          {
+            "type": "effort",
+            "values": [
+              "low",
+              "medium",
+              "high"
+            ]
+          }
+        ]
+      }
+    },
+    "claude-haiku-4-5": {
+      "capacity": 200000,
+      "maxOutputTokens": 64000,
+      "capabilities": {
+        "sourceUrl": "https://models.dev/api.json",
+        "input": [
+          "text",
+          "image",
+          "pdf"
+        ],
+        "output": [
+          "text"
+        ],
+        "tools": true,
+        "reasoning": true,
+        "temperature": true,
+        "reasoningOptions": [
+          {
+            "type": "budget_tokens",
+            "min": 1024
+          }
+        ]
+      }
+    },
+    "claude-opus-4-5": {
+      "capacity": 200000,
+      "maxOutputTokens": 64000,
+      "capabilities": {
+        "sourceUrl": "https://models.dev/api.json",
+        "input": [
+          "text",
+          "image",
+          "pdf"
+        ],
+        "output": [
+          "text"
+        ],
+        "tools": true,
+        "reasoning": true,
+        "temperature": true,
+        "reasoningOptions": [
+          {
+            "type": "effort",
+            "values": [
+              "low",
+              "medium",
+              "high"
+            ]
+          },
+          {
+            "type": "budget_tokens",
+            "min": 1024
+          }
+        ]
+      }
+    },
+    "claude-sonnet-4-5": {
+      "capacity": 200000,
+      "maxOutputTokens": 64000,
+      "capabilities": {
+        "sourceUrl": "https://models.dev/api.json",
+        "input": [
+          "text",
+          "image",
+          "pdf"
+        ],
+        "output": [
+          "text"
+        ],
+        "tools": true,
+        "reasoning": true,
+        "temperature": true,
+        "reasoningOptions": [
+          {
+            "type": "budget_tokens",
+            "min": 1024
+          }
+        ]
+      }
+    },
+    "claude-opus-5-5": {
+      "capacity": 1000000,
+      "maxOutputTokens": 128000,
+      "capabilities": {
+        "sourceUrl": "https://models.dev/api.json",
+        "input": [
+          "text",
+          "image",
+          "pdf"
+        ],
+        "output": [
+          "text"
+        ],
+        "tools": true,
+        "reasoning": true,
+        "temperature": false,
+        "reasoningOptions": [
+          {
+            "type": "effort",
+            "values": [
+              "low",
+              "medium",
+              "high",
+              "xhigh",
+              "max"
+            ]
+          }
+        ]
+      }
+    },
+    "claude-fable-5-1": {
+      "capacity": 1000000,
+      "maxOutputTokens": 128000,
+      "capabilities": {
+        "sourceUrl": "https://models.dev/api.json",
+        "input": [
+          "text",
+          "image",
+          "pdf"
+        ],
+        "output": [
+          "text"
+        ],
+        "tools": true,
+        "reasoning": true,
+        "temperature": false,
+        "reasoningOptions": [
+          {
+            "type": "effort",
+            "values": [
+              "low",
+              "medium",
+              "high",
+              "xhigh",
+              "max"
+            ]
+          }
+        ]
+      }
+    },
+    "claude-opus-4-5-20251101": {
+      "capacity": 200000,
+      "maxOutputTokens": 64000,
+      "capabilities": {
+        "sourceUrl": "https://models.dev/api.json",
+        "input": [
+          "text",
+          "image",
+          "pdf"
+        ],
+        "output": [
+          "text"
+        ],
+        "tools": true,
+        "reasoning": true,
+        "temperature": true,
+        "reasoningOptions": [
+          {
+            "type": "effort",
+            "values": [
+              "low",
+              "medium",
+              "high"
+            ]
+          },
+          {
+            "type": "budget_tokens",
+            "min": 1024
+          }
+        ]
+      }
+    },
+    "claude-opus-5": {
+      "capacity": 1000000,
+      "maxOutputTokens": 128000,
+      "capabilities": {
+        "sourceUrl": "https://models.dev/api.json",
+        "input": [
+          "text",
+          "image",
+          "pdf"
+        ],
+        "output": [
+          "text"
+        ],
+        "tools": true,
+        "reasoning": true,
+        "temperature": false,
+        "reasoningOptions": [
+          {
+            "type": "effort",
+            "values": [
+              "low",
+              "medium",
+              "high",
+              "xhigh",
+              "max"
+            ]
+          }
+        ]
+      }
+    },
+    "claude-fable-5": {
+      "capacity": 1000000,
+      "maxOutputTokens": 128000,
+      "capabilities": {
+        "sourceUrl": "https://models.dev/api.json",
+        "input": [
+          "text",
+          "image",
+          "pdf"
+        ],
+        "output": [
+          "text"
+        ],
+        "tools": true,
+        "reasoning": true,
+        "temperature": false,
+        "reasoningOptions": [
+          {
+            "type": "effort",
+            "values": [
+              "low",
+              "medium",
+              "high",
+              "xhigh",
+              "max"
+            ]
+          }
+        ]
+      }
+    },
+    "claude-opus-4-8": {
+      "capacity": 1000000,
+      "maxOutputTokens": 128000,
+      "capabilities": {
+        "sourceUrl": "https://models.dev/api.json",
+        "input": [
+          "text",
+          "image",
+          "pdf"
+        ],
+        "output": [
+          "text"
+        ],
+        "tools": true,
+        "reasoning": true,
+        "temperature": false,
+        "reasoningOptions": [
+          {
+            "type": "effort",
+            "values": [
+              "low",
+              "medium",
+              "high",
+              "xhigh",
+              "max"
+            ]
+          }
+        ]
+      }
+    },
+    "claude-sonnet-4-5-20250929": {
+      "capacity": 200000,
+      "maxOutputTokens": 64000,
+      "capabilities": {
+        "sourceUrl": "https://models.dev/api.json",
+        "input": [
+          "text",
+          "image",
+          "pdf"
+        ],
+        "output": [
+          "text"
+        ],
+        "tools": true,
+        "reasoning": true,
+        "temperature": true,
+        "reasoningOptions": [
+          {
+            "type": "budget_tokens",
+            "min": 1024
+          }
+        ]
+      }
+    },
+    "claude-sonnet-5": {
+      "capacity": 1000000,
+      "maxOutputTokens": 128000,
+      "capabilities": {
+        "sourceUrl": "https://models.dev/api.json",
+        "input": [
+          "text",
+          "image",
+          "pdf"
+        ],
+        "output": [
+          "text"
+        ],
+        "tools": true,
+        "reasoning": true,
+        "temperature": false,
+        "reasoningOptions": [
+          {
+            "type": "toggle"
+          },
+          {
+            "type": "effort",
+            "values": [
+              "low",
+              "medium",
+              "high",
+              "xhigh",
+              "max"
+            ]
+          }
+        ]
+      }
+    },
+    "claude-opus-4-6": {
+      "capacity": 1000000,
+      "maxOutputTokens": 128000,
+      "capabilities": {
+        "sourceUrl": "https://models.dev/api.json",
+        "input": [
+          "text",
+          "image",
+          "pdf"
+        ],
+        "output": [
+          "text"
+        ],
+        "tools": true,
+        "reasoning": true,
+        "temperature": true,
+        "reasoningOptions": [
+          {
+            "type": "effort",
+            "values": [
+              "low",
+              "medium",
+              "high",
+              "max"
+            ]
+          },
+          {
+            "type": "budget_tokens",
+            "min": 1024
+          }
+        ]
+      }
+    },
+    "claude-haiku-4-5-20251001": {
+      "capacity": 200000,
+      "maxOutputTokens": 64000,
+      "capabilities": {
+        "sourceUrl": "https://models.dev/api.json",
+        "input": [
+          "text",
+          "image",
+          "pdf"
+        ],
+        "output": [
+          "text"
+        ],
+        "tools": true,
+        "reasoning": true,
+        "temperature": true,
+        "reasoningOptions": [
+          {
+            "type": "budget_tokens",
+            "min": 1024
+          }
+        ]
+      }
+    },
+    "claude-haiku-5-5": {
+      "capacity": 1000000,
+      "maxOutputTokens": 128000,
+      "capabilities": {
+        "sourceUrl": "https://models.dev/api.json",
+        "input": [
+          "text",
+          "image",
+          "pdf"
+        ],
+        "output": [
+          "text"
+        ],
+        "tools": true,
+        "reasoning": true,
+        "temperature": false,
+        "reasoningOptions": [
+          {
+            "type": "toggle"
+          },
+          {
+            "type": "effort",
+            "values": [
+              "low",
+              "medium",
+              "high",
+              "xhigh",
+              "max"
+            ]
+          }
+        ]
+      }
+    },
+    "claude-sonnet-4-6": {
+      "capacity": 1000000,
+      "maxOutputTokens": 128000,
+      "capabilities": {
+        "sourceUrl": "https://models.dev/api.json",
+        "input": [
+          "text",
+          "image",
+          "pdf"
+        ],
+        "output": [
+          "text"
+        ],
+        "tools": true,
+        "reasoning": true,
+        "temperature": true,
+        "reasoningOptions": [
+          {
+            "type": "effort",
+            "values": [
+              "low",
+              "medium",
+              "high",
+              "max"
+            ]
+          },
+          {
+            "type": "budget_tokens",
+            "min": 1024
+          }
+        ]
+      }
+    },
+    "claude-sonnet-5-5": {
+      "capacity": 1000000,
+      "maxOutputTokens": 128000,
+      "capabilities": {
+        "sourceUrl": "https://models.dev/api.json",
+        "input": [
+          "text",
+          "image",
+          "pdf"
+        ],
+        "output": [
+          "text"
+        ],
+        "tools": true,
+        "reasoning": true,
+        "temperature": false,
+        "reasoningOptions": [
+          {
+            "type": "effort",
+            "values": [
+              "low",
+              "medium",
+              "high",
+              "xhigh",
+              "max"
+            ]
+          }
+        ]
+      }
+    },
+    "claude-opus-4-7": {
+      "capacity": 1000000,
+      "maxOutputTokens": 128000,
+      "capabilities": {
+        "sourceUrl": "https://models.dev/api.json",
+        "input": [
+          "text",
+          "image",
+          "pdf"
+        ],
+        "output": [
+          "text"
+        ],
+        "tools": true,
+        "reasoning": true,
+        "temperature": false,
+        "reasoningOptions": [
+          {
+            "type": "effort",
+            "values": [
+              "low",
+              "medium",
+              "high",
+              "xhigh",
+              "max"
+            ]
+          }
+        ]
+      }
+    },
+    "deepseek-v4-flash-vision-exp": {
+      "capacity": 1000000,
+      "maxOutputTokens": 393216,
+      "capabilities": {
+        "sourceUrl": "https://models.dev/api.json",
+        "input": [
+          "text",
+          "image"
+        ],
+        "output": [
+          "text"
+        ],
+        "tools": true,
+        "reasoning": true,
+        "temperature": true,
+        "reasoningOptions": [
+          {
+            "type": "toggle"
+          },
+          {
+            "type": "effort",
+            "values": [
+              "low",
+              "high",
+              "max"
+            ]
+          }
+        ]
+      }
+    },
+    "deepseek-flash": {
+      "capacity": 1000000,
+      "maxOutputTokens": 393216,
+      "capabilities": {
+        "sourceUrl": "https://models.dev/api.json",
+        "input": [
+          "text",
+          "image"
+        ],
+        "output": [
+          "text"
+        ],
+        "tools": true,
+        "reasoning": true,
+        "temperature": true,
+        "reasoningOptions": [
+          {
+            "type": "toggle"
+          },
+          {
+            "type": "effort",
+            "values": [
+              "low",
+              "high",
+              "max"
+            ]
+          }
+        ]
+      }
+    },
+    "deepseek-v4-pro": {
+      "capacity": 1000000,
+      "maxOutputTokens": 393216,
+      "capabilities": {
+        "sourceUrl": "https://models.dev/api.json",
+        "input": [
+          "text"
+        ],
+        "output": [
+          "text"
+        ],
+        "tools": true,
+        "reasoning": true,
+        "temperature": true,
+        "reasoningOptions": [
+          {
+            "type": "toggle"
+          },
+          {
+            "type": "effort",
+            "values": [
+              "low",
+              "high",
+              "max"
+            ]
+          }
+        ]
+      }
+    },
+    "deepseek-v4-flash": {
+      "capacity": 1000000,
+      "maxOutputTokens": 393216,
+      "capabilities": {
+        "sourceUrl": "https://models.dev/api.json",
+        "input": [
+          "text",
+          "image"
+        ],
+        "output": [
+          "text"
+        ],
+        "tools": true,
+        "reasoning": true,
+        "temperature": true,
+        "reasoningOptions": [
+          {
+            "type": "toggle"
+          },
+          {
+            "type": "effort",
+            "values": [
+              "low",
+              "high",
+              "max"
+            ]
+          }
+        ]
+      }
+    },
+    "glm-4.6v": {
+      "capacity": 128000,
+      "maxOutputTokens": 32768,
+      "capabilities": {
+        "sourceUrl": "https://models.dev/api.json",
+        "input": [
+          "text",
+          "image",
+          "video"
+        ],
+        "output": [
+          "text"
+        ],
+        "tools": true,
+        "reasoning": true,
+        "temperature": true,
+        "reasoningOptions": [
+          {
+            "type": "toggle"
+          }
+        ]
+      }
+    },
+    "glm-4.5": {
+      "capacity": 131072,
+      "maxOutputTokens": 98304,
+      "capabilities": {
+        "sourceUrl": "https://models.dev/api.json",
+        "input": [
+          "text"
+        ],
+        "output": [
+          "text"
+        ],
+        "tools": true,
+        "reasoning": true,
+        "temperature": true,
+        "reasoningOptions": [
+          {
+            "type": "toggle"
+          }
+        ]
+      }
+    },
+    "glm-5v-turbo": {
+      "capacity": 200000,
+      "maxOutputTokens": 131072,
+      "capabilities": {
+        "sourceUrl": "https://models.dev/api.json",
+        "input": [
+          "text",
+          "image",
+          "video",
+          "pdf"
+        ],
+        "output": [
+          "text"
+        ],
+        "tools": true,
+        "reasoning": true,
+        "temperature": true,
+        "reasoningOptions": [
+          {
+            "type": "toggle"
+          }
+        ]
+      }
+    },
+    "glm-5.3-flash": {
+      "capacity": 1000000,
+      "maxOutputTokens": 131072,
+      "capabilities": {
+        "sourceUrl": "https://models.dev/api.json",
+        "input": [
+          "text",
+          "image",
+          "video",
+          "pdf"
+        ],
+        "output": [
+          "text"
+        ],
+        "tools": true,
+        "reasoning": true,
+        "temperature": true,
+        "reasoningOptions": [
+          {
+            "type": "effort",
+            "values": [
+              "low",
+              "high",
+              "max"
+            ]
+          }
+        ]
+      }
+    },
+    "glm-4.6": {
+      "capacity": 204800,
+      "maxOutputTokens": 131072,
+      "capabilities": {
+        "sourceUrl": "https://models.dev/api.json",
+        "input": [
+          "text"
+        ],
+        "output": [
+          "text"
+        ],
+        "tools": true,
+        "reasoning": true,
+        "temperature": true,
+        "reasoningOptions": [
+          {
+            "type": "toggle"
+          }
+        ]
+      }
+    },
+    "glm-5": {
+      "capacity": 204800,
+      "maxOutputTokens": 131072,
+      "capabilities": {
+        "sourceUrl": "https://models.dev/api.json",
+        "input": [
+          "text"
+        ],
+        "output": [
+          "text"
+        ],
+        "tools": true,
+        "reasoning": true,
+        "temperature": true,
+        "reasoningOptions": [
+          {
+            "type": "toggle"
+          }
+        ]
+      }
+    },
+    "glm-4.6v-flash": {
+      "capacity": 128000,
+      "maxOutputTokens": 32768,
+      "capabilities": {
+        "sourceUrl": "https://models.dev/api.json",
+        "input": [
+          "text",
+          "image",
+          "video"
+        ],
+        "output": [
+          "text"
+        ],
+        "tools": true,
+        "reasoning": true,
+        "temperature": true,
+        "reasoningOptions": [
+          {
+            "type": "toggle"
+          }
+        ]
+      }
+    },
+    "glm-4.5v": {
+      "capacity": 64000,
+      "maxOutputTokens": 16384,
+      "capabilities": {
+        "sourceUrl": "https://models.dev/api.json",
+        "input": [
+          "text",
+          "image",
+          "video"
+        ],
+        "output": [
+          "text"
+        ],
+        "tools": true,
+        "reasoning": true,
+        "temperature": true,
+        "reasoningOptions": [
+          {
+            "type": "toggle"
+          }
+        ]
+      }
+    },
+    "glm-5.3-flashx": {
+      "capacity": 1000000,
+      "maxOutputTokens": 131072,
+      "capabilities": {
+        "sourceUrl": "https://models.dev/api.json",
+        "input": [
+          "text",
+          "image",
+          "video",
+          "pdf"
+        ],
+        "output": [
+          "text"
+        ],
+        "tools": true,
+        "reasoning": true,
+        "temperature": true,
+        "reasoningOptions": [
+          {
+            "type": "effort",
+            "values": [
+              "low",
+              "high",
+              "max"
+            ]
+          }
+        ]
+      }
+    },
+    "glm-4.7-flash": {
+      "capacity": 200000,
+      "maxOutputTokens": 131072,
+      "capabilities": {
+        "sourceUrl": "https://models.dev/api.json",
+        "input": [
+          "text"
+        ],
+        "output": [
+          "text"
+        ],
+        "tools": true,
+        "reasoning": true,
+        "temperature": true,
+        "reasoningOptions": [
+          {
+            "type": "toggle"
+          }
+        ]
+      }
+    },
+    "glm-4.7": {
+      "capacity": 204800,
+      "maxOutputTokens": 131072,
+      "capabilities": {
+        "sourceUrl": "https://models.dev/api.json",
+        "input": [
+          "text"
+        ],
+        "output": [
+          "text"
+        ],
+        "tools": true,
+        "reasoning": true,
+        "temperature": true,
+        "reasoningOptions": [
+          {
+            "type": "toggle"
+          }
+        ]
+      }
+    },
+    "glm-4.5-flash": {
+      "capacity": 131072,
+      "maxOutputTokens": 98304,
+      "capabilities": {
+        "sourceUrl": "https://models.dev/api.json",
+        "input": [
+          "text"
+        ],
+        "output": [
+          "text"
+        ],
+        "tools": true,
+        "reasoning": true,
+        "temperature": true,
+        "reasoningOptions": [
+          {
+            "type": "toggle"
+          }
+        ]
+      }
+    },
+    "glm-5.2": {
+      "capacity": 1000000,
+      "maxOutputTokens": 131072,
+      "capabilities": {
+        "sourceUrl": "https://models.dev/api.json",
+        "input": [
+          "text"
+        ],
+        "output": [
+          "text"
+        ],
+        "tools": true,
+        "reasoning": true,
+        "temperature": true,
+        "reasoningOptions": [
+          {
+            "type": "effort",
+            "values": [
+              "high",
+              "max"
+            ]
+          }
+        ]
+      }
+    },
+    "glm-5.1": {
+      "capacity": 200000,
+      "maxOutputTokens": 131072,
+      "capabilities": {
+        "sourceUrl": "https://models.dev/api.json",
+        "input": [
+          "text"
+        ],
+        "output": [
+          "text"
+        ],
+        "tools": true,
+        "reasoning": true,
+        "temperature": true,
+        "reasoningOptions": [
+          {
+            "type": "toggle"
+          }
+        ]
+      }
+    },
+    "glm-4.7-flashx": {
+      "capacity": 200000,
+      "maxOutputTokens": 131072,
+      "capabilities": {
+        "sourceUrl": "https://models.dev/api.json",
+        "input": [
+          "text"
+        ],
+        "output": [
+          "text"
+        ],
+        "tools": true,
+        "reasoning": true,
+        "temperature": true,
+        "reasoningOptions": [
+          {
+            "type": "toggle"
+          }
+        ]
+      }
+    },
+    "glm-5-turbo": {
+      "capacity": 200000,
+      "maxOutputTokens": 131072,
+      "capabilities": {
+        "sourceUrl": "https://models.dev/api.json",
+        "input": [
+          "text"
+        ],
+        "output": [
+          "text"
+        ],
+        "tools": true,
+        "reasoning": true,
+        "temperature": true,
+        "reasoningOptions": [
+          {
+            "type": "toggle"
+          }
+        ]
+      }
+    },
+    "glm-4.5-air": {
+      "capacity": 131072,
+      "maxOutputTokens": 98304,
+      "capabilities": {
+        "sourceUrl": "https://models.dev/api.json",
+        "input": [
+          "text"
+        ],
+        "output": [
+          "text"
+        ],
+        "tools": true,
+        "reasoning": true,
+        "temperature": true,
+        "reasoningOptions": [
+          {
+            "type": "toggle"
+          }
+        ]
+      }
+    },
+    "glm-5.3": {
+      "capacity": 1000000,
+      "maxOutputTokens": 131072,
+      "capabilities": {
+        "sourceUrl": "https://models.dev/api.json",
+        "input": [
+          "text"
+        ],
+        "output": [
+          "text"
+        ],
+        "tools": true,
+        "reasoning": true,
+        "temperature": true,
+        "reasoningOptions": [
+          {
+            "type": "effort",
+            "values": [
+              "low",
+              "high",
+              "max"
+            ]
+          }
+        ]
+      }
+    },
+    "kimi-k3": {
+      "capacity": 1048576,
+      "maxOutputTokens": 1048576,
+      "capabilities": {
+        "sourceUrl": "https://models.dev/api.json",
+        "input": [
+          "text",
+          "image",
+          "video"
+        ],
+        "output": [
+          "text"
+        ],
+        "tools": true,
+        "reasoning": true,
+        "temperature": false,
+        "reasoningOptions": [
+          {
+            "type": "effort",
+            "values": [
+              "low",
+              "high",
+              "max"
+            ]
+          }
+        ]
+      }
+    },
+    "kimi-k2.7-code-highspeed": {
+      "capacity": 262144,
+      "maxOutputTokens": 262144,
+      "capabilities": {
+        "sourceUrl": "https://models.dev/api.json",
+        "input": [
+          "text",
+          "image",
+          "video"
+        ],
+        "output": [
+          "text"
+        ],
+        "tools": true,
+        "reasoning": true,
+        "temperature": false
+      }
+    },
+    "kimi-k2.6": {
+      "capacity": 262144,
+      "maxOutputTokens": 262144,
+      "capabilities": {
+        "sourceUrl": "https://models.dev/api.json",
+        "input": [
+          "text",
+          "image",
+          "video"
+        ],
+        "output": [
+          "text"
+        ],
+        "tools": true,
+        "reasoning": true,
+        "temperature": true,
+        "reasoningOptions": [
+          {
+            "type": "toggle"
+          }
+        ]
+      }
+    },
+    "kimi-k2.7-code": {
+      "capacity": 262144,
+      "maxOutputTokens": 262144,
+      "capabilities": {
+        "sourceUrl": "https://models.dev/api.json",
+        "input": [
+          "text",
+          "image",
+          "video"
+        ],
+        "output": [
+          "text"
+        ],
+        "tools": true,
+        "reasoning": true,
+        "temperature": false
+      }
+    },
+    "qwen-flash": {
+      "capacity": 1000000,
+      "maxOutputTokens": 32768,
+      "capabilities": {
+        "sourceUrl": "https://models.dev/api.json",
+        "input": [
+          "text"
+        ],
+        "output": [
+          "text"
+        ],
+        "tools": true,
+        "reasoning": true,
+        "temperature": true,
+        "reasoningOptions": [
+          {
+            "type": "toggle"
+          },
+          {
+            "type": "budget_tokens"
+          }
+        ]
+      }
+    },
+    "qwen3.5-flash": {
+      "capacity": 1000000,
+      "maxOutputTokens": 65536,
+      "capabilities": {
+        "sourceUrl": "https://models.dev/api.json",
+        "input": [
+          "text",
+          "image",
+          "video"
+        ],
+        "output": [
+          "text"
+        ],
+        "tools": true,
+        "reasoning": true,
+        "temperature": true,
+        "reasoningOptions": [
+          {
+            "type": "toggle"
+          },
+          {
+            "type": "budget_tokens",
+            "max": 81920
+          }
+        ]
+      }
+    },
+    "qwen3.7-max": {
+      "capacity": 1000000,
+      "maxOutputTokens": 131072,
+      "capabilities": {
+        "sourceUrl": "https://models.dev/api.json",
+        "input": [
+          "text"
+        ],
+        "output": [
+          "text"
+        ],
+        "tools": true,
+        "reasoning": true,
+        "temperature": true,
+        "reasoningOptions": [
+          {
+            "type": "toggle"
+          },
+          {
+            "type": "budget_tokens"
+          }
+        ]
+      }
+    },
+    "qwen2-5-32b-instruct": {
+      "capacity": 131072,
+      "maxOutputTokens": 8192,
+      "capabilities": {
+        "sourceUrl": "https://models.dev/api.json",
+        "input": [
+          "text"
+        ],
+        "output": [
+          "text"
+        ],
+        "tools": true,
+        "reasoning": false,
+        "temperature": true
+      }
+    },
+    "qwq-plus": {
+      "capacity": 131072,
+      "maxOutputTokens": 8192,
+      "capabilities": {
+        "sourceUrl": "https://models.dev/api.json",
+        "input": [
+          "text"
+        ],
+        "output": [
+          "text"
+        ],
+        "tools": true,
+        "reasoning": true,
+        "temperature": true
+      }
+    },
+    "qwen2-5-vl-72b-instruct": {
+      "capacity": 131072,
+      "maxOutputTokens": 8192,
+      "capabilities": {
+        "sourceUrl": "https://models.dev/api.json",
+        "input": [
+          "text",
+          "image"
+        ],
+        "output": [
+          "text"
+        ],
+        "tools": true,
+        "reasoning": false,
+        "temperature": true
+      }
+    },
+    "qwen3-vl-plus": {
+      "capacity": 262144,
+      "maxOutputTokens": 32768,
+      "capabilities": {
+        "sourceUrl": "https://models.dev/api.json",
+        "input": [
+          "text",
+          "image"
+        ],
+        "output": [
+          "text"
+        ],
+        "tools": true,
+        "reasoning": true,
+        "temperature": true,
+        "reasoningOptions": [
+          {
+            "type": "toggle"
+          },
+          {
+            "type": "budget_tokens"
+          }
+        ]
+      }
+    },
+    "qwen3.5-27b": {
+      "capacity": 262144,
+      "maxOutputTokens": 65536,
+      "capabilities": {
+        "sourceUrl": "https://models.dev/api.json",
+        "input": [
+          "text",
+          "image",
+          "video",
+          "audio"
+        ],
+        "output": [
+          "text"
+        ],
+        "tools": true,
+        "reasoning": true,
+        "temperature": true,
+        "reasoningOptions": [
+          {
+            "type": "toggle"
+          },
+          {
+            "type": "budget_tokens"
+          }
+        ]
+      }
+    },
+    "deepseek-v4-flash-0731": {
+      "capacity": 1000000,
+      "maxOutputTokens": 384000,
+      "capabilities": {
+        "sourceUrl": "https://models.dev/api.json",
+        "input": [
+          "text"
+        ],
+        "output": [
+          "text"
+        ],
+        "tools": true,
+        "reasoning": true,
+        "temperature": true,
+        "reasoningOptions": [
+          {
+            "type": "toggle"
+          },
+          {
+            "type": "effort",
+            "values": [
+              "high",
+              "max"
+            ]
+          }
+        ]
+      }
+    },
+    "qwen-max": {
+      "capacity": 32768,
+      "maxOutputTokens": 8192,
+      "capabilities": {
+        "sourceUrl": "https://models.dev/api.json",
+        "input": [
+          "text"
+        ],
+        "output": [
+          "text"
+        ],
+        "tools": true,
+        "reasoning": false,
+        "temperature": true
+      }
+    },
+    "qwen3-next-80b-a3b-thinking": {
+      "capacity": 131072,
+      "maxOutputTokens": 32768,
+      "capabilities": {
+        "sourceUrl": "https://models.dev/api.json",
+        "input": [
+          "text"
+        ],
+        "output": [
+          "text"
+        ],
+        "tools": true,
+        "reasoning": true,
+        "temperature": true,
+        "reasoningOptions": [
+          {
+            "type": "budget_tokens"
+          }
+        ]
+      }
+    },
+    "qwen3.8-max": {
+      "capacity": 1000000,
+      "maxOutputTokens": 131072,
+      "capabilities": {
+        "sourceUrl": "https://models.dev/api.json",
+        "input": [
+          "text",
+          "image",
+          "video",
+          "pdf"
+        ],
+        "output": [
+          "text"
+        ],
+        "tools": true,
+        "reasoning": true,
+        "temperature": true,
+        "reasoningOptions": [
+          {
+            "type": "toggle"
+          },
+          {
+            "type": "effort",
+            "values": [
+              "low",
+              "medium",
+              "xhigh"
+            ]
+          },
+          {
+            "type": "budget_tokens",
+            "min": 0,
+            "max": 262144
+          }
+        ]
+      }
+    },
+    "qwen-plus-character-ja": {
+      "capacity": 8192,
+      "maxOutputTokens": 512,
+      "capabilities": {
+        "sourceUrl": "https://models.dev/api.json",
+        "input": [
+          "text"
+        ],
+        "output": [
+          "text"
+        ],
+        "tools": true,
+        "reasoning": false,
+        "temperature": true
+      }
+    },
+    "qwen3.5-plus": {
+      "capacity": 1000000,
+      "maxOutputTokens": 65536,
+      "capabilities": {
+        "sourceUrl": "https://models.dev/api.json",
+        "input": [
+          "text",
+          "image",
+          "video"
+        ],
+        "output": [
+          "text"
+        ],
+        "tools": true,
+        "reasoning": true,
+        "temperature": true,
+        "reasoningOptions": [
+          {
+            "type": "toggle"
+          },
+          {
+            "type": "budget_tokens"
+          }
+        ]
+      }
+    },
+    "qwen3-livetranslate-flash-realtime": {
+      "capacity": 53248,
+      "maxOutputTokens": 4096,
+      "capabilities": {
+        "sourceUrl": "https://models.dev/api.json",
+        "input": [
+          "text",
+          "image",
+          "audio",
+          "video"
+        ],
+        "output": [
+          "text",
+          "audio"
+        ],
+        "tools": false,
+        "reasoning": false,
+        "temperature": true
+      }
+    },
+    "qwen2-5-72b-instruct": {
+      "capacity": 131072,
+      "maxOutputTokens": 8192,
+      "capabilities": {
+        "sourceUrl": "https://models.dev/api.json",
+        "input": [
+          "text"
+        ],
+        "output": [
+          "text"
+        ],
+        "tools": true,
+        "reasoning": false,
+        "temperature": true
+      }
+    },
+    "qwen3-32b": {
+      "capacity": 131072,
+      "maxOutputTokens": 16384,
+      "capabilities": {
+        "sourceUrl": "https://models.dev/api.json",
+        "input": [
+          "text"
+        ],
+        "output": [
+          "text"
+        ],
+        "tools": true,
+        "reasoning": true,
+        "temperature": true,
+        "reasoningOptions": [
+          {
+            "type": "toggle"
+          },
+          {
+            "type": "budget_tokens"
+          }
+        ]
+      }
+    },
+    "qwen-plus": {
+      "capacity": 1000000,
+      "maxOutputTokens": 32768,
+      "capabilities": {
+        "sourceUrl": "https://models.dev/api.json",
+        "input": [
+          "text"
+        ],
+        "output": [
+          "text"
+        ],
+        "tools": true,
+        "reasoning": true,
+        "temperature": true,
+        "reasoningOptions": [
+          {
+            "type": "toggle"
+          },
+          {
+            "type": "budget_tokens"
+          }
+        ]
+      }
+    },
+    "qwen3.7-flash": {
+      "capacity": 1000000,
+      "maxInputTokens": 991808,
+      "maxOutputTokens": 131072,
+      "capabilities": {
+        "sourceUrl": "https://models.dev/api.json",
+        "input": [
+          "text",
+          "image",
+          "video"
+        ],
+        "output": [
+          "text"
+        ],
+        "tools": true,
+        "reasoning": true,
+        "temperature": true,
+        "reasoningOptions": [
+          {
+            "type": "toggle"
+          },
+          {
+            "type": "budget_tokens",
+            "max": 262144
+          }
+        ]
+      }
+    },
+    "qwen3-max": {
+      "capacity": 262144,
+      "maxOutputTokens": 65536,
+      "capabilities": {
+        "sourceUrl": "https://models.dev/api.json",
+        "input": [
+          "text"
+        ],
+        "output": [
+          "text"
+        ],
+        "tools": true,
+        "reasoning": false,
+        "temperature": true
+      }
+    },
+    "qwen-omni-turbo-realtime": {
+      "capacity": 32768,
+      "maxOutputTokens": 2048,
+      "capabilities": {
+        "sourceUrl": "https://models.dev/api.json",
+        "input": [
+          "text",
+          "image",
+          "audio"
+        ],
+        "output": [
+          "text",
+          "audio"
+        ],
+        "tools": true,
+        "reasoning": false,
+        "temperature": true
+      }
+    },
+    "qwen3-coder-480b-a35b-instruct": {
+      "capacity": 262144,
+      "maxOutputTokens": 65536,
+      "capabilities": {
+        "sourceUrl": "https://models.dev/api.json",
+        "input": [
+          "text"
+        ],
+        "output": [
+          "text"
+        ],
+        "tools": true,
+        "reasoning": false,
+        "temperature": true
+      }
+    },
+    "qwen-turbo": {
+      "capacity": 1000000,
+      "maxOutputTokens": 16384,
+      "capabilities": {
+        "sourceUrl": "https://models.dev/api.json",
+        "input": [
+          "text"
+        ],
+        "output": [
+          "text"
+        ],
+        "tools": true,
+        "reasoning": true,
+        "temperature": true,
+        "reasoningOptions": [
+          {
+            "type": "toggle"
+          },
+          {
+            "type": "budget_tokens"
+          }
+        ]
+      }
+    },
+    "qwen3-coder-30b-a3b-instruct": {
+      "capacity": 262144,
+      "maxOutputTokens": 65536,
+      "capabilities": {
+        "sourceUrl": "https://models.dev/api.json",
+        "input": [
+          "text"
+        ],
+        "output": [
+          "text"
+        ],
+        "tools": true,
+        "reasoning": false,
+        "temperature": true
+      }
+    },
+    "qwen3.8-omni-flash": {
+      "capacity": 1000000,
+      "maxOutputTokens": 131072,
+      "capabilities": {
+        "sourceUrl": "https://models.dev/api.json",
+        "input": [
+          "text",
+          "image",
+          "audio",
+          "video"
+        ],
+        "output": [
+          "text"
+        ],
+        "tools": true,
+        "reasoning": true,
+        "reasoningOptions": [
+          {
+            "type": "effort",
+            "values": [
+              "none",
+              "low",
+              "medium",
+              "xhigh"
+            ]
+          }
+        ]
+      }
+    },
+    "qvq-max": {
+      "capacity": 131072,
+      "maxOutputTokens": 8192,
+      "capabilities": {
+        "sourceUrl": "https://models.dev/api.json",
+        "input": [
+          "text",
+          "image"
+        ],
+        "output": [
+          "text"
+        ],
+        "tools": true,
+        "reasoning": true,
+        "temperature": true
+      }
+    },
+    "qwen2-5-7b-instruct": {
+      "capacity": 131072,
+      "maxOutputTokens": 8192,
+      "capabilities": {
+        "sourceUrl": "https://models.dev/api.json",
+        "input": [
+          "text"
+        ],
+        "output": [
+          "text"
+        ],
+        "tools": true,
+        "reasoning": false,
+        "temperature": true
+      }
+    },
+    "qwen3-omni-flash": {
+      "capacity": 65536,
+      "maxOutputTokens": 16384,
+      "capabilities": {
+        "sourceUrl": "https://models.dev/api.json",
+        "input": [
+          "text",
+          "image",
+          "audio",
+          "video"
+        ],
+        "output": [
+          "text",
+          "audio"
+        ],
+        "tools": true,
+        "reasoning": true,
+        "temperature": true,
+        "reasoningOptions": [
+          {
+            "type": "toggle"
+          }
+        ]
+      }
+    },
+    "qwen-vl-max": {
+      "capacity": 131072,
+      "maxOutputTokens": 8192,
+      "capabilities": {
+        "sourceUrl": "https://models.dev/api.json",
+        "input": [
+          "text",
+          "image"
+        ],
+        "output": [
+          "text"
+        ],
+        "tools": true,
+        "reasoning": false,
+        "temperature": true
+      }
+    },
+    "qwen3-235b-a22b": {
+      "capacity": 131072,
+      "maxOutputTokens": 16384,
+      "capabilities": {
+        "sourceUrl": "https://models.dev/api.json",
+        "input": [
+          "text"
+        ],
+        "output": [
+          "text"
+        ],
+        "tools": true,
+        "reasoning": true,
+        "temperature": true,
+        "reasoningOptions": [
+          {
+            "type": "toggle"
+          },
+          {
+            "type": "budget_tokens"
+          }
+        ]
+      }
+    },
+    "qwen3-vl-30b-a3b": {
+      "capacity": 131072,
+      "maxOutputTokens": 32768,
+      "capabilities": {
+        "sourceUrl": "https://models.dev/api.json",
+        "input": [
+          "text",
+          "image"
+        ],
+        "output": [
+          "text"
+        ],
+        "tools": true,
+        "reasoning": true,
+        "temperature": true,
+        "reasoningOptions": [
+          {
+            "type": "budget_tokens"
+          }
+        ]
+      }
+    },
+    "qwen3.5-122b-a10b": {
+      "capacity": 262144,
+      "maxOutputTokens": 65536,
+      "capabilities": {
+        "sourceUrl": "https://models.dev/api.json",
+        "input": [
+          "text",
+          "image",
+          "video",
+          "audio"
+        ],
+        "output": [
+          "text"
+        ],
+        "tools": true,
+        "reasoning": true,
+        "temperature": true,
+        "reasoningOptions": [
+          {
+            "type": "toggle"
+          },
+          {
+            "type": "budget_tokens"
+          }
+        ]
+      }
+    },
+    "qwen3.6-35b-a3b": {
+      "capacity": 262144,
+      "maxOutputTokens": 65536,
+      "capabilities": {
+        "sourceUrl": "https://models.dev/api.json",
+        "input": [
+          "text",
+          "image",
+          "video",
+          "audio"
+        ],
+        "output": [
+          "text"
+        ],
+        "tools": true,
+        "reasoning": true,
+        "temperature": true,
+        "reasoningOptions": [
+          {
+            "type": "toggle"
+          },
+          {
+            "type": "budget_tokens"
+          }
+        ]
+      }
+    },
+    "qwen3-next-80b-a3b-instruct": {
+      "capacity": 131072,
+      "maxOutputTokens": 32768,
+      "capabilities": {
+        "sourceUrl": "https://models.dev/api.json",
+        "input": [
+          "text"
+        ],
+        "output": [
+          "text"
+        ],
+        "tools": true,
+        "reasoning": false,
+        "temperature": true
+      }
+    },
+    "qwen-vl-plus": {
+      "capacity": 131072,
+      "maxOutputTokens": 8192,
+      "capabilities": {
+        "sourceUrl": "https://models.dev/api.json",
+        "input": [
+          "text",
+          "image"
+        ],
+        "output": [
+          "text"
+        ],
+        "tools": true,
+        "reasoning": false,
+        "temperature": true
+      }
+    },
+    "qwen3.6-flash": {
+      "capacity": 1000000,
+      "maxOutputTokens": 65536,
+      "capabilities": {
+        "sourceUrl": "https://models.dev/api.json",
+        "input": [
+          "text",
+          "image",
+          "video"
+        ],
+        "output": [
+          "text"
+        ],
+        "tools": true,
+        "reasoning": true,
+        "temperature": true,
+        "reasoningOptions": [
+          {
+            "type": "toggle"
+          },
+          {
+            "type": "budget_tokens"
+          }
+        ]
+      }
+    },
+    "qwen3-coder-flash": {
+      "capacity": 1000000,
+      "maxOutputTokens": 65536,
+      "capabilities": {
+        "sourceUrl": "https://models.dev/api.json",
+        "input": [
+          "text"
+        ],
+        "output": [
+          "text"
+        ],
+        "tools": true,
+        "reasoning": false,
+        "temperature": true
+      }
+    },
+    "qwen2-5-omni-7b": {
+      "capacity": 32768,
+      "maxOutputTokens": 2048,
+      "capabilities": {
+        "sourceUrl": "https://models.dev/api.json",
+        "input": [
+          "text",
+          "image",
+          "audio",
+          "video"
+        ],
+        "output": [
+          "text",
+          "audio"
+        ],
+        "tools": true,
+        "reasoning": false,
+        "temperature": true
+      }
+    },
+    "qwen-mt-plus": {
+      "capacity": 16384,
+      "maxOutputTokens": 8192,
+      "capabilities": {
+        "sourceUrl": "https://models.dev/api.json",
+        "input": [
+          "text"
+        ],
+        "output": [
+          "text"
+        ],
+        "tools": false,
+        "reasoning": false,
+        "temperature": true
+      }
+    },
+    "qwen3-vl-235b-a22b": {
+      "capacity": 131072,
+      "maxOutputTokens": 32768,
+      "capabilities": {
+        "sourceUrl": "https://models.dev/api.json",
+        "input": [
+          "text",
+          "image"
+        ],
+        "output": [
+          "text"
+        ],
+        "tools": true,
+        "reasoning": true,
+        "temperature": true,
+        "reasoningOptions": [
+          {
+            "type": "budget_tokens"
+          }
+        ]
+      }
+    },
+    "qwen3-coder-plus": {
+      "capacity": 1048576,
+      "maxOutputTokens": 65536,
+      "capabilities": {
+        "sourceUrl": "https://models.dev/api.json",
+        "input": [
+          "text"
+        ],
+        "output": [
+          "text"
+        ],
+        "tools": true,
+        "reasoning": false,
+        "temperature": true
+      }
+    },
+    "qwen2-5-14b-instruct": {
+      "capacity": 131072,
+      "maxOutputTokens": 8192,
+      "capabilities": {
+        "sourceUrl": "https://models.dev/api.json",
+        "input": [
+          "text"
+        ],
+        "output": [
+          "text"
+        ],
+        "tools": true,
+        "reasoning": false,
+        "temperature": true
+      }
+    },
+    "qwen3.8-flash": {
+      "capacity": 1000000,
+      "maxOutputTokens": 131072,
+      "capabilities": {
+        "sourceUrl": "https://models.dev/api.json",
+        "input": [
+          "text",
+          "image",
+          "video"
+        ],
+        "output": [
+          "text"
+        ],
+        "tools": true,
+        "reasoning": true,
+        "reasoningOptions": [
+          {
+            "type": "toggle"
+          },
+          {
+            "type": "effort",
+            "values": [
+              "low",
+              "medium",
+              "xhigh"
+            ]
+          },
+          {
+            "type": "budget_tokens",
+            "max": 262144
+          }
+        ]
+      }
+    },
+    "qwen2-5-vl-7b-instruct": {
+      "capacity": 131072,
+      "maxOutputTokens": 8192,
+      "capabilities": {
+        "sourceUrl": "https://models.dev/api.json",
+        "input": [
+          "text",
+          "image"
+        ],
+        "output": [
+          "text"
+        ],
+        "tools": true,
+        "reasoning": false,
+        "temperature": true
+      }
+    },
+    "qwen3.5-35b-a3b": {
+      "capacity": 262144,
+      "maxOutputTokens": 65536,
+      "capabilities": {
+        "sourceUrl": "https://models.dev/api.json",
+        "input": [
+          "text",
+          "image",
+          "video",
+          "audio"
+        ],
+        "output": [
+          "text"
+        ],
+        "tools": true,
+        "reasoning": true,
+        "temperature": true,
+        "reasoningOptions": [
+          {
+            "type": "toggle"
+          },
+          {
+            "type": "budget_tokens"
+          }
+        ]
+      }
+    },
+    "qwen3.6-max-preview": {
+      "capacity": 262144,
+      "maxOutputTokens": 65536,
+      "capabilities": {
+        "sourceUrl": "https://models.dev/api.json",
+        "input": [
+          "text"
+        ],
+        "output": [
+          "text"
+        ],
+        "tools": true,
+        "reasoning": true,
+        "temperature": true,
+        "reasoningOptions": [
+          {
+            "type": "toggle"
+          },
+          {
+            "type": "budget_tokens"
+          }
+        ]
+      }
+    },
+    "qwen-mt-turbo": {
+      "capacity": 16384,
+      "maxOutputTokens": 8192,
+      "capabilities": {
+        "sourceUrl": "https://models.dev/api.json",
+        "input": [
+          "text"
+        ],
+        "output": [
+          "text"
+        ],
+        "tools": false,
+        "reasoning": false,
+        "temperature": true
+      }
+    },
+    "qwen3.5-397b-a17b": {
+      "capacity": 262144,
+      "maxOutputTokens": 65536,
+      "capabilities": {
+        "sourceUrl": "https://models.dev/api.json",
+        "input": [
+          "text",
+          "image",
+          "video",
+          "audio"
+        ],
+        "output": [
+          "text"
+        ],
+        "tools": true,
+        "reasoning": true,
+        "temperature": true,
+        "reasoningOptions": [
+          {
+            "type": "toggle"
+          },
+          {
+            "type": "budget_tokens"
+          }
+        ]
+      }
+    },
+    "qwen3-8b": {
+      "capacity": 131072,
+      "maxOutputTokens": 8192,
+      "capabilities": {
+        "sourceUrl": "https://models.dev/api.json",
+        "input": [
+          "text"
+        ],
+        "output": [
+          "text"
+        ],
+        "tools": true,
+        "reasoning": true,
+        "temperature": true,
+        "reasoningOptions": [
+          {
+            "type": "toggle"
+          },
+          {
+            "type": "budget_tokens"
+          }
+        ]
+      }
+    },
+    "qwen-omni-turbo": {
+      "capacity": 32768,
+      "maxOutputTokens": 2048,
+      "capabilities": {
+        "sourceUrl": "https://models.dev/api.json",
+        "input": [
+          "text",
+          "image",
+          "audio",
+          "video"
+        ],
+        "output": [
+          "text",
+          "audio"
+        ],
+        "tools": true,
+        "reasoning": false,
+        "temperature": true
+      }
+    },
+    "qwen3-omni-flash-realtime": {
+      "capacity": 65536,
+      "maxOutputTokens": 16384,
+      "capabilities": {
+        "sourceUrl": "https://models.dev/api.json",
+        "input": [
+          "text",
+          "image",
+          "audio",
+          "video"
+        ],
+        "output": [
+          "text",
+          "audio"
+        ],
+        "tools": true,
+        "reasoning": false,
+        "temperature": true
+      }
+    },
+    "qwen3-asr-flash": {
+      "capacity": 53248,
+      "maxOutputTokens": 4096,
+      "capabilities": {
+        "sourceUrl": "https://models.dev/api.json",
+        "input": [
+          "audio"
+        ],
+        "output": [
+          "text"
+        ],
+        "tools": false,
+        "reasoning": false,
+        "temperature": false
+      }
+    },
+    "qwen3.6-27b": {
+      "capacity": 262144,
+      "maxOutputTokens": 65536,
+      "capabilities": {
+        "sourceUrl": "https://models.dev/api.json",
+        "input": [
+          "text",
+          "image",
+          "video",
+          "audio"
+        ],
+        "output": [
+          "text"
+        ],
+        "tools": true,
+        "reasoning": true,
+        "temperature": true,
+        "reasoningOptions": [
+          {
+            "type": "toggle"
+          },
+          {
+            "type": "budget_tokens"
+          }
+        ]
+      }
+    },
+    "qwen3.6-plus": {
+      "capacity": 1000000,
+      "maxOutputTokens": 65536,
+      "capabilities": {
+        "sourceUrl": "https://models.dev/api.json",
+        "input": [
+          "text",
+          "image",
+          "video"
+        ],
+        "output": [
+          "text"
+        ],
+        "tools": true,
+        "reasoning": true,
+        "temperature": true,
+        "reasoningOptions": [
+          {
+            "type": "toggle"
+          },
+          {
+            "type": "budget_tokens"
+          }
+        ]
+      }
+    },
+    "qwen3-14b": {
+      "capacity": 131072,
+      "maxOutputTokens": 8192,
+      "capabilities": {
+        "sourceUrl": "https://models.dev/api.json",
+        "input": [
+          "text"
+        ],
+        "output": [
+          "text"
+        ],
+        "tools": true,
+        "reasoning": true,
+        "temperature": true,
+        "reasoningOptions": [
+          {
+            "type": "toggle"
+          },
+          {
+            "type": "budget_tokens"
+          }
+        ]
+      }
+    },
+    "qwen3.7-plus": {
+      "capacity": 1000000,
+      "maxOutputTokens": 131072,
+      "capabilities": {
+        "sourceUrl": "https://models.dev/api.json",
+        "input": [
+          "text",
+          "image",
+          "video"
+        ],
+        "output": [
+          "text"
+        ],
+        "tools": true,
+        "reasoning": true,
+        "temperature": true,
+        "reasoningOptions": [
+          {
+            "type": "toggle"
+          },
+          {
+            "type": "budget_tokens"
+          }
+        ]
+      }
+    },
+    "qwen-vl-ocr": {
+      "capacity": 34096,
+      "maxOutputTokens": 4096,
+      "capabilities": {
+        "sourceUrl": "https://models.dev/api.json",
+        "input": [
+          "text",
+          "image"
+        ],
+        "output": [
+          "text"
+        ],
+        "tools": false,
+        "reasoning": false,
+        "temperature": true
+      }
+    },
+    "grok-4.7": {
+      "capacity": 500000,
+      "maxOutputTokens": 500000,
+      "capabilities": {
+        "sourceUrl": "https://models.dev/api.json",
+        "input": [
+          "text",
+          "image",
+          "pdf"
+        ],
+        "output": [
+          "text"
+        ],
+        "tools": true,
+        "reasoning": true,
+        "temperature": true,
+        "reasoningOptions": [
+          {
+            "type": "effort",
+            "values": [
+              "low",
+              "medium",
+              "high",
+              "xhigh"
+            ]
+          }
+        ]
+      }
+    },
+    "grok-imagine-video-1.5-lite": {
+      "capacity": 1024,
+      "capabilities": {
+        "sourceUrl": "https://models.dev/api.json",
+        "input": [
+          "text",
+          "image",
+          "pdf"
+        ],
+        "output": [
+          "video"
+        ],
+        "tools": false,
+        "reasoning": false,
+        "temperature": false
+      }
+    },
+    "grok-imagine-image": {
+      "capacity": 16000,
+      "capabilities": {
+        "sourceUrl": "https://models.dev/api.json",
+        "input": [
+          "text",
+          "image",
+          "pdf"
+        ],
+        "output": [
+          "image",
+          "pdf"
+        ],
+        "tools": false,
+        "reasoning": false,
+        "temperature": false
+      }
+    },
+    "grok-imagine-video": {
+      "capacity": 1024,
+      "capabilities": {
+        "sourceUrl": "https://models.dev/api.json",
+        "input": [
+          "text",
+          "image",
+          "video",
+          "pdf"
+        ],
+        "output": [
+          "video"
+        ],
+        "tools": false,
+        "reasoning": false,
+        "temperature": false
+      }
+    },
+    "grok-4.3": {
+      "capacity": 1000000,
+      "maxOutputTokens": 30000,
+      "capabilities": {
+        "sourceUrl": "https://models.dev/api.json",
+        "input": [
+          "text",
+          "image",
+          "pdf"
+        ],
+        "output": [
+          "text"
+        ],
+        "tools": true,
+        "reasoning": true,
+        "temperature": true,
+        "reasoningOptions": [
+          {
+            "type": "effort",
+            "values": [
+              "none",
+              "low",
+              "medium",
+              "high"
+            ]
+          }
+        ]
+      }
+    },
+    "grok-4.20-0309-reasoning": {
+      "capacity": 1000000,
+      "maxOutputTokens": 30000,
+      "capabilities": {
+        "sourceUrl": "https://models.dev/api.json",
+        "input": [
+          "text",
+          "image",
+          "pdf"
+        ],
+        "output": [
+          "text"
+        ],
+        "tools": true,
+        "reasoning": true,
+        "temperature": true
+      }
+    },
+    "grok-imagine-video-1.5": {
+      "capacity": 1024,
+      "capabilities": {
+        "sourceUrl": "https://models.dev/api.json",
+        "input": [
+          "text",
+          "image",
+          "audio",
+          "pdf"
+        ],
+        "output": [
+          "video"
+        ],
+        "tools": false,
+        "reasoning": false,
+        "temperature": false
+      }
+    },
+    "grok-4.5": {
+      "capacity": 500000,
+      "maxOutputTokens": 500000,
+      "capabilities": {
+        "sourceUrl": "https://models.dev/api.json",
+        "input": [
+          "text",
+          "image",
+          "pdf"
+        ],
+        "output": [
+          "text"
+        ],
+        "tools": true,
+        "reasoning": true,
+        "temperature": true,
+        "reasoningOptions": [
+          {
+            "type": "effort",
+            "values": [
+              "low",
+              "medium",
+              "high"
+            ]
+          }
+        ]
+      }
+    },
+    "grok-4.20-0309-non-reasoning": {
+      "capacity": 1000000,
+      "maxOutputTokens": 30000,
+      "capabilities": {
+        "sourceUrl": "https://models.dev/api.json",
+        "input": [
+          "text",
+          "image",
+          "pdf"
+        ],
+        "output": [
+          "text"
+        ],
+        "tools": true,
+        "reasoning": false,
+        "temperature": true
+      }
+    },
+    "grok-imagine-image-quality": {
+      "capacity": 16000,
+      "capabilities": {
+        "sourceUrl": "https://models.dev/api.json",
+        "input": [
+          "text",
+          "image",
+          "pdf"
+        ],
+        "output": [
+          "image",
+          "pdf"
+        ],
+        "tools": false,
+        "reasoning": false,
+        "temperature": false
+      }
+    },
+    "grok-build-0.1": {
+      "capacity": 256000,
+      "maxOutputTokens": 256000,
+      "capabilities": {
+        "sourceUrl": "https://models.dev/api.json",
+        "input": [
+          "text",
+          "image",
+          "pdf"
+        ],
+        "output": [
+          "text"
+        ],
+        "tools": true,
+        "reasoning": true,
+        "temperature": true
+      }
+    },
+    "grok-4.20-multi-agent-0309": {
+      "capacity": 1000000,
+      "maxOutputTokens": 30000,
+      "capabilities": {
+        "sourceUrl": "https://models.dev/api.json",
+        "input": [
+          "text",
+          "image",
+          "pdf"
+        ],
+        "output": [
+          "text"
+        ],
+        "tools": false,
+        "reasoning": true,
+        "temperature": true,
+        "reasoningOptions": [
+          {
+            "type": "effort",
+            "values": [
+              "low",
+              "medium",
+              "high",
+              "xhigh"
+            ]
+          }
+        ]
+      }
+    },
+    "grok-4.6": {
+      "capacity": 500000,
+      "maxOutputTokens": 500000,
+      "capabilities": {
+        "sourceUrl": "https://models.dev/api.json",
+        "input": [
+          "text",
+          "image",
+          "pdf"
+        ],
+        "output": [
+          "text"
+        ],
+        "tools": true,
+        "reasoning": true,
+        "temperature": true,
+        "reasoningOptions": [
+          {
+            "type": "effort",
+            "values": [
+              "low",
+              "medium",
+              "high",
+              "xhigh"
+            ]
+          }
+        ]
+      }
+    },
+    "MiniMax-M3": {
+      "capacity": 1000000,
+      "maxOutputTokens": 512000,
+      "capabilities": {
+        "sourceUrl": "https://models.dev/api.json",
+        "input": [
+          "text",
+          "image",
+          "video"
+        ],
+        "output": [
+          "text"
+        ],
+        "tools": true,
+        "reasoning": true,
+        "temperature": true,
+        "reasoningOptions": [
+          {
+            "type": "toggle"
+          }
+        ]
+      }
+    },
+    "MiniMax-M2.1": {
+      "capacity": 204800,
+      "maxOutputTokens": 131072,
+      "capabilities": {
+        "sourceUrl": "https://models.dev/api.json",
+        "input": [
+          "text"
+        ],
+        "output": [
+          "text"
+        ],
+        "tools": true,
+        "reasoning": true,
+        "temperature": true
+      }
+    },
+    "MiniMax-M2.5": {
+      "capacity": 204800,
+      "maxOutputTokens": 131072,
+      "capabilities": {
+        "sourceUrl": "https://models.dev/api.json",
+        "input": [
+          "text"
+        ],
+        "output": [
+          "text"
+        ],
+        "tools": true,
+        "reasoning": true,
+        "temperature": true
+      }
+    },
+    "MiniMax-M2.7": {
+      "capacity": 204800,
+      "maxOutputTokens": 131072,
+      "capabilities": {
+        "sourceUrl": "https://models.dev/api.json",
+        "input": [
+          "text"
+        ],
+        "output": [
+          "text"
+        ],
+        "tools": true,
+        "reasoning": true,
+        "temperature": true
+      }
+    },
+    "MiniMax-M2.7-highspeed": {
+      "capacity": 204800,
+      "maxOutputTokens": 131072,
+      "capabilities": {
+        "sourceUrl": "https://models.dev/api.json",
+        "input": [
+          "text"
+        ],
+        "output": [
+          "text"
+        ],
+        "tools": true,
+        "reasoning": true,
+        "temperature": true
+      }
+    },
+    "MiniMax-M2": {
+      "capacity": 204800,
+      "maxOutputTokens": 131072,
+      "capabilities": {
+        "sourceUrl": "https://models.dev/api.json",
+        "input": [
+          "text"
+        ],
+        "output": [
+          "text"
+        ],
+        "tools": true,
+        "reasoning": true,
+        "temperature": true
+      }
+    },
+    "MiniMax-M2.5-highspeed": {
+      "capacity": 204800,
+      "maxOutputTokens": 131072,
+      "capabilities": {
+        "sourceUrl": "https://models.dev/api.json",
+        "input": [
+          "text"
+        ],
+        "output": [
+          "text"
+        ],
+        "tools": true,
+        "reasoning": true,
+        "temperature": true
+      }
+    },
+    "open-mistral-nemo": {
+      "capacity": 128000,
+      "maxOutputTokens": 128000,
+      "capabilities": {
+        "sourceUrl": "https://models.dev/api.json",
+        "input": [
+          "text"
+        ],
+        "output": [
+          "text"
+        ],
+        "tools": true,
+        "reasoning": false,
+        "temperature": true
+      }
+    },
+    "codestral-latest": {
+      "capacity": 256000,
+      "maxOutputTokens": 4096,
+      "capabilities": {
+        "sourceUrl": "https://models.dev/api.json",
+        "input": [
+          "text"
+        ],
+        "output": [
+          "text"
+        ],
+        "tools": true,
+        "reasoning": false,
+        "temperature": true
+      }
+    },
+    "mistral-large-2411": {
+      "capacity": 131072,
+      "maxOutputTokens": 16384,
+      "capabilities": {
+        "sourceUrl": "https://models.dev/api.json",
+        "input": [
+          "text"
+        ],
+        "output": [
+          "text"
+        ],
+        "tools": true,
+        "reasoning": false,
+        "temperature": true
+      }
+    },
+    "mistral-nemo": {
+      "capacity": 128000,
+      "maxOutputTokens": 128000,
+      "capabilities": {
+        "sourceUrl": "https://models.dev/api.json",
+        "input": [
+          "text"
+        ],
+        "output": [
+          "text"
+        ],
+        "tools": true,
+        "reasoning": false,
+        "temperature": true
+      }
+    },
+    "voxtral-mini-tts-latest": {
+      "capacity": null,
+      "capabilities": {
+        "sourceUrl": "https://models.dev/api.json",
+        "input": [
+          "text"
+        ],
+        "output": [
+          "audio"
+        ],
+        "tools": false,
+        "reasoning": false,
+        "temperature": false
+      }
+    },
+    "mistral-medium-2508": {
+      "capacity": 262144,
+      "maxOutputTokens": 262144,
+      "capabilities": {
+        "sourceUrl": "https://models.dev/api.json",
+        "input": [
+          "text",
+          "image"
+        ],
+        "output": [
+          "text"
+        ],
+        "tools": true,
+        "reasoning": false,
+        "temperature": true
+      }
+    },
+    "mistral-large-latest": {
+      "capacity": 262144,
+      "maxOutputTokens": 262144,
+      "capabilities": {
+        "sourceUrl": "https://models.dev/api.json",
+        "input": [
+          "text",
+          "image"
+        ],
+        "output": [
+          "text"
+        ],
+        "tools": true,
+        "reasoning": false,
+        "temperature": true
+      }
+    },
+    "mistral-small-latest": {
+      "capacity": 262144,
+      "maxOutputTokens": 256000,
+      "capabilities": {
+        "sourceUrl": "https://models.dev/api.json",
+        "input": [
+          "text",
+          "image"
+        ],
+        "output": [
+          "text"
+        ],
+        "tools": true,
+        "reasoning": true,
+        "temperature": true,
+        "reasoningOptions": [
+          {
+            "type": "effort",
+            "values": [
+              "none",
+              "high"
+            ]
+          }
+        ]
+      }
+    },
+    "ministral-8b-2512": {
+      "capacity": 262144,
+      "maxOutputTokens": 262144,
+      "capabilities": {
+        "sourceUrl": "https://models.dev/api.json",
+        "input": [
+          "text",
+          "image"
+        ],
+        "output": [
+          "text"
+        ],
+        "tools": true,
+        "reasoning": false,
+        "temperature": true
+      }
+    },
+    "zai-glm-5-2": {
+      "capacity": 1048576,
+      "maxOutputTokens": 131072,
+      "capabilities": {
+        "sourceUrl": "https://models.dev/api.json",
+        "input": [
+          "text"
+        ],
+        "output": [
+          "text"
+        ],
+        "tools": true,
+        "reasoning": true,
+        "temperature": true,
+        "reasoningOptions": [
+          {
+            "type": "effort",
+            "values": [
+              "none",
+              "high",
+              "max"
+            ]
+          }
+        ]
+      }
+    },
+    "ministral-8b-latest": {
+      "capacity": 262144,
+      "maxOutputTokens": 128000,
+      "capabilities": {
+        "sourceUrl": "https://models.dev/api.json",
+        "input": [
+          "text",
+          "image"
+        ],
+        "output": [
+          "text"
+        ],
+        "tools": true,
+        "reasoning": false,
+        "temperature": true
+      }
+    },
+    "devstral-medium-latest": {
+      "capacity": 262144,
+      "maxOutputTokens": 262144,
+      "capabilities": {
+        "sourceUrl": "https://models.dev/api.json",
+        "input": [
+          "text"
+        ],
+        "output": [
+          "text"
+        ],
+        "tools": true,
+        "reasoning": false,
+        "temperature": true
+      }
+    },
+    "mistral-large-4": {
+      "capacity": 1048576,
+      "maxOutputTokens": 262144,
+      "capabilities": {
+        "sourceUrl": "https://models.dev/api.json",
+        "input": [
+          "text",
+          "image"
+        ],
+        "output": [
+          "text"
+        ],
+        "tools": true,
+        "reasoning": true,
+        "temperature": true,
+        "reasoningOptions": [
+          {
+            "type": "effort",
+            "values": [
+              "none",
+              "high"
+            ]
+          }
+        ]
+      }
+    },
+    "open-mixtral-8x22b": {
+      "capacity": 64000,
+      "maxOutputTokens": 64000,
+      "capabilities": {
+        "sourceUrl": "https://models.dev/api.json",
+        "input": [
+          "text"
+        ],
+        "output": [
+          "text"
+        ],
+        "tools": true,
+        "reasoning": false,
+        "temperature": true
+      }
+    },
+    "devstral-2512": {
+      "capacity": 262144,
+      "maxOutputTokens": 262144,
+      "capabilities": {
+        "sourceUrl": "https://models.dev/api.json",
+        "input": [
+          "text"
+        ],
+        "output": [
+          "text"
+        ],
+        "tools": true,
+        "reasoning": false,
+        "temperature": true
+      }
+    },
+    "mistral-medium-2505": {
+      "capacity": 131072,
+      "maxOutputTokens": 131072,
+      "capabilities": {
+        "sourceUrl": "https://models.dev/api.json",
+        "input": [
+          "text",
+          "image"
+        ],
+        "output": [
+          "text"
+        ],
+        "tools": true,
+        "reasoning": false,
+        "temperature": true
+      }
+    },
+    "magistral-medium-latest": {
+      "capacity": 262144,
+      "maxOutputTokens": 16384,
+      "capabilities": {
+        "sourceUrl": "https://models.dev/api.json",
+        "input": [
+          "text",
+          "image"
+        ],
+        "output": [
+          "text"
+        ],
+        "tools": true,
+        "reasoning": true,
+        "temperature": true,
+        "reasoningOptions": [
+          {
+            "type": "effort",
+            "values": [
+              "none",
+              "high"
+            ]
+          }
+        ]
+      }
+    },
+    "voxtral-small-2507": {
+      "capacity": 32768,
+      "maxOutputTokens": 32000,
+      "capabilities": {
+        "sourceUrl": "https://models.dev/api.json",
+        "input": [
+          "text",
+          "audio"
+        ],
+        "output": [
+          "text"
+        ],
+        "tools": true,
+        "reasoning": false,
+        "temperature": true
+      }
+    },
+    "glm-5-2": {
+      "capacity": 1048576,
+      "maxOutputTokens": 131072,
+      "capabilities": {
+        "sourceUrl": "https://models.dev/api.json",
+        "input": [
+          "text"
+        ],
+        "output": [
+          "text"
+        ],
+        "tools": true,
+        "reasoning": true,
+        "temperature": true,
+        "reasoningOptions": [
+          {
+            "type": "effort",
+            "values": [
+              "none",
+              "high",
+              "max"
+            ]
+          }
+        ]
+      }
+    },
+    "labs-leanstral-1-5-1": {
+      "capacity": 262144,
+      "maxOutputTokens": 128000,
+      "capabilities": {
+        "sourceUrl": "https://models.dev/api.json",
+        "input": [
+          "text",
+          "image"
+        ],
+        "output": [
+          "text"
+        ],
+        "tools": true,
+        "reasoning": true,
+        "temperature": true,
+        "reasoningOptions": [
+          {
+            "type": "effort",
+            "values": [
+              "none",
+              "high"
+            ]
+          }
+        ]
+      }
+    },
+    "pixtral-12b": {
+      "capacity": 128000,
+      "maxOutputTokens": 128000,
+      "capabilities": {
+        "sourceUrl": "https://models.dev/api.json",
+        "input": [
+          "text",
+          "image"
+        ],
+        "output": [
+          "text"
+        ],
+        "tools": true,
+        "reasoning": false,
+        "temperature": true
+      }
+    },
+    "mistral-embed": {
+      "capacity": 8000,
+      "maxOutputTokens": 3072,
+      "capabilities": {
+        "sourceUrl": "https://models.dev/api.json",
+        "input": [
+          "text"
+        ],
+        "output": [
+          "text"
+        ],
+        "tools": false,
+        "reasoning": false,
+        "temperature": false
+      }
+    },
+    "devstral-small-2505": {
+      "capacity": 128000,
+      "maxOutputTokens": 128000,
+      "capabilities": {
+        "sourceUrl": "https://models.dev/api.json",
+        "input": [
+          "text"
+        ],
+        "output": [
+          "text"
+        ],
+        "tools": true,
+        "reasoning": false,
+        "temperature": true
+      }
+    },
+    "mistral-small-2603": {
+      "capacity": 262144,
+      "maxOutputTokens": 256000,
+      "capabilities": {
+        "sourceUrl": "https://models.dev/api.json",
+        "input": [
+          "text",
+          "image"
+        ],
+        "output": [
+          "text"
+        ],
+        "tools": true,
+        "reasoning": true,
+        "temperature": true,
+        "reasoningOptions": [
+          {
+            "type": "effort",
+            "values": [
+              "none",
+              "high"
+            ]
+          }
+        ]
+      }
+    },
+    "devstral-medium-2507": {
+      "capacity": 128000,
+      "maxOutputTokens": 128000,
+      "capabilities": {
+        "sourceUrl": "https://models.dev/api.json",
+        "input": [
+          "text"
+        ],
+        "output": [
+          "text"
+        ],
+        "tools": true,
+        "reasoning": false,
+        "temperature": true
+      }
+    },
+    "voxtral-mini-latest": {
+      "capacity": null,
+      "capabilities": {
+        "sourceUrl": "https://models.dev/api.json",
+        "input": [
+          "audio"
+        ],
+        "output": [
+          "text"
+        ],
+        "tools": false,
+        "reasoning": false,
+        "temperature": false
+      }
+    },
+    "labs-devstral-small-2512": {
+      "capacity": 256000,
+      "maxOutputTokens": 256000,
+      "capabilities": {
+        "sourceUrl": "https://models.dev/api.json",
+        "input": [
+          "text",
+          "image"
+        ],
+        "output": [
+          "text"
+        ],
+        "tools": true,
+        "reasoning": false,
+        "temperature": true
+      }
+    },
+    "mistral-large-2512": {
+      "capacity": 262144,
+      "maxOutputTokens": 262144,
+      "capabilities": {
+        "sourceUrl": "https://models.dev/api.json",
+        "input": [
+          "text",
+          "image"
+        ],
+        "output": [
+          "text"
+        ],
+        "tools": true,
+        "reasoning": false,
+        "temperature": true
+      }
+    },
+    "devstral-latest": {
+      "capacity": 262144,
+      "maxOutputTokens": 262144,
+      "capabilities": {
+        "sourceUrl": "https://models.dev/api.json",
+        "input": [
+          "text"
+        ],
+        "output": [
+          "text"
+        ],
+        "tools": true,
+        "reasoning": false,
+        "temperature": true
+      }
+    },
+    "ministral-14b-2512": {
+      "capacity": 262144,
+      "maxOutputTokens": 262144,
+      "capabilities": {
+        "sourceUrl": "https://models.dev/api.json",
+        "input": [
+          "text",
+          "image"
+        ],
+        "output": [
+          "text"
+        ],
+        "tools": true,
+        "reasoning": false,
+        "temperature": true
+      }
+    },
+    "devstral-small-2507": {
+      "capacity": 128000,
+      "maxOutputTokens": 128000,
+      "capabilities": {
+        "sourceUrl": "https://models.dev/api.json",
+        "input": [
+          "text"
+        ],
+        "output": [
+          "text"
+        ],
+        "tools": true,
+        "reasoning": false,
+        "temperature": true
+      }
+    },
+    "pixtral-large-latest": {
+      "capacity": 128000,
+      "maxOutputTokens": 128000,
+      "capabilities": {
+        "sourceUrl": "https://models.dev/api.json",
+        "input": [
+          "text",
+          "image"
+        ],
+        "output": [
+          "text"
+        ],
+        "tools": true,
+        "reasoning": false,
+        "temperature": true
+      }
+    },
+    "voxtral-small-latest": {
+      "capacity": 32768,
+      "maxOutputTokens": 32000,
+      "capabilities": {
+        "sourceUrl": "https://models.dev/api.json",
+        "input": [
+          "text",
+          "audio"
+        ],
+        "output": [
+          "text"
+        ],
+        "tools": true,
+        "reasoning": false,
+        "temperature": true
+      }
+    },
+    "open-mixtral-8x7b": {
+      "capacity": 32000,
+      "maxOutputTokens": 32000,
+      "capabilities": {
+        "sourceUrl": "https://models.dev/api.json",
+        "input": [
+          "text"
+        ],
+        "output": [
+          "text"
+        ],
+        "tools": true,
+        "reasoning": false,
+        "temperature": true
+      }
+    },
+    "mistral-small-2506": {
+      "capacity": 128000,
+      "maxOutputTokens": 16384,
+      "capabilities": {
+        "sourceUrl": "https://models.dev/api.json",
+        "input": [
+          "text",
+          "image"
+        ],
+        "output": [
+          "text"
+        ],
+        "tools": true,
+        "reasoning": false,
+        "temperature": true
+      }
+    },
+    "zai-glm-5-3": {
+      "capacity": 1048576,
+      "maxOutputTokens": 131072,
+      "capabilities": {
+        "sourceUrl": "https://models.dev/api.json",
+        "input": [
+          "text"
+        ],
+        "output": [
+          "text"
+        ],
+        "tools": true,
+        "reasoning": true,
+        "temperature": true,
+        "reasoningOptions": [
+          {
+            "type": "effort",
+            "values": [
+              "low",
+              "high",
+              "max"
+            ]
+          }
+        ]
+      }
+    },
+    "ministral-3b-2512": {
+      "capacity": 131072,
+      "maxOutputTokens": 262144,
+      "capabilities": {
+        "sourceUrl": "https://models.dev/api.json",
+        "input": [
+          "text",
+          "image"
+        ],
+        "output": [
+          "text"
+        ],
+        "tools": true,
+        "reasoning": false,
+        "temperature": true
+      }
+    },
+    "mistral-medium-2604": {
+      "capacity": 262144,
+      "maxOutputTokens": 262144,
+      "capabilities": {
+        "sourceUrl": "https://models.dev/api.json",
+        "input": [
+          "text",
+          "image"
+        ],
+        "output": [
+          "text"
+        ],
+        "tools": true,
+        "reasoning": true,
+        "temperature": true,
+        "reasoningOptions": [
+          {
+            "type": "effort",
+            "values": [
+              "none",
+              "high"
+            ]
+          }
+        ]
+      }
+    },
+    "open-mistral-7b": {
+      "capacity": 8000,
+      "maxOutputTokens": 8000,
+      "capabilities": {
+        "sourceUrl": "https://models.dev/api.json",
+        "input": [
+          "text"
+        ],
+        "output": [
+          "text"
+        ],
+        "tools": true,
+        "reasoning": false,
+        "temperature": true
+      }
+    },
+    "codestral-2508": {
+      "capacity": 256000,
+      "maxOutputTokens": 8192,
+      "capabilities": {
+        "sourceUrl": "https://models.dev/api.json",
+        "input": [
+          "text"
+        ],
+        "output": [
+          "text"
+        ],
+        "tools": true,
+        "reasoning": false,
+        "temperature": true
+      }
+    },
+    "ministral-3b-latest": {
+      "capacity": 131072,
+      "maxOutputTokens": 128000,
+      "capabilities": {
+        "sourceUrl": "https://models.dev/api.json",
+        "input": [
+          "text",
+          "image"
+        ],
+        "output": [
+          "text"
+        ],
+        "tools": true,
+        "reasoning": false,
+        "temperature": true
+      }
+    },
+    "mistral-medium-latest": {
+      "capacity": 262144,
+      "maxOutputTokens": 262144,
+      "capabilities": {
+        "sourceUrl": "https://models.dev/api.json",
+        "input": [
+          "text",
+          "image"
+        ],
+        "output": [
+          "text"
+        ],
+        "tools": true,
+        "reasoning": true,
+        "temperature": true,
+        "reasoningOptions": [
+          {
+            "type": "effort",
+            "values": [
+              "none",
+              "high"
+            ]
+          }
+        ]
+      }
+    },
+    "glm-5-3-flash-260828": {
+      "capacity": 1000000,
+      "maxOutputTokens": 131072,
+      "capabilities": {
+        "sourceUrl": "https://models.dev/api.json",
+        "input": [
+          "text",
+          "image",
+          "video",
+          "pdf"
+        ],
+        "output": [
+          "text"
+        ],
+        "tools": true,
+        "reasoning": true,
+        "temperature": true,
+        "reasoningOptions": [
+          {
+            "type": "effort",
+            "values": [
+              "low",
+              "high",
+              "max"
+            ]
+          }
+        ]
+      }
+    },
+    "doubao-seed-1-6-251015": {
+      "capacity": 256000,
+      "maxOutputTokens": 64000,
+      "capabilities": {
+        "sourceUrl": "https://models.dev/api.json",
+        "input": [
+          "text"
+        ],
+        "output": [
+          "text"
+        ],
+        "tools": true,
+        "reasoning": true,
+        "temperature": true,
+        "reasoningOptions": [
+          {
+            "type": "toggle"
+          },
+          {
+            "type": "effort",
+            "values": [
+              "minimal",
+              "low",
+              "medium",
+              "high"
+            ]
+          }
+        ]
+      }
+    },
+    "doubao-seed-2-0-pro-260215": {
+      "capacity": 256000,
+      "maxOutputTokens": 128000,
+      "capabilities": {
+        "sourceUrl": "https://models.dev/api.json",
+        "input": [
+          "text",
+          "image",
+          "video"
+        ],
+        "output": [
+          "text"
+        ],
+        "tools": true,
+        "reasoning": true,
+        "temperature": true,
+        "reasoningOptions": [
+          {
+            "type": "effort",
+            "values": [
+              "none",
+              "minimal",
+              "low",
+              "medium",
+              "high",
+              "xhigh",
+              "max"
+            ]
+          }
+        ]
+      }
+    },
+    "doubao-seed-2-0-lite-260428": {
+      "capacity": 256000,
+      "maxOutputTokens": 131072,
+      "capabilities": {
+        "sourceUrl": "https://models.dev/api.json",
+        "input": [
+          "text",
+          "image",
+          "video"
+        ],
+        "output": [
+          "text"
+        ],
+        "tools": true,
+        "reasoning": true,
+        "temperature": true,
+        "reasoningOptions": [
+          {
+            "type": "effort",
+            "values": [
+              "none",
+              "minimal",
+              "low",
+              "medium",
+              "high",
+              "xhigh",
+              "max"
+            ]
+          }
+        ]
+      }
+    },
+    "doubao-seed-2-1-pro-260628": {
+      "capacity": 256000,
+      "maxOutputTokens": 256000,
+      "capabilities": {
+        "sourceUrl": "https://models.dev/api.json",
+        "input": [
+          "text",
+          "image",
+          "video"
+        ],
+        "output": [
+          "text"
+        ],
+        "tools": true,
+        "reasoning": true,
+        "temperature": true,
+        "reasoningOptions": [
+          {
+            "type": "effort",
+            "values": [
+              "none",
+              "minimal",
+              "low",
+              "medium",
+              "high",
+              "xhigh",
+              "max"
+            ]
+          }
+        ]
+      }
+    },
+    "doubao-seed-1-6-vision-250815": {
+      "capacity": 256000,
+      "maxOutputTokens": 32000,
+      "capabilities": {
+        "sourceUrl": "https://models.dev/api.json",
+        "input": [
+          "text",
+          "image"
+        ],
+        "output": [
+          "text"
+        ],
+        "tools": true,
+        "reasoning": true,
+        "temperature": true,
+        "reasoningOptions": [
+          {
+            "type": "toggle"
+          }
+        ]
+      }
+    },
+    "doubao-seed-2-0-mini-260428": {
+      "capacity": 256000,
+      "maxOutputTokens": 131072,
+      "capabilities": {
+        "sourceUrl": "https://models.dev/api.json",
+        "input": [
+          "text",
+          "image",
+          "video"
+        ],
+        "output": [
+          "text"
+        ],
+        "tools": true,
+        "reasoning": true,
+        "temperature": true,
+        "reasoningOptions": [
+          {
+            "type": "effort",
+            "values": [
+              "none",
+              "minimal",
+              "low",
+              "medium",
+              "high",
+              "xhigh",
+              "max"
+            ]
+          }
+        ]
+      }
+    },
+    "doubao-seed-2-0-code-preview-260215": {
+      "capacity": 262144,
+      "maxOutputTokens": 131072,
+      "capabilities": {
+        "sourceUrl": "https://models.dev/api.json",
+        "input": [
+          "text",
+          "image",
+          "video"
+        ],
+        "output": [
+          "text"
+        ],
+        "tools": true,
+        "reasoning": true,
+        "temperature": true,
+        "reasoningOptions": [
+          {
+            "type": "effort",
+            "values": [
+              "none",
+              "minimal",
+              "low",
+              "medium",
+              "high",
+              "xhigh",
+              "max"
+            ]
+          }
+        ]
+      }
+    },
+    "doubao-seed-2-1-turbo-260628": {
+      "capacity": 256000,
+      "maxOutputTokens": 256000,
+      "capabilities": {
+        "sourceUrl": "https://models.dev/api.json",
+        "input": [
+          "text",
+          "image",
+          "video"
+        ],
+        "output": [
+          "text"
+        ],
+        "tools": true,
+        "reasoning": true,
+        "temperature": true,
+        "reasoningOptions": [
+          {
+            "type": "effort",
+            "values": [
+              "none",
+              "minimal",
+              "low",
+              "medium",
+              "high",
+              "xhigh",
+              "max"
+            ]
+          }
+        ]
+      }
+    },
+    "glm-5-2-260617": {
+      "capacity": 1000000,
+      "maxOutputTokens": 131072,
+      "capabilities": {
+        "sourceUrl": "https://models.dev/api.json",
+        "input": [
+          "text"
+        ],
+        "output": [
+          "text"
+        ],
+        "tools": true,
+        "reasoning": true,
+        "temperature": true,
+        "reasoningOptions": [
+          {
+            "type": "toggle"
+          },
+          {
+            "type": "effort",
+            "values": [
+              "minimal",
+              "low",
+              "medium",
+              "high"
+            ]
+          }
+        ]
+      }
+    },
+    "doubao-seed-1-8-251228": {
+      "capacity": 256000,
+      "maxOutputTokens": 64000,
+      "capabilities": {
+        "sourceUrl": "https://models.dev/api.json",
+        "input": [
+          "text",
+          "image"
+        ],
+        "output": [
+          "text"
+        ],
+        "tools": true,
+        "reasoning": true,
+        "temperature": true,
+        "reasoningOptions": [
+          {
+            "type": "effort",
+            "values": [
+              "none",
+              "minimal",
+              "low",
+              "medium",
+              "high",
+              "xhigh",
+              "max"
+            ]
+          }
+        ]
+      }
+    },
+    "doubao-seed-evolving": {
+      "capacity": 256000,
+      "maxOutputTokens": 256000,
+      "capabilities": {
+        "sourceUrl": "https://models.dev/api.json",
+        "input": [
+          "text",
+          "image",
+          "video"
+        ],
+        "output": [
+          "text"
+        ],
+        "tools": true,
+        "reasoning": true,
+        "temperature": true,
+        "reasoningOptions": [
+          {
+            "type": "effort",
+            "values": [
+              "none",
+              "minimal",
+              "low",
+              "medium",
+              "high",
+              "xhigh",
+              "max"
+            ]
+          }
+        ]
+      }
+    },
+    "doubao-seed-1-6-flash-250828": {
+      "capacity": 256000,
+      "maxOutputTokens": 32000,
+      "capabilities": {
+        "sourceUrl": "https://models.dev/api.json",
+        "input": [
+          "text",
+          "image"
+        ],
+        "output": [
+          "text"
+        ],
+        "tools": true,
+        "reasoning": true,
+        "temperature": true,
+        "reasoningOptions": [
+          {
+            "type": "toggle"
+          }
+        ]
+      }
+    },
+    "doubao-seed-character-260628": {
+      "capacity": 256000,
+      "maxOutputTokens": 256000,
+      "capabilities": {
+        "sourceUrl": "https://models.dev/api.json",
+        "input": [
+          "text",
+          "image",
+          "video"
+        ],
+        "output": [
+          "text"
+        ],
+        "tools": true,
+        "reasoning": true,
+        "temperature": true,
+        "reasoningOptions": [
+          {
+            "type": "toggle"
+          },
+          {
+            "type": "effort",
+            "values": [
+              "minimal",
+              "low",
+              "high"
+            ]
+          }
+        ]
+      }
+    },
+    "deepseek-v4-pro-ga-260813": {
+      "capacity": 1000000,
+      "maxOutputTokens": 384000,
+      "capabilities": {
+        "sourceUrl": "https://models.dev/api.json",
+        "input": [
+          "text"
+        ],
+        "output": [
+          "text"
+        ],
+        "tools": true,
+        "reasoning": true,
+        "temperature": true,
+        "reasoningOptions": [
+          {
+            "type": "toggle"
+          },
+          {
+            "type": "effort",
+            "values": [
+              "minimal",
+              "low",
+              "medium",
+              "high"
+            ]
+          }
+        ]
+      }
+    },
+    "deepseek-v4-flash-ga-260731": {
+      "capacity": 1000000,
+      "maxOutputTokens": 384000,
+      "capabilities": {
+        "sourceUrl": "https://models.dev/api.json",
+        "input": [
+          "text"
+        ],
+        "output": [
+          "text"
+        ],
+        "tools": true,
+        "reasoning": true,
+        "temperature": true,
+        "reasoningOptions": [
+          {
+            "type": "toggle"
+          },
+          {
+            "type": "effort",
+            "values": [
+              "minimal",
+              "low",
+              "medium",
+              "high"
+            ]
+          }
+        ]
+      }
+    },
+    "command-r-08-2024": {
+      "capacity": 128000,
+      "maxOutputTokens": 4000,
+      "capabilities": {
+        "sourceUrl": "https://models.dev/api.json",
+        "input": [
+          "text"
+        ],
+        "output": [
+          "text"
+        ],
+        "tools": true,
+        "reasoning": false,
+        "temperature": true
+      }
+    },
+    "north-mini-code-1-0": {
+      "capacity": 256000,
+      "maxOutputTokens": 64000,
+      "capabilities": {
+        "sourceUrl": "https://models.dev/api.json",
+        "input": [
+          "text"
+        ],
+        "output": [
+          "text"
+        ],
+        "tools": true,
+        "reasoning": true,
+        "temperature": true,
+        "reasoningOptions": [
+          {
+            "type": "effort",
+            "values": [
+              "none",
+              "high"
+            ]
+          }
+        ]
+      }
+    },
+    "command-a-translate-08-2025": {
+      "capacity": 8000,
+      "maxOutputTokens": 8000,
+      "capabilities": {
+        "sourceUrl": "https://models.dev/api.json",
+        "input": [
+          "text"
+        ],
+        "output": [
+          "text"
+        ],
+        "tools": true,
+        "reasoning": false,
+        "temperature": true
+      }
+    },
+    "tiny-aya-fire": {
+      "capacity": 8000,
+      "maxOutputTokens": 8000,
+      "capabilities": {
+        "sourceUrl": "https://models.dev/api.json",
+        "input": [
+          "text"
+        ],
+        "output": [
+          "text"
+        ],
+        "tools": true,
+        "reasoning": false,
+        "temperature": true
+      }
+    },
+    "command-r7b-arabic-02-2025": {
+      "capacity": 128000,
+      "maxOutputTokens": 4000,
+      "capabilities": {
+        "sourceUrl": "https://models.dev/api.json",
+        "input": [
+          "text"
+        ],
+        "output": [
+          "text"
+        ],
+        "tools": true,
+        "reasoning": false,
+        "temperature": true
+      }
+    },
+    "tiny-aya-earth": {
+      "capacity": 8000,
+      "maxOutputTokens": 8000,
+      "capabilities": {
+        "sourceUrl": "https://models.dev/api.json",
+        "input": [
+          "text"
+        ],
+        "output": [
+          "text"
+        ],
+        "tools": true,
+        "reasoning": false,
+        "temperature": true
+      }
+    },
+    "command-a-plus-05-2026": {
+      "capacity": 128000,
+      "maxOutputTokens": 64000,
+      "capabilities": {
+        "sourceUrl": "https://models.dev/api.json",
+        "input": [
+          "text",
+          "image"
+        ],
+        "output": [
+          "text"
+        ],
+        "tools": true,
+        "reasoning": true,
+        "temperature": true,
+        "reasoningOptions": [
+          {
+            "type": "toggle"
+          },
+          {
+            "type": "budget_tokens",
+            "min": 1
+          }
+        ]
+      }
+    },
+    "command-a-03-2025": {
+      "capacity": 256000,
+      "maxOutputTokens": 8000,
+      "capabilities": {
+        "sourceUrl": "https://models.dev/api.json",
+        "input": [
+          "text"
+        ],
+        "output": [
+          "text"
+        ],
+        "tools": true,
+        "reasoning": false,
+        "temperature": true
+      }
+    },
+    "c4ai-aya-vision-32b": {
+      "capacity": 16000,
+      "maxOutputTokens": 4000,
+      "capabilities": {
+        "sourceUrl": "https://models.dev/api.json",
+        "input": [
+          "text",
+          "image"
+        ],
+        "output": [
+          "text"
+        ],
+        "tools": false,
+        "reasoning": false,
+        "temperature": true
+      }
+    },
+    "tiny-aya-global": {
+      "capacity": 8000,
+      "maxOutputTokens": 8000,
+      "capabilities": {
+        "sourceUrl": "https://models.dev/api.json",
+        "input": [
+          "text"
+        ],
+        "output": [
+          "text"
+        ],
+        "tools": true,
+        "reasoning": false,
+        "temperature": true
+      }
+    },
+    "north-small-translate-09-2026": {
+      "capacity": 32768,
+      "maxOutputTokens": 16000,
+      "capabilities": {
+        "sourceUrl": "https://models.dev/api.json",
+        "input": [
+          "text"
+        ],
+        "output": [
+          "text"
+        ],
+        "tools": false,
+        "reasoning": false,
+        "temperature": true
+      }
+    },
+    "command-r7b-12-2024": {
+      "capacity": 128000,
+      "maxOutputTokens": 4000,
+      "capabilities": {
+        "sourceUrl": "https://models.dev/api.json",
+        "input": [
+          "text"
+        ],
+        "output": [
+          "text"
+        ],
+        "tools": true,
+        "reasoning": false,
+        "temperature": true
+      }
+    },
+    "command-r-plus-08-2024": {
+      "capacity": 128000,
+      "maxOutputTokens": 4000,
+      "capabilities": {
+        "sourceUrl": "https://models.dev/api.json",
+        "input": [
+          "text"
+        ],
+        "output": [
+          "text"
+        ],
+        "tools": true,
+        "reasoning": false,
+        "temperature": true
+      }
+    },
+    "command-a-vision-07-2025": {
+      "capacity": 128000,
+      "maxOutputTokens": 8000,
+      "capabilities": {
+        "sourceUrl": "https://models.dev/api.json",
+        "input": [
+          "text",
+          "image"
+        ],
+        "output": [
+          "text"
+        ],
+        "tools": false,
+        "reasoning": false,
+        "temperature": true
+      }
+    },
+    "tiny-aya-water": {
+      "capacity": 8000,
+      "maxOutputTokens": 8000,
+      "capabilities": {
+        "sourceUrl": "https://models.dev/api.json",
+        "input": [
+          "text"
+        ],
+        "output": [
+          "text"
+        ],
+        "tools": true,
+        "reasoning": false,
+        "temperature": true
+      }
+    },
+    "command-a-reasoning-08-2025": {
+      "capacity": 256000,
+      "maxOutputTokens": 32000,
+      "capabilities": {
+        "sourceUrl": "https://models.dev/api.json",
+        "input": [
+          "text"
+        ],
+        "output": [
+          "text"
+        ],
+        "tools": true,
+        "reasoning": true,
+        "temperature": true,
+        "reasoningOptions": [
+          {
+            "type": "toggle"
+          },
+          {
+            "type": "budget_tokens",
+            "min": 1
+          }
+        ]
+      }
+    },
+    "c4ai-aya-expanse-32b": {
+      "capacity": 128000,
+      "maxOutputTokens": 4000,
+      "capabilities": {
+        "sourceUrl": "https://models.dev/api.json",
+        "input": [
+          "text"
+        ],
+        "output": [
+          "text"
+        ],
+        "tools": false,
+        "reasoning": false,
+        "temperature": true
+      }
+    },
+    "jamba-large": {
+      "capacity": 256000,
+      "maxOutputTokens": 4096,
+      "capabilities": {
+        "sourceUrl": "https://models.dev/api.json",
+        "input": [
+          "text"
+        ],
+        "output": [
+          "text"
+        ],
+        "tools": true,
+        "reasoning": false,
+        "temperature": true
+      }
+    },
+    "jamba-mini": {
+      "capacity": 256000,
+      "maxOutputTokens": 4096,
+      "capabilities": {
+        "sourceUrl": "https://models.dev/api.json",
+        "input": [
+          "text"
+        ],
+        "output": [
+          "text"
+        ],
+        "tools": true,
+        "reasoning": false,
+        "temperature": true
+      }
+    },
+    "step-1-32k": {
+      "capacity": 32768,
+      "maxInputTokens": 32768,
+      "maxOutputTokens": 32768,
+      "capabilities": {
+        "sourceUrl": "https://models.dev/api.json",
+        "input": [
+          "text"
+        ],
+        "output": [
+          "text"
+        ],
+        "tools": true,
+        "reasoning": false,
+        "temperature": true
+      }
+    },
+    "step-tts-2": {
+      "capacity": null,
+      "capabilities": {
+        "sourceUrl": "https://models.dev/api.json",
+        "input": [
+          "text"
+        ],
+        "output": [
+          "audio"
+        ],
+        "tools": false,
+        "reasoning": false,
+        "temperature": false
+      }
+    },
+    "step-5-preview": {
+      "capacity": 1000000,
+      "maxInputTokens": 1000000,
+      "maxOutputTokens": 65536,
+      "capabilities": {
+        "sourceUrl": "https://models.dev/api.json",
+        "input": [
+          "text",
+          "image",
+          "video"
+        ],
+        "output": [
+          "text"
+        ],
+        "tools": true,
+        "reasoning": true,
+        "reasoningOptions": [
+          {
+            "type": "effort",
+            "values": [
+              "low",
+              "medium",
+              "high"
+            ]
+          }
+        ]
+      }
+    },
+    "step-3.5-flash-2603": {
+      "capacity": 256000,
+      "maxInputTokens": 256000,
+      "maxOutputTokens": 256000,
+      "capabilities": {
+        "sourceUrl": "https://models.dev/api.json",
+        "input": [
+          "text"
+        ],
+        "output": [
+          "text"
+        ],
+        "tools": true,
+        "reasoning": true,
+        "temperature": true,
+        "reasoningOptions": [
+          {
+            "type": "effort",
+            "values": [
+              "low",
+              "high"
+            ]
+          }
+        ]
+      }
+    },
+    "step-2-16k": {
+      "capacity": 16384,
+      "maxInputTokens": 16384,
+      "maxOutputTokens": 8192,
+      "capabilities": {
+        "sourceUrl": "https://models.dev/api.json",
+        "input": [
+          "text"
+        ],
+        "output": [
+          "text"
+        ],
+        "tools": true,
+        "reasoning": false,
+        "temperature": true
+      }
+    },
+    "stepaudio-2.5-tts": {
+      "capacity": null,
+      "capabilities": {
+        "sourceUrl": "https://models.dev/api.json",
+        "input": [
+          "text"
+        ],
+        "output": [
+          "audio"
+        ],
+        "tools": false,
+        "reasoning": false,
+        "temperature": false
+      }
+    },
+    "stepaudio-2.5-asr": {
+      "capacity": null,
+      "capabilities": {
+        "sourceUrl": "https://models.dev/api.json",
+        "input": [
+          "audio"
+        ],
+        "output": [
+          "text"
+        ],
+        "tools": false,
+        "reasoning": false,
+        "temperature": false
+      }
+    },
+    "step-3.5-flash": {
+      "capacity": 256000,
+      "maxInputTokens": 256000,
+      "maxOutputTokens": 256000,
+      "capabilities": {
+        "sourceUrl": "https://models.dev/api.json",
+        "input": [
+          "text"
+        ],
+        "output": [
+          "text"
+        ],
+        "tools": true,
+        "reasoning": true,
+        "temperature": true,
+        "reasoningOptions": [
+          {
+            "type": "effort",
+            "values": [
+              "low",
+              "high"
+            ]
+          }
+        ]
+      }
+    },
+    "step-3.7-flash": {
+      "capacity": 256000,
+      "maxInputTokens": 256000,
+      "maxOutputTokens": 256000,
+      "capabilities": {
+        "sourceUrl": "https://models.dev/api.json",
+        "input": [
+          "text",
+          "image",
+          "video"
+        ],
+        "output": [
+          "text"
+        ],
+        "tools": true,
+        "reasoning": true,
+        "temperature": true,
+        "reasoningOptions": [
+          {
+            "type": "effort",
+            "values": [
+              "low",
+              "medium",
+              "high"
+            ]
+          }
+        ]
+      }
+    },
+    "mimo-v2.6-pro": {
+      "capacity": 1048576,
+      "maxOutputTokens": 131072,
+      "capabilities": {
+        "sourceUrl": "https://models.dev/api.json",
+        "input": [
+          "text",
+          "image",
+          "audio",
+          "video"
+        ],
+        "output": [
+          "text"
+        ],
+        "tools": true,
+        "reasoning": true,
+        "temperature": true,
+        "reasoningOptions": [
+          {
+            "type": "toggle"
+          }
+        ]
+      }
+    },
+    "mimo-v2-flash": {
+      "capacity": 262144,
+      "maxOutputTokens": 65536,
+      "capabilities": {
+        "sourceUrl": "https://models.dev/api.json",
+        "input": [
+          "text"
+        ],
+        "output": [
+          "text"
+        ],
+        "tools": true,
+        "reasoning": true,
+        "temperature": true,
+        "reasoningOptions": [
+          {
+            "type": "toggle"
+          }
+        ]
+      }
+    },
+    "mimo-v2.5": {
+      "capacity": 1048576,
+      "maxOutputTokens": 131072,
+      "capabilities": {
+        "sourceUrl": "https://models.dev/api.json",
+        "input": [
+          "text",
+          "image",
+          "audio",
+          "video"
+        ],
+        "output": [
+          "text"
+        ],
+        "tools": true,
+        "reasoning": true,
+        "temperature": true,
+        "reasoningOptions": [
+          {
+            "type": "toggle"
+          }
+        ]
+      }
+    },
+    "mimo-v2-omni": {
+      "capacity": 262144,
+      "maxOutputTokens": 131072,
+      "capabilities": {
+        "sourceUrl": "https://models.dev/api.json",
+        "input": [
+          "text",
+          "image",
+          "audio",
+          "video",
+          "pdf"
+        ],
+        "output": [
+          "text"
+        ],
+        "tools": true,
+        "reasoning": true,
+        "temperature": true,
+        "reasoningOptions": [
+          {
+            "type": "toggle"
+          }
+        ]
+      }
+    },
+    "mimo-v2.6-pro-ultraspeed": {
+      "capacity": 1048576,
+      "maxOutputTokens": 131072,
+      "capabilities": {
+        "sourceUrl": "https://models.dev/api.json",
+        "input": [
+          "text",
+          "image",
+          "audio",
+          "video"
+        ],
+        "output": [
+          "text"
+        ],
+        "tools": true,
+        "reasoning": true,
+        "temperature": true,
+        "reasoningOptions": [
+          {
+            "type": "toggle"
+          }
+        ]
+      }
+    },
+    "mimo-v2-pro": {
+      "capacity": 1048576,
+      "maxOutputTokens": 131072,
+      "capabilities": {
+        "sourceUrl": "https://models.dev/api.json",
+        "input": [
+          "text"
+        ],
+        "output": [
+          "text"
+        ],
+        "tools": true,
+        "reasoning": true,
+        "temperature": true,
+        "reasoningOptions": [
+          {
+            "type": "toggle"
+          }
+        ]
+      }
+    },
+    "mimo-v2.5-pro": {
+      "capacity": 1048576,
+      "maxOutputTokens": 131072,
+      "capabilities": {
+        "sourceUrl": "https://models.dev/api.json",
+        "input": [
+          "text"
+        ],
+        "output": [
+          "text"
+        ],
+        "tools": true,
+        "reasoning": true,
+        "temperature": true,
+        "reasoningOptions": [
+          {
+            "type": "toggle"
+          }
+        ]
+      }
+    },
+    "mimo-v2.6-flash": {
+      "capacity": 1048576,
+      "maxOutputTokens": 131072,
+      "capabilities": {
+        "sourceUrl": "https://models.dev/api.json",
+        "input": [
+          "text",
+          "image",
+          "audio",
+          "video"
+        ],
+        "output": [
+          "text"
+        ],
+        "tools": true,
+        "reasoning": true,
+        "temperature": true,
+        "reasoningOptions": [
+          {
+            "type": "toggle"
+          }
+        ]
+      }
+    },
+    "mimo-v2.5-pro-ultraspeed": {
+      "capacity": 1048576,
+      "maxOutputTokens": 131072,
+      "capabilities": {
+        "sourceUrl": "https://models.dev/api.json",
+        "input": [
+          "text"
+        ],
+        "output": [
+          "text"
+        ],
+        "tools": true,
+        "reasoning": true,
+        "temperature": true,
+        "reasoningOptions": [
+          {
+            "type": "toggle"
+          }
+        ]
+      }
+    },
+    "hy3-preview": {
+      "capacity": 256000,
+      "maxOutputTokens": 64000,
+      "capabilities": {
+        "sourceUrl": "https://models.dev/api.json",
+        "input": [
+          "text"
+        ],
+        "output": [
+          "text"
+        ],
+        "tools": true,
+        "reasoning": true,
+        "temperature": true,
+        "reasoningOptions": [
+          {
+            "type": "toggle"
+          },
+          {
+            "type": "effort",
+            "values": [
+              "low",
+              "medium",
+              "high"
+            ]
+          }
+        ]
+      }
+    },
+    "hy3": {
+      "capacity": 256000,
+      "maxInputTokens": 192000,
+      "maxOutputTokens": 128000,
+      "capabilities": {
+        "sourceUrl": "https://models.dev/api.json",
+        "input": [
+          "text"
+        ],
+        "output": [
+          "text"
+        ],
+        "tools": true,
+        "reasoning": true,
+        "temperature": true,
+        "reasoningOptions": [
+          {
+            "type": "toggle"
+          },
+          {
+            "type": "effort",
+            "values": [
+              "none",
+              "high"
+            ]
+          }
+        ]
+      }
+    },
+    "hy4-preview": {
+      "capacity": 1024000,
+      "maxOutputTokens": 64000,
+      "capabilities": {
+        "sourceUrl": "https://models.dev/api.json",
+        "input": [
+          "text"
+        ],
+        "output": [
+          "text"
+        ],
+        "tools": true,
+        "reasoning": true,
+        "temperature": true,
+        "reasoningOptions": [
+          {
+            "type": "toggle"
+          },
+          {
+            "type": "effort",
+            "values": [
+              "none",
+              "high"
+            ]
+          }
+        ]
+      }
+    },
+    "Ring-1T": {
+      "capacity": 128000,
+      "maxOutputTokens": 32000,
+      "capabilities": {
+        "sourceUrl": "https://models.dev/api.json",
+        "input": [
+          "text"
+        ],
+        "output": [
+          "text"
+        ],
+        "tools": false,
+        "reasoning": true,
+        "temperature": true
+      }
+    },
+    "Ling-1T": {
+      "capacity": 128000,
+      "maxOutputTokens": 32000,
+      "capabilities": {
+        "sourceUrl": "https://models.dev/api.json",
+        "input": [
+          "text"
+        ],
+        "output": [
+          "text"
+        ],
+        "tools": true,
+        "reasoning": false,
+        "temperature": true
+      }
+    },
+    "muse-spark-1.3": {
+      "capacity": 1048576,
+      "maxOutputTokens": 131072,
+      "capabilities": {
+        "sourceUrl": "https://models.dev/api.json",
+        "input": [
+          "text",
+          "image",
+          "video",
+          "pdf",
+          "audio"
+        ],
+        "output": [
+          "text"
+        ],
+        "tools": true,
+        "reasoning": true,
+        "temperature": true,
+        "reasoningOptions": [
+          {
+            "type": "effort",
+            "values": [
+              "minimal",
+              "low",
+              "medium",
+              "high",
+              "xhigh",
+              "max"
+            ]
+          }
+        ]
+      }
+    },
+    "muse-spark-1.1": {
+      "capacity": 1048576,
+      "maxOutputTokens": 131072,
+      "capabilities": {
+        "sourceUrl": "https://models.dev/api.json",
+        "input": [
+          "text",
+          "image",
+          "pdf",
+          "video"
+        ],
+        "output": [
+          "text"
+        ],
+        "tools": true,
+        "reasoning": true,
+        "temperature": true,
+        "reasoningOptions": [
+          {
+            "type": "effort",
+            "values": [
+              "minimal",
+              "low",
+              "medium",
+              "high",
+              "xhigh"
+            ]
+          }
+        ]
+      }
+    },
+    "muse-spark-1.2": {
+      "capacity": 1048576,
+      "maxOutputTokens": 131072,
+      "capabilities": {
+        "sourceUrl": "https://models.dev/api.json",
+        "input": [
+          "text",
+          "image",
+          "video",
+          "pdf",
+          "audio"
+        ],
+        "output": [
+          "text"
+        ],
+        "tools": true,
+        "reasoning": true,
+        "temperature": true,
+        "reasoningOptions": [
+          {
+            "type": "effort",
+            "values": [
+              "minimal",
+              "low",
+              "medium",
+              "high",
+              "xhigh"
+            ]
+          }
+        ]
+      }
+    },
+    "muse-spark-1.2-contributor": {
+      "capacity": 1048576,
+      "maxOutputTokens": 131072,
+      "capabilities": {
+        "sourceUrl": "https://models.dev/api.json",
+        "input": [
+          "text",
+          "image",
+          "video",
+          "pdf",
+          "audio"
+        ],
+        "output": [
+          "text"
+        ],
+        "tools": true,
+        "reasoning": true,
+        "temperature": true,
+        "reasoningOptions": [
+          {
+            "type": "effort",
+            "values": [
+              "minimal",
+              "low",
+              "medium",
+              "high",
+              "xhigh"
+            ]
+          }
+        ]
+      }
+    },
+    "muse-wonder-1.0": {
+      "capacity": 1048576,
+      "maxOutputTokens": 131072,
+      "capabilities": {
+        "sourceUrl": "https://models.dev/api.json",
+        "input": [
+          "text",
+          "image",
+          "video",
+          "pdf",
+          "audio"
+        ],
+        "output": [
+          "text"
+        ],
+        "tools": true,
+        "reasoning": true,
+        "temperature": true,
+        "reasoningOptions": [
+          {
+            "type": "effort",
+            "values": [
+              "minimal",
+              "low",
+              "medium",
+              "high",
+              "xhigh",
+              "max"
+            ]
+          }
+        ]
+      }
+    },
+    "muse-spark-1.3-contributor": {
+      "capacity": 1048576,
+      "maxOutputTokens": 131072,
+      "capabilities": {
+        "sourceUrl": "https://models.dev/api.json",
+        "input": [
+          "text",
+          "image",
+          "video",
+          "pdf",
+          "audio"
+        ],
+        "output": [
+          "text"
+        ],
+        "tools": true,
+        "reasoning": true,
+        "temperature": true,
+        "reasoningOptions": [
+          {
+            "type": "effort",
+            "values": [
+              "minimal",
+              "low",
+              "medium",
+              "high",
+              "xhigh"
+            ]
+          }
+        ]
+      }
+    },
+    "llama-4-maverick-17b-128e-instruct-fp8": {
+      "capacity": 128000,
+      "maxOutputTokens": 4096,
+      "capabilities": {
+        "sourceUrl": "https://models.dev/api.json",
+        "input": [
+          "text",
+          "image"
+        ],
+        "output": [
+          "text"
+        ],
+        "tools": true,
+        "reasoning": false,
+        "temperature": true
+      }
+    },
+    "groq-llama-4-maverick-17b-128e-instruct": {
+      "capacity": 128000,
+      "maxOutputTokens": 4096,
+      "capabilities": {
+        "sourceUrl": "https://models.dev/api.json",
+        "input": [
+          "text"
+        ],
+        "output": [
+          "text"
+        ],
+        "tools": true,
+        "reasoning": false,
+        "temperature": true
+      }
+    },
+    "llama-4-scout-17b-16e-instruct-fp8": {
+      "capacity": 128000,
+      "maxOutputTokens": 4096,
+      "capabilities": {
+        "sourceUrl": "https://models.dev/api.json",
+        "input": [
+          "text",
+          "image"
+        ],
+        "output": [
+          "text"
+        ],
+        "tools": true,
+        "reasoning": false,
+        "temperature": true
+      }
+    },
+    "cerebras-llama-4-maverick-17b-128e-instruct": {
+      "capacity": 128000,
+      "maxOutputTokens": 4096,
+      "capabilities": {
+        "sourceUrl": "https://models.dev/api.json",
+        "input": [
+          "text"
+        ],
+        "output": [
+          "text"
+        ],
+        "tools": true,
+        "reasoning": false,
+        "temperature": true
+      }
+    },
+    "llama-3.3-70b-instruct": {
+      "capacity": 128000,
+      "maxOutputTokens": 4096,
+      "capabilities": {
+        "sourceUrl": "https://models.dev/api.json",
+        "input": [
+          "text"
+        ],
+        "output": [
+          "text"
+        ],
+        "tools": true,
+        "reasoning": false,
+        "temperature": true
+      }
+    },
+    "llama-3.3-8b-instruct": {
+      "capacity": 128000,
+      "maxOutputTokens": 4096,
+      "capabilities": {
+        "sourceUrl": "https://models.dev/api.json",
+        "input": [
+          "text"
+        ],
+        "output": [
+          "text"
+        ],
+        "tools": true,
+        "reasoning": false,
+        "temperature": true
+      }
+    },
+    "cerebras-llama-4-scout-17b-16e-instruct": {
+      "capacity": 128000,
+      "maxOutputTokens": 4096,
+      "capabilities": {
+        "sourceUrl": "https://models.dev/api.json",
+        "input": [
+          "text"
+        ],
+        "output": [
+          "text"
+        ],
+        "tools": true,
+        "reasoning": false,
+        "temperature": true
+      }
+    },
+    "sonar-pro": {
+      "capacity": 200000,
+      "maxOutputTokens": 8192,
+      "capabilities": {
+        "sourceUrl": "https://models.dev/api.json",
+        "input": [
+          "text",
+          "image"
+        ],
+        "output": [
+          "text"
+        ],
+        "tools": false,
+        "reasoning": false,
+        "temperature": true
+      }
+    },
+    "sonar-deep-research": {
+      "capacity": 128000,
+      "maxOutputTokens": 32768,
+      "capabilities": {
+        "sourceUrl": "https://models.dev/api.json",
+        "input": [
+          "text"
+        ],
+        "output": [
+          "text"
+        ],
+        "tools": false,
+        "reasoning": true,
+        "temperature": false,
+        "reasoningOptions": [
+          {
+            "type": "effort",
+            "values": [
+              "minimal",
+              "low",
+              "medium",
+              "high"
+            ]
+          }
+        ]
+      }
+    },
+    "sonar": {
+      "capacity": 128000,
+      "maxOutputTokens": 4096,
+      "capabilities": {
+        "sourceUrl": "https://models.dev/api.json",
+        "input": [
+          "text"
+        ],
+        "output": [
+          "text"
+        ],
+        "tools": false,
+        "reasoning": false,
+        "temperature": true
+      }
+    },
+    "sonar-reasoning-pro": {
+      "capacity": 128000,
+      "maxOutputTokens": 4096,
+      "capabilities": {
+        "sourceUrl": "https://models.dev/api.json",
+        "input": [
+          "text",
+          "image"
+        ],
+        "output": [
+          "text"
+        ],
+        "tools": false,
+        "reasoning": true,
+        "temperature": true,
+        "reasoningOptions": [
+          {
+            "type": "effort",
+            "values": [
+              "minimal",
+              "low",
+              "medium",
+              "high"
+            ]
+          }
+        ]
+      }
+    },
+    "eu.amazon.nova-lite-v1:0": {
+      "capacity": 300000,
+      "maxOutputTokens": 10000,
+      "capabilities": {
+        "sourceUrl": "https://models.dev/api.json",
+        "input": [
+          "text",
+          "image",
+          "video",
+          "pdf"
+        ],
+        "output": [
+          "text"
+        ],
+        "tools": true,
+        "reasoning": false,
+        "temperature": true
+      }
+    },
+    "eu.amazon.nova-2-lite-v1:0": {
+      "capacity": 1000000,
+      "maxOutputTokens": 65535,
+      "capabilities": {
+        "sourceUrl": "https://models.dev/api.json",
+        "input": [
+          "text",
+          "image",
+          "video",
+          "pdf"
+        ],
+        "output": [
+          "text"
+        ],
+        "tools": true,
+        "reasoning": true,
+        "temperature": true,
+        "reasoningOptions": [
+          {
+            "type": "toggle"
+          },
+          {
+            "type": "effort",
+            "values": [
+              "low",
+              "medium",
+              "high"
+            ]
+          }
+        ]
+      }
+    },
+    "us.amazon.nova-pro-v1:0": {
+      "capacity": 300000,
+      "maxOutputTokens": 10000,
+      "capabilities": {
+        "sourceUrl": "https://models.dev/api.json",
+        "input": [
+          "text",
+          "image",
+          "video",
+          "pdf"
+        ],
+        "output": [
+          "text"
+        ],
+        "tools": true,
+        "reasoning": false,
+        "temperature": true
+      }
+    },
+    "apac.amazon.nova-micro-v1:0": {
+      "capacity": 128000,
+      "maxOutputTokens": 10000,
+      "capabilities": {
+        "sourceUrl": "https://models.dev/api.json",
+        "input": [
+          "text"
+        ],
+        "output": [
+          "text"
+        ],
+        "tools": true,
+        "reasoning": false,
+        "temperature": true
+      }
+    },
+    "us.amazon.nova-premier-v1:0": {
+      "capacity": 1000000,
+      "maxOutputTokens": 10000,
+      "capabilities": {
+        "sourceUrl": "https://models.dev/api.json",
+        "input": [
+          "text",
+          "image",
+          "video",
+          "pdf"
+        ],
+        "output": [
+          "text"
+        ],
+        "tools": true,
+        "reasoning": false,
+        "temperature": true
+      }
+    },
+    "apac.amazon.nova-pro-v1:0": {
+      "capacity": 300000,
+      "maxOutputTokens": 10000,
+      "capabilities": {
+        "sourceUrl": "https://models.dev/api.json",
+        "input": [
+          "text",
+          "image",
+          "video",
+          "pdf"
+        ],
+        "output": [
+          "text"
+        ],
+        "tools": true,
+        "reasoning": false,
+        "temperature": true
+      }
+    },
+    "amazon.nova-micro-v1:0": {
+      "capacity": 128000,
+      "maxOutputTokens": 10000,
+      "capabilities": {
+        "sourceUrl": "https://models.dev/api.json",
+        "input": [
+          "text"
+        ],
+        "output": [
+          "text"
+        ],
+        "tools": true,
+        "reasoning": false,
+        "temperature": true
+      }
+    },
+    "us.amazon.nova-lite-v1:0": {
+      "capacity": 300000,
+      "maxOutputTokens": 10000,
+      "capabilities": {
+        "sourceUrl": "https://models.dev/api.json",
+        "input": [
+          "text",
+          "image",
+          "video",
+          "pdf"
+        ],
+        "output": [
+          "text"
+        ],
+        "tools": true,
+        "reasoning": false,
+        "temperature": true
+      }
+    },
+    "amazon.nova-pro-v1:0": {
+      "capacity": 300000,
+      "maxOutputTokens": 10000,
+      "capabilities": {
+        "sourceUrl": "https://models.dev/api.json",
+        "input": [
+          "text",
+          "image",
+          "video",
+          "pdf"
+        ],
+        "output": [
+          "text"
+        ],
+        "tools": true,
+        "reasoning": false,
+        "temperature": true
+      }
+    },
+    "global.amazon.nova-2-lite-v1:0": {
+      "capacity": 1000000,
+      "maxOutputTokens": 65535,
+      "capabilities": {
+        "sourceUrl": "https://models.dev/api.json",
+        "input": [
+          "text",
+          "image",
+          "video",
+          "pdf"
+        ],
+        "output": [
+          "text"
+        ],
+        "tools": true,
+        "reasoning": true,
+        "temperature": true,
+        "reasoningOptions": [
+          {
+            "type": "toggle"
+          },
+          {
+            "type": "effort",
+            "values": [
+              "low",
+              "medium",
+              "high"
+            ]
+          }
+        ]
+      }
+    },
+    "us.amazon.nova-2-lite-v1:0": {
+      "capacity": 1000000,
+      "maxOutputTokens": 65535,
+      "capabilities": {
+        "sourceUrl": "https://models.dev/api.json",
+        "input": [
+          "text",
+          "image",
+          "video",
+          "pdf"
+        ],
+        "output": [
+          "text"
+        ],
+        "tools": true,
+        "reasoning": true,
+        "temperature": true,
+        "reasoningOptions": [
+          {
+            "type": "toggle"
+          },
+          {
+            "type": "effort",
+            "values": [
+              "low",
+              "medium",
+              "high"
+            ]
+          }
+        ]
+      }
+    },
+    "amazon.nova-lite-v1:0": {
+      "capacity": 300000,
+      "maxOutputTokens": 10000,
+      "capabilities": {
+        "sourceUrl": "https://models.dev/api.json",
+        "input": [
+          "text",
+          "image",
+          "video",
+          "pdf"
+        ],
+        "output": [
+          "text"
+        ],
+        "tools": true,
+        "reasoning": false,
+        "temperature": true
+      }
+    },
+    "eu.amazon.nova-micro-v1:0": {
+      "capacity": 128000,
+      "maxOutputTokens": 10000,
+      "capabilities": {
+        "sourceUrl": "https://models.dev/api.json",
+        "input": [
+          "text"
+        ],
+        "output": [
+          "text"
+        ],
+        "tools": true,
+        "reasoning": false,
+        "temperature": true
+      }
+    },
+    "apac.amazon.nova-lite-v1:0": {
+      "capacity": 300000,
+      "maxOutputTokens": 10000,
+      "capabilities": {
+        "sourceUrl": "https://models.dev/api.json",
+        "input": [
+          "text",
+          "image",
+          "video",
+          "pdf"
+        ],
+        "output": [
+          "text"
+        ],
+        "tools": true,
+        "reasoning": false,
+        "temperature": true
+      }
+    },
+    "eu.amazon.nova-pro-v1:0": {
+      "capacity": 300000,
+      "maxOutputTokens": 10000,
+      "capabilities": {
+        "sourceUrl": "https://models.dev/api.json",
+        "input": [
+          "text",
+          "image",
+          "video",
+          "pdf"
+        ],
+        "output": [
+          "text"
+        ],
+        "tools": true,
+        "reasoning": false,
+        "temperature": true
+      }
+    },
+    "amazon.nova-2-lite-v1:0": {
+      "capacity": 1000000,
+      "maxOutputTokens": 65535,
+      "capabilities": {
+        "sourceUrl": "https://models.dev/api.json",
+        "input": [
+          "text",
+          "image",
+          "video",
+          "pdf"
+        ],
+        "output": [
+          "text"
+        ],
+        "tools": true,
+        "reasoning": true,
+        "temperature": true,
+        "reasoningOptions": [
+          {
+            "type": "toggle"
+          },
+          {
+            "type": "effort",
+            "values": [
+              "low",
+              "medium",
+              "high"
+            ]
+          }
+        ]
+      }
+    },
+    "us.amazon.nova-micro-v1:0": {
+      "capacity": 128000,
+      "maxOutputTokens": 10000,
+      "capabilities": {
+        "sourceUrl": "https://models.dev/api.json",
+        "input": [
+          "text"
+        ],
+        "output": [
+          "text"
+        ],
+        "tools": true,
+        "reasoning": false,
+        "temperature": true
+      }
+    },
+    "nvidia/nvidia-nemotron-nano-9b-v2": {
+      "capacity": 131072,
+      "maxOutputTokens": 131072,
+      "capabilities": {
+        "sourceUrl": "https://models.dev/api.json",
+        "input": [
+          "text"
+        ],
+        "output": [
+          "text"
+        ],
+        "tools": true,
+        "reasoning": true,
+        "temperature": true,
+        "reasoningOptions": [
+          {
+            "type": "toggle"
+          }
+        ]
+      }
+    },
+    "nvidia/llama-3.1-nemotron-ultra-253b-v1": {
+      "capacity": 128000,
+      "maxOutputTokens": 16384,
+      "capabilities": {
+        "sourceUrl": "https://models.dev/api.json",
+        "input": [
+          "text"
+        ],
+        "output": [
+          "text"
+        ],
+        "tools": true,
+        "reasoning": true,
+        "temperature": true,
+        "reasoningOptions": [
+          {
+            "type": "toggle"
+          }
+        ]
+      }
+    },
+    "nvidia/sparsedrive": {
+      "capacity": 128000,
+      "maxOutputTokens": 8192,
+      "capabilities": {
+        "sourceUrl": "https://models.dev/api.json",
+        "input": [
+          "video"
+        ],
+        "output": [
+          "text"
+        ],
+        "tools": false,
+        "reasoning": false,
+        "temperature": true
+      }
+    },
+    "nvidia/nemotron-3-nano-30b-a3b": {
+      "capacity": 131072,
+      "maxOutputTokens": 131072,
+      "capabilities": {
+        "sourceUrl": "https://models.dev/api.json",
+        "input": [
+          "text"
+        ],
+        "output": [
+          "text"
+        ],
+        "tools": true,
+        "reasoning": true,
+        "temperature": true,
+        "reasoningOptions": [
+          {
+            "type": "toggle"
+          }
+        ]
+      }
+    },
+    "nvidia/nemotron-3.5-lightning-30b-a3b": {
+      "capacity": 262144,
+      "maxOutputTokens": 262144,
+      "capabilities": {
+        "sourceUrl": "https://models.dev/api.json",
+        "input": [
+          "text"
+        ],
+        "output": [
+          "text"
+        ],
+        "tools": true,
+        "reasoning": true,
+        "temperature": true,
+        "reasoningOptions": [
+          {
+            "type": "toggle"
+          }
+        ]
+      }
+    },
+    "nvidia/llama-nemotron-embed-vl-1b-v2": {
+      "capacity": 32768,
+      "maxOutputTokens": 2048,
+      "capabilities": {
+        "sourceUrl": "https://models.dev/api.json",
+        "input": [
+          "text",
+          "image"
+        ],
+        "output": [
+          "text"
+        ],
+        "tools": false,
+        "reasoning": false,
+        "temperature": false
+      }
+    },
+    "nvidia/nv-embedcode-7b-v1": {
+      "capacity": 32768,
+      "maxOutputTokens": 2048,
+      "capabilities": {
+        "sourceUrl": "https://models.dev/api.json",
+        "input": [
+          "text"
+        ],
+        "output": [
+          "text"
+        ],
+        "tools": false,
+        "reasoning": false,
+        "temperature": false
+      }
+    },
+    "nvidia/nemotron-voicechat": {
+      "capacity": 128000,
+      "maxOutputTokens": 8192,
+      "capabilities": {
+        "sourceUrl": "https://models.dev/api.json",
+        "input": [
+          "text",
+          "audio"
+        ],
+        "output": [
+          "text"
+        ],
+        "tools": true,
+        "reasoning": false,
+        "temperature": true
+      }
+    },
+    "nvidia/bevformer": {
+      "capacity": 128000,
+      "maxOutputTokens": 8192,
+      "capabilities": {
+        "sourceUrl": "https://models.dev/api.json",
+        "input": [
+          "video"
+        ],
+        "output": [
+          "text"
+        ],
+        "tools": false,
+        "reasoning": false,
+        "temperature": true
+      }
+    },
+    "nvidia/cosmos-transfer1-7b": {
+      "capacity": null,
+      "maxOutputTokens": 4096,
+      "capabilities": {
+        "sourceUrl": "https://models.dev/api.json",
+        "input": [
+          "text",
+          "image",
+          "video"
+        ],
+        "output": [
+          "video"
+        ],
+        "tools": false,
+        "reasoning": false,
+        "temperature": false
+      }
+    },
+    "nvidia/cosmos-predict1-5b": {
+      "capacity": null,
+      "maxOutputTokens": 4096,
+      "capabilities": {
+        "sourceUrl": "https://models.dev/api.json",
+        "input": [
+          "text",
+          "image",
+          "video"
+        ],
+        "output": [
+          "video"
+        ],
+        "tools": false,
+        "reasoning": false,
+        "temperature": false
+      }
+    },
+    "nvidia/llama-3.1-nemotron-nano-vl-8b-v1": {
+      "capacity": 32768,
+      "maxOutputTokens": 16384,
+      "capabilities": {
+        "sourceUrl": "https://models.dev/api.json",
+        "input": [
+          "text",
+          "image"
+        ],
+        "output": [
+          "text"
+        ],
+        "tools": true,
+        "reasoning": true,
+        "temperature": true
+      }
+    },
+    "nvidia/studiovoice": {
+      "capacity": 128000,
+      "maxOutputTokens": 8192,
+      "capabilities": {
+        "sourceUrl": "https://models.dev/api.json",
+        "input": [
+          "text"
+        ],
+        "output": [
+          "text"
+        ],
+        "tools": false,
+        "reasoning": false,
+        "temperature": true
+      }
+    },
+    "nvidia/nemotron-content-safety-reasoning-4b": {
+      "capacity": 128000,
+      "maxOutputTokens": 4096,
+      "capabilities": {
+        "sourceUrl": "https://models.dev/api.json",
+        "input": [
+          "text"
+        ],
+        "output": [
+          "text"
+        ],
+        "tools": false,
+        "reasoning": true,
+        "temperature": false
+      }
+    },
+    "nvidia/llama-3.1-nemotron-safety-guard-8b-v3": {
+      "capacity": 128000,
+      "maxOutputTokens": 4096,
+      "capabilities": {
+        "sourceUrl": "https://models.dev/api.json",
+        "input": [
+          "text"
+        ],
+        "output": [
+          "text"
+        ],
+        "tools": false,
+        "reasoning": false,
+        "temperature": false
+      }
+    },
+    "nvidia/nv-embed-v1": {
+      "capacity": 32768,
+      "maxOutputTokens": 2048,
+      "capabilities": {
+        "sourceUrl": "https://models.dev/api.json",
+        "input": [
+          "text"
+        ],
+        "output": [
+          "text"
+        ],
+        "tools": false,
+        "reasoning": false,
+        "temperature": false
+      }
+    },
+    "nvidia/synthetic-video-detector": {
+      "capacity": null,
+      "maxOutputTokens": 4096,
+      "capabilities": {
+        "sourceUrl": "https://models.dev/api.json",
+        "input": [
+          "video"
+        ],
+        "output": [
+          "text"
+        ],
+        "tools": false,
+        "reasoning": false,
+        "temperature": true
+      }
+    },
+    "nvidia/cosmos-transfer2_5-2b": {
+      "capacity": null,
+      "maxOutputTokens": 4096,
+      "capabilities": {
+        "sourceUrl": "https://models.dev/api.json",
+        "input": [
+          "text",
+          "image",
+          "video"
+        ],
+        "output": [
+          "video"
+        ],
+        "tools": false,
+        "reasoning": false,
+        "temperature": false
+      }
+    },
+    "nvidia/nemotron-3-ultra-550b-a55b": {
+      "capacity": 1000000,
+      "maxOutputTokens": 65536,
+      "capabilities": {
+        "sourceUrl": "https://models.dev/api.json",
+        "input": [
+          "text"
+        ],
+        "output": [
+          "text"
+        ],
+        "tools": true,
+        "reasoning": true,
+        "temperature": true,
+        "reasoningOptions": [
+          {
+            "type": "toggle"
+          }
+        ]
+      }
+    },
+    "nvidia/nemotron-3-nano-omni-30b-a3b-reasoning": {
+      "capacity": 256000,
+      "maxOutputTokens": 65536,
+      "capabilities": {
+        "sourceUrl": "https://models.dev/api.json",
+        "input": [
+          "text",
+          "image",
+          "video",
+          "audio"
+        ],
+        "output": [
+          "text"
+        ],
+        "tools": true,
+        "reasoning": true,
+        "temperature": true,
+        "reasoningOptions": [
+          {
+            "type": "toggle"
+          },
+          {
+            "type": "budget_tokens",
+            "min": -1,
+            "max": 32768
+          }
+        ]
+      }
+    },
+    "nvidia/llama-3.1-nemotron-nano-8b-v1": {
+      "capacity": 131072,
+      "maxOutputTokens": 16384,
+      "capabilities": {
+        "sourceUrl": "https://models.dev/api.json",
+        "input": [
+          "text"
+        ],
+        "output": [
+          "text"
+        ],
+        "tools": true,
+        "reasoning": true,
+        "temperature": true,
+        "reasoningOptions": [
+          {
+            "type": "toggle"
+          }
+        ]
+      }
+    },
+    "nvidia/active-speaker-detection": {
+      "capacity": null,
+      "maxOutputTokens": 4096,
+      "capabilities": {
+        "sourceUrl": "https://models.dev/api.json",
+        "input": [
+          "video"
+        ],
+        "output": [
+          "text"
+        ],
+        "tools": false,
+        "reasoning": false,
+        "temperature": false
+      }
+    },
+    "nvidia/streampetr": {
+      "capacity": 128000,
+      "maxOutputTokens": 8192,
+      "capabilities": {
+        "sourceUrl": "https://models.dev/api.json",
+        "input": [
+          "video"
+        ],
+        "output": [
+          "text"
+        ],
+        "tools": false,
+        "reasoning": false,
+        "temperature": true
+      }
+    },
+    "nvidia/llama-nemotron-rerank-vl-1b-v2": {
+      "capacity": 128000,
+      "maxOutputTokens": 4096,
+      "capabilities": {
+        "sourceUrl": "https://models.dev/api.json",
+        "input": [
+          "text",
+          "image"
+        ],
+        "output": [
+          "text"
+        ],
+        "tools": false,
+        "reasoning": false,
+        "temperature": false
+      }
+    },
+    "nvidia/nemotron-mini-4b-instruct": {
+      "capacity": 128000,
+      "maxOutputTokens": 8192,
+      "capabilities": {
+        "sourceUrl": "https://models.dev/api.json",
+        "input": [
+          "text"
+        ],
+        "output": [
+          "text"
+        ],
+        "tools": true,
+        "reasoning": false,
+        "temperature": true
+      }
+    },
+    "nvidia/cosmos-reason2-8b": {
+      "capacity": 131072,
+      "maxOutputTokens": 16384,
+      "capabilities": {
+        "sourceUrl": "https://models.dev/api.json",
+        "input": [
+          "text",
+          "image",
+          "video"
+        ],
+        "output": [
+          "text"
+        ],
+        "tools": true,
+        "reasoning": true,
+        "temperature": true
+      }
+    },
+    "nvidia/nemotron-3-content-safety": {
+      "capacity": 128000,
+      "maxOutputTokens": 4096,
+      "capabilities": {
+        "sourceUrl": "https://models.dev/api.json",
+        "input": [
+          "text"
+        ],
+        "output": [
+          "text"
+        ],
+        "tools": false,
+        "reasoning": false,
+        "temperature": false
+      }
+    },
+    "nvidia/nemotron-3.5-super-vl-120b-a12b": {
+      "capacity": 1048576,
+      "maxOutputTokens": 8192,
+      "capabilities": {
+        "sourceUrl": "https://models.dev/api.json",
+        "input": [
+          "text",
+          "image",
+          "video"
+        ],
+        "output": [
+          "text"
+        ],
+        "tools": true,
+        "reasoning": true,
+        "temperature": true,
+        "reasoningOptions": [
+          {
+            "type": "toggle"
+          }
+        ]
+      }
+    },
+    "nvidia/llama-3.3-nemotron-super-49b-v1": {
+      "capacity": 131072,
+      "maxOutputTokens": 65536,
+      "capabilities": {
+        "sourceUrl": "https://models.dev/api.json",
+        "input": [
+          "text"
+        ],
+        "output": [
+          "text"
+        ],
+        "tools": true,
+        "reasoning": true,
+        "temperature": true,
+        "reasoningOptions": [
+          {
+            "type": "toggle"
+          }
+        ]
+      }
+    },
+    "nvidia/magpie-tts-zeroshot": {
+      "capacity": null,
+      "maxOutputTokens": 4096,
+      "capabilities": {
+        "sourceUrl": "https://models.dev/api.json",
+        "input": [
+          "text",
+          "audio"
+        ],
+        "output": [
+          "audio"
+        ],
+        "tools": false,
+        "reasoning": false,
+        "temperature": false
+      }
+    },
+    "nvidia/riva-translate-4b-instruct-v1.1": {
+      "capacity": 128000,
+      "maxOutputTokens": 4096,
+      "capabilities": {
+        "sourceUrl": "https://models.dev/api.json",
+        "input": [
+          "text"
+        ],
+        "output": [
+          "text"
+        ],
+        "tools": false,
+        "reasoning": false,
+        "temperature": false
+      }
+    },
+    "nvidia/nemotron-nano-12b-v2-vl": {
+      "capacity": 128000,
+      "maxOutputTokens": 128000,
+      "capabilities": {
+        "sourceUrl": "https://models.dev/api.json",
+        "input": [
+          "text",
+          "image",
+          "video"
+        ],
+        "output": [
+          "text"
+        ],
+        "tools": true,
+        "reasoning": true,
+        "temperature": true
+      }
+    },
+    "nvidia/nemotron-3.5-content-safety": {
+      "capacity": 128000,
+      "maxOutputTokens": 8192,
+      "capabilities": {
+        "sourceUrl": "https://models.dev/api.json",
+        "input": [
+          "text",
+          "image"
+        ],
+        "output": [
+          "text"
+        ],
+        "tools": false,
+        "reasoning": true,
+        "temperature": true,
+        "reasoningOptions": [
+          {
+            "type": "toggle"
+          }
+        ]
+      }
+    },
+    "nvidia/llama-3.3-nemotron-super-49b-v1.5": {
+      "capacity": 131072,
+      "maxOutputTokens": 65536,
+      "capabilities": {
+        "sourceUrl": "https://models.dev/api.json",
+        "input": [
+          "text"
+        ],
+        "output": [
+          "text"
+        ],
+        "tools": true,
+        "reasoning": true,
+        "temperature": true,
+        "reasoningOptions": [
+          {
+            "type": "toggle"
+          }
+        ]
+      }
+    },
+    "nvidia/llama-3_2-nemoretriever-300m-embed-v1": {
+      "capacity": 32768,
+      "maxOutputTokens": 2048,
+      "capabilities": {
+        "sourceUrl": "https://models.dev/api.json",
+        "input": [
+          "text"
+        ],
+        "output": [
+          "text"
+        ],
+        "tools": false,
+        "reasoning": false,
+        "temperature": false
+      }
+    },
+    "nvidia/gliner-pii": {
+      "capacity": 128000,
+      "maxOutputTokens": 4096,
+      "capabilities": {
+        "sourceUrl": "https://models.dev/api.json",
+        "input": [
+          "text"
+        ],
+        "output": [
+          "text"
+        ],
+        "tools": false,
+        "reasoning": false,
+        "temperature": true
+      }
+    },
+    "nvidia/usdcode": {
+      "capacity": 128000,
+      "maxOutputTokens": 4096,
+      "capabilities": {
+        "sourceUrl": "https://models.dev/api.json",
+        "input": [
+          "text"
+        ],
+        "output": [
+          "text"
+        ],
+        "tools": false,
+        "reasoning": false,
+        "temperature": true
+      }
+    },
+    "nvidia/usdvalidate": {
+      "capacity": null,
+      "maxOutputTokens": 4096,
+      "capabilities": {
+        "sourceUrl": "https://models.dev/api.json",
+        "input": [
+          "text"
+        ],
+        "output": [
+          "text"
+        ],
+        "tools": false,
+        "reasoning": false,
+        "temperature": false
+      }
+    },
+    "nvidia/llama-3.1-nemotron-70b-instruct": {
+      "capacity": 128000,
+      "maxOutputTokens": 8192,
+      "capabilities": {
+        "sourceUrl": "https://models.dev/api.json",
+        "input": [
+          "text"
+        ],
+        "output": [
+          "text"
+        ],
+        "tools": true,
+        "reasoning": false,
+        "temperature": true
+      }
+    },
+    "nvidia/rerank-qa-mistral-4b": {
+      "capacity": 128000,
+      "maxOutputTokens": 4096,
+      "capabilities": {
+        "sourceUrl": "https://models.dev/api.json",
+        "input": [
+          "text"
+        ],
+        "output": [
+          "text"
+        ],
+        "tools": false,
+        "reasoning": false,
+        "temperature": false
+      }
+    }
+  }
+}

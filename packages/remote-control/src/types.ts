@@ -48,6 +48,7 @@ export const REMOTE_REQUEST_METHODS = [
 export interface RemoteSessionContext {
 	readonly tokens: number | null;
 	readonly contextWindow: number | null;
+	readonly contextWindowSource?: "manual" | "api" | "catalog" | "unknown";
 	readonly estimated: boolean;
 	readonly messageCount: number;
 	readonly autoCompactionEnabled: boolean;

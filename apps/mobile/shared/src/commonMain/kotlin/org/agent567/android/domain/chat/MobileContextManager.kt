@@ -58,17 +58,26 @@ class MobileContextManager(
         )
     }
 
-    suspend fun compact(sessionId: String, modelId: String, window: Long?, groupName: String? = null): Boolean = lock(sessionId).withLock {
-        compactLocked(sessionId, modelId, window, groupName)
+    suspend fun compact(sessionId: String, modelId: String, window: Long?, groupName: String? = null, incomingTokens: Long = 0): Boolean = lock(sessionId).withLock {
+        compactLocked(sessionId, modelId, window, groupName, incomingTokens)
     }
 
-    private suspend fun compactLocked(sessionId: String, modelId: String, window: Long?, groupName: String?): Boolean = withContext(Dispatchers.Default) {
+    private suspend fun compactLocked(sessionId: String, modelId: String, window: Long?, groupName: String?, incomingTokens: Long): Boolean = withContext(Dispatchers.Default) {
         val session = requireNotNull(store.getSession(sessionId)) { "会话已删除" }
         require(session.origin == ConversationOrigin.Cloud)
         val messages = select(store.getMessages(sessionId), session.context)
         // Count user turns rather than messages, since a turn may contain several replies.
         val userTurns = messages.indices.filter { messages[it].role == ChatRole.User }
-        val cut = if (userTurns.size > 3) userTurns[userTurns.size - 3] else 0
+        var keep = minOf(3, userTurns.size)
+        if (incomingTokens > 0 && window != null) {
+            while (keep > 1) {
+                val retained = messages.drop(userTurns[userTurns.size - keep])
+                val tokens = retained.sumOf { estimateText(it.content) + 8L + it.images.size * 2048L }
+                if (tokens + incomingTokens < window * 6 / 10) break
+                keep--
+            }
+        }
+        val cut = if (userTurns.size > keep && keep > 0) userTurns[userTurns.size - keep] else 0
         if (cut == 0) return@withContext false
         val older = messages.take(cut)
         val capacity = window?.takeIf { it > 0 }

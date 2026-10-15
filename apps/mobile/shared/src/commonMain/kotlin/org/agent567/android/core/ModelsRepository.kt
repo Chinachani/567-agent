@@ -14,6 +14,8 @@ class ModelsRepository internal constructor(
 
     suspend fun listAllModels(group: String? = null): List<LlmModel> = api.goModels(group).allModels()
 
+    fun resolveContext(model: LlmModel, group: String?, useManual: Boolean = true): LlmModel = api.resolveContext(model, group, useManual)
+
     suspend fun getAvailableGroups(): Map<String, ApiGroupInfoDto> = api.getAvailableGroups()
 
     suspend fun cleanupGroupToken(group: String?) = api.cleanupGroupToken(group)

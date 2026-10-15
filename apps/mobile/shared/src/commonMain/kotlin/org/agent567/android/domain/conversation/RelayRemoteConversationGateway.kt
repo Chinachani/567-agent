@@ -623,6 +623,7 @@ class RelayRemoteConversationGateway(
         return org.agent567.android.domain.session.ChatContextSnapshot(
             tokens = response["tokens"]?.jsonPrimitive?.longOrNull,
             contextWindow = response["contextWindow"]?.jsonPrimitive?.longOrNull?.takeIf { it > 0 },
+            contextWindowSource = response["contextWindowSource"]?.jsonPrimitive?.contentOrNull ?: "unknown",
             estimated = response["estimated"]?.jsonPrimitive?.booleanOrNull ?: true,
             messageCount = response["messageCount"]?.jsonPrimitive?.intOrNull ?: 0,
             autoCompactionEnabled = response["autoCompactionEnabled"]?.jsonPrimitive?.booleanOrNull ?: true,
@@ -1266,6 +1267,7 @@ private fun parseModelCatalog(element: JsonElement?): RemoteSessionModelCatalog 
             reasoning = model["reasoning"]?.jsonPrimitive?.booleanOrNull ?: false,
             input = input,
             contextWindow = model["contextWindow"]?.jsonPrimitive?.longOrNull,
+            contextWindowSource = model["contextWindowSource"]?.jsonPrimitive?.contentOrNull ?: "unknown",
             maxTokens = model["maxTokens"]?.jsonPrimitive?.longOrNull,
             reasoningLevels = reasoningLevels,
             defaultReasoningLevel = model["defaultReasoningLevel"]?.jsonPrimitive?.contentOrNull,

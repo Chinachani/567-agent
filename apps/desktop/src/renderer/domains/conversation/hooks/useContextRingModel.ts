@@ -1,8 +1,15 @@
-import { type ContextUsageData, contextUsageAtom, isCompactingAtom } from "@shared/store/atoms";
+import {
+	type ContextUsageData,
+	contextUsageAtom,
+	isCompactingAtom,
+	localModelsConfigAtom,
+	selectedModelAtom,
+} from "@shared/store/atoms";
 import { CONTEXT_RING_CIRCUMFERENCE } from "@vetta-org/theme-ui/chat";
 import { useAtomValue } from "jotai";
 import { useCallback, useMemo } from "react";
 import { useTranslation } from "react-i18next";
+import { resolveModelContext } from "../../../../shared/model-context";
 import { buildContextRingDetails, type ContextRingDetailsModel, formatTokens } from "../services/context-ring-details";
 
 type Translate = (key: string, options?: Record<string, unknown>) => string;
@@ -39,7 +46,19 @@ export interface ContextRingScopeModel {
 export function useDefaultContextRingModel(includeDetails = true): ContextRingModel | null {
 	const usage = useAtomValue(contextUsageAtom);
 	const isCompacting = useAtomValue(isCompactingAtom);
-	return useContextRingModel({ usage, isCompacting }, includeDetails);
+	const config = useAtomValue(localModelsConfigAtom);
+	const selected = useAtomValue(selectedModelAtom);
+	const adjusted = useMemo(() => {
+		if (!usage || !config || !selected) return usage;
+		const slash = selected.indexOf("/");
+		const provider = config.providers[selected.slice(0, slash)];
+		const id = selected.slice(slash + 1);
+		const definition = provider?.models?.find((entry) => entry.id === id);
+		if (!definition) return usage;
+		const info = resolveModelContext(definition, provider?.modelOverrides?.[id]);
+		return { ...usage, contextWindow: info.capacity ?? 0 };
+	}, [usage, config, selected]);
+	return useContextRingModel({ usage: adjusted, isCompacting }, includeDetails);
 }
 
 export function useContextRingModel(binding: ContextRingBinding, includeDetails = true): ContextRingModel | null {

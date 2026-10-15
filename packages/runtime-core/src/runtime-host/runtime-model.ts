@@ -116,6 +116,13 @@ export class RuntimeModel implements RuntimeModelRuntime {
 	}
 
 	async bind(context?: RuntimeSnapshotAcquireContext): Promise<RuntimeTurnModelBinding> {
+		// Catalog changes apply at the next turn boundary. Already-bound turns keep
+		// their immutable model, while existing sessions pick up capacity overrides.
+		const refreshed = this.catalog.find(this.currentModel.provider, this.currentModel.id);
+		if (refreshed) {
+			this.currentModel = refreshed;
+			this.thinkingLevel = resolveModelThinkingLevel(refreshed, this.thinkingLevel);
+		}
 		const requested = context?.request?.model;
 		if (!requested?.key && requested?.reasoning === undefined) {
 			const model = this.currentModel;

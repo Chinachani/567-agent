@@ -1,3 +1,5 @@
+import type { ModelContextSource } from "../../shared/model-context.js";
+
 export interface ModelsConfigData {
 	/** Default model identifier: "provider/modelId" */
 	defaultModel?: string;
@@ -33,6 +35,7 @@ export interface ModelsConfigData {
 				defaultReasoningLevel?: string;
 				input?: string[];
 				contextWindow?: number;
+				contextWindowSource?: ModelContextSource;
 				maxTokens?: number;
 				/** 价格($/百万 tokens):input=输入未命中, cacheRead=输入命中, output=输出, cacheWrite=缓存写入。 */
 				cost?: { input: number; output: number; cacheRead: number; cacheWrite: number };
@@ -95,6 +98,7 @@ export interface PresetModelsResult {
 export interface DesktopModelsApi {
 	get(): Promise<ModelsConfigData>;
 	set(config: ModelsConfigData): Promise<void>;
+	setContextWindow(providerId: string, modelId: string, capacity: number | null): Promise<void>;
 	/** 主进程直接写入剪贴板；密钥明文不会作为 IPC 结果返回 renderer。 */
 	copyApiKey(providerId: string): Promise<boolean>;
 	fetchRemote(): Promise<RemoteProvidersResult>;

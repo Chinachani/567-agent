@@ -1,6 +1,8 @@
 import { ipcMain } from "electron";
+import { MODEL_CONTEXT_SET_CHANNEL } from "../../shared/model-context.js";
 import { readAgentSettingsDocument, updateAgentSettingsDocument } from "../agent-settings/settings-document-store.js";
 import { DEFAULT_SERVER_URL } from "../constants.js";
+import { getDesktopModelSettingsService } from "../models/model-settings-host.js";
 import {
 	listPresetProviders,
 	refreshPresetCatalog,
@@ -29,6 +31,15 @@ export function updateSettings(mutate: (settings: Record<string, unknown>) => vo
 }
 
 export function registerSettingsIpc(): () => void {
+	ipcMain.handle(MODEL_CONTEXT_SET_CHANNEL, (_event, providerId: unknown, modelId: unknown, capacity: unknown) => {
+		if (
+			typeof providerId !== "string" ||
+			typeof modelId !== "string" ||
+			(capacity !== null && typeof capacity !== "number")
+		)
+			throw new Error("Invalid model context settings");
+		return getDesktopModelSettingsService().setContextWindow(providerId, modelId, capacity);
+	});
 	// 清理 settings.json 中残留的 serverUrl，现在统一由环境变量管理
 	if ("serverUrl" in readSettings()) {
 		updateSettings((settings) => {
@@ -63,6 +74,7 @@ export function registerSettingsIpc(): () => void {
 	const stopPresetAutoSync = startPresetModelsAutoSync();
 
 	return () => {
+		ipcMain.removeHandler(MODEL_CONTEXT_SET_CHANNEL);
 		stopPresetAutoSync();
 		ipcMain.removeHandler("vetta:settings:get-server-url");
 		ipcMain.removeHandler("vetta:models:list-presets");

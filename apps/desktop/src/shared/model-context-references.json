@@ -1,0 +1,1040 @@
+{
+  "checkedAt": "2026-10-15",
+  "note": "Alias mappings are explicit upstream references, not verified gateway limits. Null capacities record research gaps; do not invent chat context for image-only models. Capability and sampling references are informational; mode/endpoint restrictions remain documented at their sources. Exact IDs only. Missing fields mean unknown, not unsupported.",
+  "models": [
+    {
+      "id": "gemini-3-flash-preview",
+      "aliases": [
+        "gemini-3-flash"
+      ],
+      "capacity": 1048576,
+      "maxOutputTokens": 65536,
+      "sourceUrl": "https://ai.google.dev/gemini-api/docs/models/gemini-3-flash-preview",
+      "capabilities": {
+        "sourceUrl": "https://models.dev/api.json",
+        "temperature": true,
+        "topP": true,
+        "temperatureRange": {
+          "min": 0,
+          "max": 2
+        },
+        "parameterSourceUrl": "https://ai.google.dev/api/generate-content"
+      }
+    },
+    {
+      "id": "gemini-3.1-flash-lite",
+      "aliases": [],
+      "capacity": 1048576,
+      "maxOutputTokens": 65536,
+      "sourceUrl": "https://ai.google.dev/gemini-api/docs/models/gemini-3.1-flash-lite",
+      "capabilities": {
+        "sourceUrl": "https://models.dev/api.json",
+        "temperature": true,
+        "topP": true,
+        "temperatureRange": {
+          "min": 0,
+          "max": 2
+        },
+        "parameterSourceUrl": "https://ai.google.dev/api/generate-content"
+      }
+    },
+    {
+      "id": "gemini-3.5-flash-lite",
+      "aliases": [],
+      "capacity": 1048576,
+      "maxOutputTokens": 65536,
+      "sourceUrl": "https://ai.google.dev/gemini-api/docs/models/gemini-3.5-flash-lite",
+      "capabilities": {
+        "sourceUrl": "https://models.dev/api.json",
+        "temperature": true,
+        "topP": true,
+        "temperatureRange": {
+          "min": 0,
+          "max": 2
+        },
+        "parameterSourceUrl": "https://ai.google.dev/api/generate-content"
+      }
+    },
+    {
+      "id": "gemini-3.6-flash",
+      "aliases": [
+        "gemini-3.6-flash-high"
+      ],
+      "capacity": 1048576,
+      "maxOutputTokens": 65536,
+      "sourceUrl": "https://ai.google.dev/gemini-api/docs/models/gemini-3.6-flash",
+      "capabilities": {
+        "sourceUrl": "https://models.dev/api.json",
+        "temperature": true,
+        "topP": true,
+        "temperatureRange": {
+          "min": 0,
+          "max": 2
+        },
+        "parameterSourceUrl": "https://ai.google.dev/api/generate-content"
+      }
+    },
+    {
+      "id": "gemini-3.7-flash",
+      "aliases": [
+        "gemini-3.7-flash-high"
+      ],
+      "capacity": 1048576,
+      "maxOutputTokens": 65536,
+      "sourceUrl": "https://ai.google.dev/gemini-api/docs/models/gemini-3.7-flash",
+      "capabilities": {
+        "sourceUrl": "https://models.dev/api.json",
+        "temperature": true,
+        "topP": true,
+        "temperatureRange": {
+          "min": 0,
+          "max": 2
+        },
+        "parameterSourceUrl": "https://ai.google.dev/api/generate-content"
+      }
+    },
+    {
+      "id": "gemini-3.8-flash",
+      "aliases": [
+        "gemini-3.8-flash-high"
+      ],
+      "capacity": 1048576,
+      "maxOutputTokens": 65536,
+      "sourceUrl": "https://ai.google.dev/gemini-api/docs/models/gemini-3.8-flash",
+      "capabilities": {
+        "sourceUrl": "https://models.dev/api.json",
+        "temperature": true,
+        "topP": true,
+        "temperatureRange": {
+          "min": 0,
+          "max": 2
+        },
+        "parameterSourceUrl": "https://ai.google.dev/api/generate-content"
+      }
+    },
+    {
+      "id": "gemini-3.1-pro-preview",
+      "aliases": [
+        "gemini-3.1-pro-low"
+      ],
+      "capacity": 1048576,
+      "maxOutputTokens": 65536,
+      "sourceUrl": "https://ai.google.dev/gemini-api/docs/models/gemini-3.1-pro-preview",
+      "capabilities": {
+        "sourceUrl": "https://models.dev/api.json",
+        "temperature": true,
+        "topP": true,
+        "temperatureRange": {
+          "min": 0,
+          "max": 2
+        },
+        "parameterSourceUrl": "https://ai.google.dev/api/generate-content"
+      }
+    },
+    {
+      "id": "gemini-3.1-flash-image",
+      "aliases": [],
+      "capacity": 131072,
+      "maxOutputTokens": 32768,
+      "sourceUrl": "https://ai.google.dev/gemini-api/docs/models/gemini-3.1-flash-image",
+      "capabilities": {
+        "sourceUrl": "https://models.dev/api.json",
+        "temperature": true,
+        "topP": true,
+        "temperatureRange": {
+          "min": 0,
+          "max": 2
+        },
+        "parameterSourceUrl": "https://ai.google.dev/api/generate-content"
+      }
+    },
+    {
+      "id": "agnes-image-2.0-flash",
+      "capacity": null,
+      "sourceUrl": "https://agnes-ai.com/en/docs/agnes-image-20-flash",
+      "note": "No published input/context token limit for this exact gateway model."
+    },
+    {
+      "id": "agnes-image-2.1-flash",
+      "capacity": null,
+      "sourceUrl": "https://agnes-ai.com/en/docs/agnes-image-21-flash",
+      "note": "No published input/context token limit for this exact gateway model."
+    },
+    {
+      "id": "agnes-image-2.5-flash",
+      "capacity": null,
+      "sourceUrl": "https://github.com/AgnesAI-Labs/AgnesAI-Models",
+      "note": "No published input/context token limit for this exact gateway model."
+    },
+    {
+      "id": "gpt-image-2",
+      "capacity": null,
+      "sourceUrl": "https://developers.openai.com/api/docs/models/gpt-image-2",
+      "note": "No published input/context token limit for this exact gateway model."
+    },
+    {
+      "id": "gpt-image-2-web",
+      "capacity": null,
+      "sourceUrl": "https://developers.openai.com/api/docs/models/gpt-image-2",
+      "note": "No published input/context token limit for this exact gateway model."
+    },
+    {
+      "id": "gpt-image-2.5-flare",
+      "capacity": null,
+      "sourceUrl": "https://api.567.wiki/v1/models",
+      "note": "No published input/context token limit for this exact gateway model."
+    },
+    {
+      "id": "gpt-image-2.5-sunburst",
+      "capacity": null,
+      "sourceUrl": "https://api.567.wiki/v1/models",
+      "note": "No published input/context token limit for this exact gateway model."
+    },
+    {
+      "id": "gemini-pro-agent",
+      "capacity": null,
+      "sourceUrl": "https://api.567.wiki/v1/models",
+      "note": "No published input/context token limit for this exact gateway model."
+    },
+    {
+      "id": "MiniMax-M3",
+      "capacity": 1000000,
+      "maxOutputTokens": 512000,
+      "sourceUrl": "https://models.dev/api.json",
+      "capabilities": {
+        "sourceUrl": "https://models.dev/api.json",
+        "temperature": true,
+        "topP": true,
+        "temperatureRange": {
+          "min": 0,
+          "max": 2
+        },
+        "topPRange": {
+          "min": 0,
+          "max": 1
+        },
+        "parameterSourceUrl": "https://platform.minimax.io/docs/api-reference/text-anthropic-api"
+      }
+    },
+    {
+      "id": "MiniMax-M2.1",
+      "capacity": 204800,
+      "maxOutputTokens": 131072,
+      "sourceUrl": "https://models.dev/api.json",
+      "capabilities": {
+        "sourceUrl": "https://models.dev/api.json",
+        "temperature": true,
+        "topP": true,
+        "temperatureRange": {
+          "min": 0,
+          "max": 2
+        },
+        "topPRange": {
+          "min": 0,
+          "max": 1
+        },
+        "parameterSourceUrl": "https://platform.minimax.io/docs/api-reference/text-anthropic-api",
+        "reasoningOptions": [
+          {
+            "type": "fixed"
+          }
+        ]
+      }
+    },
+    {
+      "id": "MiniMax-M2.5",
+      "capacity": 204800,
+      "maxOutputTokens": 131072,
+      "sourceUrl": "https://models.dev/api.json",
+      "capabilities": {
+        "sourceUrl": "https://models.dev/api.json",
+        "temperature": true,
+        "topP": true,
+        "temperatureRange": {
+          "min": 0,
+          "max": 2
+        },
+        "topPRange": {
+          "min": 0,
+          "max": 1
+        },
+        "parameterSourceUrl": "https://platform.minimax.io/docs/api-reference/text-anthropic-api",
+        "reasoningOptions": [
+          {
+            "type": "fixed"
+          }
+        ]
+      }
+    },
+    {
+      "id": "MiniMax-M2.7",
+      "capacity": 204800,
+      "maxOutputTokens": 131072,
+      "sourceUrl": "https://models.dev/api.json",
+      "capabilities": {
+        "sourceUrl": "https://models.dev/api.json",
+        "temperature": true,
+        "topP": true,
+        "temperatureRange": {
+          "min": 0,
+          "max": 2
+        },
+        "topPRange": {
+          "min": 0,
+          "max": 1
+        },
+        "parameterSourceUrl": "https://platform.minimax.io/docs/api-reference/text-anthropic-api",
+        "reasoningOptions": [
+          {
+            "type": "fixed"
+          }
+        ]
+      }
+    },
+    {
+      "id": "MiniMax-M2.7-highspeed",
+      "capacity": 204800,
+      "maxOutputTokens": 131072,
+      "sourceUrl": "https://models.dev/api.json",
+      "capabilities": {
+        "sourceUrl": "https://models.dev/api.json",
+        "temperature": true,
+        "topP": true,
+        "temperatureRange": {
+          "min": 0,
+          "max": 2
+        },
+        "topPRange": {
+          "min": 0,
+          "max": 1
+        },
+        "parameterSourceUrl": "https://platform.minimax.io/docs/api-reference/text-anthropic-api",
+        "reasoningOptions": [
+          {
+            "type": "fixed"
+          }
+        ]
+      }
+    },
+    {
+      "id": "MiniMax-M2",
+      "capacity": 204800,
+      "maxOutputTokens": 131072,
+      "sourceUrl": "https://models.dev/api.json",
+      "capabilities": {
+        "sourceUrl": "https://models.dev/api.json",
+        "temperature": true,
+        "topP": true,
+        "temperatureRange": {
+          "min": 0,
+          "max": 2
+        },
+        "topPRange": {
+          "min": 0,
+          "max": 1
+        },
+        "parameterSourceUrl": "https://platform.minimax.io/docs/api-reference/text-anthropic-api",
+        "reasoningOptions": [
+          {
+            "type": "fixed"
+          }
+        ]
+      }
+    },
+    {
+      "id": "MiniMax-M2.5-highspeed",
+      "capacity": 204800,
+      "maxOutputTokens": 131072,
+      "sourceUrl": "https://models.dev/api.json",
+      "capabilities": {
+        "sourceUrl": "https://models.dev/api.json",
+        "temperature": true,
+        "topP": true,
+        "temperatureRange": {
+          "min": 0,
+          "max": 2
+        },
+        "topPRange": {
+          "min": 0,
+          "max": 1
+        },
+        "parameterSourceUrl": "https://platform.minimax.io/docs/api-reference/text-anthropic-api",
+        "reasoningOptions": [
+          {
+            "type": "fixed"
+          }
+        ]
+      }
+    },
+    {
+      "id": "MiniMax-M3.1-Flash-Preview",
+      "capacity": 1000000,
+      "sourceUrl": "https://platform.minimax.io/docs/api-reference/text-anthropic-api",
+      "capabilities": {
+        "sourceUrl": "https://platform.minimax.io/docs/api-reference/text-anthropic-api",
+        "parameterSourceUrl": "https://platform.minimax.io/docs/api-reference/text-anthropic-api",
+        "input": [
+          "text",
+          "image",
+          "video"
+        ],
+        "output": [
+          "text"
+        ],
+        "tools": true,
+        "reasoning": true,
+        "temperature": true,
+        "topP": true,
+        "temperatureRange": {
+          "min": 0,
+          "max": 2
+        },
+        "topPRange": {
+          "min": 0,
+          "max": 1
+        },
+        "reasoningOptions": [
+          {
+            "type": "effort",
+            "values": [
+              "low",
+              "medium",
+              "high",
+              "xhigh",
+              "max"
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "id": "MiniMax-M2.1-highspeed",
+      "capacity": 204800,
+      "sourceUrl": "https://platform.minimax.io/docs/api-reference/text-anthropic-api",
+      "capabilities": {
+        "sourceUrl": "https://platform.minimax.io/docs/api-reference/text-anthropic-api",
+        "input": [
+          "text"
+        ],
+        "output": [
+          "text"
+        ],
+        "tools": true,
+        "reasoning": true,
+        "temperature": true,
+        "topP": true,
+        "temperatureRange": {
+          "min": 0,
+          "max": 2
+        },
+        "topPRange": {
+          "min": 0,
+          "max": 1
+        },
+        "reasoningOptions": [
+          {
+            "type": "fixed"
+          }
+        ]
+      }
+    },
+    {
+      "id": "ernie-5.1",
+      "capacity": 128000,
+      "sourceUrl": "https://intl.cloud.baidu.com/en/doc/qianfan/s/7m95lyy43-intl-en",
+      "maxInputTokens": 119000,
+      "maxOutputTokens": 65536,
+      "capabilities": {
+        "sourceUrl": "https://intl.cloud.baidu.com/en/doc/qianfan/s/7m95lyy43-intl-en",
+        "output": [
+          "text"
+        ]
+      },
+      "note": "Published k units are interpreted conservatively as 1000 tokens; max input and context are distinct."
+    },
+    {
+      "id": "ernie-5.0",
+      "capacity": 128000,
+      "sourceUrl": "https://intl.cloud.baidu.com/en/doc/qianfan/s/7m95lyy43-intl-en",
+      "maxInputTokens": 119000,
+      "maxOutputTokens": 65536,
+      "capabilities": {
+        "sourceUrl": "https://intl.cloud.baidu.com/en/doc/qianfan/s/7m95lyy43-intl-en",
+        "input": [
+          "text",
+          "image"
+        ],
+        "output": [
+          "text"
+        ],
+        "reasoning": true
+      },
+      "note": "Published k units are interpreted conservatively as 1000 tokens; max input and context are distinct."
+    },
+    {
+      "id": "ernie-4.5-turbo-32k",
+      "capacity": 32000,
+      "sourceUrl": "https://intl.cloud.baidu.com/en/doc/qianfan/s/7m95lyy43-intl-en",
+      "maxInputTokens": 27000,
+      "maxOutputTokens": 12288,
+      "capabilities": {
+        "sourceUrl": "https://intl.cloud.baidu.com/en/doc/qianfan/s/7m95lyy43-intl-en",
+        "input": [
+          "text"
+        ],
+        "output": [
+          "text"
+        ]
+      },
+      "note": "Published k units are interpreted conservatively as 1000 tokens; max input and context are distinct."
+    },
+    {
+      "id": "ernie-4.5-turbo-128k",
+      "capacity": 128000,
+      "sourceUrl": "https://intl.cloud.baidu.com/en/doc/qianfan/s/7m95lyy43-intl-en",
+      "maxInputTokens": 123000,
+      "maxOutputTokens": 12288,
+      "capabilities": {
+        "sourceUrl": "https://intl.cloud.baidu.com/en/doc/qianfan/s/7m95lyy43-intl-en",
+        "input": [
+          "text"
+        ],
+        "output": [
+          "text"
+        ]
+      },
+      "note": "Published k units are interpreted conservatively as 1000 tokens; max input and context are distinct."
+    },
+    {
+      "id": "ernie-4.5-turbo-vl",
+      "capacity": 128000,
+      "sourceUrl": "https://intl.cloud.baidu.com/en/doc/qianfan/s/7m95lyy43-intl-en",
+      "maxInputTokens": 123000,
+      "maxOutputTokens": 16384,
+      "capabilities": {
+        "sourceUrl": "https://intl.cloud.baidu.com/en/doc/qianfan/s/7m95lyy43-intl-en",
+        "input": [
+          "text",
+          "image"
+        ],
+        "output": [
+          "text"
+        ]
+      },
+      "note": "Published k units are interpreted conservatively as 1000 tokens; max input and context are distinct."
+    },
+    {
+      "id": "ernie-4.5-turbo-vl-32k",
+      "capacity": 32000,
+      "sourceUrl": "https://intl.cloud.baidu.com/en/doc/qianfan/s/7m95lyy43-intl-en",
+      "maxInputTokens": 27000,
+      "maxOutputTokens": 12288,
+      "capabilities": {
+        "sourceUrl": "https://intl.cloud.baidu.com/en/doc/qianfan/s/7m95lyy43-intl-en",
+        "input": [
+          "text",
+          "image"
+        ],
+        "output": [
+          "text"
+        ]
+      },
+      "note": "Published k units are interpreted conservatively as 1000 tokens; max input and context are distinct."
+    },
+    {
+      "id": "doubao-seed-evolving",
+      "capacity": 1024000,
+      "sourceUrl": "https://docs.volcengine.com/docs/ark/model-list?lang=zh&redirect=1",
+      "maxInputTokens": 1024000,
+      "maxOutputTokens": 256000,
+      "capabilities": {
+        "sourceUrl": "https://docs.volcengine.com/docs/ark/model-list?lang=zh&redirect=1",
+        "input": [
+          "text",
+          "image",
+          "video"
+        ],
+        "output": [
+          "text"
+        ],
+        "tools": true,
+        "reasoning": true
+      },
+      "note": "Published k units are interpreted as 1000 tokens. Provider capability flags do not verify a gateway route."
+    },
+    {
+      "id": "doubao-seed-2-1-pro-260915",
+      "capacity": 1024000,
+      "sourceUrl": "https://docs.volcengine.com/docs/ark/model-list?lang=zh&redirect=1",
+      "maxInputTokens": 1024000,
+      "maxOutputTokens": 256000,
+      "capabilities": {
+        "sourceUrl": "https://docs.volcengine.com/docs/ark/model-list?lang=zh&redirect=1",
+        "output": [
+          "text"
+        ],
+        "tools": true,
+        "reasoning": true
+      },
+      "note": "Published k units are interpreted as 1000 tokens. Provider capability flags do not verify a gateway route."
+    },
+    {
+      "id": "doubao-seed-2-0-lite-260428",
+      "capacity": 256000,
+      "sourceUrl": "https://docs.volcengine.com/docs/ark/model-list?lang=zh&redirect=1",
+      "maxInputTokens": 224000,
+      "maxOutputTokens": 128000
+    },
+    {
+      "id": "doubao-seed-2-0-mini-260428",
+      "capacity": 256000,
+      "sourceUrl": "https://docs.volcengine.com/docs/ark/model-list?lang=zh&redirect=1",
+      "maxInputTokens": 224000,
+      "maxOutputTokens": 128000
+    },
+    {
+      "id": "claude-fable-5-1",
+      "capacity": 1000000,
+      "maxOutputTokens": 128000,
+      "sourceUrl": "https://models.dev/api.json",
+      "capabilities": {
+        "sourceUrl": "https://models.dev/api.json",
+        "temperature": false,
+        "topP": false,
+        "parameterSourceUrl": "https://platform.claude.com/docs/en/build-with-claude/thinking"
+      }
+    },
+    {
+      "id": "claude-fable-5",
+      "capacity": 1000000,
+      "maxOutputTokens": 128000,
+      "sourceUrl": "https://models.dev/api.json",
+      "capabilities": {
+        "sourceUrl": "https://models.dev/api.json",
+        "temperature": false,
+        "topP": false,
+        "parameterSourceUrl": "https://platform.claude.com/docs/en/build-with-claude/thinking"
+      }
+    },
+    {
+      "id": "claude-opus-5-5",
+      "capacity": 1000000,
+      "maxOutputTokens": 128000,
+      "sourceUrl": "https://models.dev/api.json",
+      "capabilities": {
+        "sourceUrl": "https://models.dev/api.json",
+        "temperature": false,
+        "topP": false,
+        "parameterSourceUrl": "https://platform.claude.com/docs/en/build-with-claude/thinking"
+      }
+    },
+    {
+      "id": "claude-opus-5",
+      "capacity": 1000000,
+      "maxOutputTokens": 128000,
+      "sourceUrl": "https://models.dev/api.json",
+      "capabilities": {
+        "sourceUrl": "https://models.dev/api.json",
+        "temperature": false,
+        "topP": false,
+        "parameterSourceUrl": "https://platform.claude.com/docs/en/build-with-claude/thinking"
+      }
+    },
+    {
+      "id": "claude-opus-4-8",
+      "capacity": 1000000,
+      "maxOutputTokens": 128000,
+      "sourceUrl": "https://models.dev/api.json",
+      "capabilities": {
+        "sourceUrl": "https://models.dev/api.json",
+        "temperature": false,
+        "topP": false,
+        "parameterSourceUrl": "https://platform.claude.com/docs/en/build-with-claude/thinking"
+      }
+    },
+    {
+      "id": "claude-opus-4-7",
+      "capacity": 1000000,
+      "maxOutputTokens": 128000,
+      "sourceUrl": "https://models.dev/api.json",
+      "capabilities": {
+        "sourceUrl": "https://models.dev/api.json",
+        "temperature": false,
+        "topP": false,
+        "parameterSourceUrl": "https://platform.claude.com/docs/en/build-with-claude/thinking"
+      }
+    },
+    {
+      "id": "claude-sonnet-5-5",
+      "capacity": 1000000,
+      "maxOutputTokens": 128000,
+      "sourceUrl": "https://models.dev/api.json",
+      "capabilities": {
+        "sourceUrl": "https://models.dev/api.json",
+        "temperature": false,
+        "topP": false,
+        "parameterSourceUrl": "https://platform.claude.com/docs/en/build-with-claude/thinking"
+      }
+    },
+    {
+      "id": "claude-sonnet-5",
+      "capacity": 1000000,
+      "maxOutputTokens": 128000,
+      "sourceUrl": "https://models.dev/api.json",
+      "capabilities": {
+        "sourceUrl": "https://models.dev/api.json",
+        "temperature": false,
+        "topP": false,
+        "parameterSourceUrl": "https://platform.claude.com/docs/en/build-with-claude/thinking"
+      }
+    },
+    {
+      "id": "claude-haiku-5-5",
+      "capacity": 1000000,
+      "maxOutputTokens": 128000,
+      "sourceUrl": "https://models.dev/api.json",
+      "capabilities": {
+        "sourceUrl": "https://models.dev/api.json",
+        "temperature": false,
+        "topP": false,
+        "parameterSourceUrl": "https://platform.claude.com/docs/en/build-with-claude/thinking"
+      }
+    },
+    {
+      "id": "deepseek-flash",
+      "capacity": 1000000,
+      "maxOutputTokens": 393216,
+      "sourceUrl": "https://models.dev/api.json",
+      "capabilities": {
+        "sourceUrl": "https://models.dev/api.json",
+        "temperature": true,
+        "topP": true,
+        "temperatureRange": {
+          "min": 0,
+          "max": 2
+        },
+        "topPRange": {
+          "min": 0,
+          "max": 1,
+          "minExclusive": true
+        },
+        "parameterSourceUrl": "https://api-docs.deepseek.com/api/create-chat-completion/",
+        "samplingConstraint": "deepseekModes"
+      }
+    },
+    {
+      "id": "deepseek-v4-pro",
+      "capacity": 1000000,
+      "maxOutputTokens": 393216,
+      "sourceUrl": "https://models.dev/api.json",
+      "capabilities": {
+        "sourceUrl": "https://models.dev/api.json",
+        "temperature": true,
+        "topP": true,
+        "temperatureRange": {
+          "min": 0,
+          "max": 2
+        },
+        "topPRange": {
+          "min": 0,
+          "max": 1,
+          "minExclusive": true
+        },
+        "parameterSourceUrl": "https://api-docs.deepseek.com/api/create-chat-completion/",
+        "samplingConstraint": "deepseekModes"
+      }
+    },
+    {
+      "id": "deepseek-v4-flash",
+      "capacity": 1000000,
+      "maxOutputTokens": 393216,
+      "sourceUrl": "https://models.dev/api.json",
+      "capabilities": {
+        "sourceUrl": "https://models.dev/api.json",
+        "temperature": true,
+        "topP": true,
+        "temperatureRange": {
+          "min": 0,
+          "max": 2
+        },
+        "topPRange": {
+          "min": 0,
+          "max": 1,
+          "minExclusive": true
+        },
+        "parameterSourceUrl": "https://api-docs.deepseek.com/api/create-chat-completion/",
+        "samplingConstraint": "deepseekModes"
+      }
+    },
+    {
+      "id": "gpt-6-astra",
+      "capacity": 1050000,
+      "maxOutputTokens": 128000,
+      "sourceUrl": "https://models.dev/api.json",
+      "capabilities": {
+        "sourceUrl": "https://models.dev/api.json",
+        "temperature": false,
+        "topP": false,
+        "parameterSourceUrl": "https://developers.openai.com/api/docs/guides/latest-model"
+      }
+    },
+    {
+      "id": "gpt-6.1-sol",
+      "capacity": 1050000,
+      "maxOutputTokens": 128000,
+      "sourceUrl": "https://models.dev/api.json",
+      "capabilities": {
+        "sourceUrl": "https://models.dev/api.json",
+        "temperature": false,
+        "topP": false,
+        "parameterSourceUrl": "https://developers.openai.com/api/docs/guides/latest-model"
+      }
+    },
+    {
+      "id": "gpt-6-sol",
+      "capacity": 1050000,
+      "maxInputTokens": 922000,
+      "maxOutputTokens": 128000,
+      "sourceUrl": "https://models.dev/api.json",
+      "capabilities": {
+        "sourceUrl": "https://models.dev/api.json",
+        "topP": true,
+        "samplingConstraint": "reasoningNoneOnly",
+        "parameterSourceUrl": "https://developers.openai.com/api/docs/guides/latest-model"
+      }
+    },
+    {
+      "id": "gpt-6-luna",
+      "capacity": 1050000,
+      "maxInputTokens": 922000,
+      "maxOutputTokens": 128000,
+      "sourceUrl": "https://models.dev/api.json",
+      "capabilities": {
+        "sourceUrl": "https://models.dev/api.json",
+        "topP": true,
+        "samplingConstraint": "reasoningNoneOnly",
+        "parameterSourceUrl": "https://developers.openai.com/api/docs/guides/latest-model"
+      }
+    },
+    {
+      "id": "qwen-flash",
+      "capacity": 1000000,
+      "maxOutputTokens": 32768,
+      "sourceUrl": "https://models.dev/api.json",
+      "capabilities": {
+        "sourceUrl": "https://models.dev/api.json",
+        "temperature": true,
+        "topP": true,
+        "temperatureRange": {
+          "min": 0,
+          "max": 2,
+          "maxExclusive": true
+        },
+        "topPRange": {
+          "min": 0,
+          "max": 1,
+          "minExclusive": true
+        },
+        "parameterSourceUrl": "https://help.aliyun.com/zh/model-studio/text-generation"
+      }
+    },
+    {
+      "id": "qwen-max",
+      "capacity": 32768,
+      "maxOutputTokens": 8192,
+      "sourceUrl": "https://models.dev/api.json",
+      "capabilities": {
+        "sourceUrl": "https://models.dev/api.json",
+        "temperature": true,
+        "topP": true,
+        "temperatureRange": {
+          "min": 0,
+          "max": 2,
+          "maxExclusive": true
+        },
+        "topPRange": {
+          "min": 0,
+          "max": 1,
+          "minExclusive": true
+        },
+        "parameterSourceUrl": "https://help.aliyun.com/zh/model-studio/text-generation"
+      }
+    },
+    {
+      "id": "qwen-plus-character-ja",
+      "capacity": 8192,
+      "maxOutputTokens": 512,
+      "sourceUrl": "https://models.dev/api.json",
+      "capabilities": {
+        "sourceUrl": "https://models.dev/api.json",
+        "temperature": true,
+        "topP": true,
+        "temperatureRange": {
+          "min": 0,
+          "max": 2,
+          "maxExclusive": true
+        },
+        "topPRange": {
+          "min": 0,
+          "max": 1,
+          "minExclusive": true
+        },
+        "parameterSourceUrl": "https://help.aliyun.com/zh/model-studio/text-generation"
+      }
+    },
+    {
+      "id": "qwen-plus",
+      "capacity": 1000000,
+      "maxOutputTokens": 32768,
+      "sourceUrl": "https://models.dev/api.json",
+      "capabilities": {
+        "sourceUrl": "https://models.dev/api.json",
+        "temperature": true,
+        "topP": true,
+        "temperatureRange": {
+          "min": 0,
+          "max": 2,
+          "maxExclusive": true
+        },
+        "topPRange": {
+          "min": 0,
+          "max": 1,
+          "minExclusive": true
+        },
+        "parameterSourceUrl": "https://help.aliyun.com/zh/model-studio/text-generation"
+      }
+    },
+    {
+      "id": "qwen-turbo",
+      "capacity": 1000000,
+      "maxOutputTokens": 16384,
+      "sourceUrl": "https://models.dev/api.json",
+      "capabilities": {
+        "sourceUrl": "https://models.dev/api.json",
+        "temperature": true,
+        "topP": true,
+        "temperatureRange": {
+          "min": 0,
+          "max": 2,
+          "maxExclusive": true
+        },
+        "topPRange": {
+          "min": 0,
+          "max": 1,
+          "minExclusive": true
+        },
+        "parameterSourceUrl": "https://help.aliyun.com/zh/model-studio/text-generation"
+      }
+    },
+    {
+      "id": "qwen-vl-max",
+      "capacity": 131072,
+      "maxOutputTokens": 8192,
+      "sourceUrl": "https://models.dev/api.json",
+      "capabilities": {
+        "sourceUrl": "https://models.dev/api.json",
+        "temperature": true,
+        "topP": true,
+        "temperatureRange": {
+          "min": 0,
+          "max": 2,
+          "maxExclusive": true
+        },
+        "topPRange": {
+          "min": 0,
+          "max": 1,
+          "minExclusive": true
+        },
+        "parameterSourceUrl": "https://help.aliyun.com/zh/model-studio/text-generation"
+      }
+    },
+    {
+      "id": "qwen-vl-plus",
+      "capacity": 131072,
+      "maxOutputTokens": 8192,
+      "sourceUrl": "https://models.dev/api.json",
+      "capabilities": {
+        "sourceUrl": "https://models.dev/api.json",
+        "temperature": true,
+        "topP": true,
+        "temperatureRange": {
+          "min": 0,
+          "max": 2,
+          "maxExclusive": true
+        },
+        "topPRange": {
+          "min": 0,
+          "max": 1,
+          "minExclusive": true
+        },
+        "parameterSourceUrl": "https://help.aliyun.com/zh/model-studio/text-generation"
+      }
+    },
+    {
+      "id": "qwen-mt-plus",
+      "capacity": 16384,
+      "maxOutputTokens": 8192,
+      "sourceUrl": "https://models.dev/api.json",
+      "capabilities": {
+        "sourceUrl": "https://models.dev/api.json",
+        "temperature": true,
+        "topP": true,
+        "temperatureRange": {
+          "min": 0,
+          "max": 2,
+          "maxExclusive": true
+        },
+        "topPRange": {
+          "min": 0,
+          "max": 1,
+          "minExclusive": true
+        },
+        "parameterSourceUrl": "https://help.aliyun.com/zh/model-studio/text-generation"
+      }
+    },
+    {
+      "id": "qwen-mt-turbo",
+      "capacity": 16384,
+      "maxOutputTokens": 8192,
+      "sourceUrl": "https://models.dev/api.json",
+      "capabilities": {
+        "sourceUrl": "https://models.dev/api.json",
+        "temperature": true,
+        "topP": true,
+        "temperatureRange": {
+          "min": 0,
+          "max": 2,
+          "maxExclusive": true
+        },
+        "topPRange": {
+          "min": 0,
+          "max": 1,
+          "minExclusive": true
+        },
+        "parameterSourceUrl": "https://help.aliyun.com/zh/model-studio/text-generation"
+      }
+    },
+    {
+      "id": "qwen-vl-ocr",
+      "capacity": 34096,
+      "maxOutputTokens": 4096,
+      "sourceUrl": "https://models.dev/api.json",
+      "capabilities": {
+        "sourceUrl": "https://models.dev/api.json",
+        "temperature": true,
+        "topP": true,
+        "temperatureRange": {
+          "min": 0,
+          "max": 2,
+          "maxExclusive": true
+        },
+        "topPRange": {
+          "min": 0,
+          "max": 1,
+          "minExclusive": true
+        },
+        "parameterSourceUrl": "https://help.aliyun.com/zh/model-studio/text-generation"
+      }
+    }
+  ]
+}

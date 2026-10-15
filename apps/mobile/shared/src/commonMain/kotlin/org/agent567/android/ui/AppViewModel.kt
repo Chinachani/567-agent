@@ -1093,7 +1093,27 @@ class AppViewModel(
     fun refreshChatContext() = loadChatContext()
 
     private fun loadChatContext(preserveError: Boolean = false) {
-        val sid = _state.value.currentSessionId ?: return
+        val stateAtRead = _state.value
+        val sid = stateAtRead.currentSessionId
+        val modelAtRead = currentModel()
+        val manualAtRead = modelAtRead?.let { container.preferences.getModelContextOverride(stateAtRead.active567Group, it.id) }
+        val automaticAtRead = modelAtRead?.let { container.client.models.resolveContext(it, stateAtRead.active567Group, useManual = false) }
+        val reference = modelAtRead?.let { org.agent567.android.core.model.modelContextReference(it) }
+        val modelDetails = ChatContextSnapshot(
+            contextWindowSource = modelAtRead?.contextWindowSource ?: "unknown", manualContextWindow = manualAtRead,
+            modelKey = modelAtRead?.let { kotlinx.serialization.json.JsonArray(listOf(kotlinx.serialization.json.JsonPrimitive(stateAtRead.active567Group), kotlinx.serialization.json.JsonPrimitive(it.id))).toString() },
+            modelName = modelAtRead?.name, automaticContextWindow = automaticAtRead?.contextWindow,
+            referenceModel = reference?.modelId, referenceUrl = reference?.sourceUrl, referenceCheckedAt = reference?.checkedAt,
+            referenceIsAlias = reference?.alias == true,
+            referenceContextWindow = reference?.capacity, referenceMaxOutput = reference?.maxOutputTokens,
+            referenceMaxInput = reference?.maxInputTokens, referenceCapabilities = reference?.capabilities,
+        )
+        if (sid == null) {
+            if ((stateAtRead.route as? AppRoute.Chat)?.surface != ChatSurface.Desktop && modelAtRead != null) _state.update {
+                it.copy(contextSnapshot = modelDetails.copy(tokens = 0, contextWindow = modelAtRead.contextWindow), contextLoading = false)
+            }
+            return
+        }
         contextReadJob?.cancel()
         contextReadJob = viewModelScope.launch(start = CoroutineStart.LAZY) {
             updateVisibleSession(sid) { it.copy(contextLoading = true, contextError = if (preserveError) it.contextError else null) }
@@ -1105,8 +1125,11 @@ class AppViewModel(
                         ?: throw RemoteConversationException(Str.contextDesktopUnsupported)
                 } else {
                     val messages = container.sessionStore.getMessages(sid)
-                    val window = currentModel()?.contextWindow
-                    withContext(Dispatchers.Default) { mobileContext.snapshot(session, messages, window) }
+                    withContext(Dispatchers.Default) {
+                        val usage = mobileContext.snapshot(session, messages, modelAtRead?.contextWindow)
+                        modelDetails.copy(tokens = usage.tokens, contextWindow = usage.contextWindow, estimated = usage.estimated,
+                            messageCount = usage.messageCount, autoCompactionEnabled = usage.autoCompactionEnabled, summary = usage.summary)
+                    }
                 }
                 if (contextReadJob === currentCoroutineContext()[Job]) updateVisibleSession(sid) {
                     it.copy(contextSnapshot = snapshot.copy(busy = snapshot.busy || streamJobs[sid]?.isCompleted == false || sid in pendingSendReservations), contextBusy = sid in contextOperations)
@@ -1131,6 +1154,20 @@ class AppViewModel(
             val compacted = mobileContext.compact(session.id, modelId ?: throw MobileContextException(Str.contextNoModel), window, group)
             updateVisibleSession(session.id) { it.copy(contextNotice = if (compacted) Str.contextCompacted else Str.contextTooShort) }
         }
+    }
+
+    fun setChatContextCapacity(capacity: Long?) {
+        val current = _state.value
+        val route = current.route as? AppRoute.Chat ?: return
+        if (route.surface == ChatSurface.Desktop || current.isStreaming || current.contextBusy) return
+        val model = currentModel() ?: return
+        if (capacity != null && org.agent567.android.core.model.validModelContext(capacity) == null) {
+            _state.update { it.copy(contextError = Str.contextCapacityInvalid) }
+            return
+        }
+        container.preferences.setModelContextOverride(current.active567Group, model.id, capacity)
+        _state.update { it.copy(contextNotice = Str.contextCapacitySaved, contextError = null) }
+        refreshChatContext()
     }
 
     fun setChatAutoCompaction(enabled: Boolean) = runContextOperation { session, _, _, _ ->
@@ -2435,8 +2472,8 @@ class AppViewModel(
                 openLogin()
                 return@launch
             }
-            val model = stateAtSend.models.firstOrNull { it.id == stateAtSend.selectedModelId }
-                ?: stateAtSend.models.firstOrNull()
+            val model = (stateAtSend.models.firstOrNull { it.id == stateAtSend.selectedModelId }
+                ?: stateAtSend.models.firstOrNull())?.let { container.client.models.resolveContext(it, stateAtSend.active567Group) }
             if (!isDesktop && container.networkAvailability.value == NetworkAvailability.Unavailable) {
                 val error = UiError("网络已断开", "网络恢复后再发送，草稿和附件已保留。")
                 if (activeSessionId != null) updateVisibleSession(activeSessionId) { it.copy(chatError = error) }
@@ -2505,25 +2542,31 @@ class AppViewModel(
             }
             val modelWindow = model?.contextWindow?.takeIf { it > 0 }
             if (session.origin == ConversationOrigin.Cloud && session.context.autoCompactionEnabled && model != null && modelWindow != null) {
-                val messages = container.sessionStore.getMessages(sid)
-                val snapshot = withContext(Dispatchers.Default) { mobileContext.snapshot(session, messages, modelWindow) }
-                val newInputTokens = MobileContextManager.estimateText(text) + images.size * 2048L
-                if ((snapshot.tokens ?: 0L) + newInputTokens >= modelWindow * 8 / 10) {
-                    contextOperations[sid] = requireNotNull(currentCoroutineContext()[Job])
-                    updateVisibleSession(sid) { it.copy(contextBusy = true, streamingStatus = "compacting") }
-                    try {
-                        mobileContext.compact(sid, model.id, modelWindow, stateAtSend.active567Group)
-                    } catch (error: Throwable) {
-                        if (error is CancellationException && !error.isChatNetworkLoss()) throw error
-                        withContext(NonCancellable) {
-                            val cause = if (error.isChatNetworkLoss()) ChatNetworkLostException() else error
-                            updateVisibleSession(sid) { it.copy(chatError = UiError(Str.contextManage, contextOperationError(cause))) }
-                        }
-                        return@launch
-                    } finally {
-                        if (contextOperations[sid] === currentCoroutineContext()[Job]) contextOperations.remove(sid)
-                        updateVisibleSession(sid) { it.copy(contextBusy = false, streamingStatus = null) }
+                val newInputTokens = MobileContextManager.estimateText(text) + images.size * 2048L + 32L
+                val outputReserve = minOf(model.maxTokens ?: maxOf(1024L, modelWindow / 5), modelWindow / 4).coerceAtLeast(128L)
+                val inputBudget = (modelWindow - outputReserve).coerceAtLeast(1L)
+                try {
+                    if (newInputTokens >= inputBudget) throw MobileContextException("本次输入已接近设置的上下文容量，请减少内容、附件或核对模型容量；草稿已保留。")
+                    val messages = container.sessionStore.getMessages(sid)
+                    val snapshot = withContext(Dispatchers.Default) { mobileContext.snapshot(session, messages, modelWindow) }
+                    if ((snapshot.tokens ?: 0L) + newInputTokens >= minOf(modelWindow * 8 / 10, inputBudget)) {
+                        contextOperations[sid] = requireNotNull(currentCoroutineContext()[Job])
+                        updateVisibleSession(sid) { it.copy(contextBusy = true, streamingStatus = "compacting") }
+                        mobileContext.compact(sid, model.id, modelWindow, stateAtSend.active567Group, newInputTokens)
+                        session = container.sessionStore.getSession(sid) ?: return@launch
+                        val compacted = withContext(Dispatchers.Default) { mobileContext.snapshot(session, container.sessionStore.getMessages(sid), modelWindow) }
+                        if ((compacted.tokens ?: 0L) + newInputTokens >= inputBudget) throw MobileContextException("压缩后仍超出设置的上下文预算。请减少本次输入，核对容量或开始新上下文；聊天记录和草稿已保留。")
                     }
+                } catch (error: Throwable) {
+                    if (error is CancellationException && !error.isChatNetworkLoss()) throw error
+                    withContext(NonCancellable) {
+                        val cause = if (error.isChatNetworkLoss()) ChatNetworkLostException() else error
+                        updateVisibleSession(sid) { it.copy(chatError = UiError(Str.contextManage, contextOperationError(cause))) }
+                    }
+                    return@launch
+                } finally {
+                    if (contextOperations[sid] === currentCoroutineContext()[Job]) contextOperations.remove(sid)
+                    updateVisibleSession(sid) { it.copy(contextBusy = false, streamingStatus = null) }
                 }
             }
             val persistedImages = try {
@@ -3600,7 +3643,8 @@ class AppViewModel(
 
     private fun currentModel(): LlmModel? {
         val id = _state.value.selectedModelId
-        return _state.value.models.firstOrNull { it.id == id } ?: _state.value.models.firstOrNull()
+        return (_state.value.models.firstOrNull { it.id == id } ?: _state.value.models.firstOrNull())
+            ?.let { container.client.models.resolveContext(it, _state.value.active567Group) }
     }
 
     private fun showNoModelError() {

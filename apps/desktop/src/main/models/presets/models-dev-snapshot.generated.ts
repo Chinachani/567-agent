@@ -4,26 +4,26 @@ import type { ModelsDevCatalog } from "./models-dev.js";
 
 export const MODELS_DEV_SNAPSHOT: ModelsDevCatalog = {
 	version: 7,
-	fetchedAt: "2026-09-18T07:20:51.201Z",
+	fetchedAt: "2026-10-15T13:18:58.823Z",
 	providers: {
 		claude: {
-			"claude-opus-5": {
+			"claude-opus-5-5": {
 				model: {
-					id: "claude-opus-5",
-					name: "Claude Opus 5",
+					id: "claude-opus-5-5",
+					name: "Claude Opus 5.5",
 					reasoning: true,
 					reasoningLevels: ["low", "medium", "high", "xhigh", "max"],
 					input: ["text", "image"],
 					contextWindow: 1000000,
 					maxTokens: 128000,
 					cost: {
-						input: 5,
-						output: 25,
-						cacheRead: 0.5,
-						cacheWrite: 6.25,
+						input: 4,
+						output: 20,
+						cacheRead: 0.2,
+						cacheWrite: 5,
 					},
 				},
-				releaseDate: "2026-07-24",
+				releaseDate: "2026-09-22",
 			},
 			"claude-fable-5-1": {
 				model: {
@@ -43,27 +43,28 @@ export const MODELS_DEV_SNAPSHOT: ModelsDevCatalog = {
 				},
 				releaseDate: "2026-09-01",
 			},
-			"claude-haiku-4-5": {
+			"claude-haiku-5-5": {
 				model: {
-					id: "claude-haiku-4-5",
-					name: "Claude Haiku 4.5 (latest)",
+					id: "claude-haiku-5-5",
+					name: "Claude Haiku 5.5",
 					reasoning: true,
+					reasoningLevels: ["low", "medium", "high", "xhigh", "max"],
 					input: ["text", "image"],
-					contextWindow: 200000,
-					maxTokens: 64000,
+					contextWindow: 1000000,
+					maxTokens: 128000,
 					cost: {
-						input: 1,
-						output: 5,
-						cacheRead: 0.1,
-						cacheWrite: 1.25,
+						input: 0.1,
+						output: 0.5,
+						cacheRead: 0.01,
+						cacheWrite: 0.125,
 					},
 				},
-				releaseDate: "2025-10-15",
+				releaseDate: "2026-10-07",
 			},
-			"claude-sonnet-5": {
+			"claude-sonnet-5-5": {
 				model: {
-					id: "claude-sonnet-5",
-					name: "Claude Sonnet 5",
+					id: "claude-sonnet-5-5",
+					name: "Claude Sonnet 5.5",
 					reasoning: true,
 					reasoningLevels: ["low", "medium", "high", "xhigh", "max"],
 					input: ["text", "image"],
@@ -72,103 +73,31 @@ export const MODELS_DEV_SNAPSHOT: ModelsDevCatalog = {
 					cost: {
 						input: 2,
 						output: 10,
-						cacheRead: 0.2,
+						cacheRead: 0.1,
 						cacheWrite: 2.5,
 					},
 				},
-				releaseDate: "2026-06-29",
+				releaseDate: "2026-09-28",
 			},
 		},
 		openai: {
-			"gpt-5.6-sol": {
+			"gpt-5.5-pro": {
 				model: {
-					id: "gpt-5.6-sol",
-					name: "GPT-5.6 Sol",
+					id: "gpt-5.5-pro",
+					name: "GPT-5.5 Pro",
 					reasoning: true,
-					reasoningLevels: ["none", "low", "medium", "high", "xhigh", "max"],
+					reasoningLevels: ["medium", "high", "xhigh"],
 					input: ["text", "image"],
 					contextWindow: 1050000,
 					maxTokens: 128000,
 					cost: {
-						input: 4,
-						output: 20,
-						cacheRead: 0.4,
-						cacheWrite: 5,
-					},
-				},
-				releaseDate: "2026-07-09",
-			},
-			"gpt-6-astra": {
-				model: {
-					id: "gpt-6-astra",
-					name: "GPT-6 Astra",
-					reasoning: true,
-					reasoningLevels: ["low", "medium", "high", "xhigh", "max"],
-					input: ["text", "image"],
-					contextWindow: 1050000,
-					maxTokens: 128000,
-					cost: {
-						input: 10,
-						output: 50,
-						cacheRead: 1,
-						cacheWrite: 12.5,
-					},
-				},
-				releaseDate: "2026-09-04",
-			},
-			"gpt-5.3-codex-spark": {
-				model: {
-					id: "gpt-5.3-codex-spark",
-					name: "GPT-5.3 Codex Spark",
-					reasoning: true,
-					reasoningLevels: ["none", "low", "medium", "high", "xhigh"],
-					input: ["text", "image"],
-					contextWindow: 128000,
-					maxTokens: 32000,
-					cost: {
-						input: 1.75,
-						output: 14,
-						cacheRead: 0.175,
+						input: 30,
+						output: 180,
+						cacheRead: 0,
 						cacheWrite: 0,
 					},
 				},
-				releaseDate: "2026-02-05",
-			},
-			"gpt-5.6-luna": {
-				model: {
-					id: "gpt-5.6-luna",
-					name: "GPT-5.6 Luna",
-					reasoning: true,
-					reasoningLevels: ["none", "low", "medium", "high", "xhigh", "max"],
-					input: ["text", "image"],
-					contextWindow: 1050000,
-					maxTokens: 128000,
-					cost: {
-						input: 0.2,
-						output: 1.2,
-						cacheRead: 0.02,
-						cacheWrite: 0.25,
-					},
-				},
-				releaseDate: "2026-07-09",
-			},
-			"gpt-5.3-codex": {
-				model: {
-					id: "gpt-5.3-codex",
-					name: "GPT-5.3 Codex",
-					reasoning: true,
-					reasoningLevels: ["none", "low", "medium", "high", "xhigh"],
-					input: ["text", "image"],
-					contextWindow: 400000,
-					maxTokens: 128000,
-					cost: {
-						input: 1.75,
-						output: 14,
-						cacheRead: 0.175,
-						cacheWrite: 0,
-					},
-				},
-				releaseDate: "2026-02-05",
+				releaseDate: "2026-04-23",
 			},
 			"gpt-5.4-nano": {
 				model: {
@@ -188,41 +117,23 @@ export const MODELS_DEV_SNAPSHOT: ModelsDevCatalog = {
 				},
 				releaseDate: "2026-03-17",
 			},
-			"gpt-5.5-pro": {
+			"gpt-5.3-codex": {
 				model: {
-					id: "gpt-5.5-pro",
-					name: "GPT-5.5 Pro",
-					reasoning: true,
-					reasoningLevels: ["medium", "high", "xhigh"],
-					input: ["text", "image"],
-					contextWindow: 1050000,
-					maxTokens: 128000,
-					cost: {
-						input: 30,
-						output: 180,
-						cacheRead: 0,
-						cacheWrite: 0,
-					},
-				},
-				releaseDate: "2026-04-23",
-			},
-			"gpt-5.4-mini": {
-				model: {
-					id: "gpt-5.4-mini",
-					name: "GPT-5.4 mini",
+					id: "gpt-5.3-codex",
+					name: "GPT-5.3 Codex",
 					reasoning: true,
 					reasoningLevels: ["none", "low", "medium", "high", "xhigh"],
 					input: ["text", "image"],
 					contextWindow: 400000,
 					maxTokens: 128000,
 					cost: {
-						input: 0.75,
-						output: 4.5,
-						cacheRead: 0.075,
+						input: 1.75,
+						output: 14,
+						cacheRead: 0.175,
 						cacheWrite: 0,
 					},
 				},
-				releaseDate: "2026-03-17",
+				releaseDate: "2026-02-05",
 			},
 			"gpt-5.6": {
 				model: {
@@ -242,23 +153,77 @@ export const MODELS_DEV_SNAPSHOT: ModelsDevCatalog = {
 				},
 				releaseDate: "2026-07-09",
 			},
-			"gpt-5.6-terra": {
+			"gpt-5.3-codex-spark": {
 				model: {
-					id: "gpt-5.6-terra",
-					name: "GPT-5.6 Terra",
+					id: "gpt-5.3-codex-spark",
+					name: "GPT-5.3 Codex Spark",
 					reasoning: true,
-					reasoningLevels: ["none", "low", "medium", "high", "xhigh", "max"],
+					reasoningLevels: ["none", "low", "medium", "high", "xhigh"],
+					input: ["text", "image"],
+					contextWindow: 128000,
+					maxTokens: 32000,
+					cost: {
+						input: 1.75,
+						output: 14,
+						cacheRead: 0.175,
+						cacheWrite: 0,
+					},
+				},
+				releaseDate: "2026-02-05",
+			},
+			"gpt-6.1-sol": {
+				model: {
+					id: "gpt-6.1-sol",
+					name: "GPT-6.1 Sol",
+					reasoning: true,
+					reasoningLevels: ["low", "medium", "high", "xhigh", "max"],
 					input: ["text", "image"],
 					contextWindow: 1050000,
 					maxTokens: 128000,
 					cost: {
 						input: 2,
-						output: 12,
-						cacheRead: 0.2,
+						output: 10,
+						cacheRead: 0.1,
 						cacheWrite: 2.5,
 					},
 				},
-				releaseDate: "2026-07-09",
+				releaseDate: "2026-09-29",
+			},
+			"gpt-6-astra": {
+				model: {
+					id: "gpt-6-astra",
+					name: "GPT-6 Astra",
+					reasoning: true,
+					reasoningLevels: ["low", "medium", "high", "xhigh", "max"],
+					input: ["text", "image"],
+					contextWindow: 1050000,
+					maxTokens: 128000,
+					cost: {
+						input: 10,
+						output: 50,
+						cacheRead: 1,
+						cacheWrite: 12.5,
+					},
+				},
+				releaseDate: "2026-09-04",
+			},
+			"gpt-5.4-mini": {
+				model: {
+					id: "gpt-5.4-mini",
+					name: "GPT-5.4 mini",
+					reasoning: true,
+					reasoningLevels: ["none", "low", "medium", "high", "xhigh"],
+					input: ["text", "image"],
+					contextWindow: 400000,
+					maxTokens: 128000,
+					cost: {
+						input: 0.75,
+						output: 4.5,
+						cacheRead: 0.075,
+						cacheWrite: 0,
+					},
+				},
+				releaseDate: "2026-03-17",
 			},
 			"gpt-5.5": {
 				model: {
@@ -278,26 +243,44 @@ export const MODELS_DEV_SNAPSHOT: ModelsDevCatalog = {
 				},
 				releaseDate: "2026-04-23",
 			},
-		},
-		deepseek: {
-			"deepseek-v4-pro": {
+			"gpt-6-luna": {
 				model: {
-					id: "deepseek-v4-pro",
-					name: "DeepSeek V4 Pro",
+					id: "gpt-6-luna",
+					name: "GPT-6 Luna",
 					reasoning: true,
-					reasoningLevels: ["high", "max"],
-					input: ["text"],
-					contextWindow: 1000000,
-					maxTokens: 384000,
+					reasoningLevels: ["none", "low", "medium", "high", "xhigh", "max"],
+					input: ["text", "image"],
+					contextWindow: 1050000,
+					maxTokens: 128000,
 					cost: {
-						input: 0.435,
-						output: 0.87,
-						cacheRead: 0.003625,
-						cacheWrite: 0,
+						input: 0.1,
+						output: 0.5,
+						cacheRead: 0.01,
+						cacheWrite: 0.125,
 					},
 				},
-				releaseDate: "2026-08-12",
+				releaseDate: "2026-09-22",
 			},
+			"gpt-5.6-terra": {
+				model: {
+					id: "gpt-5.6-terra",
+					name: "GPT-5.6 Terra",
+					reasoning: true,
+					reasoningLevels: ["none", "low", "medium", "high", "xhigh", "max"],
+					input: ["text", "image"],
+					contextWindow: 1050000,
+					maxTokens: 128000,
+					cost: {
+						input: 2,
+						output: 12,
+						cacheRead: 0.2,
+						cacheWrite: 2.5,
+					},
+				},
+				releaseDate: "2026-07-09",
+			},
+		},
+		deepseek: {
 			"deepseek-flash": {
 				model: {
 					id: "deepseek-flash",
@@ -306,7 +289,7 @@ export const MODELS_DEV_SNAPSHOT: ModelsDevCatalog = {
 					reasoningLevels: ["low", "high", "max"],
 					input: ["text", "image"],
 					contextWindow: 1000000,
-					maxTokens: 384000,
+					maxTokens: 393216,
 					cost: {
 						input: 0.15,
 						output: 0.6,
@@ -316,8 +299,79 @@ export const MODELS_DEV_SNAPSHOT: ModelsDevCatalog = {
 				},
 				releaseDate: "2026-09-10",
 			},
+			"deepseek-v4-pro": {
+				model: {
+					id: "deepseek-v4-pro",
+					name: "DeepSeek V4 Pro",
+					reasoning: true,
+					reasoningLevels: ["low", "high", "max"],
+					input: ["text"],
+					contextWindow: 1000000,
+					maxTokens: 393216,
+					cost: {
+						input: 0.66,
+						output: 1.98,
+						cacheRead: 0.022,
+						cacheWrite: 0,
+					},
+				},
+				releaseDate: "2026-08-12",
+			},
 		},
 		zai: {
+			"glm-5v-turbo": {
+				model: {
+					id: "glm-5v-turbo",
+					name: "GLM-5V-Turbo",
+					reasoning: true,
+					input: ["text", "image"],
+					contextWindow: 200000,
+					maxTokens: 131072,
+					cost: {
+						input: 1.2,
+						output: 4,
+						cacheRead: 0.24,
+						cacheWrite: 0,
+					},
+				},
+				releaseDate: "2026-04-01",
+			},
+			"glm-5.3-flash": {
+				model: {
+					id: "glm-5.3-flash",
+					name: "GLM-5.3-Flash",
+					reasoning: true,
+					reasoningLevels: ["low", "high", "max"],
+					input: ["text", "image"],
+					contextWindow: 1000000,
+					maxTokens: 131072,
+					cost: {
+						input: 0.15,
+						output: 0.5,
+						cacheRead: 0.03,
+						cacheWrite: 0,
+					},
+				},
+				releaseDate: "2026-08-26",
+			},
+			"glm-5.3-flashx": {
+				model: {
+					id: "glm-5.3-flashx",
+					name: "GLM-5.3-FlashX",
+					reasoning: true,
+					reasoningLevels: ["low", "high", "max"],
+					input: ["text", "image"],
+					contextWindow: 1000000,
+					maxTokens: 131072,
+					cost: {
+						input: 0.37,
+						output: 1.25,
+						cacheRead: 0.075,
+						cacheWrite: 0,
+					},
+				},
+				releaseDate: "2026-09-18",
+			},
 			"glm-4.5-air": {
 				model: {
 					id: "glm-4.5-air",
@@ -334,41 +388,6 @@ export const MODELS_DEV_SNAPSHOT: ModelsDevCatalog = {
 					},
 				},
 				releaseDate: "2025-07-28",
-			},
-			"glm-5.3-flash": {
-				model: {
-					id: "glm-5.3-flash",
-					name: "GLM-5.3-Flash",
-					reasoning: true,
-					reasoningLevels: ["low", "high", "max"],
-					input: ["text", "image"],
-					contextWindow: 1000000,
-					maxTokens: 131072,
-					cost: {
-						input: 0.075,
-						output: 0.25,
-						cacheRead: 0.015,
-						cacheWrite: 0,
-					},
-				},
-				releaseDate: "2026-08-26",
-			},
-			"glm-4.7-flashx": {
-				model: {
-					id: "glm-4.7-flashx",
-					name: "GLM-4.7-FlashX",
-					reasoning: true,
-					input: ["text"],
-					contextWindow: 200000,
-					maxTokens: 131072,
-					cost: {
-						input: 0.07,
-						output: 0.4,
-						cacheRead: 0.01,
-						cacheWrite: 0,
-					},
-				},
-				releaseDate: "2026-01-19",
 			},
 			"glm-5.3": {
 				model: {
@@ -388,25 +407,26 @@ export const MODELS_DEV_SNAPSHOT: ModelsDevCatalog = {
 				},
 				releaseDate: "2026-08-14",
 			},
-			"glm-5v-turbo": {
-				model: {
-					id: "glm-5v-turbo",
-					name: "GLM-5V-Turbo",
-					reasoning: true,
-					input: ["text", "image"],
-					contextWindow: 200000,
-					maxTokens: 131072,
-					cost: {
-						input: 1.2,
-						output: 4,
-						cacheRead: 0.24,
-						cacheWrite: 0,
-					},
-				},
-				releaseDate: "2026-04-01",
-			},
 		},
 		kimi: {
+			"kimi-k3": {
+				model: {
+					id: "kimi-k3",
+					name: "Kimi K3",
+					reasoning: true,
+					reasoningLevels: ["low", "high", "max"],
+					input: ["text", "image"],
+					contextWindow: 1048576,
+					maxTokens: 1048576,
+					cost: {
+						input: 3,
+						output: 15,
+						cacheRead: 0.3,
+						cacheWrite: 3,
+					},
+				},
+				releaseDate: "2026-07-16",
+			},
 			"kimi-k2.7-code": {
 				model: {
 					id: "kimi-k2.7-code",
@@ -424,43 +444,18 @@ export const MODELS_DEV_SNAPSHOT: ModelsDevCatalog = {
 				},
 				releaseDate: "2026-06-12",
 			},
-			"kimi-k3": {
-				model: {
-					id: "kimi-k3",
-					name: "Kimi K3",
-					reasoning: true,
-					reasoningLevels: ["low", "high", "max"],
-					input: ["text", "image"],
-					contextWindow: 1048576,
-					maxTokens: 131072,
-					cost: {
-						input: 3,
-						output: 15,
-						cacheRead: 0.3,
-						cacheWrite: 0,
-					},
-				},
-				releaseDate: "2026-07-16",
-			},
 		},
 		gemini: {
-			"gemini-3.1-pro-preview": {
+			"gemma-4-31b-it": {
 				model: {
-					id: "gemini-3.1-pro-preview",
-					name: "Gemini 3.1 Pro Preview",
+					id: "gemma-4-31b-it",
+					name: "Gemma 4 31B IT",
 					reasoning: true,
-					reasoningLevels: ["low", "medium", "high"],
 					input: ["text", "image"],
-					contextWindow: 1048576,
-					maxTokens: 65536,
-					cost: {
-						input: 2,
-						output: 12,
-						cacheRead: 0.2,
-						cacheWrite: 0,
-					},
+					contextWindow: 262144,
+					maxTokens: 32768,
 				},
-				releaseDate: "2026-02-19",
+				releaseDate: "2026-04-02",
 			},
 			"gemini-3.5-flash-lite": {
 				model: {
@@ -480,16 +475,23 @@ export const MODELS_DEV_SNAPSHOT: ModelsDevCatalog = {
 				},
 				releaseDate: "2026-07-21",
 			},
-			"gemma-4-31b-it": {
+			"gemini-3.1-pro-preview": {
 				model: {
-					id: "gemma-4-31b-it",
-					name: "Gemma 4 31B IT",
+					id: "gemini-3.1-pro-preview",
+					name: "Gemini 3.1 Pro Preview",
 					reasoning: true,
+					reasoningLevels: ["low", "medium", "high"],
 					input: ["text", "image"],
-					contextWindow: 262144,
-					maxTokens: 32768,
+					contextWindow: 1048576,
+					maxTokens: 65536,
+					cost: {
+						input: 2,
+						output: 12,
+						cacheRead: 0.2,
+						cacheWrite: 0,
+					},
 				},
-				releaseDate: "2026-04-02",
+				releaseDate: "2026-02-19",
 			},
 			"gemini-3.8-flash": {
 				model: {
@@ -509,8 +511,44 @@ export const MODELS_DEV_SNAPSHOT: ModelsDevCatalog = {
 				},
 				releaseDate: "2026-09-02",
 			},
+			"gemini-4-argon": {
+				model: {
+					id: "gemini-4-argon",
+					name: "Gemini 4 Argon",
+					reasoning: true,
+					reasoningLevels: ["low", "medium", "high"],
+					input: ["text", "image"],
+					contextWindow: 1048576,
+					maxTokens: 32768,
+					cost: {
+						input: 2,
+						output: 10,
+						cacheRead: 0.1,
+						cacheWrite: 0,
+					},
+				},
+				releaseDate: "2026-10-13",
+			},
 		},
 		grok: {
+			"grok-4.7": {
+				model: {
+					id: "grok-4.7",
+					name: "Grok 4.7",
+					reasoning: true,
+					reasoningLevels: ["low", "medium", "high", "xhigh"],
+					input: ["text", "image"],
+					contextWindow: 500000,
+					maxTokens: 500000,
+					cost: {
+						input: 2,
+						output: 6,
+						cacheRead: 0.5,
+						cacheWrite: 0,
+					},
+				},
+				releaseDate: "2026-09-21",
+			},
 			"grok-build-0.1": {
 				model: {
 					id: "grok-build-0.1",
@@ -528,60 +566,8 @@ export const MODELS_DEV_SNAPSHOT: ModelsDevCatalog = {
 				},
 				releaseDate: "2026-04-16",
 			},
-			"grok-4.6": {
-				model: {
-					id: "grok-4.6",
-					name: "Grok 4.6",
-					reasoning: true,
-					reasoningLevels: ["low", "medium", "high", "xhigh"],
-					input: ["text", "image"],
-					contextWindow: 500000,
-					maxTokens: 500000,
-					cost: {
-						input: 2,
-						output: 6,
-						cacheRead: 0.5,
-						cacheWrite: 0,
-					},
-				},
-				releaseDate: "2026-08-12",
-			},
 		},
 		qwen: {
-			"qwen3-coder-plus": {
-				model: {
-					id: "qwen3-coder-plus",
-					name: "Qwen3 Coder Plus",
-					reasoning: false,
-					input: ["text"],
-					contextWindow: 1048576,
-					maxTokens: 65536,
-					cost: {
-						input: 1,
-						output: 5,
-						cacheRead: 0,
-						cacheWrite: 0,
-					},
-				},
-				releaseDate: "2025-07-23",
-			},
-			"qwen3-coder-flash": {
-				model: {
-					id: "qwen3-coder-flash",
-					name: "Qwen3 Coder Flash",
-					reasoning: false,
-					input: ["text"],
-					contextWindow: 1000000,
-					maxTokens: 65536,
-					cost: {
-						input: 0.3,
-						output: 1.5,
-						cacheRead: 0,
-						cacheWrite: 0,
-					},
-				},
-				releaseDate: "2025-07-28",
-			},
 			"qwen3-vl-plus": {
 				model: {
 					id: "qwen3-vl-plus",
@@ -598,75 +584,6 @@ export const MODELS_DEV_SNAPSHOT: ModelsDevCatalog = {
 					},
 				},
 				releaseDate: "2025-09-23",
-			},
-			"qwen3.6-27b": {
-				model: {
-					id: "qwen3.6-27b",
-					name: "Qwen3.6 27B",
-					reasoning: true,
-					input: ["text", "image"],
-					contextWindow: 262144,
-					maxTokens: 65536,
-					cost: {
-						input: 0.6,
-						output: 3.6,
-						cacheRead: 0,
-						cacheWrite: 0,
-					},
-				},
-				releaseDate: "2026-04-22",
-			},
-			"qwen3-omni-flash": {
-				model: {
-					id: "qwen3-omni-flash",
-					name: "Qwen3-Omni Flash",
-					reasoning: true,
-					input: ["text", "image"],
-					contextWindow: 65536,
-					maxTokens: 16384,
-					cost: {
-						input: 0.43,
-						output: 1.66,
-						cacheRead: 0,
-						cacheWrite: 0,
-					},
-				},
-				releaseDate: "2025-09-15",
-			},
-			"qwen3.6-flash": {
-				model: {
-					id: "qwen3.6-flash",
-					name: "Qwen3.6 Flash",
-					reasoning: true,
-					input: ["text", "image"],
-					contextWindow: 1000000,
-					maxTokens: 65536,
-					cost: {
-						input: 0.1875,
-						output: 1.125,
-						cacheRead: 0,
-						cacheWrite: 0.234375,
-					},
-				},
-				releaseDate: "2026-04-27",
-			},
-			"qwen3.8-flash": {
-				model: {
-					id: "qwen3.8-flash",
-					name: "Qwen3.8 Flash",
-					reasoning: true,
-					reasoningLevels: ["low", "medium", "xhigh"],
-					input: ["text", "image"],
-					contextWindow: 1000000,
-					maxTokens: 131072,
-					cost: {
-						input: 0.15,
-						output: 0.47,
-						cacheRead: 0.016,
-						cacheWrite: 0.2,
-					},
-				},
-				releaseDate: "2026-08-26",
 			},
 			"qwen3.8-max": {
 				model: {
@@ -686,6 +603,110 @@ export const MODELS_DEV_SNAPSHOT: ModelsDevCatalog = {
 				},
 				releaseDate: "2026-08-03",
 			},
+			"qwen3.8-omni-flash": {
+				model: {
+					id: "qwen3.8-omni-flash",
+					name: "Qwen3.8 Omni Flash",
+					reasoning: true,
+					reasoningLevels: ["none", "low", "medium", "xhigh"],
+					input: ["text", "image"],
+					contextWindow: 1000000,
+					maxTokens: 131072,
+					cost: {
+						input: 0.15,
+						output: 0.47,
+						cacheRead: 0.016,
+						cacheWrite: 0,
+					},
+				},
+				releaseDate: "2026-09-17",
+			},
+			"qwen3.6-flash": {
+				model: {
+					id: "qwen3.6-flash",
+					name: "Qwen3.6 Flash",
+					reasoning: true,
+					input: ["text", "image"],
+					contextWindow: 1000000,
+					maxTokens: 65536,
+					cost: {
+						input: 0.1875,
+						output: 1.125,
+						cacheRead: 0,
+						cacheWrite: 0.234375,
+					},
+				},
+				releaseDate: "2026-04-27",
+			},
+			"qwen3-coder-flash": {
+				model: {
+					id: "qwen3-coder-flash",
+					name: "Qwen3 Coder Flash",
+					reasoning: false,
+					input: ["text"],
+					contextWindow: 1000000,
+					maxTokens: 65536,
+					cost: {
+						input: 0.3,
+						output: 1.5,
+						cacheRead: 0,
+						cacheWrite: 0,
+					},
+				},
+				releaseDate: "2025-07-28",
+			},
+			"qwen3-coder-plus": {
+				model: {
+					id: "qwen3-coder-plus",
+					name: "Qwen3 Coder Plus",
+					reasoning: false,
+					input: ["text"],
+					contextWindow: 1048576,
+					maxTokens: 65536,
+					cost: {
+						input: 1,
+						output: 5,
+						cacheRead: 0,
+						cacheWrite: 0,
+					},
+				},
+				releaseDate: "2025-07-23",
+			},
+			"qwen3.8-flash": {
+				model: {
+					id: "qwen3.8-flash",
+					name: "Qwen3.8 Flash",
+					reasoning: true,
+					reasoningLevels: ["low", "medium", "xhigh"],
+					input: ["text", "image"],
+					contextWindow: 1000000,
+					maxTokens: 131072,
+					cost: {
+						input: 0.15,
+						output: 0.47,
+						cacheRead: 0.016,
+						cacheWrite: 0.2,
+					},
+				},
+				releaseDate: "2026-08-26",
+			},
+			"qwen3.6-27b": {
+				model: {
+					id: "qwen3.6-27b",
+					name: "Qwen3.6 27B",
+					reasoning: true,
+					input: ["text", "image"],
+					contextWindow: 262144,
+					maxTokens: 65536,
+					cost: {
+						input: 0.6,
+						output: 3.6,
+						cacheRead: 0,
+						cacheWrite: 0,
+					},
+				},
+				releaseDate: "2026-04-22",
+			},
 			"qwen3.7-plus": {
 				model: {
 					id: "qwen3.7-plus",
@@ -693,12 +714,12 @@ export const MODELS_DEV_SNAPSHOT: ModelsDevCatalog = {
 					reasoning: true,
 					input: ["text", "image"],
 					contextWindow: 1000000,
-					maxTokens: 65536,
+					maxTokens: 131072,
 					cost: {
-						input: 0.5,
-						output: 3,
-						cacheRead: 0.05,
-						cacheWrite: 0.625,
+						input: 0.4,
+						output: 1.6,
+						cacheRead: 0.04,
+						cacheWrite: 0.5,
 					},
 				},
 				releaseDate: "2026-06-02",

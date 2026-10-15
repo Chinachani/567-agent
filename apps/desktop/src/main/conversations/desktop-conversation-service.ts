@@ -18,12 +18,14 @@ import {
 	type SessionEvent,
 } from "@567agent/runtime-core";
 import { sanitizeRuntimeErrorMessage } from "@567agent/runtime-desktop";
+import { resolveModelContext } from "../../shared/model-context.js";
 import { type DesktopSessionHistoryInfo, UNAVAILABLE_RUNTIME_SESSION_ACCESS } from "../../shared/session-access.js";
 import { agentTeamStore } from "../agent-teams/agent-team-store.js";
 import { ensureLegacyAgentTeamOwnershipCatalog } from "../agent-teams/team-ownership-backfill.js";
 import { monitorRuntimeSession } from "../app-monitor/app-monitor-service.js";
 import { allowProjectRoot, readDesktopConfig } from "../ipc/fs.js";
 import { getAppLogger } from "../logger.js";
+import { readModelsConfigSync } from "../models/model-settings-service.js";
 import { ensureMobileImportProject } from "../projects/mobile-import-project.js";
 import { getSharedRuntime } from "../runtime.js";
 import { assertSandboxAvailableForMode } from "../sandbox/capability.js";
@@ -93,7 +95,8 @@ export interface DesktopConversationRemoteModel {
 	readonly providerName: string;
 	readonly reasoning: boolean;
 	readonly input: readonly string[];
-	readonly contextWindow: number;
+	readonly contextWindow: number | null;
+	readonly contextWindowSource?: ReturnType<typeof resolveModelContext>["source"];
 	readonly maxTokens?: number;
 	readonly reasoningLevels?: readonly string[];
 	readonly defaultReasoningLevel?: string;
@@ -177,6 +180,7 @@ export class DesktopConversationService {
 		private readonly ensureOwnershipReady?: () => Promise<void>,
 		/** Agent 目录读取口，仅为单测可注入而外露；缺省走主进程共享的 agentTeamStore。 */
 		private readonly readAgentTeamDocument: () => Promise<AgentTeamDocument> = () => agentTeamStore.read(),
+		private readonly readContextLimits?: () => ReadonlyMap<string, ReturnType<typeof resolveModelContext>>,
 	) {}
 
 	async importSessionMigrationArchive(
@@ -387,11 +391,15 @@ export class DesktopConversationService {
 
 	readRemoteContext(sessionId: string): RemoteSessionContext {
 		const state = this.runtime.getState(sessionId);
+		const limits = this.readContextLimits?.();
+		const model = limits ? this.runtime.readSessionCurrentModel(sessionId) : undefined;
+		const capacity = model ? limits?.get(`${model.provider}/${model.id}`) : undefined;
 		const compaction = this.runtime.readSessionContextCompactionState(sessionId);
 		const usage = this.runtime.readSessionContextUsage(sessionId);
 		return {
 			tokens: state.contextTokens ?? usage?.tokens ?? null,
-			contextWindow: state.contextWindow > 0 ? state.contextWindow : null,
+			contextWindow: limits ? (capacity?.capacity ?? null) : state.contextWindow > 0 ? state.contextWindow : null,
+			...(limits ? { contextWindowSource: capacity?.source ?? "unknown" } : {}),
 			estimated: state.contextTokens == null,
 			messageCount: state.messageCount,
 			autoCompactionEnabled: compaction.autoCompactionEnabled,
@@ -407,6 +415,7 @@ export class DesktopConversationService {
 	}
 
 	readRemoteModelCatalog(sessionId: string): DesktopConversationRemoteModelCatalog {
+		const limits = this.readContextLimits?.();
 		const current = this.runtime.readSessionCurrentModel(sessionId);
 		const lastUserMessageId = [...this.runtime.getFullHistory(sessionId)]
 			.reverse()
@@ -418,7 +427,8 @@ export class DesktopConversationService {
 			providerName: model.provider,
 			reasoning: model.reasoning,
 			input: model.input,
-			contextWindow: model.contextWindow,
+			contextWindow: limits ? (limits.get(`${model.provider}/${model.id}`)?.capacity ?? null) : model.contextWindow,
+			...(limits ? { contextWindowSource: limits.get(`${model.provider}/${model.id}`)?.source ?? "unknown" } : {}),
 			...(model.maxTokens !== undefined ? { maxTokens: model.maxTokens } : {}),
 			...(model.reasoningLevels ? { reasoningLevels: model.reasoningLevels } : {}),
 			...(model.defaultReasoningLevel ? { defaultReasoningLevel: model.defaultReasoningLevel } : {}),
@@ -840,8 +850,23 @@ let sharedService: DesktopConversationService | undefined;
 
 export function getDesktopConversationService(): DesktopConversationService {
 	if (!sharedService) {
-		sharedService = new DesktopConversationService(getSharedRuntime(), conversationOwnershipCatalog, () =>
-			ensureLegacyAgentTeamOwnershipCatalog(),
+		sharedService = new DesktopConversationService(
+			getSharedRuntime(),
+			conversationOwnershipCatalog,
+			() => ensureLegacyAgentTeamOwnershipCatalog(),
+			undefined,
+			() =>
+				new Map(
+					Object.entries(readModelsConfigSync().providers).flatMap(([providerId, provider]) =>
+						(provider.models ?? []).map(
+							(model) =>
+								[
+									`${providerId}/${model.id}`,
+									resolveModelContext(model, provider.modelOverrides?.[model.id]),
+								] as const,
+						),
+					),
+				),
 		);
 	}
 	return sharedService;

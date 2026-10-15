@@ -17,7 +17,7 @@ import {
 } from "@567agent/runtime-node/host";
 import { DEFAULT_SERVER_URL } from "../constants.js";
 import { getDesktopModelCredentialStore, type ModelCredentialStore } from "../models/model-credential-store.js";
-import { readModelsConfigSync } from "../models/model-settings-service.js";
+import { normalizeModelsConfig, readModelsConfigSync } from "../models/model-settings-service.js";
 
 let sharedModelRuntime: CodingAgentModelRuntime | undefined;
 let sharedModelAuth: CodingAgentAuthRuntime | undefined;
@@ -33,7 +33,10 @@ export function getOrCreateSharedModelRuntime(): CodingAgentModelRuntime {
 	syncSharedModelRuntimeCredentials(getDesktopModelCredentialStore(), readModelsConfigSync().providers);
 	const runtime = createCodingAgentModelRuntime(authStorage, {
 		modelsJsonPath: join(agentDir, "models.json"),
-		configFileSource: nodeSyncTextFileSource,
+		configFileSource: {
+			exists: (path) => nodeSyncTextFileSource.exists(path),
+			read: (path) => JSON.stringify(normalizeModelsConfig(JSON.parse(nodeSyncTextFileSource.read(path)))),
+		},
 		configurationValueResolver: nodeConfigurationValueResolver,
 	});
 	runtime.setServerUrl(DEFAULT_SERVER_URL);

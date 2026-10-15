@@ -39,6 +39,10 @@ import org.agent567.android.core.model.AuthSession
 import org.agent567.android.core.model.ChatMessage
 import org.agent567.android.core.model.ChatStreamEvent
 import org.agent567.android.core.model.LlmModel
+import org.agent567.android.core.model.CachedModelContext
+import org.agent567.android.core.model.MODEL_CONTEXT_CACHE_TTL_MS
+import org.agent567.android.core.model.parseModelContextMetadata
+import org.agent567.android.core.model.resolveModelContext
 import org.agent567.android.core.model.ModelsCatalog
 import org.agent567.android.core.model.ProviderModels
 import org.agent567.android.core.model.SubscriptionStatus
@@ -520,6 +524,7 @@ internal class Agent567Api(
                     val root = org.agent567.android.core.net.Agent567Json.parseToJsonElement(text)
                     val ids = extractModelIds(root)
                     if (ids.isNotEmpty()) {
+                        rememberModelContexts(root, groupName)
                         preferences?.setCachedGroupModels(groupName, ids)
                         return ids
                     }
@@ -544,6 +549,7 @@ internal class Agent567Api(
             val root = org.agent567.android.core.net.Agent567Json.parseToJsonElement(text)
             val ids = extractModelIds(root)
             if (ids.isNotEmpty()) {
+                rememberModelContexts(root, groupName)
                 preferences?.setCachedGroupModels(groupName, ids)
             }
             ids
@@ -560,6 +566,9 @@ internal class Agent567Api(
         if (modelIds.isEmpty()) {
             return ModelsCatalog()
         }
+        if (modelIds.any { contexts(activeGroup)[it]?.takeIf { entry -> entry.isFresh(System.currentTimeMillis()) }?.metadata?.capacity == null }) {
+            refreshContextMetadata(activeGroup)
+        }
         val models = modelIds.map { id ->
             val isReasoning = id.contains("reasoner", ignoreCase = true) ||
                     id.contains("r1", ignoreCase = true) ||
@@ -567,16 +576,58 @@ internal class Agent567Api(
                     id.contains("o3", ignoreCase = true) ||
                     id.contains("thinking", ignoreCase = true) ||
                     id.contains("sol", ignoreCase = true)
-            LlmModel(
+            resolveContext(LlmModel(
                 id = id,
                 modelId = id,
                 name = id,
                 providerName = activeGroup ?: "567 API",
                 reasoning = isReasoning,
-            )
+            ), activeGroup)
         }
         val provider = ProviderModels(name = activeGroup ?: "567 API", models = models)
         return ModelsCatalog(providers = mapOf("vetta-go" to provider, "567api" to provider))
+    }
+
+    fun resolveContext(model: LlmModel, group: String?, useManual: Boolean = true): LlmModel = resolveModelContext(model,
+        contexts(group)[model.id]?.takeIf { it.isFresh(System.currentTimeMillis()) }?.metadata,
+        if (useManual) preferences?.getModelContextOverride(group, model.id, config.serverUrl) else null)
+
+    private fun contexts(group: String?): Map<String, CachedModelContext> = contextMetadata.getOrPut(group) {
+        preferences?.getCachedModelContexts(group, config.serverUrl).orEmpty()
+    }
+
+    private fun rememberModelContexts(root: kotlinx.serialization.json.JsonElement, group: String?) {
+        val metadata = parseModelContextMetadata(root)
+        if (metadata.isEmpty()) return
+        val now = System.currentTimeMillis()
+        contextMetadata[group] = contexts(group).filterValues { it.isFresh(now) } +
+            metadata.mapValues { CachedModelContext(it.value, now) }
+        preferences?.setCachedModelContexts(group, metadata, config.serverUrl)
+    }
+
+    private val contextMetadata = mutableMapOf<String?, Map<String, CachedModelContext>>()
+    private val contextMetadataRequests = mutableMapOf<String?, Long>()
+
+    private suspend fun refreshContextMetadata(group: String?) {
+        val now = System.currentTimeMillis()
+        val lastRequest = contextMetadataRequests[group]
+        if (lastRequest != null && now >= lastRequest && now - lastRequest < MODEL_CONTEXT_CACHE_TTL_MS) return
+        contextMetadataRequests[group] = now
+        try {
+            val apiKey = ensureApiKeyForGroup(group)
+            if (apiKey.isBlank()) return
+            val response = bareClient.get(config.gatewayBaseUrl.trimEnd('/') + "/v1/models") {
+                header(HttpHeaders.Authorization, "Bearer $apiKey")
+                if (!group.isNullOrBlank()) header("X-567-Group", java.net.URLEncoder.encode(group, "UTF-8"))
+                timeout { requestTimeoutMillis = 8_000; connectTimeoutMillis = 5_000 }
+            }
+            if (response.status.isSuccess()) rememberModelContexts(Agent567Json.parseToJsonElement(response.bodyAsTextSafe()), group)
+        } catch (error: CancellationException) {
+            contextMetadataRequests.remove(group)
+            throw error
+        } catch (_: Exception) {
+            contextMetadataRequests.remove(group)
+        }
     }
 
     private val groupKeyCache = mutableMapOf<String, String>()
