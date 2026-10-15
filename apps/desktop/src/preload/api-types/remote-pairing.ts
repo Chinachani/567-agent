@@ -1,3 +1,5 @@
+import type { RemotePairingErrorCode } from "../../shared/remote-pairing-ipc.js";
+
 export interface RemotePairingState {
 	status: "idle" | "ready" | "connected" | "error";
 	relayBaseUrl?: string;
@@ -18,6 +20,7 @@ export interface RemotePairingState {
 		| "unsupported_platform";
 	pairingWarnings?: Array<"certificate_changed" | "lan_unavailable">;
 	error?: string;
+	errorCode?: RemotePairingErrorCode;
 }
 
 export interface RemotePairingApi {

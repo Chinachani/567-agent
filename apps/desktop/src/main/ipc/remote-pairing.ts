@@ -1,33 +1,37 @@
 import { ipcMain } from "electron";
+import { REMOTE_PAIRING_CHANNELS } from "../../shared/remote-pairing-ipc.js";
 import type { DesktopRemotePairingService } from "../remote-control/desktop-remote-pairing-service.js";
 import { installLinuxInputDependencies } from "../remote-control/install-linux-input-dependencies.js";
 
 export function registerRemotePairingIpc(service: DesktopRemotePairingService): () => void {
-	ipcMain.handle("vetta:remote-pairing:get-state", () => service.getState());
-	ipcMain.handle("vetta:remote-pairing:create", async (_event, relayBaseUrl: unknown) =>
-		service.create(typeof relayBaseUrl === "string" ? relayBaseUrl : undefined),
+	const run = async (operation: () => Promise<ReturnType<typeof service.getState>>) => {
+		try {
+			return await operation();
+		} catch (error) {
+			return service.reportOperationError(error);
+		}
+	};
+	ipcMain.handle(REMOTE_PAIRING_CHANNELS.getState, () => service.getState());
+	ipcMain.handle(REMOTE_PAIRING_CHANNELS.create, (_event, relayBaseUrl: unknown) =>
+		run(() => service.create(typeof relayBaseUrl === "string" ? relayBaseUrl : undefined)),
 	);
-	ipcMain.handle("vetta:remote-pairing:reset-certificate", async (_event, relayBaseUrl: unknown) =>
-		service.resetCertificate(typeof relayBaseUrl === "string" ? relayBaseUrl : undefined),
+	ipcMain.handle(REMOTE_PAIRING_CHANNELS.resetCertificate, (_event, relayBaseUrl: unknown) =>
+		run(() => service.resetCertificate(typeof relayBaseUrl === "string" ? relayBaseUrl : undefined)),
 	);
-	ipcMain.handle("vetta:remote-pairing:set-auto-share-screen", async (_event, enabled: unknown) =>
-		service.setAutoShareScreen(enabled === true),
+	ipcMain.handle(REMOTE_PAIRING_CHANNELS.setAutoShareScreen, (_event, enabled: unknown) =>
+		run(() => service.setAutoShareScreen(enabled === true)),
 	);
-	ipcMain.handle("vetta:remote-pairing:set-input-enabled", async (_event, enabled: unknown) =>
-		service.setInputEnabled(enabled === true),
+	ipcMain.handle(REMOTE_PAIRING_CHANNELS.setInputEnabled, (_event, enabled: unknown) =>
+		run(() => service.setInputEnabled(enabled === true)),
 	);
-	ipcMain.handle("vetta:remote-pairing:install-input-dependencies", () => installLinuxInputDependencies());
-	ipcMain.handle("vetta:remote-pairing:revoke", async () => {
-		await service.revoke();
-		return service.getState();
-	});
+	ipcMain.handle(REMOTE_PAIRING_CHANNELS.installInputDependencies, () => installLinuxInputDependencies());
+	ipcMain.handle(REMOTE_PAIRING_CHANNELS.revoke, () =>
+		run(async () => {
+			await service.revoke();
+			return service.getState();
+		}),
+	);
 	return () => {
-		ipcMain.removeHandler("vetta:remote-pairing:get-state");
-		ipcMain.removeHandler("vetta:remote-pairing:create");
-		ipcMain.removeHandler("vetta:remote-pairing:reset-certificate");
-		ipcMain.removeHandler("vetta:remote-pairing:set-auto-share-screen");
-		ipcMain.removeHandler("vetta:remote-pairing:set-input-enabled");
-		ipcMain.removeHandler("vetta:remote-pairing:install-input-dependencies");
-		ipcMain.removeHandler("vetta:remote-pairing:revoke");
+		for (const channel of Object.values(REMOTE_PAIRING_CHANNELS)) ipcMain.removeHandler(channel);
 	};
 }

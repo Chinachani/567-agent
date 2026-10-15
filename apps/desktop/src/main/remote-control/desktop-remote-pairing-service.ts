@@ -2,6 +2,7 @@ import { randomBytes } from "node:crypto";
 import { hostname } from "node:os";
 import type { RemoteConnectionState } from "@567agent/remote-control";
 import type { RemotePairingState } from "../../preload/api-types/remote-pairing.js";
+import type { RemotePairingErrorCode } from "../../shared/remote-pairing-ipc.js";
 import { type DesktopConfig, readDesktopConfig, updateDesktopConfig } from "../config/desktop-config-store.js";
 import type { CredentialVault } from "../credentials/credential-vault.js";
 import { getDesktopCredentialVault } from "../credentials/desktop-credential-vault.js";
@@ -18,6 +19,7 @@ import {
 	startDesktopRemoteDesktopHost,
 	stopDesktopRemoteDesktopHost,
 } from "./desktop-remote-desktop-host.js";
+import { RemotePairingError, remotePairingErrorCode } from "./remote-pairing-errors.js";
 
 const log = getAppLogger("remote-pairing");
 const CREDENTIAL_NAMESPACE = "remote-control";
@@ -46,6 +48,7 @@ export interface DesktopRemotePairingState {
 	readonly inputSupportReason?: RemotePairingState["inputSupportReason"];
 	readonly pairingWarnings?: RemotePairingState["pairingWarnings"];
 	readonly error?: string;
+	readonly errorCode?: RemotePairingErrorCode;
 }
 
 export class DesktopRemotePairingService {
@@ -78,6 +81,16 @@ export class DesktopRemotePairingService {
 		};
 	}
 
+	reportOperationError(error: unknown): DesktopRemotePairingState {
+		const errorCode = remotePairingErrorCode(error);
+		this.state = { ...this.state, status: "error", errorCode };
+		log.warn("remote pairing operation failed", {
+			errorCode,
+			error: error instanceof Error ? error.stack : String(error),
+		});
+		return this.getState();
+	}
+
 	async restore(): Promise<void> {
 		const config = await readDesktopConfig();
 		const remote = config.remoteControl;
@@ -89,10 +102,13 @@ export class DesktopRemotePairingService {
 			const message = "Saved remote pairing credentials could not be decrypted; create a new pairing.";
 			this.state = {
 				status: "error",
+				relayBaseUrl: relay,
+				pairingId: remote?.pairingId,
 				autoShareScreen: remote?.autoShareScreen === true,
 				inputEnabled: remote?.inputEnabled === true,
 				inputSupported: false,
 				error: message,
+				errorCode: remotePairingErrorCode(error),
 			};
 			log.warn("remote pairing credentials could not be restored; stored data was preserved", {
 				error: error instanceof Error ? error.message : String(error),
@@ -153,10 +169,13 @@ export class DesktopRemotePairingService {
 		} catch (error) {
 			this.state = {
 				status: "error",
+				relayBaseUrl: relay,
+				pairingId: remote.pairingId,
 				autoShareScreen: remote.autoShareScreen === true,
 				inputEnabled: remote.inputEnabled === true,
 				inputSupported: false,
 				error: error instanceof Error ? error.message : String(error),
+				errorCode: remotePairingErrorCode(error),
 			};
 			log.warn("remote pairing restore failed", { error: this.state.error });
 		}
@@ -164,10 +183,16 @@ export class DesktopRemotePairingService {
 
 	async create(relayBaseUrl?: string): Promise<DesktopRemotePairingState> {
 		const relay = normalizeRelayBaseUrl(relayBaseUrl ?? this.options.defaultRelayBaseUrl);
-		if (!relay) throw new Error("请输入有效的中继地址");
-		if (!this.vault.isAvailable()) throw new Error("当前系统无法使用安全凭据存储");
-		await this.revoke(false);
+		if (!relay) throw new RemotePairingError("invalid_relay_url", "Invalid remote relay URL");
+		if (!this.vault.isAvailable())
+			throw new RemotePairingError("secure_storage_unavailable", "Secure credential storage is unavailable");
+		const localRelay = getDesktopLocalRelay();
+		const lanIp = localRelay.getLanIp();
 		this.certificateChangedForUpgrade = false;
+		// Validate the saved certificate before revoking a working pairing. An
+		// unreadable identity must be reset explicitly, not rotated on every launch.
+		const certificate = await this.getLocalRelayCertificate(lanIp);
+		await this.revoke(false);
 		const pairingId = randomBytes(24).toString("base64url");
 		const desktopSecret = randomBytes(32).toString("base64url");
 		const bootstrapSecret = randomBytes(32).toString("base64url");
@@ -176,11 +201,9 @@ export class DesktopRemotePairingService {
 			desktopSecret,
 			{ kind: "remote-desktop", consumer: "desktop" },
 		);
-		const localRelay = getDesktopLocalRelay();
-		const lanIp = localRelay.getLanIp();
 		// Keep the local relay identity stable across pairing resets. Mobile clients
 		// pin this certificate fingerprint; rotating it here strands saved pairings.
-		this.localRelayCertificate = await this.getLocalRelayCertificate(lanIp);
+		this.localRelayCertificate = certificate;
 		await localRelay.start(this.localRelayCertificate, {
 			pairingId,
 			desktopSecret,
@@ -219,8 +242,9 @@ export class DesktopRemotePairingService {
 
 	async resetCertificate(relayBaseUrl?: string): Promise<DesktopRemotePairingState> {
 		const relay = normalizeRelayBaseUrl(relayBaseUrl ?? this.options.defaultRelayBaseUrl);
-		if (!relay) throw new Error("请输入有效的中继地址");
-		if (!this.vault.isAvailable()) throw new Error("当前系统无法使用安全凭据存储");
+		if (!relay) throw new RemotePairingError("invalid_relay_url", "Invalid remote relay URL");
+		if (!this.vault.isAvailable())
+			throw new RemotePairingError("secure_storage_unavailable", "Secure credential storage is unavailable");
 		await this.revoke();
 		this.vault.remove({
 			namespace: CREDENTIAL_NAMESPACE,
@@ -228,6 +252,7 @@ export class DesktopRemotePairingService {
 			name: LOCAL_RELAY_CERT_CREDENTIAL,
 		});
 		this.certificateChangedForUpgrade = false;
+		this.localRelayCertificate = undefined;
 		log.info("local relay certificate reset by user");
 		return this.create(relay);
 	}
@@ -334,20 +359,32 @@ export class DesktopRemotePairingService {
 	private handleConnectionState(state: RemoteConnectionState): void {
 		this.connectionState = state;
 		if (state === "online") {
-			this.state = { ...this.state, status: "connected", error: undefined };
+			this.state = { ...this.state, status: "connected", error: undefined, errorCode: undefined };
 			return;
 		}
 		if (state === "connecting" || state === "reconnecting" || state === "recovering") {
-			this.state = { ...this.state, status: "ready", error: undefined };
+			this.state = { ...this.state, status: "ready", error: undefined, errorCode: undefined };
 			return;
 		}
 		if (state === "failed") {
-			this.state = { ...this.state, status: "error", error: "远程连接失败" };
+			this.state = { ...this.state, status: "error", error: "远程连接失败", errorCode: "operation_failed" };
 		}
 	}
 
 	private readDesktopSecret(): string | undefined {
-		return this.vault.get({ namespace: CREDENTIAL_NAMESPACE, ownerId: CREDENTIAL_OWNER, name: CREDENTIAL_NAME });
+		return this.readCredential(CREDENTIAL_NAME);
+	}
+
+	private readCredential(name: string): string | undefined {
+		if (!this.vault.isAvailable())
+			throw new RemotePairingError("secure_storage_unavailable", "Secure credential storage is unavailable");
+		try {
+			return this.vault.get({ namespace: CREDENTIAL_NAMESPACE, ownerId: CREDENTIAL_OWNER, name });
+		} catch (error) {
+			throw new RemotePairingError("credentials_unreadable", "Saved remote pairing credentials could not be read", {
+				cause: error,
+			});
+		}
 	}
 
 	private async persistRemoteConfig(patch: NonNullable<DesktopConfig["remoteControl"]>): Promise<void> {
@@ -358,16 +395,26 @@ export class DesktopRemotePairingService {
 
 	private async getLocalRelayCertificate(ipAddress: string): Promise<DesktopLocalRelayCertificate> {
 		const ref = { namespace: CREDENTIAL_NAMESPACE, ownerId: CREDENTIAL_OWNER, name: LOCAL_RELAY_CERT_CREDENTIAL };
-		const stored = this.vault.get(ref);
+		const stored = this.readCredential(LOCAL_RELAY_CERT_CREDENTIAL);
 		if (stored) {
 			let parsed: DesktopLocalRelayCertificate;
 			try {
 				parsed = JSON.parse(stored) as DesktopLocalRelayCertificate;
 			} catch (error) {
-				throw new Error("Saved local relay certificate is malformed; create a new pairing.", { cause: error });
+				throw new RemotePairingError("credentials_unreadable", "Saved local relay certificate is malformed", {
+					cause: error,
+				});
 			}
-			if (!parsed.certificate || !parsed.privateKey || !parsed.fingerprint) {
-				throw new Error("Saved local relay certificate is incomplete; create a new pairing.");
+			if (
+				!parsed ||
+				typeof parsed.certificate !== "string" ||
+				typeof parsed.privateKey !== "string" ||
+				typeof parsed.fingerprint !== "string" ||
+				!parsed.certificate ||
+				!parsed.privateKey ||
+				!parsed.fingerprint
+			) {
+				throw new RemotePairingError("credentials_unreadable", "Saved local relay certificate is incomplete");
 			}
 			if (isDesktopLocalRelayCertificateAuthority(parsed.certificate)) return parsed;
 			this.certificateChangedForUpgrade = true;
@@ -378,11 +425,7 @@ export class DesktopRemotePairingService {
 	}
 
 	private readMobileResumeSecret(): string | undefined {
-		return this.vault.get({
-			namespace: CREDENTIAL_NAMESPACE,
-			ownerId: CREDENTIAL_OWNER,
-			name: MOBILE_RESUME_CREDENTIAL,
-		});
+		return this.readCredential(MOBILE_RESUME_CREDENTIAL);
 	}
 
 	private storeMobileResumeSecret(secret: string): void {

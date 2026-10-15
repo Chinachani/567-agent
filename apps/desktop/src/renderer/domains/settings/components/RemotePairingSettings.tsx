@@ -4,6 +4,7 @@ import { Switch } from "@shared/components/ui/switch";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import type { RemotePairingState } from "../../../../preload/api-types/remote-pairing";
+import type { RemotePairingErrorCode } from "../../../../shared/remote-pairing-ipc";
 import { createQrCodeDataUrl } from "@shared/lib/qr-code-data-url";
 
 const DEFAULT_RELAY = "https://567-agent-relay.907746241.workers.dev";
@@ -22,7 +23,7 @@ export function RemotePairingSettings(): JSX.Element {
 	const relayUrlEdited = useRef(false);
 	const [qr, setQr] = useState<string>();
 	const [qrError, setQrError] = useState(false);
-	const [createError, setCreateError] = useState<string>();
+	const [actionError, setActionError] = useState<RemotePairingErrorCode>();
 	const [busy, setBusy] = useState(false);
 	const [installingInput, setInstallingInput] = useState(false);
 	const [inputInstallResult, setInputInstallResult] = useState<"success" | "error" | undefined>();
@@ -34,6 +35,8 @@ export function RemotePairingSettings(): JSX.Element {
 				if (next.relayBaseUrl && !relayUrlEdited.current) {
 					setRelayUrl(toHttpsRelayBaseUrl(next.relayBaseUrl));
 				}
+			}).catch(() => {
+				setState((current) => ({ ...current, status: "error", errorCode: "operation_failed" }));
 			});
 		};
 		sync();
@@ -50,7 +53,7 @@ export function RemotePairingSettings(): JSX.Element {
 		let cancelled = false;
 		setQr(undefined);
 		setQrError(false);
-		setCreateError(undefined);
+		setActionError(undefined);
 		void createQrCodeDataUrl(state.inviteUri, 280)
 			.then((dataUrl) => {
 				if (!cancelled) setQr(dataUrl);
@@ -65,25 +68,27 @@ export function RemotePairingSettings(): JSX.Element {
 
 	const statusLabel = useMemo(() => t(`remote.status.${state.status}`), [state.status, t]);
 	const inputPermissionEnabled = state.inputPermissionEnabled ?? state.inputEnabled;
+	const errorCode = actionError ?? state.errorCode;
+	const canResetCertificate = Boolean(state.pairingId) || errorCode === "credentials_unreadable";
 
 	const create = async (): Promise<void> => {
 		setBusy(true);
 		setQr(undefined);
 		setQrError(false);
-		setCreateError(undefined);
+		setActionError(undefined);
 		try {
 			const targetRelay = relayUrl.trim() || DEFAULT_RELAY;
 			localStorage.setItem("567.remote.relay_url", toHttpsRelayBaseUrl(targetRelay));
-			setCreateError(undefined);
 			const next = await window.agent567.remotePairing.create(targetRelay);
 			setState(next);
+			setActionError(next.status === "error" ? (next.errorCode ?? "operation_failed") : undefined);
 			if (next.relayBaseUrl) {
 				const canonicalRelay = toHttpsRelayBaseUrl(next.relayBaseUrl);
 				setRelayUrl(canonicalRelay);
 				localStorage.setItem("567.remote.relay_url", canonicalRelay);
 			}
-		} catch (error) {
-			setCreateError(error instanceof Error ? error.message : t("remote.createFailed"));
+		} catch {
+			setActionError("operation_failed");
 			setState((current) => ({ ...current, status: "error" }));
 		} finally {
 			setBusy(false);
@@ -95,19 +100,20 @@ export function RemotePairingSettings(): JSX.Element {
 		setBusy(true);
 		setQr(undefined);
 		setQrError(false);
-		setCreateError(undefined);
+		setActionError(undefined);
 		try {
 			const targetRelay = relayUrl.trim() || DEFAULT_RELAY;
 			localStorage.setItem("567.remote.relay_url", toHttpsRelayBaseUrl(targetRelay));
 			const next = await window.agent567.remotePairing.resetCertificate(targetRelay);
 			setState(next);
+			setActionError(next.status === "error" ? (next.errorCode ?? "operation_failed") : undefined);
 			if (next.relayBaseUrl) {
 				const canonicalRelay = toHttpsRelayBaseUrl(next.relayBaseUrl);
 				setRelayUrl(canonicalRelay);
 				localStorage.setItem("567.remote.relay_url", canonicalRelay);
 			}
-		} catch (error) {
-			setCreateError(error instanceof Error ? error.message : t("remote.createFailed"));
+		} catch {
+			setActionError("operation_failed");
 			setState((current) => ({ ...current, status: "error" }));
 		} finally {
 			setBusy(false);
@@ -229,7 +235,7 @@ export function RemotePairingSettings(): JSX.Element {
 							) : null}
 						</div>
 					))}
-					{createError ? <p role="alert" className="mb-3 text-center text-[12px] text-destructive">{createError}</p> : null}
+					{errorCode ? <p role="alert" className="mb-3 text-center text-[12px] text-destructive">{t(`remote.error.${errorCode}`)}</p> : null}
 					{qr ? (
 						<div className="flex flex-col items-center animate-in fade-in zoom-in-95 duration-200">
 							<img
@@ -254,7 +260,7 @@ export function RemotePairingSettings(): JSX.Element {
 						</div>
 					)}
 				</div>
-				{state.pairingId ? (
+				{canResetCertificate ? (
 					<div className="mt-3 flex justify-end">
 						<Button variant="outline" size="sm" disabled={busy} onClick={() => void resetCertificate()}>
 							<span className="icon-[solar--key-minimalistic-square-3-linear] h-4 w-4" />

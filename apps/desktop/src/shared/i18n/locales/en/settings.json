@@ -131,6 +131,12 @@
     "resetCertificate": "Reset certificate and re-pair",
     "resetCertificateConfirm": "Resetting the local remote-access certificate revokes the current pairing and invalidates the saved fingerprint on every paired phone. A new QR code will be generated, and every phone must scan it again. Continue?",
     "createFailed": "Couldn't create the pairing. Check the app logs and try again.",
+    "error": {
+      "credentials_unreadable": "Couldn't read the saved remote pairing credentials. Choose Reset certificate and re-pair below, then scan the new QR code on your phone. This only resets remote pairing; chats and model settings are kept.",
+      "secure_storage_unavailable": "Secure credential storage is unavailable. Sign in with your original operating system account and restart the app, then try pairing again.",
+      "invalid_relay_url": "Enter a valid HTTPS or WSS relay address and try again.",
+      "operation_failed": "Couldn't finish changing remote access settings. Try again; if it still fails, check the desktop app logs."
+    },
     "qrAlt": "567 Agent phone pairing QR code",
     "qrHint": "Open Remote access on your phone and scan this code. After the first connection, it cannot bind another device.",
     "empty": "Generate a QR code to scan from your phone",
