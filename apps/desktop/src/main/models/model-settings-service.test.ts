@@ -1,5 +1,6 @@
 import { DOMAIN_MODEL_CAPABILITIES } from "@vetta-org/capability-sdk";
 import { describe, expect, it, vi } from "vitest";
+import { resolveModelContext } from "../../shared/model-context.js";
 import type { ModelCredentialStore } from "./model-credential-store.js";
 import { ModelSettingsService, type ModelsConfig } from "./model-settings-service.js";
 
@@ -36,6 +37,45 @@ function createCredentialStore(initial: Record<string, string> = {}): ModelCrede
 }
 
 describe("ModelSettingsService", () => {
+	it("保存容量后保留凭据和其他覆盖值，刷新列表与恢复自动识别不会复活旧覆盖", async () => {
+		let config = createConfig();
+		config.providers.openai.models = [{ id: "gpt-5", contextWindow: 8192, contextWindowSource: "api" }];
+		config.providers.openai.modelOverrides = { "gpt-5": { maxTokens: 1024 } };
+		const credentials = createCredentialStore({ "openai-credential": "secret" });
+		const options = {
+			readConfig: async () => config,
+			writeConfig: async (next: ModelsConfig) => {
+				config = next;
+			},
+			refreshRegistry: async () => {},
+			credentials,
+		};
+		const service = new ModelSettingsService(options);
+		const beforeSave = await service.getRendererConfig();
+		await service.setContextWindow("openai", "gpt-5", 128000);
+		await service.replaceConfig(beforeSave);
+		const restarted = new ModelSettingsService(options);
+		const saved = await restarted.getRendererConfig();
+		expect(saved.providers.openai.modelOverrides?.["gpt-5"]).toEqual({ maxTokens: 1024, contextWindow: 128000 });
+		expect(
+			resolveModelContext(saved.providers.openai.models?.[0], saved.providers.openai.modelOverrides?.["gpt-5"]),
+		).toEqual({ capacity: 128000, source: "manual", manual: 128000 });
+		expect(credentials.values.get("openai-credential")).toBe("secret");
+		expect(config.providers.openai.credentialRef).toBe("openai-credential");
+		await restarted.setContextWindow("openai", "gpt-5", null);
+		await restarted.replaceConfig(saved);
+		const automatic = await restarted.getRendererConfig();
+		expect(automatic.providers.openai.modelOverrides?.["gpt-5"]).toEqual({ maxTokens: 1024 });
+		expect(
+			resolveModelContext(
+				automatic.providers.openai.models?.[0],
+				automatic.providers.openai.modelOverrides?.["gpt-5"],
+			),
+		).toEqual({ capacity: 8192, source: "api" });
+		await expect(service.setContextWindow("openai", "gpt-5", 100)).rejects.toThrow("Invalid context window");
+		expect(config.providers.openai.modelOverrides?.["gpt-5"]).toEqual({ maxTokens: 1024 });
+	});
+
 	it("persists plugin reasoning choices through capability parsing and model read-back", async () => {
 		let config: ModelsConfig = { providers: {} };
 		const service = new ModelSettingsService({

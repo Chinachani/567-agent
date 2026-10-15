@@ -167,10 +167,32 @@ describe("models.dev 目录", () => {
 		});
 	});
 
+	it("目录可补充精确型号的容量，但不根据未核实的别名猜容量", async () => {
+		const catalog = await fetchCatalog();
+		expect(enrichFromCatalog(catalog, "claude", { id: "claude-opus-4-8" })).toMatchObject({
+			contextWindow: 1000000,
+			contextWindowSource: "catalog",
+		});
+		const alias = enrichFromCatalog(catalog, "claude", { id: "claude-opus-4-8-unverified-route" });
+		expect(alias.name).toBe("Claude Opus 4.8");
+		expect(alias.contextWindow).toBeUndefined();
+		expect(alias.contextWindowSource).toBe("unknown");
+		expect(
+			enrichFromCatalog(catalog, "claude", {
+				id: "claude-opus-4-8",
+				contextWindow: 8192,
+				contextWindowSource: "api",
+			}),
+		).toMatchObject({
+			contextWindow: 8192,
+			contextWindowSource: "api",
+		});
+	});
+
 	it("目录缺失时不编造价格,输入模态兜底为 text", () => {
 		const merged = enrichFromCatalog(null, "openai", { id: "gpt-9-unknown" });
 
-		expect(merged).toEqual({ id: "gpt-9-unknown", input: ["text"] });
+		expect(merged).toEqual({ id: "gpt-9-unknown", input: ["text"], contextWindowSource: "unknown" });
 	});
 });
 
@@ -199,15 +221,15 @@ describe("随包内置快照", () => {
 		}
 	});
 
-	it("被新一代取代的模型不进目录,无继任者的档位保留", () => {
+	it("快照移除已淘汰模型并保留 Haiku 档位", () => {
 		const claude = MODELS_DEV_SNAPSHOT.providers.claude;
 		const openai = MODELS_DEV_SNAPSHOT.providers.openai;
 
 		// o 系列早被 gpt-5 系列取代,上游却一直没标 deprecated——正是收敛要处理的那批。
 		expect(openai.o3).toBeUndefined();
 		expect(claude["claude-sonnet-4-5"]).toBeUndefined();
-		// Haiku 4.5 没有继任者,仍是该档唯一在售选项,不能被收敛掉。
-		expect(claude["claude-haiku-4-5"]).toBeDefined();
+		// 更新目录可以提升具体版本，但不应让整个 Haiku 档位消失。
+		expect(Object.keys(claude).some((id) => id.startsWith("claude-haiku-"))).toBe(true);
 	});
 
 	it("目录中的可用模型不会再按系列折叠", () => {
