@@ -435,13 +435,18 @@ export function useModelsSettingsModel(): ModelsSettingsModel {
 						if (provider?.source === "template") return false;
 						const providerId = name.toLowerCase();
 						const displayName = provider?.displayName?.trim().toLowerCase() ?? "";
-						const baseUrl = provider?.baseUrl?.trim().toLowerCase() ?? "";
+						let managedEndpoint = false;
+						try {
+							managedEndpoint = new URL(provider?.baseUrl ?? "").hostname.toLowerCase() === "api.567.wiki";
+						} catch {
+							/* Custom relative URLs remain editable. */
+						}
 						return !(
-							providerId === "567api" ||
-							providerId.startsWith("567api_") ||
-							displayName === "567 api" ||
-							displayName.startsWith("567 ·") ||
-							baseUrl.includes("api.567.wiki")
+							managedEndpoint &&
+							(providerId === "567api" ||
+								providerId.startsWith("567api_") ||
+								displayName === "567 api" ||
+								displayName.startsWith("567 ·"))
 						);
 					})
 				: [],

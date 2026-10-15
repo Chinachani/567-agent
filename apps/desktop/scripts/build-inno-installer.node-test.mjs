@@ -93,3 +93,25 @@ test("writes parseable latest.yml metadata for the Inno installer", async () => 
 		await rm(releaseDir, { recursive: true, force: true });
 	}
 });
+
+test("background setup accepts the first upgrade from an updater with no data-root parameter", () => {
+	const installer = readFileSync(new URL("../build/installer.iss", import.meta.url), "utf8");
+	const initialize = installer.slice(installer.indexOf("function InitializeSetup()"), installer.indexOf("procedure SeedUpdaterDifferentialCache()"));
+	assert.match(initialize, /VETTASTOREROOT/);
+	assert.doesNotMatch(initialize, /VETTADATAROOT/);
+	const dataRoot = installer.slice(installer.indexOf("function GetDataRoot("), installer.indexOf("function GetUpdateStoreRoot(Value: String): String;\nbegin"));
+	assert.match(dataRoot, /if Trim\(Result\) = '' then\s+Result := GetSavedDataRoot\(\)/);
+});
+
+test("manual migration treats the active root as authoritative and stages changes without deleting the source", () => {
+	const installer = readFileSync(new URL("../build/installer.iss", import.meta.url), "utf8");
+	const migration = installer.slice(installer.indexOf("procedure MigrateDataDirectories()"), installer.indexOf("procedure CurInstallProgressChanged("));
+	assert.match(migration, /PathsAreEqual\(DataRoot, PreviousDataRoot\) and not InitialMigration then\s+exit/);
+	assert.match(migration, /not PathsAreEqual\(DataRoot, PreviousDataRoot\) and DirectoryHasData\(DataRoot\)/);
+	assert.match(migration, /not DirectoryHasData\(PreviousDataRoot\) and InitialMigration/);
+	assert.match(migration, /if InitialMigration then/);
+	assert.match(migration, /RenameFile\(StagingRoot, DataRoot\)/);
+	assert.match(migration, /RenameFile\(BackupRoot, DataRoot\)/);
+	assert.doesNotMatch(migration, /DelTree\((?:PreviousDataRoot|LegacyDataRoot|DataRoot|BackupRoot)/);
+	assert.match(migration, /SaveStringToFile\(AddBackslash\(StagingRoot\) \+ '.data-migration-complete'/);
+});

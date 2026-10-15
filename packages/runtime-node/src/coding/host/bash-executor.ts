@@ -1,4 +1,3 @@
-import { spawn } from "node:child_process";
 import { randomBytes } from "node:crypto";
 import { createWriteStream, type WriteStream } from "node:fs";
 import { tmpdir } from "node:os";
@@ -7,6 +6,7 @@ import { setImmediate } from "node:timers";
 import stripAnsi from "strip-ansi";
 import { sanitizeBinaryOutput } from "../shared/text-decoding.js";
 import { truncateTail } from "../shared/truncation.js";
+import { spawnGuardedCommand } from "./guarded-command-process.js";
 import { killNodeProcessTree } from "./process-tree.js";
 
 export interface NodeHostBashExecutionOptions {
@@ -82,7 +82,7 @@ function executeLocal(
 	const environment = options.environment?.() ?? process.env;
 
 	return new Promise((resolve, reject) => {
-		const child = spawn(shell.executable, [...shell.args, resolvedCommand], {
+		const child = spawnGuardedCommand(shell.executable, [...shell.args, resolvedCommand], {
 			cwd,
 			detached: process.platform !== "win32",
 			env: environment,

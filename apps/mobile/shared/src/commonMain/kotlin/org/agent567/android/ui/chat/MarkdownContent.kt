@@ -2,6 +2,8 @@ package org.agent567.android.ui.chat
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.horizontalScroll
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -25,29 +27,44 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.platform.LocalClipboardManager
 import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.SpanStyle
 import androidx.compose.ui.text.TextLinkStyles
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.style.TextDecoration
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.compose.ui.unit.times
+import com.mikepenz.markdown.compose.LocalMarkdownColors
+import com.mikepenz.markdown.compose.LocalMarkdownDimens
+import com.mikepenz.markdown.compose.components.MarkdownComponentModel
 import com.mikepenz.markdown.compose.components.markdownComponents
+import com.mikepenz.markdown.compose.elements.MarkdownBulletList
 import com.mikepenz.markdown.compose.elements.MarkdownCodeBlock
 import com.mikepenz.markdown.compose.elements.MarkdownCodeFence
+import com.mikepenz.markdown.compose.elements.MarkdownDivider
+import com.mikepenz.markdown.compose.elements.MarkdownTable
+import com.mikepenz.markdown.compose.elements.MarkdownTableHeader
+import com.mikepenz.markdown.compose.elements.MarkdownTableRow
 import com.mikepenz.markdown.m3.Markdown
 import com.mikepenz.markdown.m3.markdownColor
 import com.mikepenz.markdown.m3.markdownTypography
+import com.mikepenz.markdown.model.markdownDimens
 import com.mikepenz.markdown.model.rememberMarkdownState
 import kotlinx.coroutines.delay
 import org.agent567.android.ui.i18n.Str
+import org.intellij.markdown.ast.findChildOfType
+import org.intellij.markdown.flavours.gfm.GFMElementTypes.HEADER
+import org.intellij.markdown.flavours.gfm.GFMTokenTypes.CELL
 
 /**
  * Shared Markdown boundary for assistant text and tool details.
  *
- * The renderer owns parsing and document structure. Agent567 owns only the Material 3 tokens and
- * code-fence chrome, keeping the message surface consistent with the rest of the app.
+ * The renderer owns parsing and document structure. Agent567 supplies Material 3 tokens,
+ * code-fence chrome and wrapping table cells without rewriting the message source.
  */
 @Composable
 fun MarkdownContent(
@@ -56,8 +73,7 @@ fun MarkdownContent(
     onSurface: Boolean = false,
 ) {
     val textColor = if (onSurface) MaterialTheme.colorScheme.onPrimary else MaterialTheme.colorScheme.onSurface
-    val responsiveSource = remember(source) { renderResponsiveMarkdownTables(source) }
-    val state = rememberMarkdownState(responsiveSource, retainState = true)
+    val state = rememberMarkdownState(source, retainState = true)
     val components = remember {
         markdownComponents(
             codeFence = { model ->
@@ -69,6 +85,12 @@ fun MarkdownContent(
                 MarkdownCodeBlock(model.content, model.node, style = model.typography.code) { code, language, _ ->
                     CodeBlockChrome(language = language, code = code)
                 }
+            },
+            table = { model -> MobileMarkdownTable(model) },
+            unorderedList = { model ->
+                val files = remember(model.content, model.node) { artifactFiles(model.content, model.node) }
+                if (files != null) ArtifactFiles(files)
+                else MarkdownBulletList(model.content, model.node, style = model.typography.bullet)
             },
         )
     }
@@ -108,10 +130,70 @@ fun MarkdownContent(
                     TextLinkStyles(
                         style = SpanStyle(color = MaterialTheme.colorScheme.primary, textDecoration = TextDecoration.Underline),
                     ),
+                table = MaterialTheme.typography.bodyMedium.copy(color = textColor),
             ),
+        dimens = markdownDimens(tableCellWidth = 180.dp, tableCellPadding = 10.dp),
         components = components,
         modifier = modifier.fillMaxWidth(),
     )
+}
+
+@Composable
+private fun MobileMarkdownTable(model: MarkdownComponentModel) {
+    val dimens = LocalMarkdownDimens.current
+    val colors = LocalMarkdownColors.current
+    val columnCount = remember(model.node) { model.node.findChildOfType(HEADER)?.children?.count { it.type == CELL } ?: 0 }
+    BoxWithConstraints(Modifier.fillMaxWidth()) {
+        val scrollable = columnCount * dimens.tableCellWidth > maxWidth
+        Column {
+            MarkdownTable(
+                content = model.content,
+                node = model.node,
+                style = model.typography.table,
+                headerBlock = { content, header, tableWidth, style ->
+                    Box(
+                        Modifier
+                            .fillMaxWidth()
+                            .clip(RoundedCornerShape(topStart = dimens.tableCornerSize, topEnd = dimens.tableCornerSize))
+                            .background(colors.text.copy(alpha = 0.06f)),
+                    ) {
+                        MarkdownTableHeader(
+                            content = content,
+                            header = header,
+                            tableWidth = tableWidth,
+                            style = style,
+                            verticalAlignment = Alignment.Top,
+                            maxLines = Int.MAX_VALUE,
+                            overflow = TextOverflow.Clip,
+                        )
+                    }
+                },
+                rowBlock = { content, row, tableWidth, style ->
+                    Column(Modifier.fillMaxWidth()) {
+                        // The renderer defaults to one line with ellipsis; rows must keep every cell.
+                        MarkdownTableRow(
+                            content = content,
+                            header = row,
+                            tableWidth = tableWidth,
+                            style = style,
+                            verticalAlignment = Alignment.Top,
+                            maxLines = Int.MAX_VALUE,
+                            overflow = TextOverflow.Clip,
+                        )
+                        MarkdownDivider()
+                    }
+                },
+            )
+            if (scrollable) {
+                Text(
+                    text = Str.tableSwipeHint,
+                    style = MaterialTheme.typography.labelSmall,
+                    color = colors.text.copy(alpha = 0.7f),
+                    modifier = Modifier.padding(top = 6.dp),
+                )
+            }
+        }
+    }
 }
 
 @Composable
@@ -180,153 +262,3 @@ fun CodeBlockChrome(
         }
     }
 }
-
-
-/**
- * Tables are too wide for a phone message bubble. Render each row as a separate blockquote card,
- * with one hard line break per cell, so rows and values remain visually distinct on a narrow screen.
- */
-private fun renderResponsiveMarkdownTables(source: String): String {
-    val lines = source.lines()
-    val output = mutableListOf<String>()
-    var index = 0
-    var fenceCharacter: Char? = null
-    var fenceLength = 0
-
-    while (index < lines.size) {
-        val line = lines[index]
-        val trimmed = line.trimStart()
-        val activeFenceCharacter = fenceCharacter
-        if (activeFenceCharacter != null && isMarkdownFenceClose(line, activeFenceCharacter, fenceLength)) {
-            fenceCharacter = null
-            fenceLength = 0
-            output += line
-            index += 1
-            continue
-        }
-        val fence = if (fenceCharacter == null) markdownFence(line) else null
-        if (fence != null) {
-            fenceCharacter = fence.first
-            fenceLength = fence.second
-            output += line
-            index += 1
-            continue
-        }
-
-        if (fenceCharacter == null && leadingIndentColumns(line) < 4 && index + 1 < lines.size) {
-            val headers = splitMarkdownTableRow(line)
-            val separators = splitMarkdownTableRow(lines[index + 1])
-            if (headers != null && separators != null && headers.size == separators.size && isMarkdownTableSeparator(separators)) {
-                val tableStart = index
-                val rows = mutableListOf<List<String>>()
-                var malformedRow = false
-                index += 2
-                while (index < lines.size) {
-                    val row = splitMarkdownTableRow(lines[index]) ?: break
-                    if (row.size != headers.size) {
-                        malformedRow = true
-                        break
-                    }
-                    rows += row
-                    index += 1
-                }
-                if (malformedRow) {
-                    output += line
-                    index = tableStart + 1
-                    continue
-                }
-
-                val renderedRows = rows.mapIndexed { rowIndex, row ->
-                    val cells = headers.indices.map { column ->
-                        val label = headers[column].ifBlank { "列 ${column + 1}" }
-                        val value = row.getOrNull(column).orEmpty()
-                        "**$label：**${if (value.isBlank()) "" else " $value"}"
-                    }
-                    (listOf("**第 ${rowIndex + 1} 行**") + cells)
-                        .joinToString("  \n") { "> $it" }
-                }.ifEmpty {
-                    listOf(
-                        headers.mapIndexed { column, header ->
-                            "**${header.ifBlank { "列 ${column + 1}" }}**"
-                        }.joinToString("  \n") { "> $it" },
-                    )
-                }
-                if (output.isNotEmpty() && output.last().isNotBlank()) output += ""
-                output += renderedRows.joinToString("\n\n")
-                if (index < lines.size && lines[index].isNotBlank()) output += ""
-                continue
-            }
-        }
-
-        output += line
-        index += 1
-    }
-    return output.joinToString("\n")
-}
-
-private fun markdownFence(line: String): Pair<Char, Int>? {
-    val trimmed = line.trimStart()
-    if (leadingIndentColumns(line) > 3) return null
-    val marker = trimmed.firstOrNull()?.takeIf { it == '`' || it == '~' } ?: return null
-    val length = trimmed.takeWhile { it == marker }.length
-    return if (length >= 3) marker to length else null
-}
-
-private fun isMarkdownFenceClose(line: String, marker: Char, minimumLength: Int): Boolean {
-    if (leadingIndentColumns(line) > 3) return false
-    val trimmed = line.trimStart()
-    val runLength = trimmed.takeWhile { it == marker }.length
-    return runLength >= minimumLength && trimmed.drop(runLength).all { it == ' ' || it == '\t' }
-}
-
-private fun leadingIndentColumns(line: String): Int {
-    var columns = 0
-    for (character in line) {
-        when (character) {
-            ' ' -> columns += 1
-            '\t' -> return 4
-            else -> return columns
-        }
-    }
-    return columns
-}
-
-private fun splitMarkdownTableRow(line: String): List<String>? {
-    val trimmed = line.trim()
-    if ('|' !in trimmed || trimmed.startsWith('>')) return null
-
-    val cells = mutableListOf<String>()
-    val cell = StringBuilder()
-    var escaped = false
-    var codeTicks = 0
-    var index = 0
-    while (index < trimmed.length) {
-        val character = trimmed[index]
-        if (escaped) {
-            cell.append(character)
-            escaped = false
-        } else if (character == '\\') {
-            cell.append(character)
-            escaped = true
-        } else if (character == '`') {
-            var tickCount = 1
-            while (index + tickCount < trimmed.length && trimmed[index + tickCount] == '`') tickCount += 1
-            repeat(tickCount) { cell.append('`') }
-            codeTicks = if (codeTicks == 0) tickCount else if (codeTicks == tickCount) 0 else codeTicks
-            index += tickCount - 1
-        } else if (character == '|' && codeTicks == 0) {
-            cells += cell.toString().trim()
-            cell.clear()
-        } else {
-            cell.append(character)
-        }
-        index += 1
-    }
-    cells += cell.toString().trim()
-    if (trimmed.startsWith('|') && cells.firstOrNull().isNullOrEmpty()) cells.removeAt(0)
-    if (trimmed.endsWith('|') && cells.lastOrNull().isNullOrEmpty()) cells.removeAt(cells.lastIndex)
-    return cells.takeIf { it.isNotEmpty() }
-}
-
-private fun isMarkdownTableSeparator(cells: List<String>): Boolean =
-    cells.isNotEmpty() && cells.all { cell -> cell.matches(Regex(":?-{3,}:?")) }

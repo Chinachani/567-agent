@@ -1,5 +1,5 @@
-import { spawn } from "node:child_process";
 import type { CommandProcessPort, DesktopCommandResult } from "@567agent/runtime-tools";
+import { spawnGuardedCommand } from "./guarded-command-process.js";
 import { killNodeProcessTree } from "./process-tree.js";
 
 const DEFAULT_MAX_BUFFER_BYTES = 32 * 1024 * 1024;
@@ -26,7 +26,7 @@ function runCommandProcess(
 			reject(new NodeCommandProcessAbortedError());
 			return;
 		}
-		const child = spawn(executable, [...args], {
+		const child = spawnGuardedCommand(executable, [...args], {
 			detached: true,
 			stdio: ["ignore", "pipe", "pipe"],
 			windowsHide: true,

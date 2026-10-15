@@ -1,12 +1,14 @@
 import { type ChildProcess, execFile } from "node:child_process";
 import { createServer } from "node:net";
 import { webContents } from "electron";
-import type { InstalledPlugin, PluginCommandSpawnStatus } from "../../preload/api-types/plugins.js";
+import type { PluginCommandSpawnStatus } from "../../preload/api-types/plugins.js";
 import { PLUGIN_EXECUTION_CHANNELS } from "../../shared/plugin-ipc.js";
 import { getAppLogger } from "../logger.js";
 import { createPluginCommandEnvironment } from "./command-environment.js";
-import { spawnCrossPlatformCommand } from "./command-launcher.js";
-import { listPlugins } from "./plugin-catalog.js";
+import { prepareCommandRuntime, spawnCrossPlatformCommand } from "./command-launcher.js";
+import { assertPluginCommandAllowed } from "./command-permissions.js";
+
+import { stopPluginCommandRuns } from "./command-runner.js";
 
 const spawnLog = getAppLogger("plugin");
 
@@ -36,10 +38,6 @@ interface SpawnRecord {
 
 const records = new Map<string, SpawnRecord>();
 let counter = 0;
-
-function hasGrantedPermission(plugin: InstalledPlugin, permission: "agent.command.spawn"): boolean {
-	return plugin.permissions.includes(permission) && plugin.grantedPermissions.includes(permission);
-}
 
 function sanitizeArgs(args: unknown): string[] {
 	if (args === undefined) return [];
@@ -154,32 +152,12 @@ export async function spawnPluginCommand(
 	args: unknown,
 	options: SpawnPluginCommandOptions | undefined,
 ): Promise<SpawnPluginCommandResult> {
-	if (typeof pluginId !== "string" || pluginId.trim().length === 0) {
-		throw new Error("Invalid plugin id");
-	}
-	if (typeof file !== "string" || file.trim().length === 0) {
-		throw new Error("Invalid command file");
-	}
-	const plugin = listPlugins().find((candidate) => candidate.id === pluginId);
-	if (!plugin) throw new Error(`Plugin not found: ${pluginId}`);
-	if (!plugin.enabled) throw new Error(`Plugin disabled: ${pluginId}`);
-	if (!hasGrantedPermission(plugin, "agent.command.spawn")) {
-		throw new Error("Plugin permission denied: agent.command.spawn");
-	}
-	if (!plugin.declaredCommands.includes(file)) {
-		throw new Error(`Command not declared: ${file}`);
-	}
-	if (!plugin.grantedCommandNames.includes(file)) {
-		throw new Error(`Command disabled by user: ${file}`);
-	}
-	const alive = [...records.values()].filter((record) => record.pluginId === pluginId && record.exit === undefined);
-	if (alive.length >= MAX_SPAWNS_PER_PLUGIN) {
-		throw new Error(`Too many running commands for plugin ${pluginId} (max ${MAX_SPAWNS_PER_PLUGIN})`);
-	}
+	assertPluginCommandAllowed(pluginId, file, "agent.command.spawn");
 
 	let normalizedArgs = sanitizeArgs(args);
 	let env = sanitizeEnv(options?.env);
 	const cwd = typeof options?.cwd === "string" && options.cwd.trim().length > 0 ? options.cwd : undefined;
+	await prepareCommandRuntime(file);
 
 	let port: number | undefined;
 	if (options?.allocatePort === true) {
@@ -193,6 +171,10 @@ export async function spawnPluginCommand(
 		}
 	}
 
+	assertPluginCommandAllowed(pluginId, file, "agent.command.spawn");
+	const alive = [...records.values()].filter((record) => record.pluginId === pluginId && record.exit === undefined);
+	if (alive.length >= MAX_SPAWNS_PER_PLUGIN)
+		throw new Error(`Too many running commands for plugin ${pluginId} (max ${MAX_SPAWNS_PER_PLUGIN})`);
 	const child = spawnCrossPlatformCommand(file, normalizedArgs, {
 		cwd,
 		env: createPluginCommandEnvironment(env),
@@ -269,6 +251,7 @@ export function getPluginCommandSpawnStatus(pluginId: string, spawnId: string): 
 
 /** Kill everything a plugin started (uninstall / disable / reload). */
 export function stopAllSpawnsForPlugin(pluginId: string): void {
+	stopPluginCommandRuns(pluginId);
 	for (const record of records.values()) {
 		if (record.pluginId !== pluginId || record.exit !== undefined) continue;
 		void stopPluginCommandSpawn(pluginId, record.spawnId);
@@ -277,6 +260,7 @@ export function stopAllSpawnsForPlugin(pluginId: string): void {
 
 /** Kill every plugin-spawned process (app quit). Fire-and-forget SIGKILL sweep. */
 export function stopAllPluginSpawns(): void {
+	stopPluginCommandRuns();
 	for (const record of records.values()) {
 		if (record.exit !== undefined) continue;
 		killTree(record, "SIGKILL");

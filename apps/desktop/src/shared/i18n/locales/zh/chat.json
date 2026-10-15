@@ -333,6 +333,8 @@
 		}
 	},
 	"markdown": {
+        "artifacts": "产物",
+        "artifactCount": "{{count}} 个文件",
 		"preview": "预览",
 		"source": "源码",
 		"run": "在独立窗口运行",

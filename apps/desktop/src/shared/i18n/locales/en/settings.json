@@ -244,8 +244,8 @@
   "webhookDescription": "Configure webhook integrations for notifications.",
   "petDescription": "Desktop pet appearance, animations, and behavior.",
   "environmentDescription": "Configure environment variables and runtime settings.",
-  "environmentReinstallFailed": "Runtime reinstall failed: {{detail}}. Check your network and runtime directory permissions, then retry. Unverified files are not marked ready.",
-  "environmentRuntimeHealthCheckFailed": "The runtime version check failed. Reinstall it or review the diagnostic logs.",
+  "environmentReinstallFailed": "Runtime reinstall failed: {{detail}}",
+  "environmentRuntimeHealthCheckFailed": "The runtime or package manager health check failed. Reinstall it or review the diagnostic logs.",
   "archivedProjectsDescription": "Manage archived projects, restore or permanently delete them.",
   "permissionsDescription": "Manage application permissions and access controls.",
   "searchSettings": "Search settings",
@@ -2185,5 +2185,8 @@
   "migrationExported": "Exported {{count}} conversations.",
   "migrationImported": "Imported {{count}} conversations.",
   "environmentInstallProgress": "Runtime installation progress",
-  "environmentInstallLogs": "View installation log"
+  "environmentInstallLogs": "View installation log",
+  "environmentRestartAndRepair": "Restart and repair",
+  "environmentRepairRequiresRestart": "Restart needed for repair",
+  "environmentRepairRestartDescription": "Stops tasks to repair the environment. Keeps chats and settings."
 }

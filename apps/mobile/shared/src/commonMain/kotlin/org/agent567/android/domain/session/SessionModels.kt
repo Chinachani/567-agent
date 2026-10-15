@@ -33,6 +33,7 @@ data class ChatSession(
     /** This mirror represents a new Desktop session initiated from the mobile app. */
     val remoteSessionCreatedOnMobile: Boolean = false,
     val titleManuallyEdited: Boolean = false,
+    val context: MobileSessionContext = MobileSessionContext(),
 )
 
 data class MessageImage(

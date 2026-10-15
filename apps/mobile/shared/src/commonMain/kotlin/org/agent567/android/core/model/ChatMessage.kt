@@ -61,6 +61,16 @@ sealed class ChatContentPart {
 sealed class ChatStreamEvent {
     data class Delta(val text: String) : ChatStreamEvent()
 
+    /** A remote recovery snapshot replaces text; it must never execute tool calls. */
+    data class Snapshot(
+        val text: String,
+        val tools: List<Tool>,
+        val input: UserInputRequired?,
+        val state: String,
+        val usage: State?,
+        val truncated: Boolean = false,
+    ) : ChatStreamEvent()
+
     data class Tool(
         val phase: String,
         val toolCallId: String,

@@ -40,6 +40,18 @@ interface ManagedSession {
 	readonly session: DesktopConversationSession;
 }
 
+/** Task ownership survives transport replacement within the same pairing run. */
+export class DesktopRemoteConversationState {
+	readonly sessions = new Map<string, ManagedSession>();
+	readonly activeTurns = new Map<string, AbortController>();
+	readonly deletingSessions = new Set<string>();
+	readonly sessionLocations = new Map<string, { readonly cwd: string; readonly sessionDir?: string }>();
+	readonly questionResolvers = new Map<
+		string,
+		{ readonly sessionId: string; readonly resolve: (result: CodingAgentQuestionResult) => void }
+	>();
+}
+
 export interface DesktopConversationRemoteOperationsOptions {
 	readonly cwd: string;
 	readonly sessionRoots?: readonly { readonly cwd: string; readonly sessionDir?: string }[];
@@ -85,16 +97,14 @@ const log = getAppLogger("remote-session-migration");
  * It keeps runtime session objects in process memory; only opaque IDs cross the relay.
  */
 export class DesktopConversationRemoteOperations implements DesktopRemoteOperations {
-	private readonly sessions = new Map<string, ManagedSession>();
-	private readonly activeTurns = new Map<string, AbortController>();
-	private readonly deletingSessions = new Set<string>();
+	private readonly sessions: DesktopRemoteConversationState["sessions"];
+	private readonly activeTurns: DesktopRemoteConversationState["activeTurns"];
+	private readonly deletingSessions: DesktopRemoteConversationState["deletingSessions"];
 	private readonly resolveSessionRoots: () => readonly { readonly cwd: string; readonly sessionDir?: string }[];
-	private readonly sessionLocations = new Map<string, { readonly cwd: string; readonly sessionDir?: string }>();
-	private readonly questionResolvers = new Map<
-		string,
-		{ readonly sessionId: string; readonly resolve: (result: CodingAgentQuestionResult) => void }
-	>();
+	private readonly sessionLocations: DesktopRemoteConversationState["sessionLocations"];
+	private readonly questionResolvers: DesktopRemoteConversationState["questionResolvers"];
 	private readonly turnTimeoutMs: number | null;
+	readonly canManageContext: boolean;
 	readonly canReadGeneratedImages: boolean;
 	readonly canReceiveSessionMigration: boolean;
 	readonly readToolbox?: () => Promise<readonly DesktopRemoteToolboxAbility[]>;
@@ -108,6 +118,9 @@ export class DesktopConversationRemoteOperations implements DesktopRemoteOperati
 			Partial<
 				Pick<
 					DesktopConversationService,
+					| "readRemoteContext"
+					| "setRemoteAutoCompaction"
+					| "compactSessionContext"
 					| "subscribe"
 					| "readRemoteModelCatalog"
 					| "readRemoteSessionHistory"
@@ -121,7 +134,18 @@ export class DesktopConversationRemoteOperations implements DesktopRemoteOperati
 				>
 			>,
 		private readonly options: DesktopConversationRemoteOperationsOptions,
+		state = new DesktopRemoteConversationState(),
 	) {
+		this.sessions = state.sessions;
+		this.activeTurns = state.activeTurns;
+		this.deletingSessions = state.deletingSessions;
+		this.sessionLocations = state.sessionLocations;
+		this.questionResolvers = state.questionResolvers;
+		this.canManageContext = Boolean(
+			conversations.readRemoteContext &&
+				conversations.setRemoteAutoCompaction &&
+				conversations.compactSessionContext,
+		);
 		this.turnTimeoutMs = options.turnTimeoutMs ?? null;
 		this.resolveSessionRoots = options.resolveSessionRoots ?? (() => options.sessionRoots ?? [{ cwd: options.cwd }]);
 		this.canReadGeneratedImages = options.readGeneratedImageChunk !== undefined;
@@ -364,6 +388,46 @@ export class DesktopConversationRemoteOperations implements DesktopRemoteOperati
 		const session = this.sessions.get(sessionId)?.session;
 		if (!session) throw new DesktopRemoteOperationError("SESSION_NOT_OPEN", "Desktop session is no longer open");
 		return this.conversations.readRemoteSessionHistory(session.sessionId, offset, limit);
+	}
+
+	async readContext(sessionId: string) {
+		await this.openSession(sessionId);
+		if (!this.conversations.readRemoteContext) throw new Error("电脑端暂不支持上下文管理，请更新电脑端");
+		return this.conversations.readRemoteContext(sessionId);
+	}
+
+	async setAutoCompaction(sessionId: string, enabled: boolean) {
+		await this.openSession(sessionId);
+		if (!this.conversations.setRemoteAutoCompaction) throw new Error("电脑端暂不支持上下文管理，请更新电脑端");
+		this.conversations.setRemoteAutoCompaction(sessionId, enabled);
+		return this.readContext(sessionId);
+	}
+
+	async compactContext(sessionId: string, signal?: AbortSignal) {
+		await this.openSession(sessionId);
+		const session = this.sessions.get(sessionId)?.session;
+		if (!session || !this.conversations.compactSessionContext)
+			throw new Error("电脑端暂不支持上下文管理，请更新电脑端");
+		if (
+			this.activeTurns.has(sessionId) ||
+			this.deletingSessions.has(sessionId) ||
+			this.conversations.readRemoteContext?.(sessionId).busy
+		) {
+			throw Object.assign(new Error("请等待当前回复或压缩完成后再压缩上下文"), { code: "SESSION_BUSY" });
+		}
+		signal?.throwIfAborted();
+		// Shares the prompt/deletion gate, so mobile cannot race its own compaction.
+		const controller = new AbortController();
+		const abort = () => controller.abort(signal?.reason);
+		signal?.addEventListener("abort", abort, { once: true });
+		this.activeTurns.set(sessionId, controller);
+		try {
+			const result = await this.conversations.compactSessionContext(session, undefined, controller.signal);
+			return { ...(await this.readContext(sessionId)), summary: result.summary };
+		} finally {
+			signal?.removeEventListener("abort", abort);
+			if (this.activeTurns.get(sessionId) === controller) this.activeTurns.delete(sessionId);
+		}
 	}
 
 	readModels(sessionId: string): unknown {

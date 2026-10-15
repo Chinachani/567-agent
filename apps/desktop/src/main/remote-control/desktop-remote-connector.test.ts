@@ -276,10 +276,11 @@ describe("DesktopRemoteConnector", () => {
 		await connector.start();
 		await expect(mobile.request("session.list")).resolves.toEqual({
 			sessions: [{ id: "session-1", title: "Project" }],
-			supportedMethods: ["session.create"],
+			supportedMethods: ["session.create", "session.turn.read"],
 		});
 		await expect(mobile.request("session.prompt", { text: "hello" })).resolves.toEqual({
 			accepted: true,
+			turnId: expect.any(String),
 			sessionId: "session-new",
 		});
 		await waitFor(() => events.length === 2);
@@ -460,7 +461,7 @@ describe("DesktopRemoteConnector", () => {
 		await mobile.connect();
 		await connector.start();
 		await expect(mobile.request("session.list")).resolves.toMatchObject({
-			supportedMethods: ["session.create", "session.suggestions", "session.suggestions.cancel"],
+			supportedMethods: ["session.create", "session.turn.read", "session.suggestions", "session.suggestions.cancel"],
 		});
 
 		const suggestions = mobile.request("session.suggestions", undefined, "session-cancel");
@@ -520,6 +521,7 @@ describe("DesktopRemoteConnector", () => {
 		await connector.start();
 		await expect(mobile.request("session.prompt", { text: "hello" })).resolves.toEqual({
 			accepted: true,
+			turnId: expect.any(String),
 			sessionId: "session-new",
 		});
 		await waitFor(() => errors.some((value) => (value as { state?: string }).state === "error"));
@@ -591,6 +593,7 @@ describe("DesktopRemoteConnector", () => {
 		await connector.start();
 		await expect(mobile.request("session.prompt", { text: "hello" })).resolves.toEqual({
 			accepted: true,
+			turnId: expect.any(String),
 			sessionId: "session-question",
 		});
 		await waitFor(() => events.some((value) => (value as { kind?: string }).kind === "question"));

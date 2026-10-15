@@ -1,7 +1,8 @@
 import { AI_ERROR_CODES, isAIError } from "@567agent/ai";
 import type { CodingAgentQuestionResult } from "@567agent/coding-agent/function-extensions";
-import type { RemoteConnection, RemoteError, RemoteRequest } from "@567agent/remote-control";
+import type { RemoteConnection, RemoteError, RemoteRequest, RemoteSessionContext } from "@567agent/remote-control";
 import { EncryptedSessionMigrationTransfer } from "./encrypted-session-migration-transfer.js";
+import { RemotePromptRecovery } from "./remote-prompt-recovery.js";
 
 const PROMPT_ATTACHMENT_CHUNK_BYTES = 192 * 1024;
 const PROMPT_ATTACHMENT_MAX_BYTES = 12 * 1024 * 1024;
@@ -73,6 +74,10 @@ export interface DesktopRemoteOperations {
 	receiveEncryptedSessionMigrationArchive?(encrypted: Buffer, passphrase: string): Promise<unknown>;
 	createSession(): Promise<{ sessionId: string }>;
 	openSession(sessionId: string): Promise<{ sessionId: string }>;
+	readonly canManageContext?: boolean;
+	readContext?(sessionId: string): Promise<RemoteSessionContext>;
+	compactContext?(sessionId: string, signal?: AbortSignal): Promise<RemoteSessionContext & { summary: string }>;
+	setAutoCompaction?(sessionId: string, enabled: boolean): Promise<RemoteSessionContext>;
 	readModels?(sessionId: string): unknown;
 	selectModel?(sessionId: string, modelKey: string): Promise<void>;
 	readSuggestions?(sessionId: string, signal?: AbortSignal): Promise<readonly string[]>;
@@ -97,7 +102,10 @@ export interface DesktopRemoteOperations {
 export class DesktopRemoteConnector {
 	private unsubscribe: (() => void) | undefined;
 	private connectionGeneration = 0;
-	private readonly activeSuggestionRequests = new Map<string, { sessionId: string; controller: AbortController }>();
+	private readonly activeAuxiliaryRequests = new Map<
+		string,
+		{ sessionId: string; controller: AbortController; method: RemoteRequest["method"] }
+	>();
 	private readonly migrationTransfer = new EncryptedSessionMigrationTransfer();
 	private readonly promptAttachmentTransfer = new EncryptedSessionMigrationTransfer(
 		Date.now,
@@ -124,6 +132,7 @@ export class DesktopRemoteConnector {
 	constructor(
 		private readonly connection: RemoteConnection,
 		private readonly operations: DesktopRemoteOperations,
+		private readonly promptRecovery = new RemotePromptRecovery(),
 	) {}
 
 	async start(): Promise<void> {
@@ -138,6 +147,8 @@ export class DesktopRemoteConnector {
 
 	async stop(): Promise<void> {
 		this.connectionGeneration += 1;
+		for (const active of this.activeAuxiliaryRequests.values()) active.controller.abort();
+		this.activeAuxiliaryRequests.clear();
 		this.unsubscribe?.();
 		this.unsubscribe = undefined;
 		this.migrationTransfer.cancel();
@@ -154,12 +165,16 @@ export class DesktopRemoteConnector {
 	}
 
 	private async handleRequest(request: RemoteRequest, generation: number): Promise<void> {
-		const suggestionController = request.method === "session.suggestions" ? new AbortController() : undefined;
+		const suggestionController =
+			request.method === "session.suggestions" || request.method === "session.context.compact"
+				? new AbortController()
+				: undefined;
 		const suggestionSessionId = suggestionController ? request.sessionId : undefined;
 		if (suggestionController && suggestionSessionId) {
-			this.activeSuggestionRequests.set(request.requestId, {
+			this.activeAuxiliaryRequests.set(request.requestId, {
 				sessionId: suggestionSessionId,
 				controller: suggestionController,
+				method: request.method,
 			});
 		}
 		try {
@@ -170,7 +185,7 @@ export class DesktopRemoteConnector {
 			if (generation !== this.connectionGeneration || suggestionController?.signal.aborted) return;
 			await this.connection.respond(request.requestId, { success: false, error: toRemoteError(error) });
 		} finally {
-			if (suggestionController) this.activeSuggestionRequests.delete(request.requestId);
+			if (suggestionController) this.activeAuxiliaryRequests.delete(request.requestId);
 		}
 	}
 
@@ -185,7 +200,14 @@ export class DesktopRemoteConnector {
 					...(catalog.failedRootCount ? { failedRootCount: catalog.failedRootCount } : {}),
 					supportedMethods: [
 						"session.create",
+						"session.turn.read",
 						...(this.operations.readHistory ? ["session.history"] : []),
+						...(this.operations.canManageContext !== false &&
+						this.operations.readContext &&
+						this.operations.compactContext &&
+						this.operations.setAutoCompaction
+							? ["session.context", "session.context.compact", "session.context.cancel", "session.context.auto"]
+							: []),
 						...(this.operations.readModels ? ["session.models"] : []),
 						...(this.operations.readModels && this.operations.selectModel ? ["session.model.select"] : []),
 						...(this.operations.readSuggestions ? ["session.suggestions"] : []),
@@ -392,11 +414,26 @@ export class DesktopRemoteConnector {
 				await this.operations.selectModel(sessionId, readModelKey(request));
 				return this.operations.readModels(sessionId);
 			}
+			case "session.context": {
+				if (!this.operations.readContext) throw new Error("Desktop context management is unavailable");
+				return this.operations.readContext(requireSessionId(request));
+			}
+			case "session.context.compact": {
+				if (!this.operations.compactContext) throw new Error("Desktop context compaction is unavailable");
+				return this.operations.compactContext(requireSessionId(request), signal);
+			}
+			case "session.context.auto": {
+				if (!this.operations.setAutoCompaction) throw new Error("Desktop context management is unavailable");
+				if (!isRecord(request.payload) || typeof request.payload.enabled !== "boolean")
+					throw new Error("enabled must be boolean");
+				return this.operations.setAutoCompaction(requireSessionId(request), request.payload.enabled);
+			}
 			case "session.suggestions": {
 				if (!this.operations.readSuggestions) throw new Error("Desktop prompt suggestions are unavailable");
 				return { suggestions: await this.operations.readSuggestions(requireSessionId(request), signal) };
 			}
-			case "session.suggestions.cancel": {
+			case "session.suggestions.cancel":
+			case "session.context.cancel": {
 				const payload = request.payload;
 				if (
 					!payload ||
@@ -407,8 +444,11 @@ export class DesktopRemoteConnector {
 					throw new Error("Suggestion cancellation target is invalid");
 				}
 				const sessionId = requireSessionId(request);
-				const active = this.activeSuggestionRequests.get(payload.requestId);
-				const matchesSession = active?.sessionId === sessionId;
+				const active = this.activeAuxiliaryRequests.get(payload.requestId);
+				const matchesSession =
+					active?.sessionId === sessionId &&
+					active.method ===
+						(request.method === "session.context.cancel" ? "session.context.compact" : "session.suggestions");
 				if (matchesSession && !active.controller.signal.aborted)
 					active.controller.abort(new DOMException("Cancelled by mobile", "AbortError"));
 				return { cancelled: Boolean(matchesSession) };
@@ -436,13 +476,18 @@ export class DesktopRemoteConnector {
 				const sessionId = request.sessionId
 					? (await this.operations.openSession(request.sessionId)).sessionId
 					: (await this.operations.createSession()).sessionId;
+				const turnId = readClientTurnId(request) ?? request.requestId;
+				const fingerprint = this.promptRecovery.fingerprint(request.payload);
+				if (this.promptRecovery.has(turnId, sessionId, fingerprint)) return { accepted: true, sessionId, turnId };
 				const attachmentIds = readPromptAttachmentIds(request);
 				const staged = this.takeStagedPromptAttachments(sessionId, attachmentIds);
 				const text = readPromptText(request, staged.length > 0);
 				const retryPreviousTurn = readRetryPreviousTurn(request);
 				const retryTargetMessageId = retryPreviousTurn ? readRetryTargetMessageId(request) : undefined;
-				void this.runPrompt(sessionId, text, retryPreviousTurn, retryTargetMessageId, staged).catch(
-					async (error: unknown) => {
+				this.promptRecovery.start(turnId, sessionId, fingerprint);
+				void this.runPrompt(sessionId, text, retryPreviousTurn, retryTargetMessageId, staged, turnId)
+					.catch(async (error: unknown) => {
+						this.promptRecovery.fail(turnId, toRemoteError(error));
 						if (this.connection.getSnapshot().state === "online") {
 							const remoteError = toRemoteError(error);
 							await this.connection.emitEvent(
@@ -451,9 +496,19 @@ export class DesktopRemoteConnector {
 								sessionId,
 							);
 						}
-					},
-				);
-				return { accepted: true, sessionId };
+					})
+					.catch(() => undefined);
+				return { accepted: true, sessionId, turnId };
+			}
+			case "session.turn.read": {
+				const sessionId = requireSessionId(request);
+				const turnId = readClientTurnId(request);
+				if (!turnId) throw new Error("Recovery turn identifier is required");
+				await this.operations.openSession(sessionId);
+				return {
+					...this.promptRecovery.read(turnId, sessionId),
+					eventCursor: this.connection.getOutboundEventCursor(),
+				};
 			}
 			case "session.abort":
 				await this.operations.abort(requireSessionId(request));
@@ -465,6 +520,7 @@ export class DesktopRemoteConnector {
 					readQuestionRequestId(request),
 					readQuestionResult(request),
 				);
+				this.promptRecovery.answered(requireSessionId(request), readQuestionRequestId(request));
 				return { responded: true };
 			case "session.resume":
 				await this.operations.resume(requireSessionId(request), readSequence(request));
@@ -543,6 +599,7 @@ export class DesktopRemoteConnector {
 			readonly mimeType: string;
 			readonly dataBase64?: string;
 		}[] = [],
+		turnId?: string,
 	): Promise<{ completed: true; sessionId: string }> {
 		try {
 			for await (const event of this.operations.prompt(sessionId, text, retryPreviousTurn, retryTargetMessageId, {
@@ -553,19 +610,27 @@ export class DesktopRemoteConnector {
 						: [],
 				),
 			})) {
-				if (event.type === "delta" && event.text) {
-					await this.connection.emitEvent("session.message", { kind: "delta", text: event.text }, sessionId);
-					continue;
+				if (turnId) this.promptRecovery.record(turnId, event);
+				// Keep the desktop task running during signaling loss; progress is
+				// available through the turn snapshot once the phone reconnects.
+				if (this.connection.getSnapshot().state !== "online") continue;
+				try {
+					if (event.type === "delta" && event.text) {
+						await this.connection.emitEvent("session.message", { kind: "delta", text: event.text }, sessionId);
+						continue;
+					}
+					if (event.type === "tool") {
+						await this.connection.emitEvent("session.tool", event.payload, sessionId);
+						continue;
+					}
+					if (event.type === "input") {
+						await this.connection.emitEvent("session.input", event.payload, sessionId);
+						continue;
+					}
+					await this.connection.emitEvent("session.state", event.payload, sessionId);
+				} catch {
+					// Socket failure is not an agent failure. Never restart the task.
 				}
-				if (event.type === "tool") {
-					await this.connection.emitEvent("session.tool", event.payload, sessionId);
-					continue;
-				}
-				if (event.type === "input") {
-					await this.connection.emitEvent("session.input", event.payload, sessionId);
-					continue;
-				}
-				await this.connection.emitEvent("session.state", event.payload, sessionId);
 			}
 			return { completed: true, sessionId };
 		} finally {
@@ -601,6 +666,14 @@ export class DesktopRemoteConnector {
 	private clearStagedPromptAttachments(): void {
 		this.stagedPromptAttachments.clear();
 	}
+}
+
+function readClientTurnId(request: RemoteRequest): string | undefined {
+	if (!isRecord(request.payload) || request.payload.turnId === undefined) return undefined;
+	if (typeof request.payload.turnId !== "string" || !/^[A-Za-z0-9_-]{1,160}$/.test(request.payload.turnId)) {
+		throw new Error("Recovery turn identifier is invalid");
+	}
+	return request.payload.turnId;
 }
 
 function readMigrationTransferStart(request: RemoteRequest): {

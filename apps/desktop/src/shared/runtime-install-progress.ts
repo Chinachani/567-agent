@@ -1,3 +1,5 @@
+export const RUNTIMES_STATUS_CHANGED_CHANNEL = "agent567:runtimes:status-changed";
+
 export interface RuntimeInstallProgress {
 	type: "node" | "python";
 	phase: "preparing" | "downloading" | "installing" | "verifying" | "ready" | "error";

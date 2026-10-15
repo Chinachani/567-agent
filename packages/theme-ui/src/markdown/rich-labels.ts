@@ -43,6 +43,7 @@ export const defaultRichContentLabels: RichContentLabels = {
 };
 
 export interface MarkdownLabels {
+	artifacts?: { title: string; count: (count: number) => string };
 	copy: string;
 	copied: string;
 	rich?: RichContentLabels;

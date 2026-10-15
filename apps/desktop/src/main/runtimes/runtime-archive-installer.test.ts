@@ -1,4 +1,5 @@
 import { spawnSync } from "node:child_process";
+import * as fsPromises from "node:fs/promises";
 import {
 	chmod,
 	copyFile,
@@ -14,9 +15,17 @@ import {
 } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { afterEach, beforeEach, describe, expect, it } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
-import { installRuntimeArchive, installRuntimeDirectory } from "./runtime-archive-installer";
+import { installRuntimeArchive, installRuntimeDirectory, RuntimeInstallInUseError } from "./runtime-archive-installer";
+import { nodePackageManagerPaths } from "./runtime-health";
+import { writeNodeRuntimeFixture } from "./runtime-test-fixtures";
+
+vi.mock("node:fs/promises", async (importOriginal) => {
+	const actual = await importOriginal<typeof fsPromises>();
+	return { ...actual, rename: vi.fn(actual.rename), rm: vi.fn(actual.rm) };
+});
+const actualFs = await vi.importActual<typeof fsPromises>("node:fs/promises");
 
 let testRoot = "";
 const fixtureVersion = process.platform === "win32" ? process.version.slice(1) : "22.22.2";
@@ -35,15 +44,17 @@ beforeEach(async () => {
 });
 
 afterEach(async () => {
+	vi.restoreAllMocks();
+	vi.mocked(fsPromises.rename).mockImplementation(actualFs.rename);
+	vi.mocked(fsPromises.rm).mockImplementation(actualFs.rm);
 	await rm(testRoot, { recursive: true, force: true });
 });
 
 describe("installRuntimeArchive", () => {
 	it("extracts a complete runtime before replacing the target directory", async () => {
 		const sourceRoot = join(testRoot, "source");
-		const sourceRuntime = join(sourceRoot, "runtime", "bin");
-		await mkdir(sourceRuntime, { recursive: true });
-		await writeRuntimeFixture(join(sourceRuntime, "node"));
+		const sourceRuntime = join(sourceRoot, "runtime");
+		await writeNodeRuntimeFixture(sourceRuntime);
 
 		const archivePath = join(testRoot, "runtime.tar.gz");
 		const archive = spawnSync("tar", ["-czf", archivePath, "-C", sourceRoot, "runtime"], {
@@ -56,15 +67,22 @@ describe("installRuntimeArchive", () => {
 		await writeFile(join(targetDirectory, "stale"), "stale", "utf8");
 
 		await installRuntimeArchive({
+			runtimeType: "node",
 			archivePath,
 			archiveType: "tar.gz",
 			innerDirectory: "runtime",
 			targetDirectory,
-			executablePath: join(targetDirectory, "bin", "node"),
-			expectedVersion: fixtureVersion,
+			executablePath: join(targetDirectory, process.platform === "win32" ? "node.exe" : "bin/node"),
+			expectedVersion: process.version.slice(1),
 		});
 
-		await expect(readFile(join(targetDirectory, "bin", "node"))).resolves.toBeInstanceOf(Buffer);
+		await expect(
+			readFile(join(targetDirectory, process.platform === "win32" ? "node.exe" : "bin/node")),
+		).resolves.toBeInstanceOf(Buffer);
+		const npmCli = nodePackageManagerPaths(
+			join(targetDirectory, process.platform === "win32" ? "node.exe" : "bin/node"),
+		).npmCli;
+		await expect(readFile(npmCli, "utf8")).resolves.toContain("require");
 		await expect(readFile(join(targetDirectory, "stale"), "utf8")).rejects.toThrow();
 		await expect(readdir(join(testRoot, "managed"))).resolves.toEqual(["22.22.2"]);
 	});
@@ -72,8 +90,7 @@ describe("installRuntimeArchive", () => {
 	it.runIf(process.platform === "win32")("extracts the Node ZIP format used by Windows releases", async () => {
 		const sourceRoot = join(testRoot, "source");
 		const sourceRuntime = join(sourceRoot, "node-v22.22.2-win-x64");
-		await mkdir(sourceRuntime, { recursive: true });
-		await writeRuntimeFixture(join(sourceRuntime, "node.exe"));
+		await writeNodeRuntimeFixture(sourceRuntime);
 
 		const archivePath = join(testRoot, "node.zip");
 		const archive = spawnSync("tar", ["-a", "-cf", archivePath, "-C", sourceRoot, "node-v22.22.2-win-x64"], {
@@ -83,6 +100,7 @@ describe("installRuntimeArchive", () => {
 
 		const targetDirectory = join(testRoot, "managed", "22.22.2");
 		await installRuntimeArchive({
+			runtimeType: "node",
 			archivePath,
 			archiveType: "zip",
 			innerDirectory: "node-v22.22.2-win-x64",
@@ -103,6 +121,7 @@ describe("installRuntimeArchive", () => {
 
 		await expect(
 			installRuntimeArchive({
+				runtimeType: "python",
 				archivePath,
 				archiveType: "tar.gz",
 				innerDirectory: "python",
@@ -132,6 +151,7 @@ describe("installRuntimeArchive", () => {
 
 		await expect(
 			installRuntimeArchive({
+				runtimeType: "node",
 				archivePath,
 				archiveType: "tar.gz",
 				innerDirectory: "runtime",
@@ -156,6 +176,7 @@ describe("installRuntimeDirectory", () => {
 		await writeFile(join(targetDirectory, "stale"), "stale", "utf8");
 
 		await installRuntimeDirectory({
+			runtimeType: "python",
 			sourceDirectory,
 			targetDirectory,
 			executablePath: join(targetDirectory, "bin", "python3.13"),
@@ -181,6 +202,7 @@ describe("installRuntimeDirectory", () => {
 
 		const targetDirectory = join(testRoot, "managed", "3.13.12");
 		await installRuntimeDirectory({
+			runtimeType: "python",
 			sourceDirectory,
 			targetDirectory,
 			executablePath: join(targetDirectory, "bin", "python3"),
@@ -201,6 +223,7 @@ describe("installRuntimeDirectory", () => {
 
 		await expect(
 			installRuntimeDirectory({
+				runtimeType: "python",
 				sourceDirectory: join(testRoot, "vendor", "absent"),
 				targetDirectory,
 				executablePath: join(targetDirectory, "python3"),
@@ -209,5 +232,71 @@ describe("installRuntimeDirectory", () => {
 		).rejects.toThrow();
 
 		await expect(readFile(join(targetDirectory, "python3"), "utf8")).resolves.toBe("existing-runtime");
+	});
+});
+
+describe("runtime replacement safety", () => {
+	async function nodeInstall() {
+		const sourceDirectory = join(testRoot, "vendor", "node");
+		await writeNodeRuntimeFixture(sourceDirectory);
+		const targetDirectory = join(testRoot, "managed", "node");
+		const executablePath = await writeNodeRuntimeFixture(targetDirectory);
+		return {
+			runtimeType: "node" as const,
+			sourceDirectory,
+			targetDirectory,
+			executablePath,
+			expectedVersion: process.version.slice(1),
+		};
+	}
+
+	it("rejects an incomplete Node payload and keeps the existing npm tree", async () => {
+		const options = await nodeInstall();
+		const npmCli = nodePackageManagerPaths(options.executablePath).npmCli;
+		const sourceNpmCli = nodePackageManagerPaths(
+			join(options.sourceDirectory, process.platform === "win32" ? "node.exe" : "bin/node"),
+		).npmCli;
+		await rm(sourceNpmCli);
+		await expect(installRuntimeDirectory(options)).rejects.toThrow("npm-cli.js");
+		await expect(readFile(npmCli, "utf8")).resolves.toContain("require");
+	});
+
+	it("keeps every old file when Windows refuses to move a running runtime", async () => {
+		const options = await nodeInstall();
+		const originalRename = actualFs.rename;
+		vi.mocked(fsPromises.rename).mockImplementation(async (from, to) => {
+			if (from === options.targetDirectory) throw Object.assign(new Error("locked node.exe"), { code: "EPERM" });
+			return originalRename(from, to);
+		});
+		// Reproduce the old rm() hazard at the filesystem boundary: partial deletion
+		// would lose npm before reporting the locked executable.
+		const originalRm = actualFs.rm;
+		vi.mocked(fsPromises.rm).mockImplementation(async (path, rmOptions) => {
+			if (path === options.targetDirectory) {
+				await originalRm(nodePackageManagerPaths(options.executablePath).npmCli);
+				throw Object.assign(new Error("locked node.exe"), { code: "EPERM" });
+			}
+			return originalRm(path, rmOptions);
+		});
+		await expect(installRuntimeDirectory(options)).rejects.toBeInstanceOf(RuntimeInstallInUseError);
+		await expect(readFile(nodePackageManagerPaths(options.executablePath).npmCli, "utf8")).resolves.toContain(
+			"require",
+		);
+		await expect(readFile(options.executablePath)).resolves.toBeInstanceOf(Buffer);
+	});
+
+	it("restores the old directory if publishing the staged runtime fails", async () => {
+		const options = await nodeInstall();
+		await writeFile(join(options.targetDirectory, "old-marker"), "preserve");
+		const originalRename = actualFs.rename;
+		vi.mocked(fsPromises.rename).mockImplementation(async (from, to) => {
+			if (to === options.targetDirectory && String(from).endsWith("payload")) throw new Error("publish failed");
+			return originalRename(from, to);
+		});
+		await expect(installRuntimeDirectory(options)).rejects.toThrow("publish failed");
+		await expect(readFile(join(options.targetDirectory, "old-marker"), "utf8")).resolves.toBe("preserve");
+		await expect(readFile(nodePackageManagerPaths(options.executablePath).npmCli, "utf8")).resolves.toContain(
+			"require",
+		);
 	});
 });

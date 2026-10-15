@@ -1,3 +1,4 @@
+import { CommandResourceLimitError } from "../host/command-resource-policy.js";
 import type {
 	BackgroundCommandHost,
 	BackgroundCommandOutput,
@@ -131,23 +132,33 @@ export function createBackgroundCommandService(host: BackgroundCommandHost): Bac
 				tail: "",
 			};
 			let task: BackgroundCommandTask | undefined;
-			const process = host.processOperations.spawn({
-				command: options.command,
-				cwd: options.cwd,
-				env: options.env,
-				onOutput: (text) => {
-					if (task) appendOutput(task, text);
-				},
-				onExit: (exitCode) => {
-					if (!task) return;
-					finish(task, exitCode === undefined ? "killed" : exitCode === 0 ? "completed" : "failed", exitCode);
-				},
-				onError: (error) => {
-					if (!task) return;
-					appendOutput(task, `\nFailed to spawn command: ${error.message}\n`);
-					finish(task, "failed", undefined);
-				},
-			});
+			let process: BackgroundCommandProcess;
+			try {
+				process = host.processOperations.spawn({
+					command: options.command,
+					cwd: options.cwd,
+					env: options.env,
+					onOutput: (text) => {
+						if (task) appendOutput(task, text);
+					},
+					onExit: (exitCode) => {
+						if (!task) return;
+						finish(task, exitCode === undefined ? "killed" : exitCode === 0 ? "completed" : "failed", exitCode);
+					},
+					onError: (error) => {
+						if (!task) return;
+						const reason =
+							error instanceof CommandResourceLimitError
+								? "Command stopped by resource protection"
+								: "Failed to spawn command";
+						appendOutput(task, `\n${reason}: ${error.message}\n`);
+						finish(task, "failed", undefined);
+					},
+				});
+			} catch (error) {
+				output.close();
+				throw error;
+			}
 			task = {
 				snapshot: initialSnapshot,
 				process,

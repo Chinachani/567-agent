@@ -1,6 +1,7 @@
 package org.agent567.android.domain.error
 
 import org.agent567.android.core.error.Agent567Exception
+import org.agent567.android.core.net.ChatNetworkLostException
 import org.agent567.android.domain.conversation.RemoteConversationException
 import org.agent567.android.domain.remote.connection.RemoteRequestException
 import org.agent567.android.domain.remote.protocol.RemoteErrorCode
@@ -26,6 +27,12 @@ data class UiError(
 object ErrorMapper {
     fun from(throwable: Throwable): UiError =
         when (val e = throwable as? Agent567Exception ?: throwable) {
+            is ChatNetworkLostException ->
+                UiError(
+                    title = "网络已断开",
+                    message = "本次响应连接已中断，消息和已收到的内容已保留。网络恢复后可重试本条消息，或继续发送。",
+                    action = UiErrorAction.Retry,
+                )
             is Agent567Exception.Unauthorized ->
                 UiError(
                     title = "需要重新登录",
@@ -85,7 +92,8 @@ object ErrorMapper {
             ->
                 UiError(
                     title = "桌面连接暂时不可用",
-                    message = "请检查电脑端连接后重试",
+                    message = e.remoteError.message.takeIf { it.startsWith("当前电脑端") }?.takeCodePoints(300)
+                        ?: "请检查电脑端连接后重试",
                     action = UiErrorAction.Retry,
                 )
             RemoteErrorCode.InvalidFrame,

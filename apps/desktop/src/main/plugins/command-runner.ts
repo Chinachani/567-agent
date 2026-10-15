@@ -1,23 +1,22 @@
 import type { ChildProcess } from "node:child_process";
-import type {
-	InstalledPlugin,
-	PluginCommandRunOptions,
-	PluginCommandRunResult,
-} from "../../preload/api-types/plugins.js";
+import { killNodeProcessTree } from "@567agent/runtime-node/host";
+import type { PluginCommandRunOptions, PluginCommandRunResult } from "../../preload/api-types/plugins.js";
 import { getAppLogger } from "../logger.js";
 import { createPluginCommandEnvironment } from "./command-environment.js";
-import { spawnCrossPlatformCommand } from "./command-launcher.js";
-import { listPlugins } from "./plugin-catalog.js";
+import { prepareCommandRuntime, spawnCrossPlatformCommand } from "./command-launcher.js";
+import { assertPluginCommandAllowed } from "./command-permissions.js";
 
 const commandLog = getAppLogger("plugin");
+
+const activeRuns = new Map<symbol, { pluginId: string; stop: () => void }>();
+
+export function stopPluginCommandRuns(pluginId?: string): void {
+	for (const run of activeRuns.values()) if (pluginId === undefined || run.pluginId === pluginId) run.stop();
+}
 
 const DEFAULT_TIMEOUT_MS = 30_000;
 const MAX_TIMEOUT_MS = 120_000;
 const MAX_BUFFER_BYTES = 10 * 1024 * 1024; // 10MB stdout/stderr cap
-
-function hasGrantedPermission(plugin: InstalledPlugin, permission: "agent.command.run"): boolean {
-	return plugin.permissions.includes(permission) && plugin.grantedPermissions.includes(permission);
-}
 
 function clampTimeout(value: unknown): number {
 	if (typeof value !== "number" || !Number.isFinite(value) || value <= 0) return DEFAULT_TIMEOUT_MS;
@@ -50,8 +49,8 @@ function sanitizeEnv(env: unknown): Record<string, string> | undefined {
  * Authoritative gate (defense in depth behind the renderer's own check):
  * the plugin must hold `agent.command.run`, have declared `file`, and have it
  * currently enabled. Returns buffered stdout/stderr + exit code; a non-zero
- * exit resolves normally (the caller inspects exitCode) — only spawn failures
- * (e.g. executable missing) reject.
+ * exit resolves normally (the caller inspects exitCode). Start failures, timeout,
+ * output overflow and lifecycle cancellation reject after stopping the owned tree.
  */
 export async function runPluginCommand(
 	pluginId: string,
@@ -59,29 +58,14 @@ export async function runPluginCommand(
 	args: unknown,
 	options: PluginCommandRunOptions | undefined,
 ): Promise<PluginCommandRunResult> {
-	if (typeof pluginId !== "string" || pluginId.trim().length === 0) {
-		throw new Error("Invalid plugin id");
-	}
-	if (typeof file !== "string" || file.trim().length === 0) {
-		throw new Error("Invalid command file");
-	}
-	const plugin = listPlugins().find((candidate) => candidate.id === pluginId);
-	if (!plugin) throw new Error(`Plugin not found: ${pluginId}`);
-	if (!plugin.enabled) throw new Error(`Plugin disabled: ${pluginId}`);
-	if (!hasGrantedPermission(plugin, "agent.command.run")) {
-		throw new Error("Plugin permission denied: agent.command.run");
-	}
-	if (!plugin.declaredCommands.includes(file)) {
-		throw new Error(`Command not declared: ${file}`);
-	}
-	if (!plugin.grantedCommandNames.includes(file)) {
-		throw new Error(`Command disabled by user: ${file}`);
-	}
+	assertPluginCommandAllowed(pluginId, file, "agent.command.run");
 
 	const normalizedArgs = sanitizeArgs(args);
 	const env = sanitizeEnv(options?.env);
 	const cwd = typeof options?.cwd === "string" && options.cwd.trim().length > 0 ? options.cwd : undefined;
 	const timeout = clampTimeout(options?.timeoutMs);
+	await prepareCommandRuntime(file);
+	assertPluginCommandAllowed(pluginId, file, "agent.command.run");
 
 	let child: ChildProcess;
 	try {
@@ -89,6 +73,7 @@ export async function runPluginCommand(
 			cwd,
 			env: createPluginCommandEnvironment(env),
 			windowsHide: true,
+			detached: process.platform !== "win32",
 			stdio: ["ignore", "pipe", "pipe"],
 		});
 	} catch (error) {
@@ -102,43 +87,50 @@ export async function runPluginCommand(
 		const stderr: Buffer[] = [];
 		let stdoutBytes = 0;
 		let stderrBytes = 0;
-		let outputLimitExceeded = false;
+		const runId = Symbol(pluginId);
 		let settled = false;
 
 		const finish = (result: PluginCommandRunResult | Error): void => {
 			if (settled) return;
 			settled = true;
 			clearTimeout(timeoutHandle);
+			activeRuns.delete(runId);
 			if (result instanceof Error) rejectPromise(result);
 			else resolvePromise(result);
 		};
+		const stop = (reason: Error): void => {
+			if (settled) return;
+			if (child.pid) killNodeProcessTree(child.pid);
+			else child.kill("SIGKILL");
+			child.stdout?.destroy();
+			child.stderr?.destroy();
+			finish(reason);
+		};
 		const append = (chunks: Buffer[], chunk: Buffer, stream: "stdout" | "stderr"): void => {
-			chunks.push(chunk);
+			if (settled) return;
 			if (stream === "stdout") stdoutBytes += chunk.length;
 			else stderrBytes += chunk.length;
-			if (stdoutBytes > MAX_BUFFER_BYTES || stderrBytes > MAX_BUFFER_BYTES) {
-				outputLimitExceeded = true;
-				child.kill();
+			if (stdoutBytes + stderrBytes > MAX_BUFFER_BYTES) {
+				stop(new Error(`Command output exceeded ${MAX_BUFFER_BYTES} bytes: ${file}`));
+				return;
 			}
+			chunks.push(chunk);
 		};
-		const timeoutHandle = setTimeout(() => child.kill(), timeout);
+		const timeoutHandle = setTimeout(() => stop(new Error(`Command timed out after ${timeout}ms: ${file}`)), timeout);
 		timeoutHandle.unref();
+		activeRuns.set(runId, { pluginId, stop: () => stop(new Error(`Command cancelled: ${file}`)) });
 
 		child.stdout?.on("data", (chunk: Buffer) => append(stdout, chunk, "stdout"));
 		child.stderr?.on("data", (chunk: Buffer) => append(stderr, chunk, "stderr"));
 		child.once("error", (error: NodeJS.ErrnoException) => {
 			commandLog.warn("plugin command spawn failed", { pluginId, file, code: error.code });
-			finish(new Error(`Command failed to start: ${file} (${error.code ?? error.message})`));
+			stop(new Error(`Command failed to start: ${file} (${error.code ?? error.message})`));
 		});
-		child.once("close", (exitCode) => {
-			if (outputLimitExceeded) {
-				finish(new Error(`Command output exceeded ${MAX_BUFFER_BYTES} bytes: ${file}`));
-				return;
-			}
+		child.once("close", (exitCode, signal) => {
 			finish({
 				stdout: Buffer.concat(stdout).toString(),
 				stderr: Buffer.concat(stderr).toString(),
-				exitCode,
+				exitCode: exitCode ?? (signal ? 1 : null),
 			});
 		});
 	});

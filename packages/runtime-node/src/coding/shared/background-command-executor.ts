@@ -201,5 +201,8 @@ function createCompletedBackgroundResult(
 	if (task.exitCode !== 0 && task.exitCode !== undefined) {
 		throw new Error(`${outputText}\n\nCommand exited with code ${task.exitCode}`);
 	}
+	if (task.status === "failed" || task.status === "killed") {
+		throw new Error(`${outputText}\n\nCommand ${task.status === "killed" ? "was stopped" : "failed"}`);
+	}
 	return { content: [{ type: "text", text: outputText }], details };
 }

@@ -1,3 +1,4 @@
+import { ArtifactFiles, artifactFiles } from "./ArtifactFiles";
 import { MarkdownHostProvider } from "./host";
 import type { MarkdownHost } from "./host";
 import { MarkdownImage } from "./MarkdownImage";
@@ -207,9 +208,11 @@ export const MarkdownContent = memo(function MarkdownContent({
 			),
 			h4: ({ children }) => <h4 className="mb-1.5 mt-2.5 text-[14px] font-semibold text-foreground">{children}</h4>,
 			p: ({ children }) => <p className="my-1.5 text-[14px] leading-[1.6] text-foreground">{children}</p>,
-			ul: ({ children }) => (
-				<ul className="md-bullet-list my-1.5 text-[14px] leading-[1.6] text-foreground">{children}</ul>
-			),
+			ul: ({ node, children }) => {
+                const files = artifactFiles(node);
+                return files ? <ArtifactFiles files={files} labels={labelsRef.current} icon={(name) => getFileIconClassRef.current(name)} open={(path) => onOpenFileRef.current(path)} />
+                    : <ul className="md-bullet-list my-1.5 text-[14px] leading-[1.6] text-foreground">{children}</ul>;
+            },
 			ol: ({ children }) => (
 				<ol className="my-1.5 ml-4 list-decimal space-y-0.5 text-[14px] leading-[1.6] text-foreground marker:text-primary">
 					{children}

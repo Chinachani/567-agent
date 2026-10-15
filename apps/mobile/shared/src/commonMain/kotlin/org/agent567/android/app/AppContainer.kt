@@ -25,6 +25,7 @@ class AppContainer(
     val tokenStore: TokenStore = SettingsTokenStore(),
     val sessionStore: SessionStore = SettingsSessionStore(),
     val remoteConversationGateway: RemoteConversationGateway = RelayRemoteConversationGateway(),
+    val networkAvailability: StateFlow<org.agent567.android.core.net.NetworkAvailability> = org.agent567.android.core.net.platformNetworkAvailability(),
 ) {
     private val unauthorizedSignal = MutableStateFlow(0L)
     val unauthorizedEpoch: StateFlow<Long> = unauthorizedSignal.asStateFlow()

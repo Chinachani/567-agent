@@ -61,6 +61,10 @@ data class RemotePromptFileAttachment(
 )
 
 interface RemoteConversationGateway {
+    suspend fun readDesktopContext(localSessionId: String, remoteSessionId: String): org.agent567.android.domain.session.ChatContextSnapshot? = null
+    suspend fun compactDesktopContext(localSessionId: String, remoteSessionId: String): org.agent567.android.domain.session.ChatContextSnapshot? = null
+    suspend fun setDesktopAutoCompaction(localSessionId: String, remoteSessionId: String, enabled: Boolean): org.agent567.android.domain.session.ChatContextSnapshot? = null
+
     val devices: StateFlow<List<DesktopDevice>>
 
     suspend fun connect(target: String): Boolean

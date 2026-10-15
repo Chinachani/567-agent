@@ -22,7 +22,7 @@ interface CommandFixtureOptions {
 	readonly blockUntilSec?: number;
 }
 
-function createOperations(output: string, exitCode = 0): ForegroundCommandOperations {
+function createOperations(output: string, exitCode: number | null = 0): ForegroundCommandOperations {
 	return {
 		async exec(_command, _cwd, options) {
 			options.onData(Buffer.from(output));
@@ -90,6 +90,21 @@ describe.each(["bash", "shell"] as const)("runtime %s command adapter", (toolNam
 		expect(calls).toEqual([
 			{ command: "echo prefix\necho command\necho hook", cwd: "C:/spawn-cwd", marker: "present" },
 		]);
+	});
+
+	it("reports an OS signal exit as a tool failure even without a recognized error message", async () => {
+		const runtime = createRuntimeRegistration(toolName, tmpdir(), {
+			operations: createOperations("signal ended the process", null),
+		});
+		await expect(
+			runtime.tool.execute({
+				sessionId: "s",
+				turnId: "t",
+				toolCallId: "signal",
+				input: { command: "a-command" },
+				signal: new AbortController().signal,
+			}),
+		).rejects.toThrow("Command exited with a signal");
 	});
 
 	it("preserves generic protected directory warnings", async () => {

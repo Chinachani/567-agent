@@ -1,6 +1,7 @@
 import type { IpcRenderer, IpcRendererEvent, WebUtils } from "electron";
 import { PERSIST_IMAGE_FILES_CHANNEL } from "../../shared/image-cache.js";
 import { PROJECTS_CHANNELS } from "../../shared/projects-ipc.js";
+import { RUNTIMES_STATUS_CHANGED_CHANNEL } from "../../shared/runtime-install-progress.js";
 import type { DesktopApi } from "../api.js";
 import type { DesktopThemeChangeRequest } from "../api-types/theme.js";
 import { FS_READ_TEXT_PREVIEW_CHANNEL, type FsCreateEntryResult } from "../fs-types.js";
@@ -250,6 +251,8 @@ export function createSystemApi(
 		runtimes: {
 			getStatus: () => ipc.invoke("vetta:runtimes:get-status"),
 			reinstall: (type) => ipc.invoke("vetta:runtimes:reinstall", type),
+			restartAndRepair: (type) => ipc.invoke("agent567:runtimes:restart-repair", type),
+			onStatusChanged: (handler) => onIpcVoidEvent(ipc, RUNTIMES_STATUS_CHANGED_CHANNEL, handler),
 			onProgress: (handler) => onIpcEvent(ipc, RUNTIMES_PROGRESS_CHANNEL, handler),
 			redetect: () => ipc.invoke("vetta:runtimes:redetect"),
 		},

@@ -32,6 +32,7 @@ import androidx.lifecycle.viewmodel.compose.viewModel
 import org.agent567.android.app.AppContainer
 import org.agent567.android.ui.auth.LoginScreen
 import org.agent567.android.ui.auth.WelcomeScreen
+import org.agent567.android.ui.chat.ChatContextSheet
 import org.agent567.android.ui.chat.ChatScreen
 import org.agent567.android.ui.components.LoadingBlock
 import org.agent567.android.ui.components.Agent567BottomBar
@@ -303,8 +304,8 @@ fun RootApp(
                     draft = state.draft,
                     pendingImages = state.pendingImages,
                     pendingFiles = state.pendingFiles,
-                    isStreaming = state.isStreaming,
-                    streamingStatus = state.streamingStatus,
+                    isStreaming = state.isStreaming || state.contextBusy,
+                    streamingStatus = if (state.contextBusy) "compacting" else state.streamingStatus,
                     inputPredictions = state.inputPredictions,
                     inputPredictionLoading = state.inputPredictionLoading,
                     onSelectInputPrediction = vm::selectInputPrediction,
@@ -315,6 +316,7 @@ fun RootApp(
                     activeGroup = state.active567Group,
                     availableGroups = state.available567Groups,
                     groupPickerOpen = state.groupPickerOpen,
+                    onOpenContext = { vm.setContextPanelOpen(true) },
                     onOpenGroupPicker = { vm.setGroupPickerOpen(true) },
                     onCloseGroupPicker = { vm.setGroupPickerOpen(false) },
                     onSelectGroup = vm::setActive567Group,
@@ -340,7 +342,7 @@ fun RootApp(
                     chatError = state.chatError,
                     onDraftChange = vm::onDraftChange,
                     onSend = vm::sendMessage,
-                    onStop = vm::stopStreaming,
+                    onStop = { if (state.contextBusy) vm.cancelChatContextOperation() else vm.stopStreaming() },
                     onRetryAssistant = { vm.retryLastError(it) },
                     onBack = vm::navigateBackFromSecondary,
                     onOpenModelPicker = { vm.setModelPicker(true) },
@@ -356,6 +358,21 @@ fun RootApp(
                     questionSubmitting = state.isQuestionSubmitting,
                     onToggleQuestionOption = vm::toggleQuestionOption,
                     onSubmitQuestion = vm::submitQuestion,
+                )
+                if (state.contextPanelOpen) ChatContextSheet(
+                    desktop = route.surface == ChatSurface.Desktop,
+                    snapshot = state.contextSnapshot,
+                    loading = state.contextLoading,
+                    busy = state.contextBusy,
+                    hasSession = state.currentSessionId != null,
+                    error = state.contextError,
+                    notice = state.contextNotice,
+                    onDismiss = { vm.setContextPanelOpen(false) },
+                    onRefresh = vm::refreshChatContext,
+                    onCompact = vm::compactChatContext,
+                    onAutoChange = vm::setChatAutoCompaction,
+                    onReset = vm::resetChatContext,
+                    onCancel = vm::cancelChatContextOperation,
                 )
             }
             AppRoute.Plan ->

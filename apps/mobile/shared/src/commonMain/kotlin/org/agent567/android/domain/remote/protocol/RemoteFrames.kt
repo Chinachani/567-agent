@@ -71,6 +71,21 @@ enum class RemoteRequestMethod {
     @SerialName("session.prompt")
     SessionPrompt,
 
+    @SerialName("session.context")
+    SessionContext,
+
+    @SerialName("session.turn.read")
+    SessionTurnRead,
+
+    @SerialName("session.context.compact")
+    SessionContextCompact,
+
+    @SerialName("session.context.cancel")
+    SessionContextCancel,
+
+    @SerialName("session.context.auto")
+    SessionContextAuto,
+
     @SerialName("session.models")
     SessionModels,
 

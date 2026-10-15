@@ -7,6 +7,8 @@ export function killNodeProcessTree(pid: number): void {
 				stdio: "ignore",
 				detached: true,
 				windowsHide: true,
+			}).on("error", () => {
+				/* Process exit remains owned by the caller. */
 			});
 		} catch {
 			// The process may already have exited or taskkill may be unavailable.

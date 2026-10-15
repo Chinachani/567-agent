@@ -143,8 +143,12 @@ function executeForegroundCommand(options: ExecuteForegroundCommandOptions): Pro
 				outputText = appendTruncationNotice(outputText, truncation, fullOutput, tempFilePath);
 				outputText = prependPathCorrectionNotes(outputText, options.pathCorrections);
 
-				if (exitCode !== 0 && exitCode !== null) {
-					reject(new Error(`${outputText}\n\nCommand exited with code ${exitCode}`));
+				if (exitCode !== 0) {
+					reject(
+						new Error(
+							`${outputText}\n\nCommand exited with ${exitCode === null ? "a signal" : `code ${exitCode}`}`,
+						),
+					);
 					return;
 				}
 				resolve({ content: [{ type: "text", text: outputText }], details });

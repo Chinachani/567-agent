@@ -110,5 +110,16 @@
 			"installFailed": "Failed to install the update"
 		}
 	},
-	"projectExportFileType": "567 Agent Project Export"
+	"projectExportFileType": "567 Agent Project Export",
+	"runtimes": {
+		"downloading": "Downloading runtime files",
+		"preparing": "Preparing runtime installation",
+		"copying": "Copying the bundled runtime",
+		"installing": "Extracting and installing the runtime",
+		"verifying": "Verifying the runtime and package manager",
+		"unavailable": "No installation files could be obtained from the bundled runtime or available mirrors. Check your network and retry.",
+		"healthFailed": "The runtime or package manager health check failed. Reinstall it or review the diagnostic logs.",
+		"ready": "Runtime is ready",
+		"inUse": "Runtime files are in use or the directory is not writable. Existing files were kept. Open Settings → Environment and click Restart and repair to stop running tasks and restore the environment after restart. If it still fails, check directory permissions or security software restrictions."
+	}
 }

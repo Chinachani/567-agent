@@ -64,7 +64,10 @@ data class RemoteConnectionSnapshot(
     val reconnectCount: Int,
     val lastRttMs: Long?,
     val lastErrorCode: RemoteErrorCode?,
+    val eventPublisherId: String? = null,
 )
+
+data class RemoteEventCursor(val publisherId: String, val sequence: Long)
 
 data class RemoteConnectionOptions(
     val role: RemoteRole,
@@ -73,6 +76,7 @@ data class RemoteConnectionOptions(
     val capabilities: RemoteCapabilities,
     val connectionId: String,
     val requestTimeoutMs: Long = 30_000,
+    val eventCursor: RemoteEventCursor? = null,
 )
 
 class RemoteRequestException(val remoteError: RemoteError) : IllegalStateException(remoteError.message)
@@ -97,7 +101,8 @@ class RemoteConnection(
     private var requestCounter = 0L
     private var peerDeviceId: String? = null
     private val peerSupportedMethods = MutableStateFlow<Set<String>>(emptySet())
-    private var lastEventSequence = 0L
+    private var lastEventSequence = options.eventCursor?.sequence ?: 0L
+    private var eventPublisherId: String? = options.eventCursor?.publisherId
     private var lastAckSequence = 0L
     private var reconnectCount = 0
     private var lastRttMs: Long? = null
@@ -111,6 +116,13 @@ class RemoteConnection(
     }
 
     fun supportsPeerMethod(method: String): Boolean = method in peerSupportedMethods.value
+
+    fun restoreEventCursor(cursor: RemoteEventCursor) {
+        if (cursor.sequence < 0 || cursor.publisherId.isBlank()) return
+        lastEventSequence = if (eventPublisherId == cursor.publisherId) maxOf(lastEventSequence, cursor.sequence) else cursor.sequence
+        eventPublisherId = cursor.publisherId
+        if (_state.value == RemoteConnectionState.Recovering) _state.value = RemoteConnectionState.Online
+    }
 
     suspend fun connect() {
         if (_state.value == RemoteConnectionState.Online || _state.value == RemoteConnectionState.Connecting) return
@@ -180,7 +192,8 @@ class RemoteConnection(
         sessionId: String? = null,
         timeoutMs: Long = options.requestTimeoutMs,
     ): JsonElement? {
-        check(_state.value == RemoteConnectionState.Online) {
+        check(_state.value == RemoteConnectionState.Online ||
+            (_state.value == RemoteConnectionState.Recovering && method in setOf(RemoteRequestMethod.SessionTurnRead, RemoteRequestMethod.SessionList))) {
             "Remote connection is ${_state.value.name.lowercase()}"
         }
         val requestId = "${options.connectionId}-${now()}-${requestCounter++}"
@@ -200,7 +213,7 @@ class RemoteConnection(
             return withTimeout(timeoutMs) { result.await() }
         } catch (error: kotlinx.coroutines.TimeoutCancellationException) {
             mutex.withLock { pending.remove(requestId) }
-            cancelSuggestionRequest(method, requestId, sessionId)
+            cancelAuxiliaryRequest(method, requestId, sessionId)
             lastErrorCode = RemoteErrorCode.RequestTimeout
             val remoteError =
                 RemoteError(
@@ -213,23 +226,24 @@ class RemoteConnection(
         } catch (error: Throwable) {
             mutex.withLock { pending.remove(requestId) }
             if (error is kotlinx.coroutines.CancellationException) {
-                cancelSuggestionRequest(method, requestId, sessionId)
+                cancelAuxiliaryRequest(method, requestId, sessionId)
             }
             throw error
         }
     }
 
-    private suspend fun cancelSuggestionRequest(method: RemoteRequestMethod, requestId: String, sessionId: String?) {
-        if (
-            method != RemoteRequestMethod.SessionSuggestions ||
-            _state.value != RemoteConnectionState.Online ||
-            !supportsPeerMethod("session.suggestions.cancel")
-        ) return
+    private suspend fun cancelAuxiliaryRequest(method: RemoteRequestMethod, requestId: String, sessionId: String?) {
+        val cancellation = when (method) {
+            RemoteRequestMethod.SessionSuggestions -> RemoteRequestMethod.SessionSuggestionsCancel to "session.suggestions.cancel"
+            RemoteRequestMethod.SessionContextCompact -> RemoteRequestMethod.SessionContextCancel to "session.context.cancel"
+            else -> return
+        }
+        if (_state.value != RemoteConnectionState.Online || !supportsPeerMethod(cancellation.second)) return
         withContext(NonCancellable) {
             withTimeoutOrNull(1_000) {
                 runCatching {
                     request(
-                        method = RemoteRequestMethod.SessionSuggestionsCancel,
+                        method = cancellation.first,
                         payload = buildJsonObject { put("requestId", requestId) },
                         sessionId = sessionId,
                         timeoutMs = 1_000,
@@ -261,7 +275,8 @@ class RemoteConnection(
                 pendingRequestCount = pending.size,
                 reconnectCount = reconnectCount,
                 lastRttMs = lastRttMs,
-                lastErrorCode = lastErrorCode,
+            lastErrorCode = lastErrorCode,
+            eventPublisherId = eventPublisherId,
             )
         }
 
@@ -304,6 +319,14 @@ class RemoteConnection(
     }
 
     private suspend fun handleEvent(event: RemoteEvent) {
+        val suffix = "-event-${event.sequence}"
+        val publisher = event.eventId.takeIf { it.endsWith(suffix) }?.removeSuffix(suffix)
+        if (publisher != null && publisher != eventPublisherId) {
+            // A fresh connection or restarted desktop starts a different stream.
+            // The visible conversation history, not old ACKs, owns prior content.
+            lastEventSequence = event.sequence - 1
+            eventPublisherId = publisher
+        }
         if (event.sequence <= lastEventSequence) {
             logger.debug(
                 "duplicate remote event ignored",

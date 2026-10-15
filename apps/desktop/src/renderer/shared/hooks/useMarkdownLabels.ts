@@ -7,6 +7,10 @@ export function useMarkdownLabels(): MarkdownLabels {
 	return useMemo(
 		() => ({
 			copy: t("copyButton.label"),
+			artifacts: {
+				title: t("markdown.artifacts"),
+				count: (count: number) => t("markdown.artifactCount", { count }),
+			},
 			copied: t("copyButton.copied"),
 			rich: {
 				preview: t("markdown.preview"),

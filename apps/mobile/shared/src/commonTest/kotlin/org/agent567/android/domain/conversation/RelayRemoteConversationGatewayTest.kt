@@ -24,6 +24,7 @@ import org.agent567.android.domain.remote.protocol.RemoteHelloAck
 import org.agent567.android.domain.remote.protocol.RemoteRequest
 import org.agent567.android.domain.remote.protocol.RemoteResponse
 import kotlin.test.Test
+import kotlin.test.assertTrue
 import kotlin.test.assertEquals
 import kotlin.test.assertFailsWith
 
@@ -187,11 +188,11 @@ class RelayRemoteConversationGatewayTest {
             val gateway = RelayRemoteConversationGateway(scope = backgroundScope, transportFactory = { transport }, now = { 1_000L })
             gateway.connect("fake-relay")
 
-            val error = assertFailsWith<org.agent567.android.domain.remote.connection.RemoteRequestException> {
+            val error = assertFailsWith<RemoteConversationException> {
                 gateway.stream("local", "desktop-1", null, listOf(ChatMessage(ChatRole.User, "hello"))).collect { }
             }
 
-            assertEquals(org.agent567.android.domain.remote.protocol.RemoteErrorCode.TransportClosed, error.remoteError.code)
+            assertTrue(error.message.orEmpty().contains("电脑"))
         }
 
     @Test

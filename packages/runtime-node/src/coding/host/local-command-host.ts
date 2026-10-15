@@ -1,4 +1,3 @@
-import { spawn } from "node:child_process";
 import { randomBytes } from "node:crypto";
 import { createWriteStream, existsSync, readFileSync } from "node:fs";
 import { tmpdir } from "node:os";
@@ -11,6 +10,7 @@ import type {
 	BackgroundCommandProcessOperations,
 } from "../shared/background-command-host.js";
 import type { ForegroundCommandExecutorOptions } from "../shared/foreground-command-executor.js";
+import { spawnGuardedCommand } from "./guarded-command-process.js";
 import { killNodeProcessTree } from "./process-tree.js";
 
 export interface NodeShellCommand {
@@ -60,7 +60,7 @@ function createForegroundOperations(
 					return;
 				}
 				const shell = resolveShell();
-				const child = spawn(shell.executable, [...shell.args, command], {
+				const child = spawnGuardedCommand(shell.executable, [...shell.args, command], {
 					cwd,
 					detached: process.platform !== "win32",
 					env: { ...(env ?? readEnvironment?.() ?? process.env) },
@@ -133,7 +133,7 @@ function createBackgroundProcessOperations(
 	return {
 		spawn(request) {
 			const shell = options.resolveShell();
-			const child = spawn(shell.executable, [...shell.args, request.command], {
+			const child = spawnGuardedCommand(shell.executable, [...shell.args, request.command], {
 				cwd: request.cwd,
 				detached: process.platform !== "win32",
 				env: request.env,

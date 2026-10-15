@@ -1,4 +1,4 @@
-import { spawn, spawnSync } from "node:child_process";
+import { spawnSync } from "node:child_process";
 import { existsSync, realpathSync } from "node:fs";
 import { mkdir, mkdtemp, rm, writeFile } from "node:fs/promises";
 import { homedir, tmpdir } from "node:os";
@@ -6,6 +6,7 @@ import { delimiter, isAbsolute, join } from "node:path";
 import { getAgent567ConfigDirName } from "@567agent/action-rpc";
 import type { SandboxShellGrant } from "@567agent/runtime-core/sandbox";
 import type { ForegroundCommandOperations } from "@567agent/runtime-tools";
+import { spawnGuardedCommand } from "../../coding/host/guarded-command-process.js";
 import { getSandboxShellGrant } from "../sandbox-permissions.js";
 import type { NodeSandboxEnvironment, NodeSandboxShell } from "./contracts.js";
 
@@ -158,20 +159,35 @@ export function createMacosSeatbeltCommandOperations(
 	return {
 		exec: (command, cwd, { onData, signal, timeout, env }) =>
 			new Promise<{ exitCode: number | null }>((resolve, reject) => {
+				let pendingTempRoot: string | undefined;
+				const removeTemporaryRoot = (): void => {
+					if (!pendingTempRoot) return;
+					const root = pendingTempRoot;
+					void rm(root, { recursive: true, force: true })
+						.then(() => {
+							if (pendingTempRoot === root) pendingTempRoot = undefined;
+						})
+						.catch((error: unknown) => console.warn("[sandbox] Temporary command cleanup failed", error));
+				};
 				void (async () => {
 					if (!existsSync(cwd)) return reject(new Error(`Working directory does not exist: ${cwd}`));
 					const tempRoot = await mkdtemp(join(tmpdir(), "567-agent-macos-sandbox-"));
+					pendingTempRoot = tempRoot;
 					await mkdir(join(tempRoot, "home"), { recursive: true });
 					await mkdir(join(tempRoot, "tmp"), { recursive: true });
 					const agent567ShimDir = await createAgent567CliShim(tempRoot, env);
 					const profilePath = join(tempRoot, "profile.sb");
 					await writeFile(profilePath, buildMacosSandboxProfile(cwd, tempRoot, getSandboxShellGrant(cwd)), "utf8");
-					const child = spawn(sandboxExecPath, ["-f", profilePath, shell.executable, ...shell.args, command], {
-						cwd,
-						detached: true,
-						env: buildSandboxEnv(cwd, tempRoot, env, agent567ShimDir),
-						stdio: ["ignore", "pipe", "pipe"],
-					});
+					const child = spawnGuardedCommand(
+						sandboxExecPath,
+						["-f", profilePath, shell.executable, ...shell.args, command],
+						{
+							cwd,
+							detached: true,
+							env: buildSandboxEnv(cwd, tempRoot, env, agent567ShimDir),
+							stdio: ["ignore", "pipe", "pipe"],
+						},
+					);
 					let timedOut = false;
 					let timeoutHandle: NodeJS.Timeout | undefined;
 					if (typeof timeout === "number" && timeout > 0) {
@@ -190,7 +206,7 @@ export function createMacosSeatbeltCommandOperations(
 					const cleanup = (): void => {
 						if (timeoutHandle) clearTimeout(timeoutHandle);
 						signal?.removeEventListener("abort", onAbort);
-						void rm(tempRoot, { recursive: true, force: true });
+						removeTemporaryRoot();
 					};
 					child.on("error", (error) => {
 						cleanup();
@@ -202,7 +218,10 @@ export function createMacosSeatbeltCommandOperations(
 						if (timedOut) return reject(new Error(`timeout:${timeout}`));
 						resolve({ exitCode: code });
 					});
-				})().catch(reject);
+				})().catch((error: unknown) => {
+					removeTemporaryRoot();
+					reject(error);
+				});
 			}),
 	};
 }

@@ -333,6 +333,8 @@
 		}
 	},
 	"markdown": {
+        "artifacts": "Artifacts",
+        "artifactCount": "{{count}} files",
 		"preview": "Preview",
 		"source": "Source",
 		"run": "Run in separate window",

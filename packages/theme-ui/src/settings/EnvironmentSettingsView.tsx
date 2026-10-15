@@ -1,4 +1,5 @@
 import type { JSX, ReactNode } from "react";
+import { Button } from "@vetta-org/ui";
 import { SettingRow, SettingSection, type SettingSectionMeta } from "./SettingChrome";
 
 export type EnvironmentRuntimeKindView = "node" | "python";
@@ -7,6 +8,7 @@ export interface EnvironmentRuntimeStatusView {
 	readonly managedVersion?: string;
 	readonly ready: boolean;
 	readonly supported: boolean;
+	readonly repairRequiresRestart?: boolean;
 }
 
 export interface EnvironmentSettingsViewLabels {
@@ -30,6 +32,9 @@ export interface EnvironmentSettingsViewLabels {
 	readonly title: string;
 	readonly progress: string;
 	readonly logs: string;
+	readonly restartAndRepair: string;
+	readonly repairRequiresRestart: string;
+	readonly repairRestartDescription: string;
 }
 
 export interface EnvironmentInstallProgressView {
@@ -67,12 +72,14 @@ const RUNTIME_META: Record<EnvironmentRuntimeKindView, { icon: string; name: str
 
 function RuntimeCard({
 	busy,
+	disabled,
 	kind,
 	labels,
 	onReinstall,
 	status,
 }: {
 	busy: boolean;
+	disabled: boolean;
 	kind: EnvironmentRuntimeKindView;
 	labels: EnvironmentSettingsViewLabels;
 	onReinstall: () => void;
@@ -81,44 +88,57 @@ function RuntimeCard({
 	const meta = RUNTIME_META[kind];
 	const stateText = !status.supported
 		? labels.platformNotSupported
-		: status.ready
-			? `${labels.ready} · ${status.managedVersion}`
-			: busy
-				? labels.fetching
-				: labels.notReady;
-	const stateClass = status.ready
-		? "text-emerald-500"
+		: busy
+			? labels.fetching
+			: status.repairRequiresRestart
+				? labels.repairRequiresRestart
+				: status.ready
+					? `${labels.ready} · ${status.managedVersion}`
+					: labels.notReady;
+	const healthy = status.ready && !status.repairRequiresRestart && !busy;
+	const stateClass = healthy
+		? "text-emerald-400"
 		: status.supported
-			? "text-amber-500"
+			? "text-amber-400"
 			: "text-muted-foreground";
 
 	return (
-		<SettingRow title={meta.name} description={labels.runtimeDescriptions[kind]} border={kind === "node"}>
+		<SettingRow
+			title={meta.name}
+			description={status.repairRequiresRestart ? labels.repairRestartDescription : labels.runtimeDescriptions[kind]}
+			border={kind === "node"}
+		>
 			<div className="flex items-center gap-3">
 				<div className="flex items-center gap-1.5">
 					<span
 						className={
-							status.ready
-								? "icon-[mdi--check-circle] h-4 w-4 text-emerald-500"
-								: "icon-[mdi--alert-circle-outline] h-4 w-4 text-amber-500"
+							healthy
+								? "icon-[mdi--check-circle] h-4 w-4 text-emerald-400"
+								: "icon-[mdi--alert-circle-outline] h-4 w-4 text-amber-400"
 						}
 					/>
-					<span className={`text-[12px] ${stateClass}`}>{stateText}</span>
+					<span role="status" className={`text-[12px] ${stateClass}`}>{stateText}</span>
 				</div>
 				{status.supported && (
-					<button
+					<Button
 						type="button"
-						disabled={busy}
+						variant="outline"
+						size="sm"
+						disabled={disabled}
 						onClick={onReinstall}
-						className="flex items-center gap-1.5 rounded-lg border border-input bg-secondary px-3 py-1.5 text-[12px] text-foreground transition-colors hover:bg-accent disabled:opacity-50"
+						className="gap-1.5 text-[12px]"
 					>
 						{busy ? (
 							<span className="icon-[mdi--loading] h-3.5 w-3.5 animate-spin" />
 						) : (
-							<span className="icon-[mdi--download-outline] h-3.5 w-3.5 text-muted-foreground" />
+							<span className={status.repairRequiresRestart
+								? "icon-[solar--restart-linear] h-3.5 w-3.5 text-muted-foreground"
+								: "icon-[mdi--download-outline] h-3.5 w-3.5 text-muted-foreground"} />
 						)}
-						{status.ready ? labels.fetchAgain : labels.fetch}
-					</button>
+						{status.repairRequiresRestart
+							? labels.restartAndRepair
+							: status.ready ? labels.fetchAgain : labels.fetch}
+					</Button>
 				)}
 			</div>
 		</SettingRow>
@@ -149,7 +169,7 @@ export function EnvironmentSettingsView({
 			</div>
 
 			{error && (
-				<div className="mb-4 rounded-lg border border-destructive/40 bg-destructive/10 px-4 py-2.5 text-[12px] text-destructive">
+				<div role="alert" className="mb-4 rounded-lg border border-destructive/40 bg-destructive/10 px-4 py-2.5 text-[12px] text-destructive">
 					{error}
 				</div>
 			)}
@@ -187,6 +207,7 @@ export function EnvironmentSettingsView({
 							kind="node"
 							status={status.node}
 							busy={busy === "node"}
+							disabled={busy !== null}
 							labels={labels}
 							onReinstall={() => onReinstall("node")}
 						/>
@@ -194,6 +215,7 @@ export function EnvironmentSettingsView({
 							kind="python"
 							status={status.python}
 							busy={busy === "python"}
+							disabled={busy !== null}
 							labels={labels}
 							onReinstall={() => onReinstall("python")}
 						/>

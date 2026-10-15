@@ -1,10 +1,11 @@
-import { spawn, spawnSync } from "node:child_process";
+import { spawnSync } from "node:child_process";
 import { existsSync } from "node:fs";
 import { copyFile, mkdir, mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { delimiter, dirname, join, resolve as resolvePath } from "node:path";
 import { fileURLToPath } from "node:url";
 import type { ForegroundCommandOperations } from "@567agent/runtime-tools";
+import { spawnGuardedCommand } from "../../coding/host/guarded-command-process.js";
 import { getNodeShellCommandPrefix, prependCommandPrefixes } from "../../coding/host/node-shell.js";
 import { getSandboxShellGrant } from "../sandbox-permissions.js";
 import type { NodeSandboxEnvironment } from "./contracts.js";
@@ -142,8 +143,19 @@ export function createWindowsSandboxCommandOperations(sandboxHostPath?: string):
 	return {
 		exec: (command, cwd, { onData, signal, timeout, env }) =>
 			new Promise<{ exitCode: number | null }>((resolve, reject) => {
+				let pendingTempRoot: string | undefined;
+				const removeTemporaryRoot = (): void => {
+					if (!pendingTempRoot) return;
+					const root = pendingTempRoot;
+					void rm(root, { recursive: true, force: true })
+						.then(() => {
+							if (pendingTempRoot === root) pendingTempRoot = undefined;
+						})
+						.catch((error: unknown) => console.warn("[sandbox] Temporary command cleanup failed", error));
+				};
 				void (async () => {
 					const tempRoot = await mkdtemp(join(tmpdir(), "567-agent-windows-sandbox-"));
+					pendingTempRoot = tempRoot;
 					await mkdir(join(tempRoot, "home"), { recursive: true });
 					const agent567ShimDir = await createAgent567CliShim(tempRoot, env);
 					const shellCommand = resolveWindowsShellCommand();
@@ -180,11 +192,14 @@ export function createWindowsSandboxCommandOperations(sandboxHostPath?: string):
 						getNodeShellCommandPrefix(shellCommand.command),
 					]);
 					args.push("--", shellCommand.command, ...shellCommand.args, resolvedCommand);
-					const child = spawn(resolvedSandboxHostPath, args, { cwd, stdio: ["ignore", "pipe", "pipe"] });
+					const child = spawnGuardedCommand(resolvedSandboxHostPath, args, {
+						cwd,
+						stdio: ["ignore", "pipe", "pipe"],
+					});
 					child.stdout?.on("data", onData);
 					child.stderr?.on("data", onData);
 
-					const cleanup = (): void => void rm(tempRoot, { recursive: true, force: true });
+					const cleanup = (): void => removeTemporaryRoot();
 					const onAbort = () => child.kill();
 					if (signal?.aborted) onAbort();
 					else signal?.addEventListener("abort", onAbort, { once: true });
@@ -202,7 +217,10 @@ export function createWindowsSandboxCommandOperations(sandboxHostPath?: string):
 						}
 						resolve({ exitCode: code });
 					});
-				})().catch(reject);
+				})().catch((error: unknown) => {
+					removeTemporaryRoot();
+					reject(error);
+				});
 			}),
 	};
 }

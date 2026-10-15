@@ -100,6 +100,9 @@ export interface DesktopRuntimesApi {
 	getStatus(): Promise<RuntimesStatus>;
 	/** 强制重新获取(内置 vendor 拷贝,失败回退下载)推荐版本。 */
 	reinstall(type: RuntimeType): Promise<RuntimeStatus>;
+	/** Save a repair request, stop application tasks and restart to restore it. */
+	restartAndRepair(type: RuntimeType): Promise<void>;
+	onStatusChanged(handler: () => void): () => void;
 	onProgress(handler: (progress: RuntimeInstallProgress) => void): () => void;
 	/** 重新探测系统已装运行时。 */
 	redetect(): Promise<RuntimesStatus>;

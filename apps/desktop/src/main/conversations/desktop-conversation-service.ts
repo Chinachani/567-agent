@@ -5,6 +5,7 @@ import {
 	CODING_AGENT_NEXT_PROMPT_SUGGESTIONS,
 	CODING_AGENT_SESSION_TITLE_GENERATE,
 } from "@567agent/coding-agent/session-extensions";
+import type { RemoteSessionContext } from "@567agent/remote-control";
 import {
 	isSessionError,
 	type PromptRequest,
@@ -382,6 +383,27 @@ export class DesktopConversationService {
 			isConversationCwd(header.cwd) ? "conversation" : "other",
 			source,
 		);
+	}
+
+	readRemoteContext(sessionId: string): RemoteSessionContext {
+		const state = this.runtime.getState(sessionId);
+		const compaction = this.runtime.readSessionContextCompactionState(sessionId);
+		const usage = this.runtime.readSessionContextUsage(sessionId);
+		return {
+			tokens: state.contextTokens ?? usage?.tokens ?? null,
+			contextWindow: state.contextWindow > 0 ? state.contextWindow : null,
+			estimated: state.contextTokens == null,
+			messageCount: state.messageCount,
+			autoCompactionEnabled: compaction.autoCompactionEnabled,
+			busy: state.isStreaming || compaction.isCompacting,
+		};
+	}
+
+	setRemoteAutoCompaction(sessionId: string, enabled: boolean): void {
+		if (this.readRemoteContext(sessionId).busy) {
+			throw new DesktopConversationError("SESSION_BUSY", "请等待当前回复或压缩完成后再修改上下文设置");
+		}
+		this.runtime.setSessionAutoCompactionEnabled(sessionId, enabled);
 	}
 
 	readRemoteModelCatalog(sessionId: string): DesktopConversationRemoteModelCatalog {

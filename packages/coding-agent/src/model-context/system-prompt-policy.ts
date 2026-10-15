@@ -276,6 +276,9 @@ function buildGuidelines(tools: string[], scenario?: ConversationScenario): stri
 		guidelinesList.push(
 			"Before bash/shell: if the process may not exit on its own (dev server, watcher, docker compose up without -d, make dev), MUST set run_in_background: true. Foreground blocks the entire agent turn until exit (or auto-promote after the soft wait).",
 		);
+		guidelinesList.push(
+			"Before large image mosaics, satellite tiles, arrays or batches: inspect the CLI help or implementation for parameter units and estimate dimensions, item count, bytes per item and concurrent memory. Never assume a radius is measured in meters: tile-ring radius r requests (2*r+1)^2 tiles, with image side (2*r+1)*tileSize pixels. Start with a small bounded region; use lower resolution, smaller batches or separate tiles instead of one huge allocation. If a command reports resource protection or allocation failure, reduce the work before retrying; never repeat the unchanged command, remove safeguards or increase limits without the user's explicit request.",
+		);
 	}
 
 	if (hasDirTree) {

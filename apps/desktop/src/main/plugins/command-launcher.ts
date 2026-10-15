@@ -1,8 +1,8 @@
 import type { ChildProcess, SpawnOptions } from "node:child_process";
 import { existsSync } from "node:fs";
-import { join } from "node:path";
 import crossSpawn from "cross-spawn";
-import { executablePathFor, installDir } from "../runtimes/paths.js";
+import { executablePathFor } from "../runtimes/paths.js";
+import { nodePackageManagerPaths } from "../runtimes/runtime-health.js";
 
 export interface CommandInvocation {
 	file: string;
@@ -16,12 +16,18 @@ export interface ManagedNodeCommandPaths {
 }
 
 function getManagedNodeCommandPaths(): ManagedNodeCommandPaths {
-	const nodeRoot = installDir("node");
+	const node = executablePathFor("node");
 	return {
-		node: executablePathFor("node"),
-		npmCli: join(nodeRoot, "node_modules", "npm", "bin", "npm-cli.js"),
-		npxCli: join(nodeRoot, "node_modules", "npm", "bin", "npx-cli.js"),
+		node,
+		...nodePackageManagerPaths(node),
 	};
+}
+
+/** Called only after the plugin's command permission has been checked. */
+export async function prepareCommandRuntime(file: string): Promise<void> {
+	if (file !== "node" && file !== "npm" && file !== "npx") return;
+	const { getRuntimeManager } = await import("../runtimes/manager.js");
+	await getRuntimeManager().ensureReady("node");
 }
 
 /**

@@ -23,6 +23,7 @@ import org.agent567.android.core.model.ChatQuestion
 import org.agent567.android.core.model.ChatQuestionOption
 import org.agent567.android.core.model.TokenUsage
 import org.agent567.android.core.net.Agent567Json
+import org.agent567.android.domain.session.MobileSessionContext
 import org.agent567.android.domain.session.ChatSession
 import org.agent567.android.domain.session.ConversationOrigin
 import org.agent567.android.domain.session.LocalMessage
@@ -631,6 +632,7 @@ private data class SessionDto(
     val remoteSessionId: String? = null,
     val remoteSessionCreatedOnMobile: Boolean = false,
     val titleManuallyEdited: Boolean = false,
+    val context: MobileSessionContext = MobileSessionContext(),
 )
 
 @Serializable
@@ -727,6 +729,7 @@ private fun SessionDto.toDomain() =
         remoteSessionId = remoteSessionId,
         remoteSessionCreatedOnMobile = remoteSessionCreatedOnMobile,
         titleManuallyEdited = titleManuallyEdited,
+        context = context,
     )
 
 private fun ChatSession.toDto() =
@@ -743,6 +746,7 @@ private fun ChatSession.toDto() =
         remoteSessionId = remoteSessionId,
         remoteSessionCreatedOnMobile = remoteSessionCreatedOnMobile,
         titleManuallyEdited = titleManuallyEdited,
+        context = context,
     )
 
 private fun MessageDto.toDomain() =

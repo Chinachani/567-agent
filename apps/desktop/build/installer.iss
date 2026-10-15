@@ -59,6 +59,8 @@ english.DataFolderDescription=Choose where 567 Agent stores its data. App conver
 english.DataFolderPrompt=Data folder:
 english.DataMigrationFailed=The data folder could not be migrated (error code %1). The original data has not been deleted. Check disk space and permissions, then try again.
 english.DataMigrationOverlap=The selected data folder overlaps an existing data folder and cannot be migrated safely. Choose a separate folder.
+chinesesimplified.DataMigrationTargetNotEmpty=目标文件夹已有数据。请选择空文件夹，已有数据不会被覆盖。
+english.DataMigrationTargetNotEmpty=The destination contains data. Choose an empty folder; existing data will not be overwritten.
 english.DataMigrationStatus=Migrating 567 Agent data. Keep the installer running…
 
 [Tasks]
@@ -154,10 +156,9 @@ function InitializeSetup(): Boolean;
 begin
   Result := True;
   if IsBackgroundUpdate() and
-     ((Trim(ExpandConstant('{param:VETTASTOREROOT}')) = '') or
-      (Trim(ExpandConstant('{param:VETTADATAROOT}')) = '')) then
+     (Trim(ExpandConstant('{param:VETTASTOREROOT}')) = '') then
   begin
-    Log('VETTASTOREROOT and VETTADATAROOT are required for a background update.');
+    Log('VETTASTOREROOT is required for a background update.');
     Result := False;
   end;
 end;
@@ -285,7 +286,12 @@ end;
 function GetDataRoot(Value: String): String;
 begin
   if IsBackgroundUpdate() then
-    Result := ExpandConstant('{param:VETTADATAROOT}')
+  begin
+    Result := ExpandConstant('{param:VETTADATAROOT}');
+    { Updaters before data-location support do not send this parameter. }
+    if Trim(Result) = '' then
+      Result := GetSavedDataRoot();
+  end
   else if Assigned(DataDirectoryPage) then
     Result := DataDirectoryPage.Values[0]
   else
@@ -391,46 +397,107 @@ begin
   end;
 end;
 
+function DirectoryHasData(Directory: String): Boolean;
+var
+  FindRec: TFindRec;
+begin
+  Result := False;
+  if FindFirst(AddBackslash(Directory) + '*', FindRec) then
+  begin
+    try
+      repeat
+        if (FindRec.Name <> '.') and (FindRec.Name <> '..') then
+          Result := True;
+      until Result or not FindNext(FindRec);
+    finally
+      FindClose(FindRec);
+    end;
+  end;
+end;
+
+function IsInitializedDataRoot(Directory: String): Boolean;
+var
+  RegisteredRoot: String;
+begin
+  Result := FileExists(AddBackslash(Directory) + '.data-migration-complete');
+  if RegQueryStringValue(HKCU, AppRegistrySubkey, DataRootValueName, RegisteredRoot) and
+     (Trim(RegisteredRoot) <> '') and PathsAreEqual(Directory, RegisteredRoot) then
+    Result := True;
+end;
+
 procedure MigrateDataDirectories();
 var
-  DataRoot: String;
-  PreviousDataRoot: String;
-  LegacyDataRoot: String;
-  PreviousUpdateRoot: String;
-  PreviousUpdaterCache: String;
-  ErrorMessage: String;
+  DataRoot, PreviousDataRoot, LegacyDataRoot, StagingRoot, BackupRoot: String;
+  PreviousUpdateRoot, PreviousUpdaterCache, ErrorMessage: String;
+  InitialMigration, BackedUp: Boolean;
 begin
   if IsBackgroundUpdate() then
     exit;
-
   DataRoot := GetDataRoot('');
   PreviousDataRoot := GetSavedDataRoot();
-  LegacyDataRoot := AddBackslash(GetUserProfileDirectory()) + '.vetta';
-  PreviousUpdateRoot := AddBackslash(PreviousDataRoot) + 'windows-updates';
-  if not DirExists(PreviousUpdateRoot) then
-    PreviousUpdateRoot := ExpandConstant('{localappdata}\567Agent');
-  PreviousUpdaterCache := AddBackslash(PreviousDataRoot) + 'updater-cache\567-agent-updater';
-  if not DirExists(PreviousUpdaterCache) then
-    PreviousUpdaterCache := ExpandConstant('{localappdata}\567-agent-updater');
+  InitialMigration := not IsInitializedDataRoot(PreviousDataRoot);
+  { Once initialized, the active root alone is authoritative. Never merge
+    retained legacy profiles: that would overwrite edits and revive deletions. }
+  if PathsAreEqual(DataRoot, PreviousDataRoot) and not InitialMigration then
+    exit;
+  if not PathsAreEqual(DataRoot, PreviousDataRoot) and DirectoryHasData(DataRoot) then
+    RaiseException(CustomMessage('DataMigrationTargetNotEmpty'));
+
+  StagingRoot := DataRoot + '.migrating-' + GetDateTimeString('yyyymmddhhnnsszzz', '', '');
+  BackupRoot := StagingRoot + '.original';
+  if DirExists(StagingRoot) or DirExists(BackupRoot) then
+    RaiseException(CustomMessage('DataMigrationTargetNotEmpty'));
+  if not ForceDirectories(StagingRoot) then
+    RaiseException(FmtMessage(CustomMessage('DataMigrationFailed'), ['mkdir']));
 
   WizardForm.StatusLabel.Caption := CustomMessage('DataMigrationStatus');
   WizardForm.Update;
+  BackedUp := False;
+  try
+    LegacyDataRoot := AddBackslash(GetUserProfileDirectory()) + '.vetta';
+    { The legacy root is used only when no current data exists at all. }
+    if not DirectoryHasData(PreviousDataRoot) and InitialMigration then
+    begin
+      if not CopyDataDirectory(LegacyDataRoot, StagingRoot, ErrorMessage) then
+        RaiseException(ErrorMessage);
+    end
+    else if not CopyDataDirectory(PreviousDataRoot, StagingRoot, ErrorMessage) then
+      RaiseException(ErrorMessage);
 
-  if DirExists(LegacyDataRoot) and
-     not CopyDataDirectory(LegacyDataRoot, DataRoot, ErrorMessage) then
-    RaiseException(ErrorMessage);
-  if not CopyDataDirectory(PreviousDataRoot, DataRoot, ErrorMessage) then
-    RaiseException(ErrorMessage);
-  if not CopyDataDirectory(ExpandConstant('{userappdata}\567-agent'),
-      AddBackslash(DataRoot) + 'electron-user-data', ErrorMessage) then
-    RaiseException(ErrorMessage);
-  if not CopyDataDirectory(PreviousUpdateRoot, AddBackslash(DataRoot) + 'windows-updates', ErrorMessage) then
-    RaiseException(ErrorMessage);
-  if not CopyDataDirectory(PreviousUpdaterCache, AddBackslash(DataRoot) + 'updater-cache\567-agent-updater', ErrorMessage) then
-    RaiseException(ErrorMessage);
-
-  if not ForceDirectories(DataRoot) then
-    RaiseException(CustomMessage('DataMigrationFailed'));
+    if InitialMigration then
+    begin
+      if not DirExists(AddBackslash(StagingRoot) + 'electron-user-data') and
+         not CopyDataDirectory(ExpandConstant('{userappdata}\567-agent'),
+           AddBackslash(StagingRoot) + 'electron-user-data', ErrorMessage) then
+        RaiseException(ErrorMessage);
+      PreviousUpdateRoot := ExpandConstant('{localappdata}\567Agent');
+      PreviousUpdaterCache := ExpandConstant('{localappdata}\567-agent-updater');
+      if not DirExists(AddBackslash(StagingRoot) + 'windows-updates') and
+         not CopyDataDirectory(PreviousUpdateRoot, AddBackslash(StagingRoot) + 'windows-updates', ErrorMessage) then
+        RaiseException(ErrorMessage);
+      if not DirExists(AddBackslash(StagingRoot) + 'updater-cache\567-agent-updater') and
+         not CopyDataDirectory(PreviousUpdaterCache, AddBackslash(StagingRoot) + 'updater-cache\567-agent-updater', ErrorMessage) then
+        RaiseException(ErrorMessage);
+    end;
+    if not SaveStringToFile(AddBackslash(StagingRoot) + '.data-migration-complete', '1', False) then
+      RaiseException(FmtMessage(CustomMessage('DataMigrationFailed'), ['marker']));
+    if DirExists(DataRoot) then
+    begin
+      if not RenameFile(DataRoot, BackupRoot) then
+        RaiseException(FmtMessage(CustomMessage('DataMigrationFailed'), ['backup']));
+      BackedUp := True;
+    end;
+    if not RenameFile(StagingRoot, DataRoot) then
+      RaiseException(FmtMessage(CustomMessage('DataMigrationFailed'), ['commit']));
+    if BackedUp then
+      Log('Original data retained at: ' + BackupRoot);
+  except
+    if BackedUp and not DirExists(DataRoot) then
+      RenameFile(BackupRoot, DataRoot);
+    { Only this installation's staging directory may be removed. }
+    DelTree(StagingRoot, True, True, True);
+    RaiseException(GetExceptionMessage());
+  end;
 end;
 
 procedure CurInstallProgressChanged(CurProgress, MaxProgress: Integer);

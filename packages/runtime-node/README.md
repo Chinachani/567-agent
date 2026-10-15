@@ -15,3 +15,7 @@
 `runtime-node` 不拥有 Agent Turn/Session Kernel，也不拥有 Electron IPC、Desktop 生命周期、UI 或产品策略。
 平台无关编排属于 `runtime-core`，Desktop 生命周期和平台装配属于 `runtime-desktop`。当前
 `coding-agent` 的 Node 宿主显式选择本包实现；非 Node 宿主不得依赖本包。
+
+命令进程使用共享的资源保护：Linux 在启动前设置可写分配上限，三平台采样进程树与宿主命令合计占用，并限制命令输出大小。失败沿现有命令错误路径传播，后台任务不会把保护停止误记为成功。[预算配置与保护范围](../../docs/desktop/tool-resource-protection.md)。
+
+`@567agent/runtime-node/host` exports `killNodeProcessTree` for hosts that own a spawned command. POSIX callers must create a detached process group before using this helper; Windows uses `taskkill /T /F`. Command cancellation and timeout settle independently of pipe closure; output and memory ownership continue until pipes close even if the root has exited. Linux DATA limits keep a 1 GiB floor for Node 24 startup while RSS sampling applies lower configured budgets.

@@ -102,3 +102,10 @@ describe("createSystemApi MCP setup login contract", () => {
 		expect(invoke).toHaveBeenNthCalledWith(3, "vetta:mcp:clear-setup-login", "xiaohongshu-mcp");
 	});
 });
+
+it("forwards restart-and-repair requests to the runtime repair channel", async () => {
+	const invoke = vi.fn(async () => undefined);
+	const api = createSystemApi({ invoke } as unknown as IpcRenderer, {} as WebUtils);
+	await api.runtimes.restartAndRepair("node");
+	expect(invoke).toHaveBeenCalledWith("agent567:runtimes:restart-repair", "node");
+});

@@ -18,7 +18,12 @@ export const REMOTE_REQUEST_METHODS = [
 	"session.open",
 	"session.history",
 	"session.prompt",
+	"session.turn.read",
 	"session.models",
+	"session.context",
+	"session.context.compact",
+	"session.context.cancel",
+	"session.context.auto",
 	"session.model.select",
 	"session.suggestions",
 	"session.suggestions.cancel",
@@ -39,6 +44,15 @@ export const REMOTE_REQUEST_METHODS = [
 	"toolbox.install",
 	"diagnostics.snapshot",
 ] as const;
+
+export interface RemoteSessionContext {
+	readonly tokens: number | null;
+	readonly contextWindow: number | null;
+	readonly estimated: boolean;
+	readonly messageCount: number;
+	readonly autoCompactionEnabled: boolean;
+	readonly busy: boolean;
+}
 
 export interface RemoteCapabilities {
 	readonly chat: boolean;

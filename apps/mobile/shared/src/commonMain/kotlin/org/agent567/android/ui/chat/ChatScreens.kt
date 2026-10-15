@@ -64,6 +64,7 @@ import androidx.compose.material.icons.automirrored.filled.Send
 import androidx.compose.material.icons.filled.AttachFile
 import androidx.compose.material.icons.filled.PhotoCamera
 import androidx.compose.material.icons.filled.PhotoLibrary
+import androidx.compose.material.icons.filled.DataUsage
 import androidx.compose.material.icons.filled.Build
 import androidx.compose.material.icons.filled.Brush
 import androidx.compose.material3.Switch
@@ -210,6 +211,7 @@ fun ChatScreen(
     activeGroup: String? = null,
     availableGroups: Map<String, org.agent567.android.core.api.ApiGroupInfoDto> = emptyMap(),
     groupPickerOpen: Boolean = false,
+    onOpenContext: () -> Unit = {},
     onOpenGroupPicker: () -> Unit = {},
     onCloseGroupPicker: () -> Unit = {},
     onSelectGroup: ((String) -> Unit)? = null,
@@ -388,6 +390,9 @@ fun ChatScreen(
                     }
                 },
                 actions = {
+                    IconButton(onClick = onOpenContext) {
+                        Icon(Icons.Default.DataUsage, contentDescription = Str.contextManage, tint = MaterialTheme.agent567Extra.secondaryText)
+                    }
                     if (surface == ChatSurface.Cloud) {
                         IconButton(onClick = onOpenGroupPicker) {
                             Icon(Icons.Default.Tune, contentDescription = "选择模型分组", tint = MaterialTheme.agent567Extra.secondaryText)
@@ -1989,6 +1994,7 @@ private fun streamingStatusLabel(status: String?): String =
         status == "tool:generate_image" -> Str.toolImageGenerating
         status?.startsWith("tool:") == true -> "正在处理：${status.removePrefix("tool:").take(48)}"
         status == "thinking" -> Str.thinking
+        status == "waiting_response" -> Str.waitingResponse
         status == "reconnecting" -> Str.reconnecting
         status == "retrying" -> Str.retrying
         status == "compacting" -> Str.compacting
@@ -1999,6 +2005,8 @@ private fun streamingStatusLabel(status: String?): String =
 
 private fun streamingPlaceholderLabel(status: String?): String =
     when {
+        status == "waiting_response" -> "${Str.waitingResponse}…"
+        status == "reconnecting" -> "${Str.reconnecting}…"
         status == "tool:generate_image" -> "${Str.toolImageGenerating}…"
         status?.startsWith("tool:") == true -> "正在处理：${status.removePrefix("tool:").take(48)}"
         else -> Str.thinkingPlaceholder

@@ -22,6 +22,7 @@ export type {
 	RemoteResponse,
 	RemoteResume,
 	RemoteRole,
+	RemoteSessionContext,
 	RemoteTransport,
 	RemoteTransportHandlers,
 } from "./types.js";

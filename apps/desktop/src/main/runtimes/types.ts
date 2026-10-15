@@ -10,8 +10,10 @@ export type RuntimeSource = "managed" | "system";
 /** 单个运行时的对外状态(给 IPC / 设置面板)。 */
 export interface RuntimeStatus {
 	type: RuntimeType;
-	/** 托管版是否就绪(可执行文件可运行且版本与清单一致)。 */
+	/** 托管版是否就绪(版本与清单一致；Node 还需有完整、可运行的 npm)。 */
 	ready: boolean;
+	/** 文件占用导致修复未完成；下次启动需先恢复运行时。 */
+	repairRequiresRestart?: boolean;
 	/** 推荐(目标)版本。 */
 	recommendedVersion: string;
 	/** 托管版实际版本(就绪时)。 */
@@ -45,6 +47,7 @@ interface RegistryEntry {
 /** ~/.567agent/runtimes/.cache/registry.json 的形状。 */
 export interface RuntimeRegistryData {
 	version: 1;
+	pendingRepairs?: RuntimeType[];
 	binaries: Partial<Record<RuntimeType, RegistryEntry>>;
 	systemDetection: Partial<Record<RuntimeType, { path: string; version: string; detectedAt: number }>>;
 }

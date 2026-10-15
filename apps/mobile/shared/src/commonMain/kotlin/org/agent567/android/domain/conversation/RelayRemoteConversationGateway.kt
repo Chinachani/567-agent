@@ -57,6 +57,7 @@ import org.agent567.android.domain.remote.connection.RemoteConnection
 import org.agent567.android.domain.remote.connection.RemoteConnectionEvent
 import org.agent567.android.domain.remote.connection.RemoteConnectionOptions
 import org.agent567.android.domain.remote.connection.RemoteConnectionState
+import org.agent567.android.domain.remote.connection.RemoteEventCursor
 import org.agent567.android.domain.remote.connection.RemoteRequestException
 import org.agent567.android.domain.remote.protocol.RemoteCapabilities
 import org.agent567.android.domain.remote.protocol.RemoteRole
@@ -85,6 +86,8 @@ class RelayRemoteConversationGateway(
     private var reconnectJob: Job? = null
     private var activeTargets: List<String> = emptyList()
     private var connectionGeneration = 0L
+    private var connectionTarget: String? = null
+    private val eventCursors = MutableStateFlow<Map<String, RemoteEventCursor>>(emptyMap())
     private val remoteSessionIds = mutableMapOf<String, String>()
     private var migrationTransferCounter = 0L
 
@@ -108,6 +111,7 @@ class RelayRemoteConversationGateway(
         metricsJob?.cancel()
         metricsJob = null
         old?.close()
+        rememberEventCursor(old, connectionTarget)
         var selectedTarget: String? = null
         var selectedConnection: RemoteConnection? = null
         var lastFailure: Throwable? = null
@@ -218,6 +222,7 @@ class RelayRemoteConversationGateway(
         connection?.close()
         connection = null
         remoteSessionIds.clear()
+        eventCursors.value = emptyMap()
         _devices.value = emptyList()
     }
 
@@ -583,6 +588,49 @@ class RelayRemoteConversationGateway(
         )
     }
 
+    override suspend fun readDesktopContext(localSessionId: String, remoteSessionId: String) =
+        contextRequest(localSessionId, remoteSessionId, RemoteRequestMethod.SessionContext)
+
+    override suspend fun compactDesktopContext(localSessionId: String, remoteSessionId: String) =
+        contextRequest(localSessionId, remoteSessionId, RemoteRequestMethod.SessionContextCompact)
+
+    override suspend fun setDesktopAutoCompaction(localSessionId: String, remoteSessionId: String, enabled: Boolean) =
+        contextRequest(localSessionId, remoteSessionId, RemoteRequestMethod.SessionContextAuto, buildJsonObject { put("enabled", enabled) })
+
+    private suspend fun contextRequest(
+        localSessionId: String,
+        remoteSessionId: String,
+        method: RemoteRequestMethod,
+        payload: JsonObject? = null,
+    ): org.agent567.android.domain.session.ChatContextSnapshot? {
+        val active = connection ?: throw RemoteConversationException("电脑连接已断开，请重新连接")
+        if (active.state.value != RemoteConnectionState.Online) throw RemoteConversationException("电脑连接已断开，请重新连接")
+        val methodName = when (method) {
+            RemoteRequestMethod.SessionContextCompact -> "session.context.compact"
+            RemoteRequestMethod.SessionContextAuto -> "session.context.auto"
+            else -> "session.context"
+        }
+        if (!active.supportsPeerMethod(methodName)) {
+            val catalog = active.request(RemoteRequestMethod.SessionList) as? JsonObject
+            updatePeerSupportedMethods(active, catalog ?: return null)
+            if (!active.supportsPeerMethod(methodName)) return null
+        }
+        val opened = active.request(RemoteRequestMethod.SessionOpen, sessionId = remoteSessionId) as? JsonObject
+        val resolved = opened?.get("sessionId")?.jsonPrimitive?.contentOrNull ?: remoteSessionId
+        remoteSessionIds[localSessionId] = resolved
+        val response = active.request(method, payload, resolved, timeoutMs = if (method == RemoteRequestMethod.SessionContextCompact) 600_000 else 30_000) as? JsonObject
+            ?: throw RemoteConversationException("电脑端未返回上下文状态")
+        return org.agent567.android.domain.session.ChatContextSnapshot(
+            tokens = response["tokens"]?.jsonPrimitive?.longOrNull,
+            contextWindow = response["contextWindow"]?.jsonPrimitive?.longOrNull?.takeIf { it > 0 },
+            estimated = response["estimated"]?.jsonPrimitive?.booleanOrNull ?: true,
+            messageCount = response["messageCount"]?.jsonPrimitive?.intOrNull ?: 0,
+            autoCompactionEnabled = response["autoCompactionEnabled"]?.jsonPrimitive?.booleanOrNull ?: true,
+            busy = response["busy"]?.jsonPrimitive?.booleanOrNull ?: false,
+            summary = response["summary"]?.jsonPrimitive?.contentOrNull.orEmpty(),
+        )
+    }
+
     override suspend fun readDesktopPromptSuggestions(
         localSessionId: String,
         remoteSessionId: String,
@@ -618,6 +666,7 @@ class RelayRemoteConversationGateway(
                     deviceName = "567 Agent Mobile",
                     capabilities = RemoteCapabilities(chat = true, sessionRead = true),
                     connectionId = "mobile-${kotlin.random.Random.nextLong().toULong().toString(16)}",
+                    eventCursor = eventCursors.value[target],
                 ),
             scope = scope,
             logger = PlatformRemoteLogger,
@@ -630,6 +679,7 @@ class RelayRemoteConversationGateway(
         generation: Long,
         reconnectEnabled: Boolean,
     ) {
+        connectionTarget = target
         connectionStateJob?.cancel()
         connectionStateJob = scope.launch {
             next.state.collect { state ->
@@ -664,6 +714,7 @@ class RelayRemoteConversationGateway(
                 if (generation != connectionGeneration || target !in activeTargets) return@launch
                 val previous = connection
                 runCatching { previous?.close() }
+                rememberEventCursor(previous, connectionTarget)
                 var reconnected = false
                 for (candidate in activeTargets) {
                     if (generation != connectionGeneration || candidate !in activeTargets) return@launch
@@ -724,11 +775,16 @@ class RelayRemoteConversationGateway(
         files: List<RemotePromptFileAttachment>,
     ): Flow<ChatStreamEvent> =
         channelFlow {
+            val generation = connectionGeneration
+            val turnId = "mobile_${kotlin.random.Random.nextLong().toULong().toString(16)}_${kotlin.random.Random.nextLong().toULong().toString(16)}"
+            var submitted = false
+            var turnSessionId = remoteSessionId ?: remoteSessionIds[localSessionId]
             val active = connection ?: throw RemoteConversationException("请先连接桌面设备")
             if (active.state.value != RemoteConnectionState.Online) {
                 throw RemoteConversationException("桌面连接正在恢复，请稍后重试")
             }
             val terminal = CompletableDeferred<ChatStreamEvent.State>()
+            var terminalFromDesktop = false
             var transportStateSent = false
             suspend fun emitTransportState() {
                 if (transportStateSent) return
@@ -742,12 +798,11 @@ class RelayRemoteConversationGateway(
                 )
             }
             val connectionJob = launch(start = CoroutineStart.UNDISPATCHED) {
-                // RemoteConnection does not own a reconnect loop. Once the transport
-                // enters recovery, keeping the turn open would leave the user with an
-                // endless spinner and no way to answer or retry. End the current turn
-                // explicitly; a later connection can resume the session from history.
+                // End this transport subscription. The caller then recovers the exact
+                // turn through a read-only snapshot on the replacement connection.
                 active.state.first {
                     it == RemoteConnectionState.Reconnecting ||
+                        it == RemoteConnectionState.Recovering ||
                         it == RemoteConnectionState.Closed ||
                         it == RemoteConnectionState.Failed
                 }
@@ -768,9 +823,11 @@ class RelayRemoteConversationGateway(
                             if (expectedSessionId != null && event.event.sessionId != expectedSessionId) return@mapNotNull null
                             event.event.sessionId?.let { remoteSessionIds[localSessionId] = it }
 							decodeConversationEvent(event.event.name, event.event.payload)
-						}.collect { event ->
+                        }.collect { event ->
                             send(event)
-                            if (event is ChatStreamEvent.State && event.value in TERMINAL_REMOTE_STATES) terminal.complete(event)
+                            if (event is ChatStreamEvent.State && event.value in TERMINAL_REMOTE_STATES && terminal.complete(event)) {
+                                terminalFromDesktop = true
+                            }
                         }
             }
 
@@ -859,6 +916,7 @@ class RelayRemoteConversationGateway(
                 }
                 val payload = buildJsonObject {
                     put("text", promptText)
+                    put("turnId", turnId)
                     if (attachmentIds.isNotEmpty()) {
                         put("attachmentIds", JsonArray(attachmentIds.map(::JsonPrimitive)))
                     }
@@ -868,6 +926,8 @@ class RelayRemoteConversationGateway(
                     }
                 }
                 val result = try {
+                    turnSessionId = promptSessionId
+                    submitted = true
                     active.request(
                         method = org.agent567.android.domain.remote.protocol.RemoteRequestMethod.SessionPrompt,
                         payload = payload,
@@ -898,11 +958,110 @@ class RelayRemoteConversationGateway(
                     )
                 }
                 if (finalState.value != "aborted") send(ChatStreamEvent.Done)
+            } catch (error: Throwable) {
+                if (error is CancellationException) throw error
+                // A provider timeout is a finished task, not a lost transport.
+                if (terminalFromDesktop) throw error
+                val connectionLost = active.state.value in setOf(RemoteConnectionState.Reconnecting, RemoteConnectionState.Closed, RemoteConnectionState.Failed) ||
+                    (error is RemoteRequestException && error.remoteError.code in setOf(RemoteErrorCode.TransportClosed, RemoteErrorCode.RequestTimeout))
+                if (!submitted || !connectionLost || generation != connectionGeneration) throw error
+                eventJob.cancelAndJoin()
+                connectionJob.cancelAndJoin()
+                emitTransportState()
+                if (error is RemoteRequestException && error.remoteError.code == RemoteErrorCode.RequestTimeout && connection === active) {
+                    scheduleReconnect(connectionTarget ?: activeTargets.first(), generation)
+                }
+                val targetSessionId = turnSessionId ?: remoteSessionIds[localSessionId]
+                    ?: throw RemoteConversationException("连接已中断，尚未确认电脑会话。消息已保留，请连接后检查记录再重试")
+                recoverRemoteTurn(deviceId, targetSessionId, turnId, generation) { send(it) }
             } finally {
                 eventJob.cancel()
                 connectionJob.cancel()
             }
         }
+
+    private suspend fun rememberEventCursor(active: RemoteConnection?, target: String?) {
+        if (active == null || target == null) return
+        val snapshot = active.snapshot()
+        snapshot.eventPublisherId?.let { publisher ->
+            eventCursors.update { it + (target to RemoteEventCursor(publisher, snapshot.lastEventSequence)) }
+        }
+    }
+
+    private suspend fun recoverRemoteTurn(
+        deviceId: String,
+        sessionId: String,
+        turnId: String,
+        generation: Long,
+        emit: suspend (ChatStreamEvent) -> Unit,
+    ) {
+        // Recovery reads the exact submitted turn. It never sends session.prompt again.
+        var failedReads = 0
+        while (true) {
+            val active = withTimeoutOrNull(90_000) {
+                while (generation == connectionGeneration && activeTargets.isNotEmpty()) {
+                    val candidate = connection
+                    if (candidate != null && candidate.state.value in setOf(RemoteConnectionState.Online, RemoteConnectionState.Recovering)) {
+                        if (candidate.snapshot().peerDeviceId != deviceId) throw RemoteConversationException("连接的电脑已变化，请重新打开会话")
+                        return@withTimeoutOrNull candidate
+                    }
+                    delay(250)
+                }
+                null
+            } ?: throw RemoteConversationException("连接恢复超时，消息已保留。请连接电脑后检查本次任务结果再重试")
+            var terminalFailure = false
+            try {
+                if (!active.supportsPeerMethod("session.turn.read")) {
+                    val catalog = active.request(RemoteRequestMethod.SessionList, timeoutMs = 5_000) as? JsonObject
+                        ?: throw RemoteConversationException("电脑没有返回恢复能力")
+                    updatePeerSupportedMethods(active, catalog)
+                    if (!active.supportsPeerMethod("session.turn.read")) throw RemoteRequestException(RemoteError(RemoteErrorCode.TransportClosed, "当前电脑端不支持任务断线恢复，请更新电脑端；本次消息已保留", true))
+                }
+                val snapshot = active.request(
+                    RemoteRequestMethod.SessionTurnRead,
+                    buildJsonObject { put("turnId", turnId) },
+                    sessionId,
+                    timeoutMs = 10_000,
+                ) as? JsonObject ?: throw RemoteConversationException("电脑没有返回本次任务状态")
+                if (snapshot["found"]?.jsonPrimitive?.booleanOrNull != true) throw RemoteConversationException("电脑未找到本次任务的恢复记录，请先查看电脑会话结果再决定是否重试")
+                (snapshot["eventCursor"] as? JsonObject)?.let { cursor ->
+                    val publisher = cursor.stringValue("publisherId")
+                    val sequence = cursor.longValue("sequence")
+                    if (publisher != null && sequence != null) active.restoreEventCursor(RemoteEventCursor(publisher, sequence))
+                }
+                failedReads = 0
+                val state = snapshot.stringValue("state") ?: "waiting_response"
+                emit(ChatStreamEvent.Snapshot(
+                    truncated = snapshot["truncated"]?.jsonPrimitive?.booleanOrNull == true,
+                    text = snapshot.stringValue("text").orEmpty(),
+                    tools = (snapshot["tools"] as? JsonArray).orEmpty().mapNotNull { decodeConversationEvent(RemoteEventName.SessionTool, it) as? ChatStreamEvent.Tool },
+                    input = decodeConversationEvent(RemoteEventName.SessionInput, snapshot["input"]) as? ChatStreamEvent.UserInputRequired,
+                    state = state,
+                    usage = decodeConversationEvent(RemoteEventName.SessionState, snapshot["usage"]) as? ChatStreamEvent.State,
+                ))
+                if (state == "error") {
+                    terminalFailure = true
+                    val remoteError = snapshot["error"] as? JsonObject
+                    throw RemoteRequestException(RemoteError(remoteError?.stringValue("code").toRemoteErrorCode(), remoteError?.stringValue("message") ?: "电脑端任务失败，请查看电脑会话记录", false))
+                }
+                if (state in TERMINAL_REMOTE_STATES) {
+                    emit(ChatStreamEvent.State(state))
+                    if (state == "completed") emit(ChatStreamEvent.Done)
+                    return
+                }
+                delay(1_000)
+            } catch (error: Throwable) {
+                if (error is CancellationException) throw error
+                if (terminalFailure) throw error
+                val disconnected = active.state.value in setOf(RemoteConnectionState.Reconnecting, RemoteConnectionState.Closed, RemoteConnectionState.Failed)
+                val timedOut = error is RemoteRequestException && error.remoteError.code == RemoteErrorCode.RequestTimeout
+                if (!disconnected && !timedOut) throw error
+                if (++failedReads >= 3) throw RemoteConversationException("任务恢复连接不稳定，消息已保留，请检查电脑端结果后重试")
+                emit(ChatStreamEvent.State("reconnecting"))
+                if (connection === active && generation == connectionGeneration) scheduleReconnect(connectionTarget ?: activeTargets.first(), generation)
+            }
+        }
+    }
 
     private suspend fun transferPromptAttachment(
         active: RemoteConnection,

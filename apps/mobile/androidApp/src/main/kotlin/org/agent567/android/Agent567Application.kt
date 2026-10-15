@@ -13,6 +13,7 @@ class Agent567Application : Application() {
         super.onCreate()
         MobileDiagnostics.initialize(applicationContext)
         MessageImageFileSystem.initialize(applicationContext)
+        org.agent567.android.core.net.AndroidNetworkAvailability.initialize(applicationContext)
         appContainer = AppContainer.createDefault()
     }
 }

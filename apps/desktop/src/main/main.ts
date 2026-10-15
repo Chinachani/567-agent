@@ -687,7 +687,7 @@ if (!gotSingleLock) {
 		// 快速应用已经存在的托管运行时路径；vendor seed、系统探测和 shim 修复放到
 		// 首帧之后执行，避免这些维护工作阻塞窗口出现。
 		const runtimeManager = getRuntimeManager();
-		runtimeManager.applyEnv();
+		runtimeManager.applyEnv("available");
 		if (remoteControlUrl && remotePairingToken) {
 			void startDesktopRemoteAccess({
 				controlUrl: remoteControlUrl,
@@ -932,6 +932,10 @@ function desktopSignalingTarget(controlUrl: string | undefined): string | undefi
 // 之前先调用它——原因见该模块的注释。
 setQuitCleanup(async () => {
 	mainLog.info("quit cleanup started");
+	// Release managed Node processes before awaiting remote shutdown; a slow
+	// connection must not leave them holding the runtime through a repair restart.
+	stopAllPluginDevWatches();
+	stopAllPluginSpawns();
 	await stopDesktopRemoteAccess();
 	await stopDesktopRemoteDesktopHost();
 	beginSharedRuntimeShutdown();
@@ -949,10 +953,6 @@ setQuitCleanup(async () => {
 	// 必须等它完成：uiohook worker 要自己跑完 uIOhook.stop()，否则进程退出时
 	// uiohook-napi 的 env cleanup hook 会 SIGTRAP（macOS「意外退出」弹窗）。
 	const uiohookShutdown = stopAllUiohookConsumers();
-
-	// 停掉插件开发会话和插件命令拉起的长驻进程。
-	stopAllPluginDevWatches();
-	stopAllPluginSpawns();
 
 	const consumerShutdownResults = await Promise.allSettled([
 		shutdownScheduler(),

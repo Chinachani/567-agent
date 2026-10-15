@@ -2,9 +2,11 @@ import { spawnSync } from "node:child_process";
 import { chmodSync, existsSync } from "node:fs";
 import { cp, mkdir, mkdtemp, rename, rm, stat } from "node:fs/promises";
 import { basename, dirname, join, relative } from "node:path";
-import { probeRuntimeExecutable } from "./runtime-health.js";
+import type { RuntimeType } from "./paths.js";
+import { probeManagedRuntime } from "./runtime-health.js";
 
 export interface RuntimeArchiveInstallOptions {
+	runtimeType: RuntimeType;
 	archivePath: string;
 	archiveType: "tar.gz" | "zip";
 	innerDirectory: string;
@@ -14,10 +16,17 @@ export interface RuntimeArchiveInstallOptions {
 }
 
 export interface RuntimeDirectoryInstallOptions {
+	runtimeType: RuntimeType;
 	sourceDirectory: string;
 	targetDirectory: string;
 	executablePath: string;
 	expectedVersion: string;
+}
+
+export class RuntimeInstallInUseError extends Error {
+	constructor(cause: unknown) {
+		super("Runtime files are in use or the runtime directory is not writable", { cause });
+	}
 }
 
 function extractArchive(archivePath: string, destination: string, archiveType: string): void {
@@ -47,6 +56,8 @@ async function installViaStaging(
 	const targetParent = dirname(targetDirectory);
 	await mkdir(targetParent, { recursive: true });
 	const stagingDirectory = await mkdtemp(join(targetParent, `.${basename(targetDirectory)}-${stagingPrefix}-`));
+	const previousDirectory = join(stagingDirectory, "previous");
+	let preservePrevious = false;
 
 	try {
 		const preparedDirectory = await prepare(stagingDirectory);
@@ -56,11 +67,44 @@ async function installViaStaging(
 		}
 		validate(preparedDirectory);
 
-		await rm(targetDirectory, { recursive: true, force: true });
-		await rename(preparedDirectory, targetDirectory);
+		// Never recursively delete the active runtime: Windows can remove npm files
+		// before reaching a locked node.exe, leaving a misleadingly runnable shell.
+		const hadPrevious = existsSync(targetDirectory);
+		if (hadPrevious) {
+			try {
+				await rename(targetDirectory, previousDirectory);
+			} catch (error) {
+				if (
+					error instanceof Error &&
+					"code" in error &&
+					["EPERM", "EACCES", "EBUSY"].includes(String(error.code))
+				) {
+					throw new RuntimeInstallInUseError(error);
+				}
+				throw error;
+			}
+		}
+		try {
+			await rename(preparedDirectory, targetDirectory);
+		} catch (error) {
+			if (hadPrevious) {
+				try {
+					await rename(previousDirectory, targetDirectory);
+				} catch (restoreError) {
+					preservePrevious = true;
+					throw new AggregateError(
+						[error, restoreError],
+						`Runtime replacement failed; previous files retained at ${previousDirectory}`,
+					);
+				}
+			}
+			throw error;
+		}
 	} finally {
-		if (existsSync(stagingDirectory)) {
-			await rm(stagingDirectory, { recursive: true, force: true });
+		if (!preservePrevious && existsSync(stagingDirectory)) {
+			// Running processes may still hold the retired runtime. Cleanup failure
+			// does not invalidate the newly verified installation.
+			await rm(stagingDirectory, { recursive: true, force: true }).catch(() => undefined);
 		}
 	}
 }
@@ -104,7 +148,7 @@ export async function installRuntimeDirectory(options: RuntimeDirectoryInstallOp
 function validateRuntimePayload(
 	options: Pick<
 		RuntimeArchiveInstallOptions | RuntimeDirectoryInstallOptions,
-		"executablePath" | "expectedVersion" | "targetDirectory"
+		"runtimeType" | "executablePath" | "expectedVersion" | "targetDirectory"
 	>,
 	preparedDirectory: string,
 ): void {
@@ -116,7 +160,7 @@ function validateRuntimePayload(
 			// The health probe below reports a useful failure while preserving the old install.
 		}
 	}
-	const health = probeRuntimeExecutable(executablePath, options.expectedVersion);
+	const health = probeManagedRuntime(options.runtimeType, executablePath, options.expectedVersion);
 	if (!health.ready) {
 		throw new Error(
 			`runtime health check failed (${options.expectedVersion}): ${health.error ?? "version mismatch"}`,

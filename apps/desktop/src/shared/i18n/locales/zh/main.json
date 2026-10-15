@@ -110,5 +110,16 @@
 			"installFailed": "安装更新失败"
 		}
 	},
-	"projectExportFileType": "567 Agent 项目导出包"
+	"projectExportFileType": "567 Agent 项目导出包",
+	"runtimes": {
+		"downloading": "正在下载运行时文件",
+		"preparing": "正在准备运行时安装",
+		"copying": "正在复制内置运行时",
+		"installing": "正在解压并安装运行时",
+		"verifying": "正在验证运行时与包管理器",
+		"unavailable": "无法从内置运行时或可用镜像获取安装文件；请检查网络后重试。",
+		"healthFailed": "运行时或包管理器自检未通过，请重新获取或查看诊断日志。",
+		"ready": "运行时已就绪",
+		"inUse": "运行时文件被占用或目录不可写，原文件已保留。请打开“设置 → 应用环境”，点击“重启并修复”；软件会停止当前任务并在启动后自动修复。仍失败时请检查目录权限或安全软件拦截。"
+	}
 }

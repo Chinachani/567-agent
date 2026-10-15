@@ -1,10 +1,12 @@
-import { spawn, spawnSync } from "node:child_process";
+import type { ChildProcess } from "node:child_process";
+import { spawnSync } from "node:child_process";
 import { chmodSync, existsSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { delimiter, isAbsolute, join, resolve as resolvePath } from "node:path";
 import { getAgent567HomePath } from "@567agent/action-rpc";
 import type { SandboxShellGrant } from "@567agent/runtime-core/sandbox";
 import type { ForegroundCommandOperations } from "@567agent/runtime-tools";
+import { spawnGuardedCommand } from "../../coding/host/guarded-command-process.js";
 import { getSandboxShellGrant } from "../sandbox-permissions.js";
 import type { NodeSandboxEnvironment, NodeSandboxShell } from "./contracts.js";
 
@@ -316,6 +318,14 @@ export function createLinuxBubblewrapCommandOperations(
 			new Promise<{ exitCode: number | null }>((resolve, reject) => {
 				if (!existsSync(cwd)) return reject(new Error(`Working directory does not exist: ${cwd}`));
 				const agent567CliShim = createAgent567CliShim(env);
+				const removeCliShim = (): void => {
+					if (!agent567CliShim) return;
+					try {
+						rmSync(agent567CliShim.hostDir, { recursive: true, force: true });
+					} catch (error) {
+						console.warn("[sandbox] Temporary command cleanup failed", error);
+					}
+				};
 				const args = buildLinuxSandboxArgs(
 					command,
 					cwd,
@@ -324,7 +334,18 @@ export function createLinuxBubblewrapCommandOperations(
 					getSandboxShellGrant(cwd),
 					agent567CliShim?.hostPath,
 				);
-				const child = spawn(bubblewrapPath, args, { cwd, detached: true, stdio: ["ignore", "pipe", "pipe"] });
+				let child: ChildProcess;
+				try {
+					child = spawnGuardedCommand(bubblewrapPath, args, {
+						cwd,
+						detached: true,
+						stdio: ["ignore", "pipe", "pipe"],
+					});
+				} catch (error) {
+					removeCliShim();
+					reject(error);
+					return;
+				}
 				let timedOut = false;
 				let timeoutHandle: NodeJS.Timeout | undefined;
 				if (typeof timeout === "number" && timeout > 0) {
@@ -343,7 +364,7 @@ export function createLinuxBubblewrapCommandOperations(
 				const cleanup = () => {
 					if (timeoutHandle) clearTimeout(timeoutHandle);
 					signal?.removeEventListener("abort", onAbort);
-					if (agent567CliShim) rmSync(agent567CliShim.hostDir, { recursive: true, force: true });
+					removeCliShim();
 				};
 				child.on("error", (error) => {
 					cleanup();

@@ -161,6 +161,10 @@ export class RemoteConnection {
 		return event;
 	}
 
+	getOutboundEventCursor(): { publisherId: string; sequence: number } {
+		return { publisherId: this.connectionId, sequence: this.outboundEventSequence };
+	}
+
 	private handleFrame(frame: RemoteFrame): void {
 		const safeFrame = decodeRemoteFrame(frame);
 		if (safeFrame.type === "hello_ack") {

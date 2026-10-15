@@ -244,8 +244,8 @@
   "webhookDescription": "配置通知的 Webhook 集成。",
   "petDescription": "桌宠外观、动画和行为。",
   "environmentDescription": "配置环境变量和运行时设置。",
-  "environmentReinstallFailed": "运行时重新获取失败：{{detail}}。请检查网络与运行时目录权限后重试；当前文件未通过验证时不会标记为可用。",
-  "environmentRuntimeHealthCheckFailed": "运行时版本自检未通过，请重新获取或查看诊断日志。",
+  "environmentReinstallFailed": "运行时重新获取失败：{{detail}}",
+  "environmentRuntimeHealthCheckFailed": "运行时或包管理器自检未通过，请重新获取或查看诊断日志。",
   "archivedProjectsDescription": "管理已归档项目，可以恢复或删除它们。",
   "permissionsDescription": "管理应用程序权限和访问控制。",
   "searchSettings": "搜索设置",
@@ -2185,5 +2185,8 @@
   "migrationExported": "已导出 {{count}} 个会话。",
   "migrationImported": "已导入 {{count}} 个会话。",
   "environmentInstallProgress": "运行时安装进度",
-  "environmentInstallLogs": "查看安装记录"
+  "environmentInstallLogs": "查看安装记录",
+  "environmentRestartAndRepair": "重启并修复",
+  "environmentRepairRequiresRestart": "需重启修复",
+  "environmentRepairRestartDescription": "重启后自动修复环境；当前任务会停止，聊天记录和设置保留。"
 }

@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import type { RuntimeInstallProgress } from "../../../../shared/runtime-install-progress";
 import { SETTINGS_SECTION } from "../registry";
@@ -37,6 +37,9 @@ export interface EnvironmentSettingsModel {
 		title: string;
 		progress: string;
 		logs: string;
+		restartAndRepair: string;
+		repairRequiresRestart: string;
+		repairRestartDescription: string;
 	};
 	status: RuntimesStatus | null;
 }
@@ -44,6 +47,7 @@ export interface EnvironmentSettingsModel {
 export function useEnvironmentSettingsModel(): EnvironmentSettingsModel {
 	const { t } = useTranslation("settings");
 	const [status, setStatus] = useState<RuntimesStatus | null>(null);
+	const operation = useRef<EnvironmentRuntimeKind | null>(null);
 	const [busy, setBusy] = useState<EnvironmentRuntimeKind | null>(null);
 	const [error, setError] = useState<string | null>(null);
 	const [progress, setProgress] = useState<RuntimeInstallProgress | null>(null);
@@ -63,6 +67,13 @@ export function useEnvironmentSettingsModel(): EnvironmentSettingsModel {
 	useEffect(() => {
 		void refresh();
 	}, [refresh]);
+	useEffect(
+		() =>
+			window.agent567.runtimes.onStatusChanged(() => {
+				void refresh();
+			}),
+		[refresh],
+	);
 
 	useEffect(
 		() =>
@@ -78,11 +89,19 @@ export function useEnvironmentSettingsModel(): EnvironmentSettingsModel {
 
 	const reinstall = useCallback(
 		async (kind: EnvironmentRuntimeKind) => {
+			if (operation.current !== null) return;
+			operation.current = kind;
 			setBusy(kind);
 			setError(null);
 			setProgress(null);
 			setLogs([]);
+			let restarting = false;
 			try {
+				if (status?.[kind].repairRequiresRestart) {
+					await window.agent567.runtimes.restartAndRepair(kind);
+					restarting = true;
+					return;
+				}
 				const next = await window.agent567.runtimes.reinstall(kind);
 				if (!next.ready) throw new Error(t("environmentRuntimeHealthCheckFailed"));
 				const refreshed = await refresh();
@@ -91,10 +110,14 @@ export function useEnvironmentSettingsModel(): EnvironmentSettingsModel {
 			} catch (err) {
 				setError(t("environmentReinstallFailed", { detail: err instanceof Error ? err.message : String(err) }));
 			} finally {
-				setBusy(null);
+				if (!restarting) {
+					await refresh();
+					operation.current = null;
+					setBusy(null);
+				}
 			}
 		},
-		[refresh, t],
+		[refresh, status, t],
 	);
 
 	const labels = useMemo<EnvironmentSettingsModel["labels"]>(
@@ -122,6 +145,9 @@ export function useEnvironmentSettingsModel(): EnvironmentSettingsModel {
 			title: t("environment"),
 			progress: t("environmentInstallProgress"),
 			logs: t("environmentInstallLogs"),
+			restartAndRepair: t("environmentRestartAndRepair"),
+			repairRequiresRestart: t("environmentRepairRequiresRestart"),
+			repairRestartDescription: t("environmentRepairRestartDescription"),
 		}),
 		[t],
 	);

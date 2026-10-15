@@ -1,3 +1,4 @@
+export { killNodeProcessTree } from "../coding/host/process-tree.js";
 export {
 	createNodeCommandExecutor,
 	type NodeCommandExecutionOptions,

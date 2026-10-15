@@ -3,6 +3,7 @@ import { existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from "node
 import { chmod, open } from "node:fs/promises";
 import { delimiter, join } from "node:path";
 import { atomicWriteJSON } from "@567agent/toolkit/atomic-write";
+import { mainT } from "../i18n/index.js";
 import { getAppLogger } from "../logger.js";
 import {
 	binDirsFor,
@@ -22,8 +23,12 @@ import {
 	vendorRuntimeArchivePath,
 	vendorRuntimeDir,
 } from "./paths.js";
-import { installRuntimeArchive, installRuntimeDirectory } from "./runtime-archive-installer.js";
-import { probeRuntimeExecutable } from "./runtime-health.js";
+import {
+	installRuntimeArchive,
+	installRuntimeDirectory,
+	RuntimeInstallInUseError,
+} from "./runtime-archive-installer.js";
+import { hasNodePackageManagerFiles, nodePackageManagerPaths, probeManagedRuntime } from "./runtime-health.js";
 import type { RuntimeInstallProgress, RuntimeRegistryData, RuntimeStatus, RuntimesStatus } from "./types.js";
 
 const log = getAppLogger("runtimes");
@@ -36,7 +41,7 @@ const RUNTIME_TYPES: RuntimeType[] = ["node", "python"];
 const RUNTIME_PROBE_TTL_MS = 30_000;
 
 function emptyRegistry(): RuntimeRegistryData {
-	return { version: 1, binaries: {}, systemDetection: {} };
+	return { version: 1, binaries: {}, systemDetection: {}, pendingRepairs: [] };
 }
 
 /** 解析版本号:node `v22.20.0`→`22.20.0`;python `Python 3.13.9`→`3.13.9`。 */
@@ -47,9 +52,32 @@ function parseVersion(raw: string): string | undefined {
 
 export class RuntimeManager {
 	private data: RuntimeRegistryData = emptyRegistry();
+	private registryLoaded = false;
 	private readonly probeCache = new Map<RuntimeType, { checkedAt: number; executablePath: string; ready: boolean }>();
+	private readonly reinstalling = new Map<RuntimeType, Promise<RuntimeStatus>>();
+	private readonly prepared = new Set<RuntimeType>();
+	private readonly statusListeners = new Set<() => void>();
+
+	onStatusChanged(listener: () => void): () => void {
+		this.statusListeners.add(listener);
+		return () => {
+			this.statusListeners.delete(listener);
+		};
+	}
+
+	private emitStatusChanged(): void {
+		for (const listener of this.statusListeners) {
+			try {
+				listener();
+			} catch (error) {
+				log.warn("runtime status listener failed", error);
+			}
+		}
+	}
 
 	private loadRegistry(): void {
+		if (this.registryLoaded) return;
+		this.registryLoaded = true;
 		try {
 			if (existsSync(registryPath())) {
 				const parsed = JSON.parse(readFileSync(registryPath(), "utf-8")) as RuntimeRegistryData;
@@ -58,6 +86,9 @@ export class RuntimeManager {
 						version: 1,
 						binaries: parsed.binaries ?? {},
 						systemDetection: parsed.systemDetection ?? {},
+						pendingRepairs: Array.isArray(parsed.pendingRepairs)
+							? parsed.pendingRepairs.filter((type) => type === "node" || type === "python")
+							: [],
 					};
 				}
 			}
@@ -73,6 +104,7 @@ export class RuntimeManager {
 		} catch (err) {
 			log.warn("registry save failed", err);
 		}
+		this.emitStatusChanged();
 	}
 
 	/** 探测系统已安装的同名运行时(用系统 PATH 快照,不含我们的注入)。 */
@@ -103,13 +135,13 @@ export class RuntimeManager {
 	}
 
 	/** 内置 vendor → ~/.567agent/runtimes 首启安装。返回是否完成 seed。 */
-	private async seedFromVendor(type: RuntimeType): Promise<boolean> {
+	private async seedFromVendor(type: RuntimeType, force = false): Promise<boolean> {
 		const entry = platformEntry(type);
 		if (!entry) return false;
 		const version = runtimeVersion(type);
 		const target = installDir(type, version);
 		const marker = join(target, ".vendor-version");
-		if (this.isReady(type) && this.readMarker(marker) === version) {
+		if (!force && this.isReady(type) && this.readMarker(marker) === version) {
 			return true; // 已 seed 且版本一致,跳过安装
 		}
 
@@ -137,6 +169,7 @@ export class RuntimeManager {
 	): Promise<void> {
 		const target = installDir(type, version);
 		await installRuntimeArchive({
+			runtimeType: type,
 			archivePath,
 			archiveType: entry.archive,
 			innerDirectory: entry.dir,
@@ -149,6 +182,7 @@ export class RuntimeManager {
 
 	private async installDirectory(type: RuntimeType, sourceDirectory: string, version: string): Promise<void> {
 		await installRuntimeDirectory({
+			runtimeType: type,
 			sourceDirectory,
 			targetDirectory: installDir(type, version),
 			executablePath: executablePathFor(type, version),
@@ -204,12 +238,13 @@ export class RuntimeManager {
 			try {
 				log.info(`downloading ${type} from ${url}`);
 				await this.fetchToFile(url, tmpFile, type, onProgress);
-				onProgress?.({ type, phase: "installing", message: "正在解压并安装运行时", updatedAt: Date.now() });
+				onProgress?.({ type, phase: "installing", message: mainT("runtimes.installing"), updatedAt: Date.now() });
 				await this.installArchive(type, tmpFile, entry, version);
 				rmSync(tmpFile, { force: true });
 				return true;
 			} catch (err) {
 				log.warn(`download from ${url} failed`, err);
+				if (err instanceof RuntimeInstallInUseError) throw err;
 			}
 		}
 		return false;
@@ -248,7 +283,7 @@ export class RuntimeManager {
 							phase: "downloading",
 							downloadedBytes,
 							...(totalBytes ? { totalBytes } : {}),
-							message: "正在下载运行时文件",
+							message: mainT("runtimes.downloading"),
 							updatedAt: now,
 						});
 					}
@@ -264,7 +299,7 @@ export class RuntimeManager {
 
 	private isReady(type: RuntimeType): boolean {
 		const executablePath = executablePathFor(type);
-		if (!existsSync(executablePath)) {
+		if (!existsSync(executablePath) || (type === "node" && !hasNodePackageManagerFiles(executablePath))) {
 			this.probeCache.delete(type);
 			return false;
 		}
@@ -274,7 +309,7 @@ export class RuntimeManager {
 			return cached.ready;
 		}
 
-		const health = probeRuntimeExecutable(executablePath, runtimeVersion(type));
+		const health = probeManagedRuntime(type, executablePath, runtimeVersion(type));
 		const ready = health.ready;
 		if (!ready) log.warn(`${type} runtime health check failed`, health);
 		this.probeCache.set(type, { checkedAt: now, executablePath, ready });
@@ -309,8 +344,7 @@ export class RuntimeManager {
 
 	private async writeNpmShimScripts(): Promise<void> {
 		if (!this.isReady("node")) return;
-		const npmCli = join(installDir("node"), "node_modules", "npm", "bin", "npm-cli.js");
-		const npxCli = join(installDir("node"), "node_modules", "npm", "bin", "npx-cli.js");
+		const { npmCli, npxCli } = nodePackageManagerPaths(executablePathFor("node"));
 		if (!existsSync(npmCli) || !existsSync(npxCli)) return;
 
 		const shimDir = npmGlobalBinDir();
@@ -604,21 +638,11 @@ export class RuntimeManager {
 				log.warn(`detect system ${type} failed`, err);
 			}
 			try {
-				// 启动只走零网络的 vendor 归档解压;下载是面板触发的次要路径(见 reinstall),
-				// 不在启动阻塞,避免无内置 vendor 的开发态/异常环境卡在 180s 超时。
-				if (!this.isReady(type)) {
-					await this.seedFromVendor(type);
-				}
-				if (this.isReady(type)) {
-					this.recordManaged(type);
-					await this.ensureNpm(type);
-					await this.ensurePip(type);
-				} else {
-					delete this.data.binaries[type];
-					log.warn(`${type} not ready (vendor absent); deferring to panel-driven download`);
-				}
+				await this.ensureReady(type);
 			} catch (err) {
 				log.error(`ensure ${type} failed`, err);
+				this.probeCache.delete(type);
+				if (!this.isReady(type)) delete this.data.binaries[type];
 			}
 		}
 		this.saveRegistry();
@@ -629,10 +653,17 @@ export class RuntimeManager {
 	 * bash 经 getShellEnv() spread、IM sidecar 继承 main env → coding-agent → bash。
 	 * 幂等:重复调用安全。即使运行时未就绪也安全(前置不存在目录无害)。
 	 */
-	applyEnv(): void {
+	applyEnv(mode: "verified" | "available" = "verified"): void {
+		// Before the first window paint, only inspect paths. Executing npm probes
+		// belongs to deferred initialization or the command's readiness gate.
+		const ready = (type: RuntimeType) =>
+			mode === "verified"
+				? this.isReady(type)
+				: existsSync(executablePathFor(type)) &&
+					(type !== "node" || hasNodePackageManagerFiles(executablePathFor(type)));
 		const dirs: string[] = process.platform === "win32" ? [npmGlobalBinDir()] : [];
 		for (const type of RUNTIME_TYPES) {
-			if (this.isReady(type)) dirs.push(...binDirsFor(type));
+			if (ready(type)) dirs.push(...binDirsFor(type));
 		}
 		if (process.platform !== "win32") dirs.push(npmGlobalBinDir());
 
@@ -641,7 +672,7 @@ export class RuntimeManager {
 		const merged = [...dirs.filter((d) => !existing.includes(d)), ...existing];
 		process.env[pathKey] = merged.join(delimiter);
 
-		if (process.platform === "win32" && this.isReady("node")) {
+		if (mode === "verified" && process.platform === "win32" && ready("node")) {
 			try {
 				this.writeNpmConfig();
 				void this.writeNpmShimScripts().catch((err) => log.warn("npm shim generation failed", err));
@@ -654,7 +685,7 @@ export class RuntimeManager {
 		process.env.npm_config_registry = RUNTIME_MANIFEST.mirrors.npmRegistry;
 		process.env.npm_config_prefix = npmGlobalPrefixDir();
 		process.env.npm_config_cache = npmCacheDir();
-		if (process.platform === "win32" && this.isReady("python")) {
+		if (mode === "verified" && process.platform === "win32" && ready("python")) {
 			this.writePipConfig();
 			process.env.PIP_CONFIG_FILE = this.pipConfigPath();
 			process.env.AGENT567_MANAGED_PYTHON_SITE_PACKAGES = this.pythonSitePackagesDir();
@@ -674,8 +705,9 @@ export class RuntimeManager {
 		}
 
 		log.info("runtime env applied", {
-			node: this.isReady("node"),
-			python: this.isReady("python"),
+			node: ready("node"),
+			python: ready("python"),
+			mode,
 			npmRegistry: RUNTIME_MANIFEST.mirrors.npmRegistry,
 		});
 	}
@@ -687,6 +719,7 @@ export class RuntimeManager {
 		return {
 			type,
 			ready,
+			repairRequiresRestart: this.data.pendingRepairs?.includes(type) ?? false,
 			recommendedVersion: runtimeVersion(type),
 			managedVersion: ready ? runtimeVersion(type) : undefined,
 			executablePath: ready ? executablePathFor(type) : undefined,
@@ -697,6 +730,7 @@ export class RuntimeManager {
 	}
 
 	getStatus(): RuntimesStatus {
+		this.loadRegistry();
 		return {
 			node: this.statusFor("node"),
 			python: this.statusFor("python"),
@@ -708,32 +742,105 @@ export class RuntimeManager {
 	}
 
 	/** 面板「升级/重新获取」:强制重新 seed/下载推荐版本,再刷新 env。 */
-	async reinstall(type: RuntimeType, onProgress?: (progress: RuntimeInstallProgress) => void): Promise<RuntimeStatus> {
-		const target = installDir(type);
+	reinstall(type: RuntimeType, onProgress?: (progress: RuntimeInstallProgress) => void): Promise<RuntimeStatus> {
+		this.loadRegistry();
+		return this.startPreparation(type, true, true, onProgress);
+	}
+
+	/** Plugin commands and startup share the same repair before spawning Node. */
+	ensureReady(type: RuntimeType): Promise<RuntimeStatus> {
+		this.loadRegistry();
+		const pending = this.reinstalling.get(type);
+		if (pending) return pending;
+		const forced = this.data.pendingRepairs?.includes(type) ?? false;
+		if (!forced && this.isReady(type) && this.prepared.has(type)) return Promise.resolve(this.statusFor(type));
+		// Ordinary startup stays offline. A saved restart-and-repair request may
+		// explicitly use mirrors if the bundled payload is unavailable.
+		return this.startPreparation(type, forced, forced);
+	}
+
+	scheduleRepair(type: RuntimeType): void {
+		this.loadRegistry();
+		this.data.pendingRepairs = [...new Set([...(this.data.pendingRepairs ?? []), type])];
+		// A restart must not proceed unless its repair intent was durably saved.
+		atomicWriteJSON(registryPath(), this.data);
+		this.emitStatusChanged();
+	}
+
+	private startPreparation(
+		type: RuntimeType,
+		force: boolean,
+		allowDownload: boolean,
+		onProgress?: (progress: RuntimeInstallProgress) => void,
+	): Promise<RuntimeStatus> {
+		const pending = this.reinstalling.get(type);
+		if (pending) return pending;
+		const operation = this.prepareRuntime(type, force, allowDownload, onProgress);
+		this.reinstalling.set(type, operation);
+		const clear = () => this.reinstalling.delete(type);
+		void operation.then(clear, clear);
+		return operation;
+	}
+
+	private async prepareRuntime(
+		type: RuntimeType,
+		force: boolean,
+		allowDownload: boolean,
+		onProgress?: (progress: RuntimeInstallProgress) => void,
+	): Promise<RuntimeStatus> {
 		try {
-			onProgress?.({ type, phase: "preparing", message: "正在准备运行时安装", updatedAt: Date.now() });
-			rmSync(join(target, ".vendor-version"), { force: true });
-			const seeded = await this.seedFromVendor(type);
-			if (seeded) onProgress?.({ type, phase: "installing", message: "正在复制内置运行时", updatedAt: Date.now() });
-			const installed = seeded || (await this.download(type, onProgress));
+			this.probeCache.delete(type);
+			onProgress?.({ type, phase: "preparing", message: mainT("runtimes.preparing"), updatedAt: Date.now() });
+			const reuseExisting = !force && this.isReady(type);
+			let seeded = reuseExisting;
+			let seedError: unknown;
+			try {
+				if (!reuseExisting) seeded = await this.seedFromVendor(type, force);
+			} catch (error) {
+				if (error instanceof RuntimeInstallInUseError) throw error;
+				seedError = error;
+				log.warn(`bundled ${type} recovery failed`, error);
+			}
+			if (seeded && !reuseExisting)
+				onProgress?.({ type, phase: "installing", message: mainT("runtimes.copying"), updatedAt: Date.now() });
+			const installed = seeded || (allowDownload && (await this.download(type, onProgress)));
 			if (!installed) {
-				throw new Error("无法从内置运行时或可用镜像获取安装文件；请检查网络后重试。");
+				if (seedError instanceof Error) throw seedError;
+				throw new Error(mainT("runtimes.unavailable"));
 			}
 			this.probeCache.delete(type);
-			onProgress?.({ type, phase: "verifying", message: "正在验证运行时版本与可执行性", updatedAt: Date.now() });
+			onProgress?.({ type, phase: "verifying", message: mainT("runtimes.verifying"), updatedAt: Date.now() });
 			if (!this.isReady(type)) {
-				throw new Error("安装文件已获取，但运行时自检未通过；旧版本文件已保留。");
+				throw new Error(mainT("runtimes.healthFailed"));
 			}
 			this.recordManaged(type);
 			await this.ensureNpm(type);
 			await this.ensurePip(type);
+			this.prepared.add(type);
+			this.data.pendingRepairs = this.data.pendingRepairs?.filter((pendingType) => pendingType !== type);
 			this.saveRegistry();
 			this.applyEnv();
-			onProgress?.({ type, phase: "ready", message: "运行时已就绪", updatedAt: Date.now() });
+			onProgress?.({ type, phase: "ready", message: mainT("runtimes.ready"), updatedAt: Date.now() });
 			return this.statusFor(type);
 		} catch (error) {
+			this.prepared.delete(type);
 			log.error(`reinstall ${type} failed`, error);
-			const normalized = error instanceof Error ? error : new Error(String(error));
+			if (error instanceof RuntimeInstallInUseError) {
+				try {
+					this.scheduleRepair(type);
+				} catch (saveError) {
+					log.warn("failed to save runtime repair intent", saveError);
+				}
+			}
+			this.probeCache.delete(type);
+			if (!this.isReady(type)) delete this.data.binaries[type];
+			this.saveRegistry();
+			const normalized =
+				error instanceof RuntimeInstallInUseError
+					? new Error(mainT("runtimes.inUse"), { cause: error })
+					: error instanceof Error
+						? error
+						: new Error(String(error));
 			onProgress?.({ type, phase: "error", message: normalized.message, updatedAt: Date.now() });
 			throw normalized;
 		}

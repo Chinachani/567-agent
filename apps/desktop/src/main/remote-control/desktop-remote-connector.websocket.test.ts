@@ -51,6 +51,7 @@ describe("DesktopRemoteConnector WebSocket integration", () => {
 		await waitForOnline(mobile);
 		await expect(mobile.request("session.prompt", { text: "hello" })).resolves.toEqual({
 			accepted: true,
+			turnId: expect.any(String),
 			sessionId: "runtime-session-1",
 		});
 		await waitFor(() => deltas.length === 1);
