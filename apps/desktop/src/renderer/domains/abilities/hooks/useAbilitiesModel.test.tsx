@@ -353,7 +353,17 @@ it("refreshes discovery, hides empty filter options, merges aliases and exposes 
 	const typeSelect = screen.getByRole("combobox", { name: "Filter abilities by type" });
  expect(typeSelect.querySelectorAll("option")).toHaveLength(2);
  const categorySelect = screen.getByRole("combobox", { name: "Filter abilities by category" });
- expect(categorySelect.querySelectorAll("option")).toHaveLength(2);
+ expect(Array.from(categorySelect.querySelectorAll("option"), (option) => option.value)).toEqual([
+		"",
+		"__installed__",
+		"data-databases",
+	]);
+ await user.selectOptions(categorySelect, "__installed__");
+ expect(screen.queryByText("Postgres")).toBeNull();
+ expect(screen.queryByText("SQLite")).toBeNull();
+ await user.selectOptions(categorySelect, "");
+ expect(screen.getByText("Postgres")).toBeTruthy();
+ expect(screen.getByText("SQLite")).toBeTruthy();
  await user.selectOptions(typeSelect, "mcp");
  await user.selectOptions(categorySelect, "data-databases");
  await user.type(screen.getByRole("textbox", { name: "Search abilities" }), "sqlite");

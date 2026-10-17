@@ -1182,6 +1182,7 @@ function describeContinuedConversation(content: string): Readonly<Record<string,
 		.split(/\r?\n/u)
 		.map((line) => JSON.parse(line) as unknown);
 	const entries: PersistedEntryReference[] = [];
+	let activeLeafId: string | null = null;
 	for (const record of records) {
 		if (!isRecord(record)) continue;
 		if (record.recordType === "conversation.import.seed" && Array.isArray(record.entries)) {
@@ -1189,11 +1190,25 @@ function describeContinuedConversation(content: string): Readonly<Record<string,
 				const reference = readPersistedEntryReference(entry);
 				if (reference) entries.push(reference);
 			}
+			activeLeafId = typeof record.activeLeafId === "string" ? record.activeLeafId : null;
+			continue;
+		}
+		if (record.recordType === "conversation.document.operation" && isRecord(record.command)) {
+			const command = record.command;
+			if (command.type === "custom.append" && typeof command.entryId === "string") {
+				entries.push({ id: command.entryId, parentId: activeLeafId });
+				activeLeafId = command.entryId;
+			} else if (command.type === "active_leaf.set") {
+				activeLeafId = typeof command.entryId === "string" ? command.entryId : null;
+			}
 			continue;
 		}
 		if (isRecord(record.documentEntry)) {
 			const reference = readPersistedEntryReference(record.documentEntry, readStoredEventRole(record.event));
-			if (reference) entries.push(reference);
+			if (reference) {
+				entries.push(reference);
+				activeLeafId = reference.id;
+			}
 			continue;
 		}
 		const reference = readPersistedEntryReference(record);
@@ -1209,12 +1224,25 @@ function describeContinuedConversation(content: string): Readonly<Record<string,
 		(entry): entry is PersistedEntryReference & { readonly role: string } => entry.role !== undefined,
 	);
 	const activeTail = messageEntries.slice(-4);
+	const byId = new Map(entries.map((entry) => [entry.id, entry]));
+	const linksToMessage = (entry: PersistedEntryReference, expectedId: string | undefined): boolean => {
+		const visited = new Set<string>();
+		let parentId = entry.parentId;
+		while (parentId && !visited.has(parentId)) {
+			if (parentId === expectedId) return true;
+			visited.add(parentId);
+			const parent = byId.get(parentId);
+			if (!parent || parent.role !== undefined) return false;
+			parentId = parent.parentId;
+		}
+		return false;
+	};
 	return {
 		activeTailRoles: activeTail.map(({ role }) => role),
 		allParentsResolved,
 		activeTailLinked:
 			activeTail.length === 4 &&
-			activeTail.slice(1).every((entry, index) => entry.parentId === activeTail[index]?.id),
+			activeTail.slice(1).every((entry, index) => linksToMessage(entry, activeTail[index]?.id)),
 	};
 }
 
