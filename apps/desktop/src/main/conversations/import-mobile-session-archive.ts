@@ -4,7 +4,6 @@ import { join } from "node:path";
 import type { AssistantMessage, ImageContent, TextContent, ToolCall, UserMessage } from "@567agent/ai";
 import type { ConversationMessageRecord, RuntimeHost } from "@567agent/runtime-core";
 import type { ProjectCollaborationDocument } from "../../shared/project-collaboration.js";
-import { getProjectCollaborationService } from "../project-collaboration/service.js";
 import { createCollaborationStore } from "../project-collaboration/store.js";
 import {
 	mergeImportedProjectCollaboration,
@@ -106,6 +105,8 @@ export async function importMobileSessionArchive(
 				.map((transfer) => remapProjectCollaborationTransfer(transfer, importedSessionIds))
 				.filter((document) => document.config.members.length || document.tasks.length);
 			if (importedDocuments.length) {
+				// Ordinary archives must not initialize the native collaboration host.
+				const { getProjectCollaborationService } = await import("../project-collaboration/service.js");
 				const store = createCollaborationStore(dependencies.cwd);
 				const snapshots: { before?: ProjectCollaborationDocument } = {};
 				const written = await store.update((current) => {

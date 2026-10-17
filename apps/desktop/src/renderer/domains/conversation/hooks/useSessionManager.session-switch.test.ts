@@ -579,7 +579,7 @@ it("会话恢复期间立即接受发送并在订阅就绪后派发到目标 Run
 	await sending;
 });
 
-it("已有会话创建失败时退出加载态并保留可诊断错误", { timeout: 10_000 }, async () => {
+it("已有会话创建失败时保留可重试文件和诊断错误且不伪造消息", { timeout: 10_000 }, async () => {
 	const { activeSessionAtom, chatMessagesAtom, pendingSessionOpenAtom } = await import("@shared/store/atoms");
 	const { useSessionManager } = await import("./useSessionManager");
 	const store = getDefaultStore();
@@ -614,12 +614,28 @@ it("已有会话创建失败时退出加载态并保留可诊断错误", { timeo
 		await manager?.openSession(cwd, secondSessionPath, undefined, { interactionId: "open-failed" });
 	});
 
-	expect(store.get(pendingSessionOpenAtom)).toBeNull();
-	expect(store.get(activeSessionAtom)).toBeNull();
-	expect(store.get(chatMessagesAtom).at(-1)).toMatchObject({
-		kind: "agent",
-		blocks: [expect.objectContaining({ type: "error", text: failure.message })],
+	expect(store.get(pendingSessionOpenAtom)).toEqual({
+		cwd,
+		sessionPath: secondSessionPath,
+		interactionId: "open-failed",
+		error: failure.message,
 	});
+	expect(store.get(activeSessionAtom)).toBeNull();
+	expect(store.get(chatMessagesAtom)).toEqual([]);
+	const { getSessionRuntimeWhenReady } = await import("../services/session-runtime-readiness");
+	await expect(getSessionRuntimeWhenReady()).resolves.toBeNull();
+
+	await act(async () => {
+		await manager?.openSession(cwd, secondSessionPath, undefined, { interactionId: "retry-failed" });
+	});
+	expect(store.get(pendingSessionOpenAtom)).toEqual({
+		cwd,
+		sessionPath: secondSessionPath,
+		interactionId: "retry-failed",
+		error: failure.message,
+	});
+	expect(store.get(activeSessionAtom)).toBeNull();
+	expect(store.get(chatMessagesAtom)).toEqual([]);
 	expect(mocks.perfSessionSwitchComplete).toHaveBeenCalledWith("failed", "open-failed");
 });
 

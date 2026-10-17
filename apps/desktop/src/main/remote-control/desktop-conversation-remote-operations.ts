@@ -32,7 +32,6 @@ import {
 import { getDesktopUserQuestionBroker } from "../conversations/user-question-broker.js";
 import { mainT } from "../i18n/index.js";
 import { getAppLogger } from "../logger.js";
-import { getProjectCollaborationService } from "../project-collaboration/service.js";
 import { getMainWindow } from "../window-manager.js";
 import type {
 	DesktopRemoteOperations,
@@ -422,19 +421,19 @@ export class DesktopConversationRemoteOperations implements DesktopRemoteOperati
 		return location.cwd;
 	}
 	async readCollaboration(sessionId: string): Promise<ProjectCollaborationSnapshot> {
-		return getProjectCollaborationService().read(await this.collaborationCwd(sessionId));
+		const cwd = await this.collaborationCwd(sessionId);
+		const { getProjectCollaborationService } = await import("../project-collaboration/service.js");
+		return getProjectCollaborationService().read(cwd);
 	}
 	async updateCollaboration(sessionId: string, patch: unknown): Promise<ProjectCollaborationSnapshot> {
-		return getProjectCollaborationService().update(
-			await this.collaborationCwd(sessionId),
-			patch as ProjectCollaborationPatch,
-		);
+		const cwd = await this.collaborationCwd(sessionId);
+		const { getProjectCollaborationService } = await import("../project-collaboration/service.js");
+		return getProjectCollaborationService().update(cwd, patch as ProjectCollaborationPatch);
 	}
 	async controlCollaboration(sessionId: string, control: unknown): Promise<ProjectCollaborationSnapshot> {
-		return getProjectCollaborationService().control(
-			await this.collaborationCwd(sessionId),
-			control as ProjectCollaborationControl,
-		);
+		const cwd = await this.collaborationCwd(sessionId);
+		const { getProjectCollaborationService } = await import("../project-collaboration/service.js");
+		return getProjectCollaborationService().control(cwd, control as ProjectCollaborationControl);
 	}
 	async readAttachmentChunk(sessionId: string, id: string, offset: number, length: number) {
 		await this.openSession(sessionId);
