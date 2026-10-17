@@ -90,7 +90,7 @@ describe("installRuntimeArchive", () => {
 		await expect(readdir(join(testRoot, "managed"))).resolves.toEqual(["22.22.2"]);
 	});
 
-	it.runIf(process.platform === "win32")("extracts the Windows Node ZIP before publishing", { timeout: archiveTestTimeout }, async () => {
+	it.runIf(process.platform === "win32")("extracts Windows Node ZIP", { timeout: archiveTestTimeout }, async () => {
 		const sourceRoot = join(testRoot, "source");
 		const sourceRuntime = join(sourceRoot, "node-v22.22.2-win-x64");
 		await writeNodeRuntimeFixture(sourceRuntime);
