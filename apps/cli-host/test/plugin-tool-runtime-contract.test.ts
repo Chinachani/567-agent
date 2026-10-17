@@ -145,14 +145,14 @@ describe("Plugin Tool Runtime composition contract", () => {
 		expect(invocations[0]?.conversation.messages.map(({ role }) => role)).toEqual(["user", "assistant"]);
 		expect(modelCalls).toHaveLength(3);
 		expect(modelCalls[0]?.tools).toEqual(["read", "get_goal", "create_goal", "update_goal", "plugin_artifact"]);
-		expect(modelCalls[1]?.tools).toEqual(["plugin_artifact", "get_goal", "create_goal", "update_goal"]);
+		expect(modelCalls[1]?.tools).toEqual(["get_goal", "create_goal", "update_goal", "plugin_artifact"]);
 		expect(modelCalls[1]?.prompt).toContain("Artifact tool completed");
 		expect(modelCalls[2]?.messages.map(messageText)).toContain("verify artifact");
 		expect(session.readState().activeToolNames).toEqual([
-			"plugin_artifact",
 			"get_goal",
 			"create_goal",
 			"update_goal",
+			"plugin_artifact",
 		]);
 		expect(
 			hookEvents.map((event) => ({
