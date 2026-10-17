@@ -64,7 +64,7 @@ describe("Historical session fork contract", () => {
 				allReferencesResolved: true,
 				branchSummaryFromId: "legacy-custom-hidden",
 				eventCount: 4,
-				operationCount: 1,
+				operationCount: 2,
 				parentEntryId: forkEntryId,
 				reason: "fork",
 				sourceEntryId: forkEntryId,
@@ -198,8 +198,14 @@ function describeForkFile(content: string): {
 		if (record.recordType !== "conversation.document.operation") continue;
 		operationCount += 1;
 		const command = record.command;
-		if (!isObject(command) || command.type !== "active_leaf.set") continue;
-		activeLeafId = command.entryId;
+		if (!isObject(command)) continue;
+		if (command.type === "custom.append" && typeof command.entryId === "string") {
+			if (typeof activeLeafId === "string" && !knownEntryIds.has(activeLeafId)) allParentsResolved = false;
+			knownEntryIds.add(command.entryId);
+			activeLeafId = command.entryId;
+		} else if (command.type === "active_leaf.set") {
+			activeLeafId = command.entryId;
+		}
 	}
 	return {
 		activeLeafId,

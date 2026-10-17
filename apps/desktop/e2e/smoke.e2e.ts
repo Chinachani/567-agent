@@ -4,6 +4,8 @@
  * AGENT567_E2E_PACKAGED=1.
  */
 
+import { realpathSync } from "node:fs";
+
 const EXPECTED_CONFIG_DIR = process.env.AGENT567_CONFIG_DIR ?? ".vetta-e2e";
 const EXPECTED_AGENT567_HOME = process.env.AGENT567_HOME;
 
@@ -120,9 +122,11 @@ describe("567 Agent smoke — config isolation", () => {
 			environmentProfile: process.env.AGENT567_DESKTOP_USER_DATA_DIR,
 		}));
 		expect(normalizePath(profile.userData)).toContain("wdio-electron-user-data-");
-		expect(normalizePath(profile.userData)).toBe(normalizePath(profile.driverProfile));
-		expect(normalizePath(profile.sessionData)).toBe(normalizePath(profile.driverProfile));
-		expect(normalizePath(profile.environmentProfile ?? "")).toBe(normalizePath(profile.driverProfile));
+		expect(normalizePath(realpathSync(profile.userData))).toBe(normalizePath(realpathSync(profile.driverProfile)));
+		expect(normalizePath(realpathSync(profile.sessionData))).toBe(normalizePath(realpathSync(profile.driverProfile)));
+		expect(normalizePath(realpathSync(profile.environmentProfile ?? ""))).toBe(
+			normalizePath(realpathSync(profile.driverProfile)),
+		);
 	});
 });
 

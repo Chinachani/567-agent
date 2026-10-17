@@ -1,4 +1,4 @@
-import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
+import { mkdirSync, mkdtempSync, realpathSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
@@ -21,7 +21,7 @@ describe("resolveInstalledPackageRoot", () => {
 		writeFileSync(join(packageRoot, "package.json"), JSON.stringify({ name: "@native/binary-only", version: "1.0.0" }));
 		writeFileSync(join(packageRoot, "binding.node"), "");
 
-		expect(resolveInstalledPackageRoot("@native/binary-only", fixtureRoot)).toBe(packageRoot);
+		expect(resolveInstalledPackageRoot("@native/binary-only", fixtureRoot)).toBe(realpathSync(packageRoot));
 	});
 
 	it("still resolves packages with a JavaScript entry", () => {
@@ -30,6 +30,6 @@ describe("resolveInstalledPackageRoot", () => {
 		writeFileSync(join(packageRoot, "package.json"), JSON.stringify({ name: "ordinary-package", main: "index.js" }));
 		writeFileSync(join(packageRoot, "index.js"), "module.exports = {};\n");
 
-		expect(resolveInstalledPackageRoot("ordinary-package", fixtureRoot)).toBe(packageRoot);
+		expect(resolveInstalledPackageRoot("ordinary-package", fixtureRoot)).toBe(realpathSync(packageRoot));
 	});
 });

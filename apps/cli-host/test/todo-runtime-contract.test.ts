@@ -86,7 +86,11 @@ describe("Todo Runtime composition contract", () => {
 			throw new Error(`${result.error?.code ?? "TURN_FAILED"}: ${result.error?.message ?? "Turn failed"}`);
 		}
 		expect(result).toMatchObject({ status: "completed" });
-		expect(toolLists).toEqual([["todo"], ["todo"], ["todo"]]);
+		expect(toolLists).toEqual([
+			["todo", "get_goal", "create_goal", "update_goal"],
+			["todo", "get_goal", "create_goal", "update_goal"],
+			["todo", "get_goal", "create_goal", "update_goal"],
+		]);
 		expect(readTodos(session)).toEqual([{ id: 1, content: "Implement the slice", status: "done" }]);
 		expect((await session.readMessages()).map(({ role }) => role)).toEqual([
 			"user",
