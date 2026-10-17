@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 import type { DesktopApi, DesktopMcpAppSurface } from "@preload/api";
-import { render, screen, waitFor } from "@testing-library/react";
+import { act, render, screen } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
 import { McpAppSurface } from "./McpAppSurface";
 
@@ -17,11 +17,17 @@ const SURFACE: DesktopMcpAppSurface = {
 
 describe("McpAppSurface", () => {
 	it("uses an opaque-origin outer proxy and accepts ready messages only from that exact window", async () => {
+		let resolveSurface: (surface: DesktopMcpAppSurface) => void = () => {
+			throw new Error("Surface promise is not initialized");
+		};
+		const surfacePromise = new Promise<DesktopMcpAppSurface>((resolve) => {
+			resolveSurface = resolve;
+		});
 		Object.defineProperty(window, "vetta", {
 			configurable: true,
 			value: {
 				session: {
-					getMcpAppSurface: vi.fn(async () => SURFACE),
+					getMcpAppSurface: vi.fn(() => surfacePromise),
 					releaseMcpAppSurface: vi.fn(async () => true),
 				},
 			} as unknown as DesktopApi,
@@ -32,7 +38,13 @@ describe("McpAppSurface", () => {
 				input={{}}
 			/>,
 		);
-		const frame = await screen.findByTitle("mcpApp.title");
+		// Resolve the external IPC boundary inside act so React installs the message listener
+		// before the proxy handshake is dispatched, including on slower Windows runners.
+		await act(async () => {
+			resolveSurface(SURFACE);
+			await surfacePromise;
+		});
+		const frame = screen.getByTitle("mcpApp.title");
 		expect(frame.getAttribute("sandbox")).toBe("allow-scripts allow-same-origin");
 		expect(frame.getAttribute("src")).toMatch(/^data:text\/html;base64,/);
 		const target = (frame as HTMLIFrameElement).contentWindow;
@@ -51,11 +63,20 @@ describe("McpAppSurface", () => {
 		window.dispatchEvent(
 			new MessageEvent("message", {
 				origin: "null",
+				source: window,
+				data: { jsonrpc: "2.0", method: "ui/notifications/sandbox-proxy-ready" },
+			}),
+		);
+		expect(post).not.toHaveBeenCalled();
+
+		window.dispatchEvent(
+			new MessageEvent("message", {
+				origin: "null",
 				source: target,
 				data: { jsonrpc: "2.0", method: "ui/notifications/sandbox-proxy-ready" },
 			}),
 		);
-		await waitFor(() => expect(post).toHaveBeenCalled());
+		expect(post).toHaveBeenCalledOnce();
 		expect(post.mock.calls[0]?.[0]).toMatchObject({ method: "ui/notifications/sandbox-resource-ready" });
 	});
 });

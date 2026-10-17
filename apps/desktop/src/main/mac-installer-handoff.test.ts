@@ -1,3 +1,4 @@
+import { join } from "node:path";
 import { describe, expect, it, vi } from "vitest";
 
 import { getMacInstallerJobLabel, handOffToInstaller, waitForInstallerHandoff } from "./mac-installer-handoff";
@@ -98,7 +99,7 @@ describe("installed bundle identity", () => {
 		async (identifier) => {
 			const read = vi.fn(() => `${identifier}\n`);
 			const label = getMacInstallerJobLabel("/Applications/567 Agent.app/Contents/Resources", read);
-			expect(read).toHaveBeenCalledWith("/Applications/567 Agent.app/Contents/Info.plist");
+			expect(read).toHaveBeenCalledWith(join("/Applications", "567 Agent.app", "Contents", "Info.plist"));
 			const start = vi.fn(() => true);
 			await expect(
 				handOffToInstaller({ label, probe: (value) => value === `${identifier}.ShipIt`, start }),
