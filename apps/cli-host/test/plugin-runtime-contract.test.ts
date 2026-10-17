@@ -109,7 +109,13 @@ describe("Plugin Runtime composition contract", () => {
 		expect(modelCalls[0]?.tools).toEqual(["read", "current_time", "get_goal", "create_goal", "update_goal"]);
 		expect(modelCalls[1]?.messages).toEqual(["inspect", "first response", "plugin continuation"]);
 		expect(modelCalls[1]?.tools).toEqual(["read", "current_time", "get_goal", "create_goal", "update_goal"]);
-		expect(session.readState().activeToolNames).toEqual(["read", "current_time", "get_goal", "create_goal", "update_goal"]);
+		expect(session.readState().activeToolNames).toEqual([
+			"read",
+			"current_time",
+			"get_goal",
+			"create_goal",
+			"update_goal",
+		]);
 		expect((await session.readMessages()).map(({ role }) => role)).toEqual([
 			"user",
 			"assistant",
