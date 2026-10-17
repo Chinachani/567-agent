@@ -1,6 +1,8 @@
 import { Button, cn } from "@vetta-org/ui";
 import { AnimatePresence, motion } from "motion/react";
-import type { JSX, ReactNode, RefObject } from "react";
+import type { JSX, RefObject } from "react";
+import { ProjectCollaborationView } from "./ProjectCollaborationView";
+import type { ProjectCollaborationViewProps } from "./ProjectCollaborationView";
 
 const easeOut = [0.22, 1, 0.36, 1] as const;
 
@@ -23,14 +25,15 @@ export interface ProjectDetailPageViewLabels {
 	agentsMdHint: string;
 	quickSave: string;
 	saveShortcut: string;
+	collaborationTab: string;
+	rulesTab: string;
 }
+
+export type ProjectDetailSection = "collaboration" | "rules";
 
 export interface ProjectDetailPageViewProps {
 	activityOpen: boolean;
-	/** Host ActivityPanel. */
-	activityPanel: ReactNode;
-	/** Host BatchQueueStatus section body (already wrapped or raw). */
-	batchSection: ReactNode | null;
+	collaboration: ProjectCollaborationViewProps;
 	content: string;
 	createdAtLabel: string | null;
 	cwd: string;
@@ -40,6 +43,7 @@ export interface ProjectDetailPageViewProps {
 	isDirty: boolean;
 	labels: ProjectDetailPageViewLabels;
 	loading: boolean;
+	activeSection: ProjectDetailSection;
 	onContentChange: (value: string) => void;
 	onEditorBlur: () => void;
 	onEditorFocus: () => void;
@@ -48,6 +52,7 @@ export interface ProjectDetailPageViewProps {
 	onSave: () => void;
 	onShowInFolder: () => void;
 	onToggleActivity: () => void;
+	onSectionChange: (section: ProjectDetailSection) => void;
 	projectTypeLabel: string | null;
 	saveStatus: ProjectDetailSaveStatus;
 	sessionCountLabel: string;
@@ -57,8 +62,7 @@ export interface ProjectDetailPageViewProps {
 
 export function ProjectDetailPageView({
 	activityOpen,
-	activityPanel,
-	batchSection,
+	collaboration,
 	content,
 	createdAtLabel,
 	cwd,
@@ -68,6 +72,7 @@ export function ProjectDetailPageView({
 	isDirty,
 	labels,
 	loading,
+	activeSection,
 	onContentChange,
 	onEditorBlur,
 	onEditorFocus,
@@ -76,6 +81,7 @@ export function ProjectDetailPageView({
 	onSave,
 	onShowInFolder,
 	onToggleActivity,
+	onSectionChange,
 	projectTypeLabel,
 	saveStatus,
 	sessionCountLabel,
@@ -83,13 +89,13 @@ export function ProjectDetailPageView({
 	textareaRef,
 }: ProjectDetailPageViewProps): JSX.Element {
 	const metrics = [
-		{ icon: "icon-[mdi--chat-outline]", value: sessionCountLabel },
-		createdAtLabel ? { icon: "icon-[mdi--calendar-outline]", value: createdAtLabel } : null,
-		taskCountLabel ? { icon: "icon-[mdi--layers-outline]", value: taskCountLabel } : null,
+		{ icon: "icon-[solar--chat-round-line-linear]", value: sessionCountLabel },
+		createdAtLabel ? { icon: "icon-[solar--calendar-linear]", value: createdAtLabel } : null,
+		taskCountLabel ? { icon: "icon-[solar--layers-linear]", value: taskCountLabel } : null,
 	].filter((item): item is { icon: string; value: string } => item != null);
 
 	return (
-		<div className="flex h-full w-full flex-col overflow-hidden">
+		<div className="flex h-full min-h-0 min-w-0 flex-1 flex-col overflow-hidden">
 			<div className="flex min-h-0 flex-1">
 				{/* @container：按主栏宽度（非视口）响应，Activity 挤窄时也能正确折叠 */}
 				<div className="@container flex min-w-0 flex-1 flex-col">
@@ -209,12 +215,21 @@ export function ProjectDetailPageView({
 						</div>
 					</motion.header>
 
+					<div className="flex shrink-0 items-center gap-1 px-4 pb-2 @md:px-8" role="tablist" aria-label={labels.collaborationTab}>
+						<button type="button" role="tab" aria-selected={activeSection === "collaboration"} onClick={() => onSectionChange("collaboration")} className={`rounded-full px-3 py-1.5 text-[12px] transition-colors ${activeSection === "collaboration" ? "bg-accent text-foreground" : "text-muted-foreground hover:bg-accent/50 hover:text-foreground"}`}>{labels.collaborationTab}</button>
+						<button type="button" role="tab" aria-selected={activeSection === "rules"} onClick={() => onSectionChange("rules")} className={`rounded-full px-3 py-1.5 text-[12px] transition-colors ${activeSection === "rules" ? "bg-accent text-foreground" : "text-muted-foreground hover:bg-accent/50 hover:text-foreground"}`}>{labels.rulesTab}</button>
+					</div>
+
 					{/* ── Body ────────────────────────────────────────────── */}
-					<div className="flex min-h-0 flex-1 flex-col overflow-y-auto">
-						{batchSection}
+					<div className="flex min-h-0 flex-1 flex-col overflow-hidden">
+						{activeSection === "collaboration" ? (
+							<motion.section className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden px-4 pb-3 @md:px-8 @md:pb-4" initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.35, ease: easeOut }}>
+								<ProjectCollaborationView {...collaboration} />
+							</motion.section>
+						) : (
 
 						<motion.section
-							className="flex min-h-[280px] flex-1 flex-col px-4 pb-5 @md:min-h-[360px] @md:px-8 @md:pb-6"
+							className="flex min-h-0 flex-1 flex-col overflow-y-auto px-4 pb-5 @md:px-8 @md:pb-6"
 							initial={{ opacity: 0, y: 14 }}
 							animate={{ opacity: 1, y: 0 }}
 							transition={{ duration: 0.5, delay: 0.08, ease: easeOut }}
@@ -342,9 +357,9 @@ export function ProjectDetailPageView({
 								</div>
 							</div>
 						</motion.section>
+						)}
 					</div>
 				</div>
-				{activityPanel}
 			</div>
 		</div>
 	);

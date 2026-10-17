@@ -7,6 +7,7 @@ import {
 	createConversationUserMessage,
 } from "@shared/conversation";
 import { isAttachmentPath, isImagePath } from "@shared/lib/input-tokens";
+import { ipcErrorMessage } from "@shared/lib/ipc-error";
 import { pathBasename } from "@shared/lib/utils";
 import type {
 	AskUserQuestionResolution,
@@ -1286,22 +1287,28 @@ export function appendError(
 	turnId?: string,
 	details?: ChatErrorDetails,
 ): ChatConversationItem[] {
+	errorMessage = ipcErrorMessage(errorMessage);
 	const [msgs, idx] = ensureDraft(prev);
 	const msg = requireAgentMessage(msgs[idx]);
 	const blocks = [...msg.blocks];
-	if (turnId) {
-		const existingIndex = blocks.findIndex((block) => block.type === "error" && block.turnId === turnId);
-		const existing = existingIndex >= 0 ? blocks[existingIndex] : undefined;
-		if (existing?.type === "error") {
-			blocks[existingIndex] = {
-				...existing,
-				text: errorMessage,
-				...(attempts ? { attempts } : {}),
-				...(details ? { details: { ...existing.details, ...details } } : {}),
-			};
-			msgs[idx] = { ...msg, text: msg.text || errorMessage, blocks };
-			return msgs;
-		}
+	// Admission failures can arrive through both the event stream and rejected IPC,
+	// in either order. Only reconcile within this draft; distinct known turns stay separate.
+	const existingIndex = blocks.findIndex(
+		(block) =>
+			block.type === "error" &&
+			((turnId && block.turnId === turnId) || ((!turnId || !block.turnId) && block.text === errorMessage)),
+	);
+	const existing = existingIndex >= 0 ? blocks[existingIndex] : undefined;
+	if (existing?.type === "error") {
+		blocks[existingIndex] = {
+			...existing,
+			text: errorMessage,
+			...(turnId ? { turnId } : {}),
+			...(attempts ? { attempts } : {}),
+			...(details ? { details: { ...existing.details, ...details } } : {}),
+		};
+		msgs[idx] = { ...msg, text: msg.text || errorMessage, blocks };
+		return msgs;
 	}
 	blocks.push({
 		type: "error",

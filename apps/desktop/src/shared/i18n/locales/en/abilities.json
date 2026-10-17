@@ -39,6 +39,7 @@
     "allTypes": "All types",
     "category": "Filter abilities by category",
     "allCategories": "All categories",
+    "installed": "Installed ({{count}})",
     "review": "Filter by review status",
     "allReviewStatuses": "All review statuses",
     "unreviewed": "Not manually reviewed",

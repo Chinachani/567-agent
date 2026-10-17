@@ -1,3 +1,9 @@
+import type {
+	ProjectCollaborationControl,
+	ProjectCollaborationPatch,
+	ProjectCollaborationSnapshot,
+} from "../../shared/project-collaboration.js";
+
 // ─── Project import / export ───
 //
 // Mirrors `src/main/ipc/project-export.ts`. Both directions can return either
@@ -35,4 +41,8 @@ export interface DesktopProjectApi {
 	import(): Promise<ProjectImportSuccess | ProjectExportError | null>;
 	/** Read a project's `.vetta/meta.json` (used to detect project type). `null` if absent. */
 	readMeta(projectDir: string): Promise<Record<string, unknown> | null>;
+	readCollaboration(cwd: string): Promise<ProjectCollaborationSnapshot>;
+	updateCollaboration(cwd: string, patch: ProjectCollaborationPatch): Promise<ProjectCollaborationSnapshot>;
+	controlCollaboration(cwd: string, control: ProjectCollaborationControl): Promise<ProjectCollaborationSnapshot>;
+	onCollaborationChanged(handler: (event: { cwd: string }) => void): () => void;
 }

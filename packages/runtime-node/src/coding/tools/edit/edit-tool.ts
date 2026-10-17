@@ -1,6 +1,7 @@
 import { constants } from "node:fs";
 import { access, readFile, writeFile } from "node:fs/promises";
 import type { RuntimeToolDefinition } from "@567agent/runtime-core/kernel";
+import { type FileChangeReceipt, fileChangeReceipt } from "../../shared/file-change-receipt.js";
 import { resolveExistingPath } from "../../shared/path-resolution.js";
 import { formatStrippedPrefixNotice, prepareAnchorEdits } from "./anchor-edit.js";
 import { EDIT_TOOL_DESCRIPTION } from "./description.js";
@@ -16,7 +17,7 @@ const defaultEditOperations: EditOperations = {
 
 interface EditToolResult {
 	readonly content: readonly [{ readonly type: "text"; readonly text: string }];
-	readonly details: EditToolDetails;
+	readonly details: EditToolDetails & { readonly fileChange?: FileChangeReceipt };
 }
 
 async function executeAnchorMode(
@@ -32,14 +33,15 @@ async function executeAnchorMode(
 	} catch {
 		throw new Error(`File not found: ${displayPath}`);
 	}
-	const rawContent = (await operations.readFile(absolutePath)).toString("utf-8");
+	const rawBytes = await operations.readFile(absolutePath);
+	const rawContent = rawBytes.toString("utf-8");
 	if (signal.aborted) throw new Error("Operation aborted");
 	const edit = prepareAnchorEdits(rawContent, displayPath, edits);
 	if (signal.aborted) throw new Error("Operation aborted");
 	await operations.writeFile(absolutePath, edit.content);
 	return {
 		content: [{ type: "text", text: edit.receipt }],
-		details: edit.details,
+		details: { ...edit.details, fileChange: fileChangeReceipt(absolutePath, rawBytes, edit.content) },
 	};
 }
 
@@ -74,7 +76,8 @@ function executeExactTextMode(
 					return;
 				}
 				if (aborted) return;
-				const rawContent = (await operations.readFile(absolutePath)).toString("utf-8");
+				const rawBytes = await operations.readFile(absolutePath);
+				const rawContent = rawBytes.toString("utf-8");
 				if (aborted) return;
 				const edit = prepareExactTextEdit(rawContent, oldText, newText, displayPath);
 				if (aborted) return;
@@ -91,7 +94,11 @@ function executeExactTextMode(
 								formatStrippedPrefixNotice(edit.strippedPrefixCount),
 						},
 					],
-					details: { diff: diff.diff, firstChangedLine: diff.firstChangedLine },
+					details: {
+						diff: diff.diff,
+						firstChangedLine: diff.firstChangedLine,
+						fileChange: fileChangeReceipt(absolutePath, rawBytes, edit.content),
+					},
 				});
 			} catch (error: unknown) {
 				signal.removeEventListener("abort", onAbort);

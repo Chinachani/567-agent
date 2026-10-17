@@ -15,6 +15,7 @@ import type { ProjectDetailPageViewProps } from "@vetta-org/theme-ui/project";
 import { useAtom, useAtomValue, useSetAtom } from "jotai";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
+import { useProjectCollaborationModel } from "./useProjectCollaborationModel";
 
 type SaveStatus = "idle" | "saving" | "saved" | "error";
 
@@ -106,7 +107,7 @@ function useCreatedAt(cwd: string) {
 	return createdAt;
 }
 
-export interface ProjectDetailPageModel extends Omit<ProjectDetailPageViewProps, "activityPanel" | "batchSection"> {
+export interface ProjectDetailPageModel extends ProjectDetailPageViewProps {
 	batchProject: ReturnType<typeof useProjectDetail>["batchProject"];
 	decodedCwd: string;
 	isBatch: boolean;
@@ -121,6 +122,7 @@ export function useProjectDetailPageModel(): ProjectDetailPageModel {
 	const decodedCwd = decodeURIComponent(cwd);
 
 	const { project, sessionCount, batchProject } = useProjectDetail(decodedCwd);
+	const collaboration = useProjectCollaborationModel(decodedCwd, t, i18n.language);
 	const createdAt = useCreatedAt(decodedCwd);
 	const { content, setContent, loading, save, saveStatus, isDirty } = useAgentsMd(decodedCwd);
 	const textareaRef = useRef<HTMLTextAreaElement>(null);
@@ -129,6 +131,7 @@ export function useProjectDetailPageModel(): ProjectDetailPageModel {
 	const setConfirm = useSetAtom(confirmDialogAtom);
 	const setHeaderTitleHidden = useSetAtom(pageHeaderTitleHiddenAtom);
 	const [editorFocused, setEditorFocused] = useState(false);
+	const [activeSection, setActiveSection] = useState<"collaboration" | "rules">("collaboration");
 	const navigate = useNavigate();
 
 	useEffect(() => {
@@ -181,6 +184,7 @@ export function useProjectDetailPageModel(): ProjectDetailPageModel {
 	return {
 		activityOpen,
 		batchProject,
+		collaboration,
 		content,
 		createdAtLabel: createdAt ? formatDate(createdAt, dateLocale) : null,
 		cwd: decodedCwd,
@@ -208,7 +212,10 @@ export function useProjectDetailPageModel(): ProjectDetailPageModel {
 			agentsMdHint: t("detail.agentsMdHint"),
 			quickSave: t("detail.quickSave"),
 			saveShortcut: isMac ? "⌘+S" : "Ctrl+S",
+			collaborationTab: t("detail.collaborationTab"),
+			rulesTab: t("detail.rulesTab"),
 		},
+		activeSection,
 		loading,
 		projectType: project?.type,
 		projectTypeLabel,
@@ -230,5 +237,6 @@ export function useProjectDetailPageModel(): ProjectDetailPageModel {
 			void window.agent567.shell.showInFolder(decodedCwd);
 		},
 		onToggleActivity: () => setActivityOpen((o) => !o),
+		onSectionChange: setActiveSection,
 	};
 }

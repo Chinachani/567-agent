@@ -235,6 +235,11 @@ class SettingsSessionStore(
             require(serialized.utf8LengthAtMost(MAX_MIGRATION_JSON_BYTES.toLong())) { "迁移文件过大" }
             val archive = Agent567Json.decodeFromString(SessionMigrationArchiveDto.serializer(), serialized)
             require(archive.schemaVersion == MIGRATION_SCHEMA_VERSION) { "不支持的迁移文件版本" }
+            require(archive.sessions.all { session ->
+                val context = session.context
+                context.pinnedText.length <= 16000 && context.summary.length <= 16000 && context.previousSummary.length <= 16000 &&
+                    context.excludedTurnIds.size <= MAX_MIGRATION_MESSAGES && context.excludedTurnIds.all { it.length <= 200 } && context.selectionRevision >= 0
+            }) { "迁移文件的上下文设置过大或无效" }
             require(archive.sessions.size <= MAX_MIGRATION_SESSIONS) { "迁移文件包含过多会话" }
             require(archive.sessions.map { it.id }.distinct().size == archive.sessions.size) { "迁移文件包含重复会话" }
             require(archive.messages.map { it.sessionId }.distinct().size == archive.messages.size) { "迁移文件包含重复消息列表" }

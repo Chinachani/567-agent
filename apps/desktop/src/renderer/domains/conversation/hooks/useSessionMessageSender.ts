@@ -16,6 +16,7 @@ import {
 	prepareInputPrompt,
 	toTokenPath,
 } from "@shared/lib/input-tokens";
+import { ipcErrorMessage } from "@shared/lib/ipc-error";
 import { perfSendComplete, perfSendMark } from "@shared/lib/perf-send";
 import {
 	activeInputActionIdsAtom,
@@ -54,6 +55,7 @@ import { bumpQueuedDispatchSeq } from "@shared/store/message-queue-atoms";
 import type { PluginPromptContext } from "@vetta-org/plugin-sdk";
 import { getDefaultStore, useAtom, useAtomValue, useSetAtom } from "jotai";
 import { useCallback, useRef } from "react";
+import { appendAttachmentReadScopes } from "../services/attachment-read-scope";
 import {
 	appendError,
 	fullHistoryToChat,
@@ -134,6 +136,7 @@ export function useSessionMessageSender({ bumpSuggestionToken }: SessionMessageS
 			// 「它自己最后打开的会话」，与用户当前激活会话可能相差很久：插件派活曾因此
 			// 落进另一个 workspace 的陈年会话。
 			const store = getDefaultStore();
+			if (store.get(pendingSessionOpenAtom)?.error) return;
 			const transitionPending =
 				store.get(pendingSessionOpenAtom) !== null || store.get(pendingSessionCreationAtom) !== null;
 			let session = store.get(activeSessionAtom);
@@ -260,7 +263,7 @@ export function useSessionMessageSender({ bumpSuggestionToken }: SessionMessageS
 				}
 			}
 			const attachments = [...attachmentsByPath.values()];
-			const text = hasOverride ? rawText : preparedInput.text;
+			const text = hasOverride ? rawText : appendAttachmentReadScopes(preparedInput.text, mentionedFiles);
 			if (stagedInput && imagePaths.length > 0) {
 				const stagedId = stagedInput.optimisticMessage.id;
 				setTargetSessionMessages((messages) =>
@@ -638,14 +641,9 @@ export function useSessionMessageSender({ bumpSuggestionToken }: SessionMessageS
 				// 必有合成事件机制；(2) IPC 链路自身（preload / electron）出错
 				// 时不会经过 RuntimeHost。任何 reject 在这里直接落成一条 error
 				// 气泡，杜绝「按了发送但屏幕完全没反应」的死寂体验。
-				const message = err instanceof Error ? err.message : String(err);
+				const message = ipcErrorMessage(err);
 				console.error("[useSessionManager.sendMessage] prompt rejected:", err);
-				setTargetSessionMessages((prev) => {
-					const last = prev.at(-1);
-					const lastError = last?.kind === "agent" ? last.blocks.at(-1) : undefined;
-					if (last?.kind === "agent" && lastError?.type === "error" && lastError.text === message) return prev;
-					return appendError(prev, message);
-				});
+				setTargetSessionMessages((prev) => appendError(prev, message));
 				// 被拒绝的 prompt 没有开启 turn，也就不会有 agent_end 来收尾。本次发送开启的
 				// 流式态（新会话暂存发送会抢先置为 true）必须在这里退出，否则界面一直“处理中”，
 				// 停止按钮对着一个并不存在的 turn 调 abort，永远停不下来。

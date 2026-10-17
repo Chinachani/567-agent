@@ -103,11 +103,12 @@ export const DefaultInputBarConnector = memo(function DefaultInputBarConnector(p
 		return (Array.isArray(raw) ? raw : []).filter((item): item is string => typeof item === "string" && item.length > 0);
 	}, [t]);
 	const placeholderModel = useMemo(() => {
+		if (session.openFailed) return { placeholderTexts: [t("session.openFailure.inputDisabled")], placeholderRotating: false };
 		if (!session.hasSession) return { placeholderTexts: [t("inputBar.placeholder.noSession")], placeholderRotating: false };
 		if (session.isStreaming) return { placeholderTexts: [t("inputBar.placeholder.thinking")], placeholderRotating: false };
 		if (session.placeholderVisible && firstSuggestion) return { placeholderTexts: [t("inputBar.placeholder.suggestion", { suggestion: firstSuggestion })], placeholderRotating: false };
 		return { placeholderTexts: defaultPlaceholders, placeholderRotating: defaultPlaceholders.length > 1 };
-	}, [defaultPlaceholders, firstSuggestion, session.hasSession, session.isStreaming, session.placeholderVisible, t]);
+	}, [defaultPlaceholders, firstSuggestion, session.hasSession, session.isStreaming, session.openFailed, session.placeholderVisible, t]);
 	const labels = useMemo<InputBarModel["labels"]>(() => ({
 		capsule: { removeDefault: t("inputBar.capsule.removeDefault"), removeImage: t("inputBar.capsule.removeImage"), removeTooltip: (path) => t("inputBar.capsule.removeTooltip", { path }), activeGroup: (count) => t("inputBar.capsule.activeGroup", { count }) },
 		permission: { deny: t("inputBar.permission.deny"), allow: t("inputBar.permission.allow"), allowSession: t("inputBar.permission.allowSession") },
@@ -165,7 +166,7 @@ export const DefaultInputBarConnector = memo(function DefaultInputBarConnector(p
 		editor: { namespace: "chat-input" },
 		modelSelector: { updateActiveSession: true },
 		leadingTools: [{ kind: "execution-mode", model: executionModeModel }],
-		trailingTools: contextUsageModel ? [{ kind: "context-usage", model: contextUsageModel }] : [],
+		trailingTools: [...(contextUsageModel ? [{ kind: "context-usage" as const, model: contextUsageModel }] : []), ...(session.hasSession ? [{ kind: "workbench" as const, sessionId: runtimeId ?? null, sessionKey: session.presentationSessionPath }] : [])],
 		sendBehavior: "queueable",
 		labels,
 		actions: {

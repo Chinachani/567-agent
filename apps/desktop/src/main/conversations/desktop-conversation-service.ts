@@ -1,6 +1,7 @@
 import { stat } from "node:fs/promises";
 import { extname, isAbsolute, resolve } from "node:path";
 import type { AgentTeamDocument } from "@567agent/agent-team";
+import type { CodingAgentPinnedModelContextBinder } from "@567agent/coding-agent/runtime";
 import {
 	CODING_AGENT_NEXT_PROMPT_SUGGESTIONS,
 	CODING_AGENT_SESSION_TITLE_GENERATE,
@@ -26,6 +27,8 @@ import { monitorRuntimeSession } from "../app-monitor/app-monitor-service.js";
 import { allowProjectRoot, readDesktopConfig } from "../ipc/fs.js";
 import { getAppLogger } from "../logger.js";
 import { readModelsConfigSync } from "../models/model-settings-service.js";
+import { getProjectCollaborationService, type ProjectCollaborationService } from "../project-collaboration/service.js";
+import { createProjectCollaborationTools } from "../project-collaboration/tools.js";
 import { ensureMobileImportProject } from "../projects/mobile-import-project.js";
 import { getSharedRuntime } from "../runtime.js";
 import { assertSandboxAvailableForMode } from "../sandbox/capability.js";
@@ -44,6 +47,7 @@ import {
 import { readSessionAgentBinding, recordSessionAgentBinding } from "./session-agent-binding-store.js";
 import { recordSessionAgentMode } from "./session-agent-mode-store.js";
 import { type ResolvedSessionAgentProfile, resolveSessionAgentProfile } from "./session-agent-profile.js";
+import { SessionContextWorkspace } from "./session-context-workspace.js";
 import { DesktopSessionCreationTrace } from "./session-creation-trace.js";
 import type { SessionMigrationArchive } from "./session-migration-backup.js";
 import {
@@ -52,6 +56,7 @@ import {
 	resolveSessionDirForCwd,
 	resolveSessionListCwd,
 } from "./session-paths.js";
+import { SessionWorkbench } from "./session-workbench.js";
 
 const log = getAppLogger("conversation-service");
 
@@ -132,6 +137,8 @@ export interface RunDesktopConversationTurnOptions {
 	/** null disables the wall-clock timeout for explicitly user-controlled remote turns. */
 	timeoutMs: number | null;
 	signal?: AbortSignal;
+	/** Host-owned admission, never supplied by a remote client. */
+	collaborationTaskId?: string;
 }
 
 export interface DesktopConversationCreateTraceContext {
@@ -171,7 +178,14 @@ function findLastAssistantMessage(
 }
 
 export class DesktopConversationService {
+	private readonly workbenches = new Map<string, SessionWorkbench>();
+	private readonly contextWorkspaces = new Map<string, SessionContextWorkspace>();
 	private readonly autoTitleScheduledSessions = new Set<string>();
+	private readonly sessionOpened = new Set<(session: DesktopConversationSession) => void>();
+	onSessionOpened(listener: (session: DesktopConversationSession) => void): () => void {
+		this.sessionOpened.add(listener);
+		return () => this.sessionOpened.delete(listener);
+	}
 
 	constructor(
 		private readonly runtime: RuntimeHost,
@@ -181,6 +195,7 @@ export class DesktopConversationService {
 		/** Agent 目录读取口，仅为单测可注入而外露；缺省走主进程共享的 agentTeamStore。 */
 		private readonly readAgentTeamDocument: () => Promise<AgentTeamDocument> = () => agentTeamStore.read(),
 		private readonly readContextLimits?: () => ReadonlyMap<string, ReturnType<typeof resolveModelContext>>,
+		private readonly collaboration?: ProjectCollaborationService,
 	) {}
 
 	async importSessionMigrationArchive(
@@ -266,24 +281,69 @@ export class DesktopConversationService {
 			// 绑定的 Agent：新建取渲染层传入的身份，恢复取会话目录旁挂的记录。
 			// 能力白名单在这里由主进程查表折算，渲染层始终只经手身份。
 			const agentProfile = await trace.measure("resolve-agent-profile", () => this.resolveBoundAgentProfile(config));
+			let workspace: SessionContextWorkspace | undefined;
+			if (config?.sessionPath) {
+				workspace = new SessionContextWorkspace(config.sessionPath);
+				await workspace.load();
+			}
+			let runtimeReady = false;
+			const collaborationCwd = config?.cwd;
+			const collaboration = (await this.collaboration?.isProject(collaborationCwd)) ? this.collaboration : undefined;
+			const baseContext: CodingAgentPinnedModelContextBinder =
+				config?.bindPinnedModelContext ??
+				((context) => {
+					context.signal.throwIfAborted();
+					// Initialization previews build the system prompt before the Host registers
+					// the Session. They make no model call; context projections bind after create.
+					if (!runtimeReady && context.reason === "preview") return undefined;
+					return workspace?.bind(this.runtime.readSessionDocument(context.sessionId));
+				});
+			const bindPinnedModelContext: CodingAgentPinnedModelContextBinder = async (context) => {
+				const base = await baseContext(context);
+				if (!collaboration || !runtimeReady || !collaborationCwd) return base;
+				return collaboration.bindContext(collaborationCwd, context.sessionId, base);
+			};
+			if (collaboration && collaborationCwd) await collaboration.prepareProject(collaborationCwd);
+			const sessionRuntimeTools = [
+				...(config?.sessionRuntimeTools ?? []),
+				...(collaboration ? createProjectCollaborationTools(collaboration) : []),
+			];
 			const resolvedConfig = await trace.measure("resolve-config", () =>
 				resolveDesktopSessionConfig(
 					agentProfile
 						? {
 								...config,
+								bindPinnedModelContext,
+								sessionRuntimeTools,
 								agentConfiguration: agentProfile.agentConfiguration,
 								systemPromptVolatileAddon: agentProfile.systemPromptVolatileAddon,
 							}
-						: config,
+						: { ...config, bindPinnedModelContext, sessionRuntimeTools },
 					kind,
 					source,
 				),
 			);
 			const result = await trace.measure("runtime-create", () => this.runtime.createSession(resolvedConfig.config));
+			runtimeReady = true;
 			const sessionPath = this.runtime.getSessionPath(result.sessionId);
 			if (!sessionPath) {
 				throw new DesktopConversationError("TURN_FAILED", "Runtime did not expose the created session path.");
 			}
+			workspace =
+				this.contextWorkspaces.get(result.sessionId) ?? workspace ?? new SessionContextWorkspace(sessionPath);
+			if (!this.workbenches.has(result.sessionId))
+				this.workbenches.set(
+					result.sessionId,
+					new SessionWorkbench(
+						sessionPath,
+						resolvedConfig.cwd,
+						() => this.runtime.getFullHistory(result.sessionId),
+						() =>
+							this.runtime.getState(result.sessionId).isStreaming ||
+							this.runtime.readSessionContextCompactionState(result.sessionId).isCompacting,
+					),
+				);
+			if (!config?.bindPinnedModelContext) this.contextWorkspaces.set(result.sessionId, workspace);
 			// 工作模式在这里固化：新会话写入当前默认值，历史会话补写回落值。
 			// 已有记录不覆盖，所以之后改默认值不会改写任何已存在会话。
 			await trace.measure("record-agent-mode", () => recordSessionAgentMode(sessionPath, resolvedConfig.agentMode));
@@ -311,6 +371,15 @@ export class DesktopConversationService {
 				source,
 				...(agentProfile ? { agentProfileId: agentProfile.agentProfileId } : {}),
 			};
+			await collaboration?.registerSession(session);
+			if (source === "interactive")
+				for (const listener of this.sessionOpened) {
+					try {
+						listener(session);
+					} catch (error) {
+						log.warn("session open observer failed", error);
+					}
+				}
 			trace.complete({ sessionId: result.sessionId, kind, source });
 			return session;
 		} catch (error) {
@@ -389,6 +458,61 @@ export class DesktopConversationService {
 		);
 	}
 
+	private workbench(sessionId: string): SessionWorkbench {
+		this.runtime.getState(sessionId);
+		const workbench = this.workbenches.get(sessionId);
+		if (!workbench) throw new Error("Workbench is unavailable for this session");
+		return workbench;
+	}
+	readSessionWorkbench(sessionId: string) {
+		return this.workbench(sessionId).read();
+	}
+	readSessionWorkbenchDetail(sessionId: string, kind: string, id: string) {
+		return this.workbench(sessionId).detail(kind, id);
+	}
+	readSessionAttachmentChunk(sessionId: string, id: string, offset: number, length: number) {
+		return this.workbench(sessionId).chunk(id, offset, length);
+	}
+	reviewSessionChange(sessionId: string, id: string, action: string, revision: string) {
+		return this.workbench(sessionId).review(id, action, revision);
+	}
+
+	async restoreImportedContext(
+		sessionId: string,
+		context: {
+			pinnedText?: string;
+			summary?: string;
+			previousSummary?: string;
+			excludedTurnIds?: readonly string[];
+			autoCompactionEnabled?: boolean;
+		},
+		summarizedTurnIds: readonly string[],
+	) {
+		const workspace = this.contextWorkspaces.get(sessionId);
+		if (!workspace || this.readContextWorkspace(sessionId).busy) throw new Error("Imported context is unavailable");
+		await workspace.restoreImported(context, summarizedTurnIds);
+		if (context.autoCompactionEnabled !== undefined)
+			this.runtime.setSessionAutoCompactionEnabled(sessionId, context.autoCompactionEnabled);
+	}
+
+	readContextWorkspace(sessionId: string) {
+		const workspace = this.contextWorkspaces.get(sessionId);
+		if (!workspace) throw new Error("Context selection is unavailable for this session");
+		const state = this.runtime.getState(sessionId);
+		return workspace.read(
+			this.runtime.readSessionDocument(sessionId),
+			state.isStreaming || this.runtime.readSessionContextCompactionState(sessionId).isCompacting,
+		);
+	}
+
+	async updateContextSelection(sessionId: string, input: unknown) {
+		const workspace = this.contextWorkspaces.get(sessionId);
+		if (!workspace || this.readContextWorkspace(sessionId).busy)
+			throw new Error("Wait for the current reply or compression before changing context");
+		await workspace.update(this.runtime.readSessionDocument(sessionId), input);
+		return this.readContextWorkspace(sessionId);
+	}
+
 	readRemoteContext(sessionId: string): RemoteSessionContext {
 		const state = this.runtime.getState(sessionId);
 		const limits = this.readContextLimits?.();
@@ -397,6 +521,7 @@ export class DesktopConversationService {
 		const compaction = this.runtime.readSessionContextCompactionState(sessionId);
 		const usage = this.runtime.readSessionContextUsage(sessionId);
 		return {
+			...(this.contextWorkspaces.has(sessionId) ? { workspace: this.readContextWorkspace(sessionId) } : {}),
 			tokens: state.contextTokens ?? usage?.tokens ?? null,
 			contextWindow: limits ? (capacity?.capacity ?? null) : state.contextWindow > 0 ? state.contextWindow : null,
 			...(limits ? { contextWindowSource: capacity?.source ?? "unknown" } : {}),
@@ -656,14 +781,16 @@ export class DesktopConversationService {
 		prompt: PromptRequest,
 		cwd?: string,
 	): Promise<RuntimeTurnPromptOutcome> {
-		return this.promptWithAutoTitle(
-			{
-				sessionId,
-				sessionPath: this.runtime.getSessionPath(sessionId),
-				listCwd: cwd ? resolveSessionListCwd(cwd) : undefined,
-			},
-			prompt,
-		);
+		const run = () =>
+			this.promptWithAutoTitle(
+				{
+					sessionId,
+					sessionPath: this.runtime.getSessionPath(sessionId),
+					listCwd: cwd ? resolveSessionListCwd(cwd) : undefined,
+				},
+				prompt,
+			);
+		return this.collaboration ? this.collaboration.withManual(sessionId, run) : run();
 	}
 
 	private async promptWithAutoTitle(
@@ -712,6 +839,20 @@ export class DesktopConversationService {
 	}
 
 	async runTurn(options: RunDesktopConversationTurnOptions): Promise<DesktopConversationTurnResult> {
+		const run = () => this.executeTurn(options);
+		return this.collaboration &&
+			!this.collaboration.isExecuting(options.session.sessionId, options.collaborationTaskId)
+			? this.collaboration.withManual(options.session.sessionId, run)
+			: run();
+	}
+	async runInteractiveOperation<T>(sessionId: string, run: () => Promise<T>): Promise<T> {
+		return this.collaboration ? this.collaboration.withManual(sessionId, run) : run();
+	}
+	async continueInteractiveSession(sessionId: string): Promise<void> {
+		const run = () => this.runtime.continue(sessionId);
+		return this.collaboration ? this.collaboration.withManual(sessionId, run) : run();
+	}
+	private async executeTurn(options: RunDesktopConversationTurnOptions): Promise<DesktopConversationTurnResult> {
 		if (this.runtime.getState(options.session.sessionId).isStreaming) {
 			throw new DesktopConversationError("SESSION_BUSY", "Session is already processing another turn.", {
 				sessionPath: options.session.sessionPath,
@@ -867,6 +1008,7 @@ export function getDesktopConversationService(): DesktopConversationService {
 						),
 					),
 				),
+			getProjectCollaborationService(),
 		);
 	}
 	return sharedService;

@@ -1,4 +1,7 @@
 {
+	"projectCollaborationTask": "Collaboration task · {{id}}",
+	"projectCollaborationResult": "Member results received · {{id}}. Details are available in project collaboration.",
+
 	"tray": {
 		"showWindow": "Show Window",
 		"hideWindow": "Hide Window",

@@ -25,6 +25,7 @@ import { registerPluginCapabilitiesIpc } from "./plugin-capabilities.js";
 import { registerPluginMediaProvidersIpc } from "./plugin-media-providers.js";
 import { registerPluginOcrProvidersIpc } from "./plugin-ocr-providers.js";
 import { registerPluginsIpc } from "./plugins.js";
+import { registerProjectCollaborationHandlers } from "./project-collaboration.js";
 import { registerProjectExportIpc } from "./project-export.js";
 import { registerQuickPanelIpc } from "./quickpanel.js";
 import { registerRemotePairingIpc } from "./remote-pairing.js";
@@ -59,6 +60,7 @@ interface IpcTeardown {
 	teardownMarkdown: () => void;
 	teardownDebug: () => void;
 	teardownProjectExport: () => void;
+	teardownProjectCollaboration: () => void;
 	teardownWebhook: () => void;
 	teardownRuntimes: () => void;
 	teardownRuntimeConfiguration: () => void;
@@ -106,6 +108,7 @@ export function registerAllIpc(
 		teardownMarkdown: registerMarkdownIpc(webContents),
 		teardownDebug: registerDebugIpc(),
 		teardownProjectExport: registerProjectExportIpc(),
+		teardownProjectCollaboration: registerProjectCollaborationHandlers(),
 		teardownWebhook: registerWebhookIpc(),
 		teardownRuntimes: registerRuntimesIpc(),
 		teardownRuntimeConfiguration: registerRuntimeConfigurationIpc(webContents),
@@ -118,7 +121,7 @@ export function registerAllIpc(
 		teardownConversationTags: registerConversationTagsIpc(webContents),
 		teardownQuickPanel: registerQuickPanelIpc(),
 		teardownAppshot: registerAppshotIpc(),
-		teardownDiagnostics: registerDiagnosticsIpc(),
+		teardownDiagnostics: registerDiagnosticsIpc(() => options.remotePairingService.getState()),
 		teardownOnboarding: registerOnboardingIpc(),
 		teardownRemotePairing: registerRemotePairingIpc(options.remotePairingService),
 		teardown567Api: register567ApiIpc(),
@@ -146,6 +149,7 @@ export function teardownAllIpc(teardown: IpcTeardown): void {
 	teardown.teardownMarkdown();
 	teardown.teardownDebug();
 	teardown.teardownProjectExport();
+	teardown.teardownProjectCollaboration();
 	teardown.teardownWebhook();
 	teardown.teardownRuntimes();
 	teardown.teardownRuntimeConfiguration();

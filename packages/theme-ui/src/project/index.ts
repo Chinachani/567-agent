@@ -32,6 +32,15 @@ export type {
 } from "./NewProjectDialogView";
 export { NewProjectDialogView } from "./NewProjectDialogView";
 export type {
+	ProjectCollaborationCandidateView,
+	ProjectCollaborationMemberState,
+	ProjectCollaborationMemberView,
+	ProjectCollaborationTaskView,
+	ProjectCollaborationViewLabels,
+	ProjectCollaborationViewProps,
+} from "./ProjectCollaborationView";
+export { ProjectCollaborationView } from "./ProjectCollaborationView";
+export type {
 	ProjectContextMenuScope,
 	ProjectContextMenuViewLabels,
 	ProjectContextMenuViewProps,

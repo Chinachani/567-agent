@@ -9,6 +9,7 @@ import { SettingsAiAssist } from "../../settings/ai-assist";
 import { resolveCategoryLabel } from "../lib/ability-presentation";
 import {
 	ABILITY_CATEGORY_CONNECTORS,
+	ABILITY_CATEGORY_INSTALLED,
 	ABILITY_CATEGORY_UNCATEGORIZED,
 	ABILITY_CATEGORY_VETTA_BUILTIN,
 	ENABLE_ABILITY_CATEGORIES,
@@ -150,6 +151,7 @@ export function AbilitiesPageView({
 										{t("filter.category")}
 										<select aria-label={t("filter.category")} value={model.category} onChange={(event) => model.setCategory(event.target.value)} className="h-8 rounded-md border border-border bg-background px-2 text-[12px] text-foreground">
 											<option value="">{t("filter.allCategories")}</option>
+							<option value={ABILITY_CATEGORY_INSTALLED}>{t("filter.installed", { count: model.installedCount })}</option>
 											{model.categories.map((group) => <option key={group.category} value={group.category}>{group.category === ABILITY_CATEGORY_UNCATEGORIZED ? t("group.uncategorized") : group.category === ABILITY_CATEGORY_CONNECTORS ? t("group.connectors") : group.category === ABILITY_CATEGORY_VETTA_BUILTIN ? t("group.vettaBuiltin") : resolveCategoryLabel(group.category, group.categoryI18n, i18n.language)}</option>)}
 										</select>
 									</label>

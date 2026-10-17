@@ -5,6 +5,7 @@ import {
 	pendingSessionOpenAtom,
 } from "@shared/store/atoms";
 import { getDefaultStore } from "jotai";
+import { getOpenSessionToken } from "./chat-service";
 
 type SessionTransition = { kind: "creation"; interactionId: string } | { kind: "open"; interactionId: string };
 
@@ -33,7 +34,9 @@ function transitionStillPending(transition: SessionTransition): boolean {
 export function getSessionRuntimeWhenReady(): Promise<ActiveSession | null> {
 	const store = getDefaultStore();
 	const transition = getPendingTransition();
+	if (store.get(pendingSessionOpenAtom)?.error) return Promise.resolve(null);
 	if (!transition) return Promise.resolve(store.get(activeSessionAtom));
+	const openToken = getOpenSessionToken();
 
 	return new Promise((resolve) => {
 		let settled = false;
@@ -45,6 +48,10 @@ export function getSessionRuntimeWhenReady(): Promise<ActiveSession | null> {
 			resolve(session);
 		};
 		const check = (): void => {
+			if (openToken !== getOpenSessionToken() || store.get(pendingSessionOpenAtom)?.error) {
+				finish(null);
+				return;
+			}
 			if (transitionStillPending(transition)) return;
 			// Another transition means the interaction's original target lost the
 			// newest-wins race. Never redirect the operation to that newer target.

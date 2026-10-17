@@ -49,7 +49,8 @@ export type CodingAgentPinnedConversationProjection = {
 /** Immutable, host-provided prefix captured with the Turn generation. */
 export interface CodingAgentPinnedModelContext {
 	readonly id: string;
-	readonly records: readonly SessionContextRecord[];
+	/** Pinned records become user messages, which require a timestamp. */
+	readonly records: readonly (SessionContextRecord & { readonly timestamp: number })[];
 	/** Model-only projections for content already represented by the prefix; storage is unchanged. */
 	readonly conversationProjections?: readonly CodingAgentPinnedConversationProjection[];
 }

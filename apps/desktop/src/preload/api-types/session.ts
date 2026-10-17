@@ -14,6 +14,7 @@ import type {
 	CodingAgentPermissionMode,
 	CodingAgentPlanModeState,
 } from "@567agent/coding-agent/session-extensions";
+import type { SessionWorkbenchDetail, SessionWorkbenchSnapshot } from "@567agent/remote-control";
 import type {
 	HistoryEntry,
 	ProjectInfo,
@@ -27,6 +28,7 @@ import type {
 	SessionStateSnapshot,
 	SettingsPatch,
 } from "@567agent/runtime-core";
+import type { ContextSelection, ContextWorkspaceSnapshot } from "../../shared/context-workspace.js";
 import type { DesktopMcpAppResourceRead, DesktopMcpAppSurface, DesktopMcpAppToolCall } from "../../shared/mcp-app.js";
 import type {
 	DesktopMcpElicitationRequest,
@@ -249,6 +251,29 @@ export interface DesktopSessionApi {
 	setPersonalization(input: PersonalizationConfig): Promise<void>;
 	getState(sessionId: string): Promise<DesktopSessionStateSnapshot>;
 	getMessages(sessionId: string): Promise<Message[]>;
+	readWorkbench(sessionId: string): Promise<SessionWorkbenchSnapshot>;
+	readWorkbenchDetail(
+		sessionId: string,
+		kind: "attachment" | "task" | "change",
+		id: string,
+	): Promise<SessionWorkbenchDetail>;
+	readAttachmentChunk(
+		sessionId: string,
+		id: string,
+		offset: number,
+		length: number,
+	): Promise<{ sizeBytes: number; dataBase64: string; revision: string }>;
+	reviewChange(
+		sessionId: string,
+		id: string,
+		action: "keep" | "revert",
+		revision: string,
+	): Promise<SessionWorkbenchSnapshot>;
+	readContextWorkspace(sessionId: string): Promise<ContextWorkspaceSnapshot>;
+	updateContextSelection(
+		sessionId: string,
+		selection: ContextSelection & { documentRevision: number; sessionId: string },
+	): Promise<ContextWorkspaceSnapshot>;
 	getFullHistory(sessionId: string): Promise<HistoryEntry[]>;
 	/** Prepare re-edit: set leaf to parent of user entry; returns text. Call before prompt. */
 	navigateForEdit(sessionId: string, entryId: string): Promise<{ text: string; cancelled: boolean }>;

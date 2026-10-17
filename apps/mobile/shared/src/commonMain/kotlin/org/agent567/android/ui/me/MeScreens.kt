@@ -66,6 +66,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import org.agent567.android.core.model.SubscriptionStatus
 import org.agent567.android.core.model.User
+import org.agent567.android.app.normalizeGitHubDownloadPrefix
 import org.agent567.android.data.session.MIGRATION_BACKUP_LIMIT_OPTIONS_MB
 import org.agent567.android.ui.components.PrimaryBlackButton
 import org.agent567.android.ui.components.EmptyState
@@ -687,7 +688,7 @@ fun SettingsScreen(
                                 )
                                 ProfileRow(
                                     Icons.Default.FileDownload,
-                                    Str.exportDiagnostics,
+                                    Str.diagnosticsDialogTitle,
                                     null,
                                     onClick = diagnosticsFiles.export,
                                     subtitle = Str.exportDiagnosticsHint,
@@ -963,6 +964,9 @@ private fun PreferenceSwitchRow(
 fun AboutScreen(
     onBack: () -> Unit,
     onCheckUpdate: ((org.agent567.android.core.api.AppUpdateCheckResult) -> Unit) -> Unit = {},
+    downloadSource: String = "github",
+    customDownloadPrefix: String = "",
+    onSaveDownloadSource: (source: String, customPrefix: String) -> Boolean = { _, _ -> false },
 ) {
     val uriHandler = androidx.compose.ui.platform.LocalUriHandler.current
     var checkingUpdate by remember { mutableStateOf(false) }
@@ -970,6 +974,11 @@ fun AboutScreen(
     var updateOpenError by remember { mutableStateOf<String?>(null) }
     var showNoUpdateNotice by remember { mutableStateOf(false) }
     var updateCheckError by remember { mutableStateOf<String?>(null) }
+    var showDownloadSourceDialog by remember { mutableStateOf(false) }
+    var selectedDownloadSource by remember(downloadSource) { mutableStateOf(downloadSource) }
+    var editedDownloadPrefix by remember(customDownloadPrefix) { mutableStateOf(customDownloadPrefix) }
+    var downloadSourceSaved by remember { mutableStateOf(false) }
+    var downloadSourceSaveFailed by remember { mutableStateOf(false) }
     var openDocument by remember { mutableStateOf<AboutDocument?>(null) }
     Scaffold(
         containerColor = MaterialTheme.agent567Extra.pageBackground,
@@ -1022,6 +1031,24 @@ fun AboutScreen(
                         }
                     },
                     showDivider = true,
+                )
+                ProfileRow(
+                    Icons.Default.Settings,
+                    Str.githubDownloadSource,
+                    when (downloadSource) {
+                        "gh-proxy" -> Str.githubDownloadGhProxy
+                        "custom" -> Str.githubDownloadCustom
+                        else -> Str.githubDownloadDirect
+                    },
+                    onClick = {
+                        selectedDownloadSource = downloadSource
+                        editedDownloadPrefix = customDownloadPrefix
+                        downloadSourceSaved = false
+                        downloadSourceSaveFailed = false
+                        showDownloadSourceDialog = true
+                    },
+                    showDivider = true,
+                    subtitle = Str.githubDownloadSourceHint,
                 )
                 ProfileRow(
                     Icons.Default.Info,
@@ -1087,7 +1114,7 @@ fun AboutScreen(
                         }
                     },
                 ) {
-                    Text(if (update.apkUrl.isNullOrBlank()) "打开 GitHub 发布页" else "GitHub直链")
+                    Text(if (update.apkUrl.isNullOrBlank()) "打开 GitHub 发布页" else Str.githubDownloadPackage)
                 }
             },
             dismissButton = {
@@ -1095,6 +1122,88 @@ fun AboutScreen(
                     TextButton(onClick = { updateResult = null }) {
                         Text("稍后")
                     }
+                }
+            },
+        )
+    }
+
+    if (showDownloadSourceDialog) {
+        val prefixValid = normalizeGitHubDownloadPrefix(editedDownloadPrefix) != null
+        androidx.compose.material3.AlertDialog(
+            onDismissRequest = { showDownloadSourceDialog = false },
+            title = { Text(Str.githubDownloadSettings) },
+            text = {
+                Column(Modifier.verticalScroll(rememberScrollState())) {
+                    listOf(
+                        "github" to Str.githubDownloadDirect,
+                        "gh-proxy" to Str.githubDownloadGhProxy,
+                        "custom" to Str.githubDownloadCustom,
+                    ).forEach { (source, label) ->
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .clickable {
+                                    selectedDownloadSource = source
+                                    downloadSourceSaved = false
+                                    downloadSourceSaveFailed = false
+                                },
+                            verticalAlignment = Alignment.CenterVertically,
+                        ) {
+                            RadioButton(
+                                selected = selectedDownloadSource == source,
+                                onClick = {
+                                    selectedDownloadSource = source
+                                    downloadSourceSaved = false
+                                    downloadSourceSaveFailed = false
+                                },
+                            )
+                            Text(label, style = MaterialTheme.typography.bodyMedium)
+                        }
+                    }
+                    if (selectedDownloadSource == "custom") {
+                        OutlinedTextField(
+                            value = editedDownloadPrefix,
+                            onValueChange = {
+                                editedDownloadPrefix = it
+                                downloadSourceSaved = false
+                                downloadSourceSaveFailed = false
+                            },
+                            modifier = Modifier.fillMaxWidth(),
+                            label = { Text(Str.githubDownloadPrefixLabel) },
+                            placeholder = { Text(Str.githubDownloadPrefixExample) },
+                            singleLine = true,
+                            isError = editedDownloadPrefix.isNotBlank() && !prefixValid,
+                        )
+                        Text(
+                            if (editedDownloadPrefix.isNotBlank() && !prefixValid) Str.githubDownloadPrefixInvalid
+                            else Str.githubDownloadPrefixExample,
+                            style = MaterialTheme.typography.bodySmall,
+                            color = if (editedDownloadPrefix.isNotBlank() && !prefixValid) MaterialTheme.colorScheme.error
+                            else MaterialTheme.agent567Extra.secondaryText,
+                        )
+                    }
+                    if (downloadSourceSaved) {
+                        Text(Str.githubDownloadSaved, style = MaterialTheme.typography.bodySmall)
+                    }
+                    if (downloadSourceSaveFailed) {
+                        Text(Str.githubDownloadSaveFailed, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.error)
+                    }
+                }
+            },
+            confirmButton = {
+                androidx.compose.material3.TextButton(
+                    enabled = selectedDownloadSource != "custom" || prefixValid,
+                    onClick = {
+                        val prefix = if (selectedDownloadSource == "custom") normalizeGitHubDownloadPrefix(editedDownloadPrefix).orEmpty() else editedDownloadPrefix
+                        downloadSourceSaved = onSaveDownloadSource(selectedDownloadSource, prefix)
+                        downloadSourceSaveFailed = !downloadSourceSaved
+                        if (downloadSourceSaved) updateResult = null
+                    },
+                ) { Text(Str.githubDownloadSave) }
+            },
+            dismissButton = {
+                androidx.compose.material3.TextButton(onClick = { showDownloadSourceDialog = false }) {
+                    Text(Str.githubDownloadCancel)
                 }
             },
         )

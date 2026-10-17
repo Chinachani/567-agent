@@ -1,6 +1,6 @@
 import type { RuntimeObservationPublisher, RuntimeSessionValueIndex } from "@567agent/runtime-core";
 import type { RuntimeConfigurationSnapshotSource } from "@567agent/runtime-core/configuration";
-import type { ModelCallContributionContext } from "@567agent/runtime-core/kernel";
+import type { ModelCallContributionContext, ToolPolicy } from "@567agent/runtime-core/kernel";
 import type { McpRuntimeToolSource, McpRuntimeToolView } from "@567agent/runtime-mcp";
 import type { CodingToolResultPolicy } from "@567agent/runtime-tools";
 import {
@@ -37,6 +37,7 @@ export interface CodingAgentRuntimeToolSurfaceIndexes extends CodingAgentMcpSess
 }
 
 export interface CodingAgentRuntimeToolSurfaceOptions {
+	readonly authorizeTool?: ToolPolicy["authorize"];
 	readonly cwd: string;
 	readonly agentDir?: string;
 	readonly scenario: ConversationScenario;
@@ -91,6 +92,7 @@ export async function createCodingAgentRuntimeToolSurface(
 		configurationSource: options.configurationSource,
 	});
 	const tools = createCodingToolsRuntimeComposition({
+		authorizeTool: options.authorizeTool,
 		cwd: options.cwd,
 		environment,
 		activation,

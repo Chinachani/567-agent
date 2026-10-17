@@ -7,6 +7,7 @@ import {
 	type ModelCallContributionContext,
 	RandomIdGenerator,
 	type RuntimeCapabilityDefinition,
+	type ToolPolicy,
 } from "@567agent/runtime-core/kernel";
 import {
 	type BackgroundCommandService,
@@ -33,6 +34,7 @@ import { declareCodingAgentPlatformTools } from "../../tool-policy/platform-tool
 import type { CodingAgentSpecializedToolRegistrationContext, CodingAgentToolEnvironment } from "../contracts/index.js";
 
 export interface CodingToolsRuntimeCompositionOptions {
+	readonly authorizeTool?: ToolPolicy["authorize"];
 	readonly cwd: string;
 	readonly environment: CodingAgentToolEnvironment;
 	readonly activation?: CodingAgentToolActivation;
@@ -131,9 +133,9 @@ export function createCodingToolsRuntimeComposition(
 	const capabilities: RuntimeCapabilityDefinition = createDefaultRuntimeCapabilityDefinition({
 		features: [feature],
 		toolPolicy: {
-			async authorize(_request, signal) {
+			async authorize(request, signal) {
 				signal.throwIfAborted();
-				return true;
+				return options.authorizeTool ? options.authorizeTool(request, signal) : true;
 			},
 		},
 		tokenBudget: options.tokenBudget ?? 8_000,

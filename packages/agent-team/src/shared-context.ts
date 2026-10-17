@@ -391,7 +391,7 @@ export function projectTeamCheckpointSessionContext(input: {
 	readonly checkpoint: TeamSharedContextCheckpoint;
 	readonly generation: TeamCheckpointGeneration;
 	readonly additionalRecords?: readonly TeamContextImportRecord[];
-}): SessionContextRecord[] {
+}): (SessionContextRecord & { readonly timestamp: number })[] {
 	const checkpointIds = new Set(input.checkpoint.sourceEntryIds);
 	const additionalRecords = (input.additionalRecords ?? [])
 		.filter((record) => !checkpointIds.has(record.sourceEntryId))
@@ -399,25 +399,23 @@ export function projectTeamCheckpointSessionContext(input: {
 			(left, right) =>
 				left.sourceTimestamp - right.sourceTimestamp || left.sourceEntryId.localeCompare(right.sourceEntryId),
 		);
-	return [...input.checkpoint.summaryRecords, ...additionalRecords].map(
-		(record): SessionContextRecord => ({
-			type: `agent-team.shared-${record.kind}.v1`,
-			content: record.content,
-			modelVisible: true,
-			display: false,
-			timestamp: record.sourceTimestamp,
-			metadata: {
-				sourceConversationId: input.checkpoint.coordinationConversationId,
-				sourceEntryId: record.sourceEntryId,
-				sourceTurnId: record.sourceTurnId,
-				sourceAuthorId: record.sourceAuthorId,
-				projectionPolicyId: record.projectionPolicyId,
-				generationId: input.generation.id,
-				checkpointId: input.checkpoint.id,
-				sourceFingerprint: input.checkpoint.sourceFingerprint,
-			},
-		}),
-	);
+	return [...input.checkpoint.summaryRecords, ...additionalRecords].map((record) => ({
+		type: `agent-team.shared-${record.kind}.v1`,
+		content: record.content,
+		modelVisible: true,
+		display: false,
+		timestamp: record.sourceTimestamp,
+		metadata: {
+			sourceConversationId: input.checkpoint.coordinationConversationId,
+			sourceEntryId: record.sourceEntryId,
+			sourceTurnId: record.sourceTurnId,
+			sourceAuthorId: record.sourceAuthorId,
+			projectionPolicyId: record.projectionPolicyId,
+			generationId: input.generation.id,
+			checkpointId: input.checkpoint.id,
+			sourceFingerprint: input.checkpoint.sourceFingerprint,
+		},
+	}));
 }
 
 /** Finds private source messages already represented by public messages in this checkpoint. */

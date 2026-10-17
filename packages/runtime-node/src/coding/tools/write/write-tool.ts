@@ -1,7 +1,8 @@
-import { mkdir, writeFile } from "node:fs/promises";
+import { mkdir, open, stat, writeFile } from "node:fs/promises";
 import { dirname } from "node:path";
 import type { RuntimeToolDefinition } from "@567agent/runtime-core/kernel";
 import { type Static, Type } from "@sinclair/typebox";
+import { type FileChangeReceipt, fileChangeReceipt } from "../../shared/file-change-receipt.js";
 import { resolveToCwd, resolveWritablePath } from "../../shared/path-resolution.js";
 import { WRITE_TOOL_DESCRIPTION } from "./description.js";
 
@@ -21,6 +22,8 @@ export type WriteToolInput = Static<typeof WriteToolInputSchema>;
 export interface WriteOperations {
 	readonly writeFile: (absolutePath: string, content: string) => Promise<void>;
 	readonly mkdir: (directory: string) => Promise<void>;
+	/** Optional bounded baseline reader; custom hosts opt in explicitly. */
+	readonly readBefore?: (absolutePath: string) => Promise<Buffer | undefined>;
 }
 
 export interface WritePathPolicy {
@@ -33,6 +36,21 @@ export interface WriteToolOptions {
 }
 
 const defaultWriteOperations: WriteOperations = {
+	readBefore: async (path) => {
+		try {
+			if ((await stat(path)).size > 64 * 1024) return undefined;
+			const handle = await open(path, "r");
+			try {
+				const buffer = Buffer.alloc(65537);
+				const { bytesRead } = await handle.read(buffer, 0, buffer.length, 0);
+				return bytesRead > 65536 ? undefined : buffer.subarray(0, bytesRead);
+			} finally {
+				await handle.close();
+			}
+		} catch {
+			return undefined;
+		}
+	},
 	writeFile: (path, content) => writeFile(path, content, "utf-8"),
 	mkdir: (directory) => mkdir(directory, { recursive: true }).then(() => {}),
 };
@@ -88,7 +106,7 @@ interface ExecuteWriteOptions {
 
 function executeWrite(options: ExecuteWriteOptions): Promise<{
 	readonly content: readonly [{ readonly type: "text"; readonly text: string }];
-	readonly details: undefined;
+	readonly details: { readonly fileChange?: FileChangeReceipt } | undefined;
 }> {
 	return new Promise((resolve, reject) => {
 		if (options.signal.aborted) {
@@ -106,6 +124,8 @@ function executeWrite(options: ExecuteWriteOptions): Promise<{
 			try {
 				await options.operations.mkdir(options.directory);
 				if (aborted) return;
+				const before = await options.operations.readBefore?.(options.absolutePath);
+				if (aborted) return;
 				await options.operations.writeFile(options.absolutePath, options.content);
 				if (aborted) return;
 				options.signal.removeEventListener("abort", onAbort);
@@ -118,7 +138,9 @@ function executeWrite(options: ExecuteWriteOptions): Promise<{
 								`Successfully wrote ${options.content.length} bytes to ${options.absolutePath}`,
 						},
 					],
-					details: undefined,
+					details: before
+						? { fileChange: fileChangeReceipt(options.absolutePath, before, options.content) }
+						: undefined,
 				});
 			} catch (error: unknown) {
 				options.signal.removeEventListener("abort", onAbort);

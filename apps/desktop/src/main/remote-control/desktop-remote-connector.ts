@@ -75,6 +75,16 @@ export interface DesktopRemoteOperations {
 	createSession(): Promise<{ sessionId: string }>;
 	openSession(sessionId: string): Promise<{ sessionId: string }>;
 	readonly canManageContext?: boolean;
+	readonly canReadWorkbench?: boolean;
+	readonly canManageCollaboration?: boolean;
+	readonly canSelectContext?: boolean;
+	readWorkbench?(sessionId: string): Promise<unknown>;
+	readWorkbenchDetail?(sessionId: string, kind: string, id: string): Promise<unknown>;
+	readCollaboration?(sessionId: string): Promise<unknown>;
+	updateCollaboration?(sessionId: string, patch: unknown): Promise<unknown>;
+	controlCollaboration?(sessionId: string, control: unknown): Promise<unknown>;
+	readAttachmentChunk?(sessionId: string, id: string, offset: number, length: number): Promise<unknown>;
+	updateContextSelection?(sessionId: string, selection: unknown): Promise<RemoteSessionContext>;
 	readContext?(sessionId: string): Promise<RemoteSessionContext>;
 	compactContext?(sessionId: string, signal?: AbortSignal): Promise<RemoteSessionContext & { summary: string }>;
 	setAutoCompaction?(sessionId: string, enabled: boolean): Promise<RemoteSessionContext>;
@@ -189,7 +199,8 @@ export class DesktopRemoteConnector {
 		}
 	}
 
-	private async dispatch(request: RemoteRequest, signal?: AbortSignal): Promise<unknown> {
+	private async dispatch(wireRequest: RemoteRequest, signal?: AbortSignal): Promise<unknown> {
+		const request = expandContextExtension(wireRequest);
 		switch (request.method) {
 			case "session.list": {
 				const catalog = this.operations.listSessionCatalog
@@ -207,6 +218,21 @@ export class DesktopRemoteConnector {
 						this.operations.compactContext &&
 						this.operations.setAutoCompaction
 							? ["session.context", "session.context.compact", "session.context.cancel", "session.context.auto"]
+							: []),
+						...(this.operations.canReadWorkbench !== false &&
+						this.operations.readWorkbench &&
+						this.operations.readWorkbenchDetail
+							? ["session.workbench", "session.workbench.detail"]
+							: []),
+						...(this.operations.canManageCollaboration !== false &&
+						this.operations.readCollaboration &&
+						this.operations.updateCollaboration &&
+						this.operations.controlCollaboration
+							? ["session.collaboration.read", "session.collaboration.update", "session.collaboration.control"]
+							: []),
+						...(this.operations.readAttachmentChunk ? ["session.attachment.read"] : []),
+						...(this.operations.canSelectContext !== false && this.operations.updateContextSelection
+							? ["session.context.selection"]
 							: []),
 						...(this.operations.readModels ? ["session.models"] : []),
 						...(this.operations.readModels && this.operations.selectModel ? ["session.model.select"] : []),
@@ -417,6 +443,56 @@ export class DesktopRemoteConnector {
 			case "session.context": {
 				if (!this.operations.readContext) throw new Error("Desktop context management is unavailable");
 				return this.operations.readContext(requireSessionId(request));
+			}
+			case "session.workbench": {
+				if (!this.operations.readWorkbench) throw new Error("Desktop workbench is unavailable");
+				return this.operations.readWorkbench(requireSessionId(request));
+			}
+			case "session.workbench.detail": {
+				const payload = request.payload;
+				if (
+					!this.operations.readWorkbenchDetail ||
+					!isRecord(payload) ||
+					typeof payload.kind !== "string" ||
+					typeof payload.id !== "string"
+				)
+					throw new Error("Invalid workbench detail request");
+				return this.operations.readWorkbenchDetail(requireSessionId(request), payload.kind, payload.id);
+			}
+			case "session.collaboration.read": {
+				if (!this.operations.readCollaboration) throw new Error("Project collaboration is unavailable");
+				return this.operations.readCollaboration(requireSessionId(request));
+			}
+			case "session.collaboration.update": {
+				if (!this.operations.updateCollaboration || !isRecord(request.payload))
+					throw new Error("Invalid project collaboration update");
+				return this.operations.updateCollaboration(requireSessionId(request), request.payload);
+			}
+			case "session.collaboration.control": {
+				if (!this.operations.controlCollaboration || !isRecord(request.payload))
+					throw new Error("Invalid project collaboration control");
+				return this.operations.controlCollaboration(requireSessionId(request), request.payload);
+			}
+			case "session.attachment.read": {
+				const payload = request.payload;
+				if (
+					!this.operations.readAttachmentChunk ||
+					!isRecord(payload) ||
+					typeof payload.id !== "string" ||
+					typeof payload.offset !== "number" ||
+					typeof payload.length !== "number"
+				)
+					throw new Error("Invalid attachment request");
+				return this.operations.readAttachmentChunk(
+					requireSessionId(request),
+					payload.id,
+					payload.offset,
+					payload.length,
+				);
+			}
+			case "session.context.selection": {
+				if (!this.operations.updateContextSelection) throw new Error("Desktop context selection is unavailable");
+				return this.operations.updateContextSelection(requireSessionId(request), request.payload);
 			}
 			case "session.context.compact": {
 				if (!this.operations.compactContext) throw new Error("Desktop context compaction is unavailable");
@@ -990,4 +1066,26 @@ function mapModelFailure(code: string, retryable: boolean): RemoteError {
 
 function remoteError(code: RemoteError["code"], message: string, retryable: boolean): RemoteError {
 	return { code, message, retryable };
+}
+
+/** Optional session features travel inside an established frame so older blind relays keep working. */
+function expandContextExtension(request: RemoteRequest): RemoteRequest {
+	if (
+		request.method !== "session.context" ||
+		!isRecord(request.payload) ||
+		request.payload.extensionMethod === undefined
+	)
+		return request;
+	const method = request.payload.extensionMethod;
+	if (
+		method !== "session.context.selection" &&
+		method !== "session.workbench" &&
+		method !== "session.workbench.detail" &&
+		method !== "session.collaboration.read" &&
+		method !== "session.collaboration.update" &&
+		method !== "session.collaboration.control" &&
+		method !== "session.attachment.read"
+	)
+		throw new Error("Unknown session context extension");
+	return { ...request, method, payload: request.payload.payload };
 }

@@ -1,6 +1,7 @@
 import type { IpcRenderer, IpcRendererEvent, WebUtils } from "electron";
 import { PERSIST_IMAGE_FILES_CHANNEL } from "../../shared/image-cache.js";
 import { MODEL_CONTEXT_SET_CHANNEL } from "../../shared/model-context.js";
+import { PROJECT_COLLABORATION_CHANNELS } from "../../shared/project-collaboration.js";
 import { PROJECTS_CHANNELS } from "../../shared/projects-ipc.js";
 import { RUNTIMES_STATUS_CHANGED_CHANNEL } from "../../shared/runtime-install-progress.js";
 import type { DesktopApi } from "../api.js";
@@ -318,13 +319,19 @@ export function createSystemApi(
 			clearDebugDir: () => ipc.invoke("vetta:debug:clear-debug-dir"),
 		},
 		diagnostics: {
-			exportDiagnosticsPackage: () => ipc.invoke("vetta:diagnostics:export"),
+			readReport: () => ipc.invoke("agent567:diagnostics:report"),
+			repairRuntimes: () => ipc.invoke("agent567:diagnostics:repair"),
+			exportDiagnosticsPackage: (includeLogs) => ipc.invoke("vetta:diagnostics:export", includeLogs),
 			getLogDir: () => ipc.invoke("vetta:diagnostics:get-log-dir"),
 		},
 		project: {
 			export: (projectDir) => ipc.invoke("vetta:project:export", projectDir),
 			import: () => ipc.invoke("vetta:project:import"),
 			readMeta: (projectDir) => ipc.invoke("vetta:project:read-meta", projectDir),
+			readCollaboration: (cwd) => ipc.invoke(PROJECT_COLLABORATION_CHANNELS.read, cwd),
+			updateCollaboration: (cwd, patch) => ipc.invoke(PROJECT_COLLABORATION_CHANNELS.update, cwd, patch),
+			controlCollaboration: (cwd, control) => ipc.invoke(PROJECT_COLLABORATION_CHANNELS.control, cwd, control),
+			onCollaborationChanged: (handler) => onIpcEvent(ipc, PROJECT_COLLABORATION_CHANNELS.changed, handler),
 		},
 		permissions: {
 			checkAll: () => ipc.invoke("vetta:permissions:check-all"),

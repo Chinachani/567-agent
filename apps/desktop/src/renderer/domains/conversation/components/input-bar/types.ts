@@ -136,12 +136,14 @@ export type InputBarLeadingTool = {
 	readonly kind: "execution-mode";
 	readonly model: ExecutionModeSelectorViewProps;
 };
-export type InputBarTrailingTool = {
-	readonly kind: "context-usage";
-	readonly model: ContextRingModel;
-	/** Optional composition slot for hosts that need to extend the context ring. */
-	readonly render?: (model: ContextRingModel) => ReactNode;
-};
+export type InputBarTrailingTool =
+	| { kind: "workbench"; sessionId: string | null; sessionKey?: string | null }
+	| {
+			readonly kind: "context-usage";
+			readonly model: ContextRingModel;
+			/** Optional composition slot for hosts that need to extend the context ring. */
+			readonly render?: (model: ContextRingModel) => ReactNode;
+	  };
 
 export interface InputBarModel {
 	dropZone: Omit<SessionDropZoneViewProps, "children" | "className">;

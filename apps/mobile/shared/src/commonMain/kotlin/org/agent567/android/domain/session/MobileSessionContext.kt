@@ -9,9 +9,14 @@ data class MobileSessionContext(
     val throughMessageId: String? = null,
     val throughCreatedAtEpochMs: Long? = null,
     val summary: String = "",
+    val previousSummary: String = "",
+    val pinnedText: String = "",
+    val excludedTurnIds: List<String> = emptyList(),
+    val selectionRevision: Long = 0,
 )
 
 data class ChatContextSnapshot(
+    val workspace: ContextWorkspaceSnapshot? = null,
     val tokens: Long? = null,
     val contextWindow: Long? = null,
     val contextWindowSource: String = "unknown",

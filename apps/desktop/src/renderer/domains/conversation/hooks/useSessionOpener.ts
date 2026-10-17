@@ -2,6 +2,7 @@ import { useProjectActions } from "@domains/project/hooks/useProjects";
 import { applyActiveTagFilterToNewConversation } from "@domains/project/services/new-conversation-tagging";
 import { i18n } from "@shared/i18n";
 import { waitForCommittedPaint } from "@shared/lib/committed-paint";
+import { ipcErrorMessage } from "@shared/lib/ipc-error";
 import { perfSendMark } from "@shared/lib/perf-send";
 import {
 	perfSessionSwitchBegin,
@@ -77,12 +78,22 @@ function getProjects(): Project[] {
 
 const HISTORY_BACKFILL_IDLE_TIMEOUT_MS = 1_500;
 
-function scheduleHistoryBackfill(task: () => void): void {
-	if (typeof window.requestIdleCallback === "function") {
-		window.requestIdleCallback(task, { timeout: HISTORY_BACKFILL_IDLE_TIMEOUT_MS });
-		return;
-	}
-	window.setTimeout(task, 0);
+function scheduleHistoryBackfill(task: () => void): Promise<void> {
+	return new Promise((resolve, reject) => {
+		const run = (): void => {
+			try {
+				task();
+				resolve();
+			} catch (error) {
+				reject(error);
+			}
+		};
+		if (typeof window.requestIdleCallback === "function") {
+			window.requestIdleCallback(run, { timeout: HISTORY_BACKFILL_IDLE_TIMEOUT_MS });
+			return;
+		}
+		window.setTimeout(run, 0);
+	});
 }
 
 function sameActiveSession(left: ActiveSession | null, right: ActiveSession): boolean {
@@ -145,6 +156,26 @@ export function useSessionOpener(): SessionOpenerController {
 	const openSession = useCallback(
 		async (cwd: string, sessionPath?: string, executionMode?: SessionExecutionMode, options?: OpenSessionOptions) => {
 			const isExistingSessionOpen = sessionPath !== undefined;
+			const currentStore = getDefaultStore();
+			const currentSession = currentStore.get(activeSessionAtom);
+			if (
+				isExistingSessionOpen &&
+				currentSession?.sessionPath === sessionPath &&
+				currentUnsubscribe &&
+				!currentStore.get(pendingSessionOpenAtom) &&
+				!currentStore.get(pendingSessionCreationAtom) &&
+				executionMode === undefined &&
+				!options?.onPromptReady &&
+				!options?.onCreateError &&
+				!options?.agentProfileId &&
+				!options?.preserveMessagesBeforeCreate
+			) {
+				// Selecting the current, ready conversation is navigation, not a restore request.
+				// Keep its viewport, live subscription and open workbench intact.
+				if (options?.navigate !== false) await navigate({ to: "/" });
+				if (options?.interactionId) perfSessionSwitchComplete("completed", options.interactionId);
+				return;
+			}
 			const interactionId =
 				options?.interactionId ??
 				(isExistingSessionOpen ? perfSessionSwitchBegin("existing-session-open") : undefined);
@@ -156,6 +187,8 @@ export function useSessionOpener(): SessionOpenerController {
 			// 取自己的调用令牌；每个异步边界都执行 newest-wins 校验。
 			// subscribe() 若已完成还会立即释放旧操作刚建好的 IPC 订阅，避免泄漏。
 			const myOpenToken = bumpOpenSessionToken();
+			setPendingSessionOpen(null);
+			setPendingSessionCreation(null);
 			const commitActiveSession = (session: ActiveSession): void => {
 				if (!sameActiveSession(activeSessionRef.current, session)) setActiveSession(session);
 				activeSessionRef.current = session;
@@ -184,18 +217,28 @@ export function useSessionOpener(): SessionOpenerController {
 				clearOwnPendingTransition();
 				if (isExistingSessionOpen) perfSessionSwitchComplete("cancelled", interactionId);
 			};
-			const failSessionHydration = (stage: "path" | "history" | "state" | "subscribe", error: unknown): void => {
+			const failSessionHydration = (
+				stage: "create" | "path" | "history" | "state" | "subscribe",
+				error: unknown,
+			): void => {
 				if (myOpenToken !== getOpenSessionToken()) {
 					finishCancelledOpen();
 					return;
 				}
 				console.error("[useSessionOpener] session hydration failed", { interactionId, stage, error });
-				clearOwnPendingTransition();
-				const message = error instanceof Error ? error.message : String(error);
-				setChatMessages((previous) => appendError(previous, message));
+				const message = ipcErrorMessage(error) || i18n.t("chat:session.openFailure.title");
 				setActiveSession(null);
 				activeSessionRef.current = null;
 				setChatStreamOwner(null);
+				setActiveSessionStreaming(false);
+				if (stageExistingSessionOpen) {
+					setPendingSessionOpen((current) =>
+						current && current.interactionId === interactionId ? { ...current, error: message } : current,
+					);
+				} else {
+					clearOwnPendingTransition();
+					setChatMessages((previous) => appendError(previous, message));
+				}
 				if (isExistingSessionOpen) perfSessionSwitchComplete("failed", interactionId);
 			};
 			if (navigateBeforeCreate) {
@@ -359,19 +402,11 @@ export function useSessionOpener(): SessionOpenerController {
 			} catch (error) {
 				perfSendMark("session-create-failed", interactionId);
 				markSessionSwitch("session-create-failed");
-				if (isExistingSessionOpen) perfSessionSwitchComplete("failed", interactionId);
-				const message = error instanceof Error ? error.message : String(error);
-				console.error("[useSessionOpener] session.create failed:", error);
-				setChatMessages((prev) => {
-					const last = prev.at(-1);
-					const lastError = last?.kind === "agent" ? last.blocks.at(-1) : undefined;
-					if (last?.kind === "agent" && lastError?.type === "error" && lastError.text === message) return prev;
-					return appendError(prev, message);
-				});
-				setActiveSession(null);
-				activeSessionRef.current = null;
-				setChatStreamOwner(null);
-				clearOwnPendingTransition();
+				if (myOpenToken !== getOpenSessionToken()) {
+					finishCancelledOpen();
+					return;
+				}
+				failSessionHydration("create", error);
 				if (navigateBeforeCreate) {
 					try {
 						options?.onCreateError?.(error);
@@ -510,8 +545,14 @@ export function useSessionOpener(): SessionOpenerController {
 			// session is interactive; the tail preview already owns the first screen.
 			perfSendMark("session-state-load-start", interactionId);
 			markSessionSwitch("session-hydration-start");
-			const historyPromise =
-				sessionPath === undefined ? Promise.resolve([]) : window.agent567.session.getFullHistory(sessionId);
+			// Attach both outcomes immediately: state/subscribe may fail before the
+			// history backfill is observed, or the user may supersede this open.
+			const historyPromise = (
+				sessionPath === undefined ? Promise.resolve([]) : window.agent567.session.getFullHistory(sessionId)
+			).then(
+				(history) => ({ history, error: undefined }),
+				(error: unknown) => ({ history: undefined, error }),
+			);
 			const statePromise = window.agent567.session.getState(sessionId);
 			let state: Awaited<typeof statePromise>;
 			try {
@@ -542,7 +583,9 @@ export function useSessionOpener(): SessionOpenerController {
 			if (sessionPath === undefined) {
 				const desired = selectedModelRef.current;
 				if (desired && desired !== backendModelKey) {
-					void window.agent567.session.updateSettings(sessionId, { modelKey: desired });
+					void window.agent567.session.updateSettings(sessionId, { modelKey: desired }).catch((error: unknown) => {
+						console.error("[useSessionOpener] initial model update failed", error);
+					});
 				}
 			}
 
@@ -605,11 +648,13 @@ export function useSessionOpener(): SessionOpenerController {
 
 			if (sessionPath !== undefined) {
 				void historyPromise
-					.then((history) => {
+					.then((result) => {
+						if (!result.history) throw result.error;
+						const history = result.history;
 						perfSendMark("session-history-loaded", interactionId);
 						markSessionSwitch("session-history-loaded");
 						if (myOpenToken !== getOpenSessionToken()) return;
-						scheduleHistoryBackfill(() => {
+						return scheduleHistoryBackfill(() => {
 							if (myOpenToken !== getOpenSessionToken()) return;
 							const canonical = fullHistoryToChat(history);
 							const reconciled = reconcileOptimisticUserMessages(sessionId, canonical);
@@ -628,6 +673,7 @@ export function useSessionOpener(): SessionOpenerController {
 							}
 							startTransition(() => {
 								setChatMessages((current) => {
+									if (myOpenToken !== getOpenSessionToken()) return current;
 									const merged = preserveMessagesAddedAfterSnapshot(
 										previewSnapshot,
 										sharedSnapshot.messages,
@@ -679,17 +725,16 @@ export function useSessionOpener(): SessionOpenerController {
 			// 阻塞 openSession：新会话的首条 prompt 只依赖上面的订阅与运行时状态，侧边栏
 			// 对账可以在发送之后异步完成。
 			const bucketCwd = conversationBucketCwd(effectiveCwd, defaultConversationCwdRef.current);
+			const firstUser = getDefaultStore()
+				.get(chatMessagesAtom)
+				.find((message) => message.kind === "user");
+			const firstMessage = (firstUser?.text ?? "").trim().slice(0, 80) || i18n.t("chat:session.emptyMessageLabel");
 			void loadSessions(bucketCwd)
 				.then(() => {
 					// 乐观兜底：fork 刚写出的文件若 list 未收录，再插入一次（已有则不动，避免改 modifiedAt 排序）。
 					if (!cachedKey) return;
 					const listed = getDefaultStore().get(sessionsMapAtom).get(bucketCwd) ?? [];
 					if (listed.some((s) => s.path === cachedKey)) return;
-					const firstUser = getDefaultStore()
-						.get(chatMessagesAtom)
-						.find((message) => message.kind === "user");
-					const firstMessage =
-						(firstUser?.text ?? "").trim().slice(0, 80) || i18n.t("chat:session.emptyMessageLabel");
 					ensureLocalSession(bucketCwd, {
 						id: sessionId,
 						path: cachedKey,

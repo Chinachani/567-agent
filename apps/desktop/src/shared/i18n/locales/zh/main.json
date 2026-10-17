@@ -1,4 +1,7 @@
 {
+	"projectCollaborationTask": "协作任务 · {{id}}",
+	"projectCollaborationResult": "成员结果已送达 · {{id}}。详细记录可在项目协作中查看。",
+
 	"tray": {
 		"showWindow": "显示窗口",
 		"hideWindow": "隐藏窗口",

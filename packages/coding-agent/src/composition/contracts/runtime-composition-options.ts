@@ -9,7 +9,7 @@ import type {
 	RuntimeObservationRouteOptions,
 	SessionConfig,
 } from "@567agent/runtime-core";
-import type { AgentCoreTurnEngineOptions } from "@567agent/runtime-core/kernel";
+import type { AgentCoreTurnEngineOptions, ToolPolicy } from "@567agent/runtime-core/kernel";
 import type {
 	SessionExtensionDefinition,
 	SessionExtensionFunctionSource,
@@ -84,6 +84,8 @@ export interface CodingAgentRuntimeModelOptions {
 }
 
 export interface CodingAgentRuntimeToolOptions {
+	/** Additional host authorization, evaluated before every executable tool. */
+	readonly authorizeTool?: ToolPolicy["authorize"];
 	/** 平台工具环境由最终宿主显式选择；Coding Agent 不提供 Node 默认实现。 */
 	readonly createToolEnvironment: CodingAgentToolEnvironmentFactory;
 	/** 为每个 Session 创建独占的命令、后台任务与 sandbox 宿主环境。 */

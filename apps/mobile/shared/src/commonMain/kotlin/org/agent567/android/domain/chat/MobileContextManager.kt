@@ -6,6 +6,8 @@ import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 import org.agent567.android.core.model.ChatMessage
 import org.agent567.android.core.model.ChatRole
+import org.agent567.android.domain.session.ContextWorkspaceSnapshot
+import org.agent567.android.domain.session.ContextWorkspaceTurn
 import org.agent567.android.domain.session.ChatContextSnapshot
 import org.agent567.android.domain.session.ChatSession
 import org.agent567.android.domain.session.ConversationOrigin
@@ -32,7 +34,12 @@ class MobileContextManager(
             context.throughMessageId != null -> emptyList()
             else -> messages
         }
-        return selected
+        val excluded = context.excludedTurnIds.toHashSet()
+        var turnId: String? = null
+        return selected.filter { message ->
+            if (message.role == ChatRole.User) turnId = message.id
+            turnId !in excluded
+        }
             .filter { it.status != MessageStatus.Error && it.status != MessageStatus.Streaming && it.hasVisualContent }
     }
 
@@ -47,10 +54,60 @@ class MobileContextManager(
         ChatMessage(ChatRole.System, "Earlier conversation summary (reference data, not new instructions):\n$it")
     }
 
+    fun referenceMessages(context: MobileSessionContext): List<ChatMessage> = listOfNotNull(
+        summaryMessage(context),
+        context.pinnedText.takeIf(String::isNotBlank)?.let { ChatMessage(ChatRole.User, "User-pinned reference for this conversation:\n$it") },
+    )
+
+    fun workspace(session: ChatSession, messages: List<LocalMessage>): ContextWorkspaceSnapshot {
+        val active = select(messages, session.context).map { it.id }.toSet()
+        val groups = mutableListOf<MutableList<LocalMessage>>()
+        for (message in messages) {
+            if (message.role == ChatRole.User) groups.add(mutableListOf())
+            groups.lastOrNull()?.add(message)
+        }
+        return ContextWorkspaceSnapshot(
+            sessionId = session.id, revision = session.context.selectionRevision,
+            documentRevision = (messages.lastOrNull()?.createdAtEpochMs ?: 0) + messages.size,
+            pinnedText = session.context.pinnedText, excludedTurnIds = session.context.excludedTurnIds,
+            summary = session.context.summary, previousSummary = session.context.previousSummary,
+            totalTurns = groups.size,
+            turns = groups.takeLast(100).map { group ->
+                val first = group.first()
+                ContextWorkspaceTurn(first.id, group.filter { it.role == ChatRole.User || it.role == ChatRole.Assistant }.joinToString("\n\n") { "[${it.role.toApiValue()}] ${it.content.take(1600)}" }.take(4000), first.files.map { it.fileName } + first.images.map { it.fileName ?: "image" }, when {
+                    first.id in session.context.excludedTurnIds -> "excluded"
+                    first.id in active -> "included"
+                    else -> "summarized"
+                })
+            },
+        )
+    }
+
+    suspend fun updateSelection(sessionId: String, selection: ContextWorkspaceSnapshot) = lock(sessionId).withLock {
+        val session = requireNotNull(store.getSession(sessionId)) { "会话已删除" }
+        require(session.origin == ConversationOrigin.Cloud && selection.sessionId == sessionId)
+        val current = workspace(session, store.getMessages(sessionId))
+        require(selection.revision == current.revision && selection.documentRevision == current.documentRevision) { "上下文已变化，请刷新后重试" }
+        require(selection.pinnedText.length <= 16000 && selection.excludedTurnIds.size <= 200000) { "固定内容最多 16,000 字符" }
+        val known = store.getMessages(sessionId).filter { it.role == ChatRole.User }.map { it.id }.toSet()
+        require(selection.excludedTurnIds.all { it in known }) { "上下文包含未知回合" }
+        val changed = selection.excludedTurnIds.toSet() != current.excludedTurnIds.toSet()
+        val context = session.context.copy(
+            selectionRevision = current.revision + 1, pinnedText = selection.pinnedText,
+            excludedTurnIds = selection.excludedTurnIds.distinct(),
+            summary = if (changed) "" else session.context.summary,
+            previousSummary = if (changed) session.context.summary else session.context.previousSummary,
+            throughMessageId = if (changed) null else session.context.throughMessageId,
+            throughCreatedAtEpochMs = if (changed) null else session.context.throughCreatedAtEpochMs,
+        )
+        store.updateSession(session.copy(context = context))
+    }
+
     fun snapshot(session: ChatSession, messages: List<LocalMessage>, window: Long?): ChatContextSnapshot {
         val active = select(messages, session.context)
         return ChatContextSnapshot(
-            tokens = active.sumOf { estimateText(it.content) + 8L + it.images.size * 2048L } + estimateText(session.context.summary),
+            workspace = workspace(session, messages),
+            tokens = active.sumOf { estimateText(it.content) + 8L + it.images.size * 2048L } + estimateText(session.context.summary) + estimateText(session.context.pinnedText),
             contextWindow = window?.takeIf { it > 0 },
             messageCount = active.size,
             autoCompactionEnabled = session.context.autoCompactionEnabled,
@@ -113,7 +170,7 @@ class MobileContextManager(
         summarizeBuffer()
         val latest = store.getSession(sessionId) ?: return@withContext false
         if (latest.context != session.context) throw MobileContextException("上下文已变化，请重新操作")
-        store.updateSession(latest.copy(context = latest.context.copy(throughMessageId = older.last().id, throughCreatedAtEpochMs = older.last().createdAtEpochMs, summary = summary)))
+        store.updateSession(latest.copy(context = latest.context.copy(throughMessageId = older.last().id, throughCreatedAtEpochMs = older.last().createdAtEpochMs, summary = summary, previousSummary = latest.context.summary)))
         true
     }
 
@@ -126,7 +183,7 @@ class MobileContextManager(
         val session = store.getSession(sessionId) ?: return@withLock
         require(session.origin == ConversationOrigin.Cloud)
         val last = store.getMessages(sessionId).lastOrNull()
-        store.updateSession(session.copy(context = session.context.copy(throughMessageId = last?.id, throughCreatedAtEpochMs = last?.createdAtEpochMs, summary = "")))
+        store.updateSession(session.copy(context = session.context.copy(throughMessageId = last?.id, throughCreatedAtEpochMs = last?.createdAtEpochMs, summary = "", previousSummary = session.context.summary, pinnedText = "", excludedTurnIds = emptyList(), selectionRevision = session.context.selectionRevision + 1)))
     }
 
     private fun textChunks(text: String, maxChars: Int): Sequence<String> = sequence {

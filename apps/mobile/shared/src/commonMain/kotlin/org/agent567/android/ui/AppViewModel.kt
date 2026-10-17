@@ -97,6 +97,8 @@ data class AppUiState(
     val showBottomNavLabels: Boolean = true,
     val confirmBeforeDelete: Boolean = true,
     val migrationBackupLimitMb: Int = 50,
+    val downloadSource: String = org.agent567.android.app.AppPreferences.DOWNLOAD_SOURCE_GITHUB,
+    val customDownloadPrefix: String = "",
     val serverUrl: String = "",
     val user: User? = null,
     val subscription: SubscriptionStatus? = null,
@@ -117,6 +119,14 @@ data class AppUiState(
     val inputPredictionLoading: Boolean = false,
     val contextPanelOpen: Boolean = false,
     val contextSnapshot: ChatContextSnapshot? = null,
+    val workbenchSnapshot: org.agent567.android.domain.session.SessionWorkbenchSnapshot? = null,
+    val workbenchDetail: org.agent567.android.domain.session.SessionWorkbenchDetail? = null,
+    val workbenchLoading: Boolean = false,
+    val workbenchOpen: Boolean = false,
+    val workbenchError: String? = null,
+    val projectCollaborationSnapshot: org.agent567.android.domain.session.ProjectCollaborationSnapshot? = null,
+    val projectCollaborationLoading: Boolean = false,
+    val projectCollaborationError: String? = null,
     val contextLoading: Boolean = false,
     val contextBusy: Boolean = false,
     val contextError: String? = null,
@@ -206,11 +216,15 @@ class AppViewModel(
                 showBottomNavLabels = container.preferences.showBottomNavLabels.value,
                 confirmBeforeDelete = container.preferences.confirmBeforeDelete.value,
                 migrationBackupLimitMb = container.preferences.migrationBackupLimitMb.value,
+                downloadSource = container.preferences.downloadSource,
+                customDownloadPrefix = container.preferences.customPrefix,
             ),
         )
     val state: StateFlow<AppUiState> = _state.asStateFlow()
 
     private val contextOperations = mutableMapOf<String, Job>()
+    private var workbenchReadJob: Job? = null
+    private var projectCollaborationJob: Job? = null
     private var contextReadJob: Job? = null
     private val mobileContext = MobileContextManager(container.sessionStore) { modelId, messages, group ->
         try {
@@ -1042,7 +1056,26 @@ class AppViewModel(
         deviceId: String? = null,
     ) {
         contextReadJob?.cancel()
-        _state.update { it.copy(contextPanelOpen = false, contextSnapshot = null, contextLoading = false, contextError = null, contextNotice = null, contextBusy = sessionId in contextOperations) }
+        workbenchReadJob?.cancel()
+        projectCollaborationJob?.cancel()
+        _state.update {
+            it.copy(
+                contextPanelOpen = false,
+                workbenchOpen = false,
+                workbenchSnapshot = null,
+                workbenchDetail = null,
+                workbenchLoading = false,
+                workbenchError = null,
+                projectCollaborationSnapshot = null,
+                projectCollaborationLoading = false,
+                projectCollaborationError = null,
+                contextSnapshot = null,
+                contextLoading = false,
+                contextError = null,
+                contextNotice = null,
+                contextBusy = sessionId in contextOperations,
+            )
+        }
         val previousSessionId = _state.value.currentSessionId
         if (surface != ChatSurface.Desktop || sessionId == null) {
             desktopHistoryJob?.cancel()
@@ -1083,6 +1116,126 @@ class AppViewModel(
                 )
             }
         }
+    }
+
+    fun setWorkbenchOpen(open: Boolean) {
+        _state.update { it.copy(workbenchOpen = open, contextPanelOpen = false) }
+        if (open) {
+            refreshChatContext()
+            loadSessionWorkbench()
+            if ((_state.value.route as? AppRoute.Chat)?.surface == ChatSurface.Desktop) loadProjectCollaboration()
+        } else {
+            workbenchReadJob?.cancel()
+            projectCollaborationJob?.cancel()
+        }
+    }
+
+    fun loadSessionWorkbench() {
+        val sid = _state.value.currentSessionId ?: return
+        workbenchReadJob?.cancel()
+        workbenchReadJob = viewModelScope.launch(start = CoroutineStart.LAZY) {
+            updateVisibleSession(sid) { it.copy(workbenchLoading = true, workbenchError = null, workbenchDetail = null) }
+            try {
+                val session = container.sessionStore.getSession(sid) ?: return@launch
+                val data = if (session.origin == ConversationOrigin.Desktop) {
+                    requireDesktopContextDevice(session)
+                    session.remoteSessionId?.let { container.remoteConversationGateway.readDesktopWorkbench(sid, it) } ?: throw RemoteConversationException(Str.contextDesktopUnsupported)
+                } else org.agent567.android.domain.chat.localSessionWorkbench(container.sessionStore.getMessages(sid), streamJobs[sid]?.isCompleted == false)
+                if (workbenchReadJob === currentCoroutineContext()[Job]) updateVisibleSession(sid) { it.copy(workbenchSnapshot = data) }
+            } catch (error: Throwable) {
+                if (error is CancellationException) throw error
+                if (workbenchReadJob === currentCoroutineContext()[Job]) updateVisibleSession(sid) { it.copy(workbenchError = contextOperationError(error)) }
+            } finally { if (workbenchReadJob === currentCoroutineContext()[Job]) updateVisibleSession(sid) { it.copy(workbenchLoading = false) } }
+        }
+        workbenchReadJob?.start()
+    }
+
+    fun loadProjectCollaboration() {
+        val sid = _state.value.currentSessionId ?: return
+        projectCollaborationJob?.cancel()
+        projectCollaborationJob = viewModelScope.launch(start = CoroutineStart.LAZY) {
+            updateVisibleSession(sid) { it.copy(projectCollaborationSnapshot = null, projectCollaborationLoading = true, projectCollaborationError = null) }
+            try {
+                val session = container.sessionStore.getSession(sid) ?: return@launch
+                require(session.origin == ConversationOrigin.Desktop) { "协作只适用于电脑会话" }
+                requireDesktopContextDevice(session)
+                val remoteId = session.remoteSessionId ?: throw RemoteConversationException(Str.contextDesktopUnsupported)
+                val snapshot = container.remoteConversationGateway.readDesktopProjectCollaboration(sid, remoteId)
+                    ?: throw RemoteConversationException(Str.contextDesktopUnsupported)
+                if (projectCollaborationJob === currentCoroutineContext()[Job]) updateVisibleSession(sid) { it.copy(projectCollaborationSnapshot = snapshot) }
+            } catch (error: Throwable) {
+                if (error is CancellationException) throw error
+                if (projectCollaborationJob === currentCoroutineContext()[Job]) updateVisibleSession(sid) { it.copy(projectCollaborationError = contextOperationError(error)) }
+            } finally {
+                if (projectCollaborationJob === currentCoroutineContext()[Job]) updateVisibleSession(sid) { it.copy(projectCollaborationLoading = false) }
+            }
+        }
+        projectCollaborationJob?.start()
+    }
+
+    fun controlProjectCollaboration(control: org.agent567.android.domain.session.ProjectCollaborationControl) {
+        val sid = _state.value.currentSessionId ?: return
+        projectCollaborationJob?.cancel()
+        projectCollaborationJob = viewModelScope.launch(start = CoroutineStart.LAZY) {
+            updateVisibleSession(sid) { it.copy(projectCollaborationLoading = true, projectCollaborationError = null) }
+            try {
+                val session = container.sessionStore.getSession(sid) ?: return@launch
+                require(session.origin == ConversationOrigin.Desktop) { "协作只适用于电脑会话" }
+                requireDesktopContextDevice(session)
+                val remoteId = session.remoteSessionId ?: throw RemoteConversationException(Str.contextDesktopUnsupported)
+                val snapshot = container.remoteConversationGateway.controlDesktopProjectCollaboration(sid, remoteId, control)
+                    ?: throw RemoteConversationException(Str.contextDesktopUnsupported)
+                if (projectCollaborationJob === currentCoroutineContext()[Job]) updateVisibleSession(sid) { it.copy(projectCollaborationSnapshot = snapshot) }
+            } catch (error: Throwable) {
+                if (error is CancellationException) throw error
+                if (projectCollaborationJob === currentCoroutineContext()[Job]) updateVisibleSession(sid) { it.copy(projectCollaborationError = contextOperationError(error)) }
+            } finally {
+                if (projectCollaborationJob === currentCoroutineContext()[Job]) updateVisibleSession(sid) { it.copy(projectCollaborationLoading = false) }
+            }
+        }
+        projectCollaborationJob?.start()
+    }
+
+    fun loadSessionWorkbenchDetail(kind: String, id: String) {
+        val sid = _state.value.currentSessionId ?: return
+        workbenchReadJob?.cancel()
+        workbenchReadJob = viewModelScope.launch(start = CoroutineStart.LAZY) {
+            updateVisibleSession(sid) { it.copy(workbenchLoading = true, workbenchError = null, workbenchDetail = null) }
+            try {
+                val session = container.sessionStore.getSession(sid) ?: return@launch
+                val detail = if (session.origin == ConversationOrigin.Desktop) {
+                    requireDesktopContextDevice(session)
+                    session.remoteSessionId?.let { container.remoteConversationGateway.readDesktopWorkbenchDetail(sid, it, kind, id) } ?: throw RemoteConversationException(Str.contextDesktopUnsupported)
+                } else org.agent567.android.domain.chat.localSessionWorkbenchDetail(container.sessionStore.getMessages(sid), kind, id)
+                if (workbenchReadJob === currentCoroutineContext()[Job]) updateVisibleSession(sid) { it.copy(workbenchDetail = detail) }
+            } catch (error: Throwable) {
+                if (error is CancellationException) throw error
+                if (workbenchReadJob === currentCoroutineContext()[Job]) updateVisibleSession(sid) { it.copy(workbenchError = contextOperationError(error)) }
+            } finally { if (workbenchReadJob === currentCoroutineContext()[Job]) updateVisibleSession(sid) { it.copy(workbenchLoading = false) } }
+        }
+        workbenchReadJob?.start()
+    }
+
+    suspend fun readWorkbenchAttachment(sid: String, id: String): ByteArray {
+        val session = container.sessionStore.getSession(sid) ?: error("会话已删除")
+        requireDesktopContextDevice(session)
+        val remoteId = session.remoteSessionId ?: error("电脑会话未建立")
+        val output = mutableListOf<ByteArray>(); var offset = 0; var total: Int? = null; var revision: String? = null
+        while (true) {
+            val chunk = container.remoteConversationGateway.readDesktopAttachmentChunk(sid, remoteId, id, offset, 65536) ?: error("电脑不支持原文件下载")
+            require(chunk.sizeBytes in 0..(12 * 1024 * 1024) && (total == null || total == chunk.sizeBytes)) { "附件已变化或超过下载上限" }
+            require(chunk.revision != null && (revision == null || revision == chunk.revision) && chunk.dataBase64.length <= 87384) { "原文件在传输中发生变化，请重新下载" }
+            revision = chunk.revision
+            total = chunk.sizeBytes
+            val bytes = kotlin.io.encoding.Base64.decode(chunk.dataBase64)
+            require(bytes.isNotEmpty() || offset == total) { "附件数据不完整" }
+            output.add(bytes); offset += bytes.size
+            require(offset <= total) { "附件数据超出大小" }
+            if (offset == total) break
+        }
+        val bytes = ByteArray(offset); var index = 0
+        output.forEach { part -> part.copyInto(bytes, index); index += part.size }
+        return bytes
     }
 
     fun setContextPanelOpen(open: Boolean) {
@@ -1127,7 +1280,7 @@ class AppViewModel(
                     val messages = container.sessionStore.getMessages(sid)
                     withContext(Dispatchers.Default) {
                         val usage = mobileContext.snapshot(session, messages, modelAtRead?.contextWindow)
-                        modelDetails.copy(tokens = usage.tokens, contextWindow = usage.contextWindow, estimated = usage.estimated,
+                        modelDetails.copy(workspace = usage.workspace, tokens = usage.tokens, contextWindow = usage.contextWindow, estimated = usage.estimated,
                             messageCount = usage.messageCount, autoCompactionEnabled = usage.autoCompactionEnabled, summary = usage.summary)
                     }
                 }
@@ -1154,6 +1307,15 @@ class AppViewModel(
             val compacted = mobileContext.compact(session.id, modelId ?: throw MobileContextException(Str.contextNoModel), window, group)
             updateVisibleSession(session.id) { it.copy(contextNotice = if (compacted) Str.contextCompacted else Str.contextTooShort) }
         }
+    }
+
+    fun updateChatContextSelection(selection: org.agent567.android.domain.session.ContextWorkspaceSnapshot) = runContextOperation { session, _, _, _ ->
+        if (session.origin == ConversationOrigin.Desktop) {
+            requireDesktopContextDevice(session)
+            val snapshot = session.remoteSessionId?.let { container.remoteConversationGateway.updateDesktopContextSelection(session.id, it, selection) }
+                ?: throw RemoteConversationException(Str.contextDesktopUnsupported)
+            updateVisibleSession(session.id) { it.copy(contextSnapshot = snapshot) }
+        } else mobileContext.updateSelection(session.id, selection)
     }
 
     fun setChatContextCapacity(capacity: Long?) {
@@ -1230,7 +1392,7 @@ class AppViewModel(
             } finally {
                 if (contextOperations[sid] === currentCoroutineContext()[Job]) contextOperations.remove(sid)
                 updateVisibleSession(sid) { it.copy(contextBusy = sid in contextOperations) }
-                if (_state.value.currentSessionId == sid && _state.value.contextPanelOpen) loadChatContext(preserveError = true)
+                if (_state.value.currentSessionId == sid && (_state.value.contextPanelOpen || _state.value.workbenchOpen)) loadChatContext(preserveError = true)
             }
         }
         contextOperations[sid] = job
@@ -1647,6 +1809,11 @@ class AppViewModel(
         }
     }
 
+    fun setPendingDocumentScope(id: String, scope: String) {
+        if (scope.length > 300) return
+        _state.update { it.copy(pendingFiles = it.pendingFiles.map { file -> if (file.id == id) file.copy(readScope = scope) else file }) }
+    }
+
     fun removePendingDocument(id: String) {
         _state.update { it.copy(pendingFiles = it.pendingFiles.filterNot { document -> document.id == id }) }
     }
@@ -1854,6 +2021,16 @@ class AppViewModel(
 
     fun setMigrationBackupLimitMb(limitMb: Int) {
         container.preferences.setMigrationBackupLimitMb(limitMb)
+    }
+
+    fun setGitHubDownloadSource(source: String, customPrefix: String): Boolean {
+        return runCatching {
+            if (source == org.agent567.android.app.AppPreferences.DOWNLOAD_SOURCE_CUSTOM) {
+                container.preferences.customPrefix = customPrefix
+            }
+            container.preferences.downloadSource = source
+            _state.update { it.copy(downloadSource = source, customDownloadPrefix = container.preferences.customPrefix) }
+        }.isSuccess
     }
 
     fun clearLocalSessions() {
@@ -2691,7 +2868,7 @@ class AppViewModel(
                             mobileContext.selectForPrompt(storedHistory.filterNot { it.id == assistantId }, context, userMsg)
                         } else historyMessages
                         val builtHistory = buildChatHistory(selectedHistory)
-                        history = if (session.origin == ConversationOrigin.Cloud) listOfNotNull(mobileContext.summaryMessage(context)) + builtHistory else builtHistory
+                        history = if (session.origin == ConversationOrigin.Cloud) mobileContext.referenceMessages(context) + builtHistory else builtHistory
                         container.conversationRouter
                             .stream(
                                 session = session,
@@ -2700,7 +2877,10 @@ class AppViewModel(
                                 groupName = stateAtSend.active567Group,
                                 imageGenModel = if (stateAtSend.imageGenEnabled) stateAtSend.activeImageModel else null,
                                 retryPreviousTurn = retryPreviousTurn,
-                                desktopPromptText = stateAtSend.draft,
+                                desktopPromptText = buildString {
+                                    append(stateAtSend.draft)
+                                    documents.filter { it.readScope.isNotBlank() }.forEach { document -> append("\n\n[Attachment reading scope requested by user] ").append(document.fileName).append(": ").append(document.readScope) }
+                                },
                                 desktopFiles = documents.map { document ->
                                     RemotePromptFileAttachment(
                                         fileName = document.fileName,

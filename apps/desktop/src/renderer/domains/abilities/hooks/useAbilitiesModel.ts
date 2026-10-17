@@ -19,7 +19,14 @@ import {
 import { decorateAbilityConflicts } from "../lib/decorate-ability-conflicts";
 import { groupAbilities } from "../lib/group-abilities";
 import { withLocalAbilityPresentation } from "../lib/local-ability-presentation";
-import type { AbilitiesModel, AbilityGroup, AbilityItem, AbilityReviewFilter, AbilityScope } from "../types";
+import {
+	ABILITY_CATEGORY_INSTALLED,
+	type AbilitiesModel,
+	type AbilityGroup,
+	type AbilityItem,
+	type AbilityReviewFilter,
+	type AbilityScope,
+} from "../types";
 import { useAbilityActions } from "./useAbilityActions";
 import { useAbilityData } from "./useAbilityData";
 
@@ -137,12 +144,24 @@ export function useAbilitiesModel(options: UseAbilitiesModelOptions = {}): Abili
 		() => filterAbilityCatalog(allItems, { scope, keyword: searchQuery }),
 		[allItems, scope, searchQuery],
 	);
+	const filterFacetItems = useMemo(
+		() =>
+			category === ABILITY_CATEGORY_INSTALLED
+				? allItems.filter(
+						(item) =>
+							item.installed &&
+							(!searchQuery.trim() ||
+								item.searchTerms.some((term) => term.toLowerCase().includes(searchQuery.trim().toLowerCase()))),
+					)
+				: facetItems,
+		[allItems, category, facetItems, searchQuery],
+	);
 	const availableTypes = useMemo(
 		() =>
 			(["mcp", "skill", "scene", "plugin", "bundle"] as const).filter((type) =>
-				facetItems.some((item) => item.type === type),
+				filterFacetItems.some((item) => item.type === type),
 			),
-		[facetItems],
+		[filterFacetItems],
 	);
 	const categories = useMemo(
 		() =>
@@ -160,11 +179,13 @@ export function useAbilitiesModel(options: UseAbilitiesModelOptions = {}): Abili
 		() =>
 			Array.from(
 				new Map(
-					facetItems
+					filterFacetItems
 						.filter(
 							(item) =>
 								(!typeFilter || item.type === typeFilter) &&
-								(!category || abilityCategoryKey(item) === category) &&
+								(!category ||
+									category === ABILITY_CATEGORY_INSTALLED ||
+									abilityCategoryKey(item) === category) &&
 								(reviewFilter !== "unreviewed" || item.reviewStatus === "unreviewed"),
 						)
 						.flatMap((item) => item.tags)
@@ -172,7 +193,7 @@ export function useAbilitiesModel(options: UseAbilitiesModelOptions = {}): Abili
 						.filter(([key, value]) => key && value),
 				).values(),
 			).sort((a, b) => a.localeCompare(b, i18n.language)),
-		[facetItems, typeFilter, category, reviewFilter, i18n.language],
+		[filterFacetItems, typeFilter, category, reviewFilter, i18n.language],
 	);
 	useEffect(() => {
 		if (data.loading) return;
@@ -180,7 +201,11 @@ export function useAbilitiesModel(options: UseAbilitiesModelOptions = {}): Abili
 			setTypeFilter("");
 			setCategory("");
 			setVisiblePages(1);
-		} else if (category && !categories.some((group) => group.category === category)) {
+		} else if (
+			category &&
+			category !== ABILITY_CATEGORY_INSTALLED &&
+			!categories.some((group) => group.category === category)
+		) {
 			setCategory("");
 			setVisiblePages(1);
 		}
@@ -249,6 +274,7 @@ export function useAbilitiesModel(options: UseAbilitiesModelOptions = {}): Abili
 		setTagFilter: changeTagFilter,
 		availableTags,
 		categories,
+		installedCount: allItems.filter((item) => item.installed).length,
 		items,
 		totalItems: catalogPage.total,
 		hasMore: items.length < catalogPage.total,

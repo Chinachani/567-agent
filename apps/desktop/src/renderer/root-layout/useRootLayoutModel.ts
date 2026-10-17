@@ -12,6 +12,11 @@ import { FILE_EDITOR_SAVE_EVENT } from "@/shared/shortcuts";
 import { loadNewSessionPage } from "../domains/conversation/components/loadNewSessionPage";
 import { useAppInit } from "../domains/conversation/hooks/useAppInit";
 import { useSessionManager } from "../domains/conversation/hooks/useSessionManager";
+import {
+	bumpOpenSessionToken,
+	getOpenSessionToken,
+	setChatStreamOwner,
+} from "../domains/conversation/services/chat-service";
 import { useNotificationInit } from "../domains/message/hooks/useNotificationInit";
 import { useProjectActions } from "../domains/project/hooks/useProjects";
 import { useModelCatalogSync } from "../shared/hooks/useModelCatalogSync";
@@ -62,6 +67,21 @@ export function useRootLayoutModel(): RootLayoutModel {
 	const [lastActiveSession, setLastActiveSession] = useAtom(lastActiveSessionAtom);
 	const matchesForGuard = useMatches();
 	const currentPath = matchesForGuard[matchesForGuard.length - 1]?.pathname ?? "/";
+	const previousPathRef = useRef(currentPath);
+	useEffect(() => {
+		const previousPath = previousPathRef.current;
+		previousPathRef.current = currentPath;
+		if (previousPath !== "/" || currentPath === "/") return;
+		const store = getDefaultStore();
+		if (!store.get(pendingSessionOpenAtom) && !store.get(pendingSessionCreationAtom)) return;
+		// Leaving the chat cancels presentation ownership, including a failed open.
+		// Opening from another page dispatches '/' first and must not cancel itself.
+		bumpOpenSessionToken();
+		setChatStreamOwner(null);
+		store.set(activeSessionAtom, null);
+		store.set(pendingSessionOpenAtom, null);
+		store.set(pendingSessionCreationAtom, null);
+	}, [currentPath]);
 	const [sidebarCollapsed, setSidebarCollapsed] = useAtom(sidebarCollapsedAtom);
 	// 左栏占位宽度与侧边栏面板读同一个 atom（拖拽改宽时逐帧同步），见 SidebarDock。
 	const sidebarWidth = useAtomValue(sidebarWidthAtom);
@@ -150,8 +170,11 @@ export function useRootLayoutModel(): RootLayoutModel {
 			return;
 		}
 		setSessionRestoreState("restoring");
-		void openSession(lastActiveSession.cwd, lastActiveSession.sessionPath)
+		const restoration = openSession(lastActiveSession.cwd, lastActiveSession.sessionPath);
+		const restoreToken = getOpenSessionToken();
+		void restoration
 			.catch((error: unknown) => {
+				if (restoreToken !== getOpenSessionToken()) return;
 				console.warn("[RootLayout] restore active session failed", error);
 				setActiveSession(null);
 				setLastActiveSession(null);

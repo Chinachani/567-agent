@@ -22,6 +22,7 @@ import type {
 	FsTextPreviewResult,
 } from "../../preload/fs-types.js";
 import { FS_READ_TEXT_PREVIEW_CHANNEL } from "../../preload/fs-types.js";
+import { normalizeGitHubUpdateProxyUrl } from "../../shared/github-download-source.js";
 import { findAnyShortcutBindingConflict, normalizeShortcutBindings } from "../../shared/shortcuts.js";
 import {
 	type AppshotConfig,
@@ -418,6 +419,22 @@ export function registerFsIpc(): () => void {
 				const conflict = findAnyShortcutBindingConflict(bindings);
 				if (conflict) throw new Error(`Shortcut conflict: ${conflict.actionId} and ${conflict.conflict}`);
 			}
+			const updateSource = patch.updateSource ?? current.updateSource ?? "github";
+			if (updateSource !== "github" && updateSource !== "gh-proxy" && updateSource !== "custom") {
+				throw new Error("Invalid update source");
+			}
+			const updateProxyUrl =
+				patch.updateProxyUrl === undefined
+					? current.updateProxyUrl
+					: typeof patch.updateProxyUrl === "string" && patch.updateProxyUrl.trim() === ""
+						? undefined
+						: (normalizeGitHubUpdateProxyUrl(patch.updateProxyUrl) ??
+							(() => {
+								throw new Error("Invalid HTTPS proxy URL");
+							})());
+			if (updateSource === "custom" && !updateProxyUrl) {
+				throw new Error("Custom update source requires a valid HTTPS proxy URL");
+			}
 			return {
 				projects: patch.projects ?? current.projects,
 				archivedProjects: patch.archivedProjects ?? current.archivedProjects,
@@ -426,12 +443,8 @@ export function registerFsIpc(): () => void {
 					patch.defaultExecutionMode !== undefined
 						? normalizeExecutionMode(patch.defaultExecutionMode)
 						: current.defaultExecutionMode,
-				updateSource:
-					patch.updateSource === "gh-proxy"
-						? "gh-proxy"
-						: patch.updateSource === "github"
-							? "github"
-							: current.updateSource,
+				updateSource,
+				updateProxyUrl,
 				defaultAgentMode:
 					patch.defaultAgentMode !== undefined
 						? normalizeAgentMode(patch.defaultAgentMode)

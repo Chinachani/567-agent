@@ -7,6 +7,7 @@ import { app, autoUpdater as nativeAutoUpdater, powerMonitor } from "electron";
 import type { AppUpdater } from "electron-updater";
 import electronUpdater from "electron-updater";
 import { parse as parseYaml } from "yaml";
+import { resolveGitHubUpdateProxyPrefix } from "../shared/github-download-source.js";
 import { readConfigSync } from "./config/desktop-config-store.js";
 import { mainT } from "./i18n/index.js";
 import {
@@ -40,7 +41,9 @@ const autoUpdater: AppUpdater =
 
 /** Opt-in GitHub release acceleration. The official provider remains the default. */
 function configureUpdateSource(): void {
-	if (!app.isPackaged || process.env.AGENT567_E2E === "1" || readConfigSync().updateSource !== "gh-proxy") return;
+	if (!app.isPackaged || process.env.AGENT567_E2E === "1") return;
+	const { updateSource = "github", updateProxyUrl } = readConfigSync();
+	if (updateSource === "github") return;
 	try {
 		const config = parseYaml(readFileSync(join(process.resourcesPath, "app-update.yml"), "utf8")) as Record<
 			string,
@@ -55,9 +58,14 @@ function configureUpdateSource(): void {
 			console.warn("[updater] ignored invalid GitHub update repository configuration");
 			return;
 		}
-		const feedUrl = `https://gh-proxy.com/https://github.com/${config.owner}/${config.repo}/releases/latest/download/`;
+		const prefix = resolveGitHubUpdateProxyPrefix(updateSource, updateProxyUrl);
+		if (!prefix) {
+			console.warn("[updater] custom GitHub update proxy URL is invalid; using the packaged update source");
+			return;
+		}
+		const feedUrl = `${prefix}https://github.com/${config.owner}/${config.repo}/releases/latest/download/`;
 		autoUpdater.setFeedURL({ provider: "generic", url: feedUrl, useMultipleRangeRequest: true });
-		console.info(`[updater] GitHub release acceleration enabled: ${feedUrl}`);
+		console.info(`[updater] GitHub release acceleration enabled (${updateSource})`);
 	} catch (error) {
 		console.error("[updater] failed to configure GitHub acceleration; using the packaged update source", error);
 	}

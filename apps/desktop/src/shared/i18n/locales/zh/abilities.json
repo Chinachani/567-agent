@@ -39,6 +39,7 @@
     "allTypes": "全部类型",
     "category": "按分类筛选能力",
     "allCategories": "全部分类",
+    "installed": "已安装（{{count}}）",
     "review": "按审核状态筛选",
     "allReviewStatuses": "全部审核状态",
     "unreviewed": "尚未人工核验",

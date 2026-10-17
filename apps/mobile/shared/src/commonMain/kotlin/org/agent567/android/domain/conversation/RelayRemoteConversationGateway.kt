@@ -588,6 +588,56 @@ class RelayRemoteConversationGateway(
         )
     }
 
+    private suspend fun workbenchRequest(localSessionId: String, remoteSessionId: String, name: String, payload: JsonObject? = null): JsonObject? {
+        val active = connection ?: throw RemoteConversationException("电脑连接已断开，请重新连接")
+        if (active.state.value != RemoteConnectionState.Online) throw RemoteConversationException("电脑连接已断开，请重新连接")
+        if (!active.supportsPeerMethod(name)) {
+            val catalog = active.request(RemoteRequestMethod.SessionList) as? JsonObject
+            updatePeerSupportedMethods(active, catalog ?: return null)
+            if (!active.supportsPeerMethod(name)) return null
+        }
+        val opened = active.request(RemoteRequestMethod.SessionOpen, sessionId = remoteSessionId) as? JsonObject
+        val resolved = opened?.get("sessionId")?.jsonPrimitive?.contentOrNull ?: remoteSessionId
+        remoteSessionIds[localSessionId] = resolved
+        // Reuse the established envelope; legacy blind relays validate the outer method.
+        return active.request(RemoteRequestMethod.SessionContext, buildJsonObject { put("extensionMethod", name); if (payload != null) put("payload", payload) }, resolved, timeoutMs = 30_000) as? JsonObject
+    }
+
+    override suspend fun readDesktopWorkbench(localSessionId: String, remoteSessionId: String) =
+        workbenchRequest(localSessionId, remoteSessionId, "session.workbench")?.let { contextWorkspaceJson.decodeFromJsonElement(org.agent567.android.domain.session.SessionWorkbenchSnapshot.serializer(), it) }
+
+    override suspend fun readDesktopProjectCollaboration(localSessionId: String, remoteSessionId: String) =
+        workbenchRequest(localSessionId, remoteSessionId, "session.collaboration.read")?.let {
+            contextWorkspaceJson.decodeFromJsonElement(org.agent567.android.domain.session.ProjectCollaborationSnapshot.serializer(), it)
+        }
+
+    override suspend fun updateDesktopProjectCollaboration(localSessionId: String, remoteSessionId: String, patch: org.agent567.android.domain.session.ProjectCollaborationPatch) =
+        workbenchRequest(
+            localSessionId,
+            remoteSessionId,
+            "session.collaboration.update",
+            kotlinx.serialization.json.Json.encodeToJsonElement(org.agent567.android.domain.session.ProjectCollaborationPatch.serializer(), patch) as JsonObject,
+        )?.let { contextWorkspaceJson.decodeFromJsonElement(org.agent567.android.domain.session.ProjectCollaborationSnapshot.serializer(), it) }
+
+    override suspend fun controlDesktopProjectCollaboration(localSessionId: String, remoteSessionId: String, control: org.agent567.android.domain.session.ProjectCollaborationControl) =
+        workbenchRequest(
+            localSessionId,
+            remoteSessionId,
+            "session.collaboration.control",
+            kotlinx.serialization.json.Json.encodeToJsonElement(org.agent567.android.domain.session.ProjectCollaborationControl.serializer(), control) as JsonObject,
+        )?.let { contextWorkspaceJson.decodeFromJsonElement(org.agent567.android.domain.session.ProjectCollaborationSnapshot.serializer(), it) }
+
+    override suspend fun readDesktopWorkbenchDetail(localSessionId: String, remoteSessionId: String, kind: String, id: String) =
+        workbenchRequest(localSessionId, remoteSessionId, "session.workbench.detail", buildJsonObject { put("kind", kind); put("id", id) })?.let { contextWorkspaceJson.decodeFromJsonElement(org.agent567.android.domain.session.SessionWorkbenchDetail.serializer(), it) }
+
+    override suspend fun readDesktopAttachmentChunk(localSessionId: String, remoteSessionId: String, id: String, offset: Int, length: Int): RemoteDesktopImageChunk? {
+        val response = workbenchRequest(localSessionId, remoteSessionId, "session.attachment.read", buildJsonObject { put("id", id); put("offset", offset); put("length", length) }) ?: return null
+        return RemoteDesktopImageChunk("application/octet-stream", response["sizeBytes"]?.jsonPrimitive?.intOrNull ?: throw RemoteConversationException("附件大小无效"), response["dataBase64"]?.jsonPrimitive?.contentOrNull ?: throw RemoteConversationException("附件数据为空"), response["revision"]?.jsonPrimitive?.contentOrNull)
+    }
+
+    override suspend fun updateDesktopContextSelection(localSessionId: String, remoteSessionId: String, selection: org.agent567.android.domain.session.ContextWorkspaceSnapshot) =
+        contextRequest(localSessionId, remoteSessionId, RemoteRequestMethod.SessionContextSelection, kotlinx.serialization.json.Json.encodeToJsonElement(org.agent567.android.domain.session.ContextWorkspaceSnapshot.serializer(), selection) as JsonObject)
+
     override suspend fun readDesktopContext(localSessionId: String, remoteSessionId: String) =
         contextRequest(localSessionId, remoteSessionId, RemoteRequestMethod.SessionContext)
 
@@ -596,6 +646,8 @@ class RelayRemoteConversationGateway(
 
     override suspend fun setDesktopAutoCompaction(localSessionId: String, remoteSessionId: String, enabled: Boolean) =
         contextRequest(localSessionId, remoteSessionId, RemoteRequestMethod.SessionContextAuto, buildJsonObject { put("enabled", enabled) })
+
+    private val contextWorkspaceJson = kotlinx.serialization.json.Json { ignoreUnknownKeys = true }
 
     private suspend fun contextRequest(
         localSessionId: String,
@@ -608,6 +660,7 @@ class RelayRemoteConversationGateway(
         val methodName = when (method) {
             RemoteRequestMethod.SessionContextCompact -> "session.context.compact"
             RemoteRequestMethod.SessionContextAuto -> "session.context.auto"
+            RemoteRequestMethod.SessionContextSelection -> "session.context.selection"
             else -> "session.context"
         }
         if (!active.supportsPeerMethod(methodName)) {
@@ -618,9 +671,12 @@ class RelayRemoteConversationGateway(
         val opened = active.request(RemoteRequestMethod.SessionOpen, sessionId = remoteSessionId) as? JsonObject
         val resolved = opened?.get("sessionId")?.jsonPrimitive?.contentOrNull ?: remoteSessionId
         remoteSessionIds[localSessionId] = resolved
-        val response = active.request(method, payload, resolved, timeoutMs = if (method == RemoteRequestMethod.SessionContextCompact) 600_000 else 30_000) as? JsonObject
+        val wireMethod = if (method == RemoteRequestMethod.SessionContextSelection) RemoteRequestMethod.SessionContext else method
+        val wirePayload = if (method == RemoteRequestMethod.SessionContextSelection) buildJsonObject { put("extensionMethod", methodName); if (payload != null) put("payload", payload) } else payload
+        val response = active.request(wireMethod, wirePayload, resolved, timeoutMs = if (method == RemoteRequestMethod.SessionContextCompact) 600_000 else 30_000) as? JsonObject
             ?: throw RemoteConversationException("电脑端未返回上下文状态")
         return org.agent567.android.domain.session.ChatContextSnapshot(
+            workspace = (response["workspace"] as? JsonObject)?.let { contextWorkspaceJson.decodeFromJsonElement(org.agent567.android.domain.session.ContextWorkspaceSnapshot.serializer(), it) },
             tokens = response["tokens"]?.jsonPrimitive?.longOrNull,
             contextWindow = response["contextWindow"]?.jsonPrimitive?.longOrNull?.takeIf { it > 0 },
             contextWindowSource = response["contextWindowSource"]?.jsonPrimitive?.contentOrNull ?: "unknown",

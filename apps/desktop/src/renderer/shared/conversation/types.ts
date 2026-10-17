@@ -77,6 +77,8 @@ export interface AppshotAttachment {
 }
 
 export interface MentionedFile {
+	/** User-requested page/chapter/line scope; the original file is preserved. */
+	readScope?: string;
 	path: string;
 	name: string;
 	isDirectory: boolean;

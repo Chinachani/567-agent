@@ -1,4 +1,5 @@
 import type { AbilityItem, AbilityReviewFilter, AbilityScope } from "../types";
+import { ABILITY_CATEGORY_INSTALLED } from "../types";
 import { abilityCategoryKey, normalizeAbilityCategory } from "./ability-categories";
 import { isMarketAbilityListed } from "./merge-ability-catalogs";
 
@@ -95,11 +96,16 @@ export function filterAbilityCatalog(
 	const types = query.types ? new Set(query.types) : null;
 	const sources = query.sourceIds ? new Set(query.sourceIds) : null;
 	const isPublic = query.scope === "discover" || (query.scope as string) === "public";
+	const installedOnly = query.category === ABILITY_CATEGORY_INSTALLED;
 	return items.filter(
 		(item) =>
-			(isPublic ? isAbilityListedInDiscover(item) : isAbilityListedInPersonal(item)) &&
+			(installedOnly
+				? item.installed
+				: isPublic
+					? isAbilityListedInDiscover(item)
+					: isAbilityListedInPersonal(item)) &&
 			(!keyword || item.searchTerms.some((term) => term.toLowerCase().includes(keyword))) &&
-			(!query.category || abilityCategoryKey(item) === normalizeAbilityCategory(query.category)) &&
+			(!query.category || installedOnly || abilityCategoryKey(item) === normalizeAbilityCategory(query.category)) &&
 			(!types || types.has(item.type)) &&
 			(query.reviewFilter !== "unreviewed" || item.reviewStatus === "unreviewed") &&
 			(!query.tag ||

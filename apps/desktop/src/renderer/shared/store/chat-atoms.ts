@@ -106,12 +106,14 @@ export interface PendingSessionCreation {
  * Renderer-only transition state while an existing Session runtime is restored.
  * The target path is available before runtimeId, so the sidebar, draft scope and
  * Viewer history can switch immediately. Runtime-bound work waits internally for
- * this exact transition; UI controls remain available.
+ * this exact transition; UI controls remain available while restoring. A failed
+ * open retains its visual identity, but no Runtime operation may wait or send.
  */
 export interface PendingSessionOpen {
 	cwd: string;
 	sessionPath: string;
 	interactionId: string;
+	error?: string;
 }
 
 /** After opening a parent session from a fork banner, scroll to this entry. */

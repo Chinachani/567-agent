@@ -74,7 +74,7 @@ object MobileDiagnostics {
         }
     }
 
-    fun exportReport(): String {
+    fun exportReport(includeLogs: Boolean = false): String {
         val context = appContext ?: return "诊断记录尚未初始化。请重启应用后再导出。\n"
         runCatching { writer.submit {}.get(2, TimeUnit.SECONDS) }
         return buildString {
@@ -85,14 +85,29 @@ object MobileDiagnostics {
             appendLine("导出时间：${timestamp()}")
             appendLine("最近一次进程退出：${redact(previousExit)}")
             appendLine()
-            appendLine("近期应用诊断日志（不包含聊天内容、密码或认证请求头）")
-            appendDiagnosticFile(this, context, LOG_FILE)
-            appendLine()
-            appendLine("上一个日志片段")
-            appendDiagnosticFile(this, context, PREVIOUS_LOG_FILE)
-            appendLine()
-            appendLine("最近一次未捕获崩溃")
-            appendDiagnosticFile(this, context, CRASH_FILE)
+            val manager = context.getSystemService(Context.ACTIVITY_SERVICE) as ActivityManager
+            val memory = ActivityManager.MemoryInfo().also(manager::getMemoryInfo)
+            appendLine("可用内存：${memory.availMem / 1024 / 1024} MB；系统低内存：${memory.lowMemory}")
+            appendLine("应用数据分区可用空间：${context.filesDir.usableSpace / 1024 / 1024} MB")
+            val network = runCatching {
+                val connectivity = context.getSystemService(Context.CONNECTIVITY_SERVICE) as android.net.ConnectivityManager
+                val capabilities = connectivity.getNetworkCapabilities(connectivity.activeNetwork)
+                when {
+                    capabilities == null -> "未连接"
+                    !capabilities.hasCapability(android.net.NetworkCapabilities.NET_CAPABILITY_VALIDATED) -> "已连接，互联网未验证"
+                    capabilities.hasTransport(android.net.NetworkCapabilities.TRANSPORT_WIFI) -> "Wi-Fi，互联网可用"
+                    else -> "移动网络或其他网络，互联网可用"
+                }
+            }.getOrDefault("尚未取得网络状态")
+            appendLine("网络：$network")
+            appendLine("模型、电脑配对及 TLS 需结合具体连接结果验证；本次没有提交付费请求。")
+            if (includeLogs) {
+                appendLine()
+                appendLine("近期脱敏日志（每片段最多 16 KB，请检查后分享）")
+                appendDiagnosticFile(this, context, LOG_FILE)
+                appendDiagnosticFile(this, context, PREVIOUS_LOG_FILE)
+                appendDiagnosticFile(this, context, CRASH_FILE)
+            } else appendLine("隐私：此摘要未附带日志、聊天内容或认证配置。")
         }
     }
 
@@ -141,7 +156,13 @@ object MobileDiagnostics {
             output.appendLine("（暂无）")
             return
         }
-        runCatching { file.readText(StandardCharsets.UTF_8) }
+        runCatching {
+            java.io.RandomAccessFile(file, "r").use { input ->
+                val size = minOf(input.length(), 16 * 1024L).toInt()
+                input.seek(input.length() - size)
+                ByteArray(size).also(input::readFully).toString(StandardCharsets.UTF_8)
+            }
+        }
             .onSuccess { output.appendLine(redact(it)) }
             .onFailure { output.appendLine("（读取失败）") }
     }

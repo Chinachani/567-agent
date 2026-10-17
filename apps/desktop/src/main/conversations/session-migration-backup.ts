@@ -1,4 +1,6 @@
 import { createCipheriv, createDecipheriv, pbkdf2Sync, randomBytes } from "node:crypto";
+import type { ProjectCollaborationTransfer } from "../project-collaboration/transfer.js";
+import { parseProjectCollaborationTransfer } from "../project-collaboration/transfer.js";
 
 export const SESSION_MIGRATION_MAX_BYTES = 200 * 1024 * 1024;
 const MAGIC = Buffer.from("567CHATBACKUP1", "ascii");
@@ -13,9 +15,22 @@ export interface SessionMigrationArchive {
 	readonly exportedAtEpochMs: number;
 	readonly sessions: readonly SessionMigrationSession[];
 	readonly messages: readonly SessionMigrationMessageGroup[];
+	readonly collaborations?: readonly ProjectCollaborationTransfer[];
+}
+
+export interface SessionMigrationContext {
+	readonly autoCompactionEnabled?: boolean;
+	readonly throughMessageId?: string | null;
+	readonly throughCreatedAtEpochMs?: number | null;
+	readonly summary?: string;
+	readonly previousSummary?: string;
+	readonly pinnedText?: string;
+	readonly excludedTurnIds?: readonly string[];
+	readonly selectionRevision?: number;
 }
 
 export interface SessionMigrationSession {
+	readonly context?: SessionMigrationContext;
 	readonly id: string;
 	readonly title: string;
 	readonly modelId?: string | null;
@@ -140,6 +155,11 @@ export function parseSessionMigrationArchive(plaintext: Uint8Array): SessionMigr
 	}
 	if (value.sessions.length > 20_000 || value.messages.length > 20_000)
 		throw new Error("Migration backup contains too many records");
+	if (
+		value.collaborations !== undefined &&
+		(!Array.isArray(value.collaborations) || value.collaborations.length > 100)
+	)
+		throw new Error("Migration backup contains invalid collaboration state");
 	const sessions = value.sessions.map(parseSession);
 	const sessionIds = new Set(sessions.map((session) => session.id));
 	if (sessionIds.size !== sessions.length) throw new Error("Migration backup contains duplicate sessions");
@@ -153,6 +173,9 @@ export function parseSessionMigrationArchive(plaintext: Uint8Array): SessionMigr
 		exportedAtEpochMs: finiteNumber(value.exportedAtEpochMs, "exportedAtEpochMs"),
 		sessions,
 		messages: groups,
+		...(value.collaborations === undefined
+			? {}
+			: { collaborations: value.collaborations.map(parseProjectCollaborationTransfer) }),
 	};
 }
 
@@ -160,6 +183,7 @@ function parseSession(value: unknown): SessionMigrationSession {
 	if (!isRecord(value)) throw new Error("Migration backup contains an invalid session");
 	return {
 		id: requiredString(value.id, "session.id"),
+		...(value.context === undefined ? {} : { context: parseMigrationContext(value.context) }),
 		title: requiredString(value.title, "session.title"),
 		modelId: optionalString(value.modelId),
 		modelName: optionalString(value.modelName),
@@ -171,6 +195,30 @@ function parseSession(value: unknown): SessionMigrationSession {
 		remoteSessionId: optionalString(value.remoteSessionId),
 		remoteSessionCreatedOnMobile: value.remoteSessionCreatedOnMobile === true,
 		titleManuallyEdited: value.titleManuallyEdited === true,
+	};
+}
+
+function parseMigrationContext(value: unknown): SessionMigrationContext {
+	if (!isRecord(value)) throw new Error("Invalid migration context");
+	for (const key of ["summary", "previousSummary", "pinnedText"])
+		if (value[key] !== undefined && (typeof value[key] !== "string" || value[key].length > 16000))
+			throw new Error(`Invalid migration context ${key}`);
+	const excluded = value.excludedTurnIds ?? [];
+	if (
+		!Array.isArray(excluded) ||
+		excluded.length > 200000 ||
+		excluded.some((id) => typeof id !== "string" || id.length > 200)
+	)
+		throw new Error("Invalid excluded context turns");
+	return {
+		autoCompactionEnabled: value.autoCompactionEnabled !== false,
+		throughMessageId: optionalString(value.throughMessageId),
+		throughCreatedAtEpochMs: optionalFiniteNumber(value.throughCreatedAtEpochMs),
+		summary: typeof value.summary === "string" ? value.summary : "",
+		previousSummary: typeof value.previousSummary === "string" ? value.previousSummary : "",
+		pinnedText: typeof value.pinnedText === "string" ? value.pinnedText : "",
+		excludedTurnIds: excluded,
+		selectionRevision: 0,
 	};
 }
 

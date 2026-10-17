@@ -1,3 +1,4 @@
+import { ContextWorkspace } from "../ContextWorkspace";
 import { PerfSendProfiler } from "@shared/lib/perf-send";
 import { useThemeComponent } from "@vetta-org/theme-sdk";
 import { useThemeSurface } from "@vetta-org/theme-sdk/appearance";
@@ -260,7 +261,7 @@ export function InputBarView({ model, className, classNames }: InputBarViewProps
 										<MessageInput.ToolbarTrailing>
 											<InputBarModelAction visible={!slashOpen} updateActiveSession={model.modelSelector.updateActiveSession} scope={model.modelSelector.scope} />
 							{model.trailingTools.map((tool) => (
-								<InputBarContextAction key={tool.kind} visible={!slashOpen} model={tool.model} render={tool.render} />
+								tool.kind === "workbench" ? <ContextWorkspace key={tool.kind} sessionId={tool.sessionId} sessionKey={tool.sessionKey} /> : <InputBarContextAction key={tool.kind} visible={!slashOpen} model={tool.model} render={tool.render} />
 							))}
 											{slashOpen ? null : (
 												<InputBarSpeechAction input={model.speechInput} />

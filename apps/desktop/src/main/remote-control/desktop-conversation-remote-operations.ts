@@ -15,6 +15,11 @@ import {
 import type { SessionEvent } from "@567agent/runtime-core";
 import { dialog } from "electron";
 import type {
+	ProjectCollaborationControl,
+	ProjectCollaborationPatch,
+	ProjectCollaborationSnapshot,
+} from "../../shared/project-collaboration.js";
+import type {
 	DesktopConversationService,
 	DesktopConversationSession,
 } from "../conversations/desktop-conversation-service.js";
@@ -27,6 +32,7 @@ import {
 import { getDesktopUserQuestionBroker } from "../conversations/user-question-broker.js";
 import { mainT } from "../i18n/index.js";
 import { getAppLogger } from "../logger.js";
+import { getProjectCollaborationService } from "../project-collaboration/service.js";
 import { getMainWindow } from "../window-manager.js";
 import type {
 	DesktopRemoteOperations,
@@ -105,6 +111,9 @@ export class DesktopConversationRemoteOperations implements DesktopRemoteOperati
 	private readonly questionResolvers: DesktopRemoteConversationState["questionResolvers"];
 	private readonly turnTimeoutMs: number | null;
 	readonly canManageContext: boolean;
+	readonly canReadWorkbench: boolean;
+	readonly canManageCollaboration = true;
+	readonly canSelectContext: boolean;
 	readonly canReadGeneratedImages: boolean;
 	readonly canReceiveSessionMigration: boolean;
 	readonly readToolbox?: () => Promise<readonly DesktopRemoteToolboxAbility[]>;
@@ -118,6 +127,10 @@ export class DesktopConversationRemoteOperations implements DesktopRemoteOperati
 			Partial<
 				Pick<
 					DesktopConversationService,
+					| "readSessionWorkbench"
+					| "readSessionWorkbenchDetail"
+					| "readSessionAttachmentChunk"
+					| "updateContextSelection"
 					| "readRemoteContext"
 					| "setRemoteAutoCompaction"
 					| "compactSessionContext"
@@ -141,6 +154,8 @@ export class DesktopConversationRemoteOperations implements DesktopRemoteOperati
 		this.deletingSessions = state.deletingSessions;
 		this.sessionLocations = state.sessionLocations;
 		this.questionResolvers = state.questionResolvers;
+		this.canReadWorkbench = Boolean(conversations.readSessionWorkbench && conversations.readSessionWorkbenchDetail);
+		this.canSelectContext = Boolean(conversations.updateContextSelection);
 		this.canManageContext = Boolean(
 			conversations.readRemoteContext &&
 				conversations.setRemoteAutoCompaction &&
@@ -388,6 +403,49 @@ export class DesktopConversationRemoteOperations implements DesktopRemoteOperati
 		const session = this.sessions.get(sessionId)?.session;
 		if (!session) throw new DesktopRemoteOperationError("SESSION_NOT_OPEN", "Desktop session is no longer open");
 		return this.conversations.readRemoteSessionHistory(session.sessionId, offset, limit);
+	}
+
+	async readWorkbench(sessionId: string) {
+		await this.openSession(sessionId);
+		if (!this.conversations.readSessionWorkbench) throw new Error("Desktop workbench is unavailable");
+		return this.conversations.readSessionWorkbench(sessionId);
+	}
+	async readWorkbenchDetail(sessionId: string, kind: string, id: string) {
+		await this.openSession(sessionId);
+		if (!this.conversations.readSessionWorkbenchDetail) throw new Error("Desktop workbench is unavailable");
+		return this.conversations.readSessionWorkbenchDetail(sessionId, kind, id);
+	}
+	private async collaborationCwd(sessionId: string): Promise<string> {
+		await this.openSession(sessionId);
+		const location = this.sessionLocations.get(sessionId);
+		if (!location) throw new Error("Desktop session is not authorized for project collaboration");
+		return location.cwd;
+	}
+	async readCollaboration(sessionId: string): Promise<ProjectCollaborationSnapshot> {
+		return getProjectCollaborationService().read(await this.collaborationCwd(sessionId));
+	}
+	async updateCollaboration(sessionId: string, patch: unknown): Promise<ProjectCollaborationSnapshot> {
+		return getProjectCollaborationService().update(
+			await this.collaborationCwd(sessionId),
+			patch as ProjectCollaborationPatch,
+		);
+	}
+	async controlCollaboration(sessionId: string, control: unknown): Promise<ProjectCollaborationSnapshot> {
+		return getProjectCollaborationService().control(
+			await this.collaborationCwd(sessionId),
+			control as ProjectCollaborationControl,
+		);
+	}
+	async readAttachmentChunk(sessionId: string, id: string, offset: number, length: number) {
+		await this.openSession(sessionId);
+		if (!this.conversations.readSessionAttachmentChunk) throw new Error("Desktop attachment transfer is unavailable");
+		return this.conversations.readSessionAttachmentChunk(sessionId, id, offset, length);
+	}
+	async updateContextSelection(sessionId: string, selection: unknown) {
+		await this.openSession(sessionId);
+		if (!this.conversations.updateContextSelection) throw new Error("Desktop context selection is unavailable");
+		await this.conversations.updateContextSelection(sessionId, selection);
+		return this.readContext(sessionId);
 	}
 
 	async readContext(sessionId: string) {

@@ -86,8 +86,8 @@ export function useInputBarTriggerModel({
 		if (hasSession && !isStreaming) focusInputEditor();
 	}, [hasSession, isStreaming]);
 	useEffect(() => {
-		if (focusInputRequest > 0) focusInputEditor();
-	}, [focusInputRequest]);
+		if (hasSession && focusInputRequest > 0) focusInputEditor();
+	}, [focusInputRequest, hasSession]);
 
 	const handleSend = useCallback(() => {
 		const interactionId = perfSendBegin("send-button");

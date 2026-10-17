@@ -38,6 +38,10 @@
         "vetta-agent": "dist/agent-cli.js",
         "vetta-cli-app": "dist/cli.js",
         "vetta-agent-rpc": "dist/agent-rpc-cli.js",
+        "567-agent": "dist/cli.js",
+        "567-agent-agent": "dist/agent-cli.js",
+        "567-agent-cli-app": "dist/cli.js",
+        "567-agent-rpc": "dist/agent-rpc-cli.js",
       },
       "dependencies": {
         "@567agent/action-rpc": "workspace:*",
@@ -91,6 +95,7 @@
         "@ocr-web/models-ppocrv5": "^0.1.1",
         "@sentry/electron": "^7.15.0",
         "@silvia-odwyer/photon-node": "^0.3.4",
+        "@sinclair/typebox": "^0.34.41",
         "@tanstack/react-router": "^1.130.15",
         "@types/adm-zip": "^0.5.8",
         "@vetta-org/capability-sdk": "workspace:*",

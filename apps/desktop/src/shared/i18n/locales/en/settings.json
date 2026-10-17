@@ -265,9 +265,17 @@
   },
   "updateSource": {
     "title": "Update download source",
-    "description": "gh-proxy.com relays update metadata and installers. Enable only if you trust this third-party proxy; restart the app for the change to take effect.",
+    "description": "Choose how GitHub update files are downloaded. Third-party services receive requests when selected; restart the app for changes to take effect.",
     "official": "Official GitHub",
-    "accelerated": "Regional proxy (gh-proxy.com)"
+    "accelerated": "gh-proxy.com",
+    "custom": "Custom HTTPS prefix",
+    "customHint": "Enter an HTTPS prefix that can proxy GitHub Release files, for example https://proxy.example/.",
+    "customPlaceholder": "https://proxy.example/",
+    "save": "Save",
+    "saving": "Saving…",
+    "saved": "Saved. Restart the app to apply it.",
+    "invalid": "Enter an HTTPS URL without a username, password, query, or fragment.",
+    "saveFailed": "Couldn't save the update source. Try again."
   },
   "theme": {
     "light": "Light",
@@ -2197,7 +2205,7 @@
   "environmentRepairRestartDescription": "Stops tasks to repair the environment. Keeps chats and settings.",
   "modelContext": {
     "title": "Context capacity",
-    "description": "Set capacity per provider and model. Manual values take priority over API and catalog data, survive refreshes, and apply to compaction on subsequent turns. They do not increase server limits.",
+    "description": "Adjust context capacity and inspect model capabilities. Applies to subsequent tasks; cannot exceed provider limits.",
     "provider": "Provider",
     "model": "Model",
     "empty": "Connect a provider and load its models to set capacity.",
@@ -2250,6 +2258,51 @@
       "image": "Image",
       "audio": "Audio",
       "video": "Video"
+    },
+    "currentLimit": "Effective context capacity",
+    "priorityHint": "Manual setting takes priority, followed by provider API and public references.",
+    "unitsHint": "K = 1,000 · M = 1,000,000; Ki / Mi use powers of 1024. Leave blank for automatic detection.",
+    "parsed": "Will save {{capacity}} tokens"
+  },
+  "diagnostics": {
+    "title": "Diagnostics and repair",
+    "entryHint": "Check runtime, pairing and configuration; preview and export a diagnostic summary.",
+    "description": "Check local environment and known connection state without paid model inference. Resolve pairing issues in Remote connection settings.",
+    "working": "Checking or repairing…",
+    "failed": "Operation incomplete. Inspect Application environment for installation details; locked files may require restart and repair.",
+    "preview": "Preview diagnostic summary",
+    "includeLogs": "Include recent redacted logs (optional)",
+    "privacy": "By default, only the environment summary is exported. Common secrets and the home path are masked in optional logs; review before sharing.",
+    "repairConfirm": "Reinstall incomplete Node/npm or Python. Save work first; if files are locked, use restart and repair under Application environment.",
+    "confirmRepair": "Repair environment",
+    "cancel": "Cancel",
+    "refresh": "Check again",
+    "repair": "Repair runtimes",
+    "export": "Export diagnostics",
+    "check": {
+      "node": "Node.js / npm",
+      "python": "Python",
+      "models": "Model catalog configuration",
+      "credentials": "System credential storage",
+      "storage": "Data directory and disk",
+      "memory": "Available memory",
+      "remote": "Connection and certificate state",
+      "plugins": "Plugin runtime prerequisites"
+    },
+    "status": {
+      "ok": "OK",
+      "attention": "Needs attention",
+      "unknown": "Not verified"
+    },
+    "hint": {
+      "node": "Incomplete or locked runtime. Try repair.",
+      "python": "Incomplete runtime. Try repair.",
+      "models": "Inspect model and provider settings. No inference was requested.",
+      "credentials": "Check the system keychain or Windows account. Avoid copying encrypted credentials between accounts.",
+      "storage": "Check permissions and disk space. Keep at least 500 MB free.",
+      "memory": "Available memory is low. Close unused processes.",
+      "remote": "Network cannot be verified while disconnected. Resolve certificate or pairing errors in Remote connection settings.",
+      "plugins": "A Node runtime check cannot verify each plugin. Open the plugin to inspect its startup."
     }
   }
 }

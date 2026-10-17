@@ -4,6 +4,8 @@ export type { FakeTransportOptions } from "./fake-transport.js";
 export { FakeTransport } from "./fake-transport.js";
 export { decodeRemoteFrame, encodeRemoteFrame, parseRemoteFrame, RemoteProtocolError } from "./protocol.js";
 export type {
+	ContextSelection,
+	ContextWorkspaceSnapshot,
 	RemoteAck,
 	RemoteCapabilities,
 	RemoteConnectionEvent,
@@ -25,6 +27,11 @@ export type {
 	RemoteSessionContext,
 	RemoteTransport,
 	RemoteTransportHandlers,
+	SessionAttachmentAsset,
+	SessionChangeAsset,
+	SessionTaskAsset,
+	SessionWorkbenchDetail,
+	SessionWorkbenchSnapshot,
 } from "./types.js";
 export { NOOP_REMOTE_LOGGER, REMOTE_PROTOCOL_VERSION, REMOTE_REQUEST_METHODS } from "./types.js";
 export type { RemoteWebSocket, RemoteWebSocketFactory } from "./websocket-transport.js";

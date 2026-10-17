@@ -24,6 +24,13 @@ export const REMOTE_REQUEST_METHODS = [
 	"session.context.compact",
 	"session.context.cancel",
 	"session.context.auto",
+	"session.context.selection",
+	"session.workbench",
+	"session.workbench.detail",
+	"session.collaboration.read",
+	"session.collaboration.update",
+	"session.collaboration.control",
+	"session.attachment.read",
 	"session.model.select",
 	"session.suggestions",
 	"session.suggestions.cancel",
@@ -45,7 +52,30 @@ export const REMOTE_REQUEST_METHODS = [
 	"diagnostics.snapshot",
 ] as const;
 
+/** Selection affects model input only; the canonical conversation is never rewritten. */
+export interface ContextSelection {
+	readonly revision: number;
+	readonly pinnedText: string;
+	readonly excludedTurnIds: readonly string[];
+}
+export interface ContextWorkspaceSnapshot extends ContextSelection {
+	readonly sessionId: string;
+	readonly documentRevision: number;
+	readonly busy: boolean;
+	readonly summary: string;
+	readonly previousSummary: string;
+	readonly tokensBefore: number | null;
+	readonly totalTurns: number;
+	readonly turns: readonly {
+		readonly id: string;
+		readonly text: string;
+		readonly attachments: readonly string[];
+		readonly status: "included" | "summarized" | "excluded";
+	}[];
+}
+
 export interface RemoteSessionContext {
+	readonly workspace?: ContextWorkspaceSnapshot;
 	readonly tokens: number | null;
 	readonly contextWindow: number | null;
 	readonly contextWindowSource?: "manual" | "api" | "catalog" | "unknown";
@@ -203,3 +233,42 @@ export type RemoteConnectionEvent =
 	| { readonly type: "remote-request"; readonly request: RemoteRequest }
 	| { readonly type: "remote-event"; readonly event: RemoteEvent }
 	| { readonly type: "error"; readonly error: RemoteError };
+
+export interface SessionAttachmentAsset {
+	readonly id: string;
+	readonly name: string;
+	readonly path: string;
+	readonly kind: "file" | "directory" | "image";
+}
+export interface SessionTaskAsset {
+	readonly id: string;
+	readonly title: string;
+	readonly status: "completed" | "failed" | "running" | "interrupted";
+	readonly timestamp: number;
+	readonly durationMs: number | null;
+	readonly toolCount: number;
+}
+export interface SessionChangeAsset {
+	readonly id: string;
+	readonly path: string;
+	readonly status: "pending" | "kept" | "reverted";
+	readonly reversible: boolean;
+}
+export interface SessionWorkbenchSnapshot {
+	readonly attachments: readonly SessionAttachmentAsset[];
+	readonly tasks: readonly SessionTaskAsset[];
+	readonly changes: readonly SessionChangeAsset[];
+}
+export interface SessionWorkbenchDetail {
+	readonly kind: "attachment" | "task" | "change";
+	readonly id: string;
+	readonly title: string;
+	readonly text: string;
+	readonly path?: string;
+	readonly sizeBytes?: number;
+	readonly previewStatus?: "text" | "binary" | "unavailable";
+	readonly beforeText?: string;
+	readonly afterText?: string;
+	readonly afterRevision?: string;
+	readonly reversible?: boolean;
+}

@@ -2,6 +2,7 @@ package org.agent567.android.app
 
 import com.russhwolf.settings.Settings
 import com.russhwolf.settings.set
+import io.ktor.http.Url
 import kotlinx.serialization.encodeToString
 import kotlinx.serialization.decodeFromString
 import kotlinx.serialization.json.JsonArray
@@ -38,6 +39,31 @@ class AppPreferences(
     private val settings: Settings = Settings(),
     private val secretStore: SecretStore = SettingsSecretStore(settings),
 ) {
+    /** GitHub Release download routing: github (direct), gh-proxy, or custom. */
+    var downloadSource: String
+        get() = settings.getStringOrNull(KEY_DOWNLOAD_SOURCE)
+            ?.takeIf { it == DOWNLOAD_SOURCE_GH_PROXY || (it == DOWNLOAD_SOURCE_CUSTOM && customPrefix.isNotBlank()) }
+            ?: DOWNLOAD_SOURCE_GITHUB
+        set(value) {
+            require(value == DOWNLOAD_SOURCE_GITHUB || value == DOWNLOAD_SOURCE_GH_PROXY || value == DOWNLOAD_SOURCE_CUSTOM) {
+                "Unsupported GitHub download source"
+            }
+            settings[KEY_DOWNLOAD_SOURCE] = value
+        }
+
+    /** Validated HTTPS URL prefix for custom GitHub Release downloads; empty when unset/invalid. */
+    var customPrefix: String
+        get() = normalizeGitHubDownloadPrefix(settings.getStringOrNull(KEY_DOWNLOAD_CUSTOM_PREFIX)).orEmpty()
+        set(value) {
+            if (value.isBlank()) {
+                settings.remove(KEY_DOWNLOAD_CUSTOM_PREFIX)
+                return
+            }
+            val normalized = normalizeGitHubDownloadPrefix(value)
+                ?: throw IllegalArgumentException("Custom download prefix must be a valid HTTPS URL without credentials, query, or fragment")
+            settings[KEY_DOWNLOAD_CUSTOM_PREFIX] = normalized
+        }
+
     private val _serverUrl = MutableStateFlow(readServerUrl())
     val serverUrl: StateFlow<String> = _serverUrl.asStateFlow()
 
@@ -303,6 +329,13 @@ class AppPreferences(
             ?: MIGRATION_BACKUP_LIMIT_OPTIONS_MB.first()
 
     companion object {
+        const val DOWNLOAD_SOURCE_GITHUB = "github"
+        const val DOWNLOAD_SOURCE_GH_PROXY = "gh-proxy"
+        const val DOWNLOAD_SOURCE_CUSTOM = "custom"
+
+        private const val KEY_DOWNLOAD_SOURCE = "567agent.prefs.github_download_source"
+        private const val KEY_DOWNLOAD_CUSTOM_PREFIX = "567agent.prefs.github_download_custom_prefix"
+
         /** 与 desktop `.env.development` 同源默认，可在设置中覆盖。 */
         const val DEFAULT_SERVER_URL = "https://api.567.wiki"
 
@@ -337,4 +370,18 @@ class AppPreferences(
         private const val KEY_CACHE_GROUP_MODELS_PREFIX = "vetta.cache.models."
         private const val KEY_CACHE_GROUP_KEY_PREFIX = "vetta.cache.key."
     }
+}
+
+/** Normalize a user supplied HTTPS URL prefix or return null when it is invalid. */
+fun normalizeGitHubDownloadPrefix(value: String?): String? {
+    val trimmed = value?.trim()?.takeIf { it.isNotEmpty() } ?: return null
+    if ('?' in trimmed || '#' in trimmed) return null
+    return runCatching {
+        val url = Url(trimmed)
+        require(url.protocol.name == "https")
+        require(url.host.isNotBlank())
+        require(url.user == null && url.password == null)
+        val withoutTrailingSlashes = trimmed.trimEnd('/')
+        "$withoutTrailingSlashes/"
+    }.getOrNull()
 }

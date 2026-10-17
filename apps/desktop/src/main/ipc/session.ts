@@ -33,7 +33,12 @@ import {
 	CODING_AGENT_TODO_CLEAR,
 	isCodingAgentPermissionMode,
 } from "@567agent/coding-agent/session-extensions";
-import type { SessionEvent, SessionExecutionMode, SettingsPatch } from "@567agent/runtime-core";
+import {
+	isSessionError,
+	type SessionEvent,
+	type SessionExecutionMode,
+	type SettingsPatch,
+} from "@567agent/runtime-core";
 import { sessionExtensionObservation } from "@567agent/runtime-core/session-extensions";
 import { isMcpJsonValue, type McpJsonObject } from "@567agent/runtime-mcp";
 import { BrowserWindow, dialog, ipcMain, type OpenDialogOptions, type WebContents } from "electron";
@@ -88,6 +93,7 @@ import {
 	filterSystemPromptInvocationForPlugin,
 	tryNormalizeDynamicSystemPromptOperations,
 } from "../plugins/system-prompt-operations.js";
+import { getProjectCollaborationService } from "../project-collaboration/service.js";
 import { getSharedRuntime } from "../runtime.js";
 import { assertSandboxAvailableForMode } from "../sandbox/capability.js";
 import {
@@ -194,6 +200,12 @@ const CHANNELS = {
 	NEXT_PROMPT_SUGGESTIONS: "vetta:session:next-prompt-suggestions",
 	DISPOSE: "vetta:session:dispose",
 	GET_FULL_HISTORY: "vetta:session:get-full-history",
+	CONTEXT_WORKSPACE: "agent567:session:context-workspace",
+	WORKBENCH: "agent567:session:workbench",
+	WORKBENCH_DETAIL: "agent567:session:workbench-detail",
+	ATTACHMENT_READ: "agent567:session:attachment-read",
+	REVIEW_CHANGE: "agent567:session:review-change",
+	CONTEXT_SELECTION: "agent567:session:context-selection",
 	NAVIGATE_FOR_EDIT: "vetta:session:navigate-for-edit",
 	SWITCH_BRANCH: "vetta:session:switch-branch",
 	DELETE_MESSAGE: "vetta:session:delete-message",
@@ -411,6 +423,7 @@ export function registerSessionIpc(webContents: WebContents): () => void {
 		broadcastToAllWindows(CHANNELS.SESSIONS_CHANGED, event);
 	});
 	const subscriptionMap = new Map<string, () => void>();
+	const subscriptionSessions = new Map<string, string>();
 	const questionMap = new Map<string, (result: CodingAgentQuestionResult) => void>();
 	const mcpElicitationMap = new Map<string, (result: DesktopMcpElicitationResponse) => void>();
 	const sandboxGrantMap = new Map<string, (decision: CodingAgentSandboxAuthorizationDecision) => void>();
@@ -486,16 +499,33 @@ export function registerSessionIpc(webContents: WebContents): () => void {
 	};
 
 	const disposeInteractiveSession = async (sessionId: string): Promise<void> => {
+		if (
+			[...subscriptionSessions.values()].includes(sessionId) ||
+			getProjectCollaborationService().isSessionEngaged(sessionId)
+		)
+			return;
+		if (runtime.getSessionPath(sessionId) && runtime.getState(sessionId).isStreaming) return;
+		await getProjectCollaborationService().unregisterSession(sessionId);
 		await runtime.disposeSession(sessionId);
 		forgetInteractiveSession(sessionId);
 	};
 
+	let residencyReconciling = false;
+	let residencyRequested = false;
 	const scheduleIdleInteractiveSessionReconcile = (): void => {
+		if (residencyReconciling) {
+			residencyRequested = true;
+			return;
+		}
+		residencyReconciling = true;
 		const runningIds = collectRunningInteractiveSessionIds(
 			interactiveResidency.trackedIds(),
 			(sessionId) => runtime.getSessionPath(sessionId),
 			runtime.getRunningSessionPaths(),
 		);
+		for (const sessionId of subscriptionSessions.values()) runningIds.add(sessionId);
+		for (const sessionId of interactiveResidency.trackedIds())
+			if (getProjectCollaborationService().isSessionEngaged(sessionId)) runningIds.add(sessionId);
 		void reconcileIdleInteractiveSessions({
 			tracker: interactiveResidency,
 			runningIds,
@@ -503,8 +533,25 @@ export function registerSessionIpc(webContents: WebContents): () => void {
 			onDisposeError: (sessionId, error) => {
 				sessionLog.warn("idle interactive session dispose failed", sessionId, error);
 			},
-		});
+		})
+			.catch((error) => sessionLog.warn("idle session reconciliation failed", error))
+			.finally(() => {
+				residencyReconciling = false;
+				if (residencyRequested) {
+					residencyRequested = false;
+					scheduleIdleInteractiveSessionReconcile();
+				}
+			});
 	};
+
+	const unsubscribeSessionOpened = conversationService.onSessionOpened((session) => {
+		interactiveResidency.touch(session.sessionId);
+		sessionCwdMap.set(session.sessionId, session.cwd);
+		scheduleIdleInteractiveSessionReconcile();
+	});
+	const unsubscribeCollaborationResidency = getProjectCollaborationService().onChanged(() =>
+		scheduleIdleInteractiveSessionReconcile(),
+	);
 
 	const CANCELLED_QUESTION: CodingAgentQuestionResult = { cancelled: true, answers: [] };
 
@@ -944,7 +991,13 @@ export function registerSessionIpc(webContents: WebContents): () => void {
 				config.executionMode = "full-access";
 			}
 			const traceContext = parseSessionTraceContext(rawTraceContext);
-			const result = await conversationService.createSession(config, kind, "interactive", traceContext);
+			const result = await conversationService
+				.createSession(config, kind, "interactive", traceContext)
+				.catch((error: unknown) => {
+					// Electron serializes Error.message, but stringifies plain RuntimeFailure objects.
+					if (isSessionError(error)) throw new Error(error.message, { cause: error });
+					throw error;
+				});
 			const effectiveCwd = result.cwd;
 			interactiveResidency.touch(result.sessionId);
 			if (effectiveCwd) {
@@ -1126,7 +1179,7 @@ export function registerSessionIpc(webContents: WebContents): () => void {
 
 	ipcMain.handle(CHANNELS.CONTINUE, async (_event, sessionId: unknown) => {
 		assertNonEmptyString(sessionId, "sessionId");
-		await runtime.continue(sessionId);
+		await conversationService.continueInteractiveSession(sessionId);
 	});
 
 	ipcMain.handle(CHANNELS.ABORT, async (_event, sessionId: unknown) => {
@@ -1134,7 +1187,11 @@ export function registerSessionIpc(webContents: WebContents): () => void {
 		// Stopping is unconditional: the turn comes down together with the work it
 		// spawned. Subagents and background commands outlive the turn by design, so
 		// cancelling the turn alone would leave workflows running behind the button.
-		await Promise.allSettled([runtime.abort(sessionId), stopSessionBackgroundWork(runtime, sessionId)]);
+		await Promise.allSettled([
+			getProjectCollaborationService().stopSession(sessionId),
+			runtime.abort(sessionId),
+			stopSessionBackgroundWork(runtime, sessionId),
+		]);
 	});
 
 	// 输入队列管理（ADR-0060）：薄桥接，能力全部在 RuntimeHost。
@@ -1161,11 +1218,13 @@ export function registerSessionIpc(webContents: WebContents): () => void {
 	ipcMain.handle(CHANNELS.QUEUE_SEND_NOW, async (_event, sessionId: unknown, itemId: unknown) => {
 		assertNonEmptyString(sessionId, "sessionId");
 		assertNonEmptyString(itemId, "itemId");
-		return runtime.sendQueuedMessageNow(sessionId, itemId);
+		return conversationService.runInteractiveOperation(sessionId, () =>
+			runtime.sendQueuedMessageNow(sessionId, itemId),
+		);
 	});
 	ipcMain.handle(CHANNELS.QUEUE_RESUME, async (_event, sessionId: unknown) => {
 		assertNonEmptyString(sessionId, "sessionId");
-		await runtime.resumeQueue(sessionId);
+		await conversationService.runInteractiveOperation(sessionId, () => runtime.resumeQueue(sessionId));
 	});
 	ipcMain.handle(CHANNELS.QUEUE_CLEAR, async (_event, sessionId: unknown) => {
 		assertNonEmptyString(sessionId, "sessionId");
@@ -1286,6 +1345,43 @@ export function registerSessionIpc(webContents: WebContents): () => void {
 		return runtime.getMessages(sessionId);
 	});
 
+	ipcMain.handle(CHANNELS.WORKBENCH, (_event, sessionId: unknown) => {
+		assertNonEmptyString(sessionId, "sessionId");
+		return getDesktopConversationService().readSessionWorkbench(sessionId);
+	});
+	ipcMain.handle(CHANNELS.WORKBENCH_DETAIL, (_event, sessionId: unknown, kind: unknown, id: unknown) => {
+		assertNonEmptyString(sessionId, "sessionId");
+		assertNonEmptyString(kind, "kind");
+		assertNonEmptyString(id, "id");
+		return getDesktopConversationService().readSessionWorkbenchDetail(sessionId, kind, id);
+	});
+	ipcMain.handle(
+		CHANNELS.ATTACHMENT_READ,
+		(_event, sessionId: unknown, id: unknown, offset: unknown, length: unknown) => {
+			assertNonEmptyString(sessionId, "sessionId");
+			assertNonEmptyString(id, "id");
+			if (typeof offset !== "number" || typeof length !== "number") throw new Error("Invalid chunk range");
+			return getDesktopConversationService().readSessionAttachmentChunk(sessionId, id, offset, length);
+		},
+	);
+	ipcMain.handle(
+		CHANNELS.REVIEW_CHANGE,
+		(_event, sessionId: unknown, id: unknown, action: unknown, revision: unknown) => {
+			assertNonEmptyString(sessionId, "sessionId");
+			assertNonEmptyString(id, "id");
+			assertNonEmptyString(action, "action");
+			if (typeof revision !== "string") throw new Error("Invalid file revision");
+			return getDesktopConversationService().reviewSessionChange(sessionId, id, action, revision);
+		},
+	);
+	ipcMain.handle(CHANNELS.CONTEXT_WORKSPACE, (_event, sessionId: unknown) => {
+		assertNonEmptyString(sessionId, "sessionId");
+		return getDesktopConversationService().readContextWorkspace(sessionId);
+	});
+	ipcMain.handle(CHANNELS.CONTEXT_SELECTION, (_event, sessionId: unknown, selection: unknown) => {
+		assertNonEmptyString(sessionId, "sessionId");
+		return getDesktopConversationService().updateContextSelection(sessionId, selection);
+	});
 	ipcMain.handle(CHANNELS.GET_FULL_HISTORY, async (_event, sessionId: unknown) => {
 		assertNonEmptyString(sessionId, "sessionId");
 		return runtime.getFullHistory(sessionId);
@@ -1740,6 +1836,7 @@ export function registerSessionIpc(webContents: WebContents): () => void {
 			webContents.send(CHANNELS.EVENT, subscriptionId, slimSessionEventForIpc(runtimeEvent));
 		});
 		subscriptionMap.set(subscriptionId, unsubscribe);
+		subscriptionSessions.set(subscriptionId, sessionId);
 
 		// 回放后台任务快照：注册表在主进程内存中跨 renderer 重载存活，但
 		// 后台任务扩展观察只在状态变化时推送——renderer 刷新后 atom
@@ -1803,6 +1900,8 @@ export function registerSessionIpc(webContents: WebContents): () => void {
 		if (unsubscribe) {
 			unsubscribe();
 			subscriptionMap.delete(subscriptionId);
+			subscriptionSessions.delete(subscriptionId);
+			scheduleIdleInteractiveSessionReconcile();
 		}
 	});
 
@@ -1823,6 +1922,7 @@ export function registerSessionIpc(webContents: WebContents): () => void {
 			unsubscribe();
 		}
 		subscriptionMap.clear();
+		subscriptionSessions.clear();
 		for (const resolve of questionMap.values()) {
 			resolve(CANCELLED_QUESTION);
 		}
@@ -1919,6 +2019,8 @@ export function registerSessionIpc(webContents: WebContents): () => void {
 	});
 
 	return () => {
+		unsubscribeSessionOpened();
+		unsubscribeCollaborationResidency();
 		unsubscribeConversationListChanged();
 		webContents.removeListener("did-start-navigation", onDidStartNavigation);
 		webContents.removeListener("render-process-gone", onRenderGone);
@@ -1941,6 +2043,7 @@ export function registerSessionIpc(webContents: WebContents): () => void {
 			unsubscribe();
 		}
 		subscriptionMap.clear();
+		subscriptionSessions.clear();
 		for (const resolve of questionMap.values()) {
 			resolve(CANCELLED_QUESTION);
 		}

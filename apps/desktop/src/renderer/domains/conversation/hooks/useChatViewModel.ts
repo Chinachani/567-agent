@@ -123,13 +123,22 @@ export function useChatViewModel(): ChatViewModelResult {
 	}, [closeInlinePreview, inlinePreviewActive, setPanelOpen]);
 
 	const sessionTitle = useMemo(() => {
-		if (activeSessionPath === null && activeSessionCwd === null) return null;
+		const path = pendingSessionOpen?.sessionPath ?? activeSessionPath;
+		const cwd = pendingSessionOpen?.cwd ?? activeSessionCwd;
+		if (path === null && cwd === null) return null;
 		for (const list of sessionsMap.values()) {
-			const found = list.find((session) => session.path === activeSessionPath);
+			const found = list.find((session) => session.path === path);
 			if (found) return sessionDisplayLabel(found);
 		}
-		return getProjectDisplayName(activeSessionCwd ?? "", defaultCwd);
-	}, [activeSessionPath, activeSessionCwd, defaultCwd, sessionsMap]);
+		return getProjectDisplayName(cwd ?? "", defaultCwd);
+	}, [
+		activeSessionPath,
+		activeSessionCwd,
+		defaultCwd,
+		sessionsMap,
+		pendingSessionOpen?.sessionPath,
+		pendingSessionOpen?.cwd,
+	]);
 
 	useEffect(() => {
 		setHeaderTitle(sessionTitle);
@@ -166,7 +175,7 @@ export function useChatViewModel(): ChatViewModelResult {
 	return {
 		actions,
 		model: {
-			cwd: activeSessionCwd,
+			cwd: pendingSessionOpen?.cwd ?? activeSessionCwd,
 			exporting,
 			exportTitle: sessionTitle ?? t("chatView.defaultSessionTitle"),
 			header,

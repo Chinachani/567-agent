@@ -66,6 +66,7 @@ import { getDesktopMcpTaskCoordinator } from "../mcp/mcp-task-runtime.js";
 import { createDesktopPluginHookAdapterFactory } from "../plugins/coding-agent-hook-adapter.js";
 import { pluginAgentContributionService } from "../plugins/plugin-catalog.js";
 import { getDesktopCodingAgentPluginRuntimeSource } from "../plugins/plugin-runtime-service.js";
+import { authorizeCollaborationTool } from "../project-collaboration/execution-guard.js";
 import { getDesktopRuntimeConfigurationService } from "../runtime-configuration/runtime-configuration-composition.js";
 import { getAvailableLinuxBubblewrapPath, getAvailableMacosSandboxExecPath } from "../sandbox/capability.js";
 import { resolveWindowsSandboxHostBinary } from "../sandbox/windows-binary-resolver.js";
@@ -145,6 +146,7 @@ export function createDesktopRuntimeComposition(): DesktopRuntimeComposition {
 		new DesktopRuntimeBackendPool({
 			observationPublisher,
 			compositionDefaults: {
+				authorizeTool: authorizeCollaborationTool,
 				tracer: observability.tracer,
 				tracing: { captureContent: false, detail: "standard" },
 				agentRuntime: { runtime: agentRuntime },

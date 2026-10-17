@@ -32,6 +32,7 @@ import androidx.lifecycle.viewmodel.compose.viewModel
 import org.agent567.android.app.AppContainer
 import org.agent567.android.ui.auth.LoginScreen
 import org.agent567.android.ui.auth.WelcomeScreen
+import org.agent567.android.ui.chat.SessionWorkbenchDialog
 import org.agent567.android.ui.chat.ChatContextSheet
 import org.agent567.android.ui.chat.ChatScreen
 import org.agent567.android.ui.components.LoadingBlock
@@ -372,9 +373,38 @@ fun RootApp(
                     onCompact = vm::compactChatContext,
                     onAutoChange = vm::setChatAutoCompaction,
                     onCapacityChange = vm::setChatContextCapacity,
+                    onOpenWorkbench = { vm.setWorkbenchOpen(true) },
                     onReset = vm::resetChatContext,
                     onCancel = vm::cancelChatContextOperation,
                 )
+                if (state.workbenchOpen) {
+                    val workbenchSessionId = state.currentSessionId
+                    SessionWorkbenchDialog(
+                        desktop = route.surface == ChatSurface.Desktop,
+                        context = state.contextSnapshot?.workspace,
+                        snapshot = state.workbenchSnapshot,
+                        collaboration = state.projectCollaborationSnapshot,
+                        collaborationLoading = state.projectCollaborationLoading,
+                        collaborationError = state.projectCollaborationError,
+                        detail = state.workbenchDetail,
+                        messages = state.messages,
+                        pendingFiles = state.pendingFiles,
+                        pendingImages = state.pendingImages,
+                        busy = state.contextBusy || state.isStreaming,
+                        loading = state.workbenchLoading,
+                        error = state.workbenchError ?: state.contextError,
+                        onSaveContext = vm::updateChatContextSelection,
+                        onRefresh = vm::loadSessionWorkbench,
+                        onRefreshCollaboration = vm::loadProjectCollaboration,
+                        onControlCollaboration = vm::controlProjectCollaboration,
+                        onSelect = vm::loadSessionWorkbenchDetail,
+                        onScope = vm::setPendingDocumentScope,
+                        onRemoveFile = vm::removePendingDocument,
+                        onRemoveImage = vm::removePendingImage,
+                        readOriginal = { id -> vm.readWorkbenchAttachment(requireNotNull(workbenchSessionId), id) },
+                        onDismiss = { vm.setWorkbenchOpen(false) },
+                    )
+                }
             }
             AppRoute.Plan ->
                 PlanScreen(
@@ -432,7 +462,13 @@ fun RootApp(
                     onShowBottomNavLabels = vm::setShowBottomNavLabels,
                 )
             AppRoute.About ->
-                AboutScreen(onBack = vm::navigateBackFromSecondary, onCheckUpdate = vm::checkAppUpdate)
+                AboutScreen(
+                    onBack = vm::navigateBackFromSecondary,
+                    onCheckUpdate = vm::checkAppUpdate,
+                    downloadSource = state.downloadSource,
+                    customDownloadPrefix = state.customDownloadPrefix,
+                    onSaveDownloadSource = vm::setGitHubDownloadSource,
+                )
             }
             val pending = state.pendingQuestion
             val currentChatHasPending = state.route is AppRoute.Chat && pending?.sessionId == state.currentSessionId

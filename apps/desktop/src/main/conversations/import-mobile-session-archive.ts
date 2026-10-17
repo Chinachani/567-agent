@@ -3,6 +3,14 @@ import { mkdir, rm, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import type { AssistantMessage, ImageContent, TextContent, ToolCall, UserMessage } from "@567agent/ai";
 import type { ConversationMessageRecord, RuntimeHost } from "@567agent/runtime-core";
+import type { ProjectCollaborationDocument } from "../../shared/project-collaboration.js";
+import { getProjectCollaborationService } from "../project-collaboration/service.js";
+import { createCollaborationStore } from "../project-collaboration/store.js";
+import {
+	mergeImportedProjectCollaboration,
+	remapProjectCollaborationTransfer,
+	rollbackImportedProjectCollaboration,
+} from "../project-collaboration/transfer.js";
 import type { DesktopConversationService, DesktopConversationSession } from "./desktop-conversation-service.js";
 import type { SessionMigrationArchive, SessionMigrationMessage } from "./session-migration-backup.js";
 
@@ -23,6 +31,7 @@ export async function importMobileSessionArchive(
 	const createdMediaPaths: string[] = [];
 	let groups = new Map<string, readonly SessionMigrationMessage[]>();
 	const created: DesktopConversationSession[] = [];
+	const importedSessionIds = new Map<string, string>();
 	let importedMessages = 0;
 	try {
 		groups = await prepareMessagesWithAssistantMedia(archive, dependencies.cwd, createdMediaPaths);
@@ -40,18 +49,49 @@ export async function importMobileSessionArchive(
 					"interactive",
 				);
 				created.push(session);
+				importedSessionIds.set(source.id, session.sessionId);
 				await dependencies.runtime.renameSessionById(session.sessionId, source.title.trim() || "导入的对话");
 				let turnId = randomUUID();
+				const importedEntryIds = new Map<string, string>();
 				for (const [messageIndex, sourceMessage] of (groups.get(source.id) ?? []).entries()) {
 					try {
 						if (sourceMessage.role === "user") turnId = randomUUID();
 						const record = mobileMessageToConversationRecord(sourceMessage, turnId);
 						if (!record) continue;
-						await dependencies.runtime.appendConversationMessage(session.sessionId, record);
+						const appended = await dependencies.runtime.appendConversationMessage(session.sessionId, record);
+						if (source.context) importedEntryIds.set(sourceMessage.id, appended.entryId);
 						importedMessages += 1;
 					} catch (error) {
 						throw contextualImportError(error, `message ${messageIndex + 1} (${sourceMessage.role})`);
 					}
+				}
+				if (source.context) {
+					const sourceItems = groups.get(source.id) ?? [];
+					const boundary = sourceItems.findIndex((message) => message.id === source.context?.throughMessageId);
+					const orphanBoundary =
+						source.context.throughMessageId != null &&
+						boundary < 0 &&
+						source.context.throughCreatedAtEpochMs == null;
+					const summarized = sourceItems
+						.filter(
+							(message, index) =>
+								message.role === "user" &&
+								(orphanBoundary ||
+									(boundary >= 0
+										? index <= boundary
+										: source.context?.throughCreatedAtEpochMs != null &&
+											message.createdAtEpochMs <= source.context.throughCreatedAtEpochMs)),
+						)
+						.flatMap((message) => importedEntryIds.get(message.id) ?? []);
+					const excluded = (source.context.excludedTurnIds ?? []).flatMap((id) => importedEntryIds.get(id) ?? []);
+					await dependencies.conversationService.restoreImportedContext(
+						session.sessionId,
+						{
+							...source.context,
+							excludedTurnIds: source.context.summary ? excluded : [...new Set([...excluded, ...summarized])],
+						},
+						source.context.summary ? summarized : [],
+					);
 				}
 			} catch (error) {
 				const sessionLabel = source.title.trim() || source.id;
@@ -61,6 +101,31 @@ export async function importMobileSessionArchive(
 				);
 			}
 		}
+		if (archive.collaborations?.length) {
+			const importedDocuments = archive.collaborations
+				.map((transfer) => remapProjectCollaborationTransfer(transfer, importedSessionIds))
+				.filter((document) => document.config.members.length || document.tasks.length);
+			if (importedDocuments.length) {
+				const store = createCollaborationStore(dependencies.cwd);
+				const snapshots: { before?: ProjectCollaborationDocument } = {};
+				const written = await store.update((current) => {
+					snapshots.before = current;
+					return importedDocuments.reduce(mergeImportedProjectCollaboration, current);
+				});
+				try {
+					await getProjectCollaborationService().refreshStoredProject(dependencies.cwd);
+				} catch (error) {
+					const before = snapshots.before;
+					if (before) {
+						await store.update((current) => rollbackImportedProjectCollaboration(current, before, written));
+					}
+					await getProjectCollaborationService()
+						.refreshStoredProject(dependencies.cwd)
+						.catch(() => undefined);
+					throw error;
+				}
+			}
+		}
 		return {
 			importedSessions: created.length,
 			importedMessages,
@@ -68,6 +133,7 @@ export async function importMobileSessionArchive(
 		};
 	} catch (error) {
 		await Promise.allSettled(created.map((session) => dependencies.runtime.deleteSession(session.sessionPath)));
+		await Promise.allSettled(created.map((session) => rm(`${session.sessionPath}.context.json`, { force: true })));
 		await Promise.allSettled(createdMediaPaths.map((path) => rm(path, { force: true })));
 		throw error;
 	}

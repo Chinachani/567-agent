@@ -2,6 +2,7 @@ import type { JSX, ReactNode } from "react";
 import { Button, Switch } from "@vetta-org/ui";
 import { MotionSelect } from "./MotionSelect";
 import { SettingRow, SettingSection, type SettingSectionMeta } from "./SettingChrome";
+import { InputField } from "./SettingsFormFields";
 
 export interface GeneralSettingsViewLabels {
 	readonly title: string;
@@ -29,6 +30,14 @@ export interface GeneralSettingsViewLabels {
 	readonly updateSourceDescription: string;
 	readonly updateSourceOfficial: string;
 	readonly updateSourceAccelerated: string;
+	readonly updateSourceCustom: string;
+	readonly updateSourceCustomHint: string;
+	readonly updateSourceCustomPlaceholder: string;
+	readonly updateSourceSave: string;
+	readonly updateSourceSaving: string;
+	readonly updateSourceSaved: string;
+	readonly updateSourceInvalid: string;
+	readonly updateSourceSaveFailed: string;
 	readonly fullAccess: string;
 	readonly useSandbox: string;
 	readonly export: string;
@@ -50,8 +59,13 @@ export interface GeneralSettingsViewProps {
 	readonly updatesDescription: string;
 	readonly updatesAction: ReactNode;
 	readonly updatesDetail: ReactNode;
-	readonly updateSource: "github" | "gh-proxy";
-	readonly onUpdateSourceChange: (source: "github" | "gh-proxy") => void;
+	readonly updateSource: "github" | "gh-proxy" | "custom";
+	readonly updateProxyUrl: string;
+	readonly updateProxyUrlValid: boolean;
+	readonly updateSourceSaveState: "idle" | "saving" | "saved" | "error";
+	readonly onUpdateSourceChange: (source: "github" | "gh-proxy" | "custom") => void;
+	readonly onUpdateProxyUrlChange: (url: string) => void;
+	readonly onSaveUpdateProxyUrl: () => void;
 	readonly executionMode: string;
 	readonly onExecutionModeChange: (mode: string) => void;
 	readonly sandboxUnavailableReason: string | null;
@@ -84,6 +98,11 @@ export function GeneralSettingsView({
 	updatesDetail,
 	updateSource,
 	onUpdateSourceChange,
+	updateProxyUrl,
+	updateProxyUrlValid,
+	updateSourceSaveState,
+	onUpdateProxyUrlChange,
+	onSaveUpdateProxyUrl,
 	executionMode,
 	onExecutionModeChange,
 	sandboxUnavailableReason,
@@ -95,6 +114,17 @@ export function GeneralSettingsView({
 	onExportDiagnostics,
 	onStartAppGuide,
 }: GeneralSettingsViewProps): JSX.Element {
+	const invalidUpdateProxyUrl = updateProxyUrl.trim().length > 0 && !updateProxyUrlValid;
+	const updateProxyStatusLabel =
+		updateSourceSaveState === "saved"
+			? labels.updateSourceSaved
+			: updateSourceSaveState === "saving"
+				? labels.updateSourceSaving
+				: updateSourceSaveState === "error"
+					? labels.updateSourceSaveFailed
+					: invalidUpdateProxyUrl
+						? labels.updateSourceInvalid
+						: labels.updateSourceCustomHint;
 	return (
 		<div className="mx-auto w-full max-w-[680px] px-8 pt-2 pb-4">
 			<h1 className="mb-6 text-[20px] font-bold text-foreground">{labels.title}</h1>
@@ -148,25 +178,62 @@ export function GeneralSettingsView({
 
 			<SettingSection title={labels.sections.app} section={sections.app}>
 				{/* 与下方 App 引导同一 SettingRow：左标题+描述，右 outline sm 按钮。 */}
-				<SettingRow
-					title={labels.appVersion}
-					description={updatesDescription || undefined}
-					border={!updatesDetail}
-				>
+				<SettingRow title={labels.appVersion} description={updatesDescription || undefined} border={!updatesDetail}>
 					{updatesAction}
 				</SettingRow>
 				{updatesDetail ? <div className="border-b border-border px-5 pb-4">{updatesDetail}</div> : null}
 				<SettingRow title={labels.updateSource} description={labels.updateSourceDescription}>
 					<MotionSelect
 						value={updateSource}
-						onValueChange={(value) => onUpdateSourceChange(value === "gh-proxy" ? "gh-proxy" : "github")}
+						disabled={updateSourceSaveState === "saving"}
+						onValueChange={(value) =>
+							onUpdateSourceChange(value === "gh-proxy" || value === "custom" ? value : "github")
+						}
 						triggerClassName="min-w-[150px]"
 						options={[
 							{ value: "github", label: labels.updateSourceOfficial },
 							{ value: "gh-proxy", label: labels.updateSourceAccelerated },
+							{ value: "custom", label: labels.updateSourceCustom },
 						]}
 					/>
 				</SettingRow>
+				{updateSource !== "custom" && updateSourceSaveState !== "idle" && (
+					<p
+						role={updateSourceSaveState === "error" ? "alert" : "status"}
+						className="pb-3 text-[11px] text-muted-foreground"
+					>
+						{updateSourceSaveState === "saving"
+							? labels.updateSourceSaving
+							: updateSourceSaveState === "saved"
+								? labels.updateSourceSaved
+								: labels.updateSourceSaveFailed}
+					</p>
+				)}
+				{updateSource === "custom" ? (
+					<SettingRow title={labels.updateSourceCustom} description={labels.updateSourceDescription}>
+						<div className="flex w-full min-w-0 max-w-[24rem] flex-col gap-1.5">
+							<div className="flex items-center gap-2">
+								<InputField
+									value={updateProxyUrl}
+									onChange={onUpdateProxyUrlChange}
+									placeholder={labels.updateSourceCustomPlaceholder}
+									disabled={updateSourceSaveState === "saving"}
+									aria-label={labels.updateSourceCustom}
+									className="min-w-0 flex-1"
+								/>
+								<Button
+									size="sm"
+									variant="outline"
+									disabled={!updateProxyUrlValid || updateSourceSaveState === "saving"}
+									onClick={onSaveUpdateProxyUrl}
+								>
+									{updateSourceSaveState === "saving" ? labels.updateSourceSaving : labels.updateSourceSave}
+								</Button>
+							</div>
+							<div className="text-[11px] text-muted-foreground">{updateProxyStatusLabel}</div>
+						</div>
+					</SettingRow>
+				) : null}
 				<SettingRow title={labels.startAppGuide} description={labels.startAppGuideDescription} border={false}>
 					<Button size="sm" variant="outline" onClick={onStartAppGuide}>
 						{labels.startAppGuideAction}

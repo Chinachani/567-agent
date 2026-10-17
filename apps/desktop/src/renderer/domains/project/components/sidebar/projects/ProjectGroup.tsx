@@ -235,20 +235,36 @@ export const ProjectGroup = memo(function ProjectGroup(props: ProjectGroupProps)
 				onOpenContextMenu: model.actions.openProjectContextMenu,
 				projectCwd: model.project.cwd,
 				projectType: model.projectType,
-				trailingAction: model.expanded && selectableSessions.length > 0 && !selectionMode ? (
-					<Button
-						aria-label={t("sidebar.defaultConversation.batchSelect")}
-						title={t("sidebar.defaultConversation.batchSelect")}
-						size="icon-xs"
-						variant="ghost"
-						onClick={(event) => {
-							event.stopPropagation();
-							setSelectionMode(true);
-						}}
-					>
-						<ListChecks aria-hidden="true" />
-					</Button>
-				) : null,
+				trailingAction: (
+					<>
+						<Button
+							aria-label={t("collaboration.openProject")}
+							title={t("collaboration.openProject")}
+							size="icon-xs"
+							variant="ghost"
+							onClick={(event) => {
+								event.stopPropagation();
+								model.actions.navigateProject();
+							}}
+						>
+							<span className="icon-[solar--users-group-rounded-linear] h-4 w-4" aria-hidden="true" />
+						</Button>
+						{model.expanded && selectableSessions.length > 0 && !selectionMode ? (
+							<Button
+								aria-label={t("sidebar.defaultConversation.batchSelect")}
+								title={t("sidebar.defaultConversation.batchSelect")}
+								size="icon-xs"
+								variant="ghost"
+								onClick={(event) => {
+									event.stopPropagation();
+									setSelectionMode(true);
+								}}
+							>
+								<ListChecks aria-hidden="true" />
+							</Button>
+						) : null}
+					</>
+				),
 			}}
 			emptySessions={
 				<p className="px-2.5 py-1.5 pl-[36px] text-[12px] text-muted-foreground">

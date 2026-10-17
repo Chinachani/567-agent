@@ -1,8 +1,10 @@
 import { existsSync, readdirSync, statSync } from "node:fs";
-import { stat } from "node:fs/promises";
-import { join } from "node:path";
+import { readFile, stat } from "node:fs/promises";
+import { basename, join } from "node:path";
 import AdmZip from "adm-zip";
 import { app } from "electron";
+import { type ReadRemoteHealth, readHealthReport } from "./diagnostics/health-report.js";
+import { redactDiagnosticLog } from "./diagnostics/redact-report.js";
 import { logRingBuffer } from "./logger/log-ring-buffer.js";
 import { APP_LOG_TYPE_LIST, getAppLogBaseDir } from "./logger.js";
 
@@ -19,18 +21,23 @@ export interface DiagnosticsBundleResult {
 // 打包诊断 zip：最近日志文件（各 type 取最新若干，受总字节预算约束）+ 内存 ring
 // buffer 序列化的 NDJSON + 系统信息。落到 temp 目录，由调用方决定如何呈现给用户。
 // 用异步 deflate + 异步写盘（writeZipPromise），避免同步压缩 ~20MB 阻塞主进程事件循环。
-export async function buildDiagnosticsBundle(): Promise<DiagnosticsBundleResult> {
+export async function buildDiagnosticsBundle(
+	options: { includeLogs?: boolean; readRemoteHealth?: ReadRemoteHealth } = {},
+): Promise<DiagnosticsBundleResult> {
 	const zip = new AdmZip();
-	addRecentLogs(zip);
-	addRingBuffer(zip);
+	if (options.includeLogs === true) {
+		await addRecentLogs(zip);
+		addRingBuffer(zip);
+	}
+	zip.addFile("health-report.json", Buffer.from((await readHealthReport(options.readRemoteHealth)).text, "utf8"));
 	addSystemInfo(zip);
 
-	const zipPath = join(app.getPath("temp"), `vetta-diagnostics-${nowStamp()}.zip`);
+	const zipPath = join(app.getPath("temp"), `567-agent-diagnostics-${nowStamp()}.zip`);
 	await zip.writeZipPromise(zipPath);
 	return { zipPath, sizeBytes: (await stat(zipPath)).size };
 }
 
-function addRecentLogs(zip: AdmZip): void {
+async function addRecentLogs(zip: AdmZip): Promise<void> {
 	const baseDir = getAppLogBaseDir();
 	let budget = MAX_LOG_BYTES;
 	for (const type of APP_LOG_TYPE_LIST) {
@@ -41,7 +48,8 @@ function addRecentLogs(zip: AdmZip): void {
 			// 单个超额文件只跳过自己，继续尝试该 type 下更小/更老的文件，而非整组放弃。
 			if (budget - file.size < 0) continue;
 			budget -= file.size;
-			zip.addLocalFile(file.path, `logs/${type}`);
+			const text = await readFile(file.path, "utf8").catch(() => "");
+			zip.addFile(`logs/${type}/${basename(file.path)}`, Buffer.from(redactDiagnosticLog(text), "utf8"));
 		}
 	}
 }
@@ -66,7 +74,7 @@ function addRingBuffer(zip: AdmZip): void {
 		.snapshot()
 		.map((entry) => JSON.stringify(entry))
 		.join("\n");
-	zip.addFile("ring-buffer.ndjson", Buffer.from(lines, "utf-8"));
+	zip.addFile("ring-buffer.ndjson", Buffer.from(redactDiagnosticLog(lines), "utf-8"));
 }
 
 function addSystemInfo(zip: AdmZip): void {

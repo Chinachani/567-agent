@@ -132,6 +132,7 @@ async function assembleCodingAgentRuntimeComposition(
 	const resourceRegistry = new CodingAgentCompositionResourceRegistry();
 	const imageSettingsSnapshots = new CodingAgentImageSettingsSnapshotRouter(observationPublisher);
 	const toolSurface = await createCodingAgentRuntimeToolSurface({
+		authorizeTool: options.authorizeTool,
 		cwd,
 		agentDir: options.agentDir,
 		scenario,

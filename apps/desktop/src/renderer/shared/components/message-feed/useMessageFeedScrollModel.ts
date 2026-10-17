@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
-import type { StateSnapshot, VirtuosoHandle } from "react-virtuoso";
+import type { FollowOutput, StateSnapshot, VirtuosoHandle } from "react-virtuoso";
+import { type FeedDataIndex, reconcileFeedDataIndex } from "./feed-data-index";
 
 const MIN_SCROLL_LERP_RATIO = 0.045;
 const IDLE_MAX_SCROLL_LERP_RATIO = 0.18;
@@ -13,6 +14,8 @@ interface CachedFeedState {
 	readonly itemIdentity: string | null;
 	readonly itemCount: number;
 	readonly snapshot: StateSnapshot;
+	readonly firstItemIndex: number;
+	readonly followsBottom: boolean;
 }
 
 const feedStateCache = new Map<string, CachedFeedState>();
@@ -21,10 +24,10 @@ function readCachedFeedState(
 	key: string | null | undefined,
 	itemCount: number,
 	itemIdentity: string | null,
-): StateSnapshot | undefined {
+): CachedFeedState | undefined {
 	if (!key || itemCount === 0) return undefined;
 	const cached = feedStateCache.get(key);
-	return cached?.itemCount === itemCount && cached.itemIdentity === itemIdentity ? cached.snapshot : undefined;
+	return cached?.itemCount === itemCount && cached.itemIdentity === itemIdentity ? cached : undefined;
 }
 
 function cacheFeedState(
@@ -32,12 +35,16 @@ function cacheFeedState(
 	itemCount: number,
 	itemIdentity: string | null,
 	snapshot: StateSnapshot,
+	firstItemIndex: number,
+	followsBottom: boolean,
 ): void {
 	if (!key || itemCount === 0) return;
 	feedStateCache.delete(key);
 	feedStateCache.set(key, {
 		itemIdentity,
 		itemCount,
+		firstItemIndex,
+		followsBottom,
 		snapshot: {
 			scrollTop: snapshot.scrollTop,
 			ranges: snapshot.ranges.map((range) => ({ ...range })),
@@ -64,6 +71,8 @@ function getScrollLerpRatio(diff: number, active: boolean): number {
 }
 
 export interface MessageFeedScrollModel {
+	readonly firstItemIndex?: number;
+	readonly followOutput?: FollowOutput;
 	readonly onAtBottomChange: (atBottom: boolean) => void;
 	readonly scrollerElement: HTMLElement | null;
 	readonly scrollerRef: (element: HTMLElement | Window | null) => void;
@@ -83,6 +92,9 @@ export interface MessageFeedScrollModelInput<T> {
 	readonly getItemKey?: (item: T) => string | null;
 	readonly onInitialTargetHandled?: () => void;
 	readonly shouldFollowOnAppend?: (item: T) => boolean;
+	readonly anchorPrependedItems?: boolean;
+	/** Chat opens at the latest answer; reference feeds may restore their saved reading position. */
+	readonly initialPosition?: "bottom" | "restore";
 }
 
 /** Feed viewport mechanics with no message schema, global store or product policy. */
@@ -95,17 +107,38 @@ export function useMessageFeedScrollModel<T>({
 	getItemKey,
 	onInitialTargetHandled,
 	shouldFollowOnAppend,
+	anchorPrependedItems = false,
+	initialPosition = "restore",
 }: MessageFeedScrollModelInput<T>): MessageFeedScrollModel {
 	const virtuosoRef = useRef<VirtuosoHandle>(null);
 	const itemIdentity = getItemIdentity(items, getItemKey);
-	const restoreStateFrom = readCachedFeedState(resetKey, items.length, itemIdentity);
+	const cachedState = readCachedFeedState(resetKey, items.length, itemIdentity);
+	const dataIndexRef = useRef<FeedDataIndex<T> | undefined>(undefined);
+	if (anchorPrependedItems) {
+		dataIndexRef.current = reconcileFeedDataIndex(
+			dataIndexRef.current,
+			resetKey,
+			items,
+			getItemKey,
+			cachedState?.firstItemIndex,
+		);
+	}
+	const firstItemIndex = anchorPrependedItems ? dataIndexRef.current!.firstItemIndex : 0;
+	// Virtuoso's saved scrollTop overrides its initial item location. A newly opened
+	// chat must use the end-aligned tail location instead of an old reading offset.
+	const restoreStateFrom =
+		initialPosition === "restore" && cachedState?.firstItemIndex === firstItemIndex
+			? cachedState.snapshot
+			: undefined;
 	const scrollerElementRef = useRef<HTMLElement | null>(null);
 	const [scrollerElement, setScrollerElement] = useState<HTMLElement | null>(null);
 	const [showScrollToBottom, setShowScrollToBottom] = useState(false);
 	const layoutResizingRef = useRef(layoutResizing);
 	const previousLayoutResizingRef = useRef(layoutResizing);
 	layoutResizingRef.current = layoutResizing;
-	const shouldFollowBottomRef = useRef(true);
+	const shouldFollowBottomRef = useRef(
+		!initialTargetKey && (initialPosition === "bottom" || (cachedState?.followsBottom ?? true)),
+	);
 	const lerpAnimationFrameRef = useRef<number | null>(null);
 	const snapAnimationFrameRef = useRef<number | null>(null);
 	const idleFrameCountRef = useRef(0);
@@ -117,9 +150,11 @@ export function useMessageFeedScrollModel<T>({
 	const stateKeyRef = useRef(resetKey);
 	const stateItemCountRef = useRef(items.length);
 	const stateItemIdentityRef = useRef(itemIdentity);
+	const stateFirstIndexRef = useRef(firstItemIndex);
 	stateKeyRef.current = resetKey;
 	stateItemCountRef.current = items.length;
 	stateItemIdentityRef.current = itemIdentity;
+	stateFirstIndexRef.current = firstItemIndex;
 
 	const captureState = useCallback(() => {
 		const key = stateKeyRef.current;
@@ -128,7 +163,9 @@ export function useMessageFeedScrollModel<T>({
 		if (!key || itemCount === 0) return;
 		const handle = virtuosoRef.current;
 		if (!handle || typeof handle.getState !== "function") return;
-		handle.getState((snapshot) => cacheFeedState(key, itemCount, identity, snapshot));
+		const firstIndex = stateFirstIndexRef.current;
+		const followsBottom = shouldFollowBottomRef.current;
+		handle.getState((snapshot) => cacheFeedState(key, itemCount, identity, snapshot, firstIndex, followsBottom));
 	}, []);
 
 	const scheduleStateCapture = useCallback(() => {
@@ -179,9 +216,13 @@ export function useMessageFeedScrollModel<T>({
 		}
 	}, []);
 
+	// Let the virtualizer settle bulk history and late measurements without a
+	// second animated trip through the list. User navigation still owns this flag.
+	const followHistoryOutput = useCallback(() => (shouldFollowBottomRef.current ? "auto" : false), []);
+
 	const onAtBottomChange = useCallback(
 		(atBottom: boolean) => {
-			if (!atBottom) return;
+			if (!atBottom || stateItemCountRef.current === 0) return;
 			shouldFollowBottomRef.current = true;
 			startFollowingBottom();
 		},
@@ -224,7 +265,7 @@ export function useMessageFeedScrollModel<T>({
 	);
 
 	const previousResetKeyRef = useRef<string | null | undefined>(resetKey);
-	useEffect(() => {
+	useLayoutEffect(() => {
 		if (previousResetKeyRef.current === resetKey) return;
 		previousResetKeyRef.current = resetKey;
 		setShowScrollToBottom(false);
@@ -232,13 +273,15 @@ export function useMessageFeedScrollModel<T>({
 			cancelAnimationFrame(lerpAnimationFrameRef.current);
 			lerpAnimationFrameRef.current = null;
 		}
-		shouldFollowBottomRef.current = !initialTargetKey;
+		shouldFollowBottomRef.current =
+			!initialTargetKey && (initialPosition === "bottom" || (cachedState?.followsBottom ?? true));
 		skipNextLerpRef.current = true;
-		if (initialTargetKey) return;
-		requestAnimationFrame(() => {
+		if (initialTargetKey || restoreStateFrom) return;
+		const frame = requestAnimationFrame(() => {
 			virtuosoRef.current?.scrollToIndex({ index: "LAST", align: "end", behavior: "auto" });
 		});
-	}, [initialTargetKey, resetKey]);
+		return () => cancelAnimationFrame(frame);
+	}, [initialPosition, initialTargetKey, resetKey, cachedState?.followsBottom, restoreStateFrom]);
 
 	useEffect(() => {
 		if (!initialTargetKey || !getItemKey || items.length === 0) return;
@@ -269,18 +312,44 @@ export function useMessageFeedScrollModel<T>({
 	}, [active, items, startFollowingBottom]);
 
 	const previousItemCountRef = useRef(items.length);
+	const previousFirstIndexRef = useRef(firstItemIndex);
+	const previousTailRef = useRef(items.at(-1));
 	useLayoutEffect(() => {
 		const previousCount = previousItemCountRef.current;
+		const previousFirstIndex = previousFirstIndexRef.current;
+		const previousTail = previousTailRef.current;
 		previousItemCountRef.current = items.length;
+		previousFirstIndexRef.current = firstItemIndex;
+		previousTailRef.current = items.at(-1);
+		if (anchorPrependedItems && (previousFirstIndex !== firstItemIndex || previousCount === 0)) {
+			// Virtuoso compensates prepends before paint; a second animated scroll would fight that anchor.
+			skipNextLerpRef.current = true;
+			if (lerpAnimationFrameRef.current !== null) {
+				cancelAnimationFrame(lerpAnimationFrameRef.current);
+				lerpAnimationFrameRef.current = null;
+			}
+			if (previousCount === 0 && cachedState && initialPosition === "restore")
+				shouldFollowBottomRef.current = !initialTargetKey && cachedState.followsBottom;
+		}
 		const appendedItem = items.at(-1);
 		if (
 			items.length > previousCount &&
 			appendedItem !== undefined &&
+			(!getItemKey || !previousTail || getItemKey(appendedItem) !== getItemKey(previousTail)) &&
 			(shouldFollowOnAppend?.(appendedItem) ?? false)
 		) {
 			shouldFollowBottomRef.current = true;
 		}
-	}, [items, shouldFollowOnAppend]);
+	}, [
+		anchorPrependedItems,
+		cachedState,
+		firstItemIndex,
+		getItemKey,
+		initialPosition,
+		initialTargetKey,
+		items,
+		shouldFollowOnAppend,
+	]);
 
 	const scrollerRef = useCallback((element: HTMLElement | Window | null) => {
 		const next = element instanceof HTMLElement ? element : null;
@@ -368,6 +437,7 @@ export function useMessageFeedScrollModel<T>({
 	);
 
 	return {
+		...(anchorPrependedItems ? { firstItemIndex, followOutput: followHistoryOutput } : {}),
 		onAtBottomChange,
 		restoreStateFrom,
 		scrollerElement,

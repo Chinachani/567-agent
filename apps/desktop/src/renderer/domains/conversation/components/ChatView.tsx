@@ -10,6 +10,7 @@ import { ChatHeaderNewSessionButton } from "./chat-view/ChatHeaderNewSessionButt
 import { DefaultChatView, ChatComposer } from "./chat-view/DefaultChatView";
 import { SessionMessageList } from "./SessionMessageList";
 import { SessionAssistantRendering } from "./SessionAssistantRendering";
+import { SessionOpenFailureNotice } from "./SessionOpenFailureNotice";
 import { DefaultInputBarConnector } from "./input-bar/DefaultInputBarConnector";
 import type { ChatViewProps } from "./chat-view/types";
 
@@ -73,6 +74,7 @@ export function ChatView(props: ChatViewProps): JSX.Element {
 			rootClassName={model.rootClassName}
 			exportState={model.exporting ? { title: model.exportTitle, onFinished: actions.finishExport } : undefined}
 		>
+			<SessionOpenFailureNotice />
 			<SessionAssistantRendering>
 				<SessionFeed
 					messages={model.messages}

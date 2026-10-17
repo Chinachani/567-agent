@@ -38,8 +38,12 @@ export function useMessageListScrollModel({
 		getItemKey: getMessageKey,
 		onInitialTargetHandled,
 		shouldFollowOnAppend: shouldFollowUserMessage,
+		anchorPrependedItems: true,
+		initialPosition: "bottom",
 	});
 	return {
+		firstItemIndex: feed.firstItemIndex,
+		followOutput: feed.followOutput,
 		onAtBottomChange: feed.onAtBottomChange,
 		scrollerElement: feed.scrollerElement,
 		scrollerRef: feed.scrollerRef,

@@ -33,6 +33,7 @@ const INITIAL_INCREASE_VIEWPORT_BY = { top: 0, bottom: 0 };
  * 往上滚时 Virtuoso 每渲染一批就要大幅修正总高度与 scrollTop，滚动条抖且反复重测量。
  */
 const DEFAULT_ITEM_HEIGHT = 200;
+const INITIAL_TAIL_LOCATION = { index: "LAST", align: "end", behavior: "auto" } as const;
 
 export function MessageListView({
 	model,
@@ -126,10 +127,12 @@ export function MessageListView({
 						<MessageFeedLayout.Viewport>
 							<MessageFeedLayout.Virtualizer asChild>
 								<MessageFeed.VirtualList
-									// 不通过 React key 强制卸载列表。runtime 建立时 sessionId
-									// 可能从过渡值切到真实路径；强制 remount 会造成整屏闪烁。
-									// 会话切换的滚动重置由 useMessageFeedActiveItem.resetKey 负责。
+									// Only reset the viewport for a different conversation or its first data.
+									// Runtime readiness and history prepends retain the mounted list and its anchor.
+									key={`${sessionId ?? "unbound"}:${messages.length > 0 ? "content" : "empty"}`}
 									virtuosoRef={scroll.virtuosoRef}
+									firstItemIndex={scroll.firstItemIndex}
+									followOutput={scroll.followOutput}
 									restoreStateFrom={scroll.restoreStateFrom}
 									scrollerRef={scroll.scrollerRef}
 									items={messages}
@@ -155,7 +158,7 @@ export function MessageListView({
 												: IDLE_INCREASE_VIEWPORT_BY
 									}
 									defaultItemHeight={DEFAULT_ITEM_HEIGHT}
-									initialTopMostItemIndex={messages.length > 0 ? messages.length - 1 : 0}
+									initialTopMostItemIndex={INITIAL_TAIL_LOCATION}
 								>
 									{(message, index) => itemContent(index, message)}
 								</MessageFeed.VirtualList>

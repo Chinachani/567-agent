@@ -5,6 +5,7 @@ import { forwardRef } from "react";
 import { createPortal } from "react-dom";
 import {
 	type FollowOutput,
+	type IndexLocationWithAlign,
 	type ListItem,
 	type ListRange,
 	type StateSnapshot,
@@ -53,7 +54,9 @@ export interface MessageFeedVirtualListProps<T> extends Omit<ComponentPropsWitho
 	readonly rangeChanged?: (range: ListRange) => void;
 	readonly restoreStateFrom?: StateSnapshot;
 	readonly followOutput?: FollowOutput;
-	readonly initialTopMostItemIndex?: number;
+	readonly initialTopMostItemIndex?: number | IndexLocationWithAlign;
+	/** Logical index of the first row, used to anchor prepended history. Public callbacks stay data-relative. */
+	readonly firstItemIndex?: number;
 	readonly overscan?: number | { main: number; reverse: number };
 	readonly minOverscanItemCount?: number | { readonly top: number; readonly bottom: number };
 	readonly increaseViewportBy?: number | { readonly top: number; readonly bottom: number };
@@ -74,6 +77,7 @@ export function MessageFeedVirtualList<T>({
 	restoreStateFrom,
 	followOutput,
 	initialTopMostItemIndex,
+	firstItemIndex = 0,
 	overscan,
 	increaseViewportBy,
 	minOverscanItemCount,
@@ -89,12 +93,13 @@ export function MessageFeedVirtualList<T>({
 			{...hostProps}
 			ref={virtuosoRef}
 			data={items}
-			itemContent={(index, item) => children(item, index)}
-			{...(getKey ? { computeItemKey: (index: number, item: T) => getKey(item, index) } : {})}
+			firstItemIndex={firstItemIndex}
+			itemContent={(index, item) => children(item, index - firstItemIndex)}
+			{...(getKey ? { computeItemKey: (index: number, item: T) => getKey(item, index - firstItemIndex) } : {})}
 			{...(scrollerRef ? { scrollerRef } : {})}
 			{...(atBottomStateChange ? { atBottomStateChange } : {})}
-			{...(itemsRendered ? { itemsRendered } : {})}
-			{...(rangeChanged ? { rangeChanged } : {})}
+			{...(itemsRendered ? { itemsRendered: (rows: ListItem<T>[]) => itemsRendered(rows.map((row) => ({ ...row, index: row.index - firstItemIndex }))) } : {})}
+			{...(rangeChanged ? { rangeChanged: (range: ListRange) => rangeChanged({ startIndex: range.startIndex - firstItemIndex, endIndex: range.endIndex - firstItemIndex }) } : {})}
 			{...(restoreStateFrom ? { restoreStateFrom } : {})}
 			{...(followOutput !== undefined ? { followOutput } : {})}
 			{...(initialTopMostItemIndex !== undefined ? { initialTopMostItemIndex } : {})}

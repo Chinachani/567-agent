@@ -4,8 +4,18 @@ import { basename, join, resolve, sep } from "node:path";
 import AdmZip from "adm-zip";
 import { dialog, ipcMain } from "electron";
 import { readDesktopConfig, updateDesktopConfig } from "../config/desktop-config-store.js";
+import { listSessionHistory } from "../conversations/session-query-service.js";
 import { mainT } from "../i18n/index.js";
 import { getAppLogger } from "../logger.js";
+import { getProjectCollaborationService } from "../project-collaboration/service.js";
+import { createCollaborationStore } from "../project-collaboration/store.js";
+import {
+	createProjectCollaborationTransfer,
+	mergeImportedProjectCollaboration,
+	type ProjectCollaborationTransfer,
+	parseProjectCollaborationTransfer,
+	remapProjectCollaborationTransfer,
+} from "../project-collaboration/transfer.js";
 import { allowProjectRoot } from "./fs.js";
 
 const log = getAppLogger("project-export");
@@ -39,6 +49,7 @@ interface ExportManifest {
 	/** Top-level directory name inside the zip that holds the project payload. */
 	rootDir: string;
 	exportedAt: number;
+	collaboration?: ProjectCollaborationTransfer;
 }
 
 // ─── Result types (shape mirrored in preload api.ts) ───
@@ -169,7 +180,7 @@ function readManifest(zip: AdmZip): ExportManifest {
 	if (typeof m.rootDir !== "string" || !m.rootDir) {
 		throw new ProjectExportError("unsupported-zip", "不支持的项目");
 	}
-	return {
+	const manifest: ExportManifest = {
 		format: MANIFEST_FORMAT,
 		version: m.version,
 		type: m.type,
@@ -178,6 +189,8 @@ function readManifest(zip: AdmZip): ExportManifest {
 		rootDir: m.rootDir,
 		exportedAt: typeof m.exportedAt === "number" ? m.exportedAt : 0,
 	};
+	if (m.collaboration !== undefined) manifest.collaboration = parseProjectCollaborationTransfer(m.collaboration);
+	return manifest;
 }
 
 // ─── Cross-machine path rewriting ───
@@ -332,6 +345,12 @@ async function handleExport(projectDir: string): Promise<ExportProjectResult> {
 	}
 
 	const zip = new AdmZip();
+	const sessions = await listSessionHistory(projectDir);
+	const collaborationDocument = await createCollaborationStore(projectDir).read();
+	const collaboration = createProjectCollaborationTransfer(
+		collaborationDocument,
+		new Set(sessions.map((session) => session.id)),
+	);
 	const manifest: ExportManifest = {
 		format: MANIFEST_FORMAT,
 		version: MANIFEST_VERSION,
@@ -340,6 +359,7 @@ async function handleExport(projectDir: string): Promise<ExportProjectResult> {
 		originalPath: projectDir,
 		rootDir: projectName,
 		exportedAt: Date.now(),
+		collaboration,
 	};
 	zip.addFile(MANIFEST_NAME, Buffer.from(JSON.stringify(manifest, null, 2), "utf-8"));
 	addDirectoryToZip(zip, projectDir, projectName);
@@ -406,6 +426,30 @@ async function handleImport(): Promise<ImportProjectResult | null> {
 			}
 			await mkdir(join(dest, ".."), { recursive: true });
 			writeFileSync(dest, entry.getData());
+		}
+		if (manifest.collaboration) {
+			allowProjectRoot(projectDir);
+			const sessions = await listSessionHistory(projectDir);
+			const mapping = new Map(
+				sessions
+					.filter((session) => session.access.readHistory && session.access.resume)
+					.map((session) => [session.id, session.id]),
+			);
+			const imported = remapProjectCollaborationTransfer(manifest.collaboration, mapping);
+			if (imported.config.members.length || imported.tasks.length) {
+				const store = createCollaborationStore(projectDir);
+				const beforeImport = await store.read();
+				await store.update((current) => mergeImportedProjectCollaboration(current, imported));
+				try {
+					await getProjectCollaborationService().refreshStoredProject(projectDir);
+				} catch (error) {
+					await store.update(() => beforeImport);
+					await getProjectCollaborationService()
+						.refreshStoredProject(projectDir)
+						.catch(() => undefined);
+					throw error;
+				}
+			}
 		}
 	} catch (error) {
 		// Rollback: drop the half-extracted project dir so the user can retry cleanly.

@@ -30,10 +30,10 @@ export function useFilePreviewDialogModel(): FilePreviewDialogModel {
 	}, [isImageGroup, close, goPrev, goNext]);
 
 	useShortcutScope({
-		id: "surface:file-preview-dialog",
-		kind: "surface",
+		id: "modal:file-preview-dialog",
+		kind: "modal",
 		active: item != null,
-		exclusive: false,
+		exclusive: true,
 		bindings,
 	});
 

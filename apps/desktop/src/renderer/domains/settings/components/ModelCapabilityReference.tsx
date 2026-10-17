@@ -1,14 +1,13 @@
+import { Button } from "@shared/components/ui/button";
+import { useId, useState } from "react";
 import { useTranslation } from "react-i18next";
-import type { ModelParameterRange, ModelReferenceCapabilities } from "../../../../shared/model-context-reference";
+import type { ModelContextReference, ModelParameterRange } from "../../../../shared/model-context-reference";
 
-export function ModelCapabilityReference({
-	capabilities,
-	maxInputTokens,
-}: {
-	capabilities?: ModelReferenceCapabilities;
-	maxInputTokens?: number;
-}): JSX.Element {
+export function ModelCapabilityReference({ reference }: { reference: ModelContextReference }): JSX.Element {
 	const { t } = useTranslation("settings");
+	const [open, setOpen] = useState(false);
+	const contentId = useId();
+	const { capabilities, maxInputTokens } = reference;
 	const supported = (value?: boolean) =>
 		t(value === undefined ? "modelContext.unknown" : value ? "modelContext.supported" : "modelContext.unsupported");
 	const range = (value?: ModelParameterRange) =>
@@ -59,36 +58,82 @@ export function ModelCapabilityReference({
 		[t("modelContext.topP"), `${supported(capabilities?.topP)} ${range(capabilities?.topPRange)}`],
 	];
 	return (
-		<details className="space-y-2 text-[12px] text-muted-foreground">
-			<summary className="cursor-pointer">{t("modelContext.capabilities")}</summary>
-			<dl className="grid grid-cols-[auto_minmax(0,1fr)] gap-x-4 gap-y-1">
-				{fields.map(([label, value]) => (
-					<div className="contents" key={label}>
-						<dt>{label}</dt>
-						<dd className="break-words">{value}</dd>
-					</div>
-				))}
-			</dl>
-			<p>{t("modelContext.capabilitiesHint")}</p>
-			{capabilities?.samplingConstraint === "reasoningNoneOnly" && <p>{t("modelContext.reasoningNoneOnly")}</p>}
-			{capabilities?.samplingConstraint === "deepseekModes" && <p>{t("modelContext.deepseekModes")}</p>}
-			{capabilities && (
-				<div className="flex flex-wrap gap-3">
-					<a className="underline underline-offset-2" href={capabilities.sourceUrl} target="_blank" rel="noreferrer">
-						{t("modelContext.capabilitiesLink")}
-					</a>
-					{capabilities.parameterSourceUrl && (
-						<a
-							className="underline underline-offset-2"
-							href={capabilities.parameterSourceUrl}
-							target="_blank"
-							rel="noreferrer"
-						>
-							{t("modelContext.parametersLink")}
-						</a>
+		<div className="rounded-xl border border-border/50 bg-card/40 text-[12px]">
+			<Button
+				variant="ghost"
+				className="h-auto w-full justify-between gap-3 p-4 text-left"
+				aria-expanded={open}
+				aria-controls={contentId}
+				onClick={() => setOpen(!open)}
+			>
+				<span className="min-w-0">
+					<span className="block text-[13px] font-medium text-foreground">{t("modelContext.capabilities")}</span>
+					<span className="mt-1 block truncate text-[11px] text-muted-foreground">
+						{reference.modelId} · {reference.checkedAt}
+					</span>
+				</span>
+				<span
+					aria-hidden="true"
+					className={
+						open ? "icon-[solar--alt-arrow-up-linear] h-3.5 w-3.5" : "icon-[solar--alt-arrow-down-linear] h-3.5 w-3.5"
+					}
+				/>
+			</Button>
+			{open && (
+				<div id={contentId} className="space-y-3 border-t border-border/30 p-4">
+					<p className="text-muted-foreground">
+						{t("modelContext.reference", {
+							model: reference.modelId,
+							capacity: reference.capacity?.toLocaleString() ?? t("modelContext.unknown"),
+							output: reference.maxOutputTokens?.toLocaleString() ?? t("modelContext.unknown"),
+							date: reference.checkedAt,
+						})}
+					</p>
+					<dl className="grid grid-cols-[repeat(auto-fit,minmax(min(100%,220px),1fr))] gap-3">
+						{fields.map(([label, value]) => (
+							<div key={label} className="space-y-1">
+								<dt className="text-[11px] text-muted-foreground">{label}</dt>
+								<dd className="break-words text-[13px]">{value}</dd>
+							</div>
+						))}
+					</dl>
+					<p className="text-[11px] text-muted-foreground">{t("modelContext.capabilitiesHint")}</p>
+					{reference.alias && <p className="text-muted-foreground">{t("modelContext.aliasHint")}</p>}
+					{capabilities?.samplingConstraint === "reasoningNoneOnly" && (
+						<p className="rounded-lg bg-muted p-2 text-muted-foreground">{t("modelContext.reasoningNoneOnly")}</p>
 					)}
+					{capabilities?.samplingConstraint === "deepseekModes" && (
+						<p className="rounded-lg bg-muted p-2 text-muted-foreground">{t("modelContext.deepseekModes")}</p>
+					)}
+					<div className="flex flex-wrap gap-3 text-muted-foreground">
+						{!reference.sourceUrl.endsWith("/v1/models") && (
+							<a className="underline underline-offset-2" href={reference.sourceUrl} target="_blank" rel="noreferrer">
+								{t("modelContext.referenceLink")}
+							</a>
+						)}
+						{capabilities && (
+							<a
+								className="underline underline-offset-2"
+								href={capabilities.sourceUrl}
+								target="_blank"
+								rel="noreferrer"
+							>
+								{t("modelContext.capabilitiesLink")}
+							</a>
+						)}
+						{capabilities?.parameterSourceUrl && (
+							<a
+								className="underline underline-offset-2"
+								href={capabilities.parameterSourceUrl}
+								target="_blank"
+								rel="noreferrer"
+							>
+								{t("modelContext.parametersLink")}
+							</a>
+						)}
+					</div>
 				</div>
 			)}
-		</details>
+		</div>
 	);
 }

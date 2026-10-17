@@ -19,6 +19,7 @@ import io.ktor.client.statement.bodyAsText
 import io.ktor.client.statement.readRawBytes
 import io.ktor.http.HttpHeaders
 import io.ktor.http.ContentType
+import io.ktor.http.Url
 import io.ktor.http.contentType
 import io.ktor.http.isSuccess
 import io.ktor.utils.io.readUTF8Line
@@ -55,6 +56,7 @@ import org.agent567.android.core.net.Agent567Json
 import org.agent567.android.core.net.parseEnvelope
 import org.agent567.android.core.net.parseFailure
 import org.agent567.android.core.net.toAgent567Exception
+import org.agent567.android.app.normalizeGitHubDownloadPrefix
 
 private const val IMAGE_GENERATION_TIMEOUT_MS = 600_000L
 private const val MAX_NON_STREAM_FALLBACK_CHARS = 1_000_000
@@ -1300,7 +1302,7 @@ internal class Agent567Api(
                 latestVersion = tagName.ifBlank { "v$current" },
                 currentVersion = "v$current",
                 releaseNotes = body,
-                apkUrl = apkUrl,
+                apkUrl = resolvePublicReleaseApkUrl(apkUrl),
             )
         } catch (e: Exception) {
             if (e is CancellationException) throw e
@@ -1312,6 +1314,27 @@ internal class Agent567Api(
                 apkUrl = null,
                 error = e.message ?: "检查更新失败",
             )
+        }
+    }
+
+    /** Only rewrite GitHub's public release asset URL; the metadata request above stays anonymous/direct. */
+    private fun resolvePublicReleaseApkUrl(assetUrl: String?): String? {
+        val candidate = assetUrl?.takeIf { it.isNotBlank() } ?: return null
+        val parsed = runCatching { Url(candidate) }.getOrNull() ?: return null
+        if (parsed.protocol.name != "https" || parsed.host != "github.com" || parsed.user != null || parsed.password != null) {
+            return null
+        }
+        if ('?' in candidate || '#' in candidate || !parsed.encodedPath.startsWith("/") ||
+            !parsed.encodedPath.contains("/releases/download/")
+        ) {
+            return null
+        }
+        val source = preferences?.downloadSource ?: org.agent567.android.app.AppPreferences.DOWNLOAD_SOURCE_GITHUB
+        return when (source) {
+            org.agent567.android.app.AppPreferences.DOWNLOAD_SOURCE_GH_PROXY -> "https://gh-proxy.com/$candidate"
+            org.agent567.android.app.AppPreferences.DOWNLOAD_SOURCE_CUSTOM ->
+                normalizeGitHubDownloadPrefix(preferences?.customPrefix)?.let { "$it$candidate" }
+            else -> candidate
         }
     }
 

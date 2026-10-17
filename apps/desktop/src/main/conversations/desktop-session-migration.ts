@@ -4,6 +4,9 @@ import { extname, isAbsolute, relative, resolve } from "node:path";
 import type { ImageContent, Message } from "@567agent/ai";
 import type { HistoryEntry } from "@567agent/runtime-core";
 import type { DesktopSessionHistoryInfo } from "../../shared/session-access.js";
+import { createCollaborationStore } from "../project-collaboration/store.js";
+import { createProjectCollaborationTransfer } from "../project-collaboration/transfer.js";
+import { SessionContextWorkspace } from "./session-context-workspace.js";
 import type {
 	SessionMigrationArchive,
 	SessionMigrationImage,
@@ -21,6 +24,8 @@ export async function buildDesktopSessionMigrationArchive(
 		const history = historyByPath.get(session.path) ?? [];
 		const converted = convertHistoryToMobileMessages(history);
 		const messages = await includeImportedAssistantMedia(converted.messages, session.cwd);
+		const workspace = new SessionContextWorkspace(session.path);
+		await workspace.load();
 		archiveSessions.push({
 			id: session.id,
 			title: session.name?.trim() || session.firstMessage.trim() || "未命名对话",
@@ -28,17 +33,38 @@ export async function buildDesktopSessionMigrationArchive(
 			updatedAtEpochMs: session.modifiedAt,
 			pinned: false,
 			origin: "Cloud",
+			context: workspace.exportMobileContext(),
 		});
 		messageGroups.push({
 			sessionId: session.id,
 			items: messages.map((message) => ({ ...message, sessionId: session.id })),
 		});
 	}
+	const collaborations: NonNullable<SessionMigrationArchive["collaborations"]>[number][] = [];
+	const sessionsByProject = new Map<string, DesktopSessionHistoryInfo[]>();
+	for (const session of sessions) {
+		const projectSessions = sessionsByProject.get(session.cwd) ?? [];
+		projectSessions.push(session);
+		sessionsByProject.set(session.cwd, projectSessions);
+	}
+	for (const [cwd, projectSessions] of sessionsByProject) {
+		const document = await createCollaborationStore(cwd).read();
+		const transfer = createProjectCollaborationTransfer(document, new Set(projectSessions.map(({ id }) => id)));
+		if (
+			transfer.config.enabled ||
+			transfer.config.paused ||
+			transfer.config.members.length ||
+			transfer.tasks.length
+		) {
+			collaborations.push(transfer);
+		}
+	}
 	return {
 		schemaVersion: 1,
 		exportedAtEpochMs: nowEpochMs,
 		sessions: archiveSessions,
 		messages: messageGroups,
+		...(collaborations.length ? { collaborations } : {}),
 	};
 }
 

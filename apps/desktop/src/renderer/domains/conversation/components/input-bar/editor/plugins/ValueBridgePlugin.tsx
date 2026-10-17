@@ -40,7 +40,7 @@ function syncAttachments(store: Store, segments: readonly InputSegment[]): void 
 		name: pathBasename(attachment.path),
 		isDirectory: attachment.kind === "directory",
 	}));
-	if (!samePaths(store.get(mentionedFilesAtom), files)) store.set(mentionedFilesAtom, files);
+	if (!samePaths(store.get(mentionedFilesAtom), files)) store.set(mentionedFilesAtom, files.map((file) => ({ ...file, readScope: store.get(mentionedFilesAtom).find((existing) => existing.path === file.path)?.readScope })));
 
 	const imagePaths = stableImagePaths(
 		attachments.flatMap((attachment) => (attachment.kind === "image" ? [attachment.path] : [])),

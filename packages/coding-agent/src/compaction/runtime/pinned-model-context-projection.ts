@@ -1,5 +1,4 @@
 import type { Message, UserMessage } from "@567agent/ai";
-import type { SessionContextRecord } from "@567agent/runtime-core/kernel";
 import type { CodingAgentPinnedModelContext } from "../../runtime-contracts/index.js";
 
 /** Validates the host boundary before a pinned prefix can affect model input. */
@@ -44,8 +43,8 @@ export function applyPinnedModelContext(
 	return [...context.records.map(toUserMessage), ...messages];
 }
 
-function toUserMessage(record: SessionContextRecord): UserMessage {
-	return { role: "user", content: record.content, timestamp: record.timestamp! };
+function toUserMessage(record: CodingAgentPinnedModelContext["records"][number]): UserMessage {
+	return { role: "user", content: record.content, timestamp: record.timestamp };
 }
 
 function freezeContextValue<T>(value: T): T {
@@ -56,7 +55,7 @@ function freezeContextValue<T>(value: T): T {
 	return value;
 }
 
-function isPinnedRecord(value: unknown): value is SessionContextRecord {
+function isPinnedRecord(value: unknown): value is CodingAgentPinnedModelContext["records"][number] {
 	return (
 		isRecord(value) &&
 		typeof value.type === "string" &&

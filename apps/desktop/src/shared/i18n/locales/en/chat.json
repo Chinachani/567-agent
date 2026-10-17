@@ -333,8 +333,8 @@
 		}
 	},
 	"markdown": {
-        "artifacts": "Artifacts",
-        "artifactCount": "{{count}} files",
+		"artifacts": "Artifacts",
+		"artifactCount": "{{count}} files",
 		"preview": "Preview",
 		"source": "Source",
 		"run": "Run in separate window",
@@ -877,7 +877,15 @@
 		"stopGenerating": "Stop generating"
 	},
 	"session": {
-		"emptyMessageLabel": "(image)"
+		"emptyMessageLabel": "(image)",
+		"openFailure": {
+			"title": "Could not open this conversation",
+			"description": "Loaded history remains available. Sending is unavailable until the conversation opens.",
+			"details": "View reason",
+			"retry": "Reopen conversation",
+			"inputDisabled": "Reopen the conversation above to continue",
+			"opening": "Opening conversation…"
+		}
 	},
 	"subagentCard": {
 		"back": "Back to parent session",
@@ -1018,6 +1026,39 @@
 			"filterByTags": "Knowledge · Filter by tags",
 			"listTags": "Knowledge · List tags",
 			"writePage": "Knowledge · Write page"
+		},
+		"collaboration": {
+			"list": "Browse project sessions",
+			"configure": "Configure project collaboration",
+			"control": "Control project collaboration",
+			"dispatch": "Dispatch collaboration task",
+			"message": "Send collaboration message",
+			"history": "Read conversation history",
+			"task": "Read collaboration task",
+			"wait": "Wait for collaboration tasks",
+			"details": {
+				"saved": "Configuration saved",
+				"members": "{{count}} members affected",
+				"search": "Search: {{query}}",
+				"target": "To: {{target}}",
+				"task": "Task {{taskId}}",
+				"wait": "Waiting for {{count}} task(s)",
+				"control": {
+					"pause": "Pause collaboration",
+					"resume": "Resume collaboration",
+					"stop": "Stop collaboration",
+					"continue": "Continue task"
+				},
+				"stage": {
+					"work": "work",
+					"review": "review",
+					"fix": "fix"
+				},
+				"intent": {
+					"inform": "notice",
+					"question": "question"
+				}
+			}
 		}
 	},
 	"mcpApp": {
@@ -1059,5 +1100,85 @@
 			"paused": "Paused",
 			"usage_limited": "Usage limited"
 		}
+	},
+	"contextWorkspace": {
+		"title": "Manage context input",
+		"hint": "Choose complete turns to send. Pinned references persist; chat history is retained. Changing exclusions rebuilds previous summaries and may trigger compression.",
+		"failed": "Unable to read or save. The conversation may have changed; reopen and retry.",
+		"loading": "Reading context…",
+		"pinned": "Pinned reference",
+		"summary": "Current and previous summaries",
+		"previous": "Previous summary",
+		"turns": "{{count}} turns; previewing the latest 100. Tool chains stay intact; full content remains in chat.",
+		"included": "Included",
+		"excluded": "Excluded",
+		"summarized": "Represented by summary",
+		"attachmentTurn": "Attachments or tool turn",
+		"save": "Save context selection",
+		"saving": "Saving…",
+		"pinPreview": "Pin this preview",
+		"search": "Search turn content or attachments",
+		"selection": "{{selected}} included · {{count}} shown",
+		"includeShown": "Include shown",
+		"excludeShown": "Exclude shown",
+		"unsaved": "Unsaved changes",
+		"saved": "Saved",
+		"reset": "Reset changes",
+		"noSession": "Send the first message to manage context.",
+		"discardTitle": "Unsaved context changes",
+		"discardHint": "Closing discards edits to the selection and pinned information. Chat history is preserved.",
+		"continueEditing": "Keep editing",
+		"discard": "Discard changes"
+	},
+	"workbench": {
+		"title": "Session workbench",
+		"tab": {
+			"context": "Context",
+			"attachment": "Files",
+			"task": "Tasks",
+			"change": "Changes"
+		},
+		"search": "Search name or path",
+		"refresh": "Refresh",
+		"attachmentHint": "Original files retain their format. Previews load on demand, up to 32 KB. Reading scopes are user instructions to the agent, not a claim that parsing has finished. Latest 200 items.",
+		"taskHint": "Read stored task results without repeating execution or charges. Partial results remain available after interruption; external tasks may not support resuming. Latest 200 turns.",
+		"changeHint": "Review agent file changes. Complete small-text snapshots support safe revert. Large files, commands and external tools may have no reversible snapshot.",
+		"pending": "Pending attachments",
+		"readScope": "Reading scope, e.g. pages 2–5, chapter 3 or lines 10–80",
+		"failed": "Operation failed. Refresh and retry; automatic revert refuses to overwrite a changed file.",
+		"loading": "Reading…",
+		"originalStored": "Attachment reference · inspect original",
+		"untitled": "Attachment task",
+		"tools": "{{count}} tool calls",
+		"status": {
+			"completed": "Finished",
+			"failed": "Failed",
+			"running": "Running",
+			"interrupted": "Interrupted"
+		},
+		"review": {
+			"pending": "Pending",
+			"kept": "Kept",
+			"reverted": "Reverted"
+		},
+		"empty": "No records yet",
+		"close": "Close details",
+		"preview": {
+			"text": "Text preview. Original unchanged; large files show their beginning.",
+			"binary": "No text preview for this format; open the original.",
+			"unavailable": "Original missing, outside the session workspace or unreadable."
+		},
+		"showOriginal": "Show original in folder",
+		"before": "Complete before snapshot",
+		"after": "Complete after snapshot",
+		"revertHint": "Revert supports text snapshots up to 64 KB, validates the current revision, and saves a recovery backup first.",
+		"keep": "Keep change",
+		"revert": "Revert change",
+		"revertConfirm": "Restore the content before this tool call only if the current file still matches the after snapshot. A recovery backup is saved. Later tasks may depend on this file; inspect the difference first.",
+		"confirm": "Confirm revert",
+		"previewOriginal": "Preview original",
+		"draft": "Current draft",
+		"remove": "Remove",
+		"noMatches": "No matching records"
 	}
 }

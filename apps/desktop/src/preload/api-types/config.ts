@@ -12,7 +12,9 @@ export interface DesktopConfigData {
 	vettaCliAppPath?: string;
 	defaultExecutionMode?: "sandbox" | "full-access";
 	/** GitHub Releases update source. Mirror choice takes effect after app restart. */
-	updateSource?: "github" | "gh-proxy";
+	updateSource?: "github" | "gh-proxy" | "custom";
+	/** HTTPS URL prefix used only for public GitHub Release update files. */
+	updateProxyUrl?: string;
 	/** 新会话的默认工作模式（agent_mode 轴）。缺省视为 "work"；已存在会话不受它影响。 */
 	defaultAgentMode?: string;
 	sandbox?: {

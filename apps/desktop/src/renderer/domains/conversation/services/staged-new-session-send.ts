@@ -22,6 +22,7 @@ import {
 	selectedModelAtom,
 } from "@shared/store/atoms";
 import { getDefaultStore } from "jotai";
+import { appendAttachmentReadScopes } from "./attachment-read-scope";
 import { isUserImageFile, nextId } from "./chat-service";
 
 const pendingSessionSends = new Map<string, StagedSendInput>();
@@ -91,7 +92,7 @@ function stageSessionSend(
 	const optimisticMessage = createConversationUserMessage({
 		id: nextId("user"),
 		deliveryPhase: "pending",
-		text: hasOverride ? rawText : preparedInput.text,
+		text: hasOverride ? rawText : appendAttachmentReadScopes(preparedInput.text, mentionedFiles),
 		...(hasOverride ? {} : { inputSegments: preparedInput.segments }),
 		timestamp: Date.now(),
 		model: modelKeyToParts(selectedModel),

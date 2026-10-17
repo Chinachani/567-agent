@@ -333,8 +333,8 @@
 		}
 	},
 	"markdown": {
-        "artifacts": "产物",
-        "artifactCount": "{{count}} 个文件",
+		"artifacts": "产物",
+		"artifactCount": "{{count}} 个文件",
 		"preview": "预览",
 		"source": "源码",
 		"run": "在独立窗口运行",
@@ -877,7 +877,15 @@
 		"stopGenerating": "停止生成"
 	},
 	"session": {
-		"emptyMessageLabel": "(图片)"
+		"emptyMessageLabel": "(图片)",
+		"openFailure": {
+			"title": "会话打开失败",
+			"description": "当前仅可查看已加载的历史，暂时无法发送消息。",
+			"details": "查看原因",
+			"retry": "重新打开",
+			"inputDisabled": "会话尚未就绪，请先点击上方“重新打开”",
+			"opening": "正在打开会话…"
+		}
 	},
 	"subagentCard": {
 		"back": "返回父会话",
@@ -1018,6 +1026,39 @@
 			"filterByTags": "知识库·标签筛选",
 			"listTags": "知识库·标签列表",
 			"writePage": "知识库·写页"
+		},
+		"collaboration": {
+			"list": "查看项目会话",
+			"configure": "配置项目协作",
+			"control": "控制项目协作",
+			"dispatch": "派发协作任务",
+			"message": "发送协作消息",
+			"history": "查看会话历史",
+			"task": "查看协作任务",
+			"wait": "等待协作任务",
+			"details": {
+				"saved": "配置已保存",
+				"members": "涉及 {{count}} 个成员",
+				"search": "搜索：{{query}}",
+				"target": "对象：{{target}}",
+				"task": "任务 {{taskId}}",
+				"wait": "等待 {{count}} 项任务",
+				"control": {
+					"pause": "暂停协作",
+					"resume": "恢复协作",
+					"stop": "停止协作",
+					"continue": "继续任务"
+				},
+				"stage": {
+					"work": "执行",
+					"review": "审查",
+					"fix": "修复"
+				},
+				"intent": {
+					"inform": "通知",
+					"question": "提问"
+				}
+			}
 		}
 	},
 	"mcpApp": {
@@ -1059,5 +1100,85 @@
 			"paused": "已暂停",
 			"usage_limited": "用量受限"
 		}
+	},
+	"contextWorkspace": {
+		"title": "管理本轮上下文",
+		"hint": "勾选要发送的完整回合。固定内容会持续保留；聊天记录不会删除。更改排除范围时旧摘要将重新整理，下一轮可能触发压缩。",
+		"failed": "无法读取或保存，可能会话已变化。关闭后重新打开再试。",
+		"loading": "读取上下文…",
+		"pinned": "固定的重要信息",
+		"summary": "当前摘要与压缩对比",
+		"previous": "上一次摘要",
+		"turns": "共 {{count}} 个回合，显示最近 100 回合的文字预览。工具链整体保留，完整内容仍在会话。",
+		"included": "本轮发送",
+		"excluded": "排除",
+		"summarized": "已纳入摘要",
+		"attachmentTurn": "附件或工具回合",
+		"save": "保存本轮范围",
+		"saving": "保存中…",
+		"pinPreview": "固定这段预览",
+		"search": "搜索回合内容或附件",
+		"selection": "当前显示 {{count}} 回合 · {{selected}} 回合发送",
+		"includeShown": "包含显示项",
+		"excludeShown": "排除显示项",
+		"unsaved": "范围已更改，保存后生效",
+		"saved": "已保存",
+		"reset": "还原选择",
+		"noSession": "发送第一条消息后即可管理上下文。",
+		"discardTitle": "尚有未保存的上下文更改",
+		"discardHint": "关闭会放弃本次范围和固定信息的编辑，聊天记录不受影响。",
+		"continueEditing": "继续编辑",
+		"discard": "放弃更改"
+	},
+	"workbench": {
+		"title": "会话工作台",
+		"tab": {
+			"context": "上下文",
+			"attachment": "附件",
+			"task": "任务",
+			"change": "修改"
+		},
+		"search": "搜索名称或路径",
+		"refresh": "刷新",
+		"attachmentHint": "原文件保留原格式，点击后按需预览；文件存在不代表模型已经读取。预览最多 32 KB。读取范围作为你的要求发送给 Agent，由工具按需解析。显示最近 200 项。",
+		"taskHint": "读取已保存的任务结果与工具记录，不会重新执行或收费。中断后的可用结果仍可查看，部分外部任务无法续接。显示最近 200 个回合。",
+		"changeHint": "审阅 Agent 的文件修改。小型文本有完整快照时可撤销；较大文件、命令或外部工具的修改可能没有可撤销记录。",
+		"pending": "待发送附件",
+		"readScope": "读取范围，如第 2–5 页、第三章或第 10–80 行",
+		"failed": "操作失败，文件或会话可能已变化。请刷新后重试；为保护后续修改，自动撤销会在版本不符时拒绝。",
+		"loading": "正在读取…",
+		"originalStored": "附件引用 · 点击检查原文件",
+		"untitled": "附件任务",
+		"tools": "{{count}} 次工具调用",
+		"status": {
+			"completed": "已结束",
+			"failed": "失败",
+			"running": "进行中",
+			"interrupted": "已中断"
+		},
+		"review": {
+			"pending": "待审阅",
+			"kept": "已保留",
+			"reverted": "已撤销"
+		},
+		"empty": "暂无记录",
+		"close": "关闭详情",
+		"preview": {
+			"text": "文本预览，原文件未修改。大文件仅显示开头。",
+			"binary": "此格式暂不支持文本预览，请打开原文件。",
+			"unavailable": "原文件不存在、位于会话工作区外或暂不可读。"
+		},
+		"showOriginal": "打开文件位置",
+		"before": "修改前完整快照",
+		"after": "修改后完整快照",
+		"revertHint": "撤销仅适用于 64 KB 以内的文本快照，当前文件必须与修改后版本一致；撤销前保存恢复备份。",
+		"keep": "保留修改",
+		"revert": "撤销此修改",
+		"revertConfirm": "恢复此工具调用之前的文件内容。仅在当前文件仍与修改后的快照一致时执行，并保存恢复备份。后续任务可能依赖此文件，请先检查差异。",
+		"confirm": "确认撤销",
+		"previewOriginal": "预览原文件",
+		"draft": "本轮草稿",
+		"remove": "移除",
+		"noMatches": "没有匹配的记录"
 	}
 }

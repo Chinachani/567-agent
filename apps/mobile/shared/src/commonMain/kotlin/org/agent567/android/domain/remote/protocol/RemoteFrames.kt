@@ -83,6 +83,27 @@ enum class RemoteRequestMethod {
     @SerialName("session.context.cancel")
     SessionContextCancel,
 
+    @SerialName("session.workbench")
+    SessionWorkbench,
+
+    @SerialName("session.workbench.detail")
+    SessionWorkbenchDetail,
+
+    @SerialName("session.collaboration.read")
+    SessionCollaborationRead,
+
+    @SerialName("session.collaboration.update")
+    SessionCollaborationUpdate,
+
+    @SerialName("session.collaboration.control")
+    SessionCollaborationControl,
+
+    @SerialName("session.attachment.read")
+    SessionAttachmentRead,
+
+    @SerialName("session.context.selection")
+    SessionContextSelection,
+
     @SerialName("session.context.auto")
     SessionContextAuto,
 

@@ -9,28 +9,32 @@ import {
 import { useAtom, useSetAtom } from "jotai";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
+import { type GitHubUpdateSource, normalizeGitHubUpdateProxyUrl } from "../../../../shared/github-download-source.js";
 import { SETTINGS_SECTION } from "../registry";
 import { recordSettingsUsage } from "./recordSettingsUsage";
 
 export interface GeneralSettingsModel {
 	actions: {
 		changeExecutionMode: (mode: string) => Promise<void>;
-		exportDiagnostics: () => Promise<void>;
 		resetWorkspace: () => Promise<void>;
 		selectWorkspace: () => Promise<void>;
 		startAppGuide: () => void;
 		toggleDebug: (checked: boolean) => void;
 		toggleNotifications: (checked: boolean) => void;
-		setUpdateSource: (source: "github" | "gh-proxy") => Promise<void>;
+		setUpdateSource: (source: GitHubUpdateSource) => Promise<void>;
+		saveUpdateProxyUrl: () => Promise<void>;
+		setUpdateProxyUrl: (url: string) => void;
 	};
 	debugMode: boolean;
 	executionMode: SessionExecutionMode;
-	exportingDiagnostics: boolean;
 	labels: GeneralSettingsLabels;
 	notificationsEnabled: boolean;
 	sandboxUnavailableReason: string | null;
 	workspacePath: string;
-	updateSource: "github" | "gh-proxy";
+	updateSource: GitHubUpdateSource;
+	updateProxyUrl: string;
+	updateProxyUrlValid: boolean;
+	updateSourceSaveState: "idle" | "saving" | "saved" | "error";
 }
 
 interface GeneralSettingsLabels {
@@ -39,6 +43,14 @@ interface GeneralSettingsLabels {
 	updateSourceDescription: string;
 	updateSourceOfficial: string;
 	updateSourceAccelerated: string;
+	updateSourceCustom: string;
+	updateSourceCustomHint: string;
+	updateSourceCustomPlaceholder: string;
+	updateSourceSave: string;
+	updateSourceSaving: string;
+	updateSourceSaved: string;
+	updateSourceInvalid: string;
+	updateSourceSaveFailed: string;
 	debugMode: string;
 	debugModeDescription: string;
 	export: string;
@@ -73,13 +85,17 @@ export function useGeneralSettingsModel(): GeneralSettingsModel {
 	const setConfirmDialog = useSetAtom(confirmDialogAtom);
 	const [sandboxUnavailableReason, setSandboxUnavailableReason] = useState<string | null>(null);
 	const [notificationsEnabled, setNotificationsEnabled] = useState(true);
-	const [updateSource, setUpdateSourceState] = useState<"github" | "gh-proxy">("github");
-	const [exportingDiagnostics, setExportingDiagnostics] = useState(false);
+	const [updateSource, setUpdateSourceState] = useState<GitHubUpdateSource>("github");
+	const [updateProxyUrl, setUpdateProxyUrlState] = useState("");
+	const [updateSourceSaveState, setUpdateSourceSaveState] = useState<"idle" | "saving" | "saved" | "error">("idle");
 
 	useEffect(() => {
 		void window.agent567.config.get().then((config) => {
 			setNotificationsEnabled(config.notificationsEnabled !== false);
-			setUpdateSourceState(config.updateSource === "gh-proxy" ? "gh-proxy" : "github");
+			const source =
+				config.updateSource === "gh-proxy" || config.updateSource === "custom" ? config.updateSource : "github";
+			setUpdateSourceState(source);
+			setUpdateProxyUrlState(config.updateProxyUrl ?? "");
 			const mode = config.defaultExecutionMode ?? "full-access";
 			setExecutionMode(mode);
 			localStorage.setItem("vetta-session-execution-mode", mode);
@@ -137,24 +153,6 @@ export function useGeneralSettingsModel(): GeneralSettingsModel {
 		[setConfirmDialog, setDebugMode, t],
 	);
 
-	const exportDiagnostics = useCallback(async () => {
-		if (exportingDiagnostics) return;
-		setExportingDiagnostics(true);
-		try {
-			await window.agent567.diagnostics.exportDiagnosticsPackage();
-		} catch (error) {
-			console.error("[GeneralSettings] failed to export diagnostics:", error);
-			setConfirmDialog({
-				title: t("exportDiagnosticsFailed"),
-				message: error instanceof Error ? error.message : String(error),
-				confirmLabel: t("gotIt"),
-				onConfirm: () => {},
-			});
-		} finally {
-			setExportingDiagnostics(false);
-		}
-	}, [exportingDiagnostics, setConfirmDialog, t]);
-
 	const toggleNotifications = useCallback((checked: boolean) => {
 		setNotificationsEnabled(checked);
 		void window.agent567.config.set({ notificationsEnabled: checked });
@@ -162,18 +160,47 @@ export function useGeneralSettingsModel(): GeneralSettingsModel {
 	}, []);
 
 	const setUpdateSource = useCallback(
-		async (source: "github" | "gh-proxy") => {
+		async (source: GitHubUpdateSource) => {
+			if (updateSourceSaveState === "saving") return;
 			const previous = updateSource;
 			setUpdateSourceState(source);
+			setUpdateSourceSaveState("idle");
+			if (source === "custom") return;
+			setUpdateSourceSaveState("saving");
 			try {
 				await window.agent567.config.set({ updateSource: source });
+				setUpdateSourceSaveState("saved");
 			} catch (error) {
 				setUpdateSourceState(previous);
+				setUpdateSourceSaveState("error");
 				console.error("[GeneralSettings] failed to save update source:", error);
 			}
 		},
-		[updateSource],
+		[updateSource, updateSourceSaveState],
 	);
+
+	const setUpdateProxyUrl = useCallback((url: string) => {
+		setUpdateProxyUrlState(url);
+		setUpdateSourceSaveState("idle");
+	}, []);
+
+	const saveUpdateProxyUrl = useCallback(async () => {
+		const normalized = normalizeGitHubUpdateProxyUrl(updateProxyUrl);
+		if (!normalized) {
+			setUpdateSourceSaveState("error");
+			return;
+		}
+		setUpdateSourceSaveState("saving");
+		try {
+			await window.agent567.config.set({ updateSource: "custom", updateProxyUrl: normalized });
+			setUpdateSourceState("custom");
+			setUpdateProxyUrlState(normalized);
+			setUpdateSourceSaveState("saved");
+		} catch (error) {
+			setUpdateSourceSaveState("error");
+			console.error("[GeneralSettings] failed to save custom update source:", error);
+		}
+	}, [updateProxyUrl]);
 
 	const changeExecutionMode = useCallback(
 		async (mode: string) => {
@@ -205,8 +232,8 @@ export function useGeneralSettingsModel(): GeneralSettingsModel {
 			debugMode: t("debugMode"),
 			debugModeDescription: t("debugModeDescription"),
 			export: t("export"),
-			exportDiagnostics: t("exportDiagnostics"),
-			exportDiagnosticsDescription: t("exportDiagnosticsDescription"),
+			exportDiagnostics: t("diagnostics.title"),
+			exportDiagnosticsDescription: t("diagnostics.entryHint"),
 			exporting: t("exporting"),
 			fullAccess: t("fullAccess"),
 			reset: t("reset"),
@@ -222,6 +249,14 @@ export function useGeneralSettingsModel(): GeneralSettingsModel {
 			updateSourceDescription: t("updateSource.description"),
 			updateSourceOfficial: t("updateSource.official"),
 			updateSourceAccelerated: t("updateSource.accelerated"),
+			updateSourceCustom: t("updateSource.custom"),
+			updateSourceCustomHint: t("updateSource.customHint"),
+			updateSourceCustomPlaceholder: t("updateSource.customPlaceholder"),
+			updateSourceSave: t("updateSource.save"),
+			updateSourceSaving: t("updateSource.saving"),
+			updateSourceSaved: t("updateSource.saved"),
+			updateSourceInvalid: t("updateSource.invalid"),
+			updateSourceSaveFailed: t("updateSource.saveFailed"),
 			startAppGuide: t("startAppGuide"),
 			startAppGuideAction: t("startAppGuideAction"),
 			startAppGuideDescription: t("startAppGuideDescription"),
@@ -238,21 +273,24 @@ export function useGeneralSettingsModel(): GeneralSettingsModel {
 	return {
 		actions: {
 			changeExecutionMode,
-			exportDiagnostics,
 			resetWorkspace,
 			selectWorkspace,
 			startAppGuide,
 			toggleDebug,
 			toggleNotifications,
 			setUpdateSource,
+			setUpdateProxyUrl,
+			saveUpdateProxyUrl,
 		},
 		debugMode,
 		executionMode,
-		exportingDiagnostics,
 		labels,
 		notificationsEnabled,
 		sandboxUnavailableReason,
 		workspacePath,
 		updateSource,
+		updateProxyUrl,
+		updateProxyUrlValid: Boolean(normalizeGitHubUpdateProxyUrl(updateProxyUrl)),
+		updateSourceSaveState,
 	};
 }

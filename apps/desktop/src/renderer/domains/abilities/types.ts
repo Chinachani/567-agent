@@ -45,6 +45,8 @@ export const ABILITY_CATEGORY_CONNECTORS = "__connectors__";
  * `abilities:group.vettaBuiltin`。
  */
 export const ABILITY_CATEGORY_VETTA_BUILTIN = "__vetta_builtin__";
+/** 能力分类筛选中的虚拟项；过滤时跨越当前市场/个人分区，只看本地安装状态。 */
+export const ABILITY_CATEGORY_INSTALLED = "__installed__";
 
 /**
  * 能力市场启用分类分组；分类来自市场清单的 category/categoryI18n 字段。
@@ -203,6 +205,8 @@ export interface AbilitiesModel {
 	availableTags: string[];
 	/** 当前分区中可供筛选的分类。 */
 	categories: AbilityGroup[];
+	/** 所有来源中当前实际已安装的能力数量。 */
+	installedCount: number;
 	/** 经 scope + 搜索 + 分类过滤后的结果。 */
 	items: AbilityItem[];
 	/** 经 scope + 搜索过滤后的总数；items 只包含当前已展开的本地分页。 */

@@ -10,6 +10,7 @@ import {
 	pendingMessageEditAtom,
 	pendingPlanReviewsAtom,
 	pendingQuestionsAtom,
+	pendingSessionOpenAtom,
 	promptAttachmentAtom,
 	promptSuggestionsAtom,
 	sandboxPermissionDrawerAtom,
@@ -29,8 +30,9 @@ import { inputBlankAtom, inputImagePathsAtom, inputPlaceholderVisibleAtom } from
 
 const inputActiveSessionAtom = selectAtom(
 	activeSessionAtom,
-	(session) => (session ? { cwd: session.cwd, runtimeId: session.runtimeId } : null),
-	(left, right) => left?.cwd === right?.cwd && left?.runtimeId === right?.runtimeId,
+	(session) => (session ? { cwd: session.cwd, runtimeId: session.runtimeId, sessionPath: session.sessionPath } : null),
+	(left, right) =>
+		left?.cwd === right?.cwd && left?.runtimeId === right?.runtimeId && left?.sessionPath === right?.sessionPath,
 );
 
 export function useInputBarSessionSource(cwdOverride?: string) {
@@ -39,8 +41,11 @@ export function useInputBarSessionSource(cwdOverride?: string) {
 	const isBlank = useAtomValue(inputBlankAtom);
 	const placeholderVisible = useAtomValue(inputPlaceholderVisibleAtom);
 	const focusInputRequest = useAtomValue(focusInputRequestAtom);
+	const pendingOpen = useAtomValue(pendingSessionOpenAtom);
+	const openFailed = Boolean(pendingOpen?.error);
+	const presentationSessionPath = pendingOpen?.sessionPath ?? activeSession?.sessionPath ?? null;
 	const effectiveCwd = activeSession?.cwd ?? cwdOverride ?? "";
-	const hasSession = Boolean(activeSession) || Boolean(cwdOverride);
+	const hasSession = !openFailed && (Boolean(activeSession) || Boolean(cwdOverride));
 
 	return {
 		activeSession,
@@ -49,7 +54,9 @@ export function useInputBarSessionSource(cwdOverride?: string) {
 		hasSession,
 		isBlank,
 		isStreaming,
+		openFailed,
 		placeholderVisible,
+		presentationSessionPath,
 	};
 }
 

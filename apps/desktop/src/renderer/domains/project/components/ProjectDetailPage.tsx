@@ -25,36 +25,41 @@ export function ProjectDetailPage(): JSX.Element {
 		) : null;
 
 	return (
-		<ProjectDetailPageView
-			activityOpen={model.activityOpen}
-			activityPanel={
+		<div className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden">
+			{batchSection && <div className="max-h-[40%] shrink-0 overflow-y-auto">{batchSection}</div>}
+			<div className="flex min-h-0 min-w-0 flex-1">
+				<ProjectDetailPageView
+					activityOpen={model.activityOpen}
+					activeSection={model.activeSection}
+					collaboration={model.collaboration}
+					content={model.content}
+					createdAtLabel={model.createdAtLabel}
+					cwd={model.cwd}
+					displayName={model.displayName}
+					editorFocused={model.editorFocused}
+					exportable={model.exportable}
+					isDirty={model.isDirty}
+					labels={model.labels}
+					loading={model.loading}
+					onContentChange={model.onContentChange}
+					onEditorBlur={model.onEditorBlur}
+					onEditorFocus={model.onEditorFocus}
+					onExport={model.onExport}
+					onNewSession={model.onNewSession}
+					onSave={model.onSave}
+					onShowInFolder={model.onShowInFolder}
+					onToggleActivity={model.onToggleActivity}
+					onSectionChange={model.onSectionChange}
+					projectTypeLabel={model.projectTypeLabel}
+					saveStatus={model.saveStatus}
+					sessionCountLabel={model.sessionCountLabel}
+					taskCountLabel={model.taskCountLabel}
+					textareaRef={model.textareaRef}
+				/>
 				<CurrentScenarioActivityPanel
 					workspace={createActivityWorkspace(model.decodedCwd, model.decodedCwd, activeRuntimeIds)}
 				/>
-			}
-			batchSection={batchSection}
-			content={model.content}
-			createdAtLabel={model.createdAtLabel}
-			cwd={model.cwd}
-			displayName={model.displayName}
-			editorFocused={model.editorFocused}
-			exportable={model.exportable}
-			isDirty={model.isDirty}
-			labels={model.labels}
-			loading={model.loading}
-			onContentChange={model.onContentChange}
-			onEditorBlur={model.onEditorBlur}
-			onEditorFocus={model.onEditorFocus}
-			onExport={model.onExport}
-			onNewSession={model.onNewSession}
-			onSave={model.onSave}
-			onShowInFolder={model.onShowInFolder}
-			onToggleActivity={model.onToggleActivity}
-			projectTypeLabel={model.projectTypeLabel}
-			saveStatus={model.saveStatus}
-			sessionCountLabel={model.sessionCountLabel}
-			taskCountLabel={model.taskCountLabel}
-			textareaRef={model.textareaRef}
-		/>
+			</div>
+		</div>
 	);
 }

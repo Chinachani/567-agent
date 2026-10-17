@@ -30,6 +30,7 @@ data class PendingFileAttachment(
     val fileName: String,
     val mimeType: String,
     val bytes: ByteArray,
+    val readScope: String = "",
 )
 
 data class PickedFileAttachment(

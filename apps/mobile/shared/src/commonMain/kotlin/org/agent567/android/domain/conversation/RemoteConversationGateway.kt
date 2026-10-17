@@ -39,6 +39,7 @@ data class RemoteDesktopImageChunk(
     val mimeType: String,
     val sizeBytes: Int,
     val dataBase64: String,
+    val revision: String? = null,
 )
 
 data class RemoteToolboxAbility(
@@ -61,6 +62,15 @@ data class RemotePromptFileAttachment(
 )
 
 interface RemoteConversationGateway {
+    suspend fun readDesktopProjectCollaboration(localSessionId: String, remoteSessionId: String): org.agent567.android.domain.session.ProjectCollaborationSnapshot? = null
+    suspend fun updateDesktopProjectCollaboration(localSessionId: String, remoteSessionId: String, patch: org.agent567.android.domain.session.ProjectCollaborationPatch): org.agent567.android.domain.session.ProjectCollaborationSnapshot? = null
+    suspend fun controlDesktopProjectCollaboration(localSessionId: String, remoteSessionId: String, control: org.agent567.android.domain.session.ProjectCollaborationControl): org.agent567.android.domain.session.ProjectCollaborationSnapshot? = null
+    suspend fun readDesktopWorkbench(localSessionId: String, remoteSessionId: String): org.agent567.android.domain.session.SessionWorkbenchSnapshot? = null
+    suspend fun readDesktopWorkbenchDetail(localSessionId: String, remoteSessionId: String, kind: String, id: String): org.agent567.android.domain.session.SessionWorkbenchDetail? = null
+    suspend fun readDesktopAttachmentChunk(localSessionId: String, remoteSessionId: String, id: String, offset: Int, length: Int): RemoteDesktopImageChunk? = null
+
+    suspend fun updateDesktopContextSelection(localSessionId: String, remoteSessionId: String, selection: org.agent567.android.domain.session.ContextWorkspaceSnapshot): org.agent567.android.domain.session.ChatContextSnapshot? = null
+
     suspend fun readDesktopContext(localSessionId: String, remoteSessionId: String): org.agent567.android.domain.session.ChatContextSnapshot? = null
     suspend fun compactDesktopContext(localSessionId: String, remoteSessionId: String): org.agent567.android.domain.session.ChatContextSnapshot? = null
     suspend fun setDesktopAutoCompaction(localSessionId: String, remoteSessionId: String, enabled: Boolean): org.agent567.android.domain.session.ChatContextSnapshot? = null

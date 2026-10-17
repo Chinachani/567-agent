@@ -4,6 +4,7 @@ import { homedir } from "node:os";
 import { join } from "node:path";
 import { getAgent567HomePath } from "@567agent/action-rpc";
 import { atomicWriteJSON } from "@567agent/toolkit/atomic-write";
+import { type GitHubUpdateSource, normalizeGitHubUpdateProxyUrl } from "../../shared/github-download-source.js";
 import { isLanguagePreference, type LanguagePreference } from "../../shared/i18n/config.js";
 import { normalizeShortcutsConfig, type ShortcutsConfig } from "../../shared/shortcuts.js";
 import { isAgentMode } from "../agent-modes/index.js";
@@ -38,7 +39,9 @@ export interface DesktopConfig {
 	workspacePath: string;
 	defaultExecutionMode: "sandbox" | "full-access";
 	/** GitHub Releases update source. Mirror selection takes effect after restart. */
-	updateSource?: "github" | "gh-proxy";
+	updateSource?: GitHubUpdateSource;
+	/** HTTPS URL prefix for custom GitHub Release acceleration. */
+	updateProxyUrl?: string;
 	debugMode?: boolean;
 	agent567AppPath?: string;
 	agent567CliAppPath?: string;
@@ -259,7 +262,13 @@ function parseDesktopConfig(parsed: Record<string, unknown>): DesktopConfig {
 				? expandTildePath(migratedWorkspace.workspacePath)
 				: DEFAULT_CONFIG.workspacePath,
 		defaultExecutionMode: normalizeExecutionMode(parsed.defaultExecutionMode),
-		updateSource: parsed.updateSource === "gh-proxy" ? "gh-proxy" : "github",
+		updateSource:
+			parsed.updateSource === "gh-proxy"
+				? "gh-proxy"
+				: parsed.updateSource === "custom" && normalizeGitHubUpdateProxyUrl(parsed.updateProxyUrl)
+					? "custom"
+					: "github",
+		updateProxyUrl: normalizeGitHubUpdateProxyUrl(parsed.updateProxyUrl) ?? undefined,
 		// 兼容 0.x 的旧字段名 agentMode（当时语义是全局工作模式），老用户配置不丢。
 		defaultAgentMode: normalizeAgentMode(parsed.defaultAgentMode ?? parsed.agentMode),
 		debugMode: typeof parsed.debugMode === "boolean" ? parsed.debugMode : false,

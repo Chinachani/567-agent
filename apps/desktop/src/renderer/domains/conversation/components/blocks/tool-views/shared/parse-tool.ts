@@ -89,6 +89,22 @@ export function toolAlias(name: string): string {
 export function toolIcon(name: string): string {
 	if (name.startsWith("mcp_")) return "icon-[mdi--cloud-outline]";
 	switch (name) {
+		case "project_collaboration_list":
+			return "icon-[mdi--account-search-outline]";
+		case "project_collaboration_configure":
+			return "icon-[mdi--account-cog-outline]";
+		case "project_collaboration_control":
+			return "icon-[mdi--play-pause]";
+		case "project_collaboration_dispatch":
+			return "icon-[mdi--send-outline]";
+		case "project_collaboration_message":
+			return "icon-[mdi--chat-outline]";
+		case "project_collaboration_read_history":
+			return "icon-[mdi--history]";
+		case "project_collaboration_read_task":
+			return "icon-[mdi--clipboard-text-outline]";
+		case "project_collaboration_wait":
+			return "icon-[mdi--timer-sand]";
 		case "read":
 			return "icon-[mdi--file-document-outline]";
 		case "write":
@@ -140,6 +156,67 @@ export function toolLabel(block: ToolCallBlock, aliased = false): { name: string
 	const name = block.toolName;
 	let displayName = aliased ? toolAlias(name) : name;
 	let detail = "";
+	const collaborationKey = {
+		project_collaboration_list: "list",
+		project_collaboration_configure: "configure",
+		project_collaboration_control: "control",
+		project_collaboration_dispatch: "dispatch",
+		project_collaboration_message: "message",
+		project_collaboration_read_history: "history",
+		project_collaboration_read_task: "task",
+		project_collaboration_wait: "wait",
+	} as const;
+	const collaborationAction = collaborationKey[name as keyof typeof collaborationKey];
+	if (collaborationAction) {
+		displayName = i18n.t(`chat:toolLabel.collaboration.${collaborationAction}`);
+		const target = getStringArg(args, "target");
+		if (collaborationAction === "list") {
+			const query = getStringArg(args, "query");
+			detail = query ? i18n.t("chat:toolLabel.collaboration.details.search", { query }) : "";
+		} else if (collaborationAction === "configure") {
+			let requestResult: Record<string, unknown> | null = null;
+			if (block.result) {
+				try {
+					const parsed: unknown = JSON.parse(block.result);
+					requestResult = parsed && typeof parsed === "object" ? (parsed as Record<string, unknown>) : null;
+				} catch {
+					requestResult = null;
+				}
+			}
+			if (block.status === "success" && requestResult?.saved === true) {
+				detail = i18n.t("chat:toolLabel.collaboration.details.saved");
+			} else {
+				const memberCount = Array.isArray(args.members) ? args.members.length : 0;
+				const removeCount = Array.isArray(args.remove) ? args.remove.length : 0;
+				const count = memberCount + removeCount;
+				detail = count > 0 ? i18n.t("chat:toolLabel.collaboration.details.members", { count }) : "";
+			}
+		} else if (collaborationAction === "control") {
+			const action = getStringArg(args, "action");
+			if (action === "pause" || action === "resume" || action === "stop" || action === "continue") {
+				detail = i18n.t(`chat:toolLabel.collaboration.details.control.${action}`);
+			}
+		} else if (collaborationAction === "dispatch" || collaborationAction === "message") {
+			const stage = getStringArg(args, "stage");
+			const intent = getStringArg(args, "intent");
+			const detailParts = [
+				target ? i18n.t("chat:toolLabel.collaboration.details.target", { target }) : "",
+				stage ? i18n.t(`chat:toolLabel.collaboration.details.stage.${stage}`, { defaultValue: stage }) : "",
+				intent ? i18n.t(`chat:toolLabel.collaboration.details.intent.${intent}`, { defaultValue: intent }) : "",
+			];
+			detail = detailParts.filter(Boolean).join(" · ");
+		} else if (collaborationAction === "history") {
+			detail = target ? i18n.t("chat:toolLabel.collaboration.details.target", { target }) : "";
+		} else if (collaborationAction === "task") {
+			const taskId = getStringArg(args, "taskId");
+			detail = taskId ? i18n.t("chat:toolLabel.collaboration.details.task", { taskId: taskId.slice(0, 12) }) : "";
+		} else if (collaborationAction === "wait") {
+			const taskIds = args.taskIds;
+			const count = Array.isArray(taskIds) ? taskIds.length : 0;
+			detail = count > 0 ? i18n.t("chat:toolLabel.collaboration.details.wait", { count }) : "";
+		}
+		return { name: displayName, detail };
+	}
 
 	if (name === "read" || name === "write" || name === "edit") {
 		const path = args.file_path ?? args.path;
