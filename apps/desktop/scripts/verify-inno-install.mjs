@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import { execFile } from "node:child_process";
 import { copyFile, mkdir, mkdtemp, readFile, readdir, rm, stat, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
-import { join, resolve } from "node:path";
+import { join, parse, resolve } from "node:path";
 import { pathToFileURL } from "node:url";
 import { promisify } from "node:util";
 import { stringify } from "yaml";
@@ -115,10 +115,18 @@ export async function verifyInnoInstall({ installerPath, version, diagnosticsDir
 	for (const path of [...ownedProfilePaths, ...await migrationSiblings()]) {
 		if (await exists(path)) throw new Error(`Refusing to touch existing application data: ${path}`);
 	}
+	const secondVolume = process.env.RUNNER_TEMP;
+	if (!secondVolume || parse(secondVolume).root.toLowerCase() === parse(folders.local).root.toLowerCase()) {
+		throw new Error("A separate runner temporary volume is required to verify migration off the system drive.");
+	}
 	await mkdir(diagnosticsDir, { recursive: true });
 	const sandbox = await mkdtemp(join(folders.local, "I-"));
+	const movedSandbox = await mkdtemp(join(secondVolume, "I-data-")).catch(async (error) => {
+		await rm(sandbox, { recursive: true, force: true });
+		throw error;
+	});
 	const appRoot = join(sandbox, "app");
-	const customData = join(sandbox, "数据 目录");
+	const customData = join(movedSandbox, "数据 目录");
 	const occupiedData = join(sandbox, "occupied");
 	const cases = [];
 	const runCase = async (name, action) => {
@@ -127,7 +135,11 @@ export async function verifyInnoInstall({ installerPath, version, diagnosticsDir
 		console.log(`[verify-inno-install] ${name}`);
 		try { await action(); result.status = "passed"; }
 		catch (error) { result.status = "failed"; result.error = error.message; throw error; }
-		finally { await writeFile(join(diagnosticsDir, "results.json"), JSON.stringify({ version, cases }, null, 2)); }
+		finally {
+			await writeFile(join(diagnosticsDir, "results.json"), JSON.stringify({
+				version, dataVolumes: { source: parse(defaultData).root, destination: parse(customData).root }, cases,
+			}, null, 2));
+		}
 	};
 	const install = async (name, dataRoot) => {
 		await runInnoInstaller({
@@ -245,6 +257,7 @@ export async function verifyInnoInstall({ installerPath, version, diagnosticsDir
 			await uninstall("cleanup");
 			await clearOwnedState();
 			await rm(sandbox, { recursive: true, force: true, maxRetries: 10, retryDelay: 200 });
+			await rm(movedSandbox, { recursive: true, force: true, maxRetries: 10, retryDelay: 200 });
 		} catch (error) {
 			if (!primaryError) throw error;
 			console.error(`[verify-inno-install] cleanup failed: ${error.message}`);

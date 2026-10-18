@@ -222,7 +222,7 @@ bun run package:win:portable
 
 正式发布 workflow 会先运行根 `check`、质量脚本测试和 Desktop packaging 测试，全部通过后才启动四个 Windows / macOS 双架构 / Linux 构建任务。Windows x64 在同一次构建中生成 Inno、MSI 和 ZIP，Linux x64 在同一次 electron-builder 调用中生成 AppImage、DEB 和 RPM，避免多个目标分别覆盖更新清单。每个平台构建后都会启动真实 packaged 应用并运行启动与 updater E2E，再校验 updater metadata、hash、blockmap 和可安装内容；Windows 会分别真实安装 MSI 并检查 ZIP 版本目录，DEB/RPM 还会在 Ubuntu/Fedora 容器中完成真实安装。真正发布到 GitHub Releases 或显式配置的 R2 后，再由 `verify-update-feed.mjs` 检查更新 metadata 与引用的安装包是否可读。
 
-Windows 的 `verify:updates:windows` 使用 `/VETTAUPDATE=true` 运行 Inno EXE，只验证后台更新版本目录。普通安装与数据迁移由独立的 `verify:install:windows` 执行实际 EXE，覆盖默认首次安装、旧数据迁移、原地重装保留修改和删除、更换到含中文/空格的目录、拒绝非空目标、重装记住自选位置，以及现有数据优先于旧目录。逐项核对会话、配置、技能、知识库、Electron 配置、更新文件与缓存的内容、源目录保留、迁移标记和 HKCU 登记；失败会阻断发布。每次安装限定五分钟，并保存完整日志和结果到 `release/installer-verification/`，CI 同时上传诊断资产。
+Windows 的 `verify:updates:windows` 使用 `/VETTAUPDATE=true` 运行 Inno EXE，只验证后台更新版本目录。普通安装与数据迁移由独立的 `verify:install:windows` 执行实际 EXE，覆盖默认首次安装、旧数据迁移、原地重装保留修改和删除、迁移到另一磁盘上含中文/空格的目录、拒绝非空目标、重装记住自选位置，以及现有数据优先于旧目录。逐项核对会话、配置、技能、知识库、Electron 配置、更新文件与缓存的内容、源目录保留、迁移标记和 HKCU 登记；失败会阻断发布。跨盘目标使用 hosted runner 的独立 `RUNNER_TEMP` 卷，若缺少第二卷会明确失败而不跳过。每次安装限定五分钟，并保存完整日志和结果到 `release/installer-verification/`，CI 同时上传诊断资产。
 
 该流程只能在显式设置 `AGENT567_VERIFY_WINDOWS_INSTALL=1` 的一次性 GitHub-hosted Windows runner 上执行，发现已有应用数据、迁移残留或相关注册项时直接退出。它使用真实的用户目录和 HKCU，结束后卸载并清理本轮创建的状态。不要在真实用户环境运行或通过伪造环境变量绕过隔离检查。
 
