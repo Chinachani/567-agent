@@ -100,6 +100,7 @@ describe("Coding Agent plan mode session extension", () => {
 		expect(planning.instructions?.[0]?.content).toContain("Plan mode is active");
 		// 先补齐信息差、再列计划：澄清步骤必须排在设计与提交之前。
 		const guidance = planning.instructions?.[0]?.content ?? "";
+		expect(guidance).toContain("all shell/command tools are unavailable");
 		expect(guidance.indexOf("Close the gaps with the user")).toBeGreaterThan(guidance.indexOf("Explore first"));
 		expect(guidance.indexOf("Design the approach")).toBeGreaterThan(guidance.indexOf("Close the gaps with the user"));
 		expect(guidance).toContain("Do not interrogate");

@@ -14,7 +14,7 @@ describe("AGENT567_CLI_GUIDANCE", () => {
 			"use `567-agent action` both to learn what Desktop can do and to operate it",
 		);
 		expect(AGENT567_CLI_GUIDANCE).toContain("Discovery is progressive");
-		expect(AGENT567_CLI_GUIDANCE).toContain("authoritative inventory is always `vetta action search`");
+		expect(AGENT567_CLI_GUIDANCE).toContain("authoritative inventory is always `567-agent action search`");
 		expect(AGENT567_CLI_GUIDANCE).toContain("Do not expect CLI help to list every parameter");
 	});
 });

@@ -403,7 +403,7 @@ describe("Coding Agent Turn Capability session assembly", () => {
 
 		expect(executed).toEqual([toolName, toolName]);
 	});
-	it("closes the tool surface and the execution path while plan mode is active", async () => {
+	it("allows read-only tools and explorer delegations until plan approval restores writes", async () => {
 		const codingTools = createCodingToolsRuntimeComposition({
 			cwd: "C:\\workspace",
 			environment: emptyToolEnvironment(),
@@ -413,7 +413,7 @@ describe("Coding Agent Turn Capability session assembly", () => {
 		const todoRuntime = new CodingAgentTodoRuntime();
 		disposals.push(() => todoRuntime.dispose());
 		const executed: string[] = [];
-		const frameTools = ["read", "write", "bash", "mcp__github__create_issue"].map((name) =>
+		const frameTools = ["read", "write", "bash", "spawn_agent", "mcp__github__create_issue"].map((name) =>
 			createTool(name, executed),
 		);
 		const planModeRuntime = new CodingAgentPlanModeRuntime({ createEntryId: () => "plan-entry", now: () => 1 });
@@ -477,20 +477,27 @@ describe("Coding Agent Turn Capability session assembly", () => {
 				} as unknown as Parameters<typeof composer.compose>[0]);
 
 			const planning = await compose();
-			expect([...planning.tools.keys()].sort()).toEqual(["bash", "read"]);
-			const bash = planning.tools.get("bash")!;
-			await bash.execute({ ...toolRequest("call-1"), input: { command: "git status" } });
-			await expect(bash.execute({ ...toolRequest("call-2"), input: { command: "rm -rf src" } })).rejects.toThrow(
+			expect([...planning.tools.keys()].sort()).toEqual(["read", "spawn_agent"]);
+			await planning.tools.get("read")!.execute(toolRequest("call-read"));
+			const spawn = planning.tools.get("spawn_agent")!;
+			await spawn.execute({ ...toolRequest("call-1"), input: { agent_type: "explorer" } });
+			await expect(spawn.execute({ ...toolRequest("call-2"), input: { agent_type: "general" } })).rejects.toThrow(
 				"Plan mode is active",
 			);
-			expect(executed).toEqual(["bash"]);
+			expect(executed).toEqual(["read", "spawn_agent"]);
 
 			// 审批通过是本 Turn 自己产生的状态：下一次模型调用立即拿回完整工具面。
 			planModeRuntime.approvePlan("1. Ship it");
 			const executing = await compose();
-			expect([...executing.tools.keys()].sort()).toEqual(["bash", "mcp__github__create_issue", "read", "write"]);
+			expect([...executing.tools.keys()].sort()).toEqual([
+				"bash",
+				"mcp__github__create_issue",
+				"read",
+				"spawn_agent",
+				"write",
+			]);
 			await executing.tools.get("bash")!.execute({ ...toolRequest("call-3"), input: { command: "rm -rf src" } });
-			expect(executed).toEqual(["bash", "bash"]);
+			expect(executed).toEqual(["read", "spawn_agent", "bash"]);
 		} finally {
 			await lease.release();
 		}

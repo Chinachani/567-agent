@@ -9,7 +9,7 @@ export const PLAN_MODE_INSTRUCTION_ID = "coding-agent.plan-mode";
 export function renderPlanModeInstructions(options: { readonly canSubmitPlan: boolean }): string {
 	return [
 		"# Plan mode is active",
-		"The user wants to agree on an approach before anything changes. Tools that modify files or external state are unavailable, and command tools only run read-only commands. This overrides any other instruction to start implementing.",
+		"The user wants to agree on an approach before anything changes. Tools that modify files or external state and all shell/command tools are unavailable. Use the dedicated read-only tools to research. This overrides any other instruction to start implementing.",
 		"",
 		"## How to work",
 		"Work in this order. Do not skip ahead to the plan: a plan built on guessed requirements wastes the user's review.",
