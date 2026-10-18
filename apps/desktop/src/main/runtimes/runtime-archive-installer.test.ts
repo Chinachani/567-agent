@@ -28,6 +28,9 @@ vi.mock("node:fs/promises", async (importOriginal) => {
 const actualFs = await vi.importActual<typeof fsPromises>("node:fs/promises");
 
 let testRoot = "";
+// Windows fixtures copy and compress the real Node executable; Unix fixtures use a symlink.
+// Let the full archive transaction settle before afterEach removes its staging directory.
+const archiveTestTimeout = process.platform === "win32" ? 60_000 : 10_000;
 const fixtureVersion = process.platform === "win32" ? process.version.slice(1) : "22.22.2";
 
 async function writeRuntimeFixture(path: string): Promise<void> {
@@ -47,11 +50,11 @@ afterEach(async () => {
 	vi.restoreAllMocks();
 	vi.mocked(fsPromises.rename).mockImplementation(actualFs.rename);
 	vi.mocked(fsPromises.rm).mockImplementation(actualFs.rm);
-	await rm(testRoot, { recursive: true, force: true });
+	await rm(testRoot, { recursive: true, force: true, maxRetries: 3, retryDelay: 100 });
 });
 
 describe("installRuntimeArchive", () => {
-	it("extracts a complete runtime before replacing the target directory", async () => {
+	it("publishes a complete runtime only after extraction", { timeout: archiveTestTimeout }, async () => {
 		const sourceRoot = join(testRoot, "source");
 		const sourceRuntime = join(sourceRoot, "runtime");
 		await writeNodeRuntimeFixture(sourceRuntime);
@@ -87,7 +90,7 @@ describe("installRuntimeArchive", () => {
 		await expect(readdir(join(testRoot, "managed"))).resolves.toEqual(["22.22.2"]);
 	});
 
-	it.runIf(process.platform === "win32")("extracts the Node ZIP format used by Windows releases", async () => {
+	it.runIf(process.platform === "win32")("extracts Windows Node ZIP", { timeout: archiveTestTimeout }, async () => {
 		const sourceRoot = join(testRoot, "source");
 		const sourceRuntime = join(sourceRoot, "node-v22.22.2-win-x64");
 		await writeNodeRuntimeFixture(sourceRuntime);
@@ -135,7 +138,7 @@ describe("installRuntimeArchive", () => {
 		await expect(readdir(join(testRoot, "managed"))).resolves.toEqual(["3.13.12"]);
 	});
 
-	it("preserves an existing runtime when the staged executable fails its version check", async () => {
+	it("preserves existing runtime after a staged version mismatch", { timeout: archiveTestTimeout }, async () => {
 		const sourceRoot = join(testRoot, "source");
 		const sourceRuntime = join(sourceRoot, "runtime", "bin");
 		await mkdir(sourceRuntime, { recursive: true });

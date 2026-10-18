@@ -22,6 +22,10 @@ describe("canonical executable ownership", () => {
 			"vetta-agent": "dist/agent-cli.js",
 			"vetta-cli-app": "dist/cli.js",
 			"vetta-agent-rpc": "dist/agent-rpc-cli.js",
+			"567-agent": "dist/cli.js",
+			"567-agent-agent": "dist/agent-cli.js",
+			"567-agent-cli-app": "dist/cli.js",
+			"567-agent-rpc": "dist/agent-rpc-cli.js",
 		});
 		expect(codingAgent.bin).toBeUndefined();
 	});
