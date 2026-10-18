@@ -3,6 +3,7 @@
 import { createConversationUserMessage } from "@shared/conversation";
 import { type InputSegment, segmentsToText } from "@shared/lib/input-tokens";
 import type { ChatConversationItem, OpenSessionOptions, SessionExecutionMode } from "@shared/store/atoms";
+import { waitFor } from "@testing-library/react";
 import { getDefaultStore } from "jotai";
 import { act, createElement } from "react";
 import { createRoot, type Root } from "react-dom/client";
@@ -468,10 +469,12 @@ it("已有会话先提交加载态，快速切换时只有最后一次打开可�
 	expect(store.get(activeSessionAtom)?.runtimeId).toBe("runtime-second");
 	expect(store.get(pendingSessionOpenAtom)).toBeNull();
 	expect(store.get(chatMessagesAtom)).toBe(previewMessages);
-	await act(async () => {
-		await new Promise((resolve) => setTimeout(resolve, 0));
+	await waitFor(() => {
+		expect(mocks.perfSessionSwitchMark).toHaveBeenCalledWith(
+			"session-history-commit-skipped-equivalent",
+			"open-second",
+		);
 	});
-	expect(mocks.perfSessionSwitchMark).toHaveBeenCalledWith("session-history-commit-skipped-equivalent", "open-second");
 
 	await act(async () => {
 		firstViewer.resolve({ history: userHistory("stale first preview", "first-preview") });
@@ -699,10 +702,12 @@ it("只读历史预览失败时回退到 Runtime 历史水合", { timeout: 10_00
 	expect(visibleTexts(store.get(chatMessagesAtom))).toEqual([]);
 	await act(async () => {
 		fullHistory.resolve(userHistory("runtime fallback", "fallback-user"));
-		await Promise.resolve();
-		await new Promise((resolve) => setTimeout(resolve, 0));
 	});
-	expect(visibleTexts(store.get(chatMessagesAtom))).toEqual(["runtime fallback"]);
+	// History backfill deliberately yields to the browser. One timer tick does not
+	// establish that its separately scheduled callback has committed on every OS.
+	await waitFor(() => {
+		expect(visibleTexts(store.get(chatMessagesAtom))).toEqual(["runtime fallback"]);
+	});
 	expect(mocks.perfSessionSwitchMark).toHaveBeenCalledWith("session-preview-history-failed", "open-fallback");
 	expect(mocks.perfSessionSwitchComplete).toHaveBeenCalledWith("completed", "open-fallback");
 });
