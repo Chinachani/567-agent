@@ -71,6 +71,9 @@ jobs:
     name: resolve desktop release scope
     runs-on: ubuntu-latest
     timeout-minutes: 5
+    permissions:
+      contents: read
+      actions: read
     environment: ${{ github.event_name == 'workflow_dispatch' && github.event.inputs.channel == 'test' && 'desktop-test' || 'desktop-production' }}
     outputs:
       should-build: ${{ steps.scope.outputs.should-build }}
@@ -148,6 +151,12 @@ jobs:
           VAR_UPDATE_URL_STABLE: ${{ vars.AGENT567_UPDATE_URL_STABLE }}
           VAR_UPDATE_URL_TEST: ${{ vars.AGENT567_UPDATE_URL_TEST }}
         run: node scripts/release/resolve-desktop-release-config.mjs --github-output >> "${GITHUB_OUTPUT}"
+
+      - name: Require successful checks for the exact release candidate
+        if: steps.scope.outputs.should-build == 'true' && steps.config.outputs.should_publish == 'true' && steps.config.outputs.channel != 'test'
+        env:
+          RELEASE_CHECK_TOKEN: ${{ github.token }}
+        run: node scripts/release/require-release-preflight.mjs
 
       - name: Write resolved config to the job summary
         if: steps.scope.outputs.should-build == 'true'
@@ -456,7 +465,23 @@ jobs:
         working-directory: apps/desktop
         run: bun run ${{ matrix.verify }}
 
-      # Inno 负责自动更新；MSI 做独立安装验证，ZIP 检查便携启动器布局。
+      - name: Verify ordinary Windows EXE installation and data migration
+        if: matrix.platform == 'windows'
+        working-directory: apps/desktop
+        env:
+          AGENT567_VERIFY_WINDOWS_INSTALL: "1"
+        run: bun run verify:install:windows
+
+      - name: Upload Windows native installer diagnostics
+        if: always() && matrix.platform == 'windows'
+        uses: actions/upload-artifact@v4
+        with:
+          name: windows-release-installer-diagnostics
+          path: apps/desktop/release/installer-verification
+          if-no-files-found: ignore
+          retention-days: 7
+
+      # Inno 普通安装与后台更新分别验证；MSI 安装及 ZIP 布局另行验证。
       - name: Verify Windows installer and packages
         if: matrix.platform == 'windows'
         working-directory: apps/desktop

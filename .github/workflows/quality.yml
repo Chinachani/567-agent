@@ -4,10 +4,15 @@ on:
   push:
     branches:
       - dev
+      - main
   pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
 
 concurrency:
-  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || (github.ref == 'refs/heads/main' && github.sha) || github.ref }}
   cancel-in-progress: true
 
 jobs:
@@ -46,9 +51,9 @@ jobs:
   unit-tests:
     name: affected unit tests (${{ matrix.os }})
     runs-on: ${{ matrix.os }}
-    timeout-minutes: 45
+    timeout-minutes: 90
     strategy:
-      fail-fast: true
+      fail-fast: false
       matrix:
         os: [ubuntu-latest, macos-latest, windows-latest]
 
@@ -78,7 +83,15 @@ jobs:
         uses: ./.github/actions/install-bun-dependencies
 
       - name: Test affected workspaces
-        run: bun run test:changed --base "${{ github.event_name == 'pull_request' && github.event.pull_request.base.sha || github.event.before }}"
+        if: github.event_name == 'pull_request' || (github.event_name == 'push' && github.ref != 'refs/heads/main')
+        env:
+          TEST_CHANGED_BASE: ${{ github.event.pull_request.base.sha || github.event.before }}
+        run: bun run test:changed --base "$TEST_CHANGED_BASE"
+        shell: bash
+
+      - name: Test complete candidate workspaces
+        if: github.event_name == 'workflow_dispatch' || (github.event_name == 'push' && github.ref == 'refs/heads/main')
+        run: bun run test:unit
 
       - name: Upload Turbo run summaries
         if: always()
@@ -88,3 +101,8 @@ jobs:
           path: .turbo/runs/*.json
           if-no-files-found: ignore
           retention-days: 1
+
+  android-preflight:
+    name: Android candidate checks
+    if: github.event_name == 'workflow_dispatch' || (github.event_name == 'push' && github.ref == 'refs/heads/main')
+    uses: ./.github/workflows/mobile.yml

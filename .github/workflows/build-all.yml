@@ -146,8 +146,11 @@ jobs:
       - name: Verify Windows installer and portable package
         if: matrix.platform == 'win'
         working-directory: apps/desktop
+        env:
+          AGENT567_VERIFY_WINDOWS_INSTALL: "1"
         run: |
           bun run verify:updates:windows
+          bun run verify:install:windows
           bun run verify:packages:windows
 
       - name: Upload Desktop artifact

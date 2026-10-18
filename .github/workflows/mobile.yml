@@ -1,6 +1,7 @@
 name: mobile
 
 on:
+  workflow_call:
   push:
     branches:
       - "**"
