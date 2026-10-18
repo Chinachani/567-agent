@@ -19,6 +19,14 @@
 | Desktop 生产边界 | `bun run verify:desktop:contracts`；受影响时由 GitHub Actions 在 Windows/macOS/Linux 运行 packaged smoke 与 updater E2E | 修改 Desktop 主进程、preload、打包脚本、原生依赖或远程控制 | 见下文 |
 | 死代码（可选） | `bun run deadcode:report` | 清理时 | Knip 报告，**默认不阻断** `check` |
 
+## 正式发布前的候选检查
+
+`main` 的 `quality` 会执行三平台全量workspace测试及复用的Android源码/宿主测试，`desktop-packaged` 执行打包合同和适用的安装包验证。主分支检查按提交保留，PR仍取消过期运行；单个平台失败不会取消另外的平台。
+
+正式发布必须固定完整代码SHA，等待其 `quality`、`desktop-packaged` 成功后再创建标签。`scripts/release/require-release-preflight.mjs` 是云端发布入口与正式发布入口共用的只读准入校验；失败、取消、缺失、尚未完成以及其他提交的成功均不算通过。云端入口在打标签之前等待，正式发布保留全部原有检查。
+
+本地静态检查或单个平台编译通过只能说明对应范围通过，不能用来声称发布候选已经通过。准备好的安装包也不能替代同一源码提交的完整CI结果。
+
 ## 新增脚本
 
 ```text

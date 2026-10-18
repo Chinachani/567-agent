@@ -392,9 +392,9 @@ describe("CI unit test coverage", () => {
 		expect(workflow).toContain("bun run test:changed --base");
 	});
 
-	it("cancels stale runs, fails the platform matrix fast, and reuses only the exact-lockfile Bun cache", () => {
+	it("cancels stale PR runs, completes the platform matrix, and reuses the exact-lockfile Bun cache", () => {
 		expect(workflow).toContain("cancel-in-progress: true");
-		expect(workflow).toContain("fail-fast: true");
+		expect(workflow).toContain("fail-fast: false");
 		expect(workflow.match(/uses: actions\/checkout@v7/g)).toHaveLength(2);
 		expect(workflow.match(/uses: \.\/\.github\/actions\/install-bun-dependencies/g)).toHaveLength(2);
 		const installAction = readFileSync(join(repoRoot, ".github/actions/install-bun-dependencies/action.yml"), "utf8");

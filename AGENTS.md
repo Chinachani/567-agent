@@ -230,6 +230,8 @@ Desktop 主进程部分目录还有更细规则；修改对应目录时必须继
 
 ## 发布说明与新增包
 
+正式发版前先推送候选代码到main，固定完整SHA并等待该提交的 `quality`、`desktop-packaged` 全部成功，才允许创建新标签或提交云端发布请求。不得把首次main推送与未经候选验证的新标签原子推送。`bun run check`、本机单平台编译、PR或旧提交的绿色结果不能替代同一候选SHA的完整检查；发布准入复用 `scripts/release/require-release-preflight.mjs`。检查失败时先修复候选，不通过提前打标签、移动旧标签或删除检查来推进。
+
 发布说明写在 `.github/release-notes/v<版本号>.md`，一个版本一个文件，版本号以 `apps/desktop/package.json` 的 `version` 为准。**该文件就是 GitHub Release 的正文**，用户在 Release 页面读到的就是这里写的内容，写法见 [`.github/release-notes/README.md`](.github/release-notes/README.md)。
 
 ### 必须写入发布说明

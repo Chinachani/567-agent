@@ -2,6 +2,17 @@ import { describe, expect, it } from "vitest";
 import { classifyDesktopPackagingRisk } from "./desktop-packaging-scope.mjs";
 
 describe("Desktop packaging risk classification", () => {
+	it("requires native packaging coverage for installer and migration changes", () => {
+		const paths = [
+			"apps/desktop/build/installer.iss",
+			"apps/desktop/build/installer.zh-cn.isl",
+			"apps/desktop/scripts/build-inno-installer.mjs",
+			"apps/desktop/scripts/inno-installer-process.mjs",
+			"apps/desktop/scripts/verify-inno-install.mjs",
+			"apps/desktop/scripts/verify-inno-update.mjs",
+		];
+		expect(classifyDesktopPackagingRisk(paths)).toEqual({ packagedSmokeRequired: true, reasons: paths.sort() });
+	});
 	it("requires packaged smoke for main, preload, packaging and remote changes", () => {
 		const result = classifyDesktopPackagingRisk([
 			"apps/desktop/src/main/remote-control/desktop-remote-pairing-service.ts",

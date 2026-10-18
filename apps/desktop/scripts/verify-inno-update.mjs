@@ -1,8 +1,8 @@
-import { spawn } from "node:child_process";
 import { mkdtemp, readFile, readdir, rm, stat } from "node:fs/promises";
 import { basename, join } from "node:path";
 import { pathToFileURL } from "node:url";
 import { parse } from "yaml";
+import { runInnoInstaller } from "./inno-installer-process.mjs";
 
 const projectRoot = join(import.meta.dirname, "..");
 const releaseDir = join(projectRoot, "release");
@@ -39,25 +39,8 @@ async function runInstaller(installerPath, storeRoot, version) {
 		`/VETTASTOREROOT=${storeRoot}`,
 		`/VETTADATAROOT=${storeRoot}`,
 		`/VETTAPROGRESS=${progressPath}`,
-		`/LOG=${logPath}`,
 	];
-	await new Promise((resolve, reject) => {
-		const child = spawn(installerPath, args, { detached: true, stdio: "ignore", windowsHide: true });
-		child.unref();
-		const keepAlive = setInterval(() => {}, 250);
-		child.once("error", (error) => {
-			clearInterval(keepAlive);
-			reject(error);
-		});
-		child.once("close", async (code) => {
-			clearInterval(keepAlive);
-			if (code === 0) resolve();
-			else {
-				const log = await readFile(logPath, "utf8").catch((error) => `Unable to read installer log: ${error}`);
-				reject(new Error(`Inno Setup exited with code ${code ?? "unknown"}; log follows:\n${log.slice(-12000)}`));
-			}
-		});
-	});
+	await runInnoInstaller({ installerPath, args, logPath });
 	return logPath;
 }
 

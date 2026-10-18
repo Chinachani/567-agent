@@ -344,7 +344,11 @@ begin
     ''
   );
   DataDirectoryPage.Add('');
-  DataDirectoryPage.Values[0] := GetSavedDataRoot();
+  { Also allow unattended ordinary installations to select the same data
+    directory as the wizard. This does not enable background-update mode. }
+  DataDirectoryPage.Values[0] := ExpandConstant('{param:VETTADATAROOT}');
+  if Trim(DataDirectoryPage.Values[0]) = '' then
+    DataDirectoryPage.Values[0] := GetSavedDataRoot();
 end;
 
 function CopyDataDirectory(SourceDirectory, DestinationDirectory: String; var ErrorMessage: String): Boolean;
@@ -443,7 +447,9 @@ begin
   if not PathsAreEqual(DataRoot, PreviousDataRoot) and DirectoryHasData(DataRoot) then
     RaiseException(CustomMessage('DataMigrationTargetNotEmpty'));
 
-  StagingRoot := DataRoot + '.migrating-' + GetDateTimeString('yyyymmddhhnnsszzz', '', '');
+  { Pascal Script requires Char separators; unlike ISPP, empty strings raise
+    a runtime Type Mismatch instead of selecting the default separators. }
+  StagingRoot := DataRoot + '.migrating-' + GetDateTimeString('yyyymmddhhnnsszzz', #0, #0);
   BackupRoot := StagingRoot + '.original';
   if DirExists(StagingRoot) or DirExists(BackupRoot) then
     RaiseException(CustomMessage('DataMigrationTargetNotEmpty'));
