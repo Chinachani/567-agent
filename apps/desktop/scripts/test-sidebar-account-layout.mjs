@@ -84,7 +84,7 @@ createRoot(document.getElementById("providers")!).render(<ProvidersFixture/>);
 `);
 	await build({
 		configFile: false, root, base: "./", logLevel: "warn", esbuild: { jsx: "automatic" },
-		resolve: { alias: { "@": join(desktop, "src"), "@shared": join(desktop, "src/renderer/shared"), "@preload": join(desktop, "src/preload"), "@domains": join(desktop, "src/renderer/domains"), "@cloud": join(desktop,"src/renderer/cloud") } },
+		resolve: { alias: { "@": join(desktop, "src"), "@shared": join(desktop, "src/renderer/shared"), "@preload": join(desktop, "src/preload"), "@domains": join(desktop, "src/renderer/domains"), "@cloud": join(desktop,"src/renderer/cloud"), "@567agent/ai": join(desktop, "../../packages/ai/src") } },
 		plugins: [tailwindcss(), {
 			name: "isolated-account-boundary", enforce: "pre",
 			resolveId(source, importer) {

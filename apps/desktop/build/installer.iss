@@ -410,7 +410,12 @@ function NextButtonClick(CurPageID: Integer): Boolean;
 begin
   Result := True;
   if Assigned(DataDirectoryPage) and (CurPageID = DataDirectoryPage.ID) then
+  begin
     Result := ConfirmExistingDataReuse(GetDataRoot(''));
+    { Silent runs abort here without showing any text; log the rejection so it stays diagnosable. }
+    if not Result then
+      Log('Existing data reuse was not confirmed: ' + CustomMessage('DataMigrationReuseRequired'));
+  end;
 end;
 
 function PrepareToInstall(var NeedsRestart: Boolean): String;

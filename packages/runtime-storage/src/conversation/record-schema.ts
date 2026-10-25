@@ -864,6 +864,7 @@ export const ConversationDocumentEntrySchema = Type.Union([
 		{
 			...ConversationDocumentEntryBaseSchema,
 			type: Type.Literal("compaction"),
+			turnId: Type.Optional(Type.String({ minLength: 1 })),
 			summary: Type.String(),
 			firstKeptEntryId: Type.String(),
 			tokensBefore: Type.Number({ minimum: 0 }),
