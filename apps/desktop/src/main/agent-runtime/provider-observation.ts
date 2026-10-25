@@ -83,6 +83,9 @@ export class NdjsonProviderObservationSink implements ProviderObservationSink {
 		ready: Promise<void>,
 		private readonly tracePath: string,
 	) {
+		// A sink that never records must not surface a late directory-creation
+		// failure as an unhandled rejection after the caller cleaned up.
+		ready.catch(() => undefined);
 		this.#writeQueue = ready;
 	}
 
