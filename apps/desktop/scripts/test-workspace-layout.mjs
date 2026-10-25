@@ -174,7 +174,8 @@ function runProbe({ root, artifacts }) {
 			await call(
 				() =>
 					new Promise((resolve, reject) => {
-						const check = () => (window.renderWorkspace ? resolve() : requestAnimationFrame(check));
+						// Frame-starved hidden windows never fire rAF; poll on a timer instead.
+						const check = () => (window.renderWorkspace ? resolve() : setTimeout(check, 50));
 						check();
 						setTimeout(() => reject(Error("Fixture did not initialize")), 10000);
 					}),
@@ -182,20 +183,25 @@ function runProbe({ root, artifacts }) {
 			const render = async (state) =>
 				call(async (state) => {
 					window.renderWorkspace(state);
+					// Hidden windows stop producing frames after a resize, so poll on timers instead of rAF.
 					await new Promise((resolve) => {
-						const check = () =>
-							document.querySelector('[data-workspace-page="' + state.page + '"]')
-								? resolve()
-								: requestAnimationFrame(check);
+						const started = Date.now();
+						const check = () => {
+							if (document.querySelector('[data-workspace-page="' + state.page + '"]')) return resolve();
+							if (Date.now() - started > 4000) return resolve();
+							setTimeout(check, 50);
+						};
 						check();
 					});
-					await new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(r)));
-					await Promise.all(
-						document
-							.getAnimations()
-							.filter((a) => Number.isFinite(a.effect.getComputedTiming().endTime))
-							.map((a) => a.finished.catch(() => {})),
-					);
+					await new Promise((r) => setTimeout(r, 120));
+					// Jump every finite animation to its end state: frame-starved windows never finish them.
+					document.getAnimations().forEach((a) => {
+						if (Number.isFinite(a.effect.getComputedTiming().endTime)) {
+							try {
+								a.finish();
+							} catch {}
+						}
+					});
 				}, state);
 			const rows = [];
 			const started = Date.now();
@@ -213,6 +219,28 @@ function runProbe({ root, artifacts }) {
 						"knowledge",
 					]) {
 						win.setContentSize(width, 780);
+						// Resizes apply asynchronously; wait until the content size settles so the page
+						// measures the requested width instead of the previous one.
+						await new Promise((resolve) => {
+							let stable = 0;
+							let last = "";
+							const timer = setInterval(() => {
+								const current = win.getContentSize().join("x");
+								if (current === last) {
+									if (++stable >= 5) {
+										clearInterval(timer);
+										resolve();
+									}
+								} else {
+									stable = 0;
+									last = current;
+								}
+							}, 100);
+							setTimeout(() => {
+								clearInterval(timer);
+								resolve();
+							}, 4000);
+						});
 						await call((mode) => window.applyWorkspaceTheme(mode), mode);
 						await render({ page, shell: width === 1100 });
 						const row = await call((page) => {
@@ -243,7 +271,9 @@ function runProbe({ root, artifacts }) {
                                 const target = visible ? document.elementFromPoint(r.left + 6, r.bottom - 6) : button;
                                 const add = card.querySelector('button[aria-label="添加"]');
                                 const a = add?.getBoundingClientRect();
-                                return { height: r.height, contentFits: card.scrollHeight <= card.clientHeight + 1, paddingOpensDetails: target === button || button.contains(target), addClickable: !add || add.contains(document.elementFromPoint(a.x + a.width/2, a.y + a.height/2)) };
+                                // Hit-testing an off-screen add button is meaningless; elementFromPoint returns null there.
+                                const addVisible = a && a.top >= 0 && a.bottom <= innerHeight;
+                                return { height: r.height, contentFits: card.scrollHeight <= card.clientHeight + 1, paddingOpensDetails: target === button || button.contains(target), addClickable: !add || !addVisible || add.contains(document.elementFromPoint(a.x + a.width/2, a.y + a.height/2)) };
                             }) : [];
                             if (abilityCards.some(card => card.height !== 144 || !card.contentFits || !card.paddingOpensDetails || !card.addClickable)) throw Error("Ability card layout or hit area failed: " + JSON.stringify(abilityCards));
 							return {
@@ -267,7 +297,8 @@ function runProbe({ root, artifacts }) {
 			await call(
 				() =>
 					new Promise((resolve) => {
-						const check = () => (window.renderWorkspace ? resolve() : requestAnimationFrame(check));
+						// Frame-starved hidden windows never fire rAF; poll on a timer instead.
+						const check = () => (window.renderWorkspace ? resolve() : setTimeout(check, 50));
 						check();
 					}),
 			);
@@ -279,14 +310,14 @@ function runProbe({ root, artifacts }) {
 				trigger.dispatchEvent(new KeyboardEvent("keydown", { key: "Enter", bubbles: true }));
 				await new Promise((resolve) => {
 					const check = () =>
-						document.querySelector('[data-model-key="fixture/code-model"]') ? resolve() : requestAnimationFrame(check);
+						document.querySelector('[data-model-key="fixture/code-model"]') ? resolve() : setTimeout(check, 50);
 					check();
 				});
 				document.querySelector('[data-model-key="fixture/code-model"]').click();
 			});
 			await call(() => document.querySelector('[role="textbox"]').focus());
 			await win.webContents.insertText("为项目整理一份实施计划");
-			await call(() => new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(r))));
+			await call(() => new Promise((r) => setTimeout(r, 120)));
 			await call(() => {
 				document.querySelector('button[title="添加文件"]').click();
 				document.querySelector('button[title="添加图片"]').click();
@@ -301,14 +332,14 @@ function runProbe({ root, artifacts }) {
 			});
 			console.log("WORKSPACE_CHAT_CLICKED");
 			await call(async () => {
-				await new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(r)));
+				await new Promise((r) => setTimeout(r, 120));
 				if (!document.querySelector('button[aria-expanded="true"]')) throw Error("Tool details did not expand");
 			});
 			await render({ page: "abilities" });
 			const abilityPoints = await call(async () => {
 				const button = document.querySelector('button[aria-label="查看 代码审阅 详情"]');
 				button.scrollIntoView({ block: "center" });
-				await new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve)));
+				await new Promise((resolve) => setTimeout(resolve, 120));
 				const card = button.parentElement;
 				const r = card.getBoundingClientRect(), a = card.querySelector('button[aria-label="添加"]').getBoundingClientRect();
 				return { details: { x: Math.round(r.left + 6), y: Math.round(r.bottom - 6) }, add: { x: Math.round(a.left + a.width / 2), y: Math.round(a.top + a.height / 2) }, before: window.workspaceEvents.length };
@@ -319,20 +350,20 @@ function runProbe({ root, artifacts }) {
 			};
 			click(abilityPoints.add);
 			await call(async (before) => {
-				await new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve)));
+				await new Promise((resolve) => setTimeout(resolve, 120));
 				const events = window.workspaceEvents.slice(before);
 				if (JSON.stringify(events) !== JSON.stringify(["ability-install:fixture:0"])) throw Error("Add also opened details: " + JSON.stringify(events));
 			}, abilityPoints.before);
 			click(abilityPoints.details);
 			await call(async (before) => {
-				await new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve)));
+				await new Promise((resolve) => setTimeout(resolve, 120));
 				const events = window.workspaceEvents.slice(before);
 				if (events.length !== 2 || !events[1].includes('"detail":"fixture:0"')) throw Error("Card padding did not open details: " + JSON.stringify(events));
 			}, abilityPoints.before);
 			await call(() => document.querySelector('input[aria-label="搜索能力"]').focus());
 			await win.webContents.insertText("代码");
 			await call(async () => {
-				await new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(r)));
+				await new Promise((r) => setTimeout(r, 120));
 				if (document.body.textContent.includes("浏览器自动化") || !document.body.textContent.includes("代码审阅"))
 					throw Error("Ability search did not filter the real view");
 			});
