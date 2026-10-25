@@ -3,7 +3,7 @@ import { once } from "node:events";
 import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { fileURLToPath } from "node:url";
+import { fileURLToPath, pathToFileURL } from "node:url";
 import { expect, it } from "vitest";
 import { bundleDesktopAgentRpc } from "./bundle-agent-rpc.mjs";
 
@@ -60,7 +60,8 @@ globalThis.fetch = async (input, init) => {
 			process.execPath,
 			[
 				"--import",
-				preload,
+				// Node resolves --import as an ESM specifier; Windows drive paths must be file:// URLs.
+				pathToFileURL(preload).href,
 				entry,
 				"--mode",
 				"rpc",

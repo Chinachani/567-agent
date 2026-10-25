@@ -1,6 +1,6 @@
 import { createHash, randomUUID } from "node:crypto";
 import { mkdir, open, readdir, readFile, realpath, stat, writeFile } from "node:fs/promises";
-import { basename, isAbsolute, join, relative, resolve } from "node:path";
+import { basename, dirname, isAbsolute, join, relative, resolve } from "node:path";
 import type { Message } from "@567agent/ai";
 import type {
 	SessionAttachmentAsset,
@@ -154,8 +154,13 @@ async function attachedPath(cwd: string, path: string): Promise<string> {
 		// Outside the workspace only a literal, explicitly attached path is
 		// readable; do not follow a later-retargeted symlink or parent alias.
 		const target = await realpath(path);
-		const normalized = resolve(path);
-		if (process.platform === "win32" ? target.toLowerCase() !== normalized.toLowerCase() : target !== normalized)
+		const literal = resolve(path);
+		// System path normalization (macOS /var → /private/var, Windows 8.3 short
+		// names) rewrites parents without any symlink being retargeted; resolve the
+		// parent and compare the leaf so only a real leaf symlink is rejected.
+		const literalParent = await realpath(dirname(literal)).catch(() => dirname(literal));
+		const literalLeaf = join(literalParent, basename(literal));
+		if (process.platform === "win32" ? target.toLowerCase() !== literalLeaf.toLowerCase() : target !== literalLeaf)
 			throw new Error("External attachment aliases require reattachment");
 		return target;
 	}
