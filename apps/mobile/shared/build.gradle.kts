@@ -9,6 +9,12 @@ plugins {
     alias(libs.plugins.kotlinSerialization)
 }
 
+compose.resources {
+    // Android's asset merger skips directories beginning with "_". The default
+    // namespace derived from "567-agent-mobile" begins with that prefix.
+    packageOfResClass = "org.agent567.android.resources"
+}
+
 val mobileVersionFile = rootProject.file("version.properties")
 val generatedVersionDir = layout.buildDirectory.dir("generated/app-version/commonMain/kotlin")
 val generateMobileVersionSource = tasks.register("generateMobileVersionSource") {

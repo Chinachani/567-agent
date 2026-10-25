@@ -4,6 +4,9 @@ import com.russhwolf.settings.MapSettings
 import com.sun.net.httpserver.HttpServer
 import java.net.InetSocketAddress
 import kotlinx.coroutines.runBlocking
+import kotlinx.coroutines.async
+import kotlinx.coroutines.coroutineScope
+import kotlinx.coroutines.awaitAll
 import org.agent567.android.app.AppPreferences
 import org.agent567.android.core.Agent567Config
 import org.agent567.android.core.auth.InMemoryTokenStore
@@ -16,6 +19,34 @@ import kotlin.test.assertEquals
 import kotlin.test.assertTrue
 
 class GroupModelsHostTest {
+    @Test fun concurrentRequestsReuseOneGroupTokenCreation() = runBlocking {
+        val created = java.util.concurrent.atomic.AtomicInteger()
+        val server = HttpServer.create(InetSocketAddress("127.0.0.1",0),0)
+        server.createContext("/") { request ->
+            val body = when {
+                request.requestURI.path == "/api/token/" && request.requestMethod == "POST" -> {
+                    created.incrementAndGet(); """{"success":true}"""
+                }
+                request.requestURI.path == "/api/token/" -> if (created.get()==0) """{"data":[]}""" else """{"data":[{"id":2,"group":"B","name":"567 Agent [B]","status":1,"key":"sk-bbbbbbbbbbbbbbbbbbbb"}]}"""
+                request.requestURI.path == "/api/token/2/key" -> """{"success":true,"data":"sk-bbbbbbbbbbbbbbbbbbbb"}"""
+                else -> """{"success":false}"""
+            }
+            val bytes=body.toByteArray();request.sendResponseHeaders(200,bytes.size.toLong());request.responseBody.use{it.write(bytes)}
+        }
+        server.start()
+        val config=Agent567Config("http://127.0.0.1:${server.address.port}")
+        val tokens=InMemoryTokenStore("account-access-token","refresh")
+        val bare=createBareHttpClient(config)
+        val refresher=TokenRefresher(tokens,{ error("refresh is not expected in the token fixture") },null)
+        val client=createAgent567HttpClient(config,tokens,refresher)
+        try {
+            val api=Agent567Api(client,bare,config,tokens,refresher)
+            val results=coroutineScope { listOf(async {api.ensureApiKeyForGroup("B")},async {api.ensureApiKeyForGroup("B")}).awaitAll() }
+            assertEquals(listOf("sk-bbbbbbbbbbbbbbbbbbbb","sk-bbbbbbbbbbbbbbbbbbbb"),results)
+            assertEquals(1,created.get())
+        } finally {client.close();bare.close();server.stop(0)}
+    }
+
     @Test
     fun expiredRefreshCookieFallsBackToSavedAccountPasswordAndRetriesRequest() = runBlocking {
         var loginCalled = false
@@ -30,6 +61,8 @@ class GroupModelsHostTest {
                     401 to """{"success":false,"message":"token expired"}"""
                 path == "/api/user/auth/refresh" && cookie == "session=expired-cookie" ->
                     401 to """{"success":false,"message":"refresh expired"}"""
+                path == "/api/user/login/encryption-key" ->
+                    200 to """{"success":true,"data":{"enabled":false}}"""
                 path == "/api/user/login" -> {
                     loginCalled = true
                     200 to """{"success":true,"data":{"access_token":"password-login-token","username":"saved-user","id":7}}"""
@@ -89,6 +122,7 @@ class GroupModelsHostTest {
     @Test
     fun testSilentTokenRefreshViaCookieOn401() = runBlocking {
         var refreshCalled = false
+        var refreshOrigin: String? = null
         val server = HttpServer.create(InetSocketAddress("127.0.0.1", 0), 0)
         server.createContext("/") { request ->
             val auth = request.requestHeaders.getFirst("Authorization")
@@ -99,6 +133,7 @@ class GroupModelsHostTest {
                 }
                 request.requestURI.path == "/api/user/auth/refresh" && cookie == "session=valid-cookie" -> {
                     refreshCalled = true
+                    refreshOrigin = request.requestHeaders.getFirst("Origin")
                     """{"success":true,"data":{"access_token":"fresh-new-token"}}"""
                 }
                 request.requestURI.path == "/api/user/models" && auth == "Bearer fresh-new-token" -> {
@@ -123,6 +158,7 @@ class GroupModelsHostTest {
             api = Agent567Api(client, bare, config, tokens, refresher)
             val catalog = api.goModels("B")
             assertTrue(refreshCalled, "Expected /api/user/auth/refresh to be called with session cookie")
+            assertEquals(config.apiBaseUrl, refreshOrigin)
             assertEquals(listOf("refreshed-model-1", "refreshed-model-2"), catalog.goModels().map { it.id })
             assertEquals("fresh-new-token", tokens.accessToken)
         } finally {

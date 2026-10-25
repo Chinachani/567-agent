@@ -30,6 +30,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import org.agent567.android.domain.device.DesktopDevice
 import org.agent567.android.domain.device.DeviceStatus
+import org.agent567.android.ui.components.MobilePageIntro
 import org.agent567.android.ui.components.FilterChipRow
 import org.agent567.android.ui.components.EmptyState
 import org.agent567.android.ui.components.PrimaryBlackButton
@@ -58,7 +59,7 @@ fun NewConversationScreen(
         containerColor = MaterialTheme.agent567Extra.pageBackground,
         topBar = {
             TopAppBar(
-                title = { Text(Str.newConversation, style = MaterialTheme.typography.titleMedium) },
+                title = { Text(Str.newConversation, style = MaterialTheme.typography.titleLarge) },
                 navigationIcon = {
                     IconButton(onClick = onBack) {
                         Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = Str.back)
@@ -78,6 +79,7 @@ fun NewConversationScreen(
                 .verticalScroll(rememberScrollState())
                 .padding(16.dp),
         ) {
+            MobilePageIntro(Str.newConversation, Str.mobileNewHint)
             FilterChipRow(options = channels, selectedIndex = channelIndex.coerceIn(0, 1), onSelect = onChannelChange)
             Spacer(Modifier.height(16.dp))
 

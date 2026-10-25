@@ -176,6 +176,29 @@ function ReasoningLevelsEditor({
 							}
 							placeholder="low / medium / high / max"
 						/>
+						{([-1, 1] as const).map((direction) => (
+							<Button
+								key={direction}
+								variant="ghost"
+								size="icon-xs"
+								disabled={index + direction < 0 || index + direction >= form.reasoningLevels.length}
+								aria-label={t(direction === -1 ? "reasoningMoveUp" : "reasoningMoveDown", { level })}
+								onClick={() =>
+									setForm((current) => {
+										const levels = [...current.reasoningLevels];
+										const next = index + direction;
+										if (next < 0 || next >= levels.length) return current;
+										[levels[index], levels[next]] = [levels[next], levels[index]];
+										return { ...current, reasoningLevels: levels };
+									})
+								}
+							>
+								<span
+									aria-hidden
+									className={`${direction === -1 ? "icon-[solar--alt-arrow-up-linear]" : "icon-[solar--alt-arrow-down-linear]"} h-3.5 w-3.5`}
+								/>
+							</Button>
+						))}
 						<Button
 							variant="outline"
 							size="xs"
@@ -200,7 +223,9 @@ function ReasoningLevelsEditor({
 										...current,
 										reasoningLevels: levels,
 										defaultReasoningLevel:
-											current.defaultReasoningLevel === removed ? (levels[0] ?? "") : current.defaultReasoningLevel,
+											current.defaultReasoningLevel === removed
+												? (levels[0] ?? "")
+												: current.defaultReasoningLevel,
 									};
 								})
 							}
@@ -213,7 +238,9 @@ function ReasoningLevelsEditor({
 					<Button
 						variant="outline"
 						size="xs"
-						onClick={() => setForm((current) => ({ ...current, reasoningLevels: [...current.reasoningLevels, ""] }))}
+						onClick={() =>
+							setForm((current) => ({ ...current, reasoningLevels: [...current.reasoningLevels, ""] }))
+						}
 					>
 						{t("reasoningAdd")}
 					</Button>

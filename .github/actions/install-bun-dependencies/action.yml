@@ -10,6 +10,10 @@ inputs:
 runs:
   using: composite
   steps:
+    - name: Set up the shared Node.js toolchain
+      uses: actions/setup-node@v4
+      with:
+        node-version-file: .node-version
     - name: Restore Bun package downloads
       if: inputs.cache == 'true'
       id: bun-cache

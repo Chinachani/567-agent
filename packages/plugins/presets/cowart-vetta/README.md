@@ -1,12 +1,12 @@
 # cowart-vetta (1:1 host mapping)
 
-567 Agent external plugin adapted from [zhongerxin/Cowart](https://github.com/zhongerxin/Cowart).
+567 Agent bundled canvas plugin adapted from [zhongerxin/Cowart](https://github.com/zhongerxin/Cowart).
 
-## This is NOT a system plugin
+## Desktop preset
 
-It lives under `packages/plugins/externals/` (not `presets/`), so it ships as a
-**user-installable** plugin: build the zip, install it in Desktop, grant the
-declared permissions, and enable/disable or remove it like other external plugins.
+This plugin ships with Desktop from `packages/plugins/presets/cowart-vetta`.
+The entry registers sidebar and activity descriptors; launcher and panel modules load only
+when opened. The tldraw editor is a further lazy chunk and is not evaluated at startup.
 
 ## Capability map (Codex → 567 Agent)
 
@@ -32,15 +32,15 @@ plugin.json
 ## Build
 
 ```bash
-cd packages/plugins/externals/cowart-vetta
-bun install --cwd ../..
+cd packages/plugins/presets/cowart-vetta
+bun install --cwd ../../../..
 bun run build
 ```
 
 The installable archive is written to:
 
 ```text
-packages/plugins/externals/cowart-vetta/release/cowart-vetta-<version>.vettapkg
+packages/plugins/presets/cowart-vetta/release/cowart-vetta-<version>.vettapkg
 ```
 
 Install the zip from Desktop → Plugins, **restart App** if needed, open a **new conversation**.

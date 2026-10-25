@@ -1,3 +1,4 @@
+import { createHash, generateKeyPairSync } from "node:crypto";
 import { mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import type { IncomingMessage } from "node:http";
 import { tmpdir } from "node:os";
@@ -10,9 +11,14 @@ const network = vi.hoisted(() => ({
 	home: "",
 	refreshMessage: "Cookie 已过期",
 	refreshStatus: 401,
+	envelopeRejected: false,
+	requireRefreshOrigin: false,
 	loginRejected: true,
+	loginDisplayName: "",
 	offline: false,
 	secureStorageAvailable: true,
+	encryption: { enabled: false } as Record<string, unknown>,
+	loginBodies: [] as Record<string, unknown>[],
 }));
 
 vi.mock("@567agent/action-rpc", () => ({ getAgent567HomePath: () => network.home }));
@@ -28,11 +34,15 @@ vi.mock("node:https", async () => {
 				receive: (response: IncomingMessage) => void,
 			) => {
 				const request = new EventEmitter();
+				let body = "";
 				return Object.assign(request, {
-					write: () => {},
+					write: (chunk: string) => {
+						body += chunk;
+					},
 					destroy: (error: Error) => request.emit("error", error),
 					end: () => {
 						network.calls.push(url.pathname);
+						if (url.pathname.endsWith("/login")) network.loginBodies.push(JSON.parse(body));
 						if (network.offline) {
 							queueMicrotask(() =>
 								request.emit(
@@ -46,21 +56,40 @@ vi.mock("node:https", async () => {
 						const isLogin = url.pathname.endsWith("/login");
 						const unauthorized =
 							url.pathname.endsWith("/self") && options.headers.Authorization === "Bearer expired";
-						const status = isRefresh ? network.refreshStatus : unauthorized ? 401 : 200;
-						const payload = isRefresh
-							? { success: false, message: network.refreshMessage }
-							: unauthorized
-								? { success: false }
-								: isLogin && network.loginRejected
-									? { success: false, message: "password changed" }
-									: isLogin
-										? {
-												success: true,
-												data: { access_token: "fresh", user: { username: "user", quota: 500000 } },
-											}
-										: url.pathname.endsWith("/self")
-											? { success: true, data: { quota: 500000 } }
-											: { success: true, data: {} };
+						const forbiddenOrigin =
+							isRefresh && network.requireRefreshOrigin && options.headers.Origin !== url.origin;
+						const status = forbiddenOrigin
+							? 403
+							: isRefresh
+								? network.refreshStatus
+								: unauthorized && !network.envelopeRejected
+									? 401
+									: 200;
+						const payload = url.pathname.endsWith("/encryption-key")
+							? { success: true, data: network.encryption }
+							: isRefresh
+								? status === 200
+									? { success: true, data: { access_token: "fresh" } }
+									: { success: false, message: network.refreshMessage }
+								: unauthorized
+									? { success: false, message: "登录已过期，请重新登录" }
+									: isLogin && network.loginRejected
+										? { success: false, message: "password changed" }
+										: isLogin
+											? {
+													success: true,
+													data: {
+														access_token: "fresh",
+														user: {
+															username: "user",
+															display_name: network.loginDisplayName,
+															quota: 500000,
+														},
+													},
+												}
+											: url.pathname.endsWith("/self")
+												? { success: true, data: { quota: 500000 } }
+												: { success: true, data: {} };
 						const response = Object.assign(new PassThrough(), {
 							statusCode: status,
 							headers: isLogin ? { "set-cookie": ["session=fresh"] } : {},
@@ -105,9 +134,14 @@ describe("account balance recovery through the desktop service", () => {
 		network.calls = [];
 		network.refreshMessage = "Cookie 已过期";
 		network.refreshStatus = 401;
+		network.envelopeRejected = false;
+		network.requireRefreshOrigin = false;
 		network.loginRejected = true;
+		network.loginDisplayName = "";
 		network.offline = false;
 		network.secureStorageAvailable = true;
+		network.encryption = { enabled: false };
+		network.loginBodies = [];
 		const { encryptSecret } = await import("./security.js");
 		writeFileSync(
 			join(root, "567api-session.json"),
@@ -132,6 +166,22 @@ describe("account balance recovery through the desktop service", () => {
 		rmSync(root, { recursive: true, force: true });
 	});
 
+	it("renews an expired account token with the selected API origin and preserves the login", async () => {
+		network.refreshStatus = 200;
+		network.requireRefreshOrigin = true;
+		expect(await service.refreshQuota(true)).toEqual({ success: true, quota: 500000, quotaUsd: 1 });
+		expect(service.getRawSession()).toMatchObject({ isLoggedIn: true, username: "user", accessToken: "fresh" });
+		expect(network.calls.some((path) => path.endsWith("/login"))).toBe(false);
+	});
+
+	it("renews an HTTP 200 rejected-login envelope without requiring logout", async () => {
+		network.envelopeRejected = true;
+		network.refreshStatus = 200;
+		expect(await service.refreshQuota(true)).toEqual({ success: true, quota: 500000, quotaUsd: 1 });
+		expect(service.getRawSession()).toMatchObject({ isLoggedIn: true, accessToken: "fresh" });
+		expect(network.calls.filter((path) => path.endsWith("/refresh"))).toHaveLength(1);
+	});
+
 	it("clears login after explicit automatic credential rejection and allows manual recovery", async () => {
 		expect(await service.refreshQuota(true)).toEqual({ success: false });
 		expect(service.getRawSession()).toEqual({ isLoggedIn: false });
@@ -143,6 +193,35 @@ describe("account balance recovery through the desktop service", () => {
 		network.loginRejected = false;
 		expect(await service.loginWithPassword("user", "new")).toEqual({ success: true });
 		expect(await service.refreshQuota(true)).toEqual({ success: true, quota: 500000, quotaUsd: 1 });
+	});
+
+	it("keeps the login username distinct from the display name for account initials", async () => {
+		network.loginRejected = false;
+		network.loginDisplayName = "Different Display Name";
+		expect((await service.loginWithPassword("user", "new")).success).toBe(true);
+		expect(await service.getStatus()).toMatchObject({ username: "Different Display Name", loginUsername: "user" });
+		expect(JSON.parse(readFileSync(join(root, "567api-session.json"), "utf8"))).toMatchObject({
+			loginUsername: "user",
+		});
+	});
+
+	it("uses encryption for both automatic account recovery and manual login", async () => {
+		const pair = generateKeyPairSync("rsa", { modulusLength: 2048 });
+		const publicKey = pair.publicKey.export({ type: "spki", format: "pem" }).toString();
+		const kid = createHash("sha256")
+			.update(pair.publicKey.export({ type: "spki", format: "der" }))
+			.digest("hex")
+			.slice(0, 32);
+		network.encryption = { enabled: true, kid, public_key: publicKey };
+		network.loginRejected = false;
+		expect((await service.refreshQuota(true)).success).toBe(true);
+		expect((await service.loginWithPassword("user", "new")).success).toBe(true);
+		expect(network.loginBodies).toHaveLength(2);
+		for (const body of network.loginBodies) {
+			expect(body).not.toHaveProperty("password");
+			expect(body.encryption_key_id).toBe(kid);
+			expect(body.password_encrypted).toMatch(/^v2\./);
+		}
 	});
 
 	it("preserves the login when a 403 refresh response may come from a network interceptor", async () => {
@@ -204,12 +283,16 @@ describe("account balance recovery through the desktop service", () => {
 			expect(readFileSync(path, "utf8")).toBe(savedContents);
 		} finally {
 			network.secureStorageAvailable = true;
+			network.encryption = { enabled: false };
+			network.loginBodies = [];
 		}
 	});
 
 	it("does not let image preferences overwrite an encrypted session when keyring access is unavailable", async () => {
 		vi.resetModules();
 		network.secureStorageAvailable = true;
+		network.encryption = { enabled: false };
+		network.loginBodies = [];
 		const { encryptSecret } = await import("./security.js");
 		const sessionPath = join(root, "567api-session.json");
 		writeFileSync(

@@ -1,0 +1,80 @@
+// @vitest-environment jsdom
+import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { MarkdownContent } from "@vetta-org/theme-ui/markdown";
+import { afterEach, expect, it, vi } from "vitest";
+import { createMarkdownHostFixture } from "./markdown-host.fixture";
+afterEach(cleanup);
+const props = {
+	theme: "dark" as const,
+	labels: { copy: "Copy", copied: "Copied" },
+	getFileIconClass: () => "",
+	onOpenFile: vi.fn(),
+	onOpenUrl: vi.fn(),
+};
+it("keeps Markdown closing markers outside an automatically recognized website card", () => {
+	render(
+		<MarkdownContent {...props} text={"已为你预设好 使用 IPv6 与 **获取 IP 来源 (Web: https://v6.ident.me)**。"} />,
+	);
+	const link = screen.getByRole("link");
+	expect(link.getAttribute("href")).toBe("https://v6.ident.me");
+	expect(link.textContent).not.toContain("**");
+});
+it("opens and copies a URL through a themed context menu without activating the link", async () => {
+	const { host } = createMarkdownHostFixture();
+	const copyText = vi.fn(async () => {});
+	const openUrl = vi.fn();
+	const openInApp = vi.fn();
+	render(
+		<MarkdownContent
+			{...props}
+			onOpenUrl={openInApp}
+			host={{ ...host, copyText, openExternalUrl: openUrl }}
+			text="[Website](https://example.test/a?q=1)"
+		/>,
+	);
+	const link = screen.getByRole("link", { name: "Website" });
+	fireEvent.contextMenu(link, { clientX: 15, clientY: 20 });
+	fireEvent.click(await screen.findByRole("menuitem", { name: /Copy link/i }));
+	await waitFor(() => expect(copyText).toHaveBeenCalledWith("https://example.test/a?q=1", "url"));
+	expect(openUrl).not.toHaveBeenCalled();
+	expect(openInApp).not.toHaveBeenCalled();
+	fireEvent.contextMenu(link, { clientX: 15, clientY: 20 });
+	fireEvent.click(await screen.findByRole("menuitem", { name: /default browser/i }));
+	await waitFor(() => expect(openUrl).toHaveBeenCalledWith("https://example.test/a?q=1"));
+	expect(openInApp).not.toHaveBeenCalled();
+});
+it("offers the same file actions for an inline file and an artifact list", async () => {
+	const { host } = createMarkdownHostFixture();
+	const copyText = vi.fn(async () => {});
+	const revealFile = vi.fn(async () => {});
+	render(
+		<MarkdownContent
+			{...props}
+			host={{ ...host, copyText, revealFile }}
+			text={"[File](./docs/readme.md)\n\n- [Other](./other.md)"}
+		/>,
+	);
+	const file = screen.getByRole("button", { name: "File" });
+	fireEvent.contextMenu(file, { clientX: 10, clientY: 10 });
+	fireEvent.click(await screen.findByRole("menuitem", { name: /Copy path/i }));
+	await waitFor(() => expect(copyText).toHaveBeenCalledWith("./docs/readme.md", "file"));
+	fireEvent.contextMenu(screen.getByRole("button", { name: "other.md" }));
+	fireEvent.click(await screen.findByRole("menuitem", { name: /file manager/i }));
+	await waitFor(() => expect(revealFile).toHaveBeenCalledWith("./other.md"));
+});
+
+it("does not alter explicit URL parameters or links inside code", () => {
+	render(
+		<MarkdownContent
+			{...props}
+			text={
+				"[Wildcard](<https://example.test/a?pattern=**>)\n\n`https://example.test/code**`\n\n**See https://example.test/path_(a)**。"
+			}
+		/>,
+	);
+	expect(screen.getByRole("link", { name: "Wildcard" }).getAttribute("href")).toBe(
+		"https://example.test/a?pattern=**",
+	);
+	expect(screen.getAllByRole("link")).toHaveLength(2);
+	expect(screen.getAllByRole("link")[1].getAttribute("href")).toBe("https://example.test/path_(a)");
+});

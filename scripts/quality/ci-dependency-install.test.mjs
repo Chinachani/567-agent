@@ -20,8 +20,32 @@ describe("CI dependency installation", () => {
 		);
 	});
 
+	it("selects Bun and the IM Go toolchain from their versioned manifests", () => {
+		for (const { name, source } of workflowSources) {
+			if (source.includes("uses: oven-sh/setup-bun@")) {
+				expect(source, name).not.toMatch(/bun-version:\s/);
+				expect(source, name).toContain("bun-version-file: package.json");
+			}
+			if (source.includes("uses: actions/setup-go@")) {
+				expect(source, name).not.toMatch(/go-version:\s/);
+				expect(source, name).toContain("go-version-file: apps/im-gateway/go.mod");
+			}
+		}
+	});
+
 	it("runs the shared cross-platform installer from the composite action", () => {
 		expect(installAction).toContain("run: node scripts/quality/install-ci-dependencies.mjs");
+	});
+
+	it("pins Node for quality, packaging and release helpers instead of inheriting the runner default", () => {
+		expect(readFileSync(join(repoRoot, ".node-version"), "utf8").trim()).toMatch(/^\d+\.\d+\.\d+$/);
+		expect(installAction).toContain("uses: actions/setup-node@");
+		expect(installAction).toContain("node-version-file: .node-version");
+		for (const { name, source } of workflowSources) {
+			if (!source.includes("uses: actions/setup-node@")) continue;
+			expect(source, name).not.toMatch(/node-version:\s/);
+			expect(source, name).toContain("node-version-file: .node-version");
+		}
 	});
 
 	it("reuses completed downloads when a transient frozen install fails", async () => {

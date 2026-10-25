@@ -26,18 +26,13 @@ export interface GuideBadgeSwiperViewProps {
  * Rotating feature-hint badges under the composer / new-session hero.
  * Host pre-resolves navigation handlers and i18n labels.
  */
-export function GuideBadgeSwiperView({
-	mounted,
-	current,
-	labels,
-	onDismiss,
-}: GuideBadgeSwiperViewProps): JSX.Element {
+export function GuideBadgeSwiperView({ mounted, current, labels, onDismiss }: GuideBadgeSwiperViewProps): JSX.Element {
 	return (
 		<motion.div
 			initial={{ opacity: 0, y: 8 }}
 			animate={{ opacity: mounted ? 1 : 0, y: mounted ? 0 : 8 }}
 			transition={{ duration: 0.5, ease: easeOut }}
-			className="mb-3 flex h-8 w-full items-center"
+			className="flex min-h-7 w-full min-w-0 items-center"
 		>
 			<AnimatePresence mode="wait">
 				<motion.div
@@ -46,16 +41,16 @@ export function GuideBadgeSwiperView({
 					animate={{ opacity: 1, y: 0 }}
 					exit={{ opacity: 0, y: -6 }}
 					transition={{ duration: 0.32, ease: easeOut }}
-					className="flex items-center"
+					className="flex min-w-0 max-w-full items-center"
 				>
 					<button
 						type="button"
 						onClick={current.onClick}
 						title={current.text}
-						className="group flex h-7 items-center gap-1.5 rounded-full border border-primary/30 bg-[color-mix(in_srgb,var(--primary)_8%,var(--card))] pl-2.5 pr-2 text-[11px] font-medium text-primary transition-colors hover:border-primary/50 hover:bg-[color-mix(in_srgb,var(--primary)_14%,var(--card))]"
+						className="group flex h-7 min-w-0 max-w-full items-center gap-1.5 rounded-md bg-muted/50 pl-2.5 pr-2 text-[11px] font-medium text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
 					>
 						<span className={`${current.icon} h-3 w-3 shrink-0`} />
-						<span className="whitespace-nowrap">{current.text}</span>
+						<span className="truncate">{current.text}</span>
 						{current.dismissible && (
 							<span
 								role="button"

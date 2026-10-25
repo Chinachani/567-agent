@@ -56,7 +56,8 @@
     "unreviewed": "Unreviewed · Safety unknown"
   },
   "card": {
-    "noDescription": "No description"
+    "noDescription": "No description",
+    "openDetails": "View {{name}} details"
   },
   "operation": {
     "processing": "Working…",

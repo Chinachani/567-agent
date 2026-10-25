@@ -1,5 +1,7 @@
 // @vitest-environment jsdom
 
+import type { AssistantMessage } from "@567agent/ai";
+import type { HistoryEntry } from "@567agent/runtime-core";
 import { createConversationUserMessage } from "@shared/conversation";
 import { type InputSegment, segmentsToText } from "@shared/lib/input-tokens";
 import type { ChatConversationItem, OpenSessionOptions, SessionExecutionMode } from "@shared/store/atoms";
@@ -800,4 +802,91 @@ it("新会话首发不等整轮 prompt 跑完就回填会话状态", { timeout: 
 	expect(store.get(pendingSessionCreationAtom)).toBeNull();
 
 	runningTurn.resolve(undefined);
+});
+
+it("重新进入排队消息已开始执行的会话，先恢复用户与回复顺序再回放当前输出", async () => {
+	const { activeSessionAtom, chatMessagesAtom } = await import("@shared/store/atoms");
+	const { useSessionManager } = await import("./useSessionManager");
+	const store = getDefaultStore();
+	const history = deferred<HistoryEntry[]>();
+	const persistedAssistant = {
+		role: "assistant",
+		content: [{ type: "text", text: "first answer" }],
+		timestamp: 2,
+		stopReason: "stop",
+		usage: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0, cost: { total: 0 } },
+	};
+	const sessionApi = {
+		create: vi.fn(async () => ({ cwd, sessionId: "runtime-first", sessionPath: firstCanonicalPath })),
+		getFullHistory: vi.fn(() => history.promise),
+		openViewer: vi.fn(async () => ({ history: [] })),
+		getQueueState: vi.fn(async () => ({ paused: false, entries: [] })),
+		getSessionPath: vi.fn(async () => firstCanonicalPath),
+		getState: vi.fn(async () => ({
+			activeToolNames: [],
+			contextPercent: null,
+			contextWindow: 128000,
+			executionMode: "sandbox",
+			isStreaming: true,
+			currentTurnStartedAt: 3,
+			model: null,
+			scenario: "conversation",
+		})),
+		subscribe: vi.fn(async (_id, handler) => {
+			expect(visibleTexts(store.get(chatMessagesAtom)).filter(Boolean)).toEqual([
+				"first request",
+				"first answer",
+				"queued request",
+			]);
+			handler({
+				schemaVersion: 1,
+				channel: "assistant",
+				type: "text_delta",
+				turnId: "turn-queue",
+				modelCallIndex: 1,
+				contentIndex: 0,
+				partial: { role: "assistant", content: [{ type: "text", text: "queued answer" }] },
+				sessionId: "runtime-first",
+				eventId: "delta",
+				source: "agent",
+				timestamp: 4,
+				delta: "queued answer",
+			});
+			return vi.fn();
+		}),
+	};
+	Object.defineProperty(window, "vetta", { configurable: true, value: { session: sessionApi } });
+	store.set(activeSessionAtom, null);
+	store.set(chatMessagesAtom, []);
+	function Probe() {
+		manager = useSessionManager();
+		return null;
+	}
+	await act(async () => {
+		root = createRoot(container as HTMLDivElement);
+		root.render(createElement(Probe));
+	});
+	let opening: Promise<void> | undefined;
+	await act(async () => {
+		opening = manager?.openSession(cwd, firstCanonicalPath);
+		await Promise.resolve();
+	});
+	await waitFor(() => expect(sessionApi.getFullHistory).toHaveBeenCalled());
+	expect(sessionApi.subscribe).not.toHaveBeenCalled();
+	await act(async () => {
+		history.resolve([
+			{ type: "message", entryId: "u1", message: { role: "user", content: "first request", timestamp: 1 } },
+			{ type: "message", entryId: "a1", message: persistedAssistant as AssistantMessage },
+			{ type: "message", entryId: "u2", message: { role: "user", content: "queued request", timestamp: 3 } },
+		]);
+		await opening;
+	});
+	await waitFor(() =>
+		expect(visibleTexts(store.get(chatMessagesAtom)).filter(Boolean)).toEqual([
+			"first request",
+			"first answer",
+			"queued request",
+			"queued answer",
+		]),
+	);
 });

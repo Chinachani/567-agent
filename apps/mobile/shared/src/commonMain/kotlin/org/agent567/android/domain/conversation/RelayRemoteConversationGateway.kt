@@ -183,7 +183,7 @@ class RelayRemoteConversationGateway(
                     status = DeviceStatus.Online,
                     channel = ConnectChannel.Remote,
                     latencyMs = next.snapshot().lastRttMs?.toIntOrNull(),
-                    connectedDuration = formatConnectionDuration(now() - connectedAtEpochMs),
+                    connectedDuration = org.agent567.android.ui.formatting.formatElapsedDuration(now() - connectedAtEpochMs),
                     cpu = diagnostics?.cpu,
                     ram = diagnostics?.ram,
                 ),
@@ -199,7 +199,7 @@ class RelayRemoteConversationGateway(
                 }
                 val latest = current.snapshot()
                 _devices.updateMetrics(
-                    connectedDuration = formatConnectionDuration(now() - connectedAtEpochMs),
+                    connectedDuration = org.agent567.android.ui.formatting.formatElapsedDuration(now() - connectedAtEpochMs),
                     latencyMs = latest.lastRttMs?.toIntOrNull(),
                     diagnostics = latestDiagnostics,
                 )
@@ -344,7 +344,10 @@ class RelayRemoteConversationGateway(
                     "assistant" -> ChatRole.Assistant
                     else -> return@mapNotNull null
                 }
-                val text = item.stringValue("text").orEmpty()
+                val sourceText = item.stringValue("text").orEmpty()
+                val text = if (item["truncated"]?.jsonPrimitive?.booleanOrNull == true) {
+                    sourceText + "\n\n" + Str.remoteHistoryTruncated
+                } else sourceText
                 if (text.isBlank()) return@mapNotNull null
                 RemoteDesktopHistoryMessage(
                     id = item.stringValue("id")?.takeIf(String::isNotBlank) ?: "${item.longValue("timestamp") ?: offset}",
@@ -355,8 +358,18 @@ class RelayRemoteConversationGateway(
                 )
             }
             messages += pageMessages
-            offset += rawMessages.size
-            if (rawMessages.size < HISTORY_PAGE_SIZE) break
+            val hasMore = page["hasMore"]?.jsonPrimitive?.booleanOrNull
+            if (hasMore != null) {
+                if (!hasMore) break
+                val nextOffset = page["nextOffset"]?.jsonPrimitive?.intOrNull
+                if (rawMessages.isEmpty() || nextOffset != offset + rawMessages.size || nextOffset <= offset) {
+                    throw RemoteConversationException(Str.remoteHistoryInvalidPage)
+                }
+                offset = nextOffset
+            } else {
+                offset += rawMessages.size
+                if (rawMessages.size < HISTORY_PAGE_SIZE) break
+            }
         }
         return messages
     }
@@ -509,6 +522,7 @@ class RelayRemoteConversationGateway(
             payload = buildJsonObject {
                 put("offset", offset)
                 put("limit", HISTORY_PAGE_SIZE)
+                put("boundedPages", true)
             },
             sessionId = sessionId,
             timeoutMs = if (offset == 0) REMOTE_HISTORY_PROBE_TIMEOUT_MS else REMOTE_HISTORY_PAGE_TIMEOUT_MS,
@@ -1333,6 +1347,7 @@ private fun parseModelCatalog(element: JsonElement?): RemoteSessionModelCatalog 
         currentModelId = currentModelId,
         models = models,
         lastUserMessageId = root["lastUserMessageId"]?.jsonPrimitive?.contentOrNull,
+        serviceRoute = root["serviceRoute"]?.jsonPrimitive?.contentOrNull,
     )
 }
 
@@ -1484,15 +1499,3 @@ private fun JsonElement?.toDeviceDiagnostics(): DeviceDiagnostics? {
 }
 
 private fun Long.toIntOrNull(): Int? = takeIf { it in 0..Int.MAX_VALUE.toLong() }?.toInt()
-
-private fun formatConnectionDuration(elapsedMs: Long): String {
-    val totalSeconds = (elapsedMs.coerceAtLeast(0) / 1_000).coerceAtLeast(1)
-    val hours = totalSeconds / 3_600
-    val minutes = (totalSeconds % 3_600) / 60
-    val seconds = totalSeconds % 60
-    return when {
-        hours > 0 -> "${hours}时${minutes}分"
-        minutes > 0 -> "${minutes}分${seconds}秒"
-        else -> "${seconds}秒"
-    }
-}

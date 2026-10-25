@@ -12,6 +12,7 @@ internal fun isRefreshCredentialRejected(status: Int, body: String): Boolean {
     if (status == 401) return true
     if (status !in setOf(200, 400, 403)) return false
     val root = runCatching { Agent567Json.parseToJsonElement(body) as? JsonObject }.getOrNull()
+    if ((root?.get("success") as? JsonPrimitive)?.content == "true") return false
     val code = (root?.get("code") as? JsonPrimitive)?.content?.toIntOrNull()
     if (code in UNAUTHORIZED_CODES) return true
     val message = (root?.get("message") as? JsonPrimitive)?.content ?: body

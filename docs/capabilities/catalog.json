@@ -9168,6 +9168,23 @@
                     "defaultReasoningLevel": {
                       "type": "string"
                     },
+                    "input": {
+                      "minItems": 1,
+                      "uniqueItems": true,
+                      "type": "array",
+                      "items": {
+                        "anyOf": [
+                          {
+                            "const": "text",
+                            "type": "string"
+                          },
+                          {
+                            "const": "image",
+                            "type": "string"
+                          }
+                        ]
+                      }
+                    },
                     "contextWindow": {
                       "type": "number"
                     },
@@ -9380,6 +9397,23 @@
                         },
                         "defaultReasoningLevel": {
                           "type": "string"
+                        },
+                        "input": {
+                          "minItems": 1,
+                          "uniqueItems": true,
+                          "type": "array",
+                          "items": {
+                            "anyOf": [
+                              {
+                                "const": "text",
+                                "type": "string"
+                              },
+                              {
+                                "const": "image",
+                                "type": "string"
+                              }
+                            ]
+                          }
                         },
                         "contextWindow": {
                           "type": "number"

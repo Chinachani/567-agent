@@ -11,11 +11,12 @@ export async function readInnoLog(logPath) {
 	);
 }
 
-export async function runInnoInstaller({ installerPath, args, logPath, timeoutMs = 300_000 }) {
+export async function runInnoInstaller({ installerPath, args, logPath, timeoutMs = 300_000, environment }) {
 	return new Promise((resolve, reject) => {
 		const child = spawn(installerPath, [...args, `/LOG=${logPath}`], {
 			stdio: "ignore",
 			windowsHide: true,
+			...(environment ? { env: environment } : {}),
 		});
 		let timedOut = false;
 		const timer = setTimeout(() => {

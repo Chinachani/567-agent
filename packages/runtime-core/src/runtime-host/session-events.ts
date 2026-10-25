@@ -153,6 +153,7 @@ export function mapRuntimeSessionObservationEvent(
 		case "compaction.start":
 			return {
 				...base,
+				...(context?.turnId ? { turnId: context.turnId } : {}),
 				type: event.type,
 				reason: event.reason,
 				contextTokens: event.contextTokens,
@@ -162,6 +163,7 @@ export function mapRuntimeSessionObservationEvent(
 		case "compaction.end":
 			return {
 				...base,
+				...(context?.turnId ? { turnId: context.turnId } : {}),
 				type: event.type,
 				success: event.success,
 				reason: event.reason,

@@ -1,0 +1,368 @@
+import assert from "node:assert/strict";
+import { spawn } from "node:child_process";
+import { once } from "node:events";
+import { mkdir, mkdtemp, rm, symlink, writeFile } from "node:fs/promises";
+import { createRequire } from "node:module";
+import { tmpdir } from "node:os";
+import { dirname, join, resolve } from "node:path";
+import { fileURLToPath } from "node:url";
+import tailwindcss from "@tailwindcss/vite";
+import { build } from "vite";
+
+const desktop = resolve(dirname(fileURLToPath(import.meta.url)), "..");
+const root = await mkdtemp(join(tmpdir(), "agent567-workspace-layout-"));
+const artifacts = process.env.AGENT567_LAYOUT_ARTIFACT_DIR;
+let display;
+try {
+	if (artifacts) await mkdir(artifacts, { recursive: true });
+	await symlink(join(desktop, "node_modules"), join(root, "node_modules"), "dir");
+	await writeFile(join(root, "index.html"), '<div id="root"></div><script type="module" src="/entry.jsx"></script>');
+	await writeFile(
+		join(root, "entry.jsx"),
+		`localStorage.setItem("vetta-hero-ornament","none");await import(${JSON.stringify(join(desktop, "scripts/fixtures/workspace-redesign.jsx"))});`,
+	);
+	await writeFile(
+		join(root, "fixture.css"),
+		`@import ${JSON.stringify(join(desktop, "src/renderer/styles.css"))};\n@source ${JSON.stringify(join(desktop, "src/renderer"))};\n@source ${JSON.stringify(join(desktop, "scripts/fixtures/workspace-redesign.jsx"))};`,
+	);
+	await build({
+		configFile: false,
+		root,
+		base: "./",
+		publicDir: join(desktop, "src/renderer/public"),
+		logLevel: "warn",
+		esbuild: { jsx: "automatic" },
+		resolve: {
+			alias: {
+				"@": join(desktop, "src"),
+				"@shared": join(desktop, "src/renderer/shared"),
+				"@preload": join(desktop, "src/preload"),
+				"@domains": join(desktop, "src/renderer/domains"),
+				"@cloud": join(desktop, "src/renderer/cloud"),
+			},
+		},
+		plugins: [
+			tailwindcss(),
+			{
+				name: "isolated-workspace-host",
+				enforce: "pre",
+				resolveId(source, importer) {
+					if (source === "./fixture.css" && importer?.endsWith("workspace-redesign.jsx"))
+						return join(root, "fixture.css");
+					if (source === "@tanstack/react-router") return "\0fixture-router";
+					if (importer?.endsWith("/api567/index.ts") && source === "./hooks/useApi567") return "\0fixture-account";
+				},
+				load(id) {
+					if (id === "\0fixture-router")
+						return "export const useNavigate=()=>value=>window.workspaceEvents.push('navigate:'+JSON.stringify(value));export const useLocation=()=>({pathname:'/'});export const useSearch=()=>({});";
+					if (id === "\0fixture-account")
+						return `export const useApi567=()=>({status:{isLoggedIn:true,username:"夜雨寄北",loginUsername:"Yeyu",quotaUsd:62.53},availableGroups:{},groupsLoadState:{loading:false,error:false,loaded:true},loadAvailableGroups:async()=>{}});`;
+				},
+			},
+		],
+		build: { outDir: join(root, "out"), target: "esnext" },
+	});
+	const runner = join(root, "runner.cjs");
+	await writeFile(runner, "(" + runProbe.toString() + ")(" + JSON.stringify({ root, artifacts }) + ");");
+	display = spawn(
+		process.env.AGENT567_TEST_XVFB ?? "Xvfb",
+		["-displayfd", "1", "-screen", "0", "1600x1000x24", "-nolisten", "tcp"],
+		{ stdio: ["ignore", "pipe", "pipe"] },
+	);
+	const [number] = await Promise.race([
+		once(display.stdout, "data"),
+		once(display, "error").then(([error]) => {
+			throw error;
+		}),
+	]);
+	const env = { ...process.env, DISPLAY: ":" + number.toString().trim() };
+	delete env.ELECTRON_RUN_AS_NODE;
+	const child = spawn(
+		process.env.AGENT567_TEST_ELECTRON ?? createRequire(import.meta.url)("electron"),
+		["--no-sandbox", runner],
+		{ env, stdio: ["ignore", "pipe", "pipe"], timeout: 150000 },
+	);
+	let output = "";
+	child.stdout.on("data", (chunk) => {
+		output += chunk;
+	});
+	child.stderr.on("data", (chunk) => {
+		output += chunk;
+	});
+	const [code, signal] = await once(child, "exit");
+	assert.equal(code, 0, `Workspace layout exited ${code}/${signal}: ${output}`);
+	if (artifacts) await writeFile(join(artifacts, "workspace-probe-output.log"), output);
+	const match = output.match(/WORKSPACE_LAYOUT_RESULT (\{[^\n]+\})/);
+	assert.ok(match, output);
+	const result = JSON.parse(match[1]);
+	assert.equal(result.rows.length, 54);
+	for (const row of result.rows) {
+		assert.ok(row.title, JSON.stringify(row));
+		assert.ok(row.controls > 0, JSON.stringify(row));
+		assert.ok(row.overflow <= 1, JSON.stringify(row));
+		assert.deepEqual(row.clipped, [], JSON.stringify(row));
+		assert.deepEqual(row.missingHit, [], JSON.stringify(row));
+	}
+	for (const event of [
+		"model:fixture/code-model",
+		"tool-toggle",
+		"file",
+		"image",
+		"send",
+		"template:brief",
+		"new-task",
+		"new-project",
+		"new-kb",
+	])
+		assert.ok(result.events.includes(event), JSON.stringify(result.events));
+	assert.deepEqual(result.errors, []);
+	if (artifacts) await writeFile(join(artifacts, "workspace-layout.json"), JSON.stringify(result, null, 2));
+	console.log("WORKSPACE_LAYOUT_PASSED", JSON.stringify({ scenarios: result.rows.length, events: result.events }));
+} finally {
+	if (display?.pid && display.exitCode === null && display.signalCode === null) {
+		const closed = once(display, "exit");
+		display.kill();
+		await closed;
+	}
+	await rm(root, { recursive: true, force: true });
+}
+
+// Serialized into an isolated Electron process. No user profile or network access.
+function runProbe({ root, artifacts }) {
+	const { app, BrowserWindow, session } = require("electron"),
+		fs = require("node:fs/promises"),
+		path = require("node:path");
+	app.setPath("userData", path.join(root, "profile"));
+	app
+		.whenReady()
+		.then(async () => {
+			session.defaultSession.webRequest.onBeforeRequest({ urls: ["http://*/*", "https://*/*"] }, (_details, callback) =>
+				callback({ cancel: true }),
+			);
+			const win = new BrowserWindow({
+				show: false,
+				width: 1100,
+				height: 780,
+				webPreferences: { sandbox: true, backgroundThrottling: false },
+			});
+			const errors = [];
+			win.webContents.on("console-message", (_event, level, message) => {
+				if (level >= 3) errors.push(message);
+			});
+			const call = async (fn, arg) => {
+				let timer;
+				try {
+					const result = await Promise.race([
+						win.webContents.executeJavaScript(
+							"Promise.resolve().then(()=>(" +
+								fn.toString() +
+								")(" +
+								JSON.stringify(arg ?? null) +
+								")).catch(error=>({__error:String(error.stack)}))",
+						),
+						new Promise((_, reject) => {
+							timer = setTimeout(() => reject(Error("UI operation timed out: " + fn.toString().slice(0, 180))), 5000);
+						}),
+					]);
+					if (result?.__error) throw Error(result.__error);
+					return result;
+				} finally {
+					clearTimeout(timer);
+				}
+			};
+			await win.loadFile(path.join(root, "out/index.html"));
+			await call(
+				() =>
+					new Promise((resolve, reject) => {
+						const check = () => (window.renderWorkspace ? resolve() : requestAnimationFrame(check));
+						check();
+						setTimeout(() => reject(Error("Fixture did not initialize")), 10000);
+					}),
+			);
+			const render = async (state) =>
+				call(async (state) => {
+					window.renderWorkspace(state);
+					await new Promise((resolve) => {
+						const check = () =>
+							document.querySelector('[data-workspace-page="' + state.page + '"]')
+								? resolve()
+								: requestAnimationFrame(check);
+						check();
+					});
+					await new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(r)));
+					await Promise.all(
+						document
+							.getAnimations()
+							.filter((a) => Number.isFinite(a.effect.getComputedTiming().endTime))
+							.map((a) => a.finished.catch(() => {})),
+					);
+				}, state);
+			const rows = [];
+			const started = Date.now();
+			for (const mode of ["dark", "light"])
+				for (const width of [380, 800, 1100])
+					for (const page of [
+						"home",
+						"chat",
+						"automation",
+						"automationReady",
+						"batch",
+						"settings",
+						"abilities",
+						"skills",
+						"knowledge",
+					]) {
+						win.setContentSize(width, 780);
+						await call((mode) => window.applyWorkspaceTheme(mode), mode);
+						await render({ page, shell: width === 1100 });
+						const row = await call((page) => {
+							const body = document.querySelector('[data-workspace-page="' + page + '"]'),
+								bounds = body.getBoundingClientRect();
+							const controls = [...body.querySelectorAll('button,input,select,[role="textbox"]')].filter((el) => {
+								const r = el.getBoundingClientRect();
+								return r.width && r.height && r.bottom > 0 && r.top < innerHeight;
+							});
+							const label = (el) => el.textContent || el.getAttribute("aria-label") || el.title;
+							const clipped = controls
+								.filter((el) => {
+									const r = el.getBoundingClientRect();
+									return r.left < bounds.left - 1 || r.right > bounds.right + 1;
+								})
+								.map(label);
+							const missingHit = controls
+								.filter((el) => {
+									const r = el.getBoundingClientRect();
+									if (r.top < 0 || r.bottom > innerHeight || el.disabled) return false;
+									const target = document.elementFromPoint(r.x + r.width / 2, r.y + r.height / 2);
+									return el !== target && !el.contains(target);
+								})
+								.map(label);
+                            const abilityCards = page === "abilities" ? [...body.querySelectorAll('button[aria-label^="查看 "]')].map(button => {
+                                const card = button.parentElement, r = card.getBoundingClientRect();
+                                const visible = r.top >= 0 && r.bottom <= innerHeight;
+                                const target = visible ? document.elementFromPoint(r.left + 6, r.bottom - 6) : button;
+                                const add = card.querySelector('button[aria-label="添加"]');
+                                const a = add?.getBoundingClientRect();
+                                return { height: r.height, contentFits: card.scrollHeight <= card.clientHeight + 1, paddingOpensDetails: target === button || button.contains(target), addClickable: !add || add.contains(document.elementFromPoint(a.x + a.width/2, a.y + a.height/2)) };
+                            }) : [];
+                            if (abilityCards.some(card => card.height !== 144 || !card.contentFits || !card.paddingOpensDetails || !card.addClickable)) throw Error("Ability card layout or hit area failed: " + JSON.stringify(abilityCards));
+							return {
+								overflow: body.scrollWidth - body.clientWidth,
+								clipped,
+								missingHit,
+								title: body.querySelector("h1")?.textContent,
+								controls: controls.length,
+                                abilityCards,
+							};
+						}, page);
+						rows.push({ mode, width, page, ...row });
+						if (artifacts)
+							await fs.writeFile(
+								path.join(artifacts, page + "-" + mode + "-" + width + ".png"),
+								(await win.capturePage()).toPNG(),
+							);
+					}
+			win.setContentSize(800, 780);
+			await win.loadFile(path.join(root, "out/index.html"));
+			await call(
+				() =>
+					new Promise((resolve) => {
+						const check = () => (window.renderWorkspace ? resolve() : requestAnimationFrame(check));
+						check();
+					}),
+			);
+			console.log("WORKSPACE_ACTIONS_START elapsedMs=" + (Date.now() - started));
+			await render({ page: "home" });
+			await call(async () => {
+				const trigger = document.querySelector('button[title="Gemini Flash"]');
+				trigger.focus();
+				trigger.dispatchEvent(new KeyboardEvent("keydown", { key: "Enter", bubbles: true }));
+				await new Promise((resolve) => {
+					const check = () =>
+						document.querySelector('[data-model-key="fixture/code-model"]') ? resolve() : requestAnimationFrame(check);
+					check();
+				});
+				document.querySelector('[data-model-key="fixture/code-model"]').click();
+			});
+			await call(() => document.querySelector('[role="textbox"]').focus());
+			await win.webContents.insertText("为项目整理一份实施计划");
+			await call(() => new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(r))));
+			await call(() => {
+				document.querySelector('button[title="添加文件"]').click();
+				document.querySelector('button[title="添加图片"]').click();
+				document.querySelector('button[title="发送消息"]').click();
+			});
+			console.log("WORKSPACE_CHAT_ACTION");
+			await render({ page: "chat" });
+			console.log("WORKSPACE_CHAT_RENDERED");
+			await call(() => {
+				const button = [...document.querySelectorAll("button")].find((b) => b.textContent.includes("src/project.ts"));
+				button.click();
+			});
+			console.log("WORKSPACE_CHAT_CLICKED");
+			await call(async () => {
+				await new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(r)));
+				if (!document.querySelector('button[aria-expanded="true"]')) throw Error("Tool details did not expand");
+			});
+			await render({ page: "abilities" });
+			const abilityPoints = await call(async () => {
+				const button = document.querySelector('button[aria-label="查看 代码审阅 详情"]');
+				button.scrollIntoView({ block: "center" });
+				await new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve)));
+				const card = button.parentElement;
+				const r = card.getBoundingClientRect(), a = card.querySelector('button[aria-label="添加"]').getBoundingClientRect();
+				return { details: { x: Math.round(r.left + 6), y: Math.round(r.bottom - 6) }, add: { x: Math.round(a.left + a.width / 2), y: Math.round(a.top + a.height / 2) }, before: window.workspaceEvents.length };
+			});
+			const click = (point) => {
+				win.webContents.sendInputEvent({ type: "mouseDown", button: "left", clickCount: 1, ...point });
+				win.webContents.sendInputEvent({ type: "mouseUp", button: "left", clickCount: 1, ...point });
+			};
+			click(abilityPoints.add);
+			await call(async (before) => {
+				await new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve)));
+				const events = window.workspaceEvents.slice(before);
+				if (JSON.stringify(events) !== JSON.stringify(["ability-install:fixture:0"])) throw Error("Add also opened details: " + JSON.stringify(events));
+			}, abilityPoints.before);
+			click(abilityPoints.details);
+			await call(async (before) => {
+				await new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve)));
+				const events = window.workspaceEvents.slice(before);
+				if (events.length !== 2 || !events[1].includes('"detail":"fixture:0"')) throw Error("Card padding did not open details: " + JSON.stringify(events));
+			}, abilityPoints.before);
+			await call(() => document.querySelector('input[aria-label="搜索能力"]').focus());
+			await win.webContents.insertText("代码");
+			await call(async () => {
+				await new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(r)));
+				if (document.body.textContent.includes("浏览器自动化") || !document.body.textContent.includes("代码审阅"))
+					throw Error("Ability search did not filter the real view");
+			});
+			await render({ page: "automation" });
+			await call(() => {
+				[...document.querySelectorAll("button")].find((b) => b.textContent.includes("每日工作简报")).click();
+				[...document.querySelectorAll("button")].find((b) => b.textContent.includes("新建任务")).click();
+			});
+			await render({ page: "batch" });
+			await call(() =>
+				[...document.querySelectorAll("button")].find((b) => b.textContent.includes("创建第一个项目")).click(),
+			);
+			await render({ page: "knowledge" });
+			await call(() =>
+				[...document.querySelectorAll("button")].find((b) => b.textContent.includes("新建知识库")).click(),
+			);
+			const result = {
+				elapsedMs: Date.now() - started,
+				rows,
+				events: await call(() => window.workspaceEvents),
+				errors,
+			};
+			await new Promise((resolve) =>
+				process.stdout.write("WORKSPACE_LAYOUT_RESULT " + JSON.stringify(result) + "\n", resolve),
+			);
+			win.destroy();
+			app.exit(0);
+		})
+		.catch((error) => {
+			console.error(error);
+			app.exit(1);
+		});
+}

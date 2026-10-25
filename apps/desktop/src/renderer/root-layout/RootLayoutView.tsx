@@ -27,9 +27,7 @@ import type { RootLayoutModel } from "./types";
  */
 const RouteContent = memo(function RouteContent({ routePending }: { routePending: boolean }): JSX.Element {
 	return (
-		<PerfSendProfiler id="RouteOutlet">
-			{routePending ? <RouteContentLoadingView /> : <Outlet />}
-		</PerfSendProfiler>
+		<PerfSendProfiler id="RouteOutlet">{routePending ? <RouteContentLoadingView /> : <Outlet />}</PerfSendProfiler>
 	);
 });
 
@@ -45,16 +43,8 @@ export function RootLayoutView({ model }: RootLayoutViewProps): JSX.Element {
 	// 插件工作区视图可声明沉浸式页头：页头浮在内容之上（拖拽区/触发器照常在最上层），
 	// 内容占满全高，视图自己的门面从窗口第一像素开始，不再被 44px 页头推出一条空带。
 	const workspaceViewHeader = useActiveWorkspaceViewHeader();
-	const {
-		actions,
-		narrow,
-		onOpenSession,
-		overlayOpen,
-		routePending,
-		sidebarCollapsed,
-		sidebarWidth,
-	} = model;
-	const showSidebar = pageLayout !== "app";
+	const { actions, narrow, onOpenSession, overlayOpen, routePending, sidebarCollapsed, sidebarWidth } = model;
+	const showSidebar = pageLayout !== "app" && !model.settingsMode;
 	const ensureSidebarVisible = useCallback(() => {
 		if (narrow) actions.openOverlay();
 	}, [actions.openOverlay, narrow]);
@@ -75,14 +65,14 @@ export function RootLayoutView({ model }: RootLayoutViewProps): JSX.Element {
 		pageLayout === "content" ? (
 			<PerfSendProfiler id="PageHeader">
 				<PageHeader
-				// 顶栏左簇（展开侧边栏 / 新会话 / 标题）用统一的 4px 间距：
-				// 图标按钮自带内边距，默认 8px 会让两枚图标看起来散开。
-				classNames={{ left: "gap-1" }}
-				sidebarCollapsed={sidebarCollapsed}
-				narrow={narrow}
-				onExpandSidebar={actions.toggleSidebar}
-				onOverlayOpen={actions.openOverlay}
-				onOverlayClose={actions.scheduleOverlayClose}
+					// 顶栏左簇（展开侧边栏 / 新会话 / 标题）用统一的 4px 间距：
+					// 图标按钮自带内边距，默认 8px 会让两枚图标看起来散开。
+					classNames={{ left: "gap-1" }}
+					sidebarCollapsed={showSidebar && sidebarCollapsed}
+					narrow={showSidebar && narrow}
+					onExpandSidebar={actions.toggleSidebar}
+					onOverlayOpen={actions.openOverlay}
+					onOverlayClose={actions.scheduleOverlayClose}
 				/>
 			</PerfSendProfiler>
 		) : null;
@@ -90,57 +80,53 @@ export function RootLayoutView({ model }: RootLayoutViewProps): JSX.Element {
 	return (
 		<TooltipProvider>
 			<PerfSendProfiler id="Root(total)">
-			<AppFrame
-				className={cn("app-frame", appFrameSurface?.rootClassName)}
-				// 侧边栏形态挂到整帧根节点上，让任意深度的子树（含插件视图）只靠 CSS 就能自适应，
-				// 不必订阅状态再重渲染。始终写死 true/false，选择器才好写。
-				// 与 ctx.ui.getSidebarState() / useSidebarState() 同源，见 shared/app-shell/sidebar-state.ts。
-				data-sidebar-collapsed={sidebarCollapsed ? "true" : "false"}
-				data-sidebar-narrow={narrow ? "true" : "false"}
-				data-sidebar-visible={!narrow && !sidebarCollapsed ? "true" : "false"}
-				decoration={<ThemedAppBackground />}
-				overlay={<ThemeSurface className="z-20" slot="app.frameOverlay" />}
-			>
-				{showSidebar && (
-					<>
-						<SidebarDock
-							className="sidebar-dock"
-							visible={!narrow && !sidebarCollapsed}
-							width={sidebarWidth}
+				<AppFrame
+					className={cn("app-frame", appFrameSurface?.rootClassName)}
+					// 侧边栏形态挂到整帧根节点上，让任意深度的子树（含插件视图）只靠 CSS 就能自适应，
+					// 不必订阅状态再重渲染。始终写死 true/false，选择器才好写。
+					// 与 ctx.ui.getSidebarState() / useSidebarState() 同源，见 shared/app-shell/sidebar-state.ts。
+					data-sidebar-collapsed={sidebarCollapsed ? "true" : "false"}
+					data-sidebar-narrow={narrow ? "true" : "false"}
+					data-sidebar-visible={showSidebar && !narrow && !sidebarCollapsed ? "true" : "false"}
+					decoration={<ThemedAppBackground />}
+					overlay={<ThemeSurface className="z-20" slot="app.frameOverlay" />}
+				>
+					{showSidebar && (
+						<>
+							<SidebarDock className="sidebar-dock" visible={!narrow && !sidebarCollapsed} width={sidebarWidth}>
+								<PerfSendProfiler id="Sidebar">
+									<Sidebar onOpenSession={onOpenSession} onCollapse={actions.toggleSidebar} />
+								</PerfSendProfiler>
+							</SidebarDock>
+							<SidebarOverlay
+								visible={narrow && overlayOpen}
+								onMouseEnter={actions.openOverlay}
+								onMouseLeave={actions.scheduleOverlayClose}
+							>
+								<Sidebar onOpenSession={onOpenSession} onCollapse={actions.closeOverlay} floating />
+							</SidebarOverlay>
+							<SidebarTour onEnsureSidebarVisible={ensureSidebarVisible} />
+						</>
+					)}
+					{pageLayout === "app" ? (
+						<div className="app-main-frame relative flex min-h-0 min-w-[320px] flex-1 overflow-visible">
+							<RouteContent routePending={routePending} />
+						</div>
+					) : (
+						<MainContentFrame
+							className="app-main-frame"
+							header={pageHeader}
+							headerOverlay={workspaceViewHeader?.immersive === true}
 						>
-							<PerfSendProfiler id="Sidebar">
-								<Sidebar onOpenSession={onOpenSession} onCollapse={actions.toggleSidebar} />
-							</PerfSendProfiler>
-						</SidebarDock>
-						<SidebarOverlay
-							visible={narrow && overlayOpen}
-							onMouseEnter={actions.openOverlay}
-							onMouseLeave={actions.scheduleOverlayClose}
-						>
-							<Sidebar onOpenSession={onOpenSession} onCollapse={actions.closeOverlay} floating />
-						</SidebarOverlay>
-						<SidebarTour onEnsureSidebarVisible={ensureSidebarVisible} />
-					</>
-				)}
-				{pageLayout === "app" ? (
-					<div className="app-main-frame relative flex min-h-0 min-w-[320px] flex-1 overflow-visible">
-						<RouteContent routePending={routePending} />
-					</div>
-				) : (
-					<MainContentFrame
-						className="app-main-frame"
-						header={pageHeader}
-						headerOverlay={workspaceViewHeader?.immersive === true}
-					>
-						<RouteContent routePending={routePending} />
-					</MainContentFrame>
-				)}
-				{/* 复用 Sidebar 那条 onOpenSession：会话打开的落点逻辑只应有一处宿主实现。 */}
-				<CommandMenu onOpenSession={onOpenSession} />
-				<PerfSendProfiler id="RootGlobalOverlays">
-					<RootGlobalOverlays />
-				</PerfSendProfiler>
-			</AppFrame>
+							<RouteContent routePending={routePending} />
+						</MainContentFrame>
+					)}
+					{/* 复用 Sidebar 那条 onOpenSession：会话打开的落点逻辑只应有一处宿主实现。 */}
+					<CommandMenu onOpenSession={onOpenSession} />
+					<PerfSendProfiler id="RootGlobalOverlays">
+						<RootGlobalOverlays />
+					</PerfSendProfiler>
+				</AppFrame>
 			</PerfSendProfiler>
 		</TooltipProvider>
 	);

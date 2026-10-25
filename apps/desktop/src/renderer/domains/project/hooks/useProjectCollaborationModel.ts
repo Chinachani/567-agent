@@ -186,6 +186,18 @@ export function useProjectCollaborationModel(
 		[cwd, t],
 	);
 
+	// A mutation response owns the new snapshot and supersedes event-triggered reads.
+	// Transfer both data and loading ownership together, so a stale read cannot lock the form.
+	const commitMutationSnapshot = useCallback((updated: ProjectCollaborationSnapshot) => {
+		requestVersion.current++;
+		setLoading(false);
+		snapshotRef.current = updated;
+		draftRef.current = updated.config;
+		setSnapshot(updated);
+		setDraft(updated.config);
+		setBaseRevision(updated.config.revision);
+	}, []);
+
 	useEffect(() => {
 		let active = true;
 		setSnapshot(null);
@@ -213,15 +225,26 @@ export function useProjectCollaborationModel(
 	}, [cwd, load]);
 
 	const isDirty = Boolean(snapshot && draft && !sameConfig(draft, snapshot.config));
-	const updateDraft = useCallback((change: (current: ProjectCollaborationConfig) => ProjectCollaborationConfig) => {
-		const current = draftRef.current;
-		if (!current) return;
-		const next = change(current);
-		draftRef.current = next;
-		setDraft(next);
-		setError(null);
-		setStatusMessage(null);
-	}, []);
+	const updateDraft = useCallback(
+		(change: (current: ProjectCollaborationConfig) => ProjectCollaborationConfig) => {
+			const current = draftRef.current;
+			if (
+				!current ||
+				loading ||
+				currentCwdRef.current !== cwd ||
+				snapshotRef.current?.cwd !== cwd ||
+				operationIsCurrent(savingOperationRef.current, cwd, cwdGenerationRef.current) ||
+				operationIsCurrent(controlOperationRef.current, cwd, cwdGenerationRef.current)
+			)
+				return;
+			const next = change(current);
+			draftRef.current = next;
+			setDraft(next);
+			setError(null);
+			setStatusMessage(null);
+		},
+		[cwd, loading],
+	);
 
 	const onSave = useCallback(async () => {
 		if (
@@ -230,6 +253,7 @@ export function useProjectCollaborationModel(
 			!draft ||
 			baseRevision == null ||
 			!isDirty ||
+			operationIsCurrent(controlOperationRef.current, cwd, cwdGenerationRef.current) ||
 			operationIsCurrent(savingOperationRef.current, cwd, cwdGenerationRef.current)
 		)
 			return;
@@ -251,12 +275,7 @@ export function useProjectCollaborationModel(
 				members: draft.members,
 			});
 			if (!isCurrentOperation()) return;
-			requestVersion.current++;
-			snapshotRef.current = updated;
-			draftRef.current = updated.config;
-			setSnapshot(updated);
-			setDraft(updated.config);
-			setBaseRevision(updated.config.revision);
+			commitMutationSnapshot(updated);
 			setStatusMessage(t("collaboration.saved"));
 		} catch (cause) {
 			if (isCurrentOperation()) setError(cause instanceof Error ? cause.message : t("collaboration.saveFailed"));
@@ -266,7 +285,7 @@ export function useProjectCollaborationModel(
 				if (isCurrentOperation()) setSaving(false);
 			}
 		}
-	}, [baseRevision, cwd, draft, isDirty, snapshot, t]);
+	}, [baseRevision, commitMutationSnapshot, cwd, draft, isDirty, snapshot, t]);
 
 	const onControl = useCallback(
 		async (action: "pause" | "resume" | "stop", taskId?: string) => {
@@ -275,6 +294,7 @@ export function useProjectCollaborationModel(
 				snapshot.cwd !== cwd ||
 				operationIsCurrent(controlOperationRef.current, cwd, cwdGenerationRef.current) ||
 				saving ||
+				operationIsCurrent(savingOperationRef.current, cwd, cwdGenerationRef.current) ||
 				isDirty
 			)
 				return;
@@ -294,12 +314,7 @@ export function useProjectCollaborationModel(
 					...(taskId ? { taskId } : {}),
 				});
 				if (!isCurrentOperation()) return;
-				requestVersion.current++;
-				snapshotRef.current = updated;
-				draftRef.current = updated.config;
-				setSnapshot(updated);
-				setDraft(updated.config);
-				setBaseRevision(updated.config.revision);
+				commitMutationSnapshot(updated);
 			} catch (cause) {
 				if (isCurrentOperation())
 					setError(cause instanceof Error ? cause.message : t("collaboration.controlFailed"));
@@ -313,7 +328,7 @@ export function useProjectCollaborationModel(
 				}
 			}
 		},
-		[cwd, isDirty, saving, snapshot, t],
+		[commitMutationSnapshot, cwd, isDirty, saving, snapshot, t],
 	);
 
 	const onContinueTask = useCallback(
@@ -323,6 +338,7 @@ export function useProjectCollaborationModel(
 				snapshot.cwd !== cwd ||
 				operationIsCurrent(controlOperationRef.current, cwd, cwdGenerationRef.current) ||
 				saving ||
+				operationIsCurrent(savingOperationRef.current, cwd, cwdGenerationRef.current) ||
 				isDirty
 			)
 				return;
@@ -339,12 +355,7 @@ export function useProjectCollaborationModel(
 			try {
 				const updated = await window.agent567.project.controlCollaboration(cwd, { action: "continue", taskId });
 				if (!isCurrentOperation()) return;
-				requestVersion.current++;
-				snapshotRef.current = updated;
-				draftRef.current = updated.config;
-				setSnapshot(updated);
-				setDraft(updated.config);
-				setBaseRevision(updated.config.revision);
+				commitMutationSnapshot(updated);
 			} catch (cause) {
 				if (isCurrentOperation())
 					setError(cause instanceof Error ? cause.message : t("collaboration.controlFailed"));
@@ -358,7 +369,7 @@ export function useProjectCollaborationModel(
 				}
 			}
 		},
-		[cwd, isDirty, saving, snapshot, t],
+		[commitMutationSnapshot, cwd, isDirty, saving, snapshot, t],
 	);
 
 	const labels = useMemo(() => createLabels(t), [t]);

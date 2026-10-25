@@ -31,7 +31,7 @@ data class ModelsCatalog(
         providers.values.flatMap { it.models }
 
     fun goModels(): List<LlmModel> =
-        providers["vetta-go"]?.models.orEmpty()
+        (providers["agent567-go"] ?: providers["vetta-go"])?.models.orEmpty()
 }
 
 data class ProviderModels(

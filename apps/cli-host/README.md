@@ -35,3 +35,5 @@ session files remain readable through the explicit pre-open import boundary, but
 ## Who Depends On It
 
 - shell users and packaging targets that want a dedicated CLI package
+
+Desktop 嵌入 `runAgentRuntimeCli` 时可通过可选的 `streamFn` 注入宿主模型传输。该函数经 Runtime 组合口用于 RPC、IM 和 print 的模型调用；默认 CLI 继续使用内置流式传输，宿主负责其专用请求鉴权。

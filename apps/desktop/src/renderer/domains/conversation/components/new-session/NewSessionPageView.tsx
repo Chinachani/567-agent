@@ -5,12 +5,7 @@ import { cn } from "@shared/lib/utils";
 import { useThemeComponent } from "@vetta-org/theme-sdk";
 import type { NewSessionHeroIdentity } from "@vetta-org/theme-ui";
 import { NewSessionPageLayoutView } from "@vetta-org/theme-ui/chat";
-import {
-	PANEL_REVEAL_DURATION,
-	PANEL_REVEAL_EASE,
-	PANEL_REVEAL_TRANSITION,
-} from "../command-panel/constants";
-import { NewSessionBackground } from "./NewSessionBackground";
+import { PANEL_REVEAL_DURATION, PANEL_REVEAL_EASE, PANEL_REVEAL_TRANSITION } from "../command-panel/constants";
 import { NewSessionHero } from "./NewSessionHero";
 import { NewSessionContextBlock } from "./NewSessionContextBlock";
 import type { NewSessionContextBlockModel } from "./useNewSessionContextBlock";
@@ -26,7 +21,6 @@ import { createActivityWorkspace } from "@shared/workspace/activity-workspace";
 import { TeamComposerConnector } from "../../connectors/team/TeamComposerConnector";
 import type { TeamChatActions, TeamChatViewModel } from "../../connectors/team/teamChatModel";
 import { isTeamTarget, type NewSessionTargetKey } from "./target";
-
 
 /** 命令区展开时输入栏下移的距离：面板向上生长，下方留白同步收掉。 */
 const PANEL_SHIFT_Y = 120;
@@ -87,10 +81,7 @@ export function NewSessionPageView({
 	subtitle,
 }: NewSessionPageViewProps): JSX.Element {
 	const activeRuntimeIds = useActiveSessionRuntimeIds();
-	const ThemedNewSessionBackground = useThemeComponent(
-		"chat.newSessionBackground",
-		EmptyNewSessionBackground,
-	);
+	const ThemedNewSessionBackground = useThemeComponent("chat.newSessionBackground", EmptyNewSessionBackground);
 	const { t } = useTranslation("chat");
 	const preparingLabel = t("newSession.projectSelector.preparing");
 	const reduceMotion = useReducedMotion();
@@ -111,7 +102,7 @@ export function NewSessionPageView({
 		<div className="flex h-full min-w-0 flex-1">
 			<NewSessionPageLayoutView
 				isShort={isShort}
-				background={<NewSessionBackground />}
+				background={null}
 				themedBackground={<ThemedNewSessionBackground />}
 				dropZone={(children) => (
 					<div
@@ -181,7 +172,7 @@ export function NewSessionPageView({
 								<div
 									role="status"
 									aria-busy="true"
-									className="mx-auto flex h-[136px] w-full max-w-2xl items-center justify-center rounded-xl border border-border bg-card/80 px-4 text-sm text-muted-foreground shadow-sm"
+									className="mx-auto flex h-[136px] w-full max-w-2xl items-center justify-center rounded-xl border border-border bg-card/80 px-4 text-sm text-muted-foreground"
 								>
 									{t("newSession.agentSelector.loading")}
 								</div>
@@ -216,18 +207,18 @@ export function NewSessionPageView({
 				landing={
 					/* 没有贡献上屏时连槽位都不给：空着也占一份下边距，输入栏会跟着挪一下。 */
 					contextBlock.contexts.length === 0 ? undefined : (
-					/* 插件上下文区走布局的落地槽：它跟着内容长高，留在输入栏那一格里会把
+						/* 插件上下文区走布局的落地槽：它跟着内容长高，留在输入栏那一格里会把
 					   输入框整体往上顶。窄屏下的项目选择器仍在输入栏那格，所以它天然排在
 					   「选项目」之后，不会把这一步挤到内容底下。
 					   命令区展开时整块让位：那是打断式交互。 */
-					<div className="px-2 sm:px-4">
-						{/* 宽度由当前选中的那个贡献决定，交给上下文区自己算：这一层看不到选中态。 */}
-						<NewSessionContextBlock
-							contexts={contextBlock.contexts}
-							renderContext={contextBlock.renderContext}
-							hidden={commandPanelExpanded}
-						/>
-					</div>
+						<div className="px-2 sm:px-4">
+							{/* 宽度由当前选中的那个贡献决定，交给上下文区自己算：这一层看不到选中态。 */}
+							<NewSessionContextBlock
+								contexts={contextBlock.contexts}
+								renderContext={contextBlock.renderContext}
+								hidden={commandPanelExpanded}
+							/>
+						</div>
 					)
 				}
 			/>

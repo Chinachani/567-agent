@@ -72,10 +72,10 @@ class SettingsTokenStore(
     }
 
     companion object {
-        const val KEY_ACCESS = "vetta.access_token"
-        const val KEY_REFRESH = "vetta.refresh_token"
-        private const val KEY_PREF_AUTH_TOKEN = "vetta.prefs.auth_token"
-        private const val KEY_PREF_AUTH_REFRESH = "vetta.prefs.auth_refresh_token"
+        const val KEY_ACCESS = "agent567.access_token"
+        const val KEY_REFRESH = "agent567.refresh_token"
+        private const val KEY_PREF_AUTH_TOKEN = "agent567.prefs.auth_token"
+        private const val KEY_PREF_AUTH_REFRESH = "agent567.prefs.auth_refresh_token"
     }
 }
 

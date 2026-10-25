@@ -122,12 +122,12 @@ func runHostWithIO(opts hostOptions) int {
 	stateStore.Replace(stateFromFrames(initFrame.State))
 
 	// Mirror desktop-app's resolveSessionDirForCwd convention: the IM
-	// conversation cwd stores its sessions under <cwd>/.vetta/sessions/
+	// conversation cwd stores new sessions under <cwd>/.567agent/sessions/
 	// instead of the global ~/.567agent/agent/sessions/<encoded-cwd>/. desktop-
 	// app's Claw tab reads from this same directory to render IM sessions
 	// read-only.
 	hclocalOpts := hclocal.Options{
-		SessionDir: filepath.Join(initFrame.ConversationCwd, ".vetta", "sessions"),
+		SessionDir: filepath.Join(initFrame.ConversationCwd, ".567agent", "sessions"),
 		// Always enable the host-bridge channel in embedded mode: it's how
 		// im-gateway-driven sessions deliver IM attachments via
 		// im_send_attachment / host_request. Other agents (desktop, TUI,

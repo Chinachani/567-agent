@@ -7,25 +7,22 @@ import { MotionSelect, SettingHeading, SettingRow, SettingSection } from "@vetta
 import type { AgentSettingsModel } from "./useAgentSettingsModel";
 import { RuntimeConfigurationSections } from "./RuntimeConfigurationSections";
 import type { RuntimeConfigurationModel } from "./useRuntimeConfigurationModel";
-import { ImageGenerationSettingsSection } from "./ImageGenerationSettingsSection";
-import type { ImageGenerationSettingsModel } from "./useImageGenerationSettingsModel";
 
 export interface AgentSettingsViewProps {
 	model: AgentSettingsModel;
-	imageGeneration: ImageGenerationSettingsModel;
 	runtimeConfiguration: RuntimeConfigurationModel;
 }
 
-export function AgentSettingsView({ model, imageGeneration, runtimeConfiguration }: AgentSettingsViewProps): JSX.Element {
+export function AgentSettingsView({ model, runtimeConfiguration }: AgentSettingsViewProps): JSX.Element {
 	const personaOptions = useMemo(
 		() => model.personas.map((persona) => ({ value: persona.id, label: persona.label })),
 		[model.personas],
 	);
 
 	return (
-		<div className="mx-auto w-full max-w-[680px] px-8 pt-2 pb-4">
+		<div className="mx-auto w-full max-w-[800px] px-5 pt-6 sm:px-8 pb-4">
 			<div className="mb-6 flex flex-wrap items-center justify-between gap-3">
-				<h1 className="text-[20px] font-bold text-foreground">{model.labels.title}</h1>
+				<h1 className="text-[24px] font-semibold tracking-tight text-foreground">{model.labels.title}</h1>
 				<SettingsAiAssist tabId="agent" />
 			</div>
 
@@ -87,20 +84,12 @@ export function AgentSettingsView({ model, imageGeneration, runtimeConfiguration
 				</div>
 			</div>
 
-			<ImageGenerationSettingsSection model={imageGeneration} />
-
 			<div>
 				<SettingSection title={model.labels.sections.experimental} section={SETTINGS_SECTION["agent-experimental"]}>
-					<SettingRow
-						title={model.labels.appOp}
-						description={model.labels.appOpDescription}
-					>
+					<SettingRow title={model.labels.appOp} description={model.labels.appOpDescription}>
 						<Switch checked={model.vettaCliEnabled} onCheckedChange={model.actions.toggleVettaCli} />
 					</SettingRow>
-					<SettingRow
-						title={model.labels.inputPrediction}
-						description={model.labels.inputPredictionDescription}
-					>
+					<SettingRow title={model.labels.inputPrediction} description={model.labels.inputPredictionDescription}>
 						<Switch
 							checked={model.promptPredictionEnabled}
 							onCheckedChange={model.actions.togglePromptPrediction}
@@ -116,7 +105,29 @@ export function AgentSettingsView({ model, imageGeneration, runtimeConfiguration
 				</SettingSection>
 			</div>
 
-			<RuntimeConfigurationSections model={runtimeConfiguration} />
+			{runtimeConfiguration.sections.length > 0 && (
+				<details
+					className="group mt-6 rounded-xl border border-border"
+					open={model.advancedOpen}
+					onToggle={(event) => model.actions.setAdvancedOpen(event.currentTarget.open)}
+				>
+					<summary className="flex cursor-pointer list-none items-center gap-3 rounded-xl p-4 outline-none focus-visible:ring-1 focus-visible:ring-ring [&::-webkit-details-marker]:hidden">
+						<span className="min-w-0 flex-1">
+							<span className="block text-[13px] font-medium text-foreground">{model.labels.advancedTitle}</span>
+							<span className="mt-1 block text-[12px] leading-relaxed text-muted-foreground">
+								{model.labels.advancedDescription}
+							</span>
+						</span>
+						<span
+							aria-hidden="true"
+							className="icon-[solar--alt-arrow-down-linear] h-4 w-4 shrink-0 text-muted-foreground group-open:rotate-180"
+						/>
+					</summary>
+					<div className="px-2 pb-2">
+						<RuntimeConfigurationSections model={runtimeConfiguration} />
+					</div>
+				</details>
+			)}
 		</div>
 	);
 }

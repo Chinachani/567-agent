@@ -1,6 +1,7 @@
 package org.agent567.android.core.chat
 
 import org.agent567.android.core.api.ChatCompletionChunkDto
+import org.agent567.android.core.api.ChatUsageDto
 import org.agent567.android.core.api.toDomain
 import org.agent567.android.core.error.Agent567Exception
 import org.agent567.android.core.model.ChatStreamEvent
@@ -74,7 +75,7 @@ object OpenAiSseParser {
             )
         }
 
-        return null
+        return chunk.usage?.let { ChatStreamEvent.State(value = "usage", usage = it.toDomain()) }
     }
 
     /**
@@ -86,6 +87,9 @@ object OpenAiSseParser {
         if (!trimmed.startsWith("{")) return emptyList()
         return try {
             val root = Agent567Json.parseToJsonElement(trimmed) as? kotlinx.serialization.json.JsonObject ?: return emptyList()
+            val usageEvents = root["usage"]?.let { value ->
+                runCatching { Agent567Json.decodeFromJsonElement(ChatUsageDto.serializer(), value).toDomain() }.getOrNull()
+            }?.let { listOf(ChatStreamEvent.State(value = "usage", usage = it)) }.orEmpty()
             val choices = root["choices"] as? kotlinx.serialization.json.JsonArray
             val firstChoice = choices?.firstOrNull() as? kotlinx.serialization.json.JsonObject
             val message = firstChoice?.get("message") as? kotlinx.serialization.json.JsonObject
@@ -127,7 +131,7 @@ object OpenAiSseParser {
                         phaseLabel = "正在构思画面...",
                     )
                 }
-                return calls + ChatStreamEvent.Done
+                return calls + usageEvents + ChatStreamEvent.Done
             }
 
             val content = when (val c = message?.get("content") ?: delta?.get("content")) {
@@ -153,7 +157,7 @@ object OpenAiSseParser {
             }
 
             if (textToEmit.isNotEmpty()) {
-                listOf(ChatStreamEvent.Delta(textToEmit), ChatStreamEvent.Done)
+                listOf(ChatStreamEvent.Delta(textToEmit)) + usageEvents + ChatStreamEvent.Done
             } else {
                 emptyList()
             }
@@ -213,10 +217,11 @@ class OpenAiSseStreamParser {
         val output = mutableListOf<ChatStreamEvent>()
         if (toolCalls.isEmpty()) {
             val event = OpenAiSseParser.parseLine(line)
-            if (event != null && event !is ChatStreamEvent.Finished) {
+            if (event != null && event !is ChatStreamEvent.Finished && !(event is ChatStreamEvent.State && event.value == "usage")) {
                 output += event
             }
         }
+        chunk.usage?.let { output += ChatStreamEvent.State(value = "usage", usage = it.toDomain()) }
         if (choice?.finishReason != null) {
             val tools = flushTools()
             output += tools

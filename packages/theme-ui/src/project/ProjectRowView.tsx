@@ -10,6 +10,7 @@ export interface ProjectRowViewProps {
 	hasRunning: boolean;
 	isActive: boolean;
 	newSessionTitle: string;
+	contextMenuTitle?: string;
 	onCollapse: () => void;
 	onExpand: () => void;
 	onInteract?: () => void;
@@ -29,6 +30,7 @@ export function ProjectRowView({
 	hasRunning,
 	isActive,
 	newSessionTitle,
+	contextMenuTitle,
 	onCollapse,
 	onExpand,
 	onInteract,
@@ -66,7 +68,8 @@ export function ProjectRowView({
 				<span
 					className={cn(
 						expanded ? "icon-[solar--alt-arrow-down-linear]" : PROJECT_TYPE_ICONS[projectType],
-						"h-4 w-4 text-foreground",
+						"h-4 w-4",
+						isActive ? "text-foreground" : "text-muted-foreground",
 					)}
 				/>
 				{hasRunning && <RunningPulseDot />}
@@ -88,6 +91,20 @@ export function ProjectRowView({
 				{displayName}
 			</button>
 			<div className="relative flex shrink-0 items-center gap-1">
+				{contextMenuTitle && (
+					<button
+						type="button"
+						title={contextMenuTitle}
+						aria-label={contextMenuTitle}
+						className="flex h-6 w-6 items-center justify-center rounded-md text-muted-foreground hover:bg-accent hover:text-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
+						onClick={(event) => {
+							event.stopPropagation();
+							onOpenContextMenu(event);
+						}}
+					>
+						<span aria-hidden="true" className="icon-[solar--menu-dots-linear] h-3.5 w-3.5" />
+					</button>
+				)}
 				{trailingAction}
 				{badge && (
 					<span className="rounded-sm bg-accent px-1 py-px text-[10px] text-muted-foreground group-hover:hidden">

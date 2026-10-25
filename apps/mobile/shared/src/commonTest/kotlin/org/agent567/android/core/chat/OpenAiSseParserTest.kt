@@ -33,6 +33,24 @@ class OpenAiSseParserTest {
     }
 
     @Test
+    fun usageOnlyTailFrameIsPreservedWithoutCompletingAgain() {
+        val parser = OpenAiSseStreamParser()
+        assertEquals(1, parser.parseLine("""data: {"choices":[{"delta":{"content":"Answer"}}]}""").size)
+        parser.parseLine("""data: {"choices":[{"delta":{},"finish_reason":"stop"}]}""")
+        val tail = parser.parseLine("""data: {"choices":[],"usage":{"prompt_tokens":11,"completion_tokens":22,"total_tokens":33}}""")
+        assertEquals(33, tail.filterIsInstance<ChatStreamEvent.State>().single().usage?.totalTokens)
+        assertEquals(listOf(ChatStreamEvent.Done), parser.parseLine("data: [DONE]"))
+    }
+
+    @Test
+    fun contentFinishAndUsageInOneFramePreserveAllEvents() {
+        val events = OpenAiSseStreamParser().parseLine("""data: {"choices":[{"delta":{"content":"Answer"},"finish_reason":"stop"}],"usage":{"total_tokens":33}}""")
+        assertEquals("Answer", events.filterIsInstance<ChatStreamEvent.Delta>().single().text)
+        assertEquals(33, events.filterIsInstance<ChatStreamEvent.State>().single().usage?.totalTokens)
+        assertEquals("stop", events.filterIsInstance<ChatStreamEvent.Finished>().single().finishReason)
+    }
+
+    @Test
     fun ignoresCommentsAndEmpty() {
         assertNull(OpenAiSseParser.parseLine(""))
         assertNull(OpenAiSseParser.parseLine(": keep-alive"))

@@ -1,8 +1,8 @@
-import { app, Menu, nativeImage, Tray } from "electron";
+import { app, Menu, nativeImage, nativeTheme, Tray } from "electron";
 import { readConfigSync, updateDesktopConfig } from "./config/desktop-config-store.js";
 import { mainT } from "./i18n/index.js";
 import { getAppLogger } from "./logger.js";
-import { getMainWindow, iconPath, macTrayIconPath, showMainWindow } from "./window-manager.js";
+import { getMainWindow, iconPath, showMainWindow, trayIconPaths } from "./window-manager.js";
 
 const log = getAppLogger("tray");
 
@@ -53,10 +53,7 @@ function buildTrayMenu(): Electron.Menu {
 				label: mainT("tray.quitVetta"),
 				click: () => {
 					(app as typeof app & { isQuitting?: boolean }).isQuitting = true;
-					if (tray) {
-						tray.destroy();
-						tray = null;
-					}
+					destroyTray();
 					app.quit();
 				},
 			},
@@ -81,10 +78,7 @@ function buildTrayMenu(): Electron.Menu {
 			label: mainT("tray.quitVetta"),
 			click: () => {
 				(app as typeof app & { isQuitting?: boolean }).isQuitting = true;
-				if (tray) {
-					tray.destroy();
-					tray = null;
-				}
+				destroyTray();
 				app.quit();
 			},
 		},
@@ -92,14 +86,31 @@ function buildTrayMenu(): Electron.Menu {
 }
 
 function loadTrayIcon(): Electron.NativeImage {
-	if (isMac) {
-		const image = nativeImage.createFromPath(macTrayIconPath);
-		if (image.isEmpty()) return image;
-		return image.resize({ width: 22, height: 22 });
-	}
-	const icon = nativeImage.createFromPath(iconPath[process.platform]);
+	const path = isMac
+		? trayIconPaths.template
+		: nativeTheme.shouldUseDarkColors
+			? trayIconPaths.dark
+			: trayIconPaths.light;
+	let icon = nativeImage.createFromPath(path);
+	if (icon.isEmpty()) icon = nativeImage.createFromPath(iconPath[process.platform]);
 	if (icon.isEmpty()) return icon;
-	return isWindows ? icon.resize({ width: 16, height: 16 }) : icon.resize({ width: 22, height: 22 });
+	const size = isWindows ? 16 : 22;
+	icon = icon.resize({ width: size, height: size });
+	if (isMac) icon.setTemplateImage(true);
+	return icon;
+}
+
+function updateTrayIcon(): void {
+	if (!tray) return;
+	const icon = loadTrayIcon();
+	if (!icon.isEmpty()) tray.setImage(icon);
+}
+
+function destroyTray(): void {
+	nativeTheme.removeListener("updated", updateTrayIcon);
+	app.removeListener("will-quit", destroyTray);
+	tray?.destroy();
+	tray = null;
 }
 
 export function createTray(): void {
@@ -117,6 +128,8 @@ export function createTray(): void {
 	log.info("Created successfully");
 	tray.setToolTip(mainT("menu.app.title"));
 	tray.setContextMenu(buildTrayMenu());
+	nativeTheme.on("updated", updateTrayIcon);
+	app.once("will-quit", destroyTray);
 
 	// Mac 状态栏惯例：左/右键都由 setContextMenu 默认弹菜单，不另绑 click。
 	// Win/Linux：左键切换主窗口显隐，右键走上下文菜单。

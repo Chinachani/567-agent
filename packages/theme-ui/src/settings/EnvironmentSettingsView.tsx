@@ -96,11 +96,7 @@ function RuntimeCard({
 					? `${labels.ready} · ${status.managedVersion}`
 					: labels.notReady;
 	const healthy = status.ready && !status.repairRequiresRestart && !busy;
-	const stateClass = healthy
-		? "text-emerald-400"
-		: status.supported
-			? "text-amber-400"
-			: "text-muted-foreground";
+	const stateClass = healthy ? "text-emerald-400" : status.supported ? "text-amber-400" : "text-muted-foreground";
 
 	return (
 		<SettingRow
@@ -117,7 +113,9 @@ function RuntimeCard({
 								: "icon-[mdi--alert-circle-outline] h-4 w-4 text-amber-400"
 						}
 					/>
-					<span role="status" className={`text-[12px] ${stateClass}`}>{stateText}</span>
+					<span role="status" className={`text-[12px] ${stateClass}`}>
+						{stateText}
+					</span>
 				</div>
 				{status.supported && (
 					<Button
@@ -131,13 +129,19 @@ function RuntimeCard({
 						{busy ? (
 							<span className="icon-[mdi--loading] h-3.5 w-3.5 animate-spin" />
 						) : (
-							<span className={status.repairRequiresRestart
-								? "icon-[solar--restart-linear] h-3.5 w-3.5 text-muted-foreground"
-								: "icon-[mdi--download-outline] h-3.5 w-3.5 text-muted-foreground"} />
+							<span
+								className={
+									status.repairRequiresRestart
+										? "icon-[solar--restart-linear] h-3.5 w-3.5 text-muted-foreground"
+										: "icon-[mdi--download-outline] h-3.5 w-3.5 text-muted-foreground"
+								}
+							/>
 						)}
 						{status.repairRequiresRestart
 							? labels.restartAndRepair
-							: status.ready ? labels.fetchAgain : labels.fetch}
+							: status.ready
+								? labels.fetchAgain
+								: labels.fetch}
 					</Button>
 				)}
 			</div>
@@ -159,17 +163,20 @@ export function EnvironmentSettingsView({
 	status,
 }: EnvironmentSettingsViewProps): JSX.Element {
 	return (
-		<div className="mx-auto w-full max-w-[680px] px-8 pt-2 pb-4">
+		<div className="mx-auto w-full max-w-[800px] px-5 pt-6 sm:px-8 pb-4">
 			<div className="mb-6">
 				<div className="mb-1.5 flex flex-wrap items-center justify-between gap-3">
-					<h1 className="text-[20px] font-bold text-foreground">{labels.title}</h1>
+					<h1 className="text-[24px] font-semibold tracking-tight text-foreground">{labels.title}</h1>
 					{headerAction}
 				</div>
 				<p className="text-[13px] text-muted-foreground">{labels.description}</p>
 			</div>
 
 			{error && (
-				<div role="alert" className="mb-4 rounded-lg border border-destructive/40 bg-destructive/10 px-4 py-2.5 text-[12px] text-destructive">
+				<div
+					role="alert"
+					className="mb-4 rounded-lg border border-destructive/40 bg-destructive/10 px-4 py-2.5 text-[12px] text-destructive"
+				>
 					{error}
 				</div>
 			)}
@@ -177,7 +184,9 @@ export function EnvironmentSettingsView({
 			{busy && progress?.type === busy ? (
 				<div className="mb-4 rounded-lg border border-border bg-card px-4 py-3">
 					<div className="flex items-center justify-between gap-3 text-[12px] text-foreground">
-						<span>{labels.progress}: {progress.message}</span>
+						<span>
+							{labels.progress}: {progress.message}
+						</span>
 						{progress.totalBytes ? (
 							<span className="shrink-0 text-muted-foreground">
 								{Math.min(100, Math.round(((progress.downloadedBytes ?? 0) / progress.totalBytes) * 100))}%
@@ -190,11 +199,15 @@ export function EnvironmentSettingsView({
 							max={progress.totalBytes}
 							value={Math.min(progress.downloadedBytes ?? 0, progress.totalBytes)}
 						/>
-					) : <div className="mt-2 h-1.5 w-full animate-pulse rounded-full bg-muted" />}
+					) : (
+						<div className="mt-2 h-1.5 w-full animate-pulse rounded-full bg-muted" />
+					)}
 					<details className="mt-2 text-[11px] text-muted-foreground">
 						<summary className="cursor-pointer">{labels.logs}</summary>
 						<div className="mt-2 max-h-32 overflow-auto rounded bg-muted/60 p-2 font-mono">
-							{logs.map((line, index) => <div key={`${index}-${line}`}>{line}</div>)}
+							{logs.map((line, index) => (
+								<div key={`${index}-${line}`}>{line}</div>
+							))}
 						</div>
 					</details>
 				</div>

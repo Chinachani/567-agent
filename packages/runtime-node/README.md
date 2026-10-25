@@ -19,3 +19,7 @@
 命令进程使用共享的资源保护：Linux 在启动前设置可写分配上限，三平台采样进程树与宿主命令合计占用，并限制命令输出大小。失败沿现有命令错误路径传播，后台任务不会把保护停止误记为成功。[预算配置与保护范围](../../docs/desktop/tool-resource-protection.md)。
 
 `@567agent/runtime-node/host` exports `killNodeProcessTree` for hosts that own a spawned command. POSIX callers must create a detached process group before using this helper; Windows uses `taskkill /T /F`. Command cancellation and timeout settle independently of pipe closure; output and memory ownership continue until pipes close even if the root has exited. Linux DATA limits keep a 1 GiB floor for Node 24 startup while RSS sampling applies lower configured budgets.
+
+Host composition defaults to configured MCP servers only. The retired proprietary builtin service is opt-in (`includeBuiltinServers: true`) for compatibility with external hosts; 567 Agent Desktop and its SDK host keep it disabled because the deployed New API does not provide that endpoint. User-configured MCP/OAuth remains available.
+
+The default project MCP path is `.567agent/mcp.json`. A missing canonical file can read `.vetta/mcp.json` without copying it; an existing empty or invalid canonical file never restores legacy servers. Explicit custom project directories remain isolated from this compatibility lookup.

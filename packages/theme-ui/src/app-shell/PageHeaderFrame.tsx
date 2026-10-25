@@ -39,7 +39,7 @@ export function PageHeaderFrame({
 				// Same gutter as desktop SidebarTopBar / macOS traffic-light reserve.
 				paddingLeft: reserveMacTrafficLights && macChrome && triggerVisible ? 78 : 12,
 				paddingRight: reserveMacTrafficLights && macChrome ? 12 : 0,
-				marginBottom: macChrome ? 0 : 10,
+				marginBottom: macChrome ? 4 : 12,
 				...style,
 			}}
 			{...props}

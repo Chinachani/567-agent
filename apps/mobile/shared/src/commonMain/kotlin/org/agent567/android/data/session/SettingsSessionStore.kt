@@ -1,5 +1,6 @@
 package org.agent567.android.data.session
 
+import org.agent567.android.core.settings.Agent567Settings
 import com.russhwolf.settings.Settings
 import com.russhwolf.settings.set
 import kotlinx.coroutines.flow.Flow
@@ -40,11 +41,14 @@ import kotlin.random.Random
  * 会话索引与消息分 key 存储；适合移动端首期本地权威模型。
  */
 class SettingsSessionStore(
-    private val settings: Settings = Settings(),
+    settings: Settings = Settings(),
     private val storageDispatcher: kotlinx.coroutines.CoroutineDispatcher = Dispatchers.IO,
     private val imageFiles: MessageImageFileStore = org.agent567.android.domain.session.createPlatformMessageImageFileStore(),
 ) : SessionStore {
+    private val storage = Agent567Settings(settings)
+
     private val mutex = Mutex()
+    private val drafts = SettingsSessionDrafts(storage, imageFiles)
     private val _sessions = MutableStateFlow(loadSessionsSorted())
     override val sessions: StateFlow<List<ChatSession>> = _sessions.asStateFlow()
 
@@ -64,6 +68,17 @@ class SettingsSessionStore(
         withStorageLock {
             _sessions.value = loadSessionsRaw().map { it.toDomain() }
                 .sortedWith(compareByDescending<ChatSession> { it.pinned }.thenByDescending { it.updatedAtEpochMs })
+        }
+    }
+
+    override suspend fun hasDraft(sessionId: String): Boolean = withStorageLock { drafts.hasDraft(sessionId) }
+
+    override suspend fun getDraft(sessionId: String, owner: String): org.agent567.android.domain.session.SessionDraft =
+        withStorageLock { drafts.read(sessionId, owner) }
+
+    override suspend fun saveDraft(sessionId: String, owner: String, draft: org.agent567.android.domain.session.SessionDraft) {
+        withStorageLock {
+            if (_sessions.value.any { it.id == sessionId }) drafts.write(sessionId, owner, draft)
         }
     }
 
@@ -110,14 +125,15 @@ class SettingsSessionStore(
 
     override suspend fun deleteSession(id: String) {
         withStorageLock {
+            drafts.delete(id)
             val messages = loadMessages(id)
             persistSessions(loadSessionsRaw().filterNot { it.id == id })
-            settings.remove(messagesKey(id))
+            storage.remove(messagesKey(id))
             val messageIds = loadMessageIndex(id)
-            messageIds.forEach { settings.remove(messageKey(id, it)) }
+            messageIds.forEach { storage.remove(messageKey(id, it)) }
             (messages.flatMap { it.images }.mapNotNull { it.storageKey }).distinct().forEach(imageFiles::delete)
-            settings.remove(messageIndexKey(id))
-            settings.remove(streamingMessageKey(id))
+            storage.remove(messageIndexKey(id))
+            storage.remove(streamingMessageKey(id))
             messagesFlows.update { it - id }
         }
     }
@@ -130,8 +146,8 @@ class SettingsSessionStore(
             val normalized = normalizeMessageForPersistence(message)
             if (idx >= 0) current[idx] = normalized else current.add(normalized)
             val sorted = current.sortedBy { it.createdAtEpochMs }
-            settings.remove(streamingMessageKey(message.sessionId))
-            if (settings.getStringOrNull(messageIndexKey(message.sessionId)) == null) {
+            storage.remove(streamingMessageKey(message.sessionId))
+            if (storage.getStringOrNull(messageIndexKey(message.sessionId)) == null) {
                 persistMessages(message.sessionId, sorted)
             } else {
                 persistMessageRecord(normalized)
@@ -158,8 +174,8 @@ class SettingsSessionStore(
             val normalized = normalizeMessageForPersistence(message)
             if (idx >= 0) current[idx] = normalized else current.add(normalized)
             val sorted = current.sortedBy { it.createdAtEpochMs }
-            settings.remove(streamingMessageKey(message.sessionId))
-            if (settings.getStringOrNull(messageIndexKey(message.sessionId)) == null) {
+            storage.remove(streamingMessageKey(message.sessionId))
+            if (storage.getStringOrNull(messageIndexKey(message.sessionId)) == null) {
                 persistMessages(message.sessionId, sorted)
             } else {
                 persistMessageRecord(normalized)
@@ -176,7 +192,7 @@ class SettingsSessionStore(
             val sorted = messages.sortedBy { it.createdAtEpochMs }
             val persisted = persistMessages(sessionId, sorted)
             deleteUnreferencedImages(previousImages, persisted.flatMap { it.images })
-            settings.remove(streamingMessageKey(sessionId))
+            storage.remove(streamingMessageKey(sessionId))
             messageFlow(sessionId).value = persisted
         }
     }
@@ -259,7 +275,7 @@ class SettingsSessionStore(
             imported.forEach { session ->
                 val items = messagesBySession[session.id]?.items.orEmpty()
                 val persisted = persistMessages(session.id, items.map { it.toDomain() })
-                settings.remove(streamingMessageKey(session.id))
+                storage.remove(streamingMessageKey(session.id))
                 messageFlow(session.id).value = persisted
             }
             val mergedSessions = (loadSessionsRaw() + imported).sortedByDescending { it.updatedAtEpochMs }
@@ -282,14 +298,14 @@ class SettingsSessionStore(
             .sortedWith(compareByDescending<ChatSession> { it.pinned }.thenByDescending { it.updatedAtEpochMs })
 
     private fun loadSessionsRaw(): List<SessionDto> {
-        val json = settings.getStringOrNull(KEY_SESSIONS) ?: return emptyList()
+        val json = storage.getStringOrNull(KEY_SESSIONS) ?: return emptyList()
         return runCatching {
             Agent567Json.decodeFromString(SessionListDto.serializer(), json).items
         }.getOrDefault(emptyList())
     }
 
     private fun persistSessions(items: List<SessionDto>) {
-        settings[KEY_SESSIONS] =
+        storage[KEY_SESSIONS] =
             Agent567Json.encodeToString(SessionListDto.serializer(), SessionListDto(items))
         _sessions.value =
             items
@@ -299,9 +315,9 @@ class SettingsSessionStore(
 
     private fun loadMessages(sessionId: String): List<LocalMessage> {
         return runCatching {
-            val indexedMessages = settings.getStringOrNull(messageIndexKey(sessionId))?.let {
+            val indexedMessages = storage.getStringOrNull(messageIndexKey(sessionId))?.let {
                 loadMessageIndex(sessionId).mapNotNull { id ->
-                    settings.getStringOrNull(messageKey(sessionId, id))?.let { json ->
+                    storage.getStringOrNull(messageKey(sessionId, id))?.let { json ->
                         runCatching { Agent567Json.decodeFromString(MessageDto.serializer(), json).toDomain() }.getOrNull()
                     }
                 }
@@ -312,10 +328,10 @@ class SettingsSessionStore(
                 } else {
                     indexed
                 }
-            } ?: settings.getStringOrNull(messagesKey(sessionId))?.let { json ->
+            } ?: storage.getStringOrNull(messagesKey(sessionId))?.let { json ->
                 migrateLegacyMessages(sessionId, json)
             }.orEmpty()
-            val checkpoint = settings.getStringOrNull(streamingMessageKey(sessionId))?.let { checkpointJson ->
+            val checkpoint = storage.getStringOrNull(streamingMessageKey(sessionId))?.let { checkpointJson ->
                 runCatching { Agent567Json.decodeFromString(MessageDto.serializer(), checkpointJson).toDomain() }.getOrNull()
             }?.takeIf { it.status == MessageStatus.Streaming }
             val recovered = messages.toMutableList()
@@ -329,7 +345,7 @@ class SettingsSessionStore(
             }.sortedBy { it.createdAtEpochMs }
             if (reconciled != messages || checkpoint != null) {
                 persistMessages(sessionId, reconciled)
-                settings.remove(streamingMessageKey(sessionId))
+                storage.remove(streamingMessageKey(sessionId))
             }
             reconciled
         }.getOrDefault(emptyList())
@@ -338,7 +354,7 @@ class SettingsSessionStore(
     private fun persistMessages(sessionId: String, messages: List<LocalMessage>): List<LocalMessage> {
         val oldIds = loadMessageIndex(sessionId).toSet()
         val oldImageKeys = oldIds.flatMap { id ->
-            settings.getStringOrNull(messageKey(sessionId, id))?.let { json ->
+            storage.getStringOrNull(messageKey(sessionId, id))?.let { json ->
                 runCatching { Agent567Json.decodeFromString(MessageDto.serializer(), json).images.mapNotNull { it.storageKey } }
                     .getOrDefault(emptyList())
             }.orEmpty()
@@ -347,25 +363,25 @@ class SettingsSessionStore(
         persisted.forEach(::persistMessageRecord)
         val nextIds = persisted.map { it.id }
         persistMessageIndex(sessionId, nextIds)
-        (oldIds - nextIds.toSet()).forEach { settings.remove(messageKey(sessionId, it)) }
+        (oldIds - nextIds.toSet()).forEach { storage.remove(messageKey(sessionId, it)) }
         val referencedImages = persisted.flatMap { it.images }.mapNotNull { it.storageKey }.toSet()
         (oldImageKeys - referencedImages).forEach(imageFiles::delete)
-        settings.remove(messagesKey(sessionId))
+        storage.remove(messagesKey(sessionId))
         return persisted
     }
 
     private fun persistMessageRecord(message: LocalMessage) {
-        settings[messageKey(message.sessionId, message.id)] =
+        storage[messageKey(message.sessionId, message.id)] =
             Agent567Json.encodeToString(MessageDto.serializer(), message.toDto())
     }
 
     private fun persistMessageIndex(sessionId: String, ids: List<String>) {
-        settings[messageIndexKey(sessionId)] =
+        storage[messageIndexKey(sessionId)] =
             Agent567Json.encodeToString(MessageIndexDto.serializer(), MessageIndexDto(ids.distinct()))
     }
 
     private fun loadMessageIndex(sessionId: String): List<String> =
-        settings.getStringOrNull(messageIndexKey(sessionId))?.let { json ->
+        storage.getStringOrNull(messageIndexKey(sessionId))?.let { json ->
             runCatching { Agent567Json.decodeFromString(MessageIndexDto.serializer(), json).ids }.getOrDefault(emptyList())
         }.orEmpty()
 
@@ -440,11 +456,11 @@ class SettingsSessionStore(
             check(ended) { "旧聊天记录格式不完整" }
             persistMessageIndex(sessionId, migrated.map { it.id })
         } catch (error: Throwable) {
-            writtenIds.forEach { settings.remove(messageKey(sessionId, it)) }
+            writtenIds.forEach { storage.remove(messageKey(sessionId, it)) }
             imageKeys.forEach(imageFiles::delete)
             throw error
         }
-        settings.remove(messagesKey(sessionId))
+        storage.remove(messagesKey(sessionId))
         return migrated
     }
 
@@ -553,7 +569,7 @@ class SettingsSessionStore(
         )
     }
 
-    private fun messagesKey(sessionId: String) = "vetta.session.messages.$sessionId"
+    private fun messagesKey(sessionId: String) = "agent567.session.messages.$sessionId"
 
     private fun String.utf8ByteCount(): Long {
         var bytes = 0L
@@ -574,12 +590,12 @@ class SettingsSessionStore(
         return bytes
     }
 
-    private fun messageIndexKey(sessionId: String) = "vetta.session.messages.v2.$sessionId.index"
+    private fun messageIndexKey(sessionId: String) = "agent567.session.messages.v2.$sessionId.index"
 
     private fun messageKey(sessionId: String, messageId: String) =
-        "vetta.session.messages.v2.$sessionId.item.$messageId"
+        "agent567.session.messages.v2.$sessionId.item.$messageId"
 
-    private fun streamingMessageKey(sessionId: String) = "vetta.session.streaming.$sessionId"
+    private fun streamingMessageKey(sessionId: String) = "agent567.session.streaming.$sessionId"
 
     private suspend fun <T> withStorageLock(block: () -> T): T =
         withContext(storageDispatcher) {
@@ -593,7 +609,7 @@ class SettingsSessionStore(
     }
 
     companion object {
-        private const val KEY_SESSIONS = "vetta.session.index"
+        private const val KEY_SESSIONS = "agent567.session.index"
         private const val MAX_STORED_ASSISTANT_CHARS = 1_000_000
         private const val MAX_STORED_TOOL_FIELD_CHARS = 8 * 1024
         private const val MAX_STORED_TOOL_EVENTS = 80

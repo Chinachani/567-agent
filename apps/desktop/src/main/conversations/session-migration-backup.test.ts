@@ -1,4 +1,5 @@
 import { createCipheriv, pbkdf2Sync } from "node:crypto";
+import { readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
 import {
 	decryptSessionMigrationArchive,
@@ -7,6 +8,20 @@ import {
 } from "./session-migration-backup.js";
 
 describe("session migration backup", () => {
+	it("decrypts real Node and Android production-crypto fixtures with a Unicode passphrase", () => {
+		const fixture = JSON.parse(
+			readFileSync(new URL("../../../../../test-fixtures/session-migration/v1.json", import.meta.url), "utf8"),
+		);
+		for (const { base64 } of fixture.archives) {
+			const bytes = Buffer.from(base64, "base64");
+			expect(decryptSessionMigrationArchive(bytes, fixture.passphrase).toString("utf8")).toBe(fixture.plaintext);
+			expect(() => decryptSessionMigrationArchive(bytes, "incorrect-password")).toThrow(/password/i);
+			const damaged = Buffer.from(bytes);
+			damaged[damaged.length - 1] ^= 1;
+			expect(() => decryptSessionMigrationArchive(damaged, fixture.passphrase)).toThrow(/damaged/i);
+		}
+	});
+
 	it("decrypts a backup written with the Android PBKDF2 and AES-GCM envelope", () => {
 		const passphrase = "test-password-567";
 		const plaintext = Buffer.from(

@@ -1,8 +1,26 @@
 import { definePlugin } from "@vetta-org/plugin-sdk";
-import { CanvasPanel } from "./CanvasPanel";
-import { CanvasWorkspaceLauncher } from "./CanvasWorkspaceLauncher";
+import { lazy, Suspense } from "react";
 import { setPluginContext } from "./pluginContext";
 import "./style.css";
+
+const LazyCanvasPanel = lazy(async () => ({ default: (await import("./CanvasPanel")).CanvasPanel }));
+const LazyLauncher = lazy(async () => ({
+	default: (await import("./CanvasWorkspaceLauncher")).CanvasWorkspaceLauncher,
+}));
+function CanvasPanel() {
+	return (
+		<Suspense fallback={null}>
+			<LazyCanvasPanel />
+		</Suspense>
+	);
+}
+function CanvasWorkspaceLauncher() {
+	return (
+		<Suspense fallback={null}>
+			<LazyLauncher />
+		</Suspense>
+	);
+}
 
 const TAB_ID = "canvas";
 const WORKSPACE_VIEW_ID = "canvas";

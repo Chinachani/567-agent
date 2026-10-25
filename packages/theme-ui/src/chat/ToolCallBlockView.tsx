@@ -10,8 +10,8 @@ import {
 import { CollapsePanel } from "../shared/CollapsePanel";
 
 const ROW_BUTTON =
-	"inline-flex max-w-full min-w-0 items-center gap-1.5 rounded-lg px-1.5 py-1 text-left transition-colors";
-const GUTTER = "ml-4 min-w-0 border-l border-border/50 pl-3 pt-1 pb-2";
+	"inline-flex max-w-full min-w-0 items-center gap-2 rounded-md px-2 py-1.5 text-left outline-none transition-colors focus-visible:ring-1 focus-visible:ring-inset focus-visible:ring-ring";
+const GUTTER = "ml-4 min-w-0 border-l border-border/70 pl-4 pt-2 pb-3";
 
 interface ToolCallContextValue {
 	readonly canExpand: boolean;
@@ -47,13 +47,7 @@ function createPrimitive(displayName: string, baseClassName: string) {
 		forwardedRef,
 	) {
 		const Comp = asChild ? Slot.Root : "div";
-		return (
-			<Comp
-				ref={forwardedRef}
-				className={`${baseClassName}${className ? ` ${className}` : ""}`}
-				{...props}
-			/>
-		);
+		return <Comp ref={forwardedRef} className={`${baseClassName}${className ? ` ${className}` : ""}`} {...props} />;
 	});
 	Primitive.displayName = displayName;
 	return Primitive;
@@ -69,13 +63,7 @@ function createTextPrimitive(displayName: string, baseClassName: string) {
 		forwardedRef,
 	) {
 		const Comp = asChild ? Slot.Root : "span";
-		return (
-			<Comp
-				ref={forwardedRef}
-				className={`${baseClassName}${className ? ` ${className}` : ""}`}
-				{...props}
-			/>
-		);
+		return <Comp ref={forwardedRef} className={`${baseClassName}${className ? ` ${className}` : ""}`} {...props} />;
 	});
 	Primitive.displayName = displayName;
 	return Primitive;
@@ -88,28 +76,29 @@ export interface ToolCallTriggerProps extends ButtonHTMLAttributes<HTMLButtonEle
 	readonly asChild?: boolean;
 }
 
-export const ToolCallTrigger = forwardRef<HTMLButtonElement, ToolCallTriggerProps>(
-	function ToolCallTrigger({ asChild = false, className, onClick, type, ...props }, forwardedRef) {
-		const { canExpand, expanded, onToggle, panelId } = useToolCallContext("ToolCall.Trigger");
-		const Comp = asChild ? Slot.Root : "button";
-		return (
-			<Comp
-				ref={forwardedRef}
-				type={asChild ? undefined : (type ?? "button")}
-				onClick={(event) => {
-					onClick?.(event);
-					if (!event.defaultPrevented && canExpand) onToggle();
-				}}
-				data-export-toggle={canExpand ? panelId : undefined}
-				aria-expanded={expanded}
-				className={`${ROW_BUTTON} ${
-					canExpand ? "cursor-pointer hover:bg-muted/60" : "cursor-default"
-				}${className ? ` ${className}` : ""}`}
-				{...props}
-			/>
-		);
-	},
-);
+export const ToolCallTrigger = forwardRef<HTMLButtonElement, ToolCallTriggerProps>(function ToolCallTrigger(
+	{ asChild = false, className, onClick, type, ...props },
+	forwardedRef,
+) {
+	const { canExpand, expanded, onToggle, panelId } = useToolCallContext("ToolCall.Trigger");
+	const Comp = asChild ? Slot.Root : "button";
+	return (
+		<Comp
+			ref={forwardedRef}
+			type={asChild ? undefined : (type ?? "button")}
+			onClick={(event) => {
+				onClick?.(event);
+				if (!event.defaultPrevented && canExpand) onToggle();
+			}}
+			data-export-toggle={canExpand ? panelId : undefined}
+			aria-expanded={expanded}
+			className={`${ROW_BUTTON} ${
+				canExpand ? "cursor-pointer hover:bg-muted/60" : "cursor-default"
+			}${className ? ` ${className}` : ""}`}
+			{...props}
+		/>
+	);
+});
 
 export function ToolCallStatusIcon({
 	icon,
@@ -121,7 +110,7 @@ export function ToolCallStatusIcon({
 	readonly pending: boolean;
 }): JSX.Element {
 	return pending ? (
-		<span className="icon-[solar--refresh-linear] h-3.5 w-3.5 shrink-0 animate-spin text-muted-foreground/50" />
+		<span className="icon-[solar--refresh-linear] h-3.5 w-3.5 shrink-0 animate-spin text-muted-foreground" />
 	) : (
 		<span className={`${icon} h-3.5 w-3.5 shrink-0 ${iconColorClass}`} />
 	);
@@ -129,15 +118,15 @@ export function ToolCallStatusIcon({
 
 export const ToolCallServer = createTextPrimitive(
 	"ToolCall.Server",
-	"shrink-0 rounded bg-muted px-1 py-0.5 text-[10px] font-medium text-muted-foreground/50",
+	"shrink-0 rounded bg-muted px-1 py-0.5 text-[10px] font-medium text-muted-foreground",
 );
 export const ToolCallName = createTextPrimitive(
 	"ToolCall.Name",
-	"shrink-0 text-[12px] font-medium text-foreground/80",
+	"shrink-0 font-mono text-[12px] font-medium text-foreground",
 );
 export const ToolCallDetail = createTextPrimitive(
 	"ToolCall.Detail",
-	"min-w-0 truncate text-[12px] text-muted-foreground/70",
+	"min-w-0 truncate text-[12px] text-muted-foreground",
 );
 export const ToolCallPhase = createTextPrimitive(
 	"ToolCall.Phase",
@@ -145,7 +134,7 @@ export const ToolCallPhase = createTextPrimitive(
 );
 export const ToolCallBadge = createTextPrimitive(
 	"ToolCall.Badge",
-	"shrink-0 text-[11px] tabular-nums text-muted-foreground/50",
+	"shrink-0 font-mono text-[11px] tabular-nums text-muted-foreground",
 );
 
 export function ToolCallChevron(): JSX.Element | null {

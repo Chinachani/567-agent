@@ -2,11 +2,7 @@ import { ContextWorkspace } from "../ContextWorkspace";
 import { PerfSendProfiler } from "@shared/lib/perf-send";
 import { useThemeComponent } from "@vetta-org/theme-sdk";
 import { useThemeSurface } from "@vetta-org/theme-sdk/appearance";
-import {
-	MessageInput,
-	InputBarContextMenuView,
-	InputBarPlaceholder,
-} from "@vetta-org/theme-ui/chat";
+import { MessageInput, InputBarContextMenuView, InputBarPlaceholder } from "@vetta-org/theme-ui/chat";
 import { useDelayedUnmount } from "@vetta-org/theme-ui/shared";
 import { AnimatePresence, motion } from "motion/react";
 import { createPortal } from "react-dom";
@@ -48,22 +44,14 @@ export function InputBarView({ model, className, classNames }: InputBarViewProps
 	const slashOpen = commands?.slashOpen ?? false;
 	const slashVisible = commands?.slashVisible ?? false;
 	const surface = useThemeSurface("chat.inputBar");
-	const ThemedInputBarBackground = useThemeComponent(
-		"chat.inputBarBackground",
-		InputBarBackground,
-	);
-	const ThemedInputBarPlaceholder = useThemeComponent(
-		"chat.inputBarPlaceholder",
-		InputBarPlaceholder,
-	);
+	const ThemedInputBarBackground = useThemeComponent("chat.inputBarBackground", InputBarBackground);
+	const ThemedInputBarPlaceholder = useThemeComponent("chat.inputBarPlaceholder", InputBarPlaceholder);
 	// 附件胶囊区折叠动画播完（200ms）后再卸载内容，动画本身是纯 CSS grid 过渡。
 	const renderCapsules = useDelayedUnmount(model.hasCapsules, 220);
 
 	return (
 		<div
-			className={["relative px-2 pb-3 pt-1 sm:px-4 sm:pb-4", className, classNames?.root]
-				.filter(Boolean)
-				.join(" ")}
+			className={["relative px-2 pb-3 pt-1 sm:px-4 sm:pb-4", className, classNames?.root].filter(Boolean).join(" ")}
 		>
 			<AnimatePresence>
 				{model.pendingMcpElicitation ? (
@@ -113,19 +101,23 @@ export function InputBarView({ model, className, classNames }: InputBarViewProps
 					.join(" ")}
 				aria-hidden={hasPendingInteraction ? true : undefined}
 			>
-				{commands ? <PerfSendProfiler id="ib:AtPanel">
-					<AtPanel
-						open={commands.atOpen}
-						onClose={commands.onAtClose}
-						onSelect={commands.onAtSelect}
-						filter={commands.atFilter}
-						cwd={model.effectiveCwd}
-						items={commands.atItems}
-					/>
-				</PerfSendProfiler> : null}
-				{commands ? <PerfSendProfiler id="ib:ActionButtonBar">
-					<ActionButtonBar />
-				</PerfSendProfiler> : null}
+				{commands ? (
+					<PerfSendProfiler id="ib:AtPanel">
+						<AtPanel
+							open={commands.atOpen}
+							onClose={commands.onAtClose}
+							onSelect={commands.onAtSelect}
+							filter={commands.atFilter}
+							cwd={model.effectiveCwd}
+							items={commands.atItems}
+						/>
+					</PerfSendProfiler>
+				) : null}
+				{commands ? (
+					<PerfSendProfiler id="ib:ActionButtonBar">
+						<ActionButtonBar />
+					</PerfSendProfiler>
+				) : null}
 				<InputBarDrawer
 					items={model.drawerItems}
 					activeTabId={model.drawerActiveTab}
@@ -133,10 +125,7 @@ export function InputBarView({ model, className, classNames }: InputBarViewProps
 					permissionLabels={model.labels.permission}
 				/>
 
-				<MessageInput.Root
-					focused={model.isFocused}
-					topConnected={slashVisible}
-				>
+				<MessageInput.Root focused={model.isFocused} topConnected={slashVisible}>
 					<MessageInput.Surface
 						asChild
 						className={[surface?.rootClassName, classNames?.card].filter(Boolean).join(" ")}
@@ -150,18 +139,50 @@ export function InputBarView({ model, className, classNames }: InputBarViewProps
 						>
 							<ThemedInputBarBackground />
 							<MessageInput.Content className={classNames?.cardContent}>
-								{commands ? <PerfSendProfiler id="ib:CommandPanel">
-									<CommandPanel
-										open={commands.slashOpen}
-										onClose={commands.onSlashClose}
-										onSelect={commands.onSlashSelect}
-										onSelectConnector={commands.onConnectorSelect}
-										filter={commands.slashFilter}
-										cwd={model.effectiveCwd || undefined}
-										className={model.isFocused ? "border-primary/20" : undefined}
-										allowCompaction={commands.allowCompaction}
-									/>
-								</PerfSendProfiler> : null}
+								<div
+									data-message-input-part="context-toolbar"
+									className="flex min-w-0 flex-wrap items-center justify-between gap-x-3 gap-y-1 border-b border-border/50 px-3 py-2"
+								>
+									<div className="flex min-w-0 items-center">
+										<InputBarModelAction
+											visible={!slashOpen}
+											updateActiveSession={model.modelSelector.updateActiveSession}
+											scope={model.modelSelector.scope}
+										/>
+									</div>
+									<div className="ml-auto flex min-w-0 items-center gap-1">
+										{model.trailingTools.map((tool) =>
+											tool.kind === "workbench" ? (
+												<ContextWorkspace
+													key={tool.kind}
+													sessionId={tool.sessionId}
+													sessionKey={tool.sessionKey}
+												/>
+											) : (
+												<InputBarContextAction
+													key={tool.kind}
+													visible={!slashOpen}
+													model={tool.model}
+													render={tool.render}
+												/>
+											),
+										)}
+									</div>
+								</div>
+								{commands ? (
+									<PerfSendProfiler id="ib:CommandPanel">
+										<CommandPanel
+											open={commands.slashOpen}
+											onClose={commands.onSlashClose}
+											onSelect={commands.onSlashSelect}
+											onSelectConnector={commands.onConnectorSelect}
+											filter={commands.slashFilter}
+											cwd={model.effectiveCwd || undefined}
+											className={model.isFocused ? "border-primary/20" : undefined}
+											allowCompaction={commands.allowCompaction}
+										/>
+									</PerfSendProfiler>
+								) : null}
 
 								{/*
 								 * 顶部附件区只剩「不是一个词」的东西：重编辑提示、Appshot 复合卡片、
@@ -183,11 +204,7 @@ export function InputBarView({ model, className, classNames }: InputBarViewProps
 									onRemoveImage={model.actions.removeImage}
 								/>
 
-								<div
-									className={["px-4 pb-1 pt-3", classNames?.editorWrap]
-										.filter(Boolean)
-										.join(" ")}
-								>
+								<div className={["px-4 pb-1 pt-3", classNames?.editorWrap].filter(Boolean).join(" ")}>
 									<div
 										className="relative"
 										onKeyDownCapture={(event) => {
@@ -200,8 +217,8 @@ export function InputBarView({ model, className, classNames }: InputBarViewProps
 												ariaLabel={model.placeholderTexts[0]}
 												editable={model.hasSession}
 												namespace={model.editor.namespace}
-											value={model.editor.value}
-											segments={model.editor.segments}
+												value={model.editor.value}
+												segments={model.editor.segments}
 												history={model.editor.history}
 												onValueChange={model.editor.onValueChange}
 												persistenceId={model.editor.persistenceId}
@@ -226,12 +243,14 @@ export function InputBarView({ model, className, classNames }: InputBarViewProps
 											 * 标记给命令区的 click-outside 判定用：否则 mousedown 先收起、
 											 * 随后的 click 又打开，按钮无法关闭面板。
 											 */}
-											{commands ? <InputBarSkillsAction
-												active={commands.slashOpen}
-												disabled={!model.hasSession}
-												title={model.labels.toolbar.skills}
-												onSelect={commands.onOpen}
-											/> : null}
+											{commands ? (
+												<InputBarSkillsAction
+													active={commands.slashOpen}
+													disabled={!model.hasSession}
+													title={model.labels.toolbar.skills}
+													onSelect={commands.onOpen}
+												/>
+											) : null}
 											{model.routing ? (
 												<InputBarMention
 													model={model.routing}
@@ -249,9 +268,13 @@ export function InputBarView({ model, className, classNames }: InputBarViewProps
 												onSelectFiles={() => void model.actions.handleSelectFiles()}
 												onSelectImages={() => void model.actions.handleSelectImages()}
 											/>
-							{model.leadingTools.map((tool) => (
-								<InputBarExecutionModeAction key={tool.kind} visible={!slashOpen} model={tool.model} />
-							))}
+											{model.leadingTools.map((tool) => (
+												<InputBarExecutionModeAction
+													key={tool.kind}
+													visible={!slashOpen}
+													model={tool.model}
+												/>
+											))}
 											<InputBarActiveActions
 												items={model.activeActions}
 												removeHint={model.labels.capsule.removeDefault}
@@ -259,13 +282,7 @@ export function InputBarView({ model, className, classNames }: InputBarViewProps
 											/>
 										</MessageInput.ToolbarLeading>
 										<MessageInput.ToolbarTrailing>
-											<InputBarModelAction visible={!slashOpen} updateActiveSession={model.modelSelector.updateActiveSession} scope={model.modelSelector.scope} />
-							{model.trailingTools.map((tool) => (
-								tool.kind === "workbench" ? <ContextWorkspace key={tool.kind} sessionId={tool.sessionId} sessionKey={tool.sessionKey} /> : <InputBarContextAction key={tool.kind} visible={!slashOpen} model={tool.model} render={tool.render} />
-							))}
-											{slashOpen ? null : (
-												<InputBarSpeechAction input={model.speechInput} />
-											)}
+											{slashOpen ? null : <InputBarSpeechAction input={model.speechInput} />}
 											<InputBarSendAction
 												canSend={model.canSend}
 												canQueue={model.sendBehavior === "queueable"}
@@ -301,20 +318,14 @@ export function InputBarView({ model, className, classNames }: InputBarViewProps
 							/>
 						) : null}
 					</InputBarFooter.Item>
+					<InputBarFooter.Item>{model.todo ? <InputBarTodoStatus todo={model.todo} /> : null}</InputBarFooter.Item>
 					<InputBarFooter.Item>
-						{model.todo ? <InputBarTodoStatus todo={model.todo} /> : null}
-					</InputBarFooter.Item>
-					<InputBarFooter.Item>
-						{model.speechInput?.statusText ? (
-							<InputBarSpeechStatus text={model.speechInput.statusText} />
-						) : null}
+						{model.speechInput?.statusText ? <InputBarSpeechStatus text={model.speechInput.statusText} /> : null}
 					</InputBarFooter.Item>
 				</InputBarFooter.Root>
 			</div>
 
-			{model.contextMenu
-				? createPortal(<InputBarContextMenuView {...model.contextMenu} />, document.body)
-				: null}
+			{model.contextMenu ? createPortal(<InputBarContextMenuView {...model.contextMenu} />, document.body) : null}
 		</div>
 	);
 }

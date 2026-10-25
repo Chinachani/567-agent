@@ -6,22 +6,26 @@ import {
 	AuthStorage,
 	type CodingAgentAuthRuntime,
 	type CodingAgentModelRuntime,
-	createCodingAgentModelRuntime,
 	SettingsRuntime,
 } from "@567agent/coding-agent/host-services";
 import {
 	NodeScopedTextStorage,
 	NodeTransactionalTextStorage,
 	nodeConfigurationValueResolver,
-	nodeSyncTextFileSource,
 } from "@567agent/runtime-node/host";
 import { DEFAULT_SERVER_URL } from "../constants.js";
+import { createDesktopModelRuntime } from "../models/desktop-model-runtime.js";
 import { getDesktopModelCredentialStore, type ModelCredentialStore } from "../models/model-credential-store.js";
-import { normalizeModelsConfig, readModelsConfigSync } from "../models/model-settings-service.js";
+import { readModelsConfigSync } from "../models/model-settings-service.js";
 
 let sharedModelRuntime: CodingAgentModelRuntime | undefined;
 let sharedModelAuth: CodingAgentAuthRuntime | undefined;
 let syncedCredentialProviderIds = new Set<string>();
+
+/** Refresh future turn bindings without touching any already-bound turn. */
+export function refreshSharedModelRouting(): void {
+	sharedModelRuntime?.refresh();
+}
 
 export function getOrCreateSharedModelRuntime(): CodingAgentModelRuntime {
 	if (sharedModelRuntime) return sharedModelRuntime;
@@ -31,14 +35,7 @@ export function getOrCreateSharedModelRuntime(): CodingAgentModelRuntime {
 	});
 	sharedModelAuth = authStorage;
 	syncSharedModelRuntimeCredentials(getDesktopModelCredentialStore(), readModelsConfigSync().providers);
-	const runtime = createCodingAgentModelRuntime(authStorage, {
-		modelsJsonPath: join(agentDir, "models.json"),
-		configFileSource: {
-			exists: (path) => nodeSyncTextFileSource.exists(path),
-			read: (path) => JSON.stringify(normalizeModelsConfig(JSON.parse(nodeSyncTextFileSource.read(path)))),
-		},
-		configurationValueResolver: nodeConfigurationValueResolver,
-	});
+	const runtime = createDesktopModelRuntime(authStorage, join(agentDir, "models.json"));
 	runtime.setServerUrl(DEFAULT_SERVER_URL);
 	runtime.setServerToken(readServerTokenFromDisk());
 	runtime.setServerTokenGetter(readServerTokenFromDisk);

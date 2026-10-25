@@ -70,7 +70,8 @@ class SettingsSessionStoreTest {
 
             settings["vetta.session.index"] =
                 """{"items":[{"id":"legacy","title":"Legacy","createdAtEpochMs":1,"updatedAtEpochMs":2}]}"""
-            val legacy = SettingsSessionStore(settings).getSession("legacy")
+            val legacySettings = MapSettings().apply { putString("vetta.session.index", settings.getString("vetta.session.index", "")) }
+            val legacy = SettingsSessionStore(legacySettings).getSession("legacy")
             assertEquals(ConversationOrigin.Cloud, legacy?.origin)
             assertEquals(null, legacy?.remoteDeviceId)
         }
@@ -225,7 +226,7 @@ class SettingsSessionStoreTest {
                 ),
             )
 
-            val record = settings.getStringOrNull("vetta.session.messages.v2.${session.id}.item.message-with-image").orEmpty()
+            val record = settings.getStringOrNull("agent567.session.messages.v2.${session.id}.item.message-with-image").orEmpty()
             assertFalse(record.contains(Base64.encode(bytes)))
             val restoredStore = SettingsSessionStore(settings, imageFiles = imageFiles)
             val restoredImage = restoredStore.getMessages(session.id).single().images.single()
@@ -242,7 +243,7 @@ class SettingsSessionStoreTest {
             val imageFiles = InMemoryMessageImageFileStore()
             val session = SettingsSessionStore(settings, imageFiles = imageFiles).createSession()
             val oldKey = "vetta.session.messages.${session.id}"
-            settings.remove("vetta.session.messages.v2.${session.id}.index")
+            settings.remove("agent567.session.messages.v2.${session.id}.index")
             val bytes = "legacy image".encodeToByteArray()
             settings[oldKey] =
                 """{"items":[{"id":"legacy-message","sessionId":"${session.id}","role":"user","content":"old","status":"Complete","createdAtEpochMs":1,"images":[{"id":"legacy-image","mimeType":"image/png","base64Data":"${Base64.encode(bytes)}"}]}]}"""
@@ -254,6 +255,33 @@ class SettingsSessionStoreTest {
             assertEquals(null, settings.getStringOrNull(oldKey))
             assertTrue(imageFiles.readBytes(migrated.images.single().storageKey!!)?.contentEquals(bytes) == true)
         }
+
+    @Test
+    fun draftsSurviveStoreRecreationStayAccountScopedAndNeverDeleteSentImages() = runBlocking {
+        val settings = MapSettings()
+        val files = InMemoryMessageImageFileStore()
+        val store = SettingsSessionStore(settings, imageFiles = files)
+        val session = store.createSession()
+        val image = org.agent567.android.domain.session.MessageImage("draft-image", "image/png", pendingBytes = byteArrayOf(1, 2, 3))
+        val attachment = org.agent567.android.domain.session.PendingFileAttachment("draft-file", "notes.txt", "text/plain", byteArrayOf(4, 5), "first page")
+        store.saveDraft(session.id, "account-a", org.agent567.android.domain.session.SessionDraft("unsent", listOf(image), listOf(attachment)))
+        val reopened = SettingsSessionStore(settings, imageFiles = files)
+        val restored = reopened.getDraft(session.id, "account-a")
+        assertEquals("unsent", restored.text)
+        assertTrue(restored.images.single().pendingBytes!!.contentEquals(byteArrayOf(1, 2, 3)))
+        assertTrue(restored.files.single().bytes.contentEquals(byteArrayOf(4, 5)))
+        assertEquals("first page", restored.files.single().readScope)
+        assertEquals("", reopened.getDraft(session.id, "account-b").text)
+        val sentImages = reopened.persistMessageImages(restored.images)
+        reopened.upsertMessage(LocalMessage("sent", session.id, ChatRole.User, restored.text, MessageStatus.Complete, 1, images = sentImages))
+        reopened.saveDraft(session.id, "account-a", org.agent567.android.domain.session.SessionDraft())
+        assertEquals("", SettingsSessionStore(settings, imageFiles = files).getDraft(session.id, "account-a").text)
+        assertTrue(reopened.readMessageImageBytes(reopened.getMessages(session.id).single().images.single())!!.contentEquals(byteArrayOf(1, 2, 3)))
+        reopened.saveDraft(session.id, "account-b", org.agent567.android.domain.session.SessionDraft("other"))
+        reopened.deleteSession(session.id)
+        reopened.saveDraft(session.id, "account-b", org.agent567.android.domain.session.SessionDraft("late write"))
+        assertEquals("", reopened.getDraft(session.id, "account-b").text)
+    }
 
     private class InMemoryMessageImageFileStore : MessageImageFileStore {
         private val files = mutableMapOf<String, ByteArray>()

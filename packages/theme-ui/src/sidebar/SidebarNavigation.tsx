@@ -77,7 +77,7 @@ export function SidebarNavigation({
 	const drag = useSidebarNavDrag(onNavMove ?? noop, itemsByRegion);
 
 	return (
-		<nav className={cn("relative flex flex-col gap-0.5 px-1.5 pb-2 pt-2", className)}>
+		<nav className={cn("relative flex flex-col gap-1 px-2 pb-3 pt-3", className)}>
 			{indicatorBounds && (
 				// 纵向用测量出的 top/height 直接落位（无补间）；横向不吃测量值，靠 inset-x
 				// 跟着 <nav> 内容宽度走——拖宽侧边栏时宽度是实时写进 DOM 的，不会重渲染，
@@ -85,7 +85,7 @@ export function SidebarNavigation({
 				<span
 					data-sidebar-nav-indicator=""
 					className={cn(
-						"pointer-events-none absolute inset-x-1.5 top-0 z-10 overflow-visible rounded-md bg-accent",
+						"pointer-events-none absolute inset-x-2 top-0 z-10 overflow-visible rounded-lg bg-accent/80 ring-1 ring-inset ring-border/60",
 						classNames?.indicator,
 					)}
 					style={{
@@ -113,7 +113,10 @@ export function SidebarNavigation({
 							: {})}
 					>
 						{customizable && drag.isDropBefore(item.key, "pinned") && (
-							<span aria-hidden className="pointer-events-none absolute inset-x-1 -top-px z-30 h-px bg-primary" />
+							<span
+								aria-hidden
+								className="pointer-events-none absolute inset-x-1 -top-px z-30 h-px bg-primary"
+							/>
 						)}
 						<ThemeNavItemButton
 							className={cn("w-full", classNames?.item)}
@@ -139,8 +142,10 @@ export function SidebarNavigation({
 							type="button"
 							title={triggerLabel}
 							className={cn(
-								"no-drag relative z-20 flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-[13px] transition-colors",
-								moreActive || moreOpen ? "font-semibold text-foreground" : "text-foreground hover:bg-accent/50",
+								"no-drag relative z-20 flex w-full items-center gap-2.5 rounded-lg px-2.5 py-2 text-[13px] transition-colors",
+								moreActive || moreOpen
+									? "font-semibold text-foreground"
+									: "text-muted-foreground hover:bg-accent/50 hover:text-foreground",
 								classNames?.item,
 							)}
 						>
@@ -202,17 +207,17 @@ export function SidebarNavigation({
 									key={item.key}
 									type="button"
 									title={item.title ?? item.label}
-										onClick={() => {
-											onItemClick(item);
-											onMoreOpenChange?.(false);
-										}}
-										onFocus={() => onItemIntent?.(item)}
-										onMouseEnter={() => onItemIntent?.(item)}
+									onClick={() => {
+										onItemClick(item);
+										onMoreOpenChange?.(false);
+									}}
+									onFocus={() => onItemIntent?.(item)}
+									onMouseEnter={() => onItemIntent?.(item)}
 									className={cn(
 										"flex w-full items-center gap-2 rounded-md px-2.5 py-1.5 text-[13px]",
 										item.active
 											? "bg-accent font-semibold text-foreground"
-											: "text-foreground hover:bg-accent/50",
+											: "text-muted-foreground hover:bg-accent/50 hover:text-foreground",
 									)}
 								>
 									<SidebarNavIcon icon={item.icon} iconUrl={item.iconUrl} />

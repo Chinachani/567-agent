@@ -12,7 +12,10 @@ import type {
 	ModelProviderDetail,
 	ModelProviderUpsertData,
 } from "@vetta-org/capability-sdk";
+import { stripApi567DynamicHeaders } from "../../shared/api567/request-headers.js";
 import { contextCapacity, type ModelContextSource, resolveModelContext } from "../../shared/model-context.js";
+import { getBuiltinApi567Route } from "../../shared/service-routes.js";
+import { getApi567RouteStore } from "../567api/service-route-store.js";
 import type { ModelCredentialStore } from "./model-credential-store.js";
 
 export interface ModelsConfig {
@@ -68,13 +71,30 @@ const MODELS_CONFIG_PATH = join(getAgent567HomePath(), "agent", "models.json");
 const DEFAULT_MODELS_CONFIG: ModelsConfig = { providers: {} };
 export const MASKED_MODEL_API_KEY = "***";
 
-export function normalizeModelsConfig(config: ModelsConfig): ModelsConfig {
+export function normalizeModelsConfig(
+	config: ModelsConfig,
+	selectedOrigin?: string,
+	trustedOrigins?: readonly string[],
+): ModelsConfig {
 	const next = { ...config } as ModelsConfig & {
 		peripheralModel?: unknown;
 		peripheralModelReasoningLevel?: unknown;
 	};
 	delete next.peripheralModel;
 	delete next.peripheralModelReasoningLevel;
+	const trusted =
+		trustedOrigins ??
+		(Object.keys(next.providers).some((id) => id === "567api" || id.startsWith("567api_"))
+			? getApi567RouteStore().trustedOrigins
+			: []);
+	const origin =
+		selectedOrigin ??
+		(Object.entries(next.providers).some(
+			([id, provider]) =>
+				(id === "567api" || id.startsWith("567api_")) && getBuiltinApi567Route(provider.baseUrl, trusted),
+		)
+			? getApi567RouteStore().origin
+			: undefined);
 	// Older managed catalogs used family-name guesses. Keep their runtime budget
 	// during upgrade, but do not present it as a verified model limit.
 	next.providers = Object.fromEntries(
@@ -85,6 +105,10 @@ export function normalizeModelsConfig(config: ModelsConfig): ModelsConfig {
 				id,
 				{
 					...provider,
+					...(managed ? { headers: stripApi567DynamicHeaders(provider.headers) } : {}),
+					...((id === "567api" || id.startsWith("567api_")) && getBuiltinApi567Route(provider.baseUrl, trusted)
+						? { baseUrl: `${origin}/v1` }
+						: {}),
 					models: provider.models?.map((model) => {
 						const normalized = managed
 							? { ...model, contextWindowSource: model.contextWindowSource ?? ("unknown" as const) }

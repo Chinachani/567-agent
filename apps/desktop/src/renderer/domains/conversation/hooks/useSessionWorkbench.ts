@@ -8,6 +8,29 @@ export function useSessionWorkbench(sessionId: string | null, open: boolean) {
 	const [error, setError] = useState(false);
 	const [reviewing, setReviewing] = useState(false);
 	const request = useRef(0);
+	const thumbnailScope = useRef({ sessionId, open });
+	thumbnailScope.current = { sessionId, open };
+	const thumbnailQueue = useRef<Promise<unknown>>(Promise.resolve());
+	const readThumbnail = useCallback(
+		(id: string) => {
+			const result = thumbnailQueue.current
+				.catch(() => {})
+				.then(async () => {
+					if (
+						!sessionId ||
+						!open ||
+						thumbnailScope.current.sessionId !== sessionId ||
+						!thumbnailScope.current.open
+					)
+						return undefined;
+					const detail = await window.agent567.session.readWorkbenchDetail(sessionId, "attachment", id);
+					return { url: detail.thumbnailDataUrl, unavailable: detail.previewStatus === "unavailable" };
+				});
+			thumbnailQueue.current = result;
+			return result;
+		},
+		[sessionId, open],
+	);
 	const refresh = useCallback(async () => {
 		if (!sessionId) {
 			setSnapshot({ attachments: [], tasks: [], changes: [] });
@@ -79,7 +102,7 @@ export function useSessionWorkbench(sessionId: string | null, open: boolean) {
 		setDetail(null);
 		setBusy(false);
 	};
-	return { snapshot, detail, clearDetail, busy, reviewing, error, refresh, select, review };
+	return { snapshot, detail, clearDetail, busy, reviewing, error, refresh, select, review, readThumbnail };
 }
 
 export type SessionWorkbenchModel = ReturnType<typeof useSessionWorkbench>;

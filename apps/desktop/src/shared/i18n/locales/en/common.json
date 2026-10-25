@@ -1067,6 +1067,121 @@
 		"paymentUrlUnavailable": "The payment service did not return a valid payment link. Try again later.",
 		"orderFailed": "Could not create the payment order. Try again later.",
 		"pollingPaused": "Automatic confirmation has paused. The order is still unconfirmed; if you paid, select “Paid” to refresh the balance.",
-		"pollingPausedManual": "Automatic confirmation has paused. The order is still unconfirmed; if you paid, refresh the balance manually."
+		"pollingPausedManual": "Automatic confirmation has paused. The order is still unconfirmed; if you paid, refresh the balance manually.",
+		"unavailableTitle": "Online payment is unavailable",
+		"unavailableDescription": "This payment channel is currently unavailable. Try later, or redeem a code if you have one.",
+		"useCard": "Redeem a code",
+		"retryChannel": "Choose payment again"
+	},
+	"featureGuide": {
+		"title": "User guide",
+		"description": "Choose what you want to do, then read the steps.",
+		"intro": "New here? Start with a small task, then explore other topics as needed.",
+		"topics": {
+			"task": {
+				"title": "Complete your first task",
+				"where": "Open a project folder from the sidebar, then create a conversation.",
+				"one": "Sign in under model settings, connect a chat group and check your balance.",
+				"two": "Describe the goal, files and expected result. Try: “Read this project, explain its structure, and propose a plan before editing.”",
+				"three": "Review tool permissions and results. Follow up, stop the task, or return from history later."
+			},
+			"files": {
+				"title": "Files and the workbench",
+				"where": "Attach files in the composer; use the workbench for context, attachments, tasks and changes.",
+				"one": "Check the content and range before sending an attachment.",
+				"two": "Preview original files and image thumbnails. A stored attachment does not mean the model has read it.",
+				"three": "Review tasks and changes before continuing. Direct mobile API chat currently sends images only."
+			},
+			"context": {
+				"title": "Manage long conversations",
+				"where": "Open Context management at the top of a conversation.",
+				"one": "Check estimated usage, model capacity and the range being sent.",
+				"two": "Compress older turns or choose a new context start. The complete chat history is retained.",
+				"three": "Compression calls the model and uses quota. Review its result and keep essential constraints in recent messages."
+			},
+			"images": {
+				"title": "Models and image generation",
+				"where": "Choose chat and image groups separately in Settings → Models.",
+				"one": "Expand a group and choose its default image model.",
+				"two": "Describe the scene, size and style. Attach reference images when requesting edits.",
+				"three": "Review the result and request changes. Capabilities and usage depend on the selected group."
+			},
+			"canvas": {
+				"title": "Canvas and design",
+				"where": "Canvas and Design appear in the sidebar when their plugins are enabled.",
+				"one": "Use Canvas to arrange content freely and Design to build interface concepts.",
+				"two": "The editor loads when first opened. Create a canvas or choose a design starting point.",
+				"three": "Continue in the same project and conversation. Check saved files and exports."
+			},
+			"remote": {
+				"title": "Mobile collaboration and remote control",
+				"where": "Create a pairing code in Settings → Remote connection, then connect from mobile.",
+				"one": "Approve screen sharing on the computer. Remote input needs separate approval and system permission.",
+				"two": "In mobile fullscreen, slide to move, tap to click, switch to scroll mode to scroll, and pinch to zoom the view.",
+				"three": "Collapse the toolbar as needed. Use shortcuts or send text; pasting text updates the computer clipboard. Revoke control at any time."
+			},
+			"collaboration": {
+				"title": "Collaborate across conversations",
+				"where": "Open a project → Collaboration.",
+				"one": "Add project conversations, assign responsibilities and choose access rights.",
+				"two": "Save and enable collaboration, then submit a task with a clear goal.",
+				"three": "Review progress and outputs; pause or stop when needed. Grant write access only where required."
+			}
+		},
+		"open": "Open user guide",
+		"helpTitle": "Help and getting started",
+		"settingsDescription": "Steps for tasks, files, creative work and collaboration.",
+		"back": "Back to topics",
+		"location": "Where to start",
+		"firstTaskHint": "Connect a model → Start a conversation → Review the result",
+		"groups": {
+			"start": "Getting started",
+			"create": "Creative work",
+			"collaborate": "Collaboration"
+		},
+		"search": "Search the user guide",
+		"clear": "Clear search",
+		"noResults": "No matching guides"
+	},
+	"topupUi": {
+		"invalidAmount": "Enter a whole number of at least CNY 1.",
+		"orderFailed": "Could not create an order. Please retry later.",
+		"keyRequired": "Enter a redemption code.",
+		"redeemFailed": "Redemption failed. Check the code and retry.",
+		"loginRequired": "Sign in to your 567 API account before topping up.",
+		"success": "Top-up complete",
+		"credited": "The balance has been credited to your 567 API account.",
+		"alipayScan": "Scan with Alipay",
+		"wechatScan": "Scan with WeChat Pay",
+		"qrAlt": "Payment QR code",
+		"waiting": "Waiting for payment. Your balance will be checked automatically.",
+		"back": "Back",
+		"refresh": "Check balance",
+		"paid": "I have paid",
+		"switchCheckout": "Unable to scan? Open the checkout",
+		"checkout": "Payment checkout",
+		"external": "Open in browser",
+		"checkoutTitle": "Checkout",
+		"change": "Change payment",
+		"paidRefresh": "I have paid · Check balance",
+		"online": "Online payment",
+		"redeem": "Redemption code",
+		"channel": "Payment method",
+		"alipay": "Alipay",
+		"wechat": "WeChat Pay",
+		"amount": "Amount (CNY)",
+		"rate": "CNY 1 = $1 account credit",
+		"custom": "Custom",
+		"generating": "Creating payment code…",
+		"keyLabel": "Redemption code",
+		"keyPlaceholder": "Enter a 567 API redemption code",
+		"keyHint": "Enter the code provided by your distributor or administrator to credit this account.",
+		"redeeming": "Redeeming…",
+		"redeemAction": "Redeem code",
+		"title": "Top up balance",
+		"balance": "Available balance",
+		"latestBalance": "Updated balance",
+		"creditedAmount": "Credit ${{amount}}",
+		"pay": "Pay CNY {{amount}}"
 	}
 }

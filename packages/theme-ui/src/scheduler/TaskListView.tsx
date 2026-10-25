@@ -1,5 +1,6 @@
 import type { JSX, MouseEvent } from "react";
 import { motion } from "motion/react";
+import { Button } from "@vetta-org/ui";
 
 export interface TaskListItemView {
 	readonly cron: string;
@@ -49,7 +50,7 @@ export function TaskListView({
 }: TaskListViewProps): JSX.Element {
 	return (
 		<motion.div
-			className="grid grid-cols-3 gap-4"
+			className="grid grid-cols-[repeat(auto-fill,minmax(min(300px,100%),1fr))] gap-3"
 			initial="hidden"
 			animate="show"
 			variants={{
@@ -68,8 +69,8 @@ export function TaskListView({
 					transition={{ type: "spring", stiffness: 320, damping: 26 }}
 					whileHover={{ y: -2 }}
 					onClick={() => onSelectTask(item.id)}
-					className={`group relative flex cursor-pointer flex-col overflow-hidden rounded-2xl p-5 transition-colors duration-300 ${
-						item.isSelected ? "bg-primary/10 ring-1 ring-inset ring-primary/30" : "bg-card hover:bg-accent"
+					className={`group relative flex cursor-pointer flex-col overflow-hidden rounded-xl border border-border/70 p-4 transition-colors duration-200 ${
+						item.isSelected ? "bg-primary/10 ring-1 ring-inset ring-primary/30" : "bg-card/40 hover:bg-accent/40"
 					}`}
 				>
 					<div className="relative flex items-start gap-2.5">
@@ -87,7 +88,7 @@ export function TaskListView({
 						</div>
 						<div className="min-w-0 flex-1">
 							<h3 className="truncate text-[14px] font-semibold tracking-tight text-foreground">{item.name}</h3>
-							<p className="mt-0.5 truncate text-[11px] text-muted-foreground/50">
+							<p className="mt-0.5 truncate text-[11px] text-muted-foreground">
 								{item.statusLabel}
 								{item.isOnce && ` · ${labels.once}`}
 							</p>
@@ -95,7 +96,9 @@ export function TaskListView({
 
 						<div
 							className={`flex items-center gap-0.5 transition-opacity duration-200 ${
-								item.isSelected ? "opacity-100" : "opacity-0 group-hover:opacity-100"
+								item.isSelected
+									? "opacity-100"
+									: "opacity-0 group-hover:opacity-100 group-focus-within:opacity-100"
 							}`}
 						>
 							<ActionButton
@@ -134,18 +137,18 @@ export function TaskListView({
 						</div>
 					</div>
 
-					<div className="relative mt-4 flex items-center gap-2 rounded-xl border border-border/30 bg-background/40 px-3 py-2.5">
+					<div className="relative mt-4 flex items-center gap-2 border-y border-border/50 py-3">
 						<div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-lg bg-primary/10 ring-1 ring-inset ring-primary/15">
 							<span className="icon-[mdi--clock-time-eight-outline] h-3.5 w-3.5 text-primary" />
 						</div>
 						<div className="min-w-0 flex-1">
 							<p className="truncate text-[12px] font-medium text-foreground">{item.scheduleLabel}</p>
-							<p className="mt-0.5 truncate font-mono text-[10px] text-muted-foreground/50">{item.cron}</p>
+							<p className="mt-0.5 truncate font-mono text-[10px] text-muted-foreground">{item.cron}</p>
 						</div>
 					</div>
 
 					<div className="relative mt-3 flex-1">
-						<p className="line-clamp-2 text-[12px] leading-relaxed text-muted-foreground/70">{item.prompt}</p>
+						<p className="line-clamp-2 text-[12px] leading-relaxed text-muted-foreground">{item.prompt}</p>
 					</div>
 
 					<div className="relative mt-4 flex flex-wrap items-center gap-1.5 border-t border-border/30 pt-3 text-[11px]">
@@ -155,19 +158,21 @@ export function TaskListView({
 								<span
 									className={`flex h-5 items-center gap-1 rounded-full px-2 text-[10px] font-medium ${
 										item.lastRunStatus === "success"
-											? "bg-emerald-500/10 text-emerald-400"
+											? "bg-muted text-foreground"
 											: "bg-destructive/10 text-destructive"
 									}`}
 								>
 									<span
 										className={`h-3 w-3 ${
-											item.lastRunStatus === "success" ? "icon-[mdi--check-circle]" : "icon-[mdi--alert-circle]"
+											item.lastRunStatus === "success"
+												? "icon-[mdi--check-circle]"
+												: "icon-[mdi--alert-circle]"
 										}`}
 									/>
 									{item.lastRunStatus === "success" ? labels.success : labels.failed}
 								</span>
 							)}
-							<span className="flex items-center gap-1 text-muted-foreground/50">
+							<span className="flex items-center gap-1 text-muted-foreground">
 								<span className="icon-[mdi--history] h-3 w-3" />
 								{item.lastRunLabel}
 							</span>
@@ -181,7 +186,7 @@ export function TaskListView({
 
 function MetaPill({ icon, text }: { readonly icon: string; readonly text: string }): JSX.Element {
 	return (
-		<span className="flex h-5 items-center gap-1 rounded-full bg-accent/40 px-2 text-[10px] text-muted-foreground/70">
+		<span className="flex h-5 items-center gap-1 rounded-full bg-accent/40 px-2 text-[10px] text-muted-foreground">
 			<span className={`${icon} h-3 w-3 opacity-70`} />
 			<span className="max-w-[110px] truncate">{text}</span>
 		</span>
@@ -200,13 +205,12 @@ function ActionButton({
 	readonly onClick: (event: MouseEvent) => void;
 }): JSX.Element {
 	return (
-		<motion.button
+		<Button
+			variant="ghost"
+			size="icon-sm"
 			type="button"
 			title={title}
 			onClick={onClick}
-			whileHover={{ scale: 1.04 }}
-			whileTap={{ scale: 0.94 }}
-			transition={{ type: "spring", stiffness: 400, damping: 22 }}
 			className={`flex h-7 w-7 items-center justify-center rounded-lg transition-colors duration-150 ${
 				variant === "danger"
 					? "text-muted-foreground/60 hover:bg-destructive/10 hover:text-destructive"
@@ -214,6 +218,6 @@ function ActionButton({
 			}`}
 		>
 			<span className={`${icon} text-[14px]`} />
-		</motion.button>
+		</Button>
 	);
 }

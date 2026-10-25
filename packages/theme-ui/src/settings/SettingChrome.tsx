@@ -20,18 +20,23 @@ export function SettingRow({
 	border?: boolean;
 }): JSX.Element {
 	return (
-		<div className={cn("flex items-center justify-between gap-6 px-5 py-4", border && "border-b border-border")}>
-			<div className="min-w-0 flex-1 basis-0">
-				<div className="truncate text-[13px] font-medium text-foreground" title={title}>
+		<div
+			className={cn(
+				"flex flex-wrap items-center justify-between gap-x-6 gap-y-3 px-4 py-4",
+				border && "border-b border-border",
+			)}
+		>
+			<div className="min-w-0 flex-1 basis-52">
+				<div className="text-[13px] font-medium text-foreground" title={title}>
 					{title}
 				</div>
 				{description && (
-					<div className="mt-0.5 line-clamp-2 text-[12px] text-muted-foreground" title={description}>
+					<div className="mt-1 text-[12px] leading-relaxed text-muted-foreground" title={description}>
 						{description}
 					</div>
 				)}
 			</div>
-			<div className="max-w-[min(100%,24rem)] shrink-0">{children}</div>
+			<div className="min-w-0 max-w-full shrink-0 [&>*]:max-w-full [&>div]:flex-wrap">{children}</div>
 		</div>
 	);
 }
@@ -55,7 +60,7 @@ export function SettingSection({
 		renderedTitle !== false &&
 		!(typeof renderedTitle === "string" && renderedTitle.trim() === "");
 	return (
-		<div className="mb-6 p-1.5" data-setting-section-highlight-target={section.id}>
+		<div className="mb-8" data-setting-section-highlight-target={section.id}>
 			{hasTitle &&
 				(typeof renderedTitle === "string" ? (
 					<h2
@@ -75,7 +80,7 @@ export function SettingSection({
 			{description && <p className="mb-3 text-[12px] text-muted-foreground">{description}</p>}
 			<div
 				id={hasTitle ? undefined : section.id}
-				className="overflow-hidden rounded-xl border border-border bg-card"
+				className="overflow-hidden rounded-xl border border-border/70 bg-card/50"
 				data-setting-section-id={section.id}
 			>
 				{children}

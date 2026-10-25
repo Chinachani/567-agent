@@ -48,6 +48,8 @@ async function run(): Promise<Record<string, number | string | boolean>> {
 	await waitFor(() => host?.connectionState === "connected" && viewer?.connectionState === "connected", 10_000);
 	await waitFor(() => viewerStream !== undefined, 5_000);
 
+	await waitFor(() => viewer?.supportsViewport === true, 5000);
+	if (!(await viewer.sendViewport(320, 180))) throw new Error("viewport capability was not negotiated");
 	const video = document.createElement("video");
 	video.muted = true;
 	video.autoplay = true;
@@ -56,6 +58,7 @@ async function run(): Promise<Record<string, number | string | boolean>> {
 	document.body.append(video);
 	await video.play();
 	await waitFor(() => video.videoWidth > 0 && video.readyState >= HTMLMediaElement.HAVE_CURRENT_DATA, 5_000);
+	await waitFor(() => video.videoWidth === 320 && video.videoHeight === 180, 5000);
 	const first = samplePixels(video);
 	await delay(180);
 	const second = samplePixels(video);
@@ -78,13 +81,14 @@ async function run(): Promise<Record<string, number | string | boolean>> {
 		pixelEnergy,
 		pixelDelta,
 		inputDelivered: true,
+		viewportAdapted: true,
 	};
 }
 
 function createAnimatedCanvas(): HTMLCanvasElement {
 	const canvas = document.createElement("canvas");
-	canvas.width = 320;
-	canvas.height = 180;
+	canvas.width = 640;
+	canvas.height = 360;
 	document.body.append(canvas);
 	const context = canvas.getContext("2d", { willReadFrequently: true });
 	if (!context) throw new Error("2D canvas context is unavailable");

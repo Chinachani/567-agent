@@ -21,11 +21,7 @@ export function SidebarTopBar({ className, classNames, floating, onCollapse }: S
 		<ThemeSidebarTopBar
 			className={className}
 			classNames={classNames}
-			brandIcon={
-				<span className="flex h-5 w-5 shrink-0 items-center justify-center rounded bg-primary text-[10px] font-black text-primary-foreground shadow-sm">
-					567
-				</span>
-			}
+			brandIcon={<BrandIcon className="h-5 w-5" />}
 			brandName="567 Agent"
 			actions={<SidebarCommandMenuTrigger />}
 			floating={floating}
@@ -36,3 +32,4 @@ export function SidebarTopBar({ className, classNames, floating, onCollapse }: S
 		/>
 	);
 }
+import { BrandIcon } from "@shared/components/BrandIcon";

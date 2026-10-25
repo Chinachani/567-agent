@@ -3,6 +3,9 @@ import type { ReactNode } from "react";
 
 /** Optional host capabilities. Renderers never import Electron, IPC or application state. */
 export interface MarkdownHost {
+	openExternalUrl?(url: string): Promise<void>;
+	copyText?(value: string, kind: "file" | "url"): Promise<void>;
+	revealFile?(path: string): Promise<void>;
 	openHtml(source: string): Promise<() => void>;
 	renderMermaid(source: string, theme: "light" | "dark"): Promise<string>;
 	favicon(origin: string): Promise<string | null>;
@@ -15,4 +18,6 @@ const MarkdownHostContext = createContext<MarkdownHost | undefined>(undefined);
 export function MarkdownHostProvider({ host, children }: { host?: MarkdownHost; children: ReactNode }) {
 	return <MarkdownHostContext.Provider value={host}>{children}</MarkdownHostContext.Provider>;
 }
-export function useMarkdownHost() { return useContext(MarkdownHostContext); }
+export function useMarkdownHost() {
+	return useContext(MarkdownHostContext);
+}

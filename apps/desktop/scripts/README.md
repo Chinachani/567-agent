@@ -49,6 +49,11 @@
 
 ## IM gateway sidecar
 
+Windows 的 RPC sidecar 仍在 `ELECTRON_RUN_AS_NODE` 下运行
+`Resources/coding-agent/dist/agent-rpc-cli.mjs`。`bundle-agent-rpc.mjs` 从 Desktop 专属入口
+构建该文件，将受管线路和逐 HTTP 尝试签名注入通用 CLI 宿主；不直接打包不含产品签名的通用 CLI 入口。
+`bundle-agent-rpc.test.ts` 使用这个实际构建函数完成隔离的双回合 IM 请求验证，不访问真实模型。
+
 `prepare-pack.js` 按目标平台构建和打包 IM gateway，而不是默认打包所有支持平台。
 
 目标平台来源优先级：

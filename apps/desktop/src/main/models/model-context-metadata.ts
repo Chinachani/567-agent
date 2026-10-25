@@ -37,7 +37,7 @@ export function enrichModelContexts(models: ModelDefinition[], catalog: readonly
 			...model,
 			...(capacity ? { contextWindow: capacity } : {}),
 			contextWindowSource: capacity ? "catalog" : "unknown",
-			maxTokens: model.maxTokens ?? match?.maxTokens ?? 4096,
+			maxTokens: model.maxTokens ?? match?.maxTokens,
 		};
 	});
 }

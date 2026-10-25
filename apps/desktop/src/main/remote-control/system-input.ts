@@ -1,14 +1,18 @@
 import { createRequire } from "node:module";
 import type { RemoteInputMessage } from "@567agent/remote-desktop";
-import { systemPreferences } from "electron";
+import { clipboard, systemPreferences } from "electron";
 import type * as Koffi from "koffi";
 import type { RemotePairingState } from "../../preload/api-types/remote-pairing.js";
 import { getAppLogger } from "../logger.js";
+import { createWaylandInputAdapter, type WaylandInputTokens } from "./wayland-input.js";
 
 export interface SystemInputAdapter {
 	readonly supported: boolean;
+	readonly granted?: boolean;
+	readonly pointerMode?: "absolute" | "relative";
 	readonly unsupportedReason?: NonNullable<RemotePairingState["inputSupportReason"]>;
-	setEnabled(enabled: boolean): void;
+	onGrantedChange?(listener: (granted: boolean) => void): () => void;
+	setEnabled(enabled: boolean): void | Promise<void>;
 	apply(message: RemoteInputMessage): void;
 }
 
@@ -28,7 +32,10 @@ const log = (() => {
  * System input is deliberately opt-in. Remote media can be enabled without
  * granting a relay peer the ability to control the local machine.
  */
-export function createSystemInputAdapter(options: { readonly enabled: boolean }): SystemInputAdapter {
+export function createSystemInputAdapter(options: {
+	readonly enabled: boolean;
+	readonly waylandTokens?: WaylandInputTokens;
+}): SystemInputAdapter {
 	try {
 		const adapter =
 			process.platform === "win32"
@@ -36,9 +43,11 @@ export function createSystemInputAdapter(options: { readonly enabled: boolean })
 				: process.platform === "darwin"
 					? createMacInputAdapter()
 					: process.platform === "linux"
-						? createLinuxX11InputAdapter()
+						? process.env.XDG_SESSION_TYPE === "wayland" || process.env.WAYLAND_DISPLAY
+							? createWaylandInputAdapter(options.waylandTokens, (text) => clipboard.writeText(text))
+							: createLinuxX11InputAdapter()
 						: unsupportedInputAdapter("unsupported_platform");
-		adapter.setEnabled(options.enabled);
+		if (adapter.pointerMode !== "relative") adapter.setEnabled(options.enabled);
 		return adapter;
 	} catch (error) {
 		const unsupportedReason =

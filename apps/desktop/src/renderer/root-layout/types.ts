@@ -9,6 +9,7 @@ export interface RootLayoutActions {
 
 export interface RootLayoutModel {
 	actions: RootLayoutActions;
+	settingsMode: boolean;
 	narrow: boolean;
 	onOpenSession: SidebarProps["onOpenSession"];
 	overlayOpen: boolean;

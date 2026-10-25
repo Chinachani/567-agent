@@ -15,6 +15,7 @@ import type {
 	PluginCommandSpawnHandle,
 	PluginContext,
 } from "@vetta-org/plugin-sdk";
+import { resolveDesignDataRoot } from "../data-root";
 import { designPackageJson, needsDependencyInstall, PACKAGE_FILE } from "../vetd/design-package";
 import { sanitizeDesignName } from "../vetd/scaffold";
 import { ENGINE_FILES, engineFilesHash } from "./engine-files";
@@ -55,18 +56,21 @@ const DEPENDENCY_INSTALL_PENDING_MARKER = ".567agent-dependencies-installing";
 
 const MIGRATE_SCRIPT = [
 	"const fs=require('fs'),p=require('path');",
-	"const legacy=process.env.VETD_ENGINE_LEGACY,newBase=process.env.VETD_ENGINE_BASE;",
-	"if(!legacy||!newBase)throw new Error('engine migration env missing');",
-	"if(!fs.existsSync(legacy)){process.stdout.write('absent');process.exit(0)}",
-	"fs.mkdirSync(p.dirname(newBase),{recursive:true});",
-	"if(!fs.existsSync(newBase)){fs.renameSync(legacy,newBase);process.stdout.write('moved');process.exit(0)}",
-	"for(const ent of fs.readdirSync(legacy,{withFileTypes:true})){",
-	"if(!ent.isDirectory()||!/^\\d+\\.\\d+\\.\\d+$/.test(ent.name))continue;",
-	"const from=p.join(legacy,ent.name),to=p.join(newBase,ent.name);",
-	"if(!fs.existsSync(to))fs.renameSync(from,to);",
+	"const home=process.env.VETD_ENGINE_HOME||require('os').homedir(),target=process.env.VETD_ENGINE_BASE;",
+	"if(!target)throw new Error('engine migration env missing');",
+	"const sources=[p.join(home,'.567agent','plugin-data','vetta-ui-design','design-engine'),p.join(home,'.vetta','plugin-data','vetta-ui-design','design-engine'),p.join(home,'.567agent','design-engine'),p.join(home,'.vetta','design-engine')];",
+	"for(const source of sources){",
+	"if(p.resolve(source)===p.resolve(target)||!fs.existsSync(source))continue;",
+	"if(!fs.lstatSync(source).isDirectory())throw new Error('invalid legacy engine directory');",
+	"fs.mkdirSync(target,{recursive:true});",
+	"for(const entry of fs.readdirSync(source,{withFileTypes:true})){",
+	"if(!entry.isDirectory()||!/^\\d+\\.\\d+\\.\\d+$/.test(entry.name))continue;",
+	"const destination=p.join(target,entry.name);if(fs.existsSync(destination))continue;",
+	"const staging=fs.mkdtempSync(p.join(target,'.migration-'));",
+	"try{fs.cpSync(p.join(source,entry.name),staging,{recursive:true,dereference:false,errorOnExist:true,force:false});if(!fs.existsSync(destination))fs.renameSync(staging,destination)}finally{fs.rmSync(staging,{recursive:true,force:true})}",
 	"}",
-	"if(fs.readdirSync(legacy).length===0)fs.rmdirSync(legacy);",
-	"process.stdout.write('merged');",
+	"}",
+	"process.stdout.write('ready');",
 ].join("");
 
 const ENGINE_READY_SCRIPT = [
@@ -116,13 +120,13 @@ const PRUNE_SCRIPT = [
 	"console.log('ok');",
 ].join("");
 
-let cachedHome: string | null = null;
+let cachedRoot: string | null = null;
 let migrationPromise: Promise<void> | null = null;
 let ensurePromise: Promise<string> | null = null;
 const servers = new Map<string, EngineServer>();
 
-function engineBaseDir(home: string): string {
-	return `${home}/.vetta/plugin-data/vetta-ui-design/design-engine`;
+function engineBaseDir(root: string): string {
+	return `${root}/plugin-data/vetta-ui-design/design-engine`;
 }
 
 function engineDependencyHash(): string {
@@ -133,38 +137,29 @@ function engineDependencyHash(): string {
 	return (hash >>> 0).toString(36);
 }
 
-function legacyEngineBaseDir(home: string): string {
-	return `${home}/.vetta/design-engine`;
-}
-
-async function resolveHome(ctx: PluginContext): Promise<string> {
-	if (cachedHome) return cachedHome;
-	const result = await ctx.command.run("node", ["-p", "require('os').homedir()"]);
-	const home = result.stdout.trim();
-	if (result.exitCode !== 0 || !home) {
-		throw new Error(`resolve homedir failed: ${result.stderr || result.stdout}`);
-	}
-	cachedHome = home;
-	return home;
+async function resolveRoot(ctx: PluginContext): Promise<string> {
+	cachedRoot ??= await resolveDesignDataRoot(ctx);
+	return cachedRoot;
 }
 
 export async function engineRootDir(ctx: PluginContext): Promise<string> {
-	const home = await resolveHome(ctx);
+	const root = await resolveRoot(ctx);
 	if (!migrationPromise) {
-		migrationPromise = migrateLegacyEngine(ctx, home).catch((error: unknown) => {
+		migrationPromise = migrateLegacyEngine(ctx, undefined, root).catch((error: unknown) => {
 			migrationPromise = null;
 			throw error;
 		});
 	}
 	await migrationPromise;
-	return `${engineBaseDir(home)}/${ENGINE_VERSION}`;
+	return `${engineBaseDir(root)}/${ENGINE_VERSION}`;
 }
 
-export async function migrateLegacyEngine(ctx: PluginContext, home: string): Promise<void> {
+export async function migrateLegacyEngine(ctx: PluginContext, home?: string, dataRoot?: string): Promise<void> {
+	const root = dataRoot ?? (home ? `${home}/.567agent` : await resolveRoot(ctx));
 	const result = await ctx.command.run("node", ["-e", MIGRATE_SCRIPT], {
 		env: {
-			VETD_ENGINE_LEGACY: legacyEngineBaseDir(home),
-			VETD_ENGINE_BASE: engineBaseDir(home),
+			...(home ? { VETD_ENGINE_HOME: home } : {}),
+			VETD_ENGINE_BASE: engineBaseDir(root),
 		},
 		timeoutMs: 30_000,
 	});
@@ -315,10 +310,10 @@ async function ensureDesignPackageFile(ctx: PluginContext, designDir: string): P
 }
 
 async function pruneOldEngines(ctx: PluginContext): Promise<void> {
-	const home = await resolveHome(ctx);
+	const root = await resolveRoot(ctx);
 	await ctx.command.run("node", ["-e", PRUNE_SCRIPT], {
 		env: {
-			VETD_ENGINE_BASE: engineBaseDir(home),
+			VETD_ENGINE_BASE: engineBaseDir(root),
 			VETD_ENGINE_KEEP: ENGINE_VERSION,
 		},
 		timeoutMs: 30_000,

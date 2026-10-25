@@ -5,7 +5,12 @@ import {
 	createCodingAgentBootstrap,
 } from "@567agent/coding-agent/bootstrap";
 import { ENV_API567_BASE_URL, getAgentDir } from "@567agent/coding-agent/config";
-import { createCodingAgentAuthRuntime, createCodingAgentModelRuntime } from "@567agent/coding-agent/host-services";
+import {
+	type CodingAgentAuthRuntime,
+	type CodingAgentModelRuntime,
+	createCodingAgentAuthRuntime,
+	createCodingAgentModelRuntime,
+} from "@567agent/coding-agent/host-services";
 import {
 	NodeTransactionalTextStorage,
 	nodeConfigurationValueResolver,
@@ -19,6 +24,7 @@ export interface CreateCliCodingAgentBootstrapOptions extends CodingAgentBootstr
 	readonly args: string[];
 	readonly cwd?: string;
 	readonly agentDir?: string;
+	readonly createModelRuntime?: (auth: CodingAgentAuthRuntime, modelsJsonPath: string) => CodingAgentModelRuntime;
 }
 
 /** Select the concrete Node state and resource implementations used by the CLI host. */
@@ -34,11 +40,13 @@ export async function createCliCodingAgentBootstrap(
 	const authStorage = createCodingAgentAuthRuntime(new NodeTransactionalTextStorage(join(agentDir, "auth.json")), {
 		configurationValueResolver: nodeConfigurationValueResolver,
 	});
-	const modelRegistry = createCodingAgentModelRuntime(authStorage, {
-		modelsJsonPath: join(agentDir, "models.json"),
-		configFileSource: nodeSyncTextFileSource,
-		configurationValueResolver: nodeConfigurationValueResolver,
-	});
+	const modelRegistry =
+		options.createModelRuntime?.(authStorage, join(agentDir, "models.json")) ??
+		createCodingAgentModelRuntime(authStorage, {
+			modelsJsonPath: join(agentDir, "models.json"),
+			configFileSource: nodeSyncTextFileSource,
+			configurationValueResolver: nodeConfigurationValueResolver,
+		});
 
 	return createCodingAgentBootstrap({
 		args: options.args,

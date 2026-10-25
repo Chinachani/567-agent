@@ -92,3 +92,14 @@ export async function refreshWithAccountRecovery(
 		return login(credentials);
 	}
 }
+
+/** Account endpoints may return an authentication failure in a successful HTTP envelope. */
+export function isAccountResponseRejected(response: { status: number; data: unknown }): boolean {
+	if (response.status === 401) return true;
+	if (![200, 400, 403].includes(response.status) || typeof response.data !== "object" || response.data === null)
+		return false;
+	const data = response.data as Record<string, unknown>;
+	if (data.success !== false) return false;
+	if ([40100, 40101, 40102, 40103, 40105, 40106, 40107].includes(Number(data.code))) return true;
+	return isRefreshCookieRejected({ status: 200, message: typeof data.message === "string" ? data.message : "" });
+}

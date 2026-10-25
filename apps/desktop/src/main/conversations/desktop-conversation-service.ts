@@ -20,7 +20,9 @@ import {
 } from "@567agent/runtime-core";
 import { sanitizeRuntimeErrorMessage } from "@567agent/runtime-desktop";
 import { resolveModelContext } from "../../shared/model-context.js";
+import { type Api567RouteId, getBuiltinApi567Route } from "../../shared/service-routes.js";
 import { type DesktopSessionHistoryInfo, UNAVAILABLE_RUNTIME_SESSION_ACCESS } from "../../shared/session-access.js";
+import { getApi567RouteStore } from "../567api/service-route-store.js";
 import { agentTeamStore } from "../agent-teams/agent-team-store.js";
 import { ensureLegacyAgentTeamOwnershipCatalog } from "../agent-teams/team-ownership-backfill.js";
 import { monitorRuntimeSession } from "../app-monitor/app-monitor-service.js";
@@ -50,12 +52,7 @@ import { type ResolvedSessionAgentProfile, resolveSessionAgentProfile } from "./
 import { SessionContextWorkspace } from "./session-context-workspace.js";
 import { DesktopSessionCreationTrace } from "./session-creation-trace.js";
 import type { SessionMigrationArchive } from "./session-migration-backup.js";
-import {
-	isConversationCwd,
-	readDesktopSessionHeader,
-	resolveSessionDirForCwd,
-	resolveSessionListCwd,
-} from "./session-paths.js";
+import { isConversationCwd, readDesktopSessionHeader, resolveSessionListCwd } from "./session-paths.js";
 import { SessionWorkbench } from "./session-workbench.js";
 
 const log = getAppLogger("conversation-service");
@@ -108,6 +105,7 @@ export interface DesktopConversationRemoteModel {
 }
 
 export interface DesktopConversationRemoteModelCatalog {
+	readonly serviceRoute?: Api567RouteId;
 	readonly currentModelId: string | null;
 	readonly lastUserMessageId: string | null;
 	readonly models: readonly DesktopConversationRemoteModel[];
@@ -559,6 +557,10 @@ export class DesktopConversationService {
 			...(model.defaultReasoningLevel ? { defaultReasoningLevel: model.defaultReasoningLevel } : {}),
 		}));
 		return {
+			...((current?.provider === "567api" || current?.provider.startsWith("567api_")) &&
+			getBuiltinApi567Route(current?.baseUrl, getApi567RouteStore().trustedOrigins)
+				? { serviceRoute: getApi567RouteStore().route }
+				: {}),
 			currentModelId: current ? `${current.provider}/${current.id}` : null,
 			lastUserMessageId: lastUserMessageId?.type === "message" ? (lastUserMessageId.entryId ?? null) : null,
 			models,
@@ -716,10 +718,7 @@ export class DesktopConversationService {
 		const absoluteCwd = resolve(cwd);
 		allowProjectRoot(absoluteCwd);
 		await this.ensureOwnershipReady?.();
-		const catalogSessions = await this.runtime.listSessions(
-			absoluteCwd,
-			sessionDir ?? resolveSessionDirForCwd(absoluteCwd),
-		);
+		const catalogSessions = await this.runtime.listSessions(absoluteCwd, sessionDir);
 		const sessions = this.ownershipCatalog
 			? await this.ownershipCatalog.filterUserSessions(catalogSessions)
 			: catalogSessions;

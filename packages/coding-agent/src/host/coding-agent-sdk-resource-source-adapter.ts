@@ -1,4 +1,5 @@
 import { dirname, join, resolve } from "node:path";
+import { CONFIG_DIR_NAME } from "../identity.js";
 import type {
 	CodingAgentExtensionSource,
 	CodingAgentExtensionSourceSnapshot,
@@ -236,7 +237,14 @@ export function projectCodingAgentSkillInfo(skill: Skill): CodingAgentSkillInfo 
 function toSkill(contribution: CodingAgentSkillContribution, source: string, cwd: string): Skill {
 	const filePath = contribution.filePath
 		? resolve(cwd, contribution.filePath)
-		: join(cwd, ".vetta", "sdk-skills", safePathSegment(source), safePathSegment(contribution.name), "SKILL.md");
+		: join(
+				cwd,
+				CONFIG_DIR_NAME,
+				"sdk-skills",
+				safePathSegment(source),
+				safePathSegment(contribution.name),
+				"SKILL.md",
+			);
 	return {
 		name: contribution.name,
 		alias: contribution.alias,

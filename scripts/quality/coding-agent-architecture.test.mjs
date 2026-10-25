@@ -522,6 +522,20 @@ describe("Coding Agent architecture gate", () => {
 		);
 	});
 
+	it("requires the shared Desktop and RPC model source to keep its Node file adapter", () => {
+		const hostPath = "apps/desktop/src/main/models/desktop-model-runtime.ts";
+		const missing = createState([
+			{ path: hostPath, text: "createCodingAgentModelRuntime(auth, { modelsJsonPath });" },
+		]);
+		expect(findCodingAgentArchitectureViolations(missing)).toContain(
+			`${hostPath}: Node model host must inject configFileSource`,
+		);
+		const injected = createState([
+			{ path: hostPath, text: "createCodingAgentModelRuntime(auth, { modelsJsonPath, configFileSource: source });" },
+		]);
+		expect(findCodingAgentArchitectureViolations(injected)).toEqual([]);
+	});
+
 	it("keeps HTML export rendering independent from Node files", () => {
 		const runtimePath = `${SOURCE_ROOT}/export-html/create-runtime.ts`;
 		const importingNode = createState([{ path: runtimePath, text: 'import { writeFileSync } from "node:fs";' }]);

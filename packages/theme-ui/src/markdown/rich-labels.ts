@@ -43,6 +43,14 @@ export const defaultRichContentLabels: RichContentLabels = {
 };
 
 export interface MarkdownLabels {
+	resources?: {
+		openFile: string;
+		openUrl: string;
+		copyFile: string;
+		copyUrl: string;
+		revealFile: string;
+		failed: string;
+	};
 	artifacts?: { title: string; count: (count: number) => string };
 	copy: string;
 	copied: string;

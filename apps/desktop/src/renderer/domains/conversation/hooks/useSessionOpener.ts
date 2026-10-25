@@ -612,6 +612,20 @@ export function useSessionOpener(): SessionOpenerController {
 			// persisted to disk) would be appended to the previous turn's assistant — which
 			// sits BEFORE the new user message in history, causing the streaming bubble to
 			// render above the user bubble.
+			let runningHistoryHydrated = false;
+			if (state.isStreaming && sessionPath !== undefined) {
+				const result = await historyPromise;
+				if (myOpenToken !== getOpenSessionToken()) {
+					finishCancelledOpen();
+					return;
+				}
+				if (!result.history) {
+					failSessionHydration("history", result.error);
+					return;
+				}
+				setChatMessages(reconcileOptimisticUserMessages(sessionId, fullHistoryToChat(result.history)));
+				runningHistoryHydrated = true;
+			}
 			if (state.isStreaming) {
 				const startedAt = state.currentTurnStartedAt ?? Date.now();
 				// 即使慢模型尚未产生任何可持久化 assistant 内容，也恢复一个带绝对
@@ -646,7 +660,7 @@ export function useSessionOpener(): SessionOpenerController {
 			if (stageExistingSessionOpen) clearOwnPendingTransition();
 			if (isExistingSessionOpen) perfSessionSwitchComplete("completed", interactionId);
 
-			if (sessionPath !== undefined) {
+			if (sessionPath !== undefined && !runningHistoryHydrated) {
 				void historyPromise
 					.then((result) => {
 						if (!result.history) throw result.error;

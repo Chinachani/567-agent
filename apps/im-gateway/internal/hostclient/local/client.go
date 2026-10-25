@@ -7,6 +7,7 @@ import (
 	"errors"
 	"fmt"
 	"os/exec"
+	"path/filepath"
 	"time"
 
 	"github.com/Chinachani/567-agent/apps/im-gateway/internal/hostclient"
@@ -30,7 +31,7 @@ type Options struct {
 	ExtraEnv map[string]string
 
 	// SessionDir, when non-empty, is forwarded as `--session-dir`. The
-	// IM host runtime sets this to `<conversationCwd>/.vetta/sessions/`
+	// IM host runtime sets this to `<conversationCwd>/.567agent/sessions/`
 	// to match desktop-app's `resolveSessionDirForCwd` convention so
 	// IM-created session .jsonl files appear in the desktop sidebar
 	// under the default "对话" project. Empty → coding-agent falls back
@@ -122,7 +123,20 @@ func (c *Client) OpenSession(ctx context.Context, cwd, sessionPath string) (host
 		args = append(args, "--session", sessionPath)
 	}
 	if c.opts.SessionDir != "" {
-		args = append(args, "--session-dir", c.opts.SessionDir)
+		sessionDir := c.opts.SessionDir
+		if sessionPath != "" {
+			requestedDir := filepath.Clean(filepath.Dir(sessionPath))
+			root := filepath.Dir(filepath.Dir(filepath.Clean(sessionDir)))
+			legacyDir := filepath.Join(root, ".vetta", "sessions")
+			currentDir := filepath.Join(root, ".567agent", "sessions")
+			if (filepath.Clean(sessionDir) == legacyDir || filepath.Clean(sessionDir) == currentDir) &&
+				(requestedDir == legacyDir || requestedDir == currentDir) {
+				// A persisted conversation may predate the project-folder rename.
+				// Resume it in its actual repository, independent of today's cwd.
+				sessionDir = requestedDir
+			}
+		}
+		args = append(args, "--session-dir", sessionDir)
 	}
 	if c.opts.EnableHostBridge {
 		args = append(args, "--enable-host-bridge")

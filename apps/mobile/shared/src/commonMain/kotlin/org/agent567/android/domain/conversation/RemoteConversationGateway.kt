@@ -14,6 +14,7 @@ data class RemoteSessionModelCatalog(
     val currentModelId: String?,
     val models: List<LlmModel>,
     val lastUserMessageId: String? = null,
+    val serviceRoute: String? = null,
 )
 
 data class RemoteDesktopSessionSummary(

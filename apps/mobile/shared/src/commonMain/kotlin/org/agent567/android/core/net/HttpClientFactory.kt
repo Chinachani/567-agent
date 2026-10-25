@@ -114,8 +114,9 @@ internal fun createAgent567HttpClient(
 /**
  * 无 Auth 插件的裸客户端，专用于 refresh，避免递归。
  */
-internal fun createBareHttpClient(config: Agent567Config): HttpClient =
+internal fun createBareHttpClient(config: Agent567Config, allowRedirects: Boolean = true): HttpClient =
     HttpClient(platformHttpClientEngine()) {
+        followRedirects = allowRedirects
         expectSuccess = false
         install(ContentNegotiation) {
             json(Agent567Json)

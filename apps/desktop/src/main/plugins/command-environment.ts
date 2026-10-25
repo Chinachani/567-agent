@@ -1,3 +1,5 @@
+import { getAgent567HomePath } from "@567agent/action-rpc";
+
 const INHERITED_ENV_KEYS = [
 	"PATH",
 	"Path",
@@ -33,5 +35,5 @@ export function createPluginCommandEnvironment(overrides?: Record<string, string
 		const value = process.env[key];
 		if (value !== undefined) environment[key] = value;
 	}
-	return { ...environment, ...overrides };
+	return { ...environment, AGENT567_HOME: getAgent567HomePath(), ...overrides };
 }

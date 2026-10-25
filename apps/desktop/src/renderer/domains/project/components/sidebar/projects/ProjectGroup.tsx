@@ -7,10 +7,7 @@ import { showToast } from "@shared/store/toast-atoms";
 import { memo, useCallback, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { CheckSquare2, Download, ListChecks, Trash2, X } from "lucide-react";
-import {
-	type ProjectGroupSessionView,
-	useProjectGroupModel,
-} from "../../../hooks/useProjectGroupModel";
+import { type ProjectGroupSessionView, useProjectGroupModel } from "../../../hooks/useProjectGroupModel";
 import type { SidebarConversationInfo } from "../../../services/sidebar-conversation-projection";
 import {
 	selectableConversationSessions,
@@ -141,7 +138,9 @@ export const ProjectGroup = memo(function ProjectGroup(props: ProjectGroupProps)
 			if (!result.canceled) {
 				showToast({
 					variant: "success",
-					message: t("sidebar.defaultConversation.batchExported", { count: result.sessionCount ?? selectedSessions.length }),
+					message: t("sidebar.defaultConversation.batchExported", {
+						count: result.sessionCount ?? selectedSessions.length,
+					}),
 				});
 				closeSelection();
 			}
@@ -185,115 +184,129 @@ export const ProjectGroup = memo(function ProjectGroup(props: ProjectGroupProps)
 			{selectionMode && model.expanded && selectableSessions.length > 0 ? (
 				<div className="sticky top-0 z-20 mb-2 flex flex-wrap items-center gap-1.5 rounded-lg border border-border bg-card/95 px-2 py-1.5 shadow-md backdrop-blur-sm">
 					<>
-							<span className="mr-1 text-xs font-medium text-foreground">
-								{t("sidebar.defaultConversation.batchSelected", { count: selectedSessions.length })}
-							</span>
-							<Button size="xs" variant="outline" disabled={busy} onClick={toggleAll}>
-								<CheckSquare2 aria-hidden="true" />
-								{selectedSessions.length === selectableSessions.length
-									? t("sidebar.defaultConversation.batchClearSelection")
-									: t("sidebar.defaultConversation.batchSelectAll")}
-							</Button>
-							<input
-								aria-label={t("sidebar.defaultConversation.batchPassword")}
-								autoComplete="new-password"
-								className="h-7 w-28 rounded-md border border-input bg-background px-2 text-[11px] text-foreground outline-none focus-visible:ring-1 focus-visible:ring-ring"
-								maxLength={128}
-								placeholder={t("sidebar.defaultConversation.batchPassword")}
-								type="password"
-								value={passphrase}
-								onChange={(event) => setPassphrase(event.target.value)}
-							/>
-							<Button size="xs" variant="secondary" disabled={busy || selectedSessions.length === 0} onClick={() => void exportSelected()}>
-								<Download aria-hidden="true" />
-								{t("sidebar.defaultConversation.batchExport")}
-							</Button>
-							<Button size="xs" variant="destructive" disabled={busy || selectedSessions.length === 0} onClick={requestDeleteSelected}>
-								<Trash2 aria-hidden="true" />
-								{t("sidebar.defaultConversation.batchDelete")}
-							</Button>
-							<Button size="xs" variant="ghost" disabled={busy} onClick={closeSelection}>
-								<X aria-hidden="true" />
-								{t("sidebar.defaultConversation.batchCancel")}
-							</Button>
-						</>
-					{batchMessage ? <span className="basis-full px-1 text-[11px] text-muted-foreground" role="status">{batchMessage}</span> : null}
+						<span className="mr-1 text-xs font-medium text-foreground">
+							{t("sidebar.defaultConversation.batchSelected", { count: selectedSessions.length })}
+						</span>
+						<Button size="xs" variant="outline" disabled={busy} onClick={toggleAll}>
+							<CheckSquare2 aria-hidden="true" />
+							{selectedSessions.length === selectableSessions.length
+								? t("sidebar.defaultConversation.batchClearSelection")
+								: t("sidebar.defaultConversation.batchSelectAll")}
+						</Button>
+						<input
+							aria-label={t("sidebar.defaultConversation.batchPassword")}
+							autoComplete="new-password"
+							className="h-7 w-28 rounded-md border border-input bg-background px-2 text-[11px] text-foreground outline-none focus-visible:ring-1 focus-visible:ring-ring"
+							maxLength={128}
+							placeholder={t("sidebar.defaultConversation.batchPassword")}
+							type="password"
+							value={passphrase}
+							onChange={(event) => setPassphrase(event.target.value)}
+						/>
+						<Button
+							size="xs"
+							variant="secondary"
+							disabled={busy || selectedSessions.length === 0}
+							onClick={() => void exportSelected()}
+						>
+							<Download aria-hidden="true" />
+							{t("sidebar.defaultConversation.batchExport")}
+						</Button>
+						<Button
+							size="xs"
+							variant="destructive"
+							disabled={busy || selectedSessions.length === 0}
+							onClick={requestDeleteSelected}
+						>
+							<Trash2 aria-hidden="true" />
+							{t("sidebar.defaultConversation.batchDelete")}
+						</Button>
+						<Button size="xs" variant="ghost" disabled={busy} onClick={closeSelection}>
+							<X aria-hidden="true" />
+							{t("sidebar.defaultConversation.batchCancel")}
+						</Button>
+					</>
+					{batchMessage ? (
+						<span className="basis-full px-1 text-[11px] text-muted-foreground" role="status">
+							{batchMessage}
+						</span>
+					) : null}
 				</div>
 			) : null}
 			<ProjectGroupView
-			projectRow={{
-				badge: model.projectBadge,
-				displayName: model.displayName,
-				expanded: model.expanded,
-				hasRunning: model.hasRunning,
-				isActive: model.isActive,
-				newSessionTitle: model.newSessionTitle,
-				onCollapse: model.actions.collapse,
-				onExpand: model.actions.expand,
-				onNavigateProject: model.actions.navigateProject,
-				onNewSession: model.actions.newSession,
-				onOpenContextMenu: model.actions.openProjectContextMenu,
-				projectCwd: model.project.cwd,
-				projectType: model.projectType,
-				trailingAction: (
-					<>
-						<Button
-							aria-label={t("collaboration.openProject")}
-							title={t("collaboration.openProject")}
-							size="icon-xs"
-							variant="ghost"
-							onClick={(event) => {
-								event.stopPropagation();
-								model.actions.navigateProject();
-							}}
-						>
-							<span className="icon-[solar--users-group-rounded-linear] h-4 w-4" aria-hidden="true" />
-						</Button>
-						{model.expanded && selectableSessions.length > 0 && !selectionMode ? (
+				projectRow={{
+					badge: model.projectBadge,
+					displayName: model.displayName,
+					expanded: model.expanded,
+					hasRunning: model.hasRunning,
+					isActive: model.isActive,
+					newSessionTitle: model.newSessionTitle,
+					contextMenuTitle: model.project.isDefault ? undefined : model.projectActionsTitle,
+					onCollapse: model.actions.collapse,
+					onExpand: model.actions.expand,
+					onNavigateProject: model.actions.navigateProject,
+					onNewSession: model.actions.newSession,
+					onOpenContextMenu: model.actions.openProjectContextMenu,
+					projectCwd: model.project.cwd,
+					projectType: model.projectType,
+					trailingAction: (
+						<>
 							<Button
-								aria-label={t("sidebar.defaultConversation.batchSelect")}
-								title={t("sidebar.defaultConversation.batchSelect")}
+								aria-label={t("collaboration.openProject")}
+								title={t("collaboration.openProject")}
 								size="icon-xs"
 								variant="ghost"
+								className="h-5 w-5 text-muted-foreground hover:text-foreground"
 								onClick={(event) => {
 									event.stopPropagation();
-									setSelectionMode(true);
+									model.actions.navigateProject();
 								}}
 							>
-								<ListChecks aria-hidden="true" />
+								<span className="icon-[solar--users-group-rounded-linear] h-3.5 w-3.5" aria-hidden="true" />
 							</Button>
-						) : null}
-					</>
-				),
-			}}
-			emptySessions={
-				<p className="px-2.5 py-1.5 pl-[36px] text-[12px] text-muted-foreground">
-					{model.noSessionsLabel}
-				</p>
-			}
-			sessions={{
-				expanded: model.expanded,
-				hasMore: model.hasMoreSessions,
-				loading: props.sessionsLoading,
-				labels: model.showMoreLabels,
-				onToggleShowAll: model.actions.toggleShowAll,
-				scrollParent: props.scrollParent,
-				sessions: model.sessionViews,
-				showAll: model.showAllSessions,
-				renderSession: (session) => (
-					<ProjectSessionRow
-						key={session.key}
-						item={session}
-						onOpenContextMenu={model.actions.openSessionContextMenu}
-						onRename={model.actions.renameSession}
-						onRenameDone={model.actions.renameDone}
-						onSelect={model.actions.selectSession}
-						selectionMode={selectionMode}
-						selected={selectedPaths.has(session.path)}
-						onToggleSelected={toggleSelected}
-					/>
-				),
-			}}
+							{model.expanded && selectableSessions.length > 0 && !selectionMode ? (
+								<Button
+									aria-label={t("sidebar.defaultConversation.batchSelect")}
+									title={t("sidebar.defaultConversation.batchSelect")}
+									size="icon-xs"
+									variant="ghost"
+									onClick={(event) => {
+										event.stopPropagation();
+										setSelectionMode(true);
+									}}
+								>
+									<ListChecks aria-hidden="true" />
+								</Button>
+							) : null}
+						</>
+					),
+				}}
+				emptySessions={
+					<p className="px-2.5 py-1.5 pl-[36px] text-[12px] text-muted-foreground">{model.noSessionsLabel}</p>
+				}
+				sessions={{
+					expanded: model.expanded,
+					hasMore: model.hasMoreSessions,
+					loading: props.sessionsLoading,
+					labels: model.showMoreLabels,
+					onToggleShowAll: model.actions.toggleShowAll,
+					scrollParent: props.scrollParent,
+					sessions: model.sessionViews,
+					showAll: model.showAllSessions,
+					renderSession: (session) => (
+						<ProjectSessionRow
+							key={session.key}
+							item={session}
+							onOpenContextMenu={model.actions.openSessionContextMenu}
+							onRename={model.actions.renameSession}
+							onRenameDone={model.actions.renameDone}
+							onSelect={model.actions.selectSession}
+							selectionMode={selectionMode}
+							selected={selectedPaths.has(session.path)}
+							onToggleSelected={toggleSelected}
+						/>
+					),
+				}}
 			/>
 		</div>
 	);

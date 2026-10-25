@@ -70,7 +70,7 @@ export function NewSessionPageLayoutView({
 				<>
 					{background}
 					{themedBackground}
-					<div ref={scroller} className="no-drag relative z-[1] flex flex-1 flex-col overflow-y-auto">
+					<div ref={scroller} className="no-drag @container relative z-[1] flex flex-1 flex-col overflow-y-auto">
 						{landing ? <div aria-hidden="true" className="shrink-0" style={{ height: topGap }} /> : null}
 						<div
 							ref={column}
@@ -79,9 +79,7 @@ export function NewSessionPageLayoutView({
 							}`}
 						>
 							{hero}
-							{skillBadges && (
-								<div className="mx-auto w-full max-w-2xl px-2 sm:px-4">{skillBadges}</div>
-							)}
+							{skillBadges && <div className="mx-auto w-full max-w-2xl px-2 sm:px-4">{skillBadges}</div>}
 							<div className="w-full">{inputBar}</div>
 							{!isShort && guidingWords && (
 								<div className="mx-auto w-full max-w-2xl px-2 sm:px-4">{guidingWords}</div>

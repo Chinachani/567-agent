@@ -1,3 +1,4 @@
+import { WorkspacePageHeader } from "@vetta-org/theme-ui/shared";
 import { SegmentedControl } from "@vetta-org/theme-ui/shared";
 import { Button, Popover, PopoverContent, PopoverTrigger } from "@vetta-org/ui";
 import { motion } from "motion/react";
@@ -46,7 +47,9 @@ export function AbilitiesPageView({
 	const hasActiveFilter = Boolean(
 		model.searchQuery || model.typeFilter || model.category || model.reviewFilter !== "all" || model.tagFilter,
 	);
-	const activeFilterCount = [model.typeFilter, model.category, model.reviewFilter !== "all", model.tagFilter].filter(Boolean).length;
+	const activeFilterCount = [model.typeFilter, model.category, model.reviewFilter !== "all", model.tagFilter].filter(
+		Boolean,
+	).length;
 
 	useEffect(() => {
 		if (wasRefreshing.current && !model.refreshing) {
@@ -94,30 +97,18 @@ export function AbilitiesPageView({
 				}}
 			/>
 
-			<div className="flex-1 overflow-y-auto px-8 pb-8 [scrollbar-gutter:stable]">
-				<div className="mx-auto flex w-full max-w-5xl flex-col gap-5">
-					<div className="relative shrink-0 pt-5 pb-4">
-						<motion.div
-							className="flex items-end justify-between gap-4"
-							initial={{ opacity: 0, y: -8 }}
-							animate={{ opacity: 1, y: 0 }}
-							transition={{ duration: 0.5, ease: easeOut }}
-						>
-							<div className="min-w-0">
-								<h1 className="bg-gradient-to-br from-foreground via-foreground to-foreground/70 bg-clip-text text-[26px] font-bold leading-tight tracking-tight text-transparent">
-									{t("page.title")}
-								</h1>
-								<p className="mt-1 text-[12px] text-muted-foreground/60">{t("page.subtitle")}</p>
-							</div>
-							<div className="flex min-h-8 shrink-0 items-center gap-2">
-								<SettingsAiAssist tabId="mcp" />
-							</div>
-						</motion.div>
-					</div>
+			<div className="flex-1 overflow-y-auto px-5 pb-8 sm:px-8 [scrollbar-gutter:stable]">
+				<div className="mx-auto flex w-full max-w-6xl flex-col gap-5">
+					<WorkspacePageHeader
+						title={t("page.title")}
+						description={t("page.subtitle")}
+						actions={<SettingsAiAssist tabId="mcp" />}
+						className="border-b border-border/60 pb-6 pt-6"
+					/>
 
 					<AbilitiesBanner />
 
-					<div className="sticky top-0 z-30 -mx-8 flex flex-col gap-2 border-b border-border/70 bg-background/95 px-8 py-3 shadow-sm backdrop-blur-md">
+					<div className="sticky top-0 z-30 flex flex-col gap-3 border-b border-border/60 bg-background/95 py-3 backdrop-blur-md">
 						<div data-tour="capabilities-search-add" className="flex min-w-0 items-center gap-2">
 							<div className="relative min-w-0 flex-1">
 								<span className="icon-[solar--magnifer-linear] absolute left-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-muted-foreground/40" />
@@ -127,49 +118,120 @@ export function AbilitiesPageView({
 									placeholder={t("search.placeholder")}
 									value={model.searchQuery}
 									onChange={(event) => model.setSearchQuery(event.target.value)}
-									className="h-8 w-full rounded-lg bg-secondary pl-8 pr-3 text-[12px] text-foreground placeholder:text-muted-foreground/40 transition-colors hover:bg-accent focus:bg-accent focus:outline-none"
+									className="h-9 w-full rounded-lg border border-border bg-card pl-8 pr-3 text-[13px] text-foreground placeholder:text-muted-foreground transition-colors focus:outline-none focus:ring-1 focus:ring-ring"
 								/>
 							</div>
 							<Popover open={filtersOpen} onOpenChange={setFiltersOpen}>
 								<PopoverTrigger asChild>
-									<Button variant={activeFilterCount > 0 ? "secondary" : "outline"} size="sm" className="h-8 shrink-0">
+									<Button
+										variant={activeFilterCount > 0 ? "secondary" : "outline"}
+										size="sm"
+										className="h-8 shrink-0"
+									>
 										<span className="icon-[solar--filter-linear] h-3.5 w-3.5" />
 										{t("filter.trigger")}
-										{activeFilterCount > 0 && <span className="ml-0.5 tabular-nums">{activeFilterCount}</span>}
+										{activeFilterCount > 0 && (
+											<span className="ml-0.5 tabular-nums">{activeFilterCount}</span>
+										)}
 									</Button>
 								</PopoverTrigger>
 								<PopoverContent align="start" className="w-72">
 									<p className="px-1 text-[12px] font-semibold">{t("filter.title")}</p>
 									<label className="flex flex-col gap-1 text-[11px] text-muted-foreground">
 										{t("filter.type")}
-										<select aria-label={t("filter.type")} value={model.typeFilter} onChange={(event) => model.setTypeFilter(event.target.value as typeof model.typeFilter)} className="h-8 rounded-md border border-border bg-background px-2 text-[12px] text-foreground">
+										<select
+											aria-label={t("filter.type")}
+											value={model.typeFilter}
+											onChange={(event) =>
+												model.setTypeFilter(event.target.value as typeof model.typeFilter)
+											}
+											className="h-8 rounded-md border border-border bg-background px-2 text-[12px] text-foreground"
+										>
 											<option value="">{t("filter.allTypes")}</option>
-											{(model.availableTypes ?? Array.from(new Set(model.allItems.map((item) => item.type))).filter(Boolean)).map((type) => <option key={type} value={type}>{t(`type.${type}`)}</option>)}
+											{(
+												model.availableTypes ??
+												Array.from(new Set(model.allItems.map((item) => item.type))).filter(Boolean)
+											).map((type) => (
+												<option key={type} value={type}>
+													{t(`type.${type}`)}
+												</option>
+											))}
 										</select>
 									</label>
 									<label className="flex flex-col gap-1 text-[11px] text-muted-foreground">
 										{t("filter.category")}
-										<select aria-label={t("filter.category")} value={model.category} onChange={(event) => model.setCategory(event.target.value)} className="h-8 rounded-md border border-border bg-background px-2 text-[12px] text-foreground">
+										<select
+											aria-label={t("filter.category")}
+											value={model.category}
+											onChange={(event) => model.setCategory(event.target.value)}
+											className="h-8 rounded-md border border-border bg-background px-2 text-[12px] text-foreground"
+										>
 											<option value="">{t("filter.allCategories")}</option>
-							<option value={ABILITY_CATEGORY_INSTALLED}>{t("filter.installed", { count: model.installedCount })}</option>
-											{model.categories.map((group) => <option key={group.category} value={group.category}>{group.category === ABILITY_CATEGORY_UNCATEGORIZED ? t("group.uncategorized") : group.category === ABILITY_CATEGORY_CONNECTORS ? t("group.connectors") : group.category === ABILITY_CATEGORY_VETTA_BUILTIN ? t("group.vettaBuiltin") : resolveCategoryLabel(group.category, group.categoryI18n, i18n.language)}</option>)}
+											<option value={ABILITY_CATEGORY_INSTALLED}>
+												{t("filter.installed", { count: model.installedCount })}
+											</option>
+											{model.categories.map((group) => (
+												<option key={group.category} value={group.category}>
+													{group.category === ABILITY_CATEGORY_UNCATEGORIZED
+														? t("group.uncategorized")
+														: group.category === ABILITY_CATEGORY_CONNECTORS
+															? t("group.connectors")
+															: group.category === ABILITY_CATEGORY_VETTA_BUILTIN
+																? t("group.vettaBuiltin")
+																: resolveCategoryLabel(
+																		group.category,
+																		group.categoryI18n,
+																		i18n.language,
+																	)}
+												</option>
+											))}
 										</select>
 									</label>
 									<label className="flex flex-col gap-1 text-[11px] text-muted-foreground">
 										{t("filter.review")}
-										<select aria-label={t("filter.review")} value={model.reviewFilter} onChange={(event) => model.setReviewFilter(event.target.value as typeof model.reviewFilter)} className="h-8 rounded-md border border-border bg-background px-2 text-[12px] text-foreground">
-											<option value="all">{t("filter.allReviewStatuses")}</option><option value="unreviewed">{t("filter.unreviewed")}</option>
+										<select
+											aria-label={t("filter.review")}
+											value={model.reviewFilter}
+											onChange={(event) =>
+												model.setReviewFilter(event.target.value as typeof model.reviewFilter)
+											}
+											className="h-8 rounded-md border border-border bg-background px-2 text-[12px] text-foreground"
+										>
+											<option value="all">{t("filter.allReviewStatuses")}</option>
+											<option value="unreviewed">{t("filter.unreviewed")}</option>
 										</select>
 									</label>
 									<label className="flex flex-col gap-1 text-[11px] text-muted-foreground">
 										{t("filter.tag")}
-										<select aria-label={t("filter.tag")} value={model.tagFilter} onChange={(event) => model.setTagFilter(event.target.value)} className="h-8 rounded-md border border-border bg-background px-2 text-[12px] text-foreground">
+										<select
+											aria-label={t("filter.tag")}
+											value={model.tagFilter}
+											onChange={(event) => model.setTagFilter(event.target.value)}
+											className="h-8 rounded-md border border-border bg-background px-2 text-[12px] text-foreground"
+										>
 											<option value="">{t("filter.allTags")}</option>
-											{model.availableTags.map((tag) => <option key={tag.toLocaleLowerCase()} value={tag}>{tag}</option>)}
+											{model.availableTags.map((tag) => (
+												<option key={tag.toLocaleLowerCase()} value={tag}>
+													{tag}
+												</option>
+											))}
 										</select>
 									</label>
 									<div className="flex justify-end pt-1">
-										<Button type="button" variant="ghost" size="sm" disabled={activeFilterCount === 0} onClick={() => { model.setTypeFilter(""); model.setCategory(""); model.setReviewFilter("all"); model.setTagFilter(""); }}>{t("filter.clear")}</Button>
+										<Button
+											type="button"
+											variant="ghost"
+											size="sm"
+											disabled={activeFilterCount === 0}
+											onClick={() => {
+												model.setTypeFilter("");
+												model.setCategory("");
+												model.setReviewFilter("all");
+												model.setTagFilter("");
+											}}
+										>
+											{t("filter.clear")}
+										</Button>
 									</div>
 								</PopoverContent>
 							</Popover>
@@ -221,13 +283,13 @@ export function AbilitiesPageView({
 					)}
 					<div data-tour="capabilities-list">
 						{model.loading ? (
-							<div className="flex min-h-52 flex-col items-center justify-center gap-2 text-muted-foreground/60">
+							<div className="flex min-h-52 flex-col items-center justify-center gap-2 text-muted-foreground">
 								<span className="icon-[solar--refresh-linear] h-8 w-8 animate-spin" />
 								<span className="text-[12px]">{t("loading")}</span>
 							</div>
 						) : model.items.length === 0 ? (
 							<div className="flex min-h-52 flex-col items-center justify-center gap-3 rounded-xl border border-border/50 bg-card/30 text-center">
-								<span className="icon-[solar--magic-stick-3-linear] h-10 w-10 text-muted-foreground/50" />
+								<span className="icon-[solar--magic-stick-3-linear] h-10 w-10 text-muted-foreground" />
 								<div>
 									<p className="text-[13px] font-semibold text-foreground">
 										{hasActiveFilter
@@ -236,7 +298,7 @@ export function AbilitiesPageView({
 												? t("empty.discover")
 												: t("empty.mine")}
 									</p>
-									<p className="mt-1 text-[11px] text-muted-foreground/60">
+									<p className="mt-1 text-[11px] text-muted-foreground">
 										{hasActiveFilter ? t("empty.noMatchHint") : t("empty.hint")}
 									</p>
 								</div>
@@ -254,23 +316,37 @@ export function AbilitiesPageView({
 															? t("group.connectors")
 															: group.category === ABILITY_CATEGORY_VETTA_BUILTIN
 																? t("group.vettaBuiltin")
-																: resolveCategoryLabel(group.category, group.categoryI18n, i18n.language)}
+																: resolveCategoryLabel(
+																		group.category,
+																		group.categoryI18n,
+																		i18n.language,
+																	)}
 												</h2>
-												<span className="text-[11px] tabular-nums text-muted-foreground/50">
+												<span className="text-[11px] tabular-nums text-muted-foreground">
 													{group.items.length}
 												</span>
 											</div>
-											<div className="grid grid-cols-[repeat(auto-fill,minmax(min(260px,100%),1fr))] gap-x-3 gap-y-0.5">
+											<div className="grid grid-cols-[repeat(auto-fill,minmax(min(300px,100%),1fr))] gap-3">
 												{group.items.map((item) => (
-													<AbilityCard key={item.id} item={item} model={model} onUnreviewedMcpAdd={setUnreviewedMcp} />
+													<AbilityCard
+														key={item.id}
+														item={item}
+														model={model}
+														onUnreviewedMcpAdd={setUnreviewedMcp}
+													/>
 												))}
 											</div>
 										</section>
 									))
 								) : (
-									<div className="grid grid-cols-[repeat(auto-fill,minmax(min(260px,100%),1fr))] gap-x-3 gap-y-0.5">
+									<div className="grid grid-cols-[repeat(auto-fill,minmax(min(300px,100%),1fr))] gap-3">
 										{model.items.map((item) => (
-											<AbilityCard key={item.id} item={item} model={model} onUnreviewedMcpAdd={setUnreviewedMcp} />
+											<AbilityCard
+												key={item.id}
+												item={item}
+												model={model}
+												onUnreviewedMcpAdd={setUnreviewedMcp}
+											/>
 										))}
 									</div>
 								)}

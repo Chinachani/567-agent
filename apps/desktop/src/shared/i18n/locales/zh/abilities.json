@@ -56,7 +56,8 @@
     "unreviewed": "未审核 · 安全性未知"
   },
   "card": {
-    "noDescription": "暂无能力说明"
+    "noDescription": "暂无能力说明",
+    "openDetails": "查看 {{name}} 详情"
   },
   "operation": {
     "processing": "正在处理…",

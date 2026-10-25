@@ -32,16 +32,18 @@ export const SIDEBAR_NAV_LAYOUT_STORAGE_KEY = "vetta-sidebar-nav-layout";
  * 布局存储版本。默认置顶集合只对「从没记过这个 key」的入口生效，所以给老用户
  * 新增默认置顶项必须靠一次性迁移：版本号每加一，就把该版本对应的 key 补进置顶区。
  */
-export const SIDEBAR_NAV_LAYOUT_VERSION = 2;
+export const SIDEBAR_NAV_LAYOUT_VERSION = 3;
 
 /** 一次性布局迁移：补置顶入口或调整相关入口的相邻顺序。 */
 const NAV_LAYOUT_MIGRATIONS: readonly {
 	readonly version: number;
 	readonly pin?: readonly string[];
+	readonly unpin?: readonly string[];
 	readonly moveAfter?: readonly [string, string];
 }[] = [
 	{ version: 1, pin: ["/agents"] },
 	{ version: 2, moveAfter: ["workspace:vetta-ui-design/gallery", "workspace:cowart-vetta/canvas"] },
+	{ version: 3, unpin: ["workspace:cowart-vetta/canvas"] },
 ];
 
 export interface SidebarNavLayout {
@@ -228,6 +230,12 @@ export function migrateSidebarNavLayout(layout: SidebarNavLayout, fromVersion: n
 	let more = [...layout.more];
 	for (const migration of NAV_LAYOUT_MIGRATIONS) {
 		if (migration.version <= fromVersion) continue;
+		for (const key of migration.unpin ?? []) {
+			const index = pinned.indexOf(key);
+			if (index < 0) continue;
+			pinned.splice(index, 1);
+			more = [key, ...withoutKey(more, key)];
+		}
 		for (const key of migration.pin ?? []) {
 			if (pinned.includes(key) || pinned.length >= capacity) continue;
 			pinned.push(key);
@@ -235,7 +243,7 @@ export function migrateSidebarNavLayout(layout: SidebarNavLayout, fromVersion: n
 		}
 		if (migration.moveAfter) {
 			const [anchor, moving] = migration.moveAfter;
-			const targetIsPinned = pinned.includes(anchor);
+			const targetIsPinned = pinned.includes(anchor) && pinned.includes(moving);
 			const targetBefore = targetIsPinned ? pinned : more;
 			const anchorIndexBefore = targetBefore.indexOf(anchor);
 			if (anchorIndexBefore < 0 || moving === anchor) continue;

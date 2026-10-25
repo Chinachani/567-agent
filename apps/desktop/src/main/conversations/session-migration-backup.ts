@@ -19,6 +19,8 @@ export interface SessionMigrationArchive {
 }
 
 export interface SessionMigrationContext {
+	readonly resetThroughMessageId?: string | null;
+	readonly resetThroughCreatedAtEpochMs?: number | null;
 	readonly autoCompactionEnabled?: boolean;
 	readonly throughMessageId?: string | null;
 	readonly throughCreatedAtEpochMs?: number | null;
@@ -212,6 +214,8 @@ function parseMigrationContext(value: unknown): SessionMigrationContext {
 		throw new Error("Invalid excluded context turns");
 	return {
 		autoCompactionEnabled: value.autoCompactionEnabled !== false,
+		resetThroughMessageId: optionalString(value.resetThroughMessageId),
+		resetThroughCreatedAtEpochMs: optionalFiniteNumber(value.resetThroughCreatedAtEpochMs),
 		throughMessageId: optionalString(value.throughMessageId),
 		throughCreatedAtEpochMs: optionalFiniteNumber(value.throughCreatedAtEpochMs),
 		summary: typeof value.summary === "string" ? value.summary : "",

@@ -2,6 +2,7 @@ import { describe, expect, it, vi } from "vitest";
 import {
 	AccessTokenRefreshCoordinator,
 	AccountLoginRejectedError,
+	isAccountResponseRejected,
 	isRefreshCookieRejected,
 	RefreshCookieRejectedError,
 	refreshWithAccountRecovery,
@@ -158,4 +159,15 @@ describe("567 API account token recovery", () => {
 		currentToken = "newer";
 		await expect(coordinator.afterUnauthorized("expired", () => currentToken, clear, refresh)).resolves.toBe("newer");
 	});
+});
+
+it("recognizes rejected account envelopes without refreshing transport or ordinary permission failures", () => {
+	expect(isAccountResponseRejected({ status: 200, data: { success: false, message: "登录已过期，请重新登录" } })).toBe(
+		true,
+	);
+	expect(isAccountResponseRejected({ status: 200, data: { success: false, code: 40105 } })).toBe(true);
+	for (const status of [200, 400, 403, 429, 503]) {
+		expect(isAccountResponseRejected({ status, data: { success: false, message: "permission denied" } })).toBe(false);
+	}
+	expect(isAccountResponseRejected({ status: 200, data: { success: true, message: "token expired" } })).toBe(false);
 });

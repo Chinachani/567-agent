@@ -7,6 +7,13 @@ import androidx.compose.ui.test.onNodeWithContentDescription
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.onAllNodesWithText
 import androidx.compose.ui.test.performClick
+import androidx.compose.ui.test.hasAnyAncestor
+import androidx.compose.ui.test.hasText
+import androidx.compose.ui.test.isSelectable
+import androidx.compose.ui.test.hasClickAction
+import androidx.compose.ui.test.SemanticsMatcher
+import androidx.compose.ui.semantics.SemanticsProperties
+import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.test.performTextClearance
 import androidx.compose.ui.test.performTextInput
 import androidx.compose.ui.test.performScrollTo
@@ -343,16 +350,16 @@ class MainScreenInteractionsTest {
             }
         }
 
-        composeRule.onNodeWithText(Str.autoResume).performClick()
-        composeRule.onNodeWithText(Str.pageMotion).performClick()
-        composeRule.onNodeWithText(Str.confirmDeleteSession).performClick()
+        composeRule.onNodeWithText(Str.autoResume).performScrollTo().performClick()
+        composeRule.onNodeWithText(Str.pageMotion).performScrollTo().performClick()
 
-        assertEquals(listOf(false, false, false), values)
+        assertEquals(listOf(false, false), values)
     }
 
     @Test
     fun settingsClearLocalDataRequiresConfirmationAndCallsCallback() {
         var cleared = false
+        var confirmDeletes = true
         composeRule.setContent {
             Agent567Theme(ThemeMode.Light) {
                 SettingsScreen(
@@ -371,12 +378,14 @@ class MainScreenInteractionsTest {
                     onSendMigration = { _, _, _ -> },
                     onBack = {},
                     confirmBeforeDelete = true,
-                    onConfirmBeforeDelete = {},
+                    onConfirmBeforeDelete = { confirmDeletes = it },
                 )
             }
         }
 
-        composeRule.onNodeWithText(Str.clearLocalData).performClick()
+        composeRule.onNodeWithText(Str.confirmDeleteSession).performScrollTo().performClick()
+        assertEquals(false, confirmDeletes)
+        composeRule.onNodeWithText(Str.clearLocalData).performScrollTo().performClick()
         composeRule.onNodeWithText(Str.clearLocalDataTitle).assertIsDisplayed()
         composeRule.onNodeWithText(Str.clearLocalDataAction).performClick()
         assertTrue(cleared)
@@ -391,7 +400,7 @@ class MainScreenInteractionsTest {
                     onlineDeviceCount = 0, onOpenAbout = { opened = true })
             }
         }
-        composeRule.onNodeWithText(Str.aboutUs).performClick()
+        composeRule.onNodeWithText(Str.aboutUs).performScrollTo().performClick()
         assertTrue(opened)
     }
 
@@ -468,8 +477,8 @@ class MainScreenInteractionsTest {
         composeRule.onNodeWithText(Str.connectAction).performClick()
         assertEquals("192.168.1.8", manualHost)
 
-        composeRule.onNodeWithText(Str.channelCloud).performClick()
-        composeRule.onNodeWithText(Str.useCloudAi).performClick()
+        composeRule.onNode(hasText(Str.channelCloud) and isSelectable()).performClick()
+        composeRule.onNode(hasText(Str.useCloudAi) and SemanticsMatcher.expectValue(SemanticsProperties.Role, Role.Button)).performScrollTo().performClick()
         assertTrue(cloudOpened)
     }
 }

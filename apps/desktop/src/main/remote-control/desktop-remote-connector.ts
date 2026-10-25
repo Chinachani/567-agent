@@ -1,8 +1,13 @@
 import { AI_ERROR_CODES, isAIError } from "@567agent/ai";
 import type { CodingAgentQuestionResult } from "@567agent/coding-agent/function-extensions";
 import type { RemoteConnection, RemoteError, RemoteRequest, RemoteSessionContext } from "@567agent/remote-control";
+import { mainT } from "../i18n/index.js";
+import { getAppLogger } from "../logger.js";
 import { EncryptedSessionMigrationTransfer } from "./encrypted-session-migration-transfer.js";
+import { buildRemoteHistoryPage } from "./history-page.js";
 import { RemotePromptRecovery } from "./remote-prompt-recovery.js";
+
+const log = getAppLogger("remote-conversation");
 
 const PROMPT_ATTACHMENT_CHUNK_BYTES = 192 * 1024;
 const PROMPT_ATTACHMENT_MAX_BYTES = 12 * 1024 * 1024;
@@ -287,7 +292,12 @@ export class DesktopRemoteConnector {
 			case "session.history": {
 				if (!this.operations.readHistory) throw new Error("Desktop session history is unavailable");
 				const { offset, limit } = readHistoryPage(request);
-				return { messages: await this.operations.readHistory(requireSessionId(request), offset, limit) };
+				return buildRemoteHistoryPage(
+					await this.operations.readHistory(requireSessionId(request), offset, limit),
+					offset,
+					limit,
+					isRecord(request.payload) && request.payload.boundedPages === true,
+				);
 			}
 			case "session.image.read": {
 				if (!this.operations.readGeneratedImageChunk) throw new Error("Desktop image transfer is unavailable");
@@ -554,16 +564,22 @@ export class DesktopRemoteConnector {
 					: (await this.operations.createSession()).sessionId;
 				const turnId = readClientTurnId(request) ?? request.requestId;
 				const fingerprint = this.promptRecovery.fingerprint(request.payload);
-				if (this.promptRecovery.has(turnId, sessionId, fingerprint)) return { accepted: true, sessionId, turnId };
+				if (this.promptRecovery.has(turnId, sessionId, fingerprint)) {
+					log.info("remote prompt replay acknowledged", { sessionId, turnId, requestId: request.requestId });
+					return { accepted: true, sessionId, turnId };
+				}
 				const attachmentIds = readPromptAttachmentIds(request);
 				const staged = this.takeStagedPromptAttachments(sessionId, attachmentIds);
 				const text = readPromptText(request, staged.length > 0);
 				const retryPreviousTurn = readRetryPreviousTurn(request);
 				const retryTargetMessageId = retryPreviousTurn ? readRetryTargetMessageId(request) : undefined;
 				this.promptRecovery.start(turnId, sessionId, fingerprint);
+				log.info("remote prompt submitted", { sessionId, turnId, requestId: request.requestId, retryPreviousTurn });
 				void this.runPrompt(sessionId, text, retryPreviousTurn, retryTargetMessageId, staged, turnId)
 					.catch(async (error: unknown) => {
-						this.promptRecovery.fail(turnId, toRemoteError(error));
+						const failure = toRemoteError(error);
+						log.warn("remote prompt failed", { sessionId, turnId, code: failure.code });
+						this.promptRecovery.fail(turnId, failure);
 						if (this.connection.getSnapshot().state === "online") {
 							const remoteError = toRemoteError(error);
 							await this.connection.emitEvent(
@@ -708,6 +724,7 @@ export class DesktopRemoteConnector {
 					// Socket failure is not an agent failure. Never restart the task.
 				}
 			}
+			log.info("remote prompt finished", { sessionId, turnId });
 			return { completed: true, sessionId };
 		} finally {
 			for (const attachment of attachments) this.stagedPromptAttachments.delete(attachment.id);
@@ -1048,6 +1065,8 @@ function readWrappedFailure(error: unknown): { code: string; retryable: boolean 
 
 function mapModelFailure(code: string, retryable: boolean): RemoteError {
 	switch (code) {
+		case AI_ERROR_CODES.TRANSPORT_FAILED:
+			return remoteError("internal_error", mainT("remote.modelConnectionInterrupted"), retryable);
 		case AI_ERROR_CODES.AUTHENTICATION_FAILED:
 		case AI_ERROR_CODES.PERMISSION_DENIED:
 			return remoteError("unauthorized", "电脑端模型认证失败，请检查默认模型和 API 密钥", false);

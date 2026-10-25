@@ -27,7 +27,7 @@ export function KnowledgeBaseListPageView({ model }: KnowledgeBaseListPageViewPr
 		<div className="flex h-full w-full flex-1 flex-col overflow-hidden">
 			<header
 				className={cn(
-					"flex shrink-0 gap-4 px-8 pb-5 pt-7",
+					"flex shrink-0 flex-wrap gap-4 border-b border-border/60 px-5 py-6 sm:px-8",
 					model.narrow ? "flex-col items-stretch" : "items-end justify-between",
 				)}
 			>
@@ -37,15 +37,10 @@ export function KnowledgeBaseListPageView({ model }: KnowledgeBaseListPageViewPr
 					transition={{ duration: 0.45, ease: EASE_OUT }}
 				>
 					<div className="flex items-center gap-2">
-						<Button
-							variant="ghost"
-							size="icon-sm"
-							title={t("kbAllBack")}
-							onClick={model.goBack}
-						>
-							<span className="icon-[mdi--arrow-left] h-4 w-4" />
+						<Button variant="ghost" size="icon-sm" title={t("kbAllBack")} onClick={model.goBack}>
+							<span className="icon-[solar--arrow-left-linear] h-4 w-4" />
 						</Button>
-						<h1 className="text-[24px] font-bold tracking-tight text-foreground">{t("kbAllTitle")}</h1>
+						<h1 className="text-[24px] font-semibold tracking-tight text-foreground">{t("kbAllTitle")}</h1>
 						<motion.span
 							key={model.knowledgeBases.length}
 							initial={{ opacity: 0, scale: 0.85 }}
@@ -56,32 +51,33 @@ export function KnowledgeBaseListPageView({ model }: KnowledgeBaseListPageViewPr
 							{model.knowledgeBases.length}
 						</motion.span>
 					</div>
-					<p className="ml-9 mt-1 text-[12px] text-muted-foreground/60">{t("kbAllSubtitle")}</p>
+					<p className="ml-9 mt-2 text-[13px] text-muted-foreground">{t("kbAllSubtitle")}</p>
 				</motion.div>
 				<motion.div
 					initial={{ opacity: 0, y: -6 }}
 					animate={{ opacity: 1, y: 0 }}
 					transition={{ duration: 0.4, delay: 0.06, ease: EASE_OUT }}
-					className="flex items-center gap-2"
+					className="flex max-w-full flex-wrap items-center gap-2"
 				>
 					<div className={cn("relative", model.narrow ? "min-w-0 flex-1" : "w-64")}>
-						<span className="icon-[mdi--magnify] absolute left-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-muted-foreground/40" />
+						<span className="icon-[solar--magnifer-linear] absolute left-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-muted-foreground/40" />
 						<input
 							value={model.search}
 							onChange={(event) => model.setSearch(event.target.value)}
 							placeholder={t("kbAllSearch")}
+							aria-label={t("kbAllSearch")}
 							className="h-8 w-full min-w-0 rounded-lg border border-transparent bg-secondary pl-8 pr-3 text-[12px] shadow-none outline-none placeholder:text-muted-foreground/45 hover:bg-accent focus-visible:border-primary/25 focus-visible:bg-background/70"
 						/>
 					</div>
 					<SettingsAiAssist tabId="knowledgeBase" />
 					<Button variant="primary" onClick={model.createKnowledgeBase}>
-						<span className="icon-[mdi--plus] h-4 w-4" />
+						<span className="icon-[solar--add-circle-linear] h-4 w-4" />
 						{t("kbCreateBase")}
 					</Button>
 				</motion.div>
 			</header>
 
-			<div className="min-h-0 flex-1 overflow-y-auto px-8 pb-8">
+			<div className="min-h-0 flex-1 overflow-y-auto px-5 py-6 sm:px-8">
 				<AnimatePresence mode="popLayout">
 					{model.filteredBases.length > 0 ? (
 						<motion.div
@@ -91,7 +87,7 @@ export function KnowledgeBaseListPageView({ model }: KnowledgeBaseListPageViewPr
 							animate={{ opacity: 1, y: 0 }}
 							exit={{ opacity: 0, y: 6 }}
 							transition={{ duration: 0.35, ease: EASE_OUT }}
-							className="grid grid-cols-[repeat(auto-fill,minmax(220px,1fr))] gap-3"
+							className="grid grid-cols-[repeat(auto-fill,minmax(min(260px,100%),1fr))] gap-3"
 						>
 							<AnimatePresence mode="popLayout">
 								{model.filteredBases.map((base, index) => {
@@ -122,10 +118,10 @@ export function KnowledgeBaseListPageView({ model }: KnowledgeBaseListPageViewPr
 												variant="ghost"
 												onClick={() => model.openKnowledgeBase(base)}
 												className={cn(
-													"group h-auto min-h-36 w-full items-stretch justify-start whitespace-normal rounded-xl border p-4 text-left transition-[background-color,border-color,box-shadow]",
+													"group h-auto min-h-36 w-full items-stretch justify-start whitespace-normal rounded-xl border p-4 text-left transition-colors",
 													active
-														? "border-primary/25 bg-primary/6 hover:bg-primary/10 hover:shadow-sm"
-														: "border-border bg-muted/25 hover:bg-muted/55 hover:shadow-sm",
+														? "border-primary/25 bg-primary/5 hover:bg-primary/10"
+														: "border-border bg-card/40 hover:bg-accent/30",
 												)}
 											>
 												<div className="flex w-full flex-col">
@@ -134,11 +130,11 @@ export function KnowledgeBaseListPageView({ model }: KnowledgeBaseListPageViewPr
 															className={cn(
 																"flex h-9 w-9 shrink-0 items-center justify-center rounded-lg transition-colors",
 																active
-																	? "bg-primary/12 text-primary"
+																	? "bg-primary/10 text-primary"
 																	: "bg-accent text-muted-foreground group-hover:text-foreground",
 															)}
 														>
-															<span className="icon-[mdi--book-open-variant-outline] h-4 w-4" />
+															<span className="icon-[solar--book-2-linear] h-4 w-4" />
 														</div>
 														{active && (
 															<motion.span
@@ -153,7 +149,7 @@ export function KnowledgeBaseListPageView({ model }: KnowledgeBaseListPageViewPr
 													<h2 className="mt-3 truncate text-[13px] font-semibold text-foreground">
 														{knowledgeBaseDisplayName(base)}
 													</h2>
-													<div className="mt-auto flex items-center gap-2 pt-3 text-[10px] text-muted-foreground/50">
+													<div className="mt-auto flex items-center gap-2 pt-3 text-[10px] text-muted-foreground">
 														<span>{t("kbDirCount", { n: stats.directories })}</span>
 														<span>·</span>
 														<span>{t("kbFileCount", { n: stats.files })}</span>
@@ -176,7 +172,7 @@ export function KnowledgeBaseListPageView({ model }: KnowledgeBaseListPageViewPr
 							className="flex h-full min-h-72 flex-col items-center justify-center text-center"
 						>
 							<motion.span
-								className="icon-[mdi--bookshelf] h-10 w-10 text-muted-foreground/30"
+								className="icon-[solar--library-linear] h-10 w-10 text-muted-foreground/30"
 								initial={{ scale: 0.9 }}
 								animate={{ scale: 1 }}
 								transition={{ duration: 0.4, ease: EASE_OUT }}
@@ -184,14 +180,12 @@ export function KnowledgeBaseListPageView({ model }: KnowledgeBaseListPageViewPr
 							<p className="mt-3 text-[13px] font-medium text-foreground">
 								{model.knowledgeBases.length === 0 ? t("kbAllEmptyNone") : t("kbAllEmptyNoMatch")}
 							</p>
-							<p className="mt-1 text-[11px] text-muted-foreground/55">
-								{model.knowledgeBases.length === 0
-									? t("kbAllEmptyNoneDesc")
-									: t("kbAllEmptyNoMatchDesc")}
+							<p className="mt-1 text-[11px] text-muted-foreground">
+								{model.knowledgeBases.length === 0 ? t("kbAllEmptyNoneDesc") : t("kbAllEmptyNoMatchDesc")}
 							</p>
 							{model.knowledgeBases.length === 0 && (
 								<Button variant="primary" className="mt-4" onClick={model.createKnowledgeBase}>
-									<span className="icon-[mdi--plus] h-4 w-4" />
+									<span className="icon-[solar--add-circle-linear] h-4 w-4" />
 									{t("kbCreateBase")}
 								</Button>
 							)}

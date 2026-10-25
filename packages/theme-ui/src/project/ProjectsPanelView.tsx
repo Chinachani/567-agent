@@ -1,5 +1,4 @@
 import type { JSX, ReactNode } from "react";
-import { ScrollFade } from "../shared/ScrollFade";
 import { QuickScrollOverlay, type QuickScrollLabels } from "./QuickScrollOverlay";
 
 export interface ProjectsPanelViewProps {
@@ -34,19 +33,15 @@ export function ProjectsPanelView({
 			{showEmpty ? (
 				<div className="min-h-0 flex-1 overflow-y-auto no-scrollbar">{emptyState}</div>
 			) : (
-				<QuickScrollOverlay
-					labels={quickScrollLabels}
-					scrollElement={scrollElement}
-					className="min-h-0 flex-1"
-				>
-					<ScrollFade
+				<QuickScrollOverlay labels={quickScrollLabels} scrollElement={scrollElement} className="min-h-0 flex-1">
+					<div
 						data-sidebar-selection-scroll="true"
-						onScrollRef={onScrollRef}
+						ref={onScrollRef}
 						className="min-h-0 flex-1 overflow-y-auto no-scrollbar"
 					>
 						{showProjectsRegion && <div data-tour="sidebar-projects">{projectsSection}</div>}
 						{showDefaultRegion && <div data-tour="sidebar-conversations">{defaultSection}</div>}
-					</ScrollFade>
+					</div>
 				</QuickScrollOverlay>
 			)}
 

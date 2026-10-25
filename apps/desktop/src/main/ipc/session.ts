@@ -40,6 +40,7 @@ import {
 	type SettingsPatch,
 } from "@567agent/runtime-core";
 import { sessionExtensionObservation } from "@567agent/runtime-core/session-extensions";
+import { isSessionPathInDirectory } from "@567agent/runtime-desktop";
 import { isMcpJsonValue, type McpJsonObject } from "@567agent/runtime-mcp";
 import { BrowserWindow, dialog, ipcMain, type OpenDialogOptions, type WebContents } from "electron";
 import type { DesktopMcpAppResourceRead, DesktopMcpAppToolCall } from "../../shared/mcp-app.js";
@@ -105,6 +106,7 @@ import {
 	readDesktopConfig,
 } from "./fs.js";
 import { parseSessionTraceContext } from "./session-trace-context.js";
+import { registerSessionWorkbenchIpc } from "./session-workbench.js";
 import { readSettings, updateSettings } from "./settings.js";
 
 export { ensureConversationSubCwd, resolveSessionDirForCwd } from "../conversations/session-paths.js";
@@ -200,12 +202,6 @@ const CHANNELS = {
 	NEXT_PROMPT_SUGGESTIONS: "vetta:session:next-prompt-suggestions",
 	DISPOSE: "vetta:session:dispose",
 	GET_FULL_HISTORY: "vetta:session:get-full-history",
-	CONTEXT_WORKSPACE: "agent567:session:context-workspace",
-	WORKBENCH: "agent567:session:workbench",
-	WORKBENCH_DETAIL: "agent567:session:workbench-detail",
-	ATTACHMENT_READ: "agent567:session:attachment-read",
-	REVIEW_CHANGE: "agent567:session:review-change",
-	CONTEXT_SELECTION: "agent567:session:context-selection",
 	NAVIGATE_FOR_EDIT: "vetta:session:navigate-for-edit",
 	SWITCH_BRANCH: "vetta:session:switch-branch",
 	DELETE_MESSAGE: "vetta:session:delete-message",
@@ -404,6 +400,7 @@ function assertMcpAppSender(sender: WebContents, expected: WebContents): void {
 }
 
 export function registerSessionIpc(webContents: WebContents): () => void {
+	const teardownWorkbench = registerSessionWorkbenchIpc(webContents);
 	const resolveDefaultExecutionMode = async (): Promise<SessionExecutionMode> => {
 		const config = await readDesktopConfig();
 		return config.defaultExecutionMode;
@@ -1345,43 +1342,6 @@ export function registerSessionIpc(webContents: WebContents): () => void {
 		return runtime.getMessages(sessionId);
 	});
 
-	ipcMain.handle(CHANNELS.WORKBENCH, (_event, sessionId: unknown) => {
-		assertNonEmptyString(sessionId, "sessionId");
-		return getDesktopConversationService().readSessionWorkbench(sessionId);
-	});
-	ipcMain.handle(CHANNELS.WORKBENCH_DETAIL, (_event, sessionId: unknown, kind: unknown, id: unknown) => {
-		assertNonEmptyString(sessionId, "sessionId");
-		assertNonEmptyString(kind, "kind");
-		assertNonEmptyString(id, "id");
-		return getDesktopConversationService().readSessionWorkbenchDetail(sessionId, kind, id);
-	});
-	ipcMain.handle(
-		CHANNELS.ATTACHMENT_READ,
-		(_event, sessionId: unknown, id: unknown, offset: unknown, length: unknown) => {
-			assertNonEmptyString(sessionId, "sessionId");
-			assertNonEmptyString(id, "id");
-			if (typeof offset !== "number" || typeof length !== "number") throw new Error("Invalid chunk range");
-			return getDesktopConversationService().readSessionAttachmentChunk(sessionId, id, offset, length);
-		},
-	);
-	ipcMain.handle(
-		CHANNELS.REVIEW_CHANGE,
-		(_event, sessionId: unknown, id: unknown, action: unknown, revision: unknown) => {
-			assertNonEmptyString(sessionId, "sessionId");
-			assertNonEmptyString(id, "id");
-			assertNonEmptyString(action, "action");
-			if (typeof revision !== "string") throw new Error("Invalid file revision");
-			return getDesktopConversationService().reviewSessionChange(sessionId, id, action, revision);
-		},
-	);
-	ipcMain.handle(CHANNELS.CONTEXT_WORKSPACE, (_event, sessionId: unknown) => {
-		assertNonEmptyString(sessionId, "sessionId");
-		return getDesktopConversationService().readContextWorkspace(sessionId);
-	});
-	ipcMain.handle(CHANNELS.CONTEXT_SELECTION, (_event, sessionId: unknown, selection: unknown) => {
-		assertNonEmptyString(sessionId, "sessionId");
-		return getDesktopConversationService().updateContextSelection(sessionId, selection);
-	});
 	ipcMain.handle(CHANNELS.GET_FULL_HISTORY, async (_event, sessionId: unknown) => {
 		assertNonEmptyString(sessionId, "sessionId");
 		return runtime.getFullHistory(sessionId);
@@ -1526,8 +1486,8 @@ export function registerSessionIpc(webContents: WebContents): () => void {
 		);
 
 		const running = runtime.getRunningSessionPaths();
-		const sessionDirWithSep = `${targetSessionDir}/`;
-		const blocking = running.filter((p) => resolve(p).startsWith(sessionDirWithSep));
+		const sessionDirectories = [targetSessionDir, join(targetCwd, ".vetta", "sessions")];
+		const blocking = running.filter((p) => sessionDirectories.some((dir) => isSessionPathInDirectory(p, dir)));
 		if (blocking.length > 0) {
 			throw new Error(
 				scope === "claw"
@@ -1556,7 +1516,7 @@ export function registerSessionIpc(webContents: WebContents): () => void {
 		);
 
 		try {
-			await rmExceptPreserved(targetSessionDir, new Set());
+			for (const directory of sessionDirectories) await rmExceptPreserved(directory, new Set());
 		} catch (err) {
 			sessionLog.error("clear-default-conversation failed to clear session dir", err);
 			throw err;
@@ -1581,7 +1541,7 @@ export function registerSessionIpc(webContents: WebContents): () => void {
 		}
 		await Promise.all(
 			entries
-				.filter((entry) => entry.name !== ".vetta")
+				.filter((entry) => entry.name !== ".vetta" && entry.name !== ".567agent")
 				.map(async (entry) => {
 					const full = join(targetCwd, entry.name);
 					if (entry.isDirectory() && isSessionArtifactDirName(entry.name)) {
@@ -2019,6 +1979,7 @@ export function registerSessionIpc(webContents: WebContents): () => void {
 	});
 
 	return () => {
+		teardownWorkbench();
 		unsubscribeSessionOpened();
 		unsubscribeCollaborationResidency();
 		unsubscribeConversationListChanged();

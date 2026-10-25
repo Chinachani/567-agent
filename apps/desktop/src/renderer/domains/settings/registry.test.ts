@@ -1,5 +1,10 @@
 import { describe, expect, it } from "vitest";
-import { filterVisibleSettingsTabs, SETTINGS_TABS, type SettingsTabVisibilityContext } from "./registry";
+import {
+	filterVisibleSettingsTabs,
+	findSettingsSection,
+	SETTINGS_TABS,
+	type SettingsTabVisibilityContext,
+} from "./registry";
 
 const BASE: SettingsTabVisibilityContext = {
 	isPersonal: true,
@@ -13,6 +18,11 @@ function visibleKeys(context: Partial<SettingsTabVisibilityContext>): string[] {
 }
 
 describe("设置标签可见性", () => {
+	it("keeps the legacy image section link but resolves it to model settings and omits retired decoration entries", () => {
+		expect(findSettingsSection("agent-images")?.tab).toBe("models");
+		expect(findSettingsSection("appearance-ornament")).toBeUndefined();
+		expect(findSettingsSection("appearance-texture")).toBeUndefined();
+	});
 	it("远程连接支持全平台可见", () => {
 		expect(visibleKeys({ isWindows: true })).toContain("remote");
 		expect(visibleKeys({ isMac: true })).toContain("remote");

@@ -20,10 +20,7 @@ function DialogClose({ ...props }: React.ComponentProps<typeof DialogPrimitive.C
 	return <DialogPrimitive.Close data-slot="dialog-close" {...props} />;
 }
 
-function DialogOverlay({
-	className,
-	...props
-}: React.ComponentProps<typeof DialogPrimitive.Overlay>) {
+function DialogOverlay({ className, ...props }: React.ComponentProps<typeof DialogPrimitive.Overlay>) {
 	return (
 		<DialogPrimitive.Overlay
 			data-slot="dialog-overlay"
@@ -55,7 +52,7 @@ function DialogContent({
 				className={cn(
 					// Single max-width (not max-w + sm:max-w-sm): avoids twMerge leaving
 					// sm:max-w-sm that overrides consumer max-w-lg at the sm breakpoint.
-					"no-drag fixed top-1/2 left-1/2 z-50 grid w-full max-w-[min(24rem,calc(100%-2rem))] [transform:translate(-50%,-50%)] gap-4 rounded-xl border border-border bg-popover p-4 text-sm text-popover-foreground outline-none",
+					"no-drag fixed top-1/2 left-1/2 z-50 grid w-full max-w-[min(24rem,calc(100%-2rem))] [transform:translate(-50%,-50%)] gap-4 rounded-xl border border-border/70 bg-popover p-4 text-sm shadow-lg text-popover-foreground outline-none",
 					className,
 				)}
 				{...props}
@@ -109,21 +106,18 @@ function DialogTitle({ className, ...props }: React.ComponentProps<typeof Dialog
 	return (
 		<DialogPrimitive.Title
 			data-slot="dialog-title"
-			className={cn("text-base leading-none font-medium", className)}
+			className={cn("text-[15px] leading-snug font-semibold tracking-tight", className)}
 			{...props}
 		/>
 	);
 }
 
-function DialogDescription({
-	className,
-	...props
-}: React.ComponentProps<typeof DialogPrimitive.Description>) {
+function DialogDescription({ className, ...props }: React.ComponentProps<typeof DialogPrimitive.Description>) {
 	return (
 		<DialogPrimitive.Description
 			data-slot="dialog-description"
 			className={cn(
-				"text-sm text-muted-foreground *:[a]:underline *:[a]:underline-offset-3 *:[a]:hover:text-foreground",
+				"text-[13px] leading-relaxed text-muted-foreground *:[a]:underline *:[a]:underline-offset-3 *:[a]:hover:text-foreground",
 				className,
 			)}
 			{...props}

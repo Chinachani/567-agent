@@ -1,3 +1,6 @@
+import { isPaymentUnavailable } from "../../shared/api567/payment-failure.js";
+import { isAccountResponseRejected } from "./access-token-refresh.js";
+
 function getModelScore(id: string): number {
 	const lower = id.toLowerCase();
 	if (lower === "gemini-3.8-flash-high") return 120;
@@ -26,7 +29,16 @@ import https from "node:https";
 import { dirname, join } from "node:path";
 import { getAgent567HomePath } from "@567agent/action-rpc";
 import { BrowserWindow } from "electron";
+import {
+	API567_DISCOVERY_ORIGIN,
+	type Api567RouteCatalog,
+	type Api567RouteId,
+	type Api567RouteProbe,
+	parseApi567RouteList,
+} from "../../shared/service-routes.js";
+import { refreshSharedModelRouting } from "../agent-runtime/host-services.js";
 import { getDesktopCredentialVault } from "../credentials/desktop-credential-vault.js";
+import { mainT } from "../i18n/index.js";
 import { getAppLogger } from "../logger.js";
 import { enrichModelContexts, parseModelList } from "../models/model-context-metadata.js";
 import { getDesktopModelSettingsService } from "../models/model-settings-host.js";
@@ -40,6 +52,7 @@ import {
 	refreshWithAccountRecovery,
 } from "./access-token-refresh.js";
 import { loadAccountCredentials, removeAccountCredentials, saveAccountCredentials } from "./account-credentials.js";
+import { PasswordLoginEncryptionError, preparePasswordLogin } from "./password-login.js";
 import {
 	containsNonAscii,
 	decryptSecret,
@@ -47,11 +60,10 @@ import {
 	getSecurityHeaders,
 	isSecureCredentialStorageAvailable,
 } from "./security.js";
+import { getApi567RouteStore } from "./service-route-store.js";
 
 const log = getAppLogger("567api");
 
-const BASE_SERVER = "https://api.567.wiki";
-const BASE_V1 = "https://api.567.wiki/v1";
 const QUOTA_PER_USD = 500000;
 
 function isExplicitAuthenticationFailure(error: unknown): boolean {
@@ -87,6 +99,7 @@ export interface Api567Session {
 	isLoggedIn: boolean;
 	authType?: "access_token" | "account";
 	username?: string;
+	loginUsername?: string;
 	accessToken?: string;
 	apiKey?: string;
 	quota?: number;
@@ -103,13 +116,18 @@ export interface Api567Session {
 }
 
 export interface Api567Status {
+	serviceRouteError?: boolean;
+	serviceRoute?: Api567RouteId;
+	serviceRoutes?: Api567RouteCatalog;
 	isLoggedIn: boolean;
 	authType?: "access_token" | "account";
 	username?: string;
+	loginUsername?: string;
 	apiKeyMasked?: string;
 	quota?: number;
 	quotaUsd?: number;
 	activeGroup?: string;
+	activeModel?: string;
 	imageGroup?: string;
 	imageModel?: string;
 	groups?: Api567GroupInfo[];
@@ -145,6 +163,8 @@ function request<T = unknown>(
 		headers?: Record<string, string>;
 		body?: unknown;
 		timeoutMs?: number;
+		signal?: AbortSignal;
+		maxBytes?: number;
 	} = {},
 ): Promise<HttpResponse<T>> {
 	return new Promise((resolve, reject) => {
@@ -174,12 +194,16 @@ function request<T = unknown>(
 				method: options.method || "GET",
 				headers,
 				timeout: options.timeoutMs ?? 15000,
+				signal: options.signal,
 			},
 			(res) => {
 				let raw = "";
 				res.setEncoding("utf8");
+				res.on("error", reject);
 				res.on("data", (chunk) => {
 					raw += chunk;
+					if (options.maxBytes && Buffer.byteLength(raw) > options.maxBytes)
+						req.destroy(new Error("Response too large"));
 				});
 				res.on("end", () => {
 					let parsed: T;
@@ -307,6 +331,123 @@ function fetchPageHtml(urlStr: string, redirectCount = 0): Promise<{ html: strin
 }
 
 export class NewApiService {
+	private routeChangePending = false;
+	private routeDiscovery: Promise<Api567RouteCatalog> | undefined;
+	private routeDiscoveryRetryAt = 0;
+	public async refreshServiceRoutes(force = false): Promise<Api567RouteCatalog> {
+		const store = getApi567RouteStore();
+		if (this.routeDiscovery) return this.routeDiscovery;
+		const cached = store.catalog;
+		if (
+			!force &&
+			((cached.updatedAt && Date.now() - cached.updatedAt < 5 * 60_000) || Date.now() < this.routeDiscoveryRetryAt)
+		)
+			return cached;
+		this.routeDiscovery = (async () => {
+			try {
+				const response = await request<unknown>(`${API567_DISCOVERY_ORIGIN}/api/status`, {
+					signal: AbortSignal.timeout(8000),
+					maxBytes: 128 * 1024,
+				});
+				const root = response.data;
+				if (
+					response.status !== 200 ||
+					!root ||
+					typeof root !== "object" ||
+					!("success" in root) ||
+					root.success !== true ||
+					!("data" in root) ||
+					!root.data ||
+					typeof root.data !== "object" ||
+					!("api_info" in root.data) ||
+					("api_info_enabled" in root.data && root.data.api_info_enabled === false)
+				)
+					throw new Error("Invalid service route response");
+				await store.saveCatalog(parseApi567RouteList(root.data.api_info));
+				this.routeDiscoveryRetryAt = 0;
+				return { ...store.catalog, source: "live" as const };
+			} catch {
+				this.routeDiscoveryRetryAt = Date.now() + 60_000;
+				return { ...store.catalog, refreshFailed: true };
+			} finally {
+				this.routeDiscovery = undefined;
+			}
+		})();
+		return this.routeDiscovery;
+	}
+	public getServiceOrigin(): string {
+		return getApi567RouteStore().origin;
+	}
+	private get baseServer(): string {
+		return this.getServiceOrigin();
+	}
+	private get baseV1(): string {
+		return `${this.baseServer}/v1`;
+	}
+
+	public async probeServiceRoute(route: Api567RouteId, signal?: AbortSignal): Promise<Api567RouteProbe> {
+		const target = getApi567RouteStore().resolve(route);
+		if (!target) return { route, ok: false, error: "unavailable" };
+		const start = performance.now();
+		try {
+			const response = await request<{ success?: boolean }>(`${target.origin}/api/status`, {
+				signal: signal ? AbortSignal.any([signal, AbortSignal.timeout(8000)]) : AbortSignal.timeout(8000),
+				maxBytes: 64 * 1024,
+			});
+			if (response.status !== 200 || response.data?.success !== true)
+				return { route, ok: false, error: "invalid-response" };
+			return { route, ok: true, elapsedMs: Math.round(performance.now() - start) };
+		} catch {
+			return { route, ok: false, error: "unreachable" };
+		}
+	}
+
+	public async selectServiceRoute(route: Api567RouteId, signal?: AbortSignal): Promise<Api567RouteProbe> {
+		if (this.routeChangePending) return { route, ok: false, error: "unavailable" };
+		this.routeChangePending = true;
+		try {
+			const target = getApi567RouteStore().resolve(route);
+			if (!target) return { route, ok: false, error: "unavailable" };
+			const token = this.currentSession.accessToken;
+			const cookie = this.currentSession.cookie;
+			const loggedIn = this.currentSession.isLoggedIn;
+			const probe = await this.probeServiceRoute(route, signal);
+			if (!probe.ok) return probe;
+			if (this.preservedEncryptedSession || (loggedIn && !token)) return { route, ok: false, error: "unavailable" };
+			if (loggedIn) {
+				const response = await request<{ success?: boolean }>(`${target.origin}/api/user/self`, {
+					headers: { Authorization: `Bearer ${token}` },
+					signal: signal ? AbortSignal.any([signal, AbortSignal.timeout(8000)]) : AbortSignal.timeout(8000),
+					maxBytes: 128 * 1024,
+				});
+				if (response.status !== 200 || response.data?.success !== true)
+					return { route, ok: false, error: "account-rejected" };
+			}
+			if (signal?.aborted) return { route, ok: false, error: "unavailable" };
+			if (
+				this.currentSession.accessToken !== token ||
+				this.currentSession.cookie !== cookie ||
+				this.currentSession.isLoggedIn !== loggedIn
+			) {
+				return { route, ok: false, error: "account-changed" };
+			}
+			await getApi567RouteStore().select(route);
+			try {
+				refreshSharedModelRouting();
+				await this.broadcastStatus();
+			} catch (error) {
+				// The route is already durable. Future catalog reads also refresh it;
+				// a UI notification failure must not claim the configuration was kept.
+				log.warn("Service route saved; immediate notification failed", error);
+			}
+			return probe;
+		} catch (error) {
+			log.warn("Service route switch failed; keeping current configuration", error);
+			return { route, ok: false, error: "unreachable" };
+		} finally {
+			this.routeChangePending = false;
+		}
+	}
 	private static instance: NewApiService;
 	private currentSession: Api567Session = { isLoggedIn: false };
 	private preservedEncryptedSession = false;
@@ -334,17 +475,23 @@ export class NewApiService {
 	}
 
 	public async getStatus(): Promise<Api567Status> {
-		await this.reconcileWithModelConfig();
+		const routes = getApi567RouteStore();
+		if (!routes.selectedRoute) return { isLoggedIn: false, serviceRouteError: true, serviceRoutes: routes.catalog };
+		const activeModel = await this.reconcileWithModelConfig();
 		return {
+			serviceRoute: getApi567RouteStore().route,
+			serviceRoutes: getApi567RouteStore().catalog,
 			isLoggedIn: this.currentSession.isLoggedIn,
 			authType: this.currentSession.authType,
 			username: this.currentSession.username,
+			loginUsername: this.currentSession.loginUsername,
 			apiKeyMasked: this.currentSession.apiKey
 				? `${this.currentSession.apiKey.slice(0, 7)}...${this.currentSession.apiKey.slice(-4)}`
 				: undefined,
 			quota: this.currentSession.quota,
 			quotaUsd: this.currentSession.quotaUsd,
 			activeGroup: this.currentSession.activeGroup,
+			activeModel,
 			imageGroup: this.getImageGroup(),
 			imageModel: this.getImageModel(),
 			groups: this.currentSession.groups,
@@ -474,7 +621,7 @@ export class NewApiService {
 		try {
 			log.info(`Sending email verification code to: ${cleanEmail}`);
 			const res = await request<{ success: boolean; message?: string }>(
-				`${BASE_SERVER}/api/verification?email=${encodeURIComponent(cleanEmail)}`,
+				`${this.baseServer}/api/verification?email=${encodeURIComponent(cleanEmail)}`,
 			);
 			return {
 				success: res.data?.success ?? false,
@@ -509,7 +656,7 @@ export class NewApiService {
 
 		try {
 			log.info(`Registering new user: "${username}" with email "${email}"`);
-			const res = await request<{ success: boolean; message?: string }>(`${BASE_SERVER}/api/user/register`, {
+			const res = await request<{ success: boolean; message?: string }>(`${this.baseServer}/api/user/register`, {
 				method: "POST",
 				body: {
 					username,
@@ -550,7 +697,7 @@ export class NewApiService {
 		try {
 			log.info("Redeeming topup key...");
 			const res = await this.requestWithAuth<{ success: boolean; message?: string }>(
-				`${BASE_SERVER}/api/user/topup`,
+				`${this.baseServer}/api/user/topup`,
 				{
 					method: "POST",
 					body: { key: cleanKey },
@@ -637,7 +784,13 @@ export class NewApiService {
 	public async createPayOrder(
 		amount: number,
 		paymentMethod: "alipay" | "wxpay",
-	): Promise<{ success: boolean; payUrl?: string; qrCode?: string; message?: string }> {
+	): Promise<{
+		success: boolean;
+		payUrl?: string;
+		qrCode?: string;
+		message?: string;
+		errorCode?: "payment_unavailable";
+	}> {
 		if (amount < 1) {
 			return { success: false, message: "充值金额不能少于 1 元" };
 		}
@@ -650,7 +803,7 @@ export class NewApiService {
 				message?: string;
 				url?: string;
 				data?: Record<string, string | number>;
-			}>(`${BASE_SERVER}/api/user/pay`, {
+			}>(`${this.baseServer}/api/user/pay`, {
 				method: "POST",
 				body: {
 					amount: Math.floor(amount),
@@ -667,14 +820,20 @@ export class NewApiService {
 				const qrCode = await this.extractQrCode(payUrl);
 				return { success: true, payUrl, qrCode };
 			}
+			const message = res.data?.message || "创建支付订单失败，请稍后重试";
 			return {
 				success: false,
-				message: res.data?.message || "创建支付订单失败，请稍后重试",
+				message,
+				...(isPaymentUnavailable(message) ? { errorCode: "payment_unavailable" as const } : {}),
 			};
 		} catch (err) {
 			const msg = err instanceof Error ? err.message : String(err);
 			log.warn("Create pay order failed:", err);
-			return { success: false, message: msg };
+			return {
+				success: false,
+				message: msg,
+				...(isPaymentUnavailable(msg) ? { errorCode: "payment_unavailable" as const } : {}),
+			};
 		}
 	}
 
@@ -792,8 +951,9 @@ export class NewApiService {
 
 	/**
 	 * 与本地 models.json 对齐状态，确保当用户在模型设置里删除服务商/Key后，状态能够立即感知并重置
+	 * 返回当前配置中真实生效的主力模型，避免界面仅凭模型顺序推断。
 	 */
-	public async reconcileWithModelConfig(): Promise<void> {
+	public async reconcileWithModelConfig(): Promise<string | undefined> {
 		if (!this.currentSession.isLoggedIn) return;
 		try {
 			const service = getDesktopModelSettingsService();
@@ -874,6 +1034,12 @@ export class NewApiService {
 			} else {
 				this.currentSession.activeGroup = undefined;
 			}
+			const activeProvider =
+				this.currentSession.activeGroup && getProviderIdForGroup(this.currentSession.activeGroup);
+			const prefix = activeProvider ? `${activeProvider}/` : undefined;
+			return prefix && config.defaultModel?.startsWith(prefix)
+				? config.defaultModel.slice(prefix.length)
+				: undefined;
 		} catch (err) {
 			log.warn("Failed to reconcile 567api with models.json:", err);
 		}
@@ -905,9 +1071,9 @@ export class NewApiService {
 					access_token?: string;
 					user?: { quota?: number; username?: string; display_name?: string };
 				};
-			}>(`${BASE_SERVER}/api/user/auth/refresh`, {
+			}>(`${this.baseServer}/api/user/auth/refresh`, {
 				method: "POST",
-				headers: { Cookie: this.currentSession.cookie ?? "" },
+				headers: { Cookie: this.currentSession.cookie ?? "", Origin: new URL(this.baseServer).origin },
 			});
 
 			const rawCookies = refreshRes.headers["set-cookie"];
@@ -932,6 +1098,7 @@ export class NewApiService {
 				}
 				if (userData?.display_name || userData?.username) {
 					this.currentSession.username = userData.display_name || userData.username;
+					this.currentSession.loginUsername = userData.username || this.currentSession.loginUsername;
 				}
 				this.saveSession(this.currentSession);
 				return this.currentSession.accessToken;
@@ -972,6 +1139,12 @@ export class NewApiService {
 	}
 
 	private async loginSilentlyWithPassword(username: string, password: string): Promise<string> {
+		const baseServer = this.baseServer;
+		const body = preparePasswordLogin(
+			username,
+			password,
+			await request(`${baseServer}/api/user/login/encryption-key`, { maxBytes: 32768, timeoutMs: 8000 }),
+		);
 		const loginRes = await request<{
 			success: boolean;
 			message?: string;
@@ -982,7 +1155,7 @@ export class NewApiService {
 				display_name?: string;
 				quota?: number;
 			};
-		}>(`${BASE_SERVER}/api/user/login`, { method: "POST", body: { username, password } });
+		}>(`${baseServer}/api/user/login`, { method: "POST", body });
 		if (!loginRes.data?.success) {
 			const message = loginRes.data?.message || "567 API 账户自动登录失败，请重新登录";
 			if (loginRes.status < 500 && loginRes.status !== 429) throw new AccountLoginRejectedError(message);
@@ -999,6 +1172,7 @@ export class NewApiService {
 			isLoggedIn: true,
 			authType: "account",
 			username: user?.display_name || user?.username || username,
+			loginUsername: user?.username || username,
 			accessToken: loginRes.data.data?.access_token,
 			cookie: cookie || this.currentSession.cookie,
 			quota: user?.quota ?? this.currentSession.quota,
@@ -1033,12 +1207,7 @@ export class NewApiService {
 			},
 		});
 
-		if (res.status === 429) {
-			log.warn("Rate limited (HTTP 429) from 567 API, cooling down for 2 minutes.");
-			this.rateLimitedUntil = Date.now() + 2 * 60 * 1000;
-		}
-
-		if (res.status === 401 && this.currentSession.cookie && this.currentSession.authType === "account") {
+		if (isAccountResponseRejected(res) && this.currentSession.cookie && this.currentSession.authType === "account") {
 			log.warn("Access token expired (HTTP 401), refreshing token and retrying request...");
 			try {
 				token = await this.accessTokenRefresh.afterUnauthorized(
@@ -1065,6 +1234,10 @@ export class NewApiService {
 			}
 		}
 
+		if (res.status === 429) {
+			log.warn("Rate limited (HTTP 429) from 567 API, cooling down for 2 minutes.");
+			this.rateLimitedUntil = Date.now() + 2 * 60 * 1000;
+		}
 		return res;
 	}
 
@@ -1088,7 +1261,7 @@ export class NewApiService {
 			const res = await this.requestWithAuth<{
 				success: boolean;
 				data?: Record<string, { desc?: string; ratio?: number }>;
-			}>(`${BASE_SERVER}/api/user/groups`);
+			}>(`${this.baseServer}/api/user/groups`);
 
 			if (res.data?.success && res.data.data) {
 				const result: Record<string, { desc: string; ratio: number }> = {};
@@ -1137,7 +1310,7 @@ export class NewApiService {
 						role?: number;
 					};
 				};
-			}>(`${BASE_SERVER}/api/user/self`, {
+			}>(`${this.baseServer}/api/user/self`, {
 				headers: { Authorization: `Bearer ${token}` },
 			});
 
@@ -1163,6 +1336,7 @@ export class NewApiService {
 				isLoggedIn: true,
 				authType: "access_token",
 				username: displayName,
+				loginUsername: userData?.username,
 				accessToken: token,
 				quota,
 				quotaUsd,
@@ -1197,6 +1371,12 @@ export class NewApiService {
 			}
 
 			log.info(`Attempting password login for: ${username}`);
+			const baseServer = this.baseServer;
+			const body = preparePasswordLogin(
+				username.trim(),
+				password.trim(),
+				await request(`${baseServer}/api/user/login/encryption-key`, { maxBytes: 32768, timeoutMs: 8000 }),
+			);
 			const loginRes = await request<{
 				success: boolean;
 				message?: string;
@@ -1215,9 +1395,9 @@ export class NewApiService {
 					quota?: number;
 					role?: number;
 				};
-			}>(`${BASE_SERVER}/api/user/login`, {
+			}>(`${baseServer}/api/user/login`, {
 				method: "POST",
-				body: { username: username.trim(), password: password.trim() },
+				body,
 			});
 
 			if (!loginRes.data || !loginRes.data.success) {
@@ -1240,6 +1420,7 @@ export class NewApiService {
 				isLoggedIn: true,
 				authType: "account",
 				username: displayName,
+				loginUsername: userData?.username,
 				accessToken,
 				cookie: cookieHeader,
 				quota,
@@ -1274,7 +1455,15 @@ export class NewApiService {
 			return { success: true };
 		} catch (err) {
 			log.error("567api password login error:", err);
-			return { success: false, message: err instanceof Error ? err.message : String(err) };
+			return {
+				success: false,
+				message:
+					err instanceof PasswordLoginEncryptionError
+						? mainT("api567.loginEncryptionFailed")
+						: err instanceof Error
+							? err.message
+							: String(err),
+			};
 		}
 	}
 
@@ -1329,7 +1518,7 @@ export class NewApiService {
 			const keyRes = await this.requestWithAuth<{
 				success: boolean;
 				data?: { key?: string } | string;
-			}>(`${BASE_SERVER}/api/token/${tokenId}/key`, {
+			}>(`${this.baseServer}/api/token/${tokenId}/key`, {
 				method: "POST",
 				body: {},
 			});
@@ -1373,20 +1562,23 @@ export class NewApiService {
 
 			config.providers[providerId] = {
 				modelOverrides: config.providers[providerId]?.modelOverrides,
-				baseUrl: BASE_V1,
+				baseUrl: this.baseV1,
 				apiKey,
 				displayName,
 				api: "openai-completions",
 				icon: getProviderIconForGroup(groupName),
-				headers: getSecurityHeaders({ "X-567-Group": encodeURIComponent(groupName || "default") }),
+				headers: { "X-567-Group": encodeURIComponent(groupName || "default") },
 				modelsSyncedAt: new Date().toISOString(),
 				models: modelDefs,
 			};
 
+			const prefix = `${providerId}/`;
+			const previousModel = config.defaultModel?.startsWith(prefix)
+				? config.defaultModel.slice(prefix.length)
+				: undefined;
 			if (
 				!config.defaultModel ||
-				config.defaultModel.startsWith(`${providerId}/`) ||
-				(groupName === "反重力Gemini" && config.defaultModel.startsWith("567api"))
+				(previousModel !== undefined && !modelDefs.some((model) => model.id === previousModel))
 			) {
 				const best = pickBestModel(modelDefs);
 				if (best) {
@@ -1446,14 +1638,14 @@ export class NewApiService {
 			// 2. 查找并从中转站服务器删除由 567 Agent 创建的专属令牌，释放 10 个 Token 的配额！
 			try {
 				const targetName = groupName ? `567 Agent [${groupName}]` : "567 Agent";
-				const listRes = await this.requestWithAuth<unknown>(`${BASE_SERVER}/api/token/?p=0&size=100`);
+				const listRes = await this.requestWithAuth<unknown>(`${this.baseServer}/api/token/?p=0&size=100`);
 				const tokens = extractTokens(listRes.data);
 				const matched = tokens.find(
 					(t) => t.name === targetName || (groupName && t.group === groupName && t.name.startsWith("567 Agent")),
 				);
 				if (matched) {
 					log.info(`Deleting remote token id=${matched.id} ("${matched.name}") from NewAPI server...`);
-					await this.requestWithAuth(`${BASE_SERVER}/api/token/${matched.id}`, {
+					await this.requestWithAuth(`${this.baseServer}/api/token/${matched.id}`, {
 						method: "DELETE",
 					});
 					log.info(`Remote token id=${matched.id} deleted successfully`);
@@ -1477,9 +1669,9 @@ export class NewApiService {
 	}
 
 	/**
-	 * 设置当前主力分组：如果该分组在 models.json 中缺失（例如被用户手动删除），自动重新创建 Key 并接入！
+	 * 设置主力分组及可选模型。仅切组时允许补接入；明确选模型时必须匹配现有模型，避免失败操作改变默认配置。
 	 */
-	public async setActiveGroup(groupName: string): Promise<{ success: boolean; message?: string }> {
+	public async setActiveGroup(groupName: string, modelName?: string): Promise<{ success: boolean; message?: string }> {
 		const providerId = groupName ? getProviderIdForGroup(groupName) : "567api";
 		try {
 			const service = getDesktopModelSettingsService();
@@ -1488,6 +1680,7 @@ export class NewApiService {
 
 			// 若本地未配置该 provider 或无有效密钥/模型，先执行自动接入创建 Key 与模型
 			if (!provider || !provider.apiKey || !provider.models || provider.models.length === 0) {
+				if (modelName !== undefined) return { success: false, message: mainT("api567Model.unavailable") };
 				log.info(`Provider ${providerId} not found in models.json, re-syncing group "${groupName}"...`);
 				const syncRes = await this.syncSingleGroup(groupName);
 				if (!syncRes.success) {
@@ -1497,11 +1690,12 @@ export class NewApiService {
 				provider = config.providers[providerId];
 			}
 
-			if (provider?.models && provider.models.length > 0) {
-				const best = pickBestModel(provider.models);
-				config.defaultModel = `${providerId}/${best?.id || provider.models[0].id}`;
-				await service.replaceConfig(config);
-			}
+			const selected = modelName
+				? provider?.models?.find((model) => model.id === modelName)
+				: pickBestModel(provider?.models ?? []);
+			if (!selected) return { success: false, message: mainT("api567Model.unavailable") };
+			config.defaultModel = `${providerId}/${selected.id}`;
+			await service.replaceConfig(config);
 
 			this.currentSession.activeGroup = groupName;
 			this.saveSession(this.currentSession);
@@ -1522,7 +1716,7 @@ export class NewApiService {
 		if (groupName) {
 			try {
 				const res = await this.requestWithAuth<{ success: boolean; data?: unknown }>(
-					`${BASE_SERVER}/api/user/models?group=${encodeURIComponent(groupName)}`,
+					`${this.baseServer}/api/user/models?group=${encodeURIComponent(groupName)}`,
 				);
 				if (res.data?.success) models = parseModelList(res.data.data);
 			} catch (error) {
@@ -1531,7 +1725,7 @@ export class NewApiService {
 		}
 		if (models.length === 0 || models.some((model) => model.contextWindow === undefined)) {
 			try {
-				const res = await request<{ data?: unknown }>(`${BASE_V1}/models`, {
+				const res = await request<{ data?: unknown }>(`${this.baseV1}/models`, {
 					headers: {
 						Authorization: `Bearer ${apiKey}`,
 						"X-567-Group": encodeURIComponent(groupName || "default"),
@@ -1581,117 +1775,59 @@ export class NewApiService {
 	 */
 	private async resolveOrCreateApiKeyForGroup(groupName?: string): Promise<string> {
 		const targetName = groupName ? `567 Agent [${groupName}]` : "567 Agent";
-
-		// 1. 获取用户所有现有令牌
-		let existingTokens: RawNewApiToken[] = [];
-		try {
-			const listRes = await this.requestWithAuth<unknown>(`${BASE_SERVER}/api/token/?p=0&size=100`);
-			existingTokens = extractTokens(listRes.data);
-			log.info(`Found ${existingTokens.length} existing tokens in user account`);
-		} catch (err) {
-			log.warn("Failed to fetch token list:", err);
-		}
-
-		// 2. 匹配已有令牌（优先名称或分组完全匹配）
-		let matched = existingTokens.find((t) => t.status === 1 && t.name === targetName);
-
-		if (!matched && groupName) {
-			matched = existingTokens.find((t) => t.status === 1 && t.group === groupName);
-		}
-
-		if (!matched && !groupName) {
-			matched = existingTokens.find((t) => t.status === 1 && t.name.startsWith("567 Agent"));
-		}
-
-		// 3. 如果匹配到已有令牌，获取明文 Key 并复用
-		if (matched) {
-			log.info(`Found matching token id=${matched.id}, name="${matched.name}", group="${matched.group || ""}"`);
-			if (matched.key && !matched.key.includes("*") && matched.key.length >= 20) {
-				const clean = matched.key.trim();
-				return clean.startsWith("sk-") ? clean : `sk-${clean}`;
+		const targetGroup = groupName || "default";
+		const matchesGroup = (token: RawNewApiToken) => token.status === 1 && (token.group || "default") === targetGroup;
+		const readTokens = async () => {
+			const response = await this.requestWithAuth<unknown>(`${this.baseServer}/api/token/?p=0&size=100`);
+			if (
+				response.status !== 200 ||
+				(response.data &&
+					typeof response.data === "object" &&
+					"success" in response.data &&
+					response.data.success !== true)
+			) {
+				throw new Error(mainT("api567Credentials.listFailed"));
 			}
-			const fullKey = await this.fetchFullKey(matched.id);
-			if (fullKey) {
-				log.info(`Successfully fetched unmasked key for token id=${matched.id}`);
-				return fullKey;
+			return extractTokens(response.data);
+		};
+		const readKey = async (token: RawNewApiToken) => {
+			if (token.key && !token.key.includes("*") && token.key.trim().length >= 20) {
+				const key = token.key.trim();
+				return key.startsWith("sk-") ? key : `sk-${key}`;
 			}
-		}
+			const key = await this.fetchFullKey(token.id);
+			if (!key) throw new Error(mainT("api567Credentials.unmaskFailed"));
+			return key;
+		};
 
-		// 4. 若未找到但令牌数已达上限（>= 10），复用或更新现有的可用令牌
-		if (existingTokens.length >= 10) {
-			log.warn(`Token limit (10) reached, attempting to update or reuse existing token for "${targetName}"...`);
-			const candidate = existingTokens.find((t) => t.name.startsWith("567 Agent")) || existingTokens[0];
-			if (candidate) {
-				if (groupName && candidate.group !== groupName) {
-					try {
-						log.info(`Updating token id=${candidate.id} to group "${groupName}"...`);
-						await this.requestWithAuth(`${BASE_SERVER}/api/token/`, {
-							method: "PUT",
-							body: {
-								id: candidate.id,
-								name: targetName,
-								group: groupName,
-								remain_quota: candidate.remain_quota ?? 0,
-								unlimited_quota: candidate.unlimited_quota ?? true,
-								expired_time: -1,
-							},
-						});
-					} catch (err) {
-						log.warn(`Failed to update token ${candidate.id} group:`, err);
-					}
-				}
+		const existing = await readTokens();
+		const matched =
+			existing.find((token) => matchesGroup(token) && token.name === targetName) ??
+			(groupName ? existing.find(matchesGroup) : undefined);
+		if (matched) return readKey(matched);
+		// A full account is not permission to rename or repurpose a different group's key.
+		if (existing.length >= 10) throw new Error(mainT("api567Credentials.limitReached"));
 
-				const fullKey = await this.fetchFullKey(candidate.id);
-				if (fullKey) {
-					return fullKey;
-				}
-			}
-		}
-
-		// 5. 若未达到上限，调用 POST /api/token/ 创建专属分组令牌
-		log.info(`Creating new token: "${targetName}" for group: "${groupName || "默认"}"...`);
-		const createRes = await this.requestWithAuth<{
-			success: boolean;
-			message?: string;
-			data?: { id: number; key?: string };
-		}>(`${BASE_SERVER}/api/token/`, {
-			method: "POST",
-			body: {
-				name: targetName,
-				group: groupName || undefined,
-				remain_quota: 0,
-				expired_time: -1,
-				unlimited_quota: true,
+		const created = await this.requestWithAuth<{ success?: boolean; message?: string }>(
+			`${this.baseServer}/api/token/`,
+			{
+				method: "POST",
+				body: {
+					name: targetName,
+					group: groupName || undefined,
+					remain_quota: 0,
+					expired_time: -1,
+					unlimited_quota: true,
+				},
 			},
-		});
-
-		if (createRes.data?.success) {
-			// New API 的 POST /api/token/ 成功时仅返回 { success: true, message: "" }，不包含 data.id
-			// 立即重新拉取令牌列表获取刚创建的令牌与明文 Key
-			log.info(`Token "${targetName}" created successfully on server, fetching unmasked key...`);
-			const reloadRes = await this.requestWithAuth<unknown>(`${BASE_SERVER}/api/token/?p=0&size=100`);
-			const reloadedTokens = extractTokens(reloadRes.data);
-			const newlyCreated =
-				reloadedTokens.find(
-					(t) =>
-						t.status === 1 &&
-						(t.name === targetName || (groupName && t.group === groupName && t.name.startsWith("567 Agent"))),
-				) || reloadedTokens[0];
-
-			if (newlyCreated) {
-				const fullKey = await this.fetchFullKey(newlyCreated.id);
-				if (fullKey) return fullKey;
-				if (newlyCreated.key && !newlyCreated.key.includes("*") && newlyCreated.key.length >= 20) {
-					const clean = newlyCreated.key.trim();
-					return clean.startsWith("sk-") ? clean : `sk-${clean}`;
-				}
-			}
-		}
-
-		throw new Error(
-			createRes.data?.message ||
-				`未能获取或创建 567 Agent 专属 API 访问密钥 (当前账户已有 ${existingTokens.length} 个令牌)`,
 		);
+		if (created.status !== 200 || !created.data?.success) {
+			throw new Error(created.data?.message || mainT("api567Credentials.createFailed"));
+		}
+		const reloaded = await readTokens();
+		const own = reloaded.find((token) => matchesGroup(token) && token.name === targetName);
+		if (!own) throw new Error(mainT("api567Credentials.createFailed"));
+		return readKey(own);
 	}
 
 	/**
@@ -1706,14 +1842,12 @@ export class NewApiService {
 			return this.refreshQuotaPromise;
 		}
 
+		if (Date.now() < this.rateLimitedUntil) {
+			return this.currentSession.quota === undefined
+				? { success: false }
+				: { success: true, quota: this.currentSession.quota, quotaUsd: this.currentSession.quotaUsd };
+		}
 		if (!force) {
-			if (Date.now() < this.rateLimitedUntil && this.currentSession.quota !== undefined) {
-				return {
-					success: true,
-					quota: this.currentSession.quota,
-					quotaUsd: this.currentSession.quotaUsd,
-				};
-			}
 			if (this.currentSession.quota !== undefined && this.currentSession.lastUpdated) {
 				const age = Date.now() - new Date(this.currentSession.lastUpdated).getTime();
 				if (age < 3 * 60 * 1000) {
@@ -1732,9 +1866,10 @@ export class NewApiService {
 					success: boolean;
 					data?: {
 						quota?: number;
-						user?: { quota?: number };
+						username?: string;
+						user?: { quota?: number; username?: string };
 					};
-				}>(`${BASE_SERVER}/api/user/self`);
+				}>(`${this.baseServer}/api/user/self`);
 
 				if (res.data?.success && res.data.data) {
 					const userData = res.data.data.user || res.data.data;
@@ -1743,6 +1878,7 @@ export class NewApiService {
 						const quotaUsd = Number((quota / QUOTA_PER_USD).toFixed(2));
 						this.saveSession({
 							...this.currentSession,
+							loginUsername: userData.username || this.currentSession.loginUsername,
 							quota,
 							quotaUsd,
 							lastUpdated: new Date().toISOString(),

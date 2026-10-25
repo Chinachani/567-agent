@@ -9,7 +9,7 @@ interface MessageVisualPrimitiveProps extends ComponentPropsWithoutRef<"div"> {
 
 export const MessageVisualOutgoingBubble = createMessageVisual(
 	"OutgoingBubble",
-	"min-w-0 max-w-full rounded-2xl rounded-br-md bg-secondary px-3.5 py-2.5 text-[14px] leading-[1.6] text-foreground data-[pending=true]:opacity-70",
+	"min-w-0 max-w-full rounded-xl rounded-br-md border border-border/50 bg-secondary/60 px-4 py-3 text-[14px] leading-[1.6] text-foreground data-[pending=true]:opacity-70",
 );
 export const MessageVisualEventBubble = createMessageVisual(
 	"EventBubble",

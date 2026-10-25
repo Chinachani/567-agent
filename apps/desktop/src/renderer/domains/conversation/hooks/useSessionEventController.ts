@@ -58,6 +58,7 @@ import {
 	toChatErrorDetails,
 	turnStatsCache,
 } from "../services/chat-service";
+import { applyCompactionStep } from "../services/compaction-step";
 import { clearCachedContextComposition, writeCachedContextComposition } from "../services/context-composition-cache";
 import { ConversationProjection } from "../services/conversation-projection";
 import { applyAgentEndHistoryRefresh } from "../services/live-history-patch";
@@ -348,12 +349,16 @@ export function useSessionEventController({ activeSessionRef }: SessionEventCont
 
 						// 输入预测：仅交互式会话（排除批量 / 流转），且开关开启时。每轮
 						// 正常完成后基于最近几轮对话异步生成 0-3 条建议，回填时校验过期。
-						if (rid && projectType !== "batch") {
-							let predictSnapshot: ChatConversationItem[] = [];
-							setChatMessages((prev) => {
-								predictSnapshot = prev;
-								return prev;
-							});
+						const predictSnapshot = getDefaultStore().get(chatMessagesAtom);
+						const answer = predictSnapshot.at(-1);
+						if (
+							rid &&
+							projectType !== "batch" &&
+							answer?.kind === "agent" &&
+							answer.phase === "completed" &&
+							answer.text?.trim() &&
+							!answer.blocks.some((block) => block.type === "error")
+						) {
 							const token = suggestionTokenRef.current.get(rid) ?? 0;
 							void (async () => {
 								try {
@@ -541,12 +546,26 @@ export function useSessionEventController({ activeSessionRef }: SessionEventCont
 
 			// ── Compaction start ──
 			if (event.type === "compaction.start") {
+				if (
+					activeSessionRef.current?.runtimeId === sessionId &&
+					getDefaultStore().get(activeSessionAtom)?.runtimeId === sessionId
+				) {
+					flushDeltas();
+					setChatMessages((previous) => applyCompactionStep(previous, event));
+				}
 				setIsCompacting(true);
 				return;
 			}
 
 			// ── Compaction end ──
 			if (event.type === "compaction.end") {
+				if (
+					activeSessionRef.current?.runtimeId === sessionId &&
+					getDefaultStore().get(activeSessionAtom)?.runtimeId === sessionId
+				) {
+					flushDeltas();
+					setChatMessages((previous) => applyCompactionStep(previous, event));
+				}
 				setIsCompacting(false);
 				if (event.success) {
 					const sessionPath = activeSessionRef.current?.sessionPath;

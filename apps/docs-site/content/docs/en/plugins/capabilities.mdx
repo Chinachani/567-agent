@@ -36,6 +36,8 @@ The `ctx` passed to `activate(ctx)` is the single outlet for every capability. O
 | Stage material on the new-session page | `ctx.ui.registerNewSessionContext` | `ui.slot.new-session-context` | Activation may only name this plugin's own agents or abilities, and never sees raw keystrokes |
 | Add localized copy | `ctx.i18n` and package `locales/` | none | Keep keys and `defaultLocale` aligned |
 
+Model plugins can declare `input: ["text", "image"]` with SDK 0.3.8 and 567 Agent 1.3.3 or later. Omitted inputs default to text; this does not enable audio or arbitrary file inputs.
+
 <Callout title="Two fields must be null-checked" type="warn">
   `ctx.capture` is `undefined` on hosts without offscreen capture, and `ctx.gateway` is available only to built-in official plugins, so third-party plugins always read `undefined`. Check before use rather than assuming they exist.
 </Callout>

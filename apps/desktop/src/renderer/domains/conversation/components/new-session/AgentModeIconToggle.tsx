@@ -61,6 +61,10 @@ export function AgentModeIconToggle({ className }: { className?: string }): JSX.
 				const active = mode.id === defaultAgentMode;
 				// key 由注册表驱动、无法静态枚举，绕过 typed-i18n 的字面量约束；缺译回落注册表 label。
 				const key = `agentMode.${mode.id}`;
+				const descriptionKey = `agentMode.${mode.id}Description`;
+				const description = i18n.exists(`settings:${descriptionKey}`)
+					? String(t(descriptionKey as never))
+					: mode.description;
 				const label = i18n.exists(`settings:${key}`) ? String(t(key as never)) : mode.label;
 				return (
 					<button
@@ -69,16 +73,16 @@ export function AgentModeIconToggle({ className }: { className?: string }): JSX.
 						onClick={() => void setDefaultAgentMode(mode.id)}
 						aria-label={label}
 						aria-pressed={active}
-						title={label}
+						title={`${description} ${t("agentMode.newSessionOnly")}`}
 						className={cn(
 							"relative z-10 flex h-6 items-center justify-center rounded-md text-[12px] font-medium transition-[color,background-color,padding] duration-200 ease-out",
 							active
 								? "gap-1.5 bg-background px-2 text-foreground shadow-sm"
-								: "w-7 text-muted-foreground/70 hover:text-foreground",
+								: "gap-1.5 px-2 text-muted-foreground hover:text-foreground",
 						)}
 					>
 						<span className={cn(mode.icon, "h-3.5 w-3.5 shrink-0")} aria-hidden />
-						{active && <span className="leading-none">{label}</span>}
+						<span className="leading-none">{label}</span>
 					</button>
 				);
 			})}

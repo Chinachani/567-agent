@@ -6,6 +6,7 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
@@ -43,6 +44,11 @@ import androidx.compose.ui.window.DialogProperties
 import org.agent567.android.domain.device.DesktopDevice
 import org.agent567.android.domain.device.DeviceStatus
 import org.agent567.android.domain.remote.remoteDesktopViewerTarget
+import androidx.compose.foundation.layout.aspectRatio
+import org.agent567.android.ui.components.MobilePageIntro
+import org.agent567.android.ui.components.MobileIconTile
+import org.agent567.android.ui.components.Agent567Card
+import org.agent567.android.ui.components.SecondaryOutlineButton
 import org.agent567.android.ui.components.FilterChipRow
 import org.agent567.android.ui.components.EmptyState
 import org.agent567.android.ui.components.ListRow
@@ -77,7 +83,7 @@ fun DiscoverConnectScreen(
         containerColor = MaterialTheme.agent567Extra.pageBackground,
         topBar = {
             TopAppBar(
-                title = { Text(Str.discoverTitle, style = MaterialTheme.typography.titleMedium) },
+                title = { Text(Str.discoverTitle, style = MaterialTheme.typography.titleLarge) },
                 colors =
                     TopAppBarDefaults.topAppBarColors(
                         containerColor = MaterialTheme.agent567Extra.pageBackground,
@@ -90,13 +96,9 @@ fun DiscoverConnectScreen(
                 .padding(padding)
                 .fillMaxSize()
                 .verticalScroll(rememberScrollState())
-                .padding(horizontal = 16.dp),
+                .padding(horizontal = 20.dp),
         ) {
-            Text(
-                Str.discoverSubtitle,
-                style = MaterialTheme.typography.bodyMedium,
-                color = MaterialTheme.agent567Extra.secondaryText,
-            )
+            MobilePageIntro(Str.mobileConnectTitle, Str.discoverSubtitle)
             if (error != null) {
                 Spacer(Modifier.height(10.dp))
                 org.agent567.android.ui.components.Agent567ErrorBanner(error = error, onDismiss = onClearError)
@@ -113,7 +115,7 @@ fun DiscoverConnectScreen(
                         strokeWidth = 2.dp,
                     )
                     Spacer(Modifier.width(8.dp))
-                    Text("正在连接电脑端...", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.agent567Extra.secondaryText)
+                    Text(Str.connectingDesktop, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.agent567Extra.secondaryText)
                 }
             }
             Spacer(Modifier.height(14.dp))
@@ -164,7 +166,7 @@ fun DiscoverConnectScreen(
                             subtitle =
                                 "${if (remote) Str.remoteDesktop else Str.lanDesktop} · " +
                                     if (device.status == DeviceStatus.Online) Str.online else Str.offline,
-                            leading = { Icon(Icons.Default.Computer, contentDescription = null) },
+                            leading = { MobileIconTile(Icons.Default.Computer) },
                             trailing = {
                                 StatusDot(online = device.status == DeviceStatus.Online)
                                 Spacer(Modifier.width(12.dp))
@@ -218,7 +220,6 @@ fun DeviceDetailScreen(
     onNewChat: () -> Unit,
     onOpenCapabilities: () -> Unit,
 ) {
-    var desktopFullscreen by remember(device.id) { mutableStateOf(false) }
     var desktopPreviewRequested by remember(device.id) { mutableStateOf(autoRequestDesktopScreen) }
     val desktopTarget = remoteDesktopViewerTarget(device.host)
     val statusLabel =
@@ -231,7 +232,7 @@ fun DeviceDetailScreen(
         containerColor = MaterialTheme.agent567Extra.pageBackground,
         topBar = {
             TopAppBar(
-                title = { Text(device.name, style = MaterialTheme.typography.titleMedium) },
+                title = { Text(device.name, style = MaterialTheme.typography.titleLarge, maxLines = 1, overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis) },
                 navigationIcon = {
                     IconButton(onClick = onBack) {
                         Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = Str.back)
@@ -260,16 +261,13 @@ fun DeviceDetailScreen(
                 Metric(Str.duration, device.connectedDuration ?: Str.notAvailable)
                 Metric(Str.latency, device.latencyMs?.let { "${it}ms" } ?: Str.notAvailable)
             }
-            Spacer(Modifier.height(12.dp))
-            PrimaryBlackButton(text = Str.disconnect, onClick = onDisconnect)
 
-            Spacer(Modifier.height(12.dp))
-            TextButton(
-                onClick = onOpenCapabilities,
-                enabled = device.status == DeviceStatus.Online,
-                modifier = Modifier.fillMaxWidth(),
-            ) {
-                Text("电脑端能力管理")
+            Spacer(Modifier.height(20.dp))
+            Agent567Card {
+                Text(Str.deviceConversationTitle, style = MaterialTheme.typography.titleSmall)
+                Text(Str.deviceConversationHint, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.agent567Extra.secondaryText)
+                Spacer(Modifier.height(8.dp))
+                PrimaryBlackButton(text = Str.startConversation, onClick = onNewChat, enabled = device.status == DeviceStatus.Online)
             }
 
             AnimatedVisibility(
@@ -280,38 +278,42 @@ fun DeviceDetailScreen(
                 desktopTarget?.let {
                     Column {
                         Spacer(Modifier.height(20.dp))
+                        Agent567Card {
                         Row(
                             modifier = Modifier.fillMaxWidth(),
                             horizontalArrangement = Arrangement.SpaceBetween,
                             verticalAlignment = Alignment.CenterVertically,
                         ) {
-                            SectionHeader(title = Str.desktopPreview)
+                            Text(Str.desktopPreview, style = MaterialTheme.typography.titleSmall, modifier = Modifier.weight(1f))
                             if (desktopPreviewRequested) {
                                 Row {
-                                    TextButton(onClick = { desktopPreviewRequested = false }) { Text("停止预览") }
-                                    TextButton(onClick = { desktopFullscreen = true }) { Text(Str.remoteDesktopFullscreen) }
+                                    TextButton(onClick = { desktopPreviewRequested = false }) { Text(Str.mobileStopPreview) }
                                 }
                             }
                         }
                         if (!desktopPreviewRequested) {
                             Text(
-                                "进入设备页不会自动申请屏幕共享。点击后，电脑端会收到屏幕共享请求。",
+                                Str.mobilePreviewHint,
                                 style = MaterialTheme.typography.bodySmall,
                                 color = MaterialTheme.agent567Extra.secondaryText,
                             )
-                            TextButton(onClick = { desktopPreviewRequested = true }) {
-                                Text("查看电脑屏幕")
-                            }
-                        } else if (!desktopFullscreen) {
+                            Spacer(Modifier.height(8.dp))
+                            SecondaryOutlineButton(text = Str.mobileRequestPreview, onClick = { desktopPreviewRequested = true }, enabled = device.status == DeviceStatus.Online)
+                        } else {
                             RemoteDesktopSurface(
                                 target = it.url,
-                                modifier = Modifier.fillMaxWidth().height(180.dp).clip(RoundedCornerShape(8.dp)),
+                                modifier = Modifier.fillMaxWidth().aspectRatio(16f / 10f).clip(MaterialTheme.shapes.large),
                             )
+                        }
                         }
                     }
                 }
             }
 
+            Spacer(Modifier.height(20.dp))
+            Agent567Card {
+                ListRow(title = Str.mobileCapabilities, subtitle = Str.deviceCapabilitiesHint, trailing = { Icon(Icons.Default.ChevronRight, contentDescription = null) }, onClick = onOpenCapabilities, showDivider = false)
+            }
             Spacer(Modifier.height(20.dp))
             SectionHeader(title = Str.systemInfo)
             Agent567ListGroup {
@@ -321,37 +323,11 @@ fun DeviceDetailScreen(
             }
 
             Spacer(Modifier.height(20.dp))
-            PrimaryBlackButton(
-                text = Str.startConversation,
-                onClick = onNewChat,
-                enabled = device.status == DeviceStatus.Online,
-            )
+            TextButton(onClick = onDisconnect, modifier = Modifier.fillMaxWidth().heightIn(min = 48.dp)) { Text(Str.disconnect, color = MaterialTheme.colorScheme.error) }
             Spacer(Modifier.height(24.dp))
         }
     }
-    if (desktopFullscreen && desktopPreviewRequested) {
-        desktopTarget?.let { target ->
-            Dialog(
-                onDismissRequest = { desktopFullscreen = false },
-                properties = DialogProperties(usePlatformDefaultWidth = false, decorFitsSystemWindows = false),
-            ) {
-                androidx.compose.material3.Surface(
-                    modifier = Modifier.fillMaxSize(),
-                    color = androidx.compose.ui.graphics.Color.Black,
-                ) {
-                    androidx.compose.foundation.layout.Box(Modifier.fillMaxSize()) {
-                        RemoteDesktopSurface(target = target.url, modifier = Modifier.fillMaxSize())
-                        TextButton(
-                            modifier = Modifier.align(Alignment.TopStart).padding(8.dp),
-                            onClick = { desktopFullscreen = false },
-                        ) {
-                            Text(Str.exitRemoteDesktopFullscreen, color = androidx.compose.ui.graphics.Color.White)
-                        }
-                    }
-                }
-            }
-        }
-    }
+
 }
 
 @Composable
@@ -369,7 +345,7 @@ private fun SystemInfoRow(label: String, value: String?) {
         horizontalArrangement = Arrangement.SpaceBetween,
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        Text(label, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.agent567Extra.secondaryText)
-        Text(value ?: Str.notAvailable, style = MaterialTheme.typography.bodySmall)
+        Text(label, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.agent567Extra.secondaryText, modifier = Modifier.weight(.35f))
+        Text(value ?: Str.notAvailable, style = MaterialTheme.typography.bodySmall, textAlign = androidx.compose.ui.text.style.TextAlign.End, modifier = Modifier.weight(.65f))
     }
 }

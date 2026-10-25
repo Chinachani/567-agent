@@ -84,8 +84,8 @@ export function AppshotSettingsView({
 	onOpenOnboarding,
 }: AppshotSettingsViewProps): JSX.Element {
 	return (
-		<div className="mx-auto w-full max-w-[680px] px-8 pt-2 pb-4">
-			<h1 className="mb-1.5 text-[20px] font-bold text-foreground">{labels.title}</h1>
+		<div className="mx-auto w-full max-w-[800px] px-5 pt-6 sm:px-8 pb-4">
+			<h1 className="mb-1.5 text-[24px] font-semibold tracking-tight text-foreground">{labels.title}</h1>
 			<p className="mb-6 text-[13px] leading-relaxed text-muted-foreground">{subtitle}</p>
 
 			<SettingSection title={labels.sectionShortcut} section={gestureSection}>

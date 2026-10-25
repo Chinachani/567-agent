@@ -1,8 +1,37 @@
 import { ipcMain } from "electron";
+import { isApi567RouteId } from "../../shared/service-routes.js";
+import { mainT } from "../i18n/index.js";
 import { NewApiService } from "./newapi-service.js";
 
 export function register567ApiIpc(): () => void {
 	const service = NewApiService.getInstance();
+	const requests = new Map<string, AbortController>();
+	ipcMain.handle("agent567:service-route:refresh", (_event, force: unknown) =>
+		service.refreshServiceRoutes(force === true),
+	);
+	for (const operation of ["probe", "select"] as const) {
+		ipcMain.handle(`agent567:service-route:${operation}`, async (event, route: unknown, id: unknown) => {
+			if (!isApi567RouteId(route) || typeof id !== "string" || !/^[a-zA-Z0-9-]{1,64}$/.test(id))
+				throw new Error("Invalid service route request");
+			const key = `${event.sender.id}:${id}`;
+			if (requests.has(key) || requests.size >= 20) throw new Error("Too many service route requests");
+			const controller = new AbortController();
+			requests.set(key, controller);
+			const abort = () => controller.abort();
+			event.sender.once("destroyed", abort);
+			try {
+				return await (operation === "probe"
+					? service.probeServiceRoute(route, controller.signal)
+					: service.selectServiceRoute(route, controller.signal));
+			} finally {
+				requests.delete(key);
+				event.sender.removeListener("destroyed", abort);
+			}
+		});
+	}
+	ipcMain.handle("agent567:service-route:cancel", (event, id: unknown) => {
+		if (typeof id === "string") requests.get(`${event.sender.id}:${id}`)?.abort();
+	});
 
 	ipcMain.handle("vetta:567api:get-status", () => {
 		return service.getStatus();
@@ -26,11 +55,14 @@ export function register567ApiIpc(): () => void {
 		return service.removeGroup(groupName.trim());
 	});
 
-	ipcMain.handle("vetta:567api:set-active-group", async (_event, groupName: unknown) => {
+	ipcMain.handle("vetta:567api:set-active-group", async (_event, groupName: unknown, modelName: unknown) => {
 		if (typeof groupName !== "string" || !groupName.trim()) {
 			return { success: false, message: "分组名称格式错误" };
 		}
-		return service.setActiveGroup(groupName.trim());
+		if (modelName !== undefined && (typeof modelName !== "string" || !modelName.trim() || modelName.length > 512)) {
+			return { success: false, message: mainT("api567Model.invalidName") };
+		}
+		return service.setActiveGroup(groupName.trim(), typeof modelName === "string" ? modelName.trim() : undefined);
 	});
 
 	ipcMain.handle("vetta:567api:set-image-group", async (_event, groupName: unknown) => {
@@ -124,6 +156,10 @@ export function register567ApiIpc(): () => void {
 	});
 
 	return () => {
+		for (const request of requests.values()) request.abort();
+		requests.clear();
+		for (const operation of ["probe", "select", "cancel", "refresh"])
+			ipcMain.removeHandler(`agent567:service-route:${operation}`);
 		ipcMain.removeHandler("vetta:567api:get-status");
 		ipcMain.removeHandler("vetta:567api:get-groups");
 		ipcMain.removeHandler("vetta:567api:sync-group");

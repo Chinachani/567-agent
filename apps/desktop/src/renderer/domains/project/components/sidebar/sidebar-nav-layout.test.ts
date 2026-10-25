@@ -276,7 +276,7 @@ describe("版本迁移", () => {
 		expect(full.pinned.length).toBe(MAX_PINNED_NAV_ITEMS - 1);
 	});
 
-	it("v2：把画布入口移到设计入口之后，置顶满时保留其它入口到收纳区", () => {
+	it("v2：设计已置顶时不再把收纳中的画布自动拉到顶部", () => {
 		const migrated = migrateSidebarNavLayout(
 			{
 				pinned: ["/abilities", "workspace:vetta-ui-design/gallery", "/agents", "/knowledge"],
@@ -284,12 +284,16 @@ describe("版本迁移", () => {
 			},
 			1,
 		);
-		expect(migrated.pinned).toEqual([
-			"/abilities",
-			"workspace:vetta-ui-design/gallery",
-			"workspace:cowart-vetta/canvas",
-			"/agents",
-		]);
-		expect(migrated.more).toEqual(["/knowledge", "/batch-tasks"]);
+		expect(migrated.pinned).toEqual(["/abilities", "workspace:vetta-ui-design/gallery", "/agents", "/knowledge"]);
+		expect(migrated.more).toEqual(["workspace:cowart-vetta/canvas", "/batch-tasks"]);
 	});
+});
+
+it("moves only canvas to More once and preserves a user's later re-pin", () => {
+	const layout = { pinned: ["/agents", "workspace:cowart-vetta/canvas", "/abilities"], more: ["/automation"] };
+	expect(migrateSidebarNavLayout(layout, 2)).toEqual({
+		pinned: ["/agents", "/abilities"],
+		more: ["workspace:cowart-vetta/canvas", "/automation"],
+	});
+	expect(migrateSidebarNavLayout(layout, 3)).toEqual(layout);
 });

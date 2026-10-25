@@ -12,6 +12,7 @@ import type {
 import type { HistoryEntry } from "@567agent/runtime-core";
 import { atomicWriteJSONAsync } from "@567agent/toolkit/atomic-write";
 import { readEditableTextFile, saveEditableTextFile } from "../filesystem/filesystem-service.js";
+import { attachmentThumbnail } from "./attachment-thumbnail.js";
 
 function object(value: unknown): value is Record<string, unknown> {
 	return typeof value === "object" && value !== null && !Array.isArray(value);
@@ -167,6 +168,7 @@ export class SessionWorkbench {
 		private readonly cwd: string,
 		private readonly history: () => readonly HistoryEntry[],
 		private readonly busy: () => boolean,
+		private readonly thumbnail: (bytes: Buffer) => Promise<string | undefined> = attachmentThumbnail,
 	) {}
 	private async reviewStates(): Promise<Record<string, "kept" | "reverted">> {
 		try {
@@ -241,8 +243,20 @@ export class SessionWorkbench {
 			const handle = await open(path, "r");
 			const buffer = Buffer.alloc(Math.min(32768, info.size));
 			let count: number;
+			let thumbnailDataUrl: string | undefined;
 			try {
 				count = (await handle.read(buffer, 0, buffer.length, 0)).bytesRead;
+				if (
+					(file.kind === "image" || /\.(png|jpe?g|webp|gif|bmp)$/i.test(file.name)) &&
+					info.size <= 4 * 1024 * 1024
+				) {
+					const image = Buffer.alloc(info.size);
+					const read = await handle.read(image, 0, image.length, 0);
+					// Thumbnail failure must not disable reading/downloading the original.
+					try {
+						thumbnailDataUrl = await this.thumbnail(image.subarray(0, read.bytesRead));
+					} catch {}
+				}
 			} finally {
 				await handle.close();
 			}
@@ -260,6 +274,7 @@ export class SessionWorkbench {
 				sizeBytes: info.size,
 				text: preview ?? "",
 				previewStatus: preview === undefined ? "binary" : "text",
+				...(thumbnailDataUrl ? { thumbnailDataUrl } : {}),
 			};
 		} catch {
 			return { kind, id, title: file.name, path: file.path, text: "", previewStatus: "unavailable" };

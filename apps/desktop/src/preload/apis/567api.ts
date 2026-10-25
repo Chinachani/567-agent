@@ -5,11 +5,15 @@ import { onIpcEvent } from "./helper.js";
 export function create567Api(ipc: IpcRenderer): { api567: Api567Api } {
 	return {
 		api567: {
+			probeServiceRoute: (route, requestId) => ipc.invoke("agent567:service-route:probe", route, requestId),
+			refreshServiceRoutes: (force) => ipc.invoke("agent567:service-route:refresh", force === true),
+			selectServiceRoute: (route, requestId) => ipc.invoke("agent567:service-route:select", route, requestId),
+			cancelServiceRouteRequest: (requestId) => ipc.invoke("agent567:service-route:cancel", requestId),
 			getStatus: () => ipc.invoke("vetta:567api:get-status"),
 			getAvailableGroups: (force?: boolean) => ipc.invoke("vetta:567api:get-groups", force),
 			syncGroup: (groupName: string) => ipc.invoke("vetta:567api:sync-group", groupName),
 			removeGroup: (groupName: string) => ipc.invoke("vetta:567api:remove-group", groupName),
-			setActiveGroup: (groupName: string) => ipc.invoke("vetta:567api:set-active-group", groupName),
+			setActiveGroup: (groupName, modelName) => ipc.invoke("vetta:567api:set-active-group", groupName, modelName),
 			setImageGroup: (groupName: string) => ipc.invoke("vetta:567api:set-image-group", groupName),
 			setImageModel: (modelName: string) => ipc.invoke("vetta:567api:set-image-model", modelName),
 			loginWithAccessToken: (token: string) => ipc.invoke("vetta:567api:login-access-token", token),

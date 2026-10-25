@@ -20,6 +20,7 @@
         android:theme="@style/Agent567Theme">
         <activity
             android:exported="true"
+            android:configChanges="orientation|screenSize|keyboardHidden|uiMode"
             android:name=".MainActivity"
             android:launchMode="singleTop"
             android:windowSoftInputMode="adjustResize">

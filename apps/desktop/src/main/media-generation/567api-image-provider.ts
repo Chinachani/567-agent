@@ -78,6 +78,7 @@ export function create567ApiImageProvider(
 
 			const service = NewApiService.getInstance();
 			const targetGroup = service.getImageGroup();
+			const origin = service.getServiceOrigin();
 			let apiKey: string | undefined;
 			if (targetGroup) {
 				try {
@@ -126,7 +127,7 @@ export function create567ApiImageProvider(
 				log.info(
 					`Generating image via 567 API, model=${selectedModel}, size=${requestedSize}, promptLength=${input.prompt.length}`,
 				);
-				const res = await fetch("https://api.567.wiki/v1/images/generations", {
+				const res = await fetch(`${origin}/v1/images/generations`, {
 					method: "POST",
 					headers: {
 						"Content-Type": "application/json",

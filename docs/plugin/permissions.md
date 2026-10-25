@@ -118,6 +118,8 @@ ctx.permissions.require("fs.read");  // 缺则抛 Plugin permission denied: fs.r
   档位省略或为空时回退到宿主的 API 类型预设；显式列表的默认值无效或省略时使用第一项，用户已选择的档位优先。
   需搭配保留这两个字段的 Desktop 模型写入合同；旧宿主可能静默清除它们，单独升级插件不能修复宿主。
 
+模型插件从 SDK 0.3.8 起可声明 `input: ["text", "image"]`；数组必须非空且不能重复，仅接受 `text`、`image`。需要 567 Agent 1.3.3 开发版及以上宿主；旧宿主可能忽略图片能力，音频/视频能力不能由此推断。未声明时沿用文本输入。
+
 ### ctx.ocr（`ai.ocr.recognize` / `ai.ocr.provider.register`）
 
 两个方向，权限分开：**消费**识别能力用 `ai.ocr.recognize`（`recognize()` / `listProviders()` /

@@ -1,4 +1,5 @@
 import { join, win32 } from "node:path";
+import { readWindowsRegisteredDataRoot } from "./windows-data-root.js";
 
 export const WINDOWS_DATA_ROOT_ENV = "AGENT567_WINDOWS_DATA_ROOT";
 export const WINDOWS_ELECTRON_USER_DATA_ENV = "AGENT567_DESKTOP_USER_DATA_DIR";
@@ -63,5 +64,17 @@ export function resolveWindowsDataLayoutFromEnvironment(
 		updaterCache: environment[WINDOWS_UPDATER_CACHE_ENV],
 		localAppData: environment.LOCALAPPDATA,
 		appData: environment.APPDATA,
+	});
+}
+
+/** Every installed entry point uses the saved root even when it bypasses the launcher. */
+export function resolveWindowsDataLayoutForProcess(
+	environment: NodeJS.ProcessEnv = process.env,
+	readRegisteredRoot: () => string | null = readWindowsRegisteredDataRoot,
+): WindowsDataLayout {
+	const selectedRoot = environment[WINDOWS_DATA_ROOT_ENV]?.trim() || readRegisteredRoot();
+	return resolveWindowsDataLayoutFromEnvironment({
+		...environment,
+		[WINDOWS_DATA_ROOT_ENV]: selectedRoot ?? undefined,
 	});
 }

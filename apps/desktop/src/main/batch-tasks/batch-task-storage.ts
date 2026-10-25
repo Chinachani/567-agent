@@ -7,6 +7,7 @@ import {
 	readDesktopConfig,
 	updateDesktopConfig,
 } from "../config/desktop-config-store.js";
+import { existingProjectStatePath } from "../config/project-state-paths.js";
 import { type ExecutionModeOverride, normalizeExecutionModeOverride } from "../execution-mode.js";
 import { getAppLogger } from "../logger.js";
 import { type BatchTaskState, type BatchTaskStatus, loadProjectTaskStates } from "./batch-task-state";
@@ -84,12 +85,12 @@ const log = getAppLogger("batch-storage");
 // ─── Internal helpers ───
 
 function metaPath(projectDir: string): string {
-	return join(projectDir, ".vetta", "meta.json");
+	return join(projectDir, ".567agent", "meta.json");
 }
 
 async function readProjectMeta(projectDir: string): Promise<BatchProjectMeta | null> {
 	try {
-		const raw = await readFile(metaPath(projectDir), "utf-8");
+		const raw = await readFile(existingProjectStatePath(projectDir, "meta.json"), "utf-8");
 		const parsed = JSON.parse(raw) as BatchProjectMeta & { pausedAt?: number };
 		if (parsed.type !== "batch") return null;
 		// 历史 meta 可能残留 pausedAt（已废弃的项目级暂停标志）。直接剥离，
@@ -104,7 +105,7 @@ async function readProjectMeta(projectDir: string): Promise<BatchProjectMeta | n
 }
 
 async function writeProjectMeta(projectDir: string, meta: BatchProjectMeta): Promise<void> {
-	const dir = join(projectDir, ".vetta");
+	const dir = join(projectDir, ".567agent");
 	await mkdir(dir, { recursive: true });
 	await writeFile(metaPath(projectDir), JSON.stringify(meta, null, 2), "utf-8");
 }
@@ -316,7 +317,7 @@ export async function createProject(
 
 	await writeProjectMeta(projectDir, meta);
 	// Ensure sessions directory exists
-	await mkdir(join(projectDir, ".vetta", "sessions"), { recursive: true });
+	await mkdir(join(projectDir, ".567agent", "sessions"), { recursive: true });
 
 	// Register in desktop-config so the sidebar picks it up. Best-effort: if
 	// the config write fails, the next discoverBatchProjects call will
@@ -481,7 +482,7 @@ export async function resetProjectFiles(projectDir: string): Promise<void> {
 	const entries = await readdir(projectDir, { withFileTypes: true });
 	for (const entry of entries) {
 		const fullPath = join(projectDir, entry.name);
-		if (entry.name === ".vetta") {
+		if (entry.name === ".567agent" || entry.name === ".vetta") {
 			// Inside .vetta, delete everything except meta.json
 			const vettaEntries = await readdir(fullPath);
 			for (const ve of vettaEntries) {
@@ -497,7 +498,7 @@ export async function resetProjectFiles(projectDir: string): Promise<void> {
 	for (const item of meta.items) {
 		await mkdir(join(projectDir, item.name), { recursive: true });
 	}
-	await mkdir(join(projectDir, ".vetta", "sessions"), { recursive: true });
+	await mkdir(join(projectDir, ".567agent", "sessions"), { recursive: true });
 }
 
 export function generateTaskId(): string {

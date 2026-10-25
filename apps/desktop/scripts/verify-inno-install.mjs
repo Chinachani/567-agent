@@ -141,10 +141,10 @@ export async function verifyInnoInstall({ installerPath, version, diagnosticsDir
 			}, null, 2));
 		}
 	};
-	const install = async (name, dataRoot) => {
+	const install = async (name, dataRoot, extraArguments = []) => {
 		await runInnoInstaller({
 			installerPath,
-			args: [...silentArguments, `/DIR=${appRoot}`, ...(dataRoot ? [`/VETTADATAROOT=${dataRoot}`] : [])],
+			args: [...silentArguments, `/DIR=${appRoot}`, ...(dataRoot ? [`/VETTADATAROOT=${dataRoot}`] : []), ...extraArguments],
 			logPath: join(diagnosticsDir, `${name}.log`),
 		});
 	};
@@ -234,6 +234,32 @@ export async function verifyInnoInstall({ installerPath, version, diagnosticsDir
 			await install("reinstall-remembers-custom-folder");
 			await assertRoot(customData);
 			await assertFiles(customData, currentFiles);
+		});
+		await runCase("env-free-background-update-keeps-saved-root", async () => {
+			const store = join(customData, "windows-updates");
+			const environment = { ...process.env };
+			for (const key of [
+				"AGENT567_HOME", "AGENT567_WINDOWS_DATA_ROOT", "AGENT567_DESKTOP_USER_DATA_DIR",
+				"AGENT567_WINDOWS_UPDATE_STORE", "AGENT567_UPDATER_CACHE_DIR",
+			]) delete environment[key];
+			await runInnoInstaller({
+				installerPath,
+				args: [...silentArguments, "/VETTAUPDATE=true", `/VETTADATAROOT=${defaultData}`, `/VETTASTOREROOT=${store}`],
+				environment,
+				logPath: join(diagnosticsDir, "env-free-background-update.log"),
+			});
+			await assertRoot(customData);
+			await assertFiles(customData, currentFiles);
+			assert.equal(await readFile(join(store, "versions", version, ".install-complete"), "utf8"), version);
+		});
+		await runCase("recover-retained-initialized-root-with-explicit-consent", async () => {
+			const registered = defaultData.replaceAll("'", "''");
+			await powershell(`$key = [Microsoft.Win32.Registry]::CurrentUser.CreateSubKey('Software\\567Agent'); try { $key.SetValue('DataRoot','${registered}') } finally { $key.Dispose() }`);
+			await assert.rejects(install("reject-silent-existing-root", customData), /confirm reuse|确认重新使用/i);
+			await install("reuse-existing-root", customData, ["/AGENT567USEEXISTINGDATA=true"]);
+			await assertRoot(customData);
+			await assertFiles(customData, currentFiles);
+			await assertFiles(defaultData, currentFiles);
 		});
 		await uninstall("custom-folder");
 		await clearOwnedState();

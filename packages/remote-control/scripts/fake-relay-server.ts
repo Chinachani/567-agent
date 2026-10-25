@@ -13,6 +13,7 @@ const rooms = new Map<string, RelayRoom>();
 const port = Number(process.env.AGENT567_FAKE_RELAY_PORT ?? 8787);
 
 const server = Bun.serve<{ pairingId: string; role: ClientRole }>({
+	hostname: "127.0.0.1",
 	port,
 	fetch(request, server) {
 		const url = new URL(request.url);

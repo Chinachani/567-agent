@@ -391,6 +391,8 @@ const { stdout, exitCode } = await ctx.command.run("git", ["status", "--porcelai
 - 非零 exit：**resolve** 并带 `exitCode`，不 throw（spawn 失败才 reject）。
 - 粒度 = **可执行文件名**（`git` 的所有子命令共用一条声明）。见 ADR-0032、[manifest commands](./manifest.md#commands)。
 
+宿主命令环境包含已解析的 `AGENT567_HOME`，指向当前应用数据根目录（包括 Windows 安装时自选数据盘）。需要在子进程中保存插件数据时读取该变量，不应重新拼接系统用户目录；不要把凭据写进可下载的缓存。旧宿主缺少变量时，系统插件兼容默认 `~/.567agent`。
+
 示例：`packages/plugins/presets/git`。
 
 ## 长驻进程 command.spawn

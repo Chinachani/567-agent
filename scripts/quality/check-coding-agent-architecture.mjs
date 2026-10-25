@@ -721,7 +721,7 @@ function checkModelDomainBoundary(state, violations) {
 
 	const modelHosts = [
 		"apps/cli-host/src/coding-agent-bootstrap.ts",
-		"apps/desktop/src/main/agent-runtime/host-services.ts",
+		"apps/desktop/src/main/models/desktop-model-runtime.ts",
 		`${SOURCE_ROOT}/host/sdk-session/node-session-host.ts`,
 	];
 	for (const path of modelHosts) {

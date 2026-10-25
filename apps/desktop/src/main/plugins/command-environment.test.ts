@@ -1,5 +1,7 @@
-import { afterEach, describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import { createPluginCommandEnvironment } from "./command-environment.js";
+
+vi.mock("@567agent/action-rpc", () => ({ getAgent567HomePath: () => "/selected-data-disk/567 Agent" }));
 
 const MANAGED_KEYS = [
 	"npm_config_registry",
@@ -26,6 +28,10 @@ afterEach(() => {
 });
 
 describe("plugin command environment", () => {
+	it("exports the resolved application data root for plugin subprocesses", () => {
+		expect(createPluginCommandEnvironment().AGENT567_HOME).toBe("/selected-data-disk/567 Agent");
+	});
+
 	it("forwards the managed npm registry/cache so plugin installs use the configured mirror", () => {
 		setEnv("npm_config_registry", "https://registry.example.test/");
 		setEnv("npm_config_cache", "/managed/npm-cache");

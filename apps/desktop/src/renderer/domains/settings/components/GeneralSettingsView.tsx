@@ -68,7 +68,6 @@ export function GeneralSettingsView({ model }: GeneralSettingsViewProps): JSX.El
 				onDebugChange={model.actions.toggleDebug}
 				exportingDiagnostics={false}
 				onExportDiagnostics={() => setDiagnosticsOpen(true)}
-				onStartAppGuide={model.actions.startAppGuide}
 			/>
 			<DiagnosticsDialog open={diagnosticsOpen} onOpenChange={setDiagnosticsOpen} />
 		</>

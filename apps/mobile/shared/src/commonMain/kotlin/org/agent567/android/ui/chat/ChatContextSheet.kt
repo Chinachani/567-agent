@@ -55,7 +55,7 @@ fun ChatContextSheet(
                     val used = state.tokens
                     if (window != null && used != null) {
                         LinearProgressIndicator(progress = { (used.toFloat() / window).coerceIn(0f, 1f) }, modifier = Modifier.fillMaxWidth())
-                        Text("${(used * 100L / window).coerceAtLeast(0)}% · ${Str.contextActiveMessages}: ${state.messageCount}", style = MaterialTheme.typography.bodySmall)
+                        Text("${org.agent567.android.ui.formatting.formatContextRatio(used, window.toLong())} · ${Str.contextActiveMessages}: ${state.messageCount}", style = MaterialTheme.typography.bodySmall)
                     } else Text("${Str.contextActiveMessages}: ${state.messageCount}", style = MaterialTheme.typography.bodySmall)
                     if (state.estimated) Text(Str.contextEstimateHint, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
                     HorizontalDivider()
@@ -70,23 +70,26 @@ fun ChatContextSheet(
                 ChatContextCapacity(state, desktop, state.modelKey != null && !loading && !busy && !state.busy, onCapacityChange)
             }
             OutlinedButton(onClick = onOpenWorkbench, modifier = Modifier.fillMaxWidth()) { Text(Str.workbenchTitle) }
-            error?.let { Text(it, color = MaterialTheme.colorScheme.error) }
-            notice?.let { Text(it, style = MaterialTheme.typography.bodySmall) }
             ContextGroup {
                 Text(Str.contextCompactActions, style = MaterialTheme.typography.titleSmall)
-                Text(Str.contextCompactionCost, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                FilledTonalButton(onClick = onCompact, enabled = canChange, modifier = Modifier.fillMaxWidth()) { Text(Str.contextCompactNow) }
+                Text(if (desktop) Str.contextCompactionCost else Str.contextManualHint, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                error?.let { Text(it, color = MaterialTheme.colorScheme.error) }
+                notice?.let { Text(it, style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.primary) }
+                val enoughHistory = desktop || (snapshot?.workspace?.turns?.count { it.status == "included" } ?: 0) > 1
+                if (!desktop && !enoughHistory && !busy) Text(Str.contextTooShort, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                FilledTonalButton(onClick = onCompact, enabled = canChange && enoughHistory, modifier = Modifier.fillMaxWidth()) { Text(Str.contextCompactNow) }
                 TextButton(onClick = { confirmReset = true }, enabled = hasSession && !busy && !loading && snapshot?.busy != true, modifier = Modifier.fillMaxWidth()) { Text(if (desktop) Str.contextNewDesktopChat else Str.contextReset) }
                 if (busy) OutlinedButton(onClick = onCancel, modifier = Modifier.fillMaxWidth()) { Text(Str.contextCancel) }
             }
         }
     }
     if (showSummary) ScrollableDetailDialog(Str.contextShowSummary, onDismiss = { showSummary = false }) { Text(snapshot?.summary.orEmpty(), style = MaterialTheme.typography.bodyLarge) }
-    if (confirmReset) AlertDialog(
-        onDismissRequest = { confirmReset = false },
-        title = { Text(if (desktop) Str.contextNewDesktopChat else Str.contextReset) },
-        text = { Text(if (desktop) Str.contextNewDesktopConfirm else Str.contextResetConfirm) },
-        confirmButton = { TextButton(onClick = { confirmReset = false; onReset() }) { Text(Str.contextConfirm) } },
-        dismissButton = { TextButton(onClick = { confirmReset = false }) { Text(Str.close) } },
+    if (confirmReset) org.agent567.android.ui.components.Agent567ConfirmDialog(
+        destructive = true,
+        onDismiss = { confirmReset = false },
+        title = if (desktop) Str.contextNewDesktopChat else Str.contextReset,
+        message = if (desktop) Str.contextNewDesktopConfirm else Str.contextResetConfirm,
+        confirmLabel = Str.contextConfirm,
+        onConfirm = { confirmReset = false; onReset() },
     )
 }

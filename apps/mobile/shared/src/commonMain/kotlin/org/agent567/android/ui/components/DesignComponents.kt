@@ -48,21 +48,18 @@ fun Agent567Card(
     contentPadding: PaddingValues = PaddingValues(16.dp),
     content: @Composable ColumnScope.() -> Unit,
 ) {
-    val shape = RoundedCornerShape(16.dp)
+    val shape = MaterialTheme.shapes.large
     Surface(
         modifier =
             modifier
                 .fillMaxWidth()
-                .then(if (onClick != null) Modifier.clickable(onClick = onClick) else Modifier),
+                .clip(shape)
+                .then(if (onClick != null) Modifier.clickable(role = Role.Button, onClick = onClick) else Modifier),
         shape = shape,
         color = MaterialTheme.colorScheme.surface,
         tonalElevation = 0.dp,
         shadowElevation = 0.dp,
-        border =
-            androidx.compose.foundation.BorderStroke(
-                1.dp,
-                MaterialTheme.agent567Extra.border,
-            ),
+        border = androidx.compose.foundation.BorderStroke(1.dp, MaterialTheme.agent567Extra.border.copy(alpha = 0.4f)),
         content = { Column(Modifier.padding(contentPadding), content = content) },
     )
 }
@@ -89,7 +86,7 @@ fun PrimaryBlackButton(
     Button(
         onClick = onClick,
         enabled = enabled,
-        modifier = modifier.fillMaxWidth().height(48.dp),
+        modifier = modifier.fillMaxWidth().heightIn(min = 52.dp),
         shape = RoundedCornerShape(14.dp),
         colors =
             ButtonDefaults.buttonColors(
@@ -114,7 +111,7 @@ fun SecondaryOutlineButton(
     OutlinedButton(
         onClick = onClick,
         enabled = enabled,
-        modifier = modifier.fillMaxWidth().height(48.dp),
+        modifier = modifier.fillMaxWidth().heightIn(min = 52.dp),
         shape = RoundedCornerShape(14.dp),
         colors =
             ButtonDefaults.outlinedButtonColors(
@@ -137,11 +134,11 @@ fun SectionHeader(
     modifier: Modifier = Modifier,
 ) {
     Row(
-        modifier = modifier.fillMaxWidth().padding(horizontal = 4.dp, vertical = 8.dp),
+        modifier = modifier.fillMaxWidth().padding(horizontal = 4.dp, vertical = 6.dp),
         horizontalArrangement = Arrangement.SpaceBetween,
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        Text(title, style = MaterialTheme.typography.titleMedium)
+        Text(title, style = MaterialTheme.typography.labelLarge, color = MaterialTheme.agent567Extra.secondaryText, fontWeight = FontWeight.Medium, modifier = Modifier.weight(1f))
         if (action != null && onAction != null) {
             Box(
                 modifier = Modifier
@@ -269,8 +266,10 @@ fun ListRow(
             modifier =
                 Modifier
                     .fillMaxWidth()
-                    .then(if (onClick != null) Modifier.clickable(onClick = onClick) else Modifier)
-                    .padding(vertical = 14.dp),
+                    .clip(MaterialTheme.shapes.medium)
+                    .then(if (onClick != null) Modifier.clickable(role = Role.Button, onClick = onClick) else Modifier)
+                    .heightIn(min = 64.dp)
+                    .padding(horizontal = 8.dp, vertical = 14.dp),
             verticalAlignment = Alignment.CenterVertically,
         ) {
             if (leading != null) {
@@ -280,7 +279,7 @@ fun ListRow(
             Column(Modifier.weight(1f)) {
                 Text(
                     title,
-                    style = MaterialTheme.typography.bodyLarge,
+                    style = MaterialTheme.typography.bodyMedium,
                     fontWeight = FontWeight.Medium,
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis,
@@ -291,7 +290,7 @@ fun ListRow(
                         subtitle,
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.agent567Extra.secondaryText,
-                        maxLines = 1,
+                        maxLines = 2,
                         overflow = TextOverflow.Ellipsis,
                     )
                 }
@@ -320,4 +319,20 @@ fun PageScaffoldContent(
                 .padding(contentPadding),
         content = content,
     )
+}
+
+/** Page introductions stay in scrolling content so large text never traps the controls. */
+@Composable
+fun MobilePageIntro(title: String, subtitle: String? = null, modifier: Modifier = Modifier) {
+    Column(modifier.fillMaxWidth().padding(top = 8.dp, bottom = 20.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+        Text(title, style = MaterialTheme.typography.headlineSmall)
+        if (!subtitle.isNullOrBlank()) Text(subtitle, style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.agent567Extra.secondaryText)
+    }
+}
+
+@Composable
+fun MobileIconTile(icon: androidx.compose.ui.graphics.vector.ImageVector, modifier: Modifier = Modifier) {
+    Box(modifier.size(40.dp).clip(MaterialTheme.shapes.medium).background(MaterialTheme.agent567Extra.chipBackground), contentAlignment = Alignment.Center) {
+        androidx.compose.material3.Icon(icon, contentDescription = null, modifier = Modifier.size(20.dp), tint = MaterialTheme.colorScheme.onSurface)
+    }
 }

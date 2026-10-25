@@ -41,6 +41,7 @@ export interface SessionInputDraft {
 	text: string;
 	/** Structured editor snapshot; absent on legacy/programmatic text-only drafts. */
 	segments?: InputSegment[];
+	mentionedFiles?: MentionedFile[];
 	appshot: AppshotAttachment | null;
 }
 
@@ -79,6 +80,7 @@ export function captureSessionInputDraft(): SessionInputDraft {
 	return {
 		text: store.get(inputValueAtom),
 		segments: store.get(inputSegmentsAtom),
+		mentionedFiles: store.get(mentionedFilesAtom),
 		appshot: store.get(appshotAttachmentAtom),
 	};
 }
@@ -93,6 +95,7 @@ export function applySessionInputDraft(draft: SessionInputDraft): void {
 	// 无编辑器时也要从文本还原 @ 文件，避免发送链路读到上一会话残留。
 	const sourceSegments = draft.segments ?? parseInputSegments(draft.text).segments;
 	const files: MentionedFile[] = deriveAttachments(sourceSegments).map((attachment) => ({
+		...draft.mentionedFiles?.find((file) => file.path === attachment.path),
 		path: attachment.path,
 		name: pathBasename(attachment.path),
 		isDirectory: attachment.kind === "directory",
@@ -117,6 +120,7 @@ export function persistSessionInputDraft(key: string, draft: SessionInputDraft):
 		existing &&
 		existing.text === draft.text &&
 		existing.segments === draft.segments &&
+		existing.mentionedFiles === draft.mentionedFiles &&
 		existing.appshot === draft.appshot
 	) {
 		return;

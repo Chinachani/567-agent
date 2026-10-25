@@ -1,5 +1,6 @@
 package org.agent567.android.ui.media
 
+import org.agent567.android.domain.session.PendingFileAttachment
 import kotlin.test.Test
 import kotlin.test.assertContentEquals
 import kotlin.test.assertEquals

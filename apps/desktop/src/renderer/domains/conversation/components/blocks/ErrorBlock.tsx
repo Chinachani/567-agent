@@ -24,6 +24,7 @@ const ICON_BY_KIND: Record<PresentedErrorKind, string> = {
 const ACTION_BY_KIND = {
 	quota: { tab: "account", labelKey: "messageList.errorBlock.kinds.quota.action" },
 	auth: { tab: "models", labelKey: "messageList.errorBlock.kinds.auth.action" },
+	network: { tab: "models", labelKey: "messageList.errorBlock.kinds.network.action" },
 } as const satisfies Partial<Record<ErrorBlock["kind"], { tab: string; labelKey: string }>>;
 
 interface ErrorBlockProps {
@@ -37,7 +38,7 @@ export function ErrorBlockView({ block, exportMode = false }: ErrorBlockProps): 
 	const [expanded, toggleExpanded] = useExpansion(`error-detail:${block.id}`);
 
 	const { kind, severity } = presentChatError(block);
-	const action = kind === "quota" || kind === "auth" ? ACTION_BY_KIND[kind] : undefined;
+	const action = kind === "quota" || kind === "auth" || kind === "network" ? ACTION_BY_KIND[kind] : undefined;
 	// 「已自动重试 N 次」（live）与「重复出现 N 次」（历史回放）互斥：前者是本次
 	// 请求内部的重试，后者是会话文件里连续同类错误折叠后的条数。
 	const note = block.attempts

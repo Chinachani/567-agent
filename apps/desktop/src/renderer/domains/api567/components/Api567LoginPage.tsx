@@ -1,28 +1,16 @@
 import { Api567TopupModal } from "./Api567TopupModal";
 import { Button } from "@shared/components/ui/button";
 import { Input } from "@shared/components/ui/input";
-import {
-	ArrowRight,
-	Key,
-	Lock,
-	Mail,
-	ShieldCheck,
-	Sparkles,
-	User,
-	UserPlus,
-} from "lucide-react";
+import { ArrowRight, Key, Lock, Mail, ShieldCheck, Sparkles, User, UserPlus } from "lucide-react";
 import React, { useEffect, useState } from "react";
+import { useTranslation } from "react-i18next";
 import { useApi567 } from "../hooks/useApi567";
+import { ServiceRouteSettings } from "./ServiceRouteSettings";
 
 export function Api567LoginPage(): JSX.Element {
-	const {
-		loginWithAccessToken,
-		loginWithPassword,
-		sendVerificationCode,
-		register,
-		setTopupModalOpen,
-		loading,
-	} = useApi567();
+	const { t } = useTranslation("settings");
+	const { loginWithAccessToken, loginWithPassword, sendVerificationCode, register, setTopupModalOpen, loading } =
+		useApi567();
 
 	const [activeTab, setActiveTab] = useState<"token" | "account" | "register">("token");
 	const [token, setToken] = useState("");
@@ -53,12 +41,12 @@ export function Api567LoginPage(): JSX.Element {
 		setErrorMsg(null);
 		const clean = token.trim();
 		if (!clean) {
-			setErrorMsg("请输入您的 567 API 账户系统访问令牌");
+			setErrorMsg(t("api567Login.tokenRequired"));
 			return;
 		}
 		const res = await loginWithAccessToken(clean);
 		if (!res.success) {
-			setErrorMsg(res.message || "令牌验证失败，请确认令牌有效后重试");
+			setErrorMsg(res.message || t("api567Login.tokenFailed"));
 		}
 	};
 
@@ -66,19 +54,19 @@ export function Api567LoginPage(): JSX.Element {
 		e.preventDefault();
 		setErrorMsg(null);
 		if (!username.trim() || !password.trim()) {
-			setErrorMsg("用户名和密码不能为空");
+			setErrorMsg(t("api567Login.credentialsRequired"));
 			return;
 		}
 		const res = await loginWithPassword(username.trim(), password.trim());
 		if (!res.success) {
-			setErrorMsg(res.message || "登录失败，请检查用户名或密码");
+			setErrorMsg(res.message || t("api567Login.loginFailed"));
 		}
 	};
 
 	const handleSendCode = async () => {
 		if (cooldown > 0 || sendingCode) return;
 		if (!regEmail.trim()) {
-			setErrorMsg("请输入用于接收验证码的邮箱");
+			setErrorMsg(t("api567Login.emailRequired"));
 			return;
 		}
 		setErrorMsg(null);
@@ -88,7 +76,7 @@ export function Api567LoginPage(): JSX.Element {
 			if (res.success) {
 				setCooldown(60);
 			} else {
-				setErrorMsg(res.message || "发送验证码失败，请检查邮箱有效性");
+				setErrorMsg(res.message || t("api567Login.codeFailed"));
 			}
 		} finally {
 			setSendingCode(false);
@@ -99,15 +87,15 @@ export function Api567LoginPage(): JSX.Element {
 		e.preventDefault();
 		setErrorMsg(null);
 		if (!regUsername.trim() || !regEmail.trim() || !regCode.trim() || !regPassword.trim()) {
-			setErrorMsg("请完整填写用户名、邮箱、验证码及密码");
+			setErrorMsg(t("api567Login.registrationRequired"));
 			return;
 		}
 		if (regPassword.length < 8) {
-			setErrorMsg("密码长度不能少于 8 位");
+			setErrorMsg(t("api567Login.passwordLength"));
 			return;
 		}
 		if (regPassword !== regConfirmPassword) {
-			setErrorMsg("两次输入的密码不一致");
+			setErrorMsg(t("api567Login.passwordMismatch"));
 			return;
 		}
 		const res = await register({
@@ -118,7 +106,7 @@ export function Api567LoginPage(): JSX.Element {
 			aff_code: regAffCode.trim() || undefined,
 		});
 		if (!res.success) {
-			setErrorMsg(res.message || "注册失败，请检查填写的信息");
+			setErrorMsg(res.message || t("api567Login.registrationFailed"));
 		}
 	};
 
@@ -128,28 +116,25 @@ export function Api567LoginPage(): JSX.Element {
 			<div className="pointer-events-none absolute -top-40 -left-40 h-96 w-96 rounded-full bg-primary/10 blur-[100px]" />
 			<div className="pointer-events-none absolute -bottom-40 -right-40 h-96 w-96 rounded-full bg-primary/15 blur-[120px]" />
 
-			<div className="relative z-10 w-full max-w-md rounded-2xl border border-border/70 bg-card/85 p-8 shadow-2xl backdrop-blur-xl transition-all">
+			<div className="relative z-10 w-full max-w-md rounded-2xl border border-border/70 bg-card/85 p-8 shadow-lg backdrop-blur-xl transition-colors">
 				{/* 品牌头部 */}
 				<div className="mb-6 flex flex-col items-center text-center">
-					<div className="mb-3 flex h-14 w-14 items-center justify-center rounded-2xl bg-gradient-to-br from-primary via-primary/90 to-primary/70 text-primary-foreground shadow-lg shadow-primary/25">
-						<span className="font-black text-xl tracking-tight">567</span>
-					</div>
+					<BrandIcon className="mb-3 h-14 w-14" />
 					<h1 className="font-bold text-2xl tracking-tight text-foreground">567 Agent</h1>
-					<p className="mt-1 text-muted-foreground text-xs">
-						专为 567 API 打造的本地 AI 智能工作台
-					</p>
+					<p className="mt-1 text-muted-foreground text-xs">{t("api567Login.subtitle")}</p>
 
 					<div className="mt-3 inline-flex items-center gap-1.5 rounded-full border border-primary/20 bg-primary/5 px-3 py-1 font-medium text-[11px] text-primary">
 						<ShieldCheck className="h-3.5 w-3.5" />
-						<span>开屏安全验证 · 登录后进入工作台</span>
+						<span>{t("api567Login.security")}</span>
 					</div>
 				</div>
 
+				<ServiceRouteSettings />
 				{/* 切换选项卡 */}
 				<div className="mb-5 flex rounded-xl bg-muted/60 p-1 text-xs">
 					<button
 						type="button"
-						className={`flex flex-1 items-center justify-center gap-1.5 rounded-lg py-2 font-medium transition-all ${
+						className={`flex flex-1 items-center justify-center gap-1.5 rounded-lg py-2 font-medium transition-colors ${
 							activeTab === "token"
 								? "bg-background text-foreground shadow-sm"
 								: "text-muted-foreground hover:text-foreground"
@@ -160,11 +145,11 @@ export function Api567LoginPage(): JSX.Element {
 						}}
 					>
 						<Key className="h-3.5 w-3.5" />
-						<span>令牌登录</span>
+						<span>{t("api567Login.tokenTab")}</span>
 					</button>
 					<button
 						type="button"
-						className={`flex flex-1 items-center justify-center gap-1.5 rounded-lg py-2 font-medium transition-all ${
+						className={`flex flex-1 items-center justify-center gap-1.5 rounded-lg py-2 font-medium transition-colors ${
 							activeTab === "account"
 								? "bg-background text-foreground shadow-sm"
 								: "text-muted-foreground hover:text-foreground"
@@ -175,11 +160,11 @@ export function Api567LoginPage(): JSX.Element {
 						}}
 					>
 						<User className="h-3.5 w-3.5" />
-						<span>账号登录</span>
+						<span>{t("api567Login.accountTab")}</span>
 					</button>
 					<button
 						type="button"
-						className={`flex flex-1 items-center justify-center gap-1.5 rounded-lg py-2 font-medium transition-all ${
+						className={`flex flex-1 items-center justify-center gap-1.5 rounded-lg py-2 font-medium transition-colors ${
 							activeTab === "register"
 								? "bg-background text-foreground shadow-sm"
 								: "text-muted-foreground hover:text-foreground"
@@ -190,7 +175,7 @@ export function Api567LoginPage(): JSX.Element {
 						}}
 					>
 						<UserPlus className="h-3.5 w-3.5" />
-						<span>注册账号</span>
+						<span>{t("api567Login.registerTab")}</span>
 					</button>
 				</div>
 
@@ -206,11 +191,11 @@ export function Api567LoginPage(): JSX.Element {
 					<form onSubmit={handleTokenSubmit} className="flex flex-col gap-4">
 						<div>
 							<div className="mb-1.5 text-xs">
-								<label className="font-medium text-foreground">系统访问令牌 (Access Token)</label>
+								<label className="font-medium text-foreground">{t("api567Login.tokenLabel")}</label>
 							</div>
 							<Input
 								type="password"
-								placeholder="请输入 567 API 系统访问令牌"
+								placeholder={t("api567Login.tokenPlaceholder")}
 								value={token}
 								onChange={(e) => setToken(e.target.value)}
 								disabled={loading}
@@ -219,7 +204,7 @@ export function Api567LoginPage(): JSX.Element {
 								className="h-10"
 							/>
 							<p className="mt-1.5 text-[11px] text-muted-foreground leading-relaxed">
-								粘贴从服务端账户系统获取的访问令牌。
+								{t("api567Login.tokenHint")}
 							</p>
 						</div>
 
@@ -227,11 +212,11 @@ export function Api567LoginPage(): JSX.Element {
 							{loading ? (
 								<>
 									<span className="inline-block h-4 w-4 animate-spin rounded-full border-2 border-current border-t-transparent" />
-									<span>正在验证账户并载入模型...</span>
+									<span>{t("api567Login.verifying")}</span>
 								</>
 							) : (
 								<>
-									<span>一键验证并启动 567 Agent</span>
+									<span>{t("api567Login.tokenSubmit")}</span>
 									<ArrowRight className="h-4 w-4" />
 								</>
 							)}
@@ -243,10 +228,12 @@ export function Api567LoginPage(): JSX.Element {
 				{activeTab === "account" && (
 					<form onSubmit={handleAccountSubmit} className="flex flex-col gap-3.5">
 						<div>
-							<label className="mb-1.5 block font-medium text-foreground text-xs">用户名 / 邮箱</label>
+							<label className="mb-1.5 block font-medium text-foreground text-xs">
+								{t("api567Login.usernameLabel")}
+							</label>
 							<Input
 								type="text"
-								placeholder="请输入 567 API 用户名"
+								placeholder={t("api567Login.usernamePlaceholder")}
 								value={username}
 								onChange={(e) => setUsername(e.target.value)}
 								disabled={loading}
@@ -258,11 +245,11 @@ export function Api567LoginPage(): JSX.Element {
 
 						<div>
 							<div className="mb-1.5 text-xs">
-								<label className="font-medium text-foreground">密码</label>
+								<label className="font-medium text-foreground">{t("api567Login.passwordLabel")}</label>
 							</div>
 							<Input
 								type="password"
-								placeholder="请输入密码"
+								placeholder={t("api567Login.passwordPlaceholder")}
 								value={password}
 								onChange={(e) => setPassword(e.target.value)}
 								disabled={loading}
@@ -275,11 +262,11 @@ export function Api567LoginPage(): JSX.Element {
 							{loading ? (
 								<>
 									<span className="inline-block h-4 w-4 animate-spin rounded-full border-2 border-current border-t-transparent" />
-									<span>正在登录并载入模型...</span>
+									<span>{t("api567Login.loggingIn")}</span>
 								</>
 							) : (
 								<>
-									<span>登录并启动 567 Agent</span>
+									<span>{t("api567Login.loginSubmit")}</span>
 									<ArrowRight className="h-4 w-4" />
 								</>
 							)}
@@ -291,10 +278,12 @@ export function Api567LoginPage(): JSX.Element {
 				{activeTab === "register" && (
 					<form onSubmit={handleRegisterSubmit} className="flex flex-col gap-3">
 						<div>
-							<label className="mb-1 block font-medium text-foreground text-xs">用户名</label>
+							<label className="mb-1 block font-medium text-foreground text-xs">
+								{t("api567Login.newUsername")}
+							</label>
 							<Input
 								type="text"
-								placeholder="请输入用户名（建议字母或数字）"
+								placeholder={t("api567Login.newUsernamePlaceholder")}
 								value={regUsername}
 								onChange={(e) => setRegUsername(e.target.value)}
 								disabled={loading}
@@ -304,11 +293,11 @@ export function Api567LoginPage(): JSX.Element {
 						</div>
 
 						<div>
-							<label className="mb-1 block font-medium text-foreground text-xs">邮箱地址</label>
+							<label className="mb-1 block font-medium text-foreground text-xs">{t("api567Login.email")}</label>
 							<div className="flex gap-2">
 								<Input
 									type="email"
-									placeholder="请输入您的邮箱"
+									placeholder={t("api567Login.emailPlaceholder")}
 									value={regEmail}
 									onChange={(e) => setRegEmail(e.target.value)}
 									disabled={loading || cooldown > 0}
@@ -322,16 +311,22 @@ export function Api567LoginPage(): JSX.Element {
 									onClick={handleSendCode}
 									className="h-9 shrink-0 px-3 text-xs"
 								>
-									{sendingCode ? "发送中..." : cooldown > 0 ? `${cooldown}s` : "获取验证码"}
+									{sendingCode
+										? t("api567Login.sendingCode")
+										: cooldown > 0
+											? `${cooldown}s`
+											: t("api567Login.getCode")}
 								</Button>
 							</div>
 						</div>
 
 						<div>
-							<label className="mb-1 block font-medium text-foreground text-xs">邮箱验证码</label>
+							<label className="mb-1 block font-medium text-foreground text-xs">
+								{t("api567Login.codeLabel")}
+							</label>
 							<Input
 								type="text"
-								placeholder="请输入收到的 6 位验证码"
+								placeholder={t("api567Login.codePlaceholder")}
 								value={regCode}
 								onChange={(e) => setRegCode(e.target.value)}
 								disabled={loading}
@@ -342,10 +337,12 @@ export function Api567LoginPage(): JSX.Element {
 
 						<div className="grid grid-cols-2 gap-2">
 							<div>
-								<label className="mb-1 block font-medium text-foreground text-xs">密码 (≥8位)</label>
+								<label className="mb-1 block font-medium text-foreground text-xs">
+									{t("api567Login.newPassword")}
+								</label>
 								<Input
 									type="password"
-									placeholder="设置登录密码"
+									placeholder={t("api567Login.newPasswordPlaceholder")}
 									value={regPassword}
 									onChange={(e) => setRegPassword(e.target.value)}
 									disabled={loading}
@@ -354,10 +351,12 @@ export function Api567LoginPage(): JSX.Element {
 								/>
 							</div>
 							<div>
-								<label className="mb-1 block font-medium text-foreground text-xs">确认密码</label>
+								<label className="mb-1 block font-medium text-foreground text-xs">
+									{t("api567Login.confirmPassword")}
+								</label>
 								<Input
 									type="password"
-									placeholder="重复输入密码"
+									placeholder={t("api567Login.confirmPasswordPlaceholder")}
 									value={regConfirmPassword}
 									onChange={(e) => setRegConfirmPassword(e.target.value)}
 									disabled={loading}
@@ -368,10 +367,12 @@ export function Api567LoginPage(): JSX.Element {
 						</div>
 
 						<div>
-							<label className="mb-1 block font-medium text-foreground text-xs">邀请码 (可选)</label>
+							<label className="mb-1 block font-medium text-foreground text-xs">
+								{t("api567Login.invitation")}
+							</label>
 							<Input
 								type="text"
-								placeholder="如果有邀请码可在此填入"
+								placeholder={t("api567Login.invitationPlaceholder")}
 								value={regAffCode}
 								onChange={(e) => setRegAffCode(e.target.value)}
 								disabled={loading}
@@ -383,11 +384,11 @@ export function Api567LoginPage(): JSX.Element {
 							{loading ? (
 								<>
 									<span className="inline-block h-4 w-4 animate-spin rounded-full border-2 border-current border-t-transparent" />
-									<span>正在注册并自动登录...</span>
+									<span>{t("api567Login.registering")}</span>
 								</>
 							) : (
 								<>
-									<span>立即注册并登录</span>
+									<span>{t("api567Login.registerSubmit")}</span>
 									<ArrowRight className="h-4 w-4" />
 								</>
 							)}
@@ -407,7 +408,7 @@ export function Api567LoginPage(): JSX.Element {
 								}}
 								className="transition-colors hover:text-primary font-medium text-primary"
 							>
-								注册新账号
+								{t("api567Login.newAccount")}
 							</button>
 						) : (
 							<button
@@ -418,7 +419,7 @@ export function Api567LoginPage(): JSX.Element {
 								}}
 								className="transition-colors hover:text-primary font-medium text-primary"
 							>
-								返回登录
+								{t("api567Login.back")}
 							</button>
 						)}
 						<span>·</span>
@@ -427,7 +428,7 @@ export function Api567LoginPage(): JSX.Element {
 							onClick={() => setTopupModalOpen(true)}
 							className="transition-colors hover:text-primary"
 						>
-							额度充值
+							{t("api567Login.topup")}
 						</button>
 					</div>
 				</div>
@@ -436,3 +437,4 @@ export function Api567LoginPage(): JSX.Element {
 		</div>
 	);
 }
+import { BrandIcon } from "@shared/components/BrandIcon";

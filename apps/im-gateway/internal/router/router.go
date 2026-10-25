@@ -281,14 +281,26 @@ func (r *Router) runTurn(
 	queue chan transport.InboundMessage,
 	seed transport.InboundMessage,
 ) (*transport.InboundMessage, error) {
-	entry, _, _ := r.state.GetSession(ctx, seed.UserID, seed.ChatID)
+	entry, _, err := r.state.GetSession(ctx, seed.UserID, seed.ChatID)
+	if err != nil {
+		return nil, fmt.Errorf("load session binding: %w", err)
+	}
+	sessionPath, missing, err := r.resolveStoredSessionPath(entry.SessionPath)
+	if err != nil {
+		return nil, err
+	}
+	if missing {
+		if err := r.state.SetSession(ctx, state.SessionEntry{UserID: seed.UserID, ChatID: seed.ChatID}); err != nil {
+			return nil, fmt.Errorf("clear missing session binding: %w", err)
+		}
+	}
 
 	cwd, err := r.agentCwd()
 	if err != nil {
 		return nil, err
 	}
 
-	acq, err := r.pool.Acquire(ctx, cwd, entry.SessionPath)
+	acq, err := r.pool.Acquire(ctx, cwd, sessionPath)
 	if err != nil {
 		return nil, fmt.Errorf("acquire session: %w", err)
 	}
@@ -298,10 +310,18 @@ func (r *Router) runTurn(
 	// a fresh session and a Legacy source that was migrated to a new Greenfield
 	// conversation during startup.
 	if real := acq.Session.SessionPath(); real != "" && real != entry.SessionPath {
-		_ = r.state.SetSession(ctx, state.SessionEntry{
+		if err := r.state.SetSession(ctx, state.SessionEntry{
 			UserID:      seed.UserID,
 			ChatID:      seed.ChatID,
 			SessionPath: real,
+		}); err != nil {
+			_ = acq.Discard()
+			return nil, fmt.Errorf("save session binding: %w", err)
+		}
+	}
+	if missing {
+		_, _ = r.getTransport().SendMessage(ctx, seed.ChatID, transport.OutboundMessage{
+			Text: "原会话文件已不存在，已新建会话继续处理本次消息。",
 		})
 	}
 
@@ -380,6 +400,56 @@ drain:
 			}
 		}
 	}
+}
+
+// Only missing files in this gateway's managed session directories can be
+// replaced automatically. Existing, corrupt, inaccessible and external files
+// retain their original error semantics instead of silently losing history.
+func (r *Router) resolveStoredSessionPath(path string) (string, bool, error) {
+	if path == "" || !filepath.IsAbs(path) {
+		return path, false, nil
+	}
+	roots := []string{
+		filepath.Join(r.conversationCwd, ".567agent", "sessions"),
+		filepath.Join(r.conversationCwd, ".vetta", "sessions"),
+	}
+	managed := false
+	for _, root := range roots {
+		if filepath.Clean(filepath.Dir(path)) == filepath.Clean(root) {
+			managed = true
+			break
+		}
+	}
+	if !managed {
+		return path, false, nil
+	}
+	info, err := os.Stat(path)
+	if err == nil {
+		if !info.Mode().IsRegular() {
+			return "", false, fmt.Errorf("stored conversation is not a regular file: %s", path)
+		}
+		return path, false, nil
+	}
+	if !errors.Is(err, os.ErrNotExist) {
+		return "", false, fmt.Errorf("read stored conversation: %w", err)
+	}
+	for _, root := range roots {
+		candidate := filepath.Join(root, filepath.Base(path))
+		if filepath.Clean(candidate) == filepath.Clean(path) {
+			continue
+		}
+		info, err := os.Stat(candidate)
+		if err == nil {
+			if !info.Mode().IsRegular() {
+				return "", false, fmt.Errorf("migrated conversation is not a regular file: %s", candidate)
+			}
+			return candidate, false, nil
+		}
+		if !errors.Is(err, os.ErrNotExist) {
+			return "", false, fmt.Errorf("read migrated conversation: %w", err)
+		}
+	}
+	return "", true, nil
 }
 
 // steer folds a message into the running agent. Sent as a prompt with

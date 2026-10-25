@@ -184,6 +184,7 @@ async function prepareRuntimeHost(
 		createSessionId: options.createSessionId ?? randomUUID,
 		ownership: options.ownership,
 		createPluginRuntime: options.createPluginRuntime,
+		streamFn: options.streamFn,
 	});
 	if (intent === "print") {
 		return createPrintRuntimeHostReady(bootstrap, assembly);

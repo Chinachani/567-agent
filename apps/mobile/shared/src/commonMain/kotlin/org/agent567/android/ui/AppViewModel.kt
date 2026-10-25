@@ -20,11 +20,15 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
 import kotlin.io.encoding.Base64
 import kotlin.io.encoding.ExperimentalEncodingApi
 import org.agent567.android.app.AppContainer
@@ -71,7 +75,7 @@ import org.agent567.android.domain.session.SessionStore
 import org.agent567.android.domain.session.nowEpochMs
 import org.agent567.android.data.session.MigrationBackupTooLargeException
 import org.agent567.android.ui.i18n.Str
-import org.agent567.android.ui.media.PendingFileAttachment
+import org.agent567.android.domain.session.PendingFileAttachment
 import org.agent567.android.domain.session.MessageFileAttachment
 import org.agent567.android.ui.media.MAX_MESSAGE_IMAGE_TOTAL_BYTES
 import org.agent567.android.ui.media.MAX_MESSAGE_FILE_COUNT
@@ -100,6 +104,12 @@ data class AppUiState(
     val downloadSource: String = org.agent567.android.app.AppPreferences.DOWNLOAD_SOURCE_GITHUB,
     val customDownloadPrefix: String = "",
     val serverUrl: String = "",
+	val serviceRoutePickerOpen: Boolean = false,
+	val serviceRoutePending: org.agent567.android.core.ServiceRoute? = null,
+	val serviceRouteResults: Map<org.agent567.android.core.ServiceRoute, org.agent567.android.core.ServiceRouteResult> = emptyMap(),
+	val serviceRouteChanged: Boolean = false,
+	val serviceRouteCatalog: org.agent567.android.core.ServiceRouteCatalog = org.agent567.android.core.ServiceRouteCatalog(),
+	val serviceRouteCatalogRefreshing: Boolean = false,
     val user: User? = null,
     val subscription: SubscriptionStatus? = null,
     val subscriptionLoadFailed: Boolean = false,
@@ -107,6 +117,8 @@ data class AppUiState(
     val selectedModelId: String? = null,
     val desktopModels: List<LlmModel> = emptyList(),
     val desktopSelectedModelId: String? = null,
+    val desktopServiceRoute: String? = null,
+    val desktopServiceRouteSessionId: String? = null,
     val currentSessionId: String? = null,
     val messages: List<LocalMessage> = emptyList(),
     val draft: String = "",
@@ -148,12 +160,16 @@ data class AppUiState(
     val desktopSessionsWarning: String? = null,
     /** 配对与设备管理错误，只在连接相关页面展示。 */
     val remoteError: UiError? = null,
+    val sessionDeletionError: UiError? = null,
     /** 当前聊天的错误提示；切换会话时清空，后台任务不得写入。 */
     val chatError: UiError? = null,
     val authError: UiError? = null,
     val authLoading: Boolean = false,
+    val loggingOut: Boolean = false,
     val loginModeEmail: Boolean = false,
     val catalogLoading: Boolean = false,
+    val accountVerifying: Boolean = false,
+    val accountVerificationMessage: String? = null,
     val quotaRefreshing: Boolean = false,
     val passwordVisible: Boolean = false,
     val sessionQuery: String = "",
@@ -209,6 +225,7 @@ class AppViewModel(
             AppUiState(
                 themeMode = container.preferences.themeMode.value,
                 serverUrl = container.preferences.serverUrl.value,
+                serviceRouteCatalog = container.preferences.serviceRouteCatalog(),
                 autoResumeLastSession = container.preferences.autoResumeLastSession.value,
                 motionEnabled = container.preferences.motionEnabled.value,
                 inputPredictionEnabled = container.preferences.inputPredictionEnabled.value,
@@ -222,6 +239,51 @@ class AppViewModel(
         )
     val state: StateFlow<AppUiState> = _state.asStateFlow()
 
+    private val authPersistence = Mutex()
+    private var authRevision = 0L
+    private var authJob: Job? = null
+    private var workspaceJob: Job? = null
+    private var serviceRouteJob: Job? = null
+    private var serviceRouteRevision = 0L
+    private var serviceRouteCatalogJob: Job? = null
+    private var serviceRouteCatalogRevision = 0L
+
+    fun setServiceRoutePickerOpen(open: Boolean) {
+        if (!open) { serviceRouteRevision++; serviceRouteJob?.cancel(); serviceRouteJob = null; serviceRouteCatalogRevision++; serviceRouteCatalogJob?.cancel(); serviceRouteCatalogJob = null }
+        _state.update { it.copy(serviceRoutePickerOpen = open, serviceRoutePending = null, serviceRouteChanged = false, serviceRouteCatalog = container.preferences.serviceRouteCatalog(), serviceRouteCatalogRefreshing = false) }
+        if (open) refreshServiceRouteCatalog()
+    }
+
+    fun refreshServiceRouteCatalog(force: Boolean = false) {
+        if (serviceRouteCatalogJob?.isActive == true) return
+        val revision = ++serviceRouteCatalogRevision
+        _state.update { it.copy(serviceRouteCatalogRefreshing = true) }
+        serviceRouteCatalogJob = viewModelScope.launch {
+            try {
+                val catalog = container.refreshServiceRoutes(force)
+                if (revision == serviceRouteCatalogRevision) _state.update { it.copy(serviceRouteCatalog = catalog) }
+            } finally {
+                if (revision == serviceRouteCatalogRevision) _state.update { it.copy(serviceRouteCatalogRefreshing = false) }
+            }
+        }
+    }
+
+    fun checkServiceRoute(route: org.agent567.android.core.ServiceRoute, select: Boolean) {
+        if (serviceRouteJob?.isActive == true) return
+        val revision = ++serviceRouteRevision
+        _state.update { it.copy(serviceRoutePending = route, serviceRouteChanged = false) }
+        serviceRouteJob = viewModelScope.launch {
+            try {
+                val result = if (select) container.selectServiceRoute(route) else container.probeServiceRoute(route)
+                if (revision != serviceRouteRevision) return@launch
+                _state.update { it.copy(serverUrl = container.preferences.serverUrl.value, serviceRouteResults = it.serviceRouteResults + (route to result), serviceRouteChanged = select && result.ok) }
+                if (select && result.ok && container.tokenStore.accessToken != null) refreshCatalog()
+            } finally {
+                if (revision == serviceRouteRevision) _state.update { it.copy(serviceRoutePending = null) }
+            }
+        }
+    }
+
     private val contextOperations = mutableMapOf<String, Job>()
     private var workbenchReadJob: Job? = null
     private var projectCollaborationJob: Job? = null
@@ -230,7 +292,8 @@ class AppViewModel(
         try {
             withTimeout(180_000) {
                 val result = StringBuilder()
-                container.client.chat.stream(modelId, messages, groupName = group, imageGenModel = null).collect { event ->
+                val requestClient = kotlin.coroutines.coroutineContext[org.agent567.android.app.RequestClientContext]?.client ?: container.client
+                requestClient.chat.stream(modelId, messages, groupName = group, imageGenModel = null).collect { event ->
                     when (event) {
                         is ChatStreamEvent.Delta -> {
                             result.append(event.text)
@@ -261,10 +324,52 @@ class AppViewModel(
     private val inputPredictionLoadingSessions = mutableSetOf<String>()
     private val desktopSessionModelJobs = mutableMapOf<String, Deferred<Pair<String, RemoteSessionModelCatalog>?>>()
     private val drafts = mutableMapOf<String, String>()
+    private val composerDrafts = mutableMapOf<String, org.agent567.android.domain.session.SessionDraft>()
+    private val draftPersistence = Mutex()
+    private var draftReadJob: Job? = null
+
+    private fun composerOwner(): String? = container.preferences.authUserId.takeIf { it > 0 }?.toString()
+        ?: if (container.tokenStore.accessToken == null) container.preferences.remotePairingId?.let { "paired:$it" } ?: "local" else null
+
+    private fun persistCurrentDraft() {
+        val state = _state.value
+        val sid = state.currentSessionId ?: return
+        saveComposerDraft(sid, org.agent567.android.domain.session.SessionDraft(state.draft, state.pendingImages, state.pendingFiles))
+    }
+
+    private fun saveComposerDraft(sid: String, draft: org.agent567.android.domain.session.SessionDraft): Job? {
+        composerDrafts[sid] = draft
+        drafts[sid] = draft.text
+        val owner = composerOwner() ?: run {
+            _state.update { it.copy(chatError = UiError(Str.draftAccountPending, Str.draftAccountPendingHint, UiErrorAction.None)) }
+            return null
+        }
+        return viewModelScope.launch {
+            try {
+                draftPersistence.withLock { container.sessionStore.saveDraft(sid, owner, draft) }
+                if (_state.value.currentSessionId == sid && _state.value.chatError?.title == Str.draftAccountPending) _state.update { it.copy(chatError = null) }
+                if (_state.value.currentSessionId != sid && composerDrafts[sid] === draft) composerDrafts.remove(sid)
+            } catch (error: CancellationException) { throw error }
+            catch (_: Throwable) {
+                if (_state.value.currentSessionId == sid) _state.update { it.copy(chatError = UiError(Str.draftSaveFailed, Str.draftSaveFailedHint, UiErrorAction.None)) }
+            }
+        }
+    }
     private var pendingLoginAction: PendingLoginAction? = null
     private var pendingNewChatDraft = ""
 
     init {
+        viewModelScope.launch {
+            _state.map { it.user?.id }.distinctUntilChanged().collect { id ->
+                if (id != null && id > 0) {
+                    val sid = _state.value.currentSessionId
+                    if (sid != null) {
+                        if (composerDrafts.containsKey(sid)) persistCurrentDraft()
+                        else attachSession(sid, clearPendingImages = false)
+                    }
+                }
+            }
+        }
         viewModelScope.launch {
             container.networkAvailability.collect { availability ->
                 if (availability == NetworkAvailability.Unavailable) {
@@ -458,15 +563,44 @@ class AppViewModel(
         if (lastSession != null) attachSession(lastSession.id)
         restorePendingQuestion()
 
+        workspaceJob?.cancel()
+        val client = container.client
+        val revision = authRevision
+        workspaceJob = viewModelScope.launch(org.agent567.android.app.RequestClientContext(client)) {
+            refreshWorkspaceSnapshot(client, revision)
+        }
+    }
+
+    private fun isCurrentAccount(client: org.agent567.android.core.Agent567Client, revision: Long): Boolean {
+        return authRevision == revision && container.client === client && container.tokenStore.accessToken != null
+    }
+
+    private suspend fun refreshWorkspaceSnapshot(client: org.agent567.android.core.Agent567Client, revision: Long) {
         try {
-            val user = runCatching { container.client.auth.me() }.getOrNull()
-            if (user != null) {
-                container.preferences.authUsername = user.nickname.ifBlank { user.username }
-                container.preferences.authQuotaUsd = user.quotaUsd
-                container.preferences.authUserId = user.id
+            if (!isCurrentAccount(client, revision)) return
+            _state.update { it.copy(accountVerifying = true, accountVerificationMessage = null) }
+            val user = try {
+                client.auth.me()
+            } catch (error: CancellationException) { throw error }
+            catch (error: Exception) {
+                if (isCurrentAccount(client, revision)) _state.update { it.copy(
+                    accountVerifying = false,
+                    accountVerificationMessage = if (error is org.agent567.android.core.error.Agent567Exception.Unauthorized)
+                        "登录凭据暂时无法恢复，请在账号页重新验证登录" else Str.accountVerificationUnavailable,
+                    catalogLoading = false,
+                ) }
+                return
             }
-            val sub = runCatching { container.client.subscription.me() }.getOrNull()
-            val groups = runCatching { container.client.models.getAvailableGroups() }.getOrDefault(emptyMap())
+            if (!isCurrentAccount(client, revision)) return
+            _state.update { it.copy(accountVerifying = false, accountVerificationMessage = null) }
+            container.preferences.authUsername = user.nickname.ifBlank { user.username }
+            container.preferences.authQuotaUsd = user.quotaUsd
+            container.preferences.authUserId = user.id
+            if (!isCurrentAccount(client, revision)) return
+            _state.update { it.copy(user = user) }
+            val sub = runCatching { client.subscription.me() }.getOrNull()
+            val groups = runCatching { client.models.getAvailableGroups() }.getOrDefault(emptyMap())
+            if (!isCurrentAccount(client, revision)) return
             val currentGroup = _state.value.active567Group ?: pickDefaultGroup(groups)
             if (_state.value.active567Group == null && currentGroup != null) {
                 container.preferences.active567Group = currentGroup
@@ -477,10 +611,11 @@ class AppViewModel(
             }
             val models =
                 if (!currentGroup.isNullOrBlank()) {
-                    runCatching { container.client.models.listGoModels(currentGroup) }.getOrElse { emptyList() }
+                    runCatching { client.models.listGoModels(currentGroup) }.getOrElse { emptyList() }
                 } else {
-                    runCatching { container.client.models.listGoModels(null) }.getOrElse { emptyList() }
+                    runCatching { client.models.listGoModels(null) }.getOrElse { emptyList() }
                 }
+            if (!isCurrentAccount(client, revision)) return
             val cachedFallbackIds = container.preferences.getCachedGroupModels(currentGroup)
             val fallbackModels = cachedFallbackIds.map { id ->
                 val isReasoning = id.contains("reasoner", ignoreCase = true) ||
@@ -511,7 +646,6 @@ class AppViewModel(
                 ) ?: finalModels.firstOrNull()?.id
             _state.update {
                 it.copy(
-                    user = user ?: it.user,
                     // A failed subscription lookup must not leave an old
                     // balance/tier looking current. `sub` is null on lookup
                     // failure and the UI can then rely on the error state.
@@ -528,7 +662,9 @@ class AppViewModel(
             if (!currentImageGroup.isNullOrBlank() && _state.value.availableImageModels.isEmpty()) {
                 loadGroupImageModels(currentImageGroup)
             }
-        } catch (t: Throwable) {
+        } catch (error: CancellationException) { throw error }
+        catch (t: Throwable) {
+            if (!isCurrentAccount(client, revision)) return
             _state.update {
                 it.copy(
                     catalogLoading = false,
@@ -538,6 +674,7 @@ class AppViewModel(
     }
 
     fun openWelcome() {
+        if (_state.value.loggingOut) return
         if (_state.value.route == AppRoute.Login) {
             pendingLoginAction = null
             pendingNewChatDraft = ""
@@ -545,9 +682,10 @@ class AppViewModel(
         navigate(AppRoute.Welcome)
     }
 
-    fun openLogin() = navigate(AppRoute.Login)
+    fun openLogin() { if (!_state.value.loggingOut) navigate(AppRoute.Login) }
 
     fun skipWelcome() {
+        if (_state.value.loggingOut) return
         _state.update {
             it.copy(
                 bootstrapped = true,
@@ -581,28 +719,78 @@ class AppViewModel(
     fun openDataSettings() = navigate(AppRoute.SettingsData)
 
 
+    private val updateController = org.agent567.android.ui.updates.AppUpdateController(container.preferences, { container.client.models.checkAppUpdate() })
+    val appUpdates = updateController.state
+
+    fun checkAppUpdateAutomatically() { viewModelScope.launch { updateController.check(automatic = true) } }
+    fun dismissUpdateNotice() = updateController.dismiss()
     fun checkAppUpdate(onResult: (org.agent567.android.core.api.AppUpdateCheckResult) -> Unit) {
-        viewModelScope.launch {
-            try {
-                val res = container.client.models.checkAppUpdate()
-                onResult(res)
-            } catch (t: Throwable) {
-                if (t is CancellationException) throw t
-                onResult(
-                    org.agent567.android.core.api.AppUpdateCheckResult(
-                        hasUpdate = false,
-                        latestVersion = "v${AppVersion.NAME}",
-                        currentVersion = "v${AppVersion.NAME}",
-                        releaseNotes = "",
-                        apkUrl = null,
-                        error = t.message,
-                    )
-                )
-            }
-        }
+        viewModelScope.launch { updateController.check(automatic = false)?.let(onResult) }
     }
 
     fun openAbout() = navigate(AppRoute.About)
+    fun openAccount() = navigate(AppRoute.Account)
+
+    fun saveProfileName(name: String, onComplete: (String?) -> Unit) {
+        val user = _state.value.user ?: return
+        val revision = authRevision
+        val client = container.client
+        viewModelScope.launch(org.agent567.android.app.RequestClientContext(client)) {
+            try {
+                val updated = withContext(Dispatchers.IO) { client.auth.updateDisplayName(user, name) }
+                if (!isCurrentAccount(client, revision) || _state.value.user?.id != user.id) {
+                    onComplete("账号或线路已变化，请刷新个人资料")
+                    return@launch
+                }
+                withContext(Dispatchers.IO) { authPersistence.withLock {
+                    if (isCurrentAccount(client, revision)) container.preferences.authUsername = updated.nickname.ifBlank { updated.username }
+                } }
+                if (!isCurrentAccount(client, revision)) return@launch
+                _state.update { it.copy(user = updated) }
+                onComplete(null)
+            } catch (error: CancellationException) { throw error }
+            catch (error: Exception) { onComplete(ErrorMapper.from(error).message) }
+        }
+    }
+
+    fun changeProfilePassword(original: String, password: String, onComplete: (String?) -> Unit) =
+        runProfileAction(onComplete, afterSuccess = {
+            if (container.preferences.authLoginType == "account") container.preferences.authPassword = password
+            container.preferences.authToken = container.tokenStore.accessToken
+            container.preferences.authRefreshToken = container.tokenStore.refreshToken
+        }) { client, user -> client.auth.updatePassword(user, original, password); null }
+
+    fun sendProfileEmailCode(email: String, onComplete: (String?) -> Unit) =
+        runProfileAction(onComplete) { client, user -> client.auth.sendBindingEmailCode(user, email); null }
+
+    fun bindProfileEmail(email: String, code: String, onComplete: (String?) -> Unit) =
+        runProfileAction(onComplete) { client, user -> client.auth.bindEmail(user, email, code) }
+
+    private fun runProfileAction(
+        onComplete: (String?) -> Unit,
+        afterSuccess: () -> Unit = {},
+        action: suspend (org.agent567.android.core.Agent567Client, User) -> User?,
+    ) {
+        val user = _state.value.user ?: return onComplete("请先登录")
+        val client = container.client
+        val revision = authRevision
+        viewModelScope.launch(org.agent567.android.app.RequestClientContext(client)) {
+            try {
+                val updated = withContext(Dispatchers.IO) { action(client, user) }
+                if (!isCurrentAccount(client, revision) || _state.value.user?.id != user.id) {
+                    onComplete("账号或线路已变化，请重新打开个人资料")
+                    return@launch
+                }
+                withContext(Dispatchers.IO) { authPersistence.withLock {
+                    if (isCurrentAccount(client, revision)) afterSuccess()
+                } }
+                if (!isCurrentAccount(client, revision)) return@launch
+                if (updated != null) _state.update { it.copy(user = updated) }
+                onComplete(null)
+            } catch (error: CancellationException) { throw error }
+            catch (error: Exception) { onComplete(ErrorMapper.from(error).message) }
+        }
+    }
 
     /** 登录后继续用户刚刚发起的高意图操作，避免登录成功后把用户丢回首页。 */
     fun openCloudConversation() {
@@ -976,6 +1164,7 @@ class AppViewModel(
                         cancelInputPredictionsForSession(draft.id)
                         container.sessionStore.deleteSession(draft.id)
                         drafts.remove(draft.id)
+                        composerDrafts.remove(draft.id)
                         if (container.preferences.lastSessionId == draft.id) {
                             container.preferences.lastSessionId = null
                         }
@@ -1077,6 +1266,7 @@ class AppViewModel(
             )
         }
         val previousSessionId = _state.value.currentSessionId
+        if (previousSessionId != sessionId) persistCurrentDraft()
         if (surface != ChatSurface.Desktop || sessionId == null) {
             desktopHistoryJob?.cancel()
             _state.update { it.copy(desktopHistoryLoading = false) }
@@ -1216,26 +1406,28 @@ class AppViewModel(
         workbenchReadJob?.start()
     }
 
+    private val workbenchPreviewSlots = kotlinx.coroutines.sync.Semaphore(2)
+
+    suspend fun readWorkbenchThumbnail(sid: String, id: String): String? {
+        workbenchPreviewSlots.acquire()
+        try {
+            if (_state.value.currentSessionId != sid || !_state.value.workbenchOpen) return null
+            val session = container.sessionStore.getSession(sid) ?: return null
+            requireDesktopContextDevice(session)
+            val remoteId = session.remoteSessionId ?: return null
+            val detail = container.remoteConversationGateway.readDesktopWorkbenchDetail(sid, remoteId, "attachment", id)
+            return org.agent567.android.domain.session.validatedWorkbenchThumbnail(detail?.thumbnailDataUrl)
+        } finally { workbenchPreviewSlots.release() }
+    }
+
     suspend fun readWorkbenchAttachment(sid: String, id: String): ByteArray {
         val session = container.sessionStore.getSession(sid) ?: error("会话已删除")
         requireDesktopContextDevice(session)
         val remoteId = session.remoteSessionId ?: error("电脑会话未建立")
-        val output = mutableListOf<ByteArray>(); var offset = 0; var total: Int? = null; var revision: String? = null
-        while (true) {
-            val chunk = container.remoteConversationGateway.readDesktopAttachmentChunk(sid, remoteId, id, offset, 65536) ?: error("电脑不支持原文件下载")
-            require(chunk.sizeBytes in 0..(12 * 1024 * 1024) && (total == null || total == chunk.sizeBytes)) { "附件已变化或超过下载上限" }
-            require(chunk.revision != null && (revision == null || revision == chunk.revision) && chunk.dataBase64.length <= 87384) { "原文件在传输中发生变化，请重新下载" }
-            revision = chunk.revision
-            total = chunk.sizeBytes
-            val bytes = kotlin.io.encoding.Base64.decode(chunk.dataBase64)
-            require(bytes.isNotEmpty() || offset == total) { "附件数据不完整" }
-            output.add(bytes); offset += bytes.size
-            require(offset <= total) { "附件数据超出大小" }
-            if (offset == total) break
+        return org.agent567.android.domain.session.readWorkbenchAttachmentChunks { offset, limit ->
+            requireDesktopContextDevice(session)
+            container.remoteConversationGateway.readDesktopAttachmentChunk(sid, remoteId, id, offset, limit)
         }
-        val bytes = ByteArray(offset); var index = 0
-        output.forEach { part -> part.copyInto(bytes, index); index += part.size }
-        return bytes
     }
 
     fun setContextPanelOpen(open: Boolean) {
@@ -1304,7 +1496,7 @@ class AppViewModel(
                 ?: throw RemoteConversationException(Str.contextDesktopUnsupported)
             updateVisibleSession(session.id) { it.copy(contextSnapshot = snapshot, contextNotice = Str.contextCompacted) }
         } else {
-            val compacted = mobileContext.compact(session.id, modelId ?: throw MobileContextException(Str.contextNoModel), window, group)
+            val compacted = mobileContext.compact(session.id, modelId ?: throw MobileContextException(Str.contextNoModel), window, group, manual = true)
             updateVisibleSession(session.id) { it.copy(contextNotice = if (compacted) Str.contextCompacted else Str.contextTooShort) }
         }
     }
@@ -1377,7 +1569,7 @@ class AppViewModel(
         val sid = state.currentSessionId ?: return
         if (sid in contextOperations || NEW_SESSION_SEND_RESERVATION in pendingSendReservations || sid in pendingSendReservations || streamJobs[sid]?.isCompleted == false || sid in retryPreparingSessions || state.desktopHistoryLoading) return
         val selected = if ((state.route as? AppRoute.Chat)?.surface == ChatSurface.Desktop) state.desktopModels.firstOrNull { it.id == state.desktopSelectedModelId } else currentModel()
-        val job = viewModelScope.launch(start = CoroutineStart.LAZY) {
+        val job = viewModelScope.launch(org.agent567.android.app.RequestClientContext(container.client), start = CoroutineStart.LAZY) {
             updateVisibleSession(sid) { it.copy(contextBusy = true, contextError = null, contextNotice = null) }
             inputPredictionJobs.remove(sid)?.cancel()
             inputPredictionLoadingSessions.remove(sid)
@@ -1555,12 +1747,14 @@ class AppViewModel(
             if (!isEmptyRemoteDraftStillDisposable(sessionId)) return@launch
             container.sessionStore.deleteSession(sessionId)
             drafts.remove(sessionId)
+            composerDrafts.remove(sessionId)
             cancelInputPredictionsForSession(sessionId)
             if (container.preferences.lastSessionId == sessionId) container.preferences.lastSessionId = null
         }
     }
 
-    private fun isEmptyRemoteDraftStillDisposable(sessionId: String): Boolean {
+    private suspend fun isEmptyRemoteDraftStillDisposable(sessionId: String): Boolean {
+        if (runCatching { container.sessionStore.hasDraft(sessionId) }.getOrDefault(true)) return false
         val current = _state.value
         return streamJobs[sessionId]?.isActive != true &&
             drafts[sessionId].isNullOrBlank() &&
@@ -1660,7 +1854,7 @@ class AppViewModel(
                 ),
             )
             _state.update {
-                it.copy(desktopModels = catalog.models, desktopSelectedModelId = catalog.currentModelId)
+                it.copy(desktopModels = catalog.models, desktopSelectedModelId = catalog.currentModelId, desktopServiceRoute = catalog.serviceRoute, desktopServiceRouteSessionId = localSessionId)
             }
             result
         }.also { created ->
@@ -1691,7 +1885,7 @@ class AppViewModel(
                         } else {
                             session.modelName?.takeIf { it.isNotBlank() } ?: Str.filterCloud
                         },
-                    timeLabel = relativeTime(session.updatedAtEpochMs),
+                    timeLabel = org.agent567.android.ui.formatting.formatRelativeTime(session.updatedAtEpochMs, nowEpochMs()),
                     isCloud = session.origin == ConversationOrigin.Cloud,
                     remoteSessionId = session.remoteSessionId,
                 )
@@ -1705,7 +1899,7 @@ class AppViewModel(
                         title = summary.title,
                         subtitle = Str.desktopDevice,
                         sourceLabel = Str.desktopDevice,
-                        timeLabel = relativeTime(summary.updatedAtEpochMs),
+                        timeLabel = org.agent567.android.ui.formatting.formatRelativeTime(summary.updatedAtEpochMs, nowEpochMs()),
                         isCloud = false,
                         remoteSessionId = summary.id,
                     )
@@ -1721,16 +1915,6 @@ class AppViewModel(
 
     fun sessionListItems(): List<SessionListItem> = sessionListItems.value
 
-    private fun relativeTime(epochMs: Long): String {
-        val delta = (nowEpochMs() - epochMs).coerceAtLeast(0)
-        val minutes = delta / 60_000
-        return when {
-            minutes < 1 -> "刚刚"
-            minutes < 60 -> "${minutes} 分钟前"
-            minutes < 60 * 24 -> "${minutes / 60} 小时前"
-            else -> "${minutes / (60 * 24)} 天前"
-        }
-    }
 
     fun setLoginModeEmail(email: Boolean) {
         _state.update { it.copy(loginModeEmail = email) }
@@ -1742,6 +1926,15 @@ class AppViewModel(
 
     fun clearAuthError() {
         _state.update { it.copy(authError = null) }
+    }
+
+    private var failedSessionDeletion: String? = null
+
+    fun retryFailedSessionDeletion() { failedSessionDeletion?.let(::deleteSession) }
+
+    fun clearSessionDeletionError() {
+        failedSessionDeletion = null
+        _state.update { it.copy(sessionDeletionError = null) }
     }
 
     fun clearRemoteError() {
@@ -1769,6 +1962,7 @@ class AppViewModel(
                 inputPredictionLoading = sid != null && sid in inputPredictionLoadingSessions,
             )
         }
+        persistCurrentDraft()
     }
 
     fun selectInputPrediction(value: String) {
@@ -1791,10 +1985,12 @@ class AppViewModel(
             }
             state.copy(pendingImages = accepted)
         }
+        persistCurrentDraft()
     }
 
     fun removePendingImage(id: String) {
         _state.update { it.copy(pendingImages = it.pendingImages.filterNot { img -> img.id == id }) }
+        persistCurrentDraft()
     }
 
     fun addPendingDocument(document: PendingFileAttachment) {
@@ -1807,15 +2003,18 @@ class AppViewModel(
             ) current
             else current.copy(pendingFiles = current.pendingFiles + document)
         }
+        persistCurrentDraft()
     }
 
     fun setPendingDocumentScope(id: String, scope: String) {
         if (scope.length > 300) return
         _state.update { it.copy(pendingFiles = it.pendingFiles.map { file -> if (file.id == id) file.copy(readScope = scope) else file }) }
+        persistCurrentDraft()
     }
 
     fun removePendingDocument(id: String) {
         _state.update { it.copy(pendingFiles = it.pendingFiles.filterNot { document -> document.id == id }) }
+        persistCurrentDraft()
     }
 
     fun setGroupPickerOpen(open: Boolean) {
@@ -1966,6 +2165,8 @@ class AppViewModel(
                             it.copy(
                                 desktopModels = catalog.models,
                                 desktopSelectedModelId = catalog.currentModelId ?: selected.id,
+                                desktopServiceRoute = catalog.serviceRoute,
+                                desktopServiceRouteSessionId = sid,
                                 modelPickerOpen = false,
                             )
                         }
@@ -2042,6 +2243,8 @@ class AppViewModel(
                 container.sessionStore.deleteSession(id)
             }
             drafts.clear()
+            composerDrafts.clear()
+            draftReadJob?.cancel()
             container.preferences.lastSessionId = null
             _state.update {
                 it.copy(
@@ -2169,16 +2372,22 @@ class AppViewModel(
     }
 
     fun login(accountOrEmail: String, password: String) {
-        viewModelScope.launch {
-            _state.update { it.copy(authLoading = true, authError = null) }
+        if (_state.value.authLoading) return
+        _state.update { it.copy(authLoading = true, authError = null) }
+        val revision = ++authRevision
+        workspaceJob?.cancel()
+        authJob = viewModelScope.launch {
             try {
-                val session = if (password.isBlank()) {
+                val session = withContext(Dispatchers.IO) { if (password.isBlank()) {
                     container.client.auth.loginWithAccessToken(accountOrEmail.trim())
                 } else if (_state.value.loginModeEmail) {
                     container.client.auth.loginWithEmailPassword(accountOrEmail.trim(), password)
                 } else {
                     container.client.auth.loginWithAccount(accountOrEmail.trim(), password)
-                }
+                } }
+                if (revision != authRevision) return@launch
+                withContext(Dispatchers.IO) { authPersistence.withLock {
+                if (revision != authRevision) return@withLock
                 container.preferences.authLoginType = if (password.isBlank()) "token" else "account"
                 container.preferences.authAccount = accountOrEmail.trim()
                 container.preferences.authPassword = if (password.isBlank()) null else password
@@ -2187,6 +2396,9 @@ class AppViewModel(
                 container.preferences.authUsername = session.user.nickname.ifBlank { session.user.username }
                 container.preferences.authQuotaUsd = session.user.quotaUsd
                 container.preferences.authUserId = session.user.id
+                } }
+                if (revision != authRevision) return@launch
+                _state.update { it.copy(user = session.user, authLoading = false) }
 
                 val pendingAction = pendingLoginAction
                 pendingLoginAction = null
@@ -2194,7 +2406,9 @@ class AppViewModel(
                 if (pendingAction == PendingLoginAction.CloudConversation) {
                     newChat()
                 }
-            } catch (t: Throwable) {
+            } catch (error: CancellationException) { throw error }
+            catch (t: Throwable) {
+                if (revision != authRevision) return@launch
                 _state.update {
                     it.copy(authLoading = false, authError = ErrorMapper.from(t))
                 }
@@ -2227,10 +2441,16 @@ class AppViewModel(
         affCode: String?,
         onResult: (Boolean, String?) -> Unit,
     ) {
-        viewModelScope.launch {
-            _state.update { it.copy(authLoading = true, authError = null) }
+        if (_state.value.authLoading) return
+        _state.update { it.copy(authLoading = true, authError = null) }
+        val revision = ++authRevision
+        workspaceJob?.cancel()
+        authJob = viewModelScope.launch {
             try {
-                val session = container.client.auth.register(username, password, email, code, affCode)
+                val session = withContext(Dispatchers.IO) { container.client.auth.register(username, password, email, code, affCode) }
+                if (revision != authRevision) return@launch
+                withContext(Dispatchers.IO) { authPersistence.withLock {
+                if (revision != authRevision) return@withLock
                 container.preferences.authLoginType = "account"
                 container.preferences.authAccount = username.trim()
                 container.preferences.authPassword = password
@@ -2239,7 +2459,10 @@ class AppViewModel(
                 container.preferences.authUsername = session.user.nickname.ifBlank { session.user.username }
                 container.preferences.authQuotaUsd = session.user.quotaUsd
                 container.preferences.authUserId = session.user.id
+                } }
+                if (revision != authRevision) return@launch
 
+                _state.update { it.copy(user = session.user, authLoading = false) }
                 val pendingAction = pendingLoginAction
                 pendingLoginAction = null
                 loadWorkspace(openLastSession = true)
@@ -2247,7 +2470,9 @@ class AppViewModel(
                     newChat()
                 }
                 onResult(true, null)
-            } catch (t: Throwable) {
+            } catch (error: CancellationException) { throw error }
+            catch (t: Throwable) {
+                if (revision != authRevision) return@launch
                 val err = ErrorMapper.from(t)
                 _state.update {
                     it.copy(authLoading = false, authError = err)
@@ -2297,7 +2522,7 @@ class AppViewModel(
                 _state.update { it.copy(topupLoading = false) }
                 onUrlReady(payResult, freshUser.quotaUsd)
             } catch (t: Throwable) {
-                val err = t.message ?: "创建支付订单失败"
+                val err = t.message ?: Str.topupCreateFailed
                 _state.update { it.copy(topupLoading = false, topupMessage = err) }
                 onError(err)
             }
@@ -2305,28 +2530,27 @@ class AppViewModel(
     }
 
     fun logout(clearLocalSessions: Boolean) {
-        viewModelScope.launch {
-            cancelAllStreams()
-            runCatching { container.client.auth.logout() }
-            container.preferences.clearAuthSnapshot()
-            forceLogout(keepLocalSessions = !clearLocalSessions)
-        }
+        if (_state.value.authLoading) return
+        _state.update { it.copy(authLoading = true) }
+        viewModelScope.launch { forceLogout(keepLocalSessions = !clearLocalSessions) }
     }
 
     private suspend fun forceLogout(keepLocalSessions: Boolean, message: String? = null) {
+        val revision = ++authRevision
+        failedSessionDeletion = null
+        _state.update { it.copy(sessionDeletionError = null) }
+        authJob?.cancel()
+        workspaceJob?.cancel()
         cancelAllStreams()
-        container.client.auth.clearLocalSession()
-        container.preferences.clearAuthSnapshot()
-        if (!keepLocalSessions) {
-            container.sessionStore.sessions.value.map { it.id }.forEach {
-                container.sessionStore.deleteSession(it)
-            }
-        }
-        drafts.clear()
-        container.preferences.lastSessionId = null
         _state.update {
             it.copy(
                 mainAccessGranted = false,
+                authLoading = true,
+                loggingOut = true,
+                catalogLoading = false,
+                quotaRefreshing = false,
+                accountVerifying = false,
+                accountVerificationMessage = null,
                 user = null,
                 subscription = null,
                 subscriptionLoadFailed = false,
@@ -2349,22 +2573,41 @@ class AppViewModel(
                     },
             )
         }
+        try {
+            withContext(Dispatchers.IO) { authPersistence.withLock {
+                container.client.auth.clearLocalSession()
+                container.preferences.clearAuthSnapshot()
+                if (!keepLocalSessions) {
+                    container.sessionStore.sessions.value.map { it.id }.forEach { container.sessionStore.deleteSession(it) }
+                }
+                container.preferences.lastSessionId = null
+            } }
+            drafts.clear()
+            composerDrafts.clear()
+            draftReadJob?.cancel()
+        } finally {
+            if (authRevision == revision) _state.update { it.copy(authLoading = false, loggingOut = false) }
+        }
     }
 
     fun refreshCatalog() {
-        viewModelScope.launch {
+        val client = container.client
+        val revision = authRevision
+        viewModelScope.launch(org.agent567.android.app.RequestClientContext(client)) {
             _state.update { it.copy(catalogLoading = true) }
             try {
-                val sub = runCatching { container.client.subscription.me() }.getOrNull()
+                val sub = runCatching { client.subscription.me() }.getOrNull()
+                if (!isCurrentAccount(client, revision)) return@launch
                 _state.update {
                     it.copy(
                         subscription = sub,
                         subscriptionLoadFailed = sub == null,
                     )
                 }
-                val groups = runCatching { container.client.models.getAvailableGroups() }.getOrDefault(emptyMap())
+                val groups = runCatching { client.models.getAvailableGroups() }.getOrDefault(emptyMap())
                 val currentGroup = _state.value.active567Group
-                val models = container.client.models.listGoModels(currentGroup)
+                val models = client.models.listGoModels(currentGroup)
+                if (!isCurrentAccount(client, revision)) return@launch
                 val finalModels = if (models.isNotEmpty()) models else _state.value.models
                 val selected =
                     resolveModelId(_state.value.selectedModelId ?: container.preferences.lastModelId, finalModels)
@@ -2379,7 +2622,9 @@ class AppViewModel(
                         catalogLoading = false,
                     )
                 }
-            } catch (t: Throwable) {
+            } catch (error: CancellationException) { throw error }
+            catch (t: Throwable) {
+                if (!isCurrentAccount(client, revision)) return@launch
                 _state.update {
                     it.copy(
                         catalogLoading = false,
@@ -2390,19 +2635,25 @@ class AppViewModel(
     }
 
     fun refreshQuota() {
-        viewModelScope.launch {
+        if (_state.value.quotaRefreshing || _state.value.user == null) return
+        val client = container.client
+        val revision = authRevision
+        _state.update { it.copy(quotaRefreshing = true) }
+        viewModelScope.launch(org.agent567.android.app.RequestClientContext(client)) {
             _state.update { it.copy(quotaRefreshing = true) }
             try {
-                val user = container.client.auth.me()
+                val user = withContext(Dispatchers.IO) { client.auth.me() }
+                if (!isCurrentAccount(client, revision)) return@launch
                 container.preferences.authUsername = user.nickname.ifBlank { user.username }
                 container.preferences.authQuotaUsd = user.quotaUsd
                 container.preferences.authUserId = user.id
-                _state.update { it.copy(user = user) }
+                _state.update { it.copy(user = user, accountVerificationMessage = null) }
+                refreshWorkspaceSnapshot(client, revision)
             } catch (error: Throwable) {
                 if (error is CancellationException) throw error
-                // Keep current account data; do not broadcast refresh failures into chat.
+                if (isCurrentAccount(client, revision)) _state.update { it.copy(accountVerificationMessage = Str.accountVerificationUnavailable) }
             } finally {
-                _state.update { it.copy(quotaRefreshing = false) }
+                if (authRevision == revision) _state.update { it.copy(quotaRefreshing = false) }
             }
         }
     }
@@ -2424,8 +2675,7 @@ class AppViewModel(
                 _state.update { it.copy(selectedModelId = model.id) }
             }
             container.preferences.lastSessionId = session.id
-            drafts[session.id] = initialDraft
-            _state.update { it.copy(pendingImages = emptyList(), pendingFiles = emptyList()) }
+            saveComposerDraft(session.id, org.agent567.android.domain.session.SessionDraft(initialDraft))
             openChat(
                 sessionId = session.id,
                 surface = ChatSurface.Cloud,
@@ -2468,6 +2718,8 @@ class AppViewModel(
     }
 
     fun deleteSession(sessionId: String) {
+        failedSessionDeletion = sessionId
+        _state.update { it.copy(sessionDeletionError = null) }
         viewModelScope.launch {
             val session = container.sessionStore.sessions.value.firstOrNull { it.id == sessionId }
             val remoteSessionId = session?.remoteSessionId
@@ -2477,15 +2729,15 @@ class AppViewModel(
                     .firstOrNull { it.status == org.agent567.android.domain.device.DeviceStatus.Online }
                     ?.id
                 if (deviceId == null) {
-                    _state.update { it.copy(remoteError = ErrorMapper.from(RemoteConversationException("请先连接电脑再删除电脑会话"))) }
+                    _state.update { it.copy(sessionDeletionError = ErrorMapper.from(RemoteConversationException(Str.deleteRemoteConnectFirst))) }
                     return@launch
                 }
                 try {
                     val deleted = container.remoteConversationGateway.deleteDesktopSession(deviceId, remoteSessionId)
-                    if (deleted != true) throw RemoteConversationException("电脑暂时无法删除这段会话，请确认设备在线")
+                    if (deleted != true) throw RemoteConversationException(Str.deleteRemoteUnavailable)
                 } catch (error: Throwable) {
                     if (error !is CancellationException) {
-                        _state.update { it.copy(remoteError = ErrorMapper.from(error)) }
+                        _state.update { it.copy(sessionDeletionError = ErrorMapper.from(error)) }
                     }
                     return@launch
                 }
@@ -2496,6 +2748,7 @@ class AppViewModel(
                     }
                     container.sessionStore.deleteSession(it.id)
                     drafts.remove(it.id)
+                    composerDrafts.remove(it.id)
                     if (container.preferences.lastSessionId == it.id) {
                         container.preferences.lastSessionId = null
                     }
@@ -2503,6 +2756,7 @@ class AppViewModel(
                 _state.update { state ->
                     state.copy(
                         remoteDesktopSessions = state.remoteDesktopSessions.filterNot { it.id == remoteSessionId },
+                        sessionDeletionError = null,
                         pendingQuestion = state.pendingQuestion?.takeIf { it.sessionId != sessionId },
                     )
                 }
@@ -2511,6 +2765,7 @@ class AppViewModel(
             cancelStream(sessionId)
             container.sessionStore.deleteSession(sessionId)
             drafts.remove(sessionId)
+            composerDrafts.remove(sessionId)
             if (container.preferences.lastSessionId == sessionId) {
                 container.preferences.lastSessionId = null
             }
@@ -2616,6 +2871,8 @@ class AppViewModel(
 
     private fun sendMessage(retryPreviousTurn: Boolean) {
         val stateAtSend = _state.value
+        val requestClient = container.client
+        val requestRouter = container.conversationRouterFor(requestClient)
         val documents = stateAtSend.pendingFiles
         val text = stateAtSend.draft
         val images = stateAtSend.pendingImages
@@ -2628,7 +2885,7 @@ class AppViewModel(
         if (NEW_SESSION_SEND_RESERVATION in pendingSendReservations || !pendingSendReservations.add(sendReservation)) return
         activeSessionId?.let { inputPredictionJobs.remove(it)?.cancel() }
 
-        viewModelScope.launch {
+        viewModelScope.launch(org.agent567.android.app.RequestClientContext(requestClient)) {
             val route = stateAtSend.route as? AppRoute.Chat ?: return@launch
             if (_state.value.route != route || _state.value.currentSessionId != activeSessionId) return@launch
             val isDesktop = route.surface == ChatSurface.Desktop ||
@@ -2650,7 +2907,7 @@ class AppViewModel(
                 return@launch
             }
             val model = (stateAtSend.models.firstOrNull { it.id == stateAtSend.selectedModelId }
-                ?: stateAtSend.models.firstOrNull())?.let { container.client.models.resolveContext(it, stateAtSend.active567Group) }
+                ?: stateAtSend.models.firstOrNull())?.let { requestClient.models.resolveContext(it, stateAtSend.active567Group) }
             if (!isDesktop && container.networkAvailability.value == NetworkAvailability.Unavailable) {
                 val error = UiError("网络已断开", "网络恢复后再发送，草稿和附件已保留。")
                 if (activeSessionId != null) updateVisibleSession(activeSessionId) { it.copy(chatError = error) }
@@ -2788,15 +3045,17 @@ class AppViewModel(
                 )
             container.sessionStore.upsertMessage(userMsg)
             container.sessionStore.upsertMessage(assistantMsg)
-            drafts[sid] = ""
+            val latestDraft = composerDrafts[sid]
+            val consumeDraft = latestDraft == null || (latestDraft.text == text && latestDraft.images.map { it.id } == images.map { it.id } && latestDraft.files.map { it.id } == documents.map { it.id })
+            if (consumeDraft) saveComposerDraft(sid, org.agent567.android.domain.session.SessionDraft())
             inputPredictionsBySession.remove(sid)
             inputPredictionLoadingSessions.remove(sid)
             streamStatuses[sid] = "waiting_response"
             updateVisibleSession(sid) {
                 it.copy(
-                    draft = "",
-                    pendingImages = emptyList(),
-                    pendingFiles = emptyList(),
+                    draft = if (consumeDraft) "" else it.draft,
+                    pendingImages = if (consumeDraft) emptyList() else it.pendingImages,
+                    pendingFiles = if (consumeDraft) emptyList() else it.pendingFiles,
                     isStreaming = true,
                     streamingStatus = "waiting_response",
                     inputPredictions = emptyList(),
@@ -2869,7 +3128,7 @@ class AppViewModel(
                         } else historyMessages
                         val builtHistory = buildChatHistory(selectedHistory)
                         history = if (session.origin == ConversationOrigin.Cloud) mobileContext.referenceMessages(context) + builtHistory else builtHistory
-                        container.conversationRouter
+                        requestRouter
                             .stream(
                                 session = session,
                                 selectedModelId = model?.id,
@@ -3026,7 +3285,7 @@ class AppViewModel(
                                             val imgModel = stateAtSend.activeImageModel ?: "gemini-3.1-flash-image"
                                             val imgGroup = stateAtSend.activeImageGroup
                                             try {
-                                                val res = container.client.models.generateImage(
+                                                val res = requestClient.models.generateImage(
                                                     prompt = promptArg,
                                                     model = imgModel,
                                                     groupName = imgGroup,
@@ -3038,7 +3297,7 @@ class AppViewModel(
                                                     b64.trim()
                                                 } else if (!url.isNullOrBlank()) {
                                                     try {
-                                                        val bytes = container.client.models.downloadImageBytesDirect(url)
+                                                        val bytes = requestClient.models.downloadImageBytesDirect(url)
                                                         @OptIn(kotlin.io.encoding.ExperimentalEncodingApi::class)
                                                         kotlin.io.encoding.Base64.encode(bytes)
                                                     } catch (cancelled: CancellationException) {
@@ -3204,7 +3463,11 @@ class AppViewModel(
                                             "completed" -> setStreamStatus(sid, null)
                                         }
                                     }
-                                    is ChatStreamEvent.Finished -> Unit
+                                    is ChatStreamEvent.Finished -> event.usage?.let {
+                                        flushPendingPersist()
+                                        usage = it
+                                        persistAssistant()
+                                    }
                                     ChatStreamEvent.Done -> {
                                         flushPendingPersist()
                                         pendingQuestion = null
@@ -3694,7 +3957,7 @@ class AppViewModel(
                     container.sessionStore.replaceMessages(sid, messages)
                     return@launch
                 }
-                drafts[sid] = turn.draft
+                saveComposerDraft(sid, org.agent567.android.domain.session.SessionDraft(turn.draft, retryImages))
                 // 必须同时恢复图片；否则纯图重试会变成 no-op，图文重试会丢图
                 _state.update {
                     it.copy(
@@ -3743,10 +4006,13 @@ class AppViewModel(
     ) {
         messagesCollectJob?.cancel()
         container.preferences.lastSessionId = sessionId
-        val draft = drafts[sessionId].orEmpty()
+        draftReadJob?.cancel()
+        val cachedDraft = composerDrafts[sessionId]
+        val draft = cachedDraft?.text ?: drafts[sessionId].orEmpty()
         _state.update {
             it.copy(
                 currentSessionId = sessionId,
+                messages = if (it.currentSessionId == sessionId) it.messages else emptyList(),
                 chatError = null,
                 draft = draft,
                 contextBusy = sessionId in contextOperations,
@@ -3755,9 +4021,27 @@ class AppViewModel(
                 inputPredictions = if (draft.isBlank()) inputPredictionsBySession[sessionId].orEmpty() else emptyList(),
                 inputPredictionLoading = sessionId in inputPredictionLoadingSessions && draft.isBlank(),
                 pendingQuestion = null,
-                pendingImages = if (clearPendingImages) emptyList() else it.pendingImages,
-                pendingFiles = if (clearPendingImages) emptyList() else it.pendingFiles,
+                pendingImages = if (clearPendingImages) cachedDraft?.images.orEmpty() else it.pendingImages,
+                pendingFiles = if (clearPendingImages) cachedDraft?.files.orEmpty() else it.pendingFiles,
             )
+        }
+        if (cachedDraft == null) {
+            val revision = authRevision
+            val owner = composerOwner()
+            if (owner != null) draftReadJob = viewModelScope.launch {
+                try {
+                    val restored = draftPersistence.withLock { container.sessionStore.getDraft(sessionId, owner) }
+                    if (authRevision != revision || composerOwner() != owner || _state.value.currentSessionId != sessionId || composerDrafts.containsKey(sessionId)) return@launch
+                    composerDrafts[sessionId] = restored
+                    drafts[sessionId] = restored.text
+                    _state.update { it.copy(draft = restored.text, pendingImages = restored.images, pendingFiles = restored.files) }
+                } catch (error: CancellationException) { throw error }
+                catch (_: Throwable) {
+                    if (authRevision == revision && _state.value.currentSessionId == sessionId) _state.update {
+                        it.copy(chatError = UiError(Str.draftRestoreFailed, Str.draftRestoreFailedHint, UiErrorAction.None))
+                    }
+                }
+            }
         }
         messagesCollectJob =
             viewModelScope.launch {
@@ -3766,7 +4050,7 @@ class AppViewModel(
                         message.pendingQuestion?.takeIf { it.sessionId == sessionId }
                     }
                     _state.update { state ->
-                        state.copy(
+                        if (state.currentSessionId != sessionId) state else state.copy(
                             messages = list,
                             pendingQuestion = persistedPending ?: state.pendingQuestion?.takeIf { it.sessionId != sessionId },
                         )
@@ -3778,6 +4062,7 @@ class AppViewModel(
     private fun detachSessionMessages() {
         messagesCollectJob?.cancel()
         messagesCollectJob = null
+        draftReadJob?.cancel()
     }
 
     private fun updateVisibleSession(sessionId: String, transform: (AppUiState) -> AppUiState) {

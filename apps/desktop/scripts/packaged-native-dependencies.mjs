@@ -21,6 +21,9 @@ const DEFINITIONS = [
 	// 远程接入的中继连接（desktop-websocket）在主进程顶层静态 import，必须随包分发。
 	// 纯 JS，无平台差异，也不需要 unpack。
 	{ name: "ws", platforms: "all", unpack: false },
+	// Keep CommonJS dependency boundaries intact. Bundling its optional usocket /
+	// bindings probe into ESM corrupts Error.prepareStackTrace when __filename is absent.
+	{ name: "dbus-next", platforms: "all", unpack: false },
 	// 远程输入注入在 Windows、macOS 和 Linux X11 上都通过 koffi 调用系统 API。
 	// 原生模块必须随目标平台构建并 unpack。
 	{ name: "koffi", platforms: "all", unpack: true },

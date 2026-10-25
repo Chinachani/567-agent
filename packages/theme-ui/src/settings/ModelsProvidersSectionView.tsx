@@ -16,6 +16,7 @@ export interface ModelsProvidersSectionViewProps {
 	readonly empty: boolean;
 	readonly rows: ReactNode;
 	readonly addForm: ReactNode | null;
+	readonly toolbar?: ReactNode;
 }
 
 export function ModelsProvidersSectionView({
@@ -26,22 +27,24 @@ export function ModelsProvidersSectionView({
 	empty,
 	rows,
 	addForm,
+	toolbar,
 }: ModelsProvidersSectionViewProps): JSX.Element {
 	return (
 		<SettingSection
 			section={section}
 			title={
-				<div className="flex items-center justify-between">
+				<div className="flex flex-wrap items-center justify-between gap-2">
 					<span>{labels.localProviders}</span>
 					{showAddButton && (
 						<Button variant="ghost" size="sm" onClick={onStartAdd}>
-							<span className="icon-[mdi--plus] h-3.5 w-3.5" />
+							<span className="icon-[solar--add-circle-linear] h-3.5 w-3.5" />
 							{labels.addProvider}
 						</Button>
 					)}
 				</div>
 			}
 		>
+			{toolbar}
 			{empty && showAddButton && (
 				<div className="px-5 py-8 text-center text-[12px] text-muted-foreground">{labels.noProvidersAdded}</div>
 			)}

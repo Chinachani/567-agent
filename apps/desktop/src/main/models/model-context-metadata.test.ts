@@ -22,4 +22,11 @@ describe("model context metadata", () => {
 		expect(models[1].contextWindow).toBeUndefined();
 		expect(models[1].contextWindowSource).toBe("unknown");
 	});
+	it("leaves an unreported output limit unknown rather than claiming a 4096-token model maximum", () => {
+		const [unknown, known] = enrichModelContexts(parseModelList(["unreported", "reported"]), [
+			{ id: "reported", contextWindow: 64000, maxTokens: 8192 },
+		]);
+		expect(unknown.maxTokens).toBeUndefined();
+		expect(known.maxTokens).toBe(8192);
+	});
 });

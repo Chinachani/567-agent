@@ -41,6 +41,7 @@ function blockKey(block: ContentBlock): string {
 			return `tr-${block.toolCallId}`;
 		case "text":
 		case "thinking":
+		case "compaction":
 		case "error":
 			return `${block.type}-${block.id}`;
 	}
@@ -104,7 +105,7 @@ export function findLastProcessBlockIndex(
 	for (let index = blocks.length - 1; index >= 0; index--) {
 		const block = blocks[index];
 		if (isPersistentToolUiBlock(block, customToolNames, persistentToolCallIds)) continue;
-		if (block.type === "tool_call" || block.type === "thinking") return index;
+		if (block.type === "tool_call" || block.type === "thinking" || block.type === "compaction") return index;
 	}
 	return -1;
 }

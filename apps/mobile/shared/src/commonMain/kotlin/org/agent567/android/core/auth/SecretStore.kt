@@ -1,5 +1,6 @@
 package org.agent567.android.core.auth
 
+import org.agent567.android.core.settings.Agent567Settings
 import com.russhwolf.settings.Settings
 import com.russhwolf.settings.set
 
@@ -9,7 +10,8 @@ interface SecretStore {
     fun remove(key: String)
 }
 
-class SettingsSecretStore(private val settings: Settings) : SecretStore {
+class SettingsSecretStore(settings: Settings) : SecretStore {
+    private val settings = Agent567Settings(settings)
     override fun get(key: String): String? = settings.getStringOrNull(key)
 
     override fun put(key: String, value: String) {

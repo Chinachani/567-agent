@@ -1,5 +1,8 @@
 const { app, BrowserWindow } = require("electron");
 const { join } = require("node:path");
+const { mkdtempSync } = require("node:fs");
+const { tmpdir } = require("node:os");
+app.setPath("userData", process.env.AGENT567_E2E_PROFILE || mkdtempSync(join(tmpdir(), "agent567-webrtc-")));
 
 const RESULT_PREFIX = "AGENT567_E2E_RESULT:";
 const timeout = setTimeout(() => finish({ ok: false, error: "Electron WebRTC E2E timed out" }), 20_000);

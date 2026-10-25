@@ -1,3 +1,4 @@
+import type { SimpleStreamFunction } from "@567agent/ai";
 import type {
 	CodingAgentBootstrap,
 	CodingAgentExtensionCompatibilityAssessment,
@@ -55,6 +56,7 @@ export type PrintRuntimeHostPreparation =
 	| PrintRuntimeHostReady;
 
 export interface PrepareRuntimeHostOptions {
+	readonly streamFn?: SimpleStreamFunction;
 	readonly bootstrap: CodingAgentBootstrap;
 	readonly conversationDir: string;
 	readonly sessionCatalog: RuntimeSessionCatalog;

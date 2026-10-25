@@ -9,6 +9,7 @@ export interface RemotePairingState {
 	inputEnabled: boolean;
 	inputPermissionEnabled?: boolean;
 	inputSupported: boolean;
+	inputPointerMode?: "absolute" | "relative";
 	inputSupportReason?:
 		| "windows_api_unavailable"
 		| "x11_display_unavailable"

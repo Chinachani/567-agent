@@ -3,6 +3,7 @@ import {
 	RemoteDesktopHost,
 	WebSocketRemoteDesktopSignaling,
 } from "@567agent/remote-desktop";
+import { RemoteDesktopCapture } from "./remote-desktop-capture.js";
 import { handleRemoteDesktopPeerReady } from "./remote-desktop-peer-ready.js";
 
 declare global {
@@ -29,6 +30,11 @@ interface RelayRoute {
 
 const params = new URLSearchParams(window.location.search);
 const sessionId = params.get("sessionId");
+const capture = new RemoteDesktopCapture(() => navigator.mediaDevices.getDisplayMedia({ video: true, audio: false }));
+capture.setRetained(params.get("retainCapture") === "true");
+window.addEventListener("vetta:remote-desktop:retain-capture", (event) => {
+	capture.setRetained((event as CustomEvent<unknown>).detail === true);
+});
 let targets: string[];
 try {
 	const parsed: unknown = JSON.parse(params.get("targets") ?? "[]");
@@ -45,6 +51,12 @@ const routes: RelayRoute[] = targets.map((target, index) => ({
 	capturing: false,
 	closed: false,
 }));
+
+let inputEnabled = false;
+window.addEventListener("vetta:remote-desktop:input-permission", (event) => {
+	inputEnabled = (event as CustomEvent<unknown>).detail === true;
+	for (const route of routes) route.host?.setInputEnabled(inputEnabled);
+});
 
 for (const route of routes) void connectRoute(route);
 
@@ -126,16 +138,16 @@ async function startHostForRoute(route: RelayRoute, signaling: WebSocketRemoteDe
 	if (route.host || route.capturing || route.closed) return;
 	route.capturing = true;
 	try {
-		const stream = await navigator.mediaDevices.getDisplayMedia({ video: true, audio: false });
+		const stream = await capture.acquire();
 		if (route.closed || route.signaling !== signaling) {
-			stream.getTracks().forEach((track) => {
-				track.stop();
-			});
+			capture.release(stream);
 			return;
 		}
 		const host = new RemoteDesktopHost(
 			{
 				sessionId: sessionId!,
+				pointerMode: params.get("pointerMode") === "relative" ? "relative" : "absolute",
+				inputEnabled,
 				logger: {
 					debug: (message, fields) => console.debug(message, fields),
 					info: (message, fields) => console.info(message, fields),
@@ -208,9 +220,7 @@ async function startHostForRoute(route: RelayRoute, signaling: WebSocketRemoteDe
 function cleanupRoute(route: RelayRoute): void {
 	route.host?.close("failed");
 	route.host = undefined;
-	route.stream?.getTracks().forEach((track) => {
-		track.stop();
-	});
+	if (route.stream) capture.release(route.stream);
 	route.stream = undefined;
 }
 
@@ -236,6 +246,7 @@ function diagnostic(message: string, fields: Record<string, unknown>): string {
 }
 
 window.addEventListener("pagehide", () => {
+	capture.close();
 	for (const route of routes) {
 		route.closed = true;
 		if (route.reconnectTimer) clearTimeout(route.reconnectTimer);

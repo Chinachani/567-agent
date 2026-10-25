@@ -2,6 +2,7 @@ package local
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"os"
 	"os/exec"
@@ -13,6 +14,45 @@ import (
 
 	"github.com/Chinachani/567-agent/apps/im-gateway/internal/hostclient"
 )
+
+func TestClient_ManagedSessionAliasesUseTheirActualRepository(t *testing.T) {
+	bin := buildFakeAgent(t)
+	root := t.TempDir()
+	canonical := filepath.Join(root, ".567agent", "sessions")
+	legacy := filepath.Join(root, ".vetta", "sessions")
+	for _, tc := range []struct{ name, configured, requested, want string }{
+		{"legacy session", canonical, filepath.Join(legacy, "old.conversation.jsonl"), legacy},
+		{"migrated session", legacy, filepath.Join(canonical, "current.conversation.jsonl"), canonical},
+		{"external path", canonical, filepath.Join(root, "other", "external.jsonl"), canonical},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			capture := filepath.Join(t.TempDir(), "arguments.json")
+			client := New(Options{Bin: bin, SessionDir: tc.configured, ExtraEnv: map[string]string{"FAKE_AGENT_ARGS_FILE": capture}})
+			session, err := client.OpenSession(context.Background(), root, tc.requested)
+			if err != nil {
+				t.Fatal(err)
+			}
+			defer session.Close()
+			data, err := os.ReadFile(capture)
+			if err != nil {
+				t.Fatal(err)
+			}
+			var args []string
+			if err := json.Unmarshal(data, &args); err != nil {
+				t.Fatal(err)
+			}
+			actual := ""
+			for i, arg := range args {
+				if arg == "--session-dir" && i+1 < len(args) {
+					actual = args[i+1]
+				}
+			}
+			if actual != tc.want {
+				t.Fatalf("session repository = %q, want %q", actual, tc.want)
+			}
+		})
+	}
+}
 
 // fakeAgent writes a small Go program that mimics the parts of the
 // coding-agent rpc protocol the hostclient cares about, then compiles it
@@ -57,7 +97,12 @@ func main() {
 	_ = flag.String("mode", "rpc", "")
 	_ = flag.String("cwd", "", "")
 	_ = flag.String("session", "", "")
+	_ = flag.String("session-dir", "", "")
 	flag.Parse()
+	if path := os.Getenv("FAKE_AGENT_ARGS_FILE"); path != "" {
+		data, _ := json.Marshal(os.Args[1:])
+		_ = os.WriteFile(path, data, 0600)
+	}
 
 	if *lock {
 		json.NewEncoder(os.Stdout).Encode(map[string]any{

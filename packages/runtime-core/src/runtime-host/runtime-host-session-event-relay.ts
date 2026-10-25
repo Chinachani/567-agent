@@ -46,6 +46,7 @@ export class RuntimeHostSessionEventRelay {
 	private readonly runningChangedHandlers = new Set<
 		(sessionPath: string, running: boolean, sessionId?: string, reason?: RunningChangedReason) => void
 	>();
+	private readonly compactionReplay = new Map<string, SessionEvent[]>();
 	private readonly contextStateEvents = new Map<string, SessionContextStateEvent>();
 
 	constructor(private readonly options: RuntimeHostSessionEventRelayOptions) {}
@@ -64,11 +65,20 @@ export class RuntimeHostSessionEventRelay {
 			this.options.synchronizeSessionIdentity(sessionKey, handle);
 			this.observeSessionError(event);
 			this.observeSessionCompaction(event);
+			if (
+				(event.type === "compaction.start" || event.type === "compaction.end") &&
+				event.turnId &&
+				event.reason !== "manual"
+			) {
+				if (event.type === "compaction.start") this.compactionReplay.set(sessionKey, [event]);
+				else this.compactionReplay.get(sessionKey)?.push(event);
+			}
 			if (event.type === "queue.changed") {
 				this.options.queueSidecar.persist(handle.lifecycle.sessionPath, event);
 			}
 			if (event.type === "session.lifecycle" && event.phase === "agent_start") {
 				this.currentTurnStartedAt.set(sessionKey, event.timestamp);
+				this.compactionReplay.delete(sessionKey);
 				buffer.turnStartedAt = event.timestamp;
 				buffer.events = [];
 				buffer.isActive = true;
@@ -80,6 +90,7 @@ export class RuntimeHostSessionEventRelay {
 				buffer.terminalReason = "error";
 			} else if (event.type === "session.lifecycle" && event.phase === "agent_end") {
 				this.currentTurnStartedAt.delete(sessionKey);
+				this.compactionReplay.delete(sessionKey);
 				buffer.events = [];
 				buffer.isActive = false;
 				this.markRunning(
@@ -176,13 +187,16 @@ export class RuntimeHostSessionEventRelay {
 		this.currentTurnStartedAt.delete(sessionKey);
 		this.nextSequences.delete(sessionKey);
 		this.contextStateEvents.delete(sessionKey);
+		this.compactionReplay.delete(sessionKey);
 		this.markRunning(sessionPath, false, sessionId);
 	}
 
 	private replayInFlight(sessionKey: string, _sessionId: string, handler: (event: SessionEvent) => void): void {
 		const buffer = this.inFlightBuffers.get(sessionKey);
 		if (!buffer?.isActive) return;
-		for (const event of buffer.events) {
+		for (const event of [...(this.compactionReplay.get(sessionKey) ?? []), ...buffer.events].sort(
+			(a, b) => (a.sequence ?? 0) - (b.sequence ?? 0),
+		)) {
 			this.notifyExternalSubscriber(sessionKey, handler, event);
 		}
 	}

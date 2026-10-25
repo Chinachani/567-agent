@@ -1,6 +1,8 @@
-import { BrowserWindow, ipcMain } from "electron";
+import { ipcMain, type WebContents } from "electron";
 import { PROJECT_COLLABORATION_CHANNELS } from "../../shared/project-collaboration.js";
 import { getProjectCollaborationService } from "../project-collaboration/service.js";
+
+import { assertTrustedMainRenderer } from "./trusted-renderer.js";
 
 let serviceChangedUnsubscribe: (() => void) | undefined;
 
@@ -9,22 +11,25 @@ function requireCwd(value: unknown): string {
 	return value;
 }
 
-export function registerProjectCollaborationHandlers(): () => void {
+export function registerProjectCollaborationHandlers(owner: WebContents): () => void {
 	const service = getProjectCollaborationService();
-	ipcMain.handle(PROJECT_COLLABORATION_CHANNELS.read, (_event, cwd: unknown) => service.read(requireCwd(cwd)));
-	ipcMain.handle(PROJECT_COLLABORATION_CHANNELS.update, (_event, cwd: unknown, patch: unknown) =>
-		service.update(requireCwd(cwd), patch),
-	);
-	ipcMain.handle(PROJECT_COLLABORATION_CHANNELS.control, (_event, cwd: unknown, control: unknown) =>
-		service.control(requireCwd(cwd), control),
-	);
+	ipcMain.handle(PROJECT_COLLABORATION_CHANNELS.read, (event, cwd: unknown) => {
+		assertTrustedMainRenderer(event, owner);
+		return service.read(requireCwd(cwd));
+	});
+	ipcMain.handle(PROJECT_COLLABORATION_CHANNELS.update, (event, cwd: unknown, patch: unknown) => {
+		assertTrustedMainRenderer(event, owner);
+		return service.update(requireCwd(cwd), patch);
+	});
+	ipcMain.handle(PROJECT_COLLABORATION_CHANNELS.control, (event, cwd: unknown, control: unknown) => {
+		assertTrustedMainRenderer(event, owner);
+		return service.control(requireCwd(cwd), control);
+	});
 
 	serviceChangedUnsubscribe?.();
 	const unsubscribe = service.onChanged(({ cwd }) => {
 		const event = { cwd };
-		for (const window of BrowserWindow.getAllWindows()) {
-			if (!window.webContents.isDestroyed()) window.webContents.send(PROJECT_COLLABORATION_CHANNELS.changed, event);
-		}
+		if (!owner.isDestroyed()) owner.send(PROJECT_COLLABORATION_CHANNELS.changed, event);
 	});
 	serviceChangedUnsubscribe = unsubscribe;
 

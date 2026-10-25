@@ -22,7 +22,7 @@ export const WindowControlButton = forwardRef<HTMLButtonElement, WindowControlBu
 				title={control.label}
 				aria-label={control.label}
 				className={cn(
-					"flex h-8 w-11 items-center justify-center rounded-md text-foreground transition-colors hover:bg-accent/50 active:opacity-70",
+					"flex h-8 w-11 shrink-0 items-center justify-center rounded-md text-foreground transition-colors hover:bg-accent/50 active:opacity-70",
 					control.kind === "close" && "hover:bg-destructive hover:text-destructive-foreground",
 					className,
 				)}

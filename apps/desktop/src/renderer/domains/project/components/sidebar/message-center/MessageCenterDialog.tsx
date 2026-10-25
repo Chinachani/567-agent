@@ -13,6 +13,7 @@ export function MessageCenterDialog({
 	onClose,
 	onOpenChange,
 	onSelectTab,
+	onCloseAutoFocus,
 }: {
 	activeTab: MessageCenterTab;
 	chatUnread: number;
@@ -22,8 +23,10 @@ export function MessageCenterDialog({
 	onClose: () => void;
 	onOpenChange: (open: boolean) => void;
 	onSelectTab: (tab: MessageCenterTab) => void;
+	onCloseAutoFocus?: (event: Event) => void;
 }): JSX.Element {
 	const { t } = useTranslation("message");
+	const { t: common } = useTranslation("common");
 
 	return (
 		<MessageCenterDialogView
@@ -31,6 +34,8 @@ export function MessageCenterDialog({
 			title={t("title")}
 			onClose={onClose}
 			onOpenChange={onOpenChange}
+			closeLabel={common("actions.close")}
+			onCloseAutoFocus={onCloseAutoFocus}
 			tabs={
 				<MessageCenterTabs
 					activeTab={activeTab}

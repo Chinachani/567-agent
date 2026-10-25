@@ -18,6 +18,11 @@ vi.mock("@567agent/cli-host", () => ({
 	runAgentRuntimeCli: runtimeSelector,
 }));
 
+// This test checks the host handoff. Model loading is exercised by the real
+// runtime flow tests; importing its full graph here can outlive this test and
+// call the next test's host spy after an import timeout.
+vi.mock("../models/desktop-model-runtime.js", () => ({ createDesktopModelRuntime: vi.fn() }));
+
 vi.mock("../constants.js", () => ({
 	DEFAULT_SERVER_URL: "https://api.test",
 }));
@@ -81,7 +86,10 @@ describe("IM coding-agent invocation", () => {
 		});
 
 		await expect(runAgentRpcCommand(["--mode", "rpc"])).resolves.toBe(0);
-		expect(runtimeSelector).toHaveBeenCalledWith(["--mode", "rpc"], expect.anything());
+		expect(runtimeSelector).toHaveBeenCalledWith(
+			["--mode", "rpc"],
+			expect.objectContaining({ createModelRuntime: expect.any(Function), streamFn: expect.any(Function) }),
+		);
 	});
 
 	test("即使凭据装配不可用也照常把子进程拉起来", async () => {
@@ -104,11 +112,11 @@ describe("IM coding-agent invocation", () => {
 		vi.doUnmock("../models/model-credential-store.js");
 	});
 
-	test("packages the Windows RPC entry from cli-app instead of the Legacy coding-agent CLI", () => {
+	test("packages the desktop Windows RPC composition instead of the generic unsigned CLI", () => {
 		const preparePackPath = fileURLToPath(new URL("../../../scripts/prepare-pack.js", import.meta.url));
 		const source = readFileSync(preparePackPath, "utf8");
 
-		expect(source).toContain('join(cliAppDir, "src", "agent-rpc-cli.ts")');
+		expect(source).toContain("bundleDesktopAgentRpc(bundledAgentRpcCli)");
 		expect(source).not.toContain('join(codingAgentDir, "dist", "cli.js")');
 	});
 });

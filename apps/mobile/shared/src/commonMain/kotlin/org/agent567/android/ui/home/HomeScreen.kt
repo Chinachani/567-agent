@@ -50,6 +50,17 @@ import androidx.compose.ui.unit.dp
 import org.agent567.android.domain.device.DesktopDevice
 import org.agent567.android.domain.device.DeviceStatus
 import org.agent567.android.domain.device.SessionListItem
+import org.agent567.android.resources.Res
+import org.agent567.android.resources.brand_icon
+import org.jetbrains.compose.resources.painterResource
+import androidx.compose.foundation.Image
+import androidx.compose.material3.FilledTonalButton
+import androidx.compose.foundation.layout.PaddingValues
+import org.agent567.android.ui.components.MobilePageIntro
+import org.agent567.android.ui.components.MobileIconTile
+import org.agent567.android.ui.components.PrimaryBlackButton
+import androidx.compose.foundation.layout.statusBarsPadding
+import androidx.compose.ui.text.style.TextOverflow
 import org.agent567.android.ui.components.ListRow
 import org.agent567.android.ui.components.SectionHeader
 import org.agent567.android.ui.components.Agent567Card
@@ -71,40 +82,37 @@ fun HomeScreen(
 ) {
     Scaffold(
         containerColor = MaterialTheme.agent567Extra.pageBackground,
-        topBar = {
-            TopAppBar(
-                title = { Text(Str.tabHome, style = MaterialTheme.typography.titleMedium) },
-                colors = TopAppBarDefaults.topAppBarColors(containerColor = MaterialTheme.agent567Extra.pageBackground),
-            )
-        },
-        floatingActionButton = {
-            FloatingActionButton(
-                onClick = onNewConversation,
-                shape = CircleShape,
-                containerColor = MaterialTheme.colorScheme.primary,
-                contentColor = MaterialTheme.colorScheme.onPrimary,
-                modifier = Modifier.semantics { contentDescription = Str.newConversation },
-            ) {
-                Icon(Icons.Outlined.Add, contentDescription = null)
-            }
-        },
     ) { padding ->
         Column(
             Modifier
                 .padding(padding)
                 .fillMaxSize()
                 .verticalScroll(rememberScrollState())
-                .padding(horizontal = 16.dp, vertical = 8.dp),
-            verticalArrangement = Arrangement.spacedBy(12.dp),
+                .padding(horizontal = 16.dp, vertical = 12.dp),
+            verticalArrangement = Arrangement.spacedBy(8.dp),
         ) {
-            SectionHeader(title = Str.myDevices)
+            Row(Modifier.fillMaxWidth().padding(bottom = 8.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                Image(painterResource(Res.drawable.brand_icon), contentDescription = null, modifier = Modifier.size(24.dp))
+                Text(Str.appName, style = MaterialTheme.typography.titleLarge, modifier = Modifier.weight(1f))
+                Box(Modifier.heightIn(min = 48.dp).clip(MaterialTheme.shapes.medium).clickable(role = androidx.compose.ui.semantics.Role.Button, onClick = onNewConversation), contentAlignment = Alignment.Center) {
+                    Row(Modifier.clip(MaterialTheme.shapes.medium).background(MaterialTheme.agent567Extra.chipBackground).padding(horizontal = 12.dp, vertical = 6.dp), verticalAlignment = Alignment.CenterVertically) {
+                        Icon(Icons.Outlined.Add, contentDescription = null, modifier = Modifier.size(18.dp))
+                        Spacer(Modifier.width(6.dp))
+                        Text(Str.newConversation, style = MaterialTheme.typography.labelMedium)
+                    }
+                }
+            }
             DeviceStatusCard(
                 device = primaryDevice,
                 onClick = if (primaryDevice != null) ({ onOpenDevice(primaryDevice.id) }) else onOpenDevices,
+                onOpenDesktopSessions = onOpenDesktopSessions,
             )
 
+            Agent567Card(contentPadding = PaddingValues(horizontal = 12.dp, vertical = 4.dp)) {
+                ListRow(title = Str.phoneDirectTitle, subtitle = Str.phoneDirectHint, leading = { Icon(Icons.Outlined.Cloud, contentDescription = null) }, trailing = { Icon(Icons.Default.ChevronRight, contentDescription = null) }, onClick = onUseCloudAi, showDivider = false)
+            }
             SectionHeader(title = Str.phoneSessions)
-            Agent567Card {
+            Agent567Card(contentPadding = PaddingValues(horizontal = 8.dp, vertical = 4.dp)) {
                 if (recentSessions.isEmpty()) {
                     Text(
                         Str.noSessionsHint,
@@ -124,7 +132,7 @@ fun HomeScreen(
                     Row(
                         modifier = Modifier
                             .fillMaxWidth()
-                            .heightIn(min = 44.dp)
+                            .heightIn(min = 48.dp)
                             .clip(RoundedCornerShape(10.dp))
                             .clickable(onClick = onOpenSessions)
                             .padding(horizontal = 4.dp, vertical = 8.dp),
@@ -132,7 +140,7 @@ fun HomeScreen(
                         verticalAlignment = Alignment.CenterVertically,
                     ) {
                         Text(
-                            "查看全部会话${if (recentSessions.size > 3) " (${recentSessions.size})" else ""}",
+                            Str.mobileAllSessions(recentSessions.size),
                             style = MaterialTheme.typography.labelLarge,
                             color = MaterialTheme.colorScheme.primary,
                         )
@@ -145,30 +153,15 @@ fun HomeScreen(
                 }
             }
 
-            SectionHeader(title = Str.quickStart)
-            Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                QuickActionCard(
-                    modifier = Modifier.weight(1f),
-                    icon = { Icon(Icons.Default.Computer, contentDescription = null) },
-                    title = Str.openDesktopSessions,
-                    onClick = onOpenDesktopSessions,
-                )
-                QuickActionCard(
-                    modifier = Modifier.weight(1f),
-                    icon = { Icon(Icons.Outlined.Cloud, contentDescription = null) },
-                    title = Str.useCloudAi,
-                    onClick = onUseCloudAi,
-                )
-            }
             Spacer(Modifier.height(12.dp))
         }
     }
 }
 
 @Composable
-private fun DeviceStatusCard(device: DesktopDevice?, onClick: () -> Unit) {
-    Agent567Card(onClick = onClick) {
-        Row(verticalAlignment = Alignment.CenterVertically) {
+private fun DeviceStatusCard(device: DesktopDevice?, onClick: () -> Unit, onOpenDesktopSessions: () -> Unit) {
+    Agent567Card(contentPadding = PaddingValues(horizontal = 12.dp, vertical = 4.dp)) {
+        Row(Modifier.fillMaxWidth().heightIn(min = 64.dp).clickable(onClick = onClick), verticalAlignment = Alignment.CenterVertically) {
             Box(
                 modifier = Modifier
                     .size(42.dp)
@@ -180,7 +173,7 @@ private fun DeviceStatusCard(device: DesktopDevice?, onClick: () -> Unit) {
             }
             Spacer(Modifier.width(12.dp))
             Column(Modifier.weight(1f)) {
-                Text(device?.name ?: Str.disconnected, style = MaterialTheme.typography.titleSmall)
+                Text(device?.name ?: Str.disconnected, style = MaterialTheme.typography.titleSmall, maxLines = 2, overflow = TextOverflow.Ellipsis)
                 Spacer(Modifier.height(2.dp))
                 Text(
                     device?.osLabel ?: Str.noDevicesHint,
@@ -197,31 +190,25 @@ private fun DeviceStatusCard(device: DesktopDevice?, onClick: () -> Unit) {
             Spacer(Modifier.width(4.dp))
             Icon(Icons.Default.ChevronRight, contentDescription = null, tint = MaterialTheme.agent567Extra.secondaryText)
         }
+        androidx.compose.material3.HorizontalDivider(color = MaterialTheme.agent567Extra.border.copy(alpha = 0.4f))
+        ListRow(title = Str.openDesktopSessions, subtitle = Str.desktopSessionsHint, trailing = { Icon(Icons.Default.ChevronRight, contentDescription = null) }, onClick = onOpenDesktopSessions, showDivider = false)
     }
 }
 
 @Composable
 private fun ConnectionCapsule(online: Boolean) {
-    val transition = rememberInfiniteTransition(label = "device-status-pulse")
-    val pulse by transition.animateFloat(
-        initialValue = 0.45f,
-        targetValue = 1f,
-        animationSpec = infiniteRepeatable(tween(900), repeatMode = RepeatMode.Reverse),
-        label = "device-status-alpha",
-    )
     val color = if (online) MaterialTheme.agent567Extra.success else MaterialTheme.agent567Extra.secondaryText
     Row(
         modifier = Modifier
             .clip(CircleShape)
-            .background(color.copy(alpha = 0.1f))
-            .padding(horizontal = 10.dp, vertical = 6.dp),
+            .padding(horizontal = 4.dp, vertical = 6.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
         Box(
             Modifier
                 .size(7.dp)
                 .clip(CircleShape)
-                .background(color.copy(alpha = if (online) pulse else 0.65f)),
+                .background(color),
         )
         Spacer(Modifier.width(6.dp))
         Text(
@@ -229,30 +216,6 @@ private fun ConnectionCapsule(online: Boolean) {
             style = MaterialTheme.typography.labelSmall,
             color = color,
         )
-    }
-}
-
-@Composable
-private fun QuickActionCard(
-    modifier: Modifier,
-    icon: @Composable () -> Unit,
-    title: String,
-    onClick: () -> Unit,
-) {
-    Surface(
-        onClick = onClick,
-        modifier = modifier.heightIn(min = 92.dp),
-        shape = RoundedCornerShape(14.dp),
-        color = MaterialTheme.colorScheme.surface,
-        border = BorderStroke(1.dp, MaterialTheme.agent567Extra.border),
-    ) {
-        Column(
-            modifier = Modifier.fillMaxWidth().padding(14.dp),
-            verticalArrangement = Arrangement.spacedBy(10.dp),
-        ) {
-            icon()
-            Text(title, style = MaterialTheme.typography.labelLarge, color = MaterialTheme.colorScheme.onSurface)
-        }
     }
 }
 

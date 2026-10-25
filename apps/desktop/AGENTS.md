@@ -14,7 +14,7 @@ Electron 桌面应用，提供 AI Coding Agent 的图形化界面。
 
 ## 技术栈
 
-- Electron 34 + Vite + React 19
+- Electron 35 + Vite + React 19
 - TailwindCSS 4 + Jotai 状态管理
 - Shiki 代码高亮
 - TanStack Router (hash history, 适配 Electron file:// 协议)

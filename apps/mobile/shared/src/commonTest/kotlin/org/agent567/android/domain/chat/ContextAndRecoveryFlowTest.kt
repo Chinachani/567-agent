@@ -55,6 +55,56 @@ class ContextAndRecoveryFlowTest {
         assertEquals(listOf(next), manager.selectForPrompt(store.getMessages(session.id) + next, legacy, next))
     }
 
+    @Test fun resetBoundarySurvivesSelectionCompactionAndBackup() = runTest(dispatcher) {
+        val store = SettingsSessionStore(MapSettings(), dispatcher, MemoryImages())
+        val session = store.createSession("Reset selection")
+        fun turns(from: Int, to: Int) = (from..to).flatMap { n -> listOf(
+            LocalMessage("u$n", session.id, ChatRole.User, "Question $n", MessageStatus.Complete, n * 2L),
+            LocalMessage("a$n", session.id, ChatRole.Assistant, "Answer $n", MessageStatus.Complete, n * 2L + 1),
+        ) }
+        store.replaceMessages(session.id, turns(1, 3))
+        val summarized = mutableListOf<String>()
+        val manager = MobileContextManager(store) { _, messages, _ ->
+            summarized += messages.joinToString("\n") { it.textContent }
+            "Summary of new context"
+        }
+        manager.reset(session.id)
+        suspend fun exclude(vararg ids: String) {
+            val snapshot = manager.workspace(store.getSession(session.id)!!, store.getMessages(session.id))
+            manager.updateSelection(session.id, snapshot.copy(excludedTurnIds = ids.toList()))
+        }
+        exclude("u3")
+        assertTrue(manager.select(store.getMessages(session.id), store.getSession(session.id)!!.context).isEmpty())
+        store.replaceMessages(session.id, turns(1, 8))
+        assertTrue(manager.compact(session.id, "model", 32_000))
+        assertFalse(summarized.joinToString().contains("Question 1"))
+        exclude("u3", "u8")
+        assertEquals(listOf("u4", "a4", "u5", "a5", "u6", "a6", "u7", "a7"),
+            manager.select(store.getMessages(session.id), store.getSession(session.id)!!.context).map { it.id })
+        val archive = store.exportMigrationData(1_000_000)
+        val restored = SettingsSessionStore(MapSettings(), dispatcher, MemoryImages())
+        restored.importMigrationData(archive)
+        val restoredManager = MobileContextManager(restored) { _, _, _ -> error("No summary") }
+        assertEquals(listOf("u4", "a4", "u5", "a5", "u6", "a6", "u7", "a7"),
+            restoredManager.select(restored.getMessages(session.id), restored.getSession(session.id)!!.context).map { it.id })
+        assertEquals(16, restored.getMessages(session.id).size)
+    }
+
+    @Test fun legacyResetBoundaryIsPreservedWhenEditingSelection() = runTest(dispatcher) {
+        val store = SettingsSessionStore(MapSettings(), dispatcher, MemoryImages())
+        val session = store.createSession("Legacy reset")
+        val history = (1..3).flatMap { n -> listOf(
+            LocalMessage("u$n", session.id, ChatRole.User, "Question $n", MessageStatus.Complete, n * 2L),
+            LocalMessage("a$n", session.id, ChatRole.Assistant, "Answer $n", MessageStatus.Complete, n * 2L + 1),
+        ) }
+        store.replaceMessages(session.id, history)
+        store.updateSession(session.copy(context = MobileSessionContext(throughMessageId = "a2", throughCreatedAtEpochMs = 5)))
+        val manager = MobileContextManager(store) { _, _, _ -> error("No summary") }
+        val snapshot = manager.workspace(store.getSession(session.id)!!, history)
+        manager.updateSelection(session.id, snapshot.copy(excludedTurnIds = listOf("u3")))
+        assertTrue(manager.select(history, store.getSession(session.id)!!.context).isEmpty())
+    }
+
     @Test fun successfulCompactionKeepsRecentTurnsAndContextSurvivesBackup() = runTest(dispatcher) {
         val store = SettingsSessionStore(MapSettings(), dispatcher, MemoryImages())
         val session = store.createSession("Healthy context")
@@ -74,6 +124,44 @@ class ContextAndRecoveryFlowTest {
         assertEquals(1, restored.importMigrationData(archive))
         assertEquals(updated.context, restored.getSession(session.id)!!.context)
         assertEquals(history, restored.getMessages(session.id))
+    }
+
+    @Test fun manualCompactionOfThreeTurnsKeepsLatestTurnAndPersistsSummary() = runTest(dispatcher) {
+        val settings = MapSettings()
+        val images = MemoryImages()
+        val store = SettingsSessionStore(settings, dispatcher, images)
+        val session = store.createSession("Manual context")
+        val history = (1..3).flatMap { n -> listOf(
+            LocalMessage("u$n", session.id, ChatRole.User, "Question $n " + "facts ".repeat(100), MessageStatus.Complete, n * 2L),
+            LocalMessage("a$n", session.id, ChatRole.Assistant, "Answer $n " + "details ".repeat(100), MessageStatus.Complete, n * 2L + 1),
+        ) }
+        store.replaceMessages(session.id, history)
+        val manager = MobileContextManager(store) { _, _, _ -> "Concise summary of the first two turns" }
+        assertTrue(manager.compact(session.id, "isolated-model", 32_000, manual = true))
+        val restored = SettingsSessionStore(settings, dispatcher, images)
+        val updated = restored.getSession(session.id)!!
+        assertEquals("a2", updated.context.throughMessageId)
+        assertEquals(listOf("u3", "a3"), manager.select(restored.getMessages(session.id), updated.context).map { it.id })
+        assertEquals(history, restored.getMessages(session.id))
+        assertTrue(manager.snapshot(updated, history, 32_000).tokens!! < manager.snapshot(session, history, 32_000).tokens!!)
+    }
+
+    @Test fun manualSingleTurnDoesNotCallModelAndNonReducingSummaryPreservesHistory() = runTest(dispatcher) {
+        val store = SettingsSessionStore(MapSettings(), dispatcher, MemoryImages())
+        val session = store.createSession("Short context")
+        val history = (1..2).flatMap { n -> listOf(
+            LocalMessage("u$n", session.id, ChatRole.User, "Q$n", MessageStatus.Complete, n * 2L),
+            LocalMessage("a$n", session.id, ChatRole.Assistant, "A$n", MessageStatus.Complete, n * 2L + 1),
+        ) }
+        var calls = 0
+        val manager = MobileContextManager(store) { _, _, _ -> calls++; "A much longer summary than the tiny original conversation." }
+        store.replaceMessages(session.id, history.take(2))
+        assertFalse(manager.compact(session.id, "model", 32000, manual = true))
+        assertEquals(0, calls)
+        store.replaceMessages(session.id, history)
+        assertFailsWith<MobileContextException> { manager.compact(session.id, "model", 32000, manual = true) }
+        assertEquals(session.context, store.getSession(session.id)!!.context)
+        assertEquals(history, store.getMessages(session.id))
     }
 
     @Test fun cancellingSummaryPreservesOriginalContextAndHistory() = runTest(dispatcher) {

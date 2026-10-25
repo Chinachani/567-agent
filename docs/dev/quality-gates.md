@@ -211,6 +211,12 @@ Windows、macOS、Linux runner 上真实安装基线包，驱动现有 updater �
 
 单元测试按包顺序执行，不使用根 workspace 的无界并发扇出；这会牺牲少量总耗时，但能避免多个 Vitest 进程同时争用 CPU、临时目录和子进程而产生假超时。包内测试若消费自身生成物，由该包的 `test` 脚本先生成（例如 `vetta-ui-design` 的独立 history runner），不把叶子包完整制品构建混入通用依赖预构建。CLI 的 Windows CI 进程型测试按文件串行，避免多个 Node、Bun、MCP 与 shell 子进程争用 Runner 资源；本地开发使用有界文件并行缩短反馈时间。平台相关行为至少由 Ubuntu、macOS 与 Windows 三个平台门禁覆盖。
 
+### CI 工具链与正式资产
+
+Bun 从根 `package.json#packageManager` 读取，Go 从 `apps/im-gateway/go.mod` 读取，Node 通过共享 `install-bun-dependencies` action 使用根 `.node-version`。本地回归应使用这些版本；不要依赖 hosted runner 的默认 Node 或给发布与候选复制另一份版本号。
+
+正式 `desktop-release` 的 build 归档交给 verify job，后续 publish 消费同批验证资产。独立 `desktop-packaged` 目前是另一套测试构建配置，其绿色仅作为同 SHA 准入证据，不能直接冒充商业正式产物；跨 workflow 资产提升尚未实现。新增 Windows 普通安装恢复矩阵必须在一次性 Windows runner 实际通过，Linux 上的脚本测试不能替代原生验收。
+
 ## 与 OpenClaw 的对应关系（有意不做的）
 
 | OpenClaw | 本仓库选择 |

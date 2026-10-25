@@ -1,6 +1,9 @@
 package org.agent567.android.ui
 
 import androidx.activity.ComponentActivity
+import androidx.compose.ui.unit.dp
+import androidx.compose.ui.test.assertWidthIsAtLeast
+import androidx.compose.ui.test.assertHeightIsAtLeast
 import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.assertIsEnabled
 import androidx.compose.ui.test.assertCountEquals
@@ -9,6 +12,12 @@ import androidx.compose.ui.test.junit4.v2.createAndroidComposeRule
 import androidx.compose.ui.test.onNodeWithContentDescription
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
+import androidx.compose.ui.semantics.SemanticsActions
+import androidx.compose.ui.test.SemanticsMatcher
+import androidx.compose.ui.test.hasScrollAction
+import androidx.compose.ui.test.hasText
+import androidx.compose.ui.test.performScrollToNode
+import androidx.compose.ui.test.performScrollTo
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import org.junit.Rule
 import org.junit.runner.RunWith
@@ -111,6 +120,7 @@ class DesktopConversationScreenTest {
             }
         }
 
+        composeRule.onNodeWithContentDescription(Str.copyContent).assertWidthIsAtLeast(48.dp).assertHeightIsAtLeast(48.dp)
         composeRule.onNodeWithText("val answer = 42").assertIsDisplayed()
         composeRule.waitUntil(5_000) {
             composeRule.onAllNodesWithText("状态", substring = true).fetchSemanticsNodes().isNotEmpty()
@@ -119,8 +129,10 @@ class DesktopConversationScreenTest {
         composeRule.onNodeWithText("查看文档").assertExists()
         composeRule.onNodeWithContentDescription(Str.copy).performClick()
         composeRule.onNodeWithContentDescription(Str.copied).assertIsDisplayed()
-        composeRule.onNodeWithText("读取文件 · README.md · 已完成 · 读取文件内容").assertIsDisplayed()
-        composeRule.onNodeWithContentDescription(Str.showToolDetails).performClick()
+        composeRule.onNode(SemanticsMatcher.keyIsDefined(SemanticsActions.ScrollToIndex)).performScrollToNode(hasText(Str.toolActivity))
+        composeRule.onNodeWithText(Str.toolActivity).performClick()
+        composeRule.onNodeWithText("读取文件 · README.md · 已完成 · 读取文件内容").performScrollTo().assertIsDisplayed()
+        composeRule.onNodeWithContentDescription(Str.showToolDetails).performScrollTo().performClick()
         composeRule.onNodeWithText("{\"path\":\"README.md\"}").assertIsDisplayed()
         composeRule.onNodeWithText("需要你的确认").assertIsDisplayed()
         composeRule.onNodeWithText("继续执行吗？").assertIsDisplayed()
@@ -142,7 +154,7 @@ class DesktopConversationScreenTest {
                             id = "desktop-test",
                             name = "TEST-DESKTOP",
                             osLabel = "Android Emulator Relay",
-                            host = "10.0.2.2",
+                            host = "wss://relay.example.test/v1/relay/abcdefghijklmnopqrstuvwxyz012345/mobile#resume=fixture",
                             status = DeviceStatus.Online,
                             channel = ConnectChannel.Remote,
                             latencyMs = 12,
@@ -158,9 +170,10 @@ class DesktopConversationScreenTest {
 
         composeRule.onNodeWithText("TEST-DESKTOP").assertIsDisplayed()
         composeRule.onNodeWithText(Str.deviceConnected).assertIsDisplayed()
-        composeRule.onNodeWithText(Str.startConversation).performClick()
+        composeRule.onNodeWithText(Str.mobileRequestPreview).performScrollTo().assertIsDisplayed()
+        composeRule.onNodeWithText(Str.startConversation).performScrollTo().performClick()
         assertTrue(started)
-        composeRule.onNodeWithText(Str.disconnect).performClick()
+        composeRule.onNodeWithText(Str.disconnect).performScrollTo().performClick()
         assertTrue(disconnected)
         composeRule.onNodeWithContentDescription(Str.back).performClick()
         assertTrue(backed)
@@ -469,7 +482,7 @@ class DesktopConversationScreenTest {
         }
 
         assertEquals(0, composeRule.onAllNodesWithText(device.host).fetchSemanticsNodes().size)
-        composeRule.onNodeWithText(Str.startConversation).performClick()
+        composeRule.onNodeWithText(Str.startConversation).performScrollTo().performClick()
         assertTrue(startedDevice == device.id)
     }
 

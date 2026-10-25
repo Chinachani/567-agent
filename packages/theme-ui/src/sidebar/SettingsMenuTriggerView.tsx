@@ -27,7 +27,6 @@ function ClawBadge({ title }: { title?: string }): JSX.Element {
 	);
 }
 
-
 export const SettingsMenuTriggerView = forwardRef<HTMLButtonElement, SettingsMenuTriggerViewProps>(
 	function SettingsMenuTriggerView(
 		{ avatar, className, clawOnline, clawTitle, open, settingsFallbackLabel, userLabel, ...props },
@@ -48,13 +47,15 @@ export const SettingsMenuTriggerView = forwardRef<HTMLButtonElement, SettingsMen
 				{userLabel ? (
 					<>
 						{/* avatar 与 Claw 不收缩；昵称 truncate 吃掉多余宽度 */}
-						<span className="shrink-0">{avatar}</span>
+						<span className="flex w-7 shrink-0 items-center justify-center">{avatar}</span>
 						<span className="min-w-0 flex-1 truncate text-left">{userLabel}</span>
 						{clawOnline && <ClawBadge title={clawTitle} />}
 					</>
 				) : (
 					<>
-						<span className="icon-[solar--settings-linear] h-3.5 w-3.5 shrink-0" />
+						<span className="flex w-7 shrink-0 items-center justify-center">
+							<span className="icon-[solar--settings-linear] h-3.5 w-3.5" />
+						</span>
 						<span className="min-w-0 flex-1 truncate text-left">{settingsFallbackLabel}</span>
 						{clawOnline && <ClawBadge title={clawTitle} />}
 					</>

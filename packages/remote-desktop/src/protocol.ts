@@ -83,7 +83,7 @@ export function decodeRemoteInputMessage(value: unknown): RemoteInputMessage {
 			action,
 		};
 	}
-	if (type === "pointer.scroll") {
+	if (type === "pointer.scroll" || type === "pointer.relative") {
 		return {
 			type,
 			sequence,
@@ -150,7 +150,7 @@ function inputFields(value: unknown): readonly string[] {
 	const type = typeof value === "object" && value !== null ? (value as Record<string, unknown>).type : undefined;
 	if (type === "pointer.move") return ["type", "sequence", "x", "y"];
 	if (type === "pointer.button") return ["type", "sequence", "x", "y", "button", "action"];
-	if (type === "pointer.scroll") return ["type", "sequence", "deltaX", "deltaY"];
+	if (type === "pointer.scroll" || type === "pointer.relative") return ["type", "sequence", "deltaX", "deltaY"];
 	if (type === "key") return ["type", "sequence", "code", "action", "modifiers"];
 	if (type === "text") return ["type", "sequence", "text"];
 	if (type === "heartbeat") return ["type", "sequence", "sentAt"];
@@ -201,4 +201,21 @@ function modifiers(value: unknown): readonly ("alt" | "control" | "meta" | "shif
 		throw new RemoteDesktopProtocolError("modifiers contain unsupported or duplicate values");
 	}
 	return parsed as readonly ("alt" | "control" | "meta" | "shift")[];
+}
+
+/** Optional, capability-negotiated display feedback. Never grants input authority. */
+export function parseRemoteViewportMessage(value: unknown): {
+	type: "viewport";
+	sequence: number;
+	width: number;
+	height: number;
+} {
+	const input = exactRecord(value, ["type", "sequence", "width", "height"]);
+	if (input.type !== "viewport") throw new RemoteDesktopProtocolError("unsupported viewport type");
+	return {
+		type: "viewport",
+		sequence: integer(input.sequence, "sequence", 1, Number.MAX_SAFE_INTEGER),
+		width: integer(input.width, "width", 1, 8192),
+		height: integer(input.height, "height", 1, 8192),
+	};
 }

@@ -2,6 +2,7 @@ import { mkdir, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { DEFAULT_SERVER_URL } from "@567agent/coding-agent/config";
+import { createCodingAgentModelRuntime } from "@567agent/coding-agent/host-services";
 import { afterEach, describe, expect, it } from "vitest";
 import { createCliCodingAgentBootstrap } from "../src/coding-agent-bootstrap.js";
 
@@ -69,6 +70,26 @@ describe("CLI Coding Agent bootstrap", () => {
 		expect(bootstrap.resourceLoader.getSkills()).toEqual({ skills: [], diagnostics: [] });
 		const persistedSettings: unknown = JSON.parse(await readFile(join(agentDir, "settings.json"), "utf8"));
 		expect(persistedSettings).toMatchObject({ serverUrl: DEFAULT_SERVER_URL });
+	});
+	it("uses the embedding host model source with the bootstrap's own authentication", async () => {
+		const root = await mkdtemp(join(tmpdir(), "cli-host-model-source-"));
+		temporaryDirectories.push(root);
+		const cwd = join(root, "workspace");
+		const agentDir = join(root, "state");
+		await Promise.all([mkdir(cwd, { recursive: true }), mkdir(agentDir, { recursive: true })]);
+		let injectedAuth: unknown;
+		const bootstrap = await createCliCodingAgentBootstrap({
+			args: ["--offline", "--no-extensions", "--no-skills", "--no-prompt-templates", "--no-themes"],
+			cwd,
+			agentDir,
+			createModelRuntime: (auth, path) => {
+				injectedAuth = auth;
+				expect(path).toBe(join(agentDir, "models.json"));
+				return createCodingAgentModelRuntime(auth, { builtInModels: [] });
+			},
+		});
+		expect(injectedAuth).toBe(bootstrap.authStorage);
+		expect(bootstrap.modelRegistry.getAll()).toEqual([]);
 	});
 });
 

@@ -64,8 +64,8 @@ export function PermissionsSettingsView({
 	section,
 }: PermissionsSettingsViewProps): JSX.Element {
 	return (
-		<div className="mx-auto w-full max-w-[680px] px-8 pt-2 pb-4">
-			<h1 className="mb-1.5 text-[20px] font-bold text-foreground">{labels.title}</h1>
+		<div className="mx-auto w-full max-w-[800px] px-5 pt-6 sm:px-8 pb-4">
+			<h1 className="mb-1.5 text-[24px] font-semibold tracking-tight text-foreground">{labels.title}</h1>
 			<p className="mb-6 text-[13px] text-muted-foreground">{labels.subtitle}</p>
 
 			{error && (
@@ -77,8 +77,7 @@ export function PermissionsSettingsView({
 			<SettingSection title={labels.sectionSystem} section={section}>
 				{items.map((item, idx) => {
 					const isGranted = item.status === "granted";
-					const buttonLabel =
-						item.hideStatus || isGranted ? labels.checkInSystemSettings : labels.goToAuthorize;
+					const buttonLabel = item.hideStatus || isGranted ? labels.checkInSystemSettings : labels.goToAuthorize;
 					return (
 						<SettingRow
 							key={item.id}

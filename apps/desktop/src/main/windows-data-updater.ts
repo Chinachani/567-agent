@@ -1,13 +1,13 @@
 import electronUpdater from "electron-updater";
 import electronAppAdapter from "electron-updater/out/ElectronAppAdapter.js";
-import { resolveWindowsDataLayoutFromEnvironment } from "./windows-data-layout.js";
+import { resolveWindowsDataLayoutForProcess } from "./windows-data-layout.js";
 
 const { NsisUpdater } = electronUpdater;
 const { ElectronAppAdapter } = electronAppAdapter;
 
 class WindowsDataUpdaterAdapter extends ElectronAppAdapter {
 	override get baseCachePath(): string {
-		return resolveWindowsDataLayoutFromEnvironment().updaterCache;
+		return resolveWindowsDataLayoutForProcess().updaterCache;
 	}
 }
 

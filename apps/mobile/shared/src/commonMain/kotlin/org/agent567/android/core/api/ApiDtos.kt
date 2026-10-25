@@ -23,7 +23,9 @@ internal data class LoginRequestDto(
 @Serializable
 internal data class NewApiLoginRequestDto(
     val username: String,
-    val password: String,
+    val password: String? = null,
+    @SerialName("password_encrypted") val passwordEncrypted: String? = null,
+    @SerialName("encryption_key_id") val encryptionKeyId: String? = null,
 )
 
 @Serializable

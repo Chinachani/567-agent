@@ -5,6 +5,8 @@ import (
 	"encoding/json"
 	"errors"
 	"maps"
+	"os"
+	"path/filepath"
 	"strings"
 	"sync"
 	"testing"
@@ -138,6 +140,93 @@ func TestRouter_FirstMessageStartsSession_PersistsResolvedPath(t *testing.T) {
 	}
 	if entry.SessionPath == "" {
 		t.Error("forwardToAgent should have persisted the resolved sessionPath")
+	}
+}
+
+func TestRouter_DeletedManagedSessionRecoversOnlyItsChat(t *testing.T) {
+	root := t.TempDir()
+	missing := filepath.Join(root, ".vetta", "sessions", "deleted.conversation.jsonl")
+	tr := newFakeTransport()
+	st := newFakeStore()
+	st.entries[state.SessionKey("u1", "c1")] = state.SessionEntry{UserID: "u1", ChatID: "c1", SessionPath: missing}
+	st.entries[state.SessionKey("u2", "c2")] = state.SessionEntry{UserID: "u2", ChatID: "c2", SessionPath: "/other/history.jsonl"}
+	client := &recordingFakeClient{reply: "ok"}
+	pool := hostclient.NewProcessPool(client, 4)
+	r := New(tr, command.NewRouter(), st, pool, root)
+	defer r.Shutdown()
+	if err := r.HandleInbound(context.Background(), transport.InboundMessage{
+		Platform: "fake", UserID: "u1", ChatID: "c1", Text: "continue my request",
+	}); err != nil {
+		t.Fatal(err)
+	}
+	waitForSend(t, tr, 2, 2*time.Second)
+	client.mu.Lock()
+	opens := append([]openCall(nil), client.opens...)
+	client.mu.Unlock()
+	if len(opens) != 1 || opens[0].sessionPath != "" {
+		t.Fatalf("deleted session was resumed instead of creating a new one: %+v", opens)
+	}
+	current, _, _ := st.GetSession(context.Background(), "u1", "c1")
+	other, _, _ := st.GetSession(context.Background(), "u2", "c2")
+	if current.SessionPath == "" || current.SessionPath == missing || other.SessionPath != "/other/history.jsonl" {
+		t.Fatalf("unexpected routing recovery: current=%q other=%q", current.SessionPath, other.SessionPath)
+	}
+	sends := tr.snapshot()
+	if !strings.Contains(sends[0].Text, "原会话文件已不存在") || !strings.Contains(sends[1].Text, "continue my request") {
+		t.Fatalf("recovery must explain the new session and deliver the original prompt: %+v", sends)
+	}
+}
+
+func TestRouter_ResumesManagedSessionMovedToCurrentDirectory(t *testing.T) {
+	root := t.TempDir()
+	oldPath := filepath.Join(root, ".vetta", "sessions", "existing.conversation.jsonl")
+	currentPath := filepath.Join(root, ".567agent", "sessions", filepath.Base(oldPath))
+	if err := os.MkdirAll(filepath.Dir(currentPath), 0o700); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(currentPath, []byte("existing history"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	tr := newFakeTransport()
+	st := newFakeStore()
+	st.entries[state.SessionKey("u1", "c1")] = state.SessionEntry{UserID: "u1", ChatID: "c1", SessionPath: oldPath}
+	client := &recordingFakeClient{reply: "ok"}
+	pool := hostclient.NewProcessPool(client, 4)
+	r := New(tr, command.NewRouter(), st, pool, root)
+	defer r.Shutdown()
+	_ = r.HandleInbound(context.Background(), transport.InboundMessage{Platform: "fake", UserID: "u1", ChatID: "c1", Text: "resume"})
+	waitForSend(t, tr, 1, 2*time.Second)
+	client.mu.Lock()
+	defer client.mu.Unlock()
+	if len(client.opens) != 1 || client.opens[0].sessionPath != currentPath {
+		t.Fatalf("moved conversation was not resumed: %+v", client.opens)
+	}
+	entry, _, _ := st.GetSession(context.Background(), "u1", "c1")
+	if entry.SessionPath != currentPath {
+		t.Fatalf("moved path was not persisted: %q", entry.SessionPath)
+	}
+}
+
+func TestRouter_InvalidManagedPathPreservesBinding(t *testing.T) {
+	root := t.TempDir()
+	path := filepath.Join(root, ".567agent", "sessions", "invalid.conversation.jsonl")
+	if err := os.MkdirAll(path, 0o700); err != nil {
+		t.Fatal(err)
+	}
+	tr := newFakeTransport()
+	st := newFakeStore()
+	st.entries[state.SessionKey("u1", "c1")] = state.SessionEntry{UserID: "u1", ChatID: "c1", SessionPath: path}
+	client := &recordingFakeClient{reply: "ok"}
+	pool := hostclient.NewProcessPool(client, 4)
+	r := New(tr, command.NewRouter(), st, pool, root)
+	defer r.Shutdown()
+	_ = r.HandleInbound(context.Background(), transport.InboundMessage{Platform: "fake", UserID: "u1", ChatID: "c1", Text: "continue"})
+	waitForSend(t, tr, 1, 2*time.Second)
+	entry, _, _ := st.GetSession(context.Background(), "u1", "c1")
+	client.mu.Lock()
+	defer client.mu.Unlock()
+	if len(client.opens) != 0 || entry.SessionPath != path || !strings.Contains(tr.snapshot()[0].Text, "not a regular file") {
+		t.Fatalf("invalid storage must surface an error without starting an empty session")
 	}
 }
 

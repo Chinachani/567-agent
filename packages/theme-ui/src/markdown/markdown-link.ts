@@ -115,6 +115,31 @@ function normalizeMarkdownLine(line: string): string {
 			continue;
 		}
 
+		// GFM may swallow a closing emphasis marker and CJK punctuation into a bare URL.
+		// Repair only a balanced surrounding ** span, leaving explicit destinations and code untouched.
+		if (
+			codeDelimiterLength === 0 &&
+			/^https?:\/\//i.test(line.slice(index)) &&
+			line[index - 1] !== "<" &&
+			!/\]\(\s*$/.test(line.slice(0, index))
+		) {
+			const prefix = line.slice(0, index);
+			const raw = /^[^\s<>]+/.exec(line.slice(index))?.[0] ?? "";
+			const withoutPunctuation = raw.replace(/[。，；！？、]+$/, "");
+			const opening = (prefix.match(/(?<!\\)\*\*/g) ?? []).length % 2 === 1;
+			if (opening && withoutPunctuation.endsWith("**")) {
+				let target = withoutPunctuation.slice(0, -2);
+				while (target.endsWith(")") && (target.match(/\)/g)?.length ?? 0) > (target.match(/\(/g)?.length ?? 0))
+					target = target.slice(0, -1);
+				if (target.length > 8) {
+					result += `${line.slice(cursor, index)}<${target}>${raw.slice(target.length)}`;
+					index += raw.length;
+					cursor = index;
+					continue;
+				}
+			}
+		}
+
 		if (codeDelimiterLength !== 0 || line[index] !== "]" || line[index + 1] !== "(") {
 			index++;
 			continue;

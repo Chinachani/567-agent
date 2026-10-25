@@ -29,6 +29,19 @@ describe("remote desktop protocol", () => {
 			decodeRemoteInputMessage({ type: "key", sequence: 1, code: "KeyA", action: "down", text: "secret" }),
 		).toThrow("unsupported field: text");
 	});
+	it("bounds relative pointer motion and keeps the existing absolute contract", () => {
+		expect(decodeRemoteInputMessage({ type: "pointer.relative", sequence: 2, deltaX: -12, deltaY: 4 })).toEqual({
+			type: "pointer.relative",
+			sequence: 2,
+			deltaX: -12,
+			deltaY: 4,
+		});
+		for (const deltaX of [NaN, Infinity, 4097])
+			expect(() => decodeRemoteInputMessage({ type: "pointer.relative", sequence: 2, deltaX, deltaY: 0 })).toThrow();
+		expect(() =>
+			decodeRemoteInputMessage({ type: "pointer.relative", sequence: 2, deltaX: 0, deltaY: 0, x: 1 }),
+		).toThrow("unsupported field: x");
+	});
 
 	it("bounds SDP and validates protocol versions", () => {
 		expect(() =>
@@ -43,4 +56,20 @@ describe("remote desktop protocol", () => {
 			}),
 		).toThrow(RemoteDesktopProtocolError);
 	});
+});
+
+// View feedback is separate from the input-authority contract.
+it("bounds optional viewport feedback and rejects authority-expanding fields", async () => {
+	const { parseRemoteViewportMessage } = await import("../src/protocol.js");
+	expect(parseRemoteViewportMessage({ type: "viewport", sequence: 1, width: 1920, height: 1080 })).toEqual({
+		type: "viewport",
+		sequence: 1,
+		width: 1920,
+		height: 1080,
+	});
+	for (const patch of [{ width: 0 }, { height: Infinity }, { width: 9000 }, { inputEnabled: true }, { sequence: 0 }]) {
+		expect(() =>
+			parseRemoteViewportMessage({ type: "viewport", sequence: 1, width: 1920, height: 1080, ...patch }),
+		).toThrow();
+	}
 });

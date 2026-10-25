@@ -22,6 +22,7 @@ import { useProjectActions } from "../domains/project/hooks/useProjects";
 import { useModelCatalogSync } from "../shared/hooks/useModelCatalogSync";
 import { useNarrowScreen } from "../shared/hooks/useNarrowScreen";
 import { useRunningSessionsSync } from "../shared/hooks/useRunningSessionsSync";
+import { useSettingsReturnLocation } from "../shared/hooks/useSettingsReturnLocation";
 import { useGlobalShortcuts } from "../shared/hooks/useShortcuts";
 import { useUpdaterInit } from "../shared/hooks/useUpdaterInit";
 import { i18n } from "../shared/i18n";
@@ -67,6 +68,8 @@ export function useRootLayoutModel(): RootLayoutModel {
 	const [lastActiveSession, setLastActiveSession] = useAtom(lastActiveSessionAtom);
 	const matchesForGuard = useMatches();
 	const currentPath = matchesForGuard[matchesForGuard.length - 1]?.pathname ?? "/";
+	const settingsMode = currentPath === "/settings" || currentPath.startsWith("/settings/");
+	useSettingsReturnLocation();
 	const previousPathRef = useRef(currentPath);
 	useEffect(() => {
 		const previousPath = previousPathRef.current;
@@ -117,11 +120,11 @@ export function useRootLayoutModel(): RootLayoutModel {
 	}, [cancelOverlayClose]);
 	// 退出窄屏时复位浮层状态。
 	useEffect(() => {
-		if (!narrow) {
+		if (!narrow || settingsMode) {
 			cancelOverlayClose();
 			setOverlayOpen(false);
 		}
-	}, [narrow, cancelOverlayClose]);
+	}, [narrow, settingsMode, cancelOverlayClose]);
 
 	// 云会话生命周期已上移到 App 根部的 <CloudAuthBoot />（lite 构建不挂载）
 	useAppInit();
@@ -484,6 +487,7 @@ export function useRootLayoutModel(): RootLayoutModel {
 			toggleSidebar,
 		},
 		narrow,
+		settingsMode,
 		onOpenSession: openSession,
 		overlayOpen,
 		routePending: shouldShowChatRoutePending({

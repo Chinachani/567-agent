@@ -31,8 +31,8 @@ describe("MessageInput compound primitives", () => {
 		);
 
 		const surface = screen.getByTestId("surface");
-		expect(surface.className).toContain("rounded-b-[20px]");
-		expect(surface.className).toContain("border-primary/20");
+		expect(surface.hasAttribute("data-top-connected")).toBe(true);
+		expect(surface.hasAttribute("data-focused")).toBe(true);
 		expect(screen.getByTestId("editor").tagName).toBe("SECTION");
 		expect(screen.getByText("Members").tagName).toBe("NAV");
 		expect(

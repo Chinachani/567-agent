@@ -362,7 +362,7 @@ async function probeWindowsSandbox(): Promise<SandboxCapability> {
 	}
 
 	const probeRoot = mkdtempSync(join(tmpdir(), "vetta-windows-sandbox-probe-"));
-	const outsideRoot = mkdtempSync(join(homedir(), ".vetta-windows-sandbox-outside-"));
+	const outsideRoot = mkdtempSync(join(homedir(), ".567agent-windows-sandbox-outside-"));
 	try {
 		const workspaceRoot = join(probeRoot, "workspace");
 		const tempRoot = join(probeRoot, "temp");

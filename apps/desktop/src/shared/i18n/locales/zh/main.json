@@ -1,128 +1,154 @@
 {
-	"projectCollaborationTask": "协作任务 · {{id}}",
-	"projectCollaborationResult": "成员结果已送达 · {{id}}。详细记录可在项目协作中查看。",
-
-	"tray": {
-		"showWindow": "显示窗口",
-		"hideWindow": "隐藏窗口",
-		"quitVetta": "退出 567 Agent",
-		"quit": "退出",
-		"hideToTray": "隐藏到托盘",
-		"closeToTray": "关闭窗口时最小化到托盘"
-	},
-	"menu": {
-		"app": {
-			"title": "567 Agent",
-			"about": "关于 567 Agent",
-			"services": "服务",
-			"hide": "隐藏 567 Agent",
-			"hideOthers": "隐藏其他",
-			"unhide": "全部显示",
-			"quit": "退出 567 Agent"
-		},
-		"edit": {
-			"title": "编辑",
-			"undo": "撤销",
-			"redo": "重做",
-			"cut": "剪切",
-			"copy": "复制",
-			"paste": "粘贴",
-			"pasteAndMatchStyle": "粘贴并匹配样式",
-			"delete": "删除",
-			"selectAll": "全选"
-		},
-		"view": {
-			"title": "视图",
-			"reload": "重新加载",
-			"forceReload": "强制重新加载",
-			"toggleDevTools": "切换开发者工具",
-			"resetZoom": "实际大小",
-			"zoomIn": "放大",
-			"zoomOut": "缩小",
-			"toggleFullScreen": "进入全屏幕"
-		},
-		"window": {
-			"title": "窗口",
-			"minimize": "最小化",
-			"zoom": "缩放",
-			"front": "前置全部窗口",
-			"close": "关闭窗口"
-		}
-	},
-	"notification": {
-		"turnComplete": "已完成回答",
-		"turnError": "本轮回答出错",
-		"questionPending": "有问题待确认，点击查看",
-		"sessionFallback": "新会话"
-	},
-	"remoteDesktopCapture": {
-		"title": "共享桌面画面",
-		"message": "手机端正在请求查看此电脑的画面。",
-		"detail": "默认仅共享本次连接；选择屏幕后，手机端可实时查看画面。只有主显示器支持远程输入，窗口和副屏仅可查看。勾选记住设备后，可在设置中随时关闭自动共享。请勿共享含有敏感信息的窗口。",
-		"rememberDevice": "记住此配对手机，并在以后连接时自动共享主屏幕",
-		"allowOnce": "继续选择画面",
-		"cancel": "取消",
-		"chooseTitle": "选择共享来源",
-		"chooseMessage": "选择要共享给已配对手机的内容。窗口和副屏仅可查看；远程输入需要共享主显示器。",
-		"sourceFallback": "共享来源 {{index}}",
-		"noSources": "系统没有提供可共享的屏幕或窗口。请检查桌面环境的屏幕录制权限后重试。"
-	},
-	"pluginPackage": {
-		"confirmTitle": "安装 567 Agent 插件",
-		"confirmMessage": "安装并启用 {{name}} {{version}}？",
-		"confirmDetail": "文件：{{file}}\n插件 ID：{{id}}\n版本：{{version}}\n\n将授予的权限：\n{{permissions}}\n\n将启用的命令：\n{{commands}}\n\n插件代码会在 567 Agent 中运行，请只安装你信任的文件。",
-		"none": "无",
-		"install": "安装并启用",
-		"cancel": "取消",
-		"done": "完成",
-		"installedTitle": "插件安装完成",
-		"installedMessage": "{{name}} {{version}} 已安装并启用。",
-		"failedTitle": "无法安装插件",
-		"failedMessage": "{{file}} 不是有效的 567 Agent 插件包，或与当前版本不兼容。"
-	},
-	"sessionMigration": {
-		"receiveTitle": "接收手机对话备份",
-		"receiveMessage": "手机请求通过已配对的局域网连接导入一份加密会话备份（{{size}}）。",
-		"receiveDetail": "仅在你信任这台手机和备份来源时继续。接收后会新增会话，不会覆盖现有对话。",
-		"receiveConfirm": "接收并导入",
-		"receiveCancel": "拒绝"
-	},
-	"mcpOAuth": {
-		"authorizationSuccessful": "授权成功",
-		"authorizationFailed": "授权失败",
-		"returnToVetta": "你可以关闭此窗口并返回 567 Agent。",
-		"closeAndRetry": "你可以关闭此窗口并返回 567 Agent 重试。",
-		"missingAuthorizationCode": "缺少授权码",
-		"callbackAlreadySettled": "OAuth 回调已经结束",
-		"callbackTimedOut": "等待浏览器 OAuth 授权超时",
-		"callbackBindFailed": "无法启动 OAuth 回调服务",
-		"devicePageBindFailed": "无法启动设备码展示服务",
-		"connectGitHub": "连接 GitHub",
-		"enterDeviceCode": "请在 GitHub 页面输入此代码，然后点击授权。",
-		"copyCode": "复制代码",
-		"openGitHub": "打开 GitHub 进行授权",
-		"closeAfterAuthorization": "在 567 Agent 中完成授权后即可关闭此窗口。",
-		"deviceFlowDisabled": "设备码请求失败（422）。请在 OAuth 或 GitHub App 设置中启用 Device Flow：{{details}}"
-	},
-	"updater": {
-		"errors": {
-			"developmentUnsupported": "开发模式不支持自动更新",
-			"configurationUnavailable": "当前构建未配置更新源",
-			"checkFailed": "检查更新失败",
-			"downloadFailed": "下载更新失败",
-			"installFailed": "安装更新失败"
-		}
-	},
-	"projectExportFileType": "567 Agent 项目导出包",
-	"runtimes": {
-		"downloading": "正在下载运行时文件",
-		"preparing": "正在准备运行时安装",
-		"copying": "正在复制内置运行时",
-		"installing": "正在解压并安装运行时",
-		"verifying": "正在验证运行时与包管理器",
-		"unavailable": "无法从内置运行时或可用镜像获取安装文件；请检查网络后重试。",
-		"healthFailed": "运行时或包管理器自检未通过，请重新获取或查看诊断日志。",
-		"ready": "运行时已就绪",
-		"inUse": "运行时文件被占用或目录不可写，原文件已保留。请打开“设置 → 应用环境”，点击“重启并修复”；软件会停止当前任务并在启动后自动修复。仍失败时请检查目录权限或安全软件拦截。"
-	}
+  "remote": {
+    "modelConnectionInterrupted": "电脑与模型服务的连接中断，消息已保留。请检查电脑网络或稍后重试。"
+  },
+  "api567": {
+    "loginEncryptionFailed": "无法验证服务器的登录加密配置，请稍后重试。"
+  },
+  "projectCollaborationTask": "协作任务 · {{id}}",
+  "projectCollaborationResult": "成员结果已送达 · {{id}}。详细记录可在项目协作中查看。",
+  "tray": {
+    "showWindow": "显示窗口",
+    "hideWindow": "隐藏窗口",
+    "quitVetta": "退出 567 Agent",
+    "quit": "退出",
+    "hideToTray": "隐藏到托盘",
+    "closeToTray": "关闭窗口时最小化到托盘"
+  },
+  "menu": {
+    "app": {
+      "title": "567 Agent",
+      "about": "关于 567 Agent",
+      "services": "服务",
+      "hide": "隐藏 567 Agent",
+      "hideOthers": "隐藏其他",
+      "unhide": "全部显示",
+      "quit": "退出 567 Agent"
+    },
+    "edit": {
+      "title": "编辑",
+      "undo": "撤销",
+      "redo": "重做",
+      "cut": "剪切",
+      "copy": "复制",
+      "paste": "粘贴",
+      "pasteAndMatchStyle": "粘贴并匹配样式",
+      "delete": "删除",
+      "selectAll": "全选"
+    },
+    "view": {
+      "title": "视图",
+      "reload": "重新加载",
+      "forceReload": "强制重新加载",
+      "toggleDevTools": "切换开发者工具",
+      "resetZoom": "实际大小",
+      "zoomIn": "放大",
+      "zoomOut": "缩小",
+      "toggleFullScreen": "进入全屏幕"
+    },
+    "window": {
+      "title": "窗口",
+      "minimize": "最小化",
+      "zoom": "缩放",
+      "front": "前置全部窗口",
+      "close": "关闭窗口"
+    }
+  },
+  "notification": {
+    "turnComplete": "已完成回答",
+    "turnError": "本轮回答出错",
+    "questionPending": "有问题待确认，点击查看",
+    "sessionFallback": "新会话"
+  },
+  "api567Model": {
+    "unavailable": "该模型不在此分组中，请刷新模型列表后重试。",
+    "invalidName": "模型名称格式无效，请刷新模型列表后重试。"
+  },
+  "remoteDesktopCapture": {
+    "title": "共享桌面画面",
+    "message": "手机端正在请求查看此电脑的画面。",
+    "detail": "默认仅共享本次连接；选择屏幕后，手机端可实时查看画面。远程输入需单独开启，可用性取决于系统授权和共享内容。记住设备后可复用本次共享，系统结束共享或程序重启后可能需要重新选屏。可在设置中关闭自动共享。请勿共享含有敏感信息的窗口。",
+    "rememberDevice": "记住此配对手机，并在以后连接时自动请求共享",
+    "allowOnce": "继续选择画面",
+    "cancel": "取消",
+    "chooseTitle": "选择共享来源",
+    "chooseMessage": "选择要共享给已配对手机的内容。远程输入需单独开启，可用性取决于系统授权和共享内容。",
+    "sourceFallback": "共享来源 {{index}}",
+    "noSources": "系统没有提供可共享的屏幕或窗口。请检查桌面环境的屏幕录制权限后重试。"
+  },
+  "pluginPackage": {
+    "confirmTitle": "安装 567 Agent 插件",
+    "confirmMessage": "安装并启用 {{name}} {{version}}？",
+    "confirmDetail": "文件：{{file}}\n插件 ID：{{id}}\n版本：{{version}}\n\n将授予的权限：\n{{permissions}}\n\n将启用的命令：\n{{commands}}\n\n插件代码会在 567 Agent 中运行，请只安装你信任的文件。",
+    "none": "无",
+    "install": "安装并启用",
+    "cancel": "取消",
+    "done": "完成",
+    "installedTitle": "插件安装完成",
+    "installedMessage": "{{name}} {{version}} 已安装并启用。",
+    "failedTitle": "无法安装插件",
+    "failedMessage": "{{file}} 不是有效的 567 Agent 插件包，或与当前版本不兼容。"
+  },
+  "sessionMigration": {
+    "receiveTitle": "接收手机对话备份",
+    "receiveMessage": "手机请求通过已配对的局域网连接导入一份加密会话备份（{{size}}）。",
+    "receiveDetail": "仅在你信任这台手机和备份来源时继续。接收后会新增会话，不会覆盖现有对话。",
+    "receiveConfirm": "接收并导入",
+    "receiveCancel": "拒绝"
+  },
+  "mcpOAuth": {
+    "authorizationSuccessful": "授权成功",
+    "authorizationFailed": "授权失败",
+    "returnToVetta": "你可以关闭此窗口并返回 567 Agent。",
+    "closeAndRetry": "你可以关闭此窗口并返回 567 Agent 重试。",
+    "missingAuthorizationCode": "缺少授权码",
+    "callbackAlreadySettled": "OAuth 回调已经结束",
+    "callbackTimedOut": "等待浏览器 OAuth 授权超时",
+    "callbackBindFailed": "无法启动 OAuth 回调服务",
+    "devicePageBindFailed": "无法启动设备码展示服务",
+    "connectGitHub": "连接 GitHub",
+    "enterDeviceCode": "请在 GitHub 页面输入此代码，然后点击授权。",
+    "copyCode": "复制代码",
+    "openGitHub": "打开 GitHub 进行授权",
+    "closeAfterAuthorization": "在 567 Agent 中完成授权后即可关闭此窗口。",
+    "deviceFlowDisabled": "设备码请求失败（422）。请在 OAuth 或 GitHub App 设置中启用 Device Flow：{{details}}"
+  },
+  "updater": {
+    "errors": {
+      "developmentUnsupported": "开发模式不支持自动更新",
+      "configurationUnavailable": "当前构建未配置更新源",
+      "checkFailed": "检查更新失败",
+      "downloadFailed": "下载更新失败",
+      "installFailed": "安装更新失败"
+    }
+  },
+  "projectExportFileType": "567 Agent 项目导出包",
+  "runtimes": {
+    "downloading": "正在下载运行时文件",
+    "preparing": "正在准备运行时安装",
+    "copying": "正在复制内置运行时",
+    "installing": "正在解压并安装运行时",
+    "verifying": "正在验证运行时与包管理器",
+    "unavailable": "无法从内置运行时或可用镜像获取安装文件；请检查网络后重试。",
+    "healthFailed": "运行时或包管理器自检未通过，请重新获取或查看诊断日志。",
+    "ready": "运行时已就绪",
+    "inUse": "运行时文件被占用或目录不可写，原文件已保留。请打开“设置 → 应用环境”，点击“重启并修复”；软件会停止当前任务并在启动后自动修复。仍失败时请检查目录权限或安全软件拦截。"
+  },
+  "api567Credentials": {
+    "destinationChanged": "推理请求的服务地址发生变化，已停止发送。请重新选择模型后重试。",
+    "listFailed": "无法读取账号令牌列表，请稍后重试。",
+    "unmaskFailed": "无法读取现有分组密钥，请重试；不会重复创建令牌。",
+    "limitReached": "账号令牌已达上限，请在账号管理中清理不再使用的令牌后重试。",
+    "createFailed": "未能获取该分组的专属密钥，请稍后重试。"
+  },
+  "providerModels": {
+    "missingProvider": "服务商不存在，请重新打开设置。",
+    "missingUrl": "请先填写服务地址。",
+    "invalidUrl": "服务地址无效，请检查后重试。",
+    "missingKey": "密钥不可用，请重新填写后重试。",
+    "httpError": "接口返回 {{status}}，请检查地址与密钥。",
+    "empty": "接口未返回可识别的模型列表。",
+    "timeout": "拉取超时，请检查连接后重试。",
+    "network": "无法拉取模型，请检查地址与连接后重试。"
+  }
 }

@@ -1,4 +1,4 @@
-import type { JSX, ReactNode } from "react";
+import { useRef, type JSX, type ReactNode } from "react";
 import { AnimatePresence, motion } from "motion/react";
 import { Dialog as DialogPrimitive } from "radix-ui";
 import { Button } from "@vetta-org/ui";
@@ -16,6 +16,8 @@ export interface MessageCenterDialogViewProps {
 	readonly onOpenChange: (open: boolean) => void;
 	readonly tabs: ReactNode;
 	readonly content: ReactNode;
+	readonly closeLabel?: string;
+	readonly onCloseAutoFocus?: (event: Event) => void;
 }
 
 export function MessageCenterDialogView({
@@ -25,7 +27,10 @@ export function MessageCenterDialogView({
 	onOpenChange,
 	tabs,
 	content,
+	closeLabel,
+	onCloseAutoFocus,
 }: MessageCenterDialogViewProps): JSX.Element {
+	const contentRef = useRef<HTMLDivElement>(null);
 	return (
 		<DialogPrimitive.Root open={open} onOpenChange={onOpenChange}>
 			<AnimatePresence>
@@ -45,9 +50,14 @@ export function MessageCenterDialogView({
 							asChild
 							forceMount
 							aria-describedby={undefined}
-							onOpenAutoFocus={(event: Event) => event.preventDefault()}
+							onOpenAutoFocus={(event: Event) => {
+								event.preventDefault();
+								contentRef.current?.querySelector<HTMLButtonElement>("button")?.focus();
+							}}
+							onCloseAutoFocus={onCloseAutoFocus}
 						>
 							<motion.div
+								ref={contentRef}
 								initial={{ opacity: 0, scale: 0.95, y: -10 }}
 								animate={{ opacity: 1, scale: 1, y: 0 }}
 								exit={{ opacity: 0, scale: 0.96, y: -8, transition: { duration: 0.14 } }}
@@ -64,7 +74,13 @@ export function MessageCenterDialogView({
 											{title}
 										</DialogPrimitive.Title>
 									</div>
-									<Button type="button" variant="ghost" size="icon-sm" onClick={onClose}>
+									<Button
+										type="button"
+										variant="ghost"
+										size="icon-sm"
+										onClick={onClose}
+										aria-label={closeLabel}
+									>
 										<span className="icon-[solar--close-circle-linear] h-4 w-4" />
 									</Button>
 								</div>

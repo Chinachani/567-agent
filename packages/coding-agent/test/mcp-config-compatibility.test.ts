@@ -20,7 +20,7 @@ describe("MCP config compatibility", () => {
 		expect(loader.loadMerged()).toEqual({ mcpServers: {} });
 		expect(loader.getConfigPaths()).toEqual({
 			global: join(fixture.agentDir, "mcp.json"),
-			project: join(fixture.projectRoot, ".vetta", "mcp.json"),
+			project: join(fixture.projectRoot, ".567agent", "mcp.json"),
 		});
 	});
 

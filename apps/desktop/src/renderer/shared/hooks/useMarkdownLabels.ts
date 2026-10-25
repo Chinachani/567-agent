@@ -7,6 +7,14 @@ export function useMarkdownLabels(): MarkdownLabels {
 	return useMemo(
 		() => ({
 			copy: t("copyButton.label"),
+			resources: {
+				openFile: t("markdown.resourceMenu.openFile"),
+				openUrl: t("markdown.resourceMenu.openUrl"),
+				copyFile: t("markdown.resourceMenu.copyFile"),
+				copyUrl: t("markdown.resourceMenu.copyUrl"),
+				revealFile: t("markdown.resourceMenu.revealFile"),
+				failed: t("markdown.actionFailed"),
+			},
 			artifacts: {
 				title: t("markdown.artifacts"),
 				count: (count: number) => t("markdown.artifactCount", { count }),

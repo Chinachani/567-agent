@@ -18,7 +18,7 @@ export default async function RootLayout({ children }: { children: ReactNode }) 
 	return (
 		<html
 			lang={localeConfig[language].htmlLang}
-			className={cn(displaySerif.variable, "scroll-smooth border-t-2 border-vetta-coral")}
+			className={cn(displaySerif.variable, "scroll-smooth border-t-2 border-agent567-coral")}
 			suppressHydrationWarning
 		>
 			<body className="flex min-h-screen flex-col bg-fd-background text-fd-foreground">

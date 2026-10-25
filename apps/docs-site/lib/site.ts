@@ -13,7 +13,7 @@ export const site = {
 	downloadUrl: "https://github.com/Chinachani/567-agent/releases",
 	githubUrl: "https://github.com/Chinachani/567-agent",
 	discordUrl: "https://discord.gg/qGqkk22Vg9",
-	logoPath: "/images/vetta-app-icon.webp",
+	logoPath: "/images/agent567-app-icon.png",
 	ogImagePath: "/opengraph-image/",
 	applicationCategory: "DeveloperApplication",
 	operatingSystem: "Windows, macOS, Linux",

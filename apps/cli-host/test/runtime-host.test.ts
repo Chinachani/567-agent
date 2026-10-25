@@ -1,6 +1,7 @@
 import { mkdir, mkdtemp, readFile, rm, stat, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
+import { type AssistantMessage, createAssistantMessageEventStream } from "@567agent/ai";
 import type { CodingAgentBootstrap } from "@567agent/coding-agent/bootstrap";
 import type { RpcSessionInitialization } from "@567agent/coding-agent/rpc";
 import { RUNTIME_ERROR_CODES, type RuntimeSessionCatalog } from "@567agent/runtime-core";
@@ -34,6 +35,45 @@ afterEach(async () => {
 });
 
 describe("IM Runtime Host", () => {
+	it("uses an injected host stream for a complete RPC turn", async () => {
+		const fixture = await createFixture([]);
+		const called = vi.fn();
+		const result = await prepareImRuntimeHost({
+			bootstrap: fixture.bootstrap,
+			conversationDir: fixture.conversationDir,
+			sessionCatalog: fixture.sessionCatalog,
+			streamFn: (model, _context, options) => {
+				called(options?.apiKey);
+				const response: AssistantMessage = {
+					role: "assistant",
+					content: [{ type: "text", text: "Host transport result" }],
+					api: model.api,
+					provider: model.provider,
+					model: model.id,
+					timestamp: 1,
+					stopReason: "stop",
+					usage: {
+						input: 1,
+						output: 1,
+						cacheRead: 0,
+						cacheWrite: 0,
+						totalTokens: 2,
+						cost: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0, total: 0 },
+					},
+				};
+				const stream = createAssistantMessageEventStream();
+				stream.push({ type: "done", reason: "stop", message: response });
+				return stream;
+			},
+		});
+		if (result.kind !== "rpc") throw new Error("Expected RPC runtime");
+		preparedHosts.push(result);
+		await expect(result.session.prompt({ text: "Use the injected transport" })).resolves.toMatchObject({
+			status: "completed",
+		});
+		expect(called).toHaveBeenCalledWith("test-key");
+	});
+
 	it("migrates a representable Legacy session without changing its source", async () => {
 		const fixture = await createFixture([]);
 		const legacyPath = join(fixture.conversationDir, "legacy.jsonl");

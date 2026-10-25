@@ -24,7 +24,11 @@ internal class TokenRefresher(
     }
     private data class Failure(val tokens: StoredTokens, val outcome: RefreshOutcome, val count: Int, val retryAt: Long)
     private val mutex = Mutex()
-    private var epoch = 0L
+    private val revision = kotlinx.coroutines.flow.MutableStateFlow(0L)
+    private var epoch: Long
+        get() = revision.value
+        set(value) { revision.value = value }
+    internal val sessionVersion: Long get() = epoch
     private var inFlight: Attempt? = null
     private var failure: Failure? = null
 
@@ -38,6 +42,14 @@ internal class TokenRefresher(
         epoch += 1
         failure = null
         tokenStore.clear()
+    }
+
+    suspend fun replaceSessionIfCurrent(expected: StoredTokens, access: String, refresh: String): Boolean = mutex.withLock {
+        if (tokenStore.tokens.value != expected) return@withLock false
+        epoch += 1
+        failure = null
+        tokenStore.save(access, refresh)
+        true
     }
 
     suspend fun refresh(expectedAccessToken: String? = null): RefreshOutcome {

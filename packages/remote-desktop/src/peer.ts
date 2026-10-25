@@ -1,6 +1,13 @@
 import type { RemoteDesktopPeerOptions } from "./peer-types.js";
-import { NOOP_REMOTE_DESKTOP_LOGGER } from "./peer-types.js";
-import { decodeRemoteDesktopSignal, encodeRemoteInputMessage, parseRemoteInputMessage } from "./protocol.js";
+import { NOOP_REMOTE_DESKTOP_LOGGER, REMOTE_DESKTOP_ICE_SERVERS } from "./peer-types.js";
+import {
+	decodeRemoteDesktopSignal,
+	encodeRemoteInputMessage,
+	parseRemoteInputMessage,
+	parseRemoteViewportMessage,
+} from "./protocol.js";
+import { answerWithStartBitrate, preferHardwareCodec } from "./screen-encoding.js";
+import { ScreenSender } from "./screen-sender.js";
 import type { RemoteDesktopSignal, RemoteInputCommand, RemoteInputMessage } from "./types.js";
 import { REMOTE_DESKTOP_PROTOCOL_VERSION } from "./types.js";
 
@@ -20,7 +27,9 @@ export class RemoteDesktopHost {
 	private readonly logger;
 	private readonly pendingIce: RTCIceCandidateInit[] = [];
 	private inputChannel: RTCDataChannel | undefined;
+	private inputEnabled: boolean;
 	private lastInputSequence = 0;
+	private lastViewportSequence = 0;
 	private closed = false;
 	private started = false;
 	private peerReady = false;
@@ -29,12 +38,15 @@ export class RemoteDesktopHost {
 	private onViewerReplaced: (() => void) | undefined;
 	private onConnectionStateChange: ((state: RTCPeerConnectionState) => void) | undefined;
 	private viewerRejoined = false;
+	private screen: ScreenSender | undefined;
+	private statsTimer: ReturnType<typeof setTimeout> | undefined;
 
 	constructor(
 		private readonly options: RemoteDesktopPeerOptions,
 		private readonly sendSignal: RemoteDesktopSignalSender,
 		private readonly onInput: (message: RemoteInputMessage) => void | Promise<void>,
 	) {
+		this.inputEnabled = options.inputEnabled ?? true;
 		this.logger = options.logger ?? NOOP_REMOTE_DESKTOP_LOGGER;
 		this.peer = createPeer(options);
 		this.peer.onicecandidate = (event) => {
@@ -69,7 +81,13 @@ export class RemoteDesktopHost {
 		this.onViewerReplaced = startOptions.onViewerReplaced;
 		this.onConnectionStateChange = startOptions.onConnectionStateChange;
 		if (stream.getVideoTracks().length === 0) throw new Error("screen stream must contain a video track");
-		for (const track of stream.getTracks()) this.peer.addTrack(track, stream);
+		for (const track of stream.getTracks()) {
+			const sender = this.peer.addTrack(track, stream);
+			if (track.kind === "video") this.screen = new ScreenSender(sender, this.logger);
+		}
+		for (const transceiver of this.peer.getTransceivers?.() ?? []) {
+			if (transceiver.sender.track?.kind === "video") preferHardwareCodec(transceiver);
+		}
 		this.inputChannel = this.peer.createDataChannel("vetta-input-v1", { ordered: true });
 		this.configureInputChannel(this.inputChannel);
 		this.started = true;
@@ -94,7 +112,9 @@ export class RemoteDesktopHost {
 		}
 		if (frame.sessionId !== this.options.sessionId) throw new Error("remote desktop signal session mismatch");
 		if (frame.type === "answer") {
-			await this.peer.setRemoteDescription({ type: "answer", sdp: frame.sdp });
+			await this.peer.setRemoteDescription({ type: "answer", sdp: answerWithStartBitrate(frame.sdp) });
+			await this.screen?.update();
+			this.scheduleStats();
 			await this.flushPendingIce();
 			return;
 		}
@@ -108,6 +128,8 @@ export class RemoteDesktopHost {
 	close(reason: Extract<RemoteDesktopSignal, { type: "end" }>["reason"] = "completed"): void {
 		if (this.closed) return;
 		this.closed = true;
+		if (this.statsTimer !== undefined) clearTimeout(this.statsTimer);
+		this.screen?.close();
 		this.inputChannel?.close();
 		for (const sender of this.peer.getSenders()) sender.track?.stop();
 		this.peer.close();
@@ -129,18 +151,43 @@ export class RemoteDesktopHost {
 		return this.peer.connectionState;
 	}
 
+	setInputEnabled(enabled: boolean): void {
+		this.inputEnabled = enabled;
+		this.sendCapabilities();
+	}
+
+	private sendCapabilities(): void {
+		if (this.inputChannel?.readyState !== "open") return;
+		this.inputChannel.send(
+			JSON.stringify({
+				type: "capabilities",
+				textInput: true,
+				viewport: true,
+				pointerMode: this.options.pointerMode ?? "absolute",
+				inputEnabled: this.inputEnabled,
+			}),
+		);
+	}
+
 	private configureInputChannel(channel: RTCDataChannel): void {
-		channel.onopen = () => {
-			channel.send(JSON.stringify({ type: "capabilities", textInput: true }));
-		};
+		channel.onopen = () => this.sendCapabilities();
 		channel.onmessage = (event) => {
-			if (typeof event.data !== "string") {
+			if (this.closed) return;
+			if (typeof event.data !== "string" || event.data.length > 8192) {
 				this.logger.warn("remote desktop binary input rejected", { sessionId: this.options.sessionId });
 				channel.close();
 				return;
 			}
 			try {
-				const message = parseRemoteInputMessage(event.data);
+				const value: unknown = JSON.parse(event.data);
+				const isView = value !== null && typeof value === "object" && "type" in value && value.type === "viewport";
+				const message = isView ? parseRemoteViewportMessage(value) : parseRemoteInputMessage(event.data);
+				if (message.type === "viewport") {
+					if (message.sequence <= this.lastViewportSequence) return;
+					this.lastViewportSequence = message.sequence;
+					void this.screen?.view(message).catch(() => this.logger.warn("remote desktop viewport update failed"));
+					return;
+				}
 				if (message.sequence <= this.lastInputSequence) {
 					this.logger.warn("remote desktop replayed input ignored", {
 						sessionId: this.options.sessionId,
@@ -149,12 +196,24 @@ export class RemoteDesktopHost {
 					return;
 				}
 				this.lastInputSequence = message.sequence;
-				void this.onInput(message);
+				if (this.inputEnabled || message.type === "heartbeat") void this.onInput(message);
 			} catch {
 				this.logger.warn("remote desktop invalid input rejected", { sessionId: this.options.sessionId });
 				channel.close();
 			}
 		};
+	}
+
+	private scheduleStats(): void {
+		if (this.statsTimer !== undefined || this.closed || !this.screen) return;
+		this.statsTimer = setTimeout(() => {
+			this.statsTimer = undefined;
+			if (this.closed) return;
+			void this.screen
+				?.sample(() => this.peer.getStats())
+				.catch(() => undefined)
+				.finally(() => this.scheduleStats());
+		}, 1000);
 	}
 
 	private async addIce(candidate: RTCIceCandidateInit): Promise<void> {
@@ -206,6 +265,7 @@ export class RemoteDesktopViewer {
 	private inputChannel: RTCDataChannel | undefined;
 	private closed = false;
 	private nextSequence = 1;
+	private viewportSupported = false;
 	private inputReadyResolve: (() => void) | undefined;
 	private inputFailure: Error | undefined;
 	private readonly inputReady = new Promise<void>((resolve) => {
@@ -241,6 +301,15 @@ export class RemoteDesktopViewer {
 			}
 			this.inputChannel = event.channel;
 			event.channel.onopen = () => this.inputReadyResolve?.();
+			event.channel.onmessage = (event) => {
+				if (typeof event.data !== "string" || event.data.length > 4096) return;
+				try {
+					const value = JSON.parse(event.data);
+					if (value.type === "capabilities") this.viewportSupported = value.viewport === true;
+				} catch {
+					/* Ignore unknown capabilities from legacy hosts. */
+				}
+			};
 			event.channel.onclose = () => this.inputReadyResolve?.();
 		};
 		this.peer.onconnectionstatechange = () => {
@@ -278,6 +347,18 @@ export class RemoteDesktopViewer {
 			return;
 		}
 		if (frame.type === "end") this.close(frame.reason);
+	}
+
+	get supportsViewport(): boolean {
+		return this.viewportSupported;
+	}
+
+	async sendViewport(width: number, height: number): Promise<boolean> {
+		await this.inputReady;
+		if (!this.viewportSupported || this.inputChannel?.readyState !== "open" || this.closed) return false;
+		const message = parseRemoteViewportMessage({ type: "viewport", sequence: this.nextSequence++, width, height });
+		this.inputChannel.send(JSON.stringify(message));
+		return true;
 	}
 
 	async sendInput(message: RemoteInputCommand): Promise<void> {
@@ -340,5 +421,6 @@ export class RemoteDesktopViewer {
 }
 
 function createPeer(options: RemoteDesktopPeerOptions): RTCPeerConnection {
-	return options.createPeerConnection?.(options.rtcConfiguration) ?? new RTCPeerConnection(options.rtcConfiguration);
+	const configuration = options.rtcConfiguration ?? { iceServers: REMOTE_DESKTOP_ICE_SERVERS };
+	return options.createPeerConnection?.(configuration) ?? new RTCPeerConnection(configuration);
 }

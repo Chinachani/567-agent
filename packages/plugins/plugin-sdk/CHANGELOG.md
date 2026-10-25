@@ -4,6 +4,8 @@ All notable changes to `@vetta-org/plugin-sdk` are documented in this file.
 
 ## [Unreleased]
 
+- 模型可声明 `input: ["text", "image"]`；宿主写入、重载、回读会保留有效输入能力，历史未知类型在插件回读时过滤。移植自 openvetta/open-vetta c8fa6fbe2c944e59925f56b21d079a63b0adac9b；需要 567 Agent 1.3.3 及以上宿主。
+
 - Official plugin installation options accept the reserved `initiator` diagnostic marker used by `plugin-cli` and Plugin Workbench. Desktop records it in local ability lifecycle logs; third-party plugins should leave it unset.
 
 - `PluginModelDefinition` exposes `reasoningLevels` and `defaultReasoningLevel`, so model providers can publish their native reasoning choices without losing them at the host's write boundary. Requires the corresponding Desktop capability schema fix.

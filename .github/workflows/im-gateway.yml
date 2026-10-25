@@ -36,7 +36,7 @@ jobs:
       - name: Set up Go
         uses: actions/setup-go@v5
         with:
-          go-version: "1.25"
+          go-version-file: apps/im-gateway/go.mod
           cache-dependency-path: apps/im-gateway/go.sum
 
       - name: Verify go.mod is tidy
@@ -77,7 +77,7 @@ jobs:
       - uses: actions/checkout@v4
       - uses: actions/setup-go@v5
         with:
-          go-version: "1.25"
+          go-version-file: apps/im-gateway/go.mod
           cache-dependency-path: apps/im-gateway/go.sum
       # v6 只支持 golangci-lint v1，而 v1 全系列都是用 go1.24 构建的，遇到
       # go.mod 声明的 go1.25.3 会直接拒绝分析（"the Go language version used

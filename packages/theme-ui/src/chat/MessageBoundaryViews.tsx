@@ -8,7 +8,7 @@ export function CompactionBoundaryView({ label }: CompactionBoundaryViewProps): 
 	return (
 		<div className="flex items-center gap-3 py-1">
 			<div className="h-px flex-1 bg-muted-foreground/15" />
-			<span className="flex items-center gap-1.5 text-[11px] text-muted-foreground/40">
+			<span className="flex items-center gap-1.5 text-[11px] text-muted-foreground">
 				<span className="icon-[mdi--compress] h-3 w-3" />
 				{label}
 			</span>
@@ -22,10 +22,7 @@ export interface ModelSwitchBoundaryViewProps {
 	label: string;
 }
 
-export function ModelSwitchBoundaryView({
-	prefix,
-	label,
-}: ModelSwitchBoundaryViewProps): JSX.Element {
+export function ModelSwitchBoundaryView({ prefix, label }: ModelSwitchBoundaryViewProps): JSX.Element {
 	return (
 		<div className="flex items-center gap-3 py-1">
 			<div className="h-px flex-1 bg-muted-foreground/8" />
@@ -51,12 +48,7 @@ export interface ForkOriginBannerViewProps {
 }
 
 /** Inline hint under the forked turn’s AI reply: no chrome, centered text. */
-export function ForkOriginBannerView({
-	label,
-	preview,
-	onClick,
-	disabled,
-}: ForkOriginBannerViewProps): JSX.Element {
+export function ForkOriginBannerView({ label, preview, onClick, disabled }: ForkOriginBannerViewProps): JSX.Element {
 	const interactive = Boolean(onClick) && !disabled;
 	const title = preview ? `${label} · ${preview}` : label;
 	const text = preview ? (

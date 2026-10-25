@@ -12,6 +12,12 @@ interface SessionStore {
 
     suspend fun refresh() = Unit
 
+    suspend fun hasDraft(sessionId: String): Boolean = false
+
+    suspend fun getDraft(sessionId: String, owner: String): SessionDraft = SessionDraft()
+
+    suspend fun saveDraft(sessionId: String, owner: String, draft: SessionDraft) = Unit
+
     suspend fun getMessages(sessionId: String): List<LocalMessage>
 
     /** Saves pending/legacy image payloads and returns file-backed message metadata. */

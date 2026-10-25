@@ -91,6 +91,31 @@ jobs:
           GITHUB_SHA: ${{ github.sha }}
         run: node scripts/quality/desktop-packaging-scope.mjs
 
+  remote-native:
+    name: Linux capture and input regression
+    needs: scope
+    if: needs.scope.outputs.packaged-smoke == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version-file: package.json
+      - uses: ./.github/actions/install-bun-dependencies
+      - name: Install isolated display and DBus runtime
+        run: sudo apt-get update && sudo apt-get install --no-install-recommends -y xvfb dbus libasound2t64 libgbm1 libgtk-3-0t64 libnss3
+      - name: Verify bundled input and native capture cancellation
+        working-directory: apps/desktop
+        shell: bash
+        run: AGENT567_TEST_ELECTRON="$(node -e 'process.stdout.write(require("electron"))')" bun run test:remote-native
+      - name: Verify narrow sidebar account layout
+        working-directory: apps/desktop
+        run: bun run test:sidebar-layout
+      - name: Verify workspace pages in light, dark and narrow layouts
+        working-directory: apps/desktop
+        run: bun run test:workspace-layout
+
   smoke:
     name: ${{ matrix.platform }} packaged E2E
     needs: scope

@@ -51,8 +51,8 @@ function ExtensionRow({ entry }: { entry: ExtensionEntryModel }): JSX.Element {
 /** 扩展增强：把插件自己的工作区页面列成入口，点击直达；这里不承载任何插件配置。 */
 export function ExtensionsSettingsView({ model }: { model: ExtensionsSettingsModel }): JSX.Element {
 	return (
-		<div className="mx-auto w-full max-w-[680px] px-8 pt-2 pb-4">
-			<h1 className="mb-2 text-[20px] font-bold text-foreground">{model.labels.title}</h1>
+		<div className="mx-auto w-full max-w-[800px] px-5 pt-6 sm:px-8 pb-4">
+			<h1 className="mb-2 text-[24px] font-semibold tracking-tight text-foreground">{model.labels.title}</h1>
 			<p className="mb-6 text-[12px] leading-relaxed text-muted-foreground">{model.labels.description}</p>
 
 			{model.entries.length === 0 ? (

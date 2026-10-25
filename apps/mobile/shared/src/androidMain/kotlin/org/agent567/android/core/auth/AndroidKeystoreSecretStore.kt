@@ -3,6 +3,7 @@ package org.agent567.android.core.auth
 import android.security.keystore.KeyGenParameterSpec
 import android.security.keystore.KeyProperties
 import android.util.Base64
+import org.agent567.android.core.settings.Agent567Settings
 import com.russhwolf.settings.Settings
 import com.russhwolf.settings.set
 import java.security.KeyStore
@@ -13,7 +14,8 @@ import javax.crypto.spec.GCMParameterSpec
 
 actual fun createPlatformSecretStore(settings: Settings): SecretStore = AndroidKeystoreSecretStore(settings)
 
-private class AndroidKeystoreSecretStore(private val settings: Settings) : SecretStore {
+private class AndroidKeystoreSecretStore(settings: Settings) : SecretStore {
+    private val settings = Agent567Settings(settings)
     @Synchronized
     override fun get(key: String): String? {
         val stored = settings.getStringOrNull(key) ?: return null

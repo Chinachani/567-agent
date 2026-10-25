@@ -45,7 +45,7 @@ export function createSocialImage(): ImageResponse {
 						color: "#dd6b55",
 					}}
 				>
-					VETTA
+					567 AGENT
 				</div>
 				<div
 					style={{

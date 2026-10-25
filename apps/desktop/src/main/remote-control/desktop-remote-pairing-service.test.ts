@@ -45,6 +45,45 @@ describe("DesktopRemotePairingService.restore", () => {
 		);
 	});
 
+	it("revoking the pairing while the system input dialog is open cannot revive input or its saved configuration", async () => {
+		const { DesktopRemotePairingService } = await import("./desktop-remote-pairing-service.js");
+		mocks.localRelay = {
+			getLanIp: () => "192.168.1.20",
+			getLanUrl: () => "https://192.168.1.20:18789",
+			start: vi.fn(),
+			stop: vi.fn(),
+		};
+		mocks.createDesktopRemoteCertificate.mockResolvedValue({
+			certificate: "local-cert",
+			privateKey: "local-key",
+			fingerprint: "a".repeat(64),
+		});
+		let allow!: () => void;
+		mocks.startDesktopRemoteDesktopHost.mockResolvedValue({
+			inputSupported: true,
+			grantInput: () =>
+				new Promise<void>((resolve) => {
+					allow = resolve;
+				}),
+			revokeInput: vi.fn(),
+		});
+		const service = new DesktopRemotePairingService(
+			{
+				appRoot: "/app",
+				isPackaged: true,
+				conversationCwd: "/conversation",
+				defaultRelayBaseUrl: "https://relay.example",
+			},
+			{ isAvailable: () => true, get: () => undefined, put: vi.fn(), remove: vi.fn() },
+		);
+		await service.create();
+		const granting = service.setInputEnabled(true);
+		await service.revoke();
+		allow();
+		expect(await granting).toMatchObject({ status: "idle", inputEnabled: false });
+		expect((await mocks.readDesktopConfig()).remoteControl).toBeUndefined();
+	});
+
 	it("reports undecryptable saved credentials without an unhandled rejection or deleting them", async () => {
 		const { DesktopRemotePairingService } = await import("./desktop-remote-pairing-service.js");
 		const vault = {

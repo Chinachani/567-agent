@@ -472,7 +472,7 @@ async function runTaskInner(
 			sessionId = existingSessionId;
 			sessionPath = existingSessionPath;
 		} else {
-			const sessionDir = join(project.id, ".vetta", "sessions");
+			const sessionDir = join(project.id, ".567agent", "sessions");
 			const taskSystemPrompt = buildTaskSystemPrompt(task);
 			// 为本任务准备私有临时目录。三套环境变量同时设：
 			// TMPDIR 覆盖 macOS / Linux，TEMP + TMP 覆盖 Windows，

@@ -1,5 +1,6 @@
 package org.agent567.android.app
 
+import org.agent567.android.core.settings.Agent567Settings
 import com.russhwolf.settings.Settings
 import com.russhwolf.settings.set
 import io.ktor.http.Url
@@ -18,6 +19,10 @@ import kotlinx.coroutines.flow.asStateFlow
 import org.agent567.android.core.auth.SecretStore
 import org.agent567.android.core.auth.SettingsSecretStore
 import org.agent567.android.data.session.MIGRATION_BACKUP_LIMIT_OPTIONS_MB
+import org.agent567.android.core.ServiceRoute
+import org.agent567.android.core.ServiceRouteCatalog
+import org.agent567.android.core.normalizeServiceOrigin
+import org.agent567.android.core.serviceIdentity
 
 enum class ThemeMode {
     System,
@@ -36,38 +41,104 @@ enum class ThemeMode {
  * 与 TokenStore 分离，避免鉴权与产品偏好耦合。
  */
 class AppPreferences(
-    private val settings: Settings = Settings(),
+    settings: Settings = Settings(),
     private val secretStore: SecretStore = SettingsSecretStore(settings),
 ) {
+    private val storage = Agent567Settings(settings)
+
+    var availableUpdateVersion: String
+        get() = storage.getString("agent567.update.available.v1", "")
+        set(value) { storage["agent567.update.available.v1"] = value }
+    var updateCheckedForVersion: String
+        get() = storage.getString("agent567.update.current.v1", "")
+        set(value) { storage["agent567.update.current.v1"] = value }
+    var lastUpdateCheckAt: Long
+        get() = storage.getLong("agent567.update.last-check.v1", 0L)
+        set(value) { storage["agent567.update.last-check.v1"] = value }
+    var notifiedUpdateVersion: String
+        get() = storage.getString("agent567.update.notified.v1", "")
+        set(value) { storage["agent567.update.notified.v1"] = value }
+
     /** GitHub Release download routing: github (direct), gh-proxy, or custom. */
     var downloadSource: String
-        get() = settings.getStringOrNull(KEY_DOWNLOAD_SOURCE)
+        get() = storage.getStringOrNull(KEY_DOWNLOAD_SOURCE)
             ?.takeIf { it == DOWNLOAD_SOURCE_GH_PROXY || (it == DOWNLOAD_SOURCE_CUSTOM && customPrefix.isNotBlank()) }
             ?: DOWNLOAD_SOURCE_GITHUB
         set(value) {
             require(value == DOWNLOAD_SOURCE_GITHUB || value == DOWNLOAD_SOURCE_GH_PROXY || value == DOWNLOAD_SOURCE_CUSTOM) {
                 "Unsupported GitHub download source"
             }
-            settings[KEY_DOWNLOAD_SOURCE] = value
+            storage[KEY_DOWNLOAD_SOURCE] = value
         }
 
     /** Validated HTTPS URL prefix for custom GitHub Release downloads; empty when unset/invalid. */
     var customPrefix: String
-        get() = normalizeGitHubDownloadPrefix(settings.getStringOrNull(KEY_DOWNLOAD_CUSTOM_PREFIX)).orEmpty()
+        get() = normalizeGitHubDownloadPrefix(storage.getStringOrNull(KEY_DOWNLOAD_CUSTOM_PREFIX)).orEmpty()
         set(value) {
             if (value.isBlank()) {
-                settings.remove(KEY_DOWNLOAD_CUSTOM_PREFIX)
+                storage.remove(KEY_DOWNLOAD_CUSTOM_PREFIX)
                 return
             }
             val normalized = normalizeGitHubDownloadPrefix(value)
                 ?: throw IllegalArgumentException("Custom download prefix must be a valid HTTPS URL without credentials, query, or fragment")
-            settings[KEY_DOWNLOAD_CUSTOM_PREFIX] = normalized
+            storage[KEY_DOWNLOAD_CUSTOM_PREFIX] = normalized
         }
+
+    private fun cachedServiceRoutes(): ServiceRouteCatalog? = runCatching {
+        Agent567Json.decodeFromString<ServiceRouteCatalog>(storage.getStringOrNull("567agent.service-routes.catalog.v1") ?: return null)
+            .takeIf { it.routes.isNotEmpty() && it.routes.size <= 50 && it.routes.all { route -> normalizeServiceOrigin(route.origin) == route.origin } && it.updatedAt != null && it.updatedAt > 0 }
+    }.getOrNull()
+
+    private fun knownServiceRoutes(): List<ServiceRoute> = runCatching {
+        Agent567Json.decodeFromString<List<String>>(storage.getString("567agent.service-routes.known.v1", "[]"))
+            .filter { normalizeServiceOrigin(it) == it }.takeLast(200).map { ServiceRoute(it) }
+    }.getOrDefault(emptyList())
+
+    private val trustedServiceRoutes: List<ServiceRoute>
+        get() = (cachedServiceRoutes()?.routes.orEmpty() + ServiceRoute.entries + knownServiceRoutes()).distinctBy { it.origin }
+
+    fun findServiceRoute(server: String): ServiceRoute? = ServiceRoute.fromServer(server, trustedServiceRoutes)
+
+    fun serviceIdentity(server: String): String = serviceIdentity(server, trustedServiceRoutes)
+
+    fun serviceRouteCatalog(): ServiceRouteCatalog {
+        val cached = cachedServiceRoutes()
+        val routes = (cached?.routes ?: ServiceRoute.entries).toMutableList()
+        findServiceRoute(serverUrl.value)?.let { current -> if (routes.none { it.origin == current.origin }) routes.add(current) }
+        return (cached ?: ServiceRouteCatalog()).copy(routes = routes, source = if (cached == null) "builtin" else "cache", refreshFailed = false)
+    }
+
+    fun cacheServiceRoutes(routes: List<ServiceRoute>) {
+        require(routes.isNotEmpty() && routes.size <= 50 && routes.all { normalizeServiceOrigin(it.origin) == it.origin })
+        storage["567agent.service-routes.catalog.v1"] = Agent567Json.encodeToString(ServiceRouteCatalog(routes, System.currentTimeMillis(), "cache"))
+    }
+
+    fun rememberServiceRoute(route: ServiceRoute) {
+        val known = (knownServiceRoutes() + listOfNotNull(findServiceRoute(serverUrl.value)) + route).map { it.origin }.distinct().takeLast(200)
+        storage["567agent.service-routes.known.v1"] = Agent567Json.encodeToString(known)
+    }
 
     private val _serverUrl = MutableStateFlow(readServerUrl())
     val serverUrl: StateFlow<String> = _serverUrl.asStateFlow()
 
-    private val _themeMode = MutableStateFlow(ThemeMode.fromStorage(settings.getStringOrNull(KEY_THEME)))
+    init {
+        // Canonicalize the two exact built-in endpoints, keeping custom overrides isolated.
+        val prefix = "567agent.model-context.v1."
+        storage.keys.filter { it.startsWith(prefix) }.forEach { key ->
+            runCatching {
+                val parts = Agent567Json.parseToJsonElement(key.removePrefix(prefix)) as? JsonArray ?: return@runCatching
+                val server = (parts.firstOrNull() as? JsonPrimitive)?.content ?: return@runCatching
+                if (findServiceRoute(server) == null) return@runCatching
+                val canonical = prefix + JsonArray(listOf(JsonPrimitive(serviceIdentity(server))) + parts.drop(1)).toString()
+                if (canonical != key) {
+                    if (!storage.hasKey(canonical)) storage.getStringOrNull(key)?.let { storage[canonical] = it }
+                    storage.remove(key)
+                }
+            }
+        }
+    }
+
+    private val _themeMode = MutableStateFlow(ThemeMode.fromStorage(storage.getStringOrNull(KEY_THEME)))
     val themeMode: StateFlow<ThemeMode> = _themeMode.asStateFlow()
 
     private val _autoResumeLastSession = MutableStateFlow(readBoolean(KEY_AUTO_RESUME, false))
@@ -92,15 +163,15 @@ class AppPreferences(
     val migrationBackupLimitMb: StateFlow<Int> = _migrationBackupLimitMb.asStateFlow()
 
     var lastSessionId: String?
-        get() = settings.getStringOrNull(KEY_LAST_SESSION)?.takeIf { it.isNotBlank() }
+        get() = storage.getStringOrNull(KEY_LAST_SESSION)?.takeIf { it.isNotBlank() }
         set(value) {
-            if (value.isNullOrBlank()) settings.remove(KEY_LAST_SESSION) else settings[KEY_LAST_SESSION] = value
+            if (value.isNullOrBlank()) storage.remove(KEY_LAST_SESSION) else storage[KEY_LAST_SESSION] = value
         }
 
     var lastModelId: String?
-        get() = settings.getStringOrNull(KEY_LAST_MODEL)?.takeIf { it.isNotBlank() }
+        get() = storage.getStringOrNull(KEY_LAST_MODEL)?.takeIf { it.isNotBlank() }
         set(value) {
-            if (value.isNullOrBlank()) settings.remove(KEY_LAST_MODEL) else settings[KEY_LAST_MODEL] = value
+            if (value.isNullOrBlank()) storage.remove(KEY_LAST_MODEL) else storage[KEY_LAST_MODEL] = value
         }
 
     var remoteResumeSecret: String?
@@ -110,45 +181,45 @@ class AppPreferences(
         }
 
     var remotePairingId: String?
-        get() = settings.getStringOrNull(KEY_REMOTE_PAIRING_ID)?.takeIf { it.isNotBlank() }
+        get() = storage.getStringOrNull(KEY_REMOTE_PAIRING_ID)?.takeIf { it.isNotBlank() }
         set(value) {
-            if (value.isNullOrBlank()) settings.remove(KEY_REMOTE_PAIRING_ID) else settings[KEY_REMOTE_PAIRING_ID] = value
+            if (value.isNullOrBlank()) storage.remove(KEY_REMOTE_PAIRING_ID) else storage[KEY_REMOTE_PAIRING_ID] = value
         }
 
     var remoteRelayBaseUrl: String?
-        get() = settings.getStringOrNull(KEY_REMOTE_RELAY_URL)?.takeIf { it.isNotBlank() }
+        get() = storage.getStringOrNull(KEY_REMOTE_RELAY_URL)?.takeIf { it.isNotBlank() }
         set(value) {
-            if (value.isNullOrBlank()) settings.remove(KEY_REMOTE_RELAY_URL) else settings[KEY_REMOTE_RELAY_URL] = value
+            if (value.isNullOrBlank()) storage.remove(KEY_REMOTE_RELAY_URL) else storage[KEY_REMOTE_RELAY_URL] = value
         }
 
     var remoteLanBaseUrl: String?
-        get() = settings.getStringOrNull(KEY_REMOTE_LAN_URL)?.takeIf { it.isNotBlank() }
+        get() = storage.getStringOrNull(KEY_REMOTE_LAN_URL)?.takeIf { it.isNotBlank() }
         set(value) {
-            if (value.isNullOrBlank()) settings.remove(KEY_REMOTE_LAN_URL) else settings[KEY_REMOTE_LAN_URL] = value
+            if (value.isNullOrBlank()) storage.remove(KEY_REMOTE_LAN_URL) else storage[KEY_REMOTE_LAN_URL] = value
         }
 
     var remoteLanCertificateFingerprint: String?
-        get() = settings.getStringOrNull(KEY_REMOTE_LAN_FINGERPRINT)?.takeIf { it.isNotBlank() }
+        get() = storage.getStringOrNull(KEY_REMOTE_LAN_FINGERPRINT)?.takeIf { it.isNotBlank() }
         set(value) {
-            if (value.isNullOrBlank()) settings.remove(KEY_REMOTE_LAN_FINGERPRINT) else settings[KEY_REMOTE_LAN_FINGERPRINT] = value
+            if (value.isNullOrBlank()) storage.remove(KEY_REMOTE_LAN_FINGERPRINT) else storage[KEY_REMOTE_LAN_FINGERPRINT] = value
         }
 
     var active567Group: String?
-        get() = settings.getStringOrNull(KEY_ACTIVE_567_GROUP)?.takeIf { it.isNotBlank() }
+        get() = storage.getStringOrNull(KEY_ACTIVE_567_GROUP)?.takeIf { it.isNotBlank() }
         set(value) {
-            if (value.isNullOrBlank()) settings.remove(KEY_ACTIVE_567_GROUP) else settings[KEY_ACTIVE_567_GROUP] = value
+            if (value.isNullOrBlank()) storage.remove(KEY_ACTIVE_567_GROUP) else storage[KEY_ACTIVE_567_GROUP] = value
         }
 
     var activeImageGroup: String?
-        get() = settings.getStringOrNull(KEY_ACTIVE_IMAGE_GROUP)?.takeIf { it.isNotBlank() }
+        get() = storage.getStringOrNull(KEY_ACTIVE_IMAGE_GROUP)?.takeIf { it.isNotBlank() }
         set(value) {
-            if (value.isNullOrBlank()) settings.remove(KEY_ACTIVE_IMAGE_GROUP) else settings[KEY_ACTIVE_IMAGE_GROUP] = value
+            if (value.isNullOrBlank()) storage.remove(KEY_ACTIVE_IMAGE_GROUP) else storage[KEY_ACTIVE_IMAGE_GROUP] = value
         }
 
     var activeImageModel: String?
-        get() = settings.getStringOrNull(KEY_ACTIVE_IMAGE_MODEL)?.takeIf { it.isNotBlank() }
+        get() = storage.getStringOrNull(KEY_ACTIVE_IMAGE_MODEL)?.takeIf { it.isNotBlank() }
         set(value) {
-            if (value.isNullOrBlank()) settings.remove(KEY_ACTIVE_IMAGE_MODEL) else settings[KEY_ACTIVE_IMAGE_MODEL] = value
+            if (value.isNullOrBlank()) storage.remove(KEY_ACTIVE_IMAGE_MODEL) else storage[KEY_ACTIVE_IMAGE_MODEL] = value
         }
 
     var authToken: String?
@@ -164,33 +235,33 @@ class AppPreferences(
         }
 
     var authUsername: String?
-        get() = settings.getStringOrNull(KEY_AUTH_USERNAME)?.takeIf { it.isNotBlank() }
+        get() = storage.getStringOrNull(KEY_AUTH_USERNAME)?.takeIf { it.isNotBlank() }
         set(value) {
-            if (value.isNullOrBlank()) settings.remove(KEY_AUTH_USERNAME) else settings[KEY_AUTH_USERNAME] = value
+            if (value.isNullOrBlank()) storage.remove(KEY_AUTH_USERNAME) else storage[KEY_AUTH_USERNAME] = value
         }
 
     var authQuotaUsd: Double
-        get() = settings.getStringOrNull(KEY_AUTH_QUOTA_USD)?.toDoubleOrNull() ?: 0.0
+        get() = storage.getStringOrNull(KEY_AUTH_QUOTA_USD)?.toDoubleOrNull() ?: 0.0
         set(value) {
-            settings[KEY_AUTH_QUOTA_USD] = value.toString()
+            storage[KEY_AUTH_QUOTA_USD] = value.toString()
         }
 
     var authUserId: Long
-        get() = settings.getStringOrNull(KEY_AUTH_USER_ID)?.toLongOrNull() ?: 0L
+        get() = storage.getStringOrNull(KEY_AUTH_USER_ID)?.toLongOrNull() ?: 0L
         set(value) {
-            settings[KEY_AUTH_USER_ID] = value.toString()
+            storage[KEY_AUTH_USER_ID] = value.toString()
         }
 
     var authLoginType: String?
-        get() = settings.getStringOrNull(KEY_AUTH_LOGIN_TYPE)?.takeIf { it.isNotBlank() }
+        get() = storage.getStringOrNull(KEY_AUTH_LOGIN_TYPE)?.takeIf { it.isNotBlank() }
         set(value) {
-            if (value.isNullOrBlank()) settings.remove(KEY_AUTH_LOGIN_TYPE) else settings[KEY_AUTH_LOGIN_TYPE] = value
+            if (value.isNullOrBlank()) storage.remove(KEY_AUTH_LOGIN_TYPE) else storage[KEY_AUTH_LOGIN_TYPE] = value
         }
 
     var authAccount: String?
-        get() = settings.getStringOrNull(KEY_AUTH_ACCOUNT)?.takeIf { it.isNotBlank() }
+        get() = storage.getStringOrNull(KEY_AUTH_ACCOUNT)?.takeIf { it.isNotBlank() }
         set(value) {
-            if (value.isNullOrBlank()) settings.remove(KEY_AUTH_ACCOUNT) else settings[KEY_AUTH_ACCOUNT] = value
+            if (value.isNullOrBlank()) storage.remove(KEY_AUTH_ACCOUNT) else storage[KEY_AUTH_ACCOUNT] = value
         }
 
     var authPassword: String?
@@ -201,38 +272,38 @@ class AppPreferences(
 
     fun getCachedGroupModels(group: String?): List<String> {
         val key = KEY_CACHE_GROUP_MODELS_PREFIX + (group ?: "default")
-        val raw = settings.getStringOrNull(key)?.takeIf { it.isNotBlank() } ?: return emptyList()
+        val raw = storage.getStringOrNull(key)?.takeIf { it.isNotBlank() } ?: return emptyList()
         return raw.split(",").map { it.trim() }.filter { it.isNotEmpty() }
     }
 
     private fun modelContextKey(group: String?, model: String, kind: String = "override", server: String = serverUrl.value): String = "567agent.model-context.v1." + JsonArray(listOf(
-        JsonPrimitive(server.trim().trimEnd('/')), group?.let(::JsonPrimitive) ?: JsonNull, JsonPrimitive(kind), JsonPrimitive(model),
+        JsonPrimitive(serviceIdentity(server)), group?.let(::JsonPrimitive) ?: JsonNull, JsonPrimitive(kind), JsonPrimitive(model),
     )).toString()
 
-    fun getModelContextOverride(group: String?, model: String, server: String = serverUrl.value): Long? = validModelContext(settings.getStringOrNull(modelContextKey(group, model, server = server))?.toLongOrNull())
+    fun getModelContextOverride(group: String?, model: String, server: String = serverUrl.value): Long? = validModelContext(storage.getStringOrNull(modelContextKey(group, model, server = server))?.toLongOrNull())
 
     fun setModelContextOverride(group: String?, model: String, capacity: Long?) {
         require(capacity == null || validModelContext(capacity) != null)
         val key = modelContextKey(group, model)
-        if (capacity == null) settings.remove(key) else settings[key] = capacity.toString()
+        if (capacity == null) storage.remove(key) else storage[key] = capacity.toString()
     }
 
     internal fun getCachedModelContexts(group: String?, server: String): Map<String, CachedModelContext> = runCatching {
-        Agent567Json.decodeFromString<Map<String, CachedModelContext>>(settings.getString(modelContextKey(group, "", "metadata", server), "{}"))
+        Agent567Json.decodeFromString<Map<String, CachedModelContext>>(storage.getString(modelContextKey(group, "", "metadata", server), "{}"))
     }.getOrDefault(emptyMap()).filterValues { it.isFresh(System.currentTimeMillis()) }
 
     fun setCachedModelContexts(group: String?, metadata: Map<String, ModelContextMetadata>, server: String = serverUrl.value) {
         val now = System.currentTimeMillis()
         val merged = getCachedModelContexts(group, server) + metadata.mapValues { CachedModelContext(it.value, now) }
-        settings[modelContextKey(group, "", "metadata", server)] = Agent567Json.encodeToString(merged)
+        storage[modelContextKey(group, "", "metadata", server)] = Agent567Json.encodeToString(merged)
     }
 
     fun setCachedGroupModels(group: String?, models: List<String>) {
         val key = KEY_CACHE_GROUP_MODELS_PREFIX + (group ?: "default")
         if (models.isEmpty()) {
-            settings.remove(key)
+            storage.remove(key)
         } else {
-            settings[key] = models.joinToString(",")
+            storage[key] = models.joinToString(",")
         }
     }
 
@@ -257,74 +328,80 @@ class AppPreferences(
         authLoginType = null
         authAccount = null
         authPassword = null
-        settings.remove(KEY_AUTH_QUOTA_USD)
-        settings.remove(KEY_AUTH_USER_ID)
+        storage.remove(KEY_AUTH_QUOTA_USD)
+        storage.remove(KEY_AUTH_USER_ID)
     }
 
     var imageGenEnabled: Boolean
-        get() = settings.getBoolean(KEY_IMAGE_GEN_ENABLED, defaultValue = true)
+        get() = storage.getBoolean(KEY_IMAGE_GEN_ENABLED, defaultValue = true)
         set(value) {
-            settings.putBoolean(KEY_IMAGE_GEN_ENABLED, value)
+            storage.putBoolean(KEY_IMAGE_GEN_ENABLED, value)
         }
 
     fun setServerUrl(url: String) {
         val normalized = url.trim().trimEnd('/')
         require(normalized.isNotBlank()) { "serverUrl blank" }
-        settings[KEY_SERVER_URL] = normalized
+        storage[KEY_SERVER_URL] = normalized
         _serverUrl.value = normalized
     }
 
     fun setThemeMode(mode: ThemeMode) {
-        settings[KEY_THEME] = mode.name
+        storage[KEY_THEME] = mode.name
         _themeMode.value = mode
     }
 
     fun setAutoResumeLastSession(enabled: Boolean) {
-        settings[KEY_AUTO_RESUME] = enabled
+        storage[KEY_AUTO_RESUME] = enabled
         _autoResumeLastSession.value = enabled
     }
 
     fun setMotionEnabled(enabled: Boolean) {
-        settings[KEY_MOTION_ENABLED] = enabled
+        storage[KEY_MOTION_ENABLED] = enabled
         _motionEnabled.value = enabled
     }
 
     fun setInputPredictionEnabled(enabled: Boolean) {
-        settings[KEY_INPUT_PREDICTION_ENABLED] = enabled
+        storage[KEY_INPUT_PREDICTION_ENABLED] = enabled
         _inputPredictionEnabled.value = enabled
     }
 
     fun setAutoRequestDesktopScreen(enabled: Boolean) {
-        settings[KEY_AUTO_REQUEST_DESKTOP_SCREEN] = enabled
+        storage[KEY_AUTO_REQUEST_DESKTOP_SCREEN] = enabled
         _autoRequestDesktopScreen.value = enabled
     }
 
     fun setShowBottomNavLabels(enabled: Boolean) {
-        settings[KEY_SHOW_BOTTOM_NAV_LABELS] = enabled
+        storage[KEY_SHOW_BOTTOM_NAV_LABELS] = enabled
         _showBottomNavLabels.value = enabled
     }
 
     fun setConfirmBeforeDelete(enabled: Boolean) {
-        settings[KEY_CONFIRM_DELETE] = enabled
+        storage[KEY_CONFIRM_DELETE] = enabled
         _confirmBeforeDelete.value = enabled
     }
 
     fun setMigrationBackupLimitMb(limitMb: Int) {
         require(limitMb in MIGRATION_BACKUP_LIMIT_OPTIONS_MB)
-        settings[KEY_MIGRATION_BACKUP_LIMIT_MB] = limitMb.toString()
+        storage[KEY_MIGRATION_BACKUP_LIMIT_MB] = limitMb.toString()
         _migrationBackupLimitMb.value = limitMb
     }
 
     private fun readBoolean(key: String, default: Boolean): Boolean =
-        runCatching { settings.getBooleanOrNull(key) }.getOrNull()
-            ?: runCatching { settings.getStringOrNull(key)?.toBooleanStrictOrNull() }.getOrNull()
+        runCatching { storage.getBooleanOrNull(key) }.getOrNull()
+            ?: runCatching { storage.getStringOrNull(key)?.toBooleanStrictOrNull() }.getOrNull()
             ?: default
 
-    private fun readServerUrl(): String =
-        settings.getStringOrNull(KEY_SERVER_URL)?.takeIf { it.isNotBlank() } ?: DEFAULT_SERVER_URL
+    private fun readServerUrl(): String {
+        storage.getStringOrNull(KEY_SERVER_URL)?.takeIf { it.isNotBlank() }?.let { return it }
+        // Previous releases did not persist their implicit German default. Any
+        // existing preferences/tokens are upgrade evidence, even without a login.
+        val server = if (storage.keys.isNotEmpty()) ServiceRoute.Germany.origin else DEFAULT_SERVER_URL
+        storage[KEY_SERVER_URL] = server
+        return server
+    }
 
     private fun readMigrationBackupLimitMb(): Int =
-        settings.getStringOrNull(KEY_MIGRATION_BACKUP_LIMIT_MB)?.toIntOrNull()
+        storage.getStringOrNull(KEY_MIGRATION_BACKUP_LIMIT_MB)?.toIntOrNull()
             ?.takeIf { it in MIGRATION_BACKUP_LIMIT_OPTIONS_MB }
             ?: MIGRATION_BACKUP_LIMIT_OPTIONS_MB.first()
 
@@ -337,38 +414,38 @@ class AppPreferences(
         private const val KEY_DOWNLOAD_CUSTOM_PREFIX = "567agent.prefs.github_download_custom_prefix"
 
         /** 与 desktop `.env.development` 同源默认，可在设置中覆盖。 */
-        const val DEFAULT_SERVER_URL = "https://api.567.wiki"
+        const val DEFAULT_SERVER_URL = "https://a.567.wiki"
 
-        private const val KEY_SERVER_URL = "vetta.prefs.server_url"
-        private const val KEY_THEME = "vetta.prefs.theme"
-        private const val KEY_AUTO_RESUME = "vetta.prefs.auto_resume"
-        private const val KEY_MOTION_ENABLED = "vetta.prefs.motion_enabled"
-        private const val KEY_INPUT_PREDICTION_ENABLED = "vetta.prefs.input_prediction_enabled"
+        private const val KEY_SERVER_URL = "agent567.prefs.server_url"
+        private const val KEY_THEME = "agent567.prefs.theme"
+        private const val KEY_AUTO_RESUME = "agent567.prefs.auto_resume"
+        private const val KEY_MOTION_ENABLED = "agent567.prefs.motion_enabled"
+        private const val KEY_INPUT_PREDICTION_ENABLED = "agent567.prefs.input_prediction_enabled"
         private const val KEY_AUTO_REQUEST_DESKTOP_SCREEN = "567agent.prefs.auto_request_desktop_screen"
         private const val KEY_SHOW_BOTTOM_NAV_LABELS = "567agent.prefs.show_bottom_nav_labels"
-        private const val KEY_CONFIRM_DELETE = "vetta.prefs.confirm_delete"
-        private const val KEY_MIGRATION_BACKUP_LIMIT_MB = "vetta.prefs.migration_backup_limit_mb"
-        private const val KEY_LAST_SESSION = "vetta.prefs.last_session"
-        private const val KEY_LAST_MODEL = "vetta.prefs.last_model"
-        private const val KEY_REMOTE_RESUME = "vetta.prefs.remote_resume"
-        private const val KEY_REMOTE_PAIRING_ID = "vetta.prefs.remote_pairing_id"
-        private const val KEY_REMOTE_RELAY_URL = "vetta.prefs.remote_relay_url"
-        private const val KEY_REMOTE_LAN_URL = "vetta.prefs.remote_lan_url"
-        private const val KEY_REMOTE_LAN_FINGERPRINT = "vetta.prefs.remote_lan_fingerprint"
-        private const val KEY_ACTIVE_567_GROUP = "vetta.prefs.active_567_group"
-        private const val KEY_ACTIVE_IMAGE_GROUP = "vetta.prefs.active_image_group"
-        private const val KEY_ACTIVE_IMAGE_MODEL = "vetta.prefs.active_image_model"
-        private const val KEY_IMAGE_GEN_ENABLED = "vetta.prefs.image_gen_enabled"
-        private const val KEY_AUTH_TOKEN = "vetta.prefs.auth_token"
-        private const val KEY_AUTH_REFRESH_TOKEN = "vetta.prefs.auth_refresh_token"
-        private const val KEY_AUTH_USERNAME = "vetta.prefs.auth_username"
-        private const val KEY_AUTH_QUOTA_USD = "vetta.prefs.auth_quota_usd"
-        private const val KEY_AUTH_USER_ID = "vetta.prefs.auth_user_id"
-        private const val KEY_AUTH_LOGIN_TYPE = "vetta.prefs.auth_login_type"
-        private const val KEY_AUTH_ACCOUNT = "vetta.prefs.auth_account"
-        private const val KEY_AUTH_PASSWORD = "vetta.prefs.auth_password"
-        private const val KEY_CACHE_GROUP_MODELS_PREFIX = "vetta.cache.models."
-        private const val KEY_CACHE_GROUP_KEY_PREFIX = "vetta.cache.key."
+        private const val KEY_CONFIRM_DELETE = "agent567.prefs.confirm_delete"
+        private const val KEY_MIGRATION_BACKUP_LIMIT_MB = "agent567.prefs.migration_backup_limit_mb"
+        private const val KEY_LAST_SESSION = "agent567.prefs.last_session"
+        private const val KEY_LAST_MODEL = "agent567.prefs.last_model"
+        private const val KEY_REMOTE_RESUME = "agent567.prefs.remote_resume"
+        private const val KEY_REMOTE_PAIRING_ID = "agent567.prefs.remote_pairing_id"
+        private const val KEY_REMOTE_RELAY_URL = "agent567.prefs.remote_relay_url"
+        private const val KEY_REMOTE_LAN_URL = "agent567.prefs.remote_lan_url"
+        private const val KEY_REMOTE_LAN_FINGERPRINT = "agent567.prefs.remote_lan_fingerprint"
+        private const val KEY_ACTIVE_567_GROUP = "agent567.prefs.active_567_group"
+        private const val KEY_ACTIVE_IMAGE_GROUP = "agent567.prefs.active_image_group"
+        private const val KEY_ACTIVE_IMAGE_MODEL = "agent567.prefs.active_image_model"
+        private const val KEY_IMAGE_GEN_ENABLED = "agent567.prefs.image_gen_enabled"
+        private const val KEY_AUTH_TOKEN = "agent567.prefs.auth_token"
+        private const val KEY_AUTH_REFRESH_TOKEN = "agent567.prefs.auth_refresh_token"
+        private const val KEY_AUTH_USERNAME = "agent567.prefs.auth_username"
+        private const val KEY_AUTH_QUOTA_USD = "agent567.prefs.auth_quota_usd"
+        private const val KEY_AUTH_USER_ID = "agent567.prefs.auth_user_id"
+        private const val KEY_AUTH_LOGIN_TYPE = "agent567.prefs.auth_login_type"
+        private const val KEY_AUTH_ACCOUNT = "agent567.prefs.auth_account"
+        private const val KEY_AUTH_PASSWORD = "agent567.prefs.auth_password"
+        private const val KEY_CACHE_GROUP_MODELS_PREFIX = "agent567.cache.models."
+        private const val KEY_CACHE_GROUP_KEY_PREFIX = "agent567.cache.key."
     }
 }
 

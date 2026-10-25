@@ -1,3 +1,5 @@
+import { Button } from "@vetta-org/ui";
+import { WorkspacePageHeader } from "../shared/WorkspacePageHeader";
 import { motion } from "motion/react";
 import type { JSX, ReactNode } from "react";
 import type { BatchTasksPageLabels, BatchTasksPageStatsView } from "./types";
@@ -28,38 +30,32 @@ export function BatchTasksPageView({
 }: BatchTasksPageViewProps): JSX.Element {
 	return (
 		<div className="relative flex h-full w-full flex-1 flex-col overflow-hidden">
-			<div className="drag-region h-6 shrink-0" />
-
-			<div className="relative shrink-0 px-8 pb-4">
-				<div className="flex items-end justify-between gap-4">
-					<motion.div
-						initial={{ opacity: 0, y: -8 }}
-						animate={{ opacity: 1, y: 0 }}
-						transition={{ duration: 0.5, ease: easeOut }}
-					>
-						<h1 className="bg-gradient-to-br from-foreground via-foreground to-foreground/70 bg-clip-text text-[26px] font-bold leading-tight tracking-tight text-transparent">
-							{labels.title}
-						</h1>
-						<p className="mt-1 text-[12px] text-muted-foreground/60">{labels.subtitle}</p>
-					</motion.div>
-
-					<div className="flex items-center gap-2">
-						{stats.total > 0 && <CompactStats labels={labels} stats={stats} />}
-						{headerTrailing}
-						<button
-							type="button"
-							onClick={onNewProject}
-							className="inline-flex h-8 shrink-0 items-center justify-center gap-1.5 rounded-lg border border-transparent bg-primary px-2.5 text-sm font-medium whitespace-nowrap text-primary-foreground transition-all outline-none select-none hover:bg-primary/90 focus-visible:border-ring"
-						>
-							<span className="icon-[solar--add-circle-linear] text-[15px]" />
-							{labels.newProject}
-						</button>
+			<div className="shrink-0 px-5 pt-6 sm:px-8">
+				<WorkspacePageHeader
+					title={labels.title}
+					description={labels.subtitle}
+					className="mx-auto w-full max-w-6xl border-b border-border/60 pb-6"
+					actions={
+						<>
+							{headerTrailing}
+							<Button variant="primary" onClick={onNewProject}>
+								<span className="icon-[solar--add-circle-linear] h-4 w-4" />
+								{labels.newProject}
+							</Button>
+						</>
+					}
+				/>
+				{stats.total > 0 && (
+					<div className="mx-auto w-full max-w-6xl pt-4">
+						<CompactStats labels={labels} stats={stats} />
 					</div>
-				</div>
+				)}
 			</div>
 
-			<div className="flex flex-1 flex-col gap-6 overflow-y-auto px-8 pt-5 pb-6">
-				{projectCount === 0 ? <EmptyState labels={labels} onNew={onNewProject} /> : list}
+			<div className="flex min-h-0 flex-1 flex-col gap-6 overflow-y-auto px-5 py-6 sm:px-8">
+				<div className="mx-auto flex w-full max-w-6xl flex-1 flex-col">
+					{projectCount === 0 ? <EmptyState labels={labels} onNew={onNewProject} /> : list}
+				</div>
 			</div>
 
 			{dialog}
@@ -76,8 +72,8 @@ function CompactStats({
 }): JSX.Element {
 	const items: { label: string; value: number; tone: string }[] = [
 		{ label: labels.statsTotal, value: stats.total, tone: "text-muted-foreground" },
-		{ label: labels.statsRunning, value: stats.running, tone: "text-emerald-400" },
-		{ label: labels.statsCompleted, value: stats.completed, tone: "text-emerald-400" },
+		{ label: labels.statsRunning, value: stats.running, tone: "text-foreground" },
+		{ label: labels.statsCompleted, value: stats.completed, tone: "text-foreground" },
 		{ label: labels.statsFailed, value: stats.failed, tone: "text-destructive" },
 	];
 	return (
@@ -85,12 +81,12 @@ function CompactStats({
 			initial={{ opacity: 0, y: -4 }}
 			animate={{ opacity: 1, y: 0 }}
 			transition={{ duration: 0.35, ease: easeOut, delay: 0.05 }}
-			className="hidden items-center gap-3 rounded-full border border-border/40 bg-card/30 px-3 py-1.5 text-[11px] backdrop-blur-sm sm:flex"
+			className="flex flex-wrap items-center gap-x-5 gap-y-2 text-[12px]"
 		>
 			{items.map((item, index) => (
 				<div key={item.label} className="flex items-center gap-1.5">
 					{index > 0 && <span className="h-3 w-px bg-border/50" />}
-					<span className="text-muted-foreground/60">{item.label}</span>
+					<span className="text-muted-foreground">{item.label}</span>
 					<span className={`tabular-nums text-[12px] font-semibold leading-none ${item.tone}`}>{item.value}</span>
 				</div>
 			))}
@@ -106,21 +102,17 @@ function EmptyState({ labels, onNew }: { labels: BatchTasksPageLabels; onNew: ()
 			animate={{ opacity: 1, y: 0 }}
 			transition={{ duration: 0.5, ease: easeOut }}
 		>
-			<div className="relative flex h-20 w-20 items-center justify-center rounded-2xl bg-primary/10 ring-1 ring-inset ring-primary/20">
-				<span className="icon-[solar--list-check-linear] relative text-4xl text-primary/80" />
+			<div className="relative flex h-14 w-14 items-center justify-center rounded-2xl bg-primary/10 ring-1 ring-inset ring-primary/20">
+				<span className="icon-[solar--list-check-linear] relative h-7 w-7 text-primary/80" />
 			</div>
 			<div className="space-y-1.5">
 				<p className="text-[15px] font-semibold text-foreground">{labels.emptyTitle}</p>
-				<p className="max-w-xs text-[12px] text-muted-foreground/60">{labels.emptyDesc}</p>
+				<p className="max-w-xs text-[12px] text-muted-foreground">{labels.emptyDesc}</p>
 			</div>
-			<button
-				type="button"
-				onClick={onNew}
-				className="mt-2 inline-flex h-8 shrink-0 items-center justify-center gap-1.5 rounded-lg border border-transparent bg-primary px-2.5 text-sm font-medium whitespace-nowrap text-primary-foreground transition-all outline-none select-none hover:bg-primary/90 focus-visible:border-ring"
-			>
-				<span className="icon-[solar--add-circle-linear] text-[15px]" />
+			<Button variant="primary" onClick={onNew} className="mt-2">
+				<span className="icon-[solar--add-circle-linear] h-4 w-4" />
 				{labels.emptyAction}
-			</button>
+			</Button>
 		</motion.div>
 	);
 }

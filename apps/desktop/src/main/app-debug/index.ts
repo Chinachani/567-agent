@@ -1,4 +1,4 @@
-import { streamSimple } from "@567agent/ai";
+import { createApi567InferenceStream } from "../567api/inference.js";
 import { getOrCreateSharedModelRuntime } from "../agent-runtime/host-services.js";
 import { getDesktopProviderObservationRuntime } from "../agent-runtime/provider-observation.js";
 import { getBatchTaskExecutorState } from "../batch-tasks/batch-task-executor.js";
@@ -33,9 +33,7 @@ export function createAppDebugRuntime(options: AppDebugRuntimeOptions): AppDebug
 	const providerObservationRuntime = getDesktopProviderObservationRuntime();
 	for (const definition of createProviderDebugDefinitions({
 		models: getOrCreateSharedModelRuntime(),
-		streamFn:
-			providerObservationRuntime?.streamFn ??
-			((model, context, streamOptions) => streamSimple(model, context, streamOptions)),
+		streamFn: createApi567InferenceStream(providerObservationRuntime?.streamFn),
 	})) {
 		catalog.register(definition);
 	}

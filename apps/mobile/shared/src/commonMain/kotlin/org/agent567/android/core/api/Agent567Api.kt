@@ -1,5 +1,8 @@
 package org.agent567.android.core.api
 
+import java.util.concurrent.ConcurrentHashMap
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
 import org.agent567.android.AppVersion
 
 
@@ -8,7 +11,9 @@ import org.agent567.android.AppVersion
 import io.ktor.client.HttpClient
 import io.ktor.client.plugins.timeout
 import io.ktor.client.request.get
+import io.ktor.client.request.request
 import io.ktor.client.request.header
+import io.ktor.client.request.put
 import io.ktor.client.request.post
 import io.ktor.client.request.preparePost
 import io.ktor.client.request.delete
@@ -18,8 +23,10 @@ import io.ktor.client.statement.bodyAsChannel
 import io.ktor.client.statement.bodyAsText
 import io.ktor.client.statement.readRawBytes
 import io.ktor.http.HttpHeaders
+import io.ktor.http.HttpMethod
 import io.ktor.http.ContentType
 import io.ktor.http.Url
+import io.ktor.http.URLBuilder
 import io.ktor.http.contentType
 import io.ktor.http.isSuccess
 import io.ktor.utils.io.readUTF8Line
@@ -30,7 +37,11 @@ import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.JsonPrimitive
 import kotlinx.serialization.json.buildJsonObject
 import kotlinx.serialization.json.put
+import kotlinx.serialization.json.jsonPrimitive
+import kotlinx.serialization.json.contentOrNull
+import kotlinx.serialization.json.decodeFromJsonElement
 import org.agent567.android.core.Agent567Config
+import org.agent567.android.core.serviceIdentity
 import org.agent567.android.core.auth.TokenStore
 import org.agent567.android.core.chat.ChatRequestEncoder
 import org.agent567.android.core.chat.OpenAiSseParser
@@ -61,14 +72,6 @@ import org.agent567.android.app.normalizeGitHubDownloadPrefix
 private const val IMAGE_GENERATION_TIMEOUT_MS = 600_000L
 private const val MAX_NON_STREAM_FALLBACK_CHARS = 1_000_000
 private const val MAX_SSE_LINE_CHARS = 1_000_000
-
-private fun cacheFingerprint(value: String): String {
-    var hash = -0x340d631b7bdddcdbL
-    value.encodeToByteArray().forEach { byte ->
-        hash = (hash xor (byte.toLong() and 0xffL)) * 0x100000001b3L
-    }
-    return hash.toULong().toString(16)
-}
 
 /**
  * 对 567 API / Gateway 的薄封装。
@@ -112,9 +115,16 @@ internal class Agent567Api(
 
     private suspend fun requestAccountSession(account: String, password: String): AuthSession {
         try {
+            val keyResponse = bareClient.get("${config.apiBaseUrl.trimEnd('/')}/api/user/login/encryption-key") {
+                timeout { requestTimeoutMillis = 8_000 }
+            }
+            val keyText = keyResponse.bodyAsTextSafe()
+            if (keyText.length > 32_768) throw Agent567Exception.Protocol("登录加密配置超过安全长度限制")
+            val keyData = runCatching { Agent567Json.parseToJsonElement(keyText) as? JsonObject }.getOrNull()
+            val loginBody = org.agent567.android.core.auth.passwordLoginEnvelope(account, password, keyResponse.status.value, keyData)
             val response =
                 bareClient.post("${config.apiBaseUrl.trimEnd('/')}/api/user/login") {
-                    setBody(NewApiLoginRequestDto(username = account, password = password))
+                    setBody(loginBody)
                 }
             val rawText = response.bodyAsTextSafe()
             if (!response.status.isSuccess()) {
@@ -133,11 +143,8 @@ internal class Agent567Api(
                 token = (data?.get("access_token") as? kotlinx.serialization.json.JsonPrimitive)?.content
                     ?: (data?.get("token") as? kotlinx.serialization.json.JsonPrimitive)?.content
                 if (data != null) {
-                    val uid = (data["id"] as? kotlinx.serialization.json.JsonPrimitive)?.content?.toLongOrNull() ?: 0L
-                    val uname = (data["username"] as? kotlinx.serialization.json.JsonPrimitive)?.content.orEmpty()
-                    val dname = (data["display_name"] as? kotlinx.serialization.json.JsonPrimitive)?.content
-                    val quota = (data["quota"] as? kotlinx.serialization.json.JsonPrimitive)?.content?.toLongOrNull() ?: 0L
-                    userDto = UserDto(id = uid, username = uname, displayName = dname, quota = quota)
+                    val profile = data["user"] as? JsonObject ?: data
+                    userDto = Agent567Json.decodeFromJsonElement<UserDto>(profile).takeIf { it.id > 0 && it.username.isNotBlank() }
                 }
             }
 
@@ -148,6 +155,7 @@ internal class Agent567Api(
                     runCatching {
                         val refreshRes = bareClient.post("${config.apiBaseUrl.trimEnd('/')}/api/user/auth/refresh") {
                             header(HttpHeaders.Cookie, cookieHeader)
+                            header(HttpHeaders.Origin, cookieRequestOrigin())
                         }
                         val refText = refreshRes.bodyAsTextSafe()
                         val refRoot = org.agent567.android.core.net.Agent567Json.parseToJsonElement(refText) as? kotlinx.serialization.json.JsonObject
@@ -222,6 +230,15 @@ internal class Agent567Api(
         // 567 API 暂不提供短信验证码
     }
 
+    private fun cookieRequestOrigin(): String = URLBuilder(config.apiBaseUrl).apply {
+        encodedPathSegments = emptyList()
+        parameters.clear()
+        trailingQuery = false
+        fragment = ""
+        user = null
+        password = null
+    }.buildString().trimEnd('/')
+
     suspend fun refreshTokens(refreshToken: String): RefreshOutcome {
         if (refreshToken.isBlank()) return RefreshOutcome.Unauthorized
 
@@ -229,6 +246,7 @@ internal class Agent567Api(
             try {
                 val refreshRes = bareClient.post("${config.apiBaseUrl.trimEnd('/')}/api/user/auth/refresh") {
                     header(HttpHeaders.Cookie, refreshToken)
+                    header(HttpHeaders.Origin, cookieRequestOrigin())
                 }
                 val text = refreshRes.bodyAsText()
                 if (isRefreshCredentialRejected(refreshRes.status.value, text)) return RefreshOutcome.Unauthorized
@@ -288,17 +306,27 @@ internal class Agent567Api(
     }
 
     private suspend fun executeWithAuthRefresh(
+        expectedSessionVersion: Long = tokenRefresher.sessionVersion,
         action: suspend (token: String) -> HttpResponse,
     ): HttpResponse {
+        val version = expectedSessionVersion
+        if (version != tokenRefresher.sessionVersion) throw Agent567Exception.Unauthorized()
         var token = tokenStore.accessToken.orEmpty()
         var response = action(token)
-        if (response.status.value == 401 && !tokenStore.refreshToken.isNullOrBlank()) {
+        if (version != tokenRefresher.sessionVersion) throw Agent567Exception.Unauthorized()
+        if (isRefreshCredentialRejected(response.status.value, response.bodyAsTextSafe()) && !tokenStore.refreshToken.isNullOrBlank()) {
             val outcome = tokenRefresher.refresh(token)
-            if (outcome is RefreshOutcome.Ok) {
-                token = outcome.accessToken
-                response = action(token)
+            if (version != tokenRefresher.sessionVersion) throw Agent567Exception.Unauthorized()
+            when (outcome) {
+                is RefreshOutcome.Ok -> {
+                    token = outcome.accessToken
+                    response = action(token)
+                }
+                RefreshOutcome.Transient -> throw Agent567Exception.Network("暂时无法恢复登录，请检查网络后重试")
+                RefreshOutcome.AccountRejected, RefreshOutcome.Unauthorized -> throw Agent567Exception.Unauthorized("登录资料暂时无法恢复，请重新验证登录")
             }
         }
+        if (version != tokenRefresher.sessionVersion) throw Agent567Exception.Unauthorized()
         return response
     }
 
@@ -410,7 +438,7 @@ internal class Agent567Api(
         val dataObj = obj?.get("data") as? kotlinx.serialization.json.JsonObject
         if (submitUrl.isNullOrBlank() || dataObj == null) {
             val message = (obj?.get("message") as? kotlinx.serialization.json.JsonPrimitive)?.content
-            throw Agent567Exception.Api(response.status.value, response.status.value, message ?: "创建支付订单失败")
+            throw Agent567Exception.Api(response.status.value, response.status.value, if (isPaymentUnavailable(message.orEmpty())) "在线支付暂未开放" else message ?: "创建支付订单失败")
         }
         val query = dataObj.entries.joinToString("&") { (k, v) ->
             val vStr = (v as? kotlinx.serialization.json.JsonPrimitive)?.content ?: v.toString()
@@ -463,6 +491,81 @@ internal class Agent567Api(
         } catch (e: Exception) {
             throw e.toAgent567Exception()
         }
+
+    suspend fun updateDisplayName(expectedId: Long, expectedUsername: String, displayName: String): User {
+        val clean = displayName.trim()
+        require(clean.isNotBlank() && clean.length <= 20) { "昵称需为 1–20 个字符" }
+        val current = me()
+        require(current.id == expectedId && current.username == expectedUsername) { "账号已变化，请重新打开个人资料" }
+        val response = executeWithAuthRefresh { token ->
+            bareClient.put("${config.apiBaseUrl.trimEnd('/')}/api/user/self") {
+                header(HttpHeaders.Authorization, "Bearer $token")
+                header(HttpHeaders.Origin, cookieRequestOrigin())
+                contentType(ContentType.Application.Json)
+                setBody(buildJsonObject { put("username", expectedUsername); put("display_name", clean) }.toString())
+            }
+        }
+        val body = response.bodyAsTextSafe()
+        if (!response.status.isSuccess()) throw parseFailure(response.status.value, body)
+        val root = Agent567Json.parseToJsonElement(body) as? JsonObject
+        if ((root?.get("success") as? JsonPrimitive)?.content != "true") throw parseFailure(response.status.value, body)
+        // The update response may omit data. Keep the verified account snapshot;
+        // refreshing the profile is separate and must not turn a successful save into a false failure.
+        return current.copy(nickname = clean)
+    }
+
+    suspend fun updatePassword(expected: User, originalPassword: String, newPassword: String) {
+        require(originalPassword.isNotEmpty() && newPassword.length in 8..20) { "请填写当前密码，新密码需为 8–20 个字符" }
+        val current = verifiedProfile(expected)
+        val (root, sentTokens) = writeProfileChange(current, "/api/user/self", buildJsonObject {
+            put("username", current.username)
+            put("display_name", current.nickname)
+            put("original_password", originalPassword)
+            put("password", newPassword)
+        }, put = true)
+        val newAccess = (root["data"] as? JsonObject)?.get("access_token")?.jsonPrimitive?.contentOrNull
+        if (!newAccess.isNullOrBlank()) {
+            check(sentTokens != null && tokenRefresher.replaceSessionIfCurrent(sentTokens, newAccess, sentTokens.refreshToken)) { "账号已变化，请重新登录" }
+        }
+    }
+
+    suspend fun sendBindingEmailCode(expected: User, email: String) {
+        verifiedProfile(expected)
+        require(email.trim().matches(Regex("[^\\s@]+@[^\\s@]+\\.[^\\s@]+"))) { "请输入有效的邮箱地址" }
+        sendVerificationCode(email.trim())
+    }
+
+    suspend fun bindEmail(expected: User, email: String, code: String): User {
+        val clean = email.trim()
+        require(clean.length <= 254 && clean.matches(Regex("[^\\s@]+@[^\\s@]+\\.[^\\s@]+")) && code.isNotBlank()) { "请填写有效邮箱和验证码" }
+        val current = verifiedProfile(expected)
+        writeProfileChange(current, "/api/oauth/email/bind", buildJsonObject { put("email", clean); put("code", code.trim()) }, put = false)
+        return current.copy(email = clean)
+    }
+
+    private suspend fun verifiedProfile(expected: User): User = me().also {
+        require(it.id == expected.id && it.username == expected.username) { "账号已变化，请重新打开个人资料" }
+    }
+
+    private suspend fun writeProfileChange(current: User, path: String, body: JsonObject, put: Boolean): Pair<JsonObject, org.agent567.android.core.auth.StoredTokens?> {
+        var sentTokens: org.agent567.android.core.auth.StoredTokens? = null
+        val response = executeWithAuthRefresh { token ->
+            sentTokens = tokenStore.snapshot()
+            bareClient.request("${config.apiBaseUrl.trimEnd('/')}$path") {
+                method = if (put) HttpMethod.Put else HttpMethod.Post
+                header(HttpHeaders.Authorization, "Bearer $token")
+                header("New-Api-User", current.id.toString())
+                header(HttpHeaders.Origin, cookieRequestOrigin())
+                contentType(ContentType.Application.Json)
+                setBody(body.toString())
+            }
+        }
+        val text = response.bodyAsTextSafe()
+        if (!response.status.isSuccess()) throw parseFailure(response.status.value, text)
+        val root = Agent567Json.parseToJsonElement(text) as? JsonObject
+        if ((root?.get("success") as? JsonPrimitive)?.content != "true") throw parseFailure(response.status.value, text)
+        return root to sentTokens
+    }
 
     suspend fun subscriptionMe(): SubscriptionStatus {
         val user = me()
@@ -537,9 +640,8 @@ internal class Agent567Api(
 
         // 2. 如果 /api/user/models 没拿到，获取或解析分组专属 API Key (sk-...)，请求标准 /v1/models
         return try {
-            val apiKey = ensureApiKeyForGroup(groupName)
-            val keyToUse = if (apiKey.isNotBlank()) apiKey else patToken
-            val res = bareClient.get(config.gatewayBaseUrl.trimEnd('/') + "/v1/models") {
+            val res = modelRequest(groupName) { keyToUse ->
+            bareClient.get(config.gatewayBaseUrl.trimEnd('/') + "/v1/models") {
                 if (!keyToUse.isNullOrBlank()) {
                     header(HttpHeaders.Authorization, "Bearer $keyToUse")
                 }
@@ -547,7 +649,9 @@ internal class Agent567Api(
                     header("X-567-Group", java.net.URLEncoder.encode(groupName, "UTF-8"))
                 }
             }
+            }
             val text = res.bodyAsTextSafe()
+            if (!res.status.isSuccess()) throw parseFailure(res.status.value, text)
             val root = org.agent567.android.core.net.Agent567Json.parseToJsonElement(text)
             val ids = extractModelIds(root)
             if (ids.isNotEmpty()) {
@@ -587,14 +691,14 @@ internal class Agent567Api(
             ), activeGroup)
         }
         val provider = ProviderModels(name = activeGroup ?: "567 API", models = models)
-        return ModelsCatalog(providers = mapOf("vetta-go" to provider, "567api" to provider))
+        return ModelsCatalog(providers = mapOf("agent567-go" to provider))
     }
 
     fun resolveContext(model: LlmModel, group: String?, useManual: Boolean = true): LlmModel = resolveModelContext(model,
         contexts(group)[model.id]?.takeIf { it.isFresh(System.currentTimeMillis()) }?.metadata,
         if (useManual) preferences?.getModelContextOverride(group, model.id, config.serverUrl) else null)
 
-    private fun contexts(group: String?): Map<String, CachedModelContext> = contextMetadata.getOrPut(group) {
+    private fun contexts(group: String?): Map<String, CachedModelContext> = contextMetadata.computeIfAbsent(group.orEmpty()) {
         preferences?.getCachedModelContexts(group, config.serverUrl).orEmpty()
     }
 
@@ -602,19 +706,23 @@ internal class Agent567Api(
         val metadata = parseModelContextMetadata(root)
         if (metadata.isEmpty()) return
         val now = System.currentTimeMillis()
-        contextMetadata[group] = contexts(group).filterValues { it.isFresh(now) } +
-            metadata.mapValues { CachedModelContext(it.value, now) }
+        contextMetadata.compute(group.orEmpty()) { _, previous ->
+            (previous ?: preferences?.getCachedModelContexts(group, config.serverUrl).orEmpty()).filterValues { it.isFresh(now) } + metadata.mapValues { CachedModelContext(it.value, now) }
+        }
         preferences?.setCachedModelContexts(group, metadata, config.serverUrl)
     }
 
-    private val contextMetadata = mutableMapOf<String?, Map<String, CachedModelContext>>()
-    private val contextMetadataRequests = mutableMapOf<String?, Long>()
+    private val contextMetadata = ConcurrentHashMap<String, Map<String, CachedModelContext>>()
+    private val contextMetadataRequests = ConcurrentHashMap<String, Long>()
 
     private suspend fun refreshContextMetadata(group: String?) {
         val now = System.currentTimeMillis()
-        val lastRequest = contextMetadataRequests[group]
-        if (lastRequest != null && now >= lastRequest && now - lastRequest < MODEL_CONTEXT_CACHE_TTL_MS) return
-        contextMetadataRequests[group] = now
+        var shouldRequest = false
+        contextMetadataRequests.compute(group.orEmpty()) { _, previous ->
+            if (previous != null && now >= previous && now - previous < MODEL_CONTEXT_CACHE_TTL_MS) previous
+            else now.also { shouldRequest = true }
+        }
+        if (!shouldRequest) return
         try {
             val apiKey = ensureApiKeyForGroup(group)
             if (apiKey.isBlank()) return
@@ -625,215 +733,39 @@ internal class Agent567Api(
             }
             if (response.status.isSuccess()) rememberModelContexts(Agent567Json.parseToJsonElement(response.bodyAsTextSafe()), group)
         } catch (error: CancellationException) {
-            contextMetadataRequests.remove(group)
+            contextMetadataRequests.remove(group.orEmpty(), now)
             throw error
         } catch (_: Exception) {
-            contextMetadataRequests.remove(group)
+            contextMetadataRequests.remove(group.orEmpty(), now)
         }
     }
 
-    private val groupKeyCache = mutableMapOf<String, String>()
-    private val autoCreatedTokens = mutableMapOf<String, Long>()
-
-    private fun extractTokens(root: kotlinx.serialization.json.JsonElement?): List<kotlinx.serialization.json.JsonObject> {
-        if (root == null) return emptyList()
-        val obj = root as? kotlinx.serialization.json.JsonObject
-        val data = obj?.get("data")
-        if (data is kotlinx.serialization.json.JsonArray) {
-            return data.mapNotNull { it as? kotlinx.serialization.json.JsonObject }
-        }
-        if (data is kotlinx.serialization.json.JsonObject) {
-            val items = (data["items"] as? kotlinx.serialization.json.JsonArray)
-                ?: (data["data"] as? kotlinx.serialization.json.JsonArray)
-                ?: (data["tokens"] as? kotlinx.serialization.json.JsonArray)
-            if (items != null) {
-                return items.mapNotNull { it as? kotlinx.serialization.json.JsonObject }
-            }
-        }
-        val directItems = (obj?.get("items") as? kotlinx.serialization.json.JsonArray)
-            ?: (obj?.get("tokens") as? kotlinx.serialization.json.JsonArray)
-        if (directItems != null) {
-            return directItems.mapNotNull { it as? kotlinx.serialization.json.JsonObject }
-        }
-        return emptyList()
-    }
-
-    private suspend fun fetchUnmaskedKey(tokenId: Long, token: String): String? {
-        try {
-            val keyRes = bareClient.post("${config.apiBaseUrl.trimEnd('/')}/api/token/$tokenId/key") {
+    private val groupCredentials = GroupApiCredentials(
+        tokenStore, preferences,
+        { preferences?.serviceIdentity(config.apiBaseUrl) ?: serviceIdentity(config.apiBaseUrl) },
+        { tokenRefresher.sessionVersion },
+    ) { method, path, body, version ->
+        executeWithAuthRefresh(version) { token ->
+            bareClient.request("${config.apiBaseUrl.trimEnd('/')}$path") {
+                this.method = HttpMethod.parse(method)
                 header(HttpHeaders.Authorization, "Bearer $token")
-                contentType(ContentType.Application.Json)
-                setBody("{}")
+                if (body != null) setBody(body.toString())
             }
-            val keyText = keyRes.bodyAsTextSafe()
-            val keyRoot = org.agent567.android.core.net.Agent567Json.parseToJsonElement(keyText)
-            val rawData = (keyRoot as? kotlinx.serialization.json.JsonObject)?.get("data")
-            val rawKey = when (rawData) {
-                is kotlinx.serialization.json.JsonPrimitive -> rawData.content
-                is kotlinx.serialization.json.JsonObject -> (rawData["key"] as? kotlinx.serialization.json.JsonPrimitive)?.content
-                else -> null
-            }
-            if (!rawKey.isNullOrBlank() && !rawKey.contains("*")) {
-                return if (rawKey.startsWith("sk-")) rawKey else "sk-$rawKey"
-            }
-        } catch (_: Exception) {
-        }
-        return null
-    }
-
-    suspend fun cleanupGroupToken(groupName: String?) {
-        val targetGroup = groupName?.takeIf { it.isNotBlank() } ?: return
-        val token = tokenStore.accessToken ?: return
-        groupKeyCache.keys.removeAll { it.endsWith(":$targetGroup") }
-        val namespace = "${cacheFingerprint(config.apiBaseUrl.trimEnd('/').lowercase())}-${token.length}-${cacheFingerprint(token)}"
-        preferences?.setCachedGroupKey(targetGroup, null, namespace)
-
-        val recordedId = autoCreatedTokens.remove(targetGroup)
-        if (recordedId != null) {
-            try {
-                bareClient.delete("${config.apiBaseUrl.trimEnd('/')}/api/token/$recordedId") {
-                    header(HttpHeaders.Authorization, "Bearer $token")
-                }
-            } catch (_: Exception) {
-            }
-            return
-        }
-
-        try {
-            val res = bareClient.get("${config.apiBaseUrl.trimEnd('/')}/api/token/?p=0&size=100") {
-                header(HttpHeaders.Authorization, "Bearer $token")
-            }
-            val text = res.bodyAsTextSafe()
-            val root = org.agent567.android.core.net.Agent567Json.parseToJsonElement(text)
-            val tokens = extractTokens(root)
-            val autoToken = tokens.find {
-                val grp = (it["group"] as? kotlinx.serialization.json.JsonPrimitive)?.content
-                val name = (it["name"] as? kotlinx.serialization.json.JsonPrimitive)?.content
-                grp == targetGroup && (name == "567 Agent [$targetGroup]" || name == "567 Auto [$targetGroup]")
-            }
-            val id = (autoToken?.get("id") as? kotlinx.serialization.json.JsonPrimitive)?.content?.toLongOrNull()
-            if (id != null) {
-                bareClient.delete("${config.apiBaseUrl.trimEnd('/')}/api/token/$id") {
-                    header(HttpHeaders.Authorization, "Bearer $token")
-                }
-            }
-        } catch (_: Exception) {
         }
     }
 
-    suspend fun ensureApiKeyForGroup(groupName: String?): String {
-        val token = tokenStore.accessToken ?: return ""
-        if (token.startsWith("sk-")) return token
-        // API keys are scoped to both the authenticated account token and API origin.
-        val namespace = "${cacheFingerprint(config.apiBaseUrl.trimEnd('/').lowercase())}-${token.length}-${cacheFingerprint(token)}"
-        val cacheKey = "$namespace:${groupName ?: "default"}"
-        groupKeyCache[cacheKey]?.let { return it }
-        val prefKey = preferences?.getCachedGroupKey(groupName, namespace)
-        if (!prefKey.isNullOrBlank()) {
-            groupKeyCache[cacheKey] = prefKey
-            return prefKey
-        }
+    suspend fun cleanupGroupToken(groupName: String?) = groupCredentials.cleanup(groupName)
+    suspend fun ensureApiKeyForGroup(groupName: String?): String = groupCredentials.get(groupName)
 
-        try {
-            val res = bareClient.get("${config.apiBaseUrl.trimEnd('/')}/api/token/?p=0&size=100") {
-                header(HttpHeaders.Authorization, "Bearer $token")
-            }
-            val text = res.bodyAsTextSafe()
-            val root = org.agent567.android.core.net.Agent567Json.parseToJsonElement(text)
-            var tokens = extractTokens(root)
-
-            val targetName = if (groupName != null) "567 Agent [$groupName]" else "567 Agent"
-
-            // 1. 优先使用已有可用令牌，绝不重复创建
-            var matched = if (!groupName.isNullOrBlank()) {
-                tokens.find {
-                    val grp = (it["group"] as? kotlinx.serialization.json.JsonPrimitive)?.content
-                    val name = (it["name"] as? kotlinx.serialization.json.JsonPrimitive)?.content
-                    val status = (it["status"] as? kotlinx.serialization.json.JsonPrimitive)?.content?.toIntOrNull() ?: 1
-                    status == 1 && (grp == groupName || name == targetName)
-                } ?: tokens.find {
-                    val grp = (it["group"] as? kotlinx.serialization.json.JsonPrimitive)?.content
-                    val status = (it["status"] as? kotlinx.serialization.json.JsonPrimitive)?.content?.toIntOrNull() ?: 1
-                    status == 1 && grp.isNullOrBlank()
-                }
-            } else {
-                tokens.find {
-                    val status = (it["status"] as? kotlinx.serialization.json.JsonPrimitive)?.content?.toIntOrNull() ?: 1
-                    status == 1
-                }
-            }
-
-            if (matched != null) {
-                val key = (matched["key"] as? kotlinx.serialization.json.JsonPrimitive)?.content
-                if (key != null && !key.contains("*") && key.length >= 20) {
-                    val finalKey = if (key.startsWith("sk-")) key else "sk-$key"
-                    groupKeyCache[cacheKey] = finalKey
-                    preferences?.setCachedGroupKey(groupName, finalKey, namespace)
-                    return finalKey
-                }
-                val id = (matched["id"] as? kotlinx.serialization.json.JsonPrimitive)?.content?.toLongOrNull()
-                if (id != null) {
-                    val unmasked = fetchUnmaskedKey(id, token)
-                    if (unmasked != null) {
-                        groupKeyCache[cacheKey] = unmasked
-                        preferences?.setCachedGroupKey(groupName, unmasked, namespace)
-                        return unmasked
-                    }
-                }
-            }
-
-            // 2. 只有在当前分组确实无可用令牌时，才自动创建并记录 Token ID
-            bareClient.post("${config.apiBaseUrl.trimEnd('/')}/api/token/") {
-                header(HttpHeaders.Authorization, "Bearer $token")
-                contentType(ContentType.Application.Json)
-                setBody(
-                    buildJsonObject {
-                        put("name", targetName)
-                        if (groupName != null) put("group", groupName)
-                        put("remain_quota", 0)
-                        put("expired_time", -1)
-                        put("unlimited_quota", true)
-                    }.toString()
-                )
-            }
-
-            val reloadRes = bareClient.get("${config.apiBaseUrl.trimEnd('/')}/api/token/?p=0&size=100") {
-                header(HttpHeaders.Authorization, "Bearer $token")
-            }
-            tokens = extractTokens(org.agent567.android.core.net.Agent567Json.parseToJsonElement(reloadRes.bodyAsTextSafe()))
-            val newlyCreated = tokens.find {
-                val name = (it["name"] as? kotlinx.serialization.json.JsonPrimitive)?.content
-                val grp = (it["group"] as? kotlinx.serialization.json.JsonPrimitive)?.content
-                name == targetName || (groupName != null && grp == groupName)
-            } ?: tokens.firstOrNull()
-
-            if (newlyCreated != null) {
-                val id = (newlyCreated["id"] as? kotlinx.serialization.json.JsonPrimitive)?.content?.toLongOrNull()
-                if (id != null && groupName != null) {
-                    autoCreatedTokens[groupName] = id
-                }
-                if (id != null) {
-                    val unmasked = fetchUnmaskedKey(id, token)
-                    if (unmasked != null) {
-                        groupKeyCache[cacheKey] = unmasked
-                        return unmasked
-                    }
-                }
-                val key = (newlyCreated["key"] as? kotlinx.serialization.json.JsonPrimitive)?.content
-                if (key != null && !key.contains("*") && key.length >= 20) {
-                    val finalKey = if (key.startsWith("sk-")) key else "sk-$key"
-                    groupKeyCache[cacheKey] = finalKey
-                    return finalKey
-                }
-            }
-        } catch (_: Exception) {
-        }
-
-        return token
+    private suspend fun modelRequest(group: String?, action: suspend (String) -> HttpResponse): HttpResponse {
+        val version = tokenRefresher.sessionVersion
+        val key = ensureApiKeyForGroup(group)
+        val response = action(key)
+        if (response.status.value != 401 || tokenStore.accessToken.orEmpty().startsWith("sk-")) return response
+        if (version != tokenRefresher.sessionVersion) throw Agent567Exception.Unauthorized()
+        val replacement = groupCredentials.get(group, rejectedKey = key)
+        return if (replacement != key) action(replacement) else response
     }
-
-    private suspend fun ensureApiKeyForChat(groupName: String?): String =
-        ensureApiKeyForGroup(groupName)
 
     suspend fun generateImage(
         prompt: String,
@@ -842,8 +774,6 @@ internal class Agent567Api(
         size: String = "1024x1024",
         referenceImages: List<String> = emptyList(),
     ): GeneratedImageResult {
-        val apiKey = ensureApiKeyForGroup(groupName)
-
         // 辅助方法：调用 /v1/images/generations 标准生图端点
         suspend fun tryImagesGenerations(): GeneratedImageResult? {
             return try {
@@ -854,12 +784,13 @@ internal class Agent567Api(
                     put("n", 1)
                     put("size", size)
                 }
+                val res = modelRequest(groupName) { apiKey ->
                 val secHeaders = org.agent567.android.core.net.SecurityHeaders.generate(
                     deviceId = "mobile-${apiKey.hashCode().toUInt().toString(16)}",
                     extraContext = if (!groupName.isNullOrBlank()) mapOf("X-567-Group" to java.net.URLEncoder.encode(groupName, "UTF-8")) else emptyMap()
                 )
 
-                val res = bareClient.post(url) {
+                bareClient.post(url) {
                     timeout {
                         requestTimeoutMillis = IMAGE_GENERATION_TIMEOUT_MS
                         socketTimeoutMillis = IMAGE_GENERATION_TIMEOUT_MS
@@ -874,6 +805,7 @@ internal class Agent567Api(
                     }
                 }
 
+                }
                 val text = res.bodyAsTextSafe()
                 if (res.status.isSuccess()) {
                     val extracted = extractImagePayload(text, prompt)
@@ -881,6 +813,8 @@ internal class Agent567Api(
                         extracted
                     } else null
                 } else null
+            } catch (error: CancellationException) {
+                throw error
             } catch (_: Exception) {
                 null
             }
@@ -928,12 +862,13 @@ internal class Agent567Api(
                 })
                 put("stream", false)
             }
+            val chatRes = modelRequest(groupName) { apiKey ->
             val secHeaders = org.agent567.android.core.net.SecurityHeaders.generate(
                 deviceId = "mobile-${apiKey.hashCode().toUInt().toString(16)}",
                 extraContext = if (!groupName.isNullOrBlank()) mapOf("X-567-Group" to java.net.URLEncoder.encode(groupName, "UTF-8")) else emptyMap()
             )
 
-            val chatRes = bareClient.post(chatUrl) {
+            bareClient.post(chatUrl) {
                 timeout {
                     requestTimeoutMillis = IMAGE_GENERATION_TIMEOUT_MS
                     socketTimeoutMillis = IMAGE_GENERATION_TIMEOUT_MS
@@ -948,6 +883,7 @@ internal class Agent567Api(
                 }
             }
 
+            }
             val chatText = chatRes.bodyAsTextSafe()
             if (!chatRes.status.isSuccess()) {
                 throw parseFailure(chatRes.status.value, chatText)
@@ -1119,6 +1055,7 @@ internal class Agent567Api(
                 put("model", model)
                 put("messages", kotlinx.serialization.json.JsonArray(wireMessages))
                 put("stream", true)
+                put("stream_options", buildJsonObject { put("include_usage", true) })
                 if (temperature != null) {
                     put("temperature", temperature)
                 }
@@ -1152,103 +1089,119 @@ internal class Agent567Api(
                 }
             }
             val url = config.gatewayBaseUrl.trimEnd('/') + "/v1/chat/completions"
-            val token = ensureApiKeyForChat(groupName)
-            val secHeaders = org.agent567.android.core.net.SecurityHeaders.generate(
-                deviceId = "mobile-${token.hashCode().toUInt().toString(16)}",
-                extraContext = if (!groupName.isNullOrBlank()) mapOf("X-567-Group" to java.net.URLEncoder.encode(groupName, "UTF-8")) else emptyMap()
-            )
-            var responseReceived = false
             try {
-                withChatConnectionRetry(responseReceived = { responseReceived }) {
-                    bareClient.preparePost(url) {
-                        // Model streams can take longer than ordinary API calls to produce
-                        // the first token or pause between chunks; keep the REST client's
-                        // short timeout from turning those pauses into apparent disconnects.
-                        timeout {
-                            requestTimeoutMillis = 600_000
-                            socketTimeoutMillis = 600_000
-                        }
-                        setBody(bodyJson.toString())
-                        contentType(ContentType.Application.Json)
-                        if (!token.isNullOrBlank()) {
-                            header(HttpHeaders.Authorization, "Bearer $token")
-                        }
-                        for ((k, v) in secHeaders) {
-                            header(k, v)
-                        }
-                        header(HttpHeaders.Accept, "text/event-stream")
-                    }.execute { response ->
-                        responseReceived = true
-                        if (!response.status.isSuccess()) {
-                            val text = response.bodyAsTextSafe()
-                            emit(ChatStreamEvent.Error(parseFailure(response.status.value, text)))
-                            return@execute
-                        }
-
-                        val channel = response.bodyAsChannel()
-                        var sawDone = false
-                        var sawFinished = false
-                        var sawAnyEvent = false
-                        val bufferedLines = mutableListOf<String>()
-                        var bufferedChars = 0
-                        val sseParser = OpenAiSseStreamParser()
-
-                        while (!channel.isClosedForRead) {
-                            val line = channel.readUTF8Line(MAX_SSE_LINE_CHARS) ?: break
-                            if (line.length >= MAX_SSE_LINE_CHARS) {
-                                emit(ChatStreamEvent.Error(Agent567Exception.Protocol("流式响应单行超过安全长度限制")))
+                val sessionVersion = tokenRefresher.sessionVersion
+                var token = ensureApiKeyForGroup(groupName)
+                var repair = false
+                do {
+                    var retryCredential = false
+                    var responseReceived = false
+                    val secHeaders = org.agent567.android.core.net.SecurityHeaders.generate(
+                        deviceId = "mobile-${token.hashCode().toUInt().toString(16)}",
+                        extraContext = if (!groupName.isNullOrBlank()) mapOf("X-567-Group" to java.net.URLEncoder.encode(groupName, "UTF-8")) else emptyMap()
+                    )
+                    withChatConnectionRetry(responseReceived = { responseReceived }) {
+                        bareClient.preparePost(url) {
+                            // Model streams can take longer than ordinary API calls to produce
+                            // the first token or pause between chunks; keep the REST client's
+                            // short timeout from turning those pauses into apparent disconnects.
+                            timeout {
+                                requestTimeoutMillis = 600_000
+                                socketTimeoutMillis = 600_000
+                            }
+                            setBody(bodyJson.toString())
+                            contentType(ContentType.Application.Json)
+                            if (!token.isNullOrBlank()) {
+                                header(HttpHeaders.Authorization, "Bearer $token")
+                            }
+                            for ((k, v) in secHeaders) {
+                                header(k, v)
+                            }
+                            header(HttpHeaders.Accept, "text/event-stream")
+                        }.execute { response ->
+                            responseReceived = true
+                            if (response.status.value == 401 && !repair && !tokenStore.accessToken.orEmpty().startsWith("sk-")) {
+                                retryCredential = true
                                 return@execute
                             }
-                            val trimmed = line.trim()
-                            if (trimmed.isEmpty() || trimmed.startsWith(":")) continue
-                            if (!sawAnyEvent && bufferedChars < MAX_NON_STREAM_FALLBACK_CHARS) {
-                                bufferedLines.add(line.take(MAX_NON_STREAM_FALLBACK_CHARS - bufferedChars))
-                                bufferedChars += line.length + 1
+                            if (!response.status.isSuccess()) {
+                                val text = response.bodyAsTextSafe()
+                                emit(ChatStreamEvent.Error(parseFailure(response.status.value, text)))
+                                return@execute
                             }
 
-                            val events = sseParser.parseLine(line)
-                            for (event in events) {
-                                sawAnyEvent = true
-                                if (event is ChatStreamEvent.Done) {
-                                    sawDone = true
-                                }
-                                if (event is ChatStreamEvent.Finished) sawFinished = true
-                                emit(event)
-                                if (event is ChatStreamEvent.Error) {
+                            val channel = response.bodyAsChannel()
+                            var sawDone = false
+                            var sawFinished = false
+                            var sawAnyEvent = false
+                            val bufferedLines = mutableListOf<String>()
+                            var bufferedChars = 0
+                            val sseParser = OpenAiSseStreamParser()
+
+                            while (!channel.isClosedForRead) {
+                                val line = channel.readUTF8Line(MAX_SSE_LINE_CHARS) ?: break
+                                if (line.length >= MAX_SSE_LINE_CHARS) {
+                                    emit(ChatStreamEvent.Error(Agent567Exception.Protocol("流式响应单行超过安全长度限制")))
                                     return@execute
                                 }
-                            }
-                            if (sawAnyEvent) bufferedLines.clear()
-                        }
+                                val trimmed = line.trim()
+                                if (trimmed.isEmpty() || trimmed.startsWith(":")) continue
+                                if (!sawAnyEvent && bufferedChars < MAX_NON_STREAM_FALLBACK_CHARS) {
+                                    bufferedLines.add(line.take(MAX_NON_STREAM_FALLBACK_CHARS - bufferedChars))
+                                    bufferedChars += line.length + 1
+                                }
 
-                        // 兜底保障：如果循环读完没有产生任何有效 SSE 事件（例如返回了非流式 JSON）
-                        if (!sawAnyEvent && bufferedChars > MAX_NON_STREAM_FALLBACK_CHARS) {
-                            emit(ChatStreamEvent.Error(Agent567Exception.Protocol("服务器返回内容过大，无法安全解析")))
-                            return@execute
-                        }
-                        if (!sawAnyEvent && bufferedLines.isNotEmpty()) {
-                            val fullText = bufferedLines.joinToString("\n")
-                            val fallbackEvents = OpenAiSseParser.parseNonStreamJson(fullText)
-                            if (fallbackEvents.isNotEmpty()) {
-                                for (ev in fallbackEvents) {
-                                    emit(ev)
-                                    if (ev is ChatStreamEvent.Error) return@execute
-                                    if (ev is ChatStreamEvent.Done) {
+                                val events = sseParser.parseLine(line)
+                                for (event in events) {
+                                    sawAnyEvent = true
+                                    if (event is ChatStreamEvent.Done) {
                                         sawDone = true
+                                    }
+                                    if (event is ChatStreamEvent.Finished) sawFinished = true
+                                    emit(event)
+                                    if (event is ChatStreamEvent.Error) {
+                                        return@execute
+                                    }
+                                }
+                                if (sawAnyEvent) bufferedLines.clear()
+                            }
+
+                            // 兜底保障：如果循环读完没有产生任何有效 SSE 事件（例如返回了非流式 JSON）
+                            if (!sawAnyEvent && bufferedChars > MAX_NON_STREAM_FALLBACK_CHARS) {
+                                emit(ChatStreamEvent.Error(Agent567Exception.Protocol("服务器返回内容过大，无法安全解析")))
+                                return@execute
+                            }
+                            if (!sawAnyEvent && bufferedLines.isNotEmpty()) {
+                                val fullText = bufferedLines.joinToString("\n")
+                                val fallbackEvents = OpenAiSseParser.parseNonStreamJson(fullText)
+                                if (fallbackEvents.isNotEmpty()) {
+                                    for (ev in fallbackEvents) {
+                                        emit(ev)
+                                        if (ev is ChatStreamEvent.Error) return@execute
+                                        if (ev is ChatStreamEvent.Done) {
+                                            sawDone = true
+                                        }
                                     }
                                 }
                             }
-                        }
 
-                        if (!sawDone) {
-                            if (sawFinished) emit(ChatStreamEvent.Done)
-                            else {
-                                emit(ChatStreamEvent.Error(Agent567Exception.Protocol("流式响应意外结束，未收到完整响应标记")))
-                                return@execute
+                            if (!sawDone) {
+                                if (sawFinished) emit(ChatStreamEvent.Done)
+                                else {
+                                    emit(ChatStreamEvent.Error(Agent567Exception.Protocol("流式响应意外结束，未收到完整响应标记")))
+                                    return@execute
+                                }
                             }
                         }
                     }
-                }
+                    if (retryCredential) {
+                        if (sessionVersion != tokenRefresher.sessionVersion) throw Agent567Exception.Unauthorized()
+                        val replacement = groupCredentials.get(groupName, rejectedKey = token)
+                        if (replacement == token) throw Agent567Exception.Api(401, null, "模型授权已失效，暂时无法恢复，请刷新账号资料后重试")
+                        token = replacement
+                        repair = true
+                    }
+                } while (retryCredential)
             } catch (e: Exception) {
                 if (e is CancellationException) throw e
                 emit(ChatStreamEvent.Error(e.toAgent567Exception()))

@@ -1,5 +1,5 @@
 import { readFile } from "node:fs/promises";
-import { join, resolve } from "node:path";
+import { resolve } from "node:path";
 import { UNAVAILABLE_RUNTIME_SESSION_ACCESS } from "../../shared/session-access.js";
 import { getProject } from "../batch-tasks/batch-task-storage.js";
 import {
@@ -7,7 +7,7 @@ import {
 	DEFAULT_IM_CONVERSATION_CWD,
 	readDesktopConfig,
 } from "../config/desktop-config-store.js";
-import { resolveSessionDirForCwd } from "./session-paths.js";
+import { existingProjectStatePath } from "../config/project-state-paths.js";
 import type { SessionSearchSource } from "./session-search-service.js";
 
 export async function listDesktopSessionSearchSources(): Promise<SessionSearchSource[]> {
@@ -16,18 +16,16 @@ export async function listDesktopSessionSearchSources(): Promise<SessionSearchSo
 		{
 			cwd: DEFAULT_CONVERSATION_CWD,
 			kind: "conversation",
-			sessionDir: resolveSessionDirForCwd(DEFAULT_CONVERSATION_CWD),
 		},
 		{
 			cwd: DEFAULT_IM_CONVERSATION_CWD,
 			kind: "claw",
-			sessionDir: resolveSessionDirForCwd(DEFAULT_IM_CONVERSATION_CWD),
 		},
 	];
 	for (const { path, name } of config.projects) {
 		let batch = false;
 		try {
-			const meta: unknown = JSON.parse(await readFile(join(path, ".vetta", "meta.json"), "utf8"));
+			const meta: unknown = JSON.parse(await readFile(existingProjectStatePath(path, "meta.json"), "utf8"));
 			batch = typeof meta === "object" && meta !== null && Reflect.get(meta, "type") === "batch";
 		} catch {
 			/* Missing project metadata denotes a regular project. */

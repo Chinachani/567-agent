@@ -3,6 +3,7 @@ import { describe, expect, it } from "vitest";
 import {
 	applyStoredEventToConversationDocument,
 	createEmptyConversationDocument,
+	projectConversationDocumentHistory,
 	selectConversationDocumentMessages,
 	selectConversationDocumentModelMessages,
 } from "../../src/conversation/index.js";
@@ -53,7 +54,36 @@ describe("conversation compaction projection", () => {
 			firstKeptEntryId: "event-4",
 			tokensBefore: 120,
 			reason: "threshold",
+			turnId: "turn-1",
 		});
+		expect(projectConversationDocumentHistory(document).find((entry) => entry.type === "compaction")).toMatchObject({
+			turnId: "turn-1",
+		});
+	});
+
+	it("keeps manual compaction outside a reply even if an older producer attached a turn ID", () => {
+		let document = createEmptyConversationDocument({ sessionId: "session-1", createdAt: 0 });
+		document = applyStoredEventToConversationDocument(document, message(1, user("request", 1)), 1);
+		document = applyStoredEventToConversationDocument(
+			document,
+			{
+				type: "context.compacted",
+				sessionId: "session-1",
+				turnId: "manual-turn",
+				timestamp: 2,
+				record: {
+					reason: "manual",
+					summary: "summary",
+					summaryMessage: user("summary", 2),
+					tokensBefore: 100,
+					firstKeptEntryId: "event-1",
+				},
+			},
+			2,
+		);
+		expect(
+			projectConversationDocumentHistory(document).find((entry) => entry.type === "compaction"),
+		).not.toHaveProperty("turnId");
 	});
 
 	it("keeps early count-only records readable without changing the document branch", () => {

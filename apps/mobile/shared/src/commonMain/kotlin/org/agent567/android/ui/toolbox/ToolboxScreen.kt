@@ -39,6 +39,9 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import org.agent567.android.domain.conversation.RemoteToolboxAbility
 import org.agent567.android.ui.theme.agent567Extra
+import org.agent567.android.ui.components.Agent567Card
+import org.agent567.android.ui.components.Agent567TextField
+import org.agent567.android.ui.i18n.Str
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -65,9 +68,10 @@ fun ToolboxScreen(
     }
 
     Scaffold(
+        containerColor = MaterialTheme.agent567Extra.pageBackground,
         topBar = {
             TopAppBar(
-                title = { Text(title) },
+                title = { Text(title, style = MaterialTheme.typography.titleLarge) },
                 navigationIcon = {
                     IconButton(onClick = onBack) {
                         Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "返回")
@@ -82,14 +86,14 @@ fun ToolboxScreen(
             )
         },
     ) { padding ->
-        Column(Modifier.fillMaxSize().padding(padding).padding(horizontal = 16.dp)) {
+        Column(Modifier.fillMaxSize().padding(padding).padding(horizontal = 20.dp)) {
             Text(
                 "${deviceName?.let { "$it · " }.orEmpty()}能力来自电脑端应用内市场；技能、场景和插件将在这台电脑运行。",
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.agent567Extra.secondaryText,
             )
             Spacer(Modifier.height(12.dp))
-            OutlinedTextField(
+            Agent567TextField(
                 value = query,
                 onValueChange = onQueryChange,
                 modifier = Modifier.fillMaxWidth(),
@@ -129,11 +133,7 @@ fun ToolboxScreen(
                     verticalArrangement = Arrangement.spacedBy(10.dp),
                 ) {
                     items(filtered, key = { "${it.type}:${it.slug}" }) { ability ->
-                        Card(
-                            modifier = Modifier.fillMaxWidth(),
-                            shape = RoundedCornerShape(16.dp),
-                            colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.55f)),
-                        ) {
+                        Agent567Card(contentPadding = androidx.compose.foundation.layout.PaddingValues(0.dp)) {
                             Column(Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
                                 Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                                     Column(Modifier.weight(1f)) {

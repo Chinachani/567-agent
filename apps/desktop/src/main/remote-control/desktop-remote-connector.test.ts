@@ -1,9 +1,73 @@
 import { createHash } from "node:crypto";
 import { FakeRelay, RemoteConnection } from "@567agent/remote-control";
 import { describe, expect, it, vi } from "vitest";
+import zhMain from "../../shared/i18n/locales/zh/main.json";
+
+vi.mock("../logger.js", () => ({ getAppLogger: () => ({ info: () => {}, warn: () => {} }) }));
+
+vi.mock("../i18n/index.js", () => ({
+	mainT: (key: string) =>
+		key === "remote.modelConnectionInterrupted" ? zhMain.remote.modelConnectionInterrupted : key,
+}));
+
 import { DesktopRemoteConnector, type DesktopRemoteOperations } from "./desktop-remote-connector.js";
 
 describe("DesktopRemoteConnector", () => {
+	it("returns byte-bounded history through the real RPC and follows cursors without dropping short pages", async () => {
+		const relay = new FakeRelay();
+		const mobile = new RemoteConnection(relay.createTransport("pair-history", "mobile"), {
+			role: "mobile",
+			deviceId: "phone",
+			deviceName: "Phone",
+			capabilities: { chat: true, sessionRead: true },
+		});
+		const desktop = new RemoteConnection(relay.createTransport("pair-history", "desktop"), {
+			role: "desktop",
+			deviceId: "desktop",
+			deviceName: "Desktop",
+			capabilities: { chat: true, sessionRead: true },
+		});
+		const source = Array.from({ length: 7 }, (_, index) => ({
+			id: `m-${index}`,
+			role: "assistant" as const,
+			text: '中文\n"😀'.repeat(25000),
+			timestamp: index,
+		}));
+		const operations: DesktopRemoteOperations = {
+			listSessions: async () => [],
+			createSession: async () => ({ sessionId: "s" }),
+			openSession: async (sessionId) => ({ sessionId }),
+			prompt: async function* () {},
+			abort: async () => {},
+			resume: async () => {},
+			diagnostics: async () => ({}),
+			readHistory: async (_id, offset, limit) => source.slice(offset, offset + limit),
+		};
+		const connector = new DesktopRemoteConnector(desktop, operations);
+		await mobile.connect();
+		await connector.start();
+		const ids: string[] = [];
+		let offset = 0;
+		try {
+			for (;;) {
+				const page = (await mobile.request("session.history", { offset, limit: 40, boundedPages: true }, "s")) as {
+					messages: typeof source;
+					hasMore: boolean;
+					nextOffset: number;
+				};
+				expect(Buffer.byteLength(JSON.stringify(page), "utf8")).toBeLessThan(900000);
+				ids.push(...page.messages.map((message) => message.id));
+				if (!page.hasMore) break;
+				expect(page.nextOffset).toBeGreaterThan(offset);
+				offset = page.nextOffset;
+			}
+			expect(ids).toEqual(source.map((message) => message.id));
+		} finally {
+			await connector.stop();
+			await mobile.close();
+		}
+	});
+
 	it("blocks a second migration and cancels an archive while desktop approval is pending", async () => {
 		const relay = new FakeRelay();
 		const mobile = new RemoteConnection(relay.createTransport("pair-migration-pending", "mobile"), {
@@ -476,7 +540,10 @@ describe("DesktopRemoteConnector", () => {
 		await connector.stop();
 	});
 
-	it("maps provider authentication failures without exposing provider messages", async () => {
+	it.each([
+		["AI_AUTHENTICATION_FAILED", "unauthorized", "电脑端模型认证失败，请检查默认模型和 API 密钥"],
+		["AI_TRANSPORT_FAILED", "internal_error", "电脑与模型服务的连接中断，消息已保留。请检查电脑网络或稍后重试。"],
+	])("maps provider failure %s without exposing provider messages", async (failureCode, remoteCode, message) => {
 		const relay = new FakeRelay();
 		const mobile = new RemoteConnection(relay.createTransport("pair-auth", "mobile"), {
 			role: "mobile",
@@ -501,7 +568,7 @@ describe("DesktopRemoteConnector", () => {
 				throw Object.assign(new Error("invalid key suffix: sensitive"), {
 					code: "TURN_FAILED",
 					details: {
-						code: "AI_AUTHENTICATION_FAILED",
+						code: failureCode,
 						retryable: false,
 						origin: "provider",
 					},
@@ -527,8 +594,8 @@ describe("DesktopRemoteConnector", () => {
 		await waitFor(() => errors.some((value) => (value as { state?: string }).state === "error"));
 		expect(errors.at(-1)).toEqual({
 			state: "error",
-			code: "unauthorized",
-			message: "电脑端模型认证失败，请检查默认模型和 API 密钥",
+			code: remoteCode,
+			message,
 		});
 
 		await connector.stop();

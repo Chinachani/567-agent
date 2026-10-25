@@ -49,6 +49,19 @@ actual fun imageBitmapFromBytes(bytes: ByteArray): ImageBitmap? {
     return bitmap.asImageBitmap().also { decodedImageCache.put(cacheKey, it) }
 }
 
+actual fun imageThumbnail(image: MessageImage): ImageBitmap? = runCatching {
+    val bounds = BitmapFactory.Options().apply { inJustDecodeBounds = true }
+    val input = openImageStream(image) ?: return null
+    input.use { BitmapFactory.decodeStream(it, null, bounds) }
+    if (bounds.outWidth < 1 || bounds.outHeight < 1) return null
+    var sample = 1
+    while (maxOf(bounds.outWidth, bounds.outHeight) / sample > 256) sample *= 2
+    val options = BitmapFactory.Options().apply { inSampleSize = sample }
+    val decoded = openImageStream(image)?.use { BitmapFactory.decodeStream(it, null, options) } ?: return null
+    val exif = openImageStream(image)?.use { runCatching { ExifInterface(it) }.getOrNull() }
+    (exif?.let { orientBitmap(decoded, it.rotationDegrees, it.isFlipped) } ?: decoded).asImageBitmap()
+}.getOrNull()
+
 actual fun imageBitmapFromStorageKey(key: String): ImageBitmap? {
     val root = MessageImageFileSystem.directory() ?: return null
     if (!key.matches(Regex("[A-Za-z0-9_-]{1,96}"))) return null

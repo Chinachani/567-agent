@@ -2,8 +2,10 @@
 
 import { createConversationAgentMessage } from "@shared/conversation";
 import { type InputSegment, segmentsToText } from "@shared/lib/input-tokens";
+import { switchSessionInputDraftScope } from "@shared/store/session-input-draft";
 import { getDefaultStore } from "jotai";
 import { beforeEach, describe, expect, it, vi } from "vitest";
+import { appendAttachmentReadScopes } from "./attachment-read-scope";
 
 vi.mock("@shared/lib/perf-send", () => ({ perfSendMark: vi.fn() }));
 
@@ -103,6 +105,26 @@ describe("staged new-session send", () => {
 
 		expect(store.get(atoms.chatMessagesAtom)).toEqual([]);
 		expect(store.get(atoms.inputValueAtom)).toBe("newer draft");
+	});
+
+	it("restores a failed background send with its original reading scope while preserving the new session draft", () => {
+		const store = getDefaultStore();
+		const originalKey = store.get(atoms.activeInputDraftKeyAtom);
+		store.set(atoms.inputSegmentsAtom, [{ kind: "file", path: "C:/workspace/spec.pdf" }]);
+		store.set(atoms.inputValueAtom, segmentsToText(store.get(atoms.inputSegmentsAtom)));
+		store.set(atoms.mentionedFilesAtom, [
+			{ path: "C:/workspace/spec.pdf", name: "spec.pdf", isDirectory: false, readScope: "Only pages 5-8" },
+		]);
+		const staged = stagePendingSessionSend(undefined, "scope-send");
+		if (!staged) throw new Error("send was not staged");
+		switchSessionInputDraftScope("B");
+		store.set(atoms.inputValueAtom, "New conversation draft");
+		restoreStagedPendingSessionSend(staged);
+		expect(store.get(atoms.inputValueAtom)).toBe("New conversation draft");
+		switchSessionInputDraftScope(originalKey);
+		expect(
+			appendAttachmentReadScopes(store.get(atoms.inputValueAtom), store.get(atoms.mentionedFilesAtom)),
+		).toContain("Only pages 5-8");
 	});
 
 	it("lets message editing cancel a send before Runtime dispatch", () => {

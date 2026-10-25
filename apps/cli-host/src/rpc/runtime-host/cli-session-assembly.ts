@@ -1,5 +1,6 @@
 import { randomUUID } from "node:crypto";
 import { dirname, join } from "node:path";
+import type { SimpleStreamFunction } from "@567agent/ai";
 import type { CodingAgentBootstrap } from "@567agent/coding-agent/bootstrap";
 import {
 	type CodingAgentMemoryRuntimeFactoryOptions,
@@ -62,6 +63,7 @@ import { createCliMcpSupervisor } from "./mcp-supervisor.js";
 export const CLI_RUNTIME_HOST_STARTUP_FAILURE = "CLI Runtime startup and cleanup failed";
 
 export interface CliSessionAssemblyOptions {
+	readonly streamFn?: SimpleStreamFunction;
 	readonly bootstrap: CodingAgentBootstrap;
 	readonly conversationDir: string;
 	readonly sessionCatalog: RuntimeSessionCatalog;
@@ -145,7 +147,7 @@ export async function createCliSessionAssembly(options: CliSessionAssemblyOption
 			modelInputImageProcessor: nodeModelInputImageProcessor,
 			initialModel: options.initialModel,
 			initialThinkingLevel: options.initialThinkingLevel,
-			streamFn: createLoopbackSessionAffinityStream(),
+			streamFn: createLoopbackSessionAffinityStream(options.streamFn),
 			ocrMaxConcurrent: resolvePositiveInteger(process.env.AGENT567_KB_OCR_CONCURRENCY),
 			cwd: bootstrap.cwd,
 			workspaceFacts: detectWorkspaceFacts(bootstrap.cwd, (cwd) =>

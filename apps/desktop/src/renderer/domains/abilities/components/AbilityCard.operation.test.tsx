@@ -54,14 +54,18 @@ function ability(overrides: Partial<SkillAbility> = {}): SkillAbility {
 afterEach(cleanup);
 
 describe("AbilityCard operation feedback", () => {
+	it("exposes details as the card action and keeps adding independent", () => {
+		render(<AbilityCard item={ability()} model={model} />);
+		const details = screen.getByRole("button", { name: "card.openDetails" });
+		expect(details.contains(screen.getByText("Helps with a familiar task"))).toBe(true);
+		expect(details.contains(screen.getByRole("button", { name: "actions.add" }))).toBe(false);
+	});
 	it("replaces the description with installation progress without putting text inside the add button", () => {
 		const view = render(<AbilityCard item={ability()} model={model} />);
 		expect(screen.getByText("Helps with a familiar task")).toBeTruthy();
 		expect(screen.getByRole("button", { name: "actions.add" })).toBeTruthy();
 
-		view.rerender(
-			<AbilityCard item={ability({ busy: true, operation: "installing" })} model={model} />,
-		);
+		view.rerender(<AbilityCard item={ability({ busy: true, operation: "installing" })} model={model} />);
 
 		const status = screen.getByRole("status");
 		expect(status.textContent).toBe("operation.installing");
@@ -75,9 +79,7 @@ describe("AbilityCard operation feedback", () => {
 	});
 
 	it("uses the same description-line feedback while removing an installed ability", () => {
-		const view = render(
-			<AbilityCard item={ability({ installed: true, enabled: true })} model={model} />,
-		);
+		const view = render(<AbilityCard item={ability({ installed: true, enabled: true })} model={model} />);
 		expect(screen.getByText("Helps with a familiar task")).toBeTruthy();
 		expect(screen.getByRole("button", { name: "actions.more" })).toBeTruthy();
 

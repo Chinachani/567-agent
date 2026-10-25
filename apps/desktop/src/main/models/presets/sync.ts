@@ -3,6 +3,7 @@ import { join } from "node:path";
 import { getAgent567HomePath } from "@567agent/action-rpc";
 import { atomicWriteJSON } from "@567agent/toolkit/atomic-write";
 import { BrowserWindow, net } from "electron";
+import { getApi567RouteStore } from "../../567api/service-route-store.js";
 import { getAppLogger } from "../../logger.js";
 import { getDesktopModelSettingsService } from "../model-settings-host.js";
 import type { ModelDefinition, ModelsConfig } from "../model-settings-service.js";
@@ -66,7 +67,7 @@ export async function listPresetProviders(): Promise<PresetProvidersResult> {
 			id: def.id,
 			displayName: def.displayName,
 			api: def.api,
-			baseUrl: def.baseUrl,
+			baseUrl: def.id === "567api" ? `${getApi567RouteStore().origin}/v1` : def.baseUrl,
 			icon: def.icon,
 			catalogModels: catalogModelsFor(catalog, def),
 		})),
@@ -205,6 +206,8 @@ export async function refreshPresetModels(providerId: string, apiKey?: string): 
 	if (!def) return { models: [], error: { code: "unknown-provider", params: { provider: providerId } } };
 
 	let key = apiKey?.trim();
+	const savedProvider =
+		providerId === "567api" ? (await getDesktopModelSettingsService().getConfig()).providers[providerId] : undefined;
 	if (!key) {
 		const config = await getDesktopModelSettingsService().getConfig();
 		key = config.providers[providerId]?.apiKey?.trim();
@@ -215,7 +218,11 @@ export async function refreshPresetModels(providerId: string, apiKey?: string): 
 	const timer = setTimeout(() => controller.abort(), FETCH_TIMEOUT_MS);
 	let result: PresetModelsResult;
 	try {
-		result = await fetchPresetModels(def, key, net.fetch, controller.signal, FETCH_TIMEOUT_MS);
+		const requestDef =
+			providerId === "567api"
+				? { ...def, baseUrl: savedProvider?.baseUrl ?? `${getApi567RouteStore().origin}/v1` }
+				: def;
+		result = await fetchPresetModels(requestDef, key, net.fetch, controller.signal, FETCH_TIMEOUT_MS);
 	} finally {
 		clearTimeout(timer);
 	}

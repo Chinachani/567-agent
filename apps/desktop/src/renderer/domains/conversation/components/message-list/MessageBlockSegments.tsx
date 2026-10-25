@@ -1,3 +1,4 @@
+import { CompactionStep } from "./CompactionStep";
 import { LiveThinkingView, SegmentShell, ToolCallGroupView } from "@vetta-org/theme-ui/chat";
 import { memo } from "react";
 import { useTranslation } from "react-i18next";
@@ -143,7 +144,7 @@ export const SegmentRenderer = memo(function SegmentRenderer({
 	} else if (segment.type === "progress_divider") {
 		content = <ProgressDivider block={segment.block} />;
 	} else {
-			switch (segment.block.type) {
+		switch (segment.block.type) {
 			case "text":
 				content = <TextBlockView text={segment.block.text} isStreamingTail={isStreamingTail} />;
 				break;
@@ -167,6 +168,9 @@ export const SegmentRenderer = memo(function SegmentRenderer({
 				) : (
 					<ToolCallBlockView block={segment.block} exportMode={exportMode} />
 				);
+				break;
+			case "compaction":
+				content = <CompactionStep status={segment.block.status} errorMessage={segment.block.errorMessage} />;
 				break;
 			case "error":
 				content = <ErrorBlockView block={segment.block} exportMode={exportMode} />;

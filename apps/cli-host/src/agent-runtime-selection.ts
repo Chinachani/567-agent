@@ -1,3 +1,4 @@
+import type { SimpleStreamFunction } from "@567agent/ai";
 import { resolveCodingAgentSessionDir } from "@567agent/coding-agent/bootstrap";
 import { getAgentDir } from "@567agent/coding-agent/config";
 import type { CodingAgentHtmlExportRuntime } from "@567agent/coding-agent/export-html";
@@ -6,7 +7,7 @@ import { RPC_FAILURE_CODES, stringifyRpcStartupFailure } from "@567agent/coding-
 import { isSessionError, RUNTIME_ERROR_CODES } from "@567agent/runtime-core";
 import { ConversationOwnershipConflictError } from "@567agent/runtime-storage/conversation";
 import { classifyAgentCliIntent } from "./agent-cli-intent.js";
-import { createCliCodingAgentBootstrap } from "./coding-agent-bootstrap.js";
+import { type CreateCliCodingAgentBootstrapOptions, createCliCodingAgentBootstrap } from "./coding-agent-bootstrap.js";
 import { runCodingAgentCliControl } from "./coding-agent-cli-control.js";
 import { createCliResourcePackageRuntime, createCliSettingsRuntime } from "./coding-agent-resource-runtime.js";
 import { ExtensionCompatibilityError } from "./extension-compatibility-error.js";
@@ -23,6 +24,8 @@ import {
 import { SessionCompatibilityError } from "./session-compatibility-error.js";
 
 export interface RunAgentRuntimeCliOptions {
+	readonly streamFn?: SimpleStreamFunction;
+	readonly createModelRuntime?: CreateCliCodingAgentBootstrapOptions["createModelRuntime"];
 	readonly htmlExporter?: CodingAgentHtmlExportRuntime;
 	/**
 	 * 宿主在 bootstrap 完成、模型解析开始之前注入运行时 API Key。
@@ -46,7 +49,10 @@ export async function runAgentRuntimeCli(
 			!(await runCodingAgentCliControl([...args], {
 				htmlExporter: options.htmlExporter,
 				createBootstrap: async (controlArgs) => {
-					const controlBootstrap = await createCliCodingAgentBootstrap({ args: controlArgs });
+					const controlBootstrap = await createCliCodingAgentBootstrap({
+						args: controlArgs,
+						createModelRuntime: options.createModelRuntime,
+					});
 					await options.injectRuntimeCredentials?.(controlBootstrap.authStorage);
 					return controlBootstrap;
 				},
@@ -65,7 +71,10 @@ export async function runAgentRuntimeCli(
 		}
 		return;
 	}
-	const bootstrap = await createCliCodingAgentBootstrap({ args: [...args] });
+	const bootstrap = await createCliCodingAgentBootstrap({
+		args: [...args],
+		createModelRuntime: options.createModelRuntime,
+	});
 	// 必须早于 prepare*RuntimeHost：模型解析与可用性过滤都会读凭据。
 	await options.injectRuntimeCredentials?.(bootstrap.authStorage);
 	const conversationDir = resolveCodingAgentSessionDir(bootstrap.cwd, bootstrap.parsed.sessionDir);
@@ -86,6 +95,7 @@ export async function runAgentRuntimeCli(
 					conversationDir,
 					sessionCatalog,
 					htmlExporter: options.htmlExporter,
+					streamFn: options.streamFn,
 				})
 			: imHost
 				? prepareImRuntimeHost({
@@ -93,12 +103,14 @@ export async function runAgentRuntimeCli(
 						conversationDir,
 						sessionCatalog,
 						htmlExporter: options.htmlExporter,
+						streamFn: options.streamFn,
 					})
 				: prepareRpcRuntimeHost({
 						bootstrap,
 						conversationDir,
 						sessionCatalog,
 						htmlExporter: options.htmlExporter,
+						streamFn: options.streamFn,
 					}));
 		if (prepared.kind === "extension-incompatible") {
 			throw new ExtensionCompatibilityError(prepared.extensionCompatibility);

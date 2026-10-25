@@ -1,3 +1,4 @@
+import "./windows-data-bootstrap.js";
 import "./telemetry/bootstrap.js";
 import { mkdir, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
@@ -11,6 +12,7 @@ import {
 	isDesignSharePath,
 } from "../shared/app-lifecycle-ipc.js";
 import { isCloudBuildEnabled } from "../shared/feature-flags.js";
+import { getApi567RouteStore } from "./567api/service-route-store.js";
 import { stopAllOpenMarketplaceMcpRuntimes } from "./abilities/open-marketplace/open-marketplace-mcp-runtime-host.js";
 import { ActionApprovalBroker } from "./app-actions/approval-broker.js";
 import { createAppActionSystem } from "./app-actions/index.js";
@@ -103,7 +105,7 @@ import {
 	setMainWindowRecreatedHandler,
 	showMainWindow,
 } from "./window-manager.js";
-import { resolveWindowsDataLayoutFromEnvironment } from "./windows-data-layout.js";
+import { resolveWindowsDataLayoutForProcess } from "./windows-data-layout.js";
 
 // 启动早期修复 GUI 进程的 PATH(补回 homebrew 等登录 shell 路径),必须先于
 // RuntimeManager.applyEnv() 与 coding-agent 的 bash 执行。详见 fix-path.ts。
@@ -213,14 +215,14 @@ process.env[AGENT567_HOME_ENV] = getAgent567HomePath();
 if (isCliMode) {
 	const cliUserDataDir =
 		ocrCliCommand !== null
-			? "vetta-ocr-cli"
+			? "agent567-ocr-cli"
 			: pdfCliCommand !== null
-				? "vetta-pdf-cli"
+				? "agent567-pdf-cli"
 				: actionCliCommand !== null
-					? `vetta-action-cli-${process.pid}`
+					? `agent567-action-cli-${process.pid}`
 					: helpCliCommand !== null
-						? `vetta-help-cli-${process.pid}`
-						: `vetta-agent-rpc-${process.pid}`;
+						? `agent567-help-cli-${process.pid}`
+						: `agent567-agent-rpc-${process.pid}`;
 	app.setPath("userData", join(tmpdir(), cliUserDataDir));
 	app.commandLine.appendSwitch("disable-gpu");
 	app.commandLine.appendSwitch("disable-gpu-shader-disk-cache");
@@ -251,7 +253,7 @@ if (isCliMode) {
 app.name = APP_RUNTIME_NAME;
 
 if (!isCliMode && process.platform === "win32") {
-	const windowsDataLayout = resolveWindowsDataLayoutFromEnvironment();
+	const windowsDataLayout = resolveWindowsDataLayoutForProcess();
 	app.setPath("userData", windowsDataLayout.userData);
 	app.setPath("sessionData", windowsDataLayout.sessionData);
 	app.setPath("logs", windowsDataLayout.logs);
@@ -424,6 +426,13 @@ if (!gotSingleLock) {
 		// 在创建任何窗口/托盘菜单之前同步定语言：读 desktop-config.language
 		//（system | zh | en；缺省 = system）。托盘菜单与系统通知据此取文案（ADR-0031）。
 		initAppLanguage();
+		if (isCloudBuildEnabled()) {
+			try {
+				await getApi567RouteStore().initialize();
+			} catch {
+				console.warn("Service route configuration needs repair; account requests remain blocked");
+			}
+		}
 		// 必须在 initAppLanguage 之后：菜单文案在构建期解析。不装配则 mac 会沿用
 		// Electron 默认菜单，打包版把 Reload / DevTools 直接暴露给终端用户。
 		installApplicationMenu();
@@ -661,21 +670,21 @@ if (!gotSingleLock) {
 		}
 
 		if (process.platform === "darwin") {
-			app.dock.setIcon(nativeImage.createFromPath(join(buildDir, "icon-dock.png")));
+			app.dock?.setIcon(nativeImage.createFromPath(join(buildDir, "icon-dock.png")));
 		}
 
 		// 默认「对话」项目目录：保证一直存在。
 		// 顺带把 in-tree session 目录（<cwd>/.vetta/sessions）也建好，
 		// 让默认项目走与批量项目一致的会话布局，避免设备相关的编码路径。
 		try {
-			await mkdir(join(getAgent567HomePath(), "conversation", ".vetta", "sessions"), { recursive: true });
+			await mkdir(join(getAgent567HomePath(), "conversation", ".567agent", "sessions"), { recursive: true });
 		} catch (err) {
 			mainLog.error("failed to ensure default conversation dir", err);
 		}
 		// im-gateway 独立 cwd（ADR-0005）：跟桌面「对话」物理分家。先把空目录建好，
 		// 这样 sidecar 启动前 desktop 的 Claw tab 也能正常 listSessions（拿到空列表）。
 		try {
-			await mkdir(join(getAgent567HomePath(), "im-gateway", "conversation", ".vetta", "sessions"), {
+			await mkdir(join(getAgent567HomePath(), "im-gateway", "conversation", ".567agent", "sessions"), {
 				recursive: true,
 			});
 		} catch (err) {

@@ -21,7 +21,6 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.ChevronRight
 import androidx.compose.material.icons.filled.DataUsage
-import androidx.compose.material.icons.filled.Link
 import org.agent567.android.core.model.parseModelContextCapacityInput
 import org.agent567.android.domain.session.ChatContextSnapshot
 import org.agent567.android.ui.i18n.Str
@@ -48,7 +47,7 @@ internal fun ChatContextCapacity(state: ChatContextSnapshot, desktop: Boolean, e
             if (!desktop) TextButton(onClick = { editing = !editing }, enabled = enabled) { Text(if (editing) Str.close else Str.contextCapacityAdjust) }
         }
         SourceAction(
-            label = "${Str.contextCapacitySource} · $sourceLabel",
+            label = "${Str.contextCapacityShowReference} · $sourceLabel",
             icon = Icons.Default.DataUsage,
             onClick = { reference = true },
             modifier = Modifier.fillMaxWidth(),
@@ -70,19 +69,11 @@ internal fun ChatContextCapacity(state: ChatContextSnapshot, desktop: Boolean, e
             Text(Str.contextCapacityScope, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
         }
         if (state.contextWindow == null) Text(Str.contextCapacityUnknownHint, style = MaterialTheme.typography.bodySmall)
-        if (!desktop && state.referenceModel != null) {
-            SourceAction(
-                label = Str.contextCapacityShowReference,
-                icon = Icons.Default.Link,
-                onClick = { reference = true },
-                modifier = Modifier.fillMaxWidth(),
-            )
-        }
+
     }
     if (reference) {
         val uriHandler = LocalUriHandler.current
-        ScrollableDetailDialog(Str.contextCapacitySource, onDismiss = { reference = false }) {
-            Text(Str.contextCapacitySource, style = MaterialTheme.typography.titleMedium)
+        ScrollableDetailDialog(Str.contextCapacityShowReference, onDismiss = { reference = false }) {
             Text("$sourceLabel: ${state.contextWindow ?: Str.contextCapacityUnknown} tokens", style = MaterialTheme.typography.bodyMedium)
             state.referenceModel?.let { model ->
                 HorizontalDivider()

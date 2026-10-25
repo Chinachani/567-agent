@@ -23,6 +23,7 @@ import {
 	type Disposable,
 	DOMAIN_AI_CAPABILITIES,
 } from "@vetta-org/capability-sdk";
+import { withApi567InferenceOptions } from "../567api/inference.js";
 import { getOrCreateSharedModelRuntime } from "../agent-runtime/host-services.js";
 import { getDesktopModelSettingsService } from "../models/model-settings-host.js";
 
@@ -146,8 +147,9 @@ async function runCompletion(
 	emit?: (event: AiCompleteEvent) => void,
 ): Promise<AssistantMessage> {
 	try {
-		if (emit === undefined) return await completeSimple(model, context, options);
-		const stream = streamSimple(model, context, options);
+		const signedOptions = withApi567InferenceOptions(model, options);
+		if (emit === undefined) return await completeSimple(model, context, signedOptions);
+		const stream = streamSimple(model, context, signedOptions);
 		for await (const event of stream) {
 			if (event.type === "text_delta" && event.delta.length > 0) {
 				emit({ type: "text_delta", delta: event.delta });

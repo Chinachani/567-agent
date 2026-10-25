@@ -11,6 +11,7 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
 import org.agent567.android.ui.i18n.Str
+import org.agent567.android.ui.theme.agent567Extra
 
 /** A separate scrolling surface keeps long references out of the bottom sheet's gestures. */
 @Composable
@@ -25,14 +26,14 @@ internal fun ScrollableDetailDialog(
         Surface(Modifier.fillMaxSize(), color = MaterialTheme.colorScheme.background) {
             Column(Modifier.safeDrawingPadding().imePadding()) {
                 Row(Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 8.dp), horizontalArrangement = Arrangement.SpaceBetween) {
-                    Text(title, Modifier.weight(1f).padding(top = 10.dp), style = MaterialTheme.typography.titleMedium, maxLines = 2, overflow = TextOverflow.Ellipsis)
+                    Text(title, Modifier.weight(1f).padding(top = 10.dp), style = MaterialTheme.typography.titleLarge, maxLines = 2, overflow = TextOverflow.Ellipsis)
                     TextButton(onClick = onDismiss) { Text(Str.close) }
                 }
                 header()
-                HorizontalDivider()
+                HorizontalDivider(color = MaterialTheme.agent567Extra.border)
                 Column(Modifier.weight(1f).fillMaxWidth().verticalScroll(rememberScrollState()).padding(20.dp), verticalArrangement = Arrangement.spacedBy(16.dp), content = content)
                 footer?.let {
-                    HorizontalDivider()
+                    HorizontalDivider(color = MaterialTheme.agent567Extra.border)
                     it()
                 }
             }

@@ -4,6 +4,7 @@ import { useAtom, useSetAtom } from "jotai";
 import { useState } from "react";
 import { useTranslation } from "react-i18next";
 import type { SessionWorkbenchModel } from "../hooks/useSessionWorkbench";
+import { AttachmentThumbnail } from "./AttachmentThumbnail";
 import { SessionAssetDetail } from "./SessionAssetDetail";
 
 type PendingSelection = { kind: "file" | "image"; id: string } | null;
@@ -140,7 +141,14 @@ export function SessionAssetsPanel({
 									onClick={() => select(file.id)}
 									aria-pressed={selectedId === file.id}
 								>
-									<span className="icon-[solar--document-text-linear] h-4 w-4 shrink-0" aria-hidden="true" />
+									{file.kind === "image" || /\.(png|jpe?g|webp|gif|bmp)$/i.test(file.name) ? (
+										<AttachmentThumbnail id={file.id} read={model.readThumbnail} />
+									) : (
+										<span
+											className="icon-[solar--document-text-linear] h-4 w-4 shrink-0"
+											aria-hidden="true"
+										/>
+									)}
 									<span className="min-w-0 flex-1">
 										<span className="block truncate text-[13px]">{file.name}</span>
 										<span className="block truncate text-[11px] text-muted-foreground">

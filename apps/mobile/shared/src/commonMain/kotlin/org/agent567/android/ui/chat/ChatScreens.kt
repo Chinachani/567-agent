@@ -146,7 +146,7 @@ import org.agent567.android.ui.components.Agent567ErrorBanner
 import org.agent567.android.ui.LocalMotionEnabled
 import org.agent567.android.ui.i18n.Str
 import org.agent567.android.ui.media.rememberMessageImageBitmap
-import org.agent567.android.ui.media.PendingFileAttachment
+import org.agent567.android.domain.session.PendingFileAttachment
 import org.agent567.android.ui.media.rememberFileAttachmentPicker
 import org.agent567.android.ui.media.MessageImageLoadState
 import org.agent567.android.ui.media.rememberImagePicker
@@ -208,6 +208,8 @@ fun ChatScreen(
     models: List<LlmModel>,
     selectedModel: LlmModel?,
     modelPickerOpen: Boolean,
+    onOpenServiceRoute: () -> Unit = {},
+    desktopServiceRoute: String? = null,
     activeGroup: String? = null,
     availableGroups: Map<String, org.agent567.android.core.api.ApiGroupInfoDto> = emptyMap(),
     groupPickerOpen: Boolean = false,
@@ -359,7 +361,7 @@ fun ChatScreen(
         !isStreaming &&
             (surface == ChatSurface.Desktop || selectedModel != null) &&
             (draft.isNotBlank() || pendingImages.isNotEmpty() || pendingFiles.isNotEmpty())
-    val maxInputHeight = (LocalConfiguration.current.screenHeightDp * 0.35f).dp
+    val maxInputHeight = (LocalConfiguration.current.screenHeightDp * 0.35f).dp.coerceAtLeast(100.dp)
 
     Scaffold(
         containerColor = MaterialTheme.agent567Extra.pageBackground,
@@ -373,9 +375,9 @@ fun ChatScreen(
                             overflow = TextOverflow.Ellipsis,
                             style = MaterialTheme.typography.titleMedium,
                         )
-                        if (isStreaming) {
+                        run {
                             Text(
-                                streamingStatusLabel(streamingStatus),
+                                if (isStreaming) streamingStatusLabel(streamingStatus) else if (surface == ChatSurface.Desktop) Str.generatedByDesktop else Str.generatedByCloud,
                                 style = MaterialTheme.typography.labelSmall,
                                 color = MaterialTheme.agent567Extra.secondaryText,
                                 maxLines = 1,
@@ -395,13 +397,13 @@ fun ChatScreen(
                     }
                     if (surface == ChatSurface.Cloud) {
                         IconButton(onClick = onOpenGroupPicker) {
-                            Icon(Icons.Default.Tune, contentDescription = "选择模型分组", tint = MaterialTheme.agent567Extra.secondaryText)
+                            Icon(Icons.Default.Tune, contentDescription = Str.mobileChooseGroup, tint = MaterialTheme.agent567Extra.secondaryText)
                         }
                     }
                 },
                 colors =
                     TopAppBarDefaults.topAppBarColors(
-                        containerColor = MaterialTheme.agent567Extra.pageBackground.copy(alpha = 0.92f),
+                        containerColor = MaterialTheme.agent567Extra.pageBackground,
                     ),
             )
         },
@@ -413,6 +415,7 @@ fun ChatScreen(
                     .imePadding(),
             ) {
                 if (chatError != null) {
+                    if (surface == ChatSurface.Cloud) TextButton(onClick = onOpenServiceRoute) { Text(Str.serviceRouteErrorAction) }
                     Agent567ErrorBanner(
                         error = chatError,
                         onDismiss = onDismissError,
@@ -447,7 +450,7 @@ fun ChatScreen(
                                         Text(document.fileName, maxLines = 1, overflow = TextOverflow.Ellipsis)
                                         Text("${document.mimeType} · ${formatAttachmentSize(document.bytes.size.toLong())}", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.agent567Extra.secondaryText, maxLines = 1, overflow = TextOverflow.Ellipsis)
                                     }
-                                    IconButton(onClick = { onRemovePendingFile(document.id) }, modifier = Modifier.size(30.dp)) {
+                                    IconButton(onClick = { onRemovePendingFile(document.id) }, modifier = Modifier.size(48.dp)) {
                                         Icon(Icons.Default.Close, contentDescription = Str.removeDocumentAttachment, modifier = Modifier.size(16.dp))
                                     }
                                 }
@@ -507,112 +510,6 @@ fun ChatScreen(
                         }
                     }
                 }
-                if (surface == ChatSurface.Cloud) {
-                    Row(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .padding(horizontal = 12.dp, vertical = 4.dp),
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.spacedBy(8.dp),
-                    ) {
-                        // 1. 主模型胶囊
-                        Surface(
-                            onClick = onOpenModelPicker,
-                            shape = RoundedCornerShape(8.dp),
-                            color = MaterialTheme.agent567Extra.chipBackground.copy(alpha = 0.7f),
-                            border = BorderStroke(1.dp, MaterialTheme.agent567Extra.border.copy(alpha = 0.6f)),
-                            modifier = Modifier.weight(1f).height(32.dp),
-                        ) {
-                            Row(
-                                verticalAlignment = Alignment.CenterVertically,
-                                modifier = Modifier.padding(horizontal = 8.dp),
-                            ) {
-                                Icon(
-                                    Icons.Default.AutoAwesome,
-                                    contentDescription = null,
-                                    modifier = Modifier.size(14.dp),
-                                    tint = MaterialTheme.colorScheme.primary,
-                                )
-                                Spacer(Modifier.width(4.dp))
-                                Text(
-                                    if (activeGroup == null) "请选择主分组" else (selectedModel?.name ?: "选择主模型"),
-                                    style = MaterialTheme.typography.labelSmall,
-                                    maxLines = 1,
-                                    overflow = TextOverflow.Ellipsis,
-                                    modifier = Modifier.weight(1f),
-                                )
-                                Icon(
-                                    Icons.Default.ArrowDropDown,
-                                    contentDescription = null,
-                                    modifier = Modifier.size(14.dp),
-                                )
-                            }
-                        }
-
-                        // 2. 独立画图模型胶囊（并列双胶囊）
-                        Surface(
-                            onClick = onOpenImagePicker,
-                            shape = RoundedCornerShape(8.dp),
-                            color = MaterialTheme.agent567Extra.chipBackground.copy(alpha = 0.7f),
-                            border = BorderStroke(1.dp, MaterialTheme.agent567Extra.border.copy(alpha = 0.6f)),
-                            modifier = Modifier.weight(1f).height(32.dp),
-                        ) {
-                            Row(
-                                verticalAlignment = Alignment.CenterVertically,
-                                modifier = Modifier.padding(horizontal = 8.dp),
-                            ) {
-                                Icon(
-                                    Icons.Default.Brush,
-                                    contentDescription = null,
-                                    modifier = Modifier.size(14.dp),
-                                    tint = if (imageGenEnabled) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant,
-                                )
-                                Spacer(Modifier.width(4.dp))
-                                Text(
-                                    if (!imageGenEnabled) "绘图: 已关闭" else (activeImageModel?.let { "绘图: $it" } ?: "配置绘图"),
-                                    style = MaterialTheme.typography.labelSmall,
-                                    color = if (imageGenEnabled) MaterialTheme.colorScheme.primary else MaterialTheme.agent567Extra.secondaryText,
-                                    maxLines = 1,
-                                    overflow = TextOverflow.Ellipsis,
-                                    modifier = Modifier.weight(1f),
-                                )
-                                Icon(
-                                    Icons.Default.ArrowDropDown,
-                                    contentDescription = null,
-                                    modifier = Modifier.size(14.dp),
-                                    tint = if (imageGenEnabled) MaterialTheme.colorScheme.primary else MaterialTheme.agent567Extra.secondaryText,
-                                )
-                            }
-                        }
-                    }
-                } else {
-                    Row(
-                        modifier = Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 4.dp),
-                    ) {
-                        Surface(
-                            onClick = onOpenModelPicker,
-                            shape = RoundedCornerShape(12.dp),
-                            color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f),
-                            modifier = Modifier.fillMaxWidth(),
-                        ) {
-                            Row(
-                                verticalAlignment = Alignment.CenterVertically,
-                                modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp),
-                            ) {
-                                Icon(Icons.Default.AutoAwesome, contentDescription = null, modifier = Modifier.size(14.dp))
-                                Spacer(Modifier.width(6.dp))
-                                Text(
-                                    "电脑模型 · ${selectedModel?.name ?: "加载中"}",
-                                    style = MaterialTheme.typography.labelSmall.copy(fontWeight = FontWeight.Medium),
-                                    maxLines = 1,
-                                    overflow = TextOverflow.Ellipsis,
-                                    modifier = Modifier.weight(1f),
-                                )
-                                Icon(Icons.Default.ArrowDropDown, contentDescription = null, modifier = Modifier.size(16.dp))
-                            }
-                        }
-                    }
-                }
                 InputDock(
                     value = draft,
                     isStreaming = isStreaming,
@@ -622,6 +519,114 @@ fun ChatScreen(
                     onStop = onStop,
                     onAttach = { attachmentChooserOpen = true },
                     maxHeight = maxInputHeight,
+                    modelControls = {
+                        if (surface == ChatSurface.Cloud) {
+                            Row(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .padding(horizontal = 8.dp),
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                            ) {
+                                // 1. 主模型胶囊
+                                Surface(
+                                    onClick = onOpenModelPicker,
+                                    shape = RoundedCornerShape(8.dp),
+                                    color = Color.Transparent,
+
+                                    modifier = Modifier.weight(1f).heightIn(min = 48.dp),
+                                ) {
+                                    Row(
+                                        verticalAlignment = Alignment.CenterVertically,
+                                        modifier = Modifier.padding(horizontal = 8.dp),
+                                    ) {
+                                        Icon(
+                                            Icons.Default.AutoAwesome,
+                                            contentDescription = null,
+                                            modifier = Modifier.size(14.dp),
+                                            tint = MaterialTheme.agent567Extra.chatAccent,
+                                        )
+                                        Spacer(Modifier.width(4.dp))
+                                        Text(
+                                            if (activeGroup == null) Str.mobileChooseMainGroup else (selectedModel?.name ?: Str.mobileChooseModel),
+                                            style = MaterialTheme.typography.labelMedium,
+                                            maxLines = 1,
+                                            overflow = TextOverflow.Ellipsis,
+                                            modifier = Modifier.weight(1f),
+                                        )
+                                        Icon(
+                                            Icons.Default.ArrowDropDown,
+                                            contentDescription = null,
+                                            modifier = Modifier.size(14.dp),
+                                        )
+                                    }
+                                }
+
+                                // 2. 独立画图模型胶囊（并列双胶囊）
+                                Surface(
+                                    onClick = onOpenImagePicker,
+                                    shape = RoundedCornerShape(8.dp),
+                                    color = Color.Transparent,
+
+                                    modifier = Modifier.weight(1f).heightIn(min = 48.dp),
+                                ) {
+                                    Row(
+                                        verticalAlignment = Alignment.CenterVertically,
+                                        modifier = Modifier.padding(horizontal = 8.dp),
+                                    ) {
+                                        Icon(
+                                            Icons.Default.Brush,
+                                            contentDescription = null,
+                                            modifier = Modifier.size(14.dp),
+                                            tint = if (imageGenEnabled) MaterialTheme.agent567Extra.imageAccent else MaterialTheme.colorScheme.onSurfaceVariant,
+                                        )
+                                        Spacer(Modifier.width(4.dp))
+                                        Text(
+                                            if (!imageGenEnabled) Str.mobileDrawingOff else (activeImageModel?.let { Str.mobileDrawingModel(it) } ?: Str.mobileDrawingSetup),
+                                            style = MaterialTheme.typography.labelMedium,
+                                            color = if (imageGenEnabled) MaterialTheme.agent567Extra.imageAccent else MaterialTheme.agent567Extra.secondaryText,
+                                            maxLines = 1,
+                                            overflow = TextOverflow.Ellipsis,
+                                            modifier = Modifier.weight(1f),
+                                        )
+                                        Icon(
+                                            Icons.Default.ArrowDropDown,
+                                            contentDescription = null,
+                                            modifier = Modifier.size(14.dp),
+                                            tint = if (imageGenEnabled) MaterialTheme.agent567Extra.imageAccent else MaterialTheme.agent567Extra.secondaryText,
+                                        )
+                                    }
+                                }
+                            }
+                        } else {
+                            Row(
+                                modifier = Modifier.fillMaxWidth().padding(horizontal = 8.dp),
+                            ) {
+                                Surface(
+                                    onClick = onOpenModelPicker,
+                                    shape = RoundedCornerShape(12.dp),
+                                    color = Color.Transparent,
+                                    modifier = Modifier.fillMaxWidth().heightIn(min = 48.dp),
+                                ) {
+                                    Row(
+                                        verticalAlignment = Alignment.CenterVertically,
+                                        modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp),
+                                    ) {
+                                        Icon(Icons.Default.AutoAwesome, contentDescription = null, modifier = Modifier.size(14.dp))
+                                        Spacer(Modifier.width(6.dp))
+                                        Text(
+                                            "电脑模型 · ${selectedModel?.name ?: "加载中"}",
+                                            style = MaterialTheme.typography.labelSmall.copy(fontWeight = FontWeight.Medium),
+                                            maxLines = 1,
+                                            overflow = TextOverflow.Ellipsis,
+                                            modifier = Modifier.weight(1f),
+                                        )
+                                        Icon(Icons.Default.ArrowDropDown, contentDescription = null, modifier = Modifier.size(16.dp))
+                                    }
+                                }
+                            }
+                        }
+                    },
                 )
             }
         },
@@ -652,7 +657,7 @@ fun ChatScreen(
                 LazyColumn(
                     state = listState,
                     modifier = Modifier.fillMaxSize(),
-                    contentPadding = PaddingValues(horizontal = 14.dp, vertical = 12.dp),
+                    contentPadding = PaddingValues(horizontal = 20.dp, vertical = 20.dp),
                     verticalArrangement = Arrangement.spacedBy(10.dp),
                 ) {
                     if (desktopHistoryLoading) {
@@ -995,6 +1000,7 @@ fun ChatScreen(
             sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true),
         ) {
             Column(Modifier.padding(horizontal = 16.dp, vertical = 8.dp)) {
+                if (surface == ChatSurface.Desktop) Text(Str.desktopServiceRoute(desktopServiceRoute), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
                 Row(
                     modifier = Modifier.fillMaxWidth(),
                     horizontalArrangement = Arrangement.SpaceBetween,
@@ -1324,7 +1330,7 @@ private fun PendingImageRow(
                             if (imageState == MessageImageLoadState.Loading) {
                                 CircularProgressIndicator(modifier = Modifier.size(18.dp), strokeWidth = 2.dp)
                             } else {
-                                Text("图片暂不可用", style = MaterialTheme.typography.labelSmall)
+                                Text(Str.imageUnavailable, style = MaterialTheme.typography.labelSmall)
                             }
                         }
                     }
@@ -1335,7 +1341,7 @@ private fun PendingImageRow(
                     modifier =
                         Modifier
                             .align(Alignment.TopEnd)
-                            .size(28.dp),
+                            .size(48.dp),
                 ) {
                     Icon(
                         Icons.Default.Close,
@@ -1493,17 +1499,9 @@ private fun MessageBubble(
                                 bottomEnd = if (isUser) 4.dp else 16.dp,
                             ),
                         color =
-                            if (isUser) {
-                                MaterialTheme.colorScheme.primary
-                            } else {
-                                MaterialTheme.colorScheme.surfaceVariant
-                            },
+                            if (isUser) MaterialTheme.agent567Extra.chipBackground else Color.Transparent,
                         contentColor =
-                            if (isUser) {
-                                MaterialTheme.colorScheme.onPrimary
-                            } else {
-                                MaterialTheme.colorScheme.onSurfaceVariant
-                            },
+                            MaterialTheme.colorScheme.onSurface,
                     ) {
                         when {
                             isUser -> {
@@ -1535,12 +1533,12 @@ private fun MessageBubble(
                                                 Text(
                                                     text = if (isExpanded) "收起" else "展开全文",
                                                     style = MaterialTheme.typography.labelSmall,
-                                                    color = MaterialTheme.colorScheme.onPrimary.copy(alpha = 0.9f),
+                                                    color = MaterialTheme.colorScheme.onSurface,
                                                 )
                                                 Icon(
                                                     imageVector = if (isExpanded) Icons.Default.ExpandLess else Icons.Default.ExpandMore,
                                                     contentDescription = if (isExpanded) "收起" else "展开",
-                                                    tint = MaterialTheme.colorScheme.onPrimary.copy(alpha = 0.9f),
+                                                    tint = MaterialTheme.colorScheme.onSurface,
                                                     modifier = Modifier.size(16.dp),
                                                 )
                                             }
@@ -1589,44 +1587,32 @@ private fun MessageBubble(
                 if (!isUser && message.processingDurationMs != null && message.status != MessageStatus.Streaming) {
                     Spacer(Modifier.width(8.dp))
                     Text(
-                        text = "本次处理 ${formatProcessingDuration(message.processingDurationMs)}",
+                        text = "本次处理 ${org.agent567.android.ui.formatting.formatElapsedDuration(message.processingDurationMs)}",
                         style = MaterialTheme.typography.labelSmall,
                         color = MaterialTheme.agent567Extra.secondaryText,
                     )
                 }
-            }
-
-            if (message.content.isNotBlank() && message.status != MessageStatus.Streaming) {
-                val clipboard = androidx.compose.ui.platform.LocalClipboardManager.current
-                var copied by remember { mutableStateOf(false) }
-                Row(
-                    modifier = Modifier.padding(top = 2.dp, start = 2.dp, end = 2.dp),
-                    horizontalArrangement = if (isUser) Arrangement.End else Arrangement.Start,
-                ) {
-                    IconButton(
-                        onClick = {
-                            clipboard.setText(androidx.compose.ui.text.AnnotatedString(message.content))
-                            copied = true
-                            onCopyToast("已复制内容到剪贴板")
-                        },
-                        modifier = Modifier.size(24.dp),
-                    ) {
-                        Icon(
-                            if (copied) Icons.Default.Check else Icons.Default.ContentCopy,
-                            contentDescription = "复制内容",
-                            modifier = Modifier.size(13.dp),
-                            tint = MaterialTheme.agent567Extra.secondaryText,
-                        )
+                if (message.content.isNotBlank() && message.status != MessageStatus.Streaming) {
+                    val clipboard = androidx.compose.ui.platform.LocalClipboardManager.current
+                    var copied by remember(message.id) { mutableStateOf(false) }
+                    IconButton(onClick = {
+                        clipboard.setText(androidx.compose.ui.text.AnnotatedString(message.content))
+                        copied = true
+                        onCopyToast(Str.copiedContent)
+                    }, modifier = Modifier.size(48.dp)) {
+                        Icon(if (copied) Icons.Default.Check else Icons.Default.ContentCopy,
+                            contentDescription = Str.copyContent, modifier = Modifier.size(16.dp), tint = MaterialTheme.agent567Extra.secondaryText)
                     }
                 }
             }
+
             if (message.usage != null) {
                 val usage = message.usage
                 Text(
                     text = buildString {
                         append(Str.tokensUsed)
                         usage.totalTokens?.let { append(" $it") }
-                        message.contextPercent?.let { append(" · ${Str.contextUsed} $it%") }
+                        message.contextPercent?.let { append(" · ${Str.contextUsed} ${org.agent567.android.ui.formatting.formatContextPercent(it)}") }
                     },
                     style = MaterialTheme.typography.labelSmall,
                     color = MaterialTheme.agent567Extra.secondaryText,
@@ -1655,17 +1641,6 @@ private fun MessageBubble(
     }
 }
 
-private fun formatProcessingDuration(durationMs: Long): String {
-    val totalSeconds = (durationMs.coerceAtLeast(0L) / 1_000L).coerceAtLeast(1L)
-    val hours = totalSeconds / 3_600L
-    val minutes = (totalSeconds % 3_600L) / 60L
-    val seconds = totalSeconds % 60L
-    return when {
-        hours > 0 -> "${hours}时${minutes}分"
-        minutes > 0 -> "${minutes}分${seconds}秒"
-        else -> "${seconds}秒"
-    }
-}
 
 private fun formatAttachmentSize(sizeBytes: Long): String =
     when {
@@ -2093,61 +2068,35 @@ private fun InputDock(
     onStop: () -> Unit,
     onAttach: () -> Unit,
     maxHeight: androidx.compose.ui.unit.Dp,
+    modelControls: @Composable () -> Unit,
 ) {
     Surface(
-        shape = RoundedCornerShape(24.dp),
-        color = MaterialTheme.colorScheme.surface.copy(alpha = 0.96f),
-        tonalElevation = 2.dp,
-        shadowElevation = 6.dp,
-        border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.55f)),
-        modifier = Modifier.fillMaxWidth().padding(horizontal = 8.dp, vertical = 6.dp),
+        shape = MaterialTheme.shapes.extraLarge,
+        color = MaterialTheme.colorScheme.surface,
+        tonalElevation = 0.dp,
+        shadowElevation = 0.dp,
+        border = BorderStroke(1.dp, MaterialTheme.agent567Extra.border),
+        modifier = Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 8.dp),
     ) {
-        Row(
-            modifier =
-                Modifier
-                    .fillMaxWidth()
-                    .padding(horizontal = 4.dp, vertical = 5.dp),
-            verticalAlignment = Alignment.Bottom,
-        ) {
-            IconButton(onClick = onAttach, enabled = !isStreaming) {
-                Icon(Icons.Default.AttachFile, contentDescription = Str.attach)
-            }
-            Box(
-                modifier =
-                    Modifier
-                        .weight(1f)
-                        .heightIn(min = 44.dp, max = maxHeight)
-                        .clip(RoundedCornerShape(18.dp))
-                        .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.55f))
-                        .padding(horizontal = 14.dp, vertical = 10.dp),
-            ) {
-                if (value.isEmpty()) {
-                    Text(
-                        Str.chatPlaceholder,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        style = MaterialTheme.typography.bodyLarge,
+        Column {
+            modelControls()
+            androidx.compose.material3.HorizontalDivider(color = MaterialTheme.agent567Extra.border.copy(alpha = 0.5f), modifier = Modifier.padding(horizontal = 12.dp))
+            Row(Modifier.fillMaxWidth().padding(4.dp), verticalAlignment = Alignment.Bottom) {
+                IconButton(onClick = onAttach, enabled = !isStreaming, modifier = Modifier.size(48.dp)) {
+                    Icon(Icons.Default.AttachFile, contentDescription = Str.attach, modifier = Modifier.size(20.dp))
+                }
+                Box(Modifier.weight(1f).heightIn(min = 48.dp, max = maxHeight).padding(horizontal = 4.dp, vertical = 12.dp)) {
+                    if (value.isEmpty()) Text(Str.chatPlaceholder, color = MaterialTheme.agent567Extra.secondaryText, style = MaterialTheme.typography.bodyLarge)
+                    BasicTextField(
+                        value = value, onValueChange = onValueChange, modifier = Modifier.fillMaxWidth(),
+                        textStyle = MaterialTheme.typography.bodyLarge.copy(color = MaterialTheme.colorScheme.onSurface),
+                        cursorBrush = SolidColor(MaterialTheme.colorScheme.primary), maxLines = 6,
                     )
                 }
-                BasicTextField(
-                    value = value,
-                    onValueChange = onValueChange,
-                    modifier = Modifier.fillMaxWidth(),
-                    textStyle =
-                        MaterialTheme.typography.bodyLarge.copy(
-                            color = MaterialTheme.colorScheme.onSurface,
-                        ),
-                    cursorBrush = SolidColor(MaterialTheme.colorScheme.primary),
-                    maxLines = 6,
-                )
-            }
-            Spacer(Modifier.width(4.dp))
-            if (isStreaming) {
-                FilledIconButton(onClick = onStop) {
-                    Icon(Icons.Default.Stop, contentDescription = Str.stop)
-                }
-            } else {
-                FilledIconButton(onClick = onSend, enabled = sendEnabled) {
-                    Icon(Icons.AutoMirrored.Filled.Send, contentDescription = Str.send)
+                if (isStreaming) {
+                    FilledIconButton(onClick = onStop, modifier = Modifier.size(48.dp)) { Icon(Icons.Default.Stop, contentDescription = Str.stop, modifier = Modifier.size(20.dp)) }
+                } else {
+                    FilledIconButton(onClick = onSend, enabled = sendEnabled, modifier = Modifier.size(48.dp)) { Icon(Icons.AutoMirrored.Filled.Send, contentDescription = Str.send, modifier = Modifier.size(20.dp)) }
                 }
             }
         }

@@ -70,7 +70,16 @@ object ErrorMapper {
         }
 
     private fun mapRemoteRequest(e: RemoteRequestException): UiError =
-        when (e.remoteError.code) {
+        if (e.remoteError.code == RemoteErrorCode.InternalError && e.remoteError.message in setOf(
+                "电脑与模型服务的连接中断，消息已保留。请检查电脑网络或稍后重试。",
+                "The computer lost its connection to the model service. Your message is saved. Check the computer network or retry later.",
+            )) {
+            UiError(
+                title = "模型网络连接中断",
+                message = "电脑与模型服务的连接中断，消息已保留。请检查电脑网络或稍后重试。",
+                action = UiErrorAction.Retry,
+            )
+        } else when (e.remoteError.code) {
             RemoteErrorCode.Unauthorized ->
                 UiError(
                     title = "桌面模型认证失败",

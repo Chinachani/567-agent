@@ -11,6 +11,8 @@
 
 The desktop application owns configuration and credentials for bundled use. Standalone mode reads its configuration from the user's 567 Agent data directory. Do not copy production credentials into test or development profiles.
 
+If a saved chat points to a deleted file in the gateway's managed session directory, the next inbound message creates a new session for that chat and reports the recovery. A conversation moved between the legacy `.vetta/sessions` and current `.567agent/sessions` directories resumes from its existing file. Existing, inaccessible, invalid, and external conversation paths are not silently replaced with empty history.
+
 ## Channel support
 
 The repository contains transports for Feishu, Telegram, Slack, Discord, Signal, iMessage, WeChat, and WhatsApp. Which channel can be enabled depends on the current desktop build, operating system, provider setup, and channel configuration. Follow the channel-specific setup instructions under [`docs/`](docs/) and the settings shown by the application; the presence of a transport in source does not guarantee availability on every platform.

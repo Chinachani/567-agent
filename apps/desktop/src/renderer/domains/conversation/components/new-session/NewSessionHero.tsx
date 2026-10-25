@@ -1,4 +1,5 @@
 import { motion } from "motion/react";
+import { BrandIcon } from "@shared/components/BrandIcon";
 import { cn } from "@shared/lib/utils";
 import { useThemeComponent } from "@vetta-org/theme-sdk";
 import type {
@@ -13,7 +14,6 @@ import { type CSSProperties, useRef } from "react";
 import { GuideBadgeSwiper } from "../GuideBadgeSwiper";
 import { easeOut } from "./constants";
 import "./NewSessionHero.css";
-import { HeroOrnamentSlot } from "./ornament/HeroOrnamentSlot";
 
 interface NewSessionHeroHostProps {
 	avatarAutoplay: boolean;
@@ -69,7 +69,7 @@ function avatarSlotHeight(count: number): string {
 }
 
 export function DefaultNewSessionHero({
-	avatarAutoplay,
+	avatarAutoplay: _avatarAutoplay,
 	className,
 	greetingTitle,
 	identity = null,
@@ -90,7 +90,7 @@ export function DefaultNewSessionHero({
 	const shownIdentity = lastIdentity.current;
 
 	return (
-		<div className={cn("relative mb-3 flex w-full max-w-2xl flex-col items-start", className)} {...props}>
+		<div className={cn("relative mb-6 flex w-full max-w-2xl flex-col items-start", className)} {...props}>
 			<motion.div
 				initial={{ opacity: 0, y: 12 }}
 				animate={{ opacity: mounted ? 1 : 0, y: mounted ? 0 : 12 }}
@@ -98,7 +98,15 @@ export function DefaultNewSessionHero({
 				className="flex w-full flex-col items-start"
 			>
 				{/* 欢迎语上方：引导 badge 轮播。工作模式切换已移到输入框上方的选项行。 */}
-				<GuideBadgeSwiper mounted={mounted} />
+				<div className="mb-5 flex w-full flex-wrap items-center justify-between gap-x-4 gap-y-2">
+					<span className="inline-flex items-center gap-2 text-[12px] font-medium tracking-wide text-muted-foreground">
+						<BrandIcon className="h-5 w-5" />
+						567 Agent
+					</span>
+					<div className="min-w-0 max-w-full">
+						<GuideBadgeSwiper mounted={mounted} />
+					</div>
+				</div>
 
 				{/* 标题块：身份头像组压在标题上方 + 问候语/身份名 + 副标题（装饰件改为绝对定位，见下） */}
 				<div className="flex w-full min-w-0 flex-col">
@@ -107,7 +115,9 @@ export function DefaultNewSessionHero({
 						className="ns-hero-avatar-slot"
 						data-visible={identity ? "true" : "false"}
 						style={
-							{ "--ns-hero-avatar-height": avatarSlotHeight(shownIdentity?.avatars.length ?? 0) } as CSSProperties
+							{
+								"--ns-hero-avatar-height": avatarSlotHeight(shownIdentity?.avatars.length ?? 0),
+							} as CSSProperties
 						}
 					>
 						{shownIdentity && (
@@ -118,7 +128,7 @@ export function DefaultNewSessionHero({
 										key={`${avatar.name}:${index}`}
 										name={avatar.name}
 										size="hero"
-										className={cn("ring-2 ring-background", index > 0 && "-ml-4")}
+										className={cn("ring-1 ring-background", index > 0 && "-ml-4")}
 										{...(avatar.avatar ? { avatar: avatar.avatar } : {})}
 										{...(avatar.blueprintId ? { blueprintId: avatar.blueprintId } : {})}
 									/>
@@ -128,7 +138,7 @@ export function DefaultNewSessionHero({
 									<span
 										data-avatar-overflow={shownIdentity.avatars.length - AVATAR_LIMIT}
 										// 底色必须是实色：这枚圆片压在前一枚头像上，半透明会把下面的脸透出来。
-										className="-ml-4 inline-flex h-14 w-14 shrink-0 items-center justify-center rounded-full bg-card text-[15px] font-semibold tabular-nums text-foreground ring-2 ring-background"
+										className="-ml-4 inline-flex h-14 w-14 shrink-0 items-center justify-center rounded-full bg-card text-[15px] font-semibold tabular-nums text-foreground ring-1 ring-background"
 									>
 										+{shownIdentity.avatars.length - AVATAR_LIMIT}
 									</span>
@@ -138,11 +148,11 @@ export function DefaultNewSessionHero({
 					</div>
 					{/* key 随身份变化：标题与描述整块重播 CSS 入场动画，回到问候语时同理。 */}
 					<div key={identity?.key ?? "greeting"} className="flex min-w-0 flex-col">
-						<h1 className="ns-hero-identity-title min-w-0 truncate bg-gradient-to-br from-foreground via-foreground to-foreground/70 bg-clip-text text-[24px] font-semibold tracking-[-0.02em] text-transparent">
+						<h1 className="ns-hero-identity-title min-w-0 break-words text-[32px] font-semibold leading-tight tracking-tight text-foreground">
 							{identity?.title ?? greetingTitle}
 						</h1>
 						{/* 描述限宽到七成、超出换行：右侧装饰件是绝对定位的，单行长文案会直接压到它身上。 */}
-						<p className="ns-hero-identity-subtitle mt-1 line-clamp-3 max-w-[70%] break-words text-[12px] leading-[1.6] text-muted-foreground/70">
+						<p className="ns-hero-identity-subtitle mt-3 max-w-full @min-[30rem]:max-w-[70%] break-words text-[14px] leading-relaxed text-muted-foreground">
 							{identity ? identity.subtitle || subtitle : subtitle}
 						</p>
 					</div>
@@ -150,7 +160,6 @@ export function DefaultNewSessionHero({
 			</motion.div>
 
 			{/* 装饰件脱离文档流下移，视觉上趴在输入栏顶边上；挂谁由「设置 - 外观 - 装饰件」决定 */}
-			<HeroOrnamentSlot autoplay={avatarAutoplay} mounted={mounted} />
 		</div>
 	);
 }

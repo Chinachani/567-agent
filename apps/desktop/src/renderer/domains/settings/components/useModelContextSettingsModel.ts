@@ -10,6 +10,7 @@ export function useModelContextSettingsModel(config: ModelsConfigData) {
 	const [current, setCurrent] = useState(config);
 	const [selection, setSelection] = useState<string | null>(null);
 	const [query, setQuery] = useState("");
+	const [submittedQuery, setSubmittedQuery] = useState<string | null>(null);
 	const [drafts, setDrafts] = useState<Record<string, string>>({});
 	const [busy, setBusy] = useState(false);
 	const pending = useRef(false);
@@ -85,11 +86,22 @@ export function useModelContextSettingsModel(config: ModelsConfigData) {
 		}
 	};
 	return {
-		options: options.filter(
-			(entry) => entry.value === key || entry.label.toLowerCase().includes(query.trim().toLowerCase()),
-		),
+		options,
 		count: options.length,
-		matchingCount: options.filter((entry) => entry.label.toLowerCase().includes(query.trim().toLowerCase())).length,
+		results:
+			submittedQuery === null
+				? []
+				: options.filter((entry) =>
+						`${entry.label} ${entry.providerId} ${entry.model.id}`
+							.toLowerCase()
+							.includes(submittedQuery.toLowerCase()),
+					),
+		submittedQuery,
+		search: () => setSubmittedQuery(query.trim()),
+		clearSearch: () => {
+			setQuery("");
+			setSubmittedQuery(null);
+		},
 		selected: key,
 		setSelection,
 		query,

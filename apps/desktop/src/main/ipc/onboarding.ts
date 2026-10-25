@@ -9,7 +9,7 @@ import { checkHelperPermissions, requestHelperPermissions } from "../appshot/app
 import { resolveHelperAppBundlePath } from "../appshot/helper-resolver.js";
 import { getAppLogger } from "../logger.js";
 import { closeOnboardingWindow, getOnboardingWindow, showOnboardingWindow } from "../onboarding-window.js";
-import { macTrayIconPath } from "../window-manager.js";
+import { appIconPngPath } from "../window-manager.js";
 
 const log = getAppLogger("onboarding-ipc");
 
@@ -45,7 +45,7 @@ export function registerOnboardingIpc(): () => void {
 			return;
 		}
 		try {
-			const icon = nativeImage.createFromPath(macTrayIconPath);
+			const icon = nativeImage.createFromPath(appIconPngPath);
 			event.sender.startDrag({ file, icon });
 		} catch (err) {
 			log.error("start drag failed", err);

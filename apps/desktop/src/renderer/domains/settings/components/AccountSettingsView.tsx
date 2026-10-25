@@ -51,14 +51,14 @@ export function AccountSettingsView({ model }: AccountSettingsViewProps): JSX.El
 
 	if (!model.user) {
 		return (
-			<div className="mx-auto w-full max-w-[680px] px-8 pt-2 pb-10">
+			<div className="mx-auto w-full max-w-[800px] px-5 pt-6 sm:px-8 pb-10">
 				<p className="text-[13px] text-muted-foreground">{model.labels.pleaseLogin}</p>
 			</div>
 		);
 	}
 
 	return (
-		<div className="mx-auto w-full max-w-[680px] px-8 pt-2 pb-6">
+		<div className="mx-auto w-full max-w-[800px] px-5 pt-6 sm:px-8 pb-6">
 			<div className="mb-5 flex items-center gap-5">
 				<div className="relative shrink-0">
 					<div className="rounded-2xl bg-gradient-to-br from-primary/40 to-primary/10 p-[2px]">
@@ -74,9 +74,7 @@ export function AccountSettingsView({ model }: AccountSettingsViewProps): JSX.El
 
 				<div className="min-w-0 flex-1">
 					<div className="flex items-center gap-2">
-						<h1 className="truncate text-[22px] font-bold leading-tight text-foreground">
-							{model.displayName}
-						</h1>
+						<h1 className="truncate text-[22px] font-bold leading-tight text-foreground">{model.displayName}</h1>
 						{model.badge && (
 							<span
 								className="shrink-0 rounded-full px-2 py-0.5 text-[10px] font-semibold text-primary-foreground"
@@ -144,12 +142,7 @@ export function AccountSettingsView({ model }: AccountSettingsViewProps): JSX.El
 					</div>
 
 					<div className="flex items-center justify-end gap-2 border-t border-border/40 bg-background/30 px-5 py-3">
-						<Button
-							type="button"
-							variant="ghost"
-							size="sm"
-							onClick={() => setDialogOpen(false)}
-						>
+						<Button type="button" variant="ghost" size="sm" onClick={() => setDialogOpen(false)}>
 							{model.labels.cancel}
 						</Button>
 						<Button

@@ -38,18 +38,19 @@ export const SidebarNavItemButton = forwardRef<HTMLButtonElement, SidebarNavItem
 				onClick={onClick}
 				title={title}
 				data-tour={tourAnchor}
+				aria-current={item.active ? "page" : undefined}
 				className={cn(
-					"no-drag relative z-20 flex items-center gap-2 rounded-md px-2 py-1.5 text-[13px] transition-colors",
-					item.active ? "font-semibold text-foreground" : "text-foreground hover:bg-accent/50",
+					"no-drag relative z-20 flex items-center gap-2.5 rounded-lg px-2.5 py-2 text-[13px] transition-colors",
+					item.type === "new-session"
+						? "mb-2 bg-primary font-medium text-primary-foreground hover:bg-primary/90"
+						: item.active
+							? "font-semibold text-foreground"
+							: "text-muted-foreground hover:bg-accent/50 hover:text-foreground",
 					className,
 				)}
 				{...props}
 			>
-				<SidebarNavIcon
-					icon={item.icon}
-					iconUrl={item.iconUrl}
-					className={cn("relative z-10", classNames?.icon)}
-				/>
+				<SidebarNavIcon icon={item.icon} iconUrl={item.iconUrl} className={cn("relative z-10", classNames?.icon)} />
 				{/* min-w-0 flex-1 truncate：label 占满中间并在过长时省略，右侧角标才不会被顶出按钮（与「更多」触发器同型）。 */}
 				<span className={cn("relative z-10 min-w-0 flex-1 truncate text-left", classNames?.label)}>{label}</span>
 				{item.badge && <SidebarNavBadgeView badge={item.badge} className={classNames?.badge} />}

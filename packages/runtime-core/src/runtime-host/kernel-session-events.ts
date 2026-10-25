@@ -51,6 +51,7 @@ export function mapKernelEventToSessionEvents(event: KernelEvent): SessionEvent[
 					source: "agent",
 				},
 				event.timestamp,
+				{ turnId: event.turnId },
 			),
 		];
 	}

@@ -46,6 +46,9 @@
 	--popover-foreground: rgb(220, 224, 234);
 	--primary: rgb(99, 102, 241);
 	--primary-foreground: rgb(255, 255, 255);
+	/* 生图状态独立于品牌主色，黑白主题下也保留辨识度。 */
+	--image-accent: rgb(196, 181, 253);
+	--chat-accent: rgb(252, 211, 77);
 	--secondary: rgb(38, 38, 40);
 	--secondary-foreground: rgb(220, 224, 234);
 	--muted: rgb(30, 30, 32);
@@ -117,6 +120,8 @@
 	--popover-foreground: rgb(0, 0, 0);
 	--primary: rgb(79, 70, 229);
 	--primary-foreground: rgb(255, 255, 255);
+	--image-accent: rgb(109, 40, 217);
+	--chat-accent: rgb(146, 64, 14);
 	--secondary: rgb(235, 235, 235);
 	--secondary-foreground: rgb(0, 0, 0);
 	--muted: rgb(242, 242, 242);
@@ -167,6 +172,9 @@
 }
 
 @theme inline {
+	--color-image-accent: var(--image-accent);
+	--color-chat-accent: var(--chat-accent);
+
 	--font-sans: var(--font-sans);
 	--font-mono: var(--font-mono);
 	--font-serif: var(--font-serif);

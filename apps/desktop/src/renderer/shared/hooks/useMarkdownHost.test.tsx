@@ -6,16 +6,25 @@ import type { ReactNode } from "react";
 import { afterEach, expect, it, vi } from "vitest";
 import { useMarkdownHost } from "./useMarkdownHost";
 
-afterEach(() => { cleanup(); vi.unstubAllGlobals(); });
+afterEach(() => {
+	cleanup();
+	vi.unstubAllGlobals();
+});
 
 it("resolves local Markdown images, exports SVG through the native dialog and closes a launched HTML preview", async () => {
 	const callbacks: FrameRequestCallback[] = [];
-	vi.stubGlobal("requestAnimationFrame", (callback: FrameRequestCallback) => { callbacks.push(callback); return callbacks.length; });
+	vi.stubGlobal("requestAnimationFrame", (callback: FrameRequestCallback) => {
+		callbacks.push(callback);
+		return callbacks.length;
+	});
 	const read = vi.fn(async (_path: string) => ({ content: "aW1hZ2U=", encoding: "base64" }));
 	const save = vi.fn(async () => "C:/saved/image.svg");
 	const openHtml = vi.fn(async () => "preview-id");
 	const closeHtml = vi.fn(async () => {});
-	Object.defineProperty(window, "vetta", { configurable: true, value: { fs: { readFile: read }, dialog: { saveData: save }, markdown: { openHtml, closeHtml } } });
+	Object.defineProperty(window, "vetta", {
+		configurable: true,
+		value: { fs: { readFile: read }, dialog: { saveData: save }, markdown: { openHtml, closeHtml } },
+	});
 	const store = createStore();
 	const wrapper = ({ children }: { children: ReactNode }) => <Provider store={store}>{children}</Provider>;
 	const { result } = renderHook(() => useMarkdownHost("C:/project/docs"), { wrapper });
@@ -29,9 +38,31 @@ it("resolves local Markdown images, exports SVG through the native dialog and cl
 	expect(save).toHaveBeenCalledWith("image.svg", "<svg/>", "utf8");
 	const opening = result.current.openHtml("<button>Run</button>");
 	expect(openHtml).not.toHaveBeenCalled();
-	await act(async () => { while (callbacks.length) callbacks.shift()?.(0); });
+	await act(async () => {
+		while (callbacks.length) callbacks.shift()?.(0);
+	});
 	const close = await opening;
 	expect(openHtml).toHaveBeenCalledWith("<button>Run</button>");
 	close();
 	expect(closeHtml).toHaveBeenCalledWith("preview-id");
+});
+
+it("resolves file actions against the document directory and copies URL destinations literally", async () => {
+	const writeText = vi.fn(async () => {});
+	Object.defineProperty(navigator, "clipboard", { configurable: true, value: { writeText } });
+	const reveal = vi.fn(async () => {});
+	const external = vi.fn(async () => {});
+	Object.defineProperty(window, "vetta", {
+		configurable: true,
+		value: { shell: { showItemInFolder: reveal, openExternal: external } },
+	});
+	const { result } = renderHook(() => useMarkdownHost("C:/project/docs"));
+	await result.current.copyText?.("../result.md", "file");
+	expect(writeText).toHaveBeenLastCalledWith("C:/project/result.md");
+	await result.current.copyText?.("https://example.test/?a=1&b=2", "url");
+	expect(writeText).toHaveBeenLastCalledWith("https://example.test/?a=1&b=2");
+	await result.current.revealFile?.("../result.md");
+	expect(reveal).toHaveBeenCalledWith("C:/project/result.md");
+	await result.current.openExternalUrl?.("https://example.test/");
+	expect(external).toHaveBeenCalledWith("https://example.test/");
 });

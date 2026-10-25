@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import { mkdtemp, rm, writeFile } from "node:fs/promises";
+import { mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import test from "node:test";
@@ -40,4 +40,26 @@ test("installer process bounds hangs and surfaces spawn errors", async () => {
 		}), /timed out after 100ms.*installer stalled/s);
 		await assert.rejects(runInnoInstaller({ installerPath: join(root, "missing.exe"), args: [], logPath }), /ENOENT/);
 	} finally { await rm(root, { recursive: true, force: true }); }
+});
+
+test("installer process forwards an environment without launcher data variables", async () => {
+	const root = await mkdtemp(join(tmpdir(), "inno-env-"));
+	const logPath = join(root, "install.log");
+	const outputPath = join(root, "environment.json");
+	const environment = { ...process.env, AGENT567_INSTALL_TEST_OUTPUT: outputPath };
+	const dataVariables = ["AGENT567_HOME", "AGENT567_WINDOWS_DATA_ROOT", "AGENT567_DESKTOP_USER_DATA_DIR", "AGENT567_WINDOWS_UPDATE_STORE", "AGENT567_UPDATER_CACHE_DIR"];
+	for (const key of dataVariables) delete environment[key];
+	try {
+		await runInnoInstaller({
+			installerPath: process.execPath,
+			args: ["-e", "require('node:fs').writeFileSync(process.env.AGENT567_INSTALL_TEST_OUTPUT, JSON.stringify(process.env))"],
+			logPath,
+			environment,
+		});
+		const actual = JSON.parse(await readFile(outputPath, "utf8"));
+		assert.equal(actual.AGENT567_INSTALL_TEST_OUTPUT, outputPath);
+		for (const key of dataVariables) assert.equal(actual[key], undefined);
+	} finally {
+		await rm(root, { recursive: true, force: true });
+	}
 });

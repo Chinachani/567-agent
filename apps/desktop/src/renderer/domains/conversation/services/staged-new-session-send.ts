@@ -189,6 +189,7 @@ export function restoreStagedPendingSessionSend(
 		persistSessionInputDraft(staged.draftKey, {
 			text: staged.rawText,
 			segments: staged.inputSegments.slice(),
+			mentionedFiles: staged.mentionedFiles.slice(),
 			appshot: staged.appshot,
 		});
 		return;

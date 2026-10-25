@@ -10,6 +10,7 @@ import type {
 	PluginContext,
 } from "@vetta-org/plugin-sdk";
 import { afterEach, describe, expect, it } from "vitest";
+import { resolveDesignDataRoot } from "../src/data-root";
 import { ENGINE_FILES, engineFilesHash } from "../src/engine/engine-files";
 import { engineReady, materializeEngine, migrateLegacyEngine, waitForSpawnExit } from "../src/engine/engine-manager";
 
@@ -72,22 +73,20 @@ describe("design engine data migration", () => {
 	it("moves the legacy engine tree into the plugin data directory", async () => {
 		const home = await temporaryHome();
 		const legacyRoot = join(home, ".vetta", "design-engine");
-		const targetRoot = join(home, ".vetta", "plugin-data", "vetta-ui-design", "design-engine");
+		const targetRoot = join(home, ".567agent", "plugin-data", "vetta-ui-design", "design-engine");
 		await mkdir(join(legacyRoot, "0.3.0"), { recursive: true });
 		await writeFile(join(legacyRoot, "0.3.0", "marker.txt"), "legacy");
 
 		await migrateLegacyEngine(pluginContext(), home);
 
 		await expect(readFile(join(targetRoot, "0.3.0", "marker.txt"), "utf8")).resolves.toBe("legacy");
-		await expect(readFile(join(legacyRoot, "0.3.0", "marker.txt"), "utf8")).rejects.toMatchObject({
-			code: "ENOENT",
-		});
+		await expect(readFile(join(legacyRoot, "0.3.0", "marker.txt"), "utf8")).resolves.toBe("legacy");
 	});
 
 	it("does not overwrite a version that already exists in plugin data", async () => {
 		const home = await temporaryHome();
 		const legacyRoot = join(home, ".vetta", "design-engine");
-		const targetRoot = join(home, ".vetta", "plugin-data", "vetta-ui-design", "design-engine");
+		const targetRoot = join(home, ".567agent", "plugin-data", "vetta-ui-design", "design-engine");
 		await mkdir(join(legacyRoot, "0.2.0"), { recursive: true });
 		await mkdir(join(legacyRoot, "0.3.0"), { recursive: true });
 		await mkdir(join(targetRoot, "0.3.0"), { recursive: true });
@@ -102,9 +101,30 @@ describe("design engine data migration", () => {
 		await expect(readFile(join(legacyRoot, "0.3.0", "marker.txt"), "utf8")).resolves.toBe("legacy-current");
 	});
 
+	it("resolves the selected host data root in an actual Node subprocess", async () => {
+		const dataRoot = join(await temporaryHome(), "selected data disk");
+		const context = { command: { run: (file: string, args: string[]) => runNode(file, args, { env: { AGENT567_HOME: dataRoot } }) } } as unknown as PluginContext;
+		expect(await resolveDesignDataRoot(context)).toBe(dataRoot);
+	});
+
+	it("copies an existing plugin engine to the selected data disk without overwriting current data", async () => {
+		const home = await temporaryHome();
+		const dataRoot = join(await temporaryHome(), "用户数据 D");
+		const source = join(home, ".vetta", "plugin-data", "vetta-ui-design", "design-engine", "0.3.0");
+		await mkdir(source, { recursive: true });
+		await writeFile(join(source, "marker.txt"), "old cache");
+		await migrateLegacyEngine(pluginContext(), home, dataRoot);
+		const target = join(dataRoot, "plugin-data", "vetta-ui-design", "design-engine", "0.3.0", "marker.txt");
+		expect(await readFile(target, "utf8")).toBe("old cache");
+		await writeFile(target, "active data");
+		await migrateLegacyEngine(pluginContext(), home, dataRoot);
+		expect(await readFile(target, "utf8")).toBe("active data");
+		expect(await readFile(join(source, "marker.txt"), "utf8")).toBe("old cache");
+	});
+
 	it("checks readiness without the project filesystem capability", async () => {
 		const home = await temporaryHome();
-		const engineRoot = join(home, ".vetta", "plugin-data", "vetta-ui-design", "design-engine", "0.3.0");
+		const engineRoot = join(home, ".567agent", "plugin-data", "vetta-ui-design", "design-engine", "0.3.0");
 		await mkdir(join(engineRoot, "node_modules", "vite"), { recursive: true });
 		await writeFile(join(engineRoot, ".files-hash"), engineFilesHash());
 		await writeFile(join(engineRoot, "node_modules", "vite", "package.json"), "{}");

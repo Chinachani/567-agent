@@ -1,9 +1,12 @@
+import type { Api567Status } from "@preload/api-types/567api";
+import { i18n } from "@shared/i18n";
 import { showToast } from "@shared/store/toast-atoms";
-import { useAtom } from "jotai";
+import { useAtom, useStore } from "jotai";
 import { useCallback, useEffect, useState } from "react";
 import {
 	api567AuthModalOpenAtom,
 	api567AvailableGroupsAtom,
+	api567GroupsLoadStateAtom,
 	api567InitialCheckDoneAtom,
 	api567StatusAtom,
 	api567TopupModalOpenAtom,
@@ -16,20 +19,55 @@ export function useApi567() {
 	const [modalOpen, setModalOpen] = useAtom(api567AuthModalOpenAtom);
 	const [topupModalOpen, setTopupModalOpen] = useAtom(api567TopupModalOpenAtom);
 	const [loading, setLoading] = useState(false);
+	const store = useStore();
+	const [groupsLoadState, setGroupsLoadState] = useAtom(api567GroupsLoadStateAtom);
+
+	const applyStatus = useCallback(
+		(next: Api567Status) => {
+			const previous = store.get(api567StatusAtom);
+			const changed =
+				previous.isLoggedIn !== next.isLoggedIn ||
+				(previous.loginUsername ?? previous.username) !== (next.loginUsername ?? next.username);
+			setStatus(next);
+			if (changed) {
+				setAvailableGroups(next.availableGroups ?? {});
+				setGroupsLoadState((state) => ({
+					request: state.request + 1,
+					loading: false,
+					loaded: Object.keys(next.availableGroups ?? {}).length > 0,
+					error: false,
+				}));
+			} else if (next.availableGroups !== undefined) setAvailableGroups(next.availableGroups);
+		},
+		[setStatus, setAvailableGroups, setGroupsLoadState, store],
+	);
 
 	const loadAvailableGroups = useCallback(
 		async (force = false) => {
 			if (!window.agent567?.api567?.getAvailableGroups) return;
+			const previous = store.get(api567GroupsLoadStateAtom);
+			if ((previous.loading || previous.loaded) && !force) return;
+			const request = previous.request + 1;
+			const identity = store.get(api567StatusAtom);
+			setGroupsLoadState({ loading: true, loaded: previous.loaded, error: false, request });
+			const current = () =>
+				store.get(api567GroupsLoadStateAtom).request === request &&
+				store.get(api567StatusAtom).isLoggedIn === identity.isLoggedIn &&
+				store.get(api567StatusAtom).loginUsername === identity.loginUsername;
 			try {
 				const groups = await window.agent567.api567.getAvailableGroups(force);
-				if (groups && Object.keys(groups).length > 0) {
-					setAvailableGroups(groups);
-				}
-			} catch (err) {
-				console.error("Failed to load available groups:", err);
+				if (!current()) return;
+				setAvailableGroups(groups ?? {});
+				setGroupsLoadState({ loading: false, loaded: true, error: false, request });
+			} catch {
+				if (!current()) return;
+				setGroupsLoadState({ loading: false, loaded: true, error: true, request });
+				if (force) showToast({ variant: "error", message: i18n.t("settings:api567Feedback.groupsFailed") });
+			} finally {
+				setGroupsLoadState((state) => (state.request === request ? { ...state, loading: false } : state));
 			}
 		},
-		[setAvailableGroups],
+		[setAvailableGroups, setGroupsLoadState, store],
 	);
 
 	useEffect(() => {
@@ -43,7 +81,7 @@ export function useApi567() {
 			.getStatus()
 			.then((initialStatus) => {
 				if (isMounted) {
-					setStatus(initialStatus);
+					applyStatus(initialStatus);
 					setInitialCheckDone(true);
 					if (initialStatus.availableGroups && Object.keys(initialStatus.availableGroups).length > 0) {
 						setAvailableGroups(initialStatus.availableGroups);
@@ -53,12 +91,15 @@ export function useApi567() {
 							void loadAvailableGroups(false);
 						}
 						if (initialStatus.quota === undefined) {
-							void window.agent567.api567.refreshQuota(false).then(async (res) => {
-								if (res.success && isMounted) {
-									const latest = await window.agent567.api567.getStatus();
-									setStatus(latest);
-								}
-							});
+							void window.agent567.api567
+								.refreshQuota(false)
+								.then(async (res) => {
+									if (res.success && isMounted) {
+										const latest = await window.agent567.api567.getStatus();
+										applyStatus(latest);
+									}
+								})
+								.catch(() => undefined);
 						}
 					}
 				}
@@ -72,7 +113,7 @@ export function useApi567() {
 
 		const unsubscribe = window.agent567.api567.onStatusChanged((newStatus) => {
 			if (isMounted) {
-				setStatus(newStatus);
+				applyStatus(newStatus);
 			}
 		});
 
@@ -80,12 +121,12 @@ export function useApi567() {
 			isMounted = false;
 			unsubscribe();
 		};
-	}, [setStatus, setInitialCheckDone, loadAvailableGroups, setAvailableGroups]);
+	}, [applyStatus, setInitialCheckDone, loadAvailableGroups, setAvailableGroups]);
 
 	const loginWithAccessToken = useCallback(
 		async (token: string): Promise<{ success: boolean; message?: string }> => {
 			if (!token.trim()) {
-				return { success: false, message: "账户访问令牌不能为空" };
+				return { success: false, message: i18n.t("settings:api567Messages.emptyToken") };
 			}
 			setLoading(true);
 			try {
@@ -93,17 +134,17 @@ export function useApi567() {
 				if (res.success) {
 					showToast({
 						variant: "success",
-						title: "567 API 验证成功",
-						message: "已成功连接 567 API 账户。",
+						title: i18n.t("settings:api567Messages.tokenSuccess"),
+						message: i18n.t("settings:api567Messages.connected"),
 					});
 					const latest = await window.agent567.api567.getStatus();
-					setStatus(latest);
+					applyStatus(latest);
 					void loadAvailableGroups();
 				} else {
 					showToast({
 						variant: "error",
-						title: "登录失败",
-						message: res.message || "账户访问令牌验证失败，请重试",
+						title: i18n.t("settings:api567Messages.loginFailed"),
+						message: res.message || i18n.t("settings:api567Messages.tokenFailed"),
 					});
 				}
 				return res;
@@ -111,7 +152,7 @@ export function useApi567() {
 				const msg = err instanceof Error ? err.message : String(err);
 				showToast({
 					variant: "error",
-					title: "登录发生异常",
+					title: i18n.t("settings:api567Messages.loginException"),
 					message: msg,
 				});
 				return { success: false, message: msg };
@@ -119,13 +160,13 @@ export function useApi567() {
 				setLoading(false);
 			}
 		},
-		[setStatus, loadAvailableGroups],
+		[applyStatus, loadAvailableGroups],
 	);
 
 	const loginWithPassword = useCallback(
 		async (username: string, password: string): Promise<{ success: boolean; message?: string }> => {
 			if (!username.trim() || !password.trim()) {
-				return { success: false, message: "用户名或密码不能为空" };
+				return { success: false, message: i18n.t("settings:api567Messages.emptyCredentials") };
 			}
 			setLoading(true);
 			try {
@@ -136,17 +177,17 @@ export function useApi567() {
 				if (res.success) {
 					showToast({
 						variant: "success",
-						title: "567 API 登录成功",
-						message: `欢迎回来，${username}！567 API 账户已登录。`,
+						title: i18n.t("settings:api567Messages.loginSuccess"),
+						message: i18n.t("settings:api567Messages.welcome", { name: username }),
 					});
 					const latest = await window.agent567.api567.getStatus();
-					setStatus(latest);
+					applyStatus(latest);
 					void loadAvailableGroups();
 				} else {
 					showToast({
 						variant: "error",
-						title: "登录失败",
-						message: res.message || "用户名或密码错误",
+						title: i18n.t("settings:api567Messages.loginFailed"),
+						message: res.message || i18n.t("settings:api567Messages.credentialsInvalid"),
 					});
 				}
 				return res;
@@ -154,7 +195,7 @@ export function useApi567() {
 				const msg = err instanceof Error ? err.message : String(err);
 				showToast({
 					variant: "error",
-					title: "登录发生异常",
+					title: i18n.t("settings:api567Messages.loginException"),
 					message: msg,
 				});
 				return { success: false, message: msg };
@@ -162,7 +203,7 @@ export function useApi567() {
 				setLoading(false);
 			}
 		},
-		[setStatus, loadAvailableGroups],
+		[applyStatus, loadAvailableGroups],
 	);
 
 	const syncGroup = useCallback(
@@ -172,16 +213,16 @@ export function useApi567() {
 				if (res.success) {
 					showToast({
 						variant: "success",
-						title: "分组接入成功",
-						message: `已为分组 [${groupName}] 自动关联密钥并同步模型`,
+						title: i18n.t("settings:api567Messages.groupSuccess"),
+						message: i18n.t("settings:api567Messages.groupConnected", { name: groupName }),
 					});
 					const latest = await window.agent567.api567.getStatus();
-					setStatus(latest);
+					applyStatus(latest);
 				} else {
 					showToast({
 						variant: "error",
-						title: "分组接入失败",
-						message: res.message || "未能接入该分组",
+						title: i18n.t("settings:api567Messages.groupFailed"),
+						message: res.message || i18n.t("settings:api567Messages.connectFailed"),
 					});
 				}
 				return res;
@@ -194,7 +235,7 @@ export function useApi567() {
 				return { success: false, message: msg };
 			}
 		},
-		[setStatus],
+		[applyStatus],
 	);
 
 	const removeGroup = useCallback(
@@ -204,39 +245,47 @@ export function useApi567() {
 				if (res.success) {
 					showToast({
 						variant: "info",
-						message: `已移除分组 [${groupName}]`,
+						message: i18n.t("settings:api567Messages.groupRemoved", { name: groupName }),
 					});
 					const latest = await window.agent567.api567.getStatus();
-					setStatus(latest);
+					applyStatus(latest);
 				}
+				if (!res.success)
+					showToast({ variant: "error", message: res.message || i18n.t("settings:api567Feedback.removeFailed") });
 				return res;
 			} catch (err) {
 				console.error("Failed to remove group:", err);
+				showToast({ variant: "error", message: i18n.t("settings:api567Feedback.removeFailed") });
 				return { success: false };
 			}
 		},
-		[setStatus],
+		[applyStatus],
 	);
 
 	const setActiveGroup = useCallback(
-		async (groupName: string) => {
+		async (groupName: string, modelName?: string) => {
 			try {
-				const res = await window.agent567.api567.setActiveGroup(groupName);
+				const res = await window.agent567.api567.setActiveGroup(groupName, modelName);
 				if (res.success) {
 					showToast({
 						variant: "success",
-						message: `主力分组已切换为: ${groupName}`,
+						message: modelName
+							? i18n.t("settings:api567Models.primarySaved", { model: modelName })
+							: i18n.t("settings:api567Messages.primary", { name: groupName }),
 					});
 					const latest = await window.agent567.api567.getStatus();
-					setStatus(latest);
+					applyStatus(latest);
 				}
+				if (!res.success)
+					showToast({ variant: "error", message: res.message || i18n.t("settings:api567Feedback.activeFailed") });
 				return res;
 			} catch (err) {
 				console.error("Failed to set active group:", err);
+				showToast({ variant: "error", message: i18n.t("settings:api567Feedback.activeFailed") });
 				return { success: false };
 			}
 		},
-		[setStatus],
+		[applyStatus],
 	);
 
 	const setImageGroup = useCallback(
@@ -246,18 +295,24 @@ export function useApi567() {
 				if (res.success) {
 					showToast({
 						variant: "success",
-						message: `画图分组已设置为: ${groupName}`,
+						message: i18n.t("settings:api567Messages.imageGroup", { name: groupName }),
 					});
 					const latest = await window.agent567.api567.getStatus();
-					setStatus(latest);
+					applyStatus(latest);
 				}
+				if (!res.success)
+					showToast({
+						variant: "error",
+						message: res.message || i18n.t("settings:api567Feedback.imageGroupFailed"),
+					});
 				return res;
 			} catch (err) {
 				console.error("Failed to set image group:", err);
+				showToast({ variant: "error", message: i18n.t("settings:api567Feedback.imageGroupFailed") });
 				return { success: false };
 			}
 		},
-		[setStatus],
+		[applyStatus],
 	);
 
 	const setImageModel = useCallback(
@@ -267,31 +322,42 @@ export function useApi567() {
 				if (res.success) {
 					showToast({
 						variant: "success",
-						message: `画图模型已设置为: ${modelName}`,
+						message: i18n.t("settings:api567Messages.imageModel", { name: modelName }),
 					});
 					const latest = await window.agent567.api567.getStatus();
-					setStatus(latest);
+					applyStatus(latest);
 				}
+				if (!res.success)
+					showToast({
+						variant: "error",
+						message: res.message || i18n.t("settings:api567Feedback.imageModelFailed"),
+					});
 				return res;
 			} catch (err) {
 				console.error("Failed to set image model:", err);
+				showToast({ variant: "error", message: i18n.t("settings:api567Feedback.imageModelFailed") });
 				return { success: false };
 			}
 		},
-		[setStatus],
+		[applyStatus],
 	);
 
 	const refreshGroups = useCallback(async () => {
 		try {
 			if (window.agent567?.api567?.refreshGroups) {
-				await window.agent567.api567.refreshGroups();
+				const result = await window.agent567.api567.refreshGroups();
+				if (!result.success) {
+					showToast({ variant: "error", message: i18n.t("settings:api567Feedback.groupsFailed") });
+					return;
+				}
 			}
 			const latest = await window.agent567.api567.getStatus();
-			setStatus(latest);
+			applyStatus(latest);
 		} catch (err) {
 			console.error("Failed to refresh groups:", err);
+			showToast({ variant: "error", message: i18n.t("settings:api567Feedback.groupsFailed") });
 		}
-	}, [setStatus]);
+	}, [applyStatus]);
 
 	const refreshQuota = useCallback(
 		async (force = false, silent = false): Promise<{ success: boolean; quota?: number; quotaUsd?: number }> => {
@@ -301,41 +367,52 @@ export function useApi567() {
 					if (!silent) {
 						showToast({
 							variant: "success",
-							title: "余额刷新成功",
-							message: `当前可用额度: $${res.quotaUsd !== undefined ? res.quotaUsd.toFixed(2) : "0.00"}`,
+							title: i18n.t("settings:api567Messages.quotaSuccess"),
+							message: i18n.t("settings:api567Messages.quota", {
+								amount: res.quotaUsd !== undefined ? res.quotaUsd.toFixed(2) : "0.00",
+							}),
 						});
 					}
 					const latest = await window.agent567.api567.getStatus();
-					setStatus(latest);
+					applyStatus(latest);
 					return res;
 				} else {
 					if (!silent) {
 						showToast({
 							variant: "warning",
-							message: "刷新余额失败，请稍后重试",
+							message: i18n.t("settings:api567Messages.quotaFailed"),
 						});
 					}
 					return res;
 				}
 			} catch (err) {
 				console.error("Failed to refresh quota:", err);
+				if (!silent) showToast({ variant: "error", message: i18n.t("settings:api567Feedback.quotaFailed") });
 				return { success: false };
 			}
 		},
-		[setStatus],
+		[applyStatus],
 	);
 
 	const sendVerificationCode = useCallback(async (email: string) => {
 		if (!email.trim()) {
-			showToast({ variant: "error", message: "请输入有效的邮箱地址" });
-			return { success: false, message: "请输入有效的邮箱地址" };
+			showToast({ variant: "error", message: i18n.t("settings:api567Messages.emailInvalid") });
+			return { success: false, message: i18n.t("settings:api567Messages.emailInvalid") };
 		}
 		try {
 			const res = await window.agent567.api567.sendVerificationCode(email.trim());
 			if (res.success) {
-				showToast({ variant: "success", title: "验证码已发送", message: "请查看您的邮箱并输入验证码" });
+				showToast({
+					variant: "success",
+					title: i18n.t("settings:api567Messages.codeSent"),
+					message: i18n.t("settings:api567Messages.checkEmail"),
+				});
 			} else {
-				showToast({ variant: "error", title: "发送失败", message: res.message || "验证码发送失败" });
+				showToast({
+					variant: "error",
+					title: i18n.t("settings:api567Messages.sendFailed"),
+					message: res.message || i18n.t("settings:api567Messages.codeFailed"),
+				});
 			}
 			return res;
 		} catch (err) {
@@ -359,36 +436,36 @@ export function useApi567() {
 				if (res.success) {
 					showToast({
 						variant: "success",
-						title: "567 API 注册成功",
-						message: `欢迎加入，${params.username}！已为您自动登录并配置初始模型。`,
+						title: i18n.t("settings:api567Messages.registerSuccess"),
+						message: i18n.t("settings:api567Messages.registered", { name: params.username }),
 					});
 					const latest = await window.agent567.api567.getStatus();
-					setStatus(latest);
+					applyStatus(latest);
 					void loadAvailableGroups();
 				} else {
 					showToast({
 						variant: "error",
-						title: "注册失败",
-						message: res.message || "注册信息有误，请核对后重试",
+						title: i18n.t("settings:api567Messages.registerFailed"),
+						message: res.message || i18n.t("settings:api567Messages.registerInvalid"),
 					});
 				}
 				return res;
 			} catch (err) {
 				const msg = err instanceof Error ? err.message : String(err);
-				showToast({ variant: "error", title: "注册异常", message: msg });
+				showToast({ variant: "error", title: i18n.t("settings:api567Messages.registerException"), message: msg });
 				return { success: false, message: msg };
 			} finally {
 				setLoading(false);
 			}
 		},
-		[setStatus, loadAvailableGroups],
+		[applyStatus, loadAvailableGroups],
 	);
 
 	const topupWithKey = useCallback(
 		async (key: string) => {
 			if (!key.trim()) {
-				showToast({ variant: "error", message: "请输入充值卡密兑换码" });
-				return { success: false, message: "请输入充值卡密兑换码" };
+				showToast({ variant: "error", message: i18n.t("settings:api567Messages.keyRequired") });
+				return { success: false, message: i18n.t("settings:api567Messages.keyRequired") };
 			}
 			setLoading(true);
 			try {
@@ -396,16 +473,16 @@ export function useApi567() {
 				if (res.success) {
 					showToast({
 						variant: "success",
-						title: "充值成功",
-						message: res.message || "卡密兑换成功，额度已实时到账！",
+						title: i18n.t("settings:api567Messages.topupSuccess"),
+						message: res.message || i18n.t("settings:api567Messages.redeemed"),
 					});
 					const latest = await window.agent567.api567.getStatus();
-					setStatus(latest);
+					applyStatus(latest);
 				} else {
 					showToast({
 						variant: "error",
-						title: "兑换失败",
-						message: res.message || "卡密兑换失败，请检查卡密有效性",
+						title: i18n.t("settings:api567Messages.redeemFailed"),
+						message: res.message || i18n.t("settings:api567Messages.invalidKey"),
 					});
 				}
 				return res;
@@ -417,7 +494,7 @@ export function useApi567() {
 				setLoading(false);
 			}
 		},
-		[setStatus],
+		[applyStatus],
 	);
 
 	const createPayOrder = useCallback(async (amount: number, method: "alipay" | "wxpay") => {
@@ -425,7 +502,7 @@ export function useApi567() {
 			return await window.agent567.api567.createPayOrder(amount, method);
 		} catch (err) {
 			const msg = err instanceof Error ? err.message : String(err);
-			showToast({ variant: "error", title: "订单创建失败", message: msg });
+			showToast({ variant: "error", title: i18n.t("settings:api567Messages.orderFailed"), message: msg });
 			return { success: false, message: msg };
 		}
 	}, []);
@@ -433,19 +510,21 @@ export function useApi567() {
 	const logout = useCallback(async () => {
 		try {
 			await window.agent567.api567.logout();
-			setStatus({ isLoggedIn: false });
+			applyStatus({ isLoggedIn: false });
 			showToast({
 				variant: "info",
-				message: "已退出 567 API 账户",
+				message: i18n.t("settings:api567Messages.loggedOut"),
 			});
 		} catch (err) {
 			console.error("Failed to logout:", err);
+			showToast({ variant: "error", message: i18n.t("settings:api567Feedback.logoutFailed") });
 		}
-	}, [setStatus]);
+	}, [applyStatus]);
 
 	return {
 		status,
 		availableGroups,
+		groupsLoadState,
 		loadAvailableGroups,
 		initialCheckDone,
 		loading,

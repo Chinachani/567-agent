@@ -5,8 +5,16 @@ import { Api567GroupsSection } from "./Api567GroupsSection";
 import { ModelContextSettings } from "./ModelContextSettings";
 import { ModelsProvidersSection } from "./ModelsProvidersSection";
 import type { ModelsSettingsModel } from "./useModelsSettingsModel";
+import type { ImageGenerationSettingsModel } from "./useImageGenerationSettingsModel";
+import { ImageGenerationSettingsSection } from "./ImageGenerationSettingsSection";
 
-export function ModelsSettingsView({ model }: { model: ModelsSettingsModel }): JSX.Element {
+export function ModelsSettingsView({
+	model,
+	imageGeneration,
+}: {
+	model: ModelsSettingsModel;
+	imageGeneration: ImageGenerationSettingsModel;
+}): JSX.Element {
 	const { t } = useTranslation("settings");
 
 	return (
@@ -26,6 +34,7 @@ export function ModelsSettingsView({ model }: { model: ModelsSettingsModel }): J
 			{model.config && (
 				<>
 					<Api567GroupsSection config={model.config} />
+					<ImageGenerationSettingsSection model={imageGeneration} />
 					<ModelContextSettings config={model.config} />
 					<ModelsProvidersSection model={model} />
 				</>

@@ -1,3 +1,4 @@
+import { CompactionStep } from "./CompactionStep";
 import type { ThinkingBlock, ToolCallBlock } from "@shared/store/atoms";
 import type { ChatToolCallPresentationViewModel } from "@shared/store/atoms";
 import { languageAtom, pluginAgentToolLabelsAtom, pluginI18nByIdAtom } from "@shared/store/atoms";
@@ -268,6 +269,9 @@ export const WorkSegmentRenderer = memo(function WorkSegmentRenderer({
 				) : (
 					<ToolCallBlockView block={segment.block} exportMode={exportMode} aliased />
 				);
+				break;
+			case "compaction":
+				content = <CompactionStep status={segment.block.status} errorMessage={segment.block.errorMessage} />;
 				break;
 			case "error":
 				content = <ErrorBlockView block={segment.block} exportMode={exportMode} />;

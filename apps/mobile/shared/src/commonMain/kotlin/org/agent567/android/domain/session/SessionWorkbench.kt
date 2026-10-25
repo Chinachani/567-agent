@@ -11,4 +11,8 @@ data class SessionChangeAsset(val id: String, val path: String, val status: Stri
 @Serializable
 data class SessionWorkbenchSnapshot(val attachments: List<SessionAttachmentAsset> = emptyList(), val tasks: List<SessionTaskAsset> = emptyList(), val changes: List<SessionChangeAsset> = emptyList())
 @Serializable
-data class SessionWorkbenchDetail(val kind: String, val id: String, val title: String, val text: String, val path: String? = null, val sizeBytes: Long? = null, val previewStatus: String? = null, val beforeText: String? = null, val afterText: String? = null, val afterRevision: String? = null, val reversible: Boolean = false)
+data class SessionWorkbenchDetail(val kind: String, val id: String, val title: String, val text: String, val path: String? = null, val sizeBytes: Long? = null, val previewStatus: String? = null, val beforeText: String? = null, val afterText: String? = null, val afterRevision: String? = null, val reversible: Boolean = false, val thumbnailDataUrl: String? = null)
+
+fun validatedWorkbenchThumbnail(value: String?): String? = value?.takeIf {
+    it.length <= 66000 && Regex("data:image/(png|jpeg);base64,[A-Za-z0-9+/]+=*").matches(it)
+}

@@ -9,40 +9,40 @@ export const monoTheme: ThemeDef = {
 	label: "Default",
 	dark: {
 		...defaultTheme.dark,
-		background: "rgb(18, 18, 18)",
-		muted: "rgb(24, 24, 24)",
-		card: "rgb(29, 29, 29)",
+		background: "rgb(20, 20, 22)",
+		muted: "rgb(26, 26, 28)",
+		card: "rgb(29, 29, 32)",
 		// 覆盖经典偏蓝 popover/border，侧栏设置菜单等浮层保持中性灰
-		popover: "rgb(28, 28, 28)",
-		// 纯黑底上正文再压一档（约 82%），避免近白发飘；muted 拉开层级
-		foreground: "rgb(208, 208, 208)",
-		cardForeground: "rgb(208, 208, 208)",
-		popoverForeground: "rgb(208, 208, 208)",
-		secondaryForeground: "rgb(208, 208, 208)",
-		accentForeground: "rgb(208, 208, 208)",
-		mutedForeground: "rgb(128, 128, 128)",
-		border: "rgb(42, 42, 42)",
+		popover: "rgb(32, 32, 35)",
+		// 正文与辅助文字拉开层级，暗色下辅助信息仍保持可读。
+		foreground: "rgb(224, 224, 228)",
+		cardForeground: "rgb(224, 224, 228)",
+		popoverForeground: "rgb(224, 224, 228)",
+		secondaryForeground: "rgb(224, 224, 228)",
+		accentForeground: "rgb(224, 224, 228)",
+		mutedForeground: "rgb(157, 157, 166)",
+		border: "rgb(48, 48, 52)",
 		input: "rgb(48, 48, 48)",
-		inputBarBg: "rgb(29, 29, 29)",
+		inputBarBg: "rgb(29, 29, 32)",
 		// 强调色仍偏亮但略软于纯白，实心按钮不刺眼
 		primary: "rgb(228, 228, 228)",
 		primaryForeground: "rgb(8, 8, 10)",
 		ring: "rgb(228, 228, 228)",
-		// hover（card / popover item 的 hover:bg-accent）；须明显高于 popover(28)
-		accent: "rgb(48, 48, 48)",
+		// hover 与浮层保持可辨的层次。
+		accent: "rgb(46, 46, 50)",
 	},
 	light: {
 		...defaultTheme.light,
 		// 纯白画布；card 略压深以便与 bg 分层
 		background: "rgb(255, 255, 255)",
-		card: "rgb(248, 248, 248)",
+		card: "rgb(250, 250, 252)",
 		popover: "rgb(255, 255, 255)",
-		muted: "rgb(250, 250, 250)",
+		muted: "rgb(244, 244, 246)",
 		// secondary 略深于 muted，便于 bg-secondary 可辨
 		secondary: "rgb(240, 240, 241)",
-		// 比经典浅色 border 更浅，避免灰框过重
-		border: "rgb(238, 238, 238)",
-		input: "rgb(238, 238, 238)",
+		// 浅色细边线与卡片、输入区保持可辨的层次。
+		border: "rgb(224, 224, 230)",
+		input: "rgb(224, 224, 230)",
 		inputBarBg: "rgb(255, 255, 255)",
 		primary: "rgb(0, 0, 0)",
 		primaryForeground: "rgb(255, 255, 255)",

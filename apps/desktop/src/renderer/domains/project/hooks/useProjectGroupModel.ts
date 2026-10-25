@@ -117,6 +117,7 @@ export function useProjectGroupModel({
 	}, [activeConversationKey, ordering.all, pinnedSessionPaths, sessions]);
 
 	const displayName = project.name ?? pathBasename(project.cwd);
+	const projectActionsTitle = t("contextMenu.projectActions");
 	const projectType = project.type;
 	const projectBadge = getProjectBadge(project, projectType, t);
 
@@ -173,7 +174,12 @@ export function useProjectGroupModel({
 	const openProjectContextMenu = useCallback(
 		(event: React.MouseEvent) => {
 			event.preventDefault();
-			setProjectContextMenu({ x: event.clientX, y: event.clientY, project });
+			const bounds = event.currentTarget.getBoundingClientRect();
+			setProjectContextMenu({
+				x: event.type === "click" ? bounds.right : event.clientX,
+				y: event.type === "click" ? bounds.bottom : event.clientY,
+				project,
+			});
 		},
 		[project, setProjectContextMenu],
 	);
@@ -213,6 +219,7 @@ export function useProjectGroupModel({
 
 	return {
 		displayName,
+		projectActionsTitle,
 		expanded: isExpanded,
 		hasMoreSessions: ordering.hasMore,
 		hasRunning: projectHasRunning,

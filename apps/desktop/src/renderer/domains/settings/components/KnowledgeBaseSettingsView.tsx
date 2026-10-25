@@ -33,9 +33,9 @@ export function KnowledgeBaseSettingsView({ model }: { model: KnowledgeBaseSetti
 	);
 
 	return (
-		<div className="mx-auto w-full max-w-[680px] px-8 pt-2 pb-4">
+		<div className="mx-auto w-full max-w-[800px] px-5 pt-6 sm:px-8 pb-4">
 			<div className="mb-6 flex flex-wrap items-center justify-between gap-3">
-				<h1 className="text-[20px] font-bold text-foreground">{model.labels.title}</h1>
+				<h1 className="text-[24px] font-semibold tracking-tight text-foreground">{model.labels.title}</h1>
 				<div className="flex flex-wrap items-center gap-2">
 					<SettingsAiAssist tabId="knowledge" />
 					<button
@@ -88,7 +88,10 @@ export function KnowledgeBaseSettingsView({ model }: { model: KnowledgeBaseSetti
 									"h-8 w-[220px] max-w-full rounded-lg border-border bg-card px-2.5 text-[12px] font-medium hover:bg-accent data-[state=open]:bg-accent",
 									model.enabled && !model.modelKey && "border-amber-500/50",
 								)}
-								reasoning={{ value: model.reasoningLevel || undefined, onChange: model.actions.changeReasoning }}
+								reasoning={{
+									value: model.reasoningLevel || undefined,
+									onChange: model.actions.changeReasoning,
+								}}
 							/>
 							<button
 								type="button"

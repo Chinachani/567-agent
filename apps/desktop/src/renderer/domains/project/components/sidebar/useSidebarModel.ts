@@ -21,7 +21,6 @@ import { useNewChatNavigation } from "../../hooks/useNewChatNavigation";
 import { toSidebarNavBadge } from "./sidebar-nav-badge";
 import {
 	canPinMore as canPinMoreKeys,
-	EXTENSIONS_NAV_KEY,
 	migrateSidebarNavLayout,
 	moveNavKeyToRegion,
 	NEW_SESSION_NAV_KEY,
@@ -87,42 +86,13 @@ const BUILTIN_NAV_ITEMS = [
 		labelKey: "sidebar.nav.scenes",
 		icon: "icon-[solar--clapperboard-open-linear]",
 	},
-	{
-		type: "route",
-		settingsTab: "models" as const,
-		labelKey: "sidebar.nav.modelSettings",
-		icon: "icon-[solar--cpu-bolt-linear]",
-	},
-	{
-		type: "route",
-		settingsTab: "context" as const,
-		labelKey: "sidebar.nav.agentSettings",
-		icon: "icon-[solar--user-speak-rounded-linear]",
-	},
-	{
-		type: "route",
-		settingsTab: "appearance" as const,
-		labelKey: "sidebar.nav.appearance",
-		icon: "icon-[solar--palette-linear]",
-	},
-	{
-		type: "route",
-		settingsTab: "extensions" as const,
-		labelKey: "sidebar.nav.extensions",
-		icon: "icon-[solar--menu-dots-circle-linear]",
-	},
 ] as const;
 
 /**
  * 首次使用时的置顶区默认成员：留「能力」「智能体」和设计画廊，其余入口默认收纳。
  * 顺序由 navCatalog 决定（内置在前、插件视图在后），即「新会话 / 能力 / 智能体 / 设计」。
  */
-const DEFAULT_PINNED_NAV_KEYS = [
-	"/abilities",
-	"/agents",
-	workspaceViewNavKey("vetta-ui-design", "gallery"),
-	workspaceViewNavKey("cowart-vetta", "canvas"),
-];
+const DEFAULT_PINNED_NAV_KEYS = ["/abilities", "/agents", workspaceViewNavKey("vetta-ui-design", "gallery")];
 
 function loadStoredNavLayout(): SidebarNavLayout {
 	try {
@@ -186,20 +156,6 @@ function toNavItem(
 	currentPath: string,
 	badge?: SidebarNavBadge,
 ): SidebarNavItem {
-	if ("settingsTab" in item) {
-		const key = `/settings/${item.settingsTab}`;
-		return {
-			key,
-			type: item.type,
-			settingsTab: item.settingsTab,
-			label,
-			labelKey: item.labelKey,
-			icon: item.icon,
-			active: currentPath === key,
-			// 「更多选项」锁在收纳区末位：不拖动、不置顶（见 sidebar-nav-layout.ts）。
-			...(key === EXTENSIONS_NAV_KEY ? { locked: true } : {}),
-		};
-	}
 	if (item.type === "new-session") {
 		return {
 			key: NEW_SESSION_NAV_KEY,

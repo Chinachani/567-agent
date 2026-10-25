@@ -1,0 +1,157 @@
+{
+  "sources": {
+    "icon-dark.svg": "d342a82bafbcfdc9a36cc8d71748b081e79158c11884acbf55a2bbb6e53c0f91",
+    "icon-light.svg": "b6f313d3d268e88b3f7ed40978b8fba09f9dd3a1a515b35c8df9dd8dad698c22",
+    "mark.svg": "d39902a0b170b67588e171c5680b38fa2a4e24a3da5f238937a16225dea0bde6"
+  },
+  "outputs": {
+    "apps/desktop/build/icons/16x16.png": {
+      "bytes": 596,
+      "sha256": "655373686af66b78204e41164e27b42ebfc80947e34ec81e15acb515fefdfc84"
+    },
+    "apps/desktop/build/icons/32x32.png": {
+      "bytes": 1126,
+      "sha256": "0f522158c57fc6da53c6177f8f3d70e7f7d04d0cbe6b6f04a11b1f552e9cc9b8"
+    },
+    "apps/desktop/build/icons/48x48.png": {
+      "bytes": 1776,
+      "sha256": "c31f11165bd007d56b3d35177cdc86dcc5b24e7484603e5aace6269449f74aa8"
+    },
+    "apps/desktop/build/icons/64x64.png": {
+      "bytes": 2221,
+      "sha256": "0bb6ce395aabcce237d9c96d3609bb5d07c85225850f8d9864c8a81d7f483c46"
+    },
+    "apps/desktop/build/icons/128x128.png": {
+      "bytes": 4061,
+      "sha256": "e620148df74942f222c1c535125251095f008297e57b94a73296f743dfee8ea1"
+    },
+    "apps/desktop/build/icons/256x256.png": {
+      "bytes": 7542,
+      "sha256": "2b4f788bbe31c18af3d1f333a79b6656ffeef97b8d4679f161e7b701279f5b9d"
+    },
+    "apps/desktop/build/icons/512x512.png": {
+      "bytes": 15277,
+      "sha256": "2e30dcfb9b18032574cbbf4ed46f23ae4170f5b993d3da86c75b9b5dbfcb84eb"
+    },
+    "apps/desktop/build/icon.png": {
+      "bytes": 33353,
+      "sha256": "91b392777593e8273d36490b08d8ae076e4c7148326667e3ed539233661cfad4"
+    },
+    "apps/desktop/build/icon-dock.png": {
+      "bytes": 33353,
+      "sha256": "91b392777593e8273d36490b08d8ae076e4c7148326667e3ed539233661cfad4"
+    },
+    "apps/desktop/build/icon.ico": {
+      "bytes": 17424,
+      "sha256": "6776ae734eef4e753a5d4d36d499807bdba56c782214c5128067542b0d54d4ce"
+    },
+    "apps/desktop/build/icon.icns": {
+      "bytes": 64240,
+      "sha256": "fb83d3a2d2263c1fd1a5c65fd2c2d1ce3ac6346e0a8a959aeb9257513476c09b"
+    },
+    "apps/desktop/build/tray-light.png": {
+      "bytes": 1101,
+      "sha256": "e2b69321d8b886e935f128d8a2bd611cd721eb154ef076d23eed013a4c32076f"
+    },
+    "apps/desktop/src/renderer/public/brand/icon-light.svg": {
+      "bytes": 1784,
+      "sha256": "22ebba247dddaec122873b1af6808a2239ae57b0be92e8dfda5518260eba6db3"
+    },
+    "apps/desktop/build/tray-dark.png": {
+      "bytes": 1126,
+      "sha256": "0f522158c57fc6da53c6177f8f3d70e7f7d04d0cbe6b6f04a11b1f552e9cc9b8"
+    },
+    "apps/desktop/src/renderer/public/brand/icon-dark.svg": {
+      "bytes": 1784,
+      "sha256": "bc42f76b06c55cde192785d14cc3d3edc3de138e1cc13b270a8d4d40e8101e02"
+    },
+    "apps/desktop/build/trayTemplate.png": {
+      "bytes": 375,
+      "sha256": "18ddb51eb2869535885a214879fdfd53208df19754aad73547dfea4563eac115"
+    },
+    "apps/desktop/build/trayTemplate@2x.png": {
+      "bytes": 691,
+      "sha256": "1bd531230ae07b41a21cd52f5510bbf6c37ef622d8fad4562625989c356999bf"
+    },
+    "apps/desktop/src/renderer/public/icon.png": {
+      "bytes": 15277,
+      "sha256": "2e30dcfb9b18032574cbbf4ed46f23ae4170f5b993d3da86c75b9b5dbfcb84eb"
+    },
+    "apps/mobile/shared/src/commonMain/composeResources/drawable/brand_icon.png": {
+      "bytes": 7542,
+      "sha256": "2b4f788bbe31c18af3d1f333a79b6656ffeef97b8d4679f161e7b701279f5b9d"
+    },
+    "apps/mobile/androidApp/src/main/res/mipmap-mdpi/ic_launcher.png": {
+      "bytes": 1776,
+      "sha256": "c31f11165bd007d56b3d35177cdc86dcc5b24e7484603e5aace6269449f74aa8"
+    },
+    "apps/mobile/androidApp/src/main/res/mipmap-mdpi/ic_launcher_round.png": {
+      "bytes": 1912,
+      "sha256": "827d9b7139047e3c54a59e17a7218ea74c9516e82e632a7dffaf99bc711d7550"
+    },
+    "apps/mobile/androidApp/src/main/res/mipmap-mdpi/ic_launcher_foreground.png": {
+      "bytes": 1346,
+      "sha256": "433ab07d05c63ecae91bc6ec4c3598e5b3af54bde8849e66415dfd22354b4565"
+    },
+    "apps/mobile/androidApp/src/main/res/mipmap-hdpi/ic_launcher.png": {
+      "bytes": 2557,
+      "sha256": "9b29cf33d64eaae6741f3781c475b5f76cdbeec2b7583d859acbe18313c3a6a4"
+    },
+    "apps/mobile/androidApp/src/main/res/mipmap-hdpi/ic_launcher_round.png": {
+      "bytes": 2818,
+      "sha256": "56437ca5ed7890e1231168278b7fdcf5ca81941c5394c1f8e92e75b5a44e2bef"
+    },
+    "apps/mobile/androidApp/src/main/res/mipmap-hdpi/ic_launcher_foreground.png": {
+      "bytes": 1854,
+      "sha256": "5d9172eeb8455a841fcb36a342d2f947e8932b695f8119fbd67cfcdbe1f76bc9"
+    },
+    "apps/mobile/androidApp/src/main/res/mipmap-xhdpi/ic_launcher.png": {
+      "bytes": 3259,
+      "sha256": "a95285fb97be6039fb65e8880991858b78194cacfd7bc984497a6ce11fee2417"
+    },
+    "apps/mobile/androidApp/src/main/res/mipmap-xhdpi/ic_launcher_round.png": {
+      "bytes": 3578,
+      "sha256": "7b53274f293842a48c9aa593d3885eb41d1ec2a55ad62d3928ca6de13cb28dfe"
+    },
+    "apps/mobile/androidApp/src/main/res/mipmap-xhdpi/ic_launcher_foreground.png": {
+      "bytes": 2256,
+      "sha256": "2a65e42edcffaa26a6eb103ba3d7024ff449801d0eba99cc638bb25f1b88a3e7"
+    },
+    "apps/mobile/androidApp/src/main/res/mipmap-xxhdpi/ic_launcher.png": {
+      "bytes": 4600,
+      "sha256": "575de6c8a78c3378571ebd883bd041786021a74839b86a0134cfbcf9aca437da"
+    },
+    "apps/mobile/androidApp/src/main/res/mipmap-xxhdpi/ic_launcher_round.png": {
+      "bytes": 5128,
+      "sha256": "aed8c9304636e3a93b513826773ce1d664b68cfdc336e4561f721045806770eb"
+    },
+    "apps/mobile/androidApp/src/main/res/mipmap-xxhdpi/ic_launcher_foreground.png": {
+      "bytes": 3267,
+      "sha256": "577cf45867033f707f8b28c9e0a88d93fd10040b67600091cdac2adba4e0bbfd"
+    },
+    "apps/mobile/androidApp/src/main/res/mipmap-xxxhdpi/ic_launcher.png": {
+      "bytes": 5942,
+      "sha256": "60db8e0af560ca03feaf5cb3370faff2f2d783e45c82bcfe47da32ffe1dc22c5"
+    },
+    "apps/mobile/androidApp/src/main/res/mipmap-xxxhdpi/ic_launcher_round.png": {
+      "bytes": 6836,
+      "sha256": "a7c236560a9e5b04ab52bddc0257b217190e225f6dd5e57d92f6efb4b0e8db7a"
+    },
+    "apps/mobile/androidApp/src/main/res/mipmap-xxxhdpi/ic_launcher_foreground.png": {
+      "bytes": 4361,
+      "sha256": "5ee17f96064f31b8ff7fe3efe24d83fde5289223e0e55bc6c3cdac7a7ecada02"
+    },
+    "apps/mobile/androidApp/src/main/res/drawable/ic_launcher_background.xml": {
+      "bytes": 302,
+      "sha256": "9a055edf1f62e992466fb6bb166d6800fdb6384edbd69b963701df8916dae562"
+    },
+    "apps/docs-site/public/images/agent567-app-icon.png": {
+      "bytes": 15277,
+      "sha256": "2e30dcfb9b18032574cbbf4ed46f23ae4170f5b993d3da86c75b9b5dbfcb84eb"
+    },
+    "apps/docs-site/public/favicon.svg": {
+      "bytes": 1784,
+      "sha256": "bc42f76b06c55cde192785d14cc3d3edc3de138e1cc13b270a8d4d40e8101e02"
+    }
+  }
+}

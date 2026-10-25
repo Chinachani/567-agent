@@ -49,10 +49,12 @@ import {
 	createNodeKnowledgeRuntime,
 	NodeTextFileStorage,
 } from "@567agent/runtime-node/host";
+import { createApi567InferenceStream } from "../567api/inference.js";
 import { getModePrompt } from "../agent-modes/index.js";
 import { createDesktopAgentObservability } from "../agent-observability/composition.js";
 import {
 	DEFAULT_CONVERSATION_CWD,
+	DEFAULT_IM_CONVERSATION_CWD,
 	DEFAULT_IM_CONVERSATION_SESSION_DIR,
 	readDesktopConfig,
 } from "../config/desktop-config-store.js";
@@ -120,7 +122,9 @@ export function createDesktopRuntimeComposition(): DesktopRuntimeComposition {
 	const mcpAppHost = getDesktopMcpAppRegistry();
 	const providerObservationRuntime = getDesktopProviderObservationRuntime();
 	const runtimeConfiguration = getDesktopRuntimeConfigurationService();
-	const modelStream = createLoopbackSessionAffinityStream(providerObservationRuntime?.streamFn);
+	const modelStream = createLoopbackSessionAffinityStream(
+		createApi567InferenceStream(providerObservationRuntime?.streamFn),
+	);
 	const getDefaultExecutionMode = async () => (await readDesktopConfig()).defaultExecutionMode;
 	const sandboxHostPath = resolveWindowsSandboxHostBinary()?.path;
 	const linuxBubblewrapPath = getAvailableLinuxBubblewrapPath();
@@ -132,12 +136,19 @@ export function createDesktopRuntimeComposition(): DesktopRuntimeComposition {
 		resolveRoots: resolveDesktopRuntimeSessionRoots,
 		artifactCleaner: defaultResultArtifacts.sessionArtifactCleaner,
 	});
-	const imConversationCatalog = new PathFilteredRuntimeSessionCatalog(conversationCatalog, (sessionPath) =>
-		isSessionPathInDirectory(sessionPath, DEFAULT_IM_CONVERSATION_SESSION_DIR),
+	const imConversationCatalog = new PathFilteredRuntimeSessionCatalog(
+		conversationCatalog,
+		(sessionPath) =>
+			isSessionPathInDirectory(sessionPath, DEFAULT_IM_CONVERSATION_SESSION_DIR) ||
+			isSessionPathInDirectory(sessionPath, join(DEFAULT_IM_CONVERSATION_CWD, ".vetta", "sessions")),
 	);
 	const desktopRuntimeCatalog = new PathFilteredRuntimeSessionCatalog(
 		conversationCatalog,
-		(sessionPath) => !isSessionPathInDirectory(sessionPath, DEFAULT_IM_CONVERSATION_SESSION_DIR),
+		(sessionPath) =>
+			!(
+				isSessionPathInDirectory(sessionPath, DEFAULT_IM_CONVERSATION_SESSION_DIR) ||
+				isSessionPathInDirectory(sessionPath, join(DEFAULT_IM_CONVERSATION_CWD, ".vetta", "sessions"))
+			),
 	);
 	const createRuntimeBackendPool = (
 		agentRuntime: RuntimeAgentRuntime,

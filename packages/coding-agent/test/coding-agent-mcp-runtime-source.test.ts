@@ -12,12 +12,16 @@ import type {
 } from "@567agent/runtime-mcp";
 import { createMcpToolResultPolicy, DEFAULT_MCP_MAX_INLINE_RESULT_BYTES } from "@567agent/runtime-mcp";
 import { createNodeMcpSupervisor, NodeMcpToolResultArtifactStore } from "@567agent/runtime-node/mcp";
-import { describe, expect, it, vi } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import type { EcosystemHookAwareRuntimeTool } from "../src/adapters/ecosystem/tool-interceptor-adapter.js";
 import { createCodingAgentMcpRuntimeToolSource } from "../src/mcp/runtime/tool-source.js";
 
+afterEach(() => vi.unstubAllEnvs());
+
 describe("Coding Agent native MCP runtime source", () => {
-	it("composes client options, hook metadata and lifecycle without a legacy Manager", async () => {
+	it("composes configured MCP servers without auto-contacting the retired builtin, preserving tool lifecycle", async () => {
+		vi.stubEnv("API567_BASE_URL", "https://retired-service.invalid");
+		vi.stubEnv("API567_API_TOKEN", "synthetic-account-token");
 		const source = new StaticConfigSource({ search: { command: "search", debug: true } });
 		const client = new FakeClient();
 		const created: Array<{
@@ -36,7 +40,6 @@ describe("Coding Agent native MCP runtime source", () => {
 				clientVersion: "test",
 				configSource: source,
 				clientFactory,
-				includeBuiltinServers: false,
 			}).supervisor,
 		});
 

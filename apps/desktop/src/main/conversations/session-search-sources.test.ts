@@ -44,7 +44,8 @@ describe("desktop session search sources", () => {
 	it("uses registered sources only, preserving default buckets and batch working directories", async () => {
 		const sources = await listDesktopSessionSearchSources();
 		expect(sources.map(({ kind }) => kind)).toEqual(["conversation", "claw", "project", "batch"]);
-		expect(sources[0]).toMatchObject({ cwd: "C:/conversation", sessionDir: "C:/conversation/sessions" });
+		expect(sources[0]).toMatchObject({ cwd: "C:/conversation" });
+		expect(sources[0].sessionDir).toBeUndefined();
 		expect(sources.some(({ cwd }) => cwd === "C:/archive")).toBe(false);
 		expect(sources[3].sessions).toHaveLength(1);
 		expect(sources[3].sessions?.[0]).toMatchObject({ path: "C:/sessions/task", cwd: "C:/batch/item" });

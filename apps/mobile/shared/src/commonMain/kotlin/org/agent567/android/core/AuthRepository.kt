@@ -53,6 +53,14 @@ class AuthRepository internal constructor(
 
     suspend fun me(): User = api.me()
 
+    suspend fun updateDisplayName(user: User, name: String): User = api.updateDisplayName(user.id, user.username, name)
+
+    suspend fun updatePassword(user: User, originalPassword: String, newPassword: String) = api.updatePassword(user, originalPassword, newPassword)
+
+    suspend fun sendBindingEmailCode(user: User, email: String) = api.sendBindingEmailCode(user, email)
+
+    suspend fun bindEmail(user: User, email: String, code: String): User = api.bindEmail(user, email, code)
+
     suspend fun clearLocalSession() {
         tokenRefresher.clearSession()
     }

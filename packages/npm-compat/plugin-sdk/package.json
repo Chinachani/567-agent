@@ -1,6 +1,6 @@
 {
 	"name": "@567agent/plugin-sdk",
-	"version": "0.3.7",
+	"version": "0.3.8",
 	"type": "module",
 	"description": "567 Agent public entry for @vetta-org/plugin-sdk; shared runtime identity is preserved.",
 	"author": "567wiki <907746241@qq.com>",
@@ -42,7 +42,7 @@
 		"prepack": "node ../../../scripts/generate-npm-compat.mjs plugin-sdk"
 	},
 	"dependencies": {
-		"@vetta-org/plugin-sdk": "0.3.7"
+		"@vetta-org/plugin-sdk": "0.3.8"
 	},
 	"peerDependencies": {
 		"react": "^19.0.0"

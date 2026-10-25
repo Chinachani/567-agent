@@ -24,9 +24,14 @@ export const iconPath: Record<string, string> = {
 	linux: join(buildDir, "icon.png"),
 };
 
-// macOS 状态栏图标：直接用彩色 PNG logo（icon.icns 在 Tray 上表现不佳）。
-// 不作为 template，故不跟随菜单栏深/浅色反相，但保留品牌色。
-export const macTrayIconPath = join(buildDir, "icon.png");
+export const appIconPngPath = join(buildDir, "icon.png");
+
+export const trayIconPaths = {
+	light: join(buildDir, "tray-light.png"),
+	dark: join(buildDir, "tray-dark.png"),
+	// macOS applies the menu bar's contrast to this monochrome template.
+	template: join(buildDir, "trayTemplate.png"),
+};
 
 let mainWindow: BrowserWindow | null = null;
 let onMainWindowRecreated: ((window: BrowserWindow) => void) | undefined;

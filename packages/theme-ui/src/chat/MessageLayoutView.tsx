@@ -54,19 +54,11 @@ export const MessageLayoutIncomingSurface = createMessageLayoutPart(
 );
 export const MessageLayoutOutgoingContent = createMessageLayoutPart(
 	"OutgoingContent",
-	"relative flex min-w-0 max-w-[72%] flex-col items-end",
+	"relative flex min-w-0 max-w-[85%] @min-[40rem]:max-w-[75%] flex-col items-end",
 	"outgoing",
 );
-export const MessageLayoutHeader = createMessageLayoutPart(
-	"Header",
-	"mb-2 flex items-center gap-2",
-	"incoming",
-);
-export const MessageLayoutHeaderLeading = createMessageLayoutPart(
-	"HeaderLeading",
-	"shrink-0",
-	"incoming",
-);
+export const MessageLayoutHeader = createMessageLayoutPart("Header", "mb-2 flex items-center gap-2", "incoming");
+export const MessageLayoutHeaderLeading = createMessageLayoutPart("HeaderLeading", "shrink-0", "incoming");
 export const MessageLayoutBeforeBody = createMessageLayoutPart(
 	"BeforeBody",
 	"mb-1.5 flex max-w-full flex-wrap justify-end gap-1.5",
@@ -76,26 +68,16 @@ export const MessageLayoutFooter = createMessageLayoutPartByKind("Footer", {
 	incoming: "mt-2 flex items-center",
 	outgoing: "mt-1 flex",
 });
-export const MessageLayoutAfterBody = createMessageLayoutPart(
-	"AfterBody",
-	"mt-2",
-	"incoming",
-);
+export const MessageLayoutAfterBody = createMessageLayoutPart("AfterBody", "mt-2", "incoming");
 
-function createMessageLayoutPart(
-	name: string,
-	baseClassName: string,
-	requiredKind: MessageLayoutKind,
-) {
+function createMessageLayoutPart(name: string, baseClassName: string, requiredKind: MessageLayoutKind) {
 	return forwardRef<HTMLDivElement, MessageLayoutPrimitiveProps>(function MessageLayoutPart(
 		{ asChild = false, children, className, ...props },
 		forwardedRef,
 	) {
 		const kind = useContext(MessageLayoutContext);
 		if (kind !== requiredKind) {
-			throw new Error(
-				`MessageLayout.${name} must be used within MessageLayout.${capitalize(requiredKind)}`,
-			);
+			throw new Error(`MessageLayout.${name} must be used within MessageLayout.${capitalize(requiredKind)}`);
 		}
 		const Comp = asChild ? Slot.Root : "div";
 		return (
@@ -111,10 +93,7 @@ function createMessageLayoutPart(
 	});
 }
 
-function createMessageLayoutPartByKind(
-	name: string,
-	classes: Partial<Record<MessageLayoutKind, string>>,
-) {
+function createMessageLayoutPartByKind(name: string, classes: Partial<Record<MessageLayoutKind, string>>) {
 	return forwardRef<HTMLDivElement, MessageLayoutPrimitiveProps>(function MessageLayoutPart(
 		{ asChild = false, children, className, ...props },
 		forwardedRef,

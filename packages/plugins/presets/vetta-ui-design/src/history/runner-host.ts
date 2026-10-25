@@ -7,6 +7,7 @@
  * runner 压缩后仍有上百 KB，而 Windows 单个环境变量上限 32767 字符。所以分块写。
  */
 import type { PluginContext } from "@vetta-org/plugin-sdk";
+import { resolveDesignDataRoot } from "../data-root";
 
 /*
  * runner 源码 ~380KB，改为首次执行历史命令时动态 import（?raw 独立成 chunk）。
@@ -75,16 +76,6 @@ async function gzipBase64(text: string): Promise<string> {
 	return btoa(binary);
 }
 
-let cachedHome: string | null = null;
-
-async function resolveHome(ctx: PluginContext): Promise<string> {
-	if (cachedHome) return cachedHome;
-	const result = await ctx.command.run("node", ["-p", "require('os').homedir()"]);
-	const home = result.stdout.trim();
-	if (result.exitCode !== 0 || !home) throw new Error(`resolve homedir failed: ${result.stderr || result.stdout}`);
-	cachedHome = home;
-	return home;
-}
 
 let runnerPromise: Promise<string> | null = null;
 
@@ -100,9 +91,9 @@ export function ensureRunner(ctx: PluginContext): Promise<string> {
 }
 
 async function materialize(ctx: PluginContext): Promise<string> {
-	const [home, runnerSource] = await Promise.all([resolveHome(ctx), loadRunnerSource()]);
+	const [dataRoot, runnerSource] = await Promise.all([resolveDesignDataRoot(ctx), loadRunnerSource()]);
 	const hash = sourceHash(runnerSource);
-	const dir = `${home}/.vetta/plugin-data/vetta-ui-design/history-runner/${hash}`;
+	const dir = `${dataRoot}/plugin-data/vetta-ui-design/history-runner/${hash}`;
 	const file = `${dir}/runner.mjs`;
 	const probe = await ctx.command.run("node", ["-e", PROBE_SCRIPT], { env: { VETD_RUNNER_FILE: file } });
 	if (probe.stdout.trim() === "yes") return file;

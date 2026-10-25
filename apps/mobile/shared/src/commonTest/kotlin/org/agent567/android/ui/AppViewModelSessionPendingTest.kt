@@ -203,5 +203,62 @@ class AppViewModelSessionPendingTest {
             assertEquals(AppRoute.Chat(session.id, ChatSurface.Cloud, "Resume me"), vm.state.value.route)
             assertEquals(session.id, vm.state.value.currentSessionId)
         }
+    @Test
+    fun restoresDraftAndAttachmentsAfterRecreationWithoutLeakingBetweenSessions() = runTest(dispatcher) {
+        val settings = MapSettings()
+        val preferences = AppPreferences(settings)
+        val files = object : org.agent567.android.domain.session.MessageImageFileStore {
+            val data = mutableMapOf<String, ByteArray>()
+            override fun writeBytes(key: String, bytes: ByteArray): Boolean { data[key] = bytes.copyOf(); return true }
+            override fun writeBase64(key: String, base64Data: String): Boolean = false
+            override fun readBytes(key: String): ByteArray? = data[key]?.copyOf()
+            override fun delete(key: String) { data.remove(key) }
+        }
+        val store = SettingsSessionStore(settings, dispatcher, files)
+        val a = store.createSession(title = "A")
+        val b = store.createSession(title = "B")
+        val vm = AppViewModel(AppContainer(preferences = preferences, tokenStore = InMemoryTokenStore(), sessionStore = store))
+        advanceUntilIdle()
+        preferences.authUserId = 7
+        vm.openChat(a.id)
+        vm.onDraftChange("survive process restart")
+        vm.addPendingImages(listOf(MessageImage("img", "image/png", pendingBytes = byteArrayOf(1, 2, 3))))
+        vm.addPendingDocument(org.agent567.android.domain.session.PendingFileAttachment("file", "notes.txt", "text/plain", byteArrayOf(4, 5)))
+        advanceUntilIdle()
+        vm.openChat(b.id)
+        advanceUntilIdle()
+        assertEquals("", vm.state.value.draft)
+        assertTrue(vm.state.value.pendingImages.isEmpty())
+        vm.onDraftChange("B draft")
+        advanceUntilIdle()
+        val reopened = AppViewModel(AppContainer(preferences = preferences, tokenStore = InMemoryTokenStore(), sessionStore = SettingsSessionStore(settings, dispatcher, files)))
+        advanceUntilIdle()
+        preferences.authUserId = 7
+        reopened.openChat(a.id)
+        advanceUntilIdle()
+        assertEquals("survive process restart", reopened.state.value.draft)
+        assertTrue(reopened.state.value.pendingImages.single().pendingBytes!!.contentEquals(byteArrayOf(1, 2, 3)))
+        assertTrue(reopened.state.value.pendingFiles.single().bytes.contentEquals(byteArrayOf(4, 5)))
+        reopened.openChat(b.id)
+        reopened.onDraftChange("new typing wins over late restore")
+        advanceUntilIdle()
+        assertEquals("new typing wins over late restore", reopened.state.value.draft)
+    }
+    @Test
+    fun switchingSessionNeverDisplaysThePreviousSessionsReply() = runTest(dispatcher) {
+        val store = SettingsSessionStore(MapSettings(), dispatcher)
+        val a = store.createSession(title = "A")
+        val b = store.createSession(title = "B")
+        store.upsertMessage(org.agent567.android.domain.session.LocalMessage("reply-a", a.id, org.agent567.android.core.model.ChatRole.Assistant, "Reply A", org.agent567.android.domain.session.MessageStatus.Complete, 1))
+        val vm = AppViewModel(AppContainer(preferences = AppPreferences(MapSettings()), tokenStore = InMemoryTokenStore(), sessionStore = store))
+        advanceUntilIdle()
+        vm.openChat(a.id)
+        advanceUntilIdle()
+        assertEquals("Reply A", vm.state.value.messages.single().content)
+        vm.openChat(b.id)
+        assertTrue(vm.state.value.messages.none { it.sessionId != b.id })
+        advanceUntilIdle()
+        assertTrue(vm.state.value.messages.isEmpty())
+    }
 
 }

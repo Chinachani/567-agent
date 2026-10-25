@@ -1,0 +1,14 @@
+{
+  "passphrase": "回归验证567-🔒",
+  "plaintext": "{\"schemaVersion\":1,\"exportedAtEpochMs\":1,\"sessions\":[],\"messages\":[]}",
+  "archives": [
+    {
+      "producer": "desktop-node",
+      "base64": "NTY3Q0hBVEJBQ0tVUDHchdPRG7ytRw4/Gg71CVpX94fBLd06uYAjX5Vkee39/fN3q6PPqW0ys/kxL28a9XusmCC5SYYRVwHVPOgESw0GaQDhhuvJykpIOe0yTCDDfy8WpiCAOKiRYqzTAcLXgOPzqVif3mDD8WZ7XGqewb9DsA=="
+    },
+    {
+      "producer": "android-jce",
+      "base64": "NTY3Q0hBVEJBQ0tVUDH+t2yJq+BhNwLdLM02XwEQGW/UCbpD8GvzUR3wV35hBX14ufeputM83ZF/yOMwv4ojh1XtcfjWTDIpuojtjyd5Lld6X3pDsXVotSbnY2yHeSV8jss0JhNAiy97mvBj/8crQf3Ujm4paK4XVaSkruOW0w=="
+    }
+  ]
+}

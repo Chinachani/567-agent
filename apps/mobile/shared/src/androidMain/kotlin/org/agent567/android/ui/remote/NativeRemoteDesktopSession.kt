@@ -31,6 +31,7 @@ import kotlinx.serialization.json.put
 import org.agent567.android.domain.remote.connection.PlatformRemoteLogger
 import org.agent567.android.domain.remote.SignalingDrop
 import org.agent567.android.domain.remote.SignalingRetry
+import org.agent567.android.domain.remote.RemoteVideoSize
 import org.agent567.android.domain.remote.RemoteStreamStats
 import org.agent567.android.core.net.platformWebSocketHttpClient
 import org.agent567.android.core.net.pinnedWebSocketHttpClient
@@ -72,7 +73,10 @@ class NativeRemoteDesktopSession(private val context: Context, private val targe
     private var statsJob: Job? = null
     @Volatile private var signaling: DefaultClientWebSocketSession? = null
     private var inputChannel: DataChannel? = null
-    private var sequence = 1L
+    private val sequence = java.util.concurrent.atomic.AtomicLong(1)
+    @Volatile private var viewportSupported = false
+    @Volatile private var viewportSize: Pair<Int, Int>? = null
+    private var viewportJob: Job? = null
     private var renderer: SurfaceViewRenderer? = null
     private var remoteVideoTrack: VideoTrack? = null
     private var stopped = false
@@ -82,6 +86,10 @@ class NativeRemoteDesktopSession(private val context: Context, private val targe
     private val signalingNetworkLabel = if (target.isPrivateNetworkTarget()) "局域网" else "公网/中继"
     private var lastStatsTotals: RemoteStreamStats.FrameTotals? = null
     @Volatile private var directlyConnected = false
+    private val _relativePointer = MutableStateFlow(false)
+    val relativePointer: StateFlow<Boolean> = _relativePointer.asStateFlow()
+    private val _inputEnabled = MutableStateFlow(false)
+    val inputEnabled: StateFlow<Boolean> = _inputEnabled.asStateFlow()
     private val _captureMessage = MutableStateFlow<String?>(Str.remoteCaptureWaiting)
     val captureMessage: StateFlow<String?> = _captureMessage.asStateFlow()
     private val _connectionDetails = MutableStateFlow<String?>(null)
@@ -91,12 +99,28 @@ class NativeRemoteDesktopSession(private val context: Context, private val targe
     private val _textInputSupported = MutableStateFlow(false)
     val textInputSupported: StateFlow<Boolean> = _textInputSupported.asStateFlow()
 
+    private val _videoSize = MutableStateFlow<RemoteVideoSize?>(null)
+    val videoSize: StateFlow<RemoteVideoSize?> = _videoSize.asStateFlow()
+
     fun createRenderer(): SurfaceViewRenderer = SurfaceViewRenderer(context).also {
+        renderer?.let(::releaseRenderer)
         renderer = it
-        it.init(eglBase.eglBaseContext, null)
-        it.setEnableHardwareScaler(true)
+        it.init(eglBase.eglBaseContext, object : org.webrtc.RendererCommon.RendererEvents {
+            override fun onFirstFrameRendered() = Unit
+            override fun onFrameResolutionChanged(width: Int, height: Int, rotation: Int) {
+                _videoSize.value = if (rotation % 180 == 0) RemoteVideoSize(width, height) else RemoteVideoSize(height, width)
+            }
+        })
+        it.setEnableHardwareScaler(false)
         it.setScalingType(org.webrtc.RendererCommon.ScalingType.SCALE_ASPECT_FIT)
         remoteVideoTrack?.addSink(it)
+    }
+
+    fun releaseRenderer(view: SurfaceViewRenderer) {
+        if (renderer !== view) return
+        remoteVideoTrack?.removeSink(view)
+        renderer = null
+        view.release()
     }
 
     fun start() {
@@ -108,19 +132,22 @@ class NativeRemoteDesktopSession(private val context: Context, private val targe
     fun stop() {
         if (stopped) return
         stopped = true
+        viewportSupported = false
+        viewportJob?.cancel()
         _textInputSupported.value = false
+        _relativePointer.value = false
+        _inputEnabled.value = false
         signalingJob?.cancel()
         signalingJob = null
         statsJob?.cancel()
         statsJob = null
         _streamStats.value = null
+        renderer?.let(::releaseRenderer)
+        remoteVideoTrack = null
         inputChannel?.dispose()
         peerConnection?.dispose()
         factory?.dispose()
         signaling?.cancel()
-        renderer?.let { remoteVideoTrack?.removeSink(it) }
-        remoteVideoTrack = null
-        renderer?.release()
         eglBase.release()
         client.close()
         scope.cancel()
@@ -130,10 +157,35 @@ class NativeRemoteDesktopSession(private val context: Context, private val targe
 
     fun resumeRenderer() = renderer?.disableFpsReduction()
 
+    fun updateViewport(width: Int, height: Int) {
+        if (width <= 0 || height <= 0) return
+        val size = width.coerceAtMost(8192) to height.coerceAtMost(8192)
+        if (viewportSize == size) return
+        viewportSize = size
+        scheduleViewport()
+    }
+
+    private fun scheduleViewport() {
+        viewportJob?.cancel()
+        if (!viewportSupported || stopped) return
+        viewportJob = scope.launch {
+            delay(150) // Coalesce pinch and layout changes; each encoder resize costs a full frame.
+            val size = viewportSize ?: return@launch
+            if (!viewportSupported || stopped) return@launch
+            val channel = inputChannel ?: return@launch
+            if (channel.state() != DataChannel.State.OPEN) return@launch
+            val payload = buildJsonObject {
+                put("type", "viewport"); put("sequence", sequence.getAndIncrement())
+                put("width", size.first); put("height", size.second)
+            }
+            channel.send(DataChannel.Buffer(java.nio.ByteBuffer.wrap(payload.toString().toByteArray()), false))
+        }
+    }
+
     fun sendPointer(type: String, x: Float, y: Float, button: String? = null, action: String? = null) {
         sendInput(buildJsonObject {
             put("type", type)
-            put("sequence", sequence++)
+            put("sequence", sequence.getAndIncrement())
             put("x", x.coerceIn(0f, 1f))
             put("y", y.coerceIn(0f, 1f))
             if (button != null) put("button", button)
@@ -141,10 +193,18 @@ class NativeRemoteDesktopSession(private val context: Context, private val targe
         })
     }
 
+    fun sendRelativePointer(deltaX: Float, deltaY: Float) {
+        if (!_relativePointer.value) return
+        sendInput(buildJsonObject {
+            put("type", "pointer.relative"); put("sequence", sequence.getAndIncrement())
+            put("deltaX", deltaX.coerceIn(-4096f, 4096f)); put("deltaY", deltaY.coerceIn(-4096f, 4096f))
+        })
+    }
+
     fun sendScroll(deltaX: Float, deltaY: Float) {
         sendInput(buildJsonObject {
             put("type", "pointer.scroll")
-            put("sequence", sequence++)
+            put("sequence", sequence.getAndIncrement())
             put("deltaX", deltaX)
             put("deltaY", deltaY)
         })
@@ -153,7 +213,7 @@ class NativeRemoteDesktopSession(private val context: Context, private val targe
     fun sendKey(code: String, action: String) {
         sendInput(buildJsonObject {
             put("type", "key")
-            put("sequence", sequence++)
+            put("sequence", sequence.getAndIncrement())
             put("code", code)
             put("action", action)
         })
@@ -163,12 +223,13 @@ class NativeRemoteDesktopSession(private val context: Context, private val targe
         if (text.isBlank()) return
         sendInput(buildJsonObject {
             put("type", "text")
-            put("sequence", sequence++)
+            put("sequence", sequence.getAndIncrement())
             put("text", text.take(256))
         })
     }
 
     private fun sendInput(payload: JsonObject) {
+        if (!_inputEnabled.value && payload["type"]?.jsonPrimitive?.contentOrNull != "heartbeat") return
         val channel = inputChannel ?: return
         if (channel.state() != DataChannel.State.OPEN) return
         channel.send(DataChannel.Buffer(java.nio.ByteBuffer.wrap(payload.toString().toByteArray()), false))
@@ -177,9 +238,10 @@ class NativeRemoteDesktopSession(private val context: Context, private val targe
     private suspend fun run() {
         try {
             PeerConnectionFactory.initialize(
-                PeerConnectionFactory.InitializationOptions.builder(context).createInitializationOptions(),
+                PeerConnectionFactory.InitializationOptions.builder(context).setFieldTrials("WebRTC-ForcePlayoutDelay/min_ms:0,max_ms:0/").createInitializationOptions(),
             )
             factory = PeerConnectionFactory.builder()
+                .setFieldTrials("WebRTC-ForcePlayoutDelay/min_ms:0,max_ms:0/")
                 .setVideoDecoderFactory(org.webrtc.DefaultVideoDecoderFactory(eglBase.eglBaseContext))
                 .setVideoEncoderFactory(org.webrtc.DefaultVideoEncoderFactory(eglBase.eglBaseContext, true, true))
                 .createPeerConnectionFactory()
@@ -234,7 +296,7 @@ class NativeRemoteDesktopSession(private val context: Context, private val targe
 
     private fun createPeerConnection() {
         val configuration = PeerConnection.RTCConfiguration(listOf(
-            PeerConnection.IceServer.builder("stun:stun.l.google.com:19302").createIceServer(),
+            PeerConnection.IceServer.builder(listOf("stun:stun.miwifi.com:3478", "stun:stun.chat.bilibili.com:3478", "stun:stun.hitv.com:3478")).createIceServer(),
         ))
         configuration.sdpSemantics = PeerConnection.SdpSemantics.UNIFIED_PLAN
         peerConnection = factory?.createPeerConnection(configuration, object : PeerConnection.Observer {
@@ -270,14 +332,26 @@ class NativeRemoteDesktopSession(private val context: Context, private val targe
                 inputChannel = channel
                 channel.registerObserver(object : DataChannel.Observer {
                     override fun onBufferedAmountChange(previousAmount: Long) = Unit
-                    override fun onStateChange() = Unit
+                    override fun onStateChange() {
+                        if (channel.state() == DataChannel.State.CLOSED) {
+                            _inputEnabled.value = false
+                            _relativePointer.value = false
+                            _textInputSupported.value = false
+                            viewportSupported = false
+                        }
+                    }
                     override fun onMessage(buffer: DataChannel.Buffer) {
                         if (buffer.binary) return
                         val bytes = ByteArray(buffer.data.remaining())
                         buffer.data.get(bytes)
                         val message = runCatching { json.parseToJsonElement(bytes.decodeToString()).jsonObject }.getOrNull() ?: return
                         if (message["type"]?.jsonPrimitive?.contentOrNull == "capabilities") {
+                            viewportSupported = message["viewport"]?.jsonPrimitive?.contentOrNull == "true"
+                            scheduleViewport()
                             _textInputSupported.value = message["textInput"]?.jsonPrimitive?.contentOrNull == "true"
+                            _relativePointer.value = message["pointerMode"]?.jsonPrimitive?.contentOrNull == "relative"
+                            // Older hosts did not advertise permission; they enforce it at the OS adapter.
+                            _inputEnabled.value = message["inputEnabled"]?.jsonPrimitive?.contentOrNull != "false"
                         }
                     }
                 })

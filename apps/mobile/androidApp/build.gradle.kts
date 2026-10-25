@@ -1,5 +1,7 @@
 import org.jetbrains.kotlin.gradle.dsl.JvmTarget
 import java.util.Properties
+import java.util.zip.ZipFile
+import com.android.build.api.artifact.SingleArtifact
 
 plugins {
     alias(libs.plugins.androidApplication)
@@ -128,4 +130,28 @@ android {
     buildFeatures {
         compose = true
     }
+}
+
+androidComponents.onVariants { variant ->
+    val capitalizedName = variant.name.replaceFirstChar { it.uppercase() }
+    val apkDirectory = variant.artifacts.get(SingleArtifact.APK)
+    val brandSource = project(":shared").layout.projectDirectory.file("src/commonMain/composeResources/drawable/brand_icon.png")
+    val verifyResources = tasks.register("verify${capitalizedName}PackagedResources") {
+        inputs.dir(apkDirectory)
+        inputs.file(brandSource)
+        doLast {
+            val apks = apkDirectory.get().asFile.listFiles().orEmpty().filter { it.extension == "apk" }
+            check(apks.isNotEmpty()) { "No APK found for ${variant.name}" }
+            val resourcePath = "assets/composeResources/org.agent567.android.resources/drawable/brand_icon.png"
+            apks.forEach { apk ->
+                ZipFile(apk).use { zip ->
+                    val entry = checkNotNull(zip.getEntry(resourcePath)) { "Missing About image in ${apk.name}: $resourcePath" }
+                    check(zip.getInputStream(entry).use { it.readBytes() }.contentEquals(brandSource.asFile.readBytes())) {
+                        "Packaged About image differs from source in ${apk.name}"
+                    }
+                }
+            }
+        }
+    }
+    tasks.matching { it.name == "assemble$capitalizedName" }.configureEach { dependsOn(verifyResources) }
 }

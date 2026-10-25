@@ -114,7 +114,7 @@ describe("batch RuntimeHost consumer", () => {
 
 		expect(createSession).toHaveBeenCalledWith({
 			cwd: task.cwd,
-			sessionDir: join(project.id, ".vetta", "sessions"),
+			sessionDir: join(project.id, ".567agent", "sessions"),
 			agent: {
 				id: "coding-agent",
 				sessionConfiguration: {

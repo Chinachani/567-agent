@@ -25,10 +25,10 @@ export function AddAbilityMenu({
 	return (
 		<DropdownMenu>
 			<DropdownMenuTrigger asChild>
-				<Button type="button" variant="outline">
+				<Button type="button" variant="primary">
 					<span className="icon-[solar--add-circle-linear] h-3.5 w-3.5" />
 					<span>{t("add.trigger")}</span>
-					<span className="icon-[solar--alt-arrow-down-linear] h-3 w-3 text-muted-foreground/60" />
+					<span className="icon-[solar--alt-arrow-down-linear] h-3 w-3" />
 				</Button>
 			</DropdownMenuTrigger>
 			<DropdownMenuContent align="end" className="w-72">

@@ -4,6 +4,7 @@ import { createRequire } from "node:module";
 import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import { resolveBuildResourceFilters } from "./build-resource-filters.mjs";
+import { bundleDesktopAgentRpc } from "./bundle-agent-rpc.mjs";
 import { validateDesktopBuildEnvironment } from "./desktop-build-environment.mjs";
 import {
 	DESKTOP_BUILD_OUTPUTS,
@@ -419,19 +420,7 @@ for (const rel of codingAgentAssets) {
 }
 const bundledAgentRpcCli = join(stagedCodingAgentDir, "dist", "agent-rpc-cli.mjs");
 console.log(`[prepare-pack] bundling Windows agent-rpc CLI -> ${bundledAgentRpcCli}`);
-execFileSync(process.platform === "win32" ? "bun.exe" : "bun", [
-	"build",
-	join(cliAppDir, "src", "agent-rpc-cli.ts"),
-	"--target",
-	"node",
-	"--format",
-	"esm",
-	"--outfile",
-	bundledAgentRpcCli,
-], {
-	cwd: projectRoot,
-	stdio: "inherit",
-});
+bundleDesktopAgentRpc(bundledAgentRpcCli);
 // Sanity-check the load-bearing files are actually in the stage dir.
 const stagedThemeDir = join(stagedCodingAgentDir, "dist/modes/interactive/theme");
 if (!existsSync(join(stagedThemeDir, "dark.json"))) {

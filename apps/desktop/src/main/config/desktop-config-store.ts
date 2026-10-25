@@ -9,6 +9,7 @@ import { isLanguagePreference, type LanguagePreference } from "../../shared/i18n
 import { normalizeShortcutsConfig, type ShortcutsConfig } from "../../shared/shortcuts.js";
 import { isAgentMode } from "../agent-modes/index.js";
 import { migrateLegacyWorkspace } from "./legacy-workspace-migration.js";
+import { projectStatePath } from "./project-state-paths.js";
 
 export interface ProjectEntry {
 	path: string;
@@ -97,11 +98,11 @@ export interface KnowledgeBaseConfig {
 }
 
 export const DEFAULT_CONVERSATION_CWD = join(getAgent567HomePath(), "conversation");
-export const DEFAULT_CONVERSATION_SESSION_DIR = join(DEFAULT_CONVERSATION_CWD, ".vetta", "sessions");
+export const DEFAULT_CONVERSATION_SESSION_DIR = projectStatePath(DEFAULT_CONVERSATION_CWD, "sessions");
 export const DEFAULT_IM_CONVERSATION_CWD = join(getAgent567HomePath(), "im-gateway", "conversation");
-export const DEFAULT_IM_CONVERSATION_SESSION_DIR = join(DEFAULT_IM_CONVERSATION_CWD, ".vetta", "sessions");
+export const DEFAULT_IM_CONVERSATION_SESSION_DIR = projectStatePath(DEFAULT_IM_CONVERSATION_CWD, "sessions");
 export const KB_PROCESSING_CWD = join(getAgent567HomePath(), "knowledges", "processing_records");
-export const KB_PROCESSING_SESSION_DIR = join(KB_PROCESSING_CWD, ".vetta", "sessions");
+export const KB_PROCESSING_SESSION_DIR = projectStatePath(KB_PROCESSING_CWD, "sessions");
 
 const CONFIG_PATH = join(getAgent567HomePath(), "desktop-config.json");
 const DEFAULT_CONFIG: DesktopConfig = {

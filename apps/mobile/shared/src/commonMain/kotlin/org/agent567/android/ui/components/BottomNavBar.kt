@@ -16,6 +16,8 @@ import androidx.compose.material.icons.outlined.ChatBubbleOutline
 import androidx.compose.material.icons.outlined.Devices
 import androidx.compose.material.icons.outlined.Home
 import androidx.compose.material.icons.outlined.PersonOutline
+import androidx.compose.material3.HorizontalDivider
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.NavigationBar
@@ -46,45 +48,38 @@ fun Agent567BottomBar(
             TabItem(MainTab.Discover, Str.tabDiscover, Icons.Outlined.Devices, Icons.Filled.Devices),
             TabItem(MainTab.Me, Str.tabMe, Icons.Outlined.PersonOutline, Icons.Filled.PersonOutline),
         )
-    NavigationBar(
-        modifier = modifier.fillMaxWidth(),
-        containerColor = MaterialTheme.colorScheme.surface.copy(alpha = 0.94f),
-        contentColor = MaterialTheme.colorScheme.onSurface,
-    ) {
-        items.forEach { item ->
-            val selectedTab = item.tab == selected
-            NavigationBarItem(
-                selected = selectedTab,
-                onClick = { onSelect(item.tab) },
-                icon = {
-                    Column(horizontalAlignment = Alignment.CenterHorizontally) {
+    Column(modifier.fillMaxWidth()) {
+        HorizontalDivider(color = MaterialTheme.agent567Extra.border)
+        NavigationBar(
+            containerColor = MaterialTheme.colorScheme.surface,
+            contentColor = MaterialTheme.colorScheme.onSurface,
+            tonalElevation = 0.dp,
+        ) {
+            items.forEach { item ->
+                val selectedTab = item.tab == selected
+                NavigationBarItem(
+                    selected = selectedTab,
+                    onClick = { onSelect(item.tab) },
+                    icon = {
                         Icon(
                             imageVector = if (selectedTab) item.selectedIcon else item.icon,
-                            contentDescription = item.label,
+                            contentDescription = if (showLabels) null else item.label,
+                            modifier = Modifier.size(22.dp),
                         )
-                        Spacer(Modifier.size(4.dp))
-                        if (selectedTab) {
-                            Box(Modifier.size(4.dp).background(MaterialTheme.colorScheme.primary, CircleShape))
-                        } else {
-                            Spacer(Modifier.size(4.dp))
-                        }
-                    }
-                },
-                label = if (showLabels) {
-                    { Text(item.label, style = MaterialTheme.typography.labelSmall) }
-                } else {
-                    null
-                },
-                alwaysShowLabel = showLabels,
-                colors =
-                    NavigationBarItemDefaults.colors(
+                    },
+                    label = if (showLabels) {
+                        { Text(item.label, style = MaterialTheme.typography.labelMedium, fontWeight = if (selectedTab) FontWeight.SemiBold else FontWeight.Normal) }
+                    } else null,
+                    alwaysShowLabel = showLabels,
+                    colors = NavigationBarItemDefaults.colors(
                         selectedIconColor = MaterialTheme.colorScheme.onSurface,
                         selectedTextColor = MaterialTheme.colorScheme.onSurface,
                         unselectedIconColor = MaterialTheme.agent567Extra.secondaryText,
                         unselectedTextColor = MaterialTheme.agent567Extra.secondaryText,
-                        indicatorColor = Color.Transparent,
+                        indicatorColor = MaterialTheme.agent567Extra.chipBackground,
                     ),
-            )
+                )
+            }
         }
     }
 }

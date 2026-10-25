@@ -30,14 +30,17 @@ export function RemotePairingSettings(): JSX.Element {
 
 	useEffect(() => {
 		const sync = (): void => {
-			void window.agent567.remotePairing.getState().then((next) => {
-				setState(next);
-				if (next.relayBaseUrl && !relayUrlEdited.current) {
-					setRelayUrl(toHttpsRelayBaseUrl(next.relayBaseUrl));
-				}
-			}).catch(() => {
-				setState((current) => ({ ...current, status: "error", errorCode: "operation_failed" }));
-			});
+			void window.agent567.remotePairing
+				.getState()
+				.then((next) => {
+					setState(next);
+					if (next.relayBaseUrl && !relayUrlEdited.current) {
+						setRelayUrl(toHttpsRelayBaseUrl(next.relayBaseUrl));
+					}
+				})
+				.catch(() => {
+					setState((current) => ({ ...current, status: "error", errorCode: "operation_failed" }));
+				});
 		};
 		sync();
 		const timer = window.setInterval(sync, 1000);
@@ -120,11 +123,17 @@ export function RemotePairingSettings(): JSX.Element {
 		}
 	};
 
+	const [inputPermissionPending, setInputPermissionPending] = useState(false);
+	const [inputPermissionError, setInputPermissionError] = useState(false);
 	const setInputEnabled = async (enabled: boolean): Promise<void> => {
+		setInputPermissionPending(true);
+		setInputPermissionError(false);
 		try {
 			setState(await window.agent567.remotePairing.setInputEnabled(enabled));
 		} catch {
-			setState((current) => ({ ...current, status: "error" }));
+			setInputPermissionError(true);
+		} finally {
+			setInputPermissionPending(false);
 		}
 	};
 
@@ -158,9 +167,9 @@ export function RemotePairingSettings(): JSX.Element {
 	};
 
 	return (
-		<div className="mx-auto w-full max-w-[680px] px-8 pt-2 pb-8">
+		<div className="mx-auto w-full max-w-[800px] px-5 pt-6 sm:px-8 pb-8">
 			<div className="mb-6">
-				<h1 className="text-[20px] font-bold text-foreground">{t("remote.title")}</h1>
+				<h1 className="text-[24px] font-semibold tracking-tight text-foreground">{t("remote.title")}</h1>
 				<p className="mt-1.5 text-[12px] leading-relaxed text-muted-foreground">{t("remote.description")}</p>
 			</div>
 
@@ -172,9 +181,7 @@ export function RemotePairingSettings(): JSX.Element {
 					</div>
 					<span
 						className={
-							state.status === "ready"
-								? "text-[12px] text-emerald-400"
-								: "text-[12px] text-muted-foreground"
+							state.status === "ready" ? "text-[12px] text-emerald-400" : "text-[12px] text-muted-foreground"
 						}
 					>
 						{statusLabel}
@@ -235,7 +242,11 @@ export function RemotePairingSettings(): JSX.Element {
 							) : null}
 						</div>
 					))}
-					{errorCode ? <p role="alert" className="mb-3 text-center text-[12px] text-destructive">{t(`remote.error.${errorCode}`)}</p> : null}
+					{errorCode ? (
+						<p role="alert" className="mb-3 text-center text-[12px] text-destructive">
+							{t(`remote.error.${errorCode}`)}
+						</p>
+					) : null}
 					{qr ? (
 						<div className="flex flex-col items-center animate-in fade-in zoom-in-95 duration-200">
 							<img
@@ -254,7 +265,10 @@ export function RemotePairingSettings(): JSX.Element {
 					) : (
 						<div className="flex min-h-[270px] flex-col items-center justify-center text-muted-foreground">
 							<span className="icon-[solar--smartphone-rotate-angle-linear] h-9 w-9" />
-							<p role={qrError ? "alert" : undefined} className={`mt-3 text-[12px] ${qrError ? "text-destructive" : ""}`}>
+							<p
+								role={qrError ? "alert" : undefined}
+								className={`mt-3 text-[12px] ${qrError ? "text-destructive" : ""}`}
+							>
 								{qrError ? t("remote.qrRenderError") : t("remote.empty")}
 							</p>
 						</div>
@@ -274,43 +288,65 @@ export function RemotePairingSettings(): JSX.Element {
 				{state.pairingId ? (
 					<div className="flex items-center justify-between gap-4 border-b border-border/50 py-3">
 						<div>
-						<h2 className="text-[14px] font-semibold text-foreground">{t("remote.autoShareTitle")}</h2>
-						<p className="mt-1 text-[12px] leading-relaxed text-muted-foreground">
-							{t("remote.autoShareDescription")}
-						</p>
-					</div>
-					<Switch
-						checked={state.autoShareScreen}
-						disabled={state.status === "error"}
-						onCheckedChange={(enabled) => void setAutoShareScreen(enabled)}
-					/>
+							<h2 className="text-[14px] font-semibold text-foreground">{t("remote.autoShareTitle")}</h2>
+							<p className="mt-1 text-[12px] leading-relaxed text-muted-foreground">
+								{t("remote.autoShareDescription")}
+							</p>
+						</div>
+						<Switch
+							aria-label={t("remote.autoShareTitle")}
+							checked={state.autoShareScreen}
+							disabled={state.status === "error"}
+							onCheckedChange={(enabled) => void setAutoShareScreen(enabled)}
+						/>
 					</div>
 				) : null}
 				<div className="flex items-center justify-between gap-4 py-3">
 					<div>
 						<h2 className="text-[14px] font-semibold text-foreground">{t("remote.inputTitle")}</h2>
 						<p className="mt-1 text-[12px] leading-relaxed text-muted-foreground">
-							{state.inputSupported || !state.inputSupportReason
-								? t("remote.inputDescription")
-								: t(`remote.inputSupport.${state.inputSupportReason}`)}
+							{inputPermissionPending
+								? t("remote.inputPermissionPending")
+								: state.inputSupported || !state.inputSupportReason
+									? t(
+											state.inputPointerMode === "relative"
+												? "remote.inputWaylandDescription"
+												: "remote.inputDescription",
+										)
+									: t(`remote.inputSupport.${state.inputSupportReason}`)}
 						</p>
 					</div>
 					<Switch
+						aria-label={t("remote.inputTitle")}
 						checked={inputPermissionEnabled}
 						disabled={
+							inputPermissionPending ||
 							(state.status !== "ready" && state.status !== "connected") ||
 							(!state.inputSupported && !inputPermissionEnabled)
 						}
 						onCheckedChange={(enabled) => void setInputEnabled(enabled)}
 					/>
 				</div>
+				{inputPermissionError ? (
+					<p role="alert" className="mb-3 text-[12px] text-destructive">
+						{t("remote.inputPermissionError")}
+					</p>
+				) : null}
 				{state.inputSupportReason === "x11_libraries_unavailable" ? (
 					<div className="mb-3 flex flex-wrap items-center gap-2">
-						<Button variant="outline" size="sm" disabled={installingInput} onClick={() => void installInputDependencies()}>
+						<Button
+							variant="outline"
+							size="sm"
+							disabled={installingInput}
+							onClick={() => void installInputDependencies()}
+						>
 							{installingInput ? t("remote.installingInputDependencies") : t("remote.installInputDependencies")}
 						</Button>
 						{inputInstallResult ? (
-							<p role={inputInstallResult === "error" ? "alert" : "status"} className="text-[12px] text-muted-foreground">
+							<p
+								role={inputInstallResult === "error" ? "alert" : "status"}
+								className="text-[12px] text-muted-foreground"
+							>
 								{t(`remote.inputInstall.${inputInstallResult}`)}
 							</p>
 						) : null}

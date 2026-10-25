@@ -267,6 +267,8 @@ export interface SessionWorkbenchDetail {
 	readonly path?: string;
 	readonly sizeBytes?: number;
 	readonly previewStatus?: "text" | "binary" | "unavailable";
+	/** Optional bounded raster preview, fetched on demand; never the original file. */
+	readonly thumbnailDataUrl?: string;
 	readonly beforeText?: string;
 	readonly afterText?: string;
 	readonly afterRevision?: string;

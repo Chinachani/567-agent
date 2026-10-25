@@ -6,6 +6,7 @@ export const api567StatusAtom = atom<Api567Status>({
 });
 
 export const api567AvailableGroupsAtom = atom<Record<string, { desc: string; ratio: number }>>({});
+export const api567GroupsLoadStateAtom = atom({ loading: false, loaded: false, error: false, request: 0 });
 export const api567InitialCheckDoneAtom = atom<boolean>(false);
 export const api567AuthModalOpenAtom = atom<boolean>(false);
 export const api567TopupModalOpenAtom = atom<boolean>(false);

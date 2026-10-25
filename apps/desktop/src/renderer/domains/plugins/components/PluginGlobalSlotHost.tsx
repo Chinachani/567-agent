@@ -1,3 +1,4 @@
+import { waitForCommittedPaint } from "@shared/lib/committed-paint";
 import {
 	activeInputActionIdsAtom,
 	pluginAbilityDetailSlotsAtom,
@@ -117,6 +118,15 @@ export function PluginGlobalSlotHost(): JSX.Element | null {
 						pendingPluginIds instanceof Set ? pendingPluginIds : undefined,
 						(plugin) => loadPlugin(plugin, forceUpdate),
 						(plugin, error) => console.error(`Failed to load plugin: ${plugin.id}`, error),
+						{
+							beforeLoad: () => waitForCommittedPaint(),
+							onProgress:
+								previousPlugins.length === 0
+									? (ready) => {
+											if (!unmountedRef.current) setPlugins(ready);
+										}
+									: undefined,
+						},
 					),
 				)
 				.catch((error: Error) => {

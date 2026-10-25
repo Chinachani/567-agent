@@ -55,6 +55,7 @@ export type ConversationDocumentMessageEntry =
 
 export interface ConversationDocumentCompactionEntry extends ConversationDocumentEntryBase {
 	readonly type: "compaction";
+	readonly turnId?: string;
 	readonly summary: string;
 	readonly firstKeptEntryId: string;
 	readonly tokensBefore: number;
@@ -311,6 +312,7 @@ export function applyStoredEventToConversationDocument(
 					details: event.record.details,
 					fromHook: event.record.fromHook,
 					reason: event.record.reason,
+					...(event.turnId === undefined || event.record.reason === "manual" ? {} : { turnId: event.turnId }),
 				},
 			],
 			activeLeafId: entryReference.id,

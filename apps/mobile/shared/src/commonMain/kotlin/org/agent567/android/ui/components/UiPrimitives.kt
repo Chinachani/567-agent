@@ -55,7 +55,7 @@ fun Agent567TextField(
     OutlinedTextField(
         value = value,
         onValueChange = onValueChange,
-        modifier = modifier.heightIn(min = 52.dp),
+        modifier = modifier.heightIn(min = 56.dp),
         singleLine = singleLine,
         placeholder = placeholder,
         label = label,
@@ -69,6 +69,8 @@ fun Agent567TextField(
             OutlinedTextFieldDefaults.colors(
                 unfocusedBorderColor = MaterialTheme.agent567Extra.border,
                 focusedBorderColor = MaterialTheme.colorScheme.onSurface,
+                unfocusedContainerColor = MaterialTheme.colorScheme.surface,
+                focusedContainerColor = MaterialTheme.colorScheme.surface,
             ),
     )
 }
@@ -80,13 +82,14 @@ fun Agent567ConfirmDialog(
     confirmLabel: String,
     onConfirm: () -> Unit,
     onDismiss: () -> Unit,
+    destructive: Boolean = false,
 ) {
     AlertDialog(
         onDismissRequest = onDismiss,
         title = { Text(title) },
         text = { Text(message) },
         confirmButton = {
-            TextButton(onClick = onConfirm) { Text(confirmLabel) }
+            TextButton(onClick = onConfirm, colors = androidx.compose.material3.ButtonDefaults.textButtonColors(contentColor = if (destructive) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.primary)) { Text(confirmLabel) }
         },
         dismissButton = {
             TextButton(onClick = onDismiss) { Text(Str.cancel) }
@@ -103,17 +106,18 @@ fun Agent567ChoiceDialog(
     secondaryLabel: String,
     onSecondary: () -> Unit,
     onDismiss: () -> Unit,
+    destructive: Boolean = false,
 ) {
     AlertDialog(
         onDismissRequest = onDismiss,
         title = { Text(title) },
         text = { Text(message) },
         confirmButton = {
-            TextButton(onClick = onPrimary) { Text(primaryLabel) }
+            TextButton(onClick = onPrimary, colors = androidx.compose.material3.ButtonDefaults.textButtonColors(contentColor = if (destructive) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.primary)) { Text(primaryLabel) }
         },
         dismissButton = {
             Column(horizontalAlignment = Alignment.End) {
-                TextButton(onClick = onSecondary) { Text(secondaryLabel) }
+                TextButton(onClick = onSecondary, colors = androidx.compose.material3.ButtonDefaults.textButtonColors(contentColor = if (destructive) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.primary)) { Text(secondaryLabel) }
                 TextButton(onClick = onDismiss) { Text(Str.cancel) }
             }
         },

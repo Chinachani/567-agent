@@ -5,7 +5,11 @@ import { cn } from "@vetta-org/ui";
 import { ThemeSurface } from "../appearance/ThemeSurface";
 import { WindowControlButton } from "./WindowControlButton";
 
-export function DefaultWindowControls({ className, classNames, model }: WindowControlsComponentProps): JSX.Element | null {
+export function DefaultWindowControls({
+	className,
+	classNames,
+	model,
+}: WindowControlsComponentProps): JSX.Element | null {
 	const ThemeWindowControlButton = useThemeComponent("app.windowControlButton", WindowControlButton);
 
 	// macOS uses system traffic lights; do not reserve a 70px empty slot that
@@ -15,7 +19,10 @@ export function DefaultWindowControls({ className, classNames, model }: WindowCo
 	}
 
 	return (
-		<div className={cn("relative overflow-visible", className)} data-theme-surface-root="app.windowControls">
+		<div
+			className={cn("no-drag relative shrink-0 overflow-visible", className)}
+			data-theme-surface-root="app.windowControls"
+		>
 			<ThemeSurface slot="app.windowControls" />
 			<div className="relative z-10 flex items-center gap-0.5">
 				{model.controls.map((control) => (

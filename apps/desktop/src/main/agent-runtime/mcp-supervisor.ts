@@ -70,7 +70,7 @@ export function createDesktopMcpSupervisor(options: DesktopMcpSupervisorOptions)
 		debug: options.debug,
 		enabled: true,
 		configSource: options.dynamicOnly ? EMPTY_MCP_CONFIG_SOURCE : undefined,
-		includeBuiltinServers: !options.dynamicOnly,
+		includeBuiltinServers: false,
 		clientFactory: (name, config, clientOptions) => {
 			const runtimeId = config.type === "http" ? managedRuntimeId(config) : undefined;
 			const resolvedConfig: McpServerConfig =

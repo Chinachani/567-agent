@@ -6,6 +6,7 @@ import {
 	isPersonalModeAtom,
 	pageHeaderLeftSlotAtom,
 	pageHeaderTitleHiddenAtom,
+	settingsReturnHrefAtom,
 	type SettingsTab,
 } from "@shared/store/atoms";
 import { authUserAtom } from "@shared/store/auth-atoms";
@@ -19,7 +20,6 @@ import { useExtensionsSettingsModel } from "./useExtensionsSettingsModel";
 
 export function useSettingsPageModel(): SettingsPageModel {
 	const { t } = useTranslation("settings");
-	const { t: tCommon } = useTranslation("common");
 	const { tab: rawTab } = useParams({ strict: false }) as { tab?: string };
 	const search = useSearch({ strict: false }) as Record<string, unknown>;
 	const navigate = useNavigate();
@@ -28,7 +28,8 @@ export function useSettingsPageModel(): SettingsPageModel {
 	const authUser = useAtomValue(authUserAtom);
 	const setHeaderTitleHidden = useSetAtom(pageHeaderTitleHiddenAtom);
 	const setHeaderLeftSlot = useSetAtom(pageHeaderLeftSlotAtom);
-	const narrow = useNarrowScreen(1000);
+	const narrow = useNarrowScreen(720);
+	const returnHref = useAtomValue(settingsReturnHrefAtom);
 	const highlightingRef = useRef(false);
 
 	useEffect(() => {
@@ -37,20 +38,22 @@ export function useSettingsPageModel(): SettingsPageModel {
 	}, [setHeaderTitleHidden]);
 
 	useEffect(() => {
-		const back = tCommon("actions.back");
+		const back = t("backToWorkspace");
 		setHeaderLeftSlot(
 			<Button
 				variant="ghost"
-				size="icon-sm"
+				size="sm"
+				className="gap-2"
 				title={back}
 				aria-label={back}
-				onClick={() => router.history.back()}
+				onClick={() => router.history.push(returnHref)}
 			>
-				<span className="icon-[mdi--arrow-left] h-4 w-4" />
+				<span aria-hidden="true" className="icon-[solar--arrow-left-linear] h-4 w-4" />
+				{back}
 			</Button>,
 		);
 		return () => setHeaderLeftSlot(null);
-	}, [setHeaderLeftSlot, router, tCommon]);
+	}, [setHeaderLeftSlot, router, returnHref, t]);
 
 	const visibleTabRegistrations = useMemo(
 		() =>
@@ -106,9 +109,7 @@ export function useSettingsPageModel(): SettingsPageModel {
 		element.scrollIntoView({ behavior: "smooth", block: "center" });
 
 		const target =
-			document.querySelector<HTMLElement>(
-				`[data-setting-section-highlight-target="${targetSection.id}"]`,
-			) ??
+			document.querySelector<HTMLElement>(`[data-setting-section-highlight-target="${targetSection.id}"]`) ??
 			(element.closest(".mb-6") as HTMLElement | null) ??
 			element;
 

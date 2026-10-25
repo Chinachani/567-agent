@@ -36,6 +36,8 @@ description: 按目标查找 ctx 上的界面、对话、Agent、文件、网络
 | 在新会话页摆素材 | `ctx.ui.registerNewSessionContext` | `ui.slot.new-session-context` | 激活条件只能写本插件自己的智能体或能力，拿不到用户逐键输入 |
 | 提供多语言文案 | `ctx.i18n` 与包内 `locales/` | 无 | 文案 key 和 `defaultLocale` 要与清单一致 |
 
+模型插件可用 SDK 0.3.8 的 `input: ["text", "image"]` 声明图片输入；需要 567 Agent 1.3.3 开发版及以上宿主。省略时按文本处理，不能据此推断支持音频或任意文件。
+
 <Callout title="有两个字段必须判空" type="warn">
   `ctx.capture` 在不支持离屏截图的旧宿主上是 `undefined`；`ctx.gateway` 只对内置官方插件可用，第三方插件一律读到 `undefined`。使用前先判空，不要假设它们存在。
 </Callout>

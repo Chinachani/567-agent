@@ -23,17 +23,29 @@ class MobileContextManager(
     private val store: SessionStore,
     private val summarize: suspend (modelId: String, messages: List<ChatMessage>, groupName: String?) -> String,
 ) {
-    private val locks = mutableMapOf<String, Mutex>()
+    private data class SessionLock(val mutex: Mutex = Mutex(), var users: Int = 0)
+    private val locks = mutableMapOf<String, SessionLock>()
 
-    fun select(messages: List<LocalMessage>, context: MobileSessionContext): List<LocalMessage> {
-        val boundary = messages.indexOfFirst { it.id == context.throughMessageId }
-        // Deleted retry messages must never reopen history excluded by the user.
-        val selected = when {
+    private fun afterBoundary(messages: List<LocalMessage>, id: String?, at: Long?): List<LocalMessage> {
+        val boundary = messages.indexOfFirst { it.id == id }
+        return when {
             boundary >= 0 -> messages.drop(boundary + 1)
-            context.throughCreatedAtEpochMs != null -> messages.filter { it.createdAtEpochMs > context.throughCreatedAtEpochMs }
-            context.throughMessageId != null -> emptyList()
+            at != null -> messages.filter { it.createdAtEpochMs > at }
+            id != null -> emptyList()
             else -> messages
         }
+    }
+
+    /** Old resets used the summary boundary with an empty summary. Preserve it on first edit. */
+    private fun withResetBoundary(context: MobileSessionContext): MobileSessionContext =
+        if (context.resetThroughMessageId == null && context.resetThroughCreatedAtEpochMs == null && context.summary.isBlank())
+            context.copy(resetThroughMessageId = context.throughMessageId, resetThroughCreatedAtEpochMs = context.throughCreatedAtEpochMs)
+        else context
+
+    fun select(messages: List<LocalMessage>, context: MobileSessionContext): List<LocalMessage> {
+        val bounded = withResetBoundary(context)
+        val afterReset = afterBoundary(messages, bounded.resetThroughMessageId, bounded.resetThroughCreatedAtEpochMs).map { it.id }.toHashSet()
+        val selected = afterBoundary(messages, context.throughMessageId, context.throughCreatedAtEpochMs).filter { it.id in afterReset }
         val excluded = context.excludedTurnIds.toHashSet()
         var turnId: String? = null
         return selected.filter { message ->
@@ -61,6 +73,8 @@ class MobileContextManager(
 
     fun workspace(session: ChatSession, messages: List<LocalMessage>): ContextWorkspaceSnapshot {
         val active = select(messages, session.context).map { it.id }.toSet()
+        val bounded = withResetBoundary(session.context)
+        val afterReset = afterBoundary(messages, bounded.resetThroughMessageId, bounded.resetThroughCreatedAtEpochMs).map { it.id }.toHashSet()
         val groups = mutableListOf<MutableList<LocalMessage>>()
         for (message in messages) {
             if (message.role == ChatRole.User) groups.add(mutableListOf())
@@ -75,6 +89,7 @@ class MobileContextManager(
             turns = groups.takeLast(100).map { group ->
                 val first = group.first()
                 ContextWorkspaceTurn(first.id, group.filter { it.role == ChatRole.User || it.role == ChatRole.Assistant }.joinToString("\n\n") { "[${it.role.toApiValue()}] ${it.content.take(1600)}" }.take(4000), first.files.map { it.fileName } + first.images.map { it.fileName ?: "image" }, when {
+                    first.id !in afterReset -> "before_reset"
                     first.id in session.context.excludedTurnIds -> "excluded"
                     first.id in active -> "included"
                     else -> "summarized"
@@ -83,7 +98,7 @@ class MobileContextManager(
         )
     }
 
-    suspend fun updateSelection(sessionId: String, selection: ContextWorkspaceSnapshot) = lock(sessionId).withLock {
+    suspend fun updateSelection(sessionId: String, selection: ContextWorkspaceSnapshot) = withSessionLock(sessionId) {
         val session = requireNotNull(store.getSession(sessionId)) { "会话已删除" }
         require(session.origin == ConversationOrigin.Cloud && selection.sessionId == sessionId)
         val current = workspace(session, store.getMessages(sessionId))
@@ -92,7 +107,7 @@ class MobileContextManager(
         val known = store.getMessages(sessionId).filter { it.role == ChatRole.User }.map { it.id }.toSet()
         require(selection.excludedTurnIds.all { it in known }) { "上下文包含未知回合" }
         val changed = selection.excludedTurnIds.toSet() != current.excludedTurnIds.toSet()
-        val context = session.context.copy(
+        val context = withResetBoundary(session.context).copy(
             selectionRevision = current.revision + 1, pinnedText = selection.pinnedText,
             excludedTurnIds = selection.excludedTurnIds.distinct(),
             summary = if (changed) "" else session.context.summary,
@@ -115,17 +130,17 @@ class MobileContextManager(
         )
     }
 
-    suspend fun compact(sessionId: String, modelId: String, window: Long?, groupName: String? = null, incomingTokens: Long = 0): Boolean = lock(sessionId).withLock {
-        compactLocked(sessionId, modelId, window, groupName, incomingTokens)
+    suspend fun compact(sessionId: String, modelId: String, window: Long?, groupName: String? = null, incomingTokens: Long = 0, manual: Boolean = false): Boolean = withSessionLock(sessionId) {
+        compactLocked(sessionId, modelId, window, groupName, incomingTokens, manual)
     }
 
-    private suspend fun compactLocked(sessionId: String, modelId: String, window: Long?, groupName: String?, incomingTokens: Long): Boolean = withContext(Dispatchers.Default) {
+    private suspend fun compactLocked(sessionId: String, modelId: String, window: Long?, groupName: String?, incomingTokens: Long, manual: Boolean): Boolean = withContext(Dispatchers.Default) {
         val session = requireNotNull(store.getSession(sessionId)) { "会话已删除" }
         require(session.origin == ConversationOrigin.Cloud)
         val messages = select(store.getMessages(sessionId), session.context)
         // Count user turns rather than messages, since a turn may contain several replies.
         val userTurns = messages.indices.filter { messages[it].role == ChatRole.User }
-        var keep = minOf(3, userTurns.size)
+        var keep = minOf(if (manual) 1 else 3, userTurns.size)
         if (incomingTokens > 0 && window != null) {
             while (keep > 1) {
                 val retained = messages.drop(userTurns[userTurns.size - keep])
@@ -168,22 +183,26 @@ class MobileContextManager(
             }
         }
         summarizeBuffer()
+        // A successful summary must actually reduce the selected history. Never
+        // replace it with a longer response just because the model returned text.
+        if (estimateText(summary) >= older.sumOf { estimateText(it.content) + 8L + it.images.size * 2048L } + estimateText(session.context.summary))
+            throw MobileContextException("历史内容较短，摘要未减少占用；原上下文已保留。")
         val latest = store.getSession(sessionId) ?: return@withContext false
         if (latest.context != session.context) throw MobileContextException("上下文已变化，请重新操作")
-        store.updateSession(latest.copy(context = latest.context.copy(throughMessageId = older.last().id, throughCreatedAtEpochMs = older.last().createdAtEpochMs, summary = summary, previousSummary = latest.context.summary)))
+        store.updateSession(latest.copy(context = withResetBoundary(latest.context).copy(throughMessageId = older.last().id, throughCreatedAtEpochMs = older.last().createdAtEpochMs, summary = summary, previousSummary = latest.context.summary)))
         true
     }
 
-    suspend fun setAuto(sessionId: String, enabled: Boolean) = lock(sessionId).withLock {
-        val session = store.getSession(sessionId) ?: return@withLock
+    suspend fun setAuto(sessionId: String, enabled: Boolean) = withSessionLock(sessionId) {
+        val session = store.getSession(sessionId) ?: return@withSessionLock
         store.updateSession(session.copy(context = session.context.copy(autoCompactionEnabled = enabled)))
     }
 
-    suspend fun reset(sessionId: String) = lock(sessionId).withLock {
-        val session = store.getSession(sessionId) ?: return@withLock
+    suspend fun reset(sessionId: String) = withSessionLock(sessionId) {
+        val session = store.getSession(sessionId) ?: return@withSessionLock
         require(session.origin == ConversationOrigin.Cloud)
         val last = store.getMessages(sessionId).lastOrNull()
-        store.updateSession(session.copy(context = session.context.copy(throughMessageId = last?.id, throughCreatedAtEpochMs = last?.createdAtEpochMs, summary = "", previousSummary = session.context.summary, pinnedText = "", excludedTurnIds = emptyList(), selectionRevision = session.context.selectionRevision + 1)))
+        store.updateSession(session.copy(context = session.context.copy(resetThroughMessageId = last?.id, resetThroughCreatedAtEpochMs = last?.createdAtEpochMs, throughMessageId = last?.id, throughCreatedAtEpochMs = last?.createdAtEpochMs, summary = "", previousSummary = session.context.summary, pinnedText = "", excludedTurnIds = emptyList(), selectionRevision = session.context.selectionRevision + 1)))
     }
 
     private fun textChunks(text: String, maxChars: Int): Sequence<String> = sequence {
@@ -196,7 +215,11 @@ class MobileContextManager(
         }
     }
 
-    private fun lock(sessionId: String): Mutex = locks.getOrPut(sessionId) { Mutex() }
+    private suspend fun <T> withSessionLock(sessionId: String, operation: suspend () -> T): T {
+        val holder = synchronized(locks) { locks.getOrPut(sessionId) { SessionLock() }.also { it.users++ } }
+        return try { holder.mutex.withLock { operation() } }
+        finally { synchronized(locks) { if (--holder.users == 0) locks.remove(sessionId) } }
+    }
 
     companion object {
         fun estimateText(text: String): Long =

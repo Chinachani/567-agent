@@ -143,4 +143,14 @@ export interface ChatErrorDetails {
 	retryAfterMs?: number;
 }
 
-export type ContentBlock = TextBlock | ThinkingBlock | ToolCallBlock | ToolResultBlock | ErrorBlock;
+export interface CompactionBlock {
+	type: "compaction";
+	id: string;
+	turnId: string;
+	status: "running" | "completed" | "failed";
+	timestamp: number;
+	summary?: string;
+	errorMessage?: string;
+}
+
+export type ContentBlock = CompactionBlock | TextBlock | ThinkingBlock | ToolCallBlock | ToolResultBlock | ErrorBlock;

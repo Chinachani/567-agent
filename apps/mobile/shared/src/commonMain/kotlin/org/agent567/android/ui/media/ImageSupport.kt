@@ -5,6 +5,7 @@ import androidx.compose.runtime.produceState
 import androidx.compose.ui.graphics.ImageBitmap
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
+import org.agent567.android.domain.session.PendingFileAttachment
 import org.agent567.android.domain.session.MessageImage
 import kotlin.io.encoding.Base64
 import kotlin.io.encoding.ExperimentalEncodingApi
@@ -25,13 +26,6 @@ data class PickedImage(
     fun toBase64(): String = Base64.encode(bytes)
 }
 
-data class PendingFileAttachment(
-    val id: String,
-    val fileName: String,
-    val mimeType: String,
-    val bytes: ByteArray,
-    val readScope: String = "",
-)
 
 data class PickedFileAttachment(
     val fileName: String,
@@ -50,6 +44,8 @@ fun MessageImage.pickedByteSize(): Int {
 expect fun imageBitmapFromBytes(bytes: ByteArray): ImageBitmap?
 
 expect fun imageBitmapFromStorageKey(key: String): ImageBitmap?
+
+expect fun imageThumbnail(image: MessageImage): ImageBitmap?
 
 @Composable
 expect fun rememberImageCapture(

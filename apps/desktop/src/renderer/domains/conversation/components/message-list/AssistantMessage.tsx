@@ -115,8 +115,10 @@ export const AssistantMessage = memo(function AssistantMessage({
 	}, [t, stagedNarration]);
 
 	const hasBlocks = message.blocks.length > 0;
+	const isCompacting = message.blocks.some((block) => block.type === "compaction" && block.status === "running");
 	const toolCallPresentations = useMemo(
-		() => new Map(message.toolCallPresentations?.map((presentation) => [presentation.toolCallId, presentation]) ?? []),
+		() =>
+			new Map(message.toolCallPresentations?.map((presentation) => [presentation.toolCallId, presentation]) ?? []),
 		[message.toolCallPresentations],
 	);
 	const presentationFor = (segment: BlockSegment): ChatToolCallPresentationViewModel | undefined =>
@@ -145,10 +147,7 @@ export const AssistantMessage = memo(function AssistantMessage({
 
 	return (
 		<Message.Root>
-			<MessageLayout.Incoming
-				className={surface?.rootClassName}
-				data-theme-surface-root="chat.assistantMessage"
-			>
+			<MessageLayout.Incoming className={surface?.rootClassName} data-theme-surface-root="chat.assistantMessage">
 				<ThemeSurface slot="chat.assistantMessage" />
 				<MessageLayout.IncomingSurface>
 					<MessageLayout.Header>
@@ -170,7 +169,9 @@ export const AssistantMessage = memo(function AssistantMessage({
 							<>
 								<span className="text-[11px] text-muted-foreground/20">·</span>
 								<Message.Meta>
-									{t("messageList.duration.total", { duration: formatTurnDuration(message.durationSeconds ?? 0, t) })}
+									{t("messageList.duration.total", {
+										duration: formatTurnDuration(message.durationSeconds ?? 0, t),
+									})}
 								</Message.Meta>
 							</>
 						) : null}
@@ -207,49 +208,49 @@ export const AssistantMessage = memo(function AssistantMessage({
 					<div>
 						{hasBlocks ? (
 							<div className="flex flex-col gap-0.5">
-						{exportProcessSegments.length > 0 && (
-							<div
-								id={exportFoldPanelId}
-								data-export-collapse-panel=""
-								hidden
-								className="flex flex-col gap-0.5"
-							>
-								{exportProcessSegments.map((segment) => (
-									<SegmentRenderer
-										key={`export-${segmentKey(segment)}`}
-										segment={segment}
-										presentation={presentationFor(segment)}
-										exportMode
-									/>
-								))}
-							</div>
-						)}
-						{segments.map((segment, index) =>
-							stagedNarration ? (
-								<WorkSegmentRenderer
-									key={workSegmentKey(segment)}
-									segment={segment}
-									isStreamingTail={index === streamingTailIndex}
-									isLiveActivity={isCurrentlyStreaming && index === segments.length - 1}
-									liveThinkingId={liveThinkingId}
-									presentation={presentationFor(segment as BlockSegment)}
-									onTeamMemberOpen={onTeamMemberOpen}
-									animateIn={isCurrentlyStreaming && index === segments.length - 1}
-									exportMode={exportMode}
-								/>
-							) : (
-								<SegmentRenderer
-									key={workSegmentKey(segment)}
-									segment={segment as BlockSegment}
-									isStreamingTail={index === streamingTailIndex}
-									liveThinkingId={liveThinkingId}
-									presentation={presentationFor(segment as BlockSegment)}
-									onTeamMemberOpen={onTeamMemberOpen}
-									animateIn={isCurrentlyStreaming && index === segments.length - 1}
-									exportMode={exportMode}
-								/>
-							),
-						)}
+								{exportProcessSegments.length > 0 && (
+									<div
+										id={exportFoldPanelId}
+										data-export-collapse-panel=""
+										hidden
+										className="flex flex-col gap-0.5"
+									>
+										{exportProcessSegments.map((segment) => (
+											<SegmentRenderer
+												key={`export-${segmentKey(segment)}`}
+												segment={segment}
+												presentation={presentationFor(segment)}
+												exportMode
+											/>
+										))}
+									</div>
+								)}
+								{segments.map((segment, index) =>
+									stagedNarration ? (
+										<WorkSegmentRenderer
+											key={workSegmentKey(segment)}
+											segment={segment}
+											isStreamingTail={index === streamingTailIndex}
+											isLiveActivity={isCurrentlyStreaming && index === segments.length - 1}
+											liveThinkingId={liveThinkingId}
+											presentation={presentationFor(segment as BlockSegment)}
+											onTeamMemberOpen={onTeamMemberOpen}
+											animateIn={isCurrentlyStreaming && index === segments.length - 1}
+											exportMode={exportMode}
+										/>
+									) : (
+										<SegmentRenderer
+											key={workSegmentKey(segment)}
+											segment={segment as BlockSegment}
+											isStreamingTail={index === streamingTailIndex}
+											liveThinkingId={liveThinkingId}
+											presentation={presentationFor(segment as BlockSegment)}
+											onTeamMemberOpen={onTeamMemberOpen}
+											animateIn={isCurrentlyStreaming && index === segments.length - 1}
+											exportMode={exportMode}
+										/>
+									),
+								)}
 							</div>
 						) : !isAwaitingFirstActivity ? (
 							<div
@@ -261,7 +262,7 @@ export const AssistantMessage = memo(function AssistantMessage({
 						) : null}
 					</div>
 
-					{isCurrentlyStreaming && !isAwaitingFirstActivity ? (
+					{isCurrentlyStreaming && !isAwaitingFirstActivity && !isCompacting ? (
 						<div className="mt-2 flex items-center">
 							<AssistantMessagePrimitive.StreamingIndicator phrases={labels.streamingPhrases} />
 						</div>
@@ -271,19 +272,17 @@ export const AssistantMessage = memo(function AssistantMessage({
 						<MessageLayout.Footer asChild>
 							<div className="gap-2">
 								{hasActions ? (
-					<div className="flex items-center gap-1">
-						{conclusionText.length > 0 && <CopyButton getText={() => conclusionText} />}
-						{(message.endedAt ?? message.timestamp) && (
-							<RelativeTimeLabel endedAt={(message.endedAt ?? message.timestamp) as number} />
-						)}
-						{showTokenUsage && (
-							<MessageTokenUsage usages={message.usages ?? []} sessionUsages={sessionUsages} />
-						)}
-					</div>
+									<div className="flex items-center gap-1">
+										{conclusionText.length > 0 && <CopyButton getText={() => conclusionText} />}
+										{(message.endedAt ?? message.timestamp) && (
+											<RelativeTimeLabel endedAt={(message.endedAt ?? message.timestamp) as number} />
+										)}
+										{showTokenUsage && (
+											<MessageTokenUsage usages={message.usages ?? []} sessionUsages={sessionUsages} />
+										)}
+									</div>
 								) : null}
-								{isPredicting ? (
-									<AssistantMessagePrimitive.PredictingStatus label={labels.predicting} />
-								) : null}
+								{isPredicting ? <AssistantMessagePrimitive.PredictingStatus label={labels.predicting} /> : null}
 							</div>
 						</MessageLayout.Footer>
 					) : null}

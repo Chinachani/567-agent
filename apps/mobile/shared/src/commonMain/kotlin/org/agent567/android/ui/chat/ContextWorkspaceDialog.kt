@@ -22,21 +22,22 @@ internal fun ContextWorkspaceBody(
 ) {
     var compare by remember { mutableStateOf(false) }
     val visibleTurns = snapshot.turns.asReversed().take(100)
+    val selectableTurns = visibleTurns.filter { it.status != "before_reset" }
     Column(verticalArrangement = Arrangement.spacedBy(16.dp)) {
         Text(Str.contextWorkspaceHint, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
         OutlinedTextField(pinned, onValueChange = { if (it.length <= 16000) onPinnedChange(it) }, label = { Text(Str.contextPinned) }, minLines = 3, maxLines = 6, enabled = !busy && !snapshot.busy, modifier = Modifier.fillMaxWidth())
         if (snapshot.summary.isNotBlank() || snapshot.previousSummary.isNotBlank()) TextButton(onClick = { compare = true }) { Text(Str.contextCompareSummary) }
         Text("${Str.contextWorkspaceTurns}: ${visibleTurns.size} / ${snapshot.totalTurns}", style = MaterialTheme.typography.labelMedium)
         Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            TextButton(onClick = { onToggleVisible(visibleTurns.map { it.id }, true) }, enabled = !busy && !snapshot.busy && visibleTurns.any { it.id in excluded }) { Text(Str.contextIncludeVisible) }
-            TextButton(onClick = { onToggleVisible(visibleTurns.map { it.id }, false) }, enabled = !busy && !snapshot.busy && visibleTurns.any { it.id !in excluded }) { Text(Str.contextExcludeVisible) }
+            TextButton(onClick = { onToggleVisible(selectableTurns.map { it.id }, true) }, enabled = !busy && !snapshot.busy && selectableTurns.any { it.id in excluded }) { Text(Str.contextIncludeVisible) }
+            TextButton(onClick = { onToggleVisible(selectableTurns.map { it.id }, false) }, enabled = !busy && !snapshot.busy && selectableTurns.any { it.id !in excluded }) { Text(Str.contextExcludeVisible) }
         }
         visibleTurns.forEach { turn ->
             HorizontalDivider()
-            Row(Modifier.alpha(if (turn.id in excluded) 0.5f else 1f), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                Checkbox(checked = turn.id !in excluded, enabled = !busy && !snapshot.busy, onCheckedChange = { checked -> onToggleVisible(listOf(turn.id), checked) })
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                Checkbox(modifier = Modifier.alpha(if (turn.status == "before_reset" || turn.id in excluded) 0.5f else 1f), checked = turn.status != "before_reset" && turn.id !in excluded, enabled = !busy && !snapshot.busy && turn.status != "before_reset", onCheckedChange = { checked -> onToggleVisible(listOf(turn.id), checked) })
                 Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                    Text(when { turn.id in excluded -> Str.contextTurnExcluded; turn.status == "summarized" -> Str.contextTurnSummarized; else -> Str.contextTurnIncluded }, style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    Text(when { turn.status == "before_reset" -> Str.contextTurnBeforeReset; turn.id in excluded -> Str.contextTurnExcluded; turn.status == "summarized" -> Str.contextTurnSummarized; else -> Str.contextTurnIncluded }, style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
                     var expanded by remember(turn.id) { mutableStateOf(false) }
                     Text((if (expanded) turn.text else turn.text.take(240)).ifBlank { Str.contextAttachmentTurn }, style = MaterialTheme.typography.bodyMedium)
                     if (turn.text.length > 240) TextButton(onClick = { expanded = !expanded }) { Text(if (expanded) Str.collapse else Str.expand) }

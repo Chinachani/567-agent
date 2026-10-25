@@ -115,3 +115,15 @@ test("manual migration treats the active root as authoritative and stages change
 	assert.doesNotMatch(migration, /DelTree\((?:PreviousDataRoot|LegacyDataRoot|DataRoot|BackupRoot)/);
 	assert.match(migration, /SaveStringToFile\(AddBackslash\(StagingRoot\) \+ '.data-migration-complete'/);
 });
+
+
+test("background updates preserve the registered root and recovery requires explicit reuse", () => {
+	const installer = readFileSync(new URL("../build/installer.iss", import.meta.url), "utf8");
+	assert.match(installer, /ValueName: "DataRoot"[^\n]+Check: IsNotBackgroundUpdate/);
+	const start = installer.indexOf("function GetDataRoot(");
+	const dataRoot = installer.slice(start, installer.indexOf("function GetUpdateStoreRoot(", start));
+	assert.match(dataRoot,/Result := RegisteredRoot/);
+	assert.match(installer,/AGENT567USEEXISTINGDATA/);
+	assert.match(installer,/if not RenameFile\(BackupRoot, DataRoot\) then/);
+	assert.match(installer,/DataMigrationRecoveryFailed/);
+});

@@ -36,3 +36,5 @@ export { TabBar } from "./TabBar";
 export type { TimePickerProps } from "./TimePicker";
 export { TimePicker } from "./TimePicker";
 export { useDelayedUnmount } from "./useDelayedUnmount";
+export type { WorkspacePageHeaderProps } from "./WorkspacePageHeader";
+export { WorkspacePageHeader } from "./WorkspacePageHeader";

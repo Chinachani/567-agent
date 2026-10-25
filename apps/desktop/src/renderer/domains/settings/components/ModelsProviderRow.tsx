@@ -10,13 +10,7 @@ export type ModelsProviderRowThemeViews = {
 	readonly providerForm: typeof ModelsProviderFormView;
 };
 
-export function ModelsProviderRow({
-	name,
-	model,
-}: {
-	name: string;
-	model: ModelsSettingsModel;
-}): JSX.Element | null {
+export function ModelsProviderRow({ name, model }: { name: string; model: ModelsSettingsModel }): JSX.Element | null {
 	const { t } = useTranslation("settings");
 	const provider = model.config?.providers[name];
 	if (!provider) return null;
@@ -27,27 +21,30 @@ export function ModelsProviderRow({
 
 	return (
 		<div className="border-b border-border last:border-b-0">
-			<div className="flex items-center gap-3 px-5 py-3.5">
+			<div className="flex items-center gap-3 px-4 py-4">
 				<button
 					type="button"
 					onClick={() => model.onToggleProvider(name)}
-					className="flex flex-1 items-center gap-3 text-left"
+					className="flex min-w-0 flex-1 items-center gap-3 text-left"
+					aria-expanded={isExpanded}
 				>
 					<span
 						className={cn(
-							"icon-[mdi--chevron-right] h-4 w-4 shrink-0 text-muted-foreground transition-transform",
+							"icon-[solar--alt-arrow-right-linear] h-4 w-4 shrink-0 text-muted-foreground transition-transform",
 							isExpanded && "rotate-90",
 						)}
 					/>
 					<div className="min-w-0 flex-1">
-						<div className="text-[13px] font-medium text-foreground">{name}</div>
-						<div className="mt-0.5 text-[11px] text-muted-foreground">
+						<div className="truncate text-[13px] font-medium text-foreground" title={name}>
+							{name}
+						</div>
+						<div className="mt-0.5 truncate text-[11px] text-muted-foreground" title={provider.baseUrl}>
 							{provider.api || "openai-responses"} · {models.length} {t("models")}
 							{provider.baseUrl && ` · ${provider.baseUrl}`}
 						</div>
 					</div>
 				</button>
-				<div className="flex items-center gap-1">
+				<div className="flex shrink-0 items-center gap-1">
 					{provider.apiKey && (
 						<Button
 							variant="ghost"
@@ -60,7 +57,7 @@ export function ModelsProviderRow({
 							title={t("changeKey")}
 							aria-label={t("changeKey")}
 						>
-							<span className="icon-[mdi--key-change] h-3.5 w-3.5" />
+							<span className="icon-[solar--key-minimalistic-linear] h-3.5 w-3.5" />
 						</Button>
 					)}
 					<Button
@@ -72,8 +69,9 @@ export function ModelsProviderRow({
 							if (!isExpanded) model.onToggleProvider(name);
 						}}
 						title={t("edit")}
+						aria-label={t("listSearch.editProvider", { name })}
 					>
-						<span className="icon-[mdi--pencil-outline] h-3.5 w-3.5" />
+						<span className="icon-[solar--pen-2-linear] h-3.5 w-3.5" />
 					</Button>
 					<Button
 						variant="ghost"
@@ -85,13 +83,13 @@ export function ModelsProviderRow({
 						title={t("delete")}
 						className="text-muted-foreground hover:text-destructive"
 					>
-						<span className="icon-[mdi--delete-outline] h-3.5 w-3.5" />
+						<span className="icon-[solar--trash-bin-trash-linear] h-3.5 w-3.5" />
 					</Button>
 				</div>
 			</div>
 
 			{isExpanded && isEditing && (
-				<div className="border-t border-border bg-secondary/50 px-5 py-4">
+				<div className="border-t border-border/60 bg-muted/30 px-5 py-4">
 					<ModelsProviderForm
 						form={model.providerForm}
 						setForm={model.setProviderForm}
@@ -106,7 +104,7 @@ export function ModelsProviderRow({
 			)}
 
 			{isExpanded && !isEditing && (
-				<div className="border-t border-border bg-secondary/30">
+				<div className="border-t border-border/60 bg-muted/20">
 					{models.length === 0 && model.addingModelFor !== name && (
 						<div className="px-5 py-6 text-center text-[12px] text-muted-foreground">{t("noCustomModels")}</div>
 					)}
@@ -114,7 +112,8 @@ export function ModelsProviderRow({
 					{models.map((item) => {
 						const modelKey = `${name}/${item.id}`;
 						const isDefault = model.config?.defaultModel === modelKey;
-						const isModelEditing = model.editingModel?.provider === name && model.editingModel?.modelId === item.id;
+						const isModelEditing =
+							model.editingModel?.provider === name && model.editingModel?.modelId === item.id;
 
 						if (isModelEditing) {
 							return (
@@ -137,7 +136,7 @@ export function ModelsProviderRow({
 								className="flex items-center justify-between border-b border-border/50 px-5 py-2.5 last:border-b-0"
 							>
 								<div className="min-w-0 flex-1">
-									<div className="flex items-center gap-2 text-[12px] font-medium text-foreground">
+									<div className="flex min-w-0 flex-wrap items-center gap-2 text-[12px] font-medium text-foreground">
 										{item.name || item.id}
 										{isDefault && (
 											<span className="rounded-full bg-primary/15 px-1.5 py-0.5 text-[9px] font-medium text-primary">
@@ -146,15 +145,23 @@ export function ModelsProviderRow({
 										)}
 									</div>
 									<div className="mt-0.5 flex flex-wrap items-center gap-x-2 text-[11px] text-muted-foreground">
-										<span>{item.id}</span>
+										{item.name && item.name !== item.id && (
+											<span className="font-mono break-all">{item.id}</span>
+										)}
 										{item.api && <span>· {item.api}</span>}
 										{item.input?.includes("image") && (
-											<span className="rounded bg-primary/10 px-1 py-0.5 text-[9px] text-primary">vision</span>
+											<span className="rounded bg-primary/10 px-1 py-0.5 text-[9px] text-primary">
+												vision
+											</span>
 										)}
 										{item.reasoning && (
-											<span className="rounded bg-accent px-1 py-0.5 text-[9px] text-muted-foreground">reasoning</span>
+											<span className="rounded bg-accent px-1 py-0.5 text-[9px] text-muted-foreground">
+												reasoning
+											</span>
 										)}
-										{item.contextWindow != null && <span>· {(item.contextWindow / 1024).toFixed(0)}K ctx</span>}
+										{item.contextWindow != null && (
+											<span>· {(item.contextWindow / 1024).toFixed(0)}K ctx</span>
+										)}
 										{item.maxTokens != null && <span>· {(item.maxTokens / 1024).toFixed(0)}K max</span>}
 									</div>
 								</div>
@@ -166,7 +173,9 @@ export function ModelsProviderRow({
 										className={isDefault ? "text-primary" : "text-muted-foreground hover:text-primary"}
 										title={isDefault ? t("unsetDefault") : t("setDefault")}
 									>
-										<span className={`${isDefault ? "icon-[mdi--star]" : "icon-[mdi--star-outline]"} h-3.5 w-3.5`} />
+										<span
+											className={`${isDefault ? "icon-[mdi--star]" : "icon-[mdi--star-outline]"} h-3.5 w-3.5`}
+										/>
 									</Button>
 									<Button
 										variant="ghost"

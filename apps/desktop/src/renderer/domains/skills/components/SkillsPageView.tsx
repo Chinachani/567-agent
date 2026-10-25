@@ -1,3 +1,4 @@
+import { WorkspacePageHeader } from "@vetta-org/theme-ui/shared";
 import { SkillTagGroupView } from "@vetta-org/theme-ui/skills";
 import { motion } from "motion/react";
 import { useTranslation } from "react-i18next";
@@ -38,20 +39,11 @@ export function SkillsPageView({ model }: { model: SkillsPageModel }): JSX.Eleme
 				className="hidden"
 				onChange={handleFileChange}
 			/>
-			<div className="relative shrink-0 px-8 pb-4">
+			<div className="relative shrink-0 px-5 pt-6 pb-6 sm:px-8">
 				<div
-					className={`mx-auto flex w-full max-w-5xl gap-4 ${narrow ? "flex-col items-stretch" : "items-end justify-between"}`}
+					className={`mx-auto flex w-full max-w-6xl gap-4 ${narrow ? "flex-col items-stretch" : "items-start justify-between"}`}
 				>
-					<motion.div
-						initial={{ opacity: 0, y: -8 }}
-						animate={{ opacity: 1, y: 0 }}
-						transition={{ duration: 0.5, ease: easeOut }}
-					>
-						<h1 className="bg-gradient-to-br from-foreground via-foreground to-foreground/70 bg-clip-text text-[26px] font-bold leading-tight tracking-tight text-transparent">
-							{t("tabs.scene")}
-						</h1>
-						<p className="mt-1 text-[12px] text-muted-foreground/60">{t("subtitle")}</p>
-					</motion.div>
+					<WorkspacePageHeader title={t("tabs.scene")} description={t("subtitle")} />
 
 					<motion.div
 						initial={{ opacity: 0, y: -6 }}
@@ -62,32 +54,33 @@ export function SkillsPageView({ model }: { model: SkillsPageModel }): JSX.Eleme
 						<div className={`relative ${narrow ? "flex-1" : ""}`}>
 							<span className="icon-[solar--magnifer-linear] absolute left-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-muted-foreground/40" />
 							<input
-								type="text"
+								type="search"
+								aria-label={t("search.placeholder", { noun: typeNoun })}
 								placeholder={t("search.placeholder", { noun: typeNoun })}
 								value={searchQuery}
 								onChange={(event) => setSearchQuery(event.target.value)}
-								className={`h-8 ${narrow ? "w-full" : "w-56"} rounded-lg bg-secondary pl-8 pr-3 text-[12px] text-foreground placeholder:text-muted-foreground/40 transition-colors hover:bg-accent focus:bg-accent focus:outline-none`}
+								className={`h-8 ${narrow ? "w-full" : "w-56"} rounded-lg border border-border bg-card pl-8 pr-3 text-[13px] text-foreground placeholder:text-muted-foreground/40 transition-colors hover:bg-accent/30 focus:outline-none focus:ring-1 focus:ring-ring`}
 							/>
 						</div>
 					</motion.div>
 				</div>
 			</div>
 
-			<div className="flex-1 overflow-y-auto px-8 pt-5 pb-8 [scrollbar-gutter:stable]">
-				<div className="mx-auto w-full max-w-5xl">
+			<div className="flex-1 overflow-y-auto px-5 pt-5 pb-8 sm:px-8 [scrollbar-gutter:stable]">
+				<div className="mx-auto w-full max-w-6xl">
 					{loading ? (
 						<div className="flex h-full flex-col items-center justify-center gap-3 opacity-60">
 							<motion.span
-								className="icon-[mdi--loading] h-8 w-8 text-primary/60"
+								className="icon-[solar--refresh-linear] h-8 w-8 text-primary/60"
 								animate={{ rotate: 360 }}
 								transition={{ duration: 1, repeat: Infinity, ease: "linear" }}
 							/>
-							<p className="text-[13px] text-muted-foreground/60">{t("loading")}</p>
+							<p className="text-[13px] text-muted-foreground">{t("loading")}</p>
 						</div>
 					) : error && !hasContent ? (
 						<div className="flex h-full flex-col items-center justify-center gap-3 opacity-60">
-							<span className="icon-[mdi--alert-circle-outline] h-10 w-10 text-muted-foreground/50" />
-							<p className="text-[13px] text-muted-foreground/50">{error}</p>
+							<span className="icon-[solar--danger-circle-linear] h-10 w-10 text-muted-foreground" />
+							<p className="text-[13px] text-muted-foreground">{error}</p>
 						</div>
 					) : !hasContent ? (
 						<motion.div
@@ -96,19 +89,14 @@ export function SkillsPageView({ model }: { model: SkillsPageModel }): JSX.Eleme
 							animate={{ opacity: 1, y: 0 }}
 							transition={{ duration: 0.5, ease: easeOut }}
 						>
-							<motion.div
-								className="relative flex h-20 w-20 items-center justify-center rounded-3xl bg-gradient-to-br from-primary/15 to-primary/5 ring-1 ring-inset ring-primary/20"
-								animate={{ y: [0, -6, 0] }}
-								transition={{ duration: 3.5, repeat: Infinity, ease: "easeInOut" }}
-							>
-								<span className="absolute inset-0 rounded-3xl bg-primary/10 blur-2xl" />
-								<span className="relative icon-[mdi--movie-open-outline] text-4xl text-primary/80" />
+							<motion.div className="relative flex h-14 w-14 items-center justify-center rounded-xl bg-muted text-muted-foreground">
+								<span className="relative icon-[solar--clapperboard-open-linear] h-7 w-7" />
 							</motion.div>
 							<div className="space-y-1.5">
 								<p className="text-[15px] font-semibold text-foreground">
 									{searchQuery ? t("empty.noMatch") : t("empty.none", { noun: typeNoun })}
 								</p>
-								<p className="text-[12px] text-muted-foreground/60">
+								<p className="text-[12px] text-muted-foreground">
 									{searchQuery ? t("empty.noMatchHint") : t("empty.noneHint")}
 								</p>
 							</div>
@@ -122,7 +110,7 @@ export function SkillsPageView({ model }: { model: SkillsPageModel }): JSX.Eleme
 						>
 							{error && (
 								<div className="flex items-center gap-2 rounded-lg bg-muted/60 px-3 py-2 text-[12px] text-muted-foreground/70">
-									<span className="icon-[mdi--alert-circle-outline] h-4 w-4 shrink-0 text-muted-foreground/50" />
+									<span className="icon-[solar--danger-circle-linear] h-4 w-4 shrink-0 text-muted-foreground" />
 									<span>{t("error.partialFallback", { error, noun: typeNoun })}</span>
 								</div>
 							)}

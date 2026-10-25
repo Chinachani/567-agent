@@ -25,7 +25,7 @@ function fakeContext(): PluginContext {
 			runCount++;
 			// 真实宿主会解析到托管 node；测试里指向当前进程的 node 即可。
 			if (args[0] === "-p" && args[1]?.includes("homedir")) {
-				return { stdout: `${home}\n`, stderr: "", exitCode: 0 };
+				return { stdout: `${home}/.567agent\n`, stderr: "", exitCode: 0 };
 			}
 			try {
 				const { stdout, stderr } = await execFileAsync(process.execPath, args, {
@@ -58,7 +58,7 @@ describe("runner 物化", () => {
 		const ctx = fakeContext();
 		const runner = await ensureRunner(ctx);
 
-		expect(runner.startsWith(`${home}/.vetta/plugin-data/vetta-ui-design/history-runner/`)).toBe(true);
+		expect(runner.startsWith(`${home}/.567agent/plugin-data/vetta-ui-design/history-runner/`)).toBe(true);
 		expect(existsSync(runner)).toBe(true);
 		// 分块写入必须原样还原：截断或错序都会让下面这次执行报语法错误。
 		const design = await mkdtemp(join(tmpdir(), "vetd-runner-design-"));

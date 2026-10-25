@@ -1,5 +1,6 @@
 package org.agent567.android.ui
 
+import androidx.compose.foundation.layout.consumeWindowInsets
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.fillMaxSize
@@ -82,13 +83,27 @@ fun RootApp(
     val vm: AppViewModel =
         viewModel(factory = remember(container) { AppViewModelFactory(container) })
     val state by vm.state.collectAsState()
+    val appUpdates by vm.appUpdates.collectAsState()
     val sessions by vm.sessions.collectAsState()
     val sessionItems by vm.sessionListItems.collectAsState()
+
+    val updateLifecycle = androidx.lifecycle.compose.LocalLifecycleOwner.current
+    androidx.compose.runtime.DisposableEffect(updateLifecycle, state.bootstrapped) {
+        val observer = androidx.lifecycle.LifecycleEventObserver { _, event ->
+            if (state.bootstrapped && event == androidx.lifecycle.Lifecycle.Event.ON_RESUME) vm.checkAppUpdateAutomatically()
+        }
+        updateLifecycle.lifecycle.addObserver(observer)
+        onDispose { updateLifecycle.lifecycle.removeObserver(observer) }
+    }
 
     PlatformBackHandler(
         enabled = state.route.hasInAppBackDestination(),
         onBack = vm::handleSystemBack,
     )
+
+    LaunchedEffect(state.bootstrapped, state.mainTab) {
+        if (state.bootstrapped) vm.checkAppUpdateAutomatically()
+    }
 
     LaunchedEffect(pairingInvite, state.bootstrapped) {
         if (pairingInvite != null && state.bootstrapped) {
@@ -111,6 +126,17 @@ fun RootApp(
         }
 
         Box(Modifier.fillMaxSize().background(MaterialTheme.agent567Extra.pageBackground)) {
+            if (state.serviceRoutePickerOpen) org.agent567.android.ui.components.ServiceRoutePickerDialog(
+                serverUrl = state.serverUrl,
+                pending = state.serviceRoutePending,
+                results = state.serviceRouteResults,
+                changed = state.serviceRouteChanged,
+                catalog = state.serviceRouteCatalog,
+                refreshing = state.serviceRouteCatalogRefreshing,
+                onRefresh = { vm.refreshServiceRouteCatalog(true) },
+                onAction = vm::checkServiceRoute,
+                onClose = { vm.setServiceRoutePickerOpen(false) },
+            )
             when (val route = state.route) {
             AppRoute.Boot -> Unit
             AppRoute.Welcome ->
@@ -124,7 +150,11 @@ fun RootApp(
                 )
             AppRoute.Login ->
                 LoginScreen(
+                    serverUrl = state.serverUrl,
+                    serviceRoutes = state.serviceRouteCatalog.routes,
+                    onOpenServiceRoute = { vm.setServiceRoutePickerOpen(true) },
                     loading = state.authLoading,
+                    loadingText = if (state.loggingOut) "正在退出登录…" else org.agent567.android.ui.i18n.Str.loggingIn,
                     error = state.authError,
                     loginModeEmail = state.loginModeEmail,
                     passwordVisible = state.passwordVisible,
@@ -147,7 +177,7 @@ fun RootApp(
                         )
                     },
                 ) { padding ->
-                    Box(Modifier.padding(padding).fillMaxSize()) {
+                    Box(Modifier.padding(padding).consumeWindowInsets(padding).fillMaxSize()) {
                             when (state.mainTab) {
                             MainTab.Home ->
                                 HomeScreen(
@@ -179,6 +209,9 @@ fun RootApp(
                                     desktopSessionsLoading = state.desktopSessionsLoading,
                                     desktopSessionsError = state.desktopSessionsError,
                                     desktopSessionsWarning = state.desktopSessionsWarning,
+                                    operationError = state.sessionDeletionError?.message,
+                                    onDismissOperationError = vm::clearSessionDeletionError,
+                                    onRetryOperation = vm::retryFailedSessionDeletion,
                                     onRefreshDesktopSessions = vm::refreshDesktopSessions,
                                     onRefreshSessions = vm::refreshSessions,
                                     onQueryChange = vm::setSessionQuery,
@@ -213,6 +246,10 @@ fun RootApp(
                                 )
                             MainTab.Me ->
                                 MeScreen(
+                                    hasUpdate = appUpdates.result?.hasUpdate == true,
+                                    serverUrl = state.serverUrl,
+                                    serviceRoutes = state.serviceRouteCatalog.routes,
+                                    onOpenServiceRoute = { vm.setServiceRoutePickerOpen(true) },
                                     user = state.user,
                                     themeMode = state.themeMode,
                                     subscription = state.subscription,
@@ -226,14 +263,15 @@ fun RootApp(
                                     onRefreshQuota = vm::refreshQuota,
                                     catalogLoading = state.catalogLoading,
                                     quotaRefreshing = state.quotaRefreshing,
+                                    accountVerifying = state.accountVerifying,
+                                    accountVerificationMessage = state.accountVerificationMessage,
                                     onOpenPlan = vm::openPlan,
                                     onOpenSettings = vm::openSettings,
                                     onOpenDataSettings = vm::openDataSettings,
                                     onThemeMode = vm::setThemeMode,
                                     onOpenDevices = { vm.selectMainTab(MainTab.Discover) },
                                     onOpenAbout = vm::openAbout,
-                                    onLogin = vm::openLogin,
-                                    onLogout = vm::logout,
+                                    onOpenAccount = vm::openAccount,
                                     onTopupWithKey = vm::topupWithKey,
                                     onCreatePayOrder = vm::createPayOrder,
                                 )
@@ -244,7 +282,10 @@ fun RootApp(
             is AppRoute.DeviceDetail -> {
                 val device = state.devices.firstOrNull { it.id == route.deviceId }
                 if (device == null) {
-                    vm.navigateBackFromSecondary()
+                    org.agent567.android.ui.connect.DeviceDetailRecovery(
+                        connecting = state.remoteConnecting || state.devices.any { it.status == org.agent567.android.domain.device.DeviceStatus.Connecting },
+                        onBack = vm::navigateBackFromSecondary,
+                    )
                 } else {
                     DeviceDetailScreen(
                         device = device,
@@ -299,6 +340,8 @@ fun RootApp(
                             ?: if (route.surface == ChatSurface.Cloud) Str.channelCloud else Str.pairDesktop
                     }
                 ChatScreen(
+                    onOpenServiceRoute = { vm.setServiceRoutePickerOpen(true) },
+                    desktopServiceRoute = state.desktopServiceRoute.takeIf { state.desktopServiceRouteSessionId == state.currentSessionId },
                     title = title,
                     surface = route.surface,
                     messages = state.messages,
@@ -402,6 +445,7 @@ fun RootApp(
                         onRemoveFile = vm::removePendingDocument,
                         onRemoveImage = vm::removePendingImage,
                         readOriginal = { id -> vm.readWorkbenchAttachment(requireNotNull(workbenchSessionId), id) },
+                        readThumbnail = { id -> vm.readWorkbenchThumbnail(requireNotNull(workbenchSessionId), id) },
                         onDismiss = { vm.setWorkbenchOpen(false) },
                     )
                 }
@@ -461,13 +505,36 @@ fun RootApp(
                     showBottomNavLabels = state.showBottomNavLabels,
                     onShowBottomNavLabels = vm::setShowBottomNavLabels,
                 )
+            AppRoute.Account -> org.agent567.android.ui.me.AccountScreen(
+                user = state.user,
+                refreshing = state.quotaRefreshing,
+                busy = state.authLoading,
+                onRefresh = vm::refreshQuota,
+                onBack = vm::navigateBackFromSecondary,
+                onLogin = vm::openLogin,
+                onLogout = vm::logout,
+                onSaveName = vm::saveProfileName,
+                onChangePassword = vm::changeProfilePassword,
+                onSendEmailCode = vm::sendProfileEmailCode,
+                onBindEmail = vm::bindProfileEmail,
+            )
             AppRoute.About ->
                 AboutScreen(
                     onBack = vm::navigateBackFromSecondary,
                     onCheckUpdate = vm::checkAppUpdate,
+                    knownUpdate = appUpdates.result?.takeIf { it.hasUpdate },
                     downloadSource = state.downloadSource,
                     customDownloadPrefix = state.customDownloadPrefix,
                     onSaveDownloadSource = vm::setGitHubDownloadSource,
+                )
+            }
+            if (appUpdates.prompt && appUpdates.result?.hasUpdate == true) {
+                androidx.compose.material3.AlertDialog(
+                    onDismissRequest = vm::dismissUpdateNotice,
+                    title = { Text("${Str.updateNewVersion} ${appUpdates.result?.latestVersion.orEmpty()}") },
+                    text = { Text(Str.updateHint) },
+                    confirmButton = { TextButton(onClick = { vm.dismissUpdateNotice(); vm.openAbout() }) { Text(Str.updateOpenRelease) } },
+                    dismissButton = { TextButton(onClick = vm::dismissUpdateNotice) { Text(Str.updateLater) } },
                 )
             }
             val pending = state.pendingQuestion

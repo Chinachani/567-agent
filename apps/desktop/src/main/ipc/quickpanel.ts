@@ -14,7 +14,7 @@ import { hideQuickPanelWindow } from "../quickpanel-window.js";
 import { getSharedRuntime } from "../runtime.js";
 import { getDesktopShortcutService, syncQuickPanelTrigger } from "../shortcuts/shortcut-service.js";
 import { getMainWindow, showMainWindow } from "../window-manager.js";
-import { DEFAULT_CONVERSATION_CWD, DEFAULT_CONVERSATION_SESSION_DIR } from "./fs.js";
+import { DEFAULT_CONVERSATION_CWD } from "./fs.js";
 
 export { syncQuickPanelTrigger } from "../shortcuts/shortcut-service.js";
 
@@ -58,7 +58,7 @@ export function registerQuickPanelIpc(): () => void {
 		const max = typeof limit === "number" && Number.isInteger(limit) && limit > 0 ? limit : DEFAULT_RECENT_LIMIT;
 		await ensureLegacyAgentTeamOwnershipCatalog();
 		const sessions = await conversationOwnershipCatalog.filterUserSessions(
-			await runtime.listSessions(DEFAULT_CONVERSATION_CWD, DEFAULT_CONVERSATION_SESSION_DIR),
+			await runtime.listSessions(DEFAULT_CONVERSATION_CWD),
 		);
 		// listSessions 已按 modifiedAt 倒序返回，仍显式排序以防实现变化。
 		const sorted = [...sessions].sort((a, b) => b.modifiedAt - a.modifiedAt);

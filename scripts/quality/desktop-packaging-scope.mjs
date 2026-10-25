@@ -3,6 +3,19 @@ import { pathToFileURL } from "node:url";
 import { changedFiles } from "./lib.mjs";
 
 const PACKAGED_SMOKE_PATTERNS = [
+	/^packages\/theme-ui\/src\/settings\/(GeneralSettingsView|ArchivedProjectsSettingsView|AppshotSettingsView|ShortcutsSettingsView|EnvironmentSettingsView|PermissionsSettingsView)\.tsx$/,
+	/^apps\/desktop\/src\/renderer\/domains\/settings\/components\/(RemotePairingSettings|AgentSettingsView|KnowledgeBaseSettingsView|ImBridgeSettingsView|ExtensionsSettingsView|GeneralSettings|AppearanceSettingsView|AccountSettingsView)\.tsx$/,
+	/^apps\/desktop\/scripts\/fixtures\/workspace-redesign\.jsx$/,
+	/^packages\/theme-ui\/src\/(shared\/WorkspacePageHeader|layout\/MainContentFrame|sidebar\/(SidebarPanel|SidebarNavigation|SidebarNavItemButton)|settings\/(SettingsPageShellView|SettingsSidebarView)|scheduler\/(AutomationPageView|TaskListView)|batch-tasks\/BatchTasksPageView|skills\/SkillTagGroupView|chat\/(MessageInputView|NewSessionPageLayoutView|GuideBadgeSwiperView|MessageLayoutView|MessageVisualView|ToolCallBlockView))\.tsx$/,
+	/^apps\/desktop\/src\/renderer\/(domains\/(conversation\/components\/(input-bar\/InputBarView|new-session\/NewSessionHero)|abilities\/components\/(AbilitiesPageView|AbilityCard|AbilitiesBanner|AddAbilityMenu)|skills\/components\/SkillsPageView|knowledge-base\/components\/KnowledgeBaseListPageView)|shared\/theme\/themes\/mono)\.tsx?$/,
+	/^apps\/desktop\/scripts\/bundle-agent-rpc\.(mjs|d\.mts|test\.ts)$/,
+	/^apps\/desktop\/scripts\/test-(capture-portal|wayland-input-bundle|sidebar-account-layout|workspace-layout)\.mjs$/,
+	/^apps\/desktop\/src\/renderer\/(domains\/api567\/components\/Api567AccountDialog\.tsx|domains\/project\/components\/sidebar\/(SidebarBottomBar|SidebarAccountMenu|settings-menu\/SettingsMenuDialog)\.tsx|styles\.css)$/,
+	/^apps\/desktop\/src\/renderer\/shared\/app-shell\/(page-header|window-controls)\//,
+	/^apps\/desktop\/src\/renderer\/domains\/(settings\/components\/(GeneralSettings(?:View)?|SessionMigrationSettings|ModelsProvider(?:sSection|Row)|SettingsListSearch)|setup-wizard\/components\/FeatureGuide)\.tsx$/,
+	/^packages\/theme-ui\/src\/app-shell\//,
+	/^packages\/theme-ui\/src\/settings\/(GeneralSettingsView|SettingChrome|ModelsProvidersSectionView)\.tsx$/,
+	/^packages\/theme-ui\/src\/(sidebar\/(SettingsMenuTriggerView|MessageCenterDialogView)|project\/ProjectsPanelView)\.tsx$/,
 	/^apps\/desktop\/(build\/installer\.|scripts\/(build-inno-installer|inno-installer-process|verify-inno-))/,
 	/^apps\/desktop\/(src\/main|src\/preload|scripts\/(prepare-pack\.js|desktop-build-environment\.mjs|mac-signing-config\.mjs|run-open-source-build\.mjs)|scripts\/desktop-packaging-layout\.mjs|scripts\/packaged-native-dependencies\.|vite\..*config\.|package\.json|wdio\.conf\.ts|e2e\/)/,
 	/^packages\/(remote-control|remote-desktop)\//,

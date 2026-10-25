@@ -43,18 +43,21 @@ export interface NodeMcpSupervisorComposition {
 
 /** 组合 MCP 的 Node 文件、OAuth 与 transport 实现；工具语义仍由调用方装饰。 */
 export function createNodeMcpSupervisor(options: NodeMcpSupervisorOptions): NodeMcpSupervisorComposition {
+	const projectDirectory = options.projectConfigDirectoryName ?? ".567agent";
 	const configSource =
 		options.configSource ??
 		new FileMcpConfigSource({
 			globalConfigPath: join(options.agentDir, "mcp.json"),
-			projectConfigPath: join(options.projectRoot, options.projectConfigDirectoryName ?? ".vetta", "mcp.json"),
+			projectConfigPath: join(options.projectRoot, projectDirectory, "mcp.json"),
+			fallbackProjectConfigPath:
+				projectDirectory === ".567agent" ? join(options.projectRoot, ".vetta", "mcp.json") : undefined,
 			projectRoot: options.projectRoot,
 		});
 	const oauthStore = new FileMcpOAuthStateStore({ authDirectory: join(options.agentDir, "mcp-auth") });
 	const clientFactory = options.clientFactory ?? createMcpClient;
 	const supervisor = new McpServerSupervisor({
 		builtinServers:
-			options.includeBuiltinServers === false
+			options.includeBuiltinServers !== true
 				? {}
 				: buildBuiltinMcpServers({
 						clientVersion: options.clientVersion,
@@ -78,7 +81,7 @@ export function createNodeMcpSupervisor(options: NodeMcpSupervisorOptions): Node
 				},
 			}),
 		protocolVersion: MCP_PROTOCOL_VERSION,
-		clientInfo: { name: options.clientName ?? "vetta", version: options.clientVersion },
+		clientInfo: { name: options.clientName ?? "567-agent", version: options.clientVersion },
 		enabled: options.enabled,
 		debug: options.debug,
 		onDiagnostic: options.onDiagnostic,

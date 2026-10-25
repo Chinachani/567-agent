@@ -44,8 +44,8 @@ export function ImBridgeSettingsView({ model }: { model: ImBridgeSettingsModel }
 
 	if (!config) {
 		return (
-			<div className="mx-auto w-full max-w-[680px] px-8 pt-2 pb-4">
-				<h1 className="mb-6 text-[20px] font-bold text-foreground">567 Claw</h1>
+			<div className="mx-auto w-full max-w-[800px] px-5 pt-6 sm:px-8 pb-4">
+				<h1 className="mb-6 text-[24px] font-semibold tracking-tight text-foreground">567 Claw</h1>
 				<div className="text-[13px] text-muted-foreground">{t("loadFailed")}</div>
 			</div>
 		);
@@ -94,9 +94,9 @@ export function ImBridgeSettingsView({ model }: { model: ImBridgeSettingsModel }
 	const feedbackIsError = model.saveError !== null;
 
 	return (
-		<div className="mx-auto w-full max-w-[680px] px-8 pt-2 pb-4">
+		<div className="mx-auto w-full max-w-[800px] px-5 pt-6 sm:px-8 pb-4">
 			<div className="mb-6 flex flex-wrap items-center justify-between gap-3">
-				<h1 className="text-[20px] font-bold text-foreground">567 Claw</h1>
+				<h1 className="text-[24px] font-semibold tracking-tight text-foreground">567 Claw</h1>
 				<SettingsAiAssist tabId="im" />
 			</div>
 
@@ -121,9 +121,7 @@ export function ImBridgeSettingsView({ model }: { model: ImBridgeSettingsModel }
 				>
 					<span
 						className={cn(
-							feedbackIsError
-								? "icon-[solar--danger-triangle-linear]"
-								: "icon-[solar--check-circle-linear]",
+							feedbackIsError ? "icon-[solar--danger-triangle-linear]" : "icon-[solar--check-circle-linear]",
 							"mt-px h-3.5 w-3.5 shrink-0",
 						)}
 					/>
@@ -145,9 +143,7 @@ export function ImBridgeSettingsView({ model }: { model: ImBridgeSettingsModel }
 				<div className="flex flex-wrap items-center gap-3 border-b border-border px-5 py-4">
 					<ImChannelIconView icon={activeChannel.icon} isActive className="h-10 w-10" />
 					<div className="min-w-0 flex-1 basis-40">
-						<div className="truncate text-[15px] font-semibold text-foreground">
-							{activePresentation.name}
-						</div>
+						<div className="truncate text-[15px] font-semibold text-foreground">{activePresentation.name}</div>
 						<div className="mt-0.5 truncate text-[12px] text-muted-foreground">
 							{t("imbActiveChannel")} · {activePresentation.subtitle}
 						</div>
@@ -218,10 +214,7 @@ export function ImBridgeSettingsView({ model }: { model: ImBridgeSettingsModel }
 			{/* 消息渠道：同时只有一个活动渠道，其余为待用配置 */}
 			<div className="mb-6 p-1.5" data-setting-section-highlight-target={SETTINGS_SECTION["imbridge-channels"].id}>
 				<div className="mb-3 flex items-baseline gap-2">
-					<SettingHeading
-						section={SETTINGS_SECTION["imbridge-channels"]}
-						title={t("section_imbridge-channels")}
-					/>
+					<SettingHeading section={SETTINGS_SECTION["imbridge-channels"]} title={t("section_imbridge-channels")} />
 					<span className="text-[12px] text-muted-foreground">
 						{t("channelsCountValue", { count: IM_CHANNELS.length })}
 					</span>
@@ -241,9 +234,7 @@ export function ImBridgeSettingsView({ model }: { model: ImBridgeSettingsModel }
 								transportStatus={model.transportStatus}
 								configureLabel={presentation.configureLabel}
 								onConfigure={presentation.onConfigure}
-								onActivate={
-									isActive ? undefined : () => void model.onSwitchTransport(channel.transport)
-								}
+								onActivate={isActive ? undefined : () => void model.onSwitchTransport(channel.transport)}
 							/>
 						);
 					})}
@@ -261,7 +252,10 @@ export function ImBridgeSettingsView({ model }: { model: ImBridgeSettingsModel }
 				onConfirmedRefresh={model.onFeishuConfirmedRefresh}
 				onOpenManual={model.onOpenFeishuDialog}
 			/>
-			<ImChannelConfigDialog model={model.channelDialog} onOpenGuide={(transport) => model.setGuideTransport(transport)} />
+			<ImChannelConfigDialog
+				model={model.channelDialog}
+				onOpenGuide={(transport) => model.setGuideTransport(transport)}
+			/>
 			<WechatBindDialog
 				onOpenGuide={() => model.setGuideTransport("wechat")}
 				open={model.wechatDialogOpen}
@@ -308,12 +302,7 @@ export function ImBridgeSettingsView({ model }: { model: ImBridgeSettingsModel }
 							<span className="icon-[solar--document-text-linear] h-3.5 w-3.5" />
 							{t("viewLogs")}
 						</Button>
-						<Button
-							variant="outline"
-							size="sm"
-							onClick={() => void model.onRestart()}
-							disabled={!config.enabled}
-						>
+						<Button variant="outline" size="sm" onClick={() => void model.onRestart()} disabled={!config.enabled}>
 							<span className="icon-[solar--restart-linear] h-3.5 w-3.5" />
 							{t("restartBridgeBtn")}
 						</Button>

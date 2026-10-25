@@ -216,6 +216,7 @@ export interface ActiveToolsUpdateEvent extends SessionEventBase {
 
 export interface CompactionStartEvent extends SessionEventBase {
 	type: "compaction.start";
+	turnId?: string;
 	reason: "threshold" | "overflow" | "manual";
 	contextTokens?: number;
 	contextWindow?: number;
@@ -224,6 +225,7 @@ export interface CompactionStartEvent extends SessionEventBase {
 
 export interface CompactionEndEvent extends SessionEventBase {
 	type: "compaction.end";
+	turnId?: string;
 	cancelled?: boolean;
 	success: boolean;
 	reason?: "threshold" | "overflow" | "manual";
@@ -455,6 +457,7 @@ export type HistoryEntry =
 	  }
 	| {
 			type: "compaction";
+			turnId?: string;
 			entryId?: string;
 			summary: string;
 			tokensBefore: number;

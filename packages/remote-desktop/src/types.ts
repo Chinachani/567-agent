@@ -37,6 +37,12 @@ export type RemoteDesktopSignal =
 
 export type RemoteInputMessage =
 	| {
+			readonly type: "pointer.relative";
+			readonly sequence: number;
+			readonly deltaX: number;
+			readonly deltaY: number;
+	  }
+	| {
 			readonly type: "pointer.move";
 			readonly sequence: number;
 			readonly x: number;

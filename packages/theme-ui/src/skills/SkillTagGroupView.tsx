@@ -25,22 +25,20 @@ export function SkillTagGroupView({
 			transition={{ duration: 0.4, ease: easeOut }}
 		>
 			<div className="mb-3 flex items-baseline gap-2">
-				<h3 className="text-[11px] font-semibold uppercase tracking-[0.14em] text-muted-foreground/60">
-					{tag}
-				</h3>
-				<span className="text-[11px] tabular-nums text-muted-foreground/40">{skillCount}</span>
+				<h3 className="text-[13px] font-semibold text-foreground">{tag}</h3>
+				<span className="text-[11px] tabular-nums text-muted-foreground">{skillCount}</span>
 				{enabledCountLabel && (
 					<>
 						<span className="text-muted-foreground/25">·</span>
-						<span className="text-[11px] text-emerald-400/80">{enabledCountLabel}</span>
+						<span className="text-[11px] text-muted-foreground">{enabledCountLabel}</span>
 					</>
 				)}
 			</div>
 			<motion.div
 				className={
 					isScene
-						? "grid grid-cols-[repeat(auto-fill,minmax(240px,1fr))] gap-2.5"
-						: "grid grid-cols-[repeat(auto-fill,minmax(320px,1fr))] gap-x-2 gap-y-0.5"
+						? "grid grid-cols-[repeat(auto-fill,minmax(min(260px,100%),1fr))] gap-2.5"
+						: "grid grid-cols-[repeat(auto-fill,minmax(min(320px,100%),1fr))] gap-x-2 gap-y-0.5"
 				}
 				initial="hidden"
 				animate="show"

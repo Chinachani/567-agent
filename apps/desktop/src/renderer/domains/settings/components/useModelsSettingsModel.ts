@@ -1,9 +1,12 @@
+import { api567StatusAtom } from "@domains/api567";
 import type { ModelsConfigData } from "@preload/api.js";
+import { confirmDialogAtom } from "@shared/store/atoms";
 import { localModelsConfigAtom, modelCatalog } from "@shared/store/model-catalog";
 import { showToast } from "@shared/store/toast-atoms";
-import { useAtomValue } from "jotai";
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useAtomValue, useSetAtom } from "jotai";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
+import { api567RouteOrigin, getBuiltinApi567Route } from "../../../../shared/service-routes.js";
 import { recordSettingsUsage } from "./recordSettingsUsage";
 
 export type ProviderEntry = ModelsConfigData["providers"][string];
@@ -39,6 +42,7 @@ export interface EditingModelState {
 export interface FetchedModelsState {
 	provider: string;
 	models: string[];
+	modelDefinitions?: ModelEntry[];
 	selected: string[];
 	error?: string;
 }
@@ -58,7 +62,7 @@ export interface ModelsSettingsModel {
 	fetchedModels: FetchedModelsState | null;
 	setProviderForm: React.Dispatch<React.SetStateAction<ProviderFormState>>;
 	setModelForm: React.Dispatch<React.SetStateAction<ModelFormState>>;
-	saveConfig: (newConfig: ModelsConfigData) => Promise<void>;
+	saveConfig: (newConfig: ModelsConfigData) => Promise<boolean>;
 	onStartAddProvider: () => void;
 	onCancelAddProvider: () => void;
 	onAddProvider: () => Promise<void>;
@@ -144,8 +148,11 @@ export const emptyModel: ModelFormState = {
 
 export function useModelsSettingsModel(): ModelsSettingsModel {
 	const { t } = useTranslation("settings");
+	const setConfirm = useSetAtom(confirmDialogAtom);
+	const savingRef = useRef(false);
 	// 与所有模型选择器共用同一份本地配置：这里保存后，已挂载的 popover 立刻同步。
 	const config = useAtomValue(localModelsConfigAtom);
+	const api567Status = useAtomValue(api567StatusAtom);
 	const [expandedProvider, setExpandedProvider] = useState<string | null>(null);
 	const [addingProvider, setAddingProvider] = useState(false);
 	const [providerForm, setProviderForm] = useState<ProviderFormState>({ ...emptyProvider });
@@ -161,16 +168,45 @@ export function useModelsSettingsModel(): ModelsSettingsModel {
 		void modelCatalog.revalidate({ sources: ["local"] });
 	}, []);
 
-	const saveConfig = useCallback(async (newConfig: ModelsConfigData) => {
-		setSaving(true);
-		try {
-			await window.agent567.models.set(newConfig);
-			// 刚写过盘，必须绕开 TTL 重新读回主进程规范化后的结果。
-			await modelCatalog.revalidate({ force: true, sources: ["local"] });
-		} finally {
-			setSaving(false);
-		}
-	}, []);
+	const saveConfig = useCallback(
+		async (newConfig: ModelsConfigData): Promise<boolean> => {
+			if (savingRef.current) return false;
+			savingRef.current = true;
+			setSaving(true);
+			try {
+				await window.agent567.models.set(newConfig);
+				await modelCatalog.revalidate({ force: true, sources: ["local"] });
+				return true;
+			} catch {
+				showToast({ variant: "error", message: t("modelSettingsFeedback.saveFailed") });
+				return false;
+			} finally {
+				savingRef.current = false;
+				setSaving(false);
+			}
+		},
+		[t],
+	);
+
+	const validModelForm = useCallback(
+		(provider: ProviderEntry, previousId?: string) => {
+			const duplicate = provider.models?.some(
+				(model) => model.id === modelForm.id.trim() && model.id !== previousId,
+			);
+			const invalidLimit = [modelForm.contextWindow, modelForm.maxTokens].some(
+				(value) => value.trim() !== "" && (!Number.isSafeInteger(Number(value)) || Number(value) <= 0),
+			);
+			if (duplicate || invalidLimit) {
+				showToast({
+					variant: "error",
+					message: t(duplicate ? "modelSettingsFeedback.duplicateModel" : "modelSettingsFeedback.invalidLimit"),
+				});
+				return false;
+			}
+			return true;
+		},
+		[modelForm, t],
+	);
 
 	const providerFormToData = useCallback(() => {
 		const headers = parseHeadersString(providerForm.headers);
@@ -186,21 +222,28 @@ export function useModelsSettingsModel(): ModelsSettingsModel {
 	const handleAddProvider = useCallback(async () => {
 		if (!config || !providerForm.name.trim()) return;
 		const name = providerForm.name.trim();
-		await saveConfig({
-			...config,
-			providers: {
-				...config.providers,
-				[name]: {
-					...providerFormToData(),
-					models: [],
+		if (Object.hasOwn(config.providers, name)) {
+			showToast({ variant: "error", message: t("modelSettingsFeedback.duplicateProvider") });
+			return;
+		}
+		if (
+			!(await saveConfig({
+				...config,
+				providers: {
+					...config.providers,
+					[name]: {
+						...providerFormToData(),
+						models: [],
+					},
 				},
-			},
-		});
+			}))
+		)
+			return;
 		setAddingProvider(false);
 		setProviderForm({ ...emptyProvider });
 		setExpandedProvider(name);
 		recordSettingsUsage({ tab: "models", action: "added", target: "provider", value: providerForm.api });
-	}, [config, providerForm.api, providerForm.name, providerFormToData, saveConfig]);
+	}, [config, providerForm.api, providerForm.name, providerFormToData, saveConfig, t]);
 
 	const handleUpdateProvider = useCallback(
 		async (oldName: string) => {
@@ -210,6 +253,10 @@ export function useModelsSettingsModel(): ModelsSettingsModel {
 			if (!existing) return;
 
 			const nextName = providerForm.name.trim();
+			if (oldName !== nextName && Object.hasOwn(config.providers, nextName)) {
+				showToast({ variant: "error", message: t("modelSettingsFeedback.duplicateProvider") });
+				return;
+			}
 			if (oldName !== nextName) {
 				delete newProviders[oldName];
 			}
@@ -221,7 +268,16 @@ export function useModelsSettingsModel(): ModelsSettingsModel {
 				...providerData,
 			};
 
-			await saveConfig({ ...config, providers: newProviders });
+			if (
+				!(await saveConfig({
+					...config,
+					defaultModel: config.defaultModel?.startsWith(`${oldName}/`)
+						? `${nextName}/${config.defaultModel.slice(oldName.length + 1)}`
+						: config.defaultModel,
+					providers: newProviders,
+				}))
+			)
+				return;
 			setEditingProvider(null);
 			setProviderForm({ ...emptyProvider });
 			if (oldName !== nextName) {
@@ -229,20 +285,34 @@ export function useModelsSettingsModel(): ModelsSettingsModel {
 			}
 			recordSettingsUsage({ tab: "models", action: "updated", target: "provider", value: providerForm.api });
 		},
-		[config, providerForm.api, providerForm.name, providerFormToData, saveConfig],
+		[config, providerForm.api, providerForm.name, providerFormToData, saveConfig, t],
 	);
 
-	const handleDeleteProvider = useCallback(
+	const deleteProvider = useCallback(
 		async (name: string) => {
 			if (!config) return;
 			const newProviders = { ...config.providers };
 			delete newProviders[name];
 			const defaultModel = config.defaultModel?.startsWith(`${name}/`) ? undefined : config.defaultModel;
-			await saveConfig({ ...config, defaultModel, providers: newProviders });
+			if (!(await saveConfig({ ...config, defaultModel, providers: newProviders }))) return;
 			if (expandedProvider === name) setExpandedProvider(null);
 			recordSettingsUsage({ tab: "models", action: "deleted", target: "provider" });
 		},
 		[config, expandedProvider, saveConfig],
+	);
+
+	const handleDeleteProvider = useCallback(
+		async (name: string) => {
+			setConfirm({
+				title: t("modelSettingsFeedback.deleteProviderTitle"),
+				message: t("modelSettingsFeedback.deleteProviderMessage", { name }),
+				variant: "danger",
+				onConfirm: () => {
+					void deleteProvider(name);
+				},
+			});
+		},
+		[deleteProvider, setConfirm, t],
 	);
 
 	const startEditProvider = useCallback(
@@ -283,15 +353,18 @@ export function useModelsSettingsModel(): ModelsSettingsModel {
 		async (providerName: string) => {
 			if (!config || !modelForm.id.trim()) return;
 			const provider = config.providers[providerName];
-			if (!provider) return;
+			if (!provider || !validModelForm(provider)) return;
 			const models = [...(provider.models || []), formToModelDef(modelForm)];
-			await saveConfig({
-				...config,
-				providers: {
-					...config.providers,
-					[providerName]: { ...provider, models },
-				},
-			});
+			if (
+				!(await saveConfig({
+					...config,
+					providers: {
+						...config.providers,
+						[providerName]: { ...provider, models },
+					},
+				}))
+			)
+				return;
 			setAddingModelFor(null);
 			setModelForm({ ...emptyModel });
 			recordSettingsUsage({
@@ -301,27 +374,30 @@ export function useModelsSettingsModel(): ModelsSettingsModel {
 				value: modelForm.api || "provider-default",
 			});
 		},
-		[config, modelForm, saveConfig],
+		[config, modelForm, saveConfig, validModelForm],
 	);
 
 	const handleUpdateModel = useCallback(
 		async (providerName: string, oldModelId: string) => {
 			if (!config || !modelForm.id.trim()) return;
 			const provider = config.providers[providerName];
-			if (!provider) return;
+			if (!provider || !validModelForm(provider, oldModelId)) return;
 			const models = (provider.models || []).map((model) =>
 				model.id === oldModelId ? formToModelDef(modelForm) : model,
 			);
 			const oldKey = `${providerName}/${oldModelId}`;
 			const newKey = `${providerName}/${modelForm.id.trim()}`;
-			await saveConfig({
-				...config,
-				defaultModel: config.defaultModel === oldKey ? newKey : config.defaultModel,
-				providers: {
-					...config.providers,
-					[providerName]: { ...provider, models },
-				},
-			});
+			if (
+				!(await saveConfig({
+					...config,
+					defaultModel: config.defaultModel === oldKey ? newKey : config.defaultModel,
+					providers: {
+						...config.providers,
+						[providerName]: { ...provider, models },
+					},
+				}))
+			)
+				return;
 			setEditingModel(null);
 			setModelForm({ ...emptyModel });
 			recordSettingsUsage({
@@ -331,27 +407,44 @@ export function useModelsSettingsModel(): ModelsSettingsModel {
 				value: modelForm.api || "provider-default",
 			});
 		},
-		[config, modelForm, saveConfig],
+		[config, modelForm, saveConfig, validModelForm],
 	);
 
-	const handleDeleteModel = useCallback(
+	const deleteModel = useCallback(
 		async (providerName: string, modelId: string) => {
 			if (!config) return;
 			const provider = config.providers[providerName];
 			if (!provider) return;
 			const models = (provider.models || []).filter((model) => model.id !== modelId);
 			const modelKey = `${providerName}/${modelId}`;
-			await saveConfig({
-				...config,
-				defaultModel: config.defaultModel === modelKey ? undefined : config.defaultModel,
-				providers: {
-					...config.providers,
-					[providerName]: { ...provider, models },
-				},
-			});
+			if (
+				!(await saveConfig({
+					...config,
+					defaultModel: config.defaultModel === modelKey ? undefined : config.defaultModel,
+					providers: {
+						...config.providers,
+						[providerName]: { ...provider, models },
+					},
+				}))
+			)
+				return;
 			recordSettingsUsage({ tab: "models", action: "deleted", target: "model" });
 		},
 		[config, saveConfig],
+	);
+
+	const handleDeleteModel = useCallback(
+		async (provider: string, model: string) => {
+			setConfirm({
+				title: t("modelSettingsFeedback.deleteModelTitle"),
+				message: t("modelSettingsFeedback.deleteModelMessage", { model }),
+				variant: "danger",
+				onConfirm: () => {
+					void deleteModel(provider, model);
+				},
+			});
+		},
+		[deleteModel, setConfirm, t],
 	);
 
 	const handleSetDefaultModel = useCallback(
@@ -359,7 +452,7 @@ export function useModelsSettingsModel(): ModelsSettingsModel {
 			if (!config) return;
 			const modelKey = `${providerName}/${modelId}`;
 			const newDefault = config.defaultModel === modelKey ? undefined : modelKey;
-			await saveConfig({ ...config, defaultModel: newDefault });
+			if (!(await saveConfig({ ...config, defaultModel: newDefault }))) return;
 			recordSettingsUsage({
 				tab: "models",
 				action: newDefault ? "selected" : "reset",
@@ -392,15 +485,23 @@ export function useModelsSettingsModel(): ModelsSettingsModel {
 				setFetchedModels({
 					provider: providerName,
 					models: result.models,
+					modelDefinitions: result.modelDefinitions,
 					// 默认只勾选尚未添加的模型，避免重复项。
 					selected: result.models.filter((id) => !existing.has(id)),
 					error: result.error,
+				});
+			} catch {
+				setFetchedModels({
+					provider: providerName,
+					models: [],
+					selected: [],
+					error: t("modelSettingsFeedback.fetchFailed"),
 				});
 			} finally {
 				setFetchingModelsFor(null);
 			}
 		},
-		[config],
+		[config, t],
 	);
 
 	const handleApplyFetchedModels = useCallback(
@@ -409,18 +510,23 @@ export function useModelsSettingsModel(): ModelsSettingsModel {
 			const provider = config.providers[providerName];
 			if (!provider) return;
 			const existing = new Set((provider.models || []).map((item) => item.id));
-			const added = fetchedModels.selected.filter((id) => !existing.has(id)).map((id) => ({ id }));
+			const added = fetchedModels.selected
+				.filter((id) => !existing.has(id))
+				.map((id) => fetchedModels.modelDefinitions?.find((model) => model.id === id) ?? { id });
 			if (added.length === 0) {
 				setFetchedModels(null);
 				return;
 			}
-			await saveConfig({
-				...config,
-				providers: {
-					...config.providers,
-					[providerName]: { ...provider, models: [...(provider.models || []), ...added] },
-				},
-			});
+			if (
+				!(await saveConfig({
+					...config,
+					providers: {
+						...config.providers,
+						[providerName]: { ...provider, models: [...(provider.models || []), ...added] },
+					},
+				}))
+			)
+				return;
 			setFetchedModels(null);
 			recordSettingsUsage({ tab: "models", action: "added", target: "model", value: "fetched" });
 		},
@@ -435,12 +541,11 @@ export function useModelsSettingsModel(): ModelsSettingsModel {
 						if (provider?.source === "template") return false;
 						const providerId = name.toLowerCase();
 						const displayName = provider?.displayName?.trim().toLowerCase() ?? "";
-						let managedEndpoint = false;
-						try {
-							managedEndpoint = new URL(provider?.baseUrl ?? "").hostname.toLowerCase() === "api.567.wiki";
-						} catch {
-							/* Custom relative URLs remain editable. */
-						}
+						const managedEndpoint =
+							getBuiltinApi567Route(provider?.baseUrl, [
+								...(api567Status.serviceRoutes?.routes.map((route) => route.origin) ?? []),
+								...(api567Status.serviceRoute ? [api567RouteOrigin(api567Status.serviceRoute)] : []),
+							]) !== undefined;
 						return !(
 							managedEndpoint &&
 							(providerId === "567api" ||
@@ -450,7 +555,7 @@ export function useModelsSettingsModel(): ModelsSettingsModel {
 						);
 					})
 				: [],
-		[config],
+		[config, api567Status.serviceRoutes, api567Status.serviceRoute],
 	);
 
 	return {

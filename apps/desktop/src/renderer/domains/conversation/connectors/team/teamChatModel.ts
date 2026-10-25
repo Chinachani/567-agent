@@ -989,6 +989,7 @@ function conversationBlockIdentity(block: ConversationAgentMessageViewModel["blo
 			return `tool-result:${block.toolCallId}`;
 		case "text":
 		case "thinking":
+		case "compaction":
 		case "error":
 			return `${block.type}:${block.id}`;
 	}

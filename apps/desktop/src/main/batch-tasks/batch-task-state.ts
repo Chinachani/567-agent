@@ -1,6 +1,7 @@
 import { mkdir, readFile, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import type { SessionExecutionMode } from "@567agent/runtime-core";
+import { existingProjectStatePath } from "../config/project-state-paths.js";
 import { getAppLogger } from "../logger.js";
 import { discoverBatchProjects } from "./batch-task-storage";
 
@@ -28,7 +29,7 @@ const cachedStates = new Map<string, ProjectTaskStates>();
 const saveTimers = new Map<string, ReturnType<typeof setTimeout>>();
 
 function statesPath(projectDir: string): string {
-	return join(projectDir, ".vetta", "task-states.json");
+	return join(projectDir, ".567agent", "task-states.json");
 }
 
 export async function loadProjectTaskStates(projectDir: string): Promise<ProjectTaskStates> {
@@ -37,7 +38,7 @@ export async function loadProjectTaskStates(projectDir: string): Promise<Project
 
 	let states: ProjectTaskStates = {};
 	try {
-		const data = await readFile(statesPath(projectDir), "utf-8");
+		const data = await readFile(existingProjectStatePath(projectDir, "task-states.json"), "utf-8");
 		states = JSON.parse(data) as ProjectTaskStates;
 	} catch {
 		// file doesn't exist yet
@@ -47,7 +48,7 @@ export async function loadProjectTaskStates(projectDir: string): Promise<Project
 }
 
 async function saveProjectTaskStates(projectDir: string, states: ProjectTaskStates): Promise<void> {
-	const dir = join(projectDir, ".vetta");
+	const dir = join(projectDir, ".567agent");
 	await mkdir(dir, { recursive: true });
 	await writeFile(statesPath(projectDir), JSON.stringify(states, null, 2), "utf-8");
 }

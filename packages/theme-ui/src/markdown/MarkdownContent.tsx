@@ -1,3 +1,4 @@
+import { ResourceMenu } from "./ResourceMenu";
 import { ArtifactFiles, artifactFiles } from "./ArtifactFiles";
 import { MarkdownHostProvider } from "./host";
 import type { MarkdownHost } from "./host";
@@ -169,7 +170,7 @@ export const MarkdownContent = memo(function MarkdownContent({
 	if (isStreamingTail && !inlineTokens) frozenBlocksRef.current = true;
 	const splitDocuments = frozenBlocksRef.current && !inlineTokens;
 	const candidateSplit = useMemo(
-		() => splitDocuments ? splitStableMarkdownBlocks(displayText) : null,
+		() => (splitDocuments ? splitStableMarkdownBlocks(displayText) : null),
 		[displayText, splitDocuments],
 	);
 	const tailLength = (candidateSplit?.tail ?? displayText).length;
@@ -209,10 +210,18 @@ export const MarkdownContent = memo(function MarkdownContent({
 			h4: ({ children }) => <h4 className="mb-1.5 mt-2.5 text-[14px] font-semibold text-foreground">{children}</h4>,
 			p: ({ children }) => <p className="my-1.5 text-[14px] leading-[1.6] text-foreground">{children}</p>,
 			ul: ({ node, children }) => {
-                const files = artifactFiles(node);
-                return files ? <ArtifactFiles files={files} labels={labelsRef.current} icon={(name) => getFileIconClassRef.current(name)} open={(path) => onOpenFileRef.current(path)} />
-                    : <ul className="md-bullet-list my-1.5 text-[14px] leading-[1.6] text-foreground">{children}</ul>;
-            },
+				const files = artifactFiles(node);
+				return files ? (
+					<ArtifactFiles
+						files={files}
+						labels={labelsRef.current}
+						icon={(name) => getFileIconClassRef.current(name)}
+						open={(path) => onOpenFileRef.current(path)}
+					/>
+				) : (
+					<ul className="md-bullet-list my-1.5 text-[14px] leading-[1.6] text-foreground">{children}</ul>
+				);
+			},
 			ol: ({ children }) => (
 				<ol className="my-1.5 ml-4 list-decimal space-y-0.5 text-[14px] leading-[1.6] text-foreground marker:text-primary">
 					{children}
@@ -224,7 +233,14 @@ export const MarkdownContent = memo(function MarkdownContent({
 				const live = useContext(MarkdownCodeLiveContext);
 				const raw = String(children);
 				if (codeClassName?.includes("math-inline") || codeClassName?.includes("math-display")) {
-					return <Formula source={raw.replace(/\n$/, "")} display={codeClassName.includes("math-display")} live={live} labels={labelsRef.current} />;
+					return (
+						<Formula
+							source={raw.replace(/\n$/, "")}
+							display={codeClassName.includes("math-display")}
+							live={live}
+							labels={labelsRef.current}
+						/>
+					);
 				}
 				const isBlock = (codeClassName?.startsWith("language-") ?? false) || raw.includes("\n");
 				if (isBlock) {
@@ -255,33 +271,49 @@ export const MarkdownContent = memo(function MarkdownContent({
 					const fileName = basename(kind.path);
 					// 模型偶尔把整条绝对路径写成 label，徽标里只留文件名，完整路径仍在 title 里。
 					const label =
-						typeof children === "string" && ABSOLUTE_PATH_LABEL.test(children.trim()) ? basename(children.trim()) : children;
+						typeof children === "string" && ABSOLUTE_PATH_LABEL.test(children.trim())
+							? basename(children.trim())
+							: children;
 					return (
-						<button
-							type="button"
-							title={kind.path}
-							className={cn(LINK_BADGE_CLASS, "cursor-pointer")}
-							onClick={() => onOpenFileRef.current(kind.path)}
+						<ResourceMenu
+							kind="file"
+							target={kind.path}
+							open={() => onOpenFileRef.current(kind.path)}
+							labels={labelsRef.current}
 						>
-							<span className={cn(getFileIconClassRef.current(fileName), "h-3.5 w-3.5 shrink-0")} />
-							<span className="truncate">{label}</span>
-						</button>
+							<button
+								type="button"
+								title={kind.path}
+								className={cn(LINK_BADGE_CLASS, "cursor-pointer")}
+								onClick={() => onOpenFileRef.current(kind.path)}
+							>
+								<span className={cn(getFileIconClassRef.current(fileName), "h-3.5 w-3.5 shrink-0")} />
+								<span className="truncate">{label}</span>
+							</button>
+						</ResourceMenu>
 					);
 				}
 				if (kind.type === "url") {
 					return (
-						<a
-							href={kind.url}
-							title={kind.url}
-							className={LINK_BADGE_CLASS}
-							onClick={(e) => {
-								e.preventDefault();
-								onOpenUrlRef.current(kind.url);
-							}}
+						<ResourceMenu
+							kind="url"
+							target={kind.url}
+							open={() => onOpenUrlRef.current(kind.url)}
+							labels={labelsRef.current}
 						>
-							<WebsiteIcon href={kind.url} />
-							<span className="truncate">{children}</span>
-						</a>
+							<a
+								href={kind.url}
+								title={kind.url}
+								className={LINK_BADGE_CLASS}
+								onClick={(e) => {
+									e.preventDefault();
+									onOpenUrlRef.current(kind.url);
+								}}
+							>
+								<WebsiteIcon href={kind.url} />
+								<span className="truncate">{children}</span>
+							</a>
+						</ResourceMenu>
 					);
 				}
 				// mailto / fragment / unknown: never target=_blank — that opens the OS browser
@@ -296,7 +328,9 @@ export const MarkdownContent = memo(function MarkdownContent({
 			"vetta-svg": ({ node }: { node?: HastElement }) => {
 				const source = node?.properties?.source;
 				const rich = labelsRef.current.rich ?? defaultRichContentLabels;
-				return typeof source === "string" ? <SvgPreview source={source} label={rich.svg} failed={rich.failed} live /> : null;
+				return typeof source === "string" ? (
+					<SvgPreview source={source} label={rich.svg} failed={rich.failed} live />
+				) : null;
 			},
 			em: ({ children }) => <em className="italic">{children}</em>,
 			// 行内 token：与输入框里的胶囊同款（半透明主题色底 + 描边，align-middle 对齐正文）。
@@ -363,13 +397,22 @@ export const MarkdownContent = memo(function MarkdownContent({
 				const isDirectory = properties["data-token-directory"] === "true";
 				const fileName = basename(value);
 				return (
-					<InlineTokenChip
-						asButton
-						icon={isDirectory ? "icon-[solar--folder-linear]" : getFileIconClassRef.current(fileName)}
-						label={fileName}
-						title={value}
-						onClick={() => onOpenFileRef.current(value)}
-					/>
+					<ResourceMenu
+						kind="file"
+						target={value}
+						open={() => onOpenFileRef.current(value)}
+						labels={labelsRef.current}
+					>
+						<span className="inline-block max-w-full">
+							<InlineTokenChip
+								asButton
+								icon={isDirectory ? "icon-[solar--folder-linear]" : getFileIconClassRef.current(fileName)}
+								label={fileName}
+								title={value}
+								onClick={() => onOpenFileRef.current(value)}
+							/>
+						</span>
+					</ResourceMenu>
 				);
 			},
 		}),
@@ -381,7 +424,8 @@ export const MarkdownContent = memo(function MarkdownContent({
 	// 已冻结块并回单一文档，已上屏的节点会整段重挂并再包成 `.streaming-chunk` 重放淡入。
 	// 稳定块只按已闭合的顶层围栏切分，分块与整篇渲染结果一致，因此结束后不需要再合并。
 	const split = useMemo(
-		() => renderText === displayText ? candidateSplit : splitDocuments ? splitStableMarkdownBlocks(renderText) : null,
+		() =>
+			renderText === displayText ? candidateSplit : splitDocuments ? splitStableMarkdownBlocks(renderText) : null,
 		[renderText, displayText, candidateSplit, splitDocuments],
 	);
 	const committed = split?.committed ?? [];
@@ -389,28 +433,30 @@ export const MarkdownContent = memo(function MarkdownContent({
 	const showTail = !split || tail.length > 0 || committed.length === 0;
 
 	return (
-		<MarkdownHostProvider host={host}><div className={cn("markdown-body break-words", animateChunks && "markdown-streaming-tail", className)}>
-			{committed.map((block, index) => (
-				<MarkdownDocument
-					key={`committed-${index}`}
-					animateChunks={false}
-					components={components}
-					definition={definition}
-					live={false}
-					text={block}
-				/>
-			))}
-			{showTail ? (
-				<MarkdownDocument
-					key="tail"
-					animateChunks={animateChunks}
-					components={components}
-					definition={definition}
-					inlineTokens={inlineTokens}
-					live={isStreamingTail || animateChunks}
-					text={tail}
-				/>
-			) : null}
-		</div></MarkdownHostProvider>
+		<MarkdownHostProvider host={host}>
+			<div className={cn("markdown-body break-words", animateChunks && "markdown-streaming-tail", className)}>
+				{committed.map((block, index) => (
+					<MarkdownDocument
+						key={`committed-${index}`}
+						animateChunks={false}
+						components={components}
+						definition={definition}
+						live={false}
+						text={block}
+					/>
+				))}
+				{showTail ? (
+					<MarkdownDocument
+						key="tail"
+						animateChunks={animateChunks}
+						components={components}
+						definition={definition}
+						inlineTokens={inlineTokens}
+						live={isStreamingTail || animateChunks}
+						text={tail}
+					/>
+				) : null}
+			</div>
+		</MarkdownHostProvider>
 	);
 });

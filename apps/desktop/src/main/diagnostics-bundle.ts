@@ -4,7 +4,7 @@ import { basename, join } from "node:path";
 import AdmZip from "adm-zip";
 import { app } from "electron";
 import { type ReadRemoteHealth, readHealthReport } from "./diagnostics/health-report.js";
-import { redactDiagnosticLog } from "./diagnostics/redact-report.js";
+import { redactDiagnosticLog, redactDiagnosticValue } from "./diagnostics/redact-report.js";
 import { logRingBuffer } from "./logger/log-ring-buffer.js";
 import { APP_LOG_TYPE_LIST, getAppLogBaseDir } from "./logger.js";
 
@@ -72,7 +72,7 @@ function recentFiles(dir: string, limit: number): Array<{ path: string; size: nu
 function addRingBuffer(zip: AdmZip): void {
 	const lines = logRingBuffer
 		.snapshot()
-		.map((entry) => JSON.stringify(entry))
+		.map((entry) => JSON.stringify(redactDiagnosticValue(entry)))
 		.join("\n");
 	zip.addFile("ring-buffer.ndjson", Buffer.from(redactDiagnosticLog(lines), "utf-8"));
 }

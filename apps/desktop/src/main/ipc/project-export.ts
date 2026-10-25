@@ -4,6 +4,7 @@ import { basename, join, resolve, sep } from "node:path";
 import AdmZip from "adm-zip";
 import { dialog, ipcMain } from "electron";
 import { readDesktopConfig, updateDesktopConfig } from "../config/desktop-config-store.js";
+import { existingProjectStatePath } from "../config/project-state-paths.js";
 import { listSessionHistory } from "../conversations/session-query-service.js";
 import { mainT } from "../i18n/index.js";
 import { getAppLogger } from "../logger.js";
@@ -87,7 +88,7 @@ export class ProjectExportError extends Error {
 // ─── Helpers ───
 
 function detectSupportedType(projectDir: string): SupportedProjectType | "unsupported" {
-	const metaPath = join(projectDir, ".vetta", "meta.json");
+	const metaPath = existingProjectStatePath(projectDir, "meta.json");
 	if (!existsSync(metaPath)) return "normal";
 	try {
 		const parsed = JSON.parse(readFileSync(metaPath, "utf-8")) as Record<string, unknown>;
@@ -289,12 +290,14 @@ function rewriteJsonlFile(path: string, oldRoot: string, newRoot: string): void 
  */
 function rewriteAbsolutePathsAfterImport(newRoot: string, oldRoot: string): void {
 	if (!oldRoot) return;
-	rewriteJsonFile(join(newRoot, ".vetta", "task-states.json"), oldRoot, newRoot);
-	const sessionsDir = join(newRoot, ".vetta", "sessions");
-	if (!existsSync(sessionsDir)) return;
-	for (const entry of readdirSync(sessionsDir, { withFileTypes: true })) {
-		if (!entry.isFile() || !entry.name.endsWith(".jsonl")) continue;
-		rewriteJsonlFile(join(sessionsDir, entry.name), oldRoot, newRoot);
+	for (const directory of [".567agent", ".vetta"]) {
+		rewriteJsonFile(join(newRoot, directory, "task-states.json"), oldRoot, newRoot);
+		const sessionsDir = join(newRoot, directory, "sessions");
+		if (!existsSync(sessionsDir)) continue;
+		for (const entry of readdirSync(sessionsDir, { withFileTypes: true })) {
+			if (!entry.isFile() || !entry.name.endsWith(".jsonl")) continue;
+			rewriteJsonlFile(join(sessionsDir, entry.name), oldRoot, newRoot);
+		}
 	}
 }
 
@@ -305,7 +308,7 @@ function rewriteAbsolutePathsAfterImport(newRoot: string, oldRoot: string): void
  * meta.json — keeping the original path lets the user re-link later.
  */
 function collectMissingBatchSources(projectDir: string): string[] {
-	const metaPath = join(projectDir, ".vetta", "meta.json");
+	const metaPath = existingProjectStatePath(projectDir, "meta.json");
 	if (!existsSync(metaPath)) return [];
 	let parsed: Record<string, unknown>;
 	try {
@@ -501,7 +504,7 @@ function toErrorPayload(error: unknown): IpcErrorPayload {
 
 /** 读取项目 `.vetta/meta.json`（用于识别 batch 等项目类型）；不存在或解析失败返回 null。 */
 function readProjectMeta(projectDir: string): Record<string, unknown> | null {
-	const metaPath = join(projectDir, ".vetta", "meta.json");
+	const metaPath = existingProjectStatePath(projectDir, "meta.json");
 	if (!existsSync(metaPath)) return null;
 	try {
 		return JSON.parse(readFileSync(metaPath, "utf-8")) as Record<string, unknown>;

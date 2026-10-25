@@ -174,7 +174,7 @@ async function createCodingAgentSdkSessionComposition(
 							description: template.description,
 							content: template.content,
 							source: "sdk",
-							filePath: template.filePath ?? join(cwd, ".vetta", "sdk-prompts", `${template.name}.md`),
+							filePath: template.filePath ?? join(cwd, CONFIG_DIR_NAME, "sdk-prompts", `${template.name}.md`),
 						})),
 					],
 				})
@@ -406,7 +406,7 @@ function createSdkMcpSupervisor(options: {
 		debug: options.debug,
 		enabled: true,
 		configSource: options.dynamicOnly ? EMPTY_MCP_CONFIG_SOURCE : undefined,
-		includeBuiltinServers: !options.dynamicOnly,
+		includeBuiltinServers: false,
 		onDiagnostic: (message) => {
 			if (options.debug) console.error(`[MCPManager] ${message}`);
 		},

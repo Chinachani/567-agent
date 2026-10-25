@@ -59,6 +59,12 @@ english.DataFolderDescription=Choose where 567 Agent stores its data. App conver
 english.DataFolderPrompt=Data folder:
 english.DataMigrationFailed=The data folder could not be migrated (error code %1). The original data has not been deleted. Check disk space and permissions, then try again.
 english.DataMigrationOverlap=The selected data folder overlaps an existing data folder and cannot be migrated safely. Choose a separate folder.
+chinesesimplified.DataMigrationReuseExisting=所选目录包含 567 Agent 数据：%n%1%n%n是否重新使用该目录中的数据？当前目录与所选目录不会合并或覆盖。点击“否”可返回选择其他目录。
+english.DataMigrationReuseExisting=The selected folder contains 567 Agent data:%n%1%n%nReuse the data in this folder? Neither the current nor selected folder will be merged or overwritten. Choose No to select another folder.
+chinesesimplified.DataMigrationReuseRequired=该目录包含已有的 567 Agent 数据。请返回并确认重新使用，或选择空目录。静默恢复需显式指定 /AGENT567USEEXISTINGDATA=true。
+english.DataMigrationReuseRequired=This folder contains existing 567 Agent data. Go back to confirm reuse, or select an empty folder. Silent recovery requires /AGENT567USEEXISTINGDATA=true.
+chinesesimplified.DataMigrationRecoveryFailed=无法将原目录恢复到原位置。请勿删除以下目录：%n原数据保留于：%1%n未完成副本保留于：%2%n%n关闭占用文件的程序并检查磁盘权限后重试安装，或选择其他空目录重新迁移。原始错误：%3
+english.DataMigrationRecoveryFailed=The original folder could not be restored. Do not delete these folders:%nOriginal data retained at: %1%nIncomplete copy retained at: %2%n%nClose applications using these files and check disk permissions before retrying, or migrate to another empty folder. Original error: %3
 chinesesimplified.DataMigrationTargetNotEmpty=目标文件夹已有数据。请选择空文件夹，已有数据不会被覆盖。
 english.DataMigrationTargetNotEmpty=The destination contains data. Choose an empty folder; existing data will not be overwritten.
 english.DataMigrationStatus=Migrating 567 Agent data. Keep the installer running…
@@ -122,6 +128,7 @@ Type: filesandordirs; Name: "{code:GetUpdaterCacheDirectory}"
 var
   LastReportedProgress: Integer;
   DataDirectoryPage: TInputDirWizardPage;
+  ReuseExistingDataRoot: String;
 
 const
   AppRegistrySubkey = 'Software\567Agent';
@@ -284,10 +291,16 @@ begin
 end;
 
 function GetDataRoot(Value: String): String;
+var
+  RegisteredRoot: String;
 begin
   if IsBackgroundUpdate() then
   begin
-    Result := ExpandConstant('{param:VETTADATAROOT}');
+    { Background updates cannot migrate data or select another registered root. }
+    if RegQueryStringValue(HKCU, AppRegistrySubkey, DataRootValueName, RegisteredRoot) and (Trim(RegisteredRoot) <> '') then
+      Result := RegisteredRoot
+    else
+      Result := ExpandConstant('{param:VETTADATAROOT}');
     { Updaters before data-location support do not send this parameter. }
     if Trim(Result) = '' then
       Result := GetSavedDataRoot();
@@ -377,6 +390,29 @@ begin
   end;
 end;
 
+function ConfirmExistingDataReuse(DataRoot: String): Boolean;
+begin
+  Result := True;
+  if PathsAreEqual(DataRoot, GetSavedDataRoot()) or
+     not FileExists(AddBackslash(DataRoot) + '.data-migration-complete') then
+    exit;
+  if PathsAreEqual(DataRoot, ReuseExistingDataRoot) then
+    exit;
+  if WizardSilent then
+    Result := CompareText(ExpandConstant('{param:AGENT567USEEXISTINGDATA}'), 'true') = 0
+  else
+    Result := MsgBox(FmtMessage(CustomMessage('DataMigrationReuseExisting'), [DataRoot]), mbConfirmation, MB_YESNO) = IDYES;
+  if Result then
+    ReuseExistingDataRoot := DataRoot;
+end;
+
+function NextButtonClick(CurPageID: Integer): Boolean;
+begin
+  Result := True;
+  if Assigned(DataDirectoryPage) and (CurPageID = DataDirectoryPage.ID) then
+    Result := ConfirmExistingDataReuse(GetDataRoot(''));
+end;
+
 function PrepareToInstall(var NeedsRestart: Boolean): String;
 var
   DataRoot: String;
@@ -399,6 +435,8 @@ begin
     Result := CustomMessage('DataMigrationOverlap');
     exit;
   end;
+  if not ConfirmExistingDataReuse(DataRoot) then
+    Result := CustomMessage('DataMigrationReuseRequired');
 end;
 
 function DirectoryHasData(Directory: String): Boolean;
@@ -444,6 +482,12 @@ begin
     retained legacy profiles: that would overwrite edits and revive deletions. }
   if PathsAreEqual(DataRoot, PreviousDataRoot) and not InitialMigration then
     exit;
+  if PathsAreEqual(DataRoot, ReuseExistingDataRoot) and
+     FileExists(AddBackslash(DataRoot) + '.data-migration-complete') then
+  begin
+    Log('Reusing existing data without merging: ' + DataRoot);
+    exit;
+  end;
   if not PathsAreEqual(DataRoot, PreviousDataRoot) and DirectoryHasData(DataRoot) then
     RaiseException(CustomMessage('DataMigrationTargetNotEmpty'));
 
@@ -498,11 +542,18 @@ begin
     if BackedUp then
       Log('Original data retained at: ' + BackupRoot);
   except
+    ErrorMessage := GetExceptionMessage();
     if BackedUp and not DirExists(DataRoot) then
-      RenameFile(BackupRoot, DataRoot);
+    begin
+      if not RenameFile(BackupRoot, DataRoot) then
+      begin
+        Log('Data recovery failed; original retained at: ' + BackupRoot + '; incomplete copy at: ' + StagingRoot);
+        RaiseException(FmtMessage(CustomMessage('DataMigrationRecoveryFailed'), [BackupRoot, StagingRoot, ErrorMessage]));
+      end;
+    end;
     { Only this installation's staging directory may be removed. }
     DelTree(StagingRoot, True, True, True);
-    RaiseException(GetExceptionMessage());
+    RaiseException(ErrorMessage);
   end;
 end;
 

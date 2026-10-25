@@ -27,9 +27,7 @@ function McpMenuItems({ item, model }: { item: McpAbility; model: AbilitiesModel
 				</DropdownMenuItem>
 			)}
 			{item.usesOAuth && (
-				<DropdownMenuItem
-					onSelect={() => (item.authorized ? model.revokeAuthorization(item) : model.setup(item))}
-				>
+				<DropdownMenuItem onSelect={() => (item.authorized ? model.revokeAuthorization(item) : model.setup(item))}>
 					<span
 						className={cn(
 							"h-3.5 w-3.5",
@@ -141,7 +139,7 @@ export function AbilityCard({
 			onPointerEnter={() => void loadAbilityDetailView().catch(() => undefined)}
 			onPointerDown={() => void loadAbilityDetailView().catch(() => undefined)}
 			className={cn(
-				"group relative flex items-center gap-3 rounded-xl px-3 py-2.5 transition-colors duration-200 hover:bg-accent/60",
+				"group relative flex h-36 min-w-0 overflow-hidden items-start gap-3 rounded-xl border border-border/70 bg-card/40 p-4 transition-colors duration-200 hover:border-primary/30 hover:bg-accent/30",
 				!item.enabled && item.installed && "opacity-75",
 			)}
 		>
@@ -149,13 +147,16 @@ export function AbilityCard({
 				type="button"
 				disabled={item.busy}
 				aria-busy={item.busy}
+				aria-label={t("card.openDetails", { name: title })}
 				onClick={openDetail}
-				className="flex min-w-0 flex-1 cursor-pointer items-center gap-3 rounded-md text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
+				className="flex h-full min-w-0 flex-1 cursor-pointer items-start gap-3 text-left outline-none before:absolute before:inset-0 before:rounded-xl focus-visible:before:ring-1 focus-visible:before:ring-inset focus-visible:before:ring-ring disabled:cursor-wait"
 			>
 				<AbilityIcon icon={item.icon} type={item.type} />
 				<span className="min-w-0 flex-1">
 					<span className="flex min-w-0 flex-wrap items-center gap-1.5">
-						<span className="truncate text-[13px] font-semibold text-foreground">{title}</span>
+						<span className="max-w-full truncate text-[13px] font-semibold text-foreground" title={title}>
+							{title}
+						</span>
 						<AbilityStatusBadges item={item} />
 					</span>
 					{item.busy ? (
@@ -167,14 +168,17 @@ export function AbilityCard({
 							/>
 						</span>
 					) : (
-						<span className="mt-0.5 block truncate text-[11px] leading-relaxed text-muted-foreground/70">
+						<span
+							title={description}
+							className="mt-1.5 line-clamp-3 break-words text-[12px] leading-relaxed text-muted-foreground"
+						>
 							{description || t("card.noDescription")}
 						</span>
 					)}
 				</span>
 			</button>
 			{!item.busy && (
-				<div className="shrink-0" onClick={(event) => event.stopPropagation()}>
+				<div className="relative z-10 shrink-0" onClick={(event) => event.stopPropagation()}>
 					{item.installed ? (
 						<InstalledMoreMenu item={item} model={model} onOpenDetail={openDetail} />
 					) : (

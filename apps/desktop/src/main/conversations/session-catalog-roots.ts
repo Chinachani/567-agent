@@ -20,6 +20,7 @@ export function resolveDesktopRuntimeSessionRoots(): RuntimeConversationSessionR
 	//    全部 root，所以两处能同时列出来，不需要迁移文件。
 	const projectRoots = [...config.projects, ...config.archivedProjects].flatMap(({ path }) => [
 		{ cwd: path, sessionDir: codingAgentSessionShardPath(path) },
+		{ cwd: path, sessionDir: join(path, ".567agent", "sessions") },
 		{ cwd: path, sessionDir: join(path, ".vetta", "sessions") },
 	]);
 	return [
@@ -35,6 +36,10 @@ export function resolveDesktopRuntimeSessionRoots(): RuntimeConversationSessionR
 			cwd: KB_PROCESSING_CWD,
 			sessionDir: KB_PROCESSING_SESSION_DIR,
 		},
+		...[DEFAULT_CONVERSATION_CWD, DEFAULT_IM_CONVERSATION_CWD, KB_PROCESSING_CWD].map((cwd) => ({
+			cwd,
+			sessionDir: join(cwd, ".vetta", "sessions"),
+		})),
 		...projectRoots,
 	];
 }

@@ -37,6 +37,7 @@ internal fun SessionWorkbenchDialog(
     onRemoveFile: (String) -> Unit,
     onRemoveImage: (String) -> Unit,
     readOriginal: suspend (String) -> ByteArray,
+    readThumbnail: suspend (String) -> String?,
     onDismiss: () -> Unit,
 ) {
     var tab by remember { mutableIntStateOf(0) }
@@ -126,6 +127,8 @@ internal fun SessionWorkbenchDialog(
                     onRemoveImage = onRemoveImage,
                     onSelect = { kind, id -> selectedDetail = kind to id; onSelect(kind, id) },
                     onScope = onScope,
+                    images = messages.flatMap { it.images },
+                    readThumbnail = readThumbnail,
                 )
                 2 -> TaskList(snapshot, onSelect = { id -> selectedDetail = "task" to id; onSelect("task", id) })
                 3 -> ChangeList(snapshot, onSelect = { id -> selectedDetail = "change" to id; onSelect("change", id) })
@@ -160,7 +163,9 @@ internal fun SessionWorkbenchDialog(
                 item.path?.takeIf(String::isNotBlank)?.let { SelectionContainer { Text(it, style = MaterialTheme.typography.bodySmall) } }
                 if (item.kind == "attachment") {
                     Text(when (item.previewStatus) { "text" -> Str.workbenchTextPreview; "binary" -> Str.workbenchBinaryPreview; else -> Str.workbenchUnavailable }, style = MaterialTheme.typography.bodySmall)
-                    messages.flatMap { it.images }.firstOrNull { it.id == item.id }?.let { WorkbenchImage(it) }
+                    val localImage = messages.flatMap { it.images }.firstOrNull { it.id == item.id }
+                    if (localImage != null) WorkbenchImage(localImage)
+                    else validatedWorkbenchThumbnail(item.thumbnailDataUrl)?.let { data -> WorkbenchImage(MessageImage(id = item.id, mimeType = "image/png", base64Data = data)) }
                 }
                 if (item.text.isNotBlank()) SelectionContainer { Text(item.text, style = MaterialTheme.typography.bodyMedium) }
                 if (item.kind == "task") {
@@ -176,12 +181,13 @@ internal fun SessionWorkbenchDialog(
         }
     }
 
-    if (confirmDiscard) AlertDialog(
-        onDismissRequest = { confirmDiscard = false },
-        title = { Text(Str.workbenchDiscardTitle) },
-        text = { Text(Str.workbenchDiscardMessage) },
-        confirmButton = { TextButton(onClick = { confirmDiscard = false; onDismiss() }) { Text(Str.workbenchDiscard) } },
-        dismissButton = { TextButton(onClick = { confirmDiscard = false }) { Text(Str.workbenchContinueEditing) } },
+    if (confirmDiscard) org.agent567.android.ui.components.Agent567ConfirmDialog(
+        destructive = true,
+        title = Str.workbenchDiscardTitle,
+        message = Str.workbenchDiscardMessage,
+        confirmLabel = Str.workbenchDiscard,
+        onConfirm = { confirmDiscard = false; onDismiss() },
+        onDismiss = { confirmDiscard = false },
     )
 
     selectedPending?.let { id ->
@@ -311,6 +317,8 @@ private fun AttachmentList(
     onRemoveImage: (String) -> Unit,
     onSelect: (String, String) -> Unit,
     onScope: (String, String) -> Unit,
+    images: List<MessageImage>,
+    readThumbnail: suspend (String) -> String?,
 ) {
     Text(Str.workbenchAttachmentHint, style = MaterialTheme.typography.bodySmall)
     if (pendingFiles.isNotEmpty() || pendingImages.isNotEmpty()) Text(Str.workbenchPending, style = MaterialTheme.typography.titleMedium)
@@ -329,7 +337,9 @@ private fun AttachmentList(
         }
     }
     Text(Str.workbenchHistoryAttachments, style = MaterialTheme.typography.titleMedium)
-    snapshot?.attachments?.forEach { file -> TextButton(onClick = { onSelect("attachment", file.id) }, modifier = Modifier.fillMaxWidth()) { Text(file.name) } }
+    snapshot?.attachments?.forEach { file ->
+        key(file.id) { WorkbenchAttachmentRow(file, images.firstOrNull { it.id == file.id }, readThumbnail) { onSelect("attachment", file.id) } }
+    }
     if (snapshot?.attachments?.isEmpty() == true) Text(Str.workbenchEmpty)
 }
 

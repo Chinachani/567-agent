@@ -17,12 +17,7 @@ const ITEMS: SidebarNavItem[] = [
 
 function renderNav(bounds: { left: number; top: number; width: number; height: number } | null) {
 	return render(
-		<SidebarNavigation
-			indicatorBounds={bounds}
-			items={ITEMS}
-			onItemClick={() => {}}
-			setItemRef={() => () => {}}
-		/>,
+		<SidebarNavigation indicatorBounds={bounds} items={ITEMS} onItemClick={() => {}} setItemRef={() => () => {}} />,
 	);
 }
 
@@ -54,7 +49,11 @@ describe("SidebarNavigation 指示条", () => {
 
 	it("更多菜单中的入口也在聚焦时预取，点击行为不变", () => {
 		const moreItem = {
-			key: "/knowledge", label: "知识库", icon: "icon-[solar--book-linear]", active: false, path: "/knowledge",
+			key: "/knowledge",
+			label: "知识库",
+			icon: "icon-[solar--book-linear]",
+			active: false,
+			path: "/knowledge",
 		} as SidebarNavItem;
 		const onItemIntent = vi.fn();
 		const onItemClick = vi.fn();
@@ -98,7 +97,7 @@ describe("SidebarNavigation 指示条", () => {
 		const { container } = renderNav({ left: 8, top: 24, width: 180, height: 32 });
 		const indicator = queryIndicator(container);
 		expect(indicator?.style.width).toBe("");
-		expect(indicator?.className).toContain("inset-x-1.5");
+		expect(indicator?.className).toMatch(/\binset-x-\S+/);
 	});
 
 	it("不声明任何过渡：切换导航项时指示条直接落位", () => {

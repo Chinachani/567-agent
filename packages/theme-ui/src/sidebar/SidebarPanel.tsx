@@ -34,7 +34,7 @@ export function SidebarPanel({
 	return (
 		<div
 			className={cn(
-				"group/sidebar sidebar-surface relative h-full shrink-0 rounded-[10px] border border-border bg-muted",
+				"group/sidebar sidebar-surface relative h-full shrink-0 rounded-xl border border-border/60 bg-muted/60",
 				surface?.rootClassName,
 				className,
 			)}
@@ -43,12 +43,7 @@ export function SidebarPanel({
 			style={{ width }}
 		>
 			<ThemeSurface slot="sidebar.panel" />
-			<div
-				className={cn(
-					"relative z-10 flex h-full flex-col overflow-hidden rounded-[inherit]",
-					contentClassName,
-				)}
-			>
+			<div className={cn("relative z-10 flex h-full flex-col overflow-hidden rounded-[inherit]", contentClassName)}>
 				{children}
 			</div>
 			<ResizeHandle side="right" onResize={onResize} onResizeEnd={onResizeEnd} />

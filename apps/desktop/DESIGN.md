@@ -29,6 +29,8 @@
 | 卡片面     | `bg-card` / `text-card-foreground`                               |
 | 浮层面     | `bg-popover` / `text-popover-foreground`                         |
 | 主色       | `bg-primary` / `text-primary` / `text-primary-foreground`        |
+| 生图状态   | `bg-image-accent/15` / `text-image-accent` / `ring-image-accent/30` |
+| 主力模型状态 | `bg-chat-accent/15` / `text-chat-accent` / `ring-chat-accent/40` |
 | 次要面     | `bg-secondary` / `bg-muted` / `bg-accent`                        |
 | 次要文字   | `text-muted-foreground`                                          |
 | 边/输入/环 | `border-border` / `bg-input` / `ring-ring` / `outline-ring`      |
@@ -50,7 +52,7 @@ Alpha 写法只允许 `/5 /10 /15 /20 /25 /30 /40 /50 /60 /70 /80`，例：`bg-p
 | 警告/可更新 | `bg-amber-500/15` `text-amber-400`                       | 版本可更新、待办、超时    |
 | 错误     | **必须用 `destructive` token**，禁止 `red-*`             | 删除、失败、不可逆操作    |
 
-其他业务标签色（"自定义"、"实验"、"Beta"）一律用 `bg-primary/10 text-primary` 或 `bg-accent/60 text-muted-foreground`，**不要**引入 `violet-*` / `sky-*` / `pink-*`。
+生图分组专属标签与选中模型使用 `image-accent` 语义 token，主力分组与模型使用金色 `chat-accent`；深浅色取值集中定义在 `styles.css`，黑白主题仍保留状态的彩色辨识度。只强调标签与选中模型，不给整行染色。其余业务标签（"自定义"、"实验"、"Beta"）一律用 `bg-primary/10 text-primary` 或 `bg-accent/60 text-muted-foreground`，**不要**引入 `violet-*` / `sky-*` / `pink-*`。
 
 ---
 
@@ -246,3 +248,14 @@ solar 常用对照：菜单 `menu-dots`、关闭 `close-circle`、删除 `trash-
 以下文件混入了违规色或视觉，agent **不要**以它们为范例，遇到顺手清理：
 
 - 暂无。`SkillsPage.tsx` 的 `violet-*` 自定义标签已迁移为 `bg-primary/10 text-primary`。
+
+
+## 11. 工作台页面视觉（2026-10-25）
+
+- 默认导航使用安静的表面与清晰选中态，新会话保留唯一高对比入口；账号入口仍只在侧栏。保留用户配置的业务导航顺序、主题覆盖与侧栏样式；设置入口集中在账号菜单。
+- 页面标题使用共享 `WorkspacePageHeader`（24px、semibold、纯色），说明 13px，操作自动换行；不再使用渐变大标题。首页问候可用 32px，保留项目、工作模式和团队入口。
+- 设置页采用独立双栏：隐藏工作区侧栏，设置分类位于最左侧；顶部保留返回工作区与窗口控制。设置阅读列最大 800px；横向留白窄宽 20px、宽屏 32px。设置标题、说明自然换行，控件放不下时置于下一行。分组依靠间距与细线，不额外套嵌套卡片。
+- 能力、自动化和场景网格以内容区宽度自适应，最小列宽必须用 `min(...,100%)` 保护窄窗口，禁止固定三列。
+- 输入区上层为模型与上下文，下层为编辑、附件和发送。保留所有工具、权限、排队和主题插槽，输入容器使用 1px 边线与 rounded-2xl，不使用自定义阴影。
+- 默认黑白主题的辅助正文不叠加低透明度；金额、模型标识与耗时可用等宽数字。主力与生图继续使用现有金/紫 token。
+- 视觉布局通过生产组件的隔离 Electron 探针验证；不能用示例截图替代真实账号、权限或设备验收。

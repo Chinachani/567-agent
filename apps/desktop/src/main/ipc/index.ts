@@ -108,7 +108,7 @@ export function registerAllIpc(
 		teardownMarkdown: registerMarkdownIpc(webContents),
 		teardownDebug: registerDebugIpc(),
 		teardownProjectExport: registerProjectExportIpc(),
-		teardownProjectCollaboration: registerProjectCollaborationHandlers(),
+		teardownProjectCollaboration: registerProjectCollaborationHandlers(webContents),
 		teardownWebhook: registerWebhookIpc(),
 		teardownRuntimes: registerRuntimesIpc(),
 		teardownRuntimeConfiguration: registerRuntimeConfigurationIpc(webContents),

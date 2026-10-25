@@ -44,9 +44,10 @@ test("stages every dependency the main bundle marks external", () => {
 	}
 });
 
-test("keeps ws and koffi in every desktop artifact", () => {
+test("keeps ws, dbus-next and koffi in every desktop artifact", () => {
 	for (const platform of ["darwin", "win32", "linux"]) {
 		const result = resolvePackagedNativeDependencies(new Set([platform]));
+		assert.ok(result.required.includes("dbus-next"), `${platform} artifact is missing the CommonJS DBus boundary`);
 		assert.ok(result.required.includes("ws"), `${platform} 产物缺少 ws`);
 		assert.ok(result.required.includes("koffi"), `${platform} 产物缺少 koffi`);
 		assert.ok(result.asarUnpack.includes("node_modules/koffi/**/*"), `${platform} 产物未解包 koffi`);

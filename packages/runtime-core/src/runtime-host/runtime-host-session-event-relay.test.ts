@@ -79,4 +79,47 @@ describe("RuntimeHostSessionEventRelay", () => {
 		unsubscribeLive();
 		relay.release("session-key", handle.lifecycle.sessionPath, handle.lifecycle.sessionId);
 	});
+	it("replays automatic compaction after a model call is persisted and clears it at turn end", () => {
+		const stream = createEventStream();
+		const handle = {
+			lifecycle: { sessionId: "s", sessionPath: "session" },
+			stateReader: { readState: () => ({ activeToolNames: [] }) },
+			eventStream: stream,
+		} as unknown as RuntimeHostSessionRecord;
+		const relay = new RuntimeHostSessionEventRelay({
+			queueSidecar: { persist: () => {} } as unknown as RuntimeHostQueueSidecar,
+			synchronizeSessionIdentity: () => {},
+			reportFailure: () => {},
+		});
+		relay.attach("s", handle, stream);
+		stream.emit(lifecycleSessionEvent("s", "agent_start", 1));
+		const base = {
+			schemaVersion: 1 as const,
+			sessionId: "s",
+			source: "agent" as const,
+			eventId: "compact",
+			timestamp: 2,
+			turnId: "t",
+		};
+		stream.emit({ ...base, type: "compaction.start", reason: "threshold" });
+		stream.emit({ ...base, timestamp: 3, type: "compaction.end", reason: "threshold", success: true });
+		stream.emit(
+			mapRuntimeSessionObservationEvent("s", {
+				type: "message.final",
+				message: { role: "user", content: "persisted", timestamp: 4 },
+				source: "agent",
+			}),
+		);
+		const replay: SessionEvent[] = [];
+		relay.subscribe("s", handle, (event) => replay.push(event))();
+		expect(replay.filter((event) => event.type.startsWith("compaction.")).map((event) => event.type)).toEqual([
+			"compaction.start",
+			"compaction.end",
+		]);
+		stream.emit(lifecycleSessionEvent("s", "agent_end", 5));
+		const ended: SessionEvent[] = [];
+		relay.subscribe("s", handle, (event) => ended.push(event))();
+		expect(ended.some((event) => event.type.startsWith("compaction."))).toBe(false);
+		relay.release("s", "session", "s");
+	});
 });

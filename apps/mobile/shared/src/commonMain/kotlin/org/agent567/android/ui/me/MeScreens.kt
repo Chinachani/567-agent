@@ -1,5 +1,6 @@
 package org.agent567.android.ui.me
 
+import org.agent567.android.resources.brand_icon
 import org.agent567.android.AppVersion
 import org.agent567.android.ui.chat.RotatingRefreshIcon
 
@@ -21,6 +22,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.wrapContentHeight
+import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.verticalScroll
@@ -52,6 +54,7 @@ import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.TopAppBarDefaults
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -68,6 +71,8 @@ import org.agent567.android.core.model.SubscriptionStatus
 import org.agent567.android.core.model.User
 import org.agent567.android.app.normalizeGitHubDownloadPrefix
 import org.agent567.android.data.session.MIGRATION_BACKUP_LIMIT_OPTIONS_MB
+import org.agent567.android.ui.components.MobileIconTile
+import androidx.compose.ui.text.style.TextOverflow
 import org.agent567.android.ui.components.PrimaryBlackButton
 import org.agent567.android.ui.components.EmptyState
 import org.agent567.android.ui.components.QuotaMeter
@@ -100,18 +105,23 @@ fun MeScreen(
     onRefreshQuota: () -> Unit = {},
     catalogLoading: Boolean = false,
     quotaRefreshing: Boolean = false,
+    accountVerifying: Boolean = false,
+    accountVerificationMessage: String? = null,
     onOpenPlan: () -> Unit = {},
     onOpenSettings: () -> Unit = {},
     onOpenDataSettings: () -> Unit = {},
     onThemeMode: (org.agent567.android.app.ThemeMode) -> Unit = {},
     onOpenDevices: () -> Unit = {},
     onOpenAbout: () -> Unit = {},
-    onLogin: () -> Unit = {},
-    onLogout: (clearLocal: Boolean) -> Unit = {},
+    onOpenAccount: () -> Unit = {},
     onTopupWithKey: (String, (Boolean, String) -> Unit) -> Unit = { _, _ -> },
     onCreatePayOrder: (Int, String, (org.agent567.android.core.PayOrderResult, Double) -> Unit, (String) -> Unit) -> Unit = { _, _, _, _ -> },
+    serverUrl: String = "",
+    onOpenServiceRoute: () -> Unit = {},
+    serviceRoutes: List<org.agent567.android.core.ServiceRoute> = org.agent567.android.core.ServiceRoute.entries,
+    hasUpdate: Boolean = false,
 ) {
-    var confirmLogout by remember { mutableStateOf(false) }
+    var showFeatureGuide by remember { mutableStateOf(false) }
     var showGroupDialog by remember { mutableStateOf(false) }
     var showTopupDialog by remember { mutableStateOf(false) }
     val name = user?.nickname?.ifBlank { user.username } ?: Str.notLoggedIn
@@ -122,7 +132,7 @@ fun MeScreen(
         containerColor = MaterialTheme.agent567Extra.pageBackground,
         topBar = {
             TopAppBar(
-                title = { Text(Str.me, style = MaterialTheme.typography.titleMedium) },
+                title = { Text(Str.me, style = MaterialTheme.typography.titleLarge) },
                 colors =
                     TopAppBarDefaults.topAppBarColors(
                         containerColor = MaterialTheme.agent567Extra.pageBackground,
@@ -135,102 +145,66 @@ fun MeScreen(
                 .padding(padding)
                 .fillMaxSize()
                 .verticalScroll(rememberScrollState())
-                .padding(start = 16.dp, top = 8.dp, end = 16.dp, bottom = 40.dp),
+                .padding(start = 16.dp, top = 4.dp, end = 16.dp, bottom = 24.dp),
         ) {
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                BoxAvatar(name)
+            Row(Modifier.fillMaxWidth().clip(MaterialTheme.shapes.large).background(MaterialTheme.colorScheme.surface).clickable(role = androidx.compose.ui.semantics.Role.Button, onClick = onOpenAccount).padding(12.dp), verticalAlignment = Alignment.CenterVertically) {
+                BoxAvatar(user?.username.orEmpty())
                 Spacer(Modifier.width(14.dp))
-                Column {
-                    Text(name, style = MaterialTheme.typography.titleMedium)
-                    if (contact.isNotBlank()) {
-                        Text(
-                            contact,
-                            style = MaterialTheme.typography.bodySmall,
-                            color = MaterialTheme.agent567Extra.secondaryText,
-                        )
+                Column(Modifier.weight(1f)) {
+                    Text(name, style = MaterialTheme.typography.titleMedium, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                    Text(
+                        contact.ifBlank { if (user == null) Str.accountSignIn else Str.accountProfile },
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.agent567Extra.secondaryText,
+                    )
+                }
+                Icon(Icons.AutoMirrored.Filled.KeyboardArrowRight, contentDescription = null, tint = MaterialTheme.agent567Extra.secondaryText)
+            }
+
+            if (accountVerifying) Text(Str.mobileVerifying, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.agent567Extra.secondaryText)
+            accountVerificationMessage?.let { message ->
+                Agent567Card {
+                    Column(Modifier.fillMaxWidth()) {
+                        Text(message, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.error)
+                        TextButton(onClick = onRefreshQuota, enabled = !quotaRefreshing) { Text(Str.mobileVerifyAgain) }
                     }
                 }
             }
-
+            if (user == null) Agent567Card { org.agent567.android.ui.components.ServiceRouteEntry(serverUrl, onOpenServiceRoute, serviceRoutes) }
             if (user != null) {
-                Spacer(Modifier.height(16.dp))
-                Agent567Card {
-                    Column {
-                        Row(
-                            modifier = Modifier.fillMaxWidth(),
-                            horizontalArrangement = Arrangement.SpaceBetween,
-                            verticalAlignment = Alignment.CenterVertically,
-                        ) {
-                            Column {
-                                Text("567 API 可用额度", style = MaterialTheme.typography.labelMedium, color = MaterialTheme.agent567Extra.secondaryText)
-                                Spacer(Modifier.height(4.dp))
-                                Text(
-                                    "$$usdFormatted",
-                                    style = MaterialTheme.typography.headlineMedium.copy(fontWeight = androidx.compose.ui.text.font.FontWeight.Bold),
-                                    color = MaterialTheme.colorScheme.primary,
-                                )
-                            }
-                            Row(verticalAlignment = Alignment.CenterVertically) {
-                                androidx.compose.material3.FilledTonalButton(
-                                    onClick = { showTopupDialog = true },
-                                    modifier = Modifier.height(32.dp),
-                                    shape = androidx.compose.foundation.shape.RoundedCornerShape(16.dp),
-                                    contentPadding = androidx.compose.foundation.layout.PaddingValues(horizontal = 14.dp, vertical = 0.dp),
-                                ) {
-                                    Text("充值", style = MaterialTheme.typography.labelMedium)
-                                }
-                                Spacer(Modifier.width(6.dp))
-                                IconButton(onClick = onRefreshQuota, enabled = !quotaRefreshing) {
-                                    RotatingRefreshIcon(isRefreshing = quotaRefreshing, contentDescription = "刷新余额")
-                                }
-                            }
+                Spacer(Modifier.height(12.dp))
+                SectionHeader(title = Str.accountBalanceSection)
+                Agent567Card(contentPadding = androidx.compose.foundation.layout.PaddingValues(horizontal = 16.dp, vertical = 8.dp)) {
+                    Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+                        Column(Modifier.weight(1f)) {
+                            Text(Str.mobileQuota, style = MaterialTheme.typography.labelMedium, color = MaterialTheme.agent567Extra.secondaryText)
+                            Text("$$usdFormatted", style = MaterialTheme.typography.headlineSmall)
                         }
-                        Spacer(Modifier.height(12.dp))
-                        androidx.compose.material3.HorizontalDivider(
-                            modifier = Modifier.padding(start = 16.dp),
-                            color = MaterialTheme.agent567Extra.border,
-                        )
-                        Spacer(Modifier.height(12.dp))
-                        Row(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .clickable { showGroupDialog = true },
-                            horizontalArrangement = Arrangement.SpaceBetween,
-                            verticalAlignment = Alignment.CenterVertically,
-                        ) {
-                            Column(Modifier.weight(1f)) {
-                                Text("当前接入分组", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.agent567Extra.secondaryText)
-                                Spacer(Modifier.height(2.dp))
-                                Text(
-                                    activeGroup ?: "默认分组 (点击切换)",
-                                    style = MaterialTheme.typography.bodyMedium.copy(fontWeight = androidx.compose.ui.text.font.FontWeight.Medium),
-                                )
-                            }
-                            Row(verticalAlignment = Alignment.CenterVertically) {
-                                Text("切换分组", style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.primary)
-                                Icon(
-                                    Icons.AutoMirrored.Filled.KeyboardArrowRight,
-                                    contentDescription = null,
-                                    tint = MaterialTheme.colorScheme.primary,
-                                )
-                            }
+                        IconButton(onClick = onRefreshQuota, enabled = !quotaRefreshing, modifier = Modifier.size(48.dp)) {
+                            RotatingRefreshIcon(isRefreshing = quotaRefreshing, contentDescription = Str.accountRefresh)
                         }
+                        TextButton(onClick = { showTopupDialog = true }, modifier = Modifier.heightIn(min = 48.dp)) { Text(Str.mobileTopupAction) }
                     }
+                }
+                Spacer(Modifier.height(12.dp))
+                SectionHeader(title = Str.phoneModelServiceSection)
+                Text(Str.phoneModelServiceHint, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.agent567Extra.secondaryText, modifier = Modifier.padding(bottom = 8.dp))
+                Agent567Card(contentPadding = androidx.compose.foundation.layout.PaddingValues(horizontal = 16.dp, vertical = 4.dp)) {
+                    Row(Modifier.fillMaxWidth().heightIn(min = 56.dp).clickable(role = Role.Button) { showGroupDialog = true }, verticalAlignment = Alignment.CenterVertically) {
+                        Text(Str.mobileGroup, style = MaterialTheme.typography.bodyMedium, modifier = Modifier.weight(1f))
+                        Text(activeGroup ?: Str.mobileDefaultGroup, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.agent567Extra.secondaryText, modifier = Modifier.widthIn(max = 140.dp), maxLines = 1, overflow = TextOverflow.Ellipsis)
+                        Icon(Icons.AutoMirrored.Filled.KeyboardArrowRight, contentDescription = Str.mobileSwitchGroup, modifier = Modifier.size(18.dp), tint = MaterialTheme.agent567Extra.secondaryText)
+                    }
+                    androidx.compose.material3.HorizontalDivider(color = MaterialTheme.agent567Extra.border)
+                    org.agent567.android.ui.components.ServiceRouteEntry(serverUrl, onOpenServiceRoute, serviceRoutes)
                 }
             }
 
             Spacer(Modifier.height(20.dp))
-            SectionHeader(title = Str.accountAndDevices)
-            Agent567Card {
-                Agent567ListGroup {
-                    ProfileRow(Icons.Default.Devices, Str.connectedDevices, "$onlineDeviceCount", onOpenDevices, showDivider = false)
-                }
-            }
-
-            Spacer(Modifier.height(16.dp))
             SectionHeader(title = Str.settings)
-            Agent567Card(contentPadding = androidx.compose.foundation.layout.PaddingValues(12.dp)) {
+            Agent567Card(contentPadding = androidx.compose.foundation.layout.PaddingValues(horizontal = 12.dp, vertical = 4.dp)) {
                 Agent567ListGroup {
+                    ProfileRow(Icons.Default.Devices, Str.connectedDevices, "$onlineDeviceCount", onOpenDevices, showDivider = true, verticalPadding = 8.dp)
                     val nextThemeMode = when (themeMode) {
                         org.agent567.android.app.ThemeMode.Light -> org.agent567.android.app.ThemeMode.Dark
                         org.agent567.android.app.ThemeMode.Dark -> org.agent567.android.app.ThemeMode.System
@@ -275,34 +249,17 @@ fun MeScreen(
                         verticalPadding = 8.dp,
                         dividerStart = 16.dp,
                     )
+                    androidx.compose.material3.HorizontalDivider(color = MaterialTheme.agent567Extra.border)
+                    ProfileRow(Icons.Default.Info, Str.featureGuideTitle, null, { showFeatureGuide = true }, verticalPadding = 8.dp)
+                    ProfileRow(Icons.Default.Info, Str.aboutUs, if (hasUpdate) Str.updateNewVersion else Str.versionNumber.removePrefix("版本 "), onOpenAbout, showDivider = false, verticalPadding = 8.dp)
                 }
             }
 
-            Spacer(Modifier.height(16.dp))
-            SectionHeader(title = Str.aboutSection)
-            Agent567Card {
-                Agent567ListGroup {
-                    ProfileRow(Icons.Default.Info, Str.aboutUs, Str.versionNumber.removePrefix("版本 "), onOpenAbout, showDivider = false)
-                }
-            }
-
-            Spacer(Modifier.height(24.dp))
-            if (user == null) {
-                PrimaryBlackButton(text = Str.getStarted, onClick = onLogin)
-            } else {
-                Agent567Card {
-                    TextButton(
-                        onClick = { confirmLogout = true },
-                        modifier = Modifier.align(Alignment.CenterHorizontally),
-                    ) {
-                        Text(Str.logout, color = MaterialTheme.colorScheme.error)
-                    }
-                }
-            }
             Spacer(Modifier.height(24.dp))
         }
     }
 
+    if (showFeatureGuide) org.agent567.android.ui.components.FeatureGuideDialog { showFeatureGuide = false }
     if (showTopupDialog) {
         TopupDialog(
             user = user,
@@ -325,37 +282,21 @@ fun MeScreen(
         )
     }
 
-    if (confirmLogout) {
-        Agent567ChoiceDialog(
-            title = Str.logout,
-            message = Str.logoutConfirm,
-            primaryLabel = Str.confirmLogout,
-            onPrimary = {
-                confirmLogout = false
-                onLogout(false)
-            },
-            secondaryLabel = Str.logoutAndClear,
-            onSecondary = {
-                confirmLogout = false
-                onLogout(true)
-            },
-            onDismiss = { confirmLogout = false },
-        )
-    }
+
 }
 
 @Composable
-private fun BoxAvatar(name: String) {
-    val letter = name.firstOrNull()?.uppercaseChar()?.toString() ?: "V"
+internal fun BoxAvatar(name: String) {
+    val letter = usernameInitial(name)
     Box(
         modifier =
             Modifier
-                .size(56.dp)
+                .size(44.dp)
                 .clip(CircleShape)
-                .background(MaterialTheme.colorScheme.primary),
+                .background(MaterialTheme.agent567Extra.chipBackground),
         contentAlignment = Alignment.Center,
     ) {
-        Text(letter, color = MaterialTheme.colorScheme.onPrimary, style = MaterialTheme.typography.titleMedium)
+        Text(letter, color = MaterialTheme.colorScheme.onSurface, style = MaterialTheme.typography.titleMedium)
     }
 }
 
@@ -380,10 +321,10 @@ private fun ProfileRow(
         modifier = rowModifier,
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        Icon(icon, contentDescription = null, tint = MaterialTheme.colorScheme.onSurface)
+        Icon(icon, contentDescription = null, modifier = Modifier.size(20.dp), tint = MaterialTheme.agent567Extra.secondaryText)
         Spacer(Modifier.width(12.dp))
         Column(Modifier.weight(1f)) {
-            Text(title, style = MaterialTheme.typography.bodyLarge)
+            Text(title, style = MaterialTheme.typography.bodyMedium)
             if (!subtitle.isNullOrBlank()) {
                 Spacer(Modifier.height(2.dp))
                 Text(
@@ -603,7 +544,7 @@ fun SettingsScreen(
                 .padding(padding)
                 .fillMaxSize()
                 .verticalScroll(rememberScrollState())
-                .padding(start = 16.dp, top = 16.dp, end = 16.dp, bottom = 40.dp),
+                .padding(start = 20.dp, top = 16.dp, end = 20.dp, bottom = 32.dp),
         ) {
             when (section) {
                 SettingsSection.Behavior -> {
@@ -908,6 +849,7 @@ fun SettingsScreen(
 
     if (confirmClearLocalData) {
         Agent567ConfirmDialog(
+            destructive = true,
             title = Str.clearLocalDataTitle,
             message = Str.clearLocalDataMessage,
             confirmLabel = Str.clearLocalDataAction,
@@ -964,13 +906,15 @@ private fun PreferenceSwitchRow(
 fun AboutScreen(
     onBack: () -> Unit,
     onCheckUpdate: ((org.agent567.android.core.api.AppUpdateCheckResult) -> Unit) -> Unit = {},
+    knownUpdate: org.agent567.android.core.api.AppUpdateCheckResult? = null,
     downloadSource: String = "github",
     customDownloadPrefix: String = "",
     onSaveDownloadSource: (source: String, customPrefix: String) -> Boolean = { _, _ -> false },
 ) {
+    val releaseApkCompatible = org.agent567.android.ui.updates.canUseReleaseApk()
     val uriHandler = androidx.compose.ui.platform.LocalUriHandler.current
     var checkingUpdate by remember { mutableStateOf(false) }
-    var updateResult by remember { mutableStateOf<org.agent567.android.core.api.AppUpdateCheckResult?>(null) }
+    var updateResult by remember(knownUpdate) { mutableStateOf(knownUpdate) }
     var updateOpenError by remember { mutableStateOf<String?>(null) }
     var showNoUpdateNotice by remember { mutableStateOf(false) }
     var updateCheckError by remember { mutableStateOf<String?>(null) }
@@ -1002,7 +946,11 @@ fun AboutScreen(
                 .padding(start = 24.dp, top = 36.dp, end = 24.dp, bottom = 40.dp),
             horizontalAlignment = Alignment.CenterHorizontally,
         ) {
-            BoxAvatar(Str.appName)
+            androidx.compose.foundation.Image(
+                org.jetbrains.compose.resources.painterResource(org.agent567.android.resources.Res.drawable.brand_icon),
+                contentDescription = Str.appName,
+                modifier = Modifier.size(72.dp),
+            )
             Spacer(Modifier.height(16.dp))
             Text(Str.appName, style = MaterialTheme.typography.headlineSmall)
             Spacer(Modifier.height(8.dp))
@@ -1013,8 +961,8 @@ fun AboutScreen(
             Agent567ListGroup {
                 ProfileRow(
                     Icons.Default.Refresh,
-                    "检查新版本",
-                    if (checkingUpdate) "正在检测更新..." else "当前版本 v${AppVersion.NAME}",
+                    Str.updateCheck,
+                    if (checkingUpdate) Str.updateChecking else "当前版本 v${AppVersion.NAME}",
                     onClick = {
                         if (checkingUpdate) return@ProfileRow
                         checkingUpdate = true
@@ -1035,11 +983,7 @@ fun AboutScreen(
                 ProfileRow(
                     Icons.Default.Settings,
                     Str.githubDownloadSource,
-                    when (downloadSource) {
-                        "gh-proxy" -> Str.githubDownloadGhProxy
-                        "custom" -> Str.githubDownloadCustom
-                        else -> Str.githubDownloadDirect
-                    },
+                    null,
                     onClick = {
                         selectedDownloadSource = downloadSource
                         editedDownloadPrefix = customDownloadPrefix
@@ -1048,7 +992,7 @@ fun AboutScreen(
                         showDownloadSourceDialog = true
                     },
                     showDivider = true,
-                    subtitle = Str.githubDownloadSourceHint,
+                    subtitle = "当前：" + when (downloadSource) { "gh-proxy" -> Str.githubDownloadGhProxy; "custom" -> Str.githubDownloadCustom; else -> Str.githubDownloadDirect },
                 )
                 ProfileRow(
                     Icons.Default.Info,
@@ -1082,12 +1026,12 @@ fun AboutScreen(
         androidx.compose.material3.AlertDialog(
             onDismissRequest = { updateResult = null },
             title = {
-                Text("发现新版本 ${update.latestVersion}", style = MaterialTheme.typography.titleLarge)
+                Text("${Str.updateNewVersion} ${update.latestVersion}", style = MaterialTheme.typography.titleLarge)
             },
             text = {
                 Column(Modifier.verticalScroll(rememberScrollState())) {
                     Text(
-                        if (update.releaseNotes.isNotBlank()) update.releaseNotes else "有全新版本可供升级，建议更新以获得最佳使用体验。",
+                        if (update.releaseNotes.isNotBlank()) update.releaseNotes else Str.updateHint,
                         style = MaterialTheme.typography.bodyMedium,
                     )
                     if (!updateOpenError.isNullOrBlank()) {
@@ -1103,7 +1047,7 @@ fun AboutScreen(
             confirmButton = {
                 androidx.compose.material3.FilledTonalButton(
                     onClick = {
-                        val targetUrl = update.apkUrl?.takeIf(String::isNotBlank)
+                        val targetUrl = update.apkUrl?.takeIf { releaseApkCompatible && it.isNotBlank() }
                             ?: "https://github.com/Chinachani/567-agent/releases/latest"
                         try {
                             uriHandler.openUri(targetUrl)
@@ -1114,13 +1058,13 @@ fun AboutScreen(
                         }
                     },
                 ) {
-                    Text(if (update.apkUrl.isNullOrBlank()) "打开 GitHub 发布页" else Str.githubDownloadPackage)
+                    Text(if (releaseApkCompatible && !update.apkUrl.isNullOrBlank()) Str.githubDownloadPackage else Str.updateOpenRelease)
                 }
             },
             dismissButton = {
                 Row {
                     TextButton(onClick = { updateResult = null }) {
-                        Text("稍后")
+                        Text(Str.updateLater)
                     }
                 }
             },
@@ -1300,10 +1244,10 @@ fun TopupDialog(
     onRefreshQuota: () -> Unit,
 ) {
     val uriHandler = androidx.compose.ui.platform.LocalUriHandler.current
-    var activeTab by remember { mutableStateOf(0) } // 0: 在线充值, 1: 卡密兑换
-    var selectedAmount by remember { mutableStateOf(20) }
-    var customAmountText by remember { mutableStateOf("") }
-    var payMethod by remember { mutableStateOf("alipay") }
+    var activeTab by rememberSaveable { mutableStateOf(0) } // 0: 在线充值, 1: 卡密兑换
+    var selectedAmount by rememberSaveable { mutableStateOf(20) }
+    var customAmountText by rememberSaveable { mutableStateOf("") }
+    var payMethod by rememberSaveable { mutableStateOf("alipay") }
     var cdkeyText by remember { mutableStateOf("") }
     var loading by remember { mutableStateOf(false) }
     var message by remember { mutableStateOf<String?>(null) }
@@ -1312,6 +1256,7 @@ fun TopupDialog(
     var initialQuota by remember { mutableStateOf<Double?>(null) }
     var paySuccess by remember { mutableStateOf(false) }
     var paymentPollExpired by remember { mutableStateOf(false) }
+    val paymentUnavailable = activeTab == 0 && org.agent567.android.core.api.isPaymentUnavailable(message.orEmpty())
 
     LaunchedEffect(payingNotice, paySuccess) {
         if (!payingNotice) return@LaunchedEffect
@@ -1322,7 +1267,7 @@ fun TopupDialog(
         }
         if (!paySuccess) {
             paymentPollExpired = true
-            message = "自动确认已停止；如果已完成支付，请手动刷新余额。"
+            message = Str.topupPollStopped
             isError = false
         }
     }
@@ -1360,9 +1305,9 @@ fun TopupDialog(
                 horizontalArrangement = Arrangement.SpaceBetween,
                 verticalAlignment = Alignment.CenterVertically,
             ) {
-                Text("账户额度充值", style = MaterialTheme.typography.titleLarge.copy(fontWeight = androidx.compose.ui.text.font.FontWeight.Bold))
+                Text(Str.topupTitle, style = MaterialTheme.typography.titleLarge.copy(fontWeight = androidx.compose.ui.text.font.FontWeight.Bold))
                 IconButton(onClick = onDismiss) {
-                    Icon(Icons.Default.DeleteSweep, contentDescription = "关闭", modifier = Modifier.size(20.dp))
+                    Icon(Icons.Default.DeleteSweep, contentDescription = Str.close, modifier = Modifier.size(20.dp))
                 }
             }
             Spacer(Modifier.height(12.dp))
@@ -1375,13 +1320,13 @@ fun TopupDialog(
                 ) {
                     Icon(
                         Icons.Default.CheckCircle,
-                        contentDescription = "成功",
+                        contentDescription = Str.success,
                         tint = MaterialTheme.colorScheme.primary,
                         modifier = Modifier.size(56.dp),
                     )
                     Spacer(Modifier.height(12.dp))
-                    Text("充值成功！", style = MaterialTheme.typography.titleMedium.copy(fontWeight = androidx.compose.ui.text.font.FontWeight.Bold))
-                    Text("额度已实时到账并同步", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.agent567Extra.secondaryText)
+                    Text(Str.topupSuccess, style = MaterialTheme.typography.titleMedium.copy(fontWeight = androidx.compose.ui.text.font.FontWeight.Bold))
+                    Text(Str.topupCredited, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.agent567Extra.secondaryText)
                 }
                 Spacer(Modifier.height(32.dp))
             } else 
@@ -1393,7 +1338,7 @@ fun TopupDialog(
                     .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f), androidx.compose.foundation.shape.RoundedCornerShape(10.dp))
                     .padding(4.dp),
             ) {
-                listOf("在线充值", "卡密兑换").forEachIndexed { idx, title ->
+                listOf(Str.topupOnline, Str.topupRedeem).forEachIndexed { idx, title ->
                     val isSel = activeTab == idx
                     Box(
                         modifier = Modifier
@@ -1416,7 +1361,17 @@ fun TopupDialog(
             }
 
             Spacer(Modifier.height(16.dp))
-            if (message != null) {
+            if (paymentUnavailable) {
+                Agent567Card {
+                    Column(Modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                        Text(Str.topupUnavailable, style = MaterialTheme.typography.titleMedium)
+                        Text(Str.topupUnavailableHint, style = MaterialTheme.typography.bodySmall)
+                        TextButton(onClick = { activeTab = 1; message = null }) { Text(Str.topupUseCode) }
+                        TextButton(onClick = { message = null }) { Text(Str.topupChangePayment) }
+                    }
+                }
+            }
+            if (message != null && !paymentUnavailable) {
                 Text(
                     text = message!!,
                     style = MaterialTheme.typography.bodySmall,
@@ -1425,12 +1380,12 @@ fun TopupDialog(
                 )
             }
 
-            if (activeTab == 0) {
+            if (activeTab == 0 && !paymentUnavailable) {
                 // 在线充值 (易支付)
-                Text("选择支付方式", style = MaterialTheme.typography.labelMedium.copy(fontWeight = androidx.compose.ui.text.font.FontWeight.Bold))
+                Text(Str.topupChooseMethod, style = MaterialTheme.typography.labelMedium.copy(fontWeight = androidx.compose.ui.text.font.FontWeight.Bold))
                 Spacer(Modifier.height(8.dp))
                 Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    listOf("alipay" to "支付宝", "wxpay" to "微信支付").forEach { (method, label) ->
+                    listOf("alipay" to Str.topupAlipay, "wxpay" to Str.topupWechat).forEach { (method, label) ->
                         val isSel = payMethod == method
                         androidx.compose.material3.OutlinedButton(
                             onClick = { payMethod = method },
@@ -1447,7 +1402,7 @@ fun TopupDialog(
                 }
 
                 Spacer(Modifier.height(16.dp))
-                Text("充值金额 (1元 = $1)", style = MaterialTheme.typography.labelMedium.copy(fontWeight = androidx.compose.ui.text.font.FontWeight.Bold))
+                Text(Str.topupAmount, style = MaterialTheme.typography.labelMedium.copy(fontWeight = androidx.compose.ui.text.font.FontWeight.Bold))
                 Spacer(Modifier.height(8.dp))
                 Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                     listOf(10, 20, 50, 100).forEach { amt ->
@@ -1471,13 +1426,13 @@ fun TopupDialog(
                     onValueChange = { customAmountText = it },
                     modifier = Modifier.fillMaxWidth(),
                     singleLine = true,
-                    label = { Text("自定义金额 (≥1元整数)") },
+                    label = { Text(Str.topupCustom) },
                 )
 
                 if (payingNotice) {
                     Spacer(Modifier.height(12.dp))
                     Text(
-                        if (paymentPollExpired) "自动确认已停止；支付后可手动刷新余额" else "已调起外部支付收银台，支付成功后可点击下方按钮刷新余额",
+                        if (paymentPollExpired) Str.topupManualHint else Str.topupExternalHint,
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.primary,
                     )
@@ -1487,43 +1442,43 @@ fun TopupDialog(
                         modifier = Modifier.fillMaxWidth(),
                         shape = androidx.compose.foundation.shape.RoundedCornerShape(8.dp),
                     ) {
-                        Text("已完成支付，刷新余额", style = MaterialTheme.typography.labelMedium)
+                        Text(Str.topupPaid, style = MaterialTheme.typography.labelMedium)
                     }
                 }
 
-            } else {
+            } else if (activeTab != 0) {
                 // 卡密兑换
-                Text("输入兑换码 / 卡密", style = MaterialTheme.typography.labelMedium.copy(fontWeight = androidx.compose.ui.text.font.FontWeight.Bold))
+                Text(Str.topupCodePrompt, style = MaterialTheme.typography.labelMedium.copy(fontWeight = androidx.compose.ui.text.font.FontWeight.Bold))
                 Spacer(Modifier.height(8.dp))
                 org.agent567.android.ui.components.Agent567TextField(
                     value = cdkeyText,
                     onValueChange = { cdkeyText = it; message = null },
                     modifier = Modifier.fillMaxWidth(),
                     singleLine = true,
-                    label = { Text("卡密 (CDKEY)") },
+                    label = { Text(Str.topupCodeLabel) },
                 )
             }
                 Spacer(Modifier.height(16.dp))
             }
 
             Spacer(Modifier.height(8.dp))
-            if (!paySuccess) {
+            if (!paySuccess && !paymentUnavailable) {
                 PrimaryBlackButton(
                     text = when {
-                        loading && activeTab == 0 -> "正在创建订单..."
-                        loading -> "正在兑换..."
-                        activeTab == 0 -> "前往支付"
-                        else -> "立即兑换"
+                        loading && activeTab == 0 -> Str.topupCreating
+                        loading -> Str.topupRedeeming
+                        activeTab == 0 -> Str.topupPay
+                        else -> Str.topupRedeemAction
                     },
                     onClick = {
                         if (activeTab == 0) {
                             val customAmount = customAmountText.trim()
                             val finalAmt = if (customAmount.isEmpty()) selectedAmount else customAmount.toIntOrNull()
                             if (finalAmt == null) {
-                                message = "请输入有效的整数金额"
+                                message = Str.topupInvalidAmount
                                 isError = true
                             } else if (finalAmt < 1) {
-                                message = "金额不能少于 1 元"
+                                message = Str.topupMinimumAmount
                                 isError = true
                             } else {
                                 loading = true
@@ -1548,7 +1503,7 @@ fun TopupDialog(
                                 })
                             }
                         } else if (cdkeyText.isBlank()) {
-                            message = "请输入卡密"
+                            message = Str.topupCodeRequired
                             isError = true
                         } else {
                             loading = true
@@ -1571,4 +1526,11 @@ fun TopupDialog(
             }
         }
     }
+}
+
+internal fun usernameInitial(name: String): String {
+    val trimmed = name.trim()
+    if (trimmed.isEmpty()) return "?"
+    val count = if (trimmed.length >= 2 && trimmed[0].isHighSurrogate() && trimmed[1].isLowSurrogate()) 2 else 1
+    return trimmed.take(count).uppercase()
 }

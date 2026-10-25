@@ -9,16 +9,16 @@ CLI 适合从终端执行一次任务、输出 JSON 事件或启动 RPC。桌面
 
 ```bash
 # 默认文本输出
-vetta "总结当前目录的项目结构"
+567-agent "总结当前目录的项目结构"
 
 # 结构化 JSON 事件流
-vetta --mode json "检查 package.json 中的脚本"
+567-agent --mode json "检查 package.json 中的脚本"
 
 # 选择模型和思考档位
-vetta --model openai/gpt-4o:high "分析这个故障"
+567-agent --model openai/gpt-4o:high "分析这个故障"
 
 # 恢复最近会话
-vetta --continue "继续上次任务"
+567-agent --continue "继续上次任务"
 ```
 
 | 参数 | 说明 |
@@ -38,7 +38,7 @@ vetta --continue "继续上次任务"
 | 范围 | 路径 |
 | --- | --- |
 | 全局 | `~/.567agent/agent/settings.json` |
-| 项目 | `<cwd>/.vetta/settings.json` |
+| 项目 | `<cwd>/.567agent/settings.json` |
 
 项目设置覆盖全局设置。相对路径相对于各自配置文件目录解析；也支持绝对路径和 `~`。
 
@@ -62,11 +62,11 @@ Windows 默认查找 Git Bash 或 PATH 中的 `bash`。也可以显式配置：
 CLI 可以安装包含 extensions、skills 和 prompts 的 npm、Git 或本地资源源：
 
 ```bash
-vetta install npm:@scope/package@1.2.3
-vetta install git:github.com/example/repo@v1
-vetta list
-vetta update
-vetta remove npm:@scope/package
+567-agent install npm:@scope/package@1.2.3
+567-agent install git:github.com/example/repo@v1
+567-agent list
+567-agent update
+567-agent remove npm:@scope/package
 ```
 
 资源包中的扩展可以执行代码。安装前审查来源、版本和权限，不要把不可信仓库直接加入长期配置。

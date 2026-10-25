@@ -17,7 +17,7 @@ import { fitViewport, inverseScale, useViewport, type ViewportController } from 
 import { getPluginCtx, notify } from "../plugin-context";
 import { attachFrame, detachFrame, railFrames, swapFrames } from "./attach";
 import { bytesToBase64, dataUrlToBytes } from "./binary";
-import { VETTA_LOGO_DATA_URL } from "./brand-logo";
+import { AGENT567_LOGO_DATA_URL } from "./brand-logo";
 import { FrameRail, type RailFrame } from "./FrameRail";
 import { layoutMockup } from "./layout";
 import { loadImage } from "./load-image";
@@ -119,7 +119,7 @@ export function ExportMockupDialog() {
 
 	useEffect(() => {
 		let cancelled = false;
-		void loadImage(VETTA_LOGO_DATA_URL).then((image) => {
+		void loadImage(AGENT567_LOGO_DATA_URL).then((image) => {
 			if (!cancelled) setLogo(image);
 		});
 		return () => {

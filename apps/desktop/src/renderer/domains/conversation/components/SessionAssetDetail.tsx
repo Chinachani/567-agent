@@ -43,6 +43,13 @@ export function SessionAssetDetail({
 						<p className="text-[12px] text-muted-foreground">
 							{t(`workbench.preview.${detail.previewStatus ?? "unavailable"}`)}
 						</p>
+						{detail.thumbnailDataUrl && /^data:image\/(png|jpeg);base64,/.test(detail.thumbnailDataUrl) && (
+							<img
+								src={detail.thumbnailDataUrl}
+								alt={detail.title}
+								className="max-h-72 max-w-full rounded-lg object-contain"
+							/>
+						)}
 						{detail.text && <pre className="whitespace-pre-wrap text-[12px]">{detail.text}</pre>}
 					</>
 				)}

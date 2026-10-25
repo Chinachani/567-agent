@@ -7,7 +7,7 @@ import { getAgent567HomePath } from "@567agent/action-rpc";
 import type { ProgressInfo, UpdateInfo } from "builder-util-runtime";
 import { CancellationError } from "builder-util-runtime";
 import type { ResolvedUpdateFileInfo } from "electron-updater";
-import { resolveWindowsDataLayout, resolveWindowsDataLayoutFromEnvironment } from "./windows-data-layout.js";
+import { resolveWindowsDataLayout, resolveWindowsDataLayoutForProcess } from "./windows-data-layout.js";
 
 const VERSION_PATTERN = /^[0-9A-Za-z][0-9A-Za-z.+-]{0,63}$/;
 const WINDOWS_EXECUTABLE_NAME = "567-Agent.exe";
@@ -188,7 +188,7 @@ async function installWithInno(
 				installerPath,
 				buildInnoUpdateArguments(
 					storeRoot,
-					resolveWindowsDataLayoutFromEnvironment().dataRoot ?? getAgent567HomePath(),
+					resolveWindowsDataLayoutForProcess().dataRoot ?? getAgent567HomePath(),
 					progressPath,
 					logPath,
 				),

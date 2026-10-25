@@ -1,5 +1,6 @@
 import type { JSX, ReactNode } from "react";
 import { Button, Switch } from "@vetta-org/ui";
+import { WorkspacePageHeader } from "../shared/WorkspacePageHeader";
 import { MotionSelect } from "./MotionSelect";
 import { SettingRow, SettingSection, type SettingSectionMeta } from "./SettingChrome";
 import { InputField } from "./SettingsFormFields";
@@ -21,9 +22,6 @@ export interface GeneralSettingsViewLabels {
 	readonly debugModeDescription: string;
 	readonly exportDiagnostics: string;
 	readonly exportDiagnosticsDescription: string;
-	readonly startAppGuide: string;
-	readonly startAppGuideDescription: string;
-	readonly startAppGuideAction: string;
 	/** App updates row title, e.g. "当前版本". */
 	readonly appVersion: string;
 	readonly updateSource: string;
@@ -75,7 +73,6 @@ export interface GeneralSettingsViewProps {
 	readonly onDebugChange: (checked: boolean) => void;
 	readonly exportingDiagnostics: boolean;
 	readonly onExportDiagnostics: () => void;
-	readonly onStartAppGuide: () => void;
 }
 
 /**
@@ -84,7 +81,7 @@ export interface GeneralSettingsViewProps {
  *
  * Grouped into 3 sections to reduce one-setting-per-card scatter:
  * - basics: workspace, sandbox, notifications
- * - app: updates, setup guide
+ * - app: updates and download source
  * - developer: debug mode, diagnostics export
  */
 export function GeneralSettingsView({
@@ -112,7 +109,6 @@ export function GeneralSettingsView({
 	onDebugChange,
 	exportingDiagnostics,
 	onExportDiagnostics,
-	onStartAppGuide,
 }: GeneralSettingsViewProps): JSX.Element {
 	const invalidUpdateProxyUrl = updateProxyUrl.trim().length > 0 && !updateProxyUrlValid;
 	const updateProxyStatusLabel =
@@ -126,8 +122,8 @@ export function GeneralSettingsView({
 						? labels.updateSourceInvalid
 						: labels.updateSourceCustomHint;
 	return (
-		<div className="mx-auto w-full max-w-[680px] px-8 pt-2 pb-4">
-			<h1 className="mb-6 text-[20px] font-bold text-foreground">{labels.title}</h1>
+		<div>
+			<WorkspacePageHeader title={labels.title} className="mb-8 border-b border-border/60 pb-6" />
 
 			<SettingSection title={labels.sections.basics} section={sections.basics}>
 				<SettingRow title={labels.workspaceTitle} description={labels.workspaceDescription}>
@@ -177,7 +173,7 @@ export function GeneralSettingsView({
 			</SettingSection>
 
 			<SettingSection title={labels.sections.app} section={sections.app}>
-				{/* 与下方 App 引导同一 SettingRow：左标题+描述，右 outline sm 按钮。 */}
+				{/* Version status and download source share the same settings rows. */}
 				<SettingRow title={labels.appVersion} description={updatesDescription || undefined} border={!updatesDetail}>
 					{updatesAction}
 				</SettingRow>
@@ -234,11 +230,6 @@ export function GeneralSettingsView({
 						</div>
 					</SettingRow>
 				) : null}
-				<SettingRow title={labels.startAppGuide} description={labels.startAppGuideDescription} border={false}>
-					<Button size="sm" variant="outline" onClick={onStartAppGuide}>
-						{labels.startAppGuideAction}
-					</Button>
-				</SettingRow>
 			</SettingSection>
 
 			<SettingSection title={labels.sections.developer} section={sections.developer}>

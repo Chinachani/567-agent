@@ -1,3 +1,4 @@
+export { FeatureGuide } from "./components/FeatureGuide";
 export { SetupWizard } from "./components/SetupWizard";
 export {
 	isSetupWizardCompleted,

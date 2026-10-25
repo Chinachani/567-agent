@@ -44,6 +44,21 @@ class ErrorMapperTest {
     }
 
     @Test
+    fun distinguishesDesktopModelNetworkFailureFromConfigurationFailure() {
+        val message = "电脑与模型服务的连接中断，消息已保留。请检查电脑网络或稍后重试。"
+        val ui = ErrorMapper.from(RemoteRequestException(RemoteError(
+            code = RemoteErrorCode.InternalError, message = message, retryable = false,
+        )))
+        assertEquals("模型网络连接中断", ui.title)
+        assertEquals(message, ui.message)
+        assertEquals(UiErrorAction.Retry, ui.action)
+        val unsafe = ErrorMapper.from(RemoteRequestException(RemoteError(
+            code = RemoteErrorCode.InternalError, message = "token=secret-value", retryable = false,
+        )))
+        assertEquals("请在电脑端检查模型配置和运行日志后重试", unsafe.message)
+    }
+
+    @Test
     fun doesNotExposeUnknownExceptionMessage() {
         val ui = ErrorMapper.from(IllegalStateException("token=secret-value"))
 

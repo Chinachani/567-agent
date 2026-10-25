@@ -1,4 +1,4 @@
-import { mkdtemp, readdir, rm } from "node:fs/promises";
+import { mkdir, mkdtemp, readdir, readFile, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import type { RuntimeHost } from "@567agent/runtime-core";
@@ -171,5 +171,138 @@ describe("import mobile session archive", () => {
 			"Mobile conversation import failed at session 1 (Imported chat), desktop id desktop-1: Mobile conversation import failed at message 1 (user): disk full",
 		);
 		expect(runtime.deleteSession).toHaveBeenCalledWith(session.sessionPath);
+	});
+	it("skips mirrored desktop sessions and their media instead of copying them back", async () => {
+		const cwd = await mkdtemp(join(tmpdir(), "agent567-import-mirror-"));
+		const createSession = vi.fn();
+		const runtime = {} as RuntimeHost;
+		try {
+			const result = await importMobileSessionArchive(
+				{
+					...archive,
+					sessions: [{ ...archive.sessions[0]!, origin: "Desktop" }],
+					messages: [
+						{
+							sessionId: "mobile-1",
+							items: [
+								{
+									...archive.messages[0]!.items[1]!,
+									images: [{ id: "mirror", mimeType: "image/png", base64Data: "invalid" }],
+								},
+							],
+						},
+					],
+				},
+				{ cwd, runtime, conversationService: { createSession } as unknown as DesktopConversationService },
+			);
+			expect(result).toEqual({ importedSessions: 0, importedMessages: 0, sessionPaths: [] });
+			expect(createSession).not.toHaveBeenCalled();
+			expect(await readdir(cwd)).toEqual([]);
+		} finally {
+			await rm(cwd, { recursive: true, force: true });
+		}
+	});
+	it("removes only new media after failure and allows a clean retry without orphan files", async () => {
+		const cwd = await mkdtemp(join(tmpdir(), "agent567-import-retry-"));
+		const mediaRoot = join(cwd, ".567agent", "imported-media");
+		const session = { sessionId: "desktop-1", sessionPath: join(cwd, "session.jsonl") } as DesktopConversationSession;
+		const append = vi.fn(async () => ({ entryId: "entry" }));
+		append.mockRejectedValueOnce(new Error("disk full"));
+		const runtime = {
+			renameSessionById: async () => {},
+			appendConversationMessage: append,
+			deleteSession: vi.fn(async () => {}),
+		} as unknown as RuntimeHost;
+		const conversationService = { createSession: async () => session } as unknown as DesktopConversationService;
+		const source: SessionMigrationArchive = {
+			...archive,
+			messages: [
+				{
+					sessionId: "mobile-1",
+					items: [
+						{
+							...archive.messages[0]!.items[1]!,
+							images: [{ id: "new", mimeType: "image/png", base64Data: "AQID" }],
+						},
+					],
+				},
+			],
+		};
+		try {
+			await mkdir(mediaRoot, { recursive: true });
+			await writeFile(join(mediaRoot, "existing.png"), "existing data");
+			await expect(importMobileSessionArchive(source, { cwd, runtime, conversationService })).rejects.toThrow(
+				"disk full",
+			);
+			expect(await readdir(mediaRoot)).toEqual(["existing.png"]);
+			expect(await readFile(join(mediaRoot, "existing.png"), "utf8")).toBe("existing data");
+			expect(runtime.deleteSession).toHaveBeenCalledWith(session.sessionPath);
+			const result = await importMobileSessionArchive(source, { cwd, runtime, conversationService });
+			expect(result.importedSessions).toBe(1);
+			expect(result.importedMessages).toBe(1);
+			expect(await readdir(mediaRoot)).toHaveLength(2);
+		} finally {
+			await rm(cwd, { recursive: true, force: true });
+		}
+	});
+	it("keeps a phone reset boundary excluded after a later summary is imported", async () => {
+		const restoreImportedContext = vi.fn(async () => undefined);
+		const source = {
+			...archive,
+			sessions: [
+				{
+					...archive.sessions[0]!,
+					context: {
+						resetThroughMessageId: "old-assistant",
+						resetThroughCreatedAtEpochMs: 2,
+						throughMessageId: "recent-assistant",
+						throughCreatedAtEpochMs: 4,
+						summary: "Recent summary",
+					},
+				},
+			],
+			messages: [
+				{
+					sessionId: archive.sessions[0]!.id,
+					items: [
+						{ ...archive.messages[0]!.items[0]!, id: "old-user", role: "user" as const, createdAtEpochMs: 1 },
+						{
+							...archive.messages[0]!.items[0]!,
+							id: "old-assistant",
+							role: "assistant" as const,
+							createdAtEpochMs: 2,
+						},
+						{ ...archive.messages[0]!.items[0]!, id: "recent-user", role: "user" as const, createdAtEpochMs: 3 },
+						{
+							...archive.messages[0]!.items[0]!,
+							id: "recent-assistant",
+							role: "assistant" as const,
+							createdAtEpochMs: 4,
+						},
+					],
+				},
+			],
+		};
+		const { parseSessionMigrationArchive } = await import("./session-migration-backup.js");
+		let index = 0;
+		const runtime = {
+			renameSessionById: async () => {},
+			deleteSession: async () => {},
+			appendConversationMessage: async () => ({ entryId: `entry-${++index}` }),
+		} as unknown as RuntimeHost;
+		const conversationService = {
+			createSession: async () => ({ sessionId: "desktop-1", sessionPath: "/tmp/desktop-1.jsonl" }),
+			restoreImportedContext,
+		} as unknown as DesktopConversationService;
+		await importMobileSessionArchive(parseSessionMigrationArchive(Buffer.from(JSON.stringify(source))), {
+			runtime,
+			conversationService,
+			cwd: "/tmp",
+		});
+		expect(restoreImportedContext).toHaveBeenCalledWith(
+			"desktop-1",
+			expect.objectContaining({ excludedTurnIds: ["entry-1"] }),
+			["entry-3"],
+		);
 	});
 });

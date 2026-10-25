@@ -99,7 +99,13 @@ export async function runAgentRpcCommand(args: string[]): Promise<number> {
 		}
 		const { runAgentRuntimeCli } = await import("@567agent/cli-host");
 		const injectRuntimeCredentials = await loadRuntimeCredentialInjector();
-		await runAgentRuntimeCli(args, { injectRuntimeCredentials });
+		const { createDesktopModelRuntime } = await import("../models/desktop-model-runtime.js");
+		const { createApi567InferenceStream } = await import("../567api/inference.js");
+		await runAgentRuntimeCli(args, {
+			injectRuntimeCredentials,
+			createModelRuntime: createDesktopModelRuntime,
+			streamFn: createApi567InferenceStream(),
+		});
 		return typeof process.exitCode === "number" ? process.exitCode : 0;
 	} catch (err) {
 		const msg = err instanceof Error ? (err.stack ?? err.message) : String(err);

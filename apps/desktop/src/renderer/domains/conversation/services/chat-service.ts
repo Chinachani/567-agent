@@ -610,6 +610,17 @@ export function fullHistoryToChat(entries: HistoryEntry[]): ChatConversationItem
 			pendingSettingsAssistTabId = undefined;
 			pendingPromptRef = undefined;
 			pendingAttachments = undefined;
+			if (entry.turnId) {
+				currentAssistant().blocks.push({
+					type: "compaction",
+					id: entry.entryId ?? `hist-compact-${messages.length}`,
+					turnId: entry.turnId,
+					status: "completed",
+					timestamp: new Date(entry.timestamp).getTime(),
+					summary: entry.summary,
+				});
+				continue;
+			}
 			messages.push({
 				kind: "event",
 				id: entry.entryId ?? `hist-compact-${messages.length}`,

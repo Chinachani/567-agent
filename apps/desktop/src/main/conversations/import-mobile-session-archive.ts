@@ -19,6 +19,24 @@ export interface MobileArchiveImportResult {
 	readonly sessionPaths: readonly string[];
 }
 
+function contextBoundaryUserEntries(
+	messages: readonly SessionMigrationMessage[],
+	entries: ReadonlyMap<string, string>,
+	throughId: string | null | undefined,
+	throughTime: number | null | undefined,
+): string[] {
+	const boundary = messages.findIndex((message) => message.id === throughId);
+	const orphan = throughId != null && boundary < 0 && throughTime == null;
+	return messages
+		.filter(
+			(message, index) =>
+				message.role === "user" &&
+				(orphan ||
+					(boundary >= 0 ? index <= boundary : throughTime != null && message.createdAtEpochMs <= throughTime)),
+		)
+		.flatMap((message) => entries.get(message.id) ?? []);
+}
+
 export async function importMobileSessionArchive(
 	archive: SessionMigrationArchive,
 	dependencies: {
@@ -66,23 +84,25 @@ export async function importMobileSessionArchive(
 				}
 				if (source.context) {
 					const sourceItems = groups.get(source.id) ?? [];
-					const boundary = sourceItems.findIndex((message) => message.id === source.context?.throughMessageId);
-					const orphanBoundary =
-						source.context.throughMessageId != null &&
-						boundary < 0 &&
-						source.context.throughCreatedAtEpochMs == null;
-					const summarized = sourceItems
-						.filter(
-							(message, index) =>
-								message.role === "user" &&
-								(orphanBoundary ||
-									(boundary >= 0
-										? index <= boundary
-										: source.context?.throughCreatedAtEpochMs != null &&
-											message.createdAtEpochMs <= source.context.throughCreatedAtEpochMs)),
-						)
-						.flatMap((message) => importedEntryIds.get(message.id) ?? []);
-					const excluded = (source.context.excludedTurnIds ?? []).flatMap((id) => importedEntryIds.get(id) ?? []);
+					const reset = contextBoundaryUserEntries(
+						sourceItems,
+						importedEntryIds,
+						source.context.resetThroughMessageId,
+						source.context.resetThroughCreatedAtEpochMs,
+					);
+					const resetIds = new Set(reset);
+					const summarized = contextBoundaryUserEntries(
+						sourceItems,
+						importedEntryIds,
+						source.context.throughMessageId,
+						source.context.throughCreatedAtEpochMs,
+					).filter((id) => !resetIds.has(id));
+					const excluded = [
+						...new Set([
+							...reset,
+							...(source.context.excludedTurnIds ?? []).flatMap((id) => importedEntryIds.get(id) ?? []),
+						]),
+					];
 					await dependencies.conversationService.restoreImportedContext(
 						session.sessionId,
 						{

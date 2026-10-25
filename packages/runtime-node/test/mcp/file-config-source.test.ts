@@ -2,7 +2,7 @@ import { mkdir, mkdtemp, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
-import { FileMcpConfigSource, parseMcpConfig } from "../../src/mcp/index.js";
+import { createNodeMcpSupervisor, FileMcpConfigSource, parseMcpConfig } from "../../src/mcp/index.js";
 
 describe("FileMcpConfigSource", () => {
 	const temporaryDirectories: string[] = [];
@@ -100,6 +100,42 @@ describe("FileMcpConfigSource", () => {
 
 		expect(first).not.toBe(missing);
 		expect(source.getMergedSignature()).not.toBe(first);
+	});
+
+	it("reads legacy project config only until canonical config exists, including explicit empty config", async () => {
+		const fixture = await createFixture();
+		const projectConfigPath = join(fixture.root, "project", ".567agent", "mcp.json");
+		const fallbackProjectConfigPath = fixture.projectConfigPath;
+		await writeJson(fallbackProjectConfigPath, { mcpServers: { legacy: { command: "old-command" } } });
+		const source = new FileMcpConfigSource({
+			...fixture,
+			projectConfigPath,
+			fallbackProjectConfigPath,
+			projectRoot: fixture.root,
+		});
+		expect(Object.keys(source.loadMerged().mcpServers)).toEqual(["legacy"]);
+		const legacySignature = source.getMergedSignature();
+		await writeJson(projectConfigPath, { mcpServers: {} });
+		expect(source.loadMerged()).toEqual({ mcpServers: {} });
+		expect(source.getMergedSignature()).not.toBe(legacySignature);
+		expect(source.getConfigPaths().project).toBe(projectConfigPath);
+		await writeFile(projectConfigPath, "invalid-json");
+		expect(() => source.loadMerged()).toThrow("Failed to load MCP config");
+	});
+
+	it("composes the default branded project location with read-only legacy compatibility", async () => {
+		const fixture = await createFixture();
+		const projectRoot = join(fixture.root, "project");
+		await writeJson(fixture.projectConfigPath, { mcpServers: { legacy: { command: "old-command" } } });
+		const { configSource } = createNodeMcpSupervisor({
+			projectRoot,
+			agentDir: join(fixture.root, "agent"),
+			clientVersion: "test",
+		});
+		expect(configSource.getConfigPaths().project).toBe(join(projectRoot, ".567agent", "mcp.json"));
+		expect(Object.keys(configSource.loadMerged().mcpServers)).toEqual(["legacy"]);
+		await writeJson(configSource.getConfigPaths().project, { mcpServers: { current: { command: "new-command" } } });
+		expect(Object.keys(configSource.loadMerged().mcpServers)).toEqual(["current"]);
 	});
 
 	async function createFixture() {

@@ -35,8 +35,8 @@ export function SessionStatusIcon({
 		<span
 			data-session-leading-icon="true"
 			className={cn(
-				"icon-[solar--chat-round-line-linear] h-3.5 w-3.5 shrink-0",
-				active ? "text-foreground/70" : "text-muted-foreground/50",
+				"icon-[solar--chat-round-line-linear] h-4 w-4 shrink-0",
+				active ? "text-foreground" : "text-muted-foreground",
 			)}
 		/>
 	);

@@ -81,3 +81,37 @@ describe("loadPluginSnapshot", () => {
 		expect(loader).toHaveBeenCalledOnce();
 	});
 });
+
+it("yields before activation and publishes a ready sidebar entry without waiting for an unrelated plugin", async () => {
+	let resolveSlow!: (value: LoadedFixture) => void;
+	let paint!: () => void;
+	const painted = new Promise<void>((resolve) => {
+		paint = resolve;
+	});
+	const slow = new Promise<LoadedFixture>((resolve) => {
+		resolveSlow = resolve;
+	});
+	const load = vi.fn(async (plugin: InstalledFixture) =>
+		plugin.id === "slow" ? slow : { id: plugin.id, activation: 1 },
+	);
+	const progress = vi.fn();
+	const loading = loadPluginSnapshot(
+		[
+			{ id: "canvas", enabled: true, version: 1 },
+			{ id: "slow", enabled: true, version: 1 },
+		],
+		[],
+		undefined,
+		load,
+		vi.fn(),
+		{ beforeLoad: () => painted, onProgress: progress },
+	);
+	expect(load).not.toHaveBeenCalled();
+	paint();
+	await vi.waitFor(() => expect(progress).toHaveBeenCalledWith([{ id: "canvas", activation: 1 }]));
+	resolveSlow({ id: "slow", activation: 1 });
+	expect(await loading).toEqual([
+		{ id: "canvas", activation: 1 },
+		{ id: "slow", activation: 1 },
+	]);
+});

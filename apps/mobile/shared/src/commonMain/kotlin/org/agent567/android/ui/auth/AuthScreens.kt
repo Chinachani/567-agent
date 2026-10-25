@@ -1,5 +1,9 @@
 package org.agent567.android.ui.auth
 
+import org.agent567.android.resources.Res
+import org.agent567.android.resources.brand_icon
+import org.jetbrains.compose.resources.painterResource
+import androidx.compose.foundation.Image
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -66,6 +70,8 @@ fun WelcomeScreen(
     onSkip: () -> Unit,
     onClearError: () -> Unit,
 ) {
+    var showFeatureGuide by remember { mutableStateOf(false) }
+    if (showFeatureGuide) org.agent567.android.ui.components.FeatureGuideDialog { showFeatureGuide = false }
     Column(
         modifier =
             Modifier
@@ -75,6 +81,11 @@ fun WelcomeScreen(
                 .verticalScroll(rememberScrollState()),
         verticalArrangement = Arrangement.Center,
     ) {
+        Spacer(Modifier.height(32.dp))
+        Image(painterResource(Res.drawable.brand_icon), contentDescription = null, modifier = Modifier.size(56.dp))
+        Spacer(Modifier.height(20.dp))
+        Text(Str.mobileWelcomeEyebrow, style = MaterialTheme.typography.labelMedium, color = MaterialTheme.agent567Extra.secondaryText)
+        Spacer(Modifier.height(8.dp))
         Text(Str.welcomeTitle, style = MaterialTheme.typography.headlineSmall)
         Spacer(Modifier.height(12.dp))
         Text(
@@ -103,6 +114,7 @@ fun WelcomeScreen(
         ) {
             Text(Str.skipForNow, color = MaterialTheme.agent567Extra.secondaryText)
         }
+        TextButton(onClick = { showFeatureGuide = true }, modifier = Modifier.align(Alignment.CenterHorizontally)) { Text(Str.featureGuideTitle) }
         if (error != null) {
             Spacer(Modifier.height(12.dp))
             Agent567ErrorBanner(error = error, onDismiss = onClearError)
@@ -138,7 +150,7 @@ private fun FeatureRow(
             .padding(vertical = 10.dp),
         verticalAlignment = Alignment.Top,
     ) {
-        Icon(icon, contentDescription = null, modifier = Modifier.size(22.dp))
+        org.agent567.android.ui.components.MobileIconTile(icon)
         Spacer(Modifier.width(12.dp))
         Column {
             Text(title, style = MaterialTheme.typography.titleSmall)
@@ -162,6 +174,10 @@ fun LoginScreen(
     onBack: () -> Unit,
     onSendVerification: (String, (Boolean, String) -> Unit) -> Unit = { _, _ -> },
     onRegister: (String, String, String, String, String?) -> Unit = { _, _, _, _, _ -> },
+    serverUrl: String = "",
+    onOpenServiceRoute: () -> Unit = {},
+    serviceRoutes: List<org.agent567.android.core.ServiceRoute> = org.agent567.android.core.ServiceRoute.entries,
+    loadingText: String = Str.loggingIn,
 ) {
     var account by remember { mutableStateOf("") }
     var password by remember { mutableStateOf("") }
@@ -188,7 +204,7 @@ fun LoginScreen(
         containerColor = MaterialTheme.agent567Extra.pageBackground,
         topBar = {
             TopAppBar(
-                title = { Text(Str.loginTitle, style = MaterialTheme.typography.titleMedium) },
+                title = { Text(Str.loginTitle, style = MaterialTheme.typography.titleLarge) },
                 navigationIcon = {
                     IconButton(onClick = onBack) {
                         Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = Str.back)
@@ -211,6 +227,7 @@ fun LoginScreen(
                     .padding(horizontal = 24.dp, vertical = 28.dp),
                 verticalArrangement = Arrangement.Top,
         ) {
+			org.agent567.android.ui.components.ServiceRouteEntry(serverUrl, onOpenServiceRoute, serviceRoutes)
             Text(
                 if (isRegisterMode) "注册 567 API 账户，畅享全能 AI 编码体验" else Str.loginSubtitle,
                 style = MaterialTheme.typography.bodyMedium,
@@ -411,7 +428,7 @@ fun LoginScreen(
                 }
                 Spacer(Modifier.height(20.dp))
                 PrimaryBlackButton(
-                    text = if (loading) Str.loggingIn else Str.loginAction,
+                    text = if (loading) loadingText else Str.loginAction,
                     onClick = { onLogin(account.trim(), if (loginModeEmail) "" else password) },
                     enabled = !loading && account.isNotBlank() && (loginModeEmail || password.isNotBlank()),
                 )

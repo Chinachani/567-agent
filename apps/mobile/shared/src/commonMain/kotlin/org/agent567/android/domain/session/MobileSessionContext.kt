@@ -13,6 +13,8 @@ data class MobileSessionContext(
     val pinnedText: String = "",
     val excludedTurnIds: List<String> = emptyList(),
     val selectionRevision: Long = 0,
+    val resetThroughMessageId: String? = null,
+    val resetThroughCreatedAtEpochMs: Long? = null,
 )
 
 data class ChatContextSnapshot(

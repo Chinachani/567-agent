@@ -1,6 +1,8 @@
+import { i18n } from "@shared/i18n";
 import { waitForCommittedPaint } from "@shared/lib/committed-paint";
 import { resolveLocalFilePath } from "@shared/lib/resolve-local-file-path";
 import { filePreviewAtom } from "@shared/store/atoms";
+import { showToast } from "@shared/store/toast-atoms";
 import type { MarkdownHost } from "@vetta-org/theme-ui/markdown";
 import { useSetAtom } from "jotai";
 import { useMemo } from "react";
@@ -10,6 +12,16 @@ export function useMarkdownHost(baseDirectory: string | null): MarkdownHost {
 	const open = useSetAtom(filePreviewAtom);
 	return useMemo(
 		() => ({
+			async openExternalUrl(url) {
+				await window.agent567.shell.openExternal(url);
+			},
+			async copyText(value, kind) {
+				await navigator.clipboard.writeText(kind === "file" ? resolveLocalFilePath(value, baseDirectory) : value);
+				showToast({ variant: "success", message: i18n.t("chat:copyButton.copied"), durationMs: 1500 });
+			},
+			async revealFile(path) {
+				await window.agent567.shell.showItemInFolder(resolveLocalFilePath(path, baseDirectory));
+			},
 			async openHtml(source) {
 				await waitForCommittedPaint();
 				const id = await window.agent567.markdown.openHtml(source);

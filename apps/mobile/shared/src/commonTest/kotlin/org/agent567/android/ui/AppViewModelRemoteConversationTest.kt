@@ -599,6 +599,60 @@ class AppViewModelRemoteConversationTest {
             assertEquals(Str.remoteConnectFailed, viewModel.state.value.remoteError?.title)
         }
 
+    @Test
+    fun failedDesktopDeletionKeepsSessionAndCanRetryFromTheSameScreen() = runTest(dispatcher) {
+        val gateway = FakeRemoteConversationGateway().apply { deletionFails = true }
+        val container = container(gateway)
+        val vm = AppViewModel(container)
+        advanceUntilIdle()
+        val session = container.sessionStore.createSession(title = "keep on error", origin = ConversationOrigin.Desktop, remoteDeviceId = "desktop-1", remoteSessionId = "remote-1")
+        vm.deleteSession(session.id)
+        advanceUntilIdle()
+        assertNotNull(vm.state.value.sessionDeletionError)
+        assertNotNull(container.sessionStore.getSession(session.id))
+        gateway.deletionFails = false
+        vm.retryFailedSessionDeletion()
+        advanceUntilIdle()
+        assertEquals(null, vm.state.value.sessionDeletionError)
+        assertEquals(null, container.sessionStore.getSession(session.id))
+    }
+
+    @Test
+    fun sendingConsumesPersistedDraftOnlyAfterSavingTheUserMessage() = runTest(dispatcher) {
+        val gateway = FakeRemoteConversationGateway()
+        val preferences = AppPreferences(MapSettings())
+        val container = container(gateway, preferences)
+        val vm = AppViewModel(container)
+        advanceUntilIdle()
+        preferences.authUserId = 7
+        vm.startDesktopConversation("desktop-1")
+        advanceUntilIdle()
+        val sid = assertNotNull(vm.state.value.currentSessionId)
+        vm.onDraftChange("persist then send")
+        advanceUntilIdle()
+        assertEquals("persist then send", container.sessionStore.getDraft(sid, "7").text)
+        vm.sendMessage()
+        advanceUntilIdle()
+        assertEquals("persist then send", container.sessionStore.getMessages(sid).first { it.role == ChatRole.User }.content)
+        assertEquals("", container.sessionStore.getDraft(sid, "7").text)
+    }
+
+    @Test
+    fun restartingThenRefreshingDoesNotDeleteAnUnsentDesktopDraft() = runTest(dispatcher) {
+        val gateway = FakeRemoteConversationGateway().apply {
+            desktopSessions = listOf(RemoteDesktopSessionSummary(id = "remote-draft", title = "Draft", updatedAtEpochMs = 1))
+        }
+        val container = container(gateway)
+        val session = container.sessionStore.createSession(title = "Draft", origin = ConversationOrigin.Desktop, remoteDeviceId = "desktop-1", remoteSessionId = "remote-draft", remoteSessionCreatedOnMobile = true)
+        container.sessionStore.saveDraft(session.id, "7", org.agent567.android.domain.session.SessionDraft("not empty"))
+        val vm = AppViewModel(container)
+        advanceUntilIdle()
+        vm.refreshDesktopSessions()
+        advanceUntilIdle()
+        assertTrue(gateway.emptySessionDeleteCalls.isEmpty())
+        assertNotNull(container.sessionStore.getSession(session.id))
+    }
+
     private fun container(
         gateway: RemoteConversationGateway,
         preferences: AppPreferences = AppPreferences(MapSettings()),
@@ -649,6 +703,13 @@ private class FakeRemoteConversationGateway : RemoteConversationGateway {
     var desktopHistory: List<RemoteDesktopHistoryMessage> = emptyList()
     var pendingDesktopHistory: CompletableDeferred<List<RemoteDesktopHistoryMessage>>? = null
     var desktopSessions: List<RemoteDesktopSessionSummary> = emptyList()
+    var deletionFails = false
+
+    override suspend fun deleteDesktopSession(deviceId: String, remoteSessionId: String): Boolean {
+        if (deletionFails) throw RemoteConversationException("Computer is offline")
+        return true
+    }
+
     val emptySessionDeleteCalls = mutableListOf<String>()
 
     override suspend fun connect(target: String): Boolean {

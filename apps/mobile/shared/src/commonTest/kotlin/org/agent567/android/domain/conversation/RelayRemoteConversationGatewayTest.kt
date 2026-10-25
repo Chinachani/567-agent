@@ -9,6 +9,11 @@ import kotlinx.coroutines.test.runTest
 import kotlinx.coroutines.test.advanceTimeBy
 import kotlinx.coroutines.test.runCurrent
 import kotlinx.coroutines.launch
+import kotlinx.serialization.json.jsonObject
+import kotlinx.serialization.json.JsonObject
+import kotlinx.serialization.json.jsonPrimitive
+import kotlinx.serialization.json.intOrNull
+import kotlinx.serialization.json.booleanOrNull
 import kotlinx.serialization.json.buildJsonObject
 import kotlinx.serialization.json.put
 import kotlinx.serialization.json.buildJsonArray
@@ -223,6 +228,65 @@ class RelayRemoteConversationGatewayTest {
         }
 
     @Test
+    fun followsByteBoundedPagesAndLabelsOversizedMessages() = runTest {
+        val offsets = mutableListOf<Int>()
+        val transport = FakeGatewayTransport(historyPage = { request ->
+            assertEquals(true, request.payload!!.jsonObject["boundedPages"]!!.jsonPrimitive.booleanOrNull)
+            val offset = request.payload.jsonObject["offset"]!!.jsonPrimitive.intOrNull!!
+            offsets += offset
+            buildJsonObject {
+                put("messages", buildJsonArray {
+                    add(buildJsonObject { put("id", "m-$offset"); put("role", "assistant"); put("text", "page-$offset"); put("truncated", offset == 1) })
+                })
+                put("hasMore", offset == 0)
+                put("nextOffset", offset + 1)
+            }
+        })
+        val gateway = RelayRemoteConversationGateway(scope = backgroundScope, transportFactory = { transport })
+        gateway.connect("fake-relay")
+        val messages = gateway.readDesktopSessionHistory("local", "remote")!!
+        assertEquals(listOf(0, 1), offsets)
+        assertEquals(listOf("m-0", "m-1"), messages.map { it.id })
+        assertEquals("page-0", messages[0].text)
+        assertTrue(messages[1].text.contains(org.agent567.android.ui.i18n.Str.remoteHistoryTruncated))
+        gateway.disconnect("desktop-1")
+    }
+
+    @Test
+    fun readsLegacyCountBasedPagesUntilTheShortPage() = runTest {
+        val offsets = mutableListOf<Int>()
+        val transport = FakeGatewayTransport(historyPage = { request ->
+            val offset = request.payload!!.jsonObject["offset"]!!.jsonPrimitive.intOrNull!!
+            offsets += offset
+            buildJsonObject {
+                put("messages", buildJsonArray {
+                    repeat(if (offset == 0) 100 else 1) { index ->
+                        add(buildJsonObject { put("id", "m-${offset + index}"); put("role", "user"); put("text", "message-${offset + index}") })
+                    }
+                })
+            }
+        })
+        val gateway = RelayRemoteConversationGateway(scope = backgroundScope, transportFactory = { transport })
+        gateway.connect("fake-relay")
+        val messages = gateway.readDesktopSessionHistory("local", "remote")!!
+        assertEquals(listOf(0, 100), offsets)
+        assertEquals(101, messages.size)
+        assertEquals("m-100", messages.last().id)
+        gateway.disconnect("desktop-1")
+    }
+
+    @Test
+    fun rejectsNonAdvancingHistoryCursor() = runTest {
+        val transport = FakeGatewayTransport(historyPage = {
+            buildJsonObject { put("messages", buildJsonArray {}); put("hasMore", true); put("nextOffset", 0) }
+        })
+        val gateway = RelayRemoteConversationGateway(scope = backgroundScope, transportFactory = { transport })
+        gateway.connect("fake-relay")
+        assertFailsWith<RemoteConversationException> { gateway.readDesktopSessionHistory("local", "remote") }
+        gateway.disconnect("desktop-1")
+    }
+
+    @Test
     fun retriesTheFirstHistoryPageOnceAfterProbeTimeout() =
         runTest {
             val transport = FakeGatewayTransport(firstHistoryTimeouts = 1)
@@ -251,6 +315,7 @@ private class FakeGatewayTransport(
     private val conditionalDeleteResult: Boolean = true,
     private val supportedMethods: List<String> = listOf("session.delete.empty"),
     private val firstHistoryTimeouts: Int = 0,
+    private val historyPage: ((RemoteRequest) -> JsonObject)? = null,
 ) : RemoteTransport {
     private val channel = Channel<RemoteFrame>(Channel.UNLIMITED)
     var historyRequestCount: Int = 0
@@ -302,7 +367,7 @@ private class FakeGatewayTransport(
                 if (frame.method == org.agent567.android.domain.remote.protocol.RemoteRequestMethod.SessionHistory) {
                     historyRequestCount += 1
                     if (historyRequestCount <= firstHistoryTimeouts) return
-                    channel.send(RemoteResponse(frame.requestId, success = true, payload = buildJsonObject { put("messages", buildJsonArray { }) }))
+                    channel.send(RemoteResponse(frame.requestId, success = true, payload = historyPage?.invoke(frame) ?: buildJsonObject { put("messages", buildJsonArray { }) }))
                     return
                 }
                 if (frame.method == org.agent567.android.domain.remote.protocol.RemoteRequestMethod.SessionDeleteEmpty) {

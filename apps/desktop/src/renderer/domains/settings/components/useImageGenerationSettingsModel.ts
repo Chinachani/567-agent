@@ -162,7 +162,7 @@ export function useImageGenerationSettingsModel(): ImageGenerationSettingsModel 
 			try {
 				await window.agent567.config.set({ imageGeneration: patch });
 				recordSettingsUsage({
-					tab: "agent",
+					tab: "models",
 					action: providerId ? "selected" : "reset",
 					target: mode,
 				});

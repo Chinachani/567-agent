@@ -1,4 +1,5 @@
 import type { PersonaOption } from "@preload/api.js";
+import { useSearch } from "@tanstack/react-router";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { SETTINGS_SECTION } from "../registry";
@@ -39,8 +40,10 @@ export interface AgentSettingsModel {
 		toggleAgentSkills: (checked: boolean) => void;
 		togglePromptPrediction: (checked: boolean) => void;
 		toggleVettaCli: (checked: boolean) => void;
+		setAdvancedOpen: (open: boolean) => void;
 	};
 	agentSkillsEnabled: boolean;
+	advancedOpen: boolean;
 	customPrompt: string;
 	dirty: boolean;
 	justSaved: boolean;
@@ -54,6 +57,8 @@ export interface AgentSettingsModel {
 }
 
 interface AgentSettingsLabels {
+	advancedTitle: string;
+	advancedDescription: string;
 	agentDescription: string;
 	agentSkill: string;
 	agentSkillDescription: string;
@@ -78,6 +83,13 @@ interface AgentSettingsLabels {
 
 export function useAgentSettingsModel(): AgentSettingsModel {
 	const { t } = useTranslation("settings");
+	const search = useSearch({ strict: false }) as Record<string, unknown>;
+	const [advancedOpen, setAdvancedOpen] = useState(
+		search.section === "agent-runtime" || search.h2 === "agent-runtime",
+	);
+	useEffect(() => {
+		if (search.section === "agent-runtime" || search.h2 === "agent-runtime") setAdvancedOpen(true);
+	}, [search.section, search.h2]);
 	const [personas, setPersonas] = useState<PersonaOption[]>([]);
 	const [personaId, setPersonaId] = useState("default");
 	const [customPrompt, setCustomPrompt] = useState("");
@@ -148,6 +160,8 @@ export function useAgentSettingsModel(): AgentSettingsModel {
 
 	const labels = useMemo<AgentSettingsLabels>(
 		() => ({
+			advancedTitle: t("agentSettings.advancedTitle"),
+			advancedDescription: t("agentSettings.advancedDescription"),
 			agentDescription: t("agentDescription"),
 			agentSkill: t("agentSettings.agentSkill"),
 			agentSkillDescription: t("agentSettings.agentSkillDesc"),
@@ -174,6 +188,7 @@ export function useAgentSettingsModel(): AgentSettingsModel {
 
 	return {
 		actions: {
+			setAdvancedOpen,
 			applyPersonalization,
 			setCustomPrompt,
 			setPersonaId,
@@ -182,6 +197,7 @@ export function useAgentSettingsModel(): AgentSettingsModel {
 			toggleVettaCli,
 		},
 		agentSkillsEnabled,
+		advancedOpen,
 		customPrompt,
 		dirty,
 		justSaved,

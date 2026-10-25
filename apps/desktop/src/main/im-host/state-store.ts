@@ -63,7 +63,7 @@ export function loadImState(filePath = DEFAULT_PATH): ImStateFile {
 }
 
 /**
- * The config-root rename from `~/.567agent` to `~/.567agent` moved the IM
+ * The config-root rename from `~/.vetta` to `~/.567agent` moved the IM
  * session files but older v3 routing entries kept their absolute paths. Map
  * only those legacy IM paths, and only when the corresponding file exists at
  * the current configured location (including an explicit AGENT567_HOME).

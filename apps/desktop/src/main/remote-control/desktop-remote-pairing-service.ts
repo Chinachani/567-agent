@@ -45,6 +45,7 @@ export interface DesktopRemotePairingState {
 	readonly inputEnabled: boolean;
 	readonly inputPermissionEnabled?: boolean;
 	readonly inputSupported: boolean;
+	readonly inputPointerMode?: "absolute" | "relative";
 	readonly inputSupportReason?: RemotePairingState["inputSupportReason"];
 	readonly pairingWarnings?: RemotePairingState["pairingWarnings"];
 	readonly error?: string;
@@ -63,6 +64,7 @@ export class DesktopRemotePairingService {
 	private localRelayCertificate: DesktopLocalRelayCertificate | undefined;
 	private certificateChangedForUpgrade = false;
 	private connectionState: RemoteConnectionState = "idle";
+	private inputRequest = 0;
 
 	constructor(
 		private readonly options: DesktopRemotePairingServiceOptions,
@@ -76,7 +78,9 @@ export class DesktopRemotePairingService {
 			...this.state,
 			inputPermissionEnabled: this.state.inputEnabled,
 			inputSupported: this.host?.inputSupported === true,
-			inputEnabled: this.state.inputEnabled && this.host?.inputSupported === true,
+			inputPointerMode: this.host?.inputPointerMode,
+			inputEnabled:
+				this.state.inputEnabled && this.host?.inputSupported === true && this.host.inputGranted !== false,
 			inputSupportReason: this.host?.inputSupportReason ?? this.state.inputSupportReason,
 		};
 	}
@@ -163,6 +167,7 @@ export class DesktopRemotePairingService {
 				inputEnabled: remote.inputEnabled === true,
 				autoShareScreen: remote.autoShareScreen === true,
 				inputSupported: this.host?.inputSupported === true,
+				inputPointerMode: this.host?.inputPointerMode,
 				inputSupportReason: this.host?.inputSupportReason,
 			};
 			log.info("remote pairing restored", { pairingId: remote.pairingId });
@@ -230,6 +235,7 @@ export class DesktopRemotePairingService {
 			autoShareScreen: false,
 			inputEnabled: false,
 			inputSupported: this.host?.inputSupported === true,
+			inputPointerMode: this.host?.inputPointerMode,
 			inputSupportReason: this.host?.inputSupportReason,
 			pairingWarnings: [
 				...(this.certificateChangedForUpgrade ? (["certificate_changed"] as const) : []),
@@ -258,11 +264,32 @@ export class DesktopRemotePairingService {
 	}
 
 	async setInputEnabled(enabled: boolean): Promise<DesktopRemotePairingState> {
-		const effective = enabled && this.host?.inputSupported === true;
-		if (effective) this.host?.grantInput();
-		else this.host?.revokeInput();
+		const request = ++this.inputRequest;
+		const host = this.host;
+		const pairingId = this.state.pairingId;
+		const effective = enabled && host?.inputSupported === true;
+		if (effective) {
+			try {
+				await host?.grantInput();
+			} catch (error) {
+				if (request !== this.inputRequest) return this.getState();
+				throw error;
+			}
+		} else {
+			this.host?.revokeInput();
+			this.vault.remove({
+				namespace: CREDENTIAL_NAMESPACE,
+				ownerId: this.state.pairingId ?? CREDENTIAL_OWNER,
+				name: "wayland-input-restore",
+			});
+		}
+		if (request !== this.inputRequest || host !== this.host) return this.getState();
 		this.state = { ...this.state, inputEnabled: effective };
-		await this.persistRemoteConfig({ inputEnabled: effective });
+		await updateDesktopConfig((config) =>
+			request === this.inputRequest && config.remoteControl?.pairingId === pairingId
+				? { ...config, remoteControl: { ...config.remoteControl, inputEnabled: effective } }
+				: config,
+		);
 		return this.getState();
 	}
 
@@ -276,6 +303,13 @@ export class DesktopRemotePairingService {
 	}
 
 	async revoke(clearCredential = true): Promise<void> {
+		++this.inputRequest;
+		if (this.state.pairingId)
+			this.vault.remove({
+				namespace: CREDENTIAL_NAMESPACE,
+				ownerId: this.state.pairingId,
+				name: "wayland-input-restore",
+			});
 		await stopDesktopRemoteAccess();
 		await stopDesktopRemoteDesktopHost();
 		await getDesktopLocalRelay().stop();
@@ -336,6 +370,22 @@ export class DesktopRemotePairingService {
 		this.host = await startDesktopRemoteDesktopHost({
 			signalingTargets,
 			inputEnabled,
+			waylandInputTokens: {
+				read: () =>
+					this.vault.get({ namespace: CREDENTIAL_NAMESPACE, ownerId: pairingId, name: "wayland-input-restore" }),
+				write: (value) =>
+					this.vault.put(
+						{ namespace: CREDENTIAL_NAMESPACE, ownerId: pairingId, name: "wayland-input-restore" },
+						value,
+						{ kind: "wayland-input", consumer: "desktop" },
+					),
+				clear: () =>
+					this.vault.remove({
+						namespace: CREDENTIAL_NAMESPACE,
+						ownerId: pairingId,
+						name: "wayland-input-restore",
+					}),
+			},
 			appRoot: this.options.appRoot,
 			isPackaged: this.options.isPackaged,
 			devServerUrl: this.options.devServerUrl,
@@ -345,7 +395,11 @@ export class DesktopRemotePairingService {
 				this.state = { ...this.state, autoShareScreen: enabled };
 			},
 			onInputCapabilityChange: (supported, reason) => {
-				if (supported && this.state.inputEnabled) this.host?.grantInput();
+				if (supported && this.state.inputEnabled)
+					void Promise.resolve(this.host?.grantInput()).catch(() => {
+						this.state = { ...this.state, inputEnabled: false };
+						log.warn("remote input permission was not granted");
+					});
 				else if (!supported) this.host?.revokeInput();
 				this.state = {
 					...this.state,

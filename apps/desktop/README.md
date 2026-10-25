@@ -58,7 +58,16 @@ a Windows artifact is staged. After `bun run build:main`, run `bun run verify:sp
 exercise the real Electron utility process with the bundled Sherpa runtime and model through
 initialize, start, audio, and stop.
 
+## Service routes
+
+Login, the account popover, and model settings share a compact route selector. The selectable route list is refreshed anonymously from `https://api.567.wiki/api/status` (`data.api_info`). Cached routes render immediately; an empty/invalid response or offline bootstrap preserves the last valid catalog and selected route. A manual refresh is available. The public list is separate from the root-only system-instance monitoring API. Connectivity checks use the public status API; switching also validates the current account. New installations use mainland, while upgrades retain their original route. Existing turns keep their original route and future turns use the new one, including Electron RPC/Claw sessions. Custom provider URLs are not rewritten.
+
 ## Development
+
+`bun run test:sidebar-layout` renders the real account summary and production CSS in an isolated
+Electron window. It checks four sidebar widths in light and dark mode and opens the account popover,
+without loading a user profile. Linux requires Xvfb; use `AGENT567_TEST_XVFB` to select its binary.
+This probe also runs in the Linux regression job when the account layout or its CSS changes.
 
 ### Sidebar conversation search
 
@@ -206,3 +215,12 @@ When a user explicitly requests agent-driven UI verification, use repo-root `ver
 Current `e2e/smoke.e2e.ts` batch-1 covers boot only: main-process ready/version, main window `index.html`, config/userData isolation, and a `dialog` mock probe. It does not cover login, chat, or other product flows.
 
 Packaged E2E permits one immediate spec-file retry. WebdriverIO creates a fresh browser instance for the retry, which recovers the upstream CDP bridge when its initialization promise is transiently collected during a packaged process. Unpackaged E2E does not retry; assertions are unchanged and a second failure remains fatal.
+
+### Workspace layout regression
+
+`bun run test:workspace-layout` renders the production home/composer, automation templates and populated
+tasks, batch tasks, abilities, scenes, knowledge base and settings chrome in an isolated Electron profile.
+It checks light/dark modes at 380/800/1100px and exercises model selection, text input, attachment,
+send, template and creation controls against fixture callbacks. HTTP(S) access is blocked.
+`AGENT567_LAYOUT_ARTIFACT_DIR` saves screenshots and measurements. It complements `test:sidebar-layout`,
+which covers the real footer, titlebar commands, general settings, providers and guide focus/scrolling.

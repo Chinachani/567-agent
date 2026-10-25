@@ -1,5 +1,5 @@
 import { createHash } from "node:crypto";
-import { existsSync, readFileSync, statSync } from "node:fs";
+import { existsSync, lstatSync, readFileSync, statSync } from "node:fs";
 import type { McpConfigSource } from "@567agent/runtime-mcp/config";
 import type { McpConfig, McpServerConfig } from "../protocol/index.js";
 import { isHttpServerConfig } from "../protocol/index.js";
@@ -8,6 +8,7 @@ import { parseMcpConfig } from "./schemas.js";
 export interface FileMcpConfigSourceOptions {
 	readonly globalConfigPath: string;
 	readonly projectConfigPath: string;
+	readonly fallbackProjectConfigPath?: string;
 	readonly projectRoot: string;
 	readonly environment?: Readonly<Record<string, string | undefined>>;
 }
@@ -25,7 +26,18 @@ export class FileMcpConfigSource implements McpConfigSource {
 	}
 
 	loadProject(): McpConfig | null {
-		return this.loadConfigFromPath(this.options.projectConfigPath);
+		return this.loadConfigFromPath(this.projectReadPath());
+	}
+
+	private projectReadPath(): string {
+		if (!this.options.fallbackProjectConfigPath) return this.options.projectConfigPath;
+		try {
+			lstatSync(this.options.projectConfigPath);
+			return this.options.projectConfigPath;
+		} catch (error) {
+			if ((error as NodeJS.ErrnoException).code !== "ENOENT") throw error;
+			return this.options.fallbackProjectConfigPath;
+		}
 	}
 
 	loadMerged(): McpConfig {
@@ -42,7 +54,7 @@ export class FileMcpConfigSource implements McpConfigSource {
 
 	getMergedSignature(): string {
 		const parts: string[] = [];
-		for (const path of [this.options.globalConfigPath, this.options.projectConfigPath]) {
+		for (const path of [this.options.globalConfigPath, this.projectReadPath()]) {
 			if (!existsSync(path)) {
 				parts.push(`${path}:missing`);
 				continue;
