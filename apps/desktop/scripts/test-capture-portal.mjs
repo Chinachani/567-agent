@@ -1,15 +1,17 @@
 import { createRequire } from "node:module";
 import { spawn } from "node:child_process";
 import { once } from "node:events";
-import { mkdtemp, rm, writeFile } from "node:fs/promises";
+import { mkdtemp, mkdir, rm, writeFile } from "node:fs/promises";
+import { existsSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import dbus from "dbus-next";
 
-// A private bus and display ensure this regression never captures the user's desktop.
+// A private bus and headless compositor ensure this regression never captures the user's desktop.
 const binary = process.env.AGENT567_TEST_ELECTRON ?? createRequire(import.meta.url)("electron");
-const xvfbBinary = process.env.AGENT567_TEST_XVFB ?? "Xvfb";
+const westonBinary = process.env.AGENT567_TEST_WESTON ?? "weston";
 if (!binary) throw new Error("Set AGENT567_TEST_ELECTRON to the standalone Electron binary");
+const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 const root = await mkdtemp(join(tmpdir(), "agent567-portal-"));
 const children = [];
 let bus;
@@ -17,13 +19,17 @@ try {
 	const daemon = spawn("dbus-daemon", ["--session", "--nofork", "--print-address=1"], { stdio: ["ignore", "pipe", "pipe"] });
 	children.push(daemon);
 	const address = (await once(daemon.stdout, "data"))[0].toString().trim();
-	const displayFile = join(root, "display");
-	// -displayfd lets Xvfb choose an unused display instead of touching a real session.
-	const xvfb = spawn(xvfbBinary, ["-displayfd", "1", "-screen", "0", "1280x720x24", "-nolisten", "tcp", "-ac"], { stdio: ["ignore", "pipe", "pipe"] });
-	children.push(xvfb);
-	xvfb.on("error", (error) => { throw error; });
-	const display = (await once(xvfb.stdout, "data"))[0].toString().trim();
-	await writeFile(displayFile, display);
+	const runtimeDir = join(root, "xdg-runtime");
+	await mkdir(runtimeDir, { mode: 0o700 });
+	// Only a wayland compositor keeps Chromium on the portal capture path; an X server makes it fall back to direct X11 screen grabs.
+	const weston = spawn(westonBinary, ["--backend=headless-backend.so", "--idle-time=0", "--socket=agent567-private-test"], { stdio: "ignore", env: { ...process.env, XDG_RUNTIME_DIR: runtimeDir } });
+	children.push(weston);
+	weston.on("error", (error) => { throw error; });
+	const compositorSocket = join(runtimeDir, "agent567-private-test");
+	for (let attempts = 0; !existsSync(compositorSocket); attempts++) {
+		if (attempts >= 100) throw new Error("Headless compositor did not expose its wayland socket");
+		await sleep(100);
+	}
 	bus = dbus.sessionBus({ busAddress: address });
 	await bus.requestName("org.freedesktop.portal.Desktop", 0);
 	class Request extends dbus.interface.Interface {
@@ -99,8 +105,8 @@ app.whenReady().then(async()=>{
 }).catch(e=>{console.error(e.message??String(e));app.exit(1)});
 setTimeout(()=>app.exit(2),15000).unref();`);
 	await writeFile(join(root, "probe.html"), "<!doctype html><title>Isolated capture denial probe</title>");
-	const probe = spawn(binary, ["--no-sandbox", "--disable-gpu", "--ozone-platform=x11", probePath], { env: {
-		...process.env, ELECTRON_RUN_AS_NODE: "", DISPLAY: `:${display}`, XDG_SESSION_TYPE: "wayland", WAYLAND_DISPLAY: "agent567-private-test", DBUS_SESSION_BUS_ADDRESS: address, AGENT567_PROBE_PROFILE: join(root, "profile"),
+	const probe = spawn(binary, ["--no-sandbox", "--disable-gpu", "--ozone-platform=wayland", probePath], { env: {
+		...process.env, ELECTRON_RUN_AS_NODE: "", XDG_RUNTIME_DIR: runtimeDir, XDG_SESSION_TYPE: "wayland", WAYLAND_DISPLAY: "agent567-private-test", DBUS_SESSION_BUS_ADDRESS: address, AGENT567_PROBE_PROFILE: join(root, "profile"),
 	}, stdio: ["ignore", "pipe", "pipe"] });
 	children.push(probe);
 	let output = "";

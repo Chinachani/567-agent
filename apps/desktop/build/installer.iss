@@ -436,7 +436,11 @@ begin
     exit;
   end;
   if not ConfirmExistingDataReuse(DataRoot) then
+  begin
     Result := CustomMessage('DataMigrationReuseRequired');
+    { Silent runs never display this text; log it so the rejection is diagnosable and verifiable. }
+    Log('Existing data reuse was not confirmed: ' + Result);
+  end;
 end;
 
 function DirectoryHasData(Directory: String): Boolean;
