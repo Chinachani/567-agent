@@ -78,6 +78,11 @@ class ContextAndProfileHostFlowTest {
             vm.compactChatContext()
             awaitState { !it.contextBusy && it.contextNotice == Str.contextTooShort }
             assertEquals(1, summaryRequests)
+            vm.setChatInferenceApi(org.agent567.android.core.chat.InferenceApi.Responses)
+            awaitState { !it.contextLoading && it.contextSnapshot?.inferenceApiOverride == "openai-responses" }
+            assertEquals(org.agent567.android.core.chat.InferenceApi.Responses, preferences.getModelInferenceApi(null, "test-model"))
+            vm.setChatInferenceApi(null)
+            awaitState { !it.contextLoading && it.contextSnapshot?.inferenceApiOverride == null }
             vm.openAccount(); assertEquals(AppRoute.Account, vm.state.value.route)
             val saved = CompletableDeferred<String?>(); vm.saveProfileName("After") { saved.complete(it) }
             assertNull(withTimeout(20_000) { saved.await() })

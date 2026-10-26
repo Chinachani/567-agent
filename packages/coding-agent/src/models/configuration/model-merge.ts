@@ -76,6 +76,7 @@ function applyModelOverride(
 	configurationValueResolver: CodingAgentConfigurationValueResolver,
 ): Model<Api> {
 	const result = { ...model };
+	if (override.api !== undefined) result.api = override.api;
 	if (override.name !== undefined) result.name = override.name;
 	if (override.reasoning !== undefined) result.reasoning = override.reasoning;
 	if (override.reasoningLevels !== undefined) result.reasoningLevels = [...override.reasoningLevels];

@@ -1447,6 +1447,8 @@ class AppViewModel(
         val modelDetails = ChatContextSnapshot(
             contextWindowSource = modelAtRead?.contextWindowSource ?: "unknown", manualContextWindow = manualAtRead,
             modelKey = modelAtRead?.let { kotlinx.serialization.json.JsonArray(listOf(kotlinx.serialization.json.JsonPrimitive(stateAtRead.active567Group), kotlinx.serialization.json.JsonPrimitive(it.id))).toString() },
+            inferenceApiOverride = modelAtRead?.let { container.preferences.getModelInferenceApi(stateAtRead.active567Group, it.id)?.wireValue },
+            automaticInferenceApi = modelAtRead?.let { org.agent567.android.core.chat.InferenceApi.automatic(it.id, stateAtRead.active567Group).wireValue },
             modelName = modelAtRead?.name, automaticContextWindow = automaticAtRead?.contextWindow,
             referenceModel = reference?.modelId, referenceUrl = reference?.sourceUrl, referenceCheckedAt = reference?.checkedAt,
             referenceIsAlias = reference?.alias == true,
@@ -1522,6 +1524,20 @@ class AppViewModel(
         container.preferences.setModelContextOverride(current.active567Group, model.id, capacity)
         _state.update { it.copy(contextNotice = Str.contextCapacitySaved, contextError = null) }
         refreshChatContext()
+    }
+
+    fun setChatInferenceApi(api: org.agent567.android.core.chat.InferenceApi?) {
+        val current = _state.value
+        val route = current.route as? AppRoute.Chat ?: return
+        if (route.surface == ChatSurface.Desktop || current.isStreaming || current.contextBusy) return
+        val model = currentModel() ?: return
+        try {
+            container.preferences.setModelInferenceApi(current.active567Group, model.id, api)
+            _state.update { it.copy(contextNotice = Str.modelProtocolSaved, contextError = null) }
+            refreshChatContext()
+        } catch (_: Exception) {
+            _state.update { it.copy(contextError = Str.modelProtocolFailed, contextNotice = null) }
+        }
     }
 
     fun setChatAutoCompaction(enabled: Boolean) = runContextOperation { session, _, _, _ ->

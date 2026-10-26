@@ -1,6 +1,7 @@
 import type { IpcRenderer, IpcRendererEvent, WebUtils } from "electron";
 import { PERSIST_IMAGE_FILES_CHANNEL } from "../../shared/image-cache.js";
 import { MODEL_CONTEXT_SET_CHANNEL } from "../../shared/model-context.js";
+import { MODEL_INFERENCE_API_SET_CHANNEL } from "../../shared/model-inference-api.js";
 import { PROJECT_COLLABORATION_CHANNELS } from "../../shared/project-collaboration.js";
 import { PROJECTS_CHANNELS } from "../../shared/projects-ipc.js";
 import { RUNTIMES_STATUS_CHANGED_CHANNEL } from "../../shared/runtime-install-progress.js";
@@ -221,6 +222,8 @@ export function createSystemApi(
 			onStatusesChanged: (handler) => onIpcEvent(ipc, "vetta:kb:statuses-changed", handler),
 		},
 		models: {
+			setInferenceApi: (providerId, modelId, api) =>
+				ipc.invoke(MODEL_INFERENCE_API_SET_CHANNEL, providerId, modelId, api),
 			setContextWindow: (providerId, modelId, capacity) =>
 				ipc.invoke(MODEL_CONTEXT_SET_CHANNEL, providerId, modelId, capacity),
 			get: () => ipc.invoke("vetta:models:get"),

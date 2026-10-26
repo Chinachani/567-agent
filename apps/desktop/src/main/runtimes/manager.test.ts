@@ -8,7 +8,8 @@ import { executablePathFor, installDir, platformEntry, registryPath, runtimeVers
 import { nodePackageManagerPaths } from "./runtime-health";
 import { writeNodeRuntimeFixture } from "./runtime-test-fixtures";
 
-vi.mock("../logger.js", () => ({ getAppLogger: () => ({ info: vi.fn(), warn: vi.fn(), error: vi.fn() }) }));
+const diagnostics = vi.hoisted(() => ({ info: vi.fn(), warn: vi.fn(), error: vi.fn() }));
+vi.mock("../logger.js", () => ({ getAppLogger: () => diagnostics }));
 vi.mock("../i18n/index.js", () => ({ mainT: (key: string) => key }));
 vi.mock("node:child_process", async (importOriginal) => {
 	const actual = await importOriginal<typeof childProcess>();
@@ -19,6 +20,8 @@ let root = "";
 let resourcesDescriptor: PropertyDescriptor | undefined;
 
 beforeEach(async () => {
+	diagnostics.warn.mockClear();
+	diagnostics.error.mockClear();
 	vi.stubGlobal("fetch", vi.fn().mockRejectedValue(new Error("test network unavailable")));
 	root = await mkdtemp(join(tmpdir(), "567-runtime-manager-"));
 	for (const key of [
@@ -109,7 +112,16 @@ describe("RuntimeManager Node recovery", () => {
 		const restarted = new RuntimeManager();
 		expect(restarted.getStatus().node.repairRequiresRestart).toBe(true);
 		await restarted.initialize();
-		expect(restarted.getStatus().node).toMatchObject({ ready: true, repairRequiresRestart: false });
+		const recoveryErrors = [...diagnostics.warn.mock.calls, ...diagnostics.error.mock.calls]
+			.map((args) =>
+				args
+					.map((value: unknown) =>
+						value instanceof Error ? `${value.stack} ${String(value.cause ?? "")}` : String(value),
+					)
+					.join(" "),
+			)
+			.join("\n");
+		expect(restarted.getStatus().node, recoveryErrors).toMatchObject({ ready: true, repairRequiresRestart: false });
 		await expect(readFile(join(installDir("node"), "old-marker"))).rejects.toThrow();
 		expect(JSON.parse(await readFile(registryPath(), "utf8")).pendingRepairs).toEqual([]);
 	});

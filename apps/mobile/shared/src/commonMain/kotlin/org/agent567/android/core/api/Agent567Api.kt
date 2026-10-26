@@ -1050,6 +1050,8 @@ internal class Agent567Api(
         imageGenModel: String? = null,
     ): Flow<ChatStreamEvent> =
         flow {
+            val inferenceApi = preferences?.getModelInferenceApi(groupName, model, config.serverUrl)
+                ?: org.agent567.android.core.chat.InferenceApi.automatic(model, groupName)
             val wireMessages = ChatRequestEncoder.encodeMessages(messages)
             val bodyJson = buildJsonObject {
                 put("model", model)
@@ -1088,7 +1090,9 @@ internal class Agent567Api(
                     put("tool_choice", "auto")
                 }
             }
-            val url = config.gatewayBaseUrl.trimEnd('/') + "/v1/chat/completions"
+            val requestBody = if (inferenceApi == org.agent567.android.core.chat.InferenceApi.Responses)
+                org.agent567.android.core.chat.ResponsesRequestEncoder.encode(bodyJson, messages) else bodyJson
+            val url = config.gatewayBaseUrl.trimEnd('/') + inferenceApi.path
             try {
                 val sessionVersion = tokenRefresher.sessionVersion
                 var token = ensureApiKeyForGroup(groupName)
@@ -1109,7 +1113,7 @@ internal class Agent567Api(
                                 requestTimeoutMillis = 600_000
                                 socketTimeoutMillis = 600_000
                             }
-                            setBody(bodyJson.toString())
+                            setBody(requestBody.toString())
                             contentType(ContentType.Application.Json)
                             if (!token.isNullOrBlank()) {
                                 header(HttpHeaders.Authorization, "Bearer $token")
@@ -1137,6 +1141,9 @@ internal class Agent567Api(
                             val bufferedLines = mutableListOf<String>()
                             var bufferedChars = 0
                             val sseParser = OpenAiSseStreamParser()
+                            val responsesParser = if (inferenceApi == org.agent567.android.core.chat.InferenceApi.Responses)
+                                org.agent567.android.core.chat.ResponsesSseStreamParser() else null
+                            var sawSse = false
 
                             while (!channel.isClosedForRead) {
                                 val line = channel.readUTF8Line(MAX_SSE_LINE_CHARS) ?: break
@@ -1145,13 +1152,14 @@ internal class Agent567Api(
                                     return@execute
                                 }
                                 val trimmed = line.trim()
-                                if (trimmed.isEmpty() || trimmed.startsWith(":")) continue
-                                if (!sawAnyEvent && bufferedChars < MAX_NON_STREAM_FALLBACK_CHARS) {
+                                if (trimmed.startsWith(":") || (trimmed.isEmpty() && responsesParser == null)) continue
+                                if (trimmed.startsWith("data:") || trimmed.startsWith("event:")) sawSse = true
+                                if (!sawAnyEvent && !sawSse && bufferedChars < MAX_NON_STREAM_FALLBACK_CHARS) {
                                     bufferedLines.add(line.take(MAX_NON_STREAM_FALLBACK_CHARS - bufferedChars))
                                     bufferedChars += line.length + 1
                                 }
 
-                                val events = sseParser.parseLine(line)
+                                val events = responsesParser?.parseLine(line) ?: sseParser.parseLine(line)
                                 for (event in events) {
                                     sawAnyEvent = true
                                     if (event is ChatStreamEvent.Done) {
@@ -1166,14 +1174,22 @@ internal class Agent567Api(
                                 if (sawAnyEvent) bufferedLines.clear()
                             }
 
+                            for (event in responsesParser?.finish().orEmpty()) {
+                                sawAnyEvent = true
+                                if (event is ChatStreamEvent.Done) sawDone = true
+                                if (event is ChatStreamEvent.Finished) sawFinished = true
+                                emit(event)
+                                if (event is ChatStreamEvent.Error) return@execute
+                            }
+
                             // 兜底保障：如果循环读完没有产生任何有效 SSE 事件（例如返回了非流式 JSON）
-                            if (!sawAnyEvent && bufferedChars > MAX_NON_STREAM_FALLBACK_CHARS) {
+                            if (!sawAnyEvent && !sawSse && bufferedChars > MAX_NON_STREAM_FALLBACK_CHARS) {
                                 emit(ChatStreamEvent.Error(Agent567Exception.Protocol("服务器返回内容过大，无法安全解析")))
                                 return@execute
                             }
-                            if (!sawAnyEvent && bufferedLines.isNotEmpty()) {
+                            if (!sawAnyEvent && !sawSse && bufferedLines.isNotEmpty()) {
                                 val fullText = bufferedLines.joinToString("\n")
-                                val fallbackEvents = OpenAiSseParser.parseNonStreamJson(fullText)
+                                val fallbackEvents = responsesParser?.parseNonStreamJson(fullText) ?: OpenAiSseParser.parseNonStreamJson(fullText)
                                 if (fallbackEvents.isNotEmpty()) {
                                     for (ev in fallbackEvents) {
                                         emit(ev)

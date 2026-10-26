@@ -27,6 +27,7 @@ fun ChatContextSheet(
     onCompact: () -> Unit,
     onAutoChange: (Boolean) -> Unit,
     onCapacityChange: (Long?) -> Unit = {},
+    onInferenceApiChange: (org.agent567.android.core.chat.InferenceApi?) -> Unit = {},
     onOpenWorkbench: () -> Unit,
     onReset: () -> Unit,
     onCancel: () -> Unit,
@@ -67,14 +68,16 @@ fun ChatContextSheet(
                     if (state.summary.isNotBlank()) TextButton(onClick = { showSummary = true }) { Text("${Str.contextShowSummary} · ${state.summary.length}") }
                     if (state.busy && !busy) Text(Str.contextWaitForTurn)
                 }
+                if (!desktop && state.modelKey != null) ChatInferenceApiSettings(state, !loading && !busy && !state.busy, onInferenceApiChange,
+                    notice = notice?.takeIf { it == Str.modelProtocolSaved }, error = error?.takeIf { it == Str.modelProtocolFailed })
                 ChatContextCapacity(state, desktop, state.modelKey != null && !loading && !busy && !state.busy, onCapacityChange)
             }
             OutlinedButton(onClick = onOpenWorkbench, modifier = Modifier.fillMaxWidth()) { Text(Str.workbenchTitle) }
             ContextGroup {
                 Text(Str.contextCompactActions, style = MaterialTheme.typography.titleSmall)
                 Text(if (desktop) Str.contextCompactionCost else Str.contextManualHint, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                error?.let { Text(it, color = MaterialTheme.colorScheme.error) }
-                notice?.let { Text(it, style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.primary) }
+                error?.takeUnless { it == Str.modelProtocolFailed }?.let { Text(it, color = MaterialTheme.colorScheme.error) }
+                notice?.takeUnless { it == Str.modelProtocolSaved }?.let { Text(it, style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.primary) }
                 val enoughHistory = desktop || (snapshot?.workspace?.turns?.count { it.status == "included" } ?: 0) > 1
                 if (!desktop && !enoughHistory && !busy) Text(Str.contextTooShort, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
                 FilledTonalButton(onClick = onCompact, enabled = canChange && enoughHistory, modifier = Modifier.fillMaxWidth()) { Text(Str.contextCompactNow) }

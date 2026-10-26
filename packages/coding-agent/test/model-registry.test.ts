@@ -343,6 +343,27 @@ describe("CodingAgentModelRuntime", () => {
 			).toBe(true);
 		});
 
+		test("per-model API overrides survive reload and leave an already resolved model unchanged", () => {
+			const config = {
+				openrouter: {
+					baseUrl: "https://proxy.example.com/v1",
+					apiKey: "test-key",
+					api: "openai-completions",
+					models: [{ id: "codex-test" }],
+					modelOverrides: { "codex-test": { api: "openai-responses" } },
+				},
+			};
+			writeRawModelsJson(config);
+			const registry = createCodingAgentModelRuntime(authStorage, { modelsJsonPath });
+			const running = registry.find("openrouter", "codex-test")!;
+			expect(running.api).toBe("openai-responses");
+			config.openrouter.modelOverrides["codex-test"].api = "openai-completions";
+			writeRawModelsJson(config);
+			registry.refresh();
+			expect(registry.find("openrouter", "codex-test")?.api).toBe("openai-completions");
+			expect(running.api).toBe("openai-responses");
+		});
+
 		test("refresh() reloads merged custom models from disk", () => {
 			writeModelsJson({
 				anthropic: providerConfig("https://first-proxy.example.com/v1", [{ id: "claude-custom" }]),

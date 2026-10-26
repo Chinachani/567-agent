@@ -54,4 +54,21 @@ class AppPreferencesTest {
 
         assertEquals(false, AppPreferences(settings).autoResumeLastSession.value)
     }
+
+    @Test fun modelProtocolSurvivesRestartAndIsIsolatedFromOtherModelsGroupsAndServices() {
+        val storage = MapSettings()
+        val prefs = AppPreferences(storage)
+        prefs.setModelContextOverride("Codex", "gpt-5", 64000)
+        prefs.setModelInferenceApi("Codex", "gpt-5", org.agent567.android.core.chat.InferenceApi.Completions)
+        val restored = AppPreferences(storage)
+        assertEquals(org.agent567.android.core.chat.InferenceApi.Completions, restored.getModelInferenceApi("Codex", "gpt-5"))
+        assertEquals(null, restored.getModelInferenceApi("Other", "gpt-5"))
+        assertEquals(null, restored.getModelInferenceApi("Codex", "other"))
+        restored.setServerUrl("https://custom.example/api/v1")
+        assertEquals(null, restored.getModelInferenceApi("Codex", "gpt-5"))
+        restored.setServerUrl(prefs.serverUrl.value)
+        restored.setModelInferenceApi("Codex", "gpt-5", null)
+        assertEquals(null, AppPreferences(storage).getModelInferenceApi("Codex", "gpt-5"))
+        assertEquals(64000L, restored.getModelContextOverride("Codex", "gpt-5"))
+    }
 }

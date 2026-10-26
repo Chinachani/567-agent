@@ -288,6 +288,14 @@ class AppPreferences(
         if (capacity == null) storage.remove(key) else storage[key] = capacity.toString()
     }
 
+    fun getModelInferenceApi(group: String?, model: String, server: String = serverUrl.value): org.agent567.android.core.chat.InferenceApi? =
+        org.agent567.android.core.chat.InferenceApi.fromWire(storage.getStringOrNull(modelContextKey(group, model, "api", server)))
+
+    fun setModelInferenceApi(group: String?, model: String, api: org.agent567.android.core.chat.InferenceApi?) {
+        val key = modelContextKey(group, model, "api")
+        if (api == null) storage.remove(key) else storage[key] = api.wireValue
+    }
+
     internal fun getCachedModelContexts(group: String?, server: String): Map<String, CachedModelContext> = runCatching {
         Agent567Json.decodeFromString<Map<String, CachedModelContext>>(storage.getString(modelContextKey(group, "", "metadata", server), "{}"))
     }.getOrDefault(emptyMap()).filterValues { it.isFresh(System.currentTimeMillis()) }

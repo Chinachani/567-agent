@@ -967,10 +967,6 @@ export class NewApiService {
 				const providerId = getProviderIdForGroup(g.name);
 				const provider = config.providers[providerId];
 				if (provider?.apiKey && (provider.models?.length ?? 0) > 0) {
-					if (provider.api !== "openai-completions") {
-						provider.api = "openai-completions";
-						configChanged = true;
-					}
 					if (provider.headers) {
 						for (const [k, v] of Object.entries(provider.headers)) {
 							if (typeof v === "string" && containsNonAscii(v)) {
@@ -1000,10 +996,6 @@ export class NewApiService {
 			}
 			for (const [pId, p] of Object.entries(config.providers || {})) {
 				if (pId.startsWith("567api")) {
-					if (p.api !== "openai-completions") {
-						p.api = "openai-completions";
-						configChanged = true;
-					}
 					if (p.headers) {
 						for (const [k, v] of Object.entries(p.headers)) {
 							if (typeof v === "string" && containsNonAscii(v)) {
@@ -1565,7 +1557,7 @@ export class NewApiService {
 				baseUrl: this.baseV1,
 				apiKey,
 				displayName,
-				api: "openai-completions",
+				api: config.providers[providerId]?.api ?? "openai-completions",
 				icon: getProviderIconForGroup(groupName),
 				headers: { "X-567-Group": encodeURIComponent(groupName || "default") },
 				modelsSyncedAt: new Date().toISOString(),

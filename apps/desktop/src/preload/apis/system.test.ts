@@ -109,3 +109,18 @@ it("forwards restart-and-repair requests to the runtime repair channel", async (
 	await api.runtimes.restartAndRepair("node");
 	expect(invoke).toHaveBeenCalledWith("agent567:runtimes:restart-repair", "node");
 });
+
+it("forwards per-model protocol overrides and null automatic mode through IPC", async () => {
+	const invoke = vi.fn(async () => undefined);
+	const api = createSystemApi({ invoke } as unknown as IpcRenderer, {} as WebUtils);
+	await api.models.setInferenceApi("567api_codex", "gpt-codex", "openai-responses");
+	await api.models.setInferenceApi("567api_codex", "gpt-codex", null);
+	expect(invoke).toHaveBeenNthCalledWith(
+		1,
+		"agent567:models:set-inference-api",
+		"567api_codex",
+		"gpt-codex",
+		"openai-responses",
+	);
+	expect(invoke).toHaveBeenNthCalledWith(2, "agent567:models:set-inference-api", "567api_codex", "gpt-codex", null);
+});

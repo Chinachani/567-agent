@@ -3,6 +3,7 @@ import { MotionSelect } from "@vetta-org/theme-ui/settings";
 import { useTranslation } from "react-i18next";
 import type { ModelsConfigData } from "../../../../preload/api-types/models";
 import { parseContextCapacityInput } from "../../../../shared/model-context";
+import { isModelInferenceApi } from "../../../../shared/model-inference-api";
 import { ModelCapabilityReference } from "./ModelCapabilityReference";
 import { InputField } from "./SettingsFormFields";
 import { useModelContextSettingsModel } from "./useModelContextSettingsModel";
@@ -35,7 +36,7 @@ export function ModelContextSettings({ config }: { config: ModelsConfigData }): 
 								<div className="flex min-w-0 gap-2">
 									<InputField
 										aria-label={t("modelContext.search")}
-                                        className="min-w-0 flex-1"
+										className="min-w-0 flex-1"
 										value={model.query}
 										onChange={model.setQuery}
 										disabled={model.busy}
@@ -86,6 +87,45 @@ export function ModelContextSettings({ config }: { config: ModelsConfigData }): 
 									{t("modelContext.clearSearch")}
 								</Button>
 							</section>
+						)}
+						{model.protocolSupported && (
+							<div className="space-y-2 border-t border-border/30 pt-4">
+								<div className="flex flex-wrap items-center justify-between gap-3">
+									<span className="text-[12px] font-medium">{t("modelContext.protocol")}</span>
+									<MotionSelect
+										aria-label={t("modelContext.protocol")}
+										value={model.protocol}
+										disabled={model.busy}
+										onValueChange={(value) => {
+											if (value === "auto" || isModelInferenceApi(value))
+												void model.saveProtocol(value === "auto" ? null : value);
+										}}
+										options={[
+											{
+												value: "auto",
+												label: t("modelContext.protocolAuto", {
+													protocol: t(
+														model.automaticApi === "openai-responses"
+															? "modelContext.protocolResponses"
+															: "modelContext.protocolCompletions",
+													),
+												}),
+											},
+											{ value: "openai-responses", label: t("modelContext.protocolResponses") },
+											{ value: "openai-completions", label: t("modelContext.protocolCompletions") },
+										]}
+									/>
+								</div>
+								<p className="text-[11px] text-muted-foreground">{t("modelContext.protocolHint")}</p>
+								{(model.notice === "protocolSaved" || model.notice === "protocolFailed") && (
+									<p
+										role="status"
+										className={`text-[12px] ${model.notice === "protocolFailed" ? "text-destructive" : "text-muted-foreground"}`}
+									>
+										{t(`modelContext.${model.notice}`)}
+									</p>
+								)}
+							</div>
 						)}
 						<div className="flex flex-wrap items-center justify-between gap-3 border-y border-border/30 py-4">
 							<div>
@@ -182,7 +222,7 @@ export function ModelContextSettings({ config }: { config: ModelsConfigData }): 
 							>
 								{t("modelContext.automatic")}
 							</Button>
-							{model.notice && (
+							{model.notice && model.notice !== "protocolSaved" && model.notice !== "protocolFailed" && (
 								<p
 									role="status"
 									className={`text-[12px] ${model.notice === "failed" ? "text-destructive" : "text-muted-foreground"}`}

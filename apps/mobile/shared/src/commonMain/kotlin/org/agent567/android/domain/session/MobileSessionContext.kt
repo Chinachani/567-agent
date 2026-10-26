@@ -25,6 +25,8 @@ data class ChatContextSnapshot(
     val manualContextWindow: Long? = null,
     val modelKey: String? = null,
     val modelName: String? = null,
+    val inferenceApiOverride: String? = null,
+    val automaticInferenceApi: String? = null,
     val automaticContextWindow: Long? = null,
     val referenceModel: String? = null,
     val referenceUrl: String? = null,

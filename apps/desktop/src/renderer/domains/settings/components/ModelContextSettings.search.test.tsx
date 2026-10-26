@@ -44,3 +44,58 @@ it("waits for explicit lookup, preserves selection on no matches and lets the us
 	expect(screen.getByRole("status").textContent).toContain(i18n.t("settings:modelContext.noMatches"));
 	expect(screen.getByText("128,000")).toBeDefined();
 });
+
+it("saves the selected model's protocol, survives reopening and preserves it on a failed save", async () => {
+	const user = userEvent.setup();
+	let saved: ModelsConfigData = {
+		defaultModel: "custom/codex",
+		providers: {
+			custom: {
+				api: "openai-completions",
+				models: [{ id: "codex", api: "openai-responses" }, { id: "gemini" }],
+				modelOverrides: { codex: { contextWindow: 64000 } },
+			},
+		},
+	};
+	let fail = false;
+	const setInferenceApi = vi.fn(async (provider: string, model: string, api: string | null) => {
+		if (fail) throw new Error("fixture save failed");
+		const next = structuredClone(saved);
+		const overrides = (next.providers[provider].modelOverrides ??= {});
+		const value = (overrides[model] ??= {});
+		if (api === null) delete value.api;
+		else value.api = api;
+		saved = next;
+	});
+	Object.defineProperty(window, "agent567", {
+		configurable: true,
+		value: {
+			models: {
+				onChanged: () => () => {},
+				get: async () => saved,
+				setInferenceApi,
+				setContextWindow: vi.fn(),
+			},
+		},
+	});
+	let view = render(<ModelContextSettings config={saved} />);
+	expect(screen.getByRole("button", { name: "调用协议" }).textContent).toContain("Responses");
+	await user.click(screen.getByRole("button", { name: "调用协议" }));
+	await user.click(screen.getByRole("button", { name: "Chat Completions" }));
+	await waitFor(() => expect(screen.getByRole("status").textContent).toContain("调用协议已保存"));
+	expect(saved.providers.custom.modelOverrides?.codex).toEqual({ contextWindow: 64000, api: "openai-completions" });
+	view.unmount();
+	view = render(<ModelContextSettings config={saved} />);
+	expect(screen.getByRole("button", { name: "调用协议" }).textContent).toBe("Chat Completions");
+	fail = true;
+	await user.click(screen.getByRole("button", { name: "调用协议" }));
+	await user.click(screen.getByRole("button", { name: "Responses" }));
+	await waitFor(() => expect(screen.getByRole("status").textContent).toContain("保存失败"));
+	expect(screen.getByRole("button", { name: "调用协议" }).textContent).toBe("Chat Completions");
+	fail = false;
+	await user.click(screen.getByRole("button", { name: "调用协议" }));
+	await user.click(screen.getByRole("button", { name: /自动.*Responses/ }));
+	await waitFor(() => expect(saved.providers.custom.modelOverrides?.codex).toEqual({ contextWindow: 64000 }));
+	expect(screen.getByRole("button", { name: "调用协议" }).textContent).toContain("自动");
+	view.unmount();
+});

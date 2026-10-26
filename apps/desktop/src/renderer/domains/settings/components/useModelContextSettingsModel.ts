@@ -4,6 +4,7 @@ import { useEffect, useRef, useState } from "react";
 import type { ModelsConfigData } from "../../../../preload/api-types/models";
 import { parseContextCapacityInput, resolveModelContext } from "../../../../shared/model-context";
 import { getModelContextReference } from "../../../../shared/model-context-reference";
+import { isModelInferenceApi, type ModelInferenceApi } from "../../../../shared/model-inference-api";
 
 export function useModelContextSettingsModel(config: ModelsConfigData) {
 	const activeModel = useAtomValue(selectedModelAtom);
@@ -14,7 +15,10 @@ export function useModelContextSettingsModel(config: ModelsConfigData) {
 	const [drafts, setDrafts] = useState<Record<string, string>>({});
 	const [busy, setBusy] = useState(false);
 	const pending = useRef(false);
-	const [notice, setNotice] = useState<{ key: string; kind: "saved" | "failed" } | null>(null);
+	const [notice, setNotice] = useState<{
+		key: string;
+		kind: "saved" | "failed" | "protocolSaved" | "protocolFailed";
+	} | null>(null);
 	useEffect(() => setCurrent(config), [config]);
 	useEffect(() => {
 		let live = true;
@@ -51,6 +55,25 @@ export function useModelContextSettingsModel(config: ModelsConfigData) {
 		if (key && key !== selection) setSelection(key);
 	}, [key, selection]);
 	const provider = selected ? current.providers[selected.providerId] : undefined;
+	const apiOverride = selected ? provider?.modelOverrides?.[selected.model.id]?.api : undefined;
+	const automaticApi = selected?.model.api ?? provider?.api ?? "openai-completions";
+	const effectiveApi = typeof apiOverride === "string" ? apiOverride : automaticApi;
+	const saveProtocol = async (api: ModelInferenceApi | null): Promise<void> => {
+		if (!selected || pending.current) return;
+		pending.current = true;
+		setBusy(true);
+		setNotice(null);
+		try {
+			await window.agent567.models.setInferenceApi(selected.providerId, selected.model.id, api);
+			setCurrent(await window.agent567.models.get());
+			setNotice({ key, kind: "protocolSaved" });
+		} catch {
+			setNotice({ key, kind: "protocolFailed" });
+		} finally {
+			pending.current = false;
+			setBusy(false);
+		}
+	};
 	const info = resolveModelContext(
 		selected?.model,
 		selected ? provider?.modelOverrides?.[selected.model.id] : undefined,
@@ -87,6 +110,11 @@ export function useModelContextSettingsModel(config: ModelsConfigData) {
 	};
 	return {
 		options,
+		protocolSupported: isModelInferenceApi(effectiveApi),
+		protocol: isModelInferenceApi(apiOverride) ? apiOverride : "auto",
+		automaticApi,
+		effectiveApi,
+		saveProtocol,
 		count: options.length,
 		results:
 			submittedQuery === null

@@ -135,3 +135,64 @@ it("regenerates the nonce when the real SDK retries an HTTP attempt", async () =
 	expect(sent).toHaveLength(2);
 	expect(sent[0].get("x-567-nonce")).not.toBe(sent[1].get("x-567-nonce"));
 });
+
+it("uses the real Responses SDK with managed signatures, tool completion and usage", async () => {
+	const sent: { url: string; headers: Headers; body: Record<string, unknown> }[] = [];
+	const message = {
+		type: "message",
+		id: "msg_1",
+		role: "assistant",
+		status: "completed",
+		content: [{ type: "output_text", text: "ok", annotations: [] }],
+	};
+	const tool = {
+		type: "function_call",
+		id: "fc_1",
+		call_id: "call_1",
+		name: "lookup",
+		arguments: '{"value":"test"}',
+		status: "completed",
+	};
+	const events = [
+		{ type: "response.output_item.added", output_index: 0, item: { ...message, status: "in_progress", content: [] } },
+		{ type: "response.output_text.delta", item_id: "msg_1", output_index: 0, content_index: 0, delta: "ok" },
+		{ type: "response.output_item.done", output_index: 0, item: message },
+		{ type: "response.output_item.added", output_index: 1, item: { ...tool, status: "in_progress", arguments: "" } },
+		{ type: "response.function_call_arguments.delta", item_id: "fc_1", output_index: 1, delta: tool.arguments },
+		{ type: "response.output_item.done", output_index: 1, item: tool },
+		{
+			type: "response.completed",
+			response: {
+				id: "resp_1",
+				status: "completed",
+				output: [message, tool],
+				usage: { input_tokens: 4, output_tokens: 2, total_tokens: 6 },
+			},
+		},
+	];
+	const fetcher: typeof fetch = async (input, init) => {
+		sent.push({ url: String(input), headers: new Headers(init?.headers), body: JSON.parse(String(init?.body)) });
+		return new Response(events.map((event) => `data: ${JSON.stringify(event)}\n\n`).join(""), {
+			headers: { "content-type": "text/event-stream" },
+		});
+	};
+	const { createApi567InferenceStream } = await import("./inference.js");
+	for (let i = 0; i < 2; i++) {
+		const result = await createApi567InferenceStream()(
+			{ ...model, id: "gpt-codex", api: "openai-responses" },
+			{ messages: [{ role: "user", content: "hi", timestamp: 1 }] },
+			{ apiKey: "sk-fixture", fetch: fetcher },
+		).result();
+		expect(result.stopReason).toBe("toolUse");
+		expect(result.content).toContainEqual({ type: "text", text: "ok", textSignature: "msg_1" });
+		expect(result.content).toContainEqual(
+			expect.objectContaining({ type: "toolCall", name: "lookup", arguments: { value: "test" } }),
+		);
+		expect(result.usage.input).toBe(4);
+	}
+	expect(sent.every((request) => request.url.endsWith("/v1/responses"))).toBe(true);
+	expect(sent[0].body.store).toBe(false);
+	expect(sent[0].headers.get("x-567-group")).toBe("default");
+	expect(sent[0].headers.get("authorization")).toBe("Bearer sk-fixture");
+	expect(sent[0].headers.get("x-567-nonce")).not.toBe(sent[1].headers.get("x-567-nonce"));
+});

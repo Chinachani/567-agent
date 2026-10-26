@@ -416,6 +416,7 @@ fun RootApp(
                     onCompact = vm::compactChatContext,
                     onAutoChange = vm::setChatAutoCompaction,
                     onCapacityChange = vm::setChatContextCapacity,
+                    onInferenceApiChange = vm::setChatInferenceApi,
                     onOpenWorkbench = { vm.setWorkbenchOpen(true) },
                     onReset = vm::resetChatContext,
                     onCancel = vm::cancelChatContextOperation,

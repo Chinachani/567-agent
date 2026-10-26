@@ -47,6 +47,7 @@ export const ModelDefinitionSchema = Type.Object({
 });
 
 export const ModelOverrideSchema = Type.Object({
+	api: Type.Optional(Type.String({ minLength: 1 })),
 	name: Type.Optional(Type.String({ minLength: 1 })),
 	reasoning: Type.Optional(Type.Boolean()),
 	reasoningLevels: Type.Optional(Type.Array(Type.String({ minLength: 1 }))),

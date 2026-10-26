@@ -1,5 +1,6 @@
 import { ipcMain } from "electron";
 import { MODEL_CONTEXT_SET_CHANNEL } from "../../shared/model-context.js";
+import { isModelInferenceApi, MODEL_INFERENCE_API_SET_CHANNEL } from "../../shared/model-inference-api.js";
 import { readAgentSettingsDocument, updateAgentSettingsDocument } from "../agent-settings/settings-document-store.js";
 import { DEFAULT_SERVER_URL } from "../constants.js";
 import { getDesktopModelSettingsService } from "../models/model-settings-host.js";
@@ -31,6 +32,11 @@ export function updateSettings(mutate: (settings: Record<string, unknown>) => vo
 }
 
 export function registerSettingsIpc(): () => void {
+	ipcMain.handle(MODEL_INFERENCE_API_SET_CHANNEL, (_event, providerId: unknown, modelId: unknown, api: unknown) => {
+		if (typeof providerId !== "string" || typeof modelId !== "string" || (api !== null && !isModelInferenceApi(api)))
+			throw new Error("Invalid model inference settings");
+		return getDesktopModelSettingsService().setInferenceApi(providerId, modelId, api);
+	});
 	ipcMain.handle(MODEL_CONTEXT_SET_CHANNEL, (_event, providerId: unknown, modelId: unknown, capacity: unknown) => {
 		if (
 			typeof providerId !== "string" ||
@@ -74,6 +80,7 @@ export function registerSettingsIpc(): () => void {
 	const stopPresetAutoSync = startPresetModelsAutoSync();
 
 	return () => {
+		ipcMain.removeHandler(MODEL_INFERENCE_API_SET_CHANNEL);
 		ipcMain.removeHandler(MODEL_CONTEXT_SET_CHANNEL);
 		stopPresetAutoSync();
 		ipcMain.removeHandler("vetta:settings:get-server-url");

@@ -107,6 +107,11 @@ export interface DesktopModelsApi {
 	get(): Promise<ModelsConfigData>;
 	set(config: ModelsConfigData): Promise<void>;
 	setContextWindow(providerId: string, modelId: string, capacity: number | null): Promise<void>;
+	setInferenceApi(
+		providerId: string,
+		modelId: string,
+		api: "openai-completions" | "openai-responses" | null,
+	): Promise<void>;
 	/** 主进程直接写入剪贴板；密钥明文不会作为 IPC 结果返回 renderer。 */
 	copyApiKey(providerId: string): Promise<boolean>;
 	fetchRemote(): Promise<RemoteProvidersResult>;

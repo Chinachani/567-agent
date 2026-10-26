@@ -14,6 +14,11 @@ import type {
 } from "@vetta-org/capability-sdk";
 import { stripApi567DynamicHeaders } from "../../shared/api567/request-headers.js";
 import { contextCapacity, type ModelContextSource, resolveModelContext } from "../../shared/model-context.js";
+import {
+	defaultManagedInferenceApi,
+	isModelInferenceApi,
+	type ModelInferenceApi,
+} from "../../shared/model-inference-api.js";
 import { getBuiltinApi567Route } from "../../shared/service-routes.js";
 import { getApi567RouteStore } from "../567api/service-route-store.js";
 import type { ModelCredentialStore } from "./model-credential-store.js";
@@ -101,17 +106,31 @@ export function normalizeModelsConfig(
 		Object.entries(next.providers).map(([id, provider]) => {
 			const managed =
 				(id === "567api" || id.startsWith("567api_")) && provider.headers?.["X-567-Group"] !== undefined;
+			const routed =
+				(id === "567api" || id.startsWith("567api_")) && getBuiltinApi567Route(provider.baseUrl, trusted);
 			return [
 				id,
 				{
 					...provider,
 					...(managed ? { headers: stripApi567DynamicHeaders(provider.headers) } : {}),
-					...((id === "567api" || id.startsWith("567api_")) && getBuiltinApi567Route(provider.baseUrl, trusted)
-						? { baseUrl: `${origin}/v1` }
-						: {}),
+					...(routed ? { baseUrl: `${origin}/v1` } : {}),
 					models: provider.models?.map((model) => {
 						const normalized = managed
-							? { ...model, contextWindowSource: model.contextWindowSource ?? ("unknown" as const) }
+							? {
+									...model,
+									contextWindowSource: model.contextWindowSource ?? ("unknown" as const),
+									...(routed
+										? {
+												api:
+													model.api ??
+													defaultManagedInferenceApi(
+														model.id,
+														provider.headers?.["X-567-Group"] ?? "",
+														provider.api,
+													),
+											}
+										: {}),
+								}
 							: model;
 						const context = resolveModelContext(normalized);
 						return context.capacity && context.source === "catalog"
@@ -310,16 +329,34 @@ export class ModelSettingsService {
 
 	async setContextWindow(providerId: string, modelId: string, capacity: number | null): Promise<void> {
 		if (capacity !== null && contextCapacity(capacity) === undefined) throw new Error("Invalid context window");
+		await this.updateModelOverride(providerId, modelId, (override) => {
+			if (capacity === null) delete override.contextWindow;
+			else override.contextWindow = capacity;
+		});
+	}
+
+	async setInferenceApi(providerId: string, modelId: string, api: ModelInferenceApi | null): Promise<void> {
+		if (api !== null && !isModelInferenceApi(api)) throw new Error("Invalid inference protocol");
+		await this.updateModelOverride(providerId, modelId, (override) => {
+			if (api === null) delete override.api;
+			else override.api = api;
+		});
+	}
+
+	private async updateModelOverride(
+		providerId: string,
+		modelId: string,
+		mutate: (override: Record<string, unknown>) => void,
+	): Promise<void> {
 		await this.runMutation(async () => {
 			const current = await this.options.readConfig();
 			if (!Object.hasOwn(current.providers, providerId)) throw new Error("Model provider not found");
-			assertModelKeyExists(current, `${providerId}/${modelId}`, "set-context-window");
+			assertModelKeyExists(current, `${providerId}/${modelId}`, "set-model-override");
 			const next = cloneModelsConfig(current);
 			const provider = next.providers[providerId];
 			const overrides = new Map(Object.entries(provider.modelOverrides ?? {}));
 			const override = { ...overrides.get(modelId) };
-			if (capacity === null) delete override.contextWindow;
-			else override.contextWindow = capacity;
+			mutate(override);
 			if (Object.keys(override).length === 0) overrides.delete(modelId);
 			else overrides.set(modelId, override);
 			provider.modelOverrides = Object.fromEntries(overrides);
@@ -475,17 +512,20 @@ export class ModelSettingsService {
 		for (const [providerId, provider] of Object.entries(persisted.providers)) {
 			const currentProvider = current.providers[providerId];
 			if (mode === "renderer" && currentProvider) {
-				// Capacity overrides have a narrow serialized mutation of their own.
+				// Parameter overrides have narrow serialized mutations of their own.
 				// A slower catalog refresh must not overwrite a newer save or revive a
 				// manual value after the user has restored automatic detection.
 				const overrides = new Map(
 					Object.entries(provider.modelOverrides ?? {}).map(([id, value]) => {
 						const next = { ...value };
 						delete next.contextWindow;
+						delete next.api;
 						return [id, next] as const;
 					}),
 				);
 				for (const [id, value] of Object.entries(currentProvider.modelOverrides ?? {})) {
+					if (typeof value.api === "string" && value.api.trim())
+						overrides.set(id, { ...overrides.get(id), api: value.api });
 					if (contextCapacity(value.contextWindow) !== undefined)
 						overrides.set(id, { ...overrides.get(id), contextWindow: value.contextWindow });
 				}

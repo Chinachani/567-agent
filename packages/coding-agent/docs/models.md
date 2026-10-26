@@ -28,6 +28,8 @@
 
 `maxTokens` 是可选的“最大输出 token 数”。Provider 或模型目录能提供可靠值时应保留该值；无法确认时请省略，不要填一个通用猜测值。Vetta 会优先使用单次调用显式值，其次使用模型元数据；两者都缺失时，可选该字段的 Provider 会省略请求上限并交由模型服务决定。Anthropic Messages 因协议强制要求 `max_tokens`，未知模型会使用 4096 的保守输出预算并产生 warning。
 
+可使用 `providers.<provider>.modelOverrides.<modelId>.api` 按型号覆盖协议，例如 `"openai-responses"`。注册表刷新后生效，已经在执行中的模型对象不变；移除该字段即恢复模型自身或服务商的协议。桌面“模型参数”的协议选择通过这一正式字段保存，而非修改全服务商默认。
+
 加载逻辑：`src/models/configuration/`。
 
 ## 凭证

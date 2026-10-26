@@ -97,7 +97,7 @@ beforeEach(async () => {
 				"567api_gpt_pro": { apiKey: "fixture-gpt", models: [{ id: "gpt-test" }] },
 				"567api_gemini_sale": {
 					apiKey: "fixture-gemini",
-					modelOverrides: { "gemini-3-flash": { contextWindow: 64000 } },
+					modelOverrides: { "gemini-3-flash": { contextWindow: 64000, api: "openai-responses" } },
 					models: [{ id: "gemini-3.8-flash-high" }, { id: "gemini-3-flash" }],
 				},
 			},
@@ -155,6 +155,20 @@ it("preserves a selected model on refresh and replaces it only when that model i
 	state.listedModels = ["gemini-3.8-flash-high"];
 	expect(await api.syncGroup("反重力Gemini")).toMatchObject({ success: true });
 	expect((await api.getStatus()).activeModel).toBe("gemini-3.8-flash-high");
+});
+
+it("keeps model protocol and provider protocol across group selection and catalog refresh", async () => {
+	const config = JSON.parse(readFileSync(join(state.home, "models.json"), "utf8"));
+	config.providers["567api_gemini_sale"].api = "openai-responses";
+	writeFileSync(join(state.home, "models.json"), JSON.stringify(config));
+	await api.setActiveGroup("反重力Gemini", "gemini-3-flash");
+	expect(await api.syncGroup("反重力Gemini")).toMatchObject({ success: true });
+	const saved = JSON.parse(readFileSync(join(state.home, "models.json"), "utf8"));
+	expect(saved.providers["567api_gemini_sale"].api).toBe("openai-responses");
+	expect(saved.providers["567api_gemini_sale"].modelOverrides["gemini-3-flash"]).toEqual({
+		contextWindow: 64000,
+		api: "openai-responses",
+	});
 });
 
 it("does not switch the primary group when refreshing another group", async () => {

@@ -18,7 +18,7 @@ data class Agent567Config(
         get() = serverUrl.trim().trimEnd('/')
 
     /**
-     * OpenAI 兼容网关根路径，实际请求为 `{gatewayBaseUrl}/v1/chat/completions`。
+     * OpenAI 兼容网关根路径，实际对话按模型设置请求 `/v1/chat/completions` 或 `/v1/responses`。
      */
     val gatewayBaseUrl: String
         get() {
