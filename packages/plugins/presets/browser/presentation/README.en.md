@@ -6,8 +6,12 @@ Browser Use is for work that must happen inside a real page: signing in to an ad
 
 State the goal, URL, and boundaries directly in the conversation. For sign-in, captchas, or two-factor authentication, the agent hands you the visible browser window and continues after you finish. For publishing, payments, deletion, or final submission, explicitly ask it to stop before confirmation.
 
-On first use, the agent checks and automatically installs the plugin-pinned `agent-browser` runtime in Vetta's private npm directory. If no reusable Chrome is available, it installs Chrome for Testing after a health check. Vetta manages this runtime separately and does not overwrite a global installation; use the plugin panel to retry and diagnose an automated setup failure.
+The default is to connect to your existing browser and verify the target tab first. You may need to enable local remote debugging and approve the connection. Connection failures are explained without silently opening a different browser. A separate task browser is created only when explicitly requested.
+
+On first use, the agent checks and installs the pinned `agent-browser` runtime in 567 Agent's private npm directory. Chrome for Testing is installed only for a requested separate task browser when no reusable Chrome is available. 567 Agent manages this runtime separately and does not overwrite a global installation; use the plugin panel to retry and diagnose an automated setup failure.
 
 ## Sessions and privacy
 
-Every agent conversation uses an independent browser session and cannot take over another conversation's active page. Use a stable profile when sign-in state must persist, and separate account keys for multiple accounts in one task. Never put email addresses, passwords, cookies, or tokens in profile names, prompts, or logs.
+Each task has its own control session bound to a verified tab. Connecting to your existing browser shares its login state; a control session is not an isolated profile. Your browser and tabs stay open after the task. Separate task browsers can use profiles and account keys for independent state.
+
+Ordinary forms use page elements. Canvas areas can use viewport screenshots and browser-page mouse coordinates, followed by verification. This does not control the whole desktop or OS dialogs. Never put email addresses, passwords, cookies, or tokens in profile names, prompts, or logs.

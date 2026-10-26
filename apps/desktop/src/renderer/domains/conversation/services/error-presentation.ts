@@ -1,10 +1,11 @@
 import type { ErrorBlock } from "@shared/store/atoms";
 
 export type ErrorSeverity = "warning" | "error" | "critical";
-export type PresentedErrorKind = ErrorBlock["kind"] | "run_limit" | "persistence";
+export type PresentedErrorKind = ErrorBlock["kind"] | "run_limit" | "persistence" | "empty_response";
 
 export function presentChatError(block: ErrorBlock): { kind: PresentedErrorKind; severity: ErrorSeverity } {
 	const code = block.details?.code?.toLowerCase();
+	if (block.details?.providerCode === "empty_completion") return { kind: "empty_response", severity: "error" };
 	if (code === "turn_persistence") return { kind: "persistence", severity: "critical" };
 	if (
 		(code === undefined || code === "turn_failed") &&

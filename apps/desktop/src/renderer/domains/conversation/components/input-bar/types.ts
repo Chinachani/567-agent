@@ -16,6 +16,8 @@ import type { ActiveActionCapsule } from "./ActiveActionCapsules";
 import type { TriggerMatch } from "./editor/tokens/trigger";
 
 export interface ConnectedInputBarProps {
+	/** Caller-owned setup controls, composed inside the input surface before its editor. */
+	children?: ReactNode;
 	onSend: (overrideText?: string, context?: SendInteractionContext) => Promise<void>;
 	onAbort: () => Promise<void>;
 	onSendQueued?: (runtimeId: string, id: string) => void;
@@ -38,6 +40,7 @@ export interface ConnectedInputBarProps {
 
 export interface ControlledInputBarProps {
 	readonly model: InputBarModel;
+	readonly children?: ReactNode;
 }
 
 export type InputBarProps = ControlledInputBarProps;
@@ -267,6 +270,7 @@ export interface InputBarViewClassNames {
 
 export interface InputBarViewProps {
 	model: InputBarModel;
+	children?: ReactNode;
 	className?: string;
 	classNames?: InputBarViewClassNames;
 }

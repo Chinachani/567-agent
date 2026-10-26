@@ -12,6 +12,9 @@ import { ThemeHostProvider } from "@vetta-org/theme-sdk";
 import { Button } from "@vetta-org/ui";
 import { BrandIcon } from "../../src/renderer/shared/components/BrandIcon";
 import { DefaultNewSessionHero } from "../../src/renderer/domains/conversation/components/new-session/NewSessionHero";
+import { NewSessionSetupControls } from "../../src/renderer/domains/conversation/components/new-session/NewSessionSetupControls";
+import { GuideBadgeSwiper } from "../../src/renderer/domains/conversation/components/GuideBadgeSwiper";
+import { createAgentTeamFixture } from "@567agent/agent-team";
 import { InputBarView } from "../../src/renderer/domains/conversation/components/input-bar/InputBarView";
 import { AbilitiesPageView } from "../../src/renderer/domains/abilities/components/AbilitiesPageView";
 import { SkillsPageView } from "../../src/renderer/domains/skills/components/SkillsPageView";
@@ -49,9 +52,29 @@ const config = {
 window.workspaceEvents = [];
 window.agent567 = {
 	models: { get: async () => config, fetchRemote: async () => ({ providers: {} }) },
-	config: { get: async () => ({}), set: async () => {} },
+	config: { get: async () => ({ defaultAgentMode: "work" }), set: async () => {}, onProjectsChanged: () => noop },
+	agentTeams: { list: async () => createAgentTeamFixture(), onChanged: () => noop },
+	session: {
+		listSandboxGrants: async () => [],
+		onSessionsChanged: () => noop,
+		getAgentModes: async () => [
+			{
+				id: "work",
+				label: "办公任务",
+				description: "处理文档与日常任务",
+				icon: "icon-[solar--case-minimalistic-linear]",
+			},
+			{ id: "code", label: "编程开发", description: "开发与维护项目", icon: "icon-[solar--code-linear]" },
+		],
+		onAgentModeChanged: () => noop,
+		setGlobalAgentMode: async (id) => record("mode:" + id),
+	},
 	appMonitor: { recordEvent: noop },
-	im: { getStatus: async () => ({ transport: "online" }), subscribeStatus: async () => noop },
+	im: {
+		getStatus: async () => ({ transport: "online" }),
+		subscribeStatus: async () => noop,
+		onSessionChanged: () => noop,
+	},
 	updater: { sync: async () => {} },
 	subscription: { getStatus: async () => ({}) },
 };
@@ -59,6 +82,8 @@ window.applyWorkspaceTheme = (mode) => applyTheme(mode, "mono");
 
 function Home({ chat = false }) {
 	const [value, setValue] = useState("");
+	const [project, setProject] = useState(null);
+	const [target, setTarget] = useState(null);
 	const [modelKey, setModelKey] = useState("fixture/gemini-flash");
 	const model = {
 		dropZone: {
@@ -160,18 +185,39 @@ function Home({ chat = false }) {
 				<div className="flex w-full flex-col items-center px-2 sm:px-4">
 					<DefaultNewSessionHero
 						avatarAutoplay={false}
-						greetingTitle="今天，想完成什么？"
+						greetingTitle={i18n.t("chat:newSession.greetingDefault")}
 						mounted
 						onSceneClick={noop}
 						sceneActions={{}}
 						sceneLabels={{ installPrompt: "", next: "", previous: "" }}
 						scenes={[]}
 						selected={null}
-						subtitle="从一个想法开始，让 567 Agent 帮你把它变成现实。"
+						subtitle={i18n.t("chat:newSession.subtitle")}
 					/>
 				</div>
 			}
-			inputBar={<InputBarView model={model} />}
+			inputBar={
+				<>
+					<InputBarView model={model}>
+						<NewSessionSetupControls
+							selection={project}
+							options={[{ cwd: "/fixture/project", name: "示例项目" }]}
+							takenNames={[]}
+							creatingProject={false}
+							onSelectProject={(cwd) => {
+								setProject(cwd ? { kind: "project", cwd, name: "示例项目" } : null);
+								record("project:" + cwd);
+							}}
+							onSelectPendingProject={(name) => setProject({ kind: "pending-create", name })}
+							targetKey={target}
+							onSelectTarget={setTarget}
+						/>
+					</InputBarView>
+					<div className="mx-auto w-full max-w-2xl px-2 sm:px-4">
+						<GuideBadgeSwiper mounted />
+					</div>
+				</>
+			}
 		/>
 	);
 }
@@ -348,9 +394,7 @@ const abilityItems = ["代码审阅", "浏览器自动化", "文件与文档", "
 		name: title,
 		title,
 		description:
-			index === 0
-				? "长说明用于检查卡片不会随说明无限增长。".repeat(40)
-				: "把常用工作连接到你的会话，按需启用与配置。",
+			index === 0 ? "长说明用于检查卡片不会随说明无限增长。".repeat(40) : "把常用工作连接到你的会话，按需启用与配置。",
 		type: "skill",
 		icon: "icon-[solar--widget-4-linear]",
 		category: "工作能力",

@@ -2,6 +2,12 @@
 
 Browser Use 为 Agent 提供低上下文的 `agent-browser` CLI Skill，并提供运行时安装与状态面板。插件代码仍可通过 Desktop 的 `ctx.browser` API 使用宿主浏览器能力；Agent CLI 与 Plugin API 不共享活跃 session。
 
+Agent 默认先连接用户已打开的浏览器，列出并确认目标标签页；独立任务浏览器需用户明确指定。
+首次连接可能需要用户开启浏览器支持的本地远程调试选项并授权。连接失败会说明原因，不静默另开窗口。
+当前浏览器会复用用户的登录状态，独立 control session 不代表独立 profile。任务结束保留用户的浏览器与标签页。
+常规操作使用页面快照引用；画布等区域可用视口截图与浏览器坐标操作补充，不能据此控制 OS 弹窗或整个桌面的鼠标。
+使用边界更新见 [ADR-0145](../../../../docs/adr/0145-current-browser-and-new-session-setup.md)。
+
 Plugin API 的宿主能力决策见 [ADR-0088](../../../../docs/adr/0088-browser-automation-as-a-foundation-capability.md)，Agent 独立 CLI 决策见 [ADR-0090](../../../../docs/adr/0090-agent-browser-cli-uses-agent-owned-sessions.md)。
 
 ## 边界

@@ -11,7 +11,6 @@ import type {
 } from "@vetta-org/theme-ui";
 import { AgentAvatarView } from "@vetta-org/theme-ui/chat";
 import { type CSSProperties, useRef } from "react";
-import { GuideBadgeSwiper } from "../GuideBadgeSwiper";
 import { easeOut } from "./constants";
 import "./NewSessionHero.css";
 
@@ -97,16 +96,7 @@ export function DefaultNewSessionHero({
 				transition={{ duration: 0.5, ease: easeOut }}
 				className="flex w-full flex-col items-start"
 			>
-				{/* 欢迎语上方：引导 badge 轮播。工作模式切换已移到输入框上方的选项行。 */}
-				<div className="mb-5 flex w-full flex-wrap items-center justify-between gap-x-4 gap-y-2">
-					<span className="inline-flex items-center gap-2 text-[12px] font-medium tracking-wide text-muted-foreground">
-						<BrandIcon className="h-5 w-5" />
-						567 Agent
-					</span>
-					<div className="min-w-0 max-w-full">
-						<GuideBadgeSwiper mounted={mounted} />
-					</div>
-				</div>
+				<BrandIcon className="mb-4 h-7 w-7" />
 
 				{/* 标题块：身份头像组压在标题上方 + 问候语/身份名 + 副标题（装饰件改为绝对定位，见下） */}
 				<div className="flex w-full min-w-0 flex-col">
@@ -148,18 +138,15 @@ export function DefaultNewSessionHero({
 					</div>
 					{/* key 随身份变化：标题与描述整块重播 CSS 入场动画，回到问候语时同理。 */}
 					<div key={identity?.key ?? "greeting"} className="flex min-w-0 flex-col">
-						<h1 className="ns-hero-identity-title min-w-0 break-words text-[32px] font-semibold leading-tight tracking-tight text-foreground">
+						<h1 className="ns-hero-identity-title min-w-0 break-words text-[26px] font-semibold leading-tight tracking-tight text-foreground">
 							{identity?.title ?? greetingTitle}
 						</h1>
-						{/* 描述限宽到七成、超出换行：右侧装饰件是绝对定位的，单行长文案会直接压到它身上。 */}
-						<p className="ns-hero-identity-subtitle mt-3 max-w-full @min-[30rem]:max-w-[70%] break-words text-[14px] leading-relaxed text-muted-foreground">
+						<p className="ns-hero-identity-subtitle mt-2 max-w-full break-words text-[13px] leading-relaxed text-muted-foreground">
 							{identity ? identity.subtitle || subtitle : subtitle}
 						</p>
 					</div>
 				</div>
 			</motion.div>
-
-			{/* 装饰件脱离文档流下移，视觉上趴在输入栏顶边上；挂谁由「设置 - 外观 - 装饰件」决定 */}
 		</div>
 	);
 }

@@ -66,7 +66,7 @@
     },
     "apps/desktop": {
       "name": "@567agent/desktop",
-      "version": "1.4.0",
+      "version": "1.4.1",
       "dependencies": {
         "@567agent/action-rpc": "workspace:*",
         "@567agent/agent-team": "workspace:*",

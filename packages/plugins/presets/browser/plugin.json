@@ -2,7 +2,7 @@
 	"id": "browser",
 	"name": "%plugin.name%",
 	"icon": "icon.png",
-	"version": "0.1.1",
+	"version": "0.1.2",
 	"defaultLocale": "zh",
 	"pluginApiVersion": "^2.0.0",
 	"entry": "dist/mf-manifest.json",
@@ -10,7 +10,9 @@
 		"remoteName": "browser",
 		"expose": "./plugin"
 	},
-	"styles": ["dist/style.css"],
+	"styles": [
+		"dist/style.css"
+	],
 	"permissions": [
 		"ui.slot.workspace-view",
 		"agent.skills.control",
@@ -19,10 +21,14 @@
 		"shell.openExternal"
 	],
 	"browser": {
-		"allowedHosts": ["*"]
+		"allowedHosts": [
+			"*"
+		]
 	},
 	"agent": {
-		"skillPaths": ["agent/skills/browser-use"]
+		"skillPaths": [
+			"agent/skills/browser-use"
+		]
 	},
 	"description": "%plugin.description%",
 	"author": "567 Agent"

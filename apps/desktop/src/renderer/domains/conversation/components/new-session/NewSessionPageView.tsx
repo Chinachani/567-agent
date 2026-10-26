@@ -7,13 +7,11 @@ import type { NewSessionHeroIdentity } from "@vetta-org/theme-ui";
 import { NewSessionPageLayoutView } from "@vetta-org/theme-ui/chat";
 import { PANEL_REVEAL_DURATION, PANEL_REVEAL_EASE, PANEL_REVEAL_TRANSITION } from "../command-panel/constants";
 import { NewSessionHero } from "./NewSessionHero";
+import { GuideBadgeSwiper } from "../GuideBadgeSwiper";
 import { NewSessionContextBlock } from "./NewSessionContextBlock";
 import type { NewSessionContextBlockModel } from "./useNewSessionContextBlock";
-import { NewSessionOptionsRow } from "./NewSessionOptionsRow";
-import { NewSessionProjectSelector } from "./project-selector/NewSessionProjectSelector";
+import { NewSessionSetupControls } from "./NewSessionSetupControls";
 import type { ProjectOption, ProjectSelection } from "./project-selector/project-selection";
-import { shouldStackProjectSelector } from "./options-row-layout";
-import { useSlotWidth } from "./useSlotWidth";
 import { DefaultInputBarConnector } from "../input-bar/DefaultInputBarConnector";
 import type { SendInteractionContext } from "../input-bar/types";
 import { useActiveSessionRuntimeIds } from "@shared/workspace/active-session-runtime";
@@ -88,15 +86,21 @@ export function NewSessionPageView({
 	// hero 淡出、输入栏位移、命令区揭幕三条动画同时跑，共用同一条曲线：各跑各的弹簧时
 	// 长度不一致，掉帧时能明显看出它们互相在「追」。
 	const shiftTransition = reduceMotion ? { duration: 0 } : PANEL_REVEAL_TRANSITION;
-	// 选项行放不下三枚 chip 时，把项目选择器挪到输入框下方。测的是 hero 插槽而非窗口宽度：
-	// 侧边栏/活动面板展开同样会压窄这一列。未测量（width === null）先按宽版渲染，
-	// 与装饰件相反——这一枚是功能入口，宁可多测一帧位置也不能有一帧点不到。
-	const optionsSlot = useSlotWidth();
-	const stackProjectSelector = shouldStackProjectSelector(optionsSlot.width);
-	// hero 仍比位移收得更快：吉祥物层级高于输入栏，淡得慢会在面板前面停留一下。
 	const heroTransition = reduceMotion
 		? { duration: 0 }
 		: { duration: PANEL_REVEAL_DURATION * 0.6, ease: PANEL_REVEAL_EASE };
+	const sessionOptions = (
+		<NewSessionSetupControls
+			creatingProject={preparingProject}
+			onSelectPendingProject={onSelectPendingProject}
+			onSelectProject={onSelectProject}
+			options={projectOptions}
+			selection={projectSelection}
+			takenNames={projectTakenNames}
+			targetKey={targetKey}
+			onSelectTarget={onSelectTarget}
+		/>
+	);
 
 	return (
 		<div className="flex h-full min-w-0 flex-1">
@@ -105,24 +109,16 @@ export function NewSessionPageView({
 				background={null}
 				themedBackground={<ThemedNewSessionBackground />}
 				dropZone={(children) => (
-					<div
-						className={cn(
-							"relative flex h-full min-w-0 flex-1 flex-col overflow-hidden bg-background",
-							className,
-						)}
-					>
+					<div className={cn("relative flex h-full min-w-0 flex-1 flex-col overflow-hidden bg-background", className)}>
 						{children}
 					</div>
 				)}
 				hero={
-					// 命令区向上生长会盖到 hero 上，模式切换与吉祥物会浮在面板前面挡住内容，
-					// 因此展开期间把 hero 整块淡出并禁用命中。
+					// 命令区展开时让出标题区域，避免覆盖上方内容。
 					<motion.div
-						ref={optionsSlot.ref}
 						animate={{ opacity: commandPanelExpanded ? 0 : 1 }}
 						transition={heroTransition}
-						// hero 是渐变标题 + 吉祥物的大块区域，不提层的话这段 opacity 动画每帧都要
-						// 重绘整块。will-change 必须在动画开始前就位才有用，因此常驻。
+						// 提前建立淡出图层，避免命令区展开时反复重绘标题。
 						style={{ willChange: "opacity" }}
 						className={cn(
 							// 横向 padding 必须与 InputBarView 根节点的 `px-2 sm:px-4` 一致：
@@ -140,18 +136,6 @@ export function NewSessionPageView({
 							mounted={mounted}
 							subtitle={subtitle}
 						/>
-						{/* 会话前置选项（项目 / 工作模式）与 hero 同淡出：命令区向上生长时会盖到这一行。 */}
-						<NewSessionOptionsRow
-							creatingProject={preparingProject}
-							onSelectPendingProject={onSelectPendingProject}
-							onSelectProject={onSelectProject}
-							options={projectOptions}
-							selection={projectSelection}
-							takenNames={projectTakenNames}
-							targetKey={targetKey}
-							onSelectTarget={onSelectTarget}
-							showProjectSelector={!stackProjectSelector}
-						/>
 					</motion.div>
 				}
 				inputBar={
@@ -167,14 +151,19 @@ export function NewSessionPageView({
 									model={teamComposer.model}
 									actions={teamComposer.actions}
 									onExpandedChange={onCommandPanelExpandedChange}
-								/>
+								>
+									{sessionOptions}
+								</TeamComposerConnector>
 							) : (
 								<div
 									role="status"
 									aria-busy="true"
-									className="mx-auto flex h-[136px] w-full max-w-2xl items-center justify-center rounded-xl border border-border bg-card/80 px-4 text-sm text-muted-foreground"
+									className="mx-auto w-full max-w-2xl overflow-hidden rounded-xl border border-border bg-card/80 text-sm text-muted-foreground"
 								>
-									{t("newSession.agentSelector.loading")}
+									{sessionOptions}
+									<div className="flex min-h-20 items-center justify-center px-4">
+										{t("newSession.agentSelector.loading")}
+									</div>
 								</div>
 							)
 						) : (
@@ -184,24 +173,13 @@ export function NewSessionPageView({
 								cwdOverride={cwd}
 								onExpandedChange={onCommandPanelExpandedChange}
 								sendPending={preparingProject ? { label: preparingLabel } : undefined}
-							/>
+							>
+								{sessionOptions}
+							</DefaultInputBarConnector>
 						)}
-						{/* 窄插槽下的项目选择器：跟着输入栏一起位移，横向留白与输入框卡片对齐
-						    （`px-2 sm:px-4` + 内层 `max-w-2xl`），保证它的左缘压在卡片左缘上。 */}
-						{stackProjectSelector && (
-							<div className="px-2 sm:px-4">
-								<div className="mx-auto mt-2 flex w-full max-w-2xl items-center">
-									<NewSessionProjectSelector
-										selection={projectSelection}
-										options={projectOptions}
-										takenNames={projectTakenNames}
-										creating={preparingProject}
-										onSelectProject={onSelectProject}
-										onSelectPendingProject={onSelectPendingProject}
-									/>
-								</div>
-							</div>
-						)}
+						<div className={cn("mx-auto w-full max-w-2xl px-2 sm:px-4", commandPanelExpanded && "invisible")}>
+							<GuideBadgeSwiper mounted={mounted} />
+						</div>
 					</motion.div>
 				}
 				landing={

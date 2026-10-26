@@ -15,6 +15,7 @@ const ICON_BY_KIND: Record<PresentedErrorKind, string> = {
 	unknown: "icon-[mdi--alert-circle-outline]",
 	run_limit: "icon-[mdi--timer-sand]",
 	persistence: "icon-[mdi--alert-circle-outline]",
+	empty_response: "icon-[solar--chat-round-warning-linear]",
 };
 
 /**
@@ -52,13 +53,17 @@ export function ErrorBlockView({ block, exportMode = false }: ErrorBlockProps): 
 		block.details?.statusCode !== undefined
 			? t("messageList.errorBlock.diagnostic.statusCode", { value: block.details.statusCode })
 			: undefined,
-		block.details?.provider ? t("messageList.errorBlock.diagnostic.provider", { value: block.details.provider }) : undefined,
+		block.details?.provider
+			? t("messageList.errorBlock.diagnostic.provider", { value: block.details.provider })
+			: undefined,
 		block.details?.modelId ? t("messageList.errorBlock.diagnostic.model", { value: block.details.modelId }) : undefined,
 		block.details?.providerCode
 			? t("messageList.errorBlock.diagnostic.providerCode", { value: block.details.providerCode })
 			: undefined,
 		block.details?.phase ? t("messageList.errorBlock.diagnostic.phase", { value: block.details.phase }) : undefined,
-		block.details?.requestId ? t("messageList.errorBlock.diagnostic.requestId", { value: block.details.requestId }) : undefined,
+		block.details?.requestId
+			? t("messageList.errorBlock.diagnostic.requestId", { value: block.details.requestId })
+			: undefined,
 		block.details?.retryAfterMs !== undefined
 			? t("messageList.errorBlock.diagnostic.retryAfter", { value: block.details.retryAfterMs })
 			: undefined,

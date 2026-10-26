@@ -45,6 +45,19 @@ describe("NewSessionAgentSelector", () => {
 		);
 	}
 
+	it("opens from the keyboard with one native trigger and no nested avatar button", async () => {
+		const user = userEvent.setup();
+		const onSelect = vi.fn();
+		render(<Harness onSelect={onSelect} />);
+		const trigger = screen.getByRole("button", { name: "newSession.agentSelector.pickTitle" });
+		expect(trigger.tagName).toBe("BUTTON");
+		expect(trigger.querySelector("button")).toBeNull();
+		trigger.focus();
+		await user.keyboard("{Enter}");
+		await user.click(await screen.findByRole("option", { name: new RegExp(agent.name) }));
+		expect(onSelect).toHaveBeenCalledWith(agentTargetKey(agent.id));
+	});
+
 	it("picks a team from the dialog and turns the trigger into the team's avatar stack", async () => {
 		const onSelect = vi.fn();
 		const user = userEvent.setup();

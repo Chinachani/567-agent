@@ -2,7 +2,7 @@
 	"schemaVersion": 1,
 	"type": "plugin",
 	"slug": "browser",
-	"version": "0.1.1",
+	"version": "0.1.2",
 	"detail": {
 		"blocks": [
 			{
@@ -10,15 +10,31 @@
 				"eyebrow": "真实浏览器自动化",
 				"title": "让 Agent 在你看得见的浏览器里工作",
 				"description": "复用你的登录态，读取真实页面并完成多步骤操作；涉及提交、发送或删除时始终停下来确认。",
-				"badges": ["可见窗口", "会话隔离", "提交前确认"]
+				"badges": [
+					"当前窗口优先",
+					"目标页确认",
+					"提交前确认"
+				]
 			},
 			{
 				"type": "stats",
 				"title": "适合哪些网页任务",
 				"items": [
-					{ "value": "真实", "label": "页面环境", "description": "不是静态 HTML 或模拟器" },
-					{ "value": "多步", "label": "任务流程", "description": "导航、填写、等待与校验" },
-					{ "value": "可控", "label": "关键动作", "description": "提交前保留人工确认" }
+					{
+						"value": "真实",
+						"label": "页面环境",
+						"description": "不是静态 HTML 或模拟器"
+					},
+					{
+						"value": "多步",
+						"label": "任务流程",
+						"description": "导航、填写、等待与校验"
+					},
+					{
+						"value": "可控",
+						"label": "关键动作",
+						"description": "提交前保留人工确认"
+					}
 				]
 			},
 			{
@@ -26,12 +42,20 @@
 				"title": "从“查资料”到“完成任务”",
 				"left": {
 					"title": "只做网页搜索",
-					"items": ["只能返回搜索结果", "遇到登录态和复杂表单就会中断", "无法复用当前页面上下文"]
+					"items": [
+						"只能返回搜索结果",
+						"遇到登录态和复杂表单就会中断",
+						"无法复用当前页面上下文"
+					]
 				},
 				"right": {
 					"title": "使用 Browser",
 					"tone": "accent",
-					"items": ["打开你正在使用的真实网站", "读取页面结构并执行多步操作", "高风险动作交还给你确认"]
+					"items": [
+						"打开你正在使用的真实网站",
+						"读取页面结构并执行多步操作",
+						"高风险动作交还给你确认"
+					]
 				}
 			},
 			{
@@ -50,12 +74,12 @@
 					},
 					{
 						"title": "登录态复用",
-						"description": "登录和二次验证由你在可见窗口完成，后续任务可按 profile 安全复用状态。",
+						"description": "优先连接你当前已打开的浏览器，验证码与二次验证由你完成。",
 						"icon": "solar:shield-user-linear"
 					},
 					{
-						"title": "任务与账号隔离",
-						"description": "不同 Agent 任务使用独立 session，同一任务的多个账号也可分别保存状态。",
+						"title": "按需独立环境",
+						"description": "控制会话绑定目标标签页；需要隔离账号或新窗口时，可明确要求独立任务浏览器。",
 						"icon": "solar:layers-minimalistic-linear"
 					}
 				]
@@ -73,15 +97,31 @@
 						"eyebrow": "REAL BROWSER AUTOMATION",
 						"title": "Let the agent work in a browser you can see",
 						"description": "Reuse your sign-in state, read real pages and complete multi-step tasks. The agent always pauses before submitting, sending or deleting.",
-						"badges": ["Visible window", "Isolated sessions", "Confirm before submit"]
+						"badges": [
+							"Visible window",
+							"Isolated sessions",
+							"Confirm before submit"
+						]
 					},
 					{
 						"type": "stats",
 						"title": "What it is built for",
 						"items": [
-							{ "value": "Real", "label": "Page environment", "description": "Not static HTML or a simulator" },
-							{ "value": "Multi-step", "label": "Task flows", "description": "Navigate, fill, wait and verify" },
-							{ "value": "Controlled", "label": "Critical actions", "description": "Keep human confirmation before submit" }
+							{
+								"value": "Real",
+								"label": "Page environment",
+								"description": "Not static HTML or a simulator"
+							},
+							{
+								"value": "Multi-step",
+								"label": "Task flows",
+								"description": "Navigate, fill, wait and verify"
+							},
+							{
+								"value": "Controlled",
+								"label": "Critical actions",
+								"description": "Keep human confirmation before submit"
+							}
 						]
 					},
 					{
@@ -89,12 +129,20 @@
 						"title": "From finding information to completing work",
 						"left": {
 							"title": "Web search only",
-							"items": ["Returns search results only", "Stops at sign-in and complex forms", "Cannot reuse the current page context"]
+							"items": [
+								"Returns search results only",
+								"Stops at sign-in and complex forms",
+								"Cannot reuse the current page context"
+							]
 						},
 						"right": {
 							"title": "With Browser",
 							"tone": "accent",
-							"items": ["Open the real site you use", "Read structure and execute multi-step actions", "Hand high-risk actions back for confirmation"]
+							"items": [
+								"Open the real site you use",
+								"Read structure and execute multi-step actions",
+								"Hand high-risk actions back for confirmation"
+							]
 						}
 					},
 					{

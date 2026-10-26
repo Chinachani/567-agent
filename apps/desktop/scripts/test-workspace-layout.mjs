@@ -132,6 +132,7 @@ function runProbe({ root, artifacts }) {
 	const { app, BrowserWindow, session } = require("electron"),
 		fs = require("node:fs/promises"),
 		path = require("node:path");
+	app.disableHardwareAcceleration();
 	app.setPath("userData", path.join(root, "profile"));
 	app
 		.whenReady()
@@ -140,7 +141,9 @@ function runProbe({ root, artifacts }) {
 				callback({ cancel: true }),
 			);
 			const win = new BrowserWindow({
-				show: false,
+				// This display belongs to the private Xvfb process. Keep its compositor
+				// producing frames so capturePage cannot save a previous page's pixels.
+				show: true,
 				width: 1100,
 				height: 780,
 				webPreferences: { sandbox: true, backgroundThrottling: false },
@@ -164,7 +167,7 @@ function runProbe({ root, artifacts }) {
 							timer = setTimeout(() => reject(Error("UI operation timed out: " + fn.toString().slice(0, 180))), 5000);
 						}),
 					]);
-					if (result?.__error) throw Error(result.__error);
+					if (result?.__error) throw Error(result.__error + "\nRenderer errors: " + errors.slice(-5).join("\n"));
 					return result;
 				} finally {
 					clearTimeout(timer);

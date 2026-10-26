@@ -3,7 +3,7 @@ import { pathBasename, toVettaFileUrl } from "@shared/lib/utils";
 import { filePreviewAtom } from "@shared/store/file-preview-atoms";
 import { pluginConversationOverrideAtom, promptAttachmentAtom } from "@shared/store/atoms";
 import { useAtom, useSetAtom } from "jotai";
-import { useCallback, useEffect, useMemo, useRef, useState, type DragEvent } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, type DragEvent, type ReactNode } from "react";
 import { useTranslation } from "react-i18next";
 import { publishPluginTurnStart } from "@domains/plugins/runtime/plugin-host-bridge";
 import { InputBar } from "../../components/InputBar";
@@ -15,11 +15,7 @@ import { useInputBarTriggerModel } from "../../components/input-bar/useInputBarT
 import { useSpeechInput } from "../../components/input-bar/useSpeechInput";
 import { useInputBarInteractionSource } from "../../components/input-bar/useInputBarSources";
 import { insertMemberToken, removeMemberToken } from "../../components/input-bar/editor/inputEditorHandle";
-import {
-	useContextRingModel,
-	useContextRingScopeModels,
-	type ContextRingModel,
-} from "../../hooks/useContextRingModel";
+import { useContextRingModel, useContextRingScopeModels, type ContextRingModel } from "../../hooks/useContextRingModel";
 import { useExecutionModeSelectorModel } from "../../hooks/useExecutionModeSelectorModel";
 import type { TeamAttachmentViewModel, TeamChatActions, TeamComposerViewModel } from "./teamChatModel";
 import { agentAvatarUrl } from "@shared/agent-teams/agent-avatar";
@@ -68,9 +64,11 @@ export function TeamComposerConnector({
 	model,
 	actions,
 	onExpandedChange,
+	children,
 }: {
 	readonly model: TeamComposerViewModel;
 	readonly actions: TeamChatActions;
+	readonly children?: ReactNode;
 	/** 命令区展开回调：新会话页据此淡出 hero，否则 hero（含装饰件）会压住向上生长的面板。 */
 	readonly onExpandedChange?: (expanded: boolean) => void;
 }): JSX.Element {
@@ -100,22 +98,21 @@ export function TeamComposerConnector({
 	const isEmpty = model.draft.trim().length === 0 && model.attachments.length === 0;
 	const editorSegments = useMemo(() => projectTeamDraftSegments(model), [model]);
 	const atItems = useMemo<readonly AtPanelItem[]>(
-		() => model.members.map((member) => {
-			const handle = member.handle.trim() || member.id;
-			const isLeader = member.id === model.leaderMemberId;
-			const roleLabel = isLeader
-				? model.labels.leaderRoute
-				: member.name.trim() || model.labels.memberRoleFallback;
-			return {
-				kind: "team-member",
-				id: member.id,
-				name: member.name.trim() || `@${handle}`,
-				insertText: `@${handle} `,
-				avatar: agentAvatarUrl(member),
-				meta: `${roleLabel} · @${handle}`,
-				keywords: [handle, roleLabel],
-			};
-		}),
+		() =>
+			model.members.map((member) => {
+				const handle = member.handle.trim() || member.id;
+				const isLeader = member.id === model.leaderMemberId;
+				const roleLabel = isLeader ? model.labels.leaderRoute : member.name.trim() || model.labels.memberRoleFallback;
+				return {
+					kind: "team-member",
+					id: member.id,
+					name: member.name.trim() || `@${handle}`,
+					insertText: `@${handle} `,
+					avatar: agentAvatarUrl(member),
+					meta: `${roleLabel} · @${handle}`,
+					keywords: [handle, roleLabel],
+				};
+			}),
 		[model.leaderMemberId, model.labels, model.members],
 	);
 	const handleAtItemSelect = useCallback((item: AtPanelItem) => {
@@ -126,7 +123,7 @@ export function TeamComposerConnector({
 	}, []);
 	const trigger = useInputBarTriggerModel({
 		activeSession:
-		model.workspace?.cwd && model.activeSessionId
+			model.workspace?.cwd && model.activeSessionId
 				? { cwd: model.workspace.cwd, runtimeId: model.activeSessionId }
 				: null,
 		canSend: model.canSend,
@@ -162,10 +159,13 @@ export function TeamComposerConnector({
 		isStreaming,
 		onSelectMode: actions.setExecutionMode ?? (() => undefined),
 	});
-	const contextUsageModel = useContextRingModel({
-		usage: model.contextUsage ?? null,
-		isCompacting: model.isCompacting ?? false,
-	}, true);
+	const contextUsageModel = useContextRingModel(
+		{
+			usage: model.contextUsage ?? null,
+			isCompacting: model.isCompacting ?? false,
+		},
+		true,
+	);
 	const contextScopes = useContextRingScopeModels(
 		model.members.map((member) => {
 			const runtimeSessionId = model.memberRuntimeIds?.[member.id];
@@ -174,15 +174,13 @@ export function TeamComposerConnector({
 				label: member.name,
 				avatar: member.avatar,
 				blueprintId: member.blueprintId,
-				usage: runtimeSessionId ? model.contextUsagesByRuntime?.[runtimeSessionId] ?? null : null,
+				usage: runtimeSessionId ? (model.contextUsagesByRuntime?.[runtimeSessionId] ?? null) : null,
 				isCompacting: runtimeSessionId ? model.compactingByRuntime?.[runtimeSessionId] === true : false,
 			};
 		}),
 		true,
 	);
-	const contextRingModel = contextUsageModel
-		? contextUsageModel
-		: (contextScopes[0]?.model ?? null);
+	const contextRingModel = contextUsageModel ? contextUsageModel : (contextScopes[0]?.model ?? null);
 	const renderContextRing = useCallback(
 		(model: ContextRingModel) => (
 			<ContextRing.Root model={model}>
@@ -237,19 +235,25 @@ export function TeamComposerConnector({
 		if (types.includes("Files")) return "files";
 		return null;
 	}, []);
-	const onDragEnter = useCallback((event: DragEvent<Element>) => {
-		const kind = detectDragKind(event);
-		if (!kind || !model.editorEnabled) return;
-		event.preventDefault();
-		event.stopPropagation();
-		setDragKind(kind);
-	}, [detectDragKind, model.editorEnabled]);
-	const onDragOver = useCallback((event: DragEvent<Element>) => {
-		if (!detectDragKind(event) || !model.editorEnabled) return;
-		event.preventDefault();
-		event.stopPropagation();
-		event.dataTransfer.dropEffect = "copy";
-	}, [detectDragKind, model.editorEnabled]);
+	const onDragEnter = useCallback(
+		(event: DragEvent<Element>) => {
+			const kind = detectDragKind(event);
+			if (!kind || !model.editorEnabled) return;
+			event.preventDefault();
+			event.stopPropagation();
+			setDragKind(kind);
+		},
+		[detectDragKind, model.editorEnabled],
+	);
+	const onDragOver = useCallback(
+		(event: DragEvent<Element>) => {
+			if (!detectDragKind(event) || !model.editorEnabled) return;
+			event.preventDefault();
+			event.stopPropagation();
+			event.dataTransfer.dropEffect = "copy";
+		},
+		[detectDragKind, model.editorEnabled],
+	);
 	const onDragLeave = useCallback((event: DragEvent<Element>) => {
 		event.preventDefault();
 		event.stopPropagation();
@@ -257,23 +261,26 @@ export function TeamComposerConnector({
 		if (related instanceof Node && event.currentTarget.contains(related)) return;
 		setDragKind(null);
 	}, []);
-	const onDrop = useCallback((event: DragEvent<Element>) => {
-		const kind = detectDragKind(event);
-		setDragKind(null);
-		if (!kind || !model.editorEnabled) return;
-		event.preventDefault();
-		event.stopPropagation();
-		if (kind === "internal") {
-			const path = event.dataTransfer.getData(VETTA_PATH_MIME);
-			if (path) actions.addAttachments([attachmentFromPath(path)]);
-			return;
-		}
-		const additions = Array.from(event.dataTransfer.files)
-			.map((file) => window.agent567.fs.pathForFile(file))
-			.filter((path): path is string => Boolean(path))
-			.map(attachmentFromPath);
-		if (additions.length > 0) actions.addAttachments(additions);
-	}, [actions, detectDragKind, model.editorEnabled]);
+	const onDrop = useCallback(
+		(event: DragEvent<Element>) => {
+			const kind = detectDragKind(event);
+			setDragKind(null);
+			if (!kind || !model.editorEnabled) return;
+			event.preventDefault();
+			event.stopPropagation();
+			if (kind === "internal") {
+				const path = event.dataTransfer.getData(VETTA_PATH_MIME);
+				if (path) actions.addAttachments([attachmentFromPath(path)]);
+				return;
+			}
+			const additions = Array.from(event.dataTransfer.files)
+				.map((file) => window.agent567.fs.pathForFile(file))
+				.filter((path): path is string => Boolean(path))
+				.map(attachmentFromPath);
+			if (additions.length > 0) actions.addAttachments(additions);
+		},
+		[actions, detectDragKind, model.editorEnabled],
+	);
 
 	const routing = useMemo<InputBarModel["routing"]>(() => {
 		const defaultRole = model.labels.memberRoleFallback;
@@ -288,9 +295,7 @@ export function TeamComposerConnector({
 			},
 			participants: model.members.map((member) => {
 				const isLeader = member.id === model.leaderMemberId;
-				const roleLabel = isLeader
-					? model.labels.leaderRoute
-					: member.name.trim() || defaultRole;
+				const roleLabel = isLeader ? model.labels.leaderRoute : member.name.trim() || defaultRole;
 				return {
 					id: member.id,
 					name: member.name,
@@ -342,14 +347,16 @@ export function TeamComposerConnector({
 		placeholderRotating: false,
 		isFocused: trigger.isFocused,
 		drawerItems: interactions.sandboxPermission
-			? [{
-				kind: "sandbox-permission",
-				id: interactions.sandboxPermission.requestId,
-				label: t("inputBar.drawer.permissionLabel"),
-				desc: t("inputBar.drawer.permissionDesc"),
-				pulsing: true,
-				request: interactions.sandboxPermission,
-			}]
+			? [
+					{
+						kind: "sandbox-permission",
+						id: interactions.sandboxPermission.requestId,
+						label: t("inputBar.drawer.permissionLabel"),
+						desc: t("inputBar.drawer.permissionDesc"),
+						pulsing: true,
+						request: interactions.sandboxPermission,
+					},
+				]
 			: [],
 		drawerActiveTab: null,
 		todo: null,
@@ -358,13 +365,12 @@ export function TeamComposerConnector({
 		promptAttachmentIcon: promptAttachment?.icon,
 		promptAttachmentIconUrl: promptAttachment?.ownerPluginIconUrl,
 		promptAttachmentLabel: promptAttachment?.label,
-		promptAttachmentLabels:
-			promptAttachment?.labels ?? (promptAttachment ? [promptAttachment.label] : undefined),
+		promptAttachmentLabels: promptAttachment?.labels ?? (promptAttachment ? [promptAttachment.label] : undefined),
 		pendingMessageEdit: false,
 		pendingEditHint: t("messageList.edit.pendingHint"),
 		cancelPendingEditLabel: t("messageList.interrupt.cancel"),
 		contextMenu: contextMenu.contextMenu,
-			editor: {
+		editor: {
 			namespace: `team-chat:${model.activeSessionId ?? "new"}`,
 			value: model.draft,
 			segments: editorSegments,
@@ -390,7 +396,9 @@ export function TeamComposerConnector({
 		routing,
 		modelSelector: { updateActiveSession: false, scope: modelScope },
 		leadingTools: [{ kind: "execution-mode", model: executionModeModel }],
-		trailingTools: contextRingModel ? [{ kind: "context-usage", model: contextRingModel, render: renderContextRing }] : [],
+		trailingTools: contextRingModel
+			? [{ kind: "context-usage", model: contextRingModel, render: renderContextRing }]
+			: [],
 		sendBehavior: "direct",
 		labels: {
 			capsule: {
@@ -428,5 +436,5 @@ export function TeamComposerConnector({
 		},
 	};
 
-	return <InputBar model={inputModel} />;
+	return <InputBar model={inputModel}>{children}</InputBar>;
 }

@@ -14,6 +14,46 @@ const context: Context = {
 };
 
 describe("openai-completions relay compatibility", () => {
+	it.each([undefined, "   \n"])(
+		"reports an empty successful completion (%j) instead of silently finishing",
+		async (content) => {
+			const transport = createProviderTestTransport([
+				relaySse([
+					relayChunk({ role: "assistant", ...(content === undefined ? {} : { content }) }, null),
+					{ ...relayChunk({}, "stop"), usage: { prompt_tokens: 120, completion_tokens: 0, total_tokens: 120 } },
+				]),
+			]);
+			const response = await streamModel({ model: relayModel(), context, options: relayOptions(transport.fetch) });
+			await expect(response.result).rejects.toMatchObject({
+				code: "AI_STREAM_PROTOCOL_FAILED",
+				providerCode: "empty_completion",
+				retryable: false,
+			});
+			const terminal = [];
+			try {
+				for await (const event of response.events) {
+					if (event.type === "error") terminal.push(event.error);
+				}
+			} catch {
+				/* The result and the terminal event carry the same failure. */
+			}
+			expect(terminal).toHaveLength(1);
+			expect(terminal[0]).toMatchObject({ stopReason: "error", usage: { input: 120, output: 0 } });
+			expect(transport.requests).toHaveLength(1);
+		},
+	);
+
+	it("preserves a provider refusal as visible text", async () => {
+		const transport = createProviderTestTransport([
+			relaySse([
+				relayChunk({ role: "assistant", refusal: "I cannot perform this action." }, null),
+				relayChunk({}, "stop"),
+			]),
+		]);
+		const response = await streamModel({ model: relayModel(), context, options: relayOptions(transport.fetch) });
+		expect(textOf(await response.result)).toBe("I cannot perform this action.");
+	});
+
 	it("streams a relay that sends an empty-string finish_reason on every non-terminal chunk", async () => {
 		const transport = createProviderTestTransport([
 			relaySse([

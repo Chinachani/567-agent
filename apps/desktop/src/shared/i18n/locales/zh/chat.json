@@ -709,6 +709,10 @@
         "unknown": {
           "title": "本次回复中断了",
           "hint": "可以重新发送试试；反复出现的话把详情复制给我们。"
+        },
+        "empty_response": {
+          "title": "模型返回了空回复",
+          "hint": "本次没有收到正文或工具调用。可以重新发送；长会话也可以先压缩上下文后再继续。"
         }
       }
     },
@@ -780,9 +784,9 @@
     "visionBadge": "vision"
   },
   "newSession": {
-    "greetingDefault": "今天怎么样？",
+    "greetingDefault": "开始一个新任务",
     "greetingTitle": "你好，{{nickname}}",
-    "subtitle": "我可以帮助你处理工作，有什么我可以帮你的吗？",
+    "subtitle": "描述你想完成的事，也可以添加文件、图片或项目。",
     "defaultContext": "普通会话",
     "teamNewWorkspaceContext": "新工作空间",
     "projectContext": "项目 · {{name}}",

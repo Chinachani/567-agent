@@ -36,7 +36,7 @@ import type { InputBarViewProps } from "./types";
 
 const SOFT = { duration: 0.18, ease: [0.22, 0.61, 0.36, 1] as const };
 
-export function InputBarView({ model, className, classNames }: InputBarViewProps): JSX.Element {
+export function InputBarView({ model, children, className, classNames }: InputBarViewProps): JSX.Element {
 	const hasPendingInteraction = Boolean(
 		model.pendingMcpElicitation || model.pendingQuestion || model.pendingPlanReview,
 	);
@@ -50,9 +50,7 @@ export function InputBarView({ model, className, classNames }: InputBarViewProps
 	const renderCapsules = useDelayedUnmount(model.hasCapsules, 220);
 
 	return (
-		<div
-			className={["relative px-2 pb-3 pt-1 sm:px-4 sm:pb-4", className, classNames?.root].filter(Boolean).join(" ")}
-		>
+		<div className={["relative px-2 pb-3 pt-1 sm:px-4 sm:pb-4", className, classNames?.root].filter(Boolean).join(" ")}>
 			<AnimatePresence>
 				{model.pendingMcpElicitation ? (
 					<motion.div
@@ -139,6 +137,7 @@ export function InputBarView({ model, className, classNames }: InputBarViewProps
 						>
 							<ThemedInputBarBackground />
 							<MessageInput.Content className={classNames?.cardContent}>
+								{children}
 								<div
 									data-message-input-part="context-toolbar"
 									className="flex min-w-0 flex-wrap items-center justify-between gap-x-3 gap-y-1 border-b border-border/50 px-3 py-2"
@@ -153,11 +152,7 @@ export function InputBarView({ model, className, classNames }: InputBarViewProps
 									<div className="ml-auto flex min-w-0 items-center gap-1">
 										{model.trailingTools.map((tool) =>
 											tool.kind === "workbench" ? (
-												<ContextWorkspace
-													key={tool.kind}
-													sessionId={tool.sessionId}
-													sessionKey={tool.sessionKey}
-												/>
+												<ContextWorkspace key={tool.kind} sessionId={tool.sessionId} sessionKey={tool.sessionKey} />
 											) : (
 												<InputBarContextAction
 													key={tool.kind}
@@ -252,11 +247,7 @@ export function InputBarView({ model, className, classNames }: InputBarViewProps
 												/>
 											) : null}
 											{model.routing ? (
-												<InputBarMention
-													model={model.routing}
-													disabled={!model.hasSession}
-													visible={!slashOpen}
-												/>
+												<InputBarMention model={model.routing} disabled={!model.hasSession} visible={!slashOpen} />
 											) : null}
 											{commands ? <InputBarToolbarDivider /> : null}
 											{/* 两组控件保持挂载、只切 display，避免展开动画首帧重建复杂 selector。 */}
@@ -269,11 +260,7 @@ export function InputBarView({ model, className, classNames }: InputBarViewProps
 												onSelectImages={() => void model.actions.handleSelectImages()}
 											/>
 											{model.leadingTools.map((tool) => (
-												<InputBarExecutionModeAction
-													key={tool.kind}
-													visible={!slashOpen}
-													model={tool.model}
-												/>
+												<InputBarExecutionModeAction key={tool.kind} visible={!slashOpen} model={tool.model} />
 											))}
 											<InputBarActiveActions
 												items={model.activeActions}

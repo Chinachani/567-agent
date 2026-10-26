@@ -3,6 +3,7 @@ import { getEnvApiKey } from "../../env-api-keys.js";
 import { calculateCost } from "../../models.js";
 import {
 	AIAbortedError,
+	AIStreamProtocolError,
 	type Api,
 	createAssistantMessage as createProtocolAssistantMessage,
 } from "../../protocol/index.js";
@@ -185,8 +186,9 @@ async function produceOpenAICompletions(
 			}
 			if (!choice.delta) continue;
 
-			if (choice.delta.content) {
-				for (const segment of contentSplitter.push(choice.delta.content)) emitContentSegment(segment);
+			const visibleContent = choice.delta.content || choice.delta.refusal;
+			if (visibleContent) {
+				for (const segment of contentSplitter.push(visibleContent)) emitContentSegment(segment);
 			}
 
 			const delta = choice.delta as CompatibleDelta;
@@ -266,6 +268,24 @@ async function produceOpenAICompletions(
 		for (const segment of contentSplitter.flush()) emitContentSegment(segment);
 		finishCurrentBlock(currentBlock);
 		if (options?.signal?.aborted) throw new AIAbortedError();
+		if (
+			output.stopReason === "stop" &&
+			rawFinishReason !== "content_filter" &&
+			!output.content.some(
+				(block) =>
+					block.type === "toolCall" || (block.type === "text" ? block.text : block.thinking).trim().length > 0,
+			)
+		) {
+			// Some relays send role/usage/stop chunks without any response. This is
+			// not a completed task; keep usage and require an explicit user retry.
+			throw new AIStreamProtocolError("Model returned no response content or tool calls", {
+				provider: model.provider,
+				modelId: model.id,
+				providerCode: "empty_completion",
+				phase: "stream",
+				retryable: false,
+			});
+		}
 		if (output.stopReason === "aborted" || output.stopReason === "error") {
 			throw new Error("An unknown error occurred");
 		}

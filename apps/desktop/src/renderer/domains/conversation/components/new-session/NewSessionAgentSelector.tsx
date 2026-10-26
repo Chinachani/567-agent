@@ -1,6 +1,5 @@
 import { teamMemberAvatarUrls, useAgentAvatarResolver } from "@shared/agent-teams/agent-avatar";
 import { useLocalizedAgentTeamDocument } from "@shared/agent-teams/agent-team-localization";
-import { BotAvatar } from "@shared/components/BotAvatar";
 import { type AgentTeamDocument, listLibraryAgentProfiles } from "@567agent/agent-team";
 import { NewSessionPicker, type NewSessionPickerRootProps } from "@vetta-org/theme-ui/chat";
 import { AvatarStackView } from "@vetta-org/theme-ui/shared";
@@ -134,38 +133,22 @@ export function NewSessionAgentSelector({
 	);
 
 	return (
-		<NewSessionPicker.Root
-			open={open}
-			onOpenChange={handleOpenChange}
-			value={selectedKey}
-			onValueChange={handleSelect}
-		>
-			{/* BotAvatar 自身是 <button>，套在默认 button 触发器里会被 HTML 解析器提前闭合，
-			    因此这里用 asChild + div 手写键盘行为。 */}
+		<NewSessionPicker.Root open={open} onOpenChange={handleOpenChange} value={selectedKey} onValueChange={handleSelect}>
 			<NewSessionPicker.Trigger
-				asChild
 				className={className}
 				aria-label={triggerLabel}
 				title={selectedOption?.title ?? triggerLabel}
 			>
-				<div
-					role="button"
-					tabIndex={0}
-					className="cursor-pointer"
-					onKeyDown={(event) => {
-						if (event.key !== "Enter" && event.key !== " ") return;
-						event.preventDefault();
-						handleOpenChange(true);
-					}}
-				>
-					{selectedOption?.avatarUrls?.length ? (
-						<AvatarStackView avatarUrls={selectedOption.avatarUrls} />
-					) : (
-						<BotAvatar size="sm" className="pointer-events-none -ml-1" />
-					)}
-					<span className="min-w-0 truncate">{selectedOption?.title ?? t("newSession.agentSelector.pick")}</span>
-					<span className="icon-[solar--alt-arrow-down-linear] h-3 w-3 shrink-0 opacity-70" aria-hidden />
-				</div>
+				{selectedOption?.avatarUrls?.length ? (
+					<AvatarStackView avatarUrls={selectedOption.avatarUrls} />
+				) : (
+					<span
+						className="icon-[solar--user-speak-rounded-linear] h-4 w-4 shrink-0 text-muted-foreground"
+						aria-hidden
+					/>
+				)}
+				<span className="min-w-0 truncate">{selectedOption?.title ?? t("newSession.agentSelector.pick")}</span>
+				<span className="icon-[solar--alt-arrow-down-linear] h-3 w-3 shrink-0 opacity-70" aria-hidden />
 			</NewSessionPicker.Trigger>
 			<NewSessionPicker.Content>
 				{searchVisible && (

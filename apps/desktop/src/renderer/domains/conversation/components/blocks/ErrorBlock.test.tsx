@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 import type { ErrorBlock } from "@shared/store/atoms";
 import { initI18n } from "@shared/i18n";
-import { appendError, historyToChat } from "../../services/chat-service";
+import { appendError, historyToChat, fullHistoryToChat } from "../../services/chat-service";
 import { render, screen, fireEvent } from "@testing-library/react";
 import i18n from "i18next";
 import { beforeAll, describe, expect, it, vi } from "vitest";
@@ -22,6 +22,41 @@ beforeAll(() => {
 });
 
 describe("conversation error presentation", () => {
+	it.each(["live", "restored"])("explains an empty completion in %s messages", (source) => {
+		const messages = fullHistoryToChat([
+			{ type: "message", message: { role: "user", content: "Continue", timestamp: 1 } },
+			{
+				type: "error",
+				entryId: "empty-1",
+				turnId: "turn-1",
+				code: "AI_STREAM_PROTOCOL_FAILED",
+				origin: "provider",
+				retryable: false,
+				details: { providerCode: "empty_completion" },
+				message: "Model returned no response content or tool calls",
+				timestamp: "2026-10-26T05:00:00.000Z",
+			},
+		]);
+		const block = messages.flatMap((message) =>
+			message.kind === "agent" ? message.blocks.filter((entry): entry is ErrorBlock => entry.type === "error") : [],
+		)[0]!;
+		render(
+			<ErrorBlockView
+				block={
+					source === "live"
+						? liveError("Model returned no response content or tool calls", {
+								code: "AI_STREAM_PROTOCOL_FAILED",
+								providerCode: "empty_completion",
+								retryable: false,
+							})
+						: block
+				}
+			/>,
+		);
+		expect(screen.getByText("模型返回了空回复")).toBeTruthy();
+		expect(screen.getByText(/本次没有收到正文或工具调用/)).toBeTruthy();
+	});
+
 	it("explains a stopped run while keeping runtime diagnostics available", () => {
 		const text = "Agent run ended with status: max_model_calls";
 		render(<ErrorBlockView block={liveError(text, { code: "turn_failed", origin: "runtime" })} />);
@@ -39,7 +74,12 @@ describe("conversation error presentation", () => {
 	it("recognizes a model-call limit in restored conversation history", () => {
 		const messages = historyToChat([
 			{ role: "user", content: "Continue the task" },
-			{ role: "assistant", content: [], stopReason: "error", errorMessage: "Agent run ended with status: max_model_calls" },
+			{
+				role: "assistant",
+				content: [],
+				stopReason: "error",
+				errorMessage: "Agent run ended with status: max_model_calls",
+			},
 		]);
 		const block = messages.flatMap((message) =>
 			message.kind === "agent" ? message.blocks.filter((entry): entry is ErrorBlock => entry.type === "error") : [],
@@ -59,7 +99,11 @@ describe("conversation error presentation", () => {
 	});
 
 	it("marks failed persistence as critical without claiming work was lost", () => {
-		render(<ErrorBlockView block={liveError("Turn terminal state could not be persisted", { code: "turn_persistence", origin: "runtime" })} />);
+		render(
+			<ErrorBlockView
+				block={liveError("Turn terminal state could not be persisted", { code: "turn_persistence", origin: "runtime" })}
+			/>,
+		);
 		expect(screen.getByText("严重")).toBeTruthy();
 		expect(screen.getByText("会话状态未能保存")).toBeTruthy();
 	});

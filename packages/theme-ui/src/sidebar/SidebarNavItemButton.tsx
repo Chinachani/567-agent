@@ -42,7 +42,7 @@ export const SidebarNavItemButton = forwardRef<HTMLButtonElement, SidebarNavItem
 				className={cn(
 					"no-drag relative z-20 flex items-center gap-2.5 rounded-lg px-2.5 py-2 text-[13px] transition-colors",
 					item.type === "new-session"
-						? "mb-2 bg-primary font-medium text-primary-foreground hover:bg-primary/90"
+						? "mb-1 border border-border/60 bg-muted/30 font-medium text-foreground hover:border-border hover:bg-accent/60"
 						: item.active
 							? "font-semibold text-foreground"
 							: "text-muted-foreground hover:bg-accent/50 hover:text-foreground",
