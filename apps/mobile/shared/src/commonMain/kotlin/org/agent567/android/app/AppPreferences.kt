@@ -393,9 +393,8 @@ class AppPreferences(
 
     private fun readServerUrl(): String {
         storage.getStringOrNull(KEY_SERVER_URL)?.takeIf { it.isNotBlank() }?.let { return it }
-        // Previous releases did not persist their implicit German default. Any
-        // existing preferences/tokens are upgrade evidence, even without a login.
-        val server = if (storage.keys.isNotEmpty()) ServiceRoute.Germany.origin else DEFAULT_SERVER_URL
+        // Use the bootstrap until another ingress is explicitly selected.
+        val server = DEFAULT_SERVER_URL
         storage[KEY_SERVER_URL] = server
         return server
     }
@@ -413,8 +412,8 @@ class AppPreferences(
         private const val KEY_DOWNLOAD_SOURCE = "567agent.prefs.github_download_source"
         private const val KEY_DOWNLOAD_CUSTOM_PREFIX = "567agent.prefs.github_download_custom_prefix"
 
-        /** 与 desktop `.env.development` 同源默认，可在设置中覆盖。 */
-        const val DEFAULT_SERVER_URL = "https://a.567.wiki"
+        /** 与桌面首次安装和节点发现入口一致；已有选择仍由持久化配置恢复。 */
+        const val DEFAULT_SERVER_URL = "https://api.567.wiki"
 
         private const val KEY_SERVER_URL = "agent567.prefs.server_url"
         private const val KEY_THEME = "agent567.prefs.theme"

@@ -16,11 +16,13 @@ afterEach(() => {
 });
 
 describe("desktop service route migration", () => {
-	it("defaults a new installation to mainland, persists a manual selection and restores it", async () => {
+	it("defaults a new installation to Germany and preserves an explicit mainland selection on restart", async () => {
 		const root = home();
 		const routes = new Api567RouteStore(root);
-		expect(routes.route).toBe("mainland");
+		expect(routes.route).toBe("germany");
 		await routes.initialize();
+		await routes.select("mainland");
+		expect(new Api567RouteStore(root).route).toBe("mainland");
 		await routes.select("germany");
 		expect(new Api567RouteStore(root).route).toBe("germany");
 		expect(JSON.parse(readFileSync(join(root, "service-route.json"), "utf8"))).toMatchObject({
@@ -46,7 +48,7 @@ describe("desktop service route migration", () => {
 		const node = { id: "https://node3.567.wiki" as const, origin: "https://node3.567.wiki", name: "线路三" };
 		await routes.saveCatalog([node]);
 		expect(routes.catalog.routes).toContainEqual(node);
-		expect(routes.route).toBe("mainland");
+		expect(routes.route).toBe("germany");
 		await routes.select(node.id);
 		await routes.saveCatalog([{ id: "germany", origin: "https://api.567.wiki" }]);
 		expect(routes.catalog.routes.map((route) => route.id)).toContain(node.id);

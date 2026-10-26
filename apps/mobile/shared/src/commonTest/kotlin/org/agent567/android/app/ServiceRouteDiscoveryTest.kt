@@ -50,10 +50,10 @@ class ServiceRouteDiscoveryTest {
         try {
             val running = container.client
             assertEquals("live", container.refreshServiceRoutes(true).source)
-            assertEquals(ServiceRoute.Mainland.origin, prefs.serverUrl.value)
+            assertEquals(ServiceRoute.Germany.origin, prefs.serverUrl.value)
             assertTrue(container.selectServiceRoute(node).ok)
             assertEquals(listOf(node.origin to null, node.origin to "account-token"), checks)
-            assertEquals(ServiceRoute.Mainland.origin, running.config.apiBaseUrl)
+            assertEquals(ServiceRoute.Germany.origin, running.config.apiBaseUrl)
             assertEquals(node.origin, container.client.config.apiBaseUrl)
             assertEquals(128000L, prefs.getModelContextOverride("B", "model"))
             assertEquals("account-token", tokens.accessToken)
@@ -101,7 +101,7 @@ class ServiceRouteDiscoveryTest {
             advanceUntilIdle()
             assertFalse(vm.state.value.serviceRoutePickerOpen)
             assertNull(vm.state.value.serviceRoutePending)
-            assertEquals(ServiceRoute.Mainland.origin, prefs.serverUrl.value)
+            assertEquals(ServiceRoute.Germany.origin, prefs.serverUrl.value)
         } finally { container.close() }
     }
 }

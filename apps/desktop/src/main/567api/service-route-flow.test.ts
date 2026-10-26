@@ -95,6 +95,42 @@ afterEach(() => {
 });
 
 describe("user switches desktop service route", () => {
+	it("starts a fresh install on Germany, discovers its catalog and signs in without contacting mainland", async () => {
+		rmSync(join(state.home, "567api-session.json"));
+		vi.clearAllTimers();
+		vi.resetModules();
+		service = (await import("./newapi-service.js")).NewApiService.getInstance();
+		expect(await service.getStatus()).toMatchObject({ isLoggedIn: false, serviceRoute: "germany" });
+		state.response.data = {
+			api_info_enabled: true,
+			api_info: [{ url: "https://api.567.wiki", route: "德国" }],
+		};
+		expect((await service.refreshServiceRoutes(true)).routes.map((route) => route.id)).toEqual(["germany"]);
+		state.response.data = { id: 7, username: "new-user", quota: 500000 };
+		state.pause = async () => {
+			state.response.data = {};
+		};
+		expect(await service.loginWithAccessToken("new-account-token")).toEqual({ success: true });
+		expect(await service.getStatus()).toMatchObject({
+			isLoggedIn: true,
+			serviceRoute: "germany",
+			username: "new-user",
+		});
+		expect(state.calls.map((call) => new URL(call.url).origin)).toEqual(
+			state.calls.map(() => "https://api.567.wiki"),
+		);
+		expect(state.calls).toContainEqual({
+			url: "https://api.567.wiki/api/status",
+			auth: undefined,
+			cookie: undefined,
+		});
+		expect(state.calls).toContainEqual({
+			url: "https://api.567.wiki/api/user/self",
+			auth: "Bearer new-account-token",
+			cookie: undefined,
+		});
+	});
+
 	it("loads nodes from the primary, switches a discovered node, and keeps it after invalid or failed refresh", async () => {
 		state.response.data = { api_info_enabled: true, api_info: [{ url: "https://node3.567.wiki", route: "节点三" }] };
 		expect((await service.refreshServiceRoutes(true)).routes).toContainEqual({

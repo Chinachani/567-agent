@@ -13,12 +13,14 @@ import org.agent567.android.data.session.SettingsSessionStore
 import kotlin.test.*
 
 class ServiceRouteTest {
-    @Test fun newInstallDefaultsToMainlandAndUpgradeRetainsGermany() {
+    @Test fun newInstallAndImplicitUpgradeDefaultToGermanyWhileSavedRoutesRemainUnchanged() {
         val fresh = MapSettings()
-        assertEquals(ServiceRoute.Mainland.origin, AppPreferences(fresh).serverUrl.value)
-        assertEquals(ServiceRoute.Mainland.origin, AppPreferences(fresh).serverUrl.value)
+        assertEquals(ServiceRoute.Germany.origin, AppPreferences(fresh).serverUrl.value)
+        assertEquals(ServiceRoute.Germany.origin, AppPreferences(fresh).serverUrl.value)
         val legacy = MapSettings().apply { putString("vetta.prefs.theme", "Dark") }
         assertEquals(ServiceRoute.Germany.origin, AppPreferences(legacy).serverUrl.value)
+        val mainland = MapSettings().apply { putString("vetta.prefs.server_url", ServiceRoute.Mainland.origin) }
+        assertEquals(ServiceRoute.Mainland.origin, AppPreferences(mainland).serverUrl.value)
         val custom = MapSettings().apply { putString("vetta.prefs.server_url", "https://private.test/api/v1") }
         assertEquals("https://private.test/api/v1", AppPreferences(custom).serverUrl.value)
     }
@@ -69,14 +71,14 @@ class ServiceRouteTest {
         val container = AppContainer(preferences = prefs, tokenStore = tokens, sessionStore = SettingsSessionStore(MapSettings()), networkAvailability = MutableStateFlow(NetworkAvailability.Available), checkServiceRoute = { _, token -> if (reject) token == null else { entered.complete(Unit); release.await() } })
         try {
             val client = container.client
-            assertEquals("account-rejected", container.selectServiceRoute(ServiceRoute.Germany).error)
+            assertEquals("account-rejected", container.selectServiceRoute(ServiceRoute.Mainland).error)
             assertSame(client, container.client)
             assertEquals("account-token", tokens.accessToken)
             reject = false
-            val pending = async { container.selectServiceRoute(ServiceRoute.Germany) }
+            val pending = async { container.selectServiceRoute(ServiceRoute.Mainland) }
             entered.await(); pending.cancelAndJoin()
             assertSame(client, container.client)
-            assertEquals(ServiceRoute.Mainland.origin, prefs.serverUrl.value)
+            assertEquals(ServiceRoute.Germany.origin, prefs.serverUrl.value)
         } finally { container.close() }
     }
     @Test fun neverSendsCustomServerCredentialsToBuiltInRoutes() = runTest {

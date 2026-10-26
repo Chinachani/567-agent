@@ -79,6 +79,18 @@ describe("service route selection UI",()=>{
   expect(api.selectServiceRoute).not.toHaveBeenCalled();
   expect(screen.getByRole("combobox").textContent).toContain("德国");
  });
+ it("lets a first-run user leave mainland while its discovery refresh is still pending",async()=>{
+  catalog={routes:[{id:"germany",origin:"https://api.567.wiki"}],source:"cache"};
+  status={isLoggedIn:false,serviceRoute:"mainland",serviceRoutes:catalog};
+  api.refreshServiceRoutes.mockImplementationOnce(()=>new Promise<Api567RouteCatalog>(()=>{}));
+  const user=userEvent.setup();render(<Provider><ServiceRouteSettings/></Provider>);
+  const choose=await screen.findByRole("combobox",{name:"选择服务线路"});
+  await waitFor(()=>expect(choose.textContent).toContain("大陆"));
+  expect((choose as HTMLButtonElement).disabled).toBe(false);
+  await user.click(choose);await user.click(await screen.findByRole("option",{name:/德国/}));
+  await act(async()=>{status={isLoggedIn:false,serviceRoute:"germany"};resolveSelection({route:"germany",ok:true,elapsedMs:12});});
+  expect(choose.textContent).toContain("德国");
+ });
  it("cancels an outstanding check when its surface closes",async()=>{
   const user=userEvent.setup();const view=render(<Provider><ServiceRouteSettings/></Provider>);
   const choose=await screen.findByRole("combobox");await waitFor(()=>expect((choose as HTMLButtonElement).disabled).toBe(false));await user.click(choose);await user.click(await screen.findByRole("option",{name:/大陆/}));

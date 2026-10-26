@@ -1,5 +1,5 @@
 import { randomUUID } from "node:crypto";
-import { chmodSync, constants, copyFileSync, existsSync } from "node:fs";
+import { chmodSync, constants, copyFileSync } from "node:fs";
 import { join } from "node:path";
 import { getAgent567HomePath } from "@567agent/action-rpc";
 import { createVersionedJsonConfigStore } from "@567agent/toolkit/config-store";
@@ -20,16 +20,13 @@ export class Api567RouteStore {
 	private readonly cache;
 
 	constructor(private readonly home: string) {
-		// These are durable user records, not folders Chromium/logging creates at startup.
-		const legacy = ["567api-session.json", "agent/models.json", "agent/settings.json"].some((path) =>
-			existsSync(join(home, path)),
-		);
 		this.store = createVersionedJsonConfigStore({
 			path: join(home, "service-route.json"),
 			name: "567 API route",
 			readErrorPolicy: "throw",
 			normalize(value: unknown): { schemaVersion: 1; route: Api567RouteId; knownOrigins?: string[] } {
-				if (value === undefined) return { schemaVersion: 1, route: legacy ? "germany" : "mainland" };
+				// The mainland ingress is not open; the bootstrap is the usable first-run default.
+				if (value === undefined) return { schemaVersion: 1, route: "germany" };
 				if (
 					typeof value !== "object" ||
 					value === null ||
