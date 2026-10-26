@@ -136,3 +136,12 @@ kotlin {
 dependencies {
     androidRuntimeClasspath(libs.compose.uiTooling)
 }
+
+// Preserve the originating coroutine exception when a later runTest reports a leak.
+tasks.withType<org.gradle.api.tasks.testing.Test>().configureEach {
+    testLogging {
+        exceptionFormat = org.gradle.api.tasks.testing.logging.TestExceptionFormat.FULL
+        showCauses = true
+        showStackTraces = true
+    }
+}

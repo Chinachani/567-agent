@@ -89,6 +89,6 @@ class ContextAndProfileHostFlowTest {
             assertEquals("After", vm.state.value.user!!.nickname)
             vm.logout(false); awaitState { it.route == AppRoute.Login && it.user == null }
             assertEquals(history, store.getMessages(session.id))
-        } finally { vm.viewModelScope.cancel(); container.close(); server.stop(0); Dispatchers.resetMain() }
+        } finally { vm.viewModelScope.coroutineContext.job.cancelAndJoin(); container.close(); server.stop(0); Dispatchers.resetMain() }
     }
 }
