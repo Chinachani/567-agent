@@ -95,7 +95,8 @@ it("an existing Electron RPC runtime picks up an external route change on its ne
 		credentials: { resolve: (m) => catalog.getApiKey(m), refreshAuth: async () => {} },
 	});
 	const running = await session.bind();
-	writeFileSync(join(state.home, "service-route.json"), JSON.stringify({ schemaVersion: 1, route: "mainland" }));
+	const { Api567RouteStore } = await import("../567api/service-route-store.js");
+	await new Api567RouteStore(state.home).select("mainland");
 	const next = await session.bind();
 	expect(running.model.baseUrl).toBe("https://api.567.wiki/v1");
 	expect(next.model.baseUrl).toBe("https://a.567.wiki/v1");
