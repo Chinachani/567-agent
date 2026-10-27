@@ -1,3 +1,5 @@
+import { remarkResourceLinks } from "./resource-links";
+import { remarkArtifactTrees } from "./artifact-tree";
 import { ResourceMenu } from "./ResourceMenu";
 import { ArtifactFiles, artifactFiles } from "./ArtifactFiles";
 import { MarkdownHostProvider } from "./host";
@@ -45,6 +47,7 @@ const LINK_BADGE_CLASS =
 	"inline-flex max-w-full items-center gap-1 rounded-md border border-primary/25 bg-primary/10 px-1.5 py-px align-middle text-[13px] font-medium text-primary no-underline transition-colors hover:bg-primary/20";
 
 const remarkPlugins = [remarkGfm, ...richRemarkPlugins];
+const assistantRemarkPlugins = [...remarkPlugins, remarkResourceLinks, remarkArtifactTrees];
 
 const MarkdownCodeLiveContext = createContext(false);
 
@@ -112,16 +115,17 @@ const MarkdownDocument = memo(function MarkdownDocument({
 				: undefined,
 		[text, inlineTokens?.annotations, markdownSource],
 	);
+	const baseRemarkPlugins = inlineTokens ? remarkPlugins : assistantRemarkPlugins;
 	const activeRemarkPlugins = useMemo(
 		() =>
 			normalizedAnnotations?.length
 				? [
-						...remarkPlugins,
+						...baseRemarkPlugins,
 						...(definition.remarkPlugins ?? []),
 						() => remarkInlineTokenAnnotations(normalizedAnnotations),
 					]
-				: [...remarkPlugins, ...(definition.remarkPlugins ?? [])],
-		[normalizedAnnotations, definition],
+				: [...baseRemarkPlugins, ...(definition.remarkPlugins ?? [])],
+		[normalizedAnnotations, definition, baseRemarkPlugins],
 	);
 	const resolvedComponents = useMemo(
 		() => ({ ...components, ...definition.components, ...definition.elements }),

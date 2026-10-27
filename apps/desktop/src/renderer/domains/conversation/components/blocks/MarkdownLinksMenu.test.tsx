@@ -78,3 +78,47 @@ it("does not alter explicit URL parameters or links inside code", () => {
 	expect(screen.getAllByRole("link")).toHaveLength(2);
 	expect(screen.getAllByRole("link")[1].getAttribute("href")).toBe("https://example.test/path_(a)");
 });
+
+it("opens the original LAN destination when the Markdown link label starts on the next line", async () => {
+	const open = vi.fn();
+	const { host } = createMarkdownHostFixture();
+	const external = vi.fn();
+	render(<MarkdownContent {...props} onOpenUrl={open} host={{...host, openExternalUrl: external}}
+		text={"全新的品牌现已在 [\nhttps://192.168.1.219:8089](https://192.168.1.219:8089)\n 与 [\nhttp://192.168.1.219:8088](http://192.168.1.219:8088)\n 持续在线运行，随时可以使用！"} />);
+	const links = screen.getAllByRole("link");
+	expect(links).toHaveLength(2);
+	expect(links.map((link) => link.getAttribute("href"))).toEqual(["https://192.168.1.219:8089", "http://192.168.1.219:8088"]);
+	for (const link of links) expect(link.textContent).not.toMatch(/[\[\]()]/);
+	fireEvent.click(links[0]);
+	expect(open).toHaveBeenCalledWith("https://192.168.1.219:8089");
+	fireEvent.contextMenu(links[1], {clientX:10,clientY:10});
+	fireEvent.click(await screen.findByRole("menuitem", {name:/default browser/i}));
+	await waitFor(() => expect(external).toHaveBeenCalledWith("http://192.168.1.219:8088"));
+});
+
+it("recovers the duplicated LAN URL suffix swallowed by GFM after a broken link boundary", async () => {
+	const {host} = createMarkdownHostFixture();
+	const external = vi.fn();
+	render(<MarkdownContent {...props} host={{...host,openExternalUrl:external}} text={"直接在浏览器中打开： 👉 [\n\nhttps://192.168.1.219:8089](https://192.168.1.219:8089)\n\n或 👉 [\n\nhttp://192.168.1.219:8088](http://192.168.1.219:8088)"} />);
+	const links = screen.getAllByRole("link");
+	expect(links.map((link) => link.getAttribute("href"))).toEqual(["https://192.168.1.219:8089", "http://192.168.1.219:8088"]);
+	for (const link of links) expect(link.textContent).not.toMatch(/[\[\]()]/);
+	fireEvent.contextMenu(links[0],{clientX:10,clientY:10});
+	fireEvent.click(await screen.findByRole("menuitem",{name:/default browser/i}));
+	await waitFor(() => expect(external).toHaveBeenCalledWith("https://192.168.1.219:8089"));
+});
+
+it("repairs the reported encoded duplicate target without changing deliberate destinations or code examples", async () => {
+	const {host}=createMarkdownHostFixture();
+	const copy=vi.fn(async () => {});
+	const broken = "https://192.168.1.219:8089%5D(https://192.168.1.219:8089)";
+	render(<MarkdownContent {...props} host={{...host,copyText:copy}} text={broken + "\n\n[Deliberate](<" + broken + ">)\n\n`" + broken + "`"} />);
+	const links=screen.getAllByRole("link");
+	expect(links).toHaveLength(2);
+	expect(links[0].getAttribute("href")).toBe("https://192.168.1.219:8089");
+	expect(links[1].getAttribute("href")).toBe(broken);
+	expect(screen.getByText(broken).tagName).toBe("CODE");
+	fireEvent.contextMenu(links[0],{clientX:10,clientY:10});
+	fireEvent.click(await screen.findByRole("menuitem",{name:/Copy link/i}));
+	await waitFor(() => expect(copy).toHaveBeenCalledWith("https://192.168.1.219:8089","url"));
+});

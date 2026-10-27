@@ -32,4 +32,30 @@ describe("file artifacts in assistant Markdown", () => {
 		expect(view.container.querySelector("table")).toBeTruthy();
 		expect(screen.queryByRole("button", { expanded: false })).toBeNull();
 	});
+	it("collects a tree of delivered links and keeps the following task notice outside the artifact control", () => {
+		const open = vi.fn();
+		const source = "Deliverables:\n\n├─ [parser.py](./parser.py)\n├─ [main.py](./main.py)\n├─ [database.py](./database.py)\n└─ [service-worker.js](./service-worker.js) 收到后台任务完成通知。无残留异常。";
+		render(<MarkdownContent {...environment} text={source} onOpenFile={open} />);
+		const toggle = screen.getByRole("button", {expanded:false});
+		expect(screen.getByText(/收到后台任务完成通知/).closest("button")).toBeNull();
+		expect(screen.queryByRole("button", {name:"parser.py"})).toBeNull();
+		fireEvent.click(toggle);
+		fireEvent.click(screen.getByRole("button", {name:"parser.py"}));
+		expect(open).toHaveBeenCalledWith("./parser.py");
+	});
+
+	it("keeps Markdown in the following prose and leaves mixed trees and literal examples unchanged", () => {
+		const source = "**Deliverables:**\n├─ [a](./a.py)\n├─ [b](./b.py)\n├─ [c](./c.py)\n└─ [d](./d.py) **收到通知**\n后续正文和 [网站](https://example.test)。";
+		const view=render(<MarkdownContent {...environment} text={source} onOpenFile={() => undefined} />);
+		expect(screen.getByRole("button",{expanded:false})).toBeTruthy();
+		expect(screen.getByText("收到通知").tagName).toBe("STRONG");
+		expect(screen.getByText("Deliverables:").tagName).toBe("STRONG");
+		expect(screen.getByRole("link",{name:"网站"}).getAttribute("href")).toBe("https://example.test");
+		view.rerender(<MarkdownContent {...environment} text={"```md\n"+source+"\n```"} onOpenFile={() => undefined} />);
+		expect(screen.queryByRole("button",{expanded:false})).toBeNull();
+		view.rerender(<MarkdownContent {...environment} text={"├─ [file](./a.py)\n└─ [website](https://example.test)"} onOpenFile={() => undefined} />);
+		expect(view.container.textContent).toContain("├─");
+		expect(screen.getByRole("link",{name:"website"})).toBeTruthy();
+	});
+
 });
