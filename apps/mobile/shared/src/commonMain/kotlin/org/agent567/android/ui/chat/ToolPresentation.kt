@@ -53,6 +53,11 @@ fun presentTool(toolName: String, arguments: String?): ToolPresentation {
     return ToolPresentation(label = label, summary = summary?.let { shorten(it, 72) })
 }
 
+/** Prefer a real progress message; otherwise show the localized tool action. */
+fun toolActivityLabel(toolName: String, phaseLabel: String?): String =
+    phaseLabel?.replace(Regex("[\\r\\n\\t]"), " ")?.trim()?.take(48)?.takeIf(String::isNotBlank)
+        ?: presentTool(toolName, null).label
+
 fun parseToolQuestionResolution(toolName: String, result: String?): ToolQuestionResolution? {
     if (toolName != "ask_user_question" || result.isNullOrBlank()) return null
     val value = runCatching { toolArgumentsJson.parseToJsonElement(result).jsonObject }.getOrNull() ?: return null

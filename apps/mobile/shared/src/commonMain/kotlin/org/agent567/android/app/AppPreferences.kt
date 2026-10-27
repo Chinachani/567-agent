@@ -44,6 +44,8 @@ class AppPreferences(
     settings: Settings = Settings(),
     private val secretStore: SecretStore = SettingsSecretStore(settings),
 ) {
+    // Earlier versions allowed a manually entered server without route history.
+    private val legacyServerWasSaved = settings.hasKey("vetta.prefs.server_url")
     private val storage = Agent567Settings(settings)
 
     var availableUpdateVersion: String
@@ -349,6 +351,7 @@ class AppPreferences(
     fun setServerUrl(url: String) {
         val normalized = url.trim().trimEnd('/')
         require(normalized.isNotBlank()) { "serverUrl blank" }
+        storage[KEY_SERVER_USER_SELECTED] = true
         storage[KEY_SERVER_URL] = normalized
         _serverUrl.value = normalized
     }
@@ -400,7 +403,16 @@ class AppPreferences(
             ?: default
 
     private fun readServerUrl(): String {
-        storage.getStringOrNull(KEY_SERVER_URL)?.takeIf { it.isNotBlank() }?.let { return it }
+        storage.getStringOrNull(KEY_SERVER_URL)?.takeIf { it.isNotBlank() }?.let { saved ->
+            // Only the old canonical startup default lacked all choice records.
+            // Preserve legacy/manual and ambiguous records, including custom URLs.
+            if (saved == ServiceRoute.Mainland.origin && !legacyServerWasSaved &&
+                !storage.hasKey(KEY_SERVER_USER_SELECTED) && !storage.hasKey("567agent.service-routes.known.v1")) {
+                storage[KEY_SERVER_URL] = DEFAULT_SERVER_URL
+                return DEFAULT_SERVER_URL
+            }
+            return saved
+        }
         // Use the bootstrap until another ingress is explicitly selected.
         val server = DEFAULT_SERVER_URL
         storage[KEY_SERVER_URL] = server
@@ -424,6 +436,7 @@ class AppPreferences(
         const val DEFAULT_SERVER_URL = "https://api.567.wiki"
 
         private const val KEY_SERVER_URL = "agent567.prefs.server_url"
+        private const val KEY_SERVER_USER_SELECTED = "agent567.prefs.server_url_selected"
         private const val KEY_THEME = "agent567.prefs.theme"
         private const val KEY_AUTO_RESUME = "agent567.prefs.auto_resume"
         private const val KEY_MOTION_ENABLED = "agent567.prefs.motion_enabled"

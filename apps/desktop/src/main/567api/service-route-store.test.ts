@@ -30,6 +30,34 @@ describe("desktop service route migration", () => {
 			route: "germany",
 		});
 	});
+	it("migrates the old persisted default, then preserves a user's mainland choice across restarts", async () => {
+		const root = home();
+		const path = join(root, "service-route.json");
+		writeFileSync(path, JSON.stringify({ schemaVersion: 1, route: "mainland" }));
+		const upgraded = new Api567RouteStore(root);
+		expect(upgraded.route).toBe("germany");
+		await upgraded.initialize();
+		expect(JSON.parse(readFileSync(path, "utf8")).route).toBe("germany");
+		await upgraded.select("mainland");
+		const restarted = new Api567RouteStore(root);
+		await restarted.initialize();
+		expect(restarted.route).toBe("mainland");
+		expect(new Api567RouteStore(root).route).toBe("mainland");
+	});
+	it.each([
+		{ knownOrigins: [] },
+		{ knownOrigins: ["https://a.567.wiki"] },
+		{ knownOrigins: ["https://node.example"] },
+	])("preserves a mainland record with an existing choice marker: %j", async ({ knownOrigins }) => {
+		const root = home();
+		writeFileSync(
+			join(root, "service-route.json"),
+			JSON.stringify({ schemaVersion: 1, route: "mainland", knownOrigins }),
+		);
+		await new Api567RouteStore(root).initialize();
+		expect(new Api567RouteStore(root).route).toBe("mainland");
+	});
+
 	it.each(["567api-session.json", "agent/models.json", "agent/settings.json"])(
 		"preserves the implicit German route for an upgrade with %s",
 		async (path) => {

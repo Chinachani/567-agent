@@ -51,6 +51,21 @@ class OpenAiSseParserTest {
     }
 
     @Test
+    fun streamingAndBufferedToolsKeepFactsWithoutImageOnlyProgress() {
+        for (name in listOf("generate_image", "search", "custom_function")) {
+            val chunk = """data: {"choices":[{"delta":{"tool_calls":[{"index":0,"id":"c","function":{"name":"$name","arguments":"{}"}}]},"finish_reason":"tool_calls"}]}"""
+            val streamed = OpenAiSseStreamParser().parseLine(chunk).filterIsInstance<ChatStreamEvent.Tool>().single()
+            val single = OpenAiSseParser.parseLine(chunk) as ChatStreamEvent.Tool
+            val buffered = OpenAiSseParser.parseNonStreamJson("""{"choices":[{"message":{"tool_calls":[{"id":"c","function":{"name":"$name","arguments":"{}"}}]}}]}""").filterIsInstance<ChatStreamEvent.Tool>().single()
+            for (call in listOf(streamed, single, buffered)) {
+                assertEquals(name, call.toolName)
+                assertEquals("{}", call.arguments)
+                assertNull(call.phaseLabel)
+            }
+        }
+    }
+
+    @Test
     fun ignoresCommentsAndEmpty() {
         assertNull(OpenAiSseParser.parseLine(""))
         assertNull(OpenAiSseParser.parseLine(": keep-alive"))

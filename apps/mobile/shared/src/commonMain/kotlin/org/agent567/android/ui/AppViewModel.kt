@@ -83,6 +83,7 @@ import org.agent567.android.ui.media.MAX_MESSAGE_FILE_TOTAL_BYTES
 import org.agent567.android.ui.media.MAX_PICKED_IMAGE_COUNT
 import org.agent567.android.ui.media.byteSize
 import org.agent567.android.ui.media.pickedByteSize
+import org.agent567.android.ui.chat.toolActivityLabel
 import org.agent567.android.ui.navigation.AppRoute
 import org.agent567.android.ui.navigation.ChatSurface
 import org.agent567.android.ui.navigation.MainTab
@@ -3218,12 +3219,7 @@ class AppViewModel(
                                         val isImageGen = event.toolName == "generate_image"
                                         pendingQuestion = null
                                         if (event.phase in setOf("call", "generating", "started", "updated", "phase", "arguments")) {
-                                            val activity = event.phaseLabel
-                                                ?.replace(Regex("[\\r\\n\\t]"), " ")
-                                                ?.trim()
-                                                ?.take(48)
-                                                ?.takeIf(String::isNotBlank)
-                                                ?: event.toolName.take(48)
+                                            val activity = toolActivityLabel(event.toolName, event.phaseLabel)
                                             setStreamStatus(
                                                 sid,
                                                 if (isImageGen && event.phase == "call") "tool:generate_image" else "tool:$activity",

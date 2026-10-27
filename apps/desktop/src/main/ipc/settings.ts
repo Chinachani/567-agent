@@ -1,4 +1,4 @@
-import { ipcMain } from "electron";
+import { ipcMain, type WebContents } from "electron";
 import { MODEL_CONTEXT_SET_CHANNEL } from "../../shared/model-context.js";
 import { isModelInferenceApi, MODEL_INFERENCE_API_SET_CHANNEL } from "../../shared/model-inference-api.js";
 import { readAgentSettingsDocument, updateAgentSettingsDocument } from "../agent-settings/settings-document-store.js";
@@ -10,6 +10,7 @@ import {
 	refreshPresetModels,
 	startPresetModelsAutoSync,
 } from "../models/presets/sync.js";
+import { assertTrustedMainRenderer } from "./trusted-renderer.js";
 
 export function readSettings(): Record<string, unknown> {
 	return readAgentSettingsDocument();
@@ -31,13 +32,15 @@ export function updateSettings(mutate: (settings: Record<string, unknown>) => vo
 	updateAgentSettingsDocument(mutate);
 }
 
-export function registerSettingsIpc(): () => void {
-	ipcMain.handle(MODEL_INFERENCE_API_SET_CHANNEL, (_event, providerId: unknown, modelId: unknown, api: unknown) => {
+export function registerSettingsIpc(owner: WebContents): () => void {
+	ipcMain.handle(MODEL_INFERENCE_API_SET_CHANNEL, (event, providerId: unknown, modelId: unknown, api: unknown) => {
+		assertTrustedMainRenderer(event, owner);
 		if (typeof providerId !== "string" || typeof modelId !== "string" || (api !== null && !isModelInferenceApi(api)))
 			throw new Error("Invalid model inference settings");
 		return getDesktopModelSettingsService().setInferenceApi(providerId, modelId, api);
 	});
-	ipcMain.handle(MODEL_CONTEXT_SET_CHANNEL, (_event, providerId: unknown, modelId: unknown, capacity: unknown) => {
+	ipcMain.handle(MODEL_CONTEXT_SET_CHANNEL, (event, providerId: unknown, modelId: unknown, capacity: unknown) => {
+		assertTrustedMainRenderer(event, owner);
 		if (
 			typeof providerId !== "string" ||
 			typeof modelId !== "string" ||
@@ -53,17 +56,20 @@ export function registerSettingsIpc(): () => void {
 		});
 	}
 
-	ipcMain.handle("vetta:settings:get-server-url", () => {
+	ipcMain.handle("vetta:settings:get-server-url", (event) => {
+		assertTrustedMainRenderer(event, owner);
 		return DEFAULT_SERVER_URL;
 	});
 
 	// 预设服务商目录内置在客户端(见 ADR-0050);模型清单取自 models.dev 公共目录,免 key 可见。
-	ipcMain.handle("vetta:models:list-presets", async () => {
+	ipcMain.handle("vetta:models:list-presets", async (event) => {
+		assertTrustedMainRenderer(event, owner);
 		return listPresetProviders();
 	});
 
 	// 手动刷新某预设服务商的模型列表:只拉不写,由渲染层连同 key 一起落盘。
-	ipcMain.handle("vetta:models:refresh-preset-models", async (_event, providerId: unknown, apiKey: unknown) => {
+	ipcMain.handle("vetta:models:refresh-preset-models", async (event, providerId: unknown, apiKey: unknown) => {
+		assertTrustedMainRenderer(event, owner);
 		if (typeof providerId !== "string" || !providerId.trim()) {
 			return { models: [], error: { code: "unknown-provider", params: { provider: String(providerId) } } };
 		}
@@ -71,7 +77,8 @@ export function registerSettingsIpc(): () => void {
 	});
 
 	// 手动刷新公共目录:清掉失败冷却强制重拉,错误原样回给渲染层。
-	ipcMain.handle("vetta:models:refresh-preset-catalog", async () => {
+	ipcMain.handle("vetta:models:refresh-preset-catalog", async (event) => {
+		assertTrustedMainRenderer(event, owner);
 		return refreshPresetCatalog();
 	});
 

@@ -52,7 +52,6 @@ object OpenAiSseParser {
                     toolCallId = first.id ?: "call-image-1",
                     toolName = fnName ?: "generate_image",
                     arguments = fnArgs,
-                    phaseLabel = "正在构思画面...",
                 )
             }
         }
@@ -128,7 +127,6 @@ object OpenAiSseParser {
                         toolCallId = id,
                         toolName = name,
                         arguments = arguments,
-                        phaseLabel = "正在构思画面...",
                     )
                 }
                 return calls + usageEvents + ChatStreamEvent.Done
@@ -249,7 +247,6 @@ class OpenAiSseStreamParser {
                 toolCallId = call.id,
                 toolName = call.name,
                 arguments = arguments,
-                phaseLabel = "正在构思画面...",
             )
         }
         clearTools()

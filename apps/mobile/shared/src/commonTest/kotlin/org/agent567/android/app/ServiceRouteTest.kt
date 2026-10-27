@@ -24,6 +24,28 @@ class ServiceRouteTest {
         val custom = MapSettings().apply { putString("vetta.prefs.server_url", "https://private.test/api/v1") }
         assertEquals("https://private.test/api/v1", AppPreferences(custom).serverUrl.value)
     }
+    @Test fun migratesOnlyTheOldAutomaticMainlandAndPreservesSubsequentUserSelection() {
+        val settings = MapSettings().apply { putString("agent567.prefs.server_url", ServiceRoute.Mainland.origin) }
+        val upgraded = AppPreferences(settings)
+        assertEquals(ServiceRoute.Germany.origin, upgraded.serverUrl.value)
+        assertEquals(ServiceRoute.Germany.origin, AppPreferences(settings).serverUrl.value)
+        upgraded.setServerUrl(ServiceRoute.Mainland.origin)
+        assertEquals(ServiceRoute.Mainland.origin, AppPreferences(settings).serverUrl.value)
+        upgraded.setServerUrl("https://private.test/api/v1")
+        assertEquals("https://private.test/api/v1", AppPreferences(settings).serverUrl.value)
+    }
+    @Test fun preservesRecordedAndLegacyMainlandChoicesIncludingAmbiguousRecords() {
+        for (known in listOf("[]", "[\"https://a.567.wiki\"]", "invalid-legacy-record")) {
+            val settings = MapSettings().apply {
+                putString("agent567.prefs.server_url", ServiceRoute.Mainland.origin)
+                putString("567agent.service-routes.known.v1", known)
+            }
+            assertEquals(ServiceRoute.Mainland.origin, AppPreferences(settings).serverUrl.value)
+            assertEquals(ServiceRoute.Mainland.origin, AppPreferences(settings).serverUrl.value)
+        }
+        val legacy = MapSettings().apply { putString("vetta.prefs.server_url", ServiceRoute.Mainland.origin) }
+        repeat(2) { assertEquals(ServiceRoute.Mainland.origin, AppPreferences(legacy).serverUrl.value) }
+    }
     @Test fun exactOriginsShareCapacityWhileCustomServicesRemainSeparate() {
         val settings = MapSettings().apply {
             putString("vetta.prefs.server_url", "https://api.567.wiki/api/v1")

@@ -17,6 +17,14 @@ class ResponsesSseParserTest {
         assertEquals(ChatStreamEvent.Done, events.last())
         assertTrue(parser.event("""{"type":"response.completed","response":{"status":"completed","output":[$tool]}}""").isEmpty())
     }
+    @Test fun toolFactsNeverInventAnImageProgressLabelForAnyFunction() {
+        for (name in listOf("generate_image", "search", "custom_function")) {
+            val response = """{"status":"completed","output":[{"type":"function_call","call_id":"c","name":"$name","arguments":"{}"}]}"""
+            val call = ResponsesSseStreamParser().parseNonStreamJson(response).filterIsInstance<ChatStreamEvent.Tool>().single()
+            assertEquals(name, call.toolName)
+            assertNull(call.phaseLabel)
+        }
+    }
     @Test fun failuresIncompleteAndTruncatedResponsesNeverReleaseTools() {
         for (end in listOf(
             """{"type":"response.failed","response":{"error":{"message":"unsupported"}}}""",

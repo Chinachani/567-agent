@@ -42,8 +42,10 @@ export class Api567RouteStore {
 						: [];
 				return {
 					schemaVersion: 1,
-					route: value.route,
-					...(known.length ? { knownOrigins: [...new Set(known)].slice(-200) } : {}),
+					// Old startup defaults had no choice record. An existing record,
+					// even empty or damaged, is not evidence of an automatic default.
+					route: value.route === "mainland" && !("knownOrigins" in value) ? "germany" : value.route,
+					...("knownOrigins" in value ? { knownOrigins: [...new Set(known)].slice(-200) } : {}),
 				};
 			},
 		});

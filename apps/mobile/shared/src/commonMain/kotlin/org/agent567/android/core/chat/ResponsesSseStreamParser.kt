@@ -99,7 +99,7 @@ class ResponsesSseStreamParser {
                 val id = tool.string("call_id"); val name = tool.string("name"); val args = tool.string("arguments")
                 if (id.isNullOrBlank() || name.isNullOrBlank() || args.isNullOrBlank() || !ids.add(id) ||
                     runCatching { Agent567Json.parseToJsonElement(args) }.getOrNull() !is JsonObject) return fail("工具调用缺少完整有效参数")
-                events += ChatStreamEvent.Tool("call", id, name, arguments = args, phaseLabel = "正在构思画面...")
+                events += ChatStreamEvent.Tool("call", id, name, arguments = args)
             }
         }
         if (!hasText && events.none { it is ChatStreamEvent.Tool }) return fail("Responses 返回空内容，请检查模型调用协议")

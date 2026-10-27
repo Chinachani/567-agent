@@ -93,7 +93,7 @@ export function registerAllIpc(
 		teardownActionApproval: registerActionApprovalIpc(options.actionApprovalBroker),
 		teardownAppMonitor: registerAppMonitorIpc(),
 		teardownSession: registerSessionIpc(webContents),
-		teardownSettings: registerSettingsIpc(),
+		teardownSettings: registerSettingsIpc(webContents),
 		teardownUpdater: registerUpdaterIpc(),
 		teardownSkills: registerSkillsIpc(),
 		teardownSpeechInput: registerSpeechInputIpc(webContents),

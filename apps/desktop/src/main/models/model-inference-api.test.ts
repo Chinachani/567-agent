@@ -75,4 +75,37 @@ describe("per-model inference protocol", () => {
 		});
 		await expect(restarted.setInferenceApi("custom", "missing", "openai-responses")).rejects.toThrow();
 	});
+	it("keeps custom provider, model and override APIs when saving capacity and reloading settings", async () => {
+		let config: ModelsConfig = {
+			providers: {
+				extension: {
+					api: "custom-provider-wire",
+					models: [{ id: "model", api: "custom-model-wire" }],
+					modelOverrides: { model: { api: "custom-override-wire" } },
+				},
+			},
+		};
+		const options = {
+			readConfig: async () => config,
+			writeConfig: async (value: ModelsConfig) => {
+				config = value;
+			},
+			refreshRegistry: async () => {},
+			credentials: {
+				isAvailable: () => true,
+				has: () => false,
+				get: () => undefined,
+				set: () => {},
+				remove: () => {},
+			},
+		};
+		const service = new ModelSettingsService(options);
+		const stale = await service.getRendererConfig();
+		await service.setContextWindow("extension", "model", 64000);
+		await service.replaceConfig(stale);
+		const restored = (await new ModelSettingsService(options).getRendererConfig()).providers.extension;
+		expect(restored.api).toBe("custom-provider-wire");
+		expect(restored.models?.[0].api).toBe("custom-model-wire");
+		expect(restored.modelOverrides?.model).toEqual({ api: "custom-override-wire", contextWindow: 64000 });
+	});
 });
