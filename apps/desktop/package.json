@@ -2,7 +2,7 @@
 	"name": "@567agent/desktop",
 	"desktopName": "567-Agent",
 	"desktopAppId": "com.api567.agent",
-	"version": "1.4.4",
+	"version": "1.5.0",
 	"description": "567 Agent - 深度绑定 567 API 的全能 AI 编码与桌面智能助手",
 	"author": "567wiki <907746241@qq.com>",
 	"license": "Apache-2.0",
@@ -136,6 +136,7 @@
 		"dist:win:zip:test": "cross-env AGENT567_BUILD_ENV=test bun run dist:win:zip",
 		"test:sidebar-layout": "node scripts/test-sidebar-account-layout.mjs",
 		"test:workspace-layout": "node scripts/test-workspace-layout.mjs",
+		"test:canvas-gestures": "node scripts/test-canvas-gestures.mjs",
 		"test:remote-native": "node scripts/test-wayland-input-bundle.mjs && node scripts/test-wayland-input-events.mjs && node scripts/test-capture-portal.mjs"
 	},
 	"dependencies": {

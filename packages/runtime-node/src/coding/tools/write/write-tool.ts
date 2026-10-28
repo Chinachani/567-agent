@@ -106,7 +106,7 @@ interface ExecuteWriteOptions {
 
 function executeWrite(options: ExecuteWriteOptions): Promise<{
 	readonly content: readonly [{ readonly type: "text"; readonly text: string }];
-	readonly details: { readonly fileChange?: FileChangeReceipt } | undefined;
+	readonly details: { readonly writtenPath: string; readonly fileChange?: FileChangeReceipt };
 }> {
 	return new Promise((resolve, reject) => {
 		if (options.signal.aborted) {
@@ -138,9 +138,10 @@ function executeWrite(options: ExecuteWriteOptions): Promise<{
 								`Successfully wrote ${options.content.length} bytes to ${options.absolutePath}`,
 						},
 					],
-					details: before
-						? { fileChange: fileChangeReceipt(options.absolutePath, before, options.content) }
-						: undefined,
+					details: {
+						writtenPath: options.absolutePath,
+						...(before ? { fileChange: fileChangeReceipt(options.absolutePath, before, options.content) } : {}),
+					},
 				});
 			} catch (error: unknown) {
 				options.signal.removeEventListener("abort", onAbort);

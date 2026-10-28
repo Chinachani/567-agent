@@ -1,5 +1,8 @@
 import type { ActivityPanelFrame } from "./ActivityPanelFrame";
 
+export type { DeliveryViewItem } from "./ConversationDeliveriesView";
+export { ConversationDeliveriesView } from "./ConversationDeliveriesView";
+
 declare module "@vetta-org/theme-sdk" {
 	interface ThemeComponentRegistry {
 		readonly "activity.panelFrame"?: typeof ActivityPanelFrame;

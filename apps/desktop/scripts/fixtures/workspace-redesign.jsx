@@ -1,3 +1,9 @@
+import { getDefaultStore, useAtomValue } from "jotai";
+import { SessionTaskProgress } from "../../src/renderer/domains/conversation/components/SessionTaskProgress";
+import { ConversationDeliveries } from "../../src/renderer/domains/activity-panel/components/ConversationDeliveries";
+import { ActivityPanelContextProvider } from "../../src/renderer/domains/activity-panel/registry/context";
+import { ConfirmDialog } from "../../src/renderer/shared/components/ui/confirm-dialog";
+import { activeSessionAtom, activeSessionStreamingAtom, chatMessagesAtom, pendingQuestionsAtom, confirmDialogAtom } from "../../src/renderer/shared/store/atoms";
 import { createRoot } from "react-dom/client";
 import { useState, useRef } from "react";
 import i18n from "i18next";
@@ -57,6 +63,8 @@ window.agent567 = {
 	session: {
 		listSandboxGrants: async () => [],
 		onSessionsChanged: () => noop,
+        continue: async () => record("task-continue"),
+        resumeGoal: async () => record("goal-resume"),
 		getAgentModes: async () => [
 			{
 				id: "work",
@@ -80,7 +88,8 @@ window.agent567 = {
 };
 window.applyWorkspaceTheme = (mode) => applyTheme(mode, "mono");
 
-function Home({ chat = false }) {
+function Home({ chat = false, task = false }) {
+	const streaming = useAtomValue(activeSessionStreamingAtom);
 	const [value, setValue] = useState("");
 	const [project, setProject] = useState(null);
 	const [target, setTarget] = useState(null);
@@ -95,7 +104,7 @@ function Home({ chat = false }) {
 			onDragLeave: noop,
 			onDrop: noop,
 		},
-		isStreaming: false,
+		isStreaming: task && streaming,
 		pendingQuestion: undefined,
 		pendingMcpElicitation: undefined,
 		imageAttachments: [],
@@ -171,11 +180,11 @@ function Home({ chat = false }) {
 			handleSelectImages: async () => record("image"),
 			handleSelectFiles: async () => record("file"),
 			handleSend: () => record("send"),
-			handleAbort: async () => {},
+			handleAbort: async () => record("task-stop"),
 			cancelPendingEdit: noop,
 		},
 	};
-	if (chat) return <ChatSample input={<InputBarView model={model} />} />;
+	if (chat) return <ChatSample input={<>{task ? <SessionTaskProgress /> : null}<InputBarView model={model} /></>} />;
 	return (
 		<NewSessionPageLayoutView
 			background={null}
@@ -556,7 +565,35 @@ function AutomationReady() {
 		/>
 	);
 }
+const taskWorkspace = { id: "/fixture/project", cwd: "/fixture/project", runtimeIds: ["fixture-runtime"] };
+function TaskWorkspace({ deliveriesOnly = false }) {
+    return <div className="flex min-h-0 min-w-0 flex-1 flex-col">
+        <h1 className="border-b border-border/50 px-5 py-3 text-[14px] font-medium">{deliveriesOnly ? "会话交付" : "整理项目资料与检查报告"}</h1>
+        <div className="flex min-h-0 flex-1">
+            {!deliveriesOnly ? <div className="flex min-w-0 flex-1 flex-col"><Home chat task /></div> : null}
+            <aside className={deliveriesOnly ? "min-w-0 flex-1" : "hidden w-80 shrink-0 border-l border-border/50 min-[1000px]:block"}>
+                <ActivityPanelContextProvider value={{ workspace: taskWorkspace, knowledgeHistory: false }}><ConversationDeliveries /></ActivityPanelContextProvider>
+            </aside>
+        </div>
+        <ConfirmDialog />
+    </div>;
+}
+function setTaskFixture(page) {
+    const store = getDefaultStore();
+    store.set(confirmDialogAtom, null);
+    store.set(pendingQuestionsAtom, {});
+    if (!page.startsWith("task") && page !== "deliveries") { store.set(activeSessionAtom, null); store.set(activeSessionStreamingAtom, false); store.set(chatMessagesAtom, []); return; }
+    store.set(activeSessionAtom, { runtimeId: "fixture-runtime", cwd: "/fixture/project", sessionPath: "/fixture/session.jsonl" });
+    store.set(activeSessionStreamingAtom, page === "taskRunning" || page === "taskWaiting");
+    const blocks = [{ type: "text", id: "text", text: "已整理项目资料：[实施报告](./output/report.md) 与 [项目预览](https://preview.example.test/)" }, { type: "tool_call", toolName: "write", toolCallId: "write", status: "success", args: { path: "output/report.md" }, uiDetails: { writtenPath: "/fixture/project/output/report.md" } }];
+    if (page === "taskRunning") blocks.push({ type: "tool_call", toolCallId: "check", toolName: "bash", status: "pending", args: { command: "run checks" }, currentPhase: "正在运行项目检查" });
+    if (page === "taskFailed") blocks.push({ type: "error", id: "error", kind: "network", text: "Connection closed", details: { code: "AI_TRANSPORT_FAILED", origin: "provider" } });
+    const phase = page === "taskFailed" ? "failed" : page === "taskStopped" ? "aborted" : page === "taskRunning" || page === "taskWaiting" ? "streaming" : "completed";
+    store.set(chatMessagesAtom, [{ kind: "agent", role: "assistant", id: "reply", entryId: "entry", turnId: "turn", authorId: "agent", phase, blocks, startedAt: Date.now() - 125000 }]);
+    if (page === "taskWaiting") store.set(pendingQuestionsAtom, { "fixture-runtime": { requestId: "q", sessionId: "fixture-runtime", questions: [] } });
+}
 const pages = {
+    taskRunning: TaskWorkspace, taskWaiting: TaskWorkspace, taskFailed: TaskWorkspace, taskStopped: TaskWorkspace, taskComplete: TaskWorkspace, deliveries: () => <TaskWorkspace deliveriesOnly />,
 	chat: ChatPreview,
 	home: Home,
 	automation: Automation,
@@ -664,9 +701,11 @@ function Fixture({ page, shell }) {
 	);
 }
 const root = createRoot(document.getElementById("root"));
-window.renderWorkspace = ({ page, shell = false }) =>
+window.renderWorkspace = ({ page, shell = false }) => {
+    setTaskFixture(page);
 	root.render(
 		<ThemeHostProvider host={{}}>
 			<Fixture key={page + shell} page={page} shell={shell} />
 		</ThemeHostProvider>,
 	);
+};

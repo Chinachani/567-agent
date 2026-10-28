@@ -7,6 +7,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
  */
 export type ActivityTabKey =
 	| "file"
+	| "deliveries"
 	| "batch-progress"
 	| "schedule-records"
 	| "plan"

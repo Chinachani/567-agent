@@ -40,6 +40,8 @@ export interface ToolAudioPreview {
 }
 
 export interface ToolCallUiDetails {
+	/** Actual output from a completed file operation, not the model's requested path. */
+	writtenPath?: string;
 	diff?: string;
 	firstChangedLine?: number;
 	askUserQuestion?: AskUserQuestionResolution;

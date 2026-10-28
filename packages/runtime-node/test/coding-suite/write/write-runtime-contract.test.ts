@@ -63,7 +63,7 @@ describe("runtime write tool", () => {
 		});
 	});
 
-	it("preserves local parent creation, verbatim UTF-8 content, result text, and undefined details", async () => {
+	it("preserves local parent creation, verbatim UTF-8 content, result text, and reports the actual output path", async () => {
 		const runtimeDirectory = createTemporaryDirectory("local");
 		const relativePath = "nested/deep/output.txt";
 		const content = 'héllo🙂\nconst path = "招标文件 - 发布稿.docx";\n';
@@ -72,7 +72,7 @@ describe("runtime write tool", () => {
 		const runtimeResult = await runtime.execute(runtimeRequest({ path: relativePath, content }));
 		expect(runtimeResult.content[0]).toMatchObject({ text: expect.stringContaining("Successfully wrote 40 bytes") });
 		expect(readFileSync(join(runtimeDirectory, relativePath), "utf-8")).toBe(content);
-		expect(runtimeResult.details).toBeUndefined();
+		expect(runtimeResult.details).toMatchObject({ writtenPath: join(runtimeDirectory, relativePath) });
 	});
 
 	it("preserves custom operation order and content.length success accounting", async () => {
@@ -98,6 +98,7 @@ describe("runtime write tool", () => {
 
 		const runtimeResult = await runtime.execute(runtimeRequest({ path: requestedName, content: "new" }));
 		expect(readFileSync(join(runtimeDirectory, exactName), "utf-8")).toBe("new");
+		expect(runtimeResult.details).toMatchObject({ writtenPath: join(runtimeDirectory, exactName) });
 		expect(runtimeResult.content[0]).toMatchObject({ text: expect.stringContaining("[Auto-corrected output path:") });
 	});
 
@@ -113,6 +114,7 @@ describe("runtime write tool", () => {
 			expect(runtimeResult.content[0]).toMatchObject({
 				text: expect.stringContaining("inside a skill/scene directory"),
 			});
+			expect(runtimeResult.details).toBeUndefined();
 		},
 	);
 

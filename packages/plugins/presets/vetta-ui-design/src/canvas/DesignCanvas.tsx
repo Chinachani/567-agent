@@ -526,6 +526,7 @@ export function DesignCanvas({
 		rasterOf,
 		isMounted,
 		isLive,
+		isParked,
 		invalidate: invalidateRaster,
 		notifyRendered,
 		runLive,
@@ -1467,6 +1468,7 @@ export function DesignCanvas({
 						resizable={selectedIds.length === 1}
 						mounted={isMounted(frame.id)}
 						live={isLive(frame.id)}
+						parked={isParked(frame.id)}
 						raster={rasterOf(frame.id)}
 						reloadNonce={reloadNonce}
 						paintTick={paintTicks.get(frame.id) ?? 0}

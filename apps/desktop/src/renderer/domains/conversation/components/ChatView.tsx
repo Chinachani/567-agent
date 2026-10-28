@@ -1,18 +1,19 @@
-import { useSetAtom } from "jotai";
-import { memo, useCallback, useEffect, useMemo } from "react";
 import { pageHeaderLeftSlotAtom, pageHeaderRightSlotAtom } from "@shared/store/atoms";
 import { useActiveSessionRuntimeIds } from "@shared/workspace/active-session-runtime";
 import { createActivityWorkspace } from "@shared/workspace/activity-workspace";
+import { useSetAtom } from "jotai";
+import { memo, useCallback, useEffect, useMemo } from "react";
 import { useBoundAgentParticipants } from "../hooks/useBoundAgentParticipants";
 import { useChatViewModel } from "../hooks/useChatViewModel";
 import { ChatHeaderActionsView } from "./chat-view/ChatHeaderActionsView";
 import { ChatHeaderNewSessionButton } from "./chat-view/ChatHeaderNewSessionButton";
-import { DefaultChatView, ChatComposer } from "./chat-view/DefaultChatView";
-import { SessionMessageList } from "./SessionMessageList";
-import { SessionAssistantRendering } from "./SessionAssistantRendering";
-import { SessionOpenFailureNotice } from "./SessionOpenFailureNotice";
-import { DefaultInputBarConnector } from "./input-bar/DefaultInputBarConnector";
+import { ChatComposer, DefaultChatView } from "./chat-view/DefaultChatView";
 import type { ChatViewProps } from "./chat-view/types";
+import { DefaultInputBarConnector } from "./input-bar/DefaultInputBarConnector";
+import { SessionAssistantRendering } from "./SessionAssistantRendering";
+import { SessionMessageList } from "./SessionMessageList";
+import { SessionOpenFailureNotice } from "./SessionOpenFailureNotice";
+import { SessionTaskProgress } from "./SessionTaskProgress";
 
 const SessionFeed = memo(SessionMessageList);
 
@@ -45,12 +46,7 @@ export function ChatView(props: ChatViewProps): JSX.Element {
 		[actions, model.header],
 	);
 	const workspace = useMemo(
-		() =>
-			createActivityWorkspace(
-				model.cwd ?? model.sessionId ?? "conversation:unbound",
-				model.cwd,
-				runtimeIds,
-			),
+		() => createActivityWorkspace(model.cwd ?? model.sessionId ?? "conversation:unbound", model.cwd, runtimeIds),
 		[model.cwd, model.sessionId, runtimeIds],
 	);
 	const onAbort = useCallback(() => {
@@ -86,6 +82,7 @@ export function ChatView(props: ChatViewProps): JSX.Element {
 					onAbort={onAbort}
 				/>
 			</SessionAssistantRendering>
+			<SessionTaskProgress />
 			<DefaultChatComposer {...props} />
 		</DefaultChatView>
 	);

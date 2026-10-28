@@ -17,8 +17,8 @@ vi.mock("../src/plugin-context", () => ({
 	notify: () => {},
 }));
 
-import { act } from "react";
 import type { PluginFsApi } from "@vetta-org/plugin-sdk";
+import { act } from "react";
 import { createRoot, type Root } from "react-dom/client";
 import { NotesDrawer } from "../src/canvas/NotesDrawer";
 import { NotesStore } from "../src/notes/notes-store";
@@ -58,7 +58,14 @@ afterEach(() => {
 function render(onClose: () => void = () => {}, onLocate: (id: string) => void = () => {}): void {
 	act(() => {
 		root.render(
-			<NotesDrawer store={store} session={session} cwd="/repo" onLocate={onLocate} offsetTop={0} onClose={onClose} />,
+			<NotesDrawer
+				store={store}
+				session={session}
+				cwd="/repo"
+				onLocate={onLocate}
+				offsetTop={0}
+				onClose={onClose}
+			/>,
 		);
 	});
 }
@@ -98,7 +105,10 @@ it("splits notes into pending and resolved, numbering only the pending ones", ()
 it("locating a note reports its id so the canvas can center on it", () => {
 	const note = store.addNote({ kind: "frame", frameId: "login", fx: 1, fy: 2 }, "这里改蓝色");
 	const located: string[] = [];
-	render(() => {}, (id) => located.push(id));
+	render(
+		() => {},
+		(id) => located.push(id),
+	);
 
 	const row = [...document.body.querySelectorAll("button")].find((button) =>
 		(button.textContent ?? "").includes("这里改蓝色"),
@@ -127,4 +137,51 @@ it("坐在左上角标题区下方，查看模式时再让开横幅", () => {
 	render();
 	const panel = host.querySelector<HTMLElement>(".vetd-note-drawer-enter");
 	expect(panel?.style.top).toBe("48px");
+});
+
+it("面板里的按下不冒泡到画布根，备注工具不会在点击处再落一条草稿", () => {
+	// 画布根的 onPointerDown 在备注工具下就是「在这里新建备注」：面板浮在画布里，
+	// 不截断的话点「关闭」「清除已完成」都会顺带在点击位置弹出草稿输入框。
+	const done = store.addNote({ kind: "free", x: 0, y: 0 }, "已完成的");
+	store.appendMessage(done.id, "agent", "改好了");
+	const canvasEvents: string[] = [];
+	let closed = 0;
+	act(() => {
+		root.render(
+			// biome-ignore lint/a11y/noStaticElementInteractions: stands in for the canvas root
+			<div
+				onPointerDown={() => canvasEvents.push("down")}
+				onPointerMove={() => canvasEvents.push("move")}
+				onPointerUp={() => canvasEvents.push("up")}
+			>
+				<NotesDrawer
+					store={store}
+					session={session}
+					cwd="/repo"
+					onLocate={() => {}}
+					offsetTop={0}
+					onClose={() => {
+						closed++;
+					}}
+				/>
+			</div>,
+		);
+	});
+
+	const close = document.body.querySelector<HTMLElement>('[aria-label="notes.close"]');
+	const clear = [...document.body.querySelectorAll("button")].find(
+		(button) => button.textContent === "notes.drawer.clearResolved",
+	);
+	if (!close || !clear) throw new Error("drawer buttons not rendered");
+	for (const target of [close, clear]) {
+		act(() => {
+			for (const type of ["pointerdown", "pointermove", "pointerup"])
+				target.dispatchEvent(new PointerEvent(type, { bubbles: true, button: 0 }));
+		});
+	}
+	expect(canvasEvents).toEqual([]);
+	act(() => clear.click());
+	expect(store.notes).toEqual([]);
+	act(() => close.click());
+	expect(closed).toBe(1);
 });

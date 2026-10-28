@@ -3,6 +3,10 @@ import { pathToFileURL } from "node:url";
 import { changedFiles } from "./lib.mjs";
 
 const PACKAGED_SMOKE_PATTERNS = [
+	/^packages\/plugins\/presets\/vetta-ui-design\/(src|engine)\//,
+	/^apps\/desktop\/scripts\/(test-canvas-gestures\.mjs|fixtures\/canvas-gestures\.jsx)$/,
+	/^packages\/theme-ui\/src\/chat\/TaskProgressView\.tsx$/,
+	/^apps\/desktop\/src\/renderer\/domains\/conversation\/(components\/SessionTaskProgress\.tsx|hooks\/useTaskProgressModel\.ts)$/,
 	/^packages\/theme-ui\/src\/settings\/(GeneralSettingsView|ArchivedProjectsSettingsView|AppshotSettingsView|ShortcutsSettingsView|EnvironmentSettingsView|PermissionsSettingsView)\.tsx$/,
 	/^apps\/desktop\/src\/renderer\/domains\/settings\/components\/(RemotePairingSettings|AgentSettingsView|KnowledgeBaseSettingsView|ImBridgeSettingsView|ExtensionsSettingsView|GeneralSettings|AppearanceSettingsView|AccountSettingsView)\.tsx$/,
 	/^apps\/desktop\/scripts\/fixtures\/workspace-redesign\.jsx$/,

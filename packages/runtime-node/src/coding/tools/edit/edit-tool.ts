@@ -17,7 +17,7 @@ const defaultEditOperations: EditOperations = {
 
 interface EditToolResult {
 	readonly content: readonly [{ readonly type: "text"; readonly text: string }];
-	readonly details: EditToolDetails & { readonly fileChange?: FileChangeReceipt };
+	readonly details: EditToolDetails & { readonly writtenPath: string; readonly fileChange?: FileChangeReceipt };
 }
 
 async function executeAnchorMode(
@@ -41,7 +41,11 @@ async function executeAnchorMode(
 	await operations.writeFile(absolutePath, edit.content);
 	return {
 		content: [{ type: "text", text: edit.receipt }],
-		details: { ...edit.details, fileChange: fileChangeReceipt(absolutePath, rawBytes, edit.content) },
+		details: {
+			...edit.details,
+			writtenPath: absolutePath,
+			fileChange: fileChangeReceipt(absolutePath, rawBytes, edit.content),
+		},
 	};
 }
 
@@ -95,6 +99,7 @@ function executeExactTextMode(
 						},
 					],
 					details: {
+						writtenPath: absolutePath,
 						diff: diff.diff,
 						firstChangedLine: diff.firstChangedLine,
 						fileChange: fileChangeReceipt(absolutePath, rawBytes, edit.content),

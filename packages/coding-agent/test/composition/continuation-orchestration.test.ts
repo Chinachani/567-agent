@@ -42,6 +42,46 @@ describe("Coding Agent continuation orchestration", () => {
 		}
 	});
 
+	it("explicitly continues a completed reply using persisted history without duplicating the user request", async () => {
+		const conversationDir = await mkdtemp(join(tmpdir(), "explicit-completed-continuation-"));
+		temporaryDirectories.push(conversationDir);
+		const calls: Array<readonly Message[]> = [];
+		const composition = await createCodingAgentRuntimeComposition({
+			conversationDir,
+			modelRegistry: modelRegistry(),
+			initialModel: MODEL,
+			initialThinkingLevel: "off",
+			activation: { mode: "explicit", toolNames: [] },
+			resolveSystemPromptOptions: () => ({ customPrompt: "Base prompt", scenario: "cli" }),
+			streamFn: (_model, context) => {
+				calls.push([...context.messages]);
+				return new RecordedAssistantStream(
+					assistantMessage(calls.length === 1 ? "I checked the first step." : "Continuing the next step."),
+				);
+			},
+		});
+		compositions.push(composition);
+		const session = await composition.createSession({ sessionId: "explicit-completed", cwd: conversationDir });
+		await session.prompt({ text: "Check the project." });
+		const before = await session.readMessages();
+		expect(before.at(-1)).toMatchObject({ role: "assistant", stopReason: "stop" });
+		await session.continue();
+		expect(calls).toHaveLength(2);
+		expect(calls[1]).toEqual(
+			expect.arrayContaining([
+				expect.objectContaining({
+					role: "assistant",
+					content: [{ type: "text", text: "I checked the first step." }],
+				}),
+			]),
+		);
+		const after = await session.readMessages();
+		expect(after.filter((message) => message.role === "user")).toHaveLength(1);
+		expect(after.filter((message) => message.role === "assistant")).toHaveLength(2);
+		expect(after.slice(0, before.length)).toEqual(before);
+		await session.dispose();
+	});
+
 	it("manually compacts through the admitted Runtime capability and preserves the transient prefix afterwards", async () => {
 		const conversationDir = await mkdtemp(join(tmpdir(), "manual-pinned-runtime-"));
 		temporaryDirectories.push(conversationDir);

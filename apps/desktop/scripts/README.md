@@ -316,3 +316,18 @@ Windows 的 Inno Setup 安装包是自定义产物，应由仓库的 release wor
 工作流的 `workflow_dispatch` 默认只执行三平台构建、校验并保留临时 Artifact；选择 `channel=test` 会发布到隔离的 `desktop-test` R2，选择 `channel=stable` 会在 `desktop-production` Environment 审批后进入与匹配 tag 相同的 R2/GitHub 发布 Job。生产 tag 仍必须是 `v<package-version>`；其它 `v*` tag 经轻量 scope Job 判定后跳过打包。所有会发布的构建都要求 macOS 签名与公证。GitHub Release 已经公开后不允许 CI 用 `--clobber` 修改，只能恢复尚未公开的 draft。
 
 打包时会从本包 `CHANGELOG.md` 提取与当前版本完全匹配的 `## [version]` 区段作为更新说明。正式发布必须先完成 Changelog 定版；找不到版本区段的本地 QA 构建只告警并省略更新说明。
+
+
+## 设计画布跨进程回归
+
+`bun run test:canvas-gestures`（在 `apps/desktop` 下运行）通过 Node 启动，建立独立 Electron profile、
+临时设计稿与仅回环可访问的 Vite 引擎，不启动或附着用户 Desktop。需要 Xvfb；可用
+`AGENT567_TEST_XVFB` 指定其路径。首次运行通过引擎的锁文件在临时目录安装依赖，不修改工作区依赖。
+已有隔离引擎依赖时，可用 `AGENT567_CANVAS_ENGINE_DIR` 指向含 `node_modules` 的引擎目录复用。
+
+回归使用真实 FrameView、位图状态 hook、视口和双端 bridge，强制跨进程 iframe，连续输入平移和
+缩放滚轮；随后回写布局清单，确认无重载，再修改画框源码，确认 Tailwind 样式仍更新。
+`AGENT567_CANVAS_ARTIFACT_DIR` 可保存运行日志和结果 JSON。截图服务作为外部宿主边界提供固定样本；
+本测试不验证离屏截图像素质量或物理触控板驱动。
+
+画布手势回归已接入 `desktop-packaged` 的 Linux native job。默认从锁文件冷安装引擎依赖；可用 `AGENT567_CANVAS_ENGINE_DIR` 复用依赖，不应直接用 Bun 执行脚本。阶段日志区分依赖安装、Vite 初始化和 Electron 探针。

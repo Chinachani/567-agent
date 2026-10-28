@@ -428,6 +428,13 @@ export type {
 export { SkillPromptAreaView } from "./SkillPromptAreaView";
 export type { SuggestionBubblesViewProps } from "./SuggestionBubblesView";
 export { SuggestionBubblesView } from "./SuggestionBubblesView";
+export {
+	TaskProgressActions,
+	TaskProgressDetail,
+	TaskProgressLinks,
+	TaskProgressStatus,
+	TaskProgressView,
+} from "./TaskProgressView";
 export type {
 	InlineTokenAnnotation,
 	InlineTokenPiece,

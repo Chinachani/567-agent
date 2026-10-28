@@ -114,6 +114,9 @@ jobs:
       - name: Verify narrow sidebar account layout
         working-directory: apps/desktop
         run: bun run test:sidebar-layout
+      - name: Verify canvas gestures across process boundaries and engine HMR
+        working-directory: apps/desktop
+        run: bun run test:canvas-gestures
       - name: Verify workspace pages in light, dark and narrow layouts
         working-directory: apps/desktop
         run: bun run test:workspace-layout

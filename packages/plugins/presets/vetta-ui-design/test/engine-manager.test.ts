@@ -1,5 +1,5 @@
 import { spawnSync } from "node:child_process";
-import { mkdtemp, mkdir, readFile, readdir, rm, writeFile } from "node:fs/promises";
+import { mkdir, mkdtemp, readdir, readFile, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import type {
@@ -17,7 +17,9 @@ import { engineReady, materializeEngine, migrateLegacyEngine, waitForSpawnExit }
 const temporaryDirectories: string[] = [];
 
 afterEach(async () => {
-	await Promise.all(temporaryDirectories.splice(0).map((directory) => rm(directory, { recursive: true, force: true })));
+	await Promise.all(
+		temporaryDirectories.splice(0).map((directory) => rm(directory, { recursive: true, force: true })),
+	);
 });
 
 const runNode: PluginCommandApi["run"] = async (file, args = [], options) => {
@@ -51,7 +53,11 @@ describe("design engine data migration", () => {
 		const engineRoot = join(workspace, "engine");
 		const context = {
 			command: {
-				run: async (file: string, args: readonly string[], options?: { cwd?: string; env?: Record<string, string> }) => {
+				run: async (
+					file: string,
+					args: readonly string[],
+					options?: { cwd?: string; env?: Record<string, string> },
+				) => {
 					expect(options?.env).not.toHaveProperty("VETD_ENGINE_FILES");
 					return runNode(file, [...args], options);
 				},
@@ -60,12 +66,16 @@ describe("design engine data migration", () => {
 				writeFile: (path: string, content: string) => writeFile(path, content),
 				delete: (path: string) => rm(path, { force: true }),
 			},
-			official: { projects: { list: async () => ({ workspacePath: workspace, projects: [], archivedProjects: [] }) } },
+			official: {
+				projects: { list: async () => ({ workspacePath: workspace, projects: [], archivedProjects: [] }) },
+			},
 		} as unknown as PluginContext;
 
 		await materializeEngine(context, engineRoot);
 
-		expect(await readFile(join(engineRoot, "package.json"), "utf8")).toBe(ENGINE_FILES["package.json"]);
+		for (const [relativePath, content] of Object.entries(ENGINE_FILES)) {
+			expect(await readFile(join(engineRoot, relativePath), "utf8")).toBe(content);
+		}
 		expect(await readFile(join(engineRoot, ".files-hash"), "utf8")).toBe(engineFilesHash());
 		expect((await readdir(workspace)).some((name) => name.startsWith(".567agent-engine-bootstrap.json"))).toBe(false);
 	});
@@ -103,7 +113,9 @@ describe("design engine data migration", () => {
 
 	it("resolves the selected host data root in an actual Node subprocess", async () => {
 		const dataRoot = join(await temporaryHome(), "selected data disk");
-		const context = { command: { run: (file: string, args: string[]) => runNode(file, args, { env: { AGENT567_HOME: dataRoot } }) } } as unknown as PluginContext;
+		const context = {
+			command: { run: (file: string, args: string[]) => runNode(file, args, { env: { AGENT567_HOME: dataRoot } }) },
+		} as unknown as PluginContext;
 		expect(await resolveDesignDataRoot(context)).toBe(dataRoot);
 	});
 

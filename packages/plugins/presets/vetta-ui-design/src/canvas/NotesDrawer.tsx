@@ -94,7 +94,12 @@ export function NotesDrawer({ store, session, cwd, onLocate, offsetTop, onClose 
 	return (
 		// 悬浮而非贴边：画布是无限的，抽屉贴死左边缘会读成「面板被截断了」。
 		// 高度跟着内容走，只在超过画布 80% 时才封顶——两条备注不该占满整条边。
+		// 面板浮在画布根中；截断指针事件，防止按钮触发画布的新建备注和拖动。
+		// biome-ignore lint/a11y/noStaticElementInteractions: shield canvas gestures while preserving drawer controls
 		<div
+			onPointerDown={(event) => event.stopPropagation()}
+			onPointerMove={(event) => event.stopPropagation()}
+			onPointerUp={(event) => event.stopPropagation()}
 			className="vetd-note vetd-note-drawer-enter vetd-note-surface pointer-events-auto absolute z-40 flex flex-col overflow-hidden rounded-2xl border border-border/70 bg-popover/95 shadow-2xl ring-1 ring-black/5 backdrop-blur-xl"
 			style={{ top: PANEL_TOP + offsetTop, left: PANEL_GAP, width: PANEL_WIDTH, maxHeight: PANEL_MAX_HEIGHT }}
 		>

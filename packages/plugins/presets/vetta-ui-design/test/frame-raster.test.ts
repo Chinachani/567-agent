@@ -5,9 +5,10 @@
  * invalidate），但截图完成后的 finally 无条件清掉脏标记——这次 invalidate 被吞掉，
  * 旧位图永久留存，直到用户点进 frame 才发现活体和位图对不上。
  */
+
+import type { PluginContext } from "@vetta-org/plugin-sdk";
 import { act, createElement } from "react";
 import { createRoot, type Root } from "react-dom/client";
-import type { PluginContext } from "@vetta-org/plugin-sdk";
 import { afterEach, beforeEach, expect, it, vi } from "vitest";
 import type { BridgeHub } from "../src/canvas/bridge-client";
 import { clearFrameErrors, setFrameError } from "../src/canvas/design-runtime";
@@ -65,10 +66,7 @@ async function advance(ms: number): Promise<void> {
 	});
 }
 
-async function mount(
-	frameIds: readonly string[],
-	offscreen?: TestOffscreenContext | null,
-): Promise<void> {
+async function mount(frameIds: readonly string[], offscreen?: TestOffscreenContext | null): Promise<void> {
 	container = document.createElement("div");
 	document.body.appendChild(container);
 	root = createRoot(container);
@@ -374,7 +372,7 @@ it("刚取消选中的 frame 保持挂载，再次选中时不用重建 iframe",
  * 缩放/平移途中活体 iframe 是最贵的一层：跨源渲染树套在 world 的 scale 底下，缩放每变
  * 一档就得连同它整棵树重新光栅化。有位图的先用位图顶着，iframe 只收起不卸载。
  */
-it("交互期把有位图的 frame 降为位图，iframe 收起但不卸载", async () => {
+it("交互期把有位图的 frame 降为位图，iframe 透明停放但不卸载", async () => {
 	setPluginCtx({
 		capture: {
 			offscreen: () => Promise.resolve({ dataUrl: "data:offscreen", scaleFactor: 2 }),
@@ -403,9 +401,13 @@ it("交互期把有位图的 frame 降为位图，iframe 收起但不卸载", as
 		// 但必须还挂着——卸掉就要整页重新加载，操作结束会看见一轮重启。
 		expect(latest.isMounted("a")).toBe(true);
 
+		expect(latest.isParked("a")).toBe(true);
+		expect(latest.isParked("b")).toBe(false);
+
 		// 结束后恢复活体。
 		await render(false);
 		expect(latest.isLive("a")).toBe(true);
+		expect(latest.isParked("a")).toBe(false);
 	} finally {
 		setPluginCtx(null as unknown as PluginContext);
 	}
@@ -420,4 +422,5 @@ it("交互期没有位图的 frame 仍然保持活体", async () => {
 	});
 	expect(latest.rasterOf("a")).toBe(null);
 	expect(latest.isLive("a")).toBe(true);
+	expect(latest.isParked("a")).toBe(false);
 });

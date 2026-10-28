@@ -127,7 +127,9 @@ function normalizeMarkdownLine(line: string): string {
 			const raw = /^[^\s<>]+/.exec(line.slice(index))?.[0] ?? "";
 			const withoutPunctuation = raw.replace(/[。，；！？、]+$/, "");
 			const opening = (prefix.match(/(?<!\\)\*\*/g) ?? []).length % 2 === 1;
-			if (opening && withoutPunctuation.endsWith("**")) {
+			// A URL in an explicit link label is not a bare autolink. Wrapping it
+			// would swallow the ](destination) and corrupt otherwise valid Markdown.
+			if (opening && !raw.includes("](") && withoutPunctuation.endsWith("**")) {
 				let target = withoutPunctuation.slice(0, -2);
 				while (target.endsWith(")") && (target.match(/\)/g)?.length ?? 0) > (target.match(/\(/g)?.length ?? 0))
 					target = target.slice(0, -1);

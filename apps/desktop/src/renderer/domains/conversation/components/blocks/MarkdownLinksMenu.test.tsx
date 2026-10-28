@@ -1,9 +1,22 @@
 // @vitest-environment jsdom
 import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { MarkdownContent } from "@vetta-org/theme-ui/markdown";
-import { afterEach, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, expect, it, vi } from "vitest";
 import { createMarkdownHostFixture } from "./markdown-host.fixture";
-afterEach(cleanup);
+beforeEach(() =>
+	vi.stubGlobal(
+		"ResizeObserver",
+		class {
+			observe() {}
+			unobserve() {}
+			disconnect() {}
+		},
+	),
+);
+afterEach(() => {
+	cleanup();
+	vi.unstubAllGlobals();
+});
 const props = {
 	theme: "dark" as const,
 	labels: { copy: "Copy", copied: "Copied" },
@@ -83,42 +96,125 @@ it("opens the original LAN destination when the Markdown link label starts on th
 	const open = vi.fn();
 	const { host } = createMarkdownHostFixture();
 	const external = vi.fn();
-	render(<MarkdownContent {...props} onOpenUrl={open} host={{...host, openExternalUrl: external}}
-		text={"全新的品牌现已在 [\nhttps://192.168.1.219:8089](https://192.168.1.219:8089)\n 与 [\nhttp://192.168.1.219:8088](http://192.168.1.219:8088)\n 持续在线运行，随时可以使用！"} />);
+	render(
+		<MarkdownContent
+			{...props}
+			onOpenUrl={open}
+			host={{ ...host, openExternalUrl: external }}
+			text={
+				"全新的品牌现已在 [\nhttps://192.168.1.219:8089](https://192.168.1.219:8089)\n 与 [\nhttp://192.168.1.219:8088](http://192.168.1.219:8088)\n 持续在线运行，随时可以使用！"
+			}
+		/>,
+	);
 	const links = screen.getAllByRole("link");
 	expect(links).toHaveLength(2);
-	expect(links.map((link) => link.getAttribute("href"))).toEqual(["https://192.168.1.219:8089", "http://192.168.1.219:8088"]);
+	expect(links.map((link) => link.getAttribute("href"))).toEqual([
+		"https://192.168.1.219:8089",
+		"http://192.168.1.219:8088",
+	]);
 	for (const link of links) expect(link.textContent).not.toMatch(/[\[\]()]/);
 	fireEvent.click(links[0]);
 	expect(open).toHaveBeenCalledWith("https://192.168.1.219:8089");
-	fireEvent.contextMenu(links[1], {clientX:10,clientY:10});
-	fireEvent.click(await screen.findByRole("menuitem", {name:/default browser/i}));
+	fireEvent.contextMenu(links[1], { clientX: 10, clientY: 10 });
+	fireEvent.click(await screen.findByRole("menuitem", { name: /default browser/i }));
 	await waitFor(() => expect(external).toHaveBeenCalledWith("http://192.168.1.219:8088"));
 });
 
 it("recovers the duplicated LAN URL suffix swallowed by GFM after a broken link boundary", async () => {
-	const {host} = createMarkdownHostFixture();
+	const { host } = createMarkdownHostFixture();
 	const external = vi.fn();
-	render(<MarkdownContent {...props} host={{...host,openExternalUrl:external}} text={"直接在浏览器中打开： 👉 [\n\nhttps://192.168.1.219:8089](https://192.168.1.219:8089)\n\n或 👉 [\n\nhttp://192.168.1.219:8088](http://192.168.1.219:8088)"} />);
+	render(
+		<MarkdownContent
+			{...props}
+			host={{ ...host, openExternalUrl: external }}
+			text={
+				"直接在浏览器中打开： 👉 [\n\nhttps://192.168.1.219:8089](https://192.168.1.219:8089)\n\n或 👉 [\n\nhttp://192.168.1.219:8088](http://192.168.1.219:8088)"
+			}
+		/>,
+	);
 	const links = screen.getAllByRole("link");
-	expect(links.map((link) => link.getAttribute("href"))).toEqual(["https://192.168.1.219:8089", "http://192.168.1.219:8088"]);
+	expect(links.map((link) => link.getAttribute("href"))).toEqual([
+		"https://192.168.1.219:8089",
+		"http://192.168.1.219:8088",
+	]);
 	for (const link of links) expect(link.textContent).not.toMatch(/[\[\]()]/);
-	fireEvent.contextMenu(links[0],{clientX:10,clientY:10});
-	fireEvent.click(await screen.findByRole("menuitem",{name:/default browser/i}));
+	fireEvent.contextMenu(links[0], { clientX: 10, clientY: 10 });
+	fireEvent.click(await screen.findByRole("menuitem", { name: /default browser/i }));
 	await waitFor(() => expect(external).toHaveBeenCalledWith("https://192.168.1.219:8089"));
 });
 
 it("repairs the reported encoded duplicate target without changing deliberate destinations or code examples", async () => {
-	const {host}=createMarkdownHostFixture();
-	const copy=vi.fn(async () => {});
+	const { host } = createMarkdownHostFixture();
+	const copy = vi.fn(async () => {});
 	const broken = "https://192.168.1.219:8089%5D(https://192.168.1.219:8089)";
-	render(<MarkdownContent {...props} host={{...host,copyText:copy}} text={broken + "\n\n[Deliberate](<" + broken + ">)\n\n`" + broken + "`"} />);
-	const links=screen.getAllByRole("link");
+	render(
+		<MarkdownContent
+			{...props}
+			host={{ ...host, copyText: copy }}
+			text={broken + "\n\n[Deliberate](<" + broken + ">)\n\n`" + broken + "`"}
+		/>,
+	);
+	const links = screen.getAllByRole("link");
 	expect(links).toHaveLength(2);
 	expect(links[0].getAttribute("href")).toBe("https://192.168.1.219:8089");
 	expect(links[1].getAttribute("href")).toBe(broken);
 	expect(screen.getByText(broken).tagName).toBe("CODE");
-	fireEvent.contextMenu(links[0],{clientX:10,clientY:10});
-	fireEvent.click(await screen.findByRole("menuitem",{name:/Copy link/i}));
-	await waitFor(() => expect(copy).toHaveBeenCalledWith("https://192.168.1.219:8089","url"));
+	fireEvent.contextMenu(links[0], { clientX: 10, clientY: 10 });
+	fireEvent.click(await screen.findByRole("menuitem", { name: /Copy link/i }));
+	await waitFor(() => expect(copy).toHaveBeenCalledWith("https://192.168.1.219:8089", "url"));
+});
+
+it("keeps bold URL labels in a table intact through streaming, copying and opening", async () => {
+	const { host } = createMarkdownHostFixture();
+	const copy = vi.fn(async () => {});
+	const external = vi.fn();
+	const urls = [
+		"https://a.567.wiki/",
+		"https://epay.567.wiki/",
+		"https://factory.567.wiki/",
+		"https://3d.567.wiki/",
+		"http://www.567.wiki/",
+	];
+	const text = "| 域名 | 端口 |\n| --- | --- |\n" + urls.map((url) => `| **[${url}](${url})** | 443 |`).join("\n");
+	const view = render(
+		<MarkdownContent
+			{...props}
+			host={{ ...host, copyText: copy, openExternalUrl: external }}
+			text={text}
+			isStreamingTail
+		/>,
+	);
+	view.rerender(
+		<MarkdownContent
+			{...props}
+			host={{ ...host, copyText: copy, openExternalUrl: external }}
+			text={text}
+			isStreamingTail={false}
+		/>,
+	);
+	await waitFor(() => expect(screen.getAllByRole("link").map((link) => link.getAttribute("href"))).toEqual(urls));
+	const links = screen.getAllByRole("link");
+	for (const cell of screen.getAllByRole("cell")) expect(cell.textContent).not.toMatch(/[\[\]]|%5D|\]\(/i);
+	fireEvent.contextMenu(links[0]);
+	fireEvent.click(await screen.findByRole("menuitem", { name: /Copy link/i }));
+	await waitFor(() => expect(copy).toHaveBeenCalledWith(urls[0], "url"));
+	fireEvent.contextMenu(links[1]);
+	fireEvent.click(await screen.findByRole("menuitem", { name: /default browser/i }));
+	await waitFor(() => expect(external).toHaveBeenCalledWith(urls[1]));
+});
+
+it("preserves a named bold URL label and explicit target alongside a bare emphasized URL", () => {
+	render(
+		<MarkdownContent
+			{...props}
+			text={
+				"**[Home https://example.test/](https://example.test/target)**\n\n**See https://example.test/bare**。\n\n`**[https://example.test/](https://example.test/)**`"
+			}
+		/>,
+	);
+	expect(screen.getAllByRole("link").map((link) => link.getAttribute("href"))).toEqual([
+		"https://example.test/target",
+		"https://example.test/bare",
+	]);
+	expect(screen.getByRole("link", { name: "Home https://example.test/" })).toBeTruthy();
 });

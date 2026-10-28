@@ -1,14 +1,5 @@
 import "./styles.css";
-import {
-	Component,
-	type ComponentType,
-	lazy,
-	type ReactNode,
-	StrictMode,
-	Suspense,
-	useEffect,
-	useLayoutEffect,
-} from "react";
+import { Component, type ComponentType, type ReactNode, StrictMode, Suspense, useEffect, useLayoutEffect } from "react";
 import { createRoot, type Root } from "react-dom/client";
 import { BrowserRouter, MemoryRouter, Navigate, Outlet, Route, Routes, useLocation, useNavigate } from "react-router";
 import {
@@ -21,7 +12,8 @@ import {
 	notifyNavigated,
 	onBuildError,
 } from "./bridge";
-import { HOME_FRAME_ID, frameOfPath, homeFrameId, isFrameFile, pathOfFrame } from "./routes";
+import { type Preloadable, preloadable } from "./preloadable";
+import { frameOfPath, HOME_FRAME_ID, homeFrameId, isFrameFile, pathOfFrame } from "./routes";
 
 interface FrameModule {
 	default?: ComponentType;
@@ -50,14 +42,15 @@ for (const [path, load] of Object.entries(loaders)) {
  * 设计稿不需要外壳时（海报、幻灯片、单屏）不建这个文件即可，链路对它们无感。
  */
 const layoutLoad = Object.values(import.meta.glob<FrameModule>("@design/frames/_layout.tsx"))[0] ?? null;
-const Layout = layoutLoad
-	? lazy(async () => {
+const layout = layoutLoad
+	? preloadable(async () => {
 			const mod = await layoutLoad();
 			// 外壳必须自己渲染 <Outlet />（react-router 的标准写法）；忘了写的话
 			// 内容区整片消失，退回裸 Outlet 至少还看得见页面。
 			return { default: mod.default ?? Outlet };
 		})
 	: null;
+const Layout = layout?.Component ?? null;
 
 const frameIds = [...frames.keys()].sort();
 
@@ -89,15 +82,15 @@ function FrameMissing({ id }: { id: string | null }) {
 	return <Placeholder text={id ? `Frame not found: ${id}` : "No frame selected"} />;
 }
 
-const lazyFrames = new Map<string, ComponentType>();
+const lazyFrames = new Map<string, Preloadable>();
 
-function frameComponent(id: string): ComponentType | null {
+function framePreloadable(id: string): Preloadable | null {
 	const load = frames.get(id);
 	if (!load) return null;
 	const cached = lazyFrames.get(id);
 	if (cached) return cached;
 	// 失败的 promise 会被 lazy 记住，但错误态的恢复走整页重载，缓存不用作废。
-	const Frame = lazy(async () => {
+	const Frame = preloadable(async () => {
 		const mod = await load();
 		return { default: mod.default ?? (() => <FrameMissing id={id} />) };
 	});
@@ -195,7 +188,7 @@ class FrameBoundary extends Component<BoundaryProps, { failed: boolean }> {
 }
 
 function FrameRoute({ id }: { id: string }) {
-	const Frame = frameComponent(id);
+	const Frame = framePreloadable(id)?.Component ?? null;
 	// 渲染期就把错误清掉，而不是放进 effect：边界的 componentDidUpdate 在 commit
 	// 阶段补发真正的错误，而 commit 晚于 render——顺序反过来的话，这条清空会把
 	// 边界刚报上去的错误抹掉，画布上的「构建失败」徽标就再也亮不起来。
@@ -311,14 +304,22 @@ container.__vetdRoot = root;
  * BrowserRouter 一导航就抛。那条链路改用内存路由，其余（画布 iframe / 系统
  * 浏览器 / 部署后的站点）一律走真实地址。
  */
-const Router = window.location.protocol === "about:" || window.location.protocol === "blob:" ? MemoryRouter : BrowserRouter;
+const Router =
+	window.location.protocol === "about:" || window.location.protocol === "blob:" ? MemoryRouter : BrowserRouter;
 
-root.render(
-	<StrictMode>
-		<Router>
-			<App />
-		</Router>
-	</StrictMode>,
+// Load only the initial shell and frame before rendering, avoiding a first-commit
+// Suspense fallback. Failed preloads still reach the existing error boundary.
+// Keep this asynchronous rather than top-level await for exported builds.
+void Promise.all([layout?.preload(), currentFrameId ? framePreloadable(currentFrameId)?.preload() : undefined]).then(
+	() => {
+		root.render(
+			<StrictMode>
+				<Router>
+					<App />
+				</Router>
+			</StrictMode>,
+		);
+	},
 );
 
 installBridge({ getFrameId: () => currentFrameId });

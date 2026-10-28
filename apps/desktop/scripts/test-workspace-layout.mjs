@@ -95,7 +95,7 @@ try {
 	const match = output.match(/WORKSPACE_LAYOUT_RESULT (\{[^\n]+\})/);
 	assert.ok(match, output);
 	const result = JSON.parse(match[1]);
-	assert.equal(result.rows.length, 54);
+	assert.equal(result.rows.length, 90);
 	for (const row of result.rows) {
 		assert.ok(row.title, JSON.stringify(row));
 		assert.ok(row.controls > 0, JSON.stringify(row));
@@ -220,6 +220,7 @@ function runProbe({ root, artifacts }) {
 						"abilities",
 						"skills",
 						"knowledge",
+                        "taskRunning", "taskWaiting", "taskFailed", "taskStopped", "taskComplete", "deliveries",
 					]) {
 						win.setContentSize(width, 780);
 						// Resizes apply asynchronously; wait until the content size settles so the page
@@ -279,6 +280,19 @@ function runProbe({ root, artifacts }) {
                                 return { height: r.height, contentFits: card.scrollHeight <= card.clientHeight + 1, paddingOpensDetails: target === button || button.contains(target), addClickable: !add || !addVisible || add.contains(document.elementFromPoint(a.x + a.width/2, a.y + a.height/2)) };
                             }) : [];
                             if (abilityCards.some(card => card.height !== 144 || !card.contentFits || !card.paddingOpensDetails || !card.addClickable)) throw Error("Ability card layout or hit area failed: " + JSON.stringify(abilityCards));
+                            const taskStatus = page.startsWith("task") ? body.querySelector("output") : null;
+                            if (taskStatus) {
+                                const info = taskStatus.closest("section").firstElementChild.getBoundingClientRect();
+                                const composer = body.querySelector(".input-card").getBoundingClientRect();
+                                if (Math.abs(info.left-composer.left)>1 || Math.abs(info.right-composer.right)>1) throw Error("Task progress and composer edges differ: "+JSON.stringify({info:info.toJSON(),composer:composer.toJSON()}));
+                            }
+                            if (page.startsWith("task")) {
+                                const stops = [...body.querySelectorAll("button")].filter(el=>el.title === "停止生成" || el.textContent.trim() === "停止");
+                                const expected = ["taskRunning","taskWaiting"].includes(page) ? 1 : 0;
+                                if (stops.length !== expected) throw Error("Task stop action count: "+JSON.stringify({page,count:stops.length,expected}));
+                                if (["taskFailed","taskStopped","taskComplete"].includes(page) && !controls.some(el=>el.textContent.includes("从历史继续"))) throw Error("Missing explicit continuation on "+page);
+                            }
+
 							return {
 								overflow: body.scrollWidth - body.clientWidth,
 								clipped,

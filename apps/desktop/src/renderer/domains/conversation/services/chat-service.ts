@@ -260,16 +260,24 @@ export function extractToolUiDetails(result: unknown, details: unknown): ToolCal
 	const askUserQuestion = extractAskUserQuestion(detailsRecord);
 	const knowledge = extractKnowledge(detailsRecord);
 	const planReview = extractPlanReview(detailsRecord);
+	const fileChange = asRecord(detailsRecord.fileChange);
+	const outputPath = detailsRecord.writtenPath ?? (fileChange?.version === 1 ? fileChange.path : undefined);
+	const writtenPath =
+		typeof outputPath === "string" && outputPath.trim() && outputPath.length <= 8192 && !outputPath.includes("\0")
+			? outputPath
+			: undefined;
 	if (
 		diff === undefined &&
 		firstChangedLine === undefined &&
 		askUserQuestion === undefined &&
 		knowledge === undefined &&
-		planReview === undefined
+		planReview === undefined &&
+		writtenPath === undefined
 	)
 		return undefined;
 
 	return {
+		...(writtenPath !== undefined ? { writtenPath } : {}),
 		...(diff !== undefined ? { diff } : {}),
 		...(firstChangedLine !== undefined ? { firstChangedLine } : {}),
 		...(askUserQuestion !== undefined ? { askUserQuestion } : {}),

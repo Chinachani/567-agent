@@ -68,6 +68,7 @@ async function compareExactEdit(options: {
 	);
 	expect(runtimeResult.content[0]).toMatchObject({ text: "Successfully replaced text in file.txt." });
 	expect(readFileSync(join(runtimeDirectory, "file.txt"), "utf-8")).toBe(options.expected);
+	expect(runtimeResult.details).toMatchObject({ writtenPath: join(runtimeDirectory, "file.txt") });
 }
 
 describe("runtime edit tool", () => {

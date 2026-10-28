@@ -41,6 +41,7 @@ function renderFrame(
 				resizable={false}
 				mounted={false}
 				live={false}
+				parked={false}
 				raster={raster}
 				reloadNonce={0}
 				paintTick={0}
@@ -96,9 +97,7 @@ it("shows the size badge only while selected, under the frame", () => {
 	idle.cleanup();
 
 	const active = renderFrame(false, true);
-	const badge = [...active.host.querySelectorAll<HTMLElement>("div")].find(
-		(node) => node.textContent === "390×1046",
-	);
+	const badge = [...active.host.querySelectorAll<HTMLElement>("div")].find((node) => node.textContent === "390×1046");
 	expect(badge).toBeDefined();
 	expect(badge?.className).toContain("bg-primary");
 	// frame 底边下方、水平居中，且跟着 --vetd-lscale 反向缩放。

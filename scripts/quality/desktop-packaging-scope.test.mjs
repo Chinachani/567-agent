@@ -30,6 +30,12 @@ describe("Desktop packaging risk classification", () => {
 	it("requires the Linux native probe job when either probe changes", () => {
 		for (const path of [
 			"apps/desktop/scripts/test-capture-portal.mjs",
+			"apps/desktop/scripts/test-canvas-gestures.mjs",
+			"apps/desktop/scripts/fixtures/canvas-gestures.jsx",
+			"packages/plugins/presets/vetta-ui-design/src/canvas/FrameView.tsx",
+			"packages/plugins/presets/vetta-ui-design/engine/src/main.tsx",
+			"packages/theme-ui/src/chat/TaskProgressView.tsx",
+			"apps/desktop/src/renderer/domains/conversation/hooks/useTaskProgressModel.ts",
 			"apps/desktop/scripts/test-wayland-input-bundle.mjs",
 			"apps/desktop/scripts/test-sidebar-account-layout.mjs",
 			"apps/desktop/scripts/test-workspace-layout.mjs",
