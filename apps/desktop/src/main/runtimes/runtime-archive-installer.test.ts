@@ -288,6 +288,54 @@ describe("runtime replacement safety", () => {
 		await expect(readFile(options.executablePath)).resolves.toBeInstanceOf(Buffer);
 	});
 
+	it("publishes a validated runtime after temporary filesystem locks clear", async () => {
+		const options = await nodeInstall();
+		await writeFile(join(options.sourceDirectory, "new-marker"), "new");
+		await writeFile(join(options.targetDirectory, "old-marker"), "old");
+		let moveLocked = true;
+		let publishLocked = true;
+		vi.mocked(fsPromises.rename).mockImplementation(async (from, to) => {
+			if (from === options.targetDirectory && moveLocked) {
+				moveLocked = false;
+				throw Object.assign(new Error("temporary runtime lock"), { code: "EBUSY" });
+			}
+			if (to === options.targetDirectory && String(from).endsWith("payload") && publishLocked) {
+				publishLocked = false;
+				throw Object.assign(new Error("temporary payload lock"), { code: "EPERM" });
+			}
+			return actualFs.rename(from, to);
+		});
+		await installRuntimeDirectory(options);
+		await expect(readFile(join(options.targetDirectory, "new-marker"), "utf8")).resolves.toBe("new");
+		await expect(readFile(join(options.targetDirectory, "old-marker"))).rejects.toThrow();
+		await expect(readFile(nodePackageManagerPaths(options.executablePath).npmCli, "utf8")).resolves.toContain(
+			"require",
+		);
+		await expect(readdir(join(testRoot, "managed"))).resolves.toEqual(["node"]);
+	});
+
+	it("restores the old runtime through a temporary lock when publication remains blocked", async () => {
+		const options = await nodeInstall();
+		await writeFile(join(options.targetDirectory, "old-marker"), "preserve");
+		let restoreLocked = true;
+		vi.mocked(fsPromises.rename).mockImplementation(async (from, to) => {
+			if (to === options.targetDirectory && String(from).endsWith("payload")) {
+				throw Object.assign(new Error("payload remains locked"), { code: "EPERM" });
+			}
+			if (to === options.targetDirectory && String(from).endsWith("previous") && restoreLocked) {
+				restoreLocked = false;
+				throw Object.assign(new Error("temporary restore lock"), { code: "EACCES" });
+			}
+			return actualFs.rename(from, to);
+		});
+		await expect(installRuntimeDirectory(options)).rejects.toThrow("payload remains locked");
+		await expect(readFile(join(options.targetDirectory, "old-marker"), "utf8")).resolves.toBe("preserve");
+		await expect(readFile(nodePackageManagerPaths(options.executablePath).npmCli, "utf8")).resolves.toContain(
+			"require",
+		);
+		await expect(readdir(join(testRoot, "managed"))).resolves.toEqual(["node"]);
+	});
+
 	it("restores the old directory if publishing the staged runtime fails", async () => {
 		const options = await nodeInstall();
 		await writeFile(join(options.targetDirectory, "old-marker"), "preserve");

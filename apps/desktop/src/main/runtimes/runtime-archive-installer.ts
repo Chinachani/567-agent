@@ -29,6 +29,27 @@ export class RuntimeInstallInUseError extends Error {
 	}
 }
 
+async function renameRuntimeDirectory(source: string, destination: string): Promise<void> {
+	// A completed health probe can leave a short-lived executable lock on Windows.
+	// Keep replacement atomic; persistent locks still fail with the original error.
+	for (let attempt = 0; ; attempt++) {
+		try {
+			await rename(source, destination);
+			return;
+		} catch (error) {
+			if (
+				attempt >= 5 ||
+				!(error instanceof Error) ||
+				!("code" in error) ||
+				!["EPERM", "EACCES", "EBUSY"].includes(String(error.code))
+			) {
+				throw error;
+			}
+			await new Promise((resolve) => setTimeout(resolve, 50 * 2 ** attempt));
+		}
+	}
+}
+
 function extractArchive(archivePath: string, destination: string, archiveType: string): void {
 	// Windows 10+ 的 bsdtar 与 Unix tar 都支持项目使用的 tar.gz；Windows
 	// bsdtar 同时支持 Node 官方发布的 zip。
@@ -72,7 +93,7 @@ async function installViaStaging(
 		const hadPrevious = existsSync(targetDirectory);
 		if (hadPrevious) {
 			try {
-				await rename(targetDirectory, previousDirectory);
+				await renameRuntimeDirectory(targetDirectory, previousDirectory);
 			} catch (error) {
 				if (
 					error instanceof Error &&
@@ -85,11 +106,11 @@ async function installViaStaging(
 			}
 		}
 		try {
-			await rename(preparedDirectory, targetDirectory);
+			await renameRuntimeDirectory(preparedDirectory, targetDirectory);
 		} catch (error) {
 			if (hadPrevious) {
 				try {
-					await rename(previousDirectory, targetDirectory);
+					await renameRuntimeDirectory(previousDirectory, targetDirectory);
 				} catch (restoreError) {
 					preservePrevious = true;
 					throw new AggregateError(

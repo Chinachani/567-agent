@@ -12,6 +12,7 @@ describe("actual output → live transcript → reopened delivery list", () => {
 		const directory = await mkdtemp(join(tmpdir(), "agent567-delivery-"));
 		try {
 			const actual = join(directory, "交付文件-发布稿.txt");
+			const deliveryPath = actual.replace(/\\/g, "/");
 			await writeFile(actual, "old");
 			const input = { path: "交付文件 - 发布稿.txt", content: "new" };
 			const tool = createWriteTool(directory, { pathPolicy: { getRejectionReason: () => undefined } });
@@ -35,7 +36,7 @@ describe("actual output → live transcript → reopened delivery list", () => {
 				false,
 			);
 			expect(collectConversationDeliveries(live, directory)).toMatchObject([
-				{ target: actual, evidence: "written" },
+				{ target: deliveryPath, evidence: "written" },
 			]);
 			const history = JSON.parse(
 				JSON.stringify([
@@ -51,8 +52,9 @@ describe("actual output → live transcript → reopened delivery list", () => {
 				]),
 			);
 			expect(collectConversationDeliveries(historyToChat(history), directory)).toMatchObject([
-				{ target: actual, evidence: "written" },
+				{ target: deliveryPath, evidence: "written" },
 			]);
+			await expect(readFile(deliveryPath, "utf8")).resolves.toBe("new");
 			const failed = handleToolEnd(live, "call", result, true);
 			expect(collectConversationDeliveries(failed, directory)).toEqual([]);
 		} finally {
