@@ -3,6 +3,7 @@ import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/re
 import { MarkdownContent } from "@vetta-org/theme-ui/markdown";
 import { afterEach, beforeEach, expect, it, vi } from "vitest";
 import { createMarkdownHostFixture } from "./markdown-host.fixture";
+
 beforeEach(() =>
 	vi.stubGlobal(
 		"ResizeObserver",
@@ -112,7 +113,7 @@ it("opens the original LAN destination when the Markdown link label starts on th
 		"https://192.168.1.219:8089",
 		"http://192.168.1.219:8088",
 	]);
-	for (const link of links) expect(link.textContent).not.toMatch(/[\[\]()]/);
+	for (const link of links) expect(link.textContent).not.toMatch(/[[\]()]/);
 	fireEvent.click(links[0]);
 	expect(open).toHaveBeenCalledWith("https://192.168.1.219:8089");
 	fireEvent.contextMenu(links[1], { clientX: 10, clientY: 10 });
@@ -137,7 +138,7 @@ it("recovers the duplicated LAN URL suffix swallowed by GFM after a broken link 
 		"https://192.168.1.219:8089",
 		"http://192.168.1.219:8088",
 	]);
-	for (const link of links) expect(link.textContent).not.toMatch(/[\[\]()]/);
+	for (const link of links) expect(link.textContent).not.toMatch(/[[\]()]/);
 	fireEvent.contextMenu(links[0], { clientX: 10, clientY: 10 });
 	fireEvent.click(await screen.findByRole("menuitem", { name: /default browser/i }));
 	await waitFor(() => expect(external).toHaveBeenCalledWith("https://192.168.1.219:8089"));
@@ -194,7 +195,7 @@ it("keeps bold URL labels in a table intact through streaming, copying and openi
 	);
 	await waitFor(() => expect(screen.getAllByRole("link").map((link) => link.getAttribute("href"))).toEqual(urls));
 	const links = screen.getAllByRole("link");
-	for (const cell of screen.getAllByRole("cell")) expect(cell.textContent).not.toMatch(/[\[\]]|%5D|\]\(/i);
+	for (const cell of screen.getAllByRole("cell")) expect(cell.textContent).not.toMatch(/[[\]]|%5D|\]\(/i);
 	fireEvent.contextMenu(links[0]);
 	fireEvent.click(await screen.findByRole("menuitem", { name: /Copy link/i }));
 	await waitFor(() => expect(copy).toHaveBeenCalledWith(urls[0], "url"));
@@ -217,4 +218,23 @@ it("preserves a named bold URL label and explicit target alongside a bare emphas
 		"https://example.test/bare",
 	]);
 	expect(screen.getByRole("link", { name: "Home https://example.test/" })).toBeTruthy();
+});
+
+it("repairs an autolink with a duplicated target inside a table cell and removes its unmatched opening bracket", async () => {
+	const { host } = createMarkdownHostFixture();
+	const copy = vi.fn(async () => {});
+	const url = "https://a.567.wiki/";
+	render(
+		<MarkdownContent
+			{...props}
+			host={{ ...host, copyText: copy }}
+			text={`| Domain | Port |\n| --- | --- |\n| [${url}%5D(${url}) | 443 |`}
+		/>,
+	);
+	const link = screen.getByRole("link");
+	expect(link.getAttribute("href")).toBe(url);
+	expect(screen.getAllByRole("cell")[0].textContent).toBe(url);
+	fireEvent.contextMenu(link);
+	fireEvent.click(await screen.findByRole("menuitem", { name: /Copy link/i }));
+	await waitFor(() => expect(copy).toHaveBeenCalledWith(url, "url"));
 });

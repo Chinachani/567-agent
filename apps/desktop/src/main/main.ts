@@ -95,7 +95,7 @@ import {
 	setHideToTrayOnClose,
 } from "./tray-manager.js";
 import { consumePendingUpdateRelaunch } from "./update-relaunch-marker.js";
-import { getAppVersion, runUpgradeE2e, updaterService } from "./updater.js";
+import { getAppVersion, recordUpdaterVersion, runUpgradeE2e, updaterService } from "./updater.js";
 import {
 	createWindow,
 	getMainWindow,
@@ -899,6 +899,9 @@ if (!gotSingleLock) {
 
 				// 启动 Updater：绑定主窗口并在打包环境后台检查一次
 				updaterService.setMainWindow(mainWindow);
+				void recordUpdaterVersion().catch((error) =>
+					console.warn("[updater] version history was not saved", error),
+				);
 				void updaterService.onAppReady();
 				void runUpgradeE2e();
 
@@ -1009,6 +1012,8 @@ setQuitCleanup(async () => {
 	await shutdownMainTelemetry();
 	mainLog.info("quit cleanup finished");
 });
+
+app.once("will-quit", () => updaterService.dispose());
 
 // `before-quit` runs before window destruction, giving us a hook to wait on
 // graceful child shutdown.

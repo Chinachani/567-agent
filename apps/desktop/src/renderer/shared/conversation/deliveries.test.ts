@@ -85,6 +85,19 @@ describe("conversation deliveries", () => {
 			"https://example.test:8089",
 		]);
 	});
+	it("uses the repaired table URL in deliveries as well as the visible message", () => {
+		const url = "https://a.567.wiki/";
+		const message: ChatConversationItem = {
+			kind: "agent",
+			role: "assistant",
+			id: "answer",
+			turnId: "turn",
+			authorId: "agent",
+			phase: "completed",
+			blocks: [{ type: "text", id: "text", text: `| Domain |\n| --- |\n| [${url}%5D(${url}) |` }],
+		};
+		expect(collectConversationDeliveries([message], null).map((item) => item.target)).toEqual([url]);
+	});
 });
 
 it("does not claim that a tool's image preview was a generated output", () => {

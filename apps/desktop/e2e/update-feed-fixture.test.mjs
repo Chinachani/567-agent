@@ -44,7 +44,15 @@ test("packaged E2E update feed serves a checksum-bearing downloadable fixture", 
 	const artifact = await (await fetch(`${fixture.url}Vetta-e2e-update.AppImage`)).arrayBuffer();
 
 	assert.match(metadata, /version: 0\.5\.47/);
-	assert.equal(Buffer.from(artifact).toString("utf8"), "vetta-packaged-e2e-update\n");
+	assert.equal(artifact.byteLength, 5 * 1024 * 1024);
+	const prefix = "vetta-packaged-e2e-update\n";
+	assert.equal(Buffer.from(artifact).subarray(0, Buffer.byteLength(prefix)).toString("utf8"), prefix);
+	const redirected = await fetch(`${fixture.url}Vetta-e2e-update.AppImage`, { redirect: "manual" });
+	assert.equal(redirected.status, 302);
+	const segment = await fetch(`${fixture.url}Vetta-e2e-update.AppImage`, { headers: { Range: "bytes=4-15" } });
+	assert.equal(segment.status, 206);
+	assert.equal(segment.headers.get("content-range"), "bytes 4-15/5242880");
+	assert.equal((await segment.arrayBuffer()).byteLength, 12);
 });
 
 test("packaged E2E update feed rejects an invalid metadata delay", async () => {

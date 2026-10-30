@@ -1,5 +1,7 @@
 import { basename } from "node:path";
+import type { ProgressInfo } from "builder-util-runtime";
 import type { BrowserWindow } from "electron";
+import { normalizeUpdaterPreferences, type UpdaterPreferences } from "../shared/updater-preferences.js";
 
 import type { UpdateEngine, UpdateEngineDownload, UpdateEngineInfo } from "./updater-engine.js";
 
@@ -12,14 +14,13 @@ const DEFAULT_DOWNLOAD_STALL_TIMEOUT_MS = 120_000;
 const DEFAULT_STAGING_TIMEOUT_MS = 600_000;
 // 只在启动时检查一次，长期不退出应用的用户就长期收不到更新提示，
 // 因此进程内还需要一条周期性重查，外加睡眠唤醒与用户打开设置菜单时的机会性补查。
-const DEFAULT_PERIODIC_CHECK_INTERVAL_MS = 2 * 60 * 60 * 1_000;
-// 机会性补查的触发源都可能连发（合盖再开、反复开合菜单），与上一次检查间隔太近就跳过。
-const DEFAULT_BACKGROUND_CHECK_MIN_GAP_MS = 30 * 60 * 1_000;
 
 export type UpdaterPhase = "idle" | "checking" | "available" | "downloading" | "ready" | "installing" | "error";
 
 export interface UpdaterState {
 	phase: UpdaterPhase;
+	paused?: boolean;
+	showReminder?: boolean;
 	currentVersion: string;
 	latestVersion?: string;
 	releaseNote?: string;
@@ -27,6 +28,7 @@ export interface UpdaterState {
 	progress?: number;
 	downloadedBytes?: number;
 	totalBytes?: number;
+	bytesPerSecond?: number;
 	assetFileName?: string;
 	error?: string;
 }
@@ -43,6 +45,8 @@ export interface UpdaterSystemEvents {
 }
 
 export interface UpdaterServiceOptions {
+	preferences?: UpdaterPreferences;
+	savePreferences?: (preferences: UpdaterPreferences) => Promise<void>;
 	autoDownloadDelayMs?: number;
 	autoDownloadRetryDelaysMs?: readonly number[];
 	downloadStallTimeoutMs?: number;
@@ -56,9 +60,16 @@ export interface UpdaterServiceOptions {
 
 export class UpdaterService {
 	private state: UpdaterState;
+	private preferences: UpdaterPreferences;
+	private readonly savePreferences?: (preferences: UpdaterPreferences) => Promise<void>;
+	private started = false;
+	private disposed = false;
+	private checkRevision = 0;
+	private downloadRevision = 0;
 	private mainWindow: BrowserWindow | null = null;
 	private latestInfo: UpdateEngineInfo | null = null;
 	private activeDownload: UpdateEngineDownload | null = null;
+	private downloadSettlement: Promise<void> | null = null;
 	private autoDownloadTimer: NodeJS.Timeout | null = null;
 	private downloadStallTimer: NodeJS.Timeout | null = null;
 	private autoDownloadAttempts = 0;
@@ -72,8 +83,8 @@ export class UpdaterService {
 	private readonly autoDownloadRetryDelaysMs: readonly number[];
 	private readonly downloadStallTimeoutMs: number;
 	private readonly stagingTimeoutMs: number;
-	private readonly periodicCheckIntervalMs: number;
-	private readonly backgroundCheckMinGapMs: number;
+	private readonly periodicCheckIntervalMs: number | undefined;
+	private readonly backgroundCheckMinGapMs: number | undefined;
 	private readonly systemEvents: UpdaterSystemEvents | undefined;
 
 	constructor(
@@ -83,7 +94,10 @@ export class UpdaterService {
 		private readonly translate: UpdaterTranslate,
 		options: UpdaterServiceOptions = {},
 	) {
+		this.preferences = normalizeUpdaterPreferences(options.preferences);
+		this.savePreferences = options.savePreferences;
 		this.state = {
+			showReminder: this.preferences.showReminder,
 			phase: "idle",
 			currentVersion,
 		};
@@ -91,8 +105,8 @@ export class UpdaterService {
 		this.autoDownloadRetryDelaysMs = options.autoDownloadRetryDelaysMs ?? DEFAULT_AUTO_DOWNLOAD_RETRY_DELAYS_MS;
 		this.downloadStallTimeoutMs = options.downloadStallTimeoutMs ?? DEFAULT_DOWNLOAD_STALL_TIMEOUT_MS;
 		this.stagingTimeoutMs = options.stagingTimeoutMs ?? DEFAULT_STAGING_TIMEOUT_MS;
-		this.periodicCheckIntervalMs = options.periodicCheckIntervalMs ?? DEFAULT_PERIODIC_CHECK_INTERVAL_MS;
-		this.backgroundCheckMinGapMs = options.backgroundCheckMinGapMs ?? DEFAULT_BACKGROUND_CHECK_MIN_GAP_MS;
+		this.periodicCheckIntervalMs = options.periodicCheckIntervalMs;
+		this.backgroundCheckMinGapMs = options.backgroundCheckMinGapMs;
 		this.systemEvents = options.systemEvents;
 	}
 
@@ -101,38 +115,74 @@ export class UpdaterService {
 		this.emit();
 	}
 
+	getPreferences(): UpdaterPreferences {
+		return { ...this.preferences };
+	}
+
+	async setPreferences(value: UpdaterPreferences): Promise<UpdaterPreferences> {
+		const next = normalizeUpdaterPreferences(value);
+		await this.savePreferences?.(next);
+		this.preferences = next;
+		this.setState({ showReminder: next.showReminder });
+		this.cancelScheduledAutoDownload();
+		if (next.automaticDownload && this.state.phase === "available")
+			this.scheduleAutoDownload(this.autoDownloadDelayMs);
+		if (this.started) this.schedulePeriodicCheck();
+		return this.getPreferences();
+	}
+
 	getState(): UpdaterState {
 		return { ...this.state };
 	}
 
 	async onAppReady(): Promise<void> {
-		if (!this.isPackaged) return;
-		await this.engine.onAppReady?.();
+		if (!this.isPackaged || this.disposed || this.started) return;
+		this.started = true;
+		try {
+			await this.engine.onAppReady?.();
+		} catch (error) {
+			this.started = false;
+			throw error;
+		}
+		if (this.disposed) return;
 		this.disposeSystemEvents =
 			this.systemEvents?.onResume(() => {
 				void this.syncInBackground();
 			}) ?? null;
-		void this.check();
+		if (this.preferences.automaticCheck) void this.check();
 		this.schedulePeriodicCheck();
 	}
 
 	/** 停止周期性重查并退订系统事件；进程退出或测试收尾时调用。 */
 	dispose(): void {
+		this.disposed = true;
+		this.started = false;
+		this.checkRevision += 1;
+		this.downloadRevision += 1;
+		this.cancelScheduledAutoDownload();
 		this.clearPeriodicCheckTimer();
+		this.clearDownloadStallTimer();
 		this.disposeSystemEvents?.();
 		this.disposeSystemEvents = null;
+		this.mainWindow = null;
+		const download = this.activeDownload;
+		this.activeDownload = null;
+		download?.cancel();
 	}
 
 	check(): Promise<UpdaterState> {
+		if (this.disposed || ["downloading", "ready", "installing"].includes(this.state.phase))
+			return Promise.resolve(this.getState());
 		if (this.checkPromise) return this.checkPromise;
 		this.lastCheckStartedAt = Date.now();
-		this.checkPromise = this.runCheck().finally(() => {
+		this.checkPromise = this.runCheck(this.checkRevision).finally(() => {
 			this.checkPromise = null;
+			if (this.started) this.schedulePeriodicCheck();
 		});
 		return this.checkPromise;
 	}
 
-	private async runCheck(): Promise<UpdaterState> {
+	private async runCheck(revision: number): Promise<UpdaterState> {
 		if (!this.isPackaged) {
 			this.setState({
 				phase: "error",
@@ -144,6 +194,7 @@ export class UpdaterService {
 		this.setState({ phase: "checking", error: undefined });
 		try {
 			const result = await this.engine.checkForUpdates();
+			if (this.disposed || revision !== this.checkRevision) return this.getState();
 			if (!result) {
 				this.setState({
 					phase: "error",
@@ -181,6 +232,7 @@ export class UpdaterService {
 			});
 			this.scheduleAutoDownload(this.autoDownloadDelayMs);
 		} catch (error) {
+			if (this.disposed || revision !== this.checkRevision) return this.getState();
 			console.error("[updater] check failed", error);
 			this.setState({
 				phase: "error",
@@ -192,7 +244,7 @@ export class UpdaterService {
 
 	async startDownload(options?: { auto?: boolean }): Promise<UpdaterState> {
 		const auto = options?.auto === true;
-		if (this.state.phase === "downloading" || this.state.phase === "ready") return this.getState();
+		if (this.disposed || ["downloading", "ready", "installing"].includes(this.state.phase)) return this.getState();
 		if (!this.isPackaged) {
 			if (!auto) {
 				this.setState({
@@ -207,28 +259,55 @@ export class UpdaterService {
 			this.autoDownloadOptOut = false;
 			this.cancelScheduledAutoDownload();
 		}
-		if (!this.latestInfo) {
+		if (!this.latestInfo || this.state.phase === "checking") {
+			const revision = this.checkRevision;
 			await this.check();
-			if (this.state.phase !== "available" || !this.latestInfo) return this.getState();
+			if (this.disposed || revision !== this.checkRevision || this.state.phase !== "available" || !this.latestInfo)
+				return this.getState();
 		}
+		if (auto && (!this.preferences.automaticDownload || this.autoDownloadOptOut)) return this.getState();
+		this.cancelScheduledAutoDownload();
+		const revision = ++this.downloadRevision;
+		this.lastProgressEmitAt = 0;
 
 		this.setState({
 			phase: "downloading",
+			paused: false,
 			progress: 0,
 			downloadedBytes: 0,
+			bytesPerSecond: 0,
 			totalBytes: this.latestInfo.totalBytes,
 			error: undefined,
 		});
 
-		const download = this.engine.downloadUpdate(
-			(progress) => this.onProgress(progress),
-			() => this.onStaging(),
-		);
-		this.activeDownload = download;
-		this.resetDownloadStallTimer(download);
+		// Engine callbacks may arrive after cancellation or after a new download starts.
+		const isCurrent = () =>
+			!this.disposed && revision === this.downloadRevision && this.state.phase === "downloading";
 		try {
+			// electron-updater clears its temporary cache when cancellation settles.
+			// A resumed attempt must not create files until that cleanup has finished.
+			if (this.downloadSettlement) await this.downloadSettlement;
+			if (!isCurrent()) return this.getState();
+			const download = this.engine.downloadUpdate(
+				(progress) => {
+					if (isCurrent()) this.onProgress(progress);
+				},
+				() => {
+					if (isCurrent()) this.onStaging();
+				},
+			);
+			this.activeDownload = download;
+			const settlement = download.promise.then(
+				() => {},
+				() => {},
+			);
+			this.downloadSettlement = settlement;
+			void settlement.then(() => {
+				if (this.downloadSettlement === settlement) this.downloadSettlement = null;
+			});
+			this.resetDownloadStallTimer(download);
 			const paths = await download.promise;
-			if (this.activeDownload !== download) return this.getState();
+			if (!isCurrent() || this.activeDownload !== download) return this.getState();
 			const downloadedPath = paths.at(-1);
 			this.clearDownloadStallTimer();
 			this.activeDownload = null;
@@ -240,7 +319,7 @@ export class UpdaterService {
 				error: undefined,
 			});
 		} catch (error) {
-			if (this.activeDownload !== download) return this.getState();
+			if (!isCurrent()) return this.getState();
 			this.clearDownloadStallTimer();
 			this.activeDownload = null;
 			console.error("[updater] download failed", error);
@@ -262,7 +341,7 @@ export class UpdaterService {
 	}
 
 	async install(): Promise<void> {
-		if (this.state.phase !== "ready") return Promise.resolve();
+		if (this.disposed || this.state.phase !== "ready") return;
 		this.setState({ phase: "installing" });
 		try {
 			await this.engine.quitAndInstall();
@@ -279,8 +358,22 @@ export class UpdaterService {
 		if (this.state.phase === "ready") this.emit();
 	}
 
+	pauseDownload(): void {
+		if (this.disposed || this.state.phase !== "downloading") return;
+		this.downloadRevision += 1;
+		this.autoDownloadOptOut = true;
+		this.cancelScheduledAutoDownload();
+		this.clearDownloadStallTimer();
+		const download = this.activeDownload;
+		this.activeDownload = null;
+		download?.cancel();
+		this.setState({ phase: "available", paused: true, error: undefined });
+	}
+
 	cancel(): void {
-		if (this.state.phase === "ready" || this.state.phase === "installing") return;
+		if (this.disposed || this.state.phase === "ready" || this.state.phase === "installing") return;
+		this.checkRevision += 1;
+		this.downloadRevision += 1;
 		this.autoDownloadOptOut = true;
 		this.cancelScheduledAutoDownload();
 		const download = this.activeDownload;
@@ -290,6 +383,7 @@ export class UpdaterService {
 		this.latestInfo = null;
 		this.setState({
 			phase: "idle",
+			paused: false,
 			latestVersion: undefined,
 			releaseNote: undefined,
 			progress: undefined,
@@ -315,26 +409,28 @@ export class UpdaterService {
 	 * 避免刚查完又被积压的定时器再查一次。
 	 */
 	async syncInBackground(): Promise<void> {
-		if (!this.isPackaged) return;
-		if (Date.now() - this.lastCheckStartedAt < this.backgroundCheckMinGapMs) return;
+		if (this.disposed || !this.isPackaged || !this.preferences.automaticCheck) return;
+		const gap = this.backgroundCheckMinGapMs ?? this.preferences.checkIntervalMinutes * 60_000;
+		if (Date.now() - this.lastCheckStartedAt < gap) return;
 		await this.checkIfNotBusy();
 		this.schedulePeriodicCheck();
 	}
 
 	private schedulePeriodicCheck(): void {
 		this.clearPeriodicCheckTimer();
-		if (this.periodicCheckIntervalMs <= 0) return;
+		const interval = this.periodicCheckIntervalMs ?? this.preferences.checkIntervalMinutes * 60_000;
+		if (this.disposed || !this.started || !this.preferences.automaticCheck || interval <= 0) return;
 		const timer = setTimeout(() => {
 			this.periodicCheckTimer = null;
 			void this.runPeriodicCheck();
-		}, this.periodicCheckIntervalMs);
+		}, interval);
 		// 更新检查不应该单独把进程钉在事件循环里。
 		timer.unref?.();
 		this.periodicCheckTimer = timer;
 	}
 
 	private async runPeriodicCheck(): Promise<void> {
-		await this.checkIfNotBusy();
+		if (this.preferences.automaticCheck) await this.checkIfNotBusy();
 		this.schedulePeriodicCheck();
 	}
 
@@ -344,7 +440,13 @@ export class UpdaterService {
 		this.periodicCheckTimer = null;
 	}
 
-	private onProgress(progress: { percent: number; transferred: number; total: number }): void {
+	private onProgress(progress: ProgressInfo): void {
+		if (
+			![progress.percent, progress.transferred, progress.total].every(Number.isFinite) ||
+			progress.transferred < 0 ||
+			progress.total < 0
+		)
+			return;
 		if (this.activeDownload) this.resetDownloadStallTimer(this.activeDownload);
 		const now = Date.now();
 		if (now - this.lastProgressEmitAt < 250 && progress.transferred < progress.total) return;
@@ -353,6 +455,7 @@ export class UpdaterService {
 			...this.state,
 			progress: Math.max(0, Math.min(1, progress.percent / 100)),
 			downloadedBytes: progress.transferred,
+			bytesPerSecond: Number.isFinite(progress.bytesPerSecond) ? Math.max(0, progress.bytesPerSecond) : 0,
 			totalBytes: progress.total,
 		};
 		this.emit();
@@ -367,7 +470,8 @@ export class UpdaterService {
 	}
 
 	private scheduleAutoDownload(delayMs: number): void {
-		if (this.autoDownloadOptOut || this.autoDownloadTimer) return;
+		if (this.disposed || !this.preferences.automaticDownload || this.autoDownloadOptOut || this.autoDownloadTimer)
+			return;
 		this.autoDownloadTimer = setTimeout(() => {
 			this.autoDownloadTimer = null;
 			void this.runAutoDownload();
@@ -375,10 +479,12 @@ export class UpdaterService {
 	}
 
 	private async runAutoDownload(): Promise<void> {
-		if (this.state.phase !== "available") return;
+		if (this.disposed || !this.preferences.automaticDownload || this.state.phase !== "available") return;
+		const revision = this.checkRevision;
 		this.autoDownloadAttempts += 1;
 		const result = await this.startDownload({ auto: true });
-		if (result.phase === "ready" || this.autoDownloadOptOut) return;
+		if (this.disposed || revision !== this.checkRevision || result.phase === "ready" || this.autoDownloadOptOut)
+			return;
 		const retryDelay = this.autoDownloadRetryDelaysMs[this.autoDownloadAttempts - 1];
 		if (retryDelay !== undefined) this.scheduleAutoDownload(retryDelay);
 	}
@@ -412,6 +518,7 @@ export class UpdaterService {
 	}
 
 	private setState(patch: Partial<UpdaterState>): void {
+		if (this.disposed) return;
 		this.state = { ...this.state, ...patch };
 		this.emit();
 	}

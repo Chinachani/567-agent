@@ -3,6 +3,10 @@
 
     <uses-permission android:name="android.permission.INTERNET" />
     <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_DATA_SYNC" />
+    <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
+    <uses-permission android:name="android.permission.REQUEST_INSTALL_PACKAGES" />
     <uses-permission android:name="android.permission.CAMERA" />
     <!-- 读取相册图片附件（API 32 及以下；33+ 由系统选择器授权） -->
     <uses-permission
@@ -18,6 +22,19 @@
         android:supportsRtl="true"
         android:usesCleartextTraffic="false"
         android:theme="@style/Agent567Theme">
+        <service
+            android:name="org.agent567.android.ui.updates.UpdateDownloadService"
+            android:exported="false"
+            android:foregroundServiceType="dataSync" />
+        <provider
+            android:name="androidx.core.content.FileProvider"
+            android:authorities="${applicationId}.updates"
+            android:exported="false"
+            android:grantUriPermissions="true">
+            <meta-data
+                android:name="android.support.FILE_PROVIDER_PATHS"
+                android:resource="@xml/update_file_paths" />
+        </provider>
         <activity
             android:exported="true"
             android:configChanges="orientation|screenSize|keyboardHidden|uiMode"

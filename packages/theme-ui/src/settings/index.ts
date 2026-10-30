@@ -201,6 +201,8 @@ export { TeamSettingsView } from "./TeamSettingsView";
 export type { TokenActivityChartViewProps } from "./TokenActivityChartView";
 export { TokenActivityChartView } from "./TokenActivityChartView";
 export * from "./token-activity";
+export type { UpdatePreferencesViewProps } from "./UpdatePreferencesView";
+export { UpdatePreferencesView } from "./UpdatePreferencesView";
 export type { UsageStatsMetric, UsageStatsRange, UsageStatsViewProps } from "./UsageStatsView";
 export { USAGE_STATS_RANGES, UsageStatsView } from "./UsageStatsView";
 export type {

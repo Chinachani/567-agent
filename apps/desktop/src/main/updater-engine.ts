@@ -1,7 +1,7 @@
 import { link, rename, rm } from "node:fs/promises";
 import { join } from "node:path";
 import type { ProgressInfo, UpdateInfo } from "builder-util-runtime";
-import { CancellationToken, CURRENT_APP_INSTALLER_FILE_NAME } from "builder-util-runtime";
+import { CancellationError, CancellationToken, CURRENT_APP_INSTALLER_FILE_NAME } from "builder-util-runtime";
 import type { AppUpdater, ResolvedUpdateFileInfo } from "electron-updater";
 
 import type { InnoWindowsUpdateController } from "./inno-windows-update.js";
@@ -143,16 +143,21 @@ function mapUpdateInfo(info: UpdateInfo): UpdateEngineInfo {
 	};
 }
 
-function waitForNativeMacUpdate(events: NativeMacUpdateEvents): { promise: Promise<void>; dispose: () => void } {
+function waitForNativeMacUpdate(
+	events: NativeMacUpdateEvents,
+	signal: AbortSignal,
+): { promise: Promise<void>; dispose: () => void } {
 	let disposed = false;
 	let removeUpdateDownloadedListener = () => {};
 	let removeErrorListener = () => {};
+	let removeAbortListener = () => {};
 
 	const dispose = () => {
 		if (disposed) return;
 		disposed = true;
 		removeUpdateDownloadedListener();
 		removeErrorListener();
+		removeAbortListener();
 	};
 	const promise = new Promise<void>((resolve, reject) => {
 		removeUpdateDownloadedListener = events.onUpdateDownloaded(() => {
@@ -163,6 +168,13 @@ function waitForNativeMacUpdate(events: NativeMacUpdateEvents): { promise: Promi
 			dispose();
 			reject(error);
 		});
+		const abort = () => {
+			dispose();
+			reject(new CancellationError());
+		};
+		signal.addEventListener("abort", abort, { once: true });
+		removeAbortListener = () => signal.removeEventListener("abort", abort);
+		if (signal.aborted) abort();
 	});
 
 	return { promise, dispose };
@@ -231,13 +243,16 @@ export class ElectronUpdaterEngine implements UpdateEngine {
 		};
 		this.updater.on("download-progress", listener);
 		const nativeMacReadiness = this.nativeMacUpdateEvents
-			? waitForNativeMacUpdate(this.nativeMacUpdateEvents)
+			? waitForNativeMacUpdate(this.nativeMacUpdateEvents, abortController.signal)
 			: undefined;
 		if (nativeMacReadiness) {
 			console.info("[updater] waiting for Squirrel.Mac to stage the update");
 		}
 
-		const updaterDownloadPromise = this.updater.downloadUpdate(cancellationToken);
+		const updaterDownloadPromise = Promise.resolve().then(() => {
+			if (abortController.signal.aborted) throw new CancellationError();
+			return this.updater.downloadUpdate(cancellationToken);
+		});
 		// electron-updater 在把 ZIP 喂完给 Squirrel.Mac 的那一刻就 resolve，之后的解包与
 		// 签名校验不再产生 download-progress 事件，必须显式告知调用方进入了暂存阶段。
 		const stagedDownloadPromise = nativeMacReadiness

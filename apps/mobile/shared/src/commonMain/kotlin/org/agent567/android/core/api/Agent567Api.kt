@@ -85,6 +85,9 @@ data class AppUpdateCheckResult(
     val releaseNotes: String,
     val apkUrl: String?,
     val error: String? = null,
+    val apkName: String? = null,
+    val apkSize: Long? = null,
+    val apkSha256: String? = null,
 )
 
 private fun isNewerVersion(remote: String, local: String): Boolean {
@@ -774,50 +777,48 @@ internal class Agent567Api(
         size: String = "1024x1024",
         referenceImages: List<String> = emptyList(),
     ): GeneratedImageResult {
-        // 辅助方法：调用 /v1/images/generations 标准生图端点
-        suspend fun tryImagesGenerations(): GeneratedImageResult? {
-            return try {
-                val url = config.gatewayBaseUrl.trimEnd('/') + "/v1/images/generations"
-                val body = buildJsonObject {
-                    put("model", model)
-                    put("prompt", prompt)
-                    put("n", 1)
-                    put("size", size)
-                }
-                val res = modelRequest(groupName) { apiKey ->
-                val secHeaders = org.agent567.android.core.net.SecurityHeaders.generate(
-                    deviceId = "mobile-${apiKey.hashCode().toUInt().toString(16)}",
-                    extraContext = if (!groupName.isNullOrBlank()) mapOf("X-567-Group" to java.net.URLEncoder.encode(groupName, "UTF-8")) else emptyMap()
-                )
-
-                bareClient.post(url) {
-                    timeout {
-                        requestTimeoutMillis = IMAGE_GENERATION_TIMEOUT_MS
-                        socketTimeoutMillis = IMAGE_GENERATION_TIMEOUT_MS
-                    }
-                    setBody(body.toString())
-                    contentType(ContentType.Application.Json)
-                    if (apiKey.isNotBlank()) {
-                        header(HttpHeaders.Authorization, "Bearer $apiKey")
-                    }
-                    for ((k, v) in secHeaders) {
-                        header(k, v)
-                    }
-                }
-
-                }
-                val text = res.bodyAsTextSafe()
-                if (res.status.isSuccess()) {
-                    val extracted = extractImagePayload(text, prompt)
-                    if (!extracted.url.isNullOrBlank() || !extracted.b64Json.isNullOrBlank()) {
-                        extracted
-                    } else null
-                } else null
-            } catch (error: CancellationException) {
-                throw error
-            } catch (_: Exception) {
-                null
+        suspend fun requestImages(): GeneratedImageResult {
+            val editing = referenceImages.isNotEmpty()
+            require(referenceImages.size <= 6) { "Too many reference images" }
+            val references = referenceImages.mapIndexed { index, image ->
+                require(!image.startsWith("http")) { "Reference images must be attached image data" }
+                val encoded = image.substringAfter("base64,", image)
+                require(encoded.length <= 16 * 1024 * 1024) { "Reference image is too large" }
+                val bytes = kotlin.io.encoding.Base64.decode(encoded)
+                require(bytes.size <= 12 * 1024 * 1024) { "Reference image is too large" }
+                val file = requireNotNull(generatedImageFile(bytes)) { "Unsupported reference image data" }
+                Triple(index, file.mimeType, bytes)
             }
+            require(references.sumOf { it.third.size } <= 12 * 1024 * 1024) { "Reference images are too large" }
+            val response = modelRequest(groupName) { apiKey ->
+                val security = org.agent567.android.core.net.SecurityHeaders.generate(
+                    deviceId = "mobile-${apiKey.hashCode().toUInt().toString(16)}",
+                    extraContext = if (!groupName.isNullOrBlank()) mapOf("X-567-Group" to java.net.URLEncoder.encode(groupName, "UTF-8")) else emptyMap(),
+                )
+                bareClient.post(config.gatewayBaseUrl.trimEnd('/') + if (editing) "/v1/images/edits" else "/v1/images/generations") {
+                    timeout { requestTimeoutMillis = IMAGE_GENERATION_TIMEOUT_MS; socketTimeoutMillis = IMAGE_GENERATION_TIMEOUT_MS }
+                    if (editing) {
+                        setBody(io.ktor.client.request.forms.MultiPartFormDataContent(io.ktor.client.request.forms.formData {
+                            append("model", model); append("prompt", prompt); append("n", "1"); append("size", size)
+                            for ((index, mime, bytes) in references) {
+                                val extension = when (mime) { "image/jpeg" -> "jpg"; "image/webp" -> "webp"; else -> "png" }
+                                append(if (references.size == 1) "image" else "image[]", bytes, io.ktor.http.Headers.build {
+                                    append(HttpHeaders.ContentType, mime)
+                                    append(HttpHeaders.ContentDisposition, "filename=\"reference-$index.$extension\"")
+                                })
+                            }
+                        }))
+                    } else {
+                        contentType(ContentType.Application.Json)
+                        setBody(buildJsonObject { put("model", model); put("prompt", prompt); put("n", 1); put("size", size) }.toString())
+                    }
+                    if (apiKey.isNotBlank()) header(HttpHeaders.Authorization, "Bearer $apiKey")
+                    for ((key, value) in security) header(key, value)
+                }
+            }
+            val text = response.bodyAsTextSafe()
+            if (!response.status.isSuccess()) throw parseFailure(response.status.value, text)
+            return extractGeneratedImage(text, prompt)
         }
 
         // 辅助方法：调用 /v1/chat/completions 多模态生图/改图
@@ -841,11 +842,7 @@ internal class Agent567Api(
                                     put("text", "Please generate/edit the image based on the provided reference image(s) and prompt:\n$prompt")
                                 })
                                 for (img in referenceImages) {
-                                    val finalUrl = if (img.startsWith("http://") || img.startsWith("https://") || img.startsWith("data:")) {
-                                        img
-                                    } else {
-                                        "data:image/png;base64,$img"
-                                    }
+                                    val finalUrl = referenceImageDataUrl(img)
                                     add(buildJsonObject {
                                         put("type", "image_url")
                                         put(
@@ -889,140 +886,20 @@ internal class Agent567Api(
                 throw parseFailure(chatRes.status.value, chatText)
             }
 
-            return extractImagePayload(chatText, prompt)
+            return extractGeneratedImage(chatText, prompt)
         }
 
-        // 智能双通道路由与容错兜底：
-        // 1. 若模型名称明确包含 "gemini"（多模态视觉模型），优先走 chat/completions；若失败提示用 images/generations 则回退
-        // 2. 其余专用生图模型（如 agnes-image-*，dall-e-*，flux-*）优先走 images/generations；若失败且有参考图则尝试 chat/completions
-        val isExplicitChatVisionModel = model.contains("gemini", ignoreCase = true)
-
-        if (isExplicitChatVisionModel) {
-            try {
-                return tryChatCompletions()
-            } catch (e: Exception) {
-                val msg = e.message.orEmpty()
-                if (msg.contains("images/generations", ignoreCase = true) || msg.contains("image model", ignoreCase = true)) {
-                    val fallback = tryImagesGenerations()
-                    if (fallback != null) return fallback
-                }
-                throw e
-            }
-        } else {
-            val genResult = tryImagesGenerations()
-            if (genResult != null) return genResult
-
-            // 若 images/generations 无法处理，回退到 chat/completions
-            try {
-                return tryChatCompletions()
-            } catch (e: Exception) {
-                val msg = e.message.orEmpty()
-                if (msg.contains("images/generations", ignoreCase = true) || msg.contains("image model", ignoreCase = true)) {
-                    val fallback = tryImagesGenerations()
-                    if (fallback != null) return fallback
-                }
-                throw e
-            }
-        }
+        // Pick one image protocol before sending. Never replay a potentially billed request
+        // merely because the response had no image or the provider rejected the protocol.
+        return if (model.contains("gemini", ignoreCase = true)) tryChatCompletions() else requestImages()
     }
 
-    private fun extractImagePayload(jsonText: String, prompt: String): GeneratedImageResult {
-        var foundUrl: String? = null
-        var foundB64: String? = null
-        var rawText: String? = null
-
-        try {
-            val root = org.agent567.android.core.net.Agent567Json.parseToJsonElement(jsonText)
-
-            fun scan(el: kotlinx.serialization.json.JsonElement) {
-                if (foundUrl != null || foundB64 != null) return
-                when (el) {
-                    is kotlinx.serialization.json.JsonObject -> {
-                        val directB64 = (el["b64_json"] as? kotlinx.serialization.json.JsonPrimitive)?.content
-                            ?: (el["b64"] as? kotlinx.serialization.json.JsonPrimitive)?.content
-                            ?: (el["image_base64"] as? kotlinx.serialization.json.JsonPrimitive)?.content
-                        if (!directB64.isNullOrBlank() && directB64.length > 50 && directB64 != "null") {
-                            foundB64 = directB64
-                            return
-                        }
-
-                        val inlineData = el["inlineData"] as? kotlinx.serialization.json.JsonObject
-                        val inlineB64 = (inlineData?.get("data") as? kotlinx.serialization.json.JsonPrimitive)?.content
-                        if (!inlineB64.isNullOrBlank() && inlineB64.length > 50 && inlineB64 != "null") {
-                            foundB64 = inlineB64
-                            return
-                        }
-
-                        val directUrl = (el["url"] as? kotlinx.serialization.json.JsonPrimitive)?.content
-                        if (!directUrl.isNullOrBlank() && directUrl.startsWith("http") && directUrl != "null") {
-                            foundUrl = directUrl
-                            return
-                        }
-
-                        val imgUrl = el["image_url"]
-                        if (imgUrl is kotlinx.serialization.json.JsonPrimitive && imgUrl.content.startsWith("http")) {
-                            foundUrl = imgUrl.content
-                            return
-                        } else if (imgUrl is kotlinx.serialization.json.JsonObject) {
-                            val u = (imgUrl["url"] as? kotlinx.serialization.json.JsonPrimitive)?.content
-                            if (!u.isNullOrBlank() && u.startsWith("http")) {
-                                foundUrl = u
-                                return
-                            }
-                        }
-
-                        for ((k, v) in el) {
-                            if (foundUrl != null || foundB64 != null) return
-                            if (k == "content" && v is kotlinx.serialization.json.JsonPrimitive) {
-                                val c = v.content
-                                if (c.isNotBlank() && c != "null") {
-                                    rawText = c
-                                }
-                            } else {
-                                scan(v)
-                            }
-                        }
-                    }
-                    is kotlinx.serialization.json.JsonArray -> {
-                        for (item in el) {
-                            if (foundUrl != null || foundB64 != null) return
-                            scan(item)
-                        }
-                    }
-                    is kotlinx.serialization.json.JsonPrimitive -> {
-                        val s = el.content
-                        if (s.startsWith("data:image/") && s.contains("base64,")) {
-                            foundB64 = s.substringAfter("base64,")
-                        } else if (s.startsWith("http://") || s.startsWith("https://")) {
-                            foundUrl = s
-                        }
-                    }
-                }
-            }
-
-            scan(root)
-
-            if (foundUrl == null && foundB64 == null && rawText != null) {
-                val b64Match = Regex("data:image/[^;]+;base64,([A-Za-z0-9+/=]+)").find(rawText!!)
-                if (b64Match != null) {
-                    foundB64 = b64Match.groupValues[1]
-                } else {
-                    val mdMatch = Regex("""!\[.*?\]\((https?://[^ \n\r\t)]+)\)""").find(rawText!!)
-                    if (mdMatch != null) {
-                        foundUrl = mdMatch.groupValues[1]
-                    } else {
-                        val urlMatch = Regex("""(https?://[^ \n\r\t)<>"']+)""").find(rawText!!)
-                        if (urlMatch != null) {
-                            foundUrl = urlMatch.groupValues[1]
-                        }
-                    }
-                }
-            }
-        } catch (_: Exception) {
-        }
-
-        val cleanText = if (rawText == "null" || rawText.isNullOrBlank()) null else rawText
-        return GeneratedImageResult(url = foundUrl, b64Json = foundB64, prompt = prompt, textContent = cleanText)
+    private fun referenceImageDataUrl(value: String): String {
+        if (value.startsWith("http://") || value.startsWith("https://")) return value
+        require(value.length <= org.agent567.android.core.model.MAX_IMAGE_PAYLOAD_BASE64_CHARS + 64) { "Reference image is too large" }
+        val bytes = runCatching { kotlin.io.encoding.Base64.decode(value.substringAfter("base64,", value)) }.getOrNull()
+        val image = bytes?.let(::generatedImageFile) ?: throw IllegalArgumentException("Unsupported reference image data")
+        return "data:${image.mimeType};base64,${image.base64}"
     }
 
     suspend fun downloadBytes(url: String): ByteArray {
@@ -1252,17 +1129,7 @@ internal class Agent567Api(
             }
             val body = (root?.get("body") as? kotlinx.serialization.json.JsonPrimitive)?.content.orEmpty()
             val assets = root?.get("assets") as? kotlinx.serialization.json.JsonArray
-            var apkUrl: String? = null
-            if (assets != null) {
-                for (a in assets) {
-                    val aObj = a as? kotlinx.serialization.json.JsonObject
-                    val name = (aObj?.get("name") as? kotlinx.serialization.json.JsonPrimitive)?.content.orEmpty()
-                    if (name.endsWith(".apk")) {
-                        apkUrl = (aObj?.get("browser_download_url") as? kotlinx.serialization.json.JsonPrimitive)?.content
-                        break
-                    }
-                }
-            }
+            val apk = org.agent567.android.core.updates.releaseApkAsset(assets)
             val cleanTag = tagName.removePrefix("v").trim()
             val current = AppVersion.NAME
             val hasUpdate = isNewerVersion(cleanTag, current)
@@ -1271,7 +1138,10 @@ internal class Agent567Api(
                 latestVersion = tagName.ifBlank { "v$current" },
                 currentVersion = "v$current",
                 releaseNotes = body,
-                apkUrl = resolvePublicReleaseApkUrl(apkUrl),
+                apkUrl = resolvePublicReleaseApkUrl(apk?.url),
+                apkName = apk?.name,
+                apkSize = apk?.size,
+                apkSha256 = apk?.sha256,
             )
         } catch (e: Exception) {
             if (e is CancellationException) throw e

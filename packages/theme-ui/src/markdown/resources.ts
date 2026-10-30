@@ -26,7 +26,8 @@ function plainText(node: ResourceNode): string {
 
 /** Uses the same Markdown parser, URL repair and link classification as the message view. */
 export function collectMarkdownResources(text: string): readonly MarkdownResource[] {
-	const tree = parser.runSync(parser.parse(normalizeLocalFileLinksInMarkdown(text)));
+	const source = normalizeLocalFileLinksInMarkdown(text);
+	const tree = parser.runSync(parser.parse(source), { value: source });
 	const definitions = new Map<string, string>();
 	const resources: MarkdownResource[] = [];
 	const seen = new Set<string>();

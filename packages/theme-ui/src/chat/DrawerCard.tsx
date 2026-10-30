@@ -33,8 +33,8 @@ export interface DrawerCardProps {
 }
 
 /**
- * Floating drawer that sits above the input card.
- * Absolutely positioned, narrower than parent, centered.
+ * In-flow drawer above the input card. Its height is reserved even while
+ * expanded, so it cannot cover the task status or conversation.
  * Renders nothing when tabs array is empty.
  */
 export function DrawerCard({
@@ -48,9 +48,7 @@ export function DrawerCard({
 
 	const isControlled = controlledId !== undefined;
 	const activeId = isControlled ? controlledId : internalId;
-	const setActiveId = isControlled
-		? (id: string | null) => onActiveTabChange?.(id)
-		: setInternalId;
+	const setActiveId = isControlled ? (id: string | null) => onActiveTabChange?.(id) : setInternalId;
 
 	if (tabs.length === 0) return null;
 
@@ -61,29 +59,32 @@ export function DrawerCard({
 	}
 
 	return (
-		<div
-			className={[
-				"absolute bottom-full left-1/2 z-10 w-[92%] -translate-x-1/2 overflow-visible",
-				className,
-				classNames?.root,
-			]
-				.filter(Boolean)
-				.join(" ")}
+		<section
+			aria-label={tabs.map((tab) => tab.label).join(", ")}
+			className={["relative mb-2 w-full min-w-0", className, classNames?.root].filter(Boolean).join(" ")}
 		>
 			<motion.div
 				initial={{ opacity: 0, y: 10 }}
 				animate={{ opacity: 1, y: 0 }}
 				transition={{ duration: 0.22, ease: [0.22, 0.61, 0.36, 1] }}
 				className={[
-					"relative overflow-visible rounded-t-2xl border-x border-t border-border bg-card/95 backdrop-blur",
+					"relative overflow-visible rounded-xl border border-border bg-card/95 backdrop-blur",
 					classNames?.panel,
 				]
 					.filter(Boolean)
 					.join(" ")}
 			>
 				<ThemeSurface slot="chat.inputDrawer" />
-				<div className={["relative z-10 overflow-hidden rounded-[inherit]", classNames?.content].filter(Boolean).join(" ")}>
-					<div className={["flex items-center gap-0.5 px-2.5 py-1.5", classNames?.tabBar].filter(Boolean).join(" ")}>
+				<div
+					className={["relative z-10 overflow-hidden rounded-[inherit]", classNames?.content]
+						.filter(Boolean)
+						.join(" ")}
+				>
+					<div
+						className={["flex min-w-0 flex-wrap items-center gap-0.5 px-2.5 py-1.5", classNames?.tabBar]
+							.filter(Boolean)
+							.join(" ")}
+					>
 						{tabs.map((tab, i) => {
 							const isActive = activeId === tab.id;
 							return (
@@ -91,15 +92,14 @@ export function DrawerCard({
 									{i > 0 && <span className="mx-1.5 h-3 w-px bg-border/70" />}
 									<motion.button
 										type="button"
+										aria-expanded={isActive}
 										onClick={() => handleTabClick(tab.id)}
 										whileHover={{ y: -1 }}
 										whileTap={{ scale: 0.97 }}
 										transition={{ type: "spring", stiffness: 480, damping: 28 }}
 										className={[
 											"relative flex items-center gap-1.5 rounded-md px-2 py-1 text-xs transition-colors",
-											isActive
-												? "bg-muted/60 text-foreground"
-												: "text-muted-foreground hover:bg-muted/40",
+											isActive ? "bg-muted/60 text-foreground" : "text-muted-foreground hover:bg-muted/40",
 											classNames?.tab,
 										]
 											.filter(Boolean)
@@ -121,7 +121,9 @@ export function DrawerCard({
 											<span className={`relative h-2 w-2 rounded-full ${tab.color}`} />
 										</span>
 										<span className="font-medium">{tab.label}</span>
-										{tab.desc && <span className="max-w-[180px] truncate text-muted-foreground/60">{tab.desc}</span>}
+										{tab.desc && (
+											<span className="max-w-[180px] truncate text-muted-foreground/60">{tab.desc}</span>
+										)}
 									</motion.button>
 								</div>
 							);
@@ -138,12 +140,18 @@ export function DrawerCard({
 								transition={{ duration: 0.22, ease: [0.22, 0.61, 0.36, 1] }}
 								className="overflow-hidden border-t border-border/70"
 							>
-								<div className={["p-3", classNames?.body].filter(Boolean).join(" ")}>{activeTab.content}</div>
+								<div
+									className={["max-h-[min(240px,30vh)] overflow-y-auto p-3", classNames?.body]
+										.filter(Boolean)
+										.join(" ")}
+								>
+									{activeTab.content}
+								</div>
 							</motion.div>
 						)}
 					</AnimatePresence>
 				</div>
 			</motion.div>
-		</div>
+		</section>
 	);
 }

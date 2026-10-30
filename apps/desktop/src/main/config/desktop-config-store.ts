@@ -7,6 +7,7 @@ import { atomicWriteJSON } from "@567agent/toolkit/atomic-write";
 import { type GitHubUpdateSource, normalizeGitHubUpdateProxyUrl } from "../../shared/github-download-source.js";
 import { isLanguagePreference, type LanguagePreference } from "../../shared/i18n/config.js";
 import { normalizeShortcutsConfig, type ShortcutsConfig } from "../../shared/shortcuts.js";
+import { normalizeUpdaterPreferences, type UpdaterPreferences } from "../../shared/updater-preferences.js";
 import { isAgentMode } from "../agent-modes/index.js";
 import { migrateLegacyWorkspace } from "./legacy-workspace-migration.js";
 import { projectStatePath } from "./project-state-paths.js";
@@ -43,6 +44,9 @@ export interface DesktopConfig {
 	updateSource?: GitHubUpdateSource;
 	/** HTTPS URL prefix for custom GitHub Release acceleration. */
 	updateProxyUrl?: string;
+	updatePreferences?: UpdaterPreferences;
+	lastRunVersion?: string;
+	previousRunVersion?: string;
 	debugMode?: boolean;
 	agent567AppPath?: string;
 	agent567CliAppPath?: string;
@@ -270,6 +274,9 @@ function parseDesktopConfig(parsed: Record<string, unknown>): DesktopConfig {
 					? "custom"
 					: "github",
 		updateProxyUrl: normalizeGitHubUpdateProxyUrl(parsed.updateProxyUrl) ?? undefined,
+		updatePreferences: normalizeUpdaterPreferences(parsed.updatePreferences),
+		lastRunVersion: typeof parsed.lastRunVersion === "string" ? parsed.lastRunVersion : undefined,
+		previousRunVersion: typeof parsed.previousRunVersion === "string" ? parsed.previousRunVersion : undefined,
 		// 兼容 0.x 的旧字段名 agentMode（当时语义是全局工作模式），老用户配置不丢。
 		defaultAgentMode: normalizeAgentMode(parsed.defaultAgentMode ?? parsed.agentMode),
 		debugMode: typeof parsed.debugMode === "boolean" ? parsed.debugMode : false,

@@ -1,9 +1,11 @@
 package org.agent567.android.core
 
+import kotlinx.coroutines.ensureActive
 import org.agent567.android.core.api.ApiGroupInfoDto
 import org.agent567.android.core.api.Agent567Api
 import org.agent567.android.core.model.LlmModel
 import org.agent567.android.core.model.ModelsCatalog
+import org.agent567.android.core.model.MAX_IMAGE_PAYLOAD_BYTES
 
 class ModelsRepository internal constructor(
     private val api: Agent567Api,
@@ -30,7 +32,22 @@ class ModelsRepository internal constructor(
             conn.connectTimeout = 15000
             conn.readTimeout = 30000
             conn.requestMethod = "GET"
-            conn.inputStream.use { it.readBytes() }
+            try {
+                check(conn.responseCode in 200..299) { "Image download failed (HTTP ${conn.responseCode})" }
+                require(conn.contentLengthLong <= MAX_IMAGE_PAYLOAD_BYTES) { "Image is too large" }
+                conn.inputStream.use {
+                    val output = java.io.ByteArrayOutputStream()
+                    val chunk = ByteArray(8192)
+                    while (true) {
+                        kotlinx.coroutines.currentCoroutineContext().ensureActive()
+                        val count = it.read(chunk)
+                        if (count < 0) break
+                        require(output.size() + count <= MAX_IMAGE_PAYLOAD_BYTES) { "Image is too large" }
+                        output.write(chunk, 0, count)
+                    }
+                    output.toByteArray()
+                }
+            } finally { conn.disconnect() }
         }
     }
 

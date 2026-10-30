@@ -31,7 +31,20 @@ export function remarkResourceLinks() {
 			if (!parent.children || parent.type === "code" || parent.type === "inlineCode") return;
 			for (let index = 0; index < parent.children.length; index++) {
 				const node = parent.children[index];
-				const target = node.type === "paragraph" ? recoverTarget(raw(node)) : null;
+				// GFM table autolinks lose child positions. Recover only an entire cell
+				// with the exact duplicated URL shape, never an explicit destination.
+				const cell =
+					node.type === "tableCell"
+						? raw(node)
+								.replace(/^\s*\|?\s*/, "")
+								.replace(/\s*\|?\s*$/, "")
+						: "";
+				const target =
+					node.type === "paragraph"
+						? recoverTarget(raw(node))
+						: node.type === "tableCell"
+							? recoverTarget(cell.startsWith("[") ? cell.slice(1) : cell)
+							: null;
 				if (target) {
 					node.children = [{ type: "link", url: target, children: [{ type: "text", value: target }] }];
 					const previous = parent.children[index - 1];

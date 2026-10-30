@@ -26,6 +26,26 @@ object Str {
     const val updateLater = "稍后"
     const val updateOpenRelease = "查看版本与下载"
     const val updateHint = "前往发布页选择与当前应用相同包名和签名的安装包，覆盖安装可保留数据。"
+    const val updateDownloadChannel = "版本下载"
+    const val updateDownloadPause = "暂停下载"
+    const val updateDownloadResume = "继续下载"
+    const val updateDownloadPaused = "下载已暂停，已下载内容会保留。"
+    const val updateDownloadPausing = "正在保存下载进度…"
+    const val updateDownloadVerifying = "正在校验安装包…"
+    const val updateDownloadReady = "安装包已校验，点击安装新版本。"
+    const val updateDownloadInstall = "安装新版本"
+    const val updateDownloadFailed = "下载或校验未完成，请检查网络后继续下载。"
+    const val updateDownloadStartFailed = "暂时无法启动后台下载，请回到应用后重试。"
+    const val updateDownloadInstallFailed = "无法打开安装程序，请检查安装权限后重试。"
+    const val updateDownloadWrongPackage = "当前是测试版，请使用与测试版相同签名的安装包。"
+    const val updateDownloadMetadataMissing = "该版本未提供完整的安装包校验信息，请查看发布页。"
+    const val updateDownloadInstallHint = "下载在应用内进行；首次安装需要允许此应用安装更新。安装由你确认，不会自动重启。"
+    fun updateDownloadSpeed(bytesPerSecond: Long) = "${(bytesPerSecond.coerceAtLeast(0) / 104857.6).toLong() / 10.0} MB/s"
+    fun updateDownloadProgress(bytes: Long, total: Long): String {
+        fun mb(value: Long) = (value.coerceAtLeast(0) / 1048576.0 * 10).toLong() / 10.0
+        val percent = if (total > 0) (bytes * 100 / total).coerceIn(0, 100) else 0
+        return "$percent% · ${mb(bytes)} / ${mb(total)} MB"
+    }
 
     const val mobileTopupAction = "充值"
     val featureGuideTopics = listOf(
@@ -415,6 +435,12 @@ object Str {
     const val toolIntegration = "连接工具"
     const val toolAction = "执行操作"
     const val toolGenerateImage = "绘图工具"
+    const val toolImagePrompt = "绘图提示词"
+    const val toolImageMissing = "服务未返回可显示的图片。请检查绘图模型与接口支持后重试；本次不会自动重新提交。"
+    const val toolImageFailed = "绘图失败"
+    const val toolImageComplete = "图片已生成"
+    const val toolImageEditComplete = "图片修改完成"
+    const val toolImageFusionComplete = "多图重绘完成"
     const val toolImageGenerating = "绘图处理中"
     const val toolImageProgress = "正在处理绘图请求…"
     const val toolAnswer = "已选择"

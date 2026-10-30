@@ -1,5 +1,5 @@
-import { updaterStateAtom } from "@shared/store/atoms";
-import { useAtomValue } from "jotai";
+import { updaterRestartDialogOpenAtom, updaterStateAtom } from "@shared/store/atoms";
+import { useAtomValue, useSetAtom } from "jotai";
 import { useCallback, useState } from "react";
 import { useTranslation } from "react-i18next";
 
@@ -15,12 +15,13 @@ export interface SidebarUpdateBannerModel {
 export function useSidebarUpdateBannerModel(): SidebarUpdateBannerModel | null {
 	const { t } = useTranslation("project");
 	const state = useAtomValue(updaterStateAtom);
+	const openRestartDialog = useSetAtom(updaterRestartDialogOpenAtom);
 	// 按版本记忆忽略状态：下一个版本就绪时重新出现
 	const [dismissedVersion, setDismissedVersion] = useState<string | null>(null);
 
 	const onRestart = useCallback(() => {
-		void window.agent567.updater.install();
-	}, []);
+		openRestartDialog(true);
+	}, [openRestartDialog]);
 
 	// 忽略：隐藏此条，安装交给退出时的自动流程
 	const onDismiss = useCallback(() => {
@@ -29,7 +30,7 @@ export function useSidebarUpdateBannerModel(): SidebarUpdateBannerModel | null {
 	}, [state.latestVersion]);
 
 	if (dismissedVersion !== null && dismissedVersion === (state.latestVersion ?? "")) return null;
-	if (state.phase !== "ready") return null;
+	if (state.phase !== "ready" || state.showReminder === false) return null;
 
 	return {
 		label: t("update.bannerReady", { version: state.latestVersion ?? "" }),

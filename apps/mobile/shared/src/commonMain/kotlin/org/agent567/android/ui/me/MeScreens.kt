@@ -56,6 +56,7 @@ import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -912,6 +913,8 @@ fun AboutScreen(
     onSaveDownloadSource: (source: String, customPrefix: String) -> Boolean = { _, _ -> false },
 ) {
     val releaseApkCompatible = org.agent567.android.ui.updates.canUseReleaseApk()
+    val updateDownloads = org.agent567.android.ui.updates.rememberUpdateDownloadActions()
+    val downloadState by updateDownloads.state.collectAsState()
     val uriHandler = androidx.compose.ui.platform.LocalUriHandler.current
     var checkingUpdate by remember { mutableStateOf(false) }
     var updateResult by remember(knownUpdate) { mutableStateOf(knownUpdate) }
@@ -957,6 +960,9 @@ fun AboutScreen(
             Text(Str.versionNumber, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.agent567Extra.secondaryText)
             Spacer(Modifier.height(24.dp))
             Text(Str.aboutDescription, style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.agent567Extra.secondaryText)
+            org.agent567.android.ui.updates.UpdateDownloadPanel(
+                downloadState, updateDownloads::pause, updateDownloads::resume, updateDownloads::install,
+            )
             Spacer(Modifier.height(28.dp))
             Agent567ListGroup {
                 ProfileRow(
@@ -1047,8 +1053,13 @@ fun AboutScreen(
             confirmButton = {
                 androidx.compose.material3.FilledTonalButton(
                     onClick = {
-                        val targetUrl = update.apkUrl?.takeIf { releaseApkCompatible && it.isNotBlank() }
-                            ?: "https://github.com/Chinachani/567-agent/releases/latest"
+                        if (releaseApkCompatible && !update.apkUrl.isNullOrBlank() && !update.apkSha256.isNullOrBlank() && update.apkSize != null) {
+                            updateDownloads.start(update)
+                            updateResult = null
+                            updateOpenError = null
+                            return@FilledTonalButton
+                        }
+                        val targetUrl = "https://github.com/Chinachani/567-agent/releases/latest"
                         try {
                             uriHandler.openUri(targetUrl)
                             updateResult = null
@@ -1058,7 +1069,7 @@ fun AboutScreen(
                         }
                     },
                 ) {
-                    Text(if (releaseApkCompatible && !update.apkUrl.isNullOrBlank()) Str.githubDownloadPackage else Str.updateOpenRelease)
+                    Text(if (releaseApkCompatible && !update.apkUrl.isNullOrBlank() && !update.apkSha256.isNullOrBlank()) Str.githubDownloadPackage else Str.updateOpenRelease)
                 }
             },
             dismissButton = {

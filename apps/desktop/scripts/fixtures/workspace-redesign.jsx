@@ -1,3 +1,6 @@
+import { UpdateChecker } from "../../src/renderer/shared/components/UpdateChecker";
+import { UpdatePreferencesSettings } from "../../src/renderer/domains/settings/components/UpdatePreferencesSettings";
+import { messageQueueBySessionAtom, updaterStateAtom } from "../../src/renderer/shared/store/atoms";
 import { getDefaultStore, useAtomValue } from "jotai";
 import { SessionTaskProgress } from "../../src/renderer/domains/conversation/components/SessionTaskProgress";
 import { ConversationDeliveries } from "../../src/renderer/domains/activity-panel/components/ConversationDeliveries";
@@ -83,13 +86,16 @@ window.agent567 = {
 		subscribeStatus: async () => noop,
 		onSessionChanged: () => noop,
 	},
-	updater: { sync: async () => {} },
+    updater: { sync: async () => {}, getPreferences: async () => ({ automaticCheck: true, automaticDownload: true, showReminder: true, checkIntervalMinutes: 120 }), setPreferences: async (value) => value,
+        getReleaseHistory: async () => ({ baselineVersion: "1.4.4", releases: [{ version: "1.5.0", body: "## 改进\n- 改进任务恢复与交付体验。", url: "https://github.com/Chinachani/567-agent/releases/tag/v1.5.0", publishedAt: "" }] }) },
+    shell: { openExternal: async (url) => record("open:"+url) },
 	subscription: { getStatus: async () => ({}) },
 };
 window.applyWorkspaceTheme = (mode) => applyTheme(mode, "mono");
 
-function Home({ chat = false, task = false }) {
+function Home({ chat = false, task = false, queue = false, collapsed = false }) {
 	const streaming = useAtomValue(activeSessionStreamingAtom);
+    const [drawerActive, setDrawerActive] = useState(collapsed ? null : "queue");
 	const [value, setValue] = useState("");
 	const [project, setProject] = useState(null);
 	const [target, setTarget] = useState(null);
@@ -119,8 +125,8 @@ function Home({ chat = false, task = false }) {
 		placeholderTexts: ["描述你想完成的任务…"],
 		placeholderRotating: false,
 		isFocused: false,
-		drawerItems: [],
-		drawerActiveTab: null,
+        drawerItems: queue ? [{ kind: "queue", id: "queue", label: "队列", desc: "1 条待发", runtimeId: "fixture-runtime", onSendNow: () => record("queue-send") }] : [],
+        drawerActiveTab: drawerActive,
 		todo: null,
 		speechInput: null,
 		hasPromptAttachment: false,
@@ -167,7 +173,7 @@ function Home({ chat = false, task = false }) {
 		},
 		actions: {
 			setFocused: noop,
-			setDrawerActiveTab: noop,
+            setDrawerActiveTab: setDrawerActive,
 			handleEnter: () => {
 				record("send");
 				return true;
@@ -566,11 +572,11 @@ function AutomationReady() {
 	);
 }
 const taskWorkspace = { id: "/fixture/project", cwd: "/fixture/project", runtimeIds: ["fixture-runtime"] };
-function TaskWorkspace({ deliveriesOnly = false }) {
+function TaskWorkspace({ deliveriesOnly = false, queue = false, collapsed = false }) {
     return <div className="flex min-h-0 min-w-0 flex-1 flex-col">
         <h1 className="border-b border-border/50 px-5 py-3 text-[14px] font-medium">{deliveriesOnly ? "会话交付" : "整理项目资料与检查报告"}</h1>
         <div className="flex min-h-0 flex-1">
-            {!deliveriesOnly ? <div className="flex min-w-0 flex-1 flex-col"><Home chat task /></div> : null}
+            {!deliveriesOnly ? <div className="flex min-w-0 flex-1 flex-col"><Home chat task queue={queue} collapsed={collapsed} /></div> : null}
             <aside className={deliveriesOnly ? "min-w-0 flex-1" : "hidden w-80 shrink-0 border-l border-border/50 min-[1000px]:block"}>
                 <ActivityPanelContextProvider value={{ workspace: taskWorkspace, knowledgeHistory: false }}><ConversationDeliveries /></ActivityPanelContextProvider>
             </aside>
@@ -581,18 +587,22 @@ function TaskWorkspace({ deliveriesOnly = false }) {
 function setTaskFixture(page) {
     const store = getDefaultStore();
     store.set(confirmDialogAtom, null);
+    store.set(updaterStateAtom, page === "updates" ? { phase: "downloading", currentVersion: "1.5.0", latestVersion: "1.5.1", progress: 0.44, downloadedBytes: 30_300_000, totalBytes: 68_500_000 } : { phase: "idle", currentVersion: "1.5.0" });
+    store.set(messageQueueBySessionAtom, new Map([["fixture-runtime", [{ id: "queued", kind: "message", behavior: "followUp", displayText: "请先确认服务器端口，再继续后续检查" }]]]));
     store.set(pendingQuestionsAtom, {});
     if (!page.startsWith("task") && page !== "deliveries") { store.set(activeSessionAtom, null); store.set(activeSessionStreamingAtom, false); store.set(chatMessagesAtom, []); return; }
     store.set(activeSessionAtom, { runtimeId: "fixture-runtime", cwd: "/fixture/project", sessionPath: "/fixture/session.jsonl" });
-    store.set(activeSessionStreamingAtom, page === "taskRunning" || page === "taskWaiting");
+    store.set(activeSessionStreamingAtom, page === "taskRunning" || page === "taskWaiting" || page.startsWith("taskQueue"));
     const blocks = [{ type: "text", id: "text", text: "已整理项目资料：[实施报告](./output/report.md) 与 [项目预览](https://preview.example.test/)" }, { type: "tool_call", toolName: "write", toolCallId: "write", status: "success", args: { path: "output/report.md" }, uiDetails: { writtenPath: "/fixture/project/output/report.md" } }];
     if (page === "taskRunning") blocks.push({ type: "tool_call", toolCallId: "check", toolName: "bash", status: "pending", args: { command: "run checks" }, currentPhase: "正在运行项目检查" });
     if (page === "taskFailed") blocks.push({ type: "error", id: "error", kind: "network", text: "Connection closed", details: { code: "AI_TRANSPORT_FAILED", origin: "provider" } });
-    const phase = page === "taskFailed" ? "failed" : page === "taskStopped" ? "aborted" : page === "taskRunning" || page === "taskWaiting" ? "streaming" : "completed";
+    const phase = page === "taskFailed" ? "failed" : page === "taskStopped" ? "aborted" : page === "taskRunning" || page === "taskWaiting" || page.startsWith("taskQueue") ? "streaming" : "completed";
     store.set(chatMessagesAtom, [{ kind: "agent", role: "assistant", id: "reply", entryId: "entry", turnId: "turn", authorId: "agent", phase, blocks, startedAt: Date.now() - 125000 }]);
     if (page === "taskWaiting") store.set(pendingQuestionsAtom, { "fixture-runtime": { requestId: "q", sessionId: "fixture-runtime", questions: [] } });
 }
+function Updates() { return <div className="min-h-0 flex-1 overflow-y-auto p-5"><SettingsPageShellView title="应用与更新" description="查看版本、下载进度和更新设置。"><SettingSection section={{ id: "updates" }}><UpdateChecker /><UpdatePreferencesSettings /></SettingSection></SettingsPageShellView></div>; }
 const pages = {
+    taskQueue: () => <TaskWorkspace queue />, taskQueueCollapsed: () => <TaskWorkspace queue collapsed />, updates: Updates,
     taskRunning: TaskWorkspace, taskWaiting: TaskWorkspace, taskFailed: TaskWorkspace, taskStopped: TaskWorkspace, taskComplete: TaskWorkspace, deliveries: () => <TaskWorkspace deliveriesOnly />,
 	chat: ChatPreview,
 	home: Home,

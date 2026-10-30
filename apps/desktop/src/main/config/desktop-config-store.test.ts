@@ -113,3 +113,27 @@ describe("appshot configuration patches", () => {
 		});
 	});
 });
+
+it("retains updater preferences and the previous installed version across unrelated writes and a restart", async () => {
+	const preferences = {
+		automaticCheck: false,
+		checkIntervalMinutes: 360,
+		automaticDownload: false,
+		showReminder: false,
+	};
+	const store = await loadStoreWithConfig({
+		updatePreferences: preferences,
+		lastRunVersion: "1.5.0",
+		previousRunVersion: "1.4.4",
+		updateSource: "gh-proxy",
+	});
+	await store.updateDesktopConfig((config) => ({ ...config, language: "en" }));
+	vi.resetModules();
+	const restarted = await import("./desktop-config-store.js");
+	expect(await restarted.readDesktopConfig()).toMatchObject({
+		updatePreferences: preferences,
+		previousRunVersion: "1.4.4",
+		updateSource: "gh-proxy",
+		language: "en",
+	});
+});

@@ -3093,13 +3093,15 @@ class AppViewModel(
                     var pendingQuestion: PendingQuestion? = null
                     var hasPublishedDelta = false
                     var responseTruncated = false
+                    var generationError: String? = null
                     var recoveryNeedsHistory = false
                     var pendingPersist: Job? = null
 
                     suspend fun persistAssistant(status: MessageStatus = MessageStatus.Streaming) {
                         val snapshot = assistantMsg.copy(
                             content = assembled,
-                            status = status,
+                            status = if (generationError != null) MessageStatus.Error else status,
+                            errorMessage = generationError,
                             processingDurationMs = if (status == MessageStatus.Streaming) null else elapsedSince(assistantMsg.createdAtEpochMs),
                             images = assistantImages,
                             toolEvents = toolEvents,
@@ -3303,46 +3305,24 @@ class AppViewModel(
                                                     groupName = imgGroup,
                                                     referenceImages = refImages,
                                                 )
-                                                val b64 = res.b64Json
-                                                val url = res.url
-                                                val finalB64 = if (!b64.isNullOrBlank()) {
-                                                    b64.trim()
-                                                } else if (!url.isNullOrBlank()) {
-                                                    try {
-                                                        val bytes = requestClient.models.downloadImageBytesDirect(url)
-                                                        @OptIn(kotlin.io.encoding.ExperimentalEncodingApi::class)
-                                                        kotlin.io.encoding.Base64.encode(bytes)
-                                                    } catch (cancelled: CancellationException) {
-                                                        throw cancelled
-                                                    } catch (_: Throwable) {
-                                                        ""
-                                                    }
-                                                } else {
-                                                    ""
-                                                }
-
-                                                val hasValidImage = finalB64.isNotBlank()
+                                                val image = org.agent567.android.core.api.resolveGeneratedImage(res) { url ->
+                                                    requestClient.models.downloadImageBytesDirect(url)
+                                                } ?: throw IllegalStateException(Str.toolImageMissing)
+                                                val finalB64 = image.base64
                                                 val cleanText = res.textContent?.trim()?.takeIf { it.isNotBlank() && !it.equals("null", ignoreCase = true) }
-                                                val resultDesc = if (hasValidImage) {
-                                                    "成功生成图片"
-                                                } else if (cleanText != null) {
-                                                    cleanText
-                                                } else {
-                                                    "未检测到图片数据，建议在右下角切换为 DALL-E 3 或 FLUX 等生图模型重试"
+                                                val doneLabel = when {
+                                                    refImages.size > 1 -> Str.toolImageFusionComplete
+                                                    refImages.isNotEmpty() -> Str.toolImageEditComplete
+                                                    else -> Str.toolImageComplete
                                                 }
-
-                                                val doneLabel = if (hasValidImage) {
-                                                    if (refImages.size > 1) "多图融合重绘完成" else if (refImages.isNotEmpty()) "基于原图修改完成" else "画面绘制完成"
-                                                } else {
-                                                    "生图完成"
-                                                }
+                                                val resultDesc = doneLabel
                                                 val updatedTools = mergeToolTrace(
                                                     toolEvents,
                                                     ToolTrace(
                                                         phase = "completed",
                                                         toolCallId = event.toolCallId,
                                                         toolName = "generate_image",
-                                                        detail = if (hasValidImage) doneLabel else resultDesc,
+                                                        detail = null,
                                                         arguments = promptArg,
                                                         result = resultDesc,
                                                         phaseLabel = doneLabel,
@@ -3350,28 +3330,27 @@ class AppViewModel(
                                                 )
                                                 toolEvents = updatedTools
 
-                                                val newImages = if (hasValidImage) {
+                                                val newImages = run {
                                                     listOf(
                                                         MessageImage(
                                                             id = "gen-${newMessageId()}",
-                                                            mimeType = "image/png",
-                                                            fileName = "generated.png",
+                                                            mimeType = image.mimeType,
+                                                            fileName = "generated.${image.extension}",
                                                             base64Data = finalB64,
                                                         )
                                                     )
-                                                } else {
-                                                    emptyList()
                                                 }
 
                                                 val currentMsg = container.sessionStore.getMessages(sid).firstOrNull { it.id == assistantId }
                                                 val currentImages = (currentMsg?.images ?: assistantMsg.images) + newImages
                                                 val descSuffix = if (cleanText != null) "\n\n" + cleanText else ""
                                                 val finalContent = if (assembled.isBlank()) {
-                                                    if (hasValidImage) "画面绘制完成$descSuffix" else resultDesc
+                                                    "$doneLabel$descSuffix"
                                                 } else {
                                                     assembled + descSuffix
                                                 }
 
+                                                assembled = finalContent
                                                 container.sessionStore.upsertMessage(
                                                     (currentMsg ?: assistantMsg).copy(
                                                         content = finalContent,
@@ -3387,22 +3366,24 @@ class AppViewModel(
                                                     ?: currentImages
                                             } catch (e: Throwable) {
                                                 if (e is CancellationException) throw e
-                                                val failMsg = e.message ?: "请求失败"
+                                                val failMsg = e.message ?: Str.toolImageFailed
+                                                generationError = failMsg
                                                 val failTools = mergeToolTrace(
                                                     toolEvents,
                                                     ToolTrace(
                                                         phase = "error",
                                                         toolCallId = event.toolCallId,
                                                         toolName = "generate_image",
-                                                        detail = "生图失败: $failMsg",
-                                                        phaseLabel = "生图失败",
+                                                        detail = null,
+                                                        result = failMsg,
+                                                        phaseLabel = Str.toolImageFailed,
                                                     ),
                                                 )
                                                 toolEvents = failTools
                                                 val currentMsg = container.sessionStore.getMessages(sid).firstOrNull { it.id == assistantId }
                                                 container.sessionStore.upsertMessage(
                                                     (currentMsg ?: assistantMsg).copy(
-                                                        status = MessageStatus.Complete,
+                                                        status = MessageStatus.Error,
                                                         toolEvents = failTools,
                                                         errorMessage = failMsg,
                                                     )
@@ -3410,7 +3391,7 @@ class AppViewModel(
                                                 updateVisibleSession(sid) {
                                                     it.copy(
                                                         chatError = UiError(
-                                                            title = "生图失败",
+                                                            title = Str.toolImageFailed,
                                                             message = failMsg,
                                                             action = UiErrorAction.None,
                                                         )

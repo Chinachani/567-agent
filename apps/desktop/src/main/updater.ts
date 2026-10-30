@@ -8,7 +8,8 @@ import type { AppUpdater } from "electron-updater";
 import electronUpdater from "electron-updater";
 import { parse as parseYaml } from "yaml";
 import { resolveGitHubUpdateProxyPrefix } from "../shared/github-download-source.js";
-import { readConfigSync } from "./config/desktop-config-store.js";
+import { getApplicationCacheService } from "./cache/application-cache-service.js";
+import { readConfigSync, updateDesktopConfig } from "./config/desktop-config-store.js";
 import { mainT } from "./i18n/index.js";
 import {
 	InnoWindowsUpdateController,
@@ -17,7 +18,10 @@ import {
 } from "./inno-windows-update.js";
 import { getMacInstallerJobLabel, handOffToInstaller } from "./mac-installer-handoff.js";
 import { runQuitCleanup } from "./quit-cleanup.js";
+import { installUpdateDownloader, UpdateDownloader, type UpdaterDownloadExecutor } from "./update-download.js";
+import { fetchUpdatePackage } from "./update-download-network.js";
 import { markPendingUpdateRelaunch } from "./update-relaunch-marker.js";
+import { UpdateReleaseHistoryService } from "./update-release-history.js";
 import { ElectronUpdaterEngine } from "./updater-engine.js";
 import { type UpdaterPhase, UpdaterService, type UpdaterState } from "./updater-service.js";
 import { WindowsDataUpdater } from "./windows-data-updater.js";
@@ -38,6 +42,16 @@ const { autoUpdater: defaultAutoUpdater } = electronUpdater;
 
 const autoUpdater: AppUpdater =
 	process.platform === "win32" && app.isPackaged ? new WindowsDataUpdater() : defaultAutoUpdater;
+
+// Only full-file transfers pass through this executor method. Differential range requests,
+// cache promotion, platform signatures and installation continue through electron-updater.
+const fullDownloadExecutor = (autoUpdater as unknown as { httpExecutor: UpdaterDownloadExecutor }).httpExecutor;
+if (app.isPackaged && fullDownloadExecutor) {
+	installUpdateDownloader(
+		fullDownloadExecutor,
+		new UpdateDownloader(getApplicationCacheService().namespace("update-downloads").rootDir, fetchUpdatePackage),
+	);
+}
 
 /** Opt-in GitHub release acceleration. The official provider remains the default. */
 function configureUpdateSource(): void {
@@ -107,6 +121,24 @@ function configureE2eUpdateFeed(): void {
 
 configureE2eUpdateFeed();
 const currentVersion = getAppVersion();
+const versionConfig = readConfigSync();
+export const updateReleaseHistory = new UpdateReleaseHistoryService(
+	versionConfig.lastRunVersion && versionConfig.lastRunVersion !== currentVersion
+		? versionConfig.lastRunVersion
+		: (versionConfig.previousRunVersion ?? currentVersion),
+);
+export async function recordUpdaterVersion(): Promise<void> {
+	if (!app.isPackaged) return;
+	await updateDesktopConfig((config) =>
+		config.lastRunVersion === currentVersion
+			? config
+			: {
+					...config,
+					previousRunVersion: config.lastRunVersion ?? currentVersion,
+					lastRunVersion: currentVersion,
+				},
+	);
+}
 const innoWindowsUpdate =
 	process.platform === "win32" && app.isPackaged && isVersionedWindowsExecutable(process.execPath, currentVersion)
 		? new InnoWindowsUpdateController({
@@ -173,6 +205,10 @@ const systemEvents = {
 };
 export const updaterService = new UpdaterService(updaterEngine, currentVersion, app.isPackaged, mainT, {
 	systemEvents,
+	preferences: readConfigSync().updatePreferences,
+	savePreferences: async (updatePreferences) => {
+		await updateDesktopConfig((config) => ({ ...config, updatePreferences }));
+	},
 });
 
 interface UpgradeE2eState {

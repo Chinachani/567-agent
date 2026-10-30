@@ -244,7 +244,7 @@ export function useGeneralSettingsModel(): GeneralSettingsModel {
 				basics: t(SETTINGS_SECTION["general-basics"].titleKey),
 				developer: t(SETTINGS_SECTION["general-developer"].titleKey),
 			},
-			appVersion: t("appVersion"),
+			appVersion: t("updateSettings.version"),
 			updateSource: t("updateSource.title"),
 			updateSourceDescription: t("updateSource.description"),
 			updateSourceOfficial: t("updateSource.official"),

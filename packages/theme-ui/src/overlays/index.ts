@@ -36,7 +36,15 @@ export type {
 	UpdateCheckerViewLabels,
 	UpdateCheckerViewProps,
 } from "./UpdateCheckerView";
-export { UpdateCheckerAction, UpdateCheckerDetail, UpdateCheckerView } from "./UpdateCheckerView";
+export {
+	UpdateCheckerAction,
+	UpdateCheckerActions,
+	UpdateCheckerDetail,
+	UpdateCheckerView,
+	UpdateDownloadProgress,
+} from "./UpdateCheckerView";
+export type { UpdateReleaseHistoryViewProps } from "./UpdateReleaseHistoryView";
+export { UpdateReleaseHistoryView } from "./UpdateReleaseHistoryView";
 export type {
 	UpdateRestartDialogViewLabels,
 	UpdateRestartDialogViewProps,

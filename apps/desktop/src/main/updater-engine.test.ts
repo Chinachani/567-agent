@@ -194,6 +194,51 @@ describe("ElectronUpdaterEngine", () => {
 
 		await expect(download.promise).rejects.toThrow("native staging failed");
 	});
+	it("releases progress subscriptions when download startup throws synchronously", async () => {
+		const updater = {
+			on: vi.fn(),
+			off: vi.fn(),
+			downloadUpdate: vi.fn(() => {
+				throw new Error("startup failed");
+			}),
+		} as unknown as AppUpdater;
+		const engine = new ElectronUpdaterEngine(updater);
+		const download = engine.downloadUpdate(vi.fn());
+		await expect(download.promise).rejects.toThrow("startup failed");
+		expect(updater.off).toHaveBeenCalledWith("download-progress", expect.any(Function));
+	});
+	it("settles a cancelled native staging wait and removes its subscriptions", async () => {
+		const stopDownloaded = vi.fn();
+		const stopError = vi.fn();
+		const events: NativeMacUpdateEvents = {
+			onUpdateDownloaded: () => stopDownloaded,
+			onError: () => stopError,
+		};
+		const updater = {
+			on: vi.fn(),
+			off: vi.fn(),
+			downloadUpdate: vi.fn().mockResolvedValue(["/tmp/update.zip"]),
+		} as unknown as AppUpdater;
+		const onStaging = vi.fn();
+		const engine = new ElectronUpdaterEngine(updater, undefined, events);
+		const download = engine.downloadUpdate(vi.fn(), onStaging);
+		let settled = false;
+		const result = download.promise
+			.then(
+				() => "completed",
+				() => "cancelled",
+			)
+			.finally(() => {
+				settled = true;
+			});
+		await vi.waitFor(() => expect(onStaging).toHaveBeenCalledOnce());
+		download.cancel();
+		await vi.waitFor(() => expect(settled).toBe(true));
+		expect(await result).toBe("cancelled");
+		expect(stopDownloaded).toHaveBeenCalledOnce();
+		expect(stopError).toHaveBeenCalledOnce();
+		expect(updater.off).toHaveBeenCalledWith("download-progress", expect.any(Function));
+	});
 
 	it("passes provider-resolved asset URLs to the Inno updater", async () => {
 		const updateInfo: UpdateInfo = {

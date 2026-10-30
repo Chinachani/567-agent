@@ -17,6 +17,7 @@ export * from "./file-preview-atoms";
 export * from "./goal-atoms";
 export * from "./knowledge-base-atoms";
 export * from "./mcp-task-atoms";
+export { messageQueueBySessionAtom } from "./message-queue-atoms";
 export * from "./model-catalog";
 export * from "./notification-atoms";
 export * from "./plan-mode-atoms";

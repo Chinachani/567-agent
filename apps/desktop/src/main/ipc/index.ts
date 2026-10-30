@@ -94,7 +94,7 @@ export function registerAllIpc(
 		teardownAppMonitor: registerAppMonitorIpc(),
 		teardownSession: registerSessionIpc(webContents),
 		teardownSettings: registerSettingsIpc(webContents),
-		teardownUpdater: registerUpdaterIpc(),
+		teardownUpdater: registerUpdaterIpc(webContents),
 		teardownSkills: registerSkillsIpc(),
 		teardownSpeechInput: registerSpeechInputIpc(webContents),
 		teardownThemes: registerThemesIpc(),

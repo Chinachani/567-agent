@@ -1,9 +1,10 @@
-import { useState } from "react";
-import { DiagnosticsDialog } from "./DiagnosticsDialog";
 import { useUpdateCheckerModel } from "@shared/hooks/useUpdateCheckerModel";
-import { UpdateCheckerAction, UpdateCheckerDetail } from "@vetta-org/theme-ui/overlays";
+import { UpdateCheckerActions, UpdateDownloadProgress } from "@vetta-org/theme-ui/overlays";
 import { GeneralSettingsView as ThemeGeneralSettingsView } from "@vetta-org/theme-ui/settings";
+import { useState } from "react";
 import { SETTINGS_SECTION } from "../registry";
+import { DiagnosticsDialog } from "./DiagnosticsDialog";
+import { UpdatePreferencesSettings } from "./UpdatePreferencesSettings";
 import type { GeneralSettingsModel } from "./useGeneralSettingsModel";
 
 export interface GeneralSettingsViewProps {
@@ -14,8 +15,7 @@ export interface GeneralSettingsViewProps {
 export function GeneralSettingsView({ model }: GeneralSettingsViewProps): JSX.Element {
 	const updates = useUpdateCheckerModel();
 	const [diagnosticsOpen, setDiagnosticsOpen] = useState(false);
-	const showUpdateDetail =
-		updates.phase === "available" || updates.phase === "downloading" || updates.phase === "ready";
+	const showUpdateDetail = updates.phase === "downloading";
 
 	return (
 		<>
@@ -38,24 +38,21 @@ export function GeneralSettingsView({ model }: GeneralSettingsViewProps): JSX.El
 				onResetWorkspace={() => void model.actions.resetWorkspace()}
 				updatesDescription={updates.statusText}
 				updatesAction={
-					<UpdateCheckerAction
+					<UpdateCheckerActions
 						checking={updates.checking}
 						labels={updates.labels}
 						onCheck={updates.onCheck}
+						onPrimary={updates.onPrimary}
+						onPause={updates.onPause}
 						phase={updates.phase}
+						currentVersion={updates.currentVersion}
 					/>
 				}
 				updatesDetail={
 					showUpdateDetail ? (
-						<UpdateCheckerDetail
-							currentVersion={updates.currentVersion}
-							labels={updates.labels}
-							latestVersion={updates.latestVersion}
-							onPrimary={updates.onPrimary}
-							onViewMore={updates.onViewMore}
-							phase={updates.phase}
+						<UpdateDownloadProgress
 							progress={updates.progress}
-							releaseNote={updates.releaseNote}
+							label={updates.labels.downloading(Math.round((updates.progress ?? 0) * 100))}
 						/>
 					) : null
 				}
@@ -68,7 +65,9 @@ export function GeneralSettingsView({ model }: GeneralSettingsViewProps): JSX.El
 				onDebugChange={model.actions.toggleDebug}
 				exportingDiagnostics={false}
 				onExportDiagnostics={() => setDiagnosticsOpen(true)}
-			/>
+			>
+				<UpdatePreferencesSettings />
+			</ThemeGeneralSettingsView>
 			<DiagnosticsDialog open={diagnosticsOpen} onOpenChange={setDiagnosticsOpen} />
 		</>
 	);

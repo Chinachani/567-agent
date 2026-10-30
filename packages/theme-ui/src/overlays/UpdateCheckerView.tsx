@@ -1,14 +1,19 @@
-import { useEffect, useMemo, useRef, useState, type JSX } from "react";
+import { Button } from "@vetta-org/ui";
+import { Progress } from "radix-ui";
+import { type JSX, useEffect, useMemo, useRef, useState } from "react";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
-import { Button } from "@vetta-org/ui";
+import { SettingRow } from "../settings/SettingChrome";
 
 export interface UpdateCheckerViewLabels {
+	readonly version?: string;
 	readonly check: string;
 	readonly checking: string;
+	readonly transferred?: (downloaded: string, total: string) => string;
 	readonly checkingBtn: string;
 	readonly currentVersion: (version: string) => string;
 	readonly download: string;
+	readonly pause?: string;
 	readonly downloading: (progress: number) => string;
 	readonly idle: (version: string) => string;
 	readonly newVersion: (version: string) => string;
@@ -16,14 +21,7 @@ export interface UpdateCheckerViewLabels {
 	readonly viewMore?: string;
 }
 
-export type UpdateCheckerPhase =
-	| "idle"
-	| "checking"
-	| "available"
-	| "downloading"
-	| "ready"
-	| "installing"
-	| "error";
+export type UpdateCheckerPhase = "idle" | "checking" | "available" | "downloading" | "ready" | "installing" | "error";
 
 export interface UpdateCheckerViewProps {
 	readonly checking: boolean;
@@ -32,9 +30,12 @@ export interface UpdateCheckerViewProps {
 	readonly latestVersion?: string;
 	readonly onCheck: () => void;
 	readonly onPrimary: () => void;
+	readonly onPause?: () => void;
 	readonly onViewMore?: () => void;
 	readonly phase: UpdateCheckerPhase;
 	readonly progress?: number;
+	readonly downloadedBytes?: number;
+	readonly totalBytes?: number;
 	readonly releaseNote?: string;
 	readonly statusText: string;
 }
@@ -51,13 +52,57 @@ export function UpdateCheckerAction({
 			size="sm"
 			variant="outline"
 			onClick={onCheck}
-			disabled={checking}
+			disabled={checking || phase === "downloading" || phase === "ready" || phase === "installing"}
 			data-testid="updater-check"
 			data-updater-phase={phase}
 		>
 			<span className={`icon-[mdi--refresh] h-3.5 w-3.5 ${checking ? "animate-spin" : ""}`} />
 			{checking ? labels.checkingBtn : labels.check}
 		</Button>
+	);
+}
+
+/** Version-row actions preserve the existing check/download/restart callbacks. */
+export function UpdateCheckerActions(
+	props: Pick<UpdateCheckerViewProps, "checking" | "labels" | "onCheck" | "onPrimary" | "onPause" | "phase" | "currentVersion">,
+): JSX.Element {
+	return (
+		<div className="flex flex-wrap items-center justify-end gap-3">
+			<span className="text-[12px] tabular-nums text-muted-foreground">{props.currentVersion}</span>
+			{props.phase === "downloading" && props.onPause && props.labels.pause ? (
+				<Button size="sm" variant="outline" onClick={props.onPause}>{props.labels.pause}</Button>
+			) : null}
+			{props.phase === "available" || props.phase === "ready" ? (
+				<Button size="sm" variant="outline" onClick={props.onPrimary}>
+					{props.phase === "ready" ? props.labels.restart : props.labels.download}
+				</Button>
+			) : props.phase !== "downloading" && props.phase !== "installing" ? (
+				<UpdateCheckerAction {...props} />
+			) : null}
+		</div>
+	);
+}
+
+export function UpdateDownloadProgress({
+	progress,
+	label,
+}: {
+	readonly progress?: number;
+	readonly label: string;
+}): JSX.Element {
+	const percent = Math.max(0, Math.min(100, (progress ?? 0) * 100));
+	return (
+		<Progress.Root
+			value={percent}
+			max={100}
+			aria-label={label}
+			className="h-1 w-full overflow-hidden rounded-full bg-muted"
+		>
+			<Progress.Indicator
+				className="h-full w-full rounded-full bg-primary motion-safe:transition-transform motion-safe:duration-200"
+				style={{ transform: `translateX(-${100 - percent}%)` }}
+			/>
+		</Progress.Root>
 	);
 }
 
@@ -70,39 +115,37 @@ export function UpdateCheckerDetail({
 	onViewMore,
 	phase,
 	progress,
+	downloadedBytes,
+	totalBytes,
 	releaseNote,
 }: Pick<
 	UpdateCheckerViewProps,
-	"currentVersion" | "labels" | "latestVersion" | "onPrimary" | "onViewMore" | "phase" | "progress" | "releaseNote"
+	| "currentVersion"
+	| "labels"
+	| "latestVersion"
+	| "onPrimary"
+	| "onViewMore"
+	| "phase"
+	| "progress"
+	| "downloadedBytes"
+	| "totalBytes"
+	| "releaseNote"
 >): JSX.Element | null {
 	if (phase !== "available" && phase !== "downloading" && phase !== "ready") {
 		return null;
 	}
 
 	return (
-		<div
-			className="space-y-2 rounded-lg border border-border bg-secondary p-3"
-			data-testid="updater-detail"
-			data-updater-phase={phase}
-		>
-			<div className="flex items-center justify-between gap-3">
+		<div className="min-w-0 space-y-2" data-testid="updater-detail" data-updater-phase={phase}>
+			<div className="flex flex-wrap items-center justify-between gap-3">
 				<div className="min-w-0">
-					<span className="text-[13px] font-medium text-foreground">
-						{labels.newVersion(latestVersion ?? "")}
-					</span>
-					<span className="ml-2 text-[12px] text-muted-foreground">
-						{labels.currentVersion(currentVersion)}
-					</span>
+					<span className="text-[13px] font-medium text-foreground">{labels.newVersion(latestVersion ?? "")}</span>
+					<span className="ml-2 text-[12px] text-muted-foreground">{labels.currentVersion(currentVersion)}</span>
 				</div>
 				{phase === "available" && (
 					<Button size="sm" variant="primary" onClick={onPrimary} data-testid="updater-primary">
 						{labels.download}
 					</Button>
-				)}
-				{phase === "downloading" && (
-					<span className="shrink-0 text-[12px] text-muted-foreground">
-						{labels.downloading(Math.round((progress ?? 0) * 100))}
-					</span>
 				)}
 				{phase === "ready" && (
 					<Button size="sm" variant="primary" onClick={onPrimary} data-testid="updater-primary">
@@ -110,6 +153,28 @@ export function UpdateCheckerDetail({
 					</Button>
 				)}
 			</div>
+			{phase === "downloading" && (
+				<div className="space-y-2">
+					<div className="flex flex-wrap items-baseline gap-x-2 gap-y-1 text-[12px] tabular-nums text-muted-foreground">
+						<span>{labels.downloading(Math.round((progress ?? 0) * 100))}</span>
+						{typeof downloadedBytes === "number" &&
+							typeof totalBytes === "number" &&
+							totalBytes > 0 &&
+							labels.transferred && (
+								<span>
+									{labels.transferred(
+										(downloadedBytes / 1_000_000).toFixed(1),
+										(totalBytes / 1_000_000).toFixed(1),
+									)}
+								</span>
+							)}
+					</div>
+					<UpdateDownloadProgress
+						progress={progress}
+						label={labels.downloading(Math.round((progress ?? 0) * 100))}
+					/>
+				</div>
+			)}
 			{releaseNote && (
 				<ReleaseNotePreview
 					releaseNote={releaseNote}
@@ -186,9 +251,7 @@ function ReleaseNotePreview({
 				}`}
 				style={isOverflowing ? { maxHeight: `${MAX_HEIGHT_PX}px` } : undefined}
 			>
-				<ReactMarkdown remarkPlugins={[remarkGfm]}>
-					{formattedNote}
-				</ReactMarkdown>
+				<ReactMarkdown remarkPlugins={[remarkGfm]}>{formattedNote}</ReactMarkdown>
 			</div>
 			{isOverflowing && (
 				<div className="pt-6 -mt-6 bg-gradient-to-t from-secondary via-secondary/85 to-transparent flex items-center justify-center relative z-10">
@@ -209,25 +272,31 @@ function ReleaseNotePreview({
 /** 独立使用时：动作 + 详情纵向排列。设置页请用 Action / Detail 配合 SettingRow。 */
 export function UpdateCheckerView(props: UpdateCheckerViewProps): JSX.Element {
 	return (
-		<div className="space-y-3">
-			<div className="flex justify-end">
-				<UpdateCheckerAction
-					checking={props.checking}
-					labels={props.labels}
-					onCheck={props.onCheck}
-					phase={props.phase}
-				/>
-			</div>
-			<UpdateCheckerDetail
-				currentVersion={props.currentVersion}
-				labels={props.labels}
-				latestVersion={props.latestVersion}
-				onPrimary={props.onPrimary}
-				onViewMore={props.onViewMore}
-				phase={props.phase}
-				progress={props.progress}
-				releaseNote={props.releaseNote}
-			/>
+		<div className="min-w-0 border-b border-border">
+			<SettingRow
+				title={props.labels.version ?? props.labels.currentVersion(props.currentVersion)}
+				description={props.statusText || undefined}
+				border={false}
+			>
+				<UpdateCheckerActions {...props} />
+			</SettingRow>
+			{props.phase === "downloading" && (
+				<div className="px-4 pb-4">
+					<UpdateDownloadProgress
+						progress={props.progress}
+						label={props.labels.downloading(Math.round((props.progress ?? 0) * 100))}
+					/>
+				</div>
+			)}
+			{props.releaseNote && (
+				<div className="px-4 pb-4">
+					<ReleaseNotePreview
+						releaseNote={props.releaseNote}
+						viewMoreLabel={props.labels.viewMore ?? ""}
+						onViewMore={props.onViewMore}
+					/>
+				</div>
+			)}
 		</div>
 	);
 }

@@ -410,3 +410,277 @@ describe("UpdaterService", () => {
 		});
 	});
 });
+
+it("respects manual-only checks at startup, resume and timer while allowing an explicit check", async () => {
+	const engine = createUpToDateEngine();
+	const check = vi.spyOn(engine, "checkForUpdates");
+	const service = new UpdaterService(engine, "0.5.21", true, translate, {
+		preferences: { automaticCheck: false, checkIntervalMinutes: 30, automaticDownload: false, showReminder: false },
+	});
+	await service.onAppReady();
+	await service.syncInBackground();
+	expect(check).not.toHaveBeenCalled();
+	await service.check();
+	expect(check).toHaveBeenCalledOnce();
+	service.dispose();
+});
+
+describe("saved update preferences", () => {
+	beforeEach(() => {
+		vi.useFakeTimers();
+	});
+	afterEach(() => {
+		vi.clearAllTimers();
+		vi.useRealTimers();
+	});
+	it("keeps an available update for manual download and never installs without an explicit action", async () => {
+		const engine = createAvailableEngine();
+		const service = new UpdaterService(engine, "0.5.21", true, translate, {
+			preferences: { automaticCheck: true, checkIntervalMinutes: 30, automaticDownload: false, showReminder: false },
+		});
+		await service.check();
+		await vi.advanceTimersByTimeAsync(120_000);
+		expect(service.getState()).toMatchObject({ phase: "available", showReminder: false });
+		const download = service.startDownload();
+		expect(service.getState().phase).toBe("downloading");
+		await service.check();
+		expect(service.getState().phase).toBe("downloading");
+		engine.completeDownload(["update.exe"]);
+		await download;
+		expect(service.getState().phase).toBe("ready");
+		expect(engine.installCalls).toBe(0);
+		service.dispose();
+	});
+	it("applies saved preferences immediately but preserves the old choices when saving fails", async () => {
+		const engine = createUpToDateEngine();
+		const check = vi.spyOn(engine, "checkForUpdates");
+		const save = vi.fn(async () => {});
+		const service = new UpdaterService(engine, "0.5.21", true, translate, { savePreferences: save });
+		await service.onAppReady();
+		await service.check();
+		await service.setPreferences({
+			automaticCheck: false,
+			checkIntervalMinutes: 30,
+			automaticDownload: false,
+			showReminder: false,
+		});
+		check.mockClear();
+		await vi.advanceTimersByTimeAsync(24 * 60 * 60_000);
+		await service.syncInBackground();
+		expect(check).not.toHaveBeenCalled();
+		save.mockRejectedValueOnce(new Error("disk full"));
+		await expect(service.setPreferences({ ...service.getPreferences(), automaticCheck: true })).rejects.toThrow(
+			"disk full",
+		);
+		expect(service.getPreferences().automaticCheck).toBe(false);
+		await service.check();
+		expect(check).toHaveBeenCalledOnce();
+		service.dispose();
+	});
+	it("respects a 24 hour preference when resuming after one hour", async () => {
+		const engine = createUpToDateEngine();
+		const check = vi.spyOn(engine, "checkForUpdates");
+		const service = new UpdaterService(engine, "1.5.1", true, translate, {
+			preferences: {
+				automaticCheck: true,
+				checkIntervalMinutes: 1440,
+				automaticDownload: false,
+				showReminder: true,
+			},
+		});
+		await service.onAppReady();
+		await service.check();
+		await vi.advanceTimersByTimeAsync(60 * 60_000);
+		await service.syncInBackground();
+		expect(check).toHaveBeenCalledTimes(1);
+		await vi.advanceTimersByTimeAsync(23 * 60 * 60_000);
+		expect(check).toHaveBeenCalledTimes(2);
+		service.dispose();
+	});
+	it("reschedules the next automatic check after a manual check", async () => {
+		const engine = createUpToDateEngine();
+		const check = vi.spyOn(engine, "checkForUpdates");
+		const service = new UpdaterService(engine, "1.5.1", true, translate, {
+			preferences: { automaticCheck: true, checkIntervalMinutes: 30, automaticDownload: false, showReminder: true },
+		});
+		await service.onAppReady();
+		await service.check();
+		await vi.advanceTimersByTimeAsync(29 * 60_000);
+		await service.check();
+		await vi.advanceTimersByTimeAsync(60_000);
+		expect(check).toHaveBeenCalledTimes(2);
+		await vi.advanceTimersByTimeAsync(29 * 60_000);
+		expect(check).toHaveBeenCalledTimes(3);
+		service.dispose();
+	});
+	it("ignores old progress after cancellation and during a replacement download", async () => {
+		const engine = createAvailableEngine();
+		const callbacks: Array<(progress: ProgressInfo) => void> = [];
+		const finishes: Array<(paths: string[]) => void> = [];
+		engine.downloadUpdate = (callback) => {
+			callbacks.push(callback);
+			return { promise: new Promise((resolve) => finishes.push(resolve)), cancel: vi.fn() };
+		};
+		const service = new UpdaterService(engine, "1.5.1", true, translate);
+		await service.check();
+		const first = service.startDownload();
+		service.cancel();
+		const progress = { bytesPerSecond: 100, delta: 700, percent: 70, total: 1000, transferred: 700 };
+		callbacks[0](progress);
+		expect(service.getState()).toMatchObject({ phase: "idle", progress: undefined, downloadedBytes: undefined });
+		await service.check();
+		const second = service.startDownload();
+		callbacks[0](progress);
+		expect(service.getState()).toMatchObject({ phase: "downloading", progress: 0, downloadedBytes: 0 });
+		expect(callbacks).toHaveLength(1);
+		finishes[0]([]);
+		await first;
+		await vi.waitFor(() => expect(callbacks).toHaveLength(2));
+		callbacks[1](progress);
+		expect(service.getState().progress).toBe(0.7);
+		finishes[1](["update.deb"]);
+		await Promise.all([first, second]);
+		service.dispose();
+	});
+	it.each(["cancel", "dispose"] as const)("does not revive a check after %s", async (action) => {
+		const engine = createAvailableEngine();
+		let finish!: (result: UpdateEngineCheckResult) => void;
+		engine.checkForUpdates = () =>
+			new Promise((resolve) => {
+				finish = resolve;
+			});
+		const download = vi.spyOn(engine, "downloadUpdate");
+		const service = new UpdaterService(engine, "1.5.1", true, translate);
+		const checking = service.check();
+		service[action]();
+		finish(engine.checkResult!);
+		await checking;
+		await vi.advanceTimersByTimeAsync(30_000);
+		expect(download).not.toHaveBeenCalled();
+		expect(vi.getTimerCount()).toBe(0);
+		if (action === "cancel") expect(service.getState().phase).toBe("idle");
+		service.dispose();
+	});
+	it("turns a synchronous download failure into a retryable error", async () => {
+		const engine = createAvailableEngine();
+		engine.downloadUpdate = () => {
+			throw new Error("download unavailable");
+		};
+		const service = new UpdaterService(engine, "1.5.1", true, translate);
+		await service.check();
+		await expect(service.startDownload()).resolves.toMatchObject({
+			phase: "error",
+			error: "updater.errors.downloadFailed",
+		});
+		service.dispose();
+	});
+	it("reports an installation failure instead of leaving the view installing", async () => {
+		const engine = createAvailableEngine();
+		engine.quitAndInstall = async () => {
+			throw new Error("installer unavailable");
+		};
+		const service = new UpdaterService(engine, "1.5.1", true, translate);
+		await service.check();
+		const pending = service.startDownload();
+		engine.completeDownload(["update.deb"]);
+		await pending;
+		await service.install();
+		expect(service.getState()).toMatchObject({ phase: "error", error: "updater.errors.installFailed" });
+		service.dispose();
+	});
+	it("does not restart its periodic timer after disposing an in-flight scheduled check", async () => {
+		const engine = createUpToDateEngine();
+		let finish!: (result: UpdateEngineCheckResult) => void;
+		const service = new UpdaterService(engine, "1.5.1", true, translate, { periodicCheckIntervalMs: 1000 });
+		await service.onAppReady();
+		await service.check();
+		engine.checkForUpdates = () =>
+			new Promise((resolve) => {
+				finish = resolve;
+			});
+		await vi.advanceTimersByTimeAsync(1000);
+		service.dispose();
+		finish(engine.checkResult!);
+		await vi.advanceTimersByTimeAsync(0);
+		expect(vi.getTimerCount()).toBe(0);
+	});
+	it("cancels active work and subscriptions when disposed during a download", async () => {
+		const engine = createAvailableEngine();
+		const resume = createResumeEvents();
+		const service = new UpdaterService(engine, "1.5.1", true, translate, { systemEvents: resume.events });
+		await service.onAppReady();
+		await service.check();
+		const pending = service.startDownload();
+		const state = service.getState();
+		service.dispose();
+		engine.emitProgress({ bytesPerSecond: 100, delta: 100, percent: 10, total: 1000, transferred: 100 });
+		engine.completeDownload(["old-update.deb"]);
+		await pending;
+		expect(engine.cancelCalls).toBe(1);
+		expect(resume.listenerCount()).toBe(0);
+		expect(vi.getTimerCount()).toBe(0);
+		expect(service.getState()).toEqual(state);
+	});
+	it("waits for a manual recheck before downloading its newly selected release", async () => {
+		const engine = createAvailableEngine();
+		const service = new UpdaterService(engine, "1.5.1", true, translate);
+		await service.check();
+		let finish!: (result: UpdateEngineCheckResult) => void;
+		engine.checkForUpdates = () =>
+			new Promise((resolve) => {
+				finish = resolve;
+			});
+		const download = vi.spyOn(engine, "downloadUpdate");
+		const checking = service.check();
+		const pending = service.startDownload();
+		expect(download).not.toHaveBeenCalled();
+		finish({ hasUpdate: true, info: { version: "1.5.3" } });
+		await checking;
+		engine.completeDownload(["new-update.deb"]);
+		await pending;
+		expect(download).toHaveBeenCalledOnce();
+		expect(service.getState()).toMatchObject({ phase: "ready", latestVersion: "1.5.3" });
+		service.dispose();
+	});
+	it("ignores nonfinite progress without breaking the remaining stall timeout", async () => {
+		const engine = createAvailableEngine();
+		const service = new UpdaterService(engine, "1.5.1", true, translate, { downloadStallTimeoutMs: 1000 });
+		await service.check();
+		const pending = service.startDownload();
+		engine.emitProgress({ bytesPerSecond: 100, delta: 0, percent: Number.NaN, total: 1000, transferred: 0 });
+		expect(service.getState().progress).toBe(0);
+		engine.emitProgress({ bytesPerSecond: Number.NaN, delta: 0, percent: 10, total: 1000, transferred: 100 });
+		expect(service.getState()).toMatchObject({ progress: 0.1, bytesPerSecond: 0 });
+		await vi.advanceTimersByTimeAsync(1000);
+		expect(service.getState().phase).toBe("error");
+		engine.completeDownload([]);
+		await pending;
+		service.dispose();
+	});
+});
+
+it("a user pauses a download and resumes without losing the selected release or accepting late progress", async () => {
+	const engine = createAvailableEngine();
+	const starts = vi.spyOn(engine, "downloadUpdate");
+	const service = new UpdaterService(engine, "0.5.21", true, translate, {
+		preferences: { automaticCheck: false, automaticDownload: false, checkIntervalMinutes: 120, showReminder: true },
+	});
+	await service.check();
+	const first = service.startDownload();
+	engine.emitProgress({ total: 1000, transferred: 400, delta: 400, percent: 40, bytesPerSecond: 100 });
+	service.pauseDownload();
+	expect(service.getState()).toMatchObject({ phase: "available", paused: true, latestVersion: "0.6.0" });
+	engine.emitProgress({ total: 1000, transferred: 800, delta: 400, percent: 80, bytesPerSecond: 100 });
+	const resumed = service.startDownload();
+	expect(service.getState()).toMatchObject({ phase: "downloading", paused: false });
+	// The second attempt cannot touch installer files while the cancelled engine is still cleaning up.
+	expect(starts).toHaveBeenCalledTimes(1);
+	engine.completeDownload(["late.exe"]);
+	await first;
+	expect(starts).toHaveBeenCalledTimes(2);
+	expect(service.getState()).toMatchObject({ phase: "downloading", paused: false });
+	engine.completeDownload(["verified.exe"]);
+	await resumed;
+	expect(service.getState()).toMatchObject({ phase: "ready", latestVersion: "0.6.0" });
+	service.dispose();
+});

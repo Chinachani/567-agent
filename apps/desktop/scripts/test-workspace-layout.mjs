@@ -12,6 +12,7 @@ import { build } from "vite";
 const desktop = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 const root = await mkdtemp(join(tmpdir(), "agent567-workspace-layout-"));
 const artifacts = process.env.AGENT567_LAYOUT_ARTIFACT_DIR;
+const pageFilter = process.env.AGENT567_LAYOUT_PAGES?.split(",").filter(Boolean);
 let display;
 try {
 	if (artifacts) await mkdir(artifacts, { recursive: true });
@@ -63,7 +64,7 @@ try {
 		build: { outDir: join(root, "out"), target: "esnext" },
 	});
 	const runner = join(root, "runner.cjs");
-	await writeFile(runner, "(" + runProbe.toString() + ")(" + JSON.stringify({ root, artifacts }) + ");");
+	await writeFile(runner, "(" + runProbe.toString() + ")(" + JSON.stringify({ root, artifacts, pageFilter }) + ");");
 	display = spawn(
 		process.env.AGENT567_TEST_XVFB ?? "Xvfb",
 		["-displayfd", "1", "-screen", "0", "1600x1000x24", "-nolisten", "tcp"],
@@ -80,7 +81,7 @@ try {
 	const child = spawn(
 		process.env.AGENT567_TEST_ELECTRON ?? createRequire(import.meta.url)("electron"),
 		["--no-sandbox", runner],
-		{ env, stdio: ["ignore", "pipe", "pipe"], timeout: 150000 },
+		{ env, stdio: ["ignore", "pipe", "pipe"], timeout: 210000 },
 	);
 	let output = "";
 	child.stdout.on("data", (chunk) => {
@@ -95,7 +96,7 @@ try {
 	const match = output.match(/WORKSPACE_LAYOUT_RESULT (\{[^\n]+\})/);
 	assert.ok(match, output);
 	const result = JSON.parse(match[1]);
-	assert.equal(result.rows.length, 90);
+	assert.equal(result.rows.length, (pageFilter?.length ?? 18) * 6);
 	for (const row of result.rows) {
 		assert.ok(row.title, JSON.stringify(row));
 		assert.ok(row.controls > 0, JSON.stringify(row));
@@ -128,7 +129,7 @@ try {
 }
 
 // Serialized into an isolated Electron process. No user profile or network access.
-function runProbe({ root, artifacts }) {
+function runProbe({ root, artifacts, pageFilter }) {
 	const { app, BrowserWindow, session } = require("electron"),
 		fs = require("node:fs/promises"),
 		path = require("node:path");
@@ -220,8 +221,9 @@ function runProbe({ root, artifacts }) {
 						"abilities",
 						"skills",
 						"knowledge",
-                        "taskRunning", "taskWaiting", "taskFailed", "taskStopped", "taskComplete", "deliveries",
-					]) {
+                        "taskQueue", "taskQueueCollapsed", "updates", "taskRunning", "taskWaiting", "taskFailed", "taskStopped", "taskComplete", "deliveries",
+                    ]) {
+                        if (pageFilter && !pageFilter.includes(page)) continue;
 						win.setContentSize(width, 780);
 						// Resizes apply asynchronously; wait until the content size settles so the page
 						// measures the requested width instead of the previous one.
@@ -288,11 +290,22 @@ function runProbe({ root, artifacts }) {
                             }
                             if (page.startsWith("task")) {
                                 const stops = [...body.querySelectorAll("button")].filter(el=>el.title === "停止生成" || el.textContent.trim() === "停止");
-                                const expected = ["taskRunning","taskWaiting"].includes(page) ? 1 : 0;
+                                const expected = (["taskRunning","taskWaiting"].includes(page) || page.startsWith("taskQueue")) ? 1 : 0;
                                 if (stops.length !== expected) throw Error("Task stop action count: "+JSON.stringify({page,count:stops.length,expected}));
                                 if (["taskFailed","taskStopped","taskComplete"].includes(page) && !controls.some(el=>el.textContent.includes("从历史继续"))) throw Error("Missing explicit continuation on "+page);
                             }
 
+                            if (page.startsWith("taskQueue")) {
+                                const queue = body.querySelector('section[aria-label="队列"]');
+                                const status = body.querySelector("output")?.closest("section");
+                                const input = body.querySelector('[data-message-input-part="context-toolbar"]');
+                                if (!queue || !status || !input) throw Error("Missing production queue/status/input");
+                                const q = queue.getBoundingClientRect(), s = status.getBoundingClientRect(), i = input.getBoundingClientRect();
+                                if (s.bottom > q.top + 1 || q.bottom > i.top + 1) throw Error("Queue overlaps status or input: "+JSON.stringify({page,q:q.toJSON(),s:s.toJSON(),i:i.toJSON()}));
+                                if (Math.abs(q.width - i.width) > 3) throw Error("Queue and composer widths differ");
+                                const tab = queue.querySelector("button");
+                                if (tab.getAttribute("aria-expanded") !== String(page === "taskQueue")) throw Error("Queue expanded state mismatch");
+                            }
 							return {
 								overflow: body.scrollWidth - body.clientWidth,
 								clipped,

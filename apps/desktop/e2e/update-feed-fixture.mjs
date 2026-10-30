@@ -36,7 +36,8 @@ export async function startUpdateFeedFixture(versionOrOptions) {
 	}
 	const artifact = options.downloadable
 		? (() => {
-			const body = Buffer.from("vetta-packaged-e2e-update\n", "utf8");
+			const body = Buffer.alloc(5 * 1024 * 1024);
+			body.write("vetta-packaged-e2e-update\n", "utf8");
 			return {
 				name: "Vetta-e2e-update.AppImage",
 				body,
@@ -48,12 +49,22 @@ export async function startUpdateFeedFixture(versionOrOptions) {
 	const server = createServer(async (request, response) => {
 		const pathname = new URL(request.url ?? "/", "http://127.0.0.1").pathname;
 		if (artifact && pathname === `/${artifact.name}`) {
-			response.writeHead(200, {
+			response.writeHead(302, { Location: `/asset/${artifact.name}` }).end();
+			return;
+		}
+		if (artifact && pathname === `/asset/${artifact.name}`) {
+			const requestedRange = /^bytes=(\d+)-(\d*)$/.exec(request.headers.range ?? "");
+			const start = requestedRange ? Number(requestedRange[1]) : 0;
+			const end = requestedRange?.[2] ? Number(requestedRange[2]) : artifact.body.length - 1;
+			if (start > end || end >= artifact.body.length) { response.writeHead(416).end(); return; }
+			response.writeHead(requestedRange ? 206 : 200, {
 				"Content-Type": "application/octet-stream",
-				"Content-Length": artifact.body.length,
+				"Content-Length": end - start + 1,
+				"Accept-Ranges": "bytes",
+				...(requestedRange ? { "Content-Range": `bytes ${start}-${end}/${artifact.body.length}` } : {}),
 				"Cache-Control": "no-store",
 			});
-			response.end(request.method === "HEAD" ? undefined : artifact.body);
+			response.end(request.method === "HEAD" ? undefined : artifact.body.subarray(start, end + 1));
 			return;
 		}
 		if (!/^\/latest(?:-mac|-linux)?\.yml$/.test(pathname)) {

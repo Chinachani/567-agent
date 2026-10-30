@@ -1,5 +1,5 @@
-import type { JSX, ReactNode } from "react";
 import { Button, Switch } from "@vetta-org/ui";
+import type { JSX, ReactNode } from "react";
 import { WorkspacePageHeader } from "../shared/WorkspacePageHeader";
 import { MotionSelect } from "./MotionSelect";
 import { SettingRow, SettingSection, type SettingSectionMeta } from "./SettingChrome";
@@ -44,6 +44,7 @@ export interface GeneralSettingsViewLabels {
 }
 
 export interface GeneralSettingsViewProps {
+	readonly children?: ReactNode;
 	readonly labels: GeneralSettingsViewLabels;
 	readonly sections: {
 		readonly basics: SettingSectionMeta;
@@ -85,6 +86,7 @@ export interface GeneralSettingsViewProps {
  * - developer: debug mode, diagnostics export
  */
 export function GeneralSettingsView({
+	children,
 	labels,
 	sections,
 	workspacePath,
@@ -177,7 +179,8 @@ export function GeneralSettingsView({
 				<SettingRow title={labels.appVersion} description={updatesDescription || undefined} border={!updatesDetail}>
 					{updatesAction}
 				</SettingRow>
-				{updatesDetail ? <div className="border-b border-border px-5 pb-4">{updatesDetail}</div> : null}
+				{updatesDetail ? <div className="border-b border-border px-4 pb-4">{updatesDetail}</div> : null}
+				{children}
 				<SettingRow title={labels.updateSource} description={labels.updateSourceDescription}>
 					<MotionSelect
 						value={updateSource}

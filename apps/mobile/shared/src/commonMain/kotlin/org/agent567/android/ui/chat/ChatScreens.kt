@@ -1710,7 +1710,7 @@ private fun ToolTraceGroup(tools: List<ToolTrace>) {
 }
 
 @Composable
-private fun ToolTraceRow(tool: ToolTrace) {
+internal fun ToolTraceRow(tool: ToolTrace) {
     var expanded by remember(tool.toolCallId) { mutableStateOf(false) }
     val hasDetail = !tool.arguments.isNullOrBlank() || !tool.result.isNullOrBlank() || !tool.detail.isNullOrBlank()
     Column(
@@ -1814,7 +1814,7 @@ private fun ToolTraceRow(tool: ToolTrace) {
                 modifier = Modifier.padding(horizontal = 10.dp, vertical = 4.dp),
                 verticalArrangement = Arrangement.spacedBy(6.dp),
             ) {
-                ToolDetailSection(if (tool.toolName == "generate_image") "生图提示词" else Str.toolArguments, tool.arguments)
+                ToolDetailSection(if (tool.toolName == "generate_image") Str.toolImagePrompt else Str.toolArguments, tool.arguments)
                 ToolDetailSection(Str.toolResult, tool.result)
                 parseToolQuestionResolution(tool.toolName, tool.result)?.let { resolution ->
                     Text(
@@ -1835,7 +1835,7 @@ private fun ToolTraceRow(tool: ToolTrace) {
                         color = MaterialTheme.colorScheme.onSurface,
                     )
                 }
-                tool.detail?.takeIf { it.isNotBlank() }?.let { detail ->
+                tool.detail?.takeIf { it.isNotBlank() && it.trim() != tool.result?.trim() }?.let { detail ->
                     MarkdownContent(source = detail)
                 }
                 tool.durationMs?.let { duration ->

@@ -1,10 +1,12 @@
 /** @vitest-environment jsdom */
-import { cleanup, render, screen, within } from "@testing-library/react";
-import userEvent from "@testing-library/user-event";
+
 import { initI18n } from "@shared/i18n";
 import { SETUP_WIZARD_OPEN_EVENT } from "@shared/setup-wizard/storage";
+import { updaterStateAtom } from "@shared/store/atoms";
+import { cleanup, render, screen, within } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
 import i18n from "i18next";
-import { Provider, createStore } from "jotai";
+import { createStore, Provider } from "jotai";
 import { afterEach, beforeAll, beforeEach, expect, it, vi } from "vitest";
 import { GeneralSettings } from "./GeneralSettings";
 
@@ -15,6 +17,17 @@ beforeAll(async () => {
 beforeEach(() => {
 	Object.assign(window, {
 		agent567: {
+			updater: {
+				getPreferences: async () => ({
+					automaticCheck: true,
+					checkIntervalMinutes: 120,
+					automaticDownload: true,
+					showReminder: true,
+				}),
+				setPreferences: vi.fn(async (value) => value),
+				getReleaseHistory: async () => ({ baselineVersion: "1.5.0", releases: [] }),
+			},
+			shell: { openExternal: vi.fn() },
 			config: { get: async () => ({ notificationsEnabled: true }), set: vi.fn() },
 			appMonitor: { recordEvent: vi.fn() },
 		},
@@ -50,4 +63,27 @@ it("groups usage help and initial setup with distinct purposes and retains backu
 	} finally {
 		window.removeEventListener(SETUP_WIZARD_OPEN_EVENT, onSetup);
 	}
+});
+
+it("composes the version row, one download progress and saved update controls in the real settings page", async () => {
+	const store = createStore();
+	store.set(updaterStateAtom, {
+		phase: "downloading",
+		currentVersion: "1.5.0",
+		latestVersion: "1.5.1",
+		progress: 0.44,
+		downloadedBytes: 30_300_000,
+		totalBytes: 68_500_000,
+	});
+	render(
+		<Provider store={store}>
+			<GeneralSettings />
+		</Provider>,
+	);
+	expect(screen.getByText("版本")).toBeTruthy();
+	expect(screen.getByText("1.5.0")).toBeTruthy();
+	expect(screen.getByText("正在下载 1.5.1 · 44% · 30.3 / 68.5 MB")).toBeTruthy();
+	expect(screen.getAllByRole("progressbar")).toHaveLength(1);
+	await screen.findByRole("switch", { name: "自动下载更新" });
+	expect(screen.getByRole("button", { name: "查看说明" })).toBeTruthy();
 });

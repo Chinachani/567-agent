@@ -13,5 +13,5 @@ interface MessageImageFileStore {
 
 expect fun createPlatformMessageImageFileStore(): MessageImageFileStore
 
-internal const val MAX_MESSAGE_IMAGE_BYTES = 12 * 1024 * 1024
-internal const val MAX_MESSAGE_IMAGE_BASE64_CHARS = ((MAX_MESSAGE_IMAGE_BYTES + 2) / 3) * 4 + 8
+internal const val MAX_MESSAGE_IMAGE_BYTES = org.agent567.android.core.model.MAX_IMAGE_PAYLOAD_BYTES
+internal const val MAX_MESSAGE_IMAGE_BASE64_CHARS = org.agent567.android.core.model.MAX_IMAGE_PAYLOAD_BASE64_CHARS
