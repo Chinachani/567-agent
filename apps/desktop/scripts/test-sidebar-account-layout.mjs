@@ -62,6 +62,12 @@ window.agent567={window:{
   close:async()=>{window.layoutCommands.push("close")},
   isMaximized:async()=>maximized,onMaximizedChanged:()=>()=>{}
 },im:{subscribeStatus:async()=>()=>{},getStatus:async()=>({transport:"online"})},updater:{sync:async()=>{}},subscription:{getStatus:async()=>({})},models:{onChanged:()=>()=>{},setContextWindow:async()=>{},get:async()=>({providers:{"自定义服务商":{baseUrl:"https://models.example.test/long-provider-path/openai/v1",models:[{id:"vision-pro",input:["text","image"]}]},"本地模型":{baseUrl:"http://localhost:11434/v1",models:[{id:"local-model"}]}}}),fetchRemote:async()=>({providers:{}}),set:async()=>{}},config:{get:async()=>({notificationsEnabled:true}),set:async()=>{}},appMonitor:{recordEvent:()=>{}}};
+// The real settings page also loads update preferences after mount.
+Object.assign(window.agent567.updater, {
+  getPreferences:async()=>({automaticCheck:true,automaticDownload:true,showReminder:true,checkIntervalMinutes:120}),
+  setPreferences:async value=>value,
+  getReleaseHistory:async()=>({baselineVersion:"1.5.0",releases:[]})
+});
 const host={appShell:{useWindowControlsModel,usePageHeaderModel:()=>({
   title:"用于验证窄窗口标题栏的较长会话名称", titleBadge:"较长的项目和工作区名称",triggerVisible:true,
   sidebarTriggerTitle:"展开侧栏",rightSlot:<><button className="no-drag h-7 w-7 shrink-0" title="固定">⌖</button><button className="no-drag h-7 w-7 shrink-0" title="面板">◫</button></>
