@@ -7,7 +7,10 @@ import { writeNodeRuntimeFixture } from "./runtime-test-fixtures";
 
 const roots: string[] = [];
 afterEach(async () => {
-	await Promise.all(roots.splice(0).map((root) => rm(root, { recursive: true, force: true })));
+	// Windows may briefly retain a lock on the copied Node executable after its probe exits.
+	await Promise.all(
+		roots.splice(0).map((root) => rm(root, { recursive: true, force: true, maxRetries: 3, retryDelay: 100 })),
+	);
 });
 
 describe("probeRuntimeExecutable", () => {
