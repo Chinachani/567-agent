@@ -56,7 +56,7 @@ class AccountVerificationHostTest {
             assertNull(restored.accountVerificationMessage)
             assertEquals("sk-test", tokens.accessToken)
         } finally {
-            vm.viewModelScope.cancel(); container.close(); server.stop(0); Dispatchers.resetMain()
+            vm.viewModelScope.coroutineContext.job.cancelAndJoin(); container.close(); server.stop(0); Dispatchers.resetMain()
         }
     }
 }

@@ -55,6 +55,6 @@ class AuthResponsivenessHostTest {
             vm.openAccount()
             assertNull(vm.state.value.user)
             assertNull(preferences.authToken)
-        } finally { release.countDown(); vm.viewModelScope.cancel(); container.close(); server.stop(0); executor.shutdownNow(); Dispatchers.resetMain() }
+        } finally { release.countDown(); vm.viewModelScope.coroutineContext.job.cancelAndJoin(); container.close(); server.stop(0); executor.shutdownNow(); Dispatchers.resetMain() }
     }
 }

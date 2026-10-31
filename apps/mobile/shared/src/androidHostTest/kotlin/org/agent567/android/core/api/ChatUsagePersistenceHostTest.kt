@@ -79,7 +79,8 @@ class ChatUsagePersistenceHostTest {
                 assertEquals(33, reloaded.usage?.totalTokens, variant)
             }
         } finally {
-            vm.viewModelScope.cancel()
+            // Child finally blocks can resume on Main; finish them before resetting it.
+            vm.viewModelScope.coroutineContext.job.cancelAndJoin()
             container.close()
             server.stop(0)
             Dispatchers.resetMain()
