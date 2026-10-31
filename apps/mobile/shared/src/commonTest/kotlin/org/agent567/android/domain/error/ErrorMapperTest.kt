@@ -9,6 +9,15 @@ import kotlin.test.Test
 import kotlin.test.assertEquals
 
 class ErrorMapperTest {
+    @Test fun contextLimitOpensContextManagementWithoutRetrying() {
+        val ui = ErrorMapper.from(Agent567Exception.Api(400, null,
+            "The input token count exceeds the maximum number of tokens allowed 1048576."))
+        assertEquals(UiErrorAction.OpenContext, ui.action)
+        assertEquals("请求失败", ui.title)
+        val upload = ErrorMapper.from(Agent567Exception.Api(413, null, "File exceeds maximum upload size"))
+        assertEquals(UiErrorAction.None, upload.action)
+    }
+
     @Test
     fun mapsQuotaToOpenPlan() {
         val ui =

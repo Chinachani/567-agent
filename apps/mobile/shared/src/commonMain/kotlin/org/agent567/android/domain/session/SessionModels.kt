@@ -5,6 +5,7 @@ import org.agent567.android.core.model.ChatMessage
 import org.agent567.android.core.model.ChatRole
 import org.agent567.android.core.model.ChatQuestion
 import org.agent567.android.core.model.TokenUsage
+import org.agent567.android.core.model.withoutInlineImageData
 
 enum class MessageStatus {
     Pending,
@@ -77,10 +78,15 @@ data class LocalMessage(
     /** 待用户回答的问题属于这条 assistant 消息，持久化后可在切换/重启后继续处理。 */
     val pendingQuestion: PendingQuestion? = null,
 ) {
+    /** A projection only: old records retain their original source and image attachments. */
+    val conversationText: String
+        get() = if (role == ChatRole.Assistant) withoutInlineImageData(content) else content
+
     fun toChatMessage(): ChatMessage {
         val parts = mutableListOf<ChatContentPart>()
-        if (content.isNotEmpty()) {
-            parts.add(ChatContentPart.Text(content))
+        val text = conversationText
+        if (text.isNotEmpty()) {
+            parts.add(ChatContentPart.Text(text))
         }
         images.forEach { parts.add(it.toContentPart()) }
         if (parts.isEmpty()) {

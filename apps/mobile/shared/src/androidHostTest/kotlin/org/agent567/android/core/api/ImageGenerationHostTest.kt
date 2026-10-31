@@ -57,12 +57,83 @@ class ImageGenerationHostTest {
         assertEquals(1, requests.size)
     }
 
+    @Test fun geminiDrawingAndEditingExplicitlyRequestImageOutput() = imageClient("""{"choices":[{"message":{"images":[{"image_url":{"url":"data:image/png;base64,$PNG"}}]}}]}""") { client, requests ->
+        for (references in listOf(emptyList(), listOf("data:image/png;base64,$PNG"))) {
+            val result = client.models.generateImage("draw or edit", "gemini-3.1-flash-image", referenceImages = references)
+            val request = kotlinx.serialization.json.Json.parseToJsonElement(requests.last().second) as kotlinx.serialization.json.JsonObject
+            assertEquals(kotlinx.serialization.json.Json.parseToJsonElement("""["text","image"]"""), request["modalities"])
+            assertEquals(PNG, assertNotNull(resolveGeneratedImage(result) { error("No download") }).base64)
+        }
+        assertEquals(listOf("/v1/chat/completions", "/v1/chat/completions"), requests.map { it.first })
+    }
+
+    @Test fun markdownImagePixelsAreNotReturnedAsProse() {
+        val markdown = "Caption\n\n![generated](data:image/png;base64,$PNG)\n\nAfter"
+        val content = kotlinx.serialization.json.JsonPrimitive(markdown).toString()
+        imageClient("""{"choices":[{"message":{"content":$content}}]}""") { client, requests ->
+            val result = client.models.generateImage("draw", "gemini-image")
+            assertEquals(PNG, result.b64Json)
+            assertFalse(result.textContent.orEmpty().contains("data:image/"))
+            assertTrue(result.textContent.orEmpty().contains("Caption"))
+            assertTrue(result.textContent.orEmpty().contains("After"))
+            assertEquals(1, requests.size)
+        }
+    }
+
     @Test fun geminiEditPreservesTheActualReferenceMimeType() = imageClient("""{"data":[{"b64_json":"$PNG"}]}""") { client, requests ->
         val jpeg = "/9j/4AAQSkZJRgABAQAAAQABAAD/2wBDAP//////////////////////////////////////////////////////////////////////////////////////2wBDAf//////////////////////////////////////////////////////////////////////////////////////wAARCAABAAEDASIAAhEBAxEB/8QAFQABAQAAAAAAAAAAAAAAAAAAAAX/xAAUEAEAAAAAAAAAAAAAAAAAAAAA/9oADAMBAAIQAxAAAAH/xAAUEAEAAAAAAAAAAAAAAAAAAAAA/9oACAEBAAEFAqf/xAAUEQEAAAAAAAAAAAAAAAAAAAAA/9oACAEDAQE/AYf/xAAUEQEAAAAAAAAAAAAAAAAAAAAA/9oACAECAQE/AYf/xAAUEAEAAAAAAAAAAAAAAAAAAAAA/9oACAEBAAY/Aqf/xAAUEAEAAAAAAAAAAAAAAAAAAAAA/9oACAEBAAE/IV//2gAMAwEAAgADAAAAEP/EABQRAQAAAAAAAAAAAAAAAAAAABD/2gAIAQMBAT8QH//EABQRAQAAAAAAAAAAAAAAAAAAABD/2gAIAQIBAT8QH//EABQQAQAAAAAAAAAAAAAAAAAAABD/2gAIAQEAAT8QH//Z"
         client.models.generateImage("change time", "gemini-image", referenceImages = listOf(jpeg))
         assertEquals(listOf("/v1/chat/completions"), requests.map { it.first })
         assertTrue(requests.single().second.contains("data:image/jpeg;base64,$jpeg"))
         assertFalse(requests.single().second.contains("data:image/png;base64,$jpeg"))
+    }
+
+    @Test fun markdownImageWithAngleDestinationAndTitleIsSavedWithoutDuplicatingItsPixels() {
+        val markdown = "Before\n\n![generated [image]](<data:image/png;base64,$PNG> \"preview\")\n\nAfter"
+        val content = kotlinx.serialization.json.JsonPrimitive(markdown)
+        imageClient("""{"choices":[{"message":{"content":$content}}]}""") { client, requests ->
+            val result = client.models.generateImage("draw", "gemini-image")
+            assertEquals(PNG, result.b64Json)
+            assertEquals(PNG, assertNotNull(resolveGeneratedImage(result) { error("No download") }).base64)
+            assertFalse(result.textContent.orEmpty().contains("data:image/"))
+            assertTrue(result.textContent.orEmpty().contains("Before"))
+            assertTrue(result.textContent.orEmpty().contains("After"))
+            assertEquals(1, requests.size)
+        }
+    }
+
+    @Test fun actualMarkdownImageIsExtractedButItsCodeExampleAndOtherLinksArePreserved() {
+        val target = "https://example.test/result.png"
+        val code = "`![example]($target)`"
+        val markdown = "$code\n\n![generated](<$target> \"preview\")\n\n[site](https://example.test)"
+        val content = kotlinx.serialization.json.JsonPrimitive(markdown)
+        imageClient("""{"choices":[{"message":{"content":$content}}]}""") { client, _ ->
+            val result = client.models.generateImage("draw", "gemini-image")
+            assertEquals(target, result.url)
+            assertEquals("$code\n\n\n\n[site](https://example.test)", result.textContent)
+        }
+    }
+
+    @Test fun markdownCodeExamplesNeverCountAsReturnedImages() {
+        for (markdown in listOf("`![example](data:image/png;base64,$PNG)`", "```markdown\n![example](https://example.test/result.png)\n```")) {
+            val content = kotlinx.serialization.json.JsonPrimitive(markdown)
+            imageClient("""{"choices":[{"message":{"content":$content}}]}""") { client, requests ->
+                val result = client.models.generateImage("draw", "gemini-image")
+                assertNull(result.b64Json)
+                assertNull(result.url)
+                assertEquals(markdown, result.textContent)
+                assertEquals(1, requests.size)
+            }
+        }
+    }
+
+    @Test fun wrappedAndUrlSafeBase64KeepTheSameImageValidation() = runBlocking {
+        val wrapped = PNG.chunked(20).joinToString("\r\n")
+        for (data in listOf(wrapped, PNG.replace('+', '-').replace('/', '_'))) {
+            val result = assertNotNull(resolveGeneratedImage(GeneratedImageResult(b64Json = data)) { error("No download") })
+            assertEquals(PNG, result.base64)
+            assertEquals("image/png", result.mimeType)
+        }
     }
 
     @Test fun geminiRejectsInvalidReferenceDataBeforeSendingARequest() = imageClient("""{"data":[{"b64_json":"$PNG"}]}""") { client, requests ->

@@ -1,6 +1,7 @@
 package org.agent567.android.domain.error
 
 import org.agent567.android.core.error.Agent567Exception
+import org.agent567.android.core.error.isContextLimitError
 import org.agent567.android.core.net.ChatNetworkLostException
 import org.agent567.android.domain.conversation.RemoteConversationException
 import org.agent567.android.domain.remote.connection.RemoteRequestException
@@ -12,6 +13,7 @@ enum class UiErrorAction {
     OpenPlan,
     ReLogin,
     OpenSettings,
+    OpenContext,
 }
 
 /**
@@ -118,6 +120,12 @@ object ErrorMapper {
 
     private fun mapApi(e: Agent567Exception.Api): UiError {
         val code = e.code
+        if (isContextLimitError(e)) return UiError(
+            title = "请求失败",
+            message = e.message.takeCodePoints(1000),
+            action = UiErrorAction.OpenContext,
+            technicalCode = code,
+        )
         return when (code) {
             40301 ->
                 UiError(

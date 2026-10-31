@@ -3307,7 +3307,11 @@ class AppViewModel(
                                                 )
                                                 val image = org.agent567.android.core.api.resolveGeneratedImage(res) { url ->
                                                     requestClient.models.downloadImageBytesDirect(url)
-                                                } ?: throw IllegalStateException(Str.toolImageMissing)
+                                                } ?: throw org.agent567.android.core.error.ImagePayloadException(
+                                                    if (res.url.isNullOrBlank() && res.b64Json.isNullOrBlank()) org.agent567.android.core.error.ImagePayloadProblem.Missing
+                                                    else org.agent567.android.core.error.ImagePayloadProblem.Invalid,
+                                                    Str.toolImageMissing,
+                                                )
                                                 val finalB64 = image.base64
                                                 val cleanText = res.textContent?.trim()?.takeIf { it.isNotBlank() && !it.equals("null", ignoreCase = true) }
                                                 val doneLabel = when {
@@ -3366,6 +3370,7 @@ class AppViewModel(
                                                     ?: currentImages
                                             } catch (e: Throwable) {
                                                 if (e is CancellationException) throw e
+                                                org.agent567.android.core.error.recordChatFailure(org.agent567.android.core.error.ChatFailureStage.Image, e)
                                                 val failMsg = e.message ?: Str.toolImageFailed
                                                 generationError = failMsg
                                                 val failTools = mergeToolTrace(
@@ -3985,6 +3990,10 @@ class AppViewModel(
                 clearChatError()
                 openSettings()
             }
+            UiErrorAction.OpenContext -> {
+                clearChatError()
+                setContextPanelOpen(true)
+            }
             UiErrorAction.None -> clearChatError()
         }
     }
@@ -4067,6 +4076,9 @@ class AppViewModel(
         if (desktopOnly && session.origin != ConversationOrigin.Desktop) return
         if (error is RemoteConversationException && session.origin != ConversationOrigin.Desktop) return
         val uiError = ErrorMapper.from(error)
+        if (session.origin == ConversationOrigin.Cloud) {
+            org.agent567.android.core.error.recordChatFailure(org.agent567.android.core.error.ChatFailureStage.Chat, error)
+        }
         updateVisibleSession(sessionId) { it.copy(chatError = uiError) }
     }
 

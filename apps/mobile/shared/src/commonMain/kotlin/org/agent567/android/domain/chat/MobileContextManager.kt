@@ -88,7 +88,7 @@ class MobileContextManager(
             totalTurns = groups.size,
             turns = groups.takeLast(100).map { group ->
                 val first = group.first()
-                ContextWorkspaceTurn(first.id, group.filter { it.role == ChatRole.User || it.role == ChatRole.Assistant }.joinToString("\n\n") { "[${it.role.toApiValue()}] ${it.content.take(1600)}" }.take(4000), first.files.map { it.fileName } + first.images.map { it.fileName ?: "image" }, when {
+                ContextWorkspaceTurn(first.id, group.filter { it.role == ChatRole.User || it.role == ChatRole.Assistant }.joinToString("\n\n") { "[${it.role.toApiValue()}] ${it.conversationText.take(1600)}" }.take(4000), first.files.map { it.fileName } + first.images.map { it.fileName ?: "image" }, when {
                     first.id !in afterReset -> "before_reset"
                     first.id in session.context.excludedTurnIds -> "excluded"
                     first.id in active -> "included"
@@ -122,7 +122,7 @@ class MobileContextManager(
         val active = select(messages, session.context)
         return ChatContextSnapshot(
             workspace = workspace(session, messages),
-            tokens = active.sumOf { estimateText(it.content) + 8L + it.images.size * 2048L } + estimateText(session.context.summary) + estimateText(session.context.pinnedText),
+            tokens = active.sumOf { estimateText(it.conversationText) + 8L + it.images.size * 2048L } + estimateText(session.context.summary) + estimateText(session.context.pinnedText),
             contextWindow = window?.takeIf { it > 0 },
             messageCount = active.size,
             autoCompactionEnabled = session.context.autoCompactionEnabled,
@@ -144,7 +144,7 @@ class MobileContextManager(
         if (incomingTokens > 0 && window != null) {
             while (keep > 1) {
                 val retained = messages.drop(userTurns[userTurns.size - keep])
-                val tokens = retained.sumOf { estimateText(it.content) + 8L + it.images.size * 2048L }
+                val tokens = retained.sumOf { estimateText(it.conversationText) + 8L + it.images.size * 2048L }
                 if (tokens + incomingTokens < window * 6 / 10) break
                 keep--
             }
@@ -171,7 +171,7 @@ class MobileContextManager(
         val records = sequence {
             if (session.context.summary.isNotBlank()) yield("Previous summary: ${session.context.summary}")
             for (message in older) {
-                yield("${message.role.toApiValue()}: ${message.content}" +
+                yield("${message.role.toApiValue()}: ${message.conversationText}" +
                     if (message.images.isNotEmpty()) "\n[${message.images.size} image attachments; pixels are not included in this summary]" else "")
             }
         }
@@ -185,7 +185,7 @@ class MobileContextManager(
         summarizeBuffer()
         // A successful summary must actually reduce the selected history. Never
         // replace it with a longer response just because the model returned text.
-        if (estimateText(summary) >= older.sumOf { estimateText(it.content) + 8L + it.images.size * 2048L } + estimateText(session.context.summary))
+        if (estimateText(summary) >= older.sumOf { estimateText(it.conversationText) + 8L + it.images.size * 2048L } + estimateText(session.context.summary))
             throw MobileContextException("历史内容较短，摘要未减少占用；原上下文已保留。")
         val latest = store.getSession(sessionId) ?: return@withContext false
         if (latest.context != session.context) throw MobileContextException("上下文已变化，请重新操作")

@@ -202,6 +202,7 @@ fun Agent567ErrorBanner(
                         UiErrorAction.OpenPlan -> Str.actionOpenPlan
                         UiErrorAction.ReLogin -> Str.actionRelogin
                         UiErrorAction.OpenSettings -> Str.actionOpenSettings
+                        UiErrorAction.OpenContext -> Str.contextManage
                         UiErrorAction.None -> null
                     }
                 if (actionLabel != null && onAction != null) {

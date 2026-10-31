@@ -56,6 +56,7 @@ import com.mikepenz.markdown.model.markdownDimens
 import com.mikepenz.markdown.model.rememberMarkdownState
 import kotlinx.coroutines.delay
 import org.agent567.android.ui.i18n.Str
+import org.agent567.android.core.model.withoutInlineImageData
 import org.intellij.markdown.ast.findChildOfType
 import org.intellij.markdown.flavours.gfm.GFMElementTypes.HEADER
 import org.intellij.markdown.flavours.gfm.GFMTokenTypes.CELL
@@ -73,7 +74,9 @@ fun MarkdownContent(
     onSurface: Boolean = false,
 ) {
     val textColor = if (onSurface) MaterialTheme.colorScheme.onPrimary else MaterialTheme.colorScheme.onSurface
-    val state = rememberMarkdownState(source, retainState = true)
+    val renderSource = remember(source) { withoutInlineImageData(source) }
+    if (renderSource.isBlank()) return
+    val state = rememberMarkdownState(renderSource, retainState = true)
     val components = remember {
         markdownComponents(
             codeFence = { model ->

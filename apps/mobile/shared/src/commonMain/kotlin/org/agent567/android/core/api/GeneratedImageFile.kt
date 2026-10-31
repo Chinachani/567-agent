@@ -1,18 +1,29 @@
 package org.agent567.android.core.api
 
 import kotlin.io.encoding.Base64
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
 import org.agent567.android.core.model.MAX_IMAGE_PAYLOAD_BASE64_CHARS
 import org.agent567.android.core.model.MAX_IMAGE_PAYLOAD_BYTES
 
 internal data class GeneratedImageFile(val base64: String, val mimeType: String, val extension: String)
 
 /** Validate bytes before persisting; an HTML error page must not become a broken PNG. */
-internal suspend fun resolveGeneratedImage(result: GeneratedImageResult, download: suspend (String) -> ByteArray): GeneratedImageFile? {
+internal suspend fun resolveGeneratedImage(result: GeneratedImageResult, download: suspend (String) -> ByteArray): GeneratedImageFile? = withContext(Dispatchers.Default) {
     val bytes = if (!result.b64Json.isNullOrBlank()) {
-        if (result.b64Json.length > MAX_IMAGE_PAYLOAD_BASE64_CHARS + 64) return null
-        runCatching { Base64.decode(result.b64Json.substringAfter("base64,", result.b64Json).trim()) }.getOrNull() ?: return null
-    } else result.url?.let { download(it) } ?: return null
-    return generatedImageFile(bytes)
+        val raw = result.b64Json
+        if (raw.length > MAX_IMAGE_PAYLOAD_BASE64_CHARS * 2 + 128) return@withContext null
+        val headerEnd = if (raw.startsWith("data:image/", ignoreCase = true)) raw.indexOf(";base64,", ignoreCase = true) else -1
+        val encoded = StringBuilder(minOf(raw.length, MAX_IMAGE_PAYLOAD_BASE64_CHARS))
+        for (index in (if (headerEnd >= 0) headerEnd + 8 else 0) until raw.length) {
+            val character = raw[index]
+            if (character in " \r\n\t") continue
+            if (encoded.length >= MAX_IMAGE_PAYLOAD_BASE64_CHARS) return@withContext null
+            encoded.append(when (character) { '-' -> '+'; '_' -> '/'; else -> character })
+        }
+        runCatching { Base64.decode(encoded.toString()) }.getOrNull() ?: return@withContext null
+    } else result.url?.let { download(it) } ?: return@withContext null
+    generatedImageFile(bytes)
 }
 
 internal fun generatedImageFile(bytes: ByteArray): GeneratedImageFile? {

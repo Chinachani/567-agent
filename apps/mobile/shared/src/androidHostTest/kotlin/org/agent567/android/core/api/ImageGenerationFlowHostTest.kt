@@ -37,16 +37,21 @@ class ImageGenerationFlowHostTest {
             val raw = request.requestBody.readBytes().toString(Charsets.ISO_8859_1)
             if (path.startsWith("/v1/images/")) { imageRequests += path; editBodies += raw }
             val body = when {
+                chat && mode == "context-error" -> """{"error":{"message":"The input token count exceeds the maximum number of tokens allowed 1048576.","code":"context_length_exceeded"}}"""
                 chat -> """data: {"choices":[{"delta":{"tool_calls":[{"index":0,"id":"image-call","function":{"name":"generate_image","arguments":"{\"prompt\":\"change time\",\"action\":\"edit\"}"}}]},"finish_reason":"tool_calls"}]}""" + "\n\ndata: [DONE]\n\n"
                 path.startsWith("/v1/images/") && mode == "image" -> """{"data":[{"b64_json":"${ImageGenerationHostTest.PNG}"}]}"""
+                path.startsWith("/v1/images/") && mode == "markdown-image" -> {
+                    val caption = "Image complete\n\n![generated](data:image/png;base64,${ImageGenerationHostTest.PNG})\n\nCaption retained"
+                    """{"choices":[{"message":{"content":${kotlinx.serialization.json.JsonPrimitive(caption)}}}]}"""
+                }
                 path.startsWith("/v1/images/") -> """{"choices":[{"message":{"content":"All done: [download](https://example.test/fake.png)"}}]}"""
                 path == "/api/user/models" -> """{"success":true,"data":["test-model"]}"""
                 path == "/api/user/self" -> """{"success":true,"data":{"id":7,"username":"test","quota":500000,"group":"default"}}"""
                 else -> """{"success":true,"data":{}}"""
             }
             val bytes = body.toByteArray()
-            request.responseHeaders.add("Content-Type", if (chat) "text/event-stream" else "application/json")
-            request.sendResponseHeaders(200, bytes.size.toLong()); request.responseBody.use { it.write(bytes) }
+            request.responseHeaders.add("Content-Type", if (chat && mode != "context-error") "text/event-stream" else "application/json")
+            request.sendResponseHeaders(if (chat && mode == "context-error") 400 else 200, bytes.size.toLong()); request.responseBody.use { it.write(bytes) }
         }
         server.start()
         val preferences = AppPreferences(MapSettings()).apply {
@@ -67,7 +72,7 @@ class ImageGenerationFlowHostTest {
         val vm = AppViewModel(container)
         try {
             withTimeout(20_000) { vm.state.first { it.bootstrapped && !it.catalogLoading } }
-            for (variant in listOf("image", "text")) {
+            for (variant in listOf("image", "markdown-image", "text")) {
                 mode = variant
                 val session = store.createSession("Image $variant", modelId = "test-model")
                 vm.openChat(session.id)
@@ -76,11 +81,13 @@ class ImageGenerationFlowHostTest {
                 vm.onDraftChange("change time"); vm.sendMessage()
                 val state = try { withTimeout(20_000) { vm.state.first { !it.isStreaming && it.messages.any { message -> message.sessionId == session.id && message.role == ChatRole.Assistant && message.status in setOf(MessageStatus.Complete, MessageStatus.Error) } } } } catch (error: TimeoutCancellationException) { throw AssertionError("paths=$paths imageModel=${vm.state.value.activeImageModel} state=${vm.state.value.chatError} messages=${vm.state.value.messages.map { it.status to it.content }}", error) }
                 val reply = state.messages.last { it.role == ChatRole.Assistant }
-                if (variant == "image") {
+                if (variant != "text") {
                     assertEquals(MessageStatus.Complete, reply.status)
                     assertEquals(ImageGenerationHostTest.PNG, kotlin.io.encoding.Base64.encode(assertNotNull(store.readMessageImageBytes(reply.images.single()))))
                     assertEquals("image/png", reply.images.single().mimeType)
                     assertEquals("completed", reply.toolEvents.single().phase)
+                    assertFalse(reply.content.contains("data:image/"))
+                    if (variant == "markdown-image") assertTrue(reply.content.contains("Caption retained"))
                 } else {
                     assertEquals(MessageStatus.Error, reply.status)
                     assertTrue(reply.images.isEmpty())
@@ -91,9 +98,25 @@ class ImageGenerationFlowHostTest {
                 val reloaded = SettingsSessionStore(storage, Dispatchers.IO, imageFiles).getMessages(session.id).last { it.role == ChatRole.Assistant }
                 assertEquals(reply.status, reloaded.status)
                 assertEquals(reply.images, reloaded.images)
+                assertEquals(reply.content, reloaded.content)
             }
-            assertEquals(listOf("/v1/images/edits", "/v1/images/edits"), imageRequests)
+            assertEquals(listOf("/v1/images/edits", "/v1/images/edits", "/v1/images/edits"), imageRequests)
             assertTrue(editBodies.all { it.contains("reference-0.png") })
-        } finally { vm.viewModelScope.cancel(); container.close(); server.stop(0); Dispatchers.resetMain() }
+
+            mode = "context-error"
+            val session = store.createSession("Context recovery", modelId = "test-model")
+            vm.openChat(session.id)
+            withTimeout(20_000) { vm.state.first { it.currentSessionId == session.id } }
+            val chatCount = paths.count { it == "/v1/chat/completions" }
+            vm.onDraftChange("draw again"); vm.sendMessage()
+            val failed = withTimeout(20_000) { vm.state.first { !it.isStreaming && it.chatError != null } }
+            val failure = requireNotNull(failed.chatError)
+            assertEquals(org.agent567.android.domain.error.UiErrorAction.OpenContext, failure.action)
+            vm.handleErrorAction(failure.action)
+            assertTrue(vm.state.value.contextPanelOpen)
+            assertNull(vm.state.value.chatError)
+            assertEquals(chatCount + 1, paths.count { it == "/v1/chat/completions" })
+            assertEquals("draw again", store.getMessages(session.id).last { it.role == ChatRole.User }.content)
+        } finally { vm.viewModelScope.coroutineContext[Job]?.cancelAndJoin(); container.close(); server.stop(0); Dispatchers.resetMain() }
     } }
 }

@@ -415,7 +415,7 @@ fun ChatScreen(
                     .imePadding(),
             ) {
                 if (chatError != null) {
-                    if (surface == ChatSurface.Cloud) TextButton(onClick = onOpenServiceRoute) { Text(Str.serviceRouteErrorAction) }
+                    if (surface == ChatSurface.Cloud && chatError.action != UiErrorAction.OpenContext) TextButton(onClick = onOpenServiceRoute) { Text(Str.serviceRouteErrorAction) }
                     Agent567ErrorBanner(
                         error = chatError,
                         onDismiss = onDismissError,
@@ -1355,7 +1355,7 @@ private fun PendingImageRow(
 }
 
 @Composable
-private fun MessageBubble(
+internal fun MessageBubble(
     message: LocalMessage,
     streamingStatus: String? = null,
     onImageClick: (MessageImage) -> Unit = {},
@@ -1364,8 +1364,9 @@ private fun MessageBubble(
     onRetry: () -> Unit = {},
 ) {
     val isUser = message.role == ChatRole.User
+    val displayContent = remember(message.content, message.role) { message.conversationText }
     val shouldShowTextBubble =
-        message.content.isNotBlank() ||
+        displayContent.isNotBlank() ||
             message.status == MessageStatus.Streaming ||
             message.status == MessageStatus.Error ||
             message.status == MessageStatus.Aborted
@@ -1460,7 +1461,7 @@ private fun MessageBubble(
                         }
                     }
                 }
-                if (message.content.isNotBlank() || message.status == MessageStatus.Streaming) {
+                if (displayContent.isNotBlank() || message.status == MessageStatus.Streaming) {
                     Spacer(Modifier.height(6.dp))
                 }
             }
@@ -1506,13 +1507,13 @@ private fun MessageBubble(
                         when {
                             isUser -> {
                                 var isExpanded by remember(message.id) { mutableStateOf(false) }
-                                val lineCount = remember(message.content) { message.content.lines().size }
-                                val isLong = remember(message.content) { lineCount > 8 || message.content.length > 240 }
+                                val lineCount = remember(displayContent) { displayContent.lines().size }
+                                val isLong = remember(displayContent) { lineCount > 8 || displayContent.length > 240 }
 
                                 Column(modifier = Modifier.padding(horizontal = 14.dp, vertical = 10.dp)) {
                                     Text(
                                         text =
-                                            message.content.ifBlank {
+                                            displayContent.ifBlank {
                                                 if (message.images.isNotEmpty() || message.files.isNotEmpty()) " " else ""
                                             },
                                         maxLines = if (isExpanded) Int.MAX_VALUE else 8,
@@ -1546,17 +1547,17 @@ private fun MessageBubble(
                                     }
                                 }
                             }
-                            message.content.isBlank() && message.status == MessageStatus.Streaming -> {
+                            displayContent.isBlank() && message.status == MessageStatus.Streaming -> {
                                 ThinkingTypewriter(streamingPlaceholderLabel(streamingStatus))
                             }
-                            message.content.isBlank() && message.status == MessageStatus.Error -> {
+                            displayContent.isBlank() && message.status == MessageStatus.Error -> {
                                 Text(
                                     Str.responseFailed,
                                     modifier = Modifier.padding(horizontal = 14.dp, vertical = 10.dp),
                                     style = MaterialTheme.typography.bodyLarge,
                                 )
                             }
-                            message.content.isBlank() && message.status == MessageStatus.Aborted -> {
+                            displayContent.isBlank() && message.status == MessageStatus.Aborted -> {
                                 Text(
                                     Str.responseStopped,
                                     modifier = Modifier.padding(horizontal = 14.dp, vertical = 10.dp),
@@ -1565,7 +1566,7 @@ private fun MessageBubble(
                             }
                             else -> {
                                 MarkdownContent(
-                                    source = message.content,
+                                    source = displayContent,
                                     modifier = Modifier.padding(horizontal = 12.dp, vertical = 10.dp),
                                 )
                             }
@@ -1592,11 +1593,11 @@ private fun MessageBubble(
                         color = MaterialTheme.agent567Extra.secondaryText,
                     )
                 }
-                if (message.content.isNotBlank() && message.status != MessageStatus.Streaming) {
+                if (displayContent.isNotBlank() && message.status != MessageStatus.Streaming) {
                     val clipboard = androidx.compose.ui.platform.LocalClipboardManager.current
                     var copied by remember(message.id) { mutableStateOf(false) }
                     IconButton(onClick = {
-                        clipboard.setText(androidx.compose.ui.text.AnnotatedString(message.content))
+                        clipboard.setText(androidx.compose.ui.text.AnnotatedString(displayContent))
                         copied = true
                         onCopyToast(Str.copiedContent)
                     }, modifier = Modifier.size(48.dp)) {
@@ -1619,7 +1620,7 @@ private fun MessageBubble(
                     modifier = Modifier.padding(top = 4.dp, start = 4.dp, end = 4.dp),
                 )
             }
-            if (message.status == MessageStatus.Error && message.content.isNotBlank() && !message.errorMessage.isNullOrBlank()) {
+            if (message.status == MessageStatus.Error && displayContent.isNotBlank() && !message.errorMessage.isNullOrBlank()) {
                 Text(
                     Str.responseInterrupted,
                     style = MaterialTheme.typography.labelSmall,

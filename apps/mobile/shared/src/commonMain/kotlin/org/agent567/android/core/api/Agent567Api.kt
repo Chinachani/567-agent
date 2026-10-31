@@ -33,7 +33,10 @@ import io.ktor.utils.io.readUTF8Line
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.flow
 import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
 import kotlinx.serialization.json.JsonObject
+import kotlinx.serialization.json.JsonArray
 import kotlinx.serialization.json.JsonPrimitive
 import kotlinx.serialization.json.buildJsonObject
 import kotlinx.serialization.json.put
@@ -776,7 +779,7 @@ internal class Agent567Api(
         groupName: String? = null,
         size: String = "1024x1024",
         referenceImages: List<String> = emptyList(),
-    ): GeneratedImageResult {
+    ): GeneratedImageResult = withContext(Dispatchers.Default) {
         suspend fun requestImages(): GeneratedImageResult {
             val editing = referenceImages.isNotEmpty()
             require(referenceImages.size <= 6) { "Too many reference images" }
@@ -826,6 +829,7 @@ internal class Agent567Api(
             val chatUrl = config.gatewayBaseUrl.trimEnd('/') + "/v1/chat/completions"
             val chatBody = buildJsonObject {
                 put("model", model)
+                put("modalities", JsonArray(listOf(JsonPrimitive("text"), JsonPrimitive("image"))))
                 put("messages", kotlinx.serialization.json.buildJsonArray {
                     add(buildJsonObject {
                         put("role", "system")
@@ -891,7 +895,7 @@ internal class Agent567Api(
 
         // Pick one image protocol before sending. Never replay a potentially billed request
         // merely because the response had no image or the provider rejected the protocol.
-        return if (model.contains("gemini", ignoreCase = true)) tryChatCompletions() else requestImages()
+        if (model.contains("gemini", ignoreCase = true)) tryChatCompletions() else requestImages()
     }
 
     private fun referenceImageDataUrl(value: String): String {
