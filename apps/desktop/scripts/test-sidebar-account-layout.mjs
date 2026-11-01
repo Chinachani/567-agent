@@ -216,16 +216,32 @@ createRoot(document.getElementById("providers")!).render(<ProvidersFixture/>);
   })()`;
 	const menuForScreenshot = `(async()=>{const host=document.getElementById("account");host.style.width="280px";window.renderLayoutAccount({username:"夜雨寄北",loginUsername:"Yeyu",quotaUsd:62.53});document.getElementById("header").style.display="none";await new Promise(r=>requestAnimationFrame(()=>requestAnimationFrame(r)));host.firstElementChild.style.height="560px";const b=host.querySelector('button[aria-label^="打开"]');b.focus();b.dispatchEvent(new KeyboardEvent("keydown",{key:"Enter",bubbles:true}));await new Promise(r=>requestAnimationFrame(()=>requestAnimationFrame(r)));await Promise.all(document.getAnimations().filter(animation=>Number.isFinite(animation.effect.getComputedTiming().endTime)).map(animation=>animation.finished.catch(()=>{})));await new Promise(r=>requestAnimationFrame(()=>requestAnimationFrame(r)));})()`;
     const inspectProviders = `(async()=>{
+        const paint=()=>new Promise(resolve=>requestAnimationFrame(()=>requestAnimationFrame(resolve)));
+        const waitFor=(read,label)=>new Promise((resolve,reject)=>{
+            const value=read();if(value){resolve(value);return;}
+            const observer=new MutationObserver(()=>{const value=read();if(value){clearTimeout(timer);observer.disconnect();resolve(value)}});
+            const timer=setTimeout(()=>{observer.disconnect();reject(Error("Missing "+label))},2500);
+            observer.observe(document.body,{childList:true,subtree:true});
+        });
         for(const id of ["account","header","settings"])document.getElementById(id).style.display="none";
         const host=document.getElementById("providers");host.style.display="block";
-        const search=()=>host.querySelector('input[aria-label="查找模型"]');
-        if(!search())await new Promise((resolve,reject)=>{
-            const observer=new MutationObserver(()=>{if(search()){clearTimeout(timer);observer.disconnect();resolve()}});
-            const timer=setTimeout(()=>{observer.disconnect();reject(Error("Missing context search"))},2500);
-            observer.observe(host,{childList:true,subtree:true});
-        });
-        await new Promise(r=>requestAnimationFrame(()=>requestAnimationFrame(r)));
-        return {overflow:host.scrollWidth-host.clientWidth,searchVisible:!!search(),buttons:[...host.querySelectorAll("button,input")].map(b=>b.getBoundingClientRect().right).filter(r=>r>innerWidth+1).length};
+        // Search now belongs to the model selector's portaled popover.
+        const trigger=await waitFor(()=>host.querySelector('button[aria-label="模型"]'),"model selector");
+        trigger.click();
+        const search=await waitFor(()=>document.querySelector('input[role="combobox"][aria-label="查找模型"]'),"context search");
+        await paint();
+        const popup=search.closest('[data-slot="popover-content"]')??search.parentElement;
+        const bounds=[...host.querySelectorAll("button,input"),...popup.querySelectorAll("button,input")].map(b=>b.getBoundingClientRect());
+        const result={overflow:host.scrollWidth-host.clientWidth,searchVisible:search.getBoundingClientRect().height>0,
+          buttons:bounds.filter(r=>r.left<0||r.right>innerWidth+1).length};
+        Object.getOwnPropertyDescriptor(HTMLInputElement.prototype,"value").set.call(search,"local-model");
+        search.dispatchEvent(new Event("input",{bubbles:true}));await paint();
+        const options=[...document.querySelectorAll('[role="option"]')];
+        if(options.length!==1||!options[0].textContent.includes("local-model"))throw Error("Model search did not filter options");
+        options[0].click();await paint();
+        if(!trigger.textContent.includes("local-model"))throw Error("Model selection did not update");
+        await waitFor(()=>!document.querySelector('[role="combobox"]'),"model selector close");
+        return result;
     })()`;
 
 	const runner = join(root, "runner.cjs");
