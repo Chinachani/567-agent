@@ -114,7 +114,7 @@ export function ContextRingTrigger({ className }: { readonly className?: string 
 					offset={context.model.offset}
 					color={context.model.color}
 					isCompacting={context.model.isCompacting}
-					tooltip={context.model.tooltip}
+					tooltip={context.open ? undefined : context.model.tooltip}
 				/>
 			</Button>
 		</PopoverTrigger>
@@ -127,7 +127,11 @@ export interface ContextRingContentProps extends Omit<ComponentProps<typeof Popo
 }
 
 /** Generic popover surface. Layout and content are fully composed by callers. */
-export function ContextRingContent({ children, className, ...props }: ContextRingContentProps = {}): JSX.Element | null {
+export function ContextRingContent({
+	children,
+	className,
+	...props
+}: ContextRingContentProps = {}): JSX.Element | null {
 	const context = useContext(ContextRingContext);
 	if (context && !context.open) return null;
 	return (
@@ -154,7 +158,9 @@ export function ContextRingDetails(): JSX.Element {
 				<div className="px-3 py-2.5">
 					<PopoverTitle className="text-[12px]">{t("contextRing.details.title")}</PopoverTitle>
 					<div className="mt-1.5 text-[11px] text-foreground">{context.model.tooltip}</div>
-					<p className="mt-1 text-[10px] leading-relaxed text-muted-foreground">{t("contextRing.details.unavailableAfterRestart")}</p>
+					<p className="mt-1 text-[10px] leading-relaxed text-muted-foreground">
+						{t("contextRing.details.unavailableAfterRestart")}
+					</p>
 				</div>
 			)}
 		</>
@@ -168,7 +174,9 @@ export interface ContextRingScopeListProps {
 
 export function ContextRingScopeList({ children, className }: ContextRingScopeListProps): JSX.Element {
 	return (
-		<div className={`flex gap-1 overflow-x-auto border-b border-border/60 px-2 py-1.5${className ? ` ${className}` : ""}`}>
+		<div
+			className={`flex gap-1 overflow-x-auto border-b border-border/60 px-2 py-1.5${className ? ` ${className}` : ""}`}
+		>
 			{children}
 		</div>
 	);
@@ -179,10 +187,7 @@ export type ContextRingScopeProps = ContextRingScopeModel;
 export function ContextRingScope({ id, label, avatar, blueprintId, model }: ContextRingScopeProps): JSX.Element {
 	const context = useContextRingContext("Scope");
 	const { registerScope, unregisterScope } = context;
-	const scope = useMemo(
-		() => ({ id, label, avatar, blueprintId, model }),
-		[id, label, avatar, blueprintId, model],
-	);
+	const scope = useMemo(() => ({ id, label, avatar, blueprintId, model }), [id, label, avatar, blueprintId, model]);
 	useEffect(() => {
 		registerScope(scope);
 		return () => unregisterScope(id);
@@ -203,7 +208,13 @@ export function ContextRingScope({ id, label, avatar, blueprintId, model }: Cont
 	);
 }
 
-function ContextRingDefault({ className, model }: { className?: string; model: ContextRingModel | null }): JSX.Element | null {
+function ContextRingDefault({
+	className,
+	model,
+}: {
+	className?: string;
+	model: ContextRingModel | null;
+}): JSX.Element | null {
 	return (
 		<ContextRingRoot model={model}>
 			<ContextRingTrigger className={className} />
@@ -282,7 +293,10 @@ function OverviewPane({
 						<span className="truncate text-[11px] text-foreground">{group.title}</span>
 						<span className="text-[11px] tabular-nums">{group.tokens}</span>
 						<span className="w-9 text-right text-[10px] tabular-nums text-muted-foreground">{group.share}</span>
-						<span className="icon-[solar--alt-arrow-right-linear] h-3 w-3 text-muted-foreground" aria-hidden="true" />
+						<span
+							className="icon-[solar--alt-arrow-right-linear] h-3 w-3 text-muted-foreground"
+							aria-hidden="true"
+						/>
 					</button>
 				))}
 			</div>
@@ -290,13 +304,7 @@ function OverviewPane({
 	);
 }
 
-function GroupDetailPane({
-	group,
-	onBack,
-}: {
-	group: ContextRingDetailGroup;
-	onBack: () => void;
-}): JSX.Element {
+function GroupDetailPane({ group, onBack }: { group: ContextRingDetailGroup; onBack: () => void }): JSX.Element {
 	const { t } = useTranslation("chat");
 	return (
 		<div className="px-3 py-2.5">
@@ -321,14 +329,18 @@ function GroupDetailPane({
 			</div>
 			<div className="mt-0.5 pl-6 text-[10px] text-muted-foreground">
 				{t("contextRing.details.items", { count: group.itemCount })}
-				{group.unknownCount > 0 ? ` · ${t("contextRing.details.unknownItems", { count: group.unknownCount })}` : null}
+				{group.unknownCount > 0
+					? ` · ${t("contextRing.details.unknownItems", { count: group.unknownCount })}`
+					: null}
 			</div>
 			<div className="mt-1.5 max-h-56 overflow-y-auto">
 				{group.sections.map((section) => {
 					const meta = [
 						section.metadata,
 						section.itemCount > 1 ? t("contextRing.details.items", { count: section.itemCount }) : "",
-						section.unknownCount > 0 ? t("contextRing.details.unknownItems", { count: section.unknownCount }) : "",
+						section.unknownCount > 0
+							? t("contextRing.details.unknownItems", { count: section.unknownCount })
+							: "",
 					]
 						.filter(Boolean)
 						.join(" · ");
@@ -348,7 +360,9 @@ function GroupDetailPane({
 								) : null}
 							</div>
 							<span className="text-[11px] tabular-nums">{section.tokens}</span>
-							<span className="w-9 text-right text-[10px] tabular-nums text-muted-foreground">{section.share}</span>
+							<span className="w-9 text-right text-[10px] tabular-nums text-muted-foreground">
+								{section.share}
+							</span>
 						</div>
 					);
 				})}

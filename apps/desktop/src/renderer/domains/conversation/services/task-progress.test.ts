@@ -13,6 +13,16 @@ const reply = (phase: "streaming" | "failed" | "aborted" | "completed" = "stream
 });
 
 describe("task progress from canonical conversation facts", () => {
+	it.each(["question", "permission", "approval"] as const)(
+		"marks %s as waiting for the user without allowing recovery",
+		(phase) => {
+			expect(projectTaskProgress({ messages: [reply()], busy: true, [phase]: true })).toMatchObject({
+				phase,
+				running: false,
+				canContinue: false,
+			});
+		},
+	);
 	it("follows waiting, output, tool, approval, compaction and retry without claiming task completion", () => {
 		expect(projectTaskProgress({ messages: [], busy: true })?.phase).toBe("waiting");
 		const message = reply();

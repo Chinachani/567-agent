@@ -127,7 +127,7 @@ class MainScreenInteractionsTest {
         }
 
         composeRule.onNodeWithText("Conversation 1").assertIsDisplayed()
-        composeRule.onNodeWithText("Conversation 3").assertIsDisplayed()
+        composeRule.onNodeWithText("Conversation 3").performScrollTo().assertIsDisplayed()
         composeRule.onAllNodesWithText("Conversation 4").assertCountEquals(0)
         composeRule.onNodeWithText("查看全部会话 (4)").performScrollTo().performClick()
 
@@ -153,7 +153,7 @@ class MainScreenInteractionsTest {
         }
 
         composeRule.onNodeWithText(Str.newConversation).performClick()
-        composeRule.onNodeWithText(Str.useCloudAi).performClick()
+        composeRule.onNodeWithText(Str.phoneDirectTitle).performClick()
         assertEquals(listOf("new", "cloud"), opened)
     }
 

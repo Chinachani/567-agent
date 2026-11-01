@@ -64,7 +64,7 @@ import androidx.compose.material.icons.automirrored.filled.Send
 import androidx.compose.material.icons.filled.AttachFile
 import androidx.compose.material.icons.filled.PhotoCamera
 import androidx.compose.material.icons.filled.PhotoLibrary
-import androidx.compose.material.icons.filled.DataUsage
+import androidx.compose.material.icons.outlined.Layers
 import androidx.compose.material.icons.filled.Build
 import androidx.compose.material.icons.filled.Brush
 import androidx.compose.material3.Switch
@@ -393,7 +393,7 @@ fun ChatScreen(
                 },
                 actions = {
                     IconButton(onClick = onOpenContext) {
-                        Icon(Icons.Default.DataUsage, contentDescription = Str.contextManage, tint = MaterialTheme.agent567Extra.secondaryText)
+                        Icon(Icons.Outlined.Layers, modifier = Modifier.size(20.dp), contentDescription = Str.contextManage, tint = MaterialTheme.agent567Extra.secondaryText)
                     }
                     if (surface == ChatSurface.Cloud) {
                         IconButton(onClick = onOpenGroupPicker) {
@@ -415,12 +415,14 @@ fun ChatScreen(
                     .imePadding(),
             ) {
                 if (chatError != null) {
-                    if (surface == ChatSurface.Cloud && chatError.action != UiErrorAction.OpenContext) TextButton(onClick = onOpenServiceRoute) { Text(Str.serviceRouteErrorAction) }
                     Agent567ErrorBanner(
                         error = chatError,
                         onDismiss = onDismissError,
                         onAction = onErrorAction,
                         modifier = Modifier.padding(horizontal = 12.dp, vertical = 6.dp),
+                        secondaryAction = if (surface == ChatSurface.Cloud && chatError.action != UiErrorAction.OpenContext)
+                            org.agent567.android.ui.components.ErrorBannerAction(Str.serviceRouteErrorAction, onOpenServiceRoute)
+                        else null,
                     )
                 }
                 if (pendingImages.isNotEmpty()) {
@@ -675,6 +677,8 @@ fun ChatScreen(
                             streamingStatus = streamingStatus,
                             onImageClick = { previewImage = it },
                             onCopyToast = { toastNotice = it },
+                            onEdit = { onDraftChange(it) },
+                            hasDraft = draft.isNotBlank() || pendingImages.isNotEmpty(),
                             canRetry = msg.id == retryableAssistantId,
                             onRetry = { onRetryAssistant(msg.id) },
                         )
@@ -1360,9 +1364,12 @@ internal fun MessageBubble(
     streamingStatus: String? = null,
     onImageClick: (MessageImage) -> Unit = {},
     onCopyToast: (String) -> Unit = {},
+    onEdit: ((String) -> Unit)? = null,
+    hasDraft: Boolean = false,
     canRetry: Boolean = false,
     onRetry: () -> Unit = {},
 ) {
+    var confirmEdit by remember(message.id) { mutableStateOf(false) }
     val isUser = message.role == ChatRole.User
     val displayContent = remember(message.content, message.role) { message.conversationText }
     val shouldShowTextBubble =
@@ -1370,6 +1377,14 @@ internal fun MessageBubble(
             message.status == MessageStatus.Streaming ||
             message.status == MessageStatus.Error ||
             message.status == MessageStatus.Aborted
+    if (confirmEdit) androidx.compose.material3.AlertDialog(
+        onDismissRequest = { confirmEdit = false },
+        title = { Text(Str.editMessage) },
+        text = { Text(Str.editMessageOverwrite) },
+        confirmButton = { TextButton(onClick = { confirmEdit = false; onEdit?.invoke(displayContent) }) { Text(Str.confirm) } },
+        dismissButton = { TextButton(onClick = { confirmEdit = false }) { Text(Str.cancel) } },
+    )
+
     Row(
         modifier = Modifier.fillMaxWidth(),
         horizontalArrangement = if (isUser) Arrangement.End else Arrangement.Start,
@@ -1596,13 +1611,26 @@ internal fun MessageBubble(
                 if (displayContent.isNotBlank() && message.status != MessageStatus.Streaming) {
                     val clipboard = androidx.compose.ui.platform.LocalClipboardManager.current
                     var copied by remember(message.id) { mutableStateOf(false) }
-                    IconButton(onClick = {
-                        clipboard.setText(androidx.compose.ui.text.AnnotatedString(displayContent))
-                        copied = true
-                        onCopyToast(Str.copiedContent)
-                    }, modifier = Modifier.size(48.dp)) {
-                        Icon(if (copied) Icons.Default.Check else Icons.Default.ContentCopy,
-                            contentDescription = Str.copyContent, modifier = Modifier.size(16.dp), tint = MaterialTheme.agent567Extra.secondaryText)
+                    // Reduce the layout height only. Compose clickable still expands the touch
+                    // bounds to ViewConfiguration.minimumTouchTargetSize (48 dp on Android).
+                    androidx.compose.runtime.CompositionLocalProvider(
+                        androidx.compose.material3.LocalMinimumInteractiveComponentSize provides 0.dp,
+                    ) {
+                        IconButton(onClick = {
+                            clipboard.setText(androidx.compose.ui.text.AnnotatedString(displayContent))
+                            copied = true
+                            onCopyToast(Str.copiedContent)
+                        }, modifier = Modifier.width(48.dp).height(28.dp)) {
+                            Icon(if (copied) Icons.Default.Check else Icons.Default.ContentCopy,
+                                contentDescription = Str.copyContent, modifier = Modifier.size(16.dp), tint = MaterialTheme.agent567Extra.secondaryText)
+                        }
+                    }
+                }
+                if (isUser && displayContent.isNotBlank() && onEdit != null) {
+                    androidx.compose.runtime.CompositionLocalProvider(androidx.compose.material3.LocalMinimumInteractiveComponentSize provides 0.dp) {
+                        IconButton(onClick = { if (hasDraft) confirmEdit = true else onEdit(displayContent) }, modifier = Modifier.width(48.dp).height(28.dp)) {
+                            Icon(Icons.Default.Edit, contentDescription = Str.editMessage, modifier = Modifier.size(16.dp), tint = MaterialTheme.agent567Extra.secondaryText)
+                        }
                     }
                 }
             }

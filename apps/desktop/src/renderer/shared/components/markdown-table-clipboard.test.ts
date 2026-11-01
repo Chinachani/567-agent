@@ -1,4 +1,4 @@
-import { toCsv, toMarkdown } from "@vetta-org/theme-ui/shared";
+import { toCsv, toMarkdown, toTsv } from "@vetta-org/theme-ui/shared";
 import { describe, expect, it } from "vitest";
 
 /** 表格工具条的「复制为 Markdown / CSV」纯逻辑。theme-ui 侧没有测试 runner，落在宿主跑。 */
@@ -38,4 +38,14 @@ describe("toCsv", () => {
 	it("quotes values containing a comma, quote or newline", () => {
 		expect(toCsv([["4,680", 'say "hi"', "one\ntwo"]])).toBe('"4,680","say ""hi""","one\ntwo"');
 	});
+});
+
+it("preserves tabular columns, unicode, multiline cells and quotes in TSV", () => {
+	expect(
+		toTsv([
+			["名称", "结果"],
+			["one\ttwo", 'say "hi"\nnext'],
+		]),
+	).toBe('名称\t结果\n"one\ttwo"\t"say ""hi""\nnext"');
+	expect(toTsv([])).toBe("");
 });

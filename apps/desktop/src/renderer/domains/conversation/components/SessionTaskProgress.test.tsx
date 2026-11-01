@@ -246,3 +246,36 @@ it("keeps stop on the composer and omits a duplicate action from live task infor
 	expect(screen.getByRole("status")).toBeTruthy();
 	expect(screen.queryByRole("button", { name: "停止" })).toBeNull();
 });
+
+it("leaves ordinary first-token waiting in the message stream, but surfaces retry and user intervention", () => {
+	act(() => {
+		store.set(activeSessionStreamingAtom, true);
+		store.set(chatMessagesAtom, [
+			{
+				kind: "agent",
+				role: "assistant",
+				id: "live",
+				turnId: "turn",
+				authorId: "agent",
+				phase: "waiting",
+				blocks: [],
+			},
+		]);
+	});
+	render(<SessionTaskProgress />);
+	expect(screen.queryByRole("status")).toBeNull();
+	act(() => store.set(retryProgressAtom, { attempt: 1, maxAttempts: 3, errorMessage: "offline" }));
+	expect(screen.getByRole("status").textContent).toContain("正在等待重试");
+	act(() => {
+		store.set(retryProgressAtom, null);
+		store.set(pendingQuestionsAtom, { runtime: { requestId: "question", sessionId: "runtime", questions: [] } });
+	});
+	const status = screen.getByRole("status");
+	expect(status.textContent).toContain("等待你的回答");
+	expect(status.querySelector("span")?.className).not.toContain("animate-spin");
+	act(() => {
+		store.set(pendingQuestionsAtom, {});
+		store.set(activeSessionStreamingAtom, false);
+	});
+	expect(screen.getByRole("status").textContent).toContain("已停止");
+});

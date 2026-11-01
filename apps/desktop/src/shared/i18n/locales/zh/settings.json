@@ -1302,7 +1302,6 @@
     "downloadingVersion": "正在下载 {{version}} · {{progress}}%",
     "ready": "新版本 {{version}} 已下载，可重启安装。",
     "installing": "正在准备安装…",
-
     "notes": "更新内容",
     "notesDescription": "按版本查看改进与修复，可选择上次更新以来或最近的版本。",
     "open": "查看说明",
@@ -2568,5 +2567,13 @@
     "editProvider": "编辑 {{name}} 的连接配置",
     "keepEditing": "正在编辑的服务商会保留在列表中。"
   },
-  "backToWorkspace": "返回工作区"
+  "backToWorkspace": "返回工作区",
+  "shortcutToggleSidebarLabel": "切换侧边栏",
+  "shortcutToggleSidebarDesc": "展开或收起左侧项目与会话列表",
+  "shortcutToggleActivityPanelLabel": "切换活动面板",
+  "shortcutToggleActivityPanelDesc": "展开或收起右侧活动与交付工作台",
+  "shortcutFocusInputLabel": "聚焦输入框",
+  "shortcutFocusInputDesc": "将光标移至当前会话输入框",
+  "shortcutStopGenerationLabel": "停止生成",
+  "shortcutStopGenerationDesc": "中断当前会话正在运行的回合，空闲时不执行"
 }

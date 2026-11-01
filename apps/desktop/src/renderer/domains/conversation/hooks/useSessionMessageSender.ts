@@ -23,6 +23,7 @@ import {
 	activeInputDraftKeyAtom,
 	activeSessionAtom,
 	activeSessionStreamingAtom,
+	applySessionInputDraft,
 	appshotAttachmentAtom,
 	attachedImagesAtom,
 	batchProjectsAtom,
@@ -38,6 +39,7 @@ import {
 	pendingSessionCreationAtom,
 	pendingSessionOpenAtom,
 	pendingSessionSendAtom,
+	persistSessionInputDraft,
 	pluginInputActionsAtom,
 	projectsAtom,
 	promptAttachmentAtom,
@@ -49,6 +51,7 @@ import {
 	type SendMessageOptions,
 	type SendMessageResult,
 	selectedModelAtom,
+	sessionInputDraftMapAtom,
 	todoItemsBySessionAtom,
 } from "@shared/store/atoms";
 import { bumpQueuedDispatchSeq } from "@shared/store/message-queue-atoms";
@@ -302,6 +305,22 @@ export function useSessionMessageSender({ bumpSuggestionToken }: SessionMessageS
 				}
 				perfSendMark("clear-draft-end", interactionId);
 			}
+			const restoreBranchDraft = (): void => {
+				if (!pendingEdit?.preserveBranch || hasOverride) return;
+				const draft = { text: inputValue, segments: inputSegments, appshot, mentionedFiles };
+				// A failed navigation must not replace a newer draft or follow a changed conversation.
+				if (isTargetSessionActive()) {
+					if (
+						store.get(inputValueAtom) !== "" ||
+						store.get(appshotAttachmentAtom) !== null ||
+						store.get(mentionedFilesAtom).length > 0
+					)
+						return;
+					applySessionInputDraft(draft);
+				}
+				if (targetDraftKey && !store.get(sessionInputDraftMapAtom)[targetDraftKey])
+					persistSessionInputDraft(targetDraftKey, draft);
+			};
 			// 最后一条用户消息重编辑：提交时先中止当前生成，再删除旧消息及其回复子树；
 			// 随后的正常 prompt 从原 parent 继续，因此不会创建会话内分支。
 			if (pendingEdit) {
@@ -330,14 +349,21 @@ export function useSessionMessageSender({ bumpSuggestionToken }: SessionMessageS
 					});
 				}
 				try {
-					await window.agent567.session.replaceLastUserMessage(session.runtimeId, pendingEdit.entryId);
+					if (pendingEdit.preserveBranch) {
+						const result = await window.agent567.session.navigateForEdit(session.runtimeId, pendingEdit.entryId);
+						if (result.cancelled) {
+							restoreBranchDraft();
+							return;
+						}
+					} else await window.agent567.session.replaceLastUserMessage(session.runtimeId, pendingEdit.entryId);
 					const history = await window.agent567.session.getFullHistory(session.runtimeId);
 					setTargetSessionMessages(fullHistoryToChat(history));
 					clearTargetPendingEdit();
 				} catch (err) {
 					const message = err instanceof Error ? err.message : String(err);
 					console.error("[useSessionManager.sendMessage] replaceLastUserMessage failed:", err);
-					clearTargetPendingEdit();
+					restoreBranchDraft();
+					if (!pendingEdit.preserveBranch) clearTargetPendingEdit();
 					setTargetSessionMessages((prev) => appendError(prev, message));
 					return;
 				}

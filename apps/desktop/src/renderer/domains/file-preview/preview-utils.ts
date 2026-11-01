@@ -86,6 +86,10 @@ export function isTextExtension(ext: string): boolean {
 }
 
 export async function downloadItem(item: FilePreviewItem): Promise<void> {
+	if (item.text !== undefined) {
+		await window.agent567.dialog.saveData(item.name, item.text, "utf8");
+		return;
+	}
 	if (!item.url) return;
 	const response = await fetch(item.url);
 	const blob = await response.blob();

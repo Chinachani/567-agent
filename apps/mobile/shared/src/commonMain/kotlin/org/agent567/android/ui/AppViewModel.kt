@@ -312,6 +312,16 @@ class AppViewModel(
         }
     }
 
+    val taskNotifications = org.agent567.android.domain.notifications.TaskNotifications()
+    private val remoteTaskNotifications = org.agent567.android.domain.notifications.RemoteTaskNotifications(taskNotifications)
+
+    fun openTaskNotification(sessionId: String) {
+        viewModelScope.launch {
+            val session = container.sessionStore.getSession(sessionId) ?: return@launch
+            openChat(session.id, if (session.origin == ConversationOrigin.Desktop) ChatSurface.Desktop else ChatSurface.Cloud, session.title, session.remoteDeviceId)
+        }
+    }
+
     private val streamJobs = mutableMapOf<String, Job>()
     private val pendingSendReservations = mutableSetOf<String>()
     private val retryPreparingSessions = mutableSetOf<String>()
@@ -437,6 +447,17 @@ class AppViewModel(
                 it.status == org.agent567.android.domain.device.DeviceStatus.Online
             }
             container.remoteConversationGateway.devices.collect { devices ->
+                val tracked = mutableSetOf<String>()
+                devices.filter { it.status == org.agent567.android.domain.device.DeviceStatus.Online }.forEach { device ->
+                    device.activeConversation?.let { active ->
+                        val local = container.sessionStore.sessions.value.firstOrNull { it.remoteDeviceId == device.id && it.remoteSessionId == active.id }
+                        if (local != null && streamJobs[local.id]?.isActive != true) {
+                            tracked += local.id
+                            remoteTaskNotifications.observe(local.id, active.status)
+                        }
+                    }
+                }
+                remoteTaskNotifications.retain(tracked)
                 _state.update { it.copy(devices = devices) }
                 val hasOnlineDevice = devices.any { it.status == org.agent567.android.domain.device.DeviceStatus.Online }
                 if (hasOnlineDevice) {
@@ -1216,10 +1237,16 @@ class AppViewModel(
         }
     }
 
-    fun openDesktopSession(remoteSessionId: String, title: String) {
+    fun continueDesktopConversation(deviceId: String, remoteSessionId: String) {
+        val device = container.remoteConversationGateway.devices.value.firstOrNull { it.id == deviceId && it.status == org.agent567.android.domain.device.DeviceStatus.Online } ?: return
+        val active = device.activeConversation?.takeIf { it.id == remoteSessionId } ?: return
+        openDesktopSession(remoteSessionId, active.title, deviceId)
+    }
+
+    fun openDesktopSession(remoteSessionId: String, title: String, deviceId: String? = null) {
         viewModelScope.launch {
             val device = container.remoteConversationGateway.devices.value.firstOrNull {
-                it.status == org.agent567.android.domain.device.DeviceStatus.Online
+                it.status == org.agent567.android.domain.device.DeviceStatus.Online && (deviceId == null || it.id == deviceId)
             } ?: run {
                 _state.update { it.copy(remoteError = ErrorMapper.from(RemoteConversationException("请先连接电脑"))) }
                 return@launch
@@ -3085,6 +3112,7 @@ class AppViewModel(
             answeredQuestionRequests.removeAll { it.first == sid }
 
             val streamJob = viewModelScope.launch(start = CoroutineStart.LAZY) {
+                    taskNotifications.started(sid, assistantId)
                     var assembled = ""
                     var toolEvents = emptyList<ToolTrace>()
                     var assistantImages = assistantMsg.images
@@ -3425,6 +3453,7 @@ class AppViewModel(
                                         container.conversationRouter.resolvedRemoteSessionId(session.id)?.let { remoteId ->
                                             container.sessionStore.updateSession(session.copy(remoteSessionId = remoteId))
                                         }
+                                        taskNotifications.needsInput(sid, event.requestId)
                                         pendingQuestion = PendingQuestion(sid, event.requestId, event.questions)
                                         persistAssistant()
                                         updateVisibleSession(sid) { it.copy(pendingQuestion = pendingQuestion) }
@@ -3438,6 +3467,7 @@ class AppViewModel(
                                                 persistAssistant()
                                             }
                                             "error" -> {
+                                                taskNotifications.interrupted(sid)
                                                 setStreamStatus(sid, null)
                                                 updateVisibleDesktopSession(sid) {
                                                     it.copy(
@@ -3452,6 +3482,7 @@ class AppViewModel(
                                             "running" -> setStreamStatus(sid, if (hasPublishedDelta) "running" else "waiting_response")
                                             "retrying", "compacting", "preparing", "background" -> setStreamStatus(sid, event.value)
                                             "aborted" -> {
+                                                taskNotifications.interrupted(sid)
                                                 flushPendingPersist()
                                                 pendingQuestion = null
                                                 persistAssistant(MessageStatus.Aborted)
@@ -3470,6 +3501,7 @@ class AppViewModel(
                                         flushPendingPersist()
                                         pendingQuestion = null
                                         persistAssistant(MessageStatus.Complete)
+                                        if (generationError != null) taskNotifications.interrupted(sid) else taskNotifications.finished(sid, assistantImages.isNotEmpty())
                                         updateVisibleSession(sid) { it.copy(pendingQuestion = null) }
                                         setStreamStatus(sid, null)
                                         val predictionModelId = model?.id ?: session.modelId
@@ -3570,6 +3602,7 @@ class AppViewModel(
                                         }
                                     }
                                     is ChatStreamEvent.Error -> {
+                                        taskNotifications.interrupted(sid)
                                         flushPendingPersist()
                                         pendingQuestion = null
                                         val ui = ErrorMapper.from(event.exception)
@@ -3635,6 +3668,7 @@ class AppViewModel(
                             pendingPersist = null
                             val networkLost = t.isChatNetworkLoss()
                             val stopped = t is CancellationException && !networkLost
+                            if (stopped) taskNotifications.stopped(sid) else taskNotifications.interrupted(sid)
                             val ui = ErrorMapper.from(if (networkLost) ChatNetworkLostException() else t)
                             val latest =
                                 container.sessionStore.getMessages(sid).firstOrNull { it.id == assistantId }
@@ -3669,6 +3703,7 @@ class AppViewModel(
                         pendingPersist?.cancel()
                         if (streamJobs[sid] === currentCoroutineContext()[Job]) {
                             streamJobs.remove(sid)
+                            taskNotifications.stopped(sid)
                             streamStatuses.remove(sid)
                             updateVisibleSession(sid) { it.copy(isStreaming = false, streamingStatus = null) }
                             if (recoveryNeedsHistory && _state.value.currentSessionId == sid) {

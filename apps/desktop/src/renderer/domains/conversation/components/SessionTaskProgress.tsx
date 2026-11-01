@@ -16,6 +16,14 @@ export function SessionTaskProgress() {
 	const model = useTaskProgressModel();
 	const progress = model.progress;
 	if (!progress) return null;
+	if (
+		["waiting", "thinking", "responding"].includes(progress.phase) &&
+		model.plainReply &&
+		!model.goal &&
+		model.deliveries === 0 &&
+		(model.elapsedSeconds ?? 0) < 30
+	)
+		return null;
 	if (["replyComplete", "goalComplete"].includes(progress.phase))
 		return model.deliveries > 0 || progress.canContinue ? (
 			<div className="w-full px-2 pb-1 sm:px-4">
@@ -46,6 +54,11 @@ export function SessionTaskProgress() {
 						: undefined
 				}
 				running={progress.running}
+				waitingFor={
+					progress.phase === "question" || progress.phase === "permission" || progress.phase === "approval"
+						? progress.phase
+						: undefined
+				}
 				attention={["failed", "blocked", "limited"].includes(progress.phase)}
 			/>
 			<TaskProgressActions>

@@ -564,3 +564,33 @@ it("失败收尾：agent_end 的落后历史快照不会清掉刚显示的错误
 	});
 	expect(autoTitle).not.toHaveBeenCalled();
 });
+
+it("sends an edited earlier turn through branch navigation and never deletes the later history", async () => {
+	const navigateForEdit = vi.fn(async () => ({ text: "old prompt", cancelled: false }));
+	Object.assign(window.agent567.session, { navigateForEdit });
+	const store = await mount("revised earlier prompt", false);
+	const { pendingMessageEditAtom } = await import("@shared/store/atoms");
+	store.set(pendingMessageEditAtom, { entryId: "older-entry", preserveBranch: true });
+	await act(async () => {
+		await manager?.sendMessage();
+	});
+	expect(navigateForEdit).toHaveBeenCalledWith(runtimeId, "older-entry");
+	expect(window.agent567.session.replaceLastUserMessage).not.toHaveBeenCalled();
+	expect(mocks.prompt).toHaveBeenCalledOnce();
+	expect(store.get(pendingMessageEditAtom)).toBeNull();
+});
+
+it("keeps the edited draft and history when branch navigation is cancelled", async () => {
+	const navigateForEdit = vi.fn(async () => ({ text: "", cancelled: true }));
+	Object.assign(window.agent567.session, { navigateForEdit });
+	const store = await mount("keep my revision", false);
+	const { pendingMessageEditAtom, inputValueAtom } = await import("@shared/store/atoms");
+	store.set(pendingMessageEditAtom, { entryId: "older-entry", preserveBranch: true });
+	await act(async () => {
+		await manager?.sendMessage();
+	});
+	expect(store.get(inputValueAtom)).toBe("keep my revision");
+	expect(store.get(pendingMessageEditAtom)?.entryId).toBe("older-entry");
+	expect(mocks.prompt).not.toHaveBeenCalled();
+	expect(window.agent567.session.replaceLastUserMessage).not.toHaveBeenCalled();
+});

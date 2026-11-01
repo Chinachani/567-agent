@@ -148,18 +148,33 @@ fun MeScreen(
                 .verticalScroll(rememberScrollState())
                 .padding(start = 16.dp, top = 4.dp, end = 16.dp, bottom = 24.dp),
         ) {
-            Row(Modifier.fillMaxWidth().clip(MaterialTheme.shapes.large).background(MaterialTheme.colorScheme.surface).clickable(role = androidx.compose.ui.semantics.Role.Button, onClick = onOpenAccount).padding(12.dp), verticalAlignment = Alignment.CenterVertically) {
-                BoxAvatar(user?.username.orEmpty())
-                Spacer(Modifier.width(14.dp))
-                Column(Modifier.weight(1f)) {
-                    Text(name, style = MaterialTheme.typography.titleMedium, maxLines = 1, overflow = TextOverflow.Ellipsis)
-                    Text(
-                        contact.ifBlank { if (user == null) Str.accountSignIn else Str.accountProfile },
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.agent567Extra.secondaryText,
-                    )
+            Agent567Card(contentPadding = androidx.compose.foundation.layout.PaddingValues(horizontal = 16.dp, vertical = 8.dp)) {
+                Row(Modifier.fillMaxWidth().clip(MaterialTheme.shapes.medium).clickable(role = androidx.compose.ui.semantics.Role.Button, onClick = onOpenAccount).padding(vertical = 8.dp), verticalAlignment = Alignment.CenterVertically) {
+                    BoxAvatar(user?.username.orEmpty())
+                    Spacer(Modifier.width(14.dp))
+                    Column(Modifier.weight(1f)) {
+                        Text(name, style = MaterialTheme.typography.titleMedium, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                        Text(
+                            contact.ifBlank { if (user == null) Str.accountSignIn else Str.accountProfile },
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.agent567Extra.secondaryText,
+                        )
+                    }
+                    Icon(Icons.AutoMirrored.Filled.KeyboardArrowRight, contentDescription = null, tint = MaterialTheme.agent567Extra.secondaryText)
                 }
-                Icon(Icons.AutoMirrored.Filled.KeyboardArrowRight, contentDescription = null, tint = MaterialTheme.agent567Extra.secondaryText)
+                if (user != null) {
+                    androidx.compose.material3.HorizontalDivider(color = MaterialTheme.agent567Extra.border)
+                    Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+                        Column(Modifier.weight(1f)) {
+                            Text(Str.mobileQuota, style = MaterialTheme.typography.labelMedium, color = MaterialTheme.agent567Extra.secondaryText)
+                            Text("$$usdFormatted", style = MaterialTheme.typography.headlineSmall)
+                        }
+                        IconButton(onClick = onRefreshQuota, enabled = !quotaRefreshing, modifier = Modifier.size(48.dp)) {
+                            RotatingRefreshIcon(isRefreshing = quotaRefreshing, contentDescription = Str.accountRefresh)
+                        }
+                        TextButton(onClick = { showTopupDialog = true }, modifier = Modifier.heightIn(min = 48.dp)) { Text(Str.mobileTopupAction) }
+                    }
+                }
             }
 
             if (accountVerifying) Text(Str.mobileVerifying, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.agent567Extra.secondaryText)
@@ -173,20 +188,6 @@ fun MeScreen(
             }
             if (user == null) Agent567Card { org.agent567.android.ui.components.ServiceRouteEntry(serverUrl, onOpenServiceRoute, serviceRoutes) }
             if (user != null) {
-                Spacer(Modifier.height(12.dp))
-                SectionHeader(title = Str.accountBalanceSection)
-                Agent567Card(contentPadding = androidx.compose.foundation.layout.PaddingValues(horizontal = 16.dp, vertical = 8.dp)) {
-                    Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
-                        Column(Modifier.weight(1f)) {
-                            Text(Str.mobileQuota, style = MaterialTheme.typography.labelMedium, color = MaterialTheme.agent567Extra.secondaryText)
-                            Text("$$usdFormatted", style = MaterialTheme.typography.headlineSmall)
-                        }
-                        IconButton(onClick = onRefreshQuota, enabled = !quotaRefreshing, modifier = Modifier.size(48.dp)) {
-                            RotatingRefreshIcon(isRefreshing = quotaRefreshing, contentDescription = Str.accountRefresh)
-                        }
-                        TextButton(onClick = { showTopupDialog = true }, modifier = Modifier.heightIn(min = 48.dp)) { Text(Str.mobileTopupAction) }
-                    }
-                }
                 Spacer(Modifier.height(12.dp))
                 SectionHeader(title = Str.phoneModelServiceSection)
                 Text(Str.phoneModelServiceHint, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.agent567Extra.secondaryText, modifier = Modifier.padding(bottom = 8.dp))
@@ -960,11 +961,8 @@ fun AboutScreen(
             Text(Str.versionNumber, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.agent567Extra.secondaryText)
             Spacer(Modifier.height(24.dp))
             Text(Str.aboutDescription, style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.agent567Extra.secondaryText)
-            org.agent567.android.ui.updates.UpdateDownloadPanel(
-                downloadState, updateDownloads::pause, updateDownloads::resume, updateDownloads::install,
-            )
             Spacer(Modifier.height(28.dp))
-            Agent567ListGroup {
+            Agent567Card(contentPadding = androidx.compose.foundation.layout.PaddingValues(horizontal = 12.dp, vertical = 4.dp)) {
                 ProfileRow(
                     Icons.Default.Refresh,
                     Str.updateCheck,
@@ -984,7 +982,15 @@ fun AboutScreen(
                             }
                         }
                     },
-                    showDivider = true,
+                    showDivider = false,
+                )
+                org.agent567.android.ui.updates.UpdateDownloadPanel(
+                    downloadState, updateDownloads::pause, updateDownloads::resume, updateDownloads::install,
+                    modifier = Modifier.padding(start = 32.dp),
+                )
+                androidx.compose.material3.HorizontalDivider(
+                    modifier = Modifier.padding(start = 36.dp),
+                    color = MaterialTheme.agent567Extra.border,
                 )
                 ProfileRow(
                     Icons.Default.Settings,

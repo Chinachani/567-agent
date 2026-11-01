@@ -3,7 +3,7 @@
 import { initI18n } from "@shared/i18n";
 import { SETUP_WIZARD_OPEN_EVENT } from "@shared/setup-wizard/storage";
 import { updaterStateAtom } from "@shared/store/atoms";
-import { cleanup, render, screen, within } from "@testing-library/react";
+import { cleanup, render, screen, within, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import i18n from "i18next";
 import { createStore, Provider } from "jotai";
@@ -86,4 +86,21 @@ it("composes the version row, one download progress and saved update controls in
 	expect(screen.getAllByRole("progressbar")).toHaveLength(1);
 	await screen.findByRole("switch", { name: "自动下载更新" });
 	expect(screen.getByRole("button", { name: "查看说明" })).toBeTruthy();
+});
+
+it("saves a download source from the real selector and keeps the custom address flow available", async () => {
+	const user = userEvent.setup();
+	render(
+		<Provider store={createStore()}>
+			<GeneralSettings />
+		</Provider>,
+	);
+	await screen.findByRole("switch", { name: "自动检查更新" });
+	await user.click(screen.getByRole("button", { name: i18n.t("settings:updateSource.title") }));
+	await user.click(screen.getByRole("button", { name: i18n.t("settings:updateSource.accelerated") }));
+	await waitFor(() => expect(window.agent567.config.set).toHaveBeenCalledWith({ updateSource: "gh-proxy" }));
+	expect(await screen.findByRole("status")).toBeTruthy();
+	await user.click(screen.getByRole("button", { name: i18n.t("settings:updateSource.title") }));
+	await user.click(screen.getByRole("button", { name: i18n.t("settings:updateSource.custom") }));
+	expect(screen.getByRole("textbox", { name: i18n.t("settings:updateSource.custom") })).toBeTruthy();
 });

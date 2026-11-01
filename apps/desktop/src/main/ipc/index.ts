@@ -37,6 +37,7 @@ import { registerSkillsIpc } from "./skills.js";
 import { registerSpeechInputIpc } from "./speech-input.js";
 import { registerThemesIpc } from "./themes.js";
 import { registerUpdaterIpc } from "./updater.js";
+import { registerVisibleConversationIpc } from "./visible-conversation.js";
 import { registerWebhookIpc } from "./webhook.js";
 
 interface IpcTeardown {
@@ -71,6 +72,7 @@ interface IpcTeardown {
 	teardownPluginOcrProviders: () => void;
 	teardownNotifications: () => void;
 	teardownConversationTags: () => void;
+	teardownVisibleConversation: () => void;
 	teardownQuickPanel: () => void;
 	teardownAppshot: () => void;
 	teardownDiagnostics: () => void;
@@ -119,6 +121,7 @@ export function registerAllIpc(
 		teardownPluginOcrProviders: registerPluginOcrProvidersIpc(),
 		teardownNotifications: registerNotificationIpc(webContents),
 		teardownConversationTags: registerConversationTagsIpc(webContents),
+		teardownVisibleConversation: registerVisibleConversationIpc(webContents),
 		teardownQuickPanel: registerQuickPanelIpc(),
 		teardownAppshot: registerAppshotIpc(),
 		teardownDiagnostics: registerDiagnosticsIpc(() => options.remotePairingService.getState()),
@@ -160,6 +163,7 @@ export function teardownAllIpc(teardown: IpcTeardown): void {
 	teardown.teardownPluginOcrProviders();
 	teardown.teardownNotifications();
 	teardown.teardownConversationTags();
+	teardown.teardownVisibleConversation();
 	teardown.teardownQuickPanel();
 	teardown.teardownAppshot();
 	teardown.teardownDiagnostics();

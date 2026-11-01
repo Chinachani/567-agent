@@ -1,5 +1,5 @@
 import { Button } from "@shared/components/ui/button";
-import { MotionSelect } from "@vetta-org/theme-ui/settings";
+import { MotionSelect, SearchableSelect } from "@vetta-org/theme-ui/settings";
 import { useTranslation } from "react-i18next";
 import type { ModelsConfigData } from "../../../../preload/api-types/models";
 import { parseContextCapacityInput } from "../../../../shared/model-context";
@@ -24,70 +24,21 @@ export function ModelContextSettings({ config }: { config: ModelsConfigData }): 
 			) : (
 				<>
 					<div className="space-y-4 rounded-xl border border-border/50 bg-card/40 p-4">
-						<div className="grid grid-cols-[repeat(auto-fit,minmax(min(100%,240px),1fr))] items-end gap-3">
-							<form
-								className="space-y-1.5"
-								onSubmit={(event) => {
-									event.preventDefault();
-									model.search();
+						<div className="space-y-1.5 text-[12px] text-muted-foreground">
+							<span>{t("modelContext.model")}</span>
+							<SearchableSelect
+								labels={{
+									trigger: t("modelContext.model"),
+									search: t("modelContext.search"),
+									placeholder: t("modelContext.searchPlaceholder"),
+									empty: t("modelContext.noMatches"),
 								}}
-							>
-								<label className="block text-[12px] text-muted-foreground">{t("modelContext.search")}</label>
-								<div className="flex min-w-0 gap-2">
-									<InputField
-										aria-label={t("modelContext.search")}
-										className="min-w-0 flex-1"
-										value={model.query}
-										onChange={model.setQuery}
-										disabled={model.busy}
-										placeholder={t("modelContext.searchPlaceholder")}
-									/>
-									<Button type="submit" variant="outline" disabled={model.busy || !model.query.trim()}>
-										{t("modelContext.searchAction")}
-									</Button>
-								</div>
-							</form>
-							<div className="space-y-1.5 text-[12px] text-muted-foreground">
-								<span>{t("modelContext.model")}</span>
-								<MotionSelect
-									aria-label={t("modelContext.model")}
-									triggerClassName="w-full"
-									value={model.selected}
-									onValueChange={model.setSelection}
-									disabled={model.busy}
-									options={model.options}
-								/>
-							</div>
+								value={model.selected}
+								onValueChange={model.setSelection}
+								disabled={model.busy}
+								options={model.options}
+							/>
 						</div>
-						{model.submittedQuery !== null && (
-							<section className="space-y-2" aria-label={t("modelContext.resultsTitle")}>
-								<p role="status" className="text-[12px] text-muted-foreground">
-									{model.results.length === 0
-										? t("modelContext.noMatches")
-										: t("modelContext.resultsCount", { count: model.results.length })}
-								</p>
-								<div className="flex flex-col gap-1">
-									{model.results.slice(0, 8).map((entry) => (
-										<Button
-											key={entry.value}
-											variant={entry.value === model.selected ? "secondary" : "ghost"}
-											className="h-auto min-h-8 justify-start whitespace-normal text-left"
-											disabled={model.busy}
-											onClick={() => model.setSelection(entry.value)}
-											aria-pressed={entry.value === model.selected}
-										>
-											{entry.label}
-										</Button>
-									))}
-								</div>
-								{model.results.length > 8 && (
-									<p className="text-[12px] text-muted-foreground">{t("modelContext.refineSearch")}</p>
-								)}
-								<Button variant="ghost" size="xs" onClick={model.clearSearch}>
-									{t("modelContext.clearSearch")}
-								</Button>
-							</section>
-						)}
 						{model.protocolSupported && (
 							<div className="space-y-2 border-t border-border/30 pt-4">
 								<div className="flex flex-wrap items-center justify-between gap-3">

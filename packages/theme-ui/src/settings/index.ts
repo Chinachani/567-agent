@@ -149,6 +149,8 @@ export type {
 	RemoteMcpServerRowView,
 } from "./RemoteMcpSectionView";
 export { RemoteMcpSectionView } from "./RemoteMcpSectionView";
+export type { SearchableSelectProps } from "./SearchableSelect";
+export { SearchableSelect } from "./SearchableSelect";
 export type { SettingSectionMeta } from "./SettingChrome";
 export { SettingHeading, SettingRow, SettingSection } from "./SettingChrome";
 export type { SettingsAiAssistButtonViewProps } from "./SettingsAiAssistButtonView";

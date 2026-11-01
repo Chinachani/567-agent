@@ -11,12 +11,17 @@ export type ShortcutHandler = (actionId: string) => void;
  * surface/overlay/modal scopes can override keys without ad-hoc listeners.
  * Bindings load from desktop-config and subscribe to main broadcasts.
  */
-export function useGlobalShortcuts(handler: ShortcutHandler): {
+export function useGlobalShortcuts(
+	handler: ShortcutHandler,
+	enabled?: (actionId: string) => boolean,
+): {
 	customShortcuts: ShortcutBindings;
 } {
 	const [customShortcuts, setCustomShortcuts] = useState<ShortcutBindings>({});
 	const handlerRef = useRef(handler);
 	handlerRef.current = handler;
+	const enabledRef = useRef(enabled);
+	enabledRef.current = enabled;
 
 	useEffect(() => {
 		void loadShortcutBindings().then(setCustomShortcuts);
@@ -32,6 +37,7 @@ export function useGlobalShortcuts(handler: ShortcutHandler): {
 			const hasChord = key.includes("mod") || key.includes("ctrl") || key.includes("alt");
 			return {
 				key,
+				enabled: () => enabledRef.current?.(action.id) ?? true,
 				// Chorded app shortcuts still work while typing; bare keys never steal from editors.
 				when: hasChord ? "always" : "not-editable",
 				run: () => {

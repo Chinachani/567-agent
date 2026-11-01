@@ -6,6 +6,7 @@ import { readAbilityLedger } from "../abilities/ability-ledger.js";
 import { getOpenMarketplaceManager } from "../abilities/open-marketplace/open-marketplace-manager.js";
 import { getDesktopConversationService } from "../conversations/desktop-conversation-service.js";
 import { resolveDesktopRuntimeSessionRoots } from "../conversations/session-catalog-roots.js";
+import { visibleConversation } from "../conversations/visible-conversation.js";
 import { getAppLogger } from "../logger.js";
 import { getDesktopModelSettingsService } from "../models/model-settings-host.js";
 import { readPluginBlobRange } from "../plugins/plugin-storage-service.js";
@@ -156,6 +157,7 @@ async function connect(
 			},
 			installToolbox: (type, slug) => getOpenMarketplaceManager(app.getVersion()).install(type, slug),
 			allowSessionMigrationTransfer: options.allowSessionMigrationTransfer === true,
+			readDeviceStatus: () => ({ activeConversation: visibleConversation.snapshot() }),
 		},
 		conversationState,
 	);

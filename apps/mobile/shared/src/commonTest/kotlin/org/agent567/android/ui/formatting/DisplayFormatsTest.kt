@@ -4,6 +4,15 @@ import kotlin.test.Test
 import kotlin.test.assertEquals
 
 class DisplayFormatsTest {
+    @Test fun keepsSmallNonzeroUsageDistinctFromZeroAndGroupsTokenCounts() {
+        assertEquals("< 1%", formatContextRatio(6272, 1048576))
+        assertEquals("< 1%", formatContextRatio(1, Long.MAX_VALUE))
+        assertEquals("0%", formatContextRatio(0, 1048576))
+        assertEquals("1%", formatContextRatio(1, 100))
+        assertEquals("6,272", formatTokenCount(6272))
+        assertEquals("1,048,576", formatTokenCount(1048576))
+        assertEquals("0", formatTokenCount(0))
+    }
     @Test fun formatsUnknownOverflowAndFutureValuesConsistently() {
         assertEquals("1分5秒", formatElapsedDuration(65_000))
         assertEquals("1时1分", formatElapsedDuration(3_660_000))

@@ -8,6 +8,8 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.unit.dp
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.ExpandMore
 import org.agent567.android.core.chat.InferenceApi
 import org.agent567.android.domain.session.ChatContextSnapshot
 import org.agent567.android.ui.i18n.Str
@@ -22,8 +24,9 @@ internal fun ChatInferenceApiSettings(state: ChatContextSnapshot, enabled: Boole
     val autoLabel = "${Str.modelProtocolAuto} · ${label(automatic)}"
     ContextGroup {
         Text(Str.modelProtocol, style = MaterialTheme.typography.titleSmall)
-        OutlinedButton(onClick = { expanded = true }, enabled = enabled, modifier = Modifier.fillMaxWidth().heightIn(min = 48.dp)) {
-            Text(selected?.let(::label) ?: autoLabel)
+        OutlinedButton(onClick = { expanded = true }, enabled = enabled, shape = MaterialTheme.shapes.medium, modifier = Modifier.fillMaxWidth().heightIn(min = 48.dp)) {
+            Text(selected?.let { "${Str.modelProtocolManual} · ${label(it)}" } ?: autoLabel, modifier = Modifier.weight(1f))
+            Icon(Icons.Default.ExpandMore, contentDescription = null, modifier = Modifier.size(20.dp))
         }
         notice?.let { Text(it, color = MaterialTheme.colorScheme.primary, style = MaterialTheme.typography.bodySmall) }
         error?.let { Text(it, color = MaterialTheme.colorScheme.error, style = MaterialTheme.typography.bodySmall) }

@@ -41,10 +41,22 @@ export const RichCodeBlock = memo(function RichCodeBlock(props: MarkdownCodeBloc
 		let cancelled = false;
 		let stop: (() => void) | undefined;
 		setFailed(false);
-		void host.openHtml(code).then((close) => {
-			if (cancelled) close(); else stop = close;
-		}, () => { if (!cancelled) { setFailed(true); setRunSource(null); } });
-		return () => { cancelled = true; stop?.(); };
+		void host.openHtml(code).then(
+			(close) => {
+				if (cancelled) close();
+				else stop = close;
+			},
+			() => {
+				if (!cancelled) {
+					setFailed(true);
+					setRunSource(null);
+				}
+			},
+		);
+		return () => {
+			cancelled = true;
+			stop?.();
+		};
 	}, [running, code, host]);
 	const srcDoc = useMemo(
 		() => (active && !svg && !live && !oversized && !showSource ? createPreviewDocument(code) : ""),
@@ -55,9 +67,14 @@ export const RichCodeBlock = memo(function RichCodeBlock(props: MarkdownCodeBloc
 			<CodeBlock.Copy>
 				<CodeBlock.Frame>
 					<div ref={ref}>
-						<div className="flex flex-wrap items-center gap-2 border-b border-border px-3 py-1 pr-12">
+						<div className="flex flex-wrap items-center gap-2 border-b border-border px-3 py-1 pr-28">
 							<span className="text-[12px] text-muted-foreground">{svg ? "SVG" : "HTML"}</span>
-							<Button variant="ghost" size="sm" aria-pressed={showSource} onClick={() => setShowSource(!showSource)}>
+							<Button
+								variant="ghost"
+								size="sm"
+								aria-pressed={showSource}
+								onClick={() => setShowSource(!showSource)}
+							>
 								{showSource ? labels.preview : labels.source}
 							</Button>
 							{host && !svg && !showSource && !live && !oversized && (
@@ -95,7 +112,13 @@ export const RichCodeBlock = memo(function RichCodeBlock(props: MarkdownCodeBloc
 						) : (
 							<>
 								<p className="px-3 py-2 text-[12px] text-muted-foreground">
-									{failed ? labels.failed : running ? labels.running : paused ? labels.paused : labels.staticHtml}
+									{failed
+										? labels.failed
+										: running
+											? labels.running
+											: paused
+												? labels.paused
+												: labels.staticHtml}
 								</p>
 								{srcDoc ? (
 									<iframe

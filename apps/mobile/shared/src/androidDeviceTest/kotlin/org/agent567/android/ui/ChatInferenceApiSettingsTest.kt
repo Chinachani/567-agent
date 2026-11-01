@@ -28,7 +28,7 @@ class ChatInferenceApiSettingsTest {
         rule.onNodeWithText(auto).performClick()
         rule.onNode(hasText(Str.modelProtocolCompletions) and hasAnyAncestor(isDialog())).performClick()
         rule.runOnIdle { assertEquals(InferenceApi.Completions.wireValue, state.inferenceApiOverride) }
-        rule.onNodeWithText(Str.modelProtocolCompletions).performClick()
+        rule.onNodeWithText("${Str.modelProtocolManual} · ${Str.modelProtocolCompletions}").performClick()
         rule.onNode(hasText(auto) and hasAnyAncestor(isDialog())).performClick()
         rule.runOnIdle { assertNull(state.inferenceApiOverride); enabled = false }
         rule.onNodeWithText(auto).assertIsNotEnabled()

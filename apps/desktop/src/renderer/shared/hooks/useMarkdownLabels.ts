@@ -7,6 +7,7 @@ export function useMarkdownLabels(): MarkdownLabels {
 	return useMemo(
 		() => ({
 			copy: t("copyButton.label"),
+			copyTable: t("markdown.copyTable"),
 			resources: {
 				openFile: t("markdown.resourceMenu.openFile"),
 				openUrl: t("markdown.resourceMenu.openUrl"),
@@ -22,6 +23,8 @@ export function useMarkdownLabels(): MarkdownLabels {
 			copied: t("copyButton.copied"),
 			rich: {
 				preview: t("markdown.preview"),
+				previewToSide: t("markdown.previewToSide"),
+				saveAs: t("markdown.saveAs"),
 				source: t("markdown.source"),
 				run: t("markdown.run"),
 				stop: t("markdown.stop"),

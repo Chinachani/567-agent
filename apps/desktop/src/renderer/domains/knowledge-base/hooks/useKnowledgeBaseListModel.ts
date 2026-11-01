@@ -1,4 +1,3 @@
-import { useNarrowScreen } from "@shared/hooks/useNarrowScreen";
 import {
 	activeKnowledgeBaseIdAtom,
 	knowledgeBasesAtom,
@@ -21,7 +20,6 @@ export function useKnowledgeBaseListModel() {
 	const fileStatuses = useAtomValue(knowledgeFileStatusesAtom);
 	const navigate = useNavigate();
 	const [search, setSearch] = useState("");
-	const narrow = useNarrowScreen();
 
 	useEffect(() => {
 		void refresh();
@@ -47,18 +45,12 @@ export function useKnowledgeBaseListModel() {
 		void navigate({ to: "/knowledge" });
 	};
 
-	const goBack = () => {
-		void navigate({ to: "/knowledge" });
-	};
-
 	return {
 		activeId,
 		createKnowledgeBase,
 		fileStatuses,
 		filteredBases,
-		goBack,
 		knowledgeBases,
-		narrow,
 		openKnowledgeBase,
 		search,
 		setSearch,

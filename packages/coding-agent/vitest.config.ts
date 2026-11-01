@@ -8,6 +8,7 @@ export default defineConfig({
 				new URL("./src/public-api/resources.ts", import.meta.url),
 			),
 			"@567agent/agent-core": fileURLToPath(new URL("../agent/src/index.ts", import.meta.url)),
+			"@567agent/ai/protocol": fileURLToPath(new URL("../ai/src/protocol/index.ts", import.meta.url)),
 			"@567agent/ai": fileURLToPath(new URL("../ai/src/index.ts", import.meta.url)),
 			"@567agent/ecosystem-adapter/hooks": fileURLToPath(
 				new URL("../ecosystem-adapter/src/hooks/index.ts", import.meta.url),

@@ -12,6 +12,8 @@ enum class ConnectChannel {
     Cloud,
 }
 
+data class DesktopActiveConversation(val id: String, val title: String, val status: String)
+
 data class DesktopDevice(
     val id: String,
     val name: String,
@@ -19,6 +21,7 @@ data class DesktopDevice(
     val host: String,
     val status: DeviceStatus,
     val channel: ConnectChannel = ConnectChannel.Lan,
+    val activeConversation: DesktopActiveConversation? = null,
     val latencyMs: Int? = null,
     val connectedDuration: String? = null,
     val cpu: String? = null,

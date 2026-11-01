@@ -1302,7 +1302,6 @@
     "downloadingVersion": "Downloading {{version}} · {{progress}}%",
     "ready": "Version {{version}} is downloaded and ready to install.",
     "installing": "Preparing to install…",
-
     "notes": "Release notes",
     "notesDescription": "Read changes by version, since the previous update or across recent releases.",
     "open": "View notes",
@@ -2568,5 +2567,13 @@
     "editProvider": "Edit connection for {{name}}",
     "keepEditing": "Providers being edited stay visible in the list."
   },
-  "backToWorkspace": "Back to workspace"
+  "backToWorkspace": "Back to workspace",
+  "shortcutToggleSidebarLabel": "Toggle sidebar",
+  "shortcutToggleSidebarDesc": "Show or hide the project and conversation sidebar",
+  "shortcutToggleActivityPanelLabel": "Toggle activity panel",
+  "shortcutToggleActivityPanelDesc": "Show or hide the activity and deliveries workspace",
+  "shortcutFocusInputLabel": "Focus input",
+  "shortcutFocusInputDesc": "Move focus to the current conversation input",
+  "shortcutStopGenerationLabel": "Stop generation",
+  "shortcutStopGenerationDesc": "Stop the active conversation turn; do nothing when idle"
 }

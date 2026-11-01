@@ -1,5 +1,6 @@
 import { Reorder, useDragControls } from "motion/react";
 import type { JSX } from "react";
+import { Button } from "@vetta-org/ui";
 
 export interface QueueCardItem {
 	id: string;
@@ -57,13 +58,9 @@ export function QueueCardView({
 					<span className="min-w-0 flex-1 truncate text-[11px] leading-snug text-amber-600 dark:text-amber-400">
 						{paused.label}
 					</span>
-					<button
-						type="button"
-						onClick={paused.onResume}
-						className="shrink-0 rounded-md bg-amber-500/15 px-2 py-0.5 text-[11px] font-medium text-amber-700 transition-colors hover:bg-amber-500/25 dark:text-amber-300"
-					>
+					<Button variant="secondary" size="xs" onClick={paused.onResume}>
 						{paused.resumeLabel}
-					</button>
+					</Button>
 				</div>
 			) : null}
 			<Reorder.Group
@@ -120,32 +117,30 @@ function QueueItemRow({
 			>
 				<span className="icon-[solar--hamburger-menu-linear] text-sm" />
 			</button>
-			{item.kind === "context_compaction" || item.canSendNow === false ? (
-				<div className="flex min-w-0 flex-1 items-center gap-2 text-left text-[12px] leading-snug text-foreground">
-					{item.kind === "context_compaction" ? (
-						<span className="h-3.5 w-3.5 shrink-0 rounded-full border border-primary" aria-hidden="true" />
-					) : null}
-					<span className="truncate">{item.displayText}</span>
-				</div>
-			) : (
-				<button
-					type="button"
-					onClick={() => onSendNow(item.id)}
-					title={sendNowTitle}
-					className="min-w-0 flex-1 truncate text-left text-[12px] leading-snug text-foreground"
-				>
-					{item.displayText}
-				</button>
-			)}
-			<button
-				type="button"
+			<div
+				className="flex min-w-0 flex-1 select-text items-center gap-2 text-left text-[12px] leading-snug text-foreground"
+				title={item.displayText}
+			>
+				{item.kind === "context_compaction" ? (
+					<span className="h-3.5 w-3.5 shrink-0 rounded-full border border-primary" aria-hidden="true" />
+				) : null}
+				<span className="truncate">{item.displayText}</span>
+			</div>
+			{item.kind !== "context_compaction" && item.canSendNow !== false ? (
+				<Button variant="ghost" size="xs" onClick={() => onSendNow(item.id)} title={sendNowTitle}>
+					{sendNowTitle}
+				</Button>
+			) : null}
+			<Button
+				variant="ghost"
+				size="icon-xs"
 				onClick={() => onRemove(item.id)}
 				title={deleteTitle}
 				aria-label={deleteTitle}
-				className="flex shrink-0 items-center text-muted-foreground/50 opacity-0 transition-all hover:text-destructive group-hover:opacity-100"
+				className="text-muted-foreground/60 hover:text-destructive focus-visible:text-destructive"
 			>
 				<span className="icon-[solar--trash-bin-trash-linear] text-sm" />
-			</button>
+			</Button>
 		</Reorder.Item>
 	);
 }

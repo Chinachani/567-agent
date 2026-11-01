@@ -34,19 +34,21 @@ export {
 	readCodingAgentBackgroundTasksObservation,
 } from "../execution/background/background-work-session-extension-contract.js";
 export {
-	CODING_AGENT_GOAL_CLEAR,
-	CODING_AGENT_GOAL_CREATE,
 	CODING_AGENT_GOAL_EXTENSION_ID,
-	CODING_AGENT_GOAL_OBSERVATION,
-	CODING_AGENT_GOAL_STATE_READ,
 	CODING_AGENT_GOAL_STATUSES,
-	CODING_AGENT_GOAL_UPDATE,
 	type CodingAgentGoalSnapshot,
 	type CodingAgentGoalState,
 	type CodingAgentGoalStatus,
 	isCodingAgentGoalStatus,
+} from "../features/goal/contracts.js";
+export {
+	CODING_AGENT_GOAL_CLEAR,
+	CODING_AGENT_GOAL_CREATE,
+	CODING_AGENT_GOAL_OBSERVATION,
+	CODING_AGENT_GOAL_STATE_READ,
+	CODING_AGENT_GOAL_UPDATE,
 	readCodingAgentGoalObservation,
-} from "../features/goal/index.js";
+} from "../features/goal/goal-session-extension-contract.js";
 export {
 	type CodingAgentPermissionMode,
 	type CodingAgentPlan,

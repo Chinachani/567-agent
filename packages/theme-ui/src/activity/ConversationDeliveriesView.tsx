@@ -1,5 +1,5 @@
 import { Button } from "@vetta-org/ui";
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { ResourceMenu } from "../markdown/ResourceMenu";
 import type { MarkdownLabels } from "../markdown/rich-labels";
 
@@ -37,7 +37,7 @@ export function ConversationDeliveriesView({
 	readonly state: "ready" | "loading" | "failed";
 	readonly onOpen: (id: string) => void;
 	readonly onSource: (id: string) => void;
-	readonly onCopy: (id: string) => void;
+	readonly onCopy: (id: string) => void | Promise<void>;
 	readonly onRetry: () => void;
 }) {
 	const [filter, setFilter] = useState<"all" | DeliveryViewItem["kind"]>("all");
@@ -47,18 +47,21 @@ export function ConversationDeliveriesView({
 			<h2 className="text-[14px] font-semibold">{labels.title}</h2>
 			<p className="mt-1 text-[12px] leading-relaxed text-muted-foreground">{labels.description}</p>
 			<fieldset className="mt-3 flex min-w-0 flex-wrap gap-1 border-0 p-0" aria-label={labels.title}>
-				{(["all", "file", "url", "image"] as const).map((kind) => (
-					<Button
-						key={kind}
-						size="xs"
-						variant={filter === kind ? "secondary" : "ghost"}
-						aria-pressed={filter === kind}
-						onClick={() => setFilter(kind)}
-					>
-						{labels.filters[kind]} ·{" "}
-						{kind === "all" ? items.length : items.filter((item) => item.kind === kind).length}
-					</Button>
-				))}
+				{(["all", "file", "url", "image"] as const).map((kind) => {
+					const count = kind === "all" ? items.length : items.filter((item) => item.kind === kind).length;
+					return (
+						<Button
+							key={kind}
+							size="xs"
+							variant={filter === kind ? "secondary" : "ghost"}
+							aria-pressed={filter === kind}
+							className={count === 0 && filter !== kind ? "text-muted-foreground/50" : undefined}
+							onClick={() => setFilter(kind)}
+						>
+							{labels.filters[kind]} · {count}
+						</Button>
+					);
+				})}
 			</fieldset>
 			{state === "loading" ? (
 				<p className="py-8 text-[13px] text-muted-foreground">{labels.loading}</p>
@@ -106,11 +109,7 @@ export function ConversationDeliveriesView({
 							<div className="mt-1 flex flex-wrap items-center justify-between gap-2 px-2">
 								<span className="text-[11px] text-muted-foreground">{item.evidenceLabel}</span>
 								<div className="flex items-center gap-1">
-									<Button variant="ghost" size="xs" onClick={() => onCopy(item.id)}>
-										{item.kind === "url" || /^https?:\/\//i.test(item.target)
-											? labels.resources.resources?.copyUrl
-											: labels.resources.resources?.copyFile}
-									</Button>
+									<DeliveryCopyButton item={item} labels={labels.resources} onCopy={onCopy} />
 									<Button variant="ghost" size="xs" onClick={() => onSource(item.id)}>
 										{labels.source}
 									</Button>
@@ -124,5 +123,49 @@ export function ConversationDeliveriesView({
 				<p className="py-8 text-[13px] text-muted-foreground">{labels.noMatches}</p>
 			) : null}
 		</section>
+	);
+}
+
+function DeliveryCopyButton({
+	item,
+	labels,
+	onCopy,
+}: {
+	readonly item: DeliveryViewItem;
+	readonly labels: MarkdownLabels;
+	readonly onCopy: (id: string) => void | Promise<void>;
+}) {
+	const [copied, setCopied] = useState(false);
+	const timer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
+	const version = useRef(0);
+	useEffect(() => {
+		version.current++;
+		setCopied(false);
+		return () => {
+			version.current++;
+			clearTimeout(timer.current);
+		};
+	}, [item.id, item.target]);
+	const copy = () => {
+		const attempt = ++version.current;
+		clearTimeout(timer.current);
+		setCopied(false);
+		void Promise.resolve()
+			.then(() => onCopy(item.id))
+			.then(() => {
+				if (version.current !== attempt) return;
+				setCopied(true);
+				timer.current = setTimeout(() => setCopied(false), 1500);
+			})
+			.catch(() => {
+				if (version.current === attempt) setCopied(false);
+			});
+	};
+	const label =
+		item.kind === "url" || /^https?:\/\//i.test(item.target) ? labels.resources?.copyUrl : labels.resources?.copyFile;
+	return (
+		<Button variant="ghost" size="xs" className="min-w-16" onClick={copy}>
+			<span aria-live="polite">{copied ? labels.copied : (label ?? labels.copy)}</span>
+		</Button>
 	);
 }

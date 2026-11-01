@@ -6,6 +6,18 @@ import org.agent567.android.AppVersion
  * 用户可见文案。对齐设计图「AI 应用 APP 与 Desktop 无缝对接」。
  */
 object Str {
+    const val taskNotificationChannel = "任务状态"
+    const val taskNoticeNeedsInput = "任务需要你的回答或确认"
+    const val taskNoticeCompleted = "任务已完成"
+    const val taskNoticeInterrupted = "任务异常中断"
+    const val taskNoticeOpen = "点击返回对应会话"
+    const val desktopFailed = "电脑任务已中断 · 点击查看"
+
+    const val desktopWaiting = "电脑正在等待你的回答或确认"
+    const val desktopRunning = "电脑正在执行 · 点击接力"
+    const val desktopOpenConversation = "电脑当前会话 · 点击接力"
+    const val editMessage = "重新编辑"
+    const val editMessageOverwrite = "用这条消息替换当前草稿？已发送的历史和当前附件会保留。"
     const val phoneDirectTitle = "手机直接对话"
     const val phoneDirectHint = "使用 567 API，不依赖电脑在线"
     const val desktopSessionsHint = "继续电脑上的任务与聊天记录"
@@ -743,6 +755,7 @@ object Str {
     const val contextCapacityFillReference = "填入自动容量"
     const val modelProtocol = "调用协议"
     const val modelProtocolAuto = "自动"
+    const val modelProtocolManual = "手动"
     const val modelProtocolResponses = "Responses"
     const val modelProtocolCompletions = "Chat Completions"
     const val modelProtocolHint = "自动模式下 Codex 使用 Responses，其他模型使用 Chat Completions。所选协议需服务商支持；仅影响后续请求，不会自动重发。"

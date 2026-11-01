@@ -4,6 +4,10 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material3.Button
@@ -17,19 +21,29 @@ import androidx.compose.ui.unit.dp
 import org.agent567.android.ui.i18n.Str
 
 @Composable
-fun UpdateDownloadPanel(state: UpdateDownloadState, onPause: () -> Unit, onResume: () -> Unit, onInstall: () -> Unit) {
+fun UpdateDownloadPanel(
+    state: UpdateDownloadState,
+    onPause: () -> Unit,
+    onResume: () -> Unit,
+    onInstall: () -> Unit,
+    modifier: Modifier = Modifier,
+) {
     if (state.phase == UpdateDownloadPhase.Idle) return
-    Column(Modifier.fillMaxWidth().padding(vertical = 16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-            Text("${Str.updateDownloadChannel} ${state.version}", style = MaterialTheme.typography.titleSmall)
-            Text(Str.updateDownloadProgress(state.downloadedBytes, state.totalBytes), style = MaterialTheme.typography.bodySmall)
+    val numericStyle = MaterialTheme.typography.bodySmall.copy(fontFeatureSettings = "tnum")
+    Column(modifier.fillMaxWidth().padding(bottom = 12.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+        Text("${Str.updateDownloadChannel} ${state.version}", style = MaterialTheme.typography.titleSmall)
+        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+            Text(Str.updateDownloadProgress(state.downloadedBytes, state.totalBytes), style = numericStyle, modifier = Modifier.weight(1f))
+            if (state.phase == UpdateDownloadPhase.Downloading && state.bytesPerSecond > 0) {
+                Text(Str.updateDownloadSpeed(state.bytesPerSecond), style = numericStyle)
+            }
         }
         if (state.phase == UpdateDownloadPhase.Downloading) {
             LinearProgressIndicator(
                 progress = { if (state.totalBytes > 0) (state.downloadedBytes.toFloat() / state.totalBytes).coerceIn(0f, 1f) else 0f },
-                modifier = Modifier.fillMaxWidth(),
+                modifier = Modifier.fillMaxWidth().height(4.dp).clip(RoundedCornerShape(2.dp)),
+                strokeCap = StrokeCap.Butt, gapSize = 0.dp, drawStopIndicator = {},
             )
-            if (state.bytesPerSecond > 0) Text(Str.updateDownloadSpeed(state.bytesPerSecond), style = MaterialTheme.typography.bodySmall)
         }
         Text(when (state.phase) {
             UpdateDownloadPhase.Ready -> Str.updateDownloadReady

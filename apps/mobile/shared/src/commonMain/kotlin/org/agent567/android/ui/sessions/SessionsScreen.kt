@@ -8,7 +8,10 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.itemsIndexed
+import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.layout.Arrangement
+import org.agent567.android.ui.components.Agent567Card
+import org.agent567.android.ui.components.NewConversationButton
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.ChatBubbleOutline
 import androidx.compose.material.icons.filled.DeleteOutline
@@ -16,10 +19,8 @@ import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material.icons.filled.Search
-import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Computer
 import androidx.compose.material.icons.filled.CloudQueue
-import androidx.compose.material3.FloatingActionButton
 import androidx.compose.foundation.layout.PaddingValues
 import org.agent567.android.ui.components.MobileIconTile
 import androidx.compose.material3.DropdownMenu
@@ -92,15 +93,11 @@ fun SessionsScreen(
 
     Scaffold(
         containerColor = MaterialTheme.agent567Extra.pageBackground,
-        floatingActionButton = {
-            if (filtered.isNotEmpty()) FloatingActionButton(onClick = onNewConversation, containerColor = MaterialTheme.colorScheme.primary, contentColor = MaterialTheme.colorScheme.onPrimary) {
-                Icon(Icons.Default.Add, contentDescription = Str.newConversation)
-            }
-        },
         topBar = {
             TopAppBar(
                 title = { Text(Str.sessionsTitle, style = MaterialTheme.typography.titleLarge) },
                 actions = {
+                    NewConversationButton(onClick = onNewConversation)
                     IconButton(
                         onClick = onRefreshSessions,
                         enabled = filterIndex != 1 || !desktopSessionsLoading,
@@ -117,7 +114,8 @@ fun SessionsScreen(
     ) { padding ->
         LazyColumn(
             modifier = Modifier.padding(padding).fillMaxSize(),
-            contentPadding = PaddingValues(start = 20.dp, end = 20.dp, bottom = 88.dp),
+            contentPadding = PaddingValues(start = 20.dp, end = 20.dp, bottom = 24.dp),
+            verticalArrangement = Arrangement.spacedBy(8.dp),
         ) {
             item {
                 Column {
@@ -179,59 +177,59 @@ fun SessionsScreen(
                         title = if (query.isBlank()) Str.noSessions else Str.noSessionsMatch,
                         subtitle = if (query.isBlank()) Str.noSessionsHint else null,
                         icon = Icons.Default.ChatBubbleOutline,
-                        actionLabel = if (query.isBlank()) Str.newConversation else null,
-                        onAction = if (query.isBlank()) onNewConversation else null,
                         modifier = Modifier.fillMaxWidth(),
                     )
                 }
                 else -> {
-                    itemsIndexed(filtered, key = { _, item -> item.id }) { index, item ->
-                        ListRow(
-                            title = item.title,
-                            leading = { MobileIconTile(if (item.isCloud) Icons.Default.CloudQueue else Icons.Default.Computer) },
-                            subtitle = "${item.sourceLabel} · ${item.timeLabel}",
-                            trailing = {
-                                Box {
-                                    IconButton(onClick = { openMenuSessionId = item.id }) {
-                                        Icon(
-                                            Icons.Default.MoreVert,
-                                            contentDescription = Str.sessionActions,
-                                            tint = MaterialTheme.agent567Extra.secondaryText,
-                                        )
-                                    }
-                                    DropdownMenu(
-                                        expanded = openMenuSessionId == item.id,
-                                        onDismissRequest = { openMenuSessionId = null },
-                                    ) {
-                                        if (item.remoteSessionId == null) {
+                    items(filtered, key = { it.id }) { item ->
+                        Agent567Card(contentPadding = PaddingValues(horizontal = 8.dp, vertical = 0.dp)) {
+                            ListRow(
+                                title = item.title,
+                                leading = { MobileIconTile(if (item.isCloud) Icons.Default.CloudQueue else Icons.Default.Computer) },
+                                subtitle = "${item.sourceLabel} · ${item.timeLabel}",
+                                trailing = {
+                                    Box {
+                                        IconButton(onClick = { openMenuSessionId = item.id }) {
+                                            Icon(
+                                                Icons.Default.MoreVert,
+                                                contentDescription = Str.sessionActions,
+                                                tint = MaterialTheme.agent567Extra.secondaryText,
+                                            )
+                                        }
+                                        DropdownMenu(
+                                            expanded = openMenuSessionId == item.id,
+                                            onDismissRequest = { openMenuSessionId = null },
+                                        ) {
+                                            if (item.remoteSessionId == null) {
+                                                DropdownMenuItem(
+                                                    text = { Text(Str.rename) },
+                                                    leadingIcon = { Icon(Icons.Default.Edit, contentDescription = null) },
+                                                    onClick = {
+                                                        openMenuSessionId = null
+                                                        renameTitle = item.title
+                                                        renameTarget = item
+                                                    },
+                                                )
+                                            }
                                             DropdownMenuItem(
-                                                text = { Text(Str.rename) },
-                                                leadingIcon = { Icon(Icons.Default.Edit, contentDescription = null) },
+                                                text = { Text(Str.delete) },
+                                                leadingIcon = { Icon(Icons.Default.DeleteOutline, contentDescription = null) },
                                                 onClick = {
                                                     openMenuSessionId = null
-                                                    renameTitle = item.title
-                                                    renameTarget = item
+                                                    if (confirmBeforeDelete) {
+                                                        deleteTarget = item
+                                                    } else {
+                                                        onDeleteSession(item.id)
+                                                    }
                                                 },
                                             )
                                         }
-                                        DropdownMenuItem(
-                                            text = { Text(Str.delete) },
-                                            leadingIcon = { Icon(Icons.Default.DeleteOutline, contentDescription = null) },
-                                            onClick = {
-                                                openMenuSessionId = null
-                                                if (confirmBeforeDelete) {
-                                                    deleteTarget = item
-                                                } else {
-                                                    onDeleteSession(item.id)
-                                                }
-                                            },
-                                        )
                                     }
-                                }
-                            },
-                            onClick = { onOpenSession(item) },
-                            showDivider = index < filtered.lastIndex,
-                        )
+                                },
+                                onClick = { onOpenSession(item) },
+                                showDivider = false,
+                            )
+                        }
                     }
                 }
             }

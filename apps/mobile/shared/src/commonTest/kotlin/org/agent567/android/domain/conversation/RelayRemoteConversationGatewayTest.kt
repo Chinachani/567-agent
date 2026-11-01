@@ -35,6 +35,29 @@ import kotlin.test.assertFailsWith
 
 @OptIn(ExperimentalCoroutinesApi::class)
 class RelayRemoteConversationGatewayTest {
+    @Test fun deviceStatusFramesUpdateCurrentConversationAndDisconnectClearsIt() = runTest {
+        val transport = FakeGatewayTransport()
+        val gateway = RelayRemoteConversationGateway(scope = backgroundScope, transportFactory = { transport }, now = { 1_000L })
+        gateway.connect("fake-relay")
+        assertEquals(null, gateway.devices.value.single().activeConversation)
+        transport.push(RemoteEvent("active", 1, RemoteEventName.DeviceStatus, payload = buildJsonObject { put("activeConversation", buildJsonObject { put("id", "session-1"); put("title", "Current work"); put("status", "running") }) }))
+        runCurrent()
+        assertEquals("session-1", gateway.devices.value.single().activeConversation?.id)
+        transport.push(RemoteEvent("waiting", 2, RemoteEventName.DeviceStatus, payload = buildJsonObject { put("activeConversation", buildJsonObject { put("id", "session-1"); put("title", "Current work"); put("status", "waiting") }) }))
+        runCurrent()
+        assertEquals("waiting", gateway.devices.value.single().activeConversation?.status)
+        gateway.disconnect("desktop-1")
+        assertTrue(gateway.devices.value.isEmpty())
+    }
+
+    @Test fun parsesOptionalCurrentConversationWithoutAcceptingMalformedIdentity() {
+        assertEquals(null, (null as kotlinx.serialization.json.JsonElement?).toActiveConversation())
+        val value = buildJsonObject { put("id", "catalog-session"); put("title", "Current work"); put("status", "waiting") }.toActiveConversation()
+        assertEquals("catalog-session", value?.id)
+        assertEquals("waiting", value?.status)
+        assertEquals(null, buildJsonObject { put("id", ""); put("title", "Spoofed"); put("status", "running") }.toActiveConversation())
+    }
+
     @Test
     fun reconnectsAutomaticallyAfterTransportDrop() =
         runTest {
@@ -435,6 +458,8 @@ private class FakeGatewayTransport(
     override suspend fun close() {
         channel.close()
     }
+
+    suspend fun push(event: RemoteEvent) { channel.send(event) }
 
     fun drop() {
         channel.close()

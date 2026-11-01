@@ -2,6 +2,7 @@ package org.agent567.android.ui
 
 import com.russhwolf.settings.MapSettings
 import kotlinx.coroutines.CompletableDeferred
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.Flow
@@ -118,6 +119,9 @@ class AppViewModelRemoteConversationTest {
             }
             val container = container(gateway)
             val viewModel = AppViewModel(container)
+            viewModel.taskNotifications.foreground = false
+            val notices = mutableListOf<org.agent567.android.domain.notifications.TaskNotice>()
+            backgroundScope.launch(kotlinx.coroutines.test.UnconfinedTestDispatcher(testScheduler)) { viewModel.taskNotifications.notices.collect { notices.add(it) } }
             advanceUntilIdle()
 
             viewModel.startDesktopConversation("desktop-1")
@@ -126,6 +130,9 @@ class AppViewModelRemoteConversationTest {
             viewModel.sendMessage()
             advanceUntilIdle()
 
+            assertEquals(1, notices.size)
+            assertEquals(viewModel.state.value.currentSessionId, notices.single().sessionId)
+            assertEquals(org.agent567.android.domain.notifications.TaskNoticeKind.NeedsInput, notices.single().kind)
             val pending = assertNotNull(viewModel.state.value.pendingQuestion)
             assertEquals("question-1", pending.requestId)
             viewModel.toggleQuestionOption("选择执行方式", "继续")
@@ -651,6 +658,27 @@ class AppViewModelRemoteConversationTest {
         advanceUntilIdle()
         assertTrue(gateway.emptySessionDeleteCalls.isEmpty())
         assertNotNull(container.sessionStore.getSession(session.id))
+    }
+
+    @Test fun continuesTheExactConnectedComputerAndIgnoresStaleHandoff() = runTest(dispatcher) {
+        val gateway = FakeRemoteConversationGateway()
+        val second = gateway.devices.value.single().copy(id = "desktop-2", activeConversation = org.agent567.android.domain.device.DesktopActiveConversation("remote-active", "Active work", "waiting"))
+        gateway.devices.value = gateway.devices.value + second
+        val container = container(gateway)
+        val vm = AppViewModel(container)
+        advanceUntilIdle()
+        vm.continueDesktopConversation("desktop-2", "remote-active")
+        advanceUntilIdle()
+        val session = container.sessionStore.sessions.value.single { it.remoteSessionId == "remote-active" }
+        assertEquals("desktop-2", session.remoteDeviceId)
+        val count = container.sessionStore.sessions.value.size
+        gateway.devices.value = gateway.devices.value.map { it.copy(status = DeviceStatus.Offline) }
+        vm.continueDesktopConversation("desktop-2", "remote-active")
+        advanceUntilIdle()
+        assertEquals(count, container.sessionStore.sessions.value.size)
+        vm.openTaskNotification(session.id)
+        advanceUntilIdle()
+        assertEquals(session.id, vm.state.value.currentSessionId)
     }
 
     private fun container(

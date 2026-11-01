@@ -49,12 +49,15 @@ export function ConversationDeliveries() {
 		[items, narrow, setTarget, setPanelOpen],
 	);
 	const copy = useCallback(
-		(id: string) => {
+		async (id: string) => {
 			const item = items.find((entry) => entry.id === id);
-			if (!item) return;
-			void markdown.host
-				?.copyText?.(item.target, /^https?:\/\//i.test(item.target) ? "url" : "file")
-				.catch(() => showToast({ variant: "error", message: t("deliveries.copyFailed") }));
+			try {
+				if (!item || !markdown.host?.copyText) throw new Error("Delivery copy is unavailable");
+				await markdown.host.copyText(item.target, /^https?:\/\//i.test(item.target) ? "url" : "file");
+			} catch (error) {
+				showToast({ variant: "error", message: t("deliveries.copyFailed") });
+				throw error;
+			}
 		},
 		[items, markdown.host, t],
 	);

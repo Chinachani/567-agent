@@ -173,6 +173,10 @@ export function useTaskProgressModel() {
 	}, [latest, store]);
 	return {
 		progress,
+		plainReply:
+			latest?.kind === "agent" &&
+			["pending", "streaming", "waiting"].includes(latest.phase) &&
+			!latest.blocks.some((block) => block.type === "tool_call"),
 		elapsedSeconds,
 		goal,
 		retry,

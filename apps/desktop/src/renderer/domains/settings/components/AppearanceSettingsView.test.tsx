@@ -77,7 +77,7 @@ describe("AppearanceSettingsView", () => {
 			<AppearanceSettingsView
 				model={model({
 					actions: { changeMode },
-					modeOptions: [{ value: "light", label: "亮色", hint: "浅色模式", icon: "icon-[mdi--sun]" }],
+					modeOptions: [{ value: "light", label: "亮色", hint: "浅色模式", icon: "icon-[solar--sun-linear]" }],
 				})}
 			/>,
 		);

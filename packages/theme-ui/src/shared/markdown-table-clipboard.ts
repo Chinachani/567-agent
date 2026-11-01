@@ -29,3 +29,9 @@ export function toCsv(rows: string[][]): string {
 	const quote = (value: string): string => (/[",\n]/.test(value) ? `"${value.replace(/"/g, '""')}"` : value);
 	return rows.map((row) => row.map(quote).join(",")).join("\n");
 }
+
+/** TSV quoting preserves tabs, quotes and line breaks when pasted into spreadsheets. */
+export function toTsv(rows: string[][]): string {
+	const quote = (value: string): string => (/["\t\r\n]/.test(value) ? `"${value.replace(/"/g, '""')}"` : value);
+	return rows.map((row) => row.map(quote).join("\t")).join("\n");
+}

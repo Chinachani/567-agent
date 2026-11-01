@@ -109,7 +109,12 @@ export function NewSessionPageView({
 				background={null}
 				themedBackground={<ThemedNewSessionBackground />}
 				dropZone={(children) => (
-					<div className={cn("relative flex h-full min-w-0 flex-1 flex-col overflow-hidden bg-background", className)}>
+					<div
+						className={cn(
+							"relative flex h-full min-w-0 flex-1 flex-col overflow-hidden bg-background",
+							className,
+						)}
+					>
 						{children}
 					</div>
 				)}
@@ -148,6 +153,7 @@ export function NewSessionPageView({
 						{isTeamTarget(targetKey) ? (
 							teamComposer.model && teamComposer.actions ? (
 								<TeamComposerConnector
+									contextToolsPlacement="bottom"
 									model={teamComposer.model}
 									actions={teamComposer.actions}
 									onExpandedChange={onCommandPanelExpandedChange}
@@ -168,6 +174,7 @@ export function NewSessionPageView({
 							)
 						) : (
 							<DefaultInputBarConnector
+								contextToolsPlacement="bottom"
 								onSend={onSend}
 								onAbort={onAbort}
 								cwdOverride={cwd}

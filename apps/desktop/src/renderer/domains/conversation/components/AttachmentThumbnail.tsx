@@ -47,7 +47,7 @@ export function AttachmentThumbnail({ id, read }: { id: string; read: (id: strin
 				<span
 					role="img"
 					aria-label={t(preview?.unavailable ? "workbench.thumbnailUnavailable" : "workbench.thumbnail")}
-					className={`${preview?.unavailable ? "icon-[solar--gallery-broken-linear]" : "icon-[solar--gallery-linear]"} h-4 w-4 text-muted-foreground`}
+					className={`${preview?.unavailable ? "icon-[solar--gallery-remove-linear]" : "icon-[solar--gallery-linear]"} h-4 w-4 text-muted-foreground`}
 				/>
 			)}
 		</span>

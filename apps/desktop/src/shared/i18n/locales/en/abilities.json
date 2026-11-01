@@ -4,6 +4,8 @@
     "subtitle": "Give your agent more to work with: skills, scenes, MCP, plugins and bundles"
   },
   "banner": {
+    "summary": "Catalog inclusion is not a security certification. Check the source first.",
+    "viewGuide": "View setup guide",
     "title": "How to use abilities",
     "description": "Choose an access path based on the source status. Catalog inclusion is not a security certification.",
     "catalogTitle": "Catalog abilities",

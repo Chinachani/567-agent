@@ -1,3 +1,4 @@
+import { WorkspacePageHeader } from "@vetta-org/theme-ui/shared";
 import { KnowledgeBreadcrumbView } from "@vetta-org/theme-ui/knowledge";
 import { useTranslation } from "react-i18next";
 import { AnimatePresence, motion } from "motion/react";
@@ -25,57 +26,40 @@ export function KnowledgeBaseListPageView({ model }: KnowledgeBaseListPageViewPr
 
 	return (
 		<div className="flex h-full w-full flex-1 flex-col overflow-hidden">
-			<header
-				className={cn(
-					"flex shrink-0 flex-wrap gap-4 border-b border-border/60 px-5 py-6 sm:px-8",
-					model.narrow ? "flex-col items-stretch" : "items-end justify-between",
-				)}
-			>
-				<motion.div
-					initial={{ opacity: 0, y: -8 }}
-					animate={{ opacity: 1, y: 0 }}
-					transition={{ duration: 0.45, ease: EASE_OUT }}
-				>
-					<div className="flex items-center gap-2">
-						<Button variant="ghost" size="icon-sm" title={t("kbAllBack")} onClick={model.goBack}>
-							<span className="icon-[solar--arrow-left-linear] h-4 w-4" />
-						</Button>
-						<h1 className="text-[24px] font-semibold tracking-tight text-foreground">{t("kbAllTitle")}</h1>
-						<motion.span
-							key={model.knowledgeBases.length}
-							initial={{ opacity: 0, scale: 0.85 }}
-							animate={{ opacity: 1, scale: 1 }}
-							transition={{ duration: 0.25, ease: EASE_OUT }}
-							className="rounded-full bg-primary/10 px-2 py-0.5 text-[10px] font-medium text-primary"
-						>
-							{model.knowledgeBases.length}
-						</motion.span>
-					</div>
-					<p className="ml-9 mt-2 text-[13px] text-muted-foreground">{t("kbAllSubtitle")}</p>
-				</motion.div>
-				<motion.div
-					initial={{ opacity: 0, y: -6 }}
-					animate={{ opacity: 1, y: 0 }}
-					transition={{ duration: 0.4, delay: 0.06, ease: EASE_OUT }}
-					className="flex max-w-full flex-wrap items-center gap-2"
-				>
-					<div className={cn("relative", model.narrow ? "min-w-0 flex-1" : "w-64")}>
-						<span className="icon-[solar--magnifer-linear] absolute left-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-muted-foreground/40" />
-						<input
-							value={model.search}
-							onChange={(event) => model.setSearch(event.target.value)}
-							placeholder={t("kbAllSearch")}
-							aria-label={t("kbAllSearch")}
-							className="h-8 w-full min-w-0 rounded-lg border border-transparent bg-secondary pl-8 pr-3 text-[12px] shadow-none outline-none placeholder:text-muted-foreground/45 hover:bg-accent focus-visible:border-primary/25 focus-visible:bg-background/70"
-						/>
-					</div>
-					<SettingsAiAssist tabId="knowledgeBase" />
-					<Button variant="primary" onClick={model.createKnowledgeBase}>
-						<span className="icon-[solar--add-circle-linear] h-4 w-4" />
-						{t("kbCreateBase")}
-					</Button>
-				</motion.div>
-			</header>
+			<div className="shrink-0 px-5 pt-6 sm:px-8">
+				<WorkspacePageHeader
+					title={
+						<>
+							{t("kbAllTitle")}{" "}
+							<span className="ml-2 align-middle rounded-full bg-primary/10 px-2 py-0.5 text-[10px] font-medium text-primary">
+								{model.knowledgeBases.length}
+							</span>
+						</>
+					}
+					description={t("kbAllSubtitle")}
+					className="mx-auto w-full max-w-6xl border-b border-border/60 pb-6"
+					actions={
+						<>
+							<SettingsAiAssist tabId="knowledgeBase" />
+							<Button variant="primary" onClick={model.createKnowledgeBase}>
+								<span className="icon-[solar--add-circle-linear] h-4 w-4" />
+								{t("kbCreateBase")}
+							</Button>
+						</>
+					}
+				/>
+				<div className="relative mx-auto my-5 w-full max-w-6xl">
+					<span className="icon-[solar--magnifer-linear] absolute left-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-muted-foreground/40" />
+					<input
+						type="search"
+						value={model.search}
+						onChange={(event) => model.setSearch(event.target.value)}
+						placeholder={t("kbAllSearch")}
+						aria-label={t("kbAllSearch")}
+						className="h-9 w-full min-w-0 rounded-lg border border-border bg-card pl-8 pr-3 text-[13px] outline-none placeholder:text-muted-foreground/45 focus-visible:ring-1 focus-visible:ring-ring"
+					/>
+				</div>
+			</div>
 
 			<div className="min-h-0 flex-1 overflow-y-auto px-5 py-6 sm:px-8">
 				<AnimatePresence mode="popLayout">

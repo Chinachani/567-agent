@@ -3,6 +3,7 @@ package org.agent567.android.ui.components
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
@@ -170,12 +171,15 @@ fun Agent567TextInputDialog(
     )
 }
 
+data class ErrorBannerAction(val label: String, val onClick: () -> Unit)
+
 @Composable
 fun Agent567ErrorBanner(
     error: UiError,
     onDismiss: (() -> Unit)? = null,
     onAction: ((UiErrorAction) -> Unit)? = null,
     modifier: Modifier = Modifier,
+    secondaryAction: ErrorBannerAction? = null,
 ) {
     Surface(
         modifier = modifier.fillMaxWidth(),
@@ -188,11 +192,14 @@ fun Agent567ErrorBanner(
             Text(error.title, style = MaterialTheme.typography.titleSmall)
             Spacer(Modifier.height(4.dp))
             Text(error.message, style = MaterialTheme.typography.bodyMedium)
-            Row(
+            FlowRow(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.End,
-                verticalAlignment = Alignment.CenterVertically,
+                verticalArrangement = Arrangement.spacedBy(4.dp),
             ) {
+                secondaryAction?.let { action ->
+                    TextButton(onClick = action.onClick) { Text(action.label) }
+                }
                 if (onDismiss != null) {
                     TextButton(onClick = onDismiss) { Text(Str.close) }
                 }

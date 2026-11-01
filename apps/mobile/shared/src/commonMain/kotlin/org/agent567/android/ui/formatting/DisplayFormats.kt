@@ -17,9 +17,14 @@ fun formatElapsedDuration(durationMs: Long): String {
 
 fun formatContextPercent(percent: Int?): String = percent?.coerceAtLeast(0)?.let { "$it%" } ?: Str.contextUnknown
 
-fun formatContextRatio(tokens: Long?, capacity: Long?): String =
-    if (tokens == null || capacity == null || capacity <= 0) Str.contextUnknown
-    else formatContextPercent((tokens.coerceAtLeast(0).toDouble() / capacity * 100).coerceAtMost(Int.MAX_VALUE.toDouble()).toInt())
+fun formatContextRatio(tokens: Long?, capacity: Long?): String {
+    if (tokens == null || capacity == null || capacity <= 0) return Str.contextUnknown
+    val percent = tokens.coerceAtLeast(0).toDouble() / capacity * 100
+    return if (percent > 0 && percent < 1) "< 1%"
+    else formatContextPercent(percent.coerceAtMost(Int.MAX_VALUE.toDouble()).toInt())
+}
+
+fun formatTokenCount(tokens: Long): String = tokens.coerceAtLeast(0).toString().reversed().chunked(3).joinToString(",").reversed()
 
 fun formatRelativeTime(epochMs: Long, nowMs: Long): String {
     val minutes = ((nowMs.coerceAtLeast(0) - epochMs.coerceAtLeast(0)).coerceAtLeast(0)) / 60_000

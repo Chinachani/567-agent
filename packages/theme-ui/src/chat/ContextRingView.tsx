@@ -15,12 +15,13 @@ export interface ContextRingViewProps {
 	/** Progress arc stroke color. */
 	color: string;
 	isCompacting: boolean;
-	tooltip: string;
+	/** Omit while the host's context details are open. */
+	tooltip?: string;
 	className?: string;
 }
 
 export function ContextRingView({
-	percent: _percent,
+	percent,
 	offset,
 	color,
 	isCompacting,
@@ -36,9 +37,11 @@ export function ContextRingView({
 			onMouseLeave={() => setHovered(false)}
 		>
 			<svg
+				aria-hidden="true"
 				width={SIZE}
 				height={SIZE}
 				className={isCompacting ? "" : "rotate-[-90deg]"}
+				opacity={!isCompacting && percent === 0 ? 0.6 : 1}
 				style={isCompacting ? { animation: "context-ring-spin 1s linear infinite" } : undefined}
 			>
 				<circle
@@ -46,9 +49,9 @@ export function ContextRingView({
 					cy={SIZE / 2}
 					r={RADIUS}
 					fill="none"
-					stroke="var(--secondary, #333)"
+					stroke="currentColor"
+					className="text-muted-foreground/40"
 					strokeWidth={STROKE}
-					opacity={0.5}
 				/>
 				{isCompacting ? (
 					<circle
@@ -56,12 +59,13 @@ export function ContextRingView({
 						cy={SIZE / 2}
 						r={RADIUS}
 						fill="none"
-						stroke="#f59e0b"
+						stroke="currentColor"
+						className="text-amber-600 dark:text-amber-400"
 						strokeWidth={STROKE}
 						strokeDasharray={`${SPIN_ARC} ${CIRCUMFERENCE - SPIN_ARC}`}
 						strokeLinecap="round"
 					/>
-				) : (
+				) : percent > 0 ? (
 					<circle
 						cx={SIZE / 2}
 						cy={SIZE / 2}
@@ -74,25 +78,24 @@ export function ContextRingView({
 						strokeLinecap="round"
 						style={{ transition: "stroke-dashoffset 0.4s ease, stroke 0.3s ease" }}
 					/>
-				)}
+				) : null}
 			</svg>
-			<AnimatePresence>
-				{hovered && (
-					<motion.div
-						initial={{ opacity: 0, y: 4 }}
-						animate={{ opacity: 1, y: 0 }}
-						exit={{ opacity: 0, y: 4 }}
-						transition={{ duration: 0.15 }}
-						className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 whitespace-nowrap rounded-md px-2 py-1 text-[11px] text-foreground pointer-events-none"
-						style={{
-							background: "var(--secondary, #2a2a2a)",
-							boxShadow: "0 2px 8px rgba(0,0,0,0.3)",
-						}}
-					>
-						{tooltip}
-					</motion.div>
-				)}
-			</AnimatePresence>
+			{tooltip ? (
+				<AnimatePresence>
+					{hovered && (
+						<motion.div
+							initial={{ opacity: 0, y: 4 }}
+							animate={{ opacity: 1, y: 0 }}
+							exit={{ opacity: 0, y: 4 }}
+							transition={{ duration: 0.15 }}
+							role="tooltip"
+							className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 whitespace-nowrap rounded-md border border-border bg-popover px-2 py-1 text-[11px] text-popover-foreground shadow-md pointer-events-none"
+						>
+							{tooltip}
+						</motion.div>
+					)}
+				</AnimatePresence>
+			) : null}
 		</div>
 	);
 }

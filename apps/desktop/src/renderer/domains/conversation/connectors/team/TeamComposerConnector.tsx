@@ -64,11 +64,13 @@ export function TeamComposerConnector({
 	model,
 	actions,
 	onExpandedChange,
+	contextToolsPlacement,
 	children,
 }: {
 	readonly model: TeamComposerViewModel;
 	readonly actions: TeamChatActions;
 	readonly children?: ReactNode;
+	readonly contextToolsPlacement?: InputBarModel["contextToolsPlacement"];
 	/** 命令区展开回调：新会话页据此淡出 hero，否则 hero（含装饰件）会压住向上生长的面板。 */
 	readonly onExpandedChange?: (expanded: boolean) => void;
 }): JSX.Element {
@@ -102,7 +104,9 @@ export function TeamComposerConnector({
 			model.members.map((member) => {
 				const handle = member.handle.trim() || member.id;
 				const isLeader = member.id === model.leaderMemberId;
-				const roleLabel = isLeader ? model.labels.leaderRoute : member.name.trim() || model.labels.memberRoleFallback;
+				const roleLabel = isLeader
+					? model.labels.leaderRoute
+					: member.name.trim() || model.labels.memberRoleFallback;
 				return {
 					kind: "team-member",
 					id: member.id,
@@ -318,6 +322,7 @@ export function TeamComposerConnector({
 	}, [actions, model.labels, model.leaderMemberId, model.members, t]);
 
 	const inputModel: InputBarModel = {
+		contextToolsPlacement,
 		dropZone: {
 			dragKind,
 			enabled: model.editorEnabled,

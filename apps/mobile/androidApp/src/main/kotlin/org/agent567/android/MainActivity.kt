@@ -16,6 +16,7 @@ import androidx.compose.ui.tooling.preview.Preview
 import org.agent567.android.app.ThemeMode
 
 class MainActivity : ComponentActivity() {
+    private var pendingTaskSession by mutableStateOf<String?>(null)
     private var pendingPairingInvite by mutableStateOf<String?>(null)
 
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -31,12 +32,15 @@ class MainActivity : ComponentActivity() {
         }
         window.setBackgroundDrawable(ColorDrawable(if (dark) Color.rgb(18, 18, 18) else Color.rgb(248, 248, 248)))
         pendingPairingInvite = pairingInviteFrom(intent)
+        pendingTaskSession = intent.getStringExtra(org.agent567.android.ui.notifications.TASK_NOTIFICATION_SESSION_EXTRA)?.takeIf { it.isNotBlank() && it.length <= 256 }
 
         setContent {
             App(
                 container = container,
                 pairingInvite = pendingPairingInvite,
                 onPairingInviteHandled = ::clearHandledPairingInvite,
+                notificationSessionId = pendingTaskSession,
+                onNotificationHandled = { pendingTaskSession = null; intent.removeExtra(org.agent567.android.ui.notifications.TASK_NOTIFICATION_SESSION_EXTRA) },
             )
         }
     }
@@ -45,6 +49,7 @@ class MainActivity : ComponentActivity() {
         super.onNewIntent(intent)
         setIntent(intent)
         pendingPairingInvite = pairingInviteFrom(intent)
+        pendingTaskSession = intent.getStringExtra(org.agent567.android.ui.notifications.TASK_NOTIFICATION_SESSION_EXTRA)?.takeIf { it.isNotBlank() && it.length <= 256 }
     }
 
     private fun clearHandledPairingInvite() {

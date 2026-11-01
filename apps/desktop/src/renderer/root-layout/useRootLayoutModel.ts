@@ -27,13 +27,17 @@ import { useGlobalShortcuts } from "../shared/hooks/useShortcuts";
 import { useUpdaterInit } from "../shared/hooks/useUpdaterInit";
 import { i18n } from "../shared/i18n";
 import {
+	activeComposerCommandsAtom,
 	activeSessionAtom,
+	activityPanelOpenAtom,
 	appshotAttachmentAtom,
+	closeInlineFilePreviewAtom,
 	commandMenuOpenAtom,
 	defaultConversationCwdAtom,
 	fileEditorHasUnsavedChangesAtom,
 	focusInputRequestAtom,
 	groupMcpTasksBySession,
+	inlineFilePreviewAtom,
 	lastActiveSessionAtom,
 	mcpTasksBySessionAtom,
 	pendingMcpElicitationsAtom,
@@ -68,6 +72,14 @@ export function useRootLayoutModel(): RootLayoutModel {
 	const [lastActiveSession, setLastActiveSession] = useAtom(lastActiveSessionAtom);
 	const matchesForGuard = useMatches();
 	const currentPath = matchesForGuard[matchesForGuard.length - 1]?.pathname ?? "/";
+	useEffect(() => {
+		void window.agent567.session
+			.setVisibleConversation?.(currentPath === "/" ? (activeSession?.runtimeId ?? null) : null)
+			.catch(() => {});
+		return () => {
+			void window.agent567.session.setVisibleConversation?.(null).catch(() => {});
+		};
+	}, [currentPath, activeSession?.runtimeId]);
 	const settingsMode = currentPath === "/settings" || currentPath.startsWith("/settings/");
 	useSettingsReturnLocation();
 	const previousPathRef = useRef(currentPath);
@@ -469,14 +481,34 @@ export function useRootLayoutModel(): RootLayoutModel {
 						setCommandMenuOpen(true);
 						break;
 					}
+					case "toggle-sidebar": {
+						if (narrow) setOverlayOpen((open) => !open);
+						else toggleSidebar();
+						break;
+					}
+					case "toggle-activity-panel": {
+						const store = getDefaultStore();
+						if (store.get(inlineFilePreviewAtom)) {
+							store.set(closeInlineFilePreviewAtom);
+							store.set(activityPanelOpenAtom, false);
+						} else store.set(activityPanelOpenAtom, (open) => !open);
+						break;
+					}
+					case "focus-input":
+						getDefaultStore().get(activeComposerCommandsAtom)?.focus();
+						break;
+					case "stop-generation":
+						getDefaultStore().get(activeComposerCommandsAtom)?.abort();
+						break;
 					case "save-file": {
 						window.dispatchEvent(new Event(FILE_EDITOR_SAVE_EVENT));
 						break;
 					}
 				}
 			},
-			[openProject, navigate, setCommandMenuOpen],
+			[openProject, navigate, setCommandMenuOpen, narrow, toggleSidebar],
 		),
+		(action) => action !== "stop-generation" || Boolean(getDefaultStore().get(activeComposerCommandsAtom)?.isBusy()),
 	);
 
 	return {

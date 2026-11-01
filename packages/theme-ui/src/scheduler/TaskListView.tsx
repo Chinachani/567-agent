@@ -102,7 +102,7 @@ export function TaskListView({
 							}`}
 						>
 							<ActionButton
-								icon="icon-[mdi--play]"
+								icon="icon-[solar--play-linear]"
 								title={labels.runNow}
 								onClick={(event) => {
 									event.stopPropagation();
@@ -110,7 +110,7 @@ export function TaskListView({
 								}}
 							/>
 							<ActionButton
-								icon={item.enabled ? "icon-[mdi--pause]" : "icon-[mdi--play-outline]"}
+								icon={item.enabled ? "icon-[solar--pause-linear]" : "icon-[solar--play-linear]"}
 								title={item.enabled ? labels.pause : labels.enable}
 								onClick={(event) => {
 									event.stopPropagation();
@@ -118,7 +118,7 @@ export function TaskListView({
 								}}
 							/>
 							<ActionButton
-								icon="icon-[mdi--pencil-outline]"
+								icon="icon-[solar--pen-linear]"
 								title={labels.edit}
 								onClick={(event) => {
 									event.stopPropagation();
@@ -126,7 +126,7 @@ export function TaskListView({
 								}}
 							/>
 							<ActionButton
-								icon="icon-[mdi--delete-outline]"
+								icon="icon-[solar--trash-bin-trash-linear]"
 								title={labels.delete}
 								variant="danger"
 								onClick={(event) => {
@@ -137,13 +137,15 @@ export function TaskListView({
 						</div>
 					</div>
 
-					<div className="relative mt-4 flex items-center gap-2 border-y border-border/50 py-3">
+					<div
+						className="relative mt-3 flex w-fit max-w-full items-center gap-2 rounded-full bg-accent/50 px-3 py-1.5"
+						title={item.cron}
+					>
 						<div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-lg bg-primary/10 ring-1 ring-inset ring-primary/15">
-							<span className="icon-[mdi--clock-time-eight-outline] h-3.5 w-3.5 text-primary" />
+							<span className="icon-[solar--clock-circle-linear] h-3.5 w-3.5 text-primary" />
 						</div>
 						<div className="min-w-0 flex-1">
 							<p className="truncate text-[12px] font-medium text-foreground">{item.scheduleLabel}</p>
-							<p className="mt-0.5 truncate font-mono text-[10px] text-muted-foreground">{item.cron}</p>
 						</div>
 					</div>
 
@@ -151,8 +153,8 @@ export function TaskListView({
 						<p className="line-clamp-2 text-[12px] leading-relaxed text-muted-foreground">{item.prompt}</p>
 					</div>
 
-					<div className="relative mt-4 flex flex-wrap items-center gap-1.5 border-t border-border/30 pt-3 text-[11px]">
-						<MetaPill icon="icon-[mdi--shield-outline]" text={item.executionModeLabel} />
+					<div className="relative mt-4 flex flex-wrap items-center gap-1.5 text-[11px]">
+						<MetaPill icon="icon-[solar--shield-check-linear]" text={item.executionModeLabel} />
 						<div className="ml-auto flex items-center gap-1.5">
 							{item.lastRunStatus && (
 								<span
@@ -165,15 +167,15 @@ export function TaskListView({
 									<span
 										className={`h-3 w-3 ${
 											item.lastRunStatus === "success"
-												? "icon-[mdi--check-circle]"
-												: "icon-[mdi--alert-circle]"
+												? "icon-[solar--check-circle-linear]"
+												: "icon-[solar--danger-circle-linear]"
 										}`}
 									/>
 									{item.lastRunStatus === "success" ? labels.success : labels.failed}
 								</span>
 							)}
 							<span className="flex items-center gap-1 text-muted-foreground">
-								<span className="icon-[mdi--history] h-3 w-3" />
+								<span className="icon-[solar--history-linear] h-3 w-3" />
 								{item.lastRunLabel}
 							</span>
 						</div>
@@ -210,6 +212,7 @@ function ActionButton({
 			size="icon-sm"
 			type="button"
 			title={title}
+			aria-label={title}
 			onClick={onClick}
 			className={`flex h-7 w-7 items-center justify-center rounded-lg transition-colors duration-150 ${
 				variant === "danger"

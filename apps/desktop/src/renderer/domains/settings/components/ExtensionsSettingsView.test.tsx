@@ -3,11 +3,7 @@ import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { describe, expect, it, vi } from "vitest";
 import { ExtensionsSettingsView } from "./ExtensionsSettingsView";
-import {
-	toExtensionEntry,
-	type ExtensionEntryModel,
-	type ExtensionsSettingsModel,
-} from "./useExtensionsSettingsModel";
+import { toExtensionEntry, type ExtensionEntryModel, type ExtensionsSettingsModel } from "./useExtensionsSettingsModel";
 
 const LABELS: ExtensionsSettingsModel["labels"] = {
 	title: "扩展设置",
@@ -24,7 +20,7 @@ function entry(overrides: Partial<ExtensionEntryModel> = {}): ExtensionEntryMode
 		label: "Console",
 		description: "",
 		pluginName: "Browser",
-		icon: "icon-[a]",
+		icon: "icon-[solar--settings-linear]",
 		open: () => undefined,
 		...overrides,
 	};
@@ -61,7 +57,11 @@ describe("toExtensionEntry", () => {
 	});
 
 	it("leaves the description empty and falls back to the default icon", () => {
-		const mapped = toExtensionEntry(view(), (_pluginId, value) => value, () => undefined);
+		const mapped = toExtensionEntry(
+			view(),
+			(_pluginId, value) => value,
+			() => undefined,
+		);
 
 		expect(mapped.description).toBe("");
 		expect(mapped.icon).toBe("icon-[solar--widget-2-linear]");
@@ -164,6 +164,6 @@ describe("ExtensionsSettingsView", () => {
 
 		expect(container.querySelectorAll("img")).toHaveLength(1);
 		expect(container.querySelector('img[src="vetta-plugin://demo/icon.png"]')).toBeTruthy();
-		expect(container.querySelector("span.icon-\\[a\\]")).toBeTruthy();
+		expect(container.querySelector('span[class~="icon-[solar--settings-linear]"]')).toBeTruthy();
 	});
 });

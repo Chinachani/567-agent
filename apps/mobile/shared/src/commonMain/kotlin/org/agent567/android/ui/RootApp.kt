@@ -79,10 +79,13 @@ fun RootApp(
     container: AppContainer = LocalAppContainer.current,
     pairingInvite: String? = null,
     onPairingInviteHandled: () -> Unit = {},
+    notificationSessionId: String? = null,
+    onNotificationHandled: () -> Unit = {},
 ) {
     val vm: AppViewModel =
         viewModel(factory = remember(container) { AppViewModelFactory(container) })
     val state by vm.state.collectAsState()
+    val taskNotifications = org.agent567.android.ui.notifications.rememberTaskNotificationActions(vm.taskNotifications)
     val appUpdates by vm.appUpdates.collectAsState()
     val sessions by vm.sessions.collectAsState()
     val sessionItems by vm.sessionListItems.collectAsState()
@@ -94,6 +97,20 @@ fun RootApp(
         }
         updateLifecycle.lifecycle.addObserver(observer)
         onDispose { updateLifecycle.lifecycle.removeObserver(observer) }
+    }
+
+    val visibleLifecycle = androidx.lifecycle.compose.LocalLifecycleOwner.current
+    androidx.compose.runtime.DisposableEffect(visibleLifecycle, vm) {
+        vm.taskNotifications.foreground = visibleLifecycle.lifecycle.currentState.isAtLeast(androidx.lifecycle.Lifecycle.State.STARTED)
+        val observer = androidx.lifecycle.LifecycleEventObserver { _, _ -> vm.taskNotifications.foreground = visibleLifecycle.lifecycle.currentState.isAtLeast(androidx.lifecycle.Lifecycle.State.STARTED) }
+        visibleLifecycle.lifecycle.addObserver(observer)
+        onDispose { visibleLifecycle.lifecycle.removeObserver(observer); vm.taskNotifications.foreground = false }
+    }
+    LaunchedEffect(notificationSessionId, state.bootstrapped) {
+        if (state.bootstrapped && notificationSessionId != null) { vm.openTaskNotification(notificationSessionId); taskNotifications.dismiss(notificationSessionId); onNotificationHandled() }
+    }
+    LaunchedEffect(state.currentSessionId, state.route) {
+        if (state.route is AppRoute.Chat) state.currentSessionId?.let(taskNotifications::dismiss)
     }
 
     PlatformBackHandler(
@@ -190,6 +207,7 @@ fun RootApp(
                                     onOpenDevices = { vm.selectMainTab(MainTab.Discover) },
                                     onOpenSessions = vm::openPhoneSessions,
                                     onOpenDesktopSessions = vm::openDesktopSessions,
+                            onContinueDesktopSession = { deviceId, sessionId -> taskNotifications.requestPermission(); vm.continueDesktopConversation(deviceId, sessionId) },
                                     onOpenSession = { id ->
                                         val item = vm.sessionListItems().firstOrNull { it.id == id }
                                         vm.openChat(
@@ -385,9 +403,9 @@ fun RootApp(
                     onSelectImageModel = vm::setActiveImageModel,
                     chatError = state.chatError,
                     onDraftChange = vm::onDraftChange,
-                    onSend = vm::sendMessage,
+                    onSend = { taskNotifications.requestPermission(); vm.sendMessage() },
                     onStop = { if (state.contextBusy) vm.cancelChatContextOperation() else vm.stopStreaming() },
-                    onRetryAssistant = { vm.retryLastError(it) },
+                    onRetryAssistant = { taskNotifications.requestPermission(); vm.retryLastError(it) },
                     onBack = vm::navigateBackFromSecondary,
                     onOpenModelPicker = { vm.setModelPicker(true) },
                     onCloseModelPicker = { vm.setModelPicker(false) },

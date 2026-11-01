@@ -50,6 +50,7 @@ import org.agent567.android.core.model.TokenUsage
 import org.agent567.android.ui.i18n.Str
 import org.agent567.android.domain.device.ConnectChannel
 import org.agent567.android.domain.device.DesktopDevice
+import org.agent567.android.domain.device.DesktopActiveConversation
 import org.agent567.android.domain.device.DeviceStatus
 import org.agent567.android.domain.remote.connection.KtorWebSocketRemoteTransport
 import org.agent567.android.domain.remote.connection.PlatformRemoteLogger
@@ -81,6 +82,7 @@ class RelayRemoteConversationGateway(
 ) : RemoteConversationGateway {
     private val _devices = MutableStateFlow<List<DesktopDevice>>(emptyList())
     private var connection: RemoteConnection? = null
+    private var deviceStatusJob: Job? = null
     private var connectionStateJob: Job? = null
     private var metricsJob: Job? = null
     private var reconnectJob: Job? = null
@@ -106,6 +108,8 @@ class RelayRemoteConversationGateway(
         oldReconnectJob?.cancelAndJoin()
         activeTargets = targets.distinct()
         val old = connection
+        deviceStatusJob?.cancel()
+        deviceStatusJob = null
         connectionStateJob?.cancel()
         connectionStateJob = null
         metricsJob?.cancel()
@@ -184,6 +188,7 @@ class RelayRemoteConversationGateway(
                     channel = ConnectChannel.Remote,
                     latencyMs = next.snapshot().lastRttMs?.toIntOrNull(),
                     connectedDuration = org.agent567.android.ui.formatting.formatElapsedDuration(now() - connectedAtEpochMs),
+                    activeConversation = diagnostics?.activeConversation,
                     cpu = diagnostics?.cpu,
                     ram = diagnostics?.ram,
                 ),
@@ -194,7 +199,9 @@ class RelayRemoteConversationGateway(
             while (isActive) {
                 val current = connection ?: break
                 if (current.state.value == RemoteConnectionState.Online && now() >= nextDiagnosticsAt) {
-                    requestDiagnostics(current)?.let { latestDiagnostics = it }
+                    requestDiagnostics(current)?.let { latestDiagnostics = it
+                        if (connection === current && generation == connectionGeneration) _devices.update { devices -> devices.map { device -> device.copy(activeConversation = it.activeConversation) } }
+                    }
                     nextDiagnosticsAt = now() + METRICS_DIAGNOSTICS_INTERVAL_MS
                 }
                 val latest = current.snapshot()
@@ -215,6 +222,8 @@ class RelayRemoteConversationGateway(
         val oldReconnectJob = reconnectJob
         reconnectJob = null
         oldReconnectJob?.cancelAndJoin()
+        deviceStatusJob?.cancel()
+        deviceStatusJob = null
         connectionStateJob?.cancel()
         connectionStateJob = null
         metricsJob?.cancel()
@@ -751,6 +760,17 @@ class RelayRemoteConversationGateway(
         reconnectEnabled: Boolean,
     ) {
         connectionTarget = target
+        deviceStatusJob?.cancel()
+        deviceStatusJob = scope.launch {
+            next.events.collect { envelope ->
+                if (connection !== next || generation != connectionGeneration) return@collect
+                val event = (envelope as? RemoteConnectionEvent.EventReceived)?.event ?: return@collect
+                if (event.name == RemoteEventName.DeviceStatus) {
+                    val active = (event.payload as? JsonObject)?.get("activeConversation").toActiveConversation()
+                    _devices.update { devices -> devices.map { it.copy(activeConversation = active) } }
+                }
+            }
+        }
         connectionStateJob?.cancel()
         connectionStateJob = scope.launch {
             next.state.collect { state ->
@@ -1292,7 +1312,7 @@ class RelayRemoteConversationGateway(
     }
 
     private fun MutableStateFlow<List<DesktopDevice>>.updateStatus(status: DeviceStatus) {
-        update { devices -> devices.map { device -> device.copy(status = status) } }
+        update { devices -> devices.map { device -> device.copy(status = status, activeConversation = if (status == DeviceStatus.Online) device.activeConversation else null) } }
     }
 
     private fun MutableStateFlow<List<DesktopDevice>>.updateLatency(latencyMs: Int?) {
@@ -1484,6 +1504,7 @@ private const val METRICS_DIAGNOSTICS_INTERVAL_MS = 5_000L
 private const val HISTORY_PAGE_SIZE = 100
 
 private data class DeviceDiagnostics(
+    val activeConversation: DesktopActiveConversation?,
     val osLabel: String?,
     val cpu: String?,
     val ram: String?,
@@ -1492,6 +1513,7 @@ private data class DeviceDiagnostics(
 private fun JsonElement?.toDeviceDiagnostics(): DeviceDiagnostics? {
     val objectValue = this as? JsonObject ?: return null
     return DeviceDiagnostics(
+        activeConversation = objectValue["activeConversation"].toActiveConversation(),
         osLabel = objectValue.stringValue("osLabel"),
         cpu = objectValue.stringValue("cpu"),
         ram = objectValue.stringValue("ram"),
@@ -1499,3 +1521,11 @@ private fun JsonElement?.toDeviceDiagnostics(): DeviceDiagnostics? {
 }
 
 private fun Long.toIntOrNull(): Int? = takeIf { it in 0..Int.MAX_VALUE.toLong() }?.toInt()
+
+internal fun JsonElement?.toActiveConversation(): DesktopActiveConversation? {
+    val value = this as? JsonObject ?: return null
+    val id = value.stringValue("id")?.takeIf { it.isNotBlank() && it.length <= 256 } ?: return null
+    val title = value.stringValue("title")?.takeIf { it.isNotBlank() && it.length <= 300 } ?: return null
+    val status = value.stringValue("status")?.takeIf { it in setOf("idle", "running", "waiting", "failed", "interrupted") } ?: return null
+    return DesktopActiveConversation(id, title, status)
+}

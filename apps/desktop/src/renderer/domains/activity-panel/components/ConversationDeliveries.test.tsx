@@ -35,7 +35,10 @@ beforeEach(async () => {
 		},
 	]);
 });
-afterEach(cleanup);
+afterEach(() => {
+	cleanup();
+	vi.useRealTimers();
+});
 
 it("collects an old conversation, opens the existing preview and jumps to its source without changing history", async () => {
 	const view = render(
@@ -57,6 +60,7 @@ it("collects an old conversation, opens the existing preview and jumps to its so
 	expect(store.get(chatMessagesAtom)).toHaveLength(1);
 	fireEvent.click(screen.getByRole("button", { name: "复制路径" }));
 	await waitFor(() => expect(copy).toHaveBeenCalledWith("/workspace/report.md"));
+	expect(await screen.findByRole("button", { name: "已复制" })).toBeTruthy();
 	view.unmount();
 	render(
 		<ActivityPanelContextProvider
@@ -74,6 +78,47 @@ it("collects an old conversation, opens the existing preview and jumps to its so
 	expect(screen.getByRole("button", { name: /^Website/ })).toBeTruthy();
 	fireEvent.click(screen.getByRole("button", { name: "图片 · 0" }));
 	expect(screen.getByText("这一类还没有文件或链接。")).toBeTruthy();
+});
+
+it("acknowledges only a successful clipboard write, then returns to the copy label after 1.5 seconds", async () => {
+	render(
+		<ActivityPanelContextProvider
+			value={{
+				workspace: { id: "/workspace", cwd: "/workspace", runtimeIds: ["runtime"] },
+				knowledgeHistory: false,
+			}}
+		>
+			<ConversationDeliveries />
+		</ActivityPanelContextProvider>,
+	);
+	await screen.findByRole("button", { name: "复制路径" });
+	let finish!: () => void;
+	const clipboard = new Promise<void>((resolve) => {
+		finish = resolve;
+	});
+	copy.mockImplementationOnce(() => clipboard);
+	vi.useFakeTimers();
+	fireEvent.click(screen.getByRole("button", { name: "复制路径" }));
+	expect(screen.queryByRole("button", { name: "已复制" })).toBeNull();
+	await act(async () => {
+		finish();
+		await clipboard;
+	});
+	expect(copy).toHaveBeenCalledWith("/workspace/report.md");
+	expect(screen.getByRole("button", { name: "已复制" })).toBeTruthy();
+	act(() => vi.advanceTimersByTime(1500));
+	expect(screen.queryByRole("button", { name: "已复制" })).toBeNull();
+	expect(screen.getByRole("button", { name: "复制路径" })).toBeTruthy();
+	copy.mockRejectedValueOnce(new Error("clipboard denied"));
+	await act(async () => {
+		fireEvent.click(screen.getByRole("button", { name: "复制链接" }));
+	});
+	expect(screen.queryByRole("button", { name: "已复制" })).toBeNull();
+	expect(screen.getByRole("button", { name: "复制链接" })).toBeTruthy();
+	await act(async () => {
+		fireEvent.click(screen.getByRole("button", { name: "复制链接" }));
+	});
+	expect(screen.getByRole("button", { name: "已复制" })).toBeTruthy();
 });
 
 it("clears the visible resources when the active runtime no longer belongs to this panel", () => {

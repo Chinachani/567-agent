@@ -274,6 +274,7 @@ export interface DesktopSessionApi {
 		sessionId: string,
 		selection: ContextSelection & { documentRevision: number; sessionId: string },
 	): Promise<ContextWorkspaceSnapshot>;
+	setVisibleConversation(runtimeId: string | null): Promise<void>;
 	getFullHistory(sessionId: string): Promise<HistoryEntry[]>;
 	/** Prepare re-edit: set leaf to parent of user entry; returns text. Call before prompt. */
 	navigateForEdit(sessionId: string, entryId: string): Promise<{ text: string; cancelled: boolean }>;

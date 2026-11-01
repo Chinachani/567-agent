@@ -91,8 +91,8 @@ class EntryAndProfileScreenTest {
             }
         }
 
-        composeRule.onNodeWithText(Str.getStarted).assertIsDisplayed()
-        composeRule.onNodeWithText(Str.scanPairing).assertIsDisplayed()
+        composeRule.onNodeWithText(Str.getStarted).performScrollTo().assertIsDisplayed()
+        composeRule.onNodeWithText(Str.scanPairing).performScrollTo().assertIsDisplayed()
         composeRule.onNodeWithText(Str.skipForNow).performScrollTo().performClick()
 
         assertTrue(skipped)
@@ -173,11 +173,11 @@ class EntryAndProfileScreenTest {
             }
         }
 
-        composeRule.onNodeWithText(Str.openSourceLicenses).performClick()
+        composeRule.onNodeWithText(Str.openSourceLicenses).performScrollTo().performClick()
         composeRule.onNodeWithText(Str.openSourceLicensesBody).assertIsDisplayed()
         composeRule.onNodeWithText(Str.close).performClick()
 
-        composeRule.onNodeWithText(Str.privacyPolicy).performClick()
+        composeRule.onNodeWithText(Str.privacyPolicy).performScrollTo().performClick()
         composeRule.onNodeWithText(Str.privacyPolicyBody).assertIsDisplayed()
     }
 

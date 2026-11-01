@@ -8,9 +8,13 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.StrokeCap
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.ui.unit.dp
 import org.agent567.android.domain.session.ChatContextSnapshot
 import org.agent567.android.ui.i18n.Str
+import org.agent567.android.ui.formatting.formatTokenCount
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -35,7 +39,7 @@ fun ChatContextSheet(
     var confirmReset by remember { mutableStateOf(false) }
     var showSummary by remember { mutableStateOf(false) }
     val canChange = hasSession && snapshot != null && !loading && !busy && !snapshot.busy
-    ModalBottomSheet(onDismissRequest = onDismiss) {
+    ModalBottomSheet(onDismissRequest = onDismiss, sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)) {
         Column(Modifier.fillMaxWidth().verticalScroll(rememberScrollState()).padding(horizontal = 20.dp).padding(bottom = 24.dp), verticalArrangement = Arrangement.spacedBy(16.dp)) {
             Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
                 Text(Str.contextManage, Modifier.weight(1f).padding(top = 8.dp), style = MaterialTheme.typography.titleLarge)
@@ -51,11 +55,17 @@ fun ChatContextSheet(
                 ContextGroup {
                     state.modelName?.let { Text(it, style = MaterialTheme.typography.titleSmall) }
                     Text(Str.contextUsage, style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                    Text(state.tokens?.let { "${if (state.estimated) "≈ " else ""}$it tokens" } ?: Str.contextUnknown, style = MaterialTheme.typography.headlineSmall)
+                    Text(state.tokens?.let { "${if (state.estimated) "≈ " else ""}${formatTokenCount(it)} tokens" } ?: Str.contextUnknown, style = MaterialTheme.typography.headlineSmall.copy(fontFeatureSettings = "tnum"))
                     val window = state.contextWindow?.takeIf { it > 0 }
                     val used = state.tokens
                     if (window != null && used != null) {
-                        LinearProgressIndicator(progress = { (used.toFloat() / window).coerceIn(0f, 1f) }, modifier = Modifier.fillMaxWidth())
+                        LinearProgressIndicator(
+                            progress = { (used.toFloat() / window).coerceIn(0f, 1f) },
+                            modifier = Modifier.fillMaxWidth().height(4.dp).clip(RoundedCornerShape(2.dp)),
+                            strokeCap = StrokeCap.Butt,
+                            gapSize = 0.dp,
+                            drawStopIndicator = {},
+                        )
                         Text("${org.agent567.android.ui.formatting.formatContextRatio(used, window.toLong())} · ${Str.contextActiveMessages}: ${state.messageCount}", style = MaterialTheme.typography.bodySmall)
                     } else Text("${Str.contextActiveMessages}: ${state.messageCount}", style = MaterialTheme.typography.bodySmall)
                     if (state.estimated) Text(Str.contextEstimateHint, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)

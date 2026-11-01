@@ -698,3 +698,54 @@ async function waitFor(predicate: () => boolean): Promise<void> {
 	}
 	throw new Error("condition was not met");
 }
+
+it("pushes only changed current-conversation facts through the paired event channel and stops with the connector", async () => {
+	vi.useFakeTimers();
+	const relay = new FakeRelay();
+	const mobile = new RemoteConnection(relay.createTransport("handoff", "mobile"), {
+		role: "mobile",
+		deviceId: "phone",
+		deviceName: "Phone",
+		capabilities: { chat: true, sessionRead: true },
+	});
+	const desktop = new RemoteConnection(relay.createTransport("handoff", "desktop"), {
+		role: "desktop",
+		deviceId: "pc",
+		deviceName: "PC",
+		capabilities: { chat: true, sessionRead: true },
+	});
+	const facts: unknown[] = [];
+	mobile.onEvent((event) => {
+		if (event.type === "remote-event" && event.event.name === "device.status") facts.push(event.event.payload);
+	});
+	let current: import("../../shared/visible-conversation.js").DesktopVisibleConversation | null = null;
+	const connector = new DesktopRemoteConnector(desktop, {
+		listSessions: async () => [],
+		createSession: async () => ({ sessionId: "s" }),
+		openSession: async (sessionId) => ({ sessionId }),
+		prompt: async function* () {},
+		abort: async () => {},
+		resume: async () => {},
+		diagnostics: async () => ({}),
+		readDeviceStatus: () => ({ activeConversation: current }),
+	});
+	try {
+		await mobile.connect();
+		await connector.start();
+		await vi.advanceTimersByTimeAsync(1000);
+		current = { id: "catalog-id", title: "Current work", status: "running" };
+		await vi.advanceTimersByTimeAsync(1000);
+		await vi.advanceTimersByTimeAsync(1000);
+		expect(facts).toEqual([{ activeConversation: null }, { activeConversation: current }]);
+		current = { ...current, status: "waiting" };
+		await vi.advanceTimersByTimeAsync(1000);
+		expect(facts.at(-1)).toEqual({ activeConversation: current });
+		await connector.stop();
+		await vi.advanceTimersByTimeAsync(1000);
+		expect(facts).toHaveLength(3);
+	} finally {
+		await connector.stop();
+		await mobile.close();
+		vi.useRealTimers();
+	}
+});

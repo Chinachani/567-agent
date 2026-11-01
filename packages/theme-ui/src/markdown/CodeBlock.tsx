@@ -1,5 +1,6 @@
 import { createContext, useCallback, useContext, useEffect, useRef, useState } from "react";
 import type { ComponentPropsWithoutRef, ReactNode } from "react";
+import { useMarkdownHost } from "./host";
 import { CodeBlockCopyButtonView } from "../shared/CodeBlockCopyButton";
 import { SyntaxHighlightedCode } from "../shared/SyntaxHighlightedCode";
 import type { MarkdownCodeBlockProps } from "./definition";
@@ -46,10 +47,55 @@ export function CodeBlockRoot({ children, ...props }: MarkdownCodeBlockProps & {
 }
 
 export function CodeBlockCopy({ children }: { children: ReactNode }) {
-	const { copied, copy, labels } = useCodeBlock();
+	const { copied, copy, labels, code, lang, live } = useCodeBlock();
+	const host = useMarkdownHost();
+	const [failed, setFailed] = useState(false);
+	const [saving, setSaving] = useState(false);
+	const pending = useRef(false);
+	const version = useRef(0);
+	useEffect(() => {
+		version.current++;
+		pending.current = false;
+		setFailed(false);
+		setSaving(false);
+		return () => {
+			version.current++;
+		};
+	}, [code]);
+	const save = async () => {
+		if (pending.current || !host?.saveCode) return;
+		const current = version.current;
+		pending.current = true;
+		setSaving(true);
+		setFailed(false);
+		try {
+			await host.saveCode(code, lang);
+		} catch {
+			if (version.current === current) setFailed(true);
+		} finally {
+			if (version.current === current) {
+				pending.current = false;
+				setSaving(false);
+			}
+		}
+	};
 	return (
-		<CodeBlockCopyButtonView copied={copied} onCopy={copy} labels={labels}>
+		<CodeBlockCopyButtonView
+			copied={copied}
+			onCopy={copy}
+			labels={labels}
+			onPreview={!live && host?.previewCode ? () => host.previewCode?.(code, lang) : undefined}
+			savePending={saving}
+			onSave={!live && host?.saveCode ? () => void save() : undefined}
+			previewLabel={labels.rich?.previewToSide ?? "Preview to the side"}
+			saveLabel={labels.rich?.saveAs ?? "Save as file"}
+		>
 			{children}
+			{failed && (
+				<p role="alert" className="text-[12px] text-destructive">
+					{labels.rich?.actionFailed ?? "Could not save file."}
+				</p>
+			)}
 		</CodeBlockCopyButtonView>
 	);
 }
@@ -74,9 +120,7 @@ export function CodeBlockLanguage() {
 
 export function CodeBlockContent() {
 	const { code, lang, theme, live } = useCodeBlock();
-	return (
-		<SyntaxHighlightedCode code={code} lang={lang} theme={theme} fontSizeClass="text-[13px]" live={live} />
-	);
+	return <SyntaxHighlightedCode code={code} lang={lang} theme={theme} fontSizeClass="text-[13px]" live={live} />;
 }
 
 export function DefaultCodeBlock(props: MarkdownCodeBlockProps) {

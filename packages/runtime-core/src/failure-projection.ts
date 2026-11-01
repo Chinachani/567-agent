@@ -1,4 +1,4 @@
-import { type AIErrorDetails, getAIErrorDetails, isAIError } from "@567agent/ai";
+import { type AIErrorDetails, getAIErrorDetails, isAIError } from "@567agent/ai/protocol";
 import type { RuntimeFailure, RuntimeFailureDetails, RuntimeFailureOrigin } from "./failure-contract.js";
 
 /**

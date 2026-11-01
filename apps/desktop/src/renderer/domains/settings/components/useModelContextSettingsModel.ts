@@ -10,8 +10,6 @@ export function useModelContextSettingsModel(config: ModelsConfigData) {
 	const activeModel = useAtomValue(selectedModelAtom);
 	const [current, setCurrent] = useState(config);
 	const [selection, setSelection] = useState<string | null>(null);
-	const [query, setQuery] = useState("");
-	const [submittedQuery, setSubmittedQuery] = useState<string | null>(null);
 	const [drafts, setDrafts] = useState<Record<string, string>>({});
 	const [busy, setBusy] = useState(false);
 	const pending = useRef(false);
@@ -116,24 +114,8 @@ export function useModelContextSettingsModel(config: ModelsConfigData) {
 		effectiveApi,
 		saveProtocol,
 		count: options.length,
-		results:
-			submittedQuery === null
-				? []
-				: options.filter((entry) =>
-						`${entry.label} ${entry.providerId} ${entry.model.id}`
-							.toLowerCase()
-							.includes(submittedQuery.toLowerCase()),
-					),
-		submittedQuery,
-		search: () => setSubmittedQuery(query.trim()),
-		clearSearch: () => {
-			setQuery("");
-			setSubmittedQuery(null);
-		},
 		selected: key,
 		setSelection,
-		query,
-		setQuery,
 		info,
 		automatic,
 		reference,

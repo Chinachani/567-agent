@@ -54,6 +54,7 @@ export default defineConfig({
 				find: "@567agent/coding-agent/host-services",
 				replacement: fileURLToPath(new URL("../coding-agent/src/public-api/host-services.ts", import.meta.url)),
 			},
+			{ find: "@567agent/ai/protocol", replacement: fileURLToPath(new URL("../ai/src/protocol/index.ts", import.meta.url)) },
 			{ find: "@567agent/ai", replacement: fileURLToPath(new URL("../ai/src/index.ts", import.meta.url)) },
 			{
 				find: "@567agent/runtime-core/kernel",

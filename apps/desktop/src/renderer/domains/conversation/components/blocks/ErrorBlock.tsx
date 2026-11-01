@@ -15,7 +15,7 @@ const ICON_BY_KIND: Record<PresentedErrorKind, string> = {
 	unknown: "icon-[mdi--alert-circle-outline]",
 	run_limit: "icon-[mdi--timer-sand]",
 	persistence: "icon-[mdi--alert-circle-outline]",
-	empty_response: "icon-[solar--chat-round-warning-linear]",
+	empty_response: "icon-[solar--danger-circle-linear]",
 };
 
 /**
@@ -49,14 +49,18 @@ export function ErrorBlockView({ block, exportMode = false }: ErrorBlockProps): 
 			: undefined;
 	const diagnosticLines = [
 		block.details?.code ? t("messageList.errorBlock.diagnostic.code", { value: block.details.code }) : undefined,
-		block.details?.origin ? t("messageList.errorBlock.diagnostic.origin", { value: block.details.origin }) : undefined,
+		block.details?.origin
+			? t("messageList.errorBlock.diagnostic.origin", { value: block.details.origin })
+			: undefined,
 		block.details?.statusCode !== undefined
 			? t("messageList.errorBlock.diagnostic.statusCode", { value: block.details.statusCode })
 			: undefined,
 		block.details?.provider
 			? t("messageList.errorBlock.diagnostic.provider", { value: block.details.provider })
 			: undefined,
-		block.details?.modelId ? t("messageList.errorBlock.diagnostic.model", { value: block.details.modelId }) : undefined,
+		block.details?.modelId
+			? t("messageList.errorBlock.diagnostic.model", { value: block.details.modelId })
+			: undefined,
 		block.details?.providerCode
 			? t("messageList.errorBlock.diagnostic.providerCode", { value: block.details.providerCode })
 			: undefined,

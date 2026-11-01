@@ -74,6 +74,8 @@ export type {
  * runs on send (not on click), so cancelling the edit has no session side effects.
  */
 export interface PendingMessageEdit {
+	/** Older turns create a sibling branch; existing later history is retained. */
+	preserveBranch?: boolean;
 	entryId: string;
 }
 
@@ -525,3 +527,10 @@ export function readSessionManagerFn<T>(ref: { current: T | null }, name: string
 	}
 	return ref.current;
 }
+
+/** Commands of the mounted composer, shared by ordinary and team conversations. */
+export const activeComposerCommandsAtom = atom<{
+	readonly focus: () => void;
+	readonly abort: () => void;
+	readonly isBusy: () => boolean;
+} | null>(null);

@@ -1,5 +1,6 @@
 package org.agent567.android.ui.connect
 
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -45,7 +46,6 @@ import org.agent567.android.domain.device.DesktopDevice
 import org.agent567.android.domain.device.DeviceStatus
 import org.agent567.android.domain.remote.remoteDesktopViewerTarget
 import androidx.compose.foundation.layout.aspectRatio
-import org.agent567.android.ui.components.MobilePageIntro
 import org.agent567.android.ui.components.MobileIconTile
 import org.agent567.android.ui.components.Agent567Card
 import org.agent567.android.ui.components.SecondaryOutlineButton
@@ -57,7 +57,6 @@ import org.agent567.android.ui.components.SectionHeader
 import org.agent567.android.ui.components.StatusChip
 import org.agent567.android.ui.components.StatusDot
 import org.agent567.android.ui.components.Agent567TextField
-import org.agent567.android.ui.components.Agent567ListGroup
 import org.agent567.android.ui.i18n.Str
 import org.agent567.android.ui.theme.agent567Extra
 import org.agent567.android.ui.remote.RemoteDesktopSurface
@@ -83,7 +82,7 @@ fun DiscoverConnectScreen(
         containerColor = MaterialTheme.agent567Extra.pageBackground,
         topBar = {
             TopAppBar(
-                title = { Text(Str.discoverTitle, style = MaterialTheme.typography.titleLarge) },
+                title = { Text(Str.tabDiscover, style = MaterialTheme.typography.titleLarge) },
                 colors =
                     TopAppBarDefaults.topAppBarColors(
                         containerColor = MaterialTheme.agent567Extra.pageBackground,
@@ -98,7 +97,11 @@ fun DiscoverConnectScreen(
                 .verticalScroll(rememberScrollState())
                 .padding(horizontal = 20.dp),
         ) {
-            MobilePageIntro(Str.mobileConnectTitle, Str.discoverSubtitle)
+            Text(
+                Str.discoverSubtitle,
+                style = MaterialTheme.typography.bodyMedium,
+                color = MaterialTheme.agent567Extra.secondaryText,
+            )
             if (error != null) {
                 Spacer(Modifier.height(10.dp))
                 org.agent567.android.ui.components.Agent567ErrorBanner(error = error, onDismiss = onClearError)
@@ -160,21 +163,23 @@ fun DiscoverConnectScreen(
                             modifier = Modifier.fillMaxWidth(),
                         )
                     }
-                    devices.forEachIndexed { index, device ->
-                        ListRow(
-                            title = device.name,
-                            subtitle =
-                                "${if (remote) Str.remoteDesktop else Str.lanDesktop} · " +
-                                    if (device.status == DeviceStatus.Online) Str.online else Str.offline,
-                            leading = { MobileIconTile(Icons.Default.Computer) },
-                            trailing = {
-                                StatusDot(online = device.status == DeviceStatus.Online)
-                                Spacer(Modifier.width(12.dp))
-                                Icon(Icons.Default.ChevronRight, contentDescription = null, tint = MaterialTheme.agent567Extra.secondaryText)
-                            },
-                            onClick = { onOpenDevice(device.id) },
-                            showDivider = index < devices.lastIndex,
-                        )
+                    if (devices.isNotEmpty()) Agent567Card(contentPadding = PaddingValues(horizontal = 8.dp, vertical = 0.dp)) {
+                        devices.forEachIndexed { index, device ->
+                            ListRow(
+                                title = device.name,
+                                subtitle =
+                                    "${if (remote) Str.remoteDesktop else Str.lanDesktop} · " +
+                                        if (device.status == DeviceStatus.Online) Str.online else Str.offline,
+                                leading = { MobileIconTile(Icons.Default.Computer) },
+                                trailing = {
+                                    StatusDot(online = device.status == DeviceStatus.Online)
+                                    Spacer(Modifier.width(12.dp))
+                                    Icon(Icons.Default.ChevronRight, contentDescription = null, tint = MaterialTheme.agent567Extra.secondaryText)
+                                },
+                                onClick = { onOpenDevice(device.id) },
+                                showDivider = index < devices.lastIndex,
+                            )
+                        }
                     }
                     Spacer(Modifier.height(22.dp))
                     if (!remote) {
@@ -254,7 +259,8 @@ fun DeviceDetailScreen(
         ) {
             Row(verticalAlignment = Alignment.CenterVertically) {
                 StatusChip(text = statusLabel, positive = device.status == DeviceStatus.Online)
-                Spacer(Modifier.weight(1f))
+                Spacer(Modifier.width(12.dp))
+                Text(device.osLabel, style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.agent567Extra.secondaryText, modifier = Modifier.weight(1f))
             }
             Spacer(Modifier.height(12.dp))
             Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
@@ -314,12 +320,13 @@ fun DeviceDetailScreen(
             Agent567Card {
                 ListRow(title = Str.mobileCapabilities, subtitle = Str.deviceCapabilitiesHint, trailing = { Icon(Icons.Default.ChevronRight, contentDescription = null) }, onClick = onOpenCapabilities, showDivider = false)
             }
-            Spacer(Modifier.height(20.dp))
-            SectionHeader(title = Str.systemInfo)
-            Agent567ListGroup {
-                SystemInfoRow(Str.operatingSystem, device.osLabel)
-                SystemInfoRow(Str.processor, device.cpu)
-                SystemInfoRow(Str.memory, device.ram)
+            if (!device.cpu.isNullOrBlank() || !device.ram.isNullOrBlank()) {
+                Spacer(Modifier.height(20.dp))
+                SectionHeader(title = Str.systemInfo)
+                Agent567Card {
+                    device.cpu?.takeIf { it.isNotBlank() }?.let { SystemInfoRow(Str.processor, it) }
+                    device.ram?.takeIf { it.isNotBlank() }?.let { SystemInfoRow(Str.memory, it) }
+                }
             }
 
             Spacer(Modifier.height(20.dp))

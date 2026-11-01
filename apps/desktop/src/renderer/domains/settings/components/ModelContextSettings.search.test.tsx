@@ -24,25 +24,29 @@ beforeAll(async () => {
 	initI18n();
 	await i18n.changeLanguage("zh");
 });
-it("waits for explicit lookup, preserves selection on no matches and lets the user inspect a result", async () => {
+it("filters inside one selector as the user types, preserves selection on no matches and supports keyboard selection", async () => {
 	const user = userEvent.setup();
 	Object.defineProperty(window, "agent567", {
 		configurable: true,
 		value: { models: { onChanged: () => () => {}, get: async () => config, setContextWindow: vi.fn() } },
 	});
 	render(<ModelContextSettings config={config} />);
-	await user.type(screen.getByRole("textbox", { name: "查找模型" }), "gpt");
-	expect(screen.queryByRole("status")).toBeNull();
-	await user.click(screen.getByRole("button", { name: "查找" }));
-	expect(screen.getByRole("status").textContent).toContain("1 个模型");
+	await user.click(screen.getByRole("button", { name: "模型" }));
+	await user.type(screen.getByRole("combobox", { name: "查找模型" }), "gpt");
+	expect(screen.getAllByRole("option")).toHaveLength(1);
+	expect(screen.queryByRole("button", { name: "查找" })).toBeNull();
 	expect(screen.getByText("1,048,576")).toBeDefined();
-	await user.click(screen.getByRole("button", { name: "gpt-test · custom" }));
+	await user.keyboard("{Enter}");
 	await waitFor(() => expect(screen.getByText("128,000")).toBeDefined());
-	await user.clear(screen.getByRole("textbox", { name: "查找模型" }));
-	await user.type(screen.getByRole("textbox", { name: "查找模型" }), "missing");
-	await user.click(screen.getByRole("button", { name: "查找" }));
+	expect(document.activeElement).toBe(screen.getByRole("button", { name: "模型" }));
+	await user.click(screen.getByRole("button", { name: "模型" }));
+	await user.type(screen.getByRole("combobox", { name: "查找模型" }), "missing");
 	expect(screen.getByRole("status").textContent).toContain(i18n.t("settings:modelContext.noMatches"));
 	expect(screen.getByText("128,000")).toBeDefined();
+	await user.clear(screen.getByRole("combobox", { name: "查找模型" }));
+	expect(screen.getAllByRole("option")).toHaveLength(2);
+	await user.keyboard("{ArrowDown}{Enter}");
+	expect(screen.queryByRole("combobox")).toBeNull();
 });
 
 it("saves the selected model's protocol, survives reopening and preserves it on a failed save", async () => {

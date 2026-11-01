@@ -11,6 +11,7 @@ import {
 import { useAtomValue } from "jotai";
 import { usePreviewBodyModel } from "../hooks/usePreviewBodyModel";
 import { downloadItem, isPreviewSupported, isTextExtension } from "../preview-utils";
+import { TextPreviewRenderer } from "./TextPreviewRenderer";
 import { EditableTextFileView } from "./EditableTextFileView";
 
 export {
@@ -39,24 +40,14 @@ export function PreviewBody({
 	const extension = getExtension(item.name);
 	const pluginPreviews = useAtomValue(pluginFilePreviewsAtom);
 	const pluginOwnsPreview = pluginPreviews.some((preview) => preview.extensions.includes(extension));
+	if (item.text !== undefined) return <TextPreviewRenderer content={item.text} extension={extension} sourceOnly />;
 	if (editable && item.path && isTextExtension(extension) && !pluginOwnsPreview) {
-		return (
-			<EditableTextFileView
-				item={{ ...item, path: item.path }}
-				refreshNonce={refreshNonce}
-			/>
-		);
+		return <EditableTextFileView item={{ ...item, path: item.path }} refreshNonce={refreshNonce} />;
 	}
 	return <ReadonlyPreviewBody item={item} refreshNonce={refreshNonce} />;
 }
 
-function ReadonlyPreviewBody({
-	item,
-	refreshNonce,
-}: {
-	item: FilePreviewItem;
-	refreshNonce: number;
-}): JSX.Element {
+function ReadonlyPreviewBody({ item, refreshNonce }: { item: FilePreviewItem; refreshNonce: number }): JSX.Element {
 	const model = usePreviewBodyModel(item, refreshNonce);
 	return <PreviewBodyView {...model} />;
 }

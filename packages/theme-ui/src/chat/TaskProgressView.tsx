@@ -15,18 +15,20 @@ export function TaskProgressStatus({
 	elapsed,
 	running,
 	attention,
+	waitingFor,
 }: {
 	readonly title: string;
 	readonly elapsed?: string;
 	readonly running: boolean;
 	readonly attention: boolean;
+	readonly waitingFor?: "question" | "permission" | "approval";
 }) {
 	return (
 		<div className="col-start-1 row-start-1 flex min-w-0 flex-wrap items-center gap-x-3 gap-y-1">
 			<output aria-live="polite" className="flex min-w-0 items-center gap-2 text-[12px] font-medium">
 				<span
 					aria-hidden
-					className={`${running ? "icon-[solar--refresh-linear] motion-safe:animate-spin" : attention ? "icon-[solar--info-circle-linear]" : "icon-[solar--pause-circle-linear]"} h-3.5 w-3.5 shrink-0 ${attention ? "text-destructive" : "text-muted-foreground"}`}
+					className={`${waitingFor === "question" ? "icon-[solar--question-circle-linear]" : waitingFor === "permission" ? "icon-[solar--shield-check-linear]" : waitingFor === "approval" ? "icon-[solar--checklist-minimalistic-linear]" : running ? "icon-[solar--refresh-linear] motion-safe:animate-spin" : attention ? "icon-[solar--info-circle-linear]" : "icon-[solar--pause-circle-linear]"} h-3.5 w-3.5 shrink-0 ${waitingFor ? "text-amber-600 dark:text-amber-400" : attention ? "text-destructive" : "text-muted-foreground"}`}
 				/>
 				<span>{title}</span>
 			</output>

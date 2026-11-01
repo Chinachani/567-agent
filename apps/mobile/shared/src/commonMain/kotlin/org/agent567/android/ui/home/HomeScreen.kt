@@ -27,7 +27,6 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.ChevronRight
 import androidx.compose.material.icons.filled.Computer
-import androidx.compose.material.icons.outlined.Add
 import androidx.compose.material.icons.outlined.Cloud
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FloatingActionButton
@@ -62,6 +61,7 @@ import org.agent567.android.ui.components.PrimaryBlackButton
 import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.ui.text.style.TextOverflow
 import org.agent567.android.ui.components.ListRow
+import org.agent567.android.ui.components.NewConversationButton
 import org.agent567.android.ui.components.SectionHeader
 import org.agent567.android.ui.components.Agent567Card
 import org.agent567.android.ui.i18n.Str
@@ -79,6 +79,7 @@ fun HomeScreen(
     onOpenSession: (String) -> Unit,
     onNewConversation: () -> Unit,
     onUseCloudAi: () -> Unit,
+    onContinueDesktopSession: (String, String) -> Unit = { _, _ -> },
 ) {
     Scaffold(
         containerColor = MaterialTheme.agent567Extra.pageBackground,
@@ -94,24 +95,23 @@ fun HomeScreen(
             Row(Modifier.fillMaxWidth().padding(bottom = 8.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 Image(painterResource(Res.drawable.brand_icon), contentDescription = null, modifier = Modifier.size(24.dp))
                 Text(Str.appName, style = MaterialTheme.typography.titleLarge, modifier = Modifier.weight(1f))
-                Box(Modifier.heightIn(min = 48.dp).clip(MaterialTheme.shapes.medium).clickable(role = androidx.compose.ui.semantics.Role.Button, onClick = onNewConversation), contentAlignment = Alignment.Center) {
-                    Row(Modifier.clip(MaterialTheme.shapes.medium).background(MaterialTheme.agent567Extra.chipBackground).padding(horizontal = 12.dp, vertical = 6.dp), verticalAlignment = Alignment.CenterVertically) {
-                        Icon(Icons.Outlined.Add, contentDescription = null, modifier = Modifier.size(18.dp))
-                        Spacer(Modifier.width(6.dp))
-                        Text(Str.newConversation, style = MaterialTheme.typography.labelMedium)
-                    }
-                }
+                NewConversationButton(onClick = onNewConversation)
             }
             DeviceStatusCard(
                 device = primaryDevice,
                 onClick = if (primaryDevice != null) ({ onOpenDevice(primaryDevice.id) }) else onOpenDevices,
                 onOpenDesktopSessions = onOpenDesktopSessions,
+                onContinueDesktopSession = onContinueDesktopSession,
             )
 
             Agent567Card(contentPadding = PaddingValues(horizontal = 12.dp, vertical = 4.dp)) {
                 ListRow(title = Str.phoneDirectTitle, subtitle = Str.phoneDirectHint, leading = { Icon(Icons.Outlined.Cloud, contentDescription = null) }, trailing = { Icon(Icons.Default.ChevronRight, contentDescription = null) }, onClick = onUseCloudAi, showDivider = false)
             }
-            SectionHeader(title = Str.phoneSessions)
+            SectionHeader(
+                title = Str.phoneSessions,
+                action = Str.mobileAllSessions(recentSessions.size),
+                onAction = onOpenSessions,
+            )
             Agent567Card(contentPadding = PaddingValues(horizontal = 8.dp, vertical = 4.dp)) {
                 if (recentSessions.isEmpty()) {
                     Text(
@@ -129,27 +129,7 @@ fun HomeScreen(
                             showDivider = index < visibleSessions.lastIndex,
                         )
                     }
-                    Row(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .heightIn(min = 48.dp)
-                            .clip(RoundedCornerShape(10.dp))
-                            .clickable(onClick = onOpenSessions)
-                            .padding(horizontal = 4.dp, vertical = 8.dp),
-                        horizontalArrangement = Arrangement.SpaceBetween,
-                        verticalAlignment = Alignment.CenterVertically,
-                    ) {
-                        Text(
-                            Str.mobileAllSessions(recentSessions.size),
-                            style = MaterialTheme.typography.labelLarge,
-                            color = MaterialTheme.colorScheme.primary,
-                        )
-                        Icon(
-                            Icons.Default.ChevronRight,
-                            contentDescription = null,
-                            tint = MaterialTheme.agent567Extra.secondaryText,
-                        )
-                    }
+
                 }
             }
 
@@ -159,7 +139,7 @@ fun HomeScreen(
 }
 
 @Composable
-private fun DeviceStatusCard(device: DesktopDevice?, onClick: () -> Unit, onOpenDesktopSessions: () -> Unit) {
+private fun DeviceStatusCard(device: DesktopDevice?, onClick: () -> Unit, onOpenDesktopSessions: () -> Unit, onContinueDesktopSession: (String, String) -> Unit) {
     Agent567Card(contentPadding = PaddingValues(horizontal = 12.dp, vertical = 4.dp)) {
         Row(Modifier.fillMaxWidth().heightIn(min = 64.dp).clickable(onClick = onClick), verticalAlignment = Alignment.CenterVertically) {
             Box(
@@ -191,6 +171,9 @@ private fun DeviceStatusCard(device: DesktopDevice?, onClick: () -> Unit, onOpen
             Icon(Icons.Default.ChevronRight, contentDescription = null, tint = MaterialTheme.agent567Extra.secondaryText)
         }
         androidx.compose.material3.HorizontalDivider(color = MaterialTheme.agent567Extra.border.copy(alpha = 0.4f))
+        device?.activeConversation?.takeIf { device.status == DeviceStatus.Online }?.let { active ->
+            ListRow(title = active.title, subtitle = when (active.status) { "waiting" -> Str.desktopWaiting; "running" -> Str.desktopRunning; "failed", "interrupted" -> Str.desktopFailed; else -> Str.desktopOpenConversation }, trailing = { Icon(Icons.Default.ChevronRight, contentDescription = null) }, onClick = { onContinueDesktopSession(device.id, active.id) }, showDivider = true)
+        }
         ListRow(title = Str.openDesktopSessions, subtitle = Str.desktopSessionsHint, trailing = { Icon(Icons.Default.ChevronRight, contentDescription = null) }, onClick = onOpenDesktopSessions, showDivider = false)
     }
 }

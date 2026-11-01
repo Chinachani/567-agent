@@ -2,7 +2,6 @@ import { WorkspacePageHeader } from "@vetta-org/theme-ui/shared";
 import { SkillTagGroupView } from "@vetta-org/theme-ui/skills";
 import { motion } from "motion/react";
 import { useTranslation } from "react-i18next";
-import { useNarrowScreen } from "@shared/hooks/useNarrowScreen";
 import { UNCATEGORIZED, type SkillsPageModel } from "../hooks/useSkillsPageModel";
 import { SkillTagGroup } from "./SkillTagGroup";
 
@@ -27,7 +26,6 @@ export function SkillsPageView({ model }: { model: SkillsPageModel }): JSX.Eleme
 		handlePreview,
 		handleFileChange,
 	} = model;
-	const narrow = useNarrowScreen();
 	const typeNoun = t("typeNoun.scene");
 
 	return (
@@ -39,30 +37,22 @@ export function SkillsPageView({ model }: { model: SkillsPageModel }): JSX.Eleme
 				className="hidden"
 				onChange={handleFileChange}
 			/>
-			<div className="relative shrink-0 px-5 pt-6 pb-6 sm:px-8">
-				<div
-					className={`mx-auto flex w-full max-w-6xl gap-4 ${narrow ? "flex-col items-stretch" : "items-start justify-between"}`}
-				>
-					<WorkspacePageHeader title={t("tabs.scene")} description={t("subtitle")} />
-
-					<motion.div
-						initial={{ opacity: 0, y: -6 }}
-						animate={{ opacity: 1, y: 0 }}
-						transition={{ duration: 0.5, delay: 0.1, ease: easeOut }}
-						className={`flex min-h-8 items-center gap-2 ${narrow ? "w-full" : "shrink-0"}`}
-					>
-						<div className={`relative ${narrow ? "flex-1" : ""}`}>
-							<span className="icon-[solar--magnifer-linear] absolute left-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-muted-foreground/40" />
-							<input
-								type="search"
-								aria-label={t("search.placeholder", { noun: typeNoun })}
-								placeholder={t("search.placeholder", { noun: typeNoun })}
-								value={searchQuery}
-								onChange={(event) => setSearchQuery(event.target.value)}
-								className={`h-8 ${narrow ? "w-full" : "w-56"} rounded-lg border border-border bg-card pl-8 pr-3 text-[13px] text-foreground placeholder:text-muted-foreground/40 transition-colors hover:bg-accent/30 focus:outline-none focus:ring-1 focus:ring-ring`}
-							/>
-						</div>
-					</motion.div>
+			<div className="shrink-0 px-5 pt-6 sm:px-8">
+				<WorkspacePageHeader
+					title={t("tabs.scene")}
+					description={t("subtitle")}
+					className="mx-auto w-full max-w-6xl border-b border-border/60 pb-6"
+				/>
+				<div className="relative mx-auto my-5 w-full max-w-6xl">
+					<span className="icon-[solar--magnifer-linear] absolute left-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-muted-foreground/40" />
+					<input
+						type="search"
+						aria-label={t("search.placeholder", { noun: typeNoun })}
+						placeholder={t("search.placeholder", { noun: typeNoun })}
+						value={searchQuery}
+						onChange={(event) => setSearchQuery(event.target.value)}
+						className="h-9 w-full rounded-lg border border-border bg-card pl-8 pr-3 text-[13px] text-foreground placeholder:text-muted-foreground/40 focus:outline-none focus:ring-1 focus:ring-ring"
+					/>
 				</div>
 			</div>
 

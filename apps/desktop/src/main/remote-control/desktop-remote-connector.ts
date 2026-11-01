@@ -1,6 +1,7 @@
 import { AI_ERROR_CODES, isAIError } from "@567agent/ai";
 import type { CodingAgentQuestionResult } from "@567agent/coding-agent/function-extensions";
 import type { RemoteConnection, RemoteError, RemoteRequest, RemoteSessionContext } from "@567agent/remote-control";
+import type { DesktopDeviceStatusSnapshot } from "../../shared/visible-conversation.js";
 import { mainT } from "../i18n/index.js";
 import { getAppLogger } from "../logger.js";
 import { EncryptedSessionMigrationTransfer } from "./encrypted-session-migration-transfer.js";
@@ -111,6 +112,7 @@ export interface DesktopRemoteOperations {
 	abort(sessionId: string): Promise<void>;
 	respond?(sessionId: string, requestId: string, result: CodingAgentQuestionResult): Promise<void>;
 	resume(sessionId: string, lastEventSequence: number): Promise<void>;
+	readDeviceStatus?: () => DesktopDeviceStatusSnapshot;
 	diagnostics(): Promise<Record<string, unknown>>;
 }
 
@@ -150,6 +152,8 @@ export class DesktopRemoteConnector {
 		private readonly promptRecovery = new RemotePromptRecovery(),
 	) {}
 
+	private deviceStatusTimer?: ReturnType<typeof setInterval>;
+
 	async start(): Promise<void> {
 		const generation = ++this.connectionGeneration;
 		this.unsubscribe = this.connection.onEvent((event) => {
@@ -158,9 +162,24 @@ export class DesktopRemoteConnector {
 			}
 		});
 		await this.connection.connect();
+		if (this.operations.readDeviceStatus) {
+			let previous = "";
+			this.deviceStatusTimer = setInterval(() => {
+				const snapshot = this.operations.readDeviceStatus?.();
+				const serialized = JSON.stringify(snapshot);
+				if (serialized === previous) return;
+				previous = serialized;
+				void this.connection.emitEvent("device.status", snapshot).catch(() => {
+					previous = "";
+				});
+			}, 1000);
+			this.deviceStatusTimer.unref?.();
+		}
 	}
 
 	async stop(): Promise<void> {
+		clearInterval(this.deviceStatusTimer);
+		this.deviceStatusTimer = undefined;
 		this.connectionGeneration += 1;
 		for (const active of this.activeAuxiliaryRequests.values()) active.controller.abort();
 		this.activeAuxiliaryRequests.clear();

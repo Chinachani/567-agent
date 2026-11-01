@@ -1,6 +1,7 @@
 import type { IpcRenderer } from "electron";
 import { decodeSessionEvent } from "../../shared/session-event-codec.js";
 import { SESSION_WORKBENCH_CHANNELS } from "../../shared/session-workbench-ipc.js";
+import { VISIBLE_CONVERSATION_CHANNEL } from "../../shared/visible-conversation.js";
 import type { DesktopApi } from "../api.js";
 import { onIpcEvent, subscribeById } from "./helper.js";
 import { subscribeSessionSearch } from "./session-search.js";
@@ -192,6 +193,7 @@ export function createSessionApi(ipc: IpcRenderer): Pick<DesktopApi, "session"> 
 			readContextWorkspace: (sessionId) => ipc.invoke(SESSION_WORKBENCH_CHANNELS.CONTEXT_WORKSPACE, sessionId),
 			updateContextSelection: (sessionId, selection) =>
 				ipc.invoke(SESSION_WORKBENCH_CHANNELS.CONTEXT_SELECTION, sessionId, selection),
+			setVisibleConversation: (runtimeId) => ipc.invoke(VISIBLE_CONVERSATION_CHANNEL, runtimeId),
 			getFullHistory: (sessionId) => ipc.invoke(CHANNELS.GET_FULL_HISTORY, sessionId),
 			navigateForEdit: (sessionId, entryId) => ipc.invoke(CHANNELS.NAVIGATE_FOR_EDIT, sessionId, entryId),
 			switchBranch: (sessionId, entryId) => ipc.invoke(CHANNELS.SWITCH_BRANCH, sessionId, entryId),

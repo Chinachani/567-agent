@@ -20,10 +20,11 @@ import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.ChevronRight
-import androidx.compose.material.icons.filled.DataUsage
+import androidx.compose.material.icons.outlined.Tune
 import org.agent567.android.core.model.parseModelContextCapacityInput
 import org.agent567.android.domain.session.ChatContextSnapshot
 import org.agent567.android.ui.i18n.Str
+import org.agent567.android.ui.formatting.formatTokenCount
 
 @Composable
 internal fun ChatContextCapacity(state: ChatContextSnapshot, desktop: Boolean, enabled: Boolean, onCapacityChange: (Long?) -> Unit) {
@@ -42,13 +43,13 @@ internal fun ChatContextCapacity(state: ChatContextSnapshot, desktop: Boolean, e
         Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
             Column(Modifier.weight(1f)) {
                 Text(Str.contextCapacityLimit, style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                Text(state.contextWindow?.let { "$it tokens" } ?: Str.contextCapacityUnknown, style = MaterialTheme.typography.titleLarge)
+                Text(state.contextWindow?.let { "${formatTokenCount(it.toLong())} tokens" } ?: Str.contextCapacityUnknown, style = MaterialTheme.typography.titleLarge.copy(fontFeatureSettings = "tnum"))
             }
             if (!desktop) TextButton(onClick = { editing = !editing }, enabled = enabled) { Text(if (editing) Str.close else Str.contextCapacityAdjust) }
         }
         SourceAction(
             label = "${Str.contextCapacityShowReference} · $sourceLabel",
-            icon = Icons.Default.DataUsage,
+            icon = Icons.Outlined.Tune,
             onClick = { reference = true },
             modifier = Modifier.fillMaxWidth(),
         )
@@ -61,7 +62,7 @@ internal fun ChatContextCapacity(state: ChatContextSnapshot, desktop: Boolean, e
                 }
                 state.automaticContextWindow?.let { value -> item { SuggestionChip(onClick = { draft = value.toString() }, enabled = enabled, label = { Text(Str.contextCapacityFillReference) }) } }
             }
-            Text(if (!valid) Str.contextCapacityInvalid else parsed?.let { "${Str.contextCapacityParsed}: $it tokens" } ?: Str.contextCapacityUnits, style = MaterialTheme.typography.bodySmall, color = if (valid) MaterialTheme.colorScheme.onSurfaceVariant else MaterialTheme.colorScheme.error)
+            Text(if (!valid) Str.contextCapacityInvalid else parsed?.let { "${Str.contextCapacityParsed}: ${formatTokenCount(it)} tokens" } ?: Str.contextCapacityUnits, style = MaterialTheme.typography.bodySmall.copy(fontFeatureSettings = "tnum"), color = if (valid) MaterialTheme.colorScheme.onSurfaceVariant else MaterialTheme.colorScheme.error)
             Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
                 TextButton(onClick = { draft = ""; onCapacityChange(null) }, enabled = enabled && (state.manualContextWindow != null || draft.isNotEmpty())) { Text(Str.contextCapacityAutomatic) }
                 Button(onClick = { onCapacityChange(if (draft.isBlank()) null else parsed) }, enabled = enabled && valid) { Text(Str.contextCapacitySave) }
@@ -74,12 +75,12 @@ internal fun ChatContextCapacity(state: ChatContextSnapshot, desktop: Boolean, e
     if (reference) {
         val uriHandler = LocalUriHandler.current
         ScrollableDetailDialog(Str.contextCapacityShowReference, onDismiss = { reference = false }) {
-            Text("$sourceLabel: ${state.contextWindow ?: Str.contextCapacityUnknown} tokens", style = MaterialTheme.typography.bodyMedium)
+            Text("$sourceLabel: ${state.contextWindow?.let { formatTokenCount(it.toLong()) } ?: Str.contextCapacityUnknown} tokens", style = MaterialTheme.typography.bodyMedium.copy(fontFeatureSettings = "tnum"))
             state.referenceModel?.let { model ->
                 HorizontalDivider()
                 Text(model, style = MaterialTheme.typography.titleLarge)
                 state.referenceCheckedAt?.takeIf { it.isNotBlank() }?.let { Text(it, style = MaterialTheme.typography.labelMedium) }
-                Text("${Str.contextCapacityInput}: ${state.referenceContextWindow ?: Str.contextCapacityUnknown} tokens\n${Str.contextCapacityOutput}: ${state.referenceMaxOutput ?: Str.contextCapacityUnknown} tokens")
+                Text("${Str.contextCapacityInput}: ${state.referenceContextWindow?.let { formatTokenCount(it.toLong()) } ?: Str.contextCapacityUnknown} tokens\n${Str.contextCapacityOutput}: ${state.referenceMaxOutput?.let { formatTokenCount(it.toLong()) } ?: Str.contextCapacityUnknown} tokens", style = MaterialTheme.typography.bodyMedium.copy(fontFeatureSettings = "tnum"))
                 ModelCapabilityReference(state.referenceCapabilities, state.referenceMaxInput)
                 if (state.referenceIsAlias) Text(Str.contextCapacityAliasHint, style = MaterialTheme.typography.bodySmall)
                 state.referenceUrl?.takeIf { it.startsWith("https://") && !it.endsWith("/v1/models") }?.let { url -> TextButton(onClick = { runCatching { uriHandler.openUri(url) } }) { Text(Str.contextCapacityReferenceLink) } }

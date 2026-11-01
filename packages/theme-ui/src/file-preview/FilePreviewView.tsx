@@ -101,7 +101,7 @@ function Header({
 	sidebarCollapsed?: boolean;
 	onDownload?: (item: FilePreviewItem) => void;
 }): JSX.Element {
-	const downloadable = !!item.url;
+	const downloadable = !!item.url || item.text !== undefined;
 	return (
 		<div className="flex shrink-0 items-center gap-1.5 border-b border-border/40 py-1.5 pl-2 pr-3">
 			{onToggleSidebar && (
@@ -111,12 +111,8 @@ function Header({
 					onClick={onToggleSidebar}
 				/>
 			)}
-			<h2 className="-ml-0.5 min-w-0 flex-1 truncate text-[13px] font-semibold text-foreground">
-				{item.name}
-			</h2>
-			{position && (
-				<span className="shrink-0 text-[11px] tabular-nums text-muted-foreground/70">{position}</span>
-			)}
+			<h2 className="-ml-0.5 min-w-0 flex-1 truncate text-[13px] font-semibold text-foreground">{item.name}</h2>
+			{position && <span className="shrink-0 text-[11px] tabular-nums text-muted-foreground/70">{position}</span>}
 			{onPrev && (
 				<HeaderButton icon="icon-[mdi--chevron-left]" title={labels.prev} onClick={onPrev} disabled={!canPrev} />
 			)}
@@ -151,9 +147,7 @@ function HeaderButton({
 			disabled={disabled}
 			className={cn(
 				"flex h-7 w-7 shrink-0 items-center justify-center rounded-full transition-colors",
-				disabled
-					? "text-muted-foreground/30"
-					: "text-muted-foreground/70 hover:bg-muted hover:text-foreground",
+				disabled ? "text-muted-foreground/30" : "text-muted-foreground/70 hover:bg-muted hover:text-foreground",
 			)}
 		>
 			<span className={cn(icon, "h-4 w-4")} />

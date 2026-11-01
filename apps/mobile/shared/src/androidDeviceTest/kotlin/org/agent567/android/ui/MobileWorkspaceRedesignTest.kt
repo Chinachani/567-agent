@@ -100,7 +100,7 @@ class MobileWorkspaceRedesignTest {
             SessionsScreen(listOf(session), "", 0, {}, {}, {}, { opened++ }, { _, _ -> }, {})
         } }
         composeRule.onNodeWithText(session.title).assertIsDisplayed()
-        composeRule.onNodeWithContentDescription(Str.newConversation).performClick()
+        composeRule.onNodeWithText(Str.newConversation).performClick()
         assertEquals(1, opened)
     }
 

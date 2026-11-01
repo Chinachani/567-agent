@@ -109,9 +109,11 @@ export function UpdatePreferencesView({
 					</SettingRow>
 				</>
 			)}
-			<SettingRow title={labels.restart} description={labels.restartDescription}>
-				<span className="icon-[solar--info-circle-linear] h-4 w-4 text-muted-foreground" />
-			</SettingRow>
+			<p className="border-b border-border px-4 py-3 text-[12px] leading-relaxed text-muted-foreground">
+				<span className="font-medium">{labels.restart}</span>
+				{" · "}
+				{labels.restartDescription}
+			</p>
 		</>
 	);
 }

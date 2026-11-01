@@ -23,7 +23,7 @@ export {
 } from "./MarkdownTable";
 export type { MultiplierTagProps } from "./MultiplierTag";
 export { fmtMultiplier, MultiplierTag } from "./MultiplierTag";
-export { readTableCells, toCsv, toMarkdown } from "./markdown-table-clipboard";
+export { readTableCells, toCsv, toMarkdown, toTsv } from "./markdown-table-clipboard";
 export { getProviderIcon, PROVIDER_ICONS, ProviderIcon } from "./provider-icon";
 export type { ScrollFadeProps } from "./ScrollFade";
 export { ScrollFade } from "./ScrollFade";

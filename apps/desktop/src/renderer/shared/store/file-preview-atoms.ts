@@ -11,6 +11,8 @@ export type FilePreviewKind = "image" | "file";
 export interface FilePreviewItem {
 	/** 显示文件名（含扩展名） */
 	name: string;
+	/** In-memory code preview; never persisted or fetched as a URL. */
+	text?: string;
 	/** 远程地址（聊天/流转附件入口使用），与 path 二选一 */
 	url?: string;
 	/** 本地文件绝对路径（文件树入口使用），与 url 二选一 */

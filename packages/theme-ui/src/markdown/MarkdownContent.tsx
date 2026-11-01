@@ -261,7 +261,16 @@ export const MarkdownContent = memo(function MarkdownContent({
 					{children}
 				</blockquote>
 			),
-			table: ({ children }) => <MarkdownTable>{children}</MarkdownTable>,
+			table: ({ children }) => (
+				<MarkdownTable
+					labels={{
+						copy: labelsRef.current.copyTable ?? labelsRef.current.copy,
+						copied: labelsRef.current.copied,
+					}}
+				>
+					{children}
+				</MarkdownTable>
+			),
 			thead: ({ children }) => <MarkdownTableHead>{children}</MarkdownTableHead>,
 			tbody: ({ children }) => <MarkdownTableBody>{children}</MarkdownTableBody>,
 			tr: ({ children }) => <MarkdownTableRow>{children}</MarkdownTableRow>,

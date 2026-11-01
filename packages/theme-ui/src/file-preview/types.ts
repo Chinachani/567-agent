@@ -2,6 +2,8 @@ export type FilePreviewKind = "image" | "file";
 
 export interface FilePreviewItem {
 	name: string;
+	/** In-memory code preview; never persisted or fetched as a URL. */
+	text?: string;
 	url?: string;
 	path?: string;
 	kind?: FilePreviewKind;

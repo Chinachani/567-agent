@@ -10,15 +10,17 @@ const SCROLL_WRAP = "text-preview-content min-h-0 flex-1 overflow-y-auto";
 export function TextPreviewRenderer({
 	content,
 	extension,
+	sourceOnly = false,
 }: {
 	content: string;
 	extension: string;
+	sourceOnly?: boolean;
 }): JSX.Element {
 	const theme = useAtomValue(resolvedThemeAtom);
-	if (extension === "html" || extension === "htm" || extension === "xhtml") {
+	if (!sourceOnly && (extension === "html" || extension === "htm" || extension === "xhtml")) {
 		return <HtmlPreview content={content} theme={theme} />;
 	}
-	if (MARKDOWN_EXTENSIONS.has(extension)) {
+	if (!sourceOnly && MARKDOWN_EXTENSIONS.has(extension)) {
 		return (
 			<div className={SCROLL_WRAP}>
 				<MarkdownPreview content={content} />
@@ -26,7 +28,7 @@ export function TextPreviewRenderer({
 		);
 	}
 	let displayContent = content;
-	if (extension === "json") {
+	if (!sourceOnly && extension === "json") {
 		try {
 			displayContent = JSON.stringify(JSON.parse(content), null, 2);
 		} catch {

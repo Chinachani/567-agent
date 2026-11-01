@@ -211,3 +211,14 @@ it("layers caller overrides over a default recipe without dropping an outer proj
 	expect(screen.getByText("Projected by caller")).toBeTruthy();
 	expect(screen.queryByText("Default recipe")).toBeNull();
 });
+
+it("prepares an older user prompt as a preserved branch without rewriting history on edit", async () => {
+	render(
+		<Scope>
+			<SessionUserMessage message={message} isLastUserMessage={false} />
+		</Scope>,
+	);
+	fireEvent.click(screen.getByRole("button", { name: "编辑" }));
+	await waitFor(() => expect(store.get(pendingMessageEditAtom)).toEqual({ entryId: "entry-a", preserveBranch: true }));
+	expect(store.get(inputValueAtom)).toContain(message.text);
+});

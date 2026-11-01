@@ -19,6 +19,7 @@ import type {
 	ProjectCollaborationPatch,
 	ProjectCollaborationSnapshot,
 } from "../../shared/project-collaboration.js";
+import type { DesktopDeviceStatusSnapshot } from "../../shared/visible-conversation.js";
 import type {
 	DesktopConversationService,
 	DesktopConversationSession,
@@ -58,6 +59,7 @@ export class DesktopRemoteConversationState {
 }
 
 export interface DesktopConversationRemoteOperationsOptions {
+	readonly readDeviceStatus?: () => DesktopDeviceStatusSnapshot;
 	readonly cwd: string;
 	readonly sessionRoots?: readonly { readonly cwd: string; readonly sessionDir?: string }[];
 	readonly resolveSessionRoots?: () => readonly { readonly cwd: string; readonly sessionDir?: string }[];
@@ -109,6 +111,7 @@ export class DesktopConversationRemoteOperations implements DesktopRemoteOperati
 	private readonly sessionLocations: DesktopRemoteConversationState["sessionLocations"];
 	private readonly questionResolvers: DesktopRemoteConversationState["questionResolvers"];
 	private readonly turnTimeoutMs: number | null;
+	readonly readDeviceStatus?: () => DesktopDeviceStatusSnapshot;
 	readonly canManageContext: boolean;
 	readonly canReadWorkbench: boolean;
 	readonly canManageCollaboration = true;
@@ -148,6 +151,7 @@ export class DesktopConversationRemoteOperations implements DesktopRemoteOperati
 		private readonly options: DesktopConversationRemoteOperationsOptions,
 		state = new DesktopRemoteConversationState(),
 	) {
+		this.readDeviceStatus = options.readDeviceStatus;
 		this.sessions = state.sessions;
 		this.activeTurns = state.activeTurns;
 		this.deletingSessions = state.deletingSessions;
@@ -680,6 +684,7 @@ export class DesktopConversationRemoteOperations implements DesktopRemoteOperati
 	async diagnostics(): Promise<Record<string, unknown>> {
 		return {
 			activeSessionCount: this.sessions.size,
+			...this.readDeviceStatus?.(),
 			cwd: this.options.cwd,
 			osLabel: formatOsLabel(),
 			cpu: cpus()[0]?.model,

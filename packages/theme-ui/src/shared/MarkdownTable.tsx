@@ -1,13 +1,6 @@
-import {
-	type CSSProperties,
-	type JSX,
-	type ReactNode,
-	memo,
-	useCallback,
-	useEffect,
-	useRef,
-	useState,
-} from "react";
+import { Button } from "@vetta-org/ui";
+import { readTableCells, toTsv } from "./markdown-table-clipboard";
+import { type CSSProperties, type JSX, type ReactNode, memo, useCallback, useEffect, useRef, useState } from "react";
 
 /**
  * Markdown 表格的统一渲染壳。chat 气泡与 activity 预览共用同一份实现。
@@ -20,6 +13,7 @@ import {
 
 export interface MarkdownTableProps {
 	children: ReactNode;
+	labels?: { copy: string; copied: string };
 	/** 正文字号跟随宿主：chat 用 13px，activity 预览用 12px。 */
 	fontSizeClass?: string;
 }
@@ -66,9 +60,7 @@ function useOverflowState(scrollRef: React.RefObject<HTMLDivElement | null>): Ov
 		const maxScroll = scroll.scrollWidth - scroll.clientWidth;
 		const left = scroll.scrollLeft > 1;
 		const right = maxScroll - scroll.scrollLeft > 1;
-		setOverflow((previous) =>
-			previous.left === left && previous.right === right ? previous : { left, right },
-		);
+		setOverflow((previous) => (previous.left === left && previous.right === right ? previous : { left, right }));
 	}, [scrollRef]);
 
 	const schedule = useFrameScheduler(measure);
@@ -109,12 +101,51 @@ function overflowShadow(overflow: OverflowState): string | undefined {
 export const MarkdownTable = memo(function MarkdownTable({
 	children,
 	fontSizeClass = "text-[13px]",
+	labels = { copy: "Copy table", copied: "Copied" },
 }: MarkdownTableProps): JSX.Element {
 	const scrollRef = useRef<HTMLDivElement | null>(null);
 	const overflow = useOverflowState(scrollRef);
+	const [copied, setCopied] = useState(false);
+	const timer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
+	const version = useRef(0);
+	useEffect(() => {
+		version.current++;
+		setCopied(false);
+		return () => {
+			version.current++;
+			clearTimeout(timer.current);
+		};
+	}, [children]);
+	const copy = async () => {
+		const table = scrollRef.current?.querySelector("table");
+		if (!table) return;
+		const current = version.current;
+		try {
+			await navigator.clipboard.writeText(toTsv(readTableCells(table)));
+			if (version.current !== current) return;
+			setCopied(true);
+			clearTimeout(timer.current);
+			timer.current = setTimeout(() => setCopied(false), 1500);
+		} catch {
+			if (version.current === current) setCopied(false);
+		}
+	};
 
 	return (
 		<div className="my-3">
+			<div className="mb-1 flex justify-end">
+				<Button
+					variant="ghost"
+					size="sm"
+					onClick={() => void copy()}
+					aria-label={copied ? labels.copied : labels.copy}
+				>
+					<span
+						className={copied ? "icon-[solar--check-read-linear] size-3.5" : "icon-[solar--copy-linear] size-3.5"}
+					/>
+					{copied ? labels.copied : labels.copy}
+				</Button>
+			</div>
 			<div className="md-table-shadow-host relative" data-md-table-frame="">
 				<div
 					ref={scrollRef}
@@ -195,20 +226,11 @@ export function MarkdownTableHeaderCell({
 	);
 }
 
-export function MarkdownTableCell({
-	children,
-	style,
-}: {
-	children: ReactNode;
-	style?: CSSProperties;
-}): JSX.Element {
+export function MarkdownTableCell({ children, style }: { children: ReactNode; style?: CSSProperties }): JSX.Element {
 	return (
 		<td
 			style={style}
-			className={cn(
-				CELL_CLASS,
-				"border-t border-border bg-background text-foreground transition-colors",
-			)}
+			className={cn(CELL_CLASS, "border-t border-border bg-background text-foreground transition-colors")}
 		>
 			{children}
 		</td>

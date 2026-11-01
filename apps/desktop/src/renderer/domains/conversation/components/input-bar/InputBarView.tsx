@@ -4,7 +4,7 @@ import { useThemeComponent } from "@vetta-org/theme-sdk";
 import { useThemeSurface } from "@vetta-org/theme-sdk/appearance";
 import { MessageInput, InputBarContextMenuView, InputBarPlaceholder } from "@vetta-org/theme-ui/chat";
 import { useDelayedUnmount } from "@vetta-org/theme-ui/shared";
-import { AnimatePresence, motion } from "motion/react";
+import { motion } from "motion/react";
 import { createPortal } from "react-dom";
 import { ActionButtonBar } from "../ActionButtonBar";
 import { AtPanel } from "../AtPanel";
@@ -49,60 +49,87 @@ export function InputBarView({ model, children, className, classNames }: InputBa
 	// 附件胶囊区折叠动画播完（200ms）后再卸载内容，动画本身是纯 CSS grid 过渡。
 	const renderCapsules = useDelayedUnmount(model.hasCapsules, 220);
 
+	const contextTools = (
+		<div
+			data-message-input-part="context-toolbar"
+			className={
+				model.contextToolsPlacement === "bottom"
+					? "flex min-w-0 flex-wrap items-center gap-1"
+					: "flex min-w-0 flex-wrap items-center justify-between gap-x-3 gap-y-1 border-b border-border/50 px-3 py-2"
+			}
+		>
+			<InputBarModelAction
+				visible={!slashOpen}
+				updateActiveSession={model.modelSelector.updateActiveSession}
+				scope={model.modelSelector.scope}
+			/>
+			<div className="ml-auto flex min-w-0 items-center gap-1">
+				{model.trailingTools.map((tool) =>
+					tool.kind === "workbench" ? (
+						<ContextWorkspace key={tool.kind} sessionId={tool.sessionId} sessionKey={tool.sessionKey} />
+					) : model.contextToolsPlacement === "bottom" &&
+						tool.model.percent === 0 &&
+						!tool.model.isCompacting ? null : (
+						<InputBarContextAction key={tool.kind} visible={!slashOpen} model={tool.model} render={tool.render} />
+					),
+				)}
+			</div>
+		</div>
+	);
+
 	return (
-		<div className={["relative px-2 pb-3 pt-1 sm:px-4 sm:pb-4", className, classNames?.root].filter(Boolean).join(" ")}>
-			<AnimatePresence>
-				{model.pendingMcpElicitation ? (
-					<motion.div
-						key="mcp-elicitation"
-						initial={{ opacity: 0, y: 12 }}
-						animate={{ opacity: 1, y: 0 }}
-						exit={{ opacity: 0, y: 12 }}
-						transition={SOFT}
-						className="absolute inset-x-0 bottom-0 z-20"
-					>
-						<McpElicitationPanel request={model.pendingMcpElicitation} />
-					</motion.div>
-				) : model.pendingQuestion ? (
-					<motion.div
-						key="ask-user-question"
-						initial={{ opacity: 0, y: 12 }}
-						animate={{ opacity: 1, y: 0 }}
-						exit={{ opacity: 0, y: 12 }}
-						transition={SOFT}
-						className="absolute inset-x-0 bottom-0 z-20"
-					>
-						<QuestionPanel pending={model.pendingQuestion} />
-					</motion.div>
-				) : model.pendingPlanReview ? (
-					<motion.div
-						key="plan-review"
-						initial={{ opacity: 0, y: 12 }}
-						animate={{ opacity: 1, y: 0 }}
-						exit={{ opacity: 0, y: 12 }}
-						transition={SOFT}
-						className="absolute inset-x-0 bottom-0 z-20"
-					>
-						<PlanReviewPanel pending={model.pendingPlanReview} />
-					</motion.div>
-				) : null}
-			</AnimatePresence>
+		<div
+			className={["relative px-2 pb-3 pt-1 sm:px-4 sm:pb-4", className, classNames?.root].filter(Boolean).join(" ")}
+		>
+			{model.pendingMcpElicitation ? (
+				<motion.div
+					key="mcp-elicitation"
+					initial={{ opacity: 0, y: 12 }}
+					animate={{ opacity: 1, y: 0 }}
+					transition={SOFT}
+					className="relative mx-auto w-full max-w-2xl"
+				>
+					<McpElicitationPanel request={model.pendingMcpElicitation} />
+				</motion.div>
+			) : model.pendingQuestion ? (
+				<motion.div
+					key="ask-user-question"
+					initial={{ opacity: 0, y: 12 }}
+					animate={{ opacity: 1, y: 0 }}
+					transition={SOFT}
+					className="relative w-full"
+				>
+					<QuestionPanel pending={model.pendingQuestion} className="!px-0 !pb-0 !pt-0" />
+				</motion.div>
+			) : model.pendingPlanReview ? (
+				<motion.div
+					key="plan-review"
+					initial={{ opacity: 0, y: 12 }}
+					animate={{ opacity: 1, y: 0 }}
+					transition={SOFT}
+					className="relative w-full"
+				>
+					<PlanReviewPanel pending={model.pendingPlanReview} className="!px-0 !pb-0 !pt-0" />
+				</motion.div>
+			) : null}
 
 			<div
 				className={[
 					// @container：工具栏/动作条按输入区宽度折叠文案（非视口），避免窄栏换行
-					"relative mx-auto w-full max-w-2xl @container transition-opacity duration-150",
-					hasPendingInteraction ? "pointer-events-none opacity-0" : "",
+					"relative mx-auto w-full max-w-2xl @container",
 					classNames?.stack,
 				]
 					.filter(Boolean)
 					.join(" ")}
 				aria-hidden={hasPendingInteraction ? true : undefined}
+				inert={hasPendingInteraction ? true : undefined}
+				// Keep Lexical and its draft/history mounted while the interaction owns layout height.
+				style={hasPendingInteraction ? { display: "none" } : undefined}
 			>
 				{commands ? (
 					<PerfSendProfiler id="ib:AtPanel">
 						<AtPanel
-							open={commands.atOpen}
+							open={!hasPendingInteraction && commands.atOpen}
 							onClose={commands.onAtClose}
 							onSelect={commands.onAtSelect}
 							filter={commands.atFilter}
@@ -138,36 +165,11 @@ export function InputBarView({ model, children, className, classNames }: InputBa
 							<ThemedInputBarBackground />
 							<MessageInput.Content className={classNames?.cardContent}>
 								{children}
-								<div
-									data-message-input-part="context-toolbar"
-									className="flex min-w-0 flex-wrap items-center justify-between gap-x-3 gap-y-1 border-b border-border/50 px-3 py-2"
-								>
-									<div className="flex min-w-0 items-center">
-										<InputBarModelAction
-											visible={!slashOpen}
-											updateActiveSession={model.modelSelector.updateActiveSession}
-											scope={model.modelSelector.scope}
-										/>
-									</div>
-									<div className="ml-auto flex min-w-0 items-center gap-1">
-										{model.trailingTools.map((tool) =>
-											tool.kind === "workbench" ? (
-												<ContextWorkspace key={tool.kind} sessionId={tool.sessionId} sessionKey={tool.sessionKey} />
-											) : (
-												<InputBarContextAction
-													key={tool.kind}
-													visible={!slashOpen}
-													model={tool.model}
-													render={tool.render}
-												/>
-											),
-										)}
-									</div>
-								</div>
+								{model.contextToolsPlacement !== "bottom" ? contextTools : null}
 								{commands ? (
 									<PerfSendProfiler id="ib:CommandPanel">
 										<CommandPanel
-											open={commands.slashOpen}
+											open={!hasPendingInteraction && commands.slashOpen}
 											onClose={commands.onSlashClose}
 											onSelect={commands.onSlashSelect}
 											onSelectConnector={commands.onConnectorSelect}
@@ -233,7 +235,10 @@ export function InputBarView({ model, children, className, classNames }: InputBa
 
 								<PerfSendProfiler id="ib:Toolbar">
 									<MessageInput.Toolbar className={classNames?.toolbar}>
-										<MessageInput.ToolbarLeading>
+										<MessageInput.ToolbarLeading
+											className={model.contextToolsPlacement === "bottom" ? "flex-wrap gap-y-1" : undefined}
+										>
+											{model.contextToolsPlacement === "bottom" ? contextTools : null}
 											{/*
 											 * 标记给命令区的 click-outside 判定用：否则 mousedown 先收起、
 											 * 随后的 click 又打开，按钮无法关闭面板。
@@ -247,7 +252,11 @@ export function InputBarView({ model, children, className, classNames }: InputBa
 												/>
 											) : null}
 											{model.routing ? (
-												<InputBarMention model={model.routing} disabled={!model.hasSession} visible={!slashOpen} />
+												<InputBarMention
+													model={model.routing}
+													disabled={!model.hasSession}
+													visible={!slashOpen}
+												/>
 											) : null}
 											{commands ? <InputBarToolbarDivider /> : null}
 											{/* 两组控件保持挂载、只切 display，避免展开动画首帧重建复杂 selector。 */}
@@ -260,7 +269,11 @@ export function InputBarView({ model, children, className, classNames }: InputBa
 												onSelectImages={() => void model.actions.handleSelectImages()}
 											/>
 											{model.leadingTools.map((tool) => (
-												<InputBarExecutionModeAction key={tool.kind} visible={!slashOpen} model={tool.model} />
+												<InputBarExecutionModeAction
+													key={tool.kind}
+													visible={!slashOpen}
+													model={tool.model}
+												/>
 											))}
 											<InputBarActiveActions
 												items={model.activeActions}

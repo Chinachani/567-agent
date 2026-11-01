@@ -94,7 +94,7 @@ internal val LightScheme =
 
 internal val DarkScheme =
     darkColorScheme(
-        primary = Agent567Palette.White,
+        primary = Color(0xFFE6E8EC),
         onPrimary = Agent567Palette.Black,
         primaryContainer = Color(0xFF30333A),
         onPrimaryContainer = Agent567Palette.White,

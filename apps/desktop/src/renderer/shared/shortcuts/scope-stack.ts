@@ -22,6 +22,7 @@ export interface ShortcutBinding {
 	run: (event: KeyboardEvent) => void;
 	/** Default "always". Restrict to / out of editable targets (CodeMirror, inputs). */
 	when?: ShortcutBindingWhen;
+	enabled?: () => boolean;
 	preventDefault?: boolean;
 	stopPropagation?: boolean;
 }
@@ -80,6 +81,7 @@ export class ShortcutScopeStack {
 		for (const scope of ordered) {
 			const bindings = scope.getBindings();
 			for (const binding of bindings) {
+				if (binding.enabled && !binding.enabled()) continue;
 				if (!matchesShortcut(event, binding.key)) continue;
 				if (!bindingApplies(binding, event)) continue;
 

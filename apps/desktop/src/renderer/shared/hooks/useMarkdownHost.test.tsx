@@ -1,5 +1,11 @@
 // @vitest-environment jsdom
-import { filePreviewAtom } from "@shared/store/atoms";
+import {
+	filePreviewAtom,
+	inlineFilePreviewAtom,
+	activityPanelOpenAtom,
+	activityPanelTabByProjectAtom,
+	mountedActivityWorkspacesAtom,
+} from "@shared/store/atoms";
 import { act, cleanup, renderHook } from "@testing-library/react";
 import { createStore, Provider } from "jotai";
 import type { ReactNode } from "react";
@@ -65,4 +71,20 @@ it("resolves file actions against the document directory and copies URL destinat
 	expect(reveal).toHaveBeenCalledWith("C:/project/result.md");
 	await result.current.openExternalUrl?.("https://example.test/");
 	expect(external).toHaveBeenCalledWith("https://example.test/");
+});
+
+it("opens generated code in memory without file I/O and saves through the native dialog", async () => {
+	const saveData = vi.fn(async () => null);
+	Object.defineProperty(window, "agent567", { configurable: true, value: { dialog: { saveData } } });
+	const store = createStore();
+	store.set(mountedActivityWorkspacesAtom, [{ id: "agent-team:workspace", cwd: "C:/team" }]);
+	const { result } = renderHook(() => useMarkdownHost(null), {
+		wrapper: ({ children }) => <Provider store={store}>{children}</Provider>,
+	});
+	act(() => result.current.previewCode?.("print('kept')", "python"));
+	expect(store.get(activityPanelOpenAtom)).toBe(true);
+	expect(store.get(activityPanelTabByProjectAtom).get("agent-team:workspace")).toBe("file");
+	expect(store.get(inlineFilePreviewAtom)).toMatchObject({ name: "code.py", text: "print('kept')" });
+	await result.current.saveCode?.("print('kept')", "python");
+	expect(saveData).toHaveBeenCalledWith("code.py", "print('kept')", "utf8");
 });

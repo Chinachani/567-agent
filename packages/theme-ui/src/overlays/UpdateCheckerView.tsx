@@ -64,16 +64,21 @@ export function UpdateCheckerAction({
 
 /** Version-row actions preserve the existing check/download/restart callbacks. */
 export function UpdateCheckerActions(
-	props: Pick<UpdateCheckerViewProps, "checking" | "labels" | "onCheck" | "onPrimary" | "onPause" | "phase" | "currentVersion">,
+	props: Pick<
+		UpdateCheckerViewProps,
+		"checking" | "labels" | "onCheck" | "onPrimary" | "onPause" | "phase" | "currentVersion"
+	>,
 ): JSX.Element {
 	return (
 		<div className="flex flex-wrap items-center justify-end gap-3">
 			<span className="text-[12px] tabular-nums text-muted-foreground">{props.currentVersion}</span>
 			{props.phase === "downloading" && props.onPause && props.labels.pause ? (
-				<Button size="sm" variant="outline" onClick={props.onPause}>{props.labels.pause}</Button>
+				<Button size="sm" variant="outline" onClick={props.onPause}>
+					{props.labels.pause}
+				</Button>
 			) : null}
 			{props.phase === "available" || props.phase === "ready" ? (
-				<Button size="sm" variant="outline" onClick={props.onPrimary}>
+				<Button size="sm" variant={props.phase === "ready" ? "primary" : "outline"} onClick={props.onPrimary}>
 					{props.phase === "ready" ? props.labels.restart : props.labels.download}
 				</Button>
 			) : props.phase !== "downloading" && props.phase !== "installing" ? (

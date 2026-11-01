@@ -148,7 +148,7 @@ export const DefaultInputBarConnector = memo(function DefaultInputBarConnector(
 		if (!session.hasSession)
 			return { placeholderTexts: [t("inputBar.placeholder.noSession")], placeholderRotating: false };
 		if (session.isStreaming)
-			return { placeholderTexts: [t("inputBar.placeholder.thinking")], placeholderRotating: false };
+			return { placeholderTexts: [t("inputBar.placeholder.queue")], placeholderRotating: false };
 		if (session.placeholderVisible && firstSuggestion)
 			return {
 				placeholderTexts: [t("inputBar.placeholder.suggestion", { suggestion: firstSuggestion })],
@@ -238,11 +238,18 @@ export const DefaultInputBarConnector = memo(function DefaultInputBarConnector(
 		contextMenu,
 		editor: { namespace: "chat-input" },
 		modelSelector: { updateActiveSession: true },
+		contextToolsPlacement: props.contextToolsPlacement,
 		leadingTools: [{ kind: "execution-mode", model: executionModeModel }],
 		trailingTools: [
 			...(contextUsageModel ? [{ kind: "context-usage" as const, model: contextUsageModel }] : []),
 			...(session.hasSession
-				? [{ kind: "workbench" as const, sessionId: runtimeId ?? null, sessionKey: session.presentationSessionPath }]
+				? [
+						{
+							kind: "workbench" as const,
+							sessionId: runtimeId ?? null,
+							sessionKey: session.presentationSessionPath,
+						},
+					]
 				: []),
 		],
 		sendBehavior: "queueable",

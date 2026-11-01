@@ -3,7 +3,15 @@ package org.agent567.android.ui
 import android.graphics.Bitmap
 import androidx.activity.ComponentActivity
 import androidx.activity.enableEdgeToEdge
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.runtime.*
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.asAndroidBitmap
+import androidx.compose.ui.platform.testTag
+import androidx.compose.ui.test.assertIsDisplayed
+import androidx.compose.ui.test.captureToImage
+import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.junit4.v2.createAndroidComposeRule
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import androidx.test.platform.app.InstrumentationRegistry
@@ -28,15 +36,17 @@ class MobileWorkspaceScreenshotTest {
         var theme by mutableStateOf(ThemeMode.Light)
         instrumentation.runOnMainSync { composeRule.activity.enableEdgeToEdge() }
         composeRule.setContent {
-            key(scene, theme) {
-                when (scene) {
-                    "home" -> HomePreview(theme)
-                    "sessions" -> SessionsPreview(theme)
-                    "profile" -> ProfilePreview(theme)
-                    "connections" -> ConnectionsPreview(theme)
-                    "chat" -> ChatPreview(theme)
-                    "welcome" -> WelcomePreview(theme)
-                    "device" -> DevicePreview(theme)
+            Box(Modifier.fillMaxSize().testTag("workspace-$scene")) {
+                key(scene, theme) {
+                    when (scene) {
+                        "home" -> HomePreview(theme)
+                        "sessions" -> SessionsPreview(theme)
+                        "profile" -> ProfilePreview(theme)
+                        "connections" -> ConnectionsPreview(theme)
+                        "chat" -> ChatPreview(theme)
+                        "welcome" -> WelcomePreview(theme)
+                        "device" -> DevicePreview(theme)
+                    }
                 }
             }
         }
@@ -44,7 +54,10 @@ class MobileWorkspaceScreenshotTest {
             for (page in listOf("home", "sessions", "profile", "connections", "chat", "welcome", "device")) {
                 composeRule.runOnIdle { scene = page; theme = mode }
                 composeRule.waitForIdle()
-                val screenshot = checkNotNull(instrumentation.uiAutomation.takeScreenshot())
+                // Capture the rendered Compose node, so surface switching cannot produce
+                // a stale or blank compositor frame even while other checks use the CPU.
+                val screen = composeRule.onNodeWithTag("workspace-$page").assertIsDisplayed()
+                val screenshot = screen.captureToImage().asAndroidBitmap()
                 File(output, "$page-${mode.name.lowercase()}.png").outputStream().use {
                     assertTrue(screenshot.compress(Bitmap.CompressFormat.PNG, 100, it))
                 }

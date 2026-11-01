@@ -4,6 +4,8 @@
     "subtitle": "给 agent 加点本事：技能、场景、MCP、插件与能力套装"
   },
   "banner": {
+    "summary": "目录收录不等于安全认证，请先查看来源。",
+    "viewGuide": "查看接入说明",
     "title": "使用说明",
     "description": "根据来源状态选择合适的接入方式；目录收录不等于安全认证。",
     "catalogTitle": "已收录能力",

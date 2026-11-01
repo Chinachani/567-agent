@@ -181,9 +181,14 @@ export function GeneralSettingsView({
 				</SettingRow>
 				{updatesDetail ? <div className="border-b border-border px-4 pb-4">{updatesDetail}</div> : null}
 				{children}
-				<SettingRow title={labels.updateSource} description={labels.updateSourceDescription}>
+				<SettingRow
+					title={labels.updateSource}
+					description={labels.updateSourceDescription}
+					border={updateSource === "custom"}
+				>
 					<MotionSelect
 						value={updateSource}
+						aria-label={labels.updateSource}
 						disabled={updateSourceSaveState === "saving"}
 						onValueChange={(value) =>
 							onUpdateSourceChange(value === "gh-proxy" || value === "custom" ? value : "github")
@@ -199,7 +204,7 @@ export function GeneralSettingsView({
 				{updateSource !== "custom" && updateSourceSaveState !== "idle" && (
 					<p
 						role={updateSourceSaveState === "error" ? "alert" : "status"}
-						className="pb-3 text-[11px] text-muted-foreground"
+						className="px-4 pb-3 text-[11px] text-muted-foreground"
 					>
 						{updateSourceSaveState === "saving"
 							? labels.updateSourceSaving
@@ -209,7 +214,11 @@ export function GeneralSettingsView({
 					</p>
 				)}
 				{updateSource === "custom" ? (
-					<SettingRow title={labels.updateSourceCustom} description={labels.updateSourceDescription}>
+					<SettingRow
+						title={labels.updateSourceCustom}
+						description={labels.updateSourceDescription}
+						border={false}
+					>
 						<div className="flex w-full min-w-0 max-w-[24rem] flex-col gap-1.5">
 							<div className="flex items-center gap-2">
 								<InputField

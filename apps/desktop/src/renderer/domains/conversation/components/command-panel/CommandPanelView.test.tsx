@@ -98,7 +98,10 @@ describe("CommandPanelView built-in operation", () => {
 		);
 
 		expect(screen.getByText("屏障后").closest("button")).toBeNull();
-		fireEvent.click(screen.getByRole("button", { name: "屏障前" }));
+		fireEvent.click(screen.getByText("屏障前"));
+		expect(onSendNow).not.toHaveBeenCalled();
+		expect(screen.getAllByRole("button", { name: "立即发送" })).toHaveLength(1);
+		fireEvent.click(screen.getByRole("button", { name: "立即发送" }));
 		expect(onSendNow).toHaveBeenCalledWith("before");
 	});
 });

@@ -164,9 +164,9 @@ export function useUserMessageEditAction({
 	const { t } = useTranslation("chat");
 	const pendingEdit = useAtomValue(pendingMessageEditAtom);
 	const setConfirmDialog = useSetAtom(confirmDialogAtom);
-	const available = enabled && isLastUserMessage;
+	const available = enabled && (isLastUserMessage || Boolean(message.entryId));
 	const pending = Boolean(
-		pendingEdit && isLastUserMessage && (!message.entryId || pendingEdit.entryId === message.entryId),
+		pendingEdit && (!message.entryId ? isLastUserMessage : pendingEdit.entryId === message.entryId),
 	);
 	const fill = useCallback(
 		async (target: Promise<ActiveSession | null>) => {
@@ -191,9 +191,12 @@ export function useUserMessageEditAction({
 			}
 			if (!entryId) return;
 			fillInputFromUserMessage(message);
-			getDefaultStore().set(pendingMessageEditAtom, { entryId });
+			getDefaultStore().set(pendingMessageEditAtom, {
+				entryId,
+				...(!isLastUserMessage ? { preserveBranch: true } : {}),
+			});
 		},
-		[message],
+		[message, isLastUserMessage],
 	);
 	const onEdit = useCallback(() => {
 		const target = getSessionRuntimeWhenReady();

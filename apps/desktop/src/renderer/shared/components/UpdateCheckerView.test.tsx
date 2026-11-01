@@ -39,18 +39,36 @@ it("a user can pause an update from the version row and resume it before choosin
 	const pause = vi.fn();
 	const primary = vi.fn();
 	const labels = {
-		check: "Check", checking: "Checking", checkingBtn: "Checking", currentVersion: (v: string) => v,
-		download: "Resume download", pause: "Pause download", downloading: (p: number) => `${p}%`, idle: (v: string) => v,
-		newVersion: (v: string) => v, restart: "Restart",
+		check: "Check",
+		checking: "Checking",
+		checkingBtn: "Checking",
+		currentVersion: (v: string) => v,
+		download: "Resume download",
+		pause: "Pause download",
+		downloading: (p: number) => `${p}%`,
+		idle: (v: string) => v,
+		newVersion: (v: string) => v,
+		restart: "Restart",
 	};
-	const props = { currentVersion: "1.5.0", checking: false, labels, onCheck: vi.fn(), onPrimary: primary, onPause: pause };
+	const props = {
+		currentVersion: "1.5.0",
+		checking: false,
+		labels,
+		onCheck: vi.fn(),
+		onPrimary: primary,
+		onPause: pause,
+	};
 	const view = render(<UpdateCheckerActions {...props} phase="downloading" />);
 	fireEvent.click(screen.getByRole("button", { name: "Pause download" }));
 	expect(pause).toHaveBeenCalledOnce();
 	expect(screen.queryByRole("button", { name: "Restart" })).toBeNull();
 	view.rerender(<UpdateCheckerActions {...props} phase="available" />);
+	expect(screen.getByRole("button", { name: "Resume download" }).getAttribute("data-variant")).toBe("outline");
 	fireEvent.click(screen.getByRole("button", { name: "Resume download" }));
 	expect(primary).toHaveBeenCalledOnce();
 	view.rerender(<UpdateCheckerActions {...props} phase="ready" />);
-	expect(screen.getByRole("button", { name: "Restart" })).toBeTruthy();
+	const restart = screen.getByRole("button", { name: "Restart" });
+	expect(restart.getAttribute("data-variant")).toBe("primary");
+	fireEvent.click(restart);
+	expect(primary).toHaveBeenCalledTimes(2);
 });

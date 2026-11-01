@@ -14,12 +14,16 @@ fun App(
     container: AppContainer = remember { AppContainer.createDefault() },
     pairingInvite: String? = null,
     onPairingInviteHandled: () -> Unit = {},
+    notificationSessionId: String? = null,
+    onNotificationHandled: () -> Unit = {},
 ) {
     CompositionLocalProvider(LocalAppContainer provides container) {
         RootApp(
             container = container,
             pairingInvite = pairingInvite,
             onPairingInviteHandled = onPairingInviteHandled,
+            notificationSessionId = notificationSessionId,
+            onNotificationHandled = onNotificationHandled,
         )
     }
 }

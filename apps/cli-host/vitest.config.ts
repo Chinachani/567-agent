@@ -23,7 +23,11 @@ export default defineConfig({
 				replacement: fileURLToPath(new URL("../../packages/runtime-node/src/conversation/legacy.ts", import.meta.url)),
 			},
 			{
-				find: "@567agent/ai",
+				find: "@567agent/ai/protocol",
+ replacement: fileURLToPath(new URL("../../packages/ai/src/protocol/index.ts", import.meta.url)),
+ },
+ {
+ find: "@567agent/ai",
 				replacement: fileURLToPath(new URL("../../packages/ai/src/index.ts", import.meta.url)),
 			},
 			{

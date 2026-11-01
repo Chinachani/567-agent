@@ -190,7 +190,7 @@ function Home({ chat = false, task = false, queue = false, collapsed = false }) 
 			cancelPendingEdit: noop,
 		},
 	};
-	if (chat) return <ChatSample input={<>{task ? <SessionTaskProgress /> : null}<InputBarView model={model} /></>} />;
+	if (chat) return <ChatSample title={task ? null : "项目审阅与实施计划"} input={<>{task ? <SessionTaskProgress /> : null}<InputBarView model={model} /></>} />;
 	return (
 		<NewSessionPageLayoutView
 			background={null}
@@ -213,7 +213,7 @@ function Home({ chat = false, task = false, queue = false, collapsed = false }) 
 			}
 			inputBar={
 				<>
-					<InputBarView model={model}>
+					<InputBarView model={{ ...model, contextToolsPlacement: "bottom" }}>
 						<NewSessionSetupControls
 							selection={project}
 							options={[{ cwd: "/fixture/project", name: "示例项目" }]}
@@ -236,13 +236,11 @@ function Home({ chat = false, task = false, queue = false, collapsed = false }) 
 		/>
 	);
 }
-function ChatSample({ input }) {
+function ChatSample({ input, title }) {
 	const [expanded, setExpanded] = useState(false);
 	return (
 		<div className="flex min-h-0 flex-1 flex-col">
-			<div className="border-b border-border/60 px-5 py-4">
-				<h1 className="text-[14px] font-medium">项目审阅与实施计划</h1>
-			</div>
+            {title ? <h1 className="border-b border-border/60 px-5 py-3 text-[14px] font-medium">{title}</h1> : null}
 			<div className="min-h-0 flex-1 overflow-y-auto">
 				<div className="@container mx-auto flex max-w-3xl flex-col gap-6 px-5 py-8">
 					<Message.Root>
@@ -574,7 +572,7 @@ function AutomationReady() {
 const taskWorkspace = { id: "/fixture/project", cwd: "/fixture/project", runtimeIds: ["fixture-runtime"] };
 function TaskWorkspace({ deliveriesOnly = false, queue = false, collapsed = false }) {
     return <div className="flex min-h-0 min-w-0 flex-1 flex-col">
-        <h1 className="border-b border-border/50 px-5 py-3 text-[14px] font-medium">{deliveriesOnly ? "会话交付" : "整理项目资料与检查报告"}</h1>
+        <h1 className="border-b border-border/50 px-5 py-3 text-[14px] font-medium">{deliveriesOnly ? "会话交付" : "项目审阅与实施计划"}</h1>
         <div className="flex min-h-0 flex-1">
             {!deliveriesOnly ? <div className="flex min-w-0 flex-1 flex-col"><Home chat task queue={queue} collapsed={collapsed} /></div> : null}
             <aside className={deliveriesOnly ? "min-w-0 flex-1" : "hidden w-80 shrink-0 border-l border-border/50 min-[1000px]:block"}>

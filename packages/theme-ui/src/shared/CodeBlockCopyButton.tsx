@@ -1,3 +1,4 @@
+import { Button } from "@vetta-org/ui";
 import type { JSX, MouseEvent, PointerEvent, ReactNode } from "react";
 
 export interface CodeBlockCopyButtonLabels {
@@ -9,6 +10,11 @@ export interface CodeBlockCopyButtonViewProps {
 	children: ReactNode;
 	copied: boolean;
 	onCopy: () => void;
+	onPreview?: () => void;
+	onSave?: () => void;
+	savePending?: boolean;
+	previewLabel?: string;
+	saveLabel?: string;
 	labels: CodeBlockCopyButtonLabels;
 }
 
@@ -18,6 +24,11 @@ export function CodeBlockCopyButtonView({
 	copied,
 	onCopy,
 	labels,
+	onPreview,
+	onSave,
+	savePending,
+	previewLabel,
+	saveLabel,
 }: CodeBlockCopyButtonViewProps): JSX.Element {
 	function stopMessageDrag(event: MouseEvent<HTMLButtonElement> | PointerEvent<HTMLButtonElement>): void {
 		event.preventDefault();
@@ -31,17 +42,50 @@ export function CodeBlockCopyButtonView({
 
 	return (
 		<div className="group/code-block relative">
-			<button
-				type="button"
-				onPointerDown={stopMessageDrag}
-				onMouseDown={stopMessageDrag}
-				onClick={handleCopy}
-				aria-label={copied ? labels.copied : labels.copy}
-				title={copied ? labels.copied : labels.copy}
-				className="absolute right-2 top-2 z-20 inline-flex h-7 w-7 cursor-pointer items-center justify-center rounded-md border border-[#30363d] bg-[#161b22]/95 text-[#c9d1d9] opacity-0 shadow-sm transition-opacity hover:bg-[#21262d] hover:text-white focus-visible:opacity-100 group-hover/code-block:opacity-100"
-			>
-				<span className={copied ? "icon-[mdi--check] h-4 w-4" : "icon-[solar--copy-linear] h-4 w-4"} />
-			</button>
+			<div className="absolute right-2 top-2 z-20 flex items-center gap-1 opacity-0 transition-opacity focus-within:opacity-100 group-hover/code-block:opacity-100">
+				{onPreview && (
+					<Button
+						variant="ghost"
+						size="icon-xs"
+						title={previewLabel}
+						aria-label={previewLabel}
+						onClick={(event) => {
+							stopMessageDrag(event);
+							onPreview();
+						}}
+					>
+						<span className="icon-[solar--sidebar-minimalistic-linear] size-4" />
+					</Button>
+				)}
+				{onSave && (
+					<Button
+						variant="ghost"
+						size="icon-xs"
+						disabled={savePending}
+						title={saveLabel}
+						aria-label={saveLabel}
+						onClick={(event) => {
+							stopMessageDrag(event);
+							onSave();
+						}}
+					>
+						<span className="icon-[solar--download-linear] size-4" />
+					</Button>
+				)}
+				<Button
+					variant="ghost"
+					size="icon-xs"
+					type="button"
+					onPointerDown={stopMessageDrag}
+					onMouseDown={stopMessageDrag}
+					onClick={handleCopy}
+					aria-label={copied ? labels.copied : labels.copy}
+					title={copied ? labels.copied : labels.copy}
+					className="bg-muted/95"
+				>
+					<span className={copied ? "icon-[mdi--check] h-4 w-4" : "icon-[solar--copy-linear] h-4 w-4"} />
+				</Button>
+			</div>
 			{children}
 		</div>
 	);

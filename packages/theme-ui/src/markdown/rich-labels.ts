@@ -1,5 +1,7 @@
 export interface RichContentLabels {
 	preview: string;
+	previewToSide?: string;
+	saveAs?: string;
 	source: string;
 	run: string;
 	stop: string;
@@ -52,6 +54,7 @@ export interface MarkdownLabels {
 		failed: string;
 	};
 	artifacts?: { title: string; count: (count: number) => string };
+	copyTable?: string;
 	copy: string;
 	copied: string;
 	rich?: RichContentLabels;

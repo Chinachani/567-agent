@@ -6,6 +6,8 @@ export interface MarkdownHost {
 	openExternalUrl?(url: string): Promise<void>;
 	copyText?(value: string, kind: "file" | "url"): Promise<void>;
 	revealFile?(path: string): Promise<void>;
+	previewCode?(code: string, language: string): void;
+	saveCode?(code: string, language: string): Promise<void>;
 	openHtml(source: string): Promise<() => void>;
 	renderMermaid(source: string, theme: "light" | "dark"): Promise<string>;
 	favicon(origin: string): Promise<string | null>;

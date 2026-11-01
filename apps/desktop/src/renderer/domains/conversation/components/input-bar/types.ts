@@ -16,6 +16,8 @@ import type { ActiveActionCapsule } from "./ActiveActionCapsules";
 import type { TriggerMatch } from "./editor/tokens/trigger";
 
 export interface ConnectedInputBarProps {
+	/** Setup pages place model/context controls beside the lower input tools. */
+	contextToolsPlacement?: "top" | "bottom";
 	/** Caller-owned setup controls, composed inside the input surface before its editor. */
 	children?: ReactNode;
 	onSend: (overrideText?: string, context?: SendInteractionContext) => Promise<void>;
@@ -149,6 +151,7 @@ export type InputBarTrailingTool =
 	  };
 
 export interface InputBarModel {
+	contextToolsPlacement?: "top" | "bottom";
 	dropZone: Omit<SessionDropZoneViewProps, "children" | "className">;
 	isStreaming: boolean;
 	/** 宿主传入的发送前准备态，原样透给发送按钮。 */

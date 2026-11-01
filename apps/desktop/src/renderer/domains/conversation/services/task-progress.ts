@@ -67,9 +67,9 @@ export function projectTaskProgress(input: TaskProgressInput): TaskProgress | nu
 		...(error && !input.busy && !input.preparing ? { error } : {}),
 	});
 	if (input.preparing) return state("preparing", true);
-	if (input.question) return state("question", true);
-	if (input.permission) return state("permission", true);
-	if (input.approval) return state("approval", true);
+	if (input.question) return state("question");
+	if (input.permission) return state("permission");
+	if (input.approval) return state("approval");
 	if (input.busy) {
 		if (input.compacting) return state("compacting", true);
 		if (input.retry) return state("retrying", true);
