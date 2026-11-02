@@ -193,7 +193,7 @@ export async function resolveNpmPluginArchive(
 		const archivePath = await extractRegularFile(tarballPath, temporaryRoot, packageManifest.vetta.archive);
 		const archive = await readFile(archivePath);
 		if (archive.length > MAX_PLUGIN_ARCHIVE_BYTES) {
-			throw new Error("Vetta plugin archive exceeds the 512 MB limit");
+			throw new Error("567 Agent plugin archive exceeds the 512 MB limit");
 		}
 
 		return {

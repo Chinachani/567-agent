@@ -2,7 +2,9 @@ import { createHash } from "node:crypto";
 import {
 	CODING_AGENT_COMPACTION_CONFIGURATION,
 	CODING_AGENT_COMPACTION_CONFIGURATION_ID,
+	CODING_AGENT_MODEL_CALL_LIMIT_CONFIGURATION,
 	type CodingAgentCompactionConfiguration,
+	type CodingAgentModelCallLimitConfiguration,
 	type ResolvedCompactionSettings,
 } from "@567agent/coding-agent/settings";
 import {
@@ -19,7 +21,10 @@ import type {
 	DesktopRuntimeConfigurationEntry,
 } from "../../preload/api.js";
 
-const BUILTIN_DEFINITION_SOURCE = { id: "desktop-builtins", revision: "coding-context-images-and-ocr-v2" } as const;
+const BUILTIN_DEFINITION_SOURCE = {
+	id: "desktop-builtins",
+	revision: "coding-execution-context-images-and-ocr-v3",
+} as const;
 const DESKTOP_LAYER_SOURCE_ID = "desktop.runtime-configuration";
 const DESKTOP_LAYER_ID = "desktop.persisted-settings";
 
@@ -72,6 +77,24 @@ export class DesktopRuntimeConfigurationService {
 		}
 	}
 
+	/** 每轮执行开始时读取；无效磁盘值回退到默认预算，在途执行不再读取。 */
+	readModelCallLimit(): CodingAgentModelCallLimitConfiguration {
+		this.synchronize();
+		const lease = this.center.acquire();
+		try {
+			return (
+				lease.snapshot.read(CODING_AGENT_MODEL_CALL_LIMIT_CONFIGURATION) ??
+				CODING_AGENT_MODEL_CALL_LIMIT_CONFIGURATION.defaultValue
+			);
+		} finally {
+			void lease
+				.release()
+				.catch((error) =>
+					this.dependencies.logger.warn("failed to release model-call configuration snapshot", error),
+				);
+		}
+	}
+
 	/** Turn admission 同步读取同一配置快照；无效的磁盘层由 Resolver 回退到产品默认值。 */
 	readCompactionSettings(): ResolvedCompactionSettings {
 		this.synchronize();
@@ -97,6 +120,7 @@ export class DesktopRuntimeConfigurationService {
 		this.synchronize();
 		if (
 			configurationId !== CODING_AGENT_COMPACTION_CONFIGURATION.id &&
+			configurationId !== CODING_AGENT_MODEL_CALL_LIMIT_CONFIGURATION.id &&
 			configurationId !== CODING_IMAGE_CONFIGURATION.id &&
 			configurationId !== VETTA_OCR_CONFIGURATION.id
 		) {
@@ -117,7 +141,9 @@ export class DesktopRuntimeConfigurationService {
 				settings.compaction = toPersistedCompactionSettings(
 					CODING_AGENT_COMPACTION_CONFIGURATION.codec.decode(decoded),
 				);
-			} else if (configurationId === CODING_IMAGE_CONFIGURATION.id) settings.images = decoded;
+			} else if (configurationId === CODING_AGENT_MODEL_CALL_LIMIT_CONFIGURATION.id)
+				settings.modelCallLimit = decoded;
+			else if (configurationId === CODING_IMAGE_CONFIGURATION.id) settings.images = decoded;
 			else settings.ocr = decoded;
 		});
 		this.dependencies.logger.info("runtime configuration updated", { configurationId });
@@ -130,6 +156,10 @@ export class DesktopRuntimeConfigurationService {
 
 	private synchronize(): void {
 		if (!this.builtinPublished) {
+			this.center.definitions.upsert({
+				source: BUILTIN_DEFINITION_SOURCE,
+				definition: CODING_AGENT_MODEL_CALL_LIMIT_CONFIGURATION,
+			});
 			this.center.definitions.upsert({
 				source: BUILTIN_DEFINITION_SOURCE,
 				definition: CODING_AGENT_COMPACTION_CONFIGURATION,
@@ -147,6 +177,9 @@ export class DesktopRuntimeConfigurationService {
 
 		const values: Record<string, RuntimeConfigurationJsonObject> = {};
 		const settings = this.dependencies.readAgentSettings();
+		if (isRecord(settings.modelCallLimit)) {
+			values[CODING_AGENT_MODEL_CALL_LIMIT_CONFIGURATION.id] = toJsonObject(settings.modelCallLimit);
+		}
 		const compaction = settings.compaction;
 		if (isRecord(compaction)) {
 			values[CODING_AGENT_COMPACTION_CONFIGURATION.id] = projectPersistedCompactionSettings(compaction);
@@ -167,7 +200,12 @@ export class DesktopRuntimeConfigurationService {
 	}
 
 	private readPersistedValue(configurationId: string): RuntimeConfigurationJsonObject {
-		const field = configurationId === CODING_IMAGE_CONFIGURATION.id ? "images" : "ocr";
+		const field =
+			configurationId === CODING_AGENT_MODEL_CALL_LIMIT_CONFIGURATION.id
+				? "modelCallLimit"
+				: configurationId === CODING_IMAGE_CONFIGURATION.id
+					? "images"
+					: "ocr";
 		if (configurationId === CODING_AGENT_COMPACTION_CONFIGURATION.id) {
 			const compaction = this.dependencies.readAgentSettings().compaction;
 			return isRecord(compaction) ? projectPersistedCompactionSettings(compaction) : {};
@@ -238,6 +276,9 @@ function enrichOcrDescriptor(
 }
 
 function resolveConsumers(configurationId: string): DesktopRuntimeConfigurationConsumer[] {
+	if (configurationId === CODING_AGENT_MODEL_CALL_LIMIT_CONFIGURATION.id) {
+		return [{ kind: "runtime", id: "agent-model-call-loop", support: "native" }];
+	}
 	if (configurationId === CODING_AGENT_COMPACTION_CONFIGURATION_ID) {
 		return [{ kind: "runtime", id: "context-compaction", support: "native" }];
 	}

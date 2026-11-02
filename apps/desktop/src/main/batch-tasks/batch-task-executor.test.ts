@@ -56,6 +56,8 @@ vi.mock("./notification-templates.js", () => ({
 	isProjectFinished: () => false,
 }));
 
+import { initializeMainMessages } from "../i18n/messages.js";
+
 import {
 	type BatchTaskEvent,
 	enqueueResumeTask,
@@ -72,12 +74,32 @@ describe("batch RuntimeHost consumer", () => {
 
 	beforeEach(() => {
 		vi.clearAllMocks();
+		initializeMainMessages("zh");
 	});
 
 	afterEach(async () => {
 		for (const directory of directories.splice(0).reverse()) {
 			await rm(directory, { recursive: true, force: true });
 		}
+	});
+
+	it("refuses a retired scene batch before starting a model session or invoking a same-name skill", async () => {
+		const project = batchProject(await temporaryDirectory("desktop-scene-project-"));
+		const task = batchTask(await temporaryDirectory("desktop-scene-task-"));
+		project.skill = { name: "batch-skill", type: "scene" };
+		project.tasks.push(task);
+		const createSession = vi.fn();
+		const prompt = vi.fn();
+		const failed = waitForBatchEvent((event) => event.type === "task.failed" && event.taskId === task.id);
+		enqueueRunTask(project, task, { createSession, prompt } as unknown as RuntimeHost);
+		await failed;
+		expect(createSession).not.toHaveBeenCalled();
+		expect(prompt).not.toHaveBeenCalled();
+		expect(mocks.saveTaskState).toHaveBeenCalledWith(
+			project.id,
+			task.id,
+			expect.objectContaining({ status: "failed", error: expect.stringContaining("场景") }),
+		);
 	});
 
 	it("creates and finalizes one batch session without disposing the shared RuntimeHost session", async () => {
@@ -134,7 +156,7 @@ describe("batch RuntimeHost consumer", () => {
 		expect(prompt).toHaveBeenCalledWith("batch-session", {
 			text: project.prompt,
 			modelKey: "test/provider-model",
-			promptRef: { kind: "scene", name: "batch-scene" },
+			promptRef: { kind: "skill", name: "batch-skill" },
 		});
 		expect(renameSessionById).toHaveBeenCalledWith("batch-session", `${project.name}: ${task.name}`);
 		expect(mocks.saveTaskState.mock.calls.map(([, , state]) => state.status)).toEqual(["running", "completed"]);
@@ -255,7 +277,7 @@ function batchProject(projectDir: string): BatchProject {
 		modelKey: "test/provider-model",
 		concurrency: 1,
 		executionMode: "full-access",
-		skill: { type: "scene", name: "batch-scene" },
+		skill: { type: "skill", name: "batch-skill" },
 		tasks: [],
 		createdAt: 1,
 		updatedAt: 1,

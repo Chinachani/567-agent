@@ -6,6 +6,7 @@ import { spawn } from "node:child_process";
 import { repoRoot } from "./lib.mjs";
 
 const steps = [
+	["scripts/release/candidate-metadata.mjs"],
 	["packages/capability-sdk/scripts/generate-catalog.ts", "--check"],
 	["packages/coding-agent/scripts/generate-personas.mjs", "--check"],
 	["packages/coding-agent/scripts/generate-themes.mjs", "--check"],

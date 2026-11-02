@@ -97,6 +97,7 @@ export interface ComposedRuntimeFactoryOptions<TCreateOptions> {
 	readonly streamOptions?: Omit<SimpleStreamOptions, "sessionId" | "signal">;
 	readonly tracer?: AgentCoreTurnEngineOptions["tracer"];
 	readonly tracing?: AgentCoreTurnEngineOptions["tracing"];
+	readonly resolveTurnLimits?: AgentCoreTurnEngineOptions["resolveTurnLimits"];
 	/** 将既有 Session 业务事件以内容安全摘要汇入统一 Observation Hub。 */
 	readonly observationPublisher?: RuntimeObservationPublisher;
 	readonly clock?: Clock;
@@ -189,6 +190,7 @@ export class ComposedRuntimeFactory<TCreateOptions> implements KernelRuntimeFact
 				streamOptions: this.options.streamOptions,
 				tracer: this.options.tracer,
 				tracing: this.options.tracing,
+				resolveTurnLimits: this.options.resolveTurnLimits,
 				resolveApiKey: (model) => resources.modelRuntime.resolveApiKey(model),
 			});
 			const contextCompactionCommitter = new ContextCompactionCommitter({

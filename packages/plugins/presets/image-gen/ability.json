@@ -2,7 +2,7 @@
 	"schemaVersion": 1,
 	"type": "plugin",
 	"slug": "image-gen",
-	"version": "0.3.2",
+	"version": "0.3.3",
 	"detail": {
 		"blocks": [
 			{

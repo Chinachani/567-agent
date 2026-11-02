@@ -165,6 +165,7 @@ export function useChatViewModel(): ChatViewModelResult {
 			exporting,
 			exportTitle: t("chatView.exportButton.title"),
 			panelOpen,
+			panelLabel: t("workbenchLabel"),
 			panelTitle: panelOpen ? t("chatView.panelButton.open") : t("chatView.panelButton.closed"),
 			pinTitle: pinned ? t("chatView.pinButton.pinned") : t("chatView.pinButton.unpinned"),
 			pinned,

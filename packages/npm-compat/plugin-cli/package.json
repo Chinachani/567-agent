@@ -1,6 +1,6 @@
 {
 	"name": "@567agent/plugin-cli",
-	"version": "0.1.7",
+	"version": "0.1.8",
 	"type": "module",
 	"description": "567 Agent public entry for @vetta-org/plugin-cli; shared runtime identity is preserved.",
 	"author": "567wiki <907746241@qq.com>",
@@ -32,7 +32,7 @@
 		"prepack": "node ../../../scripts/generate-npm-compat.mjs plugin-cli"
 	},
 	"dependencies": {
-		"@vetta-org/plugin-cli": "0.1.7"
+		"@vetta-org/plugin-cli": "0.1.8"
 	},
 	"publishConfig": {
 		"access": "public",

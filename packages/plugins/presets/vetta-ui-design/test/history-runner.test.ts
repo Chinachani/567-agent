@@ -6,10 +6,11 @@
  */
 import { execFile } from "node:child_process";
 import { existsSync } from "node:fs";
-import { mkdir, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
+import { mkdir, mkdtemp, readFile, rm, symlink, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { promisify } from "node:util";
+import { strToU8, zipSync } from "fflate";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 
 const execFileAsync = promisify(execFile);
@@ -200,5 +201,44 @@ describe("history runner", () => {
 		await run({ cmd: "pack", dir, out: pack });
 		const result = await run({ cmd: "unpack", dir, from: pack });
 		expect(result.files).toBe(0);
+	});
+});
+
+describe("history import boundaries", () => {
+	it("rejects traversal before creating any history files", async () => {
+		const root = await mkdtemp(join(tmpdir(), "agent567-history-boundary-"));
+		try {
+			const target = join(root, "design.vetd");
+			await mkdir(target);
+			const sentinel = join(root, "keep.txt");
+			await writeFile(sentinel, "keep");
+			const archive = join(root, "bad.zip");
+			await writeFile(archive, zipSync({ HEAD: strToU8("safe"), "../../keep.txt": strToU8("overwritten") }));
+			const result = await run({ cmd: "unpack", dir: target, from: archive });
+			expect(result.ok).toBe(false);
+			expect(result.error).toMatch(/unsafe archive path/);
+			expect(await readFile(sentinel, "utf8")).toBe("keep");
+			expect(existsSync(join(target, ".history/HEAD"))).toBe(false);
+		} finally {
+			await rm(root, { recursive: true, force: true });
+		}
+	});
+	it("rejects a pre-existing history directory link", async () => {
+		const root = await mkdtemp(join(tmpdir(), "agent567-history-link-"));
+		try {
+			const target = join(root, "design.vetd"),
+				outside = join(root, "outside");
+			await mkdir(target);
+			await mkdir(outside);
+			await symlink(outside, join(target, ".history"), process.platform === "win32" ? "junction" : "dir");
+			const archive = join(root, "bad.zip");
+			await writeFile(archive, zipSync({ config: strToU8("bad") }));
+			const result = await run({ cmd: "unpack", dir: target, from: archive });
+			expect(result.ok).toBe(false);
+			expect(result.error).toMatch(/symbolic link/);
+			expect(existsSync(join(outside, "config"))).toBe(false);
+		} finally {
+			await rm(root, { recursive: true, force: true });
+		}
 	});
 });

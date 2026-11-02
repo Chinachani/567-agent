@@ -12,7 +12,7 @@ import { useTeamChatModel } from "./useTeamChatModel";
 import { TeamChatView } from "./TeamChatView";
 
 export function TeamChatPage({ createNewSession = false }: { readonly createNewSession?: boolean }): JSX.Element {
-	const { t } = useTranslation("agent-teams");
+	const { t } = useTranslation(["agent-teams", "chat"]);
 	const navigate = useNavigate();
 	const { teamId, sessionId, memberId } = useParams({ strict: false });
 	if (!teamId) throw new Error("Team route is missing teamId");
@@ -54,6 +54,7 @@ export function TeamChatPage({ createNewSession = false }: { readonly createNewS
 	const headerActions = useMemo(
 		() => (
 			<ChatHeaderActions.Panel
+				label={t("chat:workbenchLabel")}
 				title={t("chat.activity")}
 				open={activityOpen}
 				onClick={() => setActivityOpen((open) => !open)}

@@ -27,6 +27,7 @@ import {
 	InputBarModelAction,
 	InputBarSendAction,
 	InputBarSkillsAction,
+	InputBarTriggerAction,
 	InputBarSpeechAction,
 	InputBarToolbarDivider,
 } from "./InputBarToolbar";
@@ -249,6 +250,15 @@ export function InputBarView({ model, children, className, classNames }: InputBa
 													disabled={!model.hasSession}
 													title={model.labels.toolbar.skills}
 													onSelect={commands.onOpen}
+												/>
+											) : null}
+											{commands?.onOpenReferences ? (
+												<InputBarTriggerAction
+													symbol="@"
+													active={commands.atOpen}
+													disabled={!model.hasSession}
+													title={model.labels.toolbar.references ?? "@"}
+													onSelect={commands.onOpenReferences}
 												/>
 											) : null}
 											{model.routing ? (

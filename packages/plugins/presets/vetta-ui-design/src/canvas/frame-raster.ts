@@ -150,8 +150,19 @@ export interface FrameRasterState {
 	 * 这正是「刷新按钮点了没反应」。按钮是热更新失效时的兜底出路，必须真的重载。
 	 */
 	reloadAll(): void;
-	/** reloadAll 自增，由 FrameView 拼进 iframe 的 URL 以触发重新导航。 */
-	reloadNonce: number;
+	/**
+	 * 用户在 `sourceFrameId` 里的操作改了 localStorage（切主题、改设置这类持久化状态）。
+	 *
+	 * 这种状态整个设计共用，不止属于那一帧：所有位图都按旧状态截的，全部重截；此刻
+	 * 还挂着的其他 iframe 内存里也是旧状态（多数页面只在启动时读一次存储），重新加载
+	 * 它们。来源那一帧本身就是新状态，不动它。
+	 */
+	storageChanged(sourceFrameId: string): void;
+	/**
+	 * 该 frame 的 iframe 地址上的重载计数，由 FrameView 拼进 URL 以触发重新导航。
+	 * reloadAll 让所有 frame 一起变，storageChanged 只让被波及的那几个变。
+	 */
+	reloadNonceOf(frameId: string): number;
 }
 
 /**
@@ -195,10 +206,22 @@ function decodeRaster(dataUrl: string): Promise<void> {
 	return image.decode().catch(() => undefined);
 }
 
-/** 等 React 提交 + 浏览器完成一次布局与绘制。 */
+/**
+ * nextPaint 的兜底时长。窗口被遮挡、最小化时 rAF 会停，而等它的截图正攥着串行锁——
+ * 不兜底的话整条截图队列（导出工作台、旧宿主上的后台位图）都跟着卡死。
+ */
+const NEXT_PAINT_FALLBACK_MS = 1_000;
+
+/** 等 React 提交 + 浏览器完成一次布局与绘制（rAF 停摆时最多等 NEXT_PAINT_FALLBACK_MS）。 */
 function nextPaint(): Promise<void> {
 	return new Promise((resolve) => {
-		requestAnimationFrame(() => requestAnimationFrame(() => resolve()));
+		const fallback = setTimeout(resolve, NEXT_PAINT_FALLBACK_MS);
+		requestAnimationFrame(() =>
+			requestAnimationFrame(() => {
+				clearTimeout(fallback);
+				resolve();
+			}),
+		);
 	});
 }
 
@@ -216,6 +239,18 @@ export function useFrameRasters({
 	/** 尺寸回调随 manifest 变，走 ref 免得截图 effect 反复重排队。 */
 	const offscreenRef = useRef(offscreen);
 	offscreenRef.current = offscreen;
+	/** 离屏位图是按什么尺寸截的（`宽x高`）。缓存里恢复出来的没有记录，按对得上处理。 */
+	const rasterSizesRef = useRef(new Map<string, string>());
+	/**
+	 * 位图的尺寸和 frame 此刻的尺寸对不上：frame 改了尺寸（展开/收起、拖手柄），新图
+	 * 还没截好。这张图塞进新尺寸里会被 object-cover 拉伸裁剪，不能拿来顶替活体。
+	 * 读的是 ref：尺寸一变画布就会 invalidate，dirty 跟着变，用到它的地方自然重算。
+	 */
+	const rasterSizeStale = (frameId: string): boolean => {
+		const captured = rasterSizesRef.current.get(frameId);
+		const size = offscreenActive ? (offscreenRef.current?.sizeOf(frameId) ?? null) : null;
+		return captured !== undefined && size !== null && `${size.width}x${size.height}` !== captured;
+	};
 	/** 同一失效端口只上报一次，避免三个并发槽各触发一轮重启和相同日志。 */
 	const unavailablePortRef = useRef<number | null>(null);
 
@@ -257,6 +292,8 @@ export function useFrameRasters({
 	const lastActiveRef = useRef<string | null>(null);
 	if (activeFrameId !== null) lastActiveRef.current = activeFrameId;
 	const [reloadNonce, setReloadNonce] = useState(0);
+	/** storageChanged 对单个 frame 的重载计数，与 reloadNonce 相加后进 URL。 */
+	const [frameReloads, setFrameReloads] = useState<ReadonlyMap<string, number>>(new Map());
 	const frameIdsRef = useRef(frameIds);
 	frameIdsRef.current = frameIds;
 
@@ -399,6 +436,32 @@ export function useFrameRasters({
 		return allowed;
 	}, [frameIds, rasters, dirty, activeFrameId, forced, offscreenActive]);
 
+	const mountedRef = useRef(mounted);
+	mountedRef.current = mounted;
+	const activeFrameIdRef = useRef(activeFrameId);
+	activeFrameIdRef.current = activeFrameId;
+
+	const storageChanged = useCallback(
+		(sourceFrameId: string): void => {
+			refreshAll();
+			const stale = [...mountedRef.current].filter(
+				(frameId) => frameId !== sourceFrameId && frameId !== activeFrameIdRef.current,
+			);
+			if (stale.length === 0) return;
+			setFrameReloads((current) => {
+				const next = new Map(current);
+				for (const frameId of stale) next.set(frameId, (next.get(frameId) ?? 0) + 1);
+				return next;
+			});
+		},
+		[refreshAll],
+	);
+
+	const reloadNonceOf = useCallback(
+		(frameId: string): number => reloadNonce + (frameReloads.get(frameId) ?? 0),
+		[reloadNonce, frameReloads],
+	);
+
 	// iframe 卸掉后 rendered 门禁作废：下次挂载是一次全新加载，要等新的 rendered。
 	useEffect(() => {
 		for (const frameId of renderedRef.current) {
@@ -429,6 +492,7 @@ export function useFrameRasters({
 			// 此后到截图落地之间任何一次失效（invalidate / notifyRendered / refreshAll）都
 			// 意味着这张图可能按旧内容截的，落地后必须重截。
 			const seqAtStart = invalidationSeqRef.current.get(frameId) ?? 0;
+			let capturedSize: string | null = null;
 			const runCapture = (): Promise<string> => {
 				if (offscreenActive) {
 					const context = offscreenRef.current;
@@ -436,6 +500,7 @@ export function useFrameRasters({
 					if (context === null || size === null) {
 						return Promise.reject(new Error(`frame size unknown: ${frameId}`));
 					}
+					capturedSize = `${size.width}x${size.height}`;
 					// 不占 withCaptureLock：离屏窗口与 iframe 内的 html-to-image（交付物
 					// 截图）用的是两套互不竞争的资源，串行化只会平白拖慢两边。
 					// 画布刷新只要位图：布局机检是截图工具那条路的事，位图队列是后台
@@ -467,6 +532,8 @@ export function useFrameRasters({
 							// 解码在前、写状态在后：dirty 的清除在 finally，会等这个 await，
 							// 所以位图进入 rasters 时一定是「挂上就能画」的。
 							await decodeRaster(dataUrl);
+							if (capturedSize === null) rasterSizesRef.current.delete(frameId);
+							else rasterSizesRef.current.set(frameId, capturedSize);
 							setRasters((current) => withBudget(current, frameId, dataUrl, mounted));
 							// 落盘失败不影响这一轮（内存里已经有图），代价只是下次进画布得重截。
 							void saveRaster(cacheKey, frameId, dataUrl);
@@ -523,7 +590,9 @@ export function useFrameRasters({
 			if (capturingRef.current.size >= limit) break;
 			if (capturingRef.current.has(frameId)) continue;
 			if (!dirty.has(frameId)) continue;
-			if (frameId === activeFrameId) continue;
+			// 选中的那一帧平时不截：它显示的是活体，内容一变就重截只是白耗。例外是离屏模式下
+			// 尺寸变了（选中着点了展开）——交互期要拿位图顶替活体，旧尺寸的图会对不上。
+			if (frameId === activeFrameId && !rasterSizeStale(frameId)) continue;
 			if (!offscreenActive && !(mounted.has(frameId) && renderedRef.current.has(frameId))) continue;
 			if (getFrameError(frameId)) {
 				errorSkippedRef.current.add(frameId);
@@ -562,7 +631,7 @@ export function useFrameRasters({
 			if (frameId === activeFrameId || dirty.has(frameId) || !rasters.has(frameId)) {
 				// 缩放/平移途中，有位图的一律先用位图顶着（见 interacting）。没位图的留活体：
 				// 那是它此刻唯一有内容的那一层，收起来只会在操作期间变成一片空白。
-				if (interacting && rasters.has(frameId)) parked.add(frameId);
+				if (interacting && rasters.has(frameId) && !rasterSizeStale(frameId)) parked.add(frameId);
 				else live.add(frameId);
 			}
 		}
@@ -610,6 +679,7 @@ export function useFrameRasters({
 		withCaptureLock,
 		refreshAll,
 		reloadAll,
-		reloadNonce,
+		storageChanged,
+		reloadNonceOf,
 	};
 }

@@ -33,12 +33,16 @@ export function DocxPreview({ file }: PluginFilePreviewProps): JSX.Element {
 		const container = containerRef.current;
 		if (!container) return;
 		let cancelled = false;
+		// Each load owns its DOM. A late parser from the previous file must never
+		// append pages or styles to the newly selected document.
+		const documentHost = document.createElement("div");
 		container.replaceChildren();
 		setStatus("loading");
 		autoFitRef.current = true;
 		void fetchFileBytes(file)
-			.then((bytes) =>
-				renderAsync(bytes, container, container, {
+			.then(async (bytes) => {
+				if (cancelled) return;
+				await renderAsync(bytes, documentHost, documentHost, {
 					inWrapper: true,
 					breakPages: true,
 					ignoreLastRenderedPageBreak: false,
@@ -50,11 +54,16 @@ export function DocxPreview({ file }: PluginFilePreviewProps): JSX.Element {
 					renderChanges: false,
 					renderAltChunks: false,
 					useBase64URL: false,
-				}),
-			)
+				});
+			})
 			.then(
 				() => {
 					if (cancelled) return;
+					if (!documentHost.querySelector("section.docx")) {
+						setStatus("error");
+						return;
+					}
+					container.replaceChildren(documentHost);
 					setZoom(computeFitZoom());
 					setStatus("ready");
 				},
@@ -64,7 +73,7 @@ export function DocxPreview({ file }: PluginFilePreviewProps): JSX.Element {
 			);
 		return () => {
 			cancelled = true;
-			container.replaceChildren();
+			documentHost.remove();
 		};
 	}, [file, computeFitZoom]);
 

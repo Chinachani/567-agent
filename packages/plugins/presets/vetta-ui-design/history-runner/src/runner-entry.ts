@@ -12,7 +12,8 @@ import { createHash } from "node:crypto";
 import fs, { type Dirent } from "node:fs";
 import { readdir } from "node:fs/promises";
 import { dirname, join } from "node:path";
-import { unzipSync, zipSync } from "fflate";
+import { zipSync } from "fflate";
+import { readDesignArchive } from "../../src/shared/archive-paths";
 import git from "isomorphic-git";
 
 /** gitdir 不叫 `.git`：叫 `.git` 会让放进代码仓库的设计变成 embedded repository。 */
@@ -292,7 +293,19 @@ function packHistory(dir: string, out: string): number {
 function unpackHistory(dir: string, from: string): number {
 	const gitdir = gitdirOf(dir);
 	if (fs.existsSync(join(gitdir, "HEAD"))) return 0;
-	const entries = unzipSync(new Uint8Array(fs.readFileSync(from)));
+	const entries = readDesignArchive(new Uint8Array(fs.readFileSync(from)));
+	// Existing filesystem links are not archive members: reject them before any write.
+	for (const rel of Object.keys(entries)) {
+		let target = gitdir;
+		for (const part of ["", ...rel.split("/")]) {
+			target = part ? join(target, part) : target;
+			try {
+				if (fs.lstatSync(target).isSymbolicLink()) throw new Error("history destination contains a symbolic link");
+			} catch (error) {
+				if ((error as NodeJS.ErrnoException).code !== "ENOENT") throw error;
+			}
+		}
+	}
 	let written = 0;
 	for (const [rel, bytes] of Object.entries(entries)) {
 		if (rel.endsWith("/")) continue;
@@ -323,7 +336,12 @@ async function dispatch(request: Request): Promise<unknown> {
 			return { initialized: true, hasCommits: await hasCommits(request.dir) };
 		}
 		case "commit": {
-			const result = await commit(request.dir, request.title ?? "更新设计", undefined, request.skipManifestOnly === true);
+			const result = await commit(
+				request.dir,
+				request.title ?? "更新设计",
+				undefined,
+				request.skipManifestOnly === true,
+			);
 			return { committed: result !== null, commit: result };
 		}
 		case "log":

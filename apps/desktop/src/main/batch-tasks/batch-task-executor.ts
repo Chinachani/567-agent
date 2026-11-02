@@ -5,6 +5,7 @@ import { createCodingAgentRuntimeSessionSelection } from "@567agent/coding-agent
 import type { RuntimeHost, SessionExecutionMode } from "@567agent/runtime-core";
 import { monitorRuntimeSession, recordBatchRunStarted } from "../app-monitor/app-monitor-service.js";
 import { resolveExecutionMode } from "../execution-mode.js";
+import { mainT } from "../i18n/messages.js";
 import { readDesktopConfig } from "../ipc/fs.js";
 import { getAppLogger } from "../logger.js";
 import { assertSandboxAvailableForMode } from "../sandbox/capability.js";
@@ -455,6 +456,7 @@ async function runTaskInner(
 	let executionMode: SessionExecutionMode | undefined;
 
 	try {
+		if (project.skill?.type === "scene") throw new Error(mainT("scheduler.sceneRetired"));
 		const config = await readDesktopConfig();
 		const mode = resolveExecutionMode(project.executionMode, config.defaultExecutionMode);
 		executionMode = mode;
@@ -572,7 +574,7 @@ async function runTaskInner(
 			...(!isResume && project.skill
 				? {
 						promptRef: {
-							kind: project.skill.type === "scene" ? ("scene" as const) : ("skill" as const),
+							kind: "skill" as const,
 							name: project.skill.name,
 						},
 					}

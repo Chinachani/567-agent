@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
-import { act, fireEvent, render, screen, waitFor } from "@testing-library/react";
-import { createConversationUserMessage } from "@shared/conversation";
+import { act, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
+import { createConversationAgentMessage, createConversationUserMessage } from "@shared/conversation";
 import { RendererMarkdownScope } from "@shared/components/RendererMarkdownScope";
 import {
 	activeSessionAtom,
@@ -20,6 +20,8 @@ import type { ReactNode } from "react";
 import { beforeEach, afterEach, describe, expect, it, vi } from "vitest";
 import { SessionUserMessage } from "./SessionUserMessage";
 import { MessageItem } from "./MessageItem";
+import { SessionMessageRendering } from "../SessionMessageRendering";
+import type { ChatConversationItem } from "./types";
 import { MessageRenderingDefaults, MessageRenderingProvider } from "./MessageRendering";
 
 const markdown = {
@@ -32,6 +34,42 @@ const markdown = {
 const store = getDefaultStore();
 const session = { cwd: "C:/repo", sessionPath: "C:/a.jsonl", runtimeId: "runtime-a" };
 const message = createConversationUserMessage({ id: "user", entryId: "entry-a", text: "Original message" });
+const reply = createConversationAgentMessage({
+	id: "reply",
+	entryId: "assistant-first",
+	text: "Complete reply",
+	blocks: [{ type: "text", id: "reply-text", text: "Complete reply" }],
+});
+
+function SessionTranscript({
+	messages = [message, reply],
+	isStreaming = false,
+	onAbortEdit,
+	exportMode = false,
+}: {
+	messages?: readonly ChatConversationItem[];
+	isStreaming?: boolean;
+	onAbortEdit?: () => void;
+	exportMode?: boolean;
+}) {
+	return (
+		<SessionMessageRendering messages={messages}>
+			{messages.map((item, index) => (
+				<section key={item.id} aria-label={item.id}>
+					<MessageItem
+						message={item}
+						isStreaming={isStreaming}
+						isTailMessage={index === messages.length - 1}
+						isLastUserMessage={item.id === "user"}
+						onAbortEdit={onAbortEdit}
+						exportMode={exportMode}
+					/>
+				</section>
+			))}
+		</SessionMessageRendering>
+	);
+}
+
 const forkSession = vi.fn(async () => ({ path: "C:/fork.jsonl" }));
 const deleteMessage = vi.fn(async () => undefined);
 const getFullHistory = vi.fn(async () => []);
@@ -96,7 +134,15 @@ describe("message extension workflows", () => {
 		const onAbortEdit = vi.fn();
 		const view = render(
 			<Scope>
-				<SessionUserMessage message={message} isLastUserMessage isStreaming onAbortEdit={onAbortEdit} />
+				<SessionTranscript
+					messages={[
+						message,
+						reply,
+						createConversationUserMessage({ id: "later", entryId: "later-user", text: "Later prompt" }),
+					]}
+					isStreaming
+					onAbortEdit={onAbortEdit}
+				/>
 			</Scope>,
 		);
 		fireEvent.click(screen.getByRole("button", { name: "分叉为新会话" }));
@@ -119,12 +165,18 @@ describe("message extension workflows", () => {
 		expect(store.get(pendingMessageEditAtom)).toEqual({ entryId: "entry-b" });
 	});
 
-	it("stages an edit without changing history, then forks through the session extension", async () => {
+	it("keeps edit on the user bubble and forks from the assistant footer without changing history", async () => {
 		render(
 			<Scope>
-				<SessionUserMessage message={message} isLastUserMessage />
+				<SessionTranscript />
 			</Scope>,
 		);
+		expect(
+			within(screen.getByRole("region", { name: "user" })).queryByRole("button", { name: "分叉为新会话" }),
+		).toBeNull();
+		expect(
+			within(screen.getByRole("region", { name: "reply" })).getByRole("button", { name: "分叉为新会话" }),
+		).toBeTruthy();
 		fireEvent.click(screen.getByRole("button", { name: "编辑" }));
 		await waitFor(() => expect(store.get(inputValueAtom)).toBe("Original message"));
 		expect(store.get(pendingMessageEditAtom)).toEqual({ entryId: "entry-a" });
@@ -138,12 +190,73 @@ describe("message extension workflows", () => {
 		render(
 			<Scope>
 				<MessageItem message={message} isStreaming={false} isTailMessage />
+				<MessageItem message={reply} isStreaming={false} isTailMessage />
 			</Scope>,
 		);
 		expect(screen.getByText("Original message")).toBeTruthy();
 		expect(screen.queryByRole("button", { name: "编辑" })).toBeNull();
 		expect(screen.queryByRole("button", { name: "分叉为新会话" })).toBeNull();
 		expect(forkSession).not.toHaveBeenCalled();
+	});
+
+	it("forks each completed turn from its final reply, including merged process messages", async () => {
+		const laterUser = createConversationUserMessage({ id: "user-b", entryId: "entry-b", text: "Next question" });
+		const process = createConversationAgentMessage({
+			id: "process",
+			entryId: "tool-call-entry",
+			text: "Working",
+			blocks: [],
+		});
+		const laterReply = createConversationAgentMessage({
+			id: "reply-b",
+			entryId: "assistant-b",
+			text: "Next reply",
+			blocks: [],
+		});
+		render(
+			<Scope>
+				<SessionTranscript messages={[message, process, reply, laterUser, laterReply]} />
+			</Scope>,
+		);
+		expect(
+			within(screen.getByRole("region", { name: "process" })).queryByRole("button", { name: "分叉为新会话" }),
+		).toBeNull();
+		fireEvent.click(
+			within(screen.getByRole("region", { name: "reply" })).getByRole("button", { name: "分叉为新会话" }),
+		);
+		await waitFor(() => expect(forkSession).toHaveBeenLastCalledWith("runtime-a", "entry-a"));
+		await waitFor(() => expect(openSession).toHaveBeenCalled());
+		fireEvent.click(
+			within(screen.getByRole("region", { name: "reply-b" })).getByRole("button", { name: "分叉为新会话" }),
+		);
+		await waitFor(() => expect(forkSession).toHaveBeenLastCalledWith("runtime-a", "entry-b"));
+	});
+
+	it("hides fork while a reply is running, then exposes it when complete", () => {
+		const view = render(
+			<Scope>
+				<SessionTranscript isStreaming />
+			</Scope>,
+		);
+		expect(screen.queryByRole("button", { name: "分叉为新会话" })).toBeNull();
+		view.rerender(
+			<Scope>
+				<SessionTranscript />
+			</Scope>,
+		);
+		expect(screen.getByRole("button", { name: "分叉为新会话" })).toBeTruthy();
+		view.rerender(
+			<Scope>
+				<SessionTranscript exportMode />
+			</Scope>,
+		);
+		expect(screen.queryByRole("button", { name: "分叉为新会话" })).toBeNull();
+		view.rerender(
+			<Scope>
+				<SessionTranscript messages={[{ ...message, entryId: undefined }, reply]} />
+			</Scope>,
+		);
+		expect(screen.queryByRole("button", { name: "分叉为新会话" })).toBeNull();
 	});
 
 	it("binds confirmed deletion to the original session without replacing the newly opened transcript", async () => {

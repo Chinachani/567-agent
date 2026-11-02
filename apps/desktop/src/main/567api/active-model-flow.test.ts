@@ -63,6 +63,8 @@ vi.mock("electron", () => ({
 	},
 }));
 vi.mock("../logger.js", () => ({ getAppLogger: () => ({ info() {}, warn() {}, error() {} }) }));
+// These flows exercise account/model persistence, without attaching to live agent runtimes.
+vi.mock("../agent-runtime/host-services.js", () => ({ refreshSharedModelRouting: vi.fn() }));
 vi.mock("../models/model-settings-host.js", () => ({
 	getDesktopModelSettingsService: () => ({
 		getConfig: async () => JSON.parse(readFileSync(join(state.home, "models.json"), "utf8")),

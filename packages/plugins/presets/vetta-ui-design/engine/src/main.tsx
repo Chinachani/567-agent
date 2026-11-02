@@ -1,5 +1,13 @@
 import "./styles.css";
-import { Component, type ComponentType, type ReactNode, StrictMode, Suspense, useEffect, useLayoutEffect } from "react";
+import {
+	Component,
+	type ComponentType,
+	type ReactNode,
+	StrictMode,
+	Suspense,
+	useEffect,
+	useLayoutEffect,
+} from "react";
 import { createRoot, type Root } from "react-dom/client";
 import { BrowserRouter, MemoryRouter, Navigate, Outlet, Route, Routes, useLocation, useNavigate } from "react-router";
 import {
@@ -13,7 +21,15 @@ import {
 	onBuildError,
 } from "./bridge";
 import { type Preloadable, preloadable } from "./preloadable";
-import { frameOfPath, HOME_FRAME_ID, homeFrameId, isFrameFile, pathOfFrame } from "./routes";
+import { HOME_FRAME_ID, frameOfPath, homeFrameId, isFrameFile, pathOfFrame } from "./routes";
+import { applyStorageSeed } from "./storage-sync";
+
+/**
+ * 离屏截图窗口带着画布那侧的 localStorage 快照来（见 storage-sync.ts）。frame 与外壳
+ * 都是懒加载的，这里又早于首次渲染，设计稿代码读存储时拿到的已经是画布上的状态。
+ * 只在 dev server 下认这个参数：导出与部署出去的站点不该被一个查询串清空存储。
+ */
+if (import.meta.env.DEV) applyStorageSeed(window);
 
 interface FrameModule {
 	default?: ComponentType;
@@ -304,22 +320,20 @@ container.__vetdRoot = root;
  * BrowserRouter 一导航就抛。那条链路改用内存路由，其余（画布 iframe / 系统
  * 浏览器 / 部署后的站点）一律走真实地址。
  */
-const Router =
-	window.location.protocol === "about:" || window.location.protocol === "blob:" ? MemoryRouter : BrowserRouter;
+const Router = window.location.protocol === "about:" || window.location.protocol === "blob:" ? MemoryRouter : BrowserRouter;
 
-// Load only the initial shell and frame before rendering, avoiding a first-commit
-// Suspense fallback. Failed preloads still reach the existing error boundary.
-// Keep this asynchronous rather than top-level await for exported builds.
-void Promise.all([layout?.preload(), currentFrameId ? framePreloadable(currentFrameId)?.preload() : undefined]).then(
-	() => {
-		root.render(
-			<StrictMode>
-				<Router>
-					<App />
-				</Router>
-			</StrictMode>,
-		);
-	},
-);
+// 首屏要用的外壳与 frame 先拉下来再 render：首次渲染不挂起，就躲开了 React 19 在
+// Suspense fallback 之后强加的 300ms 揭示节流（见 preloadable）。preload 本身不会
+// reject，失败的模块照旧在渲染期由 lazy 抛给 FrameBoundary。
+// 不用顶层 await：导出快照走 vite build，构建目标未必支持。
+void Promise.all([layout?.preload(), currentFrameId ? framePreloadable(currentFrameId)?.preload() : undefined]).then(() => {
+	root.render(
+		<StrictMode>
+			<Router>
+				<App />
+			</Router>
+		</StrictMode>,
+	);
+});
 
 installBridge({ getFrameId: () => currentFrameId });

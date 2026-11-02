@@ -13,6 +13,7 @@ export interface ChatViewHeaderModel {
 	exportTitle: string;
 	panelOpen: boolean;
 	panelTitle: string;
+	panelLabel?: string;
 	pinTitle: string;
 	pinned: boolean;
 }

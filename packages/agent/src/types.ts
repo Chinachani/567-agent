@@ -63,8 +63,8 @@ export interface AgentContextCheckpointRequest {
 }
 
 export interface AgentLoopLimits {
-	/** Maximum number of model calls in one run, including recovery and continuation calls. */
-	readonly maxModelCalls?: number;
+	/** Maximum model calls per run, including recovery and continuation. Null disables only this budget. */
+	readonly maxModelCalls?: number | null;
 	/** Maximum number of tool calls returned by models in one run. */
 	readonly maxToolCalls?: number;
 	/** Maximum time a host may leave a context checkpoint unresolved. */

@@ -1,6 +1,7 @@
 export type {
 	BranchSummarySettings,
 	CodingAgentCompactionConfiguration,
+	CodingAgentModelCallLimitConfiguration,
 	CompactionSettings,
 	HostSettingsPort,
 	ImageSettings,
@@ -21,6 +22,8 @@ export type {
 export {
 	CODING_AGENT_COMPACTION_CONFIGURATION,
 	CODING_AGENT_COMPACTION_CONFIGURATION_ID,
+	CODING_AGENT_MODEL_CALL_LIMIT_CONFIGURATION,
+	CODING_AGENT_MODEL_CALL_LIMIT_CONFIGURATION_ID,
 	createInMemorySettingsRuntime,
 	createSettingsRuntimeFromStorage,
 	MemorySettingsStorage,

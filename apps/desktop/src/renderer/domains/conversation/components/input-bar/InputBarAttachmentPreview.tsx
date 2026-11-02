@@ -63,13 +63,11 @@ export function InputBarAttachmentPreview({
 							</div>
 						) : null}
 
-						{appshotAttachment ? (
-							<AppshotCard data={appshotAttachment} onRemove={onRemoveAppshot} />
-						) : null}
+						{appshotAttachment ? <AppshotCard data={appshotAttachment} onRemove={onRemoveAppshot} /> : null}
 
 						{/* 图片缩略图行：文本流里对应「图 N」胶囊，编号在角标上复现 */}
 						{images.length > 0 ? (
-							<div className="flex flex-wrap items-center gap-1.5">
+							<div className="theme-scroll-area flex max-h-28 flex-wrap items-center gap-1.5 overflow-y-auto pb-1.5 pr-1 pt-1.5">
 								{images.map((image, index) => (
 									<div key={image.path} className="group relative">
 										<button

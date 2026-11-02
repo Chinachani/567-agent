@@ -36,7 +36,7 @@ export function SettingRow({
 					</div>
 				)}
 			</div>
-			<div className="min-w-0 max-w-full shrink-0 [&>*]:max-w-full [&>div]:flex-wrap">{children}</div>
+			<div className="ml-auto min-w-0 max-w-full shrink-0 [&>*]:max-w-full [&>div]:flex-wrap">{children}</div>
 		</div>
 	);
 }

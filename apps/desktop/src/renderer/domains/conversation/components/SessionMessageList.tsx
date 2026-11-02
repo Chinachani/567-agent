@@ -9,16 +9,12 @@ import { MessageRenderingDefaults, DefaultMessageRow } from "./message-list/Mess
 import type { MessageRowProps } from "./message-list/MessageRendering";
 import { ForkOriginBanner, resolveForkOriginPlacement } from "./message-list/ForkOriginBanner";
 import type { MessageRendering } from "./message-list/MessageRendering";
-import { SessionUserMessage } from "./message-list/SessionUserMessage";
+import { SessionMessageRendering } from "./SessionMessageRendering";
 import { SuggestionBubbles } from "./SuggestionBubbles";
 import type { MessageListProps } from "./message-list/types";
 
 const sessionRendering: MessageRendering = {
 	row: SessionMessageRow,
-	renderers: {
-		user: (props) =>
-			props.message.kind === "user" ? <SessionUserMessage {...props} message={props.message} /> : null,
-	},
 };
 
 const ForkContext = createContext<{ anchorId?: string; source?: ConversationUserMessageViewModel }>({});
@@ -54,22 +50,24 @@ export function SessionMessageList(props: MessageListProps & { onSend?: (overrid
 	return (
 		<ForkContext.Provider value={fork}>
 			<MessageRenderingDefaults value={sessionRendering}>
-				<SessionSelection>
-					<MessageList
-						{...props}
-						initialTargetKey={pendingTarget?.entryId}
-						onInitialTargetHandled={clearPendingTarget}
-					>
-						<MessageListFooter
-							isCompacting={isCompacting}
-							waiting={props.isStreaming && props.messages.at(-1)?.kind !== "agent"}
-							sessionId={props.sessionId ?? undefined}
-							pendingLabel={props.pendingLabel}
-						/>
-						{props.onSend ? <SuggestionBubbles onSend={props.onSend} /> : null}
-						{props.children}
-					</MessageList>
-				</SessionSelection>
+				<SessionMessageRendering messages={props.messages}>
+					<SessionSelection>
+						<MessageList
+							{...props}
+							initialTargetKey={pendingTarget?.entryId}
+							onInitialTargetHandled={clearPendingTarget}
+						>
+							<MessageListFooter
+								isCompacting={isCompacting}
+								waiting={props.isStreaming && props.messages.at(-1)?.kind !== "agent"}
+								sessionId={props.sessionId ?? undefined}
+								pendingLabel={props.pendingLabel}
+							/>
+							{props.onSend ? <SuggestionBubbles onSend={props.onSend} /> : null}
+							{props.children}
+						</MessageList>
+					</SessionSelection>
+				</SessionMessageRendering>
 			</MessageRenderingDefaults>
 		</ForkContext.Provider>
 	);

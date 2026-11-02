@@ -5,8 +5,9 @@
  * 规则宁可漏报不误报——误报会让 agent 去改本来正确的代码，比不报更糟——所以
  * 「不该命中」的用例和「该命中」的一样重要。
  */
-import { expect, it } from "vitest";
-import { checkSources } from "../src/vetd/check-sources";
+import { describe, expect, it } from "vitest";
+import { checkSources, THEME_PLACEHOLDER_RULE } from "../src/vetd/check-sources";
+import { DEFAULT_THEME_CSS } from "../src/vetd/scaffold";
 
 const rulesFor = (content: string, path = "frames/demo.tsx"): string[] =>
 	checkSources([{ path, content }]).map((issue) => issue.rule);
@@ -321,4 +322,38 @@ it("does not guess about font families no fontsource package provides", () => {
 	// 系统字体、平台 CJK 字体都不归这条规则管：没有装的包作事实源就不报。
 	const themeCss = '@theme {\n\t--font-display: "Songti SC", "SimSun", serif;\n\t--font-body: "Segoe UI Variable", system-ui;\n}';
 	expect(fontRules(themeCss, ["react"])).toEqual([]);
+});
+
+describe("脚手架占位主题", () => {
+	const frame = { path: "frames/home.tsx", content: 'export const frame = { width: 390, height: 844, title: "Home" };' };
+
+	it("画框已开写、theme.css 还是占位：整份设计报一条", () => {
+		const issues = checkSources([frame], DEFAULT_THEME_CSS).filter((issue) => issue.rule === THEME_PLACEHOLDER_RULE);
+		expect(issues).toEqual([expect.objectContaining({ file: "theme.css", line: 1 })]);
+	});
+
+	it("还没有画框，或主题已经换掉：不报", () => {
+		const rules = (files: { path: string; content: string }[], css: string) =>
+			checkSources(files, css).map((issue) => issue.rule);
+		expect(rules([{ path: "frames/_layout.tsx", content: "" }], DEFAULT_THEME_CSS)).not.toContain(THEME_PLACEHOLDER_RULE);
+		expect(rules([frame], "@theme {\n\t--color-primary: #9c3d1c;\n}")).not.toContain(THEME_PLACEHOLDER_RULE);
+	});
+
+	it("占位不再是 indigo / slate / amber 那套 AI 默认配色", () => {
+		expect(DEFAULT_THEME_CSS).not.toMatch(/#4f46e5|#0f172a|#f59e0b/i);
+	});
+});
+
+it("catches a hand-drawn status bar by its 9:41, unless the preset is imported", () => {
+	expect(rulesFor('<span className="font-semibold">9:41</span>')).toContain("hand-drawn-status-bar");
+	expect(rulesFor('const time = "9:41";')).toContain("hand-drawn-status-bar");
+	const withPreset = 'import { StatusBar } from "@vetta/ios";\n<span>9:41</span>';
+	expect(rulesFor(withPreset)).not.toContain("hand-drawn-status-bar");
+	// 别的时间不该命中
+	expect(rulesFor("<span>19:41</span>")).not.toContain("hand-drawn-status-bar");
+	expect(rulesFor("<span>10:30 AM</span>")).not.toContain("hand-drawn-status-bar");
+});
+
+it("treats @vetta/ios as something the engine ships", () => {
+	expect(rulesFor('import { StatusBar } from "@vetta/ios";')).not.toContain("uninstalled-import");
 });

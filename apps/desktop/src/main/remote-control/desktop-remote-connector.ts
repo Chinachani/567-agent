@@ -560,7 +560,7 @@ export class DesktopRemoteConnector {
 			}
 			case "toolbox.list": {
 				if (!this.operations.readToolbox) throw new Error("Desktop toolbox is unavailable");
-				return { abilities: await this.operations.readToolbox() };
+				return { abilities: (await this.operations.readToolbox()).filter((ability) => ability.type !== "scene") };
 			}
 			case "toolbox.install": {
 				if (!this.operations.installToolbox) throw new Error("Desktop toolbox installation is unavailable");
@@ -568,8 +568,10 @@ export class DesktopRemoteConnector {
 					throw new Error("Toolbox installation details are invalid");
 				}
 				const payload = request.payload as Record<string, unknown>;
-				if (!(["skill", "scene", "plugin"] as unknown[]).includes(payload.type)) {
-					throw new Error("Only skills, scenes, and plugins can be installed from the mobile toolbox");
+				if (!(["skill", "plugin"] as unknown[]).includes(payload.type)) {
+					throw new Error(
+						"Only skills and plugins can be installed from the mobile toolbox; scenes have been retired",
+					);
 				}
 				if (typeof payload.slug !== "string" || !/^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$/.test(payload.slug)) {
 					throw new Error("Toolbox ability identifier is invalid");

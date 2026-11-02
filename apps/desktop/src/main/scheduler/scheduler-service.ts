@@ -20,8 +20,8 @@ export type CreateScheduledTaskInput = Omit<
 >;
 
 export type UpdateScheduledTaskInput = Partial<
-	Omit<ScheduledTask, "id" | "createdAt" | "updatedAt" | "lastRunAt" | "lastRunStatus">
->;
+	Omit<ScheduledTask, "id" | "createdAt" | "updatedAt" | "lastRunAt" | "lastRunStatus" | "skill">
+> & { skill?: ScheduledTask["skill"] | null };
 
 export interface SchedulerCommandResult {
 	status: "accepted" | "noop";
@@ -32,6 +32,10 @@ export interface SchedulerServiceDependencies {
 	getRuntime: () => RuntimeHost;
 	scheduleTask: (task: ScheduledTask) => void;
 	unscheduleTask: (taskId: string) => void;
+}
+
+function taskForClient(task: ScheduledTask): ScheduledTask {
+	return task.skill?.type === "scene" ? { ...task, skill: undefined } : task;
 }
 
 export class SchedulerServiceError extends Error {
@@ -71,7 +75,7 @@ function isSelectedSkill(value: unknown): boolean {
 	return (
 		isNonBlankString(skill.name) &&
 		(skill.alias === undefined || isNonBlankString(skill.alias)) &&
-		(skill.type === "skill" || skill.type === "scene") &&
+		skill.type === "skill" &&
 		Object.keys(skill).every((key) => key === "name" || key === "alias" || key === "type")
 	);
 }
@@ -113,7 +117,7 @@ function assertUpdateTaskInput(value: unknown): asserts value is UpdateScheduled
 		(input.cwd === undefined || isNonBlankString(input.cwd)) &&
 		(input.modelKey === undefined || isNonBlankString(input.modelKey)) &&
 		(input.executionMode === undefined || isExecutionMode(input.executionMode)) &&
-		(input.skill === undefined || isSelectedSkill(input.skill));
+		(input.skill == null || isSelectedSkill(input.skill));
 	if (!valid) {
 		throw new SchedulerServiceError("SCHEDULER_TASK_INVALID_INPUT", "Invalid scheduled task update input.");
 	}
@@ -132,11 +136,11 @@ export class SchedulerService {
 	}
 
 	async listTasks(): Promise<ScheduledTask[]> {
-		return await loadTasks();
+		return (await loadTasks()).map(taskForClient);
 	}
 
 	async getTask(taskId: string): Promise<ScheduledTask> {
-		return await this.requireTask(taskId);
+		return taskForClient(await this.requireTask(taskId));
 	}
 
 	async getHistory(taskId: string): Promise<TaskExecutionRecord[]> {
@@ -165,7 +169,7 @@ export class SchedulerService {
 		}
 		this.emitTasksChanged();
 		recordAutomationTaskCreated();
-		return task;
+		return taskForClient(task);
 	}
 
 	async updateTask(taskId: string, patch: UpdateScheduledTaskInput): Promise<ScheduledTask> {
@@ -184,6 +188,7 @@ export class SchedulerService {
 			const updated: ScheduledTask = {
 				...tasks[index],
 				...patch,
+				skill: "skill" in patch ? (patch.skill ?? undefined) : tasks[index].skill,
 				id: tasks[index].id,
 				createdAt: tasks[index].createdAt,
 				lastRunAt: tasks[index].lastRunAt,
@@ -195,7 +200,7 @@ export class SchedulerService {
 		});
 		this.syncScheduledJob(task);
 		this.emitTasksChanged();
-		return task;
+		return taskForClient(task);
 	}
 
 	async deleteTask(taskId: string): Promise<SchedulerCommandResult> {
@@ -237,7 +242,7 @@ export class SchedulerService {
 		});
 		this.syncScheduledJob(task);
 		this.emitTasksChanged();
-		return task;
+		return taskForClient(task);
 	}
 
 	async runNow(taskId: string): Promise<SchedulerCommandResult> {

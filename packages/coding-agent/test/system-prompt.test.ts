@@ -27,6 +27,24 @@ describe("buildSystemPrompt", () => {
 		expect(prompt).toContain("inspect/list/status do not imply edit/import/run");
 		expect(prompt).toContain("Use fitting capabilities and their necessary supporting steps proactively");
 	});
+	test("guides page tasks proactively only when the browser skill is invocable", () => {
+		const browserSkill = {
+			name: "browser-use",
+			description: "Browser work",
+			type: "skill" as const,
+			disableModelInvocation: false,
+		};
+		const build = (skills = [browserSkill], selectedTools = ["read", "invoke_skill"]) =>
+			buildSystemPrompt({ skills, selectedTools });
+		expect(build()).toContain("Do not wait for the user to say 'use the browser'");
+		expect(build()).toContain(
+			"A URL in source code or an explanation of browser setup alone does not request browser access",
+		);
+		expect(build()).toContain("prefer a configured extension connection");
+		expect(build([])).not.toContain("Browser tasks:");
+		expect(build([{ ...browserSkill, disableModelInvocation: true }])).not.toContain("Browser tasks:");
+		expect(build([browserSkill], ["read"])).not.toContain("Browser tasks:");
+	});
 	describe("tool surface deduplication", () => {
 		// 工具清单与 params.tools 中每个 tool 的 description 是同一份字符串，不再重复渲染进提示词。
 		test("does not render a tool list section", () => {
@@ -112,6 +130,17 @@ describe("buildSystemPrompt", () => {
 
 			expect(prompt).toContain("run_in_background: true");
 			expect(prompt).toContain("auto-promote");
+		});
+
+		test("tells the model background tasks notify on completion and must not be polled", () => {
+			const prompt = buildSystemPrompt({
+				selectedTools: ["bash", "read"],
+				contextFiles: [],
+				skills: [],
+			});
+
+			expect(prompt).toContain("<task-notification>");
+			expect(prompt).toContain("Do NOT spawn a polling");
 		});
 	});
 

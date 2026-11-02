@@ -2,13 +2,7 @@ import "../registry";
 import type { ComponentType } from "react";
 import type { InputBarBackground } from "./InputBarBackground";
 import type { InputBarPlaceholder } from "./InputBarPlaceholder";
-import type {
-	NewSessionGuidingWordsProps,
-	NewSessionHeroProps,
-	NewSessionSceneCarouselProps,
-	NewSessionSkillBadgeRowProps,
-} from "./NewSession";
-import type { SceneCard } from "./SceneCard";
+import type { NewSessionGuidingWordsProps, NewSessionHeroProps, NewSessionSkillBadgeRowProps } from "./NewSession";
 import type { SkillCard } from "./SkillCard";
 import type { TodoStatusBarView } from "./TodoStatusBarView";
 
@@ -18,8 +12,6 @@ declare module "@vetta-org/theme-sdk" {
 		readonly "chat.inputBarPlaceholder"?: typeof InputBarPlaceholder;
 		readonly "chat.newSessionGuidingWords"?: ComponentType<NewSessionGuidingWordsProps>;
 		readonly "chat.newSessionHero"?: ComponentType<NewSessionHeroProps>;
-		readonly "chat.newSessionSceneCard"?: typeof SceneCard;
-		readonly "chat.newSessionSceneCarousel"?: ComponentType<NewSessionSceneCarouselProps>;
 		readonly "chat.newSessionSkillBadgeRow"?: ComponentType<NewSessionSkillBadgeRowProps>;
 		readonly "chat.newSessionSkillCard"?: typeof SkillCard;
 		readonly "chat.todoStatusBar"?: typeof TodoStatusBarView;
@@ -93,10 +85,6 @@ export {
 	NEW_SESSION_GUIDING_WORDS_SLOT_MIN_H_CLASS,
 } from "./DefaultGuidingWords";
 export {
-	DefaultSceneCarousel,
-	NEW_SESSION_SCENE_SLOT_MIN_H_CLASS,
-} from "./DefaultSceneCarousel";
-export {
 	DefaultSkillBadgeRow,
 	NEW_SESSION_SKILL_BADGE_SLOT_MIN_H_CLASS,
 } from "./DefaultSkillBadgeRow";
@@ -118,6 +106,7 @@ export type {
 export { ExecutionModeSelectorView } from "./ExecutionModeSelectorView";
 export type { ExportMessageListViewProps } from "./ExportMessageListView";
 export { ExportMessageListView } from "./ExportMessageListView";
+export { FadingScrollArea } from "./FadingScrollArea";
 export type {
 	GuideBadgeSwiperViewLabels,
 	GuideBadgeSwiperViewProps,
@@ -308,10 +297,6 @@ export type {
 	NewSessionHeroAvatar,
 	NewSessionHeroIdentity,
 	NewSessionHeroProps,
-	NewSessionSceneActionState,
-	NewSessionSceneCarouselLabels,
-	NewSessionSceneCarouselProps,
-	NewSessionSceneItem,
 	NewSessionSelection,
 	NewSessionSkillBadgeRowLabels,
 	NewSessionSkillBadgeRowProps,
@@ -349,6 +334,7 @@ export {
 	NewSessionPickerValue,
 	NewSessionPickerViewport,
 } from "./NewSessionPicker";
+export { NewSessionQuickStartView } from "./NewSessionQuickStartView";
 export type {
 	ProgressGroupPrimitiveProps,
 	ProgressGroupRootProps,
@@ -401,14 +387,6 @@ export type {
 	SandboxPermissionRequestModel,
 } from "./SandboxPermissionCard";
 export { SandboxPermissionCard } from "./SandboxPermissionCard";
-export type {
-	SceneCardActionState,
-	SceneCardClassNames,
-	SceneCardModel,
-	SceneCardProps,
-	SceneCardState,
-} from "./SceneCard";
-export { SceneCard } from "./SceneCard";
 export type { SendButtonLabels, SendButtonProps } from "./SendButton";
 export { SendButton } from "./SendButton";
 export type {
@@ -524,6 +502,7 @@ export type {
 	UseHorizontalDragScrollResult,
 } from "./useHorizontalDragScroll";
 export { useHorizontalDragScroll } from "./useHorizontalDragScroll";
+export { usePanelViewportHeight } from "./usePanelViewportHeight";
 export type { WorkflowFooterItem, WorkflowFooterItemsViewProps } from "./WorkflowFooterItemsView";
 export { WorkflowFooterItemsView } from "./WorkflowFooterItemsView";
 export type { WriteContentViewProps } from "./WriteContentView";

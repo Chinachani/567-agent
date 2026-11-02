@@ -34,6 +34,11 @@ function actionSteps(name) {
 }
 
 describe("Desktop release workflow contracts", () => {
+	it("fails a mismatched version tag instead of returning a successful skipped release", () => {
+		const scope = jobs.prepare.steps.find((step) => step.id === "scope").run;
+		expect(scope).toMatch(/::error::Tag \$\{REF_NAME\} does not match/);
+		expect(scope).not.toContain("should-build=false");
+	});
 	it("runs the full Desktop unit suite before building release artifacts", () => {
 		const qualitySteps = jobs.quality.steps;
 		const workspaceBuild = qualitySteps.find((step) => step.name === "Build Desktop workspace dependencies");
@@ -393,5 +398,36 @@ describe("Desktop release workflow contracts", () => {
 		expect(upgradeWorkflow).toContain("bun run test:e2e:upgrade");
 		expect(upgradeWorkflow).toContain("xvfb-run --auto-servernum");
 		expect(upgradeWorkflow).toContain("upgrade-e2e-diagnostics");
+	});
+});
+
+describe("candidate diagnostics", () => {
+	it("validates metadata before release or quality builds", () => {
+		for (const steps of [
+			jobs.prepare.steps,
+			parse(readFileSync(join(import.meta.dirname, "../../.github/workflows/quality.yml"), "utf8")).jobs[
+				"check-and-test"
+			].steps,
+		]) {
+			const at = steps.findIndex((step) => step.run === "node scripts/release/candidate-metadata.mjs");
+			expect(at).toBeGreaterThanOrEqual(0);
+			expect(at).toBeLessThan(3);
+		}
+	});
+	it("always retains Android reports and explicitly includes hidden Node report directories", () => {
+		const mobile = parse(readFileSync(join(import.meta.dirname, "../../.github/workflows/mobile.yml"), "utf8"));
+		const report = mobile.jobs["build-test"].steps.find((step) => step.name === "Upload Android test reports");
+		expect(report.if).toBe("always()");
+		expect(report.with.path).toContain("build/test-results/**/*.xml");
+		expect(report.with["retention-days"]).toBe(7);
+		const quality = parse(readFileSync(join(import.meta.dirname, "../../.github/workflows/quality.yml"), "utf8"));
+		for (const job of [quality.jobs["check-and-test"], quality.jobs["unit-tests"], jobs.quality]) {
+			const step = job.steps.find((step) => step.with?.path?.includes(".test-reports"));
+			expect(step.if).toBe("always()");
+			expect(step.with["include-hidden-files"]).toBe(true);
+		}
+		const native = parse(packagedWorkflow).jobs["remote-native"];
+		for (const step of native.steps.filter((step) => step.run?.includes("| tee")))
+			expect(step.run).toContain("set -o pipefail");
 	});
 });

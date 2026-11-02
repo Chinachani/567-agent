@@ -1,5 +1,7 @@
 import { type PluginToolCallSlotProps, useTranslation } from "@vetta-org/plugin-sdk";
-import { ChartVisual } from "./ChartCard";
+import { lazy, Suspense } from "react";
+
+const ChartVisual = lazy(() => import("./ChartCard").then((module) => ({ default: module.ChartVisual })));
 
 type ChartArgs = {
 	type?: string;
@@ -46,5 +48,15 @@ export function ToolChartSlot({ toolCall }: PluginToolCallSlotProps) {
 				{pending ? t("state.preparing") : t("error.unavailable")}
 			</div>
 		);
-	return <ChartVisual payload={payload as never} pending={pending} />;
+	return (
+		<Suspense
+			fallback={
+				<div className="my-1 rounded-xl border border-[var(--border)] px-3 py-2 text-xs text-[var(--muted-foreground)]">
+					{t("state.preparing")}
+				</div>
+			}
+		>
+			<ChartVisual payload={payload as never} pending={pending} />
+		</Suspense>
+	);
 }

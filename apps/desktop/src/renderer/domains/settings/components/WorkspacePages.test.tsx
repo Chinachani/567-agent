@@ -125,14 +125,12 @@ describe("workspace page actions after the layout redesign", () => {
 		await user.click(screen.getByRole("button", { name: "Create first project" }));
 		expect(onNewProject).toHaveBeenCalledTimes(2);
 	});
-	it("keeps settings child navigation and its current-page semantics", async () => {
+	it("keeps flat settings navigation and its current-page semantics", async () => {
 		const user = userEvent.setup(),
-			onSelectTab = vi.fn(),
-			onSelectChild = vi.fn();
+			onSelectTab = vi.fn();
 		render(
 			<SettingsSidebarView
-				activeTab="appearance"
-				activeChildKey="colors"
+				activeTab="colors"
 				betaBadgeLabel="Beta"
 				narrow={false}
 				title="Settings"
@@ -141,15 +139,15 @@ describe("workspace page actions after the layout redesign", () => {
 						key: "appearance",
 						label: "Appearance",
 						icon: "icon-[solar--palette-linear]",
-						children: [{ key: "colors", label: "Colors", icon: "icon-[solar--palette-linear]" }],
 					},
+					{ key: "colors", label: "Colors", icon: "icon-[solar--palette-linear]" },
 				]}
-				{...{ onSelectTab, onSelectChild }}
+				{...{ onSelectTab }}
 			/>,
 		);
 		expect(screen.getByRole("button", { name: "Colors" }).getAttribute("aria-current")).toBe("page");
 		await user.click(screen.getByRole("button", { name: "Colors" }));
-		expect(onSelectChild).toHaveBeenCalledWith("colors");
+		expect(onSelectTab).toHaveBeenCalledWith("colors");
 		await user.click(screen.getByRole("button", { name: "Appearance" }));
 		expect(onSelectTab).toHaveBeenCalledWith("appearance");
 	});

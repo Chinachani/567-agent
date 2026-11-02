@@ -33,6 +33,8 @@ export interface ConnectedInputBarProps {
 	 * （新会话页把整条输入栏下移，避免下方留白过大）。
 	 */
 	onExpandedChange?: (expanded: boolean) => void;
+	/** File/reference panel visibility, independent from the slash command region. */
+	onAtOpenChange?: (open: boolean) => void;
 	/**
 	 * 发送前还有一步准备工作在跑（新会话页要先把待创建的项目落盘）。
 	 * 输入内容保持可编辑，发送按钮就地展开成带文案的胶囊并拒绝重复点击。
@@ -68,6 +70,7 @@ export interface InputBarLabels {
 	};
 	toolbar: {
 		skills: string;
+		references?: string;
 		addImage: string;
 		attachFile: string;
 		queue: string;
@@ -135,6 +138,7 @@ export interface InputBarCommandModel {
 	readonly onAtClose: () => void;
 	readonly onAtSelect: (selection: AtPanelSelection) => void;
 	readonly onOpen: () => void;
+	readonly onOpenReferences?: () => void;
 }
 
 export type InputBarLeadingTool = {

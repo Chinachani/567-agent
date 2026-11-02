@@ -3,9 +3,10 @@ import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { initI18n } from "@shared/i18n";
 import i18n from "i18next";
-import { beforeEach, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, expect, it, vi } from "vitest";
 import { AgentSettingsView } from "./AgentSettingsView";
 import { useAgentSettingsModel } from "./useAgentSettingsModel";
+import { useModelCallLimitSettingsModel } from "./useModelCallLimitSettingsModel";
 import type { RuntimeConfigurationModel } from "./useRuntimeConfigurationModel";
 
 const search = vi.hoisted(() => ({ section: "" }));
@@ -32,9 +33,23 @@ const runtime: RuntimeConfigurationModel = {
 	],
 };
 function Settings() {
-	return <AgentSettingsView model={useAgentSettingsModel()} runtimeConfiguration={runtime} />;
+	return (
+		<AgentSettingsView
+			model={useAgentSettingsModel()}
+			runtimeConfiguration={runtime}
+			modelCallLimit={useModelCallLimitSettingsModel()}
+		/>
+	);
 }
 beforeEach(async () => {
+	vi.stubGlobal(
+		"ResizeObserver",
+		class {
+			observe() {}
+			unobserve() {}
+			disconnect() {}
+		},
+	);
 	initI18n();
 	await i18n.changeLanguage("zh");
 	search.section = "";
@@ -42,6 +57,7 @@ beforeEach(async () => {
 	Object.defineProperty(window, "agent567", {
 		configurable: true,
 		value: {
+			runtimeConfiguration: { list: async () => ({ entries: [] }) },
 			session: {
 				getPersonas: async () => [],
 				getPersonalization: async () => ({ personaId: "default", customPrompt: "old instructions" }),
@@ -52,6 +68,7 @@ beforeEach(async () => {
 		},
 	});
 });
+afterEach(() => vi.unstubAllGlobals());
 it("retains personalization saving and expands advanced runtime controls on demand", async () => {
 	const user = userEvent.setup();
 	render(<Settings />);

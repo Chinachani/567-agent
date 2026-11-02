@@ -26,7 +26,7 @@ export interface SessionUserMessageProps {
 	onAbortEdit?: () => void;
 }
 
-/** The session extension owns edit/fork/delete; the content recipe never imports it. */
+/** The session extension owns edit/delete and branch navigation; the content recipe never imports it. */
 export function SessionUserMessage({
 	message,
 	participants,
@@ -42,7 +42,6 @@ export function SessionUserMessage({
 		message,
 		isStreaming,
 		onAbortEdit,
-		forkEnabled: true,
 	});
 	const remove = useUserMessageDeleteAction({
 		message,
@@ -63,7 +62,6 @@ export function SessionUserMessage({
 	const labels = {
 		expand: t("messageList.userMessage.expand"),
 		edit: t("messageList.editButton"),
-		fork: t("messageList.forkButton"),
 		branchPrev: t("messageList.branch.prev"),
 		branchNext: t("messageList.branch.next"),
 		branchPosition: message.branch
@@ -75,7 +73,7 @@ export function SessionUserMessage({
 		pendingEdit: t("messageList.edit.pendingHint"),
 	};
 
-	const hasPrimaryActions = Boolean(projection.copyText) || edit.available || history.forkAvailable;
+	const hasPrimaryActions = Boolean(projection.copyText) || edit.available;
 	const hasMeta = history.canSwitch;
 	const hasActions = hasPrimaryActions || hasMeta;
 	return (
@@ -102,15 +100,6 @@ export function SessionUserMessage({
 											className={edit.pending ? "text-primary" : undefined}
 										>
 											<span className="icon-[solar--pen-2-linear] h-3.5 w-3.5" />
-										</UserMessagePrimitive.Action>
-									) : null}
-									{history.forkAvailable ? (
-										<UserMessagePrimitive.Action
-											onClick={history.onFork}
-											title={labels.fork}
-											aria-label={labels.fork}
-										>
-											<span className="icon-[solar--branching-paths-up-linear] h-3.5 w-3.5" />
 										</UserMessagePrimitive.Action>
 									) : null}
 									{canCopy ? <CopyButton getText={() => projection.copyText} onCopy={copyMessage} /> : null}

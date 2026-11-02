@@ -1,3 +1,5 @@
+import { Button } from "@vetta-org/ui";
+import { Tooltip, TooltipContent, TooltipTrigger, TooltipProvider } from "@shared/components/ui/tooltip";
 import { ContextRing } from "../ContextRing";
 import { ExecutionModeSelector } from "../ExecutionModeSelector";
 import { ModelSelector } from "../ModelSelector";
@@ -21,21 +23,40 @@ export interface InputBarSkillsActionProps {
 	readonly onSelect: () => void;
 }
 
-export function InputBarSkillsAction({
+export function InputBarSkillsAction({ active, disabled, title, onSelect }: InputBarSkillsActionProps): JSX.Element {
+	return <InputBarTriggerAction symbol="/" active={active} disabled={disabled} title={title} onSelect={onSelect} />;
+}
+
+export function InputBarTriggerAction({
+	symbol,
 	active,
 	disabled,
 	title,
 	onSelect,
-}: InputBarSkillsActionProps): JSX.Element {
+}: InputBarSkillsActionProps & { symbol: "/" | "@" }) {
 	return (
 		<span data-command-panel-toggle="true" className="flex shrink-0">
-			<InputBarToolbarButton
-				icon="icon-[solar--code-scan-bold-duotone]"
-				title={title}
-				disabled={disabled}
-				onClick={onSelect}
-				active={active}
-			/>
+			<TooltipProvider delayDuration={300}>
+				<Tooltip>
+					<TooltipTrigger asChild>
+						<Button
+							size="icon-xs"
+							variant="ghost"
+							disabled={disabled}
+							aria-label={title}
+							title={title}
+							aria-pressed={active}
+							className={active ? "bg-primary/10 text-primary" : undefined}
+							onClick={onSelect}
+						>
+							<span aria-hidden className="font-mono text-[15px]">
+								{symbol}
+							</span>
+						</Button>
+					</TooltipTrigger>
+					<TooltipContent>{title}</TooltipContent>
+				</Tooltip>
+			</TooltipProvider>
 		</span>
 	);
 }
@@ -62,10 +83,7 @@ export function InputBarAttachmentActions({
 	onSelectImages,
 }: InputBarAttachmentActionsProps): JSX.Element {
 	return (
-		<span
-			data-command-panel-keep-open="true"
-			className={visible ? "flex shrink-0 items-center gap-0.5" : "hidden"}
-		>
+		<span data-command-panel-keep-open="true" className={visible ? "flex shrink-0 items-center gap-0.5" : "hidden"}>
 			<InputBarToolbarButton
 				icon="icon-[solar--gallery-linear]"
 				title={addImageTitle}
@@ -82,7 +100,13 @@ export function InputBarAttachmentActions({
 	);
 }
 
-export function InputBarExecutionModeAction({ visible, model }: { readonly visible: boolean; readonly model: ExecutionModeSelectorViewProps }): JSX.Element {
+export function InputBarExecutionModeAction({
+	visible,
+	model,
+}: {
+	readonly visible: boolean;
+	readonly model: ExecutionModeSelectorViewProps;
+}): JSX.Element {
 	return (
 		<div className={visible ? "min-w-0 shrink" : "hidden"}>
 			<ExecutionModeSelector model={model} />
@@ -96,15 +120,19 @@ export interface InputBarActiveActionsProps {
 	readonly groupLabel: (count: number) => string;
 }
 
-export function InputBarActiveActions({
-	items,
-	removeHint,
-	groupLabel,
-}: InputBarActiveActionsProps): JSX.Element {
+export function InputBarActiveActions({ items, removeHint, groupLabel }: InputBarActiveActionsProps): JSX.Element {
 	return <ActiveActionCapsules items={items} removeHint={removeHint} groupLabel={groupLabel} />;
 }
 
-export function InputBarModelAction({ visible, updateActiveSession = true, scope }: { readonly visible: boolean; readonly updateActiveSession?: boolean; readonly scope?: ModelSelectorScope }): JSX.Element {
+export function InputBarModelAction({
+	visible,
+	updateActiveSession = true,
+	scope,
+}: {
+	readonly visible: boolean;
+	readonly updateActiveSession?: boolean;
+	readonly scope?: ModelSelectorScope;
+}): JSX.Element {
 	return (
 		<div className={visible ? "min-w-0 shrink" : "hidden"}>
 			<ModelSelector updateActiveSession={updateActiveSession} scope={scope} />
@@ -177,13 +205,7 @@ export function InputBarSendAction({
 		</button>
 	) : (
 		<div className="shrink-0">
-			<SendButton
-				canSend={canSend}
-				isStreaming={isStreaming}
-				pending={pending}
-				onSend={onSend}
-				onAbort={onAbort}
-			/>
+			<SendButton canSend={canSend} isStreaming={isStreaming} pending={pending} onSend={onSend} onAbort={onAbort} />
 		</div>
 	);
 }

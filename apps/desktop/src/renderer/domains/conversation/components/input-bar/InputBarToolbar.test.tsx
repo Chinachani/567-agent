@@ -4,6 +4,7 @@ import { cleanup, fireEvent, render, screen } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import {
 	InputBarAttachmentActions,
+	InputBarTriggerAction,
 	InputBarSendAction,
 	InputBarSpeechAction,
 } from "./InputBarToolbar";
@@ -91,5 +92,27 @@ describe("InputBar toolbar abilities", () => {
 			/>,
 		);
 		expect(screen.getByRole("button", { name: "Send" })).toBeTruthy();
+	});
+	it("keeps slash and at triggers visible, labelled and independently actionable", () => {
+		const slash = vi.fn();
+		const at = vi.fn();
+		render(
+			<>
+				<InputBarTriggerAction
+					symbol="/"
+					active={false}
+					disabled={false}
+					title="Skills and commands"
+					onSelect={slash}
+				/>
+				<InputBarTriggerAction symbol="@" active disabled={false} title="Reference files" onSelect={at} />
+			</>,
+		);
+		fireEvent.click(screen.getByRole("button", { name: "Skills and commands" }));
+		fireEvent.click(screen.getByRole("button", { name: "Reference files" }));
+		expect(slash).toHaveBeenCalledOnce();
+		expect(at).toHaveBeenCalledOnce();
+		expect(screen.getByRole("button", { name: "Skills and commands" }).textContent).toBe("/");
+		expect(screen.getByRole("button", { name: "Reference files" }).getAttribute("aria-pressed")).toBe("true");
 	});
 });

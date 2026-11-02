@@ -1,7 +1,7 @@
 import { AgentModeIconToggle } from "./AgentModeIconToggle";
 import { NewSessionProjectSelector } from "./project-selector/NewSessionProjectSelector";
 import type { ProjectOption, ProjectSelection } from "./project-selector/project-selection";
-import { NewSessionAgentSelector } from "./NewSessionAgentSelector";
+import { type NewSessionAgentSelectorProps, NewSessionAgentSelector } from "./NewSessionAgentSelector";
 import type { NewSessionTargetKey } from "./target";
 
 export interface NewSessionOptionsRowProps {
@@ -15,6 +15,7 @@ export interface NewSessionOptionsRowProps {
 	readonly onSelectTarget?: (targetKey: NewSessionTargetKey | null) => void;
 	/** 窄插槽下项目选择器改挂到输入框下方，这一行只留模式与智能体两枚 chip。 */
 	readonly showProjectSelector?: boolean;
+	readonly targetPicker?: NewSessionAgentSelectorProps["picker"];
 }
 
 /**
@@ -36,6 +37,7 @@ export function NewSessionOptionsRow({
 	targetKey = null,
 	onSelectTarget = () => undefined,
 	showProjectSelector = true,
+	targetPicker,
 }: NewSessionOptionsRowProps): JSX.Element {
 	return (
 		// 与 hero 标题、输入框卡片共用 max-w-2xl 且不加横向 padding：两枚 chip 都有可见容器，
@@ -52,7 +54,7 @@ export function NewSessionOptionsRow({
 					onSelectPendingProject={onSelectPendingProject}
 				/>
 			)}
-			<NewSessionAgentSelector selectedKey={targetKey} onSelect={onSelectTarget} />
+			<NewSessionAgentSelector picker={targetPicker} selectedKey={targetKey} onSelect={onSelectTarget} />
 		</div>
 	);
 }

@@ -248,6 +248,7 @@ async function assembleCodingAgentRuntimeComposition(
 		},
 		engine: {
 			streamFn: options.streamFn,
+			resolveTurnLimits: options.resolveTurnLimits,
 			tracer: options.tracer,
 			tracing: options.tracing,
 		},

@@ -1,4 +1,5 @@
 import type { IpcRenderer, IpcRendererEvent, WebUtils } from "electron";
+import { BROWSER_TARGETS_CHANNEL, PREPARE_BROWSER_TARGET_CHANNEL } from "../../shared/current-browser-connection.js";
 import { PERSIST_IMAGE_FILES_CHANNEL } from "../../shared/image-cache.js";
 import { MODEL_CONTEXT_SET_CHANNEL } from "../../shared/model-context.js";
 import { MODEL_INFERENCE_API_SET_CHANNEL } from "../../shared/model-inference-api.js";
@@ -264,6 +265,8 @@ export function createSystemApi(
 			redetect: () => ipc.invoke("vetta:runtimes:redetect"),
 		},
 		settings: {
+			getBrowserTargets: () => ipc.invoke(BROWSER_TARGETS_CHANNEL),
+			prepareBrowserTarget: (browser, action) => ipc.invoke(PREPARE_BROWSER_TARGET_CHANNEL, browser, action),
 			getServerUrl: () => ipc.invoke("vetta:settings:get-server-url"),
 			getServerToken: () => ipc.invoke("vetta:settings:get-server-token"),
 			setServerToken: (token) => ipc.invoke("vetta:settings:set-server-token", token),

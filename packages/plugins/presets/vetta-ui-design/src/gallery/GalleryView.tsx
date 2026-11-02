@@ -14,6 +14,7 @@ import { DesignSystemGrid } from "./DesignSystemGrid";
 import { GalleryCard } from "./GalleryCard";
 import { GalleryHero } from "./GalleryHero";
 import { GalleryToolbarLeft, GalleryToolbarRight } from "./GalleryToolbar";
+import { GalleryCardSkeleton } from "./GalleryCardSkeleton";
 import { GalleryScrollProgress } from "./GalleryScrollProgress";
 import { SectionHeader } from "./SectionHeader";
 import { hasMoreProjects, homeVisibleCount, PROJECT_GRID_CLASS } from "./gallery-layout";
@@ -246,6 +247,7 @@ export function GalleryView() {
 		[systems],
 	);
 	const designCount = useMemo(() => cards.reduce((total, card) => total + card.designs.length, 0), [cards]);
+	const initialLoading = loading && snapshot === null;
 	const empty = !loading && (snapshot?.cards.length ?? 0) === 0;
 
 	/** 首页资产宫格：量出实际列数，只铺前 3 行，其余收进列表页。 */
@@ -383,7 +385,7 @@ export function GalleryView() {
 						// 全部设计：整页宫格，滚动到底部自动翻页。
 						<>
 							<AllProjectsView cards={cards} onOpen={openCard} onCardContextMenu={openCardMenu} />
-							{cards.length === 0 ? (
+							{!initialLoading && cards.length === 0 ? (
 								<p className="mt-8 text-center text-xs text-muted-foreground">{t("gallery.search.noMatch")}</p>
 							) : null}
 						</>
@@ -407,7 +409,7 @@ export function GalleryView() {
 							<section>
 								<SectionHeader
 									title={t("gallery.section.mine")}
-									badge={t("gallery.count", { count: cards.length })}
+									badge={initialLoading ? undefined : t("gallery.count", { count: cards.length })}
 									action={
 										overflowing ? (
 											<button
@@ -430,8 +432,8 @@ export function GalleryView() {
 										) : null
 									}
 								/>
-								<div ref={homeGridRef} className={PROJECT_GRID_CLASS}>
-									{cards.slice(0, homeCount).map((card) => (
+								<div ref={homeGridRef} className={PROJECT_GRID_CLASS} aria-busy={initialLoading || undefined} aria-label={initialLoading ? t("gallery.loading") : undefined}>
+									{initialLoading ? Array.from({ length: columns }, (_, index) => <GalleryCardSkeleton key={`skeleton-${index}`} />) : cards.slice(0, homeCount).map((card) => (
 										<GalleryCard
 											key={card.cwd}
 											card={card}
@@ -441,7 +443,7 @@ export function GalleryView() {
 									))}
 								</div>
 							</section>
-							{cards.length === 0 ? (
+							{!initialLoading && cards.length === 0 ? (
 								<p className="mt-8 text-center text-xs text-muted-foreground">{t("gallery.search.noMatch")}</p>
 							) : null}
 

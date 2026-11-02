@@ -17,6 +17,14 @@ beforeAll(async () => {
 beforeEach(() => {
 	Object.assign(window, {
 		agent567: {
+			mcp: { get: async () => ({ mcpServers: {} }) },
+			settings: {
+				getBrowserTargets: async () => ({
+					defaultBrowser: "msedge",
+					defaultApplication: "Microsoft Edge",
+					available: ["msedge"],
+				}),
+			},
 			updater: {
 				getPreferences: async () => ({
 					automaticCheck: true,

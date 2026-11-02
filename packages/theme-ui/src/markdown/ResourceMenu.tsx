@@ -12,7 +12,7 @@ export function ResourceMenu({
 	labels,
 	children,
 }: {
-	kind: "file" | "url";
+	kind: "file" | "url" | "image";
 	target: string;
 	open: () => void;
 	labels: MarkdownLabels;
@@ -50,13 +50,19 @@ export function ResourceMenu({
 	return (
 		<>
 			<ContextMenu.Root>
-				<ContextMenu.Trigger asChild>{children}</ContextMenu.Trigger>
+				<ContextMenu.Trigger
+					asChild
+					data-resource-menu-trigger=""
+					onContextMenu={(event) => event.stopPropagation()}
+				>
+					{children}
+				</ContextMenu.Trigger>
 				<ContextMenu.Portal>
 					<ContextMenu.Content
 						className="no-drag z-50 min-w-44 max-w-[calc(100vw-1rem)] overflow-hidden rounded-xl border border-border bg-popover p-1 text-popover-foreground shadow-md"
 						collisionPadding={8}
 					>
-						{(kind === "file" || host?.openExternalUrl) && (
+						{(kind !== "url" || host?.openExternalUrl) && (
 							<ContextMenu.Item
 								className={itemClass}
 								onSelect={() =>
@@ -67,7 +73,7 @@ export function ResourceMenu({
 									aria-hidden
 									className={`${kind === "file" ? "icon-[solar--document-linear]" : "icon-[solar--global-linear]"} h-3.5 w-3.5 text-muted-foreground`}
 								/>
-								{kind === "file" ? words.openFile : words.openUrl}
+								{kind === "url" ? words.openUrl : words.openFile}
 							</ContextMenu.Item>
 						)}
 						{host?.revealFile && kind === "file" && (
@@ -79,17 +85,26 @@ export function ResourceMenu({
 								{words.revealFile}
 							</ContextMenu.Item>
 						)}
-						{host?.copyText && (
+						{(kind === "image" ? host?.copyImage : host?.copyText) && (
 							<>
 								<ContextMenu.Separator className="my-1 h-px bg-border" />
 								<ContextMenu.Item
 									className={itemClass}
-									onSelect={() => action(() => host.copyText?.(target, kind))}
+									onSelect={() =>
+										action(() =>
+											kind === "image" ? host?.copyImage?.(target) : host?.copyText?.(target, kind),
+										)
+									}
 								>
 									<span aria-hidden className="icon-[solar--copy-linear] h-3.5 w-3.5 text-muted-foreground" />
-									{kind === "file" ? words.copyFile : words.copyUrl}
+									{kind === "image" ? labels.copy : kind === "file" ? words.copyFile : words.copyUrl}
 								</ContextMenu.Item>
 							</>
+						)}
+						{kind === "image" && host?.saveImage && (
+							<ContextMenu.Item className={itemClass} onSelect={() => action(() => host.saveImage?.(target))}>
+								{labels.rich?.save ?? "Save"}
+							</ContextMenu.Item>
 						)}
 					</ContextMenu.Content>
 				</ContextMenu.Portal>

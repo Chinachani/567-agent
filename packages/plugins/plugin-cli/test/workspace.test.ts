@@ -174,6 +174,7 @@ describe("hot reload", () => {
 		write(join(pluginRoot, "plugin.json"), JSON.stringify({ id: "demo", version: "1.0.0" }));
 		mkdirSync(join(pluginRoot, "src"), { recursive: true });
 		const runAction = vi.fn().mockResolvedValue({ plugin: { id: "demo" } });
+		const output: string[] = [];
 
 		const code = await runPluginCommand(
 			{ type: "watch", stop: false, json: false },
@@ -182,12 +183,13 @@ describe("hot reload", () => {
 				cwd: () => join(pluginRoot, "src"),
 				resolveNpmArchive: () => Promise.reject(new Error("unused")),
 				runAction,
-				writeStdout: () => {},
+				writeStdout: (value) => output.push(value),
 				writeStderr: () => {},
 			},
 		);
 
 		expect(code).toBe(0);
+		expect(output.join("")).toContain(`567 Agent now loads it from ${pluginRoot}.`);
 		expect(runAction).toHaveBeenCalledWith("plugins.manage", {
 			operation: "dev-watch",
 			id: "demo",

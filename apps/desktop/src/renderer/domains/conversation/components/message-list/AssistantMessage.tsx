@@ -12,6 +12,7 @@ import {
 	StreamingIndicator as ThemeStreamingIndicator,
 } from "@vetta-org/theme-ui/chat";
 import { memo, useId, useMemo } from "react";
+import type { ReactNode } from "react";
 import { useTranslation } from "react-i18next";
 import { useAssistantMessageModel } from "../../hooks/useAssistantMessageModel";
 import { MessageCardsHost } from "../MessageCardsHost";
@@ -33,7 +34,8 @@ export function StreamingIndicator(): JSX.Element {
 	return <ThemeStreamingIndicator phrases={list} />;
 }
 
-interface AssistantMessageProps {
+export interface AssistantMessageProps {
+	actions?: ReactNode;
 	exportMode?: boolean;
 	isStreaming: boolean;
 	isTailMessage: boolean;
@@ -46,6 +48,7 @@ interface AssistantMessageProps {
 
 export const AssistantMessage = memo(function AssistantMessage({
 	message,
+	actions,
 	isTailMessage,
 	isStreaming,
 	pendingLabel,
@@ -143,7 +146,7 @@ export const AssistantMessage = memo(function AssistantMessage({
 			: null;
 
 	const showTokenUsage = !exportMode && Boolean(message.usages?.length);
-	const hasActions = conclusionText.length > 0 || showTokenUsage;
+	const hasActions = conclusionText.length > 0 || showTokenUsage || (!exportMode && Boolean(actions));
 
 	return (
 		<Message.Root>
@@ -274,6 +277,7 @@ export const AssistantMessage = memo(function AssistantMessage({
 								{hasActions ? (
 									<div className="flex items-center gap-1">
 										{conclusionText.length > 0 && <CopyButton getText={() => conclusionText} />}
+										{!exportMode ? actions : null}
 										{(message.endedAt ?? message.timestamp) && (
 											<RelativeTimeLabel endedAt={(message.endedAt ?? message.timestamp) as number} />
 										)}

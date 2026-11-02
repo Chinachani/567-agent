@@ -1,9 +1,8 @@
 import { ThemeSurface } from "@vetta-org/theme-ui/appearance";
-import { ContextRingView } from "@vetta-org/theme-ui/chat";
+import { ContextRingView, FadingScrollArea, usePanelViewportHeight } from "@vetta-org/theme-ui/chat";
 import { AnimatePresence, motion, useReducedMotion } from "motion/react";
 import { useEffect, useState } from "react";
 import { ConnectorGrid } from "./ConnectorGrid";
-import { FadingScrollArea } from "./FadingScrollArea";
 import { SkillList } from "./SkillList";
 import { PANEL_REVEAL_ROWS, PANEL_REVEAL_TRANSITION } from "./constants";
 import type { CommandPanelProps } from "./types";
@@ -13,7 +12,7 @@ import type { CommandPanelProps } from "./types";
  * 它与编辑区、工具栏共处一张卡片，因此还要给短窗口留余量——纯 420 在小屏上
  * 会把整条 bar 顶到占掉大半个视口。
  */
-const MAX_HEIGHT = "min(320px, 40vh)";
+const MAX_HEIGHT = "min(clamp(120px, calc(100dvh - 260px), 320px), var(--panel-available-height, 320px))";
 
 /** 揭幕：从上往下裁开。内容不动，因此描边、圆角与卡片接缝全程都在终态位置上。 */
 const REVEAL_CLIPPED = { clipPath: "inset(100% 0 0 0)" };
@@ -46,6 +45,7 @@ export function CommandPanelView({
 	onSelectItem,
 	onSelectConnector,
 }: CommandPanelProps): JSX.Element {
+	const syncHeight = usePanelViewportHeight(panelRef, open);
 	const filtering = filter.length > 0;
 	const reduceMotion = useReducedMotion();
 	const transition = reduceMotion ? { duration: 0 } : PANEL_REVEAL_TRANSITION;
@@ -65,7 +65,10 @@ export function CommandPanelView({
 					animate={REVEAL_SHOWN}
 					exit={REVEAL_CLIPPED}
 					transition={transition}
-					onAnimationComplete={() => setRevealed(true)}
+					onAnimationComplete={() => {
+						setRevealed(true);
+						syncHeight();
+					}}
 					// 只在面板存在期间挂着：动画开始前就得就位才有用，收起时整块一起卸载。
 					style={{ willChange: "clip-path" }}
 					className={[
@@ -83,8 +86,11 @@ export function CommandPanelView({
 						.join(" ")}
 				>
 					<ThemeSurface slot="chat.slashPanel" />
-					<div className="relative z-10 flex flex-col" style={{ maxHeight: MAX_HEIGHT }}>
-						<FadingScrollArea className="pt-2" suspended={!revealed}>
+					<div
+						className="relative z-10 flex min-h-0 flex-col"
+						style={{ maxHeight: MAX_HEIGHT, minHeight: "min(120px, var(--panel-available-height, 120px))" }}
+					>
+						<FadingScrollArea className="pt-2" suspended={!revealed} aria-label={labels.header}>
 							{operation ? (
 								<button
 									type="button"
@@ -92,11 +98,7 @@ export function CommandPanelView({
 									disabled={operation.disabled}
 									onMouseEnter={() => onHoverItem(0)}
 									onClick={operation.onSelect}
-									className="relative flex h-8 w-full items-center gap-2 px-4 text-left transition-colors disabled:cursor-not-allowed disabled:opacity-50"
-									style={{
-										background:
-											activeIndex === 0 ? "color-mix(in srgb, var(--primary) 9%, transparent)" : "transparent",
-									}}
+									className={`relative flex h-8 w-full items-center gap-2 px-4 text-left transition-colors disabled:cursor-not-allowed disabled:opacity-50 ${activeIndex === 0 ? "bg-primary/10" : "bg-transparent"}`}
 								>
 									{activeIndex === 0 && (
 										<motion.span
@@ -112,10 +114,16 @@ export function CommandPanelView({
 											<span className="h-4 w-4 rounded-full border border-border" aria-hidden="true" />
 										)}
 									</span>
-									<span className="shrink-0 truncate text-[12.5px] font-medium text-foreground">
+									<span
+										className="min-w-0 truncate text-[13px] font-medium text-foreground"
+										title={operation.label}
+									>
 										{operation.label}
 									</span>
-									<span className="min-w-0 flex-1 truncate text-right text-[11px] text-muted-foreground/50">
+									<span
+										className="min-w-0 flex-1 truncate text-right text-[11px] text-muted-foreground"
+										title={operation.description}
+									>
 										{operation.description}
 									</span>
 								</button>
@@ -129,17 +137,19 @@ export function CommandPanelView({
 									onSelect={onSelectConnector}
 								/>
 							)}
-							{items.length > 0 || !operation ? <SkillList
-								items={items}
-								activeIndex={operation ? activeIndex - 1 : activeIndex}
-								indexOffset={operation ? 1 : 0}
-								labels={labels}
-								filtering={filtering}
-								limit={revealed ? undefined : PANEL_REVEAL_ROWS}
-								resolveIcon={resolveIcon}
-								onHover={(index) => onHoverItem(index + (operation ? 1 : 0))}
-								onSelect={onSelectItem}
-							/> : null}
+							{items.length > 0 || !operation ? (
+								<SkillList
+									items={items}
+									activeIndex={operation ? activeIndex - 1 : activeIndex}
+									indexOffset={operation ? 1 : 0}
+									labels={labels}
+									filtering={filtering}
+									limit={revealed ? undefined : PANEL_REVEAL_ROWS}
+									resolveIcon={resolveIcon}
+									onHover={(index) => onHoverItem(index + (operation ? 1 : 0))}
+									onSelect={onSelectItem}
+								/>
+							) : null}
 						</FadingScrollArea>
 
 						{actions.length > 0 && (

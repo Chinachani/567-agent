@@ -1,6 +1,6 @@
 # 插件工作台（plugin-workbench）
 
-系统插件：帮助用户通过对话 + 面板自举 Vetta 用户插件。
+系统插件：帮助用户通过对话 + 面板自举 567 Agent 用户插件。
 
 ## Agent 文档（关键）
 
@@ -18,7 +18,7 @@ node <workbenchRoot>/agent/cli/vetta-plugin-cli.js docs --json
   会先构建 `plugin-cli` 再调它）。产物在 `agent/cli/`，已 gitignore。
 - 内置而不是 `npx`：工作台是系统插件、随 App 发版，内置让版本关系确定，也不受首次拉包的网络影响。
 - Skill：`agent/skills/plugin-workbench/SKILL.md`；索引：`references/doc-index.md`。
-- 起工程用 CLI 的 `init`，它会同时落一份 `AGENTS.md`——在 Vetta 外用别的 Agent 打开这个工程时，
+- 起工程用 CLI 的 `init`，它会同时落一份 `AGENTS.md`——在 567 Agent 外用别的 Agent 打开这个工程时，
   那份是唯一的说明书，与本 skill 同源。
 
 ## 脚本

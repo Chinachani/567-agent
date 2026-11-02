@@ -158,7 +158,7 @@ export class StatelessAgentCoreTurnEngine implements TurnEnginePort {
 
 		return {
 			messages,
-			limits: resolveLimits(this.options.limits),
+			limits: resolveLimits({ ...this.options.limits, ...this.options.resolveTurnLimits?.() }),
 			signal: request.signal,
 			observer: () => eventDelivery.recordEmission(),
 			resolveTools: async ({ modelCallIndex, messages: frameMessages, signal }) => {
@@ -734,11 +734,11 @@ function toModelTool(tool: AgentRuntimeToolDefinition): Tool {
 }
 
 function resolveLimits(limits: AgentCoreTurnEngineOptions["limits"]): AgentTurnRequest["limits"] {
-	const maxModelCalls = limits?.maxModelCalls ?? DEFAULT_MAX_MODEL_CALLS;
+	const maxModelCalls = limits?.maxModelCalls === undefined ? DEFAULT_MAX_MODEL_CALLS : limits.maxModelCalls;
 	return {
 		maxModelCalls,
 		maxToolCalls: limits?.maxToolCalls ?? DEFAULT_MAX_TOOL_CALLS,
-		maxRecoveryAttempts: maxModelCalls,
+		maxRecoveryAttempts: maxModelCalls ?? DEFAULT_MAX_MODEL_CALLS,
 		checkpointTimeoutMs: limits?.contextCheckpointTimeoutMs ?? DEFAULT_CHECKPOINT_TIMEOUT_MS,
 	};
 }

@@ -9,7 +9,7 @@ import type {
 } from "./contracts.js";
 import { resolveMemberProfile, resolveMemberResponsibility } from "./domain.js";
 
-export type TeamCapabilityKind = "skill" | "scene" | "mcp" | "plugin" | "tool" | (string & {});
+export type TeamCapabilityKind = "skill" | "mcp" | "plugin" | "tool" | (string & {});
 
 /** Subagent controls belong to private child execution, never Team-member coordination. */
 export const TEAM_SUBAGENT_TOOL_NAMES = Object.freeze([

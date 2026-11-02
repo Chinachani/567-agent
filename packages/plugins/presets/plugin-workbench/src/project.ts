@@ -7,6 +7,10 @@ function isPluginPermission(value: unknown): value is PluginPermission {
 	return typeof value === "string" && pluginPermissionSet.has(value);
 }
 
+export function readProjectPermissions(value: unknown): PluginPermission[] {
+	return Array.isArray(value) ? value.filter(isPluginPermission) : [];
+}
+
 export interface ProjectInfo {
 	dir: string;
 	id: string;
@@ -59,9 +63,7 @@ export async function discoverProjects(cwd: string): Promise<ProjectInfo[]> {
 		const guidingWords = Array.isArray(manifest.guidingWords)
 			? manifest.guidingWords.filter((w): w is string => typeof w === "string")
 			: [];
-		const permissions = Array.isArray(manifest.permissions)
-			? manifest.permissions.filter(isPluginPermission)
-			: [];
+		const permissions = readProjectPermissions(manifest.permissions);
 		const packagePath = joinPath(dir, "release", `${id}-${version}.567plugin`);
 		let packageExists = false;
 		try {

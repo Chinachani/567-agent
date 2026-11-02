@@ -39,7 +39,7 @@ fun localSessionWorkbenchDetail(messages: List<LocalMessage>, kind: String, id: 
         val group = messageGroups(messages).firstOrNull { it.first().id == id } ?: error("任务记录已不存在")
         return SessionWorkbenchDetail(kind, id, group.first().content.take(100), buildString {
             group.filter { it.role == ChatRole.Assistant }.forEach { message ->
-                appendLine(message.content)
+                appendLine(message.conversationText)
                 message.errorMessage?.let { appendLine(it) }
                 message.toolEvents.forEach { tool -> appendLine("[${tool.toolName} · ${tool.phase}]"); tool.result?.let { appendLine(it.take(8000)) } }
             }

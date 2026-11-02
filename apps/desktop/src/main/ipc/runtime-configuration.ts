@@ -2,11 +2,16 @@ import type { RuntimeConfigurationJsonObject } from "@567agent/runtime-core/conf
 import { ipcMain, type WebContents } from "electron";
 import { RUNTIME_CONFIGURATION_CHANNELS } from "../../shared/runtime-configuration-ipc.js";
 import { getDesktopRuntimeConfigurationService } from "../runtime-configuration/runtime-configuration-composition.js";
+import { assertTrustedMainRenderer } from "./trusted-renderer.js";
 
 export function registerRuntimeConfigurationIpc(webContents: WebContents): () => void {
 	const service = getDesktopRuntimeConfigurationService();
-	ipcMain.handle(RUNTIME_CONFIGURATION_CHANNELS.LIST, () => service.list());
-	ipcMain.handle(RUNTIME_CONFIGURATION_CHANNELS.SET, async (_event, configurationId: unknown, patch: unknown) => {
+	ipcMain.handle(RUNTIME_CONFIGURATION_CHANNELS.LIST, (event) => {
+		assertTrustedMainRenderer(event, webContents);
+		return service.list();
+	});
+	ipcMain.handle(RUNTIME_CONFIGURATION_CHANNELS.SET, async (event, configurationId: unknown, patch: unknown) => {
+		assertTrustedMainRenderer(event, webContents);
 		if (
 			typeof configurationId !== "string" ||
 			configurationId.trim() === "" ||

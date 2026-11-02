@@ -1,5 +1,7 @@
 package org.agent567.android.ui.chat
 
+import androidx.compose.material.icons.outlined.FolderOpen
+
 import androidx.compose.foundation.gestures.detectTransformGestures
 import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.ui.input.pointer.pointerInput
@@ -214,6 +216,7 @@ fun ChatScreen(
     availableGroups: Map<String, org.agent567.android.core.api.ApiGroupInfoDto> = emptyMap(),
     groupPickerOpen: Boolean = false,
     onOpenContext: () -> Unit = {},
+    onOpenWorkbench: () -> Unit = {},
     onOpenGroupPicker: () -> Unit = {},
     onCloseGroupPicker: () -> Unit = {},
     onSelectGroup: ((String) -> Unit)? = null,
@@ -392,6 +395,9 @@ fun ChatScreen(
                     }
                 },
                 actions = {
+                    IconButton(onClick = onOpenWorkbench) {
+                        Icon(Icons.Outlined.FolderOpen, modifier = Modifier.size(20.dp), contentDescription = Str.workbenchTitle, tint = MaterialTheme.agent567Extra.secondaryText)
+                    }
                     IconButton(onClick = onOpenContext) {
                         Icon(Icons.Outlined.Layers, modifier = Modifier.size(20.dp), contentDescription = Str.contextManage, tint = MaterialTheme.agent567Extra.secondaryText)
                     }

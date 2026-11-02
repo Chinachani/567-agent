@@ -1,11 +1,27 @@
 ---
 name: browser-use
-description: Operate the user's current browser with agent-browser, using a separate task browser only when explicitly requested.
+description: Inspect and operate real web pages, current signed-in tabs, forms and dashboards; verify rendered website UI, navigation and interactive behavior. Use proactively for these outcomes even when the user does not name a browser. Prefer a configured browser extension for current tabs, otherwise use agent-browser with an explicitly connected current browser. Public facts without page interaction should use web search. Browser setup questions alone do not request page access.
 ---
 
 # Browser Use
 
-Use the `agent-browser` CLI through the shell when the task needs a real browser, login state, or page interaction. Prefer web search for ordinary public information lookup. Do not look for a dedicated browser Tool. If the CLI is missing or outdated, bootstrap the 567 Agent-managed runtime yourself as described below; use the plugin panel only as a fallback after automated setup fails.
+For tasks that need rendered page inspection, existing sign-in state, form interaction or website UI verification, invoke this skill and use the browser proactively. Do not wait for a reminder. Use page evidence to check the result of website changes when the task includes interactive or visual verification; passing a build alone does not verify the page. Public facts and sources that do not need page interaction should use web search. A browser setup question or a URL mentioned in code is not permission to read unrelated pages.
+
+## Prefer the configured extension for current tabs
+
+567 Agent can configure Microsoft's Playwright browser extension at **Settings → General → Connect your current browser**. Installing that extension in Chrome/Edge/Chromium removes the need for browser startup flags. The user installs it and selects a tab in its connection page; optional approval tokens belong in the local settings field, never in chat, shell arguments or skill output.
+
+1. If available, use `tool_search` to discover the configured `567-current-browser` MCP tools (search for `567-current-browser browser snapshot tabs`). It is an extension-only connection. Use the exact returned tool names and schemas, not guessed names. With a different user-configured server, first establish that it is an extension connection; generic Playwright tools may instead launch an independent browser.
+2. Take an initial snapshot through that connection. The extension may ask the user to approve and select the intended tab. Once selected, verify the returned title and URL. Do not navigate to another URL just to discover which tab was chosen.
+3. Continue with the same connection and selected tab. The extension owns client tab groups; the user's later focus changes are not permission to switch tabs. Re-snapshot after navigation or meaningful rendering and use fresh refs. Leave the user's tabs open at task end.
+4. If the extension is absent, denied, disconnected or the chosen tab is gone, report the specific connection problem and let the user reconnect/select. Do not install another browser, copy profiles, or silently fall back to CLI/another browser after an extension error. Never run a browser install tool to repair an extension connection.
+5. This path does not need agent-browser runtime installation, a remote-debugging port, or a full-access shell. Browser/page permissions and the host's MCP approvals still apply. Do not install or change the user's integration configuration without a request to set it up.
+
+If no extension connection is configured, the existing CLI path below remains available for a browser whose local debugging connection is already enabled. Chrome 144+ supports enabling remote debugging from `chrome://inspect/#remote-debugging` without startup flags; require the user's approval there and verify discovery. Do not assume this is enabled or restart the browser to enable it.
+
+## CLI connection and readiness
+
+Use the `agent-browser` CLI through the shell for an already configured current-browser CDP connection, or an explicitly requested separate task browser. If the CLI is missing or outdated, bootstrap only the 567 Agent-managed runtime below. Failure to attach is a connection issue; installing Chrome does not repair it.
 
 ## Choose the browser before acting
 

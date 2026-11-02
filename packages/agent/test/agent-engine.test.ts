@@ -25,6 +25,55 @@ const DEFAULT_LIMITS = {
 } as const;
 
 describe("runAgentTurn", () => {
+	it("can complete beyond 100 model calls with only the model budget disabled", async () => {
+		let calls = 0;
+		const run = runAgentTurn({
+			...request([]),
+			limits: { ...DEFAULT_LIMITS, maxModelCalls: null, maxToolCalls: 110 },
+			resolveTools: async () => [typedTool(() => undefined)],
+			resolveModelCall: async () => {
+				calls += 1;
+				return resolveResponse(
+					successResponse(
+						calls === 105
+							? assistant([{ type: "text", text: "finished" }])
+							: assistant([toolCall(`call-${calls}`, "typed", { value: "x" })], "toolUse"),
+					),
+					calls,
+				);
+			},
+		});
+		await expect(run.result).resolves.toMatchObject({ status: "completed", modelCalls: 105, toolCalls: 104 });
+	});
+
+	it("retains cancellation and the tool budget when model calls are unlimited", async () => {
+		for (const abort of [false, true]) {
+			const controller = new AbortController();
+			let calls = 0;
+			const run = runAgentTurn({
+				...request([]),
+				signal: controller.signal,
+				limits: { ...DEFAULT_LIMITS, maxModelCalls: null, maxToolCalls: 1 },
+				resolveTools: async () => [
+					typedTool(() => {
+						if (abort) controller.abort();
+					}),
+				],
+				resolveModelCall: async () => {
+					calls += 1;
+					return resolveResponse(
+						successResponse(assistant([toolCall(`call-${calls}`, "typed", { value: "x" })], "toolUse")),
+						calls,
+					);
+				},
+			});
+			await expect(run.result).resolves.toMatchObject({
+				status: abort ? "aborted" : "max_tool_calls",
+				toolCalls: 1,
+			});
+		}
+	});
+
 	it("completes a text-only run with a finite event and result lifecycle", async () => {
 		const run = runAgentTurn(request([successResponse(assistant([{ type: "text", text: "done" }]))]));
 		const events = await collect(run.events);
@@ -280,14 +329,14 @@ describe("runAgentTurn", () => {
 		expect(errorAttempts).toEqual([0, 0, 1]);
 	});
 
-	it("ends with recovery_exhausted after the configured retry budget", async () => {
+	it.each([10, null])("retains the recovery budget with model-call budget %s", async (maxModelCalls) => {
 		const run = runAgentTurn({
 			...request([
 				failedResponse(new Error("first")),
 				failedResponse(new Error("second")),
 				failedResponse(new Error("unreachable")),
 			]),
-			limits: { ...DEFAULT_LIMITS, maxRecoveryAttempts: 1 },
+			limits: { ...DEFAULT_LIMITS, maxModelCalls, maxRecoveryAttempts: 1 },
 			checkpoint: async ({ reason }) => (reason === "assistant_error" ? { retry: true } : undefined),
 		});
 

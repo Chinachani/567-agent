@@ -4,6 +4,18 @@ import { describe, expect, it } from "vitest";
 import { projectUserMessage } from "./userMessageProjection";
 
 describe("projectUserMessage", () => {
+	it("keeps an old scene reference readable and copyable without restoring an active skill chip", () => {
+		const message = createConversationUserMessage({
+			id: "old-scene",
+			text: "run the review",
+			promptRef: { kind: "scene", name: "release" },
+		});
+		const before = structuredClone(message);
+		const projection = projectUserMessage(message);
+		expect(projection.copyText).toBe("@scene:release run the review");
+		expect(projection.inlineTokenAnnotations).toEqual([]);
+		expect(message).toEqual(before);
+	});
 	it("发送后的气泡沿用编辑器结构，不把普通 png 文件重新解析成图片", () => {
 		const inputSegments: InputSegment[] = [
 			{ kind: "text", text: "检查 " },
@@ -92,16 +104,16 @@ describe("projectUserMessage", () => {
 			createConversationUserMessage({
 				id: "legacy",
 				text: "检查 @skill:legal @/workspace/spec.md",
-				promptRef: { kind: "scene", name: "review" },
+				promptRef: { kind: "skill", name: "review" },
 			}),
 		);
 
 		expect(projection.inlineTokenAnnotations.map((annotation) => annotation.kind)).toEqual([
-			"scene",
+			"skill",
 			"skill",
 			"file",
 		]);
-		expect(projection.displayText).toBe("@scene:review 检查 @skill:legal @/workspace/spec.md");
+		expect(projection.displayText).toBe("@skill:review 检查 @skill:legal @/workspace/spec.md");
 	});
 
 	it("编辑器明确保存为正文的 token 外形文本不会被重新猜成 token", () => {

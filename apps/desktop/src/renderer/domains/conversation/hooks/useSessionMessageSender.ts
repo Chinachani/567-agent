@@ -9,13 +9,7 @@ import {
 	recordInputActionsUsed,
 	recordInputContextUsed,
 } from "@shared/lib/app-monitor-events";
-import {
-	deriveAttachments,
-	deriveSkillNames,
-	MultipleSceneReferencesError,
-	prepareInputPrompt,
-	toTokenPath,
-} from "@shared/lib/input-tokens";
+import { deriveAttachments, deriveSkillNames, prepareInputPrompt, toTokenPath } from "@shared/lib/input-tokens";
 import { ipcErrorMessage } from "@shared/lib/ipc-error";
 import { perfSendComplete, perfSendMark } from "@shared/lib/perf-send";
 import {
@@ -213,15 +207,7 @@ export function useSessionMessageSender({ bumpSuggestionToken }: SessionMessageS
 			}
 			perfSendMark("sender-enter", interactionId);
 			const rawText = stagedInput?.rawText ?? (hasOverride ? override : inputValue.trim());
-			let preparedInput: ReturnType<typeof prepareInputPrompt>;
-			try {
-				preparedInput = prepareInputPrompt(rawText, hasOverride ? undefined : inputSegments);
-			} catch (error) {
-				if (!(error instanceof MultipleSceneReferencesError)) throw error;
-				const message = i18n.t("chat:inputBar.error.multipleScenes");
-				setTargetSessionMessages((prev) => appendError(prev, message));
-				return { status: "failed", error: { message } };
-			}
+			const preparedInput = prepareInputPrompt(rawText, hasOverride ? undefined : inputSegments);
 			const images = !hasOverride && attachedImages.length > 0 ? attachedImages : undefined;
 			// 把附图落盘到会话图片缓存，改用 @路径 引用而非把 base64 塞进上下文：
 			// 视觉模型经 Read 工具即可看到图，不支持视觉的模型也能用工具对图做 OCR/改图等。
@@ -238,10 +224,6 @@ export function useSessionMessageSender({ bumpSuggestionToken }: SessionMessageS
 					console.error("[useSessionManager.sendMessage] persistImages failed:", err);
 				}
 			}
-			const promptRef =
-				!hasOverride && preparedInput.sceneName
-					? { kind: "scene" as const, name: preparedInput.sceneName }
-					: undefined;
 			const attachmentsByPath = new Map<string, PromptAttachmentRef>();
 			if (!hasOverride) {
 				for (const attachment of deriveAttachments(preparedInput.segments)) {
@@ -280,7 +262,6 @@ export function useSessionMessageSender({ bumpSuggestionToken }: SessionMessageS
 			recordInputContextUsed({
 				files: hasOverride ? [] : mentionedFiles,
 				images: hasOverride ? [] : persistedImages,
-				...(promptRef ? { promptRef } : {}),
 			});
 			// 行内 skill 是软引用，不进 promptRef，但调用次数仍要计入 app-monitor
 			// （命令面板按使用频次排序依赖这份统计）。每个被引用的 skill 记一次。
@@ -414,7 +395,6 @@ export function useSessionMessageSender({ bumpSuggestionToken }: SessionMessageS
 					...(hasOverride ? {} : { inputSegments: preparedInput.segments }),
 					timestamp: Date.now(),
 					model: modelKeyToParts(selectedModel),
-					promptRef,
 					attachments,
 				});
 				// Base64 preview only when persistence failed; structured image paths
@@ -492,7 +472,7 @@ export function useSessionMessageSender({ bumpSuggestionToken }: SessionMessageS
 
 			// 非批量任务项目：若该 session 已有 todo 且全部 done，在发起下一个
 			// prompt 前先清空 todo 列表，让用户开启新一轮工作时面板回到干净状态。
-			// 批量任务依赖严格 todo 机制，不在此清空；scene 等 lock 状态后端会自行拒绝。
+			// 批量任务依赖严格 todo 机制，不在此清空；锁定状态后端会自行拒绝。
 			// streaming 入队时不清：当前正在跑的回合仍拥有这些 todo。
 			if (!streaming) {
 				const projectType = getProjects().find((p) => p.cwd === session.cwd)?.type;
@@ -520,7 +500,6 @@ export function useSessionMessageSender({ bumpSuggestionToken }: SessionMessageS
 
 			const promptReq: PromptRequest = {
 				text: text || "(see attached content)",
-				promptRef,
 			};
 			if (attachments.length > 0 || pendingEdit) {
 				promptReq.attachments = attachments;

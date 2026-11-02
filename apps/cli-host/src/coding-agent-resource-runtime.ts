@@ -3,13 +3,7 @@ import type {
 	CodingAgentPromptRuntimeSourceContext,
 	CodingAgentPromptRuntimeSources,
 } from "@567agent/coding-agent/composition";
-import {
-	CONFIG_DIR_NAME,
-	getAgent567HomePath,
-	getAgentDir,
-	getSceneDir,
-	getUserSkillsDir,
-} from "@567agent/coding-agent/config";
+import { CONFIG_DIR_NAME, getAgent567HomePath, getAgentDir, getUserSkillsDir } from "@567agent/coding-agent/config";
 import {
 	configureThemeRuntime,
 	detectColorMode,
@@ -102,7 +96,6 @@ export function createCliSessionResourceRuntime(
 		extensionFactoryLoader: createCodingAgentNodeExtensionFactoryLoader(),
 		extensionCommandExecutor: createNodeCommandExecutor(),
 		skillLocations: {
-			sceneDir: getSceneDir(),
 			managedSkillsDir: getUserSkillsDir(),
 			manifestPath: host.resourceAccess.paths.join(getAgent567HomePath(), "skills-manifest.json"),
 		},

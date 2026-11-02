@@ -1,6 +1,6 @@
-# Vetta Actions
+# 567 Agent Actions
 
-Vetta 官方 App Action 插件。当前已迁移 Desktop 全部 App Action 域：
+567 Agent 官方 App Action 插件。当前已迁移 Desktop 全部 App Action 域：
 
 - 首批：`general`、`agent`、`downloads`、`updater`、`webhook`
 - 第二批：`skills`（产品文案：能力）、`shortcuts`、`im`、`mcp`、`models`、`projects`、`knowledge`、`plugins`
@@ -8,7 +8,7 @@ Vetta 官方 App Action 插件。当前已迁移 Desktop 全部 App Action 域�
 
 均通过 `publicId` 注册稳定公共 id。Desktop 已不再提供静态领域 Action；本插件（及后续官方 Action 插件）是这些公共 id 的实现来源。
 
-17 个域、37 个 Action 通过 `src/action-usage.ts` 统一提供 `usage`：作用对象、何时使用、何时不用、替代路径。该说明随 search / describe 返回，帮助区分操作 Vetta 本身与开发用户项目；不参与审批或运行控制。新增域需补充使用说明，已有域使用 `createVettaActionRegistrar` 注册，避免漏掉发现阶段的边界。
+17 个域、37 个 Action 通过 `src/action-usage.ts` 统一提供 `usage`：作用对象、何时使用、何时不用、替代路径。该说明随 search / describe 返回，帮助区分操作 567 Agent 本身与开发用户项目；不参与审批或运行控制。新增域需补充使用说明，已有域使用 `createVettaActionRegistrar` 注册，避免漏掉发现阶段的边界。
 
 **能力（原技能）**：公共 id 仍为 `skills.*` 以保持兼容；title/summary/keywords 使用「能力」。
 `skills.manage` 支持 `install-from-market`（type + slug）。

@@ -1,5 +1,6 @@
 import type { AssistantMessage, UserMessage } from "@567agent/ai";
 import type { ContinuationPolicyContext } from "@567agent/runtime-core/kernel";
+import { hasVisibleAssistantOutput } from "../../model-context/continuation-messages.js";
 import type { CodingAgentContinuationSource } from "../../runtime-contracts/index.js";
 
 export const DEFAULT_CODING_AGENT_LENGTH_CONTINUATION_ATTEMPTS = 3;
@@ -42,7 +43,7 @@ export class CodingAgentLengthContinuationSource implements CodingAgentContinuat
 			this.attempts = 0;
 			return [];
 		}
-		if (!hasVisibleOutput(latestAssistant)) {
+		if (!hasVisibleAssistantOutput(latestAssistant)) {
 			// 正文一个 token 都没产出就被判 length：无处可续接，重来一遍只会再被截断。
 			// 报出上游自报的输出量——它常常远小于模型上限，因为这类网关既不上报隐藏的
 			// 推理 token，也会在参数流式输出中途被截断时整块丢掉未完成的工具调用。
@@ -71,11 +72,4 @@ export class CodingAgentLengthContinuationSource implements CodingAgentContinuat
 			},
 		];
 	}
-}
-
-/** thinking 不是可续接的正文：只有正文或工具调用才说明模型确实产出了半截结果。 */
-function hasVisibleOutput(message: AssistantMessage): boolean {
-	return message.content.some(
-		(part) => part.type === "toolCall" || (part.type === "text" && part.text.trim().length > 0),
-	);
 }

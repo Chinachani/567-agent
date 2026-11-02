@@ -11,6 +11,7 @@ import { execFileSync, spawnSync } from "node:child_process";
 import { existsSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
+import { withTestReport } from "./vitest-report-args.mjs";
 
 const scriptDir = dirname(fileURLToPath(import.meta.url));
 const repoRoot = join(scriptDir, "..", "..");
@@ -55,12 +56,16 @@ if (!existsSync(vitestEntry)) {
 	throw new Error(`Vitest entry was not found at ${vitestEntry}. Run bun install first.`);
 }
 
-const result = spawnSync(findNode(), [vitestEntry, ...process.argv.slice(2)], {
-	cwd: process.cwd(),
-	env: process.env,
-	stdio: "inherit",
-	shell: false,
-});
+const result = spawnSync(
+	findNode(),
+	[vitestEntry, ...withTestReport(process.argv.slice(2), process.env, process.cwd())],
+	{
+		cwd: process.cwd(),
+		env: process.env,
+		stdio: "inherit",
+		shell: false,
+	},
+);
 
 if (result.error) throw result.error;
 process.exit(result.status ?? 1);

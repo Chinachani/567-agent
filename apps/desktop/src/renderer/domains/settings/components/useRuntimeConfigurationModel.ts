@@ -93,49 +93,54 @@ export function useRuntimeConfigurationModel(): RuntimeConfigurationModel {
 
 	const sections = useMemo(
 		() =>
-			(catalog?.entries ?? []).map((entry): RuntimeConfigurationSectionModel => {
-				const presentation = asRecord(entry.descriptor.presentation);
-				const controls = asRecord(presentation?.controls);
-				const providerOptions = parseProviderOptions(presentation?.providers, entry.value.defaultProviderId, {
-					local: t("runtimeConfiguration.provider.local"),
-					remote: t("runtimeConfiguration.provider.remote"),
-					unavailable: t("runtimeConfiguration.provider.unavailable"),
-				});
-				const fields = schemaFields(entry.descriptor.schema, entry.value).map((field) => ({
-					...field,
-					...(entry.configurationId === "vetta.ocr" && field.schema.type === "enum" && field.schema.enum
-						? {
-								options: field.schema.enum.map((option) => ({
-									value: option,
-									label: translate(
-										`runtimeConfiguration.fields.${field.path.join(".")}.options.${option}`,
-										option,
-									),
-								})),
-							}
-						: {}),
-					...(field.path.length === 1 && controlKind(controls?.[field.path[0]]) === "ocr-provider-select"
-						? { control: "ocr-provider-select" as const, options: providerOptions }
-						: {}),
-					title: translate(`runtimeConfiguration.fields.${field.path.join(".")}.title`, field.path.at(-1) ?? ""),
-					description:
-						translate(`runtimeConfiguration.fields.${field.path.join(".")}.description`, "") || undefined,
-				}));
-				return {
-					apply: translate(`runtimeConfiguration.apply.${entry.apply}`, entry.apply),
-					configurationId: entry.configurationId,
-					title: translate(
-						`runtimeConfiguration.configurations.${entry.configurationId}.title`,
-						entry.descriptor.title,
-					),
-					description:
-						translate(
-							`runtimeConfiguration.configurations.${entry.configurationId}.description`,
-							entry.descriptor.description ?? "",
-						) || undefined,
-					fields: fields.map((field, index) => ({ ...field, border: index < fields.length - 1 })),
-				};
-			}),
+			(catalog?.entries ?? [])
+				.filter((entry) => entry.configurationId !== CODING_AGENT_MODEL_CALL_LIMIT_CONFIGURATION_ID)
+				.map((entry): RuntimeConfigurationSectionModel => {
+					const presentation = asRecord(entry.descriptor.presentation);
+					const controls = asRecord(presentation?.controls);
+					const providerOptions = parseProviderOptions(presentation?.providers, entry.value.defaultProviderId, {
+						local: t("runtimeConfiguration.provider.local"),
+						remote: t("runtimeConfiguration.provider.remote"),
+						unavailable: t("runtimeConfiguration.provider.unavailable"),
+					});
+					const fields = schemaFields(entry.descriptor.schema, entry.value).map((field) => ({
+						...field,
+						...(entry.configurationId === "vetta.ocr" && field.schema.type === "enum" && field.schema.enum
+							? {
+									options: field.schema.enum.map((option) => ({
+										value: option,
+										label: translate(
+											`runtimeConfiguration.fields.${field.path.join(".")}.options.${option}`,
+											option,
+										),
+									})),
+								}
+							: {}),
+						...(field.path.length === 1 && controlKind(controls?.[field.path[0]]) === "ocr-provider-select"
+							? { control: "ocr-provider-select" as const, options: providerOptions }
+							: {}),
+						title: translate(
+							`runtimeConfiguration.fields.${field.path.join(".")}.title`,
+							field.path.at(-1) ?? "",
+						),
+						description:
+							translate(`runtimeConfiguration.fields.${field.path.join(".")}.description`, "") || undefined,
+					}));
+					return {
+						apply: translate(`runtimeConfiguration.apply.${entry.apply}`, entry.apply),
+						configurationId: entry.configurationId,
+						title: translate(
+							`runtimeConfiguration.configurations.${entry.configurationId}.title`,
+							entry.descriptor.title,
+						),
+						description:
+							translate(
+								`runtimeConfiguration.configurations.${entry.configurationId}.description`,
+								entry.descriptor.description ?? "",
+							) || undefined,
+						fields: fields.map((field, index) => ({ ...field, border: index < fields.length - 1 })),
+					};
+				}),
 		[catalog, t, translate],
 	);
 
@@ -262,3 +267,5 @@ function stringArray(value: unknown): readonly string[] | undefined {
 function isFieldType(value: string): value is RuntimeFieldSchema["type"] {
 	return ["boolean", "number", "integer", "string", "enum"].includes(value);
 }
+
+import { CODING_AGENT_MODEL_CALL_LIMIT_CONFIGURATION_ID } from "@567agent/coding-agent/settings";

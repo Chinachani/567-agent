@@ -7,7 +7,8 @@ import i18n from "i18next";
 import { beforeAll, describe, expect, it, vi } from "vitest";
 import { ErrorBlockView } from "./ErrorBlock";
 
-vi.mock("@tanstack/react-router", () => ({ useNavigate: () => vi.fn() }));
+const navigate = vi.hoisted(() => vi.fn());
+vi.mock("@tanstack/react-router", () => ({ useNavigate: () => navigate }));
 
 function liveError(text: string, details?: ErrorBlock["details"]): ErrorBlock {
 	const messages = appendError([], text, undefined, "turn-1", details);
@@ -65,6 +66,12 @@ describe("conversation error presentation", () => {
 		expect(screen.getByText("本次运行已达到模型调用次数上限，可继续发送消息接着处理。")).toBeTruthy();
 		expect(screen.getByText("错误")).toBeTruthy();
 		const detail = screen.getByRole("button", { name: "查看详情" });
+		fireEvent.click(screen.getByRole("button", { name: "调整调用上限" }));
+		expect(navigate).toHaveBeenCalledWith({
+			to: "/settings/$tab",
+			params: { tab: "context" },
+			search: { section: "agent-model-call-limit" },
+		});
 		fireEvent.click(detail);
 		expect(detail.getAttribute("aria-expanded")).toBe("true");
 		expect(screen.getByText(/错误码：turn_failed/)).toBeTruthy();
@@ -101,7 +108,10 @@ describe("conversation error presentation", () => {
 	it("marks failed persistence as critical without claiming work was lost", () => {
 		render(
 			<ErrorBlockView
-				block={liveError("Turn terminal state could not be persisted", { code: "turn_persistence", origin: "runtime" })}
+				block={liveError("Turn terminal state could not be persisted", {
+					code: "turn_persistence",
+					origin: "runtime",
+				})}
 			/>,
 		);
 		expect(screen.getByText("严重")).toBeTruthy();

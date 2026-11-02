@@ -1,3 +1,5 @@
+import { useState } from "react";
+import { NewSessionQuickStart } from "./NewSessionQuickStart";
 import { CurrentScenarioActivityPanel } from "@domains/activity-panel/components/ActivityPanel";
 import { motion, useReducedMotion } from "motion/react";
 import { useTranslation } from "react-i18next";
@@ -78,6 +80,13 @@ export function NewSessionPageView({
 	teamComposer,
 	subtitle,
 }: NewSessionPageViewProps): JSX.Element {
+	const [targetPicker, setTargetPicker] = useState<{ open: boolean; category: "all" | "teams" }>({
+		open: false,
+		category: "all",
+	});
+	const [atPanelOpen, setAtPanelOpen] = useState(false);
+	const panelOpen = commandPanelExpanded || atPanelOpen;
+	const panelShift = commandPanelShift || atPanelOpen;
 	const activeRuntimeIds = useActiveSessionRuntimeIds();
 	const ThemedNewSessionBackground = useThemeComponent("chat.newSessionBackground", EmptyNewSessionBackground);
 	const { t } = useTranslation("chat");
@@ -91,6 +100,7 @@ export function NewSessionPageView({
 		: { duration: PANEL_REVEAL_DURATION * 0.6, ease: PANEL_REVEAL_EASE };
 	const sessionOptions = (
 		<NewSessionSetupControls
+			targetPicker={{ ...targetPicker, onOpenChange: (open) => setTargetPicker({ open, category: "all" }) }}
 			creatingProject={preparingProject}
 			onSelectPendingProject={onSelectPendingProject}
 			onSelectProject={onSelectProject}
@@ -121,7 +131,7 @@ export function NewSessionPageView({
 				hero={
 					// 命令区展开时让出标题区域，避免覆盖上方内容。
 					<motion.div
-						animate={{ opacity: commandPanelExpanded ? 0 : 1 }}
+						animate={{ opacity: panelOpen ? 0 : 1 }}
 						transition={heroTransition}
 						// 提前建立淡出图层，避免命令区展开时反复重绘标题。
 						style={{ willChange: "opacity" }}
@@ -131,7 +141,7 @@ export function NewSessionPageView({
 							// 两者自然对齐，窄到内层被压缩时只有这层 padding 决定左缘，缺了就会
 							// 出现 hero/选项行比输入框卡片更靠左的错位。
 							"relative z-20 flex w-full flex-col items-center px-2 sm:px-4",
-							commandPanelExpanded && "pointer-events-none",
+							panelOpen && "pointer-events-none",
 						)}
 					>
 						<NewSessionHero
@@ -146,7 +156,7 @@ export function NewSessionPageView({
 				inputBar={
 					<motion.div
 						className="relative"
-						animate={{ y: commandPanelShift ? PANEL_SHIFT_Y : 0 }}
+						animate={{ y: panelShift ? PANEL_SHIFT_Y : 0 }}
 						transition={shiftTransition}
 					>
 						{/* Drop target is the input card; cwdOverride enables drop before a session exists. */}
@@ -157,6 +167,7 @@ export function NewSessionPageView({
 									model={teamComposer.model}
 									actions={teamComposer.actions}
 									onExpandedChange={onCommandPanelExpandedChange}
+									onAtOpenChange={setAtPanelOpen}
 								>
 									{sessionOptions}
 								</TeamComposerConnector>
@@ -179,12 +190,14 @@ export function NewSessionPageView({
 								onAbort={onAbort}
 								cwdOverride={cwd}
 								onExpandedChange={onCommandPanelExpandedChange}
+								onAtOpenChange={setAtPanelOpen}
 								sendPending={preparingProject ? { label: preparingLabel } : undefined}
 							>
 								{sessionOptions}
 							</DefaultInputBarConnector>
 						)}
-						<div className={cn("mx-auto w-full max-w-2xl px-2 sm:px-4", commandPanelExpanded && "invisible")}>
+						<div className={cn("mx-auto w-full max-w-2xl px-2 sm:px-4", panelOpen && "invisible")}>
+							<NewSessionQuickStart onOpenTeams={() => setTargetPicker({ open: true, category: "teams" })} />
 							<GuideBadgeSwiper mounted={mounted} />
 						</div>
 					</motion.div>
@@ -201,7 +214,7 @@ export function NewSessionPageView({
 							<NewSessionContextBlock
 								contexts={contextBlock.contexts}
 								renderContext={contextBlock.renderContext}
-								hidden={commandPanelExpanded}
+								hidden={panelOpen}
 							/>
 						</div>
 					)

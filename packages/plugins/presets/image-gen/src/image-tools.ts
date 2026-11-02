@@ -42,8 +42,7 @@ const generateParameters = {
 		description: { type: "string", description: "Short description of this tool call." },
 		prompt: {
 			type: "string",
-			description:
-				"Detailed English image prompt including subject, style, lighting, and composition.",
+			description: "Detailed English image prompt including subject, style, lighting, and composition.",
 		},
 		size: sizeSchema,
 	},
@@ -61,13 +60,11 @@ const editParameters = {
 		},
 		sourceImageId: {
 			type: "string",
-			description:
-				`Generated image id from the latest ${IMAGE_REFS_OPEN} marker or the attached edit target.`,
+			description: `Generated image id from the latest ${IMAGE_REFS_OPEN} marker or the attached edit target.`,
 		},
 		sourceImagePath: {
 			type: "string",
-			description:
-				"Absolute local image path. Use this instead of sourceImageId for uploaded or attached files.",
+			description: "Absolute local image path. Use this instead of sourceImageId for uploaded or attached files.",
 		},
 		size: sizeSchema,
 	},
@@ -87,10 +84,7 @@ function cards(images: PluginImageRef[]): unknown[] {
 }
 
 function result(kind: "generated" | "edited", images: PluginImageRef[]): Record<string, unknown> {
-	const marker =
-		images.length > 0
-			? `${IMAGE_REFS_OPEN}${JSON.stringify(images)}${IMAGE_REFS_CLOSE}`
-			: "";
+	const marker = images.length > 0 ? `${IMAGE_REFS_OPEN}${JSON.stringify(images)}${IMAGE_REFS_CLOSE}` : "";
 	return {
 		ok: images.length > 0,
 		summary:
@@ -113,9 +107,9 @@ function mediaFailure(error: PluginMediaError): Record<string, unknown> {
 	const message = ((): string => {
 		switch (error.code) {
 			case "quota-exhausted":
-				return "The user's Vetta subscription quota is used up, so no image can be produced right now. Tell the user their image quota is exhausted and when it resets, and do not retry.";
+				return "The user's 567 Agent subscription quota is used up, so no image can be produced right now. Tell the user their image quota is exhausted and when it resets, and do not retry.";
 			case "not-entitled":
-				return "The user's current Vetta plan does not include image generation. Tell the user to upgrade their subscription, and do not retry.";
+				return "The user's current 567 Agent plan does not include image generation. Tell the user to upgrade their subscription, and do not retry.";
 			case "provider-unavailable":
 			case "operation-unsupported":
 				return "No installed media provider can perform this image operation. Tell the user that image generation is unavailable, and do not retry.";
@@ -137,9 +131,7 @@ function dimensionsFromSize(size: string | undefined): { width: number; height: 
 function supportsMode(provider: PluginMediaProviderDescriptor, mode: PluginMediaGenerationMode): boolean {
 	return provider.capabilities.some(
 		(capability) =>
-			capability.operation === "generate" &&
-			capability.kind === "image" &&
-			capability.modes.includes(mode),
+			capability.operation === "generate" && capability.kind === "image" && capability.modes.includes(mode),
 	);
 }
 
@@ -174,10 +166,9 @@ export function selectImageModel(
 	mode: PluginMediaGenerationMode,
 	preferredModelId?: string,
 ): string | undefined {
-	const capabilities = provider.capabilities.filter(
-		(capability) =>
-			capability.operation === "generate" && capability.kind === "image" && capability.modes.includes(mode),
-	);
+	const capabilities = provider.capabilities
+		.filter((capability) => capability.operation === "generate")
+		.filter((capability) => capability.kind === "image" && capability.modes.includes(mode));
 	if (preferredModelId) {
 		const available = capabilities.some(
 			(capability) =>
@@ -209,7 +200,8 @@ async function findProviderAndModel(
 ): Promise<{ providerId: string; modelId?: string }> {
 	const providers = await ctx.media.listProviders();
 	const settings = await ctx.official.agent.getImageGeneration();
-	const preferredProviderId = mode === "text-to-image" ? settings.textToImageProviderId : settings.imageToImageProviderId;
+	const preferredProviderId =
+		mode === "text-to-image" ? settings.textToImageProviderId : settings.imageToImageProviderId;
 	const preferredModelId = mode === "text-to-image" ? settings.textToImageModelId : settings.imageToImageModelId;
 	const provider = selectImageProvider(providers, mode, preferredProviderId);
 	return { providerId: provider.id, modelId: selectImageModel(provider, mode, preferredModelId) };
@@ -311,9 +303,7 @@ export function registerImageTools(ctx: PluginContext, repository: ImageReposito
 					error: "Provide exactly one image source.",
 				};
 			}
-			const generatedSource = input.sourceImageId
-				? await repository.read(input.sourceImageId)
-				: null;
+			const generatedSource = input.sourceImageId ? await repository.read(input.sourceImageId) : null;
 			const source: PluginMediaInput | null = generatedSource
 				? {
 						kind: "image",
@@ -326,17 +316,19 @@ export function registerImageTools(ctx: PluginContext, repository: ImageReposito
 			if (!source) throw new Error("Image source was not found");
 			let generated: { blob: PluginStoredBlobRef; providerId: string };
 			try {
-				generated = await generateThroughMedia(ctx, {
-					prompt: input.prompt,
-					size: input.size,
-				}, source);
+				generated = await generateThroughMedia(
+					ctx,
+					{
+						prompt: input.prompt,
+						size: input.size,
+					},
+					source,
+				);
 			} catch (error) {
 				if (error instanceof PluginMediaError) return mediaFailure(error);
 				throw error;
 			}
-			const sourceLineage = input.sourceImageId
-				? await repository.lineage(input.sourceImageId)
-				: [];
+			const sourceLineage = input.sourceImageId ? await repository.lineage(input.sourceImageId) : [];
 			const rootId = sourceLineage[0]?.rootId;
 			const image = await repository.persist(generated.blob, {
 				rootId,

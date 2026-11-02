@@ -76,12 +76,14 @@ export const SETTINGS_TABS: readonly SettingsTabRegistration[] = [
 		icon: "icon-[mdi--shield-lock-outline]",
 		macOnly: true,
 	},
-	{ key: "extensions", label: "更多选项", labelKey: "tabExtensions", icon: "icon-[solar--menu-dots-circle-linear]" },
+	{ key: "extensions", label: "插件设置", labelKey: "tabExtensions", icon: "icon-[solar--menu-dots-circle-linear]" },
 ] as const;
 
 export const SETTINGS_SECTIONS = [
+	{ tab: "context", id: "agent-model-call-limit", title: "任务执行", titleKey: "modelCallLimit.title" },
 	{ tab: "general", id: "general-basics", title: "基础", titleKey: "section_general-basics" },
 	{ tab: "general", id: "general-app", title: "应用", titleKey: "section_general-app" },
+	{ tab: "general", id: "general-browser-connection", title: "连接当前浏览器", titleKey: "browserConnection.title" },
 	{ tab: "general", id: "general-developer", title: "开发者", titleKey: "section_general-developer" },
 	{ tab: "remote", id: "remote-pairing", title: "手机配对", titleKey: "section_remote-pairing" },
 	{ tab: "remote", id: "remote-permissions", title: "控制权限", titleKey: "section_remote-permissions" },

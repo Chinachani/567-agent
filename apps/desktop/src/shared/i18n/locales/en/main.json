@@ -150,5 +150,11 @@
     "empty": "No recognizable models were returned.",
     "timeout": "The request timed out. Check the connection and retry.",
     "network": "Could not fetch models. Check the URL and connection, then retry."
+  },
+  "scheduler": {
+    "sceneRetired": "Scenes have been retired. Edit this automation to use a skill or a regular prompt."
+  },
+  "skills": {
+    "retiredNameConflict": "“{{name}}” matches a preserved scene. The operation was stopped; its files and records are unchanged. Use a skill with a different name."
   }
 }

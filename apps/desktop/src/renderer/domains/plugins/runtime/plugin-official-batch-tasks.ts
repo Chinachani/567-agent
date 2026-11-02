@@ -20,11 +20,19 @@ export function createOfficialBatchTasksApi(
 		},
 		createProject: async (data) => {
 			assertOfficial();
-			return batchTasks.createProject(capabilitySessionId, data);
+			if (data.skill?.type === "scene") throw new Error("Scenes have been retired");
+			return batchTasks.createProject(capabilitySessionId, {
+				...data,
+				skill: data.skill ? { ...data.skill, type: "skill" } : undefined,
+			});
 		},
 		updateProject: async (projectId, data) => {
 			assertOfficial();
-			return batchTasks.updateProject(capabilitySessionId, projectId, data);
+			if (data.skill?.type === "scene") throw new Error("Scenes have been retired");
+			return batchTasks.updateProject(capabilitySessionId, projectId, {
+				...data,
+				skill: data.skill ? { ...data.skill, type: "skill" } : data.skill,
+			});
 		},
 		deleteProject: async (projectId) => {
 			assertOfficial();

@@ -34,6 +34,9 @@ export function VirtualSheet({ sheet }: { sheet: SheetModel }): JSX.Element {
 	return (
 		<div
 			ref={scrollerRef}
+			role="region"
+			aria-label={sheet.name}
+			tabIndex={0}
 			className="relative min-h-0 flex-1 overflow-auto bg-[var(--background)]"
 			onScroll={(event) => {
 				const element = event.currentTarget;

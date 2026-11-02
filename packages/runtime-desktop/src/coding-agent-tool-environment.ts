@@ -7,13 +7,7 @@ import {
 	createCodingAgentSessionCommandEnvironment,
 	createCodingAgentWritePathPolicy,
 } from "@567agent/coding-agent/composition";
-import {
-	CONFIG_DIR_NAME,
-	getAgentDir,
-	getKnowledgeDir,
-	getSceneDir,
-	getUserSkillsDir,
-} from "@567agent/coding-agent/config";
+import { CONFIG_DIR_NAME, getAgentDir, getKnowledgeDir, getUserSkillsDir } from "@567agent/coding-agent/config";
 import { CODING_AGENT_READ_TOOL_OPTIONS } from "@567agent/coding-agent/host";
 import { SettingsRuntime } from "@567agent/coding-agent/settings";
 import {
@@ -99,7 +93,6 @@ function createDesktopNodeToolHost(cwd: string, configuredAgentDir?: string) {
 	const protectedCommandDirectories = [
 		resolve(agentDir, "skills"),
 		resolve(getUserSkillsDir()),
-		resolve(getSceneDir()),
 		resolve(cwd, CONFIG_DIR_NAME, "skills"),
 	];
 	const pathClassifier = createNodePathBoundaryClassifier({
@@ -111,7 +104,7 @@ function createDesktopNodeToolHost(cwd: string, configuredAgentDir?: string) {
 		managedDirectory: join(getKnowledgeDir(), "wiki"),
 	});
 	const boundaries = {
-		isProtectedSkillOrScenePath: pathClassifier.isReadOnlyPath,
+		isProtectedSkillPath: pathClassifier.isReadOnlyPath,
 		isKnowledgeWikiPath: pathClassifier.isManagedPath,
 	};
 	const resolveShell = () => {

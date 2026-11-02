@@ -22,7 +22,6 @@ function SkillListItem({
 	onHover: () => void;
 	onSelect: () => void;
 }): JSX.Element {
-	const isScene = skill.type === "scene";
 	return (
 		<button
 			type="button"
@@ -30,10 +29,7 @@ function SkillListItem({
 			onMouseEnter={onHover}
 			onClick={onSelect}
 			title={skill.description || skill.name}
-			className="relative flex h-8 w-full items-center gap-2 px-4 text-left transition-colors"
-			style={{
-				background: active ? "color-mix(in srgb, var(--primary) 9%, transparent)" : "transparent",
-			}}
+			className={`relative flex h-8 w-full items-center gap-2 px-4 text-left transition-colors ${active ? "bg-primary/10" : "bg-transparent"}`}
 		>
 			{active && (
 				<motion.span
@@ -42,20 +38,20 @@ function SkillListItem({
 					transition={{ type: "spring", stiffness: 500, damping: 32 }}
 				/>
 			)}
-			{/* 与能力广场同一套图标：市场目录的图 → Solar 预设 → type 默认图 */}
+			{/* 与能力广场同一套图标：市场目录的图 → Solar 预设 → 默认图 */}
 			<span className="flex h-5 w-5 shrink-0 items-center justify-center overflow-hidden rounded border border-border/40 bg-accent/50 text-foreground">
-				<SkillTypeIcon type={isScene ? "scene" : "skill"} icon={icon} className="h-3 w-3" />
+				<SkillTypeIcon icon={icon} className="h-3 w-3" />
 			</span>
-			<span className="shrink-0 truncate text-[12.5px] font-medium text-foreground">
+			<span className="min-w-0 truncate text-[13px] font-medium text-foreground" title={skill.alias || skill.name}>
 				{skill.alias || skill.name}
 			</span>
 			{sourceLabel && (
-				<span className="shrink-0 rounded-full bg-primary/10 px-1.5 text-[9px] font-medium text-muted-foreground/60">
+				<span className="shrink-0 rounded-full bg-primary/10 px-1.5 text-[10px] font-medium text-primary">
 					{sourceLabel}
 				</span>
 			)}
 			{skill.description && (
-				<span className="min-w-0 flex-1 truncate text-right text-[11px] text-muted-foreground/50">
+				<span className="min-w-0 flex-1 truncate text-right text-[11px] text-muted-foreground">
 					{skill.description}
 				</span>
 			)}
@@ -64,7 +60,7 @@ function SkillListItem({
 }
 
 /**
- * skill 与场景合并后的单列列表。
+ * 可用技能的单列列表。
  * 排序在 useSkillList 里完成（调用次数 → 类别 → 最近使用 → 名称），这里只负责渲染。
  */
 export function SkillList({
@@ -91,7 +87,7 @@ export function SkillList({
 					index={index + indexOffset}
 					active={index === activeIndex}
 					icon={resolveIcon?.(skill)}
-					sourceLabel={labels.sourceLabel?.(skill.source, skill.type)}
+					sourceLabel={labels.sourceLabel?.(skill.source)}
 					onHover={() => onHover(index)}
 					onSelect={() => onSelect(skill)}
 				/>

@@ -68,6 +68,15 @@ describe("usePreviewBodyModel", () => {
 		await waitFor(() => expect(result.current.state.status).toBe("unsupported"));
 	});
 
+	it("does not display PDF internals as text when its document renderer is unavailable", async () => {
+		readTextPreviewFile.mockResolvedValue({ status: "text", content: "%PDF-1.4\nobjects", size: 16 });
+		const { result } = renderHook(() => usePreviewBodyModel({ name: "report.pdf", path: "/work/report.pdf" }), {
+			wrapper: createWrapper(),
+		});
+		await waitFor(() => expect(result.current.state.status).toBe("unsupported"));
+		expect(readTextPreviewFile).not.toHaveBeenCalled();
+	});
+
 	it("does not probe an unknown remote resource without a bounded host reader", () => {
 		const { result } = renderHook(
 			() => usePreviewBodyModel({ name: "notes.custom", url: "https://example.test/notes.custom" }),
@@ -80,9 +89,7 @@ describe("usePreviewBodyModel", () => {
 
 	it("keeps a registered plugin preview ahead of the plain-text fallback", () => {
 		const store = createStore();
-		store.set(pluginFilePreviewsAtom, [
-			{ pluginId: "custom-viewer", extensions: ["custom"], component: () => null },
-		]);
+		store.set(pluginFilePreviewsAtom, [{ pluginId: "custom-viewer", extensions: ["custom"], component: () => null }]);
 		const { result } = renderHook(
 			() => usePreviewBodyModel({ name: "notes.custom", path: "C:\\workspace\\notes.custom" }),
 			{ wrapper: createWrapper(store) },
@@ -94,10 +101,9 @@ describe("usePreviewBodyModel", () => {
 
 	it("continues to use the existing reader for declared text formats", async () => {
 		readFile.mockResolvedValue({ content: "# heading", encoding: "utf8" });
-		const { result } = renderHook(
-			() => usePreviewBodyModel({ name: "notes.md", path: "C:\\workspace\\notes.md" }),
-			{ wrapper: createWrapper() },
-		);
+		const { result } = renderHook(() => usePreviewBodyModel({ name: "notes.md", path: "C:\\workspace\\notes.md" }), {
+			wrapper: createWrapper(),
+		});
 
 		await waitFor(() => expect(result.current.state.status).toBe("content"));
 		expect(readFile).toHaveBeenCalledWith("C:\\workspace\\notes.md");
@@ -108,10 +114,7 @@ describe("usePreviewBodyModel", () => {
 		readTextPreviewFile.mockResolvedValue({ status: "text", content: "one", size: 3 });
 		const { result, rerender } = renderHook(
 			({ refreshNonce }) =>
-				usePreviewBodyModel(
-					{ name: "notes.custom", path: "C:\\workspace\\notes.custom" },
-					refreshNonce,
-				),
+				usePreviewBodyModel({ name: "notes.custom", path: "C:\\workspace\\notes.custom" }, refreshNonce),
 			{ initialProps: { refreshNonce: 0 }, wrapper: createWrapper() },
 		);
 		await waitFor(() => expect(result.current.state.status).toBe("content"));

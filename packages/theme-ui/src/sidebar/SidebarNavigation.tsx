@@ -68,8 +68,6 @@ export function SidebarNavigation({
 	const activeMoreItem = moreItems.find((item) => item.active);
 	const triggerLabel = activeMoreItem?.label ?? moreLabel;
 	const triggerIcon = activeMoreItem?.icon ?? "icon-[solar--alt-arrow-down-linear]";
-	// 未展开且未选中收纳项时，icon/label 降到 50% 透明度，弱化次要入口。
-	const moreIdle = !moreOpen && !activeMoreItem;
 	// 自定义能力是可选的：主题若只传了 items/moreItems，行为与改造前一致。
 	const customizable = onNavMove !== undefined && navCustomizeLabels !== undefined;
 
@@ -156,14 +154,12 @@ export function SidebarNavigation({
 									"relative z-10 transition-[opacity,transform] duration-200",
 									// 未选中收纳项时 leading 即 chevron，打开菜单时旋转。
 									!activeMoreItem && moreOpen && "rotate-180",
-									moreIdle && "opacity-50",
 									classNames?.itemIcon,
 								)}
 							/>
 							<span
 								className={cn(
 									"relative z-10 min-w-0 flex-1 truncate text-left transition-opacity duration-200",
-									moreIdle && "opacity-50",
 									classNames?.itemLabel,
 								)}
 							>

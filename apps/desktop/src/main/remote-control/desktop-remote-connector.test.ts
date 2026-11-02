@@ -13,6 +13,61 @@ vi.mock("../i18n/index.js", () => ({
 import { DesktopRemoteConnector, type DesktopRemoteOperations } from "./desktop-remote-connector.js";
 
 describe("DesktopRemoteConnector", () => {
+	it("keeps old scene toolbox entries inert across the paired RPC while normal skill installation still works", async () => {
+		const relay = new FakeRelay();
+		const mobile = new RemoteConnection(relay.createTransport("retired-toolbox", "mobile"), {
+			role: "mobile",
+			deviceId: "phone",
+			deviceName: "Phone",
+			capabilities: { chat: true, sessionRead: true },
+		});
+		const desktop = new RemoteConnection(relay.createTransport("retired-toolbox", "desktop"), {
+			role: "desktop",
+			deviceId: "pc",
+			deviceName: "PC",
+			capabilities: { chat: true, sessionRead: true },
+		});
+		const install = vi.fn(async () => {});
+		const connector = new DesktopRemoteConnector(desktop, {
+			listSessions: async () => [],
+			createSession: async () => ({ sessionId: "s" }),
+			openSession: async (sessionId) => ({ sessionId }),
+			prompt: async function* () {},
+			abort: async () => {},
+			resume: async () => {},
+			diagnostics: async () => ({}),
+			readToolbox: async () =>
+				["skill", "scene"].map((type) => ({
+					slug: "review",
+					name: "Review",
+					type: type as "skill" | "scene",
+					description: "",
+					version: "1",
+					author: "",
+					category: "",
+					tags: [],
+					installed: false,
+					installable: true,
+				})),
+			installToolbox: install,
+		});
+		await mobile.connect();
+		await connector.start();
+		try {
+			await expect(mobile.request("toolbox.list")).resolves.toMatchObject({
+				abilities: [expect.objectContaining({ type: "skill" })],
+			});
+			await expect(mobile.request("toolbox.install", { type: "scene", slug: "review" })).rejects.toThrow(
+				/电脑端操作失败/,
+			);
+			expect(install).not.toHaveBeenCalled();
+			await mobile.request("toolbox.install", { type: "skill", slug: "review" });
+			expect(install).toHaveBeenCalledWith("skill", "review");
+		} finally {
+			await connector.stop();
+			await mobile.close();
+		}
+	});
 	it("returns byte-bounded history through the real RPC and follows cursors without dropping short pages", async () => {
 		const relay = new FakeRelay();
 		const mobile = new RemoteConnection(relay.createTransport("pair-history", "mobile"), {

@@ -20,6 +20,8 @@ import { act } from "react";
 import { createRoot } from "react-dom/client";
 import {
 	BrowserConsole,
+	EXTENSION_STORE_URL,
+	EXTENSION_GUIDE_URL,
 	type BrowserConsolePorts,
 	PLUGIN_ICON_URL,
 	UPSTREAM_REPO_URL,
@@ -265,5 +267,25 @@ describe("使用说明", () => {
 		});
 		expect(host.textContent).not.toContain("guide.copied");
 		cleanup();
+	});
+});
+
+describe("current-browser extension entry", () => {
+	it("opens official setup links without installing CLI or launching a browser task", () => {
+		const { host, runtime, opened, cleanup } = renderConsole();
+		try {
+			act(() => {
+				buttonWithText(host, "extension.install")!.click();
+			});
+			act(() => {
+				buttonWithText(host, "extension.guide")!.click();
+			});
+			expect(opened).toEqual([EXTENSION_STORE_URL, EXTENSION_GUIDE_URL]);
+			expect(runtime.installRuntimeCalls).toBe(0);
+			expect(runtime.installBrowserCalls).toBe(0);
+			expect(host.textContent).toContain("extension.target");
+		} finally {
+			cleanup();
+		}
 	});
 });

@@ -71,7 +71,7 @@ async function executeRun(
 				appendInput(state, pendingInput, emit);
 				pendingInput = undefined;
 			}
-			if (state.modelCalls >= request.limits.maxModelCalls) {
+			if (request.limits.maxModelCalls !== null && state.modelCalls >= request.limits.maxModelCalls) {
 				finish("max_model_calls", state, emit);
 				return;
 			}

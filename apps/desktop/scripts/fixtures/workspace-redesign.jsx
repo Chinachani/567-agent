@@ -26,7 +26,6 @@ import { GuideBadgeSwiper } from "../../src/renderer/domains/conversation/compon
 import { createAgentTeamFixture } from "@567agent/agent-team";
 import { InputBarView } from "../../src/renderer/domains/conversation/components/input-bar/InputBarView";
 import { AbilitiesPageView } from "../../src/renderer/domains/abilities/components/AbilitiesPageView";
-import { SkillsPageView } from "../../src/renderer/domains/skills/components/SkillsPageView";
 import { KnowledgeBaseListPageView } from "../../src/renderer/domains/knowledge-base/components/KnowledgeBaseListPageView";
 import { SidebarBottomBar } from "../../src/renderer/domains/project/components/sidebar/SidebarBottomBar";
 import { SettingsPageView } from "../../src/renderer/domains/settings/components/SettingsPageView";
@@ -477,30 +476,8 @@ function Abilities() {
 	};
 	return <AbilitiesPageView model={model} categorized={false} />;
 }
-function Skills() {
-	const [searchQuery, setSearchQuery] = useState("");
-	const fileInputRef = useRef(null);
-	return (
-		<SkillsPageView
-			model={{
-				searchQuery,
-				setSearchQuery,
-				loading: false,
-				error: null,
-				actionStates: {},
-				fileInputRef,
-				groups: new Map(),
-				agentForTab: [],
-				hasContent: false,
-				handleInstall: noop,
-				handleToggle: noop,
-				handleUninstall: noop,
-				handlePreview: noop,
-				handleFileChange: noop,
-			}}
-		/>
-	);
-}
+// The legacy skills route now leads to the unified abilities page.
+function Skills() { return <Abilities />; }
 function Knowledge() {
 	const [search, setSearch] = useState("");
 	return (
@@ -656,15 +633,15 @@ function Fixture({ page, shell }) {
 						content={content}
 						model={{
 							activeTab: "general",
+							activeNavigationKey: "general",
 							title: "设置",
 							narrow: innerWidth < 720,
-							tabs: SETTINGS_TABS.filter((tab) => !tab.macOnly && !tab.requireAuth).map((tab) => ({
+							tabs: SETTINGS_TABS.filter((tab) => !tab.macOnly && !tab.requireAuth && tab.key !== "extensions").map((tab) => ({
 								...tab,
 								label: i18n.t("settings:" + tab.labelKey),
 							})),
 							betaBadgeLabel: "BETA",
-							onSelectTab: (tab) => record("settings-tab:" + tab),
-							onSelectNavigationChild: noop,
+							onSelectNavigation: (tab) => record("settings-tab:" + tab),
 							onCloseEmbeddedView: noop,
 						}}
 					/>

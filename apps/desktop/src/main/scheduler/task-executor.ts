@@ -3,6 +3,7 @@ import type { RuntimeHost, SessionEvent } from "@567agent/runtime-core";
 import { formatScheduleSessionName } from "../../shared/scheduled-session.js";
 import { monitorRuntimeSession, recordAutomationRunStarted } from "../app-monitor/app-monitor-service.js";
 import { resolveExecutionMode } from "../execution-mode.js";
+import { mainT } from "../i18n/index.js";
 import { DEFAULT_CONVERSATION_CWD, DEFAULT_CONVERSATION_SESSION_DIR, readDesktopConfig } from "../ipc/fs.js";
 import { emitTaskEvent, emitTaskStreamEvent } from "../ipc/scheduler.js";
 import { ensureConversationSubCwd } from "../ipc/session.js";
@@ -64,6 +65,7 @@ async function executeTaskInner(task: ScheduledTask, runtime: RuntimeHost, optio
 	};
 
 	try {
+		if (task.skill?.type === "scene") throw new Error(mainT("scheduler.sceneRetired"));
 		const config = await readDesktopConfig();
 		const executionMode = resolveExecutionMode(task.executionMode, config.defaultExecutionMode);
 		await assertSandboxAvailableForMode(executionMode, async () => executionMode);
@@ -252,10 +254,10 @@ async function executeTaskInner(task: ScheduledTask, runtime: RuntimeHost, optio
 
 		await runtime.prompt(sessionId, {
 			text: task.prompt,
-			...(task.skill
+			...(task.skill?.type === "skill"
 				? {
 						promptRef: {
-							kind: task.skill.type === "scene" ? ("scene" as const) : ("skill" as const),
+							kind: "skill" as const,
 							name: task.skill.name,
 						},
 					}

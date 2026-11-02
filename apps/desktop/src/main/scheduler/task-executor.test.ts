@@ -43,11 +43,27 @@ vi.mock("./task-storage", () => ({
 	updateTaskLastRun: mocks.updateTaskLastRun,
 }));
 
+import { initializeMainMessages } from "../i18n/messages.js";
 import { executeTask, isTaskRunning, shutdownSchedulerTaskExecutor } from "./task-executor.js";
 
 describe("scheduler RuntimeHost consumer", () => {
 	beforeEach(() => {
 		vi.clearAllMocks();
+		initializeMainMessages("zh");
+	});
+
+	it("records an actionable failure for an old scene automation before starting a model session", async () => {
+		const task = { ...scheduledTask(), skill: { type: "scene" as const, name: "release" } };
+		const before = structuredClone(task);
+		const createSession = vi.fn();
+		const prompt = vi.fn();
+		await executeTask(task, { createSession, prompt } as unknown as RuntimeHost);
+		expect(createSession).not.toHaveBeenCalled();
+		expect(prompt).not.toHaveBeenCalled();
+		expect(mocks.createRecord).toHaveBeenCalledWith(
+			expect.objectContaining({ status: "failed", error: expect.stringMatching(/场景|Scenes/) }),
+		);
+		expect(task).toEqual(before);
 	});
 
 	it("maps one automation turn and records exactly one terminal result without disposing the shared session", async () => {

@@ -1,8 +1,16 @@
 # 浏览器操作（Browser Use）
 
-Browser Use 为 Agent 提供低上下文的 `agent-browser` CLI Skill，并提供运行时安装与状态面板。插件代码仍可通过 Desktop 的 `ctx.browser` API 使用宿主浏览器能力；Agent CLI 与 Plugin API 不共享活跃 session。
+Browser Use 为 Agent 提供当前浏览器扩展连接指引和低上下文的 `agent-browser` CLI Skill，并提供运行时安装与状态面板。插件代码仍可通过 Desktop 的 `ctx.browser` API 使用宿主浏览器能力；Agent CLI 与 Plugin API 不共享活跃 session。
 
-Agent 默认先连接用户已打开的浏览器，列出并确认目标标签页；独立任务浏览器需用户明确指定。
+推荐连接路径：**设置 → 通用设置 → 连接当前浏览器**。使用微软 Playwright Extension 和锁定的
+`@playwright/mcp@0.0.84 --extension`，无需浏览器启动参数。首次由扩展批准并选择目标标签页，
+之后保持该客户端的标签组，焦点变化不改变任务目标。可选令牌只在本机 MCP 配置输入，不发给模型。
+该连接由用户点击启用才写入；沿用现有 MCP 的发现、权限与会话生命周期，不改变 `ctx.browser`。
+扩展调用无需安装 agent-browser CLI。详见 [ADR-0152](../../../../docs/adr/0152-browser-extension-and-proactive-routing.md)。
+
+网页交互、已登录页面、网页效果验证应主动调用 Skill；公开事实仍用搜索。该选路是提示策略，不保证所有模型都遵循。
+
+CLI 路径保留：Agent 默认先连接用户已打开的浏览器，列出并确认目标标签页；独立任务浏览器需用户明确指定。
 首次连接可能需要用户开启浏览器支持的本地远程调试选项并授权。连接失败会说明原因，不静默另开窗口。
 当前浏览器会复用用户的登录状态，独立 control session 不代表独立 profile。任务结束保留用户的浏览器与标签页。
 常规操作使用页面快照引用；画布等区域可用视口截图与浏览器坐标操作补充，不能据此控制 OS 弹窗或整个桌面的鼠标。
@@ -20,7 +28,7 @@ Plugin -> ctx.browser -> Plugin Capability Adapter
        -> BrowserEngine adapter -> agent-browser
 ```
 
-- Desktop 通过托管 npm 前缀锁定 `agent-browser` 版本，Agent shell 直接使用该 CLI。Skill 会先检查版本与浏览器健康状态；缺失时在确认 Vetta 私有 npm prefix 后自动安装，插件面板保留为人工安装与诊断兜底。
+- Desktop 通过托管 npm 前缀锁定 `agent-browser` 版本，Agent shell 直接使用该 CLI。Skill 会先检查版本与浏览器健康状态；缺失时在确认 567 Agent 私有 npm prefix 后自动安装，插件面板保留为人工安装与诊断兜底。
 - 每个 Coding Agent Session 获得唯一的 `AGENT567_AGENT_SESSION_ID`；Skill 要求所有浏览器与页面状态操作用它作为 upstream `--session`，安装、诊断和内置手册读取不绑定 session。
 - Agent CLI 的 daemon、页面状态和 profile 不属于 `BrowserAutomationService`，也不与 `ctx.browser` API 共享。
 - `ctx.browser` 公共 API、namespace 隔离和宿主生命周期保持不变。

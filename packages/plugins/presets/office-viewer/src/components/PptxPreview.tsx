@@ -40,6 +40,7 @@ export function PptxPreview({ file }: PluginFilePreviewProps): JSX.Element {
 
 		async function load() {
 			try {
+				presentationRef.current = null;
 				setStatus("loading");
 				setErrorMsg("");
 				const buf = await fetchFileBytes(file);
@@ -53,6 +54,9 @@ export function PptxPreview({ file }: PluginFilePreviewProps): JSX.Element {
 				presentationRef.current = presentation;
 
 				const count = presentation.slides?.length ?? 0;
+				if (count === 0 || presentation.width <= 0 || presentation.height <= 0) {
+					throw new Error(t("pptx.empty"));
+				}
 				setSlideCount(count);
 				setCurrentSlide(0);
 				currentSlideRef.current = 0;
@@ -140,9 +144,7 @@ export function PptxPreview({ file }: PluginFilePreviewProps): JSX.Element {
 						if (handle) thumbnailHandlesRef.current.set(i, handle);
 					}
 				}
-				await Promise.allSettled(
-					Array.from(thumbnailHandlesRef.current.values(), (handle) => handle.ready),
-				);
+				await Promise.allSettled(Array.from(thumbnailHandlesRef.current.values(), (handle) => handle.ready));
 			} catch (e) {
 				if (cancelled) return;
 				const msg = e instanceof Error ? e.message : String(e);
@@ -189,16 +191,28 @@ export function PptxPreview({ file }: PluginFilePreviewProps): JSX.Element {
 	const selectSlide = useCallback(
 		async (index: number) => {
 			const viewer = viewerRef.current;
-			if (!viewer || index === currentSlideRef.current) return;
+			const presentation = presentationRef.current;
+			if (!viewer) return;
 			currentSlideRef.current = index;
 			setCurrentSlide(index);
 			try {
 				await renderSlide(index);
+				if (
+					viewerRef.current === viewer &&
+					presentationRef.current === presentation &&
+					currentSlideRef.current === index
+				)
+					setErrorMsg("");
 			} catch {
-				// Keep current slide index; user can retry by clicking again.
+				if (
+					viewerRef.current === viewer &&
+					presentationRef.current === presentation &&
+					currentSlideRef.current === index
+				)
+					setErrorMsg(t("pptx.slideError"));
 			}
 		},
-		[renderSlide],
+		[renderSlide, t],
 	);
 
 	// Cleanup viewer on unmount
@@ -221,9 +235,7 @@ export function PptxPreview({ file }: PluginFilePreviewProps): JSX.Element {
 	}, []);
 
 	if (status === "error") {
-		return (
-			<ErrorState message={errorMsg ? `${t("pptx.error")}: ${errorMsg}` : t("pptx.error")} />
-		);
+		return <ErrorState message={errorMsg ? `${t("pptx.error")}: ${errorMsg}` : t("pptx.error")} />;
 	}
 
 	// Always render the main layout even during loading/parsing;
@@ -231,6 +243,14 @@ export function PptxPreview({ file }: PluginFilePreviewProps): JSX.Element {
 	return (
 		<div className="flex h-full min-h-0 w-full flex-col overflow-hidden bg-[var(--background)]">
 			<div className="relative flex min-h-0 min-w-0 flex-1 items-center justify-center overflow-hidden p-6">
+				{errorMsg && status === "ready" && (
+					<p
+						role="alert"
+						className="absolute left-3 right-3 top-2 z-10 text-center text-[12px] text-[var(--destructive)]"
+					>
+						{errorMsg}
+					</p>
+				)}
 				<div
 					ref={slideContainerRef}
 					className="flex h-full w-full max-w-full items-center justify-center overflow-hidden [&>div]:rounded-md [&>div]:shadow-lg"
@@ -282,8 +302,7 @@ export function PptxPreview({ file }: PluginFilePreviewProps): JSX.Element {
 									onClick={() => void selectSlide(i)}
 									className="relative h-[108px] w-[176px] flex-shrink-0 overflow-hidden rounded-md transition-all duration-150"
 									style={{
-										outline:
-											i === currentSlide ? "2.5px solid var(--accent)" : "2px solid var(--border)",
+										outline: i === currentSlide ? "2.5px solid var(--accent)" : "2px solid var(--border)",
 										outlineOffset: "1px",
 										opacity: i === currentSlide ? 1 : 0.7,
 										boxShadow:

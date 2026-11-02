@@ -158,7 +158,7 @@ export function useAbilitiesModel(options: UseAbilitiesModelOptions = {}): Abili
 	);
 	const availableTypes = useMemo(
 		() =>
-			(["mcp", "skill", "scene", "plugin", "bundle"] as const).filter((type) =>
+			(["mcp", "skill", "plugin", "bundle"] as const).filter((type) =>
 				filterFacetItems.some((item) => item.type === type),
 			),
 		[filterFacetItems],

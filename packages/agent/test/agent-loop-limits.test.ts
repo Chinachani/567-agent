@@ -64,6 +64,24 @@ function tool(execute: () => void): AgentTool {
 }
 
 describe("agent loop finite execution limits", () => {
+	it("allows explicit unlimited model calls in the public loop", async () => {
+		let calls = 0;
+		const stream = agentLoopContinue(
+			context([tool(() => undefined)]),
+			config({ limits: { maxModelCalls: null } }),
+			undefined,
+			() => {
+				calls += 1;
+				return calls === 105
+					? response([{ type: "text", text: "finished" }], "stop")
+					: response([{ type: "toolCall", id: `call-${calls}`, name: "repeat", arguments: {} }], "toolUse");
+			},
+		);
+		const iteration = collect(stream);
+		await expect(within(stream.result(), 1000)).resolves.toBeDefined();
+		await iteration;
+		expect(calls).toBe(105);
+	});
 	it("ends a checkpoint that the host never completes", async () => {
 		const stream = agentLoopContinue(
 			context(),

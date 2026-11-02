@@ -10,10 +10,11 @@ import type {
 	PluginMediaArtifact,
 	PluginMediaApi,
 	PluginMediaJob,
+	PluginMediaProviderDescriptor,
 } from "@vetta-org/plugin-sdk";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import type { ImageRepository } from "./image-repository";
-import { registerImageTools, selectImageProvider } from "./image-tools";
+import { registerImageTools, selectImageModel, selectImageProvider } from "./image-tools";
 
 interface GenerateToolInput {
 	prompt: string;
@@ -36,9 +37,7 @@ describe("image generation media tools", () => {
 	const registrations = new Map<string, PluginAgentToolRegistration<unknown>>();
 	const listProviders = vi.fn<PluginMediaApi["listProviders"]>();
 	const submit = vi.fn<PluginMediaApi["submit"]>();
-	const wait = vi.fn<
-		(job: PluginJob | PluginJobRef | string, options?: PluginJobWaitOptions) => Promise<PluginJob>
-	>();
+	const wait = vi.fn<(job: PluginJob | PluginJobRef | string, options?: PluginJobWaitOptions) => Promise<PluginJob>>();
 	const persistArtifact = vi.fn<PluginArtifactsApi["persist"]>();
 	const releaseArtifact = vi.fn<PluginArtifactsApi["release"]>();
 	const persist = vi.fn<ImageRepository["persist"]>();
@@ -87,9 +86,7 @@ describe("image generation media tools", () => {
 				id: "desktop-app:api567",
 				ownerId: "desktop-app",
 				protocolVersion: 2,
-				capabilities: [
-					{ operation: "generate", kind: "image", modes: ["text-to-image", "image-to-image"] },
-				],
+				capabilities: [{ operation: "generate", kind: "image", modes: ["text-to-image", "image-to-image"] }],
 			},
 		]);
 		releaseArtifact.mockResolvedValue();
@@ -103,14 +100,11 @@ describe("image generation media tools", () => {
 	}
 
 	// 两个工具每次调用都产生外部计费且不可撤销，描述必须自带排除段。
-	it.each(["generate-image", "edit-image"])(
-		"%s describes when NOT to use the billed operation",
-		(id) => {
-			const description = tool(id).description ?? "";
-			expect(description).toMatch(/\bDo NOT use\b/);
-			expect(description).toContain("Every call is billed");
-		},
-	);
+	it.each(["generate-image", "edit-image"])("%s describes when NOT to use the billed operation", (id) => {
+		const description = tool(id).description ?? "";
+		expect(description).toMatch(/\bDo NOT use\b/);
+		expect(description).toContain("Every call is billed");
+	});
 
 	it("registers explicit positive routing for generated visual deliverables", () => {
 		const description = tool("generate-image").description ?? "";
@@ -175,12 +169,14 @@ describe("image generation media tools", () => {
 				id: "desktop-app:api567",
 				ownerId: "desktop-app",
 				protocolVersion: 2,
-				capabilities: [{
-					operation: "generate",
-					kind: "image",
-					modes: ["text-to-image"],
-					models: [{ id: "google/gemini-image", modes: ["text-to-image"] }],
-				}],
+				capabilities: [
+					{
+						operation: "generate",
+						kind: "image",
+						modes: ["text-to-image"],
+						models: [{ id: "google/gemini-image", modes: ["text-to-image"] }],
+					},
+				],
 			},
 			{
 				id: "remote:images",
@@ -211,14 +207,13 @@ describe("image generation media tools", () => {
 
 		await tool<GenerateToolInput>("generate-image").handler(toolContext({ prompt: "draw" }));
 
-		expect(submit).toHaveBeenCalledWith(expect.objectContaining({
-			providerId: "remote:images",
-			modelId: "google/gemini-image",
-		}));
-		expect(persist).toHaveBeenCalledWith(
-			expect.anything(),
-			expect.objectContaining({ providerId: "remote:images" }),
+		expect(submit).toHaveBeenCalledWith(
+			expect.objectContaining({
+				providerId: "remote:images",
+				modelId: "google/gemini-image",
+			}),
 		);
+		expect(persist).toHaveBeenCalledWith(expect.anything(), expect.objectContaining({ providerId: "remote:images" }));
 	});
 
 	it("releases the temporary artifact when plugin persistence fails", async () => {
@@ -228,9 +223,9 @@ describe("image generation media tools", () => {
 		wait.mockResolvedValue(job);
 		persistArtifact.mockRejectedValue(new Error("plugin storage unavailable"));
 
-		await expect(
-			tool<GenerateToolInput>("generate-image").handler(toolContext({ prompt: "draw" })),
-		).rejects.toThrow("plugin storage unavailable");
+		await expect(tool<GenerateToolInput>("generate-image").handler(toolContext({ prompt: "draw" }))).rejects.toThrow(
+			"plugin storage unavailable",
+		);
 		expect(releaseArtifact).toHaveBeenCalledWith(artifact);
 		expect(persist).not.toHaveBeenCalled();
 	});
@@ -261,9 +256,7 @@ describe("image generation media tools", () => {
 		expect(submit).toHaveBeenCalledWith(
 			expect.objectContaining({
 				mode: "image-to-image",
-				inputs: [
-					{ kind: "image", source: { type: "workspace-file", path: "C:/project/source.png" } },
-				],
+				inputs: [{ kind: "image", source: { type: "workspace-file", path: "C:/project/source.png" } }],
 			}),
 		);
 		expect(read).not.toHaveBeenCalled();
@@ -272,6 +265,32 @@ describe("image generation media tools", () => {
 });
 
 describe("selectImageProvider", () => {
+	it("selects only an image model for the requested mode from mixed provider capabilities", () => {
+		const provider: PluginMediaProviderDescriptor = {
+			id: "mixed",
+			ownerId: "test",
+			protocolVersion: 2,
+			capabilities: [
+				{ operation: "compose", documentMimeTypes: ["application/json"], outputMimeTypes: ["video/mp4"] },
+				{ operation: "transcode", inputMimeTypes: ["video/mp4"], outputMimeTypes: ["video/webm"] },
+				{ operation: "generate", kind: "video", modes: ["text-to-video"] },
+				{
+					operation: "generate",
+					kind: "image",
+					modes: ["text-to-image", "image-to-image"],
+					defaultModelId: "draw",
+					models: [
+						{ id: "edit", modes: ["image-to-image"] },
+						{ id: "draw", modes: ["text-to-image"] },
+					],
+				},
+			],
+		};
+		expect(selectImageModel(provider, "text-to-image")).toBe("draw");
+		expect(selectImageModel(provider, "image-to-image")).toBe("edit");
+		expect(() => selectImageModel(provider, "text-to-image", "edit")).toThrow("selected image model is unavailable");
+	});
+
 	const providers = [
 		{
 			id: "desktop-app:api567",

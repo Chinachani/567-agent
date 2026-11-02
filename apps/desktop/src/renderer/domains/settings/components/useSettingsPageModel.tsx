@@ -72,7 +72,7 @@ export function useSettingsPageModel(): SettingsPageModel {
 	const activeTab: SettingsTab =
 		rawTab && validTabKeys.has(rawTab as SettingsTab) ? (rawTab as SettingsTab) : "general";
 	const sectionId = getTargetSectionId(search);
-	/** 设置壳内嵌打开的插件工作区视图；只有「更多选项」标签下才有意义。 */
+	/** 设置壳内嵌打开的插件工作区视图；保留 extensions 路由兼容旧深链。 */
 	const embeddedView = useMemo(() => {
 		const raw = typeof search.view === "string" ? search.view : undefined;
 		return raw && activeTab === "extensions" ? (parseWorkspaceViewRef(raw) ?? undefined) : undefined;
@@ -142,46 +142,44 @@ export function useSettingsPageModel(): SettingsPageModel {
 		},
 		[narrow, t],
 	);
-	// 「更多选项」标签可以就地展开成插件页面清单，省掉一次进页面再选的往返。
+	// 插件入口与内置设置同级；extensions 仅作为旧链接与空态的内容路由。
 	const extensionEntries = useExtensionsSettingsModel().entries;
 	const extensionsByKey = useMemo(
 		() => new Map(extensionEntries.map((entry) => [entry.key, entry])),
 		[extensionEntries],
 	);
 	const tabs = useMemo<readonly SettingsNavigationItem[]>(
-		() =>
-			visibleTabRegistrations.map((tab) => {
-				const item = toNavigationItem(tab);
-				if (tab.key !== "extensions" || extensionEntries.length === 0) return item;
-				return {
-					...item,
-					children: extensionEntries.map((entry) => ({
-						key: entry.key,
-						label: entry.label,
-						icon: entry.icon,
-						...(entry.iconUrl ? { iconUrl: entry.iconUrl } : {}),
-						title: entry.description || entry.pluginName,
-					})),
-				};
-			}),
-		[extensionEntries, toNavigationItem, visibleTabRegistrations],
+		() => [
+			...visibleTabRegistrations.filter((tab) => tab.key !== "extensions").map(toNavigationItem),
+			...extensionEntries.map((entry, index) => ({
+				key: entry.key,
+				label: entry.label,
+				icon: entry.icon,
+				iconUrl: entry.iconUrl,
+				title: narrow ? entry.label : entry.description || entry.pluginName,
+				separatorBefore: index === 0,
+			})),
+		],
+		[extensionEntries, narrow, toNavigationItem, visibleTabRegistrations],
 	);
 
 	return {
 		activeTab,
 		embeddedView,
-		onSelectNavigationChild: (key) => extensionsByKey.get(key)?.open(),
-		activeNavigationChildKey: embeddedView
-			? workspaceViewNavKey(embeddedView.pluginId, embeddedView.viewId)
-			: undefined,
+		activeNavigationKey: embeddedView ? workspaceViewNavKey(embeddedView.pluginId, embeddedView.viewId) : activeTab,
 		onCloseEmbeddedView: () => {
-			void navigate({ to: "/settings/$tab", params: { tab: "extensions" }, search: {} });
+			void navigate({ to: "/settings/$tab", params: { tab: "general" }, search: {} });
 		},
 		betaBadgeLabel: t("betaBadge"),
 		narrow,
-		onSelectTab: (tab) => {
-			// 显式落到标签本身：从内嵌的插件视图切回设置项时要把 `view` 清掉。
-			void navigate({ to: "/settings/$tab", params: { tab }, search: {} });
+		onSelectNavigation: (key) => {
+			const extension = extensionsByKey.get(key);
+			if (extension) {
+				extension.open();
+				return;
+			}
+			const tab = visibleTabRegistrations.find((item) => item.key === key);
+			if (tab) void navigate({ to: "/settings/$tab", params: { tab: tab.key }, search: {} });
 		},
 		tabs,
 		title: t("title"),

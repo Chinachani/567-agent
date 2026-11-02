@@ -18,6 +18,11 @@ export interface NewSessionAgentSelectorProps {
 	readonly selectedKey: NewSessionTargetKey | null;
 	readonly onSelect: (targetKey: NewSessionTargetKey | null) => void;
 	readonly className?: string;
+	readonly picker?: {
+		readonly open: boolean;
+		readonly category: "all" | "teams";
+		readonly onOpenChange: (open: boolean) => void;
+	};
 }
 
 const SEARCH_THRESHOLD = 5;
@@ -31,11 +36,13 @@ export function NewSessionAgentSelector({
 	selectedKey,
 	onSelect,
 	className,
+	picker,
 }: NewSessionAgentSelectorProps): JSX.Element {
 	const { t } = useTranslation("chat");
 	const [loadedDocument, setDocument] = useState<AgentTeamDocument>();
 	const document = useLocalizedAgentTeamDocument(loadedDocument);
-	const [open, setOpen] = useState(false);
+	const [localOpen, setOpen] = useState(false);
+	const open = picker?.open ?? localOpen;
 	const [query, setQuery] = useState("");
 	const [loading, setLoading] = useState(false);
 	const [error, setError] = useState<string | null>(null);
@@ -90,15 +97,20 @@ export function NewSessionAgentSelector({
 		[document, resolveAvatar, selectedKey],
 	);
 	const visibleTeams = useMemo(() => filterTargetOptions(teamOptions, query), [teamOptions, query]);
-	const visibleAgents = useMemo(() => filterTargetOptions(agentOptions, query), [agentOptions, query]);
+	const allVisibleAgents = useMemo(() => filterTargetOptions(agentOptions, query), [agentOptions, query]);
 	const selectedOption = [...teamOptions, ...agentOptions].find((option) => option.targetKey === selectedKey);
 	const searchVisible = teamOptions.length + agentOptions.length > SEARCH_THRESHOLD;
+	const visibleAgents = picker?.category === "teams" ? [] : allVisibleAgents;
 	const nothingVisible = visibleTeams.length === 0 && visibleAgents.length === 0;
 
-	const handleOpenChange: NonNullable<NewSessionPickerRootProps["onOpenChange"]> = useCallback((next) => {
-		setOpen(next);
-		if (!next) setQuery("");
-	}, []);
+	const handleOpenChange: NonNullable<NewSessionPickerRootProps["onOpenChange"]> = useCallback(
+		(next) => {
+			if (picker) picker.onOpenChange(next);
+			else setOpen(next);
+			if (!next) setQuery("");
+		},
+		[picker],
+	);
 	const handleSelect = useCallback(
 		(next: string | null) => {
 			onSelect(next as NewSessionTargetKey | null);
@@ -133,7 +145,12 @@ export function NewSessionAgentSelector({
 	);
 
 	return (
-		<NewSessionPicker.Root open={open} onOpenChange={handleOpenChange} value={selectedKey} onValueChange={handleSelect}>
+		<NewSessionPicker.Root
+			open={open}
+			onOpenChange={handleOpenChange}
+			value={selectedKey}
+			onValueChange={handleSelect}
+		>
 			<NewSessionPicker.Trigger
 				className={className}
 				aria-label={triggerLabel}

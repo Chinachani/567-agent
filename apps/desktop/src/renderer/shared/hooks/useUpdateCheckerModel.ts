@@ -80,6 +80,11 @@ export function useUpdateCheckerModel(): UpdateCheckerViewProps {
 			onPause: () => {
 				void window.agent567.updater.pause();
 			},
+			onOpenUrl: (url) => {
+				void window.agent567.shell
+					.openExternal(url)
+					.catch((error) => console.warn("[update] open link failed", error));
+			},
 			onViewMore: () => {
 				if (!state.releaseNote) return;
 				const blob = new Blob([state.releaseNote], { type: "text/markdown" });

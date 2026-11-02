@@ -8,6 +8,9 @@ on:
   pull_request:
   workflow_dispatch:
 
+env:
+  AGENT567_TEST_REPORTS: "1"
+
 permissions:
   contents: read
 
@@ -110,16 +113,43 @@ jobs:
       - name: Verify bundled input and native capture cancellation
         working-directory: apps/desktop
         shell: bash
-        run: AGENT567_TEST_ELECTRON="$(node -e 'process.stdout.write(require("electron"))')" bun run test:remote-native
+        run: |
+          set -o pipefail
+          mkdir -p .test-reports
+          AGENT567_TEST_ELECTRON="$(node -e 'process.stdout.write(require("electron"))')" bun run test:remote-native 2>&1 | tee .test-reports/remote-native.log
       - name: Verify narrow sidebar account layout
         working-directory: apps/desktop
-        run: bun run test:sidebar-layout
+        shell: bash
+        run: |
+          set -o pipefail
+          mkdir -p .test-reports
+          bun run test:sidebar-layout 2>&1 | tee .test-reports/sidebar-layout.log
       - name: Verify canvas gestures across process boundaries and engine HMR
         working-directory: apps/desktop
-        run: bun run test:canvas-gestures
+        shell: bash
+        run: |
+          set -o pipefail
+          mkdir -p .test-reports
+          bun run test:canvas-gestures 2>&1 | tee .test-reports/canvas-gestures.log
       - name: Verify workspace pages in light, dark and narrow layouts
         working-directory: apps/desktop
-        run: bun run test:workspace-layout
+        shell: bash
+        run: |
+          set -o pipefail
+          mkdir -p .test-reports
+          bun run test:workspace-layout 2>&1 | tee .test-reports/workspace-layout.log
+
+      - name: Upload isolated regression reports
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: linux-native-regression-reports
+          path: |
+            apps/desktop/.test-reports/**
+            .turbo/runs/*.json
+          include-hidden-files: true
+          if-no-files-found: ignore
+          retention-days: 7
 
   smoke:
     name: ${{ matrix.platform }} packaged E2E
@@ -201,7 +231,7 @@ jobs:
         with:
           name: desktop-${{ matrix.platform }}-packaged-e2e-diagnostics
           if-no-files-found: ignore
-          retention-days: 1
+          retention-days: 7
           path: |
             apps/desktop/release/**
             apps/desktop/.wdio-electron-user-data/**

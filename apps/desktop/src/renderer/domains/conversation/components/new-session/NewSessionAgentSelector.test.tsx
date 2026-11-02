@@ -1,3 +1,6 @@
+import { NewSessionQuickStart } from "./NewSessionQuickStart";
+import { activeComposerCommandsAtom, inputValueAtom } from "@shared/store/atoms";
+import { createStore, Provider } from "jotai";
 // @vitest-environment jsdom
 
 import { cleanup, render, screen, within } from "@testing-library/react";
@@ -15,6 +18,8 @@ vi.mock("react-i18next", () => ({
 	}),
 }));
 
+const navigate = vi.hoisted(() => vi.fn());
+vi.mock("@tanstack/react-router", () => ({ useNavigate: () => navigate }));
 afterEach(cleanup);
 
 describe("NewSessionAgentSelector", () => {
@@ -134,5 +139,53 @@ describe("NewSessionAgentSelector", () => {
 
 		// 团队 `copy` 绑定的副本是团队私有的，摆进选择器就是一堆同名条目。
 		expect(screen.getAllByRole("option", { name: new RegExp(agent.name) })).toHaveLength(1);
+	});
+	it("quick-start opens the existing team picker, preserves the draft and reaches composer and pairing actions", async () => {
+		const user = userEvent.setup();
+		const store = createStore();
+		const openCommands = vi.fn();
+		const openReferences = vi.fn();
+		store.set(inputValueAtom, "Keep this draft");
+		store.set(activeComposerCommandsAtom, {
+			focus: () => {},
+			abort: () => {},
+			isBusy: () => false,
+			openCommands,
+			openReferences,
+		});
+		const selected = vi.fn();
+		function Start() {
+			const [picker, setPicker] = useState<{ open: boolean; category: "teams" | "all" }>({
+				open: false,
+				category: "all",
+			});
+			return (
+				<>
+					<NewSessionAgentSelector
+						selectedKey={null}
+						onSelect={selected}
+						picker={{ ...picker, onOpenChange: (open) => setPicker({ open, category: "all" }) }}
+					/>
+					<NewSessionQuickStart onOpenTeams={() => setPicker({ open: true, category: "teams" })} />
+				</>
+			);
+		}
+		render(
+			<Provider store={store}>
+				<Start />
+			</Provider>,
+		);
+		await user.click(screen.getByRole("button", { name: "newSession.quickStart.teams" }));
+		expect(await screen.findByRole("listbox", { name: "newSession.agentSelector.groupTeams" })).toBeTruthy();
+		expect(screen.queryByRole("listbox", { name: "newSession.agentSelector.groupAgents" })).toBeNull();
+		await user.click(await screen.findByRole("option", { name: new RegExp(team.name) }));
+		expect(selected).toHaveBeenCalledWith(teamTargetKey(team.id));
+		await user.click(screen.getByRole("button", { name: "newSession.quickStart.commands" }));
+		await user.click(screen.getByRole("button", { name: "newSession.quickStart.references" }));
+		expect(openCommands).toHaveBeenCalledOnce();
+		expect(openReferences).toHaveBeenCalledOnce();
+		expect(store.get(inputValueAtom)).toBe("Keep this draft");
+		await user.click(screen.getByRole("button", { name: "newSession.quickStart.pairing" }));
+		expect(navigate).toHaveBeenCalledWith({ to: "/settings/$tab", params: { tab: "remote" } });
 	});
 });

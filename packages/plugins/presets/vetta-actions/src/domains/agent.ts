@@ -56,9 +56,8 @@ export function registerAgentActions(ctx: PluginContext): void {
 		publicId: "agent.query",
 		title: "查询 Agent 配置",
 		summary: "读取 Agent 实验开关（设置 → Agent 配置）。",
-		description:
-			'对象参数；operation 为 "help" 或 "get"。get 返回 Agent 实验开关快照。对应设置 → Agent 配置。',
-		keywords: ["agent", "Agent", "实验", "experimental", "Vetta CLI", "输入预测", "技能扩展", "agentSkills"],
+		description: '对象参数；operation 为 "help" 或 "get"。get 返回 Agent 实验开关快照。对应设置 → Agent 配置。',
+		keywords: ["agent", "Agent", "实验", "experimental", "567 Agent CLI", "输入预测", "技能扩展", "agentSkills"],
 		effect: "read",
 		inputSchema: querySchema,
 		examples: queryExamples,
@@ -66,7 +65,7 @@ export function registerAgentActions(ctx: PluginContext): void {
 			if (input.operation === "help") {
 				return {
 					guidance:
-						"agent 对应设置 → Agent 配置的实验开关。工作区/通知/执行模式 → general.*；外观查询 → appearance.query；语言/主题变更 → appearance.theme；能力（skill/scene）启停与市场安装 → skills.*。",
+						"agent 对应设置 → Agent 配置的实验开关。工作区/通知/执行模式 → general.*；外观查询 → appearance.query；语言/主题变更 → appearance.theme；能力（skill）启停与市场安装 → skills.*。",
 					actions: [
 						{ id: "agent.query", inputSchema: querySchema, examples: queryExamples },
 						{ id: "agent.manage", inputSchema: manageSchema, examples: manageExamples },

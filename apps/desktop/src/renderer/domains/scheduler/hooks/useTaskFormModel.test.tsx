@@ -51,7 +51,7 @@ describe("useTaskFormModel", () => {
 		await waitFor(() => expect(schedulerMocks.updateTask).toHaveBeenCalledOnce());
 		expect(schedulerMocks.updateTask).toHaveBeenCalledWith(
 			"paused-task",
-			expect.objectContaining({ enabled: false }),
+			expect.objectContaining({ enabled: false, skill: null }),
 		);
 		await waitFor(() => expect(onClose).toHaveBeenCalledOnce());
 	});

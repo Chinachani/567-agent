@@ -1,6 +1,6 @@
 {
 	"plugin.name": "Office Viewer",
-	"plugin.description": "Offline preview for PDF, DOCX, PPTX and spreadsheet files.",
+	"plugin.description": "Offline read-only previews for PDF, DOCX, PPTX, Excel and CSV/TSV tables.",
 	"error.unsupportedFormat": "This Office file format is not supported yet",
 	"docx.error": "Failed to render the DOCX file",
 	"pdf.error": "Failed to render the PDF file",
@@ -12,5 +12,9 @@
 	"spreadsheet.error": "Failed to read the spreadsheet file",
 	"toolbar.fitWidth": "Fit width",
 	"state.loading": "Loading…",
-	"state.errorHint": "The file may be corrupted, password-protected, or contain unsupported content"
+	"state.errorHint": "The file may be corrupted, password-protected, or contain unsupported content",
+	"spreadsheet.plainTextHint": "CSV/TSV stores data without original colors, borders or merged cells.",
+	"spreadsheet.basicAppearanceHint": "This format currently uses a basic data preview; some original formatting may not appear.",
+	"pptx.empty": "This presentation has no slides to preview",
+	"pptx.slideError": "This slide could not be displayed. Select its thumbnail to retry."
 }

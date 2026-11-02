@@ -1,5 +1,11 @@
 import type { RuntimeStatus, RuntimesStatus, RuntimeType } from "../../main/runtimes/types.js";
 import type { UserMessageClipboardPasteResult, UserMessageClipboardWriteRequest } from "../../shared/clipboard.js";
+import type {
+	BrowserPreparationAction,
+	BrowserTargetId,
+	BrowserTargets,
+	PreparedBrowserTarget,
+} from "../../shared/current-browser-connection.js";
 import type { RuntimeInstallProgress } from "../../shared/runtime-install-progress.js";
 
 export interface DesktopShellApi {
@@ -40,6 +46,8 @@ export interface DesktopWindowApi {
 }
 
 export interface DesktopSettingsApi {
+	getBrowserTargets(): Promise<BrowserTargets>;
+	prepareBrowserTarget(browser: BrowserTargetId, action: BrowserPreparationAction): Promise<PreparedBrowserTarget>;
 	getServerUrl(): Promise<string>;
 	getServerToken(): Promise<string | undefined>;
 	setServerToken(token: string | undefined): Promise<void>;

@@ -12,6 +12,7 @@ import type {
 import type { HistoryEntry } from "@567agent/runtime-core";
 import { atomicWriteJSONAsync } from "@567agent/toolkit/atomic-write";
 import { readEditableTextFile, saveEditableTextFile } from "../filesystem/filesystem-service.js";
+import { attachmentTextPreview } from "./attachment-text-preview.js";
 import { attachmentThumbnail } from "./attachment-thumbnail.js";
 
 function object(value: unknown): value is Record<string, unknown> {
@@ -266,11 +267,7 @@ export class SessionWorkbench {
 				await handle.close();
 			}
 			const bytes = buffer.subarray(0, count);
-			let preview: string | undefined;
-			try {
-				preview = new TextDecoder("utf-8", { fatal: true }).decode(bytes, { stream: info.size > count });
-				if (preview.includes("\0")) preview = undefined;
-			} catch {}
+			const preview = attachmentTextPreview(bytes, info.size > count);
 			return {
 				kind,
 				id,

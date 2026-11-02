@@ -1,9 +1,10 @@
 import { Button } from "@vetta-org/ui";
 import { Progress } from "radix-ui";
 import { type JSX, useEffect, useMemo, useRef, useState } from "react";
-import ReactMarkdown from "react-markdown";
-import remarkGfm from "remark-gfm";
+import { ReleaseNoteMarkdown } from "./ReleaseNoteMarkdown";
+import { parseReleaseNote } from "./release-note";
 import { SettingRow } from "../settings/SettingChrome";
+import { FadingScrollArea } from "../chat/FadingScrollArea";
 
 export interface UpdateCheckerViewLabels {
 	readonly version?: string;
@@ -32,6 +33,7 @@ export interface UpdateCheckerViewProps {
 	readonly onPrimary: () => void;
 	readonly onPause?: () => void;
 	readonly onViewMore?: () => void;
+	readonly onOpenUrl?: (url: string) => void;
 	readonly phase: UpdateCheckerPhase;
 	readonly progress?: number;
 	readonly downloadedBytes?: number;
@@ -56,7 +58,10 @@ export function UpdateCheckerAction({
 			data-testid="updater-check"
 			data-updater-phase={phase}
 		>
-			<span className={`icon-[mdi--refresh] h-3.5 w-3.5 ${checking ? "animate-spin" : ""}`} />
+			<span
+				aria-hidden="true"
+				className={`icon-[solar--refresh-linear] h-3.5 w-3.5 ${checking ? "animate-spin" : ""}`}
+			/>
 			{checking ? labels.checkingBtn : labels.check}
 		</Button>
 	);
@@ -118,6 +123,7 @@ export function UpdateCheckerDetail({
 	latestVersion,
 	onPrimary,
 	onViewMore,
+	onOpenUrl,
 	phase,
 	progress,
 	downloadedBytes,
@@ -130,6 +136,7 @@ export function UpdateCheckerDetail({
 	| "latestVersion"
 	| "onPrimary"
 	| "onViewMore"
+	| "onOpenUrl"
 	| "phase"
 	| "progress"
 	| "downloadedBytes"
@@ -140,11 +147,18 @@ export function UpdateCheckerDetail({
 		return null;
 	}
 
+	const releaseDate = parseReleaseNote(htmlToMarkdown(releaseNote ?? ""), latestVersion).date;
+
 	return (
 		<div className="min-w-0 space-y-2" data-testid="updater-detail" data-updater-phase={phase}>
 			<div className="flex flex-wrap items-center justify-between gap-3">
 				<div className="min-w-0">
 					<span className="text-[13px] font-medium text-foreground">{labels.newVersion(latestVersion ?? "")}</span>
+					{releaseDate && (
+						<time dateTime={releaseDate} className="ml-2 text-[12px] tabular-nums text-muted-foreground">
+							{releaseDate}
+						</time>
+					)}
 					<span className="ml-2 text-[12px] text-muted-foreground">{labels.currentVersion(currentVersion)}</span>
 				</div>
 				{phase === "available" && (
@@ -185,6 +199,8 @@ export function UpdateCheckerDetail({
 					releaseNote={releaseNote}
 					viewMoreLabel={labels.viewMore ?? "View more"}
 					onViewMore={onViewMore}
+					onOpenUrl={onOpenUrl}
+					showDate={false}
 				/>
 			)}
 		</div>
@@ -225,49 +241,58 @@ function ReleaseNotePreview({
 	releaseNote,
 	viewMoreLabel,
 	onViewMore,
+	onOpenUrl,
+	showDate = true,
 }: {
 	readonly releaseNote: string;
 	readonly viewMoreLabel: string;
 	readonly onViewMore?: () => void;
+	readonly onOpenUrl?: (url: string) => void;
+	readonly showDate?: boolean;
 }): JSX.Element {
 	const contentRef = useRef<HTMLDivElement>(null);
 	const [isOverflowing, setIsOverflowing] = useState(false);
-	const formattedNote = useMemo(() => htmlToMarkdown(releaseNote), [releaseNote]);
+	const note = useMemo(() => parseReleaseNote(htmlToMarkdown(releaseNote)), [releaseNote]);
+	const formattedNote = note.body;
+	const compact = isOverflowing && Boolean(onViewMore && viewMoreLabel.trim());
 
 	useEffect(() => {
 		const el = contentRef.current;
 		if (!el) return;
 
-		// 检查纯行数（通过换行统计作为下限）以及实际渲染像素高度
-		const lineCount = formattedNote.split(/\r?\n/).length;
-		if (lineCount > MAX_LINES || el.scrollHeight > MAX_HEIGHT_PX + 4) {
-			setIsOverflowing(true);
-		} else {
-			setIsOverflowing(false);
-		}
+		const sync = () => {
+			// The inner content remains measurable while the preview is height-limited.
+			const lineCount = formattedNote.split(/\r?\n/).length;
+			setIsOverflowing(lineCount > MAX_LINES || el.scrollHeight > MAX_HEIGHT_PX + 4);
+		};
+		sync();
+		if (typeof ResizeObserver === "undefined") return;
+		const observer = new ResizeObserver(sync);
+		observer.observe(el);
+		return () => observer.disconnect();
 	}, [formattedNote]);
 
 	return (
-		<div className="relative mt-2">
-			<div
-				ref={contentRef}
-				className={`markdown-body text-[12.5px] leading-[1.5] text-muted-foreground break-words ${
-					isOverflowing ? "overflow-hidden" : ""
-				}`}
-				style={isOverflowing ? { maxHeight: `${MAX_HEIGHT_PX}px` } : undefined}
+		<div className="mt-2 min-w-0">
+			<FadingScrollArea
+				className="break-words text-[13px] leading-relaxed text-muted-foreground"
+				style={compact ? { maxHeight: MAX_HEIGHT_PX } : undefined}
 			>
-				<ReactMarkdown remarkPlugins={[remarkGfm]}>{formattedNote}</ReactMarkdown>
-			</div>
-			{isOverflowing && (
-				<div className="pt-6 -mt-6 bg-gradient-to-t from-secondary via-secondary/85 to-transparent flex items-center justify-center relative z-10">
-					<button
-						type="button"
-						onClick={onViewMore}
-						className="cursor-pointer inline-flex items-center gap-1 text-[12px] font-medium text-primary hover:underline py-1 px-2 rounded hover:bg-muted/50 transition-colors"
-					>
+				<div ref={contentRef}>
+					{showDate && note.date && (
+						<time dateTime={note.date} className="mb-2 block text-[11px] tabular-nums text-muted-foreground">
+							{note.date}
+						</time>
+					)}
+					<ReleaseNoteMarkdown body={formattedNote} onOpenUrl={onOpenUrl} />
+				</div>
+			</FadingScrollArea>
+			{compact && (
+				<div className="mt-2 flex justify-start">
+					<Button variant="ghost" size="xs" onClick={onViewMore}>
 						<span>{viewMoreLabel}</span>
-						<span className="icon-[mdi--chevron-right] h-3.5 w-3.5" />
-					</button>
+						<span aria-hidden="true" className="icon-[solar--alt-arrow-right-linear] h-3.5 w-3.5" />
+					</Button>
 				</div>
 			)}
 		</div>
@@ -299,6 +324,7 @@ export function UpdateCheckerView(props: UpdateCheckerViewProps): JSX.Element {
 						releaseNote={props.releaseNote}
 						viewMoreLabel={props.labels.viewMore ?? ""}
 						onViewMore={props.onViewMore}
+						onOpenUrl={props.onOpenUrl}
 					/>
 				</div>
 			)}

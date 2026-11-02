@@ -1,5 +1,6 @@
+import { useContextMenuDismiss } from "./useContextMenuDismiss";
 import { motion } from "motion/react";
-import { useEffect, useRef, type JSX } from "react";
+import { useRef, type JSX } from "react";
 
 export interface UserMessageContextMenuViewLabels {
 	copy: string;
@@ -39,21 +40,7 @@ export function UserMessageContextMenuView({
 }: UserMessageContextMenuViewProps): JSX.Element {
 	const menuRef = useRef<HTMLDivElement>(null);
 
-	useEffect(() => {
-		function handlePointerDown(event: MouseEvent): void {
-			if (menuRef.current && !menuRef.current.contains(event.target as Node)) onClose();
-		}
-		document.addEventListener("mousedown", handlePointerDown);
-		return () => document.removeEventListener("mousedown", handlePointerDown);
-	}, [onClose]);
-
-	useEffect(() => {
-		function handleKeyDown(event: KeyboardEvent): void {
-			if (event.key === "Escape") onClose();
-		}
-		document.addEventListener("keydown", handleKeyDown);
-		return () => document.removeEventListener("keydown", handleKeyDown);
-	}, [onClose]);
+	useContextMenuDismiss(menuRef, onClose);
 
 	return (
 		<motion.div
@@ -73,12 +60,7 @@ export function UserMessageContextMenuView({
 				{labels.copy}
 			</button>
 			<div className="mx-1.5 my-1 h-px bg-border" />
-			<button
-				type="button"
-				onClick={onDelete}
-				disabled={!canDelete}
-				className={destructiveMenuItemClass}
-			>
+			<button type="button" onClick={onDelete} disabled={!canDelete} className={destructiveMenuItemClass}>
 				<span className="icon-[solar--trash-bin-trash-linear] h-3.5 w-3.5" />
 				{labels.delete}
 			</button>

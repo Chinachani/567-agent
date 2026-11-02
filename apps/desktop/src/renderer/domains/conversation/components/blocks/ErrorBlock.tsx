@@ -83,12 +83,22 @@ export function ErrorBlockView({ block, exportMode = false }: ErrorBlockProps): 
 			onToggleExpanded={toggleExpanded}
 			exportMode={exportMode}
 			action={
-				!exportMode && action
+				!exportMode && kind === "run_limit"
 					? {
-							label: t(action.labelKey),
-							onClick: () => void navigate({ to: "/settings/$tab", params: { tab: action.tab } }),
+							label: t("messageList.errorBlock.kinds.run_limit.action"),
+							onClick: () =>
+								void navigate({
+									to: "/settings/$tab",
+									params: { tab: "context" },
+									search: { section: "agent-model-call-limit" },
+								}),
 						}
-					: undefined
+					: !exportMode && action
+						? {
+								label: t(action.labelKey),
+								onClick: () => void navigate({ to: "/settings/$tab", params: { tab: action.tab } }),
+							}
+						: undefined
 			}
 			labels={{
 				title: t(`messageList.errorBlock.kinds.${kind}.title`),

@@ -7,28 +7,27 @@ import { SettingsSidebarView } from "@vetta-org/theme-ui/settings";
 const TABS = [
 	{ key: "general", icon: "icon-[solar--settings-linear]", label: "通用设置" },
 	{
-		key: "extensions",
-		icon: "icon-[solar--widget-linear]",
-		label: "更多选项",
-		children: [
-			{ key: "workspace:browser/console", icon: "icon-[solar--window-frame-linear]", label: "浏览器操作" },
-			{ key: "workspace:vetta-ui-design/gallery", icon: "icon-[solar--palette-linear]", label: "设计" },
-		],
+		key: "workspace:browser/console",
+		icon: "icon-[solar--window-frame-linear]",
+		label: "浏览器操作",
+		separatorBefore: true,
+	},
+	{
+		key: "workspace:design/gallery",
+		icon: "icon-[solar--palette-linear]",
+		iconUrl: "vetta-plugin://design/icon.png",
+		label: "设计",
 	},
 ];
-
 type SidebarOverrides = Partial<Parameters<typeof SettingsSidebarView>[0]>;
-
 function renderSidebar(overrides: SidebarOverrides = {}) {
 	const onSelectTab = vi.fn();
-	const onSelectChild = vi.fn();
 	const view = (extra: SidebarOverrides) => (
 		<SettingsSidebarView
 			activeTab="general"
 			betaBadgeLabel="BETA"
 			narrow={false}
 			onSelectTab={onSelectTab}
-			onSelectChild={onSelectChild}
 			tabs={TABS}
 			title="设置"
 			{...overrides}
@@ -36,15 +35,10 @@ function renderSidebar(overrides: SidebarOverrides = {}) {
 		/>
 	);
 	const rendered = render(view({}));
-	return {
-		onSelectTab,
-		onSelectChild,
-		rerender: (extra: SidebarOverrides) => rendered.rerender(view(extra)),
-	};
+	return { onSelectTab, rerender: (extra: SidebarOverrides) => rendered.rerender(view(extra)) };
 }
-
-describe("SettingsSidebarView", () => {
-	it("悬停或聚焦标签只预取代码，点击仍选择该标签", () => {
+describe("flat SettingsSidebarView", () => {
+	it("prefetches on hover/focus and selects only on activation", () => {
 		const onTabIntent = vi.fn();
 		const { onSelectTab } = renderSidebar({ onTabIntent });
 		const settings = screen.getByRole("button", { name: "通用设置" });
@@ -55,56 +49,25 @@ describe("SettingsSidebarView", () => {
 		fireEvent.click(settings);
 		expect(onSelectTab).toHaveBeenCalledWith("general");
 	});
-
-	it("选中该标签时清单跟着展开，点行即导航", async () => {
-		const { onSelectTab, onSelectChild } = renderSidebar();
-
-		expect(screen.queryByText("浏览器操作")).toBeNull();
-		await userEvent.click(screen.getByText("更多选项"));
-
-		expect(onSelectTab).toHaveBeenCalledWith("extensions");
-		expect(onSelectChild).not.toHaveBeenCalled();
+	it("always exposes plugin entries at the same level with exactly one selected page", async () => {
+		const { onSelectTab, rerender } = renderSidebar();
+		expect(screen.getAllByRole("button")).toHaveLength(3);
+		await userEvent.click(screen.getByRole("button", { name: "浏览器操作" }));
+		expect(onSelectTab).toHaveBeenCalledWith("workspace:browser/console");
+		rerender({ activeTab: "workspace:browser/console" });
+		expect(screen.getAllByRole("button", { current: "page" })).toHaveLength(1);
+		expect(screen.getByRole("button", { name: "浏览器操作" }).getAttribute("aria-current")).toBe("page");
+		expect(screen.getByRole("button", { name: "通用设置" }).getAttribute("aria-expanded")).toBeNull();
 	});
-
-	it("展开态跟随选中态：选中即展开，切走即收起", () => {
-		const { rerender } = renderSidebar({ activeTab: "extensions" });
-		expect(screen.getByText("浏览器操作")).toBeTruthy();
-		expect(screen.getByText("更多选项").closest("button")?.getAttribute("aria-expanded")).toBe("true");
-
-		rerender({ activeTab: "general" });
-		expect(screen.queryByText("浏览器操作")).toBeNull();
-	});
-
-	it("下级入口走 onSelectChild，不重复切标签", async () => {
-		const { onSelectTab, onSelectChild } = renderSidebar({ activeTab: "extensions" });
-
-		await userEvent.click(screen.getByText("设计"));
-
-		expect(onSelectChild).toHaveBeenCalledWith("workspace:vetta-ui-design/gallery");
-		expect(onSelectTab).not.toHaveBeenCalled();
-	});
-
-	it("窄侧栏不展开清单，文字读不出来", () => {
-		renderSidebar({ activeTab: "extensions", narrow: true });
-
-		expect(screen.queryByText("浏览器操作")).toBeNull();
-	});
-
-	it("深链停在某个下级入口时自动展开并高亮它", () => {
-		renderSidebar({ activeChildKey: "workspace:vetta-ui-design/gallery" });
-
-		// 从列表页或深链进来时，用户要能立刻看出自己停在哪一层。
-		expect(screen.getByText("设计")).toBeTruthy();
-		expect(screen.getByText("设计").closest("button")?.getAttribute("aria-current")).toBe("page");
-		expect(screen.getByText("浏览器操作").closest("button")?.getAttribute("aria-current")).toBeNull();
-	});
-
-	it("没有下级入口的标签只是一行普通入口", async () => {
-		const { onSelectTab } = renderSidebar();
-
-		await userEvent.click(screen.getByText("通用设置"));
-
-		expect(onSelectTab).toHaveBeenCalledWith("general");
-		expect(screen.getByText("通用设置").closest("button")?.getAttribute("aria-expanded")).toBeNull();
+	it("keeps plugin icon navigation accessible by keyboard in a narrow sidebar", async () => {
+		const user = userEvent.setup();
+		const { onSelectTab } = renderSidebar({ narrow: true, activeTab: "workspace:design/gallery" });
+		const design = screen.getByRole("button", { name: "设计" });
+		expect(design.getAttribute("aria-current")).toBe("page");
+		expect(design.querySelector("img")?.getAttribute("src")).toBe("vetta-plugin://design/icon.png");
+		await user.tab();
+		await user.tab();
+		await user.keyboard("{Enter}");
+		expect(onSelectTab).toHaveBeenCalledWith("workspace:browser/console");
 	});
 });

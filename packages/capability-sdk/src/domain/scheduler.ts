@@ -136,7 +136,10 @@ const schedulerTaskCreateDataType = rejectCapabilitySchemaExcess(
 );
 
 const schedulerTaskUpdateDataType = rejectCapabilitySchemaExcess(
-	Type.Object(schedulerTaskDataFields, { additionalProperties: false, minProperties: 1 }),
+	Type.Object(
+		{ ...schedulerTaskDataFields, skill: Type.Optional(Type.Union([schedulerSkillInputType, Type.Null()])) },
+		{ additionalProperties: false, minProperties: 1 },
+	),
 );
 
 const schedulerTaskIdInputType = Type.Object(

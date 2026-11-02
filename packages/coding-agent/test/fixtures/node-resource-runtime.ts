@@ -1,5 +1,5 @@
 import { createNodeCommandExecutor, createNodeResourcePackageHost } from "@567agent/runtime-node/host";
-import { getAgent567HomePath, getAgentDir, getSceneDir, getUserSkillsDir } from "../../src/config.js";
+import { getAgent567HomePath, getAgentDir, getUserSkillsDir } from "../../src/config.js";
 import { createCodingAgentNodeExtensionFactoryLoader } from "../../src/host/extensions/node-extension-factory-loader.js";
 import { createCodingAgentNodeSettingsRuntime } from "../../src/host/node-state-services.js";
 import { loadThemeFromContent } from "../../src/modes/interactive/theme/theme.js";
@@ -98,7 +98,6 @@ export function createTestSessionResourceRuntime(
 		extensionFactoryLoader: options.extensionFactoryLoader ?? createCodingAgentNodeExtensionFactoryLoader(),
 		extensionCommandExecutor: options.extensionCommandExecutor ?? createNodeCommandExecutor(),
 		skillLocations: options.skillLocations ?? {
-			sceneDir: getSceneDir(),
 			managedSkillsDir: getUserSkillsDir(),
 			manifestPath: resourceAccess.paths.join(getAgent567HomePath(), "skills-manifest.json"),
 		},

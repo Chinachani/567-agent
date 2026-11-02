@@ -16,14 +16,13 @@ import {
 	$createFileTokenNode,
 	$createImageTokenNode,
 	$createMemberTokenNode,
-	$createSceneTokenNode,
 	$createSkillTokenNode,
 	ImageTokenNode,
 	MemberTokenNode,
-	SkillTokenNode,
 } from "./nodes";
 import { $applySegments, $insertTokenNodes, $readSelectedSegments } from "./tokens/segments";
-import { $removeTriggerBeforeCaret } from "./tokens/trigger";
+import type { TriggerMatch } from "./tokens/trigger";
+import { $readTriggerBeforeCaret, $removeTriggerBeforeCaret } from "./tokens/trigger";
 
 /**
  * 当前挂载的输入编辑器。
@@ -76,17 +75,6 @@ function insert(nodes: () => LexicalNode[], options?: InsertTokenOptions): void 
 
 export function insertSkillToken(name: string, alias?: string, icon?: string, options?: InsertTokenOptions): void {
 	insert(() => [$createSkillTokenNode(name, alias, icon)], options);
-}
-
-/** 场景在编辑器里是行内 token，但每条 prompt 只能选择一个；新选择替换旧场景。 */
-export function insertSceneToken(name: string, alias?: string, icon?: string, options?: InsertTokenOptions): void {
-	current?.update(() => {
-		if (options?.replaceTrigger) $removeTriggerBeforeCaret();
-		for (const node of $nodesOfType(SkillTokenNode)) {
-			if (node.getAbilityType() === "scene") node.remove();
-		}
-		$insertTokenNodes([$createSceneTokenNode(name, alias, icon)]);
-	});
 }
 
 export function insertConnectorToken(
@@ -154,6 +142,44 @@ export function replaceInputSegments(segments: readonly InputSegment[]): void {
 
 export function focusInputEditor(): void {
 	current?.focus();
+}
+
+/** Toolbar and keyboard triggers share the same editor text and filtering path. */
+export function insertInputTrigger(symbol: "/" | "@"): TriggerMatch | null {
+	let result: TriggerMatch | null = null;
+	current?.update(
+		() => {
+			const previous = $getSelection();
+			const selection = $isRangeSelection(previous) ? previous : $getRoot().selectEnd();
+			// Opening a menu must not delete a selected draft fragment.
+			if (!selection.isCollapsed())
+				selection.anchor.set(selection.focus.key, selection.focus.offset, selection.focus.type);
+			const trigger = $readTriggerBeforeCaret();
+			if (trigger?.kind === (symbol === "/" ? "slash" : "at")) {
+				result = trigger;
+				return;
+			}
+			if (trigger) $removeTriggerBeforeCaret();
+			const anchor = selection.anchor.getNode();
+			const before = $isTextNode(anchor) ? anchor.getTextContent().slice(0, selection.anchor.offset) : "";
+			selection.insertText(`${before && !/\s$/.test(before) ? " " : ""}${symbol}`);
+			result = $readTriggerBeforeCaret();
+		},
+		{ discrete: true },
+	);
+	focusInputEditor();
+	return result;
+}
+
+/** Append quoted text without losing rich tokens, attachments or an existing draft. */
+export function appendInputText(text: string): boolean {
+	if (!current) return false;
+	current.update(() => {
+		const root = $getRoot();
+		const existing = root.getTextContent();
+		root.selectEnd().insertText(`${existing ? "\n\n" : ""}${text}`);
+	});
+	return true;
 }
 
 /** 执行面板内建命令后移除 `/query`，不向输入流插入任何模型可见内容。 */

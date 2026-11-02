@@ -1,4 +1,5 @@
 import { spawnSync } from "node:child_process";
+import { mkdir } from "node:fs/promises";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 const fetchMock = vi.fn();
@@ -25,6 +26,7 @@ vi.mock("../abilities/ability-ledger.js", () => ({
 }));
 
 vi.mock("./skill-service.js", () => ({
+	assertSkillNameNotRetired: vi.fn(),
 	ensureDirWritable: vi.fn(),
 	getSkillBaseDir: vi.fn(() => "C:/tmp/skills"),
 	readSkillsManifest: vi.fn(() => ({})),
@@ -56,6 +58,7 @@ vi.mock("node:child_process", () => ({
 }));
 
 import { setCloudBridge } from "../cloud-bridge.js";
+import { assertSkillNameNotRetired, writeSkillsManifest } from "./skill-service.js";
 
 /** 市场安装依赖云服务：默认给测试挂一个已登录形态的 bridge。 */
 function mountCloudBridge(): void {
@@ -77,6 +80,25 @@ afterEach(() => {
 });
 
 describe("installSkillFromMarketSlug", () => {
+	it("rejects a reserved scene name before downloading or extracting a skill", async () => {
+		const { installSkillFromMarketSlug, installSkillFromMarketArchive } = await import("./skill-market-install.js");
+		vi.mocked(assertSkillNameNotRetired).mockImplementation(() => {
+			throw new Error("retired scene conflict");
+		});
+		try {
+			await expect(installSkillFromMarketSlug("skill", "demo")).rejects.toThrow("retired scene conflict");
+			await expect(installSkillFromMarketArchive("demo", "skill", Buffer.from("archive"))).rejects.toThrow(
+				"retired scene conflict",
+			);
+			expect(fetchMock).not.toHaveBeenCalled();
+			expect(mkdir).not.toHaveBeenCalled();
+			expect(spawnSync).not.toHaveBeenCalled();
+			expect(writeSkillsManifest).not.toHaveBeenCalled();
+		} finally {
+			vi.mocked(assertSkillNameNotRetired).mockReset();
+		}
+	});
+
 	it("rejects unsafe slugs before making a request", async () => {
 		const { installSkillFromMarketSlug } = await import("./skill-market-install.js");
 		await expect(installSkillFromMarketSlug("skill", "../demo;touch-pwned")).rejects.toThrow(/Invalid skill name/);

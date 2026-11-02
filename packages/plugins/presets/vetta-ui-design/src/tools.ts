@@ -6,9 +6,26 @@ import {
 	getFrameError,
 	setPendingDesignPath,
 } from "./canvas/design-runtime";
+import { CREED_CHECK, CREED_LINE } from "./creed";
 import { captureFrameOffscreen, offscreenRasterSupported } from "./canvas/offscreen-raster";
 import { screenshotCardDescriptor, SCREENSHOT_TOOL_NAME } from "./cards/screenshot-card";
 import { pruneSnapshots, snapshotPath } from "./cards/snapshots";
+import { ASSETS, PAGE_SECTORS } from "./direction/deal";
+import {
+	awaitProposalInDesign,
+	dealInputFor,
+	dealIntoDesign,
+	dealtNote,
+	DirectionError,
+	directionModeFor,
+	openDealSession,
+	styleFixedByPack,
+} from "./direction/deal-service";
+import { registerAssetsTool } from "./assets/assets-tool";
+import { INTENT_SCHEMA, statedIntentFrom } from "./direction/intent";
+import { registerDirectionTool } from "./direction/direction-tool";
+import { DIRECTION_FILE } from "./direction/record";
+import { readDirectionTells } from "./direction/direction-file";
 import { registerHistoryTools } from "./history/history-tools";
 import { registerExportTool } from "./materials/export-tool";
 import { setDesignPresence } from "./vetd/design-presence";
@@ -19,13 +36,16 @@ import { composeNotePins } from "./notes/annotate";
 import { notesFilePath } from "./notes/notes-store";
 import { type DesignNote, type NotesFile, noteStatus, parseNotesFile, pendingNotes } from "./notes/types";
 import { CANVAS_TAB_ID } from "./tab-ids";
-import type { SourceIssue } from "./vetd/check-sources";
+import { type SourceIssue, THEME_PLACEHOLDER_RULE } from "./vetd/check-sources";
 import { blockingSyntaxIssues, SYNTAX_RULE } from "./vetd/check-syntax";
 import { readDesignDependencies } from "./vetd/design-package";
 import { findVetdFiles } from "./vetd/discover";
 import { inspectIssues } from "./vetd/inspect";
 import { layoutIssues } from "./vetd/layout-probe";
+import { tellIssues } from "./vetd/tells-probe";
+import { frameRadius } from "./vetd/manifest-types";
 import { PRODUCT_SIZE_SUMMARY, PRODUCT_TYPES, resolveDefaultFrameSize } from "./vetd/product-size";
+import { SIZE_CATEGORIES, type SizeCategoryId, searchSizePresets } from "./vetd/size-presets";
 import { DESIGN_ONLY_TOOLS } from "./vetd/tool-gate";
 import {
 	composeVerificationSheet,
@@ -36,7 +56,9 @@ import {
 	type RenderVerificationSummary,
 	type ScreenshotSelectionInput,
 } from "./vetd/render-verification";
+import { INTERACTION_MODES, resolveInteractionMode } from "./vetd/interaction-mode";
 import { scaffoldDesign } from "./vetd/scaffold";
+import { resolveStatusBar, STATUS_BAR_SETTINGS, statusBarNote } from "./vetd/status-bar";
 
 const SCOPE_USE = ["project", "conversation"] as const;
 /** 与画布位图队列同一档（canvas/frame-raster.ts）：模型看的图不该比画布上的糊。 */
@@ -46,9 +68,28 @@ interface CreateInput {
 	name?: string;
 	product?: string;
 	frameSize?: { width: number; height: number };
+	statusBar?: string;
+	interaction?: string;
+	brief?: string;
+	sector?: string;
+	screens?: string[];
+	keep?: string[];
+	have?: string[];
+	intent?: unknown;
 }
 
 type ScreenshotInput = ScreenshotSelectionInput;
+
+/** vetd_create 结果开头那句「先做什么」：没有方向就不许开画。 */
+function firstStep(dealt: { ask: readonly unknown[] } | null, awaitingProposal: boolean): string {
+	if (awaitingProposal) {
+		return "FIRST propose three directions with vetd_direction action \"propose\" as `direction.propose` describes, ask the user to pick when the result carries `ask`, choose, and apply its sheet — no frame before that. ";
+	}
+	if (!dealt) return "";
+	return dealt.ask.length > 0
+		? "FIRST ask the user `direction.ask`, then choose with vetd_direction and apply its sheet — no frame before that. "
+		: "FIRST choose one of `direction.options` with vetd_direction and apply its sheet — no frame before that. ";
+}
 
 /**
  * 这份设计当前的复用面：公共外壳与已有组件。
@@ -120,7 +161,7 @@ export function registerDesignTools(ctx: PluginContext): void {
 		// 反向触发段（Do NOT / Only for）是误调防线的第一层：这个工具会在用户工作区
 		// 里建一整棵目录，模型在「写个页面」这种指令上最容易把它当成实现路径。
 		description:
-			"Create a new 567 Agent UI Design document (a `<name>.vetd/` directory holding design.json + sources) in the current workspace and open it on the design canvas. Requires the product type (or an explicit frame size) — that is what the design defaults to, so decide it from the user's request BEFORE calling. Each frames/<id>.tsx is one canvas frame AND one route — invoke the vetta-ui-design skill for the rules before writing any of them.\nDo NOT use when the user is writing or modifying code in an existing codebase — implement the page directly in that repo's own framework instead.\nOnly for standalone visual exploration decoupled from any codebase, when the user asked for a design/mockup rather than working code.",
+			"Create a new 567 Agent UI Design document (a `<name>.vetd/` directory holding design.json + sources) in the current workspace and open it on the design canvas. Requires the product type (or an explicit frame size) — that is what the design defaults to, so decide it from the user's request BEFORE calling. Each frames/<id>.tsx is one canvas frame AND one route — invoke the vetta-ui-design skill for the rules before writing any of them (its first steps — inventory the subject, ask what the user left open — come before this call, so load it first). " + CREED_LINE + " For a landing page or app screens also pass `brief` (and `sector` for a landing page): a landing page gets three art directions dealt to choose from with vetd_direction; app screens get the brief for proposing three directions of your own there.\nDo NOT use when the user is writing or modifying code in an existing codebase — implement the page directly in that repo's own framework instead.\nOnly for standalone visual exploration decoupled from any codebase, when the user asked for a design/mockup rather than working code.",
 		parameters: {
 			type: "object",
 			properties: {
@@ -131,7 +172,7 @@ export function registerDesignTools(ctx: PluginContext): void {
 				product: {
 					type: "string",
 					enum: PRODUCT_TYPES,
-					description: `What is being designed — sets this design's default frame size (${PRODUCT_SIZE_SUMMARY}). Take it from the user's request in whatever language they wrote it: a phone app is \`mobile\`, an admin console or dashboard is \`desktop\`. Anything else (infographic, A4 print, a square social post) goes through \`frameSize\` instead.`,
+					description: `What is being designed — sets this design's default frame size (${PRODUCT_SIZE_SUMMARY}). Take it from the user's request in whatever language they wrote it: a phone app is \`mobile\`, an Apple Watch app is \`watch\`, an admin console or dashboard is \`desktop\`. Anything else (infographic, A4 print, a square social post) goes through \`frameSize\` instead.`,
 				},
 				frameSize: {
 					type: "object",
@@ -142,8 +183,39 @@ export function registerDesignTools(ctx: PluginContext): void {
 					required: ["width", "height"],
 					additionalProperties: false,
 					description:
-						"Explicit default size in PIXELS, for whatever `product` cannot express — the user named a size (`800x800`), or a physical format you convert yourself (A4 at 96dpi is 794x1123, at 300dpi 2480x3508). Wins over `product` when both are given.",
+						"Explicit default size in PIXELS, for whatever `product` cannot express — the user named a size (`800x800`), or a physical format you convert yourself (A4 at 96dpi is 794x1123, at 300dpi 2480x3508). For a NAMED device (iPhone 17, iPad Pro 13, Apple Watch 46mm) call `vetd_sizes` and pass its width/height here. Wins over `product` when both are given.",
 				},
+				statusBar: {
+					type: "string",
+					enum: [...STATUS_BAR_SETTINGS],
+					description:
+						"mobile only: the iOS status bar every screen carries. Omit it unless the user said otherwise — the default is `island` (Dynamic Island). `notch` when they ask for a notch, `flat` when they want a status bar with no notch or island, `none` when they do not want a status bar at all. Stored with the design, so later screens keep it.",
+				},
+				interaction: {
+					type: "string",
+					enum: [...INTERACTION_MODES],
+					description:
+						"Which kind of device the user will try this design on in interaction mode: `mobile` gets a phone body and touch gestures, `desktop` and `other` show the bare screen. Omit it — it follows `product` (mobile → mobile, desktop / landing → desktop, slide / poster → other) or, with a custom `frameSize`, the size. Pass it only when those would guess wrong (e.g. the user wants a mini-program at a custom size). Stored with the design; the user can change it afterwards, you cannot.",
+				},
+				brief: { type: "string", description: "landing / mobile / desktop: one line about the subject, in English." },
+				sector: { type: "string", enum: [...PAGE_SECTORS], description: "landing: the closest sector." },
+				screens: {
+					type: "array",
+					items: { type: "string" },
+					description: "mobile / desktop: the screens to design, in your words.",
+				},
+				keep: {
+					type: "array",
+					items: { type: "string", enum: ["palette", "type"] },
+					description:
+						"What an existing brand the user named already fixes (its colour → palette); only the rest is dealt.",
+				},
+				have: {
+					type: "array",
+					items: { type: "string", enum: [...ASSETS] },
+					description: "Assets that really exist (the project's own photos or product photos, real UI screenshots).",
+				},
+				intent: INTENT_SCHEMA,
 			},
 			additionalProperties: false,
 		},
@@ -159,7 +231,40 @@ export function registerDesignTools(ctx: PluginContext): void {
 					error: `Pass \`product\` (${PRODUCT_TYPES.join(" | ")}) or an explicit \`frameSize\` in pixels. This is the size the design defaults to — decide it from what the user asked for, do not guess after the fact.`,
 				};
 			}
-			const result = await scaffoldDesign(host.fs, session.cwd, trigger.input.name ?? "design", defaultFrameSize);
+			// 落地页与 App 在建目录之前先校验发牌参数：缺了就整个调用失败，而不是先建出
+			// 一份没有方向的设计——那样模型会直接开画，发牌这一步就再也回不来了。
+			const directionMode = directionModeFor(trigger.input.product);
+			let dealSession: Awaited<ReturnType<typeof openDealSession>> | null = null;
+			let dealParams: CreateInput | null = null;
+			if (directionMode) {
+				const packed = await styleFixedByPack(host.fs, session.cwd, null);
+				const keep = [...new Set([...(trigger.input.keep ?? []), ...(packed ? ["palette", "type"] : [])])];
+				dealParams = { ...trigger.input, keep };
+				dealSession = await openDealSession(ctx);
+				try {
+					dealInputFor(directionMode, dealParams);
+				} catch (error) {
+					if (!(error instanceof DirectionError)) throw error;
+					return {
+						ok: false,
+						error: `${error.message} A ${trigger.input.product} design starts by dealing its art direction, so vetd_create needs it up front — pass \`brief\` too.`,
+					};
+				}
+			}
+			const statusBar = resolveStatusBar(trigger.input);
+			const interactionMode = resolveInteractionMode({
+				interaction: trigger.input.interaction,
+				product: trigger.input.product,
+				size: defaultFrameSize,
+			});
+			const result = await scaffoldDesign(
+				host.fs,
+				session.cwd,
+				trigger.input.name ?? "design",
+				defaultFrameSize,
+				statusBar,
+				interactionMode,
+			);
 			// Provider 在一个 Turn 内只执行一次：仅更新 presence 只能让下一 Turn 开闸。
 			// 工具 handler 的 effect 会在当前 Turn 后续模型调用上重放，因此创建成功后
 			// 还要显式覆盖本轮开头写入的 disable，避免 agent 只剩 vetd_create 可用。
@@ -175,12 +280,34 @@ export function registerDesignTools(ctx: PluginContext): void {
 			);
 			ctx.ui.setActivityTabVisible(CANVAS_TAB_ID, true, { cwd: session.cwd });
 			ctx.ui.openActivityTab(CANVAS_TAB_ID, { width: "max", cwd: session.cwd });
+			const stated = statedIntentFrom(trigger.input.intent);
+			const dealt =
+				directionMode === "page" && dealSession && dealParams
+					? await dealIntoDesign(dealSession, host.fs, result.dirPath, dealParams, stated)
+					: null;
+			const proposal =
+				directionMode === "app" && dealSession && dealParams
+					? await awaitProposalInDesign(dealSession, host.fs, result.dirPath, dealParams, stated)
+					: null;
 			return {
 				ok: true,
 				vetdPath: result.vetdPath,
 				sourcesDir: result.dirPath,
 				defaultFrameSize,
-				note: `Design created and opened on the canvas, with NO frames yet. Its default size is ${defaultFrameSize.width}x${defaultFrameSize.height} — still declare it per frame: every frames/<id>.tsx starts with \`export const frame = { width: ${defaultFrameSize.width}, height: ${defaultFrameSize.height}, title }\`, and a screen of a different product type declares its own. Never edit design.json. More than one screen? Write the shared chrome FIRST (components/, or frames/_layout.tsx), then every frame as a short skeleton so the whole set reaches the canvas immediately, and only then fill them in one at a time — see the vetta-ui-design skill.`,
+				interactionMode,
+				...(statusBar ? { statusBar } : {}),
+				...(dealt
+					? {
+							direction: {
+								mode: directionMode,
+								options: dealt.options,
+								...(dealt.ask.length > 0 ? { ask: dealt.ask } : {}),
+								next: dealtNote(dealt.ask),
+							},
+						}
+					: {}),
+				...(proposal ? { direction: { mode: "app", ...proposal } } : {}),
+				note: `${firstStep(dealt, proposal !== null)}Design created and opened on the canvas, with NO frames yet. Its default size is ${defaultFrameSize.width}x${defaultFrameSize.height} — still declare it per frame: every frames/<id>.tsx starts with \`export const frame = { width: ${defaultFrameSize.width}, height: ${defaultFrameSize.height}, title }\`, and a screen of a different product type declares its own. Never edit design.json. ${CREED_LINE} More than one screen? Write the shared chrome FIRST (components/, or frames/_layout.tsx), then every frame as a short skeleton so the whole set reaches the canvas immediately, and only then fill them in one at a time — see the vetta-ui-design skill.${statusBar ? statusBarNote(statusBar) : ""}`,
 			};
 		},
 	});
@@ -239,9 +366,10 @@ export function registerDesignTools(ctx: PluginContext): void {
 			}
 			const { dirPath, vetdPath } = controller.session;
 			// 源码检查与指纹各做一次，而不是跟帧数线性重复。
-			const [sourceIssues, sourceFingerprints] = await Promise.all([
+			const [sourceIssues, sourceFingerprints, tells] = await Promise.all([
 				inspectIssues(ctx, host.fs, dirPath),
 				designSourceFingerprints(host.fs, dirPath, known),
+				readDirectionTells(host.fs, dirPath),
 			]);
 			const useOffscreen = offscreenRasterSupported();
 			type Success = {
@@ -321,8 +449,13 @@ export function registerDesignTools(ctx: PluginContext): void {
 					return { ok: false, frame: frameId, retryable: true, error: `Frame failed to build during capture:\n${lateError}` };
 				}
 				const frameIssues = [
-					...sourceIssues.filter((issue) => issue.file === `frames/${frameId}.tsx`),
+					// 整份设计级的 issue（发了方向没选、主题还是占位）报给每一帧：哪一帧都不该在它清掉前算完成。
+					...sourceIssues.filter(
+						(issue) =>
+							issue.file === `frames/${frameId}.tsx` || issue.file === DIRECTION_FILE || issue.rule === THEME_PLACEHOLDER_RULE,
+					),
 					...layoutIssues(probe, frameId),
+					...tellIssues(probe, frameId, tells),
 				];
 				const capturedAt = Date.now();
 				const path = snapshotPath(dirPath, frameId, capturedAt);
@@ -368,7 +501,7 @@ export function registerDesignTools(ctx: PluginContext): void {
 					verification: result.verification,
 					note: result.verification.stalled
 						? "The image and measured issues are unchanged across two captures. Do not make a third blind edit; inspect the image/checker assumption and report the stalled result if it is a false positive."
-						: "Read this screenshot now. Check hierarchy, copy, icon meaning, contrast, spacing, clipping and frame fill; make only evidence-based edits, then recheck this frame if needed.",
+						: `Read this screenshot now. Check hierarchy, copy, icon meaning, contrast, spacing, clipping and frame fill; make only evidence-based edits, then recheck this frame if needed. ${CREED_CHECK}`,
 					cards: [screenshotCardDescriptor(vetdPath, dirPath, result.frame)],
 				};
 			}
@@ -408,7 +541,7 @@ export function registerDesignTools(ctx: PluginContext): void {
 					stalledFrames,
 				},
 				note: overviewPath
-					? `Read the overview path once and compare all captured frames together.${stalledFrames.length > 0 ? ` Stop blind edits on stalled frames: ${stalledFrames.join(", ")}.` : ""}`
+					? `Read the overview path once and compare all captured frames together. ${CREED_CHECK}${stalledFrames.length > 0 ? ` Stop blind edits on stalled frames: ${stalledFrames.join(", ")}.` : ""}`
 					: "The overview could not be composed in this host. Read the per-frame paths listed in `frames`.",
 				cards: successful.map((result) => screenshotCardDescriptor(vetdPath, dirPath, result.frame)),
 			};
@@ -463,6 +596,11 @@ export function registerDesignTools(ctx: PluginContext): void {
 							...(controller.session.manifest.defaultFrameSize
 								? { defaultFrameSize: controller.session.manifest.defaultFrameSize }
 								: {}),
+							// 手机界面的状态栏设置：加新页面时照着它写，不要回到默认。
+							...(controller.session.manifest.statusBar ? { statusBar: controller.session.manifest.statusBar } : {}),
+							...(controller.session.manifest.interactionMode
+								? { interactionMode: controller.session.manifest.interactionMode }
+								: {}),
 							// 复用面先于画框列出：agent 是一屏一屏往下写的，看不见既有的
 							// 外壳与组件就会在每个 frame 里重抄一遍导航栏。
 							sharedShell: shell,
@@ -482,6 +620,8 @@ export function registerDesignTools(ctx: PluginContext): void {
 									title: frame.title,
 									width: frame.width,
 									height: frame.height,
+									// 画布上实际生效的屏幕圆角（用户可能在画布上手动调过，以这个为准）。
+									radius: frameRadius(frame),
 									...(buildError ? { buildError } : {}),
 								};
 							}),
@@ -491,6 +631,49 @@ export function registerDesignTools(ctx: PluginContext): void {
 				...(controller && renderVerification
 					? { note: statusNote(shell, issues, controller.session.manifest.frames.length, renderVerification) }
 					: {}),
+			};
+		},
+	});
+
+	interface SizesInput {
+		query?: string;
+		category?: SizeCategoryId;
+	}
+
+	// 不进 DESIGN_ONLY_TOOLS：「新建一个 iPhone 17 的设计」发生在设计存在之前，和 vetd_create 一样
+	// 任何会话都得看得见。它只读一张表，没有误调的代价。
+	ctx.agent.registerTool<SizesInput>({
+		id: "vetd-sizes",
+		name: "vetd_sizes",
+		label: "%tool.vetd_sizes%",
+		description:
+			"Look up the canvas's preset device / paper sizes: width x height in CSS px and the device's screen corner radius (iPhone, iPad, Apple Watch, MacBook / desktop, A4-A6). This is the SAME table the user's size panel on the canvas uses, so a frame you size from it matches what the user would get by clicking the preset. Call it whenever the user names a device or paper size (\"iPhone 17\", \"iPad Pro 13 landscape\", \"Apple Watch 46mm\", \"A4\") instead of recalling pixels from memory — recent devices are exactly where memory is wrong. Then declare the result in the frame meta: `export const frame = { width, height, title, radius }`, and pass the same size to `vetd_create` `frameSize` when creating the design. Do NOT use for sizes the user gave in pixels, or for product types (`product` on vetd_create covers those).",
+		parameters: {
+			type: "object",
+			properties: {
+				query: {
+					type: "string",
+					description: "Keywords, e.g. `iphone 17`, `ipad pro 13`, `watch 46`, `macbook pro 14`, `a4`. Every word must match. Omit to list the category (or everything).",
+				},
+				category: {
+					type: "string",
+					enum: SIZE_CATEGORIES.map((category) => category.id),
+					description: "Narrow to one category: phone, desktop, watch, paper, ipad.",
+				},
+			},
+			additionalProperties: false,
+		},
+		scope_use: SCOPE_USE,
+		handler: async ({ trigger }) => {
+			const matches = searchSizePresets(trigger.input.query, trigger.input.category);
+			return {
+				ok: true,
+				count: matches.length,
+				sizes: matches,
+				note:
+					matches.length === 0
+						? "No preset matches. If the user gave pixels, use those; otherwise pick the closest device and say so."
+						: "`radius` is the screen corner radius in px (0 = square corners); declare it as `radius` in the frame meta so the canvas rounds the frame like the device. `landscape` (iPad) is the same device turned sideways — swap width/height, the radius stays. Entries with `radiusEstimated` have an approximate radius, not a measured one: tell the user if it matters.",
 			};
 		},
 	});
@@ -586,6 +769,8 @@ export function registerDesignTools(ctx: PluginContext): void {
 
 	// 版本历史的两个工具在 history/history-tools.ts：历史相关的东西全归那一处。
 	registerExportTool(ctx, { scopeUse: SCOPE_USE });
+	registerDirectionTool(ctx, { scopeUse: SCOPE_USE });
+	registerAssetsTool(ctx, { scopeUse: SCOPE_USE });
 	registerHistoryTools(ctx, { resolveVetdPath, scopeUse: SCOPE_USE });
 
 	interface NotesInput {

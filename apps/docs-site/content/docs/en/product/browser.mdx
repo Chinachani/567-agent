@@ -9,9 +9,9 @@ description: Use Browser Use to navigate, read pages, fill forms, and reuse sign
   <li>Each conversation gets its own browser session, and publishing, paying, or deleting requires confirmation</li>
 </Takeaways>
 
-Browser Use is a system plugin that ships with the app. It lets the Agent drive a real Chrome through the `agent-browser` command line: open a URL, locate elements from an accessibility-tree snapshot, click, type, wait, page through, and bring results back. The page is real and the sign-in state is yours, so it reaches what web search cannot.
+Browser Use is a system plugin that ships with the app. It lets the Agent connect to your current browser through the official extension and also retains the `agent-browser` command-line path: open a URL, locate elements from an accessibility-tree snapshot, click, type, wait, page through, and bring results back. The page is real and the sign-in state is yours, so it reaches what web search cannot.
 
-Panel: **Settings → More options → Browser Use**. The panel only reports runtime state and usage notes; the real entry point is the composer — describe the goal and the URL in the conversation.
+Panel: **Settings → Browser Use**. The panel only reports runtime state and usage notes; enable the extension in General settings; start page tasks from the composer — describe the goal and the URL in the conversation.
 
 ## Pick the right one first
 
@@ -31,7 +31,25 @@ Panel: **Settings → More options → Browser Use**. The panel only reports run
 
 Web search returns someone else's summary. Browser Use opens a real browser. Use search to look something up; use this to get something done.
 
-## What the first run installs
+## Connect the browser you already use
+
+Go to **Settings → General → Connect your current browser**, which uses Microsoft’s [Playwright Extension](https://chromewebstore.google.com/detail/playwright-extension/mmlmfjhmonkocbjadbfplnigmagldckm). Pinned components download on first startup. No browser startup flags or CLI runtime installation are required for this path.
+
+The built-in **Installation and connection guide** covers adding the extension, enabling the local connection and selecting a tab on first use. **Open install page and enable connection** combines opening the store with saving the connection configuration; confirm adding the extension in your browser. Initial setup identifies your supported system default. You can also select Chrome, Edge, or Chromium as the target. Installation and subsequent connections use that same browser; changing your system default later does not change the saved target. Edge uses the same Chrome Web Store link and may ask you to allow extensions from other stores. If the browser cannot be found, select one manually or copy the link and configure a custom connection path in Abilities. Closing and reopening the guide keeps advanced-setting drafts.
+
+On the first browser action, approve the connection and select a tab in the extension. The agent verifies its title and URL, then keeps using that connection. Changing focus does not change the task’s target. Optional settings support a specific browser profile directory and a token to skip repeated connection approval. Tokens stay in the local MCP configuration, not in chat. See the [official extension guide](https://github.com/microsoft/playwright/tree/main/packages/extension#readme).
+
+Signed-in page tasks, forms and website UI verification should use the browser proactively without a reminder. Public facts still fit web search; asking about setup alone does not request page access. A connection failure is reported without silently opening a different browser.
+
+Disabling keeps pairing settings; a turn already in flight follows the existing lifecycle. “Configured” does not mean the browser is connected: tab selection occurs when a browser action first needs it.
+
+### Bundled extension for Edge
+
+Microsoft currently distributes the official extension through Chrome Web Store, not a separate Edge Add-ons listing. With Edge selected, **Prepare bundled extension and enable** verifies the bundled publisher-signed Playwright Extension 0.4.0, extracts it to a stable directory, and opens Edge extensions. Enable **Developer mode**, click **Load unpacked**, and select the directory shown in the guide; **Copy extension directory** helps locate it. The browser still requires your confirmation and may restrict this under organization policy.
+
+Store installation remains available. Existing store installations can continue to be used. Keep the unpacked directory: it does not receive store updates automatically. Future bundled versions use new directories and require reloading by the user. Preparation does not mean installation or connection was verified. Browser profiles and policies are not modified, and existing directories are never overwritten. The separate MCP connector still needs its first network download.
+
+## What the CLI path installs
 
 The plugin itself ships with the app and needs no installation. The Agent prepares the runtime on the first browser task.
 
@@ -54,7 +72,7 @@ The plugin itself ships with the app and needs no installation. The Agent prepar
   <Step>
     ### Use the panel when setup fails
 
-    If automatic setup fails, open **Settings → More options → Browser Use** to recheck, install, or upgrade. The panel shows the failed command and the reason.
+    If automatic setup fails, open **Settings → Browser Use** to recheck, install, or upgrade. The panel shows the failed command and the reason.
   </Step>
 </Steps>
 
@@ -119,7 +137,7 @@ Open these two product pages and compare price, stock, and estimated delivery in
 5. One readiness attempt allows at most one CLI install and one browser install. On repeated failure, read the actual error instead of looping through retries.
 
 <Continue>
-  <ContinueLink href="/product/abilities/" title="Use abilities" description="Install and manage skills, scenes, MCP, plugins, and kits." />
+  <ContinueLink href="/product/abilities/" title="Use abilities" description="Install and manage skills, MCP, plugins, and kits." />
   <ContinueLink href="/core/context-tools-and-permissions/" title="Context, tools, and permissions" description="Understand execution modes, tool permissions, and confirmation." />
   <ContinueLink href="/reference/security-and-data/" title="Security and data boundaries" description="Understand the boundary between sign-in state, credentials, and external services." />
 </Continue>

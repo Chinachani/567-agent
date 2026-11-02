@@ -1,4 +1,4 @@
-import { basename } from "node:path";
+import { basename, join } from "node:path";
 import { pathToFileURL } from "node:url";
 import { CONFIG_DIR_NAME, VERSION } from "@567agent/coding-agent/config";
 import type { McpServerConfig } from "@567agent/runtime-mcp";
@@ -9,16 +9,18 @@ import {
 	type McpServerInteractionHandlers,
 	type McpServerSupervisor,
 } from "@567agent/runtime-mcp";
-import { createMcpClient, createNodeMcpSupervisor } from "@567agent/runtime-node/mcp";
+import { createMcpClient, createNodeMcpSupervisor, FileMcpConfigSource } from "@567agent/runtime-node/mcp";
 import { ensureOpenMarketplaceManagedMcpRuntime } from "../abilities/open-marketplace/open-marketplace-mcp-runtime-host.js";
 import { getDesktopMcpElicitationBroker } from "../conversations/mcp-elicitation-broker.js";
 import { getAppLogger } from "../logger.js";
+import { scopeDesktopMcpConfigSource } from "./mcp-config-scope.js";
 
 export interface DesktopMcpSupervisorOptions {
 	readonly projectRoot: string;
 	readonly agentDir: string;
 	readonly debug: boolean;
 	readonly dynamicOnly?: boolean;
+	readonly fileScope?: "shared" | "session";
 	/** Sampling stays unavailable unless the product composition injects an approved model policy. */
 	readonly samplingHandler?: McpServerInteractionHandlers["sampling"];
 }
@@ -69,7 +71,18 @@ export function createDesktopMcpSupervisor(options: DesktopMcpSupervisorOptions)
 		projectConfigDirectoryName: CONFIG_DIR_NAME,
 		debug: options.debug,
 		enabled: true,
-		configSource: options.dynamicOnly ? EMPTY_MCP_CONFIG_SOURCE : undefined,
+		configSource: options.dynamicOnly
+			? EMPTY_MCP_CONFIG_SOURCE
+			: scopeDesktopMcpConfigSource(
+					new FileMcpConfigSource({
+						globalConfigPath: join(options.agentDir, "mcp.json"),
+						projectConfigPath: join(options.projectRoot, CONFIG_DIR_NAME, "mcp.json"),
+						fallbackProjectConfigPath:
+							CONFIG_DIR_NAME === ".567agent" ? join(options.projectRoot, ".vetta", "mcp.json") : undefined,
+						projectRoot: options.projectRoot,
+					}),
+					options.fileScope ?? "shared",
+				),
 		includeBuiltinServers: false,
 		clientFactory: (name, config, clientOptions) => {
 			const runtimeId = config.type === "http" ? managedRuntimeId(config) : undefined;

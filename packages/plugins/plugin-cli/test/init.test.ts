@@ -76,6 +76,8 @@ describe("scaffolding a project", () => {
 		const brief = readFileSync(join(result.root, "AGENTS.md"), "utf8");
 		// 说明书只指路，不复述合同——手册才是真源，而且随 SDK 版本走。
 		expect(brief).toContain("vetta-plugin-cli docs");
+		expect(brief).toContain("装进正在运行的 567 Agent");
+		expect(readAgentsGuideRevision(brief)).toBe(AGENTS_GUIDE_REVISION);
 		expect(brief).not.toContain("agent/docs/plugin");
 	});
 
@@ -165,6 +167,8 @@ describe("scaffolding a marketplace repository", () => {
 		expect(brief).toContain("cd abilities/plugins");
 		// 仓库根没有 node_modules，裸 bin 解析不到，必须写全名。
 		expect(brief).toContain("npx @vetta-org/plugin-cli sync");
+		expect(brief).toContain("装进正在运行的 567 Agent");
+		expect(readFileSync(join(result.root, "README.md"), "utf8")).toContain("A 567 Agent ability marketplace.");
 	});
 
 	it("keeps dist publishable by not ignoring it", () => {

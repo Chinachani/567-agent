@@ -1,25 +1,26 @@
 import { useActivityTab, useTranslation } from "@vetta-org/plugin-sdk";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import {
-	type EngineProgress,
-	startDesignServer,
-	stopDesignServer,
-} from "../engine/engine-manager";
+import { type EngineProgress, startDesignServer, stopDesignServer } from "../engine/engine-manager";
 import { planEngineRestart } from "../engine/engine-recovery";
 import { exportDesign } from "../export/export-design";
 import { NotesStore } from "../notes/notes-store";
 import { useNotesVisibility } from "../notes/notes-visibility";
 import { getPluginCtx, notify } from "../plugin-context";
-import { PreviewDialog } from "../preview-mode/PreviewDialog";
+import { InteractionView } from "../interaction/InteractionView";
 import { DesignSession } from "../vetd/design-session";
 import { findVetdFiles } from "../vetd/discover";
 import { scaffoldDesign } from "../vetd/scaffold";
 import { BridgeHub, type ElementQuery, type SelectedElementPayload } from "./bridge-client";
 import { refreshCover } from "./cover-compose";
-import { clearFrameActivity, setCanvasController, setPendingDesignPath, takePendingDesignPath } from "./design-runtime";
+import {
+	clearFrameActivity,
+	onPendingDesignPath,
+	setCanvasController,
+	setPendingDesignPath,
+	takePendingDesignPath,
+} from "./design-runtime";
 import { DesignCanvas, type FrameCapture } from "./DesignCanvas";
 import { byCanvasOrder } from "./frame-order";
-import { ThemePalette } from "./ThemePalette";
 
 type Phase =
 	| { kind: "idle" }
@@ -43,7 +44,6 @@ export function CanvasTab() {
 	const [phase, setPhase] = useState<Phase>({ kind: "idle" });
 	const [session, setSession] = useState<DesignSession | null>(null);
 	const [notesStore, setNotesStore] = useState<NotesStore | null>(null);
-	const [showPalette, setShowPalette] = useState(false);
 	/** 画布备注气泡的显隐。开关在顶栏，自动规则（切工具/建备注/定位）只往显示推。 */
 	const notesVisibility = useNotesVisibility();
 	const [exporting, setExporting] = useState(false);
@@ -59,14 +59,27 @@ export function CanvasTab() {
 	const bridgeRef = useRef(new BridgeHub());
 	/** 画布挂载后填入，见 DesignCanvas 的 captureRef。 */
 	const captureRef = useRef<FrameCapture | null>(null);
-	/** 同上，问画布「此刻单独选中的是哪一帧」，预览按钮据此定位起始帧。 */
-	const previewTargetRef = useRef<(() => string | null) | null>(null);
-	/** 预览窗口打开在哪一帧上；null 表示没开。 */
-	const [previewFrameId, setPreviewFrameId] = useState<string | null>(null);
+	/**
+	 * 设计 / 交互。只存在内存里，换设计回到设计模式。交互视图首次进入才挂载（要起 iframe），
+	 * 之后常驻：路径、滚动位置和表单输入都留着，画布也一直挂着，切回来缩放平移选中原样。
+	 */
+	const [interacting, setInteracting] = useState(false);
+	const [interactionMounted, setInteractionMounted] = useState(false);
+	const enterInteraction = (): void => {
+		setInteractionMounted(true);
+		setInteracting(true);
+	};
 	/** 同 captureRef：vetd_notes 的锚点保鲜入口，画布挂载后填入。 */
 	const resolveNoteElementsRef = useRef<
 		((frameId: string, queries: ElementQuery[]) => Promise<(SelectedElementPayload | null)[]>) | null
 	>(null);
+
+	// 换设计：交互视图连同它的 iframe 一起丢掉，回到设计模式。
+	useEffect(() => {
+		void session;
+		setInteracting(false);
+		setInteractionMounted(false);
+	}, [session]);
 
 	// 画布很吃宽度：每次激活本标签卡（切走会卸载，故每次都触发）把活动面板拉满，
 	// 用户之后仍可自行拖窄。
@@ -106,6 +119,23 @@ export function CanvasTab() {
 		};
 	}, [cwd, refreshFiles]);
 
+	// 画布开着时的打开请求（vetd_create、画廊、文件树右键）：目标多半是刚落盘的新设计，
+	// 先重扫再切，否则下拉里没有它、选中也会被当成无效路径。
+	useEffect(() => {
+		let disposed = false;
+		const unsubscribe = onPendingDesignPath(() => {
+			const pending = takePendingDesignPath(cwd ?? undefined);
+			if (!pending) return;
+			void refreshFiles().then((found) => {
+				if (!disposed && found.includes(pending)) setSelectedPath(pending);
+			});
+		});
+		return () => {
+			disposed = true;
+			unsubscribe();
+		};
+	}, [cwd, refreshFiles]);
+
 	// Open the selected design: session + engine server; teardown on switch.
 	useEffect(() => {
 		if (!selectedPath || !cwd) {
@@ -132,6 +162,7 @@ export function CanvasTab() {
 		void nextNotes.load();
 		void (async () => {
 			await nextSession.open();
+			if (cancelled) return;
 			const server = await startDesignServer(ctx, nextSession.dirPath, (progress) => {
 				if (!cancelled) setPhase({ kind: "preparing", progress });
 			});
@@ -162,10 +193,7 @@ export function CanvasTab() {
 			};
 			requestEngineRecoveryRef.current = recoverCurrent;
 			void server.whenExited.then((exit) => {
-				const reason =
-					exit.exitCode === null
-						? `signal ${exit.signal ?? "unknown"}`
-						: `exit code ${exit.exitCode}`;
+				const reason = exit.exitCode === null ? `signal ${exit.signal ?? "unknown"}` : `exit code ${exit.exitCode}`;
 				recoverCurrent?.(new Error(reason));
 			});
 			setCanvasController({
@@ -183,10 +211,7 @@ export function CanvasTab() {
 					if (!resolve) return Promise.reject(new Error("design canvas is not rendered yet"));
 					return resolve(frameId, queries);
 				},
-				openDesign: (vetdPath) => {
-					setPendingDesignPath(vetdPath);
-					void refreshFiles().then(() => setSelectedPath(vetdPath));
-				},
+				openDesign: (vetdPath) => setPendingDesignPath(vetdPath),
 			});
 			setPhase({ kind: "ready", port: server.port });
 		})().catch((error: unknown) => {
@@ -214,8 +239,7 @@ export function CanvasTab() {
 				console.warn("[vetd] 设计引擎清理失败，交由宿主生命周期兜底", error);
 			});
 		};
-	}, [selectedPath, cwd, t, refreshFiles, reloadNonce]);
-
+	}, [selectedPath, cwd, t, reloadNonce]);
 
 	const createDesign = async (): Promise<void> => {
 		if (!cwd) return;
@@ -228,15 +252,6 @@ export function CanvasTab() {
 		} catch (error) {
 			notify({ message: t("create.failed"), error });
 		}
-	};
-
-	/** 选中哪帧就从哪帧开始预览；没选中则从画布顺序里的第一帧开始。 */
-	const openPreview = (): void => {
-		if (!session) return;
-		const selected = previewTargetRef.current?.() ?? null;
-		const first = [...session.manifest.frames].sort(byCanvasOrder)[0]?.id ?? null;
-		const target = selected ?? first;
-		if (target) setPreviewFrameId(target);
 	};
 
 	const runExport = async (): Promise<void> => {
@@ -276,9 +291,7 @@ export function CanvasTab() {
 	if (files.length === 0) {
 		return (
 			<div className="flex h-full flex-col items-center justify-center gap-3 p-6 text-center">
-				<span className="text-sm font-medium text-foreground">
-					{t("canvas.empty.title")}
-				</span>
+				<span className="text-sm font-medium text-foreground">{t("canvas.empty.title")}</span>
 				<p className="max-w-64 text-xs text-muted-foreground">{t("canvas.empty.desc")}</p>
 				{/* 空态里没有工具栏，重扫入口只能放这儿：目录里明明有设计却扫不到时
 				    （v1 旧格式刚被放进来、或上一次扫描时目录还没就绪），这是用户
@@ -301,8 +314,38 @@ export function CanvasTab() {
 		);
 	}
 
+	/** 设计 / 交互开关：两个模式下都在右上角，交互视图里没有设计稿切换，所以单独成块。 */
+	const modeToggle =
+		phase.kind === "ready" && session ? (
+			<div
+				className="flex h-8 shrink-0 items-center rounded-full border border-border bg-popover p-0.5"
+				role="radiogroup"
+				aria-label={t("interaction.toggle.label")}
+			>
+				{(["design", "interaction"] as const).map((entry) => {
+					const selected = (entry === "interaction") === interacting;
+					return (
+						// biome-ignore lint/a11y/useSemanticElements: segmented control, not a form field
+						<button
+							key={entry}
+							type="button"
+							role="radio"
+							aria-checked={selected}
+							disabled={entry === "interaction" && session.manifest.frames.length === 0}
+							onClick={() => (entry === "interaction" ? enterInteraction() : setInteracting(false))}
+							className={`h-7 rounded-full px-3 text-xs font-medium transition-colors disabled:opacity-40 ${
+								selected ? "bg-primary text-primary-foreground" : "text-muted-foreground hover:text-foreground"
+							}`}
+						>
+							{t(`interaction.toggle.${entry}`)}
+						</button>
+					);
+				})}
+			</div>
+		) : null;
+
 	/**
-	 * 画布左上角的标题区：设计切换（就是这张画布的标题，所以不套卡片底）+ 色卡开关。
+	 * 画布左上角的标题区：设计切换（就是这张画布的标题，所以不套卡片底）。
 	 * 定位交给画布（它要给查看模式的横幅让位），这里只管内容。
 	 */
 	const titleSlot = (
@@ -320,18 +363,6 @@ export function CanvasTab() {
 					</option>
 				))}
 			</select>
-			<button
-				type="button"
-				onClick={() => setShowPalette((value) => !value)}
-				title={t("canvas.theme.title")}
-				aria-label={t("canvas.theme.title")}
-				aria-pressed={showPalette}
-				className={`flex size-7 shrink-0 items-center justify-center rounded-md text-xs transition-colors ${
-					showPalette ? "bg-primary/10 text-primary" : "text-muted-foreground hover:bg-accent hover:text-foreground"
-				}`}
-			>
-				◐
-			</button>
 			{SHOW_EXPORT_SHARE ? (
 				<button
 					type="button"
@@ -386,33 +417,32 @@ export function CanvasTab() {
 				) : null}
 				{phase.kind === "ready" && session && notesStore ? (
 					<>
-						<DesignCanvas
-							session={session}
-							notes={notesStore}
-							cwd={cwd}
-							port={phase.port}
-							bridge={bridgeRef.current}
-							onEngineUnavailable={onEngineUnavailable}
-							captureRef={captureRef}
-							onRescanDesigns={() => void refreshFiles()}
-							previewTargetRef={previewTargetRef}
-							previewing={previewFrameId !== null}
-							resolveNoteElementsRef={resolveNoteElementsRef}
-							notesVisible={notesVisibility.visible}
-							showNotes={notesVisibility.show}
-							onToggleNotes={notesVisibility.toggle}
-							onRun={openPreview}
-							runDisabled={session.manifest.frames.length === 0}
-							titleSlot={titleSlot}
-						/>
-						{showPalette ? <ThemePalette session={session} /> : null}
-						{previewFrameId !== null ? (
-							<PreviewDialog
+						{/* 交互模式下画布整块隐藏（工具栏、标题、顶部渐隐、版本历史 / 导出都属于它），
+						    但保持挂载：缩放、平移、选中、撤销栈切回来原样不动。 */}
+						<div className="absolute inset-0" style={{ visibility: interacting ? "hidden" : "visible" }}>
+							<DesignCanvas
+								session={session}
+								notes={notesStore}
+								cwd={cwd}
 								port={phase.port}
-								frames={session.manifest.frames}
-								vetdPath={session.vetdPath}
-								initialFrameId={previewFrameId}
-								onClose={() => setPreviewFrameId(null)}
+								bridge={bridgeRef.current}
+								onEngineUnavailable={onEngineUnavailable}
+								captureRef={captureRef}
+								suspended={interacting}
+								resolveNoteElementsRef={resolveNoteElementsRef}
+								notesVisible={notesVisibility.visible}
+								showNotes={notesVisibility.show}
+								onToggleNotes={notesVisibility.toggle}
+								titleSlot={titleSlot}
+								modeToggle={modeToggle}
+							/>
+						</div>
+						{interactionMounted ? (
+							<InteractionView
+								port={phase.port}
+								session={session}
+								active={interacting}
+								trailingSlot={modeToggle}
 							/>
 						) : null}
 					</>

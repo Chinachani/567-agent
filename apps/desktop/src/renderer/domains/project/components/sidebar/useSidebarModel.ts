@@ -80,19 +80,13 @@ const BUILTIN_NAV_ITEMS = [
 		labelKey: "sidebar.nav.batchTasks",
 		icon: "icon-[solar--clipboard-check-outline]",
 	},
-	{
-		type: "route",
-		path: "/scenes" as const,
-		labelKey: "sidebar.nav.scenes",
-		icon: "icon-[solar--clapperboard-open-linear]",
-	},
 ] as const;
 
 /**
  * 首次使用时的置顶区默认成员：留「能力」「智能体」和设计画廊，其余入口默认收纳。
  * 顺序由 navCatalog 决定（内置在前、插件视图在后），即「新会话 / 能力 / 智能体 / 设计」。
  */
-const DEFAULT_PINNED_NAV_KEYS = ["/abilities", "/agents", workspaceViewNavKey("vetta-ui-design", "gallery")];
+const DEFAULT_PINNED_NAV_KEYS = ["/abilities", "/agents", "/knowledge", "/automation"];
 
 function loadStoredNavLayout(): SidebarNavLayout {
 	try {
@@ -242,7 +236,7 @@ export function useSidebarModel({
 					"badgeKey" in item ? { kind: "text", text: t(item.badgeKey) } : undefined,
 				),
 			),
-			// sidebar:false 的视图不占导航位，只在「设置 → 更多选项」里出现。
+			// sidebar:false 的视图不占导航位，作为「设置」中的一级入口。
 			...sortWorkspaceViews(workspaceViews.filter((view) => view.sidebar)).map((view) =>
 				toWorkspaceNavItem(
 					view,

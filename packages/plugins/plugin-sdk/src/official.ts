@@ -1,3 +1,4 @@
+// Legacy scene unions remain source-compatible for existing plugins. The host no longer lists or executes scenes.
 import type { PluginPermission } from "./permissions.js";
 
 export interface PluginOfficialGeneralSettings {

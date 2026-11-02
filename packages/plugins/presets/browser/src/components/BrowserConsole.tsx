@@ -5,6 +5,9 @@ import { CapabilitiesSection, CliSection, ComparisonSection, PromptsSection } fr
 import { RuntimeSection } from "./RuntimeSection";
 
 /** 上游项目：命令面、浏览器控制与安全开关都来自这里，页面上必须把出处写清楚。 */
+export const EXTENSION_STORE_URL =
+	"https://chromewebstore.google.com/detail/playwright-extension/mmlmfjhmonkocbjadbfplnigmagldckm";
+export const EXTENSION_GUIDE_URL = "https://github.com/microsoft/playwright/tree/main/packages/extension#readme";
 export const UPSTREAM_REPO_URL = "https://github.com/vercel-labs/agent-browser";
 
 /**
@@ -63,6 +66,31 @@ export function BrowserConsole({ ports }: { ports: BrowserConsolePorts }): JSX.E
 		<div className="browser-page" data-testid="browser-console">
 			<div className="browser-page-inner">
 				<Hero onOpenRepo={() => ports.openExternal(UPSTREAM_REPO_URL)} />
+
+				<section className="flex flex-col gap-2.5">
+					<h2 className="browser-section-label">{t("extension.title")}</h2>
+					<div className="browser-card flex flex-col gap-3 p-4">
+						<p className="text-sm leading-relaxed">{t("extension.description")}</p>
+						<p className="text-xs leading-relaxed text-muted-foreground">{t("extension.setup")}</p>
+						<p className="text-xs leading-relaxed text-muted-foreground">{t("extension.target")}</p>
+						<div className="flex flex-wrap gap-2">
+							<button
+								type="button"
+								className="browser-button"
+								onClick={() => ports.openExternal(EXTENSION_STORE_URL)}
+							>
+								{t("extension.install")}
+							</button>
+							<button
+								type="button"
+								className="browser-button-ghost"
+								onClick={() => ports.openExternal(EXTENSION_GUIDE_URL)}
+							>
+								{t("extension.guide")}
+							</button>
+						</div>
+					</div>
+				</section>
 
 				<RuntimeSection
 					status={status}

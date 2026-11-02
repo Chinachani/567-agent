@@ -1,7 +1,14 @@
 import { ipcMain, type WebContents } from "electron";
+import {
+	BROWSER_TARGETS_CHANNEL,
+	isBrowserPreparationAction,
+	isBrowserTargetId,
+	PREPARE_BROWSER_TARGET_CHANNEL,
+} from "../../shared/current-browser-connection.js";
 import { MODEL_CONTEXT_SET_CHANNEL } from "../../shared/model-context.js";
 import { isModelInferenceApi, MODEL_INFERENCE_API_SET_CHANNEL } from "../../shared/model-inference-api.js";
 import { readAgentSettingsDocument, updateAgentSettingsDocument } from "../agent-settings/settings-document-store.js";
+import { getBrowserTargets, prepareBrowserTarget } from "../browser/browser-targets.js";
 import { DEFAULT_SERVER_URL } from "../constants.js";
 import { getDesktopModelSettingsService } from "../models/model-settings-host.js";
 import {
@@ -33,6 +40,15 @@ export function updateSettings(mutate: (settings: Record<string, unknown>) => vo
 }
 
 export function registerSettingsIpc(owner: WebContents): () => void {
+	ipcMain.handle(BROWSER_TARGETS_CHANNEL, (event) => {
+		assertTrustedMainRenderer(event, owner);
+		return getBrowserTargets();
+	});
+	ipcMain.handle(PREPARE_BROWSER_TARGET_CHANNEL, (event, browser: unknown, action: unknown) => {
+		assertTrustedMainRenderer(event, owner);
+		if (!isBrowserTargetId(browser) || !isBrowserPreparationAction(action)) throw new Error("Invalid browser target");
+		return prepareBrowserTarget(browser, action);
+	});
 	ipcMain.handle(MODEL_INFERENCE_API_SET_CHANNEL, (event, providerId: unknown, modelId: unknown, api: unknown) => {
 		assertTrustedMainRenderer(event, owner);
 		if (typeof providerId !== "string" || typeof modelId !== "string" || (api !== null && !isModelInferenceApi(api)))
@@ -87,6 +103,8 @@ export function registerSettingsIpc(owner: WebContents): () => void {
 	const stopPresetAutoSync = startPresetModelsAutoSync();
 
 	return () => {
+		ipcMain.removeHandler(BROWSER_TARGETS_CHANNEL);
+		ipcMain.removeHandler(PREPARE_BROWSER_TARGET_CHANNEL);
 		ipcMain.removeHandler(MODEL_INFERENCE_API_SET_CHANNEL);
 		ipcMain.removeHandler(MODEL_CONTEXT_SET_CHANNEL);
 		stopPresetAutoSync();

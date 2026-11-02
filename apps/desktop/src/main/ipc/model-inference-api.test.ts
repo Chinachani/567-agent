@@ -1,6 +1,7 @@
 import type { IpcRenderer, WebContents, WebUtils } from "electron";
 import { beforeEach, expect, it, vi } from "vitest";
 import { createSystemApi } from "../../preload/apis/system.js";
+import { BROWSER_TARGETS_CHANNEL, PREPARE_BROWSER_TARGET_CHANNEL } from "../../shared/current-browser-connection.js";
 import { MODEL_CONTEXT_SET_CHANNEL } from "../../shared/model-context.js";
 import { MODEL_INFERENCE_API_SET_CHANNEL } from "../../shared/model-inference-api.js";
 import { ModelSettingsService, type ModelsConfig } from "../models/model-settings-service.js";
@@ -8,12 +9,22 @@ import { ModelSettingsService, type ModelsConfig } from "../models/model-setting
 const state = vi.hoisted(() => ({
 	handlers: new Map<string, (...args: unknown[]) => unknown>(),
 	service: undefined as ModelSettingsService | undefined,
+	browserTargets: vi.fn(async () => ({
+		defaultBrowser: "msedge",
+		defaultApplication: "Microsoft Edge",
+		available: ["msedge"],
+	})),
+	prepareBrowser: vi.fn(async () => ({ id: "msedge", executablePath: "/usr/bin/microsoft-edge" })),
 }));
 vi.mock("electron", () => ({
 	ipcMain: {
 		handle: (key: string, handler: (...args: unknown[]) => unknown) => state.handlers.set(key, handler),
 		removeHandler: (key: string) => state.handlers.delete(key),
 	},
+}));
+vi.mock("../browser/browser-targets.js", () => ({
+	getBrowserTargets: state.browserTargets,
+	prepareBrowserTarget: state.prepareBrowser,
 }));
 vi.mock("../models/model-settings-host.js", () => ({ getDesktopModelSettingsService: () => state.service }));
 vi.mock("../agent-settings/settings-document-store.js", () => ({
@@ -79,6 +90,8 @@ it("rejects other windows, child frames, detached frames and destroyed owners on
 	const { registerSettingsIpc } = await import("./settings.js");
 	const dispose = registerSettingsIpc(owner);
 	const channels: [string, unknown[]][] = [
+		[BROWSER_TARGETS_CHANNEL, []],
+		[PREPARE_BROWSER_TARGET_CHANNEL, ["msedge", "resolve"]],
 		[MODEL_INFERENCE_API_SET_CHANNEL, ["custom", "model", "openai-responses"]],
 		[MODEL_CONTEXT_SET_CHANNEL, ["custom", "model", 32000]],
 		["vetta:settings:get-server-url", []],
@@ -104,6 +117,37 @@ it("rejects other windows, child frames, detached frames and destroyed owners on
 		}
 		expect(config.providers.custom.api).toBe("custom-plugin-wire");
 		expect(config.providers.custom.modelOverrides?.model).toEqual({ api: "openai-responses", contextWindow: 32000 });
+	} finally {
+		dispose();
+	}
+	expect(state.handlers.size).toBe(0);
+});
+
+it("bridges browser setup through trusted settings IPC and rejects arbitrary programs or URLs", async () => {
+	const { registerSettingsIpc } = await import("./settings.js");
+	const owner = { mainFrame: {}, isDestroyed: () => false } as unknown as WebContents;
+	const valid = { sender: owner, senderFrame: owner.mainFrame };
+	const dispose = registerSettingsIpc(owner);
+	const api = createSystemApi(
+		{
+			invoke: async (channel: string, ...args: unknown[]) => state.handlers.get(channel)!(valid, ...args),
+		} as IpcRenderer,
+		{} as WebUtils,
+	);
+	try {
+		await expect(api.settings.getBrowserTargets()).resolves.toMatchObject({ defaultBrowser: "msedge" });
+		await expect(api.settings.prepareBrowserTarget("msedge", "bundled")).resolves.toMatchObject({ id: "msedge" });
+		expect(state.prepareBrowser).toHaveBeenLastCalledWith("msedge", "bundled");
+		for (const args of [
+			["/tmp/evil", true],
+			["https://evil.example", true],
+			["chrome", "true"],
+			[{ id: "chrome" }, false],
+		]) {
+			expect(() => state.handlers.get(PREPARE_BROWSER_TARGET_CHANNEL)!(valid, ...args)).toThrow(
+				"Invalid browser target",
+			);
+		}
 	} finally {
 		dispose();
 	}

@@ -128,7 +128,7 @@ async function connect(
 					author: ability.author,
 					category: ability.category,
 					tags: ability.tags.slice(0, 12),
-					installable: ability.installable !== false && ["skill", "scene", "plugin"].includes(ability.type),
+					installable: ability.installable !== false && ["skill", "plugin"].includes(ability.type),
 					installed: Boolean(ledger[`${ability.type}:${ability.slug}`]),
 				}));
 				const listedKeys = new Set(listed.map((ability) => `${ability.type}:${ability.slug}`));
@@ -137,11 +137,11 @@ async function connect(
 					if (separator <= 0) return [];
 					const type = key.slice(0, separator);
 					const slug = key.slice(separator + 1);
-					if (listedKeys.has(key) || !["skill", "scene", "plugin", "mcp"].includes(type)) return [];
+					if (listedKeys.has(key) || !["skill", "plugin", "mcp"].includes(type)) return [];
 					return [
 						{
 							slug,
-							type: type as "skill" | "scene" | "mcp" | "plugin",
+							type: type as "skill" | "mcp" | "plugin",
 							name: slug,
 							description: "已安装在这台电脑上；详细配置请在桌面端管理。",
 							version: entry.version,
@@ -155,7 +155,10 @@ async function connect(
 				});
 				return [...listed, ...installedLocal].slice(0, 400);
 			},
-			installToolbox: (type, slug) => getOpenMarketplaceManager(app.getVersion()).install(type, slug),
+			installToolbox: (type, slug) => {
+				if (type === "scene") throw new Error("Scenes have been retired.");
+				return getOpenMarketplaceManager(app.getVersion()).install(type, slug);
+			},
 			allowSessionMigrationTransfer: options.allowSessionMigrationTransfer === true,
 			readDeviceStatus: () => ({ activeConversation: visibleConversation.snapshot() }),
 		},

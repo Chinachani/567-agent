@@ -9,14 +9,12 @@ export interface SettingsSidebarProps {
 export function SettingsSidebar({ model }: SettingsSidebarProps): JSX.Element {
 	return (
 		<SettingsSidebarView
-			activeTab={model.activeTab}
+			activeTab={model.activeNavigationKey}
 			betaBadgeLabel={model.betaBadgeLabel}
 			narrow={model.narrow}
-			onSelectTab={(tab) => model.onSelectTab(tab as typeof model.activeTab)}
+			onSelectTab={model.onSelectNavigation}
 			onTabIntent={prefetchSettingsTab}
 			tabs={model.tabs}
-			onSelectChild={model.onSelectNavigationChild}
-			activeChildKey={model.activeNavigationChildKey}
 			title={model.title}
 		/>
 	);

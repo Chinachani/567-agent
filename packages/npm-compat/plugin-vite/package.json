@@ -1,6 +1,6 @@
 {
 	"name": "@567agent/plugin-vite",
-	"version": "0.2.4",
+	"version": "0.2.5",
 	"type": "module",
 	"description": "567 Agent public entry for @vetta-org/plugin-vite; shared runtime identity is preserved.",
 	"author": "567wiki <907746241@qq.com>",
@@ -37,7 +37,7 @@
 		"prepack": "node ../../../scripts/generate-npm-compat.mjs plugin-vite"
 	},
 	"dependencies": {
-		"@vetta-org/plugin-vite": "0.2.4"
+		"@vetta-org/plugin-vite": "0.2.5"
 	},
 	"peerDependencies": {
 		"@vetta-org/plugin-sdk": ">=0.3.7 <0.4.0",

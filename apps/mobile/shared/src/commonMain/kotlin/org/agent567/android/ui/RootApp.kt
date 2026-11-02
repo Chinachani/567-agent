@@ -379,6 +379,7 @@ fun RootApp(
                     availableGroups = state.available567Groups,
                     groupPickerOpen = state.groupPickerOpen,
                     onOpenContext = { vm.setContextPanelOpen(true) },
+                    onOpenWorkbench = { vm.setWorkbenchOpen(true) },
                     onOpenGroupPicker = { vm.setGroupPickerOpen(true) },
                     onCloseGroupPicker = { vm.setGroupPickerOpen(false) },
                     onSelectGroup = vm::setActive567Group,

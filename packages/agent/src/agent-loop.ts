@@ -152,7 +152,8 @@ async function runLoop(
 				}
 
 				modelCallCount += 1;
-				assertWithinAgentLoopLimit("model_calls", modelCallCount, limits.maxModelCalls);
+				if (limits.maxModelCalls !== null)
+					assertWithinAgentLoopLimit("model_calls", modelCallCount, limits.maxModelCalls);
 				const message = await streamAssistantResponse(
 					currentContext,
 					config,

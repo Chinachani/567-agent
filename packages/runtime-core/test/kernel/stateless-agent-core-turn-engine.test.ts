@@ -22,6 +22,67 @@ import {
 import { StatelessAgentCoreTurnEngine } from "../../src/kernel/stateless-agent-core-turn-engine.js";
 
 describe("StatelessAgentCoreTurnEngine", () => {
+	it("preserves a host's tool budget when the per-run resolver disables only the model budget", async () => {
+		let executions = 0;
+		const tool: RuntimeToolDefinition = {
+			name: "echo",
+			label: "Echo",
+			description: "Echo",
+			inputSchema: { type: "object" },
+			async execute() {
+				executions += 1;
+				return { content: [{ type: "text", text: "done" }] };
+			},
+		};
+		const engine = new StatelessAgentCoreTurnEngine({
+			...options([
+				assistant([{ type: "toolCall", id: "one", name: "echo", arguments: {} }], "toolUse"),
+				assistant([{ type: "toolCall", id: "two", name: "echo", arguments: {} }], "toolUse"),
+			]),
+			limits: { maxToolCalls: 1 },
+			resolveTurnLimits: () => ({ maxModelCalls: null }),
+		});
+		await expect(run(engine, snapshot([tool]))).rejects.toThrow("max_tool_calls");
+		expect(executions).toBe(1);
+	});
+	it("captures the limit once per run and reads changes for the next run on the same engine", async () => {
+		let maxModelCalls: number | null = 2;
+		let calls = 0;
+		let resolutions = 0;
+		const engine = new StatelessAgentCoreTurnEngine({
+			model: model(),
+			resolveTurnLimits: () => {
+				resolutions += 1;
+				return { maxModelCalls };
+			},
+			streamFn: () => {
+				calls += 1;
+				return recordedStream(
+					calls === 105
+						? assistant([{ type: "text", text: "finished" }])
+						: assistant([{ type: "toolCall", id: `call-${calls}`, name: "echo", arguments: {} }], "toolUse"),
+				);
+			},
+		});
+		const tool: RuntimeToolDefinition = {
+			name: "echo",
+			label: "Echo",
+			description: "Echo",
+			inputSchema: { type: "object" },
+			async execute() {
+				maxModelCalls = null;
+				return { content: [{ type: "text", text: "done" }] };
+			},
+		};
+		await expect(run(engine, snapshot([tool]))).rejects.toThrow("max_model_calls");
+		expect(calls).toBe(2);
+		expect(resolutions).toBe(1);
+		calls = 0;
+		const events = await run(engine, snapshot([tool]));
+		expect(events.at(-1)).toEqual({ type: "completed", stopReason: "stop" });
+		expect(calls).toBe(105);
+		expect(resolutions).toBe(2);
+	});
 	it("keeps the production facade aligned with the stateless text projection", async () => {
 		const response = assistant([{ type: "text", text: "done" }]);
 		const legacy = await run(new AgentCoreTurnEngine(options([response])), snapshot());

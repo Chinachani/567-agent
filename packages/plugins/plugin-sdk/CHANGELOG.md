@@ -4,6 +4,14 @@ All notable changes to `@vetta-org/plugin-sdk` are documented in this file.
 
 ## [Unreleased]
 
+- 567 Agent 设置页将 `sidebar: false` 视图作为一级入口直接显示，窄栏保留图标；清单、配置归属与旧链接不变，插件无需修改代码。
+
+- 配套 CLI 的帮助、热重载提示及生成指引统一使用 567 Agent 名称，保留已有命令名、包名与版本标记，旧工程无需修改脚本。
+
+- 配套 `plugin-vite` 0.2.5 将 `agent/cli/` 命令辅助文件随插件打包，避免安装后缺少内置 CLI；不新增清单字段或执行权限。
+
+- 567 Agent 1.5.4 下线场景加载与安装；Official API 的历史 scene 联合类型暂保留源码兼容，宿主仅返回普通技能，旧 scene 操作明确拒绝。旧文件与会话原文不迁移或删除。
+
 - 模型可声明 `input: ["text", "image"]`；宿主写入、重载、回读会保留有效输入能力，历史未知类型在插件回读时过滤。移植自 openvetta/open-vetta c8fa6fbe2c944e59925f56b21d079a63b0adac9b；需要 567 Agent 1.3.3 及以上宿主。
 
 - Official plugin installation options accept the reserved `initiator` diagnostic marker used by `plugin-cli` and Plugin Workbench. Desktop records it in local ability lifecycle logs; third-party plugins should leave it unset.

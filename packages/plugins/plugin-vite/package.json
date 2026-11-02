@@ -1,6 +1,6 @@
 {
 	"name": "@vetta-org/plugin-vite",
-	"version": "0.2.4",
+	"version": "0.2.5",
 	"type": "module",
 	"main": "./dist/index.js",
 	"types": "./dist/index.d.ts",
@@ -39,6 +39,7 @@
 	},
 	"devDependencies": {
 		"@vetta-org/plugin-sdk": "workspace:*",
+		"fflate": "^0.8.2",
 		"typescript": "^5.9.2",
 		"vite": "^7.1.7",
 		"vitest": "^3.2.4"

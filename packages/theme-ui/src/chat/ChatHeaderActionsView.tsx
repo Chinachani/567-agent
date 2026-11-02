@@ -50,20 +50,23 @@ export function ChatHeaderPanelAction({
 	onClick,
 	open,
 	title,
+	label,
 }: {
 	readonly onClick: () => void;
 	readonly open: boolean;
 	readonly title: string;
+	readonly label?: string;
 }): JSX.Element {
 	return (
 		<Button
-			size="icon-xs"
+			size={label ? "sm" : "icon-xs"}
 			variant="ghost"
 			title={title}
 			onClick={onClick}
 			className={open ? "bg-accent text-foreground" : ""}
 		>
-			<span className="icon-[solar--sidebar-minimalistic-linear] -scale-x-100 text-[14px]" />
+			<span aria-hidden className="icon-[solar--sidebar-minimalistic-linear] -scale-x-100 text-[14px]" />
+			{label}
 		</Button>
 	);
 }

@@ -196,6 +196,7 @@
     "errorNotUtf8": "This file is not valid UTF-8 text and cannot be edited",
     "errorRead": "Unable to read this file",
     "errorSave": "Unable to save this file. Try again.",
+    "errorDownload": "Could not download or save the file. Please try again.",
     "unsupported": "Preview is not supported for this file type",
     "download": "Download file",
     "showTree": "Show file tree",
@@ -435,9 +436,6 @@
     }
   },
   "inputBar": {
-    "error": {
-      "multipleScenes": "Only one Scene can be selected per message. Remove the extra Scene and try again"
-    },
     "capsule": {
       "appshotThumbnailAlt": "Screenshot",
       "appshotPreview": "Preview screenshot",
@@ -488,7 +486,8 @@
     "toolbar": {
       "addImage": "Add image",
       "attachFile": "Attach file reference",
-      "skills": "Skills / Scenes"
+      "skills": "Skills, scenarios and commands",
+      "references": "Reference files, folders and knowledge bases"
     },
     "speech": {
       "actions": {
@@ -536,7 +535,6 @@
     "scrollToBottom": "Jump to latest message",
     "userMessage": {
       "expand": "Expand message",
-      "sceneBadge": "Scene",
       "skillBadge": "Skill",
       "settingsAssist": {
         "mcp": "MCP setup assist",
@@ -704,7 +702,8 @@
         },
         "run_limit": {
           "title": "Run interrupted",
-          "hint": "This run reached its model-call limit. Send another message to continue."
+          "hint": "This run reached its model-call limit. Send another message to continue.",
+          "action": "Adjust call limit"
         },
         "persistence": {
           "title": "Session state could not be saved",
@@ -840,6 +839,12 @@
       "pick": "Switch agent",
       "pickTitle": "Pick a team or a single agent for this task",
       "switchTitle": "Switch the team or agent for this session"
+    },
+    "quickStart": {
+      "teams": "Agent teams",
+      "commands": "/ Skills and commands",
+      "references": "@ Files and knowledge",
+      "pairing": "Pair phone and remote control"
     }
   },
   "planMode": {
@@ -949,11 +954,11 @@
   },
   "skillPromptArea": {
     "missingBadge": "Not installed",
-    "placeholder": "Type a prompt… use / for skills/scenes",
+    "placeholder": "Type a prompt… use / for skills",
     "removeSkill": "Click to remove",
     "removeSkillMissing": "Skill not installed, click to remove",
-    "skillButtonLabel": "Skills / Scenes",
-    "skillButtonTitle": "Skills / Scenes"
+    "skillButtonLabel": "Skills",
+    "skillButtonTitle": "Skills"
   },
   "slashPanel": {
     "compaction": {
@@ -967,18 +972,16 @@
     },
     "emptyNoMatch": "No matches found",
     "emptyNoMatchHint": "Try another keyword, or just type your request.",
-    "emptyNoSkills": "No skills or scenes available",
-    "emptyNoSkillsHint": "Install a skill or scene from the ability market to call it here.",
-    "header": "Select a scene or skill",
+    "emptyNoSkills": "No skills available",
+    "emptyNoSkillsHint": "Install a skill from the ability market to call it here.",
+    "header": "Select a skill",
     "resultCount": "{{count}} results",
-    "scenesSection": "Scenes",
     "skillsSection": "Skills",
     "sourceLabels": {
       "agentsProject": "Generic · Project",
       "agentsUser": "Generic",
       "path": "Custom",
       "project": "Project",
-      "scene": "Scene",
       "user": "User",
       "builtin": "Built-in",
       "plugin": "Plugin",
@@ -1271,7 +1274,7 @@
     "failed": "Could not collect resources. The original conversation is kept.",
     "retry": "Try again",
     "copyFailed": "Could not copy. Try again.",
-    "description": "Files, links and images from this conversation. A successful tool write does not prove a file still exists; references and website availability are unverified.",
+    "description": "Files, links and images mentioned or created in this conversation. Open an item to check availability.",
     "empty": "No files or links yet. Resources from finished replies and successful tool results will appear here.",
     "filters": {
       "all": "All",
@@ -1284,6 +1287,74 @@
     "evidence": {
       "reference": "Conversation reference · Unverified",
       "written": "Tool wrote this · Not verified"
+    }
+  },
+  "workbenchLabel": "Workbench",
+  "annotations": {
+    "title": "Q&A notes",
+    "ask": "Ask AI",
+    "history": "View Q&A notes",
+    "saved": "View {{count}} Q&A notes",
+    "close": "Close note",
+    "contextHint": "Uses the text conversation up to this message. This separate discussion does not affect the main conversation. Q&A is saved automatically.",
+    "source": "Back to source message",
+    "sourceUnavailable": "The source message is not in the current branch. Saved notes are still available.",
+    "question": "Your question",
+    "send": "Ask",
+    "cancel": "Stop answering",
+    "answering": "Answering… It will continue and save if you close this panel.",
+    "loading": "Loading notes…",
+    "search": "Search questions and answers",
+    "empty": "No Q&A notes found. Select message text and choose Ask AI from the context menu.",
+    "error": "The action could not finish. Your input is preserved. Try again, or check your model settings before asking again.",
+    "reload": "Reload",
+    "retry": "Answer this question again",
+    "length": "This answer reached its length limit. You can ask a follow-up question.",
+    "status": {
+      "failed": "The answer failed. Your question and any received text were saved. Check your model settings and retry.",
+      "cancelled": "Answering stopped. Any received text was saved.",
+      "interrupted": "The previous answer was interrupted. You can retry this question."
+    }
+  },
+  "bottomPanel": {
+    "tablist": "Bottom panel tabs",
+    "closeTab": "Close",
+    "tabFailed": "This panel failed to render",
+    "pillsGroup": "Bottom panel",
+    "empty": {
+      "title": "The bottom panel is empty",
+      "description": "Pick a panel to add.",
+      "pickerLabel": "Panels you can add"
+    },
+    "actions": {
+      "add": "New panel",
+      "splitRight": "Split right",
+      "splitDown": "Split down",
+      "splitLimit": "Split limit reached",
+      "collapse": "Collapse bottom panel"
+    },
+    "addMenu": {
+      "builtinGroup": "Built-in",
+      "pluginGroup": "Plugins",
+      "instanceLimit": "Instance limit reached for this panel"
+    },
+    "closeConfirm": {
+      "title": "Close this panel?",
+      "message": "Work in progress inside the panel will be interrupted.",
+      "confirm": "Close"
+    },
+    "terminal": {
+      "title": "Terminal",
+      "exited": "[process exited with code {{code}}]",
+      "previousOutput": "-- output above is from the previous session (process ended) --",
+      "unavailable": "A terminal cannot be started in this environment",
+      "noResize": "This host has no helper installed, so the terminal size is fixed and will not follow the window.",
+      "replayTruncated": "[earlier output omitted]",
+      "closeConfirm": {
+        "title": "Close the terminal?",
+        "message": "“{{process}}” is still running; closing the terminal ends it.",
+        "confirm": "Close and end process"
+      }
     }
   }
 }

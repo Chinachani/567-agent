@@ -7,15 +7,16 @@ import type { AbilityLifecycleLogContext } from "../ability-lifecycle-log.js";
 import type { MarketplaceAbilityManifest } from "./marketplace-schema.js";
 import { assertSafeSkillTree, validateSkillPackage } from "./skill-package.js";
 
-export type OpenMarketplaceSkillManifest = Extract<MarketplaceAbilityManifest, { type: "skill" | "scene" }>;
+export type OpenMarketplaceSkillManifest = Extract<MarketplaceAbilityManifest, { type: "skill" }>;
 
 export interface OpenMarketplaceInstallerDependencies {
-	getBaseDir: (type: "skill" | "scene") => string;
+	assertInstallableName: (name: string) => void;
+	getBaseDir: () => string;
 	tmpBaseDir: string;
 	readManifest: () => Record<string, InstalledSkill>;
 	writeManifest: (manifest: Record<string, InstalledSkill>) => void;
 	recordInstall: (
-		type: "skill" | "scene",
+		type: "skill",
 		slug: string,
 		version: string,
 		metadata: {
@@ -27,7 +28,7 @@ export interface OpenMarketplaceInstallerDependencies {
 	) => void;
 	recordEvent: (input: {
 		name: string;
-		type: "skill" | "scene";
+		type: "skill";
 		source: "market";
 		operation: "installed" | "updated";
 		logContext: AbilityLifecycleLogContext;
@@ -50,20 +51,18 @@ export async function installOpenMarketplaceAbility(
 	origin: GitHubMarketplaceOrigin,
 	dependencies: OpenMarketplaceInstallerDependencies,
 ): Promise<void> {
+	dependencies.assertInstallableName(ability.slug);
 	const sourceDir = join(snapshotRoot, ability.source.path);
 	validateSkillPackage(sourceDir, ability);
 
 	mkdirSync(dependencies.tmpBaseDir, { recursive: true });
 	const stagingParent = await mkdtemp(join(dependencies.tmpBaseDir, "open-ability-"));
 	const stagedDir = join(stagingParent, ability.slug);
-	const baseDir = dependencies.getBaseDir(ability.type);
+	const baseDir = dependencies.getBaseDir();
 	const destinationDir = join(baseDir, ability.slug);
 	const backupDir = join(stagingParent, `${ability.slug}.previous`);
 	const previousManifest = dependencies.readManifest();
 	const previousEntry = previousManifest[ability.slug];
-	if (previousEntry && (previousEntry.type === "scene" ? "scene" : "skill") !== ability.type) {
-		throw new Error(`Cannot install ${ability.type}:${ability.slug}; the other skill type already uses this slug`);
-	}
 	let movedPrevious = false;
 	let installedNew = false;
 

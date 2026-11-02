@@ -8,6 +8,7 @@ import type { McpServerConfigData } from "../../../preload/api-types/mcp.js";
 import { recordAppMonitorEvent } from "../../app-monitor/app-monitor-service.js";
 import { installPluginFromArchive } from "../../plugins/plugin-catalog.js";
 import {
+	assertSkillNameNotRetired,
 	getSkillBaseDir,
 	readSkillsManifest,
 	recordSkillResourceEvent,
@@ -36,6 +37,7 @@ import {
 import { createOpenMarketplacePluginArchive, validateOpenMarketplacePlugin } from "./open-marketplace-plugin.js";
 
 const dependencies: OpenMarketplaceInstallerDependencies = {
+	assertInstallableName: assertSkillNameNotRetired,
 	getBaseDir: getSkillBaseDir,
 	tmpBaseDir: join(getAgent567HomePath(), "tmp"),
 	readManifest: readSkillsManifest,

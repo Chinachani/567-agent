@@ -1,6 +1,7 @@
 import {
 	CODING_AGENT_COMPACTION_CONFIGURATION,
 	CODING_AGENT_COMPACTION_CONFIGURATION_ID,
+	CODING_AGENT_MODEL_CALL_LIMIT_CONFIGURATION_ID,
 } from "@567agent/coding-agent/settings";
 import { CODING_IMAGE_CONFIGURATION_ID, VETTA_OCR_CONFIGURATION_ID } from "@567agent/runtime-tools";
 import { describe, expect, it, vi } from "vitest";
@@ -36,6 +37,7 @@ describe("DesktopRuntimeConfigurationService", () => {
 		expect(catalog.entries.map(({ configurationId }) => configurationId)).toEqual([
 			CODING_AGENT_COMPACTION_CONFIGURATION_ID,
 			CODING_IMAGE_CONFIGURATION_ID,
+			CODING_AGENT_MODEL_CALL_LIMIT_CONFIGURATION_ID,
 			VETTA_OCR_CONFIGURATION_ID,
 		]);
 		expect(
@@ -95,6 +97,30 @@ describe("DesktopRuntimeConfigurationService", () => {
 		await expect(
 			harness.service.set(CODING_AGENT_COMPACTION_CONFIGURATION_ID, { contextThresholdPercent: 101 }),
 		).rejects.toThrow("contextThresholdPercent");
+		await harness.service.close();
+	});
+
+	it("defaults to 100 calls, retains the chosen count when disabled, and preserves adjacent settings", async () => {
+		const harness = createHarness({ custom: { keep: true }, compaction: { enabled: false } });
+		expect(harness.service.readModelCallLimit()).toEqual({ enabled: true, maxCalls: 100 });
+		await harness.service.set(CODING_AGENT_MODEL_CALL_LIMIT_CONFIGURATION_ID, { maxCalls: 250 });
+		await harness.service.set(CODING_AGENT_MODEL_CALL_LIMIT_CONFIGURATION_ID, { enabled: false });
+		expect(harness.service.readModelCallLimit()).toEqual({ enabled: false, maxCalls: 250 });
+		expect(harness.readAgentSettings()).toMatchObject({ custom: { keep: true }, compaction: { enabled: false } });
+		await expect(
+			harness.service.set(CODING_AGENT_MODEL_CALL_LIMIT_CONFIGURATION_ID, { maxCalls: 0 }),
+		).rejects.toThrow();
+		expect(harness.service.readModelCallLimit()).toEqual({ enabled: false, maxCalls: 250 });
+		await harness.service.set(CODING_AGENT_MODEL_CALL_LIMIT_CONFIGURATION_ID, { enabled: true });
+		expect(harness.service.readModelCallLimit()).toEqual({ enabled: true, maxCalls: 250 });
+		await harness.service.close();
+	});
+
+	it("uses safe defaults for damaged stored limits and can repair them with a complete valid value", async () => {
+		const harness = createHarness({ modelCallLimit: { enabled: false, maxCalls: -1 } });
+		expect(harness.service.readModelCallLimit()).toEqual({ enabled: true, maxCalls: 100 });
+		await harness.service.set(CODING_AGENT_MODEL_CALL_LIMIT_CONFIGURATION_ID, { enabled: true, maxCalls: 200 });
+		expect(harness.service.readModelCallLimit()).toEqual({ enabled: true, maxCalls: 200 });
 		await harness.service.close();
 	});
 

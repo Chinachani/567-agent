@@ -1,7 +1,7 @@
 {
 	"id": "vetta-ui-design",
 	"name": "%plugin.name%",
-	"version": "0.7.6",
+	"version": "0.7.7",
 	"icon": "icon.png",
 	"defaultLocale": "zh",
 	"pluginApiVersion": "^2.0.0",
@@ -47,7 +47,16 @@
 	"network": {
 		"allowedHosts": [
 			"cdn.jsdelivr.net",
-			"raw.githubusercontent.com"
+			"raw.githubusercontent.com",
+			"picsum.photos",
+			"fastly.picsum.photos",
+			"api.openverse.org",
+			"commons.wikimedia.org",
+			"upload.wikimedia.org",
+			"images-api.nasa.gov",
+			"images-assets.nasa.gov",
+			"images.unsplash.com",
+			"*.staticflickr.com"
 		]
 	},
 	"commands": [

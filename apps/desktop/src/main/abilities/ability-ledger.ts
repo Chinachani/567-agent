@@ -15,7 +15,7 @@ import { ABILITY_LEDGER_SCHEMA_VERSION, migrateAbilityLedgerConfig } from "./abi
  * 能力安装台账（ADR-0049）。
  *
  * 只记录「装了哪些能力、什么版本」，**不改变任何物理安装位置**：
- * skill → `~/.567agent/skills/<slug>`、scene → `~/.567agent/scene/<slug>`、
+ * skill → `~/.567agent/skills/<slug>`、
  * plugin → `~/.567agent/plugins/<slug>`、mcp → `~/.567agent/agent/mcp.json` 的一个 key。
  * bundle 不进台账（状态由成员派生）。
  *
@@ -27,11 +27,10 @@ import { ABILITY_LEDGER_SCHEMA_VERSION, migrateAbilityLedgerConfig } from "./abi
  */
 const ledgerPath = join(getAgent567HomePath(), "abilities.json");
 const skillsBaseDir = join(getAgent567HomePath(), "skills");
-const sceneBaseDir = join(getAgent567HomePath(), "scene");
 const pluginsBaseDir = join(getAgent567HomePath(), "plugins");
 const mcpConfigPath = join(getAgent567HomePath(), "agent", "mcp.json");
 
-const LEDGER_TYPES = new Set<string>(["skill", "scene", "plugin", "mcp"]);
+const LEDGER_TYPES = new Set<string>(["skill", "plugin", "mcp"]);
 
 interface PersistedAbilityLedger {
 	schemaVersion: typeof ABILITY_LEDGER_SCHEMA_VERSION;
@@ -156,8 +155,6 @@ function isAbilityStillInstalled(type: AbilityLedgerType, slug: string, mcpServe
 	switch (type) {
 		case "skill":
 			return existsSync(join(skillsBaseDir, slug));
-		case "scene":
-			return existsSync(join(sceneBaseDir, slug));
 		case "plugin":
 			return existsSync(join(pluginsBaseDir, slug));
 		case "mcp":

@@ -4,6 +4,7 @@ import { join } from "node:path";
 import AdmZip from "adm-zip";
 import { afterEach, expect, it, vi } from "vitest";
 import type { InstalledSkill } from "../../../preload/api-types/skills";
+import { assertNoRetiredSceneConflict } from "../../skills/skill-manifest-storage";
 import { installOpenMarketplaceAbility } from "./open-marketplace-installer";
 import { readOpenMarketplaceMcpPackage } from "./open-marketplace-mcp";
 import { OpenMarketplaceService } from "./open-marketplace-service";
@@ -87,6 +88,7 @@ it("keeps installed identities and disabled state when top-level entries become 
 		installAbility: async (snapshot, ability, origin) => {
 			if (ability.type !== "skill") throw new Error("Unexpected install type");
 			await installOpenMarketplaceAbility(snapshot, ability, origin, {
+				assertInstallableName: (name) => assertNoRetiredSceneConflict(join(root, "skills-manifest.json"), name),
 				getBaseDir: () => join(root, "installed"),
 				tmpBaseDir: join(root, "staging"),
 				readManifest: () => installed,

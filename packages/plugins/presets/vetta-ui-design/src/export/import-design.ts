@@ -1,5 +1,6 @@
 import type { PluginContext } from "@vetta-org/plugin-sdk";
-import { strFromU8, unzipSync } from "fflate";
+import { strFromU8 } from "fflate";
+import { ArchiveEntries, readDesignArchive } from "../shared/archive-paths";
 import { HISTORY_ENTRY, unpackHistoryFromShare } from "../history/history-transfer";
 import { manifestPathOf } from "../vetd/manifest-types";
 import { sanitizeDesignName } from "../vetd/scaffold";
@@ -15,7 +16,7 @@ export interface PackagedVetd {
 }
 
 export function parsePackagedVetd(bytes: Uint8Array): PackagedVetd {
-	const entries = unzipSync(bytes);
+	const entries = readDesignArchive(bytes);
 	const manifest = entries["manifest.json"];
 	if (!manifest) throw new Error("share file missing manifest.json");
 	const designFiles = new Map<string, Uint8Array>();
@@ -52,7 +53,24 @@ export async function importPackagedVetd(
 	targetDir: string,
 	sourceFileName: string,
 ): Promise<string> {
-	const baseName = sanitizeDesignName(sourceFileName.replace(/\.(?:567design|vetdz|vetd)$/i, "").replace(/-share$/i, ""));
+	// This public entry also accepts in-memory packages; validate before the first write.
+	const entries = new ArchiveEntries();
+	for (const [rel, bytes] of packaged.designFiles) {
+		entries.add(rel, false, bytes.byteLength);
+		const key = rel.normalize("NFC").toLowerCase();
+		if (
+			key === "design.json" ||
+			key.startsWith("design.json/") ||
+			key === ".history" ||
+			key.startsWith(".history/")
+		) {
+			throw new Error(`conflicting design entry: ${rel}`);
+		}
+	}
+	if (packaged.historyZip) readDesignArchive(packaged.historyZip);
+	const baseName = sanitizeDesignName(
+		sourceFileName.replace(/\.(?:567design|vetdz|vetd)$/i, "").replace(/-share$/i, ""),
+	);
 	let vetdPath = `${targetDir}/${baseName}.vetd`;
 	let suffix = 1;
 	while ((await ctx.fs.stat(vetdPath)) !== null) {

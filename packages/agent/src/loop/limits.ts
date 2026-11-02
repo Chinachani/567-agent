@@ -1,10 +1,10 @@
 import type { AgentLoopLimits } from "../types.js";
 
-export const DEFAULT_AGENT_LOOP_LIMITS: Required<AgentLoopLimits> = {
+export const DEFAULT_AGENT_LOOP_LIMITS = {
 	maxModelCalls: 100,
 	maxToolCalls: 1_000,
 	contextCheckpointTimeoutMs: 300_000,
-};
+} as const satisfies Required<AgentLoopLimits>;
 
 export type AgentLoopLimitKind = "model_calls" | "tool_calls";
 
@@ -23,7 +23,10 @@ export class AgentLoopLimitError extends Error {
 
 export function resolveAgentLoopLimits(limits: AgentLoopLimits | undefined): Required<AgentLoopLimits> {
 	return {
-		maxModelCalls: positiveInteger(limits?.maxModelCalls, DEFAULT_AGENT_LOOP_LIMITS.maxModelCalls, "maxModelCalls"),
+		maxModelCalls:
+			limits?.maxModelCalls === null
+				? null
+				: positiveInteger(limits?.maxModelCalls, DEFAULT_AGENT_LOOP_LIMITS.maxModelCalls, "maxModelCalls"),
 		maxToolCalls: positiveInteger(limits?.maxToolCalls, DEFAULT_AGENT_LOOP_LIMITS.maxToolCalls, "maxToolCalls"),
 		contextCheckpointTimeoutMs: positiveInteger(
 			limits?.contextCheckpointTimeoutMs,

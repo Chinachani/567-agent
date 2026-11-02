@@ -4,7 +4,7 @@ import { CodePreview } from "../../activity-panel/components/previews/CodePrevie
 import { HtmlPreview } from "../../activity-panel/components/previews/HtmlPreview";
 import { MarkdownPreview } from "../../activity-panel/components/previews/MarkdownPreview";
 
-const MARKDOWN_EXTENSIONS = new Set(["md", "mdx"]);
+const MARKDOWN_EXTENSIONS = new Set(["md", "mdx", "markdown"]);
 const SCROLL_WRAP = "text-preview-content min-h-0 flex-1 overflow-y-auto";
 
 export function TextPreviewRenderer({

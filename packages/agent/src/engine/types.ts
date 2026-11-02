@@ -12,7 +12,8 @@ import type {
 import type { Static, TSchema } from "@sinclair/typebox";
 
 export interface AgentRunLimits {
-	readonly maxModelCalls: number;
+	/** Null disables only the model-call budget; cancellation and other limits still apply. */
+	readonly maxModelCalls: number | null;
 	readonly maxToolCalls: number;
 	readonly maxRecoveryAttempts: number;
 	readonly checkpointTimeoutMs: number;

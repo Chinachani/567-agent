@@ -101,7 +101,7 @@ function Header({
 	sidebarCollapsed?: boolean;
 	onDownload?: (item: FilePreviewItem) => void;
 }): JSX.Element {
-	const downloadable = !!item.url || item.text !== undefined;
+	const downloadable = !!item.url || !!item.path || item.text !== undefined;
 	return (
 		<div className="flex shrink-0 items-center gap-1.5 border-b border-border/40 py-1.5 pl-2 pr-3">
 			{onToggleSidebar && (

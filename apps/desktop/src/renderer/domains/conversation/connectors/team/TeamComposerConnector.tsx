@@ -64,6 +64,7 @@ export function TeamComposerConnector({
 	model,
 	actions,
 	onExpandedChange,
+	onAtOpenChange,
 	contextToolsPlacement,
 	children,
 }: {
@@ -73,6 +74,7 @@ export function TeamComposerConnector({
 	readonly contextToolsPlacement?: InputBarModel["contextToolsPlacement"];
 	/** 命令区展开回调：新会话页据此淡出 hero，否则 hero（含装饰件）会压住向上生长的面板。 */
 	readonly onExpandedChange?: (expanded: boolean) => void;
+	readonly onAtOpenChange?: (open: boolean) => void;
 }): JSX.Element {
 	const { t } = useTranslation("chat");
 	const setFilePreview = useSetAtom(filePreviewAtom);
@@ -139,6 +141,7 @@ export function TeamComposerConnector({
 		activityWorkspaceId: model.workspace?.id,
 		onAbort: actions.abort,
 		...(onExpandedChange ? { onExpandedChange } : {}),
+		onAtOpenChange,
 		onSend: (_overrideText, context) => {
 			// 团队会话没有插件可订阅的单一 runtime，轮次开始由这里直报。
 			publishPluginTurnStart();
@@ -397,6 +400,7 @@ export function TeamComposerConnector({
 			onAtClose: trigger.handleAtClose,
 			onAtSelect: trigger.handleAtSelect,
 			onOpen: trigger.handlePlusClick,
+			onOpenReferences: trigger.handleAtOpen,
 		},
 		routing,
 		modelSelector: { updateActiveSession: false, scope: modelScope },
@@ -419,6 +423,7 @@ export function TeamComposerConnector({
 			},
 			toolbar: {
 				skills: t("inputBar.toolbar.skills"),
+				references: t("inputBar.toolbar.references"),
 				addImage: model.labels.attachImage,
 				attachFile: model.labels.attachFile,
 				queue: t("inputBar.drawer.queueLabel"),

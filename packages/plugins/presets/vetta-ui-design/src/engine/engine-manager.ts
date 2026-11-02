@@ -20,6 +20,8 @@ import { designPackageJson, needsDependencyInstall, PACKAGE_FILE } from "../vetd
 import { sanitizeDesignName } from "../vetd/scaffold";
 import { ENGINE_FILES, engineFilesHash } from "./engine-files";
 import { ENGINE_VERSION } from "./engine-version";
+import { machineLocalPath, machineOf, qualifyLike, routeOf } from "../history/machine";
+import { base64FromText, transferPayload } from "../shared/payload-transfer";
 
 export type EngineProgress =
 	| { phase: "checking" }
@@ -39,20 +41,18 @@ export interface EngineServer {
 
 const BOOTSTRAP_SCRIPT = [
 	"const fs=require('fs'),p=require('path');",
-	"if(!process.env.VETD_ENGINE_ROOT)throw new Error('VETD_ENGINE_ROOT missing');",
-	"const root=p.resolve(process.env.VETD_ENGINE_ROOT);",
-	"const files=JSON.parse(fs.readFileSync(process.env.VETD_ENGINE_PAYLOAD_FILE,'utf8'));",
+	"const root=process.env.VETD_ENGINE_ROOT;",
+	"if(!root)throw new Error('VETD_ENGINE_ROOT missing');",
+	"const payload=process.env.VETD_ENGINE_PAYLOAD;",
+	"if(!payload)throw new Error('VETD_ENGINE_PAYLOAD missing');",
+	"const files=JSON.parse(fs.readFileSync(payload,'utf8'));",
 	"for(const[rel,content]of Object.entries(files)){",
-	"const t=p.resolve(root,rel);if(t!==root&&!t.startsWith(root+p.sep))throw new Error('invalid engine file path');",
-	"fs.mkdirSync(p.dirname(t),{recursive:true});fs.writeFileSync(t,content,'utf8');",
+	"const t=p.join(root,rel);fs.mkdirSync(p.dirname(t),{recursive:true});fs.writeFileSync(t,content,'utf8');",
 	"}",
 	"fs.writeFileSync(p.join(root,'.files-hash'),process.env.VETD_ENGINE_HASH??'','utf8');",
+	"fs.rmSync(payload,{force:true});",
 	"console.log('ok');",
 ].join("");
-
-const ENGINE_BOOTSTRAP_FILE = ".567agent-engine-bootstrap.json";
-const DEPENDENCY_INSTALL_MARKER = ".567agent-dependency-install-hash";
-const DEPENDENCY_INSTALL_PENDING_MARKER = ".567agent-dependencies-installing";
 
 const MIGRATE_SCRIPT = [
 	"const fs=require('fs'),p=require('path');",
@@ -79,24 +79,8 @@ const ENGINE_READY_SCRIPT = [
 	"if(!root)throw new Error('VETD_ENGINE_ROOT missing');",
 	"let hash=null;",
 	"try{hash=fs.readFileSync(p.join(root,'.files-hash'),'utf8')}catch(err){if(err.code!=='ENOENT')throw err}",
-	"let depsHash=null;",
-	"try{depsHash=fs.readFileSync(p.join(root,'node_modules',process.env.VETD_ENGINE_INSTALL_MARKER),'utf8')}catch(err){if(err.code!=='ENOENT')throw err}",
-	"const installPending=fs.existsSync(p.join(root,process.env.VETD_ENGINE_PENDING_MARKER));",
 	"const vite=fs.existsSync(p.join(root,'node_modules','vite','package.json'));",
-	"process.stdout.write(JSON.stringify({hash,depsHash,installPending,vite}));",
-].join("");
-
-const MARK_DEPENDENCIES_PENDING_SCRIPT = [
-	"const fs=require('fs'),p=require('path');",
-	"fs.writeFileSync(p.join(process.env.VETD_ENGINE_ROOT,process.env.VETD_ENGINE_PENDING_MARKER),'installing','utf8');",
-].join("");
-
-const MARK_DEPENDENCIES_INSTALLED_SCRIPT = [
-	"const fs=require('fs'),p=require('path');",
-	"const root=process.env.VETD_ENGINE_ROOT,marker=process.env.VETD_ENGINE_INSTALL_MARKER,hash=process.env.VETD_ENGINE_DEPENDENCY_HASH;",
-	"if(!root||!marker||!hash)throw new Error('engine dependency marker env missing');",
-	"fs.writeFileSync(p.join(root,'node_modules',marker),hash,'utf8');",
-	"fs.rmSync(p.join(root,process.env.VETD_ENGINE_PENDING_MARKER),{force:true});",
+	"process.stdout.write(JSON.stringify({hash,vite}));",
 ].join("");
 
 /**
@@ -120,43 +104,59 @@ const PRUNE_SCRIPT = [
 	"console.log('ok');",
 ].join("");
 
-let cachedRoot: string | null = null;
-let migrationPromise: Promise<void> | null = null;
-let ensurePromise: Promise<string> | null = null;
+// 引擎物化在设计稿所在的那台机器上，所以这些缓存都按机器分；同一会话里在本地与
+// 远程项目之间切换时，两边各有一份，不会互相串。
+const homeByMachine = new Map<string, string>();
+const migrationByMachine = new Map<string, Promise<void>>();
+const ensureByMachine = new Map<string, Promise<string>>();
 const servers = new Map<string, EngineServer>();
+const starts = new Map<string, { controller: AbortController; promise: Promise<EngineServer> }>();
 
-function engineBaseDir(root: string): string {
-	return `${root}/plugin-data/vetta-ui-design/design-engine`;
+function engineBaseDir(home: string): string {
+	return `${home}/plugin-data/vetta-ui-design/design-engine`;
 }
 
-function engineDependencyHash(): string {
-	let hash = 5381;
-	for (const text of [ENGINE_FILES["package.json"], ENGINE_FILES["package-lock.json"]]) {
-		for (let i = 0; i < text.length; i++) hash = ((hash << 5) + hash + text.charCodeAt(i)) | 0;
-	}
-	return (hash >>> 0).toString(36);
+function legacyEngineBaseDir(home: string): string {
+	return `${home}/.567agent/design-engine`;
 }
 
-async function resolveRoot(ctx: PluginContext): Promise<string> {
-	cachedRoot ??= await resolveDesignDataRoot(ctx);
-	return cachedRoot;
+async function resolveHome(ctx: PluginContext, route: string): Promise<string> {
+	const machine = machineOf(route);
+	const cached = homeByMachine.get(machine);
+	if (cached) return cached;
+	const root = await resolveDesignDataRoot(ctx, routeOf(route));
+	homeByMachine.set(machine, root);
+	return root;
 }
 
-export async function engineRootDir(ctx: PluginContext): Promise<string> {
-	const root = await resolveRoot(ctx);
-	if (!migrationPromise) {
-		migrationPromise = migrateLegacyEngine(ctx, undefined, root).catch((error: unknown) => {
-			migrationPromise = null;
+/**
+ * 引擎目录。`route` 是设计稿的位置，决定引擎装在哪台机器上——预览服务器要读设计稿，
+ * 两者必须同机。返回的路径带着归属，好让后续命令继续被分流到同一台。
+ */
+export async function engineRootDir(ctx: PluginContext, route = ""): Promise<string> {
+	const home = await resolveHome(ctx, route);
+	const machine = machineOf(route);
+	let migration = migrationByMachine.get(machine);
+	if (!migration) {
+		migration = migrateLegacyEngine(ctx, undefined, home, route).catch((error: unknown) => {
+			migrationByMachine.delete(machine);
 			throw error;
 		});
+		migrationByMachine.set(machine, migration);
 	}
-	await migrationPromise;
-	return `${engineBaseDir(root)}/${ENGINE_VERSION}`;
+	await migration;
+	return qualifyLike(route, `${engineBaseDir(home)}/${ENGINE_VERSION}`);
 }
 
-export async function migrateLegacyEngine(ctx: PluginContext, home?: string, dataRoot?: string): Promise<void> {
-	const root = dataRoot ?? (home ? `${home}/.567agent` : await resolveRoot(ctx));
+export async function migrateLegacyEngine(
+	ctx: PluginContext,
+	home?: string,
+	dataRoot?: string,
+	route = "",
+): Promise<void> {
+	const root = dataRoot ?? (home ? `${home}/.567agent` : await resolveHome(ctx, route));
 	const result = await ctx.command.run("node", ["-e", MIGRATE_SCRIPT], {
+		cwd: routeOf(route),
 		env: {
 			...(home ? { VETD_ENGINE_HOME: home } : {}),
 			VETD_ENGINE_BASE: engineBaseDir(root),
@@ -168,26 +168,32 @@ export async function migrateLegacyEngine(ctx: PluginContext, home?: string, dat
 	}
 }
 
-export async function materializeEngine(ctx: PluginContext, engineRoot: string): Promise<void> {
-	const { workspacePath } = await ctx.official.projects.list();
-	const separator = workspacePath.includes("\\") ? "\\" : "/";
-	const stagingPath = `${workspacePath.replace(/[\\/]+$/, "")}${separator}${ENGINE_BOOTSTRAP_FILE}-${crypto.randomUUID()}`;
-	await ctx.fs.writeFile(stagingPath, JSON.stringify(ENGINE_FILES));
-	try {
-		const result = await ctx.command.run("node", ["-e", BOOTSTRAP_SCRIPT], {
-			cwd: workspacePath,
-			env: {
-				VETD_ENGINE_ROOT: engineRoot,
-				VETD_ENGINE_PAYLOAD_FILE: stagingPath,
-				VETD_ENGINE_HASH: engineFilesHash(),
-			},
-			timeoutMs: 30_000,
-		});
-		if (result.exitCode !== 0) {
-			throw new Error(`engine materialize failed: ${result.stderr || result.stdout}`);
-		}
-	} finally {
-		await ctx.fs.delete(stagingPath).catch(() => undefined);
+/** 仅供测试：模板体量与传输方式的回归点，见 test/payload-transfer.test.ts。 */
+export const materializeEngineForTest = (ctx: PluginContext, engineRoot: string, route: string): Promise<void> =>
+	materializeEngine(ctx, engineRoot, route);
+
+export async function materializeEngine(ctx: PluginContext, engineRoot: string, route = engineRoot): Promise<void> {
+	// 模板有几百 KB，塞不进一个环境变量（Linux 单个字符串上限 128 KB），先分块送成一个文件。
+	const payloadPath = `${machineLocalPath(engineRoot)}.files.json`;
+	await transferPayload(ctx, {
+		route,
+		target: payloadPath,
+		payload: base64FromText(JSON.stringify(ENGINE_FILES)),
+		label: "engine materialize",
+	});
+	const result = await ctx.command.run("node", ["-e", BOOTSTRAP_SCRIPT], {
+		// 用设计稿的位置而不是 engineRoot：cwd 在这里只负责把命令发到对的机器上，而远端执行
+		// 会先 `cd` 进去——引擎目录正是这条命令要创建的东西，此刻它还不存在。
+		cwd: routeOf(route),
+		env: {
+			VETD_ENGINE_ROOT: machineLocalPath(engineRoot),
+			VETD_ENGINE_PAYLOAD: payloadPath,
+			VETD_ENGINE_HASH: engineFilesHash(),
+		},
+		timeoutMs: 30_000,
+	});
+	if (result.exitCode !== 0) {
+		throw new Error(`engine materialize failed: ${result.stderr || result.stdout}`);
 	}
 }
 
@@ -204,32 +210,27 @@ async function runNpm(
 	onOutput: (outputTail: string) => void,
 ): Promise<string> {
 	const handle = await ctx.command.spawn("npm", [...args], { cwd });
-	let done = false;
 	let lastTail = "";
+	let done = false;
 	const poll = window.setInterval(() => {
-		void handle.status().then((status) => {
-			if (done) return;
-			lastTail = status.recentOutput.split("\n").filter(Boolean).slice(-3).join("\n");
-			onOutput(lastTail);
-		});
+		void handle
+			.status()
+			.then((status) => {
+				if (done) return;
+				lastTail = status.recentOutput.split("\n").filter(Boolean).slice(-3).join("\n");
+				onOutput(lastTail);
+			})
+			.catch(() => undefined);
 	}, 1_500);
 	try {
-		await new Promise<void>((resolveInstall, rejectInstall) => {
-			handle.onExit((exit) => {
-				done = true;
-				if (exit.exitCode === 0) resolveInstall();
-				else {
-					void handle.status().then((status) => {
-						const tail = status.recentOutput.split("\n").filter(Boolean).slice(-30).join("\n");
-						const repair = /MODULE_NOT_FOUND/.test(tail)
-							? "\nNode/npm 运行环境缺少必要模块。请打开“设置 → 环境”，重新安装 Node 后再试。"
-							: "";
-						rejectInstall(new Error(`npm ${args[0]} exited with ${exit.exitCode ?? exit.signal}${tail ? `\n${tail}` : ""}${repair}`));
-					});
-				}
-			});
-		});
+		const exit = await waitForSpawnExit(handle);
+		if (exit.exitCode !== 0) {
+			const status = await handle.status().catch(() => null);
+			const tail = status?.recentOutput.split("\n").filter(Boolean).slice(-8).join("\n") ?? lastTail;
+			throw new Error(`npm ${args[0]} exited with ${exit.exitCode ?? exit.signal}\n${tail}`);
+		}
 	} finally {
+		done = true;
 		window.clearInterval(poll);
 	}
 	const final = await handle.status().catch(() => null);
@@ -241,27 +242,12 @@ async function installDependencies(
 	engineRoot: string,
 	onProgress: (progress: EngineProgress) => void,
 ): Promise<void> {
-	const pending = await ctx.command.run("node", ["-e", MARK_DEPENDENCIES_PENDING_SCRIPT], {
-		env: { VETD_ENGINE_ROOT: engineRoot, VETD_ENGINE_PENDING_MARKER: DEPENDENCY_INSTALL_PENDING_MARKER },
-		timeoutMs: 30_000,
-	});
-	if (pending.exitCode !== 0) throw new Error(`engine dependency install preparation failed: ${pending.stderr || pending.stdout}`);
 	// `ci` 而不是 `install`：模板连 package-lock.json 一起 materialize，所以这里的树
 	// 永远与 lock 同源，不需要再向 registry 解析一遍版本范围。--prefer-offline 让第二个
 	// 引擎版本直接吃托管 npm 缓存。
 	await runNpm(ctx, engineRoot, ["ci", "--no-audit", "--no-fund", "--prefer-offline"], (outputTail) => {
 		onProgress({ phase: "installing", outputTail });
 	});
-	const marked = await ctx.command.run("node", ["-e", MARK_DEPENDENCIES_INSTALLED_SCRIPT], {
-		env: {
-			VETD_ENGINE_ROOT: engineRoot,
-			VETD_ENGINE_INSTALL_MARKER: DEPENDENCY_INSTALL_MARKER,
-			VETD_ENGINE_PENDING_MARKER: DEPENDENCY_INSTALL_PENDING_MARKER,
-			VETD_ENGINE_DEPENDENCY_HASH: engineDependencyHash(),
-		},
-		timeoutMs: 30_000,
-	});
-	if (marked.exitCode !== 0) throw new Error(`engine dependency verification failed: ${marked.stderr || marked.stdout}`);
 }
 
 /**
@@ -285,7 +271,7 @@ export async function installDesignDependencies(
 }
 
 /**
- * 声明了依赖但还没装（刚从分享包导入、或从 git clone 下来）时补装一次。
+ * 声明了依赖但还没装（刚从 .567design 导入、或从 git clone 下来）时补装一次。
  *
  * 放在起 dev server 之前：vite 首次 import 解析不到包就是一帧构建失败，而用户看到的
  * 是一张红色报错，不知道只是还没装。
@@ -309,24 +295,24 @@ async function ensureDesignPackageFile(ctx: PluginContext, designDir: string): P
 	await ctx.fs.writeFile(`${designDir}/${PACKAGE_FILE}`, designPackageJson(sanitizeDesignName(base)));
 }
 
-async function pruneOldEngines(ctx: PluginContext): Promise<void> {
-	const root = await resolveRoot(ctx);
+async function pruneOldEngines(ctx: PluginContext, route: string): Promise<void> {
+	const home = await resolveHome(ctx, route);
 	await ctx.command.run("node", ["-e", PRUNE_SCRIPT], {
+		cwd: routeOf(route),
 		env: {
-			VETD_ENGINE_BASE: engineBaseDir(root),
+			VETD_ENGINE_BASE: engineBaseDir(home),
 			VETD_ENGINE_KEEP: ENGINE_VERSION,
 		},
 		timeoutMs: 30_000,
 	});
 }
 
-export async function engineReady(ctx: PluginContext, engineRoot: string): Promise<boolean> {
+export async function engineReady(ctx: PluginContext, engineRoot: string, route = engineRoot): Promise<boolean> {
 	const result = await ctx.command.run("node", ["-e", ENGINE_READY_SCRIPT], {
-		env: {
-			VETD_ENGINE_ROOT: engineRoot,
-			VETD_ENGINE_INSTALL_MARKER: DEPENDENCY_INSTALL_MARKER,
-			VETD_ENGINE_PENDING_MARKER: DEPENDENCY_INSTALL_PENDING_MARKER,
-		},
+		// 同 materializeEngine：这条命令要回答的正是「引擎目录在不在」，拿它当工作目录会让
+		// 首次检查必然失败在 `cd` 上。
+		cwd: routeOf(route),
+		env: { VETD_ENGINE_ROOT: machineLocalPath(engineRoot) },
 		timeoutMs: 30_000,
 	});
 	if (result.exitCode !== 0) {
@@ -337,20 +323,13 @@ export async function engineReady(ctx: PluginContext, engineRoot: string): Promi
 		typeof readiness !== "object" ||
 		readiness === null ||
 		!("hash" in readiness) ||
-		!("depsHash" in readiness) ||
-		!("installPending" in readiness) ||
 		!("vite" in readiness) ||
 		(readiness.hash !== null && typeof readiness.hash !== "string") ||
-		(readiness.depsHash !== null && typeof readiness.depsHash !== "string") ||
-		typeof readiness.installPending !== "boolean" ||
 		typeof readiness.vite !== "boolean"
 	) {
 		throw new Error("engine readiness check returned invalid output");
 	}
-	return readiness.hash === engineFilesHash() &&
-		!readiness.installPending &&
-		(readiness.depsHash === null || readiness.depsHash === engineDependencyHash()) &&
-		readiness.vite;
+	return readiness.hash === engineFilesHash() && readiness.vite;
 }
 
 /**
@@ -360,54 +339,76 @@ export async function engineReady(ctx: PluginContext, engineRoot: string): Promi
 export function ensureEngine(
 	ctx: PluginContext,
 	onProgress: (progress: EngineProgress) => void,
+	route: string,
 ): Promise<string> {
-	if (ensurePromise) return ensurePromise;
+	const machine = machineOf(route);
+	const existing = ensureByMachine.get(machine);
+	if (existing) return existing;
 	const run = async (): Promise<string> => {
 		onProgress({ phase: "checking" });
-		const engineRoot = await engineRootDir(ctx);
-		if (await engineReady(ctx, engineRoot)) {
-			await pruneOldEngines(ctx).catch(() => {
+		const engineRoot = await engineRootDir(ctx, route);
+		if (await engineReady(ctx, engineRoot, route)) {
+			await pruneOldEngines(ctx, route).catch(() => {
 				// 清不掉只是占着磁盘，不该拦住画布。
 			});
 			return engineRoot;
 		}
 		onProgress({ phase: "materializing" });
-		await materializeEngine(ctx, engineRoot);
-		const viteInstalled = await engineReady(ctx, engineRoot);
+		await materializeEngine(ctx, engineRoot, route);
+		const viteInstalled = await engineReady(ctx, engineRoot, route);
 		if (!viteInstalled) {
 			onProgress({ phase: "installing", outputTail: "" });
 			await installDependencies(ctx, engineRoot, onProgress);
 		}
-		if (!(await engineReady(ctx, engineRoot))) {
+		if (!(await engineReady(ctx, engineRoot, route))) {
 			throw new Error("engine install incomplete (vite missing after npm install)");
 		}
-		await pruneOldEngines(ctx).catch(() => {
+		await pruneOldEngines(ctx, route).catch(() => {
 			// 同上：新版本已经能跑了，回收失败不值得让整条链路失败。
 		});
 		return engineRoot;
 	};
-	ensurePromise = run().catch((error: unknown) => {
+	const pending = run().catch((error: unknown) => {
 		// Failed attempts must not poison later retries.
-		ensurePromise = null;
+		ensureByMachine.delete(machine);
 		throw error;
 	});
-	return ensurePromise;
+	ensureByMachine.set(machine, pending);
+	return pending;
 }
 
-async function waitForHttpReady(port: number, timeoutMs: number): Promise<void> {
-	const deadline = Date.now() + timeoutMs;
+async function waitForHttpReady(port: number, timeoutMs: number, signal: AbortSignal): Promise<void> {
+	const controller = new AbortController();
+	const abort = (): void => controller.abort();
+	const timeout = window.setTimeout(abort, timeoutMs);
+	signal.addEventListener("abort", abort, { once: true });
+	if (signal.aborted) abort();
 	let lastError: unknown = null;
-	while (Date.now() < deadline) {
-		try {
-			const response = await fetch(`http://127.0.0.1:${port}/`, { cache: "no-store" });
-			if (response.ok) return;
-			lastError = new Error(`HTTP ${response.status}`);
-		} catch (error) {
-			lastError = error;
+	try {
+		while (!controller.signal.aborted) {
+			try {
+				const response = await fetch(`http://127.0.0.1:${port}/`, { cache: "no-store", signal: controller.signal });
+				if (response.ok) return;
+				lastError = new Error(`HTTP ${response.status}`);
+			} catch (error) {
+				lastError = error;
+			}
+			if (controller.signal.aborted) break;
+			await new Promise<void>((resolve) => {
+				const finish = (): void => {
+					window.clearTimeout(timer);
+					controller.signal.removeEventListener("abort", finish);
+					resolve();
+				};
+				const timer = window.setTimeout(finish, 400);
+				controller.signal.addEventListener("abort", finish, { once: true });
+			});
 		}
-		await new Promise((resolveDelay) => window.setTimeout(resolveDelay, 400));
+		throw new Error(`design engine did not become ready: ${signal.aborted ? "cancelled" : String(lastError)}`);
+	} finally {
+		window.clearTimeout(timeout);
+		signal.removeEventListener("abort", abort);
 	}
-	throw new Error(`design engine did not become ready: ${String(lastError)}`);
 }
 
 /**
@@ -443,29 +444,43 @@ function describeSpawnExit(exit: PluginCommandSpawnExit): string {
 }
 
 /** Start (or reuse) the vite dev server serving one design dir. */
-export async function startDesignServer(
+async function startDesignServerInner(
 	ctx: PluginContext,
 	designDir: string,
 	onProgress: (progress: EngineProgress) => void,
+	signal: AbortSignal,
 ): Promise<EngineServer> {
+	const assertActive = (): void => {
+		if (signal.aborted) throw new Error("design engine startup cancelled");
+	};
+	assertActive();
 	const existing = servers.get(designDir);
 	if (existing) {
 		const status = await existing.handle.status();
+		assertActive();
 		if (status.running) return existing;
-		servers.delete(designDir);
+		if (servers.get(designDir) === existing) servers.delete(designDir);
 	}
-	const engineRoot = await ensureEngine(ctx, onProgress);
+	// 预览服务器必须和设计稿同机，否则它读不到任何设计文件。engineRoot 带着归属，宿主据此
+	// 把 vite 起到那台机器上；端口也在那边分配，再由宿主转发回本机——界面只能连本机。
+	const engineRoot = await ensureEngine(ctx, onProgress, designDir);
+	assertActive();
 	await ensureDesignDependencies(ctx, designDir, onProgress);
+	assertActive();
 	onProgress({ phase: "starting" });
 	const handle = await ctx.command.spawn(
 		"node",
 		["node_modules/vite/bin/vite.js", "--port", "{{PORT}}", "--strictPort", "--clearScreen", "false"],
 		{
 			cwd: engineRoot,
-			env: { VETD_SRC: designDir },
+			env: { VETD_SRC: machineLocalPath(designDir) },
 			allocatePort: true,
 		},
 	);
+	if (signal.aborted) {
+		await handle.stop();
+		assertActive();
+	}
 	if (handle.port === undefined) {
 		await handle.stop();
 		throw new Error("host did not allocate a port for the design engine");
@@ -480,20 +495,45 @@ export async function startDesignServer(
 	void server.whenExited.then(() => {
 		if (servers.get(designDir) === server) servers.delete(designDir);
 	});
+	const ready = new AbortController();
+	const abortReady = (): void => ready.abort();
+	signal.addEventListener("abort", abortReady, { once: true });
+	if (signal.aborted) ready.abort();
 	try {
 		await Promise.race([
-			waitForHttpReady(handle.port, 30_000),
+			waitForHttpReady(handle.port, 30_000, ready.signal),
 			server.whenExited.then((exit) => {
 				throw new Error(describeSpawnExit(exit));
 			}),
 		]);
 	} catch (error) {
 		const status = await handle.status().catch(() => null);
-		await stopDesignServer(designDir);
+		if (servers.get(designDir) === server) servers.delete(designDir);
+		await handle.stop();
 		const tail = status?.recentOutput.split("\n").filter(Boolean).slice(-5).join("\n") ?? "";
 		throw new Error(`${error instanceof Error ? error.message : String(error)}${tail ? `\n${tail}` : ""}`);
+	} finally {
+		ready.abort();
+		signal.removeEventListener("abort", abortReady);
 	}
 	return server;
+}
+
+export function startDesignServer(
+	ctx: PluginContext,
+	designDir: string,
+	onProgress: (progress: EngineProgress) => void,
+): Promise<EngineServer> {
+	const pending = starts.get(designDir);
+	if (pending) return pending.promise;
+	const controller = new AbortController();
+	const attempt = { controller, promise: startDesignServerInner(ctx, designDir, onProgress, controller.signal) };
+	starts.set(designDir, attempt);
+	const clear = (): void => {
+		if (starts.get(designDir) === attempt) starts.delete(designDir);
+	};
+	void attempt.promise.then(clear, clear);
+	return attempt.promise;
 }
 
 export function getDesignServer(designDir: string): EngineServer | null {
@@ -501,6 +541,9 @@ export function getDesignServer(designDir: string): EngineServer | null {
 }
 
 export async function stopDesignServer(designDir: string): Promise<void> {
+	const pending = starts.get(designDir);
+	starts.delete(designDir);
+	pending?.controller.abort();
 	const server = servers.get(designDir);
 	if (!server) return;
 	servers.delete(designDir);
@@ -508,12 +551,14 @@ export async function stopDesignServer(designDir: string): Promise<void> {
 }
 
 export async function stopAllDesignServers(): Promise<void> {
-	await Promise.all([...servers.keys()].map((designDir) => stopDesignServer(designDir)));
+	await Promise.all(
+		[...new Set([...starts.keys(), ...servers.keys()])].map((designDir) => stopDesignServer(designDir)),
+	);
 }
 
 /** One-shot production build of a design (for export snapshots). */
 export async function buildDesign(ctx: PluginContext, designDir: string, outDir: string): Promise<void> {
-	const engineRoot = await ensureEngine(ctx, () => {});
+	const engineRoot = await ensureEngine(ctx, () => {}, designDir);
 	// 导出快照走的是同一棵依赖树：设计声明了包却没装，这里会以构建失败告终。
 	await ensureDesignDependencies(ctx, designDir, () => {});
 	const handle = await ctx.command.spawn(
@@ -521,20 +566,15 @@ export async function buildDesign(ctx: PluginContext, designDir: string, outDir:
 		["node_modules/vite/bin/vite.js", "build", "--outDir", outDir, "--emptyOutDir"],
 		{
 			cwd: engineRoot,
-			env: { VETD_SRC: designDir },
+			env: { VETD_SRC: machineLocalPath(designDir) },
 		},
 	);
-	await new Promise<void>((resolveBuild, rejectBuild) => {
-		handle.onExit((exit) => {
-			if (exit.exitCode === 0) resolveBuild();
-			else {
-				void handle.status().then((status) => {
-					const tail = status.recentOutput.split("\n").filter(Boolean).slice(-8).join("\n");
-					rejectBuild(new Error(`vite build failed (${exit.exitCode ?? exit.signal})\n${tail}`));
-				});
-			}
-		});
-	});
+	const exit = await waitForSpawnExit(handle);
+	if (exit.exitCode !== 0) {
+		const status = await handle.status().catch(() => null);
+		const tail = status?.recentOutput.split("\n").filter(Boolean).slice(-8).join("\n") ?? "";
+		throw new Error(`vite build failed (${exit.exitCode ?? exit.signal})\n${tail}`);
+	}
 }
 
 /**

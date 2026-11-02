@@ -32,7 +32,7 @@ export function createOfficialSchedulerApi(
 			const patch = {
 				...rest,
 				...("modelKey" in data ? { modelKey: modelKey ?? undefined } : {}),
-				...("skill" in data ? { skill: skill ?? undefined } : {}),
+				...("skill" in data ? { skill: skill ?? null } : {}),
 			};
 			return scheduler.updateTask(capabilitySessionId, taskId, patch);
 		},

@@ -20,10 +20,12 @@ export function createOfficialSkillsApi(
 		},
 		uninstall: async (name, type) => {
 			assertOfficial();
+			if (type === "scene") throw new Error("Scenes have been retired");
 			await skills.uninstall(capabilitySessionId, name, type);
 		},
 		installFromMarket: async (type, slug) => {
 			assertOfficial();
+			if (type === "scene") throw new Error("Scenes have been retired");
 			// 市场下载走主进程鉴权/匿名通道，不经 capability session。
 			return window.agent567.skills.installFromMarketSlug(type, slug);
 		},

@@ -5,10 +5,9 @@ import { useCallback, useEffect, useRef, useState, type JSX } from "react";
 import { PreviewToolbar } from "./PreviewToolbar";
 import { ErrorState, LoadingState, type LoadState } from "./PreviewState";
 import { ToolbarButton } from "./ToolbarButton";
+import { fetchFileBytes } from "../utils/file";
 
-pdfjsLib.GlobalWorkerOptions.workerSrc = URL.createObjectURL(
-	new Blob([workerSource], { type: "text/javascript" }),
-);
+pdfjsLib.GlobalWorkerOptions.workerSrc = URL.createObjectURL(new Blob([workerSource], { type: "text/javascript" }));
 
 const MIN_SCALE = 0.25;
 const MAX_SCALE = 3;
@@ -85,9 +84,23 @@ export function PdfPreview({ file }: PluginFilePreviewProps): JSX.Element {
 		setScale(1);
 		renderedScaleRef.current = 0;
 		autoFitRef.current = true;
-		const task = pdfjsLib.getDocument({ url: file.getUrl() });
-		void task.promise
+		let task: pdfjsLib.PDFDocumentLoadingTask | undefined;
+		const url = file.getUrl();
+		void (url ? Promise.resolve({ url }) : fetchFileBytes(file).then((data) => ({ data: new Uint8Array(data) })))
+			.then((source) => {
+				if (cancelled) return;
+				const assets = new URL(".", import.meta.url);
+				task = pdfjsLib.getDocument({
+					...source,
+					cMapUrl: new URL("./pdfjs/cmaps/", assets).href,
+					cMapPacked: true,
+					standardFontDataUrl: new URL("./pdfjs/standard_fonts/", assets).href,
+					useWorkerFetch: false,
+				});
+				return task.promise;
+			})
 			.then(async (pdf) => {
+				if (!pdf) return;
 				if (cancelled) {
 					await pdf.destroy();
 					return;
@@ -110,7 +123,7 @@ export function PdfPreview({ file }: PluginFilePreviewProps): JSX.Element {
 			renderTaskRef.current?.cancel();
 			renderTaskRef.current = null;
 			documentRef.current = null;
-			void task.destroy();
+			void task?.destroy();
 		};
 	}, [file, renderAllPages, computeFitScale]);
 

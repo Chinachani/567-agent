@@ -32,7 +32,7 @@
 
 插件拥有 `generate_image` / `edit_image` 工具、隐藏提示、卡片渲染、持久化记录和编辑谱系；
 desktop 提供受 capability session 约束的 `ctx.media`、`ctx.storage`、
-`ctx.fs.readBinaryFile` 与通用 prompt attachment。Vetta Provider 内置于 desktop 主进程，凭据不出
+`ctx.fs.readBinaryFile` 与通用 prompt attachment。567 Agent Provider 内置于 desktop 主进程，凭据不出
 主进程；其它 Provider 由宿主模块按同一 SPI 扩展，协议也允许 Provider 列表为空。图像字节仍只落插件本地
 `~/.567agent/plugin-data/image-gen/`，不进服务端存储、
 也不进 LLM 上下文（工具结果只回 image id）。

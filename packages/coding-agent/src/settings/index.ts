@@ -36,6 +36,12 @@ export {
 	type CodingAgentCompactionConfiguration,
 } from "./configuration/compaction-configuration.js";
 
+export {
+	CODING_AGENT_MODEL_CALL_LIMIT_CONFIGURATION,
+	CODING_AGENT_MODEL_CALL_LIMIT_CONFIGURATION_ID,
+	type CodingAgentModelCallLimitConfiguration,
+} from "./configuration/model-call-limit-configuration.js";
+
 export const SettingsRuntime = {
 	fromStorage: createSettingsRuntimeFromStorage,
 	inMemory: createInMemorySettingsRuntime,

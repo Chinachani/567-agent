@@ -29,6 +29,9 @@ async function isFile(path) {
 }
 
 if (!(await isFile(sourceFile))) {
+	if (!(await isFile(destFile))) {
+		throw new Error(`Plugin CLI is missing: ${sourceFile}. Build plugin-cli before packaging the workbench.`);
+	}
 	// 仓库外（只拿到打包产物）时保留已内置的副本；构建链断了要能看出来，所以说清原因。
 	console.log(JSON.stringify({ ok: true, skipped: true, reason: `source missing: ${sourceFile}` }));
 	process.exit(0);

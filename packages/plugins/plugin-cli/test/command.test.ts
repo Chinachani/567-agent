@@ -6,6 +6,26 @@ import {
 	runPluginCommand,
 } from "../src/command.js";
 
+describe("plugin command help", () => {
+	it("identifies 567 Agent while retaining the compatible executable name", async () => {
+		const output: string[] = [];
+		const runAction = vi.fn();
+		const code = await runPluginCommand(
+			{ type: "help" },
+			{
+				resolveNpmArchive: vi.fn(),
+				runAction,
+				writeStdout: (value) => output.push(value),
+				writeStderr: vi.fn(),
+			},
+		);
+		expect(code).toBe(0);
+		expect(output.join("")).toMatch(/^567 Agent plugin manager\n/);
+		expect(output.join("")).toContain("vetta-plugin-cli add");
+		expect(runAction).not.toHaveBeenCalled();
+	});
+});
+
 describe("plugin add command", () => {
 	it("parses npm add arguments", () => {
 		expect(parsePluginAddCommand(["add", "@example/demo@^1", "--json"])).toEqual({

@@ -1,4 +1,4 @@
-import type { FocusEventHandler, JSX, KeyboardEvent } from "react";
+import type { ComponentProps, JSX } from "react";
 import { cn } from "@vetta-org/ui";
 import { MotionSelect } from "./MotionSelect";
 
@@ -20,50 +20,25 @@ export function SelectField({
 	onChange: (v: string) => void;
 	options: { value: string; label: string }[];
 }): JSX.Element {
-	return (
-		<MotionSelect
-			value={value}
-			onValueChange={onChange}
-			options={options}
-			triggerClassName="w-full"
-		/>
-	);
+	return <MotionSelect value={value} onValueChange={onChange} options={options} triggerClassName="w-full" />;
 }
 
 export function InputField({
 	value,
 	onChange,
-	placeholder,
 	type = "text",
-	disabled,
-	onBlur,
-	onKeyDown,
-	autoFocus,
-	"aria-label": ariaLabel,
 	className,
-}: {
+	...props
+}: Omit<ComponentProps<"input">, "value" | "onChange"> & {
 	value: string;
 	onChange: (v: string) => void;
-	placeholder?: string;
-	type?: string;
-	disabled?: boolean;
-	onBlur?: FocusEventHandler<HTMLInputElement>;
-	onKeyDown?: (event: KeyboardEvent<HTMLInputElement>) => void;
-	autoFocus?: boolean;
-	"aria-label"?: string;
-	className?: string;
 }): JSX.Element {
 	return (
 		<input
 			type={type}
 			value={value}
-			disabled={disabled}
+			{...props}
 			onChange={(e) => onChange(e.target.value)}
-			onBlur={onBlur}
-			onKeyDown={onKeyDown}
-			placeholder={placeholder}
-			autoFocus={autoFocus}
-			aria-label={ariaLabel}
 			className={cn(
 				"h-8 w-full rounded-lg border border-border bg-card px-2.5 text-[12px] font-medium text-foreground placeholder:text-muted-foreground/40 outline-none transition-colors hover:bg-accent focus-visible:border-primary/50 disabled:cursor-not-allowed disabled:opacity-50",
 				className,

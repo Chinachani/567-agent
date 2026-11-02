@@ -59,6 +59,9 @@ on:
         type: string
         required: false
 
+env:
+  AGENT567_TEST_REPORTS: "1"
+
 permissions:
   contents: read
 
@@ -96,6 +99,9 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      - name: Check candidate version metadata before builds
+        run: node scripts/release/candidate-metadata.mjs
+
       - name: Match workflow event to desktop version
         id: scope
         shell: bash
@@ -112,8 +118,9 @@ jobs:
           if [[ "${REF_NAME}" == "v${VERSION}" ]]; then
             echo "should-build=true" >> "${GITHUB_OUTPUT}"
           else
-            echo "::notice::Ignoring ${REF_NAME}; desktop package version is ${VERSION}."
-            echo "should-build=false" >> "${GITHUB_OUTPUT}"
+            # 版本号对不上的 tag 以前只被跳过，run 显示成功却什么都没发；现在直接失败，一眼可见。
+            echo "::error::Tag ${REF_NAME} does not match the desktop package version ${VERSION}. Run node scripts/release/release-preflight.mjs before tagging."
+            exit 1
           fi
 
       - name: Resolve release configuration
@@ -238,6 +245,18 @@ jobs:
 
       - name: Test Desktop packaging helpers
         run: bun run test:desktop:packaging
+
+      - name: Upload release test reports
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: release-quality-reports
+          path: |
+            **/.test-reports/*.xml
+            .turbo/runs/*.json
+          include-hidden-files: true
+          if-no-files-found: ignore
+          retention-days: 7
 
   android:
     name: build Android APK

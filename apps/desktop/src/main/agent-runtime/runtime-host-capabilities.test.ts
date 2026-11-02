@@ -15,10 +15,12 @@ import type {
 	AgentPluginSystemPromptInvocation,
 	AgentPluginToolInvocation,
 } from "@567agent/coding-agent/plugin-runtime";
+import { CODING_AGENT_MODEL_CALL_LIMIT_CONFIGURATION_ID } from "@567agent/coding-agent/settings";
 import { RuntimeHost } from "@567agent/runtime-core";
 import { DesktopRuntimeBackendPool } from "@567agent/runtime-desktop";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { getDesktopUserQuestionBroker } from "../conversations/user-question-broker.js";
+import { DesktopRuntimeConfigurationService } from "../runtime-configuration/runtime-configuration-service.js";
 import { createDesktopCodingAgentFunctionSource } from "./function-extension-source.js";
 import { createDesktopPromptRuntimeSources } from "./resource-runtime.js";
 
@@ -136,6 +138,70 @@ describe("Desktop RuntimeHost capabilities", () => {
 		expect(modelCalls[3]?.tools).not.toContain("plugin_artifact");
 		expect(modelCalls[3]?.prompt).not.toContain("Desktop RuntimeHost plugin instruction");
 		expect(systemPromptInvocations).toHaveLength(1);
+	});
+
+	it("applies persisted limits through the real Desktop pool without changing an in-flight turn or history", async () => {
+		const cwd = await temporaryDirectory("desktop-runtime-limit-workspace-");
+		const sessionDir = await temporaryDirectory("desktop-runtime-limit-sessions-");
+		const settings: Record<string, unknown> = { modelCallLimit: { enabled: true, maxCalls: 2 } };
+		const configuration = new DesktopRuntimeConfigurationService({
+			readAgentSettings: () => settings,
+			updateAgentSettings: (mutate) => mutate(settings),
+			logger: { info: vi.fn(), warn: vi.fn() },
+		});
+		disposers.push(() => configuration.close());
+		let calls = 0;
+		let resolutions = 0;
+		const responses = [
+			assistantToolCall("plugin_artifact", { title: "First" }),
+			assistantToolCall("plugin_artifact", { title: "Second" }),
+			assistantText("finished after continuing"),
+		];
+		const pool = new DesktopRuntimeBackendPool({
+			compositionDefaults: {
+				activation: { mode: "explicit", toolNames: ["plugin_artifact"] },
+				modelRegistry: modelRegistry(),
+				initialModel: MODEL,
+				initialThinkingLevel: "off",
+				resolveSystemPromptOptions: () => ({ customPrompt: "Base prompt", scenario: "batch" }),
+				resolveTurnLimits: () => {
+					resolutions += 1;
+					const limit = configuration.readModelCallLimit();
+					return { maxModelCalls: limit.enabled ? limit.maxCalls : null };
+				},
+				createPluginRuntime: () => ({
+					readAgentPlugins: () => ({ toolContributions: pluginConfiguration().toolContributions }),
+					subscribe: () => () => {},
+					invokeTool: async () => {
+						await configuration.set(CODING_AGENT_MODEL_CALL_LIMIT_CONFIGURATION_ID, { enabled: false });
+						return { value: { text: "saved artifact" }, effects: [] };
+					},
+				}),
+				streamFn: () => {
+					const response = responses[calls++];
+					if (!response) throw new Error("Unexpected extra model call");
+					return new RecordedAssistantStream(response);
+				},
+			},
+		});
+		const runtime = new RuntimeHost({ sessionBackend: pool, getDefaultExecutionMode: () => "full-access" });
+		registerDisposal(runtime, pool);
+		const created = await runtime.createSession({
+			cwd,
+			sessionDir,
+			agent: createCodingAgentRuntimeSessionSelection({ scenario: "batch" }),
+			executionMode: "full-access",
+		});
+		await runtime.prompt(created.sessionId, { text: "make both artifacts" }).catch(() => undefined);
+		expect(calls).toBe(2);
+		expect(resolutions).toBe(1);
+		expect(JSON.stringify(runtime.getFullHistory(created.sessionId))).toContain("max_model_calls");
+		await runtime.prompt(created.sessionId, { text: "continue from the saved work" });
+		expect(resolutions).toBe(2);
+		expect(calls).toBe(3);
+		const history = JSON.stringify(runtime.getFullHistory(created.sessionId));
+		expect(history).toContain("saved artifact");
+		expect(history).toContain("finished after continuing");
 	});
 
 	it("applies live user-question handler removal without rebuilding the Desktop session", async () => {

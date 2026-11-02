@@ -306,6 +306,12 @@ async function collectRuntimeFiles(
 		// optional agent/docs
 	}
 
+	// Generated command companions live outside skillPaths but must survive installation.
+	const agentCliDir = resolve(rootDir, "agent/cli");
+	if (existsSync(agentCliDir)) {
+		for (const file of await collectFiles(agentCliDir)) addFile(file.fullPath);
+	}
+
 	// Plugin i18n catalogs (ADR-0033): bundle locales/<lang>.json so the host can
 	// load them alongside the manifest. Optional — absent for single-language plugins.
 	try {

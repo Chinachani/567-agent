@@ -13,7 +13,7 @@ import {
 	insertConnectorToken,
 	insertFileToken,
 	insertImageToken,
-	insertSceneToken,
+	insertInputTrigger,
 	insertSkillToken,
 } from "./editor/inputEditorHandle";
 import type { TriggerMatch } from "./editor/tokens/trigger";
@@ -36,6 +36,7 @@ export function useInputBarTriggerModel({
 	focusInputRequest,
 	activityWorkspaceId,
 	onExpandedChange,
+	onAtOpenChange,
 	onSend,
 	onAbort,
 	onAtItemSelect,
@@ -49,6 +50,7 @@ export function useInputBarTriggerModel({
 	focusInputRequest: number;
 	activityWorkspaceId?: string;
 	onExpandedChange?: (expanded: boolean) => void;
+	onAtOpenChange?: (open: boolean) => void;
 	onSend: (overrideText?: string, context?: SendInteractionContext) => Promise<void>;
 	onAbort: () => Promise<void>;
 	/** Handles connector supplied @ candidates while keeping file handling shared. */
@@ -74,6 +76,10 @@ export function useInputBarTriggerModel({
 	const [slashVisible, setSlashVisible] = useState(false);
 
 	useEffect(() => onExpandedChange?.(slashOpen), [onExpandedChange, slashOpen]);
+	useEffect(() => {
+		onAtOpenChange?.(atOpen);
+		return () => onAtOpenChange?.(false);
+	}, [atOpen, onAtOpenChange]);
 	useEffect(() => {
 		if (slashOpen) {
 			setSlashVisible(true);
@@ -144,8 +150,7 @@ export function useInputBarTriggerModel({
 		setTrigger(null);
 	}, [trigger]);
 	const handleSlashSelect = useCallback((skill: SkillInfo, icon?: string) => {
-		if (skill.type === "scene") insertSceneToken(skill.name, skill.alias, icon, { replaceTrigger: true });
-		else insertSkillToken(skill.name, skill.alias, icon, { replaceTrigger: true });
+		insertSkillToken(skill.name, skill.alias, icon, { replaceTrigger: true });
 		setTrigger(null);
 		focusInputEditor();
 	}, []);
@@ -181,12 +186,23 @@ export function useInputBarTriggerModel({
 	);
 	const handlePlusClick = useCallback(() => {
 		if (!hasSession) return;
-		setTrigger((prev) => (prev?.kind === "slash" ? null : { kind: "slash", query: "", length: 0 }));
+		if (slashOpen) {
+			dismissTrigger();
+			return;
+		}
 		dismissedTriggerRef.current = null;
-		// The trigger button receives the click, so the editor would otherwise stay blurred
-		// and the next `/` or search text would never reach Lexical.
-		focusInputEditor();
-	}, [hasSession]);
+		setTrigger(insertInputTrigger("/"));
+	}, [hasSession, slashOpen, dismissTrigger]);
+
+	const handleAtOpen = useCallback(() => {
+		if (!hasSession) return;
+		if (atOpen) {
+			dismissTrigger();
+			return;
+		}
+		dismissedTriggerRef.current = null;
+		setTrigger(insertInputTrigger("@"));
+	}, [hasSession, atOpen, dismissTrigger]);
 
 	return {
 		atFilter,
@@ -194,6 +210,7 @@ export function useInputBarTriggerModel({
 		drawerActiveTab,
 		handleAbort,
 		handleAtClose: dismissTrigger,
+		handleAtOpen,
 		handleAtSelect,
 		handleConnectorSelect,
 		handleEnter,

@@ -40,3 +40,15 @@ jobs:
         run: |
           chmod +x gradlew
           ./gradlew --no-daemon :androidApp:assembleDebug :shared:compileAndroidDeviceTest :shared:testAndroidHostTest
+
+      - name: Upload Android test reports
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: android-test-reports-${{ github.run_id }}-${{ github.run_attempt }}
+          path: |
+            apps/mobile/**/build/test-results/**/*.xml
+            apps/mobile/**/build/reports/tests/**
+            apps/mobile/**/build/reports/problems/**
+          if-no-files-found: ignore
+          retention-days: 7

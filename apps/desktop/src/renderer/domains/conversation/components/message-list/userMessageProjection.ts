@@ -13,9 +13,7 @@ import { isSystemAttachmentPath, isUserImageFile, parseUserPrefixes } from "../.
 import type { AppshotCardData } from "../AppshotCard";
 
 function matchesPromptRef(segment: InputSegment, ref: { readonly kind: string; readonly name: string }): boolean {
-	return (
-		(segment.kind === "skill" || segment.kind === "scene") && segment.kind === ref.kind && segment.name === ref.name
-	);
+	return segment.kind === "skill" && segment.kind === ref.kind && segment.name === ref.name;
 }
 
 function isAppshotPath(path: string): boolean {
@@ -46,17 +44,25 @@ export function projectUserMessage(message: ConversationUserMessageViewModel): U
 	// Newly sent messages carry the exact editor snapshot. Historical messages do
 	// not, so they retain the text parser as a backwards-compatible fallback.
 	const segments = message.inputSegments
-		? [...message.inputSegments]
+		? message.inputSegments.map((segment): InputSegment => {
+				const legacy = segment as { kind: string; name?: unknown };
+				return legacy.kind === "scene" && typeof legacy.name === "string"
+					? { kind: "text", text: `@scene:${legacy.name} ` }
+					: segment;
+			})
 		: restoreAttachmentKinds(parsedSegments, message.attachments ?? []);
 	const promptRef = message.promptRef ?? legacyRef ?? undefined;
 	const bodySegments = segments.filter(
 		(segment) => (segment.kind !== "image" && segment.kind !== "file") || !isAppshotPath(segment.path),
 	);
-	if (
-		(promptRef?.kind === "skill" || promptRef?.kind === "scene") &&
-		!bodySegments.some((segment) => matchesPromptRef(segment, promptRef))
-	) {
+	if (promptRef?.kind === "skill" && !bodySegments.some((segment) => matchesPromptRef(segment, promptRef))) {
 		bodySegments.unshift({ kind: promptRef.kind, name: promptRef.name });
+	}
+	if (promptRef?.kind === "scene") {
+		const reference = `@scene:${promptRef.name}`;
+		if (!bodySegments.some((segment) => segment.kind === "text" && segment.text.includes(reference))) {
+			bodySegments.unshift({ kind: "text", text: `${reference} ` });
+		}
 	}
 
 	const serialized = serializeInputSegments(bodySegments);

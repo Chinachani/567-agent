@@ -1,5 +1,5 @@
 /**
- * 从 567 Agent 能力市场按 slug 下载并安装 skill/scene。
+ * 从 567 Agent 能力市场按 slug 下载并安装 skill。
  * 市场下载可匿名；有登录 token 时附带 Authorization。
  */
 import { existsSync, readFileSync } from "node:fs";
@@ -14,6 +14,7 @@ import { getAppLogger } from "../logger.js";
 import { verifySha256 } from "../utils/integrity.js";
 import { assertValidSkillName } from "./skill-name.js";
 import {
+	assertSkillNameNotRetired,
 	ensureDirWritable,
 	getSkillBaseDir,
 	type InstalledSkillType,
@@ -58,7 +59,7 @@ function currentToken(): string | undefined {
 }
 
 async function fetchWithOptionalAuth(path: string, accept: string): Promise<Response> {
-	// vetta 官方市场是云服务渠道：lite 构建不可用（github 来源不走这里）。
+	// 官方市场是云服务渠道：lite 构建不可用（github 来源不走这里）。
 	const cloud = getCloudBridge();
 	if (!cloud) {
 		throw new Error("567 Agent market is not available in this build");
@@ -130,9 +131,10 @@ export async function installSkillFromMarketArchive(
 	meta: { alias?: string; marketDescription?: string; version?: string; sha256?: string } = {},
 ): Promise<InstallSkillFromMarketResult> {
 	assertValidSkillName(name);
+	assertSkillNameNotRetired(name);
 	verifySha256(buffer, meta.sha256, `能力 ${name}`);
 
-	const baseDir = getSkillBaseDir(type);
+	const baseDir = getSkillBaseDir();
 	if (!existsSync(baseDir)) {
 		await mkdir(baseDir, { recursive: true });
 	}
@@ -186,14 +188,15 @@ export async function installSkillFromMarketArchive(
 	return { name, type, version, updated: Boolean(previous) };
 }
 
-/** 按市场 slug 拉 info + 归档并安装 skill/scene 能力。 */
+/** 按市场 slug 拉 info + 归档并安装 skill 能力。 */
 export async function installSkillFromMarketSlug(
 	type: InstalledSkillType,
 	slug: string,
 ): Promise<InstallSkillFromMarketResult> {
 	const trimmed = slug.trim();
 	assertValidSkillName(trimmed);
-	if (type !== "skill" && type !== "scene") throw new Error(`Unsupported ability type: ${type}`);
+	if (type !== "skill") throw new Error(`Unsupported ability type: ${type}`);
+	assertSkillNameNotRetired(trimmed);
 
 	log.info("install from market", { type, slug: trimmed });
 	const info = await fetchMarketAbilityInfo(type, trimmed);

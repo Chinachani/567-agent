@@ -13,8 +13,16 @@ import {
 } from "./desktop-packaging-layout.mjs";
 import { APP_NAME, BUNDLE_ID, infoPlistContents } from "./build-appshot-helper.js";
 import desktopAfterPack, { getPackedAppRootDir, writeAppUpdateConfig } from "./desktop-after-pack.mjs";
+import { BROWSER_EXTENSION_RESOURCE } from "./stage-browser-extension.mjs";
 
 const desktopRoot = join(import.meta.dirname, "..");
+
+test("all platforms stage the pinned browser extension as a stable extra resource", () => {
+	assert.deepEqual(BROWSER_EXTENSION_RESOURCE, { from: "browser-extension", to: "browser-extension", filter: ["**/*"] });
+	const source = readFileSync(join(desktopRoot, "scripts", "prepare-pack.js"), "utf8");
+	assert.ok(source.includes('await stageBrowserExtension(join(projectRoot, "resources", "browser-extension"), buildStageDir)'));
+	assert.match(source, /const extraResources = \[\s*BROWSER_EXTENSION_RESOURCE,/);
+});
 
 test("production build outputs have stable staging destinations", () => {
 	assert.deepEqual(

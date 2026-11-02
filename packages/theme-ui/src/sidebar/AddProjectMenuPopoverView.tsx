@@ -16,7 +16,7 @@ export interface AddProjectMenuPopoverItem {
 export interface AddProjectMenuPopoverViewProps {
 	items: AddProjectMenuPopoverItem[];
 	open: boolean;
-	variant: "icon" | "navItem";
+	variant: "icon" | "navItem" | "primary" | "secondary";
 }
 
 export function AddProjectMenuPopoverView({
@@ -33,8 +33,9 @@ export function AddProjectMenuPopoverView({
 					exit={{ opacity: 0, scale: 0.95, y: -4 }}
 					transition={{ duration: 0.12 }}
 					className={cn(
-						"absolute z-50 mt-1 w-[150px] overflow-hidden rounded-lg border border-border bg-popover py-1 shadow-xl",
-						variant === "navItem" ? "left-0 top-full" : "right-0 top-full",
+						// 按内容撑开而不是写死宽度：菜单项文案随语言变化，写死会把较长的项截断。
+						"absolute z-50 mt-1 w-max min-w-[150px] overflow-hidden rounded-lg border border-border bg-popover py-1 shadow-xl",
+						variant === "icon" ? "right-0 top-full" : "left-0 top-full",
 					)}
 				>
 					{items.map((item) => (

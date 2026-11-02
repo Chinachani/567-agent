@@ -1,3 +1,13 @@
+## Connect your current browser without startup flags
+
+Go to **Settings → General → Connect your current browser**, install Microsoft’s official Playwright extension, and enable the connection. Pinned connection components download on first startup. This path does not require the agent-browser CLI or Chrome for Testing.
+
+On first use, approve the connection and select the intended tab in the extension. The agent checks its title and URL before working. Later focus changes do not switch an ongoing task to another tab. Optional approval tokens and browser profile directory names belong in settings; never paste a token into chat.
+
+Tasks involving signed-in pages, forms, or website interaction checks should invoke browser capabilities proactively. Questions about browser features or public fact lookup do not request access to unrelated pages.
+
+Existing local debugging connections and explicitly requested separate task browsers remain available. Extension errors are reported without silently switching browsers. Disabling retains pairing settings; an in-flight turn follows the existing lifecycle.
+
 ## Best suited for
 
 Browser Use is for work that must happen inside a real page: signing in to an admin console, paging through data, filling forms, changing filters, or collecting results across several pages. Prefer web search when a public-information summary is enough; use browser operation when the agent must enter a page and complete the workflow.

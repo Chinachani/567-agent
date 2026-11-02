@@ -279,6 +279,9 @@ function buildGuidelines(tools: string[], scenario?: ConversationScenario): stri
 		guidelinesList.push(
 			"Before large image mosaics, satellite tiles, arrays or batches: inspect the CLI help or implementation for parameter units and estimate dimensions, item count, bytes per item and concurrent memory. Never assume a radius is measured in meters: tile-ring radius r requests (2*r+1)^2 tiles, with image side (2*r+1)*tileSize pixels. Start with a small bounded region; use lower resolution, smaller batches or separate tiles instead of one huge allocation. If a command reports resource protection or allocation failure, reduce the work before retrying; never repeat the unchanged command, remove safeguards or increase limits without the user's explicit request.",
 		);
+		guidelinesList.push(
+			"Background tasks (run_in_background, or auto-promoted) automatically deliver a <task-notification> when they finish. Do NOT spawn a polling/sleep/wait command to check on them; do other work or end your turn, and read output via task_output only when needed.",
+		);
 	}
 
 	if (hasDirTree) {
@@ -407,6 +410,20 @@ export function buildSystemPromptDraft(options: BuildSystemPromptOptions = {}): 
 	// description 是同一份字符串，模型会读到两遍。增量信息只有下面的 guidelines。
 	blocks.push(coreBlock("core.mcp", "mcp", renderMcpToolsSection(mcpTools, false, mcpDeferred), 250));
 	blocks.push(coreBlock("core.guidelines", "guidelines", `Guidelines:\n${buildGuidelines(tools, scenario)}\n`, 300));
+	if (hasInvokeSkill && skills.some((skill) => skill.name === "browser-use" && !skill.disableModelInvocation)) {
+		blocks.push(
+			coreBlock(
+				"core.browser",
+				"guidelines",
+				[
+					"Browser tasks: proactively invoke the available browser-use skill when the requested outcome needs a rendered page, an existing signed-in tab, form interaction, or verification of website UI and behavior. Do not wait for the user to say 'use the browser'.",
+					"Use web search for public facts and sources when page interaction is unnecessary. A URL in source code or an explanation of browser setup alone does not request browser access. Do not inspect unrelated tabs or install a connection just to answer a question.",
+					"For the user's current browser, prefer a configured extension connection and verify the selected tab before acting. If that configured connection fails, report the connection problem; do not silently create a different browser or claim visual verification without observing the page.",
+				].join("\n"),
+				310,
+			),
+		);
+	}
 	blocks.push(coreBlock("core.append", "append", appendSystemPrompt ?? "", 400));
 	blocks.push(coreBlock("core.context", "context", renderContextSection(workspaceFacts, contextFiles), 500));
 	blocks.push(coreBlock("core.memory", "memory", memory ?? "", 600));

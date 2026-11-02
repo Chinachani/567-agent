@@ -53,12 +53,15 @@ export type TaskEvent =
 	| { type: "record.updated"; taskId: string; sessionId: string; status: "success" | "failed" | "aborted" }
 	| { type: "tasks.changed" };
 
+/** null explicitly removes a resource; omission keeps the stored selection. */
+export type ScheduledTaskUpdate = Partial<Omit<ScheduledTask, "skill">> & { skill?: SelectedSkillRef | null };
+
 export interface DesktopSchedulerApi {
 	getTasks(): Promise<ScheduledTask[]>;
 	createTask(
 		task: Omit<ScheduledTask, "id" | "createdAt" | "updatedAt" | "lastRunAt" | "lastRunStatus">,
 	): Promise<ScheduledTask>;
-	updateTask(id: string, patch: Partial<ScheduledTask>): Promise<void>;
+	updateTask(id: string, patch: ScheduledTaskUpdate): Promise<void>;
 	deleteTask(id: string): Promise<void>;
 	toggleTask(id: string): Promise<void>;
 	/** Disable a task (set enabled=false and stop its scheduled job) */

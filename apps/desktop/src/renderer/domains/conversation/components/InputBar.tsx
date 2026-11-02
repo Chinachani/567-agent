@@ -11,6 +11,8 @@ export function InputBar({ model, children }: InputBarProps): JSX.Element {
 	latest.current = model;
 	useLayoutEffect(() => {
 		const commands = {
+			openCommands: () => latest.current.commands?.onOpen(),
+			openReferences: () => latest.current.commands?.onOpenReferences?.(),
 			focus: () => {
 				focusInputEditor();
 			},

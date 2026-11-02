@@ -3,6 +3,7 @@ import type { MessageSelectionContextMenuViewProps } from "@vetta-org/theme-ui/c
 import { useSetAtom } from "jotai";
 import { type MouseEvent, type RefObject, useCallback, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
+import { appendInputText } from "../components/input-bar/editor/inputEditorHandle";
 
 const CONTEXT_MENU_WIDTH = 180;
 const CONTEXT_MENU_HEIGHT = 80;
@@ -57,6 +58,28 @@ export function useMessageSelectionContextMenu(): MessageSelectionContextMenuMod
 	const closeContextMenu = useCallback(() => setMenuState(null), []);
 
 	const onContextMenuCapture = useCallback((event: MouseEvent<HTMLDivElement>) => {
+		if (event.defaultPrevented) return;
+		const target = event.target instanceof Element ? event.target : null;
+		if (!target || target.closest("[data-resource-menu-trigger], [data-inline-token], a, button, img")) return;
+		const selection = window.getSelection();
+		if (
+			!selection ||
+			!Array.from({ length: selection.rangeCount }, (_, index) => selection.getRangeAt(index)).some((range) => {
+				if (!range.intersectsNode(target)) return false;
+				const rects = typeof range.getClientRects === "function" ? [...range.getClientRects()] : [];
+				return (
+					rects.length === 0 ||
+					rects.some(
+						(rect) =>
+							event.clientX >= rect.left &&
+							event.clientX <= rect.right &&
+							event.clientY >= rect.top &&
+							event.clientY <= rect.bottom,
+					)
+				);
+			})
+		)
+			return;
 		const selectedText = readSelectedTextInContainer(containerRef.current);
 		if (!selectedText) return;
 		event.preventDefault();
@@ -78,8 +101,7 @@ export function useMessageSelectionContextMenu(): MessageSelectionContextMenuMod
 		const text = menuState?.selectedText ?? "";
 		closeContextMenu();
 		if (!text) return;
-		// Clear then put the selection into the input bar.
-		setInputValue(text);
+		if (!appendInputText(text)) setInputValue((draft) => (draft ? `${draft}\n\n${text}` : text));
 		setFocusInputRequest((prev) => prev + 1);
 	}, [closeContextMenu, menuState?.selectedText, setFocusInputRequest, setInputValue]);
 

@@ -5,10 +5,9 @@
  * invalidate），但截图完成后的 finally 无条件清掉脏标记——这次 invalidate 被吞掉，
  * 旧位图永久留存，直到用户点进 frame 才发现活体和位图对不上。
  */
-
-import type { PluginContext } from "@vetta-org/plugin-sdk";
 import { act, createElement } from "react";
 import { createRoot, type Root } from "react-dom/client";
+import type { PluginContext } from "@vetta-org/plugin-sdk";
 import { afterEach, beforeEach, expect, it, vi } from "vitest";
 import type { BridgeHub } from "../src/canvas/bridge-client";
 import { clearFrameErrors, setFrameError } from "../src/canvas/design-runtime";
@@ -66,7 +65,10 @@ async function advance(ms: number): Promise<void> {
 	});
 }
 
-async function mount(frameIds: readonly string[], offscreen?: TestOffscreenContext | null): Promise<void> {
+async function mount(
+	frameIds: readonly string[],
+	offscreen?: TestOffscreenContext | null,
+): Promise<void> {
 	container = document.createElement("div");
 	document.body.appendChild(container);
 	root = createRoot(container);
@@ -372,7 +374,7 @@ it("刚取消选中的 frame 保持挂载，再次选中时不用重建 iframe",
  * 缩放/平移途中活体 iframe 是最贵的一层：跨源渲染树套在 world 的 scale 底下，缩放每变
  * 一档就得连同它整棵树重新光栅化。有位图的先用位图顶着，iframe 只收起不卸载。
  */
-it("交互期把有位图的 frame 降为位图，iframe 透明停放但不卸载", async () => {
+it("交互期把有位图的 frame 降为位图，iframe 收起但不卸载", async () => {
 	setPluginCtx({
 		capture: {
 			offscreen: () => Promise.resolve({ dataUrl: "data:offscreen", scaleFactor: 2 }),
@@ -400,8 +402,9 @@ it("交互期把有位图的 frame 降为位图，iframe 透明停放但不卸�
 		expect(latest.isLive("a")).toBe(false);
 		// 但必须还挂着——卸掉就要整页重新加载，操作结束会看见一轮重启。
 		expect(latest.isMounted("a")).toBe(true);
-
+		// 而且只能透明、不能 display:none：手势锁定在这个 iframe 上，收起来余下的滚轮全丢。
 		expect(latest.isParked("a")).toBe(true);
+		// 本来就只显示位图的 b 不在此列，照旧收着。
 		expect(latest.isParked("b")).toBe(false);
 
 		// 结束后恢复活体。
@@ -423,4 +426,107 @@ it("交互期没有位图的 frame 仍然保持活体", async () => {
 	expect(latest.rasterOf("a")).toBe(null);
 	expect(latest.isLive("a")).toBe(true);
 	expect(latest.isParked("a")).toBe(false);
+});
+
+/**
+ * 用户在一帧里切了主题（写进 localStorage）：这是整个设计共用的状态，所有位图都按旧
+ * 状态截的，要全部重截；还挂着的其他 iframe 内存里也是旧状态，要重新加载。来源那一帧
+ * 自己已经是新状态，不能打断它。
+ */
+it("持久化状态变化后全部重截，并重载其他还挂着的 iframe", async () => {
+	const pending: { resolve: (value: { dataUrl: string; scaleFactor: number }) => void }[] = [];
+	setPluginCtx({
+		capture: {
+			offscreen: () =>
+				new Promise<{ dataUrl: string; scaleFactor: number }>((resolve) => {
+					pending.push({ resolve });
+				}),
+			releaseOffscreen: () => Promise.resolve(),
+		},
+	} as unknown as PluginContext);
+	try {
+		const offscreen = { port: 5173, sizeOf: () => ({ width: 390, height: 844 }) };
+		await mount(["a", "b", "c"], offscreen);
+		// 还没有任何位图：b、c 以活体兜底显示，a 被选中。
+		await act(async () => {
+			root.render(createElement(Harness, { frameIds: ["a", "b", "c"], activeFrameId: "a", offscreen }));
+		});
+		await advance(50);
+		await flushMicrotasks();
+		expect(latest.isMounted("b")).toBe(true);
+		expect(latest.isMounted("c")).toBe(true);
+		const before = { a: latest.reloadNonceOf("a"), b: latest.reloadNonceOf("b"), c: latest.reloadNonceOf("c") };
+
+		// 截图还在飞的时候，用户在 a 里切了主题。
+		act(() => latest.storageChanged("a"));
+
+		// b、c 的 iframe 内存里还是旧状态，重新加载；a 是来源，正在操作，不能打断。
+		expect(latest.reloadNonceOf("a")).toBe(before.a);
+		expect(latest.reloadNonceOf("b")).toBe(before.b + 1);
+		expect(latest.reloadNonceOf("c")).toBe(before.c + 1);
+
+		// 在飞的那几张是按旧状态截的：落地后仍留在队列里重截，而不是就此收工。
+		const inFlight = pending.length;
+		for (const call of pending.splice(0)) call.resolve({ dataUrl: "data:stale", scaleFactor: 2 });
+		await flushMicrotasks();
+		await advance(50);
+		await flushMicrotasks();
+		expect(inFlight).toBeGreaterThan(0);
+		expect(pending.length).toBe(inFlight);
+	} finally {
+		setPluginCtx(null as unknown as PluginContext);
+	}
+});
+
+/**
+ * 复现的 bug：选中状态下点「展开」，frame 的显示高度变了，可选中的那一帧不进截图队列，
+ * 位图还是按旧尺寸截的；这时一缩放/平移，交互期把它降为位图，旧图被拉伸进新尺寸里，
+ * 和活体对不上——要失焦一次才会重截。
+ */
+it("选中的 frame 改了尺寸后，交互期不拿旧尺寸的位图顶替，并立即按新尺寸重截", async () => {
+	const heights: number[] = [];
+	setPluginCtx({
+		capture: {
+			offscreen: (options: { height: number }) => {
+				heights.push(options.height);
+				return Promise.resolve({ dataUrl: `data:h${options.height}`, scaleFactor: 2 });
+			},
+			releaseOffscreen: () => Promise.resolve(),
+		},
+	} as unknown as PluginContext);
+	try {
+		let height = 844;
+		const offscreen = { port: 5173, sizeOf: () => ({ width: 390, height }) };
+		await mount(["a"], offscreen);
+		await advance(50);
+		await flushMicrotasks();
+		expect(latest.rasterOf("a")).toBe("data:h844");
+
+		const render = async (interacting: boolean): Promise<void> => {
+			await act(async () => {
+				root.render(createElement(Harness, { frameIds: ["a"], activeFrameId: "a", interacting, offscreen }));
+			});
+		};
+		await render(false);
+
+		// 选中状态下展开：显示高度变了，画布让旧位图作废。
+		height = 2000;
+		act(() => latest.invalidate("a"));
+		await render(true);
+		// 旧位图尺寸不对：交互期继续显示活体，不拿它顶上。
+		expect(latest.isParked("a")).toBe(false);
+		expect(latest.isLive("a")).toBe(true);
+
+		// 选中着也要按新尺寸重截，不必等失焦。
+		await advance(50);
+		await flushMicrotasks();
+		expect(heights).toEqual([844, 2000]);
+		expect(latest.rasterOf("a")).toBe("data:h2000");
+
+		// 新位图对得上了：交互期照常降为位图。
+		await render(true);
+		expect(latest.isParked("a")).toBe(true);
+	} finally {
+		setPluginCtx(null as unknown as PluginContext);
+	}
 });

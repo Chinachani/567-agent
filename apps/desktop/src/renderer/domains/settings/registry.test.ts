@@ -47,7 +47,7 @@ describe("设置标签可见性", () => {
 	});
 });
 
-describe("更多选项入口", () => {
+describe("旧插件设置路由兼容", () => {
 	it("排在标签列表最后", () => {
 		expect(SETTINGS_TABS.at(-1)?.key).toBe("extensions");
 	});

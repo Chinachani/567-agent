@@ -11,8 +11,8 @@ npm run install:vetta      # build → pack → install into the running Desktop
 ```
 
 The scaffold includes an `AGENTS.md` brief so a coding agent can pick the project up without any
-host-side setup. Inside a marketplace hub (a repository with `.vetta/marketplace.json`) the new
-plugin is also listed in that manifest.
+host-side setup. Inside a marketplace hub (a repository with `.vetta/marketplace.json`), add the new
+plugin to the index when it is ready for publication; `init` leaves the index unchanged.
 
 ## Update an existing project
 

@@ -13,6 +13,12 @@ describe("agent loop limit configuration", () => {
 			maxModelCalls: 7,
 		});
 	});
+	it("preserves an explicit unlimited model budget and all other defaults", () => {
+		expect(resolveAgentLoopLimits({ maxModelCalls: null })).toEqual({
+			...DEFAULT_AGENT_LOOP_LIMITS,
+			maxModelCalls: null,
+		});
+	});
 
 	it.each([
 		["maxModelCalls", 0],

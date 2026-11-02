@@ -1,8 +1,11 @@
+import type { CSSProperties } from "react";
+
 export interface SheetCell {
 	value: string;
 	title: string;
 	colSpan: number;
 	rowSpan: number;
+	style?: CSSProperties;
 }
 
 export interface SheetMerge {
@@ -15,12 +18,17 @@ export interface SheetMerge {
 export interface SheetModel {
 	name: string;
 	cells: Map<string, SheetCell>;
-	coveredCells: Set<string>;
 	merges: SheetMerge[];
 	rowHeights: Map<number, number>;
 	columnWidths: Map<number, number>;
 	rowCount: number;
 	columnCount: number;
+	defaultStyle?: CSSProperties;
+	defaultRowHeight?: number;
+	defaultColumnWidth?: number;
+	rowStyles?: Map<number, CSSProperties>;
+	columnStyles?: Array<{ first: number; last: number; style: CSSProperties }>;
+	appearance: "styles" | "values" | "plain";
 }
 
 export interface SheetViewport {

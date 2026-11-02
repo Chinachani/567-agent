@@ -10,7 +10,7 @@ vi.mock("./useSkillTokenMeta", () => ({ useSkillTokenMeta: () => vi.fn() }));
 
 const atoms = await import("@shared/store/atoms");
 const { stagePendingSessionSend } = await import("../services/staged-new-session-send");
-const { useUserMessageEditAction, useUserMessageHistoryActions } = await import("./useUserMessageActions");
+const { useUserMessageEditAction, useSessionMessageForkAction } = await import("./useUserMessageActions");
 
 describe("user-message actions Runtime readiness", () => {
 	beforeEach(() => {
@@ -71,10 +71,9 @@ describe("user-message actions Runtime readiness", () => {
 		const message = createConversationUserMessage({ id: "user-1", entryId: "entry-1", text: "fork me" });
 
 		const { result } = renderHook(() =>
-			useUserMessageHistoryActions({
-				message,
+			useSessionMessageForkAction({
+				entryId: message.entryId,
 				isStreaming: false,
-				forkEnabled: true,
 			}),
 		);
 		act(() => result.current.onFork());

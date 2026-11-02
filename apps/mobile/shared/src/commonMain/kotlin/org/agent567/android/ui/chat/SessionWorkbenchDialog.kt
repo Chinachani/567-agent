@@ -40,12 +40,16 @@ internal fun SessionWorkbenchDialog(
     readThumbnail: suspend (String) -> String?,
     onDismiss: () -> Unit,
 ) {
-    var tab by remember { mutableIntStateOf(0) }
+    val tabs = listOf(Str.workbenchContext, Str.workbenchAttachments, Str.workbenchTasks, Str.workbenchChanges) + if (desktop) listOf(Str.collaborationTitle) else emptyList()
+    var tab by remember(desktop) { mutableIntStateOf(0) }
     var selectedPending by remember { mutableStateOf<String?>(null) }
     var selectedDetail by remember { mutableStateOf<Pair<String, String>?>(null) }
     var confirmDiscard by remember { mutableStateOf(false) }
     var saveNotice by remember { mutableStateOf<String?>(null) }
-    val save = rememberOriginalAttachmentSaver(readOriginal) { saveNotice = it }
+    LaunchedEffect(selectedPending, selectedDetail) { saveNotice = null }
+    val originalReader: suspend (String) -> ByteArray = { id -> pendingFiles.firstOrNull { it.id == id }?.bytes ?: readOriginal(id) }
+    val save = rememberOriginalAttachmentSaver(originalReader) { saveNotice = it }
+    val opener = rememberOriginalAttachmentOpener(originalReader) { saveNotice = it }
     var pinned by remember(context?.sessionId, context?.revision) { mutableStateOf(context?.pinnedText.orEmpty()) }
     var excluded by remember(context?.sessionId, context?.revision) { mutableStateOf(context?.excludedTurnIds.orEmpty()) }
     var savingContext by remember { mutableStateOf<Pair<String, Long>?>(null) }
@@ -70,8 +74,8 @@ internal fun SessionWorkbenchDialog(
         onDismiss = requestClose,
         header = {
             SingleChoiceSegmentedButtonRow(Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 4.dp)) {
-                (listOf(Str.workbenchContext, Str.workbenchAttachments, Str.workbenchTasks, Str.workbenchChanges) + if (desktop) listOf(Str.collaborationTitle) else emptyList()).forEachIndexed { index, title ->
-                    SegmentedButton(selected = tab == index, onClick = { tab = index; selectedDetail = null }, shape = SegmentedButtonDefaults.itemShape(index, 4), icon = {}) {
+                tabs.forEachIndexed { index, title ->
+                    SegmentedButton(selected = tab == index, onClick = { tab = index; selectedDetail = null }, shape = SegmentedButtonDefaults.itemShape(index, tabs.size), icon = {}) {
                         Text(title, maxLines = 1, overflow = TextOverflow.Ellipsis, style = MaterialTheme.typography.labelSmall)
                     }
                 }
@@ -150,8 +154,14 @@ internal fun SessionWorkbenchDialog(
                 {
                     Column(Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 8.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
                         saveNotice?.let { Text(it, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant) }
-                        if (desktop) Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End) {
-                            Button(onClick = { item?.let { save(it.id, it.title) } }, enabled = item != null && item.previewStatus != "unavailable") { Text(Str.workbenchSaveOriginal) }
+                        if (desktop) {
+                            val readable = item != null && item.previewStatus != "unavailable"
+                            val transferable = readable && (item.sizeBytes ?: 0) <= MAX_MESSAGE_FILE_BYTES
+                            if (readable && !transferable) Text(Str.workbenchOriginalTooLarge, style = MaterialTheme.typography.bodySmall)
+                            FlowRow(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                                OutlinedButton(onClick = { item?.let { saveNotice = null; opener.open(it.id, it.title) } }, enabled = transferable && !opener.opening) { Text(if (opener.opening) Str.workbenchOpening else Str.workbenchOpenOriginal) }
+                                Button(onClick = { item?.let { saveNotice = null; save(it.id, it.title) } }, enabled = transferable && !opener.opening) { Text(Str.workbenchSaveOriginal) }
+                            }
                         }
                     }
                 }
@@ -191,11 +201,21 @@ internal fun SessionWorkbenchDialog(
     )
 
     selectedPending?.let { id ->
-        ScrollableDetailDialog(Str.workbenchAttachmentPreview, { selectedPending = null }) {
+        ScrollableDetailDialog(Str.workbenchAttachmentPreview, { selectedPending = null }, footer = {
+            pendingFiles.firstOrNull { it.id == id }?.let { file ->
+                Column(Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 8.dp)) {
+                    saveNotice?.let { Text(it, style = MaterialTheme.typography.bodySmall) }
+                    FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        OutlinedButton(onClick = { saveNotice = null; opener.open(file.id, file.fileName) }, enabled = !opener.opening) { Text(if (opener.opening) Str.workbenchOpening else Str.workbenchOpenOriginal) }
+                        TextButton(onClick = { saveNotice = null; save(file.id, file.fileName) }, enabled = !opener.opening) { Text(Str.workbenchSaveOriginal) }
+                    }
+                }
+            }
+        }) {
             pendingImages.firstOrNull { it.id == id }?.let { WorkbenchImage(it) }
             pendingFiles.firstOrNull { it.id == id }?.let { file ->
                 Text(file.fileName, style = MaterialTheme.typography.titleMedium)
-                val text = remember(file.id) { if (file.mimeType.startsWith("text/") || file.mimeType.contains("json") || file.mimeType.contains("xml")) file.bytes.copyOfRange(0, minOf(file.bytes.size, 32768)).decodeToString().takeIf { '\u0000' !in it } else null }
+                val text = remember(file.id, file.bytes) { attachmentTextPreview(file.bytes) }
                 Text(if (text == null) Str.workbenchBinaryPreview else Str.workbenchTextPreview, style = MaterialTheme.typography.bodySmall)
                 if (text != null) SelectionContainer { Text(text) }
             }

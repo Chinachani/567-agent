@@ -6,7 +6,6 @@ import userEvent from "@testing-library/user-event";
 import { afterAll, beforeAll, expect, it, vi } from "vitest";
 
 const onEdit = vi.fn();
-const onFork = vi.fn();
 const onBranchNext = vi.fn();
 
 vi.mock("react-i18next", () => ({
@@ -27,8 +26,6 @@ vi.mock("../../hooks/useUserMessageActions", () => ({
 		branchIndex: 0,
 		branchTotal: 2,
 		canSwitch: true,
-		forkAvailable: true,
-		onFork,
 		onNext: onBranchNext,
 		onPrevious: vi.fn(),
 	}),
@@ -63,17 +60,15 @@ it("Runtime 恢复期间消息操作保持可用并立即接受点击", async ()
 	);
 
 	expect((screen.getByLabelText("edit") as HTMLButtonElement).disabled).toBe(false);
-	expect((screen.getByLabelText("fork") as HTMLButtonElement).disabled).toBe(false);
+	expect(screen.queryByLabelText("fork")).toBeNull();
 	expect((screen.getByLabelText("previous") as HTMLButtonElement).disabled).toBe(true);
 	expect((screen.getByLabelText("next") as HTMLButtonElement).disabled).toBe(false);
 	const outgoing = document.querySelector("[data-message-layout='outgoing']");
 	expect(outgoing?.className).toContain("justify-end");
 
 	await user.click(screen.getByLabelText("edit"));
-	await user.click(screen.getByLabelText("fork"));
 	await user.click(screen.getByLabelText("next"));
 	expect(onEdit).toHaveBeenCalledOnce();
-	expect(onFork).toHaveBeenCalledOnce();
 	expect(onBranchNext).toHaveBeenCalledOnce();
 });
 

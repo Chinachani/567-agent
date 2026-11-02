@@ -2,6 +2,7 @@ import { useActiveConversation, useActivityTab, useTranslation } from "@vetta-or
 import { Button, Switch } from "@vetta-org/ui";
 import { useCallback, useEffect, useRef, useState, type ReactNode } from "react";
 import { discoverProjects, joinPath, readJson, type ProjectInfo } from "./project";
+import { readDevWatchState } from "./plugin-state";
 import { applyPluginToVetta, reinstallPluginToVetta } from "./reinstall";
 import { getWorkbenchCommand, getWorkbenchDialog, getWorkbenchFs, getWorkbenchPlugins } from "./runtime";
 
@@ -75,7 +76,12 @@ function PackageIcon({ className }: { className?: string }): ReactNode {
 				strokeWidth="1.7"
 				strokeLinejoin="round"
 			/>
-			<path d="M12 12 3.5 7.75M12 12l8.5-4.25M12 12v9.25" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" />
+			<path
+				d="M12 12 3.5 7.75M12 12l8.5-4.25M12 12v9.25"
+				stroke="currentColor"
+				strokeWidth="1.7"
+				strokeLinecap="round"
+			/>
 		</svg>
 	);
 }
@@ -130,7 +136,12 @@ export function WorkbenchPanel() {
 			const map = new Map<string, InstalledInfo>();
 			let wbRoot: string | null = null;
 			for (const p of list) {
-				map.set(p.id, { id: p.id, version: p.version, enabled: p.enabled, devWatch: p.devWatch ?? null });
+				map.set(p.id, {
+					id: p.id,
+					version: p.version,
+					enabled: p.enabled,
+					devWatch: readDevWatchState(p.devWatch),
+				});
 				if (p.id === "plugin-workbench" && p.rootPath) wbRoot = p.rootPath;
 			}
 			setInstalled(map);

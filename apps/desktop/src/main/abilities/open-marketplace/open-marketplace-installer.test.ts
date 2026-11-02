@@ -2,6 +2,12 @@ import { mkdir, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, describe, expect, it, vi } from "vitest";
+import { initializeMainMessages } from "../../i18n/messages.js";
+import {
+	assertNoRetiredSceneConflict,
+	readInstalledSkillsManifest,
+	writeInstalledSkillsManifest,
+} from "../../skills/skill-manifest-storage.js";
 import type { InstalledSkill } from "../../skills/skill-service";
 import { parseMarketplaceManifest } from "./marketplace-schema";
 import {
@@ -46,7 +52,7 @@ async function createFixture(version = "1.0.0"): Promise<{
 		],
 	});
 	const ability = manifest.abilities[0];
-	if (!ability || (ability.type !== "skill" && ability.type !== "scene")) throw new Error("Fixture ability missing");
+	if (!ability || ability.type !== "skill") throw new Error("Fixture ability missing");
 	return { root, snapshotRoot, ability };
 }
 
@@ -56,6 +62,7 @@ function dependencies(
 	overrides?: Partial<OpenMarketplaceInstallerDependencies>,
 ): OpenMarketplaceInstallerDependencies {
 	return {
+		assertInstallableName: (name) => assertNoRetiredSceneConflict(join(root, "skills-manifest.json"), name),
 		getBaseDir: () => join(root, "skills"),
 		tmpBaseDir: join(root, "tmp"),
 		readManifest: () => manifest.current,
@@ -73,6 +80,53 @@ afterEach(async () => {
 });
 
 describe("installOpenMarketplaceAbility", () => {
+	it("preserves a retired scene on conflict while an unrelated skill still installs and updates", async () => {
+		const fixture = await createFixture();
+		const path = join(fixture.root, "skills-manifest.json");
+		const scene = { name: "demo-skill", type: "scene", version: "legacy", enabled: true };
+		await writeFile(path, JSON.stringify({ "demo-skill": scene }));
+		const legacyDir = join(fixture.root, "scenes", "demo-skill");
+		await mkdir(legacyDir, { recursive: true });
+		await writeFile(join(legacyDir, "SKILL.md"), "old scene content");
+		initializeMainMessages("zh");
+		const deps = dependencies(
+			fixture.root,
+			{ current: {} },
+			{
+				readManifest: () => readInstalledSkillsManifest(path),
+				writeManifest: (value) => writeInstalledSkillsManifest(path, value),
+			},
+		);
+		const origin = {
+			kind: "github-marketplace" as const,
+			marketplace: "test-market",
+			marketplaceVersion: "1",
+			repository: "https://github.com/example/skills",
+		};
+		await expect(installOpenMarketplaceAbility(fixture.snapshotRoot, fixture.ability, origin, deps)).rejects.toThrow(
+			"与保留的旧场景同名",
+		);
+		expect(deps.recordInstall).not.toHaveBeenCalled();
+		await expect(readFile(join(fixture.root, "skills", "demo-skill", "SKILL.md"))).rejects.toMatchObject({
+			code: "ENOENT",
+		});
+		const renamed = {
+			...fixture.ability,
+			slug: "new-skill",
+			name: "New Skill",
+			source: { path: "abilities/skills/new-skill" },
+		};
+		const renamedDir = join(fixture.snapshotRoot, renamed.source.path);
+		await mkdir(renamedDir, { recursive: true });
+		await writeFile(join(renamedDir, "SKILL.md"), "---\nname: new-skill\ndescription: New\nversion: 1.0.0\n---\n");
+		await installOpenMarketplaceAbility(fixture.snapshotRoot, renamed, origin, deps);
+		await writeFile(join(renamedDir, "SKILL.md"), "---\nname: new-skill\ndescription: New\nversion: 2.0.0\n---\n");
+		await installOpenMarketplaceAbility(fixture.snapshotRoot, { ...renamed, version: "2.0.0" }, origin, deps);
+		expect(readInstalledSkillsManifest(path)["new-skill"].version).toBe("2.0.0");
+		expect(JSON.parse(await readFile(path, "utf8"))["demo-skill"]).toEqual(scene);
+		expect(await readFile(join(legacyDir, "SKILL.md"), "utf8")).toBe("old scene content");
+	});
+
 	it("installs from the validated snapshot and records origin plus config version", async () => {
 		const fixture = await createFixture();
 		const manifest = { current: {} as Record<string, InstalledSkill> };

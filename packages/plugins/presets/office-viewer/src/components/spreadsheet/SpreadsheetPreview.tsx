@@ -18,7 +18,7 @@ export function SpreadsheetPreview({ file }: PluginFilePreviewProps): JSX.Elemen
 		setStatus("loading");
 		setActiveSheet(0);
 		void fetchFileBytes(file)
-			.then(parseWorkbook)
+			.then((bytes) => parseWorkbook(bytes, file.extension))
 			.then((nextSheets) => {
 				if (cancelled) return;
 				setSheets(nextSheets);
@@ -36,6 +36,11 @@ export function SpreadsheetPreview({ file }: PluginFilePreviewProps): JSX.Elemen
 	return (
 		<div className="relative flex h-full min-h-0 flex-1 flex-col overflow-hidden bg-[var(--background)]">
 			{status === "ready" && sheet && <VirtualSheet sheet={sheet} />}
+			{status === "ready" && sheet && sheet.appearance !== "styles" && (
+				<p className="shrink-0 border-t border-[var(--border)] px-3 py-1.5 text-[11px] text-[var(--muted-foreground)]">
+					{t(sheet.appearance === "plain" ? "spreadsheet.plainTextHint" : "spreadsheet.basicAppearanceHint")}
+				</p>
+			)}
 			{status === "ready" && sheets.length > 0 && (
 				<SheetTabs sheets={sheets} activeSheet={activeSheet} onSelect={setActiveSheet} />
 			)}

@@ -68,6 +68,7 @@ class UiRefinementFlowTest {
 
     @Test fun cloudErrorKeepsRouteRetryAndDismissInsideTheErrorActions() {
         var routes = 0
+        var workbenchOpened = 0
         var dismissed = 0
         var action: UiErrorAction? = null
         var error by mutableStateOf(UiError("Network unavailable", "Try again", UiErrorAction.Retry))
@@ -76,11 +77,14 @@ class UiRefinementFlowTest {
                 title = "Chat", surface = ChatSurface.Cloud, messages = emptyList(), draft = "Saved draft",
                 pendingImages = emptyList(), isStreaming = false, models = emptyList(), selectedModel = null,
                 modelPickerOpen = false, chatError = error,
+                onOpenWorkbench = { workbenchOpened++ },
                 onOpenServiceRoute = { routes++ }, onErrorAction = { action = it }, onDismissError = { dismissed++ },
                 onDraftChange = {}, onSend = {}, onStop = {}, onBack = {}, onOpenModelPicker = {},
                 onCloseModelPicker = {}, onSelectModel = {}, onImagesPicked = {}, onRemovePendingImage = {},
             )
         } }
+        rule.onNodeWithContentDescription(Str.workbenchTitle).performClick()
+        assertEquals(1, workbenchOpened)
         rule.onNodeWithText(Str.serviceRouteErrorAction).performClick()
         rule.onNodeWithText(Str.actionRetry).performClick()
         rule.onNodeWithText(Str.close).performClick()

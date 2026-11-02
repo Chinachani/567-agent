@@ -29,13 +29,7 @@ export function PreviewBodyView({ state, labels, onDownload }: PreviewBodyViewPr
 	}
 
 	if (state.status === "unsupported") {
-		return (
-			<UnsupportedDetail
-				item={state.item}
-				labels={labels}
-				onDownload={onDownload}
-			/>
-		);
+		return <UnsupportedDetail item={state.item} labels={labels} onDownload={onDownload} />;
 	}
 
 	if (state.status === "loading") {
@@ -68,7 +62,7 @@ function UnsupportedDetail({
 	onDownload?: (item: FilePreviewItem) => void;
 }): JSX.Element {
 	const ext = getExtension(item.name);
-	const downloadable = !!item.url;
+	const downloadable = !!item.url || !!item.path;
 
 	return (
 		<div className="flex min-h-0 flex-1 flex-col items-center justify-center gap-5 px-6 py-12">
@@ -78,9 +72,7 @@ function UnsupportedDetail({
 			<div className="text-center">
 				<p className="max-w-md break-all text-[14px] font-semibold text-foreground">{item.name}</p>
 				{ext && (
-					<p className="mt-1 text-[10px] font-bold uppercase tracking-wider text-muted-foreground/60">
-						{ext}
-					</p>
+					<p className="mt-1 text-[10px] font-bold uppercase tracking-wider text-muted-foreground/60">{ext}</p>
 				)}
 				<p className="mt-2 text-[11px] text-muted-foreground/60">{labels.unsupported}</p>
 			</div>

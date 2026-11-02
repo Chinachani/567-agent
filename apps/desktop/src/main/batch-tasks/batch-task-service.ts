@@ -30,6 +30,15 @@ import {
 	updateProject as updateProjectStorage,
 } from "./batch-task-storage.js";
 
+type ActiveBatchSkillRef = Omit<BatchSkillRef, "type"> & { type: "skill" };
+
+type ClientBatchProject = Omit<BatchProject, "skill"> & { skill?: ActiveBatchSkillRef };
+
+function projectForClient(project: BatchProject): ClientBatchProject {
+	const { skill, ...rest } = project;
+	return { ...rest, skill: skill?.type === "skill" ? { ...skill, type: "skill" as const } : undefined };
+}
+
 export interface CreateBatchProjectInput {
 	name: string;
 	prompt: string;
@@ -40,7 +49,7 @@ export interface CreateBatchProjectInput {
 	artifactPatterns?: string[];
 	notifyEnabled?: boolean;
 	timeoutMinutes?: number;
-	skill?: BatchSkillRef;
+	skill?: ActiveBatchSkillRef;
 }
 
 export type UpdateBatchProjectInput = Partial<{
@@ -53,7 +62,7 @@ export type UpdateBatchProjectInput = Partial<{
 	notifyEnabled: boolean;
 	timeoutMinutes: number;
 	newFolders: string[];
-	skill: BatchSkillRef | null;
+	skill: ActiveBatchSkillRef | null;
 }>;
 
 export interface BatchTaskCommandResult {
@@ -117,7 +126,7 @@ function isBatchSkill(value: unknown): value is BatchSkillRef {
 	return (
 		isNonBlankString(skill.name) &&
 		(skill.alias === undefined || isNonBlankString(skill.alias)) &&
-		(skill.type === "skill" || skill.type === "scene") &&
+		skill.type === "skill" &&
 		Object.keys(skill).every((key) => key === "name" || key === "alias" || key === "type")
 	);
 }
@@ -189,15 +198,15 @@ export class BatchTaskService {
 		}
 	}
 
-	async listProjects(): Promise<BatchProject[]> {
-		return await loadProjects();
+	async listProjects(): Promise<ClientBatchProject[]> {
+		return (await loadProjects()).map(projectForClient);
 	}
 
-	async getProject(projectId: string): Promise<BatchProject> {
-		return await this.requireProject(projectId);
+	async getProject(projectId: string): Promise<ClientBatchProject> {
+		return projectForClient(await this.requireProject(projectId));
 	}
 
-	async createProject(data: CreateBatchProjectInput): Promise<BatchProject> {
+	async createProject(data: CreateBatchProjectInput): Promise<ClientBatchProject> {
 		assertCreateProjectInput(data);
 		const name = data.name.trim();
 		if (name.length === 0 || name === "." || name === ".." || /[\\/]/.test(name)) {
@@ -232,17 +241,17 @@ export class BatchTaskService {
 			data.skill,
 		);
 		recordBatchProjectCreated();
-		return project;
+		return projectForClient(project);
 	}
 
-	async updateProject(projectId: string, data: UpdateBatchProjectInput): Promise<BatchProject> {
+	async updateProject(projectId: string, data: UpdateBatchProjectInput): Promise<ClientBatchProject> {
 		assertUpdateProjectInput(data);
 		await this.requireProject(projectId);
 		if (data.newFolders) {
 			await this.assertDirectories(data.newFolders);
 		}
 		await updateProjectStorage(projectId, data);
-		return await this.requireProject(projectId);
+		return projectForClient(await this.requireProject(projectId));
 	}
 
 	async deleteProject(projectId: string): Promise<BatchTaskCommandResult> {

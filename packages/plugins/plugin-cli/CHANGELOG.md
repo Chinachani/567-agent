@@ -6,6 +6,8 @@ All notable changes to `@vetta-org/plugin-cli` are documented in this file.
 
 ### Changed
 
+- Help, hot-reload feedback and generated project guides now identify 567 Agent. Guide revision 4 keeps the existing command names and revision marker, so older projects can refresh without changing their scripts.
+
 - `add` and `add .` now use the dedicated `.vettapkg` plugin package format. Existing `.zip` files remain accepted as a compatibility import path.
 
 - `add` now identifies itself to Desktop so ability lifecycle logs distinguish CLI installs from manual package imports and marketplace installs.

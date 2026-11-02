@@ -67,7 +67,7 @@ export interface PluginCommandDependencies {
 
 export type PluginAddCommandDependencies = PluginCommandDependencies;
 
-const HELP_TEXT = `Vetta plugin manager
+const HELP_TEXT = `567 Agent plugin manager
 
 Usage:
   vetta-plugin-cli add <npm-package|package-path|http-url> [--json]
@@ -822,7 +822,7 @@ async function runWatchCommand(
 				? `${JSON.stringify({ ok: true, result })}\n`
 				: command.stop
 					? `Stopped hot reload for ${project.pluginId}.\n`
-					: `Hot reload on for ${project.pluginId}. Vetta now loads it from ${project.root}.\n`,
+					: `Hot reload on for ${project.pluginId}. 567 Agent now loads it from ${project.root}.\n`,
 		);
 		return 0;
 	} catch (error) {

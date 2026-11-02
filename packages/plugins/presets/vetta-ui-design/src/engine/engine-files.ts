@@ -5,10 +5,16 @@ import engineIndexHtml from "../../engine/index.html?raw";
 import enginePackageJson from "../../engine/package.json?raw";
 import enginePackageLockJson from "../../engine/package-lock.json?raw";
 import engineBridge from "../../engine/src/bridge.ts?raw";
+import engineIosStatusBar from "../../engine/src/ios/StatusBar.tsx?raw";
 import engineMain from "../../engine/src/main.tsx?raw";
 import enginePreloadable from "../../engine/src/preloadable.tsx?raw";
+import engineRoundFrame from "../../engine/src/round-frame.ts?raw";
 import engineRoutes from "../../engine/src/routes.ts?raw";
+import engineStatusBarProbe from "../../engine/src/status-bar-probe.ts?raw";
+import engineStorageSync from "../../engine/src/storage-sync.ts?raw";
 import engineStyles from "../../engine/src/styles.css?raw";
+import engineTouch from "../../engine/src/touch.ts?raw";
+import engineTouchGesture from "../../engine/src/touch-gesture.ts?raw";
 import engineViteConfig from "../../engine/vite.config.mjs?raw";
 
 /** relPath (inside the engine root) → file content. */
@@ -21,10 +27,16 @@ export const ENGINE_FILES: Record<string, string> = {
 	"vite.config.mjs": engineViteConfig,
 	"index.html": engineIndexHtml,
 	"src/main.tsx": engineMain,
-	"src/bridge.ts": engineBridge,
-	"src/routes.ts": engineRoutes,
+	"src/ios/StatusBar.tsx": engineIosStatusBar,
 	"src/preloadable.tsx": enginePreloadable,
+	"src/bridge.ts": engineBridge,
+	"src/round-frame.ts": engineRoundFrame,
+	"src/routes.ts": engineRoutes,
+	"src/status-bar-probe.ts": engineStatusBarProbe,
+	"src/storage-sync.ts": engineStorageSync,
 	"src/styles.css": engineStyles,
+	"src/touch.ts": engineTouch,
+	"src/touch-gesture.ts": engineTouchGesture,
 };
 
 /**
@@ -34,7 +46,7 @@ export const ENGINE_FILES: Record<string, string> = {
  * node_modules 里，设计源码走 node 解析够不到，靠 alias 钉过去。设计自己装的包
  * 不在这张表里——那些在 `x.vetd/node_modules/`，天然就能解析（ADR-0068）。
  */
-export const ENGINE_PROVIDED_PACKAGES = ["react", "react-dom", "react-router", "lucide-react"] as const;
+export const ENGINE_PROVIDED_PACKAGES = ["react", "react-dom", "react-router", "lucide-react", "@vetta/ios"] as const;
 
 /**
  * 新建设计时写进 `x.vetd/package.json` 的运行时依赖版本。

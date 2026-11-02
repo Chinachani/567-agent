@@ -36,6 +36,7 @@ vi.mock("../ability-lifecycle-log", () => ({
 	logAbilityInstallFailed: mocks.logAbilityInstallFailed,
 }));
 vi.mock("../../skills/skill-service", () => ({
+	assertSkillNameNotRetired: vi.fn(),
 	getSkillBaseDir: vi.fn(),
 	readSkillsManifest: vi.fn(() => ({})),
 	recordSkillResourceEvent: vi.fn(),

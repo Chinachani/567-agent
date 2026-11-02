@@ -163,6 +163,10 @@ export function createDesktopRuntimeComposition(): DesktopRuntimeComposition {
 				agentRuntime: { runtime: agentRuntime },
 				modelRegistry: modelRuntime,
 				resolveCompactionSettings: () => runtimeConfiguration.readCompactionSettings(),
+				resolveTurnLimits: () => {
+					const limit = runtimeConfiguration.readModelCallLimit();
+					return { maxModelCalls: limit.enabled ? limit.maxCalls : null };
+				},
 				createPromptRuntimeSources: createDesktopPromptRuntimeSources,
 				createPluginRuntime: () => getDesktopCodingAgentPluginRuntimeSource(),
 				// 工作模式注册表归 desktop 所有（ADR-0071 修订）：coding-agent 只保留 core.mode
@@ -195,7 +199,7 @@ export function createDesktopRuntimeComposition(): DesktopRuntimeComposition {
 							projectRoot: cwd,
 							agentDir: resolvedAgentDir,
 							debug: readDesktopMcpDebug(cwd, resolvedAgentDir),
-							dynamicOnly: true,
+							fileScope: "session",
 						}),
 						debug: readDesktopMcpDebug(cwd, resolvedAgentDir),
 						resultPolicy: resultArtifacts.mcpToolResultPolicy,

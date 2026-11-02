@@ -1,5 +1,6 @@
+import { useContextMenuDismiss } from "./useContextMenuDismiss";
 import { motion } from "motion/react";
-import { useEffect, useRef, type JSX } from "react";
+import { useRef, type JSX } from "react";
 
 export interface InputBarContextMenuViewLabels {
 	copy: string;
@@ -37,21 +38,7 @@ export function InputBarContextMenuView({
 }: InputBarContextMenuViewProps): JSX.Element {
 	const menuRef = useRef<HTMLDivElement>(null);
 
-	useEffect(() => {
-		function handlePointerDown(event: MouseEvent): void {
-			if (menuRef.current && !menuRef.current.contains(event.target as Node)) onClose();
-		}
-		document.addEventListener("mousedown", handlePointerDown);
-		return () => document.removeEventListener("mousedown", handlePointerDown);
-	}, [onClose]);
-
-	useEffect(() => {
-		function handleKeyDown(event: KeyboardEvent): void {
-			if (event.key === "Escape") onClose();
-		}
-		document.addEventListener("keydown", handleKeyDown);
-		return () => document.removeEventListener("keydown", handleKeyDown);
-	}, [onClose]);
+	useContextMenuDismiss(menuRef, onClose);
 
 	return (
 		<motion.div

@@ -21,6 +21,7 @@ vi.mock("electron", () => ({
 vi.mock("../ability-ledger.js", () => ({ recordAbilityInstall: vi.fn(), removeAbilityLedgerEntry: vi.fn() }));
 vi.mock("../../credentials/desktop-credential-vault.js", () => ({ getDesktopCredentialVault: () => ({}) }));
 vi.mock("../../skills/skill-service.js", () => ({
+	assertSkillNameNotRetired: vi.fn(),
 	getSkillBaseDir: vi.fn(),
 	readSkillsManifest: vi.fn(() => ({})),
 	recordSkillResourceEvent: vi.fn(),

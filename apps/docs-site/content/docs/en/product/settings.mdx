@@ -17,4 +17,12 @@ description: Find the main settings areas and understand which controls affect m
 
 When a feature is missing, check the build profile, operating system, and whether the feature is marked Beta or Developer preview. Do not infer an internal route from a stale screenshot.
 
+## Model calls per run
+
+Under **Settings → Agent → Task execution**, enable or disable the model-call budget and choose its maximum count. The default is enabled with 100 calls. One task may request the model many times, including after tools return results; this is separate from token context capacity.
+
+Turning the limit off retains the last count. Saved changes apply to the next run; a run already in progress keeps its original budget. **Adjust call limit** on a budget error opens this setting directly. Sending “continue” in the same chat starts a new run using the existing history.
+
+With this budget disabled, manual stop, tool-call limits and error-recovery limits still apply. Longer tasks may use more model quota. Remote chats on a phone follow the connected computer’s setting; direct mobile API chat has no corresponding Agent-loop setting.
+
 Before exporting diagnostics, remove credentials, cookies, pairing data, webhook URLs, and private project contents.

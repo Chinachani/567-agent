@@ -861,7 +861,7 @@ class AppViewModel(
     }
 
     fun installToolboxAbility(ability: RemoteToolboxAbility) {
-        if (!ability.installable || ability.installed || ability.type !in setOf("skill", "scene", "plugin")) return
+        if (!ability.installable || ability.installed || ability.type !in setOf("skill", "plugin")) return
         val targetDeviceId = (_state.value.route as? AppRoute.DeviceCapabilities)?.deviceId
         val devices = container.remoteConversationGateway.devices.value
         val device = devices.firstOrNull { it.id == targetDeviceId && it.status == DeviceStatus.Online }

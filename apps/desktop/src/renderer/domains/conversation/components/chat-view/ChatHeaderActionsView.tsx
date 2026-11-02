@@ -19,12 +19,9 @@ export function ChatHeaderActionsView({ actions, model }: ChatHeaderActionsViewP
 				exporting={model.exporting}
 				onClick={actions.openExport}
 			/>
-			<ChatHeaderActions.Pin
-				title={model.pinTitle}
-				pinned={model.pinned}
-				onClick={actions.togglePin}
-			/>
+			<ChatHeaderActions.Pin title={model.pinTitle} pinned={model.pinned} onClick={actions.togglePin} />
 			<ChatHeaderActions.Panel
+				label={model.panelLabel}
 				title={model.panelTitle}
 				open={model.panelOpen}
 				onClick={actions.togglePanel}

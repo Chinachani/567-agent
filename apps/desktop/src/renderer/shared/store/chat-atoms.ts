@@ -174,12 +174,12 @@ export interface ContextUsageData {
 	composition?: ContextCompositionReport;
 }
 
-// ─── Slash panel (skill/scene selection) ───
+// ─── Slash panel (skill selection) ───
 
 export interface SelectedSkill {
 	name: string;
 	alias?: string;
-	type: "skill" | "scene";
+	type: "skill";
 }
 
 // ─── Mentioned files (@file selection) ───
@@ -530,6 +530,8 @@ export function readSessionManagerFn<T>(ref: { current: T | null }, name: string
 
 /** Commands of the mounted composer, shared by ordinary and team conversations. */
 export const activeComposerCommandsAtom = atom<{
+	readonly openCommands?: () => void;
+	readonly openReferences?: () => void;
 	readonly focus: () => void;
 	readonly abort: () => void;
 	readonly isBusy: () => boolean;

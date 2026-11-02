@@ -1,6 +1,6 @@
-import { chmodSync, existsSync, mkdirSync, readFileSync, statSync, writeFileSync } from "node:fs";
+import { chmodSync, existsSync, statSync } from "node:fs";
 import { rm } from "node:fs/promises";
-import { dirname, join } from "node:path";
+import { join } from "node:path";
 import { getAgent567HomePath } from "@567agent/action-rpc";
 import { resolvePluginText } from "@vetta-org/plugin-sdk";
 import type { AppMonitorResourceOperation } from "../../preload/api-types/app-monitor.js";
@@ -25,41 +25,21 @@ import { readDesktopConfig } from "../config/desktop-config-store.js";
 import { getAppLanguage } from "../i18n/index.js";
 import { getAppLogger } from "../logger.js";
 import { listPlugins, pluginAgentContributionService } from "../plugins/plugin-catalog.js";
+import type { InstalledSkill, InstalledSkillType } from "./installed-skill.js";
 import { shouldListSkill } from "./skill-list-policy.js";
+import {
+	assertNoRetiredSceneConflict,
+	readInstalledSkillsManifest,
+	writeInstalledSkillsManifest,
+} from "./skill-manifest-storage.js";
 import { assertValidSkillName } from "./skill-name.js";
 import { buildPluginSkillSources, findPluginSkillSource, resolvePluginSkillPresentation } from "./skill-provenance.js";
 
 const skillsLog = getAppLogger("skills");
 const skillsBaseDir = join(getAgent567HomePath(), "skills");
-const sceneBaseDir = join(getAgent567HomePath(), "scene");
 const manifestPath = join(getAgent567HomePath(), "skills-manifest.json");
 
-export type InstalledSkillType = "skill" | "scene";
-
-export interface InstalledMarketSkill {
-	name: string;
-	version: string;
-	installedAt: string;
-	source: "market";
-	enabled: boolean;
-	type?: InstalledSkillType;
-	alias?: string;
-	marketDescription?: string;
-}
-
-export interface InstalledCustomSkill {
-	name: string;
-	version: string;
-	installedAt: string;
-	source: "custom";
-	enabled: boolean;
-	type: InstalledSkillType;
-	provenance?: SkillProvenance;
-	alias?: string;
-	description: string;
-}
-
-export type InstalledSkill = InstalledMarketSkill | InstalledCustomSkill;
+export type { InstalledSkill, InstalledSkillType } from "./installed-skill.js";
 
 export interface ListedSkill {
 	name: string;
@@ -77,8 +57,8 @@ export interface ListedSkill {
 	icon?: string;
 }
 
-export function getSkillBaseDir(type: InstalledSkillType): string {
-	return type === "scene" ? sceneBaseDir : skillsBaseDir;
+export function getSkillBaseDir(): string {
+	return skillsBaseDir;
 }
 
 export function recordSkillResourceEvent(input: {
@@ -105,22 +85,16 @@ export function recordSkillResourceEvent(input: {
 }
 
 export function readSkillsManifest(): Record<string, InstalledSkill> {
-	if (!existsSync(manifestPath)) return {};
-	try {
-		const manifest = JSON.parse(readFileSync(manifestPath, "utf-8")) as Record<string, InstalledSkill>;
-		for (const entry of Object.values(manifest)) {
-			if (entry.enabled === undefined) entry.enabled = true;
-		}
-		return manifest;
-	} catch {
-		return {};
-	}
+	return readInstalledSkillsManifest(manifestPath);
+}
+
+export function assertSkillNameNotRetired(name: string): void {
+	assertValidSkillName(name);
+	assertNoRetiredSceneConflict(manifestPath, name);
 }
 
 export function writeSkillsManifest(manifest: Record<string, InstalledSkill>): void {
-	const dir = dirname(manifestPath);
-	if (!existsSync(dir)) mkdirSync(dir, { recursive: true });
-	writeFileSync(manifestPath, JSON.stringify(manifest, null, 2), "utf-8");
+	writeInstalledSkillsManifest(manifestPath, manifest);
 }
 
 export function ensureDirWritable(dir: string): void {
@@ -222,7 +196,7 @@ export class SkillService {
 							: (skill.provenance ?? { kind: "native", scope: skill.source }),
 					...(presentation ? { presentation } : {}),
 					...(pluginSource ? { sourcePluginId: pluginSource.pluginId } : {}),
-					type: skill.type,
+					type: "skill",
 					...(icon ? { icon } : {}),
 				};
 			});
@@ -252,7 +226,7 @@ export class SkillService {
 			writeSkillsManifest(manifest);
 			recordSkillResourceEvent({
 				name,
-				type: entry.type === "scene" ? "scene" : "skill",
+				type: "skill",
 				source: entry.source,
 				operation: enabled ? "enabled" : "disabled",
 			});
@@ -267,12 +241,10 @@ export class SkillService {
 		return this.setEnabled(name, !entry.enabled);
 	}
 
-	async uninstall(name: string, type?: InstalledSkillType): Promise<void> {
-		assertValidSkillName(name);
+	async uninstall(name: string): Promise<void> {
+		assertSkillNameNotRetired(name);
 		const manifest = readSkillsManifest();
-		const itemType: InstalledSkillType =
-			type === "scene" ? "scene" : type === "skill" ? "skill" : manifest[name]?.type === "scene" ? "scene" : "skill";
-		const baseDir = getSkillBaseDir(itemType);
+		const baseDir = getSkillBaseDir();
 		ensureDirWritable(baseDir);
 		const skillDir = join(baseDir, name);
 		const previous = manifest[name];
@@ -280,15 +252,12 @@ export class SkillService {
 			ensureDirWritable(skillDir);
 			await rm(skillDir, { recursive: true, force: true });
 		}
-		// 清单是扁平 map：同名的 skill 与 scene 共用一个键，卸载其一不能删掉另一种类型的记录
-		if (!previous || (previous.type === "scene" ? "scene" : "skill") === itemType) {
-			delete manifest[name];
-			writeSkillsManifest(manifest);
-		}
-		removeAbilityLedgerEntry(itemType, name);
+		delete manifest[name];
+		writeSkillsManifest(manifest);
+		removeAbilityLedgerEntry("skill", name);
 		recordSkillResourceEvent({
 			name,
-			type: itemType,
+			type: "skill",
 			source: previous?.source,
 			operation: "uninstalled",
 		});

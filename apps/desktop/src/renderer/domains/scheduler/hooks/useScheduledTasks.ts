@@ -1,6 +1,7 @@
 import { type ScheduledTask, scheduledTasksAtom } from "@shared/store/atoms";
 import { useAtom } from "jotai";
 import { useCallback, useEffect } from "react";
+import type { ScheduledTaskUpdate } from "../../../../preload/api-types/scheduler";
 import { CRON_PRESETS } from "./CRON_PRESETS";
 
 export { CRON_PRESETS };
@@ -32,10 +33,19 @@ export function useScheduledTasks() {
 	);
 
 	const updateTask = useCallback(
-		async (id: string, patch: Partial<ScheduledTask>) => {
+		async (id: string, patch: ScheduledTaskUpdate) => {
 			await window.agent567.scheduler.updateTask(id, patch);
 			setTasks((current) =>
-				current.map((task) => (task.id === id ? { ...task, ...patch, updatedAt: Date.now() } : task)),
+				current.map((task) =>
+					task.id === id
+						? {
+								...task,
+								...patch,
+								skill: "skill" in patch ? (patch.skill ?? undefined) : task.skill,
+								updatedAt: Date.now(),
+							}
+						: task,
+				),
 			);
 		},
 		[setTasks],

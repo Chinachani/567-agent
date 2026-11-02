@@ -1,3 +1,4 @@
+import { useTranslation } from "react-i18next";
 import { ChatHeaderActions } from "@vetta-org/theme-ui/chat";
 
 interface NewSessionHeaderActionsProps {
@@ -21,10 +22,16 @@ export function NewSessionHeaderActions({
 	pinTitle,
 	pinned,
 }: NewSessionHeaderActionsProps): JSX.Element {
+	const { t } = useTranslation("chat");
 	return (
 		<>
 			<ChatHeaderActions.Pin title={pinTitle} pinned={pinned} onClick={onTogglePin} />
-			<ChatHeaderActions.Panel title={panelTitle} open={activityOpen} onClick={onToggleActivity} />
+			<ChatHeaderActions.Panel
+				label={t("workbenchLabel")}
+				title={panelTitle}
+				open={activityOpen}
+				onClick={onToggleActivity}
+			/>
 		</>
 	);
 }

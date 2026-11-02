@@ -53,6 +53,10 @@ it("collects an old conversation, opens the existing preview and jumps to its so
 	);
 	expect(screen.getByText("正在从会话历史整理文件与链接…")).toBeTruthy();
 	await waitFor(() => expect(screen.getAllByText("对话引用 · 未验证")).toHaveLength(2));
+	const listRegion = screen.getByRole("region", { name: "全部" });
+	expect(listRegion.contains(screen.getByRole("heading", { name: "文件与链接" }))).toBe(false);
+	expect(listRegion.contains(screen.getByRole("button", { name: "网页 · 1" }))).toBe(false);
+	expect(listRegion.contains(screen.getByRole("button", { name: /^Report/ }))).toBe(true);
 	fireEvent.click(screen.getByRole("button", { name: /^Report/ }));
 	expect(store.get(filePreviewAtom)).toMatchObject({ name: "report.md", path: "/workspace/report.md" });
 	fireEvent.click(screen.getAllByRole("button", { name: "查看来源" })[0]);
@@ -74,6 +78,9 @@ it("collects an old conversation, opens the existing preview and jumps to its so
 	);
 	expect(screen.getByRole("button", { name: /^Report/ })).toBeTruthy();
 	fireEvent.click(screen.getByRole("button", { name: "网页 · 1" }));
+	expect(screen.getByRole("region", { name: "网页" }).contains(screen.getByRole("button", { name: /^Website/ }))).toBe(
+		true,
+	);
 	expect(screen.queryByRole("button", { name: /^Report/ })).toBeNull();
 	expect(screen.getByRole("button", { name: /^Website/ })).toBeTruthy();
 	fireEvent.click(screen.getByRole("button", { name: "图片 · 0" }));

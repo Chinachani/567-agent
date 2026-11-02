@@ -30,14 +30,13 @@ const SETTINGS_CONTENT: Record<Exclude<SettingsTab, "mcp">, LazyExoticComponent<
 export function SettingsPage(): JSX.Element {
 	const model = useSettingsPageModel();
 	const contentSurface = useThemeSurface("settings.pageContent");
-	const Content =
-		model.activeTab === "mcp" ? SETTINGS_CONTENT.general : SETTINGS_CONTENT[model.activeTab];
+	const Content = model.activeTab === "mcp" ? SETTINGS_CONTENT.general : SETTINGS_CONTENT[model.activeTab];
 
 	const activeTab = model.activeTab === "mcp" ? "general" : model.activeTab;
 	const embedded = model.embeddedView;
 
 	// 内嵌的插件视图是整页 surface：给它完整宽高，不套设置页的居中窄栏。
-	// 找不到该视图时退回「更多选项」列表，而不是把用户踢出设置。
+	// 找不到该视图时退回通用设置，避免留下不可用的插件入口。
 	const content = embedded ? (
 		<PluginWorkspaceViewSurface
 			key={`${embedded.pluginId}:${embedded.viewId}`}

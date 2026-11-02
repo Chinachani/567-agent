@@ -1,6 +1,6 @@
 ---
 name: vetta-ui-design
-description: "Build and edit design documents (.vetd) on the 567 Agent design canvas — app screens, landing pages, slides, posters, infographics. Use when the user asks for a UI design, mockup, screen, deck, or poster, or attaches a design frame/element from the canvas. Frames are real React (TSX) routes, not pictures. Do NOT use for ordinary front-end work in the user's own codebase — building, styling or reworking pages of a real app is that repo's job, and none of the vetd_* tools or canvas rules here apply to it."
+description: "Build and edit design documents (.vetd) on the 567 Agent design canvas — screens, landing pages, slides, posters, infographics. Use when the user asks for a UI design, mockup, screen, deck, or poster, or attaches a design frame/element from the canvas. Frames are real React (TSX) routes, not pictures. Do NOT use for ordinary front-end work in the user's own codebase — building, styling or reworking pages of a real app is that repo's job, and none of the vetd_* tools or canvas rules here apply to it."
 ---
 
 # 567 Agent UI Design
@@ -33,6 +33,23 @@ internalising before you start:
   overwritten seconds later. If a frame is not showing up the way you expect,
   the answer is always in the tsx.
 
+## The loop at a glance
+
+Every turn that designs something runs this sequence; each step is detailed
+under **Workflow** below.
+
+1. **Start**: a new document is `vetd_create` with the product type; an existing
+   one starts with `vetd_status` once.
+2. **Look**: a landing page is dealt directions, app screens propose their own
+   with `vetd_direction` `propose`; ask the look question, then `choose`. Apply
+   the direction (fonts, `theme.css`, pictures) before any frame.
+3. **Build**: shared shell and a short file per frame first, then real content in
+   coherent batches. Each frame's `frame` meta line comes first.
+4. **Verify**: one `vetd_screenshot` batch, Read the overview once, fix with
+   `edit`, recheck only the frames you changed.
+5. **Finish**: when you touched a `.vetd` design, the last action is one
+   `vetd_notes` call; then report.
+
 ## It is a project, not a picture
 
 The output is a running front-end app the user can click through in preview, built
@@ -56,18 +73,20 @@ not apply to them.
 
 ```tsx
 export const frame = { width: 390, height: 844, title: "Login" };
+// optional, devices: radius: 62 (screen corner px, from vetd_sizes)
 ```
 
-Every frame declares its own. Omit it and the frame is rendered at a size
-inferred from the rest of the design — it still reaches the canvas, but nothing
-about that size is yours, and `issues` will keep asking until you declare one.
-Sizes come from the product type below; when the design already has frames,
-`vetd_status` lists their sizes and the design's `defaultFrameSize` — match them
-unless the new screen is a different product type.
+Every frame declares its own; omit it and the size is inferred from the rest of
+the design (and `issues` keeps asking). Sizes come from the product type below;
+when the design already has frames, `vetd_status` lists their sizes and the
+design's `defaultFrameSize` — match them unless the new screen is a different
+product type.
 
-It gets its own section because it is the only convention here that needs
-judgment from you. Everything else is either caught automatically or visible in
-the render.
+A named device or paper size ("iPhone 17", "A4") comes from `vetd_sizes`, never
+from memory; it also returns the screen `radius` to declare in the meta.
+
+It is the one convention here that needs your judgment; everything else is
+caught automatically or visible in the render.
 
 ### Caught for you — copy the templates and these never come up
 
@@ -87,7 +106,7 @@ same way. The templates below are already correct on all of it:
 - `<Link to>` from react-router for internal screens, never `<a href="/…">`, and
   never a locally redefined `Link`/`useNavigate`/`useLocation`.
 - No remote image URLs (`<img>`, `background-image`) — they break screenshots.
-  Import from `assets/`, or use a gradient/token color/Iconify glyph.
+  Import from `assets/`; `vetd_assets` finds real pictures and downloads them there.
 - Normal formatting, one element per line for nested markup. Everything on one
   line destroys element→source mapping, and the user's "Ask 567 Agent" edits then
   point every element at the same line.
@@ -120,37 +139,16 @@ Install everything you need in ONE call, then import normally.
 
 ### Typefaces are packages too
 
-System fonts alone cannot give a display face and a body face that differ, and
-that sameness is a large part of why generated UI looks generated. A typeface is
-an npm package here like any other library:
-
-1. `vetd_install` the faces — `@fontsource-variable/<slug>` when the family has
-   a variable build (one file covers every weight), else `@fontsource/<slug>`,
-   whose bare import is weight 400 only — import each other weight you use
-   (`@import "@fontsource/<slug>/700.css";`) or the browser fakes the bold.
-2. Import them at the TOP of `theme.css`, above `@theme`. Install first: theme.css
-   feeds every frame, so importing a package that is not there yet breaks the
-   styling of the whole canvas, not one frame.
-3. Declare them as `--font-*` tokens and use the matching `font-*` class.
-
-```css
-@import "@fontsource-variable/fraunces";
-@import "@fontsource-variable/geist";
-
-@theme {
-	--font-display: "Fraunces Variable", "Songti SC", "SimSun", ui-serif, serif;
-	--font-sans: "Geist Variable", "PingFang SC", "Microsoft YaHei", ui-sans-serif, system-ui, sans-serif;
-}
-```
-
-The family name must be the one the package registers: the `-variable` packages
-append ` Variable`, the static ones do not. A mismatch silently falls back —
-`issues` reports it, as it reports an installed face nobody imports.
-
-Latin faces only. CJK packages are megabytes per weight; Chinese and Japanese
-copy uses the platform faces listed after the Latin one in the stack above
-(serif: Songti SC / SimSun; sans: PingFang SC / Microsoft YaHei), so every stack
-names both.
+System fonts give every design the same voice. A typeface is an npm package here
+— a direction sheet gives the exact packages, imports and tokens. By hand:
+`vetd_install` `@fontsource-variable/<slug>` (one file, every weight) or
+`@fontsource/<slug>` (bare import is 400 only; import each other weight as
+`@fontsource/<slug>/700.css` or the browser fakes the bold), import them at the
+TOP of `theme.css` above `@theme` — install first, or the whole canvas loses its
+styling — and declare `--font-*` tokens. The family name must be the registered
+one: `-variable` packages append ` Variable`, static ones do not; `issues`
+reports a mismatch. Latin faces only: every stack continues with the platform CJK
+faces (serif: "Songti SC", "SimSun"; sans: "PingFang SC", "Microsoft YaHei").
 
 ### The one thing nothing catches: a token that does not exist
 
@@ -175,27 +173,29 @@ engineering console answers it for most of their lines. What it catches is the
 line drawn out of habit — the box around every section, the rule under every
 heading — which is a generated-UI tell rather than neutral styling.
 `references/taste/whitespace.md` has the substitutions, the per-product-type
-notes, and the cases where lines are the design.
+notes, and the cases where lines are the design. On a landing page the answer
+outside tables, forms and `data-ui` interface fragments is always no — a house
+rule below.
 
 ## Pick the product type
 
-This is the first decision, not an afterthought: `vetd_create` requires it
+The first decision: `vetd_create` requires it
 (`product`, or `frameSize` in pixels for anything the enum cannot express), and
 it becomes the design's default size. Read it off the user's own words, in
-whatever language they wrote them — a phone app is `mobile`, an admin console or
-dashboard is `desktop`. An explicit user instruction always wins. Do not default to a phone frame; a dashboard at 390 wide is the
-most common failure.
+whatever language they wrote them (table below). An explicit user instruction always wins. Do not default to a phone frame; a
+dashboard at 390 wide is the most common failure.
 
 | Product | `product` | Default size | What matters |
 | --- | --- | --- | --- |
 | Mobile screen | `mobile` | 390x844 | One primary action; thumb reach; full state coverage |
+| Watch app | `watch` | 208x248 | Black, no serif: `references/taste/app/watch.md` |
 | Desktop app / dashboard | `desktop` | 1440x900 | Real density; aligned grid; no empty middle |
 | Landing page | `landing` | 1440x2400 | hero → proof → CTA rhythm |
 | Slide | `slide` | 1920x1080 | One idea; large type; generous margins |
 | Poster / social | `poster` | 1080x1440 | One focal point; strong size contrast |
-| Square social post | — | `frameSize` 1080x1080 | One focal point; strong size contrast |
+| Square social post | — | `frameSize` 1080x1080 | As poster |
 | Infographic / chart | — | `frameSize`, free | Honest data, labeled axes, legible legend |
-| Print (A4 portrait) | — | `frameSize` 794x1123 @96dpi, 2480x3508 @300dpi | Convert mm→px yourself; 300dpi only when the user asks for print |
+| Print (A4 portrait) | — | `frameSize` 794x1123 @96dpi, 2480x3508 @300dpi | 300dpi only when the user asks for print |
 
 The design default only covers frames that forgot to declare a size. A document
 can mix product types — a poster next to three phone screens — as long as each
@@ -281,11 +281,13 @@ export function NavBar() {
 
 ## Workflow
 
+The eight prides and shames (the tools repeat them) outrank every default below; only the user's words outrank them.
+
 **New document**: pick the product type → `vetd_create` with it → set the
 direction → start building. Do NOT offer the user a menu of styles: design
 systems are a thing the user opts into from the Design sidebar, not something you
-propose. Just design well for what they asked for, deriving the palette and type
-scale from the product itself.
+propose. Just design well for what they asked for; the direction step below
+decides the look.
 
 If the **project root** has a `design-resources/<slug>/` directory, the user
 started this project from that style in the Design sidebar; it is the style
@@ -305,34 +307,108 @@ reference pack for this project and following it is the default:
 - The user outranks the pack: if they ask for a different style, follow the
   user. Several packs side by side and no user pick: ask which one first.
 
-The pack stays the contract in later sessions too: adding screens to a design
-that grew out of one, re-read its `DESIGN.md` (and glance at the demo) before
-designing anything new.
+The pack stays the contract in later sessions: before adding screens, re-read
+its `DESIGN.md` (and glance at the demo).
 
 If `DESIGN.md` exists in the design document, the user has already applied a
 system — read it first and follow it, and do NOT rewrite it or `theme.css`.
 
 **Set the direction** when neither a pack nor `DESIGN.md` sets the style. Left to
-defaults, every design converges on the same thing — the scaffold's indigo and
-slate, one system sans at two sizes, centred cards, a three-column feature row —
-and users recognise it instantly as generated. Before the first frame:
+defaults, every design converges on the same thing — indigo and slate, one
+system sans, white cards on grey, a three-column feature row — and
+users recognise it instantly as generated. Following a fixed template is the
+other way to get there. So the look is decided on purpose: a **landing page is
+dealt** three directions from a researched library; **app screens are proposed**
+by you — three directions of your own, which the tool checks.
 
-1. Read `references/taste/directions.md` and `references/taste/whitespace.md`,
-   then the file for the product type:
-   `references/taste/landing-structures.md` for a landing page,
-   `references/taste/app-density.md` for app screens and dashboards.
-2. Decide tone, anchor hue, type pairing and structure, and state them in one
-   line of your reply — `Direction: technical · cobalt (256°) · Space Grotesk +
-   Geist · dense workbench`. The user redirects from that line; no menu.
-3. Rewrite every value in the scaffold `theme.css` with the direction's palette
-   (keep the token names), `vetd_install` the two faces, and import them at the
-   top of `theme.css` — all before the first frame, so no frame is ever built on
-   the placeholder palette.
+1. **Inventory the subject** in your notes, before `vetd_create`. Page: eight to twelve things that
+   belong to this client and no competitor — its name and what it means, its
+   place, the numbers in the brief, the constraint it lives with, its materials,
+   rituals and printed things. Then write the page's argument, one claim and its
+   proof per section; a section with no claim is cut. App: the data the screens
+   hold, the jobs people do there, the one question the first screen answers, and
+   the things only this product has (its objects, units, rituals, places).
+2. **Learn the preferences.** Learn what the user wants before designing,
+   without pestering them: no fixed list of questions and no quota — ask only
+   what their words left open and the answer would visibly change the design; a
+   detailed prompt needs few or none, "just go ahead" needs none. If the prompt
+   does not say what the product is or does, ask that first, before
+   `vetd_create`. If the purpose is vague and the words give no sense of how
+   daring to be, add one question to that same round: restrained, expressive
+   or bold, each described by what it looks like, recommending restrained for
+   tools and expressive for consumer apps, pages and posters. Words like
+   "minimal" or "bold" already answer it. Pass `intent.boldness`; unasked,
+   infer it from the product. Pass `brief`, `sector` (landing), `have` and `intent` — only
+   what the user actually said or answered. What they said is binding; never ask
+   it again.
+3. **Get three directions.** Landing: `vetd_create` deals them. App:
+   `vetd_create` returns `direction.propose` and raw `ingredients`; write
+   `obvious` — the version you would make by habit (its colours, type, layout) —
+   then `vetd_direction` `action: "propose"` with three options that each depart
+   from it, each starting from something only this product has: "On these
+   screens, [that thing] becomes [the device]." Put the nearest competitor in the
+   first blank; if it still works, the idea is the category's. The three differ
+   in light/dark, accent colour family and display type class; the tool rejects
+   generated defaults (indigo, overused display faces, weak contrast), near
+   twins and repeats of recent designs — fix what it lists and propose again.
+4. **Choose.** If `direction.ask` (landing) or `ask` (app) comes back it is the
+   look question, whose options say what each look is like: ask it, and in the
+   same `ask_user_question` call anything else the prompt left open (the tool's
+   note has the rules). Then `vetd_direction` `action: "choose"` with the look as
+   `id` and the extra answers as `preferences`; if the look was already set,
+   choose the option that can carry an item from your inventory. If the user
+   describes their own look, deal again with it as `intent.mood` (an app then
+   proposes again with it). Landing slots `redraw` only for a stated reason.
+5. **Apply it before any frame**: `vetd_install` the sheet's fonts, write its
+   `theme.css`, get its pictures with `vetd_assets`, and state the direction —
+   `Direction: <direction> · <type> · <palette>`. The user redirects from there.
+6. **Write the words before the markup** (`references/taste/copy.md`): the whole
+   content of every section the brief asks for, at full density. Sample details
+   are fine and listed in your report; proof — customers, quotes, logos, figures
+   — is never invented.
 
-Read `references/taste/color.md`, `typography.md` and `copy.md` when a decision
-in them is in front of you, not up front. With a pack or `DESIGN.md` in charge,
-skip the direction and still screen every capture against
-`references/taste/anti-patterns.md` — no style asks for those.
+Adding screens in a later session: `vetd_direction` with `action: "show"` reprints
+the design's sheet; build from it rather than from memory.
+
+**Slides, posters and infographics** are not dealt: read
+`references/taste/directions.md` and set tone, anchor hue, type pairing and
+structure yourself, then apply it the same way (step 5).
+
+With a pack or `DESIGN.md` in charge, skip the colour and type: a landing page
+may still deal its composition with `keep: ["palette", "type"]`, and app
+directions then differ in layout and light/dark only. Every capture is still
+screened against the house rules below, except a device the pack or `DESIGN.md`
+explicitly asks for.
+
+### House rules
+
+They hold on every landing page and app screen, whatever the direction. The first
+table is generated defaults — the things users read as "AI made this" — and holds
+always. Removing them leaves space: fill it with scale, the full content, or a
+field of flat colour — never another ornament, and never leave a screen thin.
+
+| Rule | Instead |
+| --- | --- |
+| Headlines two lines or fewer; one `h1` on the first screen that says what this is | Cut words, then widen the measure, size last |
+| No eyebrow labels, pill badges or "New ·" chips above headings | Put it in the heading or the first sentence |
+| No 01 / 02 / 03 index numbering | Order by position, size or words; a real `<ol>` |
+| No icon-topped feature cards, icons in tinted squares, rows of identical cards | The direction's own composition |
+| No styled accent word in a headline | One colour; the words carry it |
+| No white cards on a grey ground holding every block | A ground from the subject's world; one tone step |
+| Running text in full ink at 16px on pages (14px in apps); nothing under 13px on pages, 11px in apps | Grey is for secondary notes |
+| Equal outer margins; no section huddled on one side of an empty half | Close the void with a picture, list or column |
+| No cream-and-terracotta, no violet or indigo, unless dealt or the user asked | The direction's palette |
+
+The second table is expressive devices: a starting point, not a ban. A dealt
+direction or a proposal's `devices` (with the reason) turns one on.
+
+| Name it in `devices` to use it | Start from |
+| --- | --- |
+| Gradients, glows or glass | Flat colour, a tone step between surfaces |
+| A shadow on anything at rest | Space or a tone step; shadows on what floats |
+| Monospace outside code | The text face, `tabular-nums` for figures |
+| Tiny tracked uppercase labels | Sentence case at a readable size |
+| A third typeface | Two at most: display and text |
 
 **Existing document**: `vetd_status` ONCE first. It returns the frame ids/sizes,
 `sharedShell` (existing `_layout.tsx` + `components/` — reuse them) and
@@ -354,17 +430,14 @@ Then, for a multi-screen product, write in two passes:
    a targeted recheck after a fix. Each save still hot-reloads, so the user sees
    progress while one model/tool round verifies several screens.
 
-Single screens, posters and slides skip the skeleton pass — just write the file.
+Single screens, posters and slides skip the skeleton pass.
 
 **Going back**: every design keeps its own version history — one version per turn
-that changed it, saved automatically, titled with what the user asked for. So
-"undo that", "go back to before the nav bar moved", "restore the previous
+that changed it, saved automatically. So "undo that" or "restore the previous
 version" is `vetd_history` then `vetd_restore`, NOT you editing files until they
-resemble the old version from memory. Restoring is safe in both directions: it
-is saved as a new version too, so a wrong pick is one more `vetd_restore` away
-from being corrected — the response tells you where the pre-restore state went.
-The user can also do it themselves from the canvas's history panel, where the
-versions carry thumbnails.
+resemble the old version from memory. Restoring is saved as a new version too, so a wrong
+pick is one more `vetd_restore` away; the response says where the pre-restore
+state went. The user can also use the canvas's history panel.
 
 **Verify visually**: call `vetd_screenshot` with all frames you created or
 changed (`frames: [...]`, or `all: true` when the whole design is in scope), then
@@ -376,26 +449,19 @@ icon, or a surface whose theme token was never defined). A frame that does not
 parse is listed as a failed member without discarding the other captures — fix
 the reported line and recheck that frame only.
 
-Every successful frame also carries a `verification` observation. If
-`stalled: true`, two consecutive checks produced the same image and the same
-issues. Do not make a third blind edit: inspect whether the checker assumption
-fits the visible result, and report the stalled finding when it is a false
-positive. `vetd_status.issues: []` is source-only and is never visual proof;
-`renderVerification` tells you whether prior captures are current or stale.
+Every successful frame carries a `verification` observation. If `stalled: true`,
+two checks gave the same image and issues: make no third blind edit, inspect
+whether the checker fits the visible result, and report a false positive.
+`vetd_status.issues: []` is source-only, never visual proof; `renderVerification`
+says whether prior captures are current.
 
-Nothing will remind you. Writing a file tells you it was written, not that it
-renders — the checker only speaks through `vetd_screenshot` and `vetd_status`,
-and neither runs by itself. A frame you wrote but never included in a screenshot
-batch may be
-sitting on the canvas as a build error or at a size you never chose, and the
-turn will end that way: the user is looking at the canvas, so they see it and
-you do not. Batch verification keeps that safety without spending one model
-round and one image Read per frame.
+Nothing will remind you: the checker only speaks through `vetd_screenshot` and
+`vetd_status`. A frame never included in a screenshot batch may sit on the
+canvas as a build error or at a size you never chose, and only the user sees it.
 
-**Check the structure**: for a UI product with more than one screen, or with
-chrome that repeats across screens, answer these four before reporting back.
-They are the ones no checker can see; skip them for posters, slides and
-single-screen designs.
+**Check the structure**: for a UI product with several screens or repeated
+chrome, answer these four before reporting; no checker sees them. Skip them
+for posters, slides and single screens.
 
 1. **Chrome defined once?** Grep for the nav bar's markup — it must appear in
    exactly one file. Two frames both containing the sidebar means extract it.
@@ -408,77 +474,44 @@ single-screen designs.
 4. **Every touched frame included in the latest batch, and its overview actually Read?**
 
 **User notes on the canvas**: the user pins Figma-style notes onto frames (or
-onto empty canvas) — each is a request addressed to you. `vetd_notes` lists the
-pending ones: every note carries its thread, a source anchor re-resolved at read
-time (`element.source` = `frames/x.tsx:LINE` — the authoritative edit target
-unless `anchorStale`), and per-frame screenshots where numbered pins mark the
-exact spots. Take them **one at a time**: edit for one note, verify it with
-`vetd_screenshot`, then immediately `resolve` that one note before you start the
-next — never hold the replies back until every note is done. The user is watching
-the canvas, where each bubble flips to resolved the moment you reply, and a turn
-that dies halfway has to leave the finished ones already marked. That reply is
-what marks a note handled; never touch `.notes.json` yourself.
+empty canvas), or types an instruction into the badge on a selected frame or
+element — everything given from the canvas lands in `.notes.json` as a note, a
+request addressed to you. A message asking you to handle notes never carries the
+request text; `vetd_notes` is where you read it. Its `element.source`
+(`frames/x.tsx:LINE`, re-resolved at read time, authoritative unless
+`anchorStale`) is your edit target. If it points into `components/`, the change
+hits every frame using it — say so in your reply.
 
-Each `resolve` response tells you what is still pending — when notes remain it
-lists them in full, anchors and annotated screenshots included, so you can go
-straight into the next one without another lookup. Treat `pendingRemaining` as
-your loop condition: keep handling and resolving until a resolve comes back with
-`pendingRemaining: 0`. Anything that appears there but was not in your original
-list is something the user pinned while you were working. Notes reach you three ways: the
-user sends an explicit "handle my notes" prompt, `vetd_status` reports a
-`pendingNotes` count, and `vetd_screenshot` flags pending notes on the frame it
-just shot.
+Take them one at a time and `resolve` each one before starting the next; the
+reply is what marks a note handled, so never touch `.notes.json` yourself. Treat
+`pendingRemaining` in each `resolve` response as your loop condition and keep
+going until it is `0` — anything new in it is something the user pinned while you
+were working. Notes also reach you through an explicit "handle my notes" prompt,
+a `pendingNotes` count in `vetd_status`, and a flag on the frame
+`vetd_screenshot` just shot.
 
-Notes are also how the user talks to you **while you are working**: rather than
-interrupt your turn with a new message, they pin the request onto the canvas and
-let you pick it up. So a note can appear at any moment, including after your last
-screenshot — which is exactly why the Done check below runs `vetd_notes` even when
-nothing this turn mentioned notes, instead of waiting for some tool response to
-name one. That check is the only way those notes ever reach you: nothing will send
-you a follow-up message about them, so a note you skip just sits there unanswered.
+Users pin requests rather than interrupt a turn, so a note can appear after your
+last screenshot unannounced. **Done** means:
+every frame you touched is represented in the latest screenshot batch and its
+overview was Read, each current frame capture is free of the three screenshot
+defects and of the generated-UI tells in `references/quality.md` § 5, its
+per-frame `issues` came back empty (or a repeated false positive is explicitly
+reported as stalled), and no user note is left pending. None of that is checked
+for you at the end of the turn, so before you report, name the frames you
+touched and confirm each one cleared all three.
 
-Every instruction the user gives from the canvas becomes a note, so a message
-asking you to handle canvas notes never carries the request text itself — the
-text lives in the notes, and `vetd_notes` is where you read it. You finish each
-one by replying through `vetd_notes`'s `resolve`, which is what puts your answer
-back on the canvas where the user asked and clears the pending badge.
+Hence a hard rule: **when you touched a `.vetd` design this turn, the final
+action — after the work, right before you write your summary — is one more
+`vetd_notes` call.** Run it even when nothing this turn mentioned notes. Anything
+still pending is work the user asked for while you were busy: do it now,
+`resolve` it, check again, and report only once a check comes back clean.
 
-**Everything from the canvas arrives as a note.** Whether the user pinned it with
-the note tool or typed it into the badge on a selected frame or element, it lands
-in `.notes.json` and reaches you through `vetd_notes` — there is no separate
-attachment format to learn. A note anchored to an element carries the exact
-`frames/xxx.tsx:LINE` in `element.source` (re-resolved at read time, authoritative
-unless `anchorStale`) plus its DOM path, classes and text, which is your edit
-target. If that location points into `components/`, the change hits every frame
-using it — say so in your reply.
-
-**Done** means: every frame you touched is represented in the latest screenshot
-batch and its overview was Read, each current frame capture is free of the three
-screenshot defects and of the generated-UI tells in `references/quality.md` § 5,
-its per-frame `issues` came back empty (or a repeated false positive is
-explicitly reported as stalled), and no user note is left pending.
-
-That last one has a hard rule, because nothing outside this turn will catch a
-miss: **when you touched a `.vetd` design this turn, the final action — after the
-work, right before you write your summary — is one more `vetd_notes` call.** Run
-it even when nothing this turn mentioned notes. Anything still pending is work the
-user asked for while you were busy: do it now, `resolve` it, then check again, and
-only report once a check comes back clean. Do not report first and leave it for
-"next turn" — the user deliberately did not interrupt you with a message, precisely
-because you were going to look here, and nothing will nudge you afterwards.
-
-The condition is the whole rule, so read it literally: **a turn in which you wrote
-or edited no file inside a `.vetd/` directory ends with no `vetd_notes` call at
-all.** Canvas notes only exist for designs on the canvas, so there is nothing to
-check when the work was anywhere else — editing pages in the user's own repo,
-answering a question, running tests, writing code that has no design attached.
-Calling it there is not a harmless extra check: it fails, and it tells the user
-you mistook their codebase for a design document. Same for every other `vetd_*`
-tool — none of them apply to work outside a `.vetd`.
-
-Not one of those three is checked for you at the end of the turn — if you
-report back without them, whatever is broken simply stays broken. So before you
-report, name the frames you touched and confirm each one cleared all three.
+The condition is the whole rule, so read it literally: **a turn in which you
+wrote or edited no file inside a `.vetd/` directory ends with no `vetd_notes`
+call at all** — editing pages in the user's own repo, answering a question,
+running tests. Calling it there is not a harmless extra check: it fails, and it
+tells the user you mistook their codebase for a design document. Same for every
+other `vetd_*` tool — none of them apply to work outside a `.vetd`.
 
 At that point stop and report — do not keep polishing. If something is still off
 but you have already revised it twice, say what it is instead of attempting a
@@ -488,23 +521,19 @@ third pass.
 
 When the user asks to export, download or hand off the design ("导出 PDF",
 "export all frames as images"), call `vetd_export`. It writes into the current
-working directory and each file holds the frame's FULL content, including what
-scrolls below the frame's viewport:
+working directory, and each file holds the frame's FULL content, including what
+scrolls below the viewport. `format: "pdf"` gives one `<design>-frames.pdf`, one
+page per frame; `format: "images"` gives one PNG per frame in a
+`<design>-frames/` folder. Omit `frames` for every frame in canvas order; pass
+`frames: [...]` when the user named specific screens.
 
-- `format: "pdf"` — one `<design>-frames.pdf`, one page per frame.
-- `format: "images"` — one PNG per frame in a `<design>-frames/` folder.
-- Omit `frames` for every frame in canvas order; pass `frames: [...]` when the
-  user named specific screens.
+**One format per request — the one the user asked for.** Never export both:
+every format re-renders every frame, so doing both doubles a slow export for a
+file nobody asked for. If the user did not say which, ask.
 
-**One format per request — the one the user asked for.** "Export PDF" means
-`pdf` only; "export images" means `images` only. Never export both: every
-format re-renders every frame, so doing both doubles a slow export for a file
-nobody asked for. If the user did not say which format, ask.
-
-**Export is not verification.** For checking a design, call `vetd_screenshot`.
-`vetd_export` runs no checks and is only for when the user asks for exported
-files — do not screenshot or re-verify before exporting, and do not Read the
-exported files afterwards. Just tell the user where they are.
+**Export is not verification.** It runs no checks: do not screenshot or
+re-verify before exporting, and do not Read the exported files afterwards. Just
+tell the user where they are.
 
 ## Do not rework
 
@@ -532,11 +561,12 @@ Resolve against `$SKILL_DIR`. Do not read them all up front.
 | --- | --- |
 | `references/interaction.md` | Wiring clicks, `_layout.tsx`, cross-screen flows |
 | `references/quality.md` | Reviewing a screenshot; before declaring any frame done |
-| `references/taste/directions.md` | Before the first frame of a new design with no pack or `DESIGN.md` |
+| `references/taste/directions.md` | A slide, poster or infographic with no pack or `DESIGN.md` (landing pages are dealt, apps proposed) |
 | `references/taste/whitespace.md` | Weighing whether a line, divider or card wrapper earns its place; a capture looks boxed-in |
-| `references/taste/landing-structures.md` | Product type is a landing page |
-| `references/taste/app-density.md` | Product type is app screens or a dashboard |
-| `references/taste/color.md` | Building or changing the palette, chart or status colors |
-| `references/taste/typography.md` | Choosing faces, the type scale, CJK font stacks |
+| `references/taste/app-screens.md` | Product type is app screens or a dashboard — read it before the first screen; the app sheet ends with the parts (`app/*.md`) the screens use |
+| `references/taste/app-screens-content.md` | The app is content-led or consumer (media, ordering, travel, games): read it beside `app-screens.md` |
+| `references/taste/texture.md` | A held object (card, ticket) or depth is wanted: light, grain, edge |
+| `references/taste/color.md` | Setting a palette by hand; chart and status colors |
+| `references/taste/typography.md` | Choosing faces by hand, the type scale, CJK font stacks |
 | `references/taste/copy.md` | Writing headlines, labels, empty and error states |
 | `references/taste/anti-patterns.md` | A capture looks generic, or a tell from quality.md § 5 needs its fix |

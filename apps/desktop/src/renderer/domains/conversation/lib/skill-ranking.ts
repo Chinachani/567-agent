@@ -39,7 +39,7 @@ const NO_USAGE: SkillUsage = { used: 0, lastUsedAt: 0 };
  * 所以这里必须同样小写化后再查。
  */
 export function lookupSkillUsage(usage: AppMonitorPromptRefUsageMap, skill: SkillInfo): SkillUsage {
-	const kind = skill.type === "scene" ? "scene" : "skill";
+	const kind = "skill";
 	return usage[`${kind}:${skill.name.trim().toLowerCase().slice(0, 128)}`] ?? NO_USAGE;
 }
 

@@ -20,7 +20,7 @@
  * `docs` 读它来判断一份说明书是不是旧的——没有这个戳，「该不该刷新」就只能靠人记得，而这
  * 恰恰是它凝固的原因。**改动模板内容时必须一并推进它**，否则存量工程不会收到提示。
  */
-export const AGENTS_GUIDE_REVISION = 3;
+export const AGENTS_GUIDE_REVISION = 4;
 
 /** 从一份 AGENTS.md 正文里读出版本戳；不是本模板生成的（或早于版本戳）时返回 undefined。 */
 export function readAgentsGuideRevision(content: string): number | undefined {
@@ -39,11 +39,11 @@ function renderCommands(pluginId: string, scripts: readonly string[]): string {
 	const known: readonly (readonly [string, string])[] = [
 		["dev", "npm run dev            # 开发服务器"],
 		["build", "npm run build          # 产出 dist/"],
-		["install:vetta", "npm run install:vetta  # 打包并装进正在运行的 Vetta（需要 Vetta 已启动）"],
+		["install:vetta", "npm run install:vetta  # 打包并装进正在运行的 567 Agent（需要 567 Agent 已启动）"],
 	];
 	const lines = known.filter(([name]) => scripts.includes(name)).map(([, line]) => line);
 	if (!scripts.includes("install:vetta")) {
-		lines.push("npx vetta-plugin-cli add .       # 打包并装进正在运行的 Vetta");
+		lines.push("npx vetta-plugin-cli add .       # 打包并装进正在运行的 567 Agent");
 	}
 	return [
 		...lines,

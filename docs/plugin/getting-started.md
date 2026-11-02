@@ -36,11 +36,15 @@ npx vetta-plugin-cli reload my-plugin   # 提示有 pending 版本时
 `add` 传目录即可（`add .`）：它向上找到最近的 `plugin.json`，再定位该工程打出来的归档，
 交给正在运行的 Desktop 校验、授权、安装，**不直接写** `~/.567agent/plugins`。
 
+CLI 的帮助与生成指引使用 567 Agent 名称；`vetta-plugin-cli`、`install:vetta` 和
+`vetta-guide-revision` 保留兼容。旧工程的指引可用 `npx @vetta-org/plugin-cli init --refresh-guide`
+更新；无版本标记的手写 `AGENTS.md` 不会被覆盖，可加 `--dry-run` 查看后手动合并。
+
 ### 一仓多插件（能力市场 hub）
 
 仓库根有 `.vetta/marketplace.json` 时（如官方能力市场那种布局），命令一律作用于「最近的那个
-插件」，所以先 `cd` 进目标插件目录。在 hub 里 `init` 还会把新插件登记进那份索引——手动维护它
-是最容易漏的一步，插件建好了能装能跑、市场上却看不到。
+插件」，所以先 `cd` 进目标插件目录。`init` 只创建插件工程，不改市场索引；准备发布时手动登记
+条目，再在仓库根运行 `sync --check` 核对派生字段与构建产物。
 
 站在 hub 根执行 `add .` 会被拒绝并要求指明插件：一仓多插件时猜一个出来比报错更糟。
 
@@ -198,6 +202,7 @@ bunx vite build      # 产出 dist/（mf-manifest.json + remoteEntry.js + style.
 发布需要一个 **`.567plugin` 插件包**。它使用 ZIP 容器，根目录放 `plugin.json`，其下 `dist/`。两种方式：
 
 - **自动**：`vettaPluginFederation({ ..., package: true })`，`vite build` 后自动产出 `release/<id>-<version>.567plugin`（打包 `plugin.json` + `dist/` + 清单声明的 `styles` / `agent.promptPaths` / `agent.skillPaths`；存在 `ability.json` 时也打包它和 `presentation/`）。
+- 命令辅助资源可放在 `scripts/` 或 `agent/cli/`，后者从 `@vetta-org/plugin-vite` 0.2.5 起随包保留。构建时先生成这些文件；目录中不要放凭据或仅供开发使用的文件。打包不会自动授予执行权限，运行仍使用原有命令权限与宿主校验。
 - **手动**：自行用 ZIP 容器打包 `plugin.json` 与 `dist/`，并使用 `.567plugin` 扩展名：
 
   ```text

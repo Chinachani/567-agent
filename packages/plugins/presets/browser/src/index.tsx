@@ -45,7 +45,7 @@ export default definePlugin({
 			// iconTint: false 保留原色——这是一枚彩色品牌图标，被主题前景色蒙版成
 			// 单色剪影就只剩一个圆形，认不出来了。橙紫配色在深浅两种侧边栏上都够亮。
 			iconTint: false,
-			// 装完就不常回来的说明/安装页：不占侧边栏，从设置 → 更多选项进。
+			// 装完就不常回来的说明/安装页：不占侧边栏，从设置中的一级入口进入。
 			sidebar: false,
 			component: function BrowserWorkspaceView(): JSX.Element {
 				return <BrowserConsole ports={ports} />;

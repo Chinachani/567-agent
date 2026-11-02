@@ -1,3 +1,6 @@
+import { useRendererMarkdownScope } from "@shared/components/RendererMarkdownScope";
+import { useMarkdownLabels } from "@shared/hooks/useMarkdownLabels";
+import { MarkdownHostProvider, ResourceMenu } from "@vetta-org/theme-ui/markdown";
 import type { ConversationParticipantViewModel, ConversationUserMessageViewModel } from "@shared/conversation";
 import { toTokenPath } from "@shared/lib/input-tokens";
 import { pathBasename } from "@shared/lib/utils";
@@ -37,6 +40,8 @@ export const UserMessage = memo(function UserMessage({
 	onActionsVisibleChange,
 }: UserMessageProps) {
 	const { t } = useTranslation("chat");
+	const markdown = useRendererMarkdownScope();
+	const labels = useMarkdownLabels();
 	const projection = useMemo(() => projectUserMessage(message), [message]);
 	const resolveSkillMeta = useSkillTokenMeta();
 	const membersById = useMemo(
@@ -51,7 +56,6 @@ export const UserMessage = memo(function UserMessage({
 				return index ? t("inputBar.capsule.imageBadge", { index }) : pathBasename(path);
 			},
 			getSkill: (name: string) => resolveSkillMeta("skill", name),
-			getScene: (name: string) => resolveSkillMeta("scene", name),
 			getMember: (participantId: string) => {
 				const participant = membersById.get(participantId);
 				return participant
@@ -80,7 +84,7 @@ export const UserMessage = memo(function UserMessage({
 	const empty = !projection.displayText && !hasSettingsAssistBadge && !hasFileBadges && !hasImages && !hasAppshot;
 
 	return (
-		<>
+		<MarkdownHostProvider host={markdown?.host}>
 			<Message.Root>
 				<MessageLayout.Outgoing asChild>
 					<UserMessagePrimitive.Frame
@@ -93,28 +97,35 @@ export const UserMessage = memo(function UserMessage({
 							{hasImages ? (
 								<div className="flex max-w-full justify-end gap-2 overflow-x-auto">
 									{projection.imageItems.map((item, index) => (
-										<button
+										<ResourceMenu
 											key={item.path ?? item.url ?? `${item.name}-${index}`}
-											type="button"
-											onClick={() => setFilePreview({ items: [...projection.imageItems], index })}
-											className="group relative h-20 w-20 overflow-hidden rounded-xl border border-border/60 bg-muted/60 transition-colors hover:border-primary/50"
-											title={item.path ?? item.name}
+											kind={item.path ? "file" : "image"}
+											target={item.path ?? item.url ?? ""}
+											open={() => setFilePreview({ items: [...projection.imageItems], index })}
+											labels={markdown?.labels ?? labels}
 										>
-											<img
-												src={userMessagePreviewSource(item)}
-												alt={item.name}
-												className="h-full w-full object-cover"
-											/>
-											<span className="pointer-events-none absolute inset-0 bg-foreground/0 transition-colors group-hover:bg-foreground/10" />
-											<span className="pointer-events-none absolute bottom-1 right-1 rounded bg-foreground/45 px-1 text-[9px] font-medium leading-[1.4] text-background/90">
-												{t("inputBar.capsule.imageBadge", {
-													index:
-														(item.path
-															? projection.imageIndexByPath.get(toTokenPath(item.path))
-															: undefined) ?? index + 1,
-												})}
-											</span>
-										</button>
+											<button
+												type="button"
+												onClick={() => setFilePreview({ items: [...projection.imageItems], index })}
+												className="group relative h-20 w-20 overflow-hidden rounded-xl border border-border/60 bg-muted/60 transition-colors hover:border-primary/50"
+												title={item.path ?? item.name}
+											>
+												<img
+													src={userMessagePreviewSource(item)}
+													alt={item.name}
+													className="h-full w-full object-cover"
+												/>
+												<span className="pointer-events-none absolute inset-0 bg-foreground/0 transition-colors group-hover:bg-foreground/10" />
+												<span className="pointer-events-none absolute bottom-1 right-1 rounded bg-foreground/45 px-1 text-[9px] font-medium leading-[1.4] text-background/90">
+													{t("inputBar.capsule.imageBadge", {
+														index:
+															(item.path
+																? projection.imageIndexByPath.get(toTokenPath(item.path))
+																: undefined) ?? index + 1,
+													})}
+												</span>
+											</button>
+										</ResourceMenu>
 									))}
 								</div>
 							) : null}
@@ -150,16 +161,23 @@ export const UserMessage = memo(function UserMessage({
 									{projection.fileBadges.map((file) => {
 										const name = pathBasename(file);
 										return (
-											<button
+											<ResourceMenu
 												key={file}
-												type="button"
-												className="inline-flex items-center gap-1 rounded-md bg-primary/10 px-2 py-0.5 text-[11px] font-medium text-primary transition-colors hover:bg-primary/20"
-												title={file}
-												onClick={() => setFilePreview({ name, path: file })}
+												kind="file"
+												target={file}
+												open={() => setFilePreview({ name, path: file })}
+												labels={markdown?.labels ?? labels}
 											>
-												<span className="icon-[solar--file-linear] h-3 w-3" />
-												{name}
-											</button>
+												<button
+													type="button"
+													className="inline-flex items-center gap-1 rounded-md bg-primary/10 px-2 py-0.5 text-[11px] font-medium text-primary transition-colors hover:bg-primary/20"
+													title={file}
+													onClick={() => setFilePreview({ name, path: file })}
+												>
+													<span className="icon-[solar--file-linear] h-3 w-3" />
+													{name}
+												</button>
+											</ResourceMenu>
 										);
 									})}
 								</div>
@@ -169,6 +187,6 @@ export const UserMessage = memo(function UserMessage({
 					</UserMessagePrimitive.Frame>
 				</MessageLayout.Outgoing>
 			</Message.Root>
-		</>
+		</MarkdownHostProvider>
 	);
 });

@@ -41,6 +41,8 @@ export {
 	AchievementPromotionConfetti,
 	AchievementTitle,
 } from "./achievements";
+export type { BrowserConnectionSettingsModel } from "./BrowserConnectionSettingsView";
+export { BrowserConnectionSettingsView } from "./BrowserConnectionSettingsView";
 export type {
 	BuiltinMcpSecretFieldView,
 	BuiltinMcpSecretsDialogViewLabels,
@@ -93,6 +95,7 @@ export { ImStatusBadgeView } from "./ImStatusBadgeView";
 export { McpDefaultIcon } from "./McpDefaultIcon";
 export type { McpJsonEditorViewProps } from "./McpJsonEditorView";
 export { McpJsonEditorView } from "./McpJsonEditorView";
+export { type ModelCallLimitSettingsModel, ModelCallLimitSettingsView } from "./ModelCallLimitSettingsView";
 export type {
 	ModelsProviderFormStateView,
 	ModelsProviderFormViewLabels,

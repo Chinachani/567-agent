@@ -1,5 +1,6 @@
 import { AnimatePresence, motion } from "motion/react";
 import type { JSX } from "react";
+import { Button } from "@vetta-org/ui";
 
 const easeOut = [0.16, 1, 0.3, 1] as const;
 
@@ -32,7 +33,7 @@ export function GuideBadgeSwiperView({ mounted, current, labels, onDismiss }: Gu
 			initial={{ opacity: 0, y: 8 }}
 			animate={{ opacity: mounted ? 1 : 0, y: mounted ? 0 : 8 }}
 			transition={{ duration: 0.5, ease: easeOut }}
-			className="flex min-h-7 w-full min-w-0 items-center"
+			className="flex min-h-7 w-full min-w-0 items-center justify-center"
 		>
 			<AnimatePresence mode="wait">
 				<motion.div
@@ -41,32 +42,29 @@ export function GuideBadgeSwiperView({ mounted, current, labels, onDismiss }: Gu
 					animate={{ opacity: 1, y: 0 }}
 					exit={{ opacity: 0, y: -6 }}
 					transition={{ duration: 0.32, ease: easeOut }}
-					className="flex min-w-0 max-w-full items-center"
+					className="flex min-w-0 max-w-full items-center rounded-md bg-muted/50"
 				>
 					<button
 						type="button"
 						onClick={current.onClick}
 						title={current.text}
-						className="group flex h-7 min-w-0 max-w-full items-center gap-1.5 rounded-md bg-muted/50 pl-2.5 pr-2 text-[11px] font-medium text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
+						className="group flex h-7 min-w-0 max-w-full items-center gap-1.5 rounded-md pl-2.5 pr-2 text-[11px] font-medium text-muted-foreground transition-colors hover:bg-accent hover:text-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
 					>
 						<span className={`${current.icon} h-3 w-3 shrink-0`} />
 						<span className="truncate">{current.text}</span>
-						{current.dismissible && (
-							<span
-								role="button"
-								tabIndex={-1}
-								aria-label={labels.dismissTooltip}
-								title={labels.dismissTooltip}
-								onClick={(e) => {
-									e.stopPropagation();
-									onDismiss(current.id);
-								}}
-								className="ml-0.5 flex h-4 w-4 shrink-0 items-center justify-center rounded-full text-primary/60 transition-colors hover:bg-primary/15 hover:text-primary"
-							>
-								<span className="icon-[mdi--close] h-3 w-3" />
-							</span>
-						)}
 					</button>
+					{current.dismissible && (
+						<Button
+							variant="ghost"
+							size="icon-xs"
+							aria-label={labels.dismissTooltip}
+							title={labels.dismissTooltip}
+							onClick={() => onDismiss(current.id)}
+							className="mr-0.5 shrink-0 text-muted-foreground"
+						>
+							<span aria-hidden="true" className="icon-[solar--close-circle-linear] h-3 w-3" />
+						</Button>
+					)}
 				</motion.div>
 			</AnimatePresence>
 		</motion.div>

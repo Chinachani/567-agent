@@ -1,0 +1,5 @@
+# Preserve the exact upstream bytes verified by catalog.json on every platform.
+LICENSE -text whitespace=blank-at-eol,blank-at-eof,space-before-tab,cr-at-eol
+LICENSE-react -text
+NOTICE -text
+*.crx binary

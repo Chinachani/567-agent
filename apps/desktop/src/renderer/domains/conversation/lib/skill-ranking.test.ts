@@ -26,10 +26,10 @@ describe("sortSkillsForPanel", () => {
 		expect(sorted.map((item) => item.name)).toEqual(["recent", "apple", "zebra"]);
 	});
 
-	it("场景与 skill 同列排序，各自查自己的统计 key", () => {
-		const skills = [skill("release", "scene", "scene"), skill("review", "builtin")];
+	it("已下线场景的旧统计不会影响普通技能排序", () => {
+		const skills = [skill("release", "user"), skill("review", "builtin")];
 		const sorted = sortSkillsForPanel(skills, { "scene:release": { used: 5, lastUsedAt: 10 } });
-		expect(sorted.map((item) => item.name)).toEqual(["release", "review"]);
+		expect(sorted.map((item) => item.name)).toEqual(["review", "release"]);
 	});
 });
 

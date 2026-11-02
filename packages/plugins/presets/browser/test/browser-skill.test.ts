@@ -4,6 +4,18 @@ import { describe, expect, it } from "vitest";
 import { AGENT_BROWSER_VERSION } from "../src/runtime/runtime-controller";
 
 describe("Browser Use skill", () => {
+	it("advertises page tasks proactively and prefers an extension without installing CLI", async () => {
+		const skill = await readFile(resolve(import.meta.dirname, "../agent/skills/browser-use/SKILL.md"), "utf8");
+		const description = skill.split("\n").find((line) => line.startsWith("description:"))!;
+		expect(description).toContain("Use proactively");
+		expect(description).toContain("verify rendered website UI");
+		expect(skill).toContain("567-current-browser");
+		expect(skill).toContain("use `tool_search`");
+		expect(skill).toContain("does not need agent-browser runtime installation");
+		expect(skill).toContain("Do not navigate to another URL just to discover which tab was chosen");
+		expect(skill).toContain("Do not install or change the user's integration configuration without a request");
+	});
+
 	it("defaults to a verified current tab and keeps an independent browser opt-in", async () => {
 		const skill = await readFile(resolve(import.meta.dirname, "../agent/skills/browser-use/SKILL.md"), "utf8");
 		expect(skill).toContain("Default to the user's already-open browser");

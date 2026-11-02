@@ -10,6 +10,7 @@ import type {
 	RuntimeSnapshotAcquireContext,
 } from "@567agent/runtime-core/kernel";
 import { CODING_IMAGE_CONFIGURATION, type CodingImageConfiguration } from "@567agent/runtime-tools";
+import { projectContinuationMessages } from "./continuation-messages.js";
 import { applyImageBudget } from "./image-budget.js";
 import {
 	type ModelInputImageProcessor,
@@ -92,7 +93,7 @@ export class CodingAgentModelCallMessageFinalizer implements ModelCallMessageFin
 				this.settings?.getImageRequestLowWatermarkBytes?.(),
 		}).filter(isRuntimeMessage);
 		const block = this.boundConfiguration?.blockImages ?? this.settings?.getBlockImages?.();
-		return block === true ? budgeted.map(blockImages) : budgeted;
+		return projectContinuationMessages(block === true ? budgeted.map(blockImages) : budgeted);
 	}
 }
 

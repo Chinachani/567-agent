@@ -28,9 +28,7 @@ const CONTEXT_MENU_VIEWPORT_GAP = 8;
 let deleteConfirmationSuppressedUntil = 0;
 
 function matchesPromptRef(segment: InputSegment, ref: { readonly kind: string; readonly name: string }): boolean {
-	return (
-		(segment.kind === "skill" || segment.kind === "scene") && segment.kind === ref.kind && segment.name === ref.name
-	);
+	return segment.kind === "skill" && segment.kind === ref.kind && segment.name === ref.name;
 }
 
 function fillInputFromUserMessage(message: ConversationUserMessageViewModel): void {
@@ -38,11 +36,7 @@ function fillInputFromUserMessage(message: ConversationUserMessageViewModel): vo
 	const { segments, legacyRef } = parseInputSegments(message.text);
 	const ref = message.promptRef ?? legacyRef ?? null;
 	const restored: InputSegment[] = [...segments];
-	if (
-		ref &&
-		(ref.kind === "skill" || ref.kind === "scene") &&
-		!restored.some((segment) => matchesPromptRef(segment, ref))
-	) {
+	if (ref && ref.kind === "skill" && !restored.some((segment) => matchesPromptRef(segment, ref))) {
 		restored.unshift({ kind: ref.kind, name: ref.name });
 	}
 	const covered = new Set(
@@ -111,7 +105,7 @@ async function reloadChatHistory(runtimeId: string): Promise<void> {
 	}
 }
 
-function useInterruptibleUserMessageAction({
+function useInterruptibleMessageAction({
 	isStreaming,
 	onAbortEdit,
 }: {
@@ -225,14 +219,12 @@ export function useUserMessageHistoryActions({
 	message,
 	isStreaming,
 	onAbortEdit,
-	forkEnabled,
 }: {
 	readonly message: ConversationUserMessageViewModel;
 	readonly isStreaming: boolean;
 	readonly onAbortEdit?: () => void;
-	readonly forkEnabled: boolean;
 }) {
-	const runInterruptible = useInterruptibleUserMessageAction({ isStreaming, onAbortEdit });
+	const runInterruptible = useInterruptibleMessageAction({ isStreaming, onAbortEdit });
 	const branch = message.branch;
 	const canSwitch = Boolean(branch && branch.siblings.length > 1 && message.entryId);
 	const onSwitch = useCallback(
@@ -248,8 +240,28 @@ export function useUserMessageHistoryActions({
 		},
 		[branch, message.entryId, runInterruptible],
 	);
+
+	return {
+		branchIndex: branch?.index ?? 0,
+		branchTotal: branch?.siblings.length ?? 0,
+		canSwitch,
+		onNext: () => onSwitch(1),
+		onPrevious: () => onSwitch(-1),
+	};
+}
+
+/** Fork still uses the durable user-turn anchor, including all of its assistant/tool entries. */
+export function useSessionMessageForkAction({
+	entryId,
+	isStreaming,
+	onAbortEdit,
+}: {
+	readonly entryId?: string;
+	readonly isStreaming: boolean;
+	readonly onAbortEdit?: () => void;
+}) {
+	const runInterruptible = useInterruptibleMessageAction({ isStreaming, onAbortEdit });
 	const onFork = useCallback(() => {
-		const entryId = message.entryId;
 		if (!entryId) return;
 		runInterruptible("fork", async (session) => {
 			const store = getDefaultStore();
@@ -260,17 +272,9 @@ export function useUserMessageHistoryActions({
 			if (store.get(activeSessionAtom)?.runtimeId !== session.runtimeId) return;
 			await openSessionFnRef.current?.(session.cwd, path);
 		});
-	}, [message.entryId, runInterruptible]);
+	}, [entryId, runInterruptible]);
 
-	return {
-		branchIndex: branch?.index ?? 0,
-		branchTotal: branch?.siblings.length ?? 0,
-		canSwitch,
-		forkAvailable: forkEnabled && Boolean(message.entryId),
-		onFork,
-		onNext: () => onSwitch(1),
-		onPrevious: () => onSwitch(-1),
-	};
+	return { available: Boolean(entryId), onFork };
 }
 
 export function useUserMessageDeleteAction({
@@ -359,6 +363,7 @@ export function useUserMessageContextMenu({
 	const [position, setPosition] = useState<{ x: number; y: number } | null>(null);
 	const close = useCallback(() => setPosition(null), []);
 	const onContextMenu = useCallback((event: MouseEvent<HTMLDivElement>) => {
+		if (event.defaultPrevented) return;
 		event.preventDefault();
 		setPosition({
 			x: Math.max(

@@ -74,9 +74,33 @@ function model(overrides: Partial<TeamChatViewModel> = {}): TeamChatViewModel {
 		history: ["Previous"],
 		attachments: [{ path: "C:/workspace/brief.md", name: "brief.md", kind: "file" }],
 		members: [
-			{ id: "member-1", kind: "agent", name: "Research", handle: "research", blueprintId: "researcher", selected: false, status: "working" },
-			{ id: "member-2", kind: "agent", name: "Build", handle: "build", blueprintId: "builder", selected: false, status: "idle" },
-			{ id: "member-3", kind: "agent", name: "", handle: "custom", blueprintId: "custom", selected: false, status: "idle" },
+			{
+				id: "member-1",
+				kind: "agent",
+				name: "Research",
+				handle: "research",
+				blueprintId: "researcher",
+				selected: false,
+				status: "working",
+			},
+			{
+				id: "member-2",
+				kind: "agent",
+				name: "Build",
+				handle: "build",
+				blueprintId: "builder",
+				selected: false,
+				status: "idle",
+			},
+			{
+				id: "member-3",
+				kind: "agent",
+				name: "",
+				handle: "custom",
+				blueprintId: "custom",
+				selected: false,
+				status: "idle",
+			},
 		],
 		leaderMemberId: "member-1",
 		feedItems: [],
@@ -120,14 +144,16 @@ describe("TeamComposerConnector", () => {
 		expect(inputModel.commands?.atItems).toEqual([
 			expect.objectContaining({ kind: "team-member", name: "Research", insertText: "@research " }),
 			expect.objectContaining({ kind: "team-member", name: "Build", insertText: "@build " }),
-		expect.objectContaining({ kind: "team-member", name: "@custom", insertText: "@custom " }),
+			expect.objectContaining({ kind: "team-member", name: "@custom", insertText: "@custom " }),
 		]);
-		inputModel.commands?.onAtSelect(inputModel.commands.atItems?.[0] ?? {
-			kind: "team-member",
-			id: "fallback",
-			name: "Fallback",
-			insertText: "@fallback ",
-		});
+		inputModel.commands?.onAtSelect(
+			inputModel.commands.atItems?.[0] ?? {
+				kind: "team-member",
+				id: "fallback",
+				name: "Fallback",
+				insertText: "@fallback ",
+			},
+		);
 		expect(captured.insertMemberToken).toHaveBeenCalledWith(
 			"member-1",
 			"research",
@@ -221,11 +247,27 @@ describe("TeamComposerConnector", () => {
 		});
 	});
 
+	it("reports reference visibility for the new-session layout without changing slash expansion", () => {
+		const onAtOpenChange = vi.fn();
+		const onExpandedChange = vi.fn();
+		const view = render(
+			<TeamComposerConnector
+				model={model()}
+				actions={actions()}
+				onExpandedChange={onExpandedChange}
+				onAtOpenChange={onAtOpenChange}
+			/>,
+		);
+		act(() => captured.model?.commands?.onTriggerChange({ kind: "at", query: "", length: 1 }));
+		expect(onAtOpenChange).toHaveBeenLastCalledWith(true);
+		expect(onExpandedChange).toHaveBeenLastCalledWith(false);
+		view.unmount();
+		expect(onAtOpenChange).toHaveBeenLastCalledWith(false);
+	});
+
 	it("reports command panel expansion so the page can fade the hero away", () => {
 		const onExpandedChange = vi.fn();
-		render(
-			<TeamComposerConnector model={model()} actions={actions()} onExpandedChange={onExpandedChange} />,
-		);
+		render(<TeamComposerConnector model={model()} actions={actions()} onExpandedChange={onExpandedChange} />);
 
 		act(() => captured.model?.commands?.onTriggerChange({ kind: "slash", query: "", length: 1 }));
 		expect(onExpandedChange).toHaveBeenLastCalledWith(true);
@@ -239,9 +281,7 @@ describe("TeamComposerConnector", () => {
 			<TeamComposerConnector
 				model={model({
 					draft: "@research review this",
-					draftMemberMentions: [
-						{ participantId: "member-1", handle: "research", start: 0, end: 9 },
-					],
+					draftMemberMentions: [{ participantId: "member-1", handle: "research", start: 0, end: 9 }],
 				})}
 				actions={actions()}
 			/>,

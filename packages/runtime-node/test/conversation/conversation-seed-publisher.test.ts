@@ -1,7 +1,11 @@
 import { mkdtemp, readFile, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import type { ConversationDocumentEntry } from "@567agent/runtime-core/conversation";
+import type { AssistantMessage, Message } from "@567agent/ai";
+import {
+	type ConversationDocumentEntry,
+	selectConversationDocumentMessages,
+} from "@567agent/runtime-core/conversation";
 import { afterEach, describe, expect, it } from "vitest";
 import {
 	CONVERSATION_STORAGE_ERROR_CODES,
@@ -129,6 +133,70 @@ describe("conversation seed publisher", () => {
 		expect(fork.text).toBe("fork me");
 		expect(forkedDocument.entries).toContainEqual(expect.objectContaining({ id: "prompt", type: "message" }));
 		expect(forkedDocument.activeLeafId).toBe("prompt");
+	});
+
+	it("forks the chosen reply's whole user turn, retaining tool results and excluding later turns", async () => {
+		const rootDir = await temporaryDirectory(temporaryDirectories);
+		const assistant = (content: AssistantMessage["content"], timestamp: number): AssistantMessage => ({
+			role: "assistant",
+			content,
+			api: "openai-responses",
+			provider: "test",
+			model: "test",
+			usage: {
+				input: 1,
+				output: 1,
+				cacheRead: 0,
+				cacheWrite: 0,
+				totalTokens: 2,
+				cost: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0, total: 0 },
+			},
+			stopReason: "stop",
+			timestamp,
+		});
+		const messages: Message[] = [
+			{ role: "user", content: "First question", timestamp: 1 },
+			assistant(
+				[
+					{ type: "text", text: "Checking" },
+					{ type: "toolCall", id: "read-1", name: "read", arguments: { path: "report.md" } },
+				],
+				2,
+			),
+			{
+				role: "toolResult",
+				toolCallId: "read-1",
+				toolName: "read",
+				content: [{ type: "text", text: "Report contents" }],
+				isError: false,
+				timestamp: 3,
+			},
+			assistant([{ type: "text", text: "Complete first reply" }], 4),
+			{ role: "user", content: "Later question", timestamp: 5 },
+			assistant([{ type: "text", text: "Later reply" }], 6),
+		];
+		const entries: ConversationDocumentEntry[] = messages.map((message, index) => ({
+			type: "message",
+			id: `message-${index}`,
+			parentId: index === 0 ? null : `message-${index - 1}`,
+			timestamp: new Date(index + 1).toISOString(),
+			message,
+		}));
+		const source = await publishConversationSeed({
+			targetRootDir: rootDir,
+			targetSessionId: "reply-fork",
+			createdAt: 1,
+			entries,
+			activeLeafId: "message-5",
+		});
+		const before = await readFile(source.targetPath, "utf8");
+		const repository = new FileConversationRepository({ rootDir });
+		const fork = await repository.fork("reply-fork", "message-0");
+		const restored = await new FileConversationRepository({ rootDir }).readDocument(fork.sessionId);
+		expect(restored.activeLeafId).toBe("message-3");
+		expect(selectConversationDocumentMessages(restored)).toEqual(messages.slice(0, 4));
+		expect(restored.identity.parentEntryId).toBe("message-0");
+		expect(await readFile(source.targetPath, "utf8")).toBe(before);
 	});
 });
 

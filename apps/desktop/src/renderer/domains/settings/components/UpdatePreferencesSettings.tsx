@@ -156,6 +156,7 @@ export function UpdatePreferencesSettings(): JSX.Element {
 				error={historyError}
 				releases={visible.map((release) => ({
 					...release,
+					statusKind: compareVersions(release.version, updater.currentVersion) > 0 ? "available" : "current",
 					status:
 						compareVersions(release.version, updater.currentVersion) > 0
 							? t("updateSettings.notInstalled")

@@ -1,0 +1,18 @@
+{
+  "version": "0.4.0",
+  "extensionId": "mmlmfjhmonkocbjadbfplnigmagldckm",
+  "file": "playwright-extension-0.4.0.crx",
+  "sha256": "e012b45f6170f627d275588ca1a37dffe5919c2635bbac512f11b74930e63835",
+  "bytes": 132795,
+  "source": "https://clients2.google.com/service/update2/crx?response=redirect&prodversion=142.0.0.0&acceptformat=crx3&x=id%3Dmmlmfjhmonkocbjadbfplnigmagldckm%26uc",
+  "store": "https://chromewebstore.google.com/detail/playwright-extension/mmlmfjhmonkocbjadbfplnigmagldckm",
+  "upstream": "https://github.com/microsoft/playwright",
+  "versionCommit": "260eae31113073927b93c5c7591b5ae039952dd0",
+  "retrievedAt": "2026-11-03",
+  "license": "Apache-2.0",
+  "files": {
+    "LICENSE": "45873d00a0dd243596deb4aa23b2493b3d1f0671921bf2538ea431d7380220eb",
+    "NOTICE": "6d602191187b35b9b01d2cffa01c8469c2c8d9de8a96f1bf868e0f264f51c81d",
+    "LICENSE-react": "da6d3703ed11cbe42bd212c725957c98da23cbff1998c05fa4b3d976d1a58e93"
+  }
+}

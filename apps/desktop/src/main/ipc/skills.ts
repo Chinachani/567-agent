@@ -12,9 +12,9 @@ import { parseFrontmatter, rewriteFrontmatterDescription } from "../skills/skill
 import { installSkillFromMarketArchive, installSkillFromMarketSlug } from "../skills/skill-market-install.js";
 import { assertValidSkillName } from "../skills/skill-name.js";
 import {
+	assertSkillNameNotRetired,
 	getDesktopSkillService,
 	getSkillBaseDir,
-	type InstalledSkillType,
 	readSkillsManifest,
 	recordSkillResourceEvent,
 	writeSkillsManifest,
@@ -23,6 +23,11 @@ import { extractTarGz } from "../skills/tar-extract.js";
 import { allowProjectRoot } from "./fs.js";
 
 const tmpBaseDir = join(getAgent567HomePath(), "tmp");
+
+function assertActiveSkillType(value: unknown): asserts value is "skill" | undefined {
+	if (value !== undefined && value !== "skill")
+		throw new Error("Only skills are supported; scenes have been retired.");
+}
 
 function findShallowestSkillMd(rootDir: string): string | null {
 	const holder: { best: { path: string; depth: number } | null } = { best: null };
@@ -54,9 +59,8 @@ function findShallowestSkillMd(rootDir: string): string | null {
 
 export function registerSkillsIpc(): () => void {
 	const skills = getDesktopSkillService();
-	// 允许通用 fs IPC 读取技能 / 场景目录下的文件（用于 SKILL.md 预览等）
-	allowProjectRoot(getSkillBaseDir("skill"));
-	allowProjectRoot(getSkillBaseDir("scene"));
+	// 允许通用 fs IPC 读取技能目录下的文件（用于 SKILL.md 预览等）
+	allowProjectRoot(getSkillBaseDir());
 	// 通用 Agent Skill（只读）预览：放行全局 ~/.agents/skills。
 	allowProjectRoot(join(homedir(), ".agents", "skills"));
 	for (const root of getBuiltinSkillPaths()) {
@@ -81,12 +85,12 @@ export function registerSkillsIpc(): () => void {
 
 	ipcMain.handle(
 		"vetta:skills:install-from-market",
-		async (_event, name: unknown, archiveBuffer: unknown, type: unknown, meta: unknown) => {
+		async (_event, name: unknown, archiveBuffer: unknown, _type: unknown, meta: unknown) => {
 			assertValidSkillName(name);
+			assertActiveSkillType(_type);
 			if (!(archiveBuffer instanceof ArrayBuffer) && !Buffer.isBuffer(archiveBuffer)) {
 				throw new Error("Invalid archive buffer");
 			}
-			const itemType: "skill" | "scene" = type === "scene" ? "scene" : "skill";
 			const metaObj = (meta != null && typeof meta === "object" ? meta : {}) as {
 				alias?: string;
 				marketDescription?: string;
@@ -94,20 +98,21 @@ export function registerSkillsIpc(): () => void {
 				sha256?: string;
 			};
 			const buffer = Buffer.isBuffer(archiveBuffer) ? archiveBuffer : Buffer.from(archiveBuffer as ArrayBuffer);
-			await installSkillFromMarketArchive(name, itemType, buffer, metaObj);
+			await installSkillFromMarketArchive(name, "skill", buffer, metaObj);
 		},
 	);
 
-	/** Action / 官方插件：按市场 slug 下载并安装能力（skill/scene）。 */
-	ipcMain.handle("vetta:skills:install-from-market-slug", async (_event, type: unknown, slug: unknown) => {
+	/** Action / 官方插件：按市场 slug 下载并安装能力（skill）。 */
+	ipcMain.handle("vetta:skills:install-from-market-slug", async (_event, _type: unknown, slug: unknown) => {
 		assertValidSkillName(slug);
-		const itemType: "skill" | "scene" = type === "scene" ? "scene" : "skill";
-		return installSkillFromMarketSlug(itemType, slug);
+		assertActiveSkillType(_type);
+		return installSkillFromMarketSlug("skill", slug);
 	});
 
 	ipcMain.handle("vetta:skills:uninstall", async (_event, name: unknown, type: unknown) => {
 		assertValidSkillName(name);
-		await skills.uninstall(name, type === "scene" ? "scene" : type === "skill" ? "skill" : undefined);
+		assertActiveSkillType(type);
+		await skills.uninstall(name);
 	});
 
 	ipcMain.handle("vetta:skills:toggle", async (_event, name: unknown) => {
@@ -121,8 +126,8 @@ export function registerSkillsIpc(): () => void {
 
 	ipcMain.handle("vetta:skills:get-skill-md-path", async (_event, name: unknown, type: unknown) => {
 		assertValidSkillName(name);
-		const itemType: "skill" | "scene" = type === "scene" ? "scene" : "skill";
-		const skillMd = join(getSkillBaseDir(itemType), name, "SKILL.md");
+		assertActiveSkillType(type);
+		const skillMd = join(getSkillBaseDir(), name, "SKILL.md");
 		if (existsSync(skillMd)) {
 			return skillMd;
 		}
@@ -181,11 +186,8 @@ export function registerSkillsIpc(): () => void {
 				throw new Error("name 仅允许小写字母、数字、连字符（1–64 字符）");
 			}
 
-			// 类型口径与 agent 侧一致：只认 frontmatter 的 metadata.type，scene 装进 ~/.567agent/scene/。
-			// 装错目录不只是分类不对——agent 是按目录判定场景的，装进 skills/ 就拿不到
-			// tasks.json 锁定 todo 等场景语义。
-			const importType: InstalledSkillType = fm.type === "scene" ? "scene" : "skill";
-			const skillsBaseDir = getSkillBaseDir(importType);
+			const skillsBaseDir = getSkillBaseDir();
+			assertSkillNameNotRetired(fm.name);
 			const targetDir = join(skillsBaseDir, fm.name);
 			const manifest = readSkillsManifest();
 			if (manifest[fm.name] || existsSync(targetDir)) {
@@ -214,20 +216,20 @@ export function registerSkillsIpc(): () => void {
 				installedAt: new Date().toISOString(),
 				source: "custom",
 				enabled: true,
-				type: importType,
+				type: "skill",
 				alias: fm.alias,
 				description: fm.description,
 			};
 			writeSkillsManifest(manifest);
-			recordAbilityInstall(importType, fm.name, fm.version || "0.0.0");
+			recordAbilityInstall("skill", fm.name, fm.version || "0.0.0");
 			recordSkillResourceEvent({
 				name: fm.name,
-				type: importType,
+				type: "skill",
 				source: "custom",
 				operation: "imported",
 			});
 
-			return { name: fm.name, type: importType };
+			return { name: fm.name, type: "skill" as const };
 		} finally {
 			await rm(extractDir, { recursive: true, force: true }).catch(() => {});
 		}

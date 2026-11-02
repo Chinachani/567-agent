@@ -15,19 +15,34 @@ type LoadState =
 	| { status: "unsupported" }
 	| { status: "loaded"; content: string; extension: string };
 
-export function usePreviewBodyModel(
-	item: FilePreviewItem,
-	refreshNonce = 0,
-): PreviewBodyViewProps {
+// Without a document renderer, printable headers (notably ASCII PDFs) are
+// not a useful source-text fallback for a binary document.
+const BINARY_DOCUMENT_EXTENSIONS = new Set([
+	"pdf",
+	"doc",
+	"docx",
+	"docm",
+	"dotx",
+	"ppt",
+	"pptx",
+	"pptm",
+	"xls",
+	"xlsx",
+	"xlsb",
+	"xlsm",
+	"ods",
+	"rtf",
+	"odt",
+	"odp",
+]);
+
+export function usePreviewBodyModel(item: FilePreviewItem, refreshNonce = 0): PreviewBodyViewProps {
 	const ext = useMemo(() => getExtension(item.name), [item.name]);
 	const supported = isPreviewSupported(item.name);
 	const canLoad = supported || Boolean(item.path);
 	const { t } = useTranslation("chat");
 	const pluginPreviews = useAtomValue(pluginFilePreviewsAtom);
-	const pluginPreview = useMemo(
-		() => pluginPreviews.find((p) => p.extensions.includes(ext)),
-		[pluginPreviews, ext],
-	);
+	const pluginPreview = useMemo(() => pluginPreviews.find((p) => p.extensions.includes(ext)), [pluginPreviews, ext]);
 
 	const [state, setState] = useState<LoadState>({ status: "loading" });
 	const [watchTick, setWatchTick] = useState(0);
@@ -136,6 +151,7 @@ async function loadItem(
 	ext: string,
 	declaredTextFormat: boolean,
 ): Promise<Extract<LoadState, { status: "loaded" | "unsupported" }>> {
+	if (BINARY_DOCUMENT_EXTENSIONS.has(ext)) return { status: "unsupported" };
 	if (path) {
 		if (declaredTextFormat) {
 			const result = await window.agent567.fs.readFile(path);

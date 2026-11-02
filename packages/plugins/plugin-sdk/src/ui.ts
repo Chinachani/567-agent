@@ -114,8 +114,8 @@ export interface PluginWorkspaceViewContribution {
 	 * Whether this view takes a sidebar entry. Defaults to `true`.
 	 *
 	 * Pass `false` for a surface users open occasionally — a setup page, a
-	 * diagnostics console. It then lives only under Settings → More options,
-	 * where the host lists every off-sidebar view and opens it inside the
+	 * diagnostics console. It appears as a top-level entry in Settings,
+	 * where the host opens every off-sidebar view inside the
 	 * settings shell, so switching between such pages stays one click.
 	 *
 	 * The sidebar is a scarce, user-curated space: a plugin that always claims a

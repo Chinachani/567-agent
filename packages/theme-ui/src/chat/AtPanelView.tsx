@@ -1,5 +1,7 @@
 import { AnimatePresence, motion } from "motion/react";
 import type { JSX, RefObject } from "react";
+import { usePanelViewportHeight } from "./usePanelViewportHeight";
+import { FadingScrollArea } from "./FadingScrollArea";
 import { ThemeSurface } from "../appearance/ThemeSurface";
 
 export interface AtPanelClassNames {
@@ -65,43 +67,61 @@ export function AtPanelView({
 	onHoverIndex,
 	onEntryClick,
 }: AtPanelViewProps): JSX.Element {
+	const syncHeight = usePanelViewportHeight(panelRef, open);
 	return (
 		<AnimatePresence>
 			{open && (
 				<motion.div
 					ref={panelRef}
+					onAnimationComplete={syncHeight}
 					initial={{ opacity: 0, y: 8, scaleY: 0.96 }}
 					animate={{ opacity: 1, y: 0, scaleY: 1 }}
 					exit={{ opacity: 0, y: 8, scaleY: 0.96 }}
 					transition={{ duration: 0.15, ease: [0.25, 0.1, 0.25, 1] }}
 					className={[
-						"absolute inset-x-0 bottom-full z-50 mb-1.5 origin-bottom overflow-visible rounded-2xl border border-border bg-input-bar-bg",
+						"absolute inset-x-0 bottom-full z-50 mb-1.5 origin-bottom flex min-h-0 max-h-[min(320px,calc(100dvh-260px),var(--panel-available-height,320px))] flex-col overflow-hidden rounded-xl border border-border bg-popover text-popover-foreground shadow-md",
 						className,
 						classNames?.root,
 					]
 						.filter(Boolean)
 						.join(" ")}
-					style={{
-						maxHeight: 320,
-					}}
 				>
 					<ThemeSurface slot="chat.atPanel" />
-					<div className={["relative z-10 overflow-hidden rounded-[inherit]", classNames?.content].filter(Boolean).join(" ")}>
-						<div className={["flex items-center gap-2 border-b border-border px-4 py-2.5", classNames?.header].filter(Boolean).join(" ")}>
-							<span className="icon-[solar--mention-circle-linear] h-4 w-4 text-muted-foreground/50" />
-							<span className="text-[12px] font-medium text-muted-foreground/50" title={labels.header}>
+					<div
+						className={[
+							"relative z-10 flex min-h-0 flex-col overflow-hidden rounded-[inherit]",
+							classNames?.content,
+						]
+							.filter(Boolean)
+							.join(" ")}
+					>
+						<div
+							className={[
+								"flex shrink-0 items-center gap-2 border-b border-border px-4 py-2.5",
+								classNames?.header,
+							]
+								.filter(Boolean)
+								.join(" ")}
+						>
+							<span
+								aria-hidden="true"
+								className="icon-[solar--mention-circle-linear] h-4 w-4 shrink-0 text-muted-foreground"
+							/>
+							<span className="min-w-0 truncate text-[12px] font-medium text-foreground" title={labels.header}>
 								{labels.header}
 							</span>
-							<span className="ml-auto font-mono text-[11px] text-muted-foreground/50">{labels.headingMeta}</span>
+							<span className="ml-auto shrink-0 font-mono text-[11px] text-muted-foreground">
+								{labels.headingMeta}
+							</span>
 						</div>
 
-						<div className="overflow-y-auto" style={{ maxHeight: 280 }}>
+						<FadingScrollArea aria-label={labels.header}>
 							{loading ? (
-								<div className="flex items-center justify-center py-8 text-[12px] text-muted-foreground/50">
+								<div className="flex items-center justify-center py-8 text-[12px] text-muted-foreground">
 									{labels.loading}
 								</div>
 							) : entries.length === 0 && !canGoUp ? (
-								<div className="flex items-center justify-center py-8 text-[12px] text-muted-foreground/50">
+								<div className="flex items-center justify-center py-8 text-[12px] text-muted-foreground">
 									{normalizedFilter ? labels.noResults : labels.emptyDirectory}
 								</div>
 							) : (
@@ -112,14 +132,13 @@ export function AtPanelView({
 											data-index={0}
 											onMouseEnter={() => onHoverIndex(0)}
 											onClick={onGoUp}
-											className={["relative flex w-full items-center gap-3 px-4 py-1.5 text-left transition-colors", classNames?.item]
+											className={[
+												"relative flex w-full items-center gap-3 px-4 py-1.5 text-left transition-colors",
+												goUpActive ? "bg-primary/10" : "bg-transparent",
+												classNames?.item,
+											]
 												.filter(Boolean)
 												.join(" ")}
-											style={{
-												background: goUpActive
-													? "color-mix(in srgb, var(--primary) 9%, transparent)"
-													: "transparent",
-											}}
 										>
 											{goUpActive && (
 												<motion.span
@@ -128,8 +147,11 @@ export function AtPanelView({
 													transition={{ type: "spring", stiffness: 500, damping: 32 }}
 												/>
 											)}
-											<span className="icon-[solar--arrow-left-up-linear] h-4 w-4 text-muted-foreground/50" />
-											<span className="text-[12px] text-muted-foreground/50" title={labels.goUp}>
+											<span
+												aria-hidden="true"
+												className="icon-[solar--arrow-left-up-linear] h-4 w-4 text-muted-foreground"
+											/>
+											<span className="text-[12px] text-muted-foreground" title={labels.goUp}>
 												{labels.goUp}
 											</span>
 										</button>
@@ -147,7 +169,7 @@ export function AtPanelView({
 									))}
 								</div>
 							)}
-						</div>
+						</FadingScrollArea>
 					</div>
 				</motion.div>
 			)}
@@ -174,12 +196,13 @@ function AtPanelEntry({
 			data-index={entry.index}
 			onMouseEnter={onHover}
 			onClick={onClick}
-			className={["relative flex w-full items-center gap-3 px-4 py-1.5 text-left transition-colors", className]
+			className={[
+				"relative flex w-full items-center gap-3 px-4 py-1.5 text-left transition-colors",
+				entry.active ? "bg-primary/10" : "bg-transparent",
+				className,
+			]
 				.filter(Boolean)
 				.join(" ")}
-			style={{
-				background: entry.active ? "color-mix(in srgb, var(--primary) 9%, transparent)" : "transparent",
-			}}
 		>
 			{entry.active && (
 				<motion.span
@@ -191,27 +214,32 @@ function AtPanelEntry({
 			{entry.avatar ? (
 				<img src={entry.avatar} alt="" className="h-5 w-5 shrink-0 rounded-full object-cover" />
 			) : (
-				<span
-					className={`${entry.icon} h-4 w-4 shrink-0 ${entry.isDirectory ? "text-muted-foreground" : "text-muted-foreground/50"}`}
-				/>
+				<span aria-hidden="true" className={`${entry.icon} h-4 w-4 shrink-0 text-muted-foreground`} />
 			)}
 			<span
-				className={`shrink-0 truncate text-[12.5px] ${entry.isDirectory ? "font-medium text-foreground" : "text-foreground"}`}
+				className={`min-w-0 truncate text-[13px] ${entry.isDirectory ? "font-medium text-foreground" : "text-foreground"}`}
+				title={entry.name}
 			>
 				{entry.name}
 			</span>
 			{entry.meta ? (
-				<span className="ml-auto truncate text-right text-[11px] text-muted-foreground/50" title={entry.meta}>
+				<span
+					className="ml-auto min-w-0 max-w-[45%] truncate text-right text-[11px] text-muted-foreground"
+					title={entry.meta}
+				>
 					{entry.meta}
 				</span>
 			) : null}
 			{entry.relPath && entry.relPath !== entry.name && (
-				<span className="ml-auto truncate text-right font-mono text-[10px] text-muted-foreground/40">
+				<span
+					className="ml-auto min-w-0 max-w-[45%] truncate text-right font-mono text-[11px] text-muted-foreground"
+					title={entry.relPath}
+				>
 					{entry.relPath}
 				</span>
 			)}
 			{entry.isDirectory && (
-				<span className="ml-auto text-[10px] text-muted-foreground/50" title={enterDirectoryLabel}>
+				<span className="ml-auto shrink-0 text-[11px] text-muted-foreground" title={enterDirectoryLabel}>
 					{enterDirectoryLabel}
 				</span>
 			)}

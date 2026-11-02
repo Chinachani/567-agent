@@ -92,3 +92,35 @@ it("rejects active formats and excessive pixel counts before invoking the native
 	expect(await attachmentThumbnail(png)).toContain("data:image/png;base64,");
 	expect(decoder.resize).toHaveBeenCalledWith({ width: 1, height: 1 });
 });
+
+it("keeps ASCII PDFs binary while decoding UTF-16 text and preserving original downloads", async () => {
+	root = await mkdtemp(join(tmpdir(), "agent567-workbench-formats-"));
+	const pdf = Buffer.from("%PDF-1.4\n1 0 obj << /Type /Catalog >> endobj\n%%EOF");
+	const text = "中文说明\n00042";
+	const pdfPath = join(root, "report.pdf");
+	const textPath = join(root, "notes.txt");
+	await writeFile(pdfPath, pdf);
+	await writeFile(textPath, Buffer.concat([Buffer.from([0xff, 0xfe]), Buffer.from(text, "utf16le")]));
+	const history: HistoryEntry[] = [
+		{
+			type: "prompt_attachments_marker",
+			attachments: [
+				{ kind: "file", path: pdfPath },
+				{ kind: "file", path: textPath },
+			],
+			timestamp: "2026-11-02",
+		},
+	];
+	const service = new SessionWorkbench(
+		join(root, "session.json"),
+		root,
+		() => history,
+		() => false,
+	);
+	const files = (await service.read()).attachments;
+	const document = files.find((file) => file.name === "report.pdf")!;
+	const notes = files.find((file) => file.name === "notes.txt")!;
+	expect(await service.detail("attachment", document.id)).toMatchObject({ previewStatus: "binary", text: "" });
+	expect(await service.detail("attachment", notes.id)).toMatchObject({ previewStatus: "text", text });
+	expect(Buffer.from((await service.chunk(document.id, 0, 65536)).dataBase64, "base64")).toEqual(pdf);
+});

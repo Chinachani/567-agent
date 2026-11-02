@@ -61,7 +61,8 @@ fun ToolboxScreen(
     var pendingInstall by remember { mutableStateOf<RemoteToolboxAbility?>(null) }
     val filtered = remember(abilities, query) {
         val needle = query.trim().lowercase()
-        if (needle.isEmpty()) abilities else abilities.filter {
+        val visible = abilities.filter { it.type != "scene" }
+        if (needle.isEmpty()) visible else visible.filter {
             listOf(it.name, it.slug, it.description, it.author, it.category, it.tags.joinToString(" "))
                 .any { field -> field.lowercase().contains(needle) }
         }
@@ -88,7 +89,7 @@ fun ToolboxScreen(
     ) { padding ->
         Column(Modifier.fillMaxSize().padding(padding).padding(horizontal = 20.dp)) {
             Text(
-                "${deviceName?.let { "$it · " }.orEmpty()}能力来自电脑端应用内市场；技能、场景和插件将在这台电脑运行。",
+                "${deviceName?.let { "$it · " }.orEmpty()}能力来自电脑端应用内市场；技能和插件将在这台电脑运行。",
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.agent567Extra.secondaryText,
             )
@@ -186,7 +187,6 @@ fun ToolboxScreen(
 
 private fun typeLabel(type: String): String = when (type) {
     "skill" -> "技能"
-    "scene" -> "场景"
     "plugin" -> "插件"
     "mcp" -> "MCP 服务"
     "bundle" -> "组合包"

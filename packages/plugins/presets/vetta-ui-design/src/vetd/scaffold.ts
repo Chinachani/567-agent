@@ -1,20 +1,30 @@
 import type { PluginFsApi } from "@vetta-org/plugin-sdk";
 import { designPackageJson, PACKAGE_FILE } from "./design-package";
+import type { InteractionMode } from "./interaction-mode";
 import { emptyManifest, type FrameSize, manifestPathOf, type VetdManifest } from "./manifest-types";
+import type { StatusBarSetting } from "./status-bar";
 
 // 注意：这段是写进用户项目里的产物文件，不是插件 UI 文案，所以不走 locales；
 // 但也不能是中文——英文宿主的用户同样会拿到这个文件。
-export const DEFAULT_THEME_CSS = `/* Shared color system for this design document: Tailwind v4 @theme tokens,
- * used by every frame. Reference them as utilities (bg-primary,
- * text-surface-foreground, …); edit here to reskin the whole document. */
+/**
+ * 脚手架主题是中性灰的占位，不是一套能直接用的配色：旧版写的是 indigo / slate / amber，
+ * 正是一眼能认出的 AI 默认配色，模型没换就照着开画。占位带一个标记，check-sources 见到
+ * 标记还在而已有画框，就报 `theme-placeholder`，直到方向表的 theme.css 把它整个换掉。
+ */
+export const PLACEHOLDER_THEME_MARK = "vetd:placeholder-theme";
+
+export const DEFAULT_THEME_CSS = `/* ${PLACEHOLDER_THEME_MARK} — a neutral placeholder, not a palette.
+ * Replace this whole file with your direction's theme.css (Tailwind v4 @theme
+ * tokens, used by every frame as bg-primary, text-surface-foreground, …)
+ * before the first frame. */
 @theme {
-	--color-primary: #4f46e5;
+	--color-primary: #3d3d3d;
 	--color-primary-foreground: #ffffff;
-	--color-surface: #f8fafc;
-	--color-surface-foreground: #0f172a;
-	--color-muted: #64748b;
-	--color-accent: #f59e0b;
-	--color-danger: #ef4444;
+	--color-surface: #f5f5f5;
+	--color-surface-foreground: #171717;
+	--color-panel: #ebebeb;
+	--color-muted: #616161;
+	--color-danger: #b42318;
 }
 `;
 
@@ -42,6 +52,8 @@ export async function scaffoldDesign(
 	cwd: string,
 	rawName: string,
 	defaultFrameSize?: FrameSize | null,
+	statusBar?: StatusBarSetting | null,
+	interactionMode?: InteractionMode | null,
 ): Promise<ScaffoldResult> {
 	const name = sanitizeDesignName(rawName);
 	let vetdPath = `${cwd}/${name}.vetd`;
@@ -58,6 +70,8 @@ export async function scaffoldDesign(
 	const manifest: VetdManifest = {
 		...emptyManifest(),
 		...(defaultFrameSize ? { defaultFrameSize } : {}),
+		...(statusBar ? { statusBar } : {}),
+		...(interactionMode ? { interactionMode } : {}),
 	};
 	await fs.writeFile(manifestPathOf(vetdPath), `${JSON.stringify(manifest, null, "\t")}\n`);
 	return { vetdPath, dirPath: vetdPath };
@@ -74,11 +88,37 @@ export function sanitizeDesignName(raw: string): string {
 }
 
 /** Frame source template used by the canvas "Frame" tool (drag-to-create). */
-export function blankFrameSource(title: string, width: number, height: number): string {
-	return `export const frame = { width: ${width}, height: ${height}, title: "${title}" };
+/** 新画框的底色按这个顺序在 theme.css 里找：靠前的更像「页面背景」。 */
+const BACKGROUND_TOKEN_CANDIDATES = ["background", "bg", "surface", "base", "canvas"];
+
+/**
+ * 新画框用的底色 class：用当前色卡的背景色，色卡里没有（或还是脚手架的占位灰）就纯白。
+ * 占位灰不是用户的配色，拿它当底色只会让每个新画框都灰着出生。
+ */
+export function blankFrameBackground(themeCss: string | null): string {
+	const token = themeBackgroundToken(themeCss);
+	return token ? `bg-${token}` : "bg-white";
+}
+
+/** 色卡里「页面背景」那个 token 的名字；占位色卡或没有候选时为 null。 */
+export function themeBackgroundToken(themeCss: string | null): string | null {
+	if (!themeCss || themeCss.includes(PLACEHOLDER_THEME_MARK)) return null;
+	const declared = new Set([...themeCss.matchAll(/--color-([a-z][a-z0-9-]*)\s*:/g)].map((match) => match[1]));
+	return BACKGROUND_TOKEN_CANDIDATES.find((name) => declared.has(name)) ?? null;
+}
+
+export function blankFrameSource(
+	title: string,
+	width: number,
+	height: number,
+	background = "bg-white",
+	radius?: number,
+): string {
+	const radiusDecl = radius === undefined ? "" : `, radius: ${radius}`;
+	return `export const frame = { width: ${width}, height: ${height}, title: "${title}"${radiusDecl} };
 
 export default function Frame() {
-	return <div className="h-full bg-surface" />;
+	return <div className="h-full ${background}" />;
 }
 `;
 }

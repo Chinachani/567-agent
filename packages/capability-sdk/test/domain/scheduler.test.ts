@@ -56,6 +56,9 @@ describe("scheduler domain capabilities", () => {
 		});
 		expect(update.data).toHaveProperty("modelKey", undefined);
 		expect(update.data).toHaveProperty("skill", undefined);
+		expect(
+			DOMAIN_SCHEDULER_CAPABILITIES.UPDATE_TASK.parseInput({ taskId: "task", data: { skill: null } }).data,
+		).toEqual({ skill: null });
 		expect(() => DOMAIN_SCHEDULER_CAPABILITIES.UPDATE_TASK.parseInput({ taskId: "task", data: {} })).toThrowError(
 			expect.objectContaining({ code: CAPABILITY_ERROR_CODES.INVALID_INPUT }),
 		);

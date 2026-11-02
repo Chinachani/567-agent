@@ -196,6 +196,7 @@
     "errorNotUtf8": "此文件不是有效的 UTF-8 文本，暂不支持编辑",
     "errorRead": "无法读取此文件",
     "errorSave": "保存失败，请稍后重试",
+    "errorDownload": "文件下载或另存失败，请重试。",
     "unsupported": "暂不支持预览此文件格式",
     "download": "下载文件",
     "showTree": "显示文件树",
@@ -435,9 +436,6 @@
     }
   },
   "inputBar": {
-    "error": {
-      "multipleScenes": "一条消息只能选择一个场景，请移除多余的场景后重试"
-    },
     "capsule": {
       "appshotThumbnailAlt": "截图",
       "appshotPreview": "预览截图",
@@ -488,7 +486,8 @@
     "toolbar": {
       "addImage": "添加图片",
       "attachFile": "附加文件引用",
-      "skills": "技能/场景"
+      "skills": "技能、场景与命令",
+      "references": "引用文件、目录与知识库"
     },
     "speech": {
       "actions": {
@@ -536,7 +535,6 @@
     "scrollToBottom": "回到最新消息",
     "userMessage": {
       "expand": "展开消息",
-      "sceneBadge": "场景",
       "skillBadge": "技能",
       "settingsAssist": {
         "mcp": "MCP配置协助",
@@ -704,7 +702,8 @@
         },
         "run_limit": {
           "title": "执行已中断",
-          "hint": "本次运行已达到模型调用次数上限，可继续发送消息接着处理。"
+          "hint": "本次运行已达到模型调用次数上限，可继续发送消息接着处理。",
+          "action": "调整调用上限"
         },
         "persistence": {
           "title": "会话状态未能保存",
@@ -840,6 +839,12 @@
       "pick": "切换智能体",
       "pickTitle": "指定一个团队或单个智能体来完成这次任务",
       "switchTitle": "更换本次会话的团队或智能体"
+    },
+    "quickStart": {
+      "teams": "智能体团队",
+      "commands": "/ 技能与命令",
+      "references": "@ 引用文件与知识库",
+      "pairing": "手机与远控配对"
     }
   },
   "planMode": {
@@ -949,11 +954,11 @@
   },
   "skillPromptArea": {
     "missingBadge": "未安装",
-    "placeholder": "输入提示词…使用 / 唤出技能/场景",
+    "placeholder": "输入提示词…使用 / 唤出技能",
     "removeSkill": "点击移除",
     "removeSkillMissing": "技能未安装，点击移除",
-    "skillButtonLabel": "技能/场景",
-    "skillButtonTitle": "技能/场景"
+    "skillButtonLabel": "技能",
+    "skillButtonTitle": "技能"
   },
   "slashPanel": {
     "compaction": {
@@ -967,18 +972,16 @@
     },
     "emptyNoMatch": "未找到匹配项",
     "emptyNoMatchHint": "换个关键词试试，或直接输入你的需求。",
-    "emptyNoSkills": "暂无可用的技能或场景",
-    "emptyNoSkillsHint": "去能力广场安装技能或场景后，这里就能直接调用。",
-    "header": "选择场景或技能",
+    "emptyNoSkills": "暂无可用的技能",
+    "emptyNoSkillsHint": "去能力广场安装技能后，这里就能直接调用。",
+    "header": "选择技能",
     "resultCount": "{{count}} 个结果",
-    "scenesSection": "场景",
     "skillsSection": "技能",
     "sourceLabels": {
       "agentsProject": "通用·项目",
       "agentsUser": "通用",
       "path": "自定义",
       "project": "项目",
-      "scene": "场景",
       "user": "用户",
       "builtin": "内置",
       "plugin": "插件",
@@ -1271,7 +1274,7 @@
     "failed": "未能整理交付列表，原始会话保留。",
     "retry": "重新整理",
     "copyFailed": "未能复制，请重试。",
-    "description": "汇总当前会话的文件、网址和图片。工具成功写入不代表文件仍存在；对话引用与网站地址尚未验证。",
+    "description": "本会话提到或生成的文件、链接与图片；是否可用以实际打开为准。",
     "empty": "本会话还没有可汇总的文件或链接。完成的回复与工具结果会保留在这里。",
     "filters": {
       "all": "全部",
@@ -1284,6 +1287,74 @@
     "evidence": {
       "reference": "对话引用 · 未验证",
       "written": "工具已写入 · 未验收"
+    }
+  },
+  "workbenchLabel": "工作台",
+  "annotations": {
+    "title": "问答批注",
+    "ask": "问问 AI",
+    "history": "查看问答批注",
+    "saved": "查看 {{count}} 条问答批注",
+    "close": "关闭批注",
+    "contextHint": "参考截至此处的文字对话，单独讨论，不影响主对话。问答自动保存。",
+    "source": "回到原消息",
+    "sourceUnavailable": "原消息不在当前分支中，仍可查看已保存的批注。",
+    "question": "你的问题",
+    "send": "提问",
+    "cancel": "停止回答",
+    "answering": "正在回答…关闭面板后仍会继续并保存。",
+    "loading": "正在读取批注…",
+    "search": "搜索批注中的问题和回答",
+    "empty": "没有找到问答批注。可选中消息文字，右键选择「问问 AI」。",
+    "error": "操作未完成，输入仍保留。请重试，或检查模型设置后重新提问。",
+    "reload": "重新读取",
+    "retry": "重新回答这个问题",
+    "length": "回答已达到本次长度上限，可以继续追问。",
+    "status": {
+      "failed": "回答失败，问题和已收到的内容已保存。可检查模型设置后重试。",
+      "cancelled": "回答已停止，已收到的内容已保存。",
+      "interrupted": "上次回答被中断，可以重新回答这个问题。"
+    }
+  },
+  "bottomPanel": {
+    "tablist": "底部面板标签",
+    "closeTab": "关闭",
+    "tabFailed": "该面板渲染失败",
+    "pillsGroup": "底部面板",
+    "empty": {
+      "title": "底部面板是空的",
+      "description": "选一个面板加进来。",
+      "pickerLabel": "可添加的面板"
+    },
+    "actions": {
+      "add": "新建面板",
+      "splitRight": "向右分屏",
+      "splitDown": "向下分屏",
+      "splitLimit": "分屏数量已达上限",
+      "collapse": "收起底部面板"
+    },
+    "addMenu": {
+      "builtinGroup": "内置",
+      "pluginGroup": "插件",
+      "instanceLimit": "已达该面板的实例上限"
+    },
+    "closeConfirm": {
+      "title": "关闭这个面板？",
+      "message": "关闭后面板里正在进行的工作会中断。",
+      "confirm": "关闭"
+    },
+    "terminal": {
+      "title": "终端",
+      "exited": "[进程已退出，退出码 {{code}}]",
+      "previousOutput": "—— 以上是上次会话的输出（进程已结束）——",
+      "unavailable": "当前环境无法启动终端",
+      "noResize": "此主机未安装 helper，终端尺寸固定，无法随窗口自适应。",
+      "replayTruncated": "[较早的输出已省略]",
+      "closeConfirm": {
+        "title": "关闭终端？",
+        "message": "「{{process}}」还在运行，关闭终端会结束它。",
+        "confirm": "关闭并结束进程"
+      }
     }
   }
 }

@@ -1442,9 +1442,10 @@ describe("Turborepo build orchestration", () => {
 		const testPackageScript = readFileSync(join(repoRoot, "scripts/quality/test-pkg.mjs"), "utf8");
 		const qualityWorkflow = readFileSync(join(repoRoot, ".github/workflows/quality.yml"), "utf8");
 		expect(testPackageScript).toContain('"--summarize"');
-		expect(qualityWorkflow).toContain("Upload Turbo run summaries");
+		expect(qualityWorkflow).toContain(`name: turbo-run-summaries-\${{ matrix.os }}`);
 		expect(qualityWorkflow).toContain(".turbo/runs/*.json");
-		expect(qualityWorkflow).toContain("retention-days: 1");
+		expect(qualityWorkflow).toContain("retention-days: 7");
+		expect(qualityWorkflow).toContain("include-hidden-files: true");
 	});
 
 	it("removes superseded hand-written task graphs", () => {

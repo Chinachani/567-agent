@@ -51,14 +51,26 @@ export function getCanvasController(): CanvasController | null {
 /** Hand-off from tools (vetd_create) to the canvas: open this design when the matching cwd mounts/refreshes. */
 let pendingDesignPath: string | null = null;
 const pendingDesignPathsByCwd = new Map<string, string>();
+/**
+ * 已挂载的画布在这里等「打开这份设计」。只存不喊的话，画布开着时的请求要等它下次
+ * 挂载才被取走——同 cwd 里新建或点开第二份设计，画布停在原来那份、下拉也还是旧列表。
+ */
+const pendingDesignListeners = new Set<() => void>();
 
 export function setPendingDesignPath(vetdPath: string | null, cwd?: string): void {
 	if (cwd) {
 		if (vetdPath) pendingDesignPathsByCwd.set(cwd, vetdPath);
 		else pendingDesignPathsByCwd.delete(cwd);
-		return;
+	} else {
+		pendingDesignPath = vetdPath;
 	}
-	pendingDesignPath = vetdPath;
+	if (vetdPath) for (const listener of pendingDesignListeners) listener();
+}
+
+/** 画布挂载期间订阅：有新请求时由画布自己按 cwd 去 take，不属于它的留给别的画布。 */
+export function onPendingDesignPath(listener: () => void): () => void {
+	pendingDesignListeners.add(listener);
+	return () => pendingDesignListeners.delete(listener);
 }
 
 export function takePendingDesignPath(cwd?: string): string | null {
@@ -86,7 +98,14 @@ export interface MockupExportRequest {
 	 * 先选中任何东西，用户在工作台里自己往里加。
 	 */
 	initialFrameIds: string[];
-	capture(frameId: string, pixelRatio: number): Promise<string>;
+	/**
+	 * 画布此刻显示的这一帧位图，没有就 null。工作台的预览先用它：它就是画布上看到的
+	 * 样子，而逐帧重截要排进画布的串行截图锁、每帧还得临时拉起一个活体 iframe。
+	 * 最终导出仍按需要的倍率走 capture。
+	 */
+	cachedImage?(frameId: string): string | null;
+	/** signal 中止后，还在排队的这次截图不再执行（已经开始的截完为止）。 */
+	capture(frameId: string, pixelRatio: number, signal?: AbortSignal): Promise<string>;
 }
 
 type MockupListener = (request: MockupExportRequest | null) => void;
@@ -131,6 +150,16 @@ function activityTargets(path: string): readonly string[] {
 }
 
 /**
+ * 工具参数里的路径换成绝对路径。agent 常常传相对于会话 cwd 的路径（`demo.vetd/frames/home.tsx`），
+ * 只认绝对路径的话，这类调用一个 frame 都点不亮——边框和标题栏徽标全程不出现。
+ */
+function absoluteToolPath(path: string, cwd: string | null): string | null {
+	if (path.startsWith("/") || /^[A-Za-z]:[\\/]/.test(path)) return path;
+	if (!cwd) return null;
+	return `${cwd.replace(/[\\/]+$/, "")}/${path.replace(/^\.\//, "")}`;
+}
+
+/**
  * 工具调用常常不到 1 秒就返回，动画一闪而过；结束后至少挂满这么久再落定。
  * 渐入渐出各吃掉 FADE_MS（300ms），所以这个值要明显大于「够看清」的时长本身。
  */
@@ -158,13 +187,20 @@ function clearTimer(frameId: string): void {
  * 开始计时；后到的那次不再重置 `startedAt`——否则最短停留会从「活干完」重新算，
  * 提前点亮的意义全部抵消。
  */
-function beginActivity(toolCallId: string, toolName: string, args: Record<string, unknown> | undefined): void {
+function beginActivity(
+	toolCallId: string,
+	toolName: string,
+	args: Record<string, unknown> | undefined,
+	cwd: string | null,
+): void {
 	if (!args) return;
 	if (activeCalls.has(toolCallId)) return;
 	const candidates = [args.file_path, args.path, args.filePath, args.notebook_path];
 	for (const candidate of candidates) {
 		if (typeof candidate !== "string") continue;
-		const frameIds = activityTargets(candidate);
+		const path = absoluteToolPath(candidate, cwd);
+		if (!path) continue;
+		const frameIds = activityTargets(path);
 		if (frameIds.length === 0) continue;
 		const kind = TOOL_ACTIVITY[toolName] ?? "modifying";
 		activeCalls.set(toolCallId, { frameIds, kind, startedAt: Date.now() });
@@ -188,8 +224,10 @@ export function notifyAgentToolArgs(
 	toolCallId: string,
 	toolName: string,
 	args: Record<string, unknown> | undefined,
+	/** 活跃会话的 cwd，用来解析参数里的相对路径。 */
+	cwd: string | null = null,
 ): void {
-	beginActivity(toolCallId, toolName, args);
+	beginActivity(toolCallId, toolName, args, cwd);
 }
 
 /** 工具开始执行。生成阶段没能解析出目标时（参数键顺序不定），这里是兜底入口。 */
@@ -197,8 +235,10 @@ export function notifyAgentToolStart(
 	toolCallId: string,
 	toolName: string,
 	args: Record<string, unknown> | undefined,
+	/** 活跃会话的 cwd，用来解析参数里的相对路径。 */
+	cwd: string | null = null,
 ): void {
-	beginActivity(toolCallId, toolName, args);
+	beginActivity(toolCallId, toolName, args, cwd);
 }
 
 /**

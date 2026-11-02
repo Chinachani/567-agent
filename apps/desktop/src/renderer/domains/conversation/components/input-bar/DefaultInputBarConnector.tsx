@@ -53,6 +53,7 @@ export const DefaultInputBarConnector = memo(function DefaultInputBarConnector(
 		isStreaming: session.isStreaming,
 		onAbort: props.onAbort,
 		onExpandedChange: props.onExpandedChange,
+		onAtOpenChange: props.onAtOpenChange,
 		onSend: props.onSend,
 	});
 	const imageAttachments = useMemo(
@@ -179,6 +180,7 @@ export const DefaultInputBarConnector = memo(function DefaultInputBarConnector(
 			},
 			toolbar: {
 				skills: t("inputBar.toolbar.skills"),
+				references: t("inputBar.toolbar.references"),
 				addImage: t("inputBar.toolbar.addImage"),
 				attachFile: t("inputBar.toolbar.attachFile"),
 				queue: t("inputBar.drawer.queueLabel"),
@@ -220,6 +222,7 @@ export const DefaultInputBarConnector = memo(function DefaultInputBarConnector(
 			onAtClose: trigger.handleAtClose,
 			onAtSelect: trigger.handleAtSelect,
 			onOpen: trigger.handlePlusClick,
+			onOpenReferences: trigger.handleAtOpen,
 			allowCompaction: Boolean(session.activeSession),
 		},
 		drawerItems,

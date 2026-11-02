@@ -1,7 +1,7 @@
 import { type PluginCardProps, useTranslation } from "@vetta-org/plugin-sdk";
 import { Button } from "@vetta-org/ui";
 import { useState, type ReactNode } from "react";
-import { findProjectById, type ProjectInfo } from "./project";
+import { findProjectById, type ProjectInfo, readProjectPermissions } from "./project";
 import { reinstallPluginToVetta } from "./reinstall";
 
 /** Card type — must match tool return `cards[].type` and registerCardRenderer. */
@@ -68,7 +68,7 @@ export function ReinstallCard({ descriptor, pending }: PluginCardProps): ReactNo
 					name: title,
 					version: "0.0.0",
 					guidingWords: [],
-					permissions: payload.permissions ?? [],
+					permissions: readProjectPermissions(payload.permissions),
 					packagePath: null,
 				} satisfies ProjectInfo);
 			await reinstallPluginToVetta(project);

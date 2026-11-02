@@ -66,7 +66,7 @@
     },
     "apps/desktop": {
       "name": "@567agent/desktop",
-      "version": "1.5.3",
+      "version": "1.5.4",
       "dependencies": {
         "@567agent/action-rpc": "workspace:*",
         "@567agent/agent-team": "workspace:*",
@@ -445,7 +445,7 @@
     },
     "packages/npm-compat/plugin-cli": {
       "name": "@567agent/plugin-cli",
-      "version": "0.1.7",
+      "version": "0.1.8",
       "bin": {
         "vetta-plugin-cli": "./dist/bin/vetta-plugin-cli.js",
       },
@@ -455,7 +455,7 @@
     },
     "packages/npm-compat/plugin-sdk": {
       "name": "@567agent/plugin-sdk",
-      "version": "0.3.8",
+      "version": "0.3.9",
       "dependencies": {
         "@vetta-org/plugin-sdk": "0.3.7",
       },
@@ -468,7 +468,7 @@
     },
     "packages/npm-compat/plugin-vite": {
       "name": "@567agent/plugin-vite",
-      "version": "0.2.4",
+      "version": "0.2.5",
       "bin": {
         "vetta-plugin": "./dist/bin/vetta-plugin.js",
       },
@@ -632,7 +632,7 @@
     },
     "packages/plugins/plugin-cli": {
       "name": "@vetta-org/plugin-cli",
-      "version": "0.1.7",
+      "version": "0.1.8",
       "bin": {
         "vetta-plugin-cli": "./dist/cli.js",
       },
@@ -649,7 +649,7 @@
     },
     "packages/plugins/plugin-sdk": {
       "name": "@vetta-org/plugin-sdk",
-      "version": "0.3.8",
+      "version": "0.3.9",
       "dependencies": {
         "@sinclair/typebox": "^0.34.41",
         "@vetta-org/capability-sdk": "^0.1.0",
@@ -667,7 +667,7 @@
     },
     "packages/plugins/plugin-vite": {
       "name": "@vetta-org/plugin-vite",
-      "version": "0.2.4",
+      "version": "0.2.5",
       "bin": {
         "vetta-plugin": "./dist/cli.js",
       },
@@ -680,6 +680,7 @@
       },
       "devDependencies": {
         "@vetta-org/plugin-sdk": "workspace:*",
+        "fflate": "^0.8.2",
         "typescript": "^5.9.2",
         "vite": "^7.1.7",
         "vitest": "^3.2.4",
@@ -906,17 +907,21 @@
       },
       "devDependencies": {
         "@tailwindcss/vite": "^4.1.12",
+        "@testing-library/react": "^16.3.0",
+        "@testing-library/user-event": "^14.6.1",
         "@types/node": "^22.10.5",
         "@types/react": "^19.1.1",
         "@types/react-dom": "^19.1.1",
         "@vetta-org/plugin-sdk": "workspace:*",
         "@vetta-org/plugin-vite": "workspace:*",
         "@vetta-org/ui": "workspace:*",
+        "jsdom": "^26.1.0",
         "react": "19.1.1",
         "react-dom": "19.1.1",
         "tailwindcss": "^4.1.12",
         "typescript": "^5.9.2",
         "vite": "^7.1.7",
+        "vitest": "^3.2.4",
       },
     },
     "packages/plugins/presets/plugin-workbench": {
@@ -935,6 +940,7 @@
         "tailwindcss": "^4.1.12",
         "typescript": "^5.9.2",
         "vite": "^7.1.7",
+        "vitest": "^3.2.4",
       },
     },
     "packages/plugins/presets/preset-agent": {
@@ -1018,6 +1024,7 @@
         "@types/react-dom": "^19.1.1",
         "@vetta-org/plugin-sdk": "workspace:*",
         "@vetta-org/plugin-vite": "workspace:*",
+        "devices.css": "0.2.0",
         "happy-dom": "^20.11.1",
         "react": "19.1.1",
         "react-dom": "19.1.1",
@@ -3516,6 +3523,8 @@
     "detect-node": ["detect-node@2.1.0", "https://registry.npmmirror.com/detect-node/-/detect-node-2.1.0.tgz", {}, "sha512-T0NIuQpnTvFDATNuHN5roPwSBG83rFsuO+MXXH9/3N1eFbn4wcPjttvjMLEPWJ0RGUYgQE7cGgS3tNxbqCGM7g=="],
 
     "detect-node-es": ["detect-node-es@1.1.0", "https://registry.npmmirror.com/detect-node-es/-/detect-node-es-1.1.0.tgz", {}, "sha512-ypdmJU/TbBby2Dxibuv7ZLW3Bs1QEmM7nHjEANfohJLvE0XVujisn1qPJcZxg+qDucsr+bP6fLD1rPS3AhJ7EQ=="],
+
+    "devices.css": ["devices.css@0.2.0", "https://registry.npmmirror.com/devices.css/-/devices.css-0.2.0.tgz", {}, "sha512-CE59M+4PuH87+A4clpC1xA/lkfCSGFWfeFx5sNadDdy1kXUqJ28SdTp+tBlwkHfI7G+h/Wf4Ddt9QGPLLlky3Q=="],
 
     "devlop": ["devlop@1.1.0", "https://registry.npmmirror.com/devlop/-/devlop-1.1.0.tgz", { "dependencies": { "dequal": "^2.0.0" } }, "sha512-RWmIqhcFf1lRYBvNmr7qTNuyCt/7/ns2jbpp1+PalgE/rDQcBT0fioSMUpJ93irlUhC5hrg4cYqe6U+0ImW0rA=="],
 

@@ -1,6 +1,8 @@
+import { execFileSync } from "node:child_process";
 import { mkdtemp, mkdir, readFile, rm, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import { fileURLToPath } from "node:url";
+import { unzipSync } from "fflate";
 import { afterEach, describe, expect, it } from "vitest";
 import { createVettaPluginPackage } from "../src/pack.js";
 
@@ -14,7 +16,9 @@ interface FederationFixtureOptions {
 }
 
 afterEach(async () => {
-	await Promise.all(temporaryDirectories.splice(0).map((directory) => rm(directory, { recursive: true, force: true })));
+	await Promise.all(
+		temporaryDirectories.splice(0).map((directory) => rm(directory, { recursive: true, force: true })),
+	);
 });
 
 async function createFederationFixture(options: FederationFixtureOptions): Promise<string> {
@@ -37,11 +41,30 @@ async function createFederationFixture(options: FederationFixtureOptions): Promi
 		join(rootDir, "dist", "mf-manifest.json"),
 		JSON.stringify({ metaData: { remoteEntry: { name: "remoteEntry.js" } } }),
 	);
-	await writeFile(join(rootDir, "dist", "remoteEntry.js"), options.remoteEntryCode ?? "export function activate() {}\n");
+	await writeFile(
+		join(rootDir, "dist", "remoteEntry.js"),
+		options.remoteEntryCode ?? "export function activate() {}\n",
+	);
 	return rootDir;
 }
 
 describe("createVettaPluginPackage", () => {
+	it("ships a generated agent CLI which executes from the extracted installation", async () => {
+		const rootDir = await createFederationFixture({ id: "cli-companion-test", version: "0.1.0" });
+		await mkdir(join(rootDir, "agent", "cli"), { recursive: true });
+		await writeFile(
+			join(rootDir, "agent", "cli", "cli.cjs"),
+			"console.log(JSON.stringify({ok: true, command: process.argv[2]}));\n",
+		);
+		const result = await createVettaPluginPackage({ rootDir });
+		const entries = unzipSync(new Uint8Array(await readFile(result.outputPath)));
+		expect(entries["agent/cli/cli.cjs"]).toBeDefined();
+		const installed = join(rootDir, "installed-cli.cjs");
+		await writeFile(installed, entries["agent/cli/cli.cjs"]);
+		const output = execFileSync(process.execPath, [installed, "help"], { encoding: "utf8" });
+		expect(JSON.parse(output)).toEqual({ ok: true, command: "help" });
+	});
+
 	it("packages the federation manifest and remote entry", async () => {
 		const rootDir = await createFederationFixture({ id: "pack-test", version: "0.1.0" });
 		await mkdir(join(rootDir, "locales"), { recursive: true });

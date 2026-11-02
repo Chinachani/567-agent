@@ -191,10 +191,6 @@ export function getDebugLogPath(): string {
 	return join(getAgentDir(), `${APP_NAME}-debug.log`);
 }
 
-export function getSceneDir(): string {
-	return join(getAgent567HomePath(), "scene");
-}
-
 export function getUserSkillsDir(): string {
 	return join(getAgent567HomePath(), "skills");
 }

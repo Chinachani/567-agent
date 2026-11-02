@@ -7,13 +7,19 @@ import { MotionSelect, SettingHeading, SettingRow, SettingSection } from "@vetta
 import type { AgentSettingsModel } from "./useAgentSettingsModel";
 import { RuntimeConfigurationSections } from "./RuntimeConfigurationSections";
 import type { RuntimeConfigurationModel } from "./useRuntimeConfigurationModel";
+import { ModelCallLimitSettingsView, type ModelCallLimitSettingsModel } from "@vetta-org/theme-ui/settings";
 
 export interface AgentSettingsViewProps {
 	model: AgentSettingsModel;
 	runtimeConfiguration: RuntimeConfigurationModel;
+	modelCallLimit: ModelCallLimitSettingsModel;
 }
 
-export function AgentSettingsView({ model, runtimeConfiguration }: AgentSettingsViewProps): JSX.Element {
+export function AgentSettingsView({
+	model,
+	runtimeConfiguration,
+	modelCallLimit,
+}: AgentSettingsViewProps): JSX.Element {
 	const personaOptions = useMemo(
 		() => model.personas.map((persona) => ({ value: persona.id, label: persona.label })),
 		[model.personas],
@@ -84,6 +90,7 @@ export function AgentSettingsView({ model, runtimeConfiguration }: AgentSettings
 				</div>
 			</div>
 
+			<ModelCallLimitSettingsView model={modelCallLimit} />
 			<div>
 				<SettingSection title={model.labels.sections.experimental} section={SETTINGS_SECTION["agent-experimental"]}>
 					<SettingRow title={model.labels.appOp} description={model.labels.appOpDescription}>

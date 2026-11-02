@@ -56,7 +56,7 @@ describe("runner 物化", () => {
 	it("首次调用把 runner 解压落位，并且真的能执行", async () => {
 		const { ensureRunner } = await import("../src/history/runner-host");
 		const ctx = fakeContext();
-		const runner = await ensureRunner(ctx);
+		const runner = await ensureRunner(ctx, "/workspace/design.vetd");
 
 		expect(runner.startsWith(`${home}/.567agent/plugin-data/vetta-ui-design/history-runner/`)).toBe(true);
 		expect(existsSync(runner)).toBe(true);
@@ -70,12 +70,12 @@ describe("runner 物化", () => {
 
 	it("已经物化过就不再重写，只探测一次", async () => {
 		const { ensureRunner } = await import("../src/history/runner-host");
-		const first = await ensureRunner(fakeContext());
+		const first = await ensureRunner(fakeContext(), "/workspace/design.vetd");
 		const callsAfterFirst = runCount;
 
 		vi.resetModules();
 		const reloaded = await import("../src/history/runner-host");
-		const second = await reloaded.ensureRunner(fakeContext());
+		const second = await reloaded.ensureRunner(fakeContext(), "/workspace/design.vetd");
 
 		expect(second).toBe(first);
 		// 第二次只有 homedir + 存在性探测两次调用，没有任何分块写。
@@ -85,7 +85,7 @@ describe("runner 物化", () => {
 	it("并发调用共用同一次物化", async () => {
 		const { ensureRunner } = await import("../src/history/runner-host");
 		const ctx = fakeContext();
-		const [a, b, c] = await Promise.all([ensureRunner(ctx), ensureRunner(ctx), ensureRunner(ctx)]);
+		const [a, b, c] = await Promise.all([ensureRunner(ctx, "/workspace/design.vetd"), ensureRunner(ctx, "/workspace/design.vetd"), ensureRunner(ctx, "/workspace/design.vetd")]);
 		expect(b).toBe(a);
 		expect(c).toBe(a);
 	});

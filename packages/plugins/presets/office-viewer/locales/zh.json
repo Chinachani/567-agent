@@ -1,6 +1,6 @@
 {
 	"plugin.name": "Office 查看器",
-	"plugin.description": "离线预览 PDF、DOCX、PPTX 和电子表格文件。",
+	"plugin.description": "离线只读预览 PDF、DOCX、PPTX、Excel 和 CSV/TSV 表格。",
 	"error.unsupportedFormat": "暂不支持此 Office 文件格式",
 	"docx.error": "无法渲染 DOCX 文件",
 	"pdf.error": "无法渲染 PDF 文件",
@@ -12,5 +12,9 @@
 	"spreadsheet.error": "无法读取电子表格文件",
 	"toolbar.fitWidth": "适应宽度",
 	"state.loading": "加载中…",
-	"state.errorHint": "文件可能已损坏、受密码保护或包含暂不支持的内容"
+	"state.errorHint": "文件可能已损坏、受密码保护或包含暂不支持的内容",
+	"spreadsheet.plainTextHint": "CSV/TSV 只保存数据，不包含原始颜色、边框或合并单元格。",
+	"spreadsheet.basicAppearanceHint": "此格式当前提供基础数据预览，部分原始样式可能无法显示。",
+	"pptx.empty": "此演示文稿没有可预览的幻灯片",
+	"pptx.slideError": "此页暂未显示，请点击缩略图重试。"
 }

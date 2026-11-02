@@ -15,7 +15,7 @@
 - `plugin.json` + `dist/mf-manifest.json` + remoteEntry
 - 起工程：内置 CLI `init`
 - 构建：`scripts/build-and-pack.mjs`
-- 安装：面板「应用到 Vetta」（不弹审批 sheet）
+- 安装：面板「应用到 567 Agent」（不弹审批 sheet）
 
 ## 用户工程依赖
 

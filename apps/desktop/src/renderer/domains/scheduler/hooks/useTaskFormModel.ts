@@ -82,7 +82,7 @@ export function useTaskFormModel({ open, task, initialDraft, onClose }: UseTaskF
 				};
 
 				if (task) {
-					void updateTask(task.id, taskData).then(onClose);
+					void updateTask(task.id, { ...taskData, skill: data.skill ?? null }).then(onClose);
 					return;
 				}
 				void createTask(taskData).then(onClose);

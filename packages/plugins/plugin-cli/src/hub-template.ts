@@ -14,7 +14,7 @@ export function renderHubAgentsGuide(input: { name: string }): string {
 	return `<!-- vetta-guide-revision: ${AGENTS_GUIDE_REVISION} -->
 # ${input.name}
 
-Vetta 能力市场仓库。本仓库索引若干**能力**（plugin / mcp / skill / scene / bundle），
+567 Agent 能力市场仓库。本仓库索引若干**能力**（plugin / mcp / skill / bundle），
 每个能力是 \`abilities/\` 下的一个自包含目录。
 
 ## 开发时站在能力目录里，不是站在这里
@@ -26,7 +26,7 @@ Vetta 能力市场仓库。本仓库索引若干**能力**（plugin / mcp / skil
 cd abilities/plugins/<slug>      # ← 开发单位是这个目录
 npm install
 npx vetta-plugin-cli docs --check-latest   # 手册（随该目录装的 SDK 版本；顺带查是否落后）
-npm run install:vetta            # 装进正在运行的 Vetta
+npm run install:vetta            # 装进正在运行的 567 Agent
 npx vetta-plugin-cli watch       # 热更新
 \`\`\`
 
@@ -113,7 +113,7 @@ jobs:
 export function renderHubReadme(input: { name: string; repository: string }): string {
 	return `# ${input.name}
 
-A Vetta ability marketplace. Add it in 567 Agent under **能力市场 → 添加来源**:
+A 567 Agent ability marketplace. Add it in 567 Agent under **能力市场 → 添加来源**:
 
 \`\`\`
 ${input.repository}
