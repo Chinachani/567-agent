@@ -60,10 +60,11 @@ afterEach(async () => {
 	vi.unstubAllEnvs();
 	if (resourcesDescriptor) Object.defineProperty(process, "resourcesPath", resourcesDescriptor);
 	else Reflect.deleteProperty(process, "resourcesPath");
-	await rm(root, { recursive: true, force: true });
+	// A finished real Node probe can retain a transient executable lock on Windows.
+	await rm(root, { recursive: true, force: true, maxRetries: 10, retryDelay: 100 });
 });
 
-describe("RuntimeManager Node recovery", () => {
+describe("RuntimeManager Node recovery", { timeout: process.platform === "win32" ? 30_000 : 5_000 }, () => {
 	it("uses the locale translation for download progress before reporting a corrupt archive", async () => {
 		vi.mocked(fetch).mockResolvedValue(new Response("not an archive", { headers: { "content-length": "14" } }));
 		const manager = new RuntimeManager();

@@ -146,7 +146,7 @@ export class CodingAgentSessionExecutionRuntime {
 						type: "task-notification",
 						content: [{ type: "text", text: buildCodingAgentBackgroundCommandNotification(task) }],
 						modelVisible: true,
-						display: true,
+						display: false,
 					},
 				])
 				.catch((error: unknown) => {

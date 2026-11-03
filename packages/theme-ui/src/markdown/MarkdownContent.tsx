@@ -41,6 +41,7 @@ import type { HastElement } from "./nodes";
 import { useMarkdownDefinition } from "./definition";
 import type { MarkdownDefinition } from "./definition";
 import { splitStableMarkdownBlocks } from "./stable-blocks";
+import { projectTaskNotifications } from "./task-notifications";
 
 /** 文件 / 链接 badge 的公共样式：半透明主题色底 + 主题色描边与文字。 */
 const LINK_BADGE_CLASS =
@@ -169,7 +170,12 @@ export const MarkdownContent = memo(function MarkdownContent({
 	const definition = definitionOverride ?? inheritedDefinition;
 	const definitionRef = useRef(definition);
 	definitionRef.current = definition;
-	const { displayText, animateChunks } = useStreamingDisplayText(text, isStreamingTail);
+	const notificationLabel = labels.backgroundTask;
+	const projectedText = useMemo(
+		() => (!inlineTokens && notificationLabel ? projectTaskNotifications(text, notificationLabel) : text),
+		[text, inlineTokens, notificationLabel],
+	);
+	const { displayText, animateChunks } = useStreamingDisplayText(projectedText, isStreamingTail);
 	const frozenBlocksRef = useRef(false);
 	if (isStreamingTail && !inlineTokens) frozenBlocksRef.current = true;
 	const splitDocuments = frozenBlocksRef.current && !inlineTokens;

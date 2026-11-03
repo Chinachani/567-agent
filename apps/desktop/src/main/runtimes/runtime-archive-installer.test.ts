@@ -15,6 +15,7 @@ import {
 } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
+import * as timers from "node:timers/promises";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { installRuntimeArchive, installRuntimeDirectory, RuntimeInstallInUseError } from "./runtime-archive-installer";
@@ -26,6 +27,10 @@ vi.mock("node:fs/promises", async (importOriginal) => {
 	return { ...actual, rename: vi.fn(actual.rename), rm: vi.fn(actual.rm) };
 });
 const actualFs = await vi.importActual<typeof fsPromises>("node:fs/promises");
+vi.mock("node:timers/promises", async (importOriginal) => {
+	const actual = await importOriginal<typeof timers>();
+	return { ...actual, setTimeout: vi.fn(actual.setTimeout) };
+});
 
 let testRoot = "";
 // Windows fixtures copy and compress the real Node executable; Unix fixtures use a symlink.
@@ -44,13 +49,15 @@ async function writeRuntimeFixture(path: string): Promise<void> {
 
 beforeEach(async () => {
 	testRoot = await mkdtemp(join(tmpdir(), "vetta-runtime-archive-"));
+	// Retry timing is an OS boundary; keep filesystem transactions and probes real.
+	vi.mocked(timers.setTimeout).mockReset().mockResolvedValue(undefined);
 });
 
 afterEach(async () => {
 	vi.restoreAllMocks();
 	vi.mocked(fsPromises.rename).mockImplementation(actualFs.rename);
 	vi.mocked(fsPromises.rm).mockImplementation(actualFs.rm);
-	await rm(testRoot, { recursive: true, force: true, maxRetries: 3, retryDelay: 100 });
+	await rm(testRoot, { recursive: true, force: true, maxRetries: 10, retryDelay: 100 });
 });
 
 describe("installRuntimeArchive", () => {
@@ -282,6 +289,9 @@ describe("runtime replacement safety", () => {
 			return originalRm(path, rmOptions);
 		});
 		await expect(installRuntimeDirectory(options)).rejects.toBeInstanceOf(RuntimeInstallInUseError);
+		const delays = vi.mocked(timers.setTimeout).mock.calls.map(([milliseconds]) => milliseconds ?? 0);
+		expect(delays.reduce((total, milliseconds) => total + milliseconds, 0)).toBeLessThan(10_000);
+		expect(Math.max(...delays)).toBeLessThanOrEqual(1000);
 		await expect(readFile(nodePackageManagerPaths(options.executablePath).npmCli, "utf8")).resolves.toContain(
 			"require",
 		);
@@ -313,6 +323,34 @@ describe("runtime replacement safety", () => {
 		);
 		await expect(readdir(join(testRoot, "managed"))).resolves.toEqual(["node"]);
 	});
+
+	it.each(["EPERM", "EACCES", "EBUSY"])(
+		"waits for a longer %s lock without deleting the previous runtime",
+		async (code) => {
+			const options = await nodeInstall();
+			await writeFile(join(options.sourceDirectory, "new-marker"), "new");
+			await writeFile(join(options.targetDirectory, "old-marker"), "old");
+			let waited = 0;
+			vi.mocked(timers.setTimeout).mockImplementation(async (milliseconds) => {
+				waited += milliseconds ?? 0;
+			});
+			vi.mocked(fsPromises.rename).mockImplementation(async (from, to) => {
+				if (to === options.targetDirectory && String(from).endsWith("payload") && waited < 3_000) {
+					throw Object.assign(new Error("health probe executable lock"), { code });
+				}
+				return actualFs.rename(from, to);
+			});
+			await installRuntimeDirectory(options);
+			expect(waited).toBeGreaterThanOrEqual(3_000);
+			expect(waited).toBeLessThan(10_000);
+			await expect(readFile(join(options.targetDirectory, "new-marker"), "utf8")).resolves.toBe("new");
+			await expect(readFile(join(options.targetDirectory, "old-marker"))).rejects.toThrow();
+			await expect(readFile(nodePackageManagerPaths(options.executablePath).npmCli, "utf8")).resolves.toContain(
+				"require",
+			);
+			await expect(readdir(join(testRoot, "managed"))).resolves.toEqual(["node"]);
+		},
+	);
 
 	it("restores the old runtime through a temporary lock when publication remains blocked", async () => {
 		const options = await nodeInstall();

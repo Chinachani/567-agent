@@ -280,7 +280,7 @@ function buildGuidelines(tools: string[], scenario?: ConversationScenario): stri
 			"Before large image mosaics, satellite tiles, arrays or batches: inspect the CLI help or implementation for parameter units and estimate dimensions, item count, bytes per item and concurrent memory. Never assume a radius is measured in meters: tile-ring radius r requests (2*r+1)^2 tiles, with image side (2*r+1)*tileSize pixels. Start with a small bounded region; use lower resolution, smaller batches or separate tiles instead of one huge allocation. If a command reports resource protection or allocation failure, reduce the work before retrying; never repeat the unchanged command, remove safeguards or increase limits without the user's explicit request.",
 		);
 		guidelinesList.push(
-			"Background tasks (run_in_background, or auto-promoted) automatically deliver a <task-notification> when they finish. Do NOT spawn a polling/sleep/wait command to check on them; do other work or end your turn, and read output via task_output only when needed.",
+			"Background tasks (run_in_background, or auto-promoted) automatically deliver a <task-notification> when they finish. Do NOT spawn a polling/sleep/wait command to check on them; do other work or end your turn, and read output via task_output only when needed. These notifications are internal context: do not echo their XML or tool instructions to the user; summarize only the relevant outcome in your own words.",
 		);
 	}
 

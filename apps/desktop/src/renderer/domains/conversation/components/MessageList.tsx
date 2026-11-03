@@ -2,6 +2,7 @@ import { PerfSessionSwitchProfiler } from "@shared/lib/perf-session-switch-profi
 import { activeSessionAtom } from "@shared/store/atoms";
 import { RendererMarkdownScope } from "@shared/components/RendererMarkdownScope";
 import { useRendererMarkdownModel } from "@shared/hooks/useRendererMarkdownModel";
+import { useMarkdownLabels } from "@shared/hooks/useMarkdownLabels";
 import { useAtomValue } from "jotai";
 import { selectAtom } from "jotai/utils";
 import { useMemo } from "react";
@@ -25,7 +26,9 @@ export function MessageList(props: MessageListProps): JSX.Element {
 	const activeRuntimeId = useAtomValue(activeRuntimeIdAtom);
 	const activeSessionPath = useAtomValue(activeSessionPathAtom);
 	const subagentSessionId = props.sessionId && props.sessionId === activeSessionPath ? activeRuntimeId : null;
-	const markdown = useRendererMarkdownModel(props.workspace.cwd, true, props.workspace.id);
+	const baseMarkdown = useRendererMarkdownModel(props.workspace.cwd, true, props.workspace.id);
+	const labels = useMarkdownLabels("conversation");
+	const markdown = useMemo(() => ({ ...baseMarkdown, labels }), [baseMarkdown, labels]);
 	const scroll = useMessageListScrollModel({
 		isStreaming: props.isStreaming,
 		messages: props.messages,
@@ -33,15 +36,9 @@ export function MessageList(props: MessageListProps): JSX.Element {
 		initialTargetKey: props.initialTargetKey,
 		onInitialTargetHandled: props.onInitialTargetHandled,
 	});
-	const viewportPhase = useProgressiveMessageViewport(
-		props.sessionId ?? null,
-		props.messages.length > 0,
-	);
+	const viewportPhase = useProgressiveMessageViewport(props.sessionId ?? null, props.messages.length > 0);
 	const derivationMessages = useMemo(
-		() =>
-			viewportPhase === "initial"
-				? props.messages.slice(-INITIAL_DERIVATION_MESSAGE_COUNT)
-				: props.messages,
+		() => (viewportPhase === "initial" ? props.messages.slice(-INITIAL_DERIVATION_MESSAGE_COUNT) : props.messages),
 		[props.messages, viewportPhase],
 	);
 	const model = useMessageListModel(props, scroll, derivationMessages);

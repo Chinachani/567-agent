@@ -3,20 +3,20 @@ import { activeSessionAtom } from "@shared/store/atoms";
 import type { SandboxGrantsBadgeViewLabels, SandboxGrantViewItem } from "@vetta-org/theme-ui/chat";
 import type { TFunction } from "i18next";
 import { useAtomValue } from "jotai";
-import { type RefObject, useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 
 const REFRESH_INTERVAL_MS = 4000;
 
-function formatRelative(timestamp: number, now: number): string {
+function formatRelative(timestamp: number, now: number, t: TFunction<"chat">): string {
 	const deltaSec = Math.max(0, Math.round((now - timestamp) / 1000));
-	if (deltaSec < 60) return `${deltaSec} 秒前`;
+	if (deltaSec < 60) return t("sandboxGrantsBadge.secondsAgo", { count: deltaSec });
 	const min = Math.floor(deltaSec / 60);
-	if (min < 60) return `${min} 分钟前`;
+	if (min < 60) return t("sandboxGrantsBadge.minutesAgo", { count: min });
 	const hr = Math.floor(min / 60);
-	if (hr < 24) return `${hr} 小时前`;
+	if (hr < 24) return t("sandboxGrantsBadge.hoursAgo", { count: hr });
 	const day = Math.floor(hr / 24);
-	return `${day} 天前`;
+	return t("sandboxGrantsBadge.daysAgo", { count: day });
 }
 
 function formatAbsolute(timestamp: number): string {
@@ -41,8 +41,9 @@ export interface SandboxGrantsBadgeModel {
 	open: boolean;
 	grants: SandboxGrantViewItem[];
 	labels: SandboxGrantsBadgeViewLabels;
-	containerRef: RefObject<HTMLDivElement | null>;
-	onToggle: () => void;
+	pending: boolean;
+	error?: string;
+	onOpenChange: (open: boolean) => void;
 	onRevokeAll: () => void;
 	onRevoke: (grantId: string) => void;
 }
@@ -51,59 +52,85 @@ export function useSandboxGrantsBadgeModel(): SandboxGrantsBadgeModel | null {
 	const { t } = useTranslation("chat");
 	const activeSession = useAtomValue(activeSessionAtom);
 	const sessionId = activeSession?.runtimeId;
-	const [grants, setGrants] = useState<RuntimeSandboxGrantInfo[]>([]);
-	const [open, setOpen] = useState(false);
+	const scope = useMemo(() => ({ sessionId }), [sessionId]);
+	const [snapshot, setSnapshot] = useState<{ scope: typeof scope; grants: RuntimeSandboxGrantInfo[] } | null>(null);
+	const [openedFor, setOpenedFor] = useState<typeof scope | null>(null);
+	const [pending, setPending] = useState(false);
+	const [error, setError] = useState<"revokeFailed" | "refreshFailed" | null>(null);
 	const [now, setNow] = useState(() => Date.now());
-	const containerRef = useRef<HTMLDivElement>(null);
+	const currentScope = useRef(scope);
+	currentScope.current = scope;
+	const mounted = useRef(false);
+	const requestVersion = useRef(0);
+	const mutation = useRef<{ sessionId: string } | null>(null);
+	const grants = snapshot?.scope === scope ? snapshot.grants : [];
 
 	const refresh = useCallback(async () => {
-		if (!sessionId) {
-			setGrants([]);
-			return;
-		}
+		if (!sessionId || currentScope.current !== scope) return false;
+		const version = ++requestVersion.current;
 		try {
 			const result = await window.agent567.session.listSandboxGrants(sessionId);
-			setGrants(result);
+			if (!mounted.current || currentScope.current !== scope || version !== requestVersion.current) return false;
+			setSnapshot({ scope, grants: result });
+			setError((previous) => (previous === "refreshFailed" ? null : previous));
+			setNow(Date.now());
+			return true;
 		} catch {
 			// Ignore — IPC may be torn down during navigation.
+			return false;
 		}
-	}, [sessionId]);
+	}, [sessionId, scope]);
 
 	useEffect(() => {
+		mounted.current = true;
+		setOpenedFor(null);
+		setError(null);
+		setPending(false);
+		mutation.current = null;
 		void refresh();
 		const id = window.setInterval(() => {
-			setNow(Date.now());
-			void refresh();
+			if (!mutation.current) void refresh();
 		}, REFRESH_INTERVAL_MS);
-		return () => window.clearInterval(id);
+		return () => {
+			mounted.current = false;
+			requestVersion.current += 1;
+			window.clearInterval(id);
+		};
 	}, [refresh]);
 
-	useEffect(() => {
-		if (!open) return;
-		void refresh();
-		const handler = (e: MouseEvent) => {
-			if (!containerRef.current) return;
-			if (containerRef.current.contains(e.target as Node)) return;
-			setOpen(false);
-		};
-		window.addEventListener("mousedown", handler);
-		return () => window.removeEventListener("mousedown", handler);
-	}, [open, refresh]);
-
-	const handleRevoke = useCallback(
-		async (grantId: string) => {
-			if (!sessionId) return;
-			await window.agent567.session.revokeSandboxGrant(sessionId, grantId);
-			await refresh();
+	const changeOpen = useCallback(
+		(open: boolean) => {
+			setOpenedFor(open ? scope : null);
+			if (open && !mutation.current) void refresh();
 		},
-		[sessionId, refresh],
+		[scope, refresh],
 	);
 
-	const handleRevokeAll = useCallback(async () => {
-		if (!sessionId) return;
-		await window.agent567.session.revokeAllSandboxGrants(sessionId);
-		await refresh();
-	}, [sessionId, refresh]);
+	const revoke = useCallback(
+		async (grantId?: string) => {
+			if (!sessionId || currentScope.current !== scope || mutation.current) return;
+			const operation = { sessionId };
+			mutation.current = operation;
+			// A list started before revocation must not restore the old grant afterwards.
+			requestVersion.current += 1;
+			setPending(true);
+			setError(null);
+			const isCurrent = () => mounted.current && currentScope.current === scope && mutation.current === operation;
+			try {
+				if (grantId) await window.agent567.session.revokeSandboxGrant(sessionId, grantId);
+				else await window.agent567.session.revokeAllSandboxGrants(sessionId);
+				if (!isCurrent()) return;
+				const refreshed = await refresh();
+				if (isCurrent() && !refreshed) setError("refreshFailed");
+			} catch {
+				if (isCurrent()) setError("revokeFailed");
+			} finally {
+				if (isCurrent()) setPending(false);
+				if (mutation.current === operation) mutation.current = null;
+			}
+		},
+		[sessionId, scope, refresh],
+	);
 
 	const sortedGrants = useMemo(
 		(): SandboxGrantViewItem[] =>
@@ -115,7 +142,7 @@ export function useSandboxGrantsBadgeModel(): SandboxGrantsBadgeModel | null {
 					capabilityLabel: capabilityLabel(grant.capability, t),
 					toolName: grant.toolName,
 					grantRoot: grant.grantRoot,
-					relativeTime: formatRelative(grant.createdAt, now),
+					relativeTime: formatRelative(grant.createdAt, now, t),
 					absoluteTime: formatAbsolute(grant.createdAt),
 				})),
 		[grants, now, t],
@@ -135,12 +162,13 @@ export function useSandboxGrantsBadgeModel(): SandboxGrantsBadgeModel | null {
 
 	return {
 		count: grants.length,
-		open,
+		open: openedFor === scope,
 		grants: sortedGrants,
 		labels,
-		containerRef,
-		onToggle: () => setOpen((v) => !v),
-		onRevokeAll: () => void handleRevokeAll(),
-		onRevoke: (grantId) => void handleRevoke(grantId),
+		pending,
+		error: error ? t(`sandboxGrantsBadge.${error}`) : undefined,
+		onOpenChange: changeOpen,
+		onRevokeAll: () => void revoke(),
+		onRevoke: (grantId) => void revoke(grantId),
 	};
 }

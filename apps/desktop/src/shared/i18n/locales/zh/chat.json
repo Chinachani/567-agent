@@ -364,7 +364,13 @@
     },
     "copyTable": "复制表格（TSV）",
     "previewToSide": "在右侧预览",
-    "saveAs": "另存为文件"
+    "saveAs": "另存为文件",
+    "backgroundTask": {
+      "label": "后台任务 {{id}} · {{status}}",
+      "completed": "已完成",
+      "failed": "失败",
+      "killed": "已停止"
+    }
   },
   "copyButton": {
     "copied": "已复制",
@@ -896,7 +902,13 @@
     "revoke": "撤销",
     "revokeAll": "全部撤销",
     "title": "本会话沙箱授权",
-    "tooltip": "本会话沙箱授权"
+    "tooltip": "本会话沙箱授权",
+    "revokeFailed": "撤销授权失败，请重试。",
+    "refreshFailed": "授权已撤销，但列表暂未刷新。请重新打开查看。",
+    "secondsAgo": "{{count}} 秒前",
+    "minutesAgo": "{{count}} 分钟前",
+    "hoursAgo": "{{count}} 小时前",
+    "daysAgo": "{{count}} 天前"
   },
   "sendButton": {
     "sendMessage": "发送消息",

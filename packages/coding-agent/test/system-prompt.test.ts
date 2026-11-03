@@ -141,6 +141,7 @@ describe("buildSystemPrompt", () => {
 
 			expect(prompt).toContain("<task-notification>");
 			expect(prompt).toContain("Do NOT spawn a polling");
+			expect(prompt).toContain("do not echo their XML or tool instructions to the user");
 		});
 	});
 

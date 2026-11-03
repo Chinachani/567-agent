@@ -2,10 +2,18 @@ import type { MarkdownLabels } from "@vetta-org/theme-ui/markdown";
 import { useMemo } from "react";
 import { useTranslation } from "react-i18next";
 
-export function useMarkdownLabels(): MarkdownLabels {
+export function useMarkdownLabels(context: "conversation" | "document" = "document"): MarkdownLabels {
 	const { t } = useTranslation("chat");
-	return useMemo(
+	return useMemo<MarkdownLabels>(
 		() => ({
+			backgroundTask:
+				context === "conversation"
+					? (id, status) =>
+							t("markdown.backgroundTask.label", {
+								id,
+								status: t(`markdown.backgroundTask.${status}`),
+							})
+					: undefined,
 			copy: t("copyButton.label"),
 			copyTable: t("markdown.copyTable"),
 			resources: {
@@ -45,6 +53,6 @@ export function useMarkdownLabels(): MarkdownLabels {
 				actionFailed: t("markdown.actionFailed"),
 			},
 		}),
-		[t],
+		[context, t],
 	);
 }

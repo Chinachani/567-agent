@@ -2,6 +2,7 @@ import { spawnSync } from "node:child_process";
 import { chmodSync, existsSync } from "node:fs";
 import { cp, mkdir, mkdtemp, rename, rm, stat } from "node:fs/promises";
 import { basename, dirname, join, relative } from "node:path";
+import { setTimeout as delay } from "node:timers/promises";
 import type { RuntimeType } from "./paths.js";
 import { probeManagedRuntime } from "./runtime-health.js";
 
@@ -30,22 +31,23 @@ export class RuntimeInstallInUseError extends Error {
 }
 
 async function renameRuntimeDirectory(source: string, destination: string): Promise<void> {
-	// A completed health probe can leave a short-lived executable lock on Windows.
-	// Keep replacement atomic; persistent locks still fail with the original error.
+	// Windows may retain an executable/scan lock after a successful health probe.
+	// Allow 9.55s of bounded backoff without deleting files or losing atomicity;
+	// persistent locks still fail with the original error and trigger rollback.
 	for (let attempt = 0; ; attempt++) {
 		try {
 			await rename(source, destination);
 			return;
 		} catch (error) {
 			if (
-				attempt >= 5 ||
+				attempt >= 13 ||
 				!(error instanceof Error) ||
 				!("code" in error) ||
 				!["EPERM", "EACCES", "EBUSY"].includes(String(error.code))
 			) {
 				throw error;
 			}
-			await new Promise((resolve) => setTimeout(resolve, 50 * 2 ** attempt));
+			await delay(Math.min(50 * 2 ** attempt, 1000));
 		}
 	}
 }

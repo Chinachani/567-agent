@@ -1,3 +1,5 @@
+import type { BackgroundTaskStatus } from "./task-notifications";
+
 export interface RichContentLabels {
 	preview: string;
 	previewToSide?: string;
@@ -45,6 +47,8 @@ export const defaultRichContentLabels: RichContentLabels = {
 };
 
 export interface MarkdownLabels {
+	/** Optional chat-only projection; omit for literal documents and user messages. */
+	backgroundTask?: (id: string, status: BackgroundTaskStatus) => string;
 	resources?: {
 		openFile: string;
 		openUrl: string;

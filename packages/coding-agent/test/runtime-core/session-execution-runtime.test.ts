@@ -155,7 +155,8 @@ describe("CodingAgentSessionExecutionRuntime", () => {
 				expect.objectContaining({
 					type: "task-notification",
 					modelVisible: true,
-					display: true,
+					display: false,
+					content: [{ type: "text", text: expect.stringContaining("<status>completed</status>") }],
 				}),
 			]);
 			expect(second.records).toEqual([]);

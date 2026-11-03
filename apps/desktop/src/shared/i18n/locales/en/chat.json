@@ -364,7 +364,13 @@
     },
     "copyTable": "Copy table (TSV)",
     "previewToSide": "Preview to the side",
-    "saveAs": "Save as file"
+    "saveAs": "Save as file",
+    "backgroundTask": {
+      "label": "Background task {{id}} · {{status}}",
+      "completed": "Completed",
+      "failed": "Failed",
+      "killed": "Stopped"
+    }
   },
   "copyButton": {
     "copied": "Copied",
@@ -896,7 +902,13 @@
     "revoke": "Revoke",
     "revokeAll": "Revoke all",
     "title": "Sandbox grants for this session",
-    "tooltip": "Sandbox grants for this session"
+    "tooltip": "Sandbox grants for this session",
+    "revokeFailed": "Could not revoke permission. Try again.",
+    "refreshFailed": "Permission was revoked, but the list could not refresh. Reopen to check.",
+    "secondsAgo": "{{count}}s ago",
+    "minutesAgo": "{{count}}m ago",
+    "hoursAgo": "{{count}}h ago",
+    "daysAgo": "{{count}}d ago"
   },
   "sendButton": {
     "sendMessage": "Send message",

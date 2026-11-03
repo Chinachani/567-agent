@@ -11,8 +11,9 @@ export function SandboxGrantsBadge(): JSX.Element | null {
 			open={model.open}
 			grants={model.grants}
 			labels={model.labels}
-			containerRef={model.containerRef}
-			onToggle={model.onToggle}
+			pending={model.pending}
+			error={model.error}
+			onOpenChange={model.onOpenChange}
 			onRevokeAll={model.onRevokeAll}
 			onRevoke={model.onRevoke}
 		/>
