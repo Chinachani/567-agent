@@ -259,6 +259,10 @@ function runProbe({ root, port, artifacts }) {
 				const after = await evaluate("({count:canvasProbe.wheels.length,...canvasProbe.read()})");
 				console.log("native-wheels", await child.executeJavaScript("window.nativeWheels"));
 				assert.ok(after.count - before.count >= 18, JSON.stringify({ zoom, before, after }));
+				assert.ok(
+					await evaluate(`canvasProbe.wheels.slice(${before.count}).some(event=>event.source==='frame')`),
+					"each gesture must exercise the cross-process bridge",
+				);
 				assert.ok(zoom ? after.zoom !== before.zoom : after.y !== before.y, "gesture must move viewport");
 				assert.equal(await evaluate("getComputedStyle(document.querySelector('iframe')).display"), "block");
 				assert.equal(await evaluate("getComputedStyle(document.querySelector('iframe')).opacity"), "1");
@@ -267,6 +271,11 @@ function runProbe({ root, port, artifacts }) {
 			assert.ok(
 				await evaluate("canvasProbe.states.some(s=>s.interacting && s.parked)"),
 				"must actually park the live iframe",
+			);
+			assert.equal(
+				await evaluate("canvasProbe.states.some(s=>s.parked && s.display!=='block')"),
+				false,
+				"parking must preserve iframe layout throughout the gesture",
 			);
 			console.log("SAVE_LAYOUT");
 			await new Promise((resolve) => setTimeout(resolve, 1800));

@@ -93,7 +93,7 @@ async function inspectTargets(): Promise<{ summary: BrowserTargets; targets: Res
 				const executable = { chrome: "Google Chrome", msedge: "Microsoft Edge", chromium: "Chromium" }[
 					defaultBrowser
 				];
-				defaultPath = path.join(defaultPath, "Contents", "MacOS", executable);
+				defaultPath = path.posix.join(defaultPath, "Contents", "MacOS", executable);
 			}
 		} catch {
 			// Standard install locations still work if OS application details are unavailable.

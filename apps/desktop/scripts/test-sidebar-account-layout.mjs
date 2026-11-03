@@ -353,7 +353,9 @@ app.whenReady().then(async()=>{
 	const settingsRows = JSON.parse(settingsMatch[1]);
 	assert.equal(settingsRows.length, 6);
 	for (const row of settingsRows) {
-		assert.equal(row.cards.length, 5, JSON.stringify(row));
+		for (const id of ["general-basics", "general-app", "general-developer", "general-browser-connection", "general-help", "general-backup"]) {
+			assert.ok(row.cards.some(card => card.id === id), `Missing settings section ${id}: ${JSON.stringify(row)}`);
+		}
 		for (const card of row.cards) {
 			assert.ok(Math.abs(card.left - row.cards[0].left) <= 1, JSON.stringify(row));
 			assert.ok(Math.abs(card.right - row.cards[0].right) <= 1, JSON.stringify(row));

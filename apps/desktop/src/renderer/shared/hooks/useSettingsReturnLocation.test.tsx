@@ -7,6 +7,7 @@ import {
 	createRouter,
 	Outlet,
 	RouterProvider,
+	useNavigate,
 } from "@tanstack/react-router";
 import { createStore, Provider, useAtomValue } from "jotai";
 import { afterEach, expect, it, vi } from "vitest";
@@ -39,8 +40,19 @@ it("returns to the original workspace after navigating through settings tabs, re
 		const model = useSettingsPageModel();
 		return <div data-testid="settings-tab">{model.activeTab}</div>;
 	}
+	function Workspace() {
+		const navigate = useNavigate();
+		return (
+			<>
+				<div>Project</div>
+				<button type="button" onClick={() => void navigate({ to: "/settings/$tab", params: { tab: "general" } })}>
+					打开设置
+				</button>
+			</>
+		);
+	}
 	const root = createRootRoute({ component: Shell });
-	const workspace = createRoute({ getParentRoute: () => root, path: "/project", component: () => <div>Project</div> });
+	const workspace = createRoute({ getParentRoute: () => root, path: "/project", component: Workspace });
 	const settings = createRoute({
 		getParentRoute: () => root,
 		path: "/settings/$tab",
@@ -58,9 +70,8 @@ it("returns to the original workspace after navigating through settings tabs, re
 		</Provider>,
 	);
 	await screen.findByText("Project");
-	await act(async () => {
-		await router.navigate({ to: "/settings/$tab", params: { tab: "general" } });
-	});
+	await userEvent.click(screen.getByRole("button", { name: "打开设置" }));
+	await screen.findByText("general");
 	expect(screen.getByRole("status").textContent).toBe("/project?cwd=%2Fexample");
 	await act(async () => {
 		await router.navigate({ to: "/settings/$tab", params: { tab: "models" } });

@@ -1,4 +1,5 @@
 import { EventEmitter } from "node:events";
+import type path from "node:path";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { BROWSER_EXTENSION_URL } from "../../shared/current-browser-connection";
 import {
@@ -21,11 +22,17 @@ vi.mock("electron", () => ({
 }));
 vi.mock("node:fs/promises", () => ({ constants: { F_OK: 0, X_OK: 1 }, access: host.access }));
 vi.mock("node:child_process", () => ({ spawn: host.spawn }));
+// Simulating process.platform must not depend on the runner's native path separator.
+vi.mock("node:path", async (importOriginal) => {
+	const actual = await importOriginal<{ default: typeof path }>();
+	return { ...actual, default: { ...actual.default, join: actual.default.win32.join } };
+});
 const platform = process.platform;
 beforeEach(() => {
 	host.prepare.mockReset().mockResolvedValue("/isolated/browser-extensions/playwright/0.4.0");
 	Object.defineProperty(process, "platform", { value: "linux" });
 	host.name.mockReset().mockReturnValue("microsoft-edge.desktop");
+	host.info.mockReset().mockResolvedValue({ path: "/Applications/Microsoft Edge.app" });
 	host.access.mockReset().mockImplementation(async (file) => {
 		if (file !== "/opt/microsoft/msedge/msedge") throw new Error("ENOENT");
 	});
@@ -93,15 +100,35 @@ describe("browser setup OS boundary", () => {
 			executablePath: "/snap/bin/chromium",
 		});
 	});
-	it("uses OS application metadata for a default browser installed in a nonstandard directory", async () => {
-		Object.defineProperty(process, "platform", { value: "darwin" });
-		host.info.mockResolvedValue({ path: "/custom/Microsoft Edge.app" });
-		host.access.mockImplementation(async (file) => {
-			if (file !== "/custom/Microsoft Edge.app/Contents/MacOS/Microsoft Edge") throw new Error("ENOENT");
-		});
-		await expect(prepareBrowserTarget("msedge", "resolve")).resolves.toMatchObject({
+	it.each([
+		{
+			platform: "darwin",
+			applicationPath: "/custom/Microsoft Edge.app",
 			executablePath: "/custom/Microsoft Edge.app/Contents/MacOS/Microsoft Edge",
+		},
+		{
+			platform: "win32",
+			applicationPath: "D:\\Custom Browser\\msedge.exe",
+			executablePath: "D:\\Custom Browser\\msedge.exe",
+		},
+	])("resolves and opens a nonstandard default browser on $platform", async (scenario) => {
+		Object.defineProperty(process, "platform", { value: scenario.platform });
+		host.info.mockResolvedValue({ path: scenario.applicationPath });
+		host.access.mockImplementation(async (file) => {
+			if (file !== scenario.executablePath) throw new Error("ENOENT");
 		});
+		await expect(getBrowserTargets()).resolves.toMatchObject({ defaultBrowser: "msedge", available: ["msedge"] });
+		await expect(prepareBrowserTarget("msedge", "resolve")).resolves.toEqual({
+			id: "msedge",
+			executablePath: scenario.executablePath,
+		});
+		expect(host.spawn).not.toHaveBeenCalled();
+		await prepareBrowserTarget("msedge", "store");
+		expect(host.spawn).toHaveBeenCalledWith(
+			scenario.executablePath,
+			[BROWSER_EXTENSION_URL],
+			expect.objectContaining({ shell: false }),
+		);
 	});
 	it("has explicit macOS and Windows locations, with no shell command or profile inspection", () => {
 		expect(

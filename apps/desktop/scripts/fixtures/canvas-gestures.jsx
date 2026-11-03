@@ -58,15 +58,31 @@ function App() {
 				current.current.rasters.notifyRendered(id);
 			},
 			onFrameWheel: (event) => {
-				window.canvasProbe.wheels.push(event);
+				window.canvasProbe.wheels.push({ ...event, source: "frame" });
 				current.current.view.applyWheel(event);
 			},
 		});
 		bridge.setMode("index", "inspect");
 		return () => bridge.stop();
 	}, [bridge]);
+	// Chromium can retarget wheel ticks to the host while an out-of-process frame transforms.
+	// Mount the same host listener as DesignCanvas, alongside the iframe bridge path.
 	useEffect(() => {
-		window.canvasProbe.states.push({ interacting: view.interacting, parked: rasters.isParked("index") });
+		const container = view.containerRef.current;
+		const onWheel = (event) => {
+			event.preventDefault();
+			window.canvasProbe.wheels.push({ deltaX: event.deltaX, deltaY: event.deltaY, source: "host" });
+			current.current.view.applyWheel(event);
+		};
+		container.addEventListener("wheel", onWheel, { passive: false });
+		return () => container.removeEventListener("wheel", onWheel);
+	}, [view.containerRef]);
+	useEffect(() => {
+		window.canvasProbe.states.push({
+			interacting: view.interacting,
+			parked: rasters.isParked("index"),
+			display: document.querySelector("iframe")?.style.display,
+		});
 	}, [view.interacting, rasters.isParked]);
 	window.canvasProbe.read = () => ({
 		...view.viewportRef.current,
@@ -86,6 +102,8 @@ function App() {
 					entered
 					interactive
 					resizable={false}
+					menuItems={null}
+					onMenuSlot={noop}
 					mounted={rasters.isMounted("index")}
 					live={rasters.isLive("index")}
 					parked={rasters.isParked("index")}
@@ -106,6 +124,7 @@ function App() {
 					onDragStart={noop}
 					onDragDelta={noop}
 					onDragEnd={noop}
+					onRadiusCommit={noop}
 				/>
 			</div>
 		</div>
