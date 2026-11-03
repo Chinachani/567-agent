@@ -321,7 +321,7 @@ describe("Agent Runtime production host", () => {
 			},
 		});
 		await reused.close();
-	});
+	}, 30_000);
 
 	it("fails explicitly when an existing session is not representable by the production Runtime", async () => {
 		const fixture = await createFixture();

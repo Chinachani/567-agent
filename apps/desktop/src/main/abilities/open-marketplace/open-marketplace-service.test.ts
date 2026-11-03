@@ -1332,7 +1332,15 @@ it("connects v2 query and deferred details to the service while keeping candidat
 	expect(row).toMatchObject({ installable: false, reviewStatus: "unreviewed", config: {}, detailDeferred: true });
 	const detail = await service.getDiscoveryDetail(row.slug, result.progress.version, row.discoveryReference);
 	expect(detail).toMatchObject({ installable: false, config: {} });
+	// Installation checks also schedule discovery refreshes. Wait for their final
+	// snapshot before another check or fixture cleanup can race cache writes.
+	const completedUpdates = (): number =>
+		onBackgroundUpdate.mock.calls.filter(([snapshot]) => snapshot.discovery?.protocol === 2).length;
+	const beforePrepare = completedUpdates();
 	await expect(service.prepareMcp(row.slug)).rejects.toThrow("Open ability not found");
+	await vi.waitFor(() => expect(completedUpdates()).toBeGreaterThan(beforePrepare));
+	const beforeInstall = completedUpdates();
 	await service.install("skill", "demo-skill");
 	expect(install).toHaveBeenCalledTimes(1);
+	await vi.waitFor(() => expect(completedUpdates()).toBeGreaterThan(beforeInstall));
 });
