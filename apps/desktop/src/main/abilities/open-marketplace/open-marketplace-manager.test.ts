@@ -2,7 +2,12 @@ import { mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, describe, expect, it, vi } from "vitest";
-import type { MarketplaceSource, OpenMarketplaceSnapshot } from "../../../preload/api-types/abilities";
+import type {
+	MarketplaceSource,
+	OpenMarketplaceDiscoverySearch,
+	OpenMarketplaceSnapshot,
+} from "../../../preload/api-types/abilities";
+import { discoveryQuerySchema } from "../../../shared/mcp-discovery";
 import { MarketplaceSourceStore } from "./marketplace-source-store";
 import { OpenMarketplaceManager } from "./open-marketplace-manager";
 
@@ -181,6 +186,75 @@ describe("OpenMarketplaceManager", () => {
 		expect(cacheRoots[0]).not.toBe(cacheRoots[1]);
 		expect(cacheRoots[0]).toContain(join("cache", catalog.id));
 		expect(cacheRoots[1]).toContain(join("cache", catalog.id));
+	});
+
+	it("cancels only the changed source and rejects late results after update or removal", async () => {
+		const root = await temporaryRoot();
+		const sources = [source("first", 100), source("second", 200)];
+		const store = new MarketplaceSourceStore({ filePath: join(root, "sources.json"), defaultSources: sources });
+		const pending = new Map<string, { signal: AbortSignal; finish: () => void }>();
+		const manager = new OpenMarketplaceManager({
+			appVersion: "1.5.4",
+			store,
+			cacheRoot: join(root, "cache"),
+			credentialStore: memoryCredentialStore().store,
+			workerFactory: (item) => ({
+				list: async () => snapshot(item.id),
+				listCached: async () => snapshot(item.id),
+				refresh: async () => snapshot(item.id),
+				install: async () => undefined,
+				prepareMcp: async () => ({ type: "http" as const, url: "https://mcp.example.com" }),
+				mcpSetupStatus: async () => ({}),
+				searchDiscovery: (requestId, _query, signal) =>
+					new Promise<OpenMarketplaceDiscoverySearch>((resolve) => {
+						pending.set(item.id, {
+							signal,
+							finish: () =>
+								resolve({
+									requestId,
+									sourceId: item.id,
+									abilities: [],
+									progress: {
+										revision: "a".repeat(40),
+										version: "v2",
+										matched: 0,
+										scanned: 0,
+										total: 0,
+										complete: true,
+										running: false,
+										failures: [],
+									},
+								}),
+						});
+					}),
+			}),
+		});
+		const first = manager.searchDiscovery(
+			"query-a",
+			"first",
+			discoveryQuerySchema.parse({}),
+			new AbortController().signal,
+			() => undefined,
+		);
+		const second = manager.searchDiscovery(
+			"query-b",
+			"second",
+			discoveryQuerySchema.parse({}),
+			new AbortController().signal,
+			() => undefined,
+		);
+		const firstRejected = expect(first).rejects.toThrow();
+		manager.updateSource("first", { ref: "next" });
+		expect(pending.get("first")!.signal.aborted).toBe(true);
+		expect(pending.get("second")!.signal.aborted).toBe(false);
+		pending.get("first")!.finish();
+		await firstRejected;
+		const secondRejected = expect(second).rejects.toThrow();
+		manager.removeSource("second");
+		expect(pending.get("second")!.signal.aborted).toBe(true);
+		pending.get("second")!.finish();
+		await secondRejected;
+		expect(manager.listSources().map((item) => item.id)).toEqual(["first"]);
 	});
 
 	it("publishes successful background updates to subscribers", async () => {

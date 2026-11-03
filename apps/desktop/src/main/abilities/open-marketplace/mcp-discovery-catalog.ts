@@ -17,7 +17,7 @@ const categorySchema = z.enum([
 	"web-search",
 	"uncategorized",
 ]);
-const discoveryAbilitySchema = z
+export const discoveryAbilitySchema = z
 	.object({
 		type: z.literal("mcp"),
 		detailShard: z

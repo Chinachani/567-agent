@@ -129,6 +129,8 @@ export function AbilityCard({
 	const { t } = useTranslation("abilities");
 	const navigate = useNavigate();
 	const { title, description } = useAbilityText()(item);
+	const opensDiscoveryDetails =
+		item.type === "mcp" && item.reviewStatus === "unreviewed" && Boolean(item.market?.discoveryReference);
 
 	const openDetail = (): void => {
 		void navigate({ to: "/abilities", search: { detail: item.id } });
@@ -185,21 +187,27 @@ export function AbilityCard({
 						<Button
 							variant="ghost"
 							size="icon-sm"
-							aria-label={t("actions.add")}
-							title={t("actions.add")}
+							aria-label={t(opensDiscoveryDetails ? "actions.viewDetails" : "actions.add")}
+							title={t(opensDiscoveryDetails ? "actions.viewDetails" : "actions.add")}
 							className="rounded-lg border border-transparent bg-transparent text-muted-foreground/60 transition-colors hover:border-border hover:bg-muted hover:text-foreground"
 							onClick={() => {
 								if (item.type === "bundle") {
 									openDetail();
 								} else if (item.type === "mcp" && item.reviewStatus === "unreviewed") {
-									if (onUnreviewedMcpAdd) onUnreviewedMcpAdd(item);
+									if (opensDiscoveryDetails) openDetail();
+									else if (onUnreviewedMcpAdd) onUnreviewedMcpAdd(item);
 									else openDetail();
 								} else {
 									model.install(item);
 								}
 							}}
 						>
-							<span className="icon-[solar--add-linear] h-4 w-4" />
+							<span
+								className={cn(
+									opensDiscoveryDetails ? "icon-[solar--eye-linear]" : "icon-[solar--add-linear]",
+									"h-4 w-4",
+								)}
+							/>
 						</Button>
 					)}
 				</div>

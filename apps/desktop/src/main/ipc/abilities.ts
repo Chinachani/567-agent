@@ -1,4 +1,4 @@
-import { app, BrowserWindow, ipcMain } from "electron";
+import { app, BrowserWindow, ipcMain, type WebContents } from "electron";
 import type {
 	AbilityInstallMetadata,
 	AbilityInstallOrigin,
@@ -6,12 +6,15 @@ import type {
 	OpenMarketplaceMcpRuntimeProgress,
 	UpdateMarketplaceSourceInput,
 } from "../../preload/api-types/abilities.js";
+import { discoveryQuerySchema, discoveryReferenceSchema } from "../../shared/mcp-discovery.js";
 import { readAbilityLedger, recordAbilityInstall } from "../abilities/ability-ledger.js";
+import { DiscoverySearchHost } from "../abilities/open-marketplace/discovery-search-host.js";
 import { DEFAULT_MARKETPLACE_SOURCE_ID } from "../abilities/open-marketplace/official-marketplace-source.js";
 import { getOpenMarketplaceManager } from "../abilities/open-marketplace/open-marketplace-manager.js";
 import { listLocalAbilityPresentations } from "../abilities/presentation/local-ability-presentations.js";
 import { recordAppMonitorEvent } from "../app-monitor/app-monitor-service.js";
 import { readMcpConfig } from "../mcp/mcp-settings-service.js";
+import { assertTrustedMainRenderer } from "./trusted-renderer.js";
 
 function requireString(value: unknown, field: string): string {
 	if (typeof value !== "string" || !value.trim()) throw new Error(`${field} must be a non-empty string`);
@@ -112,8 +115,22 @@ function parseMcpInstallMetadata(value: unknown): AbilityInstallMetadata | undef
 	};
 }
 
-export function registerAbilitiesIpc(): () => void {
+export function registerAbilitiesIpc(owner: WebContents): () => void {
 	const openMarketplace = getOpenMarketplaceManager(app.getVersion());
+	const searches = new DiscoverySearchHost(owner, (...args) => openMarketplace.searchDiscovery(...args));
+	const requestId = (value: unknown): string => {
+		if (typeof value !== "string" || !/^[A-Za-z0-9_-]{1,96}$/.test(value))
+			throw new Error("Invalid discovery request id");
+		return value;
+	};
+	ipcMain.handle("vetta:abilities:search-discovery", (event, id: unknown, source: unknown, query: unknown) => {
+		assertTrustedMainRenderer(event, owner);
+		return searches.run(requestId(id), requireString(source, "sourceId"), discoveryQuerySchema.parse(query));
+	});
+	ipcMain.handle("vetta:abilities:cancel-discovery-search", (event, id: unknown) => {
+		assertTrustedMainRenderer(event, owner);
+		searches.cancel(requestId(id));
+	});
 	const unsubscribeFromUpdates = openMarketplace.subscribeToUpdates(() => {
 		for (const win of BrowserWindow.getAllWindows()) {
 			if (!win.isDestroyed()) win.webContents.send("vetta:abilities:open-marketplaces-updated");
@@ -133,12 +150,15 @@ export function registerAbilitiesIpc(): () => void {
 	ipcMain.handle("vetta:abilities:list-open-marketplaces", () => openMarketplace.list());
 	ipcMain.handle(
 		"vetta:abilities:get-discovery-detail",
-		(_event, sourceId: unknown, slug: unknown, version: unknown) =>
-			openMarketplace.getDiscoveryDetail(
+		(event, sourceId: unknown, slug: unknown, version: unknown, reference: unknown) => {
+			assertTrustedMainRenderer(event, owner);
+			return openMarketplace.getDiscoveryDetail(
 				requireString(sourceId, "sourceId"),
 				requireString(slug, "slug"),
 				requireString(version, "catalogVersion"),
-			),
+				reference === undefined ? undefined : discoveryReferenceSchema.parse(reference),
+			);
+		},
 	);
 	ipcMain.handle("vetta:abilities:refresh-open-marketplaces", () => openMarketplace.refresh());
 	ipcMain.handle("vetta:abilities:list-marketplace-sources", () => openMarketplace.listSources());
@@ -228,6 +248,9 @@ export function registerAbilitiesIpc(): () => void {
 
 	return () => {
 		unsubscribeFromUpdates();
+		searches.dispose();
+		ipcMain.removeHandler("vetta:abilities:search-discovery");
+		ipcMain.removeHandler("vetta:abilities:cancel-discovery-search");
 		ipcMain.removeHandler("vetta:abilities:get-ledger");
 		ipcMain.removeHandler("vetta:abilities:list-local-presentations");
 		ipcMain.removeHandler("vetta:abilities:record-mcp-install");

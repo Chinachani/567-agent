@@ -90,7 +90,7 @@ export function registerAllIpc(
 	},
 ): IpcTeardown {
 	return {
-		teardownAbilities: registerAbilitiesIpc(),
+		teardownAbilities: registerAbilitiesIpc(webContents),
 		teardownAgentTeams: registerAgentTeamsIpc(),
 		teardownActionApproval: registerActionApprovalIpc(options.actionApprovalBroker),
 		teardownAppMonitor: registerAppMonitorIpc(),

@@ -135,7 +135,7 @@ export function useOpenMarketplaceData() {
 		const discovery = snapshot.discovery;
 		if (!discovery?.error && !discovery?.invalidRecords) continue;
 		messages.push(
-			i18n.t("abilities:discovery.failed", {
+			i18n.t(discovery.protocol === 2 ? "abilities:discoveryV2.indexFailed" : "abilities:discovery.failed", {
 				name: snapshot.source.name,
 				loaded: discovery.loaded,
 				total: discovery.total,

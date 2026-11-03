@@ -115,12 +115,17 @@ export class McpDiscoveryFeed {
 			await new Promise((resolve) => setTimeout(resolve, this.options.retryDelayMs ?? 500));
 		}
 	}
-	private async pinIndex(): Promise<PinnedIndex> {
-		const ref: unknown = JSON.parse(
-			(
-				await this.download(`https://api.github.com/repos/${this.coordinates}/git/ref/heads/catalog`, 64 * 1024)
-			).toString("utf8"),
-		);
+	private async pinIndex(pinnedRevision?: string): Promise<PinnedIndex> {
+		const ref: unknown = pinnedRevision
+			? { object: { sha: pinnedRevision } }
+			: JSON.parse(
+					(
+						await this.download(
+							`https://api.github.com/repos/${this.coordinates}/git/ref/heads/catalog`,
+							64 * 1024,
+						)
+					).toString("utf8"),
+				);
 		const object = ref && typeof ref === "object" && "object" in ref ? ref.object : null;
 		const revision = object && typeof object === "object" && "sha" in object ? object.sha : null;
 		if (typeof revision !== "string" || !/^[a-f0-9]{40}$/.test(revision))
@@ -276,8 +281,12 @@ export class McpDiscoveryFeed {
 		return full;
 	}
 
-	sync(marketplaceVersion: string, onUpdate: (snapshot: McpDiscoverySnapshot) => void): Promise<McpDiscoverySnapshot> {
-		this.inFlight ??= this.synchronize(marketplaceVersion, onUpdate).finally(() => {
+	sync(
+		marketplaceVersion: string,
+		onUpdate: (snapshot: McpDiscoverySnapshot) => void,
+		revision?: string,
+	): Promise<McpDiscoverySnapshot> {
+		this.inFlight ??= this.synchronize(marketplaceVersion, onUpdate, revision).finally(() => {
 			this.inFlight = undefined;
 		});
 		return this.inFlight;
@@ -285,11 +294,12 @@ export class McpDiscoveryFeed {
 	private async synchronize(
 		marketplaceVersion: string,
 		onUpdate: (snapshot: McpDiscoverySnapshot) => void,
+		revision?: string,
 	): Promise<McpDiscoverySnapshot> {
 		const previous = await this.cached();
 		try {
-			const pinned = await this.pinIndex();
-			const { index, revision } = pinned;
+			const pinned = await this.pinIndex(revision);
+			const { index, revision: pinnedRevision } = pinned;
 			if (index.marketplaceVersion !== marketplaceVersion)
 				throw new DiscoveryError("content-invalid", "Install and discovery catalog versions differ");
 			await mkdir(join(this.root, "shards"), { recursive: true });
@@ -333,7 +343,7 @@ export class McpDiscoveryFeed {
 						const shard = downloadShards[i];
 						try {
 							const bytes = await this.download(
-								`https://raw.githubusercontent.com/${this.coordinates}/${revision}/${shard.path}`,
+								`https://raw.githubusercontent.com/${this.coordinates}/${pinnedRevision}/${shard.path}`,
 								shard.sizeBytes,
 							);
 							parts[i] = this.parseShard(bytes, index, shard);

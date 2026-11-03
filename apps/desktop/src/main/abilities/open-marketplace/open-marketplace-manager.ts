@@ -5,12 +5,14 @@ import type {
 	MarketplaceSource,
 	OpenMarketplaceAbility,
 	OpenMarketplaceCatalog,
+	OpenMarketplaceDiscoverySearch,
 	OpenMarketplaceMcpRuntimeProgress,
 	OpenMarketplaceSnapshot,
 	OpenMarketplaceSourceSnapshot,
 	UpdateMarketplaceSourceInput,
 } from "../../../preload/api-types/abilities.js";
 import type { McpServerConfigData } from "../../../preload/api-types/mcp.js";
+import type { McpDiscoveryQuery, McpDiscoveryReference } from "../../../shared/mcp-discovery.js";
 import { getApplicationCacheService } from "../../cache/application-cache-service.js";
 import { getAppLogger } from "../../logger.js";
 import {
@@ -24,7 +26,17 @@ import { OpenMarketplaceService } from "./open-marketplace-service.js";
 const log = getAppLogger("open-marketplace");
 
 interface MarketplaceWorker {
-	getDiscoveryDetail?(slug: string, version: string): Promise<OpenMarketplaceAbility>;
+	searchDiscovery?(
+		requestId: string,
+		query: McpDiscoveryQuery,
+		signal: AbortSignal,
+		update: (result: OpenMarketplaceDiscoverySearch) => void,
+	): Promise<OpenMarketplaceDiscoverySearch>;
+	getDiscoveryDetail?(
+		slug: string,
+		version: string,
+		reference?: McpDiscoveryReference,
+	): Promise<OpenMarketplaceAbility>;
 	list(): Promise<OpenMarketplaceSnapshot>;
 	listCached(): Promise<OpenMarketplaceSnapshot>;
 	refresh(): Promise<OpenMarketplaceSnapshot>;
@@ -56,6 +68,7 @@ export class OpenMarketplaceManager {
 	private readonly workerFactory: MarketplaceWorkerFactory;
 	private readonly credentialStore: GitHubMarketplaceCredentialStore;
 	private readonly workers = new Map<string, { fingerprint: string; worker: MarketplaceWorker }>();
+	private readonly searches = new Map<string, Set<AbortController>>();
 	private readonly updateListeners = new Set<(sourceId: string) => void>();
 
 	constructor(options: OpenMarketplaceManagerOptions) {
@@ -104,12 +117,14 @@ export class OpenMarketplaceManager {
 	updateSource(id: string, input: UpdateMarketplaceSourceInput): MarketplaceSource {
 		// workerFor replaces workers only when their cache identity changes, preserving in-flight syncs.
 		const source = this.store.update(id, input);
+		this.cancelSearches(id);
 		if (input.credential?.trim()) this.credentialStore.set(id, input.credential);
 		return this.withCredentialState(source);
 	}
 
 	removeSource(id: string): void {
 		this.store.remove(id);
+		this.cancelSearches(id);
 		this.workers.delete(id);
 		this.credentialStore.remove(id);
 	}
@@ -148,12 +163,50 @@ export class OpenMarketplaceManager {
 		await this.workerFor(source).install(type, slug);
 	}
 
-	async getDiscoveryDetail(sourceId: string, slug: string, version: string): Promise<OpenMarketplaceAbility> {
+	async getDiscoveryDetail(
+		sourceId: string,
+		slug: string,
+		version: string,
+		reference?: McpDiscoveryReference,
+	): Promise<OpenMarketplaceAbility> {
 		const source = this.requireSource(sourceId);
 		if (!source.enabled) throw new Error("Marketplace source is disabled");
 		const worker = this.workerFor(source);
 		if (!worker.getDiscoveryDetail) throw new Error("Discovery details are unavailable");
-		return worker.getDiscoveryDetail(slug, version);
+		return worker.getDiscoveryDetail(slug, version, reference);
+	}
+
+	private cancelSearches(sourceId: string): void {
+		for (const controller of this.searches.get(sourceId) ?? []) controller.abort();
+		this.searches.delete(sourceId);
+	}
+	async searchDiscovery(
+		requestId: string,
+		sourceId: string,
+		query: McpDiscoveryQuery,
+		signal: AbortSignal,
+		update: (result: OpenMarketplaceDiscoverySearch) => void,
+	): Promise<OpenMarketplaceDiscoverySearch> {
+		const source = this.requireSource(sourceId);
+		if (!source.enabled) throw new Error("Marketplace source is disabled");
+		const worker = this.workerFor(source);
+		if (!worker.searchDiscovery) throw new Error("Discovery search is unavailable");
+		const controller = new AbortController();
+		const searches = this.searches.get(sourceId) ?? new Set<AbortController>();
+		this.searches.set(sourceId, searches);
+		searches.add(controller);
+		const combined = AbortSignal.any([signal, controller.signal]);
+		try {
+			const result = await worker.searchDiscovery(requestId, query, combined, (result) => {
+				combined.throwIfAborted();
+				update(result);
+			});
+			combined.throwIfAborted();
+			return result;
+		} finally {
+			searches.delete(controller);
+			if (!searches.size && this.searches.get(sourceId) === searches) this.searches.delete(sourceId);
+		}
 	}
 
 	async prepareMcp(

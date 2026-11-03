@@ -13,12 +13,14 @@ export type CatalogMarketAbility = MarketAbility & {
 	catalogSource: AbilityCatalogSource;
 };
 
-function toMarketAbility(
+export function toMarketAbility(
 	ability: OpenMarketplaceAbility,
 	snapshot: OpenMarketplaceSourceSnapshot,
 ): OpenCatalogMarketAbility {
 	return {
 		listed: ability.listed,
+		discoveryReference: ability.discoveryReference,
+		mcpMetadata: ability.mcpMetadata,
 		detailDeferred: ability.detailDeferred,
 		installable: ability.installable,
 		reviewStatus: ability.reviewStatus,

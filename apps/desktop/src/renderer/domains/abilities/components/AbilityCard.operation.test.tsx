@@ -2,13 +2,14 @@
 
 import { cleanup, render, screen } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
-import type { AbilitiesModel, AbilityItem, SkillAbility } from "../types";
+import type { AbilitiesModel, AbilityItem, McpAbility, SkillAbility } from "../types";
 import { AbilityCard } from "./AbilityCard";
 
+const navigate = vi.hoisted(() => vi.fn());
 vi.mock("react-i18next", () => ({
 	useTranslation: () => ({ t: (key: string) => key }),
 }));
-vi.mock("@tanstack/react-router", () => ({ useNavigate: () => vi.fn() }));
+vi.mock("@tanstack/react-router", () => ({ useNavigate: () => navigate }));
 vi.mock("../hooks/useAbilityText", () => ({
 	useAbilityText: () => (item: AbilityItem) => ({ title: item.title, description: item.description }),
 }));
@@ -51,7 +52,10 @@ function ability(overrides: Partial<SkillAbility> = {}): SkillAbility {
 	};
 }
 
-afterEach(cleanup);
+afterEach(() => {
+	cleanup();
+	vi.clearAllMocks();
+});
 
 describe("AbilityCard operation feedback", () => {
 	it("exposes details as the card action and keeps adding independent", () => {
@@ -121,6 +125,50 @@ describe("AbilityCard operation feedback", () => {
 		screen.getByRole("button", { name: "actions.add" }).click();
 
 		expect(onUnreviewedMcpAdd).toHaveBeenCalledWith(item);
+		expect(model.install).not.toHaveBeenCalled();
+	});
+
+	it("opens a paged discovery candidate's details without offering installation", () => {
+		const onUnreviewedMcpAdd = vi.fn();
+		const item: McpAbility = {
+			...ability(),
+			id: "mcp:discovery-demo",
+			type: "mcp",
+			reviewStatus: "unreviewed",
+			serverName: "demo",
+			usesOAuth: false,
+			authorized: false,
+			canConfigure: false,
+			canEdit: false,
+			market: {
+				type: "mcp",
+				slug: "demo",
+				name: "Demo ability",
+				description: "Discovery summary",
+				license: "",
+				version: "1",
+				author: "",
+				icon: "",
+				category: "cad-3d",
+				tags: [],
+				sha256: "",
+				download_count: 0,
+				config: {},
+				detail: {},
+				updated_at: "",
+				installable: false,
+				discoveryReference: {
+					revision: "a".repeat(40),
+					category: "cad-3d",
+					searchPath: "v2/search/mcp-cad-3d-000000.json",
+				},
+			},
+		};
+		render(<AbilityCard item={item} model={model} onUnreviewedMcpAdd={onUnreviewedMcpAdd} />);
+		expect(screen.queryByRole("button", { name: "actions.add" })).toBeNull();
+		screen.getByRole("button", { name: "actions.viewDetails" }).click();
+		expect(navigate).toHaveBeenCalledWith({ to: "/abilities", search: { detail: item.id } });
+		expect(onUnreviewedMcpAdd).not.toHaveBeenCalled();
 		expect(model.install).not.toHaveBeenCalled();
 	});
 });

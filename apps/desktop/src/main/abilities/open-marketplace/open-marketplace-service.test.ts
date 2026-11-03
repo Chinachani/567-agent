@@ -1253,6 +1253,7 @@ it("activates installable packages before discovery and publishes unreviewed MCP
 				await pending;
 				return Response.json({ object: { sha: revision } });
 			}
+			if (url.endsWith("/v2/index.json")) return new Response(null, { status: 404 });
 			if (url.endsWith("/index.json")) return Response.json(index);
 			if (url.endsWith("0000.json")) return response(body);
 			return manifestResponse(archive());
@@ -1290,4 +1291,48 @@ it("activates installable packages before discovery and publishes unreviewed MCP
 	const previousUpdates = completedUpdates();
 	await expect(service.prepareMcp("blender-discovery")).rejects.toThrow("Open ability not found");
 	await vi.waitFor(() => expect(completedUpdates()).toBeGreaterThan(previousUpdates));
+});
+
+it("connects v2 query and deferred details to the service while keeping candidates outside installation", async () => {
+	const { officialFiles, TEST_REVISION } = await import("./mcp-discovery-v2-fixture.js");
+	const { discoveryQuerySchema } = await import("../../../shared/mcp-discovery.js");
+	const files = await officialFiles();
+	const rootDir = await temporaryRoot();
+	const onBackgroundUpdate = vi.fn();
+	const install = vi.fn();
+	const service = new OpenMarketplaceService({
+		appVersion: APP_VERSION,
+		rootDir,
+		repository: "https://github.com/Chinachani/567-agent-marketplace",
+		fetchArchive: async () => response(archive()),
+		installAbility: install,
+		fetchManifest: async (url) => {
+			if (url.includes("/git/ref/")) return Response.json({ object: { sha: TEST_REVISION } });
+			const path = url.split(`/${TEST_REVISION}/`)[1];
+			if (path) return files.has(path) ? response(files.get(path)!()) : new Response(null, { status: 404 });
+			return manifestResponse(archive());
+		},
+		onBackgroundUpdate,
+	});
+	await service.refresh();
+	await vi.waitFor(() =>
+		expect(onBackgroundUpdate).toHaveBeenCalledWith(
+			expect.objectContaining({ discovery: expect.objectContaining({ protocol: 2, total: 3 }) }),
+		),
+	);
+	const updates = vi.fn();
+	const result = await service.searchDiscovery(
+		"test",
+		discoveryQuerySchema.parse({ keyword: "blender" }),
+		new AbortController().signal,
+		updates,
+	);
+	expect(result.progress).toMatchObject({ complete: true, matched: 1 });
+	const row = result.abilities[0];
+	expect(row).toMatchObject({ installable: false, reviewStatus: "unreviewed", config: {}, detailDeferred: true });
+	const detail = await service.getDiscoveryDetail(row.slug, result.progress.version, row.discoveryReference);
+	expect(detail).toMatchObject({ installable: false, config: {} });
+	await expect(service.prepareMcp(row.slug)).rejects.toThrow("Open ability not found");
+	await service.install("skill", "demo-skill");
+	expect(install).toHaveBeenCalledTimes(1);
 });

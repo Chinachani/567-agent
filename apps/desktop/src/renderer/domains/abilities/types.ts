@@ -14,6 +14,7 @@ import type {
 	UpdateMarketplaceSourceInput,
 } from "@preload/api";
 import type { AbilityDetail, AbilityMember, MarketAbility } from "@shared/lib/api";
+import type { McpDiscoveryFacet, McpDiscoveryFacets, McpDiscoveryFilters } from "../../../shared/mcp-discovery";
 import type { McpSettingsModel } from "../settings/components/useMcpSettingsModel";
 import type { BuiltinMcpPreset } from "../settings/mcp/builtin-mcp-presets";
 
@@ -188,7 +189,29 @@ export interface AbilityGroup {
 	items: AbilityItem[];
 }
 
+export interface AbilityDiscoveryModel {
+	items: AbilityItem[];
+	facets: McpDiscoveryFacets;
+	filters: McpDiscoveryFilters;
+	setFilter: (facet: McpDiscoveryFacet, value: string) => void;
+	clearFilters: () => void;
+	active: boolean;
+	running: boolean;
+	complete: boolean;
+	cancelled: boolean;
+	matched: number;
+	scanned: number;
+	total: number;
+	failed: number;
+	offset: number;
+	hasNext: boolean;
+	previous: () => void;
+	next: () => void;
+	cancel: () => void;
+	retry: () => void;
+}
 export interface AbilitiesModel {
+	discovery?: AbilityDiscoveryModel;
 	scope: AbilityScope;
 	setScope: (scope: AbilityScope) => void;
 	searchQuery: string;

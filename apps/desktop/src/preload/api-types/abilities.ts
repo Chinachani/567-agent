@@ -1,3 +1,10 @@
+import type {
+	McpDiscoveryFacets,
+	McpDiscoveryMetadata,
+	McpDiscoveryProgress,
+	McpDiscoveryQuery,
+	McpDiscoveryReference,
+} from "../../shared/mcp-discovery.js";
 import type { McpServerConfigData } from "./mcp.js";
 
 /**
@@ -183,6 +190,11 @@ export interface OpenMarketplaceAbilityConfig {
 }
 
 export interface OpenMarketplaceDiscoveryStatus {
+	protocol?: 1 | 2;
+	revision?: string;
+	categories?: Record<string, { recordCount: number; facets: McpDiscoveryFacets }>;
+	legacy?: { status: "current" | "frozen" | "unavailable"; catalogVersion?: string };
+
 	version: string | null;
 	total: number;
 	loaded: number;
@@ -192,7 +204,16 @@ export interface OpenMarketplaceDiscoveryStatus {
 	error?: "network" | "timeout" | "rate-limited" | "content-invalid" | "not-found" | "forbidden";
 }
 
+export interface OpenMarketplaceDiscoverySearch {
+	requestId: string;
+	sourceId: string;
+	abilities: OpenMarketplaceAbility[];
+	progress: McpDiscoveryProgress;
+}
+
 export interface OpenMarketplaceAbility {
+	discoveryReference?: McpDiscoveryReference;
+	mcpMetadata?: McpDiscoveryMetadata;
 	detailDeferred?: boolean;
 	reviewStatus?: "unreviewed";
 	classificationSource?: "automatic" | "maintainer";
@@ -310,7 +331,19 @@ export interface DesktopAbilitiesApi {
 	refreshOpenMarketplace(): Promise<OpenMarketplaceSnapshot>;
 	/** 聚合所有已启用来源；搜索、筛选与分页均由客户端本地完成。 */
 	listOpenMarketplaces(): Promise<OpenMarketplaceCatalog>;
-	getDiscoveryDetail(sourceId: string, slug: string, catalogVersion: string): Promise<OpenMarketplaceAbility>;
+	getDiscoveryDetail(
+		sourceId: string,
+		slug: string,
+		catalogVersion: string,
+		reference?: McpDiscoveryReference,
+	): Promise<OpenMarketplaceAbility>;
+	searchDiscovery(
+		requestId: string,
+		sourceId: string,
+		query: McpDiscoveryQuery,
+	): Promise<OpenMarketplaceDiscoverySearch>;
+	cancelDiscoverySearch(requestId: string): Promise<void>;
+	onDiscoverySearchUpdated(handler: (result: OpenMarketplaceDiscoverySearch) => void): () => void;
 	/** 强制刷新所有已启用来源，单个来源失败不会中止其它来源。 */
 	refreshOpenMarketplaces(): Promise<OpenMarketplaceCatalog>;
 	listMarketplaceSources(): Promise<MarketplaceSource[]>;

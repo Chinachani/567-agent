@@ -7,10 +7,12 @@ import type {
 	GitHubMarketplaceOrigin,
 	OpenMarketplaceAbility,
 	OpenMarketplaceDetail,
+	OpenMarketplaceDiscoverySearch,
 	OpenMarketplaceMcpRuntimeProgress,
 	OpenMarketplaceSnapshot,
 } from "../../../preload/api-types/abilities.js";
 import type { McpServerConfigData } from "../../../preload/api-types/mcp.js";
+import type { McpDiscoveryQuery, McpDiscoveryReference } from "../../../shared/mcp-discovery.js";
 import { getApplicationCacheService } from "../../cache/application-cache-service.js";
 import { getAppLogger } from "../../logger.js";
 import { PLUGIN_API_VERSION } from "../../plugins/plugin-api-version.js";
@@ -19,7 +21,9 @@ import { isAppVersionCompatible, isValidAppVersion } from "./marketplace-compati
 import { selectMarketplacePluginReleases } from "./marketplace-plugin-releases.js";
 import { type MarketplaceManifest, parseMarketplaceManifest } from "./marketplace-schema.js";
 import { type McpDiscoveryAbility, parseMcpDiscoveryShard } from "./mcp-discovery-catalog.js";
-import { McpDiscoveryFeed } from "./mcp-discovery-feed.js";
+import { McpDiscoveryCatalogFeed } from "./mcp-discovery-catalog-feed.js";
+import type { DiscoverySearchResult } from "./mcp-discovery-v2-feed.js";
+
 import { DEFAULT_MARKETPLACE_SOURCE_ID, OFFICIAL_MARKETPLACE_REPOSITORY } from "./official-marketplace-source.js";
 
 const STATE_SCHEMA_VERSION = 1;
@@ -367,7 +371,7 @@ export class OpenMarketplaceService {
 	private snapshotCleanupInFlight: Promise<void> | undefined;
 	private snapshotCleanupRequested = false;
 	/** 进程内快照：避免同会话反复 list 时对每个 ability 包做全量校验。 */
-	private readonly discoveryFeed?: McpDiscoveryFeed;
+	private readonly discoveryFeed?: McpDiscoveryCatalogFeed;
 	private discoverySync: Promise<void> | undefined;
 	private memorySnapshot: OpenMarketplaceSnapshot | undefined;
 
@@ -393,7 +397,7 @@ export class OpenMarketplaceService {
 			this.sourceRef === "main" &&
 			this.repository.toLowerCase() === OFFICIAL_MARKETPLACE_REPOSITORY.toLowerCase()
 		) {
-			this.discoveryFeed = new McpDiscoveryFeed({
+			this.discoveryFeed = new McpDiscoveryCatalogFeed({
 				rootDir: this.rootDir,
 				repository: this.repository,
 				fetch: this.fetchManifest,
@@ -504,7 +508,11 @@ export class OpenMarketplaceService {
 		);
 	}
 
-	async getDiscoveryDetail(slug: string, version: string): Promise<OpenMarketplaceAbility> {
+	async getDiscoveryDetail(
+		slug: string,
+		version: string,
+		reference?: McpDiscoveryReference,
+	): Promise<OpenMarketplaceAbility> {
 		if (!/^[a-z0-9][a-z0-9-]{0,63}$/.test(slug) || !/^[A-Za-z0-9][A-Za-z0-9._-]{0,63}$/.test(version))
 			throw new Error("Invalid discovery identity");
 		const snapshot = this.memorySnapshot ?? (await this.listCached());
@@ -512,14 +520,46 @@ export class OpenMarketplaceService {
 			(entry) =>
 				entry.slug === slug && entry.reviewStatus === "unreviewed" && entry.origin.marketplaceVersion === version,
 		);
-		if (!row || !this.discoveryFeed) throw new Error("Discovery details are unavailable; refresh the catalog");
-		const full = await this.discoveryFeed.detail(slug, version);
+		if ((!row && !reference) || !this.discoveryFeed)
+			throw new Error("Discovery details are unavailable; refresh the catalog");
+		const full = await this.discoveryFeed.detail(slug, version, reference);
 		return toDiscoveryMarketplaceAbility(
 			this.sourceId,
-			{ name: row.origin.marketplace, repository: row.origin.repository },
+			{ name: row?.origin.marketplace ?? "MCP", repository: this.repository },
 			version,
 			full,
 		);
+	}
+
+	async searchDiscovery(
+		requestId: string,
+		query: McpDiscoveryQuery,
+		signal: AbortSignal,
+		update: (result: OpenMarketplaceDiscoverySearch) => void,
+	): Promise<OpenMarketplaceDiscoverySearch> {
+		const snapshot = await this.listCached();
+		if (!this.discoveryFeed || snapshot.discovery?.protocol !== 2) throw new Error("Discovery v2 unavailable");
+		const excluded = new Set(
+			snapshot.abilities
+				.filter((row) => row.type === "mcp" && row.reviewStatus !== "unreviewed")
+				.map((row) => row.slug),
+		);
+		const project = (result: DiscoverySearchResult): OpenMarketplaceDiscoverySearch => ({
+			requestId,
+			sourceId: this.sourceId,
+			progress: result.progress,
+			abilities: result.rows.map(({ ability, reference }) => ({
+				...toDiscoveryMarketplaceAbility(
+					this.sourceId,
+					{ name: "MCP", repository: this.repository },
+					result.progress.version,
+					ability,
+				),
+				mcpMetadata: ability.mcpMetadata,
+				discoveryReference: reference,
+			})),
+		});
+		return project(await this.discoveryFeed.v2.search(query, signal, (result) => update(project(result)), excluded));
 	}
 
 	async prepareMcp(

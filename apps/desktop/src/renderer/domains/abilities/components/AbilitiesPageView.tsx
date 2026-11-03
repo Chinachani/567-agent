@@ -1,3 +1,4 @@
+import { DiscoveryFiltersView, DiscoverySearchStatusView } from "@vetta-org/theme-ui/skills";
 import { WorkspacePageHeader } from "@vetta-org/theme-ui/shared";
 import { SegmentedControl } from "@vetta-org/theme-ui/shared";
 import { Button, Popover, PopoverContent, PopoverTrigger } from "@vetta-org/ui";
@@ -45,11 +46,16 @@ export function AbilitiesPageView({
 	const [unreviewedMcp, setUnreviewedMcp] = useState<McpAbility | null>(null);
 	const wasRefreshing = useRef(model.refreshing);
 	const hasActiveFilter = Boolean(
-		model.searchQuery || model.typeFilter || model.category || model.reviewFilter !== "all" || model.tagFilter,
+		model.searchQuery ||
+			model.typeFilter ||
+			model.category ||
+			model.reviewFilter !== "all" ||
+			model.tagFilter ||
+			Object.values(model.discovery?.filters ?? {}).some((values) => values?.length),
 	);
-	const activeFilterCount = [model.typeFilter, model.category, model.reviewFilter !== "all", model.tagFilter].filter(
-		Boolean,
-	).length;
+	const activeFilterCount =
+		[model.typeFilter, model.category, model.reviewFilter !== "all", model.tagFilter].filter(Boolean).length +
+		Object.values(model.discovery?.filters ?? {}).filter((values) => values?.length).length;
 
 	useEffect(() => {
 		if (wasRefreshing.current && !model.refreshing) {
@@ -60,10 +66,20 @@ export function AbilitiesPageView({
 				const loaded = statuses.reduce((sum, status) => sum + status.loaded, 0);
 				const total = statuses.reduce((sum, status) => sum + status.total, 0);
 				const incomplete = statuses.some((status) => status.failedShards > 0 || status.error);
+				const paged = statuses.some((status) => status.protocol === 2);
 				showToast({
 					variant: incomplete ? "warning" : "success",
-					title: t("discovery.toastTitle"),
-					message: t(incomplete ? "discovery.toastIncomplete" : "discovery.toastLoaded", { loaded, total }),
+					title: t(paged ? "discoveryV2.indexTitle" : "discovery.toastTitle"),
+					message: t(
+						paged
+							? incomplete
+								? "discoveryV2.indexIncomplete"
+								: "discoveryV2.indexed"
+							: incomplete
+								? "discovery.toastIncomplete"
+								: "discovery.toastLoaded",
+						{ loaded, total },
+					),
 					durationMs: incomplete ? 0 : 4500,
 					...(incomplete ? { action: { label: t("actions.refresh"), onClick: model.refresh } } : {}),
 				});
@@ -135,7 +151,10 @@ export function AbilitiesPageView({
 										)}
 									</Button>
 								</PopoverTrigger>
-								<PopoverContent align="start" className="w-72">
+								<PopoverContent
+									align="start"
+									className="w-72 max-h-[min(600px,var(--radix-popover-content-available-height))] overflow-y-auto"
+								>
 									<p className="px-1 text-[12px] font-semibold">{t("filter.title")}</p>
 									<label className="flex flex-col gap-1 text-[11px] text-muted-foreground">
 										{t("filter.type")}
@@ -217,6 +236,34 @@ export function AbilitiesPageView({
 											))}
 										</select>
 									</label>
+									{model.discovery && (
+										<DiscoveryFiltersView
+											title={t("discoveryV2.filtersTitle")}
+											allLabel={t("discoveryV2.all")}
+											fields={(
+												[
+													"runtimeMode",
+													"platforms",
+													"permissionScopes",
+													"authentication",
+													"publisherType",
+												] as const
+											).map((facet) => ({
+												key: facet,
+												label: t(`discoveryV2.${facet}`),
+												value: model.discovery?.filters[facet]?.[0] ?? "",
+												options: Object.keys(model.discovery?.facets[facet] ?? {})
+													.sort()
+													.map((value) => ({
+														value,
+														label: i18n.t(`abilities:discoveryV2.values.${value}`, {
+															defaultValue: value,
+														}),
+													})),
+												onChange: (value) => model.discovery?.setFilter(facet, value),
+											}))}
+										/>
+									)}
 									<div className="flex justify-end pt-1">
 										<Button
 											type="button"
@@ -228,6 +275,7 @@ export function AbilitiesPageView({
 												model.setCategory("");
 												model.setReviewFilter("all");
 												model.setTagFilter("");
+												model.discovery?.clearFilters();
 											}}
 										>
 											{t("filter.clear")}
@@ -287,7 +335,7 @@ export function AbilitiesPageView({
 								<span className="icon-[solar--refresh-linear] h-8 w-8 animate-spin" />
 								<span className="text-[12px]">{t("loading")}</span>
 							</div>
-						) : model.items.length === 0 ? (
+						) : model.items.length === 0 && !model.discovery?.active ? (
 							<div className="flex min-h-52 flex-col items-center justify-center gap-3 rounded-xl border border-border/50 bg-card/30 text-center">
 								<span className="icon-[solar--magic-stick-3-linear] h-10 w-10 text-muted-foreground" />
 								<div>
@@ -360,6 +408,73 @@ export function AbilitiesPageView({
 							</div>
 						)}
 					</div>
+					{model.discovery?.active && (
+						<section className="flex flex-col gap-3" aria-label={t("discoveryV2.title")}>
+							<h2 className="text-[13px] font-semibold">{t("discoveryV2.title")}</h2>
+							<DiscoverySearchStatusView
+								label={t(
+									model.discovery.running
+										? "discoveryV2.searching"
+										: model.discovery.complete
+											? "discoveryV2.complete"
+											: model.discovery.cancelled
+												? "discoveryV2.cancelled"
+												: "discoveryV2.partial",
+									{ count: model.discovery.matched },
+								)}
+								description={[
+									t("discoveryV2.progress", {
+										scanned: model.discovery.scanned,
+										total: model.discovery.total,
+									}),
+									model.discovery.failed ? t("discoveryV2.failed", { count: model.discovery.failed }) : "",
+								]
+									.filter(Boolean)
+									.join(" · ")}
+								pageLabel={t("discoveryV2.page", { page: model.discovery.offset / 60 + 1 })}
+								running={model.discovery.running}
+								canRetry={!model.discovery.running && !model.discovery.complete}
+								canPrevious={model.discovery.offset > 0}
+								canNext={model.discovery.hasNext}
+								labels={{
+									cancel: t("discoveryV2.cancel"),
+									retry: t("discoveryV2.retry"),
+									previous: t("discoveryV2.previous"),
+									next: t("discoveryV2.next"),
+								}}
+								onCancel={model.discovery.cancel}
+								onRetry={model.discovery.retry}
+								onPrevious={model.discovery.previous}
+								onNext={model.discovery.next}
+							/>
+							{model.marketplaceCatalog.snapshots
+								.filter(
+									(snapshot) =>
+										snapshot.discovery?.protocol === 2 && snapshot.discovery.legacy?.status === "frozen",
+								)
+								.map((snapshot) => (
+									<p key={snapshot.sourceId} className="text-[11px] text-muted-foreground">
+										{t("discoveryV2.frozen", { version: snapshot.discovery?.legacy?.catalogVersion })}
+									</p>
+								))}
+							{model.discovery.items.length > 0 ? (
+								<div className="grid grid-cols-[repeat(auto-fill,minmax(min(300px,100%),1fr))] gap-3">
+									{model.discovery.items.map((item) => (
+										<AbilityCard
+											key={item.id}
+											item={item}
+											model={model}
+											onUnreviewedMcpAdd={setUnreviewedMcp}
+										/>
+									))}
+								</div>
+							) : (
+								<p className="py-6 text-center text-[12px] text-muted-foreground">
+									{t(model.discovery.complete ? "discoveryV2.emptyComplete" : "discoveryV2.emptyPending")}
+								</p>
+							)}
+						</section>
+					)}
 				</div>
 			</div>
 

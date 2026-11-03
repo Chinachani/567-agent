@@ -1,6 +1,7 @@
 import type { McpServerConfigData, RefreshOutcome } from "@preload/api";
 import { i18n } from "@shared/i18n";
 import type { SkillPresentation } from "@vetta-org/capability-sdk";
+import type { McpDiscoveryMetadata, McpDiscoveryReference } from "../../../shared/mcp-discovery";
 
 let cachedBaseUrl: string | undefined;
 const hostFetch = globalThis.fetch.bind(globalThis);
@@ -475,6 +476,8 @@ export interface AbilityDetail {
 }
 
 export interface MarketAbility {
+	discoveryReference?: McpDiscoveryReference;
+	mcpMetadata?: McpDiscoveryMetadata;
 	detailDeferred?: boolean;
 	reviewStatus?: "unreviewed";
 	classificationSource?: "automatic" | "maintainer";

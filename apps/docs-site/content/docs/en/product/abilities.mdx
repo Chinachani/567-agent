@@ -37,6 +37,20 @@ If you only need an external API, do not start with a desktop plugin. If you onl
 
 Search by capability name. Cards show the source, version, and state, such as needs configuration, update available, or enabled.
 
+## Search the MCP discovery catalog
+
+Under **Discover**, the **MCP discovery catalog** lists unreviewed public candidates separately from installable capabilities. Combine category, functional tag, runtime mode, platform, permission scope, authentication, and publisher filters. Missing information is shown as **Unknown**, which does not imply that no permissions or authentication are required.
+
+Keyword searches progressively scan names, summaries, and their English and Chinese text, including pages that have not been loaded yet. Results and progress appear while scanning; the final count is shown only after completion. Each source displays a window of 60 results with previous and next controls. Full details load when opened; text beyond the summary is outside keyword search coverage.
+
+- **Pause and retry:** Pause a scan while retaining its displayed results. Retry reuses validated cache entries and downloads missing content. Results remain partial when any part fails.
+- **Change filters:** Changing the keyword or filters cancels the previous search so late results cannot enter the new query.
+- **Refresh:** Each search uses one fixed catalog revision. Refresh selects the new revision without mixing pages from different versions.
+- **Read-only candidates:** View descriptions, sources, and documentation without installing from the discovery catalog. Classification and permission metadata are not security approval. Skills and reviewed MCP connectors retain their existing installation flow.
+- **Offline and older catalogs:** Validated cache entries remain available. Uncached pages are unavailable offline and are reported as partial failures. Sources that have not deployed v2 use the existing protocol. If the compatibility catalog is marked frozen, older clients see its previous snapshot while this client uses the complete v2 catalog.
+
+Each source uses bounded download concurrency and an approximately 200 MiB cache budget. Least recently used shards are evicted when necessary. This budget does not limit total v2 catalog size or affect installed capabilities and user configuration.
+
 ## Add from the marketplace or list
 
 <Steps>

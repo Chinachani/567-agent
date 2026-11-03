@@ -4,10 +4,18 @@
  */
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
+import {
+	discoveryRecordMatches,
+	emptyDiscoveryFacets,
+	MCP_DISCOVERY_CATEGORIES,
+	MCP_DISCOVERY_FACETS,
+	type McpDiscoveryFilters,
+	type McpDiscoveryQuery,
+} from "../../../../shared/mcp-discovery";
 import { usePluginTextResolver } from "../../plugins/runtime/plugin-i18n";
 import { useMcpSettingsModel } from "../../settings/components/useMcpSettingsModel";
 import { filterAbilityCatalog, queryAbilityCatalog } from "../lib/ability-catalog-query";
-import { abilityCategoryKey } from "../lib/ability-categories";
+import { abilityCategoryKey, normalizeAbilityCategory } from "../lib/ability-categories";
 import { localizeMarketAbility } from "../lib/ability-presentation";
 import {
 	buildBundleAbilities,
@@ -19,6 +27,7 @@ import {
 import { decorateAbilityConflicts } from "../lib/decorate-ability-conflicts";
 import { groupAbilities } from "../lib/group-abilities";
 import { withLocalAbilityPresentation } from "../lib/local-ability-presentation";
+import { toMarketAbility } from "../lib/merge-ability-catalogs";
 import {
 	ABILITY_CATEGORY_INSTALLED,
 	type AbilitiesModel,
@@ -29,6 +38,7 @@ import {
 } from "../types";
 import { useAbilityActions } from "./useAbilityActions";
 import { useAbilityData } from "./useAbilityData";
+import { useDiscoverySearch } from "./useDiscoverySearch";
 
 const ABILITY_PAGE_SIZE = 60;
 
@@ -47,10 +57,50 @@ export function useAbilitiesModel(options: UseAbilitiesModelOptions = {}): Abili
 	const [category, setCategory] = useState("");
 	const [reviewFilter, setReviewFilter] = useState<AbilityReviewFilter>("all");
 	const [tagFilter, setTagFilter] = useState("");
+	const [discoveryFilters, setDiscoveryFilters] = useState<McpDiscoveryFilters>({});
 	const [visiblePages, setVisiblePages] = useState(1);
 
 	const data = useAbilityData();
 	const trPlugin = usePluginTextResolver();
+	const discoveryCategory = category === "__uncategorized__" ? "uncategorized" : category;
+	const supportedCategory = MCP_DISCOVERY_CATEGORIES.find((value) => value === discoveryCategory);
+	const discoveryEnabled =
+		(scope === "discover" || scope === "public") &&
+		(!typeFilter || typeFilter === "mcp") &&
+		(!category || Boolean(supportedCategory));
+	const discoveryQuery = useMemo<Omit<McpDiscoveryQuery, "offset" | "limit">>(
+		() => ({
+			keyword: searchQuery,
+			category: supportedCategory,
+			filters: { ...discoveryFilters, ...(tagFilter ? { tags: [tagFilter] } : {}) },
+		}),
+		[searchQuery, supportedCategory, discoveryFilters, tagFilter],
+	);
+	const discovery = useDiscoverySearch(data.marketplaceCatalog.snapshots, discoveryQuery, discoveryEnabled);
+	const discoveryFacets = useMemo(() => {
+		const facets = emptyDiscoveryFacets();
+		for (const snapshot of data.marketplaceCatalog.snapshots)
+			for (const [name, info] of Object.entries(snapshot.discovery?.categories ?? {})) {
+				if (supportedCategory && name !== supportedCategory) continue;
+				for (const key of MCP_DISCOVERY_FACETS)
+					for (const [value, count] of Object.entries(info.facets[key]))
+						facets[key][value] = (facets[key][value] ?? 0) + count;
+			}
+		return facets;
+	}, [data.marketplaceCatalog.snapshots, supportedCategory]);
+	const hasV2 = discovery.sources.length > 0;
+	const discoveryMarket = useMemo(
+		() =>
+			discovery.results.flatMap((result) => {
+				const source = data.marketplaceCatalog.snapshots.find((snapshot) => snapshot.sourceId === result.sourceId);
+				return source
+					? result.abilities.map((ability) =>
+							localizeMarketAbility(toMarketAbility(ability, source), i18n.language),
+						)
+					: [];
+			}),
+		[discovery.results, data.marketplaceCatalog.snapshots, i18n.language],
+	);
 	// 引导弹窗里完成的安装不走 useAbilityActions，台账要由 mcp 模型回调刷新，
 	// 否则卡片继续显示「添加」，再点一次就会装出第二个同名 server。
 	const mcp = useMcpSettingsModel({ onAbilityLedgerChanged: data.refresh });
@@ -93,7 +143,7 @@ export function useAbilitiesModel(options: UseAbilitiesModelOptions = {}): Abili
 	const allItems = useMemo<AbilityItem[]>(() => {
 		const singles = [
 			...buildSkillAbilities(market, localState),
-			...buildMcpAbilities(market, localState, t),
+			...buildMcpAbilities([...market, ...discoveryMarket], localState, t),
 			...buildPluginAbilities(market, localState, trPlugin),
 		]
 			.map((item) => withLocalAbilityPresentation(item, data.localPresentations))
@@ -109,10 +159,20 @@ export function useAbilitiesModel(options: UseAbilitiesModelOptions = {}): Abili
 				operationProgress: actions.operationProgressById.get(item.id),
 			}),
 		);
-	}, [market, localState, t, trPlugin, data.localPresentations, actions.operationById, actions.operationProgressById]);
+	}, [
+		market,
+		discoveryMarket,
+		localState,
+		t,
+		trPlugin,
+		data.localPresentations,
+		actions.operationById,
+		actions.operationProgressById,
+	]);
 
 	const changeScope = useCallback((nextScope: AbilityScope) => {
 		setScope(nextScope);
+		setDiscoveryFilters({});
 		setTypeFilter("");
 		setCategory("");
 		setReviewFilter("all");
@@ -141,7 +201,11 @@ export function useAbilitiesModel(options: UseAbilitiesModelOptions = {}): Abili
 	}, []);
 
 	const facetItems = useMemo(
-		() => filterAbilityCatalog(allItems, { scope, keyword: searchQuery }),
+		() =>
+			filterAbilityCatalog(
+				allItems.filter((item) => !item.market?.discoveryReference),
+				{ scope, keyword: searchQuery },
+			),
 		[allItems, scope, searchQuery],
 	);
 	const filterFacetItems = useMemo(
@@ -158,42 +222,63 @@ export function useAbilitiesModel(options: UseAbilitiesModelOptions = {}): Abili
 	);
 	const availableTypes = useMemo(
 		() =>
-			(["mcp", "skill", "plugin", "bundle"] as const).filter((type) =>
-				filterFacetItems.some((item) => item.type === type),
+			(["mcp", "skill", "plugin", "bundle"] as const).filter(
+				(type) =>
+					filterFacetItems.some((item) => item.type === type) || (type === "mcp" && hasV2 && scope === "discover"),
 			),
-		[filterFacetItems],
+		[filterFacetItems, hasV2, scope],
 	);
-	const categories = useMemo(
-		() =>
-			groupAbilities(
-				facetItems.filter(
-					(item) =>
-						(!typeFilter || item.type === typeFilter) &&
-						(reviewFilter !== "unreviewed" || item.reviewStatus === "unreviewed") &&
-						(!tagFilter || item.tags.some((tag) => tag.toLocaleLowerCase() === tagFilter.toLocaleLowerCase())),
-				),
+	const categories = useMemo(() => {
+		const groups = groupAbilities(
+			facetItems.filter(
+				(item) =>
+					(!typeFilter || item.type === typeFilter) &&
+					(reviewFilter !== "unreviewed" || item.reviewStatus === "unreviewed") &&
+					(!tagFilter || item.tags.includes(tagFilter)),
 			),
-		[facetItems, typeFilter, reviewFilter, tagFilter],
-	);
+		);
+		if (scope === "discover" && (!typeFilter || typeFilter === "mcp")) {
+			for (const snapshot of discovery.sources)
+				for (const name of Object.keys(snapshot.discovery?.categories ?? {})) {
+					const key = normalizeAbilityCategory(name);
+					if (!groups.some((group) => group.category === key))
+						groups.push({
+							category: key,
+							categoryI18n: {
+								[i18n.language]: i18n.t(
+									`abilities:discoveryV2.categories.${MCP_DISCOVERY_CATEGORIES.find((value) => value === name) ?? "uncategorized"}`,
+								),
+							},
+							items: [],
+						});
+				}
+		}
+		return groups;
+	}, [facetItems, typeFilter, reviewFilter, tagFilter, scope, discovery.sources, i18n.language, i18n.t]);
 	const availableTags = useMemo(
 		() =>
 			Array.from(
 				new Map(
-					filterFacetItems
-						.filter(
-							(item) =>
-								(!typeFilter || item.type === typeFilter) &&
-								(!category ||
-									category === ABILITY_CATEGORY_INSTALLED ||
-									abilityCategoryKey(item) === category) &&
-								(reviewFilter !== "unreviewed" || item.reviewStatus === "unreviewed"),
-						)
-						.flatMap((item) => item.tags)
+					[
+						...filterFacetItems
+							.filter(
+								(item) =>
+									(!typeFilter || item.type === typeFilter) &&
+									(!category ||
+										category === ABILITY_CATEGORY_INSTALLED ||
+										abilityCategoryKey(item) === category) &&
+									(reviewFilter !== "unreviewed" || item.reviewStatus === "unreviewed"),
+							)
+							.flatMap((item) => item.tags),
+						...(scope === "discover" && (!typeFilter || typeFilter === "mcp")
+							? Object.keys(discoveryFacets.tags)
+							: []),
+					]
 						.map((tag) => [tag.trim().toLocaleLowerCase(), tag.trim()] as const)
 						.filter(([key, value]) => key && value),
 				).values(),
 			).sort((a, b) => a.localeCompare(b, i18n.language)),
-		[filterFacetItems, typeFilter, category, reviewFilter, i18n.language],
+		[filterFacetItems, typeFilter, category, reviewFilter, i18n.language, scope, discoveryFacets],
 	);
 	useEffect(() => {
 		if (data.loading) return;
@@ -217,17 +302,29 @@ export function useAbilitiesModel(options: UseAbilitiesModelOptions = {}): Abili
 
 	const catalogPage = useMemo(
 		() =>
-			queryAbilityCatalog(allItems, {
-				scope,
-				keyword: searchQuery,
-				types: typeFilter ? [typeFilter] : undefined,
-				category,
-				reviewFilter,
-				tag: tagFilter,
-				page: 1,
-				pageSize: visiblePages * ABILITY_PAGE_SIZE,
-			}),
-		[allItems, scope, searchQuery, typeFilter, category, reviewFilter, tagFilter, visiblePages],
+			queryAbilityCatalog(
+				allItems.filter(
+					(item) =>
+						!item.market?.discoveryReference &&
+						(!Object.values(discoveryFilters).some((values) => values?.length) ||
+							(item.market?.mcpMetadata &&
+								discoveryRecordMatches(
+									{ ...item.market, mcpMetadata: item.market.mcpMetadata },
+									{ keyword: "", filters: discoveryFilters },
+								))),
+				),
+				{
+					scope,
+					keyword: searchQuery,
+					types: typeFilter ? [typeFilter] : undefined,
+					category,
+					reviewFilter,
+					tag: tagFilter,
+					page: 1,
+					pageSize: visiblePages * ABILITY_PAGE_SIZE,
+				},
+			),
+		[allItems, scope, searchQuery, typeFilter, category, reviewFilter, tagFilter, visiblePages, discoveryFilters],
 	);
 	const items = catalogPage.items;
 
@@ -259,6 +356,29 @@ export function useAbilitiesModel(options: UseAbilitiesModelOptions = {}): Abili
 	const detailErrors = useMemo(() => (actions.error ? [actions.error] : []), [actions.error]);
 
 	return {
+		discovery: hasV2
+			? {
+					items: allItems.filter((item) => Boolean(item.market?.discoveryReference)),
+					facets: discoveryFacets,
+					filters: discoveryFilters,
+					setFilter: (facet, value) => setDiscoveryFilters((old) => ({ ...old, [facet]: value ? [value] : [] })),
+					clearFilters: () => setDiscoveryFilters({}),
+					active: discoveryEnabled,
+					running: discovery.running,
+					complete: discovery.complete,
+					cancelled: discovery.cancelled,
+					matched: discovery.matched,
+					scanned: discovery.scanned,
+					total: discovery.total,
+					failed: discovery.failed,
+					offset: discovery.offset,
+					hasNext: discovery.hasNext,
+					previous: discovery.previous,
+					next: discovery.next,
+					cancel: discovery.cancel,
+					retry: discovery.retry,
+				}
+			: undefined,
 		scope,
 		setScope: changeScope,
 		searchQuery,
