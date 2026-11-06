@@ -290,7 +290,7 @@ export type {
 	ModelSelectorProviderGroup,
 	ModelSelectorViewProps,
 } from "./ModelSelectorView";
-export { ModelSelectorView } from "./ModelSelectorView";
+export { ModelSelectorView, ModelVisionIcon } from "./ModelSelectorView";
 export type {
 	NewSessionGuidingWordsGroup,
 	NewSessionGuidingWordsProps,

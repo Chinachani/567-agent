@@ -4,6 +4,7 @@ import type { ArtifactStore } from "../artifacts/artifact-store.js";
 import type { JobManager } from "../jobs/job-manager.js";
 import { getAppLogger } from "../logger.js";
 import { create567ApiImageProvider } from "../media-generation/567api-image-provider.js";
+import { CustomImageProviderManager } from "../media-generation/custom-image-provider-manager.js";
 import { MediaArtifactStore } from "../media-generation/media-artifact-store.js";
 import { MediaProviderRegistry } from "../media-generation/media-provider-registry.js";
 
@@ -12,6 +13,7 @@ const DOMAIN_MEDIA_PROVIDER_OWNER = "vetta.domain.media";
 export interface DesktopMediaRuntime {
 	readonly providers: MediaProviderRegistry;
 	readonly artifacts: MediaArtifactStore;
+	readonly customImageProviders: CustomImageProviderManager;
 }
 
 let desktopMediaRuntime: DesktopMediaRuntime | undefined;
@@ -28,7 +30,10 @@ export function registerDesktopMediaProviders(
 ): Disposable {
 	const providers = new MediaProviderRegistry(jobs, getAppLogger("media-generation"));
 	const artifacts = new MediaArtifactStore(artifactStore);
-	desktopMediaRuntime = { providers, artifacts };
+	const customImageProviders = new CustomImageProviderManager(providers, artifacts, {
+		fetch: (url, init) => globalThis.fetch(url, init),
+	});
+	desktopMediaRuntime = { providers, artifacts, customImageProviders };
 	// 注册 567 API 图像生成能力
 	const api567ImageRegistration = providers.registerProvider(
 		create567ApiImageProvider(artifacts, "desktop-app:api567"),
@@ -46,6 +51,7 @@ export function registerDesktopMediaProviders(
 			if (desktopMediaRuntime?.providers === providers) desktopMediaRuntime = undefined;
 			capabilityRegistration.dispose();
 			api567ImageRegistration.dispose();
+			customImageProviders.dispose();
 		},
 	};
 }

@@ -55,6 +55,8 @@ export type {
 	BuiltinMcpSectionViewProps,
 } from "./BuiltinMcpSectionView";
 export { BuiltinMcpSectionView } from "./BuiltinMcpSectionView";
+export type { CustomImageProviderDraftView, CustomImageProvidersViewModel } from "./CustomImageProvidersView";
+export { CustomImageProvidersView } from "./CustomImageProvidersView";
 export type {
 	EnvironmentRuntimeKindView,
 	EnvironmentRuntimeStatusView,

@@ -32,16 +32,22 @@ export interface ContextUsageEstimate {
 
 function getLastAssistantUsageInfo(
 	messages: readonly AgentMessage[],
+	canUseUsage: (message: AssistantMessage) => boolean,
 ): { readonly usage: Usage; readonly index: number } | undefined {
 	for (let index = messages.length - 1; index >= 0; index--) {
-		const usage = getAssistantUsage(messages[index]);
+		const message = messages[index];
+		if (message.role === "assistant" && !canUseUsage(message)) continue;
+		const usage = getAssistantUsage(message);
 		if (usage) return { usage, index };
 	}
 	return undefined;
 }
 
-export function estimateContextTokens(messages: readonly AgentMessage[]): ContextUsageEstimate {
-	const usageInfo = getLastAssistantUsageInfo(messages);
+export function estimateContextTokens(
+	messages: readonly AgentMessage[],
+	canUseUsage: (message: AssistantMessage) => boolean = () => true,
+): ContextUsageEstimate {
+	const usageInfo = getLastAssistantUsageInfo(messages, canUseUsage);
 	if (!usageInfo) {
 		const tokens = messages.reduce((total, message) => total + estimateTokens(message), 0);
 		return { tokens, usageTokens: 0, trailingTokens: tokens, lastUsageIndex: null };

@@ -16,6 +16,7 @@ export interface ImageGenerationProviderOption {
 
 export interface ImageGenerationSettingsModel {
 	actions: {
+		refreshProviders: () => Promise<void>;
 		setImageToImageRoute: (value: string) => Promise<void>;
 		setTextToImageRoute: (value: string) => Promise<void>;
 	};
@@ -206,6 +207,10 @@ export function useImageGenerationSettingsModel(): ImageGenerationSettingsModel 
 
 	return {
 		actions: {
+			refreshProviders: async () => {
+				const next = await window.agent567.media.listProviders();
+				setProviders(next);
+			},
 			setImageToImageRoute: (value) => setRoute("image-to-image", value),
 			setTextToImageRoute: (value) => setRoute("text-to-image", value),
 		},

@@ -106,7 +106,7 @@ export function registerAllIpc(
 		teardownFileTransfer: registerFileTransferIpc(),
 		teardownDownloads: registerDownloadsIpc(webContents),
 		teardownIm: registerImIpc(webContents),
-		teardownMedia: registerMediaIpc(),
+		teardownMedia: registerMediaIpc(webContents),
 		teardownMarkdown: registerMarkdownIpc(webContents),
 		teardownDebug: registerDebugIpc(),
 		teardownProjectExport: registerProjectExportIpc(),

@@ -22,6 +22,7 @@ import {
 import type { CompactionPrefireCache } from "./compaction-prefire-cache.js";
 import type { CodingAgentCompactionRecordFactoryOptions } from "./compaction-record-factory.js";
 import { createCodingAgentCompactionRecord } from "./compaction-record-factory.js";
+import { createContextTokenEstimator } from "./context-token-estimate.js";
 import {
 	assemblePreparedMessages,
 	isOverflowFromCurrentModel,
@@ -57,6 +58,7 @@ export class CodingAgentAutomaticCompactionStrategy {
 		pinnedContext?: CodingAgentPinnedModelContext,
 	): Promise<PreparedContext> {
 		signal.throwIfAborted();
+		const estimateTokens = createContextTokenEstimator(input.document);
 		const reason = input.reason ?? "turn_start";
 		const model = input.modelBinding?.model;
 		const contextWindow = model?.contextWindow ?? input.tokenBudget;
@@ -72,7 +74,7 @@ export class CodingAgentAutomaticCompactionStrategy {
 				signal,
 			);
 			if (recovery) {
-				const recoveredTokens = estimateContextTokens(recovery.messages).tokens;
+				const recoveredTokens = estimateTokens(recovery.messages).tokens;
 				this.options.recordEstimatedTokens(recoveredTokens);
 				return { messages: recovery.messages, estimatedTokens: recoveredTokens, retry: true };
 			}
@@ -89,8 +91,8 @@ export class CodingAgentAutomaticCompactionStrategy {
 			? removeAssistantMessage(input.messages, input.triggeringAssistantMessage)
 			: [...input.messages];
 		const measuredMessages = reason === "turn_start" ? [...input.historyMessages] : callMessages;
-		const estimate = estimateContextTokens(measuredMessages);
-		const assembledTokens = estimateContextTokens(callMessages).tokens;
+		const estimate = estimateTokens(measuredMessages);
+		const assembledTokens = estimateTokens(callMessages).tokens;
 		this.options.recordEstimatedTokens(assembledTokens);
 		if (reason === "turn_start") return unchanged(callMessages, assembledTokens);
 		if (!model || !input.document || contextWindow <= 0 || !settings.enabled) {
@@ -217,7 +219,8 @@ export class CodingAgentAutomaticCompactionStrategy {
 				),
 				pinnedContext,
 			);
-			const compactedEstimate = estimateContextTokens(messages).tokens;
+			// None of the retained replies has been generated against this new summary yet.
+			const compactedEstimate = estimateContextTokens(messages, () => false).tokens;
 			this.options.recordEstimatedTokens(compactedEstimate);
 			return { messages, estimatedTokens: compactedEstimate, compaction: record };
 		} catch (error) {

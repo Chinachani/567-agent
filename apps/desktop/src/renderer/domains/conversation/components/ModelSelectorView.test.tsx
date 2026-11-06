@@ -1,5 +1,5 @@
 // @vitest-environment jsdom
-import { render, screen, waitFor } from "@testing-library/react";
+import { render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { ModelSelectorView, type ModelSelectorViewProps } from "@vetta-org/theme-ui/chat";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
@@ -57,6 +57,7 @@ describe("ModelSelectorView", () => {
 								provider: "provider",
 								modelId: "alpha",
 								displayName: "Alpha",
+								supportsImage: true,
 							},
 							{
 								key: "provider/beta",
@@ -77,6 +78,7 @@ describe("ModelSelectorView", () => {
 		await user.click(trigger);
 
 		const search = await screen.findByRole("searchbox", { name: "Search models" });
+		expect(within(screen.getByRole("menuitem", { name: /Alpha/ })).getByRole("img", { name: "Vision" })).toBeTruthy();
 		await waitFor(() => expect(document.activeElement).toBe(search));
 		expect(document.body.hasAttribute("data-scroll-locked")).toBe(false);
 		expect(document.body.style.pointerEvents).not.toBe("none");

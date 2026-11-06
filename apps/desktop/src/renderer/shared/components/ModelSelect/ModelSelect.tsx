@@ -1,3 +1,4 @@
+import { ModelVisionIcon } from "@vetta-org/theme-ui/chat";
 import { ProviderIcon } from "@vetta-org/theme-ui/shared";
 import { cn } from "@shared/lib/utils";
 import { modelCatalog } from "@shared/store/model-catalog";
@@ -94,11 +95,7 @@ export function ModelSelect({
 	}, [resolved]);
 	const isValidLevel = (v: string | undefined): v is string =>
 		!!v && (v === "off" || v === "none" || (resolved?.levels.includes(v) ?? false));
-	const currentLevel = resolved
-		? isValidLevel(reasoning?.value)
-			? reasoning?.value
-			: resolved.default
-		: undefined;
+	const currentLevel = resolved ? (isValidLevel(reasoning?.value) ? reasoning?.value : resolved.default) : undefined;
 	const levelLabel = (v: string) => t(`modelSelect.reasoningLevel.${v}`, { defaultValue: v });
 
 	const groups = useMemo(
@@ -260,7 +257,10 @@ export function ModelSelect({
 													aria-label={t("modelSelect.clearSearch")}
 													className="absolute right-1.5 top-1/2 inline-flex size-5 -translate-y-1/2 items-center justify-center rounded text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
 												>
-													<span aria-hidden="true" className="icon-[solar--close-circle-linear] size-3.5" />
+													<span
+														aria-hidden="true"
+														className="icon-[solar--close-circle-linear] size-3.5"
+													/>
 												</button>
 											)}
 										</div>
@@ -269,9 +269,13 @@ export function ModelSelect({
 										<>
 											<DropdownMenuSub open={reasoningOpen} onOpenChange={setReasoningOpen}>
 												<DropdownMenuSubTrigger>
-													<span className="min-w-0 flex-1 truncate">{t("modelSelect.reasoningHeader")}</span>
+													<span className="min-w-0 flex-1 truncate">
+														{t("modelSelect.reasoningHeader")}
+													</span>
 													{currentLevel && (
-														<span className="shrink-0 text-muted-foreground">{levelLabel(currentLevel)}</span>
+														<span className="shrink-0 text-muted-foreground">
+															{levelLabel(currentLevel)}
+														</span>
 													)}
 												</DropdownMenuSubTrigger>
 												<AnimatePresence>
@@ -291,10 +295,17 @@ export function ModelSelect({
 																<div className="relative overflow-visible rounded-[inherit]">
 																	<ThemeSurface slot="chat.modelSelectorReasoningMenu" />
 																	<div className="relative z-10 overflow-hidden rounded-[inherit] p-1">
-																		<DropdownMenuLabel>{t("modelSelect.reasoningHeader")}</DropdownMenuLabel>
+																		<DropdownMenuLabel>
+																			{t("modelSelect.reasoningHeader")}
+																		</DropdownMenuLabel>
 																		{menuLevels.map((level) => (
-																			<DropdownMenuItem key={level} onSelect={() => reasoning?.onChange(level)}>
-																				<span className="min-w-0 flex-1 truncate">{levelLabel(level)}</span>
+																			<DropdownMenuItem
+																				key={level}
+																				onSelect={() => reasoning?.onChange(level)}
+																			>
+																				<span className="min-w-0 flex-1 truncate">
+																					{levelLabel(level)}
+																				</span>
 																				{level === currentLevel && (
 																					<span className="icon-[solar--check-circle-linear] h-3.5 w-3.5 shrink-0" />
 																				)}
@@ -338,16 +349,15 @@ export function ModelSelect({
 														key={m.key}
 														data-model-key={m.key}
 														aria-current={m.key === value ? "true" : undefined}
-														className={cn("rounded-md", m.key === value && "bg-accent text-accent-foreground")}
+														className={cn(
+															"rounded-md",
+															m.key === value && "bg-accent text-accent-foreground",
+														)}
 														onSelect={() => handleModelSelect(m.key)}
 													>
 														<span className="min-w-0 flex-1 truncate">{m.displayName}</span>
 														<MultiplierTag multiplier={m.multiplier} />
-														{m.supportsImage && (
-															<span className="shrink-0 rounded-full bg-primary/15 px-1.5 py-0.5 text-[9px] font-medium text-primary">
-																{t("modelSelect.visionBadge")}
-															</span>
-														)}
+														{m.supportsImage && <ModelVisionIcon label={t("modelSelect.visionBadge")} />}
 														{m.tags?.map((tag) => (
 															<span
 																key={tag}
@@ -375,7 +385,9 @@ export function ModelSelect({
 													className="icon-[solar--magnifer-linear] mb-2 size-5 text-muted-foreground"
 												/>
 												<p className="text-sm font-medium text-foreground">{t("modelSelect.noResults")}</p>
-												<p className="mt-1 text-xs text-muted-foreground">{t("modelSelect.noResultsHint")}</p>
+												<p className="mt-1 text-xs text-muted-foreground">
+													{t("modelSelect.noResultsHint")}
+												</p>
 											</div>
 										)}
 									</div>

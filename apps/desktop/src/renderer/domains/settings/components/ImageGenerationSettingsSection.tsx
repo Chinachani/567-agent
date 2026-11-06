@@ -1,8 +1,10 @@
-import { MotionSelect, SettingRow, SettingSection } from "@vetta-org/theme-ui/settings";
+import { CustomImageProvidersView, MotionSelect, SettingRow, SettingSection } from "@vetta-org/theme-ui/settings";
 import { SETTINGS_SECTION } from "../registry";
+import { useCustomImageProvidersModel } from "./useCustomImageProvidersModel";
 import type { ImageGenerationSettingsModel } from "./useImageGenerationSettingsModel";
 
 export function ImageGenerationSettingsSection({ model }: { model: ImageGenerationSettingsModel }): JSX.Element {
+	const custom = useCustomImageProvidersModel(model.actions.refreshProviders);
 	const hasTextToImageOptions = model.textToImageOptions.length > 1;
 	const hasImageToImageOptions = model.imageToImageOptions.length > 1;
 	return (
@@ -46,6 +48,7 @@ export function ImageGenerationSettingsSection({ model }: { model: ImageGenerati
 					</>
 				)}
 			</SettingSection>
+			<CustomImageProvidersView model={custom} />
 		</div>
 	);
 }

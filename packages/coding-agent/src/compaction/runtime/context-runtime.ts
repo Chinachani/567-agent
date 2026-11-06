@@ -35,17 +35,12 @@ import type {
 	CodingAgentContextUsage,
 	CodingAgentPinnedModelContext,
 } from "../../runtime-contracts/index.js";
-import {
-	type CompactionSettings,
-	compact,
-	DEFAULT_COMPACTION_SETTINGS,
-	estimateContextTokens,
-	prepareCompaction,
-} from "../index.js";
+import { type CompactionSettings, compact, DEFAULT_COMPACTION_SETTINGS, prepareCompaction } from "../index.js";
 import { CodingAgentAutomaticCompactionStrategy } from "./automatic-compaction-strategy.js";
 import { CodingAgentCompactionCommitLifecycle } from "./compaction-commit-lifecycle.js";
 import { CompactionPrefireCache } from "./compaction-prefire-cache.js";
 import { CodingAgentContextSummaryStrategy } from "./context-summary-strategy.js";
+import { createContextTokenEstimator } from "./context-token-estimate.js";
 import { isRuntimeMessage, toCompactionSessionEntries } from "./conversation-compaction-projection.js";
 import { CodingAgentImageRequestFailureRecovery } from "./image-request-failure-recovery.js";
 import { CodingAgentManualCompactionStrategy } from "./manual-compaction-strategy.js";
@@ -77,6 +72,7 @@ export class DefaultCodingAgentContextRuntime
 	private readonly contextSummary: CodingAgentContextSummaryStrategy;
 	private readonly commitLifecycle: CodingAgentCompactionCommitLifecycle;
 	private autoCompactionEnabledOverride: boolean | undefined;
+	private document: ConversationDocument | undefined;
 
 	constructor(private readonly options: CodingAgentContextRuntimeOptions) {
 		this.resolveSettings = options.resolveSettings ?? (() => DEFAULT_COMPACTION_SETTINGS);
@@ -89,7 +85,9 @@ export class DefaultCodingAgentContextRuntime
 		const circuitBreaker = new ConsecutiveFailureCircuitBreaker({ now: this.now });
 		this.usage = new RuntimeContextUsageTracker({
 			estimateDocumentTokens: (document) =>
-				estimateContextTokens(selectConversationDocumentModelMessages(document).filter(isRuntimeMessage)).tokens,
+				createContextTokenEstimator(document)(
+					selectConversationDocumentModelMessages(document).filter(isRuntimeMessage),
+				).tokens,
 		});
 		this.prefire = new CompactionPrefireCache({
 			resolveApiKey: options.resolveApiKey,
@@ -131,10 +129,12 @@ export class DefaultCodingAgentContextRuntime
 	}
 
 	initialize(document: ConversationDocument): void {
+		this.document = document;
 		this.usage.initialize(document);
 	}
 
 	onDocumentChanged(document: ConversationDocument): void {
+		this.document = document;
 		this.usage.onDocumentChanged(document);
 	}
 
@@ -303,6 +303,7 @@ export class DefaultCodingAgentContextRuntime
 		const projected = await projectModelCallContext(input, transformAgentContext, signal, {
 			timeBoundary,
 			pinnedContext,
+			estimateTokens: createContextTokenEstimator(this.document),
 		});
 		this.usage.recordEstimatedTokens(projected.estimatedTokens);
 		return projected.messages;

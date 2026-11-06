@@ -62,6 +62,7 @@ async function acquireWebSocket(
 	sessionId: string | undefined,
 	signal?: AbortSignal,
 ): Promise<{ socket: WebSocketLike; release: (options?: { keep?: boolean }) => void }> {
+	signal?.throwIfAborted();
 	if (!sessionId) {
 		const socket = await connectWebSocket(url, headers, signal);
 		return {
@@ -70,7 +71,8 @@ async function acquireWebSocket(
 		};
 	}
 
-	const cached = websocketSessionCache.get(sessionId);
+	const cacheKey = JSON.stringify([url, Array.from(headers.entries()).sort(), sessionId]);
+	const cached = websocketSessionCache.get(cacheKey);
 	if (cached) {
 		if (cached.idleTimer) {
 			clearTimeout(cached.idleTimer);
@@ -83,11 +85,11 @@ async function acquireWebSocket(
 				release: ({ keep } = {}) => {
 					if (!keep || !isWebSocketReusable(cached.socket)) {
 						closeWebSocketSilently(cached.socket);
-						websocketSessionCache.delete(sessionId);
+						websocketSessionCache.delete(cacheKey);
 						return;
 					}
 					cached.busy = false;
-					scheduleSessionWebSocketExpiry(sessionId, cached);
+					scheduleSessionWebSocketExpiry(cacheKey, cached);
 				},
 			};
 		}
@@ -97,29 +99,30 @@ async function acquireWebSocket(
 		}
 		if (!isWebSocketReusable(cached.socket)) {
 			closeWebSocketSilently(cached.socket);
-			websocketSessionCache.delete(sessionId);
+			websocketSessionCache.delete(cacheKey);
 		}
 	}
 
 	const socket = await connectWebSocket(url, headers, signal);
 	const entry: CachedWebSocketConnection = { socket, busy: true };
-	websocketSessionCache.set(sessionId, entry);
+	websocketSessionCache.set(cacheKey, entry);
 	return {
 		socket,
 		release: ({ keep } = {}) => {
 			if (!keep || !isWebSocketReusable(entry.socket)) {
 				closeWebSocketSilently(entry.socket);
 				if (entry.idleTimer) clearTimeout(entry.idleTimer);
-				if (websocketSessionCache.get(sessionId) === entry) websocketSessionCache.delete(sessionId);
+				if (websocketSessionCache.get(cacheKey) === entry) websocketSessionCache.delete(cacheKey);
 				return;
 			}
 			entry.busy = false;
-			scheduleSessionWebSocketExpiry(sessionId, entry);
+			scheduleSessionWebSocketExpiry(cacheKey, entry);
 		},
 	};
 }
 
 async function connectWebSocket(url: string, headers: Headers, signal?: AbortSignal): Promise<WebSocketLike> {
+	signal?.throwIfAborted();
 	const WebSocketConstructor = getWebSocketConstructor();
 	if (!WebSocketConstructor) throw new Error("WebSocket transport is not available in this runtime");
 	const socketHeaders = headersToRecord(headers);
@@ -136,12 +139,16 @@ async function connectWebSocket(url: string, headers: Headers, signal?: AbortSig
 		}
 
 		const onOpen: WebSocketListener = () => settle(() => resolve(socket));
-		const onError: WebSocketListener = (event) => settle(() => reject(extractWebSocketError(event)));
+		const onError: WebSocketListener = (event) =>
+			settle(() => {
+				closeWebSocketSilently(socket);
+				reject(extractWebSocketError(event));
+			});
 		const onClose: WebSocketListener = (event) => settle(() => reject(extractWebSocketCloseError(event)));
 		const onAbort = () =>
 			settle(() => {
 				socket.close(1000, "aborted");
-				reject(new Error("Request was aborted"));
+				reject(createAbortedWebSocketError());
 			});
 		const cleanup = () => {
 			socket.removeEventListener("open", onOpen);
@@ -160,6 +167,7 @@ async function connectWebSocket(url: string, headers: Headers, signal?: AbortSig
 		socket.addEventListener("error", onError);
 		socket.addEventListener("close", onClose);
 		signal?.addEventListener("abort", onAbort);
+		if (signal?.aborted) onAbort();
 	});
 }
 
@@ -169,6 +177,7 @@ async function* parseWebSocket(socket: WebSocketLike, signal?: AbortSignal): Asy
 	let done = false;
 	let failed: Error | null = null;
 	let sawCompletion = false;
+	let emittedOutput = false;
 	const wake = () => {
 		if (!pending) return;
 		const resolve = pending;
@@ -178,12 +187,17 @@ async function* parseWebSocket(socket: WebSocketLike, signal?: AbortSignal): Asy
 	const onMessage: WebSocketListener = (event) => {
 		void (async () => {
 			if (!event || typeof event !== "object" || !("data" in event)) return;
-			const text = await decodeWebSocketData((event as { data?: unknown }).data);
-			if (!text) return;
 			try {
+				const text = await decodeWebSocketData((event as { data?: unknown }).data);
+				if (!text) return;
 				const parsed = JSON.parse(text) as Record<string, unknown>;
 				const type = typeof parsed.type === "string" ? parsed.type : "";
-				if (type === "response.completed" || type === "response.done") {
+				if (
+					type === "response.completed" ||
+					type === "response.done" ||
+					type === "response.failed" ||
+					type === "response.incomplete"
+				) {
 					sawCompletion = true;
 					done = true;
 				}
@@ -207,7 +221,7 @@ async function* parseWebSocket(socket: WebSocketLike, signal?: AbortSignal): Asy
 		wake();
 	};
 	const onAbort = () => {
-		failed = new Error("Request was aborted");
+		failed = createAbortedWebSocketError();
 		done = true;
 		wake();
 	};
@@ -218,9 +232,11 @@ async function* parseWebSocket(socket: WebSocketLike, signal?: AbortSignal): Asy
 	signal?.addEventListener("abort", onAbort);
 	try {
 		while (true) {
-			if (signal?.aborted) throw new Error("Request was aborted");
+			if (signal?.aborted) throw createAbortedWebSocketError();
 			if (queue.length > 0) {
-				yield queue.shift() as Record<string, unknown>;
+				const next = queue.shift() as Record<string, unknown>;
+				if (!isLifecycleOnlyEvent(next)) emittedOutput = true;
+				yield next;
 				continue;
 			}
 			if (done) break;
@@ -228,8 +244,12 @@ async function* parseWebSocket(socket: WebSocketLike, signal?: AbortSignal): Asy
 				pending = resolve;
 			});
 		}
-		if (failed) throw failed;
-		if (!sawCompletion) throw new Error("WebSocket stream closed before response.completed");
+		const error =
+			failed ??
+			(sawCompletion
+				? null
+				: createWebSocketError("WebSocket stream closed before response.completed", { retryable: true }));
+		if (error) throw emittedOutput ? markNotRetryable(error) : error;
 	} finally {
 		socket.removeEventListener("message", onMessage);
 		socket.removeEventListener("error", onError);
@@ -270,20 +290,70 @@ function scheduleSessionWebSocketExpiry(sessionId: string, entry: CachedWebSocke
 }
 
 function extractWebSocketError(event: unknown): Error {
-	if (event && typeof event === "object" && "message" in event) {
-		const message = (event as { message?: unknown }).message;
-		if (typeof message === "string" && message.length > 0) return new Error(message);
+	const record = event && typeof event === "object" ? (event as Record<string, unknown>) : undefined;
+	const message =
+		typeof record?.message === "string" && record.message.length > 0 ? record.message : "WebSocket error";
+	const status = readHandshakeStatus(record, message);
+	return createWebSocketError(message, { status, retryable: isRetryableHandshakeStatus(status) });
+}
+
+/** 握手被拒时运行时通常只给出 HTTP 状态：优先取结构化字段，其次从消息里解析。 */
+function readHandshakeStatus(record: Record<string, unknown> | undefined, message: string): number | undefined {
+	if (record) {
+		for (const key of ["status", "statusCode"]) {
+			const value = record[key];
+			if (typeof value === "number") return value;
+		}
+		const response = record.response;
+		if (response && typeof response === "object") {
+			const status = (response as { status?: unknown }).status;
+			if (typeof status === "number") return status;
+		}
 	}
-	return new Error("WebSocket error");
+	const matched = /(?:server response|status(?: code)?|HTTP)\D{0,3}([1-5]\d{2})\b/i.exec(message);
+	return matched ? Number(matched[1]) : undefined;
+}
+
+/** 4xx（除 408/429）是认证/参数类错误，重试无意义；无状态码的网络错误、5xx、408、429 可重试。 */
+function isRetryableHandshakeStatus(status: number | undefined): boolean {
+	if (status === undefined) return true;
+	if (status === 408 || status === 429) return true;
+	return status >= 500;
+}
+
+function isLifecycleOnlyEvent(event: Record<string, unknown>): boolean {
+	return (
+		event.type === "response.created" || event.type === "response.in_progress" || event.type === "response.queued"
+	);
+}
+
+function createAbortedWebSocketError(): Error {
+	return Object.assign(new Error("Request was aborted"), { name: "AbortError", retryable: false });
+}
+
+function markNotRetryable(error: Error): Error {
+	return Object.assign(error, { retryable: false });
 }
 
 function extractWebSocketCloseError(event: unknown): Error {
-	if (!event || typeof event !== "object") return new Error("WebSocket closed");
+	if (!event || typeof event !== "object") return createWebSocketError("WebSocket closed", { retryable: true });
 	const code = "code" in event ? (event as { code?: unknown }).code : undefined;
 	const reason = "reason" in event ? (event as { reason?: unknown }).reason : undefined;
 	const codeText = typeof code === "number" ? ` ${code}` : "";
 	const reasonText = typeof reason === "string" && reason.length > 0 ? ` ${reason}` : "";
-	return new Error(`WebSocket closed${codeText}${reasonText}`.trim());
+	return createWebSocketError(`WebSocket closed${codeText}${reasonText}`.trim(), { retryable: true });
+}
+
+/**
+ * 显式标记 retryable：无状态码的普通 Error 会被归一化为不可重试的 AI_TRANSPORT_FAILED，
+ * 瞬时网络故障的自动重试会被跳过。带 HTTP 状态时由归一化器按状态码分类。
+ */
+function createWebSocketError(message: string, options: { status?: number; retryable: boolean }): Error {
+	return Object.assign(new Error(message), {
+		retryable: options.retryable,
+		phase: "stream" as const,
+		...(options.status === undefined ? {} : { status: options.status }),
+	});
 }
 
 async function decodeWebSocketData(data: unknown): Promise<string | null> {

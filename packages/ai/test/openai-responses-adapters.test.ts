@@ -1,5 +1,5 @@
 import { Type } from "@sinclair/typebox";
-import { afterEach, describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import { azureOpenAIResponsesAdapter, streamAzureOpenAIResponses } from "../src/providers/azure-openai-responses.js";
 import { openAICodexResponsesAdapter, streamOpenAICodexResponses } from "../src/providers/openai-codex-responses.js";
 import { openAIResponsesAdapter, streamOpenAIResponses } from "../src/providers/openai-responses.js";
@@ -94,6 +94,7 @@ afterEach(() => {
 		globals.WebSocket = originalWebSocket;
 	}
 	FakeWebSocket.onSend = undefined;
+	FakeWebSocket.onConstruct = undefined;
 	FakeWebSocket.instances = [];
 });
 
@@ -501,6 +502,97 @@ describe("Codex Responses WebSocket transport", () => {
 		expect(settled.resultError).toMatchObject({ code: "AI_TRANSPORT_FAILED" });
 	});
 
+	it("allows retry only before substantive output", async () => {
+		const cases = [
+			{ events: [], retryable: true },
+			{ events: [{ type: "response.created", response: { status: "in_progress" } }], retryable: true },
+			{
+				events: [
+					messageAdded(0, "msg-1"),
+					{ type: "response.output_text.delta", output_index: 0, delta: "partial" },
+				],
+				retryable: false,
+			},
+			{ events: [toolAdded(0)], retryable: false },
+		];
+		for (const testCase of cases) {
+			installFakeWebSocket((socket) =>
+				queueMicrotask(() => {
+					for (const event of testCase.events) socket.emit("message", { data: JSON.stringify(event) });
+					socket.emit("close", { code: 1006, reason: "lost" });
+				}),
+			);
+			const response = await openAICodexResponsesAdapter.stream({
+				model: codexModel,
+				context,
+				options: { apiKey: codexToken, transport: "websocket" },
+			});
+			const settled = await settleResponse(response);
+			expect(settled.resultError).toMatchObject({ code: "AI_TRANSPORT_FAILED", retryable: testCase.retryable });
+		}
+	});
+
+	it.each([400, 401, 403, 422, 408, 429, 500, 503])("classifies a rejected HTTP %s handshake", async (status) => {
+		installFakeWebSocket(() => {});
+		FakeWebSocket.onConstruct = (socket) =>
+			socket.emit("error", { message: "Handshake rejected", statusCode: status });
+		const response = await openAICodexResponsesAdapter.stream({
+			model: codexModel,
+			context,
+			options: { apiKey: codexToken, transport: "websocket" },
+		});
+		const settled = await settleResponse(response);
+		expect(settled.resultError).toMatchObject({
+			statusCode: status,
+			retryable: status >= 500 || status === 408 || status === 429,
+		});
+		expect(FakeWebSocket.instances.at(-1)?.readyState).toBe(3);
+	});
+
+	it("reuses only the same endpoint, credentials and session, and expires idle connections", async () => {
+		vi.useFakeTimers();
+		try {
+			installFakeWebSocket((socket) =>
+				queueMicrotask(() => {
+					for (const event of textEvents()) socket.emit("message", { data: JSON.stringify(event) });
+				}),
+			);
+			for (const variation of ["original", "original", "credential", "endpoint"]) {
+				const response = await openAICodexResponsesAdapter.stream({
+					model:
+						variation === "endpoint" ? { ...codexModel, baseUrl: "https://other.test/backend-api" } : codexModel,
+					context,
+					options: {
+						apiKey: codexToken,
+						transport: "websocket",
+						sessionId: "cache-isolation",
+						headers: variation === "credential" ? { Authorization: "Bearer rotated" } : undefined,
+					},
+				});
+				expect(textOf(await response.result)).toBe("hello");
+			}
+			expect(FakeWebSocket.instances).toHaveLength(3);
+			vi.advanceTimersByTime(5 * 60 * 1000);
+			expect(FakeWebSocket.instances.every((socket) => socket.readyState === 3)).toBe(true);
+		} finally {
+			vi.useRealTimers();
+		}
+	});
+
+	it.each([{ status: 401 }, { response: { status: 403 } }, { message: "Unexpected server response: 422" }])(
+		"reads structured and text handshake status: %j",
+		async (details) => {
+			installFakeWebSocket(() => {});
+			FakeWebSocket.onConstruct = (socket) => socket.emit("error", { message: "Handshake rejected", ...details });
+			const response = await openAICodexResponsesAdapter.stream({
+				model: codexModel,
+				context,
+				options: { apiKey: codexToken, transport: "websocket" },
+			});
+			expect((await settleResponse(response)).resultError).toMatchObject({ retryable: false });
+		},
+	);
+
 	it("propagates cancellation after the socket starts", async () => {
 		let markRequestSent: (() => void) | undefined;
 		const requestSent = new Promise<void>((resolve) => {
@@ -753,6 +845,7 @@ type FakeWebSocketListener = (event: unknown) => void;
 
 class FakeWebSocket {
 	static instances: FakeWebSocket[] = [];
+	static onConstruct: ((socket: FakeWebSocket) => void) | undefined;
 	static onSend: ((socket: FakeWebSocket, data: string) => void) | undefined;
 
 	readonly url: string;
@@ -764,8 +857,11 @@ class FakeWebSocket {
 		this.url = url;
 		FakeWebSocket.instances.push(this);
 		queueMicrotask(() => {
-			this.readyState = 1;
-			this.emit("open", {});
+			if (FakeWebSocket.onConstruct) FakeWebSocket.onConstruct(this);
+			else {
+				this.readyState = 1;
+				this.emit("open", {});
+			}
 		});
 	}
 

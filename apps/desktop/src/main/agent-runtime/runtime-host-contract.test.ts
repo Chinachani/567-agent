@@ -309,10 +309,12 @@ describe("Desktop RuntimeHost production contract", () => {
 				);
 				await fixture.runtime.prompt(created.sessionId, { text: "original-user" });
 				const originalUserId = requireMessageEntryId(fixture.runtime, created.sessionId, "user", "original-user");
+				expect(fixture.runtime.getState(created.sessionId).contextComposition).toBeDefined();
 				const navigation = await captureSessionEvents(fixture.runtime, created.sessionId, () =>
 					fixture.runtime.navigateForEdit(created.sessionId, originalUserId),
 				);
 				expect(navigation.result).toEqual({ text: "original-user", cancelled: false });
+				expect(fixture.runtime.getState(created.sessionId).contextComposition).toBeUndefined();
 				expect(observeHistory(fixture.runtime.getFullHistory(created.sessionId))).toEqual([
 					historyMessage("user", "first-user", null),
 					historyMessage("assistant", "assistant-one", 0),
@@ -330,6 +332,7 @@ describe("Desktop RuntimeHost production contract", () => {
 					fixture.runtime.switchBranch(created.sessionId, originalUserId),
 				);
 				expect(switched.result.leafId).toBeTruthy();
+				expect(fixture.runtime.getState(created.sessionId).contextComposition).toBeUndefined();
 				expect(observeHistory(fixture.runtime.getFullHistory(created.sessionId))).toEqual([
 					historyMessage("user", "first-user", null),
 					historyMessage("assistant", "assistant-one", 0),
@@ -453,7 +456,9 @@ describe("Desktop RuntimeHost production contract", () => {
 		expect(observations.runtime).toEqual({
 			mutationEvents: [
 				"session.extension",
+				"session.context.state",
 				"session.extension",
+				"session.context.state",
 				"session.extension",
 				"session.extension",
 				"session.context.state",

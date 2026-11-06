@@ -5,6 +5,7 @@ import type { ModelCallContextTransformationInput } from "@567agent/runtime-core
 import { convertToLlm, createCustomMessage } from "../../model-context/index.js";
 import type { CodingAgentContextRuntimeOptions, CodingAgentPinnedModelContext } from "../../runtime-contracts/index.js";
 import { estimateContextTokens, microcompact, reduceContextByPressure } from "../index.js";
+import type { ContextTokenEstimator } from "./context-token-estimate.js";
 import { projectPinnedMessageEnvelopes } from "./pinned-conversation-projection.js";
 import { applyPinnedModelContext } from "./pinned-model-context-projection.js";
 
@@ -17,6 +18,7 @@ export interface ModelCallContextProjectionOptions {
 	/** Fixed time boundary shared by every model call admitted for a Turn. */
 	readonly timeBoundary?: number;
 	readonly pinnedContext?: CodingAgentPinnedModelContext;
+	readonly estimateTokens?: ContextTokenEstimator;
 }
 
 export async function projectModelCallContext(
@@ -26,6 +28,7 @@ export async function projectModelCallContext(
 	options: ModelCallContextProjectionOptions = {},
 ): Promise<ProjectedModelCallContext> {
 	signal.throwIfAborted();
+	const estimate = options.estimateTokens ?? estimateContextTokens;
 	const envelopes = projectPinnedMessageEnvelopes(
 		input.messageEnvelopes ?? input.messages.map(toMessageEnvelope),
 		options.pinnedContext,
@@ -51,13 +54,13 @@ export async function projectModelCallContext(
 		convertToLlm(
 			reduceContextByPressure(visibleMessages, {
 				contextWindow: input.modelBinding.model.contextWindow,
-				estimatedTokens: estimateContextTokens(visibleMessages).tokens,
+				estimatedTokens: estimate(visibleMessages).tokens,
 				isRealUserTurn: (message) => message.role === "user" && !continuationMessages.has(message),
 			}),
 		),
 		options.pinnedContext,
 	);
-	return { messages, estimatedTokens: estimateContextTokens(messages).tokens };
+	return { messages, estimatedTokens: estimate(messages).tokens };
 }
 
 function toAgentMessages(envelope: RuntimeMessageEnvelope): AgentMessage[] {

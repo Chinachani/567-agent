@@ -444,6 +444,7 @@ function pushHistoryError(
 		last.repeated = (last.repeated ?? 1) + 1;
 		// 末次错误往往信息最全（例如带上了配额重置时间），以它为准。
 		last.text = errorMessage;
+		if (turnId) last.turnId = turnId;
 		if (details) last.details = { ...last.details, ...details };
 		return;
 	}
@@ -461,25 +462,32 @@ interface DeferredHistoryError {
 	readonly target: ConversationAgentMessageViewModel;
 	readonly message: string;
 	readonly details?: ChatErrorDetails;
+	readonly turnId?: string;
 }
 
 /**
  * 历史里失败的 assistant 尝试先暂存：同一轮随后有正常结束的 assistant（自动重试成功、
  * 上下文溢出压缩后重试成功）就丢弃，与 live 链路 runtime-core 延迟发射的表现一致；
- * 到用户消息、持久化的 turn 失败或历史结尾仍未恢复，才落成错误卡。
+ * 可重试的持久化 turn 失败也先暂存，到新用户消息、不可重试失败或历史结尾才落卡。
  */
 function createDeferredHistoryErrors() {
 	let pending: DeferredHistoryError[] = [];
 	return {
 		defer(error: DeferredHistoryError): void {
+			const last = pending.at(-1);
+			// One attempt can have both an assistant error and a richer turn.failed record.
+			if (error.turnId && last && !last.turnId && last.target === error.target && last.message === error.message) {
+				pending[pending.length - 1] = { ...last, ...error, details: { ...last.details, ...error.details } };
+				return;
+			}
 			pending.push(error);
 		},
 		recover(): void {
 			pending = [];
 		},
 		flush(): void {
-			for (const { target, message, details } of pending) {
-				pushHistoryError(target.blocks!, message, undefined, details);
+			for (const { target, message, details, turnId } of pending) {
+				pushHistoryError(target.blocks!, message, turnId, details);
 				if (!target.text) target.text = message;
 			}
 			pending = [];
@@ -545,7 +553,8 @@ export function historyToChat(
 			});
 			messages.push(userMsg);
 		} else if (m.role === "assistant") {
-			if (m.stopReason !== "error" && m.stopReason !== "aborted") historyErrors.recover();
+			if (m.stopReason === "aborted") historyErrors.flush();
+			else if (m.stopReason !== "error") historyErrors.recover();
 			// Merge consecutive assistant messages into one (same agent turn)
 			const target = currentAssistant();
 			if (target.timestamp === undefined) target.timestamp = m.timestamp;
@@ -697,20 +706,19 @@ export function fullHistoryToChat(entries: HistoryEntry[]): ChatConversationItem
 		}
 
 		if (entry.type === "error") {
-			historyErrors.flush();
 			const target = currentAssistant();
-			pushHistoryError(
-				target.blocks!,
-				entry.message,
-				entry.turnId,
-				toChatErrorDetails({
+			historyErrors.defer({
+				target,
+				message: entry.message,
+				turnId: entry.turnId,
+				details: toChatErrorDetails({
 					code: entry.code,
 					origin: entry.origin,
 					retryable: entry.retryable,
 					details: entry.details,
 				}),
-			);
-			if (!target.text) target.text = entry.message;
+			});
+			if (entry.retryable !== true) historyErrors.flush();
 			if (target.timestamp === undefined) target.timestamp = new Date(entry.timestamp).getTime();
 			continue;
 		}
@@ -763,7 +771,8 @@ export function fullHistoryToChat(entries: HistoryEntry[]): ChatConversationItem
 			pendingAttachments = undefined;
 			messages.push(userMsg);
 		} else if (m.role === "assistant") {
-			if (m.stopReason !== "error" && m.stopReason !== "aborted") historyErrors.recover();
+			if (m.stopReason === "aborted") historyErrors.flush();
+			else if (m.stopReason !== "error") historyErrors.recover();
 			pendingSettingsAssistTabId = undefined;
 			pendingPromptRef = undefined;
 			pendingAttachments = undefined;

@@ -10,21 +10,26 @@
 
 ## 出图链路
 
-一律走宿主 `ctx.media` 协议，默认选择 desktop 内置的 `desktop-app:api567` 图片 Provider；用户可在「设置 → Agent 配置 → 图片」分别为文生图和图生图指定 Provider，或恢复为自动选择。
-插件不感知模型、不持有任何 key，也不能指定网关路径；内置 Provider 在主进程固定调用
+一律走宿主 `ctx.media` 协议，默认选择 desktop 内置的 `desktop-app:api567` 图片 Provider；用户可在「设置 → 模型 → 图片」分别为文生图和图生图指定 Provider，或恢复为自动选择。
+插件不持有任何 key，也不能指定网关路径；内置 Provider 在主进程固定调用
 `POST /api/v1/images/{generate,edit}`。模型选择、provider 形态适配（含改图协议差异）、
 尺寸白名单与按次计费都在服务端，管理员在 admin 配置；能不能出图由用户的订阅档位决定
 （ADR-0056）。
 
-**插件没有 Provider 凭据设置项**，`contributes.settings` 已整块移除。Provider 选择由宿主 Agent 设置统一管理，Provider 自己负责凭据与模型配置。曾经的「自定义 API」逃生舱
-也一并撤掉——一旦允许自带 key，插件就得重新养一套 provider 适配，而改图形态各家不同
-（官方 multipart / 聚合站 `images[].image_url`），那套适配已经在服务端存在，客户端再养
-一份就是长期双维护。存量用户填过的 key 留在 CredentialVault 里不再被读取。
+**插件没有 Provider 凭据设置项**，`contributes.settings` 已移除。Provider 选择、凭据和模型配置统一由宿主管理。旧插件内的自定义 HTTP 路径不再使用，存量插件 key 保留在 CredentialVault 中、不再读取；新的宿主自定义服务使用独立命名空间，不自动迁移这些密钥。
+
+**自定义 OpenAI 兼容服务（ADR-0156）**：用户可在「设置 → 模型 → 图片」里添加自己的
+服务（名称、Base URL、API Key、模型名，并标注支持文生图 / 图生图），由**宿主**而不是插件提供：
+主进程把每条配置注册成 `custom-openai:<id>` Provider，只说 OpenAI 兼容协议的
+`POST {baseUrl}/images/generations` 与 `POST {baseUrl}/images/edits` 两个端点，其它协议一律不支持。
+API Key 加密存放在 CredentialVault（`image-providers` 命名空间），渲染进程只能写入、读不到；
+插件照旧只通过 `ctx.media` 选 Provider，不持有 key、不指定 URL，自动选择仍优先内置
+567 API。自定义服务的费用、尺寸和支持能力由该服务决定，不能套用内置服务的订阅与计费规则。
 
 因为不再直接发 HTTP，插件也不再声明 `network.fetch` 权限；「未配置」引导弹窗随之删除，
 `ui.slot.global` 权限一并撤回。
 
-输出尺寸不在插件侧决定：由 agent 通过 `generate_image` 的 `size` 参数传入，服务端再按
+输出尺寸由 agent 通过 `generate_image` 的 `size` 参数传入。内置 567 API 的服务端再按
 白名单强制归一（`1024x1024` / `1024x1536` / `1536x1024`）——上游按尺寸不同价，而按次
 计费每模型只有一个固定单价，放开尺寸等于用固定单价买贵的图。
 
@@ -37,6 +42,7 @@ desktop 提供受 capability session 约束的 `ctx.media`、`ctx.storage`、
 `~/.567agent/plugin-data/image-gen/`，不进服务端存储、
 也不进 LLM 上下文（工具结果只回 image id）。
 
-详见 `docs/adr/0057-host-media-protocol-and-desktop-vetta-provider.md`、
+详见 `docs/adr/0156-custom-openai-compatible-image-providers.md`、
+`docs/adr/0057-host-media-protocol-and-desktop-vetta-provider.md`、
 `docs/adr/0056-image-generation-through-vetta-gateway-metered-by-credits.md`
 与被其部分取代的 `docs/adr/0048-image-generation-owned-by-plugin-generic-network-storage.md`。

@@ -136,6 +136,50 @@ describe("appendError", () => {
 });
 
 describe("fullHistoryToChat error entries", () => {
+	it("restoring a recovered retry hides durable intermediate failures without changing history", () => {
+		const entries = [
+			{ type: "message" as const, message: { role: "user" as const, content: "hello", timestamp: 1 } },
+			...retryAttempt("attempt-1"),
+			...retryAttempt("attempt-2"),
+			{ type: "message" as const, message: durableAssistant({ content: [{ type: "text", text: "recovered" }] }) },
+		];
+		const original = JSON.stringify(entries);
+		expect(errorBlocksOf(fullHistoryToChat(entries))).toEqual([]);
+		expect(fullHistoryToChat(entries).at(-1)).toMatchObject({ text: "recovered" });
+		expect(JSON.stringify(entries)).toBe(original);
+	});
+
+	it("keeps one card per failed attempt when retries are exhausted and preserves the last turn identity", () => {
+		const errors = errorBlocksOf(fullHistoryToChat([...retryAttempt("attempt-1"), ...retryAttempt("attempt-2")]));
+		expect(errors).toHaveLength(1);
+		expect(errors[0]).toMatchObject({ repeated: 2, turnId: "attempt-2", details: { statusCode: 502 } });
+	});
+
+	it("a new user prompt and non-retryable errors remain visible after a later success", () => {
+		const entries = [
+			...retryAttempt("attempt-1"),
+			{ type: "message" as const, message: { role: "user" as const, content: "again", timestamp: 3 } },
+			...retryAttempt("attempt-2", false),
+			{ type: "message" as const, message: durableAssistant({ content: [{ type: "text", text: "done" }] }) },
+		];
+		expect(errorBlocksOf(fullHistoryToChat(entries)).map(({ turnId }) => turnId)).toEqual(["attempt-1", "attempt-2"]);
+	});
+
+	it("an aborted attempt ends retry recovery even if a later assistant succeeds", () => {
+		const aborted = durableAssistant({ stopReason: "aborted", timestamp: 3 });
+		const recovered = durableAssistant({ content: [{ type: "text", text: "later" }], timestamp: 4 });
+		expect(
+			errorBlocksOf(
+				fullHistoryToChat([
+					...retryAttempt("attempt-1"),
+					{ type: "message", message: aborted },
+					{ type: "message", message: recovered },
+				]),
+			),
+		).toHaveLength(1);
+		expect(errorBlocksOf(historyToChat([failed("502 service unavailable"), aborted, recovered]))).toHaveLength(1);
+	});
+
 	it("hides a context overflow that auto compaction recovered within the turn", () => {
 		const overflow = "400 This model's maximum context length is 200000 tokens.";
 		const messages = fullHistoryToChat([
@@ -240,6 +284,23 @@ describe("fullHistoryToChat error entries", () => {
 		expect(errors[0]).not.toHaveProperty("repeated");
 	});
 });
+
+function retryAttempt(turnId: string, retryable = true) {
+	return [
+		{ type: "message" as const, message: durableAssistant({ stopReason: "error", errorMessage: "502 Bad Gateway" }) },
+		{
+			type: "error" as const,
+			entryId: `error-${turnId}`,
+			turnId,
+			code: "AI_TRANSPORT_FAILED",
+			retryable,
+			origin: "provider" as const,
+			details: { statusCode: 502 },
+			message: "502 Bad Gateway",
+			timestamp: "2026-11-06T09:00:00.000Z",
+		},
+	];
+}
 
 describe("reconcileHistoryWithLiveTerminalErrors", () => {
 	it("preserves a live terminal error when the agent_end history snapshot is stale", () => {

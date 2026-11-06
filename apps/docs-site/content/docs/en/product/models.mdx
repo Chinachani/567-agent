@@ -13,3 +13,13 @@ Open **Settings → Model configuration**. Select a preset provider, enter the A
 - Record the provider and model ID when reporting a reproducible failure.
 
 The local configuration file is `~/.567agent/agent/models.json`. Treat it as sensitive and use the UI for changes whenever possible.
+
+## Image services
+
+In the desktop app, open **Settings → Models → Images** to select separate providers for text-to-image and image-to-image. Automatic selection continues to prefer the built-in 567 API. Existing chat models and image history are preserved.
+
+Choose **Add service** to configure an OpenAI-compatible image service with its name, Base URL, API key, exact model ID, and supported modes. Up to 20 services can be stored. A Base URL such as `https://api.example.com/v1` is extended with `/images/generations` or `/images/edits`; do not enter the full endpoint. Image editing requires the OpenAI multipart protocol and accepts one reference image.
+
+After saving, select the service for the desired mode. Plugins use the existing media interface and never receive its API key. Pricing, sizes, and availability depend on the service.
+
+Keys are encrypted in the local credential vault and cannot be read back through the settings UI. Leaving a key blank while editing preserves it; changing the Base URL origin requires entering a key again. Failed saves keep the draft for retry. Discarding unsaved edits or deleting a service requires confirmation. Unavailable secure storage never falls back to plaintext.

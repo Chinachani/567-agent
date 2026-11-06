@@ -87,6 +87,18 @@ export interface ModelSelectorViewProps {
 	onOpenChange?: (open: boolean) => void;
 }
 
+/** A consistent accessible capability indicator across model pickers. */
+export function ModelVisionIcon({ label }: { label: string }): JSX.Element {
+	return (
+		<span
+			role="img"
+			aria-label={label}
+			title={label}
+			className="icon-[solar--gallery-linear] size-3 shrink-0 text-primary"
+		/>
+	);
+}
+
 const MODEL_ITEM_SELECTOR = "[data-model-key]";
 
 /** 紧凑行：覆盖 @vetta-org/ui 默认的 px-3 py-2 text-[13px]，让模型多时列表不至于过长。 */
@@ -123,13 +135,9 @@ export function ModelSelectorView({
 
 		return groups.flatMap((group) => {
 			const models = group.models.filter((model) =>
-				[
-					model.displayName,
-					model.modelId,
-					model.provider,
-					group.label,
-					...(model.tags ?? []),
-				].some((value) => normalizeSearchValue(value).includes(query)),
+				[model.displayName, model.modelId, model.provider, group.label, ...(model.tags ?? [])].some((value) =>
+					normalizeSearchValue(value).includes(query),
+				),
 			);
 			return models.length > 0 ? [{ ...group, models }] : [];
 		});
@@ -233,7 +241,7 @@ export function ModelSelectorView({
 						align="start"
 						className={cn(
 							// 底色跟搜索框走同一个变量：搜索行去掉底色后要和面板融成一块
-						"w-[min(16rem,calc(100vw-2rem))] min-w-[180px] max-w-[16rem] overflow-visible bg-background p-0",
+							"w-[min(16rem,calc(100vw-2rem))] min-w-[180px] max-w-[16rem] overflow-visible bg-background p-0",
 							classNames?.content,
 						)}
 						style={{ animation: "none" }}
@@ -336,59 +344,58 @@ export function ModelSelectorView({
 										</>
 									)}
 									<div ref={modelListRef} className="min-h-0 flex-1 overflow-y-auto overflow-x-hidden">
-										<DropdownMenuLabel className={COMPACT_LABEL_CLASS}>{labels.modelHeader}</DropdownMenuLabel>
+										<DropdownMenuLabel className={COMPACT_LABEL_CLASS}>
+											{labels.modelHeader}
+										</DropdownMenuLabel>
 										{filteredGroups.map((group) => (
-										<div key={group.provider}>
-											<div
-												className={cn(
-													"flex items-center gap-1 px-2 pb-0.5 pt-1 text-[10px] font-medium text-muted-foreground/50",
-													classNames?.providerHeader,
-												)}
-											>
-												<ProviderIcon symbol={group.icon} className="h-2.5 w-2.5" />
-												<span className="min-w-0 truncate">{group.label}</span>
-												{group.models[0]?.remote && (
-													<span className="shrink-0 rounded-full bg-primary/15 px-1 text-[9px] font-medium text-primary">
-														{labels.cloudOnly}
-													</span>
-												)}
-											</div>
-											{group.models.map((model) => (
-												<DropdownMenuItem
-													key={model.key}
-													data-model-key={model.key}
-													aria-current={model.key === selectedModel ? "true" : undefined}
+											<div key={group.provider}>
+												<div
 													className={cn(
-														COMPACT_ITEM_CLASS,
-														model.key === selectedModel && "bg-accent text-accent-foreground",
-														classNames?.item,
+														"flex items-center gap-1 px-2 pb-0.5 pt-1 text-[10px] font-medium text-muted-foreground/50",
+														classNames?.providerHeader,
 													)}
-													onSelect={() => handleModelSelect(model.key)}
 												>
-													<span className="min-w-0 flex-1 truncate">{model.displayName}</span>
-													<ModelMultiplier label={labels.multiplierLabel?.(model)} />
-													{model.supportsImage && (
-														<span
-															aria-label={labels.visionBadge}
-															title={labels.visionBadge}
-															className="icon-[solar--gallery-linear] size-3 shrink-0 text-primary"
-														/>
-													)}
-													{model.key === defaultKey && (
+													<ProviderIcon symbol={group.icon} className="h-2.5 w-2.5" />
+													<span className="min-w-0 truncate">{group.label}</span>
+													{group.models[0]?.remote && (
 														<span className="shrink-0 rounded-full bg-primary/15 px-1 text-[9px] font-medium text-primary">
-															{labels.defaultBadge}
+															{labels.cloudOnly}
 														</span>
 													)}
-													{model.key === selectedModel && (
-														<span className="icon-[solar--check-circle-linear] h-3 w-3 shrink-0" />
-													)}
-												</DropdownMenuItem>
-											))}
-										</div>
+												</div>
+												{group.models.map((model) => (
+													<DropdownMenuItem
+														key={model.key}
+														data-model-key={model.key}
+														aria-current={model.key === selectedModel ? "true" : undefined}
+														className={cn(
+															COMPACT_ITEM_CLASS,
+															model.key === selectedModel && "bg-accent text-accent-foreground",
+															classNames?.item,
+														)}
+														onSelect={() => handleModelSelect(model.key)}
+													>
+														<span className="min-w-0 flex-1 truncate">{model.displayName}</span>
+														<ModelMultiplier label={labels.multiplierLabel?.(model)} />
+														{model.supportsImage && <ModelVisionIcon label={labels.visionBadge} />}
+														{model.key === defaultKey && (
+															<span className="shrink-0 rounded-full bg-primary/15 px-1 text-[9px] font-medium text-primary">
+																{labels.defaultBadge}
+															</span>
+														)}
+														{model.key === selectedModel && (
+															<span className="icon-[solar--check-circle-linear] h-3 w-3 shrink-0" />
+														)}
+													</DropdownMenuItem>
+												))}
+											</div>
 										))}
 										{filteredGroups.length === 0 && (
 											<div className="flex min-h-24 flex-col items-center justify-center px-4 py-6 text-center">
-												<span aria-hidden="true" className="icon-[solar--magnifer-linear] mb-1.5 size-4 text-muted-foreground" />
+												<span
+													aria-hidden="true"
+													className="icon-[solar--magnifer-linear] mb-1.5 size-4 text-muted-foreground"
+												/>
 												<p className="text-xs font-medium text-foreground">{labels.noResults}</p>
 												<p className="mt-0.5 text-[11px] text-muted-foreground">{labels.noResultsHint}</p>
 											</div>

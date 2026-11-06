@@ -1,5 +1,5 @@
 import type { ContextCompositionReport } from "../context-composition/contracts.js";
-import type { ConversationDocument } from "../conversation/index.js";
+import { type ConversationDocument, selectConversationDocumentEntries } from "../conversation/index.js";
 import type { RuntimeDocumentParticipant } from "../runtime-host/runtime-document-participant.js";
 import type { ContextCompositionPublisher, StoredSessionEvent, TurnObserver } from "./contracts.js";
 
@@ -21,6 +21,9 @@ export class RuntimeContextUsageTracker
 	readonly id = "runtime.context-usage";
 	private tokens = 0;
 	private composition: ContextCompositionReport | undefined;
+	private document: ConversationDocument | undefined;
+	private compositionLeafId: string | null = null;
+	private discardedCallId: string | undefined;
 
 	constructor(private readonly options: RuntimeContextUsageTrackerOptions) {}
 
@@ -46,7 +49,9 @@ export class RuntimeContextUsageTracker
 	}
 
 	publishContextComposition(report: ContextCompositionReport): void {
+		if (report.callId === this.discardedCallId) return;
 		this.composition = report;
+		this.compositionLeafId = this.document?.activeLeafId ?? null;
 		if (report.phase === "completed" && report.providerReportedInputTokens !== undefined) {
 			this.tokens = normalizeTokenCount(report.providerReportedInputTokens ?? this.tokens);
 		}
@@ -63,6 +68,24 @@ export class RuntimeContextUsageTracker
 	}
 
 	private refreshDocument(document: ConversationDocument): void {
+		if (this.composition && this.document) {
+			const branch = selectConversationDocumentEntries(document);
+			const previous = selectConversationDocumentEntries(this.document);
+			const boundary = (entries: typeof branch) => {
+				for (let index = entries.length - 1; index >= 0; index--) {
+					if (entries[index].type === "compaction") return entries[index].id;
+				}
+				return undefined;
+			};
+			if (
+				boundary(branch) !== boundary(previous) ||
+				(this.compositionLeafId !== null && !branch.some((entry) => entry.id === this.compositionLeafId))
+			) {
+				this.discardedCallId = this.composition.callId;
+				this.composition = undefined;
+			}
+		}
+		this.document = document;
 		this.tokens = normalizeTokenCount(this.options.estimateDocumentTokens(document));
 	}
 }

@@ -790,7 +790,7 @@
   "modelSelector": {
     "defaultBadge": "Default",
     "selectModel": "Select model",
-    "visionBadge": "vision"
+    "visionBadge": "Supports image input"
   },
   "newSession": {
     "greetingDefault": "Start a new task",

@@ -790,7 +790,7 @@
   "modelSelector": {
     "defaultBadge": "默认",
     "selectModel": "选择模型",
-    "visionBadge": "vision"
+    "visionBadge": "支持图片输入"
   },
   "newSession": {
     "greetingDefault": "开始一个新任务",
