@@ -7,6 +7,15 @@ const OUTPUT_GUIDANCE = "Use the task_output tool to read the command output if 
 const CALLER_STOP_GUIDANCE = "The user manually stopped this background task. Do not restart it unless the user asks.";
 const NOTIFICATION =
 	/^ {0,3}<task-notification>[ \t\r\n]*<task-id>(b\d{1,10})<\/task-id>[ \t\r\n]*(?:<tool-use-id>[^<>\s]{1,512}<\/tool-use-id>[ \t\r\n]*)?<status>(completed|failed|killed)<\/status>[ \t\r\n]*(?:<ended-by>(caller|agent|dispose)<\/ended-by>[ \t\r\n]*)?<output-file>([^<>\r\n\u0000]{1,4096})<\/output-file>[ \t\r\n]*<summary>([^<>\u0000]{1,8192})<\/summary>[ \t\r\n]*<\/task-notification>$/;
+/** Legacy hosts wrote a prose notification instead of the structured fields above. */
+const LEGACY_NOTIFICATION =
+	/^ {0,3}<task-notification>[ \t\r\n]*Task[ \t]+(b\d{1,10})[ \t]+(completed|failed|killed|terminated|stopped)\b[\s\S]*?\bOutput file:[^\r\n<]{1,4096}[\s\S]*?<\/task-notification>$/i;
+
+interface ParsedNotification {
+	readonly id: string;
+	readonly status: BackgroundTaskStatus;
+	readonly end: number;
+}
 
 interface MarkdownNode {
 	type: string;
@@ -29,6 +38,31 @@ function codeRanges(text: string): Array<{ start: number; end: number }> {
 	return ranges;
 }
 
+function normalizeLegacyStatus(value: string): BackgroundTaskStatus {
+	const status = value.toLowerCase();
+	if (status === "completed") return "completed";
+	if (status === "killed" || status === "terminated" || status === "stopped") return "killed";
+	return "failed";
+}
+
+function parseNotification(text: string, start: number): ParsedNotification | undefined {
+	const closing = text.indexOf("</task-notification>", start);
+	if (closing < 0) return undefined;
+	const end = closing + "</task-notification>".length;
+	if (end - start > MAX_NOTIFICATION_LENGTH) return undefined;
+	const body = text.slice(start, end);
+	const structured = NOTIFICATION.exec(body);
+	if (!structured) {
+		const legacy = LEGACY_NOTIFICATION.exec(body);
+		if (legacy) return { id: legacy[1], status: normalizeLegacyStatus(legacy[2]), end };
+		return undefined;
+	}
+	if (structured[4].trim() && structured[5].trim()) {
+		return { id: structured[1], status: structured[2] as BackgroundTaskStatus, end };
+	}
+	return undefined;
+}
+
 /** Display-only projection of complete echoed internal notifications; source and code examples stay intact. */
 export function projectTaskNotifications(
 	text: string,
@@ -46,18 +80,23 @@ export function projectTaskNotifications(
 		const start = candidate.index;
 		if (start < examinedThrough || protectedRanges.some((range) => range.start <= start && range.end > start))
 			continue;
-		const closing = text.indexOf("</task-notification>", start);
-		if (closing < 0) break;
-		const end = closing + "</task-notification>".length;
+		const parsed = parseNotification(text, start);
+		if (!parsed) {
+			const closing = text.indexOf("</task-notification>", start);
+			if (closing < 0) break;
+			// A malformed outer block owns its first closing tag; do not reinterpret
+			// a nested structured block as an independent notification.
+			examinedThrough = closing + "</task-notification>".length;
+			continue;
+		}
+		const { end } = parsed;
 		// Never reinterpret an inner block when the enclosing notification is malformed.
 		examinedThrough = end;
-		if (end - start > MAX_NOTIFICATION_LENGTH) continue;
-		const fields = NOTIFICATION.exec(text.slice(start, end));
-		if (!fields || !fields[4].trim() || !fields[5].trim()) continue;
 		// Inline prose, nested/unknown fields and partial streams must remain literal.
 		if (!/^[ \t]*(?:\r?\n|$)/.test(text.slice(end))) continue;
 		let through = end;
-		const stoppedByCaller = fields[2] === "killed" && fields[3] === "caller";
+		const stoppedByCaller =
+			parsed.status === "killed" && /<ended-by>caller<\/ended-by>/i.test(text.slice(start, end));
 		for (const guidance of [...(stoppedByCaller ? [CALLER_STOP_GUIDANCE] : []), OUTPUT_GUIDANCE]) {
 			const remaining = text.slice(through);
 			const whitespace = /^[ \t\r\n]*/.exec(remaining)![0].length;
@@ -67,7 +106,7 @@ export function projectTaskNotifications(
 			through = guidanceEnd;
 		}
 		if (protectedRanges.some((range) => range.start < through && range.end > start)) continue;
-		const escapedLabel = label(fields[1], fields[2] as BackgroundTaskStatus).replace(/[\\`*_[\]<>]/g, "\\$&");
+		const escapedLabel = label(parsed.id, parsed.status).replace(/[\\`*_[\]<>]/g, "\\$&");
 		result += `${text.slice(copiedThrough, start)}> ${escapedLabel}\n\n`;
 		copiedThrough = through;
 	}

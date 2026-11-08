@@ -155,6 +155,48 @@ describe("fullHistoryToChat error entries", () => {
 		expect(errors[0]).toMatchObject({ repeated: 2, turnId: "attempt-2", details: { statusCode: 502 } });
 	});
 
+	it("folds the same failed retry when tool evidence sits between persisted attempts", () => {
+		const failure = "upstream stream closed before a terminal event (last event: response.in_progress)";
+		const entries = [
+			{ type: "message" as const, message: { role: "user" as const, content: "continue", timestamp: 0 } },
+			{ type: "message" as const, message: durableAssistant({ stopReason: "error", errorMessage: failure }) },
+			{
+				type: "error" as const,
+				entryId: "error-attempt-1",
+				turnId: "attempt-1",
+				code: "AI_TRANSPORT_FAILED",
+				retryable: false,
+				origin: "provider" as const,
+				details: { provider: "567api_gemini_sale" },
+				message: failure,
+				timestamp: "2026-11-08T00:00:00.000Z",
+			},
+			{
+				type: "message" as const,
+				message: durableAssistant({
+					content: [{ type: "toolCall", id: "task-1", name: "bash", arguments: {} }],
+					stopReason: "toolUse",
+				}),
+			},
+			{ type: "message" as const, message: durableAssistant({ stopReason: "error", errorMessage: failure }) },
+			{
+				type: "error" as const,
+				entryId: "error-attempt-2",
+				turnId: "attempt-2",
+				code: "AI_TRANSPORT_FAILED",
+				retryable: false,
+				origin: "provider" as const,
+				details: { provider: "567api_gemini_sale" },
+				message: failure,
+				timestamp: "2026-11-08T00:00:01.000Z",
+			},
+		];
+
+		expect(errorBlocksOf(fullHistoryToChat(entries))).toEqual([
+			expect.objectContaining({ repeated: 2, turnId: "attempt-2", text: failure }),
+		]);
+	});
+
 	it("a new user prompt and non-retryable errors remain visible after a later success", () => {
 		const entries = [
 			...retryAttempt("attempt-1"),

@@ -14,6 +14,7 @@ import type {
 	ChatConversationItem,
 	ChatErrorDetails,
 	ContentBlock,
+	ErrorBlock,
 	KnowledgeToolUiDetails,
 	PlanReviewResolution,
 	ToolAudioPreview,
@@ -420,6 +421,7 @@ function pushHistoryError(
 	turnId?: string,
 	details?: ChatErrorDetails,
 ): void {
+	const kind = classifyChatError(errorMessage);
 	if (turnId) {
 		const existing = blocks.find((block) => block.type === "error" && block.turnId === turnId);
 		if (existing?.type === "error") {
@@ -438,7 +440,17 @@ function pushHistoryError(
 			return;
 		}
 	}
-	const kind = classifyChatError(errorMessage);
+	const throughToolBlocks = findHistoryErrorThroughToolBlocks(blocks, errorMessage, kind, details);
+	if (throughToolBlocks !== -1) {
+		const existing = blocks[throughToolBlocks];
+		if (existing?.type === "error") {
+			existing.repeated = (existing.repeated ?? 1) + 1;
+			existing.text = errorMessage;
+			if (turnId) existing.turnId = turnId;
+			if (details) existing.details = { ...existing.details, ...details };
+			return;
+		}
+	}
 	const last = blocks.at(-1);
 	if (last?.type === "error" && last.kind === kind) {
 		last.repeated = (last.repeated ?? 1) + 1;
@@ -456,6 +468,38 @@ function pushHistoryError(
 		...(turnId ? { turnId } : {}),
 		...(details ? { details } : {}),
 	});
+}
+
+function sameErrorFingerprint(
+	block: Extract<ContentBlock, { type: "error" }>,
+	message: string,
+	kind: ErrorBlock["kind"],
+	details?: ChatErrorDetails,
+): boolean {
+	if (block.kind !== kind || block.text !== message) return false;
+	const keys: Array<keyof ChatErrorDetails> = ["code", "origin", "statusCode", "provider", "modelId", "providerCode"];
+	return keys.every((key) => {
+		const left = block.details?.[key];
+		const right = details?.[key];
+		return left === undefined || right === undefined || left === right;
+	});
+}
+
+/** Retry attempts can be separated by their tool evidence inside one assistant bubble. */
+function findHistoryErrorThroughToolBlocks(
+	blocks: readonly ContentBlock[],
+	message: string,
+	kind: ErrorBlock["kind"],
+	details?: ChatErrorDetails,
+): number {
+	for (let index = blocks.length - 1; index >= 0; index -= 1) {
+		const block = blocks[index];
+		if (!block) continue;
+		if (block.type === "tool_call" || block.type === "tool_result") continue;
+		if (block.type !== "error") return -1;
+		return sameErrorFingerprint(block, message, kind, details) ? index : -1;
+	}
+	return -1;
 }
 
 interface DeferredHistoryError {
@@ -1319,6 +1363,7 @@ export function appendError(
 	const [msgs, idx] = ensureDraft(prev);
 	const msg = requireAgentMessage(msgs[idx]);
 	const blocks = [...msg.blocks];
+	const kind = classifyChatError(errorMessage);
 	// Admission failures can arrive through both the event stream and rejected IPC,
 	// in either order. Only reconcile within this draft; distinct known turns stay separate.
 	const existingIndex = blocks.findIndex(
@@ -1326,13 +1371,16 @@ export function appendError(
 			block.type === "error" &&
 			((turnId && block.turnId === turnId) || ((!turnId || !block.turnId) && block.text === errorMessage)),
 	);
-	const existing = existingIndex >= 0 ? blocks[existingIndex] : undefined;
+	const mergeIndex =
+		existingIndex >= 0 ? existingIndex : findHistoryErrorThroughToolBlocks(blocks, errorMessage, kind, details);
+	const existing = mergeIndex >= 0 ? blocks[mergeIndex] : undefined;
 	if (existing?.type === "error") {
-		blocks[existingIndex] = {
+		blocks[mergeIndex] = {
 			...existing,
 			text: errorMessage,
 			...(turnId ? { turnId } : {}),
 			...(attempts ? { attempts } : {}),
+			...(mergeIndex !== existingIndex ? { repeated: (existing.repeated ?? 1) + 1 } : {}),
 			...(details ? { details: { ...existing.details, ...details } } : {}),
 		};
 		msgs[idx] = { ...msg, text: msg.text || errorMessage, blocks };
@@ -1343,7 +1391,7 @@ export function appendError(
 		id: nextId("blk"),
 		...(turnId ? { turnId } : {}),
 		text: errorMessage,
-		kind: classifyChatError(errorMessage),
+		kind,
 		...(attempts ? { attempts } : {}),
 		...(details ? { details } : {}),
 	});

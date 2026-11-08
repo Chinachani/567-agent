@@ -73,4 +73,20 @@ describe("echoed task notification display", () => {
 		expect(projectTaskNotifications(source, label)).toBe("> Task b44: killed\n\n\n\nKeep the server stopped.");
 		expect(source).toContain("Do not restart it unless the user asks.");
 	});
+
+	it("projects the legacy prose notification emitted by older persisted sessions", () => {
+		const legacy =
+			`<task-notification>Task b34 completed with exit code 0. Command: ssh host yarn build\n` +
+			`Output file: /tmp/vetta-task-b34.log\nFinal output: build completed</task-notification>`;
+		const source = `Before\n\n${legacy}\n\nAfter`;
+		expect(projectTaskNotifications(source, label)).toBe("Before\n\n> Task b34: completed\n\n\n\nAfter");
+	});
+
+	it("keeps legacy notification examples inside code blocks literal", () => {
+		const legacy =
+			`<task-notification>Task b34 completed with exit code 0. Command: echo ok ` +
+			`Output file: /tmp/task.log Final output: ok</task-notification>`;
+		const source = `\`\`\`text\n${legacy}\n\`\`\``;
+		expect(projectTaskNotifications(source, label)).toBe(source);
+	});
 });

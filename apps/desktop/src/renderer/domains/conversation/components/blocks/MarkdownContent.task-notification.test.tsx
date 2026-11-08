@@ -46,6 +46,19 @@ it("renders a complete echoed internal notification as status while preserving s
 	expect(source).toContain("<output-file>/tmp/task.log</output-file>");
 });
 
+it("renders the legacy prose notification from persisted sessions through the conversation adapter", () => {
+	const legacy =
+		"<task-notification>Task b34 completed with exit code 0. Command: echo ok\n" +
+		"Output file: /tmp/task-b34.log\nFinal output: ok</task-notification>";
+	const view = render(
+		<RendererMarkdownScope value={environment}>
+			<TextBlockView text={legacy} />
+		</RendererMarkdownScope>,
+	);
+	expect(view.container.textContent).toContain("后台任务 b34 · completed");
+	expect(view.container.textContent).not.toContain("<task-notification>");
+});
+
 it("preserves literal code, unknown or incomplete notifications, and normal provider refusal text", () => {
 	const source = `\`\`\`text\n${notification}\n\`\`\`\n\n<task-notification><status>completed</status></task-notification>\n\nThe prompt could not be submitted. Try rephrasing the prompt.`;
 	const view = render(<MarkdownContent {...environment} text={source} />);

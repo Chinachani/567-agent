@@ -106,6 +106,21 @@ describe("normalizeProviderError", () => {
 		expect(normalizeProviderError(source, model)).toBe(source);
 	});
 
+	it("retries a provider stream closed during response.in_progress", () => {
+		const source = new AIError(
+			"AI_TRANSPORT_FAILED",
+			"upstream stream closed before a terminal event (last event: response.in_progress)",
+			{ provider: model.provider, modelId: model.id, retryable: false },
+		);
+
+		expect(normalizeProviderError(source, model)).toMatchObject({
+			code: "AI_TRANSPORT_FAILED",
+			retryable: true,
+			phase: "stream",
+			provider: model.provider,
+		});
+	});
+
 	it("keeps an explicit non-retryable decision for a network transport error", () => {
 		const cause = Object.assign(new Error("connection reset"), { code: "ECONNRESET" });
 		const source = new AIError("AI_TRANSPORT_FAILED", "connection reset", {
