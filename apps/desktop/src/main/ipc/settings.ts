@@ -84,13 +84,20 @@ export function registerSettingsIpc(owner: WebContents): () => void {
 	});
 
 	// 手动刷新某预设服务商的模型列表:只拉不写,由渲染层连同 key 一起落盘。
-	ipcMain.handle("vetta:models:refresh-preset-models", async (event, providerId: unknown, apiKey: unknown) => {
-		assertTrustedMainRenderer(event, owner);
-		if (typeof providerId !== "string" || !providerId.trim()) {
-			return { models: [], error: { code: "unknown-provider", params: { provider: String(providerId) } } };
-		}
-		return refreshPresetModels(providerId.trim(), typeof apiKey === "string" ? apiKey : undefined);
-	});
+	ipcMain.handle(
+		"vetta:models:refresh-preset-models",
+		async (event, providerId: unknown, apiKey: unknown, baseUrl: unknown) => {
+			assertTrustedMainRenderer(event, owner);
+			if (typeof providerId !== "string" || !providerId.trim()) {
+				return { models: [], error: { code: "unknown-provider", params: { provider: String(providerId) } } };
+			}
+			return refreshPresetModels(
+				providerId.trim(),
+				typeof apiKey === "string" ? apiKey : undefined,
+				typeof baseUrl === "string" ? baseUrl : undefined,
+			);
+		},
+	);
 
 	// 手动刷新公共目录:清掉失败冷却强制重拉,错误原样回给渲染层。
 	ipcMain.handle("vetta:models:refresh-preset-catalog", async (event) => {

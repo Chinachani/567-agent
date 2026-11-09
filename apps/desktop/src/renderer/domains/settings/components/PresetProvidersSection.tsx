@@ -7,7 +7,7 @@ export function PresetProvidersSection({
 	saveConfig,
 }: {
 	config: ModelsConfigData;
-	saveConfig: (config: ModelsConfigData) => Promise<void>;
+	saveConfig: (config: ModelsConfigData) => Promise<boolean>;
 }): JSX.Element {
 	const model = usePresetProvidersSectionModel({ config, saveConfig });
 	return <PresetProvidersSectionView model={model} />;

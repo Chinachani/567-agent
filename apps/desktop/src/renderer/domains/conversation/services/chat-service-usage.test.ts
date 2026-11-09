@@ -52,7 +52,12 @@ describe("chat message usage projection", () => {
 
 	it("keeps every model-call usage when history assistant messages merge into one turn", () => {
 		const first = usage({ input: 20, cacheRead: 70, cacheWrite: 10, cacheUsageReporting: "read-write" });
-		const second = usage({ input: 50, cacheRead: 50, cacheUsageReporting: "read-only" });
+		const second = usage({
+			input: 50,
+			cacheRead: 50,
+			cacheUsageReporting: "read-only",
+			performance: { durationMs: 1500, firstTextMs: 300, firstOutputMs: 100 },
+		});
 
 		const messages = historyToChat([
 			{ role: "user", content: "hello" },
@@ -66,7 +71,12 @@ describe("chat message usage projection", () => {
 
 	it("projects persisted full history and live final messages with the same usage shape", () => {
 		const first = usage({ input: 20, cacheRead: 70, cacheWrite: 10, cacheUsageReporting: "read-write" });
-		const second = usage({ input: 50, cacheRead: 50, cacheUsageReporting: "read-only" });
+		const second = usage({
+			input: 50,
+			cacheRead: 50,
+			cacheUsageReporting: "read-only",
+			performance: { durationMs: 1500, firstTextMs: 300, firstOutputMs: 100 },
+		});
 		const entries: HistoryEntry[] = [
 			{ type: "message", entryId: "user-1", message: { role: "user", content: "hello", timestamp: 1 } },
 			{ type: "message", entryId: "assistant-1", message: assistant("working", first) },
@@ -109,6 +119,7 @@ function usage(overrides: Partial<Usage>): Usage {
 		cacheWrite,
 		totalTokens: overrides.totalTokens ?? input + output + cacheRead + cacheWrite,
 		cacheUsageReporting: overrides.cacheUsageReporting,
+		performance: overrides.performance,
 		cost: overrides.cost ?? { input: 0, output: 0, cacheRead: 0, cacheWrite: 0, total: 0 },
 	};
 }

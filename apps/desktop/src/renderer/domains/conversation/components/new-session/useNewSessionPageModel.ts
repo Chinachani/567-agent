@@ -27,7 +27,7 @@ import {
 	sessionExecutionModeAtom,
 	switchSessionInputDraftScope,
 } from "@shared/store/atoms";
-import { localModelsConfigAtom } from "@shared/store/model-catalog";
+import { selectableDefaultModelAtom } from "@shared/store/model-catalog-atoms";
 import { useNavigate, useSearch } from "@tanstack/react-router";
 import type { NewSessionHeroIdentity } from "@vetta-org/theme-ui";
 import { useAtomValue, useSetAtom } from "jotai";
@@ -141,7 +141,7 @@ export function useNewSessionPageModel(): NewSessionPageModel {
 	const setCompactionEligibility = useSetAtom(contextCompactionEligibilityAtom);
 	const setActiveSession = useSetAtom(activeSessionAtom);
 	const setSelectedModel = useSetAtom(selectedModelAtom);
-	const configuredDefaultModel = useAtomValue(localModelsConfigAtom)?.defaultModel ?? null;
+	const configuredDefaultModel = useAtomValue(selectableDefaultModelAtom);
 	const initializedDefaultModel = useRef(false);
 	const setPendingSessionCreation = useSetAtom(pendingSessionCreationAtom);
 	const setLastActiveSession = useSetAtom(lastActiveSessionAtom);

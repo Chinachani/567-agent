@@ -89,6 +89,27 @@ describe("CodingAgentModelRuntime", () => {
 		clearNodeConfigurationValueCache();
 	});
 
+	test("disabled local providers cannot reappear from built-in models, and enabling restores them", () => {
+		const saved = {
+			providers: {
+				openai: {
+					...providerConfig("https://openai.example.com", [{ id: "custom" }], "openai-responses"),
+					disabled: true,
+				},
+			},
+		};
+		writeFileSync(modelsJsonPath, JSON.stringify(saved));
+		const runtime = createCodingAgentModelRuntime(authStorage, { modelsJsonPath });
+		expect(runtime.find("openai", "gpt-5.1-codex")).toBeUndefined();
+		expect(runtime.getAll().some((m) => m.provider === "openai")).toBe(false);
+		expect(runtime.getAvailable().some((m) => m.provider === "openai")).toBe(false);
+		saved.providers.openai.disabled = false;
+		writeFileSync(modelsJsonPath, JSON.stringify(saved));
+		runtime.refresh();
+		expect(runtime.find("openai", "gpt-5.1-codex")).toBeDefined();
+		expect(runtime.find("openai", "custom")).toBeDefined();
+	});
+
 	/** Create minimal provider config  */
 	function providerConfig(
 		baseUrl: string,

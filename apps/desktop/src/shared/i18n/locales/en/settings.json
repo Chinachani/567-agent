@@ -573,7 +573,14 @@
     "thinkingLow": "Low",
     "thinkingMedium": "Medium",
     "thinkingHigh": "High",
-    "thinkingXHigh": "XHigh"
+    "thinkingXHigh": "XHigh",
+    "sources": {
+      "label": "Model source",
+      "api567": "567 API",
+      "api567Empty": "Connect a 567 API group above to configure its models.",
+      "presetsEmpty": "Enable a preset provider and fetch its models above to configure their parameters.",
+      "localEmpty": "Add a local or custom provider and its models above to configure their parameters."
+    }
   },
   "mcpSettings": {
     "title": "MCP Settings",
@@ -1288,6 +1295,10 @@
   "textureRippleHint": "Same layout as the grid, with the pattern swapped for fine concentric rings.",
   "newSessionDecorTitle": "New session page decoration",
   "newSessionDecorHint": "Both settings below only change the new session page: the ornament sits above the composer, the texture is the backdrop behind the whole page.",
+  "section_appearance-ui-zoom": "Interface Size",
+  "uiZoomHint": "Adjust how large the interface appears.",
+  "uiZoomReset": "Reset",
+  "uiZoomSliderLabel": "Interface size",
   "section_appearance-sidebar": "Sidebar Style",
   "sidebarStyleClassicTitle": "Classic",
   "sidebarStyleClassicHint": "Sidebar sits flush against the window edge, with a single divider on its right.",
@@ -1425,6 +1436,10 @@
   "collapse": "Collapse",
   "changeKey": "Replace API Key",
   "copyApiKey": "Copy API Key",
+  "editBaseUrl": "Change port",
+  "baseUrlPlaceholder": "Port",
+  "baseUrlInvalid": "The port must be an integer between 1 and 65535",
+  "toggleProvider": "Enable or disable {{provider}}",
   "apiKeyCopied": "API key copied; the clipboard will be cleared in 30 seconds",
   "apiKeyCopyFailed": "No API key is available to copy",
   "replaceApiKeyPlaceholder": "•••••••• (encrypted and stored)",
@@ -2715,5 +2730,14 @@
     "saved": "Saved. Applies to the next run.",
     "loadFailed": "Could not read execution settings. Please retry.",
     "saveFailed": "Could not save execution settings. Your input has been kept."
-  }
+  },
+  "uiZoomFailed": "Could not save the interface size. Please try again.",
+  "shortcutZoomInLabel": "Zoom in",
+  "shortcutZoomInDesc": "Adjust the main window size, in sync with Appearance settings.",
+  "shortcutZoomOutLabel": "Zoom out",
+  "shortcutZoomOutDesc": "Adjust the main window size, in sync with Appearance settings.",
+  "shortcutZoomResetLabel": "Reset zoom",
+  "shortcutZoomResetDesc": "Adjust the main window size, in sync with Appearance settings.",
+  "magpiePortHint": "Port: 1–65535. Start the local Magpie service first.",
+  "presetErrorInvalidBaseUrl": "Invalid preset address. Only the local port can be changed for Magpie."
 }

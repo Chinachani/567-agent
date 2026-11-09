@@ -210,7 +210,7 @@ it("resumes a restored goal through its existing goal controller", async () => {
 	expect(store.get(inputValueAtom)).toBe("My unsent draft");
 });
 
-it.each(["history", "question"])(
+it.each(["history", "question", "compaction"])(
 	"notifies when %s changes after confirmation but before the next paint",
 	async (change) => {
 		const frames: FrameRequestCallback[] = [];
@@ -224,6 +224,7 @@ it.each(["history", "question"])(
 		expect(resume).not.toHaveBeenCalled();
 		act(() => {
 			if (change === "history") store.set(chatMessagesAtom, []);
+			else if (change === "compaction") store.set(isCompactingAtom, true);
 			else
 				store.set(pendingQuestionsAtom, {
 					runtime: { requestId: "late-question", sessionId: "runtime", questions: [] },
@@ -278,4 +279,29 @@ it("leaves ordinary first-token waiting in the message stream, but surfaces retr
 		store.set(activeSessionStreamingAtom, false);
 	});
 	expect(screen.getByRole("status").textContent).toContain("已停止");
+});
+
+it("shows manual compaction beside the composer even between turns, then restores continuation without changing the draft", () => {
+	store.set(chatMessagesAtom, [
+		{
+			kind: "agent",
+			role: "assistant",
+			id: "done",
+			turnId: "turn",
+			authorId: "agent",
+			phase: "completed",
+			blocks: [{ type: "text", id: "text", text: "Done" }],
+		},
+	]);
+	render(<SessionTaskProgress />);
+	expect(screen.getByRole("button", { name: "从历史继续" })).toBeTruthy();
+	act(() => store.set(isCompactingAtom, true));
+	expect(screen.getByRole("status").textContent).toContain("正在整理上下文");
+	expect(screen.queryByRole("button", { name: "从历史继续" })).toBeNull();
+	expect(screen.queryByText("本轮未完成")).toBeNull();
+	expect(store.get(inputValueAtom)).toBe("My unsent draft");
+	act(() => store.set(isCompactingAtom, false));
+	expect(screen.queryByRole("status")).toBeNull();
+	expect(screen.getByRole("button", { name: "从历史继续" })).toBeTruthy();
+	expect(store.get(inputValueAtom)).toBe("My unsent draft");
 });

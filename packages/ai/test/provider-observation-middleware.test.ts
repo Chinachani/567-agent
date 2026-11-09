@@ -40,6 +40,7 @@ function completedMessage(): AssistantMessage {
 			cacheWrite: 0,
 			totalTokens: 102,
 			cacheUsageReporting: "read-write",
+			performance: { durationMs: 800, firstOutputMs: 100, firstTextMs: 100 },
 			cost: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0, total: 0 },
 		},
 		stopReason: "stop",

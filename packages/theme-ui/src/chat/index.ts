@@ -284,6 +284,8 @@ export {
 	MessageVisualEventBubble,
 	MessageVisualOutgoingBubble,
 } from "./MessageVisualView";
+export type { ModelPerformanceViewProps } from "./ModelPerformanceView";
+export { ModelPerformanceView } from "./ModelPerformanceView";
 export type {
 	ModelSelectorLabels,
 	ModelSelectorOptionView,

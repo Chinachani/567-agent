@@ -10,17 +10,25 @@ import { useModelContextSettingsModel } from "./useModelContextSettingsModel";
 
 const PRESETS = ["32K", "64K", "128K", "200K", "1M"];
 
-export function ModelContextSettings({ config }: { config: ModelsConfigData }): JSX.Element {
+export function ModelContextSettings({
+	config,
+	providerIds,
+	emptyLabel,
+}: {
+	config: ModelsConfigData;
+	providerIds?: readonly string[];
+	emptyLabel?: string;
+}): JSX.Element {
 	const { t } = useTranslation("settings");
-	const model = useModelContextSettingsModel(config);
+	const model = useModelContextSettingsModel(config, providerIds);
 	return (
-		<section className="mt-6 space-y-3" aria-label={t("modelContext.title")}>
+		<section className="mt-6 space-y-3 border-t border-border/40 pt-6" aria-label={t("modelContext.title")}>
 			<div>
 				<h2 className="text-[14px] font-semibold">{t("modelContext.title")}</h2>
 				<p className="mt-1 text-[12px] text-muted-foreground">{t("modelContext.description")}</p>
 			</div>
 			{model.count === 0 ? (
-				<p className="text-[12px] text-muted-foreground">{t("modelContext.empty")}</p>
+				<p className="text-[12px] text-muted-foreground">{emptyLabel ?? t("modelContext.empty")}</p>
 			) : (
 				<>
 					<div className="space-y-4 rounded-xl border border-border/50 bg-card/40 p-4">

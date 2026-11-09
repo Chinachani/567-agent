@@ -1,14 +1,15 @@
-import { execFile } from "node:child_process";
+import { execFile, spawn } from "node:child_process";
 import { readdir, readFile } from "node:fs/promises";
 import { join, resolve } from "node:path";
 import { pathToFileURL } from "node:url";
 import { promisify } from "node:util";
 import { parse } from "yaml";
+import { APPORT_POLICY_PATH, verifyLinuxCrashPolicy } from "./linux-crash-policy.mjs";
 
 const execFileAsync = promisify(execFile);
 const packageDir = resolve(import.meta.dirname, "..");
 const defaultReleaseDir = join(packageDir, "release");
-const requiredPayloadPaths = ["/opt/567-agent/567-agent", "/opt/567-agent/resources/package-type"];
+const requiredPayloadPaths = ["/opt/567-agent/567-agent", "/opt/567-agent/resources/package-type", APPORT_POLICY_PATH];
 
 function requireValue(value, label) {
 	if (typeof value !== "string" || value.trim().length === 0) {
@@ -70,9 +71,7 @@ function verifyPayload(format, paths) {
 function verifyIdentity(format, actual, expected) {
 	for (const key of ["name", "version", "arch"]) {
 		if (actual[key] !== expected[key]) {
-			throw new Error(
-				`[verify-linux-packages] ${format} ${key} ${actual[key]} does not match ${expected[key]}`,
-			);
+			throw new Error(`[verify-linux-packages] ${format} ${key} ${actual[key]} does not match ${expected[key]}`);
 		}
 	}
 }
@@ -82,6 +81,8 @@ export function verifyLinuxPackageInspection({ expectedVersion, deb, rpm }) {
 	verifyIdentity("RPM", rpm, { name: "567-agent", version: expectedVersion, arch: "x86_64" });
 	verifyPayload("Debian", deb.paths);
 	verifyPayload("RPM", rpm.paths);
+	verifyLinuxCrashPolicy(deb.crashPolicy);
+	verifyLinuxCrashPolicy(rpm.crashPolicy);
 }
 
 async function findExactlyOnePackage(releaseDir, extension) {
@@ -113,6 +114,57 @@ export async function readExpectedVersion(releaseDir) {
 	return document.version;
 }
 
+// Stream just the policy entry out of each archive; never install a package.
+export async function readPackagedCrashPolicy(format, packagePath) {
+	const readEntry = (command, args, extractor, extractorArgs) =>
+		new Promise((resolveEntry, reject) => {
+			const source = spawn(command, args, { stdio: ["ignore", "pipe", "pipe"] });
+			const sink = spawn(extractor, extractorArgs, { stdio: ["pipe", "pipe", "pipe"] });
+			source.stdout.pipe(sink.stdin);
+			let text = "";
+			let bytes = 0;
+			let sourceCode;
+			let sinkCode;
+			const fail = (error) => {
+				clearTimeout(timer);
+				source.kill();
+				sink.kill();
+				reject(error);
+			};
+			const timer = setTimeout(() => fail(new Error("Reading packaged Linux Apport policy timed out")), 120_000);
+			const finish = () => {
+				if (sourceCode === undefined || sinkCode === undefined) return;
+				clearTimeout(timer);
+				if (sourceCode !== 0 || sinkCode !== 0) reject(new Error("Could not read packaged Linux Apport policy"));
+				else resolveEntry(text);
+			};
+			source.on("error", fail);
+			sink.on("error", fail);
+			sink.stdin.on("error", fail);
+			source.stderr.resume();
+			sink.stderr.resume();
+			sink.stdout.setEncoding("utf8");
+			sink.stdout.on("data", (chunk) => {
+				bytes += Buffer.byteLength(chunk);
+				if (bytes > 4096) fail(new Error("Packaged Linux Apport policy exceeds size limit"));
+				else text += chunk;
+			});
+			source.on("close", (code) => {
+				sourceCode = code;
+				finish();
+			});
+			sink.on("close", (code) => {
+				sinkCode = code;
+				finish();
+			});
+		});
+	if (format === "deb")
+		return readEntry("dpkg-deb", ["--fsys-tarfile", packagePath], "tar", ["-xOf", "-", `.${APPORT_POLICY_PATH}`]);
+	if (format === "rpm")
+		return readEntry("rpm2cpio", [packagePath], "cpio", ["--extract", "--to-stdout", `.${APPORT_POLICY_PATH}`]);
+	throw new Error(`Unsupported Linux package format: ${format}`);
+}
+
 export async function verifyLinuxPackages({ releaseDir = defaultReleaseDir } = {}) {
 	if (process.platform !== "linux") {
 		throw new Error("[verify-linux-packages] native Linux package verification must run on Linux");
@@ -128,13 +180,19 @@ export async function verifyLinuxPackages({ releaseDir = defaultReleaseDir } = {
 		execFileAsync("rpm", ["-qp", "--queryformat", "%{NAME}\\n%{VERSION}\\n%{ARCH}\\n", rpmPath]),
 		execFileAsync("rpm", ["-qlp", rpmPath]),
 	]);
+	const [debPolicy, rpmPolicy] = await Promise.all([
+		readPackagedCrashPolicy("deb", debPath),
+		readPackagedCrashPolicy("rpm", rpmPath),
+	]);
 	const inspection = {
 		deb: {
 			...parseDebFields(debFields.stdout),
+			crashPolicy: debPolicy,
 			paths: parseDebContents(debContents.stdout),
 		},
 		rpm: {
 			...parseRpmFields(rpmFields.stdout),
+			crashPolicy: rpmPolicy,
 			paths: rpmContents.stdout.split(/\r?\n/).filter(Boolean),
 		},
 	};

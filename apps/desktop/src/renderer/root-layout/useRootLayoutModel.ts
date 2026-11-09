@@ -5,6 +5,7 @@ import type {
 	DesktopMcpTasksChangedEvent,
 	DesktopUserQuestionRequest,
 } from "@preload/api";
+import { reportUiZoomFailure } from "@shared/hooks/useUiZoom";
 import { useMatches, useNavigate } from "@tanstack/react-router";
 import { getDefaultStore, useAtom, useAtomValue, useSetAtom } from "jotai";
 import { useCallback, useEffect, useRef, useState } from "react";
@@ -499,6 +500,15 @@ export function useRootLayoutModel(): RootLayoutModel {
 						break;
 					case "stop-generation":
 						getDefaultStore().get(activeComposerCommandsAtom)?.abort();
+						break;
+					case "zoom-in":
+						void window.agent567.uiZoom.step(1).catch(reportUiZoomFailure);
+						break;
+					case "zoom-out":
+						void window.agent567.uiZoom.step(-1).catch(reportUiZoomFailure);
+						break;
+					case "zoom-reset":
+						void window.agent567.uiZoom.set(1).catch(reportUiZoomFailure);
 						break;
 					case "save-file": {
 						window.dispatchEvent(new Event(FILE_EDITOR_SAVE_EVENT));

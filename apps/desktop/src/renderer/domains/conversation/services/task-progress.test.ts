@@ -44,6 +44,19 @@ describe("task progress from canonical conversation facts", () => {
 			canContinue: true,
 		});
 	});
+	it("treats manual compaction as active even when the previous turn is idle or failed", () => {
+		for (const phase of ["completed", "failed"] as const) {
+			const message = reply(phase);
+			if (message.kind !== "agent") throw new Error("fixture");
+			message.blocks.push({ type: "error", id: "old", kind: "network", text: "old failure" });
+			expect(projectTaskProgress({ messages: [message], busy: false, compacting: true })).toEqual({
+				phase: "compacting",
+				running: true,
+				canContinue: false,
+			});
+		}
+	});
+
 	it("offers explicit recovery for a failed/stopped reply, but protects persistence failure and paused input queues", () => {
 		const message = reply("failed");
 		expect(projectTaskProgress({ messages: [message], busy: false })?.canContinue).toBe(true);

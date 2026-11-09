@@ -5,18 +5,22 @@
 
 ## 本地发版入口
 
-先为下一个版本准备并提交 `.github/release-notes/v<version>.md`，再保证当前分支工作区干净。桌面版本号以 `apps/desktop/package.json` 为准；例如当前版本为 `1.1.3` 时，patch 发版说明应提前写入 `v1.1.4.md`。已存在的版本 tag 和 Release 说明不应复用或改写。
+发布分为候选准备和标签发布两个阶段。旧的 `bun run release:desktop:patch/minor` 已停用：调用会给出迁移指引并退出，不改文件、不提交、不推送。
 
-在仓库根目录运行以下命令之一：
+1. 核对当前正式 Release 与标签，再用 `node scripts/release/release-version.mjs --start-next patch`（或 `minor`）准备 Desktop、Android、锁文件和新版本说明。若版本已在开发中，沿用它；改版本使用 `--retarget x.y.z`。先检查现有说明，避免覆盖开发条目；已发布正文不改写。
+2. 完成该版本的说明、检查与回归，逐路径审查后正常提交，**先单独推送 `origin main` 候选**，记录完整 SHA。
+3. 等待这个 SHA 的 `quality`、`desktop-packaged` 全部成功；涉及手机时同时检查 `mobile`。修复产生新提交后，重新等待新 SHA，不能借用旧结果。
+4. 执行官方准入：
 
-```bash
-bun run release:desktop:patch
-bun run release:desktop:minor
-```
+   ```bash
+   node scripts/release/release-preflight.mjs
+   ```
 
-脚本会检查分支与工作区状态，运行 `bun run check`、`bun run test:quality`、`bun run verify:desktop:contracts` 和 `bun run test:desktop:packaging`，然后校验下一版本的 Release Notes。通过后只更新并暂存 Desktop 版本文件和 `bun.lock`，创建版本提交与 tag，并用一次 atomic push 推送分支和 tag。该入口会直接触发 GitHub 发版工作流；不要把它当成普通代码推送命令，也不要对已存在的 tag 重新推送。
+   它核对本地/远端 main、干净工作树、双端版本、说明、新标签不存在及同 SHA CI。查询失败也不能继续。
+5. 准入通过后为该 SHA 创建 **annotated 新标签**，并单独推送这个标签。不得将未经准入的标签和首次候选一起推送，不移动已有标签。
+6. 跟进 `desktop-release` 至完成，核对公开 Release 的正文、资产、更新源和可取得的 APK 签名。只有发布完成才能宣布新版本可用。
 
-如果只需要提交代码、不发版，应正常提交并推送分支，不创建版本 tag。GitHub 上的 `desktop-release` 仍会在 tag 流程中重复质量、合同和制品检查。
+只提交源码时执行前两步，不创建标签。完整流程见[发布技能](../../.agents/skills/vetta-release/SKILL.md)。
 
 ## 哪一步失败，就重跑哪一步
 

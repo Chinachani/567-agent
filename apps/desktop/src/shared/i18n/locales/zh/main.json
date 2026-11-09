@@ -44,7 +44,8 @@
       "resetZoom": "实际大小",
       "zoomIn": "放大",
       "zoomOut": "缩小",
-      "toggleFullScreen": "进入全屏幕"
+      "toggleFullScreen": "进入全屏幕",
+      "zoomFailed": "无法保存界面大小，请重试。"
     },
     "window": {
       "title": "窗口",

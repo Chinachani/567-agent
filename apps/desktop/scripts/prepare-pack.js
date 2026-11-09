@@ -13,19 +13,15 @@ import {
 	LEGACY_PLUGIN_FILE_ASSOCIATION,
 } from "./desktop-packaging-layout.mjs";
 import { resolveInstalledPackageRoot } from "./installed-package-root.mjs";
+import { stageLinuxCrashPolicy } from "./linux-crash-policy.mjs";
 import { LINUX_PACKAGE_METADATA, LINUX_RELEASE_TARGETS } from "./linux-packaging-contract.mjs";
 import { loadBuildEnv } from "./load-build-env.mjs";
 import { resolvePackagedNativeDependencies } from "./packaged-native-dependencies.mjs";
 import { resolveReleaseInfo } from "./resolve-release-info.mjs";
 import { prepareSpeechModels, SPEECH_MODEL_RESOURCE_ROOT } from "./fetch-speech-models.mjs";
 import { prepareVendorRuntimes } from "./fetch-vendor-runtimes.mjs";
-import {
-	resolveSpeechInputBuildConfig,
-	resolveSpeechInputTargetTags,
-} from "./speech-input-build-config.js";
-import {
-	stageSystemPluginsFromArchives,
-} from "./stage-system-plugins.mjs";
+import { resolveSpeechInputBuildConfig, resolveSpeechInputTargetTags } from "./speech-input-build-config.js";
+import { stageSystemPluginsFromArchives } from "./stage-system-plugins.mjs";
 import { stageSystemSkills } from "./stage-system-skills.mjs";
 import { stageSystemThemesFromArchives } from "./stage-system-themes.mjs";
 import { BROWSER_EXTENSION_RESOURCE, stageBrowserExtension } from "./stage-browser-extension.mjs";
@@ -127,9 +123,7 @@ function resolvePlatformFamilies() {
 		else if (platformTag.startsWith("linux-")) families.add("linux");
 		else if (platformTag.startsWith("win32-")) families.add("win32");
 		else {
-			throw new Error(
-				`[prepare-pack] unsupported platform ${platformTag}; expected darwin-*, linux-*, or win32-*`,
-			);
+			throw new Error(`[prepare-pack] unsupported platform ${platformTag}; expected darwin-*, linux-*, or win32-*`);
 		}
 	}
 	return families;
@@ -187,7 +181,6 @@ const packagedNativeDependencies = resolvePackagedNativeDependencies(resolvePlat
 });
 const externalDeps = packagedNativeDependencies.required;
 const optionalExternalDeps = packagedNativeDependencies.optional;
-
 
 // Copy an external dep plus its full production-dependency closure into the
 // staged node_modules. app-builder-lib 26's bun collector walks each package's
@@ -302,14 +295,14 @@ if (process.platform === "darwin") {
 // Copy icons
 cpSync(join(projectRoot, "build"), join(buildStageDir, "build"), { recursive: true });
 
+const linuxCrashPolicyFpm = await stageLinuxCrashPolicy(buildStageDir);
+
 // macOS DMG: 编译「修复已损坏.app」直接落到 staging build/，由下面 dmg.contents 引用。
 // 仅未签名构建需要；签名+公证后 quarantine 不再拦截，且该 helper 自身未签名会拖累公证。
 if (process.platform === "darwin" && !macSigning.enabled) {
-	execFileSync(
-		"node",
-		[join(import.meta.dirname, "build-mac-repair-helper.js"), join(buildStageDir, "build")],
-		{ stdio: "inherit" },
-	);
+	execFileSync("node", [join(import.meta.dirname, "build-mac-repair-helper.js"), join(buildStageDir, "build")], {
+		stdio: "inherit",
+	});
 }
 
 // macOS appshot: swiftc 编译 "567 Agent Computer Use.app" 直接落到 staging appshot/，
@@ -345,24 +338,20 @@ for (const target of resolveImGatewayTargets()) {
 	const outputPath = join(imGatewayDistDir, `im-gateway-${target.os}-${target.arch}${extension}`);
 	console.log(`  -> ${outputPath}`);
 	try {
-		execFileSync(process.platform === "win32" ? "go.exe" : "go", [
-			"build",
-			"-trimpath",
-			"-ldflags",
-			"-s -w -X main.version=dev",
-			"-o",
-			outputPath,
-			"./cmd/im-gateway",
-		], {
-			cwd: imGatewayDir,
-			env: {
-				...process.env,
-				CGO_ENABLED: "0",
-				GOARCH: target.arch,
-				GOOS: target.os,
+		execFileSync(
+			process.platform === "win32" ? "go.exe" : "go",
+			["build", "-trimpath", "-ldflags", "-s -w -X main.version=dev", "-o", outputPath, "./cmd/im-gateway"],
+			{
+				cwd: imGatewayDir,
+				env: {
+					...process.env,
+					CGO_ENABLED: "0",
+					GOARCH: target.arch,
+					GOOS: target.os,
+				},
+				stdio: "inherit",
 			},
-			stdio: "inherit",
-		});
+		);
 	} catch (err) {
 		console.error("[prepare-pack] im-gateway cross-build failed");
 		throw err;
@@ -402,13 +391,7 @@ if (existsSync(imGatewayDistDir)) {
 const stagedCodingAgentDir = join(buildStageDir, "coding-agent");
 rmSync(stagedCodingAgentDir, { recursive: true, force: true });
 mkdirSync(stagedCodingAgentDir, { recursive: true });
-const codingAgentAssets = [
-	"package.json",
-	"banner.txt",
-	"README.md",
-	"CHANGELOG.md",
-	"dist",
-];
+const codingAgentAssets = ["package.json", "banner.txt", "README.md", "CHANGELOG.md", "dist"];
 for (const rel of codingAgentAssets) {
 	const src = join(codingAgentDir, rel);
 	if (!existsSync(src)) {
@@ -452,16 +435,20 @@ for (const target of resolveCliAppCompileTargets()) {
 	const stagedCliAppBinary = join(stagedCliAppBinDir, target.binaryName);
 	mkdirSync(stagedCliAppBinDir, { recursive: true });
 	console.log(`[prepare-pack] compiling 567 Agent CLI (${target.platformTag}) -> ${stagedCliAppBinary}`);
-	execFileSync(process.platform === "win32" ? "bun.exe" : "bun", [
-		join(cliAppDir, "scripts", "compile-standalone.mjs"),
-		"--target",
-		target.bunTarget,
-		"--outfile",
-		stagedCliAppBinary,
-	], {
-		cwd: projectRoot,
-		stdio: "inherit",
-	});
+	execFileSync(
+		process.platform === "win32" ? "bun.exe" : "bun",
+		[
+			join(cliAppDir, "scripts", "compile-standalone.mjs"),
+			"--target",
+			target.bunTarget,
+			"--outfile",
+			stagedCliAppBinary,
+		],
+		{
+			cwd: projectRoot,
+			stdio: "inherit",
+		},
+	);
 	if (!existsSync(stagedCliAppBinary)) {
 		throw new Error(`[prepare-pack] compiled cli-app binary missing after stage: ${stagedCliAppBinary}`);
 	}
@@ -673,7 +660,11 @@ const builderConfig = {
 		name: "567 Agent",
 		schemes: ["agent567", "api567", "vetta"],
 	},
-	fileAssociations: [VETTA_PLUGIN_FILE_ASSOCIATION, LEGACY_PLUGIN_FILE_ASSOCIATION, VETTA_DESIGN_SHARE_FILE_ASSOCIATION],
+	fileAssociations: [
+		VETTA_PLUGIN_FILE_ASSOCIATION,
+		LEGACY_PLUGIN_FILE_ASSOCIATION,
+		VETTA_DESIGN_SHARE_FILE_ASSOCIATION,
+	],
 	mac: {
 		target: ["dmg", "zip"],
 		artifactName: "567-Agent-${version}-${arch}-mac.${ext}",
@@ -767,7 +758,9 @@ const builderConfig = {
 		vendor: LINUX_PACKAGE_METADATA.vendor,
 		executableArgs: ["--ozone-platform=x11"],
 	},
+	rpm: { fpm: linuxCrashPolicyFpm },
 	deb: {
+		fpm: linuxCrashPolicyFpm,
 		packageName: "567-agent",
 		artifactName: "567-agent-${version}-amd64.${ext}",
 		priority: "optional",
@@ -789,17 +782,14 @@ const builderConfig = {
 	// 上偶尔出问题（photon.ts 已经有 fallback paths 兜底，但能避免就避免）。
 	// 直接 unpack 到 app.asar.unpacked/，让 wasm 落到真实文件系统。
 	//
-// uiohook-napi / electron-liquid-glass / Sherpa-ONNX 加载预编译 .node。
+	// uiohook-napi / electron-liquid-glass / Sherpa-ONNX 加载预编译 .node。
 	// dlopen 无法从 asar 虚拟文件系统加载原生模块，必须整包 unpack 到真实磁盘，
 	// 否则 packaged 环境 require 即失败（electron-liquid-glass 仅 mac 包内存在）。
 	//
 	// OCR runner 包含稳定且可高度压缩的 WASM / ONNX 资源。将其放入
 	// app.asar.unpacked 后 Electron 仍可透明读取，同时 Windows Inno 能按文件
 	// 使用 LZMA2 压缩，避免未压缩的 app.asar 直接抬高完整安装包体积。
-	asarUnpack: [
-		"ocr-runner/**/*",
-		...packagedNativeDependencies.asarUnpack,
-	],
+	asarUnpack: ["ocr-runner/**/*", ...packagedNativeDependencies.asarUnpack],
 };
 writeFileSync(join(buildStageDir, "electron-builder.json"), JSON.stringify(builderConfig, null, "\t") + "\n");
 

@@ -1,6 +1,8 @@
 import { Button } from "@shared/components/ui/button";
 import { Popover, PopoverContent, PopoverTrigger } from "@shared/components/ui/popover";
 import { aggregatePromptCacheUsage, type Usage } from "@567agent/ai/protocol";
+import { ModelPerformanceView } from "@vetta-org/theme-ui/chat";
+import { summarizeModelPerformance } from "../../services/model-performance";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 
@@ -31,6 +33,7 @@ export function MessageTokenUsage({ usages, sessionUsages = usages }: MessageTok
 	const [scope, setScope] = useState<TokenUsageScope>("session");
 	const selectedUsages = scope === "session" ? sessionUsages : usages;
 	const details = useMemo(() => calculateTokenUsageDetails(selectedUsages), [selectedUsages]);
+	const performance = useMemo(() => summarizeModelPerformance(selectedUsages), [selectedUsages]);
 	const language = i18n.resolvedLanguage ?? i18n.language;
 	const numberFormatter = useMemo(() => new Intl.NumberFormat(language), [language]);
 	const percentFormatter = useMemo(
@@ -59,9 +62,7 @@ export function MessageTokenUsage({ usages, sessionUsages = usages }: MessageTok
 
 	if (!details) return null;
 	const title =
-		scope === "session"
-			? t("messageList.tokenUsage.sessionTitle")
-			: t("messageList.tokenUsage.messageTitle");
+		scope === "session" ? t("messageList.tokenUsage.sessionTitle") : t("messageList.tokenUsage.messageTitle");
 	const latestPromptCache = details.latestPromptCache;
 	const prefixStatus = latestPromptCache?.prefixStatus
 		? {
@@ -95,9 +96,7 @@ export function MessageTokenUsage({ usages, sessionUsages = usages }: MessageTok
 		changes: NonNullable<NonNullable<Usage["promptCache"]>["changedTools"]> | undefined,
 	) =>
 		changes
-			?.map(({ id, change }) =>
-				t("messageList.tokenUsage.definitionChange", { id, change: changeLabels[change] }),
-			)
+			?.map(({ id, change }) => t("messageList.tokenUsage.definitionChange", { id, change: changeLabels[change] }))
 			.join(t("messageList.tokenUsage.segmentSeparator"));
 	const changedPromptBlocks = formatDefinitionChanges(latestPromptCache?.changedSystemPromptBlocks);
 	const changedTools = formatDefinitionChanges(latestPromptCache?.changedTools);
@@ -151,9 +150,7 @@ export function MessageTokenUsage({ usages, sessionUsages = usages }: MessageTok
 					],
 					[t("messageList.tokenUsage.toolCount"), numberFormatter.format(latestPromptCache.toolCount)],
 					...(prefixStatus ? [[t("messageList.tokenUsage.prefixStatus"), prefixStatus] as const] : []),
-					...(changedSegments
-						? [[t("messageList.tokenUsage.changedSegments"), changedSegments] as const]
-						: []),
+					...(changedSegments ? [[t("messageList.tokenUsage.changedSegments"), changedSegments] as const] : []),
 					...(changedPromptBlocks
 						? [[t("messageList.tokenUsage.changedPromptBlocks"), changedPromptBlocks] as const]
 						: []),
@@ -163,6 +160,11 @@ export function MessageTokenUsage({ usages, sessionUsages = usages }: MessageTok
 			: []),
 	];
 
+	function formatMilliseconds(value: number | null, locale: string): string {
+		if (value === null) return t("messageList.tokenUsage.speed.notRecorded");
+		return `${new Intl.NumberFormat(locale, { maximumFractionDigits: 2 }).format(value / 1000)} s`;
+	}
+
 	return (
 		<Popover open={open} onOpenChange={setOpen}>
 			<PopoverTrigger asChild>
@@ -170,7 +172,7 @@ export function MessageTokenUsage({ usages, sessionUsages = usages }: MessageTok
 					type="button"
 					variant="ghost"
 					size="icon-xs"
-					className="text-muted-foreground/45 hover:text-muted-foreground data-[state=open]:text-muted-foreground"
+					className="text-muted-foreground/60 hover:text-muted-foreground data-[state=open]:text-muted-foreground"
 					aria-label={t("messageList.tokenUsage.trigger")}
 				>
 					<span className="icon-[solar--chart-square-linear] h-3.5 w-3.5" aria-hidden />
@@ -181,7 +183,7 @@ export function MessageTokenUsage({ usages, sessionUsages = usages }: MessageTok
 				side="top"
 				align="start"
 				sideOffset={6}
-				className="w-64 max-w-64 gap-0 border-border/60 shadow-md"
+				className="w-80 max-w-[calc(100vw-24px)] max-h-[var(--radix-popover-content-available-height)] overflow-y-auto gap-0 border-border/60 font-sans text-[12px] leading-relaxed shadow-md"
 			>
 				<div
 					role="tablist"
@@ -194,10 +196,8 @@ export function MessageTokenUsage({ usages, sessionUsages = usages }: MessageTok
 							type="button"
 							role="tab"
 							aria-selected={scope === value}
-							className={`flex-1 rounded-sm px-1.5 py-1 text-[10px] transition-colors ${
-								scope === value
-									? "bg-background text-foreground"
-									: "text-muted-foreground hover:text-foreground"
+							className={`flex-1 rounded-sm px-1.5 py-1 text-[12px] transition-colors ${
+								scope === value ? "bg-background text-foreground" : "text-muted-foreground hover:text-foreground"
 							}`}
 							onClick={() => setScope(value)}
 						>
@@ -206,25 +206,23 @@ export function MessageTokenUsage({ usages, sessionUsages = usages }: MessageTok
 					))}
 				</div>
 				<div className="flex items-baseline justify-between gap-2">
-					<span className="text-[11px] font-semibold">{title}</span>
-					<span className="text-[10px] text-muted-foreground">
+					<span className="text-[13px] font-semibold">{title}</span>
+					<span className="text-[12px] text-muted-foreground">
 						{t("messageList.tokenUsage.modelCalls", { count: details.modelCalls })}
 					</span>
 				</div>
 				<div className="mt-2 flex items-end justify-between gap-3 rounded-md bg-muted/50 px-2 py-1.5">
 					<div className="min-w-0">
-						<div className="truncate text-[10px] text-muted-foreground">
-							{t("messageList.tokenUsage.cacheHitRate")}
-						</div>
+						<div className="truncate text-[12px] text-muted-foreground">{t("messageList.tokenUsage.cacheHitRate")}</div>
 						<div
-							className="mt-0.5 text-[22px] font-semibold leading-none tabular-nums"
+							className="mt-0.5 text-[20px] font-semibold leading-none tabular-nums"
 							style={{ color: SEGMENT_COLORS[1] }}
 						>
 							{hitRateText}
 						</div>
 					</div>
 					<div className="shrink-0 text-right">
-						<div className="text-[10px] text-muted-foreground">{t("messageList.tokenUsage.total")}</div>
+						<div className="text-[12px] text-muted-foreground">{t("messageList.tokenUsage.total")}</div>
 						<div
 							className="mt-0.5 text-[13px] font-semibold leading-none tabular-nums"
 							title={numberFormatter.format(details.totalTokens)}
@@ -235,7 +233,7 @@ export function MessageTokenUsage({ usages, sessionUsages = usages }: MessageTok
 				</div>
 				<div className="mt-2 flex items-baseline gap-1.5">
 					<span
-						className="truncate text-[10px] text-muted-foreground"
+						className="truncate text-[12px] text-muted-foreground"
 						title={numberFormatter.format(details.promptTokens)}
 					>
 						{t("messageList.tokenUsage.prompt")} {formatCompactTokens(details.promptTokens)}
@@ -253,7 +251,7 @@ export function MessageTokenUsage({ usages, sessionUsages = usages }: MessageTok
 						/>
 					))}
 				</div>
-				<dl className="mt-1.5 grid grid-cols-2 gap-x-3 gap-y-0.5 text-[10px]">
+				<dl className="mt-1.5 grid grid-cols-2 gap-x-3 gap-y-1.5 text-[12px]">
 					{parts.map((part, index) => (
 						<div key={part.key} className="flex items-center gap-1">
 							<span
@@ -268,10 +266,39 @@ export function MessageTokenUsage({ usages, sessionUsages = usages }: MessageTok
 						</div>
 					))}
 				</dl>
+				<ModelPerformanceView
+					label={t("messageList.tokenUsage.speed.title")}
+					rows={[
+						{
+							label: t("messageList.tokenUsage.speed.firstText"),
+							value: formatMilliseconds(performance.firstTextMs, language),
+							hint: t("messageList.tokenUsage.speed.firstTextHint"),
+						},
+						{
+							label: t("messageList.tokenUsage.speed.duration"),
+							value: formatMilliseconds(performance.durationMs, language),
+							hint: t("messageList.tokenUsage.speed.durationHint"),
+						},
+						{
+							label: t("messageList.tokenUsage.speed.tps"),
+							value:
+								performance.tokensPerSecond === null
+									? t("messageList.tokenUsage.speed.notRecorded")
+									: `${new Intl.NumberFormat(language, { maximumFractionDigits: 1 }).format(performance.tokensPerSecond)} tok/s`,
+							hint: t("messageList.tokenUsage.speed.tpsHint"),
+						},
+					]}
+					note={t("messageList.tokenUsage.speed.coverage", {
+						recorded: performance.recordedCalls,
+						total: performance.totalCalls,
+						text: performance.textCalls,
+						speed: performance.speedCalls,
+					})}
+				/>
 				<div className="mt-2 border-t border-border/50 pt-1.5">
 					<button
 						type="button"
-						className="flex w-full items-center gap-1 text-[10px] text-muted-foreground transition-colors hover:text-foreground"
+						className="flex w-full items-center gap-1 text-[12px] text-muted-foreground transition-colors hover:text-foreground"
 						aria-expanded={detailsExpanded}
 						onClick={() => setDetailsExpanded((expanded) => !expanded)}
 					>
@@ -284,16 +311,13 @@ export function MessageTokenUsage({ usages, sessionUsages = usages }: MessageTok
 						{t("messageList.tokenUsage.moreParameters")}
 					</button>
 					{detailsExpanded ? (
-						<dl className="mt-1.5 grid grid-cols-[minmax(0,1fr)_auto] gap-x-2 gap-y-0.5 text-[10px]">
+						<dl className="mt-1.5 grid grid-cols-[minmax(0,1fr)_auto] gap-x-2 gap-y-1.5 text-[12px]">
 							{developerRows.map(([label, value]) => (
 								<div key={label} className="contents">
 									<dt className="truncate text-muted-foreground" title={label}>
 										{label}
 									</dt>
-									<dd
-										className="max-w-32 truncate text-right tabular-nums text-popover-foreground"
-										title={value}
-									>
+									<dd className="max-w-44 break-words text-right tabular-nums text-popover-foreground" title={value}>
 										{value}
 									</dd>
 								</div>
@@ -312,8 +336,7 @@ export function MessageTokenUsage({ usages, sessionUsages = usages }: MessageTok
  */
 export function formatCompactTokens(value: number): string {
 	if (value === 0) return "--";
-	const trim = (scaled: number, suffix: string) =>
-		`${scaled.toFixed(1).replace(/\.0$/, "")}${suffix}`;
+	const trim = (scaled: number, suffix: string) => `${scaled.toFixed(1).replace(/\.0$/, "")}${suffix}`;
 	if (Math.abs(value) >= 1_000_000) return trim(value / 1_000_000, "M");
 	if (Math.abs(value) >= 1_000) return trim(value / 1_000, "K");
 	return String(value);

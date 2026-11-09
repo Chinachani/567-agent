@@ -44,6 +44,7 @@ export function createCodingAgentModelRuntime(
 
 class ModelRuntimeImplementation implements CodingAgentModelRuntime {
 	private models: Model<Api>[] = [];
+	private disabledProviders: ReadonlySet<string> = new Set();
 	private customProviderApiKeys = new Map<string, string>();
 	private customProviderNames = new Set<string>();
 	private registeredProviders = new Map<string, CodingAgentProviderConfig>();
@@ -104,11 +105,11 @@ class ModelRuntimeImplementation implements CodingAgentModelRuntime {
 	}
 
 	getAll(): Model<Api>[] {
-		return this.models;
+		return this.models.filter((model) => !this.disabledProviders.has(model.provider));
 	}
 
 	getAvailable(): Model<Api>[] {
-		return this.models.filter(
+		return this.getAll().filter(
 			(model) =>
 				this.isRemote(model) ||
 				this.customProviderNames.has(model.provider) ||
@@ -117,7 +118,7 @@ class ModelRuntimeImplementation implements CodingAgentModelRuntime {
 	}
 
 	find(provider: string, modelId: string): Model<Api> | undefined {
-		return this.models.find((model) => model.provider === provider && model.id === modelId);
+		return this.getAll().find((model) => model.provider === provider && model.id === modelId);
 	}
 
 	isRemote(model: Model<Api>): boolean {
@@ -172,6 +173,7 @@ class ModelRuntimeImplementation implements CodingAgentModelRuntime {
 
 	private rebuildModels(): void {
 		const local = loadLocalModelConfig(this.modelsJsonPath, this.configFileSource, this.configurationValueResolver);
+		this.disabledProviders = local.disabledProviderNames;
 		this.customProviderApiKeys = new Map(local.apiKeys);
 		this.customProviderNames = new Set(local.providerNames);
 		this.loadError = local.error;

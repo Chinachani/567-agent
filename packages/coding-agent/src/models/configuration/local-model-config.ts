@@ -13,6 +13,7 @@ export interface LocalModelConfigResult {
 	readonly modelOverrides: ReadonlyMap<string, ReadonlyMap<string, ModelOverride>>;
 	readonly apiKeys: ReadonlyMap<string, string>;
 	readonly providerNames: ReadonlySet<string>;
+	readonly disabledProviderNames: ReadonlySet<string>;
 	readonly error: string | undefined;
 }
 
@@ -45,7 +46,9 @@ export function loadLocalModelConfig(
 		const config = parsed as ModelsConfig;
 		const validation = validateProviders(config);
 		const providers = Object.fromEntries(
-			Object.entries(config.providers).filter(([name]) => !validation.skip.has(name)),
+			Object.entries(config.providers).filter(
+				([name, provider]) => !validation.skip.has(name) && !provider.disabled,
+			),
 		);
 		const validConfig: ModelsConfig = { ...config, providers };
 		const overrides = new Map<string, ProviderOverride>();
@@ -75,6 +78,11 @@ export function loadLocalModelConfig(
 			modelOverrides,
 			apiKeys,
 			providerNames: parsedModels.providerNames,
+			disabledProviderNames: new Set(
+				Object.entries(config.providers)
+					.filter(([, provider]) => provider.disabled)
+					.map(([name]) => name),
+			),
 			error,
 		};
 	} catch (error) {
@@ -181,6 +189,7 @@ function emptyResult(error?: string): LocalModelConfigResult {
 		modelOverrides: new Map(),
 		apiKeys: new Map(),
 		providerNames: new Set(),
+		disabledProviderNames: new Set(),
 		error,
 	};
 }

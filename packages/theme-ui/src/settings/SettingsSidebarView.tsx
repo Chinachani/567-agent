@@ -33,11 +33,11 @@ export function SettingsSidebarView({
 	return (
 		<div
 			className={cn(
-				"flex min-h-0 shrink-0 flex-col border-r border-border/60 bg-muted/20",
+				"settings-sidebar flex min-h-0 shrink-0 flex-col overflow-hidden border-r border-border/60 bg-muted/20",
 				narrow ? "w-14" : "w-[200px]",
 			)}
 		>
-			<div className={cn("drag-region", narrow ? "h-12" : "px-5 pb-5 pt-5")}>
+			<div className={cn("drag-region shrink-0", narrow ? "h-12" : "px-5 pb-5 pt-5")}>
 				{!narrow && <h1 className="text-[15px] font-semibold text-foreground">{title}</h1>}
 			</div>
 			<nav

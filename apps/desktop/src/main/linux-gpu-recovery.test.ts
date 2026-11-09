@@ -21,10 +21,18 @@ describe("Linux GPU recovery policy", () => {
 		expect(shouldUseLinuxSoftwareRendering(directory, NOW)).toBe(true);
 	});
 
+	it("protects the next launch after GPU crashes 43 minutes apart", () => {
+		const directory = createDirectory();
+		recordLinuxGpuCrash(directory, NOW - 43 * 60 * 1000);
+		recordLinuxGpuCrash(directory, NOW);
+		expect(shouldUseLinuxSoftwareRendering(directory, NOW + 60_000)).toBe(true);
+		expect(shouldUseLinuxSoftwareRendering(directory, NOW + 25 * 60 * 60 * 1000)).toBe(false);
+	});
+
 	it("ignores stale crash records", () => {
 		const directory = createDirectory();
-		recordLinuxGpuCrash(directory, NOW - 11 * 60 * 1000);
-		recordLinuxGpuCrash(directory, NOW - 10 * 60 * 1000 - 1);
+		recordLinuxGpuCrash(directory, NOW - 25 * 60 * 60 * 1000);
+		recordLinuxGpuCrash(directory, NOW - 24 * 60 * 60 * 1000 - 1);
 		expect(shouldUseLinuxSoftwareRendering(directory, NOW)).toBe(false);
 	});
 });

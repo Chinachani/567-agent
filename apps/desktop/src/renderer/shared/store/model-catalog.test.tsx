@@ -1,5 +1,6 @@
 // @vitest-environment jsdom
 
+import type { ModelsConfigData } from "@preload/api";
 import { act, renderHook, waitFor } from "@testing-library/react";
 import { getDefaultStore } from "jotai";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
@@ -7,6 +8,7 @@ import { useModelOptions } from "../components/ModelSelect/useModelOptions";
 import { useModelCatalogSync } from "../hooks/useModelCatalogSync";
 import { authTokenAtom, remoteProvidersAtom } from "./auth-atoms";
 import { localModelsConfigAtom, modelCatalog } from "./model-catalog";
+import { selectableDefaultModelAtom } from "./model-catalog-atoms";
 
 const LOCAL_CONFIG = { providers: {}, defaultModel: undefined };
 
@@ -96,4 +98,36 @@ describe("模型目录与选择器的同步", () => {
 		await waitFor(() => expect(models.fetchRemote).toHaveBeenCalled());
 		expect(result.current.options).toEqual([]);
 	});
+});
+
+it("updates already mounted selectors when a provider is paused and restores its saved default on enable", async () => {
+	const store = getDefaultStore();
+	const hook = renderHook(() => useModelOptions());
+	await waitFor(() => expect(models.fetchRemote).toHaveBeenCalled());
+	const config: ModelsConfigData = {
+		defaultModel: "openai/local",
+		providers: { openai: { disabled: false, models: [{ id: "local" }] } },
+	};
+	act(() => {
+		store.set(localModelsConfigAtom, config);
+		store.set(remoteProvidersAtom, { openai: { models: [{ id: "remote" }] }, other: { models: [{ id: "keep" }] } });
+	});
+	expect(hook.result.current.options.map((o) => o.key)).toEqual(["openai/local", "openai/remote", "other/keep"]);
+	act(() => {
+		store.set(localModelsConfigAtom, {
+			...config,
+			providers: { openai: { ...config.providers.openai, disabled: true } },
+		});
+	});
+	expect(hook.result.current.options.map((o) => o.key)).toEqual(["other/keep"]);
+	expect(hook.result.current.defaultKey).toBeUndefined();
+	expect(store.get(selectableDefaultModelAtom)).toBeNull();
+	expect(store.get(localModelsConfigAtom)?.defaultModel).toBe("openai/local");
+	act(() => {
+		store.set(localModelsConfigAtom, config);
+	});
+	expect(hook.result.current.options.map((o) => o.key)).toContain("openai/local");
+	expect(hook.result.current.defaultKey).toBe("openai/local");
+	expect(store.get(selectableDefaultModelAtom)).toBe("openai/local");
+	hook.unmount();
 });

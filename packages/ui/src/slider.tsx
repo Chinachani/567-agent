@@ -10,7 +10,9 @@ export interface SliderProps {
 	max?: number;
 	step?: number;
 	disabled?: boolean;
+	animateValue?: boolean;
 	"aria-label"?: string;
+	"aria-valuetext"?: string;
 	onValueChange?: (value: number[]) => void;
 	onValueCommit?: (value: number[]) => void;
 }
@@ -23,14 +25,19 @@ export function Slider({
 	max = 100,
 	step = 1,
 	disabled,
+	animateValue = false,
 	"aria-label": ariaLabel,
+	"aria-valuetext": ariaValueText,
 	onValueChange,
 	onValueCommit,
 }: SliderProps): JSX.Element {
 	const [internalValue, setInternalValue] = useState(() => defaultValue?.[0] ?? value?.[0] ?? min);
 	const [dragging, setDragging] = useState(false);
+	const [scrubbing, setScrubbing] = useState(false);
 	const [focused, setFocused] = useState(false);
 	const draggingRef = useRef(false);
+	const pointerStartX = useRef(0);
+	const inputRef = useRef<HTMLInputElement>(null);
 	const current = value?.[0] ?? internalValue;
 	const percent = useMemo(() => {
 		if (max <= min) return 0;
@@ -61,13 +68,16 @@ export function Slider({
 			onPointerDown={(event) => {
 				if (disabled || event.button !== 0) return;
 				event.preventDefault();
+				inputRef.current?.focus();
 				draggingRef.current = true;
+				pointerStartX.current = event.clientX;
 				setDragging(true);
 				event.currentTarget.setPointerCapture(event.pointerId);
 				updateFromPointer(event.currentTarget, event.clientX);
 			}}
 			onPointerMove={(event) => {
 				if (!draggingRef.current) return;
+				if (Math.abs(event.clientX - pointerStartX.current) >= 4) setScrubbing(true);
 				updateFromPointer(event.currentTarget, event.clientX);
 			}}
 			onPointerUp={(event) => {
@@ -75,38 +85,49 @@ export function Slider({
 				const next = updateFromPointer(event.currentTarget, event.clientX);
 				draggingRef.current = false;
 				setDragging(false);
+				setScrubbing(false);
 				event.currentTarget.releasePointerCapture(event.pointerId);
 				onValueCommit?.([next ?? current]);
 			}}
 			onPointerCancel={() => {
 				draggingRef.current = false;
 				setDragging(false);
+				setScrubbing(false);
 			}}
 			className={cn(
-				"relative flex h-5 w-full cursor-pointer touch-none select-none items-center data-[disabled]:cursor-not-allowed data-[disabled]:opacity-50",
+				"relative flex h-6 w-full cursor-pointer touch-none select-none items-center data-[disabled]:cursor-not-allowed data-[disabled]:opacity-50",
 				className,
 			)}
 		>
 			<div
 				data-slot="slider-track"
-				className="absolute left-0 right-0 top-1/2 h-1.5 -translate-y-1/2 overflow-hidden rounded-full bg-muted-foreground/20"
+				className="absolute left-0 right-0 top-1/2 h-2.5 -translate-y-1/2 overflow-hidden rounded-full bg-muted-foreground/20"
 			>
 				<div
 					data-slot="slider-range"
-					className="absolute h-full bg-primary"
+					className={cn(
+						"absolute h-full bg-primary",
+						animateValue && !scrubbing
+							? "transition-[width] duration-[240ms] ease-[cubic-bezier(0.22,1,0.36,1)] motion-reduce:transition-none"
+							: undefined,
+					)}
 					style={{ left: 0, width: `${percent}%` }}
 				/>
 			</div>
 			<div
 				data-slot="slider-thumb"
 				className={cn(
-					"pointer-events-none absolute top-1/2 block w-1 shrink-0 rounded-full bg-primary outline-none ring-2 ring-background transition-[box-shadow,height] before:absolute before:-inset-x-2 before:inset-y-0 before:content-['']",
-					dragging ? "h-5 ring-4" : "h-4",
+					"pointer-events-none absolute top-1/2 block w-1.5 shrink-0 rounded-full bg-primary outline-none ring-2 ring-background before:absolute before:-inset-x-2 before:inset-y-0 before:content-['']",
+					animateValue && !scrubbing
+						? "transition-[left,box-shadow,height] duration-[240ms] ease-[cubic-bezier(0.22,1,0.36,1)] motion-reduce:transition-none"
+						: "transition-[box-shadow,height]",
+					dragging ? "h-6 ring-4" : "h-5",
 					focused && !dragging ? "ring-[3px]" : undefined,
 				)}
 				style={{ left: `${percent}%`, transform: "translate(-50%, -50%)" }}
 			/>
 			<input
+				ref={inputRef}
 				type="range"
 				value={current}
 				min={min}
@@ -114,11 +135,27 @@ export function Slider({
 				step={step}
 				disabled={disabled}
 				aria-label={ariaLabel}
-				onChange={(event) => changeValue(Number(event.currentTarget.value))}
-				onPointerUp={(event) => onValueCommit?.([Number(event.currentTarget.value)])}
+				aria-valuetext={ariaValueText}
+				onKeyDown={(event) => {
+					let next: number;
+					if (event.key === "ArrowLeft" || event.key === "ArrowDown") next = current - step;
+					else if (event.key === "ArrowRight" || event.key === "ArrowUp") next = current + step;
+					else if (event.key === "Home") next = min;
+					else if (event.key === "End") next = max;
+					else if (event.key === "PageDown") next = current - step * 10;
+					else if (event.key === "PageUp") next = current + step * 10;
+					else return;
+					event.preventDefault();
+					const committed = changeValue(next);
+					onValueCommit?.([committed]);
+				}}
+				onChange={(event) => {
+					const next = changeValue(Number(event.currentTarget.value));
+					onValueCommit?.([next]);
+				}}
 				onFocus={() => setFocused(true)}
 				onBlur={() => setFocused(false)}
-				className="absolute inset-0 h-full w-full cursor-grab opacity-0 active:cursor-grabbing disabled:cursor-not-allowed"
+				className="pointer-events-none absolute inset-0 h-full w-full opacity-0"
 			/>
 		</div>
 	);

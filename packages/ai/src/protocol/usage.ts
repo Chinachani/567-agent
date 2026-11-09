@@ -88,7 +88,18 @@ export interface Usage {
 	cacheUsageReporting?: CacheUsageReporting;
 	/** Optional privacy-safe request-prefix diagnostics for this model call. */
 	promptCache?: PromptCacheDiagnostics;
+	/** Client-observed timing of a successful model stream; absent on older records. */
+	performance?: ModelCallPerformance;
 	cost: UsageCost;
+}
+
+export interface ModelCallPerformance {
+	/** Stream creation to terminal response, including provider wait but excluding tools. */
+	durationMs: number;
+	/** First non-empty text, thinking or tool output, relative to stream creation. */
+	firstOutputMs?: number;
+	/** First non-empty reply text; thinking/tool-only calls have no first text. */
+	firstTextMs?: number;
 }
 
 export interface PromptCacheUsageLike {

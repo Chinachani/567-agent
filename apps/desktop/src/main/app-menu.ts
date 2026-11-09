@@ -10,9 +10,10 @@
 // Windows/Linux 主窗口是 frameless（无菜单栏可见），关闭时直接置 null 即可，
 // 复制粘贴由 Chromium 原生处理，不依赖菜单。
 
-import { Menu, type MenuItemConstructorOptions } from "electron";
+import { dialog, Menu, type MenuItemConstructorOptions } from "electron";
 import { isDevToolsAllowed } from "./devtools-policy.js";
 import { mainT } from "./i18n/index.js";
+import { resetUiZoom, stepUiZoom } from "./ui-zoom/ui-zoom-service.js";
 
 export interface ApplicationMenuTemplateOptions {
 	isMac: boolean;
@@ -75,9 +76,25 @@ export function buildApplicationMenuTemplate({
 			submenu: [
 				...developerItems,
 				...(developerItems.length > 0 ? ([{ type: "separator" }] as MenuItemConstructorOptions[]) : []),
-				{ role: "resetZoom", label: mainT("menu.view.resetZoom") },
-				{ role: "zoomIn", label: mainT("menu.view.zoomIn") },
-				{ role: "zoomOut", label: mainT("menu.view.zoomOut") },
+				// Keyboard bindings belong to the configurable renderer shortcut scope.
+				{
+					label: mainT("menu.view.resetZoom"),
+					click: () => {
+						void resetUiZoom().catch(reportZoomFailure);
+					},
+				},
+				{
+					label: mainT("menu.view.zoomIn"),
+					click: () => {
+						void stepUiZoom(1).catch(reportZoomFailure);
+					},
+				},
+				{
+					label: mainT("menu.view.zoomOut"),
+					click: () => {
+						void stepUiZoom(-1).catch(reportZoomFailure);
+					},
+				},
 				{ type: "separator" },
 				{ role: "togglefullscreen", label: mainT("menu.view.toggleFullScreen") },
 			],
@@ -103,4 +120,8 @@ export function installApplicationMenu(): void {
 		allowDevTools: isDevToolsAllowed(),
 	});
 	Menu.setApplicationMenu(template ? Menu.buildFromTemplate(template) : null);
+}
+
+function reportZoomFailure(): void {
+	dialog.showErrorBox(mainT("menu.view.title"), mainT("menu.view.zoomFailed"));
 }

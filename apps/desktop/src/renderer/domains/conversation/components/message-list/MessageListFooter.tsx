@@ -38,21 +38,9 @@ export const MessageListFooter = memo(function MessageListFooter({
 	return (
 		<MessageListFooterPrimitive.Root>
 			<MessageListFooterPrimitive.Presence>
-				{pendingLabel ? (
-					<MessageListFooterPrimitive.Pending key="pending" label={pendingLabel} />
-				) : null}
-				{isCompacting ? (
-					<MessageListFooterPrimitive.Compacting
-						key="compacting"
-						label={t("messageList.compactionIndicator")}
-					/>
-				) : null}
+				{pendingLabel ? <MessageListFooterPrimitive.Pending key="pending" label={pendingLabel} /> : null}
 				{!isCompacting && retryLabel ? (
-					<MessageListFooterPrimitive.Retry
-						key="retrying"
-						label={retryLabel}
-						detail={retryDetail}
-					/>
+					<MessageListFooterPrimitive.Retry key="retrying" label={retryLabel} detail={retryDetail} />
 				) : null}
 			</MessageListFooterPrimitive.Presence>
 			{waiting && !pendingLabel && !isCompacting && !retryLabel ? (

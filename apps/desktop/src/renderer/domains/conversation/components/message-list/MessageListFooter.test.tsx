@@ -87,7 +87,15 @@ describe("MessageListFooter retry progress", () => {
 			source: "runtime-core" as const,
 		};
 		act(() => {
-			onEvent({ ...base, type: "retry.start", eventId: "retry-1", attempt: 1, maxAttempts: 3, delayMs: 1, errorMessage: "503 service unavailable" });
+			onEvent({
+				...base,
+				type: "retry.start",
+				eventId: "retry-1",
+				attempt: 1,
+				maxAttempts: 3,
+				delayMs: 1,
+				errorMessage: "503 service unavailable",
+			});
 		});
 		expect(screen.getByText("正在重新连接（1/3）")).toBeTruthy();
 		act(() => {
@@ -99,7 +107,15 @@ describe("MessageListFooter retry progress", () => {
 		});
 		expect(screen.queryByText("正在重新连接（1/3）")).toBeNull();
 		act(() => {
-			onEvent({ ...base, type: "retry.start", eventId: "retry-2", attempt: 2, maxAttempts: 3, delayMs: 1, errorMessage: "503 service unavailable" });
+			onEvent({
+				...base,
+				type: "retry.start",
+				eventId: "retry-2",
+				attempt: 2,
+				maxAttempts: 3,
+				delayMs: 1,
+				errorMessage: "503 service unavailable",
+			});
 		});
 		expect(screen.getByText("正在重新连接（2/3）")).toBeTruthy();
 		act(() => {
@@ -115,5 +131,14 @@ describe("MessageListFooter retry progress", () => {
 		);
 
 		expect(screen.getByText("正在启动会话")).toBeTruthy();
+	});
+	it("keeps transient compaction out of the scrollable message footer", () => {
+		store.set(retryProgressAtom, { attempt: 1, maxAttempts: 3, errorMessage: "offline" });
+		const view = render(
+			<Provider store={store}>
+				<MessageListFooter isCompacting waiting />
+			</Provider>,
+		);
+		expect(view.container.textContent).toBe("");
 	});
 });

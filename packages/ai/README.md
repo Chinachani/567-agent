@@ -1253,3 +1253,9 @@ Add an entry to `packages/ai/CHANGELOG.md` under `## [Unreleased]`:
 ## License
 
 MIT
+
+## Client-observed stream performance
+
+Successful streams optionally attach `usage.performance`: `durationMs` measures stream creation to completion, `firstTextMs` measures the first non-empty reply text, and `firstOutputMs` measures the first text, thinking or tool output. Measurement uses a monotonic clock at producer push time, before consumer buffering. Forwarding adapters preserve the original measurements. Failed/aborted calls are not successful speed samples. Historical records and non-streaming providers may omit these fields; absence is not zero.
+
+Desktop aggregates generation throughput as reported output tokens divided by the sum of corresponding `durationMs - firstOutputMs` intervals, excluding missing/invalid intervals. Provider output-token accounting may include reasoning and tool arguments. Model time includes network/provider waiting, but not tool execution or gaps between calls. First-text averages exclude tool-only calls. These optional local diagnostics do not change token accounting or provider request payloads.

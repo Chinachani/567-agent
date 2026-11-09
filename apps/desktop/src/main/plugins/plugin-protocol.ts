@@ -220,6 +220,7 @@ export const SelectSeparator = ui.SelectSeparator;
 export const SelectTrigger = ui.SelectTrigger;
 export const SelectValue = ui.SelectValue;
 export const Slider = ui.Slider;
+export const StepSlider = ui.StepSlider;
 export const Spin = ui.Spin;
 export const Switch = ui.Switch;
 export const cn = ui.cn;

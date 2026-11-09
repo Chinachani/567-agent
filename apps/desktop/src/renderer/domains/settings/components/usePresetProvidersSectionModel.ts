@@ -1,8 +1,10 @@
 import type { ModelsConfigData, PresetError, PresetProviderInfo } from "@preload/api.js";
+import { waitForCommittedPaint } from "@shared/lib/committed-paint";
 import { showToast } from "@shared/store/toast-atoms";
 import type { TFunction } from "i18next";
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
+import { isMagpieBaseUrl } from "@/shared/preset-provider-url";
 import { isInvalidKey, translatePresetError } from "./translatePresetError";
 
 type ProviderEntry = ModelsConfigData["providers"][string];
@@ -15,6 +17,7 @@ export interface PresetProviderModelRow {
 	contextWindow?: number;
 	hasVision: boolean;
 	hasReasoning: boolean;
+	reasoningLevels?: string[];
 	price: string | null;
 }
 
@@ -24,10 +27,16 @@ export interface PresetProviderRow {
 	api: string;
 	baseUrl?: string;
 	icon?: string;
+	/** 预填密钥:草稿为空时作为输入框初值,点启用即用。 */
+	defaultApiKey?: string;
 	models: NonNullable<ProviderEntry["models"]>;
 	modelRows: PresetProviderModelRow[];
 	offline: boolean;
 	adopted: boolean;
+	/** 已采纳且未被用户手动停用:开关的状态。 */
+	enabled: boolean;
+	/** 内置固定密钥(本机代理类):只给开关,不让用户填 key。 */
+	autoKey: boolean;
 	isOpen: boolean;
 	isExpanded: boolean;
 	refreshing: boolean;
@@ -65,6 +74,14 @@ export interface PresetProvidersSectionLabels {
 	refreshingModels: string;
 	refreshCatalog: string;
 	copyApiKey: string;
+	magpiePortHint: string;
+	editBaseUrl: string;
+	baseUrlPlaceholder: string;
+	testConnect: string;
+	testing: string;
+	testOk: string;
+	testFailed: string;
+	toggleProvider: (provider: string) => string;
 }
 
 export interface PresetProvidersSectionModel {
@@ -78,7 +95,10 @@ export interface PresetProvidersSectionModel {
 	onToggleExpanded: (row: PresetProviderRow) => void;
 	onToggleEditor: (row: PresetProviderRow) => void;
 	onDraftKeyChange: (rowId: string, key: string) => void;
-	onAdopt: (row: PresetProviderRow) => Promise<void>;
+	onAdopt: (row: PresetProviderRow) => Promise<boolean>;
+	onToggleEnabled: (row: PresetProviderRow, next: boolean) => Promise<void>;
+	/** 返回是否已保存,用于输入框决定是否收起。 */
+	onChangeBaseUrl: (row: PresetProviderRow, url: string) => Promise<boolean>;
 	onRemove: (row: PresetProviderRow) => Promise<void>;
 	onRefreshModels: (row: PresetProviderRow) => Promise<void>;
 	onCopyApiKey: (row: PresetProviderRow) => Promise<void>;
@@ -92,7 +112,7 @@ export function usePresetProvidersSectionModel({
 	saveConfig,
 }: {
 	config: ModelsConfigData;
-	saveConfig: (config: ModelsConfigData) => Promise<void>;
+	saveConfig: (config: ModelsConfigData) => Promise<boolean>;
 }): PresetProvidersSectionModel {
 	const { t, i18n } = useTranslation("settings");
 	const [presets, setPresets] = useState<PresetProviderInfo[]>([]);
@@ -107,12 +127,54 @@ export function usePresetProvidersSectionModel({
 	const [modelsErrors, setModelsErrors] = useState<Record<string, string>>({});
 	const [refreshingCatalog, setRefreshingCatalog] = useState(false);
 
+	const inFlight = useRef(false);
+	const alive = useRef(true);
+	useEffect(() => {
+		alive.current = true;
+		return () => {
+			alive.current = false;
+		};
+	}, []);
+	const mutate = useCallback(
+		async (operation: () => Promise<boolean>): Promise<boolean> => {
+			if (inFlight.current) return false;
+			inFlight.current = true;
+			setSaving(true);
+			try {
+				await waitForCommittedPaint();
+				return alive.current ? await operation() : false;
+			} catch {
+				if (alive.current) showToast({ variant: "error", message: t("modelSettingsFeedback.saveFailed") });
+				return false;
+			} finally {
+				inFlight.current = false;
+				if (alive.current) setSaving(false);
+			}
+		},
+		[t],
+	);
+	const saveProvider = useCallback(
+		async (
+			id: string,
+			update: (previous: ProviderEntry | undefined) => ProviderEntry | undefined,
+		): Promise<boolean> => {
+			const latest = await window.agent567.models.get();
+			const provider = update(latest.providers[id]);
+			const providers = { ...latest.providers };
+			if (provider) providers[id] = provider;
+			else delete providers[id];
+			const defaultModel = !provider && latest.defaultModel?.startsWith(`${id}/`) ? undefined : latest.defaultModel;
+			return (await saveConfig({ ...latest, defaultModel, providers })) !== false;
+		},
+		[saveConfig],
+	);
+
 	const load = useCallback(async () => {
 		setLoading(true);
 		setError(null);
 		try {
 			const result = await window.agent567.models.listPresets();
-			setPresets(result.providers);
+			setPresets(result.providers.filter((provider) => provider.id !== "567api"));
 			// 公共目录连缓存都没有时把原因摆出来,别让用户对着 0 个模型猜。
 			if (result.catalogError) {
 				console.error(
@@ -141,7 +203,7 @@ export function usePresetProvidersSectionModel({
 		const presetIds = new Set(presets.map((preset) => preset.id));
 		// 早期由服务端模板采纳、现已不在内置目录里的条目:保留展示,标记为已下线。
 		const orphaned: BaseRow[] = Object.entries(config.providers)
-			.filter(([id, provider]) => provider.source === "template" && !presetIds.has(id))
+			.filter(([id, provider]) => provider.source === "template" && id !== "567api" && !presetIds.has(id))
 			.map(([id, provider]) => ({
 				id,
 				displayName: provider.displayName ?? id,
@@ -155,8 +217,9 @@ export function usePresetProvidersSectionModel({
 			id: preset.id,
 			displayName: preset.displayName,
 			api: preset.api,
-			baseUrl: preset.baseUrl,
+			baseUrl: config.providers[preset.id]?.baseUrl ?? preset.baseUrl,
 			icon: preset.icon,
+			defaultApiKey: preset.defaultApiKey,
 			// 已启用的用账号实际可用的 /models 结果,未启用的展示 models.dev 公共目录。
 			models: config.providers[preset.id]?.models ?? preset.catalogModels,
 			offline: false,
@@ -168,6 +231,8 @@ export function usePresetProvidersSectionModel({
 				...row,
 				modelRows: row.models.map((model) => toModelRow(model, t)),
 				adopted,
+				enabled: adopted && !config.providers[row.id]?.disabled,
+				autoKey: Boolean(row.defaultApiKey),
 				isOpen: openId === row.id,
 				isExpanded: expandedId === row.id,
 				refreshing: refreshingId === row.id,
@@ -213,77 +278,117 @@ export function usePresetProvidersSectionModel({
 	);
 
 	const adopt = useCallback(
-		async (row: PresetProviderRow): Promise<void> => {
-			const key = (draftKeys[row.id] ?? "").trim();
-			if (!key) return;
-			setSaving(true);
-			try {
-				// 填 key 即校验:拉不到模型一律不落盘、不启用。
-				// 预设服务商全是云端 API,拉不通时启用它也没有任何模型可用;放行「非认证类失败」
-				// 会让用户以为已生效,还得自己去发现它是个空壳。面板与草稿保留,改完再点一次即可。
-				// 已下线的旧条目不在内置目录里,没有可校验的上游,只改 key 不校验。
-				const fetched = row.offline ? null : await refreshModels(row.id, key);
+		async (row: PresetProviderRow, baseUrl: string | undefined = row.baseUrl): Promise<boolean> => {
+			const key = (draftKeys[row.id] ?? row.defaultApiKey ?? "").trim();
+			if (!key) return false;
+			return mutate(async () => {
+				const fetched = row.offline ? null : await refreshModels(row.id, key, row.autoKey ? baseUrl : undefined);
 				if (fetched && (fetched.error || fetched.models.length === 0)) {
 					const error = fetched.error ?? { code: "empty-models" as const };
 					notifyKeyRejected(row.displayName, error, t);
 					setModelsErrors((prev) => withError(prev, row.id, error, t));
-					return;
+					return false;
 				}
+				if (
+					!(await saveProvider(row.id, (previous) => ({
+						...previous,
+						source: "template",
+						templateId: row.id,
+						displayName: row.displayName,
+						icon: row.icon,
+						api: row.api,
+						baseUrl,
+						apiKey: key,
+						models: fetched?.models ?? row.models,
+						...(fetched ? { modelsSyncedAt: new Date().toISOString() } : {}),
+					})))
+				)
+					return false;
 				setModelsErrors((prev) => withError(prev, row.id, undefined, t));
-				await saveConfig({
-					...config,
-					providers: {
-						...config.providers,
-						[row.id]: {
-							source: "template",
-							templateId: row.id,
-							displayName: row.displayName,
-							icon: row.icon,
-							api: row.api,
-							baseUrl: row.baseUrl,
-							apiKey: key,
-							models: fetched?.models ?? row.models,
-							...(fetched ? { modelsSyncedAt: new Date().toISOString() } : {}),
-						},
-					},
-				});
 				setOpenId((current) => (current === row.id ? null : current));
 				setDraftKeys((prev) => {
 					const next = { ...prev };
 					delete next[row.id];
 					return next;
 				});
-			} finally {
-				setSaving(false);
+				return true;
+			});
+		},
+		[draftKeys, mutate, saveProvider, t],
+	);
+	const toggleEnabled = useCallback(
+		async (row: PresetProviderRow, next: boolean): Promise<void> => {
+			if (row.adopted) {
+				await mutate(() =>
+					saveProvider(row.id, (previous) => (previous ? { ...previous, disabled: !next } : previous)),
+				);
+			} else if (next) {
+				if (row.autoKey) await adopt(row);
+				else handleToggleEditor(row);
 			}
 		},
-		[config, draftKeys, saveConfig, t],
+		[adopt, handleToggleEditor, mutate, saveProvider],
+	);
+
+	const changeBaseUrl = useCallback(
+		async (row: PresetProviderRow, input: string): Promise<boolean> => {
+			const url = input.trim();
+			if (row.id !== "magpie" || !isMagpieBaseUrl(url)) {
+				showToast({ variant: "error", message: t("presetErrorInvalidBaseUrl") });
+				return false;
+			}
+			if (!row.adopted) return adopt(row, url);
+			return mutate(async () => {
+				// The renderer holds a redacted key. Resolve the real credential in main.
+				const fetched = await refreshModels(row.id, undefined, url);
+				if (fetched.error || fetched.models.length === 0) {
+					const error = fetched.error ?? { code: "empty-models" as const };
+					setModelsErrors((prev) => withError(prev, row.id, error, t));
+					notifyPresetError(row.displayName, error, t);
+					return false;
+				}
+				const saved = await saveProvider(row.id, (previous) =>
+					previous
+						? {
+								...previous,
+								baseUrl: url,
+								models: fetched.models,
+								modelsSyncedAt: new Date().toISOString(),
+							}
+						: previous,
+				);
+				if (saved) setModelsErrors((prev) => withError(prev, row.id, undefined, t));
+				return saved;
+			});
+		},
+		[adopt, mutate, saveProvider, t],
 	);
 
 	const refresh = useCallback(
 		async (row: PresetProviderRow): Promise<void> => {
-			const provider = config.providers[row.id];
-			if (!provider?.apiKey) return;
-			setRefreshingId(row.id);
-			try {
-				const result = await refreshModels(row.id);
-				setModelsErrors((prev) => withError(prev, row.id, result.error, t));
-				if (result.error) {
-					notifyPresetError(row.displayName, result.error, t);
+			if (!row.adopted) return;
+			await mutate(async () => {
+				setRefreshingId(row.id);
+				try {
+					const result = await refreshModels(row.id);
+					setModelsErrors((prev) => withError(prev, row.id, result.error, t));
+					if (result.error) notifyPresetError(row.displayName, result.error, t);
+					if (result.models.length === 0) return false;
+					return saveProvider(row.id, (previous) =>
+						previous
+							? {
+									...previous,
+									models: result.models,
+									modelsSyncedAt: new Date().toISOString(),
+								}
+							: previous,
+					);
+				} finally {
+					setRefreshingId(null);
 				}
-				if (result.models.length === 0) return;
-				await saveConfig({
-					...config,
-					providers: {
-						...config.providers,
-						[row.id]: { ...provider, models: result.models, modelsSyncedAt: new Date().toISOString() },
-					},
-				});
-			} finally {
-				setRefreshingId(null);
-			}
+			});
 		},
-		[config, saveConfig, t],
+		[mutate, saveProvider, t],
 	);
 
 	/** 手动重拉公共目录:清冷却强制重试,失败把原文打进控制台并显示出来。 */
@@ -324,20 +429,16 @@ export function usePresetProvidersSectionModel({
 
 	const remove = useCallback(
 		async (row: PresetProviderRow): Promise<void> => {
-			const providers = { ...config.providers };
-			delete providers[row.id];
-			const defaultModel = config.defaultModel?.startsWith(`${row.id}/`) ? undefined : config.defaultModel;
-			await saveConfig({ ...config, defaultModel, providers });
-			if (openId === row.id) setOpenId(null);
+			if (!(await mutate(() => saveProvider(row.id, () => undefined)))) return;
+			setOpenId((current) => (current === row.id ? null : current));
 			setModelsErrors((prev) => withError(prev, row.id, undefined, t));
 			setDraftKeys((prev) => {
-				if (!(row.id in prev)) return prev;
 				const next = { ...prev };
 				delete next[row.id];
 				return next;
 			});
 		},
-		[config, openId, saveConfig, t],
+		[mutate, saveProvider, t],
 	);
 
 	return {
@@ -375,11 +476,21 @@ export function usePresetProvidersSectionModel({
 			refreshingModels: t("refreshingModels"),
 			refreshCatalog: t("refreshCatalog"),
 			copyApiKey: t("copyApiKey"),
+			magpiePortHint: t("magpiePortHint"),
+			testConnect: t("testConnect"),
+			testing: t("testing"),
+			testOk: t("testOk"),
+			testFailed: t("testFailed"),
+			editBaseUrl: t("editBaseUrl"),
+			baseUrlPlaceholder: t("baseUrlPlaceholder"),
+			toggleProvider: (provider: string) => t("toggleProvider", { provider }),
 		},
 		onToggleExpanded: handleToggleExpanded,
 		onToggleEditor: handleToggleEditor,
 		onDraftKeyChange: handleDraftKeyChange,
 		onAdopt: adopt,
+		onToggleEnabled: toggleEnabled,
+		onChangeBaseUrl: changeBaseUrl,
 		onRemove: remove,
 		onRefreshModels: refresh,
 		onCopyApiKey: copyApiKey,
@@ -398,6 +509,7 @@ function toModelRow(
 		contextWindow: model.contextWindow,
 		hasVision: model.input?.includes("image") ?? false,
 		hasReasoning: Boolean(model.reasoning),
+		reasoningLevels: model.reasoningLevels,
 		price: formatPrice(model.cost, t),
 	};
 }
@@ -408,6 +520,7 @@ interface BaseRow {
 	api: string;
 	baseUrl?: string;
 	icon?: string;
+	defaultApiKey?: string;
 	models: NonNullable<ProviderEntry["models"]>;
 	offline: boolean;
 }
@@ -415,9 +528,10 @@ interface BaseRow {
 async function refreshModels(
 	providerId: string,
 	apiKey?: string,
+	baseUrl?: string,
 ): Promise<{ models: NonNullable<ProviderEntry["models"]>; error?: PresetError }> {
 	try {
-		return await window.agent567.models.refreshPresetModels(providerId, apiKey);
+		return await window.agent567.models.refreshPresetModels(providerId, apiKey, baseUrl);
 	} catch (err) {
 		return { models: [], error: { code: "network", detail: err instanceof Error ? err.message : String(err) } };
 	}

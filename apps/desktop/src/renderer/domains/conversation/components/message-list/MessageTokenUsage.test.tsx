@@ -13,6 +13,11 @@ class TestResizeObserver implements ResizeObserver {
 vi.stubGlobal("ResizeObserver", TestResizeObserver);
 
 const labels: Record<string, string> = {
+	"messageList.tokenUsage.speed.title": "响应速度",
+	"messageList.tokenUsage.speed.firstText": "平均首字",
+	"messageList.tokenUsage.speed.duration": "模型用时",
+	"messageList.tokenUsage.speed.tps": "平均 TPS",
+	"messageList.tokenUsage.speed.notRecorded": "未记录",
 	"messageList.tokenUsage.trigger": "查看 Token 用量",
 	"messageList.tokenUsage.sessionTitle": "会话 Token",
 	"messageList.tokenUsage.messageTitle": "当前消息 Token",
@@ -70,6 +75,29 @@ vi.mock("react-i18next", () => ({
 import { MessageTokenUsage } from "./MessageTokenUsage";
 
 describe("MessageTokenUsage", () => {
+	it("switches measured speed with scope, keeps missing history explicit and closes with Escape", async () => {
+		const user = userEvent.setup();
+		const current = usage({ output: 100, performance: { durationMs: 2000, firstOutputMs: 1000, firstTextMs: 1500 } });
+		const older = usage({ output: 100, performance: { durationMs: 10000, firstOutputMs: 1000, firstTextMs: 2500 } });
+		const { rerender } = render(
+			<MessageTokenUsage usages={[current]} sessionUsages={[older, current, usage({ output: 999 })]} />,
+		);
+		const trigger = screen.getByRole("button", { name: "查看 Token 用量" });
+		await user.click(trigger);
+		let section = within(screen.getByRole("region", { name: "响应速度" }));
+		expect(section.getByText("2 s")).toBeTruthy();
+		expect(section.getByText("12 s")).toBeTruthy();
+		expect(section.getByText("20 tok/s")).toBeTruthy();
+		await user.click(screen.getByRole("tab", { name: "当前消息" }));
+		section = within(screen.getByRole("region", { name: "响应速度" }));
+		expect(section.getByText("1.5 s")).toBeTruthy();
+		expect(section.getByText("100 tok/s")).toBeTruthy();
+		rerender(<MessageTokenUsage usages={[usage({ output: 99 })]} />);
+		expect(section.getAllByText("未记录")).toHaveLength(3);
+		await user.keyboard("{Escape}");
+		await waitFor(() => expect(screen.queryByRole("dialog")).toBeNull());
+		expect(document.activeElement).toBe(trigger);
+	});
 	it("opens the usage panel on click and keeps developer diagnostics collapsed", async () => {
 		const user = userEvent.setup();
 		render(
@@ -145,9 +173,7 @@ describe("MessageTokenUsage", () => {
 	it("explains that write metrics are unavailable for read-only providers", async () => {
 		const user = userEvent.setup();
 		render(
-			<MessageTokenUsage
-				usages={[usage({ input: 20, output: 2, cacheRead: 80, cacheUsageReporting: "read-only" })]}
-			/>,
+			<MessageTokenUsage usages={[usage({ input: 20, output: 2, cacheRead: 80, cacheUsageReporting: "read-only" })]} />,
 		);
 
 		await user.click(screen.getByRole("button", { name: "查看 Token 用量" }));
@@ -159,9 +185,7 @@ describe("MessageTokenUsage", () => {
 	it("abbreviates large token counts with K and M units", async () => {
 		const user = userEvent.setup();
 		render(
-			<MessageTokenUsage
-				usages={[usage({ input: 1500, output: 2_400_000, cacheRead: 12_000, cacheWrite: 999 })]}
-			/>,
+			<MessageTokenUsage usages={[usage({ input: 1500, output: 2_400_000, cacheRead: 12_000, cacheWrite: 999 })]} />,
 		);
 
 		await user.click(screen.getByRole("button", { name: "查看 Token 用量" }));
@@ -213,6 +237,7 @@ function usage(overrides: Partial<Usage>): Usage {
 		totalTokens: input + output + cacheRead + cacheWrite,
 		cacheUsageReporting: overrides.cacheUsageReporting,
 		promptCache: overrides.promptCache,
+		performance: overrides.performance,
 		cost: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0, total: 0 },
 	};
 }

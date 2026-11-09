@@ -45,7 +45,6 @@ describe("echoed task notification display", () => {
 		completed.replace("<summary>", `<summary>${"x".repeat(16_384)}`),
 		`<task-notification>\n${completed}\n</task-notification>`,
 		`<task-notification>\n${"x".repeat(16_384)}\n${completed}\n</task-notification>`,
-		`${completed} This is an example.`,
 		`Example: ${completed}`,
 		"<task-notification><status>completed</status></task-notification>",
 		"The prompt could not be submitted. The prompt contains sensitive words.",
@@ -87,6 +86,27 @@ describe("echoed task notification display", () => {
 			`<task-notification>Task b34 completed with exit code 0. Command: echo ok ` +
 			`Output file: /tmp/task.log Final output: ok</task-notification>`;
 		const source = `\`\`\`text\n${legacy}\n\`\`\``;
+		expect(projectTaskNotifications(source, label)).toBe(source);
+	});
+	it("projects terminated legacy tasks and preserves directly adjacent answer text", () => {
+		const killed =
+			'<task-notification>Task b8 ("python3 server.py") terminated with signal SIGKILL.\nSummary: 1 lines of output, exit code -9 (killed by signal 9). Last output: ----\n</task-notification>';
+		const source = `${killed}已经完成。\n\n${killed.replace("b8", "b11")}**保留正文**`;
+		expect(projectTaskNotifications(source, label)).toBe(
+			"> Task b8: killed\n\n已经完成。\n\n> Task b11: killed\n\n**保留正文**",
+		);
+		expect(projectTaskNotifications(`\x60\x60\x60text\n${source}\n\x60\x60\x60`, label)).toContain(killed);
+	});
+
+	it("keeps text following a complete structured notification", () => {
+		expect(projectTaskNotifications(`${completed}Answer`, label)).toBe("> Task b44: completed\n\nAnswer");
+	});
+
+	it.each([
+		'<task-notification>Task b8 ("cmd") terminated with signal SIGKILL.</task-notification>',
+		'<task-notification>Task b8 ("cmd") terminated with signal SIGKILL. Summary: unknown</task-notification>',
+		"<task-notification>Task b8 completed Output file: /tmp/x <task-notification>Task b9 completed Output file: /tmp/y</task-notification></task-notification>",
+	])("does not consume malformed or nested legacy notifications", (source) => {
 		expect(projectTaskNotifications(source, label)).toBe(source);
 	});
 });

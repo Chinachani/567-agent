@@ -98,6 +98,34 @@ function completed(sessionId: string, turnId: string): TurnCompletedEvent {
 }
 
 describe("FileConversationRepository", () => {
+	it("preserves optional model timing through save, close and reopen alongside older messages", async () => {
+		const { repository, rootDir } = await createRepository();
+		const sessionId = "timing-session";
+		await repository.create({ sessionId, createdAt: 100 });
+		const oldReply = assistant(sessionId, "turn-1", "old reply");
+		const timedReply = assistant(sessionId, "turn-2", "new reply");
+		timedReply.message.usage.performance = { durationMs: 1200, firstOutputMs: 100, firstTextMs: 400 };
+		await repository.append(sessionId, 0, [
+			started(sessionId, "turn-1"),
+			oldReply,
+			completed(sessionId, "turn-1"),
+			started(sessionId, "turn-2"),
+			timedReply,
+			completed(sessionId, "turn-2"),
+		]);
+		await repository.close();
+		const reopened = new FileConversationRepository({ rootDir });
+		try {
+			const stored = await reopened.load(sessionId);
+			expect(stored.messages).toEqual([oldReply.message, timedReply.message]);
+			expect((await reopened.readDocument(sessionId)).entries).toEqual(
+				expect.arrayContaining([expect.objectContaining({ message: timedReply.message })]),
+			);
+		} finally {
+			await reopened.close();
+		}
+	});
+
 	it("creates, appends and reloads a versioned conversation", async () => {
 		const { repository, rootDir } = await createRepository();
 		await repository.create({

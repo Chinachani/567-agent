@@ -5,6 +5,7 @@ import {
 	getAssistantMessageEventResult,
 	isAssistantMessageTerminalEvent,
 } from "../protocol/index.js";
+import { ModelCallTiming } from "./model-call-timing.js";
 
 interface EventStreamWaiter<T> {
 	resolve(value: IteratorResult<T>): void;
@@ -131,7 +132,11 @@ export class EventStream<T, R = T> implements AsyncIterable<T> {
 
 export class AssistantMessageEventStream extends EventStream<AssistantMessageEvent, AssistantMessage> {
 	constructor() {
-		super(isAssistantMessageTerminalEvent, getAssistantMessageEventResult);
+		const timing = new ModelCallTiming();
+		super((event) => {
+			timing.observe(event);
+			return isAssistantMessageTerminalEvent(event);
+		}, getAssistantMessageEventResult);
 	}
 }
 

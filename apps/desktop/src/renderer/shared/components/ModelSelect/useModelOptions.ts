@@ -1,6 +1,7 @@
 import type { ModelsConfigData } from "@preload/api";
 import { localModelsConfigAtom, remoteProvidersAtom } from "@shared/store/atoms";
 import { modelCatalog } from "@shared/store/model-catalog";
+import { selectableDefaultModelAtom } from "@shared/store/model-catalog-atoms";
 import { useAtomValue } from "jotai";
 import { useEffect, useMemo } from "react";
 
@@ -31,6 +32,7 @@ export interface ModelOption {
 function flattenModels(config: ModelsConfigData, remote?: boolean): ModelOption[] {
 	const result: ModelOption[] = [];
 	for (const [provider, providerConfig] of Object.entries(config.providers)) {
+		if (providerConfig.disabled) continue;
 		for (const model of providerConfig.models ?? []) {
 			const raw = model as Record<string, unknown>;
 			result.push({
@@ -77,6 +79,7 @@ export interface UseModelOptionsResult {
 export function useModelOptions(): UseModelOptionsResult {
 	const remoteProviders = useAtomValue(remoteProvidersAtom);
 	const config = useAtomValue(localModelsConfigAtom);
+	const defaultKey = useAtomValue(selectableDefaultModelAtom) ?? undefined;
 
 	// 挂载即校验一次；TTL 内命中缓存不会真的打接口，所以多个选择器同时挂载也只有一次请求。
 	useEffect(() => {
@@ -94,8 +97,11 @@ export function useModelOptions(): UseModelOptionsResult {
 
 	const options = useMemo(() => {
 		const localKeys = new Set(localModels.map((m) => m.key));
-		return [...localModels, ...remoteModels.filter((m) => !localKeys.has(m.key))];
-	}, [localModels, remoteModels]);
+		return [
+			...localModels,
+			...remoteModels.filter((m) => !localKeys.has(m.key) && !config?.providers[m.provider]?.disabled),
+		];
+	}, [localModels, remoteModels, config]);
 
 	const grouped = useMemo(() => {
 		const groups = new Map<string, ModelOption[]>();
@@ -122,5 +128,11 @@ export function useModelOptions(): UseModelOptionsResult {
 		return provider;
 	};
 
-	return { options, grouped, defaultKey: config?.defaultModel, iconFor, labelFor };
+	return {
+		options,
+		grouped,
+		defaultKey,
+		iconFor,
+		labelFor,
+	};
 }

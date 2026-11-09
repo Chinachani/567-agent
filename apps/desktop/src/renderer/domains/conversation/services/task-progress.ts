@@ -64,14 +64,14 @@ export function projectTaskProgress(input: TaskProgressInput): TaskProgress | nu
 		phase,
 		running,
 		canContinue,
-		...(error && !input.busy && !input.preparing ? { error } : {}),
+		...(error && !input.busy && !input.preparing && !input.compacting ? { error } : {}),
 	});
 	if (input.preparing) return state("preparing", true);
 	if (input.question) return state("question");
 	if (input.permission) return state("permission");
 	if (input.approval) return state("approval");
+	if (input.compacting) return state("compacting", true);
 	if (input.busy) {
-		if (input.compacting) return state("compacting", true);
 		if (input.retry) return state("retrying", true);
 		if (input.connecting) return state("connecting", true);
 		const tool = answer?.blocks

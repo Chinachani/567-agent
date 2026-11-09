@@ -5,6 +5,14 @@ description: Add a preset or custom provider, verify its connection, and choose 
 
 Open **Settings → Model configuration**. Select a preset provider, enter the API key, pull the available models, and set one as the default. For a custom provider, specify its API type, Base URL, model ID, and credential explicitly.
 
+## Configure by source
+
+Model settings has three tabs: **567 API**, **Preset providers**, and **Local providers**. Use 567 API for managed groups and routes, Preset providers for the built-in catalog, and Local providers for services you add yourself, including Ollama and custom remote endpoints.
+
+Each tab has its own **Model parameters** section below the providers. It lists only connected models from that source, with protocol and context-capacity settings. Models with the same name remain separate by provider. Switching tabs within model settings preserves each tab's selection, search, and unsaved drafts. If no models are connected, the section explains how to add them.
+
+**Image generation settings** remains below the tab content and selects shared image routes across all sources.
+
 ## Verification checklist
 
 - Use a short test request before starting a large task.
@@ -23,3 +31,11 @@ Choose **Add service** to configure an OpenAI-compatible image service with its 
 After saving, select the service for the desired mode. Plugins use the existing media interface and never receive its API key. Pricing, sizes, and availability depend on the service.
 
 Keys are encrypted in the local credential vault and cannot be read back through the settings UI. Leaving a key blank while editing preserves it; changing the Base URL origin requires entering a key again. Failed saves keep the draft for retry. Discarding unsaved edits or deleting a service requires confirmation. Unavailable secure storage never falls back to plaintext.
+
+## Preset providers and Magpie
+
+**Preset providers** shows the public model catalog. Enter a key and enable a provider to use the models returned for that account. Turning it off keeps its encrypted key, model settings, and saved default choice. Disabled models disappear from selection and cannot be newly selected as the default; enabling the provider restores them.
+
+Magpie is a local proxy preset at `http://127.0.0.1:3425/v1` by default. Start Magpie separately before enabling it; the application does not install or launch the proxy. Only the port (1–65535) can be changed; the host stays `127.0.0.1`. Port edits first fetch models. Failure leaves the saved configuration unchanged and keeps your input for retry. 567 API groups and routes remain in their dedicated settings section.
+
+**Test connection** on a model row only checks whether the service address returns an HTTP response. It does not make an inference request or validate credentials, model access, or inference success. Use the conversation check above before relying on a model for real tasks.

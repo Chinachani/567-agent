@@ -93,6 +93,16 @@ const UsageSchema = Type.Object(
 		cacheRead: Type.Number(),
 		cacheWrite: Type.Number(),
 		totalTokens: Type.Number(),
+		performance: Type.Optional(
+			Type.Object(
+				{
+					durationMs: Type.Number({ minimum: 0 }),
+					firstOutputMs: Type.Optional(Type.Number({ minimum: 0 })),
+					firstTextMs: Type.Optional(Type.Number({ minimum: 0 })),
+				},
+				{ additionalProperties: false },
+			),
+		),
 		cacheUsageReporting: Type.Optional(
 			Type.Union([Type.Literal("unavailable"), Type.Literal("read-only"), Type.Literal("read-write")]),
 		),

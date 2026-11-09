@@ -1,8 +1,6 @@
-import type { ModelsConfigData } from "@preload/api";
+import { useModelOptions } from "@shared/components/ModelSelect/useModelOptions";
 import type { BatchProject } from "@shared/store/atoms";
-import { localModelsConfigAtom, remoteProvidersAtom } from "@shared/store/atoms";
 import { modelCatalog } from "@shared/store/model-catalog";
-import { useAtomValue } from "jotai";
 import { useEffect, useMemo, useState } from "react";
 import type { BatchProjectEditableData } from "../components/BatchProjectFormFields";
 import { normalizeConcurrency, normalizeTimeout, toBatchProjectApprovalJsonData } from "../utils/batchProjectFormData";
@@ -33,17 +31,6 @@ function getProjectData(project: BatchProject | undefined): BatchProjectEditable
 	};
 }
 
-function flattenModelKeys(config: ModelsConfigData, remoteProviders: ModelsConfigData["providers"]): string[] {
-	const localKeys = Object.entries(config.providers).flatMap(([provider, providerConfig]) =>
-		(providerConfig.models ?? []).map((model) => `${provider}/${model.id}`),
-	);
-	const localKeySet = new Set(localKeys);
-	const remoteKeys = Object.entries(remoteProviders).flatMap(([provider, providerConfig]) =>
-		(providerConfig.models ?? []).map((model) => `${provider}/${model.id}`).filter((key) => !localKeySet.has(key)),
-	);
-	return [...localKeys, ...remoteKeys];
-}
-
 export function useBatchProjectDialogModel({
 	open,
 	project,
@@ -54,8 +41,7 @@ export function useBatchProjectDialogModel({
 	onClose: () => void;
 }): BatchProjectDialogModel {
 	const { createProject, updateProject } = useBatchTasks();
-	const remoteProviders = useAtomValue(remoteProvidersAtom);
-	const config = useAtomValue(localModelsConfigAtom);
+	const { options, defaultKey } = useModelOptions();
 	const [data, setData] = useState<BatchProjectEditableData>(() => getProjectData(project));
 
 	useEffect(() => {
@@ -69,15 +55,15 @@ export function useBatchProjectDialogModel({
 	}, [open]);
 
 	useEffect(() => {
-		if (!open || !config) return;
-		const allModelKeys = flattenModelKeys(config, remoteProviders as ModelsConfigData["providers"]);
-		const fallback = project?.modelKey ?? config.defaultModel;
+		if (!open) return;
+		const allModelKeys = options.map((model) => model.key);
+		const fallback = project?.modelKey ?? defaultKey;
 		setData((current) => {
 			if (current.modelKey && allModelKeys.includes(current.modelKey)) return current;
 			if (fallback && allModelKeys.includes(fallback)) return { ...current, modelKey: fallback };
 			return allModelKeys[0] ? { ...current, modelKey: allModelKeys[0] } : { ...current, modelKey: undefined };
 		});
-	}, [open, config, project?.modelKey, remoteProviders]);
+	}, [open, options, project?.modelKey, defaultKey]);
 
 	const canSubmit = useMemo(
 		() => Boolean(data.name?.trim() && data.prompt?.trim() && (data.folders?.length ?? 0) > 0),

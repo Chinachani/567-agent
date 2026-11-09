@@ -406,3 +406,59 @@ describe("ModelSettingsService", () => {
 		expect(credentials.values).toEqual(new Map());
 	});
 });
+
+it("retains disabled provider credentials and rejects a Magpie remote address before persistence", async () => {
+	let config: ModelsConfig = { providers: {} };
+	const credentials = createCredentialStore();
+	const service = new ModelSettingsService({
+		readConfig: async () => config,
+		writeConfig: async (next) => {
+			config = next;
+		},
+		refreshRegistry: async () => {},
+		credentials,
+	});
+	await service.replaceConfig({
+		providers: {
+			magpie: {
+				source: "template",
+				templateId: "magpie",
+				baseUrl: "http://127.0.0.1:3425/v1",
+				apiKey: "magpie",
+				models: [{ id: "local" }],
+			},
+		},
+	});
+	const saved = await service.getRendererConfig();
+	await service.replaceConfig({ ...saved, providers: { magpie: { ...saved.providers.magpie, disabled: true } } });
+	expect((await service.getConfig()).providers.magpie.apiKey).toBe("magpie");
+	expect(config.providers.magpie.disabled).toBe(true);
+	const before = structuredClone(config);
+	await expect(
+		service.replaceConfig({ providers: { magpie: { ...saved.providers.magpie, baseUrl: "http://remote.test/v1" } } }),
+	).rejects.toThrow("Magpie");
+	expect(config).toEqual(before);
+});
+
+it("keeps the saved default while paused but rejects new selection, then restores it on enable", async () => {
+	let config = createConfig();
+	const credentials = createCredentialStore({ "openai-credential": "secret" });
+	const service = new ModelSettingsService({
+		readConfig: async () => config,
+		writeConfig: async (next) => {
+			config = next;
+		},
+		refreshRegistry: async () => {},
+		credentials,
+	});
+	const active = await service.getRendererConfig();
+	await service.replaceConfig({ ...active, providers: { openai: { ...active.providers.openai, disabled: true } } });
+	expect(await service.list()).toMatchObject({ defaultModel: null, providers: [] });
+	await expect(service.setDefault("openai/gpt-5")).rejects.toThrow("disabled");
+	await expect(service.validateModelKey("openai/gpt-5")).rejects.toThrow("disabled");
+	expect(config.defaultModel).toBe("openai/gpt-5");
+	expect(credentials.values.get("openai-credential")).toBe("secret");
+	await service.replaceConfig(active);
+	expect(await service.list()).toMatchObject({ defaultModel: "openai/gpt-5", providers: [{ id: "openai" }] });
+	await expect(service.setDefault("openai/gpt-5")).resolves.toEqual({ defaultModel: "openai/gpt-5" });
+});

@@ -44,7 +44,8 @@
       "resetZoom": "Actual Size",
       "zoomIn": "Zoom In",
       "zoomOut": "Zoom Out",
-      "toggleFullScreen": "Toggle Full Screen"
+      "toggleFullScreen": "Toggle Full Screen",
+      "zoomFailed": "Could not save the interface size. Please try again."
     },
     "window": {
       "title": "Window",

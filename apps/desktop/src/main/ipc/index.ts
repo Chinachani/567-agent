@@ -36,11 +36,13 @@ import { registerSettingsIpc } from "./settings.js";
 import { registerSkillsIpc } from "./skills.js";
 import { registerSpeechInputIpc } from "./speech-input.js";
 import { registerThemesIpc } from "./themes.js";
+import { registerUiZoomIpc } from "./ui-zoom.js";
 import { registerUpdaterIpc } from "./updater.js";
 import { registerVisibleConversationIpc } from "./visible-conversation.js";
 import { registerWebhookIpc } from "./webhook.js";
 
 interface IpcTeardown {
+	teardownUiZoom: () => void;
 	teardownAbilities: () => void;
 	teardownAgentTeams: () => void;
 	teardownActionApproval: () => void;
@@ -96,6 +98,7 @@ export function registerAllIpc(
 		teardownAppMonitor: registerAppMonitorIpc(),
 		teardownSession: registerSessionIpc(webContents),
 		teardownSettings: registerSettingsIpc(webContents),
+		teardownUiZoom: registerUiZoomIpc(webContents),
 		teardownUpdater: registerUpdaterIpc(webContents),
 		teardownSkills: registerSkillsIpc(),
 		teardownSpeechInput: registerSpeechInputIpc(webContents),
@@ -138,6 +141,7 @@ export function teardownAllIpc(teardown: IpcTeardown): void {
 	teardown.teardownAppMonitor();
 	teardown.teardownSession();
 	teardown.teardownSettings();
+	teardown.teardownUiZoom();
 	teardown.teardownUpdater();
 	teardown.teardownSkills();
 	teardown.teardownSpeechInput();

@@ -19,6 +19,7 @@ import {
 	isModelInferenceApi,
 	type ModelInferenceApi,
 } from "../../shared/model-inference-api.js";
+import { isMagpieBaseUrl } from "../../shared/preset-provider-url.js";
 import { getBuiltinApi567Route } from "../../shared/service-routes.js";
 import { getApi567RouteStore } from "../567api/service-route-store.js";
 import type { ModelCredentialStore } from "./model-credential-store.js";
@@ -42,6 +43,8 @@ export interface ProviderConfig {
 	icon?: string;
 	/** 预设服务商模型列表最近一次从上游 /models 同步的时间(ISO)。 */
 	modelsSyncedAt?: string;
+	/** Keep credentials and settings when disabled; exclude from selectable models. */
+	disabled?: boolean;
 	models?: ModelDefinition[];
 	modelOverrides?: Record<string, Record<string, unknown>>;
 }
@@ -251,6 +254,15 @@ function assertModelKeyExists(config: ModelsConfig, modelKey: string, operation:
 	}
 }
 
+function assertSelectableModelKey(config: ModelsConfig, modelKey: string, operation: string): void {
+	assertModelKeyExists(config, modelKey, operation);
+	if (config.providers[modelKey.slice(0, modelKey.indexOf("/"))]?.disabled) {
+		throw new Error(
+			`Refused operation "${operation}": model provider is disabled. Enable it before selecting a model.`,
+		);
+	}
+}
+
 function cloneModelsConfig(config: ModelsConfig): ModelsConfig {
 	return {
 		...(config.defaultModel === undefined ? {} : { defaultModel: config.defaultModel }),
@@ -367,22 +379,27 @@ export class ModelSettingsService {
 	async list(): Promise<ModelListResult> {
 		const config = await this.getConfig();
 		return {
-			defaultModel: config.defaultModel ?? null,
-			providers: Object.entries(config.providers).map(([id, provider]) => ({
-				id,
-				displayName: provider.displayName ?? id,
-				...(provider.baseUrl === undefined ? {} : { baseUrl: provider.baseUrl }),
-				...(provider.api === undefined ? {} : { api: provider.api }),
-				hasApiKey: Boolean(provider.apiKey),
-				...(provider.icon === undefined ? {} : { icon: provider.icon }),
-				modelCount: provider.models?.length ?? 0,
-				models: (provider.models ?? []).map((model) => ({
-					id: model.id,
-					...(model.name === undefined ? {} : { name: model.name }),
-					...(model.api === undefined ? {} : { api: model.api }),
-					...(model.reasoning === undefined ? {} : { reasoning: model.reasoning }),
+			defaultModel:
+				config.defaultModel && !config.providers[config.defaultModel.split("/")[0]]?.disabled
+					? config.defaultModel
+					: null,
+			providers: Object.entries(config.providers)
+				.filter(([, provider]) => !provider.disabled)
+				.map(([id, provider]) => ({
+					id,
+					displayName: provider.displayName ?? id,
+					...(provider.baseUrl === undefined ? {} : { baseUrl: provider.baseUrl }),
+					...(provider.api === undefined ? {} : { api: provider.api }),
+					hasApiKey: Boolean(provider.apiKey),
+					...(provider.icon === undefined ? {} : { icon: provider.icon }),
+					modelCount: provider.models?.length ?? 0,
+					models: (provider.models ?? []).map((model) => ({
+						id: model.id,
+						...(model.name === undefined ? {} : { name: model.name }),
+						...(model.api === undefined ? {} : { api: model.api }),
+						...(model.reasoning === undefined ? {} : { reasoning: model.reasoning }),
+					})),
 				})),
-			})),
 		};
 	}
 
@@ -404,14 +421,14 @@ export class ModelSettingsService {
 	}
 
 	async validateModelKey(modelKey: string, operation = "set-default"): Promise<void> {
-		assertModelKeyExists(await this.getConfig(), modelKey, operation);
+		assertSelectableModelKey(await this.getConfig(), modelKey, operation);
 	}
 
 	async setDefault(modelKey: string): Promise<ModelDefaultResult> {
 		return this.runMutation(async () => {
 			await this.ensureLegacyCredentialsMigrated();
 			const config = await this.options.readConfig();
-			assertModelKeyExists(config, modelKey, "set-default");
+			assertSelectableModelKey(config, modelKey, "set-default");
 			await this.persist({ ...config, defaultModel: modelKey }, config, "resolved");
 			return { defaultModel: modelKey };
 		});
@@ -504,6 +521,15 @@ export class ModelSettingsService {
 	}
 
 	private async persist(config: ModelsConfig, current: ModelsConfig, mode: PersistInputMode): Promise<ModelsConfig> {
+		for (const [id, provider] of Object.entries(config.providers)) {
+			if (
+				provider.source === "template" &&
+				(provider.templateId ?? id) === "magpie" &&
+				(!provider.baseUrl || !isMagpieBaseUrl(provider.baseUrl))
+			) {
+				throw new Error("Invalid Magpie preset address");
+			}
+		}
 		const persisted = cloneModelsConfig(config);
 		const writes = new Map<string, string>();
 		const nextRefs = new Map<string, string>();

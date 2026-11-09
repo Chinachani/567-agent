@@ -573,7 +573,14 @@
     "thinkingLow": "低",
     "thinkingMedium": "中",
     "thinkingHigh": "高",
-    "thinkingXHigh": "极高"
+    "thinkingXHigh": "极高",
+    "sources": {
+      "label": "模型来源",
+      "api567": "567 API",
+      "api567Empty": "在上方接入 567 API 分组后，即可配置该分组的模型参数。",
+      "presetsEmpty": "在上方启用预设服务商并获取模型后，即可配置模型参数。",
+      "localEmpty": "在上方添加本地或自定义服务商及模型后，即可配置模型参数。"
+    }
   },
   "mcpSettings": {
     "title": "MCP 设置",
@@ -1288,6 +1295,10 @@
   "textureRippleHint": "与网格同一套排版，纹路换成一层细细的同心圆环。",
   "newSessionDecorTitle": "新会话页装饰",
   "newSessionDecorHint": "以下两项只改新会话页的样子：装饰件挂在输入框上方，纹理是整页背后的底衬。",
+  "section_appearance-ui-zoom": "界面大小",
+  "uiZoomHint": "调整页面的显示大小。",
+  "uiZoomReset": "恢复默认",
+  "uiZoomSliderLabel": "界面大小",
   "section_appearance-sidebar": "侧边栏样式",
   "sidebarStyleClassicTitle": "经典",
   "sidebarStyleClassicHint": "侧边栏贴紧窗口左侧，无圆角与四周边框，仅右侧一条分隔线。",
@@ -1425,6 +1436,10 @@
   "collapse": "收起",
   "changeKey": "替换 API Key",
   "copyApiKey": "复制 API Key",
+  "editBaseUrl": "修改端口",
+  "baseUrlPlaceholder": "端口",
+  "baseUrlInvalid": "端口需为 1–65535 的整数",
+  "toggleProvider": "启用或停用 {{provider}}",
   "apiKeyCopied": "API Key 已复制，剪贴板将在 30 秒后自动清除",
   "apiKeyCopyFailed": "没有可复制的 API Key",
   "replaceApiKeyPlaceholder": "••••••••（已加密保存）",
@@ -2715,5 +2730,14 @@
     "saved": "已保存，将从下一轮运行生效。",
     "loadFailed": "未能读取执行设置，请重试。",
     "saveFailed": "未能保存执行设置，你填写的内容已保留。"
-  }
+  },
+  "uiZoomFailed": "无法保存界面大小，请重试。",
+  "shortcutZoomInLabel": "放大界面",
+  "shortcutZoomInDesc": "调整主窗口的界面大小，保持与外观设置同步。",
+  "shortcutZoomOutLabel": "缩小界面",
+  "shortcutZoomOutDesc": "调整主窗口的界面大小，保持与外观设置同步。",
+  "shortcutZoomResetLabel": "恢复界面大小",
+  "shortcutZoomResetDesc": "调整主窗口的界面大小，保持与外观设置同步。",
+  "magpiePortHint": "端口范围：1–65535。请先启动本机 Magpie 服务。",
+  "presetErrorInvalidBaseUrl": "预设服务地址无效；Magpie 只允许更改本机端口。"
 }

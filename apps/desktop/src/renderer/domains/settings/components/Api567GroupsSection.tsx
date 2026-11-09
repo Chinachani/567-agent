@@ -115,7 +115,7 @@ export function Api567GroupsSection({ config }: { config: ModelsConfigData }): J
 	return (
 		<>
 			<SettingSection
-				section={SETTINGS_SECTION["models-preset-providers"]}
+				section={SETTINGS_SECTION["models-api567"]}
 				title={
 					<div className="flex flex-wrap items-center justify-between gap-3">
 						<div className="flex items-center gap-2">

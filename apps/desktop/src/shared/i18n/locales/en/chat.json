@@ -645,7 +645,18 @@
         "messages": "Message history"
       },
       "prefixHash": "Request prefix fingerprint",
-      "unavailable": "Not reported"
+      "unavailable": "Not reported",
+      "speed": {
+        "title": "Response speed",
+        "firstText": "Avg. first text",
+        "duration": "Model time",
+        "tps": "Average TPS",
+        "notRecorded": "Not recorded",
+        "firstTextHint": "Average time from each model request to its first reply text, including thinking. Tool-only calls are excluded.",
+        "durationHint": "Sum of recorded model-call durations, including waiting and generation, excluding tool execution and gaps between calls.",
+        "tpsHint": "Reported output tokens divided by their combined generation time, from first text, thinking or tool output to the terminal response. Time-weighted; output token accounting depends on the provider.",
+        "coverage": "Timed {{recorded}}/{{total}} calls · First text {{text}} · TPS {{speed}}"
+      }
     },
     "compactionBoundary": "Context compacted",
     "modelSwitched": "Switched model to {{name}}",

@@ -11,6 +11,11 @@ const NOTIFICATION =
 const LEGACY_NOTIFICATION =
 	/^ {0,3}<task-notification>[ \t\r\n]*Task[ \t]+(b\d{1,10})[ \t]+(completed|failed|killed|terminated|stopped)\b[\s\S]*?\bOutput file:[^\r\n<]{1,4096}[\s\S]*?<\/task-notification>$/i;
 
+// Older hosts/model echoes describe cancellation with command + signal rather
+// than an output file. Keep this shape constrained; arbitrary XML stays literal.
+const LEGACY_TERMINATION =
+	/^ {0,3}<task-notification>[ \t\r\n]*Task[ \t]+(b\d{1,10})[ \t]+\("[^<>\r\n\u0000]{1,4096}"\)[ \t]+terminated with signal[ \t]+SIG[A-Z0-9]{1,16}\.[ \t\r\n]+Summary:[ \t]+\d{1,10} lines? of output, exit code -?\d{1,10}(?: \(killed by signal \d{1,3}\))\.(?:[ \t\r\n]+Last output:[^<>\u0000]{0,8192})?[ \t\r\n]*<\/task-notification>$/;
+
 interface ParsedNotification {
 	readonly id: string;
 	readonly status: BackgroundTaskStatus;
@@ -51,8 +56,11 @@ function parseNotification(text: string, start: number): ParsedNotification | un
 	const end = closing + "</task-notification>".length;
 	if (end - start > MAX_NOTIFICATION_LENGTH) return undefined;
 	const body = text.slice(start, end);
+	if (body.indexOf("<task-notification>", body.indexOf("<task-notification>") + 1) >= 0) return undefined;
 	const structured = NOTIFICATION.exec(body);
 	if (!structured) {
+		const terminated = LEGACY_TERMINATION.exec(body);
+		if (terminated) return { id: terminated[1], status: "killed", end };
 		const legacy = LEGACY_NOTIFICATION.exec(body);
 		if (legacy) return { id: legacy[1], status: normalizeLegacyStatus(legacy[2]), end };
 		return undefined;
@@ -92,8 +100,8 @@ export function projectTaskNotifications(
 		const { end } = parsed;
 		// Never reinterpret an inner block when the enclosing notification is malformed.
 		examinedThrough = end;
-		// Inline prose, nested/unknown fields and partial streams must remain literal.
-		if (!/^[ \t]*(?:\r?\n|$)/.test(text.slice(end))) continue;
+		// The closing tag can be immediately followed by the assistant answer.
+		// Consume only the recognized notification and preserve that suffix verbatim.
 		let through = end;
 		const stoppedByCaller =
 			parsed.status === "killed" && /<ended-by>caller<\/ended-by>/i.test(text.slice(start, end));

@@ -30,6 +30,7 @@ export function translatePresetError(error: PresetError, t: TFunction<"settings"
 const ERROR_KEYS: Record<PresetError["code"], string> = {
 	"unknown-provider": "presetErrorUnknownProvider",
 	"missing-key": "presetErrorMissingKey",
+	"invalid-base-url": "presetErrorInvalidBaseUrl",
 	"invalid-key": "presetErrorInvalidKey",
 	"http-status": "presetErrorHttpStatus",
 	"empty-models": "presetErrorEmptyModels",

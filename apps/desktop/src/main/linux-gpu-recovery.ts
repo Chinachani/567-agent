@@ -2,7 +2,9 @@ import { existsSync, readFileSync, renameSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 
 const HISTORY_FILE = "gpu-crash-history.json";
-const WINDOW_MS = 10 * 60 * 1000;
+// Driver crashes can be separated by long sessions. Protect subsequent launches
+// for one day, then allow hardware acceleration to recover automatically.
+const WINDOW_MS = 24 * 60 * 60 * 1000;
 const FALLBACK_THRESHOLD = 2;
 
 export function shouldUseLinuxSoftwareRendering(userDataPath: string, now = Date.now()): boolean {
@@ -10,7 +12,7 @@ export function shouldUseLinuxSoftwareRendering(userDataPath: string, now = Date
 }
 
 export function recordLinuxGpuCrash(userDataPath: string, now = Date.now()): number {
-	const history = [...readRecentCrashes(userDataPath, now), now];
+	const history = [...readRecentCrashes(userDataPath, now), now].slice(-FALLBACK_THRESHOLD);
 	const file = join(userDataPath, HISTORY_FILE);
 	const temporary = `${file}.${process.pid}.tmp`;
 	writeFileSync(temporary, JSON.stringify(history), { encoding: "utf8", mode: 0o600 });

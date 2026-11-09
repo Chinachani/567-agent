@@ -111,3 +111,19 @@ it("converges from a partial stream to the same final status without retaining r
 	expect(view.container.textContent).toContain("Finished.");
 	expect(view.container.textContent).not.toContain("<task-notification>");
 });
+
+it("projects a signal termination echo adjacent to the answer through the live conversation renderer", () => {
+	const source =
+		'<task-notification>Task b8 ("python3 server.py") terminated with signal SIGKILL. Summary: 0 lines of output, exit code -9 (killed by signal 9).</task-notification>已经完成 **说明文档**。';
+	const view = render(
+		<RendererMarkdownScope value={environment}>
+			<TextBlockView text={source} />
+		</RendererMarkdownScope>,
+	);
+	expect(view.container.textContent).toContain("后台任务 b8 · killed");
+	expect(view.container.textContent).toContain("已经完成 说明文档。");
+	expect(screen.getByText("说明文档").tagName).toBe("STRONG");
+	expect(view.container.textContent).not.toContain("task-notification");
+	expect(view.container.textContent).not.toContain("python3 server.py");
+	expect(source).toContain("SIGKILL");
+});

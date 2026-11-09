@@ -37,6 +37,7 @@ const context: Context = {
 const codexToken = createCodexToken();
 const originalWebSocket = (globalThis as { WebSocket?: unknown }).WebSocket;
 const openAIModel = createModel("openai-responses", "openai", "https://provider.test/v1");
+const ollamaModel = createModel("openai-responses", "ollama", "https://ollama.test/v1");
 const azureModel = createModel("azure-openai-responses", "azure-openai-responses", "https://azure.test/openai/v1");
 const codexModel = createModel("openai-codex-responses", "openai-codex", "https://chatgpt.test/backend-api");
 
@@ -51,6 +52,13 @@ const fixtures: readonly ResponsesFamilyFixture[] = [
 				options: { apiKey: "test", fetch, signal },
 			}),
 		legacy: (fetch) => streamOpenAIResponses(openAIModel, context, { apiKey: "test", fetch }),
+	},
+	{
+		api: "openai-responses",
+		model: ollamaModel,
+		stream: (fetch, signal) =>
+			openAIResponsesAdapter.stream({ model: ollamaModel, context, options: { apiKey: "test", fetch, signal } }),
+		legacy: (fetch) => streamOpenAIResponses(ollamaModel, context, { apiKey: "test", fetch }),
 	},
 	{
 		api: "azure-openai-responses",
@@ -99,7 +107,7 @@ afterEach(() => {
 });
 
 for (const fixture of fixtures) {
-	describe(`${fixture.api} native adapter`, () => {
+	describe(`${fixture.model.provider} ${fixture.api} native adapter`, () => {
 		it("streams text, usage, lifecycle, and request payload", async () => {
 			const transport = createProviderTestTransport([responsesSse(textEvents())]);
 			const response = await fixture.stream(transport.fetch);
@@ -354,6 +362,104 @@ describe("Responses family streaming laws", () => {
 
 		expect(settled.eventError).toMatchObject({ code: "AI_RESPONSE_VALIDATION_FAILED" });
 		expect(settled.resultError).toMatchObject({ code: "AI_RESPONSE_VALIDATION_FAILED" });
+	});
+});
+
+// Ollama v0.40.2 keeps text open while emitting tools at the same index,
+// then only includes that text in the terminal snapshot.
+describe("Ollama Responses item identity", () => {
+	const textItem = {
+		type: "message",
+		id: "msg-1",
+		role: "assistant",
+		status: "completed",
+		content: [{ type: "output_text", text: "hello", annotations: [] }],
+	};
+	const completed = (output: unknown[]) => ({
+		type: "response.completed",
+		response: { status: "completed", output, usage: { input_tokens: 3, output_tokens: 2, total_tokens: 5 } },
+	});
+	const prefix = () => [
+		messageAdded(0, "msg-1"),
+		{ type: "response.output_text.delta", output_index: 0, item_id: "msg-1", delta: "hello" },
+		toolAdded(0),
+		{ type: "response.function_call_arguments.delta", output_index: 0, item_id: "fc-1", delta: '{"query":"test"}' },
+	];
+	async function run(events: unknown[], provider = "ollama") {
+		const transport = createProviderTestTransport([responsesSse(events)]);
+		return openAIResponsesAdapter.stream({
+			model: { ...openAIModel, provider },
+			context,
+			options: { apiKey: "test", fetch: transport.fetch },
+		});
+	}
+	it("preserves text and one tool call when Ollama reuses an active index and omits text done", async () => {
+		const response = await run([...prefix(), toolDone(0), completed([textItem])]);
+		const events = await collectEvents(response.events);
+		const result = await response.result;
+		expect(result.content).toMatchObject([
+			{ type: "text", text: "hello" },
+			{ type: "toolCall", id: "call-1|fc-1", name: "lookup", arguments: { query: "test" } },
+		]);
+		expect(result.stopReason).toBe("toolUse");
+		expect(result.usage).toMatchObject({ input: 3, output: 2, totalTokens: 5 });
+		expect(events.filter((e) => e.type === "toolcall_end")).toHaveLength(1);
+		expect(events.filter((e) => e.type === "text_end")).toHaveLength(1);
+	});
+	it("preserves thinking before a text-plus-tool response", async () => {
+		const reasoning = { type: "reasoning", id: "rs-1", summary: [{ type: "summary_text", text: "Plan" }] };
+		const response = await run([
+			{ type: "response.output_item.added", output_index: 0, item: { ...reasoning, summary: [] } },
+			{ type: "response.reasoning_summary_text.delta", output_index: 0, item_id: "rs-1", delta: "Plan" },
+			{ type: "response.output_item.done", output_index: 0, item: reasoning },
+			...prefix().map((event) => ({ ...(event as Record<string, unknown>), output_index: 1 })),
+			toolDone(1),
+			completed([reasoning, textItem]),
+		]);
+		const result = await response.result;
+		expect(result.content).toMatchObject([
+			{ type: "thinking", thinking: "Plan" },
+			{ type: "text", text: "hello" },
+			{ type: "toolCall", name: "lookup" },
+		]);
+		expect(result.stopReason).toBe("toolUse");
+	});
+
+	it("accepts explicit text completion after the provider advances its index", async () => {
+		const response = await run([...prefix(), toolDone(0), messageDone(1, "msg-1", "hello"), completed([textItem])]);
+		expect((await response.result).stopReason).toBe("toolUse");
+	});
+	it("keeps strict duplicate-index validation for other Responses providers", async () => {
+		const response = await run([...prefix(), toolDone(0), completed([textItem])], "openai");
+		expect((await settleResponse(response)).resultError).toMatchObject({ code: "AI_STREAM_PROTOCOL_FAILED" });
+	});
+	it.each([
+		["duplicate item ID", [...prefix(), toolAdded(1), toolDone(0), completed([textItem])]],
+		["replayed completed tool", [...prefix(), toolDone(0), toolAdded(0), completed([textItem])]],
+		[
+			"ambiguous index-only delta",
+			[...prefix(), { type: "response.output_text.delta", output_index: 0, delta: "wrong" }],
+		],
+		[
+			"unknown ID",
+			[...prefix(), { type: "response.output_text.delta", output_index: 0, item_id: "unknown", delta: "wrong" }],
+		],
+		["missing text snapshot", [...prefix(), toolDone(0), completed([])]],
+		["unfinished tool", [...prefix(), completed([textItem])]],
+		["truncated stream", prefix()],
+		[
+			"mismatched text snapshot",
+			[
+				...prefix(),
+				toolDone(0),
+				completed([{ ...textItem, content: [{ type: "output_text", text: "different" }] }]),
+			],
+		],
+		["duplicate text snapshot", [...prefix(), toolDone(0), completed([textItem, textItem])]],
+	] as const)("rejects %s without treating an invalid stream as success", async (_name, events) => {
+		expect((await settleResponse(await run([...events]))).resultError).toMatchObject({
+			code: "AI_STREAM_PROTOCOL_FAILED",
+		});
 	});
 });
 

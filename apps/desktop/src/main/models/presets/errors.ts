@@ -10,6 +10,7 @@ export type PresetErrorCode =
 	| "unknown-provider"
 	/** 该服务商还没填 API Key。 */
 	| "missing-key"
+	| "invalid-base-url"
 	/** 上游认定这把 key 不可用(各家状态码不一,见 fetch.ts 的 authStatuses)。params: host, status */
 	| "invalid-key"
 	/** 上游返回其它非 2xx。params: host, status, statusText */

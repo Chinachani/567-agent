@@ -3,6 +3,7 @@ import { join } from "node:path";
 import { getAgent567HomePath } from "@567agent/action-rpc";
 import { atomicWriteJSON } from "@567agent/toolkit/atomic-write";
 import { BrowserWindow, net } from "electron";
+import { isMagpieBaseUrl } from "../../../shared/preset-provider-url.js";
 import { getApi567RouteStore } from "../../567api/service-route-store.js";
 import { getAppLogger } from "../../logger.js";
 import { getDesktopModelSettingsService } from "../model-settings-host.js";
@@ -33,6 +34,8 @@ export interface PresetProviderInfo {
 	api: string;
 	baseUrl: string;
 	icon: string;
+	/** 预填的密钥(本机代理类服务商),用户直接点启用即可。 */
+	defaultApiKey?: string;
 	/** 公共目录里该家的模型(免 key 可见)。填 key 后由账号实际可用的 /models 结果取代。 */
 	catalogModels: ModelDefinition[];
 }
@@ -69,6 +72,7 @@ export async function listPresetProviders(): Promise<PresetProvidersResult> {
 			api: def.api,
 			baseUrl: def.id === "567api" ? `${getApi567RouteStore().origin}/v1` : def.baseUrl,
 			icon: def.icon,
+			...(def.defaultApiKey ? { defaultApiKey: def.defaultApiKey } : {}),
 			catalogModels: catalogModelsFor(catalog, def),
 		})),
 	};
@@ -201,17 +205,31 @@ function isSnapshot(catalog: ModelsDevCatalog | null): boolean {
  *
  * apiKey 缺省时读 models.json 里已保存的 key(手动刷新场景)。
  */
-export async function refreshPresetModels(providerId: string, apiKey?: string): Promise<PresetModelsResult> {
-	const def = getPresetProvider(providerId);
-	if (!def) return { models: [], error: { code: "unknown-provider", params: { provider: providerId } } };
+export async function refreshPresetModels(
+	providerId: string,
+	apiKey?: string,
+	baseUrl?: string,
+): Promise<PresetModelsResult> {
+	const preset = getPresetProvider(providerId);
+	if (!preset) return { models: [], error: { code: "unknown-provider", params: { provider: providerId } } };
 
 	let key = apiKey?.trim();
-	const savedProvider =
-		providerId === "567api" ? (await getDesktopModelSettingsService().getConfig()).providers[providerId] : undefined;
-	if (!key) {
-		const config = await getDesktopModelSettingsService().getConfig();
-		key = config.providers[providerId]?.apiKey?.trim();
+	const savedProvider = (await getDesktopModelSettingsService().getConfig()).providers[providerId];
+	key = key || savedProvider?.apiKey?.trim() || preset.defaultApiKey;
+	const requestedUrl = baseUrl?.trim();
+	// Cloud presets keep their fixed endpoint; 567 API uses its existing route policy.
+	if (
+		requestedUrl &&
+		(providerId === "magpie"
+			? !isMagpieBaseUrl(requestedUrl)
+			: requestedUrl !== preset.baseUrl &&
+				!(providerId === "567api" && requestedUrl === `${getApi567RouteStore().origin}/v1`))
+	) {
+		return { models: [], error: { code: "invalid-base-url" } };
 	}
+	const url = providerId === "magpie" ? requestedUrl || savedProvider?.baseUrl || preset.baseUrl : preset.baseUrl;
+	if (providerId === "magpie" && !isMagpieBaseUrl(url)) return { models: [], error: { code: "invalid-base-url" } };
+	const def = url ? { ...preset, baseUrl: url } : preset;
 	if (!key) return { models: [], error: { code: "missing-key" } };
 
 	const controller = new AbortController();
@@ -240,6 +258,7 @@ function adoptedPresetIds(config: ModelsConfig): string[] {
 	return Object.entries(config.providers)
 		.filter(([id, provider]) => {
 			if (provider.source !== "template") return false;
+			if (provider.disabled) return false;
 			if (!provider.apiKey?.trim()) return false;
 			return Boolean(getPresetProvider(provider.templateId ?? id));
 		})
@@ -261,7 +280,11 @@ export async function syncAdoptedPresets(): Promise<void> {
 	const results = await Promise.all(
 		ids.map(async (id) => {
 			const templateId = config.providers[id]?.templateId ?? id;
-			const result = await refreshPresetModels(templateId, config.providers[id]?.apiKey);
+			const result = await refreshPresetModels(
+				templateId,
+				config.providers[id]?.apiKey,
+				config.providers[id]?.baseUrl,
+			);
 			return { id, result };
 		}),
 	);

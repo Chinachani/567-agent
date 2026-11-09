@@ -645,7 +645,18 @@
         "messages": "历史消息"
       },
       "prefixHash": "请求前缀指纹",
-      "unavailable": "未上报"
+      "unavailable": "未上报",
+      "speed": {
+        "title": "响应速度",
+        "firstText": "平均首字",
+        "duration": "模型用时",
+        "tps": "平均 TPS",
+        "notRecorded": "未记录",
+        "firstTextHint": "每次模型请求开始至首段回复正文的平均等待时间，含思考；纯工具调用不计入。",
+        "durationHint": "有计时记录的模型调用耗时之和，包含等待与生成，不含工具执行和两次调用之间的间隔。",
+        "tpsHint": "上报输出 Token 总数 ÷ 对应生成时间总和；从首次文字、思考或工具输出起计至响应结束，按耗时加权。输出 Token 口径由供应商决定。",
+        "coverage": "计时 {{recorded}}/{{total}} 次 · 首字 {{text}} 次 · TPS {{speed}} 次"
+      }
     },
     "compactionBoundary": "上下文已压缩",
     "modelSwitched": "切换了模型 {{name}}",

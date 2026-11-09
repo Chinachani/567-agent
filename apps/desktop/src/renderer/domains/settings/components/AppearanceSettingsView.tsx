@@ -1,7 +1,9 @@
+import { Button } from "@shared/components/ui/button";
+import { StepSlider } from "@shared/components/ui/step-slider";
 import { cn } from "@shared/lib/utils";
 import type { CursorStyle } from "@shared/theme/cursor";
 import type { ThemeDef } from "@shared/theme/tokens";
-import { memo } from "react";
+import { memo, useEffect, useState } from "react";
 import { SettingsAiAssist } from "../ai-assist";
 import themeLock from "../assets/theme-lock.webp";
 import { SETTINGS_SECTION } from "../registry";
@@ -177,19 +179,13 @@ const ThemeCard = memo(function ThemeCard({
 						boxShadow: "0 4px 12px rgba(0,0,0,0.25)",
 					}}
 				>
-					<div
-						className="flex items-center gap-1 px-1.5 py-1"
-						style={{ borderBottom: `1px solid ${palette.border}` }}
-					>
+					<div className="flex items-center gap-1 px-1.5 py-1" style={{ borderBottom: `1px solid ${palette.border}` }}>
 						<span className="h-1 w-1 rounded-full" style={{ background: palette.destructive }} />
 						<span className="h-1 w-1 rounded-full" style={{ background: palette.chart1 }} />
 						<span className="h-1 w-1 rounded-full" style={{ background: palette.primary }} />
 					</div>
 					<div className="space-y-[5px] px-2 py-2.5">
-						<div
-							className="h-[3px] w-[80%] rounded-full"
-							style={{ background: palette.foreground, opacity: 0.75 }}
-						/>
+						<div className="h-[3px] w-[80%] rounded-full" style={{ background: palette.foreground, opacity: 0.75 }} />
 						<div className="h-[3px] w-[60%] rounded-full" style={{ background: palette.mutedForeground }} />
 						<div
 							className="h-[3px] w-[70%] rounded-full"
@@ -428,6 +424,26 @@ export function AppearanceSettingsView({ model }: { model: AppearanceSettingsMod
 			)}
 
 			<div className="mb-6">
+				<div className="mb-1 flex items-center justify-between gap-2">
+					<SettingHeading title={model.labels.sections.uiZoom} section={SETTINGS_SECTION["appearance-ui-zoom"]} />
+					<Button
+						variant="ghost"
+						size="icon-xs"
+						title={model.labels.uiZoomReset}
+						aria-label={model.labels.uiZoomReset}
+						aria-disabled={model.uiZoom.factor === model.uiZoom.default || model.uiZoom.saving}
+						onClick={() => {
+							if (!model.uiZoom.saving && model.uiZoom.factor !== model.uiZoom.default) model.actions.resetUiZoom();
+						}}
+					>
+						<span aria-hidden className="icon-[solar--restart-linear] h-3.5 w-3.5" />
+					</Button>
+				</div>
+				<p className="mb-4 text-[12px] text-muted-foreground">{model.labels.uiZoomHint}</p>
+				<UiZoomControl model={model} />
+			</div>
+
+			<div className="mb-6">
 				<SettingHeading
 					title={model.labels.sections.sidebar}
 					section={SETTINGS_SECTION["appearance-sidebar"]}
@@ -454,5 +470,33 @@ export function AppearanceSettingsView({ model }: { model: AppearanceSettingsMod
 				</div>
 			</div>
 		</div>
+	);
+}
+
+function UiZoomControl({ model }: { model: AppearanceSettingsModel }): JSX.Element {
+	const { factor, stepIndex, steps } = model.uiZoom;
+	const [draftIndex, setDraftIndex] = useState<number>();
+	// 主进程确认的档位变了（快捷键、恢复默认），丢掉残留的预览。
+	useEffect(() => setDraftIndex(undefined), [stepIndex]);
+	const percent = (value: number) => `${Math.round(value * 100)}%`;
+	const shownIndex = draftIndex ?? stepIndex;
+	const commit = (index: number) => {
+		setDraftIndex(undefined);
+		const next = steps[index];
+		if (next !== undefined && next !== factor) model.actions.setUiZoom(next);
+	};
+	return (
+		<StepSlider
+			labels={steps.map(percent)}
+			index={shownIndex}
+			showTicks
+			fullWidth
+			disabled={model.uiZoom.saving}
+			aria-label={model.labels.uiZoomSliderLabel}
+			aria-valuetext={percent(steps[shownIndex] ?? factor)}
+			onIndexChange={setDraftIndex}
+			onIndexCommit={commit}
+			onCancel={() => setDraftIndex(undefined)}
+		/>
 	);
 }

@@ -37,6 +37,8 @@ function model(
 				selectUiTheme: vi.fn(),
 				setCursorStyle: vi.fn(),
 				setSidebarStyle: vi.fn(),
+				setUiZoom: vi.fn(),
+				resetUiZoom: vi.fn(),
 			},
 			overrides.actions,
 		),
@@ -52,8 +54,12 @@ function model(
 				sidebar: "侧边栏样式",
 				theme: "主题颜色",
 				uiTheme: "界面主题",
+				uiZoom: "界面大小",
 			},
 			title: "外观",
+			uiZoomHint: "uiZoomHint",
+			uiZoomReset: "恢复默认",
+			uiZoomSliderLabel: "界面大小滑块",
 		},
 		language: "system",
 		languages: [],
@@ -66,6 +72,7 @@ function model(
 		themeName: "default",
 		themes: [],
 		uiThemes: [],
+		uiZoom: { saving: false, default: 1, factor: 1, stepIndex: 2, steps: [0.75, 0.9, 1, 1.1, 1.25, 1.5] },
 		...overrides,
 	};
 }
@@ -89,5 +96,37 @@ describe("AppearanceSettingsView", () => {
 		await userEvent.click(view.getByRole("button", { name: /亮色/ }));
 		expect(changeMode).toHaveBeenCalledWith("light", expect.any(Object));
 		expect(renderOrbitPreview).not.toHaveBeenCalled();
+	});
+
+	it("界面大小显示当前百分比，恢复默认在默认值时不可点", () => {
+		const view = render(<AppearanceSettingsView model={model()} />);
+
+		expect(view.getByRole("button", { name: "恢复默认" }).getAttribute("aria-disabled")).toBe("true");
+	});
+
+	it("偏离默认值时可恢复默认", async () => {
+		const resetUiZoom = vi.fn();
+		const view = render(
+			<AppearanceSettingsView
+				model={model({
+					uiZoom: { saving: false, default: 1, factor: 1.25, stepIndex: 4, steps: [0.75, 0.9, 1, 1.1, 1.25, 1.5] },
+					actions: { resetUiZoom },
+				})}
+			/>,
+		);
+
+		await userEvent.click(view.getByRole("button", { name: "恢复默认" }));
+
+		expect(resetUiZoom).toHaveBeenCalledTimes(1);
+	});
+
+	it("点某一档的文字，按该档的比例设置界面大小，当前档带选中态", async () => {
+		const setUiZoom = vi.fn();
+		const view = render(<AppearanceSettingsView model={model({ actions: { setUiZoom } })} />);
+
+		expect(view.getByRole("button", { name: "100%" }).getAttribute("aria-pressed")).toBe("true");
+		await userEvent.click(view.getByRole("button", { name: "125%" }));
+
+		expect(setUiZoom).toHaveBeenCalledWith(1.25);
 	});
 });

@@ -24,6 +24,32 @@ function assistantUsage(cacheUsageReporting?: "unavailable" | "read-only" | "rea
 }
 
 describe("conversation cache usage reporting", () => {
+	it("accepts optional timing data without changing older message records", () => {
+		const historical = assistantUsage();
+		const message = {
+			...historical,
+			usage: {
+				...historical.usage,
+				performance: { durationMs: 800, firstOutputMs: 100, firstTextMs: 300 },
+			},
+		};
+		expect(Value.Check(ConversationMessageSchema, historical)).toBe(true);
+		expect(Value.Check(ConversationMessageSchema, JSON.parse(JSON.stringify(message)))).toBe(true);
+		for (const performance of [
+			{ durationMs: -1 },
+			{ durationMs: Number.NaN },
+			{ durationMs: Number.POSITIVE_INFINITY },
+			{ durationMs: 100, firstTextMs: -1 },
+			{ durationMs: 100, firstOutputMs: "10" },
+			{ durationMs: 100, extra: 10 },
+			{},
+		]) {
+			expect(Value.Check(ConversationMessageSchema, { ...message, usage: { ...message.usage, performance } })).toBe(
+				false,
+			);
+		}
+	});
+
 	it("accepts both historical records and the additive cache reporting field", () => {
 		expect(Value.Check(ConversationMessageSchema, assistantUsage())).toBe(true);
 		expect(Value.Check(ConversationMessageSchema, assistantUsage("read-only"))).toBe(true);

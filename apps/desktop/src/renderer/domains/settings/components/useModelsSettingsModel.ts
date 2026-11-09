@@ -6,7 +6,8 @@ import { showToast } from "@shared/store/toast-atoms";
 import { useAtomValue, useSetAtom } from "jotai";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
-import { api567RouteOrigin, getBuiltinApi567Route } from "../../../../shared/service-routes.js";
+import { api567RouteOrigin } from "../../../../shared/service-routes.js";
+import { groupModelSettingsProviders, type ModelSettingsSource } from "./model-settings-source";
 import { recordSettingsUsage } from "./recordSettingsUsage";
 
 export type ProviderEntry = ModelsConfigData["providers"][string];
@@ -50,6 +51,7 @@ export interface FetchedModelsState {
 export interface ModelsSettingsModel {
 	config: ModelsConfigData | null;
 	providerNames: string[];
+	providerIdsBySource: Record<ModelSettingsSource, string[]>;
 	expandedProvider: string | null;
 	addingProvider: boolean;
 	providerForm: ProviderFormState;
@@ -533,34 +535,19 @@ export function useModelsSettingsModel(): ModelsSettingsModel {
 		[config, fetchedModels, saveConfig],
 	);
 
-	const providerNames = useMemo(
+	const providerIdsBySource = useMemo(
 		() =>
-			config
-				? Object.keys(config.providers).filter((name) => {
-						const provider = config.providers[name];
-						if (provider?.source === "template") return false;
-						const providerId = name.toLowerCase();
-						const displayName = provider?.displayName?.trim().toLowerCase() ?? "";
-						const managedEndpoint =
-							getBuiltinApi567Route(provider?.baseUrl, [
-								...(api567Status.serviceRoutes?.routes.map((route) => route.origin) ?? []),
-								...(api567Status.serviceRoute ? [api567RouteOrigin(api567Status.serviceRoute)] : []),
-							]) !== undefined;
-						return !(
-							managedEndpoint &&
-							(providerId === "567api" ||
-								providerId.startsWith("567api_") ||
-								displayName === "567 api" ||
-								displayName.startsWith("567 ·"))
-						);
-					})
-				: [],
+			groupModelSettingsProviders(config, [
+				...(api567Status.serviceRoutes?.routes.map((route) => route.origin) ?? []),
+				...(api567Status.serviceRoute ? [api567RouteOrigin(api567Status.serviceRoute)] : []),
+			]),
 		[config, api567Status.serviceRoutes, api567Status.serviceRoute],
 	);
 
 	return {
 		config,
-		providerNames,
+		providerNames: providerIdsBySource.local,
+		providerIdsBySource,
 		expandedProvider,
 		addingProvider,
 		providerForm,

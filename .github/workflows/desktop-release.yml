@@ -357,7 +357,7 @@ jobs:
         if: runner.os == 'Linux'
         run: |
           sudo apt-get update
-          sudo apt-get install --no-install-recommends -y build-essential libcap-dev meson ninja-build pkg-config xz-utils rpm
+          sudo apt-get install --no-install-recommends -y build-essential libcap-dev meson ninja-build pkg-config xz-utils rpm rpm2cpio cpio
 
       # release/ 不在版本控制里，actions/checkout 清不掉。复用工作目录的 runner 上
       # 残留的旧版本 latest*.yml 会让合并与发布脚本读到多个版本直接失败。
@@ -444,7 +444,7 @@ jobs:
         if: runner.os == 'Linux'
         run: |
           sudo apt-get update
-          sudo apt-get install --no-install-recommends -y rpm libasound2t64
+          sudo apt-get install --no-install-recommends -y rpm rpm2cpio cpio libasound2t64
 
       - name: Download build checkpoint
         uses: actions/download-artifact@v4

@@ -42,6 +42,9 @@ describe("createOfficialShortcutsApi", () => {
 			{ id: "toggle-activity-panel", defaultShortcut: "mod+j" },
 			{ id: "focus-input", defaultShortcut: "mod+l" },
 			{ id: "stop-generation", defaultShortcut: "mod+backspace" },
+			{ id: "zoom-in", defaultShortcut: "mod+=" },
+			{ id: "zoom-out", defaultShortcut: "mod+-" },
+			{ id: "zoom-reset", defaultShortcut: "mod+0" },
 			{ id: "steer-message", defaultShortcut: "mod+enter" },
 			{ id: "toggle-plan-mode", defaultShortcut: "shift+tab" },
 		]);

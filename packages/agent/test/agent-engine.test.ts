@@ -553,7 +553,9 @@ describe("runAgentTurn", () => {
 		const events = await collect(run.events);
 
 		await expect(run.result).resolves.toMatchObject({ status: "completed", modelCalls: 2 });
-		expect(contexts[1]?.slice(-2)).toEqual([assistant([{ type: "text", text: "first" }]), continuation]);
+		const expectedFirst = assistant([{ type: "text", text: "first" }]);
+		expectedFirst.usage.performance = { durationMs: expect.any(Number) };
+		expect(contexts[1]?.slice(-2)).toEqual([expectedFirst, continuation]);
 		expect(events).toContainEqual({ type: "input_message", kind: "continuation", message: continuation });
 	});
 
@@ -761,7 +763,9 @@ describe("runAgentTurn", () => {
 		const result = await run.result;
 
 		expect(modelContexts).toEqual([[providerView]]);
-		expect(result.messages).toEqual([durableView, assistant([{ type: "text", text: "done" }])]);
+		const expectedReply = assistant([{ type: "text", text: "done" }]);
+		expectedReply.usage.performance = { durationMs: expect.any(Number) };
+		expect(result.messages).toEqual([durableView, expectedReply]);
 	});
 
 	it("isolates observer failures and emits diagnostics", async () => {

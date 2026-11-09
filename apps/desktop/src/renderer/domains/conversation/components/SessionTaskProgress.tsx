@@ -16,6 +16,27 @@ export function SessionTaskProgress() {
 	const model = useTaskProgressModel();
 	const progress = model.progress;
 	if (!progress) return null;
+	if (progress.phase === "compacting") {
+		return (
+			<TaskProgressView>
+				<TaskProgressStatus title={t("taskProgress.phases.compacting")} running attention={false} />
+				<TaskProgressActions>
+					{model.goal ? (
+						<Button variant="ghost" size="xs" onClick={model.openGoal}>
+							{t("taskProgress.goal")}
+						</Button>
+					) : null}
+					{model.deliveries > 0 ? (
+						<Button variant="ghost" size="xs" onClick={model.openDeliveries}>
+							<span aria-hidden className="icon-[solar--box-linear] h-3.5 w-3.5" />
+							{t("taskProgress.deliveries", { count: model.deliveries })}
+						</Button>
+					) : null}
+				</TaskProgressActions>
+			</TaskProgressView>
+		);
+	}
+
 	if (
 		["waiting", "thinking", "responding"].includes(progress.phase) &&
 		model.plainReply &&

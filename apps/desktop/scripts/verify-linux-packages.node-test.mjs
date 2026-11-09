@@ -11,7 +11,10 @@ import {
 	verifyLinuxPackageInspection,
 } from "./verify-linux-packages.mjs";
 
+import { APPORT_POLICY_CONTENT, APPORT_POLICY_PATH } from "./linux-crash-policy.mjs";
+
 const paths = [
+	APPORT_POLICY_PATH,
 	"/opt/567-agent/567-agent",
 	"/opt/567-agent/resources/package-type",
 	"/usr/share/applications/567-agent.desktop",
@@ -22,8 +25,8 @@ test("Linux package inspection accepts matching Debian and RPM packages", () => 
 	assert.doesNotThrow(() =>
 		verifyLinuxPackageInspection({
 			expectedVersion: "1.2.3",
-			deb: { name: "567-agent", version: "1.2.3", arch: "amd64", paths },
-			rpm: { name: "567-agent", version: "1.2.3", arch: "x86_64", paths },
+			deb: { name: "567-agent", version: "1.2.3", arch: "amd64", crashPolicy: APPORT_POLICY_CONTENT, paths },
+			rpm: { name: "567-agent", version: "1.2.3", arch: "x86_64", crashPolicy: APPORT_POLICY_CONTENT, paths },
 		}),
 	);
 });
@@ -33,8 +36,8 @@ test("Linux package inspection rejects wrong identities and incomplete payloads"
 		() =>
 			verifyLinuxPackageInspection({
 				expectedVersion: "1.2.3",
-				deb: { name: "567-agent", version: "1.2.2", arch: "amd64", paths },
-				rpm: { name: "567-agent", version: "1.2.3", arch: "x86_64", paths },
+				deb: { name: "567-agent", version: "1.2.2", arch: "amd64", crashPolicy: APPORT_POLICY_CONTENT, paths },
+				rpm: { name: "567-agent", version: "1.2.3", arch: "x86_64", crashPolicy: APPORT_POLICY_CONTENT, paths },
 			}),
 		/Debian version 1\.2\.2 does not match 1\.2\.3/,
 	);
@@ -42,8 +45,14 @@ test("Linux package inspection rejects wrong identities and incomplete payloads"
 		() =>
 			verifyLinuxPackageInspection({
 				expectedVersion: "1.2.3",
-				deb: { name: "567-agent", version: "1.2.3", arch: "amd64", paths },
-				rpm: { name: "567-agent", version: "1.2.3", arch: "x86_64", paths: paths.slice(1) },
+				deb: { name: "567-agent", version: "1.2.3", arch: "amd64", crashPolicy: APPORT_POLICY_CONTENT, paths },
+				rpm: {
+					name: "567-agent",
+					version: "1.2.3",
+					arch: "x86_64",
+					crashPolicy: APPORT_POLICY_CONTENT,
+					paths: paths.filter((path) => path !== "/opt/567-agent/567-agent"),
+				},
 			}),
 		/RPM package is missing \/opt\/567-agent\/567-agent/,
 	);

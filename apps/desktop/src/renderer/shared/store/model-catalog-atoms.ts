@@ -13,3 +13,10 @@ export const localModelsConfigAtom = atom<ModelsConfigData | null>(null);
 
 /** 服务端下发的远程 provider catalog（567 Agent Go 等）。 */
 export const remoteProvidersAtom = atom<Record<string, unknown>>({});
+
+/** Keep the stored default for re-enabling, but never initialize a new session with a paused provider. */
+export const selectableDefaultModelAtom = atom((get) => {
+	const config = get(localModelsConfigAtom);
+	const key = config?.defaultModel;
+	return key && !config?.providers[key.split("/")[0]]?.disabled ? key : null;
+});

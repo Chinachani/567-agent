@@ -13,6 +13,7 @@ import {
 import type { ModelCapabilities } from "../protocol/model-capabilities.js";
 import type { Model, SimpleStreamOptions, StreamOptions } from "../types.js";
 import { type AssistantMessageEventStream, EventStream } from "../utils/event-stream.js";
+import { ModelCallTiming } from "../utils/model-call-timing.js";
 import type { ApiProvider } from "./adapter-registry.js";
 import { normalizeAssistantMessageError, normalizeLegacyProviderError } from "./legacy-error-classifier.js";
 import type { ModelCallMetadata, ModelCallResult } from "./model-call-result.js";
@@ -23,8 +24,12 @@ export type LanguageModelStreamEvent = AssistantMessageEvent;
 
 export class LanguageModelStream extends EventStream<LanguageModelStreamEvent, AssistantMessage> {
 	constructor() {
+		const timing = new ModelCallTiming();
 		super(
-			(event) => event.type === "done",
+			(event) => {
+				timing.observe(event);
+				return event.type === "done";
+			},
 			(event) => {
 				if (event.type === "done") return event.message;
 				throw new AIError(AI_ERROR_CODES.STREAM_PROTOCOL_FAILED, "Expected a done event", {

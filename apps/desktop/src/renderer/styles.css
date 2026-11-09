@@ -475,6 +475,11 @@ textarea:disabled,
 	border-right-width: 1px;
 }
 
+/* 设置菜单复用同一外观偏好；无需重新挂载导航或设置表单。 */
+:root[data-sidebar-style="floating"] .settings-sidebar {
+	@apply m-2 rounded-xl border border-border/60 bg-muted/60;
+}
+
 /* 顶栏内容与 macOS 红绿灯对齐。h-11 自身居中：悬浮时顶栏占 8~52、中线 30 偏下；
    经典下从 y=0 起算、中线 22 偏上。两边各补一侧内边距把中线挪到实测位置
    （悬浮 28、经典 29）。padding 记在 h-11 元素自身（border-box，总高不变），

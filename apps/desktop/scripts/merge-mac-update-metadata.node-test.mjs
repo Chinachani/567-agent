@@ -4,7 +4,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, test } from "node:test";
 import { parse, stringify } from "yaml";
-import { mergeMacUpdateMetadata } from "./merge-mac-update-metadata.mjs";
+import { main, mergeMacUpdateMetadata } from "./merge-mac-update-metadata.mjs";
 
 const temporaryRoots = [];
 
@@ -56,4 +56,12 @@ test("does nothing when no per-architecture metadata exists", async () => {
 	const releaseDir = await mkdtemp(join(tmpdir(), "vetta-mac-merge-test-"));
 	temporaryRoots.push(releaseDir);
 	assert.equal(await mergeMacUpdateMetadata({ releaseDir }), null);
+});
+
+test("CLI directory argument writes metadata in the requested staging directory", async () => {
+	const releaseDir = await createReleaseDir();
+	await main(releaseDir);
+	const written = parse(await readFile(join(releaseDir, "latest-mac.yml"), "utf8"));
+	assert.equal(written.version, "1.2.3");
+	assert.equal(written.files.length, 2);
 });

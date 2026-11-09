@@ -20,6 +20,7 @@ const PROVIDER_SYMBOLS = [
 	"zai",
 	"zhipu",
 	"opencode",
+	"magpie",
 ] as const;
 
 describe("ProviderIcon", () => {

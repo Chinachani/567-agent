@@ -99,6 +99,7 @@ export function useTaskProgressModel() {
 					return (
 						store.get(activeSessionAtom)?.runtimeId === target.runtimeId &&
 						!store.get(isConversationBusyAtom) &&
+						!store.get(isCompactingAtom) &&
 						!store.get(pendingQuestionsAtom)[target.runtimeId] &&
 						!store.get(pendingMcpElicitationsAtom)[target.runtimeId] &&
 						!store.get(pendingPlanReviewsAtom)[target.runtimeId] &&

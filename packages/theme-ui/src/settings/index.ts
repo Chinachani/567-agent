@@ -122,6 +122,7 @@ export type {
 	PresetProviderModelRowView,
 	PresetProviderModelsListViewLabels,
 	PresetProviderModelsListViewProps,
+	PresetProviderModelTestView,
 } from "./PresetProviderModelsListView";
 export { PresetProviderModelsListView } from "./PresetProviderModelsListView";
 export type {

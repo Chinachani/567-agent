@@ -3,6 +3,7 @@ import { useLanguage } from "@shared/hooks/useLanguage";
 import { useNarrowScreen } from "@shared/hooks/useNarrowScreen";
 import { useSidebarStyle } from "@shared/hooks/useSidebarStyle";
 import { useTheme } from "@shared/hooks/useTheme";
+import { useUiZoom } from "@shared/hooks/useUiZoom";
 import type { ThemeMode } from "@shared/store/atoms";
 import type { CursorStyle } from "@shared/theme/cursor";
 import { useThemeRuntime } from "@shared/theme/runtime";
@@ -13,6 +14,7 @@ import { useMemo } from "react";
 import { useTranslation } from "react-i18next";
 import { isAppearanceUiThemeEnabled } from "@/shared/feature-flags";
 import type { LanguagePreference } from "@/shared/i18n/config";
+import { UI_ZOOM_DEFAULT, UI_ZOOM_STEPS, uiZoomStepIndex } from "@/shared/ui-zoom";
 import defaultThemePreview from "../assets/default.webp";
 import { SETTINGS_SECTION } from "../registry";
 import { recordSettingsUsage } from "./recordSettingsUsage";
@@ -70,6 +72,8 @@ export interface AppearanceSettingsModel {
 		selectUiTheme: (id: string) => void;
 		setCursorStyle: (style: CursorStyle) => void;
 		setSidebarStyle: (style: SidebarStyle) => void;
+		setUiZoom: (factor: number) => void;
+		resetUiZoom: () => void;
 	};
 	activeUiThemeId: string;
 	cursorOptions: AppearanceCursorOption[];
@@ -83,7 +87,11 @@ export interface AppearanceSettingsModel {
 			sidebar: string;
 			theme: string;
 			uiTheme: string;
+			uiZoom: string;
 		};
+		uiZoomHint: string;
+		uiZoomReset: string;
+		uiZoomSliderLabel: string;
 		title: string;
 	};
 	/** 用户语言偏好（含 system），用于选择器高亮。 */
@@ -99,6 +107,7 @@ export interface AppearanceSettingsModel {
 	themeName: string;
 	themes: ThemeDef[];
 	uiThemes: AppearanceUiThemeOption[];
+	uiZoom: { saving: boolean; default: number; factor: number; stepIndex: number; steps: readonly number[] };
 }
 
 type AppearanceSettingsActions = AppearanceSettingsModel["actions"];
@@ -182,6 +191,7 @@ export function useAppearanceSettingsModel(): AppearanceSettingsModel {
 	const { languagePreference, setLanguage } = useLanguage();
 	const { style: cursorStyle, setStyle: setCursorStyle } = useCursorStyle();
 	const { style: sidebarStyle, setStyle: setSidebarStyle } = useSidebarStyle();
+	const { factor: uiZoomFactor, saving: uiZoomSaving, setFactor: setUiZoomFactor, reset: resetUiZoom } = useUiZoom();
 	const { t } = useTranslation("settings");
 	const narrow = useNarrowScreen();
 
@@ -274,7 +284,11 @@ export function useAppearanceSettingsModel(): AppearanceSettingsModel {
 				sidebar: t(SETTINGS_SECTION["appearance-sidebar"].titleKey),
 				theme: t(SETTINGS_SECTION["appearance-theme"].titleKey),
 				uiTheme: t(SETTINGS_SECTION["appearance-ui-theme"].titleKey),
+				uiZoom: t(SETTINGS_SECTION["appearance-ui-zoom"].titleKey),
 			},
+			uiZoomHint: t("uiZoomHint"),
+			uiZoomReset: t("uiZoomReset"),
+			uiZoomSliderLabel: t("uiZoomSliderLabel"),
 			title: t("appearanceTitle"),
 		}),
 		[t],
@@ -306,6 +320,8 @@ export function useAppearanceSettingsModel(): AppearanceSettingsModel {
 					value: style,
 				});
 			},
+			setUiZoom: setUiZoomFactor,
+			resetUiZoom,
 			setSidebarStyle: (style) => {
 				setSidebarStyle(style);
 				recordSettingsUsage({
@@ -316,7 +332,7 @@ export function useAppearanceSettingsModel(): AppearanceSettingsModel {
 				});
 			},
 		}),
-		[selectTheme, setCursorStyle, setLanguage, setMode, setSidebarStyle, setThemeName],
+		[selectTheme, setCursorStyle, setLanguage, setMode, setSidebarStyle, setThemeName, setUiZoomFactor, resetUiZoom],
 	);
 
 	return {
@@ -336,5 +352,12 @@ export function useAppearanceSettingsModel(): AppearanceSettingsModel {
 		themeName,
 		themes,
 		uiThemes,
+		uiZoom: {
+			saving: uiZoomSaving,
+			default: UI_ZOOM_DEFAULT,
+			factor: uiZoomFactor,
+			stepIndex: uiZoomStepIndex(uiZoomFactor),
+			steps: UI_ZOOM_STEPS,
+		},
 	};
 }

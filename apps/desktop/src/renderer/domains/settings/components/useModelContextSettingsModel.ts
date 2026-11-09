@@ -6,7 +6,7 @@ import { parseContextCapacityInput, resolveModelContext } from "../../../../shar
 import { getModelContextReference } from "../../../../shared/model-context-reference";
 import { isModelInferenceApi, type ModelInferenceApi } from "../../../../shared/model-inference-api";
 
-export function useModelContextSettingsModel(config: ModelsConfigData) {
+export function useModelContextSettingsModel(config: ModelsConfigData, providerIds?: readonly string[]) {
 	const activeModel = useAtomValue(selectedModelAtom);
 	const [current, setCurrent] = useState(config);
 	const [selection, setSelection] = useState<string | null>(null);
@@ -33,16 +33,18 @@ export function useModelContextSettingsModel(config: ModelsConfigData) {
 			dispose();
 		};
 	}, []);
-	const options = Object.entries(current.providers).flatMap(([providerId, provider]) =>
-		(provider.models ?? []).map((model) => ({
-			value: JSON.stringify([providerId, model.id]),
-			providerId,
-			model,
-			label: `${model.name ?? model.id} · ${provider.displayName ?? providerId}`,
-			active: `${providerId}/${model.id}` === activeModel,
-			defaultModel: `${providerId}/${model.id}` === current.defaultModel,
-		})),
-	);
+	const options = Object.entries(current.providers)
+		.filter(([providerId]) => !providerIds || providerIds.includes(providerId))
+		.flatMap(([providerId, provider]) =>
+			(provider.models ?? []).map((model) => ({
+				value: JSON.stringify([providerId, model.id]),
+				providerId,
+				model,
+				label: `${model.name ?? model.id} · ${provider.displayName ?? providerId}`,
+				active: `${providerId}/${model.id}` === activeModel,
+				defaultModel: `${providerId}/${model.id}` === current.defaultModel,
+			})),
+		);
 	const selected =
 		options.find((entry) => entry.value === selection) ??
 		options.find((entry) => entry.active) ??

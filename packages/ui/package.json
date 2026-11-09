@@ -12,6 +12,10 @@
 		"./utils": {
 			"types": "./src/utils.ts",
 			"import": "./src/utils.ts"
+		},
+		"./step-slider": {
+			"types": "./src/step-slider.tsx",
+			"import": "./src/step-slider.tsx"
 		}
 	},
 	"files": [
@@ -22,7 +26,8 @@
 		"registry": "https://registry.npmjs.org/"
 	},
 	"scripts": {
-		"check": "tsgo --noEmit -p tsconfig.json"
+		"check": "tsgo --noEmit -p tsconfig.json",
+		"test": "bun ../../scripts/quality/run-vitest.mjs --run"
 	},
 	"peerDependencies": {
 		"react": "^19.0.0",
