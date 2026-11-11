@@ -28,6 +28,7 @@ export class RemoteDesktopHost {
 	private readonly pendingIce: RTCIceCandidateInit[] = [];
 	private inputChannel: RTCDataChannel | undefined;
 	private inputEnabled: boolean;
+	private pointerMode: "relative" | "absolute";
 	private lastInputSequence = 0;
 	private lastViewportSequence = 0;
 	private closed = false;
@@ -47,6 +48,7 @@ export class RemoteDesktopHost {
 		private readonly onInput: (message: RemoteInputMessage) => void | Promise<void>,
 	) {
 		this.inputEnabled = options.inputEnabled ?? true;
+		this.pointerMode = options.pointerMode ?? "absolute";
 		this.logger = options.logger ?? NOOP_REMOTE_DESKTOP_LOGGER;
 		this.peer = createPeer(options);
 		this.peer.onicecandidate = (event) => {
@@ -151,7 +153,8 @@ export class RemoteDesktopHost {
 		return this.peer.connectionState;
 	}
 
-	setInputEnabled(enabled: boolean): void {
+	setInputEnabled(enabled: boolean, pointerMode = this.pointerMode): void {
+		this.pointerMode = pointerMode;
 		this.inputEnabled = enabled;
 		this.sendCapabilities();
 	}
@@ -163,7 +166,7 @@ export class RemoteDesktopHost {
 				type: "capabilities",
 				textInput: true,
 				viewport: true,
-				pointerMode: this.options.pointerMode ?? "absolute",
+				pointerMode: this.pointerMode,
 				inputEnabled: this.inputEnabled,
 			}),
 		);

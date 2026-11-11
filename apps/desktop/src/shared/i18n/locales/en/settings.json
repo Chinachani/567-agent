@@ -1354,6 +1354,7 @@
     "latestInstalled": "Up to date",
     "checkHint": "Check for and install 567 Agent updates.",
     "downloadingVersion": "Downloading {{version}} · {{progress}}%",
+    "preparingLocal": "Preparing local files. Disk activity may be high; keep the app running…",
     "ready": "Version {{version}} is downloaded and ready to install.",
     "installing": "Preparing to install…",
     "notes": "Release notes",

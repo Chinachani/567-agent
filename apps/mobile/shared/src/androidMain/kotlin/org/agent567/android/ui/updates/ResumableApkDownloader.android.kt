@@ -6,11 +6,15 @@ import java.io.File
 import java.io.FileInputStream
 import java.io.FileOutputStream
 import java.io.IOException
-import java.net.HttpURLConnection
 import java.net.URL
 import java.security.MessageDigest
 import java.util.Collections
 import java.util.concurrent.atomic.AtomicLong
+import okhttp3.Call
+import okhttp3.OkHttpClient
+import okhttp3.Request
+import okhttp3.Response
+import java.util.concurrent.TimeUnit
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.async
@@ -33,13 +37,13 @@ internal data class ApkDownloadSpec(
 
 internal data class ApkDownloadProgress(val downloadedBytes: Long, val totalBytes: Long)
 
-/** Two bounded HTTP ranges, with per-range files so an interrupted run can resume safely. */
+/** Bounded HTTP ranges over the shared open-source OkHttp transport, with per-range files so an interrupted run can resume safely. */
 internal class ResumableApkDownloader(
     private val downloadDirectory: File,
-    private val parallelism: Int = 2,
-    private val connect: (URL) -> HttpURLConnection = { it.openConnection() as HttpURLConnection },
+    private val parallelism: Int = 4,
+    private val client: OkHttpClient = downloadClient,
 ) {
-    private val connections = Collections.synchronizedSet(mutableSetOf<HttpURLConnection>())
+    private val connections = Collections.synchronizedSet(mutableSetOf<Call>())
     @Volatile private var cancelled = false
 
     suspend fun download(spec: ApkDownloadSpec, onProgress: (ApkDownloadProgress) -> Unit): File =
@@ -58,24 +62,39 @@ internal class ResumableApkDownloader(
             }
 
             val downloaded = AtomicLong(partFiles(workDirectory).sumOf { it.length() })
-            onProgress(ApkDownloadProgress(downloaded.get(), spec.expectedBytes))
+            // Read the shared counter under one callback lock so workers cannot send stale progress.
+            val progressLock = Any()
+            var lastReported = -1L
+            var lastReportAt = 0L
+            val report: (ApkDownloadProgress) -> Unit = {
+                synchronized(progressLock) {
+                    val count = downloaded.get().coerceIn(0, spec.expectedBytes)
+                    val now = System.nanoTime()
+                    if (count == spec.expectedBytes || count < lastReported || count - lastReported >= 256 * 1024 || now - lastReportAt >= 200_000_000) {
+                        lastReported = count
+                        lastReportAt = now
+                        onProgress(ApkDownloadProgress(count, spec.expectedBytes))
+                    }
+                }
+            }
+            report(ApkDownloadProgress(downloaded.get(), spec.expectedBytes))
             try {
                 val supportsRanges = probe(spec)
                 if (supportsRanges && spec.expectedBytes >= MIN_PARALLEL_BYTES && parallelism > 1) {
                     File(workDirectory, "single.part").delete()
                     downloaded.set(partFiles(workDirectory).sumOf { it.length() })
                     try {
-                        downloadRanges(spec, workDirectory, downloaded, onProgress)
+                        downloadRanges(spec, workDirectory, downloaded, report)
                     } catch (_: RangeUnsupportedException) {
                         partFiles(workDirectory).forEach(File::delete)
                         downloaded.set(0)
-                        onProgress(ApkDownloadProgress(0, spec.expectedBytes))
-                        downloadSingle(spec, workDirectory, downloaded, onProgress)
+                        report(ApkDownloadProgress(0, spec.expectedBytes))
+                        downloadSingle(spec, workDirectory, downloaded, report)
                     }
                 } else {
                     partFiles(workDirectory).filter { it.name.startsWith("range-") }.forEach(File::delete)
                     downloaded.set(File(workDirectory, "single.part").length())
-                    downloadSingle(spec, workDirectory, downloaded, onProgress)
+                    downloadSingle(spec, workDirectory, downloaded, report)
                 }
                 currentCoroutineContext().ensureActive()
                 val staging = File(workDirectory, "assembled.apk")
@@ -91,7 +110,7 @@ internal class ResumableApkDownloader(
                 if (output.exists() && !output.delete()) throw IOException("Unable to replace the previous update package")
                 if (!staging.renameTo(output)) throw IOException("Unable to finalize the downloaded update package")
                 workDirectory.deleteRecursively()
-                onProgress(ApkDownloadProgress(spec.expectedBytes, spec.expectedBytes))
+                report(ApkDownloadProgress(spec.expectedBytes, spec.expectedBytes))
                 output
             } catch (error: CancellationException) {
                 throw error
@@ -118,7 +137,17 @@ internal class ResumableApkDownloader(
         downloaded: AtomicLong,
         onProgress: (ApkDownloadProgress) -> Unit,
     ) = coroutineScope {
-        val workerCount = minOf(parallelism, 2)
+        // Older versions stored two ranges without a plan. Keep those offsets when resuming.
+        val plan = File(workDirectory, "range-count")
+        val previous = plan.takeIf { it.isFile }?.readText()?.toIntOrNull()?.takeIf { it in 2..4 }
+        val legacy = previous == null && partFiles(workDirectory).any { it.name in setOf("range-0.part", "range-1.part") }
+        val workerCount = previous ?: if (legacy) 2 else parallelism.coerceIn(2, 4)
+        if (previous == null) {
+            val temporary = File(workDirectory, "range-count.tmp")
+            temporary.writeText(workerCount.toString())
+            if (plan.exists()) plan.delete()
+            if (!temporary.renameTo(plan)) throw IOException("Unable to save the download plan")
+        }
         val ranges = (0 until workerCount).map { index ->
             val start = spec.expectedBytes * index / workerCount
             val endExclusive = spec.expectedBytes * (index + 1) / workerCount
@@ -153,13 +182,13 @@ internal class ResumableApkDownloader(
                 val start = rangeStart + part.length()
                 val connection = open(spec.url, start, rangeEndExclusive - 1)
                 try {
-                    if (connection.responseCode != HttpURLConnection.HTTP_PARTIAL) throw RangeUnsupportedException()
-                    val contentRange = parseContentRange(connection.getHeaderField("Content-Range"))
+                    if (connection.response.code != 206) throw RangeUnsupportedException()
+                    val contentRange = parseContentRange(connection.response.header("Content-Range"))
                         ?: throw IOException("The update server returned an invalid byte range")
                     if (contentRange.start != start || contentRange.total != spec.expectedBytes || contentRange.end >= rangeEndExclusive) {
                         throw IOException("The update server returned a mismatched byte range")
                     }
-                    BufferedInputStream(connection.inputStream).use { input ->
+                    BufferedInputStream((connection.response.body?.byteStream() ?: throw IOException("Empty update response"))).use { input ->
                         BufferedOutputStream(FileOutputStream(part, true)).use { output ->
                             val buffer = ByteArray(BUFFER_SIZE)
                             var written = 0L
@@ -183,9 +212,10 @@ internal class ResumableApkDownloader(
             } catch (error: CancellationException) {
                 throw error
             } catch (error: RangeUnsupportedException) {
+                disconnectAll()
                 throw error
             } catch (error: Exception) {
-                if (attempt >= MAX_ATTEMPTS) throw error
+                if (attempt >= MAX_ATTEMPTS) { disconnectAll(); throw error }
                 delay(RETRY_DELAYS_MS[attempt - 1])
             }
         }
@@ -209,14 +239,14 @@ internal class ResumableApkDownloader(
                 val offset = part.length()
                 val connection = open(spec.url, if (offset > 0) offset else null, null)
                 try {
-                    val status = connection.responseCode
-                    if (status == HttpURLConnection.HTTP_PARTIAL) {
-                        val contentRange = parseContentRange(connection.getHeaderField("Content-Range"))
+                    val status = connection.response.code
+                    if (status == 206) {
+                        val contentRange = parseContentRange(connection.response.header("Content-Range"))
                             ?: throw IOException("The update server returned an invalid byte range")
                         if (contentRange.start != offset || contentRange.total != spec.expectedBytes) {
                             throw IOException("The update server returned a mismatched byte range")
                         }
-                    } else if (status == HttpURLConnection.HTTP_OK) {
+                    } else if (status == 200) {
                         if (offset > 0) {
                             part.delete()
                             downloaded.addAndGet(-offset)
@@ -224,9 +254,9 @@ internal class ResumableApkDownloader(
                     } else {
                         throw IOException("The update server rejected the package download")
                     }
-                    val append = status == HttpURLConnection.HTTP_PARTIAL && offset > 0
-                    if (status == HttpURLConnection.HTTP_PARTIAL && offset == 0L) part.delete()
-                    BufferedInputStream(connection.inputStream).use { input ->
+                    val append = status == 206 && offset > 0
+                    if (status == 206 && offset == 0L) part.delete()
+                    BufferedInputStream((connection.response.body?.byteStream() ?: throw IOException("Empty update response"))).use { input ->
                         BufferedOutputStream(FileOutputStream(part, append)).use { output ->
                             val buffer = ByteArray(BUFFER_SIZE)
                             var savedBytes = if (append) offset else 0L
@@ -247,9 +277,10 @@ internal class ResumableApkDownloader(
                     release(connection)
                 }
             } catch (error: CancellationException) {
+                disconnectAll()
                 throw error
             } catch (error: Exception) {
-                if (attempt >= MAX_ATTEMPTS) throw error
+                if (attempt >= MAX_ATTEMPTS) { disconnectAll(); throw error }
                 delay(RETRY_DELAYS_MS[attempt - 1])
             }
         }
@@ -258,8 +289,8 @@ internal class ResumableApkDownloader(
     private fun probe(spec: ApkDownloadSpec): Boolean {
         val connection = open(spec.url, 0, 0)
         return try {
-            connection.responseCode == HttpURLConnection.HTTP_PARTIAL &&
-                parseContentRange(connection.getHeaderField("Content-Range"))?.let {
+            connection.response.code == 206 &&
+                parseContentRange(connection.response.header("Content-Range"))?.let {
                     it.start == 0L && it.end == 0L && it.total == spec.expectedBytes
                 } == true
         } finally {
@@ -267,28 +298,24 @@ internal class ResumableApkDownloader(
         }
     }
 
-    private fun open(url: String, start: Long?, end: Long?): HttpURLConnection {
+    private data class TransferResponse(val call: Call, val response: Response)
+
+    private fun open(url: String, start: Long?, end: Long?): TransferResponse {
         var current = URL(url)
         for (redirectCount in 0..MAX_REDIRECTS) {
             requireSafeHttps(current)
             checkNotCancelled()
-            val connection = connect(current).apply {
-                instanceFollowRedirects = false
-                connectTimeout = CONNECT_TIMEOUT_MS
-                readTimeout = READ_TIMEOUT_MS
-                requestMethod = "GET"
-                setRequestProperty("Accept-Encoding", "identity")
-                if (start != null) setRequestProperty("Range", "bytes=$start-${end ?: ""}")
-            }
-            connections.add(connection)
-            val status = try {
-                connection.responseCode
-            } catch (error: Exception) {
-                release(connection)
+            val request = Request.Builder().url(current.toString()).header("Accept-Encoding", "identity")
+            if (start != null) request.header("Range", "bytes=$start-${end ?: ""}")
+            val call = client.newCall(request.build())
+            connections.add(call)
+            if (cancelled) { call.cancel(); connections.remove(call); checkNotCancelled() }
+            val connection = try { TransferResponse(call, call.execute()) } catch (error: Exception) {
+                connections.remove(call)
                 throw error
             }
-            if (status in REDIRECT_CODES) {
-                val location = connection.getHeaderField("Location")
+            if (connection.response.code in REDIRECT_CODES) {
+                val location = connection.response.header("Location")
                 release(connection)
                 if (redirectCount >= MAX_REDIRECTS || location.isNullOrBlank()) throw IOException("The update server redirected too many times")
                 current = URL(current, location)
@@ -305,13 +332,13 @@ internal class ResumableApkDownloader(
         }
     }
 
-    private fun release(connection: HttpURLConnection) {
-        connections.remove(connection)
-        connection.disconnect()
+    private fun release(connection: TransferResponse) {
+        connection.response.close()
+        connections.remove(connection.call)
     }
 
     private fun disconnectAll() {
-        synchronized(connections) { connections.toList() }.forEach(::release)
+        synchronized(connections) { connections.toList() }.forEach { it.cancel() }
     }
 
     private fun checkNotCancelled() {
@@ -324,7 +351,15 @@ internal class ResumableApkDownloader(
         BufferedOutputStream(FileOutputStream(output)).use { destination ->
             for (part in parts) {
                 if (!part.isFile) throw IOException("An update download segment is missing")
-                BufferedInputStream(FileInputStream(part)).use { input -> input.copyTo(destination, BUFFER_SIZE) }
+                BufferedInputStream(FileInputStream(part)).use { input ->
+                    val buffer = ByteArray(BUFFER_SIZE)
+                    while (true) {
+                        checkNotCancelled()
+                        val count = input.read(buffer)
+                        if (count < 0) break
+                        destination.write(buffer, 0, count)
+                    }
+                }
             }
         }
     }
@@ -348,6 +383,7 @@ internal class ResumableApkDownloader(
         FileInputStream(file).use { input ->
             val buffer = ByteArray(BUFFER_SIZE)
             while (true) {
+                checkNotCancelled()
                 val count = input.read(buffer)
                 if (count < 0) break
                 digest.update(buffer, 0, count)
@@ -374,6 +410,12 @@ internal class ResumableApkDownloader(
 
     private companion object {
         val downloadLock = Mutex()
+        // Reuse connections/TLS and platform proxy support across retries and ranges.
+        val downloadClient = OkHttpClient.Builder()
+            .followRedirects(false).followSslRedirects(false)
+            .connectTimeout(CONNECT_TIMEOUT_MS.toLong(), TimeUnit.MILLISECONDS)
+            .readTimeout(READ_TIMEOUT_MS.toLong(), TimeUnit.MILLISECONDS)
+            .retryOnConnectionFailure(true).build()
         const val BUFFER_SIZE = 64 * 1024
         const val MIN_PARALLEL_BYTES = 2L * 1024 * 1024
         const val CONNECT_TIMEOUT_MS = 20_000

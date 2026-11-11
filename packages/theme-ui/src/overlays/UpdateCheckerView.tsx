@@ -16,6 +16,7 @@ export interface UpdateCheckerViewLabels {
 	readonly download: string;
 	readonly pause?: string;
 	readonly downloading: (progress: number) => string;
+	readonly preparing?: string;
 	readonly idle: (version: string) => string;
 	readonly newVersion: (version: string) => string;
 	readonly restart: string;
@@ -35,6 +36,8 @@ export interface UpdateCheckerViewProps {
 	readonly onViewMore?: () => void;
 	readonly onOpenUrl?: (url: string) => void;
 	readonly phase: UpdateCheckerPhase;
+	/** Local unpacking/staging after the network transfer; disk activity is expected. */
+	readonly preparing?: boolean;
 	readonly progress?: number;
 	readonly downloadedBytes?: number;
 	readonly totalBytes?: number;
@@ -96,9 +99,11 @@ export function UpdateCheckerActions(
 export function UpdateDownloadProgress({
 	progress,
 	label,
+	busy = false,
 }: {
 	readonly progress?: number;
 	readonly label: string;
+	readonly busy?: boolean;
 }): JSX.Element {
 	const percent = Math.max(0, Math.min(100, (progress ?? 0) * 100));
 	return (
@@ -106,10 +111,11 @@ export function UpdateDownloadProgress({
 			value={percent}
 			max={100}
 			aria-label={label}
+			aria-busy={busy || undefined}
 			className="h-1 w-full overflow-hidden rounded-full bg-muted"
 		>
 			<Progress.Indicator
-				className="h-full w-full rounded-full bg-primary motion-safe:transition-transform motion-safe:duration-200"
+				className={`h-full w-full rounded-full bg-primary motion-safe:transition-transform motion-safe:duration-200 ${busy ? "motion-safe:animate-pulse" : ""}`}
 				style={{ transform: `translateX(-${100 - percent}%)` }}
 			/>
 		</Progress.Root>
@@ -125,6 +131,7 @@ export function UpdateCheckerDetail({
 	onViewMore,
 	onOpenUrl,
 	phase,
+	preparing,
 	progress,
 	downloadedBytes,
 	totalBytes,
@@ -138,6 +145,7 @@ export function UpdateCheckerDetail({
 	| "onViewMore"
 	| "onOpenUrl"
 	| "phase"
+	| "preparing"
 	| "progress"
 	| "downloadedBytes"
 	| "totalBytes"
@@ -175,8 +183,13 @@ export function UpdateCheckerDetail({
 			{phase === "downloading" && (
 				<div className="space-y-2">
 					<div className="flex flex-wrap items-baseline gap-x-2 gap-y-1 text-[12px] tabular-nums text-muted-foreground">
-						<span>{labels.downloading(Math.round((progress ?? 0) * 100))}</span>
-						{typeof downloadedBytes === "number" &&
+						<span>
+							{preparing && labels.preparing
+								? labels.preparing
+								: labels.downloading(Math.round((progress ?? 0) * 100))}
+						</span>
+						{!preparing &&
+							typeof downloadedBytes === "number" &&
 							typeof totalBytes === "number" &&
 							totalBytes > 0 &&
 							labels.transferred && (
@@ -190,7 +203,12 @@ export function UpdateCheckerDetail({
 					</div>
 					<UpdateDownloadProgress
 						progress={progress}
-						label={labels.downloading(Math.round((progress ?? 0) * 100))}
+						busy={preparing}
+						label={
+							preparing && labels.preparing
+								? labels.preparing
+								: labels.downloading(Math.round((progress ?? 0) * 100))
+						}
 					/>
 				</div>
 			)}
@@ -314,7 +332,12 @@ export function UpdateCheckerView(props: UpdateCheckerViewProps): JSX.Element {
 				<div className="px-4 pb-4">
 					<UpdateDownloadProgress
 						progress={props.progress}
-						label={props.labels.downloading(Math.round((props.progress ?? 0) * 100))}
+						busy={props.preparing}
+						label={
+							props.preparing && props.labels.preparing
+								? props.labels.preparing
+								: props.labels.downloading(Math.round((props.progress ?? 0) * 100))
+						}
 					/>
 				</div>
 			)}

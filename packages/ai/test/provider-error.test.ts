@@ -110,7 +110,7 @@ describe("normalizeProviderError", () => {
 		const source = new AIError(
 			"AI_TRANSPORT_FAILED",
 			"upstream stream closed before a terminal event (last event: response.in_progress)",
-			{ provider: model.provider, modelId: model.id, retryable: false },
+			{ provider: model.provider, modelId: model.id },
 		);
 
 		expect(normalizeProviderError(source, model)).toMatchObject({
@@ -119,6 +119,38 @@ describe("normalizeProviderError", () => {
 			phase: "stream",
 			provider: model.provider,
 		});
+	});
+
+	it.each(["AI_TRANSPORT_FAILED", "AI_STREAM_PROTOCOL_FAILED"] as const)(
+		"preserves an explicit no-retry decision and diagnosis for %s gateway failures",
+		(code) => {
+			const source = new AIError(
+				code,
+				"upstream stream closed before a terminal event (last event: response.in_progress)",
+				{
+					retryable: false,
+					metadata: { emittedOutput: true },
+				},
+			);
+			expect(normalizeProviderError(source, model)).toBe(source);
+		},
+	);
+
+	it("keeps a stream protocol diagnosis even when its text matches the gateway closure", () => {
+		const source = new AIError(
+			"AI_STREAM_PROTOCOL_FAILED",
+			"upstream stream closed before a terminal event (last event: response.queued)",
+		);
+		expect(normalizeProviderError(source, model)).toBe(source);
+	});
+
+	it.each([
+		"Invalid response.in_progress transition",
+		"response.queued item has the wrong role",
+		"upstream stream closed before a terminal event (last event: response.output_item.added)",
+		"prefix upstream stream closed before a terminal event (last event: response.in_progress)",
+	])("does not infer transient recovery from unrelated stream diagnostics: %s", (message) => {
+		expect(normalizeProviderError(new Error(message), model).retryable).toBe(false);
 	});
 
 	it("keeps an explicit non-retryable decision for a network transport error", () => {

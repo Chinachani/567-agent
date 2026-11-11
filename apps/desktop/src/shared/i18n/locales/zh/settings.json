@@ -1354,6 +1354,7 @@
     "latestInstalled": "已是最新版本",
     "checkHint": "检查并安装 567 Agent 更新。",
     "downloadingVersion": "正在下载 {{version}} · {{progress}}%",
+    "preparingLocal": "正在准备本地文件，磁盘占用可能较高；请保持应用运行…",
     "ready": "新版本 {{version}} 已下载，可重启安装。",
     "installing": "正在准备安装…",
     "notes": "更新内容",

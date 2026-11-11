@@ -4,4 +4,9 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
 
 @Composable
-expect fun RemoteDesktopSurface(target: String, modifier: Modifier = Modifier)
+expect fun RemoteDesktopSurface(
+    target: String,
+    modifier: Modifier = Modifier,
+    onExit: () -> Unit = {},
+    onStateChange: (RemotePreviewPhase) -> Unit = {},
+)

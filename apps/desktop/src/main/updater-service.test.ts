@@ -170,6 +170,39 @@ describe("UpdaterService", () => {
 		expect(engine.installCalls).toBe(1);
 	});
 
+	it("labels the disk-heavy local preparation phase before the package is ready", async () => {
+		const engine = createAvailableEngine();
+		const service = new UpdaterService(engine, "0.5.21", true, translate, { stagingTimeoutMs: 10_000 });
+		await service.check();
+		const downloadPromise = service.startDownload();
+		engine.emitProgress({ bytesPerSecond: 100, delta: 900, percent: 90, total: 1_000, transferred: 900 });
+		engine.emitStaging();
+		expect(service.getState()).toMatchObject({ phase: "downloading", preparing: true });
+		engine.completeDownload(["C:\\updates\\Vetta-0.6.0.exe"]);
+		await downloadPromise;
+		expect(service.getState()).toMatchObject({ phase: "ready", preparing: false });
+	});
+
+	it("keeps the local preparation timeout after Inno progress and still bounds unchanged polling", async () => {
+		const engine = createAvailableEngine();
+		const service = new UpdaterService(engine, "0.5.21", true, translate, {
+			downloadStallTimeoutMs: 1_000,
+			stagingTimeoutMs: 10_000,
+		});
+		await service.check();
+		void service.startDownload();
+		engine.emitStaging();
+		const progress = { bytesPerSecond: 0, delta: 0, percent: 95, total: 1_000, transferred: 1_000 };
+		engine.emitProgress(progress);
+		await vi.advanceTimersByTimeAsync(5_000);
+		expect(service.getState()).toMatchObject({ phase: "downloading", preparing: true });
+		expect(engine.cancelCalls).toBe(0);
+		engine.emitProgress(progress);
+		await vi.advanceTimersByTimeAsync(5_000);
+		expect(engine.cancelCalls).toBe(1);
+		expect(service.getState()).toMatchObject({ phase: "error", preparing: false });
+	});
+
 	it("cancels an active download without surfacing a download error", async () => {
 		const engine = createAvailableEngine();
 		const service = new UpdaterService(engine, "0.5.21", true, translate);

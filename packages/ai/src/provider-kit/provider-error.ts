@@ -28,36 +28,20 @@ const SAFE_RESPONSE_HEADERS = new Set([
  */
 export function normalizeProviderError<TApi extends Api>(error: unknown, model: Model<TApi>): AIError {
 	if (isAIError(error)) {
-		if (
-			!error.retryable &&
-			(error.code === AI_ERROR_CODES.STREAM_PROTOCOL_FAILED || error.code === AI_ERROR_CODES.TRANSPORT_FAILED) &&
-			isTransientStreamClosureMessage(error.message)
-		) {
-			return new AIError(AI_ERROR_CODES.TRANSPORT_FAILED, error.message, {
-				provider: error.provider ?? model.provider,
-				modelId: error.modelId ?? model.id,
-				statusCode: error.statusCode,
-				requestId: error.requestId,
-				providerCode: error.providerCode,
-				phase: error.phase ?? "stream",
-				url: error.url,
-				responseHeaders: error.responseHeaders,
-				responseBodyPreview: error.responseBodyPreview,
-				retryAfterMs: error.retryAfterMs,
-				metadata: error.metadata,
-				cause: error.cause,
-				retryable: true,
-			});
-		}
-		if (error.code !== AI_ERROR_CODES.TRANSPORT_FAILED || isKnownNetworkFailure(error.cause) !== true) return error;
 		if (error.retryableWasSpecified) return error;
+		const streamClosure = isTransientStreamClosureMessage(error.message);
+		if (
+			error.code !== AI_ERROR_CODES.TRANSPORT_FAILED ||
+			(!streamClosure && isKnownNetworkFailure(error.cause) !== true)
+		)
+			return error;
 		return new AIError(error.code, error.message, {
 			provider: error.provider,
 			modelId: error.modelId,
 			statusCode: error.statusCode,
 			requestId: error.requestId,
 			providerCode: error.providerCode,
-			phase: error.phase,
+			phase: error.phase ?? (streamClosure ? "stream" : undefined),
 			url: error.url,
 			responseHeaders: error.responseHeaders,
 			responseBodyPreview: error.responseBodyPreview,
@@ -130,8 +114,8 @@ export function normalizeProviderError<TApi extends Api>(error: unknown, model: 
 
 /** A gateway can close a Responses stream after `response.in_progress` without a terminal event. */
 function isTransientStreamClosureMessage(message: string): boolean {
-	return /upstream\s+stream\s+closed\s+before[^\n]*(?:terminal|response)|response\.(?:in_progress|queued)/i.test(
-		message,
+	return /^upstream stream closed before a terminal event \(last event: response\.(?:in_progress|queued)\)$/i.test(
+		message.trim(),
 	);
 }
 

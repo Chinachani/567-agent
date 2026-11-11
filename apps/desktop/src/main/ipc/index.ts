@@ -105,7 +105,7 @@ export function registerAllIpc(
 		teardownThemes: registerThemesIpc(),
 		teardownDialog: registerDialogIpc(),
 		teardownClipboard: registerClipboardIpc(),
-		teardownFs: registerFsIpc(),
+		teardownFs: registerFsIpc(webContents),
 		teardownFileTransfer: registerFileTransferIpc(),
 		teardownDownloads: registerDownloadsIpc(webContents),
 		teardownIm: registerImIpc(webContents),

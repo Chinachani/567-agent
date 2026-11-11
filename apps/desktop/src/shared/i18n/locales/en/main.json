@@ -157,5 +157,11 @@
   },
   "skills": {
     "retiredNameConflict": "“{{name}}” matches a preserved scene. The operation was stopped; its files and records are unchanged. Use a skill with a different name."
+  },
+  "downloads": {
+    "invalidUrl": "Enter a valid HTTP or HTTPS download URL.",
+    "invalidFilename": "Choose a valid download filename.",
+    "destinationExists": "A file now exists at this destination. Choose another filename or save location.",
+    "failed": "Download failed. Check the connection and download URL, then retry."
   }
 }

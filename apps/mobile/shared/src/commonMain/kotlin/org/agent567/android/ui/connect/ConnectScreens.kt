@@ -23,6 +23,7 @@ import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.ChevronRight
 import androidx.compose.material.icons.filled.Computer
 import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.Button
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
@@ -59,6 +60,7 @@ import org.agent567.android.ui.components.StatusDot
 import org.agent567.android.ui.components.Agent567TextField
 import org.agent567.android.ui.i18n.Str
 import org.agent567.android.ui.theme.agent567Extra
+import org.agent567.android.ui.remote.RemotePreviewPhase
 import org.agent567.android.ui.remote.RemoteDesktopSurface
 import org.agent567.android.ui.remote.PairingScannerButton
 
@@ -226,6 +228,7 @@ fun DeviceDetailScreen(
     onOpenCapabilities: () -> Unit,
 ) {
     var desktopPreviewRequested by remember(device.id) { mutableStateOf(autoRequestDesktopScreen) }
+    var desktopPreviewPhase by remember(device.id) { mutableStateOf(RemotePreviewPhase.Waiting) }
     val desktopTarget = remoteDesktopViewerTarget(device.host)
     val statusLabel =
         when (device.status) {
@@ -270,10 +273,19 @@ fun DeviceDetailScreen(
 
             Spacer(Modifier.height(20.dp))
             Agent567Card {
-                Text(Str.deviceConversationTitle, style = MaterialTheme.typography.titleSmall)
-                Text(Str.deviceConversationHint, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.agent567Extra.secondaryText)
-                Spacer(Modifier.height(8.dp))
-                PrimaryBlackButton(text = Str.startConversation, onClick = onNewChat, enabled = device.status == DeviceStatus.Online)
+                Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                    Column(Modifier.weight(1f)) {
+                        Text(Str.deviceConversationTitle, style = MaterialTheme.typography.titleSmall)
+                        Text(Str.deviceConversationHint, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.agent567Extra.secondaryText)
+                    }
+                    Button(
+                        onClick = onNewChat,
+                        enabled = device.status == DeviceStatus.Online,
+                        modifier = Modifier.heightIn(min = 48.dp),
+                        contentPadding = PaddingValues(horizontal = 14.dp),
+                        shape = MaterialTheme.shapes.medium,
+                    ) { Text(Str.startConversation, maxLines = 1) }
+                }
             }
 
             AnimatedVisibility(
@@ -285,32 +297,38 @@ fun DeviceDetailScreen(
                     Column {
                         Spacer(Modifier.height(20.dp))
                         Agent567Card {
-                        Row(
-                            modifier = Modifier.fillMaxWidth(),
-                            horizontalArrangement = Arrangement.SpaceBetween,
-                            verticalAlignment = Alignment.CenterVertically,
-                        ) {
-                            Text(Str.desktopPreview, style = MaterialTheme.typography.titleSmall, modifier = Modifier.weight(1f))
-                            if (desktopPreviewRequested) {
-                                Row {
-                                    TextButton(onClick = { desktopPreviewRequested = false }) { Text(Str.mobileStopPreview) }
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.SpaceBetween,
+                                verticalAlignment = Alignment.CenterVertically,
+                            ) {
+                                Text(Str.desktopPreview, style = MaterialTheme.typography.titleSmall, modifier = Modifier.weight(1f))
+                                if (desktopPreviewRequested) {
+                                    TextButton(onClick = { desktopPreviewRequested = false }) {
+                                        Text(when (desktopPreviewPhase) {
+                                            RemotePreviewPhase.Waiting -> Str.cancel
+                                            RemotePreviewPhase.Failed -> Str.remoteClosePreview
+                                            RemotePreviewPhase.Ready -> Str.mobileStopPreview
+                                        })
+                                    }
                                 }
                             }
-                        }
-                        if (!desktopPreviewRequested) {
-                            Text(
-                                Str.mobilePreviewHint,
-                                style = MaterialTheme.typography.bodySmall,
-                                color = MaterialTheme.agent567Extra.secondaryText,
-                            )
-                            Spacer(Modifier.height(8.dp))
-                            SecondaryOutlineButton(text = Str.mobileRequestPreview, onClick = { desktopPreviewRequested = true }, enabled = device.status == DeviceStatus.Online)
-                        } else {
-                            RemoteDesktopSurface(
-                                target = it.url,
-                                modifier = Modifier.fillMaxWidth().aspectRatio(16f / 10f).clip(MaterialTheme.shapes.large),
-                            )
-                        }
+                            if (!desktopPreviewRequested) {
+                                Text(
+                                    Str.mobilePreviewHint,
+                                    style = MaterialTheme.typography.bodySmall,
+                                    color = MaterialTheme.agent567Extra.secondaryText,
+                                )
+                                Spacer(Modifier.height(8.dp))
+                                SecondaryOutlineButton(text = Str.mobileRequestPreview, onClick = { desktopPreviewPhase = RemotePreviewPhase.Waiting; desktopPreviewRequested = true }, enabled = device.status == DeviceStatus.Online)
+                            } else {
+                                RemoteDesktopSurface(
+                                    target = it.url,
+                                    modifier = Modifier.fillMaxWidth(),
+                                    onExit = { desktopPreviewRequested = false },
+                                    onStateChange = { desktopPreviewPhase = it },
+                                )
+                            }
                         }
                     }
                 }

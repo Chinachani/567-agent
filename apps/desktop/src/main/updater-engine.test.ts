@@ -293,7 +293,12 @@ describe("ElectronUpdaterEngine", () => {
 		});
 		expect(select).toHaveBeenCalledWith(updateInfo, resolvedFiles);
 
-		await expect(engine.downloadUpdate(vi.fn()).promise).resolves.toEqual(["C:\\staged\\Vetta.exe"]);
+		const onStaging = vi.fn();
+		prepareDownloadedInstaller.mockImplementation(async () => {
+			expect(onStaging).toHaveBeenCalledOnce();
+			return ["C:\\staged\\Vetta.exe"];
+		});
+		await expect(engine.downloadUpdate(vi.fn(), onStaging).promise).resolves.toEqual(["C:\\staged\\Vetta.exe"]);
 		expect(prepareDownloadedInstaller).toHaveBeenCalledWith(
 			"C:\\pending\\Vetta-1.2.3-win-x64.exe",
 			expect.any(Function),

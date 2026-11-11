@@ -53,7 +53,7 @@ chinesesimplified.DataFolderDescription=选择 567 Agent 的数据文件夹。�
 chinesesimplified.DataFolderPrompt=数据文件夹：
 chinesesimplified.DataMigrationFailed=无法迁移数据目录（错误代码 %1）。原目录中的数据未删除。请检查目标磁盘空间和文件权限后重试。
 chinesesimplified.DataMigrationOverlap=数据目录与旧数据目录重叠，无法安全迁移。请选择一个独立文件夹。
-chinesesimplified.DataMigrationStatus=正在迁移 567 Agent 数据，请保持安装程序运行……
+chinesesimplified.DataMigrationStatus=正在复制本地资料，磁盘占用可能较高。资料较多时需要一些时间，请保持安装程序运行……
 english.DataFolderCaption=Data location
 english.DataFolderDescription=Choose where 567 Agent stores its data. App conversations, settings, credentials, installed app skills, knowledge, Electron profile, and update files are stored here. When changing locations, setup copies the old data and keeps the original folders.
 english.DataFolderPrompt=Data folder:
@@ -67,7 +67,7 @@ chinesesimplified.DataMigrationRecoveryFailed=无法将原目录恢复到原位�
 english.DataMigrationRecoveryFailed=The original folder could not be restored. Do not delete these folders:%nOriginal data retained at: %1%nIncomplete copy retained at: %2%n%nClose applications using these files and check disk permissions before retrying, or migrate to another empty folder. Original error: %3
 chinesesimplified.DataMigrationTargetNotEmpty=目标文件夹已有数据。请选择空文件夹，已有数据不会被覆盖。
 english.DataMigrationTargetNotEmpty=The destination contains data. Choose an empty folder; existing data will not be overwritten.
-english.DataMigrationStatus=Migrating 567 Agent data. Keep the installer running…
+english.DataMigrationStatus=Copying local data. Disk activity may be high and large folders may take some time. Keep the installer running…
 
 [Tasks]
 Name: "desktopicon"; Description: "{cm:CreateDesktopIcon}"; Flags: unchecked

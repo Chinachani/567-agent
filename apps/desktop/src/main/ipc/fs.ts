@@ -3,6 +3,7 @@ import { watch } from "node:fs";
 import { readdir, stat } from "node:fs/promises";
 import { join, resolve } from "node:path";
 import { resolveNodeConfigurationValue } from "@567agent/runtime-node/host";
+import type { IpcMainInvokeEvent, WebContents } from "electron";
 import { BrowserWindow, clipboard, ipcMain } from "electron";
 import type {
 	McpConfigData,
@@ -79,6 +80,7 @@ import type { ModelsConfig } from "../models/model-settings-service.js";
 import { probeModelProvider } from "../models/probe.js";
 import { getLinuxSandboxCapability, getSandboxCapability, type SandboxCapability } from "../sandbox/capability.js";
 import { getDesktopShortcutService } from "../shortcuts/shortcut-service.js";
+import { assertTrustedMainRenderer } from "./trusted-renderer.js";
 
 export interface LinuxSandboxConfigState {
 	status: "unknown" | "available" | "unavailable";
@@ -174,7 +176,8 @@ function assertNonEmptyString(value: unknown, fieldName: string): asserts value 
 
 export { allowProjectRoot, assertPathReadableForPreview } from "../filesystem/filesystem-service.js";
 
-export function registerFsIpc(): () => void {
+export function registerFsIpc(owner: WebContents): () => void {
+	const guard = (event: IpcMainInvokeEvent): void => assertTrustedMainRenderer(event, owner);
 	const mcp = getDesktopMcpSettingsService();
 	const mcpOAuth = getDesktopMcpOAuthService();
 	const models = getDesktopModelSettingsService();
@@ -191,32 +194,37 @@ export function registerFsIpc(): () => void {
 		copiedApiKey = undefined;
 		apiKeyClipboardClearTimer = undefined;
 	};
-	ipcMain.handle(CHANNELS.READ_DIR, async (_event, dirPath: unknown): Promise<FsEntry[]> => {
+	ipcMain.handle(CHANNELS.READ_DIR, async (event, dirPath: unknown): Promise<FsEntry[]> => {
+		guard(event);
 		assertNonEmptyString(dirPath, "dirPath");
 		return readFilesystemDirectory(dirPath);
 	});
 
 	ipcMain.handle(
 		CHANNELS.READ_FILE,
-		async (_event, filePath: unknown): Promise<{ content: string; encoding: "utf8" | "base64" }> => {
+		async (event, filePath: unknown): Promise<{ content: string; encoding: "utf8" | "base64" }> => {
+			guard(event);
 			assertNonEmptyString(filePath, "filePath");
 			return readFilesystemFile(filePath);
 		},
 	);
 
-	ipcMain.handle(FS_READ_TEXT_PREVIEW_CHANNEL, async (_event, filePath: unknown): Promise<FsTextPreviewResult> => {
+	ipcMain.handle(FS_READ_TEXT_PREVIEW_CHANNEL, async (event, filePath: unknown): Promise<FsTextPreviewResult> => {
+		guard(event);
 		assertNonEmptyString(filePath, "filePath");
 		return readTextPreviewFile(filePath);
 	});
 
-	ipcMain.handle(CHANNELS.READ_EDITABLE_TEXT, async (_event, filePath: unknown): Promise<FsEditableTextSnapshot> => {
+	ipcMain.handle(CHANNELS.READ_EDITABLE_TEXT, async (event, filePath: unknown): Promise<FsEditableTextSnapshot> => {
+		guard(event);
 		assertNonEmptyString(filePath, "filePath");
 		return readEditableTextFile(filePath);
 	});
 
 	ipcMain.handle(
 		CHANNELS.SAVE_EDITABLE_TEXT,
-		async (_event, filePath: unknown, content: unknown, options: unknown): Promise<FsSaveEditableTextResult> => {
+		async (event, filePath: unknown, content: unknown, options: unknown): Promise<FsSaveEditableTextResult> => {
+			guard(event);
 			assertNonEmptyString(filePath, "filePath");
 			if (typeof content !== "string") throw new Error("Invalid content");
 			if (typeof options !== "object" || options === null) throw new Error("Invalid options");
@@ -236,7 +244,8 @@ export function registerFsIpc(): () => void {
 		},
 	);
 
-	ipcMain.handle(CHANNELS.WRITE_FILE, async (_event, filePath: unknown, content: unknown, encoding: unknown) => {
+	ipcMain.handle(CHANNELS.WRITE_FILE, async (event, filePath: unknown, content: unknown, encoding: unknown) => {
+		guard(event);
 		assertNonEmptyString(filePath, "filePath");
 		if (typeof content !== "string") throw new Error("Invalid content");
 		await writeFilesystemFile(filePath, content, encoding === "base64" ? "base64" : "utf8");
@@ -244,24 +253,28 @@ export function registerFsIpc(): () => void {
 
 	ipcMain.handle(
 		CHANNELS.STAT,
-		async (_event, filePath: unknown): Promise<{ size: number; modifiedAt: number; createdAt: number } | null> => {
+		async (event, filePath: unknown): Promise<{ size: number; modifiedAt: number; createdAt: number } | null> => {
+			guard(event);
 			assertNonEmptyString(filePath, "filePath");
 			return statFilesystemPath(filePath);
 		},
 	);
 
-	ipcMain.handle(CHANNELS.RENAME, async (_event, oldPath: unknown, newPath: unknown) => {
+	ipcMain.handle(CHANNELS.RENAME, async (event, oldPath: unknown, newPath: unknown) => {
+		guard(event);
 		assertNonEmptyString(oldPath, "oldPath");
 		assertNonEmptyString(newPath, "newPath");
 		await renameFilesystemPath(oldPath, newPath);
 	});
 
-	ipcMain.handle(CHANNELS.DELETE, async (_event, targetPath: unknown) => {
+	ipcMain.handle(CHANNELS.DELETE, async (event, targetPath: unknown) => {
+		guard(event);
 		assertNonEmptyString(targetPath, "targetPath");
 		await deleteFilesystemPath(targetPath);
 	});
 
-	ipcMain.handle(CHANNELS.MOVE, async (_event, sourcePath: unknown, destDir: unknown) => {
+	ipcMain.handle(CHANNELS.MOVE, async (event, sourcePath: unknown, destDir: unknown) => {
+		guard(event);
 		assertNonEmptyString(sourcePath, "sourcePath");
 		assertNonEmptyString(destDir, "destDir");
 		await moveFilesystemPath(sourcePath, destDir);
@@ -269,7 +282,8 @@ export function registerFsIpc(): () => void {
 
 	ipcMain.handle(
 		CHANNELS.CREATE_ENTRY,
-		async (_event, parentDirectory: unknown, name: unknown, kind: unknown): Promise<FsCreateEntryResult> => {
+		async (event, parentDirectory: unknown, name: unknown, kind: unknown): Promise<FsCreateEntryResult> => {
+			guard(event);
 			assertNonEmptyString(parentDirectory, "parentDirectory");
 			assertNonEmptyString(name, "name");
 			if (kind !== "file" && kind !== "directory") throw new Error("Invalid kind");
@@ -284,17 +298,20 @@ export function registerFsIpc(): () => void {
 		},
 	);
 
-	ipcMain.handle(CHANNELS.CREATE_DIRECTORY, async (_event, dirPath: unknown) => {
+	ipcMain.handle(CHANNELS.CREATE_DIRECTORY, async (event, dirPath: unknown) => {
+		guard(event);
 		assertNonEmptyString(dirPath, "dirPath");
 		await createFilesystemDirectory(dirPath);
 	});
 
-	ipcMain.handle(CHANNELS.LIST_FILES_RECURSIVE, async (_event, rootPath: unknown): Promise<FsFileRef[]> => {
+	ipcMain.handle(CHANNELS.LIST_FILES_RECURSIVE, async (event, rootPath: unknown): Promise<FsFileRef[]> => {
+		guard(event);
 		assertNonEmptyString(rootPath, "rootPath");
 		return listFilesystemFilesRecursive(rootPath);
 	});
 
-	ipcMain.handle(CHANNELS.LIST_SUB_DIRS, async (_event, dirPath: unknown): Promise<FsEntry[]> => {
+	ipcMain.handle(CHANNELS.LIST_SUB_DIRS, async (event, dirPath: unknown): Promise<FsEntry[]> => {
+		guard(event);
 		assertNonEmptyString(dirPath, "dirPath");
 		const resolved = resolve(expandTildePath(dirPath));
 		allowProjectRoot(resolved);
@@ -339,7 +356,8 @@ export function registerFsIpc(): () => void {
 		}
 	}
 
-	ipcMain.handle(CHANNELS.WATCH_DIR, async (_event, dirPath: unknown) => {
+	ipcMain.handle(CHANNELS.WATCH_DIR, async (event, dirPath: unknown) => {
+		guard(event);
 		assertNonEmptyString(dirPath, "dirPath");
 		const resolved = resolve(dirPath);
 		const existing = watchers.get(resolved);
@@ -371,7 +389,8 @@ export function registerFsIpc(): () => void {
 		}
 	});
 
-	ipcMain.handle(CHANNELS.UNWATCH_DIR, async (_event, dirPath: unknown) => {
+	ipcMain.handle(CHANNELS.UNWATCH_DIR, async (event, dirPath: unknown) => {
+		guard(event);
 		assertNonEmptyString(dirPath, "dirPath");
 		const resolved = resolve(dirPath);
 		const entry = watchers.get(resolved);
@@ -389,7 +408,8 @@ export function registerFsIpc(): () => void {
 		}
 	});
 
-	ipcMain.handle(CHANNELS.CONFIG_GET, async (): Promise<DesktopConfigSnapshot> => {
+	ipcMain.handle(CHANNELS.CONFIG_GET, async (event): Promise<DesktopConfigSnapshot> => {
+		guard(event);
 		const config = await readDesktopConfig();
 		// Ensure all known paths are authorized for file operations
 		for (const p of config.projects) allowProjectRoot(p.path);
@@ -408,7 +428,8 @@ export function registerFsIpc(): () => void {
 		};
 	});
 
-	ipcMain.handle(CHANNELS.CONFIG_SET, async (_event, config: unknown) => {
+	ipcMain.handle(CHANNELS.CONFIG_SET, async (event, config: unknown) => {
+		guard(event);
 		if (typeof config !== "object" || config === null) throw new Error("Invalid config");
 		const patch = config as Partial<DesktopConfig>;
 		const next = await updateDesktopConfig((current): DesktopConfig => {
@@ -485,16 +506,19 @@ export function registerFsIpc(): () => void {
 		}
 	});
 
-	ipcMain.handle(CHANNELS.MODELS_GET, async (): Promise<ModelsConfig> => {
+	ipcMain.handle(CHANNELS.MODELS_GET, async (event): Promise<ModelsConfig> => {
+		guard(event);
 		return models.getRendererConfig();
 	});
 
-	ipcMain.handle(CHANNELS.MODELS_SET, async (_event, config: unknown) => {
+	ipcMain.handle(CHANNELS.MODELS_SET, async (event, config: unknown) => {
+		guard(event);
 		if (typeof config !== "object" || config === null) throw new Error("Invalid models config");
 		await models.replaceConfig(config as ModelsConfig);
 	});
 
-	ipcMain.handle(CHANNELS.MODELS_COPY_API_KEY, async (_event, providerId: unknown): Promise<boolean> => {
+	ipcMain.handle(CHANNELS.MODELS_COPY_API_KEY, async (event, providerId: unknown): Promise<boolean> => {
+		guard(event);
 		assertNonEmptyString(providerId, "providerId");
 		const keyConfig = await models.getProviderApiKey(providerId.trim());
 		const apiKey = keyConfig ? resolveNodeConfigurationValue(keyConfig) : undefined;
@@ -507,27 +531,32 @@ export function registerFsIpc(): () => void {
 		return true;
 	});
 
-	ipcMain.handle(CHANNELS.MODELS_PROBE, async (_event, ref: { provider: string; model: string }) => {
+	ipcMain.handle(CHANNELS.MODELS_PROBE, async (event, ref: { provider: string; model: string }) => {
+		guard(event);
 		return probeModelProvider(ref);
 	});
 
-	ipcMain.handle(CHANNELS.MODELS_FETCH_PROVIDER_MODELS, async (_event, providerName: unknown) => {
+	ipcMain.handle(CHANNELS.MODELS_FETCH_PROVIDER_MODELS, async (event, providerName: unknown) => {
+		guard(event);
 		if (typeof providerName !== "string" || !providerName.trim()) throw new Error("Invalid provider name");
 		return fetchProviderModels(providerName.trim());
 	});
 
-	ipcMain.handle(CHANNELS.MCP_GET, async (): Promise<McpConfig> => {
+	ipcMain.handle(CHANNELS.MCP_GET, async (event): Promise<McpConfig> => {
+		guard(event);
 		return mcp.getConfig();
 	});
 
-	ipcMain.handle(CHANNELS.MCP_SET, async (_event, config: unknown) => {
+	ipcMain.handle(CHANNELS.MCP_SET, async (event, config: unknown) => {
+		guard(event);
 		await mcp.replaceConfig(config);
 		// 不再在保存时 fan-out 重建所有 session。改为每个 session 在用户发
 		// prompt 时按需 diff-reload（见 AgentSession._maybeReloadMcpForPrompt）。
 		// 这样未使用的 session 不付出代价，且批量任务也能自然感知到变化。
 	});
 
-	ipcMain.handle(CHANNELS.MCP_LOGIN, async (_event, serverName: unknown, options?: unknown) => {
+	ipcMain.handle(CHANNELS.MCP_LOGIN, async (event, serverName: unknown, options?: unknown) => {
+		guard(event);
 		if (typeof serverName !== "string" || !serverName.trim()) {
 			throw new Error("Invalid server name");
 		}
@@ -575,19 +604,22 @@ export function registerFsIpc(): () => void {
 		});
 	});
 
-	ipcMain.handle(CHANNELS.MCP_LOGOUT, async (_event, serverName: unknown) => {
+	ipcMain.handle(CHANNELS.MCP_LOGOUT, async (event, serverName: unknown) => {
+		guard(event);
 		if (typeof serverName !== "string" || !serverName.trim()) {
 			throw new Error("Invalid server name");
 		}
 		mcpOAuth.logout(serverName.trim());
 	});
 
-	ipcMain.handle(CHANNELS.MCP_HAS_AUTH, async (_event, serverName: unknown): Promise<boolean> => {
+	ipcMain.handle(CHANNELS.MCP_HAS_AUTH, async (event, serverName: unknown): Promise<boolean> => {
+		guard(event);
 		if (typeof serverName !== "string" || !serverName.trim()) return false;
 		return mcpOAuth.hasAuth(serverName.trim());
 	});
 
-	ipcMain.handle(CHANNELS.MCP_AUTH_STATUS, async (_event, serverNames: unknown): Promise<Record<string, boolean>> => {
+	ipcMain.handle(CHANNELS.MCP_AUTH_STATUS, async (event, serverNames: unknown): Promise<Record<string, boolean>> => {
+		guard(event);
 		if (!Array.isArray(serverNames)) return {};
 		const result: Record<string, boolean> = {};
 		for (const name of serverNames) {
@@ -598,23 +630,27 @@ export function registerFsIpc(): () => void {
 		return result;
 	});
 
-	ipcMain.handle(CHANNELS.MCP_GET_SETUP_LOGIN_STATUS, async (_event, serverName: unknown) => {
+	ipcMain.handle(CHANNELS.MCP_GET_SETUP_LOGIN_STATUS, async (event, serverName: unknown) => {
+		guard(event);
 		assertNonEmptyString(serverName, "serverName");
 		return getDesktopMcpSetupLoginService().getStatus(serverName.trim());
 	});
 
-	ipcMain.handle(CHANNELS.MCP_START_SETUP_LOGIN, async (_event, serverName: unknown, requestId: unknown) => {
+	ipcMain.handle(CHANNELS.MCP_START_SETUP_LOGIN, async (event, serverName: unknown, requestId: unknown) => {
+		guard(event);
 		assertNonEmptyString(serverName, "serverName");
 		assertNonEmptyString(requestId, "requestId");
 		return getDesktopMcpSetupLoginService().start(serverName.trim(), requestId.trim());
 	});
 
-	ipcMain.handle(CHANNELS.MCP_CANCEL_SETUP_LOGIN, (_event, requestId: unknown) => {
+	ipcMain.handle(CHANNELS.MCP_CANCEL_SETUP_LOGIN, (event, requestId: unknown) => {
+		guard(event);
 		assertNonEmptyString(requestId, "requestId");
 		return getDesktopMcpSetupLoginService().cancel(requestId.trim());
 	});
 
-	ipcMain.handle(CHANNELS.MCP_CLEAR_SETUP_LOGIN, async (_event, serverName: unknown) => {
+	ipcMain.handle(CHANNELS.MCP_CLEAR_SETUP_LOGIN, async (event, serverName: unknown) => {
+		guard(event);
 		assertNonEmptyString(serverName, "serverName");
 		return getDesktopMcpSetupLoginService().clear(serverName.trim());
 	});

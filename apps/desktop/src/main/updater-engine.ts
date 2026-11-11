@@ -27,8 +27,8 @@ export interface UpdateEngine {
 	onAppReady?(): Promise<void>;
 	checkForUpdates(): Promise<UpdateEngineCheckResult | null>;
 	/**
-	 * `onStaging` 表示传输已结束、进入不再产生 progress 的安装准备阶段
-	 * （macOS 下即 Squirrel.Mac 解包与签名校验），调用方据此改用更长的兜底超时。
+	 * `onStaging` 表示传输已结束、进入本地安装准备阶段（Windows Inno 解包校验、
+	 * macOS Squirrel.Mac 解包验签）；进度事件可能暂停，调用方改用更长的兜底超时。
 	 */
 	downloadUpdate(onProgress: (progress: ProgressInfo) => void, onStaging?: () => void): UpdateEngineDownload;
 	quitAndInstall(): Promise<void>;
@@ -272,6 +272,9 @@ export class ElectronUpdaterEngine implements UpdateEngine {
 				if (!this.useInnoUpdate || !this.innoWindowsUpdate) return downloadedPaths;
 				const installerPath = downloadedPaths[0];
 				if (!installerPath) throw new Error("electron-updater did not return a Windows installer");
+				// Inno expands and validates the downloaded installer into the version store here.
+				// There are no electron-updater progress events during this disk-heavy phase.
+				onStaging?.();
 				console.info("[updater] preparing downloaded Windows version with Inno Setup", installerPath);
 				const preparedPaths = await this.innoWindowsUpdate.prepareDownloadedInstaller(
 					installerPath,

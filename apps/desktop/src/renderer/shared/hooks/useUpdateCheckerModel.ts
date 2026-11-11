@@ -21,6 +21,7 @@ export function useUpdateCheckerModel(): UpdateCheckerViewProps {
 		if (state.phase === "idle")
 			return t(state.latestVersion ? "updateSettings.latestInstalled" : "updateSettings.checkHint");
 		if (state.phase === "downloading") {
+			if (state.preparing) return t("updateSettings.preparingLocal");
 			const description = t("updateSettings.downloadingVersion", {
 				version: state.latestVersion,
 				progress: Math.round((state.progress ?? 0) * 100),
@@ -58,6 +59,7 @@ export function useUpdateCheckerModel(): UpdateCheckerViewProps {
 				download: state.paused ? t("updateSettings.resumeDownload") : t("updaterDownload"),
 				pause: t("updateSettings.pauseDownload"),
 				downloading: (progress) => t("updaterDownloading", { progress }),
+				preparing: t("updateSettings.preparingLocal"),
 				idle: (version) => t("updaterIdle", { version }),
 				newVersion: (version) => t("updaterNewVersion", { version }),
 				restart: t("updaterRestart"),
@@ -96,6 +98,7 @@ export function useUpdateCheckerModel(): UpdateCheckerViewProps {
 				});
 			},
 			phase: state.phase,
+			preparing: state.preparing,
 			progress: state.progress,
 			downloadedBytes: state.downloadedBytes,
 			totalBytes: state.totalBytes,

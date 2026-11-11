@@ -53,9 +53,22 @@ const routes: RelayRoute[] = targets.map((target, index) => ({
 }));
 
 let inputEnabled = false;
+let pointerMode: "absolute" | "relative" = params.get("pointerMode") === "relative" ? "relative" : "absolute";
 window.addEventListener("vetta:remote-desktop:input-permission", (event) => {
-	inputEnabled = (event as CustomEvent<unknown>).detail === true;
-	for (const route of routes) route.host?.setInputEnabled(inputEnabled);
+	const detail = (event as CustomEvent<unknown>).detail;
+	if (typeof detail === "boolean") inputEnabled = detail;
+	else if (
+		detail &&
+		typeof detail === "object" &&
+		"enabled" in detail &&
+		"pointerMode" in detail &&
+		typeof detail.enabled === "boolean" &&
+		["absolute", "relative"].includes(String(detail.pointerMode))
+	) {
+		inputEnabled = detail.enabled;
+		pointerMode = detail.pointerMode === "relative" ? "relative" : "absolute";
+	} else return;
+	for (const route of routes) route.host?.setInputEnabled(inputEnabled, pointerMode);
 });
 
 for (const route of routes) void connectRoute(route);
@@ -146,7 +159,7 @@ async function startHostForRoute(route: RelayRoute, signaling: WebSocketRemoteDe
 		const host = new RemoteDesktopHost(
 			{
 				sessionId: sessionId!,
-				pointerMode: params.get("pointerMode") === "relative" ? "relative" : "absolute",
+				pointerMode,
 				inputEnabled,
 				logger: {
 					debug: (message, fields) => console.debug(message, fields),

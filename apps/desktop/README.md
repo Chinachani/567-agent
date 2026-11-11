@@ -25,6 +25,39 @@ Electron desktop host for the 567 Agent runtime.
 - `src/preload`: safe bridge surface for the renderer
 - `src/renderer`: React application domains and UI
 
+## Windows updates
+
+After an update finishes downloading, the app shows a local preparation stage while Inno Setup
+unpacks and validates the new version. Disk activity can remain high during this stage; the progress
+bar stays busy and restart becomes available only when preparation finishes. Background updates do
+not migrate the data directory. Manual installation can copy data when changing its location and
+keeps the original directory.
+
+New Windows launchers include the 567 Agent icon. Packaged Windows launches also refresh the icon
+of existing app-owned desktop and per-user Start Menu shortcuts, preserving their targets and
+arguments. Deleted, renamed, shared, or unrelated shortcuts are not recreated or changed.
+
+## File and update downloads
+
+File downloads and full update packages share one bounded HTTP Range transport. At most two file
+jobs run at once with up to four segments each. Strong ETags protect file resume; sources without a
+reliable validator or range support use a single stream. Pausing retains the queue slot until old
+requests and file handles stop. Download headers stay in memory with their own task and are stripped
+on cross-origin redirects. Newly downloaded files never replace an independently created destination.
+Retries without a validator restart the file so content from different versions cannot be combined.
+Legacy partial files at their final path are preserved and resumed jobs restart at a free filename.
+
+Electron/Chromium keeps system proxy handling, with an isolated cookie-free download session.
+Repeated redirect discovery is cached briefly per URL and request-header identity. Full updates still
+require the official checksum and retain electron-updater's differential and installation pipeline.
+
+## Remote tablet input
+
+The mobile fullscreen input selector offers tablet taps and a trackpad. Wayland direct taps require
+an identified whole primary monitor plus a matching monitor returned by the user-authorized desktop
+portal. Unknown/window sources remain in trackpad mode; changing display geometry revokes the old
+mapping. No input permission is requested or granted by merely selecting a phone-side input mode.
+
 ## Windows Voice Input
 
 Local streaming voice input is currently available only on Windows x64. The Windows artifact includes

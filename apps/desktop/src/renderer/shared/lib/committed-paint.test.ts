@@ -5,6 +5,7 @@ import { waitForCommittedPaint } from "./committed-paint";
 
 afterEach(() => {
 	vi.restoreAllMocks();
+	vi.unstubAllGlobals();
 });
 
 describe("waitForCommittedPaint", () => {
@@ -58,6 +59,41 @@ describe("waitForCommittedPaint", () => {
 			frames.shift()?.(0);
 			frames.shift()?.(16);
 			await expect(barrier).resolves.toBe("painted");
+		} finally {
+			vi.useRealTimers();
+		}
+	});
+
+	it("finishes against its original window when the renderer environment is removed", async () => {
+		const owner = window;
+		vi.spyOn(document, "visibilityState", "get").mockReturnValue("visible");
+		const schedule = vi.spyOn(owner, "setTimeout");
+		vi.spyOn(owner, "requestAnimationFrame").mockReturnValue(7);
+		const clearTimeout = vi.spyOn(owner, "clearTimeout");
+		const cancelFrame = vi.spyOn(owner, "cancelAnimationFrame");
+		const barrier = waitForCommittedPaint({ timeoutMs: 0 });
+
+		vi.stubGlobal("window", undefined);
+		await expect(barrier).resolves.toBe("timeout");
+		expect(clearTimeout).toHaveBeenCalledWith(schedule.mock.results[0].value);
+		expect(cancelFrame).toHaveBeenCalledWith(7);
+	});
+
+	it("does not schedule more frames after the timeout has released secondary work", async () => {
+		vi.useFakeTimers();
+		try {
+			vi.spyOn(document, "visibilityState", "get").mockReturnValue("visible");
+			let lateFrame: FrameRequestCallback | undefined;
+			const requestFrame = vi.spyOn(window, "requestAnimationFrame").mockImplementation((callback) => {
+				lateFrame = callback;
+				return 7;
+			});
+			const barrier = waitForCommittedPaint();
+			await vi.advanceTimersByTimeAsync(100);
+			await expect(barrier).resolves.toBe("timeout");
+
+			lateFrame?.(116);
+			expect(requestFrame).toHaveBeenCalledTimes(1);
 		} finally {
 			vi.useRealTimers();
 		}

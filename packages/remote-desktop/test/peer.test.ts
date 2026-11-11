@@ -64,14 +64,15 @@ describe("remote desktop host negotiation", () => {
 			);
 		click(1);
 		expect(inputs).toEqual([]);
-		host.setInputEnabled(true);
+		host.setInputEnabled(true, "relative");
 		click(2);
 		expect(inputs).toHaveLength(1);
-		host.setInputEnabled(false);
+		host.setInputEnabled(false, "absolute");
 		click(3);
 		expect(inputs).toHaveLength(1);
 		expect(JSON.parse(String(vi.mocked(peer.channel.send).mock.lastCall?.[0]))).toMatchObject({
 			type: "capabilities",
+			pointerMode: "absolute",
 			inputEnabled: false,
 		});
 		host.close();

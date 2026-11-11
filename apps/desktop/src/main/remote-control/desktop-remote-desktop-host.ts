@@ -174,11 +174,26 @@ export async function startDesktopRemoteDesktopHost(
 		const enabled = input.supported && captureSourceSupportsRemoteInput && (input.granted ?? inputEnabled);
 		void window.webContents
 			.executeJavaScript(
-				`window.dispatchEvent(new CustomEvent("vetta:remote-desktop:input-permission", { detail: ${enabled} }))`,
+				`window.dispatchEvent(new CustomEvent("vetta:remote-desktop:input-permission", { detail: ${JSON.stringify({ enabled, pointerMode: input.pointerMode ?? "absolute" })} }))`,
 			)
 			.catch(() => log.warn("remote input permission update could not be delivered", { sessionId }));
 	};
 	let inputEnabled = false;
+	const invalidateMapping = () => {
+		input.setCaptureTarget?.(undefined);
+		updateInputPermission();
+	};
+	if (input.setCaptureTarget) {
+		screen.on("display-metrics-changed", invalidateMapping);
+		screen.on("display-added", invalidateMapping);
+		screen.on("display-removed", invalidateMapping);
+	}
+	const detachDisplayMapping = () => {
+		if (!input.setCaptureTarget) return;
+		screen.removeListener("display-metrics-changed", invalidateMapping);
+		screen.removeListener("display-added", invalidateMapping);
+		screen.removeListener("display-removed", invalidateMapping);
+	};
 	const unsubscribeInput = input.onGrantedChange?.(updateInputPermission);
 	const pendingCapture = new Set<() => void>();
 	try {
@@ -306,6 +321,12 @@ export async function startDesktopRemoteDesktopHost(
 					return;
 				}
 				captureSourceSelected = true;
+				const primaryDisplay = screen.getPrimaryDisplay();
+				input.setCaptureTarget?.(
+					source.id.startsWith("screen:") && source.display_id === primaryDisplayId
+						? primaryDisplay.bounds
+						: undefined,
+				);
 				captureSourceSupportsRemoteInput =
 					input.pointerMode === "relative" ||
 					(source.id.startsWith("screen:") && source.display_id === primaryDisplayId);
@@ -348,6 +369,7 @@ export async function startDesktopRemoteDesktopHost(
 	} catch (error) {
 		input.setEnabled(false);
 		unsubscribeInput?.();
+		detachDisplayMapping();
 		unregisterVideoPermission();
 		unregisterHostMediaPermissions();
 		window.webContents.removeListener("certificate-error", onCertificateError);
@@ -361,7 +383,9 @@ export async function startDesktopRemoteDesktopHost(
 
 	const handle: DesktopRemoteDesktopHostHandle = {
 		sessionId,
-		inputPointerMode: input.pointerMode ?? "absolute",
+		get inputPointerMode() {
+			return input.pointerMode ?? "absolute";
+		},
 		get inputGranted() {
 			return input.granted ?? true;
 		},
@@ -398,6 +422,7 @@ export async function startDesktopRemoteDesktopHost(
 			if (stopped) return;
 			stopped = true;
 			unsubscribeInput?.();
+			detachDisplayMapping();
 			for (const deny of pendingCapture) deny();
 			input.setEnabled(false);
 			unregisterVideoPermission();

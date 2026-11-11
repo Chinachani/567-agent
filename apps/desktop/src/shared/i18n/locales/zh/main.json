@@ -157,5 +157,11 @@
   },
   "skills": {
     "retiredNameConflict": "“{{name}}”与保留的旧场景同名，操作已停止，原文件和记录未更改。请使用不同名称的技能。"
+  },
+  "downloads": {
+    "invalidUrl": "下载地址必须是有效的 HTTP 或 HTTPS 地址。",
+    "invalidFilename": "下载文件名无效，请更换文件名。",
+    "destinationExists": "目标位置已出现同名文件，请更换文件名或保存位置。",
+    "failed": "下载失败，请检查网络和下载地址后重试。"
   }
 }

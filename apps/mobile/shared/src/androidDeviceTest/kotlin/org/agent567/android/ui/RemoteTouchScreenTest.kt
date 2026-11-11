@@ -7,6 +7,7 @@ import androidx.compose.ui.test.junit4.v2.createAndroidComposeRule
 import androidx.compose.foundation.layout.size
 import androidx.compose.material3.Button
 import androidx.compose.material3.Text
+import org.agent567.android.ui.i18n.Str
 import androidx.compose.runtime.*
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.geometry.Offset
@@ -65,6 +66,29 @@ class RemoteTouchScreenTest {
         composeRule.onNodeWithText("展开操控栏 ▾").performClick()
         composeRule.onNodeWithText("退出全屏").performScrollTo().performClick()
         composeRule.runOnIdle { assertTrue(exited) }
+    }
+
+    @Test fun userSwitchesFromTrackpadToTabletAndTapsTheContentPosition() {
+        var direct by mutableStateOf(false)
+        composeRule.setContent {
+            androidx.compose.foundation.layout.Column {
+                RemoteFullscreenToolbar(false, direct, false, "5 ms", "", {}, { direct = it }, {}, {})
+                RemoteTouchLayer(1920, 1080, transform, { transform = it },
+                    { type, position, button, action -> inputs += Input(type, position, button, action) },
+                    { x, y -> scrolls += x to y }, { _, _ -> }, Modifier.size(400.dp, 300.dp).testTag("tablet"),
+                    trackpadMode = !direct, onRelativePointer = { x, y -> relativeMoves += x to y })
+            }
+        }
+        composeRule.onNodeWithText(Str.remoteExpandControls).performClick()
+        composeRule.onNodeWithText(Str.remoteTrackpad).performClick()
+        composeRule.onNodeWithText("${Str.remoteTouch} · ${Str.remoteTouchOption}").assertIsEnabled().performClick()
+        composeRule.onNodeWithTag("tablet").performTouchInput { click(Offset(width * .75f, centerY)) }
+        composeRule.runOnIdle {
+            assertTrue(direct)
+            assertEquals(listOf("down", "up"), inputs.map { it.action })
+            assertTrue(inputs.first().position.x in .74f.. .76f)
+            assertTrue(relativeMoves.isEmpty())
+        }
     }
 
     @Test fun keyboardShortcutsSendOrderedPressAndReleaseEvents() {
@@ -141,7 +165,7 @@ class RemoteTouchScreenTest {
         composeRule.onNodeWithText("展开操控栏 ▾").performClick()
         composeRule.onNodeWithText("触控板").performClick()
         composeRule.onNodeWithText(org.agent567.android.ui.i18n.Str.remoteDirectUnavailable).assertIsDisplayed()
-        composeRule.onNodeWithText("直接触控 · 点击画面位置，直接操作对应内容").assertIsNotEnabled()
+        composeRule.onNodeWithText("${Str.remoteTouch} · ${Str.remoteTouchOption}").assertIsNotEnabled()
     }
 
     @Test fun threeFingerPanMovesOnlyTheZoomedView() {
@@ -162,8 +186,8 @@ class RemoteTouchScreenTest {
         composeRule.setContent { RemoteFullscreenToolbar(false, direct, false, "5 ms", "", {}, { direct = it }, {}, {}) }
         composeRule.onNodeWithText("展开操控栏 ▾").performClick()
         composeRule.onNodeWithText("触控板").performClick()
-        composeRule.onNodeWithText("直接触控 · 点击画面位置，直接操作对应内容").performClick()
-        composeRule.onNodeWithText("直接触控").assertIsDisplayed()
+        composeRule.onNodeWithText("${Str.remoteTouch} · ${Str.remoteTouchOption}").performClick()
+        composeRule.onNodeWithText(Str.remoteTouch).assertIsDisplayed()
         composeRule.runOnIdle { assertTrue(direct) }
     }
 

@@ -88,12 +88,13 @@ function sameWidthMode(a: ActivityPanelWidthMode, b: ActivityPanelWidthMode): bo
 }
 
 const initialWidthMode = readPersistedWidthMode();
+const initialViewportWidth = typeof window === "undefined" ? 1280 : window.innerWidth;
 
 /** Internal primitive stores; public API is {@link activityPanelWidthAtom} / {@link activityPanelWidthModeAtom}. */
 const activityPanelWidthModeBaseAtom = atom<ActivityPanelWidthMode>(initialWidthMode);
-const activityPanelWidthBaseAtom = atom(resolveActivityPanelWidth(initialWidthMode, window.innerWidth));
+const activityPanelWidthBaseAtom = atom(resolveActivityPanelWidth(initialWidthMode, initialViewportWidth));
 const activityPanelPreviewAvailableBaseAtom = atom(
-	resolveActivityPanelWidth(initialWidthMode, window.innerWidth) >= ACTIVITY_PANEL_PREVIEW_MIN_WIDTH,
+	resolveActivityPanelWidth(initialWidthMode, initialViewportWidth) >= ACTIVITY_PANEL_PREVIEW_MIN_WIDTH,
 );
 
 /**
@@ -115,7 +116,7 @@ export const activityPanelWidthModeAtom = atom((get) => get(activityPanelWidthMo
 /** 同时更新意图与解析后的像素宽度；夹紧在此统一完成。 */
 function applyWidthMode(get: Getter, set: Setter, mode: ActivityPanelWidthMode, persist: boolean): void {
 	if (!sameWidthMode(get(activityPanelWidthModeBaseAtom), mode)) set(activityPanelWidthModeBaseAtom, mode);
-	const next = resolveActivityPanelWidth(mode, window.innerWidth);
+	const next = resolveActivityPanelWidth(mode, typeof window === "undefined" ? 1280 : window.innerWidth);
 	if (next !== get(activityPanelWidthBaseAtom)) set(activityPanelWidthBaseAtom, next);
 	set(syncActivityPanelPreviewAvailabilityAtom, next);
 	if (persist) persistWidthMode(mode);

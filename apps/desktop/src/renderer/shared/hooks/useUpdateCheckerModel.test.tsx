@@ -44,4 +44,19 @@ describe("useUpdateCheckerModel", () => {
 		expect(globalPreview.name).toBe("v1.1.0_changelog.md");
 		expect(globalPreview.url).toMatch(/^blob:/);
 	});
+	it("maps local preparation to the visible update status instead of stale network speed", () => {
+		const { result } = renderHook(() => ({ setState: useSetAtom(updaterStateAtom), model: useUpdateCheckerModel() }));
+		act(() =>
+			result.current.setState({
+				phase: "downloading",
+				currentVersion: "1.5.7",
+				preparing: true,
+				progress: 0.9,
+				bytesPerSecond: 12_000_000,
+			}),
+		);
+		expect(result.current.model.preparing).toBe(true);
+		expect(result.current.model.statusText).toBe(result.current.model.labels.preparing);
+		expect(result.current.model.statusText).not.toContain("MB");
+	});
 });

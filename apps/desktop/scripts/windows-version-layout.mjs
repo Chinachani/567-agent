@@ -56,25 +56,38 @@ export async function createWindowsVersionLayout(appOutDir, version, launcherPat
 export function buildWindowsLauncher({ arch, outputPath, sourceDir }) {
 	const goArch = GO_ARCH_BY_ELECTRON_ARCH[arch];
 	if (!goArch) throw new Error(`[windows-version-layout] unsupported architecture: ${arch}`);
-	execFileSync(process.platform === "win32" ? "go.exe" : "go", [
-		"build",
-		"-trimpath",
-		"-ldflags",
-		"-H=windowsgui -s -w",
-		"-o",
-		outputPath,
-		"main.go",
-		"data_root_windows.go",
-	], {
-		cwd: sourceDir,
-		env: {
-			...process.env,
-			CGO_ENABLED: "0",
-			GOARCH: goArch,
-			GOOS: "windows",
+	execFileSync(
+		process.platform === "win32" ? "go.exe" : "go",
+		["build", "-trimpath", "-ldflags", "-H=windowsgui -s -w", "-o", outputPath, "main.go", "data_root_windows.go"],
+		{
+			cwd: sourceDir,
+			env: {
+				...process.env,
+				CGO_ENABLED: "0",
+				GOARCH: goArch,
+				GOOS: "windows",
+			},
+			stdio: "inherit",
 		},
-		stdio: "inherit",
+	);
+}
+
+let launcherSigning = Promise.resolve();
+
+export function editAndSignWindowsLauncher(context, launcherPath) {
+	const signing = launcherSigning.then(async () => {
+		const previous = process.env.ELECTRON_BUILDER_DISABLE_BUILD_CACHE;
+		// electron-builder's executable cache does not hash this freshly built Go binary.
+		process.env.ELECTRON_BUILDER_DISABLE_BUILD_CACHE = "1";
+		try {
+			await context.packager.signAndEditResources(launcherPath, context.arch, context.outDir, "567-Agent");
+		} finally {
+			if (previous === undefined) delete process.env.ELECTRON_BUILDER_DISABLE_BUILD_CACHE;
+			else process.env.ELECTRON_BUILDER_DISABLE_BUILD_CACHE = previous;
+		}
 	});
+	launcherSigning = signing.catch(() => {});
+	return signing;
 }
 
 export default async function windowsVersionLayout(context) {
@@ -85,6 +98,9 @@ export default async function windowsVersionLayout(context) {
 	const launcherPath = join(context.appOutDir, "VettaLauncher.exe");
 	const sourceDir = join(import.meta.dirname, "..", "native", "windows-launcher");
 	buildWindowsLauncher({ arch, outputPath: launcherPath, sourceDir });
+	// Shortcuts launch this Go bootstrapper, not the branded Electron binary.
+	// Reuse the packager's resource editor/signing pipeline for both executables.
+	await editAndSignWindowsLauncher(context, launcherPath);
 	await createWindowsVersionLayout(context.appOutDir, version, launcherPath);
 	console.log(`[windows-version-layout] staged version ${version} (${arch})`);
 }

@@ -19,6 +19,8 @@ export type UpdaterPhase = "idle" | "checking" | "available" | "downloading" | "
 
 export interface UpdaterState {
 	phase: UpdaterPhase;
+	/** The downloaded package is being unpacked and prepared locally. */
+	preparing?: boolean;
 	paused?: boolean;
 	showReminder?: boolean;
 	currentVersion: string;
@@ -99,6 +101,7 @@ export class UpdaterService {
 		this.state = {
 			showReminder: this.preferences.showReminder,
 			phase: "idle",
+			preparing: false,
 			currentVersion,
 		};
 		this.autoDownloadDelayMs = options.autoDownloadDelayMs ?? DEFAULT_AUTO_DOWNLOAD_DELAY_MS;
@@ -186,6 +189,7 @@ export class UpdaterService {
 		if (!this.isPackaged) {
 			this.setState({
 				phase: "error",
+				preparing: false,
 				error: this.translate("updater.errors.developmentUnsupported"),
 			});
 			return this.getState();
@@ -198,6 +202,7 @@ export class UpdaterService {
 			if (!result) {
 				this.setState({
 					phase: "error",
+					preparing: false,
 					error: this.translate("updater.errors.configurationUnavailable"),
 				});
 				return this.getState();
@@ -207,6 +212,7 @@ export class UpdaterService {
 				this.latestInfo = null;
 				this.setState({
 					phase: "idle",
+					preparing: false,
 					latestVersion: result.info.version,
 					releaseNote: result.info.releaseNote,
 					progress: undefined,
@@ -222,6 +228,7 @@ export class UpdaterService {
 			this.autoDownloadAttempts = 0;
 			this.setState({
 				phase: "available",
+				preparing: false,
 				latestVersion: result.info.version,
 				releaseNote: result.info.releaseNote,
 				assetFileName: result.info.assetFileName,
@@ -236,6 +243,7 @@ export class UpdaterService {
 			console.error("[updater] check failed", error);
 			this.setState({
 				phase: "error",
+				preparing: false,
 				error: this.translate("updater.errors.checkFailed"),
 			});
 		}
@@ -272,6 +280,7 @@ export class UpdaterService {
 
 		this.setState({
 			phase: "downloading",
+			preparing: false,
 			paused: false,
 			progress: 0,
 			downloadedBytes: 0,
@@ -305,7 +314,10 @@ export class UpdaterService {
 			void settlement.then(() => {
 				if (this.downloadSettlement === settlement) this.downloadSettlement = null;
 			});
-			this.resetDownloadStallTimer(download);
+			this.resetDownloadStallTimer(
+				download,
+				this.state.preparing ? this.stagingTimeoutMs : this.downloadStallTimeoutMs,
+			);
 			const paths = await download.promise;
 			if (!isCurrent() || this.activeDownload !== download) return this.getState();
 			const downloadedPath = paths.at(-1);
@@ -313,6 +325,7 @@ export class UpdaterService {
 			this.activeDownload = null;
 			this.setState({
 				phase: "ready",
+				preparing: false,
 				progress: 1,
 				downloadedBytes: this.state.totalBytes,
 				assetFileName: downloadedPath ? basename(downloadedPath) : this.state.assetFileName,
@@ -326,6 +339,7 @@ export class UpdaterService {
 			if (auto) {
 				this.setState({
 					phase: "available",
+					preparing: false,
 					progress: undefined,
 					downloadedBytes: undefined,
 					error: undefined,
@@ -333,6 +347,7 @@ export class UpdaterService {
 			} else {
 				this.setState({
 					phase: "error",
+					preparing: false,
 					error: this.translate("updater.errors.downloadFailed"),
 				});
 			}
@@ -342,13 +357,14 @@ export class UpdaterService {
 
 	async install(): Promise<void> {
 		if (this.disposed || this.state.phase !== "ready") return;
-		this.setState({ phase: "installing" });
+		this.setState({ phase: "installing", preparing: false });
 		try {
 			await this.engine.quitAndInstall();
 		} catch (error) {
 			console.error("[updater] install failed", error);
 			this.setState({
 				phase: "error",
+				preparing: false,
 				error: this.translate("updater.errors.installFailed"),
 			});
 		}
@@ -367,7 +383,7 @@ export class UpdaterService {
 		const download = this.activeDownload;
 		this.activeDownload = null;
 		download?.cancel();
-		this.setState({ phase: "available", paused: true, error: undefined });
+		this.setState({ phase: "available", preparing: false, paused: true, error: undefined });
 	}
 
 	cancel(): void {
@@ -383,6 +399,7 @@ export class UpdaterService {
 		this.latestInfo = null;
 		this.setState({
 			phase: "idle",
+			preparing: false,
 			paused: false,
 			latestVersion: undefined,
 			releaseNote: undefined,
@@ -447,7 +464,17 @@ export class UpdaterService {
 			progress.total < 0
 		)
 			return;
-		if (this.activeDownload) this.resetDownloadStallTimer(this.activeDownload);
+		// Inno polls the same file progress while validation is busy. Repeated
+		// samples must not extend the bounded preparation timeout forever.
+		const advanced =
+			progress.percent / 100 > (this.state.progress ?? 0) ||
+			progress.transferred > (this.state.downloadedBytes ?? 0);
+		if (this.activeDownload && (!this.state.preparing || advanced)) {
+			this.resetDownloadStallTimer(
+				this.activeDownload,
+				this.state.preparing ? this.stagingTimeoutMs : this.downloadStallTimeoutMs,
+			);
+		}
 		const now = Date.now();
 		if (now - this.lastProgressEmitAt < 250 && progress.transferred < progress.total) return;
 		this.lastProgressEmitAt = now;
@@ -461,12 +488,13 @@ export class UpdaterService {
 		this.emit();
 	}
 
-	// 安装准备阶段没有进度事件，进度停在引擎给出的最后一个网络值（90%），
-	// 与 Windows 的 Inno 阶段语义一致；这里只把停滞超时换成更长的兜底。
+	// Local preparation can go quiet while unpacking/validating files. Windows also
+	// reports local file progress, which must keep the longer staging timeout.
 	private onStaging(): void {
 		const download = this.activeDownload;
-		if (!download || this.state.phase !== "downloading") return;
-		this.resetDownloadStallTimer(download, this.stagingTimeoutMs);
+		if (this.state.phase !== "downloading") return;
+		this.setState({ preparing: true, bytesPerSecond: 0 });
+		if (download) this.resetDownloadStallTimer(download, this.stagingTimeoutMs);
 	}
 
 	private scheduleAutoDownload(delayMs: number): void {
@@ -504,6 +532,7 @@ export class UpdaterService {
 			download.cancel();
 			this.setState({
 				phase: "error",
+				preparing: false,
 				progress: undefined,
 				downloadedBytes: undefined,
 				error: this.translate("updater.errors.downloadFailed"),

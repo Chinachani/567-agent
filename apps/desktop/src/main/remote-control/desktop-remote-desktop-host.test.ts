@@ -8,6 +8,7 @@ const os = vi.hoisted(() => ({
 	consent: vi.fn(),
 	sources: vi.fn(),
 	enabled: vi.fn(),
+	captureTarget: vi.fn(),
 	warn: vi.fn(),
 	parent: undefined as { isDestroyed(): boolean; isVisible(): boolean } | undefined,
 	remember: vi.fn(),
@@ -29,7 +30,9 @@ vi.mock("electron", async () => {
 		BrowserWindow: Window,
 		ipcMain: new EventEmitter(),
 		dialog: { showMessageBox: os.consent },
-		screen: { getPrimaryDisplay: () => ({ id: 1 }) },
+		screen: Object.assign(new EventEmitter(), {
+			getPrimaryDisplay: () => ({ id: 1, bounds: { x: 0, y: 0, width: 1920, height: 1080 } }),
+		}),
 		webContents: { fromFrame: () => ({ id: 10 }) },
 		session: {
 			fromPartition: () => ({
@@ -46,7 +49,12 @@ vi.mock("electron", async () => {
 vi.mock("../window-manager.js", () => ({ getMainWindow: () => os.parent }));
 vi.mock("../logger.js", () => ({ getAppLogger: () => ({ info: vi.fn(), warn: os.warn }) }));
 vi.mock("./system-input.js", () => ({
-	createSystemInputAdapter: () => ({ supported: true, setEnabled: os.enabled, apply: vi.fn() }),
+	createSystemInputAdapter: () => ({
+		supported: true,
+		setEnabled: os.enabled,
+		setCaptureTarget: os.captureTarget,
+		apply: vi.fn(),
+	}),
 }));
 
 import { type DesktopRemoteDesktopHostHandle, startDesktopRemoteDesktopHost } from "./desktop-remote-desktop-host.js";
@@ -91,6 +99,7 @@ it("denies capture with an empty result and still accepts a later explicit reque
 	expect(os.sources).not.toHaveBeenCalled();
 	expect(host!.inputSupported).toBe(false);
 	expect((await capture())?.video).toBe(source);
+	expect(os.captureTarget).toHaveBeenLastCalledWith({ x: 0, y: 0, width: 1920, height: 1080 });
 });
 it("handles portal rejection and expired native callbacks without an unhandled rejection or double callback", async () => {
 	os.consent.mockResolvedValue({ response: 0 });

@@ -2,7 +2,7 @@ import { randomUUID } from "node:crypto";
 import type { RemoteInputMessage } from "@567agent/remote-desktop";
 import { type ClientInterface, Message, type MessageBus, sessionBus, Variant } from "dbus-next";
 import { getAppLogger } from "../logger.js";
-import type { SystemInputAdapter } from "./system-input.js";
+import type { RemoteCaptureTarget, SystemInputAdapter } from "./system-input.js";
 import { waylandKeycode } from "./wayland-keycode.js";
 
 const destination = "org.freedesktop.portal.Desktop";
@@ -15,10 +15,14 @@ interface Portal extends ClientInterface {
 	CreateSession(options: Options): Promise<string>;
 	SelectDevices(session: string, options: Options): Promise<string>;
 	Start(session: string, parent: string, options: Options): Promise<string>;
+	NotifyPointerMotionAbsolute(session: string, options: Options, stream: number, x: number, y: number): Promise<void>;
 	NotifyPointerMotion(session: string, options: Options, dx: number, dy: number): Promise<void>;
 	NotifyPointerButton(session: string, options: Options, button: number, state: number): Promise<void>;
 	NotifyPointerAxis(session: string, options: Options, dx: number, dy: number): Promise<void>;
 	NotifyKeyboardKeycode(session: string, options: Options, keysym: number, state: number): Promise<void>;
+}
+interface ScreenCastPortal extends ClientInterface {
+	SelectSources(session: string, options: Options): Promise<string>;
 }
 interface BusControl extends ClientInterface {
 	AddMatch(rule: string): Promise<void>;
@@ -39,8 +43,15 @@ interface PortalInputState {
 	queue: Promise<void>;
 	queued: number;
 	scrollEnd?: ReturnType<typeof setTimeout>;
+	absolute?: { stream: number; width: number; height: number };
 }
 const log = getAppLogger("wayland-input");
+
+class PortalResponseError extends Error {
+	constructor(readonly responseCode: unknown) {
+		super(responseCode === 1 ? "Remote input permission was cancelled" : "Remote input request failed");
+	}
+}
 
 /** Uses the compositor's consent flow. XTest cannot control native Wayland windows. */
 export function createWaylandInputAdapter(
@@ -48,6 +59,7 @@ export function createWaylandInputAdapter(
 	writeText?: (text: string) => void,
 ): SystemInputAdapter {
 	let current: PortalInputState | undefined;
+	let captureTarget: RemoteCaptureTarget | undefined;
 	const listeners = new Set<(granted: boolean) => void>();
 	const notify = (granted: boolean) => {
 		for (const listener of listeners) listener(granted);
@@ -66,7 +78,14 @@ export function createWaylandInputAdapter(
 		get granted() {
 			return Boolean(current?.portal);
 		},
-		pointerMode: "relative",
+		get pointerMode() {
+			return current?.absolute ? "absolute" : "relative";
+		},
+		setCaptureTarget(target) {
+			if (JSON.stringify(target) === JSON.stringify(captureTarget)) return;
+			disable();
+			captureTarget = target;
+		},
 		onGrantedChange(listener) {
 			listeners.add(listener);
 			return () => listeners.delete(listener);
@@ -104,28 +123,79 @@ export function createWaylandInputAdapter(
 					const persistent = version instanceof Variant && typeof version.value === "number" && version.value >= 2;
 					const request = (invoke: (options: Options) => Promise<string>, options: Options = {}) =>
 						portalRequest(state.bus, owner, state.abort.signal, invoke, options);
-					const created = await request((options) => portal.CreateSession(options), {
-						session_handle_token: new Variant("s", token()),
-					});
-					const session = created.session_handle?.value;
-					if (
-						typeof session !== "string" ||
-						!/^\/org\/freedesktop\/portal\/desktop\/session\/[A-Za-z0-9_/]+$/.test(session)
-					)
-						throw new Error("Invalid remote input session");
-					state.session = session;
 					let saved: string | undefined;
 					try {
 						saved = persistent ? tokens?.read() : undefined;
 					} catch {
 						log.warn("Could not read remembered Wayland input permission; requesting consent");
 					}
-					await request((options) => portal.SelectDevices(session, options), {
-						types: new Variant("u", 3),
-						...(persistent ? { persist_mode: new Variant("u", 2) } : {}),
-						...(saved ? { restore_token: new Variant("s", saved) } : {}),
-					});
-					const started = await request((options) => portal.Start(session, "", options));
+					const openSession = async (): Promise<string> => {
+						const created = await request((options) => portal.CreateSession(options), {
+							session_handle_token: new Variant("s", token()),
+						});
+						const session = created.session_handle?.value;
+						if (
+							typeof session !== "string" ||
+							!/^\/org\/freedesktop\/portal\/desktop\/session\/[A-Za-z0-9_/]+$/.test(session)
+						)
+							throw new Error("Invalid remote input session");
+						state.session = session;
+						await request((options) => portal.SelectDevices(session, options), {
+							types: new Variant("u", 3),
+							...(persistent ? { persist_mode: new Variant("u", 2) } : {}),
+							...(saved ? { restore_token: new Variant("s", saved) } : {}),
+						});
+						return session;
+					};
+					let session = await openSession();
+					const retryRelative = async () => {
+						if (current !== state || state.abort.signal.aborted) throw new Error("Remote input was revoked");
+						await state.bus
+							.call(
+								new Message({
+									destination,
+									path: session,
+									interface: "org.freedesktop.portal.Session",
+									member: "Close",
+								}),
+							)
+							.catch(() => undefined);
+						log.info("Wayland monitor mapping unavailable; requesting relative input only");
+						session = await openSession();
+					};
+					// Absolute input is only meaningful for a compositor stream matching
+					// the host-confirmed captured monitor, never an arbitrary window.
+					let target = captureTarget;
+					if (target) {
+						try {
+							const screencast = (
+								await state.bus.getProxyObject(destination, path)
+							).getInterface<ScreenCastPortal>("org.freedesktop.portal.ScreenCast");
+							await request((options) => screencast.SelectSources(session, options), {
+								types: new Variant("u", 1),
+								multiple: new Variant("b", false),
+							});
+						} catch {
+							target = undefined;
+							await retryRelative();
+						}
+					}
+					let started: Results;
+					try {
+						started = await request((options) => portal.Start(session, "", options));
+					} catch (error) {
+						const unsupported =
+							(error instanceof PortalResponseError && error.responseCode === 2) ||
+							(error instanceof Error &&
+								"type" in error &&
+								/\.(UnknownMethod|NotSupported)$/.test(String(error.type)));
+						// Explicit cancellation of input consent must never start another consent attempt.
+						if (!target || !unsupported) throw error;
+						target = undefined;
+						await retryRelative();
+						started = await request((options) => portal.Start(session, "", options));
+					}
+					if (target) state.absolute = matchPortalMonitor(started.streams?.value, target);
 					if (current !== state || state.abort.signal.aborted) throw new Error("Remote input was revoked");
 					const devices = started.devices?.value;
 					if (typeof devices !== "number" || (devices & 3) !== 3)
@@ -172,7 +242,7 @@ export function createWaylandInputAdapter(
 			state.queue = state.queue
 				.then(async () => {
 					if (current !== state || !state.portal || !state.session) return;
-					await inject(state.portal, state.session, message, () => current === state, writeText);
+					await inject(state.portal, state.session, message, () => current === state, writeText, state.absolute);
 					if (message.type === "pointer.scroll") {
 						clearTimeout(state.scrollEnd);
 						state.scrollEnd = setTimeout(() => {
@@ -251,7 +321,7 @@ async function portalRequest(
 				return;
 			const [code, value]: unknown[] = message.body;
 			if (code !== 0) {
-				finish(new Error("Remote input permission was cancelled"));
+				finish(new PortalResponseError(code));
 				return;
 			}
 			if (
@@ -286,7 +356,18 @@ async function inject(
 	message: RemoteInputMessage,
 	active: () => boolean,
 	writeText?: (text: string) => void,
+	absolute?: { stream: number; width: number; height: number },
 ): Promise<void> {
+	if (absolute && (message.type === "pointer.move" || message.type === "pointer.button")) {
+		await portal.NotifyPointerMotionAbsolute(
+			session,
+			{},
+			absolute.stream,
+			message.x * Math.max(0, absolute.width - 1),
+			message.y * Math.max(0, absolute.height - 1),
+		);
+		if (!active()) return;
+	}
 	if (message.type === "pointer.relative")
 		await portal.NotifyPointerMotion(session, {}, message.deltaX, message.deltaY);
 	else if (message.type === "pointer.button")
@@ -345,4 +426,22 @@ function abortable<T>(signal: AbortSignal, operation: Promise<T>): Promise<T> {
 			},
 		);
 	});
+}
+
+/** Never infer a monitor from dimensions alone: origin, size and a single stream must agree. */
+function matchPortalMonitor(value: unknown, target: RemoteCaptureTarget): PortalInputState["absolute"] {
+	if (!Array.isArray(value) || value.length !== 1) return undefined;
+	const stream: unknown = value[0];
+	if (!Array.isArray(stream) || stream.length !== 2) return undefined;
+	const [id, properties]: unknown[] = stream;
+	if (!Number.isSafeInteger(id) || Number(id) <= 0 || !properties || typeof properties !== "object") return undefined;
+	const props = properties as Record<string, unknown>;
+	const position = props.position instanceof Variant ? props.position.value : undefined;
+	const size = props.size instanceof Variant ? props.size.value : undefined;
+	const type = props.source_type instanceof Variant ? props.source_type.value : undefined;
+	if (type !== 1 || !Array.isArray(position) || !Array.isArray(size) || position.length !== 2 || size.length !== 2)
+		return undefined;
+	if (position[0] !== target.x || position[1] !== target.y || size[0] !== target.width || size[1] !== target.height)
+		return undefined;
+	return { stream: Number(id), width: target.width, height: target.height };
 }

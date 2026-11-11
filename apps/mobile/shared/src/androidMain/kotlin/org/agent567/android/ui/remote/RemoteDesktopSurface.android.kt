@@ -1,9 +1,12 @@
 package org.agent567.android.ui.remote
 
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.focus.FocusRequester
@@ -31,13 +34,19 @@ import org.agent567.android.ui.i18n.Str
 import kotlin.math.roundToInt
 
 @Composable
-actual fun RemoteDesktopSurface(target: String, modifier: Modifier) {
+actual fun RemoteDesktopSurface(
+    target: String,
+    modifier: Modifier,
+    onExit: () -> Unit,
+    onStateChange: (RemotePreviewPhase) -> Unit,
+) {
     val context = LocalContext.current
     // The session survives preview/fullscreen transitions; only the video sink moves.
     var attempt by remember(target) { mutableIntStateOf(0) }
     var exited by remember(target) { mutableStateOf(false) }
     val session = remember(target, attempt) { NativeRemoteDesktopSession(context.applicationContext, target) }
     val captureMessage by session.captureMessage.collectAsState()
+    val hasVideoFrame by session.hasVideoFrame.collectAsState()
     val connectionDetails by session.connectionDetails.collectAsState()
     val stats by session.streamStats.collectAsState()
     val textInputSupported by session.textInputSupported.collectAsState()
@@ -46,7 +55,7 @@ actual fun RemoteDesktopSurface(target: String, modifier: Modifier) {
     var fullscreen by remember(target) { mutableStateOf(false) }
     var keyboardOpen by remember(target) { mutableStateOf(false) }
     var remoteText by remember(target) { mutableStateOf("") }
-    var directTouch by remember(target) { mutableStateOf(true) }
+    var directTouch by rememberSaveable(target) { mutableStateOf(true) }
     var transform by remember(target) { mutableStateOf(RemoteViewTransform()) }
     val textFocusRequester = remember { FocusRequester() }
     val keyboardController = LocalSoftwareKeyboardController.current
@@ -66,15 +75,25 @@ actual fun RemoteDesktopSurface(target: String, modifier: Modifier) {
     }
     fun closeFullscreen() { keyboardOpen = false; keyboardController?.hide(); fullscreen = false }
     fun retry() { exited = false; keyboardOpen = false; transform = RemoteViewTransform(); attempt++ }
-    fun exit() { closeFullscreen(); exited = true; session.stop() }
+    fun exit() { closeFullscreen(); exited = true; session.stop(); onExit() }
     val visibleMessage = if (exited) Str.remoteExited else captureMessage
+    val phase = remotePreviewPhase(visibleMessage, hasVideoFrame)
+    val reportState by rememberUpdatedState(onStateChange)
+    LaunchedEffect(phase) { reportState(phase) }
 
-    Column(modifier) {
-        if (!fullscreen) key(session) { RemoteCanvas(session, stats, false, visibleMessage, Modifier.fillMaxWidth().weight(1f), onRetry = ::retry, onExit = ::exit) }
-        else Box(Modifier.fillMaxWidth().weight(1f).background(MaterialTheme.colorScheme.surfaceContainerLow), contentAlignment = Alignment.Center) { Text(Str.remoteDesktopFullscreen) }
-        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
-            Text(stats?.roundTripMs?.let { "${it.roundToInt()} ms" } ?: Str.desktopPreview, style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
-            TextButton(enabled = !exited, onClick = { transform = RemoteViewTransform(); fullscreen = true }) { Text(Str.remoteDesktopFullscreen, maxLines = 1) }
+    RemoteDesktopPreview(
+        phase = phase,
+        message = visibleMessage,
+        modifier = modifier,
+        latency = stats?.roundTripMs?.let { "${it.roundToInt()} ms" },
+        onRetry = ::retry,
+        onClose = ::exit,
+        onFullscreen = { transform = RemoteViewTransform(); fullscreen = true },
+    ) {
+        if (!fullscreen) key(session) {
+            RemoteCanvas(session, stats, false, null, Modifier.fillMaxSize())
+        } else Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+            Text(Str.remoteDesktopFullscreen)
         }
     }
     if (fullscreen) {
@@ -116,9 +135,11 @@ actual fun RemoteDesktopSurface(target: String, modifier: Modifier) {
 
 @Composable
 private fun RemoteCanvas(session: NativeRemoteDesktopSession, stats: RemoteStreamStats?, interactive: Boolean, message: String?, modifier: Modifier, transform: RemoteViewTransform = RemoteViewTransform(), onTransform: (RemoteViewTransform) -> Unit = {}, relativePointer: Boolean = false, directTouch: Boolean = true, onRetry: () -> Unit = {}, onExit: () -> Unit = {}) {
-    if (message == Str.remoteExited) {
-        Box(modifier.background(Color.Black), contentAlignment = Alignment.Center) {
-            RemoteCaptureRecoveryCard(message, onRetry, onExit)
+    if (message != null && message != Str.remoteCaptureWaiting) {
+        Surface(modifier, color = MaterialTheme.colorScheme.surfaceContainerLow) {
+            Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                RemoteCaptureRecoveryCard(message, onRetry, onExit, Modifier.verticalScroll(rememberScrollState()), compact = !interactive)
+            }
         }
         return
     }
@@ -132,7 +153,7 @@ private fun RemoteCanvas(session: NativeRemoteDesktopSession, stats: RemoteStrea
         val fit = fitRemoteVideo(viewport.width, viewport.height, frameWidth, frameHeight)
         session.updateViewport((fit.width * transform.scale).roundToInt(), (fit.height * transform.scale).roundToInt())
     }
-    Box(modifier.background(Color.Black).clipToBounds().onSizeChanged {
+    Box(modifier.background(if (message == null) Color.Black else MaterialTheme.colorScheme.surfaceContainerLow).clipToBounds().onSizeChanged {
         viewport = it
         if (interactive) onTransform(transformRemoteView(transform, 1f, it.width / 2f, it.height / 2f, 0f, 0f, it.width, it.height, frameWidth, frameHeight))
     }, contentAlignment = Alignment.Center) {
@@ -168,7 +189,7 @@ private fun RemoteCanvas(session: NativeRemoteDesktopSession, stats: RemoteStrea
         )
         message?.let {
             if (it == Str.remoteCaptureWaiting) Text(it, Modifier.padding(16.dp).background(MaterialTheme.colorScheme.surface).padding(12.dp), color = MaterialTheme.colorScheme.onSurface)
-            else RemoteCaptureRecoveryCard(it, onRetry, onExit)
+            else RemoteCaptureRecoveryCard(it, onRetry, onExit, compact = !interactive)
         }
     }
 }

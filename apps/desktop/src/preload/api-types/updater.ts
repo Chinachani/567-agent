@@ -3,6 +3,8 @@ export type UpdaterPhase = "idle" | "checking" | "available" | "downloading" | "
 
 export interface UpdaterState {
 	phase: UpdaterPhase;
+	/** The downloaded package is being unpacked and prepared locally. */
+	preparing?: boolean;
 	paused?: boolean;
 	showReminder?: boolean;
 	currentVersion: string;

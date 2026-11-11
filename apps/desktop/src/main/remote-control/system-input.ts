@@ -6,11 +6,19 @@ import type { RemotePairingState } from "../../preload/api-types/remote-pairing.
 import { getAppLogger } from "../logger.js";
 import { createWaylandInputAdapter, type WaylandInputTokens } from "./wayland-input.js";
 
+export interface RemoteCaptureTarget {
+	readonly x: number;
+	readonly y: number;
+	readonly width: number;
+	readonly height: number;
+}
+
 export interface SystemInputAdapter {
 	readonly supported: boolean;
 	readonly granted?: boolean;
 	readonly pointerMode?: "absolute" | "relative";
 	readonly unsupportedReason?: NonNullable<RemotePairingState["inputSupportReason"]>;
+	setCaptureTarget?(target: RemoteCaptureTarget | undefined): void;
 	onGrantedChange?(listener: (granted: boolean) => void): () => void;
 	setEnabled(enabled: boolean): void | Promise<void>;
 	apply(message: RemoteInputMessage): void;

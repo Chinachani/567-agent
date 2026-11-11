@@ -11,20 +11,27 @@ export interface CommittedPaintOptions {
  */
 export function waitForCommittedPaint({ timeoutMs = 100 }: CommittedPaintOptions = {}): Promise<PaintBarrierResult> {
 	if (document.visibilityState === "hidden") return Promise.resolve("skipped-hidden");
-	if (typeof window.requestAnimationFrame !== "function") {
-		return new Promise((resolve) => window.setTimeout(() => resolve("timeout"), 0));
+	const owner = window;
+	if (typeof owner.requestAnimationFrame !== "function") {
+		return new Promise((resolve) => owner.setTimeout(() => resolve("timeout"), 0));
 	}
 	return new Promise((resolve) => {
 		let settled = false;
+		let frameId: number | null = null;
 		const finish = (result: PaintBarrierResult): void => {
 			if (settled) return;
 			settled = true;
-			if (timeoutId !== null) window.clearTimeout(timeoutId);
+			if (timeoutId !== null) owner.clearTimeout(timeoutId);
+			if (frameId !== null) owner.cancelAnimationFrame(frameId);
 			resolve(result);
 		};
-		const timeoutId = timeoutMs === null ? null : window.setTimeout(() => finish("timeout"), timeoutMs);
-		window.requestAnimationFrame(() => {
-			window.requestAnimationFrame(() => finish("painted"));
+		const timeoutId = timeoutMs === null ? null : owner.setTimeout(() => finish("timeout"), timeoutMs);
+		frameId = owner.requestAnimationFrame(() => {
+			if (settled) return;
+			frameId = owner.requestAnimationFrame(() => {
+				frameId = null;
+				finish("painted");
+			});
 		});
 	});
 }

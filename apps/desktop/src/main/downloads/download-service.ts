@@ -1,63 +1,84 @@
-import { createWriteStream, existsSync, mkdirSync, readFileSync, rmSync, statSync, writeFileSync } from "node:fs";
-import { rm } from "node:fs/promises";
-import { request as httpRequest } from "node:http";
-import { request as httpsRequest } from "node:https";
+import { randomUUID } from "node:crypto";
+import { constants, existsSync, mkdirSync, readFileSync, renameSync, writeFileSync } from "node:fs";
+import { copyFile, link, mkdir, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
-import { basename, dirname, extname, join } from "node:path";
+import { basename, dirname, extname, join, win32 } from "node:path";
 import { app, shell } from "electron";
 import type { DownloadEvent, DownloadItem, DownloadStartParams } from "../../preload/api-types/downloads.js";
+import { getApplicationCacheService } from "../cache/application-cache-service.js";
+import { mainT } from "../i18n/index.js";
+import { fetchUpdatePackage } from "../update-download-network.js";
+import { type FileFetch, RangeFileDownloader } from "./range-download.js";
 
-interface InternalState {
-	items: Map<string, DownloadItem>;
-	active: Set<string>;
-	queue: string[];
-	abortFns: Map<string, () => void>;
-	rates: Map<string, { lastBytes: number; lastTs: number }>;
+interface ActiveDownload {
+	controller: AbortController;
+	done: Promise<void>;
 }
-
+interface DownloadRuntime {
+	fetch?: FileFetch;
+	cacheRoot?: string;
+}
 type DownloadEventSink = (event: DownloadEvent) => void;
-
 const MAX_CONCURRENT = 2;
-const STATE_FILE_NAME = "downloads.json";
+const STATUSES = new Set(["queued", "downloading", "paused", "completed", "failed", "canceled"]);
 
+/** UI queue ownership is separate from the streaming transport and its partial files. */
 export class DesktopDownloadService {
-	private eventSink: DownloadEventSink | undefined;
-	private readonly state: InternalState = {
-		items: new Map(),
-		active: new Set(),
-		queue: [],
-		abortFns: new Map(),
-		rates: new Map(),
-	};
+	private eventSink?: DownloadEventSink;
+	private readonly items = new Map<string, DownloadItem>();
+	private readonly active = new Map<string, ActiveDownload>();
+	private readonly headers = new Map<string, Record<string, string>>();
+	private readonly queue: string[] = [];
+	private readonly removing = new Set<string>();
+	private readonly legacyFiles = new Set<string>();
 	private readonly stateFilePath: string;
+	private readonly cacheRoot: string;
+	private readonly fetch: FileFetch;
 
-	constructor() {
-		this.stateFilePath = join(this.getStoreDir(), STATE_FILE_NAME);
-		for (const item of this.loadPersistedItems()) {
-			if (item.status === "downloading" || item.status === "queued") {
-				item.status = "paused";
-				item.speedBytesPerSec = 0;
-			}
-			this.state.items.set(item.id, item);
+	constructor(runtime: DownloadRuntime = {}) {
+		const store = join(app.getPath("userData"), "downloads");
+		mkdirSync(store, { recursive: true });
+		this.stateFilePath = join(store, "downloads.json");
+		this.cacheRoot = runtime.cacheRoot ?? getApplicationCacheService().namespace("file-downloads").rootDir;
+		// Chromium owns system proxy handling. A dedicated session never sends account cookies.
+		this.fetch = runtime.fetch ?? fetchUpdatePackage;
+		for (const item of this.load()) {
+			if (item.status !== "completed" && existsSync(item.path)) this.legacyFiles.add(item.id);
+			if (item.status === "downloading" || item.status === "queued") item.status = "paused";
+			item.speedBytesPerSec = 0;
+			this.items.set(item.id, item);
 		}
 	}
-
 	attachEventSink(sink: DownloadEventSink): () => void {
 		this.eventSink = sink;
 		return () => {
 			if (this.eventSink === sink) this.eventSink = undefined;
 		};
 	}
-
 	start(params: DownloadStartParams): DownloadItem {
+		const url = new URL(params.url);
+		if (!["http:", "https:"].includes(url.protocol) || url.username || url.password)
+			throw new Error(mainT("downloads.invalidUrl"));
 		const dir = params.saveDir || this.getDefaultDir();
-		if (!existsSync(dir)) mkdirSync(dir, { recursive: true });
-
-		const inferredName = params.filename || decodeURIComponent(basename(new URL(params.url).pathname)) || "download";
-		const finalPath = this.uniqueFilename(dir, inferredName);
+		mkdirSync(dir, { recursive: true });
+		let inferred: string;
+		try {
+			inferred = decodeURIComponent(basename(url.pathname));
+		} catch {
+			inferred = basename(url.pathname);
+		}
+		const name = win32.basename(basename(params.filename || inferred || "download"));
+		if (!name || name === "." || name === ".." || /[\x00-\x1f]/.test(name))
+			throw new Error(mainT("downloads.invalidFilename"));
+		if (
+			process.platform === "win32" &&
+			(/[<>:"|?*]|[. ]$/.test(name) || /^(?:CON|PRN|AUX|NUL|COM[1-9¹²³]|LPT[1-9¹²³])(?:\.|$)/i.test(name))
+		)
+			throw new Error(mainT("downloads.invalidFilename"));
+		const finalPath = this.uniqueFilename(dir, name);
 		const item: DownloadItem = {
-			id: this.makeId(),
-			url: params.url,
+			id: `dl_${randomUUID()}`,
+			url: url.href,
 			filename: basename(finalPath),
 			path: finalPath,
 			totalBytes: 0,
@@ -65,93 +86,74 @@ export class DesktopDownloadService {
 			status: "queued",
 			createdAt: Date.now(),
 		};
-		this.state.items.set(item.id, item);
-		this.state.queue.push(item.id);
-		this.notifyAdded(item);
-		this.pump(params.headers);
-		return item;
-	}
-
-	pause(id: string): void {
-		const item = this.state.items.get(id);
-		if (!item) return;
-		if (item.status === "downloading") {
-			item.status = "paused";
-			item.speedBytesPerSec = 0;
-			this.state.abortFns.get(id)?.();
-			this.state.abortFns.delete(id);
-			this.state.active.delete(id);
-			this.notifyUpdated(item);
-			this.persist();
-			this.pump();
-		} else if (item.status === "queued") {
-			item.status = "paused";
-			const index = this.state.queue.indexOf(id);
-			if (index >= 0) this.state.queue.splice(index, 1);
-			this.notifyUpdated(item);
-			this.persist();
-		}
-	}
-
-	resume(id: string): void {
-		const item = this.state.items.get(id);
-		if (!item) return;
-		if (item.status === "paused" || item.status === "failed") {
-			item.status = "queued";
-			item.error = undefined;
-			this.state.queue.push(id);
-			this.notifyUpdated(item);
-			this.pump();
-		}
-	}
-
-	cancel(id: string): void {
-		const item = this.state.items.get(id);
-		if (!item) return;
-		this.state.abortFns.get(id)?.();
-		this.state.abortFns.delete(id);
-		this.state.active.delete(id);
-		const queueIndex = this.state.queue.indexOf(id);
-		if (queueIndex >= 0) this.state.queue.splice(queueIndex, 1);
-		item.status = "canceled";
-		item.speedBytesPerSec = 0;
-		this.notifyUpdated(item);
+		if (params.headers) this.headers.set(item.id, Object.fromEntries(new Headers(params.headers)));
+		this.items.set(item.id, item);
+		this.queue.push(item.id);
+		this.emit({ type: "added", item: { ...item } });
 		this.persist();
 		this.pump();
+		return { ...item };
 	}
-
-	async remove(id: string, deleteFile: boolean): Promise<void> {
-		const item = this.state.items.get(id);
-		if (!item) return;
-		this.cancel(id);
-		this.state.items.delete(id);
-		if (deleteFile && existsSync(item.path)) {
-			try {
-				await rm(item.path, { force: true });
-			} catch {
-				// Ignore file cleanup failures and still remove the download record.
-			}
+	pause(id: string): void {
+		const item = this.items.get(id);
+		if (!item || !["downloading", "queued"].includes(item.status)) return;
+		item.status = "paused";
+		item.speedBytesPerSec = 0;
+		this.dequeue(id);
+		this.active.get(id)?.controller.abort();
+		this.updated(item);
+	}
+	resume(id: string): void {
+		const item = this.items.get(id);
+		if (!item || this.removing.has(id) || !["paused", "failed"].includes(item.status)) return;
+		if (this.legacyFiles.delete(id)) {
+			// Old releases wrote unverified partial content directly to the final path.
+			// Keep that file and restart safely at an available destination.
+			item.path = this.uniqueFilename(dirname(item.path), item.filename);
+			item.filename = basename(item.path);
+			item.receivedBytes = 0;
 		}
-		this.notifyRemoved(id);
+		item.status = "queued";
+		item.error = undefined;
+		this.queue.push(id);
+		this.updated(item);
+		this.pump();
+	}
+	cancel(id: string): void {
+		const item = this.items.get(id);
+		if (!item) return;
+		item.status = "canceled";
+		this.headers.delete(id);
+		item.speedBytesPerSec = 0;
+		this.dequeue(id);
+		this.active.get(id)?.controller.abort();
+		this.updated(item);
+	}
+	async remove(id: string, deleteFile: boolean): Promise<void> {
+		const item = this.items.get(id);
+		if (!item) return;
+		this.removing.add(id);
+		this.cancel(id);
+		await this.active.get(id)?.done;
+		this.items.delete(id);
+		this.removing.delete(id);
+		this.headers.delete(id);
+		await rm(join(this.cacheRoot, id), { recursive: true, force: true }).catch(() => {});
+		if (deleteFile) await rm(item.path, { force: true }).catch(() => {});
+		this.emit({ type: "removed", id });
 		this.persist();
 	}
-
 	list(): DownloadItem[] {
-		return Array.from(this.state.items.values()).sort((a, b) => b.createdAt - a.createdAt);
+		return [...this.items.values()].sort((a, b) => b.createdAt - a.createdAt).map((item) => ({ ...item }));
 	}
-
 	async openFile(id: string): Promise<void> {
-		const item = this.state.items.get(id);
-		if (!item || !existsSync(item.path)) return;
-		await shell.openPath(item.path);
+		const item = this.items.get(id);
+		if (item?.status === "completed" && existsSync(item.path)) await shell.openPath(item.path);
 	}
-
 	showInFolder(id: string): void {
-		const item = this.state.items.get(id);
-		if (!item) return;
-		shell.showItemInFolder(item.path);
+		const item = this.items.get(id);
+		if (item) shell.showItemInFolder(item.path);
 	}
-
 	getDefaultDir(): string {
 		try {
 			return app.getPath("downloads");
@@ -159,251 +161,129 @@ export class DesktopDownloadService {
 			return tmpdir();
 		}
 	}
-
-	private getStoreDir(): string {
-		const dir = join(app.getPath("userData"), "downloads");
-		if (!existsSync(dir)) mkdirSync(dir, { recursive: true });
-		return dir;
+	private dequeue(id: string): void {
+		const index = this.queue.indexOf(id);
+		if (index >= 0) this.queue.splice(index, 1);
 	}
-
-	private loadPersistedItems(): DownloadItem[] {
+	private uniqueFilename(dir: string, name: string): string {
+		let candidate = join(dir, name);
+		const extension = extname(name);
+		const base = basename(name, extension);
+		const reserved = new Set([...this.items.values()].map((item) => item.path));
+		for (let index = 1; existsSync(candidate) || reserved.has(candidate); index++)
+			candidate = join(dir, `${base} (${index})${extension}`);
+		return candidate;
+	}
+	private pump(): void {
+		while (this.active.size < MAX_CONCURRENT) {
+			// A paused writer retains its slot until all requests and file handles stop.
+			const index = this.queue.findIndex((id) => !this.active.has(id));
+			if (index < 0) return;
+			const [id] = this.queue.splice(index, 1);
+			const item = this.items.get(id);
+			if (!item || item.status !== "queued") continue;
+			const controller = new AbortController();
+			const active: ActiveDownload = { controller, done: Promise.resolve() };
+			this.active.set(id, active);
+			item.status = "downloading";
+			active.done = Promise.resolve()
+				.then(() => this.transfer(item, controller))
+				.catch((error) => {
+					if (controller.signal.aborted || !this.items.has(id)) return;
+					item.status = "failed";
+					const code = error instanceof Error && "code" in error ? error.code : undefined;
+					item.error = mainT(code === "EEXIST" ? "downloads.destinationExists" : "downloads.failed");
+					item.speedBytesPerSec = 0;
+					this.updated(item);
+				})
+				.finally(() => {
+					this.active.delete(id);
+					this.pump();
+				});
+			this.updated(item);
+		}
+	}
+	private async transfer(item: DownloadItem, controller: AbortController): Promise<void> {
+		const work = join(this.cacheRoot, item.id);
+		await mkdir(work, { recursive: true });
+		// Complete file staging is in the destination volume so publication is atomic.
+		const staging = join(dirname(item.path), `.${item.id}.part`);
+		let emittedAt = 0;
 		try {
-			if (!existsSync(this.stateFilePath)) return [];
-			const raw = readFileSync(this.stateFilePath, "utf-8");
-			const items = JSON.parse(raw) as DownloadItem[];
-			return Array.isArray(items) ? items : [];
+			await new RangeFileDownloader(work, this.fetch).download(new URL(item.url), staging, {
+				signal: controller.signal,
+				headers: this.headers.get(item.id),
+				allowHttp: true,
+				allowUnknownLength: true,
+				onProgress: (progress) => {
+					if (controller.signal.aborted || item.status !== "downloading") return;
+					item.totalBytes = progress.total;
+					item.receivedBytes = progress.transferred;
+					item.speedBytesPerSec = progress.bytesPerSecond;
+					if (Date.now() - emittedAt >= 200 || progress.transferred === progress.total) {
+						emittedAt = Date.now();
+						this.emit({ type: "updated", item: { ...item } });
+					}
+				},
+			});
+			controller.signal.throwIfAborted();
+			// link is exclusive: a file created by another app while downloading is never overwritten.
+			try {
+				await link(staging, item.path);
+			} catch (error) {
+				const code = error instanceof Error && "code" in error ? error.code : undefined;
+				if (!["ENOTSUP", "EOPNOTSUPP", "EPERM", "EXDEV"].includes(String(code))) throw error;
+				await copyFile(staging, item.path, constants.COPYFILE_EXCL);
+			}
+			if (controller.signal.aborted) {
+				await rm(item.path, { force: true });
+				controller.signal.throwIfAborted();
+			}
+			item.status = "completed";
+			this.headers.delete(item.id);
+			item.completedAt = Date.now();
+			item.speedBytesPerSec = 0;
+			this.updated(item);
+		} finally {
+			await rm(staging, { force: true }).catch(() => {});
+		}
+	}
+	private load(): DownloadItem[] {
+		try {
+			const value: unknown = JSON.parse(readFileSync(this.stateFilePath, "utf8"));
+			if (!Array.isArray(value)) return [];
+			return value.filter((item): item is DownloadItem => {
+				if (!item || typeof item !== "object") return false;
+				return (
+					typeof item.id === "string" &&
+					/^[A-Za-z0-9_-]{1,128}$/.test(item.id) &&
+					[item.url, item.filename, item.path].every((value) => typeof value === "string") &&
+					STATUSES.has(item.status) &&
+					[item.totalBytes, item.receivedBytes, item.createdAt].every(Number.isFinite)
+				);
+			});
 		} catch {
 			return [];
 		}
 	}
-
 	private persist(): void {
 		try {
-			const items = Array.from(this.state.items.values()).filter(
-				(item) =>
-					item.status === "completed" ||
-					item.status === "failed" ||
-					item.status === "canceled" ||
-					item.status === "paused",
-			);
-			writeFileSync(this.stateFilePath, JSON.stringify(items, null, 2), "utf-8");
+			const temporary = `${this.stateFilePath}.tmp`;
+			writeFileSync(temporary, JSON.stringify([...this.items.values()]));
+			renameSync(temporary, this.stateFilePath);
 		} catch {
-			// Download state persistence is best-effort.
+			/* Restoring a download is best effort and never changes downloaded files. */
 		}
 	}
-
+	private updated(item: DownloadItem): void {
+		this.persist();
+		this.emit({ type: "updated", item: { ...item } });
+	}
 	private emit(event: DownloadEvent): void {
 		this.eventSink?.(event);
 	}
-
-	private notifyUpdated(item: DownloadItem): void {
-		this.emit({ type: "updated", item: { ...item } });
-	}
-
-	private notifyAdded(item: DownloadItem): void {
-		this.emit({ type: "added", item: { ...item } });
-	}
-
-	private notifyRemoved(id: string): void {
-		this.emit({ type: "removed", id });
-	}
-
-	private uniqueFilename(dir: string, name: string): string {
-		let candidate = join(dir, name);
-		if (!existsSync(candidate)) return candidate;
-		const extension = extname(name);
-		const base = basename(name, extension);
-		let index = 1;
-		while (existsSync(candidate)) {
-			candidate = join(dir, `${base} (${index})${extension}`);
-			index += 1;
-		}
-		return candidate;
-	}
-
-	private ensureDir(path: string): void {
-		const directory = dirname(path);
-		if (!existsSync(directory)) mkdirSync(directory, { recursive: true });
-	}
-
-	private makeId(): string {
-		return `dl_${Date.now()}_${Math.floor(Math.random() * 1e6)}`;
-	}
-
-	private pump(headers?: Record<string, string>): void {
-		while (this.state.active.size < MAX_CONCURRENT && this.state.queue.length > 0) {
-			const id = this.state.queue.shift();
-			if (!id) break;
-			const item = this.state.items.get(id);
-			if (!item || item.status !== "queued") continue;
-			this.state.active.add(id);
-			this.startTransfer(item, headers).catch((error: unknown) => {
-				item.status = "failed";
-				item.error = error instanceof Error ? error.message : String(error);
-				this.notifyUpdated(item);
-				this.state.active.delete(id);
-				this.persist();
-				this.pump(headers);
-			});
-		}
-	}
-
-	private startTransfer(item: DownloadItem, headers?: Record<string, string>): Promise<void> {
-		return new Promise((resolve, reject) => {
-			const url = new URL(item.url);
-			const isHttps = url.protocol === "https:";
-			const requester = isHttps ? httpsRequest : httpRequest;
-			let resumeFrom = 0;
-			if (existsSync(item.path)) {
-				try {
-					const file = statSync(item.path);
-					resumeFrom = file.size;
-					item.receivedBytes = resumeFrom;
-				} catch {
-					resumeFrom = 0;
-				}
-			}
-
-			const requestHeaders: Record<string, string> = { ...(headers ?? {}) };
-			if (resumeFrom > 0) requestHeaders.Range = `bytes=${resumeFrom}-`;
-
-			item.status = "downloading";
-			this.notifyUpdated(item);
-			const request = requester(
-				{
-					protocol: url.protocol,
-					hostname: url.hostname,
-					port: url.port || (isHttps ? 443 : 80),
-					path: `${url.pathname}${url.search}`,
-					method: "GET",
-					headers: requestHeaders,
-				},
-				(response) => {
-					if (
-						response.statusCode &&
-						response.statusCode >= 300 &&
-						response.statusCode < 400 &&
-						response.headers.location
-					) {
-						item.url = new URL(response.headers.location, url).toString();
-						response.resume();
-						this.startTransfer(item, headers).then(resolve, reject);
-						return;
-					}
-
-					if (response.statusCode === 416) {
-						item.status = "completed";
-						item.completedAt = Date.now();
-						this.notifyUpdated(item);
-						this.state.active.delete(item.id);
-						this.persist();
-						this.pump(headers);
-						resolve();
-						return;
-					}
-
-					if (!response.statusCode || response.statusCode < 200 || response.statusCode >= 300) {
-						reject(new Error(`HTTP ${response.statusCode}`));
-						return;
-					}
-
-					const lengthHeader = response.headers["content-length"];
-					const partLength = lengthHeader ? Number(lengthHeader) : 0;
-					if (response.statusCode === 206) {
-						const contentRange = response.headers["content-range"];
-						if (contentRange) {
-							const match = /\/(\d+)$/.exec(contentRange);
-							if (match) item.totalBytes = Number(match[1]);
-						}
-					} else {
-						item.totalBytes = partLength;
-						item.receivedBytes = 0;
-						if (existsSync(item.path)) this.removeFileSync(item.path);
-					}
-					this.notifyUpdated(item);
-
-					this.ensureDir(item.path);
-					const writeStream = createWriteStream(item.path, {
-						flags: resumeFrom > 0 && response.statusCode === 206 ? "a" : "w",
-					});
-					let aborted = false;
-					const abort = () => {
-						aborted = true;
-						request.destroy();
-						writeStream.destroy();
-					};
-					this.state.abortFns.set(item.id, abort);
-					this.state.rates.set(item.id, { lastBytes: item.receivedBytes, lastTs: Date.now() });
-
-					response.on("data", (chunk: Buffer) => {
-						if (aborted) return;
-						writeStream.write(chunk);
-						item.receivedBytes += chunk.length;
-						this.updateRate(item);
-						this.notifyUpdated(item);
-					});
-
-					response.on("end", () => {
-						if (aborted) return;
-						writeStream.end();
-						writeStream.on("close", () => {
-							this.state.abortFns.delete(item.id);
-							this.state.rates.delete(item.id);
-							this.state.active.delete(item.id);
-							if (item.status !== "canceled" && item.status !== "paused") {
-								item.status = "completed";
-								item.completedAt = Date.now();
-								this.notifyUpdated(item);
-							}
-							this.persist();
-							this.pump(headers);
-							resolve();
-						});
-					});
-
-					response.on("error", (error) => {
-						writeStream.destroy();
-						this.state.abortFns.delete(item.id);
-						this.state.rates.delete(item.id);
-						this.state.active.delete(item.id);
-						reject(error);
-					});
-				},
-			);
-
-			request.on("error", (error) => {
-				this.state.abortFns.delete(item.id);
-				this.state.rates.delete(item.id);
-				this.state.active.delete(item.id);
-				reject(error);
-			});
-			request.end();
-		});
-	}
-
-	private removeFileSync(path: string): void {
-		try {
-			rmSync(path, { force: true });
-		} catch {
-			// Existing partial download cleanup is best-effort.
-		}
-	}
-
-	private updateRate(item: DownloadItem): void {
-		const rate = this.state.rates.get(item.id);
-		if (!rate) return;
-		const now = Date.now();
-		const elapsed = now - rate.lastTs;
-		if (elapsed < 500) return;
-		const received = item.receivedBytes - rate.lastBytes;
-		item.speedBytesPerSec = Math.round((received / elapsed) * 1000);
-		rate.lastBytes = item.receivedBytes;
-		rate.lastTs = now;
-	}
 }
-
 let sharedDownloadService: DesktopDownloadService | undefined;
-
 export function getDesktopDownloadService(): DesktopDownloadService {
 	sharedDownloadService ??= new DesktopDownloadService();
 	return sharedDownloadService;

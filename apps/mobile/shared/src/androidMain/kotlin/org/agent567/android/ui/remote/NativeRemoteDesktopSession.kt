@@ -99,6 +99,8 @@ class NativeRemoteDesktopSession(private val context: Context, private val targe
     private val _textInputSupported = MutableStateFlow(false)
     val textInputSupported: StateFlow<Boolean> = _textInputSupported.asStateFlow()
 
+    private val _hasVideoFrame = MutableStateFlow(false)
+    val hasVideoFrame: StateFlow<Boolean> = _hasVideoFrame.asStateFlow()
     private val _videoSize = MutableStateFlow<RemoteVideoSize?>(null)
     val videoSize: StateFlow<RemoteVideoSize?> = _videoSize.asStateFlow()
 
@@ -106,7 +108,15 @@ class NativeRemoteDesktopSession(private val context: Context, private val targe
         renderer?.let(::releaseRenderer)
         renderer = it
         it.init(eglBase.eglBaseContext, object : org.webrtc.RendererCommon.RendererEvents {
-            override fun onFirstFrameRendered() = Unit
+            override fun onFirstFrameRendered() {
+                val view = it
+                scope.launch {
+                    if (!stopped && renderer === view) {
+                        _hasVideoFrame.value = true
+                        if (_captureMessage.value == Str.remoteCaptureWaiting) _captureMessage.value = null
+                    }
+                }
+            }
             override fun onFrameResolutionChanged(width: Int, height: Int, rotation: Int) {
                 _videoSize.value = if (rotation % 180 == 0) RemoteVideoSize(width, height) else RemoteVideoSize(height, width)
             }
@@ -142,6 +152,7 @@ class NativeRemoteDesktopSession(private val context: Context, private val targe
         statsJob?.cancel()
         statsJob = null
         _streamStats.value = null
+        _hasVideoFrame.value = false
         renderer?.let(::releaseRenderer)
         remoteVideoTrack = null
         inputChannel?.dispose()
@@ -361,7 +372,8 @@ class NativeRemoteDesktopSession(private val context: Context, private val targe
                 val track = receiver.track() as? VideoTrack ?: return
                 remoteVideoTrack = track
                 renderer?.let(track::addSink)
-                _captureMessage.value = null
+                // An attached track can still have no decoded video. Keep waiting
+                // until the renderer confirms the first frame.
                 PlatformRemoteLogger.info("native WebRTC video track attached")
             }
         })

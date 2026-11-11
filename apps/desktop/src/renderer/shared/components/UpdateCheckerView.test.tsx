@@ -72,3 +72,36 @@ it("a user can pause an update from the version row and resume it before choosin
 	fireEvent.click(restart);
 	expect(primary).toHaveBeenCalledTimes(2);
 });
+
+it("shows local preparation as busy, hides network totals, then offers restart only when ready", () => {
+	const labels = {
+		check: "Check",
+		checking: "Checking",
+		checkingBtn: "Checking",
+		currentVersion: (v: string) => v,
+		download: "Download",
+		downloading: (p: number) => `Downloading ${p}%`,
+		preparing: "Preparing local files; disk activity may be high",
+		idle: (v: string) => v,
+		newVersion: (v: string) => v,
+		restart: "Restart",
+		transferred: (a: string, b: string) => `${a} / ${b} MB`,
+	};
+	const props = {
+		currentVersion: "1.5.7",
+		latestVersion: "1.5.8",
+		progress: 0.95,
+		downloadedBytes: 100_000_000,
+		totalBytes: 100_000_000,
+		onPrimary: vi.fn(),
+		labels,
+	};
+	const view = render(<UpdateCheckerDetail {...props} phase="downloading" preparing />);
+	expect(screen.getByRole("progressbar", { name: labels.preparing }).getAttribute("aria-busy")).toBe("true");
+	expect(screen.getByText(labels.preparing)).toBeTruthy();
+	expect(screen.queryByText("100.0 / 100.0 MB")).toBeNull();
+	expect(screen.queryByRole("button", { name: "Restart" })).toBeNull();
+	view.rerender(<UpdateCheckerDetail {...props} phase="ready" preparing={false} />);
+	fireEvent.click(screen.getByRole("button", { name: "Restart" }));
+	expect(props.onPrimary).toHaveBeenCalledOnce();
+});

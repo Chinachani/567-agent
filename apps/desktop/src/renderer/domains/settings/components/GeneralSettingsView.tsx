@@ -52,7 +52,12 @@ export function GeneralSettingsView({ model }: GeneralSettingsViewProps): JSX.El
 					showUpdateDetail ? (
 						<UpdateDownloadProgress
 							progress={updates.progress}
-							label={updates.labels.downloading(Math.round((updates.progress ?? 0) * 100))}
+							busy={updates.preparing}
+							label={
+								updates.preparing && updates.labels.preparing
+									? updates.labels.preparing
+									: updates.labels.downloading(Math.round((updates.progress ?? 0) * 100))
+							}
 						/>
 					) : null
 				}

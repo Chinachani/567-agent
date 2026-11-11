@@ -3,7 +3,7 @@ import { mkdir, readFile, writeFile } from "node:fs/promises";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { getAgent567HomePath } from "@567agent/action-rpc";
-import { app, autoUpdater as nativeAutoUpdater, powerMonitor } from "electron";
+import { app, autoUpdater as nativeAutoUpdater, powerMonitor, shell } from "electron";
 import type { AppUpdater } from "electron-updater";
 import electronUpdater from "electron-updater";
 import { parse as parseYaml } from "yaml";
@@ -16,6 +16,7 @@ import {
 	isVersionedWindowsExecutable,
 	resolveInnoUpdateStoreRoot,
 } from "./inno-windows-update.js";
+import { getAppLogger } from "./logger.js";
 import { getMacInstallerJobLabel, handOffToInstaller } from "./mac-installer-handoff.js";
 import { runQuitCleanup } from "./quit-cleanup.js";
 import { installUpdateDownloader, UpdateDownloader, type UpdaterDownloadExecutor } from "./update-download.js";
@@ -25,6 +26,7 @@ import { UpdateReleaseHistoryService } from "./update-release-history.js";
 import { ElectronUpdaterEngine } from "./updater-engine.js";
 import { type UpdaterPhase, UpdaterService, type UpdaterState } from "./updater-service.js";
 import { WindowsDataUpdater } from "./windows-data-updater.js";
+import { refreshWindowsShortcutIcons } from "./windows-shortcut-icons.js";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 
@@ -138,6 +140,27 @@ export async function recordUpdaterVersion(): Promise<void> {
 					lastRunVersion: currentVersion,
 				},
 	);
+	if (process.platform === "win32") {
+		void refreshWindowsShortcutIcons({
+			shell,
+			executablePath: process.execPath,
+			iconPath: join(process.resourcesPath, "build", "icon.ico"),
+			iconDirectory: join(resolveInnoUpdateStoreRoot(), "shortcut-icons"),
+			shortcuts: [
+				join(app.getPath("desktop"), "567 Agent.lnk"),
+				join(
+					app.getPath("appData"),
+					"Microsoft",
+					"Windows",
+					"Start Menu",
+					"Programs",
+					"567 Agent",
+					"567 Agent.lnk",
+				),
+				join(app.getPath("appData"), "Microsoft", "Windows", "Start Menu", "Programs", "567 Agent.lnk"),
+			],
+		}).catch(() => getAppLogger("windows-shortcuts").warn("unable to prepare shortcut icons"));
+	}
 }
 const innoWindowsUpdate =
 	process.platform === "win32" && app.isPackaged && isVersionedWindowsExecutable(process.execPath, currentVersion)
