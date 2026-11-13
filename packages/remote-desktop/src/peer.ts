@@ -52,7 +52,7 @@ export class RemoteDesktopHost {
 		this.logger = options.logger ?? NOOP_REMOTE_DESKTOP_LOGGER;
 		this.peer = createPeer(options);
 		this.peer.onicecandidate = (event) => {
-			if (!event.candidate) return;
+			if (this.closed || !event.candidate) return;
 			void this.sendSignal({
 				type: "ice",
 				protocolVersion: REMOTE_DESKTOP_PROTOCOL_VERSION,
@@ -63,6 +63,7 @@ export class RemoteDesktopHost {
 			});
 		};
 		this.peer.onconnectionstatechange = () => {
+			if (this.closed) return;
 			const state = this.peer.connectionState;
 			this.logger.info("remote desktop host peer state", {
 				sessionId: options.sessionId,
@@ -97,6 +98,7 @@ export class RemoteDesktopHost {
 	}
 
 	async acceptSignal(signal: RemoteDesktopSignal): Promise<void> {
+		if (this.closed) return;
 		const frame = decodeRemoteDesktopSignal(signal);
 		if (frame.type === "peer_ready") {
 			this.peerReady = true;
@@ -124,10 +126,13 @@ export class RemoteDesktopHost {
 			await this.addIce({ candidate: frame.candidate, sdpMid: frame.sdpMid, sdpMLineIndex: frame.sdpMLineIndex });
 			return;
 		}
-		if (frame.type === "end") this.close(frame.reason);
+		if (frame.type === "end") this.close(frame.reason, { notifyPeer: false });
 	}
 
-	close(reason: Extract<RemoteDesktopSignal, { type: "end" }>["reason"] = "completed"): void {
+	close(
+		reason: Extract<RemoteDesktopSignal, { type: "end" }>["reason"] = "completed",
+		{ notifyPeer = true }: { readonly notifyPeer?: boolean } = {},
+	): void {
 		if (this.closed) return;
 		this.closed = true;
 		if (this.statsTimer !== undefined) clearTimeout(this.statsTimer);
@@ -135,6 +140,7 @@ export class RemoteDesktopHost {
 		this.inputChannel?.close();
 		for (const sender of this.peer.getSenders()) sender.track?.stop();
 		this.peer.close();
+		if (!notifyPeer) return;
 		try {
 			void Promise.resolve(
 				this.sendSignal({
@@ -242,7 +248,9 @@ export class RemoteDesktopHost {
 		}
 		const negotiation = (async () => {
 			const offer = await this.peer.createOffer(this.hasNegotiated ? { iceRestart: true } : undefined);
+			if (this.closed) return;
 			await this.peer.setLocalDescription(offer);
+			if (this.closed) return;
 			if (!offer.sdp) throw new Error("WebRTC offer did not include SDP");
 			await this.sendSignal({
 				type: "offer",

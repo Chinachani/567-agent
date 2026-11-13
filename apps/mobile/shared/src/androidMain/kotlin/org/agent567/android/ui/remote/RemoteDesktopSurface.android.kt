@@ -74,7 +74,7 @@ actual fun RemoteDesktopSurface(
         onDispose { lifecycleOwner.lifecycle.removeObserver(observer) }
     }
     fun closeFullscreen() { keyboardOpen = false; keyboardController?.hide(); fullscreen = false }
-    fun retry() { exited = false; keyboardOpen = false; transform = RemoteViewTransform(); attempt++ }
+    fun retry() { session.stop(); exited = false; keyboardOpen = false; transform = RemoteViewTransform(); attempt++ }
     fun exit() { closeFullscreen(); exited = true; session.stop(); onExit() }
     val visibleMessage = if (exited) Str.remoteExited else captureMessage
     val phase = remotePreviewPhase(visibleMessage, hasVideoFrame)

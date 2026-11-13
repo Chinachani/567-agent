@@ -218,6 +218,12 @@ high-frequency plugin registration, activity-tab resolution, theme loading, and 
 DevTools still shows those console messages. Set `AGENT567_RENDERER_VERBOSE_LOGS=1` before starting Desktop
 when a diagnostic session needs the complete Renderer console stream in the log files.
 
+Route errors offer a page retry and an explicit interface reload. React retains failed lazy page
+imports, and module evaluation failures may also be cached by the browser. Their recovery action
+reloads the document instead of only resetting the error boundary. Reloading is never automatic and may
+discard unsent input or unsaved changes. If it still fails, quit and reopen Desktop. Route logs
+include the page module name and original exception to distinguish import failures from rendering errors.
+
 Development automatically starts plugin dev servers for every preset selected by the active
 `AGENT567_TENANT`, so preset source, manifest, locale, and agent resource changes reload without an
 App restart. Set `AGENT567_PLUGIN_DEV` to a comma-separated list to limit development to specific

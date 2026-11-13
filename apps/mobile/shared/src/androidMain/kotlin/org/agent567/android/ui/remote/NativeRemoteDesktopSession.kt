@@ -79,7 +79,7 @@ class NativeRemoteDesktopSession(private val context: Context, private val targe
     private var viewportJob: Job? = null
     private var renderer: SurfaceViewRenderer? = null
     private var remoteVideoTrack: VideoTrack? = null
-    private var stopped = false
+    @Volatile private var stopped = false
     private var remoteDescriptionSet = false
     private val pendingCandidates = mutableListOf<IceCandidate>()
     private val signalingRetry = SignalingRetry()
@@ -118,7 +118,12 @@ class NativeRemoteDesktopSession(private val context: Context, private val targe
                 }
             }
             override fun onFrameResolutionChanged(width: Int, height: Int, rotation: Int) {
-                _videoSize.value = if (rotation % 180 == 0) RemoteVideoSize(width, height) else RemoteVideoSize(height, width)
+                val view = it
+                scope.launch {
+                    if (!stopped && renderer === view) {
+                        _videoSize.value = if (rotation % 180 == 0) RemoteVideoSize(width, height) else RemoteVideoSize(height, width)
+                    }
+                }
             }
         })
         it.setEnableHardwareScaler(false)
@@ -134,14 +139,14 @@ class NativeRemoteDesktopSession(private val context: Context, private val targe
     }
 
     fun start() {
-        if (signalingJob != null) return
-        stopped = false
+        if (stopped || signalingJob != null) return
         signalingJob = scope.launch { run() }
     }
 
     fun stop() {
         if (stopped) return
         stopped = true
+        directlyConnected = false
         viewportSupported = false
         viewportJob?.cancel()
         _textInputSupported.value = false
@@ -153,11 +158,18 @@ class NativeRemoteDesktopSession(private val context: Context, private val targe
         statsJob = null
         _streamStats.value = null
         _hasVideoFrame.value = false
+        _videoSize.value = null
         renderer?.let(::releaseRenderer)
         remoteVideoTrack = null
-        inputChannel?.dispose()
-        peerConnection?.dispose()
+        val channel = inputChannel
+        inputChannel = null
+        channel?.unregisterObserver()
+        channel?.dispose()
+        val peer = peerConnection
+        peerConnection = null
+        peer?.dispose()
         factory?.dispose()
+        factory = null
         signaling?.cancel()
         eglBase.release()
         client.close()
@@ -265,7 +277,7 @@ class NativeRemoteDesktopSession(private val context: Context, private val targe
                         headers.append(HttpHeaders.SecWebSocketProtocol, listOf("vetta.desktop.v1", "vetta.pairing.$token").joinToString(", "))
                     }
                     signaling = socket
-                    signalingRetry.reopened()
+                    signalingRetry.reopened(directlyConnected)
                     _connectionDetails.value = "${signalingNetworkLabel}信令已连接"
                     PlatformRemoteLogger.info("native WebRTC signaling connected")
                     if (peerConnection == null) createPeerConnection()
@@ -273,9 +285,9 @@ class NativeRemoteDesktopSession(private val context: Context, private val targe
                 } catch (error: CancellationException) {
                     throw error
                 } catch (error: Throwable) {
-                    if (stopped || !directlyConnected) throw error
+                    if (stopped) return
                     val detail = safeConnectionDetail(error)
-                    _connectionDetails.value = "信令暂时断开，屏幕直连保持中：$detail"
+                    _connectionDetails.value = "${signalingNetworkLabel}信令暂时断开，正在恢复：$detail"
                     PlatformRemoteLogger.warn("native WebRTC signaling lost", mapOf("error" to detail))
                 }
                 signaling?.cancel()
@@ -283,25 +295,30 @@ class NativeRemoteDesktopSession(private val context: Context, private val targe
                 if (stopped) break
                 when (val drop = signalingRetry.dropped(directlyConnected)) {
                     SignalingDrop.Stop -> {
-                        if (_captureMessage.value == Str.remoteCaptureWaiting) {
-                            _captureMessage.value = Str.remoteCaptureUnavailable
-                            _connectionDetails.value = "${signalingNetworkLabel}信令已断开，屏幕直连尚未建立"
-                        }
+                        _captureMessage.value = Str.remoteCaptureFailed
+                        _connectionDetails.value = "${signalingNetworkLabel}信令已断开，屏幕直连尚未建立"
+                        stop()
                         break
                     }
                     is SignalingDrop.Reconnect -> {
-                        _connectionDetails.value = "屏幕直连正常，${drop.afterMs / 1_000} 秒后重试局域网信令"
+                        _connectionDetails.value = "${drop.afterMs / 1_000} 秒后重试${signalingNetworkLabel}信令"
                         delay(drop.afterMs)
                     }
                 }
             }
+        } catch (error: CancellationException) {
+            throw error
         } catch (error: Throwable) {
             if (!stopped) {
                 _captureMessage.value = Str.remoteCaptureUnavailable
                 val detail = safeConnectionDetail(error)
                 _connectionDetails.value = "${signalingNetworkLabel}远程连接失败：$detail"
                 PlatformRemoteLogger.warn("native WebRTC session failed", mapOf("error" to detail))
+                stop()
             }
+        } finally {
+            signaling?.cancel()
+            signaling = null
         }
     }
 
@@ -313,20 +330,22 @@ class NativeRemoteDesktopSession(private val context: Context, private val targe
         peerConnection = factory?.createPeerConnection(configuration, object : PeerConnection.Observer {
             override fun onSignalingChange(state: PeerConnection.SignalingState) = Unit
             override fun onIceConnectionChange(state: PeerConnection.IceConnectionState) {
-                PlatformRemoteLogger.info("native WebRTC ICE state", mapOf("state" to state.name))
-                if (state == PeerConnection.IceConnectionState.CONNECTED || state == PeerConnection.IceConnectionState.COMPLETED) {
-                    directlyConnected = true
-                    _connectionDetails.value = "屏幕已通过 WebRTC 直连"
-                    sampleStats()
-                }
-                if (state == PeerConnection.IceConnectionState.FAILED) {
-                    directlyConnected = false
-                    _captureMessage.value = Str.remoteCaptureFailed
-                    if (signaling == null) scope.launch { stop() }
-                }
-                if (state == PeerConnection.IceConnectionState.CLOSED) {
-                    directlyConnected = false
-                    if (signaling == null) scope.launch { stop() }
+                scope.launch {
+                    if (stopped) return@launch
+                    PlatformRemoteLogger.info("native WebRTC ICE state", mapOf("state" to state.name))
+                    when (state) {
+                        PeerConnection.IceConnectionState.CONNECTED, PeerConnection.IceConnectionState.COMPLETED -> {
+                            directlyConnected = true
+                            signalingRetry.reopened()
+                            _connectionDetails.value = "屏幕已通过 WebRTC 直连"
+                            sampleStats()
+                        }
+                        PeerConnection.IceConnectionState.FAILED, PeerConnection.IceConnectionState.CLOSED -> {
+                            _captureMessage.value = if (state == PeerConnection.IceConnectionState.FAILED) Str.remoteCaptureFailed else Str.remoteCapturePeerClosed
+                            stop()
+                        }
+                        else -> Unit
+                    }
                 }
             }
             override fun onIceConnectionReceivingChange(receiving: Boolean) = Unit
@@ -336,78 +355,38 @@ class NativeRemoteDesktopSession(private val context: Context, private val targe
             override fun onAddStream(stream: MediaStream) = Unit
             override fun onRemoveStream(stream: MediaStream) = Unit
             override fun onDataChannel(channel: DataChannel) {
-                if (channel.label() != INPUT_CHANNEL || inputChannel != null) {
-                    channel.dispose()
-                    return
-                }
-                inputChannel = channel
-                channel.registerObserver(object : DataChannel.Observer {
-                    override fun onBufferedAmountChange(previousAmount: Long) = Unit
-                    override fun onStateChange() {
-                        if (channel.state() == DataChannel.State.CLOSED) {
-                            _inputEnabled.value = false
-                            _relativePointer.value = false
-                            _textInputSupported.value = false
-                            viewportSupported = false
-                        }
-                    }
-                    override fun onMessage(buffer: DataChannel.Buffer) {
-                        if (buffer.binary) return
-                        val bytes = ByteArray(buffer.data.remaining())
-                        buffer.data.get(bytes)
-                        val message = runCatching { json.parseToJsonElement(bytes.decodeToString()).jsonObject }.getOrNull() ?: return
-                        if (message["type"]?.jsonPrimitive?.contentOrNull == "capabilities") {
-                            viewportSupported = message["viewport"]?.jsonPrimitive?.contentOrNull == "true"
-                            scheduleViewport()
-                            _textInputSupported.value = message["textInput"]?.jsonPrimitive?.contentOrNull == "true"
-                            _relativePointer.value = message["pointerMode"]?.jsonPrimitive?.contentOrNull == "relative"
-                            // Older hosts did not advertise permission; they enforce it at the OS adapter.
-                            _inputEnabled.value = message["inputEnabled"]?.jsonPrimitive?.contentOrNull != "false"
-                        }
-                    }
-                })
+                scope.launch { attachInputChannel(channel) }
             }
             override fun onRenegotiationNeeded() = Unit
             override fun onAddTrack(receiver: RtpReceiver, streams: Array<out MediaStream>) {
                 val track = receiver.track() as? VideoTrack ?: return
-                remoteVideoTrack = track
-                renderer?.let(track::addSink)
-                // An attached track can still have no decoded video. Keep waiting
-                // until the renderer confirms the first frame.
-                PlatformRemoteLogger.info("native WebRTC video track attached")
+                scope.launch {
+                    if (stopped) return@launch
+                    remoteVideoTrack = track
+                    renderer?.let(track::addSink)
+                    // Keep waiting until the renderer confirms the first frame.
+                    PlatformRemoteLogger.info("native WebRTC video track attached")
+                }
             }
         })
     }
 
     private fun handleSignal(raw: String) {
         for (line in raw.split('\n').filter { it.isNotBlank() }) {
+            if (stopped) return
             val signal = json.parseToJsonElement(line).jsonObject
             when (signal["type"]?.jsonPrimitive?.contentOrNull) {
                 "offer" -> {
+                    val peer = peerConnection ?: return
                     val sdp = signal["sdp"]?.jsonPrimitive?.content ?: return
                     PlatformRemoteLogger.info("native WebRTC offer received")
-                    peerConnection?.setRemoteDescription(object : SdpObserver by LoggingSdpObserver {
-                        override fun onSetSuccess() {
+                    peer.setRemoteDescription(object : SdpObserver by LoggingSdpObserver {
+                        override fun onSetSuccess() = withActivePeer(peer) {
                             PlatformRemoteLogger.info("native WebRTC remote description set")
                             remoteDescriptionSet = true
-                            pendingCandidates.forEach { peerConnection?.addIceCandidate(it) }
+                            pendingCandidates.forEach { peer.addIceCandidate(it) }
                             pendingCandidates.clear()
-                            peerConnection?.createAnswer(object : SdpObserver by LoggingSdpObserver {
-                                override fun onCreateSuccess(description: SessionDescription) {
-                                    peerConnection?.setLocalDescription(object : SdpObserver by LoggingSdpObserver {
-                                        override fun onSetSuccess() {
-                                            PlatformRemoteLogger.info("native WebRTC local description set")
-                                            sendSignal(buildJsonObject {
-                                                put("type", "answer")
-                                                put("protocolVersion", PROTOCOL_VERSION)
-                                                put("sessionId", sessionId())
-                                                put("sdp", description.description)
-                                            })
-                                            PlatformRemoteLogger.info("native WebRTC answer sent")
-                                        }
-                                    }, description)
-                                }
-                            }, MediaConstraints())
+                            answerOffer(peer)
                         }
                     }, SessionDescription(SessionDescription.Type.OFFER, sdp))
                 }
@@ -428,14 +407,78 @@ class NativeRemoteDesktopSession(private val context: Context, private val targe
                         "peer_closed" -> Str.remoteCapturePeerClosed
                         else -> Str.remoteCaptureFailed
                     }
+                    stop()
                 }
             }
         }
     }
 
+    private fun attachInputChannel(channel: DataChannel) {
+        if (stopped || channel.label() != INPUT_CHANNEL || inputChannel != null) {
+            channel.dispose()
+            return
+        }
+        inputChannel = channel
+        channel.registerObserver(object : DataChannel.Observer {
+            override fun onBufferedAmountChange(previousAmount: Long) = Unit
+            override fun onStateChange() {
+                val closed = channel.state() == DataChannel.State.CLOSED
+                scope.launch {
+                    if (!stopped && inputChannel === channel && closed) {
+                        _inputEnabled.value = false
+                        _relativePointer.value = false
+                        _textInputSupported.value = false
+                        viewportSupported = false
+                    }
+                }
+            }
+            override fun onMessage(buffer: DataChannel.Buffer) {
+                if (stopped || buffer.binary) return
+                val bytes = ByteArray(buffer.data.remaining())
+                buffer.data.get(bytes)
+                scope.launch {
+                    if (stopped || inputChannel !== channel) return@launch
+                    val message = runCatching { json.parseToJsonElement(bytes.decodeToString()).jsonObject }.getOrNull() ?: return@launch
+                    if (message["type"]?.jsonPrimitive?.contentOrNull != "capabilities") return@launch
+                    viewportSupported = message["viewport"]?.jsonPrimitive?.contentOrNull == "true"
+                    scheduleViewport()
+                    _textInputSupported.value = message["textInput"]?.jsonPrimitive?.contentOrNull == "true"
+                    _relativePointer.value = message["pointerMode"]?.jsonPrimitive?.contentOrNull == "relative"
+                    // Older hosts enforce input permission at the OS adapter.
+                    _inputEnabled.value = message["inputEnabled"]?.jsonPrimitive?.contentOrNull != "false"
+                }
+            }
+        })
+    }
+
+    private fun answerOffer(peer: PeerConnection) {
+        peer.createAnswer(object : SdpObserver by LoggingSdpObserver {
+            override fun onCreateSuccess(description: SessionDescription) = withActivePeer(peer) {
+                peer.setLocalDescription(object : SdpObserver by LoggingSdpObserver {
+                    override fun onSetSuccess() = withActivePeer(peer) {
+                        PlatformRemoteLogger.info("native WebRTC local description set")
+                        sendSignal(buildJsonObject {
+                            put("type", "answer")
+                            put("protocolVersion", PROTOCOL_VERSION)
+                            put("sessionId", sessionId())
+                            put("sdp", description.description)
+                        })
+                        PlatformRemoteLogger.info("native WebRTC answer sent")
+                    }
+                }, description)
+            }
+        }, MediaConstraints())
+    }
+
+    private fun withActivePeer(peer: PeerConnection, action: () -> Unit) {
+        scope.launch { if (!stopped && peerConnection === peer) action() }
+    }
+
     private fun sendSignal(signal: JsonObject) {
+        if (stopped) return
+        val active = signaling ?: return
         scope.launch {
-            val active = signaling ?: return@launch
+            if (stopped || signaling !== active) return@launch
             runCatching { active.send(Frame.Text(signal.toString() + "\n")) }
                 .onFailure { error ->
                     if (!stopped) {

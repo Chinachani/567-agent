@@ -1,12 +1,31 @@
 import type { ErrorComponentProps } from "@tanstack/react-router";
-import type { RouteErrorPageViewProps } from "@vetta-org/theme-ui/overlays";
-import { useEffect, useMemo } from "react";
+import type { RouteErrorPageViewLabels } from "@vetta-org/theme-ui/overlays";
+import { useCallback, useEffect } from "react";
+import { redactSensitiveText } from "@/shared/sentry-privacy";
+import { i18n } from "../i18n";
+import { RoutePageLoadError } from "../lib/lazy-route-page";
 
-export function useRouteErrorPageModel({
-	error,
-	reset,
-}: ErrorComponentProps): Omit<RouteErrorPageViewProps, "homeAction"> {
+interface RouteErrorPageModel {
+	readonly labels: RouteErrorPageViewLabels & {
+		readonly home: string;
+		readonly retryPage: string;
+		readonly reload: string;
+	};
+	readonly message: string;
+	readonly reloadRequired: boolean;
+	readonly onRetry: () => void;
+	readonly onReload: () => void;
+	readonly onReloadHome: () => void;
+}
+
+export function useRouteErrorPageModel({ error, reset }: ErrorComponentProps): RouteErrorPageModel {
 	const message = error instanceof Error ? error.message : String(error);
+	const reloadRequired = error instanceof RoutePageLoadError || error instanceof SyntaxError;
+	const onReload = useCallback(() => window.location.reload(), []);
+	const onReloadHome = useCallback(() => {
+		window.location.hash = "/";
+		window.location.reload();
+	}, []);
 
 	useEffect(() => {
 		// Chromium's `console-message` event only persists the rendered message, not
@@ -14,22 +33,30 @@ export function useRouteErrorPageModel({
 		// imports identify the chunk instead of being reduced to "Unexpected token".
 		const route = window.location.hash.split("?")[0] || "#/";
 		const detail = error instanceof Error ? (error.stack ?? `${error.name}: ${error.message}`) : String(error);
-		console.error(`[router error] route=${route} ${detail.replace(/\s+/g, " ")}`);
+		const module = error instanceof RoutePageLoadError ? ` page=${error.page}` : "";
+		const cause =
+			error instanceof RoutePageLoadError && error.cause instanceof Error
+				? ` cause=${error.cause.stack ?? `${error.cause.name}: ${error.cause.message}`}`
+				: "";
+		console.error(
+			redactSensitiveText(`[router error] route=${route}${module} ${detail}${cause}`).replace(/\s+/g, " "),
+		);
 	}, [error]);
 
-	return useMemo(
-		() => ({
-			labels: {
-				bannerTitle: "当前页面遇到问题",
-				home: "返回首页",
-				pageTitle: "页面内容没有正常加载",
-				retry: "重试",
-				retryPage: "重试当前页面",
-				suggestion: "这通常是临时状态。你可以重试当前页面，或先回到首页继续其他操作。",
-			},
-			message,
-			onRetry: reset,
-		}),
-		[message, reset],
-	);
+	return {
+		labels: {
+			bannerTitle: i18n.t("common:routeError.bannerTitle"),
+			home: i18n.t(reloadRequired ? "common:routeError.reloadHome" : "common:routeError.home"),
+			pageTitle: i18n.t("common:routeError.pageTitle"),
+			retry: i18n.t(reloadRequired ? "common:routeError.reload" : "common:routeError.retry"),
+			retryPage: i18n.t(reloadRequired ? "common:routeError.reload" : "common:routeError.retryPage"),
+			reload: i18n.t("common:routeError.reload"),
+			suggestion: i18n.t(reloadRequired ? "common:routeError.moduleSuggestion" : "common:routeError.suggestion"),
+		},
+		message,
+		reloadRequired,
+		onRetry: reloadRequired ? onReload : reset,
+		onReload,
+		onReloadHome,
+	};
 }

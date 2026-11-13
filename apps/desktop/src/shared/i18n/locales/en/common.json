@@ -9,6 +9,17 @@
 		"apply": "Apply",
 		"back": "Back"
 	},
+	"routeError": {
+		"bannerTitle": "This page encountered a problem",
+		"home": "Back to home",
+		"reloadHome": "Reload home",
+		"pageTitle": "Page content could not be loaded",
+		"retry": "Retry",
+		"retryPage": "Retry this page",
+		"reload": "Reload interface",
+		"moduleSuggestion": "Reload the entire interface and try again. Unsent input and unsaved changes may be lost. If the problem persists, quit and reopen the app.",
+		"suggestion": "Try this page again. If it still fails, reload the entire interface. Reloading may discard unsent input and unsaved changes."
+	},
 	"tour": {
 		"next": "Next",
 		"prev": "Back",

@@ -5,9 +5,12 @@ import kotlin.test.assertEquals
 
 class SignalingRetryTest {
     @Test
-    fun dropsBeforeDirectConnectionStopInsteadOfRetryingForever() {
+    fun retriesWhileTheHostReopensThenStopsBeforeDirectConnectionInsteadOfRetryingForever() {
         val retry = SignalingRetry()
-
+        assertEquals(SignalingDrop.Reconnect(1_000), retry.dropped(directlyConnected = false))
+        retry.reopened(directlyConnected = false)
+        assertEquals(SignalingDrop.Reconnect(2_000), retry.dropped(directlyConnected = false))
+        assertEquals(SignalingDrop.Reconnect(4_000), retry.dropped(directlyConnected = false))
         assertEquals(SignalingDrop.Stop, retry.dropped(directlyConnected = false))
     }
 

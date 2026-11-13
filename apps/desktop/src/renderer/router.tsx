@@ -1,5 +1,4 @@
 import { createRootRoute, createRoute, createRouter, createHashHistory, redirect } from "@tanstack/react-router";
-import { lazy } from "react";
 import { RouteContentLoadingView } from "@vetta-org/theme-ui/app";
 import { RootLayout } from "./App";
 import {
@@ -13,35 +12,33 @@ import {
 	loadSettingsPage,
 } from "./route-page-loaders";
 import { RouteErrorPage } from "./shared/components/RouteErrorPage";
-import {
-	PLUGIN_HOSTED_ROUTE_PATH,
-	THEME_HOSTED_ROUTE_PATH,
-} from "./shared/hosted-routes/hosted-route-descriptors";
+import { lazyRoutePage } from "./shared/lib/lazy-route-page";
+import { PLUGIN_HOSTED_ROUTE_PATH, THEME_HOSTED_ROUTE_PATH } from "./shared/hosted-routes/hosted-route-descriptors";
 
-const ChatPage = lazy(async () => ({
+const ChatPage = lazyRoutePage("ChatPage", async () => ({
 	default: (await import("./domains/conversation/components/ChatPage")).ChatPage,
 }));
-const NewSessionPage = lazy(loadNewSessionPage);
-const SessionViewerPage = lazy(async () => ({
+const NewSessionPage = lazyRoutePage("NewSessionPage", loadNewSessionPage);
+const SessionViewerPage = lazyRoutePage("SessionViewerPage", async () => ({
 	default: (await import("./domains/conversation/components/SessionViewerPage")).SessionViewerPage,
 }));
-const AutomationPage = lazy(loadAutomationPage);
-const BatchTasksPage = lazy(loadBatchTasksPage);
-const AbilitiesPage = lazy(loadAbilitiesPage);
-const AgentCenterPage = lazy(loadAgentCenterPage);
-const TeamChatPage = lazy(async () => ({
+const AutomationPage = lazyRoutePage("AutomationPage", loadAutomationPage);
+const BatchTasksPage = lazyRoutePage("BatchTasksPage", loadBatchTasksPage);
+const AbilitiesPage = lazyRoutePage("AbilitiesPage", loadAbilitiesPage);
+const AgentCenterPage = lazyRoutePage("AgentCenterPage", loadAgentCenterPage);
+const TeamChatPage = lazyRoutePage("TeamChatPage", async () => ({
 	default: (await import("./domains/conversation/connectors/team/TeamChatPage")).TeamChatPage,
 }));
-const SettingsPage = lazy(loadSettingsPage);
-const ProjectDetailPage = lazy(async () => ({
+const SettingsPage = lazyRoutePage("SettingsPage", loadSettingsPage);
+const ProjectDetailPage = lazyRoutePage("ProjectDetailPage", async () => ({
 	default: (await import("./domains/project/components/ProjectDetailPage")).ProjectDetailPage,
 }));
-const KnowledgeBasePage = lazy(loadKnowledgeBasePage);
-const KnowledgeBaseListPage = lazy(async () => ({
+const KnowledgeBasePage = lazyRoutePage("KnowledgeBasePage", loadKnowledgeBasePage);
+const KnowledgeBaseListPage = lazyRoutePage("KnowledgeBaseListPage", async () => ({
 	default: (await import("./domains/knowledge-base/components/KnowledgeBaseListPage")).KnowledgeBaseListPage,
 }));
-const PluginWorkspaceViewRoute = lazy(loadPluginWorkspaceViewRoute);
-const ThemePageRoute = lazy(async () => ({
+const PluginWorkspaceViewRoute = lazyRoutePage("PluginWorkspaceViewRoute", loadPluginWorkspaceViewRoute);
+const ThemePageRoute = lazyRoutePage("ThemePageRoute", async () => ({
 	default: (await import("./shared/theme/pages/ThemePageRoute")).ThemePageRoute,
 }));
 

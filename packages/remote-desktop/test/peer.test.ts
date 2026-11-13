@@ -2,6 +2,40 @@ import { describe, expect, it, vi } from "vitest";
 import { RemoteDesktopHost } from "../src/index.js";
 
 describe("remote desktop host negotiation", () => {
+	it("retires an old peer without ending the replacement viewer, and ignores its late callbacks", async () => {
+		const peer = fakePeerConnection();
+		const sent = vi.fn();
+		const onConnectionStateChange = vi.fn();
+		const host = new RemoteDesktopHost(
+			{ sessionId: "session", createPeerConnection: () => peer.connection },
+			sent,
+			() => undefined,
+		);
+		await host.start(fakeStream(), { onConnectionStateChange });
+		sent.mockClear();
+		host.close("failed", { notifyPeer: false });
+		peer.connection.onconnectionstatechange?.(new Event("connectionstatechange"));
+		peer.connection.onicecandidate?.({ candidate: { candidate: "stale" } } as RTCPeerConnectionIceEvent);
+		await host.acceptSignal({ type: "peer_ready", protocolVersion: 1 });
+		expect(sent).not.toHaveBeenCalled();
+		expect(onConnectionStateChange).not.toHaveBeenCalled();
+		expect(peer.createOffer).toHaveBeenCalledTimes(1);
+	});
+
+	it("does not echo a received end back to a viewer that may already be reconnecting", async () => {
+		const peer = fakePeerConnection();
+		const sent = vi.fn();
+		const host = new RemoteDesktopHost(
+			{ sessionId: "session", createPeerConnection: () => peer.connection },
+			sent,
+			() => undefined,
+		);
+		await host.start(fakeStream());
+		sent.mockClear();
+		await host.acceptSignal({ type: "end", protocolVersion: 1, sessionId: "session", reason: "completed" });
+		expect(peer.connection.close).toHaveBeenCalledOnce();
+		expect(sent).not.toHaveBeenCalled();
+	});
 	it("advertises relative input and validates a touchpad packet through the real channel handler", async () => {
 		const peer = fakePeerConnection();
 		const inputs: unknown[] = [];

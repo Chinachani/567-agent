@@ -52,7 +52,13 @@ object Str {
     const val updateDownloadWrongPackage = "当前是测试版，请使用与测试版相同签名的安装包。"
     const val updateDownloadMetadataMissing = "该版本未提供完整的安装包校验信息，请查看发布页。"
     const val updateDownloadInstallHint = "下载在应用内进行；首次安装需要允许此应用安装更新。安装由你确认，不会自动重启。"
-    fun updateDownloadSpeed(bytesPerSecond: Long) = "${(bytesPerSecond.coerceAtLeast(0) / 104857.6).toLong() / 10.0} MB/s"
+    fun updateDownloadSpeed(bytesPerSecond: Long): String {
+        val bytes = bytesPerSecond.coerceAtLeast(0)
+        if (bytes < 1024) return "$bytes B/s"
+        val unit = if (bytes < 1_048_576) 1024.0 else 1_048_576.0
+        val label = if (bytes < 1_048_576) "KB/s" else "MB/s"
+        return "${(bytes / unit * 10).toLong() / 10.0} $label"
+    }
     fun updateDownloadProgress(bytes: Long, total: Long): String {
         fun mb(value: Long) = (value.coerceAtLeast(0) / 1048576.0 * 10).toLong() / 10.0
         val percent = if (total > 0) (bytes * 100 / total).coerceIn(0, 100) else 0

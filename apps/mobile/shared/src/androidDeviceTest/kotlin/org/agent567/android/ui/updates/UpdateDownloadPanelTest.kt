@@ -50,7 +50,8 @@ class UpdateDownloadPanelTest {
             assertTrue(checkBounds.bottom <= progressBounds.top)
             assertTrue(progressBounds.bottom <= sourceBounds.top)
             rule.onNodeWithText(Str.updateDownloadPause).performScrollTo().assertIsDisplayed()
-            for (text in listOf(Str.updateDownloadProgress(1024, 4096), Str.updateDownloadSpeed(2048))) {
+            rule.onNodeWithText("2.0 KB/s").assertIsDisplayed()
+            for (text in listOf(Str.updateDownloadProgress(1024, 4096), "2.0 KB/s")) {
                 rule.onNodeWithText(text).performSemanticsAction(androidx.compose.ui.semantics.SemanticsActions.GetTextLayoutResult) { getLayout ->
                     val results = mutableListOf<androidx.compose.ui.text.TextLayoutResult>()
                     assertTrue(getLayout(results))
