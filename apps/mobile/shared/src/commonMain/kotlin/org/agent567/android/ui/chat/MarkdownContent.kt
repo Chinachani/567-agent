@@ -74,7 +74,7 @@ fun MarkdownContent(
     onSurface: Boolean = false,
 ) {
     val textColor = if (onSurface) MaterialTheme.colorScheme.onPrimary else MaterialTheme.colorScheme.onSurface
-    val renderSource = remember(source) { withoutInlineImageData(source) }
+    val renderSource = remember(source) { escapeConversationTags(withoutInlineImageData(source)) }
     if (renderSource.isBlank()) return
     val state = rememberMarkdownState(renderSource, retainState = true)
     val components = remember {

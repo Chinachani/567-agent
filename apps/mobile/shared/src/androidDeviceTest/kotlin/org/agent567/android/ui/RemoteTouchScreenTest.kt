@@ -68,6 +68,17 @@ class RemoteTouchScreenTest {
         composeRule.runOnIdle { assertTrue(exited) }
     }
 
+    @Test fun fullscreenToolbarProvidesExplicitLeftAndRightMouseButtons() {
+        val buttons = mutableListOf<String>()
+        composeRule.setContent {
+            RemoteFullscreenToolbar(false, true, false, "5 ms", "", {}, {}, {}, {}, onMouseButton = { buttons += it })
+        }
+        composeRule.onNodeWithText(Str.remoteExpandControls).performClick()
+        composeRule.onNodeWithText(Str.remoteLeftButton).performClick()
+        composeRule.onNodeWithText(Str.remoteRightButton).performClick()
+        composeRule.runOnIdle { assertEquals(listOf("left", "right"), buttons) }
+    }
+
     @Test fun userSwitchesFromTrackpadToTabletAndTapsTheContentPosition() {
         var direct by mutableStateOf(false)
         composeRule.setContent {

@@ -93,9 +93,10 @@ export default defineConfig(({ mode }) => {
 			],
 		},
 		build: {
+			target: "es2022",
 			lib: {
 				entry: {
-					index: resolve(process.cwd(), "src/main/main.ts"),
+					index: resolve(process.cwd(), "src/main/bootstrap.ts"),
 					// uiohook 宿主 worker 线程独立入口：与 index.js 同目录输出，
 					// 运行时由 quickpanel-trigger.ts 按同目录路径拼接后交给 new Worker()。
 					"uiohook-worker": resolve(process.cwd(), "src/main/uiohook-worker.ts"),
@@ -110,6 +111,13 @@ export default defineConfig(({ mode }) => {
 			outDir: resolve(process.cwd(), "dist/main"),
 			emptyOutDir: true,
 			rollupOptions: {
+				output: {
+					// Keep shared IPC code outside the awaited bootstrap. Otherwise a
+					// dynamic helper/main chunk can import bootstrap again and deadlock.
+					manualChunks: {
+						"remote-capture-ipc": [resolve(process.cwd(), "src/main/remote-control/remote-capture-channel.ts")],
+					},
+				},
 				external: [
 					"electron",
 					// node:sqlite 走上面的 shim，不能标成 external：标了 external 就会

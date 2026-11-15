@@ -19,6 +19,7 @@ import androidx.compose.ui.window.DialogWindowProvider
 import androidx.core.view.WindowCompat
 import androidx.core.view.WindowInsetsCompat
 import androidx.core.view.WindowInsetsControllerCompat
+import android.view.WindowManager
 
 @Composable
 internal fun RemoteImmersiveWindow() {
@@ -26,9 +27,14 @@ internal fun RemoteImmersiveWindow() {
     DisposableEffect(view) {
         val window = (view.parent as? DialogWindowProvider)?.window
         val controller = window?.let { WindowCompat.getInsetsController(it, view) }
+        val previousSoftInputMode = window?.attributes?.softInputMode
+        window?.setSoftInputMode(WindowManager.LayoutParams.SOFT_INPUT_ADJUST_NOTHING)
         controller?.systemBarsBehavior = WindowInsetsControllerCompat.BEHAVIOR_SHOW_TRANSIENT_BARS_BY_SWIPE
         controller?.hide(WindowInsetsCompat.Type.systemBars())
-        onDispose { controller?.show(WindowInsetsCompat.Type.systemBars()) }
+        onDispose {
+            controller?.show(WindowInsetsCompat.Type.systemBars())
+            window?.let { it.setSoftInputMode(previousSoftInputMode ?: WindowManager.LayoutParams.SOFT_INPUT_ADJUST_UNSPECIFIED) }
+        }
     }
 }
 
@@ -45,6 +51,7 @@ internal fun RemoteFullscreenToolbar(
     onReset: () -> Unit,
     onKeyboard: () -> Unit,
     modifier: Modifier = Modifier,
+    onMouseButton: (String) -> Unit = {},
 ) {
     var expanded by remember { mutableStateOf(false) }
     var help by remember { mutableStateOf(false) }
@@ -62,6 +69,8 @@ internal fun RemoteFullscreenToolbar(
                 Row(Modifier.horizontalScroll(rememberScrollState()).padding(horizontal = 4.dp), verticalAlignment = Alignment.CenterVertically) {
                     TextButton(onClick = onExit) { Text(Str.exitRemoteDesktopFullscreen, maxLines = 1) }
                     TextButton(onClick = { chooseInput = true }) { Text(if (relativePointer || !directTouch) Str.remoteTrackpad else Str.remoteTouch, maxLines = 1) }
+                    TextButton(onClick = { onMouseButton("left") }) { Text(Str.remoteLeftButton, maxLines = 1) }
+                    TextButton(onClick = { onMouseButton("right") }) { Text(Str.remoteRightButton, maxLines = 1) }
                     TextButton(onClick = onReset, enabled = canReset) { Text(Str.remoteFitScreen, maxLines = 1) }
                     TextButton(onClick = { statistics = true }) { Text(stats, maxLines = 1) }
                     IconButton(onClick = onKeyboard) { Icon(Icons.Default.Keyboard, Str.remoteInputText) }

@@ -27,6 +27,8 @@ import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
 import androidx.lifecycle.compose.LocalLifecycleOwner
 import org.agent567.android.domain.remote.RemoteStreamStats
+import org.agent567.android.domain.remote.RemotePointerInput
+import org.agent567.android.domain.remote.RemotePointerPosition
 import org.agent567.android.domain.remote.RemoteViewTransform
 import org.agent567.android.domain.remote.transformRemoteView
 import org.agent567.android.domain.remote.fitRemoteVideo
@@ -55,6 +57,7 @@ actual fun RemoteDesktopSurface(
     var fullscreen by remember(target) { mutableStateOf(false) }
     var keyboardOpen by remember(target) { mutableStateOf(false) }
     var remoteText by remember(target) { mutableStateOf("") }
+    var remoteCursor by remember(target) { mutableStateOf(RemotePointerPosition(.5f, .5f)) }
     var directTouch by rememberSaveable(target) { mutableStateOf(true) }
     var transform by remember(target) { mutableStateOf(RemoteViewTransform()) }
     val textFocusRequester = remember { FocusRequester() }
@@ -74,7 +77,7 @@ actual fun RemoteDesktopSurface(
         onDispose { lifecycleOwner.lifecycle.removeObserver(observer) }
     }
     fun closeFullscreen() { keyboardOpen = false; keyboardController?.hide(); fullscreen = false }
-    fun retry() { session.stop(); exited = false; keyboardOpen = false; transform = RemoteViewTransform(); attempt++ }
+    fun retry() { session.stop(); exited = false; keyboardOpen = false; transform = RemoteViewTransform(); remoteCursor = RemotePointerPosition(.5f, .5f); attempt++ }
     fun exit() { closeFullscreen(); exited = true; session.stop(); onExit() }
     val visibleMessage = if (exited) Str.remoteExited else captureMessage
     val phase = remotePreviewPhase(visibleMessage, hasVideoFrame)
@@ -101,40 +104,49 @@ actual fun RemoteDesktopSurface(
         Dialog(onDismissRequest = ::closeFullscreen, properties = DialogProperties(usePlatformDefaultWidth = false, decorFitsSystemWindows = false)) {
         RemoteImmersiveWindow()
         Surface(Modifier.fillMaxSize(), color = Color.Black) {
-            Box(Modifier.fillMaxSize().imePadding()) {
-                Column(Modifier.fillMaxSize()) {
-                    key(session) { RemoteCanvas(session, stats, true, visibleMessage, Modifier.fillMaxWidth().weight(1f), transform, { transform = it }, relativePointer, directTouch, ::retry, ::exit) }
-                    if (keyboardOpen) {
-                        Surface(color = MaterialTheme.colorScheme.surface) {
-                            Column {
-                            RemoteKeyboardShortcuts(session::sendKey)
-                            if (textInputSupported) Text(Str.remoteClipboardHint, Modifier.padding(horizontal = 12.dp), style = MaterialTheme.typography.labelSmall)
-                            Row(Modifier.fillMaxWidth().safeDrawingPadding().padding(8.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                                OutlinedTextField(remoteText, { remoteText = it.take(256) }, Modifier.weight(1f).focusRequester(textFocusRequester),
-                                    singleLine = true, placeholder = { Text(if (textInputSupported) Str.remoteTextInputReady else Str.remoteTextInputUpdate, maxLines = 1) })
-                                TextButton(onClick = { keyboardOpen = false; keyboardController?.hide() }) { Text(Str.collapse) }
-                                Button(onClick = { session.sendText(remoteText); remoteText = "" }, enabled = remoteText.isNotBlank() && textInputSupported) { Text(Str.send, maxLines = 1, softWrap = false) }
-                            }
-                            }
-                        }
+            RemoteFullscreenLayout(
+                video = {
+                    key(session) {
+                        RemoteCanvas(session, stats, true, visibleMessage, Modifier.fillMaxSize(), transform, { transform = it }, relativePointer, directTouch, ::retry, ::exit) { remoteCursor = it }
                     }
-                }
-                RemoteFullscreenToolbar(
+                },
+                toolbar = {
+                    RemoteFullscreenToolbar(
                     relativePointer = relativePointer, directTouch = directTouch, canReset = transform != RemoteViewTransform(),
                     stats = buildList { if (!inputEnabled) add(Str.viewOnly); stats?.roundTripMs?.let { add("${it.roundToInt()} ms") }; stats?.framesPerSecond?.let { add("${it.roundToInt()} FPS") } }.joinToString(" · ").ifBlank { Str.connectionStatus },
                     details = streamDescription(stats, connectionDetails), onExit = ::closeFullscreen,
                     onDirectTouch = { directTouch = it }, onReset = { transform = RemoteViewTransform() },
                     onKeyboard = { keyboardOpen = !keyboardOpen; if (!keyboardOpen) keyboardController?.hide() },
-                    modifier = Modifier.align(Alignment.TopCenter),
-                )
-            }
+                    onMouseButton = { button ->
+                        session.sendPointer("pointer.button", remoteCursor.x, remoteCursor.y, button, "down")
+                        session.sendPointer("pointer.button", remoteCursor.x, remoteCursor.y, button, "up")
+                    },
+                    modifier = Modifier,
+                    )
+                },
+                controls = {
+                    if (keyboardOpen) Surface(color = MaterialTheme.colorScheme.surface) {
+                        Column {
+                            RemoteKeyboardShortcuts(session::sendKey)
+                            if (textInputSupported) Text(Str.remoteClipboardHint, Modifier.padding(horizontal = 12.dp), style = MaterialTheme.typography.labelSmall)
+                            Row(Modifier.fillMaxWidth().padding(8.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                                OutlinedTextField(remoteText, { remoteText = it.take(256) }, Modifier.weight(1f).focusRequester(textFocusRequester), singleLine = true,
+                                    placeholder = { Text(if (textInputSupported) Str.remoteTextInputReady else Str.remoteTextInputUpdate, maxLines = 1) })
+                                TextButton(onClick = { keyboardOpen = false; keyboardController?.hide() }) { Text(Str.collapse) }
+                                Button(onClick = { session.sendText(remoteText); remoteText = "" }, enabled = remoteText.isNotBlank() && textInputSupported) { Text(Str.send, maxLines = 1, softWrap = false) }
+                            }
+                        }
+                    }
+                },
+                modifier = Modifier.fillMaxSize(),
+            )
         }
     }
     }
 }
 
 @Composable
-private fun RemoteCanvas(session: NativeRemoteDesktopSession, stats: RemoteStreamStats?, interactive: Boolean, message: String?, modifier: Modifier, transform: RemoteViewTransform = RemoteViewTransform(), onTransform: (RemoteViewTransform) -> Unit = {}, relativePointer: Boolean = false, directTouch: Boolean = true, onRetry: () -> Unit = {}, onExit: () -> Unit = {}) {
+private fun RemoteCanvas(session: NativeRemoteDesktopSession, stats: RemoteStreamStats?, interactive: Boolean, message: String?, modifier: Modifier, transform: RemoteViewTransform = RemoteViewTransform(), onTransform: (RemoteViewTransform) -> Unit = {}, relativePointer: Boolean = false, directTouch: Boolean = true, onRetry: () -> Unit = {}, onExit: () -> Unit = {}, onCursorPosition: (RemotePointerPosition) -> Unit = {}) {
     if (message != null && message != Str.remoteCaptureWaiting) {
         Surface(modifier, color = MaterialTheme.colorScheme.surfaceContainerLow) {
             Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
@@ -143,8 +155,13 @@ private fun RemoteCanvas(session: NativeRemoteDesktopSession, stats: RemoteStrea
         }
         return
     }
-    var trackpadCursor by remember(session) { mutableStateOf(org.agent567.android.domain.remote.RemotePointerPosition(.5f, .5f)) }
     val useTrackpad = relativePointer || !directTouch
+    val pointerInput = remember(session, relativePointer) {
+        RemotePointerInput(
+            sendPointer = { type, position, button, action -> session.sendPointer(type, position.x, position.y, button, action) },
+            sendRelative = session::sendRelativePointer,
+        )
+    }
     val videoSize by session.videoSize.collectAsState()
     val frameWidth = videoSize?.width ?: stats?.frameWidth
     val frameHeight = videoSize?.height ?: stats?.frameHeight
@@ -173,18 +190,15 @@ private fun RemoteCanvas(session: NativeRemoteDesktopSession, stats: RemoteStrea
             frameWidth = frameWidth, frameHeight = frameHeight, transform = transform,
             onTransform = onTransform,
             onPointer = { type, p, button, action ->
-                val cursor = if (useTrackpad && !relativePointer) trackpadCursor else p
-                session.sendPointer(type, cursor.x, cursor.y, button, action)
+                pointerInput.pointer(type, p, button, action, trackpad = useTrackpad)
+                onCursorPosition(pointerInput.currentPosition())
             },
             onScroll = session::sendScroll,
             onKey = { code, down -> androidRemoteKeyCode(code)?.let { session.sendKey(it, if (down) "down" else "up") } },
             modifier = Modifier.matchParentSize(),
             trackpadMode = useTrackpad, onRelativePointer = { dx, dy ->
-                if (relativePointer) session.sendRelativePointer(dx, dy)
-                else {
-                    trackpadCursor = org.agent567.android.domain.remote.RemotePointerPosition((trackpadCursor.x + dx / (frameWidth ?: 1920)).coerceIn(0f, 1f), (trackpadCursor.y + dy / (frameHeight ?: 1080)).coerceIn(0f, 1f))
-                    session.sendPointer("pointer.move", trackpadCursor.x, trackpadCursor.y)
-                }
+                pointerInput.moveBy(dx, dy, frameWidth, frameHeight, relativePointer)
+                onCursorPosition(pointerInput.currentPosition())
             },
         )
         message?.let {

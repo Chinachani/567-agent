@@ -18,7 +18,7 @@ import {
 	type DesktopRemoteDesktopHostHandle,
 	startDesktopRemoteDesktopHost,
 	stopDesktopRemoteDesktopHost,
-} from "./desktop-remote-desktop-host.js";
+} from "./desktop-remote-desktop-service.js";
 import { RemotePairingError, remotePairingErrorCode } from "./remote-pairing-errors.js";
 
 const log = getAppLogger("remote-pairing");

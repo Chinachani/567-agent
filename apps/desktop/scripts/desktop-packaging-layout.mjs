@@ -35,6 +35,7 @@ export const VETTA_DESIGN_SHARE_FILE_ASSOCIATION = Object.freeze({
 });
 
 export const DESKTOP_REQUIRED_SOURCE_FILES = Object.freeze([
+	"src/main/bootstrap.ts",
 	"src/main/main.ts",
 	"src/preload/index.ts",
 	"src/preload/remote-desktop.ts",

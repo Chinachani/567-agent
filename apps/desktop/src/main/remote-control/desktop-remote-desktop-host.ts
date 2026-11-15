@@ -2,15 +2,14 @@ import { randomUUID, X509Certificate } from "node:crypto";
 import { decodeRemoteInputMessage } from "@567agent/remote-desktop";
 import { BrowserWindow, desktopCapturer, dialog, ipcMain, screen, session, webContents } from "electron";
 import type { RemotePairingState } from "../../preload/api-types/remote-pairing.js";
-import { mainT } from "../i18n/index.js";
+import { mainT } from "../i18n/messages.js";
 import { getAppLogger } from "../logger.js";
 import {
 	configureRemoteDesktopHostMediaPermissions,
 	registerRemoteDesktopVideoPermission,
 } from "../speech-input/media-permissions.js";
-import { getMainWindow } from "../window-manager.js";
 import { resolveDesktopRemoteDesktopHostPaths } from "./desktop-remote-desktop-host-paths.js";
-import { createSystemInputAdapter } from "./system-input.js";
+import { createSystemInputAdapter, type SystemInputAdapter } from "./system-input.js";
 import type { WaylandInputTokens } from "./wayland-input.js";
 
 export interface DesktopRemoteDesktopHostOptions {
@@ -46,13 +45,19 @@ let activeHost: DesktopRemoteDesktopHostHandle | undefined;
 /** Starts the hidden renderer only when an explicit relay target is configured. */
 export async function startDesktopRemoteDesktopHost(
 	options: DesktopRemoteDesktopHostOptions,
+	dependencies?: {
+		readonly input: SystemInputAdapter;
+		readonly showDialog: (options: Electron.MessageBoxOptions) => Promise<Electron.MessageBoxReturnValue>;
+	},
 ): Promise<DesktopRemoteDesktopHostHandle> {
 	if (activeHost) return activeHost;
 	const signalingTargets = options.signalingTargets ?? [
 		options.signalingTarget ?? `${options.signalingUrl}#${options.pairingToken}`,
 	];
 	const sessionId = remoteDesktopSessionId(signalingTargets[0] ?? "") ?? `desktop-${randomUUID()}`;
-	const input = createSystemInputAdapter({ enabled: false, waylandTokens: options.waylandInputTokens });
+	const input =
+		dependencies?.input ?? createSystemInputAdapter({ enabled: false, waylandTokens: options.waylandInputTokens });
+	const showCaptureDialog = dependencies?.showDialog ?? showRemoteDesktopDialog;
 	input.setEnabled(false);
 	const paths = resolveDesktopRemoteDesktopHostPaths(options);
 	const hostSession = session.fromPartition(`vetta-remote-desktop-${sessionId}`);
@@ -242,7 +247,7 @@ export async function startDesktopRemoteDesktopHost(
 			}
 			void (async () => {
 				if (!autoShareScreen) {
-					const consent = await showRemoteDesktopDialog({
+					const consent = await showCaptureDialog({
 						type: "question",
 						title: mainT("remoteDesktopCapture.title"),
 						message: mainT("remoteDesktopCapture.message"),
@@ -270,7 +275,7 @@ export async function startDesktopRemoteDesktopHost(
 				}
 				if (sources.length === 0) {
 					log.warn("remote desktop screen capture source unavailable", { sessionId });
-					await showRemoteDesktopDialog({
+					await showCaptureDialog({
 						type: "warning",
 						title: mainT("remoteDesktopCapture.title"),
 						message: mainT("remoteDesktopCapture.noSources"),
@@ -290,7 +295,7 @@ export async function startDesktopRemoteDesktopHost(
 					sources.length === 1;
 				let source = systemSelectedSource ? sources[0] : autoShareScreen ? primaryScreen : undefined;
 				if (!source) {
-					const sourceChoice = await showRemoteDesktopDialog({
+					const sourceChoice = await showCaptureDialog({
 						type: "question",
 						title: mainT("remoteDesktopCapture.chooseTitle"),
 						message: mainT("remoteDesktopCapture.chooseMessage"),
@@ -447,7 +452,9 @@ function readTargetFingerprint(target: string): string | undefined {
 	return value && /^[a-f0-9]{64}$/.test(value) ? value : undefined;
 }
 
-function showRemoteDesktopDialog(options: Electron.MessageBoxOptions): Promise<Electron.MessageBoxReturnValue> {
+async function showRemoteDesktopDialog(options: Electron.MessageBoxOptions): Promise<Electron.MessageBoxReturnValue> {
+	// The isolated capture process injects its parent-owned dialog bridge instead.
+	const { getMainWindow } = await import("../window-manager.js");
 	const parent = getMainWindow();
 	return parent && !parent.isDestroyed() && parent.isVisible()
 		? dialog.showMessageBox(parent, options)

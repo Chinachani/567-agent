@@ -77,7 +77,7 @@ import { startDesktopRemoteAccess, stopDesktopRemoteAccess } from "./remote-cont
 import {
 	startDesktopRemoteDesktopHost,
 	stopDesktopRemoteDesktopHost,
-} from "./remote-control/desktop-remote-desktop-host.js";
+} from "./remote-control/desktop-remote-desktop-service.js";
 import { DesktopRemotePairingService } from "./remote-control/desktop-remote-pairing-service.js";
 import { startRendererAfterSessionPreparation } from "./renderer-startup.js";
 import { beginSharedRuntimeShutdown, disposeSharedRuntime, getSharedRuntime } from "./runtime.js";

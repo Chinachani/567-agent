@@ -156,6 +156,8 @@ object Str {
     const val remoteTouch = "平板点按"
     const val remoteFitScreen = "适应屏幕"
     const val remoteInputText = "输入文字"
+    const val remoteLeftButton = "左键"
+    const val remoteRightButton = "右键"
     const val remoteHelp = "操作说明"
     const val remoteGotIt = "知道了"
     const val remoteBackspace = "退格"

@@ -53,6 +53,14 @@ require the official checksum and retain electron-updater's differential and ins
 
 ## Remote tablet input
 
+Linux remote desktop capture runs in a separate Electron process so a native capture crash
+does not terminate the main application. Screen approval and input permissions remain owned
+by the main process. After an abnormal capture exit, one recovery is allowed within five minutes
+and screen sharing needs approval again. A second exit stops automatic recovery; stopping and
+restarting the remote host starts a new recovery cycle. Normal network reconnects retain the
+existing capture. The helper uses a disposable profile in the `remote-capture` application cache
+namespace and exits when its parent IPC disconnects. See [ADR-0161](../../docs/adr/0161-linux-remote-capture-process-isolation.md).
+
 The mobile fullscreen input selector offers tablet taps and a trackpad. Wayland direct taps require
 an identified whole primary monitor plus a matching monitor returned by the user-authorized desktop
 portal. Unknown/window sources remain in trackpad mode; changing display geometry revokes the old

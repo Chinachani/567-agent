@@ -24,7 +24,7 @@ vi.mock("./desktop-remote-access-service.js", () => ({
 	startDesktopRemoteAccess: mocks.startDesktopRemoteAccess,
 	stopDesktopRemoteAccess: vi.fn(),
 }));
-vi.mock("./desktop-remote-desktop-host.js", () => ({
+vi.mock("./desktop-remote-desktop-service.js", () => ({
 	startDesktopRemoteDesktopHost: mocks.startDesktopRemoteDesktopHost,
 	stopDesktopRemoteDesktopHost: vi.fn(),
 }));
