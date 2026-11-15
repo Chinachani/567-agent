@@ -125,6 +125,7 @@ it("a late approval after the host stops cannot start capture or restore input p
 	);
 	await start();
 	const result = capture();
+	await vi.waitFor(() => expect(os.consent).toHaveBeenCalledOnce());
 	await host!.stop();
 	host = undefined;
 	approve({ response: 0, checkboxChecked: true });
