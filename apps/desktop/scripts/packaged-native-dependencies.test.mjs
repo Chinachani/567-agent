@@ -23,10 +23,18 @@ test("omits sherpa from a speech-disabled Windows artifact", () => {
 test("keeps darwin-only glass out of Windows and Linux artifacts", () => {
 	for (const platform of ["win32", "linux"]) {
 		const result = resolvePackagedNativeDependencies(new Set([platform]));
-		assert.deepEqual(result.optional, []);
+		assert.ok(!result.optional.includes("electron-liquid-glass"));
 	}
+	const windows = resolvePackagedNativeDependencies(new Set(["win32"]));
+	assert.deepEqual(windows.optional, ["@lydell/node-pty-win32-x64", "@lydell/node-pty-win32-arm64"]);
+	const linux = resolvePackagedNativeDependencies(new Set(["linux"]));
+	assert.deepEqual(linux.optional, ["@lydell/node-pty-linux-x64"]);
 	const mac = resolvePackagedNativeDependencies(new Set(["darwin"]));
-	assert.deepEqual(mac.optional, ["electron-liquid-glass"]);
+	assert.deepEqual(mac.optional, [
+		"electron-liquid-glass",
+		"@lydell/node-pty-darwin-arm64",
+		"@lydell/node-pty-darwin-x64",
+	]);
 });
 
 test("stages every dependency the main bundle marks external", () => {
