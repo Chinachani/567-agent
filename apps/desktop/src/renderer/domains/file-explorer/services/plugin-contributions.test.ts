@@ -68,7 +68,16 @@ describe("file explorer plugin contributions", () => {
 
 		expect(resolveFileExplorerDecoration(file, providers)).toEqual({
 			pluginId: "working",
-			decoration: { badge: "M", tooltip: "Modified" },
+			priority: 10,
+			decoration: {
+				badge: "M",
+				tooltip: "Modified",
+				color: undefined,
+				faded: undefined,
+				icon: undefined,
+				propagate: undefined,
+				strikethrough: undefined,
+			},
 		});
 		expect(error).toHaveBeenCalledOnce();
 		error.mockRestore();

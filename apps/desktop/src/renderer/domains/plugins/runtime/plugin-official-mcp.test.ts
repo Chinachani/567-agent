@@ -31,13 +31,18 @@ describe("createOfficialMcpApi", () => {
 		await expect(api.remove("web")).resolves.toBeUndefined();
 
 		expect(assertOfficial).toHaveBeenCalledTimes(6);
-		expect(mcp.list).toHaveBeenCalledWith("capability-session");
-		expect(mcp.get).toHaveBeenCalledWith("capability-session", "web");
-		expect(mcp.upsert).toHaveBeenCalledWith("capability-session", "web", {
-			type: "http",
-			url: "https://mcp.example.com",
-		});
-		expect(mcp.setEnabled).toHaveBeenCalledWith("capability-session", "web", true);
-		expect(mcp.remove).toHaveBeenCalledWith("capability-session", "web");
+		expect(mcp.list).toHaveBeenCalledWith("capability-session", undefined);
+		expect(mcp.get).toHaveBeenCalledWith("capability-session", "web", undefined);
+		expect(mcp.upsert).toHaveBeenCalledWith(
+			"capability-session",
+			"web",
+			{
+				type: "http",
+				url: "https://mcp.example.com",
+			},
+			undefined,
+		);
+		expect(mcp.setEnabled).toHaveBeenCalledWith("capability-session", "web", true, undefined);
+		expect(mcp.remove).toHaveBeenCalledWith("capability-session", "web", undefined);
 	});
 });

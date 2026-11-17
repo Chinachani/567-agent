@@ -595,8 +595,8 @@ it("groups abilities by category by default while preserving both rows", async (
 	const view = render(<AbilitiesPageView model={result.current} />);
 	expect(screen.getByRole("heading", { name: "categorya" })).toBeTruthy();
 	expect(screen.getByRole("heading", { name: "categoryb" })).toBeTruthy();
-	expect(screen.getByText("Skill A")).toBeTruthy();
-	expect(screen.getByText("Skill B")).toBeTruthy();
+	expect(screen.getByRole("heading", { name: "Skill A" })).toBeTruthy();
+	expect(screen.getByRole("heading", { name: "Skill B" })).toBeTruthy();
 	view.unmount();
 });
 
@@ -691,7 +691,7 @@ it("refreshes discovery, hides empty filter options, merges aliases and exposes 
 		return <AbilitiesPageView model={useAbilitiesModel()} />;
 	}
 	render(<Page />);
-	await waitFor(() => expect(screen.getByText("SQLite")).toBeTruthy());
+	await waitFor(() => expect(screen.getByRole("heading", { name: "SQLite" })).toBeTruthy());
 	const user = userEvent.setup();
 	await user.click(screen.getByRole("button", { name: "Refresh" }));
 	await waitFor(() => expect(refresh).toHaveBeenCalled());
@@ -706,15 +706,15 @@ it("refreshes discovery, hides empty filter options, merges aliases and exposes 
 		"data-databases",
 	]);
 	await user.selectOptions(categorySelect, "__installed__");
-	expect(screen.queryByText("Postgres")).toBeNull();
-	expect(screen.queryByText("SQLite")).toBeNull();
+	expect(screen.queryByRole("heading", { name: "Postgres" })).toBeNull();
+	expect(screen.queryByRole("heading", { name: "SQLite" })).toBeNull();
 	await user.selectOptions(categorySelect, "");
-	expect(screen.getByText("Postgres")).toBeTruthy();
-	expect(screen.getByText("SQLite")).toBeTruthy();
+	expect(screen.getByRole("heading", { name: "Postgres" })).toBeTruthy();
+	expect(screen.getByRole("heading", { name: "SQLite" })).toBeTruthy();
 	await user.selectOptions(typeSelect, "mcp");
 	await user.selectOptions(categorySelect, "data-databases");
 	await user.type(screen.getByRole("textbox", { name: "Search abilities" }), "sqlite");
-	expect(screen.queryByText("Postgres")).toBeNull();
+	expect(screen.queryByRole("heading", { name: "Postgres" })).toBeNull();
 	expect(screen.getByText("Unreviewed · Safety unknown")).toBeTruthy();
 });
 

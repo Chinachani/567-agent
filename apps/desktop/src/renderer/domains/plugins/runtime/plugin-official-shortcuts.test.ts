@@ -33,10 +33,12 @@ describe("createOfficialShortcutsApi", () => {
 		const api = createOfficialShortcutsApi(assertOfficial, "capability-session");
 
 		expect(api.listAvailableActions()).toEqual([
+			{ id: "manage-session-actions", defaultShortcut: "mod+k" },
 			{ id: "new-session", defaultShortcut: "mod+n" },
 			{ id: "open-project", defaultShortcut: "mod+o" },
 			{ id: "open-settings", defaultShortcut: "mod+," },
 			{ id: "open-command-menu", defaultShortcut: "mod+k" },
+			{ id: "open-model-selector", defaultShortcut: "mod+p" },
 			{ id: "save-file", defaultShortcut: "mod+s" },
 			{ id: "toggle-sidebar", defaultShortcut: "mod+b" },
 			{ id: "toggle-activity-panel", defaultShortcut: "mod+j" },

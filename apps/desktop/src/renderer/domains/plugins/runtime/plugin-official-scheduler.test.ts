@@ -38,7 +38,7 @@ describe("createOfficialSchedulerApi", () => {
 		expect(assertOfficial).toHaveBeenCalledTimes(2);
 		expect(scheduler.listTasks).toHaveBeenCalledWith("capability-session");
 		expect(scheduler.updateTask).toHaveBeenCalledWith("capability-session", "task", {
-			modelKey: undefined,
+			modelKey: null,
 			skill: null,
 		});
 	});

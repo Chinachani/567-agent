@@ -3,13 +3,23 @@
 import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { act } from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import type { PluginAiChatRequest, PluginAiChatResult } from "@vetta-org/plugin-sdk";
+import type { PluginAiChatRequest, PluginAiChatResult, PluginModelPickerProps } from "@vetta-org/plugin-sdk";
 import { ChessStore, type GameStoragePort } from "../src/game/store";
 
 vi.mock("@vetta-org/plugin-sdk", () => ({
+	ModelPicker: ({ value, onChange, ariaLabel, emptyOption, disabled }: PluginModelPickerProps) => (
+		<select
+			aria-label={ariaLabel}
+			value={value ?? ""}
+			disabled={disabled}
+			onChange={(event) => onChange(event.currentTarget.value || null)}
+		>
+			{emptyOption && <option value="">{emptyOption.label}</option>}
+			<option value="openai/gpt-5">GPT-5</option>
+		</select>
+	),
 	useTranslation: () => ({
-		t: (key: string, values?: Record<string, string | number>) =>
-			values ? `${key}:${JSON.stringify(values)}` : key,
+		t: (key: string, values?: Record<string, string | number>) => (values ? `${key}:${JSON.stringify(values)}` : key),
 	}),
 }));
 

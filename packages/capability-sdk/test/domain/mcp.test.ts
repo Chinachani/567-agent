@@ -100,7 +100,12 @@ describe("MCP domain capabilities", () => {
 							type: "object",
 							required: ["type"],
 							properties: {
-								type: { const: MCP_SERVER_TYPES.HTTP },
+								type: {
+									anyOf: [
+										{ type: "string", const: MCP_SERVER_TYPES.HTTP },
+										{ type: "string", const: MCP_SERVER_TYPES.SSE },
+									],
+								},
 							},
 						},
 						{

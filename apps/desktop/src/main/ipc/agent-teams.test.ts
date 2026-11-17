@@ -31,7 +31,12 @@ vi.mock("electron", () => ({
 vi.mock("../agent-teams/agent-team-store.js", () => ({ agentTeamStore: {} }));
 vi.mock("../agent-teams/team-session-service.js", () => ({ agentTeamSessionService: {} }));
 // 预设同步会拉起插件目录（进而拉起 electron.app）；这里只验 IPC 布线，把它挡在外面。
-vi.mock("../agent-teams/plugin-agent-preset-sync.js", () => ({ initPluginAgentPresetSync: vi.fn() }));
+vi.mock("../agent-teams/plugin-agent-preset-sync.js", () => ({
+	initPluginAgentPresetSync: vi.fn(),
+	getExpertPresetSourceStatus: () => ({ phase: "idle", syncedAt: null, count: 0, hasCache: false }),
+	onExpertPresetSourceChanged: () => () => {},
+	refreshMarketplaceAgentPresets: vi.fn(async () => {}),
+}));
 vi.mock("../logger.js", () => ({
 	getAppLogger: () => ({ info: vi.fn(), warn: vi.fn(), error: vi.fn() }),
 }));

@@ -69,7 +69,9 @@ describe("plugin-events 就绪门", () => {
 			expect(resolved).toBe(false);
 			await vi.advanceTimersByTimeAsync(1);
 			expect(resolved).toBe(true);
-			expect(warn).toHaveBeenCalledWith('[plugin-agent] wait host first ready timed out {"timeoutMs":5000}');
+			expect(warn).toHaveBeenCalledWith(
+				'[plugin-runtime] host readiness wait timed out {"stage":"wait-first-ready","reason":"timeout","timeoutMs":5000}',
+			);
 		} finally {
 			vi.useRealTimers();
 		}

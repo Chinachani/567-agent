@@ -57,6 +57,7 @@ describe("remote desktop host negotiation", () => {
 				type: "capabilities",
 				textInput: true,
 				viewport: true,
+				videoPreference: true,
 				pointerMode: "relative",
 				inputEnabled: true,
 			}),

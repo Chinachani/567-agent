@@ -46,7 +46,17 @@ beforeEach(() => {
 	Object.defineProperty(window, "agent567", {
 		configurable: true,
 		value: {
-			im: { subscribeStatus: async () => () => {}, getStatus: async () => ({ transport: "online" }) },
+			im: {
+				subscribeStatus: async () => () => {},
+				getStatus: async () => ({ transport: "online" }),
+				onSessionChanged: () => () => {},
+			},
+			config: { get: async () => ({ projects: [] }), onProjectsChanged: () => () => {} },
+			session: { listSessions: async () => [], onSessionsChanged: () => () => {} },
+			notification: {
+				listResults: async () => ({ tasks: [], unavailableCount: 0, truncated: false }),
+				markResultRead: async () => {},
+			},
 			updater: { sync: vi.fn(async () => {}) },
 			subscription: { getStatus: async () => ({}) },
 			appMonitor: { recordEvent: () => {} },

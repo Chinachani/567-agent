@@ -5,7 +5,6 @@ import {
 	type SshPromptRequestEvent,
 	type SshPromptResponse,
 } from "../../shared/ssh-prompt-ipc.js";
-import { getMainWindow } from "../window-manager.js";
 import type { SshPromptUserAnswer, SshPromptUserRequest } from "./ssh-prompt-service.js";
 
 /** 一次提示最多等多久。超过就当用户没在看，让 ssh 放弃本次认证而不是无限挂着。 */
@@ -25,8 +24,9 @@ let registered = false;
  *
  * 超时和窗口全关都按「拒绝」处理：确认类提示绝不能因为没人应答就变成默认同意。
  */
-export function askSshPromptInRenderer(request: SshPromptUserRequest): Promise<SshPromptUserAnswer> {
+export async function askSshPromptInRenderer(request: SshPromptUserRequest): Promise<SshPromptUserAnswer> {
 	ensureRegistered();
+	const { getMainWindow } = await import("../window-manager.js");
 	const window = getMainWindow();
 	if (!window || window.isDestroyed() || window.webContents.isDestroyed()) return Promise.resolve({ ok: false });
 

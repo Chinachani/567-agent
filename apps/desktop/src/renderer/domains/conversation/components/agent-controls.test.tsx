@@ -15,6 +15,10 @@ vi.mock("react-i18next", () => ({
 beforeEach(() => {
 	Object.assign(window, {
 		vetta: {
+			agentTeams: {
+				list: async () => ({ schemaVersion: 1, revision: 0, agents: [], teams: [] }),
+				onChanged: () => () => {},
+			},
 			config: { get: async () => ({ defaultAgentMode: "work", projects: [] }), onProjectsChanged: () => () => {} },
 			im: { onSessionChanged: () => () => {} },
 			session: {
@@ -58,6 +62,7 @@ describe("conversation controls", () => {
 		const user = userEvent.setup();
 		await user.click(screen.getByRole("button", { name: "Export" }));
 		await user.click(screen.getByRole("button", { name: "Panel" }));
+		await user.click(screen.getByRole("button", { name: "chatView.headerActions.customize" }));
 		await user.click(screen.getByRole("button", { name: "Pin" }));
 		expect(actions.openExport).toHaveBeenCalledOnce();
 		expect(actions.togglePanel).toHaveBeenCalledOnce();

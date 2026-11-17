@@ -130,9 +130,7 @@ vi.mock("../../components/MessageList", async () => {
 										? participants.find((participant) => participant.id === message.authorId)
 										: undefined
 								}
-								pendingLabel={
-									message.kind === "agent" && message.phase === "pending" ? pendingLabel : undefined
-								}
+								pendingLabel={message.kind === "agent" && message.phase === "pending" ? pendingLabel : undefined}
 								onTeamMemberOpen={onTeamMemberOpen}
 							/>
 						</div>
@@ -186,10 +184,7 @@ function assistantMessage(
 		content.push({ type: "toolCall", id: toolCall.id, name: toolCall.name, arguments: toolCall.arguments });
 	}
 	return {
-		...createAssistantMessage(
-			{ api: "agent-team-test", provider: "agent-team-test", model: "fixture" },
-			{ timestamp },
-		),
+		...createAssistantMessage({ api: "agent-team-test", provider: "agent-team-test", model: "fixture" }, { timestamp }),
 		content,
 	};
 }
@@ -213,18 +208,16 @@ function TeamFlow(): JSX.Element {
 }
 
 function assistantRows(): HTMLElement[] {
-	return Array.from(screen.getByTestId("message-list").querySelectorAll<HTMLElement>("[data-entry-id]")).filter(
-		(row) => row.textContent?.includes("Master"),
+	return Array.from(screen.getByTestId("message-list").querySelectorAll<HTMLElement>("[data-entry-id]")).filter((row) =>
+		row.textContent?.includes("Master"),
 	);
 }
 
 function visibleConversationSignature(): readonly { readonly entryId: string | null; readonly text: string }[] {
-	return Array.from(screen.getByTestId("message-list").querySelectorAll<HTMLElement>("[data-entry-id]")).map(
-		(row) => ({
-			entryId: row.getAttribute("data-entry-id"),
-			text: row.textContent ?? "",
-		}),
-	);
+	return Array.from(screen.getByTestId("message-list").querySelectorAll<HTMLElement>("[data-entry-id]")).map((row) => ({
+		entryId: row.getAttribute("data-entry-id"),
+		text: row.textContent ?? "",
+	}));
 }
 
 function stableConversationSignature(): readonly { readonly entryId: string | null; readonly text: string }[] {
@@ -264,12 +257,10 @@ describe("Team delegation message-to-UI flow", () => {
 			configurable: true,
 			value: {
 				agentTeams: {
-					subscribe: vi.fn(
-						async (_sessionId: string, listener: (event: DesktopTeamSessionStreamEvent) => void) => {
-							streamListener = listener;
-							return () => undefined;
-						},
-					),
+					subscribe: vi.fn(async (_sessionId: string, listener: (event: DesktopTeamSessionStreamEvent) => void) => {
+						streamListener = listener;
+						return () => undefined;
+					}),
 					sendMessage: vi.fn(async () => emptySnapshot),
 					updateModelSettings: vi.fn(async () => emptySnapshot),
 					setExecutionMode: vi.fn(async () => emptySnapshot),
@@ -497,6 +488,16 @@ describe("Team delegation message-to-UI flow", () => {
 		};
 		act(() => {
 			streamListener?.({ type: "session-updated", teamSessionId: session.id, snapshot: finalSnapshot });
+			streamListener?.({
+				type: "conversation.agent-message-discard",
+				conversationId: session.id,
+				messageId: "architect-live-step",
+				turnId: "architect-turn",
+				author: { kind: "agent", id: architect.id },
+				sequence: 2,
+				reason: "completed",
+				timestamp: 4,
+			});
 			streamListener?.({
 				type: "conversation.agent-message-discard",
 				conversationId: session.id,

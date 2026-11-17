@@ -78,6 +78,7 @@ export class SshPortForwardService {
 	private readonly forwards = new Map<string, PortForward>();
 	private readonly owners = new Map<string, Set<string>>();
 	private readonly pending = new Map<string, Promise<unknown>>();
+	private readonly generations = new Map<string, object>();
 	private disposed = false;
 	private timer: NodeJS.Timeout | undefined;
 	private verifying = false;
@@ -97,11 +98,15 @@ export class SshPortForwardService {
 	 * 各自都以为自己是第一个；重复建立会让后来者撤掉前面那条正在被用的转发。例外是显式点名了
 	 * 另一个本机端口——那是「换个号」，见 {@link remap}。
 	 */
-	open(request: PortForwardRequest): Promise<PortForward> {
+	async open(request: PortForwardRequest): Promise<PortForward> {
 		const key = forwardKey(request.hostId, assertPort(request.remotePort, "remote port"));
+		const generation = this.generations.get(key) ?? {};
+		this.generations.set(key, generation);
+		const isCurrent = () => !this.disposed && this.generations.get(key) === generation;
 		return this.serialize(key, async () => {
-			if (this.disposed) throw new Error("Port forwarding service is closed");
-			const forward = await this.openForward(request);
+			if (!isCurrent()) throw new Error("Port forwarding request was closed");
+			const forward = await this.openForward(request, isCurrent);
+			if (!isCurrent()) throw new Error("Port forwarding request was closed");
 			const owners = this.owners.get(key) ?? new Set<string>();
 			owners.add(request.ownerId ?? `ui:${request.source ?? "manual"}`);
 			this.owners.set(key, owners);
@@ -109,7 +114,7 @@ export class SshPortForwardService {
 		});
 	}
 
-	private async openForward(request: PortForwardRequest): Promise<PortForward> {
+	private async openForward(request: PortForwardRequest, isCurrent: () => boolean): Promise<PortForward> {
 		const remotePort = assertPort(request.remotePort, "remote port");
 		const key = forwardKey(request.hostId, remotePort);
 		const existing = this.forwards.get(key);
@@ -117,13 +122,14 @@ export class SshPortForwardService {
 			if (request.localPort === undefined || request.localPort === existing.localPort) return existing;
 			if (request.ownerId && [...(this.owners.get(key) ?? [])].some((owner) => owner !== request.ownerId))
 				throw new Error("This port is already forwarded on a different local port by another owner");
-			return this.remap(existing, assertPort(request.localPort, "local port"));
+			return this.remap(existing, assertPort(request.localPort, "local port"), isCurrent);
 		}
 
 		const localPort =
 			request.localPort === undefined
 				? await this.pickLocalPort(remotePort)
 				: await this.claimLocalPort(assertPort(request.localPort, "local port"));
+		if (!isCurrent()) throw new Error("Port forwarding request was closed");
 		const forward: PortForward = {
 			hostId: request.hostId,
 			remotePort,
@@ -135,7 +141,7 @@ export class SshPortForwardService {
 		};
 		const connection = this.options.connect(request.hostId);
 		await connection.forwardPort(localPort, remotePort);
-		if (this.disposed) {
+		if (!isCurrent()) {
 			await connection.cancelPortForward(localPort, remotePort).catch(() => undefined);
 			throw new Error("Port forwarding service is closed");
 		}
@@ -151,11 +157,12 @@ export class SshPortForwardService {
 	 * 顺序是「先占新的、再接通、最后撤旧的」：新端口被占用或接不通时，用户原来那条还在正常
 	 * 工作。反过来先撤再建，一旦新端口不可用，用户就在一次「改个号」里把能用的转发弄丢了。
 	 */
-	private async remap(existing: PortForward, localPort: number): Promise<PortForward> {
+	private async remap(existing: PortForward, localPort: number, isCurrent: () => boolean): Promise<PortForward> {
 		await this.claimLocalPort(localPort);
+		if (!isCurrent()) throw new Error("Port forwarding request was closed");
 		const connection = this.options.connect(existing.hostId);
 		await connection.forwardPort(localPort, existing.remotePort);
-		if (this.disposed) {
+		if (!isCurrent()) {
 			await connection.cancelPortForward(localPort, existing.remotePort).catch(() => undefined);
 			throw new Error("Port forwarding service is closed");
 		}
@@ -168,7 +175,16 @@ export class SshPortForwardService {
 
 	/** 撤掉一条转发。不存在时什么都不做——调用方不必先查一遍。 */
 	close(hostId: string, remotePort: number): Promise<void> {
-		return this.serialize(forwardKey(hostId, remotePort), () => this.closeForward(hostId, remotePort));
+		// Revoke immediately: waiting behind a stalled SSH request would prevent the
+		// user from closing it. The serialized request cleans up its late completion
+		// before any subsequent open can reuse the same forward.
+		const key = forwardKey(hostId, remotePort);
+		this.generations.delete(key);
+		const closing = this.closeForward(hostId, remotePort);
+		// A later open must also wait for cancellation, or an old cancellation
+		// could remove a newly established forward on the same local port.
+		void this.serialize(key, () => closing);
+		return closing;
 	}
 
 	/** Release only this process's lease; manual and other plugin users keep their forward. */
@@ -177,6 +193,7 @@ export class SshPortForwardService {
 		return this.serialize(key, async () => {
 			const owners = this.owners.get(key);
 			if (!owners?.delete(ownerId) || owners.size > 0) return;
+			this.generations.delete(key);
 			await this.closeForward(hostId, remotePort);
 		});
 	}
@@ -209,7 +226,10 @@ export class SshPortForwardService {
 		const result = (this.pending.get(key) ?? Promise.resolve()).catch(() => undefined).then(operation);
 		this.pending.set(key, result);
 		const cleanup = (): void => {
-			if (this.pending.get(key) === result) this.pending.delete(key);
+			if (this.pending.get(key) === result) {
+				this.pending.delete(key);
+				if (!this.forwards.has(key)) this.generations.delete(key);
+			}
 		};
 		void result.then(cleanup, cleanup);
 		return result;
@@ -238,6 +258,7 @@ export class SshPortForwardService {
 	/** Stop polling and revoke known forwards; a ControlMaster may outlive this GUI. */
 	dispose(): void {
 		this.disposed = true;
+		this.generations.clear();
 		for (const forward of this.forwards.values()) {
 			void Promise.resolve()
 				.then(() => this.options.connect(forward.hostId).cancelPortForward(forward.localPort, forward.remotePort))
@@ -254,21 +275,20 @@ export class SshPortForwardService {
 		// 巡检是在一份快照上逐条做的，探测本机端口的那次等待里用户可能已经把这条撤了。条目
 		// 是不可变对象，比对身份即可认出「还是我要重建的那一条」——否则重建会把它复活。
 		if (this.forwards.get(key) !== forward) return;
-		this.forwards.set(key, { ...forward, status: "reconnecting", error: undefined });
+		const reconnecting: PortForward = { ...forward, status: "reconnecting", error: undefined };
+		this.forwards.set(key, reconnecting);
 		this.changed();
 		try {
-			await this.options.connect(forward.hostId).forwardPort(forward.localPort, forward.remotePort);
+			const connection = this.options.connect(forward.hostId);
+			await connection.forwardPort(forward.localPort, forward.remotePort);
 			// 期间用户可能已经撤掉了它；那时不要把它复活。
-			if (this.disposed || !this.forwards.has(key)) {
-				await this.options
-					.connect(forward.hostId)
-					.cancelPortForward(forward.localPort, forward.remotePort)
-					.catch(() => undefined);
+			if (this.disposed || this.forwards.get(key) !== reconnecting) {
+				await connection.cancelPortForward(forward.localPort, forward.remotePort).catch(() => undefined);
 				return;
 			}
 			this.forwards.set(key, { ...forward, status: "active", error: undefined });
 		} catch (error) {
-			if (!this.forwards.has(key)) return;
+			if (this.forwards.get(key) !== reconnecting) return;
 			const message = error instanceof Error ? error.message : String(error);
 			log.warn(`could not re-establish the forward for remote port ${forward.remotePort}: ${message}`);
 			this.forwards.set(key, { ...forward, status: "failed", error: message });

@@ -13,7 +13,8 @@ vi.mock("react-i18next", () => ({
 			`${key}${options?.name ?? options?.plugin ?? options?.count ?? options?.index ?? ""}`,
 	}),
 }));
-vi.mock("@vetta-org/ui", () => ({
+vi.mock("@vetta-org/ui", async (importOriginal) => ({
+	...(await importOriginal<Record<string, unknown>>()),
 	Button: ({ children, ...props }: { children: ReactNode } & Record<string, unknown>) => (
 		<button {...props}>{children}</button>
 	),
@@ -27,13 +28,7 @@ vi.mock("@vetta-org/ui", () => ({
 		checked: boolean;
 		onCheckedChange: () => void;
 	} & Record<string, unknown>) => (
-		<button
-			type="button"
-			role="switch"
-			aria-checked={checked}
-			onClick={onCheckedChange}
-			{...props}
-		/>
+		<button type="button" role="switch" aria-checked={checked} onClick={onCheckedChange} {...props} />
 	),
 }));
 vi.mock("react-virtuoso", () => ({
@@ -51,9 +46,7 @@ vi.mock("react-virtuoso", () => ({
 				<div key={groupIndex}>
 					{groupContent(groupIndex)}
 					{Array.from({ length: count }, (_, itemIndex) => {
-						const offset = groupCounts
-							.slice(0, groupIndex)
-							.reduce((sum, value) => sum + value, 0);
+						const offset = groupCounts.slice(0, groupIndex).reduce((sum, value) => sum + value, 0);
 						return <div key={itemIndex}>{itemContent(offset + itemIndex)}</div>;
 					})}
 				</div>
@@ -150,9 +143,14 @@ describe("AgentProfileEditor", () => {
 		const prompt = screen.getByLabelText("profile.systemPrompt");
 		await user.type(prompt, "Use file-backed instructions.");
 		await user.click(screen.getByRole("button", { name: "profile.save" }));
-		await waitFor(() => expect(onSave).toHaveBeenCalledWith(agent, expect.objectContaining({
-			systemPrompt: "Use file-backed instructions.",
-		})));
+		await waitFor(() =>
+			expect(onSave).toHaveBeenCalledWith(
+				agent,
+				expect.objectContaining({
+					systemPrompt: "Use file-backed instructions.",
+				}),
+			),
+		);
 	});
 
 	it("shows the blueprint prompt when the profile carries no override", () => {
@@ -184,9 +182,7 @@ describe("AgentProfileEditor", () => {
 		);
 
 		await user.click(screen.getByRole("button", { name: "profile.save" }));
-		await waitFor(() =>
-			expect(onSave).toHaveBeenCalledWith(agent, expect.objectContaining({ systemPrompt: "" })),
-		);
+		await waitFor(() => expect(onSave).toHaveBeenCalledWith(agent, expect.objectContaining({ systemPrompt: "" })));
 	});
 
 	it("keeps the prompt an override once the user edits it", async () => {
@@ -217,14 +213,7 @@ describe("AgentProfileEditor", () => {
 		const user = userEvent.setup();
 		const onPreview = vi.fn(async () => impact);
 		const onSave = vi.fn(async () => ({ updated: agent, impact }));
-		render(
-			<AgentProfileEditor
-				agent={agent}
-				capabilities={[]}
-				onPreview={onPreview}
-				onSave={onSave}
-			/>,
-		);
+		render(<AgentProfileEditor agent={agent} capabilities={[]} onPreview={onPreview} onSave={onSave} />);
 
 		await user.click(screen.getByRole("button", { name: "profile.save" }));
 		await waitFor(() => expect(screen.getByText(/profile.sharedImpact2/)).toBeTruthy());
@@ -377,7 +366,6 @@ describe("AgentProfileEditor", () => {
 		);
 	});
 
-
 	it("uploads a picture and saves it as the avatar", async () => {
 		const user = userEvent.setup();
 		const onSave = vi.fn(async () => ({ updated: agent, impact }));
@@ -395,9 +383,7 @@ describe("AgentProfileEditor", () => {
 		await user.click(screen.getByRole("button", { name: "profile.avatarUpload" }));
 		await waitFor(() => expect(uploadAvatar).toHaveBeenCalled());
 		// 上传的图片不在内置目录里，得自己占一格，否则选完就从列表里消失。
-		await waitFor(() =>
-			expect(screen.getAllByRole("button", { name: "profile.avatarUpload" })).toHaveLength(2),
-		);
+		await waitFor(() => expect(screen.getAllByRole("button", { name: "profile.avatarUpload" })).toHaveLength(2));
 
 		await user.click(screen.getByRole("button", { name: "profile.save" }));
 		await waitFor(() =>

@@ -1,11 +1,26 @@
 // @vitest-environment jsdom
 
 import { TabBar } from "@shared/components/ui/tab-bar";
-import { act, createElement, useState } from "react";
+import { act, createElement, type HTMLAttributes, useState } from "react";
 import { createRoot, type Root } from "react-dom/client";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
-vi.mock("motion/react", () => ({ motion: { span: () => null } }));
+vi.mock("motion/react", async () => {
+	const { createElement, forwardRef } = await import("react");
+	return {
+		motion: {
+			span: forwardRef<
+				HTMLSpanElement,
+				HTMLAttributes<HTMLSpanElement> & {
+					layoutId?: string;
+					transition?: unknown;
+				}
+			>(function MotionSpan({ layoutId, transition: _transition, ...props }, ref) {
+				return createElement("span", { ...props, ref, "data-layout-id": layoutId });
+			}),
+		},
+	};
+});
 
 class ResizeObserverStub {
 	disconnect(): void {}
@@ -91,7 +106,7 @@ describe("TabBar pointer drag", () => {
 		document.querySelector<HTMLElement>("[data-tab-drag-overlay]")?.remove();
 	});
 
-	it("uses a static active indicator while layout animation is suppressed", () => {
+	it("keeps the same active indicator while suppressing and restoring layout animation", () => {
 		act(() => {
 			root.render(
 				createElement(TabBar, {
@@ -102,7 +117,9 @@ describe("TabBar pointer drag", () => {
 				}),
 			);
 		});
-		expect(container.querySelector("[data-active-tab-indicator]")).not.toBeNull();
+		const indicator = container.querySelector("[data-active-tab-indicator]");
+		expect(indicator).not.toBeNull();
+		expect(indicator?.hasAttribute("data-layout-id")).toBe(false);
 
 		act(() => {
 			root.render(
@@ -114,10 +131,11 @@ describe("TabBar pointer drag", () => {
 				}),
 			);
 		});
-		expect(container.querySelector("[data-active-tab-indicator]")).toBeNull();
+		expect(container.querySelector("[data-active-tab-indicator]")).toBe(indicator);
+		expect(indicator?.getAttribute("data-layout-id")).toMatch(/^tabbar-active-/);
 	});
 
-	it("does not synchronously read the active indicator width", () => {
+	it("measures the active indicator before drawing its connected outline", () => {
 		const offsetWidth = vi.spyOn(HTMLElement.prototype, "offsetWidth", "get").mockReturnValue(80);
 
 		try {
@@ -131,7 +149,8 @@ describe("TabBar pointer drag", () => {
 					}),
 				);
 			});
-			expect(offsetWidth).not.toHaveBeenCalled();
+			expect(offsetWidth).toHaveBeenCalled();
+			expect(container.querySelector("[data-connected-tab-outline]")).not.toBeNull();
 		} finally {
 			offsetWidth.mockRestore();
 		}

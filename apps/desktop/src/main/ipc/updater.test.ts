@@ -41,7 +41,23 @@ it("all updater channels reject unrelated windows, subframes and a destroyed own
 	let destroyed = false;
 	const owner = { mainFrame: {}, isDestroyed: () => destroyed } as WebContents;
 	const cleanup = registerUpdaterIpc(owner);
-	expect(fake.handlers.size).toBe(12);
+	expect([...fake.handlers.keys()].sort()).toEqual(
+		[
+			"vetta:updater:check",
+			"vetta:updater:sync",
+			"vetta:updater:get-state",
+			"vetta:updater:get-current-version",
+			"vetta:updater:download",
+			"agent567:updater:pause",
+			"vetta:updater:install",
+			"vetta:updater:dismiss",
+			"vetta:updater:cancel",
+			"agent567:updater:get-preferences",
+			"agent567:updater:set-preferences",
+			"agent567:updater:release-history",
+			"vetta:updater:get-current-release-note",
+		].sort(),
+	);
 	for (const handler of fake.handlers.values()) {
 		for (const event of [
 			{ sender: {}, senderFrame: owner.mainFrame },

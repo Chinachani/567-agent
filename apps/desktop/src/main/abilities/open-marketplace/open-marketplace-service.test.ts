@@ -1,3 +1,4 @@
+import { createHash } from "node:crypto";
 import { cp, mkdtemp, readdir, readFile, rm, utimes, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
@@ -105,20 +106,30 @@ function sourceIndexArchive(): Buffer {
 				minAppVersion: APP_VERSION,
 				abilities: [
 					{
-						type: "skill",
-						slug: "source-skill",
-						name: "Source Skill",
+						type: "plugin",
+						slug: "source-expert",
+						name: "Source Expert",
 						description: "Loaded from a source index",
 						version: "0.1.0",
-						source: { path: "abilities/skills/source-skill" },
+						source: { path: "abilities/plugins/source-expert" },
 					},
 				],
 			}),
 		),
 	);
 	zip.addFile(
-		"567-agent-presets-main/abilities/skills/source-skill/SKILL.md",
-		Buffer.from("---\nname: source-skill\ndescription: Source skill\nversion: 0.1.0\n---\n\n# Source\n"),
+		"567-agent-presets-main/abilities/plugins/source-expert/plugin.json",
+		Buffer.from(
+			JSON.stringify({
+				id: "source-expert",
+				name: "Source Expert",
+				version: "0.1.0",
+				pluginApiVersion: "2.0.0",
+				entry: "dist/index.js",
+				permissions: [],
+				agent: { agents: [{ id: "planner", name: "Planner", systemPrompt: "Help plan the user's task." }] },
+			}),
+		),
 	);
 	return zip.toBuffer();
 }
@@ -349,17 +360,23 @@ afterEach(async () => {
 describe("OpenMarketplaceService", () => {
 	it("loads a preset repository source index before a generated marketplace index exists", async () => {
 		const rootDir = await temporaryRoot();
+		const source = sourceIndexArchive();
 		const service = new OpenMarketplaceService({
 			appVersion: APP_VERSION,
 			rootDir,
 			sourceId: "567-agent-presets",
 			repository: "https://github.com/Chinachani/567-agent-presets",
-			fetchArchive: async () => response(sourceIndexArchive()),
+			fetchArchive: async () => response(source),
 		});
 
 		const snapshot = await service.refresh();
-		expect(snapshot).toMatchObject({ marketplaceVersion: "0.1.0" });
-		expect(snapshot.abilities).toEqual(expect.arrayContaining([expect.objectContaining({ slug: "source-skill" })]));
+		expect(snapshot).toMatchObject({
+			marketplaceVersion: `source-${createHash("sha256").update(source).digest("hex").slice(0, 48)}`,
+			stale: false,
+		});
+		expect(snapshot.abilities).toEqual(
+			expect.arrayContaining([expect.objectContaining({ type: "plugin", slug: "source-expert" })]),
+		);
 	});
 	it("lists and installs the compatible plugin release from a catalog without committed build output", async () => {
 		const source = versionedPluginArchive();

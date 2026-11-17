@@ -3,6 +3,9 @@ import { render, screen } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
 import type { RootLayoutModel } from "./types";
 
+vi.mock("../shared/hooks/useUiZoom", () => ({
+	useUiZoom: () => ({ factor: 1, saving: false, setFactor: vi.fn(), reset: vi.fn() }),
+}));
 vi.mock("@tanstack/react-router", () => ({ Outlet: () => <section>Settings content</section> }));
 vi.mock("@vetta-org/theme-sdk", () => ({
 	useThemeComponent: (_slot: string, fallback: unknown) => fallback,

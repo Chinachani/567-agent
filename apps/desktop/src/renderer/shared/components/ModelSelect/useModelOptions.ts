@@ -98,9 +98,11 @@ export function useModelOptions(): UseModelOptionsResult {
 	const remoteModels = useMemo(
 		() =>
 			Object.keys(remoteProviders).length > 0
-				? flattenModels({ providers: remoteProviders as ModelsConfigData["providers"] }, true)
+				? flattenModels({ providers: remoteProviders as ModelsConfigData["providers"] }, true).filter(
+						(model) => !config?.providers[model.provider]?.disabled,
+					)
 				: [],
-		[remoteProviders],
+		[remoteProviders, config],
 	);
 
 	const options = useMemo(() => {

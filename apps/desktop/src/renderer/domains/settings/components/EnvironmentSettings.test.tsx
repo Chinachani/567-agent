@@ -23,43 +23,91 @@ function fixture(pythonSupported = false) {
 	let ready = false;
 	let notify: () => void = () => undefined;
 	const getStatus = vi.fn(async () => ({
-		node: { type: "node", ready, supported: true, repairRequiresRestart, managedVersion: ready ? "22.22.2" : undefined, recommendedVersion: "22.22.2", activeSource: "managed" },
-		python: { type: "python", ready: false, supported: pythonSupported, recommendedVersion: "3.13.12", activeSource: "managed" },
+		node: {
+			type: "node",
+			ready,
+			supported: true,
+			repairRequiresRestart,
+			managedVersion: ready ? "22.22.2" : undefined,
+			recommendedVersion: "22.22.2",
+			activeSource: "managed",
+		},
+		python: {
+			type: "python",
+			ready: false,
+			supported: pythonSupported,
+			recommendedVersion: "3.13.12",
+			activeSource: "managed",
+		},
+		git: { available: true, source: "system", version: "2.47.0", install: { kind: "manual" } },
 		mirrors: { npmRegistry: "https://example.test/npm", pipIndexUrl: "https://example.test/pip" },
 	}));
-	const reinstall = vi.fn(async (): Promise<{ ready: boolean }> => { repairRequiresRestart = true; throw new Error("Runtime files are in use"); });
+	const reinstall = vi.fn(async (): Promise<{ ready: boolean }> => {
+		repairRequiresRestart = true;
+		throw new Error("Runtime files are in use");
+	});
 	const restartAndRepair = vi.fn(async () => undefined);
-	Object.defineProperty(window, "agent567", { configurable: true, value: {
-		runtimes: { getStatus, reinstall, restartAndRepair, onProgress: () => () => undefined,
-			onStatusChanged: (listener: () => void) => { notify = listener; return () => { notify = () => undefined; }; },
+	Object.defineProperty(window, "agent567", {
+		configurable: true,
+		value: {
+			runtimes: {
+				getStatus,
+				reinstall,
+				restartAndRepair,
+				onProgress: () => () => undefined,
+				onStatusChanged: (listener: () => void) => {
+					notify = listener;
+					return () => {
+						notify = () => undefined;
+					};
+				},
+			},
 		},
-	} });
-	return { getStatus, reinstall, restartAndRepair, completeBackgroundRepair: () => { ready = true; repairRequiresRestart = false; notify(); } };
+	});
+	return {
+		getStatus,
+		reinstall,
+		restartAndRepair,
+		completeBackgroundRepair: () => {
+			ready = true;
+			repairRequiresRestart = false;
+			notify();
+		},
+	};
 }
 
 describe("environment repair flow", () => {
-    it("serializes user repairs and disables both runtime buttons until the active operation finishes", async () => {
-        const { reinstall, getStatus } = fixture(true);
-        let complete!: (value: { ready: boolean }) => void;
-        reinstall.mockImplementationOnce(() => new Promise((resolve) => { complete = resolve; }));
-        const user = userEvent.setup();
-        render(<EnvironmentSettings />);
-        const buttons = await screen.findAllByRole("button", { name: "Fetch" });
-        await user.click(buttons[0]);
-        expect(buttons[0]).toHaveProperty("disabled", true);
-        expect(buttons[1]).toHaveProperty("disabled", true);
-        await user.click(buttons[1]);
-        expect(reinstall).toHaveBeenCalledOnce();
-        getStatus.mockResolvedValue({ ...(await getStatus()), node: { ...(await getStatus()).node, ready: true } });
-        await act(async () => { complete({ ready: true }); });
-        await waitFor(() => expect(buttons[1]).toHaveProperty("disabled", false));
-    });
+	it("serializes user repairs and disables both runtime buttons until the active operation finishes", async () => {
+		const { reinstall, getStatus } = fixture(true);
+		let complete!: (value: { ready: boolean }) => void;
+		reinstall.mockImplementationOnce(
+			() =>
+				new Promise((resolve) => {
+					complete = resolve;
+				}),
+		);
+		const user = userEvent.setup();
+		render(<EnvironmentSettings />);
+		const buttons = await screen.findAllByRole("button", { name: "Fetch" });
+		await user.click(buttons[0]);
+		expect(buttons[0]).toHaveProperty("disabled", true);
+		expect(buttons[1]).toHaveProperty("disabled", true);
+		await user.click(buttons[1]);
+		expect(reinstall).toHaveBeenCalledOnce();
+		getStatus.mockResolvedValue({ ...(await getStatus()), node: { ...(await getStatus()).node, ready: true } });
+		await act(async () => {
+			complete({ ready: true });
+		});
+		await waitFor(() => expect(buttons[1]).toHaveProperty("disabled", false));
+	});
 
 	it("updates the page when background recovery completes", async () => {
 		const { completeBackgroundRepair } = fixture();
 		render(<EnvironmentSettings />);
 		await screen.findByRole("button", { name: "Fetch" });
-		await act(async () => { completeBackgroundRepair(); });
+		await act(async () => {
+			completeBackgroundRepair();
+		});
 		expect(await screen.findByText("Ready · 22.22.2")).toBeTruthy();
 		expect(screen.getByRole("button", { name: "Fetch again" })).toBeTruthy();
 	});
@@ -84,6 +132,8 @@ describe("environment repair flow", () => {
 		await user.click(await screen.findByRole("button", { name: "Fetch" }));
 		await user.click(await screen.findByRole("button", { name: "Restart and repair" }));
 		expect(await screen.findByText(/Repair request could not be saved/)).toBeTruthy();
-		await waitFor(() => expect(screen.getByRole("button", { name: "Restart and repair" })).toHaveProperty("disabled", false));
+		await waitFor(() =>
+			expect(screen.getByRole("button", { name: "Restart and repair" })).toHaveProperty("disabled", false),
+		);
 	});
 });

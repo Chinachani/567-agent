@@ -72,6 +72,9 @@ afterEach(() => vi.unstubAllGlobals());
 it("retains personalization saving and expands advanced runtime controls on demand", async () => {
 	const user = userEvent.setup();
 	render(<Settings />);
+	await user.click(
+		await screen.findByRole("button", { name: i18n.t("settings:agentSettings.customInstructionsEdit") }),
+	);
 	const input = await screen.findByDisplayValue("old instructions");
 	await user.clear(input);
 	await user.type(input, "new instructions");
@@ -90,5 +93,5 @@ it("expands runtime settings when opened through an existing section link", asyn
 	render(<Settings />);
 	expect(screen.getByText("高级运行设置").closest("details")?.open).toBe(true);
 	expect(screen.getByRole("switch", { name: "OCR" })).toBeTruthy();
-	await screen.findByDisplayValue("old instructions");
+	await screen.findByRole("button", { name: i18n.t("settings:agentSettings.customInstructionsEdit") });
 });

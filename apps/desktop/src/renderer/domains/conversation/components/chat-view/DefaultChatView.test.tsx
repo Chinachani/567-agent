@@ -10,6 +10,8 @@ vi.mock("@domains/activity-panel/components/ActivityPanel", () => ({
 	CurrentScenarioActivityPanel: () => createElement("aside", { "data-testid": "activity-panel" }),
 }));
 
+vi.mock("@domains/bottom-panel/components/BottomPanelHost", () => ({ BottomPanelHost: () => null }));
+
 vi.mock("../ChatExportHost", () => ({
 	ChatExportHost: () => null,
 }));

@@ -32,7 +32,6 @@ vi.mock("../../scheduler/components/SchedulerTaskFields", () => ({
 }));
 vi.mock("../../scheduler/components/ExecutionHistory", () => ({ ExecutionHistory: () => <p>Execution history</p> }));
 import { AutomationDetailPane } from "../../scheduler/components/AutomationDetailPane";
-import { i18n } from "@shared/i18n";
 
 afterEach(() => {
 	cleanup();
@@ -85,9 +84,7 @@ describe("workspace page actions after the layout redesign", () => {
 		render(
 			<>
 				<TaskListView
-					items={[
-						{ id: "one", name: "Project review", subtitle: "Monday 9:00", tone: "active", isSelected: false },
-					]}
+					items={[{ id: "one", name: "Project review", subtitle: "Monday 9:00", tone: "active", isSelected: false }]}
 					onSelectTask={onSelectTask}
 				/>
 				<AutomationDetailPane
@@ -111,13 +108,12 @@ describe("workspace page actions after the layout redesign", () => {
 				/>
 			</>,
 		);
-		await user.click(screen.getByRole("button", { name: i18n.t("automation:detail.runNow") }));
-		await user.click(screen.getByRole("button", { name: i18n.t("automation:detail.pause") }));
-		await user.click(screen.getByRole("button", { name: i18n.t("automation:detail.save") }));
-		await user.click(screen.getByRole("button", { name: i18n.t("automation:detail.more") }));
-		await user.click(screen.getByRole("menuitem", { name: i18n.t("automation:detail.delete") }));
-		for (const action of [detail.run, detail.toggle, detail.save, detail.remove])
-			expect(action).toHaveBeenCalledOnce();
+		await user.click(screen.getByRole("button", { name: "detail.runNow" }));
+		await user.click(screen.getByRole("button", { name: "detail.pause" }));
+		await user.click(screen.getByRole("button", { name: "detail.save" }));
+		await user.click(screen.getByRole("button", { name: "detail.more" }));
+		await user.click(screen.getByRole("menuitem", { name: "detail.delete" }));
+		for (const action of [detail.run, detail.toggle, detail.save, detail.remove]) expect(action).toHaveBeenCalledOnce();
 		expect(onSelectTask).not.toHaveBeenCalled();
 		await user.click(screen.getByText("Project review"));
 		expect(onSelectTask).toHaveBeenCalledWith("one");

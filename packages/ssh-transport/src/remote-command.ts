@@ -90,11 +90,11 @@ export function buildKillCommand(processToken: string): string {
 		// 只接受大于 1 的纯数字：`kill -- -1` 会杀掉该用户的所有进程。
 		`case "$n" in ''|*[!0-9]*|0|1) exit 0 ;; esac`,
 		`if [ "$k" = g ]; then t="-$n"; else t="$n"; pkill -TERM -P "$n" 2>/dev/null; fi`,
-		`kill -TERM -- "$t" 2>/dev/null || exit 0`,
+		`kill -TERM "$t" 2>/dev/null || exit 0`,
 		"i=0",
-		`while [ $i -lt 20 ] && kill -0 -- "$t" 2>/dev/null; do sleep 0.1; i=$((i+1)); done`,
+		`while [ $i -lt 20 ] && kill -0 "$t" 2>/dev/null; do sleep 0.1; i=$((i+1)); done`,
 		`if [ "$k" != g ]; then pkill -KILL -P "$n" 2>/dev/null; fi`,
-		`kill -KILL -- "$t" 2>/dev/null`,
+		`kill -KILL "$t" 2>/dev/null`,
 		"exit 0",
 	].join("\n");
 	return `/bin/sh -c ${quoteShellArgument(script)}`;

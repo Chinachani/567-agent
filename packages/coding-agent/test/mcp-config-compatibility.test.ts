@@ -67,7 +67,7 @@ describe("MCP config compatibility", () => {
 
 	it.each([
 		[{ invalid: true }, "Invalid MCP config: missing 'mcpServers' object"],
-		[{ mcpServers: { broken: { type: "socket", command: "test" } } }, '\'type\' must be "stdio" or "http"'],
+		[{ mcpServers: { broken: { type: "socket", command: "test" } } }, '\'type\' must be "stdio", "http" or "sse"'],
 		[{ mcpServers: { broken: { command: "" } } }, "missing or invalid 'command'"],
 		[{ mcpServers: { broken: { type: "http" } } }, "missing or invalid 'url'"],
 		[{ mcpServers: { broken: { type: "http", url: "" } } }, "missing or invalid 'url'"],

@@ -3,13 +3,29 @@
 import { cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import type { ComponentType } from "react";
 import { afterEach, describe, expect, it, vi } from "vitest";
-import type { PluginAiChatRequest, PluginAiChatResult, PluginContext } from "@vetta-org/plugin-sdk";
+import type {
+	PluginAiChatRequest,
+	PluginAiChatResult,
+	PluginModelPickerProps,
+	PluginContext,
+} from "@vetta-org/plugin-sdk";
 
 vi.mock("@vetta-org/plugin-sdk", async () => {
 	const actual = await vi.importActual<Record<string, unknown>>("@vetta-org/plugin-sdk");
 	return {
 		...actual,
 		definePlugin: (definition: unknown) => definition,
+		ModelPicker: ({ value, onChange, ariaLabel, emptyOption, disabled }: PluginModelPickerProps) => (
+			<select
+				aria-label={ariaLabel}
+				value={value ?? ""}
+				disabled={disabled}
+				onChange={(event) => onChange(event.currentTarget.value || null)}
+			>
+				{emptyOption && <option value="">{emptyOption.label}</option>}
+				<option value="openai/gpt-5">GPT-5</option>
+			</select>
+		),
 		useTranslation: () => ({ t: (key: string) => key }),
 	};
 });

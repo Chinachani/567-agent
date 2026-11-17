@@ -8,7 +8,6 @@ export default defineConfig({
 		vettaPluginFederation({
 			name: "open_in_app",
 			entry: "./src/index.tsx",
-			hostUi: true,
 		}),
 	],
 	esbuild: {

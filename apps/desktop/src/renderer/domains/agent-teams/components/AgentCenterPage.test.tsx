@@ -4,7 +4,7 @@ import { confirmDialogAtom } from "@shared/store/atoms";
 import type { AgentProfileDeleteImpact } from "@567agent/agent-team";
 import { act, render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { describe, expect, it, vi } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 import { AgentCenterPage } from "./AgentCenterPage";
 
 const mocks = vi.hoisted(() => ({
@@ -86,6 +86,19 @@ vi.mock("../hooks/useAgentCenterModel", () => ({
 		},
 	}),
 }));
+
+beforeEach(() => {
+	Object.defineProperty(window, "agent567", {
+		configurable: true,
+		value: {
+			agentTeams: {
+				getPresetSourceStatus: async () => ({ phase: "idle", syncedAt: null, count: 0, hasCache: false }),
+				onPresetSourceStatusChanged: () => () => {},
+				refreshPresetSource: async () => {},
+			},
+		},
+	});
+});
 
 describe("AgentCenterPage", () => {
 	it("shows every affected team and deletes with the reviewed reference set", async () => {

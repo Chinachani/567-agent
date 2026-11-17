@@ -15,6 +15,10 @@ vi.mock("react-i18next", () => ({
 beforeEach(() => {
 	Object.assign(window, {
 		vetta: {
+			agentTeams: {
+				list: async () => ({ schemaVersion: 1, revision: 0, agents: [], teams: [] }),
+				onChanged: () => () => {},
+			},
 			config: { get: async () => ({ defaultAgentMode: "work", projects: [] }), onProjectsChanged: () => () => {} },
 			im: { onSessionChanged: () => () => {} },
 			session: {

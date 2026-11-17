@@ -32,9 +32,16 @@ describe("application menu template", () => {
 
 	// mac 的 Cmd+C/V/A/Z 由 Edit role 提供，菜单收敛后仍必须保留，否则复制粘贴全废。
 	it("keeps macOS edit roles so clipboard shortcuts still work", () => {
-		const roles = collectRoles(buildApplicationMenuTemplate({ isMac: true, allowDevTools: false }));
+		const template = buildApplicationMenuTemplate({ isMac: true, allowDevTools: false });
+		const roles = collectRoles(template);
 
-		expect(roles).toEqual(expect.arrayContaining(["undo", "redo", "cut", "copy", "paste", "selectAll", "quit"]));
+		expect(roles).toEqual(expect.arrayContaining(["undo", "redo", "cut", "copy", "paste", "selectAll"]));
+		expect(roles).not.toContain("quit");
+		const appMenu = template?.find((item) => item.role === "appMenu");
+		const quit = Array.isArray(appMenu?.submenu)
+			? appMenu.submenu.find((item) => item.accelerator === "Command+Q")
+			: undefined;
+		expect(quit?.click).toBeTypeOf("function");
 	});
 
 	it("exposes devtools and reload on macOS when devtools are allowed", () => {
@@ -70,6 +77,6 @@ describe("application menu template", () => {
 			}
 		};
 		walk(template);
-		expect(accelerators).toEqual([]);
+		expect(accelerators).toEqual(["Command+Q"]);
 	});
 });

@@ -335,19 +335,26 @@ function runProbe({ root, artifacts, pageFilter }) {
 			);
 			console.log("WORKSPACE_ACTIONS_START elapsedMs=" + (Date.now() - started));
 			await render({ page: "home" });
-			await call(async () => {
+			const click = (point) => {
+				win.webContents.sendInputEvent({ type: "mouseDown", button: "left", clickCount: 1, ...point });
+				win.webContents.sendInputEvent({ type: "mouseUp", button: "left", clickCount: 1, ...point });
+			};
+			const modelTrigger = await call(() => {
 				const trigger = document.querySelector('button[title="Gemini Flash"]');
 				if (!trigger) throw Error("Model selector trigger was not rendered");
-				// Radix handles the real pointer activation path; synthetic key events are
-				// ignored in some Electron builds even though the trigger is focusable.
-				trigger.click();
+				const r = trigger.getBoundingClientRect();
+				return { x: Math.round(r.left + r.width / 2), y: Math.round(r.top + r.height / 2) };
+			});
+			click(modelTrigger);
+			const modelOption = await call(async () => {
 				await new Promise((resolve) => {
-					const check = () =>
-						document.querySelector('[data-model-key="fixture/code-model"]') ? resolve() : setTimeout(check, 50);
+					const check = () => document.querySelector('[data-model-key="fixture/code-model"]') ? resolve() : setTimeout(check, 50);
 					check();
 				});
-				document.querySelector('[data-model-key="fixture/code-model"]').click();
+				const r = document.querySelector('[data-model-key="fixture/code-model"]').getBoundingClientRect();
+				return { x: Math.round(r.left + r.width / 2), y: Math.round(r.top + r.height / 2) };
 			});
+			click(modelOption);
 			await call(() => document.querySelector('[role="textbox"]').focus());
 			await win.webContents.insertText("为项目整理一份实施计划");
 			await call(() => new Promise((r) => setTimeout(r, 120)));
@@ -377,10 +384,6 @@ function runProbe({ root, artifacts, pageFilter }) {
 				const r = card.getBoundingClientRect(), a = card.querySelector('button[aria-label="添加"]').getBoundingClientRect();
 				return { details: { x: Math.round(r.left + 6), y: Math.round(r.bottom - 6) }, add: { x: Math.round(a.left + a.width / 2), y: Math.round(a.top + a.height / 2) }, before: window.workspaceEvents.length };
 			});
-			const click = (point) => {
-				win.webContents.sendInputEvent({ type: "mouseDown", button: "left", clickCount: 1, ...point });
-				win.webContents.sendInputEvent({ type: "mouseUp", button: "left", clickCount: 1, ...point });
-			};
 			click(abilityPoints.add);
 			await call(async (before) => {
 				await new Promise((resolve) => setTimeout(resolve, 120));

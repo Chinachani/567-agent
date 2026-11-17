@@ -30,8 +30,6 @@ import {
 import { getDesktopUserQuestionBroker } from "../conversations/user-question-broker.js";
 import { mainT } from "../i18n/index.js";
 import { getAppLogger } from "../logger.js";
-import { listRemoteTaskResults } from "../result-inbox/result-inbox-service.js";
-import { getMainWindow } from "../window-manager.js";
 import type {
 	DesktopRemoteOperations,
 	DesktopRemotePromptEvent,
@@ -177,6 +175,7 @@ export class DesktopConversationRemoteOperations implements DesktopRemoteOperati
 	}
 
 	async listTaskResults() {
+		const { listRemoteTaskResults } = await import("../result-inbox/result-inbox-service.js");
 		return listRemoteTaskResults();
 	}
 
@@ -236,6 +235,7 @@ export class DesktopConversationRemoteOperations implements DesktopRemoteOperati
 			throw new Error("Encrypted conversation transfer is available only over a paired LAN connection");
 		}
 		if (encrypted.byteLength > SESSION_MIGRATION_MAX_BYTES) throw new Error("Migration archive is too large");
+		const { getMainWindow } = await import("../window-manager.js");
 		const parent = getMainWindow();
 		const options = {
 			type: "question" as const,

@@ -91,22 +91,25 @@ describe("McpSettingsService", () => {
 			headers: { Authorization: "***" },
 			disabled: true,
 		});
-		expect(writeConfig).toHaveBeenCalledWith({
-			mcpServers: {
-				web: {
-					type: "http",
-					url: "https://mcp.example.com",
-					headers: { Authorization: "Bearer next" },
-					oauthClientId: "public-client",
-					disabled: true,
-				},
-				local: {
-					command: "node",
-					args: ["server.js"],
-					env: { API_KEY: "secret", REGION: "us" },
+		expect(writeConfig).toHaveBeenCalledWith(
+			{
+				mcpServers: {
+					web: {
+						type: "http",
+						url: "https://mcp.example.com",
+						headers: { Authorization: "Bearer next" },
+						oauthClientId: "public-client",
+						disabled: true,
+					},
+					local: {
+						command: "node",
+						args: ["server.js"],
+						env: { API_KEY: "secret", REGION: "us" },
+					},
 				},
 			},
-		});
+			{ scope: "global" },
+		);
 		expect(recordEvent).toHaveBeenCalledWith({
 			type: "resource.lifecycle",
 			resourceKind: "mcp",

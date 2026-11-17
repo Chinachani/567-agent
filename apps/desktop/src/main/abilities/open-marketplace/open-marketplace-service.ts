@@ -1034,6 +1034,7 @@ export class OpenMarketplaceService {
 	 * 离线时拿现成的快照装上，好过直接装不了。
 	 */
 	private async ensureSnapshotFresh(): Promise<void> {
+		this.memorySnapshot ??= (await this.readCachedSnapshot()) ?? undefined;
 		if (this.backgroundUpdate) {
 			await this.backgroundUpdate;
 			return;
