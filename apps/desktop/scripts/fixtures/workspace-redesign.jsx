@@ -29,6 +29,7 @@ import { AbilitiesPageView } from "../../src/renderer/domains/abilities/componen
 import { KnowledgeBaseListPageView } from "../../src/renderer/domains/knowledge-base/components/KnowledgeBaseListPageView";
 import { SidebarBottomBar } from "../../src/renderer/domains/project/components/sidebar/SidebarBottomBar";
 import { SettingsPageView } from "../../src/renderer/domains/settings/components/SettingsPageView";
+import { emptyMcpServer } from "../../src/renderer/domains/settings/components/useMcpSettingsModel";
 import { DefaultWindowControls } from "@vetta-org/theme-ui/app-shell";
 import { SETTINGS_TABS } from "../../src/renderer/domains/settings/registry";
 import { applyTheme } from "../../src/renderer/shared/theme/apply";
@@ -413,6 +414,8 @@ const abilityItems = ["代码审阅", "浏览器自动化", "文件与文档", "
 		category: "工作能力",
 		tags: [],
 		license: "Apache-2.0",
+		author: "567 Agent",
+		catalogSource: { kind: "builtin", id: "builtin" },
 		version: "1.0.0",
 		installed: index > 1,
 		enabled: index > 1,
@@ -460,6 +463,13 @@ function Abilities() {
 		detailErrors: [],
 		importing: false,
 		mcp: {
+			config: null,
+			mode: "visual",
+			serverNames: [],
+			addedServerNames: new Set(),
+			serverForm: { ...emptyMcpServer },
+			jsonText: "",
+			jsonError: null,
 			addingServer: false,
 			editingServer: null,
 			secretsDialogPreset: null,
@@ -467,6 +477,22 @@ function Abilities() {
 			saving: false,
 			busyPresetName: null,
 			secretsDialogAuthorizing: false,
+			setServerForm: noop,
+			setJsonText: noop,
+			clearJsonError: noop,
+			saveConfig: async () => {},
+			onModeSwitch: noop,
+			onStartAddServer: noop,
+			onCancelAddServer: noop,
+			onAddServer: async () => {},
+			onAddServersFromJson: async () => true,
+			onToggleEditServer: noop,
+			onCancelEditServer: noop,
+			onUpdateServer: async () => {},
+			onDeleteServer: async () => {},
+			onToggleDisabled: async () => {},
+			onCloseSecretsDialog: noop,
+			onConfirmSecretsDialog: async () => {},
 		},
 		marketplaceSources: [],
 		marketplaceCatalog: { snapshots: [] },
