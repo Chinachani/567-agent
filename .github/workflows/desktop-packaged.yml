@@ -67,11 +67,17 @@ jobs:
         with:
           bun-version-file: package.json
 
+      - name: Set up Go for packaging helpers
+        uses: actions/setup-go@v5
+        with:
+          go-version-file: apps/im-gateway/go.mod
+          cache-dependency-path: apps/im-gateway/go.sum
+
       - name: Install dependencies
         uses: ./.github/actions/install-bun-dependencies
 
       - name: Test packaging contract helpers
-        run: node --test apps/desktop/scripts/desktop-packaging-layout.test.mjs apps/desktop/scripts/electron-e2e-service-options.node-test.mjs apps/desktop/scripts/packaged-e2e-binary.node-test.mjs apps/desktop/scripts/packaged-native-dependencies.test.mjs
+        run: bun run test:desktop:packaging
 
   scope:
     name: Detect packaged smoke scope

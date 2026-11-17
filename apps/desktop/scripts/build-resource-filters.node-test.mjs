@@ -3,7 +3,7 @@ import { existsSync } from "node:fs";
 import test from "node:test";
 import { resolveBuildResourceFilters } from "./build-resource-filters.mjs";
 
-const common = ["pet/**/*", "tray-light.png", "tray-dark.png"];
+const common = ["pet/**/*", "app-icons/*.png", "tray-light.png", "tray-dark.png"];
 
 test("Windows packages include both the app icon and native drag icon", () => {
 	assert.deepEqual(resolveBuildResourceFilters(new Set(["win32"])), [...common, "icon.ico", "icon.png"]);
