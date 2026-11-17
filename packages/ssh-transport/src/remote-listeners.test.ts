@@ -196,7 +196,9 @@ describe("进程信息", () => {
 		expect(info.size).toBe(3);
 	});
 
-	it("命令在本机的 ps 上跑得通", () => {
+	// Windows PIDs and signals are not POSIX host process identifiers. The real
+	// process integrations run on both Unix candidate runners; parsing is portable.
+	it.skipIf(process.platform === "win32")("命令在本机的 ps 上跑得通", () => {
 		const result = spawnSync("/bin/sh", ["-c", buildProcessInfoCommand([process.pid])], { encoding: "utf8" });
 		const info = parseProcessInfo(result.stdout, Date.now());
 		expect(info.get(process.pid)?.command).toBeTruthy();
@@ -211,7 +213,7 @@ describe("终止进程", () => {
 		expect(() => buildTerminateProcessCommand(-5, true)).toThrow();
 	});
 
-	it("发完 SIGTERM 等到进程真的退出才返回 0", () => {
+	it.skipIf(process.platform === "win32")("发完 SIGTERM 等到进程真的退出才返回 0", () => {
 		const child = spawn("sleep", ["30"], { stdio: "ignore" });
 		const pid = child.pid ?? 0;
 		const result = spawnSync("/bin/sh", ["-c", buildTerminateProcessCommand(pid, false)], { encoding: "utf8" });
@@ -219,7 +221,7 @@ describe("终止进程", () => {
 		expect(child.signalCode ?? "SIGTERM").toBe("SIGTERM");
 	});
 
-	it("不理 SIGTERM 的进程报「还活着」，SIGKILL 才收得掉", () => {
+	it.skipIf(process.platform === "win32")("不理 SIGTERM 的进程报「还活着」，SIGKILL 才收得掉", () => {
 		const child = spawn("/bin/sh", ["-c", "trap '' TERM; while :; do sleep 0.05; done"], { stdio: "ignore" });
 		const pid = child.pid ?? 0;
 		try {
@@ -232,7 +234,7 @@ describe("终止进程", () => {
 		}
 	});
 
-	it("进程不存在时 kill 自己报错，退出码非零且不是「还活着」", () => {
+	it.skipIf(process.platform === "win32")("进程不存在时 kill 自己报错，退出码非零且不是「还活着」", () => {
 		const result = spawnSync("/bin/sh", ["-c", buildTerminateProcessCommand(999_999, false)], { encoding: "utf8" });
 		expect(result.status).not.toBe(0);
 		expect(result.status).not.toBe(PROCESS_STILL_ALIVE_EXIT_CODE);

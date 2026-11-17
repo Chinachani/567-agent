@@ -3,6 +3,9 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const RUNTIME_STATE_KEY = "__vettaPluginHostBridgeRuntimeState_v2";
 
+// This fixture exercises conversation events and never renders the picker UI.
+vi.mock("./PluginModelPicker", () => ({ PluginModelPicker: () => null }));
+
 // 事件桥读的是 jotai 默认 store，测试要用同一批 atom 实例才写得进去。
 const atoms = await vi.hoisted(async () => {
 	const { atom } = await import("jotai");

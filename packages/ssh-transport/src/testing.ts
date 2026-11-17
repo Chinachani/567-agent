@@ -162,6 +162,8 @@ let builtHelper: string | undefined | null = null;
  * 调用方据此跳过。同一进程内只编一次。
  */
 export function buildSshHelperForTests(): string | undefined {
+	// The remote helper uses setsid and POSIX signals; it is not a Windows binary.
+	if (process.platform === "win32") return undefined;
 	if (builtHelper !== null) return builtHelper;
 	const source = resolve(dirname(fileURLToPath(import.meta.url)), "../../../apps/ssh-helper");
 	const output = join(mkdtempSync(join(tmpdir(), "vetta-helper-build-")), "vetta-ssh-helper");

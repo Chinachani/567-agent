@@ -63,7 +63,9 @@ describe("quoteShellArgument", () => {
 	});
 });
 
-describe("buildRemoteCommand（在真实 /bin/sh 上执行）", () => {
+// These integrations exercise a POSIX host, including native mode bits and process
+// groups. Linux/macOS CI executes them; portable command contracts still run on Windows.
+describe.skipIf(process.platform === "win32")("buildRemoteCommand（在真实 /bin/sh 上执行）", () => {
 	// 引用有两层，断言字符串只能证明「长得像」。真正的合同是：交给 shell 之后，用户命令
 	// 在正确的目录里、由登录 shell 执行，退出码原样回来。
 	const run = (remoteCommand: string, env: NodeJS.ProcessEnv = {}) =>
@@ -94,14 +96,16 @@ describe("buildRemoteCommand（在真实 /bin/sh 上执行）", () => {
 		expect(result.status).toBe(7);
 		expect(readdirSync(tmp)).toEqual([]);
 	});
+});
 
+describe("processToken 校验", () => {
 	it("processToken 只能是文件名，不能借它写到别处", () => {
 		expect(() => buildRemoteCommand("ls", { processToken: "../x" })).toThrow(/Invalid remote process token/);
 		expect(() => buildKillCommand("a b")).toThrow(/Invalid remote process token/);
 	});
 });
 
-describe("buildKillCommand（在真实 /bin/sh 上执行）", () => {
+describe.skipIf(process.platform === "win32")("buildKillCommand（在真实 /bin/sh 上执行）", () => {
 	it("连同派生的子进程一起杀掉——只杀领头进程会把 dev server 留成孤儿", async () => {
 		const tmp = mkdtempSync(join(tmpdir(), "vetta-kill-"));
 		const env = { ...process.env, SHELL: "/bin/sh", TMPDIR: tmp };
@@ -197,7 +201,7 @@ describe("buildListDirectoryCommand", () => {
 	});
 });
 
-describe("buildWriteFileCommand（在真实 /bin/sh 上执行）", () => {
+describe.skipIf(process.platform === "win32")("buildWriteFileCommand（在真实 /bin/sh 上执行）", () => {
 	// 这段脚本的正确性取决于 shell 的真实语义（截断是否保留 mode、mv 对符号链接做什么），
 	// 断言字符串证明不了任何事，所以直接在本机 sh 上跑。
 	function write(target: string, content: string): void {
@@ -260,7 +264,7 @@ describe("stat 的格式串对精简系统同样有效", () => {
 	});
 });
 
-describe("stat 与目录列举（在真实 shell 上执行并解析）", () => {
+describe.skipIf(process.platform === "win32")("stat 与目录列举（在真实 shell 上执行并解析）", () => {
 	// 格式串的转义规则 GNU 与 BSD 不同，只有真的跑一遍才知道输出能不能被解析。
 	const flavor = process.platform === "darwin" ? "bsd" : "gnu";
 	const run = (command: string): string => execFileSync("/bin/sh", ["-c", command], { encoding: "utf8" });
@@ -282,7 +286,7 @@ describe("stat 与目录列举（在真实 shell 上执行并解析）", () => {
 	});
 });
 
-describe("文件树操作（在真实 shell 上执行）", () => {
+describe.skipIf(process.platform === "win32")("文件树操作（在真实 shell 上执行）", () => {
 	const run = (command: string) => spawnSync("/bin/sh", ["-c", command], { encoding: "utf8" });
 
 	it("独占创建：新建成功，目标已存在时用约定的退出码拒绝且不动原文件", () => {

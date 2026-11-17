@@ -9,7 +9,8 @@ import { HELPER_PROTOCOL_VERSION } from "./helper-client.js";
 import { createLoopbackSshConnection } from "./testing.js";
 
 const helperSource = resolve(dirname(fileURLToPath(import.meta.url)), "../../../apps/ssh-helper");
-const hasGo = spawnSync("go", ["version"]).status === 0;
+// The deployed helper supports Unix targets, independently of the Desktop OS.
+const hasGo = process.platform !== "win32" && spawnSync("go", ["version"]).status === 0;
 let helperBinary = "";
 
 interface TaskStatus {

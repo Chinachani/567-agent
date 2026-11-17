@@ -5,11 +5,15 @@ import { join } from "node:path";
 import { it as baseIt, describe, expect } from "vitest";
 import { SshRemoteCommandError } from "./errors.js";
 import type { SshConnection } from "./ssh-connection.js";
-import { buildSshHelperForTests, createLoopbackSshConnection } from "./testing.js";
+import { buildSshHelperForTests, createLoopbackSshConnection, toLoopbackRemotePath } from "./testing.js";
 
 function createRemoteDirectory(): string {
 	return realpathSync(mkdtempSync(join(tmpdir(), "vetta-remote-")));
 }
+
+// Local fixtures use the client OS paths; SSH methods always receive the POSIX
+// paths visible to the target shell, including when Git Bash hosts the loopback.
+const remoteJoin = (...parts: string[]): string => toLoopbackRemotePath(join(...parts));
 
 const helperBinary = buildSshHelperForTests();
 
@@ -49,7 +53,7 @@ describe.each(modes)("SshConnection 的文件操作（回环 SSH，$name）", ({
 		}
 		const connection = await connect();
 
-		const entries = await connection.listDirectory(dir);
+		const entries = await connection.listDirectory(remoteJoin(dir));
 		const expectedEntries = [
 			["a.txt", "file"],
 			["src", "directory"],
@@ -58,24 +62,24 @@ describe.each(modes)("SshConnection 的文件操作（回环 SSH，$name）", ({
 		expect(entries.map((entry) => [entry.name, entry.kind]).sort()).toEqual(expectedEntries.sort());
 		expect(entries.find((entry) => entry.name === "a.txt")).toMatchObject({ sizeBytes: 5 });
 		if (hasSymlink) {
-			await expect(connection.stat(join(dir, "link.txt"))).resolves.toMatchObject({
+			await expect(connection.stat(remoteJoin(dir, "link.txt"))).resolves.toMatchObject({
 				name: "link.txt",
 				kind: "symlink",
 			});
 			await expect(
-				connection.stat(join(dir, "link.txt"), undefined, { followSymlinks: true }),
+				connection.stat(remoteJoin(dir, "link.txt"), undefined, { followSymlinks: true }),
 			).resolves.toMatchObject({
 				kind: "file",
 			});
 		}
-		const resolvedFile = hasSymlink ? join(dir, "link.txt") : join(dir, "a.txt");
-		await expect(connection.realPath(resolvedFile)).resolves.toBe(join(dir, "a.txt"));
-		await expect(connection.realPath(join(dir, "missing"))).resolves.toBe(join(dir, "missing"));
+		const resolvedFile = hasSymlink ? remoteJoin(dir, "link.txt") : remoteJoin(dir, "a.txt");
+		await expect(connection.realPath(resolvedFile)).resolves.toBe(remoteJoin(dir, "a.txt"));
+		await expect(connection.realPath(remoteJoin(dir, "missing"))).resolves.toBe(remoteJoin(dir, "missing"));
 	});
 
 	it("读一个不存在的文件是「远端答复了没有」，不是传输故障", async () => {
 		const connection = await connect();
-		await expect(connection.readFile(join(createRemoteDirectory(), "missing.txt"))).rejects.toBeInstanceOf(
+		await expect(connection.readFile(remoteJoin(createRemoteDirectory(), "missing.txt"))).rejects.toBeInstanceOf(
 			SshRemoteCommandError,
 		);
 	});
@@ -85,27 +89,27 @@ describe.each(modes)("SshConnection 的文件操作（回环 SSH，$name）", ({
 		writeFileSync(join(dir, "data.bin"), Buffer.from([0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 255, 0, 10]));
 		const connection = await connect();
 
-		expect([...(await connection.readFileRange(join(dir, "data.bin"), 3, 5))]).toEqual([3, 4, 5, 6, 7]);
-		expect([...(await connection.readFileRange(join(dir, "data.bin"), 10, 100))]).toEqual([255, 0, 10]);
-		expect([...(await connection.readFileHead(join(dir, "data.bin"), 2))]).toEqual([0, 1]);
+		expect([...(await connection.readFileRange(remoteJoin(dir, "data.bin"), 3, 5))]).toEqual([3, 4, 5, 6, 7]);
+		expect([...(await connection.readFileRange(remoteJoin(dir, "data.bin"), 10, 100))]).toEqual([255, 0, 10]);
+		expect([...(await connection.readFileHead(remoteJoin(dir, "data.bin"), 2))]).toEqual([0, 1]);
 	});
 
 	it("写、读、改名、删除一个带空格与引号的文件", async () => {
 		const dir = createRemoteDirectory();
 		const connection = await connect();
-		const original = join(dir, "it's a file.txt");
+		const original = remoteJoin(dir, "it's a file.txt");
 
 		await connection.writeFile(original, new TextEncoder().encode("hello"));
 		expect(new TextDecoder().decode(await connection.readFile(original))).toBe("hello");
 
-		await connection.rename(original, join(dir, "renamed.txt"));
+		await connection.rename(original, remoteJoin(dir, "renamed.txt"));
 		expect(readFileSync(join(dir, "renamed.txt"), "utf8")).toBe("hello");
 		await expect(connection.stat(original)).resolves.toBeNull();
 
-		await connection.remove(join(dir, "renamed.txt"));
-		await expect(connection.stat(join(dir, "renamed.txt"))).resolves.toBeNull();
+		await connection.remove(remoteJoin(dir, "renamed.txt"));
+		await expect(connection.stat(remoteJoin(dir, "renamed.txt"))).resolves.toBeNull();
 		// 删一个不存在的路径不算失败，与本机 rm(force) 同义。
-		await expect(connection.remove(join(dir, "renamed.txt"))).resolves.toBeUndefined();
+		await expect(connection.remove(remoteJoin(dir, "renamed.txt"))).resolves.toBeUndefined();
 	});
 
 	it("独占创建不覆盖已有文件；递归列举给出干净的相对路径", async () => {
@@ -114,10 +118,10 @@ describe.each(modes)("SshConnection 的文件操作（回环 SSH，$name）", ({
 		writeFileSync(join(dir, "src/a.ts"), "keep");
 		const connection = await connect();
 
-		await expect(connection.createEntry(join(dir, "src/a.ts"), "file")).resolves.toBe("exists");
-		await expect(connection.createEntry(join(dir, "src/b.ts"), "file")).resolves.toBe("created");
+		await expect(connection.createEntry(remoteJoin(dir, "src/a.ts"), "file")).resolves.toBe("exists");
+		await expect(connection.createEntry(remoteJoin(dir, "src/b.ts"), "file")).resolves.toBe("created");
 		expect(readFileSync(join(dir, "src/a.ts"), "utf8")).toBe("keep");
-		const files = await connection.listFilesRecursive(dir, { ignoredDirectoryNames: [], limit: 100 });
+		const files = await connection.listFilesRecursive(remoteJoin(dir), { ignoredDirectoryNames: [], limit: 100 });
 		expect(files.sort()).toEqual(["src/a.ts", "src/b.ts"]);
 	});
 

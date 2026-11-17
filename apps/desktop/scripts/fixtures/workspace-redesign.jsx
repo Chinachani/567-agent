@@ -61,7 +61,12 @@ const config = {
 window.workspaceEvents = [];
 window.agent567 = {
 	models: { get: async () => config, fetchRemote: async () => ({ providers: {} }) },
-	config: { get: async () => ({ defaultAgentMode: "work" }), set: async () => {}, onProjectsChanged: () => noop },
+	config: {
+		get: async () => ({ defaultAgentMode: "work" }),
+		set: async () => {},
+		onProjectsChanged: () => noop,
+		onShortcutsChanged: () => noop,
+	},
 	agentTeams: { list: async () => createAgentTeamFixture(), onChanged: () => noop },
 	session: {
 		listSandboxGrants: async () => [],

@@ -70,3 +70,8 @@ bun run --filter @567agent/ssh-transport test
 包内 `test` 脚本走仓库统一的 Vitest 入口，变更影响选择也依赖它。
 
 `SshProcessRunner` 是可注入端口，因此以上全部可以在没有 SSH 服务器的情况下验证。
+
+候选 CI 在三种客户端系统执行命令构造、解析和传输合同。文件往返使用真实回环 shell，
+Windows 使用 Git for Windows，并将本地夹具路径显式转换为远端 POSIX 路径。
+依赖原生 `/bin/sh`、Unix 权限位、进程组信号和远端 helper 二进制的集成用例只在
+Linux/macOS 执行；helper 支持的是远端 Unix 系统，Windows 客户端不会构建 Windows helper。
