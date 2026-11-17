@@ -1,8 +1,11 @@
 import { ActivityPanel, CurrentScenarioActivityPanel } from "@domains/activity-panel/components/ActivityPanel";
+import { BottomPanelHost } from "@domains/bottom-panel/components/BottomPanelHost";
 import { cn } from "@shared/lib/utils";
 import { PerfSendProfiler } from "@shared/lib/perf-send";
 import type { ChatConversationItem } from "@shared/store/atoms";
 import type { ActivityWorkspace } from "@shared/workspace/activity-workspace";
+import type { WorkSurfaceScope } from "@shared/workspace/work-surface";
+import type { ConversationParticipantViewModel } from "@shared/conversation";
 import type { ActivityTabId } from "@domains/activity-panel/registry/types";
 import type { ConversationScenario } from "@vetta-org/plugin-sdk";
 import { memo, type ReactNode } from "react";
@@ -14,10 +17,12 @@ export interface DefaultChatViewProps {
 	readonly subHeader?: ReactNode;
 	readonly messages: readonly ChatConversationItem[];
 	readonly workspace: ActivityWorkspace;
+	readonly workSurface?: WorkSurfaceScope | null;
 	readonly rootClassName?: string;
 	readonly exportState?: {
 		readonly title: string;
 		readonly onFinished: () => void;
+		readonly participants?: readonly ConversationParticipantViewModel[];
 	};
 	readonly activity?: {
 		readonly enablePluginTabs?: boolean;
@@ -36,15 +41,14 @@ function sameOptionalIds(left?: readonly string[], right?: readonly string[]): b
 	return sameIds(left, right);
 }
 
-function sameActivity(
-	left: DefaultChatViewProps["activity"],
-	right: DefaultChatViewProps["activity"],
-): boolean {
+function sameActivity(left: DefaultChatViewProps["activity"], right: DefaultChatViewProps["activity"]): boolean {
 	if (left === right) return true;
 	if (!left || !right) return false;
-	return left.enablePluginTabs === right.enablePluginTabs &&
+	return (
+		left.enablePluginTabs === right.enablePluginTabs &&
 		left.pluginScenario === right.pluginScenario &&
-		sameOptionalIds(left.enabledBuiltinTabs, right.enabledBuiltinTabs);
+		sameOptionalIds(left.enabledBuiltinTabs, right.enabledBuiltinTabs)
+	);
 }
 
 const ActivityColumn = memo(
@@ -72,6 +76,7 @@ export function DefaultChatView({
 	subHeader,
 	messages,
 	workspace,
+	workSurface,
 	rootClassName,
 	exportState,
 	activity,
@@ -80,12 +85,31 @@ export function DefaultChatView({
 		<PerfSendProfiler id="ChatView(total)">
 			<div className={cn("flex h-full min-w-0 flex-1 flex-col bg-background", rootClassName)}>
 				{exportState ? (
-					<ChatExportHost messages={messages} title={exportState.title} onFinished={exportState.onFinished} />
+					<ChatExportHost
+						messages={messages}
+						title={exportState.title}
+						participants={exportState.participants}
+						onFinished={exportState.onFinished}
+					/>
 				) : null}
-				<div className="flex min-h-0 flex-1 gap-2 overflow-visible">
-					<div className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden">
+				{/*
+				 * 沉浸式顶栏（main[data-header-overlay]）浮在整个内容区上：整行先让出顶栏高度，
+				 * 活动面板才不会被顶栏压住；消息列再用负 margin 抵回去，让消息流的渐隐能铺到顶栏下面。
+				 */}
+				<div className="flex min-h-0 flex-1 gap-2 overflow-visible [[data-header-overlay=true]_&]:pt-11">
+					{/*
+					 * 用 clip + clip-margin 代替 overflow-hidden：活动面板收起时底部面板要铺到
+					 * 窗口边缘，右边得越过这一行的 gap-2 再加 AppFrame 的 p-2（共 16px），
+					 * 而消息流本身仍然需要被裁住。
+					 */}
+					<div className="flex min-h-0 min-w-0 flex-1 flex-col overflow-clip [overflow-clip-margin:16px] [[data-header-overlay=true]_&]:-mt-11">
 						{subHeader}
 						{children}
+						{/*
+						 * 底部面板住在消息列内部，宽度跟着消息列走、不伸到活动面板下方：
+						 * 活动面板是与消息流并列的一列，横穿它的底边会把两列看成一块。
+						 */}
+						<BottomPanelHost scope={workSurface ?? null} />
 					</div>
 					<ActivityColumn workspace={workspace} activity={activity} />
 				</div>

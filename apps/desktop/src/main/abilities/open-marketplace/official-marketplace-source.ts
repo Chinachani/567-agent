@@ -10,3 +10,18 @@ export const DEFAULT_MARKETPLACE_SOURCE_ID = "vetta-official";
 export const OFFICIAL_MARKETPLACE_REPOSITORY = "https://github.com/Chinachani/567-agent-marketplace";
 export const OFFICIAL_MARKETPLACE_NAME = "567 Agent 官方能力市场";
 export const OFFICIAL_MARKETPLACE_REF = "main";
+
+/** Prompt-only source; never installed or enabled as executable plugin code. */
+export const EXPERT_PRESET_MARKETPLACE_SOURCE_ID = "567-agent-presets";
+export const EXPERT_PRESET_MARKETPLACE_REPOSITORY = "https://github.com/Chinachani/567-agent-presets";
+export const EXPERT_PRESET_MARKETPLACE_NAME = "567 Agent 专家预设";
+export const EXPERT_PRESET_MARKETPLACE_REF = "main";
+
+export function isExpertPresetRepository(repository: string): boolean {
+	return (
+		repository
+			.replace(/\/$/, "")
+			.replace(/\.git$/i, "")
+			.toLowerCase() === EXPERT_PRESET_MARKETPLACE_REPOSITORY.toLowerCase()
+	);
+}

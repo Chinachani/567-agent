@@ -129,14 +129,12 @@ function ContentOptionMenu({ value, label, options, onValueChange }: ContentOpti
 	return (
 		<DropdownMenu modal={false} open={open} onOpenChange={setOpen}>
 			<DropdownMenuTrigger asChild>
-				<button
-					ref={triggerRef}
-					type="button"
-					className={CONTENT_GENERATION_TRIGGER_CLASS}
-					aria-expanded={open}
-				>
+				<button ref={triggerRef} type="button" className={CONTENT_GENERATION_TRIGGER_CLASS} aria-expanded={open}>
 					<span className="truncate">{label}</span>
-					<span className="icon-[lucide--chevron-down] block size-4 shrink-0 text-muted-foreground" aria-hidden="true" />
+					<span
+						className="icon-[lucide--chevron-down] block size-4 shrink-0 text-muted-foreground"
+						aria-hidden="true"
+					/>
 				</button>
 			</DropdownMenuTrigger>
 			{open ? (
@@ -144,7 +142,7 @@ function ContentOptionMenu({ value, label, options, onValueChange }: ContentOpti
 					ref={contentRef}
 					data-vetta-plugin-root="content-creation"
 					align="start"
-					className="z-[100] min-w-36 rounded-lg p-1"
+					className="z-[100] min-w-36 p-1"
 				>
 					<DropdownMenuRadioGroup value={value} onValueChange={onValueChange}>
 						{options.map((option) => (

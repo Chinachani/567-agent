@@ -2,6 +2,7 @@ import { pluginWorkspaceViewHeadersAtom, workspaceViewHeaderKey } from "@shared/
 import { useMatches } from "@tanstack/react-router";
 import { useAtomValue } from "jotai";
 import { Component, type ErrorInfo, type JSX, type ReactNode } from "react";
+import { logPluginRuntimeError } from "../runtime/plugin-runtime-log";
 import { PluginInlineI18nBoundary, usePluginTextResolver } from "../runtime/plugin-i18n";
 
 /**
@@ -16,7 +17,11 @@ class HeaderSlotErrorBoundary extends Component<{ slotKey: string; children: Rea
 	}
 
 	componentDidCatch(error: Error, errorInfo: ErrorInfo): void {
-		console.error(`Plugin page-header slot failed: ${this.props.slotKey}`, error, errorInfo.componentStack);
+		logPluginRuntimeError(
+			"page-header-slot-failed",
+			{ slotKey: this.props.slotKey, componentStack: errorInfo.componentStack ?? undefined },
+			error,
+		);
 	}
 
 	render(): ReactNode {
@@ -29,7 +34,15 @@ class HeaderSlotErrorBoundary extends Component<{ slotKey: string; children: Rea
  * 插件 CSS 被编译成 `@scope([data-vetta-plugin-root=<id>])`，脱离这层包装
  * 时插件的 Tailwind 类会全部失效。
  */
-function HeaderSlot({ pluginId, slotKey, children }: { pluginId: string; slotKey: string; children: ReactNode }) {
+export function HeaderSlot({
+	pluginId,
+	slotKey,
+	children,
+}: {
+	pluginId: string;
+	slotKey: string;
+	children: ReactNode;
+}) {
 	return (
 		<HeaderSlotErrorBoundary slotKey={slotKey}>
 			<PluginInlineI18nBoundary pluginId={pluginId}>{children}</PluginInlineI18nBoundary>

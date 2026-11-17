@@ -1,4 +1,5 @@
 import {
+	automationSessionLinksAtom,
 	DEFAULT_CONVERSATION_PROJECT_NAME,
 	defaultConversationCwdAtom,
 	defaultImConversationCwdAtom,
@@ -11,10 +12,8 @@ import {
 	removePinnedSessionsAtom,
 	type SessionInfo,
 	scheduledRecordsVersionAtom,
-	scheduledSessionPathsAtom,
 	sessionLoadingCwdsAtom,
 	sessionsMapAtom,
-	workspacePathAtom,
 } from "@shared/store/atoms";
 import { getDefaultStore, useAtomValue, useSetAtom } from "jotai";
 import { useCallback, useEffect, useRef } from "react";
@@ -101,7 +100,7 @@ export function useProjectActions() {
 	const setProjectsInitialized = useSetAtom(projectsInitializedAtom);
 	const setSessionsMap = useSetAtom(sessionsMapAtom);
 	const setSessionLoadingCwds = useSetAtom(sessionLoadingCwdsAtom);
-	const setScheduledSessionPaths = useSetAtom(scheduledSessionPathsAtom);
+	const setAutomationSessionLinks = useSetAtom(automationSessionLinksAtom);
 	const setScheduledRecordsVersion = useSetAtom(scheduledRecordsVersionAtom);
 	const setExpandedProjects = useSetAtom(expandedProjectsAtom);
 	const removePinnedSessions = useSetAtom(removePinnedSessionsAtom);
@@ -271,47 +270,32 @@ export function useProjectActions() {
 		// 同上：刻意不退订，订阅与 renderer 同寿命。
 	}, []);
 
-	/** Create a new project directory in workspace and add to config; returns resolved cwd. */
+	/** Register all project changes through the main-process service. */
 	const createProject = useCallback(
 		async (name: string): Promise<string> => {
-			const workspacePath = store.get(workspacePathAtom);
-			const projectPath = `${workspacePath}/${name}`;
-			await window.agent567.fs.createDirectory(projectPath);
-			// Read the resolved path back via listSubDirs to get the absolute path
-			const subDirs = await window.agent567.fs.listSubDirs(workspacePath);
-			const created = subDirs.find((d) => d.name === name);
-			const resolvedPath = created?.path ?? projectPath;
-
-			// Add to config with the user-provided name
-			const config = await window.agent567.config.get();
-			if (!config.projects.some((p) => p.path === resolvedPath)) {
-				config.projects.push({ path: resolvedPath, name });
-				await window.agent567.config.set({ projects: config.projects });
-			}
-
+			const project = await window.agent567.project.create({ name });
 			await refreshProjects();
-			setExpandedProjects((prev) => new Set([...prev, resolvedPath]));
-			return resolvedPath;
+			setExpandedProjects((prev) => new Set([...prev, project.path]));
+			return project.path;
 		},
-		[store, refreshProjects, setExpandedProjects],
+		[refreshProjects, setExpandedProjects],
 	);
 
-	/** Open an existing directory and add to config */
+	const openProjectPath = useCallback(
+		async (path: string): Promise<string> => {
+			const project = await window.agent567.project.open({ path });
+			await refreshProjects();
+			setExpandedProjects((prev) => new Set([...prev, project.path]));
+			void loadSessions(project.path);
+			return project.path;
+		},
+		[refreshProjects, setExpandedProjects, loadSessions],
+	);
+
 	const openProject = useCallback(async () => {
 		const cwd = await window.agent567.dialog.selectFolder();
-		if (!cwd) return null;
-
-		const config = await window.agent567.config.get();
-		if (!config.projects.some((p) => p.path === cwd)) {
-			config.projects.push({ path: cwd });
-			await window.agent567.config.set({ projects: config.projects });
-		}
-
-		await refreshProjects();
-		setExpandedProjects((prev) => new Set([...prev, cwd]));
-		await loadSessions(cwd);
-		return cwd;
-	}, [refreshProjects, setExpandedProjects, loadSessions]);
+		return cwd ? openProjectPath(cwd) : null;
+	}, [openProjectPath]);
 
 	const expandProject = useCallback(
 		(cwd: string) => {
@@ -428,11 +412,10 @@ export function useProjectActions() {
 			for (const pending of pendingLocalSessions.values()) pending.delete(sessionPath);
 			removePinnedSessions([sessionPath]);
 			// 定时任务 session：同步删掉「自动化」里的执行记录，否则历史列表会残留。
-			if (store.get(scheduledSessionPathsAtom).has(sessionPath)) {
-				await window.agent567.scheduler.deleteRecordsBySession(sessionPath);
-				setScheduledSessionPaths((prev) => {
+			if (store.get(automationSessionLinksAtom).has(sessionPath)) {
+				setAutomationSessionLinks((prev) => {
 					if (!prev.has(sessionPath)) return prev;
-					const next = new Set(prev);
+					const next = new Map(prev);
 					next.delete(sessionPath);
 					return next;
 				});
@@ -451,7 +434,7 @@ export function useProjectActions() {
 				return next;
 			});
 		},
-		[removePinnedSessions, setSessionsMap, store, setScheduledSessionPaths, setScheduledRecordsVersion],
+		[removePinnedSessions, setSessionsMap, store, setAutomationSessionLinks, setScheduledRecordsVersion],
 	);
 
 	/**
@@ -531,6 +514,7 @@ export function useProjectActions() {
 		loadSessions,
 		createProject,
 		openProject,
+		openProjectPath,
 		removeProject,
 		archiveProject,
 		unarchiveProject,

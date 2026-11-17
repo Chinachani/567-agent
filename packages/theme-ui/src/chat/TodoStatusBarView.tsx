@@ -86,10 +86,7 @@ export function TodoStatusBarView({
 							side="top"
 							align="start"
 							sideOffset={8}
-							className={cn(
-								"w-[min(22rem,calc(100vw-2rem))] overflow-visible rounded-xl border border-border p-0",
-								classNames?.content,
-							)}
+							className={cn("w-[min(22rem,calc(100vw-2rem))] overflow-visible p-0", classNames?.content)}
 							style={{ animation: "none" }}
 						>
 							<motion.div

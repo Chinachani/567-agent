@@ -283,6 +283,25 @@ export class AgentTeamSessionService {
 		for (const listener of this.runningChangedListeners) listener(path, running, sessionId);
 	}
 
+	/** Archive navigation must not restore members or recover queued Team work. */
+	async readArchiveSnapshot(id: string, coordinationSessionPath?: string): Promise<TeamSessionSnapshot> {
+		const cached = this.sessionState.get(id);
+		const path =
+			coordinationSessionPath ?? cached?.coordinationRuntime?.sessionPath ?? this.sessionState.coordinationPath(id);
+		if (path) {
+			const document = await readTeamConversationDocument(resolveTeamConversationSessionId(path), path);
+			return this.snapshot(cached ?? readTeamSessionStateFromDocument(id, document), document);
+		}
+		const session = cached ?? (await this.repository.read(id));
+		const coordination = session.coordinationRuntime;
+		return this.snapshot(
+			session,
+			coordination
+				? await readTeamConversationDocument(coordination.sessionId, coordination.sessionPath)
+				: undefined,
+		);
+	}
+
 	async readSnapshot(id: string, coordinationSessionPath?: string): Promise<TeamSessionSnapshot> {
 		const cached = this.sessionState.get(id);
 		if (cached) return this.snapshot(cached);

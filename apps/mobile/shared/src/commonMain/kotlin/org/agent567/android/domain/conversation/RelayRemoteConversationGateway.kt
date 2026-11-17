@@ -87,6 +87,7 @@ class RelayRemoteConversationGateway(
     private var metricsJob: Job? = null
     private var reconnectJob: Job? = null
     private var activeTargets: List<String> = emptyList()
+    private val reconnectWake = kotlinx.coroutines.channels.Channel<Unit>(kotlinx.coroutines.channels.Channel.CONFLATED)
     private var connectionGeneration = 0L
     private var connectionTarget: String? = null
     private val eventCursors = MutableStateFlow<Map<String, RemoteEventCursor>>(emptyMap())
@@ -106,6 +107,7 @@ class RelayRemoteConversationGateway(
         val oldReconnectJob = reconnectJob
         reconnectJob = null
         oldReconnectJob?.cancelAndJoin()
+        while (reconnectWake.tryReceive().isSuccess) { /* discard wakes for the previous connection */ }
         activeTargets = targets.distinct()
         val old = connection
         deviceStatusJob?.cancel()
@@ -222,6 +224,7 @@ class RelayRemoteConversationGateway(
         val oldReconnectJob = reconnectJob
         reconnectJob = null
         oldReconnectJob?.cancelAndJoin()
+        while (reconnectWake.tryReceive().isSuccess) { /* discard wakes for the previous connection */ }
         deviceStatusJob?.cancel()
         deviceStatusJob = null
         connectionStateJob?.cancel()
@@ -259,6 +262,25 @@ class RelayRemoteConversationGateway(
             sessions = sessions,
             failedDirectoryCount = payload.intValue("failedRootCount")?.coerceAtLeast(0) ?: 0,
         )
+    }
+
+    override suspend fun readTaskResults(deviceId: String): org.agent567.android.domain.followup.TaskResultSnapshot? {
+        val active = connection ?: return null
+        if (active.state.value != RemoteConnectionState.Online || _devices.value.none { it.id == deviceId }) return null
+        if (!active.supportsPeerMethod("session.results.list")) {
+            val catalog = active.request(RemoteRequestMethod.SessionList) as? JsonObject ?: return null
+            updatePeerSupportedMethods(active, catalog)
+            if (!active.supportsPeerMethod("session.results.list")) return null
+        }
+        // Preserve the outer envelope accepted by older paired relays.
+        val payload = active.request(RemoteRequestMethod.SessionContext,
+            buildJsonObject { put("extensionMethod", "session.results.list") }, timeoutMs = 60_000) ?: return null
+        val snapshot = contextWorkspaceJson.decodeFromJsonElement(org.agent567.android.domain.followup.TaskResultSnapshot.serializer(), payload)
+        require(snapshot.tasks.size <= 200 && snapshot.unavailableCount >= 0)
+        require(snapshot.tasks.all { it.sessionId.length in 1..1024 && it.taskId.length in 1..1024 && it.title.length <= 300 &&
+            it.startedAt >= 0 && (it.endedAt == null || it.endedAt >= 0) && it.status in setOf("completed", "failed", "cancelled", "running", "unknown") })
+        if (connection !== active || _devices.value.none { it.id == deviceId }) return null
+        return snapshot.copy(tasks = snapshot.tasks.map { it.copy(deviceId = deviceId, read = false) })
     }
 
     override suspend fun readDesktopToolbox(deviceId: String): List<RemoteToolboxAbility>? {
@@ -611,7 +633,7 @@ class RelayRemoteConversationGateway(
         )
     }
 
-    private suspend fun workbenchRequest(localSessionId: String, remoteSessionId: String, name: String, payload: JsonObject? = null): JsonObject? {
+    private suspend fun sessionExtensionRequest(localSessionId: String, remoteSessionId: String, name: String, payload: JsonObject? = null): JsonObject? {
         val active = connection ?: throw RemoteConversationException("电脑连接已断开，请重新连接")
         if (active.state.value != RemoteConnectionState.Online) throw RemoteConversationException("电脑连接已断开，请重新连接")
         if (!active.supportsPeerMethod(name)) {
@@ -623,19 +645,47 @@ class RelayRemoteConversationGateway(
         val resolved = opened?.get("sessionId")?.jsonPrimitive?.contentOrNull ?: remoteSessionId
         remoteSessionIds[localSessionId] = resolved
         // Reuse the established envelope; legacy blind relays validate the outer method.
-        return active.request(RemoteRequestMethod.SessionContext, buildJsonObject { put("extensionMethod", name); if (payload != null) put("payload", payload) }, resolved, timeoutMs = 30_000) as? JsonObject
+        val response = active.request(RemoteRequestMethod.SessionContext, buildJsonObject { put("extensionMethod", name); if (payload != null) put("payload", payload) }, resolved, timeoutMs = 30_000) as? JsonObject
+        val extensionError = response?.get("extensionError") as? JsonObject
+        if (extensionError != null) {
+            throw RemoteRequestException(RemoteError(
+                code = extensionError.stringValue("code").toRemoteErrorCode(),
+                message = extensionError.stringValue("message") ?: Str.sessionFilesFailed,
+                retryable = extensionError["retryable"]?.jsonPrimitive?.booleanOrNull == true,
+            ))
+        }
+        return response
+    }
+
+    override suspend fun listDesktopFiles(localSessionId: String, remoteSessionId: String, path: String, offset: Int): org.agent567.android.domain.session.RemoteSessionFilePage? {
+        val response = sessionExtensionRequest(localSessionId, remoteSessionId, "file.list", buildJsonObject {
+            put("path", path); put("offset", offset); put("limit", 50)
+        }) ?: return null
+        val page = contextWorkspaceJson.decodeFromJsonElement(org.agent567.android.domain.session.RemoteSessionFilePage.serializer(), response)
+        require(page.entries.size <= 50 && page.path.length <= 8192)
+        require(page.nextOffset == null || page.nextOffset > offset)
+        require(page.entries.all { it.name.length in 1..1024 && it.path.length in 1..8192 && it.size >= 0 && it.modifiedAt.isFinite() })
+        return page
+    }
+
+    override suspend fun readDesktopFileChunk(localSessionId: String, remoteSessionId: String, path: String, offset: Int, length: Int, modifiedAt: Double?): org.agent567.android.domain.session.RemoteSessionFileChunk? {
+        val response = sessionExtensionRequest(localSessionId, remoteSessionId, "file.read", buildJsonObject {
+            put("path", path); put("offset", offset); put("length", length)
+            if (modifiedAt != null) put("modifiedAt", modifiedAt)
+        }) ?: return null
+        return contextWorkspaceJson.decodeFromJsonElement(org.agent567.android.domain.session.RemoteSessionFileChunk.serializer(), response)
     }
 
     override suspend fun readDesktopWorkbench(localSessionId: String, remoteSessionId: String) =
-        workbenchRequest(localSessionId, remoteSessionId, "session.workbench")?.let { contextWorkspaceJson.decodeFromJsonElement(org.agent567.android.domain.session.SessionWorkbenchSnapshot.serializer(), it) }
+        sessionExtensionRequest(localSessionId, remoteSessionId, "session.workbench")?.let { contextWorkspaceJson.decodeFromJsonElement(org.agent567.android.domain.session.SessionWorkbenchSnapshot.serializer(), it) }
 
     override suspend fun readDesktopProjectCollaboration(localSessionId: String, remoteSessionId: String) =
-        workbenchRequest(localSessionId, remoteSessionId, "session.collaboration.read")?.let {
+        sessionExtensionRequest(localSessionId, remoteSessionId, "session.collaboration.read")?.let {
             contextWorkspaceJson.decodeFromJsonElement(org.agent567.android.domain.session.ProjectCollaborationSnapshot.serializer(), it)
         }
 
     override suspend fun updateDesktopProjectCollaboration(localSessionId: String, remoteSessionId: String, patch: org.agent567.android.domain.session.ProjectCollaborationPatch) =
-        workbenchRequest(
+        sessionExtensionRequest(
             localSessionId,
             remoteSessionId,
             "session.collaboration.update",
@@ -643,7 +693,7 @@ class RelayRemoteConversationGateway(
         )?.let { contextWorkspaceJson.decodeFromJsonElement(org.agent567.android.domain.session.ProjectCollaborationSnapshot.serializer(), it) }
 
     override suspend fun controlDesktopProjectCollaboration(localSessionId: String, remoteSessionId: String, control: org.agent567.android.domain.session.ProjectCollaborationControl) =
-        workbenchRequest(
+        sessionExtensionRequest(
             localSessionId,
             remoteSessionId,
             "session.collaboration.control",
@@ -651,10 +701,10 @@ class RelayRemoteConversationGateway(
         )?.let { contextWorkspaceJson.decodeFromJsonElement(org.agent567.android.domain.session.ProjectCollaborationSnapshot.serializer(), it) }
 
     override suspend fun readDesktopWorkbenchDetail(localSessionId: String, remoteSessionId: String, kind: String, id: String) =
-        workbenchRequest(localSessionId, remoteSessionId, "session.workbench.detail", buildJsonObject { put("kind", kind); put("id", id) })?.let { contextWorkspaceJson.decodeFromJsonElement(org.agent567.android.domain.session.SessionWorkbenchDetail.serializer(), it) }
+        sessionExtensionRequest(localSessionId, remoteSessionId, "session.workbench.detail", buildJsonObject { put("kind", kind); put("id", id) })?.let { contextWorkspaceJson.decodeFromJsonElement(org.agent567.android.domain.session.SessionWorkbenchDetail.serializer(), it) }
 
     override suspend fun readDesktopAttachmentChunk(localSessionId: String, remoteSessionId: String, id: String, offset: Int, length: Int): RemoteDesktopImageChunk? {
-        val response = workbenchRequest(localSessionId, remoteSessionId, "session.attachment.read", buildJsonObject { put("id", id); put("offset", offset); put("length", length) }) ?: return null
+        val response = sessionExtensionRequest(localSessionId, remoteSessionId, "session.attachment.read", buildJsonObject { put("id", id); put("offset", offset); put("length", length) }) ?: return null
         return RemoteDesktopImageChunk("application/octet-stream", response["sizeBytes"]?.jsonPrimitive?.intOrNull ?: throw RemoteConversationException("附件大小无效"), response["dataBase64"]?.jsonPrimitive?.contentOrNull ?: throw RemoteConversationException("附件数据为空"), response["revision"]?.jsonPrimitive?.contentOrNull)
     }
 
@@ -787,12 +837,20 @@ class RelayRemoteConversationGateway(
                         RemoteConnectionState.Failed,
                         -> DeviceStatus.Offline
                     }
-                _devices.updateStatus(status)
+                val recovering = reconnectEnabled && (state == RemoteConnectionState.Reconnecting || state == RemoteConnectionState.Failed)
+                _devices.updateStatus(if (recovering) DeviceStatus.Connecting else status)
                 if (reconnectEnabled && (state == RemoteConnectionState.Reconnecting || state == RemoteConnectionState.Failed)) {
                     scheduleReconnect(target, generation)
                 }
             }
         }
+    }
+
+    override fun retryConnection(): Boolean {
+        if (connection?.state?.value == RemoteConnectionState.Online) return true
+        if (reconnectJob?.isActive != true) return false
+        reconnectWake.trySend(Unit)
+        return true
     }
 
     private fun scheduleReconnect(target: String, generation: Long) {
@@ -801,7 +859,7 @@ class RelayRemoteConversationGateway(
             var delayIndex = 0
             while (true) {
                 val delayMs = RECONNECT_DELAYS_MS[delayIndex.coerceAtMost(RECONNECT_DELAYS_MS.lastIndex)]
-                delay(delayMs)
+                withTimeoutOrNull(delayMs) { reconnectWake.receive() }
                 if (generation != connectionGeneration || target !in activeTargets) return@launch
                 val previous = connection
                 runCatching { previous?.close() }
@@ -1154,12 +1212,30 @@ class RelayRemoteConversationGateway(
         }
     }
 
+    override suspend fun uploadDesktopFile(deviceId: String, remoteSessionId: String, file: RemotePromptFileAttachment, onProgress: (Int, Int) -> Unit): String {
+        val active = connection ?: throw RemoteConversationException(Str.uploadDisconnected)
+        if (active.state.value != RemoteConnectionState.Online || active.snapshot().peerDeviceId != deviceId) throw RemoteConversationException(Str.uploadDisconnected)
+        val generation = connectionGeneration
+        if (!active.supportsPeerMethod("session.file.transfer.finish")) {
+            val catalog = active.request(RemoteRequestMethod.SessionList) as? JsonObject ?: throw org.agent567.android.domain.session.RemoteFilesUnsupportedException()
+            updatePeerSupportedMethods(active, catalog)
+        }
+        if (!active.supportsPeerMethod("session.file.transfer.finish")) throw org.agent567.android.domain.session.RemoteFilesUnsupportedException()
+        if (active !== connection || generation != connectionGeneration) throw RemoteConversationException(Str.uploadDisconnected)
+        return transferPromptAttachment(active, remoteSessionId, file.fileName, file.mimeType, file.bytes, standalone = true) { done, total ->
+            if (active !== connection || generation != connectionGeneration) throw RemoteConversationException(Str.uploadDisconnected)
+            onProgress(done, total)
+        }
+    }
+
     private suspend fun transferPromptAttachment(
         active: RemoteConnection,
         sessionId: String?,
         fileName: String,
         mimeType: String,
         bytes: ByteArray,
+        standalone: Boolean = false,
+        onProgress: (Int, Int) -> Unit = { _, _ -> },
     ): String {
         if (!active.supportsPeerMethod("session.attachment.transfer.start")) {
             throw RemoteConversationException("当前电脑端不支持接收手机附件，请更新桌面端后重试")
@@ -1175,6 +1251,7 @@ class RelayRemoteConversationGateway(
                 method = RemoteRequestMethod.SessionAttachmentTransferStart,
                 payload = buildJsonObject {
                     put("transferId", transferId)
+                    if (standalone) put("purpose", "file")
                     put("fileName", fileName)
                     put("mimeType", mimeType)
                     put("totalBytes", bytes.size)
@@ -1185,6 +1262,7 @@ class RelayRemoteConversationGateway(
             )
             var offset = 0
             var index = 0
+            onProgress(0, bytes.size)
             while (offset < bytes.size) {
                 val end = minOf(offset + PROMPT_ATTACHMENT_CHUNK_BYTES, bytes.size)
                 val chunk = bytes.copyOfRange(offset, end)
@@ -1205,13 +1283,25 @@ class RelayRemoteConversationGateway(
                 )
                 offset = end
                 index += 1
+                onProgress(offset, bytes.size)
             }
             val result = active.request(
-                method = RemoteRequestMethod.SessionAttachmentTransferFinish,
-                payload = buildJsonObject { put("transferId", transferId) },
+                method = if (standalone) RemoteRequestMethod.SessionContext else RemoteRequestMethod.SessionAttachmentTransferFinish,
+                payload = if (standalone) buildJsonObject {
+                    put("extensionMethod", "session.file.transfer.finish")
+                    put("payload", buildJsonObject { put("transferId", transferId) })
+                } else buildJsonObject { put("transferId", transferId) },
                 sessionId = activeSessionId,
                 timeoutMs = PROMPT_ATTACHMENT_REQUEST_TIMEOUT_MS,
             ) as? JsonObject
+            if (standalone) {
+                val path = result?.stringValue("path") ?: throw RemoteConversationException(Str.uploadUnconfirmed)
+                val prefix = ".567agent/remote-attachments/"
+                val name = path.removePrefix(prefix)
+                require(path.startsWith(prefix) && name.isNotBlank() && name.length <= 256 && name !in setOf(".", "..") && name.none { it == '/' || it == '\\' || it.code < 32 })
+                require(result.intValue("sizeBytes") == bytes.size)
+                return path
+            }
             return result?.stringValue("attachmentId")
                 ?: throw RemoteConversationException("电脑端没有确认收到附件，请重新发送")
         } catch (error: Throwable) {
@@ -1312,7 +1402,7 @@ class RelayRemoteConversationGateway(
     }
 
     private fun MutableStateFlow<List<DesktopDevice>>.updateStatus(status: DeviceStatus) {
-        update { devices -> devices.map { device -> device.copy(status = status, activeConversation = if (status == DeviceStatus.Online) device.activeConversation else null) } }
+        update { devices -> devices.map { device -> device.copy(status = status, activeConversation = if (status != DeviceStatus.Offline) device.activeConversation else null) } }
     }
 
     private fun MutableStateFlow<List<DesktopDevice>>.updateLatency(latencyMs: Int?) {
@@ -1451,6 +1541,9 @@ private fun String?.toRemoteErrorCode(): RemoteErrorCode =
     when (this) {
         "unauthorized" -> RemoteErrorCode.Unauthorized
         "not_found" -> RemoteErrorCode.NotFound
+        "forbidden" -> RemoteErrorCode.Forbidden
+        "file_changed" -> RemoteErrorCode.FileChanged
+        "too_large" -> RemoteErrorCode.TooLarge
         "busy" -> RemoteErrorCode.Busy
         "request_timeout" -> RemoteErrorCode.RequestTimeout
         "transport_closed" -> RemoteErrorCode.TransportClosed

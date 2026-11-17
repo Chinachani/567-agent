@@ -54,6 +54,11 @@ Desktop 的市场来源 ref 配置为 gh-pages，无需另建注册服务或启�
 移除环境中的仓库配置不会删除已保存来源；这也适用于曾由旧版本自动创建的来源，可在界面停用它们。
 参见 [构建模式](desktop/build-modes.md) 与 [ADR-0093](adr/0093-independent-cloud-and-github-marketplaces.md)。
 
+## 专家预设包
+
+专家预设通过 Plugin 条目及其 `agent.agents` 声明分发，安装并启用后进入专家中心。
+新建独立预设仓库时，参见[预设市场仓库指南](expert-preset-marketplace.md)；当前尚无独立的 expert 市场类型。
+
 ## Manifest
 
 ```json

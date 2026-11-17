@@ -9,10 +9,7 @@ function TabIcon({ icon, className }: { icon: ReactNode; className?: string }): 
 	}
 	return (
 		<span
-			className={cn(
-				"flex h-4 w-4 shrink-0 items-center justify-center [&>svg]:h-full [&>svg]:w-full",
-				className,
-			)}
+			className={cn("flex h-4 w-4 shrink-0 items-center justify-center [&>svg]:h-full [&>svg]:w-full", className)}
 		>
 			{icon}
 		</span>
@@ -75,19 +72,14 @@ export function PluginTabPickerView({
 					type="button"
 					title={labels.menu}
 					aria-label={labels.menu}
-					className="mb-0.5 mr-2 flex h-7 min-w-7 shrink-0 items-center justify-center gap-0.5 rounded-md px-1 text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
+					// 右边距让图标中线对齐页头按钮组最右一项的中线（页头右内边距 12 + 组内边距 2 + 半个按钮 20 = 34）。
+					className="mb-0.5 mr-5 flex h-7 min-w-7 shrink-0 items-center justify-center gap-0.5 rounded-md px-1 text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
 				>
 					{hasOverflow && (
-						<span className="text-[10px] font-semibold tabular-nums leading-none">
-							{overflowTabs.length}
-						</span>
+						<span className="text-[10px] font-semibold tabular-nums leading-none">{overflowTabs.length}</span>
 					)}
 					<span
-						className={
-							hasAvailable
-								? "icon-[solar--add-circle-linear] h-4 w-4"
-								: "icon-[solar--alt-arrow-down-linear] h-4 w-4"
-						}
+						className={hasAvailable ? "icon-[mdi--plus] h-4 w-4" : "icon-[solar--alt-arrow-down-linear] h-4 w-4"}
 					/>
 				</button>
 			</PopoverTrigger>
@@ -107,14 +99,9 @@ export function PluginTabPickerView({
 								}}
 								className="flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-left hover:bg-muted"
 							>
-								<TabIcon
-									icon={tab.icon ?? DEFAULT_PLUGIN_TAB_ICON}
-									className="text-muted-foreground"
-								/>
+								<TabIcon icon={tab.icon ?? DEFAULT_PLUGIN_TAB_ICON} className="text-muted-foreground" />
 								<span className="min-w-0 flex-1">
-									<span className="block truncate text-[13px] leading-tight text-foreground">
-										{tab.label}
-									</span>
+									<span className="block truncate text-[13px] leading-tight text-foreground">{tab.label}</span>
 									{tab.subtitle && tab.subtitle !== tab.label ? (
 										<span className="mt-0.5 block truncate text-[11px] leading-tight text-muted-foreground/70">
 											{tab.subtitle}
@@ -141,10 +128,7 @@ export function PluginTabPickerView({
 								}}
 								className="flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-left hover:bg-muted"
 							>
-								<TabIcon
-									icon={tab.icon ?? DEFAULT_PLUGIN_TAB_ICON}
-									className="text-muted-foreground"
-								/>
+								<TabIcon icon={tab.icon ?? DEFAULT_PLUGIN_TAB_ICON} className="text-muted-foreground" />
 								<span className="min-w-0 flex-1 truncate text-[13px] leading-tight text-foreground">
 									{tab.label}
 								</span>
@@ -164,10 +148,7 @@ export function PluginTabPickerView({
 								onClick={() => onRestore(tab.key)}
 								className="flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-left hover:bg-muted"
 							>
-								<TabIcon
-									icon={tab.icon ?? DEFAULT_PLUGIN_TAB_ICON}
-									className="text-muted-foreground"
-								/>
+								<TabIcon icon={tab.icon ?? DEFAULT_PLUGIN_TAB_ICON} className="text-muted-foreground" />
 								<span className="min-w-0 flex-1 truncate text-[13px] leading-tight text-foreground">
 									{tab.label}
 								</span>

@@ -9,13 +9,14 @@ import androidx.compose.runtime.DisposableEffect
 import androidx.compose.ui.platform.LocalContext
 
 @Composable
-internal fun RemoteFullscreenOrientation() {
+internal fun RemoteFullscreenOrientation(lockLandscape: Boolean = true) {
     val activity = LocalContext.current.findActivity()
-    DisposableEffect(activity) {
-        val previous = activity?.requestedOrientation
+    DisposableEffect(activity, lockLandscape) {
+        if (!lockLandscape || activity == null) return@DisposableEffect onDispose {}
+        val previous = activity.requestedOrientation
         // Explicit landscape works even when the user's system auto-rotation is locked.
-        activity?.requestedOrientation = ActivityInfo.SCREEN_ORIENTATION_SENSOR_LANDSCAPE
-        onDispose { if (previous != null) activity.requestedOrientation = previous }
+        activity.requestedOrientation = ActivityInfo.SCREEN_ORIENTATION_SENSOR_LANDSCAPE
+        onDispose { activity.requestedOrientation = previous }
     }
 }
 

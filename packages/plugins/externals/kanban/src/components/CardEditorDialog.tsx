@@ -1,4 +1,4 @@
-import { useTranslation } from "@vetta-org/plugin-sdk";
+import { ModelPicker, useTranslation } from "@vetta-org/plugin-sdk";
 import {
 	Button,
 	cn,
@@ -10,7 +10,6 @@ import {
 	DialogTitle,
 } from "@vetta-org/ui";
 import { useEffect, useRef, useState, type JSX } from "react";
-import { ModelPicker } from "./ModelPicker";
 import { ProjectPicker } from "./ProjectPicker";
 import { PromptTextarea, type PromptTextareaHandle } from "./PromptTextarea";
 import type { KanbanModelOption, KanbanSkillOption } from "../board/board-controller";
@@ -85,6 +84,9 @@ export function CardEditorDialog({
 	const [tagText, setTagText] = useState("");
 	const detailRef = useRef<PromptTextareaHandle | null>(null);
 	const boardDefaultModel = models.find((model) => model.key === defaultModelKey) ?? null;
+	const inheritLabel = boardDefaultModel
+		? t("editor.modelDefaultNamed", { name: boardDefaultModel.displayName })
+		: t("editor.modelDefault");
 
 	useEffect(() => {
 		if (!open) return;
@@ -153,7 +155,9 @@ export function CardEditorDialog({
 							className="rounded-lg border border-border bg-background transition-colors focus-within:border-primary/60"
 							textareaClassName="min-h-[140px] resize-y"
 						/>
-						{skills.length > 0 && <p className="text-[10px] text-muted-foreground/60">{t("editor.detailSkillHint")}</p>}
+						{skills.length > 0 && (
+							<p className="text-[10px] text-muted-foreground/60">{t("editor.detailSkillHint")}</p>
+						)}
 					</div>
 
 					<div className="grid grid-cols-2 gap-3">
@@ -171,7 +175,9 @@ export function CardEditorDialog({
 											onClick={() => setDraft((prev) => ({ ...prev, priority: level }))}
 											className={cn(
 												"flex items-center justify-center gap-1 rounded-md text-[11px] font-medium transition-colors",
-												selected ? meta.active : "text-muted-foreground/70 hover:bg-accent/50 hover:text-foreground",
+												selected
+													? meta.active
+													: "text-muted-foreground/70 hover:bg-accent/50 hover:text-foreground",
 											)}
 										>
 											<span className={cn(meta.icon, "h-3 w-3")} />
@@ -209,16 +215,13 @@ export function CardEditorDialog({
 								<span className={fieldLabelClass}>{t("editor.model")}</span>
 								{/* 与会话页输入栏同一个选择器；这里选的是「这张卡」的模型 */}
 								<ModelPicker
-									models={models}
-									value={draft.modelKey}
-									onChange={(modelKey) => setDraft((prev) => ({ ...prev, modelKey }))}
-									inheritLabel={
-										boardDefaultModel
-											? t("editor.modelDefaultNamed", { name: boardDefaultModel.displayName })
-											: t("editor.modelDefault")
-									}
-									defaultKey={defaultModelKey || undefined}
-									triggerClassName="h-[34px] w-full max-w-none justify-start rounded-lg border-border bg-background px-2.5 text-[12px]"
+									value={draft.modelKey || null}
+									onChange={(modelKey) => setDraft((prev) => ({ ...prev, modelKey: modelKey ?? "" }))}
+									emptyOption={{ label: inheritLabel }}
+									placeholder={inheritLabel}
+									defaultModelKey={defaultModelKey || undefined}
+									ariaLabel={t("editor.model")}
+									className="h-[34px] w-full rounded-lg border-border bg-background px-2.5"
 								/>
 							</div>
 						)}

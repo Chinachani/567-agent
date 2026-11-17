@@ -89,28 +89,11 @@ describe("loadTeamChatSession", () => {
 		);
 	});
 
-	it("stores the ordinary Conversation reference for a newly created session", async () => {
-		const created = snapshot("new-session", "C:/runtime/new-session.jsonl");
-		vi.mocked(window.agent567.agentTeams.createSessionRecord).mockResolvedValue(created);
-
-		await expect(loadTeamChatSession(team.id)).resolves.toEqual({
-			document,
-			snapshot: created,
-			sessions: [
-				{
-					id: "new-session",
-					coordinationSessionPath: "C:/runtime/new-session.jsonl",
-					title: "",
-					createdAt: 1,
-					updatedAt: 1,
-				},
-			],
-		});
-		expect(window.agent567.agentTeams.createSessionRecord).toHaveBeenCalledWith(team.id);
+	it("does not create a new session while opening empty team history", async () => {
+		await expect(loadTeamChatSession(team.id)).rejects.toThrow();
+		expect(window.agent567.agentTeams.createSessionRecord).not.toHaveBeenCalled();
 		expect(window.agent567.agentTeams.createSession).not.toHaveBeenCalled();
-		expect(window.localStorage.getItem(`vetta.agent-team.session.${team.id}`)).toBe(
-			JSON.stringify({ id: "new-session", coordinationSessionPath: "C:/runtime/new-session.jsonl" }),
-		);
+		expect(window.localStorage.getItem(`vetta.agent-team.session.${team.id}`)).toBeNull();
 	});
 
 	it("deduplicates concurrent creation requests for the same Team", async () => {

@@ -184,7 +184,20 @@ export function useProjectDetailPageModel(): ProjectDetailPageModel {
 	return {
 		activityOpen,
 		batchProject,
-		collaboration,
+		collaboration: {
+			...collaboration,
+			createExpert: {
+				label: t("collaboration.createExpert"),
+				hint:
+					isDirty || collaboration.dirty
+						? t("collaboration.saveBeforeExpert")
+						: t("collaboration.createExpertHint"),
+				disabled: isDirty || collaboration.dirty || collaboration.loading || collaboration.saving,
+				onClick: () => {
+					void navigate({ to: "/agents", search: { tab: "experts", cwd: decodedCwd } });
+				},
+			},
+		},
 		content,
 		createdAtLabel: createdAt ? formatDate(createdAt, dateLocale) : null,
 		cwd: decodedCwd,

@@ -2,12 +2,16 @@ import type { InstalledPlugin } from "@preload/api";
 import type {
 	PluginAbilityDetailSlotContribution,
 	PluginActivityTabContribution,
+	PluginBottomPanelContribution,
 	PluginCardRendererContribution,
 	PluginFileExplorerContextMenuContribution,
 	PluginFileExplorerDecorationProvider,
+	PluginFileExplorerEntry,
 	PluginFileExplorerToolbarContribution,
+	PluginFileIconTheme,
 	PluginFilePreviewContribution,
 	PluginGlobalSlotContribution,
+	PluginHeaderActionContribution,
 	PluginInputActionContribution,
 	PluginLocales,
 	PluginNewSessionContextContribution,
@@ -44,15 +48,28 @@ export interface LoadedPlugin {
 	filePreviews: PluginFilePreviewContribution[];
 	fileExplorerContextMenuActions: PluginFileExplorerContextMenuContribution[];
 	fileExplorerToolbarActions: PluginFileExplorerToolbarContribution[];
-	fileExplorerDecorationProviders: PluginFileExplorerDecorationProvider[];
+	fileExplorerDecorationProviders: ResolvedFileExplorerDecorationProvider[];
+	fileIconThemes: PluginFileIconTheme[];
 	activityTabs: PluginActivityTabContribution[];
+	bottomPanels: ResolvedPluginBottomPanelContribution[];
 	inputActions: PluginInputActionContribution[];
 	newSessionContexts: ResolvedPluginNewSessionContextContribution[];
+	headerActions: PluginHeaderActionContribution[];
 	cardRenderers: PluginCardRendererContribution[];
 	toolCallSlots: PluginToolCallSlotContribution[];
 	turnCards: PluginTurnCardContribution[];
 	workspaceViews: ResolvedPluginWorkspaceViewContribution[];
 	dispose(): Promise<void>;
+}
+
+export interface ResolvedPluginBottomPanelContribution extends PluginBottomPanelContribution {
+	/** 注册时插件是否持有 `terminal.run`：面板实例的 `openTerminal` 据此放行。 */
+	terminalAccess: boolean;
+}
+
+export interface ResolvedFileExplorerDecorationProvider extends PluginFileExplorerDecorationProvider {
+	/** Entries explicitly announced by the provider, including unexpanded descendants. */
+	changedEntries: Map<string, PluginFileExplorerEntry>;
 }
 
 export class PluginLocalContributions {
@@ -61,10 +78,13 @@ export class PluginLocalContributions {
 	readonly filePreviews: PluginFilePreviewContribution[] = [];
 	readonly fileExplorerContextMenuActions: PluginFileExplorerContextMenuContribution[] = [];
 	readonly fileExplorerToolbarActions: PluginFileExplorerToolbarContribution[] = [];
-	readonly fileExplorerDecorationProviders: PluginFileExplorerDecorationProvider[] = [];
+	readonly fileExplorerDecorationProviders: ResolvedFileExplorerDecorationProvider[] = [];
+	readonly fileIconThemes: PluginFileIconTheme[] = [];
 	readonly activityTabs: PluginActivityTabContribution[] = [];
+	readonly bottomPanels: ResolvedPluginBottomPanelContribution[] = [];
 	readonly inputActions: PluginInputActionContribution[] = [];
 	readonly newSessionContexts: ResolvedPluginNewSessionContextContribution[] = [];
+	readonly headerActions: PluginHeaderActionContribution[] = [];
 	readonly cardRenderers: PluginCardRendererContribution[] = [];
 	readonly toolCallSlots: PluginToolCallSlotContribution[] = [];
 	readonly turnCards: PluginTurnCardContribution[] = [];
@@ -77,9 +97,12 @@ export class PluginLocalContributions {
 		this.fileExplorerContextMenuActions.length = 0;
 		this.fileExplorerToolbarActions.length = 0;
 		this.fileExplorerDecorationProviders.length = 0;
+		this.fileIconThemes.length = 0;
 		this.activityTabs.length = 0;
+		this.bottomPanels.length = 0;
 		this.inputActions.length = 0;
 		this.newSessionContexts.length = 0;
+		this.headerActions.length = 0;
 		this.cardRenderers.length = 0;
 		this.toolCallSlots.length = 0;
 		this.turnCards.length = 0;
@@ -99,9 +122,12 @@ export class PluginLocalContributions {
 			fileExplorerContextMenuActions: this.fileExplorerContextMenuActions,
 			fileExplorerToolbarActions: this.fileExplorerToolbarActions,
 			fileExplorerDecorationProviders: this.fileExplorerDecorationProviders,
+			fileIconThemes: this.fileIconThemes,
 			activityTabs: this.activityTabs,
+			bottomPanels: this.bottomPanels,
 			inputActions: this.inputActions,
 			newSessionContexts: this.newSessionContexts,
+			headerActions: this.headerActions,
 			cardRenderers: this.cardRenderers,
 			toolCallSlots: this.toolCallSlots,
 			turnCards: this.turnCards,

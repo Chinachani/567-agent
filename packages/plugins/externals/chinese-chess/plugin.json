@@ -2,21 +2,22 @@
 	"id": "chinese-chess",
 	"name": "%plugin.name%",
 	"icon": "assets/logo.svg",
-	"version": "0.1.1",
+	"version": "0.1.2",
 	"defaultLocale": "zh",
-	"pluginApiVersion": "^2.0.0",
+	"pluginApiVersion": "^2.9.0",
 	"entry": "dist/mf-manifest.json",
 	"moduleFederation": {
 		"remoteName": "chinese_chess",
 		"expose": "./plugin"
 	},
-	"styles": ["dist/style.css"],
+	"styles": [
+		"dist/style.css"
+	],
 	"permissions": [
 		"ui.slot.workspace-view",
 		"storage.read",
 		"storage.write",
-		"ai.complete",
-		"ai.models.list"
+		"ai.complete"
 	],
 	"description": "%plugin.description%",
 	"author": "567 Agent"

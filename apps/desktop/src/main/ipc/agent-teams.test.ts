@@ -1,7 +1,6 @@
 import { createAgentTeamFixture, createEmptyAgentTeamDocument } from "@567agent/agent-team";
-import { providerModelNotFoundError } from "@567agent/ai";
+import type { WebContents } from "electron";
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { resolveTeamSessionWorkspace } from "../agent-teams/team-workspace.js";
 import { type AgentTeamsIpcDependencies, registerAgentTeamsIpc } from "./agent-teams.js";
 
 const ipc = vi.hoisted(() => ({
@@ -33,21 +32,19 @@ vi.mock("../agent-teams/agent-team-store.js", () => ({ agentTeamStore: {} }));
 vi.mock("../agent-teams/team-session-service.js", () => ({ agentTeamSessionService: {} }));
 // 预设同步会拉起插件目录（进而拉起 electron.app）；这里只验 IPC 布线，把它挡在外面。
 vi.mock("../agent-teams/plugin-agent-preset-sync.js", () => ({ initPluginAgentPresetSync: vi.fn() }));
-vi.mock("../agent-teams/team-workspace.js", () => ({
-	resolveTeamSessionWorkspace: vi.fn(
-		async (teamId: string, sessionId: string, workspace?: { readonly kind: "project"; readonly path: string }) => {
-			if (workspace) return { kind: "project", id: "C:/Projects/Canonical", cwd: "C:/Projects/Canonical" };
-			return {
-				kind: "session",
-				id: `agent-team:${teamId}:session:${sessionId}`,
-				cwd: `C:/session-workspaces/${teamId}/${sessionId}`,
-			};
-		},
-	),
-}));
 vi.mock("../logger.js", () => ({
 	getAppLogger: () => ({ info: vi.fn(), warn: vi.fn(), error: vi.fn() }),
 }));
+
+const sender = {
+	mainFrame: {},
+	isDestroyed: () => false,
+	send: vi.fn(),
+	once: vi.fn(),
+	removeListener: vi.fn(),
+};
+const owner = sender as unknown as WebContents;
+const event = { sender, senderFrame: sender.mainFrame };
 
 function dependencies(): AgentTeamsIpcDependencies {
 	return {
@@ -73,7 +70,7 @@ function dependencies(): AgentTeamsIpcDependencies {
 			listSessions: vi.fn(async () => []),
 			renameSession: vi.fn(),
 			deleteSession: vi.fn(),
-			readSnapshot: vi.fn(),
+			readArchiveSnapshot: vi.fn(),
 			send: vi.fn(),
 			updateModelSettings: vi.fn(),
 			setExecutionMode: vi.fn(),
@@ -89,12 +86,14 @@ describe("Agent Team IPC contract", () => {
 		ipc.handlers.clear();
 		ipc.removed.length = 0;
 		ipc.sent.length = 0;
-		vi.mocked(resolveTeamSessionWorkspace).mockClear();
+		sender.send.mockClear();
+		sender.once.mockClear();
+		sender.removeListener.mockClear();
 	});
 
 	it("tells every live renderer when the plugin presets are reapplied", () => {
 		const deps = dependencies();
-		registerAgentTeamsIpc(deps);
+		registerAgentTeamsIpc(owner, deps);
 		const notify = vi.mocked(deps.store.onPluginPresetsApplied).mock.calls[0]?.[0];
 		if (!notify) throw new Error("the store was not subscribed");
 
@@ -106,68 +105,57 @@ describe("Agent Team IPC contract", () => {
 
 	it("validates renderer input before invoking the domain service", async () => {
 		const deps = dependencies();
-		registerAgentTeamsIpc(deps);
+		registerAgentTeamsIpc(owner, deps);
 		const createAgent = ipc.handlers.get("vetta:agent-teams:create-agent");
 		if (!createAgent) throw new Error("create-agent handler was not registered");
 
-		expect(() => createAgent({}, { name: "Missing required fields" })).toThrow("Invalid create agent profile input");
+		expect(() => createAgent(event, { name: "Missing required fields" })).toThrow(
+			"Invalid create agent profile input",
+		);
 		expect(deps.store.createAgent).not.toHaveBeenCalled();
 
-		await createAgent(
-			{},
-			{
-				name: "Builder",
-				mentionHandle: "builder",
-				blueprintId: "builder",
-				abilities: { skills: [], mcpServers: [], plugins: [] },
-			},
-		);
+		await createAgent(event, {
+			name: "Builder",
+			mentionHandle: "builder",
+			blueprintId: "builder",
+			abilities: { skills: [], mcpServers: [], plugins: [] },
+		});
 		expect(deps.store.createAgent).toHaveBeenCalledOnce();
 	});
 
-	it("rejects unknown message fields and removes every registered handler", async () => {
+	it("rejects retired sends and removes every registered handler", () => {
 		const deps = dependencies();
-		const teardown = registerAgentTeamsIpc(deps);
-		const sendMessage = ipc.handlers.get("vetta:agent-teams:send-message");
-		if (!sendMessage) throw new Error("send-message handler was not registered");
-
-		await expect(
-			sendMessage({}, "session", { requestId: "request", text: "Hello", targetMemberIds: [], privateTrace: true }),
-		).rejects.toThrow("Invalid send team message input");
+		const teardown = registerAgentTeamsIpc(owner, deps);
+		const sendMessage = ipc.handlers.get("vetta:agent-teams:send-message")!;
+		expect(() =>
+			sendMessage(event, "session", { requestId: "request", text: "Hello", targetMemberIds: [] }),
+		).toThrow();
 		expect(deps.sessions.send).not.toHaveBeenCalled();
-
 		teardown();
 		expect(ipc.removed).toHaveLength(ipc.handlers.size);
 	});
 
-	it("propagates an unavailable Team model instead of reporting the send as completed", async () => {
+	it("rejects a foreign renderer before touching expert data", () => {
 		const deps = dependencies();
-		const failure = providerModelNotFoundError("cli-proxy-api.google", "gemini-3.8-flash-high");
-		vi.mocked(deps.sessions.send).mockRejectedValueOnce(failure);
-		registerAgentTeamsIpc(deps);
-		const sendMessage = ipc.handlers.get("vetta:agent-teams:send-message");
-		if (!sendMessage) throw new Error("send-message handler was not registered");
-
-		await expect(
-			sendMessage({}, "session", {
-				requestId: "stale-model",
-				text: "Continue the Team conversation",
-				targetMemberIds: [],
-			}),
-		).rejects.toBe(failure);
+		registerAgentTeamsIpc(owner, deps);
+		const createAgent = ipc.handlers.get("vetta:agent-teams:create-agent")!;
+		expect(() => createAgent({ ...event, sender: { isDestroyed: () => false } }, { name: "Foreign" })).toThrow(
+			"Untrusted renderer IPC caller",
+		);
+		expect(deps.store.createAgent).not.toHaveBeenCalled();
 	});
 
 	it("passes an ordinary Conversation bookmark when reopening a Team session", async () => {
 		const deps = dependencies();
-		registerAgentTeamsIpc(deps);
+		registerAgentTeamsIpc(owner, deps);
 		const getSession = ipc.handlers.get("vetta:agent-teams:get-session");
 		if (!getSession) throw new Error("get-session handler was not registered");
 
-		await getSession({}, { id: "session", coordinationSessionPath: "C:/runtime/session.jsonl" });
-		expect(deps.sessions.readSnapshot).toHaveBeenCalledWith("session", "C:/runtime/session.jsonl");
+		await getSession(event, { id: "session", coordinationSessionPath: "C:/runtime/session.jsonl" });
+		expect(deps.sessions.readArchiveSnapshot).toHaveBeenCalledWith("session", "C:/runtime/session.jsonl");
 
 		await expect(
-			getSession({}, { id: "session", coordinationSessionPath: "C:/runtime/session.jsonl", privateState: true }),
+			getSession(event, { id: "session", coordinationSessionPath: "C:/runtime/session.jsonl", privateState: true }),
 		).rejects.toThrow("Invalid Team session reference");
 	});
 
@@ -179,7 +167,7 @@ describe("Agent Team IPC contract", () => {
 		});
 		const sessionServices = {
 			...base.sessions,
-			readSnapshot: vi.fn(async () => ({
+			readArchiveSnapshot: vi.fn(async () => ({
 				session: {} as never,
 				conversationRevision: 0,
 				messages: [],
@@ -192,20 +180,20 @@ describe("Agent Team IPC contract", () => {
 			...base,
 			sessions: sessionServices as AgentTeamsIpcDependencies["sessions"],
 		};
-		registerAgentTeamsIpc(deps);
+		registerAgentTeamsIpc(owner, deps);
 		const getSession = ipc.handlers.get("vetta:agent-teams:get-session");
 		if (!getSession) throw new Error("get-session handler was not registered");
 
-		await expect(getSession({}, "session")).resolves.toMatchObject({ display: { memberConversations: [] } });
+		await expect(getSession(event, "session")).resolves.toMatchObject({ display: { memberConversations: [] } });
 		expect(displayProjection).toHaveBeenCalledOnce();
 	});
 
-	it("returns the bootstrap snapshot without starting the display projection", async () => {
+	it("projects the archived snapshot for the history viewer", async () => {
 		const base = dependencies();
 		const displayProjection = vi.fn(async () => ({ memberConversations: [] }));
 		const sessionServices = {
 			...base.sessions,
-			readSnapshot: vi.fn(async () => ({
+			readArchiveSnapshot: vi.fn(async () => ({
 				session: {} as never,
 				conversationRevision: 1,
 				messages: [],
@@ -213,47 +201,26 @@ describe("Agent Team IPC contract", () => {
 			})),
 			displayProjection: displayProjection,
 		};
-		registerAgentTeamsIpc({ ...base, sessions: sessionServices as AgentTeamsIpcDependencies["sessions"] });
+		registerAgentTeamsIpc(owner, { ...base, sessions: sessionServices as AgentTeamsIpcDependencies["sessions"] });
 		const getSession = ipc.handlers.get("vetta:agent-teams:get-session");
 		if (!getSession) throw new Error("get-session handler was not registered");
 
 		await expect(
-			getSession({}, { id: "session", coordinationSessionPath: "C:/runtime/session.jsonl" }),
+			getSession(event, { id: "session", coordinationSessionPath: "C:/runtime/session.jsonl" }),
 		).resolves.toMatchObject({
 			display: { memberConversations: [] },
 		});
 		expect(displayProjection).toHaveBeenCalledOnce();
 	});
 
-	it("creates each Team session in its own workspace and lists the Team catalog", async () => {
+	it("rejects new Team sessions while retaining the history catalog", async () => {
 		const deps = dependencies();
-		const document = createAgentTeamFixture();
-		const team = document.teams[0];
-		if (!team) throw new Error("missing Team fixture");
-		deps.store.read = vi.fn(async () => document);
-		deps.sessions.create = vi.fn(async (_team, _document, cwd) => ({ cwd }) as never);
-		deps.sessions.listSessions = vi.fn(async () => []);
-		registerAgentTeamsIpc(deps);
-
-		const createSession = ipc.handlers.get("vetta:agent-teams:create-session");
-		const listSessions = ipc.handlers.get("vetta:agent-teams:list-sessions");
-		if (!createSession || !listSessions) throw new Error("Team session handlers were not registered");
-		await createSession({}, team.id);
-		await listSessions({}, team.id);
-
-		const createdSessionId = vi.mocked(resolveTeamSessionWorkspace).mock.calls[0]?.[1];
-		if (!createdSessionId) throw new Error("missing allocated Team session id");
-		expect(deps.sessions.create).toHaveBeenCalledWith(
-			team,
-			document,
-			{
-				kind: "session",
-				id: `agent-team:${team.id}:session:${createdSessionId}`,
-				cwd: `C:/session-workspaces/${team.id}/${createdSessionId}`,
-			},
-			{ sessionId: createdSessionId },
-		);
-		expect(deps.sessions.listSessions).toHaveBeenCalledWith(team.id);
+		registerAgentTeamsIpc(owner, deps);
+		const createSession = ipc.handlers.get("vetta:agent-teams:create-session")!;
+		expect(() => createSession(event, "team")).toThrow();
+		await ipc.handlers.get("vetta:agent-teams:list-sessions")!(event, "team");
+		expect(deps.sessions.create).not.toHaveBeenCalled();
+		expect(deps.sessions.listSessions).toHaveBeenCalledWith("team");
 	});
 
 	it("publishes the product-level sidebar projection through one IPC call", async () => {
@@ -273,99 +240,51 @@ describe("Agent Team IPC contract", () => {
 			},
 		];
 		const listSidebarConversations = vi.fn(async () => projected);
-		registerAgentTeamsIpc({ ...deps, listSidebarConversations });
+		registerAgentTeamsIpc(owner, { ...deps, listSidebarConversations });
 		const listSidebar = ipc.handlers.get("vetta:agent-teams:list-sidebar-conversations");
 		if (!listSidebar) throw new Error("list-sidebar-conversations handler was not registered");
 
-		await expect(listSidebar({})).resolves.toEqual(projected);
+		await expect(listSidebar(event)).resolves.toEqual(projected);
 		expect(listSidebarConversations).toHaveBeenCalledOnce();
 	});
 
 	it("routes Team session rename and delete through validated references", async () => {
 		const deps = dependencies();
-		registerAgentTeamsIpc(deps);
+		registerAgentTeamsIpc(owner, deps);
 		const reference = { id: "session-1", coordinationSessionPath: "C:/sessions/session-1.jsonl" };
 		const renameSession = ipc.handlers.get("vetta:agent-teams:rename-session");
 		const deleteSession = ipc.handlers.get("vetta:agent-teams:delete-session");
 		if (!renameSession || !deleteSession) throw new Error("Team session mutation handlers were not registered");
 
-		await renameSession({}, reference, "Renamed");
-		await deleteSession({}, reference);
+		await renameSession(event, reference, "Renamed");
+		await deleteSession(event, reference);
 		expect(deps.sessions.renameSession).toHaveBeenCalledWith(reference, "Renamed");
 		expect(deps.sessions.deleteSession).toHaveBeenCalledWith(reference);
-		await expect(renameSession({}, reference, " ")).rejects.toThrow("name must be a non-empty string");
+		await expect(renameSession(event, reference, " ")).rejects.toThrow("name must be a non-empty string");
 	});
 
-	it("creates the visible session record through the lightweight path", async () => {
+	it("rejects lightweight Team creation without allocating a record", () => {
 		const deps = dependencies();
-		const document = createAgentTeamFixture();
-		const team = document.teams[0];
-		if (!team) throw new Error("missing Team fixture");
-		deps.store.read = vi.fn(async () => document);
-		deps.sessions.createRecord = vi.fn(async (_team, _document, cwd) => ({ cwd }) as never);
-		registerAgentTeamsIpc(deps);
-
-		const createSessionRecord = ipc.handlers.get("vetta:agent-teams:create-session-record");
-		if (!createSessionRecord) throw new Error("create-session-record handler was not registered");
-		await createSessionRecord({}, team.id);
-
-		const firstSessionId = vi.mocked(resolveTeamSessionWorkspace).mock.calls[0]?.[1];
-		if (!firstSessionId) throw new Error("missing allocated Team session id");
-		expect(deps.sessions.createRecord).toHaveBeenCalledWith(
-			team,
-			document,
-			{
-				kind: "session",
-				id: `agent-team:${team.id}:session:${firstSessionId}`,
-				cwd: `C:/session-workspaces/${team.id}/${firstSessionId}`,
-			},
-			{ sessionId: firstSessionId },
-		);
-		const reservedSessionId = "11111111-1111-4111-8111-111111111111";
-		await createSessionRecord({}, team.id, { sessionId: reservedSessionId, executionMode: "sandbox" });
-		expect(deps.sessions.createRecord).toHaveBeenLastCalledWith(
-			team,
-			document,
-			{
-				kind: "session",
-				id: `agent-team:${team.id}:session:${reservedSessionId}`,
-				cwd: `C:/session-workspaces/${team.id}/${reservedSessionId}`,
-			},
-			{
-				sessionId: reservedSessionId,
-				executionMode: "sandbox",
-			},
-		);
-		await createSessionRecord({}, team.id, {
-			sessionId: reservedSessionId,
-			workspace: { kind: "project", path: "c:/projects/selected/" },
-		});
-		expect(deps.sessions.createRecord).toHaveBeenLastCalledWith(
-			team,
-			document,
-			{ kind: "project", id: "C:/Projects/Canonical", cwd: "C:/Projects/Canonical" },
-			{ sessionId: reservedSessionId },
-		);
-		await expect(createSessionRecord({}, team.id, { sessionId: "../unsafe" })).rejects.toThrow("Invalid sessionId");
-		await expect(
-			createSessionRecord({}, team.id, { workspace: { kind: "project", path: "C:/project", extra: true } }),
-		).rejects.toThrow("Invalid Team session workspace");
+		deps.sessions.createRecord = vi.fn();
+		registerAgentTeamsIpc(owner, deps);
+		expect(() => ipc.handlers.get("vetta:agent-teams:create-session-record")!(event, "team")).toThrow();
+		expect(deps.sessions.createRecord).not.toHaveBeenCalled();
 		expect(deps.sessions.create).not.toHaveBeenCalled();
 	});
 
 	it("validates and forwards Team-session model settings", async () => {
 		const deps = dependencies();
-		registerAgentTeamsIpc(deps);
+		registerAgentTeamsIpc(owner, deps);
 		const updateModelSettings = ipc.handlers.get("vetta:agent-teams:update-model-settings");
 		if (!updateModelSettings) throw new Error("update-model-settings handler was not registered");
 
-		await updateModelSettings({}, "session", { modelKey: "openai/gpt-5", reasoning: "high" });
+		await updateModelSettings(event, "session", { modelKey: "openai/gpt-5", reasoning: "high" });
 		expect(deps.sessions.updateModelSettings).toHaveBeenCalledWith("session", {
 			modelKey: "openai/gpt-5",
 			reasoning: "high",
 		});
 
-		await expect(updateModelSettings({}, "session", { reasoning: "high" })).rejects.toThrow(
+		await expect(updateModelSettings(event, "session", { reasoning: "high" })).rejects.toThrow(
 			"Invalid Team session model settings input",
 		);
 	});
@@ -376,32 +295,32 @@ describe("Agent Team IPC contract", () => {
 		const team = document.teams[0]!;
 		const memberId = team.members[0]!.id;
 		deps.store.read = vi.fn(async () => document);
-		registerAgentTeamsIpc(deps);
+		registerAgentTeamsIpc(owner, deps);
 		const list = ipc.handlers.get("vetta:agent-teams:list-member-models");
 		const set = ipc.handlers.get("vetta:agent-teams:set-member-model");
 		if (!list || !set) throw new Error("member model handlers were not registered");
-		await list({}, team.id);
+		await list(event, team.id);
 		expect(deps.memberModels?.list).toHaveBeenCalledWith(team);
-		await set({}, team.id, memberId, { modelKey: "provider/model", reasoning: "high" });
+		await set(event, team.id, memberId, { modelKey: "provider/model", reasoning: "high" });
 		expect(deps.memberModels?.set).toHaveBeenCalledWith(team, memberId, {
 			modelKey: "provider/model",
 			reasoning: "high",
 		});
-		await set({}, team.id, memberId, null);
+		await set(event, team.id, memberId, null);
 		expect(deps.memberModels?.set).toHaveBeenLastCalledWith(team, memberId, null);
-		await expect(set({}, team.id, memberId, { modelKey: "invalid" })).rejects.toThrow();
-		await expect(set({}, "missing", memberId, null)).rejects.toThrow("Team not found");
+		await expect(set(event, team.id, memberId, { modelKey: "invalid" })).rejects.toThrow();
+		await expect(set(event, "missing", memberId, null)).rejects.toThrow("Team not found");
 	});
 
 	it("validates and forwards the Team-scoped execution mode", async () => {
 		const deps = dependencies();
-		registerAgentTeamsIpc(deps);
+		registerAgentTeamsIpc(owner, deps);
 		const setExecutionMode = ipc.handlers.get("vetta:agent-teams:set-execution-mode");
 		if (!setExecutionMode) throw new Error("set-execution-mode handler was not registered");
 
-		await setExecutionMode({}, "session", "sandbox");
+		await setExecutionMode(event, "session", "sandbox");
 		expect(deps.sessions.setExecutionMode).toHaveBeenCalledWith("session", "sandbox");
-		await expect(setExecutionMode({}, "session", "invalid")).rejects.toThrow("Invalid executionMode");
+		await expect(setExecutionMode(event, "session", "invalid")).rejects.toThrow("Invalid executionMode");
 	});
 
 	it("bridges stream subscriptions and abort requests", async () => {
@@ -438,16 +357,11 @@ describe("Agent Team IPC contract", () => {
 				},
 			};
 		});
-		registerAgentTeamsIpc(deps);
-		const sender = {
-			isDestroyed: () => false,
-			send: vi.fn(),
-			once: vi.fn(),
-			removeListener: vi.fn(),
-		};
+		registerAgentTeamsIpc(owner, deps);
+
 		const subscribe = ipc.handlers.get("vetta:agent-teams:subscribe");
 		if (!subscribe) throw new Error("subscribe handler was not registered");
-		const result = (await subscribe({ sender }, "session")) as {
+		const result = (await subscribe(event, "session")) as {
 			subscriptionId: string;
 			initial: { type: string };
 		};
@@ -474,7 +388,7 @@ describe("Agent Team IPC contract", () => {
 
 		const abort = ipc.handlers.get("vetta:agent-teams:abort");
 		if (!abort) throw new Error("abort handler was not registered");
-		await abort({}, "session");
+		await abort(event, "session");
 		expect(deps.sessions.abort).toHaveBeenCalledWith("session");
 	});
 });

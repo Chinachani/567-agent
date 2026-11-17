@@ -2,12 +2,14 @@
 	"page": {
 		"title": "Automation",
 		"subtitle": "Let AI run tasks on schedule and free your hands",
+		"create": "Create",
+		"searchPlaceholder": "Search automations",
 		"newTask": "New Task",
-		"newTaskTitle": "New scheduled task"
+		"newTaskTitle": "New scheduled task",
+		"runningLoadFailed": "Could not load running tasks. Reopen Automations to retry."
 	},
 	"recommend": {
 		"title": "Recommended",
-		"use": "Use template",
 		"items": {
 			"morningBrief": {
 				"name": "Morning briefing",
@@ -27,19 +29,76 @@
 				"schedule": "Fridays 17:00",
 				"prompt": "Produce a weekly review for the current repository:\n1. Summarize major commits and feature progress this week\n2. Capture risks, tech debt, or recurring issues\n3. Recommend next-week priorities (up to 5 items)\nWrite it ready to paste into a weekly report. Do not modify repository files."
 			}
-		}
-	},
-
-	"dialog": {
-		"namePlaceholderEdit": "Task name",
-		"namePlaceholderNew": "New task",
-		"cancel": "Cancel",
-		"save": "Save",
-		"create": "Create"
+		},
+		"use": "Use template"
 	},
 	"form": {
-		"namePlaceholder": "Task name",
-		"promptPlaceholder": "Enter a prompt... type / to invoke skills/scenes",
+		"name": "Task title",
+		"namePlaceholder": "Task title (optional)",
+		"promptPlaceholder": "Describe the task and tell 567 Agent what to do (type / for skills)",
+		"promptEdit": "Edit",
+		"promptEditTitle": "Edit task",
+		"promptDone": "Done",
+		"runTarget": "Run in",
+		"runMode": {
+			"new-session": "New session each time",
+			"same-session": "Same session"
+		},
+		"project": "Project",
+		"projectNone": "None (Conversation)",
+		"session": "Session",
+		"sessionHint": "Every run continues in this session, so its context keeps building up",
+		"sessionNew": "Start a new session",
+		"sessionMissing": "The bound session no longer exists",
+		"model": "Model",
+		"modelFollowDefault": "Follow default model",
+		"repeat": "Repeat",
+		"time": "Time",
+		"atMinutePrefix": "At minute",
+		"atMinuteSuffix": "of every hour",
+		"monthlyShortMonthHint": "Months without the chosen date (e.g. Feb 30) are skipped; pick \"Last day\" to run at month end",
+		"cronExpression": "Cron expression",
+		"cronHint": "minute hour day month weekday, in local time; edit the expression directly and it stays in sync with the pickers",
+		"cronAny": "Any",
+		"cronTextOnly": "This part uses syntax the pickers can't show; edit the expression directly",
+		"cronField": {
+			"minute": "Min",
+			"hour": "Hour",
+			"day": "Day",
+			"month": "Month",
+			"weekday": "Weekday"
+		},
+		"notify": "Webhook notification",
+		"notifyEndpoints": "Notify",
+		"notifyGoSettings": "No webhooks yet — add one in Settings",
+		"notifyEndpointDisabled": "This webhook is disabled and won't send",
+		"notifyWhen": "Send when",
+		"notifyWhenOption": {
+			"always": "Always",
+			"success": "Only on success",
+			"failure": "Only on failure"
+		},
+		"notifyTemplate": "Message",
+		"notifyTemplateDefault": "{{name}} {{status}} ({{duration}})\n\n{{reply}}",
+		"variables": {
+			"name": "Task",
+			"status": "Status",
+			"startedAt": "Started",
+			"duration": "Duration",
+			"reply": "Reply",
+			"error": "Error"
+		},
+		"enabledLabel": "Enabled",
+		"intervalPrefix": "Every",
+		"intervalSuffix": "minutes",
+		"intervalHint": "Counted from when you save; changing the interval restarts the count",
+		"sectionDetails": "Details",
+		"sectionFrequency": "Frequency",
+		"sectionNotify": "Notification",
+		"intervalLabel": "Interval",
+		"minuteLabel": "Minute",
+		"weekdays": "Weekdays",
+		"monthDays": "Days",
 		"selectWorkDir": "Select working directory",
 		"conversation": "Conversation",
 		"modelEmpty": "No models",
@@ -54,27 +113,65 @@
 		"sandboxUnavailable": "{{platform}} sandbox unavailable: {{reason}}",
 		"every": "Every",
 		"unitHours": "hours",
-		"unitDays": "days"
+		"unitDays": "days",
+		"executionMode": "Permissions",
+		"executionModeHint": "Used for new sessions. Bound sessions keep their own permissions and plan mode.",
+		"executionModeOptions": {
+			"inherit": "Use default",
+			"sandbox": "Sandbox",
+			"full-access": "Full access"
+		},
+		"sessionsLoadFailed": "Could not load sessions. Select the project again to retry.",
+		"webhooksLoadFailed": "Could not load notification endpoints. Reopen the task to retry.",
+		"retiredSkill": "The legacy scenario “{{name}}” is retired. Clear it or choose a skill.",
+		"clearRetiredSkill": "Clear legacy scenario"
 	},
 	"scheduleMode": {
 		"once": "Once",
+		"interval": "Interval",
+		"hourly": "Hourly",
 		"daily": "Daily",
-		"interval": "Interval"
+		"weekly": "Weekly",
+		"monthly": "Monthly",
+		"custom": "Custom"
 	},
 	"schedule": {
-		"once": "{{month}}/{{day}}/{{year}} {{time}}, once",
+		"once": "Once at {{date}} {{time}}",
+		"hourly": "Hourly at :{{minute}}",
 		"daily": "Daily at {{time}}",
-		"weekly": "Weekly on {{days}} at {{time}}",
-		"intervalOne": "Every hour",
-		"interval": "Every {{hours}} hours",
+		"weekly": "Every {{days}} at {{time}}",
+		"monthly": "Monthly on {{days}} at {{time}}",
+		"monthDay": "day {{day}}",
+		"lastDay": "Last day",
+		"custom": "Custom",
 		"weekdayJoin": ", ",
-		"weekdayNames": ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"]
+		"weekdayShortNames": [
+			"Sun",
+			"Mon",
+			"Tue",
+			"Wed",
+			"Thu",
+			"Fri",
+			"Sat"
+		],
+		"weekdayNames": [
+			"Sun",
+			"Mon",
+			"Tue",
+			"Wed",
+			"Thu",
+			"Fri",
+			"Sat"
+		],
+		"intervalMinutes": "Every {{minutes}} min",
+		"intervalHours": "Every {{hours}} h",
+		"intervalOne": "Every hour",
+		"interval": "Every {{hours}} hours"
 	},
 	"list": {
 		"running": "Running",
 		"pending": "Pending",
 		"disabled": "Disabled",
-		"once": "One-time",
 		"runNow": "Run now",
 		"run": "Run",
 		"sectionTitle": "Automation tasks",
@@ -89,6 +186,22 @@
 		"minutesAgo": "{{n}} min ago",
 		"hoursAgo": "{{n}} hr ago",
 		"daysAgo": "{{n}} d ago",
+		"suspended": "Paused",
+		"target": "{{mode}} · {{project}}",
+		"filter": {
+			"all": "All",
+			"enabled": "Active",
+			"paused": "Paused",
+			"done": "Done"
+		},
+		"emptySearch": "No matching automations",
+		"emptyFilter": "Nothing here yet",
+		"done": "Done",
+		"nextRun": "next run {{when}}",
+		"inMinutes": "in {{n}} min",
+		"inHours": "in {{n}} h",
+		"inDays": "in {{n}} days",
+		"once": "One-time",
 		"fullAccess": "Full access",
 		"useSandbox": "Use sandbox",
 		"inheritDefault": "Follow default"
@@ -99,20 +212,75 @@
 		"delete": "Delete",
 		"cancel": "Cancel"
 	},
+	"history": {
+		"title": "Run history",
+		"refresh": "Refresh",
+		"empty": "No runs yet",
+		"status": {
+			"success": "Succeeded",
+			"failed": "Failed",
+			"running": "Running",
+			"aborted": "Aborted",
+			"skipped": "Skipped",
+			"missed": "Missed"
+		},
+		"reason": {
+			"previous-running": "The previous run was still going",
+			"app-not-running": "The app wasn't running",
+			"system-sleep": "The computer was asleep"
+		},
+		"missedMany": "Missed {{times}} times, until {{until}} · {{reason}}",
+		"notifyFailed": "Notification failed: {{error}}",
+		"success": "Success",
+		"failed": "Failed",
+		"running": "Running",
+		"aborted": "Aborted"
+	},
+	"suspended": {
+		"session-deleted": "The bound session was deleted. Pick a session again, then enable it.",
+		"project-removed": "The target project was removed from the sidebar. Pick a project again, then enable it.",
+		"skill-retired": "The selected scene is retired. Choose a skill."
+	},
+	"notify": {
+		"status": {
+			"success": "succeeded",
+			"failed": "failed",
+			"aborted": "aborted"
+		},
+		"noEndpoint": "All selected webhooks are disabled or deleted"
+	},
+	"detail": {
+		"status": {
+			"active": "Active",
+			"running": "Running",
+			"paused": "Paused",
+			"suspended": "Paused · target unavailable",
+			"done": "Done",
+			"draft": "New automation"
+		},
+		"close": "Close",
+		"runNow": "Run now",
+		"pause": "Pause",
+		"enable": "Enable",
+		"more": "More",
+		"delete": "Delete",
+		"openChat": "Open chat",
+		"discard": "Discard",
+		"save": "Save",
+		"create": "Create"
+	},
+	"dialog": {
+		"namePlaceholderEdit": "Task name",
+		"namePlaceholderNew": "New task",
+		"cancel": "Cancel",
+		"save": "Save",
+		"create": "Create"
+	},
 	"drawer": {
 		"close": "Close",
 		"runNow": "Run now",
 		"pause": "Pause",
 		"enable": "Enable",
 		"edit": "Edit"
-	},
-	"history": {
-		"title": "Execution history",
-		"refresh": "Refresh",
-		"empty": "No execution records",
-		"success": "Success",
-		"failed": "Failed",
-		"running": "Running",
-		"aborted": "Aborted"
 	}
 }

@@ -23,6 +23,7 @@ import org.agent567.android.domain.notifications.TaskNoticeKind
 import org.agent567.android.domain.notifications.TaskNotifications
 
 const val TASK_NOTIFICATION_SESSION_EXTRA = "agent567.task.session"
+const val TASK_NOTIFICATION_ACTION_EXTRA = "agent567.task.action"
 private const val CHANNEL = "agent567_tasks_v1"
 
 @Composable
@@ -50,14 +51,35 @@ internal fun postTaskNotification(context: Context, notice: TaskNotice, launchIn
     val intent = launchIntent?.let(::Intent) ?: return
     intent.addFlags(Intent.FLAG_ACTIVITY_CLEAR_TOP or Intent.FLAG_ACTIVITY_SINGLE_TOP)
     intent.putExtra(TASK_NOTIFICATION_SESSION_EXTRA, notice.sessionId)
+    intent.putExtra(TASK_NOTIFICATION_ACTION_EXTRA, notice.kind.notificationAction)
     // Unique data avoids PendingIntent hash collisions between conversations.
     intent.data = android.net.Uri.Builder().scheme("agent567").authority("task").appendPath(notice.sessionId).build()
     val pending = PendingIntent.getActivity(context, 0, intent, PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE)
+    val actionPending = { action: String, requestCode: Int ->
+        val actionIntent = Intent(intent).putExtra(TASK_NOTIFICATION_ACTION_EXTRA, action)
+        PendingIntent.getActivity(context, requestCode, actionIntent, PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE)
+    }
     val title = when (notice.kind) { TaskNoticeKind.NeedsInput -> Str.taskNoticeNeedsInput; TaskNoticeKind.Completed -> Str.taskNoticeCompleted; TaskNoticeKind.Interrupted -> Str.taskNoticeInterrupted }
-    val notification = NotificationCompat.Builder(context, CHANNEL)
+    val builder = NotificationCompat.Builder(context, CHANNEL)
         .setSmallIcon(android.R.drawable.ic_dialog_info)
         .setContentTitle(title).setContentText(Str.taskNoticeOpen)
         .setContentIntent(pending).setAutoCancel(true).setOnlyAlertOnce(true)
-        .setVisibility(NotificationCompat.VISIBILITY_PRIVATE).build()
+        .setVisibility(NotificationCompat.VISIBILITY_PRIVATE)
+    when (notice.kind) {
+        TaskNoticeKind.NeedsInput -> {
+            builder.addAction(android.R.drawable.ic_menu_view, Str.taskNoticeAnswer, actionPending(TaskNotificationAction.Answer, 5671))
+            builder.addAction(android.R.drawable.ic_menu_view, Str.taskNoticeOpen, actionPending(TaskNotificationAction.Open, 5672))
+        }
+        TaskNoticeKind.Completed -> builder.addAction(android.R.drawable.ic_menu_view, Str.taskNoticeViewResult, actionPending(TaskNotificationAction.Result, 5673))
+        TaskNoticeKind.Interrupted -> builder.addAction(android.R.drawable.ic_menu_view, Str.taskNoticeOpen, actionPending(TaskNotificationAction.Open, 5674))
+    }
+    val notification = builder.build()
     runCatching { manager.notify(notice.sessionId, 567, notification) }
 }
+
+private val TaskNoticeKind.notificationAction: String
+    get() = when (this) {
+        TaskNoticeKind.NeedsInput -> TaskNotificationAction.Answer
+        TaskNoticeKind.Completed -> TaskNotificationAction.Result
+        TaskNoticeKind.Interrupted -> TaskNotificationAction.Open
+    }

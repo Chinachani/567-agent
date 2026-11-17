@@ -3,25 +3,29 @@ import {
 	activeInputActionIdsAtom,
 	pluginAbilityDetailSlotsAtom,
 	pluginActivityTabsAtom,
+	pluginBottomPanelsAtom,
 	pluginCardRenderersAtom,
 	pluginFilePreviewsAtom,
 	pluginFileExplorerContextMenuActionsAtom,
 	pluginFileExplorerDecorationProvidersAtom,
 	pluginFileExplorerToolbarActionsAtom,
+	pluginFileIconThemesAtom,
 	type PluginI18nEntry,
 	pluginI18nByIdAtom,
 	pluginInputActionsAtom,
+	pluginHeaderActionsAtom,
 	pluginNewSessionContextsAtom,
+	type RegisteredHeaderAction,
 	type RegisteredNewSessionContext,
 	pluginToolCallSlotsAtom,
 	pluginTurnCardsAtom,
 	pluginWorkspaceViewsAtom,
 	type RegisteredActivityTab,
+	type RegisteredBottomPanel,
 	type RegisteredAbilityDetailSlot,
 	type RegisteredCardRenderer,
 	type RegisteredFilePreview,
 	type RegisteredFileExplorerContextMenuAction,
-	type RegisteredFileExplorerDecorationProvider,
 	type RegisteredFileExplorerToolbarAction,
 	type RegisteredInputAction,
 	type RegisteredToolCallSlot,
@@ -33,13 +37,16 @@ import { getDefaultStore, useSetAtom } from "jotai";
 import { useEffect, useMemo, useReducer, useRef, useState } from "react";
 import type { PluginGlobalSlotContribution } from "@vetta-org/plugin-sdk";
 import { markPluginHostLoading, markPluginHostReady } from "../runtime/plugin-events";
+import { disposePlugins } from "../runtime/plugin-disposal";
 import { installPluginHostBridge } from "../runtime/plugin-host-bridge";
 import { installPluginHostShim } from "../runtime/plugin-host-shim";
 import { PluginI18nBoundary } from "../runtime/plugin-i18n";
 import { loadPlugin, type LoadedPlugin } from "../runtime/plugin-loader";
+import { logPluginRuntimeError, logPluginRuntimeWarn } from "../runtime/plugin-runtime-log";
 import { loadPluginSnapshot } from "./plugin-snapshot";
 import { publishWorkspaceViews } from "./plugin-workspace-view-publication";
 import { PluginSlotErrorBoundary } from "./PluginSlotErrorBoundary";
+import { collectFileExplorerContributions } from "./plugin-file-explorer-publication";
 
 // 串行加载插件快照，避免并发 reload 交叉提交 activation。
 let pluginHostLifecycle = Promise.resolve();
@@ -55,9 +62,12 @@ export function PluginGlobalSlotHost(): JSX.Element | null {
 	const setFileExplorerContextMenuActions = useSetAtom(pluginFileExplorerContextMenuActionsAtom);
 	const setFileExplorerToolbarActions = useSetAtom(pluginFileExplorerToolbarActionsAtom);
 	const setFileExplorerDecorationProviders = useSetAtom(pluginFileExplorerDecorationProvidersAtom);
+	const setFileIconThemes = useSetAtom(pluginFileIconThemesAtom);
 	const setActivityTabs = useSetAtom(pluginActivityTabsAtom);
+	const setBottomPanels = useSetAtom(pluginBottomPanelsAtom);
 	const setInputActions = useSetAtom(pluginInputActionsAtom);
 	const setNewSessionContexts = useSetAtom(pluginNewSessionContextsAtom);
+	const setHeaderActions = useSetAtom(pluginHeaderActionsAtom);
 	const setCardRenderers = useSetAtom(pluginCardRenderersAtom);
 	const setToolCallSlots = useSetAtom(pluginToolCallSlotsAtom);
 	const setTurnCards = useSetAtom(pluginTurnCardsAtom);
@@ -117,7 +127,14 @@ export function PluginGlobalSlotHost(): JSX.Element | null {
 						previousPlugins,
 						pendingPluginIds instanceof Set ? pendingPluginIds : undefined,
 						(plugin) => loadPlugin(plugin, forceUpdate),
-						(plugin, error) => console.error(`Failed to load plugin: ${plugin.id}`, error),
+						(plugin, error) =>
+							logPluginRuntimeWarn("snapshot candidate rejected", {
+								pluginId: plugin.id,
+								pluginVersion: plugin.activeVersion,
+								pluginSource: plugin.source,
+								stage: "load-snapshot",
+								reason: error instanceof Error ? error.name : "unknown",
+							}),
 						{
 							beforeLoad: () => waitForCommittedPaint(),
 							onProgress:
@@ -129,14 +146,15 @@ export function PluginGlobalSlotHost(): JSX.Element | null {
 						},
 					),
 				)
-				.catch((error: Error) => {
-					console.error("Failed to initialize plugins", error);
+				.catch((error: unknown) => {
+					logPluginRuntimeError("snapshot load failed", { stage: "list-installed-plugins" }, error);
 					return previousPlugins;
 				});
 
 			if (unmountedRef.current) {
-				await Promise.all(
-					loadedPlugins.filter((plugin) => !previousPlugins.includes(plugin)).map((plugin) => plugin.dispose()),
+				await disposePlugins(
+					loadedPlugins.filter((plugin) => !previousPlugins.includes(plugin)),
+					"host-unmounted-before-publish",
 				);
 				return;
 			}
@@ -148,17 +166,18 @@ export function PluginGlobalSlotHost(): JSX.Element | null {
 			try {
 				await window.agent567.plugins.reportAgentContributionHostReady();
 			} catch (error) {
-				console.error("Failed to report plugin contribution host readiness", error);
+				logPluginRuntimeError("host readiness report failed", { stage: "report-ready" }, error);
 			} finally {
 				markPluginHostReady();
 			}
 			setHostLoading(false);
-			await Promise.all(
-				previousPlugins.filter((plugin) => !loadedPlugins.includes(plugin)).map((plugin) => plugin.dispose()),
+			await disposePlugins(
+				previousPlugins.filter((plugin) => !loadedPlugins.includes(plugin)),
+				"snapshot-replaced",
 			);
 		});
 		pluginHostLifecycle = lifecycle.catch((error: unknown) => {
-			console.error("Failed to replace plugins", error);
+			logPluginRuntimeError("snapshot replacement failed", { stage: "replace-snapshot" }, error);
 		});
 	}, [reloadRevision]);
 
@@ -170,10 +189,10 @@ export function PluginGlobalSlotHost(): JSX.Element | null {
 			loadedPluginsRef.current = [];
 			pluginHostLifecycle = pluginHostLifecycle
 				.then(async () => {
-					await Promise.all(activePlugins.map((plugin) => plugin.dispose()));
+					await disposePlugins(activePlugins, "host-unmounted");
 				})
 				.catch((error: unknown) => {
-					console.error("Failed to dispose plugins", error);
+					logPluginRuntimeError("host disposal failed", { stage: "dispose-host" }, error);
 				});
 		};
 	}, []);
@@ -227,15 +246,10 @@ export function PluginGlobalSlotHost(): JSX.Element | null {
 	}, [plugins, revision, hostLoading, setFileExplorerToolbarActions]);
 
 	useEffect(() => {
-		const providers: RegisteredFileExplorerDecorationProvider[] = plugins.flatMap((plugin) =>
-			plugin.fileExplorerDecorationProviders.map((provider) => ({
-				...provider,
-				pluginId: plugin.id,
-				providerId: provider.id,
-			})),
-		);
-		if (providers.length > 0 || !hostLoading) setFileExplorerDecorationProviders(providers);
-	}, [plugins, revision, hostLoading, setFileExplorerDecorationProviders]);
+		const { decorations, themes } = collectFileExplorerContributions(plugins);
+		if (decorations.length > 0 || !hostLoading) setFileExplorerDecorationProviders(decorations);
+		if (themes.length > 0 || !hostLoading) setFileIconThemes(themes);
+	}, [plugins, revision, hostLoading, setFileExplorerDecorationProviders, setFileIconThemes]);
 
 	// Publish activity-tab contributions (the addable pool) so ActivityPanel
 	// can render attached tabs and the "+" picker.
@@ -257,6 +271,26 @@ export function PluginGlobalSlotHost(): JSX.Element | null {
 		);
 		if (tabs.length > 0 || !hostLoading) setActivityTabs(tabs);
 	}, [plugins, revision, hostLoading, setActivityTabs]);
+
+	// Publish bottom-panel contributions (the addable pool) so the session's
+	// bottom panel can render opened instances and its "+" menu.
+	useEffect(() => {
+		const panels: RegisteredBottomPanel[] = plugins.flatMap((plugin) =>
+			plugin.bottomPanels.map((panel) => ({
+				pluginId: plugin.id,
+				pluginName: plugin.name,
+				panelId: panel.id,
+				label: panel.label,
+				icon: panel.icon,
+				component: panel.component,
+				order: panel.order,
+				scope_use: panel.scope_use,
+				maxInstances: panel.maxInstances,
+				terminalAccess: panel.terminalAccess,
+			})),
+		);
+		if (panels.length > 0 || !hostLoading) setBottomPanels(panels);
+	}, [plugins, revision, hostLoading, setBottomPanels]);
 
 	// Publish input-action toggles (rendered beneath the AI input bar).
 	useEffect(() => {
@@ -302,6 +336,29 @@ export function PluginGlobalSlotHost(): JSX.Element | null {
 		);
 		if (contexts.length > 0 || !hostLoading) setNewSessionContexts(contexts);
 	}, [plugins, revision, hostLoading, setNewSessionContexts]);
+
+	// Publish conversation-header actions, sorted once here so the header only renders.
+	useEffect(() => {
+		const actions: RegisteredHeaderAction[] = plugins
+			.flatMap((plugin) =>
+				plugin.headerActions.map((contribution, index) => ({
+					pluginId: plugin.id,
+					pluginName: plugin.name,
+					actionId: `${plugin.id}:${contribution.id}`,
+					useAction: contribution.useAction,
+					sortOrder: contribution.order ?? Number.MAX_SAFE_INTEGER,
+					registrationIndex: index,
+				})),
+			)
+			.sort(
+				(left, right) =>
+					left.sortOrder - right.sortOrder ||
+					left.pluginId.localeCompare(right.pluginId) ||
+					left.registrationIndex - right.registrationIndex,
+			)
+			.map(({ sortOrder: _sortOrder, registrationIndex: _registrationIndex, ...action }) => action);
+		if (actions.length > 0 || !hostLoading) setHeaderActions(actions);
+	}, [plugins, revision, hostLoading, setHeaderActions]);
 
 	// Publish card renderers (keyed by type). The per-message card host resolves
 	// each card descriptor's `type` to one of these.
@@ -371,7 +428,9 @@ export function PluginGlobalSlotHost(): JSX.Element | null {
 			setFileExplorerContextMenuActions([]);
 			setFileExplorerToolbarActions([]);
 			setFileExplorerDecorationProviders([]);
+			setFileIconThemes([]);
 			setActivityTabs([]);
+			setBottomPanels([]);
 			setInputActions([]);
 			setCardRenderers([]);
 			setToolCallSlots([]);
@@ -385,7 +444,9 @@ export function PluginGlobalSlotHost(): JSX.Element | null {
 		setFileExplorerContextMenuActions,
 		setFileExplorerToolbarActions,
 		setFileExplorerDecorationProviders,
+		setFileIconThemes,
 		setActivityTabs,
+		setBottomPanels,
 		setInputActions,
 		setCardRenderers,
 		setToolCallSlots,

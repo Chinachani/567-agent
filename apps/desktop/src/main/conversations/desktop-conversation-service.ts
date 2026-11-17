@@ -18,7 +18,8 @@ import {
 	runtimeFailureFromAIErrorDetails,
 	type SessionEvent,
 } from "@567agent/runtime-core";
-import { sanitizeRuntimeErrorMessage } from "@567agent/runtime-desktop";
+import { resolveProjectExecutionMode, sanitizeRuntimeErrorMessage } from "@567agent/runtime-desktop";
+import { isSshProjectUri, normalizeProjectCwd } from "@567agent/ssh-transport";
 import { resolveModelContext } from "../../shared/model-context.js";
 import { type Api567RouteId, getBuiltinApi567Route } from "../../shared/service-routes.js";
 import { type DesktopSessionHistoryInfo, UNAVAILABLE_RUNTIME_SESSION_ACCESS } from "../../shared/session-access.js";
@@ -34,6 +35,7 @@ import { createProjectCollaborationTools } from "../project-collaboration/tools.
 import { ensureMobileImportProject } from "../projects/mobile-import-project.js";
 import { getSharedRuntime } from "../runtime.js";
 import { assertSandboxAvailableForMode } from "../sandbox/capability.js";
+import { notifyAutomationSessionsDeleted } from "../scheduler/session-deletion.js";
 import { emitConversationListChanged } from "./conversation-list-events.js";
 import {
 	type ConversationOwnershipCatalogPort,
@@ -52,7 +54,7 @@ import { type ResolvedSessionAgentProfile, resolveSessionAgentProfile } from "./
 import { SessionContextWorkspace } from "./session-context-workspace.js";
 import { DesktopSessionCreationTrace } from "./session-creation-trace.js";
 import type { SessionMigrationArchive } from "./session-migration-backup.js";
-import { isConversationCwd, readDesktopSessionHeader, resolveSessionListCwd } from "./session-paths.js";
+import { isConversationCwd, readDesktopSessionHeader, resolveSessionListCwd, samePath } from "./session-paths.js";
 import { SessionWorkbench } from "./session-workbench.js";
 
 const log = getAppLogger("conversation-service");
@@ -270,6 +272,10 @@ export class DesktopConversationService {
 					});
 				}
 			}
+			// 远程项目没有沙箱可言，先把模式定下来：否则默认开着沙箱的用户会在这里被
+			// 「本机沙箱不可用」挡住，或者带着一套不存在的沙箱工具集进入会话。
+			const executionMode = resolveProjectExecutionMode(config?.cwd, config?.executionMode);
+			if (config && executionMode !== config.executionMode) config = { ...config, executionMode };
 			await trace.measure("sandbox-check", () =>
 				assertSandboxAvailableForMode(config?.executionMode, async () => {
 					const desktopConfig = await readDesktopConfig();
@@ -351,7 +357,7 @@ export class DesktopConversationService {
 					recordSessionAgentBinding(sessionPath, agentProfile.agentProfileId),
 				);
 			}
-			monitorRuntimeSession(this.runtime, result.sessionId, "interactive");
+			monitorRuntimeSession(this.runtime, result.sessionId, source === "automation" ? "automation" : "interactive");
 			log.info("session created", {
 				sessionId: result.sessionId,
 				sessionPath,
@@ -393,9 +399,14 @@ export class DesktopConversationService {
 		}
 	}
 
+	/**
+	 * 打开（或复用）一个已有会话。`executionMode` 传 `undefined` 表示"不要改动"：
+	 * 会话已在运行时活着就沿用它现在的模式，否则按默认模式打开——手机端镜像
+	 * 桌面会话时必须走这条路，否则会把电脑上正跑着的完全访问会话悄悄切成沙箱。
+	 */
 	async openSession(
 		sessionPath: string,
-		executionMode: "sandbox" | "full-access",
+		executionMode: "sandbox" | "full-access" | undefined,
 		source: DesktopConversationSource,
 	): Promise<DesktopConversationSession> {
 		if (!isAbsolute(sessionPath) || extname(sessionPath).toLowerCase() !== ".jsonl") {
@@ -712,10 +723,13 @@ export class DesktopConversationService {
 	}
 
 	async listSessions(cwd: string, sessionDir?: string): Promise<DesktopSessionHistoryInfo[]> {
-		if (!isAbsolute(cwd)) {
+		// 远程项目的 cwd 是 `ssh://<hostId>/<绝对路径>`，本身就是一个完整标识，不能拿
+		// isAbsolute 判、也不能 resolve——两者都会把它当成本地相对路径处理。
+		// 会话记录始终落在本机（按 cwd 编码的分片目录），所以这里只放行标识，不碰远端。
+		if (!isSshProjectUri(cwd) && !isAbsolute(cwd)) {
 			throw new DesktopConversationError("INVALID_SESSION_PATH", "cwd must be an absolute path.");
 		}
-		const absoluteCwd = resolve(cwd);
+		const absoluteCwd = normalizeProjectCwd(cwd, resolve);
 		allowProjectRoot(absoluteCwd);
 		await this.ensureOwnershipReady?.();
 		const catalogSessions = await this.runtime.listSessions(absoluteCwd, sessionDir);
@@ -736,6 +750,7 @@ export class DesktopConversationService {
 			throw new DesktopConversationError("SESSION_NOT_FOUND", "The desktop session was not found.");
 		}
 		await this.runtime.deleteSession(session.path);
+		notifyAutomationSessionsDeleted((path) => samePath(path, session.path));
 		emitConversationListChanged({ cwd: resolveSessionListCwd(cwd), sessionPath: session.path });
 	}
 

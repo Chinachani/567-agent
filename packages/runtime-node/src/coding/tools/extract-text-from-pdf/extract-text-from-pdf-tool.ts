@@ -192,13 +192,13 @@ export function createExtractTextFromPdfTool(
 			const response = parseOcrDesktopResponse(result.stdout);
 			if (!response.ok) {
 				const message = response.error?.message ?? (result.stderr.trim() || "Unknown OCR error");
-				throw new Error(`567 Agent OCR failed: ${message}`);
+				throw new Error(`Vetta Desktop OCR failed: ${message}`);
 			}
-			if (!response.output) throw new Error("567 Agent did not return an output path");
+			if (!response.output) throw new Error("Vetta Desktop did not return an output path");
 			reportPhase?.("read");
 			const document = parseOcrJsonDocument(await readFile(response.output, "utf8"));
 			const staleNote = desktop.staleConfiguredPath
-				? `\nNote: configured agent567AppPath was stale and a fallback path was used: ${desktop.staleConfiguredPath}`
+				? `\nNote: configured vettaAppPath was stale and a fallback path was used: ${desktop.staleConfiguredPath}`
 				: "";
 			return {
 				content: [

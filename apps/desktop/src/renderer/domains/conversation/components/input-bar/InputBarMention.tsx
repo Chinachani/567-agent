@@ -20,11 +20,7 @@ export interface InputBarMentionProps {
  * 工具栏左下角的「@ 指定成员」入口：没选人时是一枚 @ 图标，选过之后就地变成
  * 头像（组）胶囊，两种形态共用同一个面板，既能继续 @ 也能取消 @。
  */
-export function InputBarMention({
-	model,
-	disabled = false,
-	visible = true,
-}: InputBarMentionProps): JSX.Element {
+export function InputBarMention({ model, disabled = false, visible = true }: InputBarMentionProps): JSX.Element {
 	const [open, setOpen] = useState(false);
 	const selected = model.participants.filter((participant) => participant.selected);
 	const shown = selected.slice(0, MAX_CAPSULE_AVATARS);
@@ -39,10 +35,7 @@ export function InputBarMention({
 	const label = hasSelection ? capsuleText : model.labels.trigger;
 
 	return (
-		<span
-			data-command-panel-keep-open="true"
-			className={visible ? "flex shrink-0 items-center" : "hidden"}
-		>
+		<span data-command-panel-keep-open="true" className={visible ? "flex shrink-0 items-center" : "hidden"}>
 			<Popover open={open} onOpenChange={disabled ? undefined : setOpen}>
 				<PopoverTrigger asChild>
 					<button
@@ -56,9 +49,7 @@ export function InputBarMention({
 							// 用 JS 动画等于每次输入都要跑一遍动画状态机。
 							"no-drag flex h-7 shrink-0 items-center justify-center overflow-hidden rounded-full transition-[background-color,color,padding,border-radius] duration-200 ease-out disabled:pointer-events-none disabled:opacity-30",
 							hasSelection ? "gap-1 px-1.5" : "gap-0 rounded-lg px-[5px]",
-							open || hasSelection
-								? "bg-primary/10 text-primary"
-								: "text-foreground hover:bg-accent/60",
+							open || hasSelection ? "bg-primary/10 text-primary" : "text-foreground hover:bg-accent/60",
 						)}
 					>
 						<span
@@ -76,10 +67,7 @@ export function InputBarMention({
 						>
 							<span className="flex shrink-0 items-center">
 								{shown.map((participant, index) => (
-									<span
-										key={participant.id}
-										className={cn("relative flex", index > 0 && "-ml-1.5")}
-									>
+									<span key={participant.id} className={cn("relative flex", index > 0 && "-ml-1.5")}>
 										<AgentAvatarView
 											name={participant.name}
 											avatar={participant.avatar}
@@ -98,12 +86,7 @@ export function InputBarMention({
 						</span>
 					</button>
 				</PopoverTrigger>
-				<PopoverContent
-					side="top"
-					align="start"
-					sideOffset={8}
-					className="w-[268px] gap-0 overflow-hidden rounded-xl border border-border p-0 shadow-lg"
-				>
+				<PopoverContent side="top" align="start" sideOffset={8} className="w-[268px] gap-0 overflow-hidden p-0">
 					<div className="flex items-baseline justify-between gap-2 border-b border-border/60 px-3 py-2">
 						<span className="text-[12px] font-medium text-foreground">{model.labels.title}</span>
 						{hasSelection ? (
@@ -119,9 +102,7 @@ export function InputBarMention({
 						) : null}
 					</div>
 					{model.participants.length === 0 ? (
-						<p className="px-3 py-6 text-center text-[12px] text-muted-foreground">
-							{model.labels.empty}
-						</p>
+						<p className="px-3 py-6 text-center text-[12px] text-muted-foreground">{model.labels.empty}</p>
 					) : (
 						<div className="max-h-[264px] overflow-y-auto p-1.5 no-scrollbar">
 							{model.participants.map((participant) => (

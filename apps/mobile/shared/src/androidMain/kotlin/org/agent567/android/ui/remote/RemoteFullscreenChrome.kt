@@ -52,6 +52,8 @@ internal fun RemoteFullscreenToolbar(
     onKeyboard: () -> Unit,
     modifier: Modifier = Modifier,
     onMouseButton: (String) -> Unit = {},
+    inputEnabled: Boolean = true,
+    onConnectionPanel: (() -> Unit)? = null,
 ) {
     var expanded by remember { mutableStateOf(false) }
     var help by remember { mutableStateOf(false) }
@@ -67,15 +69,15 @@ internal fun RemoteFullscreenToolbar(
                 }
             } else Surface(color = MaterialTheme.colorScheme.surface.copy(alpha = .9f), shape = MaterialTheme.shapes.medium) {
                 Row(Modifier.horizontalScroll(rememberScrollState()).padding(horizontal = 4.dp), verticalAlignment = Alignment.CenterVertically) {
-                    TextButton(onClick = onExit) { Text(Str.exitRemoteDesktopFullscreen, maxLines = 1) }
-                    TextButton(onClick = { chooseInput = true }) { Text(if (relativePointer || !directTouch) Str.remoteTrackpad else Str.remoteTouch, maxLines = 1) }
-                    TextButton(onClick = { onMouseButton("left") }) { Text(Str.remoteLeftButton, maxLines = 1) }
-                    TextButton(onClick = { onMouseButton("right") }) { Text(Str.remoteRightButton, maxLines = 1) }
-                    TextButton(onClick = onReset, enabled = canReset) { Text(Str.remoteFitScreen, maxLines = 1) }
-                    TextButton(onClick = { statistics = true }) { Text(stats, maxLines = 1) }
-                    IconButton(onClick = onKeyboard) { Icon(Icons.Default.Keyboard, Str.remoteInputText) }
-                    IconButton(onClick = { help = true }) { Icon(Icons.AutoMirrored.Filled.HelpOutline, Str.remoteHelp) }
-                    TextButton(onClick = { expanded = false }) { Text(Str.collapse, maxLines = 1) }
+                    TextButton(onClick = onExit, modifier = Modifier.heightIn(min = 48.dp)) { Text(Str.exitRemoteDesktopFullscreen, maxLines = 1) }
+                    TextButton(onClick = { chooseInput = true }, modifier = Modifier.heightIn(min = 48.dp)) { Text(if (relativePointer || !directTouch) Str.remoteTrackpad else Str.remoteTouch, maxLines = 1) }
+                    TextButton(enabled = inputEnabled, onClick = { onMouseButton("left") }, modifier = Modifier.heightIn(min = 48.dp)) { Text(Str.remoteLeftButton, maxLines = 1) }
+                    TextButton(enabled = inputEnabled, onClick = { onMouseButton("right") }, modifier = Modifier.heightIn(min = 48.dp)) { Text(Str.remoteRightButton, maxLines = 1) }
+                    TextButton(onClick = onReset, enabled = canReset, modifier = Modifier.heightIn(min = 48.dp)) { Text(Str.remoteFitScreen, maxLines = 1) }
+                    TextButton(onClick = { if (onConnectionPanel != null) onConnectionPanel() else statistics = true }, modifier = Modifier.heightIn(min = 48.dp)) { Text(stats, maxLines = 1) }
+                    IconButton(onClick = onKeyboard, modifier = Modifier.sizeIn(minWidth = 48.dp, minHeight = 48.dp)) { Icon(Icons.Default.Keyboard, Str.remoteInputText) }
+                    IconButton(onClick = { help = true }, modifier = Modifier.sizeIn(minWidth = 48.dp, minHeight = 48.dp)) { Icon(Icons.AutoMirrored.Filled.HelpOutline, Str.remoteHelp) }
+                    TextButton(onClick = { expanded = false }, modifier = Modifier.heightIn(min = 48.dp)) { Text(Str.collapse, maxLines = 1) }
                 }
             }
         }
@@ -85,26 +87,10 @@ internal fun RemoteFullscreenToolbar(
                 TextButton(onClick = { onDirectTouch(true); chooseInput = false }, enabled = !relativePointer, modifier = Modifier.fillMaxWidth().heightIn(min = 48.dp)) { Text("${Str.remoteTouch} · ${Str.remoteTouchOption}") }
                 if (relativePointer) Text(Str.remoteDirectUnavailable, style = MaterialTheme.typography.bodySmall)
             }
-        }, confirmButton = { TextButton(onClick = { chooseInput = false }) { Text(Str.close) } })
+        }, confirmButton = { TextButton(onClick = { chooseInput = false }, modifier = Modifier.heightIn(min = 48.dp)) { Text(Str.close) } })
         if (help) AlertDialog(onDismissRequest = { help = false }, title = { Text(Str.remoteHelp) }, text = {
             Text(if (relativePointer || !directTouch) Str.remoteTrackpadHelp else Str.remoteTouchHelp)
-        }, confirmButton = { TextButton(onClick = { help = false }) { Text(Str.remoteGotIt) } })
-        if (statistics) AlertDialog(onDismissRequest = { statistics = false }, title = { Text(Str.connectionStatus) }, text = { Text(details.ifBlank { stats }) }, confirmButton = { TextButton(onClick = { statistics = false }) { Text(Str.close) } })
-    }
-}
-
-@Composable
-internal fun RemoteKeyboardShortcuts(onKey: (String, String) -> Unit) {
-    Row(Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(4.dp)) {
-        for ((label, code) in listOf("Esc" to "Escape", "Tab" to "Tab", Str.remoteBackspace to "Backspace", "Enter" to "Enter", "↑" to "ArrowUp", "↓" to "ArrowDown", "←" to "ArrowLeft", "→" to "ArrowRight")) {
-            TextButton(modifier = Modifier.heightIn(min = 48.dp), onClick = { onKey(code, "down"); onKey(code, "up") }) { Text(label) }
-        }
-        for ((label, code) in listOf("Ctrl+C" to "KeyC", "Ctrl+V" to "KeyV")) {
-            TextButton(onClick = {
-                onKey("ControlLeft", "down")
-                onKey(code, "down"); onKey(code, "up")
-                onKey("ControlLeft", "up")
-            }) { Text(label) }
-        }
+        }, confirmButton = { TextButton(onClick = { help = false }, modifier = Modifier.heightIn(min = 48.dp)) { Text(Str.remoteGotIt) } })
+        if (statistics) AlertDialog(onDismissRequest = { statistics = false }, title = { Text(Str.connectionStatus) }, text = { Text(details.ifBlank { stats }) }, confirmButton = { TextButton(onClick = { statistics = false }, modifier = Modifier.heightIn(min = 48.dp)) { Text(Str.close) } })
     }
 }

@@ -20,6 +20,10 @@ export interface PluginPresetDeclarations {
 	readonly agentBlueprintIds: ReadonlySet<string>;
 	/** 团队 id，含历史 id。 */
 	readonly teamIds: ReadonlySet<string>;
+	/** Only a complete validated snapshot can remove previous marketplace declarations. */
+	readonly marketplaceAuthoritative?: boolean;
+	/** Pre-marketplace builds stored these prompt providers as ordinary plugins. */
+	readonly protectedProviderIds?: ReadonlySet<string>;
 }
 
 export interface PluginPresetReconcileInput {
@@ -106,6 +110,8 @@ function dropUndeclaredPluginResources(
 			.filter(
 				(agent) =>
 					agent.source !== undefined &&
+					(agent.source.kind !== "marketplace" || declarations.marketplaceAuthoritative === true) &&
+					!declarations.protectedProviderIds?.has(agent.source.pluginId) &&
 					agent.scope.kind === "library" &&
 					!declarations.agentBlueprintIds.has(agent.blueprintId),
 			)
@@ -222,7 +228,7 @@ function isPresetOwned(agent: AgentProfile, presets: readonly PluginAgentPreset[
 }
 
 function matchesAgentPreset(agent: AgentProfile, preset: PluginAgentPreset): boolean {
-	if (agent.scope.kind !== "library") return false;
+	if (agent.scope.kind !== "library" || agent.copiedFrom) return false;
 	if (agent.id === pluginAgentProfileId(preset.pluginId, preset.agentId)) return true;
 	return agent.blueprintId === preset.blueprint.id || preset.legacyBlueprintIds.includes(agent.blueprintId);
 }
@@ -272,7 +278,7 @@ function presetAgentProfile(
 			plugins: [...preset.blueprint.defaultAbilities.plugins],
 		},
 		scope: { kind: "library" },
-		source: { kind: "plugin", pluginId: preset.pluginId, ...preset.profileTextKeys },
+		source: { ...preset.blueprint.source!, ...preset.profileTextKeys },
 		createdAt: current?.createdAt ?? now,
 		updatedAt: now,
 	};

@@ -42,6 +42,7 @@ export function GeneralSettingsView({ model }: GeneralSettingsViewProps): JSX.El
 						checking={updates.checking}
 						labels={updates.labels}
 						onCheck={updates.onCheck}
+						onViewCurrent={updates.onViewCurrent}
 						onPrimary={updates.onPrimary}
 						onPause={updates.onPause}
 						phase={updates.phase}

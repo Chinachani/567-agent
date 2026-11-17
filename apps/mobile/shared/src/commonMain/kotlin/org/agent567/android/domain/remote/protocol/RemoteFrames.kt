@@ -50,8 +50,18 @@ data class RemoteHelloAck(
 
 @Serializable
 enum class RemoteRequestMethod {
+    @SerialName("file.list")
+    FileList,
+    @SerialName("file.stat")
+    FileStat,
+    @SerialName("file.read")
+    FileRead,
+
     @SerialName("session.list")
     SessionList,
+
+    @SerialName("session.results.list")
+    SessionResultsList,
 
     @SerialName("session.delete")
     SessionDelete,
@@ -128,6 +138,9 @@ enum class RemoteRequestMethod {
     @SerialName("session.attachment.transfer.chunk")
     SessionAttachmentTransferChunk,
 
+    @SerialName("session.file.transfer.finish")
+    SessionFileTransferFinish,
+
     @SerialName("session.attachment.transfer.finish")
     SessionAttachmentTransferFinish,
 
@@ -179,6 +192,13 @@ data class RemoteRequest(
 
 @Serializable
 enum class RemoteErrorCode {
+    @SerialName("forbidden")
+    Forbidden,
+    @SerialName("file_changed")
+    FileChanged,
+    @SerialName("too_large")
+    TooLarge,
+
     @SerialName("invalid_frame")
     InvalidFrame,
 

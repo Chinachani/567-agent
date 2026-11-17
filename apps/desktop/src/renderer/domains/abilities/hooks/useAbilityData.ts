@@ -170,7 +170,14 @@ export function useAbilityData(): AbilityData {
 	}, [load, language]);
 
 	const market = useMemo(
-		() => mergeAbilityCatalogs(serverMarket, open.catalog.snapshots),
+		() =>
+			mergeAbilityCatalogs(
+				serverMarket,
+				open.catalog.snapshots.map((snapshot) => ({
+					...snapshot,
+					abilities: snapshot.abilities.filter((ability) => !ability.agentPresetOnly),
+				})),
+			),
 		[open.catalog.snapshots, serverMarket],
 	);
 

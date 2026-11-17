@@ -25,6 +25,7 @@ const ProjectSessionRow = memo(function ProjectSessionRow({
 	selectionMode,
 	selected,
 	onToggleSelected,
+	onToggleGroup,
 }: {
 	item: ProjectGroupSessionView;
 	onOpenContextMenu: (event: React.MouseEvent, session: SidebarConversationInfo) => void;
@@ -34,14 +35,24 @@ const ProjectSessionRow = memo(function ProjectSessionRow({
 	selectionMode: boolean;
 	selected: boolean;
 	onToggleSelected: (session: SidebarConversationInfo) => void;
+	onToggleGroup: (taskId: string) => void;
 }): JSX.Element {
 	const { session } = item;
 	const handleContextMenu = useCallback(
-		(event: React.MouseEvent) => onOpenContextMenu(event, session),
-		[onOpenContextMenu, session],
+		(event: React.MouseEvent) => {
+			if (item.groupTaskId) {
+				event.preventDefault();
+				return;
+			}
+			onOpenContextMenu(event, session);
+		},
+		[item.groupTaskId, onOpenContextMenu, session],
 	);
 	const handleRename = useCallback((name: string) => onRename(session, name), [onRename, session]);
-	const handleSelect = useCallback(() => onSelect(session), [onSelect, session]);
+	const handleSelect = useCallback(
+		() => (item.groupTaskId ? onToggleGroup(item.groupTaskId) : onSelect(session)),
+		[item.groupTaskId, onToggleGroup, onSelect, session],
+	);
 	const handleToggleSelected = useCallback(() => onToggleSelected(session), [onToggleSelected, session]);
 
 	return (
@@ -57,6 +68,9 @@ const ProjectSessionRow = memo(function ProjectSessionRow({
 			) : null}
 			<div className="min-w-0 flex-1">
 				<SessionRowView
+					groupCount={item.groupCount}
+					groupExpanded={item.groupExpanded}
+					nested={item.nested}
 					active={item.active}
 					iconClassName={item.iconClassName}
 					label={item.label}
@@ -95,10 +109,10 @@ interface ProjectGroupProps {
 }
 
 export const ProjectGroup = memo(function ProjectGroup(props: ProjectGroupProps): JSX.Element {
-	const model = useProjectGroupModel(props);
 	const { t } = useTranslation("project");
 	const setConfirmDialog = useSetAtom(confirmDialogAtom);
 	const [selectionMode, setSelectionMode] = useState(false);
+	const model = useProjectGroupModel({ ...props, selectionMode });
 	const [selectedPaths, setSelectedPaths] = useState<ReadonlySet<string>>(new Set());
 	const [passphrase, setPassphrase] = useState("");
 	const [busy, setBusy] = useState(false);
@@ -304,6 +318,7 @@ export const ProjectGroup = memo(function ProjectGroup(props: ProjectGroupProps)
 							selectionMode={selectionMode}
 							selected={selectedPaths.has(session.path)}
 							onToggleSelected={toggleSelected}
+							onToggleGroup={model.actions.toggleGroup}
 						/>
 					),
 				}}

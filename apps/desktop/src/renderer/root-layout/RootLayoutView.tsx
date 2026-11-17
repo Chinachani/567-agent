@@ -1,3 +1,6 @@
+import { useAtomValue } from "jotai";
+import { pageHeaderImmersiveAtom } from "@shared/store/atoms";
+import { useTitlebarAnchor } from "./useTitlebarAnchor";
 import { Outlet } from "@tanstack/react-router";
 import { cn } from "@shared/lib/utils";
 import { PerfSendProfiler } from "@shared/lib/perf-send";
@@ -44,6 +47,9 @@ export function RootLayoutView({ model }: RootLayoutViewProps): JSX.Element {
 	// 内容占满全高，视图自己的门面从窗口第一像素开始，不再被 44px 页头推出一条空带。
 	const workspaceViewHeader = useActiveWorkspaceViewHeader();
 	const { actions, narrow, onOpenSession, overlayOpen, routePending, sidebarCollapsed, sidebarWidth } = model;
+	const pageImmersive = useAtomValue(pageHeaderImmersiveAtom);
+	const headerOverlay = workspaceViewHeader?.immersive === true || pageImmersive;
+	useTitlebarAnchor(`${pageLayout}:${model.settingsMode}:${sidebarCollapsed}:${narrow}:${headerOverlay}`);
 	const showSidebar = pageLayout !== "app" && !model.settingsMode;
 	const ensureSidebarVisible = useCallback(() => {
 		if (narrow) actions.openOverlay();
@@ -113,11 +119,7 @@ export function RootLayoutView({ model }: RootLayoutViewProps): JSX.Element {
 							<RouteContent routePending={routePending} />
 						</div>
 					) : (
-						<MainContentFrame
-							className="app-main-frame"
-							header={pageHeader}
-							headerOverlay={workspaceViewHeader?.immersive === true}
-						>
+						<MainContentFrame className="app-main-frame" header={pageHeader} headerOverlay={headerOverlay}>
 							<RouteContent routePending={routePending} />
 						</MainContentFrame>
 					)}

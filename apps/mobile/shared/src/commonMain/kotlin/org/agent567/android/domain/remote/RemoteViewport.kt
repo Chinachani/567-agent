@@ -27,19 +27,23 @@ fun transformRemoteView(
     height: Int,
     frameWidth: Int?,
     frameHeight: Int?,
+    bottomInsetPx: Float = 0f,
 ): RemoteViewTransform {
     if (width <= 0 || height <= 0 || frameWidth == null || frameWidth <= 0 || frameHeight == null || frameHeight <= 0) return current
     if (listOf(zoom, focusX, focusY, deltaX, deltaY).any { !it.isFinite() } || zoom <= 0f) return current
+    val inset = bottomInsetPx.takeIf { it.isFinite() && it > 0f }?.coerceAtMost(height * 0.85f) ?: 0f
     val scale = (current.scale * zoom).coerceIn(1f, 4f)
-    if (scale == 1f) return RemoteViewTransform()
+    if (scale == 1f && inset == 0f) return RemoteViewTransform()
     val ratio = scale / current.scale
     val fit = fitRemoteVideo(width, height, frameWidth, frameHeight)
     val maxX = maxOf(0f, (fit.width * scale - width) / 2)
     val maxY = maxOf(0f, (fit.height * scale - height) / 2)
+    val keyboardMinY = if (inset > 0f) (height - fit.height * scale) / 2f - inset else -maxY
+    val minY = minOf(-maxY, keyboardMinY)
     return RemoteViewTransform(
         scale,
         ((focusX - width / 2f) * (1 - ratio) + current.panX * ratio + deltaX).coerceIn(-maxX, maxX),
-        ((focusY - height / 2f) * (1 - ratio) + current.panY * ratio + deltaY).coerceIn(-maxY, maxY),
+        ((focusY - height / 2f) * (1 - ratio) + current.panY * ratio + deltaY).coerceIn(minY, maxY),
     )
 }
 

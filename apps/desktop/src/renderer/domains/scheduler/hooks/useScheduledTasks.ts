@@ -1,18 +1,26 @@
-import { type ScheduledTask, scheduledTasksAtom } from "@shared/store/atoms";
-import { useAtom } from "jotai";
+import { scheduledTasksAtom, scheduledTasksErrorAtom, scheduledTasksRequestVersionAtom } from "@shared/store/atoms";
+import { useAtom, useStore } from "jotai";
 import { useCallback, useEffect } from "react";
-import type { ScheduledTaskUpdate } from "../../../../preload/api-types/scheduler";
-import { CRON_PRESETS } from "./CRON_PRESETS";
-
-export { CRON_PRESETS };
+import type { AutomationTaskInput, AutomationTaskPatch } from "../../../../shared/automation";
 
 export function useScheduledTasks() {
-	const [tasks, setTasks] = useAtom(scheduledTasksAtom);
+	const [tasks] = useAtom(scheduledTasksAtom);
+	const [error] = useAtom(scheduledTasksErrorAtom);
+	const store = useStore();
 
 	const refreshTasks = useCallback(async () => {
-		const loaded = await window.agent567.scheduler.getTasks();
-		setTasks(loaded);
-	}, [setTasks]);
+		const version = store.get(scheduledTasksRequestVersionAtom) + 1;
+		store.set(scheduledTasksRequestVersionAtom, version);
+		try {
+			const loaded = await window.agent567.scheduler.getTasks();
+			if (store.get(scheduledTasksRequestVersionAtom) !== version) return;
+			store.set(scheduledTasksAtom, loaded);
+			store.set(scheduledTasksErrorAtom, null);
+		} catch (reason) {
+			if (store.get(scheduledTasksRequestVersionAtom) === version)
+				store.set(scheduledTasksErrorAtom, reason instanceof Error ? reason.message : String(reason));
+		}
+	}, [store]);
 
 	useEffect(() => {
 		return window.agent567.scheduler.onTaskEvent((event) => {
@@ -23,48 +31,37 @@ export function useScheduledTasks() {
 	}, [refreshTasks]);
 
 	const createTask = useCallback(
-		async (data: Omit<ScheduledTask, "id" | "createdAt" | "updatedAt" | "lastRunAt" | "lastRunStatus">) => {
+		async (data: AutomationTaskInput) => {
 			const task = await window.agent567.scheduler.createTask(data);
-			setTasks((prev) => [...prev, task]);
-
+			await refreshTasks();
 			return task;
 		},
-		[setTasks],
+		[refreshTasks],
 	);
 
+	// 主进程会顺带清理暂停原因、重排作业，更新后以它的结果为准。
 	const updateTask = useCallback(
-		async (id: string, patch: ScheduledTaskUpdate) => {
+		async (id: string, patch: AutomationTaskPatch) => {
 			await window.agent567.scheduler.updateTask(id, patch);
-			setTasks((current) =>
-				current.map((task) =>
-					task.id === id
-						? {
-								...task,
-								...patch,
-								skill: "skill" in patch ? (patch.skill ?? undefined) : task.skill,
-								updatedAt: Date.now(),
-							}
-						: task,
-				),
-			);
+			await refreshTasks();
 		},
-		[setTasks],
+		[refreshTasks],
 	);
 
 	const deleteTask = useCallback(
 		async (id: string) => {
 			await window.agent567.scheduler.deleteTask(id);
-			setTasks((current) => current.filter((task) => task.id !== id));
+			await refreshTasks();
 		},
-		[setTasks],
+		[refreshTasks],
 	);
 
 	const toggleTask = useCallback(
 		async (id: string) => {
 			await window.agent567.scheduler.toggleTask(id);
-			setTasks((prev) => prev.map((t) => (t.id === id ? { ...t, enabled: !t.enabled, updatedAt: Date.now() } : t)));
+			await refreshTasks();
 		},
-		[setTasks],
+		[refreshTasks],
 	);
 
 	const runNow = useCallback(async (id: string) => {
@@ -79,6 +76,7 @@ export function useScheduledTasks() {
 
 	return {
 		tasks,
+		error,
 		createTask,
 		updateTask,
 		deleteTask,
@@ -87,6 +85,5 @@ export function useScheduledTasks() {
 		abortTask,
 		getTask,
 		refreshTasks,
-		CRON_PRESETS,
 	};
 }

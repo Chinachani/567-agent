@@ -1,9 +1,6 @@
+import { Button, cn } from "@vetta-org/ui";
 import type { JSX, ReactNode } from "react";
-import { motion } from "motion/react";
-import { Button } from "@vetta-org/ui";
-import { WorkspacePageHeader } from "../shared/WorkspacePageHeader";
-
-const easeOut = [0.22, 1, 0.36, 1] as const;
+import { SegmentedControl } from "../shared/SegmentedControl";
 
 export interface AutomationRecommendationItem {
 	readonly id: string;
@@ -13,140 +10,146 @@ export interface AutomationRecommendationItem {
 	readonly scheduleLabel: string;
 }
 
+export interface AutomationFilterTab<Key extends string = string> {
+	readonly key: Key;
+	readonly label: string;
+}
+
 export interface AutomationPageViewLabels {
 	readonly title: string;
 	readonly subtitle: string;
-	readonly newTask: string;
-	readonly newTaskTitle: string;
-	/** @deprecated Empty hero removed; kept optional for host compatibility. */
-	readonly emptyTitle?: string;
-	readonly emptyDesc?: string;
-	readonly emptyAction?: string;
+	readonly create: string;
+	readonly searchPlaceholder: string;
 	/** Section heading above recommended templates when the user has no tasks. */
 	readonly recommendTitle?: string;
-	/** Optional CTA on each recommendation card. */
-	readonly recommendUse?: string;
 }
 
-export interface AutomationPageViewProps {
-	readonly hasTasks: boolean;
-	/** Optional trailing header actions (e.g. AI assist), rendered before the primary CTA. */
-	readonly headerTrailing?: ReactNode;
+export interface AutomationPageViewProps<FilterKey extends string = string> {
 	readonly labels: AutomationPageViewLabels;
-	readonly onNewTask: () => void;
-	/** Host-owned TaskList / empty handled here when hasTasks. */
-	readonly taskList: ReactNode;
-	readonly historyDrawer: ReactNode;
-	readonly taskFormDialog: ReactNode;
-	/** Recommended templates shown only when `hasTasks` is false. */
+	readonly filters: readonly AutomationFilterTab<FilterKey>[];
+	readonly activeFilter: FilterKey;
+	readonly onFilterChange: (key: FilterKey) => void;
+	readonly searchValue: string;
+	readonly onSearchChange: (value: string) => void;
+	readonly onCreate: () => void;
+	/** Task list (or its empty state). */
+	readonly list: ReactNode;
+	/** Recommended templates shown under the list when the user has no tasks. */
 	readonly recommendations?: readonly AutomationRecommendationItem[];
 	readonly onSelectRecommendation?: (id: string) => void;
+	/** Right split pane (edit / create / history). The list narrows while it is open. */
+	readonly detailPane?: ReactNode;
 }
 
-export function AutomationPageView({
-	hasTasks,
-	headerTrailing,
+/**
+ * 自动化页：与能力页同样的大标题与说明；下方左列是可筛选、可搜索的任务列表，
+ * 右侧是编辑与执行历史的分屏。刻意不用入场动画、毛玻璃与模糊，控制合成开销。
+ */
+export function AutomationPageView<FilterKey extends string>({
 	labels,
-	onNewTask,
-	taskList,
-	historyDrawer,
-	taskFormDialog,
+	filters,
+	activeFilter,
+	onFilterChange,
+	searchValue,
+	onSearchChange,
+	onCreate,
+	list,
 	recommendations,
 	onSelectRecommendation,
-}: AutomationPageViewProps): JSX.Element {
+	detailPane,
+}: AutomationPageViewProps<FilterKey>): JSX.Element {
+	const paneOpen = Boolean(detailPane);
+	// 标题、切换、搜索与列表共用同一个容器：标题跟列表左边对齐，创建按钮跟列表右边对齐。
+	const column = cn("w-full", paneOpen ? "px-5" : "mx-auto max-w-4xl px-8");
 	return (
-		<div className="relative flex h-full w-full flex-1 flex-col overflow-hidden">
-			<div className="shrink-0 px-5 pt-6 sm:px-8">
-				<WorkspacePageHeader
-					title={labels.title}
-					description={labels.subtitle}
-					className="mx-auto w-full max-w-6xl border-b border-border/60 pb-6"
-					actions={
-						<>
-							{headerTrailing}
-							<Button type="button" variant="primary" onClick={onNewTask} title={labels.newTaskTitle}>
-								<span className="icon-[solar--add-circle-linear] h-4 w-4" />
-								{labels.newTask}
-							</Button>
-						</>
-					}
-				/>
-			</div>
-
-			<div className="flex min-h-0 flex-1 flex-col gap-5 overflow-y-auto px-5 py-6 sm:px-8">
-				<div className="mx-auto w-full max-w-6xl">
-					{hasTasks ? (
-						taskList
-					) : (
-						<AutomationRecommendations
-							recommendTitle={labels.recommendTitle}
-							recommendUse={labels.recommendUse}
-							recommendations={recommendations}
-							onSelectRecommendation={onSelectRecommendation}
+		<div className="flex h-full w-full flex-1 overflow-hidden">
+			<section
+				className={cn(
+					"flex min-w-0 flex-col",
+					paneOpen ? "w-[400px] shrink-0 border-r border-border/60" : "flex-1",
+				)}
+			>
+				<div className="drag-region h-6 shrink-0" />
+				<header className={cn(column, "flex shrink-0 items-end justify-between gap-4 pb-5")}>
+					<div className="min-w-0">
+						<h1 className="text-[26px] font-bold leading-tight tracking-tight text-foreground">{labels.title}</h1>
+						<p className="mt-1 truncate text-[12px] text-muted-foreground/60">{labels.subtitle}</p>
+					</div>
+					<Button type="button" variant="primary" size="sm" className="shrink-0" onClick={onCreate}>
+						<span className="icon-[mdi--plus] h-3.5 w-3.5" />
+						{labels.create}
+					</Button>
+				</header>
+				<div className={cn(column, "flex shrink-0 flex-col gap-3")}>
+					<SegmentedControl
+						className="self-start"
+						items={filters.map((filter) => ({ key: filter.key, label: filter.label }))}
+						value={activeFilter}
+						onChange={onFilterChange}
+						suppressLayoutAnimation
+					/>
+					<label className="relative block">
+						<span className="icon-[solar--magnifer-linear] absolute left-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-muted-foreground/40" />
+						<input
+							type="search"
+							value={searchValue}
+							onChange={(event) => onSearchChange(event.target.value)}
+							placeholder={labels.searchPlaceholder}
+							className="h-8 w-full rounded-lg bg-secondary pl-8 pr-3 text-[12px] text-foreground placeholder:text-muted-foreground/40 transition-colors hover:bg-accent focus:bg-accent focus:outline-none"
 						/>
-					)}
+					</label>
 				</div>
-			</div>
-
-			{historyDrawer}
-			{taskFormDialog}
+				<div className="mt-3 min-h-0 flex-1 overflow-y-auto pb-6">
+					<div className={column}>
+						{list}
+						{recommendations && recommendations.length > 0 ? (
+							<AutomationRecommendations
+								title={labels.recommendTitle}
+								recommendations={recommendations}
+								onSelect={onSelectRecommendation}
+							/>
+						) : null}
+					</div>
+				</div>
+			</section>
+			{detailPane ? (
+				<section className="flex min-w-0 flex-1 flex-col">
+					<div className="drag-region h-6 shrink-0" />
+					{detailPane}
+				</section>
+			) : null}
 		</div>
 	);
 }
 
 function AutomationRecommendations({
-	recommendTitle,
-	recommendUse,
+	title,
 	recommendations,
-	onSelectRecommendation,
+	onSelect,
 }: {
-	readonly recommendTitle?: string;
-	readonly recommendUse?: string;
-	readonly recommendations?: readonly AutomationRecommendationItem[];
-	readonly onSelectRecommendation?: (id: string) => void;
-}): JSX.Element | null {
-	if (!recommendations || recommendations.length === 0) return null;
-
+	readonly title?: string;
+	readonly recommendations: readonly AutomationRecommendationItem[];
+	readonly onSelect?: (id: string) => void;
+}): JSX.Element {
 	return (
-		<motion.div
-			className="flex w-full flex-col gap-3"
-			initial={{ opacity: 0, y: 12 }}
-			animate={{ opacity: 1, y: 0 }}
-			transition={{ duration: 0.5, ease: easeOut }}
-		>
-			{recommendTitle ? (
-				<p className="text-[12px] font-medium tracking-wide text-muted-foreground">{recommendTitle}</p>
-			) : null}
-			<div className="grid grid-cols-[repeat(auto-fit,minmax(min(280px,100%),1fr))] gap-3">
-				{recommendations.map((item) => (
-					<Button
-						variant="ghost"
-						key={item.id}
-						type="button"
-						onClick={() => onSelectRecommendation?.(item.id)}
-						className="group flex h-auto min-w-0 flex-col items-stretch whitespace-normal rounded-xl border border-border/70 bg-card/50 p-5 text-left transition-colors hover:border-primary/30 hover:bg-accent/40"
-					>
-						<div className="flex items-start gap-3">
-							<div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-primary/10 ring-1 ring-inset ring-primary/15">
-								<span className={`${item.icon} h-4 w-4 text-primary`} />
-							</div>
-							<div className="min-w-0 flex-1">
-								<p className="break-words text-[14px] font-semibold text-foreground">{item.title}</p>
-								<p className="mt-0.5 truncate text-[11px] text-muted-foreground">{item.scheduleLabel}</p>
-							</div>
-						</div>
-						<p className="mt-3 line-clamp-2 text-[12px] leading-relaxed text-muted-foreground">
-							{item.description}
-						</p>
-						{recommendUse && (
-							<span className="mt-3 inline-flex items-center gap-1 text-[11px] font-medium text-primary opacity-80 transition-opacity group-hover:opacity-100">
-								{recommendUse}
-								<span className="icon-[solar--arrow-right-linear] h-3.5 w-3.5" />
-							</span>
-						)}
-					</Button>
-				))}
-			</div>
-		</motion.div>
+		<div className="mt-6 flex flex-col gap-2">
+			{title ? <p className="px-1 text-[12px] text-muted-foreground/70">{title}</p> : null}
+			{recommendations.map((item) => (
+				<button
+					key={item.id}
+					type="button"
+					onClick={() => onSelect?.(item.id)}
+					className="flex items-start gap-3 rounded-lg px-3 py-2.5 text-left transition-colors hover:bg-primary/5"
+				>
+					<span className={cn(item.icon, "mt-0.5 h-4 w-4 shrink-0 text-primary")} />
+					<span className="min-w-0 flex-1">
+						<span className="block truncate text-[13px] text-foreground">{item.title}</span>
+						<span className="mt-0.5 block truncate text-[12px] text-muted-foreground/70">
+							{item.scheduleLabel} · {item.description}
+						</span>
+					</span>
+				</button>
+			))}
+		</div>
 	);
 }

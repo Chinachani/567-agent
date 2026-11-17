@@ -26,8 +26,8 @@ const AutomationPage = lazyRoutePage("AutomationPage", loadAutomationPage);
 const BatchTasksPage = lazyRoutePage("BatchTasksPage", loadBatchTasksPage);
 const AbilitiesPage = lazyRoutePage("AbilitiesPage", loadAbilitiesPage);
 const AgentCenterPage = lazyRoutePage("AgentCenterPage", loadAgentCenterPage);
-const TeamChatPage = lazyRoutePage("TeamChatPage", async () => ({
-	default: (await import("./domains/conversation/connectors/team/TeamChatPage")).TeamChatPage,
+const LegacyTeamHistoryRedirect = lazyRoutePage("LegacyTeamHistoryRedirect", async () => ({
+	default: (await import("./domains/agent-teams/components/LegacyTeamHistoryRedirect")).LegacyTeamHistoryRedirect,
 }));
 const SettingsPage = lazyRoutePage("SettingsPage", loadSettingsPage);
 const ProjectDetailPage = lazyRoutePage("ProjectDetailPage", async () => ({
@@ -91,10 +91,16 @@ const agentCenterRoute = createRoute({
 	path: "/agents",
 	component: AgentCenterPage,
 	pendingComponent: NoPendingComponent,
-	// 智能体档案与团队设置都是抽屉，用 search 驱动，Esc 与返回键即关闭。
+	// 专家详情与复制草稿通过 search 驱动，返回键关闭抽屉。
 	validateSearch: (search: Record<string, unknown>) => ({
 		...(typeof search.agent === "string" ? { agent: search.agent } : {}),
-		...(typeof search.team === "string" ? { team: search.team } : {}),
+		...(typeof search.copy === "string" ? { copy: search.copy } : {}),
+		...(typeof search.cwd === "string" ? { cwd: search.cwd } : {}),
+		...(search.tab === "experts" || search.tab === "collaboration"
+			? { tab: search.tab }
+			: search.tab === "legacy-teams" || typeof search.team === "string"
+				? { tab: "collaboration" as const }
+				: {}),
 	}),
 });
 
@@ -103,45 +109,45 @@ const teamListRedirectRoute = createRoute({
 	getParentRoute: () => rootRoute,
 	path: "/agent-teams",
 	beforeLoad: () => {
-		throw redirect({ to: "/agents", replace: true });
+		throw redirect({ to: "/agents", search: { tab: "collaboration" }, replace: true });
 	},
 });
 
 const teamChatRoute = createRoute({
 	getParentRoute: () => rootRoute,
 	path: "/agent-teams/$teamId",
-	component: TeamChatPage,
+	component: LegacyTeamHistoryRedirect,
 	pendingComponent: NoPendingComponent,
 });
 
 const teamSessionRoute = createRoute({
 	getParentRoute: () => rootRoute,
 	path: "/agent-teams/$teamId/sessions/$sessionId",
-	component: TeamChatPage,
+	component: LegacyTeamHistoryRedirect,
 	pendingComponent: NoPendingComponent,
 });
 
 const teamNewSessionRoute = createRoute({
 	getParentRoute: () => rootRoute,
 	path: "/agent-teams/$teamId/new",
-	beforeLoad: ({ params }) => {
-		throw redirect({ to: "/new-session", search: { target: `team:${params.teamId}` } });
+	beforeLoad: () => {
+		throw redirect({ to: "/agents", search: { tab: "collaboration" }, replace: true });
 	},
 });
 
 const teamMemberSessionRoute = createRoute({
 	getParentRoute: () => rootRoute,
 	path: "/agent-teams/$teamId/sessions/$sessionId/members/$memberId",
-	component: TeamChatPage,
+	component: LegacyTeamHistoryRedirect,
 	pendingComponent: NoPendingComponent,
 });
 
-/** 团队设置已改为智能体中心的抽屉，深链保持可用。 */
+/** 已撤下的团队设置深链进入现有项目协作。 */
 const teamSettingsRedirectRoute = createRoute({
 	getParentRoute: () => rootRoute,
 	path: "/agent-teams/$teamId/settings",
-	beforeLoad: ({ params }) => {
-		throw redirect({ to: "/agents", search: { team: params.teamId }, replace: true });
+	beforeLoad: () => {
+		throw redirect({ to: "/agents", search: { tab: "collaboration" }, replace: true });
 	},
 });
 
@@ -234,6 +240,14 @@ const newSessionRoute = createRoute({
 		...(typeof search.target === "string" ? { target: search.target } : {}),
 	}),
 	component: NewSessionPage,
+	beforeLoad: ({ search }) => {
+		if (search.target?.startsWith("team:"))
+			throw redirect({
+				to: "/agents",
+				search: { tab: "collaboration", ...(search.cwd ? { cwd: search.cwd } : {}) },
+				replace: true,
+			});
+	},
 });
 
 const legacyNewSessionRoute = createRoute({
@@ -253,7 +267,8 @@ const sessionViewerRoute = createRoute({
 	path: "/viewer/$path",
 	component: SessionViewerPage,
 	validateSearch: (search: Record<string, unknown>) => ({
-		...(search.origin === "subagent" ? { origin: "subagent" as const } : {}),
+		...(search.origin === "subagent" || search.origin === "team" ? { origin: search.origin } : {}),
+		...(typeof search.teamSession === "string" ? { teamSession: search.teamSession } : {}),
 	}),
 });
 

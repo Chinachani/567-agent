@@ -1,4 +1,9 @@
-import type { AgentAbilitySelection, AgentBlueprint, AgentProfile, AgentProfileUpdateImpact } from "@567agent/agent-team";
+import type {
+	AgentAbilitySelection,
+	AgentBlueprint,
+	AgentProfile,
+	AgentProfileUpdateImpact,
+} from "@567agent/agent-team";
 import { Button, cn, Input, Switch } from "@vetta-org/ui";
 import { useEffect, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
@@ -13,6 +18,8 @@ import {
 } from "../lib/ability-selection";
 import { AbilityIcon } from "../../abilities/components/AbilityIcon";
 import { useAgentAvatarResolver } from "../../../shared/agent-teams/agent-avatar";
+import { ExpertWorkflowView } from "@vetta-org/theme-ui/shared";
+import { expertWorkflow } from "../lib/expert-draft";
 import { AgentAvatarView } from "@vetta-org/theme-ui/chat";
 import { AgentAvatarPicker } from "./AgentAvatarPicker";
 
@@ -21,6 +28,7 @@ export type AgentProfileTab = "basic" | "prompt" | "abilities";
 interface AgentProfileEditorProps {
 	readonly agent: AgentProfile;
 	readonly blueprint?: AgentBlueprint;
+	readonly roleLabel?: string;
 	readonly capabilities: readonly AgentCapabilityOption[];
 	readonly displayName?: string;
 	readonly displayDescription?: string;
@@ -39,7 +47,7 @@ interface AgentProfileEditorProps {
 	 */
 	readonly readOnly?: boolean;
 	readonly onSavingChange?: (saving: boolean) => void;
-	readonly onSaveComplete?: () => void;
+	readonly onSaveComplete?: (updated: AgentProfile) => void;
 	readonly onPreview: (agentId: string) => Promise<AgentProfileUpdateImpact>;
 	readonly onSave: (
 		agent: AgentProfile,
@@ -50,6 +58,7 @@ interface AgentProfileEditorProps {
 export function AgentProfileEditor({
 	agent,
 	blueprint,
+	roleLabel,
 	capabilities,
 	displayName,
 	displayDescription,
@@ -65,7 +74,7 @@ export function AgentProfileEditor({
 	onPreview,
 	onSave,
 }: AgentProfileEditorProps): JSX.Element {
-	const { t } = useTranslation("agent-teams");
+	const { t, i18n } = useTranslation("agent-teams");
 	const [name, setName] = useState(agent.name);
 	const [description, setDescription] = useState(agent.description);
 	// blueprint 上那份是运行时真正生效的提示词，档案里的只是覆盖。面板必须显示生效值，
@@ -88,8 +97,11 @@ export function AgentProfileEditor({
 	const [pendingImpact, setPendingImpact] = useState<AgentProfileUpdateImpact>();
 	const [error, setError] = useState<string>();
 	const lastSaveRequest = useRef(saveRequest);
+	const editingAgent = useRef(agent);
 
 	useEffect(() => {
+		if (!readOnly && editingAgent.current.id === agent.id) return;
+		editingAgent.current = agent;
 		setName(agent.name);
 		setDescription(agent.description);
 		setSystemPrompt(agent.systemPrompt ?? inheritedPrompt);
@@ -98,15 +110,10 @@ export function AgentProfileEditor({
 		setPendingImpact(undefined);
 		setSaved(false);
 		setError(undefined);
-	}, [agent, capabilities, displayDescription, displayName, inheritedPrompt]);
+	}, [agent, capabilities, inheritedPrompt, readOnly]);
 
-	/**
-	 * 落盘用的覆盖值：与继承值一字不差就交空串。
-	 *
-	 * store 把空串当「清除覆盖」，档案因此继续跟随 blueprint——插件下一版改了提示词，用户
-	 * 这边跟着变；只要用户真的动了笔，才在档案里留下一份自己的。
-	 */
-	const promptOverride = systemPrompt === inheritedPrompt ? "" : systemPrompt;
+	// 普通档案可继续继承 blueprint；副本始终保存自己的提示词，包括显式清空。
+	const promptOverride = !agent.copiedFrom && systemPrompt === inheritedPrompt ? "" : systemPrompt;
 
 	useEffect(() => {
 		onDraftChange?.({
@@ -141,15 +148,18 @@ export function AgentProfileEditor({
 					return;
 				}
 			}
-			await onSave(agent, {
+			// Keep the revision belonging to this draft; a background refresh must
+			// not silently make stale edits overwrite a newer stored revision.
+			const { updated } = await onSave(editingAgent.current, {
 				name,
 				description,
 				systemPrompt: promptOverride,
 				...(avatarOverride ? { avatar: avatarOverride } : {}),
-				mentionHandle: agent.mentionHandle,
+				mentionHandle: editingAgent.current.mentionHandle,
 				abilities,
 			});
-			onSaveComplete?.();
+			editingAgent.current = updated;
+			onSaveComplete?.(updated);
 			setPendingImpact(undefined);
 			setSaved(true);
 		} catch (cause) {
@@ -178,7 +188,7 @@ export function AgentProfileEditor({
 								{blueprint && (
 									<span className="mt-1 inline-flex items-center gap-1 rounded-full bg-primary/10 px-2 py-0.5 text-[11px] font-medium text-primary">
 										<span className="icon-[solar--shield-user-linear] h-3 w-3" aria-hidden="true" />
-										{t(blueprint.nameKey as never)}
+										{roleLabel ?? (blueprint.nameKey ? t(blueprint.nameKey as never) : (blueprint.name ?? agent.name))}
 									</span>
 								)}
 							</div>
@@ -201,6 +211,11 @@ export function AgentProfileEditor({
 								className="min-h-20 w-full resize-none rounded-xl border border-border/60 bg-background/50 px-3.5 py-2.5 text-[12px] leading-relaxed text-foreground caret-primary outline-none transition-colors placeholder:text-muted-foreground/50 hover:border-border focus:border-primary/50 focus:bg-background"
 							/>
 						</label>
+						<ExpertWorkflowView
+							title={t("experts.workflow")}
+							steps={expertWorkflow(systemPrompt, i18n.language)}
+							emptyLabel={t("experts.noWorkflow")}
+						/>
 					</div>
 				)}
 
@@ -262,8 +277,7 @@ export function AgentProfileEditor({
 
 	if (layout === "columns") {
 		const selectedAbilitiesCount = capabilities.filter(
-			(option) =>
-				option.visibleInAgentConfiguration !== false && isAgentAbilitySelected(abilities, option),
+			(option) => option.visibleInAgentConfiguration !== false && isAgentAbilitySelected(abilities, option),
 		).length;
 
 		return (
@@ -276,12 +290,10 @@ export function AgentProfileEditor({
 							<img src={avatar} alt="" className="h-full w-full object-cover" />
 						</div>
 						<div className="min-w-0 flex-1">
-							<span className="block truncate text-sm font-bold text-foreground">
-								{displayName ?? agent.name}
-							</span>
+							<span className="block truncate text-sm font-bold text-foreground">{displayName ?? agent.name}</span>
 							{blueprint && (
 								<span className="block truncate text-[11px] font-medium text-primary">
-									{t(blueprint.nameKey as never)}
+									{roleLabel ?? (blueprint.nameKey ? t(blueprint.nameKey as never) : (blueprint.name ?? agent.name))}
 								</span>
 							)}
 						</div>
@@ -339,14 +351,22 @@ export function AgentProfileEditor({
 					{pendingImpact && pendingImpact.teamIds.length > 1 && (
 						<div className="mt-auto rounded-xl border border-amber-500/30 bg-amber-500/10 p-3 text-xs text-amber-200">
 							<div className="flex items-start gap-2">
-								<span className="icon-[solar--danger-triangle-linear] mt-0.5 h-4 w-4 shrink-0 text-amber-400" aria-hidden="true" />
+								<span
+									className="icon-[solar--danger-triangle-linear] mt-0.5 h-4 w-4 shrink-0 text-amber-400"
+									aria-hidden="true"
+								/>
 								<div className="min-w-0 flex-1">
 									{t("profile.sharedImpact", {
 										count: pendingImpact.teamIds.length,
 										teams: pendingImpact.teamNames.join("、"),
 									})}
 									<div className="mt-2">
-										<Button variant="outline" size="sm" className="h-7 text-xs border-amber-500/40 text-amber-300 hover:bg-amber-500/20" onClick={() => void save()}>
+										<Button
+											variant="outline"
+											size="sm"
+											className="h-7 text-xs border-amber-500/40 text-amber-300 hover:bg-amber-500/20"
+											onClick={() => void save()}
+										>
 											{t("profile.confirmSharedSave")}
 										</Button>
 									</div>
@@ -364,18 +384,17 @@ export function AgentProfileEditor({
 								<h3 className="text-base font-bold text-foreground">{t("profile.basicInfo")}</h3>
 								<p className="mt-1 text-xs text-muted-foreground">
 									{t("profile.fixedPrompt", {
-										role: blueprint ? t(blueprint.nameKey as never) : agent.blueprintId,
+										role: blueprint
+											? (roleLabel ??
+												(blueprint.nameKey ? t(blueprint.nameKey as never) : (blueprint.name ?? agent.name)))
+											: agent.blueprintId,
 									})}
 								</p>
 							</div>
 
 							<div className="flex flex-col gap-5 rounded-2xl border border-border/50 bg-card/25 p-5">
 								<AgentAvatarPicker value={avatar} onChange={setAvatarOverride} />
-								<TextField
-									label={t("profile.name")}
-									value={name}
-									onChange={setName}
-								/>
+								<TextField label={t("profile.name")} value={name} onChange={setName} />
 								<label className="block text-sm">
 									<span className="mb-1.5 block text-xs font-semibold tracking-wider uppercase text-muted-foreground/80">
 										{t("profile.description")}
@@ -396,7 +415,10 @@ export function AgentProfileEditor({
 								<h3 className="text-base font-bold text-foreground">{t("profile.systemPrompt")}</h3>
 								<p className="mt-1 text-xs text-muted-foreground">
 									{t("profile.fixedPrompt", {
-										role: blueprint ? t(blueprint.nameKey as never) : agent.blueprintId,
+										role: blueprint
+											? (roleLabel ??
+												(blueprint.nameKey ? t(blueprint.nameKey as never) : (blueprint.name ?? agent.name)))
+											: agent.blueprintId,
 									})}
 								</p>
 							</div>
@@ -416,11 +438,7 @@ export function AgentProfileEditor({
 
 					{activeTab === "abilities" && (
 						<div className="flex h-full min-h-0 flex-1 flex-col overflow-hidden">
-							<AbilityEditor
-								abilities={abilities}
-								capabilities={capabilities}
-								onChange={setAbilities}
-							/>
+							<AbilityEditor abilities={abilities} capabilities={capabilities} onChange={setAbilities} />
 						</div>
 					)}
 				</section>
@@ -446,13 +464,15 @@ export function AgentProfileEditor({
 							{blueprint && (
 								<span className="inline-flex items-center gap-1 rounded-full border border-primary/30 bg-primary/10 px-2.5 py-0.5 text-xs font-medium text-primary">
 									<span className="icon-[solar--shield-user-bold] h-3 w-3" aria-hidden="true" />
-									{t(blueprint.nameKey as never)}
+									{roleLabel ?? (blueprint.nameKey ? t(blueprint.nameKey as never) : (blueprint.name ?? agent.name))}
 								</span>
 							)}
 						</div>
 						<p className="mt-1.5 text-xs text-muted-foreground/80">
 							{t("profile.fixedPrompt", {
-								role: blueprint ? t(blueprint.nameKey as never) : agent.blueprintId,
+								role: blueprint
+									? (roleLabel ?? (blueprint.nameKey ? t(blueprint.nameKey as never) : (blueprint.name ?? agent.name)))
+									: agent.blueprintId,
 							})}
 						</p>
 					</div>
@@ -464,15 +484,13 @@ export function AgentProfileEditor({
 				<section className="rounded-2xl border border-border/50 bg-card/30 p-6 backdrop-blur-sm">
 					<div className="mb-5 flex items-center gap-2 border-b border-border/40 pb-3.5">
 						<span className="icon-[solar--user-id-linear] h-4 w-4 text-primary" aria-hidden="true" />
-						<h3 className="text-sm font-semibold tracking-tight text-foreground">{t("profile.name")} & {t("profile.avatar")}</h3>
+						<h3 className="text-sm font-semibold tracking-tight text-foreground">
+							{t("profile.name")} & {t("profile.avatar")}
+						</h3>
 					</div>
 					<div className="flex flex-col gap-6">
 						<AgentAvatarPicker value={avatar} onChange={setAvatarOverride} />
-						<TextField
-							label={t("profile.name")}
-							value={name}
-							onChange={setName}
-						/>
+						<TextField label={t("profile.name")} value={name} onChange={setName} />
 						<label className="text-sm">
 							<span className="mb-1.5 block text-xs font-semibold tracking-wider uppercase text-muted-foreground/80">
 								{t("profile.description")}
@@ -499,23 +517,27 @@ export function AgentProfileEditor({
 				</section>
 
 				{/* Abilities Configuration Card */}
-				<AbilityEditor
-					abilities={abilities}
-					capabilities={capabilities}
-					onChange={setAbilities}
-				/>
+				<AbilityEditor abilities={abilities} capabilities={capabilities} onChange={setAbilities} />
 
 				{pendingImpact && pendingImpact.teamIds.length > 1 && (
 					<div className="rounded-xl border border-amber-500/30 bg-amber-500/10 p-4 text-xs text-amber-200">
 						<div className="flex items-start gap-2.5">
-							<span className="icon-[solar--danger-triangle-linear] mt-0.5 h-4 w-4 shrink-0 text-amber-400" aria-hidden="true" />
+							<span
+								className="icon-[solar--danger-triangle-linear] mt-0.5 h-4 w-4 shrink-0 text-amber-400"
+								aria-hidden="true"
+							/>
 							<div className="min-w-0 flex-1">
 								{t("profile.sharedImpact", {
 									count: pendingImpact.teamIds.length,
 									teams: pendingImpact.teamNames.join("、"),
 								})}
 								<div className="mt-3">
-									<Button variant="outline" size="sm" className="border-amber-500/40 text-amber-300 hover:bg-amber-500/20" onClick={() => void save()}>
+									<Button
+										variant="outline"
+										size="sm"
+										className="border-amber-500/40 text-amber-300 hover:bg-amber-500/20"
+										onClick={() => void save()}
+									>
 										{t("profile.confirmSharedSave")}
 									</Button>
 								</div>
@@ -537,7 +559,10 @@ export function AgentProfileEditor({
 				)}
 
 				{error && (
-					<span aria-live="polite" className="rounded-lg border border-destructive/30 bg-destructive/10 px-3 py-2 text-xs text-destructive">
+					<span
+						aria-live="polite"
+						className="rounded-lg border border-destructive/30 bg-destructive/10 px-3 py-2 text-xs text-destructive"
+					>
 						{error}
 					</span>
 				)}
@@ -559,19 +584,17 @@ function AbilityEditor({
 }): JSX.Element {
 	const { t } = useTranslation("agent-teams");
 	const [query, setQuery] = useState("");
-	const configurableCapabilities = capabilities.filter(
-		(option) => option.visibleInAgentConfiguration !== false,
-	);
+	const configurableCapabilities = capabilities.filter((option) => option.visibleInAgentConfiguration !== false);
 	const normalizedQuery = query.normalize("NFKC").trim().toLocaleLowerCase();
 	const filterItems = (items: readonly AgentCapabilityOption[]) =>
 		items.filter(
-				(option) =>
-					!normalizedQuery ||
-						`${option.title}\n${option.description}\n${option.id}\n${option.sourceName ?? ""}`
-							.normalize("NFKC")
-							.toLocaleLowerCase()
-							.includes(normalizedQuery),
-			);
+			(option) =>
+				!normalizedQuery ||
+				`${option.title}\n${option.description}\n${option.id}\n${option.sourceName ?? ""}`
+					.normalize("NFKC")
+					.toLocaleLowerCase()
+					.includes(normalizedQuery),
+		);
 	const pluginResourceGroups = () => {
 		const byPlugin = new Map<string, { label: string; items: AgentCapabilityOption[] }>();
 		for (const option of configurableCapabilities) {
@@ -599,9 +622,7 @@ function AbilityEditor({
 		.map((group) => ({ ...group, items: filterItems(group.items) }))
 		.filter((group) => group.items.length > 0);
 	const visibleCapabilities = grouped.flatMap((group) => group.items);
-	const selectedCount = configurableCapabilities.filter((option) =>
-		isAgentAbilitySelected(abilities, option),
-	).length;
+	const selectedCount = configurableCapabilities.filter((option) => isAgentAbilitySelected(abilities, option)).length;
 	return (
 		<section className="overflow-hidden rounded-2xl border border-border/50 bg-card/30 backdrop-blur-sm">
 			<div className="flex flex-wrap items-start justify-between gap-4 border-b border-border/50 bg-card/20 px-6 py-4">
@@ -614,9 +635,7 @@ function AbilityEditor({
 							{t("profile.abilityCount", { selected: selectedCount, total: configurableCapabilities.length })}
 						</span>
 					</div>
-					<p className="mt-1 text-xs text-muted-foreground/70">
-						{t("profile.abilitiesHint")}
-					</p>
+					<p className="mt-1 text-xs text-muted-foreground/70">{t("profile.abilitiesHint")}</p>
 				</div>
 				{!readOnly && (
 					<Button
@@ -665,9 +684,7 @@ function AbilityEditor({
 								option={option}
 								checked={isAgentAbilitySelected(abilities, option)}
 								readOnly={readOnly}
-								onToggle={() =>
-									onChange(toggleAgentAbility(abilities, option, capabilities))
-								}
+								onToggle={() => onChange(toggleAgentAbility(abilities, option, capabilities))}
 							/>
 						) : null;
 					}}

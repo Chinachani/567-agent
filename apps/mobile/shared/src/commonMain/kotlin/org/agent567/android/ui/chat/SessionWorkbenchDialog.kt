@@ -1,6 +1,8 @@
 package org.agent567.android.ui.chat
 
 import androidx.compose.foundation.Image
+import androidx.compose.foundation.horizontalScroll
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.text.selection.SelectionContainer
 import androidx.compose.material3.*
@@ -38,9 +40,13 @@ internal fun SessionWorkbenchDialog(
     onRemoveImage: (String) -> Unit,
     readOriginal: suspend (String) -> ByteArray,
     readThumbnail: suspend (String) -> String?,
+    listFiles: suspend (String, Int) -> RemoteSessionFilePage = { _, _ -> throw RemoteFilesUnsupportedException() },
+    readFile: suspend (String) -> RemoteSessionFileContent = { throw RemoteFilesUnsupportedException() },
+    uploadFile: suspend (org.agent567.android.ui.media.PickedFileAttachment, (Int, Int) -> Unit) -> String = { _, _ -> throw RemoteFilesUnsupportedException() },
+    onUseFilePath: (String) -> Unit = {},
     onDismiss: () -> Unit,
 ) {
-    val tabs = listOf(Str.workbenchContext, Str.workbenchAttachments, Str.workbenchTasks, Str.workbenchChanges) + if (desktop) listOf(Str.collaborationTitle) else emptyList()
+    val tabs = listOf(Str.workbenchContext, Str.workbenchAttachments, Str.workbenchTasks, Str.workbenchChanges) + if (desktop) listOf(Str.collaborationTitle, Str.sessionFiles) else emptyList()
     var tab by remember(desktop) { mutableIntStateOf(0) }
     var selectedPending by remember { mutableStateOf<String?>(null) }
     var selectedDetail by remember { mutableStateOf<Pair<String, String>?>(null) }
@@ -73,11 +79,11 @@ internal fun SessionWorkbenchDialog(
         title = Str.workbenchTitle,
         onDismiss = requestClose,
         header = {
-            SingleChoiceSegmentedButtonRow(Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 4.dp)) {
+            Row(Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()).padding(horizontal = 12.dp, vertical = 4.dp), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
                 tabs.forEachIndexed { index, title ->
-                    SegmentedButton(selected = tab == index, onClick = { tab = index; selectedDetail = null }, shape = SegmentedButtonDefaults.itemShape(index, tabs.size), icon = {}) {
+                    FilterChip(selected = tab == index, onClick = { tab = index; selectedDetail = null }, label = {
                         Text(title, maxLines = 1, overflow = TextOverflow.Ellipsis, style = MaterialTheme.typography.labelSmall)
-                    }
+                    })
                 }
             }
         },
@@ -137,6 +143,7 @@ internal fun SessionWorkbenchDialog(
                 2 -> TaskList(snapshot, onSelect = { id -> selectedDetail = "task" to id; onSelect("task", id) })
                 3 -> ChangeList(snapshot, onSelect = { id -> selectedDetail = "change" to id; onSelect("change", id) })
                 4 -> if (desktop) CollaborationList(collaboration, collaborationError, collaborationLoading, onControlCollaboration) else Unit
+                5 -> if (desktop) SessionFilesPane(listFiles, readFile, uploadFile, onUseFilePath) else Unit
             }
         }
     }

@@ -101,7 +101,7 @@ export default defineConfig(({ mode }) => {
 				"@cloud": path.resolve(__dirname, "./src/renderer/cloud"),
 				"@vetta-org/theme-sdk": path.resolve(__dirname, "../../packages/theme-sdk/src"),
 				"@vetta-org/theme-ui": path.resolve(__dirname, "../../packages/theme-ui/src"),
-				"@vetta-org/ui": path.resolve(__dirname, "../../packages/ui/src/index.ts"),
+				"@vetta-org/ui": path.resolve(__dirname, "../../packages/ui/src"),
 				"@567agent/remote-desktop": path.resolve(__dirname, "../../packages/remote-desktop/src/index.ts"),
 				"@smithy/node-http-handler": path.resolve(__dirname, "../../packages/ai/src/utils/empty.ts"),
 				"@": path.resolve(__dirname, "./src"),

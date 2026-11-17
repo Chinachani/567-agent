@@ -116,3 +116,11 @@ const filesHandle = ctx.fileExplorer.onDidChangeFiles((changes) => {
 文件事件类型为 `changed`、`created`、`deleted` 或 `moved`；`moved` 额外包含 `oldPath`。文件系统监听只能确定目录发生变化时，宿主会发送该目录的 `changed` 事件。
 
 所有注册和订阅都返回 `Disposable`。插件可以主动调用 `dispose()`；插件停用、重载或卸载时宿主也会统一清理贡献和订阅。
+
+## 1.6 文件状态与图标主题（API 2.7+）
+
+菜单、工具栏贡献省略 icon 时继承插件图标。装饰可用 `color`（foreground/muted/accent/success/warning/error）、
+`faded`、`strikethrough` 与 `propagate`，禁止任意 CSS 注入。`onDidChangeDecorations(listener)` 返回
+Disposable；传具体 entries 使对应位置失效，未传表示全量失效，插件释放时取消订阅。
+`registerIconTheme` 需要 `ui.file-explorer.decorations`，注册不自动启用；用户明确选择一个主题后生效。
+支持文件名、后缀和目录关联及 light/dark/highContrast 变体，未知定义回落宿主图标。

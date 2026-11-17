@@ -23,3 +23,31 @@ export function stepUiZoomFactor(current: number, direction: 1 | -1): number {
 	const next = Math.min(UI_ZOOM_STEPS.length - 1, Math.max(0, uiZoomStepIndex(current) + direction));
 	return UI_ZOOM_STEPS[next] ?? UI_ZOOM_DEFAULT;
 }
+
+/** 红绿灯左缘距窗口的屏幕像素。 */
+const TRAFFIC_LIGHT_X = 16;
+/**
+ * 原生按钮的 y 是框顶，视觉中心在其下方（屏幕 px）。macOS 红绿灯彩色圆约 12pt，
+ * 框顶到圆心约 8pt，再上提 1pt 与页头图标的视觉中线对齐，故取 9。
+ * 按钮本身不随页面缩放，所以这是常数；页头怎么排由渲染进程实测上报。
+ */
+const TRAFFIC_LIGHT_CENTER_OFFSET = 9;
+/** 渲染进程还没上报实测中线时的兜底（CSS px），等于 100% 缩放下页头的标定中线。 */
+export const TITLEBAR_CENTER_FALLBACK = 28;
+
+/** 校验渲染进程上报的页头中线（CSS px）：非有限数或越界一律丢弃。 */
+export function parseTitlebarCenter(value: unknown): number | undefined {
+	if (typeof value !== "number" || !Number.isFinite(value)) return undefined;
+	return value >= 0 && value <= 200 ? value : undefined;
+}
+
+/**
+ * 红绿灯是原生控件，不随网页缩放；页头中线是 CSS px，换算成屏幕 px 要乘缩放比。
+ * 中线由渲染进程实测上报，所以页头高度、内边距、沉浸式页头怎么变，这里都不需要改数字。
+ */
+export function trafficLightPositionFor(centerCssPx: number, factor: number): { x: number; y: number } {
+	return {
+		x: TRAFFIC_LIGHT_X,
+		y: Math.round(centerCssPx * normalizeUiZoomFactor(factor) - TRAFFIC_LIGHT_CENTER_OFFSET),
+	};
+}

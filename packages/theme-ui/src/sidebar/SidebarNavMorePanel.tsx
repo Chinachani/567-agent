@@ -32,10 +32,7 @@ export interface SidebarNavMorePanelProps {
 
 function DropLine({ visible }: { visible: boolean }): JSX.Element {
 	return (
-		<span
-			aria-hidden
-			className={cn("mx-1 block h-px rounded-full", visible ? "bg-primary" : "bg-transparent")}
-		/>
+		<span aria-hidden className={cn("mx-1 block h-px rounded-full", visible ? "bg-primary" : "bg-transparent")} />
 	);
 }
 
@@ -141,6 +138,8 @@ export function SidebarNavMorePanel({
 	const pinnedRegion = drag.regionProps("pinned");
 	const moreRegion = drag.regionProps("more");
 	const hasLockedTail = moreItems[moreItems.length - 1]?.locked === true;
+	// 固定入口仍在侧栏顶部显示；自定义面板只列出可以调整的置顶项。
+	const visiblePinnedItems = pinnedItems.filter((item) => item.locked !== true);
 
 	return (
 		<div className="flex max-h-[70vh] flex-col gap-1 overflow-y-auto">
@@ -159,7 +158,7 @@ export function SidebarNavMorePanel({
 				</button>
 			</div>
 			<div className="flex flex-col" onDragOver={pinnedRegion.onDragOver} onDrop={pinnedRegion.onDrop}>
-				{pinnedItems.map((item) => (
+				{visiblePinnedItems.map((item) => (
 					<div key={item.key}>
 						<DropLine visible={drag.isDropBefore(item.key, "pinned")} />
 						<NavRow

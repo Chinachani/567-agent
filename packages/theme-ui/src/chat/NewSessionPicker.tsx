@@ -98,7 +98,7 @@ export function NewSessionPickerValue({
 	return (
 		<>
 			<span className="h-3.5 w-3.5 shrink-0" aria-hidden>
-				{selectedLabel ? selectedIcon ?? icon : icon}
+				{selectedLabel ? (selectedIcon ?? icon) : icon}
 			</span>
 			<span className="min-w-0 truncate" title={triggerTitle}>
 				{selectedLabel ?? placeholder}
@@ -120,7 +120,7 @@ export function NewSessionPickerContent({
 			align="start"
 			side="bottom"
 			sideOffset={6}
-			className={cn("w-[228px] gap-0 overflow-visible rounded-lg border border-border p-0", className)}
+			className={cn("w-[228px] gap-0 overflow-visible p-0", className)}
 		>
 			<div className="relative z-10 rounded-[inherit] p-1">{children}</div>
 		</PopoverContent>
@@ -209,7 +209,11 @@ export function NewSessionPickerItem({
 }
 
 export function NewSessionPickerItemIcon({ children }: { readonly children: ReactNode }): JSX.Element {
-	return <span className="flex h-3.5 w-3.5 shrink-0 items-center justify-center" aria-hidden>{children}</span>;
+	return (
+		<span className="flex h-3.5 w-3.5 shrink-0 items-center justify-center" aria-hidden>
+			{children}
+		</span>
+	);
 }
 
 export function NewSessionPickerItemText({ children }: { readonly children: ReactNode }): JSX.Element {
@@ -229,7 +233,11 @@ export function NewSessionPickerLoading({ children }: { readonly children: React
 }
 
 export function NewSessionPickerError({ children }: { readonly children: ReactNode }): JSX.Element {
-	return <p role="alert" className="px-2 py-2 text-[12px] text-destructive">{children}</p>;
+	return (
+		<p role="alert" className="px-2 py-2 text-[12px] text-destructive">
+			{children}
+		</p>
+	);
 }
 
 export function NewSessionPickerClear({ children }: { readonly children: ReactNode }): JSX.Element {

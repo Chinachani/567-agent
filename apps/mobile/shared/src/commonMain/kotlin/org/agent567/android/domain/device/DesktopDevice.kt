@@ -37,4 +37,5 @@ data class SessionListItem(
     val isCloud: Boolean,
     val favorite: Boolean = false,
     val remoteSessionId: String? = null,
+    val remoteDeviceId: String? = null,
 )

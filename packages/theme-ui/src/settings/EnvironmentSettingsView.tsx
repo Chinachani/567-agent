@@ -1,5 +1,11 @@
 import type { JSX, ReactNode } from "react";
 import { Button } from "@vetta-org/ui";
+import {
+	EnvironmentGitRowView,
+	type EnvironmentGitRowViewProps,
+	type EnvironmentGitStatusView,
+	type EnvironmentGitViewLabels,
+} from "./EnvironmentGitRowView";
 import { SettingRow, SettingSection, type SettingSectionMeta } from "./SettingChrome";
 
 export type EnvironmentRuntimeKindView = "node" | "python";
@@ -16,6 +22,7 @@ export interface EnvironmentSettingsViewLabels {
 	readonly fetch: string;
 	readonly fetchAgain: string;
 	readonly fetching: string;
+	readonly git: EnvironmentGitViewLabels;
 	readonly loading: string;
 	readonly notReady: string;
 	readonly npmRegistry: string;
@@ -28,6 +35,7 @@ export interface EnvironmentSettingsViewLabels {
 	readonly sections: {
 		readonly mirrors: string;
 		readonly runtime: string;
+		readonly tools: string;
 	};
 	readonly title: string;
 	readonly progress: string;
@@ -50,6 +58,8 @@ export interface EnvironmentSettingsViewProps {
 	readonly error: string | null;
 	readonly progress: EnvironmentInstallProgressView | null;
 	readonly logs: readonly string[];
+	readonly git: Omit<EnvironmentGitRowViewProps, "labels" | "status">;
+	readonly toolsSection: SettingSectionMeta;
 	readonly headerAction?: ReactNode;
 	readonly labels: EnvironmentSettingsViewLabels;
 	readonly mirrors?: {
@@ -62,6 +72,7 @@ export interface EnvironmentSettingsViewProps {
 	readonly status: {
 		readonly node: EnvironmentRuntimeStatusView;
 		readonly python: EnvironmentRuntimeStatusView;
+		readonly git: EnvironmentGitStatusView;
 	} | null;
 }
 
@@ -152,6 +163,8 @@ function RuntimeCard({
 export function EnvironmentSettingsView({
 	busy,
 	error,
+	git,
+	toolsSection,
 	progress,
 	logs,
 	headerAction,
@@ -233,6 +246,14 @@ export function EnvironmentSettingsView({
 							onReinstall={() => onReinstall("python")}
 						/>
 					</>
+				) : (
+					<div className="px-5 py-4 text-[12px] text-muted-foreground">{labels.loading}</div>
+				)}
+			</SettingSection>
+
+			<SettingSection title={labels.sections.tools} section={toolsSection}>
+				{status ? (
+					<EnvironmentGitRowView {...git} labels={labels.git} status={status.git} />
 				) : (
 					<div className="px-5 py-4 text-[12px] text-muted-foreground">{labels.loading}</div>
 				)}

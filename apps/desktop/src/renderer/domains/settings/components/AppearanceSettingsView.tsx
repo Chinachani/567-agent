@@ -179,13 +179,19 @@ const ThemeCard = memo(function ThemeCard({
 						boxShadow: "0 4px 12px rgba(0,0,0,0.25)",
 					}}
 				>
-					<div className="flex items-center gap-1 px-1.5 py-1" style={{ borderBottom: `1px solid ${palette.border}` }}>
+					<div
+						className="flex items-center gap-1 px-1.5 py-1"
+						style={{ borderBottom: `1px solid ${palette.border}` }}
+					>
 						<span className="h-1 w-1 rounded-full" style={{ background: palette.destructive }} />
 						<span className="h-1 w-1 rounded-full" style={{ background: palette.chart1 }} />
 						<span className="h-1 w-1 rounded-full" style={{ background: palette.primary }} />
 					</div>
 					<div className="space-y-[5px] px-2 py-2.5">
-						<div className="h-[3px] w-[80%] rounded-full" style={{ background: palette.foreground, opacity: 0.75 }} />
+						<div
+							className="h-[3px] w-[80%] rounded-full"
+							style={{ background: palette.foreground, opacity: 0.75 }}
+						/>
 						<div className="h-[3px] w-[60%] rounded-full" style={{ background: palette.mutedForeground }} />
 						<div
 							className="h-[3px] w-[70%] rounded-full"
@@ -388,6 +394,36 @@ export function AppearanceSettingsView({ model }: { model: AppearanceSettingsMod
 				</div>
 			</div>
 
+			<section className="mb-6" aria-label={model.appIcon.title}>
+				<h2 className="mb-1 text-[13px] font-semibold text-[var(--foreground)]">{model.appIcon.title}</h2>
+				<p className="mb-3 text-[12px] text-[var(--muted-foreground)]">{model.appIcon.hint}</p>
+				<div className="flex flex-wrap gap-2" aria-busy={model.appIcon.loading || model.appIcon.saving}>
+					{model.appIcon.options.map((option) => (
+						<button
+							key={option.id}
+							type="button"
+							aria-pressed={option.active}
+							aria-label={option.label}
+							title={option.label}
+							disabled={model.appIcon.loading || model.appIcon.saving}
+							onClick={() => model.appIcon.select(option.id)}
+							className={cn(
+								"rounded-xl border p-1.5 transition-colors disabled:opacity-50 focus-visible:ring-2 focus-visible:ring-[var(--ring)]",
+								option.active
+									? "border-[var(--primary)] bg-[var(--accent)]"
+									: "border-transparent hover:bg-[var(--accent)]",
+							)}
+						>
+							<img src={option.preview} alt="" className="h-12 w-12 rounded-lg" />
+						</button>
+					))}
+				</div>
+				{model.appIcon.error && (
+					<p role="alert" className="mt-2 text-[12px] text-[var(--destructive)]">
+						{model.appIcon.error}
+					</p>
+				)}
+			</section>
 			{model.showUiTheme && (
 				<div className="mb-6">
 					<SettingHeading
@@ -433,7 +469,8 @@ export function AppearanceSettingsView({ model }: { model: AppearanceSettingsMod
 						aria-label={model.labels.uiZoomReset}
 						aria-disabled={model.uiZoom.factor === model.uiZoom.default || model.uiZoom.saving}
 						onClick={() => {
-							if (!model.uiZoom.saving && model.uiZoom.factor !== model.uiZoom.default) model.actions.resetUiZoom();
+							if (!model.uiZoom.saving && model.uiZoom.factor !== model.uiZoom.default)
+								model.actions.resetUiZoom();
 						}}
 					>
 						<span aria-hidden className="icon-[solar--restart-linear] h-3.5 w-3.5" />

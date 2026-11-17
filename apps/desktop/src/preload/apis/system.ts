@@ -3,7 +3,6 @@ import { BROWSER_TARGETS_CHANNEL, PREPARE_BROWSER_TARGET_CHANNEL } from "../../s
 import { PERSIST_IMAGE_FILES_CHANNEL } from "../../shared/image-cache.js";
 import { MODEL_CONTEXT_SET_CHANNEL } from "../../shared/model-context.js";
 import { MODEL_INFERENCE_API_SET_CHANNEL } from "../../shared/model-inference-api.js";
-import { PROJECT_COLLABORATION_CHANNELS } from "../../shared/project-collaboration.js";
 import { PROJECTS_CHANNELS } from "../../shared/projects-ipc.js";
 import { RUNTIMES_STATUS_CHANGED_CHANNEL } from "../../shared/runtime-install-progress.js";
 import type { DesktopApi } from "../api.js";
@@ -38,7 +37,6 @@ export function createSystemApi(
 	| "tray"
 	| "debug"
 	| "diagnostics"
-	| "project"
 	| "permissions"
 > {
 	return {
@@ -242,6 +240,7 @@ export function createSystemApi(
 		},
 		mcp: {
 			get: () => ipc.invoke("vetta:mcp:get"),
+			listTools: (serverName) => ipc.invoke("vetta:mcp:list-tools", serverName),
 			set: (config) => ipc.invoke("vetta:mcp:set", config),
 			login: (serverName, options) => ipc.invoke("vetta:mcp:login", serverName, options),
 			logout: (serverName) => ipc.invoke("vetta:mcp:logout", serverName),
@@ -263,6 +262,7 @@ export function createSystemApi(
 		},
 		runtimes: {
 			getStatus: () => ipc.invoke("vetta:runtimes:get-status"),
+			installGit: () => ipc.invoke("vetta:runtimes:install-git"),
 			reinstall: (type) => ipc.invoke("vetta:runtimes:reinstall", type),
 			restartAndRepair: (type) => ipc.invoke("agent567:runtimes:restart-repair", type),
 			onStatusChanged: (handler) => onIpcVoidEvent(ipc, RUNTIMES_STATUS_CHANGED_CHANNEL, handler),
@@ -315,6 +315,7 @@ export function createSystemApi(
 			sync: () => ipc.invoke("vetta:updater:sync"),
 			getState: () => ipc.invoke("vetta:updater:get-state"),
 			getCurrentVersion: () => ipc.invoke("vetta:updater:get-current-version"),
+			getCurrentReleaseNote: () => ipc.invoke("vetta:updater:get-current-release-note"),
 			download: () => ipc.invoke("vetta:updater:download"),
 			pause: () => ipc.invoke("agent567:updater:pause"),
 			install: () => ipc.invoke("vetta:updater:install"),
@@ -338,15 +339,6 @@ export function createSystemApi(
 			repairRuntimes: () => ipc.invoke("agent567:diagnostics:repair"),
 			exportDiagnosticsPackage: (includeLogs) => ipc.invoke("vetta:diagnostics:export", includeLogs),
 			getLogDir: () => ipc.invoke("vetta:diagnostics:get-log-dir"),
-		},
-		project: {
-			export: (projectDir) => ipc.invoke("vetta:project:export", projectDir),
-			import: () => ipc.invoke("vetta:project:import"),
-			readMeta: (projectDir) => ipc.invoke("vetta:project:read-meta", projectDir),
-			readCollaboration: (cwd) => ipc.invoke(PROJECT_COLLABORATION_CHANNELS.read, cwd),
-			updateCollaboration: (cwd, patch) => ipc.invoke(PROJECT_COLLABORATION_CHANNELS.update, cwd, patch),
-			controlCollaboration: (cwd, control) => ipc.invoke(PROJECT_COLLABORATION_CHANNELS.control, cwd, control),
-			onCollaborationChanged: (handler) => onIpcEvent(ipc, PROJECT_COLLABORATION_CHANNELS.changed, handler),
 		},
 		permissions: {
 			checkAll: () => ipc.invoke("vetta:permissions:check-all"),

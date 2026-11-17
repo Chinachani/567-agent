@@ -1,10 +1,13 @@
 import type { ChildProcess } from "node:child_process";
 import { killNodeProcessTree } from "@567agent/runtime-node/host";
+import { isSshProjectUri } from "@567agent/ssh-transport";
 import type { PluginCommandRunOptions, PluginCommandRunResult } from "../../preload/api-types/plugins.js";
 import { getAppLogger } from "../logger.js";
+import { getRuntimeManager } from "../runtimes/manager.js";
 import { createPluginCommandEnvironment } from "./command-environment.js";
 import { prepareCommandRuntime, spawnCrossPlatformCommand } from "./command-launcher.js";
 import { assertPluginCommandAllowed } from "./command-permissions.js";
+import { runRemotePluginCommand } from "./remote-command-runner.js";
 
 const commandLog = getAppLogger("plugin");
 
@@ -64,8 +67,32 @@ export async function runPluginCommand(
 	const env = sanitizeEnv(options?.env);
 	const cwd = typeof options?.cwd === "string" && options.cwd.trim().length > 0 ? options.cwd : undefined;
 	const timeout = clampTimeout(options?.timeoutMs);
-	await prepareCommandRuntime(file);
+	if (!cwd || !isSshProjectUri(cwd)) await prepareCommandRuntime(file);
 	assertPluginCommandAllowed(pluginId, file, "agent.command.run");
+
+	if (cwd !== undefined && isSshProjectUri(cwd)) {
+		const controller = new AbortController();
+		const runId = Symbol(pluginId);
+		activeRuns.set(runId, { pluginId, stop: () => controller.abort(new Error(`Command cancelled: ${file}`)) });
+		try {
+			return await runRemotePluginCommand({
+				file,
+				args: normalizedArgs,
+				cwd,
+				env,
+				timeoutMs: timeout,
+				maxBufferBytes: MAX_BUFFER_BYTES,
+				signal: controller.signal,
+			});
+		} finally {
+			activeRuns.delete(runId);
+		}
+	}
+
+	// macOS 没装命令行工具时，/usr/bin/git 一执行就弹系统安装框；插件按「没装 git」处理即可。
+	if (file === "git" && getRuntimeManager().shouldBlockGitCommand()) {
+		throw new Error(`Command failed to start: ${file} (ENOENT)`);
+	}
 
 	let child: ChildProcess;
 	try {

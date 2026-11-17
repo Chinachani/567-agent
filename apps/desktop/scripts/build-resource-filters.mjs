@@ -1,5 +1,5 @@
 export function resolveBuildResourceFilters(families) {
-	const filters = new Set(["pet/**/*"]);
+	const filters = new Set(["pet/**/*", "app-icons/*.png"]);
 	if (families.size > 0) {
 		filters.add("tray-light.png");
 		filters.add("tray-dark.png");

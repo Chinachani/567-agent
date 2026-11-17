@@ -14,6 +14,11 @@ export interface ResolvedMarketplaceCatalog {
 	listedSlugs: ReadonlySet<string>;
 }
 
+export interface MarketplaceCatalogOptions {
+	/** Permit a fixed source-only expert package without a built MF entry. */
+	readonly allowSourceOnlyPluginAgents?: boolean;
+}
+
 function packageDirectory(root: string, path: string): string {
 	const directory = resolve(root, path);
 	const rel = relative(root, directory);
@@ -33,7 +38,11 @@ function packageDirectory(root: string, path: string): string {
 }
 
 /** Resolve references once, then validate all packages before publishing or activating any of them. */
-export function loadMarketplaceCatalog(root: string, manifest: MarketplaceManifest): ResolvedMarketplaceCatalog {
+export function loadMarketplaceCatalog(
+	root: string,
+	manifest: MarketplaceManifest,
+	options: MarketplaceCatalogOptions = {},
+): ResolvedMarketplaceCatalog {
 	const abilities = structuredClone(manifest.abilities);
 	const bySlug = new Map(abilities.map((ability) => [ability.slug, ability]));
 	const listedSlugs = new Set(bySlug.keys());
@@ -61,7 +70,10 @@ export function loadMarketplaceCatalog(root: string, manifest: MarketplaceManife
 		if (ability.type === "mcp") {
 			ability.config = validateOpenMarketplaceMcp(sourceDir, ability);
 		} else if (ability.type === "plugin") {
-			if (!ability.releases) ability.config = validateOpenMarketplacePlugin(sourceDir, ability);
+			if (!ability.releases)
+				ability.config = validateOpenMarketplacePlugin(sourceDir, ability, {
+					allowSourceOnlyAgent: options.allowSourceOnlyPluginAgents,
+				});
 		} else if (ability.type !== "bundle") {
 			validateSkillPackage(sourceDir, ability);
 		}

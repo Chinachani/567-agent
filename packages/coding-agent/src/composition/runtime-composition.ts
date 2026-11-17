@@ -1,3 +1,5 @@
+import type { StreamFn } from "@567agent/agent-core";
+import { streamSimple } from "@567agent/ai";
 import {
 	RuntimeAgentSessionAssemblyBackend,
 	RuntimeOwnershipBinding,
@@ -247,7 +249,7 @@ async function assembleCodingAgentRuntimeComposition(
 			}),
 		},
 		engine: {
-			streamFn: options.streamFn,
+			streamFn: withConfiguredTransport(options.streamFn, options.runtimeHostModelSettings),
 			resolveTurnLimits: options.resolveTurnLimits,
 			tracer: options.tracer,
 			tracing: options.tracing,
@@ -331,6 +333,15 @@ async function assembleCodingAgentRuntimeComposition(
 }
 
 const EMPTY_MCP_TOOL_VIEW: McpRuntimeToolView = Object.freeze({ tools: Object.freeze([]) });
+
+function withConfiguredTransport(
+	streamFn: StreamFn | undefined,
+	settings: CodingAgentRuntimeCompositionOptions["runtimeHostModelSettings"],
+): StreamFn | undefined {
+	if (!settings) return streamFn;
+	const invoke = streamFn ?? streamSimple;
+	return (model, context, options) => invoke(model, context, { ...options, transport: settings.getTransport() });
+}
 
 function readCodingAgentSessionOptions(request: RuntimeSessionCreateRequest): CodingAgentRuntimeSessionOptions {
 	const options = requireCodingAgentRuntimeSessionOptions(request.agent?.sessionConfiguration);

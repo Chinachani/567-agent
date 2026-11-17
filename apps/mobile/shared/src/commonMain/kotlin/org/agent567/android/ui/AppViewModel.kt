@@ -126,6 +126,11 @@ data class AppUiState(
     val pendingImages: List<MessageImage> = emptyList(),
     val pendingFiles: List<PendingFileAttachment> = emptyList(),
     val isStreaming: Boolean = false,
+    val runningSessionIds: Set<String> = emptySet(),
+    val sharedContentToPlace: org.agent567.android.domain.session.SharedDraftContent? = null,
+    val sharedContentBusy: Boolean = false,
+    val sharedContentQueued: Int = 0,
+    val sharedContentError: String? = null,
     /** 面向用户的短状态，不透传 Desktop 内部思考文本或异常原文。 */
     val streamingStatus: String? = null,
     val inputPredictions: List<String> = emptyList(),
@@ -315,10 +320,104 @@ class AppViewModel(
     val taskNotifications = org.agent567.android.domain.notifications.TaskNotifications()
     private val remoteTaskNotifications = org.agent567.android.domain.notifications.RemoteTaskNotifications(taskNotifications)
 
-    fun openTaskNotification(sessionId: String) {
+    fun openTaskNotification(sessionId: String, action: String? = null) {
         viewModelScope.launch {
             val session = container.sessionStore.getSession(sessionId) ?: return@launch
             openChat(session.id, if (session.origin == ConversationOrigin.Desktop) ChatSurface.Desktop else ChatSurface.Cloud, session.title, session.remoteDeviceId)
+        }
+    }
+
+    /** System sharing is a scoped draft operation; it never submits a prompt. */
+    fun openSharedText(text: String, targetSessionId: String? = null) = openSharedContent(
+        org.agent567.android.domain.session.SharedDraftContent("text", text, epoch = container.sharedContentEpoch.value, targetSessionId = targetSessionId))
+
+    private val sharedContentQueue = ArrayDeque<org.agent567.android.domain.session.SharedDraftContent>()
+
+    fun openSharedContent(content: org.agent567.android.domain.session.SharedDraftContent) {
+        if (_state.value.loggingOut || content.epoch != container.sharedContentEpoch.value) return
+        val bounded = if (content.textTooLong || content.text.length > org.agent567.android.domain.session.MAX_SHARED_TEXT_CHARACTERS)
+            content.copy(text = "", files = emptyList(), textTooLong = true, targetSessionId = null)
+        else content
+        val pending = listOfNotNull(_state.value.sharedContentToPlace) + sharedContentQueue.toList()
+        val totalBytes = (pending + bounded).sumOf { share -> share.files.sumOf { it.bytes.size.toLong() } }
+        if (pending.size >= org.agent567.android.domain.session.MAX_PENDING_SHARES || totalBytes > MAX_MESSAGE_FILE_TOTAL_BYTES) {
+            _state.update { it.copy(sharedContentError = Str.shareQueueFull) }
+            return
+        }
+        if (_state.value.sharedContentToPlace != null || _state.value.sharedContentBusy) {
+            sharedContentQueue.addLast(bounded)
+            _state.update { it.copy(sharedContentQueued = sharedContentQueue.size) }
+        } else showSharedContent(bounded)
+    }
+
+    private fun showSharedContent(content: org.agent567.android.domain.session.SharedDraftContent?) {
+        _state.update { it.copy(
+            sharedContentToPlace = content,
+            sharedContentQueued = sharedContentQueue.size,
+            sharedContentError = when {
+                content?.textTooLong == true -> Str.shareTextTooLong
+                content?.rejected == true -> Str.shareReadFailed
+                else -> null
+            },
+        ) }
+        if (content?.targetSessionId != null && !content.rejected && !content.textTooLong) placeSharedText(content.targetSessionId)
+    }
+
+    private fun advanceSharedContent() {
+        showSharedContent(if (sharedContentQueue.isEmpty()) null else sharedContentQueue.removeFirst())
+    }
+
+    fun dismissSharedText() { if (!_state.value.sharedContentBusy) advanceSharedContent() }
+
+    fun placeSharedText(targetSessionId: String?) {
+        val content = _state.value.sharedContentToPlace ?: return
+        if (_state.value.sharedContentBusy || content.text.isBlank() && content.files.isEmpty()) return
+        val owner = composerOwner() ?: run { _state.update { it.copy(sharedContentError = Str.draftAccountPending) }; return }
+        val revision = authRevision
+        if (targetSessionId == null && container.tokenStore.accessToken == null) { openLogin(); return }
+        _state.update { it.copy(sharedContentBusy = true) }
+        viewModelScope.launch {
+            try {
+                var target = targetSessionId?.let { container.sessionStore.getSession(it) }
+                if (targetSessionId != null && target == null) error("Missing destination")
+                if (authRevision != revision || composerOwner() != owner) return@launch
+                val prior = target?.let { destination ->
+                    if (_state.value.currentSessionId == destination.id) org.agent567.android.domain.session.SessionDraft(_state.value.draft, _state.value.pendingImages, _state.value.pendingFiles)
+                    else composerDrafts[destination.id] ?: draftPersistence.withLock { container.sessionStore.getDraft(destination.id, owner) }
+                } ?: org.agent567.android.domain.session.SessionDraft()
+                if (authRevision != revision || composerOwner() != owner) return@launch
+                val latest = target?.let { destination ->
+                    if (_state.value.currentSessionId == destination.id) org.agent567.android.domain.session.SessionDraft(_state.value.draft, _state.value.pendingImages, _state.value.pendingFiles)
+                    else composerDrafts[destination.id] ?: prior
+                } ?: prior
+                val files = latest.files + content.files
+                if (files.size > MAX_MESSAGE_FILE_COUNT || files.sumOf { it.bytes.size.toLong() } > MAX_MESSAGE_FILE_TOTAL_BYTES || files.any { it.bytes.size !in 1..org.agent567.android.ui.media.MAX_MESSAGE_FILE_BYTES }) {
+                    _state.update { it.copy(sharedContentError = Str.shareFileLimit) }; return@launch
+                }
+                val text = listOf(latest.text, content.text).filter { it.isNotBlank() }.joinToString("\n\n")
+                if (text.length > org.agent567.android.domain.session.MAX_SHARED_TEXT_CHARACTERS) { _state.update { it.copy(sharedContentError = Str.shareFileLimit) }; return@launch }
+                if (target == null) {
+                    val model = currentModel() ?: _state.value.models.firstOrNull()
+                    target = container.sessionStore.createSession(title = SessionStore.DEFAULT_TITLE, modelId = model?.id, modelName = model?.name)
+                    if (authRevision != revision || composerOwner() != owner) { container.sessionStore.deleteSession(target.id); return@launch }
+                }
+                val appended = latest.copy(text = text, files = files)
+                // Publish the in-memory draft before navigation; the existing persistence
+                // path reports save failure without discarding this draft or attachments.
+                saveComposerDraft(target.id, appended)
+                _state.update { state ->
+                    if (state.currentSessionId == target.id) state.copy(draft = appended.text, pendingImages = appended.images, pendingFiles = appended.files, sharedContentToPlace = null, sharedContentError = null)
+                    else state.copy(sharedContentToPlace = null, sharedContentError = null)
+                }
+                openChat(target.id, if (target.origin == ConversationOrigin.Desktop) ChatSurface.Desktop else ChatSurface.Cloud, target.title, target.remoteDeviceId)
+            } catch (cancelled: CancellationException) { throw cancelled }
+            catch (_: Exception) { if (revision == authRevision) _state.update { it.copy(sharedContentError = Str.draftRestoreFailed) } }
+            finally {
+                if (revision == authRevision) {
+                    _state.update { it.copy(sharedContentBusy = false) }
+                    if (_state.value.sharedContentToPlace == null) advanceSharedContent()
+                }
+            }
         }
     }
 
@@ -382,7 +481,12 @@ class AppViewModel(
             }
         }
         viewModelScope.launch {
+            var wasUnavailable = false
             container.networkAvailability.collect { availability ->
+                if (availability == NetworkAvailability.Available && wasUnavailable) {
+                    if (!container.remoteConversationGateway.retryConnection()) restorePairedDesktopConnection()
+                }
+                wasUnavailable = availability == NetworkAvailability.Unavailable
                 if (availability == NetworkAvailability.Unavailable) {
                     val phoneSessions = container.sessionStore.sessions.value
                         .filter { it.origin == ConversationOrigin.Cloud }.map { it.id }.toSet()
@@ -466,6 +570,7 @@ class AppViewModel(
                 if (!hadOnlineDevice && hasOnlineDevice && _state.value.sessionFilterIndex == 1) {
                     loadDesktopSessions()
                 }
+                if (!hadOnlineDevice && hasOnlineDevice) resultInboxCoordinator.refresh()
                 hadOnlineDevice = hasOnlineDevice
             }
         }
@@ -1008,6 +1113,7 @@ class AppViewModel(
     fun disconnectDesktop(deviceId: String) {
         viewModelScope.launch {
             runCatching { container.remoteConversationGateway.disconnect(deviceId) }
+            resultInboxCoordinator.removeDevice(deviceId)
             container.preferences.remotePairingId = null
             container.preferences.remoteResumeSecret = null
             container.preferences.remoteRelayBaseUrl = null
@@ -1120,6 +1226,24 @@ class AppViewModel(
     fun openPhoneSessions() {
         _state.update { it.copy(mainTab = MainTab.Sessions, sessionFilterIndex = 2) }
         navigate(AppRoute.Main(MainTab.Sessions))
+    }
+
+    fun openTaskCenter() {
+        _state.update { it.copy(route = AppRoute.TaskCenter) }
+        refreshTaskCenter()
+    }
+
+    /**
+     * 任务中心优先复用现有设备状态和会话目录。新协议提供增量游标后，
+     * 只需在 gateway 层替换刷新实现；旧版本继续走一次目录刷新。
+     */
+    fun refreshTaskCenter() {
+        resultInboxCoordinator.refresh()
+        if (!container.remoteConversationGateway.retryConnection()) restorePairedDesktopConnection()
+        viewModelScope.launch {
+            container.sessionStore.refresh()
+            loadDesktopSessions()
+        }
     }
 
     private fun loadDesktopSessions() {
@@ -1432,6 +1556,43 @@ class AppViewModel(
             } finally { if (workbenchReadJob === currentCoroutineContext()[Job]) updateVisibleSession(sid) { it.copy(workbenchLoading = false) } }
         }
         workbenchReadJob?.start()
+    }
+
+    suspend fun listSessionFiles(sid: String, path: String, offset: Int): org.agent567.android.domain.session.RemoteSessionFilePage {
+        val session = container.sessionStore.getSession(sid) ?: error(Str.workbenchUnavailable)
+        requireDesktopContextDevice(session)
+        val remoteId = session.remoteSessionId ?: throw org.agent567.android.domain.session.RemoteFilesUnsupportedException()
+        return container.remoteConversationGateway.listDesktopFiles(sid, remoteId, path, offset)
+            ?: throw org.agent567.android.domain.session.RemoteFilesUnsupportedException()
+    }
+
+    suspend fun uploadSessionFile(sid: String, file: org.agent567.android.ui.media.PickedFileAttachment, onProgress: (Int, Int) -> Unit): String {
+        val revision = authRevision
+        val session = container.sessionStore.getSession(sid) ?: error(Str.workbenchUnavailable)
+        requireDesktopContextDevice(session)
+        val deviceId = session.remoteDeviceId ?: throw org.agent567.android.domain.session.RemoteFilesUnsupportedException()
+        val remoteId = session.remoteSessionId ?: throw org.agent567.android.domain.session.RemoteFilesUnsupportedException()
+        return container.remoteConversationGateway.uploadDesktopFile(deviceId, remoteId,
+            org.agent567.android.domain.conversation.RemotePromptFileAttachment(file.fileName, file.mimeType, file.bytes)) { done, total ->
+            if (revision != authRevision || _state.value.currentSessionId != sid) throw CancellationException("Upload scope changed")
+            requireDesktopContextDevice(session)
+            onProgress(done, total)
+        }
+    }
+
+    fun appendUploadedPath(sid: String, path: String) {
+        if (_state.value.currentSessionId != sid) return
+        onDraftChange(listOf(_state.value.draft, path).filter { it.isNotBlank() }.joinToString("\n\n"))
+    }
+
+    suspend fun readSessionFile(sid: String, path: String): org.agent567.android.domain.session.RemoteSessionFileContent {
+        val session = container.sessionStore.getSession(sid) ?: error(Str.workbenchUnavailable)
+        requireDesktopContextDevice(session)
+        val remoteId = session.remoteSessionId ?: throw org.agent567.android.domain.session.RemoteFilesUnsupportedException()
+        return org.agent567.android.domain.session.readRemoteSessionFile { offset, length, modifiedAt ->
+            requireDesktopContextDevice(session)
+            container.remoteConversationGateway.readDesktopFileChunk(sid, remoteId, path, offset, length, modifiedAt)
+        }
     }
 
     private val workbenchPreviewSlots = kotlinx.coroutines.sync.Semaphore(2)
@@ -1790,6 +1951,7 @@ class AppViewModel(
             }
             if (!isEmptyRemoteDraftStillDisposable(sessionId)) return@launch
             container.sessionStore.deleteSession(sessionId)
+            resultInboxCoordinator.removeSession(null, sessionId)
             drafts.remove(sessionId)
             composerDrafts.remove(sessionId)
             cancelInputPredictionsForSession(sessionId)
@@ -1932,6 +2094,7 @@ class AppViewModel(
                     timeLabel = org.agent567.android.ui.formatting.formatRelativeTime(session.updatedAtEpochMs, nowEpochMs()),
                     isCloud = session.origin == ConversationOrigin.Cloud,
                     remoteSessionId = session.remoteSessionId,
+                    remoteDeviceId = session.remoteDeviceId,
                 )
             }
             val knownRemoteIds = sessionList.mapNotNull { it.remoteSessionId }.toSet()
@@ -2581,7 +2744,9 @@ class AppViewModel(
 
     private suspend fun forceLogout(keepLocalSessions: Boolean, message: String? = null) {
         val revision = ++authRevision
+        container.invalidateSharedContent()
         failedSessionDeletion = null
+        sharedContentQueue.clear()
         _state.update { it.copy(sessionDeletionError = null) }
         authJob?.cancel()
         workspaceJob?.cancel()
@@ -2591,6 +2756,10 @@ class AppViewModel(
                 mainAccessGranted = false,
                 authLoading = true,
                 loggingOut = true,
+                sharedContentToPlace = null,
+                sharedContentBusy = false,
+                sharedContentQueued = 0,
+                sharedContentError = null,
                 catalogLoading = false,
                 quotaRefreshing = false,
                 accountVerifying = false,
@@ -2618,6 +2787,7 @@ class AppViewModel(
             )
         }
         try {
+            resultInboxCoordinator.clear()
             withContext(Dispatchers.IO) { authPersistence.withLock {
                 container.client.auth.clearLocalSession()
                 container.preferences.clearAuthSnapshot()
@@ -2785,6 +2955,7 @@ class AppViewModel(
                     }
                     return@launch
                 }
+                resultInboxCoordinator.removeSession(deviceId, remoteSessionId)
                 session?.let {
                     cancelStream(it.id)
                     if (_state.value.currentSessionId == it.id) {
@@ -2808,6 +2979,7 @@ class AppViewModel(
             }
             cancelStream(sessionId)
             container.sessionStore.deleteSession(sessionId)
+            resultInboxCoordinator.removeSession(null, sessionId)
             drafts.remove(sessionId)
             composerDrafts.remove(sessionId)
             if (container.preferences.lastSessionId == sessionId) {
@@ -3703,6 +3875,8 @@ class AppViewModel(
                         pendingPersist?.cancel()
                         if (streamJobs[sid] === currentCoroutineContext()[Job]) {
                             streamJobs.remove(sid)
+                            resultInboxCoordinator.refresh()
+                            _state.update { it.copy(runningSessionIds = streamJobs.keys.toSet()) }
                             taskNotifications.stopped(sid)
                             streamStatuses.remove(sid)
                             updateVisibleSession(sid) { it.copy(isStreaming = false, streamingStatus = null) }
@@ -3714,6 +3888,7 @@ class AppViewModel(
                     }
                 }
             streamJobs[sid] = streamJob
+            _state.update { it.copy(runningSessionIds = streamJobs.keys.toSet()) }
             pendingSendReservations.remove(sendReservation)
             streamJob.start()
         }.invokeOnCompletion { pendingSendReservations.remove(sendReservation) }
@@ -4033,6 +4208,34 @@ class AppViewModel(
         }
     }
 
+    private val resultInboxCoordinator by lazy {
+        org.agent567.android.domain.followup.ResultInboxCoordinator(viewModelScope, container.resultInbox,
+            container.sessionStore, container.remoteConversationGateway,
+            running = { streamJobs.keys.toSet() }, canRefresh = { _state.value.mainAccessGranted && !_state.value.loggingOut })
+    }
+    val taskResults get() = resultInboxCoordinator.results
+    val taskResultsNotice get() = resultInboxCoordinator.notice
+    val taskResultsLoading get() = resultInboxCoordinator.loading
+    fun openTaskResult(result: org.agent567.android.domain.followup.TaskResult) {
+        val revision = authRevision
+        viewModelScope.launch {
+            try {
+                val existing = container.sessionStore.sessions.value.firstOrNull {
+                    if (result.deviceId == null) it.origin == ConversationOrigin.Cloud && it.id == result.sessionId
+                    else it.remoteDeviceId == result.deviceId && it.remoteSessionId == result.sessionId
+                }
+                val session = existing ?: if (result.deviceId != null && container.remoteConversationGateway.devices.value.any {
+                    it.id == result.deviceId && it.status == org.agent567.android.domain.device.DeviceStatus.Online
+                }) container.sessionStore.createSession(title = result.title, origin = ConversationOrigin.Desktop,
+                    remoteDeviceId = result.deviceId, remoteSessionId = result.sessionId) else error("Result destination unavailable")
+                if (revision != authRevision) return@launch
+                openChat(session.id, if (result.deviceId == null) ChatSurface.Cloud else ChatSurface.Desktop, session.title, result.deviceId)
+                resultInboxCoordinator.markRead(result.key)
+            } catch (cancelled: CancellationException) { throw cancelled }
+            catch (_: Exception) { if (revision == authRevision) _state.update { it.copy(desktopSessionsError = Str.resultInboxFailed) } }
+        }
+    }
+
     val sessions =
         container.sessionStore.sessions
             .stateIn(viewModelScope, SharingStarted.Eagerly, emptyList())
@@ -4141,6 +4344,7 @@ class AppViewModel(
         contextOperations.clear()
         val jobs = streamJobs.values.toList()
         streamJobs.clear()
+        _state.update { it.copy(runningSessionIds = emptySet()) }
         streamStatuses.clear()
         jobs.forEach(Job::cancel)
         _state.update { it.copy(isStreaming = false, streamingStatus = null, contextBusy = false) }

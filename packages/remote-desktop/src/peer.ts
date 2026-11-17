@@ -4,11 +4,12 @@ import {
 	decodeRemoteDesktopSignal,
 	encodeRemoteInputMessage,
 	parseRemoteInputMessage,
+	parseRemoteVideoPreference,
 	parseRemoteViewportMessage,
 } from "./protocol.js";
 import { answerWithStartBitrate, preferHardwareCodec } from "./screen-encoding.js";
 import { ScreenSender } from "./screen-sender.js";
-import type { RemoteDesktopSignal, RemoteInputCommand, RemoteInputMessage } from "./types.js";
+import type { RemoteDesktopSignal, RemoteInputCommand, RemoteInputMessage, RemoteVideoPreference } from "./types.js";
 import { REMOTE_DESKTOP_PROTOCOL_VERSION } from "./types.js";
 
 export type RemoteDesktopSignalSender = (signal: RemoteDesktopSignal) => void | Promise<void>;
@@ -31,6 +32,7 @@ export class RemoteDesktopHost {
 	private pointerMode: "relative" | "absolute";
 	private lastInputSequence = 0;
 	private lastViewportSequence = 0;
+	private lastPreferenceSequence = 0;
 	private closed = false;
 	private started = false;
 	private peerReady = false;
@@ -172,6 +174,7 @@ export class RemoteDesktopHost {
 				type: "capabilities",
 				textInput: true,
 				viewport: true,
+				videoPreference: true,
 				pointerMode: this.pointerMode,
 				inputEnabled: this.inputEnabled,
 			}),
@@ -189,6 +192,15 @@ export class RemoteDesktopHost {
 			}
 			try {
 				const value: unknown = JSON.parse(event.data);
+				if (value !== null && typeof value === "object" && "type" in value && value.type === "video.preference") {
+					const preference = parseRemoteVideoPreference(value);
+					if (preference.sequence <= this.lastPreferenceSequence) return;
+					this.lastPreferenceSequence = preference.sequence;
+					void this.screen
+						?.prefer(preference.mode)
+						.catch(() => this.logger.warn("remote desktop video preference update failed"));
+					return;
+				}
 				const isView = value !== null && typeof value === "object" && "type" in value && value.type === "viewport";
 				const message = isView ? parseRemoteViewportMessage(value) : parseRemoteInputMessage(event.data);
 				if (message.type === "viewport") {
@@ -277,6 +289,8 @@ export class RemoteDesktopViewer {
 	private closed = false;
 	private nextSequence = 1;
 	private viewportSupported = false;
+	private videoPreferenceSupported = false;
+	private videoPreference: RemoteVideoPreference = "auto";
 	private inputReadyResolve: (() => void) | undefined;
 	private inputFailure: Error | undefined;
 	private readonly inputReady = new Promise<void>((resolve) => {
@@ -316,7 +330,11 @@ export class RemoteDesktopViewer {
 				if (typeof event.data !== "string" || event.data.length > 4096) return;
 				try {
 					const value = JSON.parse(event.data);
-					if (value.type === "capabilities") this.viewportSupported = value.viewport === true;
+					if (value?.type === "capabilities") {
+						this.viewportSupported = value.viewport === true;
+						this.videoPreferenceSupported = value.videoPreference === true;
+						this.sendVideoPreference(this.videoPreference);
+					}
 				} catch {
 					/* Ignore unknown capabilities from legacy hosts. */
 				}
@@ -362,6 +380,18 @@ export class RemoteDesktopViewer {
 
 	get supportsViewport(): boolean {
 		return this.viewportSupported;
+	}
+
+	get supportsVideoPreference(): boolean {
+		return this.videoPreferenceSupported;
+	}
+
+	sendVideoPreference(mode: RemoteVideoPreference): boolean {
+		const message = parseRemoteVideoPreference({ type: "video.preference", sequence: this.nextSequence++, mode });
+		this.videoPreference = message.mode;
+		if (!this.videoPreferenceSupported || this.inputChannel?.readyState !== "open" || this.closed) return false;
+		this.inputChannel.send(JSON.stringify(message));
+		return true;
 	}
 
 	async sendViewport(width: number, height: number): Promise<boolean> {

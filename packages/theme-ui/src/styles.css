@@ -73,3 +73,25 @@ textarea::placeholder {
 	--color-secondary: var(--secondary);
 	--color-secondary-foreground: var(--secondary-foreground);
 }
+
+@keyframes session-title-marquee {
+	0%,
+	15% {
+		transform: translateX(0);
+	}
+	85%,
+	100% {
+		transform: translateX(var(--session-title-marquee-distance));
+	}
+}
+
+.session-title-marquee-track {
+	animation: session-title-marquee var(--session-title-marquee-duration) linear infinite alternate;
+}
+
+@media (prefers-reduced-motion: reduce) {
+	.session-title-marquee-track {
+		animation: none;
+		transform: none;
+	}
+}

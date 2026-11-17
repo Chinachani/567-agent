@@ -15,9 +15,9 @@ vi.mock("./useScheduledTasks", () => ({
 	useScheduledTasks: () => schedulerMocks,
 }));
 
-import { useTaskFormModel } from "./useTaskFormModel";
+import { useAutomationDetailModel } from "./useAutomationDetailModel";
 
-describe("useTaskFormModel", () => {
+describe("useAutomationDetailModel", () => {
 	beforeEach(() => {
 		vi.clearAllMocks();
 		schedulerMocks.createTask.mockResolvedValue(undefined);
@@ -32,28 +32,32 @@ describe("useTaskFormModel", () => {
 			id: "paused-task",
 			name: "Paused",
 			prompt: "Run later",
-			cron: "0 9 * * *",
-			isOnce: false,
+			schedule: { kind: "daily", hour: 9, minute: 0 },
+			runTarget: { mode: "new-session", projectCwd: "C:/workspace" },
 			enabled: false,
-			cwd: "C:/workspace",
 			createdAt: 1,
 			updatedAt: 1,
 			lastRunAt: null,
 			lastRunStatus: null,
 		} as const;
-		const { result } = renderHook(() => useTaskFormModel({ open: true, task: existing, onClose }), {
-			wrapper: wrapperFor(store),
-		});
-		await waitFor(() => expect(result.current.data.name).toBe("Paused"));
+		const { result } = renderHook(
+			() => useAutomationDetailModel({ pane: { kind: "task", task: existing }, onClose, onCreated: vi.fn() }),
+			{
+				wrapper: wrapperFor(store),
+			},
+		);
+		await waitFor(() => expect(result.current.draft.name).toBe("Paused"));
 
+		act(() => result.current.onChange({ ...result.current.draft, name: "Edited" }));
 		act(() => result.current.onSubmit());
 
 		await waitFor(() => expect(schedulerMocks.updateTask).toHaveBeenCalledOnce());
 		expect(schedulerMocks.updateTask).toHaveBeenCalledWith(
 			"paused-task",
-			expect.objectContaining({ enabled: false, skill: null }),
+			expect.objectContaining({ name: "Edited", skill: null }),
 		);
-		await waitFor(() => expect(onClose).toHaveBeenCalledOnce());
+		expect(schedulerMocks.updateTask.mock.calls[0]?.[1]).not.toHaveProperty("enabled");
+		expect(onClose).not.toHaveBeenCalled();
 	});
 
 	it("waits for successful creation before closing the dialog", async () => {
@@ -62,13 +66,17 @@ describe("useTaskFormModel", () => {
 		const onClose = vi.fn();
 		const store = createStore();
 		store.set(defaultConversationCwdAtom, "C:/default");
-		const initialDraft = { name: "Daily", prompt: "Summarize", cwd: "C:/workspace", cron: "0 9 * * *" };
+		const initialDraft = {
+			name: "Daily",
+			prompt: "Summarize",
+			projectCwd: "C:/workspace",
+			schedule: { kind: "daily" as const, hour: 9, minute: 0 },
+		};
 		const { result } = renderHook(
 			() =>
-				useTaskFormModel({
-					open: true,
-					task: undefined,
-					initialDraft,
+				useAutomationDetailModel({
+					pane: { kind: "create", draft: initialDraft, key: 1 },
+					onCreated: onClose,
 					onClose,
 				}),
 			{ wrapper: wrapperFor(store) },

@@ -1,5 +1,6 @@
 import { AppBootLoadingView } from "@vetta-org/theme-ui/app-boot";
 import { createRoot } from "react-dom/client";
+import { installHairlineVariable } from "./shared/lib/hairline";
 import { applyPlatformAttribute } from "./shared/lib/platform";
 import { applyInitialTheme } from "./shared/theme/apply";
 import { applyStoredCursorStyle } from "./shared/theme/cursor";
@@ -17,6 +18,7 @@ applyPlatformAttribute();
 applyInitialTheme();
 applyStoredCursorStyle();
 applyStoredSidebarStyle();
+installHairlineVariable();
 
 const rootElement = document.getElementById("root");
 if (!rootElement) {

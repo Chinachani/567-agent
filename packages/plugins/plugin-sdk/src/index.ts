@@ -43,6 +43,7 @@ export type {
 	PluginFileExplorerRevealOptions,
 	PluginFileExplorerApi,
 } from "./file-explorer.js";
+export type { PluginFileIconAssociations, PluginFileIconTheme } from "./file-explorer.js";
 
 // Conversation
 export type {
@@ -73,12 +74,17 @@ export type {
 	PluginFilePreviewProps,
 	PluginFilePreviewContribution,
 	PluginActivityTabContribution,
+	PluginBottomPanelContribution,
 	PluginActivityTabRetention,
 	PluginActivityTabTargetOptions,
 	PluginCaptureRegion,
 	PluginOpenActivityTabOptions,
 	PluginPromptDecoration,
 	PluginInputActionContribution,
+	PluginHeaderActionContribution,
+	PluginHeaderActionMenuItem,
+	PluginHeaderActionPopoverProps,
+	PluginHeaderActionState,
 	PluginNewSessionContext,
 	PluginNewSessionContextActivation,
 	PluginNewSessionContextContribution,
@@ -195,12 +201,17 @@ export type {
 	PluginOfficialImStatus,
 	PluginOfficialImLog,
 	PluginOfficialMcpServerSummary,
+	PluginOfficialMcpTarget,
 	PluginOfficialMcpServerDetail,
 	PluginOfficialMcpUpsertData,
 	PluginOfficialExecutionMode,
 	PluginOfficialSelectedSkill,
 	PluginOfficialBatchProjectCreateData,
 	PluginOfficialBatchProjectUpdateData,
+	PluginOfficialSchedulerModel,
+	PluginOfficialSchedulerNotification,
+	PluginOfficialSchedulerRunTarget,
+	PluginOfficialSchedulerSchedule,
 	PluginOfficialSchedulerTaskCreateData,
 	PluginOfficialSchedulerTaskUpdateData,
 	PluginOfficialModelSummary,
@@ -225,6 +236,7 @@ export type {
 export type {
 	PluginFsEntry,
 	PluginFsFileRef,
+	PluginFsListFilesRecursiveOptions,
 	PluginFsBinaryReadResult,
 	PluginFsStatResult,
 	PluginFsReadResult,
@@ -413,6 +425,19 @@ export { __setPluginHostBridge } from "./host-bridge.js";
 export type { ActivityTabContextValue } from "./activity-tab.js";
 export { __ActivityTabContext, useActivityTab } from "./activity-tab.js";
 
+// Bottom panel context
+export type {
+	PluginBottomPanelCloseConfirm,
+	PluginBottomPanelCloseDecision,
+	PluginBottomPanelCloseReason,
+	PluginBottomPanelCloseRequest,
+	PluginBottomPanelContextValue,
+	PluginBottomPanelMeta,
+	PluginBottomPanelStatus,
+	PluginBottomPanelTerminalRequest,
+} from "./bottom-panel.js";
+export { __BottomPanelContext, useBottomPanel } from "./bottom-panel.js";
+
 // React hooks
 export type { PluginI18nContextValue, PluginTranslation } from "./hooks.js";
 export {
@@ -423,3 +448,7 @@ export {
 	usePromptAttachment,
 	useSidebarState,
 } from "./hooks.js";
+
+// Host-rendered model picker (same component as the chat input bar)
+export type { PluginModelPickerProps, PluginModelPickerReasoning } from "./model-picker.js";
+export { ModelPicker } from "./model-picker.js";

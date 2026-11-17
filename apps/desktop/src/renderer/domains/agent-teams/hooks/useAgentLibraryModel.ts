@@ -2,6 +2,7 @@ import {
 	type AgentAbilitySelection,
 	type AgentProfile,
 	type AgentProfileDeleteImpact,
+	type CreateAgentProfileInput,
 	listLibraryAgentProfiles,
 } from "@567agent/agent-team";
 import { useCallback, useMemo } from "react";
@@ -18,24 +19,35 @@ export function useAgentLibraryModel(resources: AgentTeamResources, copy: AgentL
 
 	const libraryAgents = useMemo(() => (document ? listLibraryAgentProfiles(document) : []), [document]);
 
-	const createAgent = useCallback(async (): Promise<AgentProfile | undefined> => {
-		const nextBlueprint = blueprints[0];
-		if (!nextBlueprint) return undefined;
-		try {
-			const created = await window.agent567.agentTeams.createAgent({
-				name: copy.defaultName,
-				description: copy.defaultDescription,
-				mentionHandle: `agent-${libraryAgents.length + 1}`,
-				blueprintId: nextBlueprint.id,
-			});
-			setDocument((current) => (current ? { ...current, agents: [...current.agents, created] } : current));
-			setError(undefined);
-			return created;
-		} catch (cause) {
-			setError(agentTeamErrorMessage(cause));
-			return undefined;
-		}
-	}, [blueprints, copy.defaultDescription, copy.defaultName, libraryAgents.length, setDocument, setError]);
+	const createAgent = useCallback(
+		async (input?: AgentProfileDraftInput): Promise<AgentProfile | undefined> => {
+			const blueprintId = input?.blueprintId ?? blueprints[0]?.id;
+			if (!blueprintId) return undefined;
+			try {
+				const created = await window.agent567.agentTeams.createAgent({
+					name: input?.name.trim() || copy.defaultName,
+					description: input?.description ?? copy.defaultDescription,
+					mentionHandle: `expert-${crypto.randomUUID()}`,
+					blueprintId,
+					...(input
+						? {
+								systemPrompt: input.systemPrompt,
+								avatar: input.avatar,
+								abilities: input.abilities,
+								copiedFrom: input.copiedFrom,
+							}
+						: {}),
+				});
+				setDocument((current) => (current ? { ...current, agents: [...current.agents, created] } : current));
+				setError(undefined);
+				return created;
+			} catch (cause) {
+				setError(agentTeamErrorMessage(cause));
+				return undefined;
+			}
+		},
+		[blueprints, copy.defaultDescription, copy.defaultName, setDocument, setError],
+	);
 
 	const previewAgent = useCallback(async (agentId: string) => {
 		return window.agent567.agentTeams.previewAgentUpdate(agentId);
@@ -107,4 +119,9 @@ export interface AgentProfileEditInput {
 	readonly mentionHandle: string;
 	readonly systemPrompt?: string;
 	readonly abilities: AgentAbilitySelection;
+}
+
+export interface AgentProfileDraftInput extends AgentProfileEditInput {
+	readonly blueprintId?: CreateAgentProfileInput["blueprintId"];
+	readonly copiedFrom?: string;
 }

@@ -10,6 +10,10 @@ import type {
 import { reconcileMarketplaceSources } from "./marketplace-source-policy.js";
 import {
 	DEFAULT_MARKETPLACE_SOURCE_ID,
+	EXPERT_PRESET_MARKETPLACE_NAME,
+	EXPERT_PRESET_MARKETPLACE_REF,
+	EXPERT_PRESET_MARKETPLACE_REPOSITORY,
+	EXPERT_PRESET_MARKETPLACE_SOURCE_ID,
 	OFFICIAL_MARKETPLACE_NAME,
 	OFFICIAL_MARKETPLACE_REF,
 	OFFICIAL_MARKETPLACE_REPOSITORY,
@@ -134,24 +138,36 @@ function createDefaultSources(now: Date): MarketplaceSource[] {
 	const defaultRef = normalizedRepository === OFFICIAL_MARKETPLACE_REPOSITORY ? OFFICIAL_MARKETPLACE_REF : "main";
 	const ref = validateRef(process.env.AGENT567_OPEN_MARKETPLACE_REF, defaultRef);
 	const timestamp = now.toISOString();
-	return [
-		{
-			id: DEFAULT_MARKETPLACE_SOURCE_ID,
-			name: configuredRepository ? repositoryName(normalizedRepository) : OFFICIAL_MARKETPLACE_NAME,
-			type: "github",
-			repository: normalizedRepository,
-			archiveUrl:
-				process.env.AGENT567_OPEN_MARKETPLACE_ARCHIVE_URL?.trim() ||
-				marketplaceArchiveUrl(normalizedRepository, ref),
-			ref,
-			enabled: true,
-			builtin: true,
-			autoUpdate: true,
-			priority: 100,
-			createdAt: timestamp,
-			updatedAt: timestamp,
-		},
-	];
+	const officialSource: MarketplaceSource = {
+		id: DEFAULT_MARKETPLACE_SOURCE_ID,
+		name: configuredRepository ? repositoryName(normalizedRepository) : OFFICIAL_MARKETPLACE_NAME,
+		type: "github",
+		repository: normalizedRepository,
+		archiveUrl:
+			process.env.AGENT567_OPEN_MARKETPLACE_ARCHIVE_URL?.trim() || marketplaceArchiveUrl(normalizedRepository, ref),
+		ref,
+		enabled: true,
+		builtin: true,
+		autoUpdate: true,
+		priority: 100,
+		createdAt: timestamp,
+		updatedAt: timestamp,
+	};
+	const expertPresetSource: MarketplaceSource = {
+		id: EXPERT_PRESET_MARKETPLACE_SOURCE_ID,
+		name: EXPERT_PRESET_MARKETPLACE_NAME,
+		type: "github",
+		repository: EXPERT_PRESET_MARKETPLACE_REPOSITORY,
+		archiveUrl: marketplaceArchiveUrl(EXPERT_PRESET_MARKETPLACE_REPOSITORY, EXPERT_PRESET_MARKETPLACE_REF),
+		ref: EXPERT_PRESET_MARKETPLACE_REF,
+		enabled: true,
+		builtin: true,
+		autoUpdate: true,
+		priority: 110,
+		createdAt: timestamp,
+		updatedAt: timestamp,
+	};
+	return [officialSource, expertPresetSource];
 }
 
 export class MarketplaceSourceStore {

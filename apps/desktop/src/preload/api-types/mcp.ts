@@ -3,6 +3,8 @@ export interface McpServerCommonConfigData {
 	autoApprove?: string[];
 	startupTimeout?: number;
 	debug?: boolean;
+	/** Connection ownership for global MCP config. Project config always remains workspace-scoped. */
+	resourceScope?: "application" | "workspace";
 	/** 仅 UI 展示用的可读名（mcp.json 里的 key 仍是真实 name）。 */
 	displayName?: string;
 	/** 仅 UI 展示用的描述。 */
@@ -38,13 +40,33 @@ export interface McpHttpServerConfigData extends McpServerCommonConfigData {
 	oauthScopes?: string;
 }
 
-export type McpServerConfigData = McpStdioServerConfigData | McpHttpServerConfigData;
+/**
+ * 旧式 HTTP+SSE 传输，仅为仍在使用它的服务器保留（新服务器请用 `http`）。
+ * 与 `http` 共用请求头与 OAuth 字段；没有受管 runtime，也不支持 modern 协议。
+ */
+export interface McpSseServerConfigData extends McpServerCommonConfigData {
+	type: "sse";
+	url: string;
+	headers?: Record<string, string>;
+	oauthClientId?: string;
+	oauthDeviceFlow?: boolean;
+	oauthScopes?: string;
+}
+
+export type McpServerConfigData = McpStdioServerConfigData | McpHttpServerConfigData | McpSseServerConfigData;
 
 export interface McpConfigData {
 	mcpServers: Record<string, McpServerConfigData>;
 }
 
+export interface McpAvailableTool {
+	name: string;
+	description?: string;
+}
+
 export interface DesktopMcpApi {
+	/** Discover all tools without calling them; releases the connection after discovery. */
+	listTools(serverName: string): Promise<McpAvailableTool[]>;
 	get(): Promise<McpConfigData>;
 	set(config: McpConfigData): Promise<void>;
 	/**

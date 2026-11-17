@@ -41,6 +41,8 @@ export const pageHeaderTitleAtom = atom<string | null>(null);
 export const pageHeaderRightSlotAtom = atom<ReactNode | null>(null);
 /** 顶栏左侧（侧边栏触发按钮之后、标题之前）的自定义插槽，如设置页的返回按钮。 */
 export const pageHeaderLeftSlotAtom = atom<ReactNode | null>(null);
+export const pageHeaderLeftActionsAtom = atom<ReactNode | null>(null);
+export const pageHeaderImmersiveAtom = atom(false);
 /** 紧贴顶栏标题 label 右侧的徽标插槽（如知识库「正在建立索引…」）。 */
 export const pageHeaderTitleBadgeAtom = atom<ReactNode | null>(null);
 // 设为 true 时彻底隐藏顶栏标题（连路由兜底标题也不显示），用于 NewSessionPage 等。
@@ -68,7 +70,8 @@ export type SettingsTab =
 	| "team"
 	| "context"
 	| "knowledge"
-	| "remote";
+	| "remote"
+	| "sshHosts";
 
 // ─── Theme ───
 

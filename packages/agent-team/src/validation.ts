@@ -50,8 +50,21 @@ const abilities = Type.Object(
 const optionalAbilities = Type.Partial(abilities, { additionalProperties: false });
 const resourceSource = Type.Object(
 	{
-		kind: Type.Literal("plugin"),
+		kind: Type.Union([Type.Literal("plugin"), Type.Literal("marketplace")]),
 		pluginId: id,
+		sourceId: Type.Optional(id),
+		repository: Type.Optional(text),
+		providerName: Type.Optional(text),
+		translations: Type.Optional(
+			Type.Record(
+				Type.String({ pattern: "^[a-z]{2}(?:-[A-Za-z0-9]+)?$" }),
+				Type.Object(
+					{ name: Type.String({ minLength: 1, maxLength: 128 }), description: text },
+					{ additionalProperties: false },
+				),
+				{ maxProperties: 32 },
+			),
+		),
 		nameKey: Type.Optional(id),
 		descriptionKey: Type.Optional(id),
 	},
@@ -102,6 +115,8 @@ export const CreateAgentProfileInputSchema = Type.Object(
 		avatar: Type.Optional(Type.String({ maxLength: 2_048 })),
 		mentionHandle: id,
 		blueprintId: id,
+		systemPrompt: Type.Optional(text),
+		copiedFrom: Type.Optional(id),
 		abilities: Type.Optional(optionalAbilities),
 	},
 	{ additionalProperties: false },

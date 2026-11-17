@@ -24,6 +24,9 @@ import type { DesktopTeamSessionSnapshot, DesktopTeamSessionStreamEvent } from "
 
 export interface DesktopAgentTeamsApi {
 	list(): Promise<AgentTeamDocument>;
+	getPresetSourceStatus(): Promise<ExpertPresetSourceStatus>;
+	refreshPresetSource(): Promise<void>;
+	onPresetSourceStatusChanged(listener: () => void): () => void;
 	/**
 	 * 订阅「配置被主进程改过」：插件装卸、启停与开发态热重载会在用户没动手时重铺插件预设。
 	 *
@@ -53,10 +56,21 @@ export interface DesktopAgentTeamsApi {
 		selection: TeamMemberModelSelection | null,
 	): Promise<Readonly<Record<string, TeamMemberModelPreference>>>;
 	setExecutionMode(id: string, mode: SessionExecutionMode): Promise<DesktopTeamSessionSnapshot>;
+	/** Reads archived metadata without restoring Team runtimes or queued work. */
 	getSession(reference: TeamSessionReference | string): Promise<DesktopTeamSessionSnapshot>;
 	subscribe(id: string, handler: (event: DesktopTeamSessionStreamEvent) => void): Promise<() => void>;
 	/** 弹出图片选择框，返回可直接作为 `<img src>` 的头像 URL；用户取消时返回 undefined。 */
 	uploadAvatar(): Promise<string | undefined>;
 	abort(id: string): Promise<void>;
 	sendMessage(id: string, input: SendTeamMessageInput): Promise<DesktopTeamSessionSnapshot>;
+}
+
+export interface ExpertPresetSourceStatus {
+	readonly phase: "idle" | "syncing" | "ready" | "error" | "disabled";
+	readonly sourceId?: string;
+	readonly sourceName?: string;
+	readonly syncedAt: string | null;
+	readonly count: number;
+	readonly hasCache: boolean;
+	readonly error?: string;
 }

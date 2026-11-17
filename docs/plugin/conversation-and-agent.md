@@ -395,6 +395,10 @@ const { stdout, exitCode } = await ctx.command.run("git", ["status", "--porcelai
 
 示例：`packages/plugins/presets/git`。
 
+### 应用图标 command.appIcon
+
+`ctx.command.appIcon(appName)`（macOS）返回某个已安装应用的图标，PNG data URL，没装返回 `null`，用来在菜单里展示应用自己的图标、并据此灰掉没装的应用。`appName` 是 `.app` 的文件名（不含扩展名），如 `"Visual Studio Code"`。需要 `agent.command.run`（它和 `open -Ra` 探测一样能得知本机装了什么）；**不需要**在清单 `commands` 里声明任何东西。只在 `/Applications`、`/System/Applications`（含 `Utilities`）、`/System/Library/CoreServices`、`~/Applications` 里找，名字不能带路径分隔符，所以不能借它读任意文件的图标。示例：`packages/plugins/presets/open-in-app`。
+
 ## 长驻进程 command.spawn
 
 `ctx.command.spawn` 启动**长驻**进程（如本地 dev server，ADR-0054）。治理与 `run` 同模式：清单 `commands` 声明二进制 + 用户可关；但权限是独立的 `agent.command.spawn`。
@@ -473,7 +477,7 @@ interface PluginFsApi {
   delete(targetPath): Promise<void>;                         // fs.write
   move(sourcePath, destDir): Promise<void>;                  // fs.write
   createDirectory(dirPath): Promise<void>;                   // fs.write
-  listFilesRecursive(rootPath): Promise<{ name; path; relPath }[]>; // fs.read
+  listFilesRecursive(rootPath, options?: { names?: readonly string[]; ignoredDirectories?: readonly string[] }): Promise<{ name; path; relPath }[]>; // fs.read
 }
 // PluginFsEntry: { name, path, isDirectory, size, modifiedAt }
 ```
@@ -629,3 +633,24 @@ function Panel() {
 宿主不再发现、安装或执行 scene 类型，Official 技能查询只返回普通 skill。SDK 中旧 scene 联合类型仅为现有插件保留源码兼容；传入 scene 的安装、卸载或路径操作会明确拒绝，避免误操作同名技能。旧场景目录、安装元数据和历史原文保留，不自动改写。
 
 调度任务的更新支持 `skill: null` 明确清除旧技能引用；省略该字段保留原值。旧场景定时和批量任务执行前会提示调整，编辑保存为普通任务后可继续运行。
+
+## 1.6 文件与官方自动化 API 迁移
+
+文件 API（API 2.8+）：`listFilesRecursive` 的 `names` 按文件基础名精确筛选，结果上限计算命中的文件；
+`ignoredDirectories` 追加忽略目录。旧宿主忽略 options，兼容旧宿主时需自行再筛选。
+`watchDirectory(path, listener)` 需要 `fs.read`，返回 `Disposable`；宿主合并文件事件并在插件退出时释放。
+`saveAs(defaultFileName, content, encoding?, options?)` 需要 `fs.write`，通过原生保存对话框由用户决定目标；
+取消返回 `null`，不能借它静默写项目外文件。
+
+只有受信任官方插件可调用 `ctx.official.scheduler`。1.6 的 create/update 使用
+`schedule`、`runTarget`、可选 `model`、`executionMode`、`skill`、`notification`。
+`schedule` 支持 once/hourly/daily/weekly/monthly/interval/custom；`runTarget` 明确每次新会话
+或同一个会话，后者 `sessionPath: null` 表示首次创建后绑定。项目路径省略时落到默认对话。
+
+旧插件输入 `cron/isOnce/cwd/modelKey` 仍由宿主边界转换，但不得和新字段混用；不能无损转换的
+间隔与 cron 修改会明确报错。list/get 返回新版结构，读取端须改读 `schedule/runTarget/model`，
+不能期待所有新规则都有旧 cron 表达式。旧文件保留备份后迁移到版本化自动化存储。
+
+新会话权限默认继承用户设置；绑定会话保留它自己的权限和计划模式，不会自动升为完全访问。
+新指定技能仅接受 `type: "skill"`；历史 scene 只读保留并暂停，需用户清除或重选。
+update 的 `model/notification/skill: null` 清除该项；未给出的字段保持原值。

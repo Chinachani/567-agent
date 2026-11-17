@@ -112,10 +112,13 @@ function createLabels(t: TFunction<"project">): ProjectCollaborationViewLabels {
 		unsaved: t("collaboration.unsaved"),
 		continueTask: t("collaboration.continueTask"),
 		continuing: t("collaboration.continuing"),
-		showMoreCandidates: t("collaboration.showMoreCandidates"),
-		showFewerCandidates: t("collaboration.showFewerCandidates"),
-		showAllTasks: t("collaboration.showAllTasks"),
-		showFewerTasks: t("collaboration.showFewerTasks"),
+		taskSearch: t("collaboration.taskSearch"),
+		noTasksMatch: t("collaboration.noTasksMatch"),
+		pagination: {
+			previous: t("collaboration.pagination.previous"),
+			next: t("collaboration.pagination.next"),
+			summary: (page, pages, total) => t("collaboration.pagination.summary", { page, pages, total }),
+		},
 	};
 }
 
@@ -223,6 +226,12 @@ export function useProjectCollaborationModel(
 		});
 		return unsubscribe;
 	}, [cwd, load]);
+
+	useEffect(() => {
+		void cwd;
+		setSearch("");
+		setExpandedTaskIds([]);
+	}, [cwd]);
 
 	const isDirty = Boolean(snapshot && draft && !sameConfig(draft, snapshot.config));
 	const updateDraft = useCallback(

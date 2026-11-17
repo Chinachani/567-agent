@@ -1,3 +1,5 @@
+export type { AutomationDetailPaneViewProps, AutomationDetailStatusTone } from "./AutomationDetailPaneView";
+export { AutomationDetailPaneView } from "./AutomationDetailPaneView";
 export type {
 	AutomationPageViewLabels,
 	AutomationPageViewProps,
@@ -24,7 +26,6 @@ export type {
 export { TaskFormDialogView } from "./TaskFormDialogView";
 export type {
 	TaskListItemView,
-	TaskListViewLabels,
 	TaskListViewProps,
 } from "./TaskListView";
 export { TaskListView } from "./TaskListView";

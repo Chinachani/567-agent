@@ -29,6 +29,9 @@ internal fun RemoteDesktopPreview(
     onFullscreen: () -> Unit,
     modifier: Modifier = Modifier,
     latency: String? = null,
+    reconnectingMessage: String? = null,
+    waitingMessage: String = Str.remoteCaptureWaiting,
+    onDiagnostics: (() -> Unit)? = null,
     video: @Composable () -> Unit,
 ) {
     Column(modifier, verticalArrangement = Arrangement.spacedBy(8.dp)) {
@@ -45,7 +48,23 @@ internal fun RemoteDesktopPreview(
                     Surface(color = MaterialTheme.colorScheme.surfaceContainerLow) {
                         Row(Modifier.padding(16.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
                             CircularProgressIndicator(Modifier.size(20.dp), strokeWidth = 2.dp)
-                            Text(Str.remoteCaptureWaiting, style = MaterialTheme.typography.bodySmall)
+                            Text(waitingMessage, style = MaterialTheme.typography.bodySmall)
+                        }
+                    }
+                }
+                if (phase == RemotePreviewPhase.Ready && reconnectingMessage != null) {
+                    Surface(
+                        modifier = Modifier.align(Alignment.TopCenter).padding(8.dp),
+                        shape = MaterialTheme.shapes.large,
+                        color = MaterialTheme.colorScheme.surfaceContainerHigh.copy(alpha = 0.92f),
+                    ) {
+                        Row(
+                            Modifier.padding(horizontal = 12.dp, vertical = 6.dp),
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(8.dp),
+                        ) {
+                            CircularProgressIndicator(Modifier.size(14.dp), strokeWidth = 2.dp)
+                            Text(reconnectingMessage, style = MaterialTheme.typography.labelSmall)
                         }
                     }
                 }
@@ -59,5 +78,9 @@ internal fun RemoteDesktopPreview(
                 }
             }
         }
+        if (onDiagnostics != null) TextButton(onClick = onDiagnostics, modifier = Modifier.heightIn(min = 48.dp)) {
+            Text(Str.connectionStatus)
+        }
+
     }
 }

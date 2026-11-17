@@ -6,9 +6,21 @@ import type {
 } from "@567agent/agent-team";
 import type { SessionExecutionMode } from "@567agent/runtime-core";
 import type { DesktopTeamSessionSnapshot } from "@preload/api-types/team-conversation-display";
+import { i18n } from "@shared/i18n";
 
 const SESSION_STORAGE_PREFIX = "vetta.agent-team.session.";
 const pendingSessionCreations = new Map<string, Promise<LoadedTeamChatSession>>();
+
+export function hasStoredTeamChatSession(teamId: string): boolean {
+	return window.localStorage.getItem(`${SESSION_STORAGE_PREFIX}${teamId}`) !== null;
+}
+
+export class EmptyTeamHistoryError extends Error {
+	constructor() {
+		super(i18n.t("agent-teams:experts.emptyHistory"));
+		this.name = "EmptyTeamHistoryError";
+	}
+}
 
 export interface LoadedTeamChatSession {
 	readonly document?: AgentTeamDocument;
@@ -56,7 +68,7 @@ export async function loadTeamChatSession(teamId: string, preferredSessionId?: s
 	}
 	if (sessions[0]) return openTeamChatSession(document, sessions, storageKey, sessions[0]);
 
-	return createTeamChatSession(teamId, document, sessions);
+	throw new EmptyTeamHistoryError();
 }
 
 export async function createTeamChatSession(

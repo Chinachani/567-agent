@@ -15,7 +15,10 @@ fun App(
     pairingInvite: String? = null,
     onPairingInviteHandled: () -> Unit = {},
     notificationSessionId: String? = null,
+    notificationAction: String? = null,
     onNotificationHandled: () -> Unit = {},
+    sharedContent: org.agent567.android.domain.session.SharedDraftContent? = null,
+    onSharedTextHandled: (String) -> Unit = {},
 ) {
     CompositionLocalProvider(LocalAppContainer provides container) {
         RootApp(
@@ -23,7 +26,10 @@ fun App(
             pairingInvite = pairingInvite,
             onPairingInviteHandled = onPairingInviteHandled,
             notificationSessionId = notificationSessionId,
+            notificationAction = notificationAction,
             onNotificationHandled = onNotificationHandled,
+            sharedContent = sharedContent,
+            onSharedTextHandled = onSharedTextHandled,
         )
     }
 }

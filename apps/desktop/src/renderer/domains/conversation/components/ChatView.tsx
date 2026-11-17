@@ -1,7 +1,15 @@
-import { pageHeaderLeftSlotAtom, pageHeaderRightSlotAtom } from "@shared/store/atoms";
+import { useOpenTerminal } from "@domains/bottom-panel/hooks/useOpenTerminal";
+import { useBottomPanelToggle } from "@domains/bottom-panel/hooks/useBottomPanelToggle";
+import type { WorkSurfaceScope } from "@shared/workspace/work-surface";
+import {
+	currentScenarioAtom,
+	pageHeaderLeftActionsAtom,
+	pageHeaderRightSlotAtom,
+	pageHeaderImmersiveAtom,
+} from "@shared/store/atoms";
 import { useActiveSessionRuntimeIds } from "@shared/workspace/active-session-runtime";
 import { createActivityWorkspace } from "@shared/workspace/activity-workspace";
-import { useSetAtom } from "jotai";
+import { useAtomValue, useSetAtom } from "jotai";
 import { memo, useCallback, useEffect, useMemo } from "react";
 import { useBoundAgentParticipants } from "../hooks/useBoundAgentParticipants";
 import { useChatViewModel } from "../hooks/useChatViewModel";
@@ -22,7 +30,8 @@ export const DefaultChatComposer = memo(function DefaultChatComposer({
 	onAbort,
 	onSendQueued,
 	cwdOverride,
-}: ChatViewProps): JSX.Element {
+	workSurface,
+}: ChatViewProps & { workSurface?: WorkSurfaceScope | null }): JSX.Element {
 	return (
 		<ChatComposer>
 			<DefaultInputBarConnector
@@ -30,6 +39,7 @@ export const DefaultChatComposer = memo(function DefaultChatComposer({
 				onAbort={onAbort}
 				onSendQueued={onSendQueued}
 				cwdOverride={cwdOverride}
+				workSurface={workSurface}
 			/>
 		</ChatComposer>
 	);
@@ -38,12 +48,27 @@ export const DefaultChatComposer = memo(function DefaultChatComposer({
 export function ChatView(props: ChatViewProps): JSX.Element {
 	const { actions, model } = useChatViewModel();
 	const participants = useBoundAgentParticipants();
+	const scenario = useAtomValue(currentScenarioAtom) ?? undefined;
+	const workSurface = useMemo<WorkSurfaceScope | null>(
+		() => (model.sessionId ? { key: model.sessionId, cwd: model.cwd, scenario } : null),
+		[model.sessionId, model.cwd, scenario],
+	);
+	const terminal = useOpenTerminal(workSurface);
+	const bottomPanel = useBottomPanelToggle(workSurface);
 	const runtimeIds = useActiveSessionRuntimeIds();
 	const setHeaderRightSlot = useSetAtom(pageHeaderRightSlotAtom);
-	const setHeaderLeftSlot = useSetAtom(pageHeaderLeftSlotAtom);
+	const setHeaderImmersive = useSetAtom(pageHeaderImmersiveAtom);
+	const setHeaderLeftSlot = useSetAtom(pageHeaderLeftActionsAtom);
 	const headerActions = useMemo(
-		() => <ChatHeaderActionsView actions={actions} model={model.header} />,
-		[actions, model.header],
+		() => (
+			<ChatHeaderActionsView
+				actions={actions}
+				model={model.header}
+				terminal={terminal}
+				bottomPanel={workSurface ? bottomPanel : undefined}
+			/>
+		),
+		[actions, model.header, terminal, bottomPanel, workSurface],
 	);
 	const workspace = useMemo(
 		() => createActivityWorkspace(model.cwd ?? model.sessionId ?? "conversation:unbound", model.cwd, runtimeIds),
@@ -63,10 +88,16 @@ export function ChatView(props: ChatViewProps): JSX.Element {
 		return () => setHeaderLeftSlot(null);
 	}, [setHeaderLeftSlot]);
 
+	useEffect(() => {
+		setHeaderImmersive(true);
+		return () => setHeaderImmersive(false);
+	}, [setHeaderImmersive]);
+
 	return (
 		<DefaultChatView
 			messages={model.messages}
 			workspace={workspace}
+			workSurface={workSurface}
 			rootClassName={model.rootClassName}
 			exportState={model.exporting ? { title: model.exportTitle, onFinished: actions.finishExport } : undefined}
 		>
@@ -83,7 +114,7 @@ export function ChatView(props: ChatViewProps): JSX.Element {
 				/>
 			</SessionAssistantRendering>
 			<SessionTaskProgress />
-			<DefaultChatComposer {...props} />
+			<DefaultChatComposer {...props} workSurface={workSurface} />
 		</DefaultChatView>
 	);
 }

@@ -113,6 +113,7 @@ export type {
 	GuideBadgeViewItem,
 } from "./GuideBadgeSwiperView";
 export { GuideBadgeSwiperView } from "./GuideBadgeSwiperView";
+export * from "./HeaderActionBarView.js";
 export type { InlineTokenChipProps } from "./InlineTokenChip";
 export { InlineTokenChip } from "./InlineTokenChip";
 export type {
@@ -286,6 +287,8 @@ export {
 } from "./MessageVisualView";
 export type { ModelPerformanceViewProps } from "./ModelPerformanceView";
 export { ModelPerformanceView } from "./ModelPerformanceView";
+export type { ModelSelectorTriggerVariant } from "./ModelSelectorTrigger";
+export { ModelSelectorTrigger } from "./ModelSelectorTrigger";
 export type {
 	ModelSelectorLabels,
 	ModelSelectorOptionView,

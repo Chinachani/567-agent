@@ -1,3 +1,4 @@
+import { stageReleaseNote } from "./stage-release-note.mjs";
 import { execFileSync } from "node:child_process";
 import { chmodSync, cpSync, existsSync, mkdirSync, readFileSync, readdirSync, rmSync, writeFileSync } from "node:fs";
 import { createRequire } from "node:module";
@@ -216,6 +217,17 @@ for (const dep of optionalExternalDeps) {
 		externalDepInfos.push(toExternalDepInfo(dep));
 	} catch {
 		console.warn(`[prepare-pack] optional external dep ${dep} not resolvable on this host; skipping`);
+	}
+}
+
+// Optional platform packages are optional at install time, not for the selected release target.
+for (const platformTag of resolvePlatformTagsFromEnv()) {
+ // The pinned PTY distribution has no Linux ARM64 binary. Its capability probe
+ // reports unavailable there; keep the existing ARM64 desktop package buildable.
+ if (platformTag === "linux-arm64") continue;
+	const dep = `@lydell/node-pty-${platformTag}`;
+	if (!externalDepInfos.some((info) => info.dep === dep)) {
+		throw new Error(`[prepare-pack] missing terminal native dependency for target: ${dep}`);
 	}
 }
 
@@ -569,9 +581,12 @@ stageSystemThemesFromArchives(join(buildStageDir, "system-themes"), "prepare-pac
 stageSystemSkills(join(buildStageDir, "system-skills"), "prepare-pack");
 await stageBrowserExtension(join(projectRoot, "resources", "browser-extension"), buildStageDir);
 
+stageReleaseNote({ projectRoot, stageDir: buildStageDir, version: appVersion });
+
 function resolveExtraResources() {
 	const extraResources = [
 		BROWSER_EXTENSION_RESOURCE,
+		{ from: "release-notes", to: "release-notes", filter: ["*.md"] },
 		{
 			from: "im-gateway",
 			to: "im-gateway",

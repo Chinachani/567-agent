@@ -91,7 +91,10 @@ export class TeamRuntimeManager {
 				...promptContext,
 				agentConfiguration: {
 					template: null,
-					overrides: toAgentConfigurationOverrides(profile.abilities, pinnedAbilityContext(blueprint)),
+					overrides: toAgentConfigurationOverrides(
+						profile.abilities,
+						pinnedAbilityContext(profile.copiedFrom ? undefined : blueprint),
+					),
 				},
 				sessionRuntimeTools: this.options.createTeamToolRegistrations(teamSessionId),
 			},
@@ -285,7 +288,10 @@ export class TeamRuntimeManager {
 					),
 					agentConfiguration: {
 						template: null,
-						overrides: toAgentConfigurationOverrides(profile.abilities, pinnedAbilityContext(blueprint)),
+						overrides: toAgentConfigurationOverrides(
+							profile.abilities,
+							pinnedAbilityContext(profile.copiedFrom ? undefined : blueprint),
+						),
 					},
 					sessionRuntimeTools: runtimeTools,
 				},

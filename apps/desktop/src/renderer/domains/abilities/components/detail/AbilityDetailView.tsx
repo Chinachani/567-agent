@@ -13,6 +13,7 @@ import { AbilityShowcaseList } from "./AbilityShowcaseList";
 import { BundleInstallDialog } from "./BundleInstallDialog";
 import { BundleMembersSection } from "./BundleMembersSection";
 import { BundleUninstallDialog } from "./BundleUninstallDialog";
+import { McpToolsSection } from "./McpToolsSection";
 import { McpAbilitySection } from "./McpAbilitySection";
 import { McpAbilitySettingsView } from "./McpAbilitySettingsView";
 import { PluginAbilitySection } from "./PluginAbilitySection";
@@ -162,7 +163,12 @@ export function AbilityDetailView({
 			<div className="mt-1 flex flex-col gap-6 border-t border-border/50 pt-6">
 				<DetailDrawerEnter index={3}>
 					{item.type === "plugin" ? <PluginAbilitySection item={item} model={model} /> : null}
-					{item.type === "mcp" ? <McpAbilitySection item={item} model={model} /> : null}
+					{item.type === "mcp" ? (
+						<>
+							<McpAbilitySection item={item} model={model} />
+							<McpToolsSection item={item} model={model} />
+						</>
+					) : null}
 					{item.type === "bundle" ? <BundleMembersSection item={item} /> : null}
 				</DetailDrawerEnter>
 

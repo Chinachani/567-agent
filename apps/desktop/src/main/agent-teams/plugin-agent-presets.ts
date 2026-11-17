@@ -113,12 +113,18 @@ export interface PluginAgentPresetLogger {
 	warn(message: string, meta?: Record<string, unknown>): void;
 }
 
+/** Resources only: no executable entry or granted plugin capabilities. */
+export interface AgentPresetPackage
+	extends Pick<InstalledPlugin, "id" | "name" | "agent" | "defaultLocale" | "locales" | "enabled" | "rootPath"> {
+	readonly presetSource?: { readonly sourceId: string; readonly repository: string };
+}
+
 export interface BuildPluginAgentPresetsInput {
-	readonly plugins: readonly InstalledPlugin[];
+	readonly plugins: readonly AgentPresetPackage[];
 	readonly logger: PluginAgentPresetLogger;
 	/** 覆盖磁盘读取，仅测试用。 */
-	readonly readResource?: (plugin: InstalledPlugin, relativePath: string) => string | undefined;
-	readonly readBinaryResource?: (plugin: InstalledPlugin, relativePath: string) => Buffer | undefined;
+	readonly readResource?: (plugin: AgentPresetPackage, relativePath: string) => string | undefined;
+	readonly readBinaryResource?: (plugin: AgentPresetPackage, relativePath: string) => Buffer | undefined;
 }
 
 /** 已解析的智能体索引，供团队装配阶段查引用。 */
@@ -147,6 +153,9 @@ export function buildPluginAgentPresets(input: BuildPluginAgentPresetsInput): Pl
 			try {
 				agents.push(buildAgentPreset(plugin, declared, input));
 			} catch (error) {
+				// A source snapshot is atomic: never replace its declarations with a
+				// partial list when a cached resource disappears during rebuilding.
+				if (plugin.presetSource) throw error;
 				input.logger.warn("skipping a plugin agent contribution", {
 					pluginId: plugin.id,
 					agentId: declared.id,
@@ -200,8 +209,8 @@ function agentRefKey(pluginId: string, agentId: string): string {
 }
 
 function buildAgentPreset(
-	plugin: InstalledPlugin,
-	declared: NonNullable<NonNullable<InstalledPlugin["agent"]>["agents"]>[number],
+	plugin: AgentPresetPackage,
+	declared: NonNullable<NonNullable<AgentPresetPackage["agent"]>["agents"]>[number],
 	input: BuildPluginAgentPresetsInput,
 ): PluginAgentPreset {
 	const systemPrompt = declared.systemPromptPath
@@ -222,17 +231,44 @@ function buildAgentPreset(
 		nameKey: "",
 		descriptionKey: "",
 		// 原样保留 `%key%`：渲染进程拿插件 locales 现场解析，切语言才能立刻跟上。
-		name: rawName,
-		description: rawDescription,
+		name: plugin.presetSource ? resolvePluginText(rawName, plugin.locales ?? {}, defaultLocale) : rawName,
+		description: plugin.presetSource
+			? resolvePluginText(rawDescription, plugin.locales ?? {}, defaultLocale)
+			: rawDescription,
 		systemPrompt: systemPrompt.trimEnd(),
-		defaultAbilities:
-			declared.abilities === "own"
+		defaultAbilities: plugin.presetSource
+			? { ...EMPTY_AGENT_ABILITIES, selectionMode: "custom" }
+			: declared.abilities === "own"
 				? { ...EMPTY_AGENT_ABILITIES, selectionMode: "custom", plugins: [plugin.id] }
 				: { selectionMode: "all", skills: [], mcpServers: [], plugins: [] },
-		source: { kind: "plugin", pluginId: plugin.id },
+		source: plugin.presetSource
+			? {
+					kind: "marketplace",
+					pluginId: plugin.id,
+					...plugin.presetSource,
+					providerName: resolvePluginText(plugin.name, plugin.locales ?? {}, defaultLocale),
+					translations: Object.fromEntries(
+						Object.keys(plugin.locales ?? {}).map((locale) => [
+							locale,
+							{
+								name: resolvePluginText(
+									rawName,
+									{ [locale]: { ...plugin.locales?.[defaultLocale], ...plugin.locales?.[locale] } },
+									locale,
+								),
+								description: resolvePluginText(
+									rawDescription,
+									{ [locale]: { ...plugin.locales?.[defaultLocale], ...plugin.locales?.[locale] } },
+									locale,
+								),
+							},
+						]),
+					),
+				}
+			: { kind: "plugin", pluginId: plugin.id },
 		...(avatarUrl ? { avatarUrl } : {}),
 		// 这个智能体存在的意义就是操作它自己的插件，能力面板关不掉它。
-		pinnedPlugins: [plugin.id],
+		...(plugin.presetSource ? {} : { pinnedPlugins: [plugin.id] }),
 	};
 
 	return {
@@ -294,8 +330,8 @@ function teamMemberSlotKey(member: DeclaredTeamMember): string {
 }
 
 function buildTeamPreset(
-	plugin: InstalledPlugin,
-	declared: NonNullable<NonNullable<InstalledPlugin["agent"]>["teams"]>[number],
+	plugin: AgentPresetPackage,
+	declared: NonNullable<NonNullable<AgentPresetPackage["agent"]>["teams"]>[number],
 	index: AgentPresetIndex,
 	input: BuildPluginAgentPresetsInput,
 ): PluginTeamPreset {
@@ -351,7 +387,7 @@ function buildTeamPreset(
 }
 
 function readTextResource(
-	plugin: InstalledPlugin,
+	plugin: AgentPresetPackage,
 	relativePath: string,
 	input: BuildPluginAgentPresetsInput,
 ): string | undefined {
@@ -362,7 +398,7 @@ function readTextResource(
 }
 
 function readAvatarDataUrl(
-	plugin: InstalledPlugin,
+	plugin: AgentPresetPackage,
 	relativePath: string,
 	input: BuildPluginAgentPresetsInput,
 ): string | undefined {
@@ -378,14 +414,14 @@ function readAvatarDataUrl(
 	return `data:${mediaType};base64,${content.toString("base64")}`;
 }
 
-function readBinaryResource(plugin: InstalledPlugin, relativePath: string): Buffer | undefined {
+function readBinaryResource(plugin: AgentPresetPackage, relativePath: string): Buffer | undefined {
 	const target = safeResolve(plugin, relativePath);
 	if (!target || !existsSync(target)) return undefined;
 	return readFileSync(target);
 }
 
 /** 越界检查：manifest 里的相对路径不许跳出插件目录。 */
-function safeResolve(plugin: InstalledPlugin, relativePath: string): string | undefined {
+function safeResolve(plugin: AgentPresetPackage, relativePath: string): string | undefined {
 	const root = plugin.rootPath;
 	if (!root) return undefined;
 	const target = resolve(root, relativePath);

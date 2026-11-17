@@ -13,14 +13,7 @@ import { useTextFileEditor } from "../hooks/useTextFileEditor";
 import { TextPreviewRenderer } from "./TextPreviewRenderer";
 
 /** Formats with a real rendered surface (not just re-showing source). */
-const RENDERED_PREVIEW_EXTENSIONS = new Set([
-	"html",
-	"htm",
-	"xhtml",
-	"md",
-	"mdx",
-	"markdown",
-]);
+const RENDERED_PREVIEW_EXTENSIONS = new Set(["html", "htm", "xhtml", "md", "mdx", "markdown"]);
 
 function resolvePreviewExtension(item: FilePreviewItem): string {
 	return getExtension(item.name) || (item.path ? getExtension(item.path) : "");
@@ -57,11 +50,13 @@ export function EditableTextFileView({
 		return () => window.removeEventListener(FILE_EDITOR_SAVE_EVENT, handleSave);
 	}, [model.save]);
 
-	const getErrorText = (error: unknown): string => {
+	const getErrorText = (error: unknown, saving = false): string => {
 		const message = error instanceof Error ? error.message : String(error);
+		if (message.includes(FS_EDITABLE_TEXT_ERROR.CHECKED_SAVE_UNAVAILABLE))
+			return t("fileEditor.errorCheckedSaveUnavailable");
 		if (message.includes(FS_EDITABLE_TEXT_ERROR.TOO_LARGE)) return t("fileEditor.errorTooLarge");
 		if (message.includes(FS_EDITABLE_TEXT_ERROR.NOT_UTF8)) return t("fileEditor.errorNotUtf8");
-		return t("fileEditor.errorRead");
+		return t(saving ? "fileEditor.errorSave" : "fileEditor.errorRead");
 	};
 
 	let state: TextFileEditorViewState;
@@ -86,7 +81,7 @@ export function EditableTextFileView({
 			hasConflict: Boolean(document.conflictRevision),
 			conflictMessage: t("fileEditor.conflict"),
 			inlineError: model.saveError
-				? t("fileEditor.errorSave")
+				? getErrorText(model.saveError, true)
 				: model.loadStatus === "error"
 					? getErrorText(model.loadError)
 					: undefined,

@@ -76,7 +76,7 @@ import {
 	parseSessionMigrationArchive,
 	SESSION_MIGRATION_MAX_BYTES,
 } from "../conversations/session-migration-backup.js";
-import { isConversationSubCwd, readSessionCwdFromHeader } from "../conversations/session-paths.js";
+import { isConversationSubCwd, readSessionCwdFromHeader, samePath } from "../conversations/session-paths.js";
 import { listRuntimeSessionProjects, listSessionHistory } from "../conversations/session-query-service.js";
 import { slimSessionEventForIpc } from "../conversations/slim-session-event-for-ipc.js";
 import { getDesktopUserQuestionBroker } from "../conversations/user-question-broker.js";
@@ -97,6 +97,7 @@ import {
 import { getProjectCollaborationService } from "../project-collaboration/service.js";
 import { getSharedRuntime } from "../runtime.js";
 import { assertSandboxAvailableForMode } from "../sandbox/capability.js";
+import { notifyAutomationSessionsDeleted } from "../scheduler/session-deletion.js";
 import {
 	DEFAULT_CONVERSATION_CWD,
 	DEFAULT_CONVERSATION_SESSION_DIR,
@@ -1384,6 +1385,7 @@ export function registerSessionIpc(webContents: WebContents): () => void {
 		// 连带回收子目录里的产物。读 header 先取 cwd，再 delete，最后 rm 子目录。
 		const cwdFromHeader = await readSessionCwdFromHeader(sessionPath);
 		await runtime.deleteSession(sessionPath);
+		notifyAutomationSessionsDeleted((path) => samePath(path, sessionPath));
 		if (cwdFromHeader && isConversationSubCwd(cwdFromHeader)) {
 			await rm(resolve(cwdFromHeader), { recursive: true, force: true }).catch((err) => {
 				sessionLog.error("failed to remove conversation sub cwd", cwdFromHeader, err);
@@ -1395,7 +1397,10 @@ export function registerSessionIpc(webContents: WebContents): () => void {
 		assertNonEmptyString(cwd, "cwd");
 		return purgeProjectSessions(cwd, {
 			listSessions: (target) => listSessionHistory(target),
-			deleteSession: (sessionPath) => runtime.deleteSession(sessionPath),
+			deleteSession: async (sessionPath) => {
+				await runtime.deleteSession(sessionPath);
+				notifyAutomationSessionsDeleted((path) => samePath(path, sessionPath));
+			},
 			// 分片目录是新会话的落点；`<项目>/.vetta/sessions` 是存量兼容位置，随项目目录
 			// 一起消失，这里不重复处理（见 composition.resolveDesktopRuntimeSessionRoots）。
 			resolveSessionDirs: (target) => [codingAgentSessionShardPath(target)],

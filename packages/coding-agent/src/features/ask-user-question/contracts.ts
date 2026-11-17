@@ -23,3 +23,6 @@ export const CODING_AGENT_ASK_USER_QUESTION_FUNCTION = defineSessionExtensionFun
 	CodingAgentQuestionFunctionRequest,
 	CodingAgentQuestionResult
 >(CODING_AGENT_ASK_USER_QUESTION_EXTENSION_ID, "request");
+
+/** This turn runs in the background without an interactive question handler. */
+export const CODING_AGENT_UNATTENDED_TURN_METADATA_KEY = "unattended";

@@ -1,6 +1,7 @@
-import { basename, join } from "node:path";
+import { basename, dirname, join } from "node:path";
 import { pathToFileURL } from "node:url";
 import { CONFIG_DIR_NAME, VERSION } from "@567agent/coding-agent/config";
+import { resolveProjectSettingsPath } from "@567agent/runtime-desktop";
 import type { McpServerConfig } from "@567agent/runtime-mcp";
 import {
 	EMPTY_MCP_CONFIG_SOURCE,
@@ -10,23 +11,26 @@ import {
 	type McpServerSupervisor,
 } from "@567agent/runtime-mcp";
 import { createMcpClient, createNodeMcpSupervisor, FileMcpConfigSource } from "@567agent/runtime-node/mcp";
+import { isSshProjectUri } from "@567agent/ssh-transport";
 import { ensureOpenMarketplaceManagedMcpRuntime } from "../abilities/open-marketplace/open-marketplace-mcp-runtime-host.js";
 import { getDesktopMcpElicitationBroker } from "../conversations/mcp-elicitation-broker.js";
 import { getAppLogger } from "../logger.js";
 import { scopeDesktopMcpConfigSource } from "./mcp-config-scope.js";
+import { type DesktopMcpResourceScope, resolveDesktopMcpServerResourceScope } from "./mcp-resource-scope.js";
 
 export interface DesktopMcpSupervisorOptions {
 	readonly projectRoot: string;
 	readonly agentDir: string;
 	readonly debug: boolean;
 	readonly dynamicOnly?: boolean;
+	readonly resourceScope?: DesktopMcpResourceScope;
 	readonly fileScope?: "shared" | "session";
 	/** Sampling stays unavailable unless the product composition injects an approved model policy. */
 	readonly samplingHandler?: McpServerInteractionHandlers["sampling"];
 }
 
 export function createDesktopMcpInteractionHandlers(
-	options: Pick<DesktopMcpSupervisorOptions, "projectRoot" | "samplingHandler">,
+	options: Pick<DesktopMcpSupervisorOptions, "projectRoot" | "resourceScope" | "samplingHandler">,
 	onDiagnostic: (message: string) => void = () => undefined,
 ): McpServerInteractionHandlers {
 	const elicitationBroker = getDesktopMcpElicitationBroker();
@@ -36,11 +40,23 @@ export function createDesktopMcpInteractionHandlers(
 			onDiagnostic(`interaction completed method=elicitation/create action=${result.action}`);
 			return result;
 		},
-		roots: async () => ({
-			roots: [{ uri: pathToFileURL(options.projectRoot).href, name: basename(options.projectRoot) || "workspace" }],
-		}),
+		...(options.resourceScope === "application"
+			? {}
+			: { roots: async () => ({ roots: resolveMcpRoots(options.projectRoot) }) }),
 		...(options.samplingHandler ? { sampling: options.samplingHandler } : {}),
 	};
+}
+
+/**
+ * 向 MCP server 通告的工作区根。
+ *
+ * MCP server 跑在本机，只能碰本机文件；远程项目在本机没有对应的目录，所以如实通告
+ * 「没有根」。把项目 URI 交给 `pathToFileURL` 会得到一个指向本机进程 cwd 之下的假
+ * `file://` 地址，filesystem 类的 server 会把它当成可以读写的工作区。
+ */
+export function resolveMcpRoots(projectRoot: string): { uri: string; name: string }[] {
+	if (isSshProjectUri(projectRoot)) return [];
+	return [{ uri: pathToFileURL(projectRoot).href, name: basename(projectRoot) || "workspace" }];
 }
 
 function managedRuntimeId(config: unknown): string | undefined {
@@ -60,29 +76,44 @@ export function createDesktopMcpSupervisor(options: DesktopMcpSupervisorOptions)
 			return;
 		}
 		const isFailure = /failed|error|exit|timeout|invalid|unauthorized/i.test(message);
-		if (isFailure) log.warn(message);
+		if (message.startsWith("MCP server startup timing ")) log.info(message);
+		else if (isFailure) log.warn(message);
 		else if (options.debug) log.debug(message);
 	};
 	const interactionHandlers = createDesktopMcpInteractionHandlers(options, writeDiagnostic);
+	const remote = isSshProjectUri(options.projectRoot);
+	const settingsRoot = remote
+		? dirname(resolveProjectSettingsPath(options.projectRoot, options.agentDir))
+		: join(options.projectRoot, CONFIG_DIR_NAME);
+	const configSource = options.dynamicOnly
+		? EMPTY_MCP_CONFIG_SOURCE
+		: new FileMcpConfigSource({
+				globalConfigPath: join(options.agentDir, "mcp.json"),
+				projectConfigPath: join(settingsRoot, "mcp.json"),
+				fallbackProjectConfigPath:
+					!remote && CONFIG_DIR_NAME === ".567agent" ? join(options.projectRoot, ".vetta", "mcp.json") : undefined,
+				compatProjectConfigPath: remote ? undefined : join(options.projectRoot, ".mcp.json"),
+				projectRoot: options.projectRoot,
+				onDiagnostic: writeDiagnostic,
+				...(options.resourceScope || remote
+					? {
+							includeServer: ({ origin, config }: { origin: "global" | "project"; config: McpServerConfig }) =>
+								(!remote ||
+									(origin === "global" &&
+										resolveDesktopMcpServerResourceScope(origin, config) === "application")) &&
+								(!options.resourceScope ||
+									resolveDesktopMcpServerResourceScope(origin, config) === options.resourceScope),
+						}
+					: {}),
+			});
 	return createNodeMcpSupervisor({
-		projectRoot: options.projectRoot,
+		projectRoot: remote ? options.agentDir : options.projectRoot,
 		agentDir: options.agentDir,
 		clientVersion: VERSION,
 		projectConfigDirectoryName: CONFIG_DIR_NAME,
 		debug: options.debug,
 		enabled: true,
-		configSource: options.dynamicOnly
-			? EMPTY_MCP_CONFIG_SOURCE
-			: scopeDesktopMcpConfigSource(
-					new FileMcpConfigSource({
-						globalConfigPath: join(options.agentDir, "mcp.json"),
-						projectConfigPath: join(options.projectRoot, CONFIG_DIR_NAME, "mcp.json"),
-						fallbackProjectConfigPath:
-							CONFIG_DIR_NAME === ".567agent" ? join(options.projectRoot, ".vetta", "mcp.json") : undefined,
-						projectRoot: options.projectRoot,
-					}),
-					options.fileScope ?? "shared",
-				),
+		configSource: scopeDesktopMcpConfigSource(configSource, options.fileScope ?? "shared"),
 		includeBuiltinServers: false,
 		clientFactory: (name, config, clientOptions) => {
 			const runtimeId = config.type === "http" ? managedRuntimeId(config) : undefined;

@@ -74,6 +74,7 @@
 | 活动面板 Tab | `ctx.ui.registerActivityTab` / `openActivityTab` | `ui.slot.activity-tab` | [ui-slots](./ui-slots.md#活动面板-tab-registeractivitytab) |
 | 输入栏动作（toggle） | `ctx.ui.registerInputAction` | `ui.slot.input-action` | [ui-slots](./ui-slots.md#输入栏动作-registerinputaction) |
 | **新会话上下文区**（输入框下方的素材区） | `ctx.ui.registerNewSessionContext` | `ui.slot.new-session-context` | [ui-slots](./ui-slots.md#新会话上下文区-registernewsessioncontext) |
+| **会话页顶栏动作**（宿主统一按钮组里的一格，声明式、用户可收纳与拖动，如「用外部应用打开」） | `ctx.ui.registerHeaderAction` | `ui.slot.header-action` | [ui-slots](./ui-slots.md#会话页顶栏动作-registerheaderaction) |
 | 消息卡片渲染器 | `ctx.ui.registerCardRenderer` | `ui.slot.message` | [message-cards](./message-cards.md) |
 | 工具行内渲染替换 | `ctx.ui.registerToolCallSlot` | `ui.slot.tool-call` | [ui-slots](./ui-slots.md#工具行内渲染-registertoolcallslot) |
 | 本轮 Turn 卡 | `ctx.ui.registerTurnCard` | `ui.slot.turn-card` | [ui-slots](./ui-slots.md#本轮-turn-卡-registerturncard) |
@@ -91,6 +92,7 @@
 | 宿主管理的浏览器自动化 | `ctx.browser.*` | `browser.*` | [browser](./browser.md) |
 | 插件私有持久化 | `ctx.storage.*` | `storage.read` / `storage.write` | [conversation-and-agent](./conversation-and-agent.md#插件私有存储-api) |
 | 调用用户 AI 模型（单轮/多轮+插件内部工具） | `ctx.ai.listModels/complete/chat` | `ai.models.list` / `ai.complete` | [ai](./ai.md) |
+| **让用户选模型**（宿主输入栏同一个选择器，勿自拼列表） | `<ModelPicker value onChange />` | 无 | [ai](./ai.md#让用户选模型modelpicker) |
 | 读写自身密钥 | `ctx.secrets.*` | `secrets.read` / `secrets.write` | [conversation-and-agent](./conversation-and-agent.md#密钥-api) |
 | 插件 i18n | `ctx.i18n` / `useTranslation` + `locales/` | 无（catalog 随包） | [conversation-and-agent](./conversation-and-agent.md#插件-i18n) / [manifest](./manifest.md#i18n) |
 | 新会话引导词 | `plugin.json` `guidingWords` | 无 | [manifest](./manifest.md#guidingwords引导词) |

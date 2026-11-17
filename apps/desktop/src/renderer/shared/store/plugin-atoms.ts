@@ -2,11 +2,15 @@ import type {
 	ConversationScenario,
 	PluginAbilityDetailSlotContribution,
 	PluginActivityTabContribution,
+	PluginBottomPanelContribution,
 	PluginCardRendererContribution,
 	PluginFileExplorerContextMenuContribution,
 	PluginFileExplorerDecorationProvider,
+	PluginFileExplorerEntry,
 	PluginFileExplorerToolbarContribution,
+	PluginFileIconTheme,
 	PluginFilePreviewContribution,
+	PluginHeaderActionContribution,
 	PluginInputActionContribution,
 	PluginLocales,
 	PluginNavBadge,
@@ -68,11 +72,16 @@ export interface RegisteredFileExplorerToolbarAction extends PluginFileExplorerT
 export interface RegisteredFileExplorerDecorationProvider extends PluginFileExplorerDecorationProvider {
 	pluginId: string;
 	providerId: string;
+	changedEntries?: ReadonlyMap<string, PluginFileExplorerEntry>;
 }
 
 export const pluginFileExplorerContextMenuActionsAtom = atom<RegisteredFileExplorerContextMenuAction[]>([]);
 export const pluginFileExplorerToolbarActionsAtom = atom<RegisteredFileExplorerToolbarAction[]>([]);
 export const pluginFileExplorerDecorationProvidersAtom = atom<RegisteredFileExplorerDecorationProvider[]>([]);
+export interface RegisteredFileIconTheme extends PluginFileIconTheme {
+	pluginId: string;
+}
+export const pluginFileIconThemesAtom = atom<RegisteredFileIconTheme[]>([]);
 
 /** An activity-tab contribution registered by a loaded plugin（可添加池条目）. */
 export interface RegisteredActivityTab {
@@ -100,6 +109,31 @@ export interface RegisteredActivityTab {
  * 消费。注册不直接渲染——attach 记录 ∩ 此池才渲染为 tab。
  */
 export const pluginActivityTabsAtom = atom<RegisteredActivityTab[]>([]);
+
+/** A bottom-panel contribution registered by a loaded plugin（可添加池条目）. */
+export interface RegisteredBottomPanel {
+	pluginId: string;
+	/** Owning plugin display name, shown as the "+" menu row subtitle. */
+	pluginName: string;
+	panelId: string;
+	label: string;
+	icon?: PluginBottomPanelContribution["icon"];
+	component: PluginBottomPanelContribution["component"];
+	/** 允许出现的对话场景（fail-closed：缺省/空 = 任何会话都不显示）。 */
+	scope_use?: PluginBottomPanelContribution["scope_use"];
+	/** 「+」菜单里的相对位置，越小越靠前；缺省 100。 */
+	order?: PluginBottomPanelContribution["order"];
+	/** 同一会话最多几个实例；缺省不限。 */
+	maxInstances?: PluginBottomPanelContribution["maxInstances"];
+	/** 插件持有 `terminal.run`，实例可以替用户开终端跑命令；缺省没有。 */
+	terminalAccess?: boolean;
+}
+
+/**
+ * 底部面板插件组件的「可添加池」，由 PluginGlobalSlotHost 发布、BottomPanel 消费。
+ * 注册不直接渲染——用户从「+」菜单开出实例才渲染。
+ */
+export const pluginBottomPanelsAtom = atom<RegisteredBottomPanel[]>([]);
 
 /**
  * 一个插件贡献的**工作区视图**（整页 surface，与自动化/知识库等内置页同级）。
@@ -197,6 +231,18 @@ export interface RegisteredNewSessionContext {
 
 /** 新会话页输入框下方的插件上下文区贡献，由 PluginGlobalSlotHost 发布。 */
 export const pluginNewSessionContextsAtom = atom<RegisteredNewSessionContext[]>([]);
+
+/** 会话页顶栏的一个插件动作。已按 `order`、插件 id、贡献 id 排好默认顺序；最终位置还要看用户的布局。 */
+export interface RegisteredHeaderAction {
+	pluginId: string;
+	pluginName: string;
+	/** Namespaced id (`${pluginId}:${contributionId}`). */
+	actionId: string;
+	useAction: PluginHeaderActionContribution["useAction"];
+}
+
+/** 会话页顶栏的插件动作，由 PluginGlobalSlotHost 发布。 */
+export const pluginHeaderActionsAtom = atom<RegisteredHeaderAction[]>([]);
 
 /**
  * 当前「正在查看」会话的 input-action 工作集（插件 toggle ids）。

@@ -1,5 +1,6 @@
 import type { AgentBlueprint, AgentProfile, AgentResourceSource } from "@567agent/agent-team";
 import { parsePluginBlueprintId } from "@567agent/agent-team";
+import { presetTranslation } from "@shared/agent-teams/preset-translation";
 import { resolvePluginText } from "@vetta-org/plugin-sdk";
 
 export interface BlueprintDisplayPlugin {
@@ -16,7 +17,7 @@ export interface BlueprintDisplayPlugin {
  * 数据——用户重新启用插件，档案原样回来，期间我们既不隐藏也不擅自把它从团队里摘掉。
  */
 export interface AgentUnavailableReason {
-	readonly kind: "plugin-disabled";
+	readonly kind: "plugin-disabled" | "preset-unavailable";
 	readonly pluginId: string;
 	/** 插件已安装但被禁用时给出它的显示名；卸载干净了就只剩 id。 */
 	readonly pluginName: string;
@@ -24,19 +25,20 @@ export interface AgentUnavailableReason {
 
 /** 解析一个档案当前为什么不可用；可用时返回 undefined。 */
 export function agentUnavailableReason(
-	profile: Pick<AgentProfile, "blueprintId">,
+	profile: Pick<AgentProfile, "blueprintId" | "source" | "copiedFrom" | "systemPrompt">,
 	blueprint: AgentBlueprint | undefined,
 	plugins: readonly BlueprintDisplayPlugin[] | undefined,
 	locale: string,
 ): AgentUnavailableReason | undefined {
-	if (blueprint) return undefined;
+	if (blueprint || (profile.copiedFrom && profile.systemPrompt !== undefined)) return undefined;
 	const parsed = parsePluginBlueprintId(profile.blueprintId);
 	if (!parsed) return undefined;
 	const plugin = plugins?.find((candidate) => candidate.id === parsed.pluginId);
 	return {
-		kind: "plugin-disabled",
+		kind: profile.source?.kind === "marketplace" ? "preset-unavailable" : "plugin-disabled",
 		pluginId: parsed.pluginId,
-		pluginName: plugin ? resolvePluginTextFor(plugin, plugin.name, locale) : parsed.pluginId,
+		pluginName:
+			profile.source?.providerName ?? (plugin ? resolvePluginTextFor(plugin, plugin.name, locale) : parsed.pluginId),
 	};
 }
 
@@ -54,6 +56,7 @@ export function agentBlueprintLabel(
 ): string | undefined {
 	if (!blueprint) return undefined;
 	const source = blueprint.source;
+	if (source?.kind === "marketplace") return presetTranslation(source, locale)?.name ?? blueprint.name;
 	if (source?.kind !== "plugin") return blueprint.nameKey ? translate(blueprint.nameKey) : undefined;
 	const plugin = plugins?.find((candidate) => candidate.id === source.pluginId);
 	const raw = blueprint.name ?? "";
@@ -69,6 +72,7 @@ export function agentBlueprintDescription(
 ): string | undefined {
 	if (!blueprint) return undefined;
 	const source = blueprint.source;
+	if (source?.kind === "marketplace") return presetTranslation(source, locale)?.description ?? blueprint.description;
 	if (source?.kind !== "plugin") return blueprint.descriptionKey ? translate(blueprint.descriptionKey) : undefined;
 	const plugin = plugins?.find((candidate) => candidate.id === source.pluginId);
 	const raw = blueprint.description ?? "";
@@ -97,6 +101,7 @@ export function resourceProviderName(
 	locale: string,
 ): string | undefined {
 	if (!source) return undefined;
+	if (source.kind === "marketplace") return source.providerName ?? source.repository ?? source.pluginId;
 	const plugin = plugins?.find((candidate) => candidate.id === source.pluginId);
 	return plugin ? resolvePluginTextFor(plugin, plugin.name, locale) : source.pluginId;
 }

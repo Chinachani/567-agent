@@ -1,10 +1,14 @@
+import { applyAppIcon } from "./app-icon/app-icon-service.js";
+import { disposeAskpassChannel } from "./ssh/askpass-runtime.js";
+import { disposeSshPortForwards } from "./ssh/port-forward-service.js";
+import { disposeAllTerminals } from "./terminal/terminal-owner.js";
 import "./windows-data-bootstrap.js";
 import "./telemetry/bootstrap.js";
 import { mkdir, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { AGENT567_HOME_ENV, getAgent567HomePath } from "@567agent/action-rpc";
-import { app, type BrowserWindow, dialog, ipcMain, nativeImage, nativeTheme, protocol, session, shell } from "electron";
+import { app, type BrowserWindow, dialog, ipcMain, nativeTheme, protocol, session, shell } from "electron";
 import { APP_RUNTIME_NAME } from "../shared/app-identity.js";
 import {
 	APP_LIFECYCLE_DESIGN_SHARE_OPEN_CHANNEL,
@@ -83,7 +87,8 @@ import { startRendererAfterSessionPreparation } from "./renderer-startup.js";
 import { beginSharedRuntimeShutdown, disposeSharedRuntime, getSharedRuntime } from "./runtime.js";
 import { getRuntimeManager } from "./runtimes/manager.js";
 import { initializeSandboxCapability } from "./sandbox/capability.js";
-import { initScheduler, scheduleTaskInCron, shutdownScheduler, unscheduleTaskInCron } from "./scheduler/scheduler.js";
+import { createDesktopSchedulerDependencies } from "./scheduler/desktop-scheduler-wiring.js";
+import { initScheduler, shutdownScheduler } from "./scheduler/scheduler.js";
 import { initializeDesktopSchedulerService } from "./scheduler/scheduler-service.js";
 import { initializeMainTelemetry, shutdownMainTelemetry } from "./telemetry/index.js";
 import { registerThemeProtocol, THEME_PROTOCOL_PRIVILEGE } from "./themes/theme-protocol.js";
@@ -125,7 +130,6 @@ protocol.registerSchemesAsPrivileged([
 ]);
 const isMac = process.platform === "darwin";
 const appRoot = app.isPackaged ? app.getAppPath() : process.cwd();
-const buildDir = join(appRoot, "build");
 const devMainEntryPath = join(appRoot, "dist/main/index.js");
 const packagedCliBinaryName = process.platform === "win32" ? "567-agent.exe" : "567-agent";
 const packagedCliPlatformTag = `${process.platform}-${process.arch}`;
@@ -669,9 +673,7 @@ if (!gotSingleLock) {
 			ipcMain.handle("vetta:settings:set-server-refresh-token", () => {});
 		}
 
-		if (process.platform === "darwin") {
-			app.dock?.setIcon(nativeImage.createFromPath(join(buildDir, "icon-dock.png")));
-		}
+		applyAppIcon();
 
 		// 默认「对话」项目目录：保证一直存在。
 		// 顺带把 in-tree session 目录（<cwd>/.vetta/sessions）也建好，
@@ -748,11 +750,7 @@ if (!gotSingleLock) {
 		// 批量项目元数据参与恢复会话的 scenario 判定，需要尽早加载；初始化 Promise
 		// 本身不作为 appLifecycle ready 的门闩。
 		const batchTaskReadyPromise = batchTaskService.initialize();
-		const schedulerService = initializeDesktopSchedulerService({
-			getRuntime: getSharedRuntime,
-			scheduleTask: scheduleTaskInCron,
-			unscheduleTask: unscheduleTaskInCron,
-		});
+		const schedulerService = initializeDesktopSchedulerService(createDesktopSchedulerDependencies(getSharedRuntime));
 		const actionSystem = createAppActionSystem(actionApprovalBroker);
 		const pluginActionService = new PluginActionService(mainWindow.webContents, actionSystem.catalog);
 		const remotePairingService = new DesktopRemotePairingService({
@@ -948,6 +946,9 @@ setQuitCleanup(async () => {
 	// connection must not leave them holding the runtime through a repair restart.
 	stopAllPluginDevWatches();
 	stopAllPluginSpawns();
+	disposeAllTerminals();
+	disposeAskpassChannel();
+	disposeSshPortForwards();
 	await stopDesktopRemoteAccess();
 	await stopDesktopRemoteDesktopHost();
 	beginSharedRuntimeShutdown();

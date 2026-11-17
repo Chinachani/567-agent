@@ -31,3 +31,14 @@ send `{type:"viewport", sequence, width, height}` (positive integral dimensions 
 messages have independent replay protection and only tune video; they are never forwarded to input
 injection. Updated Android viewers wait for this capability; legacy peers continue without feedback.
 The browser viewer exposes `supportsViewport` and `sendViewport(width, height)` for the same contract.
+
+Updated hosts also advertise optional `videoPreference: true`. Capable viewers may send
+`{type:"video.preference", sequence, mode:"auto"|"smooth"|"clear"}`; messages are validated,
+replay-checked separately from input, and consumed only by the video sender. Browser viewers expose
+`supportsVideoPreference` and `sendVideoPreference(mode)`; Android retains the local selection
+and resends it after capability negotiation. Legacy hosts receive no preference messages.
+
+Auto uses the reported viewport. Smooth targets a viewport no larger than 1280 × 800 and caps
+bitrate at 4 Mbps; actual dimensions still depend on capture size and supported scaling. Clear
+retains source detail where possible. All modes retain encoder-pressure degradation and the
+existing frame-rate limit; preferences never grant OS input authority or guarantee image quality.

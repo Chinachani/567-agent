@@ -24,6 +24,7 @@ import type {
 } from "../../preload/fs-types.js";
 import { FS_READ_TEXT_PREVIEW_CHANNEL } from "../../preload/fs-types.js";
 import { normalizeGitHubUpdateProxyUrl } from "../../shared/github-download-source.js";
+import { isRemoteMcpServer } from "../../shared/mcp-server-kind.js";
 import { findAnyShortcutBindingConflict, normalizeShortcutBindings } from "../../shared/shortcuts.js";
 import {
 	type AppshotConfig,
@@ -74,6 +75,7 @@ import {
 import { getDesktopMcpOAuthService } from "../mcp/mcp-oauth-service.js";
 import { getDesktopMcpSettingsService, readMcpConfig, writeMcpConfig } from "../mcp/mcp-settings-service.js";
 import { getDesktopMcpSetupLoginService } from "../mcp/mcp-setup-login-service.js";
+import { getDesktopMcpToolsService } from "../mcp/mcp-tools-service.js";
 import { fetchProviderModels } from "../models/fetch-models.js";
 import { getDesktopModelSettingsService, onDesktopModelSettingsChanged } from "../models/model-settings-host.js";
 import type { ModelsConfig } from "../models/model-settings-service.js";
@@ -157,6 +159,7 @@ const CHANNELS = {
 	MODELS_PROBE: "vetta:models:probe",
 	MODELS_FETCH_PROVIDER_MODELS: "vetta:models:fetch-provider-models",
 	MCP_GET: "vetta:mcp:get",
+	MCP_LIST_TOOLS: "vetta:mcp:list-tools",
 	MCP_SET: "vetta:mcp:set",
 	MCP_LOGIN: "vetta:mcp:login",
 	MCP_LOGOUT: "vetta:mcp:logout",
@@ -542,6 +545,11 @@ export function registerFsIpc(owner: WebContents): () => void {
 		return fetchProviderModels(providerName.trim());
 	});
 
+	ipcMain.handle(CHANNELS.MCP_LIST_TOOLS, async (event, serverName: unknown) => {
+		guard(event);
+		assertNonEmptyString(serverName, "serverName");
+		return getDesktopMcpToolsService().list(serverName.trim());
+	});
 	ipcMain.handle(CHANNELS.MCP_GET, async (event): Promise<McpConfig> => {
 		guard(event);
 		return mcp.getConfig();
@@ -574,12 +582,12 @@ export function registerFsIpc(owner: WebContents): () => void {
 			const server = config.mcpServers[name];
 			if (!serverUrl) {
 				if (!server) throw new Error(`MCP server '${name}' not found`);
-				if (server.type !== "http" || typeof server.url !== "string" || !server.url.trim()) {
+				if (!isRemoteMcpServer(server) || typeof server.url !== "string" || !server.url.trim()) {
 					throw new Error(`MCP server '${name}' is not a remote HTTP server`);
 				}
 				serverUrl = server.url.trim();
 			}
-			if (server?.type === "http") {
+			if (server && isRemoteMcpServer(server)) {
 				if (!oauthClientId && typeof server.oauthClientId === "string") oauthClientId = server.oauthClientId.trim();
 				if (!deviceFlow && server.oauthDeviceFlow === true) deviceFlow = true;
 				if (!scopes && typeof server.oauthScopes === "string") scopes = server.oauthScopes;
@@ -597,10 +605,12 @@ export function registerFsIpc(owner: WebContents): () => void {
 			return;
 		}
 
+		const configured = (await mcp.getConfig()).mcpServers[name];
 		await mcpOAuth.loginBrowser({
 			serverName: name,
 			serverUrl,
 			oauthClientId: oauthClientId || undefined,
+			transport: configured?.type === "sse" ? "sse" : "streamable-http",
 		});
 	});
 
@@ -690,6 +700,7 @@ export function registerFsIpc(owner: WebContents): () => void {
 		ipcMain.removeHandler(CHANNELS.MODELS_PROBE);
 		ipcMain.removeHandler(CHANNELS.MODELS_FETCH_PROVIDER_MODELS);
 		ipcMain.removeHandler(CHANNELS.MCP_GET);
+		ipcMain.removeHandler(CHANNELS.MCP_LIST_TOOLS);
 		ipcMain.removeHandler(CHANNELS.MCP_SET);
 		ipcMain.removeHandler(CHANNELS.MCP_LOGIN);
 		ipcMain.removeHandler(CHANNELS.MCP_LOGOUT);

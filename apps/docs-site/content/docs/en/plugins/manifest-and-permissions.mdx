@@ -5,14 +5,14 @@ description: Declare plugin identity, entry, styles, permissions, commands, netw
 
 `plugin.json` sits at the root of the `.567plugin` ZIP container, or inside its single top-level folder. The host validates identity, compatibility, and permissions from it before loading any code, so the manifest must match the build output.
 
-The manifest structure has exactly one implementation: the TypeBox schema exported from `@vetta-org/plugin-sdk/manifest`. `PluginManifestSchema` serialises directly to JSON Schema, and `parsePluginManifest()` handles validation, defaults, de-duplication, relative-path normalisation, and cross-field constraints. The schema deliberately allows unknown fields so a newer manifest is not rejected outright by an older host.
+The manifest structure has exactly one implementation: the TypeBox schema exported from `@vetta-org/plugin-sdk/manifest`. `PluginManifestSchema` serialises directly to JSON Schema, and `parsePluginManifest()` handles validation, defaults, de-duplication, relative-path normalisation, and cross-field constraints. The top-level schema allows additional fields; nested configuration follows its own schema. Permission names and API compatibility ranges are still checked strictly. New capabilities require the corresponding minimum host API version.
 
 ```json
 {
   "id": "my-plugin",
   "name": "My Plugin",
   "version": "0.1.0",
-  "pluginApiVersion": "^2.0.0",
+  "pluginApiVersion": "^2.9.0",
   "entry": "dist/mf-manifest.json",
   "moduleFederation": {
     "remoteName": "my_plugin",
@@ -46,7 +46,7 @@ The manifest structure has exactly one implementation: the TypeBox schema export
       required: true,
     },
     pluginApiVersion: {
-      description: "Compatible Plugin API range, currently ^2.0.0.",
+      description: "Compatible Plugin API range. 567 Agent 1.6 provides 2.9.0; declare ^2.9.0 when using the new capabilities in this release.",
       type: "string",
       required: true,
     },
@@ -152,12 +152,14 @@ On update the host keeps permissions that were already granted and are still dec
 
 ## Permission list
 
+567 Agent 1.6 adds header actions, conversation bottom panels and terminal entry points, requiring `ui.slot.header-action`, `ui.slot.bottom-panel` and `terminal.run` respectively. Registering a panel does not grant command execution; terminal calls remain subject to the current project, plugin grants and host checks. The shared `ModelPicker` in SDK 0.3.10 requires `pluginApiVersion: "^2.9.0"`. Existing plugins can keep their original compatibility range.
+
 <Accordions type="single">
   <Accordion title="Interface and file explorer">
-    `ui.slot.global`, `ui.slot.workspace-view`, `ui.slot.file-preview`, `ui.slot.activity-tab`, `ui.slot.input-action`, `ui.slot.new-session-context`, `ui.slot.message`, `ui.slot.tool-call`, `ui.slot.turn-card`, `ui.slot.ability-detail`, `ui.shortcuts.register`, `ui.file-explorer.decorations`, `ui.file-explorer.context-menu`, `ui.file-explorer.toolbar`, `workspace.read`, `conversation.draft.read`, `shell.openExternal`
+    `ui.slot.header-action`, `ui.slot.bottom-panel`, `ui.slot.global`, `ui.slot.workspace-view`, `ui.slot.file-preview`, `ui.slot.activity-tab`, `ui.slot.input-action`, `ui.slot.new-session-context`, `ui.slot.message`, `ui.slot.tool-call`, `ui.slot.turn-card`, `ui.slot.ability-detail`, `ui.shortcuts.register`, `ui.file-explorer.decorations`, `ui.file-explorer.context-menu`, `ui.file-explorer.toolbar`, `workspace.read`, `conversation.draft.read`, `shell.openExternal`
   </Accordion>
   <Accordion title="Conversation and commands">
-    `agent.session.read`, `agent.session.write`, `agent.command.run`, `agent.command.spawn`, `capture.offscreen`
+    `agent.session.read`, `agent.session.write`, `agent.command.run`, `agent.command.spawn`, `capture.offscreen`, `terminal.run`
   </Accordion>
   <Accordion title="Agent extensions">
     `agent.tools.register`, `agent.toolHandler.execute`, `agent.hooks.register`, `agent.hookHandler.execute`, `agent.tools.control`, `agent.skills.control`, `agent.mcp.control`, `agent.systemPrompt.write`, `agent.systemPrompt.fullControl`, `agent.continuation.register`

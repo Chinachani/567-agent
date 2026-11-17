@@ -3,11 +3,13 @@ import type {
 	McpConfigData,
 	McpHttpServerConfigData,
 	McpServerConfigData,
+	McpSseServerConfigData,
 	McpStdioServerConfigData,
 } from "@preload/api.js";
 import type { MarketMcpServer } from "@shared/lib/api";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
+import { isRemoteMcpServer, isStdioMcpServer } from "@/shared/mcp-server-kind";
 import {
 	type BuiltinMcpPreset,
 	buildBuiltinMcpServerConfig,
@@ -27,7 +29,7 @@ import { recordSettingsUsage } from "./recordSettingsUsage";
 export type McpBuiltinAddResult = "installed" | "needs-setup";
 
 export type McpEditMode = "visual" | "json";
-export type McpTransportType = "stdio" | "http";
+export type McpTransportType = "stdio" | "http" | "sse";
 
 export interface McpAbilityInstallOptions {
 	abilityVersion?: string;
@@ -51,6 +53,7 @@ export interface McpServerFormState {
 	autoApprove: string;
 	startupTimeout: string;
 	debug: boolean;
+	resourceScope?: "application" | "workspace";
 }
 
 export interface McpSettingsModel {
@@ -73,6 +76,7 @@ export interface McpSettingsModel {
 	onStartAddServer: () => void;
 	onCancelAddServer: () => void;
 	onAddServer: () => Promise<void>;
+	onAddServersFromJson: () => Promise<boolean>;
 	onToggleEditServer: (name: string) => void;
 	onCancelEditServer: () => void;
 	onUpdateServer: (oldName: string) => Promise<void>;
@@ -120,7 +124,41 @@ export const emptyMcpServer: McpServerFormState = {
 	autoApprove: "",
 	startupTimeout: "",
 	debug: false,
+	resourceScope: undefined,
 };
+
+type McpJsonValidationResult =
+	| { valid: true; config: McpConfigData }
+	| {
+			valid: false;
+			error: "jsonMustHaveMcpServers" | "jsonTypeMustBeStdioOrHttp" | "jsonMissingUrl" | "jsonMissingCommand";
+			name?: string;
+	  };
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+	return typeof value === "object" && value !== null && !Array.isArray(value);
+}
+
+function validateMcpJsonValue(value: unknown): McpJsonValidationResult {
+	if (!isRecord(value) || !isRecord(value.mcpServers)) {
+		return { valid: false, error: "jsonMustHaveMcpServers" };
+	}
+	for (const [name, server] of Object.entries(value.mcpServers)) {
+		if (!isRecord(server)) return { valid: false, error: "jsonMissingCommand", name };
+		const type = server.type ?? "stdio";
+		if (type !== "stdio" && type !== "http" && type !== "sse") {
+			return { valid: false, error: "jsonTypeMustBeStdioOrHttp", name };
+		}
+		if (type === "http" || type === "sse") {
+			if (typeof server.url !== "string" || !server.url.trim()) {
+				return { valid: false, error: "jsonMissingUrl", name };
+			}
+		} else if (typeof server.command !== "string" || !server.command.trim()) {
+			return { valid: false, error: "jsonMissingCommand", name };
+		}
+	}
+	return { valid: true, config: value as unknown as McpConfigData };
+}
 
 export function isHttpMcpServerConfigData(config: McpServerConfigData): config is McpHttpServerConfigData {
 	return config.type === "http";
@@ -543,55 +581,67 @@ export function useMcpSettingsModel(options?: McpSettingsModelOptions): McpSetti
 		[closeEditor, config, editingServer],
 	);
 
+	const parseJsonConfig = useCallback(
+		(text: string): McpConfigData | null => {
+			try {
+				const result = validateMcpJsonValue(JSON.parse(text));
+				if (result.valid) return result.config;
+				setJsonError(result.name ? t(result.error, { name: result.name }) : t(result.error));
+				return null;
+			} catch (error) {
+				setJsonError(t("jsonParseError", { msg: error instanceof Error ? error.message : String(error) }));
+				return null;
+			}
+		},
+		[t],
+	);
+
 	const handleJsonSave = useCallback(async () => {
+		const parsed = parseJsonConfig(jsonText);
+		if (!parsed) return;
 		try {
-			const parsed = JSON.parse(jsonText) as McpConfigData;
-			if (!parsed.mcpServers || typeof parsed.mcpServers !== "object") {
-				setJsonError(t("jsonMustHaveMcpServers"));
-				return;
-			}
-			for (const [name, server] of Object.entries(parsed.mcpServers)) {
-				const type = (server as { type?: string }).type ?? "stdio";
-				if (type !== "stdio" && type !== "http") {
-					setJsonError(t("jsonTypeMustBeStdioOrHttp", { name }));
-					return;
-				}
-				if (type === "http") {
-					const httpServer = server as { url?: unknown };
-					if (!httpServer.url || typeof httpServer.url !== "string") {
-						setJsonError(t("jsonMissingUrl", { name }));
-						return;
-					}
-				} else {
-					const stdioServer = server as { command?: unknown };
-					if (!stdioServer.command || typeof stdioServer.command !== "string") {
-						setJsonError(t("jsonMissingCommand", { name }));
-						return;
-					}
-				}
-			}
 			setJsonError(null);
 			await saveConfig(parsed);
 			recordSettingsUsage({ tab: "mcp", action: "saved", target: "json-config" });
-		} catch (e) {
-			setJsonError(t("jsonParseError", { msg: (e as Error).message }));
+		} catch (error) {
+			setJsonError(t("jsonSaveError", { msg: error instanceof Error ? error.message : String(error) }));
 		}
-	}, [jsonText, saveConfig, t]);
+	}, [jsonText, parseJsonConfig, saveConfig, t]);
 
-	const handleModeSwitch = useCallback(
-		(newMode: McpEditMode) => {
-			if (newMode === "json" && config) {
-				setJsonText(JSON.stringify(config, null, 2));
-				setJsonError(null);
-			}
-			setMode(newMode);
+	const handleAddServersFromJson = useCallback(async (): Promise<boolean> => {
+		if (!config) return false;
+		const parsed = parseJsonConfig(jsonText);
+		if (!parsed) return false;
+		if (Object.keys(parsed.mcpServers).length === 0) {
+			setJsonError(t("jsonMustIncludeServer"));
+			return false;
+		}
+		try {
+			await saveConfig({
+				...config,
+				mcpServers: { ...config.mcpServers, ...parsed.mcpServers },
+			});
+			setJsonError(null);
 			setAddingServer(false);
-			setEditingServer(null);
-			setServerForm({ ...emptyMcpServer });
-			recordSettingsUsage({ tab: "mcp", action: "changed", target: "edit-mode", value: newMode });
-		},
-		[config],
-	);
+			setMode("visual");
+			recordSettingsUsage({
+				tab: "mcp",
+				action: "added",
+				target: "json-config",
+				value: String(Object.keys(parsed.mcpServers).length),
+			});
+			return true;
+		} catch (error) {
+			setJsonError(t("jsonSaveError", { msg: error instanceof Error ? error.message : String(error) }));
+			return false;
+		}
+	}, [config, jsonText, parseJsonConfig, saveConfig, t]);
+
+	const handleModeSwitch = useCallback((newMode: McpEditMode) => {
+		setMode(newMode);
+		setJsonError(null);
+		recordSettingsUsage({ tab: "mcp", action: "changed", target: "edit-mode", value: newMode });
+	}, []);
 
 	const serverNames = useMemo(() => (config ? Object.keys(config.mcpServers) : []), [config]);
 
@@ -618,15 +668,22 @@ export function useMcpSettingsModel(options?: McpSettingsModelOptions): McpSetti
 		saveConfig,
 		onModeSwitch: handleModeSwitch,
 		onStartAddServer: () => {
+			setMode("visual");
+			setJsonText("");
+			setJsonError(null);
 			setAddingServer(true);
 			closeEditor();
 			setServerForm({ ...emptyMcpServer });
 		},
 		onCancelAddServer: () => {
 			setAddingServer(false);
+			setMode("visual");
+			setJsonText("");
+			setJsonError(null);
 			setServerForm({ ...emptyMcpServer });
 		},
 		onAddServer: handleAddServer,
+		onAddServersFromJson: handleAddServersFromJson,
 		onToggleEditServer: toggleEditServer,
 		onCancelEditServer: closeEditor,
 		onUpdateServer: handleUpdateServer,
@@ -649,7 +706,7 @@ export function useMcpSettingsModel(options?: McpSettingsModelOptions): McpSetti
 
 export function isMcpFormValid(form: McpServerFormState): boolean {
 	if (!form.name.trim()) return false;
-	if (form.transport === "http") return Boolean(form.url.trim());
+	if (form.transport === "http" || form.transport === "sse") return Boolean(form.url.trim());
 	return Boolean(form.command.trim());
 }
 
@@ -683,12 +740,13 @@ function serverToForm(name: string, server: McpServerConfigData): McpServerFormS
 		autoApprove: server.autoApprove?.join(", ") ?? "",
 		startupTimeout: server.startupTimeout != null ? String(server.startupTimeout) : "",
 		debug: server.debug ?? false,
+		resourceScope: server.resourceScope,
 	};
-	if (isHttpMcpServerConfigData(server)) {
+	if (isRemoteMcpServer(server)) {
 		return {
 			...emptyMcpServer,
 			...common,
-			transport: "http",
+			transport: server.type,
 			url: server.url,
 			headers: objectToKvLines(server.headers),
 		};
@@ -713,14 +771,15 @@ function formToServer(form: McpServerFormState): McpServerConfigData {
 		: undefined;
 	const startupTimeout = form.startupTimeout.trim() ? Number(form.startupTimeout.trim()) : undefined;
 
-	if (form.transport === "http") {
-		const config: McpHttpServerConfigData = { type: "http", url: form.url.trim() };
+	if (form.transport === "http" || form.transport === "sse") {
+		const config: McpHttpServerConfigData | McpSseServerConfigData = { type: form.transport, url: form.url.trim() };
 		const headers = kvLinesToObject(form.headers);
 		if (headers) config.headers = headers;
 		if (form.disabled) config.disabled = true;
 		if (autoApprove && autoApprove.length > 0) config.autoApprove = autoApprove;
 		if (startupTimeout && !Number.isNaN(startupTimeout)) config.startupTimeout = startupTimeout;
 		if (form.debug) config.debug = true;
+		if (form.resourceScope) config.resourceScope = form.resourceScope;
 		return config;
 	}
 
@@ -740,6 +799,7 @@ function formToServer(form: McpServerFormState): McpServerConfigData {
 	if (autoApprove && autoApprove.length > 0) config.autoApprove = autoApprove;
 	if (startupTimeout && !Number.isNaN(startupTimeout)) config.startupTimeout = startupTimeout;
 	if (form.debug) config.debug = true;
+	if (form.resourceScope) config.resourceScope = form.resourceScope;
 	return config;
 }
 
@@ -768,8 +828,9 @@ function mergeMarketServer(existing: McpServerConfigData | undefined, next: McpS
 	const localOnly = {
 		...(existing.disabled === undefined ? {} : { disabled: existing.disabled }),
 		...(existing.autoApprove === undefined ? {} : { autoApprove: [...existing.autoApprove] }),
+		...(existing.resourceScope === undefined ? {} : { resourceScope: existing.resourceScope }),
 	};
-	if (isHttpMcpServerConfigData(existing) && isHttpMcpServerConfigData(next)) {
+	if (isRemoteMcpServer(existing) && isRemoteMcpServer(next) && existing.type === next.type) {
 		const headers = { ...existing.headers, ...next.headers };
 		return {
 			...existing,
@@ -778,7 +839,7 @@ function mergeMarketServer(existing: McpServerConfigData | undefined, next: McpS
 			...(Object.keys(headers).length > 0 ? { headers } : {}),
 		};
 	}
-	if (!isHttpMcpServerConfigData(existing) && !isHttpMcpServerConfigData(next)) {
+	if (isStdioMcpServer(existing) && isStdioMcpServer(next)) {
 		const env = { ...existing.env, ...next.env };
 		return {
 			...existing,

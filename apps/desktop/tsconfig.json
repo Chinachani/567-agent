@@ -13,6 +13,10 @@
 		"jsx": "react-jsx",
 		"noEmit": true,
 		"paths": {
+ "@567agent/ssh-transport": ["../../packages/ssh-transport/src/index.ts"],
+ "@567agent/ssh-transport/*": ["../../packages/ssh-transport/src/*"],
+ "@567agent/runtime-ssh": ["../../packages/runtime-ssh/src/index.ts"],
+ "@567agent/runtime-ssh/*": ["../../packages/runtime-ssh/src/*"],
 			"@/*": ["./src/*"],
 			"@shared/*": ["./src/renderer/shared/*"],
 			"@domains/*": ["./src/renderer/domains/*"],

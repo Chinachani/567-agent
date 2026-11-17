@@ -204,28 +204,7 @@ actual fun rememberFileAttachmentPicker(
     val launcher = rememberLauncherForActivityResult(ActivityResultContracts.OpenMultipleDocuments()) { uris ->
         if (uris.isEmpty()) return@rememberLauncherForActivityResult
         scope.launch {
-            val files = withContext(Dispatchers.IO) {
-                uris.take(MAX_MESSAGE_FILE_COUNT).mapNotNull { uri ->
-                    runCatching {
-                        val name = context.contentResolver.query(uri, arrayOf(OpenableColumns.DISPLAY_NAME), null, null, null)
-                            ?.use { cursor ->
-                                if (cursor.moveToFirst()) cursor.getString(0)?.takeIf(String::isNotBlank) else null
-                            }
-                            ?: uri.lastPathSegment?.substringAfterLast('/')?.substringAfterLast(':')?.takeIf(String::isNotBlank)
-                            ?: "attachment"
-                        val mime = context.contentResolver.getType(uri)
-                            ?.substringBefore(';')
-                            ?.trim()
-                            ?.takeIf { it.matches(Regex("[A-Za-z0-9.+-]{1,127}/[A-Za-z0-9.+-]{1,127}")) }
-                            ?: "application/octet-stream"
-                        val bytes = context.contentResolver.openInputStream(uri)?.use {
-                            it.readUpTo(MAX_MESSAGE_FILE_BYTES + 1)
-                        } ?: return@runCatching null
-                        if (bytes.isEmpty() || bytes.size > MAX_MESSAGE_FILE_BYTES) return@runCatching null
-                        PickedFileAttachment(name, mime.lowercase(), bytes)
-                    }.getOrNull()
-                }
-            }
+            val files = readGrantedFileAttachments(context, uris)
             if (files.isNotEmpty()) onPicked(files)
             if (files.size != uris.size) onRejected()
         }

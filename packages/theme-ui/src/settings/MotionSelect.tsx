@@ -75,7 +75,7 @@ export function MotionSelect({
 						// asChild 时 className 会合并到 motion.div：背景/边框必须写在这里，
 						// 勿用 bg-transparent（会盖掉 bg-popover，面板变「没背景」）
 						className={cn(
-							"z-50 w-[var(--radix-popover-trigger-width)] min-w-[var(--radix-popover-trigger-width)]",
+							"z-50 w-max min-w-[var(--radix-popover-trigger-width)] max-w-[min(360px,var(--radix-popover-content-available-width))]",
 							"gap-0 overflow-hidden rounded-lg border border-border bg-popover p-1 text-popover-foreground shadow-md outline-hidden",
 							"data-open:animate-none data-closed:animate-none",
 						)}
@@ -104,12 +104,12 @@ export function MotionSelect({
 											// 与 @vetta-org/ui SelectItem / 原 Agent 菜单项同皮
 											"flex w-full items-center gap-2 rounded-md px-2 py-[5px] text-[12px] font-medium transition-colors outline-none",
 											"disabled:pointer-events-none disabled:opacity-50",
-											isSelected
-												? "bg-accent text-foreground"
-												: "text-foreground hover:bg-accent",
+											isSelected ? "bg-accent text-foreground" : "text-foreground hover:bg-accent",
 										)}
 									>
-										<span className="min-w-0 flex-1 truncate text-left">{option.label}</span>
+										<span className="min-w-0 flex-1 truncate whitespace-nowrap text-left">
+											{option.label}
+										</span>
 										{isSelected ? (
 											<span className="icon-[mdi--check] ml-auto h-3.5 w-3.5 shrink-0 text-primary" />
 										) : null}

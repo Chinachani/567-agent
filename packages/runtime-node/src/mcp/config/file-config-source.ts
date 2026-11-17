@@ -1,5 +1,5 @@
 import { createHash } from "node:crypto";
-import { existsSync, lstatSync, readFileSync, statSync } from "node:fs";
+import { existsSync, readFileSync, statSync } from "node:fs";
 import type { McpConfigSource } from "@567agent/runtime-mcp/config";
 import type { McpConfig, McpServerConfig } from "../protocol/index.js";
 import { isHttpServerConfig } from "../protocol/index.js";
@@ -8,36 +8,45 @@ import { parseMcpConfig } from "./schemas.js";
 export interface FileMcpConfigSourceOptions {
 	readonly globalConfigPath: string;
 	readonly projectConfigPath: string;
+	/** Legacy native path; used only when the canonical file is absent. */
 	readonly fallbackProjectConfigPath?: string;
+	/**
+	 * 其他 Agent 约定的项目级 `.mcp.json`（Claude Code 等）。只读，读取时并入项目层，
+	 * 同名 server 以 `projectConfigPath` 为准；文件本身永不被改写。
+	 */
+	readonly compatProjectConfigPath?: string;
 	readonly projectRoot: string;
 	readonly environment?: Readonly<Record<string, string | undefined>>;
+	readonly includeServer?: (input: {
+		readonly origin: "global" | "project";
+		readonly name: string;
+		readonly config: McpServerConfig;
+	}) => boolean;
+	readonly onDiagnostic?: (message: string) => void;
 }
 
 /** File-backed MCP config adapter with no product-specific path resolution. */
 export class FileMcpConfigSource implements McpConfigSource {
 	private readonly environment: Readonly<Record<string, string | undefined>>;
+	private readonly reportedDiagnostics = new Set<string>();
 
 	constructor(private readonly options: FileMcpConfigSourceOptions) {
 		this.environment = options.environment ?? process.env;
 	}
 
 	loadGlobal(): McpConfig | null {
-		return this.loadConfigFromPath(this.options.globalConfigPath);
+		return this.filterConfig(this.loadConfigFromPath(this.options.globalConfigPath), "global");
 	}
 
 	loadProject(): McpConfig | null {
-		return this.loadConfigFromPath(this.projectReadPath());
-	}
-
-	private projectReadPath(): string {
-		if (!this.options.fallbackProjectConfigPath) return this.options.projectConfigPath;
-		try {
-			lstatSync(this.options.projectConfigPath);
-			return this.options.projectConfigPath;
-		} catch (error) {
-			if ((error as NodeJS.ErrnoException).code !== "ENOENT") throw error;
-			return this.options.fallbackProjectConfigPath;
-		}
+		const nativePath = existsSync(this.options.projectConfigPath)
+			? this.options.projectConfigPath
+			: (this.options.fallbackProjectConfigPath ?? this.options.projectConfigPath);
+		const native = this.loadConfigFromPath(nativePath);
+		const compat = this.loadCompatProjectConfig();
+		if (!compat) return this.filterConfig(native, "project");
+		// 同名整体替换而不是字段合并：避免把两个文件里的 command 与 args 拼成谁都没写过的组合。
+		return this.filterConfig({ mcpServers: { ...compat.mcpServers, ...(native?.mcpServers ?? {}) } }, "project");
 	}
 
 	loadMerged(): McpConfig {
@@ -54,7 +63,10 @@ export class FileMcpConfigSource implements McpConfigSource {
 
 	getMergedSignature(): string {
 		const parts: string[] = [];
-		for (const path of [this.options.globalConfigPath, this.projectReadPath()]) {
+		const paths = [this.options.globalConfigPath, this.options.projectConfigPath];
+		if (this.options.fallbackProjectConfigPath) paths.push(this.options.fallbackProjectConfigPath);
+		if (this.options.compatProjectConfigPath) paths.push(this.options.compatProjectConfigPath);
+		for (const path of paths) {
 			if (!existsSync(path)) {
 				parts.push(`${path}:missing`);
 				continue;
@@ -82,6 +94,50 @@ export class FileMcpConfigSource implements McpConfigSource {
 		} catch (error) {
 			throw new Error(`Failed to load MCP config from ${path}: ${(error as Error).message}`);
 		}
+	}
+
+	/** 外部文件不受 Vetta 控制：整体或单个 server 无法识别时跳过并给出诊断，不能拖垮其余 MCP 配置。 */
+	private loadCompatProjectConfig(): McpConfig | null {
+		const path = this.options.compatProjectConfigPath;
+		if (!path || !existsSync(path)) return null;
+		let raw: unknown;
+		try {
+			raw = JSON.parse(readFileSync(path, "utf8"));
+		} catch (error) {
+			this.reportOnce(`Ignored ${path}: ${(error as Error).message}`);
+			return null;
+		}
+		const entries = isRecord(raw) && isRecord(raw.mcpServers) ? Object.entries(raw.mcpServers) : undefined;
+		if (!entries) {
+			this.reportOnce(`Ignored ${path}: missing 'mcpServers' object`);
+			return null;
+		}
+		const mcpServers: Record<string, McpServerConfig> = {};
+		for (const [name, serverConfig] of entries) {
+			try {
+				Object.assign(mcpServers, parseMcpConfig({ mcpServers: { [name]: serverConfig } }).mcpServers);
+			} catch (error) {
+				this.reportOnce(`Skipped server '${name}' from ${path}: ${(error as Error).message}`);
+			}
+		}
+		return Object.keys(mcpServers).length === 0 ? null : { mcpServers };
+	}
+
+	private reportOnce(message: string): void {
+		if (this.reportedDiagnostics.has(message)) return;
+		this.reportedDiagnostics.add(message);
+		this.options.onDiagnostic?.(message);
+	}
+
+	private filterConfig(config: McpConfig | null, origin: "global" | "project"): McpConfig | null {
+		if (!config || !this.options.includeServer) return config;
+		return {
+			mcpServers: Object.fromEntries(
+				Object.entries(config.mcpServers).filter(([name, serverConfig]) =>
+					this.options.includeServer?.({ origin, name, config: serverConfig }),
+				),
+			),
+		};
 	}
 
 	private mergeConfigs(globalConfig: McpConfig, projectConfig: McpConfig): McpConfig {
@@ -124,9 +180,18 @@ export class FileMcpConfigSource implements McpConfigSource {
 	}
 
 	private replaceVariables(value: string): string {
-		return value.replace(/\$\{([^}]+)\}/g, (match, variableName: string) => {
+		return value.replace(/\$\{([^}]+)\}/g, (match, expression: string) => {
+			// `${VAR:-default}` 是 `.mcp.json` 的通用写法：变量缺失或为空时取默认值。
+			const separator = expression.indexOf(":-");
+			const variableName = separator === -1 ? expression : expression.slice(0, separator);
 			if (variableName === "PROJECT_ROOT") return this.options.projectRoot;
-			return this.environment[variableName] ?? match;
+			const resolved = this.environment[variableName];
+			if (separator === -1) return resolved ?? match;
+			return resolved ? resolved : expression.slice(separator + 2);
 		});
 	}
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+	return value !== null && typeof value === "object" && !Array.isArray(value);
 }

@@ -27,6 +27,7 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.ChevronRight
 import androidx.compose.material.icons.filled.Computer
+import androidx.compose.material.icons.filled.Sync
 import androidx.compose.material.icons.outlined.Cloud
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FloatingActionButton
@@ -80,6 +81,8 @@ fun HomeScreen(
     onNewConversation: () -> Unit,
     onUseCloudAi: () -> Unit,
     onContinueDesktopSession: (String, String) -> Unit = { _, _ -> },
+    taskCenterCount: Int = 0,
+    onOpenTaskCenter: () -> Unit = {},
 ) {
     Scaffold(
         containerColor = MaterialTheme.agent567Extra.pageBackground,
@@ -103,6 +106,17 @@ fun HomeScreen(
                 onOpenDesktopSessions = onOpenDesktopSessions,
                 onContinueDesktopSession = onContinueDesktopSession,
             )
+
+            Agent567Card(contentPadding = PaddingValues(horizontal = 12.dp, vertical = 4.dp)) {
+                ListRow(
+                    title = Str.taskCenterTitle,
+                    subtitle = if (taskCenterCount > 0) "${Str.taskCenterHint} · ${taskCenterCount} 项待处理" else Str.taskCenterHint,
+                    leading = { Icon(Icons.Default.Sync, contentDescription = null) },
+                    trailing = { Icon(Icons.Default.ChevronRight, contentDescription = null) },
+                    onClick = onOpenTaskCenter,
+                    showDivider = false,
+                )
+            }
 
             Agent567Card(contentPadding = PaddingValues(horizontal = 12.dp, vertical = 4.dp)) {
                 ListRow(title = Str.phoneDirectTitle, subtitle = Str.phoneDirectHint, leading = { Icon(Icons.Outlined.Cloud, contentDescription = null) }, trailing = { Icon(Icons.Default.ChevronRight, contentDescription = null) }, onClick = onUseCloudAi, showDivider = false)

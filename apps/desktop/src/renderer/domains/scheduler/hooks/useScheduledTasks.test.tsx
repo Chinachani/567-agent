@@ -24,8 +24,7 @@ describe("useScheduledTasks", () => {
 			disableTask: vi.fn(async () => undefined),
 			getRecords: vi.fn(async () => []),
 			getRunningTaskIds: vi.fn(async () => []),
-			getScheduledSessionPaths: vi.fn(async () => []),
-			deleteRecordsBySession: vi.fn(async () => []),
+			getSessionLinks: vi.fn(async () => []),
 			runTaskNow: vi.fn(async () => undefined),
 			abortTask: vi.fn(async () => undefined),
 			onTaskEvent: vi.fn((handler) => {
@@ -33,7 +32,7 @@ describe("useScheduledTasks", () => {
 				return unsubscribe;
 			}),
 		};
-		Object.defineProperty(window, "vetta", {
+		Object.defineProperty(window, "agent567", {
 			configurable: true,
 			value: { scheduler } as unknown as DesktopApi,
 		});
@@ -69,6 +68,7 @@ describe("useScheduledTasks", () => {
 		await waitFor(() => expect(scheduler.updateTask).toHaveBeenCalledOnce());
 		act(() => store.set(scheduledTasksAtom, [first, added]));
 		await act(async () => {
+			vi.mocked(scheduler.getTasks).mockResolvedValue([{ ...first, name: "Updated" }, added]);
 			pendingUpdate.resolve();
 			await updatePromise;
 		});
@@ -96,6 +96,7 @@ describe("useScheduledTasks", () => {
 		await waitFor(() => expect(scheduler.deleteTask).toHaveBeenCalledOnce());
 		act(() => store.set(scheduledTasksAtom, [removed, retained, added]));
 		await act(async () => {
+			vi.mocked(scheduler.getTasks).mockResolvedValue([retained, added]);
 			pendingDelete.resolve();
 			await deletePromise;
 		});
@@ -109,10 +110,9 @@ function task(id: string): ScheduledTask {
 		id,
 		name: `Task ${id}`,
 		prompt: "Run it",
-		cron: "0 9 * * *",
-		isOnce: false,
+		schedule: { kind: "daily", hour: 9, minute: 0 },
+		runTarget: { mode: "new-session", projectCwd: "C:/workspace" },
 		enabled: true,
-		cwd: "C:/workspace",
 		createdAt: 1,
 		updatedAt: 1,
 		lastRunAt: null,

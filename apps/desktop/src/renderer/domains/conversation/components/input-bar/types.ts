@@ -3,6 +3,8 @@ import type { SkillInfo } from "@preload/api";
 import type { InputSegment } from "@shared/lib/input-tokens";
 import type { AppshotAttachment } from "@shared/store/atoms";
 import type { TodoItem } from "@shared/store/todo-atoms";
+import type { WorkSurfaceScope } from "@shared/workspace/work-surface";
+import type { BottomPanelTabViewModel } from "@vetta-org/theme-ui/bottom-panel";
 import type { InputBarContextMenuViewProps, SessionDropZoneViewProps } from "@vetta-org/theme-ui/chat";
 import type { ComponentProps, MouseEvent, ReactNode } from "react";
 import type { ConnectorGridItem } from "../../hooks/useConnectorGrid";
@@ -16,6 +18,7 @@ import type { ActiveActionCapsule } from "./ActiveActionCapsules";
 import type { TriggerMatch } from "./editor/tokens/trigger";
 
 export interface ConnectedInputBarProps {
+	workSurface?: WorkSurfaceScope | null;
 	/** Setup pages place model/context controls beside the lower input tools. */
 	contextToolsPlacement?: "top" | "bottom";
 	/** Caller-owned setup controls, composed inside the input surface before its editor. */
@@ -155,6 +158,7 @@ export type InputBarTrailingTool =
 	  };
 
 export interface InputBarModel {
+	bottomPanelPills?: InputBarBottomPanelPillsModel | null;
 	contextToolsPlacement?: "top" | "bottom";
 	dropZone: Omit<SessionDropZoneViewProps, "children" | "className">;
 	isStreaming: boolean;
@@ -280,4 +284,10 @@ export interface InputBarViewProps {
 	children?: ReactNode;
 	className?: string;
 	classNames?: InputBarViewClassNames;
+}
+
+export interface InputBarBottomPanelPillsModel {
+	readonly pills: readonly BottomPanelTabViewModel[];
+	readonly groupLabel: string;
+	readonly onSelect: (tabId: string) => void;
 }

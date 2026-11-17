@@ -18,6 +18,10 @@ export interface ExecutionModeSelectorViewProps {
 	readonly selectedOption: ExecutionModeOptionView;
 	readonly options: readonly ExecutionModeOptionView[];
 	readonly className?: string;
+	/** 始终显示模式名。默认只在宽容器里显示、窄了只留图标；放在弹窗底栏这类没有容器查询的位置时要打开。 */
+	readonly showLabel?: boolean;
+	/** 弹出菜单与触发器的对齐边。 */
+	readonly contentAlign?: "start" | "end";
 	readonly classNames?: {
 		readonly root?: string;
 		readonly trigger?: string;
@@ -35,6 +39,8 @@ export function ExecutionModeSelectorView({
 	selectedOption,
 	options,
 	className,
+	showLabel = false,
+	contentAlign = "start",
 	classNames,
 	onOpenChange,
 	onSelect,
@@ -49,15 +55,18 @@ export function ExecutionModeSelectorView({
 						title={selectedOption.title}
 						className={cn(
 							// 窄容器只保留图标（title 仍可悬停查看模式名），宽了再显示文案
-							"no-drag flex h-7 max-w-full min-w-0 items-center gap-1 rounded-lg px-1.5 text-[12px] font-medium transition-colors disabled:pointer-events-none disabled:opacity-40 @[22rem]:gap-1.5 @[22rem]:px-2",
-							open
-								? "bg-accent text-foreground"
-								: "text-foreground hover:bg-accent/60",
+							"no-drag flex h-7 max-w-full min-w-0 items-center rounded-lg text-[12px] font-medium transition-colors disabled:pointer-events-none disabled:opacity-40",
+							showLabel ? "gap-1.5 px-2" : "gap-1 px-1.5 @[22rem]:gap-1.5 @[22rem]:px-2",
+							open ? "bg-accent text-foreground" : "text-foreground hover:bg-accent/60",
 							classNames?.trigger,
 						)}
 					>
 						<span className={cn(selectedOption.icon, "h-3.5 w-3.5 shrink-0")} />
-						<span className="hidden min-w-0 max-w-[5.5rem] truncate @[22rem]:inline">{selectedOption.label}</span>
+						<span
+							className={cn("min-w-0 max-w-[5.5rem] truncate", showLabel ? "inline" : "hidden @[22rem]:inline")}
+						>
+							{selectedOption.label}
+						</span>
 					</button>
 				</PopoverTrigger>
 				<AnimatePresence>
@@ -66,12 +75,9 @@ export function ExecutionModeSelectorView({
 							forceMount
 							asChild
 							side="top"
-							align="start"
+							align={contentAlign}
 							sideOffset={6}
-							className={cn(
-								"w-[148px] gap-0 overflow-visible rounded-lg border border-border p-0",
-								classNames?.content,
-							)}
+							className={cn("w-[148px] gap-0 overflow-visible p-0", classNames?.content)}
 							style={{ animation: "none" }}
 						>
 							<motion.div
@@ -100,9 +106,7 @@ export function ExecutionModeSelectorView({
 											}}
 											className={cn(
 												"flex w-full items-center gap-2 rounded-md px-2 py-[5px] text-[12px] font-medium transition-colors disabled:cursor-not-allowed disabled:opacity-45",
-												option.selected
-													? "bg-accent text-foreground"
-													: "text-foreground hover:bg-accent",
+												option.selected ? "bg-accent text-foreground" : "text-foreground hover:bg-accent",
 												classNames?.item,
 											)}
 										>

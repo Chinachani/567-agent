@@ -1,3 +1,4 @@
+import { Button } from "@vetta-org/ui";
 import { AnimatePresence, motion } from "motion/react";
 import type { JSX, RefObject } from "react";
 import { usePanelViewportHeight } from "./usePanelViewportHeight";
@@ -34,6 +35,8 @@ export interface AtPanelLabels {
 	emptyDirectory: string;
 	goUp: string;
 	enterDirectory: string;
+	citeDirectory?: string;
+	citeDirectoryHint?: string;
 }
 
 export interface AtPanelViewProps {
@@ -50,6 +53,7 @@ export interface AtPanelViewProps {
 	onGoUp: () => void;
 	onHoverIndex: (index: number) => void;
 	onEntryClick: (entry: AtPanelEntryModel) => void;
+	onCiteDirectory?: (entry: AtPanelEntryModel) => void;
 }
 
 export function AtPanelView({
@@ -66,6 +70,7 @@ export function AtPanelView({
 	onGoUp,
 	onHoverIndex,
 	onEntryClick,
+	onCiteDirectory,
 }: AtPanelViewProps): JSX.Element {
 	const syncHeight = usePanelViewportHeight(panelRef, open);
 	return (
@@ -163,6 +168,9 @@ export function AtPanelView({
 											entry={entry}
 											className={classNames?.item}
 											enterDirectoryLabel={labels.enterDirectory}
+											citeDirectoryLabel={labels.citeDirectory}
+											citeDirectoryHint={labels.citeDirectoryHint}
+											onCite={onCiteDirectory ? () => onCiteDirectory(entry) : undefined}
 											onHover={() => onHoverIndex(entry.index)}
 											onClick={() => onEntryClick(entry)}
 										/>
@@ -181,68 +189,91 @@ function AtPanelEntry({
 	entry,
 	className,
 	enterDirectoryLabel,
+	citeDirectoryLabel,
+	citeDirectoryHint,
+	onCite,
 	onHover,
 	onClick,
 }: {
 	entry: AtPanelEntryModel;
 	className?: string;
 	enterDirectoryLabel: string;
+	citeDirectoryLabel?: string;
+	citeDirectoryHint?: string;
+	onCite?: () => void;
 	onHover: () => void;
 	onClick: () => void;
 }): JSX.Element {
+	const browsingDirectory = entry.isDirectory && entry.relPath === undefined;
+	const citeLabel = browsingDirectory && onCite && citeDirectoryLabel ? citeDirectoryLabel : undefined;
 	return (
-		<button
-			type="button"
+		<div
 			data-index={entry.index}
 			onMouseEnter={onHover}
-			onClick={onClick}
 			className={[
-				"relative flex w-full items-center gap-3 px-4 py-1.5 text-left transition-colors",
+				"relative flex w-full items-center transition-colors",
 				entry.active ? "bg-primary/10" : "bg-transparent",
 				className,
 			]
 				.filter(Boolean)
 				.join(" ")}
 		>
-			{entry.active && (
-				<motion.span
-					layoutId="at-active-marker"
-					className="absolute inset-y-1 left-0 w-0.5 rounded-full bg-primary"
-					transition={{ type: "spring", stiffness: 500, damping: 32 }}
-				/>
-			)}
-			{entry.avatar ? (
-				<img src={entry.avatar} alt="" className="h-5 w-5 shrink-0 rounded-full object-cover" />
-			) : (
-				<span aria-hidden="true" className={`${entry.icon} h-4 w-4 shrink-0 text-muted-foreground`} />
-			)}
-			<span
-				className={`min-w-0 truncate text-[13px] ${entry.isDirectory ? "font-medium text-foreground" : "text-foreground"}`}
-				title={entry.name}
+			<button
+				type="button"
+				onClick={onClick}
+				className="flex min-w-0 flex-1 items-center gap-3 px-4 py-1.5 text-left"
 			>
-				{entry.name}
-			</span>
-			{entry.meta ? (
+				{entry.active && (
+					<motion.span
+						layoutId="at-active-marker"
+						className="absolute inset-y-1 left-0 w-0.5 rounded-full bg-primary"
+						transition={{ type: "spring", stiffness: 500, damping: 32 }}
+					/>
+				)}
+				{entry.avatar ? (
+					<img src={entry.avatar} alt="" className="h-5 w-5 shrink-0 rounded-full object-cover" />
+				) : (
+					<span aria-hidden="true" className={`${entry.icon} h-4 w-4 shrink-0 text-muted-foreground`} />
+				)}
 				<span
-					className="ml-auto min-w-0 max-w-[45%] truncate text-right text-[11px] text-muted-foreground"
-					title={entry.meta}
+					className={`min-w-0 truncate text-[13px] ${entry.isDirectory ? "font-medium text-foreground" : "text-foreground"}`}
+					title={entry.name}
 				>
-					{entry.meta}
+					{entry.name}
 				</span>
-			) : null}
-			{entry.relPath && entry.relPath !== entry.name && (
-				<span
-					className="ml-auto min-w-0 max-w-[45%] truncate text-right font-mono text-[11px] text-muted-foreground"
-					title={entry.relPath}
+				{entry.meta ? (
+					<span
+						className="ml-auto min-w-0 max-w-[45%] truncate text-right text-[11px] text-muted-foreground"
+						title={entry.meta}
+					>
+						{entry.meta}
+					</span>
+				) : null}
+				{entry.relPath && entry.relPath !== entry.name && (
+					<span
+						className="ml-auto min-w-0 max-w-[45%] truncate text-right font-mono text-[11px] text-muted-foreground"
+						title={entry.relPath}
+					>
+						{entry.relPath}
+					</span>
+				)}
+				{browsingDirectory && (
+					<span className="ml-auto shrink-0 text-[11px] text-muted-foreground" title={enterDirectoryLabel}>
+						{enterDirectoryLabel}
+					</span>
+				)}
+			</button>
+			{citeLabel && (
+				<Button
+					size="sm"
+					variant="ghost"
+					onClick={onCite}
+					title={citeDirectoryHint ?? citeLabel}
+					className="mr-2 shrink-0"
 				>
-					{entry.relPath}
-				</span>
+					{citeLabel}
+				</Button>
 			)}
-			{entry.isDirectory && (
-				<span className="ml-auto shrink-0 text-[11px] text-muted-foreground" title={enterDirectoryLabel}>
-					{enterDirectoryLabel}
-				</span>
-			)}
-		</button>
+		</div>
 	);
 }

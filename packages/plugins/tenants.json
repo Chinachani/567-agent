@@ -16,7 +16,8 @@
         "plugin-workbench",
         "content-creation",
         "browser",
-        "cowart-vetta"
+        "cowart-vetta",
+        "open-in-app"
       ]
     },
     "production": {
@@ -32,7 +33,8 @@
         "git",
         "plugin-workbench",
         "browser",
-        "cowart-vetta"
+        "cowart-vetta",
+        "open-in-app"
       ]
     }
   }

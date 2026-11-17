@@ -1,6 +1,7 @@
 import { existsSync, readdirSync, readFileSync, statSync, writeFileSync } from "node:fs";
 import { mkdir, rm } from "node:fs/promises";
 import { basename, join, resolve, sep } from "node:path";
+import { isSshProjectUri } from "@567agent/ssh-transport";
 import AdmZip from "adm-zip";
 import { dialog, ipcMain } from "electron";
 import { readDesktopConfig, updateDesktopConfig } from "../config/desktop-config-store.js";
@@ -504,6 +505,7 @@ function toErrorPayload(error: unknown): IpcErrorPayload {
 
 /** 读取项目 `.vetta/meta.json`（用于识别 batch 等项目类型）；不存在或解析失败返回 null。 */
 function readProjectMeta(projectDir: string): Record<string, unknown> | null {
+	if (isSshProjectUri(projectDir)) return null;
 	const metaPath = existingProjectStatePath(projectDir, "meta.json");
 	if (!existsSync(metaPath)) return null;
 	try {

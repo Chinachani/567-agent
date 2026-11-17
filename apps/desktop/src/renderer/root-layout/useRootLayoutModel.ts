@@ -9,7 +9,7 @@ import { reportUiZoomFailure } from "@shared/hooks/useUiZoom";
 import { useMatches, useNavigate } from "@tanstack/react-router";
 import { getDefaultStore, useAtom, useAtomValue, useSetAtom } from "jotai";
 import { useCallback, useEffect, useRef, useState } from "react";
-import { FILE_EDITOR_SAVE_EVENT } from "@/shared/shortcuts";
+import { FILE_EDITOR_SAVE_EVENT, OPEN_MODEL_SELECTOR_EVENT } from "@/shared/shortcuts";
 import { loadNewSessionPage } from "../domains/conversation/components/loadNewSessionPage";
 import { useAppInit } from "../domains/conversation/hooks/useAppInit";
 import { useSessionManager } from "../domains/conversation/hooks/useSessionManager";
@@ -32,6 +32,7 @@ import {
 	activeSessionAtom,
 	activityPanelOpenAtom,
 	appshotAttachmentAtom,
+	automationSessionLinksAtom,
 	closeInlineFilePreviewAtom,
 	commandMenuOpenAtom,
 	defaultConversationCwdAtom,
@@ -48,7 +49,6 @@ import {
 	pendingSessionOpenAtom,
 	projectsAtom,
 	sandboxPermissionDrawerAtom,
-	scheduledSessionPathsAtom,
 	sidebarCollapsedAtom,
 	sidebarWidthAtom,
 } from "../shared/store/atoms";
@@ -426,26 +426,49 @@ export function useRootLayoutModel(): RootLayoutModel {
 	// 调度任务（自动化）"立即执行"时，session 在 main 进程已经建好，但 JSONL
 	// 要等 assistant 首个回复才落盘。这里订阅 task.started，乐观地把 session
 	// 插入 sidebar，避免必须等 agent 跑完才出现的延迟。
-	const setScheduledSessionPaths = useSetAtom(scheduledSessionPathsAtom);
+	const setAutomationSessionLinks = useSetAtom(automationSessionLinksAtom);
 	useEffect(() => {
-		// 启动时拉取已有定时 session 路径，供侧栏识别并挂图标。
-		void window.agent567.scheduler.getScheduledSessionPaths().then((paths) => {
-			setScheduledSessionPaths(new Set(paths));
-		});
-		return window.agent567.scheduler.onTaskEvent((event) => {
-			if (event.type !== "task.started") return;
-			if (!event.sessionPath || !event.cwd) return;
-			setScheduledSessionPaths((prev) => new Set(prev).add(event.sessionPath));
-			ensureLocalSession(event.cwd, {
+		let cancelled = false;
+		let refreshGeneration = 0;
+		const refreshLinks = async (): Promise<void> => {
+			const generation = ++refreshGeneration;
+			try {
+				const links = await window.agent567.scheduler.getSessionLinks();
+				if (!cancelled && generation === refreshGeneration)
+					setAutomationSessionLinks(new Map(links.map((link) => [link.sessionPath, link])));
+			} catch (error) {
+				console.warn("failed to refresh automation session links", error);
+			}
+		};
+		void refreshLinks();
+		const unsubscribe = window.agent567.scheduler.onTaskEvent((event) => {
+			if (event.type !== "task.started") {
+				void refreshLinks();
+				return;
+			}
+			refreshGeneration++;
+			setAutomationSessionLinks((previous) =>
+				new Map(previous).set(event.sessionPath, {
+					sessionPath: event.sessionPath,
+					taskId: event.taskId,
+					taskName: event.taskName,
+					mode: event.mode,
+				}),
+			);
+			ensureLocalSession(event.listCwd, {
 				id: event.sessionId,
 				path: event.sessionPath,
-				cwd: event.cwd,
+				cwd: event.listCwd,
 				name: event.sessionName,
 				firstMessage: event.firstMessage,
 				modifiedAt: Date.now(),
 			});
 		});
-	}, [ensureLocalSession, setScheduledSessionPaths]);
+		return () => {
+			cancelled = true;
+			unsubscribe();
+		};
+	}, [ensureLocalSession, setAutomationSessionLinks]);
 
 	// ─── Global keyboard shortcuts ───
 	const projectsRef = useRef(projects);
@@ -475,6 +498,10 @@ export function useRootLayoutModel(): RootLayoutModel {
 					}
 					case "open-settings": {
 						void navigate({ to: "/settings/$tab", params: { tab: "account" } });
+						break;
+					}
+					case "open-model-selector": {
+						window.dispatchEvent(new Event(OPEN_MODEL_SELECTOR_EVENT));
 						break;
 					}
 					case "open-command-menu": {

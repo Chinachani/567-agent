@@ -4,6 +4,7 @@ import {
 	type SchedulerExecutionRecord,
 	type SchedulerTask,
 } from "@vetta-org/capability-sdk";
+import { adaptLegacySchedulerInput, isLegacySchedulerInput } from "../../../../scheduler/legacy-plugin-input.js";
 import type { PluginCapabilitySessionAccess } from "../types.js";
 
 export const pluginSchedulerMethods = {
@@ -26,18 +27,25 @@ export const pluginSchedulerMethods = {
 	},
 
 	createScheduledTask(this: PluginCapabilitySessionAccess, sessionId: string, data: unknown): Promise<SchedulerTask> {
-		const input = DOMAIN_SCHEDULER_CAPABILITIES.CREATE_TASK.parseInput({ data });
+		const input = DOMAIN_SCHEDULER_CAPABILITIES.CREATE_TASK.parseInput({ data: adaptLegacySchedulerInput(data) });
 		return this.client(sessionId, { official: true }).invoke(DOMAIN_SCHEDULER_CAPABILITIES.CREATE_TASK, input);
 	},
 
-	updateScheduledTask(
+	async updateScheduledTask(
 		this: PluginCapabilitySessionAccess,
 		sessionId: string,
 		taskId: string,
 		data: unknown,
 	): Promise<SchedulerTask> {
-		const input = DOMAIN_SCHEDULER_CAPABILITIES.UPDATE_TASK.parseInput({ taskId, data });
-		return this.client(sessionId, { official: true }).invoke(DOMAIN_SCHEDULER_CAPABILITIES.UPDATE_TASK, input);
+		const client = this.client(sessionId, { official: true });
+		const current = isLegacySchedulerInput(data)
+			? await client.invoke(DOMAIN_SCHEDULER_CAPABILITIES.GET_TASK, { taskId })
+			: undefined;
+		const input = DOMAIN_SCHEDULER_CAPABILITIES.UPDATE_TASK.parseInput({
+			taskId,
+			data: adaptLegacySchedulerInput(data, current),
+		});
+		return client.invoke(DOMAIN_SCHEDULER_CAPABILITIES.UPDATE_TASK, input);
 	},
 
 	deleteScheduledTask(

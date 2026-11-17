@@ -3,8 +3,9 @@ import { join } from "node:path";
 import type { ProgressInfo, UpdateInfo } from "builder-util-runtime";
 import { CancellationError, CancellationToken, CURRENT_APP_INSTALLER_FILE_NAME } from "builder-util-runtime";
 import type { AppUpdater, ResolvedUpdateFileInfo } from "electron-updater";
-
+import { stripReleaseNoteHeader } from "../shared/release-note-header.js";
 import type { InnoWindowsUpdateController } from "./inno-windows-update.js";
+import { releaseNotesHtmlToMarkdown } from "./release-notes-markdown.js";
 
 export interface UpdateEngineInfo {
 	version: string;
@@ -86,40 +87,20 @@ async function promoteDownloadedInstaller(updater: AppUpdater, installerPath: st
 	}
 }
 
-export function htmlToMarkdown(html: string): string {
-	if (!html || !/<[a-z][\s\S]*>/i.test(html)) return html;
-	let md = html;
-	md = md.replace(/<h1[^>]*>([\s\S]*?)<\/h1>/gi, "# $1\n\n");
-	md = md.replace(/<h2[^>]*>([\s\S]*?)<\/h2>/gi, "## $1\n\n");
-	md = md.replace(/<h3[^>]*>([\s\S]*?)<\/h3>/gi, "### $1\n\n");
-	md = md.replace(/<h4[^>]*>([\s\S]*?)<\/h4>/gi, "#### $1\n\n");
-	md = md.replace(/<(strong|b)[^>]*>([\s\S]*?)<\/\1>/gi, "**$2**");
-	md = md.replace(/<(em|i)[^>]*>([\s\S]*?)<\/\1>/gi, "*$2*");
-	md = md.replace(/<code[^>]*>([\s\S]*?)<\/code>/gi, "`$1`");
-	md = md.replace(/<a[^>]*href="([^"]*)"[^>]*>([\s\S]*?)<\/a>/gi, "[$2]($1)");
-	md = md.replace(/<li[^>]*>([\s\S]*?)<\/li>/gi, "- $1\n");
-	md = md.replace(/<\/?(ul|ol)[^>]*>/gi, "\n");
-	md = md.replace(/<p[^>]*>([\s\S]*?)<\/p>/gi, "$1\n\n");
-	md = md.replace(/<br\s*\/?>/gi, "\n");
-	md = md.replace(/<[^>]+>/g, "");
-	md = md
-		.replace(/&amp;/g, "&")
-		.replace(/&lt;/g, "<")
-		.replace(/&gt;/g, ">")
-		.replace(/&quot;/g, '"')
-		.replace(/&#39;/g, "'")
-		.replace(/&nbsp;/g, " ");
-	return md.replace(/\n{3,}/g, "\n\n").trim();
-}
-
-function normalizeReleaseNotes(releaseNotes: UpdateInfo["releaseNotes"]): string | undefined {
-	if (typeof releaseNotes === "string") return htmlToMarkdown(releaseNotes) || undefined;
+export function normalizeReleaseNotes(releaseNotes: UpdateInfo["releaseNotes"]): string | undefined {
+	if (typeof releaseNotes === "string")
+		return stripReleaseNoteHeader(releaseNotesHtmlToMarkdown(releaseNotes)) || undefined;
 	if (!Array.isArray(releaseNotes)) return undefined;
 
 	const notes = releaseNotes
-		.map((item) => (typeof item.note === "string" ? htmlToMarkdown(item.note) : ""))
-		.filter((note): note is string => note.length > 0);
-	return notes.length > 0 ? notes.join("\n\n") : undefined;
+		.map((item) => item.note)
+		.filter((note): note is string => typeof note === "string" && note.length > 0)
+		.map(releaseNotesHtmlToMarkdown);
+	if (notes.length === 0) return undefined;
+	// 单个版本：对话框已有版本标题，去掉正文开头的「# Vetta x.y.z」。
+	// 跨多个版本时各段的标题是区分版本的唯一线索，原样保留。
+	if (notes.length === 1) return stripReleaseNoteHeader(notes[0] ?? "") || undefined;
+	return notes.join("\n\n");
 }
 
 function getAssetFileName(url: string): string | undefined {

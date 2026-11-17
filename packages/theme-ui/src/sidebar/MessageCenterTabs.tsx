@@ -2,7 +2,7 @@ import { motion } from "motion/react";
 import type { JSX } from "react";
 import { cn } from "@vetta-org/ui";
 
-export type MessageCenterTabId = "all" | "notifications" | "flowing" | "chat";
+export type MessageCenterTabId = "all" | "notifications" | "flowing" | "chat" | "results";
 
 export interface MessageCenterTabItem {
 	value: MessageCenterTabId;
@@ -52,9 +52,7 @@ export function MessageCenterTabs({
 						onClick={() => onSelect(value)}
 						className={cn(
 							"relative flex flex-1 items-center justify-center gap-1.5 rounded-lg px-2.5 py-1.5 text-[12px] font-medium transition-colors duration-150",
-							isActive
-								? "text-primary-foreground"
-								: "text-muted-foreground hover:bg-accent/60 hover:text-foreground",
+							isActive ? "text-primary-foreground" : "text-muted-foreground hover:bg-accent/60 hover:text-foreground",
 						)}
 					>
 						{isActive && (
@@ -70,9 +68,7 @@ export function MessageCenterTabs({
 							<span
 								className={cn(
 									"relative z-10 ml-0.5 flex h-4 min-w-4 items-center justify-center rounded-full px-1 text-[9px] font-bold",
-									isActive
-										? "bg-primary-foreground/25 text-primary-foreground"
-										: "bg-primary text-primary-foreground",
+									isActive ? "bg-primary-foreground/25 text-primary-foreground" : "bg-primary text-primary-foreground",
 								)}
 							>
 								{count}

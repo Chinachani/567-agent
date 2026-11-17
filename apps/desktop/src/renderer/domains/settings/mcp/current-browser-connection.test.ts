@@ -121,7 +121,7 @@ it("keeps an explicit custom destination unchanged during pairing updates and di
 	for (const enabled of [true, false]) {
 		const next = updateCurrentBrowserConnection(original, { ...input, enabled });
 		const previous = original.mcpServers[CURRENT_BROWSER_SERVER_NAME];
-		if (previous.type === "http") throw new Error("Expected stdio fixture");
+		if (previous.type === "http" || previous.type === "sse") throw new Error("Expected stdio fixture");
 		expect(next.mcpServers[CURRENT_BROWSER_SERVER_NAME]).toMatchObject({ args: previous.args });
 		expect(readCurrentBrowserConnection(next).browser).toBe("custom");
 	}
@@ -161,7 +161,7 @@ it("uses only the standard channel for Chrome/Edge so automatic extension-profil
 		env: { PLAYWRIGHT_MCP_BROWSER: "msedge", AGENT567_BROWSER_TARGET: "msedge" },
 	});
 	const server = next.mcpServers[CURRENT_BROWSER_SERVER_NAME];
-	if (server.type === "http") throw new Error("Expected stdio");
+	if (server.type === "http" || server.type === "sse") throw new Error("Expected stdio");
 	expect(server.env).not.toHaveProperty("PLAYWRIGHT_MCP_EXECUTABLE_PATH");
 	expect(readCurrentBrowserConnection(next).browser).toBe("msedge");
 });

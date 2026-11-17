@@ -16,6 +16,7 @@ import kotlinx.coroutines.Job
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.cancel
+import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -33,6 +34,8 @@ import org.agent567.android.domain.remote.SignalingDrop
 import org.agent567.android.domain.remote.SignalingRetry
 import org.agent567.android.domain.remote.RemoteVideoSize
 import org.agent567.android.domain.remote.RemoteStreamStats
+import org.agent567.android.domain.remote.RemoteScreenStage
+import org.agent567.android.domain.remote.RemoteVideoPreference
 import org.agent567.android.core.net.platformWebSocketHttpClient
 import org.agent567.android.core.net.pinnedWebSocketHttpClient
 import org.agent567.android.ui.i18n.Str
@@ -51,6 +54,7 @@ import org.webrtc.VideoTrack
 
 private const val PROTOCOL_VERSION = 1
 private const val INPUT_CHANNEL = "vetta-input-v1"
+private const val ICE_DISCONNECT_GRACE_MS = 12_000L
 
 class NativeRemoteDesktopSession(private val context: Context, private val target: String) {
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Main.immediate)
@@ -71,8 +75,14 @@ class NativeRemoteDesktopSession(private val context: Context, private val targe
     private var peerConnection: PeerConnection? = null
     private var signalingJob: Job? = null
     private var statsJob: Job? = null
+    private var iceDisconnectJob: Job? = null
     @Volatile private var signaling: DefaultClientWebSocketSession? = null
     private var inputChannel: DataChannel? = null
+    private val inputStateLock = Any()
+    private val activeKeys = linkedSetOf<String>()
+    private val activeMouseButtons = linkedMapOf<String, Pair<Float, Float>>()
+    private val pendingKeyReleases = linkedSetOf<String>()
+    private val pendingMouseReleases = linkedMapOf<String, Pair<Float, Float>>()
     private val sequence = java.util.concurrent.atomic.AtomicLong(1)
     @Volatile private var viewportSupported = false
     @Volatile private var viewportSize: Pair<Int, Int>? = null
@@ -92,10 +102,17 @@ class NativeRemoteDesktopSession(private val context: Context, private val targe
     val inputEnabled: StateFlow<Boolean> = _inputEnabled.asStateFlow()
     private val _captureMessage = MutableStateFlow<String?>(Str.remoteCaptureWaiting)
     val captureMessage: StateFlow<String?> = _captureMessage.asStateFlow()
+    private val _reconnectingMessage = MutableStateFlow<String?>(null)
+    val reconnectingMessage: StateFlow<String?> = _reconnectingMessage.asStateFlow()
     private val _connectionDetails = MutableStateFlow<String?>(null)
     val connectionDetails: StateFlow<String?> = _connectionDetails.asStateFlow()
     private val _streamStats = MutableStateFlow<RemoteStreamStats?>(null)
     val streamStats: StateFlow<RemoteStreamStats?> = _streamStats.asStateFlow()
+    private val _stage = MutableStateFlow(RemoteScreenStage.Connecting)
+    val stage: StateFlow<RemoteScreenStage> = _stage.asStateFlow()
+    private val _videoPreferenceSupported = MutableStateFlow(false)
+    val videoPreferenceSupported: StateFlow<Boolean> = _videoPreferenceSupported.asStateFlow()
+    private var preferredVideo = RemoteVideoPreference.Auto
     private val _textInputSupported = MutableStateFlow(false)
     val textInputSupported: StateFlow<Boolean> = _textInputSupported.asStateFlow()
 
@@ -113,6 +130,7 @@ class NativeRemoteDesktopSession(private val context: Context, private val targe
                 scope.launch {
                     if (!stopped && renderer === view) {
                         _hasVideoFrame.value = true
+                        _stage.value = RemoteScreenStage.Receiving
                         if (_captureMessage.value == Str.remoteCaptureWaiting) _captureMessage.value = null
                     }
                 }
@@ -145,10 +163,17 @@ class NativeRemoteDesktopSession(private val context: Context, private val targe
 
     fun stop() {
         if (stopped) return
+        releaseAllInputs()
         stopped = true
+        _stage.value = RemoteScreenStage.Ended
+        _videoPreferenceSupported.value = false
+        clearTrackedInputs()
         directlyConnected = false
         viewportSupported = false
         viewportJob?.cancel()
+        iceDisconnectJob?.cancel()
+        iceDisconnectJob = null
+        _reconnectingMessage.value = null
         _textInputSupported.value = false
         _relativePointer.value = false
         _inputEnabled.value = false
@@ -176,7 +201,10 @@ class NativeRemoteDesktopSession(private val context: Context, private val targe
         scope.cancel()
     }
 
-    fun pauseRenderer() = renderer?.pauseVideo()
+    fun pauseRenderer() {
+        releaseAllInputs()
+        renderer?.pauseVideo()
+    }
 
     fun resumeRenderer() = renderer?.disableFpsReduction()
 
@@ -186,6 +214,19 @@ class NativeRemoteDesktopSession(private val context: Context, private val targe
         if (viewportSize == size) return
         viewportSize = size
         scheduleViewport()
+    }
+
+    fun preferVideo(mode: RemoteVideoPreference): Boolean {
+        preferredVideo = mode
+        if (!_videoPreferenceSupported.value || stopped) return false
+        val channel = inputChannel ?: return false
+        return runCatching {
+        if (channel.state() != DataChannel.State.OPEN) return@runCatching false
+        val payload = buildJsonObject {
+            put("type", "video.preference"); put("sequence", sequence.getAndIncrement()); put("mode", mode.wire)
+        }
+        channel.send(DataChannel.Buffer(java.nio.ByteBuffer.wrap(payload.toString().toByteArray()), false))
+        }.getOrDefault(false)
     }
 
     private fun scheduleViewport() {
@@ -206,14 +247,55 @@ class NativeRemoteDesktopSession(private val context: Context, private val targe
     }
 
     fun sendPointer(type: String, x: Float, y: Float, button: String? = null, action: String? = null) {
-        sendInput(buildJsonObject {
+        val clampedX = x.coerceIn(0f, 1f)
+        val clampedY = y.coerceIn(0f, 1f)
+        if (type == "pointer.button" && button != null) {
+            when (action) {
+                "down" -> {
+                    val pendingPos = synchronized(inputStateLock) { pendingMouseReleases.remove(button) }
+                    if (pendingPos != null && !sendPointerButton(button, pendingPos.first, pendingPos.second, "up")) {
+                        synchronized(inputStateLock) { pendingMouseReleases[button] = pendingPos }
+                        return
+                    }
+                    val sent = sendPointerButton(button, clampedX, clampedY, "down")
+                    if (sent) {
+                        synchronized(inputStateLock) { activeMouseButtons[button] = clampedX to clampedY }
+                    }
+                    return
+                }
+                "up" -> {
+                    val wasTracked = synchronized(inputStateLock) {
+                        activeMouseButtons.remove(button) != null || pendingMouseReleases.containsKey(button)
+                    }
+                    val sent = sendPointerButton(button, clampedX, clampedY, "up")
+                    synchronized(inputStateLock) {
+                        if (sent) {
+                            activeMouseButtons.remove(button)
+                            pendingMouseReleases.remove(button)
+                        } else if (wasTracked) {
+                            pendingMouseReleases[button] = clampedX to clampedY
+                        }
+                    }
+                    return
+                }
+            }
+        }
+        val sent = sendInput(buildJsonObject {
             put("type", type)
             put("sequence", sequence.getAndIncrement())
-            put("x", x.coerceIn(0f, 1f))
-            put("y", y.coerceIn(0f, 1f))
+            put("x", clampedX)
+            put("y", clampedY)
             if (button != null) put("button", button)
             if (action != null) put("action", action)
         })
+        if (type == "pointer.move" && sent) {
+            synchronized(inputStateLock) {
+                if (activeMouseButtons.isNotEmpty()) {
+                    val pos = clampedX to clampedY
+                    activeMouseButtons.keys.forEach { activeMouseButtons[it] = pos }
+                }
+            }
+        }
     }
 
     fun sendRelativePointer(deltaX: Float, deltaY: Float) {
@@ -234,28 +316,113 @@ class NativeRemoteDesktopSession(private val context: Context, private val targe
     }
 
     fun sendKey(code: String, action: String) {
-        sendInput(buildJsonObject {
-            put("type", "key")
-            put("sequence", sequence.getAndIncrement())
-            put("code", code)
-            put("action", action)
-        })
+        when (action) {
+            "down" -> {
+                val hadPending = synchronized(inputStateLock) { pendingKeyReleases.remove(code) }
+                if (hadPending && !sendKeyEvent(code, "up")) {
+                    synchronized(inputStateLock) { pendingKeyReleases += code }
+                    return
+                }
+                val sent = sendKeyEvent(code, "down")
+                if (sent) {
+                    synchronized(inputStateLock) { activeKeys += code }
+                }
+            }
+            "up" -> {
+                val wasTracked = synchronized(inputStateLock) {
+                    activeKeys.remove(code) || pendingKeyReleases.contains(code)
+                }
+                val sent = sendKeyEvent(code, "up")
+                synchronized(inputStateLock) {
+                    if (sent) {
+                        activeKeys.remove(code)
+                        pendingKeyReleases.remove(code)
+                    } else if (wasTracked) {
+                        pendingKeyReleases += code
+                    }
+                }
+            }
+            else -> sendKeyEvent(code, action)
+        }
     }
 
-    fun sendText(text: String) {
-        if (text.isBlank()) return
-        sendInput(buildJsonObject {
+    fun sendText(text: String): Boolean {
+        if (text.isBlank() || !_textInputSupported.value) return false
+        return sendInput(buildJsonObject {
             put("type", "text")
             put("sequence", sequence.getAndIncrement())
             put("text", text.take(256))
         })
     }
 
-    private fun sendInput(payload: JsonObject) {
-        if (!_inputEnabled.value && payload["type"]?.jsonPrimitive?.contentOrNull != "heartbeat") return
-        val channel = inputChannel ?: return
-        if (channel.state() != DataChannel.State.OPEN) return
-        channel.send(DataChannel.Buffer(java.nio.ByteBuffer.wrap(payload.toString().toByteArray()), false))
+    fun releaseAllInputs() {
+        synchronized(inputStateLock) {
+            activeMouseButtons.forEach { (button, pos) -> pendingMouseReleases[button] = pos }
+            activeMouseButtons.clear()
+            pendingKeyReleases += activeKeys
+            activeKeys.clear()
+        }
+        flushPendingReleases()
+    }
+
+    private fun flushPendingReleases() {
+        if (stopped) return
+        val buttonsToRelease: List<Pair<String, Pair<Float, Float>>>
+        val keysToRelease: List<String>
+        synchronized(inputStateLock) {
+            if (pendingMouseReleases.isEmpty() && pendingKeyReleases.isEmpty()) return
+            buttonsToRelease = pendingMouseReleases.entries.map { it.key to it.value }
+            keysToRelease = pendingKeyReleases.toList()
+        }
+        buttonsToRelease.forEach { (button, pos) ->
+            if (sendPointerButton(button, pos.first, pos.second, "up")) {
+                synchronized(inputStateLock) {
+                    if (pendingMouseReleases[button] == pos) pendingMouseReleases.remove(button)
+                }
+            }
+        }
+        keysToRelease.forEach { code ->
+            if (sendKeyEvent(code, "up")) {
+                synchronized(inputStateLock) {
+                    pendingKeyReleases.remove(code)
+                }
+            }
+        }
+    }
+
+    private fun sendPointerButton(button: String, x: Float, y: Float, action: String): Boolean = sendInput(buildJsonObject {
+        put("type", "pointer.button")
+        put("sequence", sequence.getAndIncrement())
+        put("x", x.coerceIn(0f, 1f))
+        put("y", y.coerceIn(0f, 1f))
+        put("button", button)
+        put("action", action)
+    })
+
+    private fun sendKeyEvent(code: String, action: String): Boolean = sendInput(buildJsonObject {
+        put("type", "key")
+        put("sequence", sequence.getAndIncrement())
+        put("code", code)
+        put("action", action)
+    })
+
+    private fun clearTrackedInputs() {
+        synchronized(inputStateLock) {
+            activeMouseButtons.clear()
+            activeKeys.clear()
+            pendingMouseReleases.clear()
+            pendingKeyReleases.clear()
+        }
+    }
+
+    private fun sendInput(payload: JsonObject): Boolean {
+        if (stopped) return false
+        if (!_inputEnabled.value && payload["type"]?.jsonPrimitive?.contentOrNull != "heartbeat") return false
+        val channel = inputChannel ?: return false
+        if (channel.state() != DataChannel.State.OPEN) return false
+        return runCatching {
+            channel.send(DataChannel.Buffer(java.nio.ByteBuffer.wrap(payload.toString().toByteArray()), false))
+        }.getOrDefault(false)
     }
 
     private suspend fun run() {
@@ -279,6 +446,7 @@ class NativeRemoteDesktopSession(private val context: Context, private val targe
                     signaling = socket
                     signalingRetry.reopened(directlyConnected)
                     _connectionDetails.value = "${signalingNetworkLabel}信令已连接"
+                    if (!_hasVideoFrame.value && !remoteDescriptionSet) _stage.value = RemoteScreenStage.WaitingForScreen
                     PlatformRemoteLogger.info("native WebRTC signaling connected")
                     if (peerConnection == null) createPeerConnection()
                     for (frame in socket.incoming) if (frame is Frame.Text) handleSignal(frame.readText())
@@ -301,6 +469,7 @@ class NativeRemoteDesktopSession(private val context: Context, private val targe
                         break
                     }
                     is SignalingDrop.Reconnect -> {
+                        if (!directlyConnected) _stage.value = RemoteScreenStage.Reconnecting
                         _connectionDetails.value = "${drop.afterMs / 1_000} 秒后重试${signalingNetworkLabel}信令"
                         delay(drop.afterMs)
                     }
@@ -335,12 +504,36 @@ class NativeRemoteDesktopSession(private val context: Context, private val targe
                     PlatformRemoteLogger.info("native WebRTC ICE state", mapOf("state" to state.name))
                     when (state) {
                         PeerConnection.IceConnectionState.CONNECTED, PeerConnection.IceConnectionState.COMPLETED -> {
+                            iceDisconnectJob?.cancel()
+                            iceDisconnectJob = null
+                            _reconnectingMessage.value = null
+                            _stage.value = if (_hasVideoFrame.value) RemoteScreenStage.Receiving else RemoteScreenStage.Negotiating
                             directlyConnected = true
                             signalingRetry.reopened()
                             _connectionDetails.value = "屏幕已通过 WebRTC 直连"
+                            flushPendingReleases()
                             sampleStats()
                         }
+                        PeerConnection.IceConnectionState.DISCONNECTED -> {
+                            releaseAllInputs()
+                            _reconnectingMessage.value = Str.remoteCaptureReconnecting
+                            _stage.value = RemoteScreenStage.Reconnecting
+                            _connectionDetails.value = Str.remoteCaptureReconnecting
+                            if (iceDisconnectJob?.isActive != true) {
+                                iceDisconnectJob = scope.launch {
+                                    delay(ICE_DISCONNECT_GRACE_MS)
+                                    if (!stopped && isActive) {
+                                        _reconnectingMessage.value = null
+                                        _captureMessage.value = Str.remoteCaptureFailed
+                                        stop()
+                                    }
+                                }
+                            }
+                        }
                         PeerConnection.IceConnectionState.FAILED, PeerConnection.IceConnectionState.CLOSED -> {
+                            iceDisconnectJob?.cancel()
+                            iceDisconnectJob = null
+                            _reconnectingMessage.value = null
                             _captureMessage.value = if (state == PeerConnection.IceConnectionState.FAILED) Str.remoteCaptureFailed else Str.remoteCapturePeerClosed
                             stop()
                         }
@@ -377,6 +570,7 @@ class NativeRemoteDesktopSession(private val context: Context, private val targe
             val signal = json.parseToJsonElement(line).jsonObject
             when (signal["type"]?.jsonPrimitive?.contentOrNull) {
                 "offer" -> {
+                    _stage.value = RemoteScreenStage.Negotiating
                     val peer = peerConnection ?: return
                     val sdp = signal["sdp"]?.jsonPrimitive?.content ?: return
                     PlatformRemoteLogger.info("native WebRTC offer received")
@@ -422,13 +616,20 @@ class NativeRemoteDesktopSession(private val context: Context, private val targe
         channel.registerObserver(object : DataChannel.Observer {
             override fun onBufferedAmountChange(previousAmount: Long) = Unit
             override fun onStateChange() {
-                val closed = channel.state() == DataChannel.State.CLOSED
+                val state = channel.state()
                 scope.launch {
-                    if (!stopped && inputChannel === channel && closed) {
-                        _inputEnabled.value = false
-                        _relativePointer.value = false
-                        _textInputSupported.value = false
-                        viewportSupported = false
+                    if (stopped || inputChannel !== channel) return@launch
+                    when (state) {
+                        DataChannel.State.OPEN -> flushPendingReleases()
+                        DataChannel.State.CLOSED -> {
+                            clearTrackedInputs()
+                            _inputEnabled.value = false
+                            _relativePointer.value = false
+                            _textInputSupported.value = false
+                            viewportSupported = false
+                            _videoPreferenceSupported.value = false
+                        }
+                        else -> Unit
                     }
                 }
             }
@@ -441,11 +642,14 @@ class NativeRemoteDesktopSession(private val context: Context, private val targe
                     val message = runCatching { json.parseToJsonElement(bytes.decodeToString()).jsonObject }.getOrNull() ?: return@launch
                     if (message["type"]?.jsonPrimitive?.contentOrNull != "capabilities") return@launch
                     viewportSupported = message["viewport"]?.jsonPrimitive?.contentOrNull == "true"
+                    _videoPreferenceSupported.value = message["videoPreference"]?.jsonPrimitive?.contentOrNull == "true"
+                    preferVideo(preferredVideo)
                     scheduleViewport()
                     _textInputSupported.value = message["textInput"]?.jsonPrimitive?.contentOrNull == "true"
                     _relativePointer.value = message["pointerMode"]?.jsonPrimitive?.contentOrNull == "relative"
                     // Older hosts enforce input permission at the OS adapter.
                     _inputEnabled.value = message["inputEnabled"]?.jsonPrimitive?.contentOrNull != "false"
+                    if (_inputEnabled.value) flushPendingReleases() else clearTrackedInputs()
                 }
             }
         })

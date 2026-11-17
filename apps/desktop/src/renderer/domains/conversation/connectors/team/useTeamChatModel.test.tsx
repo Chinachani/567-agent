@@ -1,11 +1,10 @@
 // @vitest-environment jsdom
 
-import {
-	createAgentTeamFixture,
-	type TeamSessionDocument,
-	type TeamSessionSnapshot,
-} from "@567agent/agent-team";
-import type { DesktopTeamSessionStreamEvent, DesktopTeamSessionSnapshot } from "@preload/api-types/team-conversation-display";
+import { createAgentTeamFixture, type TeamSessionDocument, type TeamSessionSnapshot } from "@567agent/agent-team";
+import type {
+	DesktopTeamSessionStreamEvent,
+	DesktopTeamSessionSnapshot,
+} from "@preload/api-types/team-conversation-display";
 import { createAssistantMessage } from "@567agent/ai";
 import type { ContextCompositionReport } from "@567agent/runtime-core";
 import { reasoningByModelAtom, selectedModelAtom } from "@shared/store/atoms";
@@ -26,8 +25,7 @@ import { waitForCommittedPaint } from "@shared/lib/committed-paint";
 import { writeCachedContextComposition } from "../../services/context-composition-cache";
 
 const translate = vi.hoisted(
-	() => (key: string, values?: Record<string, string>) =>
-		values ? `${key}:${Object.values(values).join(":")}` : key,
+	() => (key: string, values?: Record<string, string>) => (values ? `${key}:${Object.values(values).join(":")}` : key),
 );
 
 vi.mock("@shared/hooks/useRendererMarkdownModel", () => ({
@@ -111,7 +109,18 @@ describe("useTeamChatModel streaming flow", () => {
 		vi.clearAllMocks();
 		streamListener = undefined;
 		vi.mocked(waitForCommittedPaint).mockResolvedValue("painted");
-		vi.mocked(loadTeamChatBootstrap).mockResolvedValue({ document, sessions: [] });
+		vi.mocked(loadTeamChatBootstrap).mockResolvedValue({
+			document,
+			sessions: [
+				{
+					id: baseSession.id,
+					coordinationSessionPath: "C:/sessions/team.conversation.jsonl",
+					title: baseSession.name,
+					createdAt: baseSession.createdAt,
+					updatedAt: baseSession.updatedAt,
+				},
+			],
+		});
 		vi.mocked(loadTeamChatSession).mockResolvedValue({
 			document,
 			snapshot: baseSnapshot,
@@ -141,8 +150,8 @@ describe("useTeamChatModel streaming flow", () => {
 				agentTeams: {
 					subscribe: vi.fn(
 						async (_sessionId: string, listener: (event: DesktopTeamSessionStreamEvent) => void) => {
-						streamListener = listener;
-						return () => undefined;
+							streamListener = listener;
+							return () => undefined;
 						},
 					),
 					sendMessage: vi.fn(async () => baseSnapshot),
@@ -273,9 +282,11 @@ describe("useTeamChatModel streaming flow", () => {
 
 	it("新建团队会话的旧列表回填不会覆盖刚生成的标题", async () => {
 		let finishBootstrap: ((value: Awaited<ReturnType<typeof loadTeamChatBootstrap>>) => void) | undefined;
-		vi.mocked(loadTeamChatBootstrap).mockReturnValueOnce(new Promise((resolve) => {
-			finishBootstrap = resolve;
-		}));
+		vi.mocked(loadTeamChatBootstrap).mockReturnValueOnce(
+			new Promise((resolve) => {
+				finishBootstrap = resolve;
+			}),
+		);
 		const snapshot = {
 			...baseSnapshot,
 			session: {
@@ -293,14 +304,16 @@ describe("useTeamChatModel streaming flow", () => {
 		vi.mocked(createTeamChatSession).mockResolvedValueOnce({ document, snapshot, sessions: [oldItem] });
 		const { result } = renderHook(() => useTeamChatModel(team.id, undefined, undefined, true));
 		await waitFor(() => expect(streamListener).toBeTypeOf("function"));
-		act(() => streamListener?.({
-			type: "session-updated",
-			teamSessionId: baseSession.id,
-			snapshot: {
-				...snapshot,
-				session: { ...snapshot.session, revision: 2, updatedAt: 3, title: "Review deployment plan" },
-			},
-		}));
+		act(() =>
+			streamListener?.({
+				type: "session-updated",
+				teamSessionId: baseSession.id,
+				snapshot: {
+					...snapshot,
+					session: { ...snapshot.session, revision: 2, updatedAt: 3, title: "Review deployment plan" },
+				},
+			}),
+		);
 		expect(result.current.model.sessions).toContainEqual({ id: baseSession.id, label: "Review deployment plan" });
 		await act(async () => finishBootstrap?.({ document, sessions: [oldItem] }));
 		expect(result.current.model.sessions).toContainEqual({ id: baseSession.id, label: "Review deployment plan" });
@@ -602,7 +615,7 @@ describe("useTeamChatModel streaming flow", () => {
 		await waitFor(() => expect(result.current.model.status).toBe("ready"));
 
 		await act(async () => result.current.actions.selectFiles());
-		expect(result.current.model.canSend).toBe(true);
+		expect(result.current.model.canSend).toBe(false);
 		await act(async () => result.current.actions.send());
 
 		expect(window.agent567.agentTeams.sendMessage).toHaveBeenCalledWith(
@@ -775,9 +788,7 @@ describe("useTeamChatModel streaming flow", () => {
 				session: scopedSession,
 				display: {
 					memberConversations: [],
-					contextUsages: [
-						{ runtimeSessionId: "leader-runtime", percent: 20, contextWindow: 1_000 },
-					],
+					contextUsages: [{ runtimeSessionId: "leader-runtime", percent: 20, contextWindow: 1_000 }],
 				},
 			},
 			sessions: [],
@@ -786,13 +797,14 @@ describe("useTeamChatModel streaming flow", () => {
 		const { result } = renderHook(() => useTeamChatModel(team.id));
 		await waitFor(() => expect(result.current.model.status).toBe("ready"));
 
-		expect(result.current.model.contextUsagesByRuntime?.["leader-runtime"]?.composition?.callId).toBe("cached-leader");
+		expect(result.current.model.contextUsagesByRuntime?.["leader-runtime"]?.composition?.callId).toBe(
+			"cached-leader",
+		);
 	});
 
 	it("does not reload the same session when the route is canonicalized", async () => {
 		const { result, rerender } = renderHook(
-			({ preferredSessionId }: { preferredSessionId?: string }) =>
-				useTeamChatModel(team.id, preferredSessionId),
+			({ preferredSessionId }: { preferredSessionId?: string }) => useTeamChatModel(team.id, preferredSessionId),
 			{ initialProps: {} },
 		);
 		await waitFor(() => expect(result.current.model.status).toBe("ready"));
@@ -816,8 +828,7 @@ describe("useTeamChatModel streaming flow", () => {
 		});
 		vi.mocked(window.agent567.agentTeams.sendMessage).mockResolvedValueOnce(nextSnapshot);
 		const { result, rerender } = renderHook(
-			({ preferredSessionId }: { preferredSessionId: string }) =>
-				useTeamChatModel(team.id, preferredSessionId),
+			({ preferredSessionId }: { preferredSessionId: string }) => useTeamChatModel(team.id, preferredSessionId),
 			{ initialProps: { preferredSessionId: baseSession.id } },
 		);
 		await waitFor(() => expect(result.current.model.activeSessionId).toBe(baseSession.id));
@@ -875,7 +886,7 @@ describe("useTeamChatModel streaming flow", () => {
 			expect.objectContaining({ kind: "agent", phase: "pending" }),
 		]);
 		expect(result.current.model.workspace).toEqual({ id: `agent-team:${team.id}`, cwd: null, runtimeIds: [] });
-		expect(result.current.model.editorEnabled).toBe(true);
+		expect(result.current.model.editorEnabled).toBe(false);
 		expect(createReservedTeamChatSession).not.toHaveBeenCalled();
 		expect(loadTeamChatBootstrap).not.toHaveBeenCalled();
 		expect(window.agent567.agentTeams.sendMessage).not.toHaveBeenCalled();
@@ -970,7 +981,7 @@ describe("useTeamChatModel streaming flow", () => {
 		const initialFeedKey = result.current.model.feedKey;
 		const initialRenderKeys = result.current.model.feedItems.map((item) => item.renderKey);
 		act(() => result.current.actions.setDraft("a new draft during setup"));
-		expect(result.current.model.editorEnabled).toBe(true);
+		expect(result.current.model.editorEnabled).toBe(false);
 
 		await act(async () => resolveCreation?.({ document, snapshot: baseSnapshot, sessions: [] }));
 		await waitFor(() => expect(window.agent567.agentTeams.sendMessage).toHaveBeenCalledTimes(1));
@@ -1006,7 +1017,7 @@ describe("useTeamChatModel streaming flow", () => {
 			expect.objectContaining({ kind: "user", text: submittedText }),
 			expect.objectContaining({ kind: "agent", phase: "pending" }),
 		]);
-		expect(result.current.model.editorEnabled).toBe(true);
+		expect(result.current.model.editorEnabled).toBe(false);
 		expect(result.current.model.status).toBe("sending");
 		expect(result.current.model.draft).toBe("the next message");
 		expect(result.current.model.canSend).toBe(false);
@@ -1057,7 +1068,7 @@ describe("useTeamChatModel streaming flow", () => {
 		expect(result.current.model.canSend).toBe(false);
 		await act(async () => resolveSend?.(finalSnapshot));
 		expect(result.current.model.status).toBe("ready");
-		expect(result.current.model.canSend).toBe(true);
+		expect(result.current.model.canSend).toBe(false);
 		expect(result.current.model.draft).toBe("the next message");
 		expect(result.current.model.feedItems).toEqual([
 			expect.objectContaining({ kind: "user", text: submittedText }),
@@ -1331,7 +1342,9 @@ describe("useTeamChatModel streaming flow", () => {
 				},
 			],
 		};
-		act(() => streamListener?.({ type: "session-updated", teamSessionId: baseSession.id, snapshot: persistedAfterStop }));
+		act(() =>
+			streamListener?.({ type: "session-updated", teamSessionId: baseSession.id, snapshot: persistedAfterStop }),
+		);
 
 		const getStatus = () =>
 			result.current.model.feedItems
@@ -1389,9 +1402,9 @@ describe("useTeamChatModel streaming flow", () => {
 
 		act(() => streamListener?.(streamEvent(1, "second answer")));
 		await waitFor(() => expect(result.current.model.status).toBe("streaming"));
-		expect(
-			result.current.model.feedItems.some((item) => item.kind === "agent" && item.phase === "streaming"),
-		).toBe(true);
+		expect(result.current.model.feedItems.some((item) => item.kind === "agent" && item.phase === "streaming")).toBe(
+			true,
+		);
 		resolveRetry?.(baseSnapshot);
 		await act(async () => {
 			await retry;
@@ -1478,7 +1491,7 @@ describe("useTeamChatModel streaming flow", () => {
 			sendPromise = result.current.actions.send();
 		});
 		act(() => result.current.actions.setDraft("edited while sending"));
-		expect(result.current.model.editorEnabled).toBe(true);
+		expect(result.current.model.editorEnabled).toBe(false);
 		expect(result.current.model.canSend).toBe(false);
 		if (outcome === "aborted") {
 			await act(async () => result.current.actions.abort());
@@ -1489,13 +1502,19 @@ describe("useTeamChatModel streaming flow", () => {
 			await sendPromise;
 		});
 		expect(result.current.model.status).toBe(outcome === "aborted" ? "ready" : "error");
-		expect(result.current.model.feedItems.some((item) =>
-			item.kind === "agent" && item.blocks.some((block) => block.type === "error" && block.text === "send stopped"),
-		)).toBe(outcome !== "aborted");
+		expect(
+			result.current.model.feedItems.some(
+				(item) =>
+					item.kind === "agent" &&
+					item.blocks.some((block) => block.type === "error" && block.text === "send stopped"),
+			),
+		).toBe(outcome !== "aborted");
 		expect(result.current.model.draft).toBe("edited while sending");
-		expect(result.current.model.editorEnabled).toBe(true);
-		expect(result.current.model.canSend).toBe(true);
-		expect(result.current.model.feedItems.some((item) => item.kind === "agent" && item.phase === "pending")).toBe(false);
+		expect(result.current.model.editorEnabled).toBe(false);
+		expect(result.current.model.canSend).toBe(false);
+		expect(result.current.model.feedItems.some((item) => item.kind === "agent" && item.phase === "pending")).toBe(
+			false,
+		);
 		await act(async () => result.current.actions.send());
 		expect(window.agent567.agentTeams.sendMessage).toHaveBeenCalledTimes(2);
 		expect(window.agent567.agentTeams.sendMessage).toHaveBeenLastCalledWith(
@@ -1515,7 +1534,7 @@ describe("useTeamChatModel streaming flow", () => {
 		const { result } = renderHook(() => useTeamChatModel(team.id, undefined, undefined, true));
 
 		expect(result.current.model.activeSessionId).toBeNull();
-		expect(result.current.model.editorEnabled).toBe(true);
+		expect(result.current.model.editorEnabled).toBe(false);
 		expect(createTeamChatSession).not.toHaveBeenCalled();
 		expect(loadTeamChatBootstrap).not.toHaveBeenCalled();
 

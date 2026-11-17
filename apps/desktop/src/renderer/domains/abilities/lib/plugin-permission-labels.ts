@@ -9,12 +9,15 @@ export const PLUGIN_PERMISSION_LABEL_KEYS = {
 	"ui.slot.ability-detail": "permission.uiSlotAbilityDetail",
 	"ui.slot.file-preview": "permission.uiSlotFilePreview",
 	"ui.slot.activity-tab": "permission.uiSlotActivityTab",
+	"ui.slot.bottom-panel": "permission.uiSlotBottomPanel",
+	"terminal.run": "permission.terminalRun",
 	"ui.slot.input-action": "permission.uiSlotInputAction",
 	"ui.slot.message": "permission.uiSlotMessage",
 	"ui.slot.tool-call": "permission.uiSlotToolCall",
 	"ui.slot.turn-card": "permission.uiSlotTurnCard",
 	"ui.slot.workspace-view": "permission.uiSlotWorkspaceView",
 	"ui.slot.new-session-context": "permission.uiSlotNewSessionContext",
+	"ui.slot.header-action": "permission.uiSlotHeaderAction",
 	"ui.shortcuts.register": "permission.uiShortcutsRegister",
 	"conversation.draft.read": "permission.conversationDraftRead",
 	"ui.file-explorer.decorations": "permission.uiFileExplorerDecorations",
@@ -74,6 +77,7 @@ export type PluginUiPreview =
 	| "global"
 	| "filePreview"
 	| "activityTab"
+	| "bottomPanel"
 	| "inputAction"
 	| "message"
 	| "toolCall"
@@ -130,6 +134,13 @@ export const PLUGIN_PERMISSION_PRESENTATIONS = {
 		visual: "interface",
 		uiPreview: "activityTab",
 	},
+	"ui.slot.bottom-panel": {
+		descriptionKey: "permission.description.uiSlotBottomPanel",
+		group: "interface",
+		risk: "low",
+		visual: "interface",
+		uiPreview: "bottomPanel",
+	},
 	"ui.slot.input-action": {
 		descriptionKey: "permission.description.uiSlotInputAction",
 		group: "interface",
@@ -168,6 +179,13 @@ export const PLUGIN_PERMISSION_PRESENTATIONS = {
 	},
 	"ui.slot.new-session-context": {
 		descriptionKey: "permission.description.uiSlotNewSessionContext",
+		group: "interface",
+		risk: "low",
+		visual: "interface",
+		uiPreview: "workspaceView",
+	},
+	"ui.slot.header-action": {
+		descriptionKey: "permission.description.uiSlotHeaderAction",
 		group: "interface",
 		risk: "low",
 		visual: "interface",
@@ -357,6 +375,13 @@ export const PLUGIN_PERMISSION_PRESENTATIONS = {
 	"agent.command.spawn": {
 		descriptionKey: "permission.description.agentCommandSpawn",
 		group: "execution",
+		risk: "high",
+		visual: "execution",
+	},
+	"terminal.run": {
+		descriptionKey: "permission.description.terminalRun",
+		group: "execution",
+		// 命令敲进用户自己的 shell，能做的事与用户手敲一样多；只是过程摊在可见的终端里。
 		risk: "high",
 		visual: "execution",
 	},

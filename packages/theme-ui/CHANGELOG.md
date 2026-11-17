@@ -6,11 +6,15 @@ All notable changes to `@vetta-org/theme-ui` are documented in this file.
 
 ### Added
 
+- `./shared` 增加专家任务准备、交接草稿和结果列表视图；表单、已保存锁定状态与动作由宿主传入，不自行调用模型或存储用户数据。
+
+- `./plugin-ui` 开放 `MotionSelect`、`SettingSection`、`SettingRow`、`SettingHeading` 与模型触发器类型；`./overlays` 导出已共享的 Splash 组件。数据、文案与副作用仍由调用方负责。
 - 新增 `./markdown` 公开入口：局部 Markdown definition、remark/rehype 与元素扩展，以及可组合的 `CodeBlock`。Chat 与活动面板预览共享扩展定义，原 `chat/TextBlockView` 保留转导出。
 - 流式 Markdown 只把已经闭合的代码围栏冻成稳定块，后续 token 只重跑尾块；空行不再拆段，避免把松散列表和缩进代码拆进多个文档。代码高亮在围栏仍在增长或滚出视口时改为等宽纯文本，避免热路径反复跑 Shiki。
 
 ### Changed
 
+- 设置下拉按选项内容展开并限制在可用屏幕宽度内；导航自定义面板隐藏不能调整的固定入口。
 - 思考中卡片的入场改为 CSS grid 过渡，滚动追随只在正文变化后短跑 rAF，不再整段思考期间无限动画帧。
 - 文件树改为按行高虚拟化：只挂载可见文件行，框选按几何命中，滚出视口的文件仍能被选中；重命名、拖拽和目录展开顺序与原来一致。选中后的拖拽快照按行与选区记忆，目录刷新时不再重建无关条目。
 - `SidebarPanel` 新增 `panelRef`，`SidebarModel` 新增 `setPanelRef`：宿主在拖拽宽度时直接往面板元素写 `style.width`，`width` 作为 committed 值只在松手时由 React 写回。左栏占位仍用 committed 值，因此拖拽期主内容区不重排。

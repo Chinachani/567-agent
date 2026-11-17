@@ -1,7 +1,4 @@
-import { randomUUID } from "node:crypto";
-import { mkdir, writeFile } from "node:fs/promises";
 import { cpus, platform, release, totalmem } from "node:os";
-import { join } from "node:path";
 import type {
 	CodingAgentQuestionFunctionRequest,
 	CodingAgentQuestionResult,
@@ -33,6 +30,7 @@ import {
 import { getDesktopUserQuestionBroker } from "../conversations/user-question-broker.js";
 import { mainT } from "../i18n/index.js";
 import { getAppLogger } from "../logger.js";
+import { listRemoteTaskResults } from "../result-inbox/result-inbox-service.js";
 import { getMainWindow } from "../window-manager.js";
 import type {
 	DesktopRemoteOperations,
@@ -41,6 +39,9 @@ import type {
 	DesktopRemoteSessionSummary,
 	DesktopRemoteToolboxAbility,
 } from "./desktop-remote-connector.js";
+import { RemoteOperationError } from "./remote-error-mapping.js";
+import type { RemoteFiles } from "./remote-files.js";
+import { storeRemotePromptFile } from "./remote-prompt-attachment.js";
 
 interface ManagedSession {
 	readonly session: DesktopConversationSession;
@@ -59,6 +60,7 @@ export class DesktopRemoteConversationState {
 }
 
 export interface DesktopConversationRemoteOperationsOptions {
+	readonly files?: RemoteFiles;
 	readonly readDeviceStatus?: () => DesktopDeviceStatusSnapshot;
 	readonly cwd: string;
 	readonly sessionRoots?: readonly { readonly cwd: string; readonly sessionDir?: string }[];
@@ -114,6 +116,7 @@ export class DesktopConversationRemoteOperations implements DesktopRemoteOperati
 	readonly readDeviceStatus?: () => DesktopDeviceStatusSnapshot;
 	readonly canManageContext: boolean;
 	readonly canReadWorkbench: boolean;
+	readonly canReadFiles: boolean;
 	readonly canManageCollaboration = true;
 	readonly canSelectContext: boolean;
 	readonly canReadGeneratedImages: boolean;
@@ -152,6 +155,7 @@ export class DesktopConversationRemoteOperations implements DesktopRemoteOperati
 		state = new DesktopRemoteConversationState(),
 	) {
 		this.readDeviceStatus = options.readDeviceStatus;
+		this.canReadFiles = options.files !== undefined;
 		this.sessions = state.sessions;
 		this.activeTurns = state.activeTurns;
 		this.deletingSessions = state.deletingSessions;
@@ -170,6 +174,10 @@ export class DesktopConversationRemoteOperations implements DesktopRemoteOperati
 		this.canReceiveSessionMigration = options.allowSessionMigrationTransfer === true;
 		this.readToolbox = options.readToolbox;
 		this.installToolbox = options.installToolbox;
+	}
+
+	async listTaskResults() {
+		return listRemoteTaskResults();
 	}
 
 	async listSessions(): Promise<readonly DesktopRemoteSessionSummary[]> {
@@ -406,6 +414,26 @@ export class DesktopConversationRemoteOperations implements DesktopRemoteOperati
 		const session = this.sessions.get(sessionId)?.session;
 		if (!session) throw new DesktopRemoteOperationError("SESSION_NOT_OPEN", "Desktop session is no longer open");
 		return this.conversations.readRemoteSessionHistory(session.sessionId, offset, limit);
+	}
+
+	private async fileSession(sessionId: string): Promise<{ cwd: string; files: RemoteFiles }> {
+		const opened = await this.openSession(sessionId);
+		const session = this.sessions.get(opened.sessionId)?.session;
+		if (!session || !this.options.files) throw new RemoteOperationError("not_found", "Desktop files are unavailable");
+		return { cwd: session.cwd, files: this.options.files };
+	}
+
+	async listFiles(sessionId: string, payload: unknown) {
+		const { cwd, files } = await this.fileSession(sessionId);
+		return files.list(cwd, payload);
+	}
+	async statFile(sessionId: string, payload: unknown) {
+		const { cwd, files } = await this.fileSession(sessionId);
+		return files.stat(cwd, payload);
+	}
+	async readFile(sessionId: string, payload: unknown) {
+		const { cwd, files } = await this.fileSession(sessionId);
+		return files.read(cwd, payload);
 	}
 
 	async readWorkbench(sessionId: string) {
@@ -652,15 +680,7 @@ export class DesktopConversationRemoteOperations implements DesktopRemoteOperati
 			);
 		if (data.byteLength < 1 || data.byteLength > 12 * 1024 * 1024)
 			throw new Error("Remote attachment exceeds the 12 MB limit");
-		const safeName =
-			fileName
-				.replace(/[/\\\r\n\0]/g, "_")
-				.trim()
-				.slice(0, 180) || "attachment";
-		const attachmentDir = join(managed.session.cwd, ".567agent", "remote-attachments");
-		const path = join(attachmentDir, `${randomUUID()}-${safeName}`);
-		await mkdir(attachmentDir, { recursive: true, mode: 0o700 });
-		await writeFile(path, data, { flag: "wx", mode: 0o600 });
+		const path = await storeRemotePromptFile(managed.session.cwd, fileName, data);
 		return { kind: mimeType.toLowerCase().startsWith("image/") ? "image" : "file", path };
 	}
 

@@ -34,15 +34,74 @@ export interface ProjectImportSuccess {
 	missingSources?: string[];
 }
 
+// ─── Project clone ───
+//
+// Mirrors `src/main/ipc/project-clone.ts`. Registering the cloned directory as a
+// project is a separate step (`open`), so the renderer reuses the normal path.
+
+export type ProjectCloneErrorCode =
+	| "git-unavailable"
+	| "invalid-url"
+	| "invalid-target"
+	| "target-exists"
+	| "clone-failed"
+	| "cancelled";
+
+export interface ProjectCloneInput {
+	/** Renderer-generated id used to cancel this clone. */
+	requestId: string;
+	url: string;
+	/** The repository directory is created inside this directory. */
+	parentDir: string;
+}
+
+export type ProjectCloneResult =
+	| { path: string; name: string }
+	| { error: { code: ProjectCloneErrorCode; message: string } };
+
+// ─── Project list (CRUD) ───
+//
+// Mirrors `src/main/ipc/projects.ts`, which delegates to the one `ProjectService`
+// that also backs the plugin and Action capabilities. The renderer must not write
+// the project list through `config.set` — validation and the change broadcast only
+// happen inside that service.
+
+export interface ProjectEntrySnapshot {
+	path: string;
+	name?: string;
+}
+
+export interface ProjectListSnapshot {
+	workspacePath: string;
+	projects: readonly ProjectEntrySnapshot[];
+	archivedProjects: readonly ProjectEntrySnapshot[];
+}
+
 export interface DesktopProjectApi {
-	/** Export a project to a zip via native save dialog. */
-	export(projectDir: string): Promise<ProjectExportSuccess | ProjectExportError>;
-	/** Import a project from a zip via native open dialog. `null` = user cancelled. */
-	import(): Promise<ProjectImportSuccess | ProjectExportError | null>;
-	/** Read a project's `.vetta/meta.json` (used to detect project type). `null` if absent. */
-	readMeta(projectDir: string): Promise<Record<string, unknown> | null>;
 	readCollaboration(cwd: string): Promise<ProjectCollaborationSnapshot>;
 	updateCollaboration(cwd: string, patch: ProjectCollaborationPatch): Promise<ProjectCollaborationSnapshot>;
 	controlCollaboration(cwd: string, control: ProjectCollaborationControl): Promise<ProjectCollaborationSnapshot>;
 	onCollaborationChanged(handler: (event: { cwd: string }) => void): () => void;
+	/** Export a project to a zip via native save dialog. */
+	export(projectDir: string): Promise<ProjectExportSuccess | ProjectExportError>;
+	/** Import a project from a zip via native open dialog. `null` = user cancelled. */
+	import(): Promise<ProjectImportSuccess | ProjectExportError | null>;
+	/** `git clone` the repository into `<parentDir>/<repo name>`. Does not register the project. */
+	clone(input: ProjectCloneInput): Promise<ProjectCloneResult>;
+	/** Kill an in-flight clone and remove its partial directory. */
+	cancelClone(requestId: string): Promise<void>;
+	/** Read a project's `.vetta/meta.json` (used to detect project type). `null` if absent. */
+	readMeta(projectDir: string): Promise<Record<string, unknown> | null>;
+	/** Active and archived projects plus the configured workspace root. */
+	list(): Promise<ProjectListSnapshot>;
+	/** Create the directory and register it. `path` defaults to `<workspace>/<name>`. */
+	create(input: { name: string; path?: string }): Promise<ProjectEntrySnapshot>;
+	/** Register an existing directory, un-archiving it when it was archived before. */
+	open(input: { path: string; name?: string }): Promise<ProjectEntrySnapshot>;
+	/** Change a project's display name; the directory on disk is untouched. */
+	rename(input: { path: string; name: string }): Promise<ProjectEntrySnapshot>;
+	archive(path: string): Promise<void>;
+	unarchive(path: string): Promise<void>;
+	/** Forget the project. The directory on disk is left alone. */
+	remove(path: string): Promise<void>;
 }

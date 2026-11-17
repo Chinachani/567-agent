@@ -4,6 +4,11 @@ All notable changes to `@vetta-org/plugin-sdk` are documented in this file.
 
 ## [Unreleased]
 
+- SDK 0.3.10 随 567 Agent 1.6 提供 Plugin API 2.9：顶栏动作、会话底部面板、受权终端入口、文件状态/图标主题、递归文件筛选和 ModelPicker。旧清单仍可加载，新权限需声明对应 API 版本。
+- 官方自动化 API 使用结构化时间和运行会话；保留旧 cron 输入转换，读取结果统一新版。新会话继承用户权限，已有会话不提权，历史 scene 不可重新执行。
+- 文件另存为须由用户确认路径，目录监听随插件释放；远程 action 仅在明确 opt-in 的 read 操作开放，写入及执行审批不绕过。
+
+
 - 567 Agent 设置页将 `sidebar: false` 视图作为一级入口直接显示，窄栏保留图标；清单、配置归属与旧链接不变，插件无需修改代码。
 
 - 配套 CLI 的帮助、热重载提示及生成指引统一使用 567 Agent 名称，保留已有命令名、包名与版本标记，旧工程无需修改脚本。

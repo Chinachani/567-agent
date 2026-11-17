@@ -4,6 +4,7 @@ import type { ScreenSize } from "./screen-scale.js";
 import { evenScreenScale, isSoftwareEncoder } from "./screen-scale.js";
 import type { ScreenStreamSample } from "./screen-stats.js";
 import { ScreenStatsSampler } from "./screen-stats.js";
+import type { RemoteVideoPreference } from "./types.js";
 
 const SCREEN_MAX_BITRATE = 12_000_000;
 
@@ -15,6 +16,7 @@ export class ScreenSender {
 	private software = false;
 	private encoder: string | undefined;
 	private shown: ScreenSize | undefined;
+	private preference: RemoteVideoPreference = "auto";
 	private readonly adaptation = new ScreenAdaptation();
 	private readonly sampler = new ScreenStatsSampler();
 	private generation = 0;
@@ -37,6 +39,20 @@ export class ScreenSender {
 		return this.update();
 	}
 
+	prefer(mode: RemoteVideoPreference): Promise<void> {
+		this.preference = mode;
+		if (this.sender.track) this.sender.track.contentHint = mode === "smooth" ? "motion" : "detail";
+		return this.update();
+	}
+
+	private preferredViewport(): ScreenSize | undefined {
+		// Clear retains source detail while the software and pressure caps still apply.
+		if (this.preference === "clear") return undefined;
+		if (this.preference === "smooth")
+			return { width: Math.min(this.shown?.width ?? 1280, 1280), height: Math.min(this.shown?.height ?? 800, 800) };
+		return this.shown;
+	}
+
 	noteEncoder(encoder: string): Promise<void> {
 		this.setEncoder(encoder);
 		return this.update();
@@ -50,7 +66,7 @@ export class ScreenSender {
 		const sample = this.sampler.read(stats);
 		if (!sample) return undefined;
 		if (sample.encoder) this.setEncoder(sample.encoder);
-		this.adaptation.observe(sample, this.capture(), this.software, this.shown);
+		this.adaptation.observe(sample, this.capture(), this.software, this.preferredViewport());
 		await this.update();
 		return this.closed || generation !== this.generation ? undefined : sample;
 	}
@@ -91,7 +107,8 @@ export class ScreenSender {
 	private async apply(): Promise<void> {
 		if (this.closed || !this.sender.track || typeof this.sender.getParameters !== "function") return;
 		const capture = this.capture();
-		const scale = evenScreenScale(capture, this.adaptation.scale(capture, this.software, this.shown));
+		const scale = evenScreenScale(capture, this.adaptation.scale(capture, this.software, this.preferredViewport()));
+		const maxBitrate = this.preference === "smooth" ? 4_000_000 : SCREEN_MAX_BITRATE;
 		try {
 			const parameters = this.sender.getParameters();
 			if (!parameters.encodings?.length) return; // Negotiation has not allocated encodings yet.
@@ -99,7 +116,7 @@ export class ScreenSender {
 				parameters.degradationPreference === "maintain-framerate" &&
 				parameters.encodings.every(
 					(encoding) =>
-						encoding.maxBitrate === SCREEN_MAX_BITRATE &&
+						encoding.maxBitrate === maxBitrate &&
 						encoding.maxFramerate === SCREEN_TARGET_FPS &&
 						encoding.scaleResolutionDownBy === scale,
 				)
@@ -108,7 +125,7 @@ export class ScreenSender {
 			// Chromium 132 maps balanced + screenshare to maintain-resolution, permanently sacrificing motion.
 			parameters.degradationPreference = "maintain-framerate";
 			for (const encoding of parameters.encodings) {
-				encoding.maxBitrate = SCREEN_MAX_BITRATE;
+				encoding.maxBitrate = maxBitrate;
 				encoding.maxFramerate = SCREEN_TARGET_FPS;
 				encoding.scaleResolutionDownBy = scale;
 			}

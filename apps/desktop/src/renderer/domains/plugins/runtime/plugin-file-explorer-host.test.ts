@@ -45,8 +45,8 @@ describe("plugin file explorer host", () => {
 	it("notifies selection and file listeners until their handles are disposed", () => {
 		const selectionListener = vi.fn();
 		const fileListener = vi.fn();
-		const selectionHandle = onPluginFileExplorerSelectionChanged(selectionListener);
-		const fileHandle = onPluginFileExplorerFilesChanged(fileListener);
+		const selectionHandle = onPluginFileExplorerSelectionChanged("test-plugin", "1.0.0", selectionListener);
+		const fileHandle = onPluginFileExplorerFilesChanged("test-plugin", "1.0.0", fileListener);
 
 		emitPluginFileExplorerSelectionChanged([entry]);
 		emitPluginFileExplorerFilesChanged([{ type: "changed", path: "/workspace" }]);

@@ -1,5 +1,8 @@
+import { isSshProjectUri } from "@567agent/ssh-transport/project-uri";
 import type { Project } from "@shared/store/atoms";
+import { manageSessionsProjectAtom } from "@shared/store/atoms";
 import type { ProjectContextMenuViewProps } from "@vetta-org/theme-ui/project";
+import { useSetAtom } from "jotai";
 import { useCallback } from "react";
 import { useTranslation } from "react-i18next";
 
@@ -34,6 +37,7 @@ export function useProjectContextMenuModel({
 }: UseProjectContextMenuModelArgs): Omit<ProjectContextMenuViewProps, "x" | "y"> {
 	const { t } = useTranslation("project");
 	const cwd = project.cwd;
+	const setManageSessions = useSetAtom(manageSessionsProjectAtom);
 
 	const handleArchive = useCallback(() => {
 		onArchive(cwd);
@@ -71,11 +75,16 @@ export function useProjectContextMenuModel({
 	}, [cwd, onClose, onRemove]);
 
 	return {
+		onManageSessions: () => {
+			setManageSessions(project);
+			onClose();
+		},
 		clearClawDisabled,
 		clearConversationDisabled,
 		defaultScope,
 		isDefault: project.isDefault === true,
 		labels: {
+			manageSessions: t("manageSessions.title"),
 			openInFolder: isMac ? t("contextMenu.openInFinder") : t("contextMenu.openInExplorer"),
 			archiveProject: t("contextMenu.archiveProject"),
 			removeFromList: t("contextMenu.removeFromList"),
@@ -92,7 +101,7 @@ export function useProjectContextMenuModel({
 		onClose,
 		onDelete: handleDelete,
 		onOpenClawSettings: onOpenClawSettings ? handleOpenClawSettings : undefined,
-		onOpenInFolder: handleOpenInFolder,
+		onOpenInFolder: isSshProjectUri(cwd) ? undefined : handleOpenInFolder,
 		onRemove: handleRemove,
 	};
 }

@@ -8,7 +8,7 @@ import { useThemeSurface } from "@vetta-org/theme-sdk/appearance";
 import { SessionViewerPageView } from "@vetta-org/theme-ui/chat";
 import { useNavigate, useSearch } from "@tanstack/react-router";
 import { useSetAtom } from "jotai";
-import { useEffect, useMemo } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { useSessionViewerPageModel } from "../hooks/useSessionViewerPageModel";
 import { ChatExportHost } from "./ChatExportHost";
@@ -16,9 +16,28 @@ import { MessageList } from "./MessageList";
 
 /** Read-only viewer for external and child sessions. */
 export function SessionViewerPage(): JSX.Element {
-	const { t } = useTranslation("chat");
+	const { t } = useTranslation(["chat", "agent-teams"]);
 	const navigate = useNavigate();
-	const isSubagent = useSearch({ strict: false }).origin === "subagent";
+	const search = useSearch({ strict: false });
+	const isSubagent = search.origin === "subagent";
+	const teamSession = search.origin === "team" ? search.teamSession : undefined;
+	const [stoppingTeam, setStoppingTeam] = useState<string | null>(null);
+	const [teamStopError, setTeamStopError] = useState<string | null>(null);
+	const [stoppedTeam, setStoppedTeam] = useState<string | null>(null);
+	const stopArchivedTeam = useCallback(async () => {
+		if (!teamSession || stoppingTeam) return;
+		setStoppingTeam(teamSession);
+		setTeamStopError(null);
+		setStoppedTeam(null);
+		try {
+			await window.agent567.agentTeams.abort(teamSession);
+			setStoppedTeam(teamSession);
+		} catch {
+			setTeamStopError(teamSession);
+		} finally {
+			setStoppingTeam(null);
+		}
+	}, [stoppingTeam, teamSession]);
 	const activeRuntimeIds = useActiveSessionRuntimeIds();
 	const surface = useThemeSurface("chat.sessionViewerPage");
 	const model = useSessionViewerPageModel();
@@ -34,8 +53,32 @@ export function SessionViewerPage(): JSX.Element {
 	const header = useMemo(
 		() => (
 			<div className="flex items-center gap-2 text-[12px] text-muted-foreground">
-				{isSubagent ? <Button size="sm" variant="ghost" onClick={() => void navigate({ to: "/" })}>{t("subagentCard.back")}</Button> : null}
-				<span className="hidden truncate sm:inline">{t(isSubagent ? "subagentCard.viewerSubtitle" : "sessionViewer.header.subtitle")}</span>
+				{teamSession && (
+					<Button
+						size="sm"
+						variant="outline"
+						disabled={stoppingTeam === teamSession}
+						onClick={() => void stopArchivedTeam()}
+					>
+						{t("agent-teams:experts.stopArchivedTask")}
+					</Button>
+				)}
+				{teamSession && stoppedTeam === teamSession && (
+					<span role="status">{t("agent-teams:experts.archiveStopped")}</span>
+				)}
+				{teamSession && teamStopError === teamSession && (
+					<span role="alert" className="text-destructive">
+						{t("agent-teams:experts.stopArchiveFailed")}
+					</span>
+				)}
+				{isSubagent ? (
+					<Button size="sm" variant="ghost" onClick={() => void navigate({ to: "/" })}>
+						{t("subagentCard.back")}
+					</Button>
+				) : null}
+				<span className="hidden truncate sm:inline">
+					{t(isSubagent ? "subagentCard.viewerSubtitle" : "sessionViewer.header.subtitle")}
+				</span>
 				<span
 					className={
 						model.isIm
@@ -76,6 +119,11 @@ export function SessionViewerPage(): JSX.Element {
 			</div>
 		),
 		[
+			teamSession,
+			stoppingTeam,
+			stoppedTeam,
+			teamStopError,
+			stopArchivedTeam,
 			isSubagent,
 			model.exporting,
 			model.isIm,
@@ -119,11 +167,7 @@ export function SessionViewerPage(): JSX.Element {
 			}
 			activityPanel={
 				model.isKnowledge ? (
-					<ActivityPanel
-						workspace={workspace}
-						enablePluginTabs={false}
-						knowledgeHistory
-					/>
+					<ActivityPanel workspace={workspace} enablePluginTabs={false} knowledgeHistory />
 				) : (
 					<ActivityPanel workspace={workspace} enablePluginTabs={false} />
 				)

@@ -190,3 +190,28 @@ function validateRuntimePayload(
 		);
 	}
 }
+
+/** Git uses the same atomic swap and rollback as bundled runtimes, with its own health probe. */
+export async function installGitRuntimeArchive(
+	archivePath: string,
+	targetDirectory: string,
+	expectedVersion: string,
+): Promise<void> {
+	await installViaStaging(
+		targetDirectory,
+		"git",
+		async (stagingDirectory) => {
+			const payload = join(stagingDirectory, "payload");
+			await mkdir(payload);
+			extractArchive(archivePath, payload, "zip");
+			return payload;
+		},
+		(payload) => {
+			const executable = join(payload, "cmd", "git.exe");
+			const result = spawnSync(executable, ["--version"], { encoding: "utf8", timeout: 10_000, windowsHide: true });
+			const version = /^git version (\d+\.\d+\.\d+)(?:\.|\s|$)/.exec(result.stdout ?? "")?.[1];
+			if (result.status !== 0 || version !== expectedVersion)
+				throw new Error("Managed Git failed its version check");
+		},
+	);
+}

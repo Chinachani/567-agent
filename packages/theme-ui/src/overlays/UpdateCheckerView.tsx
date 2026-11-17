@@ -21,6 +21,7 @@ export interface UpdateCheckerViewLabels {
 	readonly newVersion: (version: string) => string;
 	readonly restart: string;
 	readonly viewMore?: string;
+	readonly viewCurrent?: string;
 }
 
 export type UpdateCheckerPhase = "idle" | "checking" | "available" | "downloading" | "ready" | "installing" | "error";
@@ -34,6 +35,7 @@ export interface UpdateCheckerViewProps {
 	readonly onPrimary: () => void;
 	readonly onPause?: () => void;
 	readonly onViewMore?: () => void;
+	readonly onViewCurrent?: () => void;
 	readonly onOpenUrl?: (url: string) => void;
 	readonly phase: UpdateCheckerPhase;
 	/** Local unpacking/staging after the network transfer; disk activity is expected. */
@@ -74,12 +76,17 @@ export function UpdateCheckerAction({
 export function UpdateCheckerActions(
 	props: Pick<
 		UpdateCheckerViewProps,
-		"checking" | "labels" | "onCheck" | "onPrimary" | "onPause" | "phase" | "currentVersion"
+		"checking" | "labels" | "onCheck" | "onPrimary" | "onPause" | "phase" | "currentVersion" | "onViewCurrent"
 	>,
 ): JSX.Element {
 	return (
 		<div className="flex flex-wrap items-center justify-end gap-3">
 			<span className="text-[12px] tabular-nums text-muted-foreground">{props.currentVersion}</span>
+			{props.onViewCurrent && props.labels.viewCurrent && (
+				<Button size="sm" variant="outline" onClick={props.onViewCurrent}>
+					{props.labels.viewCurrent}
+				</Button>
+			)}
 			{props.phase === "downloading" && props.onPause && props.labels.pause ? (
 				<Button size="sm" variant="outline" onClick={props.onPause}>
 					{props.labels.pause}

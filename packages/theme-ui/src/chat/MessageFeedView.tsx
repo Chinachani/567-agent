@@ -13,7 +13,7 @@ import {
 	type VirtuosoHandle,
 } from "react-virtuoso";
 import { MessageFeedProvider, useMessageFeedContext } from "./MessageFeedContext";
-import { MessageFeedLayoutList } from "./MessageFeedLayoutView";
+import { MessageFeedLayoutList, MessageFeedLayoutTopInset } from "./MessageFeedLayoutView";
 
 export interface MessageFeedRootProps {
 	readonly children: ReactNode;
@@ -98,8 +98,21 @@ export function MessageFeedVirtualList<T>({
 			{...(getKey ? { computeItemKey: (index: number, item: T) => getKey(item, index - firstItemIndex) } : {})}
 			{...(scrollerRef ? { scrollerRef } : {})}
 			{...(atBottomStateChange ? { atBottomStateChange } : {})}
-			{...(itemsRendered ? { itemsRendered: (rows: ListItem<T>[]) => itemsRendered(rows.map((row) => ({ ...row, index: row.index - firstItemIndex }))) } : {})}
-			{...(rangeChanged ? { rangeChanged: (range: ListRange) => rangeChanged({ startIndex: range.startIndex - firstItemIndex, endIndex: range.endIndex - firstItemIndex }) } : {})}
+			{...(itemsRendered
+				? {
+						itemsRendered: (rows: ListItem<T>[]) =>
+							itemsRendered(rows.map((row) => ({ ...row, index: row.index - firstItemIndex }))),
+					}
+				: {})}
+			{...(rangeChanged
+				? {
+						rangeChanged: (range: ListRange) =>
+							rangeChanged({
+								startIndex: range.startIndex - firstItemIndex,
+								endIndex: range.endIndex - firstItemIndex,
+							}),
+					}
+				: {})}
 			{...(restoreStateFrom ? { restoreStateFrom } : {})}
 			{...(followOutput !== undefined ? { followOutput } : {})}
 			{...(initialTopMostItemIndex !== undefined ? { initialTopMostItemIndex } : {})}
@@ -120,7 +133,11 @@ function MessageFeedVirtualFooterSlot(): JSX.Element {
 	return <div ref={setFooterHost} />;
 }
 
-const VIRTUAL_COMPONENTS = { List: MessageFeedLayoutList, Footer: MessageFeedVirtualFooterSlot };
+const VIRTUAL_COMPONENTS = {
+	List: MessageFeedLayoutList,
+	Header: MessageFeedLayoutTopInset,
+	Footer: MessageFeedVirtualFooterSlot,
+};
 
 export const MessageFeed = {
 	Root: MessageFeedRoot,

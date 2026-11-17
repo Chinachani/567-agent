@@ -82,6 +82,9 @@ object ErrorMapper {
                 action = UiErrorAction.Retry,
             )
         } else when (e.remoteError.code) {
+            RemoteErrorCode.Forbidden -> UiError(title = "文件不可查看", message = "此路径不可从手机访问，请在电脑端查看。")
+            RemoteErrorCode.TooLarge -> UiError(title = "文件过大", message = "文件超过手机预览上限，请在电脑端查看。")
+            RemoteErrorCode.FileChanged -> UiError(title = "文件已变化", message = "传输过程中文件被修改，请重新打开。", action = UiErrorAction.Retry)
             RemoteErrorCode.Unauthorized ->
                 UiError(
                     title = "桌面模型认证失败",

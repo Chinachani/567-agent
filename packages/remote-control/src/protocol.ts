@@ -84,6 +84,9 @@ function remoteError(value: unknown): RemoteError {
 			"request_timeout",
 			"transport_closed",
 			"internal_error",
+			"forbidden",
+			"file_changed",
+			"too_large",
 		]).has(code)
 	) {
 		throw new RemoteProtocolError("error.code is unsupported");

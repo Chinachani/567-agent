@@ -44,7 +44,9 @@
 		"packages/coding-agent/examples/extensions/custom-provider-gitlab-duo",
 		"packages/coding-agent/examples/extensions/custom-provider-qwen-cli",
 		"packages/npm-compat/*",
-		"packages/npm-compat"
+		"packages/npm-compat",
+		"packages/ssh-transport",
+		"packages/runtime-ssh"
 	],
 	"scripts": {
 		"clean": "bun run --workspaces clean",

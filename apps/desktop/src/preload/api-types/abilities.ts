@@ -212,6 +212,8 @@ export interface OpenMarketplaceDiscoverySearch {
 }
 
 export interface OpenMarketplaceAbility {
+	/** This source contributes Agent Center presets rather than capability-marketplace installs. */
+	agentPresetOnly?: boolean;
 	discoveryReference?: McpDiscoveryReference;
 	mcpMetadata?: McpDiscoveryMetadata;
 	detailDeferred?: boolean;

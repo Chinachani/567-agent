@@ -11,6 +11,9 @@ import type {
 } from "@shared/conversation";
 import type { InputSegment } from "@shared/lib/input-tokens";
 import { atom } from "jotai";
+import { selectAtom } from "jotai/utils";
+import type { LastActiveSession } from "./last-active-session-storage";
+import { LAST_ACTIVE_SESSION_STORAGE_KEY, readLastActiveSession } from "./last-active-session-storage";
 import { runningSessionPathsAtom } from "./running-sessions-atoms";
 
 export type TeamMemberSummaryEventViewModel = {
@@ -25,6 +28,7 @@ export type TeamMemberSummaryEventViewModel = {
 	readonly current?: string;
 	readonly recent: readonly string[];
 	readonly result?: string;
+	readonly durationSeconds?: number;
 	readonly timestamp: number;
 };
 
@@ -33,7 +37,7 @@ export type ChatTimelineEventViewModel =
 	| { readonly kind: "delegation"; readonly label: string; readonly requestId: string; readonly timestamp: number }
 	| TeamMemberSummaryEventViewModel;
 
-/** Display-only content kept beside a specific tool row and outside process folding. */
+/** Display-only content kept beside a specific tool row and rendered independently while the process is expanded. */
 export interface ChatToolCallPresentationViewModel {
 	readonly toolCallId: string;
 	readonly activities: readonly TeamMemberSummaryEventViewModel[];
@@ -51,6 +55,7 @@ export type ChatConversationItem =
 export type {
 	AskUserQuestionResolution,
 	ChatErrorDetails,
+	CompactionBlock,
 	ContentBlock,
 	ErrorBlock,
 	KnowledgeToolUiDetails,
@@ -125,10 +130,7 @@ export interface PendingScrollToEntry {
 
 export const pendingScrollToEntryAtom = atom<PendingScrollToEntry | null>(null);
 
-export interface LastActiveSession {
-	cwd: string;
-	sessionPath: string;
-}
+export type { LastActiveSession } from "./last-active-session-storage";
 
 export type SessionExecutionMode = "sandbox" | "full-access";
 export type ExecutionModeOverride = "inherit" | SessionExecutionMode;
@@ -196,28 +198,20 @@ export const inputValueAtom = atom<string>("");
 export const inputSegmentsAtom = atom<InputSegment[]>([]);
 export const attachedImagesAtom = atom<AttachedImage[]>([]);
 export const activeSessionAtom = atom<ActiveSession | null>(null);
+
+/**
+ * 当前会话的 cwd（本地绝对路径或 `ssh://<hostId>/<path>`）。
+ * 单独派生一个 atom：消费方只关心目录变化，订阅整个 activeSession 会让流式期间
+ * 每条消息都触发一次重渲。
+ */
+export const activeSessionCwdAtom = selectAtom(activeSessionAtom, (session) => session?.cwd ?? null);
+/** 同上：只在 runtimeId / sessionPath 变化时通知，供 `useActiveConversation()` 这类高频订阅方使用。 */
+export const activeSessionRuntimeIdAtom = selectAtom(activeSessionAtom, (session) => session?.runtimeId ?? null);
+export const activeSessionPathAtom = selectAtom(activeSessionAtom, (session) => session?.sessionPath ?? null);
 export const pendingSessionCreationAtom = atom<PendingSessionCreation | null>(null);
 export const pendingSessionOpenAtom = atom<PendingSessionOpen | null>(null);
 /** 已接受发送、但新会话/runtime 尚未准备好的 UI 过渡态。 */
 export const pendingSessionSendAtom = atom<{ messageId: string; interactionId: string } | null>(null);
-
-const LAST_ACTIVE_SESSION_STORAGE_KEY = "vetta-last-active-session";
-
-function readLastActiveSession(): LastActiveSession | null {
-	try {
-		const raw = localStorage.getItem(LAST_ACTIVE_SESSION_STORAGE_KEY);
-		if (!raw) return null;
-		const value = JSON.parse(raw) as Partial<LastActiveSession>;
-		if (typeof value.cwd !== "string" || !value.cwd || typeof value.sessionPath !== "string" || !value.sessionPath) {
-			localStorage.removeItem(LAST_ACTIVE_SESSION_STORAGE_KEY);
-			return null;
-		}
-		return { cwd: value.cwd, sessionPath: value.sessionPath };
-	} catch {
-		localStorage.removeItem(LAST_ACTIVE_SESSION_STORAGE_KEY);
-		return null;
-	}
-}
 
 const lastActiveSessionStorageAtom = atom<LastActiveSession | null>(readLastActiveSession());
 
@@ -373,6 +367,34 @@ export const reasoningByModelAtom = atom(
 	},
 );
 
+/**
+ * 收藏的模型 key（"provider/modelId"），按收藏先后排列。
+ * 存 localStorage，仅本机生效；所有已挂载的模型选择器共用同一份，收藏后立刻同步。
+ */
+const FAVORITE_MODELS_KEY = "agent567-favorite-models";
+function loadFavoriteModels(): string[] {
+	try {
+		const raw = localStorage.getItem(FAVORITE_MODELS_KEY);
+		const parsed: unknown = raw ? JSON.parse(raw) : [];
+		return Array.isArray(parsed) ? parsed.filter((item): item is string => typeof item === "string") : [];
+	} catch {
+		return [];
+	}
+}
+const favoriteModelsBaseAtom = atom<string[]>(loadFavoriteModels());
+export const favoriteModelsAtom = atom(
+	(get) => get(favoriteModelsBaseAtom),
+	(get, set, update: string[] | ((current: string[]) => string[])) => {
+		const next = typeof update === "function" ? update(get(favoriteModelsBaseAtom)) : update;
+		set(favoriteModelsBaseAtom, next);
+		try {
+			localStorage.setItem(FAVORITE_MODELS_KEY, JSON.stringify(next));
+		} catch {
+			// ignore persistence errors (private mode / quota)
+		}
+	},
+);
+
 /** Whether the current session model supports image input */
 export const modelSupportsImagesAtom = atom<boolean>(true);
 
@@ -421,7 +443,7 @@ export interface OpenSessionOptions {
 	 * finishes. Dispatched, never awaited: the first prompt's IPC only settles when the
 	 * whole turn ends, so awaiting it would hold Session hydration for the turn.
 	 */
-	onPromptReady?: () => void | Promise<void>;
+	onPromptReady?: (sessionId?: string) => void | Promise<void>;
 	/**
 	 * For a new session, render the chat route and yield a paint before starting
 	 * runtime creation. Existing-session opens ignore this option.

@@ -1,12 +1,13 @@
 import { join } from "node:path";
 import { app, BrowserWindow, nativeTheme } from "electron";
 import { isSpeechInputBuildEnabled } from "../shared/feature-flags.js";
+import { getWindowIconOverride } from "./app-icon/app-icon-service.js";
 import { setAppMonitorWindowVisible } from "./app-monitor/app-monitor-service.js";
 import { type RendererConsoleLevel, shouldPersistRendererConsoleMessage } from "./logger/renderer-console-policy.js";
 import { getAppLogger } from "./logger.js";
 import { openExternalUrl } from "./open-external.js";
 import { configureMainWindowMediaPermissions } from "./speech-input/media-permissions.js";
-import { attachUiZoom } from "./ui-zoom/ui-zoom-service.js";
+import { attachUiZoom, getInitialTrafficLightPosition } from "./ui-zoom/ui-zoom-service.js";
 
 const isMac = process.platform === "darwin";
 const appRoot = app.isPackaged ? app.getAppPath() : process.cwd();
@@ -69,11 +70,11 @@ export function createWindow(): BrowserWindow {
 		// 最小尺寸：低于此值会过度收缩导致布局不可用。窄屏响应式在此宽度下仍生效。
 		minWidth: 380,
 		minHeight: 600,
-		icon: iconPath[process.platform],
+		icon: getWindowIconOverride() ?? iconPath[process.platform],
 		transparent: isMac,
 		frame: isMac,
 		titleBarStyle: isMac ? "hiddenInset" : undefined,
-		trafficLightPosition: isMac ? { x: 16, y: 20 } : undefined,
+		trafficLightPosition: isMac ? getInitialTrafficLightPosition() : undefined,
 		vibrancy: isMac ? "sidebar" : undefined,
 		visualEffectState: isMac ? "active" : undefined,
 		backgroundColor: isMac ? undefined : nativeTheme.shouldUseDarkColors ? "#161616" : "#f5f5f7",

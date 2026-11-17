@@ -1,5 +1,5 @@
 import { useThemeComponent } from "@vetta-org/theme-sdk";
-import { SchedulerUpdateApprovalView as ThemeSchedulerUpdateApprovalView } from "@vetta-org/theme-ui/action-approval";
+import { SchedulerUpdateApprovalView as ThemeSchedulerUpdateApprovalView } from "@vetta-org/theme-ui/action-approval/SchedulerUpdateApprovalView";
 import { SchedulerEditApprovalDrawerView } from "./SchedulerEditApprovalDrawerView";
 import type { SchedulerUpdateApprovalModel } from "./useSchedulerUpdateApprovalModel";
 
@@ -9,9 +9,6 @@ export function SchedulerUpdateApprovalView(model: SchedulerUpdateApprovalModel)
 		SchedulerEditApprovalDrawerView,
 	);
 	return (
-		<ThemeSchedulerUpdateApprovalView
-			EditView={ThemedSchedulerEditApprovalDrawerView}
-			drawerProps={model.drawer}
-		/>
+		<ThemeSchedulerUpdateApprovalView EditView={ThemedSchedulerEditApprovalDrawerView} drawerProps={model.drawer} />
 	);
 }

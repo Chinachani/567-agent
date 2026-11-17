@@ -1,4 +1,7 @@
+export type { RemoteFileChunk, RemoteFileEntry, RemoteFileInfo } from "./api.js";
+export { REMOTE_FILE_CHUNK_BYTES, REMOTE_MAX_FILE_BYTES } from "./api.js";
 export { diagnosticsFromSnapshot, RemoteConnection } from "./connection.js";
+export { RemoteEventJournal } from "./event-journal.js";
 export { FakeRelay } from "./fake-relay.js";
 export type { FakeTransportOptions } from "./fake-transport.js";
 export { FakeTransport } from "./fake-transport.js";

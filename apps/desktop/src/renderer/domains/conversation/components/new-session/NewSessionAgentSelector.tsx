@@ -1,18 +1,13 @@
-import { teamMemberAvatarUrls, useAgentAvatarResolver } from "@shared/agent-teams/agent-avatar";
+import { useAgentAvatarResolver } from "@shared/agent-teams/agent-avatar";
 import { useLocalizedAgentTeamDocument } from "@shared/agent-teams/agent-team-localization";
 import { type AgentTeamDocument, listLibraryAgentProfiles } from "@567agent/agent-team";
 import { NewSessionPicker, type NewSessionPickerRootProps } from "@vetta-org/theme-ui/chat";
 import { AvatarStackView } from "@vetta-org/theme-ui/shared";
+import { Button } from "@vetta-org/ui";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
-import { loadAgentTeamDocument } from "./agent-team-directory";
-import {
-	agentTargetKey,
-	filterTargetOptions,
-	type NewSessionTargetKey,
-	type NewSessionTargetOption,
-	teamTargetKey,
-} from "./target";
+import { cachedAgentTeamDocument, loadAgentTeamDocument, subscribeAgentTeamDocument } from "./agent-team-directory";
+import { agentTargetKey, filterTargetOptions, type NewSessionTargetKey, type NewSessionTargetOption } from "./target";
 
 export interface NewSessionAgentSelectorProps {
 	readonly selectedKey: NewSessionTargetKey | null;
@@ -20,18 +15,13 @@ export interface NewSessionAgentSelectorProps {
 	readonly className?: string;
 	readonly picker?: {
 		readonly open: boolean;
-		readonly category: "all" | "teams";
 		readonly onOpenChange: (open: boolean) => void;
 	};
 }
 
 const SEARCH_THRESHOLD = 5;
 
-/**
- * 「切换智能体」入口：未选时是 BotAvatar + 文案的 chip，选中后原地变成头像（团队是成员头像组、
- * 单个智能体是它自己的头像）+ 名字，再次点击可换。下拉里团队与智能体分两组，
- * 搜索一次跨两组过滤。三枚 chip 行为与同一行的项目/模式选择器一致。
- */
+/** 专家选择器只列库中档案；旧团队仅保留历史入口。 */
 export function NewSessionAgentSelector({
 	selectedKey,
 	onSelect,
@@ -39,7 +29,7 @@ export function NewSessionAgentSelector({
 	picker,
 }: NewSessionAgentSelectorProps): JSX.Element {
 	const { t } = useTranslation("chat");
-	const [loadedDocument, setDocument] = useState<AgentTeamDocument>();
+	const [loadedDocument, setDocument] = useState<AgentTeamDocument | undefined>(cachedAgentTeamDocument);
 	const document = useLocalizedAgentTeamDocument(loadedDocument);
 	const [localOpen, setOpen] = useState(false);
 	const open = picker?.open ?? localOpen;
@@ -59,30 +49,12 @@ export function NewSessionAgentSelector({
 		}
 	}, []);
 
-	const agentsById = useMemo(
-		() => new Map(document?.agents.map((agent) => [agent.id, agent]) ?? []),
-		[document?.agents],
-	);
 	useEffect(() => {
+		const unsubscribe = subscribeAgentTeamDocument(() => setDocument(cachedAgentTeamDocument()));
 		void load();
+		return unsubscribe;
 	}, [load]);
 	const resolveAvatar = useAgentAvatarResolver();
-	const blueprintAvatars = useMemo(
-		() => new Map(document?.agents.map((agent) => [agent.blueprintId, { avatarUrl: resolveAvatar(agent) }]) ?? []),
-		[document?.agents, resolveAvatar],
-	);
-
-	const teamOptions = useMemo<readonly NewSessionTargetOption[]>(
-		() =>
-			(document?.teams ?? []).map((team) => ({
-				targetKey: teamTargetKey(team.id),
-				title: team.name,
-				subtitle: t("newSession.agentSelector.memberCount", { count: team.members.length }),
-				avatarUrls: teamMemberAvatarUrls(team, agentsById, blueprintAvatars),
-				selected: selectedKey === teamTargetKey(team.id),
-			})),
-		[agentsById, blueprintAvatars, document?.teams, selectedKey, t],
-	);
 	// 只列智能体库里的 Agent：团队 `copy` 绑定产生的 team scope 副本是团队私有的，
 	// 摆进来会变成一堆同名影子条目。
 	const agentOptions = useMemo<readonly NewSessionTargetOption[]>(
@@ -96,12 +68,10 @@ export function NewSessionAgentSelector({
 			})),
 		[document, resolveAvatar, selectedKey],
 	);
-	const visibleTeams = useMemo(() => filterTargetOptions(teamOptions, query), [teamOptions, query]);
-	const allVisibleAgents = useMemo(() => filterTargetOptions(agentOptions, query), [agentOptions, query]);
-	const selectedOption = [...teamOptions, ...agentOptions].find((option) => option.targetKey === selectedKey);
-	const searchVisible = teamOptions.length + agentOptions.length > SEARCH_THRESHOLD;
-	const visibleAgents = picker?.category === "teams" ? [] : allVisibleAgents;
-	const nothingVisible = visibleTeams.length === 0 && visibleAgents.length === 0;
+	const visibleAgents = useMemo(() => filterTargetOptions(agentOptions, query), [agentOptions, query]);
+	const selectedOption = agentOptions.find((option) => option.targetKey === selectedKey);
+	const searchVisible = agentOptions.length > SEARCH_THRESHOLD;
+	const nothingVisible = visibleAgents.length === 0;
 
 	const handleOpenChange: NonNullable<NewSessionPickerRootProps["onOpenChange"]> = useCallback(
 		(next) => {
@@ -182,13 +152,13 @@ export function NewSessionAgentSelector({
 					) : error ? (
 						<>
 							<NewSessionPicker.Error>{t("newSession.agentSelector.error")}</NewSessionPicker.Error>
-							<button
-								type="button"
+							<Button
+								variant="ghost"
 								className="flex w-full items-center rounded-md px-2 py-[5px] text-left text-[12px] text-foreground hover:bg-accent"
 								onClick={() => void load()}
 							>
 								{t("newSession.agentSelector.retry")}
-							</button>
+							</Button>
 						</>
 					) : nothingVisible ? (
 						<NewSessionPicker.Group>
@@ -196,11 +166,6 @@ export function NewSessionAgentSelector({
 						</NewSessionPicker.Group>
 					) : (
 						<>
-							{visibleTeams.length > 0 && (
-								<NewSessionPicker.Group label={t("newSession.agentSelector.groupTeams")}>
-									{visibleTeams.map(renderOption)}
-								</NewSessionPicker.Group>
-							)}
 							{visibleAgents.length > 0 && (
 								<NewSessionPicker.Group label={t("newSession.agentSelector.groupAgents")}>
 									{visibleAgents.map(renderOption)}

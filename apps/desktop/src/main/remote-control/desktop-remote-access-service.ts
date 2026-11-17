@@ -1,6 +1,6 @@
 import { hostname } from "node:os";
 import type { RemoteConnectionState } from "@567agent/remote-control";
-import { RemoteConnection, WebSocketRemoteTransport } from "@567agent/remote-control";
+import { RemoteConnection, RemoteEventJournal, WebSocketRemoteTransport } from "@567agent/remote-control";
 import { app } from "electron";
 import { readAbilityLedger } from "../abilities/ability-ledger.js";
 import { getOpenMarketplaceManager } from "../abilities/open-marketplace/open-marketplace-manager.js";
@@ -15,6 +15,7 @@ import {
 	DesktopRemoteConversationState,
 } from "./desktop-conversation-remote-operations.js";
 import { DesktopRemoteConnector } from "./desktop-remote-connector.js";
+import { createDesktopRemoteFiles } from "./desktop-remote-files.js";
 import { createDesktopWebSocketFactory } from "./desktop-websocket.js";
 import { RemotePromptRecovery } from "./remote-prompt-recovery.js";
 
@@ -48,6 +49,12 @@ interface ActiveConnector {
 const log = getAppLogger("remote-access");
 const active = new Map<string, ActiveConnector>();
 const targetStates = new Map<string, RemoteConnectionState>();
+/**
+ * One publisher and replay window per paired target. The connector itself is
+ * replaced after a socket failure, so keeping this here is what lets a new
+ * transport replay unacknowledged session events.
+ */
+const eventJournals = new Map<string, RemoteEventJournal>();
 let generation = 0;
 let conversationState = new DesktopRemoteConversationState();
 let promptRecovery = new RemotePromptRecovery();
@@ -71,6 +78,7 @@ export async function stopDesktopRemoteAccess(): Promise<void> {
 	const current = [...active.values()];
 	active.clear();
 	targetStates.clear();
+	eventJournals.clear();
 	promptRecovery.clear();
 	for (const entry of current) {
 		if (entry.reconnectTimer) clearTimeout(entry.reconnectTimer);
@@ -101,18 +109,20 @@ async function connect(
 			role: "desktop",
 			deviceId,
 			deviceName: hostname(),
-			capabilities: { chat: true, sessionRead: true },
+			capabilities: { chat: true, sessionRead: true, fileRead: true },
 			logger: {
 				debug: (message: string, metadata) => log.debug(message, metadata),
 				info: (message: string, metadata) => log.info(message, metadata),
 				warn: (message: string, metadata) => log.warn(message, metadata),
 			},
+			eventJournal: getEventJournal(key),
 		},
 	);
 	const operations = new DesktopConversationRemoteOperations(
 		getDesktopConversationService(),
 		{
 			cwd: options.conversationCwd,
+			files: createDesktopRemoteFiles(),
 			resolveSessionRoots: resolveDesktopRuntimeSessionRoots,
 			readDefaultModelKey: async () => (await getDesktopModelSettingsService().getConfig()).defaultModel,
 			readGeneratedImageChunk: (id, offset, length) => readPluginBlobRange("image-gen", id, offset, length),
@@ -195,6 +205,19 @@ async function connect(
 		});
 		await scheduleReconnect(key, runGeneration);
 	}
+}
+
+function getEventJournal(key: string): RemoteEventJournal {
+	let journal = eventJournals.get(key);
+	if (!journal) {
+		const host =
+			hostname()
+				.replace(/[^A-Za-z0-9_-]/g, "-")
+				.slice(0, 48) || "desktop";
+		journal = new RemoteEventJournal(`desktop-${host}-${key}`);
+		eventJournals.set(key, journal);
+	}
+	return journal;
 }
 
 async function scheduleReconnect(key: string, runGeneration: number): Promise<void> {

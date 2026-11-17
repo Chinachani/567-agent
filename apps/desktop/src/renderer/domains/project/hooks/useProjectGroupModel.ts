@@ -2,6 +2,7 @@ import { notifyTeamSessionsChanged } from "@shared/agent-teams/team-session-even
 import { pathBasename } from "@shared/lib/utils";
 import type { Project, ProjectType } from "@shared/store/atoms";
 import {
+	automationSessionLinksAtom,
 	pinnedSessionPathsAtom,
 	projectContextMenuAtom,
 	renamingSessionPathAtom,
@@ -15,6 +16,12 @@ import { useAtomValue, useSetAtom } from "jotai";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import {
+	type AutomationGroupRowFields,
+	automationGroupContaining,
+	collapseAutomationSessions,
+	expandAutomationGroupRows,
+} from "../services/automation-session-groups";
+import {
 	isSidebarConversationActive,
 	type SidebarConversationInfo,
 	sidebarConversationIdentity,
@@ -23,7 +30,7 @@ import {
 import { buildSidebarSessionOrdering } from "../services/sidebar-session-order";
 import { reuseUnchangedSessionViews } from "./stableSessionViews";
 
-export interface ProjectGroupSessionView {
+export interface ProjectGroupSessionView extends AutomationGroupRowFields {
 	key: string;
 	path: string;
 	label: string;
@@ -39,6 +46,7 @@ export interface ProjectGroupSessionView {
 }
 
 interface UseProjectGroupModelArgs {
+	selectionMode?: boolean;
 	activeSessionPath: string;
 	activeTeamSessionId: string;
 	isActive?: boolean;
@@ -54,6 +62,7 @@ interface UseProjectGroupModelArgs {
 }
 
 export function useProjectGroupModel({
+	selectionMode = false,
 	activeSessionPath,
 	activeTeamSessionId,
 	isActive = false,
@@ -87,9 +96,17 @@ export function useProjectGroupModel({
 		() => sessions.some((session) => runningSessionPaths.has(session.path)),
 		[sessions, runningSessionPaths],
 	);
+	// 同一自动化「每次新建会话」产生的会话折叠成一行，排序与「显示更多」都按折叠后的行数算。
+	const automationLinks = useAtomValue(automationSessionLinksAtom);
+	const collapsed = useMemo(
+		() => collapseAutomationSessions(sessions, selectionMode ? new Map() : automationLinks, pinnedSessionPaths),
+		[automationLinks, pinnedSessionPaths, sessions, selectionMode],
+	);
+	const [expandedTaskIds, setExpandedTaskIds] = useState<ReadonlySet<string>>(() => new Set<string>());
 	const ordering = useMemo(
-		() => buildSidebarSessionOrdering(sessions, pinnedSessionPaths, DEFAULT_VISIBLE_SESSIONS, showAllSessions),
-		[pinnedSessionPaths, sessions, showAllSessions],
+		() =>
+			buildSidebarSessionOrdering(collapsed.sessions, pinnedSessionPaths, DEFAULT_VISIBLE_SESSIONS, showAllSessions),
+		[collapsed.sessions, pinnedSessionPaths, showAllSessions],
 	);
 
 	useEffect(() => {
@@ -106,15 +123,29 @@ export function useProjectGroupModel({
 			revealedActiveSessionRef.current = null;
 			return;
 		}
-		if (revealedActiveSessionRef.current === activeConversationKey) return;
-		const activeIndex = ordering.all.findIndex(
-			(session) => sidebarConversationKey(session) === activeConversationKey,
+		// 正在看的会话藏在会话组里时展开该组，并以组的位置判断是否要「显示更多」。
+		const groupTaskId = activeTeamSessionId
+			? undefined
+			: automationGroupContaining(collapsed.groupsByHeadPath, activeSessionPath);
+		const revealKey = `${activeConversationKey}:${groupTaskId ?? ""}`;
+		if (revealedActiveSessionRef.current === revealKey) return;
+		const groupHeadPath = groupTaskId
+			? [...collapsed.groupsByHeadPath].find(([, group]) => group.taskId === groupTaskId)?.[0]
+			: undefined;
+		const activeIndex = ordering.all.findIndex((session) =>
+			groupHeadPath ? session.path === groupHeadPath : sidebarConversationKey(session) === activeConversationKey,
 		);
 		if (activeIndex < 0) return;
-		revealedActiveSessionRef.current = activeConversationKey;
-		const collapsed = buildSidebarSessionOrdering(sessions, pinnedSessionPaths, DEFAULT_VISIBLE_SESSIONS, false);
-		if (activeIndex >= collapsed.visible.length) setShowAllSessions(true);
-	}, [activeConversationKey, ordering.all, pinnedSessionPaths, sessions]);
+		revealedActiveSessionRef.current = revealKey;
+		if (groupTaskId) setExpandedTaskIds((prev) => (prev.has(groupTaskId) ? prev : new Set(prev).add(groupTaskId)));
+		const collapsedOrdering = buildSidebarSessionOrdering(
+			collapsed.sessions,
+			pinnedSessionPaths,
+			DEFAULT_VISIBLE_SESSIONS,
+			false,
+		);
+		if (activeIndex >= collapsedOrdering.visible.length) setShowAllSessions(true);
+	}, [activeConversationKey, activeSessionPath, activeTeamSessionId, collapsed, ordering.all, pinnedSessionPaths]);
 
 	const displayName = project.name ?? pathBasename(project.cwd);
 	const projectActionsTitle = t("contextMenu.projectActions");
@@ -124,7 +155,7 @@ export function useProjectGroupModel({
 	// t 在 changeLanguage 后可能保持同一引用；读 i18n.language 强制语言切换时重算未命名团队会话文案。
 	const sessionViews: ProjectGroupSessionView[] = useMemo(() => {
 		void i18n.language;
-		const next = ordering.visible.map((session) => {
+		const toView = (session: SidebarConversationInfo): ProjectGroupSessionView => {
 			const identity = sidebarConversationIdentity(session, {
 				conversationLabel: session.kind === "conversation" ? sessionDisplayLabel(session) : undefined,
 				untitledTeamLabel: t("sidebar.session.untitledTeam"),
@@ -149,12 +180,20 @@ export function useProjectGroupModel({
 				titleExtra: identity.titleExtra,
 				session,
 			};
-		});
+		};
+		const next = expandAutomationGroupRows(
+			ordering.visible.map(toView),
+			collapsed.groupsByHeadPath,
+			expandedTaskIds,
+			toView,
+		);
 		// 未变的行还回旧引用，让下游行组件的 memo 生效。
 		return reuseUnchangedSessionViews(viewCacheRef.current, next);
 	}, [
 		activeSessionPath,
 		activeTeamSessionId,
+		collapsed.groupsByHeadPath,
+		expandedTaskIds,
 		i18n.language,
 		renamingSessionPath,
 		runningSessionPaths,
@@ -216,6 +255,13 @@ export function useProjectGroupModel({
 		[onSelectSession, projectCwd],
 	);
 	const toggleShowAll = useCallback(() => setShowAllSessions((value) => !value), []);
+	const toggleGroup = useCallback((taskId: string) => {
+		setExpandedTaskIds((prev) => {
+			const next = new Set(prev);
+			if (!next.delete(taskId)) next.add(taskId);
+			return next;
+		});
+	}, []);
 
 	return {
 		displayName,
@@ -246,6 +292,7 @@ export function useProjectGroupModel({
 			renameDone,
 			renameSession: renameSessionByPath,
 			selectSession: selectSessionByPath,
+			toggleGroup,
 			toggleShowAll,
 		},
 	};

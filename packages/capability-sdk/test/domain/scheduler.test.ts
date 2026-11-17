@@ -29,10 +29,10 @@ describe("scheduler domain capabilities", () => {
 				data: {
 					name: "Daily",
 					prompt: "Run",
-					cron: "0 9 * * *",
-					isOnce: false,
+					schedule: { kind: "daily", hour: 9, minute: 0 },
+					runTarget: { mode: "new-session", projectCwd: "C:/workspace" },
 					enabled: true,
-					cwd: "C:/workspace",
+
 					executionMode: SCHEDULER_EXECUTION_MODES.SANDBOX,
 					skill: { name: "review", type: SCHEDULER_SKILL_TYPES.SKILL, ignored: true },
 				},
@@ -42,19 +42,19 @@ describe("scheduler domain capabilities", () => {
 			data: {
 				name: "Daily",
 				prompt: "Run",
-				cron: "0 9 * * *",
-				isOnce: false,
+				schedule: { kind: "daily", hour: 9, minute: 0 },
+				runTarget: { mode: "new-session", projectCwd: "C:/workspace" },
 				enabled: true,
-				cwd: "C:/workspace",
+
 				executionMode: SCHEDULER_EXECUTION_MODES.SANDBOX,
 				skill: { name: "review", type: SCHEDULER_SKILL_TYPES.SKILL },
 			},
 		});
 		const update = DOMAIN_SCHEDULER_CAPABILITIES.UPDATE_TASK.parseInput({
 			taskId: "task",
-			data: { modelKey: undefined, skill: undefined },
+			data: { model: undefined, skill: undefined },
 		});
-		expect(update.data).toHaveProperty("modelKey", undefined);
+		expect(update.data).toHaveProperty("model", undefined);
 		expect(update.data).toHaveProperty("skill", undefined);
 		expect(
 			DOMAIN_SCHEDULER_CAPABILITIES.UPDATE_TASK.parseInput({ taskId: "task", data: { skill: null } }).data,
@@ -67,10 +67,10 @@ describe("scheduler domain capabilities", () => {
 				data: {
 					name: "Daily",
 					prompt: "Run",
-					cron: "0 9 * * *",
-					isOnce: false,
+					schedule: { kind: "daily", hour: 9, minute: 0 },
+					runTarget: { mode: "new-session", projectCwd: "C:/workspace" },
 					enabled: true,
-					cwd: "C:/workspace",
+
 					ignored: true,
 				},
 			}),
@@ -82,10 +82,10 @@ describe("scheduler domain capabilities", () => {
 			id: "task",
 			name: "Daily",
 			prompt: "Run",
-			cron: "0 9 * * *",
-			isOnce: false,
+			schedule: { kind: "daily", hour: 9, minute: 0 },
+			runTarget: { mode: "new-session", projectCwd: "C:/workspace" },
 			enabled: true,
-			cwd: "C:/workspace",
+
 			skill: { name: "review", type: SCHEDULER_SKILL_TYPES.SKILL, ignored: true },
 			createdAt: 1,
 			updatedAt: 2,
@@ -148,7 +148,7 @@ describe("scheduler domain capabilities", () => {
 			type: "array",
 			items: {
 				type: "object",
-				required: ["id", "taskId", "sessionId", "startedAt", "completedAt", "status", "prompt", "responsePreview"],
+				required: ["id", "taskId", "startedAt", "completedAt", "status", "prompt", "responsePreview"],
 				properties: {
 					status: {
 						anyOf: [
@@ -156,6 +156,8 @@ describe("scheduler domain capabilities", () => {
 							{ const: SCHEDULER_RECORD_STATUSES.SUCCESS },
 							{ const: SCHEDULER_RECORD_STATUSES.FAILED },
 							{ const: SCHEDULER_RECORD_STATUSES.ABORTED },
+							{ const: SCHEDULER_RECORD_STATUSES.SKIPPED },
+							{ const: SCHEDULER_RECORD_STATUSES.MISSED },
 						],
 					},
 					executionMode: {
@@ -174,7 +176,7 @@ describe("scheduler domain capabilities", () => {
 				data: {
 					type: "object",
 					additionalProperties: false,
-					required: ["name", "prompt", "cron", "isOnce", "enabled", "cwd"],
+					required: ["name", "prompt", "schedule", "runTarget", "enabled"],
 				},
 			},
 		});

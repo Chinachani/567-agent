@@ -1,6 +1,6 @@
 import type { AgentBlueprint, AgentTeamDocument } from "@567agent/agent-team";
 import { useLocalizedAgentTeamDocument } from "@shared/agent-teams/agent-team-localization";
-import { type Dispatch, type SetStateAction, useCallback, useEffect, useState } from "react";
+import { type Dispatch, type SetStateAction, useCallback, useEffect, useRef, useState } from "react";
 import type { BlueprintDisplayPlugin } from "../lib/blueprint-display";
 import type { AgentCapabilityOption } from "../lib/capability-options";
 import { loadAgentTeamConfigurationResources } from "../services/load-agent-team-resources";
@@ -30,57 +30,36 @@ export function useAgentTeamResources(): AgentTeamResources {
 	const [loading, setLoading] = useState(true);
 	const [error, setError] = useState<string>();
 
-	useEffect(() => {
-		let cancelled = false;
-		void loadAgentTeamConfigurationResources()
-			.then((resources) => {
-				if (cancelled) return;
-				setDocument(resources.document);
-				setBlueprints(resources.blueprints);
-				setPlugins(resources.plugins);
-				setCapabilities(resources.capabilities);
-			})
-			.catch((cause: unknown) => {
-				if (!cancelled) setError(agentTeamErrorMessage(cause));
-			})
-			.finally(() => {
-				if (!cancelled) setLoading(false);
-			});
-		return () => {
-			cancelled = true;
-		};
-	}, []);
-
+	const mounted = useRef(false);
+	const generation = useRef(0);
 	const reload = useCallback(async () => {
+		const request = ++generation.current;
 		try {
-			setDocument(await window.agent567.agentTeams.list());
+			const resources = await loadAgentTeamConfigurationResources();
+			if (!mounted.current || request !== generation.current) return;
+			setDocument(resources.document);
+			setBlueprints(resources.blueprints);
+			setPlugins(resources.plugins);
+			setCapabilities(resources.capabilities);
 			setError(undefined);
 		} catch (cause) {
-			setError(agentTeamErrorMessage(cause));
+			if (mounted.current && request === generation.current) setError(agentTeamErrorMessage(cause));
+		} finally {
+			if (mounted.current && request === generation.current) setLoading(false);
 		}
 	}, []);
-
-	/**
-	 * 插件重铺预设后跟着刷新。
-	 *
-	 * 插件贡献的智能体与团队由提供方维护，装卸插件和开发态热重载都会在用户没动手的情况下改动
-	 * 这份文档；不听这条事件，列表会一直停在旧阵容直到重启 App。blueprint 一起重取——人设与
-	 * 头像同样随插件走。
-	 */
 	useEffect(() => {
-		return window.agent567.agentTeams.onChanged(() => {
-			void loadAgentTeamConfigurationResources()
-				.then((resources) => {
-					setDocument(resources.document);
-					setBlueprints(resources.blueprints);
-					setPlugins(resources.plugins);
-					setCapabilities(resources.capabilities);
-				})
-				.catch(() => {
-					// 后台刷新失败保持现状：用户没有发起任何操作，弹错只会平白打断他。
-				});
+		mounted.current = true;
+		const unsubscribe = window.agent567.agentTeams.onChanged(() => {
+			void reload();
 		});
-	}, []);
+		void reload();
+		return () => {
+			mounted.current = false;
+			++generation.current;
+			unsubscribe();
+		};
+	}, [reload]);
 
 	const displayDocument = useLocalizedAgentTeamDocument(document);
 

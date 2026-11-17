@@ -1,18 +1,17 @@
-import { useTranslation } from "react-i18next";
+import { ResultInboxList } from "./ResultInboxList";
 import { AnimatePresence, motion } from "motion/react";
-import { MessageCenterEmptyState } from "./MessageCenterEmptyState";
 import { NotificationMessageList } from "./NotificationMessageList";
 import type { MessageCenterTab } from "./types";
 
 export function MessageCenterContent({
 	activeTab,
 	notifUnread,
+	onClose,
 }: {
 	activeTab: MessageCenterTab;
 	notifUnread: number;
+	onClose: () => void;
 }): JSX.Element {
-	const { t } = useTranslation("message");
-
 	return (
 		<div className="min-h-[160px] flex-1 overflow-y-auto border-t border-border/50">
 			<AnimatePresence mode="wait" initial={false}>
@@ -23,14 +22,8 @@ export function MessageCenterContent({
 					exit={{ opacity: 0, y: -6 }}
 					transition={{ duration: 0.15 }}
 				>
-					{activeTab === "all" && (
-						<>
-							{notifUnread > 0 && <NotificationMessageList />}
-							{notifUnread === 0 && (
-								<MessageCenterEmptyState text={t("empty.all")} icon="icon-[solar--inbox-linear]" />
-							)}
-						</>
-					)}
+					{(activeTab === "all" || activeTab === "results") && <ResultInboxList onOpen={onClose} />}
+					{activeTab === "all" && <>{notifUnread > 0 && <NotificationMessageList />}</>}
 					{activeTab === "notifications" && <NotificationMessageList />}
 				</motion.div>
 			</AnimatePresence>

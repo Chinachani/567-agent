@@ -15,6 +15,7 @@ function createFixture(initial?: Partial<DesktopConfig>) {
 	const broadcastChanged = vi.fn();
 	const nonDirectoryPaths = new Set<string>();
 	const service = new ProjectService({
+		isKnownSshHost: async (hostId) => (config.sshHosts ?? []).some((host) => host.id === hostId),
 		allowProjectRoot,
 		createDirectory,
 		readConfig: async () => structuredClone(config),

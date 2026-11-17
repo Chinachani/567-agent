@@ -32,6 +32,7 @@ import {
 	pendingSessionCreationAtom,
 	pendingSessionOpenAtom,
 	projectsAtom,
+	renameBottomPanelScopeAtom,
 	retryProgressAtom,
 	type SessionExecutionMode,
 	selectedModelAtom,
@@ -536,6 +537,7 @@ export function useSessionOpener(): SessionOpenerController {
 			// 新会话没有历史需要回放。草稿迁移后先建立事件订阅并立刻派发首条 Prompt；
 			// getState、上下文恢复和侧边栏对账都不再位于首条发送的关键路径。
 			if (sessionPath === undefined) {
+				getDefaultStore().set(renameBottomPanelScopeAtom, newSessionInputDraftKey(cwd), cachedKey);
 				claimNewSessionInputDraft(cachedKey, newSessionInputDraftKey(cwd));
 				if (!(await subscribeForPrompt())) return;
 			}
@@ -651,6 +653,7 @@ export function useSessionOpener(): SessionOpenerController {
 			// 输入草稿按 sessionPath 隔离：打开已有会话装入该会话草稿；
 			// 新建会话保留工作集（随即 sendMessage），只把归属从 new:cwd 迁到真实 path。
 			if (sessionPath !== undefined) {
+				getDefaultStore().set(renameBottomPanelScopeAtom, sessionPath, cachedKey);
 				claimExistingSessionInputDraft(cachedKey, sessionPath);
 			}
 

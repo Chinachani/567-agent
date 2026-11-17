@@ -106,6 +106,7 @@ export interface DesktopPermissionsApi {
 /** 托管运行时(环境管理面板)。见 ADR-0011。 */
 export interface DesktopRuntimesApi {
 	getStatus(): Promise<RuntimesStatus>;
+	installGit(): Promise<RuntimesStatus["git"]>;
 	/** 强制重新获取(内置 vendor 拷贝,失败回退下载)推荐版本。 */
 	reinstall(type: RuntimeType): Promise<RuntimeStatus>;
 	/** Save a repair request, stop application tasks and restart to restore it. */

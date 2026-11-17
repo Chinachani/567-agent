@@ -24,6 +24,8 @@
 		"prepublishOnly": "bun run clean && bun run build"
 	},
 	"dependencies": {
+		"@567agent/runtime-ssh": "workspace:*",
+		"@567agent/ssh-transport": "workspace:*",
 		"@567agent/ai": "workspace:*",
 		"@567agent/coding-agent": "workspace:*",
 		"@567agent/runtime-core": "workspace:*",

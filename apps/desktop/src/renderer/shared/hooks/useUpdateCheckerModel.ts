@@ -1,6 +1,7 @@
+import { showToast } from "@shared/store/toast-atoms";
 import type { UpdateCheckerViewProps } from "@vetta-org/theme-ui/overlays";
 import { useAtomValue, useSetAtom } from "jotai";
-import { useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { filePreviewAtom } from "../store/file-preview-atoms";
 import { updaterRestartDialogOpenAtom, updaterStateAtom } from "../store/updater-atoms";
@@ -12,6 +13,33 @@ export function useUpdateCheckerModel(): UpdateCheckerViewProps {
 	const setFilePreview = useSetAtom(filePreviewAtom);
 	const [busy, setBusy] = useState(false);
 
+	const notesRequest = useRef(0);
+	useEffect(
+		() => () => {
+			notesRequest.current += 1;
+		},
+		[],
+	);
+	const viewCurrent = useCallback(() => {
+		const request = ++notesRequest.current;
+		void window.agent567.updater
+			.getCurrentReleaseNote()
+			.then((note) => {
+				if (request !== notesRequest.current) return;
+				if (!note) {
+					showToast({ message: t("updaterCurrentNotesMissing") });
+					return;
+				}
+				setFilePreview({
+					name: `v${state.currentVersion}.md`,
+					url: URL.createObjectURL(new Blob([note], { type: "text/markdown" })),
+				});
+			})
+			.catch(() => {
+				if (request === notesRequest.current)
+					showToast({ variant: "error", message: t("updaterCurrentNotesFailed") });
+			});
+	}, [setFilePreview, state.currentVersion, t]);
 	const checking = busy || state.phase === "checking";
 
 	const statusText = (() => {
@@ -64,11 +92,16 @@ export function useUpdateCheckerModel(): UpdateCheckerViewProps {
 				newVersion: (version) => t("updaterNewVersion", { version }),
 				restart: t("updaterRestart"),
 				viewMore: t("updaterViewMore"),
+				viewCurrent: t("updaterViewCurrent"),
 			},
 			latestVersion: state.latestVersion,
+			onViewCurrent: viewCurrent,
 			onCheck: () => {
 				setBusy(true);
-				void window.agent567.updater.check().finally(() => setBusy(false));
+				void window.agent567.updater
+					.check()
+					.catch(() => {})
+					.finally(() => setBusy(false));
 			},
 			onPrimary: () => {
 				if (state.phase === "available") {
@@ -105,6 +138,6 @@ export function useUpdateCheckerModel(): UpdateCheckerViewProps {
 			releaseNote: state.releaseNote,
 			statusText,
 		}),
-		[checking, openRestartDialog, setFilePreview, state, statusText, t],
+		[checking, openRestartDialog, setFilePreview, state, statusText, t, viewCurrent],
 	);
 }

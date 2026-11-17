@@ -110,7 +110,7 @@ export interface PluginOfficialSkillInfo {
 	alias?: string;
 	description: string;
 	source: string;
-	type: "skill" | "scene";
+	type: "skill";
 }
 
 export interface PluginOfficialMarketplaceAbility {
@@ -137,7 +137,7 @@ export type PluginOfficialInstalledSkill = {
 	installedAt: string;
 	source: "market" | "custom";
 	enabled: boolean;
-	type?: "skill" | "scene";
+	type?: "skill";
 	alias?: string;
 	marketDescription?: string;
 	description?: string;
@@ -171,17 +171,31 @@ export interface PluginOfficialImLog {
 	fields?: Record<string, unknown>;
 }
 
+/**
+ * MCP 配置落点。省略时只操作全局 `~/.vetta/agent/mcp.json`；
+ * `scope: "project"` 必须同时给出项目根 `cwd`，读写 `<cwd>/.vetta/mcp.json`。
+ * 只给 `cwd` 时读操作会把项目一并纳入，写操作仍默认全局。
+ */
+export interface PluginOfficialMcpTarget {
+	scope?: "global" | "project";
+	cwd?: string;
+}
+
 export interface PluginOfficialMcpServerSummary {
 	name: string;
-	type: "http" | "stdio";
+	type: "http" | "sse" | "stdio";
 	disabled: boolean;
 	command?: string;
 	url?: string;
+	/** 仅在传了 `scope` 或 `cwd` 时返回。 */
+	scope?: "global" | "project";
+	/** 来自项目根 `.mcp.json`：Vetta 只读取，不会改写。 */
+	readOnly?: boolean;
 }
 
 export interface PluginOfficialMcpServerDetail {
 	name: string;
-	type?: "http" | "stdio";
+	type?: "http" | "sse" | "stdio";
 	command?: string;
 	args?: string[];
 	env?: Record<string, string>;
@@ -192,6 +206,8 @@ export interface PluginOfficialMcpServerDetail {
 	autoApprove?: string[];
 	startupTimeout?: number;
 	debug?: boolean;
+	scope?: "global" | "project";
+	readOnly?: boolean;
 }
 
 export type PluginOfficialMcpUpsertData =
@@ -207,7 +223,8 @@ export type PluginOfficialMcpUpsertData =
 			debug?: boolean;
 	  }
 	| {
-			type: "http";
+			/** `sse` 是旧式 HTTP+SSE 传输，仅为兼容仍在使用它的服务器。 */
+			type: "http" | "sse";
 			url?: string;
 			headers?: Record<string, string>;
 			disabled?: boolean;
@@ -250,29 +267,76 @@ export interface PluginOfficialBatchProjectUpdateData {
 	skill?: PluginOfficialSelectedSkill | null;
 }
 
-export interface PluginOfficialSchedulerTaskCreateData {
-	name: string;
-	prompt: string;
-	cron: string;
-	isOnce: boolean;
-	enabled?: boolean;
-	cwd: string;
-	modelKey?: string;
-	executionMode?: PluginOfficialExecutionMode;
-	skill?: PluginOfficialSelectedSkill;
+/** 「重复」：精确到分钟，按本机时区；星期 0 = 周日；interval 为固定间隔；custom 为 5 段 cron。 */
+export type PluginOfficialSchedulerSchedule =
+	| { kind: "once"; at: number }
+	| { kind: "hourly"; minute: number }
+	| { kind: "daily"; hour: number; minute: number }
+	| { kind: "weekly"; weekdays: number[]; hour: number; minute: number }
+	| { kind: "monthly"; days: Array<number | "last">; hour: number; minute: number }
+	/** 从 startAt（毫秒时间戳）起每 everyMinutes 分钟一次，1–10080。 */
+	| { kind: "interval"; everyMinutes: number; startAt: number }
+	| { kind: "custom"; cron: string };
+
+/**
+ * 运行会话策略：projectCwd 为会话所属项目的路径，省略即落在默认「对话」里。
+ * same-session 的 sessionPath 为 null 表示首次执行时新建一个会话，之后一直复用。
+ */
+export type PluginOfficialSchedulerRunTarget =
+	| { mode: "new-session"; projectCwd?: string }
+	| { mode: "same-session"; projectCwd?: string; sessionPath: string | null };
+
+/** 省略即「跟随默认模型」。 */
+export interface PluginOfficialSchedulerModel {
+	key: string;
+	reasoning?: string;
 }
 
-export interface PluginOfficialSchedulerTaskUpdateData {
+export interface PluginOfficialSchedulerNotification {
+	webhookIds: string[];
+	when: "always" | "success" | "failure";
+	/** 支持 {{name}} {{status}} {{startedAt}} {{duration}} {{reply}} {{error}}。 */
+	template: string;
+}
+
+export interface PluginOfficialAutomationTaskCreateData {
+	name: string;
+	prompt: string;
+	schedule: PluginOfficialSchedulerSchedule;
+	runTarget: PluginOfficialSchedulerRunTarget;
+	model?: PluginOfficialSchedulerModel;
+ executionMode?: PluginOfficialExecutionMode;
+ skill?: PluginOfficialSelectedSkill & { type: "skill" };
+	notification?: PluginOfficialSchedulerNotification;
+	enabled?: boolean;
+}
+
+export interface PluginOfficialAutomationTaskUpdateData {
 	name?: string;
 	prompt?: string;
-	cron?: string;
-	isOnce?: boolean;
+	schedule?: PluginOfficialSchedulerSchedule;
+	runTarget?: PluginOfficialSchedulerRunTarget;
+	model?: PluginOfficialSchedulerModel | null;
+ executionMode?: PluginOfficialExecutionMode;
+ skill?: (PluginOfficialSelectedSkill & { type: "skill" }) | null;
+	notification?: PluginOfficialSchedulerNotification | null;
 	enabled?: boolean;
-	cwd?: string;
-	modelKey?: string | null;
-	executionMode?: PluginOfficialExecutionMode;
-	skill?: PluginOfficialSelectedSkill | null;
 }
+
+/** @deprecated Use schedule/runTarget/model. Still accepted by the 1.6 host. */
+export interface PluginOfficialLegacySchedulerTaskCreateData {
+ name: string; prompt: string; cron: string; isOnce: boolean; cwd: string;
+ enabled?: boolean; modelKey?: string; executionMode?: PluginOfficialExecutionMode;
+ skill?: PluginOfficialSelectedSkill;
+}
+/** @deprecated Legacy patch fields are converted against the current task. */
+export interface PluginOfficialLegacySchedulerTaskUpdateData {
+ name?: string; prompt?: string; cron?: string; isOnce?: boolean; cwd?: string;
+ enabled?: boolean; modelKey?: string | null; executionMode?: PluginOfficialExecutionMode;
+ skill?: PluginOfficialSelectedSkill | null;
+}
+export type PluginOfficialSchedulerTaskCreateData = PluginOfficialAutomationTaskCreateData | PluginOfficialLegacySchedulerTaskCreateData;
+export type PluginOfficialSchedulerTaskUpdateData = PluginOfficialAutomationTaskUpdateData | PluginOfficialLegacySchedulerTaskUpdateData;
 
 export interface PluginOfficialModelSummary {
 	id: string;
@@ -511,13 +575,13 @@ export interface PluginOfficialApi {
 		setEnabled(name: string, enabled: boolean): Promise<{ name: string; enabled: boolean }>;
 		uninstall(name: string, type?: "skill" | "scene"): Promise<void>;
 		/**
-		 * 从能力市场按 slug 安装 skill/scene（产品文案：能力）。
+		 * 从能力市场按 slug 安装 skill（产品文案：能力）。
 		 * 下载在主进程完成；密钥类凭证不经过此 API。
 		 */
 		installFromMarket(
 			type: "skill" | "scene",
 			slug: string,
-		): Promise<{ name: string; type: "skill" | "scene"; version: string; updated: boolean }>;
+		): Promise<{ name: string; type: "skill"; version: string; updated: boolean }>;
 	};
 	shortcuts: {
 		listAvailableActions(): Array<{ id: string; defaultShortcut: string }>;
@@ -554,12 +618,16 @@ export interface PluginOfficialApi {
 		}): Promise<{ ok: boolean; error?: string }>;
 	};
 	mcp: {
-		list(): Promise<PluginOfficialMcpServerSummary[]>;
-		get(name: string): Promise<PluginOfficialMcpServerDetail>;
-		listNames(): Promise<string[]>;
-		upsert(name: string, data: PluginOfficialMcpUpsertData): Promise<PluginOfficialMcpServerDetail>;
-		setEnabled(name: string, enabled: boolean): Promise<void>;
-		remove(name: string): Promise<void>;
+		list(target?: PluginOfficialMcpTarget): Promise<PluginOfficialMcpServerSummary[]>;
+		get(name: string, target?: PluginOfficialMcpTarget): Promise<PluginOfficialMcpServerDetail>;
+		listNames(target?: PluginOfficialMcpTarget): Promise<string[]>;
+		upsert(
+			name: string,
+			data: PluginOfficialMcpUpsertData,
+			target?: PluginOfficialMcpTarget,
+		): Promise<PluginOfficialMcpServerDetail>;
+		setEnabled(name: string, enabled: boolean, target?: PluginOfficialMcpTarget): Promise<void>;
+		remove(name: string, target?: PluginOfficialMcpTarget): Promise<void>;
 	};
 	models: {
 		/**

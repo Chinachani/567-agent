@@ -18,7 +18,7 @@ export function AppFrame({
 }: AppFrameProps): JSX.Element {
 	return (
 		<div
-			className={cn("relative isolate flex h-screen w-screen flex-col overflow-hidden bg-background", className)}
+			className={cn("relative isolate flex h-screen w-screen flex-col overflow-clip bg-background", className)}
 			{...props}
 		>
 			{decoration}

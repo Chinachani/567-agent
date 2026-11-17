@@ -9,17 +9,6 @@
 		"apply": "Apply",
 		"back": "Back"
 	},
-	"routeError": {
-		"bannerTitle": "This page encountered a problem",
-		"home": "Back to home",
-		"reloadHome": "Reload home",
-		"pageTitle": "Page content could not be loaded",
-		"retry": "Retry",
-		"retryPage": "Retry this page",
-		"reload": "Reload interface",
-		"moduleSuggestion": "Reload the entire interface and try again. Unsent input and unsaved changes may be lost. If the problem persists, quit and reopen the app.",
-		"suggestion": "Try this page again. If it still fails, reload the entire interface. Reloading may discard unsent input and unsaved changes."
-	},
 	"tour": {
 		"next": "Next",
 		"prev": "Back",
@@ -29,12 +18,6 @@
 	"appearance": {
 		"languageTitle": "Language",
 		"languageHint": "Defaults to your system language; change anytime"
-	},
-	"updateRestart": {
-		"title": "Update Ready",
-		"message": "Version {{latestVersion}} has been downloaded (current {{currentVersion}}). Restart 567 Agent now to apply the update, or choose \"Later\" to be reminded next launch.",
-		"later": "Later",
-		"install": "Restart Now"
 	},
 	"filePreview": {
 		"showInFolder": "Show in Folder",
@@ -197,7 +180,8 @@
 			"shortcutActionId": "Shortcut action",
 			"shortcutCombo": "Key combo",
 			"quickpanelTrigger": "Summon trigger",
-			"quickpanelBehavior": "After send"
+			"quickpanelBehavior": "After send",
+			"configLocation": "Config location"
 		},
 		"shortcuts": {
 			"ops": {
@@ -329,7 +313,9 @@
 			},
 			"headersConfigured": "Custom headers included (secrets masked)",
 			"envPlaceholder": "One KEY=VALUE per line; fill secrets here yourself",
-			"headersPlaceholder": "One HeaderName=value per line; fill secrets here yourself"
+			"headersPlaceholder": "One HeaderName=value per line; fill secrets here yourself",
+			"locationGlobal": "Global (all projects)",
+			"locationProject": "This project only: {{path}}"
 		},
 		"skills": {
 			"ops": {
@@ -965,6 +951,33 @@
 		}
 	},
 	"modelSelect": {
+		"info": {
+			"button": "Model details",
+			"source": "Source",
+			"id": "Model ID",
+			"contextWindow": "Context window",
+			"maxOutput": "Max output",
+			"inputModes": "Input",
+			"reasoning": "Reasoning",
+			"reasoningSupported": "Supported",
+			"multiplier": "Pricing",
+			"modality": {
+				"text": "Text",
+				"image": "Image",
+				"audio": "Audio",
+				"video": "Video",
+				"pdf": "PDF"
+			}
+		},
+		"shortcutHint": "Toggle model menu",
+		"moreProviders": "{{count}} more providers",
+		"fewerProviders": "Show fewer providers",
+		"favorites": {
+			"tab": "Favorite models",
+			"empty": "No favorite models yet",
+			"add": "Add to favorites",
+			"remove": "Remove from favorites"
+		},
 		"placeholder": "Select model",
 		"searchPlaceholder": "Search models or providers",
 		"clearSearch": "Clear search",
@@ -1067,6 +1080,46 @@
 			"project": "Project",
 			"batch": "Batch"
 		}
+	},
+	"updateDialog": {
+		"close": "Close",
+		"installing": "Restarting…",
+		"retry": "Retry",
+		"viewCurrent": "What's New",
+		"checkingTitle": "Checking for Updates",
+		"checking": "Contacting the update server…",
+		"currentVersion": "Current version {{version}}",
+		"latestTitle": "You're Up to Date",
+		"availableTitle": "Version {{version}} Is Available",
+		"versionChange": "Current {{currentVersion}} → New {{latestVersion}}",
+		"downloadingTitle": "Downloading {{version}}",
+		"downloading": "{{progress}}% downloaded. You can close this window; it keeps downloading in the background.",
+		"readyTitle": "{{version}} Is Ready",
+		"readyMessage": "Version {{latestVersion}} has been downloaded (current {{currentVersion}}). Restart Vetta to apply the update.",
+		"installingTitle": "Installing Update",
+		"errorTitle": "Couldn't Check for Updates",
+		"errorFallback": "Can't reach the update server right now. Please try again later.",
+		"currentTitle": "What's New in Vetta {{version}}",
+		"currentSubtitle": "What this version brings",
+		"currentEmpty": "No release notes for this version.",
+		"updateNow": "Update Now"
+	},
+	"routeError": {
+		"bannerTitle": "This page encountered a problem",
+		"home": "Back to home",
+		"reloadHome": "Reload home",
+		"pageTitle": "Page content could not be loaded",
+		"retry": "Retry",
+		"retryPage": "Retry this page",
+		"reload": "Reload interface",
+		"moduleSuggestion": "Reload the entire interface and try again. Unsent input and unsaved changes may be lost. If the problem persists, quit and reopen the app.",
+		"suggestion": "Try this page again. If it still fails, reload the entire interface. Reloading may discard unsent input and unsaved changes."
+	},
+	"updateRestart": {
+		"title": "Update Ready",
+		"message": "Version {{latestVersion}} has been downloaded (current {{currentVersion}}). Restart 567 Agent now to apply the update, or choose \"Later\" to be reminded next launch.",
+		"later": "Later",
+		"install": "Restart Now"
 	},
 	"topupStatus": {
 		"baselineUnavailable": "The current account balance could not be read, so no payment order was created. Refresh the balance and try again.",

@@ -8,6 +8,7 @@ import {
 	DropdownMenuTrigger,
 } from "@vetta-org/ui";
 import { useNavigate } from "@tanstack/react-router";
+import { memo } from "react";
 import { useTranslation } from "react-i18next";
 import { useAbilityText } from "../hooks/useAbilityText";
 import type { AbilitiesModel, AbilityItem, McpAbility } from "../types";
@@ -16,7 +17,12 @@ import { AbilityStatusBadges } from "./AbilityBadges";
 import { AbilityOperationStatus } from "./AbilityOperationStatus";
 import { loadAbilityDetailView } from "./detail/loadAbilityDetailView";
 
-function McpMenuItems({ item, model }: { item: McpAbility; model: AbilitiesModel }): JSX.Element {
+export type AbilityCardActions = Pick<
+	AbilitiesModel,
+	"install" | "uninstall" | "toggle" | "reloadPlugin" | "setup" | "configure" | "edit" | "revokeAuthorization"
+>;
+
+function McpMenuItems({ item, model }: { item: McpAbility; model: AbilityCardActions }): JSX.Element {
 	const { t } = useTranslation("abilities");
 	return (
 		<>
@@ -59,7 +65,7 @@ function InstalledMoreMenu({
 	onOpenDetail,
 }: {
 	item: AbilityItem;
-	model: AbilitiesModel;
+	model: AbilityCardActions;
 	onOpenDetail: () => void;
 }): JSX.Element | null {
 	const { t } = useTranslation("abilities");
@@ -117,13 +123,13 @@ function InstalledMoreMenu({
 	);
 }
 
-export function AbilityCard({
+export const AbilityCard = memo(function AbilityCard({
 	item,
 	model,
 	onUnreviewedMcpAdd,
 }: {
 	item: AbilityItem;
-	model: AbilitiesModel;
+	model: AbilityCardActions;
 	onUnreviewedMcpAdd?: (item: McpAbility) => void;
 }): JSX.Element {
 	const { t } = useTranslation("abilities");
@@ -214,4 +220,4 @@ export function AbilityCard({
 			)}
 		</div>
 	);
-}
+});

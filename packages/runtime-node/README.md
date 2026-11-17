@@ -23,3 +23,5 @@
 Host composition defaults to configured MCP servers only. The retired proprietary builtin service is opt-in (`includeBuiltinServers: true`) for compatibility with external hosts; 567 Agent Desktop and its SDK host keep it disabled because the deployed New API does not provide that endpoint. User-configured MCP/OAuth remains available.
 
 The default project MCP path is `.567agent/mcp.json`. A missing canonical file can read `.vetta/mcp.json` without copying it; an existing empty or invalid canonical file never restores legacy servers. Explicit custom project directories remain isolated from this compatibility lookup.
+
+只读观察者可调用 `FileConversationRepository.readSnapshot(sessionId, { maxBytes })`，从同一份有界字节快照取得事件与文档投影。该方法不占写锁、不修复日志；并发追加或替换可能使快照过时或解析失败，调用方必须检查文件身份/时间戳并决定重试，不应用它替代写入事务或恢复流程。

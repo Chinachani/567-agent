@@ -1,6 +1,7 @@
 import type { JSX } from "react";
 
-export type ExecutionHistoryStatus = "success" | "failed" | "running" | "aborted";
+/** skipped / missed 是「未执行」：前者因上次仍在运行，后者因应用未运行或系统休眠。 */
+export type ExecutionHistoryStatus = "success" | "failed" | "running" | "aborted" | "skipped" | "missed";
 
 export interface ExecutionHistoryRecordView {
 	readonly durationLabel: string | null;
@@ -89,19 +90,14 @@ export function ExecutionHistoryView({
 	if (embedded) {
 		return (
 			<div className="flex min-h-0 flex-1 flex-col">
-				<ExecutionHistoryHeader
-					count={records.length}
-					compact
-					labels={labels}
-					onRefresh={onRefresh}
-				/>
+				<ExecutionHistoryHeader count={records.length} compact labels={labels} onRefresh={onRefresh} />
 				<div className="min-h-0 flex-1 overflow-y-auto">{body}</div>
 			</div>
 		);
 	}
 
 	return (
-		<div className="overflow-hidden rounded-xl border border-border">
+		<div className="overflow-hidden rounded-xl border border-border bg-card">
 			<ExecutionHistoryHeader labels={labels} onRefresh={onRefresh} />
 			<div className="max-h-72 overflow-y-auto">{body}</div>
 		</div>
@@ -120,13 +116,9 @@ function ExecutionHistoryHeader({
 	readonly onRefresh: () => void;
 }): JSX.Element {
 	return (
-		<div
-			className={`flex items-center gap-2 border-b border-border/60 ${compact ? "px-4 py-2.5" : "px-4 py-3"}`}
-		>
+		<div className={`flex items-center gap-2 border-b border-border/60 ${compact ? "px-4 py-2.5" : "px-4 py-3"}`}>
 			<span className="icon-[mdi--history] text-sm text-muted-foreground/50" />
-			<span className={`${compact ? "text-[13px]" : "text-sm"} font-medium text-foreground`}>
-				{labels.title}
-			</span>
+			<span className={`${compact ? "text-[13px]" : "text-sm"} font-medium text-foreground`}>{labels.title}</span>
 			{count != null && <span className="text-[11px] text-muted-foreground/40">{count}</span>}
 			<div className="flex-1" />
 			<button
@@ -147,12 +139,11 @@ function StatusDot({ status }: { readonly status: ExecutionHistoryStatus }): JSX
 		failed: "bg-destructive",
 		running: "bg-primary",
 		aborted: "bg-amber-500",
+		skipped: "bg-muted-foreground/40",
+		missed: "bg-muted-foreground/40",
 	};
 	return (
 		<div className="relative flex h-2 w-2 shrink-0">
-			{status === "running" && (
-				<span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-primary opacity-50" />
-			)}
 			<span className={`relative inline-flex h-2 w-2 rounded-full ${colors[status]}`} />
 		</div>
 	);
@@ -170,10 +161,8 @@ function StatusBadge({
 		failed: "text-destructive bg-destructive/10",
 		running: "text-primary bg-primary/10",
 		aborted: "text-amber-400 bg-amber-500/15",
+		skipped: "text-muted-foreground bg-muted",
+		missed: "text-muted-foreground bg-muted",
 	};
-	return (
-		<span className={`rounded-md px-1.5 py-0.5 text-[10px] font-medium ${styles[status]}`}>
-			{label}
-		</span>
-	);
+	return <span className={`rounded-md px-1.5 py-0.5 text-[10px] font-medium ${styles[status]}`}>{label}</span>;
 }

@@ -13,6 +13,7 @@ import type {
 } from "../../../preload/api-types/abilities.js";
 import type { McpServerConfigData } from "../../../preload/api-types/mcp.js";
 import type { McpDiscoveryQuery, McpDiscoveryReference } from "../../../shared/mcp-discovery.js";
+import type { AgentPresetPackage } from "../../agent-teams/plugin-agent-presets.js";
 import { getApplicationCacheService } from "../../cache/application-cache-service.js";
 import { getAppLogger } from "../../logger.js";
 import {
@@ -20,7 +21,7 @@ import {
 	getGitHubMarketplaceCredentialStore,
 } from "./github-marketplace-credentials.js";
 import { MarketplaceSourceStore } from "./marketplace-source-store.js";
-import { DEFAULT_MARKETPLACE_SOURCE_ID } from "./official-marketplace-source.js";
+import { DEFAULT_MARKETPLACE_SOURCE_ID, isExpertPresetRepository } from "./official-marketplace-source.js";
 import { OpenMarketplaceService } from "./open-marketplace-service.js";
 
 const log = getAppLogger("open-marketplace");
@@ -46,6 +47,7 @@ interface MarketplaceWorker {
 		onProgress?: (progress: OpenMarketplaceMcpRuntimeProgress) => void,
 	): Promise<McpServerConfigData>;
 	mcpSetupStatus(): Promise<Record<string, boolean>>;
+	listExpertPresetPackages?(): Promise<AgentPresetPackage[]>;
 }
 
 type MarketplaceWorkerFactory = (
@@ -107,6 +109,7 @@ export class OpenMarketplaceManager {
 		const source = this.store.add(input);
 		try {
 			if (input.credential?.trim()) this.credentialStore.set(source.id, input.credential);
+			this.notifySourceUpdated(source.id);
 			return this.withCredentialState(source);
 		} catch (error) {
 			this.store.remove(source.id);
@@ -118,6 +121,7 @@ export class OpenMarketplaceManager {
 		// workerFor replaces workers only when their cache identity changes, preserving in-flight syncs.
 		const source = this.store.update(id, input);
 		this.cancelSearches(id);
+		this.notifySourceUpdated(id);
 		if (input.credential?.trim()) this.credentialStore.set(id, input.credential);
 		return this.withCredentialState(source);
 	}
@@ -127,11 +131,13 @@ export class OpenMarketplaceManager {
 		this.cancelSearches(id);
 		this.workers.delete(id);
 		this.credentialStore.remove(id);
+		this.notifySourceUpdated(id);
 	}
 
 	clearSourceCredential(id: string): void {
 		this.requireSource(id);
 		this.credentialStore.remove(id);
+		this.notifySourceUpdated(id);
 	}
 
 	async list(): Promise<OpenMarketplaceCatalog> {
@@ -139,7 +145,9 @@ export class OpenMarketplaceManager {
 	}
 
 	async refresh(): Promise<OpenMarketplaceCatalog> {
-		return this.collect(true);
+		const catalog = await this.collect(true);
+		for (const snapshot of catalog.snapshots) this.notifySourceUpdated(snapshot.sourceId);
+		return catalog;
 	}
 
 	async listSource(id: string, forceRefresh = false): Promise<OpenMarketplaceSourceSnapshot> {
@@ -154,7 +162,13 @@ export class OpenMarketplaceManager {
 	}
 
 	async refreshSource(id: string): Promise<OpenMarketplaceSourceSnapshot> {
-		return this.listSource(id, true);
+		const snapshot = await this.listSource(id, true);
+		this.notifySourceUpdated(id);
+		return snapshot;
+	}
+
+	private notifySourceUpdated(sourceId: string): void {
+		for (const listener of this.updateListeners) listener(sourceId);
 	}
 
 	async install(type: "skill" | "plugin", slug: string, sourceId = DEFAULT_MARKETPLACE_SOURCE_ID): Promise<void> {
@@ -239,6 +253,38 @@ export class OpenMarketplaceManager {
 		return status;
 	}
 
+	async readExpertPresets(mode: "cached" | "auto" | "refresh" = "auto"): Promise<{
+		source?: MarketplaceSource;
+		snapshot?: OpenMarketplaceSnapshot;
+		packages?: AgentPresetPackage[];
+	}> {
+		const source = this.store.list().find((item) => isExpertPresetRepository(item.repository));
+		if (!source) return {};
+		const worker = this.workerFor(source);
+		const snapshot =
+			!source.enabled || mode === "cached" || (mode === "auto" && !source.autoUpdate)
+				? await worker.listCached()
+				: mode === "refresh"
+					? await worker.refresh()
+					: await worker.list();
+		const assertCurrentSource = () => {
+			const current = this.store.list().find((item) => item.id === source.id);
+			if (
+				!current ||
+				current.updatedAt !== source.updatedAt ||
+				current.repository !== source.repository ||
+				current.ref !== source.ref ||
+				current.enabled !== source.enabled
+			)
+				throw new Error("Expert source changed during synchronization");
+		};
+		assertCurrentSource();
+		if (!snapshot.marketplaceVersion) return { source, snapshot };
+		const packages = await worker.listExpertPresetPackages?.();
+		assertCurrentSource();
+		return { source, snapshot, packages: packages?.map((item) => ({ ...item, enabled: source.enabled })) };
+	}
+
 	async removeMcpRuntime(slug: string, sourceId = DEFAULT_MARKETPLACE_SOURCE_ID): Promise<void> {
 		const { removeOpenMarketplaceMcpRuntimeInDesktop } = await import("./open-marketplace-production.js");
 		await removeOpenMarketplaceMcpRuntimeInDesktop(sourceId, slug);
@@ -247,7 +293,9 @@ export class OpenMarketplaceManager {
 	private async collect(forceRefresh: boolean): Promise<OpenMarketplaceCatalog> {
 		const storedSources = this.store.list();
 		const sources = storedSources.map((source) => this.withCredentialState(source));
-		const enabled = sources.filter((source) => source.enabled).sort((a, b) => a.priority - b.priority);
+		const enabled = sources
+			.filter((source) => source.enabled && !isExpertPresetRepository(source.repository))
+			.sort((a, b) => a.priority - b.priority);
 		const settled = await Promise.allSettled(
 			enabled.map(async (source) => {
 				const worker = this.workerFor(source);

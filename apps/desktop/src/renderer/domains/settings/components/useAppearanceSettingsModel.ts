@@ -18,6 +18,7 @@ import { UI_ZOOM_DEFAULT, UI_ZOOM_STEPS, uiZoomStepIndex } from "@/shared/ui-zoo
 import defaultThemePreview from "../assets/default.webp";
 import { SETTINGS_SECTION } from "../registry";
 import { recordSettingsUsage } from "./recordSettingsUsage";
+import { type AppIconModel, useAppIconModel } from "./useAppIconModel";
 
 interface AppearancePoint {
 	x: number;
@@ -65,6 +66,7 @@ export interface AppearanceSidebarStyleOption {
 }
 
 export interface AppearanceSettingsModel {
+	appIcon: AppIconModel;
 	actions: {
 		changeLanguage: (language: LanguagePreference) => void;
 		changeMode: (mode: ThemeMode, point: AppearancePoint) => void;
@@ -194,6 +196,7 @@ export function useAppearanceSettingsModel(): AppearanceSettingsModel {
 	const { factor: uiZoomFactor, saving: uiZoomSaving, setFactor: setUiZoomFactor, reset: resetUiZoom } = useUiZoom();
 	const { t } = useTranslation("settings");
 	const narrow = useNarrowScreen();
+	const appIcon = useAppIconModel();
 
 	const languages = useMemo<AppearanceLanguageOption[]>(
 		() => [
@@ -336,6 +339,7 @@ export function useAppearanceSettingsModel(): AppearanceSettingsModel {
 	);
 
 	return {
+		appIcon,
 		actions,
 		activeUiThemeId: activeThemeId,
 		cursorOptions,

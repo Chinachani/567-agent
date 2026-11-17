@@ -42,11 +42,7 @@ const CAPSULE_CLASS =
  * 两个及以上折叠成一枚胶囊——工具栏是单行不换行的，平铺几个就把执行模式和模型挤没了。
  * 折叠态点开 popover 逐个关闭。
  */
-export function ActiveActionCapsules({
-	items,
-	removeHint,
-	groupLabel,
-}: ActiveActionCapsulesProps): JSX.Element | null {
+export function ActiveActionCapsules({ items, removeHint, groupLabel }: ActiveActionCapsulesProps): JSX.Element | null {
 	if (items.length === 0) return null;
 	return (
 		<div className="flex min-w-0 shrink items-center gap-0.5 overflow-hidden">
@@ -59,13 +55,7 @@ export function ActiveActionCapsules({
 	);
 }
 
-function SingleCapsule({
-	item,
-	removeHint,
-}: {
-	item: ActiveActionCapsule;
-	removeHint: string;
-}): JSX.Element {
+function SingleCapsule({ item, removeHint }: { item: ActiveActionCapsule; removeHint: string }): JSX.Element {
 	return (
 		<motion.div
 			layout
@@ -76,7 +66,12 @@ function SingleCapsule({
 			className={CAPSULE_CLASS}
 		>
 			{/* 图标本身是取消按钮：hover 时原图标淡出、关闭图标淡入 */}
-			<button type="button" onClick={item.onToggle} title={`${item.label} · ${removeHint}`} className="relative h-3.5 w-3.5 shrink-0">
+			<button
+				type="button"
+				onClick={item.onToggle}
+				title={`${item.label} · ${removeHint}`}
+				className="relative h-3.5 w-3.5 shrink-0"
+			>
 				{item.icon ? (
 					<span className="absolute inset-0 flex items-center justify-center transition-opacity group-hover:opacity-0">
 						{item.icon}
@@ -158,8 +153,8 @@ function GroupedCapsule({
 						side="top"
 						align="start"
 						sideOffset={6}
-							// 宽度跟随触发胶囊：展开只是把收纳的几枚胶囊竖着摊开，不是另开一张面板。
-							className="w-[var(--radix-popover-trigger-width)] overflow-hidden rounded-lg border border-border p-1"
+						// 宽度跟随触发胶囊：展开只是把收纳的几枚胶囊竖着摊开，不是另开一张面板。
+						className="w-[var(--radix-popover-trigger-width)] overflow-hidden p-1"
 						style={{ animation: "none" }}
 					>
 						<motion.div

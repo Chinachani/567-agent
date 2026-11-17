@@ -98,7 +98,11 @@ export function useProjectsPanelModel({
 	const { selectionIntent: sidebarSelectionIntent, selectAfterPaint } = useSidebarSelectionIntent(settledSelection);
 	const selectedSession = sidebarSelectionIntent ?? fallbackSelection;
 	const activeSessionPath = selectedSession?.kind === "conversation" ? selectedSession.path : "";
-	const activeTeamSessionId = selectedSession?.kind === "agent-team" ? selectedSession.sessionId : "";
+	const activeTeamSessionId =
+		selectedSession?.kind === "agent-team"
+			? selectedSession.sessionId
+			: (teamSidebar.conversations.find((item) => item.coordinationSessionPath === activeSessionPath)
+					?.teamSessionId ?? "");
 	const batchProjects = useAtomValue(batchProjectsAtom);
 	const [expandedBatchProjects, setExpandedBatchProjects] = useAtom(expandedBatchProjectsAtom);
 	const { deleteTask: deleteBatchTask, deleteProject: deleteBatchProject } = useBatchTasks();
@@ -333,7 +337,7 @@ export function useProjectsPanelModel({
 
 	const renamePanelSession = useCallback(
 		(cwd: string, sessionPath: string, name: string) => {
-			void renameSession(cwd, sessionPath, name);
+			return renameSession(cwd, sessionPath, name);
 		},
 		[renameSession],
 	);
@@ -614,6 +618,7 @@ export function useProjectsPanelModel({
 		projectsLoading: !projectsInitialized,
 		showBatchGroup,
 		actions: {
+			loadSessions,
 			archiveProject: (cwd) => {
 				void archiveProject(cwd);
 			},

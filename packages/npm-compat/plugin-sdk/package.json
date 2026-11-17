@@ -42,7 +42,7 @@
 		"prepack": "node ../../../scripts/generate-npm-compat.mjs plugin-sdk"
 	},
 	"dependencies": {
-		"@vetta-org/plugin-sdk": "0.3.9"
+		"@vetta-org/plugin-sdk": "0.3.10"
 	},
 	"peerDependencies": {
 		"react": "^19.0.0"

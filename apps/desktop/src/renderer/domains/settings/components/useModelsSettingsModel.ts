@@ -48,6 +48,8 @@ export interface FetchedModelsState {
 	error?: string;
 }
 
+type ModelsConfigUpdate = ModelsConfigData | ((current: ModelsConfigData) => ModelsConfigData);
+
 export interface ModelsSettingsModel {
 	config: ModelsConfigData | null;
 	providerNames: string[];
@@ -64,7 +66,7 @@ export interface ModelsSettingsModel {
 	fetchedModels: FetchedModelsState | null;
 	setProviderForm: React.Dispatch<React.SetStateAction<ProviderFormState>>;
 	setModelForm: React.Dispatch<React.SetStateAction<ModelFormState>>;
-	saveConfig: (newConfig: ModelsConfigData) => Promise<boolean>;
+	saveConfig: (newConfig: ModelsConfigUpdate) => Promise<boolean>;
 	onStartAddProvider: () => void;
 	onCancelAddProvider: () => void;
 	onAddProvider: () => Promise<void>;
@@ -82,6 +84,7 @@ export interface ModelsSettingsModel {
 	onUpdateModel: (providerName: string, oldModelId: string) => Promise<void>;
 	onDeleteModel: (providerName: string, modelId: string) => Promise<void>;
 	onSetDefaultModel: (providerName: string, modelId: string) => Promise<void>;
+	onChangeDefaultModel: (modelKey: string | null) => Promise<void>;
 	onFetchProviderModels: (providerName: string) => Promise<void>;
 	onToggleFetchedModel: (modelId: string) => void;
 	onCancelFetchedModels: () => void;
@@ -171,12 +174,14 @@ export function useModelsSettingsModel(): ModelsSettingsModel {
 	}, []);
 
 	const saveConfig = useCallback(
-		async (newConfig: ModelsConfigData): Promise<boolean> => {
+		async (newConfig: ModelsConfigUpdate): Promise<boolean> => {
 			if (savingRef.current) return false;
 			savingRef.current = true;
 			setSaving(true);
 			try {
-				await window.agent567.models.set(newConfig);
+				const resolved =
+					typeof newConfig === "function" ? newConfig(await window.agent567.models.get()) : newConfig;
+				await window.agent567.models.set(resolved);
 				await modelCatalog.revalidate({ force: true, sources: ["local"] });
 				return true;
 			} catch {
@@ -449,19 +454,17 @@ export function useModelsSettingsModel(): ModelsSettingsModel {
 		[deleteModel, setConfirm, t],
 	);
 
-	const handleSetDefaultModel = useCallback(
-		async (providerName: string, modelId: string) => {
-			if (!config) return;
-			const modelKey = `${providerName}/${modelId}`;
-			const newDefault = config.defaultModel === modelKey ? undefined : modelKey;
-			if (!(await saveConfig({ ...config, defaultModel: newDefault }))) return;
-			recordSettingsUsage({
-				tab: "models",
-				action: newDefault ? "selected" : "reset",
-				target: "default-model",
+	const changeDefaultModel = useCallback(
+		async (modelKey: string | null, toggle = false) => {
+			let nextDefault: string | undefined;
+			const saved = await saveConfig((current) => {
+				nextDefault = toggle && current.defaultModel === modelKey ? undefined : (modelKey ?? undefined);
+				return { ...current, defaultModel: nextDefault };
 			});
+			if (!saved) return;
+			recordSettingsUsage({ tab: "models", action: nextDefault ? "selected" : "reset", target: "default-model" });
 		},
-		[config, saveConfig],
+		[saveConfig],
 	);
 
 	const startEditModel = useCallback(
@@ -597,7 +600,8 @@ export function useModelsSettingsModel(): ModelsSettingsModel {
 		},
 		onUpdateModel: handleUpdateModel,
 		onDeleteModel: handleDeleteModel,
-		onSetDefaultModel: handleSetDefaultModel,
+		onSetDefaultModel: (provider, modelId) => changeDefaultModel(`${provider}/${modelId}`, true),
+		onChangeDefaultModel: changeDefaultModel,
 		onFetchProviderModels: handleFetchProviderModels,
 		onToggleFetchedModel: (modelId: string) =>
 			setFetchedModels((prev) =>

@@ -1,11 +1,11 @@
 import type { WebContents } from "electron";
 import { register567ApiIpc } from "../567api/ipc.js";
 import type { ActionApprovalBroker } from "../app-actions/approval-broker.js";
-import { registerNotificationIpc } from "../notifications/index.js";
 import type { PluginActionService } from "../plugins/plugin-action-service.js";
 import { registerAbilitiesIpc } from "./abilities.js";
 import { registerActionApprovalIpc } from "./action-approval.js";
 import { registerAgentTeamsIpc } from "./agent-teams.js";
+import { registerAppIconIpc } from "./app-icon.js";
 import { registerAppMonitorIpc } from "./app-monitor.js";
 import { registerAppshotIpc } from "./appshot.js";
 import { registerClipboardIpc } from "./clipboard.js";
@@ -19,14 +19,17 @@ import { registerFsIpc } from "./fs.js";
 import { registerImIpc } from "./im.js";
 import { registerMarkdownIpc } from "./markdown.js";
 import { registerMediaIpc } from "./media.js";
+import { registerNotificationIpc } from "./notifications.js";
 import { registerOnboardingIpc } from "./onboarding.js";
 import { registerPermissionsIpc } from "./permissions.js";
 import { registerPluginCapabilitiesIpc } from "./plugin-capabilities.js";
 import { registerPluginMediaProvidersIpc } from "./plugin-media-providers.js";
 import { registerPluginOcrProvidersIpc } from "./plugin-ocr-providers.js";
 import { registerPluginsIpc } from "./plugins.js";
+import { registerProjectCloneIpc } from "./project-clone.js";
 import { registerProjectCollaborationHandlers } from "./project-collaboration.js";
 import { registerProjectExportIpc } from "./project-export.js";
+import { registerProjectsIpc } from "./projects.js";
 import { registerQuickPanelIpc } from "./quickpanel.js";
 import { registerRemotePairingIpc } from "./remote-pairing.js";
 import { registerRuntimeConfigurationIpc } from "./runtime-configuration.js";
@@ -35,6 +38,8 @@ import { registerSessionIpc } from "./session.js";
 import { registerSettingsIpc } from "./settings.js";
 import { registerSkillsIpc } from "./skills.js";
 import { registerSpeechInputIpc } from "./speech-input.js";
+import { registerSshIpc } from "./ssh.js";
+import { registerTerminalIpc } from "./terminal.js";
 import { registerThemesIpc } from "./themes.js";
 import { registerUiZoomIpc } from "./ui-zoom.js";
 import { registerUpdaterIpc } from "./updater.js";
@@ -42,7 +47,12 @@ import { registerVisibleConversationIpc } from "./visible-conversation.js";
 import { registerWebhookIpc } from "./webhook.js";
 
 interface IpcTeardown {
+	teardownTerminal: () => void;
+	teardownProjectClone: () => void;
+	teardownSsh: () => void;
+	teardownProjects: () => void;
 	teardownUiZoom: () => void;
+	teardownAppIcon: () => void;
 	teardownAbilities: () => void;
 	teardownAgentTeams: () => void;
 	teardownActionApproval: () => void;
@@ -92,13 +102,18 @@ export function registerAllIpc(
 	},
 ): IpcTeardown {
 	return {
+		teardownTerminal: registerTerminalIpc(webContents),
+		teardownProjects: registerProjectsIpc(webContents),
+		teardownSsh: registerSshIpc(webContents),
+		teardownProjectClone: registerProjectCloneIpc(webContents),
 		teardownAbilities: registerAbilitiesIpc(webContents),
-		teardownAgentTeams: registerAgentTeamsIpc(),
+		teardownAgentTeams: registerAgentTeamsIpc(webContents),
 		teardownActionApproval: registerActionApprovalIpc(options.actionApprovalBroker),
 		teardownAppMonitor: registerAppMonitorIpc(),
 		teardownSession: registerSessionIpc(webContents),
 		teardownSettings: registerSettingsIpc(webContents),
 		teardownUiZoom: registerUiZoomIpc(webContents),
+		teardownAppIcon: registerAppIconIpc(webContents),
 		teardownUpdater: registerUpdaterIpc(webContents),
 		teardownSkills: registerSkillsIpc(),
 		teardownSpeechInput: registerSpeechInputIpc(webContents),
@@ -115,7 +130,7 @@ export function registerAllIpc(
 		teardownProjectExport: registerProjectExportIpc(),
 		teardownProjectCollaboration: registerProjectCollaborationHandlers(webContents),
 		teardownWebhook: registerWebhookIpc(),
-		teardownRuntimes: registerRuntimesIpc(),
+		teardownRuntimes: registerRuntimesIpc(webContents),
 		teardownRuntimeConfiguration: registerRuntimeConfigurationIpc(webContents),
 		teardownPermissions: registerPermissionsIpc(),
 		teardownPlugins: registerPluginsIpc(options.pluginActionService),
@@ -135,6 +150,10 @@ export function registerAllIpc(
 }
 
 export function teardownAllIpc(teardown: IpcTeardown): void {
+	teardown.teardownTerminal();
+	teardown.teardownProjectClone();
+	teardown.teardownSsh();
+	teardown.teardownProjects();
 	teardown.teardownAbilities();
 	teardown.teardownAgentTeams();
 	teardown.teardownActionApproval();
@@ -142,6 +161,7 @@ export function teardownAllIpc(teardown: IpcTeardown): void {
 	teardown.teardownSession();
 	teardown.teardownSettings();
 	teardown.teardownUiZoom();
+	teardown.teardownAppIcon();
 	teardown.teardownUpdater();
 	teardown.teardownSkills();
 	teardown.teardownSpeechInput();

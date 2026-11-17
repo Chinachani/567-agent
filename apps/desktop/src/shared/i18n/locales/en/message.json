@@ -1,23 +1,41 @@
 {
-	"title": "Message Center",
-	"triggerTitle": "Message Center",
-	"tabs": {
-		"all": "All",
-		"notifications": "Notifications"
-	},
-	"empty": {
-		"all": "No messages",
-		"notifications": "No notifications"
-	},
-	"notification": {
-		"markAllRead": "Mark all read",
-		"clearRead": "Clear read",
-		"delete": "Delete"
-	},
-	"time": {
-		"justNow": "Just now",
-		"minutesAgo": "{{n}}m ago",
-		"hoursAgo": "{{n}}h ago",
-		"daysAgo": "{{n}}d ago"
-	}
+  "title": "Message Center",
+  "triggerTitle": "Message Center",
+  "tabs": {
+    "all": "All",
+    "notifications": "Notifications",
+    "results": "Task results"
+  },
+  "empty": {
+    "all": "No messages",
+    "notifications": "No notifications"
+  },
+  "notification": {
+    "markAllRead": "Mark all read",
+    "clearRead": "Clear read",
+    "delete": "Delete"
+  },
+  "time": {
+    "justNow": "Just now",
+    "minutesAgo": "{{n}}m ago",
+    "hoursAgo": "{{n}}h ago",
+    "daysAgo": "{{n}}d ago"
+  },
+  "results": {
+    "hint": "Recent conversation request outcomes. Separate background tool jobs are not included. Read state stays on this device.",
+    "refresh": "Refresh results",
+    "loading": "Reading task results…",
+    "error": "Could not read results. Try again.",
+    "empty": "No task results yet",
+    "partial": "Some conversations could not be read. Available results are shown.",
+    "limited": "Showing up to 200 results from the 200 most recent conversations.",
+    "open": "Open conversation",
+    "unnamed": "Untitled conversation",
+    "unread": "Unread",
+    "completed": "Completed",
+    "failed": "Failed",
+    "cancelled": "Cancelled",
+    "running": "Running",
+    "unknown": "Outcome unconfirmed"
+  }
 }

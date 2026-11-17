@@ -1,17 +1,17 @@
-import {
-	SchedulerEditApprovalDrawerView as ThemeSchedulerEditApprovalDrawerView,
-	type SchedulerEditApprovalDrawerViewLabels,
-	type SchedulerEditApprovalDrawerViewProps as ThemeProps,
+import { SchedulerEditApprovalDrawerView as ThemeSchedulerEditApprovalDrawerView } from "@vetta-org/theme-ui/action-approval/SchedulerEditApprovalDrawerView";
+import type {
+	SchedulerEditApprovalDrawerViewLabels,
+	SchedulerEditApprovalDrawerViewProps as ThemeProps,
 } from "@vetta-org/theme-ui/action-approval";
 import {
+	canSubmitSchedulerApproval,
 	SchedulerApprovalFields,
 	type SchedulerEditableData,
 } from "./SchedulerApprovalFields";
 
 export type { SchedulerEditApprovalDrawerViewLabels };
 
-export interface SchedulerEditApprovalDrawerViewProps
-	extends Omit<ThemeProps, "fields" | "canSubmit"> {
+export interface SchedulerEditApprovalDrawerViewProps extends Omit<ThemeProps, "fields" | "canSubmit"> {
 	readonly value?: SchedulerEditableData;
 	readonly onChange?: (value: SchedulerEditableData) => void;
 	readonly onSubmit?: () => void;
@@ -23,17 +23,13 @@ export function SchedulerEditApprovalDrawerView({
 	onSubmit,
 	...rest
 }: SchedulerEditApprovalDrawerViewProps): JSX.Element {
-	const canSubmit = Boolean(value && onSubmit);
+	const canSubmit = Boolean(value && onSubmit && canSubmitSchedulerApproval(value));
 	return (
 		<ThemeSchedulerEditApprovalDrawerView
 			{...rest}
 			canSubmit={canSubmit}
 			onSubmit={onSubmit}
-			fields={
-				value && onChange ? (
-					<SchedulerApprovalFields value={value} onChange={onChange} />
-				) : undefined
-			}
+			fields={value && onChange ? <SchedulerApprovalFields value={value} onChange={onChange} /> : undefined}
 		/>
 	);
 }

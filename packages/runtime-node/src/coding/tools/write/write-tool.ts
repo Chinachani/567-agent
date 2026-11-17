@@ -1,9 +1,13 @@
 import { mkdir, open, stat, writeFile } from "node:fs/promises";
-import { dirname } from "node:path";
 import type { RuntimeToolDefinition } from "@567agent/runtime-core/kernel";
 import { type Static, Type } from "@sinclair/typebox";
 import { type FileChangeReceipt, fileChangeReceipt } from "../../shared/file-change-receipt.js";
-import { resolveToCwd, resolveWritablePath } from "../../shared/path-resolution.js";
+import {
+	localToolPathHost,
+	resolveToCwd,
+	resolveWritablePath,
+	type ToolPathHost,
+} from "../../shared/path-resolution.js";
 import { WRITE_TOOL_DESCRIPTION } from "./description.js";
 
 export const WriteToolInputSchema = Type.Object({
@@ -33,6 +37,7 @@ export interface WritePathPolicy {
 export interface WriteToolOptions {
 	readonly operations?: WriteOperations;
 	readonly pathPolicy: WritePathPolicy;
+	readonly pathHost?: ToolPathHost;
 }
 
 const defaultWriteOperations: WriteOperations = {
@@ -58,6 +63,7 @@ const defaultWriteOperations: WriteOperations = {
 export function createWriteTool(cwd: string, options: WriteToolOptions): RuntimeToolDefinition<WriteToolInput> {
 	const operations = options.operations ?? defaultWriteOperations;
 	const pathPolicy = options.pathPolicy;
+	const pathHost = options.pathHost ?? localToolPathHost;
 	return {
 		name: "write",
 		label: "write",
@@ -65,8 +71,8 @@ export function createWriteTool(cwd: string, options: WriteToolOptions): Runtime
 		inputSchema: WriteToolInputSchema,
 		async execute(request) {
 			const { path, content } = request.input;
-			const requestedPath = resolveToCwd(path, cwd);
-			const absolutePath = resolveWritablePath(path, cwd);
+			const requestedPath = resolveToCwd(path, cwd, pathHost);
+			const absolutePath = resolveWritablePath(path, cwd, pathHost);
 			const rejectionReason = pathPolicy.getRejectionReason(absolutePath);
 			if (rejectionReason !== undefined) {
 				return {
@@ -80,7 +86,7 @@ export function createWriteTool(cwd: string, options: WriteToolOptions): Runtime
 				};
 			}
 
-			const directory = dirname(absolutePath);
+			const directory = pathHost.path.dirname(absolutePath);
 			const pathRetargeted = requestedPath !== absolutePath;
 			const notes = pathRetargeted ? [`[Auto-corrected output path: "${path}" -> "${absolutePath}"]`] : [];
 			return executeWrite({

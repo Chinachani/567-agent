@@ -1,13 +1,11 @@
-import { cn } from "@vetta-org/ui";
+import { cn } from "@vetta-org/ui/utils";
 import { memo, type JSX } from "react";
 import { SessionStatusIcon } from "../sidebar/SessionStatusIcon";
 import { AvatarStackView } from "../shared/AvatarStackView";
 import { IMMEDIATE_SESSION_SELECTION_STYLE } from "./session-row-transition";
 import { SessionRenameInputView } from "./SessionRenameInputView";
-import {
-	SESSION_ROW_CONTENT_FADE_CLASS,
-	SessionRowMoreButton,
-} from "./SessionRowMoreButton";
+import { SESSION_ROW_CONTENT_FADE_CLASS, SessionRowMoreButton } from "./SessionRowMoreButton";
+import { SessionTitleMarquee } from "./SessionTitleMarquee";
 import { prepareSidebarSelection } from "./useActiveSessionAutoScroll";
 
 export interface SessionRowViewProps {
@@ -33,6 +31,11 @@ export interface SessionRowViewProps {
 	renaming: boolean;
 	running: boolean;
 	scheduled: boolean;
+	/** 自动化会话组组头：本组运行次数。存在时整行点击即展开/收起，不提供更多菜单。 */
+	groupCount?: number;
+	groupExpanded?: boolean;
+	/** 会话组展开后的组员行，缩进一级。 */
+	nested?: boolean;
 }
 
 /**
@@ -56,6 +59,9 @@ export const SessionRowView = memo(function SessionRowView({
 	renaming,
 	running,
 	scheduled,
+	groupCount,
+	groupExpanded,
+	nested = false,
 }: SessionRowViewProps): JSX.Element {
 	const title = renaming ? undefined : titleExtra ? `${label}\n${titleExtra}` : label;
 	return (
@@ -63,19 +69,20 @@ export const SessionRowView = memo(function SessionRowView({
 			<button
 				type="button"
 				data-session-active={active ? "true" : undefined}
+				aria-expanded={groupCount !== undefined ? groupExpanded === true : undefined}
 				data-session-path={sessionPath || undefined}
 				onClick={(event) => {
 					if (renaming) return;
 					prepareSidebarSelection(event.currentTarget);
 					onSelect();
 				}}
-				onContextMenu={onOpenContextMenu}
+				onContextMenu={groupCount !== undefined ? (event) => event.preventDefault() : onOpenContextMenu}
 				className={cn(
-					"relative flex w-full items-center gap-2 rounded-lg py-[6px] pr-2.5 pl-[30px] text-left",
+					"relative flex w-full items-center gap-2 rounded-lg py-[6px] pr-2.5 text-left",
+					nested ? "pl-[46px]" : "pl-[30px]",
 					active ? "bg-accent text-foreground" : "hover:bg-accent/50",
 				)}
 				style={IMMEDIATE_SESSION_SELECTION_STYLE}
-				title={title}
 			>
 				{renaming ? (
 					<SessionRenameInputView
@@ -85,15 +92,8 @@ export const SessionRowView = memo(function SessionRowView({
 						onCommit={onRename}
 					/>
 				) : (
-					<div
-						className={cn(
-							"flex min-w-0 flex-1 items-center gap-2",
-							SESSION_ROW_CONTENT_FADE_CLASS,
-						)}
-					>
-						{pinned ? (
-							<span className="icon-[solar--pin-linear] h-3.5 w-3.5 shrink-0 text-primary/80" />
-						) : null}
+					<div className={cn("flex min-w-0 flex-1 items-center gap-2", SESSION_ROW_CONTENT_FADE_CLASS)}>
+						{pinned ? <span className="icon-[solar--pin-linear] h-3.5 w-3.5 shrink-0 text-primary/80" /> : null}
 						{forked && !running && !scheduled ? (
 							<span
 								data-session-leading-icon="true"
@@ -115,27 +115,35 @@ export const SessionRowView = memo(function SessionRowView({
 						) : (
 							<SessionStatusIcon active={active} running={running} scheduled={scheduled} />
 						)}
-						<span
+						<SessionTitleMarquee
 							className={cn(
-								"min-w-0 flex-1 truncate text-[13px]",
+								"text-[13px]",
 								running && "pl-1",
 								active ? "font-semibold text-foreground" : "text-foreground",
 							)}
-						>
-							{label}
-						</span>
+							label={label}
+							title={title}
+						/>
 						{trailingAvatarUrls && trailingAvatarUrls.length > 0 ? (
 							<AvatarStackView avatarUrls={trailingAvatarUrls} />
+						) : null}
+						{groupCount !== undefined ? (
+							<>
+								<span className="shrink-0 text-[11px] tabular-nums text-muted-foreground/60">{groupCount}</span>
+								<span
+									aria-hidden="true"
+									className={cn(
+										"icon-[mdi--chevron-right] h-3.5 w-3.5 shrink-0 text-muted-foreground/60 transition-transform",
+										groupExpanded && "rotate-90",
+									)}
+								/>
+							</>
 						) : null}
 					</div>
 				)}
 			</button>
-			{renaming ? null : (
-				<SessionRowMoreButton
-					className="rounded-r-lg"
-					label={moreLabel}
-					onOpen={onOpenContextMenu}
-				/>
+			{renaming || groupCount !== undefined ? null : (
+				<SessionRowMoreButton className="rounded-r-lg" label={moreLabel} onOpen={onOpenContextMenu} />
 			)}
 		</div>
 	);

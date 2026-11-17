@@ -1,4 +1,4 @@
-import type { FilePreviewContext } from "@vetta-org/theme-ui/file-preview";
+import type { FilePreviewContext, FilePreviewItem } from "@vetta-org/theme-ui/file-preview";
 import { FilePreviewView as ThemeFilePreviewView } from "@vetta-org/theme-ui/file-preview";
 import { useCallback, useMemo } from "react";
 import { useTranslation } from "react-i18next";
@@ -18,6 +18,7 @@ interface FilePreviewViewProps {
 	enableKeyboard?: boolean;
 	onToggleSidebar?: () => void;
 	sidebarCollapsed?: boolean;
+	onLocate?: (item: FilePreviewItem) => void;
 }
 
 export function FilePreviewView({
@@ -30,6 +31,7 @@ export function FilePreviewView({
 	enableKeyboard = false,
 	onToggleSidebar,
 	sidebarCollapsed,
+	onLocate,
 }: FilePreviewViewProps): JSX.Element | null {
 	const { t } = useTranslation("chat");
 	const item = ctx.items[ctx.index] ?? null;
@@ -38,6 +40,7 @@ export function FilePreviewView({
 		() => ({
 			showTree: t("fileEditor.showTree"),
 			hideTree: t("fileEditor.hideTree"),
+			locate: t("fileEditor.locate"),
 			prev: t("fileEditor.previous"),
 			next: t("fileEditor.next"),
 			download: t("fileEditor.downloadShort"),
@@ -79,6 +82,7 @@ export function FilePreviewView({
 			canNext={canNext}
 			onToggleSidebar={onToggleSidebar}
 			sidebarCollapsed={sidebarCollapsed}
+			onLocate={onLocate}
 			onDownload={onDownload}
 			renderBody={renderBody}
 		/>
@@ -89,12 +93,7 @@ export function FilePreviewView({
  * Hook 返回标准的 prev/next/close 导航回调，绑定到一个可写的预览上下文 atom。
  */
 export function usePreviewNav(
-	setCtx: (
-		ctx:
-			| FilePreviewContext
-			| null
-			| ((prev: FilePreviewContext | null) => FilePreviewContext | null),
-	) => void,
+	setCtx: (ctx: FilePreviewContext | null | ((prev: FilePreviewContext | null) => FilePreviewContext | null)) => void,
 ): {
 	goPrev: () => void;
 	goNext: () => void;

@@ -1,5 +1,6 @@
 import { isAbsolute } from "node:path";
 import type { PromptRequest } from "@567agent/runtime-core";
+import { isSshProjectUri, parseProjectLocation } from "@567agent/ssh-transport";
 import { z } from "zod";
 
 export const promptResourceRefSchema = z
@@ -12,9 +13,25 @@ export const promptResourceRefSchema = z
 export const promptAttachmentRefSchema = z
 	.object({
 		kind: z.enum(["file", "directory", "image"]),
-		path: z.string().trim().min(1).refine(isAbsolute, "Attachment path must be absolute"),
+		path: z
+			.string()
+			.trim()
+			.min(1)
+			.refine((path) => isAbsolute(path) || isSshProjectUri(path), "Attachment path must be absolute")
+			.transform(toToolFacingAttachmentPath),
 	})
 	.passthrough();
+
+/**
+ * 文件面板与 @ 选择器给出的远端文件是 `ssh://<hostId>/<路径>`——那是宿主用来决定「去哪台
+ * 机器读」的标识。附件路径最终写进给模型的提示里，模型再拿它去喂跑在远端的 read，所以
+ * 这里换成远端上的绝对路径；原样放行 URI 的话模型读的是一个叫 `ssh:` 的目录。
+ */
+function toToolFacingAttachmentPath(path: string): string {
+	if (!isSshProjectUri(path)) return path;
+	const location = parseProjectLocation(path);
+	return location.kind === "ssh" ? location.remotePath : path;
+}
 
 const promptImageSchema = z
 	.object({
@@ -27,6 +44,7 @@ const promptImageSchema = z
 export const promptRequestSchema: z.ZodType<PromptRequest> = z
 	.object({
 		text: z.string().min(1),
+		messageId: z.string().trim().min(1).optional(),
 		promptRef: promptResourceRefSchema.optional(),
 		attachments: z.array(promptAttachmentRefSchema).optional(),
 		images: z.array(promptImageSchema).optional(),

@@ -1,4 +1,6 @@
 export interface DesktopUiZoomApi {
+	/** 页头实测中线，供原生窗口按钮对齐。 */
+	reportTitlebarCenter(center: number): Promise<void>;
 	/** 当前主窗口界面缩放比例（1 = 100%）。 */
 	get(): Promise<number>;
 	step(direction: 1 | -1): Promise<number>;

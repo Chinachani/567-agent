@@ -219,3 +219,20 @@ export function parseRemoteViewportMessage(value: unknown): {
 		height: integer(input.height, "height", 1, 8192),
 	};
 }
+export function parseRemoteVideoPreference(value: unknown): {
+	type: "video.preference";
+	sequence: number;
+	mode: "auto" | "smooth" | "clear";
+} {
+	const input = exactRecord(value, ["type", "sequence", "mode"]);
+	if (
+		input.type !== "video.preference" ||
+		(input.mode !== "auto" && input.mode !== "smooth" && input.mode !== "clear")
+	)
+		throw new RemoteDesktopProtocolError("unsupported video preference");
+	return {
+		type: "video.preference",
+		sequence: integer(input.sequence, "sequence", 1, Number.MAX_SAFE_INTEGER),
+		mode: input.mode,
+	};
+}

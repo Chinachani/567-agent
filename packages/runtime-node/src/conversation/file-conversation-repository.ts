@@ -1,5 +1,5 @@
 import { randomUUID } from "node:crypto";
-import { appendFile, mkdir, readFile, rename, rm, writeFile } from "node:fs/promises";
+import { appendFile, mkdir, open, rename, rm, writeFile } from "node:fs/promises";
 import { join, resolve } from "node:path";
 import {
 	applyConversationDocumentCommand,
@@ -57,6 +57,7 @@ import {
 import { acquireConversationFileLock } from "./conversation-file-lock.js";
 import { publishConversationFileExclusive } from "./conversation-file-publisher.js";
 import { nodeErrorCode } from "./node-error-code.js";
+import { ParsedConversationFileCache, type ParsedConversationState } from "./parsed-conversation-file-cache.js";
 
 export interface FileConversationRepositoryOptions {
 	readonly rootDir: string;
@@ -67,6 +68,7 @@ export class FileConversationRepository
 {
 	private readonly rootDir: string;
 	private readonly queues = new Map<string, Promise<void>>();
+	private readonly parsedFiles = new ParsedConversationFileCache();
 	private closed = false;
 
 	constructor(options: FileConversationRepositoryOptions) {
@@ -121,12 +123,41 @@ export class FileConversationRepository
 		return this.exclusive(sessionId, () => this.withFileLock(sessionId, () => this.readConversation(sessionId)));
 	}
 
+	/** Read-only projection from one byte snapshot. Never locks or repairs the journal.
+	 * Concurrent writers may make the snapshot stale or incomplete; observational
+	 * consumers must retry on parse failure and check their own freshness boundary.
+	 */
+	async readSnapshot(
+		sessionId: string,
+		options: { maxBytes: number },
+	): Promise<{ conversation: StoredConversation; document: ConversationDocument }> {
+		this.assertOpen();
+		if (!Number.isSafeInteger(options.maxBytes) || options.maxBytes < 1)
+			throw new RangeError("Invalid snapshot byte limit");
+		const handle = await open(this.conversationPath(sessionId), "r");
+		try {
+			const info = await handle.stat();
+			if (!info.isFile() || info.size > options.maxBytes)
+				throw new RangeError("Conversation exceeds snapshot byte limit");
+			const bytes = Buffer.alloc(info.size + 1);
+			let count = 0;
+			while (count < bytes.length) {
+				const result = await handle.read(bytes, count, bytes.length - count, count);
+				if (result.bytesRead === 0) break;
+				count += result.bytesRead;
+			}
+			if (count !== info.size) throw new Error("Conversation changed while reading snapshot");
+			const file = parseConversationFile(bytes.subarray(0, count).toString("utf8"), sessionId);
+			return { conversation: conversationFromFile(sessionId, file), document: documentFromFile(sessionId, file) };
+		} finally {
+			await handle.close();
+		}
+	}
+
 	async readDocument(sessionId: string): Promise<ConversationDocument> {
 		this.assertOpen();
 		return this.exclusive(sessionId, () =>
-			this.withFileLock(sessionId, async () =>
-				documentFromFile(sessionId, await this.readConversationFile(sessionId)),
-			),
+			this.withFileLock(sessionId, async () => (await this.readParsed(sessionId)).document()),
 		);
 	}
 
@@ -155,14 +186,15 @@ export class FileConversationRepository
 		}
 		return this.exclusive(sessionId, () =>
 			this.withFileLock(sessionId, async () => {
-				const file = await this.readConversationFile(sessionId);
+				const parsed = await this.readParsed(sessionId);
+				const { file } = parsed;
 				if (file.header.schemaVersion !== CONVERSATION_SCHEMA_VERSION) {
 					throw new ConversationStorageError(
 						CONVERSATION_STORAGE_ERROR_CODES.READ_ONLY,
 						`Conversation ${sessionId} uses read-only schema version ${file.header.schemaVersion}`,
 					);
 				}
-				const document = documentFromFile(sessionId, file);
+				const document = parsed.document();
 				if (expectedRevision !== null && document.revision !== expectedRevision) {
 					throw new ConversationStorageError(
 						CONVERSATION_STORAGE_ERROR_CODES.DOCUMENT_VERSION_CONFLICT,
@@ -177,7 +209,7 @@ export class FileConversationRepository
 					revision: result.document.revision,
 					command,
 				};
-				await appendFile(this.conversationPath(sessionId), serializeConversationLine(record), "utf8");
+				await this.parsedFiles.append(this.conversationPath(sessionId), sessionId, parsed, [record]);
 				return result;
 			}),
 		);
@@ -330,6 +362,7 @@ export class FileConversationRepository
 						].join(""),
 					);
 					targetPublished = true;
+					this.parsedFiles.forget(input.sourceSessionId);
 					await appendFile(sourceSessionPath, serializeConversationLine(transferredRecord), "utf8");
 				} catch (error) {
 					if (targetPublished) await rm(sessionPath, { force: true });
@@ -361,18 +394,19 @@ export class FileConversationRepository
 		this.assertOpen();
 		return this.exclusive(sessionId, () =>
 			this.withFileLock(sessionId, async () => {
-				const file = await this.readConversationFile(sessionId);
-				const conversation = conversationFromFile(sessionId, file);
-				if (conversation.version !== expectedVersion) {
+				const parsed = await this.readParsed(sessionId);
+				const { file } = parsed;
+				const version = file.eventRecords.length;
+				if (version !== expectedVersion) {
 					throw new ConversationStorageError(
 						CONVERSATION_STORAGE_ERROR_CODES.VERSION_CONFLICT,
-						`Conversation ${sessionId} is at version ${conversation.version}, expected ${expectedVersion}`,
+						`Conversation ${sessionId} is at version ${version}, expected ${expectedVersion}`,
 					);
 				}
 				for (const event of events) validateConversationEvent(sessionId, event);
 				if (events.length === 0) return { version: expectedVersion };
 
-				let document = documentFromFile(sessionId, file);
+				let document = parsed.document();
 				const records = events.map((event, index) => {
 					const sequence = expectedVersion + index + 1;
 					if (file.header.schemaVersion !== CONVERSATION_SCHEMA_VERSION) {
@@ -394,7 +428,7 @@ export class FileConversationRepository
 					document = applyStoredEventToConversationDocument(document, event, sequence, documentEntry ?? undefined);
 					return record;
 				});
-				await appendFile(this.conversationPath(sessionId), records.map(serializeConversationLine).join(""), "utf8");
+				await this.parsedFiles.append(this.conversationPath(sessionId), sessionId, parsed, records);
 				return {
 					version: expectedVersion + events.length,
 				};
@@ -458,9 +492,12 @@ export class FileConversationRepository
 	}
 
 	private async readConversationFile(sessionId: string): Promise<ParsedConversationFile> {
-		let text: string;
+		return (await this.readParsed(sessionId)).file;
+	}
+
+	private async readParsed(sessionId: string): Promise<ParsedConversationState> {
 		try {
-			text = await readFile(this.conversationPath(sessionId), "utf8");
+			return await this.parsedFiles.read(this.conversationPath(sessionId), sessionId);
 		} catch (error) {
 			if (nodeErrorCode(error) === "ENOENT") {
 				throw new ConversationStorageError(
@@ -471,25 +508,6 @@ export class FileConversationRepository
 			}
 			throw error;
 		}
-		if (!text.endsWith("\n")) {
-			const lastCompleteLine = text.lastIndexOf("\n");
-			if (lastCompleteLine < 0) return parseConversationFile(text, sessionId);
-			const completeText = text.slice(0, lastCompleteLine + 1);
-			// Only discard a torn tail after proving that the complete prefix is valid.
-			parseConversationFile(completeText, sessionId);
-			const path = this.conversationPath(sessionId);
-			const temporaryPath = `${path}.${randomUUID()}.repair`;
-			try {
-				await writeFile(temporaryPath, completeText, { encoding: "utf8", mode: 0o600 });
-				await rename(temporaryPath, path);
-			} catch (error) {
-				await rm(temporaryPath, { force: true }).catch(() => undefined);
-				throw error;
-			}
-			text = completeText;
-		}
-
-		return parseConversationFile(text, sessionId);
 	}
 
 	private async writeFork(

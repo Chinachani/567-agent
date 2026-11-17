@@ -30,6 +30,7 @@ import type {
 	McpServerDetail,
 	McpServerSummary,
 	McpServerUpsertData,
+	McpTarget,
 	MediaProviderDescriptor,
 	ModelConfigSnapshot,
 	ModelDefaultResult,
@@ -48,8 +49,6 @@ import type {
 	SchedulerCommandResult,
 	SchedulerExecutionRecord,
 	SchedulerTask,
-	SchedulerTaskCreateData,
-	SchedulerTaskUpdateData,
 	SessionHistoryEntry,
 	SessionRuntimeProject,
 	ShortcutBindingResetResult,
@@ -98,6 +97,8 @@ import type {
 	PluginMediaProviderSubmitRequest,
 	PluginMediaSubmitRequest,
 	PluginMediaTransferResponse,
+	PluginOfficialSchedulerTaskCreateData,
+	PluginOfficialSchedulerTaskUpdateData,
 	PluginPermission,
 	PluginPutBlobFromFileInput,
 	PluginServiceArtifactPayload,
@@ -161,6 +162,7 @@ export interface PluginNpmDistribution {
 
 export interface InstalledPlugin {
 	id: string;
+	/** Source-only agent presets are usable in Agent Center without a loaded plugin runtime. */
 	name: string;
 	version: string;
 	activeVersion: string;
@@ -304,6 +306,7 @@ export interface PluginAppActionRegistration {
 	activationId: string;
 	hasAssertReady: boolean;
 	timeoutMs?: number;
+	remote?: boolean;
 }
 
 export interface PluginAppActionInvocationRequest {
@@ -445,7 +448,11 @@ export interface DesktopPluginCapabilityFilesystemApi {
 	delete(sessionId: string, path: string): Promise<void>;
 	move(sessionId: string, sourcePath: string, destinationDirectory: string): Promise<void>;
 	createDirectory(sessionId: string, path: string): Promise<void>;
-	listFilesRecursive(sessionId: string, path: string): Promise<FsFileRef[]>;
+	listFilesRecursive(
+		sessionId: string,
+		path: string,
+		options?: { names?: readonly string[]; ignoredDirectories?: readonly string[] },
+	): Promise<FsFileRef[]>;
 }
 
 export interface DesktopPluginCapabilityGeneralSettingsApi {
@@ -526,11 +533,11 @@ export interface DesktopPluginCapabilityArtifactsApi {
 }
 
 export interface DesktopPluginCapabilityMcpApi {
-	list(sessionId: string): Promise<McpServerSummary[]>;
-	get(sessionId: string, name: string): Promise<McpServerDetail>;
-	upsert(sessionId: string, name: string, data: McpServerUpsertData): Promise<McpServerDetail>;
-	setEnabled(sessionId: string, name: string, enabled: boolean): Promise<void>;
-	remove(sessionId: string, name: string): Promise<void>;
+	list(sessionId: string, target?: McpTarget): Promise<McpServerSummary[]>;
+	get(sessionId: string, name: string, target?: McpTarget): Promise<McpServerDetail>;
+	upsert(sessionId: string, name: string, data: McpServerUpsertData, target?: McpTarget): Promise<McpServerDetail>;
+	setEnabled(sessionId: string, name: string, enabled: boolean, target?: McpTarget): Promise<void>;
+	remove(sessionId: string, name: string, target?: McpTarget): Promise<void>;
 }
 
 export interface DesktopPluginCapabilityBatchTasksApi {
@@ -623,8 +630,8 @@ export interface DesktopPluginCapabilitySchedulerApi {
 	listTasks(sessionId: string): Promise<SchedulerTask[]>;
 	getTask(sessionId: string, taskId: string): Promise<SchedulerTask>;
 	listHistory(sessionId: string, taskId: string): Promise<SchedulerExecutionRecord[]>;
-	createTask(sessionId: string, data: SchedulerTaskCreateData): Promise<SchedulerTask>;
-	updateTask(sessionId: string, taskId: string, data: SchedulerTaskUpdateData): Promise<SchedulerTask>;
+	createTask(sessionId: string, data: PluginOfficialSchedulerTaskCreateData): Promise<SchedulerTask>;
+	updateTask(sessionId: string, taskId: string, data: PluginOfficialSchedulerTaskUpdateData): Promise<SchedulerTask>;
 	deleteTask(sessionId: string, taskId: string): Promise<SchedulerCommandResult>;
 	setEnabled(sessionId: string, taskId: string, enabled: boolean): Promise<SchedulerTask>;
 	runTask(sessionId: string, taskId: string): Promise<SchedulerCommandResult>;
@@ -851,6 +858,8 @@ export interface DesktopPluginsApi {
 	): Promise<void>;
 	reportServiceReady(sessionId: string, serviceId: string, ready: boolean): Promise<PluginServiceStatus>;
 	onServiceStatusChanged(handler: (event: { pluginId: string; status: PluginServiceStatus }) => void): () => void;
+	/** PNG data URL of an installed macOS app's icon (standard app folders only); `null` when not installed. */
+	getAppIcon(sessionId: string, appName: string): Promise<string | null>;
 	/** Run an allowed command for a plugin via the main process (execFile, no shell). */
 	runCommand(
 		sessionId: string,

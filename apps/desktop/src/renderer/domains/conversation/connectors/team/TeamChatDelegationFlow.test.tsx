@@ -7,7 +7,7 @@ import type {
 import type { ChatConversationItem } from "@shared/store/atoms";
 import { createAssistantMessage, type AssistantMessage } from "@567agent/ai";
 import { createAgentTeamFixture, type TeamSessionDocument } from "@567agent/agent-team";
-import { act, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
+import { act, render, screen, waitFor, within } from "@testing-library/react";
 import type { ReactNode } from "react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { TeamChatView } from "./TeamChatView";
@@ -65,27 +65,6 @@ vi.mock("./team-chat-session-service", async (importOriginal) => ({
 
 vi.mock("./TeamMemberRoster", () => ({
 	TeamMemberRoster: () => <div data-testid="team-member-roster" />,
-}));
-
-vi.mock("./TeamComposerConnector", () => ({
-	TeamComposerConnector: ({
-		model,
-		actions,
-	}: {
-		model: { readonly draft: string; readonly canSend: boolean };
-		actions: { readonly setDraft: (value: string) => void; readonly send: () => Promise<void> };
-	}) => (
-		<div>
-			<input
-				aria-label="团队任务"
-				value={model.draft}
-				onChange={(event) => actions.setDraft(event.currentTarget.value)}
-			/>
-			<button type="button" disabled={!model.canSend} onClick={() => void actions.send()}>
-				发送
-			</button>
-		</div>
-	),
 }));
 
 // This regression is about assistant/delegation rendering. Keep the unrelated
@@ -219,6 +198,11 @@ function TeamFlow(): JSX.Element {
 	const { model, actions } = useTeamChatModel(team.id);
 	return (
 		<TeamChatView
+			archiveLabel="Team history is read only"
+			collaborationLabel="Open collaboration"
+			onCollaboration={() => {}}
+			stopLabel="Stop"
+			emptyHistoryLabel="No team history yet"
 			model={model}
 			actions={actions}
 			onOpenMember={vi.fn()}
@@ -236,7 +220,10 @@ function assistantRows(): HTMLElement[] {
 
 function visibleConversationSignature(): readonly { readonly entryId: string | null; readonly text: string }[] {
 	return Array.from(screen.getByTestId("message-list").querySelectorAll<HTMLElement>("[data-entry-id]")).map(
-		(row) => ({ entryId: row.getAttribute("data-entry-id"), text: row.textContent ?? "" }),
+		(row) => ({
+			entryId: row.getAttribute("data-entry-id"),
+			text: row.textContent ?? "",
+		}),
 	);
 }
 
@@ -259,7 +246,18 @@ describe("Team delegation message-to-UI flow", () => {
 			snapshot: emptySnapshot,
 			sessions: [],
 		});
-		vi.mocked(loadTeamChatBootstrap).mockResolvedValue({ document, sessions: [] });
+		vi.mocked(loadTeamChatBootstrap).mockResolvedValue({
+			document,
+			sessions: [
+				{
+					id: session.id,
+					coordinationSessionPath: "C:/sessions/team.conversation.jsonl",
+					title: session.name,
+					createdAt: session.createdAt,
+					updatedAt: session.updatedAt,
+				},
+			],
+		});
 		vi.mocked(createTeamChatSession).mockResolvedValue({ document, snapshot: emptySnapshot, sessions: [] });
 		vi.mocked(createReservedTeamChatSession).mockResolvedValue({ document, snapshot: emptySnapshot, sessions: [] });
 		Object.defineProperty(window, "vetta", {
@@ -288,81 +286,62 @@ describe("Team delegation message-to-UI flow", () => {
 		});
 	});
 
-	it("shows a failed send in the conversation error block without an input-area alert", async () => {
-		let rejectSend: ((reason: Error) => void) | undefined;
-		vi.mocked(window.agent567.agentTeams.sendMessage).mockReturnValueOnce(
-			new Promise((_resolve, reject) => {
-				rejectSend = reject;
-			}),
-		);
+	it("shows a failure from an in-flight archived task without a composer", async () => {
 		render(<TeamFlow />);
 		await waitFor(() => expect(streamListener).toBeTypeOf("function"));
-		fireEvent.change(screen.getByRole("textbox", { name: "团队任务" }), {
-			target: { value: "处理团队任务" },
-		});
-		fireEvent.click(screen.getByRole("button", { name: "发送" }));
-		await waitFor(() => expect(window.agent567.agentTeams.sendMessage).toHaveBeenCalledTimes(1));
-		const requestId = vi.mocked(window.agent567.agentTeams.sendMessage).mock.calls[0]?.[1].requestId;
-		if (!requestId) throw new Error("send request id is missing");
-		act(() => {
+		act(() =>
 			streamListener?.({
 				type: "conversation.agent-message-discard",
 				conversationId: session.id,
 				messageId: "failed-turn",
-				turnId: requestId,
+				turnId: "existing-request",
 				author: { kind: "agent", id: leader.id },
 				sequence: 1,
 				reason: "failed",
 				error: "Retryable HTTP Error: Internal Server Error",
 				timestamp: Date.now(),
-			});
-		});
-		await act(async () => {
-			rejectSend?.(new Error("Error invoking remote method 'vetta:agent-teams:send-message': Error: Retryable HTTP Error: Internal Server Error"));
-		});
+			}),
+		);
 		const error = within(screen.getByTestId("message-list")).getByTestId("conversation-error");
 		expect(error.getAttribute("data-kind")).toBe("server");
 		expect(error.getAttribute("data-detail")).toBe("Retryable HTTP Error: Internal Server Error");
-		expect(screen.queryByRole("alert")).toBeNull();
-		expect(screen.getByRole("textbox", { name: "团队任务" })).toBeTruthy();
+		expect(screen.queryByRole("textbox", { name: "团队任务" })).toBeNull();
+		expect(window.agent567.agentTeams.sendMessage).not.toHaveBeenCalled();
 	});
 
-	it("shows a rejected send in the message list even without a member failure event", async () => {
-		vi.mocked(window.agent567.agentTeams.sendMessage).mockRejectedValueOnce(
-			new Error("Error invoking remote method 'vetta:agent-teams:send-message': Error: Internal Server Error"),
-		);
+	it("shows a failed history load while keeping the collaboration exit available", async () => {
+		vi.mocked(loadTeamChatSession).mockRejectedValueOnce(new Error("Internal Server Error"));
 		render(<TeamFlow />);
-		await waitFor(() => expect(streamListener).toBeTypeOf("function"));
-		fireEvent.change(screen.getByRole("textbox", { name: "团队任务" }), {
-			target: { value: "处理团队任务" },
-		});
-		fireEvent.click(screen.getByRole("button", { name: "发送" }));
 		const error = await within(screen.getByTestId("message-list")).findByTestId("conversation-error");
 		expect(error.getAttribute("data-kind")).toBe("server");
-		expect(error.getAttribute("data-detail")).toBe("Internal Server Error");
-		expect(screen.queryByRole("alert")).toBeNull();
-		expect(screen.getByRole("textbox", { name: "团队任务" })).toHaveProperty("value", "处理团队任务");
+		expect(screen.getByRole("button", { name: "Open collaboration" })).toBeTruthy();
+		expect(screen.queryByRole("textbox", { name: "团队任务" })).toBeNull();
+		expect(window.agent567.agentTeams.sendMessage).not.toHaveBeenCalled();
 	});
 
 	it("keeps one stable public timeline from delegation through completion and reopening", async () => {
-		let resolveSend: ((snapshot: DesktopTeamSessionSnapshot) => void) | undefined;
-		vi.mocked(window.agent567.agentTeams.sendMessage).mockReturnValueOnce(
-			new Promise((resolve) => {
-				resolveSend = resolve;
-			}),
-		);
+		const requestId = "existing-request";
+		vi.mocked(loadTeamChatSession).mockResolvedValueOnce({
+			document,
+			snapshot: {
+				...emptySnapshot,
+				messages: [
+					{
+						kind: "user",
+						id: "persisted-user",
+						turnId: requestId,
+						author: { kind: "user", id: "local-user" },
+						message: { role: "user", content: "实现并验证团队会话", timestamp: 1 },
+						timestamp: 1,
+					},
+				],
+			},
+			sessions: [],
+		});
 		const view = render(<TeamFlow />);
 		await waitFor(() => expect(streamListener).toBeTypeOf("function"));
-
-		fireEvent.change(screen.getByRole("textbox", { name: "团队任务" }), {
-			target: { value: "实现并验证团队会话" },
-		});
-		fireEvent.click(screen.getByRole("button", { name: "发送" }));
-		await waitFor(() => expect(window.agent567.agentTeams.sendMessage).toHaveBeenCalledTimes(1));
 		expect(screen.getByTestId("user-message").textContent).toBe("实现并验证团队会话");
-		expect(assistantRows()).toHaveLength(1);
-		const requestId = vi.mocked(window.agent567.agentTeams.sendMessage).mock.calls[0]?.[1].requestId;
-		if (!requestId) throw new Error("send request id is missing");
+		expect(window.agent567.agentTeams.sendMessage).not.toHaveBeenCalled();
 
 		const delegateCall = {
 			id: "delegate-call",
@@ -529,7 +508,6 @@ describe("Team delegation message-to-UI flow", () => {
 				timestamp: 5,
 			});
 		});
-		await act(async () => resolveSend?.(finalSnapshot));
 
 		await waitFor(() => expect(screen.getByText(finalText)).toBeTruthy());
 		expect(assistantRows()).toHaveLength(1);

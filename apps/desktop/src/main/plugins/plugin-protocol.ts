@@ -144,6 +144,7 @@ export const definePluginPromptContext = sdk.definePluginPromptContext;
 export const PluginAppActionError = sdk.PluginAppActionError;
 export const PluginMediaError = sdk.PluginMediaError;
 export const usePluginShortcutScope = sdk.usePluginShortcutScope;
+export const ModelPicker = sdk.ModelPicker;
 `);
 	}
 	if (moduleName === "theme-ui-plugin") {

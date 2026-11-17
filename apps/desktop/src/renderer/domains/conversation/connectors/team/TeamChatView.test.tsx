@@ -112,6 +112,11 @@ describe("TeamChatView shared conversation UI", () => {
 		const onOpenMember = vi.fn();
 		render(
 			<TeamChatView
+				archiveLabel="Team history is read only"
+				collaborationLabel="Open collaboration"
+				onCollaboration={() => {}}
+				stopLabel="Stop"
+				emptyHistoryLabel="No team history yet"
 				model={viewModel}
 				actions={actions()}
 				onOpenMember={onOpenMember}
@@ -141,6 +146,11 @@ describe("TeamChatView shared conversation UI", () => {
 		const onOpenSettings = vi.fn();
 		const { rerender } = render(
 			<TeamChatView
+				archiveLabel="Team history is read only"
+				collaborationLabel="Open collaboration"
+				onCollaboration={() => {}}
+				stopLabel="Stop"
+				emptyHistoryLabel="No team history yet"
 				model={viewModel}
 				actions={viewActions}
 				onOpenMember={onOpenMember}
@@ -151,6 +161,11 @@ describe("TeamChatView shared conversation UI", () => {
 
 		rerender(
 			<TeamChatView
+				archiveLabel="Team history is read only"
+				collaborationLabel="Open collaboration"
+				onCollaboration={() => {}}
+				stopLabel="Stop"
+				emptyHistoryLabel="No team history yet"
 				model={{ ...viewModel, draft: "next question" }}
 				actions={viewActions}
 				onOpenMember={onOpenMember}
@@ -160,7 +175,8 @@ describe("TeamChatView shared conversation UI", () => {
 		);
 
 		expect(captured.feed).toHaveBeenCalledTimes(1);
-		expect(captured.composer).toHaveBeenCalledTimes(2);
+		expect(captured.composer).not.toHaveBeenCalled();
+		expect(screen.getByText("Team history is read only")).toBeDefined();
 	});
 
 	// A Team session drives the ordinary activity panel: plugin tabs stay enabled and the
@@ -173,6 +189,11 @@ describe("TeamChatView shared conversation UI", () => {
 		};
 		render(
 			<TeamChatView
+				archiveLabel="Team history is read only"
+				collaborationLabel="Open collaboration"
+				onCollaboration={() => {}}
+				stopLabel="Stop"
+				emptyHistoryLabel="No team history yet"
 				model={viewModel}
 				actions={actions()}
 				onOpenMember={vi.fn()}
@@ -187,9 +208,7 @@ describe("TeamChatView shared conversation UI", () => {
 				activity: { pluginScenario: "project" },
 			}),
 		);
-		expect(captured.feed).toHaveBeenCalledWith(
-			expect.objectContaining({ workspace: viewModel.workspace }),
-		);
+		expect(captured.feed).toHaveBeenCalledWith(expect.objectContaining({ workspace: viewModel.workspace }));
 	});
 
 	it("scopes streaming state and removes the composer in a member view", () => {
@@ -201,6 +220,11 @@ describe("TeamChatView shared conversation UI", () => {
 		};
 		render(
 			<TeamChatView
+				archiveLabel="Team history is read only"
+				collaborationLabel="Open collaboration"
+				onCollaboration={() => {}}
+				stopLabel="Stop"
+				emptyHistoryLabel="No team history yet"
 				model={viewModel}
 				actions={actions()}
 				onOpenMember={vi.fn()}

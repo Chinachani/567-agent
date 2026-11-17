@@ -16,6 +16,15 @@ export function createAgentTeamsApi(ipc: IpcRenderer): Pick<DesktopApi, "agentTe
 					ipc.removeListener(CHANGED_EVENT, handler);
 				};
 			},
+			getPresetSourceStatus: () => ipc.invoke("vetta:agent-teams:preset-source-status"),
+			refreshPresetSource: () => ipc.invoke("vetta:agent-teams:refresh-preset-source"),
+			onPresetSourceStatusChanged: (listener) => {
+				const handler = (): void => listener();
+				ipc.on("vetta:agent-teams:preset-source-changed", handler);
+				return () => {
+					ipc.removeListener("vetta:agent-teams:preset-source-changed", handler);
+				};
+			},
 			listBlueprints: () => ipc.invoke("vetta:agent-teams:list-blueprints"),
 			createAgent: (input) => ipc.invoke("vetta:agent-teams:create-agent", input),
 			updateAgent: (id, input) => ipc.invoke("vetta:agent-teams:update-agent", id, input),

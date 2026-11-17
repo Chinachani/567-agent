@@ -39,6 +39,9 @@ ctx.permissions.require("fs.read");  // 缺则抛 Plugin permission denied: fs.r
 | `ui.slot.activity-tab` | `registerActivityTab` / `openActivityTab` / `setActivityTabVisible` | [ui-slots](./ui-slots.md#活动面板-tab-registeractivitytab) |
 | `ui.slot.input-action` | `registerInputAction` / `setPromptAttachment` | [ui-slots](./ui-slots.md#输入栏动作-registerinputaction) |
 | `ui.slot.new-session-context` | `ctx.ui.registerNewSessionContext()` | [ui-slots](./ui-slots.md#新会话上下文区-registernewsessioncontext) |
+| `ui.slot.bottom-panel` | `ctx.ui.registerBottomPanel()` | [ui-slots](./ui-slots.md)；API 2.7+ |
+| `terminal.run` | `useBottomPanel().openTerminal()` | 会话所属项目内的终端命令；API 2.8+ |
+| `ui.slot.header-action` | `ctx.ui.registerHeaderAction()` | [ui-slots](./ui-slots.md#会话页顶栏动作-registerheaderaction) |
 | `conversation.draft.read` | 新会话上下文区的 `context.draft`（未授予恒为空串） | 同上 |
 | `ui.slot.message` | `ctx.ui.registerCardRenderer()` | [message-cards](./message-cards.md) |
 | `ui.slot.tool-call` | `ctx.ui.registerToolCallSlot()` | [ui-slots](./ui-slots.md#工具行内渲染-registertoolcallslot) |

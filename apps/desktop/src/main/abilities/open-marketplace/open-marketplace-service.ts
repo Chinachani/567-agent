@@ -1,7 +1,7 @@
 import { createHash } from "node:crypto";
 import { existsSync } from "node:fs";
 import { lstat, mkdir, mkdtemp, readdir, readFile, rename, rm, writeFile } from "node:fs/promises";
-import { dirname, isAbsolute, join, posix, relative, resolve, sep } from "node:path";
+import { basename, dirname, isAbsolute, join, posix, relative, resolve, sep } from "node:path";
 import AdmZip from "adm-zip";
 import type {
 	GitHubMarketplaceOrigin,
@@ -13,9 +13,11 @@ import type {
 } from "../../../preload/api-types/abilities.js";
 import type { McpServerConfigData } from "../../../preload/api-types/mcp.js";
 import type { McpDiscoveryQuery, McpDiscoveryReference } from "../../../shared/mcp-discovery.js";
+import type { AgentPresetPackage } from "../../agent-teams/plugin-agent-presets.js";
 import { getApplicationCacheService } from "../../cache/application-cache-service.js";
 import { getAppLogger } from "../../logger.js";
 import { PLUGIN_API_VERSION } from "../../plugins/plugin-api-version.js";
+import { readExpertPresetPackage } from "./expert-preset-package.js";
 import { loadMarketplaceCatalog } from "./marketplace-catalog.js";
 import { isAppVersionCompatible, isValidAppVersion } from "./marketplace-compatibility.js";
 import { selectMarketplacePluginReleases } from "./marketplace-plugin-releases.js";
@@ -24,7 +26,11 @@ import { type McpDiscoveryAbility, parseMcpDiscoveryShard } from "./mcp-discover
 import { McpDiscoveryCatalogFeed } from "./mcp-discovery-catalog-feed.js";
 import type { DiscoverySearchResult } from "./mcp-discovery-v2-feed.js";
 
-import { DEFAULT_MARKETPLACE_SOURCE_ID, OFFICIAL_MARKETPLACE_REPOSITORY } from "./official-marketplace-source.js";
+import {
+	DEFAULT_MARKETPLACE_SOURCE_ID,
+	isExpertPresetRepository,
+	OFFICIAL_MARKETPLACE_REPOSITORY,
+} from "./official-marketplace-source.js";
 
 const STATE_SCHEMA_VERSION = 1;
 const DEFAULT_SYNC_INTERVAL_MS = 24 * 60 * 60 * 1000;
@@ -65,6 +71,15 @@ class MarketplaceRequestError extends Error {
 /** 内容本身不可接受：重试同一个归档不会有不同结果。 */
 class MarketplaceContentError extends Error {}
 
+/** 携带 If-None-Match 时收到 304：归档未变，可复用已验证的旧快照。 */
+class MarketplaceNotModifiedError extends Error {}
+
+interface DownloadedArchive {
+	readonly buffer: Buffer;
+	/** 归档响应的 ETag；服务端不提供时为 undefined，后续同步退回全量下载。 */
+	readonly etag?: string;
+}
+
 function requestError(status: number, operation: string): MarketplaceRequestError {
 	const code: MarketplaceSyncError =
 		status === 401
@@ -85,6 +100,11 @@ function syncError(error: unknown): MarketplaceSyncError {
 
 function requiredAppVersion(error: unknown): string | undefined {
 	return error instanceof MarketplaceRequestError ? error.requiredAppVersion : undefined;
+}
+
+function sanitizeEtag(value: string | null | undefined): string | undefined {
+	const trimmed = value?.trim();
+	return trimmed && trimmed.length <= 256 && !trimmed.includes("\0") ? trimmed : undefined;
 }
 
 type FetchArchive = (url: string, init?: RequestInit) => Promise<Response>;
@@ -123,6 +143,8 @@ interface OpenMarketplaceState {
 	marketplaceVersion: string;
 	discoveryVersion?: string;
 	archiveSha256: string;
+	/** 完整归档上次下载的 ETag；仅在快照验证并激活后随 state 落盘。 */
+	etag?: string;
 	syncedAt: string;
 }
 
@@ -180,6 +202,7 @@ function parseState(input: unknown): OpenMarketplaceState | null {
 		marketplaceVersion: state.marketplaceVersion,
 		discoveryVersion: typeof state.discoveryVersion === "string" ? state.discoveryVersion : undefined,
 		archiveSha256: state.archiveSha256,
+		etag: typeof state.etag === "string" ? state.etag : undefined,
 		syncedAt: state.syncedAt,
 	};
 }
@@ -201,11 +224,35 @@ function findMarketplaceManifestPath(root: string): string {
 		join(root, ".567agent", "marketplace.json"),
 		join(root, "marketplace.json"),
 		join(root, ".vetta", "marketplace.json"),
+		// Development preset repositories may publish the source index before
+		// the generated gh-pages index and immutable plugin artifacts exist.
+		join(root, ".vetta", "marketplace.source.json"),
 	];
 	for (const p of paths) {
 		if (existsSync(p)) return p;
 	}
 	return paths[0];
+}
+
+function normalizeSourceMarketplaceManifest(input: unknown, revision: string): unknown {
+	if (input == null || typeof input !== "object" || Array.isArray(input)) return input;
+	const source = input as Record<string, unknown>;
+	if (typeof source.marketplaceVersion === "string" && source.marketplaceVersion.trim()) return input;
+
+	return {
+		...source,
+		// Source snapshots are content-addressed; published release versions remain immutable.
+		schemaVersion: source.schemaVersion === 3 ? 2 : (source.schemaVersion ?? 2),
+		marketplaceVersion: `source-${revision.slice(0, 48)}`,
+	};
+}
+
+async function readMarketplaceManifest(root: string, allowSourceIndex: boolean, revision: string): Promise<unknown> {
+	const manifestPath = findMarketplaceManifestPath(root);
+	const raw: unknown = JSON.parse(await readFile(manifestPath, "utf-8"));
+	return allowSourceIndex && basename(manifestPath) === "marketplace.source.json"
+		? normalizeSourceMarketplaceManifest(raw, revision)
+		: raw;
 }
 
 function marketplaceManifestUrl(repository: string, ref: string): string {
@@ -283,6 +330,7 @@ function toOpenMarketplaceAbility(
 				}
 			: ability.config;
 	return {
+		agentPresetOnly: isExpertPresetRepository(manifest.repository),
 		listed,
 		slug: ability.slug,
 		type: ability.type,
@@ -454,6 +502,27 @@ export class OpenMarketplaceService {
 		};
 	}
 
+	async listExpertPresetPackages(): Promise<AgentPresetPackage[]> {
+		if (!isExpertPresetRepository(this.repository)) return [];
+		const active = await this.readActiveMarketplace();
+		if (!active) throw new Error("No validated expert snapshot is available");
+		return active.manifest.abilities.flatMap((ability) => {
+			if (ability.type !== "plugin" || !ability.source) return [];
+			try {
+				return [
+					readExpertPresetPackage(join(active.snapshotRoot, ability.source.path), ability, {
+						sourceId: this.sourceId,
+						repository: this.repository,
+					}),
+				];
+			} catch (error) {
+				// 单个坏包拒绝这一整轮读取，旧快照继续生效；slug 是定位坏包的唯一线索。
+				const message = error instanceof Error ? error.message : String(error);
+				throw new Error(`Expert package ${ability.slug}: ${message}`, { cause: error });
+			}
+		});
+	}
+
 	async refresh(): Promise<OpenMarketplaceSnapshot> {
 		try {
 			if (this.backgroundUpdate) await this.backgroundUpdate;
@@ -485,6 +554,7 @@ export class OpenMarketplaceService {
 	}
 
 	async install(type: "skill" | "plugin", slug: string): Promise<void> {
+		if (isExpertPresetRepository(this.repository)) throw new Error("Expert presets are used from Agent Center");
 		await this.ensureSnapshotFresh();
 		const active = await this.readActiveMarketplace();
 		if (!active) throw new Error("No validated open marketplace snapshot is available");
@@ -640,11 +710,17 @@ export class OpenMarketplaceService {
 		if (!state || !this.matchesCurrentSource(state)) return null;
 		const snapshotRoot = join(this.snapshotsDir, state.marketplaceVersion);
 		try {
-			const raw: unknown = JSON.parse(await readFile(findMarketplaceManifestPath(snapshotRoot), "utf-8"));
+			const raw = await readMarketplaceManifest(
+				snapshotRoot,
+				isExpertPresetRepository(this.repository),
+				state.archiveSha256,
+			);
 			const manifest = parseMarketplaceManifest(raw);
 			if (manifest.marketplaceVersion !== state.marketplaceVersion) return null;
 			this.assertManifestCompatible(manifest);
-			const catalog = loadMarketplaceCatalog(snapshotRoot, manifest);
+			const catalog = loadMarketplaceCatalog(snapshotRoot, manifest, {
+				allowSourceOnlyPluginAgents: isExpertPresetRepository(this.repository),
+			});
 			return {
 				state,
 				snapshotRoot,
@@ -667,6 +743,12 @@ export class OpenMarketplaceService {
 	 * 而实际上无论网络怎么修，不升级就永远是空的。
 	 */
 	private assertManifestCompatible(manifest: MarketplaceManifest): void {
+		if (
+			isExpertPresetRepository(this.repository) &&
+			(!isExpertPresetRepository(manifest.repository) ||
+				manifest.abilities.some((a) => a.type !== "plugin" || !a.source))
+		)
+			throw new Error("Invalid expert source catalog");
 		if (!isAppVersionCompatible(this.appVersion, manifest.minAppVersion)) {
 			throw new MarketplaceRequestError(
 				"app-outdated",
@@ -764,24 +846,30 @@ export class OpenMarketplaceService {
 		}
 	}
 
-	private async downloadArchive(): Promise<Buffer> {
+	private async downloadArchive(ifNoneMatch?: string): Promise<DownloadedArchive> {
 		let lastError: unknown;
 		for (let attempt = 0; attempt < this.archiveDownload.attempts; attempt += 1) {
 			if (attempt > 0) {
 				await new Promise((resolve) => setTimeout(resolve, this.archiveDownload.retryDelayMs));
 			}
 			try {
-				return await this.downloadArchiveOnce();
+				return await this.downloadArchiveOnce(ifNoneMatch);
 			} catch (error) {
 				// HTTP 状态与内容体积是确定性的，重试只会白等；只有链路层的中断值得再试一次。
-				if (error instanceof MarketplaceRequestError || error instanceof MarketplaceContentError) throw error;
+				if (
+					error instanceof MarketplaceRequestError ||
+					error instanceof MarketplaceContentError ||
+					error instanceof MarketplaceNotModifiedError
+				) {
+					throw error;
+				}
 				lastError = error;
 			}
 		}
 		throw lastError;
 	}
 
-	private async downloadArchiveOnce(): Promise<Buffer> {
+	private async downloadArchiveOnce(ifNoneMatch?: string): Promise<DownloadedArchive> {
 		const controller = new AbortController();
 		let stallTimer: ReturnType<typeof setTimeout> | undefined;
 		const armStall = (ms: number): void => {
@@ -794,12 +882,19 @@ export class OpenMarketplaceService {
 			const token = this.getAccessToken()?.trim();
 			const directUrl = token ? githubZipballUrl(this.repository, this.sourceRef) : this.archiveUrl;
 			const response = await this.fetchArchive(directUrl, {
-				headers: token ? githubApiHeaders("application/vnd.github+json", token) : githubHeaders("application/zip"),
+				headers: {
+					...(token ? githubApiHeaders("application/vnd.github+json", token) : githubHeaders("application/zip")),
+					...(ifNoneMatch ? { "If-None-Match": ifNoneMatch } : {}),
+				},
 				// Electron's Chromium fetch cancels manual redirects. Its network stack
 				// strips Authorization when following the cross-origin GitHub download redirect.
 				redirect: "follow",
 				signal: controller.signal,
 			});
+			if (response.status === 304) {
+				if (ifNoneMatch) throw new MarketplaceNotModifiedError();
+				throw new MarketplaceContentError("Unexpected not-modified archive response");
+			}
 			if (!response.ok) throw requestError(response.status, "Open marketplace download");
 			const declaredLength = Number(response.headers.get("content-length"));
 			if (Number.isFinite(declaredLength) && declaredLength > MAX_ARCHIVE_BYTES) {
@@ -810,7 +905,7 @@ export class OpenMarketplaceService {
 			if (buffer.byteLength > MAX_ARCHIVE_BYTES) {
 				throw new MarketplaceContentError("Open marketplace archive is too large");
 			}
-			return buffer;
+			return { buffer, etag: sanitizeEtag(response.headers.get("etag")) };
 		} finally {
 			clearTimeout(totalTimer);
 			if (stallTimer) clearTimeout(stallTimer);
@@ -944,9 +1039,8 @@ export class OpenMarketplaceService {
 			return;
 		}
 		const update = this.refreshInBackgroundIfChanged()
-			.catch(async (error: unknown) => {
-				const cached = this.memorySnapshot ?? (await this.readCachedSnapshot());
-				this.logSyncFailure("install-update-check", error, syncError(error), cached !== null);
+			.catch((error: unknown) => {
+				this.noteBackgroundFailure("install-update-check", error);
 			})
 			.finally(() => {
 				if (this.backgroundUpdate === update) this.backgroundUpdate = undefined;
@@ -967,7 +1061,7 @@ export class OpenMarketplaceService {
 		this.lastUpdateCheckAt = now;
 		const update = this.refreshInBackgroundIfChanged()
 			.catch((error: unknown) => {
-				this.logSyncFailure("background-update", error, syncError(error), this.memorySnapshot !== undefined);
+				this.noteBackgroundFailure("background-update", error);
 			})
 			.finally(() => {
 				if (this.backgroundUpdate === update) this.backgroundUpdate = undefined;
@@ -976,6 +1070,12 @@ export class OpenMarketplaceService {
 	}
 
 	private async refreshInBackgroundIfChanged(): Promise<void> {
+		if (isExpertPresetRepository(this.repository)) {
+			const snapshot = await this.syncOnce();
+			this.memorySnapshot = snapshot;
+			this.onBackgroundUpdate?.(snapshot);
+			return;
+		}
 		const remoteManifest = await this.downloadManifest();
 		this.assertManifestCompatible(remoteManifest);
 		const state = await this.readState();
@@ -989,6 +1089,26 @@ export class OpenMarketplaceService {
 			this.onBackgroundUpdate?.(snapshot);
 		}
 		this.scheduleDiscoverySync();
+	}
+
+	/**
+	 * 后台检查失败不能只进日志：旧快照数据原样保留（不丢有效缓存），但补上
+	 * stale/error 让界面如实呈现「没能确认新鲜度」，并通知订阅者重新读取。
+	 * 没有旧快照时维持原状，随后的 list() 会走 refresh 重试。
+	 */
+	private noteBackgroundFailure(operation: "background-update" | "install-update-check", error: unknown): void {
+		const cached = this.memorySnapshot;
+		const errorCode = syncError(error);
+		const minAppVersion = requiredAppVersion(error);
+		this.logSyncFailure(operation, error, errorCode, cached !== undefined);
+		if (!cached) return;
+		this.memorySnapshot = {
+			...cached,
+			stale: true,
+			error: errorCode,
+			...(minAppVersion ? { requiredAppVersion: minAppVersion } : {}),
+		};
+		this.onBackgroundUpdate?.(this.memorySnapshot);
 	}
 
 	/** Browse-only discovery never blocks package activation or installation. */
@@ -1076,7 +1196,8 @@ export class OpenMarketplaceService {
 		const isManifestPresent = (dir: string) =>
 			existsSync(join(dir, ".567agent", "marketplace.json")) ||
 			existsSync(join(dir, "marketplace.json")) ||
-			existsSync(join(dir, ".vetta", "marketplace.json"));
+			existsSync(join(dir, ".vetta", "marketplace.json")) ||
+			existsSync(join(dir, ".vetta", "marketplace.source.json"));
 
 		if (isManifestPresent(unpackedDir)) return unpackedDir;
 		const entries = await readdir(unpackedDir, { withFileTypes: true });
@@ -1084,7 +1205,7 @@ export class OpenMarketplaceService {
 			.filter((entry) => entry.isDirectory())
 			.map((entry) => join(unpackedDir, entry.name))
 			.filter((dir) => isManifestPresent(dir));
-		if (candidates.length !== 1) throw new Error("Archive must contain exactly one marketplace.json");
+		if (candidates.length !== 1) throw new Error("Archive must contain exactly one marketplace index");
 		return candidates[0];
 	}
 
@@ -1103,19 +1224,46 @@ export class OpenMarketplaceService {
 		await mkdir(this.snapshotsDir, { recursive: true });
 		const temporaryRoot = await this.createTemporaryDirectory();
 		try {
-			const buffer = await this.downloadArchive();
-			const archiveSha256 = createHash("sha256").update(buffer).digest("hex");
-			const unpackedDir = join(temporaryRoot, "unpacked");
-			await mkdir(unpackedDir, { recursive: true });
-			await this.extractArchive(buffer, unpackedDir);
-			const marketplaceRoot = await this.locateMarketplaceRoot(unpackedDir);
-			const manifestRaw: unknown = JSON.parse(await readFile(findMarketplaceManifestPath(marketplaceRoot), "utf-8"));
-			const manifest = parseMarketplaceManifest(manifestRaw);
-			this.assertManifestCompatible(manifest);
-			loadMarketplaceCatalog(marketplaceRoot, manifest);
-
 			const previousState = await this.readState();
 			const sameSourceState = previousState && this.matchesCurrentSource(previousState) ? previousState : null;
+			// ETag 只用于专家源：官方源有现成的 marketplace.json 可先比版本；专家源没有
+			// 便宜的清单可比，只能靠完整归档身份判断——prompt 改动不会动 source.json。
+			const supportsEtag = isExpertPresetRepository(this.repository);
+			let archive: DownloadedArchive;
+			if (supportsEtag && sameSourceState?.etag) {
+				try {
+					archive = await this.downloadArchive(sameSourceState.etag);
+				} catch (error) {
+					if (!(error instanceof MarketplaceNotModifiedError)) throw error;
+					// 304 只在旧快照仍通过全量校验时可信；坏掉的旧快照必须无条件重取。
+					const active = await this.readActiveMarketplace();
+					if (active && active.state.marketplaceVersion === sameSourceState.marketplaceVersion) {
+						await this.writeState({ ...sameSourceState, syncedAt: this.now().toISOString() }, temporaryRoot);
+						const activeSnapshot = await this.readCachedSnapshot();
+						if (!activeSnapshot) throw new Error("Activated marketplace snapshot could not be read");
+						return { ...activeSnapshot, stale: false };
+					}
+					archive = await this.downloadArchive();
+				}
+			} else {
+				archive = await this.downloadArchive();
+			}
+			const archiveSha256 = createHash("sha256").update(archive.buffer).digest("hex");
+			const unpackedDir = join(temporaryRoot, "unpacked");
+			await mkdir(unpackedDir, { recursive: true });
+			await this.extractArchive(archive.buffer, unpackedDir);
+			const marketplaceRoot = await this.locateMarketplaceRoot(unpackedDir);
+			const manifestRaw = await readMarketplaceManifest(
+				marketplaceRoot,
+				isExpertPresetRepository(this.repository),
+				archiveSha256,
+			);
+			const manifest = parseMarketplaceManifest(manifestRaw);
+			this.assertManifestCompatible(manifest);
+			loadMarketplaceCatalog(marketplaceRoot, manifest, {
+				allowSourceOnlyPluginAgents: isExpertPresetRepository(this.repository),
+			});
+
 			const discoveryVersion = sameSourceState?.discoveryVersion;
 
 			if (
@@ -1128,10 +1276,20 @@ export class OpenMarketplaceService {
 			const canReuseDestination =
 				sameSourceState?.marketplaceVersion === manifest.marketplaceVersion &&
 				sameSourceState.archiveSha256 === archiveSha256 &&
-				existsSync(destination);
+				// 复用前必须全量校验目标目录：仅凭 existsSync 会把被外部改动或半途损坏的
+				// 旧目录原样复用，304 恢复路径就永远换不掉坏目录。
+				(await this.isSnapshotDirectoryUsable(destination, manifest, archiveSha256));
 			if (!canReuseDestination) {
-				await rm(destination, { recursive: true, force: true });
-				await rename(marketplaceRoot, destination);
+				// 旧目录先挪进临时区而不是直接 rm：换入失败时原样放回，好缓存不会被丢掉。
+				const displaced = join(temporaryRoot, "displaced");
+				const hasPreviousDestination = existsSync(destination);
+				if (hasPreviousDestination) await rename(destination, displaced);
+				try {
+					await rename(marketplaceRoot, destination);
+				} catch (error) {
+					if (hasPreviousDestination) await rename(displaced, destination).catch(() => undefined);
+					throw error;
+				}
 			}
 			const state: OpenMarketplaceState = {
 				schemaVersion: STATE_SCHEMA_VERSION,
@@ -1142,11 +1300,10 @@ export class OpenMarketplaceService {
 				marketplaceVersion: manifest.marketplaceVersion,
 				discoveryVersion,
 				archiveSha256,
+				etag: supportsEtag ? archive.etag : undefined,
 				syncedAt: this.now().toISOString(),
 			};
-			const temporaryStatePath = join(temporaryRoot, "state.json");
-			await writeFile(temporaryStatePath, JSON.stringify(state, null, 2), "utf-8");
-			await rename(temporaryStatePath, this.statePath);
+			await this.writeState(state, temporaryRoot);
 			if (discoveryVersion) await this.pruneDiscoverySnapshots(discoveryVersion);
 			// presentation 中的本地图标 URL 包含绝对路径；激活后必须从正式快照目录重新解析，
 			// 不能继续返回即将被 finally 删除的 temporaryRoot 路径。
@@ -1156,6 +1313,31 @@ export class OpenMarketplaceService {
 		} finally {
 			await rm(temporaryRoot, { recursive: true, force: true });
 		}
+	}
+
+	/** 目标目录按即将激活的同一套校验（清单 + 全目录包）确认可用，坏目录会被替换。 */
+	private async isSnapshotDirectoryUsable(
+		directory: string,
+		manifest: MarketplaceManifest,
+		archiveSha256: string,
+	): Promise<boolean> {
+		try {
+			const allowSourceIndex = isExpertPresetRepository(this.repository);
+			const raw = await readMarketplaceManifest(directory, allowSourceIndex, archiveSha256);
+			const candidate = parseMarketplaceManifest(raw);
+			if (candidate.marketplaceVersion !== manifest.marketplaceVersion) return false;
+			this.assertManifestCompatible(candidate);
+			loadMarketplaceCatalog(directory, candidate, { allowSourceOnlyPluginAgents: allowSourceIndex });
+			return true;
+		} catch {
+			return false;
+		}
+	}
+
+	private async writeState(state: OpenMarketplaceState, temporaryRoot: string): Promise<void> {
+		const temporaryStatePath = join(temporaryRoot, "state.json");
+		await writeFile(temporaryStatePath, JSON.stringify(state, null, 2), "utf-8");
+		await rename(temporaryStatePath, this.statePath);
 	}
 }
 

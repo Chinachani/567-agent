@@ -35,11 +35,17 @@ class AppContainer(
     val preferences: AppPreferences = AppPreferences(),
     val tokenStore: TokenStore = SettingsTokenStore(),
     val sessionStore: SessionStore = SettingsSessionStore(),
+    val resultInbox: org.agent567.android.data.session.ResultInboxStore = org.agent567.android.data.session.ResultInboxStore(),
     val remoteConversationGateway: RemoteConversationGateway = RelayRemoteConversationGateway(),
     val networkAvailability: StateFlow<org.agent567.android.core.net.NetworkAvailability> = org.agent567.android.core.net.platformNetworkAvailability(),
     private val checkServiceRoute: suspend (ServiceRoute, String?) -> Boolean = { route, token -> ServiceRouteProbe().check(route, token) },
     private val loadServiceRoutes: suspend () -> List<ServiceRoute> = { ServiceRouteProbe().discover() },
 ) {
+    // Process-local invalidation shared by the system-share reader and destination UI.
+    private val sharedContentGeneration = MutableStateFlow(0L)
+    val sharedContentEpoch: StateFlow<Long> = sharedContentGeneration.asStateFlow()
+    fun invalidateSharedContent() { sharedContentGeneration.value += 1 }
+
     private val unauthorizedSignal = MutableStateFlow(0L)
     val unauthorizedEpoch: StateFlow<Long> = unauthorizedSignal.asStateFlow()
 

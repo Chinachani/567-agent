@@ -92,22 +92,26 @@ export const DefaultMessageItem = memo(function DefaultMessageItem({
 	);
 });
 
-export const ExportMessageList = forwardRef<HTMLDivElement, { messages: readonly ChatConversationItem[] }>(
-	function ExportMessageList({ messages }, ref) {
-		const tailMessageId = messages.at(-1)?.id ?? null;
-		return (
-			<ExportMessageListView listRef={ref}>
-				{messages.map((message) => (
-					<div key={message.id} className="pb-5">
-						<MessageItem
-							message={message}
-							isTailMessage={message.id === tailMessageId}
-							isStreaming={false}
-							exportMode
-						/>
-					</div>
-				))}
-			</ExportMessageListView>
-		);
-	},
-);
+export const ExportMessageList = forwardRef<
+	HTMLDivElement,
+	{ messages: readonly ChatConversationItem[]; participants?: readonly ConversationParticipantViewModel[] }
+>(function ExportMessageList({ messages, participants = [] }, ref) {
+	const participantsById = new Map(participants.map((participant) => [participant.id, participant]));
+	const tailMessageId = messages.at(-1)?.id ?? null;
+	return (
+		<ExportMessageListView listRef={ref}>
+			{messages.map((message) => (
+				<div key={message.id} className="pb-5">
+					<MessageItem
+						message={message}
+						isTailMessage={message.id === tailMessageId}
+						isStreaming={false}
+						participant={message.kind === "agent" ? participantsById.get(message.authorId) : undefined}
+						participants={participants}
+						exportMode
+					/>
+				</div>
+			))}
+		</ExportMessageListView>
+	);
+});

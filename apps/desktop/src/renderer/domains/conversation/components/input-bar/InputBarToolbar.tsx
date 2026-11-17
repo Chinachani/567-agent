@@ -2,6 +2,7 @@ import { Button } from "@vetta-org/ui";
 import { Tooltip, TooltipContent, TooltipTrigger, TooltipProvider } from "@shared/components/ui/tooltip";
 import { ContextRing } from "../ContextRing";
 import { ExecutionModeSelector } from "../ExecutionModeSelector";
+import { ModelSelectorFooterProvider } from "../model-selector-footer";
 import { ModelSelector } from "../ModelSelector";
 import { SendButton } from "../SendButton";
 import type { ReactNode } from "react";
@@ -62,7 +63,7 @@ export function InputBarTriggerAction({
 }
 
 export function InputBarToolbarDivider(): JSX.Element {
-	return <div className="ml-1 h-4 w-px shrink-0 bg-border/70" />;
+	return <div data-input-bar-divider="true" className="ml-1 h-4 w-px shrink-0 bg-border/70" />;
 }
 
 export interface InputBarAttachmentActionsProps {
@@ -125,6 +126,7 @@ export function InputBarActiveActions({ items, removeHint, groupLabel }: InputBa
 }
 
 export function InputBarModelAction({
+	executionMode,
 	visible,
 	updateActiveSession = true,
 	scope,
@@ -132,10 +134,13 @@ export function InputBarModelAction({
 	readonly visible: boolean;
 	readonly updateActiveSession?: boolean;
 	readonly scope?: ModelSelectorScope;
+	readonly executionMode?: ExecutionModeSelectorViewProps;
 }): JSX.Element {
 	return (
 		<div className={visible ? "min-w-0 shrink" : "hidden"}>
-			<ModelSelector updateActiveSession={updateActiveSession} scope={scope} />
+			<ModelSelectorFooterProvider value={{ active: visible, executionMode }}>
+				<ModelSelector updateActiveSession={updateActiveSession} scope={scope} />
+			</ModelSelectorFooterProvider>
 		</div>
 	);
 }

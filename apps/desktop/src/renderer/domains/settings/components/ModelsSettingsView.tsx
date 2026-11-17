@@ -5,6 +5,7 @@ import { SettingsPageShellView } from "@vetta-org/theme-ui/settings";
 import { SettingsAiAssist } from "../ai-assist";
 import { Api567GroupsSection } from "./Api567GroupsSection";
 import { ModelContextSettings } from "./ModelContextSettings";
+import { ModelsDefaultModelSection } from "./ModelsDefaultModelSection";
 import { ModelsProvidersSection } from "./ModelsProvidersSection";
 import type { ModelsSettingsModel } from "./useModelsSettingsModel";
 import type { ImageGenerationSettingsModel } from "./useImageGenerationSettingsModel";
@@ -46,6 +47,7 @@ export function ModelsSettingsView({
 		>
 			{model.config && (
 				<>
+					<ModelsDefaultModelSection model={model} />
 					<Tabs.Root value={tabs.value} onValueChange={tabs.onValueChange}>
 						<Tabs.List
 							aria-label={t("modelSettings.sources.label")}

@@ -1,11 +1,10 @@
-import { useTranslation } from "@vetta-org/plugin-sdk";
+import { ModelPicker, useTranslation } from "@vetta-org/plugin-sdk";
 import { type JSX, useEffect, useRef } from "react";
 import type { ChessSnapshot } from "../game/store";
 import { pieceChar } from "../game/notation";
 import type { PieceType, Side } from "../game/types";
 import { opponentOf } from "../game/types";
 import { ConfirmButton } from "./ConfirmButton";
-import { ModelPicker } from "./ModelPicker";
 
 interface SidePanelProps {
 	snapshot: ChessSnapshot;
@@ -120,7 +119,8 @@ export function SidePanel(props: SidePanelProps): JSX.Element {
 				<div className="mt-2 flex items-center gap-2 text-xs text-[var(--muted-foreground)]">
 					<SideDot side={snap.playerSide} />
 					<span>
-						{t(snap.playerSide === "RED" ? "side.red" : "side.black")} · {t("moveNumber", { count: snap.moves.length })}
+						{t(snap.playerSide === "RED" ? "side.red" : "side.black")} ·{" "}
+						{t("moveNumber", { count: snap.moves.length })}
 					</span>
 				</div>
 			</div>
@@ -139,7 +139,9 @@ export function SidePanel(props: SidePanelProps): JSX.Element {
 								<span
 									className={[
 										"xq-cal mt-0.5 inline-flex size-6 shrink-0 items-center justify-center rounded-full text-[13px] font-bold",
-										agentSide === "RED" ? "bg-[#c0392b1a] text-[#c0392b]" : "bg-[var(--accent)] text-[var(--foreground)]",
+										agentSide === "RED"
+											? "bg-[#c0392b1a] text-[#c0392b]"
+											: "bg-[var(--accent)] text-[var(--foreground)]",
 									].join(" ")}
 								>
 									{agentSide === "RED" ? "帅" : "将"}
@@ -235,7 +237,14 @@ export function SidePanel(props: SidePanelProps): JSX.Element {
 				)}
 				<ConfirmButton label={t("action.reset")} confirmLabel={t("confirm.reset")} onConfirm={props.onReset} />
 				<div className="ml-auto">
-					<ModelPicker value={snap.modelKey} onChange={props.onModelChange} />
+					<ModelPicker
+						value={snap.modelKey}
+						onChange={props.onModelChange}
+						emptyOption={{ label: t("newGame.model.default") }}
+						placeholder={t("newGame.model.default")}
+						ariaLabel={t("model.label")}
+						className="max-w-44"
+					/>
 				</div>
 			</div>
 		</div>

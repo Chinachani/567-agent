@@ -8,7 +8,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { resetAgentTeamDirectoryForTest } from "./agent-team-directory";
 import { NewSessionAgentSelector } from "./NewSessionAgentSelector";
 import { DefaultNewSessionHero } from "./NewSessionHero";
-import type { NewSessionTargetKey } from "./target";
+import { type NewSessionTargetKey, teamTargetKey } from "./target";
 import { useNewSessionTargetIdentity } from "./useNewSessionTargetIdentity";
 
 // hero 与选择器里的头像都挂着 motion；这里只关心 DOM 结构，动画一律退化成普通元素。
@@ -45,8 +45,8 @@ vi.mock("react-i18next", () => ({
 afterEach(cleanup);
 
 /** 新会话页的真实接线：选择器改 target，hero 通过同一份名录解析出身份。 */
-function Harness(): JSX.Element {
-	const [targetKey, setTargetKey] = useState<NewSessionTargetKey | null>(null);
+function Harness({ initialTarget = null }: { readonly initialTarget?: NewSessionTargetKey | null }): JSX.Element {
+	const [targetKey, setTargetKey] = useState<NewSessionTargetKey | null>(initialTarget);
 	const identity = useNewSessionTargetIdentity(targetKey);
 	return (
 		<>
@@ -99,23 +99,22 @@ describe("new session hero identity", () => {
 		expect(window.document.querySelectorAll(".ns-hero-avatar-slot img")).toHaveLength(1);
 	});
 
-	it("shows the team's avatar group and swaps identities when the pick changes", async () => {
-		render(<Harness />);
-
-		await pick(agent.name);
-		await pick(team.name);
-
-		expect(screen.getByRole("heading", { level: 1 }).textContent).toBe(team.name);
+	it("keeps a legacy team identity readable until an expert is selected", async () => {
+		render(<Harness initialTarget={teamTargetKey(team.id)} />);
+		await screen.findByRole("heading", { level: 1, name: team.name });
 		expect(window.document.querySelectorAll(".ns-hero-avatar-slot img").length).toBe(
 			Math.min(3, team.members.length),
 		);
+		await pick(agent.name);
+		expect(screen.getByRole("heading", { level: 1 }).textContent).toBe(agent.name);
+		expect(window.document.querySelectorAll(".ns-hero-avatar-slot img")).toHaveLength(1);
 	});
 
 	it("folds a team larger than the avatar row into a trailing +n", async () => {
 		expect(team.members.length).toBeGreaterThan(3);
-		render(<Harness />);
+		render(<Harness initialTarget={teamTargetKey(team.id)} />);
 
-		await pick(team.name);
+		await screen.findByRole("heading", { level: 1, name: team.name });
 
 		const slot = window.document.querySelector(".ns-hero-avatar-slot");
 		expect(slot?.querySelectorAll("img")).toHaveLength(3);
@@ -131,9 +130,9 @@ describe("new session hero identity", () => {
 				agentTeams: { list: vi.fn(async () => ({ ...document, teams: [smallTeam] })), onChanged: () => () => {} },
 			},
 		});
-		render(<Harness />);
+		render(<Harness initialTarget={teamTargetKey(team.id)} />);
 
-		await pick(team.name);
+		await screen.findByRole("heading", { level: 1, name: team.name });
 
 		const slot = window.document.querySelector(".ns-hero-avatar-slot");
 		expect(slot?.querySelectorAll("img")).toHaveLength(2);

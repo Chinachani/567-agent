@@ -219,6 +219,9 @@ export interface CreateAgentProfileInput {
 	readonly avatar?: string;
 	readonly mentionHandle: string;
 	readonly blueprintId: string;
+	readonly systemPrompt?: string;
+	/** Optional source identity for an independently editable library copy. */
+	readonly copiedFrom?: string;
 	readonly abilities?: Partial<AgentAbilitySelection>;
 }
 export interface UpdateAgentProfileInput {
@@ -397,8 +400,12 @@ export interface TeamSharedContextRecord {
  * 与展示来源，不得删除，也不该知道具体是哪个插件。
  */
 export interface AgentResourceSource {
-	readonly kind: "plugin";
+	readonly kind: "plugin" | "marketplace";
 	readonly pluginId: string;
+	readonly sourceId?: string;
+	readonly repository?: string;
+	readonly providerName?: string;
+	readonly translations?: Readonly<Record<string, { readonly name: string; readonly description: string }>>;
 	/**
 	 * 名称在提供方语言包里的 key（不带 `%`）。`name` 只存默认语言的字面量，是给模型与降级
 	 * 展示用的；界面按这个 key 现场查提供方的语言包，切换语言才能立刻跟上（ADR-0033）。

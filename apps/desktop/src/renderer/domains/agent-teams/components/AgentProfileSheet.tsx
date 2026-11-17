@@ -3,9 +3,9 @@ import type { AgentBlueprint, AgentProfile, AgentProfileUpdateImpact } from "@56
 import { AgentAvatarView } from "@vetta-org/theme-ui/chat";
 import { DetailDrawer, DetailDrawerEnter } from "@vetta-org/theme-ui/overlays";
 import { Button, cn } from "@vetta-org/ui";
-import { useMemo, useState } from "react";
+import { useMemo, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
-import type { AgentProfileEditInput } from "../hooks/useAgentLibraryModel";
+import type { AgentProfileDraftInput, AgentProfileEditInput } from "../hooks/useAgentLibraryModel";
 import { agentBlueprintLabel, type BlueprintDisplayPlugin, resourceProviderName } from "../lib/blueprint-display";
 import { isAgentAbilitySelected } from "../lib/ability-selection";
 import type { AgentCapabilityOption } from "../lib/capability-options";
@@ -30,9 +30,11 @@ export interface AgentProfileSheetProps {
 		input: AgentProfileEditInput,
 	) => Promise<{ updated: AgentProfile; impact: AgentProfileUpdateImpact }>;
 	/** 创建模式必填：确认创建时把草稿写入智能体库。 */
-	readonly onCreate?: (input: AgentProfileEditInput) => Promise<AgentProfile | undefined>;
+	readonly onCreate?: (input: AgentProfileDraftInput) => Promise<AgentProfile | undefined>;
 	/** 省略时底部不出现删除入口。 */
 	readonly onDelete?: () => void;
+	readonly onUse?: (id: string) => void;
+	readonly onCopy?: (id: string) => void;
 }
 
 const SHEET_TABS = [
@@ -56,30 +58,49 @@ export function AgentProfileSheet({
 	onSave,
 	onCreate,
 	onDelete,
+	onUse,
+	onCopy,
 }: AgentProfileSheetProps): JSX.Element | null {
 	const { t, i18n } = useTranslation("agent-teams");
 	const resolveAvatar = useAgentAvatarResolver();
 	const [activeTab, setActiveTab] = useState<AgentProfileTab>("basic");
 	const [saveRequest, setSaveRequest] = useState(0);
 	const [saving, setSaving] = useState(false);
+	const useAfterSave = useRef(false);
 	const [draft, setDraft] = useState<AgentProfileEditInput>();
 
-	const draftAgent = useMemo(() => (agent ? undefined : buildDraftAgent(blueprints)), [agent, blueprints]);
+	const draftAgent = useMemo(
+		() => (mode === "create" && !agent ? buildDraftAgent(blueprints) : undefined),
+		[agent, blueprints, mode],
+	);
 	const target = agent ?? draftAgent;
 	const abilityCount = draft
 		? capabilities.filter(
-				(option) =>
-					option.visibleInAgentConfiguration !== false && isAgentAbilitySelected(draft.abilities, option),
+				(option) => option.visibleInAgentConfiguration !== false && isAgentAbilitySelected(draft.abilities, option),
 			).length
 		: 0;
 
-	if (!target) return null;
+	if (!target) {
+		return (
+			<DetailDrawer
+				open={open}
+				title={mode === "edit" ? t("center.sheetEditTitle") : t("center.sheetCreateTitle")}
+				onClose={onClose}
+				onExited={onExited}
+			>
+				<p role="alert" className="p-5 text-sm text-muted-foreground">
+					{mode === "edit" ? t("experts.unavailable") : t("experts.noTemplate")}
+				</p>
+			</DetailDrawer>
+		);
+	}
 
 	const blueprint = blueprints.find((candidate) => candidate.id === target.blueprintId);
 	const roleLabel = agentBlueprintLabel(blueprint, (key) => t(key as never), plugins, i18n.language);
 	const providerName = resourceProviderName(target.source, plugins, i18n.language);
 	// 提供方维护的档案只读：插件升级会用清单整体重铺它，任何就地改动都活不过下一次同步。
 	const readOnly = target.source !== undefined;
+	const unavailable = readOnly && !blueprint;
 	const displayName = draft?.name?.trim() || target.name || t("center.sheetCreateTitle");
 
 	return (
@@ -96,11 +117,7 @@ export function AgentProfileSheet({
 						<DetailDrawerEnter index={0}>
 							<div className="flex flex-col gap-4">
 								<div className="flex items-start gap-4">
-									<AgentAvatarView
-										name={displayName}
-										avatar={draft?.avatar ?? resolveAvatar(target)}
-										size="hero"
-									/>
+									<AgentAvatarView name={displayName} avatar={draft?.avatar ?? resolveAvatar(target)} size="hero" />
 									<div className="min-w-0 flex-1">
 										<div className="flex flex-wrap items-center gap-2">
 											<h1 className="truncate text-[20px] font-semibold leading-snug tracking-tight text-foreground">
@@ -133,42 +150,89 @@ export function AgentProfileSheet({
 									</p>
 								)}
 
+								{unavailable && (
+									<p role="status" className="text-sm text-muted-foreground">
+										{t("experts.unavailable")}
+									</p>
+								)}
+								{readOnly && (
+									<div className="flex flex-wrap gap-2">
+										{onUse && (
+											<Button variant="primary" disabled={unavailable} onClick={() => onUse(target.id)}>
+												{t("experts.useExpert")}
+											</Button>
+										)}
+										{onCopy && (
+											<Button variant="outline" disabled={unavailable} onClick={() => onCopy(target.id)}>
+												{t("experts.copy")}
+											</Button>
+										)}
+									</div>
+								)}
 								{readOnly ? (
 									<p className="flex items-start gap-1.5 rounded-lg bg-muted/60 px-3 py-2 text-[11px] text-muted-foreground">
-										<span className="icon-[solar--lock-keyhole-linear] mt-0.5 h-3.5 w-3.5 shrink-0" aria-hidden="true" />
-										<span>{t("center.providedReadOnly")}</span>
-									</p>
-								) : (
-								<div className="flex flex-wrap items-center gap-2">
-									<Button
-										variant="primary"
-										size="lg"
-										className="min-w-40 flex-1"
-										disabled={saving}
-										onClick={() => setSaveRequest((value) => value + 1)}
-									>
 										<span
-											className={cn(
-												"h-4 w-4",
-												saving ? "icon-[solar--refresh-linear] animate-spin" : "icon-[solar--diskette-linear]",
-											)}
+											className="icon-[solar--lock-keyhole-linear] mt-0.5 h-3.5 w-3.5 shrink-0"
 											aria-hidden="true"
 										/>
-										{saving ? t("center.saving") : mode === "edit" ? t("center.saveChanges") : t("center.confirmCreate")}
-									</Button>
-									{onDelete && mode === "edit" && (
+										<span>{t("experts.copyHint")}</span>
+									</p>
+								) : (
+									<div className="flex flex-wrap items-center gap-2">
 										<Button
-											variant="outline"
+											variant="primary"
 											size="lg"
-											className="text-muted-foreground hover:text-destructive"
-											title={t("library.delete")}
-											aria-label={t("library.delete")}
-											onClick={onDelete}
+											className="min-w-40 flex-1"
+											disabled={saving}
+											onClick={() => {
+												useAfterSave.current = false;
+												setSaveRequest((value) => value + 1);
+											}}
 										>
-											<span className="icon-[solar--trash-bin-trash-linear] h-4 w-4" aria-hidden="true" />
+											<span
+												className={cn(
+													"h-4 w-4",
+													saving ? "icon-[solar--refresh-linear] animate-spin" : "icon-[solar--diskette-linear]",
+												)}
+												aria-hidden="true"
+											/>
+											{saving
+												? t("center.saving")
+												: mode === "edit"
+													? t("center.saveChanges")
+													: t("center.confirmCreate")}
 										</Button>
-									)}
-								</div>
+										{onUse && (
+											<Button
+												variant="outline"
+												size="lg"
+												disabled={saving}
+												onClick={() => {
+													useAfterSave.current = true;
+													setSaveRequest((value) => value + 1);
+												}}
+											>
+												{t("experts.saveAndUse")}
+											</Button>
+										)}
+										{onCopy && mode === "edit" && (
+											<Button variant="ghost" disabled={saving} onClick={() => onCopy(target.id)}>
+												{t("experts.copy")}
+											</Button>
+										)}
+										{onDelete && mode === "edit" && (
+											<Button
+												variant="outline"
+												size="lg"
+												className="text-muted-foreground hover:text-destructive"
+												title={t("library.delete")}
+												aria-label={t("library.delete")}
+												onClick={onDelete}
+											>
+												<span className="icon-[solar--trash-bin-trash-linear] h-4 w-4" aria-hidden="true" />
+											</Button>
+										)}
+									</div>
 								)}
 							</div>
 						</DetailDrawerEnter>
@@ -199,6 +263,7 @@ export function AgentProfileSheet({
 								key={target.id || "draft"}
 								agent={target}
 								blueprint={blueprint}
+								roleLabel={roleLabel}
 								capabilities={capabilities}
 								layout="sheet"
 								activeTab={activeTab}
@@ -208,15 +273,20 @@ export function AgentProfileSheet({
 								saveRequest={saveRequest}
 								onDraftChange={setDraft}
 								onSavingChange={setSaving}
-								onSaveComplete={() => {
+								onSaveComplete={(updated) => {
 									onSaved();
-									onClose();
+									if (useAfterSave.current) onUse?.(updated.id);
+									else onClose();
 								}}
 								onPreview={mode === "create" ? previewNoop : onPreview}
 								onSave={
 									mode === "create"
 										? async (_agent, input) => {
-												const created = await onCreate?.(input);
+												const created = await onCreate?.({
+													...input,
+													blueprintId: target.blueprintId,
+													...(target.copiedFrom ? { copiedFrom: target.copiedFrom } : {}),
+												});
 												if (!created) throw new Error(t("center.createAgentFailed"));
 												return { updated: created, impact: await previewNoop() };
 											}

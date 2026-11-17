@@ -66,7 +66,7 @@
     },
     "apps/desktop": {
       "name": "@567agent/desktop",
-      "version": "1.5.10",
+      "version": "1.6.0",
       "dependencies": {
         "@567agent/action-rpc": "workspace:*",
         "@567agent/agent-team": "workspace:*",
@@ -81,15 +81,18 @@
         "@567agent/runtime-knowledge": "workspace:*",
         "@567agent/runtime-mcp": "workspace:*",
         "@567agent/runtime-node": "workspace:*",
+        "@567agent/runtime-ssh": "workspace:*",
         "@567agent/runtime-storage": "workspace:*",
         "@567agent/runtime-telemetry": "workspace:*",
         "@567agent/runtime-tools": "workspace:*",
+        "@567agent/ssh-transport": "workspace:*",
         "@567agent/toolkit": "workspace:*",
         "@dagrejs/dagre": "^3.0.0",
         "@fontsource-variable/geist": "^5.2.8",
         "@iconify-json/solar": "^1.2.10",
         "@lexical/react": "^0.48.0",
         "@lexical/utils": "^0.48.0",
+        "@lydell/node-pty": "1.0.2",
         "@module-federation/enhanced": "^2.5.1",
         "@ocr-web/core": "^0.2.1",
         "@ocr-web/models-ppocrv5": "^0.1.1",
@@ -103,6 +106,13 @@
         "@vetta-org/theme-sdk": "workspace:*",
         "@vetta-org/theme-ui": "workspace:*",
         "@vetta-org/ui": "workspace:*",
+        "@xterm/addon-canvas": "^0.7.0",
+        "@xterm/addon-fit": "^0.11.0",
+        "@xterm/addon-serialize": "^0.14.0",
+        "@xterm/addon-unicode11": "^0.9.0",
+        "@xterm/addon-web-links": "^0.12.0",
+        "@xterm/addon-webgl": "^0.19.0",
+        "@xterm/xterm": "^6",
         "@xyflow/react": "^12.10.2",
         "adm-zip": "^0.5.16",
         "ajv": "^8.20.0",
@@ -110,6 +120,7 @@
         "canvas-confetti": "^1.9.4",
         "class-variance-authority": "^0.7.1",
         "clsx": "^2.1.1",
+        "croner": "^8.1.2",
         "cross-spawn": "^7.0.6",
         "date-fns": "^4.1.0",
         "dbus-next": "^0.10.2",
@@ -205,6 +216,11 @@
         "yaml": "^2.9.0",
       },
       "optionalDependencies": {
+        "@lydell/node-pty-darwin-arm64": "1.0.2",
+        "@lydell/node-pty-darwin-x64": "1.0.2",
+        "@lydell/node-pty-linux-x64": "1.0.2",
+        "@lydell/node-pty-win32-arm64": "1.0.2",
+        "@lydell/node-pty-win32-x64": "1.0.2",
         "sherpa-onnx-win-x64": "1.13.5",
       },
     },
@@ -320,7 +336,7 @@
     },
     "packages/capability-sdk": {
       "name": "@vetta-org/capability-sdk",
-      "version": "0.1.2",
+      "version": "0.1.3",
       "dependencies": {
         "@sinclair/typebox": "^0.34.41",
       },
@@ -438,7 +454,7 @@
     },
     "packages/npm-compat/capability-sdk": {
       "name": "@567agent/capability-sdk",
-      "version": "0.1.2",
+      "version": "0.1.3",
       "dependencies": {
         "@vetta-org/capability-sdk": "0.1.2",
       },
@@ -531,7 +547,7 @@
     },
     "packages/plugins/externals/chinese-chess": {
       "name": "@567agent/plugin-chinese-chess",
-      "version": "0.1.0",
+      "version": "0.1.2",
       "dependencies": {
         "zh-chess": "3.2.1",
       },
@@ -572,7 +588,7 @@
     },
     "packages/plugins/externals/kanban": {
       "name": "@567agent/plugin-kanban",
-      "version": "0.4.0",
+      "version": "0.4.2",
       "devDependencies": {
         "@iconify-json/solar": "^1.2.5",
         "@iconify/tailwind4": "^1.0.6",
@@ -582,7 +598,6 @@
         "@types/react-dom": "^19.1.1",
         "@vetta-org/plugin-sdk": "workspace:*",
         "@vetta-org/plugin-vite": "workspace:*",
-        "@vetta-org/theme-ui": "workspace:*",
         "@vetta-org/ui": "workspace:*",
         "react": "19.1.1",
         "react-dom": "19.1.1",
@@ -649,10 +664,10 @@
     },
     "packages/plugins/plugin-sdk": {
       "name": "@vetta-org/plugin-sdk",
-      "version": "0.3.9",
+      "version": "0.3.10",
       "dependencies": {
         "@sinclair/typebox": "^0.34.41",
-        "@vetta-org/capability-sdk": "^0.1.0",
+        "@vetta-org/capability-sdk": "^0.1.3",
       },
       "devDependencies": {
         "@types/react": "^19.1.1",
@@ -771,7 +786,7 @@
     },
     "packages/plugins/presets/content-creation": {
       "name": "@567agent/plugin-content-creation",
-      "version": "0.1.2",
+      "version": "0.1.4",
       "dependencies": {
         "@567agent/toolkit": "workspace:*",
         "@sinclair/typebox": "^0.34.41",
@@ -916,6 +931,28 @@
         "@vetta-org/plugin-vite": "workspace:*",
         "@vetta-org/ui": "workspace:*",
         "jsdom": "^26.1.0",
+        "react": "19.1.1",
+        "react-dom": "19.1.1",
+        "tailwindcss": "^4.1.12",
+        "typescript": "^5.9.2",
+        "vite": "^7.1.7",
+        "vitest": "^3.2.4",
+      },
+    },
+    "packages/plugins/presets/open-in-app": {
+      "name": "@567agent/plugin-open-in-app",
+      "version": "0.1.0",
+      "devDependencies": {
+        "@iconify-json/solar": "^1.2.5",
+        "@iconify/tailwind4": "^1.2.3",
+        "@tailwindcss/vite": "^4.1.12",
+        "@types/node": "^22.10.5",
+        "@types/react": "^19.1.1",
+        "@types/react-dom": "^19.1.1",
+        "@vetta-org/plugin-sdk": "workspace:*",
+        "@vetta-org/plugin-vite": "workspace:*",
+        "@vetta-org/ui": "workspace:*",
+        "jsdom": "26.1.0",
         "react": "19.1.1",
         "react-dom": "19.1.1",
         "tailwindcss": "^4.1.12",
@@ -1072,8 +1109,10 @@
         "@567agent/runtime-core": "workspace:*",
         "@567agent/runtime-mcp": "workspace:*",
         "@567agent/runtime-node": "workspace:*",
+        "@567agent/runtime-ssh": "workspace:*",
         "@567agent/runtime-storage": "workspace:*",
         "@567agent/runtime-tools": "workspace:*",
+        "@567agent/ssh-transport": "workspace:*",
       },
       "devDependencies": {
         "@types/node": "^22.10.5",
@@ -1138,6 +1177,20 @@
         "vitest": "^3.2.4",
       },
     },
+    "packages/runtime-ssh": {
+      "name": "@567agent/runtime-ssh",
+      "version": "0.0.1",
+      "dependencies": {
+        "@567agent/runtime-core": "workspace:*",
+        "@567agent/runtime-node": "workspace:*",
+        "@567agent/runtime-tools": "workspace:*",
+        "@567agent/ssh-transport": "workspace:*",
+      },
+      "devDependencies": {
+        "@types/node": "^22.10.5",
+        "typescript": "^5.9.2",
+      },
+    },
     "packages/runtime-storage": {
       "name": "@567agent/runtime-storage",
       "version": "0.0.1",
@@ -1191,6 +1244,14 @@
       "name": "@567agent/skill-presets",
       "version": "0.0.0",
     },
+    "packages/ssh-transport": {
+      "name": "@567agent/ssh-transport",
+      "version": "0.0.1",
+      "devDependencies": {
+        "@types/node": "^22.10.5",
+        "typescript": "^5.9.2",
+      },
+    },
     "packages/theme-sdk": {
       "name": "@vetta-org/theme-sdk",
       "version": "0.1.0",
@@ -1219,6 +1280,7 @@
         "@codemirror/view": "^6.43.7",
         "@lezer/highlight": "1.2.3",
         "@lobehub/icons-static-svg": "1.95.0",
+        "@tanstack/react-virtual": "^3.14.26",
         "@vetta-org/theme-sdk": "^0.1.0",
         "@vetta-org/ui": "^0.1.0",
         "codemirror": "^6.0.2",
@@ -1364,6 +1426,8 @@
 
     "@567agent/plugin-office-viewer": ["@567agent/plugin-office-viewer@workspace:packages/plugins/presets/office-viewer"],
 
+    "@567agent/plugin-open-in-app": ["@567agent/plugin-open-in-app@workspace:packages/plugins/presets/open-in-app"],
+
     "@567agent/plugin-plugin-workbench": ["@567agent/plugin-plugin-workbench@workspace:packages/plugins/presets/plugin-workbench"],
 
     "@567agent/plugin-preset-agent": ["@567agent/plugin-preset-agent@workspace:packages/plugins/presets/preset-agent"],
@@ -1398,6 +1462,8 @@
 
     "@567agent/runtime-node": ["@567agent/runtime-node@workspace:packages/runtime-node"],
 
+    "@567agent/runtime-ssh": ["@567agent/runtime-ssh@workspace:packages/runtime-ssh"],
+
     "@567agent/runtime-storage": ["@567agent/runtime-storage@workspace:packages/runtime-storage"],
 
     "@567agent/runtime-subagents": ["@567agent/runtime-subagents@workspace:packages/runtime-subagents"],
@@ -1407,6 +1473,8 @@
     "@567agent/runtime-tools": ["@567agent/runtime-tools@workspace:packages/runtime-tools"],
 
     "@567agent/skill-presets": ["@567agent/skill-presets@workspace:packages/skill-presets"],
+
+    "@567agent/ssh-transport": ["@567agent/ssh-transport@workspace:packages/ssh-transport"],
 
     "@567agent/theme-sdk": ["@567agent/theme-sdk@workspace:packages/npm-compat/theme-sdk"],
 
@@ -1989,6 +2057,18 @@
     "@lezer/yaml": ["@lezer/yaml@1.0.4", "https://registry.npmmirror.com/@lezer/yaml/-/yaml-1.0.4.tgz", { "dependencies": { "@lezer/common": "^1.2.0", "@lezer/highlight": "^1.0.0", "@lezer/lr": "^1.4.0" } }, "sha512-2lrrHqxalACEbxIbsjhqGpSW8kWpUKuY6RHgnSAFZa6qK62wvnPxA8hGOwOoDbwHcOFs5M4o27mjGu+P7TvBmw=="],
 
     "@lobehub/icons-static-svg": ["@lobehub/icons-static-svg@1.95.0", "https://registry.npmmirror.com/@lobehub/icons-static-svg/-/icons-static-svg-1.95.0.tgz", {}, "sha512-VSObF66DUVQe0EK3xbIoFcw+Fcia1+bLVFkMsQbmz0zCceMxPmoLImS5VM5SM7zL+/NarZ11/ySNfkekcomIkQ=="],
+
+    "@lydell/node-pty": ["@lydell/node-pty@1.0.2", "https://registry.npmmirror.com/@lydell/node-pty/-/node-pty-1.0.2.tgz", { "optionalDependencies": { "@lydell/node-pty-darwin-arm64": "1.0.2", "@lydell/node-pty-darwin-x64": "1.0.2", "@lydell/node-pty-linux-x64": "1.0.2", "@lydell/node-pty-win32-arm64": "1.0.2", "@lydell/node-pty-win32-x64": "1.0.2" } }, "sha512-5UhusYFuH8GDjmF0+WKAHYv6HrB+AhuGBIcSFHOVRLC4aCf1JMTbrnOtZvXKPQV4MeBupZ9EzN6IZbjvjfI1Ew=="],
+
+    "@lydell/node-pty-darwin-arm64": ["@lydell/node-pty-darwin-arm64@1.0.2", "https://registry.npmmirror.com/@lydell/node-pty-darwin-arm64/-/node-pty-darwin-arm64-1.0.2.tgz", { "os": "darwin", "cpu": "arm64" }, "sha512-DWMwBdevXb1uuf8AUZbHdBMmEkcUIvrEXoepp8T1ny4O6qCUHh5MjTNNtEKeLdIACFqVtOelQdakzdAESMx6zA=="],
+
+    "@lydell/node-pty-darwin-x64": ["@lydell/node-pty-darwin-x64@1.0.2", "https://registry.npmmirror.com/@lydell/node-pty-darwin-x64/-/node-pty-darwin-x64-1.0.2.tgz", { "os": "darwin", "cpu": "x64" }, "sha512-quQ7CKnhjVjNagTsKCCbXONzPHYlULEYUFVYYQ3c4s8yp+e9o5AP4Ln7VrLGnPyajjkMeuHq6HghkR8sil1HZw=="],
+
+    "@lydell/node-pty-linux-x64": ["@lydell/node-pty-linux-x64@1.0.2", "https://registry.npmmirror.com/@lydell/node-pty-linux-x64/-/node-pty-linux-x64-1.0.2.tgz", { "os": "linux", "cpu": "x64" }, "sha512-mVS7vtMY1NlhROqfT0BTNnSmh7jzP8N4dI4AF92zsWvp47b6evfobqAoQ7u5LSKyQkF/fZN7N0F5LU3tfYrDPA=="],
+
+    "@lydell/node-pty-win32-arm64": ["@lydell/node-pty-win32-arm64@1.0.2", "https://registry.npmmirror.com/@lydell/node-pty-win32-arm64/-/node-pty-win32-arm64-1.0.2.tgz", { "os": "win32", "cpu": "arm64" }, "sha512-d9Clr3Prc2jJGk+8gLcRrJtIy0VeB8aAnjizW0xKm12C3z5yG+EIAjC7ZWoYIkSQGovqEnHsqGn2IuVPgQatfA=="],
+
+    "@lydell/node-pty-win32-x64": ["@lydell/node-pty-win32-x64@1.0.2", "https://registry.npmmirror.com/@lydell/node-pty-win32-x64/-/node-pty-win32-x64-1.0.2.tgz", { "os": "win32", "cpu": "x64" }, "sha512-OxrTOB4qmOSVfTu96MLVTPpQfps4DGfqSVugzOsRz23z2OC/BhfeUUwW8kiTt8ZqTskg0LRTwM4DtOWeaJny6w=="],
 
     "@malept/cross-spawn-promise": ["@malept/cross-spawn-promise@2.0.0", "https://registry.npmmirror.com/@malept/cross-spawn-promise/-/cross-spawn-promise-2.0.0.tgz", { "dependencies": { "cross-spawn": "^7.0.1" } }, "sha512-1DpKU0Z5ThltBwjNySMC14g0CkbyhCaz9FkhxqNsZI6uAPJXFS8cMXlBKo26FJ8ZuW6S9GCMcR9IO5k2X5/9Fg=="],
 
@@ -2634,9 +2714,13 @@
 
     "@tanstack/react-store": ["@tanstack/react-store@0.9.3", "https://registry.npmmirror.com/@tanstack/react-store/-/react-store-0.9.3.tgz", { "dependencies": { "@tanstack/store": "0.9.3", "use-sync-external-store": "^1.6.0" }, "peerDependencies": { "react": "^16.8.0 || ^17.0.0 || ^18.0.0 || ^19.0.0", "react-dom": "^16.8.0 || ^17.0.0 || ^18.0.0 || ^19.0.0" } }, "sha512-y2iHd/N9OkoQbFJLUX1T9vbc2O9tjH0pQRgTcx1/Nz4IlwLvkgpuglXUx+mXt0g5ZDFrEeDnONPqkbfxXJKwRg=="],
 
+    "@tanstack/react-virtual": ["@tanstack/react-virtual@3.14.26", "https://registry.npmmirror.com/@tanstack/react-virtual/-/react-virtual-3.14.26.tgz", { "dependencies": { "@tanstack/virtual-core": "3.19.11" }, "peerDependencies": { "react": "^16.8.0 || ^17.0.0 || ^18.0.0 || ^19.0.0", "react-dom": "^16.8.0 || ^17.0.0 || ^18.0.0 || ^19.0.0" } }, "sha512-HUDlfsrYH6ko5xH56L62Mcl/uzT+AGVNMHFuDNqDJMdZWc1AQa2oeVKNUvZ/RWBZQ4TYtyQerFrNvLnp39h65A=="],
+
     "@tanstack/router-core": ["@tanstack/router-core@1.171.13", "https://registry.npmmirror.com/@tanstack/router-core/-/router-core-1.171.13.tgz", { "dependencies": { "@tanstack/history": "1.162.0", "cookie-es": "^3.0.0", "seroval": "^1.5.4", "seroval-plugins": "^1.5.4" } }, "sha512-+NOwEj1kO/6IGmpHRIZHasYxYWpyBQGNIZAST9aNrk9Q3YlU9SgqVnl1pbLa9qAKfeNdXQIRve0RQb/0kyDeDA=="],
 
     "@tanstack/store": ["@tanstack/store@0.9.3", "https://registry.npmmirror.com/@tanstack/store/-/store-0.9.3.tgz", {}, "sha512-8reSzl/qGWGGVKhBoxXPMWzATSbZLZFWhwBAFO9NAyp0TxzfBP0mIrGb8CP8KrQTmvzXlR/vFPPUrHTLBGyFyw=="],
+
+    "@tanstack/virtual-core": ["@tanstack/virtual-core@3.19.11", "https://registry.npmmirror.com/@tanstack/virtual-core/-/virtual-core-3.19.11.tgz", {}, "sha512-/5iHb0RHBvj8Di59FDs4ESNm45jls33aZAi4zccVXZjc/6ZvwQP6nzEYeT6weXjTf9E6/vrp2JhYWRyO+ZP13A=="],
 
     "@testing-library/dom": ["@testing-library/dom@10.4.1", "https://registry.npmmirror.com/@testing-library/dom/-/dom-10.4.1.tgz", { "dependencies": { "@babel/code-frame": "^7.10.4", "@babel/runtime": "^7.12.5", "@types/aria-query": "^5.0.1", "aria-query": "5.3.0", "dom-accessibility-api": "^0.5.9", "lz-string": "^1.5.0", "picocolors": "1.1.1", "pretty-format": "^27.0.2" } }, "sha512-o4PXJQidqJl82ckFaXUeoAW+XysPLauYI43Abki5hABd853iMhitooc6znOnczgbTYmEP6U6/y1ZyKAIsvMKGg=="],
 
@@ -3011,6 +3095,20 @@
     "@wdio/xvfb": ["@wdio/xvfb@9.30.0", "https://registry.npmmirror.com/@wdio/xvfb/-/xvfb-9.30.0.tgz", { "dependencies": { "@wdio/logger": "9.29.1" } }, "sha512-v2vkweVbf1nI3lqRjVMbRyWFqHxPrDE95sLq0IZLjZ8fnXtWWIF61ZxfUhLdrMKB6s3gXnOyZuWgEJFD7iDBGQ=="],
 
     "@xmldom/xmldom": ["@xmldom/xmldom@0.8.13", "https://registry.npmmirror.com/@xmldom/xmldom/-/xmldom-0.8.13.tgz", {}, "sha512-KRYzxepc14G/CEpEGc3Yn+JKaAeT63smlDr+vjB8jRfgTBBI9wRj/nkQEO+ucV8p8I9bfKLWp37uHgFrbntPvw=="],
+
+    "@xterm/addon-canvas": ["@xterm/addon-canvas@0.7.0", "https://registry.npmmirror.com/@xterm/addon-canvas/-/addon-canvas-0.7.0.tgz", { "peerDependencies": { "@xterm/xterm": "^5.0.0" } }, "sha512-LF5LYcfvefJuJ7QotNRdRSPc9YASAVDeoT5uyXS/nZshZXjYplGXRECBGiznwvhNL2I8bq1Lf5MzRwstsYQ2Iw=="],
+
+    "@xterm/addon-fit": ["@xterm/addon-fit@0.11.0", "https://registry.npmmirror.com/@xterm/addon-fit/-/addon-fit-0.11.0.tgz", {}, "sha512-jYcgT6xtVYhnhgxh3QgYDnnNMYTcf8ElbxxFzX0IZo+vabQqSPAjC3c1wJrKB5E19VwQei89QCiZZP86DCPF7g=="],
+
+    "@xterm/addon-serialize": ["@xterm/addon-serialize@0.14.0", "https://registry.npmmirror.com/@xterm/addon-serialize/-/addon-serialize-0.14.0.tgz", {}, "sha512-uteyTU1EkrQa2Ux6P/uFl2fzmXI46jy5uoQMKEOM0fKTyiW7cSn0WrFenHm5vO5uEXX/GpwW/FgILvv3r0WbkA=="],
+
+    "@xterm/addon-unicode11": ["@xterm/addon-unicode11@0.9.0", "https://registry.npmmirror.com/@xterm/addon-unicode11/-/addon-unicode11-0.9.0.tgz", {}, "sha512-FxDnYcyuXhNl+XSqGZL/t0U9eiNb/q3EWT5rYkQT/zuig8Gz/VagnQANKHdDWFM2lTMk9ly0EFQxxxtZUoRetw=="],
+
+    "@xterm/addon-web-links": ["@xterm/addon-web-links@0.12.0", "https://registry.npmmirror.com/@xterm/addon-web-links/-/addon-web-links-0.12.0.tgz", {}, "sha512-4Smom3RPyVp7ZMYOYDoC/9eGJJJqYhnPLGGqJ6wOBfB8VxPViJNSKdgRYb8NpaM6YSelEKbA2SStD7lGyqaobw=="],
+
+    "@xterm/addon-webgl": ["@xterm/addon-webgl@0.19.0", "https://registry.npmmirror.com/@xterm/addon-webgl/-/addon-webgl-0.19.0.tgz", {}, "sha512-b3fMOsyLVuCeNJWxolACEUED0vm7qC0cy4wRvf3oURSzDTYVQiGPhTnhWZwIHdvC48Y+oLhvYXnY4XDXPoJo6A=="],
+
+    "@xterm/xterm": ["@xterm/xterm@6.0.0", "https://registry.npmmirror.com/@xterm/xterm/-/xterm-6.0.0.tgz", {}, "sha512-TQwDdQGtwwDt+2cgKDLn0IRaSxYu1tSUjgKarSDkUM0ZNiSRXFpjxEsvc/Zgc5kq5omJ+V0a8/kIM2WD3sMOYg=="],
 
     "@xyflow/react": ["@xyflow/react@12.11.0", "https://registry.npmmirror.com/@xyflow/react/-/react-12.11.0.tgz", { "dependencies": { "@xyflow/system": "0.0.77", "classcat": "^5.0.3", "zustand": "^4.4.0" }, "peerDependencies": { "@types/react": ">=17", "@types/react-dom": ">=17", "react": ">=17", "react-dom": ">=17" }, "optionalPeers": ["@types/react", "@types/react-dom"] }, "sha512-na4IO33FSs2OS72hASgZDmTYwFAkef7Z74uBUVrong3ARmQQHfnRUVaCFn1kTt5LbS6pK03TbYjCPGLjLFfziA=="],
 
@@ -5532,6 +5630,10 @@
 
     "@567agent/plugin-office-viewer/react-dom": ["react-dom@19.1.1", "https://registry.npmmirror.com/react-dom/-/react-dom-19.1.1.tgz", { "dependencies": { "scheduler": "^0.26.0" }, "peerDependencies": { "react": "^19.1.1" } }, "sha512-Dlq/5LAZgF0Gaz6yiqZCf6VCcZs1ghAJyrsu84Q/GT0gV+mCxbfmKNoGRKBYMJ8IEdGPqu49YWXD02GCknEDkw=="],
 
+    "@567agent/plugin-open-in-app/react": ["react@19.1.1", "https://registry.npmmirror.com/react/-/react-19.1.1.tgz", {}, "sha512-w8nqGImo45dmMIfljjMwOGtbmC/mk4CMYhWIicdSflH91J9TyCyczcPFXJzrZ/ZXcgGRFeP6BU0BEJTw6tZdfQ=="],
+
+    "@567agent/plugin-open-in-app/react-dom": ["react-dom@19.1.1", "https://registry.npmmirror.com/react-dom/-/react-dom-19.1.1.tgz", { "dependencies": { "scheduler": "^0.26.0" }, "peerDependencies": { "react": "^19.1.1" } }, "sha512-Dlq/5LAZgF0Gaz6yiqZCf6VCcZs1ghAJyrsu84Q/GT0gV+mCxbfmKNoGRKBYMJ8IEdGPqu49YWXD02GCknEDkw=="],
+
     "@567agent/plugin-plugin-workbench/react": ["react@19.1.1", "https://registry.npmmirror.com/react/-/react-19.1.1.tgz", {}, "sha512-w8nqGImo45dmMIfljjMwOGtbmC/mk4CMYhWIicdSflH91J9TyCyczcPFXJzrZ/ZXcgGRFeP6BU0BEJTw6tZdfQ=="],
 
     "@567agent/plugin-plugin-workbench/react-dom": ["react-dom@19.1.1", "https://registry.npmmirror.com/react-dom/-/react-dom-19.1.1.tgz", { "dependencies": { "scheduler": "^0.26.0" }, "peerDependencies": { "react": "^19.1.1" } }, "sha512-Dlq/5LAZgF0Gaz6yiqZCf6VCcZs1ghAJyrsu84Q/GT0gV+mCxbfmKNoGRKBYMJ8IEdGPqu49YWXD02GCknEDkw=="],
@@ -6653,6 +6755,8 @@
     "@567agent/plugin-mobile-ui-preview/react-dom/scheduler": ["scheduler@0.26.0", "https://registry.npmmirror.com/scheduler/-/scheduler-0.26.0.tgz", {}, "sha512-NlHwttCI/l5gCPR3D1nNXtWABUmBwvZpEQiD4IXSbIDq8BzLIK/7Ir5gTFSGZDUu37K5cMNp0hFtzO38sC7gWA=="],
 
     "@567agent/plugin-office-viewer/react-dom/scheduler": ["scheduler@0.26.0", "https://registry.npmmirror.com/scheduler/-/scheduler-0.26.0.tgz", {}, "sha512-NlHwttCI/l5gCPR3D1nNXtWABUmBwvZpEQiD4IXSbIDq8BzLIK/7Ir5gTFSGZDUu37K5cMNp0hFtzO38sC7gWA=="],
+
+    "@567agent/plugin-open-in-app/react-dom/scheduler": ["scheduler@0.26.0", "https://registry.npmmirror.com/scheduler/-/scheduler-0.26.0.tgz", {}, "sha512-NlHwttCI/l5gCPR3D1nNXtWABUmBwvZpEQiD4IXSbIDq8BzLIK/7Ir5gTFSGZDUu37K5cMNp0hFtzO38sC7gWA=="],
 
     "@567agent/plugin-plugin-workbench/react-dom/scheduler": ["scheduler@0.26.0", "https://registry.npmmirror.com/scheduler/-/scheduler-0.26.0.tgz", {}, "sha512-NlHwttCI/l5gCPR3D1nNXtWABUmBwvZpEQiD4IXSbIDq8BzLIK/7Ir5gTFSGZDUu37K5cMNp0hFtzO38sC7gWA=="],
 

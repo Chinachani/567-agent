@@ -28,6 +28,7 @@ export interface DesktopUpdaterApi {
 	sync(): Promise<void>;
 	getState(): Promise<UpdaterState>;
 	getCurrentVersion(): Promise<string>;
+	getCurrentReleaseNote(): Promise<string | null>;
 	/** 启动后台下载（无感）。返回最终状态。 */
 	download(): Promise<UpdaterState>;
 	/** Pause the transfer; starting the same update again reuses verified download pieces. */

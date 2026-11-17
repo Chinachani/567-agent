@@ -19,6 +19,7 @@ import {
 	type UpdateAgentProfileInput,
 	type UpdateTeamInput,
 } from "@567agent/agent-team";
+import { mainT } from "../i18n/messages.js";
 import { getAppLogger } from "../logger.js";
 import { agentBlueprintRegistry, resolveAgentBlueprint } from "./agent-blueprint-registry.js";
 import { type AgentTeamConfigRepository, createAgentTeamConfigRepository } from "./agent-team-config-repository.js";
@@ -134,7 +135,11 @@ export class AgentTeamStore {
 		const profile = await this.mutate("create-agent", (document) => {
 			const now = this.now();
 			const blueprint = resolveAgentBlueprint(input.blueprintId);
-			if (!blueprint) throw new Error(`Unknown agent blueprint: ${input.blueprintId}`);
+			if (!blueprint && !(input.copiedFrom && input.systemPrompt !== undefined))
+				throw new Error(`Unknown agent blueprint: ${input.blueprintId}`);
+			if (input.copiedFrom && !document.agents.some((agent) => agent.id === input.copiedFrom)) {
+				throw new Error(mainT("expertSourceMissing"));
+			}
 			const created: AgentProfile = {
 				id: this.createId(),
 				revision: 1,
@@ -143,7 +148,16 @@ export class AgentTeamStore {
 				...(input.avatar ? { avatar: input.avatar } : {}),
 				mentionHandle: normalizeMentionHandle(input.mentionHandle),
 				blueprintId: input.blueprintId,
-				abilities: createAgentAbilities(input.abilities, blueprint.defaultAbilities),
+				...(input.copiedFrom
+					? { systemPrompt: input.systemPrompt?.trim() ?? blueprint?.systemPrompt ?? "" }
+					: input.systemPrompt?.trim()
+						? { systemPrompt: input.systemPrompt.trim() }
+						: {}),
+				...(input.copiedFrom ? { copiedFrom: input.copiedFrom } : {}),
+				abilities: createAgentAbilities(
+					input.abilities,
+					blueprint?.defaultAbilities ?? { selectionMode: "custom", skills: [], mcpServers: [], plugins: [] },
+				),
 				scope: { kind: "library" },
 				createdAt: now,
 				updatedAt: now,
@@ -172,8 +186,14 @@ export class AgentTeamStore {
 				...current,
 				name: input.name.trim(),
 				description: input.description.trim(),
-				// 留空即清除覆盖，回到 blueprint 默认；写成空串会让下游的 `?? blueprint` 兜底失效。
-				...(input.systemPrompt !== undefined ? { systemPrompt: input.systemPrompt.trim() || undefined } : {}),
+				// 普通档案留空回到 blueprint；副本的空串也是独立快照，不能重新继承原件。
+				...(input.systemPrompt !== undefined
+					? {
+							systemPrompt: current.copiedFrom
+								? input.systemPrompt.trim()
+								: input.systemPrompt.trim() || undefined,
+						}
+					: {}),
 				...(input.avatar ? { avatar: input.avatar } : { avatar: undefined }),
 				mentionHandle: normalizeMentionHandle(input.mentionHandle),
 				abilities: {

@@ -12,7 +12,7 @@ function isRetiredBuiltinServer(name: string, server: McpServerConfigData): bool
 			return server.type === "http" && server.url === "https://mcp.notion.com/mcp";
 		case "figma":
 			return (
-				server.type !== "http" &&
+				(server.type === undefined || server.type === "stdio") &&
 				server.command === "npx" &&
 				server.args?.join("\0") === ["-y", "figma-developer-mcp", "--stdio"].join("\0")
 			);

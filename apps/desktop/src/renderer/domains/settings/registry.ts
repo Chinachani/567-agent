@@ -15,7 +15,8 @@ export type SettingsTabLabelKey =
 	| "tabExtensions"
 	| "tabKnowledge"
 	| "tabPermissions"
-	| "tabRemote";
+	| "tabRemote"
+	| "tabSshHosts";
 
 export interface SettingsTabRegistration {
 	key: SettingsTab;
@@ -38,6 +39,7 @@ export interface SettingsSectionRegistration {
 }
 
 export const SETTINGS_TABS: readonly SettingsTabRegistration[] = [
+	{ key: "sshHosts", label: "SSH 主机", labelKey: "tabSshHosts", icon: "icon-[solar--server-linear]" },
 	{ key: "account", label: "账户", labelKey: "tabAccount", icon: "icon-[mdi--account-outline]", requireAuth: true },
 	{ key: "general", label: "通用设置", labelKey: "tabGeneral", icon: "icon-[mdi--cog-outline]" },
 	{
@@ -80,6 +82,7 @@ export const SETTINGS_TABS: readonly SettingsTabRegistration[] = [
 ] as const;
 
 export const SETTINGS_SECTIONS = [
+	{ tab: "sshHosts", id: "ssh-hosts-list", title: "主机列表", titleKey: "section_ssh-hosts-list" },
 	{ tab: "context", id: "agent-model-call-limit", title: "任务执行", titleKey: "modelCallLimit.title" },
 	{ tab: "general", id: "general-basics", title: "基础", titleKey: "section_general-basics" },
 	{ tab: "general", id: "general-app", title: "应用", titleKey: "section_general-app" },
@@ -102,6 +105,7 @@ export const SETTINGS_SECTIONS = [
 	{ tab: "models", id: "models-thinking", title: "思考模式", titleKey: "section_models-thinking" },
 	{ tab: "models", id: "models-api567", title: "567 API", titleKey: "modelSettings.sources.api567" },
 	{ tab: "models", id: "models-preset-providers", title: "预设服务商", titleKey: "section_models-preset-providers" },
+	{ tab: "models", id: "models-default", title: "默认模型", titleKey: "section_models-default" },
 	{ tab: "models", id: "models-providers", title: "服务商", titleKey: "section_models-providers" },
 	{ tab: "mcp", id: "mcp-remote-list", title: "远程 MCP", titleKey: "section_mcp-remote-list" },
 	{ tab: "mcp", id: "mcp-remote-available", title: "可添加的远程 MCP", titleKey: "section_mcp-remote-available" },
@@ -116,6 +120,7 @@ export const SETTINGS_SECTIONS = [
 	},
 	{ tab: "mcp", id: "mcp-json", title: "编辑 JSON", titleKey: "section_mcp-json" },
 	{ tab: "environment", id: "environment-runtime", title: "运行时", titleKey: "section_environment-runtime" },
+	{ tab: "environment", id: "environment-tools", title: "开发工具", titleKey: "section_environment-tools" },
 	{ tab: "environment", id: "environment-mirrors", title: "镜像源", titleKey: "section_environment-mirrors" },
 	{ tab: "permissions", id: "permissions-system", title: "系统权限", titleKey: "section_permissions-system" },
 	{ tab: "im", id: "imbridge-basics", title: "基础", titleKey: "section_imbridge-basics" },

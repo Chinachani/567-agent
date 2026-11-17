@@ -71,18 +71,18 @@ export function createHtmlToPdfTool(
 			}
 			if (signal.aborted) throw new Error("Operation aborted");
 			const trimmed = result.stdout.trim();
-			if (!trimmed) throw new Error("567 Agent returned empty stdout");
+			if (!trimmed) throw new Error("Vetta Desktop returned empty stdout");
 			const response: unknown = JSON.parse(trimmed);
 			if (!Value.Check(DesktopPdfResponseSchema, response)) {
-				throw new Error("567 Agent returned invalid JSON response");
+				throw new Error("Vetta Desktop returned invalid JSON response");
 			}
 			if (!response.ok) {
 				const message = response.error?.message ?? (result.stderr.trim() || "Unknown PDF generation error");
-				throw new Error(`567 Agent PDF generation failed: ${message}`);
+				throw new Error(`Vetta Desktop PDF generation failed: ${message}`);
 			}
-			if (!response.output) throw new Error("567 Agent did not return an output path");
+			if (!response.output) throw new Error("Vetta Desktop did not return an output path");
 			const staleNote = desktop.staleConfiguredPath
-				? `\nNote: configured agent567AppPath was stale and fallback path was used: ${desktop.staleConfiguredPath}`
+				? `\nNote: configured vettaAppPath was stale and fallback path was used: ${desktop.staleConfiguredPath}`
 				: "";
 			return {
 				content: [

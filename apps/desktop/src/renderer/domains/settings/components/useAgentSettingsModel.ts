@@ -1,6 +1,7 @@
 import type { PersonaOption } from "@preload/api.js";
+import { showToast } from "@shared/store/toast-atoms";
 import { useSearch } from "@tanstack/react-router";
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { SETTINGS_SECTION } from "../registry";
 import { recordSettingsUsage } from "./recordSettingsUsage";
@@ -34,7 +35,11 @@ function localizePersona(persona: PersonaOption, t: (key: PersonaI18nKey) => str
 
 export interface AgentSettingsModel {
 	actions: {
-		applyPersonalization: () => Promise<void>;
+		applyPersonalization: () => Promise<boolean>;
+		/** 放弃弹窗里未应用的草稿，回到已应用的自定义指令。 */
+		discardCustomPromptDraft: () => void;
+		/** 换人设：立即生效，只带上已应用的自定义指令，不把弹窗里没点应用的草稿一并写入。 */
+		selectPersona: (value: string) => Promise<void>;
 		setCustomPrompt: (value: string) => void;
 		setPersonaId: (value: string) => void;
 		toggleAgentSkills: (checked: boolean) => void;
@@ -66,8 +71,10 @@ interface AgentSettingsLabels {
 	appOpDescription: string;
 	applied: string;
 	apply: string;
+	cancel: string;
 	customInstructions: string;
 	customInstructionsDescription: string;
+	customInstructionsEdit: string;
 	customInstructionsPlaceholder: string;
 	defaultPersona: string;
 	inputPrediction: string;
@@ -95,6 +102,7 @@ export function useAgentSettingsModel(): AgentSettingsModel {
 	const [customPrompt, setCustomPrompt] = useState("");
 	const [applied, setApplied] = useState({ personaId: "default", customPrompt: "" });
 	const [saving, setSaving] = useState(false);
+	const savingRef = useRef(false);
 	const [justSaved, setJustSaved] = useState(false);
 	const [vettaCliEnabled, setVettaCliEnabled] = useState(true);
 	const [promptPredictionEnabled, setPromptPredictionEnabled] = useState(false);
@@ -132,31 +140,52 @@ export function useAgentSettingsModel(): AgentSettingsModel {
 		recordSettingsUsage({ tab: "agent", action: checked ? "enabled" : "disabled", target: "agent-skills" });
 	}, []);
 
-	const dirty = personaId !== applied.personaId || customPrompt !== applied.customPrompt;
+	const dirty = customPrompt !== applied.customPrompt;
 
 	const localizedPersonas = useMemo(() => personas.map((persona) => localizePersona(persona, t)), [personas, t]);
 	const selectedPersona = localizedPersonas.find((persona) => persona.id === personaId);
 
-	const applyPersonalization = useCallback(async () => {
-		setSaving(true);
-		const startedAt = performance.now();
-		try {
-			const next = { personaId, customPrompt };
-			await window.agent567.session.setPersonalization(next);
-			setApplied(next);
-			recordSettingsUsage({
-				tab: "agent",
-				action: "saved",
-				target: customPrompt.trim() ? "personalization-custom" : "personalization",
-			});
-			const elapsed = performance.now() - startedAt;
-			if (elapsed < 450) await new Promise((resolve) => setTimeout(resolve, 450 - elapsed));
-			setJustSaved(true);
-			setTimeout(() => setJustSaved(false), 1500);
-		} finally {
-			setSaving(false);
-		}
-	}, [customPrompt, personaId]);
+	const persist = useCallback(
+		async (next: { personaId: string; customPrompt: string }): Promise<boolean> => {
+			if (savingRef.current) return false;
+			savingRef.current = true;
+			setSaving(true);
+			try {
+				await window.agent567.session.setPersonalization(next);
+				setApplied(next);
+				setPersonaId(next.personaId);
+				recordSettingsUsage({
+					tab: "agent",
+					action: "saved",
+					target: next.customPrompt.trim() ? "personalization-custom" : "personalization",
+				});
+				setJustSaved(true);
+				setTimeout(() => setJustSaved(false), 1500);
+				return true;
+			} catch {
+				showToast({ variant: "error", message: t("modelSettingsFeedback.saveFailed") });
+				return false;
+			} finally {
+				savingRef.current = false;
+				setSaving(false);
+			}
+		},
+		[t],
+	);
+
+	const applyPersonalization = useCallback(
+		() => persist({ personaId, customPrompt }),
+		[customPrompt, personaId, persist],
+	);
+
+	const selectPersona = useCallback(
+		async (value: string) => {
+			await persist({ personaId: value, customPrompt: applied.customPrompt });
+		},
+		[applied.customPrompt, persist],
+	);
+
+	const discardCustomPromptDraft = useCallback(() => setCustomPrompt(applied.customPrompt), [applied.customPrompt]);
 
 	const labels = useMemo<AgentSettingsLabels>(
 		() => ({
@@ -169,8 +198,10 @@ export function useAgentSettingsModel(): AgentSettingsModel {
 			appOpDescription: t("agentSettings.appOpDesc"),
 			applied: t("agentSettings.applied"),
 			apply: t("agentSettings.apply"),
+			cancel: t("cancel"),
 			customInstructions: t("agentSettings.customInstructions"),
 			customInstructionsDescription: t("agentSettings.customInstructionsDesc"),
+			customInstructionsEdit: t("agentSettings.customInstructionsEdit"),
 			customInstructionsPlaceholder: t("agentSettings.customInstructionsPlaceholder"),
 			defaultPersona: t("agentSettings.default"),
 			inputPrediction: t("agentSettings.inputPrediction"),
@@ -190,6 +221,8 @@ export function useAgentSettingsModel(): AgentSettingsModel {
 		actions: {
 			setAdvancedOpen,
 			applyPersonalization,
+			discardCustomPromptDraft,
+			selectPersona,
 			setCustomPrompt,
 			setPersonaId,
 			toggleAgentSkills,

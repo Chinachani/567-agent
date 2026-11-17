@@ -6,7 +6,38 @@ import { AutomationPageView, TaskListView } from "@vetta-org/theme-ui/scheduler"
 import { BatchTasksPageView } from "@vetta-org/theme-ui/batch-tasks";
 import { SettingsSidebarView } from "@vetta-org/theme-ui/settings";
 
-afterEach(cleanup);
+const detail = vi.hoisted(() => ({ run: vi.fn(), toggle: vi.fn(), remove: vi.fn(), save: vi.fn() }));
+vi.mock("../../scheduler/hooks/useAutomationDetailModel", () => ({
+	useAutomationDetailModel: () => ({
+		mode: "edit",
+		taskId: "one",
+		tone: "active",
+		statusLabel: "Ready",
+		enabled: true,
+		running: false,
+		dirty: true,
+		canSubmit: true,
+		canOpenChat: false,
+		error: null,
+		onRunNow: detail.run,
+		onToggleEnabled: detail.toggle,
+		onDelete: detail.remove,
+		onSubmit: detail.save,
+		onDiscard: vi.fn(),
+		onChange: vi.fn(),
+	}),
+}));
+vi.mock("../../scheduler/components/SchedulerTaskFields", () => ({
+	SchedulerTaskFields: () => <p>Edit project review</p>,
+}));
+vi.mock("../../scheduler/components/ExecutionHistory", () => ({ ExecutionHistory: () => <p>Execution history</p> }));
+import { AutomationDetailPane } from "../../scheduler/components/AutomationDetailPane";
+import { i18n } from "@shared/i18n";
+
+afterEach(() => {
+	cleanup();
+	vi.clearAllMocks();
+});
 
 describe("workspace page actions after the layout redesign", () => {
 	it("lets users start from a template or create a task, then retains the populated list", async () => {
@@ -17,15 +48,17 @@ describe("workspace page actions after the layout redesign", () => {
 			labels: {
 				title: "Automation",
 				subtitle: "Work on a schedule",
-				newTask: "New task",
-				newTaskTitle: "Create a task",
+				create: "New task",
+				searchPlaceholder: "Search tasks",
 				recommendTitle: "Start from a template",
-				recommendUse: "Use template",
 			},
-			onNewTask,
-			taskList: <p>Saved task</p>,
-			historyDrawer: null,
-			taskFormDialog: null,
+			onCreate: onNewTask,
+			filters: [{ key: "all", label: "All" }],
+			activeFilter: "all",
+			onFilterChange: vi.fn(),
+			searchValue: "",
+			onSearchChange: vi.fn(),
+			list: <p>Saved task</p>,
 			recommendations: [
 				{
 					id: "review",
@@ -37,62 +70,54 @@ describe("workspace page actions after the layout redesign", () => {
 			],
 			onSelectRecommendation,
 		};
-		const view = render(<AutomationPageView {...props} hasTasks={false} />);
+		const view = render(<AutomationPageView {...props} />);
 		await user.click(screen.getByRole("button", { name: /Review project/ }));
 		expect(onSelectRecommendation).toHaveBeenCalledWith("review");
 		await user.click(screen.getByRole("button", { name: "New task" }));
 		expect(onNewTask).toHaveBeenCalledOnce();
-		view.rerender(<AutomationPageView {...props} hasTasks />);
+		view.rerender(<AutomationPageView {...props} recommendations={undefined} />);
 		expect(screen.getByText("Saved task")).toBeTruthy();
 		expect(screen.queryByText("Review project")).toBeNull();
 	});
 	it("keeps each task action separate from opening its history", async () => {
 		const user = userEvent.setup();
-		const onSelectTask = vi.fn(),
-			onRunTask = vi.fn(),
-			onEditTask = vi.fn(),
-			onToggleTask = vi.fn(),
-			onDeleteTask = vi.fn();
+		const onSelectTask = vi.fn();
 		render(
-			<TaskListView
-				items={[
-					{
-						id: "one",
-						name: "Project review",
-						prompt: "Review changes",
-						cron: "0 9 * * 1",
-						enabled: true,
-						executionModeLabel: "Ask first",
-						isOnce: false,
-						isRunning: false,
-						isSelected: false,
-						lastRunLabel: "Not run",
-						lastRunStatus: null,
-						scheduleLabel: "Monday 9:00",
-						statusLabel: "Ready",
-					},
-				]}
-				labels={{
-					delete: "Delete",
-					edit: "Edit",
-					enable: "Enable",
-					failed: "Failed",
-					once: "Once",
-					pause: "Pause",
-					runNow: "Run now",
-					success: "Success",
-				}}
-				{...{ onSelectTask, onRunTask, onEditTask, onToggleTask, onDeleteTask }}
-			/>,
+			<>
+				<TaskListView
+					items={[
+						{ id: "one", name: "Project review", subtitle: "Monday 9:00", tone: "active", isSelected: false },
+					]}
+					onSelectTask={onSelectTask}
+				/>
+				<AutomationDetailPane
+					pane={{
+						kind: "task",
+						task: {
+							id: "one",
+							name: "Project review",
+							prompt: "Review",
+							schedule: { kind: "daily", hour: 9, minute: 0 },
+							runTarget: { mode: "new-session", projectCwd: "/project" },
+							enabled: true,
+							createdAt: 1,
+							updatedAt: 1,
+							lastRunAt: null,
+							lastRunStatus: null,
+						},
+					}}
+					onClose={vi.fn()}
+					onCreated={vi.fn()}
+				/>
+			</>,
 		);
-		await user.click(screen.getByRole("button", { name: "Run now" }));
-		await user.click(screen.getByRole("button", { name: "Edit" }));
-		await user.click(screen.getByRole("button", { name: "Pause" }));
-		await user.click(screen.getByRole("button", { name: "Delete" }));
-		expect(onRunTask).toHaveBeenCalledWith("one");
-		expect(onEditTask).toHaveBeenCalledWith("one");
-		expect(onToggleTask).toHaveBeenCalledWith("one");
-		expect(onDeleteTask).toHaveBeenCalledWith("one");
+		await user.click(screen.getByRole("button", { name: i18n.t("automation:detail.runNow") }));
+		await user.click(screen.getByRole("button", { name: i18n.t("automation:detail.pause") }));
+		await user.click(screen.getByRole("button", { name: i18n.t("automation:detail.save") }));
+		await user.click(screen.getByRole("button", { name: i18n.t("automation:detail.more") }));
+		await user.click(screen.getByRole("menuitem", { name: i18n.t("automation:detail.delete") }));
+		for (const action of [detail.run, detail.toggle, detail.save, detail.remove])
+			expect(action).toHaveBeenCalledOnce();
 		expect(onSelectTask).not.toHaveBeenCalled();
 		await user.click(screen.getByText("Project review"));
 		expect(onSelectTask).toHaveBeenCalledWith("one");

@@ -1,9 +1,8 @@
 import type { ModelsConfigData } from "@preload/api";
 import { localModelsConfigAtom, remoteProvidersAtom } from "@shared/store/atoms";
 import { modelCatalog } from "@shared/store/model-catalog";
-import { selectableDefaultModelAtom } from "@shared/store/model-catalog-atoms";
 import { useAtomValue } from "jotai";
-import { useEffect, useMemo } from "react";
+import { useCallback, useEffect, useMemo } from "react";
 
 export interface ModelOption {
 	provider: string;
@@ -17,6 +16,12 @@ export interface ModelOption {
 	tags?: string[];
 	/** Whether this model supports image input */
 	supportsImage?: boolean;
+	/** 输入模态（text / image / …），模型详情里展示 */
+	inputModalities?: string[];
+	/** 上下文窗口（tokens） */
+	contextWindow?: number;
+	/** 最大输出（tokens） */
+	maxTokens?: number;
 	/** API type ("openai-completions" / "openai-responses" / ...), for reasoning preset fallback */
 	api?: string;
 	/** Whether the model is reasoning-capable */
@@ -32,6 +37,7 @@ export interface ModelOption {
 function flattenModels(config: ModelsConfigData, remote?: boolean): ModelOption[] {
 	const result: ModelOption[] = [];
 	for (const [provider, providerConfig] of Object.entries(config.providers)) {
+		// 用户停用的服务商：保留配置与密钥，但不再出现在任何模型选择里。
 		if (providerConfig.disabled) continue;
 		for (const model of providerConfig.models ?? []) {
 			const raw = model as Record<string, unknown>;
@@ -43,6 +49,9 @@ function flattenModels(config: ModelsConfigData, remote?: boolean): ModelOption[
 				remote,
 				tags: Array.isArray(raw.tags) ? (raw.tags as string[]) : undefined,
 				supportsImage: model.input?.includes("image") ?? false,
+				inputModalities: model.input?.length ? [...model.input] : undefined,
+				contextWindow: model.contextWindow,
+				maxTokens: model.maxTokens,
 				api: model.api ?? providerConfig.api,
 				reasoning: model.reasoning,
 				reasoningLevels: model.reasoningLevels,
@@ -79,7 +88,6 @@ export interface UseModelOptionsResult {
 export function useModelOptions(): UseModelOptionsResult {
 	const remoteProviders = useAtomValue(remoteProvidersAtom);
 	const config = useAtomValue(localModelsConfigAtom);
-	const defaultKey = useAtomValue(selectableDefaultModelAtom) ?? undefined;
 
 	// 挂载即校验一次；TTL 内命中缓存不会真的打接口，所以多个选择器同时挂载也只有一次请求。
 	useEffect(() => {
@@ -97,11 +105,8 @@ export function useModelOptions(): UseModelOptionsResult {
 
 	const options = useMemo(() => {
 		const localKeys = new Set(localModels.map((m) => m.key));
-		return [
-			...localModels,
-			...remoteModels.filter((m) => !localKeys.has(m.key) && !config?.providers[m.provider]?.disabled),
-		];
-	}, [localModels, remoteModels, config]);
+		return [...localModels, ...remoteModels.filter((m) => !localKeys.has(m.key))];
+	}, [localModels, remoteModels]);
 
 	const grouped = useMemo(() => {
 		const groups = new Map<string, ModelOption[]>();
@@ -113,26 +118,31 @@ export function useModelOptions(): UseModelOptionsResult {
 		return groups;
 	}, [options]);
 
-	const iconFor = (provider: string): string | undefined => {
-		const local = config?.providers[provider] as { icon?: string } | undefined;
-		const remote = (remoteProviders as Record<string, { icon?: string }>)[provider];
-		return local?.icon ?? remote?.icon;
-	};
+	const iconFor = useCallback(
+		(provider: string): string | undefined => {
+			const local = config?.providers[provider] as { icon?: string } | undefined;
+			const remote = (remoteProviders as Record<string, { icon?: string }>)[provider];
+			return local?.icon ?? remote?.icon;
+		},
+		[config, remoteProviders],
+	);
 
-	const labelFor = (provider: string): string => {
-		const local = config?.providers[provider] as { displayName?: string } | undefined;
-		const remote = (remoteProviders as Record<string, { displayName?: string }>)[provider];
-		if (local?.displayName) return local.displayName;
-		if (remote?.displayName) return remote.displayName;
-		if (provider === "vetta-go") return "567 Agent Go";
-		return provider;
-	};
+	const labelFor = useCallback(
+		(provider: string): string => {
+			const local = config?.providers[provider] as { displayName?: string } | undefined;
+			const remote = (remoteProviders as Record<string, { displayName?: string }>)[provider];
+			if (local?.displayName) return local.displayName;
+			if (remote?.displayName) return remote.displayName;
+			if (provider === "vetta-go") return "Vetta Go";
+			return provider;
+		},
+		[config, remoteProviders],
+	);
 
-	return {
-		options,
-		grouped,
-		defaultKey,
-		iconFor,
-		labelFor,
-	};
+	// 默认模型属于被停用的服务商时视为没有默认，否则选择器会自动选中一个已不可用的模型。
+	const defaultModel = config?.defaultModel;
+	const defaultKey =
+		defaultModel && config?.providers[defaultModel.split("/", 1)[0] ?? ""]?.disabled ? undefined : defaultModel;
+
+	return { options, grouped, defaultKey, iconFor, labelFor };
 }

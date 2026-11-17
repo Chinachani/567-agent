@@ -59,11 +59,7 @@ export function AgentCard({
 				title={marker ? (marker === "recruited" ? t("center.dismissAgent") : t("center.recruit")) : undefined}
 				className="flex w-full cursor-pointer items-start gap-3.5 p-4 text-left outline-none"
 			>
-				<AgentAvatarView
-					name={agent.name}
-					avatar={agentAvatarUrl(agent, blueprint)}
-					size="hero"
-				/>
+				<AgentAvatarView name={agent.name} avatar={agentAvatarUrl(agent, blueprint)} size="hero" />
 
 				<span className="flex min-w-0 flex-1 flex-col">
 					<span className="truncate text-[14px] font-semibold tracking-tight text-foreground">{agent.name}</span>
@@ -73,7 +69,9 @@ export function AgentCard({
 					{unavailable && (
 						<span className="mt-1.5 inline-flex w-fit items-center gap-1 rounded-full bg-muted px-2 py-0.5 text-[11px] text-muted-foreground">
 							<span className="icon-[solar--plug-circle-linear] h-3 w-3" aria-hidden="true" />
-							{t("library.pluginDisabled", { plugin: unavailable.pluginName })}
+							{unavailable.kind === "preset-unavailable"
+								? t("experts.unavailable")
+								: t("library.pluginDisabled", { plugin: unavailable.pluginName })}
 						</span>
 					)}
 					{pending && (
@@ -98,9 +96,7 @@ export function AgentCard({
 				>
 					<span
 						className={
-							marker === "recruited"
-								? "icon-[solar--close-linear] h-3.5 w-3.5"
-								: "icon-[solar--add-linear] h-3.5 w-3.5"
+							marker === "recruited" ? "icon-[solar--close-linear] h-3.5 w-3.5" : "icon-[solar--add-linear] h-3.5 w-3.5"
 						}
 					/>
 				</span>

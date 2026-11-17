@@ -5,14 +5,14 @@ import { useAtomValue } from "jotai";
 import { useTranslation } from "react-i18next";
 
 /** Reuses the mounted composer; opening a capability never rewrites the draft. */
-export function NewSessionQuickStart({ onOpenTeams }: { onOpenTeams: () => void }) {
+export function NewSessionQuickStart({ onOpenExperts }: { onOpenExperts: () => void }) {
 	const { t } = useTranslation("chat");
 	const commands = useAtomValue(activeComposerCommandsAtom);
 	const navigate = useNavigate();
 	return (
 		<NewSessionQuickStartView
 			items={[
-				{ label: t("newSession.quickStart.teams"), onSelect: onOpenTeams },
+				{ label: t("newSession.quickStart.experts"), onSelect: onOpenExperts },
 				{
 					label: t("newSession.quickStart.commands"),
 					disabled: !commands?.openCommands,

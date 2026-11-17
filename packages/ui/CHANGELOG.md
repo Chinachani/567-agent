@@ -2,6 +2,13 @@
 
 All notable changes to `@vetta-org/ui` are documented in this file.
 
+## [Unreleased]
+
+### Added
+
+- 导出 `ButtonGroup`、`ButtonGroupItem` 及分组状态，用于组合操作按钮。
+- 导出 `SessionTopGroup`、`SessionTopItem` 及对应类型，用于会话顶栏的共享动作布局。
+
 ## [0.1.0] — 2026-09-14
 
 首次发布到 npm。此前它只作为 workspace 包在仓库内被引用，但官方能力市场里的 feishu 与 shimo

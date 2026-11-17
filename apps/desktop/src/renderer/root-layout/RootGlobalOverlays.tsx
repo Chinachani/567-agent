@@ -1,3 +1,4 @@
+import { SshPromptDialog } from "../shared/components/SshPromptDialog";
 import { useEffect } from "react";
 import { useSetAtom } from "jotai";
 import { FilePreviewDialog } from "../domains/file-preview/components/FilePreviewDialog";
@@ -27,9 +28,10 @@ import { useThemeComponent } from "@vetta-org/theme-sdk";
 export function RootGlobalOverlays(): JSX.Element {
 	const setFilePreview = useSetAtom(filePreviewAtom);
 	useEffect(
-		() => window.agent567.appLifecycle.onDesignShareOpen(({ filePath }) => {
-			setFilePreview({ name: filePath.split(/[\\/]/).at(-1) ?? "design.567design", path: filePath });
-		}),
+		() =>
+			window.agent567.appLifecycle.onDesignShareOpen(({ filePath }) => {
+				setFilePreview({ name: filePath.split(/[\\/]/).at(-1) ?? "design.567design", path: filePath });
+			}),
 		[setFilePreview],
 	);
 	const ThemedConfirmDialog = useThemeComponent("root.confirmDialog", ConfirmDialog);
@@ -39,7 +41,10 @@ export function RootGlobalOverlays(): JSX.Element {
 	const ThemedAppearancePickerApproval = useThemeComponent("root.approval.appearancePicker", AppearancePickerApproval);
 	const ThemedThemeChangeApproval = useThemeComponent("root.approval.themeChange", ThemeChangeApproval);
 	const ThemedNavigationOpenApproval = useThemeComponent("root.approval.navigationOpen", NavigationOpenApproval);
-	const ThemedBatchTasksProjectApproval = useThemeComponent("root.approval.batchTasksProject", BatchTasksProjectApproval);
+	const ThemedBatchTasksProjectApproval = useThemeComponent(
+		"root.approval.batchTasksProject",
+		BatchTasksProjectApproval,
+	);
 	const ThemedBatchTasksTaskApproval = useThemeComponent("root.approval.batchTasksTask", BatchTasksTaskApproval);
 	const ThemedBatchTasksExecutionApproval = useThemeComponent(
 		"root.approval.batchTasksExecution",
@@ -49,7 +54,10 @@ export function RootGlobalOverlays(): JSX.Element {
 	const ThemedSchedulerUpdateApproval = useThemeComponent("root.approval.schedulerUpdate", SchedulerUpdateApproval);
 	const ThemedSchedulerDeleteApproval = useThemeComponent("root.approval.schedulerDelete", SchedulerDeleteApproval);
 	const ThemedSchedulerToggleApproval = useThemeComponent("root.approval.schedulerToggle", SchedulerToggleApproval);
-	const ThemedSchedulerExecutionApproval = useThemeComponent("root.approval.schedulerExecution", SchedulerExecutionApproval);
+	const ThemedSchedulerExecutionApproval = useThemeComponent(
+		"root.approval.schedulerExecution",
+		SchedulerExecutionApproval,
+	);
 	const ThemedKnowledgeDropOverlay = useThemeComponent("root.knowledgeDropOverlay", KnowledgeDropOverlay);
 	const ThemedToaster = useThemeComponent("root.toaster", Toaster);
 
@@ -58,6 +66,7 @@ export function RootGlobalOverlays(): JSX.Element {
 			<ThemedConfirmDialog />
 			<ThemedFilePreviewDialog />
 			<ThemedUpdateRestartDialog />
+			<SshPromptDialog />
 			<ActionApprovalCenter />
 			<ThemedGenericActionApproval />
 			<DomainManageApprovals />

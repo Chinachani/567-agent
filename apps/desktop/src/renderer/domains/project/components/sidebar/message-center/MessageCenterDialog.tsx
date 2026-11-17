@@ -45,7 +45,7 @@ export function MessageCenterDialog({
 					onSelect={onSelectTab}
 				/>
 			}
-			content={<MessageCenterContent activeTab={activeTab} notifUnread={notifUnread} />}
+			content={<MessageCenterContent onClose={onClose} activeTab={activeTab} notifUnread={notifUnread} />}
 		/>
 	);
 }

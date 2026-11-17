@@ -28,12 +28,15 @@ export async function resolveSessionAgentProfile(input: {
 	if (!profile) return undefined;
 	const blueprint = resolveAgentBlueprint(profile.blueprintId);
 	const systemPrompt = profile.systemPrompt ?? blueprint?.systemPrompt;
-	if (!systemPrompt) return undefined;
+	if (systemPrompt === undefined) return undefined;
 	return {
 		agentProfileId: profile.id,
 		agentConfiguration: {
 			template: null,
-			overrides: toAgentConfigurationOverrides(profile.abilities, pinnedAbilityContext(blueprint)),
+			overrides: toAgentConfigurationOverrides(
+				profile.abilities,
+				pinnedAbilityContext(profile.copiedFrom ? undefined : blueprint),
+			),
 		},
 		systemPromptVolatileAddon: systemPrompt,
 	};

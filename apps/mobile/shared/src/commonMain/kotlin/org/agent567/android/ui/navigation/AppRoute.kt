@@ -26,6 +26,9 @@ sealed class AppRoute {
     /** 带底部导航的主壳 */
     data class Main(val tab: MainTab = MainTab.Home) : AppRoute()
 
+    /** 聚合桌面任务、待确认事项和连接状态的跟进页。 */
+    data object TaskCenter : AppRoute()
+
     data class DeviceDetail(val deviceId: String) : AppRoute()
 
     data class DeviceCapabilities(val deviceId: String) : AppRoute()

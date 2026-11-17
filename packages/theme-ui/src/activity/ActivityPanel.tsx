@@ -1,4 +1,4 @@
-import { cn } from "@vetta-org/ui";
+import { cn, OVERLAY_BACKDROP_CLASS } from "@vetta-org/ui/utils";
 import { AnimatePresence, motion } from "motion/react";
 import {
 	createContext,
@@ -67,10 +67,7 @@ export function ActivityPanelRoot({
 	const resize = useCallback(
 		(delta: number): void => {
 			const bounds = resizeBoundsRef.current;
-			const nextWidth = Math.min(
-				bounds.maxWidth,
-				Math.max(bounds.minWidth, liveWidthRef.current + delta),
-			);
+			const nextWidth = Math.min(bounds.maxWidth, Math.max(bounds.minWidth, liveWidthRef.current + delta));
 			if (nextWidth === liveWidthRef.current) return;
 			liveWidthRef.current = nextWidth;
 			setLiveWidth(nextWidth);
@@ -108,99 +105,81 @@ export interface ActivityPanelDesktopProps extends ComponentPropsWithoutRef<"asi
 }
 
 /** Desktop width boundary. Callers explicitly compose Surface and ResizeHandle inside it. */
-export const ActivityPanelDesktop = forwardRef<HTMLElement, ActivityPanelDesktopProps>(
-	function ActivityPanelDesktop(
-		{ present = true, className, children, style, ...props },
-		forwardedRef,
-	) {
-		const { displayedWidth, isOpen, isResizing } = useActivityPanelContext("Desktop");
-		if (!present) return null;
-		return (
-			<aside
-				ref={forwardedRef}
-				className={cn(
-					"relative flex h-full min-h-0 shrink-0 flex-col overflow-visible",
-					className,
-				)}
-				style={{
-					...style,
-					width: isOpen ? displayedWidth : 0,
-					transition: isResizing ? "none" : "width 0.2s ease-in-out",
-				}}
-				{...props}
-			>
-				{children}
-			</aside>
-		);
-	},
-);
+export const ActivityPanelDesktop = forwardRef<HTMLElement, ActivityPanelDesktopProps>(function ActivityPanelDesktop(
+	{ present = true, className, children, style, ...props },
+	forwardedRef,
+) {
+	const { displayedWidth, isOpen, isResizing } = useActivityPanelContext("Desktop");
+	if (!present) return null;
+	return (
+		<aside
+			ref={forwardedRef}
+			className={cn("relative flex h-full min-h-0 shrink-0 flex-col overflow-visible", className)}
+			style={{
+				...style,
+				width: isOpen ? displayedWidth : 0,
+				transition: isResizing ? "none" : "width 0.2s ease-in-out",
+			}}
+			{...props}
+		>
+			{children}
+		</aside>
+	);
+});
 
 export interface ActivityPanelSurfaceProps extends ComponentPropsWithoutRef<"div"> {}
 
 /** Visual content surface whose mount lifetime is independent from open/closed state. */
-export const ActivityPanelSurface = forwardRef<HTMLDivElement, ActivityPanelSurfaceProps>(
-	function ActivityPanelSurface({ className, children, style, ...props }, forwardedRef) {
-		const { displayedWidth, isOpen } = useActivityPanelContext("Surface");
-		return (
-			<div
-				ref={forwardedRef}
-				aria-hidden={!isOpen}
-				className={cn(
-					"flex h-full min-h-0 flex-col transition-opacity duration-150",
-					isOpen ? "opacity-100" : "pointer-events-none opacity-0",
-					className,
-				)}
-				style={{ ...style, width: displayedWidth }}
-				{...props}
-			>
-				{children}
-			</div>
-		);
-	},
-);
+export const ActivityPanelSurface = forwardRef<HTMLDivElement, ActivityPanelSurfaceProps>(function ActivityPanelSurface(
+	{ className, children, style, ...props },
+	forwardedRef,
+) {
+	const { displayedWidth, isOpen } = useActivityPanelContext("Surface");
+	return (
+		<div
+			ref={forwardedRef}
+			aria-hidden={!isOpen}
+			className={cn(
+				"flex h-full min-h-0 flex-col transition-opacity duration-150",
+				isOpen ? "opacity-100" : "pointer-events-none opacity-0",
+				className,
+			)}
+			style={{ ...style, width: displayedWidth }}
+			{...props}
+		>
+			{children}
+		</div>
+	);
+});
 
 export interface ActivityPanelHeaderProps extends ComponentPropsWithoutRef<"div"> {}
 
-export const ActivityPanelHeader = forwardRef<HTMLDivElement, ActivityPanelHeaderProps>(
-	function ActivityPanelHeader({ className, ...props }, forwardedRef) {
-		return (
-			<div
-				ref={forwardedRef}
-				className={cn(
-					"group/activity-tabs relative z-20 flex shrink-0 items-end pt-1",
-					className,
-				)}
-				{...props}
-			/>
-		);
-	},
-);
+export const ActivityPanelHeader = forwardRef<HTMLDivElement, ActivityPanelHeaderProps>(function ActivityPanelHeader(
+	{ className, ...props },
+	forwardedRef,
+) {
+	return (
+		<div
+			ref={forwardedRef}
+			className={cn("group/activity-tabs relative z-20 flex shrink-0 items-end pt-1", className)}
+			{...props}
+		/>
+	);
+});
 
 export interface ActivityPanelBodyProps extends ComponentPropsWithoutRef<"div"> {}
 
-export const ActivityPanelBody = forwardRef<HTMLDivElement, ActivityPanelBodyProps>(
-	function ActivityPanelBody({ className, ...props }, forwardedRef) {
-		return (
-			<div
-				ref={forwardedRef}
-				className={cn("flex min-h-0 flex-1 flex-col", className)}
-				{...props}
-			/>
-		);
-	},
-);
+export const ActivityPanelBody = forwardRef<HTMLDivElement, ActivityPanelBodyProps>(function ActivityPanelBody(
+	{ className, ...props },
+	forwardedRef,
+) {
+	return <div ref={forwardedRef} className={cn("flex min-h-0 flex-1 flex-col", className)} {...props} />;
+});
 
 export function ActivityPanelResizeHandle(): JSX.Element | null {
 	const { isOpen, resize, resizeEnd, resizeStart } = useActivityPanelContext("ResizeHandle");
 	if (!isOpen) return null;
-	return (
-		<ResizeHandle
-			side="left"
-			onResizeStart={resizeStart}
-			onResize={resize}
-			onResizeEnd={resizeEnd}
-		/>
-	);
+	return <ResizeHandle side="left" onResizeStart={resizeStart} onResize={resize} onResizeEnd={resizeEnd} />;
 }
 
 export interface ActivityPanelSheetProps extends ComponentPropsWithoutRef<typeof motion.div> {
@@ -229,7 +208,7 @@ export function ActivityPanelSheet({
 						exit={{ opacity: 0 }}
 						transition={{ duration: 0.2 }}
 						onClick={close}
-						className={cn("fixed inset-0 z-40 bg-black/25", backdropClassName)}
+						className={cn("fixed inset-0 z-40", OVERLAY_BACKDROP_CLASS, backdropClassName)}
 					/>
 					<motion.div
 						key="activity-sheet"

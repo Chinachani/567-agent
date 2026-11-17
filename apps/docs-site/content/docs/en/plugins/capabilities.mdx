@@ -78,3 +78,7 @@ Built-in and external plugins follow different approval policies: system plugins
 <Callout title="A plugin is not a security sandbox" type="warn">
   A shared renderer realm means the plugin's source is itself the security boundary. Install trusted sources only, review build output and updates, and grant the smallest capability set.
 </Callout>
+
+## 567 Agent 1.6 extensions
+
+Plugins can contribute session header actions, addable bottom panels, authorized terminal commands and file icon themes. Registration does not open panels or select a theme for the user. Commands and file access retain separate permissions. The host ModelPicker allows model selection; calling a model still requires AI permission. Automations preserve existing session permissions without automatic escalation. The SDK's `docs/plugin/` manual is the API reference.

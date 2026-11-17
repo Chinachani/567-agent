@@ -2,7 +2,7 @@
  * 能力页统一模型：数据源（useAbilityData）+ 操作层（useAbilityActions）+ 搜索过滤。
  * 五种 type 共用同一份条目集合，列表页与详情页都从这里取。
  */
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import {
 	discoveryRecordMatches,
@@ -140,35 +140,43 @@ export function useAbilitiesModel(options: UseAbilitiesModelOptions = {}): Abili
 		[data.market, i18n.language],
 	);
 
-	const allItems = useMemo<AbilityItem[]>(() => {
+	// Catalog assembly does not depend on frequently changing download progress.
+	const baseItems = useMemo<AbilityItem[]>(() => {
 		const singles = [
 			...buildSkillAbilities(market, localState),
 			...buildMcpAbilities([...market, ...discoveryMarket], localState, t),
 			...buildPluginAbilities(market, localState, trPlugin),
-		]
-			.map((item) => withLocalAbilityPresentation(item, data.localPresentations))
-			.map((item) => ({
-				...item,
-				operation: actions.operationById.get(item.id),
-				operationProgress: actions.operationProgressById.get(item.id),
-			}));
-		return decorateAbilityConflicts([...singles, ...buildBundleAbilities(market, singles, localState, t)]).map(
-			(item) => ({
-				...item,
-				operation: actions.operationById.get(item.id),
-				operationProgress: actions.operationProgressById.get(item.id),
-			}),
-		);
-	}, [
-		market,
-		discoveryMarket,
-		localState,
-		t,
-		trPlugin,
-		data.localPresentations,
-		actions.operationById,
-		actions.operationProgressById,
-	]);
+		].map((item) => withLocalAbilityPresentation(item, data.localPresentations));
+		return decorateAbilityConflicts([...singles, ...buildBundleAbilities(market, singles, localState, t)]);
+	}, [market, discoveryMarket, localState, t, trPlugin, data.localPresentations]);
+
+	const overlayCache = useRef(new Map<AbilityItem, AbilityItem>());
+	const allItems = useMemo<AbilityItem[]>(() => {
+		const previous = overlayCache.current;
+		const next = new Map<AbilityItem, AbilityItem>();
+		const overlay = (base: AbilityItem): AbilityItem => {
+			const existing = next.get(base);
+			if (existing) return existing;
+			const operation = actions.operationById.get(base.id);
+			const progress = actions.operationProgressById.get(base.id);
+			const members = base.type === "bundle" ? base.memberItems.map(overlay) : undefined;
+			const cached = previous.get(base);
+			const unchangedMembers =
+				!members ||
+				(cached?.type === "bundle" && members.every((member, index) => cached.memberItems[index] === member));
+			const item =
+				cached && cached.operation === operation && cached.operationProgress === progress && unchangedMembers
+					? cached
+					: base.type === "bundle"
+						? { ...base, operation, operationProgress: progress, memberItems: members ?? [] }
+						: { ...base, operation, operationProgress: progress };
+			next.set(base, item);
+			return item;
+		};
+		const result = baseItems.map(overlay);
+		overlayCache.current = next;
+		return result;
+	}, [baseItems, actions.operationById, actions.operationProgressById]);
 
 	const changeScope = useCallback((nextScope: AbilityScope) => {
 		setScope(nextScope);

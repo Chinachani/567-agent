@@ -1,6 +1,7 @@
 import { existsSync, readFileSync, statSync } from "node:fs";
 import { isAbsolute, relative, resolve, sep } from "node:path";
 import AdmZip from "adm-zip";
+import { readExpertPresetPackage } from "./expert-preset-package.js";
 import type { MarketplaceAbilityManifest } from "./marketplace-schema.js";
 import { normalizeMarketplaceSourcePath } from "./marketplace-schema.js";
 
@@ -11,6 +12,11 @@ export interface OpenMarketplacePluginConfig {
 	api_version: string;
 	permissions: string[];
 	commands: string[];
+}
+
+export interface ValidateOpenMarketplacePluginOptions {
+	/** Source-only expert repositories may publish prompts before a plugin bundle. */
+	readonly allowSourceOnlyAgent?: boolean;
 }
 
 function requireString(value: unknown, field: string): string {
@@ -45,6 +51,7 @@ function resolvePackageFile(sourceDir: string, path: string, field: string): str
 export function validateOpenMarketplacePlugin(
 	sourceDir: string,
 	ability: PluginAbilityManifest,
+	options: ValidateOpenMarketplacePluginOptions = {},
 ): OpenMarketplacePluginConfig {
 	if (!existsSync(sourceDir) || !statSync(sourceDir).isDirectory()) {
 		throw new Error(`Open marketplace plugin directory is missing: ${ability.source.path}`);
@@ -63,7 +70,11 @@ export function validateOpenMarketplacePlugin(
 	}
 	requireString(manifest.name, "name");
 	const apiVersion = requireString(manifest.pluginApiVersion, "pluginApiVersion");
-	resolvePackageFile(sourceDir, requireString(manifest.entry, "entry"), "entry");
+	const entry = requireString(manifest.entry, "entry");
+	if (options.allowSourceOnlyAgent) {
+		// Parsing validates even an unbuilt entry's relative path; no entry is ever executed here.
+		readExpertPresetPackage(sourceDir, ability, { sourceId: "validation", repository: "" });
+	} else resolvePackageFile(sourceDir, entry, "entry");
 	for (const style of stringArray(manifest.styles, "styles")) resolvePackageFile(sourceDir, style, "style");
 	return {
 		api_version: apiVersion,

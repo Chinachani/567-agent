@@ -1,22 +1,14 @@
 import { randomUUID } from "node:crypto";
-import type {
-	CreateTeamSessionRecordOptions,
-	TeamSessionDocument,
-	TeamSessionReference,
-	TeamSessionSnapshot,
-} from "@567agent/agent-team";
+import type { TeamSessionDocument, TeamSessionReference, TeamSessionSnapshot } from "@567agent/agent-team";
 import {
 	parseCreateAgentProfileInput,
-	parseCreateTeamInput,
 	parseDeleteAgentProfileInput,
 	parseDeleteTeamInput,
-	parseSendTeamMessageInput,
 	parseUpdateAgentProfileInput,
-	parseUpdateTeamInput,
 	parseUpdateTeamSessionModelSettingsInput,
 } from "@567agent/agent-team";
 import type { SessionExecutionMode } from "@567agent/runtime-core";
-import { dialog, ipcMain, webContents } from "electron";
+import { dialog, type IpcMainInvokeEvent, ipcMain, type WebContents, webContents } from "electron";
 import type {
 	DesktopTeamConversationDisplay,
 	DesktopTeamSessionSnapshot,
@@ -24,20 +16,28 @@ import type {
 } from "../../preload/api-types/team-conversation-display.js";
 import { storeAgentAvatarFile } from "../agent-teams/agent-avatar-store.js";
 import { agentTeamStore } from "../agent-teams/agent-team-store.js";
-import { initPluginAgentPresetSync } from "../agent-teams/plugin-agent-preset-sync.js";
+import {
+	getExpertPresetSourceStatus,
+	initPluginAgentPresetSync,
+	onExpertPresetSourceChanged,
+	refreshMarketplaceAgentPresets,
+} from "../agent-teams/plugin-agent-preset-sync.js";
 import {
 	parseTeamMemberModelSelection,
 	teamMemberModelPreferences,
 } from "../agent-teams/team-member-model-preferences.js";
 import { agentTeamSessionService } from "../agent-teams/team-session-service.js";
-import { resolveTeamSessionWorkspace } from "../agent-teams/team-workspace.js";
 import { listTeamSidebarConversations } from "../conversations/team-sidebar-conversation-projection.js";
+import { mainT } from "../i18n/index.js";
 import { getAppLogger } from "../logger.js";
+import { assertTrustedMainRenderer } from "./trusted-renderer.js";
 
 const log = getAppLogger("agent-teams-ipc");
 
 const CHANNELS = {
 	LIST: "vetta:agent-teams:list",
+	PRESET_STATUS: "vetta:agent-teams:preset-source-status",
+	PRESET_REFRESH: "vetta:agent-teams:refresh-preset-source",
 	BLUEPRINTS: "vetta:agent-teams:list-blueprints",
 	CREATE_AGENT: "vetta:agent-teams:create-agent",
 	UPDATE_AGENT: "vetta:agent-teams:update-agent",
@@ -116,7 +116,7 @@ export interface AgentTeamsIpcDependencies {
 		| "setExecutionMode"
 		| "renameSession"
 		| "deleteSession"
-		| "readSnapshot"
+		| "readArchiveSnapshot"
 		| "send"
 		| "snapshot"
 		| "subscribe"
@@ -158,9 +158,19 @@ async function enrichTeamEvent(
 }
 
 export function registerAgentTeamsIpc(
+	owner: WebContents,
 	dependencies: AgentTeamsIpcDependencies = { store: agentTeamStore, sessions: agentTeamSessionService },
 ): () => void {
 	const { store, sessions } = dependencies;
+	const handle = (channel: string, listener: (event: IpcMainInvokeEvent, ...args: unknown[]) => unknown): void => {
+		ipcMain.handle(channel, (event, ...args: unknown[]) => {
+			assertTrustedMainRenderer(event, owner);
+			return listener(event, ...args);
+		});
+	};
+	const retired = (): never => {
+		throw new Error(mainT("agentTeamsRetired"));
+	};
 	const memberModels = dependencies.memberModels ?? teamMemberModelPreferences;
 	// 必须先于任何一次读配置：回填要按当前可用的插件 blueprint 决定铺哪些档案。
 	initPluginAgentPresetSync();
@@ -180,9 +190,21 @@ export function registerAgentTeamsIpc(
 			}
 		}
 	});
-	ipcMain.handle(CHANNELS.LIST, () => store.read());
+	handle(CHANNELS.LIST, () => store.read());
+	handle(CHANNELS.PRESET_STATUS, () => getExpertPresetSourceStatus());
+	handle(CHANNELS.PRESET_REFRESH, () => refreshMarketplaceAgentPresets());
+	const unsubscribePresetStatus = onExpertPresetSourceChanged(() => {
+		for (const contents of webContents.getAllWebContents()) {
+			if (contents.isDestroyed()) continue;
+			try {
+				contents.send("vetta:agent-teams:preset-source-changed");
+			} catch {
+				/* frame closed */
+			}
+		}
+	});
 	// 让用户挑一张本地图片当头像：主进程复制进头像目录，只把渲染进程能加载的 URL 交回去。
-	ipcMain.handle(CHANNELS.UPLOAD_AVATAR, async () => {
+	handle(CHANNELS.UPLOAD_AVATAR, async () => {
 		const result = await dialog.showOpenDialog({
 			properties: ["openFile"],
 			filters: [{ name: "Images", extensions: ["png", "jpg", "jpeg", "webp", "gif"] }],
@@ -192,91 +214,54 @@ export function registerAgentTeamsIpc(
 		const stored = await storeAgentAvatarFile(source);
 		return stored.url;
 	});
-	ipcMain.handle(CHANNELS.BLUEPRINTS, () => store.listBlueprints());
-	ipcMain.handle(CHANNELS.CREATE_AGENT, (_event, input: unknown) =>
-		store.createAgent(parseCreateAgentProfileInput(input)),
-	);
-	ipcMain.handle(CHANNELS.UPDATE_AGENT, (_event, agentProfileId: unknown, input: unknown) =>
+	handle(CHANNELS.BLUEPRINTS, () => store.listBlueprints());
+	handle(CHANNELS.CREATE_AGENT, (_event, input: unknown) => store.createAgent(parseCreateAgentProfileInput(input)));
+	handle(CHANNELS.UPDATE_AGENT, (_event, agentProfileId: unknown, input: unknown) =>
 		store.updateAgent(requiredString(agentProfileId, "agentProfileId"), parseUpdateAgentProfileInput(input)),
 	);
-	ipcMain.handle(CHANNELS.DELETE_AGENT, (_event, agentProfileId: unknown, input: unknown) =>
+	handle(CHANNELS.DELETE_AGENT, (_event, agentProfileId: unknown, input: unknown) =>
 		store.deleteAgent(requiredString(agentProfileId, "agentProfileId"), parseDeleteAgentProfileInput(input)),
 	);
-	ipcMain.handle(CHANNELS.PREVIEW_AGENT, (_event, agentProfileId: unknown) =>
+	handle(CHANNELS.PREVIEW_AGENT, (_event, agentProfileId: unknown) =>
 		store.previewAgentUpdate(requiredString(agentProfileId, "agentProfileId")),
 	);
-	ipcMain.handle(CHANNELS.PREVIEW_AGENT_DELETE, (_event, agentProfileId: unknown) =>
+	handle(CHANNELS.PREVIEW_AGENT_DELETE, (_event, agentProfileId: unknown) =>
 		store.previewAgentDelete(requiredString(agentProfileId, "agentProfileId")),
 	);
-	ipcMain.handle(CHANNELS.CREATE_TEAM, (_event, input: unknown) => store.createTeam(parseCreateTeamInput(input)));
-	ipcMain.handle(CHANNELS.UPDATE_TEAM, (_event, teamId: unknown, input: unknown) =>
-		store.updateTeam(requiredString(teamId, "teamId"), parseUpdateTeamInput(input)),
-	);
-	ipcMain.handle(CHANNELS.DELETE_TEAM, (_event, teamId: unknown, input: unknown) =>
+	handle(CHANNELS.CREATE_TEAM, retired);
+	handle(CHANNELS.UPDATE_TEAM, retired);
+	handle(CHANNELS.DELETE_TEAM, (_event, teamId: unknown, input: unknown) =>
 		store.deleteTeam(requiredString(teamId, "teamId"), parseDeleteTeamInput(input)),
 	);
-	ipcMain.handle(CHANNELS.LIST_MEMBER_MODELS, async (_event, teamId: unknown) => {
+	handle(CHANNELS.LIST_MEMBER_MODELS, async (_event, teamId: unknown) => {
 		const id = requiredString(teamId, "teamId");
 		const team = (await store.read()).teams.find((candidate) => candidate.id === id);
 		if (!team) throw new Error("Team not found");
 		return memberModels.list(team);
 	});
-	ipcMain.handle(CHANNELS.SET_MEMBER_MODEL, async (_event, teamId: unknown, memberId: unknown, value: unknown) => {
+	handle(CHANNELS.SET_MEMBER_MODEL, async (_event, teamId: unknown, memberId: unknown, value: unknown) => {
 		const id = requiredString(teamId, "teamId");
 		const team = (await store.read()).teams.find((candidate) => candidate.id === id);
 		if (!team) throw new Error("Team not found");
 		return memberModels.set(team, requiredString(memberId, "memberId"), parseTeamMemberModelSelection(value));
 	});
-	ipcMain.handle(CHANNELS.CREATE_SESSION, async (_event, teamId: unknown) => {
-		const document = await store.read();
-		const parsedTeamId = requiredString(teamId, "teamId");
-		const team = document.teams.find((candidate) => candidate.id === parsedTeamId);
-		if (!team) throw new Error("Team not found");
-		const sessionId = randomUUID();
-		const workspace = await resolveTeamSessionWorkspace(parsedTeamId, sessionId);
-		return await withDisplayProjection(
-			sessions.snapshot(await sessions.create(team, document, workspace, { sessionId })),
-			displayProjection,
-		);
-	});
-	ipcMain.handle(CHANNELS.CREATE_SESSION_RECORD, async (_event, teamId: unknown, options: unknown) => {
-		const document = await store.read();
-		const parsedTeamId = requiredString(teamId, "teamId");
-		const team = document.teams.find((candidate) => candidate.id === parsedTeamId);
-		if (!team) throw new Error("Team not found");
-		const parsedOptions = parseCreateSessionRecordOptions(options);
-		const sessionId = parsedOptions?.sessionId ?? randomUUID();
-		const workspace = await resolveTeamSessionWorkspace(parsedTeamId, sessionId, parsedOptions?.workspace);
-		const sessionOptions = {
-			sessionId,
-			...(parsedOptions?.executionMode ? { executionMode: parsedOptions.executionMode } : {}),
-		};
-		return await withDisplayProjection(
-			sessions.snapshot(
-				await (sessions.createRecord
-					? sessions.createRecord(team, document, workspace, sessionOptions)
-					: sessions.create(team, document, workspace, sessionOptions)),
-			),
-			displayProjection,
-		);
-	});
-	ipcMain.handle(CHANNELS.LIST_SESSIONS, (_event, teamId: unknown) =>
-		sessions.listSessions(requiredString(teamId, "teamId")),
-	);
-	ipcMain.handle(CHANNELS.LIST_SIDEBAR_CONVERSATIONS, () =>
+	handle(CHANNELS.CREATE_SESSION, retired);
+	handle(CHANNELS.CREATE_SESSION_RECORD, retired);
+	handle(CHANNELS.LIST_SESSIONS, (_event, teamId: unknown) => sessions.listSessions(requiredString(teamId, "teamId")));
+	handle(CHANNELS.LIST_SIDEBAR_CONVERSATIONS, () =>
 		(dependencies.listSidebarConversations ?? listTeamSidebarConversations)(),
 	);
-	ipcMain.handle(CHANNELS.RENAME_SESSION, async (_event, reference: unknown, name: unknown) => {
+	handle(CHANNELS.RENAME_SESSION, async (_event, reference: unknown, name: unknown) => {
 		if (typeof name !== "string" || name.trim().length === 0) throw new Error("name must be a non-empty string");
 		return await withDisplayProjection(
 			sessions.snapshot(await sessions.renameSession(teamSessionMutationReference(reference), name)),
 			displayProjection,
 		);
 	});
-	ipcMain.handle(CHANNELS.DELETE_SESSION, async (_event, reference: unknown) => {
+	handle(CHANNELS.DELETE_SESSION, async (_event, reference: unknown) => {
 		return await sessions.deleteSession(teamSessionMutationReference(reference));
 	});
-	ipcMain.handle(
+	handle(
 		CHANNELS.UPDATE_MODEL_SETTINGS,
 		async (_event, id: unknown, input: unknown) =>
 			await withDisplayProjection(
@@ -289,7 +274,7 @@ export function registerAgentTeamsIpc(
 				displayProjection,
 			),
 	);
-	ipcMain.handle(CHANNELS.SET_EXECUTION_MODE, async (_event, id: unknown, mode: unknown) => {
+	handle(CHANNELS.SET_EXECUTION_MODE, async (_event, id: unknown, mode: unknown) => {
 		if (mode !== "sandbox" && mode !== "full-access") throw new Error("Invalid executionMode");
 		return await withDisplayProjection(
 			sessions.snapshot(
@@ -298,7 +283,7 @@ export function registerAgentTeamsIpc(
 			displayProjection,
 		);
 	});
-	ipcMain.handle(CHANNELS.GET_SESSION, async (_event, value: unknown) => {
+	handle(CHANNELS.GET_SESSION, async (_event, value: unknown) => {
 		const reference = teamSessionReference(value);
 		const startedAt = Date.now();
 		log.info("team get-session started", {
@@ -306,7 +291,7 @@ export function registerAgentTeamsIpc(
 			hasCoordinationSessionPath: Boolean(reference.coordinationSessionPath),
 		});
 		try {
-			const snapshot = await sessions.readSnapshot(reference.id, reference.coordinationSessionPath);
+			const snapshot = await sessions.readArchiveSnapshot(reference.id, reference.coordinationSessionPath);
 			const projected = await withDisplayProjection(snapshot, displayProjection);
 			log.info("team get-session completed", {
 				teamSessionId: reference.id,
@@ -322,50 +307,9 @@ export function registerAgentTeamsIpc(
 			throw error;
 		}
 	});
-	ipcMain.handle(CHANNELS.SEND_MESSAGE, async (_event, id: unknown, input: unknown) => {
-		const sessionId = requiredString(id, "sessionId");
-		const startedAt = Date.now();
-		let parsed: ReturnType<typeof parseSendTeamMessageInput>;
-		try {
-			parsed = parseSendTeamMessageInput(input);
-		} catch (error) {
-			log.error("team send-message input rejected", {
-				teamSessionId: sessionId,
-				elapsedMs: Date.now() - startedAt,
-				error: error instanceof Error ? error.message : String(error),
-			});
-			throw error;
-		}
-		log.info("team send-message entered", {
-			teamSessionId: sessionId,
-			requestId: parsed.requestId,
-			textLength: parsed.text.length,
-			targetMemberCount: parsed.targetMemberIds?.length ?? 0,
-			attachmentCount: parsed.attachments?.length ?? 0,
-			modelKey: parsed.modelKey,
-			reasoning: parsed.reasoning,
-		});
-		try {
-			const next = await sessions.send(sessionId, parsed);
-			const projected = await withDisplayProjection(sessions.snapshot(next), displayProjection);
-			log.info("team send-message completed", {
-				teamSessionId: sessionId,
-				requestId: parsed.requestId,
-				elapsedMs: Date.now() - startedAt,
-			});
-			return projected;
-		} catch (error) {
-			log.error("team send-message failed", {
-				teamSessionId: sessionId,
-				requestId: parsed.requestId,
-				elapsedMs: Date.now() - startedAt,
-				error: error instanceof Error ? error.message : String(error),
-			});
-			throw error;
-		}
-	});
-	ipcMain.handle(CHANNELS.ABORT, (_event, id: unknown) => sessions.abort(requiredString(id, "sessionId")));
-	ipcMain.handle(CHANNELS.SUBSCRIBE, async (event, id: unknown) => {
+	handle(CHANNELS.SEND_MESSAGE, retired);
+	handle(CHANNELS.ABORT, (_event, id: unknown) => sessions.abort(requiredString(id, "sessionId")));
+	handle(CHANNELS.SUBSCRIBE, async (event, id: unknown) => {
 		const sessionId = requiredString(id, "sessionId");
 		const subscriptionId = `${sessionId}:${randomUUID()}`;
 		log.info("team stream subscription started", { teamSessionId: sessionId, subscriptionId });
@@ -408,63 +352,15 @@ export function registerAgentTeamsIpc(
 		});
 		return response;
 	});
-	ipcMain.handle(CHANNELS.UNSUBSCRIBE, (_event, subscriptionId: unknown) => {
+	handle(CHANNELS.UNSUBSCRIBE, (_event, subscriptionId: unknown) => {
 		const key = requiredString(subscriptionId, "subscriptionId");
 		subscriptions.get(key)?.();
 	});
 	return () => {
 		unsubscribePresets();
+		unsubscribePresetStatus();
 		for (const unsubscribe of subscriptions.values()) unsubscribe();
 		subscriptions.clear();
 		for (const channel of Object.values(CHANNELS)) ipcMain.removeHandler(channel);
-	};
-}
-
-const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
-
-function parseCreateSessionRecordOptions(value: unknown): CreateTeamSessionRecordOptions | undefined {
-	if (value === undefined) return undefined;
-	if (
-		typeof value !== "object" ||
-		value === null ||
-		Object.keys(value).some((key) => key !== "sessionId" && key !== "executionMode" && key !== "workspace")
-	) {
-		throw new Error("Invalid Team session options");
-	}
-	const candidate = value as {
-		readonly sessionId?: unknown;
-		readonly executionMode?: unknown;
-		readonly workspace?: unknown;
-	};
-	const sessionId = candidate.sessionId;
-	if (sessionId !== undefined && (typeof sessionId !== "string" || !UUID_PATTERN.test(sessionId))) {
-		throw new Error("Invalid sessionId");
-	}
-	const executionMode = candidate.executionMode;
-	if (executionMode !== undefined && executionMode !== "sandbox" && executionMode !== "full-access") {
-		throw new Error("Invalid executionMode");
-	}
-	const workspace = candidate.workspace;
-	let parsedWorkspace: CreateTeamSessionRecordOptions["workspace"];
-	if (workspace !== undefined) {
-		if (typeof workspace !== "object" || workspace === null) {
-			throw new Error("Invalid Team session workspace");
-		}
-		const record = workspace as Record<string, unknown>;
-		if (
-			Object.keys(record).some((key) => key !== "kind" && key !== "path") ||
-			record.kind !== "project" ||
-			typeof record.path !== "string" ||
-			record.path.trim().length === 0 ||
-			record.path.length > 4_096
-		) {
-			throw new Error("Invalid Team session workspace");
-		}
-		parsedWorkspace = { kind: "project", path: record.path };
-	}
-	return {
-		...(sessionId ? { sessionId } : {}),
-		...(executionMode ? { executionMode } : {}),
-		...(parsedWorkspace ? { workspace: parsedWorkspace } : {}),
 	};
 }

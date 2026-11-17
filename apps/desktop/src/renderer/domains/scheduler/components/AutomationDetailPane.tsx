@@ -1,0 +1,111 @@
+import { AutomationDetailPaneView } from "@vetta-org/theme-ui/scheduler";
+import {
+	Button,
+	ButtonGroup,
+	ButtonGroupItem,
+	cn,
+	DropdownMenu,
+	DropdownMenuContent,
+	DropdownMenuItem,
+	DropdownMenuTrigger,
+} from "@vetta-org/ui";
+import { useTranslation } from "react-i18next";
+import type { ScheduledTask } from "../../../../shared/automation";
+import { type AutomationPane } from "../hooks/useAutomationPageModel";
+import { useAutomationDetailModel } from "../hooks/useAutomationDetailModel";
+import { ExecutionHistory } from "./ExecutionHistory";
+import { SchedulerTaskFields } from "./SchedulerTaskFields";
+
+interface AutomationDetailPaneProps {
+	readonly pane: Exclude<AutomationPane, { kind: "none" }>;
+	readonly onClose: () => void;
+	readonly onCreated: (task: ScheduledTask) => void;
+}
+
+/** 右侧分屏：编辑已有自动化（含执行历史）或新建一个。 */
+export function AutomationDetailPane({ pane, onClose, onCreated }: AutomationDetailPaneProps): JSX.Element {
+	const { t } = useTranslation("automation");
+	const model = useAutomationDetailModel({ pane, onClose, onCreated });
+	const editing = model.mode === "edit";
+
+	return (
+		<AutomationDetailPaneView
+			statusLabel={model.statusLabel}
+			statusTone={model.tone}
+			closeLabel={t("detail.close")}
+			onClose={onClose}
+			headerActions={
+				editing ? (
+					<ButtonGroup>
+						<ButtonGroupItem
+							icon={<span className="icon-[solar--play-bold] size-4" />}
+							title={t("detail.runNow")}
+							aria-label={t("detail.runNow")}
+							disabled={model.running}
+							onClick={model.onRunNow}
+						/>
+						<ButtonGroupItem
+							icon={
+								<span
+									className={cn(
+										model.enabled ? "icon-[solar--pause-circle-bold]" : "icon-[solar--play-circle-bold]",
+										"size-4",
+									)}
+								/>
+							}
+							title={model.enabled ? t("detail.pause") : t("detail.enable")}
+							aria-label={model.enabled ? t("detail.pause") : t("detail.enable")}
+							onClick={model.onToggleEnabled}
+						/>
+						<DropdownMenu>
+							<DropdownMenuTrigger asChild>
+								<ButtonGroupItem
+									title={t("detail.more")}
+									aria-label={t("detail.more")}
+									icon={<span className="icon-[solar--menu-dots-bold] size-4" />}
+								/>
+							</DropdownMenuTrigger>
+							<DropdownMenuContent align="end">
+								<DropdownMenuItem disabled={!model.canOpenChat || model.dirty} onSelect={model.onOpenChat}>
+									<span className="icon-[solar--chat-round-line-bold] h-4 w-4" />
+									{t("detail.openChat")}
+								</DropdownMenuItem>
+								<DropdownMenuItem onSelect={model.onDelete} className="text-destructive">
+									<span className="icon-[solar--trash-bin-trash-bold] h-4 w-4" />
+									{t("detail.delete")}
+								</DropdownMenuItem>
+							</DropdownMenuContent>
+						</DropdownMenu>
+					</ButtonGroup>
+				) : null
+			}
+			body={
+				<SchedulerTaskFields
+					value={model.draft}
+					onChange={model.onChange}
+					namePlaceholder={t("form.namePlaceholder")}
+				/>
+			}
+			history={editing && model.taskId ? <ExecutionHistory taskId={model.taskId} /> : undefined}
+			footer={
+				<>
+					{model.error ? (
+						<p className="mr-auto min-w-0 truncate text-[12px] text-destructive" title={model.error}>
+							{model.error}
+						</p>
+					) : null}
+					{editing && model.dirty ? (
+						<Button type="button" variant="field" onClick={model.onDiscard}>
+							{t("detail.discard")}
+						</Button>
+					) : null}
+					{!editing || model.dirty ? (
+						<Button type="button" variant="primary" disabled={!model.canSubmit} onClick={model.onSubmit}>
+							{editing ? t("detail.save") : t("detail.create")}
+						</Button>
+					) : null}
+				</>
+			}
+		/>
+	);
+}

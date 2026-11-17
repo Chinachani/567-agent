@@ -1,11 +1,13 @@
 import { AI_ERROR_CODES, isAIError } from "@567agent/ai";
 import type { CodingAgentQuestionResult } from "@567agent/coding-agent/function-extensions";
 import type { RemoteConnection, RemoteError, RemoteRequest, RemoteSessionContext } from "@567agent/remote-control";
+import type { TaskResult } from "../../shared/result-inbox.js";
 import type { DesktopDeviceStatusSnapshot } from "../../shared/visible-conversation.js";
 import { mainT } from "../i18n/index.js";
 import { getAppLogger } from "../logger.js";
 import { EncryptedSessionMigrationTransfer } from "./encrypted-session-migration-transfer.js";
 import { buildRemoteHistoryPage } from "./history-page.js";
+import { RemoteOperationError } from "./remote-error-mapping.js";
 import { RemotePromptRecovery } from "./remote-prompt-recovery.js";
 
 const log = getAppLogger("remote-conversation");
@@ -53,6 +55,7 @@ export interface DesktopRemoteToolboxAbility {
 }
 
 export interface DesktopRemoteOperations {
+	listTaskResults?(): Promise<{ tasks: readonly TaskResult[]; unavailableCount: number; truncated: boolean }>;
 	listSessions(): Promise<readonly DesktopRemoteSessionSummary[]>;
 	listSessionCatalog?(): Promise<DesktopRemoteSessionCatalog>;
 	deleteSession?(sessionId: string): Promise<void>;
@@ -82,6 +85,10 @@ export interface DesktopRemoteOperations {
 	openSession(sessionId: string): Promise<{ sessionId: string }>;
 	readonly canManageContext?: boolean;
 	readonly canReadWorkbench?: boolean;
+	readonly canReadFiles?: boolean;
+	listFiles?(sessionId: string, payload: unknown): Promise<unknown>;
+	statFile?(sessionId: string, payload: unknown): Promise<unknown>;
+	readFile?(sessionId: string, payload: unknown): Promise<unknown>;
 	readonly canManageCollaboration?: boolean;
 	readonly canSelectContext?: boolean;
 	readWorkbench?(sessionId: string): Promise<unknown>;
@@ -130,7 +137,7 @@ export class DesktopRemoteConnector {
 	);
 	private readonly activePromptAttachment = new Map<
 		string,
-		{ sessionId: string; fileName: string; mimeType: string }
+		{ sessionId: string; fileName: string; mimeType: string; purpose: "prompt" | "file" }
 	>();
 	private readonly stagedPromptAttachments = new Map<
 		string,
@@ -217,7 +224,19 @@ export class DesktopRemoteConnector {
 			await this.connection.respond(request.requestId, { success: true, payload });
 		} catch (error) {
 			if (generation !== this.connectionGeneration || suggestionController?.signal.aborted) return;
-			await this.connection.respond(request.requestId, { success: false, error: toRemoteError(error) });
+			const failure = toRemoteError(error);
+			// Legacy relays validate outer error codes as well as methods. Keep optional
+			// file errors inside the established extension envelope, without widening grants.
+			const fileExtension =
+				request.method === "session.context" &&
+				isRecord(request.payload) &&
+				["file.list", "file.stat", "file.read"].includes(String(request.payload.extensionMethod));
+			await this.connection.respond(
+				request.requestId,
+				fileExtension
+					? { success: true, payload: { extensionError: failure } }
+					: { success: false, error: failure },
+			);
 		} finally {
 			if (suggestionController) this.activeAuxiliaryRequests.delete(request.requestId);
 		}
@@ -226,6 +245,9 @@ export class DesktopRemoteConnector {
 	private async dispatch(wireRequest: RemoteRequest, signal?: AbortSignal): Promise<unknown> {
 		const request = expandContextExtension(wireRequest);
 		switch (request.method) {
+			case "session.results.list":
+				if (!this.operations.listTaskResults) throw new Error("Task results are unavailable");
+				return this.operations.listTaskResults();
 			case "session.list": {
 				const catalog = this.operations.listSessionCatalog
 					? await this.operations.listSessionCatalog()
@@ -234,7 +256,14 @@ export class DesktopRemoteConnector {
 					sessions: catalog.sessions,
 					...(catalog.failedRootCount ? { failedRootCount: catalog.failedRootCount } : {}),
 					supportedMethods: [
+						...(this.operations.listTaskResults ? ["session.results.list"] : []),
 						"session.create",
+						...(this.operations.canReadFiles &&
+						this.operations.listFiles &&
+						this.operations.statFile &&
+						this.operations.readFile
+							? ["file.list", "file.stat", "file.read"]
+							: []),
 						"session.turn.read",
 						...(this.operations.readHistory ? ["session.history"] : []),
 						...(this.operations.canManageContext !== false &&
@@ -273,6 +302,7 @@ export class DesktopRemoteConnector {
 									"session.attachment.transfer.start",
 									"session.attachment.transfer.chunk",
 									"session.attachment.transfer.finish",
+									"session.file.transfer.finish",
 									"session.attachment.transfer.cancel",
 								]
 							: []),
@@ -290,6 +320,18 @@ export class DesktopRemoteConnector {
 					],
 				};
 			}
+			case "file.list":
+				if (!this.operations.canReadFiles || !this.operations.listFiles)
+					throw new RemoteOperationError("forbidden", "File browsing is unavailable");
+				return this.operations.listFiles(requireSessionId(request), request.payload);
+			case "file.stat":
+				if (!this.operations.canReadFiles || !this.operations.statFile)
+					throw new RemoteOperationError("forbidden", "File browsing is unavailable");
+				return this.operations.statFile(requireSessionId(request), request.payload);
+			case "file.read":
+				if (!this.operations.canReadFiles || !this.operations.readFile)
+					throw new RemoteOperationError("forbidden", "File browsing is unavailable");
+				return this.operations.readFile(requireSessionId(request), request.payload);
 			case "session.delete": {
 				if (!this.operations.deleteSession) throw new Error("Desktop session deletion is unavailable");
 				await this.operations.deleteSession(requireSessionId(request));
@@ -330,10 +372,12 @@ export class DesktopRemoteConnector {
 				const metadata = readPromptAttachmentStart(request);
 				await this.operations.openSession(sessionId);
 				this.promptAttachmentTransfer.start(metadata);
+				this.activePromptAttachment.clear();
 				this.activePromptAttachment.set(metadata.transferId, {
 					sessionId,
 					fileName: metadata.fileName,
 					mimeType: metadata.mimeType,
+					purpose: metadata.purpose,
 				});
 				return { accepted: true, nextChunkIndex: 0 };
 			}
@@ -344,6 +388,7 @@ export class DesktopRemoteConnector {
 				}
 				return this.promptAttachmentTransfer.append({ transferId, index, dataBase64 });
 			}
+			case "session.file.transfer.finish":
 			case "session.attachment.transfer.finish": {
 				const transferId = readPromptAttachmentTransferId(request);
 				const metadata = this.activePromptAttachment.get(transferId);
@@ -353,9 +398,23 @@ export class DesktopRemoteConnector {
 					!this.operations.storeRemotePromptAttachment
 				)
 					throw new Error("Remote attachment transfer was not found for this session");
+				const standalone = request.method === "session.file.transfer.finish";
+				if (metadata.purpose !== (standalone ? "file" : "prompt")) throw new Error("Attachment purpose mismatch");
 				const data = this.promptAttachmentTransfer.finish(transferId);
 				this.activePromptAttachment.delete(transferId);
 				try {
+					if (standalone) {
+						const ref = await this.operations.storeRemotePromptAttachment(
+							metadata.sessionId,
+							metadata.fileName,
+							metadata.mimeType,
+							data,
+						);
+						// Storage owns the destination. Only its relative path crosses the wire.
+						const name = ref.path.split(/[\\/]/).at(-1);
+						if (!name || name === "." || name === "..") throw new Error("Invalid stored attachment path");
+						return { path: `.567agent/remote-attachments/${name}`, sizeBytes: data.byteLength };
+					}
 					this.pruneStagedPromptAttachments();
 					const stagedBytes = [...this.stagedPromptAttachments.values()].reduce(
 						(total, attachment) => total + attachment.sizeBytes,
@@ -934,6 +993,7 @@ function readPromptText(request: RemoteRequest, allowAttachments = false): strin
 }
 
 function readPromptAttachmentStart(request: RemoteRequest): {
+	purpose: "prompt" | "file";
 	transferId: string;
 	fileName: string;
 	mimeType: string;
@@ -950,6 +1010,8 @@ function readPromptAttachmentStart(request: RemoteRequest): {
 		typeof payload.sha256 !== "string"
 	)
 		throw new Error("Remote attachment metadata is invalid");
+	if (payload.purpose !== undefined && payload.purpose !== "prompt" && payload.purpose !== "file")
+		throw new Error("Invalid attachment purpose");
 	const fileName = payload.fileName
 		.replace(/[/\\\r\n\0]/g, "_")
 		.trim()
@@ -968,6 +1030,7 @@ function readPromptAttachmentStart(request: RemoteRequest): {
 	}
 	return {
 		transferId: payload.transferId,
+		purpose: payload.purpose === "file" ? "file" : "prompt",
 		fileName,
 		mimeType: payload.mimeType,
 		totalBytes: payload.totalBytes,
@@ -1023,6 +1086,7 @@ function isRecord(value: unknown): value is Record<string, unknown> {
 }
 
 function toRemoteError(error: unknown): RemoteError {
+	if (error instanceof RemoteOperationError) return remoteError(error.code, error.message, error.retryable);
 	const message = error instanceof Error ? error.message : "电脑端操作失败";
 	if (isAIError(error)) {
 		return mapModelFailure(error.code, error.retryable);
@@ -1118,13 +1182,18 @@ function expandContextExtension(request: RemoteRequest): RemoteRequest {
 		return request;
 	const method = request.payload.extensionMethod;
 	if (
+		method !== "session.results.list" &&
+		method !== "session.file.transfer.finish" &&
 		method !== "session.context.selection" &&
 		method !== "session.workbench" &&
 		method !== "session.workbench.detail" &&
 		method !== "session.collaboration.read" &&
 		method !== "session.collaboration.update" &&
 		method !== "session.collaboration.control" &&
-		method !== "session.attachment.read"
+		method !== "session.attachment.read" &&
+		method !== "file.list" &&
+		method !== "file.stat" &&
+		method !== "file.read"
 	)
 		throw new Error("Unknown session context extension");
 	return { ...request, method, payload: request.payload.payload };

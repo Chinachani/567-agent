@@ -142,6 +142,21 @@ export class RemoteConnection {
 
 	async emitEvent(name: RemoteEventName, payload?: unknown, sessionId?: string): Promise<RemoteEvent> {
 		if (this.state !== "online") throw new Error(`remote connection is ${this.state}`);
+		const event =
+			this.options.eventJournal?.append({ name, payload, sessionId }) ??
+			this.appendLocalEvent(name, payload, sessionId);
+		await this.transport.send(event);
+		return event;
+	}
+
+	getOutboundEventCursor(): { publisherId: string; sequence: number } {
+		return {
+			publisherId: this.options.eventJournal?.publisherId ?? this.connectionId,
+			sequence: this.options.eventJournal?.sequence ?? this.outboundEventSequence,
+		};
+	}
+
+	private appendLocalEvent(name: RemoteEventName, payload?: unknown, sessionId?: string): RemoteEvent {
 		const sequence = ++this.outboundEventSequence;
 		const event: RemoteEvent = {
 			type: "event",
@@ -157,12 +172,7 @@ export class RemoteConnection {
 			if (oldest === undefined) break;
 			this.outboundEvents.delete(oldest);
 		}
-		await this.transport.send(event);
 		return event;
-	}
-
-	getOutboundEventCursor(): { publisherId: string; sequence: number } {
-		return { publisherId: this.connectionId, sequence: this.outboundEventSequence };
 	}
 
 	private handleFrame(frame: RemoteFrame): void {
@@ -185,15 +195,21 @@ export class RemoteConnection {
 		}
 		if (safeFrame.type === "ack") {
 			this.lastAckSequence = Math.max(this.lastAckSequence, safeFrame.sequence);
-			for (const sequence of this.outboundEvents.keys()) {
-				if (sequence <= safeFrame.sequence) this.outboundEvents.delete(sequence);
+			if (this.options.eventJournal) this.options.eventJournal.acknowledge(safeFrame.sequence);
+			else {
+				for (const sequence of this.outboundEvents.keys()) {
+					if (sequence <= safeFrame.sequence) this.outboundEvents.delete(sequence);
+				}
 			}
 			return;
 		}
 		if (safeFrame.type === "resume") {
-			for (const [sequence, event] of this.outboundEvents) {
-				if (sequence > safeFrame.lastEventSequence) void this.transport.send(event);
-			}
+			const events =
+				this.options.eventJournal?.after(safeFrame.lastEventSequence) ??
+				[...this.outboundEvents]
+					.filter(([sequence]) => sequence > safeFrame.lastEventSequence)
+					.map(([, event]) => event);
+			for (const event of events) void this.transport.send(event);
 			return;
 		}
 		if (safeFrame.type === "hello") {
@@ -215,6 +231,12 @@ export class RemoteConnection {
 		}
 		this.peerDeviceId = frame.peerDeviceId;
 		this.setState("online");
+		// A desktop reconnect creates a new transport connection. Replay the
+		// shared journal after the handshake so events that were sent while the
+		// previous socket was closing are delivered without requiring the phone
+		// to issue a second request. ACKs remove entries from the journal.
+		const replay = this.options.eventJournal?.after(0) ?? [];
+		for (const event of replay) void this.transport.send(event);
 		this.logger.info("remote connection online", {
 			deviceId: this.options.deviceId,
 			peerDeviceId: frame.peerDeviceId,

@@ -2,6 +2,7 @@ import type { AgentProfile, AgentTeamDocument, TeamDefinition } from "@567agent/
 import { languageAtom, type PluginI18nEntry, pluginI18nByIdAtom } from "@shared/store/atoms";
 import { useAtomValue } from "jotai";
 import { useCallback, useMemo } from "react";
+import { presetTranslation } from "./preset-translation";
 
 type LocalizableResource = Pick<AgentProfile | TeamDefinition, "name" | "description" | "source">;
 
@@ -18,6 +19,8 @@ export function localizeAgentTeamResource<T extends LocalizableResource>(
 	catalogs: Readonly<Record<string, PluginI18nEntry>>,
 ): T {
 	const source = resource.source;
+	const translated = source ? presetTranslation(source, locale) : undefined;
+	if (translated) return { ...resource, name: translated.name, description: translated.description };
 	if (!source?.nameKey && !source?.descriptionKey) return resource;
 	const catalog = catalogs[source.pluginId]?.locales[locale];
 	if (!catalog) return resource;

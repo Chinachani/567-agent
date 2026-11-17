@@ -1,5 +1,6 @@
 import type { AgentTeamDocument } from "@567agent/agent-team";
 import { useLocalizedAgentTeamDocument } from "@shared/agent-teams/agent-team-localization";
+import { TEAM_CONFIGURATION_CHANGED_EVENT } from "@shared/agent-teams/team-session-events";
 import { useEffect, useState } from "react";
 
 /**
@@ -23,14 +24,20 @@ let unsubscribeChanged: (() => void) | undefined;
  */
 function watchAgentTeamDocument(): void {
 	if (unsubscribeChanged) return;
-	unsubscribeChanged = window.agent567.agentTeams.onChanged(() => {
+	const refresh = () => {
 		cached = undefined;
 		// 在途的那趟请求发出得比这次变更早，拿回来的是旧文档；丢掉它重新发一趟。
 		inflight = undefined;
 		loadAgentTeamDocument().catch(() => {
 			// 刷新失败就留着空缓存：下一个消费者挂载时自然会重试。
 		});
-	});
+	};
+	const unsubscribe = window.agent567.agentTeams.onChanged(refresh);
+	window.addEventListener(TEAM_CONFIGURATION_CHANGED_EVENT, refresh);
+	unsubscribeChanged = () => {
+		unsubscribe();
+		window.removeEventListener(TEAM_CONFIGURATION_CHANGED_EVENT, refresh);
+	};
 }
 
 export function cachedAgentTeamDocument(): AgentTeamDocument | undefined {
@@ -47,17 +54,21 @@ export function subscribeAgentTeamDocument(listener: () => void): () => void {
 
 /** 拉取名录：已有在途请求时复用它，成功后更新缓存并通知订阅者。失败不写缓存，下次重试。 */
 export function loadAgentTeamDocument(): Promise<AgentTeamDocument> {
-	inflight ??= window.agent567.agentTeams
+	if (inflight) return inflight;
+	const request: Promise<AgentTeamDocument> = window.agent567.agentTeams
 		.list()
 		.then((document) => {
+			// A configuration change can replace this request while it is in flight.
+			if (inflight !== request) return inflight ?? loadAgentTeamDocument();
 			cached = document;
 			for (const listener of [...listeners]) listener();
 			return document;
 		})
 		.finally(() => {
-			inflight = undefined;
+			if (inflight === request) inflight = undefined;
 		});
-	return inflight;
+	inflight = request;
+	return request;
 }
 
 /** 仅供测试：清掉跨用例残留的缓存。 */

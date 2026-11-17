@@ -5,6 +5,7 @@ import { delimiter, join } from "node:path";
 import { atomicWriteJSON } from "@567agent/toolkit/atomic-write";
 import { mainT } from "../i18n/index.js";
 import { getAppLogger } from "../logger.js";
+import { GitToolManager } from "./git-tool.js";
 import {
 	binDirsFor,
 	executablePathFor,
@@ -29,7 +30,13 @@ import {
 	RuntimeInstallInUseError,
 } from "./runtime-archive-installer.js";
 import { hasNodePackageManagerFiles, nodePackageManagerPaths, probeManagedRuntime } from "./runtime-health.js";
-import type { RuntimeInstallProgress, RuntimeRegistryData, RuntimeStatus, RuntimesStatus } from "./types.js";
+import type {
+	GitToolStatus,
+	RuntimeInstallProgress,
+	RuntimeRegistryData,
+	RuntimeStatus,
+	RuntimesStatus,
+} from "./types.js";
 
 const log = getAppLogger("runtimes");
 
@@ -51,6 +58,13 @@ function parseVersion(raw: string): string | undefined {
 }
 
 export class RuntimeManager {
+	private readonly git = new GitToolManager();
+	shouldBlockGitCommand(): boolean {
+		return this.git.shouldBlockGitCommand();
+	}
+	installGit(): Promise<GitToolStatus> {
+		return this.git.install();
+	}
 	private data: RuntimeRegistryData = emptyRegistry();
 	private registryLoaded = false;
 	private readonly probeCache = new Map<RuntimeType, { checkedAt: number; executablePath: string; ready: boolean }>();
@@ -645,6 +659,7 @@ export class RuntimeManager {
 				if (!this.isReady(type)) delete this.data.binaries[type];
 			}
 		}
+		this.git.detect();
 		this.saveRegistry();
 	}
 
@@ -704,6 +719,7 @@ export class RuntimeManager {
 			// best-effort
 		}
 
+		this.git.applyEnv();
 		log.info("runtime env applied", {
 			node: ready("node"),
 			python: ready("python"),
@@ -732,6 +748,7 @@ export class RuntimeManager {
 	getStatus(): RuntimesStatus {
 		this.loadRegistry();
 		return {
+			git: this.git.getStatus(),
 			node: this.statusFor("node"),
 			python: this.statusFor("python"),
 			mirrors: {
@@ -848,6 +865,7 @@ export class RuntimeManager {
 
 	/** 面板「重新探测系统运行时」。 */
 	redetect(): RuntimesStatus {
+		this.git.detect();
 		for (const type of RUNTIME_TYPES) this.detectSystem(type);
 		this.saveRegistry();
 		return this.getStatus();

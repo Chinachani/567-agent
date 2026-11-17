@@ -1,9 +1,17 @@
-import type { WebContents } from "electron";
-import { normalizeUiZoomFactor, stepUiZoomFactor, UI_ZOOM_DEFAULT } from "../../shared/ui-zoom.js";
+import { BrowserWindow, type WebContents } from "electron";
+import {
+	normalizeUiZoomFactor,
+	parseTitlebarCenter,
+	stepUiZoomFactor,
+	TITLEBAR_CENTER_FALLBACK,
+	trafficLightPositionFor,
+	UI_ZOOM_DEFAULT,
+} from "../../shared/ui-zoom.js";
 import { readConfigSync, updateDesktopConfig } from "../config/desktop-config-store.js";
 
 export const UI_ZOOM_CHANGED_CHANNEL = "vetta:ui-zoom:changed";
 let currentFactor: number | undefined;
+let titlebarCenter = TITLEBAR_CENTER_FALLBACK;
 let mainContents: WebContents | undefined;
 let detach: (() => void) | undefined;
 let mutation: Promise<unknown> = Promise.resolve();
@@ -14,8 +22,9 @@ export function getUiZoomFactor(): number {
 }
 
 export function applyUiZoomToWebContents(contents: WebContents): void {
-	if (!contents.isDestroyed() && contents.getZoomFactor() !== getUiZoomFactor())
-		contents.setZoomFactor(getUiZoomFactor());
+	if (contents.isDestroyed()) return;
+	if (contents.getZoomFactor() !== getUiZoomFactor()) contents.setZoomFactor(getUiZoomFactor());
+	applyTrafficLightPosition(contents);
 }
 
 /** Own only the main window. Auxiliary windows and guest browsers retain their zoom. */
@@ -23,7 +32,15 @@ export function attachUiZoom(contents: WebContents): void {
 	detach?.();
 	mainContents = contents;
 	const apply = () => applyUiZoomToWebContents(contents);
+	const win = process.platform === "darwin" ? BrowserWindow.fromWebContents(contents) : null;
+	const reapply = () => applyTrafficLightPosition(contents);
+	win?.on("leave-full-screen", reapply);
+	win?.on("restore", reapply);
+	win?.on("show", reapply);
 	const cleanup = () => {
+		win?.removeListener("leave-full-screen", reapply);
+		win?.removeListener("restore", reapply);
+		win?.removeListener("show", reapply);
 		contents.removeListener("did-finish-load", apply);
 		contents.removeListener("destroyed", cleanup);
 		if (mainContents === contents) mainContents = undefined;
@@ -58,4 +75,20 @@ export function stepUiZoom(direction: 1 | -1): Promise<number> {
 }
 export function resetUiZoom(): Promise<number> {
 	return setUiZoomFactor(UI_ZOOM_DEFAULT);
+}
+
+function applyTrafficLightPosition(contents: WebContents): void {
+	if (process.platform !== "darwin" || contents.isDestroyed()) return;
+	const win = BrowserWindow.fromWebContents(contents);
+	if (win && !win.isDestroyed())
+		win.setWindowButtonPosition(trafficLightPositionFor(titlebarCenter, getUiZoomFactor()));
+}
+export function getInitialTrafficLightPosition(): { x: number; y: number } {
+	return trafficLightPositionFor(titlebarCenter, getUiZoomFactor());
+}
+export function setTitlebarCenter(value: unknown): void {
+	const next = parseTitlebarCenter(value);
+	if (next === undefined || next === titlebarCenter) return;
+	titlebarCenter = next;
+	if (mainContents) applyTrafficLightPosition(mainContents);
 }

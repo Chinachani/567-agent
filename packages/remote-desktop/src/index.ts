@@ -22,6 +22,7 @@ export type {
 	RemoteDesktopSignal,
 	RemoteInputCommand,
 	RemoteInputMessage,
+	RemoteVideoPreference,
 } from "./types.js";
 export {
 	REMOTE_DESKTOP_PROTOCOL_VERSION,

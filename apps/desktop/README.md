@@ -25,6 +25,60 @@ Electron desktop host for the 567 Agent runtime.
 - `src/preload`: safe bridge surface for the renderer
 - `src/renderer`: React application domains and UI
 
+## Experts and project collaboration
+
+The agent center has two sections: Experts and Session collaboration.
+The built-in planning, development, research, review, and solution experts each include a prompt,
+working steps, deliverables, and limits. Workflow previews come from the same prompt used by the
+model. Choose **Use** to open an ordinary conversation draft; only sending the first message creates
+the conversation and calls the model.
+
+Built-in profiles are read only. **Copy and customize** opens an unsaved draft with the effective
+prompt and current enabled abilities copied into an independent selection. Save it, or choose
+**Save and use**. Later edits to the source do not replace the copied prompt; unavailable or disabled
+abilities remain subject to normal runtime validation and permissions. If the source disappears
+while copying, the draft stays open and saving reports that the source is unavailable.
+
+For multiple experts, open a project's existing Session collaboration page, create expert
+conversations for that project, then add them as members after their first message. Responsibilities,
+read/write access, and coordination use the existing project collaboration controls. Save pending
+project rules and collaboration changes before following the expert shortcut.
+
+Experts can be searched by name, description, or workflow, and filtered by specialty. Known built-in
+identities and their copies keep the planning/development/research/review/solution categories; other
+local profiles appear under Custom and other plugin profiles under Extension experts. Project
+collaboration entries can be searched by name or path. Both center lists use 12 items per page.
+Inside a project, candidates and task records use independent searches and 8-item pages. Task search
+includes source/target sessions, status, and results. Filtering does not remove draft members or limit
+project-wide pause/stop operations. Changing project resets the list state.
+
+The old team workspace and settings UI are removed. Sidebar history entries and conversation/member
+deep links open the ordinary read-only viewer, with an explicit action to stop an in-flight legacy task.
+Archive resolution reads persisted records without restoring team runtimes or recovering queued work.
+Old list/settings/new links open Session collaboration. Definitions, files, and stored model preferences
+are preserved; no automatic data deletion or conversion takes place. If an ancient archive cannot be
+resolved to an ordinary conversation path, the resolver explains this and offers retry.
+
+A separate GitHub repository can distribute expert presets through existing marketplace sources. Source-only
+presets are shown directly in Agent Center; capability installation remains a separate, user-approved path.
+See the [preset marketplace repository guide](../../docs/expert-preset-marketplace.md). No remote
+repository or new source has been configured by this change.
+See [ADR-0162](../../docs/adr/0162-experts-and-project-session-collaboration.md).
+
+## SSH projects, automation and connectors
+
+The 1.6 development tree exposes SSH hosts in Settings and remote directories through the project picker. Hosts can be imported from SSH config or entered manually, with key/password authentication. `ssh-hosts.json` is a versioned document separate from Desktop preferences; secrets remain in the credential store. Remote file access and runtime operations use the SSH transport/helper boundary, and host identity or authentication prompts are not bypassed. No live remote host is required for compilation.
+
+Automation uses structured schedules and explicit new-session/same-session targets. The first load backs up and migrates legacy task storage. Missing projects, deleted target sessions and retired scene selections suspend affected tasks; history stays readable. New sessions inherit the user's configured execution mode, while continuing a session does not elevate its permissions. Missed and skipped records distinguish unavailable execution from completed work. Legacy plugin cron requests are converted at the facade; direct capability callers use the new schema.
+
+MCP supports global/project scope, SSE and read-only discovery of project `.mcp.json`. Project discovery does not approve server execution. The existing manual approval and credential redaction boundaries still apply.
+
+## Models and extension surfaces
+
+Model configuration keeps the 567 API / preset / local provider tabs and their independent parameter lists. A shared default-model selector above them supports reasoning levels, search and favorites. New conversations and windows use the configured default rather than the last model selected in another conversation. Image-generation catalogs remain separate from chat model choices.
+
+Plugin SDK 0.3.10 / Plugin API 2.9 provide header actions, bottom panels, authorized terminal entry points, shared ModelPicker, filesystem filtering/watch and user-confirmed save-as. See the [plugin manual](../../docs/plugin/README.md) for permission and compatibility contracts. Public SDK version changes do not publish npm packages automatically.
+
 ## Windows updates
 
 After an update finishes downloading, the app shows a local preparation stage while Inno Setup
@@ -271,3 +325,17 @@ It checks light/dark modes at 380/800/1100px and exercises model selection, text
 send, template and creation controls against fixture callbacks. HTTP(S) access is blocked.
 `AGENT567_LAYOUT_ARTIFACT_DIR` saves screenshots and measurements. It complements `test:sidebar-layout`,
 which covers the real footer, titlebar commands, general settings, providers and guide focus/scrolling.
+
+## 专家预设来源
+
+「智能体 → 专家」读取内置专家及 `Chinachani/567-agent-presets` 中经过校验的纯提示词预设，
+无需先安装插件。专家页可刷新并查看缓存或失败状态；网络失败保留上次有效内容。
+「能力 → 市场来源」仍统一管理来源配置，但专家条目不作为普通能力安装。
+使用专家只填写会话草稿；复制出的提示词和能力选择独立保存。格式与边界见
+[专家预设仓库](../../docs/expert-preset-marketplace.md)。
+
+### 任务准备、交接与结果
+
+智能体中心支持收藏和最近打开；专家的任务准备表单将目标、材料、约束与交付要求追加到现有草稿。会话顶栏的专家交接可选择性带入最近完整回复的文字，补充待办后打开下一位专家的新会话草稿，均由用户发送后才执行。消息中心「任务结果」从持久化会话请求读取终态，支持打开原会话与本机已读；未知状态不会推断为成功，独立后台工具任务仍通过原入口查看。
+
+手机可向电脑会话的附件目录独立传文件，不触发模型；主机选择保存文件名并返回相对路径，不开放任意路径写入。支持自动／流畅／清晰远控画质偏好，旧手机和电脑继续原有默认行为。

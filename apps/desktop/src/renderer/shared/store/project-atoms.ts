@@ -292,4 +292,6 @@ export const sessionContextMenuAtom = atom<{
 	canTag: boolean;
 } | null>(null);
 export const renamingSessionPathAtom = atom<string | null>(null);
+export const manageSessionsProjectAtom = atom<Project | null>(null);
+
 export const projectContextMenuAtom = atom<{ x: number; y: number; project: Project } | null>(null);

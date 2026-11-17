@@ -1,9 +1,9 @@
+import { AbilitySpotlight } from "./AbilitySpotlight";
 import { DiscoveryFiltersView, DiscoverySearchStatusView } from "@vetta-org/theme-ui/skills";
 import { WorkspacePageHeader } from "@vetta-org/theme-ui/shared";
 import { SegmentedControl } from "@vetta-org/theme-ui/shared";
 import { Button, Popover, PopoverContent, PopoverTrigger } from "@vetta-org/ui";
-import { motion } from "motion/react";
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { CapabilitiesTour } from "@shared/tour";
 import { showToast } from "@shared/store/toast-atoms";
@@ -20,13 +20,11 @@ import {
 	type McpAbility,
 } from "../types";
 import { AbilitiesBanner } from "./AbilitiesBanner";
-import { AbilityCard } from "./AbilityCard";
+import { AbilityCard, type AbilityCardActions } from "./AbilityCard";
 import { AbilityMcpDialogs } from "./AbilityMcpDialogs";
 import { AddAbilityMenu } from "./AddAbilityMenu";
 import { MarketplaceSourcesDialog } from "./MarketplaceSourcesDialog";
 import { UnreviewedMcpPromptDialog } from "./UnreviewedMcpPromptDialog";
-
-const easeOut = [0.22, 1, 0.36, 1] as const;
 
 export interface AbilitiesPageViewProps {
 	model: AbilitiesModel;
@@ -44,6 +42,24 @@ export function AbilitiesPageView({
 	const [sourcesDialogOpen, setSourcesDialogOpen] = useState(false);
 	const [filtersOpen, setFiltersOpen] = useState(false);
 	const [unreviewedMcp, setUnreviewedMcp] = useState<McpAbility | null>(null);
+	// Cards receive stable actions; handlers always use the last committed model.
+	const modelRef = useRef(model);
+	useLayoutEffect(() => {
+		modelRef.current = model;
+	}, [model]);
+	const cardActions = useMemo<AbilityCardActions>(
+		() => ({
+			install: (item) => modelRef.current.install(item),
+			uninstall: (item) => modelRef.current.uninstall(item),
+			toggle: (item) => modelRef.current.toggle(item),
+			reloadPlugin: (item) => modelRef.current.reloadPlugin(item),
+			setup: (item) => modelRef.current.setup(item),
+			configure: (item) => modelRef.current.configure(item),
+			edit: (item) => modelRef.current.edit(item),
+			revokeAuthorization: (item) => modelRef.current.revokeAuthorization(item),
+		}),
+		[],
+	);
 	const wasRefreshing = useRef(model.refreshing);
 	const hasActiveFilter = Boolean(
 		model.searchQuery ||
@@ -114,7 +130,7 @@ export function AbilitiesPageView({
 			/>
 
 			<div className="flex-1 overflow-y-auto px-5 pb-8 sm:px-8 [scrollbar-gutter:stable]">
-				<div className="mx-auto flex w-full max-w-6xl flex-col gap-5">
+				<div className="mx-auto flex w-full max-w-3xl flex-col gap-5">
 					<WorkspacePageHeader
 						title={t("page.title")}
 						description={t("page.subtitle")}
@@ -123,6 +139,9 @@ export function AbilitiesPageView({
 					/>
 
 					<AbilitiesBanner />
+					{(model.scope === "discover" || model.scope === "public") && !hasActiveFilter && (
+						<AbilitySpotlight items={model.allItems} />
+					)}
 
 					<div className="sticky top-0 z-30 flex flex-col gap-3 border-b border-border/60 bg-background/95 py-3 backdrop-blur-md">
 						<div data-tour="capabilities-search-add" className="flex min-w-0 items-center gap-2">
@@ -379,7 +398,7 @@ export function AbilitiesPageView({
 													<AbilityCard
 														key={item.id}
 														item={item}
-														model={model}
+														model={cardActions}
 														onUnreviewedMcpAdd={setUnreviewedMcp}
 													/>
 												))}
@@ -392,7 +411,7 @@ export function AbilitiesPageView({
 											<AbilityCard
 												key={item.id}
 												item={item}
-												model={model}
+												model={cardActions}
 												onUnreviewedMcpAdd={setUnreviewedMcp}
 											/>
 										))}
@@ -463,7 +482,7 @@ export function AbilitiesPageView({
 										<AbilityCard
 											key={item.id}
 											item={item}
-											model={model}
+											model={cardActions}
 											onUnreviewedMcpAdd={setUnreviewedMcp}
 										/>
 									))}

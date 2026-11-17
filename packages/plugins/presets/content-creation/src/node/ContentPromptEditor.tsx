@@ -3,13 +3,8 @@ import { type ChangeEvent, useEffect, useMemo, useRef, useState } from "react";
 import type { ImportedContentReference } from "../generation/types";
 import { CONTENT_PROMPT_NODE_OPTIMIZATION_PROFILE } from "../prompt-optimization/prompt-optimization-service";
 import { serializeContentPromptForOptimization } from "../prompt-optimization/serialize-content-prompt";
-import { usePromptOptimizationModels } from "../prompt-optimization/usePromptOptimizationModels";
-import type {
-	ContentAsset,
-	ContentNodeData,
-	ContentNodeInputBinding,
-	ContentPromptDocument,
-} from "../project/types";
+import { usePromptOptimization } from "../prompt-optimization/usePromptOptimization";
+import type { ContentAsset, ContentNodeData, ContentNodeInputBinding, ContentPromptDocument } from "../project/types";
 import {
 	contentPromptText,
 	contentPromptSourceSignature,
@@ -47,22 +42,17 @@ export function ContentPromptEditor({
 	const draftRef = useRef(data);
 	const [isOptimizing, setIsOptimizing] = useState(false);
 	const [hasPromptContent, setHasPromptContent] = useState(() => hasOptimizableContent(data));
-	const {
-		models,
-		selectedModelKey,
-		setSelectedModelKey,
-		isLoadingModels,
-		optimizePrompt,
-		reportError,
-	} = usePromptOptimizationModels(data.promptOptimization?.modelKey);
+	const { selectedModelKey, setSelectedModelKey, optimizePrompt, reportError } = usePromptOptimization(
+		data.promptOptimization?.modelKey,
+	);
 	const removeReferenceLabel = t("nodeEditor.reference.remove");
 	const assetById = useMemo(
 		() =>
 			new Map(
-				[
-					...referenceAssets.map(({ asset }) => asset),
-					...mentionAssets.map(({ asset }) => asset),
-				].map((asset) => [asset.id, asset]),
+				[...referenceAssets.map(({ asset }) => asset), ...mentionAssets.map(({ asset }) => asset)].map((asset) => [
+					asset.id,
+					asset,
+				]),
 			),
 		[mentionAssets, referenceAssets],
 	);
@@ -92,9 +82,7 @@ export function ContentPromptEditor({
 			...draftRef.current,
 			prompt: contentPromptText(promptDocument),
 			promptDocument,
-			inputs: (draftRef.current.inputs ?? []).filter((binding) =>
-				referencedBindingIds.has(binding.id),
-			),
+			inputs: (draftRef.current.inputs ?? []).filter((binding) => referencedBindingIds.has(binding.id)),
 		};
 		draftRef.current = next;
 		setHasPromptContent(hasOptimizableContent(next));
@@ -103,9 +91,7 @@ export function ContentPromptEditor({
 	const resolveMention = (option: PromptMentionOption): PromptMentionInsertion | null => {
 		if (option.type !== "asset") return null;
 		const candidate = option.candidate;
-		const existingBinding = (draftRef.current.inputs ?? []).find(
-			(binding) => binding.assetId === candidate.asset.id,
-		);
+		const existingBinding = (draftRef.current.inputs ?? []).find((binding) => binding.assetId === candidate.asset.id);
 		const binding =
 			existingBinding ??
 			({
@@ -186,9 +172,7 @@ export function ContentPromptEditor({
 				onUpload={() => fileInputRef.current?.click()}
 				uploadTitle={t("nodeEditor.prompt.mention.upload")}
 				optimization={{
-					models,
 					selectedModelKey,
-					isLoadingModels,
 					isOptimizing,
 					canOptimize: hasPromptContent,
 					onModelChange: setSelectedModelKey,

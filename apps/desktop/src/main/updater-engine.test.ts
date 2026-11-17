@@ -9,7 +9,7 @@ import { ElectronUpdaterEngine, type NativeMacUpdateEvents } from "./updater-eng
 
 const temporaryRoots: string[] = [];
 
-import { htmlToMarkdown } from "./updater-engine.js";
+import { releaseNotesHtmlToMarkdown as htmlToMarkdown } from "./release-notes-markdown.js";
 
 describe("htmlToMarkdown release notes conversion", () => {
 	it("converts html headings, paragraphs, lists and formatting to markdown", () => {

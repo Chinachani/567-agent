@@ -44,12 +44,12 @@ vi.mock("../prompt-optimization/PromptOptimizationControl", () => ({
 	PromptOptimizationControl: () => null,
 }));
 
-vi.mock("../prompt-optimization/usePromptOptimizationModels", () => ({
-	usePromptOptimizationModels: () => ({
-		models: [],
+vi.mock("../prompt-optimization/usePromptOptimization", () => ({
+	usePromptOptimization: () => ({
 		selectedModelKey: "",
 		setSelectedModelKey: () => undefined,
-		isLoadingModels: false,
+		optimizePrompt: vi.fn(),
+		reportError: vi.fn(),
 	}),
 }));
 
@@ -267,13 +267,9 @@ describe("node editor interaction boundary", () => {
 		expect(editor.querySelector("img")?.getAttribute("src")).toBe("vetta-media://mood");
 		expect(onUpdate).toHaveBeenCalledWith(
 			expect.objectContaining({
-				inputs: expect.arrayContaining([
-					expect.objectContaining({ assetId: "mood", slotId: "images" }),
-				]),
+				inputs: expect.arrayContaining([expect.objectContaining({ assetId: "mood", slotId: "images" })]),
 				promptDocument: expect.objectContaining({
-					segments: expect.arrayContaining([
-						expect.objectContaining({ type: "asset-reference" }),
-					]),
+					segments: expect.arrayContaining([expect.objectContaining({ type: "asset-reference" })]),
 				}),
 			}),
 		);

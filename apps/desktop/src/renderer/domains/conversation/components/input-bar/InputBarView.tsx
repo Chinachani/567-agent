@@ -1,3 +1,4 @@
+import { BottomPanelPillsView } from "@vetta-org/theme-ui/bottom-panel";
 import { ContextWorkspace } from "../ContextWorkspace";
 import { PerfSendProfiler } from "@shared/lib/perf-send";
 import { useThemeComponent } from "@vetta-org/theme-sdk";
@@ -23,7 +24,6 @@ import {
 	InputBarActiveActions,
 	InputBarAttachmentActions,
 	InputBarContextAction,
-	InputBarExecutionModeAction,
 	InputBarModelAction,
 	InputBarSendAction,
 	InputBarSkillsAction,
@@ -63,6 +63,7 @@ export function InputBarView({ model, children, className, classNames }: InputBa
 				visible={!slashOpen}
 				updateActiveSession={model.modelSelector.updateActiveSession}
 				scope={model.modelSelector.scope}
+				executionMode={model.leadingTools[0]?.model}
 			/>
 			<div className="ml-auto flex min-w-0 items-center gap-1">
 				{model.trailingTools.map((tool) =>
@@ -278,13 +279,7 @@ export function InputBarView({ model, children, className, classNames }: InputBa
 												onSelectFiles={() => void model.actions.handleSelectFiles()}
 												onSelectImages={() => void model.actions.handleSelectImages()}
 											/>
-											{model.leadingTools.map((tool) => (
-												<InputBarExecutionModeAction
-													key={tool.kind}
-													visible={!slashOpen}
-													model={tool.model}
-												/>
-											))}
+
 											<InputBarActiveActions
 												items={model.activeActions}
 												removeHint={model.labels.capsule.removeDefault}
@@ -316,6 +311,15 @@ export function InputBarView({ model, children, className, classNames }: InputBa
 				 * InputBarFooter 用 CSS 过渡承担。待办只是第一个住户，后续元素加进 items 即可。
 				 */}
 				<InputBarFooter.Root>
+					<InputBarFooter.Item>
+						{model.bottomPanelPills ? (
+							<BottomPanelPillsView
+								pills={model.bottomPanelPills.pills}
+								labels={{ group: model.bottomPanelPills.groupLabel }}
+								onSelect={model.bottomPanelPills.onSelect}
+							/>
+						) : null}
+					</InputBarFooter.Item>
 					<InputBarFooter.Item>
 						{/* 插件引用排在下沿最上面：它离卡片最近，跟「这一条要发什么」关系最紧。 */}
 						{model.promptAttachmentLabels?.length ? (

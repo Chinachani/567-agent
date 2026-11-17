@@ -1,5 +1,6 @@
 import { parseModelContext } from "../../../shared/model-context.js";
 import type { ModelDefinition } from "../model-settings-service.js";
+import { parseProviderModels } from "../parse-provider-models.js";
 import type { PresetProviderDef } from "./catalog.js";
 import { type PresetError, PresetFetchError, toPresetError } from "./errors.js";
 
@@ -159,7 +160,8 @@ async function fetchAnthropicModels(
 }
 
 // ─── OpenAI 兼容: GET {baseUrl}/models,Bearer 鉴权 ───
-// OpenAI / DeepSeek / Z.ai 只给 id;Kimi 额外给 context_length / supports_* 能力位。
+// OpenAI / DeepSeek / Z.ai 只给 id;Kimi 额外给 context_length / supports_* 能力位;
+// Magpie 这类聚合网关用 reasoning / reasoning_levels / modalities 等另一套写法。
 
 interface OpenAICompatibleModel extends Record<string, unknown> {
 	id?: string;
@@ -173,12 +175,20 @@ interface OpenAICompatibleModel extends Record<string, unknown> {
 export function parseOpenAICompatibleModel(raw: OpenAICompatibleModel | string): ModelDefinition | null {
 	if (typeof raw === "string") return raw ? { id: raw } : null;
 	if (!raw.id) return null;
+	// 键名不统一的网关写法（思考档位、模态、上下文、输出上限）交给「从接口拉取」同一个解析器识别，
+	// 两条路径对同一个网关看到的参数才一致；Kimi 明确给的 supports_* 仍然优先。
+	const rich = parseProviderModels({ data: [raw] })[0];
+	const context = parseModelContext(raw);
+	const reasoning = raw.supports_reasoning ?? rich?.reasoning;
+	const vision = raw.supports_image_in ?? (rich?.input?.includes("image") ? true : undefined);
 	return {
 		id: raw.id,
 		...(raw.display_name ? { name: raw.display_name } : {}),
-		...(raw.supports_reasoning === undefined ? {} : { reasoning: raw.supports_reasoning }),
-		...(raw.supports_image_in === undefined ? {} : { input: raw.supports_image_in ? ["text", "image"] : ["text"] }),
-		...parseModelContext(raw),
+		...(reasoning === undefined ? {} : { reasoning }),
+		...(rich?.reasoningLevels?.length ? { reasoningLevels: rich.reasoningLevels } : {}),
+		...(vision === undefined ? {} : { input: vision ? ["text", "image"] : ["text"] }),
+		...context,
+		...(rich?.maxTokens ? { maxTokens: rich.maxTokens } : {}),
 	};
 }
 

@@ -51,22 +51,12 @@ export function DefaultConversationSectionView({
 				<div className="flex min-w-0 items-center gap-0.5">{filterSelect}</div>
 				<div className="flex items-center">
 					{listActions}
-					<button
-						type="button"
-						title={labels.more}
-						onClick={onMoreClick}
-						className={actionButtonClass}
-					>
+					<button type="button" title={labels.more} onClick={onMoreClick} className={actionButtonClass}>
 						<span className="icon-[solar--menu-dots-linear] h-4 w-4" />
 					</button>
 					{showNewSession && onNewSession && (
-						<button
-							type="button"
-							title={labels.newSession}
-							onClick={onNewSession}
-							className={actionButtonClass}
-						>
-							<span className="icon-[solar--add-square-outline] h-4 w-4" />
+						<button type="button" title={labels.newSession} onClick={onNewSession} className={actionButtonClass}>
+							<span className="icon-[solar--add-linear] h-4 w-4" />
 						</button>
 					)}
 				</div>

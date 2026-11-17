@@ -40,6 +40,7 @@ export interface PresetProviderRowViewLabels {
 	readonly remove: string;
 	readonly enable: string;
 	readonly apiKeyDirect: (name: string) => string;
+	readonly apiKeyLabel?: string;
 	readonly apiKeyPlaceholder: string;
 	readonly encryptedApiKeyPlaceholder: string;
 	readonly save: string;
@@ -176,7 +177,9 @@ export function PresetProviderRowView({
 							aria-label={row.adopted ? labels.changeKey : labels.enable}
 							className={cn("text-muted-foreground hover:text-foreground", !row.adopted && "hover:text-primary")}
 						>
-							<span className={cn("h-3.5 w-3.5", row.adopted ? "icon-[mdi--key-outline]" : "icon-[mdi--key-plus]")} />
+							<span
+								className={cn("h-3.5 w-3.5", row.adopted ? "icon-[mdi--key-outline]" : "icon-[mdi--key-plus]")}
+							/>
 						</Button>
 					)}
 					{canEditUrl && (
@@ -246,6 +249,7 @@ export function PresetProviderRowView({
 						<DialogTitle className="text-[15px]">{row.displayName}</DialogTitle>
 						<DialogDescription className="text-[12px]">{labels.apiKeyDirect(row.displayName)}</DialogDescription>
 					</DialogHeader>
+					{labels.apiKeyLabel && <div className="text-[13px] font-medium">{labels.apiKeyLabel}</div>}
 					<div className="flex items-center gap-1.5">
 						<div className="min-w-0 flex-1">
 							<InputField

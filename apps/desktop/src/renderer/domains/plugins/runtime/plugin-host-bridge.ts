@@ -3,6 +3,9 @@ import type { SessionEvent } from "@567agent/runtime-core";
 import { useSidebarState } from "@shared/app-shell/sidebar-state";
 import {
 	activeSessionAtom,
+	activeSessionCwdAtom,
+	activeSessionPathAtom,
+	activeSessionRuntimeIdAtom,
 	chatMessagesAtom,
 	inputValueAtom,
 	isStreamingAtom,
@@ -43,6 +46,7 @@ import type {
 import { __setPluginHostBridge, PluginAppActionError } from "@vetta-org/plugin-sdk";
 import { getDefaultStore, useAtomValue } from "jotai";
 import { useMemo } from "react";
+import { PluginModelPicker } from "./PluginModelPicker";
 import { pluginHandlerGenerationKey as handlerKey } from "./plugin-handler-generation-key.js";
 import {
 	getPluginHostBridgeRuntimeState,
@@ -206,30 +210,6 @@ function translate(event: SessionEvent): void {
 			if (event.phase === "agent_start") emit({ type: "turn-start" });
 			else if (event.phase === "agent_end") emit({ type: "turn-end", stopReason: "stop" });
 			else if (event.phase === "aborted") emit({ type: "turn-end", stopReason: "aborted" });
-			return;
-		case "message.delta":
-			emit({ type: "message-updated", delta: event.delta });
-			return;
-		case "message.final":
-			emit({
-				type: "message-added",
-				message: {
-					id: event.eventId,
-					role: (event.message.role === "user" ? "user" : "assistant") as ConversationMessage["role"],
-					text: messageText(event.message),
-					timestamp: event.timestamp,
-				},
-			});
-			return;
-		case "toolcall.args":
-			// 生成阶段的部分参数：让插件在工具真正落盘之前就能点亮目标。
-			// 与 tool.start 的 args 同属 agent.session.read 的可见面。
-			emit({
-				type: "tool-call-args",
-				toolCallId: event.toolCallId,
-				toolName: event.toolName,
-				args: event.args as Record<string, unknown>,
-			});
 			return;
 		case "tool.start":
 			emit({
@@ -814,19 +794,14 @@ const conversation: PluginConversationApi = {
 // ─── Hooks ───
 
 function useActiveConversation(): ConversationState {
-	const active = useAtomValue(activeSessionAtom);
+	// 只订阅用得到的字段：订阅整个 activeSession 会让每个插件在流式期间每条消息都重渲一次
+	// （顶栏动作的探针是常驻的，代价会乘上插件数）。
+	const id = useAtomValue(activeSessionRuntimeIdAtom);
+	const cwd = useAtomValue(activeSessionCwdAtom);
+	const sessionPath = useAtomValue(activeSessionPathAtom);
 	const isStreaming = useAtomValue(isStreamingAtom);
 	const model = useAtomValue(selectedModelAtom);
-	return useMemo(
-		() => ({
-			id: active?.runtimeId ?? null,
-			cwd: active?.cwd ?? null,
-			sessionPath: active?.sessionPath ?? null,
-			model,
-			isStreaming,
-		}),
-		[active, model, isStreaming],
-	);
+	return useMemo(() => ({ id, cwd, sessionPath, model, isStreaming }), [id, cwd, sessionPath, model, isStreaming]);
 }
 
 function useConversationMessages(): ConversationMessage[] {
@@ -857,6 +832,7 @@ export const pluginHostBridge: PluginHostBridge = {
 	usePromptAttachment,
 	useLocale,
 	useSidebarState,
+	ModelPicker: PluginModelPicker,
 	conversation,
 };
 

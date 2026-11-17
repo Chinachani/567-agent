@@ -3,13 +3,17 @@ import { readFile } from "node:fs/promises";
 import { homedir } from "node:os";
 import { join } from "node:path";
 import { getAgent567HomePath } from "@567agent/action-rpc";
+import type { SshHost } from "@567agent/ssh-transport";
 import { atomicWriteJSON } from "@567agent/toolkit/atomic-write";
+import { type AppIconId, normalizeAppIconId } from "../../shared/app-icon.js";
 import { type GitHubUpdateSource, normalizeGitHubUpdateProxyUrl } from "../../shared/github-download-source.js";
 import { isLanguagePreference, type LanguagePreference } from "../../shared/i18n/config.js";
 import { normalizeShortcutsConfig, type ShortcutsConfig } from "../../shared/shortcuts.js";
 import { normalizeUiZoomFactor } from "../../shared/ui-zoom.js";
 import { normalizeUpdaterPreferences, type UpdaterPreferences } from "../../shared/updater-preferences.js";
 import { isAgentMode } from "../agent-modes/index.js";
+import { getAppLogger } from "../logger.js";
+import { sshHostStore } from "../ssh/ssh-host-store.js";
 import { migrateLegacyWorkspace } from "./legacy-workspace-migration.js";
 import { projectStatePath } from "./project-state-paths.js";
 
@@ -37,6 +41,7 @@ export interface ImageGenerationConfig {
 }
 
 export interface DesktopConfig {
+	appIconId?: AppIconId;
 	projects: ProjectEntry[];
 	archivedProjects: ProjectEntry[];
 	workspacePath: string;
@@ -75,6 +80,7 @@ export interface DesktopConfig {
 		inputEnabled?: boolean;
 		autoShareScreen?: boolean;
 	};
+	sshHosts?: SshHost[];
 }
 
 export type DesktopConfigUpdater = (
@@ -247,7 +253,7 @@ export async function readDesktopConfig(): Promise<DesktopConfig> {
 		const raw = await readFile(CONFIG_PATH, "utf8");
 		return parseDesktopConfig(JSON.parse(raw) as Record<string, unknown>);
 	} catch {
-		return { ...DEFAULT_CONFIG };
+		return { ...DEFAULT_CONFIG, sshHosts: sshHostStore.readSync() };
 	}
 }
 
@@ -256,7 +262,7 @@ export function readConfigSync(): DesktopConfig {
 		const raw = readFileSync(CONFIG_PATH, "utf8");
 		return parseDesktopConfig(JSON.parse(raw) as Record<string, unknown>);
 	} catch {
-		return { ...DEFAULT_CONFIG };
+		return { ...DEFAULT_CONFIG, sshHosts: sshHostStore.readSync() };
 	}
 }
 
@@ -297,6 +303,7 @@ function parseDesktopConfig(parsed: Record<string, unknown>): DesktopConfig {
 					: undefined,
 		notificationsEnabled: typeof parsed.notificationsEnabled === "boolean" ? parsed.notificationsEnabled : true,
 		language: isLanguagePreference(parsed.language) ? parsed.language : undefined,
+		appIconId: normalizeAppIconId(parsed.appIconId),
 		uiZoomFactor: typeof parsed.uiZoomFactor === "number" ? normalizeUiZoomFactor(parsed.uiZoomFactor) : undefined,
 		experimental: normalizeExperimental(parsed.experimental),
 		imageGeneration: normalizeImageGeneration(parsed.imageGeneration),
@@ -307,6 +314,7 @@ function parseDesktopConfig(parsed: Record<string, unknown>): DesktopConfig {
 		hideToTrayOnClose:
 			typeof parsed.hideToTrayOnClose === "boolean" ? parsed.hideToTrayOnClose : DEFAULT_CONFIG.hideToTrayOnClose,
 		remoteControl: normalizeRemoteControl(parsed.remoteControl),
+		sshHosts: sshHostStore.readSync(parsed.sshHosts),
 	};
 }
 
@@ -321,19 +329,45 @@ function normalizeRemoteControl(value: unknown): DesktopConfig["remoteControl"] 
 	};
 }
 
+type ConfigChangedHandler = (previous: DesktopConfig, next: DesktopConfig) => void;
+const configChangedHandlers = new Set<ConfigChangedHandler>();
+export function onDesktopConfigChanged(handler: ConfigChangedHandler): () => void {
+	configChangedHandlers.add(handler);
+	return () => {
+		configChangedHandlers.delete(handler);
+	};
+}
+function emitConfigChanged(previous: DesktopConfig, next: DesktopConfig): void {
+	for (const handler of configChangedHandlers) {
+		try {
+			handler(previous, next);
+		} catch (error) {
+			getAppLogger("config").warn("config change observer failed", error);
+		}
+	}
+}
+
 export async function writeDesktopConfig(config: DesktopConfig): Promise<void> {
 	await withDesktopConfigMutation(async () => {
-		atomicWriteJSON(CONFIG_PATH, config);
+		const previous = await readDesktopConfig();
+		atomicWriteJSON(CONFIG_PATH, { ...config, sshHosts: undefined });
+		emitConfigChanged(previous, config);
 	});
 }
 
 /** Serialize in-process config read-modify-write operations so concurrent callers retain each other's fields. */
 export async function updateDesktopConfig(mutate: Parameters<DesktopConfigUpdater>[0]): Promise<DesktopConfig> {
 	return withDesktopConfigMutation(async () => {
-		const next = await mutate(await readDesktopConfig());
-		atomicWriteJSON(CONFIG_PATH, next);
+		const previous = await readDesktopConfig();
+		const next = await mutate(previous);
+		atomicWriteJSON(CONFIG_PATH, { ...next, sshHosts: undefined });
+		emitConfigChanged(previous, next);
 		return next;
 	});
+}
+
+export async function writeSshHosts(hosts: readonly SshHost[]): Promise<void> {
+	await sshHostStore.write(hosts);
 }
 
 let desktopConfigMutationTail: Promise<void> = Promise.resolve();

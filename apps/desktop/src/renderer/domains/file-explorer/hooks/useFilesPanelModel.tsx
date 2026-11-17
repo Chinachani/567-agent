@@ -1,4 +1,5 @@
 import { Button } from "@shared/components/ui/button";
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@vetta-org/ui";
 import {
 	FILE_EXPLORER_ENTRY_EXISTS_ERROR,
 	getFileExplorerEntryNameIssue,
@@ -36,7 +37,7 @@ import type {
 	FileExplorerSelectOptions,
 	FilesPanelViewProps,
 } from "@vetta-org/theme-ui/file-explorer";
-import { findFileTreeElement } from "@vetta-org/theme-ui/file-explorer";
+import { findFileTreeElement } from "@vetta-org/theme-ui/file-explorer/file-tree-dom";
 import { getDefaultStore, useAtom, useAtomValue, useSetAtom } from "jotai";
 import { useCallback, useEffect, useRef, useState, type KeyboardEvent, type ReactNode } from "react";
 import { useTranslation } from "react-i18next";
@@ -49,6 +50,7 @@ import { ConfirmDeleteDialog } from "../components/ConfirmDeleteDialog";
 import { FileContextMenu } from "../components/FileContextMenu";
 import { FileTransferDialog } from "../components/FileTransferDialog";
 import { FileTree } from "../components/FileTree";
+import { FileExplorerSettings } from "../components/FileExplorerSettings";
 import { type FileExplorerClipboard, resolvePasteDirectory } from "../services/clipboard";
 import { resolveCreateParentDirectory } from "../services/create-entry";
 import { isProjectInternalDrop } from "../services/file-drop";
@@ -81,6 +83,15 @@ export function useFilesPanelModel(cwd?: string | null): FilesPanelViewProps {
 	} = useFileTree(cwd);
 
 	const selection = useFileExplorerSelection({ rootDir, cache, expandedDirs });
+	const activeRootRef = useRef(rootDir);
+	activeRootRef.current = rootDir;
+	const mountedRef = useRef(false);
+	useEffect(() => {
+		mountedRef.current = true;
+		return () => {
+			mountedRef.current = false;
+		};
+	}, []);
 
 	const [contextMenu, setContextMenu] = useAtom(fileContextMenuAtom);
 	const setPreview = useSetAtom(inlineFilePreviewAtom);
@@ -262,9 +273,10 @@ export function useFilesPanelModel(cwd?: string | null): FilesPanelViewProps {
 					setCreatingEntry(null);
 				})
 				.catch((error: unknown) => {
-					const message = error instanceof Error && error.message === FILE_EXPLORER_ENTRY_EXISTS_ERROR
-						? t("fileExplorer.createAlreadyExists")
-						: t("fileExplorer.createFailed");
+					const message =
+						error instanceof Error && error.message === FILE_EXPLORER_ENTRY_EXISTS_ERROR
+							? t("fileExplorer.createAlreadyExists")
+							: t("fileExplorer.createFailed");
 					setCreatingEntry((current) =>
 						current?.parentPath === pending.parentPath && current.kind === pending.kind
 							? { ...current, error: message, busy: false }
@@ -277,12 +289,13 @@ export function useFilesPanelModel(cwd?: string | null): FilesPanelViewProps {
 
 	useEffect(() => {
 		const handle = bindPluginFileExplorerHost({
-			getWorkspaceRoot: () =>
-				rootDir ? { name: getProjectDisplayName(rootDir, defaultCwd), path: rootDir } : null,
+			getWorkspaceRoot: () => (rootDir ? { name: getProjectDisplayName(rootDir, defaultCwd), path: rootDir } : null),
 			getSelection: () => selection.selectedEntries.map((entry) => ({ ...entry })),
 			reveal: async (path, options) => {
 				if (!rootDir) throw new Error("File explorer has no active workspace");
 				await revealPath(path);
+				if (!mountedRef.current || activeRootRef.current !== rootDir)
+					throw new Error("File explorer workspace changed");
 				const entries = [...getDefaultStore().get(fileTreeCacheAtom).values()].flat();
 				const entry = entries.find((candidate) => candidate.path === path);
 				if (!entry) throw new Error(`Path is not visible in the active workspace: ${path}`);
@@ -295,7 +308,8 @@ export function useFilesPanelModel(cwd?: string | null): FilesPanelViewProps {
 					// Rows are virtualized and not focusable: focus the tree container, which keeps
 					// the focused row as aria-activedescendant and scrolls it into view on focus.
 					requestAnimationFrame(() => {
-						findFileTreeElement(rootDir)?.focus({ preventScroll: true });
+						if (mountedRef.current && activeRootRef.current === rootDir)
+							findFileTreeElement(rootDir)?.focus({ preventScroll: true });
 					});
 				}
 			},
@@ -479,8 +493,7 @@ export function useFilesPanelModel(cwd?: string | null): FilesPanelViewProps {
 		(destinationOverride?: string) => {
 			if (!rootDir || !clipboard || clipboard.entries.length === 0) return;
 			const destinationDirectory =
-				destinationOverride ??
-				resolvePasteDirectory(rootDir, selection.focusedEntry, selection.selectedEntries);
+				destinationOverride ?? resolvePasteDirectory(rootDir, selection.focusedEntry, selection.selectedEntries);
 			const sourcePaths = clipboard.entries.map((entry) => entry.path);
 			void window.agent567.fs
 				.prepareTransfer(sourcePaths, destinationDirectory)
@@ -633,23 +646,13 @@ export function useFilesPanelModel(cwd?: string | null): FilesPanelViewProps {
 	const projectName = getProjectDisplayName(rootDir, defaultCwd);
 
 	const clearArtifactsButton: ReactNode = clearArtifactsScope ? (
-		<Button
-			variant="ghost"
-			size="icon-xs"
-			title={t("fileExplorer.clearArtifacts")}
-			onClick={handleClearArtifacts}
-		>
+		<Button variant="ghost" size="icon-xs" title={t("fileExplorer.clearArtifacts")} onClick={handleClearArtifacts}>
 			<span className="icon-[solar--broom-linear] h-3.5 w-3.5" />
 		</Button>
 	) : undefined;
 
 	const refreshButton = (
-		<Button
-			variant="ghost"
-			size="icon-xs"
-			title={t("fileExplorer.refresh")}
-			onClick={() => void refreshDir(rootDir)}
-		>
+		<Button variant="ghost" size="icon-xs" title={t("fileExplorer.refresh")} onClick={() => void refreshDir(rootDir)}>
 			<span className="icon-[solar--refresh-linear] h-3.5 w-3.5" />
 		</Button>
 	);
@@ -679,22 +682,23 @@ export function useFilesPanelModel(cwd?: string | null): FilesPanelViewProps {
 	));
 	const toolbarActions = (
 		<>
-			<Button
-				variant="ghost"
-				size="icon-xs"
-				title={t("fileExplorer.newFile")}
-				onClick={() => beginCreate("file")}
-			>
-				<span className="icon-[solar--document-add-linear] h-3.5 w-3.5" />
-			</Button>
-			<Button
-				variant="ghost"
-				size="icon-xs"
-				title={t("fileExplorer.newFolder")}
-				onClick={() => beginCreate("directory")}
-			>
-				<span className="icon-[solar--add-folder-linear] h-3.5 w-3.5" />
-			</Button>
+			<DropdownMenu>
+				<DropdownMenuTrigger asChild>
+					<Button variant="ghost" size="icon-xs" title={t("fileExplorer.newMenu")}>
+						<span className="icon-[solar--document-add-outline] h-3.5 w-3.5" />
+					</Button>
+				</DropdownMenuTrigger>
+				<DropdownMenuContent align="start">
+					<DropdownMenuItem onSelect={() => beginCreate("file")}>
+						<span className="icon-[solar--document-add-linear] h-4 w-4" />
+						{t("fileExplorer.newFile")}
+					</DropdownMenuItem>
+					<DropdownMenuItem onSelect={() => beginCreate("directory")}>
+						<span className="icon-[solar--add-folder-linear] h-4 w-4" />
+						{t("fileExplorer.newFolder")}
+					</DropdownMenuItem>
+				</DropdownMenuContent>
+			</DropdownMenu>
 			<Button
 				variant="ghost"
 				size="icon-xs"
@@ -707,6 +711,7 @@ export function useFilesPanelModel(cwd?: string | null): FilesPanelViewProps {
 				<span className="icon-[solar--minimize-square-linear] h-3.5 w-3.5" />
 			</Button>
 			{pluginToolbarActionNodes}
+			<FileExplorerSettings />
 		</>
 	);
 

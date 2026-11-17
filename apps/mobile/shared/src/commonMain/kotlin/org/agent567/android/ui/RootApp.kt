@@ -17,6 +17,7 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.runtime.CompositionLocalProvider
+import androidx.compose.runtime.key
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
@@ -56,6 +57,7 @@ import org.agent567.android.ui.navigation.PlatformBackHandler
 import org.agent567.android.ui.navigation.hasInAppBackDestination
 import org.agent567.android.ui.sessions.SessionsScreen
 import org.agent567.android.ui.toolbox.ToolboxScreen
+import org.agent567.android.ui.followup.TaskCenterScreen
 import org.agent567.android.ui.theme.Agent567Theme
 import kotlin.reflect.KClass
 
@@ -80,7 +82,10 @@ fun RootApp(
     pairingInvite: String? = null,
     onPairingInviteHandled: () -> Unit = {},
     notificationSessionId: String? = null,
+    notificationAction: String? = null,
     onNotificationHandled: () -> Unit = {},
+    sharedContent: org.agent567.android.domain.session.SharedDraftContent? = null,
+    onSharedTextHandled: (String) -> Unit = {},
 ) {
     val vm: AppViewModel =
         viewModel(factory = remember(container) { AppViewModelFactory(container) })
@@ -89,6 +94,9 @@ fun RootApp(
     val appUpdates by vm.appUpdates.collectAsState()
     val sessions by vm.sessions.collectAsState()
     val sessionItems by vm.sessionListItems.collectAsState()
+    val taskResults by vm.taskResults.collectAsState()
+    val taskResultsNotice by vm.taskResultsNotice.collectAsState()
+    val taskResultsLoading by vm.taskResultsLoading.collectAsState()
 
     val updateLifecycle = androidx.lifecycle.compose.LocalLifecycleOwner.current
     androidx.compose.runtime.DisposableEffect(updateLifecycle, state.bootstrapped) {
@@ -107,7 +115,13 @@ fun RootApp(
         onDispose { visibleLifecycle.lifecycle.removeObserver(observer); vm.taskNotifications.foreground = false }
     }
     LaunchedEffect(notificationSessionId, state.bootstrapped) {
-        if (state.bootstrapped && notificationSessionId != null) { vm.openTaskNotification(notificationSessionId); taskNotifications.dismiss(notificationSessionId); onNotificationHandled() }
+        if (state.bootstrapped && notificationSessionId != null) { vm.openTaskNotification(notificationSessionId, notificationAction); taskNotifications.dismiss(notificationSessionId); onNotificationHandled() }
+    }
+    LaunchedEffect(sharedContent?.id, state.bootstrapped) {
+        if (state.bootstrapped && sharedContent != null) {
+            vm.openSharedContent(sharedContent)
+            onSharedTextHandled(sharedContent.id)
+        }
     }
     LaunchedEffect(state.currentSessionId, state.route) {
         if (state.route is AppRoute.Chat) state.currentSessionId?.let(taskNotifications::dismiss)
@@ -153,6 +167,17 @@ fun RootApp(
                 onRefresh = { vm.refreshServiceRouteCatalog(true) },
                 onAction = vm::checkServiceRoute,
                 onClose = { vm.setServiceRoutePickerOpen(false) },
+            )
+            if (state.sharedContentToPlace != null) org.agent567.android.ui.components.SharedTextDestinationSheet(
+                sessions = sessionItems.filter { item -> sessions.any { it.id == item.id } },
+                currentSessionId = state.currentSessionId,
+                files = state.sharedContentToPlace?.files?.map { it.fileName }.orEmpty(),
+                error = state.sharedContentError,
+                busy = state.sharedContentBusy,
+                queued = state.sharedContentQueued,
+                hasContent = state.sharedContentToPlace?.let { it.text.isNotBlank() || it.files.isNotEmpty() } == true,
+                onChoose = vm::placeSharedText,
+                onDismiss = vm::dismissSharedText,
             )
             when (val route = state.route) {
             AppRoute.Boot -> Unit
@@ -218,6 +243,10 @@ fun RootApp(
                                     },
                                     onNewConversation = { vm.openNewConversation(0) },
                                     onUseCloudAi = vm::openCloudConversation,
+                                    taskCenterCount = (if (state.pendingQuestion != null) 1 else 0) + state.devices.count { device ->
+                                        device.activeConversation?.status in setOf("waiting", "running", "failed", "interrupted")
+                                    },
+                                    onOpenTaskCenter = vm::openTaskCenter,
                                 )
                             MainTab.Sessions ->
                                 SessionsScreen(
@@ -297,6 +326,31 @@ fun RootApp(
                     }
                 }
             }
+            AppRoute.TaskCenter ->
+                TaskCenterScreen(
+                    results = taskResults,
+                    resultsNotice = taskResultsNotice,
+                    resultsLoading = taskResultsLoading,
+                    onOpenResult = vm::openTaskResult,
+                    devices = state.devices,
+                    sessions = sessionItems,
+                    pendingQuestion = state.pendingQuestion,
+                    currentSessionId = state.currentSessionId,
+                    isStreaming = state.isStreaming || state.contextBusy,
+                    runningSessionIds = state.runningSessionIds,
+                    onOpenDevice = vm::openDeviceDetail,
+                    loading = state.desktopSessionsLoading,
+                    error = state.desktopSessionsError,
+                    warning = state.desktopSessionsWarning,
+                    onBack = vm::navigateBackFromSecondary,
+                    onRefresh = vm::refreshTaskCenter,
+                    onOpenSession = { sessionId ->
+                        val item = sessionItems.firstOrNull { it.id == sessionId }
+                        if (item?.remoteSessionId != null) vm.openDesktopSession(item.remoteSessionId, item.title)
+                        else vm.openChat(sessionId, if (item?.isCloud == false) ChatSurface.Desktop else ChatSurface.Cloud, item?.title.orEmpty())
+                    },
+                    onOpenDesktopSession = { deviceId, remoteSessionId, title -> vm.openDesktopSession(remoteSessionId, title, deviceId) },
+                )
             is AppRoute.DeviceDetail -> {
                 val device = state.devices.firstOrNull { it.id == route.deviceId }
                 if (device == null) {
@@ -442,7 +496,7 @@ fun RootApp(
                 )
                 if (state.workbenchOpen) {
                     val workbenchSessionId = state.currentSessionId
-                    SessionWorkbenchDialog(
+                    key(workbenchSessionId) { SessionWorkbenchDialog(
                         desktop = route.surface == ChatSurface.Desktop,
                         context = state.contextSnapshot?.workspace,
                         snapshot = state.workbenchSnapshot,
@@ -466,8 +520,12 @@ fun RootApp(
                         onRemoveImage = vm::removePendingImage,
                         readOriginal = { id -> vm.readWorkbenchAttachment(requireNotNull(workbenchSessionId), id) },
                         readThumbnail = { id -> vm.readWorkbenchThumbnail(requireNotNull(workbenchSessionId), id) },
+                        listFiles = { path, offset -> vm.listSessionFiles(requireNotNull(workbenchSessionId), path, offset) },
+                        readFile = { path -> vm.readSessionFile(requireNotNull(workbenchSessionId), path) },
+                        uploadFile = { file, progress -> vm.uploadSessionFile(requireNotNull(workbenchSessionId), file, progress) },
+                        onUseFilePath = { path -> vm.appendUploadedPath(requireNotNull(workbenchSessionId), path) },
                         onDismiss = { vm.setWorkbenchOpen(false) },
-                    )
+                    ) }
                 }
             }
             AppRoute.Plan ->

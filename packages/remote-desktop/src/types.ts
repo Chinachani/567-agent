@@ -83,3 +83,5 @@ export type RemoteInputMessage =
 export type RemoteInputCommand = {
 	[T in RemoteInputMessage as T["type"]]: Omit<T, "sequence">;
 }[RemoteInputMessage["type"]];
+/** Viewer preference only; host encoder/load limits remain authoritative. */
+export type RemoteVideoPreference = "auto" | "smooth" | "clear";

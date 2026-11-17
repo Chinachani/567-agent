@@ -1,3 +1,6 @@
+import type { DesktopAppIconApi } from "./api-types/app-icon.js";
+import type { DesktopTerminalApi } from "./api-types/terminal.js";
+
 export type * from "./api-types/567api.js";
 
 import type { DesktopMarkdownApi } from "../shared/markdown-ipc.js";
@@ -32,6 +35,7 @@ import type { DesktopSchedulerApi } from "./api-types/scheduler.js";
 import type { DesktopSessionApi } from "./api-types/session.js";
 import type { DesktopSkillsApi } from "./api-types/skills.js";
 import type { DesktopSpeechInputApi } from "./api-types/speech-input.js";
+import type { DesktopSshApi } from "./api-types/ssh.js";
 import type {
 	DesktopClipboardApi,
 	DesktopPermissionsApi,
@@ -77,6 +81,7 @@ export type * from "./api-types/session.js";
 export type * from "./api-types/shared.js";
 export type * from "./api-types/skills.js";
 export type * from "./api-types/speech-input.js";
+export type * from "./api-types/ssh.js";
 export type * from "./api-types/system.js";
 export type * from "./api-types/telemetry.js";
 export type * from "./api-types/theme.js";
@@ -91,6 +96,7 @@ export interface DesktopHostAccessApi {
 }
 
 export interface DesktopApi {
+	terminal: DesktopTerminalApi;
 	hostAccess: DesktopHostAccessApi;
 	abilities: DesktopAbilitiesApi;
 	agentTeams: DesktopAgentTeamsApi;
@@ -105,6 +111,7 @@ export interface DesktopApi {
 	telemetry: DesktopTelemetryApi;
 	i18n: DesktopI18nApi;
 	uiZoom: DesktopUiZoomApi;
+	appIcon: DesktopAppIconApi;
 	fs: DesktopFsApi;
 	skills: DesktopSkillsApi;
 	config: DesktopConfigApi;
@@ -129,6 +136,7 @@ export interface DesktopApi {
 	debug: DesktopDebugApi;
 	diagnostics: DesktopDiagnosticsApi;
 	project: DesktopProjectApi;
+	ssh: DesktopSshApi;
 	webhook: DesktopWebhookApi;
 	runtimes: DesktopRuntimesApi;
 	permissions: DesktopPermissionsApi;

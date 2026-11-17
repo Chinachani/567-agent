@@ -20,7 +20,7 @@ const inputSchema = z
 export interface RuntimeCanarySchedulerState {
 	readonly activeTasks: Array<{
 		readonly taskId: string;
-		readonly sessionId: string;
+		readonly sessionId: string | undefined;
 		readonly sessionPath: string | undefined;
 	}>;
 }
@@ -85,11 +85,10 @@ export function createRuntimeCanaryConsumerDefinitions(
 				const schedulerTask = await dependencies.scheduler.createTask({
 					name: "Runtime Canary Scheduler",
 					prompt: RUNTIME_CANARY_SCHEDULER_PROMPT,
-					cron: "0 0 1 1 *",
-					isOnce: false,
+					schedule: { kind: "custom", cron: "0 0 1 1 *" },
 					enabled: false,
-					cwd: parsed.workspace,
-					modelKey: parsed.modelKey,
+					runTarget: { mode: "new-session", projectCwd: parsed.workspace },
+					model: { key: parsed.modelKey },
 					executionMode: "full-access",
 				});
 				void dependencies.scheduler.runNow(schedulerTask.id).catch((error: unknown) => {

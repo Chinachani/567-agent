@@ -1,3 +1,5 @@
+import type { RemoteEventJournal } from "./event-journal.js";
+
 export const REMOTE_PROTOCOL_VERSION = 1 as const;
 
 export type RemoteRole = "mobile" | "desktop" | "relay";
@@ -11,7 +13,12 @@ export type RemoteConnectionState =
 	| "failed";
 
 export const REMOTE_REQUEST_METHODS = [
+	"file.list",
+	"file.stat",
+	"file.read",
 	"session.list",
+	"session.results.list",
+	"session.file.transfer.finish",
 	"session.delete",
 	"session.delete.empty",
 	"session.create",
@@ -161,6 +168,9 @@ export interface RemoteError {
 		| "unsupported_version"
 		| "unauthorized"
 		| "not_found"
+		| "forbidden"
+		| "file_changed"
+		| "too_large"
 		| "busy"
 		| "request_timeout"
 		| "transport_closed"
@@ -220,6 +230,8 @@ export interface RemoteConnectionOptions {
 	readonly capabilities: RemoteCapabilities;
 	readonly connectionId?: string;
 	readonly requestTimeoutMs?: number;
+	/** Shared by transport replacements so unacknowledged events can be replayed. */
+	readonly eventJournal?: RemoteEventJournal;
 	readonly logger?: RemoteLogger;
 	readonly now?: () => number;
 }

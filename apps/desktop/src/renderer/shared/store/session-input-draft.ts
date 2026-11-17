@@ -238,6 +238,42 @@ export function prefillNewSessionInputDraft(cwd: string, text: string): void {
 	if (store.get(activeInputDraftKeyAtom) === key) applySessionInputDraft(draft);
 }
 
+/** Append literal task prose without reparsing it into file/skill tokens or losing attachments. */
+export function appendNewSessionTaskBrief(expectedKey: string, text: string): boolean {
+	const store = getDefaultStore();
+	if (!expectedKey.startsWith("new:") || store.get(activeInputDraftKeyAtom) !== expectedKey || !text.trim())
+		return false;
+	const previous = captureSessionInputDraft();
+	const suffix = `${previous.text ? "\n\n" : ""}${text.trim()}`;
+	const draft: SessionInputDraft = {
+		...previous,
+		text: previous.text + suffix,
+		segments: [...(previous.segments ?? parseInputSegments(previous.text).segments), { kind: "text", text: suffix }],
+	};
+	applySessionInputDraft(draft);
+	persistSessionInputDraft(expectedKey, draft);
+	return true;
+}
+
+/** Stage a handoff before navigation, preserving the target draft and literal text semantics. */
+export function appendExpertHandoffDraft(cwd: string, text: string): void {
+	const store = getDefaultStore();
+	const key = newSessionInputDraftKeyImpl(cwd);
+	const previous =
+		store.get(activeInputDraftKeyAtom) === key ? captureSessionInputDraft() : loadSessionInputDraft(key);
+	const trimmed = text.trim();
+	// Retrying the same handoff must not duplicate the final block, including after reopening the dialog.
+	if (!trimmed || previous.text === trimmed || previous.text.endsWith(`\n\n${trimmed}`)) return;
+	const suffix = `${previous.text ? "\n\n" : ""}${trimmed}`;
+	const draft: SessionInputDraft = {
+		...previous,
+		text: previous.text + suffix,
+		segments: [...(previous.segments ?? parseInputSegments(previous.text).segments), { kind: "text", text: suffix }],
+	};
+	persistSessionInputDraft(key, draft);
+	if (store.get(activeInputDraftKeyAtom) === key) applySessionInputDraft(draft);
+}
+
 /** 发送成功后：清空工作集 + 当前 key 的 map 条目。 */
 export function clearCurrentSessionInputDraft(): void {
 	const store = getDefaultStore();

@@ -45,6 +45,7 @@ export function SidebarTopBar({
 }: SidebarTopBarProps): JSX.Element {
 	return (
 		<div
+			data-titlebar-anchor
 			className={cn(
 				"flex h-11 min-w-0 shrink-0 items-center justify-between gap-1",
 				!floating && "drag-region",

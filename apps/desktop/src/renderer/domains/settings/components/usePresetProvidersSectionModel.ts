@@ -1,7 +1,9 @@
 import type { ModelsConfigData, PresetError, PresetProviderInfo } from "@preload/api.js";
 import { waitForCommittedPaint } from "@shared/lib/committed-paint";
+import { confirmDialogAtom } from "@shared/store/atoms";
 import { showToast } from "@shared/store/toast-atoms";
 import type { TFunction } from "i18next";
+import { useSetAtom } from "jotai";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { isMagpieBaseUrl } from "@/shared/preset-provider-url";
@@ -60,6 +62,7 @@ export interface PresetProvidersSectionLabels {
 	remove: string;
 	enable: string;
 	apiKeyDirect: (provider: string) => string;
+	apiKeyLabel: string;
 	apiKeyPlaceholder: string;
 	encryptedApiKeyPlaceholder: string;
 	save: string;
@@ -115,6 +118,7 @@ export function usePresetProvidersSectionModel({
 	saveConfig: (config: ModelsConfigData) => Promise<boolean>;
 }): PresetProvidersSectionModel {
 	const { t, i18n } = useTranslation("settings");
+	const setConfirm = useSetAtom(confirmDialogAtom);
 	const [presets, setPresets] = useState<PresetProviderInfo[]>([]);
 	const [loading, setLoading] = useState(false);
 	const [error, setError] = useState<string | null>(null);
@@ -427,7 +431,7 @@ export function usePresetProvidersSectionModel({
 		}
 	}, [load, t]);
 
-	const remove = useCallback(
+	const performRemove = useCallback(
 		async (row: PresetProviderRow): Promise<void> => {
 			if (!(await mutate(() => saveProvider(row.id, () => undefined)))) return;
 			setOpenId((current) => (current === row.id ? null : current));
@@ -439,6 +443,24 @@ export function usePresetProvidersSectionModel({
 			});
 		},
 		[mutate, saveProvider, t],
+	);
+
+	// 移除会连同本地保存的 Key 和模型配置一起删掉，且无法撤销，所以先二次确认；
+	// 真正执行放在确认回调里，点「取消」什么都不会发生。
+	const remove = useCallback(
+		(row: PresetProviderRow): Promise<void> => {
+			setConfirm({
+				title: t("removeProviderTitle", { provider: row.displayName }),
+				message: t("removeProviderConfirm", { provider: row.displayName }),
+				confirmLabel: t("remove"),
+				variant: "danger",
+				onConfirm: () => {
+					void performRemove(row);
+				},
+			});
+			return Promise.resolve();
+		},
+		[performRemove, setConfirm, t],
 	);
 
 	return {
@@ -462,6 +484,7 @@ export function usePresetProvidersSectionModel({
 			remove: t("remove"),
 			enable: t("enable"),
 			apiKeyDirect: (provider: string) => t("apiKeyDirect", { provider }),
+			apiKeyLabel: t("apiKeyLabel"),
 			apiKeyPlaceholder: t("presetApiKeyPlaceholder"),
 			encryptedApiKeyPlaceholder: t("replaceApiKeyPlaceholder"),
 			save: t("save"),

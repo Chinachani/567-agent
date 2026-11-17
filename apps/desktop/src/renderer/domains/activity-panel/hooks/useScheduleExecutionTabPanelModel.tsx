@@ -1,10 +1,6 @@
 import { useScheduledTasks } from "@domains/scheduler/hooks/useScheduledTasks";
 import { Button } from "@shared/components/ui/button";
-import {
-	openSessionFnRef,
-	type ScheduledTask,
-	type TaskExecutionRecord,
-} from "@shared/store/atoms";
+import { openSessionFnRef, type ScheduledTask, type TaskExecutionRecord } from "@shared/store/atoms";
 import type {
 	ScheduleExecutionTabPanelViewLabels,
 	ScheduleRecordItem,
@@ -52,6 +48,10 @@ function statusLabel(status: TaskExecutionRecord["status"], t: TFunction<"chat">
 			return t("activityPanel.schedule.statusFailed");
 		case "aborted":
 			return t("activityPanel.schedule.statusAborted");
+		case "skipped":
+			return t("activityPanel.schedule.statusSkipped");
+		case "missed":
+			return t("activityPanel.schedule.statusMissed");
 	}
 }
 
@@ -65,6 +65,9 @@ function statusClass(status: TaskExecutionRecord["status"]): string {
 			return "bg-red-500/10 text-red-500";
 		case "aborted":
 			return "bg-amber-500/10 text-amber-500";
+		case "skipped":
+		case "missed":
+			return "bg-muted text-muted-foreground";
 	}
 }
 
@@ -82,7 +85,7 @@ export function useScheduleExecutionTabPanelModel(cwd: string): ScheduleExecutio
 	const { tasks, runNow, toggleTask, refreshTasks } = useScheduledTasks();
 	const [recordsByTaskId, setRecordsByTaskId] = useState<Record<string, TaskExecutionRecord[]>>({});
 
-	const projectTasks = useMemo(() => tasks.filter((task) => task.cwd === cwd), [tasks, cwd]);
+	const projectTasks = useMemo(() => tasks.filter((task) => task.runTarget.projectCwd === cwd), [tasks, cwd]);
 
 	const loadRecords = useCallback(async (targetTasks: ScheduledTask[]) => {
 		const entries = await Promise.all(
@@ -132,7 +135,7 @@ export function useScheduleExecutionTabPanelModel(cwd: string): ScheduleExecutio
 
 	const handleOpenSession = useCallback((record: TaskExecutionRecord) => {
 		if (!record.sessionPath || !record.cwd || !openSessionFnRef.current) return;
-		void openSessionFnRef.current(record.cwd, record.sessionPath, record.executionMode);
+		void openSessionFnRef.current(record.cwd, record.sessionPath);
 	}, []);
 
 	const labels: ScheduleExecutionTabPanelViewLabels = {
@@ -176,12 +179,8 @@ export function useScheduleExecutionTabPanelModel(cwd: string): ScheduleExecutio
 	const taskItems: ScheduleTaskControlItem[] = projectTasks.map((task) => ({
 		id: task.id,
 		name: task.name,
-		enabledBadge: task.enabled
-			? t("activityPanel.schedule.enabledBadge")
-			: t("activityPanel.schedule.pausedBadge"),
-		enabledBadgeClassName: task.enabled
-			? "bg-emerald-500/10 text-emerald-500"
-			: "bg-accent text-muted-foreground",
+		enabledBadge: task.enabled ? t("activityPanel.schedule.enabledBadge") : t("activityPanel.schedule.pausedBadge"),
+		enabledBadgeClassName: task.enabled ? "bg-emerald-500/10 text-emerald-500" : "bg-accent text-muted-foreground",
 		actions: (
 			<>
 				<Button

@@ -79,7 +79,7 @@ export class FileConversationRuntimeSessionCatalog implements RuntimeSessionCata
 	async listSessions(cwd: string, sessionDir?: string): Promise<SessionHistoryInfo[]> {
 		const roots = sessionDir
 			? [{ cwd, sessionDir }]
-			: this.roots.filter((root) => resolve(root.cwd) === resolve(cwd));
+			: this.roots.filter((root) => projectLocationIdentity(root.cwd) === projectLocationIdentity(cwd));
 		const lists = await Promise.all(roots.map((root) => this.listRoot(root.cwd, root.sessionDir)));
 		const sessions = new Map<string, SessionHistoryInfo>();
 		for (const list of lists) {
@@ -283,4 +283,9 @@ function isCanonicalConversationPath(sessionPath: string, sessionId: string): bo
 		resolve(sessionPath) ===
 		resolve(dirname(sessionPath), `${encodeConversationSessionId(sessionId)}${CONVERSATION_FILE_SUFFIX}`)
 	);
+}
+
+/** Remote roots are opaque URI identities, never local filesystem paths. */
+function projectLocationIdentity(cwd: string): string {
+	return /^[a-z][a-z0-9+.-]*:\/\//i.test(cwd) ? cwd : resolve(cwd);
 }

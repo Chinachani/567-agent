@@ -29,6 +29,8 @@ import { resolveSessionContextComposition } from "../../services/context-composi
 import {
 	createReservedTeamChatSession,
 	createTeamChatSession,
+	EmptyTeamHistoryError,
+	hasStoredTeamChatSession,
 	loadTeamChatBootstrap,
 	loadTeamChatSession,
 	mergeTeamChatBootstrapSessions,
@@ -265,11 +267,24 @@ export function useTeamChatModel(
 						});
 					return;
 				}
+				if (!preferredSessionId) {
+					const bootstrap = await loadTeamChatBootstrap(teamId);
+					if (cancelled) return;
+					applyBootstrap(bootstrap);
+					if (bootstrap.sessions.length === 0 && !hasStoredTeamChatSession(teamId)) {
+						setStatus("ready");
+						return;
+					}
+				}
 				const opened = await loadTeamChatSession(teamId, preferredSessionId);
 				if (cancelled) return;
 				applyLoadedSession(opened);
 			} catch (cause) {
 				if (cancelled) return;
+				if (cause instanceof EmptyTeamHistoryError) {
+					setStatus("ready");
+					return;
+				}
 				setError({ message: errorMessage(cause) });
 				setStatus("error");
 			}
@@ -940,13 +955,8 @@ export function useTeamChatModel(
 			...(session?.leaderMemberId ? { leaderMemberId: session.leaderMemberId } : {}),
 			feedItems,
 			...(pendingLabel ? { pendingLabel } : {}),
-			editorEnabled: Boolean(session || createNewSession || preferredSessionId) && !memberViewId,
-			canSend: Boolean(
-				(session || createNewSession || preferredSessionId) &&
-					!memberViewId &&
-					(draft.trim() || attachments.length > 0) &&
-					!visiblePending,
-			),
+			editorEnabled: false,
+			canSend: false,
 			workspace,
 			pluginScenario,
 			activeSessionId: session?.id ?? (routeHandoff || pending ? (preferredSessionId ?? null) : null),
@@ -991,7 +1001,6 @@ export function useTeamChatModel(
 			isCompacting,
 			memberRuntimeIds,
 			memberViewId,
-			createNewSession,
 			snapshot?.display?.executionMode,
 			visiblePending,
 			runtimeSessionIds,

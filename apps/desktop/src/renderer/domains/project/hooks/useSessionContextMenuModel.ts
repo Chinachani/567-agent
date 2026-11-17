@@ -1,11 +1,16 @@
 import type { SessionContextMenuSession } from "@shared/store/atoms";
 import {
+	automationCreateRequestAtom,
+	conversationBucketCwd,
 	conversationTagEditorAtom,
 	conversationTagsAtom,
+	defaultConversationCwdAtom,
 	pinnedSessionPathsAtom,
 	renamingSessionPathAtom,
+	sessionDisplayLabel,
 	setSessionPinnedAtom,
 } from "@shared/store/atoms";
+import { useNavigate } from "@tanstack/react-router";
 import type { SessionContextMenuViewProps } from "@vetta-org/theme-ui/project";
 import type { ContextMenuNode } from "@vetta-org/theme-ui/shared";
 import { useAtomValue, useSetAtom } from "jotai";
@@ -28,6 +33,9 @@ export function useSessionContextMenuModel(
 	const setSessionPinned = useSetAtom(setSessionPinnedAtom);
 	const tags = useAtomValue(conversationTagsAtom);
 	const openTagEditor = useSetAtom(conversationTagEditorAtom);
+	const requestAutomation = useSetAtom(automationCreateRequestAtom);
+	const defaultCwd = useAtomValue(defaultConversationCwdAtom);
+	const navigate = useNavigate();
 	const pinned = pinnedSessionPaths.has(session.path);
 
 	const handleRename = useCallback(() => {
@@ -48,7 +56,27 @@ export function useSessionContextMenuModel(
 		onClose();
 	}, [onClose, pinned, session.path, setSessionPinned]);
 
-	const extraItems = useMemo<readonly ContextMenuNode[] | undefined>(() => {
+	const automationItem = useMemo<ContextMenuNode | undefined>(() => {
+		if (!allowMutations || session.access?.resume !== true || ("kind" in session && session.kind === "agent-team"))
+			return undefined;
+		return {
+			kind: "item",
+			id: "create-automation",
+			label: t("contextMenu.createAutomation"),
+			iconClassName: "icon-[solar--clock-circle-linear]",
+			onSelect: () => {
+				requestAutomation({
+					name: sessionDisplayLabel(session),
+					runMode: "same-session",
+					projectCwd: conversationBucketCwd(session.cwd, defaultCwd),
+					sessionPath: session.path,
+				});
+				void navigate({ to: "/automation" });
+				onClose();
+			},
+		};
+	}, [allowMutations, session, defaultCwd, requestAutomation, navigate, onClose, t]);
+	const tagItems = useMemo<readonly ContextMenuNode[] | undefined>(() => {
 		if (!canTag) return undefined;
 		const assigned = new Set(conversationTagIds(tags, session.path));
 		const items: ContextMenuNode[] = [
@@ -106,6 +134,10 @@ export function useSessionContextMenuModel(
 			},
 		];
 	}, [canTag, onClose, openTagEditor, session.path, t, tags]);
+	const extraItems = useMemo(
+		() => [...(tagItems ?? []), ...(automationItem ? [automationItem] : [])],
+		[tagItems, automationItem],
+	);
 
 	return {
 		canDelete: allowMutations && session.access?.delete !== false,

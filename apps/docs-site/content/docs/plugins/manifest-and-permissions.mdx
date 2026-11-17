@@ -5,14 +5,14 @@ description: 声明插件身份、加载入口、样式、权限、命令、网�
 
 `plugin.json` 位于 `.567plugin` 插件包的 ZIP 容器根目录（或归档内唯一的顶层文件夹里）。宿主在加载代码前用它校验身份、兼容性和权限，因此清单必须与构建产物一致。
 
-清单结构的唯一实现是 `@vetta-org/plugin-sdk/manifest` 导出的 TypeBox Schema：`PluginManifestSchema` 可直接序列化为 JSON Schema，`parsePluginManifest()` 负责校验、默认值、去重、相对路径归一化和跨字段约束。Schema 有意允许未知字段，这样更高版本清单不会被旧宿主直接拒绝。
+清单结构的唯一实现是 `@vetta-org/plugin-sdk/manifest` 导出的 TypeBox Schema：`PluginManifestSchema` 可直接序列化为 JSON Schema，`parsePluginManifest()` 负责校验、默认值、去重、相对路径归一化和跨字段约束。顶层 Schema 允许附加字段，嵌套配置按各自 Schema 校验；权限名与 API 兼容范围仍严格检查。使用新能力时必须声明对应的最低宿主 API 版本。
 
 ```json
 {
   "id": "my-plugin",
   "name": "My Plugin",
   "version": "0.1.0",
-  "pluginApiVersion": "^2.0.0",
+  "pluginApiVersion": "^2.9.0",
   "entry": "dist/mf-manifest.json",
   "moduleFederation": {
     "remoteName": "my_plugin",
@@ -46,7 +46,7 @@ description: 声明插件身份、加载入口、样式、权限、命令、网�
       required: true,
     },
     pluginApiVersion: {
-      description: "兼容的 Plugin API 版本范围，当前为 ^2.0.0。",
+      description: "兼容的 Plugin API 版本范围。567 Agent 1.6 提供 2.9.0；使用本版新增能力时声明 ^2.9.0。",
       type: "string",
       required: true,
     },
@@ -152,12 +152,14 @@ description: 声明插件身份、加载入口、样式、权限、命令、网�
 
 ## 权限清单
 
+567 Agent 1.6 提供顶栏动作、会话底部面板和终端入口，分别需要 `ui.slot.header-action`、`ui.slot.bottom-panel` 和 `terminal.run`。注册面板不会取得执行命令的权限；终端调用仍受当前项目、插件授权与宿主校验约束。使用 SDK 0.3.10 的共享 `ModelPicker` 时应声明 `pluginApiVersion: "^2.9.0"`；旧插件保持原兼容范围即可。
+
 <Accordions type="single">
   <Accordion title="界面与文件浏览器">
-    `ui.slot.global`、`ui.slot.workspace-view`、`ui.slot.file-preview`、`ui.slot.activity-tab`、`ui.slot.input-action`、`ui.slot.new-session-context`、`ui.slot.message`、`ui.slot.tool-call`、`ui.slot.turn-card`、`ui.slot.ability-detail`、`ui.shortcuts.register`、`ui.file-explorer.decorations`、`ui.file-explorer.context-menu`、`ui.file-explorer.toolbar`、`workspace.read`、`conversation.draft.read`、`shell.openExternal`
+    `ui.slot.header-action`、`ui.slot.bottom-panel`、`ui.slot.global`、`ui.slot.workspace-view`、`ui.slot.file-preview`、`ui.slot.activity-tab`、`ui.slot.input-action`、`ui.slot.new-session-context`、`ui.slot.message`、`ui.slot.tool-call`、`ui.slot.turn-card`、`ui.slot.ability-detail`、`ui.shortcuts.register`、`ui.file-explorer.decorations`、`ui.file-explorer.context-menu`、`ui.file-explorer.toolbar`、`workspace.read`、`conversation.draft.read`、`shell.openExternal`
   </Accordion>
   <Accordion title="对话与命令">
-    `agent.session.read`、`agent.session.write`、`agent.command.run`、`agent.command.spawn`、`capture.offscreen`
+    `agent.session.read`、`agent.session.write`、`agent.command.run`、`agent.command.spawn`、`capture.offscreen`、`terminal.run`
   </Accordion>
   <Accordion title="Agent 扩展">
     `agent.tools.register`、`agent.toolHandler.execute`、`agent.hooks.register`、`agent.hookHandler.execute`、`agent.tools.control`、`agent.skills.control`、`agent.mcp.control`、`agent.systemPrompt.write`、`agent.systemPrompt.fullControl`、`agent.continuation.register`

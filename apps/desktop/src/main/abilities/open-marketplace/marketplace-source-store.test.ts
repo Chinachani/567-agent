@@ -64,9 +64,11 @@ describe("MarketplaceSourceStore", () => {
 		delete process.env.AGENT567_OPEN_MARKETPLACE_REF;
 		delete process.env.AGENT567_OPEN_MARKETPLACE_ARCHIVE_URL;
 
-		expect(new MarketplaceSourceStore({ filePath: await temporaryFile() }).list()).toMatchObject([
-			{ repository: "https://github.com/example/environment-market" },
-		]);
+		expect(new MarketplaceSourceStore({ filePath: await temporaryFile() }).list()).toEqual(
+			expect.arrayContaining([
+				expect.objectContaining({ repository: "https://github.com/example/environment-market" }),
+			]),
+		);
 	});
 
 	it("derives the GitHub archive URL in cloud development", async () => {
@@ -75,13 +77,15 @@ describe("MarketplaceSourceStore", () => {
 		process.env.AGENT567_OPEN_MARKETPLACE_REF = "main";
 		delete process.env.AGENT567_OPEN_MARKETPLACE_ARCHIVE_URL;
 
-		expect(new MarketplaceSourceStore({ filePath: await temporaryFile() }).list()).toMatchObject([
-			{
-				id: "vetta-official",
-				repository: "https://github.com/example/environment-market",
-				archiveUrl: "https://github.com/example/environment-market/archive/refs/heads/main.zip",
-			},
-		]);
+		expect(new MarketplaceSourceStore({ filePath: await temporaryFile() }).list()).toEqual(
+			expect.arrayContaining([
+				expect.objectContaining({
+					id: "vetta-official",
+					repository: "https://github.com/example/environment-market",
+					archiveUrl: "https://github.com/example/environment-market/archive/refs/heads/main.zip",
+				}),
+			]),
+		);
 	});
 
 	it.each(["production", "test", "opensource"])("keeps GitHub sources independent in %s mode", async (mode) => {
@@ -89,7 +93,7 @@ describe("MarketplaceSourceStore", () => {
 		process.env.AGENT567_CLOUD_ENABLED = "true";
 		process.env.AGENT567_OPEN_MARKETPLACE_REPOSITORY = "example/environment-market";
 
-		expect(new MarketplaceSourceStore({ filePath: await temporaryFile() }).list()).toHaveLength(1);
+		expect(new MarketplaceSourceStore({ filePath: await temporaryFile() }).list()).toHaveLength(2);
 	});
 
 	it("upgrades an empty cloud catalog and preserves user switches across editions", async () => {
@@ -100,12 +104,12 @@ describe("MarketplaceSourceStore", () => {
 		await writeFile(filePath, JSON.stringify({ version: 1, sources: [] }));
 
 		const enabled = new MarketplaceSourceStore({ filePath });
-		expect(enabled.list()).toHaveLength(1);
+		expect(enabled.list()).toHaveLength(2);
 		enabled.update("vetta-official", { autoUpdate: false });
 		process.env.AGENT567_CLOUD_ENABLED = "false";
-		expect(new MarketplaceSourceStore({ filePath }).list()).toMatchObject([
-			{ id: "vetta-official", enabled: true, autoUpdate: false },
-		]);
+		expect(new MarketplaceSourceStore({ filePath }).list()).toEqual(
+			expect.arrayContaining([expect.objectContaining({ id: "vetta-official", enabled: true, autoUpdate: false })]),
+		);
 	});
 
 	it.each(["true", "false"])(
@@ -114,17 +118,19 @@ describe("MarketplaceSourceStore", () => {
 			vi.stubEnv("AGENT567_CLOUD_ENABLED", cloud);
 			for (const repository of [undefined, "", "   "]) {
 				vi.stubEnv("AGENT567_OPEN_MARKETPLACE_REPOSITORY", repository);
-				expect(new MarketplaceSourceStore({ filePath: await temporaryFile() }).list()).toMatchObject([
-					{
-						id: "vetta-official",
-						name: OFFICIAL_MARKETPLACE_NAME,
-						repository: OFFICIAL_MARKETPLACE_REPOSITORY,
-						ref: OFFICIAL_MARKETPLACE_REF,
-						archiveUrl: `${OFFICIAL_MARKETPLACE_REPOSITORY}/archive/refs/heads/${OFFICIAL_MARKETPLACE_REF}.zip`,
-						builtin: true,
-						enabled: true,
-					},
-				]);
+				expect(new MarketplaceSourceStore({ filePath: await temporaryFile() }).list()).toEqual(
+					expect.arrayContaining([
+						expect.objectContaining({
+							id: "vetta-official",
+							name: OFFICIAL_MARKETPLACE_NAME,
+							repository: OFFICIAL_MARKETPLACE_REPOSITORY,
+							ref: OFFICIAL_MARKETPLACE_REF,
+							archiveUrl: `${OFFICIAL_MARKETPLACE_REPOSITORY}/archive/refs/heads/${OFFICIAL_MARKETPLACE_REF}.zip`,
+							builtin: true,
+							enabled: true,
+						}),
+					]),
+				);
 			}
 		},
 	);
@@ -132,13 +138,15 @@ describe("MarketplaceSourceStore", () => {
 	it("keeps main as the fallback for a custom distribution repository", async () => {
 		vi.stubEnv("AGENT567_OPEN_MARKETPLACE_REPOSITORY", "example/community-market");
 		vi.stubEnv("AGENT567_OPEN_MARKETPLACE_REF", undefined);
-		expect(new MarketplaceSourceStore({ filePath: await temporaryFile() }).list()).toMatchObject([
-			{
-				repository: "https://github.com/example/community-market",
-				ref: "main",
-				archiveUrl: "https://github.com/example/community-market/archive/refs/heads/main.zip",
-			},
-		]);
+		expect(new MarketplaceSourceStore({ filePath: await temporaryFile() }).list()).toEqual(
+			expect.arrayContaining([
+				expect.objectContaining({
+					repository: "https://github.com/example/community-market",
+					ref: "main",
+					archiveUrl: "https://github.com/example/community-market/archive/refs/heads/main.zip",
+				}),
+			]),
+		);
 	});
 
 	it("keeps persisted sources when a later distribution registers the official default", async () => {
@@ -149,7 +157,7 @@ describe("MarketplaceSourceStore", () => {
 		previous.update("official", { autoUpdate: false });
 		const custom = previous.add({ repository: "example/community", ref: "stable" });
 		const sources = new MarketplaceSourceStore({ filePath }).list();
-		expect(sources).toHaveLength(3);
+		expect(sources).toHaveLength(4);
 		expect(sources[0]).toMatchObject({ id: "official", enabled: true, autoUpdate: false });
 		expect(sources.find((source) => source.id === "vetta-official")).toMatchObject({
 			repository: OFFICIAL_MARKETPLACE_REPOSITORY,
@@ -166,14 +174,16 @@ describe("MarketplaceSourceStore", () => {
 		delete process.env.AGENT567_OPEN_MARKETPLACE_ARCHIVE_URL;
 		const store = new MarketplaceSourceStore({ filePath: await temporaryFile() });
 
-		expect(store.list()).toMatchObject([
-			{
-				id: "vetta-official",
-				repository: "https://github.com/example/environment-market",
-				ref: "testing/v2",
-				archiveUrl: "https://github.com/example/environment-market/archive/refs/heads/testing/v2.zip",
-			},
-		]);
+		expect(store.list()).toEqual(
+			expect.arrayContaining([
+				expect.objectContaining({
+					id: "vetta-official",
+					repository: "https://github.com/example/environment-market",
+					ref: "testing/v2",
+					archiveUrl: "https://github.com/example/environment-market/archive/refs/heads/testing/v2.zip",
+				}),
+			]),
+		);
 	});
 
 	it("persists the built-in source on first read", async () => {

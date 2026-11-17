@@ -14,9 +14,18 @@ export interface ShortcutActionDef {
 }
 
 export const FILE_EDITOR_SAVE_EVENT = "vetta:file-editor-save";
+/** 「打开模型选择」快捷键触发后由根布局广播；输入栏里的模型选择器收到就切换开合。 */
+export const OPEN_MODEL_SELECTOR_EVENT = "vetta:open-model-selector";
 
 /** 可配置的全局快捷键动作（白名单）。as const 保留字面量类型。 */
 export const SHORTCUT_ACTIONS = [
+	{
+		id: "manage-session-actions",
+		labelKey: "shortcutSessionActionsLabel",
+		descriptionKey: "shortcutSessionActionsDesc",
+		defaultShortcut: "mod+k",
+		scope: "editor",
+	},
 	{
 		id: "new-session",
 		labelKey: "shortcutNewSessionLabel",
@@ -43,6 +52,13 @@ export const SHORTCUT_ACTIONS = [
 		labelKey: "shortcutOpenCommandMenuLabel",
 		descriptionKey: "shortcutOpenCommandMenuDesc",
 		defaultShortcut: "mod+k",
+		scope: "app",
+	},
+	{
+		id: "open-model-selector",
+		labelKey: "shortcutOpenModelSelectorLabel",
+		descriptionKey: "shortcutOpenModelSelectorDesc",
+		defaultShortcut: "mod+p",
 		scope: "app",
 	},
 	{

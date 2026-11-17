@@ -63,6 +63,11 @@ data class RemotePromptFileAttachment(
 )
 
 interface RemoteConversationGateway {
+    suspend fun uploadDesktopFile(deviceId: String, remoteSessionId: String, file: RemotePromptFileAttachment, onProgress: (Int, Int) -> Unit): String = throw org.agent567.android.domain.session.RemoteFilesUnsupportedException()
+    suspend fun readTaskResults(deviceId: String): org.agent567.android.domain.followup.TaskResultSnapshot? = null
+    suspend fun listDesktopFiles(localSessionId: String, remoteSessionId: String, path: String, offset: Int = 0): org.agent567.android.domain.session.RemoteSessionFilePage? = null
+    suspend fun readDesktopFileChunk(localSessionId: String, remoteSessionId: String, path: String, offset: Int, length: Int, modifiedAt: Double?): org.agent567.android.domain.session.RemoteSessionFileChunk? = null
+
     suspend fun readDesktopProjectCollaboration(localSessionId: String, remoteSessionId: String): org.agent567.android.domain.session.ProjectCollaborationSnapshot? = null
     suspend fun updateDesktopProjectCollaboration(localSessionId: String, remoteSessionId: String, patch: org.agent567.android.domain.session.ProjectCollaborationPatch): org.agent567.android.domain.session.ProjectCollaborationSnapshot? = null
     suspend fun controlDesktopProjectCollaboration(localSessionId: String, remoteSessionId: String, control: org.agent567.android.domain.session.ProjectCollaborationControl): org.agent567.android.domain.session.ProjectCollaborationSnapshot? = null
@@ -84,6 +89,9 @@ interface RemoteConversationGateway {
         for (target in targets) if (connect(target)) return true
         return false
     }
+
+    /** Wake an existing reconnect loop without replacing active requests or resending prompts. */
+    fun retryConnection(): Boolean = false
 
     suspend fun disconnect(deviceId: String)
 

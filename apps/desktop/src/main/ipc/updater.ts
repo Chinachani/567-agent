@@ -1,5 +1,6 @@
-import { ipcMain, type WebContents } from "electron";
+import { app, ipcMain, type WebContents } from "electron";
 import { normalizeUpdaterPreferences } from "../../shared/updater-preferences.js";
+import { readCurrentReleaseNote } from "../current-release-note.js";
 import { getAppVersion, updateReleaseHistory, updaterService } from "../updater.js";
 import { assertTrustedMainRenderer } from "./trusted-renderer.js";
 
@@ -67,7 +68,19 @@ export function registerUpdaterIpc(owner: WebContents): () => void {
 		assertTrustedMainRenderer(event, owner);
 		return updateReleaseHistory.get();
 	});
+	ipcMain.handle("vetta:updater:get-current-release-note", (event) => {
+		assertTrustedMainRenderer(event, owner);
+		return (
+			readCurrentReleaseNote({
+				version: getAppVersion(),
+				isPackaged: app.isPackaged,
+				resourcesPath: process.resourcesPath,
+				cwd: process.cwd(),
+			}) ?? null
+		);
+	});
 	return () => {
+		ipcMain.removeHandler("vetta:updater:get-current-release-note");
 		ipcMain.removeHandler("agent567:updater:pause");
 		ipcMain.removeHandler("agent567:updater:get-preferences");
 		ipcMain.removeHandler("agent567:updater:set-preferences");

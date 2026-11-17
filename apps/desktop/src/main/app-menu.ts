@@ -10,10 +10,34 @@
 // Windows/Linux 主窗口是 frameless（无菜单栏可见），关闭时直接置 null 即可，
 // 复制粘贴由 Chromium 原生处理，不依赖菜单。
 
-import { dialog, Menu, type MenuItemConstructorOptions } from "electron";
+import { app, dialog, Menu, type MenuItemConstructorOptions } from "electron";
 import { isDevToolsAllowed } from "./devtools-policy.js";
 import { mainT } from "./i18n/index.js";
 import { resetUiZoom, stepUiZoom } from "./ui-zoom/ui-zoom-service.js";
+
+let quitConfirmationPending = false;
+
+async function confirmMenuQuit(): Promise<void> {
+	if (quitConfirmationPending) return;
+	quitConfirmationPending = true;
+	try {
+		const { response } = await dialog.showMessageBox({
+			type: "none",
+			title: mainT("quitConfirmation.title"),
+			message: mainT("quitConfirmation.title"),
+			detail: mainT("quitConfirmation.detail"),
+			buttons: [mainT("quitConfirmation.quit"), mainT("quitConfirmation.cancel")],
+			defaultId: 1,
+			cancelId: 1,
+			noLink: true,
+		});
+		if (response === 0) app.quit();
+	} catch {
+		// App teardown can close the native dialog; do not interpret failure as approval.
+	} finally {
+		quitConfirmationPending = false;
+	}
+}
 
 export interface ApplicationMenuTemplateOptions {
 	isMac: boolean;
@@ -52,7 +76,13 @@ export function buildApplicationMenuTemplate({
 				{ role: "hideOthers", label: mainT("menu.app.hideOthers") },
 				{ role: "unhide", label: mainT("menu.app.unhide") },
 				{ type: "separator" },
-				{ role: "quit", label: mainT("menu.app.quit") },
+				{
+					label: mainT("menu.app.quit"),
+					accelerator: "Command+Q",
+					click: () => {
+						void confirmMenuQuit();
+					},
+				},
 			],
 		},
 		{

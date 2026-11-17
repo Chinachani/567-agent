@@ -5,6 +5,7 @@ export type ProjectContextMenuScope = "conversation" | "claw";
 
 export interface ProjectContextMenuViewLabels {
 	openInFolder: string;
+	manageSessions?: string;
 	archiveProject: string;
 	removeFromList: string;
 	deleteProject: string;
@@ -27,7 +28,8 @@ export interface ProjectContextMenuViewProps {
 	onClose: () => void;
 	onDelete: () => void;
 	onOpenClawSettings?: () => void;
-	onOpenInFolder: () => void;
+	onOpenInFolder?: () => void;
+	onManageSessions?: () => void;
 	onRemove: () => void;
 	x: number;
 	y: number;
@@ -46,6 +48,7 @@ export function ProjectContextMenuView({
 	onDelete,
 	onOpenClawSettings,
 	onOpenInFolder,
+	onManageSessions,
 	onRemove,
 	x,
 	y,
@@ -94,7 +97,7 @@ export function ProjectContextMenuView({
 				className="fixed z-[1000] w-[160px] overflow-hidden rounded-lg border border-border bg-popover p-1 shadow-xl"
 				style={{ left: `${adjustedPos.x}px`, top: `${adjustedPos.y}px` }}
 			>
-				{!isDefault && (
+				{!isDefault && onOpenInFolder && (
 					<button
 						type="button"
 						onClick={onOpenInFolder}
@@ -102,6 +105,16 @@ export function ProjectContextMenuView({
 					>
 						<span className="icon-[solar--folder-open-linear] h-3.5 w-3.5" />
 						{labels.openInFolder}
+					</button>
+				)}
+				{onManageSessions && (
+					<button
+						type="button"
+						onClick={onManageSessions}
+						className="flex w-full items-center gap-2 rounded-md px-2 py-[5px] text-[12px] text-[var(--foreground)] hover:bg-[var(--accent)]"
+					>
+						<span className="icon-[solar--chat-round-line-linear] h-3.5 w-3.5" />
+						{labels.manageSessions}
 					</button>
 				)}
 				{isDefault && defaultScope === "conversation" && onClearConversation && (

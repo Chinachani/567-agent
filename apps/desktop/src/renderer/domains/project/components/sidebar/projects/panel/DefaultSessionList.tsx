@@ -34,6 +34,7 @@ const DefaultSessionRow = memo(function DefaultSessionRow({
 	selectionMode,
 	selected,
 	onToggleSelected,
+	onToggleGroup,
 }: {
 	item: DefaultSessionListItemView;
 	contextMenuEnabled: boolean;
@@ -45,6 +46,7 @@ const DefaultSessionRow = memo(function DefaultSessionRow({
 	selectionMode: boolean;
 	selected: boolean;
 	onToggleSelected: (session: SidebarConversationInfo) => void;
+	onToggleGroup: (taskId: string) => void;
 }): JSX.Element {
 	const { session } = item;
 	const handleContextMenu = useCallback(
@@ -52,7 +54,10 @@ const DefaultSessionRow = memo(function DefaultSessionRow({
 		[onOpenContextMenu, session],
 	);
 	const handleRename = useCallback((name: string) => onRename(session, name), [onRename, session]);
-	const handleSelect = useCallback(() => onSelect(session), [onSelect, session]);
+	const handleSelect = useCallback(
+		() => (item.groupTaskId ? onToggleGroup(item.groupTaskId) : onSelect(session)),
+		[item.groupTaskId, onToggleGroup, onSelect, session],
+	);
 	const handleToggleSelected = useCallback(() => onToggleSelected(session), [onToggleSelected, session]);
 
 	return (
@@ -68,8 +73,11 @@ const DefaultSessionRow = memo(function DefaultSessionRow({
 			) : null}
 			<div className="min-w-0 flex-1">
 				<DefaultSessionRowView
+					groupCount={item.groupCount}
+					groupExpanded={item.groupExpanded}
+					nested={item.nested}
 					active={item.active}
-					contextMenuEnabled={contextMenuEnabled}
+					contextMenuEnabled={contextMenuEnabled && !item.groupTaskId}
 					iconClassName={item.iconClassName}
 					label={item.label}
 					moreLabel={moreLabel}
@@ -107,9 +115,7 @@ interface DefaultSessionListProps {
 	sessions: SidebarConversationInfo[];
 }
 
-export const DefaultSessionList = memo(function DefaultSessionList(
-	props: DefaultSessionListProps,
-): JSX.Element {
+export const DefaultSessionList = memo(function DefaultSessionList(props: DefaultSessionListProps): JSX.Element {
 	const model = useDefaultSessionListModel(props);
 	const { t } = useTranslation("project");
 	const setConfirmDialog = useSetAtom(confirmDialogAtom);
@@ -152,7 +158,9 @@ export const DefaultSessionList = memo(function DefaultSessionList(
 			if (!result.canceled) {
 				showToast({
 					variant: "success",
-					message: t("sidebar.defaultConversation.batchExported", { count: result.sessionCount ?? selectedSessions.length }),
+					message: t("sidebar.defaultConversation.batchExported", {
+						count: result.sessionCount ?? selectedSessions.length,
+					}),
 				});
 				setPassphrase("");
 				closeSelection();
@@ -195,7 +203,10 @@ export const DefaultSessionList = memo(function DefaultSessionList(
 	}, [closeSelection, props.onDeleteSession, selectedSessions, setConfirmDialog, t]);
 	const toggleAll = useCallback(() => {
 		setSelectedPaths((current) =>
-			toggleAllSelectedSessionPaths(current, model.sessions.map((item) => item.session)),
+			toggleAllSelectedSessionPaths(
+				current,
+				model.sessions.map((item) => item.session),
+			),
 		);
 	}, [model.sessions]);
 
@@ -203,69 +214,84 @@ export const DefaultSessionList = memo(function DefaultSessionList(
 		<div className="min-w-0">
 			{selectionMode && props.filter !== "claw" && selectableSessions.length > 0 ? (
 				<div className="sticky top-0 z-20 mb-2 flex flex-wrap items-center gap-1.5 rounded-lg border border-border bg-card/95 px-2 py-1.5 shadow-md backdrop-blur-sm">
-						<>
-							<span className="mr-1 text-xs font-medium text-foreground">
-								{t("sidebar.defaultConversation.batchSelected", { count: selectedSessions.length })}
-							</span>
-							<Button size="xs" variant="outline" disabled={busy} onClick={toggleAll}>
-								<CheckSquare2 aria-hidden="true" />
-								{selectedPaths.size === selectableSessions.length
-									? t("sidebar.defaultConversation.batchClearSelection")
-									: t("sidebar.defaultConversation.batchSelectAll")}
-							</Button>
-							<input
-								aria-label={t("sidebar.defaultConversation.batchPassword")}
-								autoComplete="new-password"
-								className="h-7 w-28 rounded-md border border-input bg-background px-2 text-[11px] text-foreground outline-none focus-visible:ring-1 focus-visible:ring-ring"
-								maxLength={128}
-								placeholder={t("sidebar.defaultConversation.batchPassword")}
-								type="password"
-								value={passphrase}
-								onChange={(event) => setPassphrase(event.target.value)}
-							/>
-							<Button size="xs" variant="secondary" disabled={busy || selectedSessions.length === 0} onClick={() => void exportSelected()}>
-								<Download aria-hidden="true" />
-								{t("sidebar.defaultConversation.batchExport")}
-							</Button>
-							<Button size="xs" variant="destructive" disabled={busy || selectedSessions.length === 0} onClick={requestDeleteSelected}>
-								<Trash2 aria-hidden="true" />
-								{t("sidebar.defaultConversation.batchDelete")}
-							</Button>
-							<Button size="xs" variant="ghost" disabled={busy} onClick={closeSelection}>
-								<X aria-hidden="true" />
-								{t("sidebar.defaultConversation.batchCancel")}
-							</Button>
-						</>
-					{batchMessage ? <span className="basis-full px-1 text-[11px] text-muted-foreground" role="status">{batchMessage}</span> : null}
+					<>
+						<span className="mr-1 text-xs font-medium text-foreground">
+							{t("sidebar.defaultConversation.batchSelected", { count: selectedSessions.length })}
+						</span>
+						<Button size="xs" variant="outline" disabled={busy} onClick={toggleAll}>
+							<CheckSquare2 aria-hidden="true" />
+							{selectedPaths.size === selectableSessions.length
+								? t("sidebar.defaultConversation.batchClearSelection")
+								: t("sidebar.defaultConversation.batchSelectAll")}
+						</Button>
+						<input
+							aria-label={t("sidebar.defaultConversation.batchPassword")}
+							autoComplete="new-password"
+							className="h-7 w-28 rounded-md border border-input bg-background px-2 text-[11px] text-foreground outline-none focus-visible:ring-1 focus-visible:ring-ring"
+							maxLength={128}
+							placeholder={t("sidebar.defaultConversation.batchPassword")}
+							type="password"
+							value={passphrase}
+							onChange={(event) => setPassphrase(event.target.value)}
+						/>
+						<Button
+							size="xs"
+							variant="secondary"
+							disabled={busy || selectedSessions.length === 0}
+							onClick={() => void exportSelected()}
+						>
+							<Download aria-hidden="true" />
+							{t("sidebar.defaultConversation.batchExport")}
+						</Button>
+						<Button
+							size="xs"
+							variant="destructive"
+							disabled={busy || selectedSessions.length === 0}
+							onClick={requestDeleteSelected}
+						>
+							<Trash2 aria-hidden="true" />
+							{t("sidebar.defaultConversation.batchDelete")}
+						</Button>
+						<Button size="xs" variant="ghost" disabled={busy} onClick={closeSelection}>
+							<X aria-hidden="true" />
+							{t("sidebar.defaultConversation.batchCancel")}
+						</Button>
+					</>
+					{batchMessage ? (
+						<span className="basis-full px-1 text-[11px] text-muted-foreground" role="status">
+							{batchMessage}
+						</span>
+					) : null}
 				</div>
 			) : null}
 			<DefaultSessionListView
-			className={props.className}
-			hasMore={model.hasMore}
-			labels={model.labels}
-							loading={props.loading}
-			onEmptyAction={model.actions.emptyAction}
-			onToggleShowAll={model.actions.toggleShowAll}
-			scrollParent={props.scrollParent}
-			sessions={model.sessions}
-			showAll={model.showAll}
-			totalCount={model.totalCount}
-			visibleSessions={model.visibleSessions}
-			renderSession={(item) => (
-				<DefaultSessionRow
-					key={item.key}
-					item={item}
-					contextMenuEnabled={model.contextMenuEnabled}
-					moreLabel={model.labels.more}
-					onOpenContextMenu={model.actions.openContextMenu}
-					onRename={model.actions.rename}
-								onRenameDone={model.actions.renameDone}
-								onSelect={model.actions.select}
-								selectionMode={selectionMode}
-								selected={selectedPaths.has(item.path)}
-								onToggleSelected={toggleSelected}
-							/>
-							)}
+				className={props.className}
+				hasMore={model.hasMore}
+				labels={model.labels}
+				loading={props.loading}
+				onEmptyAction={model.actions.emptyAction}
+				onToggleShowAll={model.actions.toggleShowAll}
+				scrollParent={props.scrollParent}
+				sessions={model.sessions}
+				showAll={model.showAll}
+				totalCount={model.totalCount}
+				visibleSessions={model.visibleSessions}
+				renderSession={(item) => (
+					<DefaultSessionRow
+						key={item.key}
+						item={item}
+						contextMenuEnabled={model.contextMenuEnabled}
+						moreLabel={model.labels.more}
+						onOpenContextMenu={model.actions.openContextMenu}
+						onRename={model.actions.rename}
+						onRenameDone={model.actions.renameDone}
+						onSelect={model.actions.select}
+						selectionMode={selectionMode}
+						selected={selectedPaths.has(item.path)}
+						onToggleSelected={toggleSelected}
+						onToggleGroup={model.actions.toggleGroup}
+					/>
+				)}
 			/>
 		</div>
 	);

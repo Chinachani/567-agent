@@ -1,14 +1,14 @@
-import { type ChildProcess, execFile } from "node:child_process";
 import { createServer } from "node:net";
+import { isSshProjectUri } from "@567agent/ssh-transport";
 import { webContents } from "electron";
 import type { PluginCommandSpawnStatus } from "../../preload/api-types/plugins.js";
 import { PLUGIN_EXECUTION_CHANNELS } from "../../shared/plugin-ipc.js";
 import { getAppLogger } from "../logger.js";
-import { createPluginCommandEnvironment } from "./command-environment.js";
-import { prepareCommandRuntime, spawnCrossPlatformCommand } from "./command-launcher.js";
+import { prepareCommandRuntime } from "./command-launcher.js";
 import { assertPluginCommandAllowed } from "./command-permissions.js";
 
 import { stopPluginCommandRuns } from "./command-runner.js";
+import { allocateRemotePort, forwardRemotePort, type SpawnedProcess, startProcess } from "./spawned-process.js";
 
 const spawnLog = getAppLogger("plugin");
 
@@ -28,8 +28,9 @@ interface SpawnRecord {
 	spawnId: string;
 	pluginId: string;
 	file: string;
-	child: ChildProcess;
+	process: SpawnedProcess;
 	port?: number;
+	cancelForward?: () => void;
 	output: string[];
 	outputBytes: number;
 	exit?: { exitCode: number | null; signal: string | null };
@@ -37,6 +38,7 @@ interface SpawnRecord {
 }
 
 const records = new Map<string, SpawnRecord>();
+const pendingSpawns = new Map<symbol, { pluginId: string; cancelled: boolean }>();
 let counter = 0;
 
 function sanitizeArgs(args: unknown): string[] {
@@ -79,34 +81,12 @@ function allocateFreePort(): Promise<number> {
 }
 
 function appendOutput(record: SpawnRecord, chunk: Buffer): void {
-	const text = chunk.toString("utf8");
+	const text = chunk.subarray(-MAX_OUTPUT_BYTES).toString("utf8");
 	record.output.push(text);
-	record.outputBytes += text.length;
+	record.outputBytes += Buffer.byteLength(text);
 	while (record.outputBytes > MAX_OUTPUT_BYTES && record.output.length > 1) {
 		const removed = record.output.shift();
-		record.outputBytes -= removed?.length ?? 0;
-	}
-}
-
-/** Kill the whole process tree (vite spawns esbuild children that outlive a plain SIGTERM). */
-function killTree(record: SpawnRecord, signal: NodeJS.Signals): void {
-	const { child } = record;
-	if (child.pid === undefined || child.exitCode !== null || child.signalCode !== null) return;
-	if (process.platform === "win32") {
-		execFile("taskkill", ["/pid", String(child.pid), "/T", "/F"], () => {
-			// best-effort; the exit listener owns state transitions
-		});
-		return;
-	}
-	try {
-		// Negative pid targets the detached process group (POSIX).
-		process.kill(-child.pid, signal);
-	} catch {
-		try {
-			child.kill(signal);
-		} catch {
-			// already gone
-		}
+		record.outputBytes -= Buffer.byteLength(removed ?? "");
 	}
 }
 
@@ -157,66 +137,82 @@ export async function spawnPluginCommand(
 	let normalizedArgs = sanitizeArgs(args);
 	let env = sanitizeEnv(options?.env);
 	const cwd = typeof options?.cwd === "string" && options.cwd.trim().length > 0 ? options.cwd : undefined;
-	await prepareCommandRuntime(file);
 
-	let port: number | undefined;
-	if (options?.allocatePort === true) {
-		port = await allocateFreePort();
-		const portText = String(port);
-		normalizedArgs = normalizedArgs.map((arg) => arg.split(PORT_PLACEHOLDER).join(portText));
-		if (env) {
-			env = Object.fromEntries(
-				Object.entries(env).map(([key, value]) => [key, value.split(PORT_PLACEHOLDER).join(portText)]),
-			);
-		}
-	}
-
-	assertPluginCommandAllowed(pluginId, file, "agent.command.spawn");
-	const alive = [...records.values()].filter((record) => record.pluginId === pluginId && record.exit === undefined);
-	if (alive.length >= MAX_SPAWNS_PER_PLUGIN)
+	const alive = [...records.values()].filter((record) => record.pluginId === pluginId && !record.exit).length;
+	const pending = [...pendingSpawns.values()].filter((record) => record.pluginId === pluginId).length;
+	if (alive + pending >= MAX_SPAWNS_PER_PLUGIN)
 		throw new Error(`Too many running commands for plugin ${pluginId} (max ${MAX_SPAWNS_PER_PLUGIN})`);
-	const child = spawnCrossPlatformCommand(file, normalizedArgs, {
-		cwd,
-		env: createPluginCommandEnvironment(env),
-		windowsHide: true,
-		// Own process group so killTree can signal children (esbuild etc.) too.
-		detached: process.platform !== "win32",
-		stdio: ["ignore", "pipe", "pipe"],
-	});
-
-	const spawnId = `spawn-${++counter}-${Date.now().toString(36)}`;
-	const record: SpawnRecord = {
-		spawnId,
-		pluginId,
-		file,
-		child,
-		port,
-		output: [],
-		outputBytes: 0,
+	const pendingId = Symbol(pluginId);
+	const reservation = { pluginId, cancelled: false };
+	pendingSpawns.set(pendingId, reservation);
+	const assertActive = () => {
+		if (reservation.cancelled) throw new Error(`Command cancelled: ${file}`);
+		assertPluginCommandAllowed(pluginId, file, "agent.command.spawn");
 	};
-	records.set(spawnId, record);
+	let port: number | undefined;
+	let cancelForward: (() => void) | undefined;
+	let spawned: SpawnedProcess | undefined;
+	try {
+		if (!cwd || !isSshProjectUri(cwd)) await prepareCommandRuntime(file);
+		assertActive();
+		const remote = options?.allocatePort === true && cwd !== undefined && isSshProjectUri(cwd) ? cwd : undefined;
+		if (options?.allocatePort === true) {
+			port = await allocateFreePort();
+			assertActive();
+			const processPort = remote ? await allocateRemotePort(remote) : port;
+			assertActive();
+			const portText = String(processPort);
+			normalizedArgs = normalizedArgs.map((arg) => arg.split(PORT_PLACEHOLDER).join(portText));
+			if (env)
+				env = Object.fromEntries(
+					Object.entries(env).map(([key, value]) => [key, value.split(PORT_PLACEHOLDER).join(portText)]),
+				);
+			if (remote) cancelForward = await forwardRemotePort(remote, port, processPort);
+		}
+		assertActive();
+		spawned = startProcess({ file, args: normalizedArgs, cwd, env });
 
-	child.stdout?.on("data", (chunk: Buffer) => appendOutput(record, chunk));
-	child.stderr?.on("data", (chunk: Buffer) => appendOutput(record, chunk));
-	child.on("exit", (exitCode, signal) => {
-		record.exit = { exitCode, signal };
-		spawnLog.info("plugin spawn exited", { pluginId, spawnId, file, exitCode, signal });
-		broadcastSpawnExit(record);
-		record.cleanupTimer = setTimeout(() => records.delete(spawnId), EXITED_RECORD_TTL_MS);
-		record.cleanupTimer.unref();
-	});
+		const spawnId = `spawn-${++counter}-${Date.now().toString(36)}`;
+		const record: SpawnRecord = {
+			spawnId,
+			pluginId,
+			file,
+			process: spawned,
+			port,
+			cancelForward,
+			output: [],
+			outputBytes: 0,
+		};
+		records.set(spawnId, record);
 
-	return new Promise<SpawnPluginCommandResult>((resolvePromise, rejectPromise) => {
-		child.once("spawn", () => {
-			spawnLog.info("plugin spawn started", { pluginId, spawnId, file, pid: child.pid, port });
-			resolvePromise({ spawnId, pid: child.pid ?? -1, port });
+		spawned.onOutput((chunk: Buffer) => appendOutput(record, chunk));
+		spawned.onExit((exitCode, signal) => {
+			record.exit = { exitCode, signal };
+			record.cancelForward?.();
+			spawnLog.info("plugin spawn exited", { pluginId, spawnId, file, exitCode, signal });
+			broadcastSpawnExit(record);
+			record.cleanupTimer = setTimeout(() => records.delete(spawnId), EXITED_RECORD_TTL_MS);
+			record.cleanupTimer.unref();
 		});
-		child.once("error", (error: NodeJS.ErrnoException) => {
+
+		try {
+			await spawned.whenStarted();
+			assertActive();
+		} catch (error) {
 			records.delete(spawnId);
-			spawnLog.warn("plugin spawn failed", { pluginId, file, code: error.code });
-			rejectPromise(new Error(`Command failed to start: ${file} (${error.code ?? error.message})`));
-		});
-	});
+			cancelForward?.();
+			spawnLog.warn("plugin spawn failed", { pluginId, file, error: String(error) });
+			throw error;
+		}
+		spawnLog.info("plugin spawn started", { pluginId, spawnId, file, pid: spawned.pid, port });
+		return { spawnId, pid: spawned.pid, port };
+	} catch (error) {
+		cancelForward?.();
+		spawned?.kill("SIGKILL");
+		throw error;
+	} finally {
+		pendingSpawns.delete(pendingId);
+	}
 }
 
 /** SIGTERM, then SIGKILL after a grace period. Resolves once the process is gone. */
@@ -225,13 +221,13 @@ export async function stopPluginCommandSpawn(pluginId: string, spawnId: string):
 	if (!record || record.pluginId !== pluginId) return;
 	if (record.exit !== undefined) return;
 	await new Promise<void>((resolveStop) => {
-		const killTimer = setTimeout(() => killTree(record, "SIGKILL"), KILL_GRACE_MS);
+		const killTimer = setTimeout(() => record.process.kill("SIGKILL"), KILL_GRACE_MS);
 		killTimer.unref();
-		record.child.once("exit", () => {
+		record.process.onExit(() => {
 			clearTimeout(killTimer);
 			resolveStop();
 		});
-		killTree(record, "SIGTERM");
+		record.process.kill("SIGTERM");
 	});
 }
 
@@ -242,7 +238,7 @@ export function getPluginCommandSpawnStatus(pluginId: string, spawnId: string): 
 	}
 	return {
 		running: record.exit === undefined,
-		pid: record.child.pid ?? -1,
+		pid: record.process.pid,
 		port: record.port,
 		exit: record.exit,
 		recentOutput: record.output.join(""),
@@ -252,6 +248,7 @@ export function getPluginCommandSpawnStatus(pluginId: string, spawnId: string): 
 /** Kill everything a plugin started (uninstall / disable / reload). */
 export function stopAllSpawnsForPlugin(pluginId: string): void {
 	stopPluginCommandRuns(pluginId);
+	for (const pending of pendingSpawns.values()) if (pending.pluginId === pluginId) pending.cancelled = true;
 	for (const record of records.values()) {
 		if (record.pluginId !== pluginId || record.exit !== undefined) continue;
 		void stopPluginCommandSpawn(pluginId, record.spawnId);
@@ -261,8 +258,9 @@ export function stopAllSpawnsForPlugin(pluginId: string): void {
 /** Kill every plugin-spawned process (app quit). Fire-and-forget SIGKILL sweep. */
 export function stopAllPluginSpawns(): void {
 	stopPluginCommandRuns();
+	for (const pending of pendingSpawns.values()) pending.cancelled = true;
 	for (const record of records.values()) {
 		if (record.exit !== undefined) continue;
-		killTree(record, "SIGKILL");
+		record.process.kill("SIGKILL");
 	}
 }

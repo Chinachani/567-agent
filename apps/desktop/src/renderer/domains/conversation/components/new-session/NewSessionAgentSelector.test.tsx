@@ -8,8 +8,9 @@ import userEvent from "@testing-library/user-event";
 import { type AgentProfile, createAgentTeamFixture } from "@567agent/agent-team";
 import { useState } from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { resetAgentTeamDirectoryForTest } from "./agent-team-directory";
 import { NewSessionAgentSelector } from "./NewSessionAgentSelector";
-import { agentTargetKey, type NewSessionTargetKey, teamTargetKey } from "./target";
+import { agentTargetKey, type NewSessionTargetKey } from "./target";
 
 vi.mock("react-i18next", () => ({
 	useTranslation: () => ({
@@ -31,11 +32,14 @@ describe("NewSessionAgentSelector", () => {
 	function mockCatalog(next = document): void {
 		Object.defineProperty(window, "vetta", {
 			configurable: true,
-			value: { agentTeams: { list: vi.fn(async () => next) } },
+			value: { agentTeams: { list: vi.fn(async () => next), onChanged: () => () => {} } },
 		});
 	}
 
-	beforeEach(() => mockCatalog());
+	beforeEach(() => {
+		resetAgentTeamDirectoryForTest();
+		mockCatalog();
+	});
 
 	function Harness({ onSelect }: { onSelect: (key: NewSessionTargetKey | null) => void }): JSX.Element {
 		const [selectedKey, setSelectedKey] = useState<NewSessionTargetKey | null>(null);
@@ -63,28 +67,12 @@ describe("NewSessionAgentSelector", () => {
 		expect(onSelect).toHaveBeenCalledWith(agentTargetKey(agent.id));
 	});
 
-	it("picks a team from the dialog and turns the trigger into the team's avatar stack", async () => {
-		const onSelect = vi.fn();
+	it("excludes retired teams from new conversations", async () => {
 		const user = userEvent.setup();
-		render(<Harness onSelect={onSelect} />);
-
-		const trigger = screen.getByRole("button", { name: "newSession.agentSelector.pickTitle" });
-		expect(within(trigger).getByText("newSession.agentSelector.pick")).toBeDefined();
-		await user.click(trigger);
-
-		const option = await screen.findByRole("option", { name: new RegExp(team.name) });
-		const optionStack = option.querySelector('[data-avatar-stack="true"]');
-		expect(optionStack).not.toBeNull();
-		expect(optionStack?.querySelectorAll("img")).toHaveLength(3);
-		expect(optionStack?.querySelector('[data-avatar-overflow="1"]')).not.toBeNull();
-
-		await user.click(option);
-		expect(onSelect).toHaveBeenCalledWith(teamTargetKey(team.id));
-
-		const selectedTrigger = screen.getByRole("button", { name: "newSession.agentSelector.switchTitle" });
-		expect(within(selectedTrigger).getByText(team.name)).toBeDefined();
-		expect(selectedTrigger.querySelectorAll("img")).toHaveLength(3);
-		expect(selectedTrigger.querySelector('[data-avatar-overflow="1"]')).not.toBeNull();
+		render(<Harness onSelect={vi.fn()} />);
+		await user.click(screen.getByRole("button", { name: "newSession.agentSelector.pickTitle" }));
+		await screen.findByRole("option", { name: new RegExp(agent.name) });
+		expect(screen.queryByRole("option", { name: new RegExp(team.name) })).toBeNull();
 	});
 
 	it("picks a single agent and shows only that agent's avatar on the trigger", async () => {
@@ -103,25 +91,30 @@ describe("NewSessionAgentSelector", () => {
 		expect(selectedTrigger.querySelectorAll("img")).toHaveLength(1);
 	});
 
-	it("splits teams and agents into their own labelled groups", async () => {
+	it("labels the expert group without a team group", async () => {
 		const user = userEvent.setup();
 		render(<Harness onSelect={vi.fn()} />);
 
 		await user.click(screen.getByRole("button", { name: "newSession.agentSelector.pickTitle" }));
 
-		expect(await screen.findByRole("listbox", { name: "newSession.agentSelector.groupTeams" })).toBeDefined();
+		await screen.findByRole("listbox", { name: "newSession.agentSelector.groupAgents" });
+		expect(screen.queryByRole("listbox", { name: "newSession.agentSelector.groupTeams" })).toBeNull();
 		expect(screen.getByRole("listbox", { name: "newSession.agentSelector.groupAgents" })).toBeDefined();
 	});
 
-	it("filters both groups with one query and drops a group that matches nothing", async () => {
+	it("filters experts with one query", async () => {
 		const user = userEvent.setup();
-		// 搜索框只在条目多到一定数量时出现，预置目录刚好卡在阈值上，故再添一个。
-		const extra: AgentProfile = { ...agent, id: "extra-1", name: "Translate" };
-		mockCatalog({ ...document, agents: [...document.agents, extra] });
+		// 搜索框仅在目录条目超过阈值时出现。
+		const extra: AgentProfile[] = Array.from({ length: 6 }, (_, i) => ({
+			...agent,
+			id: `extra-${i}`,
+			name: `Translate ${i}`,
+		}));
+		mockCatalog({ ...document, agents: [...document.agents, ...extra] });
 		render(<Harness onSelect={vi.fn()} />);
 
 		await user.click(screen.getByRole("button", { name: "newSession.agentSelector.pickTitle" }));
-		await screen.findByRole("option", { name: new RegExp(team.name) });
+		await screen.findByRole("option", { name: new RegExp(agent.name) });
 		await user.type(screen.getByPlaceholderText("newSession.agentSelector.searchPlaceholder"), agent.name);
 
 		expect(screen.queryByRole("listbox", { name: "newSession.agentSelector.groupTeams" })).toBeNull();
@@ -135,12 +128,12 @@ describe("NewSessionAgentSelector", () => {
 		render(<Harness onSelect={vi.fn()} />);
 
 		await user.click(screen.getByRole("button", { name: "newSession.agentSelector.pickTitle" }));
-		await screen.findByRole("option", { name: new RegExp(team.name) });
+		await screen.findByRole("option", { name: new RegExp(agent.name) });
 
 		// 团队 `copy` 绑定的副本是团队私有的，摆进选择器就是一堆同名条目。
 		expect(screen.getAllByRole("option", { name: new RegExp(agent.name) })).toHaveLength(1);
 	});
-	it("quick-start opens the existing team picker, preserves the draft and reaches composer and pairing actions", async () => {
+	it("quick-start opens the expert picker, preserves the draft and reaches composer and pairing actions", async () => {
 		const user = userEvent.setup();
 		const store = createStore();
 		const openCommands = vi.fn();
@@ -155,18 +148,17 @@ describe("NewSessionAgentSelector", () => {
 		});
 		const selected = vi.fn();
 		function Start() {
-			const [picker, setPicker] = useState<{ open: boolean; category: "teams" | "all" }>({
+			const [picker, setPicker] = useState<{ open: boolean }>({
 				open: false,
-				category: "all",
 			});
 			return (
 				<>
 					<NewSessionAgentSelector
 						selectedKey={null}
 						onSelect={selected}
-						picker={{ ...picker, onOpenChange: (open) => setPicker({ open, category: "all" }) }}
+						picker={{ ...picker, onOpenChange: (open) => setPicker({ open }) }}
 					/>
-					<NewSessionQuickStart onOpenTeams={() => setPicker({ open: true, category: "teams" })} />
+					<NewSessionQuickStart onOpenExperts={() => setPicker({ open: true })} />
 				</>
 			);
 		}
@@ -175,11 +167,11 @@ describe("NewSessionAgentSelector", () => {
 				<Start />
 			</Provider>,
 		);
-		await user.click(screen.getByRole("button", { name: "newSession.quickStart.teams" }));
-		expect(await screen.findByRole("listbox", { name: "newSession.agentSelector.groupTeams" })).toBeTruthy();
-		expect(screen.queryByRole("listbox", { name: "newSession.agentSelector.groupAgents" })).toBeNull();
-		await user.click(await screen.findByRole("option", { name: new RegExp(team.name) }));
-		expect(selected).toHaveBeenCalledWith(teamTargetKey(team.id));
+		await user.click(screen.getByRole("button", { name: "newSession.quickStart.experts" }));
+		expect(await screen.findByRole("listbox", { name: "newSession.agentSelector.groupAgents" })).toBeTruthy();
+		expect(screen.queryByRole("listbox", { name: "newSession.agentSelector.groupTeams" })).toBeNull();
+		await user.click(await screen.findByRole("option", { name: new RegExp(agent.name) }));
+		expect(selected).toHaveBeenCalledWith(agentTargetKey(agent.id));
 		await user.click(screen.getByRole("button", { name: "newSession.quickStart.commands" }));
 		await user.click(screen.getByRole("button", { name: "newSession.quickStart.references" }));
 		expect(openCommands).toHaveBeenCalledOnce();

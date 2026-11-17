@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { NewSessionQuickStart } from "./NewSessionQuickStart";
+import { ExpertTaskPreparation } from "./ExpertTaskPreparation";
 import { CurrentScenarioActivityPanel } from "@domains/activity-panel/components/ActivityPanel";
 import { motion, useReducedMotion } from "motion/react";
 import { useTranslation } from "react-i18next";
@@ -18,9 +19,7 @@ import { DefaultInputBarConnector } from "../input-bar/DefaultInputBarConnector"
 import type { SendInteractionContext } from "../input-bar/types";
 import { useActiveSessionRuntimeIds } from "@shared/workspace/active-session-runtime";
 import { createActivityWorkspace } from "@shared/workspace/activity-workspace";
-import { TeamComposerConnector } from "../../connectors/team/TeamComposerConnector";
-import type { TeamChatActions, TeamChatViewModel } from "../../connectors/team/teamChatModel";
-import { isTeamTarget, type NewSessionTargetKey } from "./target";
+import type { NewSessionTargetKey } from "./target";
 
 /** 命令区展开时输入栏下移的距离：面板向上生长，下方留白同步收掉。 */
 const PANEL_SHIFT_Y = 120;
@@ -48,7 +47,6 @@ interface NewSessionPageViewProps {
 	projectTakenNames: readonly string[];
 	targetKey: NewSessionTargetKey | null;
 	onSelectTarget: (targetKey: NewSessionTargetKey | null) => void;
-	teamComposer: { readonly model: TeamChatViewModel | null; readonly actions: TeamChatActions | null };
 	/** 插件上下文区：由选中的目标或输入框里提到的能力唤起。 */
 	contextBlock: NewSessionContextBlockModel;
 	subtitle: string;
@@ -77,12 +75,10 @@ export function NewSessionPageView({
 	targetKey,
 	onSelectTarget,
 	contextBlock,
-	teamComposer,
 	subtitle,
 }: NewSessionPageViewProps): JSX.Element {
-	const [targetPicker, setTargetPicker] = useState<{ open: boolean; category: "all" | "teams" }>({
+	const [targetPicker, setTargetPicker] = useState<{ open: boolean }>({
 		open: false,
-		category: "all",
 	});
 	const [atPanelOpen, setAtPanelOpen] = useState(false);
 	const panelOpen = commandPanelExpanded || atPanelOpen;
@@ -100,7 +96,7 @@ export function NewSessionPageView({
 		: { duration: PANEL_REVEAL_DURATION * 0.6, ease: PANEL_REVEAL_EASE };
 	const sessionOptions = (
 		<NewSessionSetupControls
-			targetPicker={{ ...targetPicker, onOpenChange: (open) => setTargetPicker({ open, category: "all" }) }}
+			targetPicker={{ ...targetPicker, onOpenChange: (open) => setTargetPicker({ open }) }}
 			creatingProject={preparingProject}
 			onSelectPendingProject={onSelectPendingProject}
 			onSelectProject={onSelectProject}
@@ -119,12 +115,7 @@ export function NewSessionPageView({
 				background={null}
 				themedBackground={<ThemedNewSessionBackground />}
 				dropZone={(children) => (
-					<div
-						className={cn(
-							"relative flex h-full min-w-0 flex-1 flex-col overflow-hidden bg-background",
-							className,
-						)}
-					>
+					<div className={cn("relative flex h-full min-w-0 flex-1 flex-col overflow-hidden bg-background", className)}>
 						{children}
 					</div>
 				)}
@@ -154,50 +145,23 @@ export function NewSessionPageView({
 					</motion.div>
 				}
 				inputBar={
-					<motion.div
-						className="relative"
-						animate={{ y: panelShift ? PANEL_SHIFT_Y : 0 }}
-						transition={shiftTransition}
-					>
+					<motion.div className="relative" animate={{ y: panelShift ? PANEL_SHIFT_Y : 0 }} transition={shiftTransition}>
 						{/* Drop target is the input card; cwdOverride enables drop before a session exists. */}
-						{isTeamTarget(targetKey) ? (
-							teamComposer.model && teamComposer.actions ? (
-								<TeamComposerConnector
-									contextToolsPlacement="bottom"
-									model={teamComposer.model}
-									actions={teamComposer.actions}
-									onExpandedChange={onCommandPanelExpandedChange}
-									onAtOpenChange={setAtPanelOpen}
-								>
-									{sessionOptions}
-								</TeamComposerConnector>
-							) : (
-								<div
-									role="status"
-									aria-busy="true"
-									className="mx-auto w-full max-w-2xl overflow-hidden rounded-xl border border-border bg-card/80 text-sm text-muted-foreground"
-								>
-									{sessionOptions}
-									<div className="flex min-h-20 items-center justify-center px-4">
-										{t("newSession.agentSelector.loading")}
-									</div>
-								</div>
-							)
-						) : (
-							<DefaultInputBarConnector
-								contextToolsPlacement="bottom"
-								onSend={onSend}
-								onAbort={onAbort}
-								cwdOverride={cwd}
-								onExpandedChange={onCommandPanelExpandedChange}
-								onAtOpenChange={setAtPanelOpen}
-								sendPending={preparingProject ? { label: preparingLabel } : undefined}
-							>
-								{sessionOptions}
-							</DefaultInputBarConnector>
-						)}
+						<DefaultInputBarConnector
+							contextToolsPlacement="bottom"
+							onSend={onSend}
+							onAbort={onAbort}
+							cwdOverride={cwd}
+							onExpandedChange={onCommandPanelExpandedChange}
+							onAtOpenChange={setAtPanelOpen}
+							sendPending={preparingProject ? { label: preparingLabel } : undefined}
+						>
+							{sessionOptions}
+						</DefaultInputBarConnector>
+
 						<div className={cn("mx-auto w-full max-w-2xl px-2 sm:px-4", panelOpen && "invisible")}>
-							<NewSessionQuickStart onOpenTeams={() => setTargetPicker({ open: true, category: "teams" })} />
+							<ExpertTaskPreparation targetKey={targetKey} />
+							<NewSessionQuickStart onOpenExperts={() => setTargetPicker({ open: true })} />
 							<GuideBadgeSwiper mounted={mounted} />
 						</div>
 					</motion.div>

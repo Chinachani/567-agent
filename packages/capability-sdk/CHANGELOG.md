@@ -4,6 +4,15 @@ All notable changes to `@vetta-org/capability-sdk` are documented in this file.
 
 ## [Unreleased]
 
+## [0.1.3] — 567 Agent 1.6 development
+
+### Changed
+
+- Scheduler contracts now use structured `schedule`, `runTarget` and model preferences, with explicit missed/skipped runs and suspension reasons. Direct capability callers must migrate from flat cron/cwd input to these fields. The Desktop plugin facade accepts legacy cron input and converts it before crossing this contract; reads return the new shape. Legacy scene selections remain readable but cannot be executed.
+- MCP definitions support SSE and explicit global/project scope. Project `.mcp.json` entries remain read-only at the configuration boundary; connecting or running their servers still requires the host's approval flow.
+- Recursive filesystem listings accept exact file-name filters and additional ignored directory names. Existing path constraints and grants remain required.
+- Plugin SDK 0.3.10 requires this capability version or newer. Package versions describe source compatibility; npm publication is a separate release step.
+
 ### Fixed
 
 - Preserve `reasoningLevels` and `defaultReasoningLevel` when updating model providers, including plugin-owned model catalogs, instead of silently removing them during input parsing.

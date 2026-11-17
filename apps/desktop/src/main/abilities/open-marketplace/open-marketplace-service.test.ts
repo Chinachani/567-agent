@@ -92,6 +92,37 @@ function archive(options?: {
 	return zip.toBuffer();
 }
 
+function sourceIndexArchive(): Buffer {
+	const zip = new AdmZip();
+	zip.addFile(
+		"567-agent-presets-main/.vetta/marketplace.source.json",
+		Buffer.from(
+			JSON.stringify({
+				schemaVersion: 3,
+				name: "567-agent-presets",
+				displayName: "567 Agent 专家预设",
+				repository: "https://github.com/Chinachani/567-agent-presets",
+				minAppVersion: APP_VERSION,
+				abilities: [
+					{
+						type: "skill",
+						slug: "source-skill",
+						name: "Source Skill",
+						description: "Loaded from a source index",
+						version: "0.1.0",
+						source: { path: "abilities/skills/source-skill" },
+					},
+				],
+			}),
+		),
+	);
+	zip.addFile(
+		"567-agent-presets-main/abilities/skills/source-skill/SKILL.md",
+		Buffer.from("---\nname: source-skill\ndescription: Source skill\nversion: 0.1.0\n---\n\n# Source\n"),
+	);
+	return zip.toBuffer();
+}
+
 function pluginBundleArchive(pluginId = "demo-plugin"): Buffer {
 	const manifest = {
 		schemaVersion: 1,
@@ -316,6 +347,20 @@ afterEach(async () => {
 });
 
 describe("OpenMarketplaceService", () => {
+	it("loads a preset repository source index before a generated marketplace index exists", async () => {
+		const rootDir = await temporaryRoot();
+		const service = new OpenMarketplaceService({
+			appVersion: APP_VERSION,
+			rootDir,
+			sourceId: "567-agent-presets",
+			repository: "https://github.com/Chinachani/567-agent-presets",
+			fetchArchive: async () => response(sourceIndexArchive()),
+		});
+
+		const snapshot = await service.refresh();
+		expect(snapshot).toMatchObject({ marketplaceVersion: "0.1.0" });
+		expect(snapshot.abilities).toEqual(expect.arrayContaining([expect.objectContaining({ slug: "source-skill" })]));
+	});
 	it("lists and installs the compatible plugin release from a catalog without committed build output", async () => {
 		const source = versionedPluginArchive();
 		const installed: string[] = [];
