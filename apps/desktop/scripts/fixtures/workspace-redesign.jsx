@@ -327,19 +327,20 @@ const recommendations = [
 function Automation() {
 	return (
 		<AutomationPageView
-			hasTasks={false}
 			labels={{
 				title: "自动化",
 				subtitle: "让重复的工作按计划完成。",
-				newTask: "新建任务",
-				newTaskTitle: "创建自动化任务",
+				create: "新建任务",
+				searchPlaceholder: "搜索自动化任务",
 				recommendTitle: "从一个模板开始",
-				recommendUse: "使用模板",
 			}}
-			onNewTask={() => record("new-task")}
-			taskList={null}
-			historyDrawer={null}
-			taskFormDialog={null}
+			filters={[{ key: "all", label: "全部" }, { key: "active", label: "启用中" }]}
+			activeFilter="all"
+			onFilterChange={noop}
+			searchValue=""
+			onSearchChange={noop}
+			onCreate={() => record("new-task")}
+			list={<TaskListView items={[]} emptyLabel="还没有自动化任务" onSelectTask={noop} />}
 			recommendations={recommendations}
 			onSelectRecommendation={(id) => record("template:" + id)}
 		/>
@@ -499,48 +500,28 @@ function Knowledge() {
 function AutomationReady() {
 	return (
 		<AutomationPageView
-			hasTasks
 			labels={{
 				title: "自动化",
 				subtitle: "集中查看计划、执行状态与最近结果。",
-				newTask: "新建任务",
-				newTaskTitle: "创建自动化任务",
+				create: "新建任务",
+				searchPlaceholder: "搜索自动化任务",
 			}}
-			onNewTask={() => record("new-task")}
-			historyDrawer={null}
-			taskFormDialog={null}
-			taskList={
+			filters={[{ key: "all", label: "全部" }, { key: "active", label: "启用中" }]}
+			activeFilter="all"
+			onFilterChange={noop}
+			searchValue=""
+			onSearchChange={noop}
+			onCreate={() => record("new-task")}
+			list={
 				<TaskListView
 					items={recommendations.map((item, index) => ({
 						id: item.id,
 						name: item.title,
-						prompt: item.description,
-						cron: "0 9 * * 1-5",
-						enabled: true,
-						executionModeLabel: "询问后执行",
-						isOnce: false,
-						isRunning: index === 0,
+						subtitle: `${item.scheduleLabel} · ${index === 0 ? "正在执行" : "等待下一次运行"}`,
+						tone: index === 0 ? "running" : index === 2 ? "suspended" : "active",
 						isSelected: false,
-						lastRunLabel: "今天 09:00",
-						lastRunStatus: index === 2 ? "failed" : "success",
-						scheduleLabel: item.scheduleLabel,
-						statusLabel: index === 0 ? "正在执行" : "等待下一次运行",
 					}))}
-					labels={{
-						delete: "删除",
-						edit: "编辑",
-						enable: "启用",
-						failed: "失败",
-						once: "单次",
-						pause: "暂停",
-						runNow: "立即执行",
-						success: "成功",
-					}}
-					onDeleteTask={noop}
-					onEditTask={noop}
-					onRunTask={noop}
 					onSelectTask={noop}
-					onToggleTask={noop}
 				/>
 			}
 		/>
