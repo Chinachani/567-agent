@@ -1,11 +1,16 @@
 import { mkdirSync, mkdtempSync, readFileSync, realpathSync, symlinkSync, writeFileSync } from "node:fs";
 import { createServer } from "node:net";
 import { tmpdir } from "node:os";
-import { join } from "node:path";
+import { join, posix } from "node:path";
 import { it as baseIt, describe, expect } from "vitest";
 import { SshRemoteCommandError } from "./errors.js";
 import type { SshConnection } from "./ssh-connection.js";
-import { buildSshHelperForTests, createLoopbackSshConnection, toLoopbackRemotePath } from "./testing.js";
+import {
+	buildSshHelperForTests,
+	createLoopbackSshConnection,
+	resolveLoopbackDirectory,
+	toLoopbackRemotePath,
+} from "./testing.js";
 
 function createRemoteDirectory(): string {
 	return realpathSync(mkdtempSync(join(tmpdir(), "vetta-remote-")));
@@ -73,7 +78,7 @@ describe.each(modes)("SshConnection 的文件操作（回环 SSH，$name）", ({
 			});
 		}
 		const resolvedFile = hasSymlink ? remoteJoin(dir, "link.txt") : remoteJoin(dir, "a.txt");
-		await expect(connection.realPath(resolvedFile)).resolves.toBe(remoteJoin(dir, "a.txt"));
+		await expect(connection.realPath(resolvedFile)).resolves.toBe(posix.join(resolveLoopbackDirectory(dir), "a.txt"));
 		await expect(connection.realPath(remoteJoin(dir, "missing"))).resolves.toBe(remoteJoin(dir, "missing"));
 	});
 

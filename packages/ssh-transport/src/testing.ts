@@ -20,6 +20,24 @@ export function formatLoopbackProjectUri(hostId: string, localPath: string): str
 	return formatSshProjectUri(hostId, toLoopbackRemotePath(localPath));
 }
 
+/** Resolve an existing fixture directory using the loopback shell's mount table. */
+export function resolveLoopbackDirectory(localDirectory: string): string {
+	if (process.platform !== "win32") return localDirectory;
+	// Git Bash may expose Windows Temp as /tmp, even when the input uses /c/Users/….
+	// pwd -P supplies an independent expected path for the readlink-based SSH API.
+	const result = spawnSync(
+		windowsLoopbackShell(),
+		["-c", 'cd -- "$1" && pwd -P', "loopback-directory", toLoopbackRemotePath(localDirectory)],
+		{ encoding: "utf8" },
+	);
+	if (result.error) throw result.error;
+	const directory = result.stdout.trimEnd();
+	if (result.status !== 0 || !directory.startsWith("/") || /[\r\n]/.test(directory)) {
+		throw new Error(`Could not resolve loopback directory: ${result.stderr}`);
+	}
+	return directory;
+}
+
 function windowsLoopbackShell(): string {
 	const result = spawnSync("where.exe", ["git.exe"], { encoding: "utf8" });
 	for (const git of result.stdout.split(/\r?\n/).filter(Boolean)) {
