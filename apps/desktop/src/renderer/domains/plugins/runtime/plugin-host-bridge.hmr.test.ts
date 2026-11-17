@@ -2,6 +2,10 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const RUNTIME_STATE_KEY = "__vettaPluginHostBridgeRuntimeState_v2";
 
+// This flow exercises handler ownership across bridge reloads; the model picker
+// has separate UI coverage and is not rendered by the host bridge installation.
+vi.mock("./PluginModelPicker", () => ({ PluginModelPicker: () => null }));
+
 vi.mock("@shared/store/atoms", async () => {
 	const { atom } = await import("jotai");
 	return {

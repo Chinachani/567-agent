@@ -516,6 +516,9 @@ describe("Team delegation message-to-UI flow", () => {
 		expect(screen.getAllByTestId("team-member-reply-card")).toHaveLength(1);
 		expect(within(screen.getByTestId("team-member-reply-card")).getByText("已完成")).toBeTruthy();
 
+		// A block that was a streaming tail finishes its phrase reveal asynchronously.
+		// Capture the complete public transcript, not an intermediate animation frame.
+		await waitFor(() => expect(screen.getByText("规划开发方案与设计架构")).toBeTruthy());
 		const completedSignature = visibleConversationSignature();
 		const reopenedSnapshot: DesktopTeamSessionSnapshot = {
 			...finalSnapshot,

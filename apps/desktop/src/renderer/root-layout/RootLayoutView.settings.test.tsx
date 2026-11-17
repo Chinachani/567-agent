@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 import { render, screen } from "@testing-library/react";
-import { describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { RootLayoutModel } from "./types";
 
 vi.mock("../shared/hooks/useUiZoom", () => ({
@@ -42,6 +42,17 @@ const model: RootLayoutModel = {
 	routePending: false,
 	onOpenSession: vi.fn(),
 };
+beforeEach(() => {
+	vi.stubGlobal(
+		"ResizeObserver",
+		class {
+			observe() {}
+			unobserve() {}
+			disconnect() {}
+		},
+	);
+});
+afterEach(() => vi.unstubAllGlobals());
 describe("settings workspace layout", () => {
 	it("removes the workspace sidebar while retaining page content and window chrome, then restores it", () => {
 		const view = render(<RootLayoutView model={model} />);

@@ -91,8 +91,8 @@ try {
 		output += chunk;
 	});
 	const [code, signal] = await once(child, "exit");
-	assert.equal(code, 0, `Workspace layout exited ${code}/${signal}: ${output}`);
 	if (artifacts) await writeFile(join(artifacts, "workspace-probe-output.log"), output);
+	assert.equal(code, 0, `Workspace layout exited ${code}/${signal}: ${output}`);
 	const match = output.match(/WORKSPACE_LAYOUT_RESULT (\{[^\n]+\})/);
 	assert.ok(match, output);
 	const result = JSON.parse(match[1]);
@@ -335,7 +335,12 @@ function runProbe({ root, artifacts, pageFilter }) {
 			);
 			console.log("WORKSPACE_ACTIONS_START elapsedMs=" + (Date.now() - started));
 			await render({ page: "home" });
+			// Native input requires the reloaded web contents to own focus, even
+			// when the private Xvfb window is already visible.
+			win.focus();
+			win.webContents.focus();
 			const click = (point) => {
+				win.webContents.sendInputEvent({ type: "mouseMove", ...point });
 				win.webContents.sendInputEvent({ type: "mouseDown", button: "left", clickCount: 1, ...point });
 				win.webContents.sendInputEvent({ type: "mouseUp", button: "left", clickCount: 1, ...point });
 			};
@@ -343,12 +348,28 @@ function runProbe({ root, artifacts, pageFilter }) {
 				const trigger = document.querySelector('button[title="Gemini Flash"]');
 				if (!trigger) throw Error("Model selector trigger was not rendered");
 				const r = trigger.getBoundingClientRect();
-				return { x: Math.round(r.left + r.width / 2), y: Math.round(r.top + r.height / 2) };
+				const point = { x: Math.round(r.left + r.width / 2), y: Math.round(r.top + r.height / 2) };
+				const target = document.elementFromPoint(point.x, point.y);
+				if (!r.width || !r.height || !target || !trigger.contains(target)) {
+					throw Error("Model trigger is not reachable: " + JSON.stringify({ bounds: r.toJSON(), target: target?.outerHTML }));
+				}
+				return point;
 			});
 			click(modelTrigger);
 			const modelOption = await call(async () => {
-				await new Promise((resolve) => {
-					const check = () => document.querySelector('[data-model-key="fixture/code-model"]') ? resolve() : setTimeout(check, 50);
+				await new Promise((resolve, reject) => {
+					const started = Date.now();
+					const check = () => {
+						if (document.querySelector('[data-model-key="fixture/code-model"]')) return resolve();
+						if (Date.now() - started > 4000) {
+							return reject(Error("Model option did not open: " + JSON.stringify({
+								focused: document.hasFocus(),
+								trigger: document.querySelector('button[title="Gemini Flash"]')?.outerHTML,
+								menu: document.querySelector('[data-slot="dropdown-menu-content"]')?.textContent,
+							})));
+						}
+						setTimeout(check, 50);
+					};
 					check();
 				});
 				const r = document.querySelector('[data-model-key="fixture/code-model"]').getBoundingClientRect();

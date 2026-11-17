@@ -126,6 +126,7 @@ function sourceIndexArchive(): Buffer {
 				version: "0.1.0",
 				pluginApiVersion: "2.0.0",
 				entry: "dist/index.js",
+				moduleFederation: { remoteName: "source_expert", expose: "./plugin" },
 				permissions: [],
 				agent: { agents: [{ id: "planner", name: "Planner", systemPrompt: "Help plan the user's task." }] },
 			}),
@@ -370,6 +371,7 @@ describe("OpenMarketplaceService", () => {
 		});
 
 		const snapshot = await service.refresh();
+		expect(snapshot.error).toBeUndefined();
 		expect(snapshot).toMatchObject({
 			marketplaceVersion: `source-${createHash("sha256").update(source).digest("hex").slice(0, 48)}`,
 			stale: false,

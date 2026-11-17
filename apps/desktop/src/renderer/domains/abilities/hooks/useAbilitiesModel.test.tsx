@@ -595,8 +595,8 @@ it("groups abilities by category by default while preserving both rows", async (
 	const view = render(<AbilitiesPageView model={result.current} />);
 	expect(screen.getByRole("heading", { name: "categorya" })).toBeTruthy();
 	expect(screen.getByRole("heading", { name: "categoryb" })).toBeTruthy();
-	expect(screen.getByRole("heading", { name: "Skill A" })).toBeTruthy();
-	expect(screen.getByRole("heading", { name: "Skill B" })).toBeTruthy();
+	expect(screen.getByRole("button", { name: "View Skill A details" })).toBeTruthy();
+	expect(screen.getByRole("button", { name: "View Skill B details" })).toBeTruthy();
 	view.unmount();
 });
 
@@ -691,7 +691,7 @@ it("refreshes discovery, hides empty filter options, merges aliases and exposes 
 		return <AbilitiesPageView model={useAbilitiesModel()} />;
 	}
 	render(<Page />);
-	await waitFor(() => expect(screen.getByRole("heading", { name: "SQLite" })).toBeTruthy());
+	await waitFor(() => expect(screen.getByRole("button", { name: "View SQLite details" })).toBeTruthy());
 	const user = userEvent.setup();
 	await user.click(screen.getByRole("button", { name: "Refresh" }));
 	await waitFor(() => expect(refresh).toHaveBeenCalled());
@@ -706,15 +706,15 @@ it("refreshes discovery, hides empty filter options, merges aliases and exposes 
 		"data-databases",
 	]);
 	await user.selectOptions(categorySelect, "__installed__");
-	expect(screen.queryByRole("heading", { name: "Postgres" })).toBeNull();
-	expect(screen.queryByRole("heading", { name: "SQLite" })).toBeNull();
+	expect(screen.queryByRole("button", { name: "View Postgres details" })).toBeNull();
+	expect(screen.queryByRole("button", { name: "View SQLite details" })).toBeNull();
 	await user.selectOptions(categorySelect, "");
-	expect(screen.getByRole("heading", { name: "Postgres" })).toBeTruthy();
-	expect(screen.getByRole("heading", { name: "SQLite" })).toBeTruthy();
+	expect(screen.getByRole("button", { name: "View Postgres details" })).toBeTruthy();
+	expect(screen.getByRole("button", { name: "View SQLite details" })).toBeTruthy();
 	await user.selectOptions(typeSelect, "mcp");
 	await user.selectOptions(categorySelect, "data-databases");
 	await user.type(screen.getByRole("textbox", { name: "Search abilities" }), "sqlite");
-	expect(screen.queryByRole("heading", { name: "Postgres" })).toBeNull();
+	expect(screen.queryByRole("button", { name: "View Postgres details" })).toBeNull();
 	expect(screen.getByText("Unreviewed · Safety unknown")).toBeTruthy();
 });
 

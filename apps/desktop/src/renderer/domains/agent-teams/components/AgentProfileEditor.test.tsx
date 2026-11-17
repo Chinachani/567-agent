@@ -9,6 +9,7 @@ import { AgentProfileEditor } from "./AgentProfileEditor";
 
 vi.mock("react-i18next", () => ({
 	useTranslation: () => ({
+		i18n: { language: "en" },
 		t: (key: string, options?: Record<string, unknown>) =>
 			`${key}${options?.name ?? options?.plugin ?? options?.count ?? options?.index ?? ""}`,
 	}),

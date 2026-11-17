@@ -11,6 +11,9 @@ vi.mock("../config/desktop-config-store.js", () => ({
 		return state.config;
 	},
 }));
+vi.mock("electron", () => ({
+	BrowserWindow: { fromWebContents: () => null },
+}));
 function contents() {
 	const emitter = new EventEmitter();
 	let zoom = 1;

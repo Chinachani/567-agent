@@ -19,7 +19,7 @@ class ResultInboxStore(private val settings: Settings? = null) {
     val results = mutable.asStateFlow()
     private var loaded = false
 
-    suspend fun load() = withContext(Dispatchers.IO) { mutex.withLock { read() } }
+    suspend fun load() = withStorage { read() }
     private fun read() {
         if (loaded) return
         val stored = settings?.getStringOrNull(KEY)?.let { json.decodeFromString(Inbox.serializer(), it) } ?: Inbox()
@@ -28,29 +28,33 @@ class ResultInboxStore(private val settings: Settings? = null) {
         loaded = true
     }
 
-    suspend fun replaceSource(deviceId: String?, tasks: List<TaskResult>) = withContext(Dispatchers.IO) {
-        mutex.withLock {
-            read() // A corrupt ledger must not be silently replaced by an empty one.
-            val previous = mutable.value.associateBy { it.key }
-            val next = tasks.map { task ->
-                val scoped = task.copy(deviceId = deviceId)
-                scoped.copy(read = previous[scoped.key]?.let { it.read && it.revision == scoped.revision } == true)
-            }
-            save((mutable.value.filter { it.deviceId != deviceId } + next).distinctBy { it.key }
-                .sortedByDescending { it.endedAt ?: it.startedAt }.take(500))
+    suspend fun replaceSource(deviceId: String?, tasks: List<TaskResult>) = withStorage {
+        read() // A corrupt ledger must not be silently replaced by an empty one.
+        val previous = mutable.value.associateBy { it.key }
+        val next = tasks.map { task ->
+            val scoped = task.copy(deviceId = deviceId)
+            scoped.copy(read = previous[scoped.key]?.let { it.read && it.revision == scoped.revision } == true)
         }
+        save((mutable.value.filter { it.deviceId != deviceId } + next).distinctBy { it.key }
+            .sortedByDescending { it.endedAt ?: it.startedAt }.take(500))
     }
-    suspend fun markRead(key: String) = withContext(Dispatchers.IO) {
-        mutex.withLock { read(); save(mutable.value.map { if (it.key == key) it.copy(read = true) else it }) }
+    suspend fun markRead(key: String) = withStorage {
+        read(); save(mutable.value.map { if (it.key == key) it.copy(read = true) else it })
     }
-    suspend fun clear() = withContext(Dispatchers.IO) {
-        mutex.withLock { settings?.remove(KEY); mutable.value = emptyList(); loaded = true }
+    suspend fun clear() = withStorage {
+        settings?.remove(KEY); mutable.value = emptyList(); loaded = true
     }
-    suspend fun removeSession(deviceId: String?, sessionId: String) = withContext(Dispatchers.IO) {
-        mutex.withLock { read(); save(mutable.value.filterNot { it.deviceId == deviceId && it.sessionId == sessionId }) }
+    suspend fun removeSession(deviceId: String?, sessionId: String) = withStorage {
+        read(); save(mutable.value.filterNot { it.deviceId == deviceId && it.sessionId == sessionId })
     }
-    suspend fun removeDevice(deviceId: String) = withContext(Dispatchers.IO) {
-        mutex.withLock { read(); save(mutable.value.filterNot { it.deviceId == deviceId }) }
+    suspend fun removeDevice(deviceId: String) = withStorage {
+        read(); save(mutable.value.filterNot { it.deviceId == deviceId })
+    }
+    private suspend fun <T> withStorage(block: () -> T): T {
+        // Only the persistent store performs IO. Memory-only containers stay on
+        // their owning dispatcher, including previews and isolated host fixtures.
+        if (settings == null) return mutex.withLock { block() }
+        return withContext(Dispatchers.IO) { mutex.withLock { block() } }
     }
     private fun save(tasks: List<TaskResult>) {
         settings?.putString(KEY, json.encodeToString(Inbox.serializer(), Inbox(tasks = tasks)))
