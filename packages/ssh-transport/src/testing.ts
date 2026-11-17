@@ -24,10 +24,11 @@ export function formatLoopbackProjectUri(hostId: string, localPath: string): str
 export function resolveLoopbackDirectory(localDirectory: string): string {
 	if (process.platform !== "win32") return localDirectory;
 	// Git Bash may expose Windows Temp as /tmp, even when the input uses /c/Users/….
-	// pwd -P supplies an independent expected path for the readlink-based SSH API.
+	// pwd -P can retain the /c alias too. Convert the original Windows path through
+	// MSYS's mount-aware converter, independently of the readlink-based SSH API.
 	const result = spawnSync(
-		windowsLoopbackShell(),
-		["-c", 'cd -- "$1" && pwd -P', "loopback-directory", toLoopbackRemotePath(localDirectory)],
+		resolve(dirname(windowsLoopbackShell()), "../usr/bin/cygpath.exe"),
+		["--unix", "--absolute", "--", localDirectory],
 		{ encoding: "utf8" },
 	);
 	if (result.error) throw result.error;
