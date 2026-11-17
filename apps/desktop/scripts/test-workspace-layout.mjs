@@ -249,6 +249,7 @@ function runProbe({ root, artifacts, pageFilter }) {
 						});
 						await call((mode) => window.applyWorkspaceTheme(mode), mode);
 						await render({ page, shell: width === 1100 });
+						console.log(`WORKSPACE_LAYOUT_PROBE mode=${mode} width=${width} page=${page}`);
 						const row = await call((page) => {
 							const body = document.querySelector('[data-workspace-page="' + page + '"]'),
 								bounds = body.getBoundingClientRect();
