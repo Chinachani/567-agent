@@ -337,8 +337,10 @@ function runProbe({ root, artifacts, pageFilter }) {
 			await render({ page: "home" });
 			await call(async () => {
 				const trigger = document.querySelector('button[title="Gemini Flash"]');
-				trigger.focus();
-				trigger.dispatchEvent(new KeyboardEvent("keydown", { key: "Enter", bubbles: true }));
+				if (!trigger) throw Error("Model selector trigger was not rendered");
+				// Radix handles the real pointer activation path; synthetic key events are
+				// ignored in some Electron builds even though the trigger is focusable.
+				trigger.click();
 				await new Promise((resolve) => {
 					const check = () =>
 						document.querySelector('[data-model-key="fixture/code-model"]') ? resolve() : setTimeout(check, 50);
