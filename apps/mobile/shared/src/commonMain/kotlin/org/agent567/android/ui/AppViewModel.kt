@@ -570,7 +570,6 @@ class AppViewModel(
                 if (!hadOnlineDevice && hasOnlineDevice && _state.value.sessionFilterIndex == 1) {
                     loadDesktopSessions()
                 }
-                if (!hadOnlineDevice && hasOnlineDevice) resultInboxCoordinator.refresh()
                 hadOnlineDevice = hasOnlineDevice
             }
         }
@@ -2955,7 +2954,6 @@ class AppViewModel(
                     }
                     return@launch
                 }
-                resultInboxCoordinator.removeSession(deviceId, remoteSessionId)
                 session?.let {
                     cancelStream(it.id)
                     if (_state.value.currentSessionId == it.id) {
@@ -2968,6 +2966,9 @@ class AppViewModel(
                         container.preferences.lastSessionId = null
                     }
                 }
+                // Remove the local inbox entry after the session deletion succeeds. This
+                // preserves the retryable deletion behavior if inbox cleanup is busy.
+                resultInboxCoordinator.removeSession(deviceId, remoteSessionId)
                 _state.update { state ->
                     state.copy(
                         remoteDesktopSessions = state.remoteDesktopSessions.filterNot { it.id == remoteSessionId },
@@ -3875,7 +3876,6 @@ class AppViewModel(
                         pendingPersist?.cancel()
                         if (streamJobs[sid] === currentCoroutineContext()[Job]) {
                             streamJobs.remove(sid)
-                            resultInboxCoordinator.refresh()
                             _state.update { it.copy(runningSessionIds = streamJobs.keys.toSet()) }
                             taskNotifications.stopped(sid)
                             streamStatuses.remove(sid)

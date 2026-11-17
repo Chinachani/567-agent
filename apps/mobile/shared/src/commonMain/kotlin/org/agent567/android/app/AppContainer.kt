@@ -35,6 +35,8 @@ class AppContainer(
     val preferences: AppPreferences = AppPreferences(),
     val tokenStore: TokenStore = SettingsTokenStore(),
     val sessionStore: SessionStore = SettingsSessionStore(),
+    // Production wiring below supplies durable platform Settings; the default is an in-memory
+    // store so host tests and previews never initialize Android Settings.
     val resultInbox: org.agent567.android.data.session.ResultInboxStore = org.agent567.android.data.session.ResultInboxStore(),
     val remoteConversationGateway: RemoteConversationGateway = RelayRemoteConversationGateway(),
     val networkAvailability: StateFlow<org.agent567.android.core.net.NetworkAvailability> = org.agent567.android.core.net.platformNetworkAvailability(),
@@ -143,6 +145,7 @@ class AppContainer(
             return AppContainer(
                 preferences = AppPreferences(settings, secrets),
                 tokenStore = SettingsTokenStore(settings, secretStore = secrets),
+                resultInbox = org.agent567.android.data.session.ResultInboxStore(settings),
                 sessionStore = SettingsSessionStore(
                     settings = settings,
                     imageFiles = org.agent567.android.domain.session.createPlatformMessageImageFileStore(),

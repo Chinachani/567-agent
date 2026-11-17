@@ -2,6 +2,7 @@ package org.agent567.android.domain.followup
 
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -33,7 +34,10 @@ class ResultInboxCoordinator(
     fun refresh() {
         if (!canRefresh()) return
         if (job?.isActive == true) { refreshAgain = true; return }
-        job = scope.launch {
+        // Directory and ledger reads are bounded IO work. Keeping this child on IO also
+        // prevents a platform Main dispatcher from being touched after a host test or
+        // a ViewModel has already been torn down.
+        job = scope.launch(Dispatchers.IO) {
             mutableLoading.value = true
             val notices = mutableSetOf<String>()
             try {
@@ -72,7 +76,7 @@ class ResultInboxCoordinator(
     suspend fun removeSession(deviceId: String?, sessionId: String) { stopRefresh(); store.removeSession(deviceId, sessionId) }
     suspend fun removeDevice(deviceId: String) { stopRefresh(); store.removeDevice(deviceId) }
     fun markRead(key: String) {
-        scope.launch {
+        scope.launch(Dispatchers.IO) {
             try { store.markRead(key) }
             catch (error: CancellationException) { throw error }
             catch (_: Exception) { mutableNotice.value = Str.resultInboxFailed }

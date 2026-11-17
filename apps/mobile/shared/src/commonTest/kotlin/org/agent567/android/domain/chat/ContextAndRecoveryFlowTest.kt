@@ -188,7 +188,14 @@ class ContextAndRecoveryFlowTest {
         val gateway = RelayRemoteConversationGateway(backgroundScope, { ReviewTransport(true).also(transports::add) }, { 1_000L })
         gateway.connect("wss://review.invalid/relay")
         val store = SettingsSessionStore(MapSettings(), dispatcher, MemoryImages())
-        val container = AppContainer(AppPreferences(MapSettings()), InMemoryTokenStore(), store, gateway, MutableStateFlow(NetworkAvailability.Available), loadServiceRoutes = { emptyList() })
+		val container = AppContainer(
+			preferences = AppPreferences(MapSettings()),
+			tokenStore = InMemoryTokenStore(),
+			sessionStore = store,
+			remoteConversationGateway = gateway,
+			networkAvailability = MutableStateFlow(NetworkAvailability.Available),
+			loadServiceRoutes = { emptyList() },
+		)
         val vm = AppViewModel(container)
         try {
             runCurrent()
@@ -234,7 +241,14 @@ class ContextAndRecoveryFlowTest {
         val gateway = RelayRemoteConversationGateway(backgroundScope, { ReviewTransport(true, true).also(transports::add) }, { 1_000L })
         gateway.connect("wss://review.invalid/relay")
         val store = SettingsSessionStore(MapSettings(), dispatcher, MemoryImages())
-        val container = AppContainer(AppPreferences(MapSettings()), InMemoryTokenStore(), store, gateway, MutableStateFlow(NetworkAvailability.Available), loadServiceRoutes = { emptyList() })
+		val container = AppContainer(
+			preferences = AppPreferences(MapSettings()),
+			tokenStore = InMemoryTokenStore(),
+			sessionStore = store,
+			remoteConversationGateway = gateway,
+			networkAvailability = MutableStateFlow(NetworkAvailability.Available),
+			loadServiceRoutes = { emptyList() },
+		)
         val vm = AppViewModel(container)
         try {
             runCurrent()
@@ -272,7 +286,14 @@ class ContextAndRecoveryFlowTest {
             LocalMessage("a-user", a.id, ChatRole.User, "Secret from A", MessageStatus.Complete, 1),
             LocalMessage("a-error", a.id, ChatRole.Assistant, "", MessageStatus.Error, 2),
         ))
-        val container = AppContainer(AppPreferences(MapSettings()), InMemoryTokenStore(), store, gateway, MutableStateFlow(NetworkAvailability.Available), loadServiceRoutes = { emptyList() })
+		val container = AppContainer(
+			preferences = AppPreferences(MapSettings()),
+			tokenStore = InMemoryTokenStore(),
+			sessionStore = store,
+			remoteConversationGateway = gateway,
+			networkAvailability = MutableStateFlow(NetworkAvailability.Available),
+			loadServiceRoutes = { emptyList() },
+		)
         val vm = AppViewModel(container)
         try {
             runCurrent()

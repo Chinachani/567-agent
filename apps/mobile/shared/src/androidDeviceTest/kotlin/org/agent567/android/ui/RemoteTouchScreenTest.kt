@@ -104,7 +104,7 @@ class RemoteTouchScreenTest {
 
     @Test fun keyboardShortcutsSendOrderedPressAndReleaseEvents() {
         val keys = mutableListOf<Pair<String, String>>()
-        composeRule.setContent { RemoteKeyboardShortcuts { key, action -> keys += key to action } }
+		composeRule.setContent { RemoteKeyboardShortcuts(onKey = { key, action -> keys += key to action }) }
         composeRule.onNodeWithText("Tab").performClick()
         composeRule.onNodeWithText("Ctrl+V").performScrollTo().performClick()
         composeRule.runOnIdle {
