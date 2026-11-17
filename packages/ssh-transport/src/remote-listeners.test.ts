@@ -1,4 +1,5 @@
 import { spawn, spawnSync } from "node:child_process";
+import { once } from "node:events";
 import { describe, expect, it } from "vitest";
 import {
 	buildListListeningPortsCommand,
@@ -221,10 +222,15 @@ describe("终止进程", () => {
 		expect(child.signalCode ?? "SIGTERM").toBe("SIGTERM");
 	});
 
-	it.skipIf(process.platform === "win32")("不理 SIGTERM 的进程报「还活着」，SIGKILL 才收得掉", () => {
-		const child = spawn("/bin/sh", ["-c", "trap '' TERM; while :; do sleep 0.05; done"], { stdio: "ignore" });
+	it.skipIf(process.platform === "win32")("不理 SIGTERM 的进程报「还活着」，SIGKILL 才收得掉", async () => {
+		const child = spawn("/bin/sh", ["-c", "trap '' TERM; printf 'ready\\n'; while :; do sleep 0.05; done"], {
+			stdio: ["ignore", "pipe", "ignore"],
+		});
 		const pid = child.pid ?? 0;
 		try {
+			// Spawn returning does not mean the shell has installed its signal trap yet.
+			const [ready]: unknown[] = await once(child.stdout, "data");
+			expect(ready).toEqual(Buffer.from("ready\n"));
 			const term = spawnSync("/bin/sh", ["-c", buildTerminateProcessCommand(pid, false)], { encoding: "utf8" });
 			expect(term.status).toBe(PROCESS_STILL_ALIVE_EXIT_CODE);
 			const kill = spawnSync("/bin/sh", ["-c", buildTerminateProcessCommand(pid, true)], { encoding: "utf8" });
