@@ -34,6 +34,7 @@ data class RemoteDesktopHistoryMessage(
     val text: String,
     val timestamp: Long,
     val status: MessageStatus = MessageStatus.Complete,
+    val sources: List<org.agent567.android.core.model.ChatSource>? = null,
 )
 
 data class RemoteDesktopImageChunk(

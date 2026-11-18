@@ -836,7 +836,17 @@
 			"请耐心等待…",
 			"567 Agent 正在努力工作…"
 		],
+		"replySources": {
+			"count": "来源 · {{count}}",
+			"failed": "无法打开这个链接。"
+		},
+		"readReply": {
+			"play": "朗读回复",
+			"stop": "停止朗读",
+			"unavailable": "系统未能朗读这条回复，请检查是否已安装离线语音。"
+		},
 		"copyButton": {
+			"failed": "未能复制，可重试或手动选中文字。",
 			"copied": "已复制",
 			"copy": "复制"
 		},

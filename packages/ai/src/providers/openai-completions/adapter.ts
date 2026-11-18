@@ -7,6 +7,7 @@ import {
 	type Api,
 	createAssistantMessage as createProtocolAssistantMessage,
 } from "../../protocol/index.js";
+import { mergeTextSources, type TextSource } from "../../protocol/text-sources.js";
 import {
 	EmptyProviderStreamError,
 	normalizeProviderError,
@@ -40,6 +41,7 @@ import { openAIChatCompletionChunkSchema } from "./response-schema.js";
 
 type PartialToolCall = ToolCall & { partialArgs?: string };
 type CompatibleDelta = ChatCompletionChunk.Choice.Delta & {
+	annotations?: unknown;
 	reasoning_content?: string;
 	reasoning?: string;
 	reasoning_text?: string;
@@ -168,6 +170,7 @@ async function produceOpenAICompletions(
 			stream.push({ type: "text_delta", contentIndex: blockIndex(), delta: segment.text, partial: output });
 		};
 
+		let replySources: readonly TextSource[] = [];
 		let receivedProviderChunk = false;
 		for await (const chunk of response) {
 			receivedProviderChunk = true;
@@ -192,6 +195,14 @@ async function produceOpenAICompletions(
 			}
 
 			const delta = choice.delta as CompatibleDelta;
+			if (Array.isArray(delta.annotations))
+				replySources = mergeTextSources(
+					replySources,
+					delta.annotations
+						.slice(0, 96)
+						.filter((a) => a?.type === "url_citation")
+						.map((a) => a.url_citation),
+				);
 			const reasoningField = findReasoningField(delta);
 			if (reasoningField) {
 				if (!currentBlock || currentBlock.type !== "thinking") {
@@ -266,6 +277,11 @@ async function produceOpenAICompletions(
 		if (!receivedProviderChunk) throw new EmptyProviderStreamError();
 
 		for (const segment of contentSplitter.flush()) emitContentSegment(segment);
+		// Choice-level annotations have no block identity. Do not guess between text blocks.
+		if (replySources.length) {
+			const text = output.content.filter((block) => block.type === "text" && block.text.length > 0);
+			if (text.length === 1 && text[0].type === "text") text[0].sources = [...replySources];
+		}
 		finishCurrentBlock(currentBlock);
 		if (options?.signal?.aborted) throw new AIAbortedError();
 		if (

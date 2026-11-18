@@ -1,11 +1,16 @@
 package org.agent567.android.ui.chat
 
+import androidx.compose.ui.text.TextRange
+import androidx.compose.ui.text.input.TextFieldValue
 import androidx.compose.material.icons.outlined.FolderOpen
 
 import androidx.compose.foundation.gestures.detectTransformGestures
 import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.input.nestedscroll.NestedScrollConnection
+import androidx.compose.ui.input.nestedscroll.NestedScrollSource
+import androidx.compose.ui.input.nestedscroll.nestedScroll
 import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
 
@@ -89,6 +94,7 @@ import androidx.compose.material.icons.filled.ExpandMore
 import androidx.compose.material.icons.filled.FolderOpen
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.filled.Stop
+import androidx.compose.material.icons.automirrored.filled.VolumeUp
 import androidx.compose.material.icons.filled.Tune
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FilledIconButton
@@ -110,8 +116,9 @@ import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
-import androidx.compose.runtime.derivedStateOf
+import androidx.compose.runtime.key
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableLongStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
 import androidx.compose.runtime.remember
@@ -130,7 +137,6 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.foundation.layout.WindowInsets
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.flow.first
-import androidx.compose.runtime.withFrameNanos
 import org.agent567.android.core.model.ChatRole
 import org.agent567.android.core.model.LlmModel
 import org.agent567.android.domain.error.UiError
@@ -254,16 +260,29 @@ fun ChatScreen(
     onToggleImageGen: (Boolean) -> Unit = {},
     onSelectImageGroup: (String) -> Unit = {},
     onSelectImageModel: (String) -> Unit = {},
+    sessionId: String? = null,
+    dictationDeviceId: String? = null,
+    onDictated: ((DictationDraftSnapshot, Long, String) -> DictationApplyResult)? = null,
 ) {
     val retryableAssistantId = remember(messages) { prepareRetryTurn(messages)?.assistantMessageId }
     val listState = rememberLazyListState()
     val scope = rememberCoroutineScope()
     val imeBottomPx = WindowInsets.ime.getBottom(LocalDensity.current)
-    var attachedSessionId by remember { mutableStateOf<String?>(null) }
     var toastNotice by remember { mutableStateOf<String?>(null) }
     var attachmentChooserOpen by remember { mutableStateOf(false) }
     val attachmentSheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
-    val currentSessionId = messages.firstOrNull()?.sessionId
+    val currentSessionId = sessionId ?: messages.firstOrNull()?.sessionId
+    var dictatingBusy by remember(surface, currentSessionId, dictationDeviceId) { mutableStateOf(false) }
+    var draftVersion by remember(surface, currentSessionId, dictationDeviceId) { mutableLongStateOf(0L) }
+    var dictationSnapshot by remember(surface, currentSessionId, dictationDeviceId) { mutableStateOf<DictationDraftSnapshot?>(null) }
+    var textFieldValue by remember(surface, currentSessionId, dictationDeviceId) {
+        mutableStateOf(TextFieldValue(draft, TextRange(draft.length)))
+    }
+    if (textFieldValue.text != draft) {
+        draftVersion++
+        textFieldValue = TextFieldValue(draft, TextRange(draft.length))
+    }
+    val reader = rememberReplyReader(currentSessionId) { toastNotice = Str.replyVoiceUnavailable }
 
     fun appendPickedImages(picked: List<org.agent567.android.ui.media.PickedImage>) {
         var remainingBytes = (MAX_MESSAGE_IMAGE_TOTAL_BYTES - pendingImages.sumOf { it.pickedByteSize() }).coerceAtLeast(0)
@@ -324,36 +343,32 @@ fun ChatScreen(
         onRejected = { toastNotice = Str.documentAttachmentRejected },
     )
 
-    // 1. 会话初次进入或切换会话时，无论消息多少，瞬间精确定位至最底部最新消息
-    LaunchedEffect(currentSessionId, messages.isNotEmpty()) {
-        if (messages.isNotEmpty() && (attachedSessionId == null || attachedSessionId != currentSessionId)) {
-            attachedSessionId = currentSessionId
-            listState.scrollToItem(messages.lastIndex)
+    var followTail by remember(currentSessionId) { mutableStateOf(true) }
+    val readingScroll = remember(listState, currentSessionId) {
+        object : NestedScrollConnection {
+            override fun onPreScroll(available: Offset, source: NestedScrollSource): Offset {
+                if (source == NestedScrollSource.UserInput && available.y > 0 && listState.canScrollBackward) followTail = false
+                return Offset.Zero
+            }
+            override fun onPostScroll(consumed: Offset, available: Offset, source: NestedScrollSource): Offset {
+                if (consumed.y < 0 && !listState.canScrollForward) followTail = true
+                return Offset.Zero
+            }
         }
     }
-
-    val isAtBottom by remember {
-        derivedStateOf {
-            val info = listState.layoutInfo
-            val last = info.visibleItemsInfo.lastOrNull() ?: return@derivedStateOf true
-            last.index >= info.totalItemsCount - 2
-        }
-    }
-
-    // 2. 用户处于底部附着区时，新消息产生或流式文字生成平滑向下跟随滚动
-    LaunchedEffect(messages.size, messages.lastOrNull()?.content, messages.lastOrNull()?.status) {
-        if (isAtBottom && messages.isNotEmpty()) {
-            listState.animateScrollToItem(messages.lastIndex)
-        }
-    }
-
-    val imeScrollTarget = chatImeScrollTarget(imeBottomPx, messages.lastIndex)
-    LaunchedEffect(imeScrollTarget) {
-        imeScrollTarget?.let { target ->
-            // Let the resized viewport land first, then keep the newest message
-            // visible while the user starts typing.
-            withFrameNanos { }
-            listState.animateScrollToItem(target)
+    val tailIndex = messages.size + if (desktopHistoryLoading) 1 else 0
+    val imeScrollTarget = chatImeScrollTarget(imeBottomPx, tailIndex)
+    LaunchedEffect(currentSessionId, tailIndex, imeScrollTarget, followTail) {
+        if (followTail && messages.isNotEmpty()) {
+            // The zero-height footer anchors the end even when one answer is taller than the screen.
+            snapshotFlow {
+                val layout = listState.layoutInfo
+                val last = layout.visibleItemsInfo.lastOrNull()
+                if (!listState.canScrollForward || listState.isScrollInProgress || layout.totalItemsCount <= tailIndex || last == null) null
+                else Triple(last.index, last.offset + last.size, layout.viewportEndOffset)
+            }.collect { geometry ->
+                if (geometry != null && followTail && !listState.isScrollInProgress) listState.scrollToItem(tailIndex)
+            }
         }
     }
 
@@ -362,6 +377,7 @@ fun ChatScreen(
 
     val canSend =
         !isStreaming &&
+            !dictatingBusy &&
             (surface == ChatSurface.Desktop || selectedModel != null) &&
             (draft.isNotBlank() || pendingImages.isNotEmpty() || pendingFiles.isNotEmpty())
     val maxInputHeight = (LocalConfiguration.current.screenHeightDp * 0.35f).dp.coerceAtLeast(100.dp)
@@ -519,14 +535,58 @@ fun ChatScreen(
                     }
                 }
                 InputDock(
-                    value = draft,
+                    value = textFieldValue,
                     isStreaming = isStreaming,
                     sendEnabled = canSend,
-                    onValueChange = onDraftChange,
-                    onSend = onSend,
+                    onValueChange = { nextValue ->
+                        val textChanged = nextValue.text != textFieldValue.text
+                        textFieldValue = nextValue
+                        if (textChanged) {
+                            draftVersion++
+                            onDraftChange(nextValue.text)
+                        }
+                    },
+                    onSend = {
+                        if (!dictatingBusy && canSend) onSend()
+                    },
                     onStop = onStop,
                     onAttach = { attachmentChooserOpen = true },
                     maxHeight = maxInputHeight,
+                    dictation = {
+                        if (!isStreaming && onDictated != null) androidx.compose.runtime.key(surface, currentSessionId, dictationDeviceId) {
+                            DraftDictationButton(
+                                onStart = {
+                                    reader.stop()
+                                    dictationSnapshot = DictationDraftSnapshot(
+                                        sessionId = currentSessionId,
+                                        draftVersion = draftVersion,
+                                        baseDraft = textFieldValue.text,
+                                        selectionStart = textFieldValue.selection.min,
+                                        selectionEnd = textFieldValue.selection.max,
+                                    )
+                                },
+                                onResult = { text ->
+                                    val result = dictationSnapshot?.let { onDictated(it, draftVersion, text) } ?: DictationApplyResult.Ignored
+                                    dictationSnapshot = null
+                                    when (result) {
+                                        is DictationApplyResult.Success -> {
+                                            draftVersion++
+                                            textFieldValue = TextFieldValue(result.newDraft, TextRange(result.newSelectionCursor))
+                                        }
+                                        is DictationApplyResult.TooLong -> {
+                                            toastNotice = Str.dictationTooLong
+                                        }
+                                        is DictationApplyResult.Ignored -> Unit
+                                    }
+                                },
+                                onNotice = { toastNotice = it },
+                                onBusyChange = { busy ->
+                                    if (busy) reader.stop()
+                                    dictatingBusy = busy
+                                },
+                            )
+                        }
+                    },
                     modelControls = {
                         if (surface == ChatSurface.Cloud) {
                             Row(
@@ -664,7 +724,7 @@ fun ChatScreen(
             } else {
                 LazyColumn(
                     state = listState,
-                    modifier = Modifier.fillMaxSize(),
+                    modifier = Modifier.fillMaxSize().nestedScroll(readingScroll),
                     contentPadding = PaddingValues(horizontal = 20.dp, vertical = 20.dp),
                     verticalArrangement = Arrangement.spacedBy(10.dp),
                 ) {
@@ -684,19 +744,17 @@ fun ChatScreen(
                             onImageClick = { previewImage = it },
                             onCopyToast = { toastNotice = it },
                             onEdit = { onDraftChange(it) },
-                            hasDraft = draft.isNotBlank() || pendingImages.isNotEmpty(),
+                            reader = if (dictatingBusy) null else reader,
+                            hasDraft = draft.isNotBlank() || pendingImages.isNotEmpty() || pendingFiles.isNotEmpty(),
                             canRetry = msg.id == retryableAssistantId,
                             onRetry = { onRetryAssistant(msg.id) },
                         )
                     }
+                    item { Spacer(Modifier.height(0.dp)) }
                 }
-                if (!isAtBottom) {
+                if (!followTail && listState.canScrollForward) {
                     TextButton(
-                        onClick = {
-                            scope.launch {
-                                listState.animateScrollToItem(messages.lastIndex)
-                            }
-                        },
+                        onClick = { followTail = true },
                         modifier = Modifier.align(Alignment.BottomCenter).padding(bottom = 8.dp),
                     ) {
                         Text(Str.newContent)
@@ -1374,6 +1432,7 @@ internal fun MessageBubble(
     hasDraft: Boolean = false,
     canRetry: Boolean = false,
     onRetry: () -> Unit = {},
+    reader: ReplyReader? = null,
 ) {
     var confirmEdit by remember(message.id) { mutableStateOf(false) }
     val isUser = message.role == ChatRole.User
@@ -1588,6 +1647,7 @@ internal fun MessageBubble(
                             else -> {
                                 MarkdownContent(
                                     source = displayContent,
+                                    streaming = message.status == MessageStatus.Streaming,
                                     modifier = Modifier.padding(horizontal = 12.dp, vertical = 10.dp),
                                 )
                             }
@@ -1596,6 +1656,9 @@ internal fun MessageBubble(
                 }
             }
 
+            if (!isUser && message.sources.isNotEmpty()) {
+                key(message.id) { ReplySources(message.sources, onCopyToast) }
+            }
             Row(
                 modifier = Modifier.padding(top = 3.dp, start = 4.dp, end = 4.dp),
                 horizontalArrangement = if (isUser) Arrangement.End else Arrangement.Start,
@@ -1617,15 +1680,18 @@ internal fun MessageBubble(
                 if (displayContent.isNotBlank() && message.status != MessageStatus.Streaming) {
                     val clipboard = androidx.compose.ui.platform.LocalClipboardManager.current
                     var copied by remember(message.id) { mutableStateOf(false) }
+                    LaunchedEffect(copied) { if (copied) { delay(1500); copied = false } }
                     // Reduce the layout height only. Compose clickable still expands the touch
                     // bounds to ViewConfiguration.minimumTouchTargetSize (48 dp on Android).
                     androidx.compose.runtime.CompositionLocalProvider(
                         androidx.compose.material3.LocalMinimumInteractiveComponentSize provides 0.dp,
                     ) {
                         IconButton(onClick = {
-                            clipboard.setText(androidx.compose.ui.text.AnnotatedString(displayContent))
-                            copied = true
-                            onCopyToast(Str.copiedContent)
+                            copied = try {
+                                clipboard.setText(androidx.compose.ui.text.AnnotatedString(displayContent))
+                                true
+                            } catch (_: RuntimeException) { false }
+                            onCopyToast(if (copied) Str.copiedContent else Str.copyUnavailable)
                         }, modifier = Modifier.width(48.dp).height(28.dp)) {
                             Icon(if (copied) Icons.Default.Check else Icons.Default.ContentCopy,
                                 contentDescription = Str.copyContent, modifier = Modifier.size(16.dp), tint = MaterialTheme.agent567Extra.secondaryText)
@@ -1637,6 +1703,13 @@ internal fun MessageBubble(
                         IconButton(onClick = { if (hasDraft) confirmEdit = true else onEdit(displayContent) }, modifier = Modifier.width(48.dp).height(28.dp)) {
                             Icon(Icons.Default.Edit, contentDescription = Str.editMessage, modifier = Modifier.size(16.dp), tint = MaterialTheme.agent567Extra.secondaryText)
                         }
+                    }
+                }
+                if (reader != null && message.role == ChatRole.Assistant && message.status == MessageStatus.Complete && displayContent.isNotBlank()) {
+                    val playing = reader.activeId == message.id
+                    IconButton(onClick = { reader.toggle(message.id, displayContent) }) {
+                        Icon(if (playing) Icons.Default.Stop else Icons.AutoMirrored.Filled.VolumeUp,
+                            contentDescription = if (playing) Str.stopReadingReply else Str.readReply, modifier = Modifier.size(18.dp))
                     }
                 }
             }
@@ -2095,14 +2168,15 @@ private fun QuestionPrompt(
 
 @Composable
 private fun InputDock(
-    value: String,
+    value: TextFieldValue,
     isStreaming: Boolean,
     sendEnabled: Boolean,
-    onValueChange: (String) -> Unit,
+    onValueChange: (TextFieldValue) -> Unit,
     onSend: () -> Unit,
     onStop: () -> Unit,
     onAttach: () -> Unit,
     maxHeight: androidx.compose.ui.unit.Dp,
+    dictation: @Composable () -> Unit,
     modelControls: @Composable () -> Unit,
 ) {
     Surface(
@@ -2120,8 +2194,9 @@ private fun InputDock(
                 IconButton(onClick = onAttach, enabled = !isStreaming, modifier = Modifier.size(48.dp)) {
                     Icon(Icons.Default.AttachFile, contentDescription = Str.attach, modifier = Modifier.size(20.dp))
                 }
+                dictation()
                 Box(Modifier.weight(1f).heightIn(min = 48.dp, max = maxHeight).padding(horizontal = 4.dp, vertical = 12.dp)) {
-                    if (value.isEmpty()) Text(Str.chatPlaceholder, color = MaterialTheme.agent567Extra.secondaryText, style = MaterialTheme.typography.bodyLarge)
+                    if (value.text.isEmpty()) Text(Str.chatPlaceholder, color = MaterialTheme.agent567Extra.secondaryText, style = MaterialTheme.typography.bodyLarge)
                     BasicTextField(
                         value = value, onValueChange = onValueChange, modifier = Modifier.fillMaxWidth(),
                         textStyle = MaterialTheme.typography.bodyLarge.copy(color = MaterialTheme.colorScheme.onSurface),

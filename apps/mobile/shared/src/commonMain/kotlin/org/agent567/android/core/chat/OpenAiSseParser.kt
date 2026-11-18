@@ -34,7 +34,12 @@ object OpenAiSseParser {
                 )
             }
 
+        return parseChunk(chunk)
+    }
+
+    internal fun parseChunk(chunk: ChatCompletionChunkDto): ChatStreamEvent? {
         val choice = chunk.choices.firstOrNull()
+        val sources = providerSources(choice?.delta?.annotations ?: choice?.message?.annotations, nested = true)
         val deltaText = choice?.delta?.content
         val reasoningText = choice?.delta?.reasoningContent
         val messageText = choice?.message?.content?.let {
@@ -57,14 +62,16 @@ object OpenAiSseParser {
         }
 
         if (!deltaText.isNullOrEmpty()) {
-            return ChatStreamEvent.Delta(deltaText)
+            return ChatStreamEvent.Delta(deltaText, sources)
         }
         if (!reasoningText.isNullOrEmpty()) {
-            return ChatStreamEvent.Delta(reasoningText)
+            return ChatStreamEvent.Delta(reasoningText, sources)
         }
         if (!messageText.isNullOrEmpty()) {
-            return ChatStreamEvent.Delta(messageText)
+            return ChatStreamEvent.Delta(messageText, sources)
         }
+
+        if (sources.isNotEmpty()) return ChatStreamEvent.Delta("", sources)
 
         val finishReason = choice?.finishReason
         if (finishReason != null) {
@@ -155,7 +162,7 @@ object OpenAiSseParser {
             }
 
             if (textToEmit.isNotEmpty()) {
-                listOf(ChatStreamEvent.Delta(textToEmit)) + usageEvents + ChatStreamEvent.Done
+                listOf(ChatStreamEvent.Delta(textToEmit, providerSources(message?.get("annotations") ?: delta?.get("annotations"), nested = true))) + usageEvents + ChatStreamEvent.Done
             } else {
                 emptyList()
             }
@@ -214,7 +221,7 @@ class OpenAiSseStreamParser {
         }
         val output = mutableListOf<ChatStreamEvent>()
         if (toolCalls.isEmpty()) {
-            val event = OpenAiSseParser.parseLine(line)
+            val event = OpenAiSseParser.parseChunk(chunk)
             if (event != null && event !is ChatStreamEvent.Finished && !(event is ChatStreamEvent.State && event.value == "usage")) {
                 output += event
             }

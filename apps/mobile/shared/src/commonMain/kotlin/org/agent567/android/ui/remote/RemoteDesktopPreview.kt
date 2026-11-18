@@ -32,6 +32,7 @@ internal fun RemoteDesktopPreview(
     reconnectingMessage: String? = null,
     waitingMessage: String = Str.remoteCaptureWaiting,
     onDiagnostics: (() -> Unit)? = null,
+    slowFirstFrame: Boolean = false,
     video: @Composable () -> Unit,
 ) {
     Column(modifier, verticalArrangement = Arrangement.spacedBy(8.dp)) {
@@ -68,6 +69,10 @@ internal fun RemoteDesktopPreview(
                         }
                     }
                 }
+            }
+            if (phase == RemotePreviewPhase.Waiting && slowFirstFrame) {
+                Text(Str.remoteSlowFirstFrame, style = MaterialTheme.typography.bodySmall)
+                TextButton(onClick = onRetry, modifier = Modifier.heightIn(min = 48.dp)) { Text(Str.remoteReconnect) }
             }
             if (phase == RemotePreviewPhase.Ready) {
                 Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {

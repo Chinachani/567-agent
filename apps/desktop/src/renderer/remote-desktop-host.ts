@@ -1,3 +1,4 @@
+import { RemoteInputOwnership } from "../shared/remote-input-ownership.js";
 import { RemoteDesktopCapture } from "./remote-desktop-capture.js";
 import { RemoteDesktopRoute } from "./remote-desktop-route.js";
 
@@ -27,6 +28,7 @@ try {
 }
 if (!sessionId || targets.length === 0) throw new Error("remote desktop host targets are missing");
 
+const pressed = new RemoteInputOwnership((message) => window.agent567RemoteDesktop?.onInput(message));
 const routes = targets.map(
 	(target, index) =>
 		new RemoteDesktopRoute({
@@ -34,7 +36,8 @@ const routes = targets.map(
 			sessionId,
 			capture,
 			requestCapture: () => window.agent567RemoteDesktop?.requestCapture(index),
-			onInput: (message) => window.agent567RemoteDesktop?.onInput(message),
+			onInput: (message) => pressed.apply(index, message),
+			releaseInputs: () => pressed.release(index),
 			logger: {
 				debug: (message, fields) => console.debug(message, fields),
 				info: (message, fields) => console.info(message, fields),

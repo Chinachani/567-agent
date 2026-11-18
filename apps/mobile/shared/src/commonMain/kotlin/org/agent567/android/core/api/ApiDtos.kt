@@ -203,13 +203,20 @@ internal data class ChatCompletionChunkDto(
 internal data class ChatChoiceDto(
     val index: Int = 0,
     val delta: ChatDeltaDto? = null,
-    val message: ChatMessageDto? = null,
+    val message: ChatReplyDto? = null,
     @SerialName("finish_reason")
     val finishReason: String? = null,
 )
 
 @Serializable
+internal data class ChatReplyDto(
+    val content: kotlinx.serialization.json.JsonElement? = null,
+    val annotations: kotlinx.serialization.json.JsonElement? = null,
+)
+
+@Serializable
 internal data class ChatDeltaDto(
+    val annotations: kotlinx.serialization.json.JsonElement? = null,
     val role: String? = null,
     val content: String? = null,
     @SerialName("reasoning_content")

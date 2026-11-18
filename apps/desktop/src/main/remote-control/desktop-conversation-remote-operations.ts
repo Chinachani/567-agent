@@ -1,4 +1,5 @@
 import { cpus, platform, release, totalmem } from "node:os";
+import { collectTextSources } from "@567agent/ai/protocol";
 import type {
 	CodingAgentQuestionFunctionRequest,
 	CodingAgentQuestionResult,
@@ -783,7 +784,10 @@ function mapRuntimeEvent(event: SessionEvent, observedText = ""): DesktopRemoteP
 				.join("");
 			if (!text) return undefined;
 			const missing = observedText && text.startsWith(observedText) ? text.slice(observedText.length) : text;
-			return missing ? { type: "delta", text: missing } : undefined;
+			const sources = collectTextSources(message.content);
+			return missing || sources.length
+				? { type: "delta", text: missing, ...(sources.length ? { sources } : {}) }
+				: undefined;
 		}
 		return undefined;
 	}
@@ -808,7 +812,10 @@ function mapRuntimeEvent(event: SessionEvent, observedText = ""): DesktopRemoteP
 			// A turn may contain several model calls. Emit only text not already
 			// delivered as deltas, while preserving providers that report per-call text.
 			const missing = observedText && text.startsWith(observedText) ? text.slice(observedText.length) : text;
-			return missing ? { type: "delta", text: missing } : undefined;
+			const sources = collectTextSources(event.message.content);
+			return missing || sources.length
+				? { type: "delta", text: missing, ...(sources.length ? { sources } : {}) }
+				: undefined;
 		}
 		case "thinking.delta":
 			return { type: "state", payload: { state: "thinking", text: event.delta } };

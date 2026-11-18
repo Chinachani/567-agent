@@ -7,6 +7,7 @@ import { ArrowDown } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import type { Usage } from "@567agent/ai/protocol";
 import { conversationItemRenderKey } from "@shared/conversation";
+import { BranchViewportContext, useBranchViewportAnchor } from "../../hooks/useBranchViewportAnchor";
 import { MessageRow } from "./MessageRendering";
 import { MessageItem, ModelSwitchBoundary, ExportMessageList } from "./MessageItem";
 import { collectAgentUsages } from "./message-list-derived";
@@ -62,6 +63,7 @@ export function MessageListView({
 		onTeamMemberOpen,
 	} = model;
 	const scrollerElement = scroll.scrollerElement;
+	const branchAnchor = useBranchViewportAnchor(scroll, messages, sessionId);
 	// 冷、热会话都先只渲染真实可见行。initialTopMostItemIndex 与可选的恢复快照
 	// 负责把首屏锚在尾部；屏幕外缓冲在界面稳定后的空闲期统一补齐。
 	const useInitialViewport = viewportPhase === "initial";
@@ -120,7 +122,7 @@ export function MessageListView({
 	);
 
 	return (
-		<>
+		<BranchViewportContext.Provider value={branchAnchor}>
 			<MessageFeed.Root>
 				<MessageFeedLayout.Frame asChild>
 					<div data-message-viewport={viewportPhase}>
@@ -195,6 +197,6 @@ export function MessageListView({
 					</div>
 				</MessageFeedLayout.Frame>
 			</MessageFeed.Root>
-		</>
+		</BranchViewportContext.Provider>
 	);
 }

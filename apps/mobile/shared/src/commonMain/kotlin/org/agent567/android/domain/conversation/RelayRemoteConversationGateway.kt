@@ -383,6 +383,7 @@ class RelayRemoteConversationGateway(
                 RemoteDesktopHistoryMessage(
                     id = item.stringValue("id")?.takeIf(String::isNotBlank) ?: "${item.longValue("timestamp") ?: offset}",
                     role = role,
+                    sources = if (role == ChatRole.Assistant) decodeMessageSources(item) else null,
                     text = text,
                     timestamp = item.longValue("timestamp") ?: now(),
                     status = if (item["failed"]?.jsonPrimitive?.booleanOrNull == true) MessageStatus.Error else MessageStatus.Complete,
@@ -1181,6 +1182,7 @@ class RelayRemoteConversationGateway(
                 failedReads = 0
                 val state = snapshot.stringValue("state") ?: "waiting_response"
                 emit(ChatStreamEvent.Snapshot(
+                    sources = decodeMessageSources(snapshot),
                     truncated = snapshot["truncated"]?.jsonPrimitive?.booleanOrNull == true,
                     text = snapshot.stringValue("text").orEmpty(),
                     tools = (snapshot["tools"] as? JsonArray).orEmpty().mapNotNull { decodeConversationEvent(RemoteEventName.SessionTool, it) as? ChatStreamEvent.Tool },
@@ -1464,7 +1466,7 @@ private fun parseModelCatalog(element: JsonElement?): RemoteSessionModelCatalog 
 private fun decodeConversationEvent(name: RemoteEventName, payload: JsonElement?): ChatStreamEvent? {
 	val objectValue = payload as? JsonObject ?: return null
 	return when (name) {
-		RemoteEventName.SessionMessage -> objectValue.stringValue("text")?.let(ChatStreamEvent::Delta)
+		RemoteEventName.SessionMessage -> objectValue.stringValue("text")?.let { ChatStreamEvent.Delta(it, decodeMessageSources(objectValue)) }
 		RemoteEventName.SessionTool -> {
 			val phase = objectValue.stringValue("phase") ?: return null
 			val callId = objectValue.stringValue("toolCallId") ?: return null
@@ -1622,3 +1624,10 @@ internal fun JsonElement?.toActiveConversation(): DesktopActiveConversation? {
     val status = value.stringValue("status")?.takeIf { it in setOf("idle", "running", "waiting", "failed", "interrupted") } ?: return null
     return DesktopActiveConversation(id, title, status)
 }
+
+private fun decodeMessageSources(item: JsonObject): List<org.agent567.android.core.model.ChatSource> =
+    org.agent567.android.core.model.normalizeChatSources((item["sources"] as? JsonArray).orEmpty().take(96).mapNotNull { value ->
+        val source = value as? JsonObject ?: return@mapNotNull null
+        val url = (source["url"] as? JsonPrimitive)?.takeIf { it.isString }?.content ?: return@mapNotNull null
+        org.agent567.android.core.model.ChatSource(url, (source["title"] as? JsonPrimitive)?.takeIf { it.isString }?.content)
+    })

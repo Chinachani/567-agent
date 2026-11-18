@@ -1,6 +1,7 @@
 import type { AIErrorDetails } from "./errors.js";
 import type { StopReason } from "./finish-reason.js";
 import type { Api, Provider } from "./identity.js";
+import type { TextSource } from "./text-sources.js";
 import type { ToolCall } from "./tool.js";
 import type { Usage } from "./usage.js";
 
@@ -8,6 +9,7 @@ export interface TextContent {
 	type: "text";
 	text: string;
 	textSignature?: string;
+	sources?: TextSource[];
 }
 
 export interface ThinkingContent {

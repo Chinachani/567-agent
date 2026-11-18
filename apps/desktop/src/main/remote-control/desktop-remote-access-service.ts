@@ -97,6 +97,7 @@ async function connect(
 	},
 	key: string,
 	runGeneration: number,
+	reconnectDelayMs = 1_000,
 ): Promise<void> {
 	if (runGeneration !== generation) return;
 	const options = { ...baseOptions, ...target };
@@ -175,8 +176,23 @@ async function connect(
 		conversationState,
 	);
 	const connector = new DesktopRemoteConnector(connection, operations, promptRecovery);
-	const unsubscribe = connection.onEvent((event) => {
+	let recoveryTimer: ReturnType<typeof setTimeout> | undefined;
+	const detach = connection.onEvent((event) => {
 		if (event.type === "state") {
+			if (recoveryTimer) clearTimeout(recoveryTimer);
+			recoveryTimer = undefined;
+			if (event.state === "recovering") {
+				// No further frame is guaranteed after a missing event. Recover this control route
+				// through its existing reconnect policy without resubmitting any user operation.
+				recoveryTimer = setTimeout(() => {
+					if (
+						runGeneration === generation &&
+						active.get(key)?.connector === connector &&
+						connection.getSnapshot().state === "recovering"
+					)
+						void scheduleReconnect(key, runGeneration);
+				}, 8_000);
+			}
 			targetStates.set(key, event.state);
 			options.onStateChange?.(aggregateState());
 		}
@@ -190,10 +206,13 @@ async function connect(
 	});
 	const entry: ActiveConnector = {
 		connector,
-		unsubscribe,
+		unsubscribe: () => {
+			detach();
+			clearTimeout(recoveryTimer);
+		},
 		options,
 		reconnectPending: false,
-		reconnectDelayMs: 1_000,
+		reconnectDelayMs,
 	};
 	active.set(key, entry);
 	try {
@@ -203,7 +222,7 @@ async function connect(
 		log.warn("remote access connection attempt failed", {
 			error: error instanceof Error ? error.message : String(error),
 		});
-		await scheduleReconnect(key, runGeneration);
+		if (active.get(key) === entry) await scheduleReconnect(key, runGeneration);
 	}
 }
 
@@ -234,7 +253,8 @@ async function scheduleReconnect(key: string, runGeneration: number): Promise<vo
 	current.reconnectDelayMs = Math.min(30_000, current.reconnectDelayMs * 2);
 	current.reconnectTimer = setTimeout(() => {
 		current.reconnectTimer = undefined;
-		void connect(current.options, current.options, key, runGeneration);
+		if (active.get(key) === current)
+			void connect(current.options, current.options, key, runGeneration, current.reconnectDelayMs);
 	}, delayMs);
 	current.reconnectTimer.unref?.();
 	current.reconnectPending = false;

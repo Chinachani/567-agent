@@ -42,3 +42,5 @@ Auto uses the reported viewport. Smooth targets a viewport no larger than 1280 Ã
 bitrate at 4 Mbps; actual dimensions still depend on capture size and supported scaling. Clear
 retains source detail where possible. All modes retain encoder-pressure degradation and the
 existing frame-rate limit; preferences never grant OS input authority or guarantee image quality.
+
+`ScreenAdaptation` samples sustained sender pressure and only probes a higher resolution when there is headroom. An idle document can recover after 20 s with measured capacity and low or stable RTT. For moving content, rising RTT plus send-queue delay corroborate pressure; RTT alone does not reduce quality. RTT comparisons use up to 32 samples from the last 30 seconds on the selected path. Browser WebRTC still controls congestion and bitrate. `onInputClosed` lets the host release input separately from a still-live video stream.

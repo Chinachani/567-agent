@@ -59,3 +59,20 @@ fun mapRemotePointer(x: Float, y: Float, width: Int, height: Int, frameWidth: In
     if (!clamp && (nx !in 0f..1f || ny !in 0f..1f)) return null
     return RemotePointerPosition(nx.coerceIn(0f, 1f), ny.coerceIn(0f, 1f))
 }
+
+/** Keep a locally known trackpad cursor in view when zoomed. Pan only at a visible edge. */
+internal fun followTrackpadCursor(
+    current: RemoteViewTransform, cursor: RemotePointerPosition, width: Int, height: Int,
+    frameWidth: Int?, frameHeight: Int?, bottomInsetPx: Float,
+): RemoteViewTransform {
+    if (current.scale <= 1f || width <= 0 || height <= 0 || frameWidth == null || frameHeight == null) return current
+    val fit = fitRemoteVideo(width, height, frameWidth, frameHeight)
+    val x = width / 2f + current.panX + (cursor.x - .5f) * fit.width * current.scale
+    val y = height / 2f + current.panY + (cursor.y - .5f) * fit.height * current.scale
+    val visibleHeight = (height - bottomInsetPx.coerceIn(0f, height * .85f))
+    fun correction(value: Float, extent: Float): Float = value.coerceIn(extent * .1f, extent * .9f) - value
+    val dx = correction(x, width.toFloat())
+    val dy = correction(y, visibleHeight)
+    if (dx == 0f && dy == 0f) return current
+    return transformRemoteView(current, 1f, 0f, 0f, dx, dy, width, height, frameWidth, frameHeight, bottomInsetPx)
+}

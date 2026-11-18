@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { existsSync, readFileSync } from "node:fs";
-import { mkdtemp, mkdir, rm, writeFile } from "node:fs/promises";
+import { cp, mkdtemp, mkdir, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import test from "node:test";
@@ -100,6 +100,7 @@ test("Linux afterPack clears the FPM package marker before target packaging", as
 	try {
 		const markerDir = join(directory, "resources");
 		await mkdir(markerDir);
+		await cp(join(desktopRoot, "build/app-icons"), join(markerDir, "build/app-icons"), { recursive: true });
 		await writeFile(join(markerDir, "package-type"), "rpm");
 		await desktopAfterPack({ electronPlatformName: "linux", appOutDir: directory });
 		assert.equal(existsSync(join(markerDir, "package-type")), false);
@@ -133,6 +134,7 @@ test("afterPack embeds the same updater cache name in Linux and macOS app payloa
 			const appRoot = platform === "darwin" ? join(directory, "567 Agent.app", "Contents") : directory;
 			const resources = join(appRoot, platform === "darwin" ? "Resources" : "resources");
 			await mkdir(resources, { recursive: true });
+			await cp(join(desktopRoot, "build/app-icons"), join(resources, "build/app-icons"), { recursive: true });
 			await desktopAfterPack({
 				electronPlatformName: platform,
 				appOutDir: directory,

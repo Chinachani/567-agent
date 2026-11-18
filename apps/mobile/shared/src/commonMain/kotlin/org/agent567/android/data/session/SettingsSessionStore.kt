@@ -10,6 +10,9 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.emitAll
 import kotlinx.coroutines.flow.flow
 import kotlinx.coroutines.flow.update
+import kotlinx.coroutines.NonCancellable
+import org.agent567.android.domain.session.TaskMessageHeader
+import org.agent567.android.domain.session.taskHeader
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import kotlinx.coroutines.sync.Mutex
@@ -52,13 +55,30 @@ class SettingsSessionStore(
     private val _sessions = MutableStateFlow(loadSessionsSorted())
     override val sessions: StateFlow<List<ChatSession>> = _sessions.asStateFlow()
 
-    private val messagesFlows = MutableStateFlow<Map<String, MutableStateFlow<List<LocalMessage>>>>(emptyMap())
+    private val flowLru = linkedMapOf<String, MutableStateFlow<List<LocalMessage>>>()
+    private val activeWritingSessionIds = mutableSetOf<String>()
+    private val pinnedObserverCounts = mutableMapOf<String, Int>()
 
     override fun observeMessages(sessionId: String): Flow<List<LocalMessage>> = flow {
         // Legacy JSON migration and image metadata repair can be substantial. Defer
         // loading until collection and run it under the same IO mutex as mutations.
-        val messages = withStorageLock { messageFlow(sessionId) }
-        emitAll(messages)
+        var registered = false
+        try {
+            val messages = withStorageLock {
+                val detail = messageFlow(sessionId)
+                pinnedObserverCounts[sessionId] = (pinnedObserverCounts[sessionId] ?: 0) + 1
+                registered = true
+                detail
+            }
+            emitAll(messages)
+        } finally {
+            // Cancellation can arrive while returning from the storage dispatcher, before emitAll.
+            if (registered) withContext(NonCancellable) { withStorageLock {
+                val count = (pinnedObserverCounts[sessionId] ?: 1) - 1
+                if (count <= 0) pinnedObserverCounts.remove(sessionId) else pinnedObserverCounts[sessionId] = count
+                evictInactiveFlowsLocked()
+            } }
+        }
     }
 
     override suspend fun getSession(id: String): ChatSession? =
@@ -84,6 +104,10 @@ class SettingsSessionStore(
 
     override suspend fun getMessages(sessionId: String): List<LocalMessage> =
         withStorageLock { messageFlow(sessionId).value }
+
+    override suspend fun readTaskMessageHeaders(sessionId: String): List<TaskMessageHeader> = withStorageLock {
+        flowLru[sessionId]?.value?.map { it.taskHeader() } ?: readStoredTaskHeaders(sessionId)
+    }
 
     override suspend fun createSession(
         title: String,
@@ -126,7 +150,7 @@ class SettingsSessionStore(
     override suspend fun deleteSession(id: String) {
         withStorageLock {
             drafts.delete(id)
-            val messages = loadMessages(id)
+            val messages = flowLru[id]?.value ?: loadMessages(id)
             persistSessions(loadSessionsRaw().filterNot { it.id == id })
             storage.remove(messagesKey(id))
             val messageIds = loadMessageIndex(id)
@@ -134,55 +158,115 @@ class SettingsSessionStore(
             (messages.flatMap { it.images }.mapNotNull { it.storageKey }).distinct().forEach(imageFiles::delete)
             storage.remove(messageIndexKey(id))
             storage.remove(streamingMessageKey(id))
-            messagesFlows.update { it - id }
+            flowLru.remove(id)
+            activeWritingSessionIds.remove(id)
+            pinnedObserverCounts.remove(id)
         }
     }
 
-    override suspend fun upsertMessage(message: LocalMessage) {
-        withStorageLock {
-            val current = messageFlow(message.sessionId).value.toMutableList()
-            val idx = current.indexOfFirst { it.id == message.id }
-            val previousImages = current.getOrNull(idx)?.images.orEmpty()
-            val normalized = normalizeMessageForPersistence(message)
-            if (idx >= 0) current[idx] = normalized else current.add(normalized)
-            val sorted = current.sortedBy { it.createdAtEpochMs }
-            storage.remove(streamingMessageKey(message.sessionId))
-            if (storage.getStringOrNull(messageIndexKey(message.sessionId)) == null) {
-                persistMessages(message.sessionId, sorted)
-            } else {
-                persistMessageRecord(normalized)
-                if (idx < 0) persistMessageIndex(message.sessionId, sorted.map { it.id })
-            }
-            deleteUnreferencedImages(previousImages, normalized.images)
-            messageFlow(message.sessionId).value = sorted
+    override suspend fun upsertMessage(message: LocalMessage) = withStorageLock { upsertMessageLocked(message) }
 
-            // 触摸会话更新时间。标题由发送首条消息后的 AI 命名流程生成。
-            val sessions = loadSessionsRaw().toMutableList()
-            val sIdx = sessions.indexOfFirst { it.id == message.sessionId }
-            if (sIdx >= 0) {
-                sessions[sIdx] = sessions[sIdx].copy(updatedAtEpochMs = nowEpochMs())
-                persistSessions(sessions.sortedByDescending { it.updatedAtEpochMs })
-            }
+    override suspend fun finishStreamingMessage(message: LocalMessage) {
+        require(message.status != MessageStatus.Streaming)
+        withStorageLock {
+            val (flow, index) = activeRow(message) ?: return@withStorageLock
+            upsertMessageLocked(message.withSavedImages(flow.value[index]))
+        }
+    }
+
+    override suspend fun attachMessageImage(sessionId: String, messageId: String, image: MessageImage) {
+        withStorageLock {
+            if (_sessions.value.none { it.id == sessionId }) return@withStorageLock
+            val current = messageFlow(sessionId).value.firstOrNull { it.id == messageId } ?: return@withStorageLock
+            if (current.images.none { it.id == image.id }) upsertMessageLocked(current.copy(images = current.images + image))
+        }
+    }
+
+    // Remote image chunks can finish while text is still streaming. Only append missing images;
+    // preserve the store's file-backed handle when both snapshots refer to the same image.
+    private fun LocalMessage.withSavedImages(saved: LocalMessage): LocalMessage =
+        if (saved.images.isEmpty() || saved.images == images) this
+        else copy(images = (saved.images + images).distinctBy { it.id })
+
+    private fun upsertMessageLocked(message: LocalMessage) {
+        val flow = messageFlow(message.sessionId)
+        val current = flow.value.toMutableList()
+        val idx = current.indexOfFirst { it.id == message.id }
+        val previousImages = current.getOrNull(idx)?.images.orEmpty()
+        val normalized = normalizeMessageForPersistence(message)
+        val sorted = if (idx >= 0) {
+            current[idx] = normalized
+            current
+        } else {
+            current.add(normalized)
+            current.sortedBy { it.createdAtEpochMs }
+        }
+        if (storage.getStringOrNull(messageIndexKey(message.sessionId)) == null) {
+            persistMessages(message.sessionId, sorted)
+        } else {
+            persistMessageRecord(normalized)
+            if (idx < 0) persistMessageIndex(message.sessionId, sorted.map { it.id })
+        }
+        deleteUnreferencedImages(previousImages, normalized.images)
+        flow.value = sorted
+        if (sorted.any { it.status == MessageStatus.Streaming }) activeWritingSessionIds.add(message.sessionId)
+        else {
+            storage.remove(streamingMessageKey(message.sessionId))
+            activeWritingSessionIds.remove(message.sessionId)
+            evictInactiveFlowsLocked()
+        }
+
+        // 触摸会话更新时间。标题由发送首条消息后的 AI 命名流程生成。
+        val sessions = loadSessionsRaw().toMutableList()
+        val sIdx = sessions.indexOfFirst { it.id == message.sessionId }
+        if (sIdx >= 0) {
+            sessions[sIdx] = sessions[sIdx].copy(updatedAtEpochMs = nowEpochMs())
+            persistSessions(sessions.sortedByDescending { it.updatedAtEpochMs })
         }
     }
 
     override suspend fun upsertStreamingMessage(message: LocalMessage) {
         withStorageLock {
-            val current = messageFlow(message.sessionId).value.toMutableList()
+            activeWritingSessionIds.add(message.sessionId)
+            val flow = messageFlow(message.sessionId)
+            val current = flow.value.toMutableList()
             val idx = current.indexOfFirst { it.id == message.id }
-            val previousImages = current.getOrNull(idx)?.images.orEmpty()
             val normalized = normalizeMessageForPersistence(message)
-            if (idx >= 0) current[idx] = normalized else current.add(normalized)
-            val sorted = current.sortedBy { it.createdAtEpochMs }
-            storage.remove(streamingMessageKey(message.sessionId))
-            if (storage.getStringOrNull(messageIndexKey(message.sessionId)) == null) {
-                persistMessages(message.sessionId, sorted)
+            if (idx >= 0) {
+                current[idx] = normalized
+                flow.value = current
             } else {
-                persistMessageRecord(normalized)
-                if (idx < 0) persistMessageIndex(message.sessionId, sorted.map { it.id })
+                current.add(normalized)
+                flow.value = current.sortedBy { it.createdAtEpochMs }
             }
-            deleteUnreferencedImages(previousImages, normalized.images)
-            messageFlow(message.sessionId).value = sorted
+            storage[streamingMessageKey(message.sessionId)] =
+                Agent567Json.encodeToString(MessageDto.serializer(), normalized.toDto())
+        }
+    }
+
+    // The initially persisted assistant row owns the live updates. Queued frames/checkpoints
+    // from a deleted or already terminal turn must not create new rows or repin the session.
+    private fun activeRow(message: LocalMessage): Pair<MutableStateFlow<List<LocalMessage>>, Int>? {
+        val flow = flowLru[message.sessionId] ?: return null
+        val rows = flow.value
+        val tail = rows.lastIndex
+        val index = if (rows.lastOrNull()?.id == message.id) tail else rows.indexOfFirst { it.id == message.id }
+        return if (index >= 0 && rows[index].status == MessageStatus.Streaming) flow to index else null
+    }
+
+    override suspend fun updateInMemoryStreamingMessage(message: LocalMessage) {
+        withStorageLock {
+            val (flow, index) = activeRow(message) ?: return@withStorageLock
+            flow.value = flow.value.toMutableList().also { it[index] = message.withSavedImages(it[index]) }
+        }
+    }
+
+    override suspend fun checkpointStreamingMessage(message: LocalMessage) {
+        withStorageLock {
+            val (flow, index) = activeRow(message) ?: return@withStorageLock
+            // A snapshot carries already persisted image references; this also enforces store bounds.
+            val bounded = normalizeMessageForPersistence(message.withSavedImages(flow.value[index]))
+            storage[streamingMessageKey(message.sessionId)] = Agent567Json.encodeToString(MessageDto.serializer(), bounded.toDto())
         }
     }
 
@@ -194,6 +278,8 @@ class SettingsSessionStore(
             deleteUnreferencedImages(previousImages, persisted.flatMap { it.images })
             storage.remove(streamingMessageKey(sessionId))
             messageFlow(sessionId).value = persisted
+            if (persisted.any { it.status == MessageStatus.Streaming }) activeWritingSessionIds.add(sessionId)
+            else { activeWritingSessionIds.remove(sessionId); evictInactiveFlowsLocked() }
         }
     }
 
@@ -217,7 +303,7 @@ class SettingsSessionStore(
             sessions.forEachIndexed { index, session ->
                 try {
                     val items = mutableListOf<MessageDto>()
-                    loadMessages(session.id).forEach { message ->
+                    (flowLru[session.id]?.value ?: loadMessages(session.id)).forEach { message ->
                         estimatedBytes += message.content.utf8ByteCount()
                         if (estimatedBytes > maxBytes) {
                             throw MigrationBackupTooLargeException(estimatedBytes, maxBytes)
@@ -284,11 +370,29 @@ class SettingsSessionStore(
         }
 
     private fun messageFlow(sessionId: String): MutableStateFlow<List<LocalMessage>> {
-        while (true) {
-            val current = messagesFlows.value
-            current[sessionId]?.let { return it }
-            val created = MutableStateFlow(loadMessages(sessionId))
-            if (messagesFlows.compareAndSet(current, current + (sessionId to created))) return created
+        val cached = flowLru.remove(sessionId)
+        if (cached != null) {
+            flowLru[sessionId] = cached
+            return cached
+        }
+        evictInactiveFlowsLocked(MAX_CACHED_FLOWS - 1)
+        val created = MutableStateFlow(loadMessages(sessionId))
+        flowLru[sessionId] = created
+        return created
+    }
+
+    private fun evictInactiveFlowsLocked(limit: Int = MAX_CACHED_FLOWS) {
+        if (flowLru.size <= limit) return
+        val iterator = flowLru.entries.iterator()
+        while (iterator.hasNext() && flowLru.size > limit) {
+            val entry = iterator.next()
+            val sid = entry.key
+            val flow = entry.value
+            val isPinned = (pinnedObserverCounts[sid] ?: 0) > 0 || flow.subscriptionCount.value > 0
+            val isWriting = sid in activeWritingSessionIds
+            if (!isPinned && !isWriting) {
+                iterator.remove()
+            }
         }
     }
 
@@ -313,6 +417,28 @@ class SettingsSessionStore(
                 .sortedWith(compareByDescending<ChatSession> { it.pinned }.thenByDescending { it.updatedAtEpochMs })
     }
 
+    /** Decode only the fields the inbox needs. A damaged record fails this session's scan;
+     * it must not silently erase its previously saved inbox entries. No repair or cache admission. */
+    private fun readStoredTaskHeaders(sid: String): List<TaskMessageHeader> {
+        fun decode(json: String) = Agent567Json.decodeFromString(InboxHeaderDto.serializer(), json)
+        val indexed = storage.peekString(messageIndexKey(sid))
+        val headers = if (indexed != null) Agent567Json.decodeFromString(MessageIndexDto.serializer(), indexed).ids.map { id ->
+            decode(checkNotNull(storage.peekString(messageKey(sid, id)))).also { check(it.id == id && it.sessionId == sid) }
+        } else storage.peekString(messagesKey(sid))?.let {
+            Agent567Json.decodeFromString(InboxHeadersDto.serializer(), it).items
+        }.orEmpty()
+        val records = headers.associateByTo(linkedMapOf()) { it.id }
+        storage.peekString(streamingMessageKey(sid))?.let { raw ->
+            val checkpoint = decode(raw)
+            if (checkpoint.status == MessageStatus.Streaming.name && records[checkpoint.id]?.status in listOf(null, MessageStatus.Streaming.name)) records[checkpoint.id] = checkpoint
+        }
+        return records.values.map {
+            check(it.sessionId == sid)
+            val status = MessageStatus.valueOf(it.status)
+            TaskMessageHeader(it.id, ChatRole.fromApi(it.role), if (status == MessageStatus.Streaming) MessageStatus.Aborted else status, it.createdAtEpochMs, it.processingDurationMs)
+        }.sortedBy { it.createdAtEpochMs }
+    }
+
     private fun loadMessages(sessionId: String): List<LocalMessage> {
         return runCatching {
             val indexedMessages = storage.getStringOrNull(messageIndexKey(sessionId))?.let {
@@ -333,12 +459,14 @@ class SettingsSessionStore(
             }.orEmpty()
             val checkpoint = storage.getStringOrNull(streamingMessageKey(sessionId))?.let { checkpointJson ->
                 runCatching { Agent567Json.decodeFromString(MessageDto.serializer(), checkpointJson).toDomain() }.getOrNull()
-            }?.takeIf { it.status == MessageStatus.Streaming }
+            }?.takeIf { it.sessionId == sessionId && it.status == MessageStatus.Streaming }
             val recovered = messages.toMutableList()
             if (checkpoint != null) {
                 val checkpointIndex = recovered.indexOfFirst { it.id == checkpoint.id }
                 if (checkpointIndex < 0) recovered.add(checkpoint)
-                else if (recovered[checkpointIndex].status == MessageStatus.Streaming) recovered[checkpointIndex] = checkpoint
+                else if (recovered[checkpointIndex].status == MessageStatus.Streaming) {
+                    recovered[checkpointIndex] = checkpoint.withSavedImages(recovered[checkpointIndex])
+                }
             }
             val reconciled = recovered.map { message ->
                 if (message.status == MessageStatus.Streaming) message.copy(status = MessageStatus.Aborted) else message
@@ -609,6 +737,7 @@ class SettingsSessionStore(
     }
 
     companion object {
+        private const val MAX_CACHED_FLOWS = 16
         private const val KEY_SESSIONS = "agent567.session.index"
         private const val MAX_STORED_ASSISTANT_CHARS = 1_000_000
         private const val MAX_STORED_TOOL_FIELD_CHARS = 8 * 1024
@@ -657,6 +786,12 @@ private data class SessionDto(
 )
 
 @Serializable
+private data class InboxHeaderDto(val id: String, val sessionId: String, val role: String, val status: String,
+    val createdAtEpochMs: Long, val processingDurationMs: Long? = null)
+@Serializable
+private data class InboxHeadersDto(val items: List<InboxHeaderDto>)
+
+@Serializable
 private data class MessageIndexDto(val ids: List<String> = emptyList())
 
 @Serializable
@@ -675,6 +810,7 @@ private data class MessageDto(
     val usage: TokenUsageDto? = null,
     val contextPercent: Int? = null,
     val pendingQuestion: PendingQuestionDto? = null,
+    val sources: List<org.agent567.android.core.model.ChatSource> = emptyList(),
 )
 
 @Serializable
@@ -734,6 +870,8 @@ private data class MessageFileDto(
     val fileName: String,
     val mimeType: String,
     val sizeBytes: Long,
+    val sha256: String? = null,
+    val readScope: String = "",
 )
 
 private fun SessionDto.toDomain() =
@@ -796,6 +934,7 @@ private fun MessageDto.toDomain() =
                 fileName = it.fileName,
                 mimeType = it.mimeType,
                 sizeBytes = it.sizeBytes,
+                sha256 = it.sha256, readScope = it.readScope,
             )
         },
         toolEvents = toolEvents.map {
@@ -813,6 +952,7 @@ private fun MessageDto.toDomain() =
         usage = usage?.let { TokenUsage(it.promptTokens, it.completionTokens, it.totalTokens) },
         contextPercent = contextPercent,
         pendingQuestion = pendingQuestion?.toDomain(),
+        sources = org.agent567.android.core.model.normalizeChatSources(sources),
     )
 
 private fun LocalMessage.toDto() =
@@ -836,7 +976,7 @@ private fun LocalMessage.toDto() =
                 )
             },
         files = files.map {
-            MessageFileDto(it.id, it.fileName, it.mimeType, it.sizeBytes)
+            MessageFileDto(it.id, it.fileName, it.mimeType, it.sizeBytes, it.sha256, it.readScope)
         },
         toolEvents = toolEvents.map {
             ToolTraceDto(
@@ -853,6 +993,7 @@ private fun LocalMessage.toDto() =
         usage = usage?.let { TokenUsageDto(it.promptTokens, it.completionTokens, it.totalTokens) },
         contextPercent = contextPercent,
         pendingQuestion = pendingQuestion?.toDto(),
+        sources = sources,
     )
 
 private fun PendingQuestionDto.toDomain() =

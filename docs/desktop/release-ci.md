@@ -22,6 +22,14 @@
 
 只提交源码时执行前两步，不创建标签。完整流程见[发布技能](../../.agents/skills/vetta-release/SKILL.md)。
 
+## 候选检查的范围
+
+`desktop-packaged` 的 contract job 和正式发布都运行 `bun run test:desktop:packaging`。另外，候选的原生布局检查和三平台打包 E2E 按变更路径触发；改动打包资源、图标目录、过滤器、打包后钩子或模型菜单相关文件时会触发。手动运行 `desktop-packaged` 会执行这些检查，即使最后一次提交只有文档变动。
+
+设置页和打包检查共用可选图标目录表。候选先检查预览与各平台的源文件，`afterPack` 再检查已复制到应用资源目录的非默认图标（macOS 用 `-mac.png`）。隔离布局探针的脚本超时会在日志中给出当前页面、主题、宽度及最近的 renderer 错误。
+
+[1.6.0 正式构建](https://github.com/Chinachani/567-agent/actions/runs/44087915155)发现图标过滤器与精确断言不同步。当时候选只运行四个辅助检查文件；1.6.1 统一了候选与正式的辅助检查入口并[完成发布](https://github.com/Chinachani/567-agent/actions/runs/44101241937)。跨平台失败时先检查对应 job 的首个断言、实际平台路径与夹具数据；已确定的合同不一致，需要修正来源后推新的候选。
+
 ## 哪一步失败，就重跑哪一步
 
 在原来的 Actions 运行页面选择 **Re-run jobs → Re-run failed jobs**，不要重新 Run workflow，

@@ -15,6 +15,8 @@ export interface ScreenStreamSample {
 	readonly targetKbps?: number;
 	readonly availableKbps?: number;
 	readonly roundTripMs?: number;
+	/** Rise over the lowest recent RTT on this selected transport; not an end-to-end delay. */
+	readonly excessRoundTripMs?: number;
 	readonly framesEncoded?: number;
 	readonly framesSent?: number;
 	readonly keyFrames?: number;
@@ -39,9 +41,13 @@ function text(report: Report | undefined, key: string): string | undefined {
 /** One video sender. Replacements and counter resets establish a new baseline. */
 export class ScreenStatsSampler {
 	private previous: Report | undefined;
+	private selectedPair: string | undefined;
+	private rttWindow: { at: number; ms: number }[] = [];
 
 	reset(): void {
 		this.previous = undefined;
+		this.selectedPair = undefined;
+		this.rttWindow = [];
 	}
 
 	read(stats: RTCStatsReport): ScreenStreamSample | undefined {
@@ -73,7 +79,17 @@ export class ScreenStatsSampler {
 			return amount !== undefined && items !== undefined && items > 0 ? (amount / items) * factor : undefined;
 		};
 		const transport = reports.get(text(video, "transportId") ?? "");
-		const pair = reports.get(text(transport, "selectedCandidatePairId") ?? "");
+		const selected = text(transport, "selectedCandidatePairId");
+		const pair = reports.get(selected ?? "");
+		const roundTripMs = scale(number(pair, "currentRoundTripTime"), 1000);
+		if (!selected || selected !== this.selectedPair || !previous || elapsed > 2.5) this.rttWindow = [];
+		this.selectedPair = selected;
+		this.rttWindow = this.rttWindow.filter((point) => timestamp - point.at <= 30_000).slice(-31);
+		const excessRoundTripMs =
+			roundTripMs !== undefined && this.rttWindow.length >= 3
+				? Math.max(0, roundTripMs - Math.min(...this.rttWindow.map((point) => point.ms)))
+				: undefined;
+		if (selected && roundTripMs !== undefined) this.rttWindow.push({ at: timestamp, ms: roundTripMs });
 		const source = reports.get(text(video, "mediaSourceId") ?? "");
 		const durations: Record<string, number> = {};
 		const rawDurations = video.qualityLimitationDurations;
@@ -98,7 +114,8 @@ export class ScreenStatsSampler {
 			sentKbps: scale(rate("bytesSent"), 8 / 1000),
 			targetKbps: scale(number(video, "targetBitrate"), 1 / 1000),
 			availableKbps: scale(number(pair, "availableOutgoingBitrate"), 1 / 1000),
-			roundTripMs: scale(number(pair, "currentRoundTripTime"), 1000),
+			roundTripMs,
+			excessRoundTripMs,
 			framesEncoded: number(video, "framesEncoded"),
 			framesSent: number(video, "framesSent"),
 			keyFrames: number(video, "keyFramesEncoded"),

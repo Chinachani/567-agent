@@ -57,6 +57,8 @@ data class MessageFileAttachment(
     val fileName: String,
     val mimeType: String,
     val sizeBytes: Long,
+    val sha256: String? = null,
+    val readScope: String = "",
 )
 
 data class LocalMessage(
@@ -77,6 +79,7 @@ data class LocalMessage(
     val contextPercent: Int? = null,
     /** 待用户回答的问题属于这条 assistant 消息，持久化后可在切换/重启后继续处理。 */
     val pendingQuestion: PendingQuestion? = null,
+    val sources: List<org.agent567.android.core.model.ChatSource> = emptyList(),
 ) {
     /** A projection only: old records retain their original source and image attachments. */
     val conversationText: String
@@ -120,3 +123,6 @@ data class PendingQuestion(
 expect fun nowEpochMs(): Long
 
 expect fun formatLocalMessageTime(epochMs: Long): String
+
+internal data class LocalHistoryDays(val today: Long, val yesterday: Long, val week: Long, val tomorrow: Long)
+internal expect fun localHistoryDays(now: Long): LocalHistoryDays

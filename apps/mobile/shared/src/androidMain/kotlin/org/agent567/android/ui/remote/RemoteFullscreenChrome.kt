@@ -6,14 +6,22 @@ import org.agent567.android.app.ThemeMode
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.selection.selectable
+import androidx.compose.foundation.selection.selectableGroup
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.filled.HelpOutline
 import androidx.compose.material.icons.filled.Keyboard
+import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalView
+import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.semantics.heading
+import androidx.compose.ui.semantics.onClick
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.window.DialogWindowProvider
 import androidx.core.view.WindowCompat
@@ -54,43 +62,106 @@ internal fun RemoteFullscreenToolbar(
     onMouseButton: (String) -> Unit = {},
     inputEnabled: Boolean = true,
     onConnectionPanel: (() -> Unit)? = null,
+    onMouseHold: (String) -> (() -> Unit)? = { null },
+    pointerSpeed: Int = 1,
+    onPointerSpeed: ((Int) -> Unit)? = null,
 ) {
-    var expanded by remember { mutableStateOf(false) }
+    var expanded by rememberSaveable { mutableStateOf(false) }
     var help by remember { mutableStateOf(false) }
     var chooseInput by remember { mutableStateOf(false) }
     var statistics by remember { mutableStateOf(false) }
+    var more by remember { mutableStateOf(false) }
     Agent567Theme(ThemeMode.Dark) {
-        Box(modifier.safeDrawingPadding(), contentAlignment = Alignment.TopCenter) {
+        Box(modifier, contentAlignment = Alignment.Center) {
             if (!expanded) {
                 TextButton(onClick = { expanded = true }, modifier = Modifier.heightIn(min = 48.dp)) {
                     Surface(shape = MaterialTheme.shapes.large, color = MaterialTheme.colorScheme.surface.copy(alpha = .8f)) {
-                        Text(Str.remoteExpandControls, Modifier.padding(horizontal = 12.dp, vertical = 5.dp), style = MaterialTheme.typography.labelMedium)
+                        Column(Modifier.padding(horizontal = 14.dp, vertical = 4.dp), horizontalAlignment = Alignment.CenterHorizontally) {
+                            Text(Str.remoteExpandControls, style = MaterialTheme.typography.labelMedium)
+                            if (!inputEnabled) Text(Str.viewOnly, style = MaterialTheme.typography.labelSmall)
+                        }
                     }
                 }
             } else Surface(color = MaterialTheme.colorScheme.surface.copy(alpha = .9f), shape = MaterialTheme.shapes.medium) {
-                Row(Modifier.horizontalScroll(rememberScrollState()).padding(horizontal = 4.dp), verticalAlignment = Alignment.CenterVertically) {
-                    TextButton(onClick = onExit, modifier = Modifier.heightIn(min = 48.dp)) { Text(Str.exitRemoteDesktopFullscreen, maxLines = 1) }
-                    TextButton(onClick = { chooseInput = true }, modifier = Modifier.heightIn(min = 48.dp)) { Text(if (relativePointer || !directTouch) Str.remoteTrackpad else Str.remoteTouch, maxLines = 1) }
-                    TextButton(enabled = inputEnabled, onClick = { onMouseButton("left") }, modifier = Modifier.heightIn(min = 48.dp)) { Text(Str.remoteLeftButton, maxLines = 1) }
-                    TextButton(enabled = inputEnabled, onClick = { onMouseButton("right") }, modifier = Modifier.heightIn(min = 48.dp)) { Text(Str.remoteRightButton, maxLines = 1) }
-                    TextButton(onClick = onReset, enabled = canReset, modifier = Modifier.heightIn(min = 48.dp)) { Text(Str.remoteFitScreen, maxLines = 1) }
-                    TextButton(onClick = { if (onConnectionPanel != null) onConnectionPanel() else statistics = true }, modifier = Modifier.heightIn(min = 48.dp)) { Text(stats, maxLines = 1) }
-                    IconButton(onClick = onKeyboard, modifier = Modifier.sizeIn(minWidth = 48.dp, minHeight = 48.dp)) { Icon(Icons.Default.Keyboard, Str.remoteInputText) }
-                    IconButton(onClick = { help = true }, modifier = Modifier.sizeIn(minWidth = 48.dp, minHeight = 48.dp)) { Icon(Icons.AutoMirrored.Filled.HelpOutline, Str.remoteHelp) }
+                Row(Modifier.padding(horizontal = 4.dp), verticalAlignment = Alignment.CenterVertically) {
+                    Row(Modifier.weight(1f, fill = false).horizontalScroll(rememberScrollState()), verticalAlignment = Alignment.CenterVertically) {
+                        RemoteMouseButton(Str.remoteLeftButton, inputEnabled, { onMouseButton("left") }, { onMouseHold("left") })
+                        RemoteMouseButton(Str.remoteRightButton, inputEnabled, { onMouseButton("right") }, { onMouseHold("right") })
+                        IconButton(enabled = inputEnabled, onClick = onKeyboard, modifier = Modifier.sizeIn(minWidth = 48.dp, minHeight = 48.dp)) { Icon(Icons.Default.Keyboard, Str.remoteInputText) }
+                        TextButton(onClick = { chooseInput = true }, modifier = Modifier.heightIn(min = 48.dp)
+                            .semantics { onClick(label = Str.remoteChooseInput, action = null) }) {
+                            Text(if (relativePointer || !directTouch) Str.remoteTrackpad else Str.remoteTouch, maxLines = 1)
+                        }
+                    }
+                    Box {
+                        IconButton(onClick = { more = true }) { Icon(Icons.Default.MoreVert, Str.remoteMoreControls) }
+                        DropdownMenu(expanded = more, onDismissRequest = { more = false }) {
+                            DropdownMenuItem(text = { Text(Str.remoteFitScreen) }, enabled = canReset, onClick = { more = false; onReset() })
+                            DropdownMenuItem(
+                                text = { Text(if (stats == Str.connectionStatus) stats else "${Str.connectionStatus} · $stats") },
+                                onClick = {
+                                    more = false
+                                    if (onConnectionPanel != null) onConnectionPanel() else statistics = true
+                                },
+                            )
+                            DropdownMenuItem(text = { Text(Str.remoteHelp) }, onClick = { more = false; help = true })
+                            HorizontalDivider()
+                            DropdownMenuItem(text = { Text(Str.exitRemoteDesktopFullscreen) }, onClick = { more = false; onExit() })
+                        }
+                    }
                     TextButton(onClick = { expanded = false }, modifier = Modifier.heightIn(min = 48.dp)) { Text(Str.collapse, maxLines = 1) }
                 }
             }
         }
         if (chooseInput) AlertDialog(onDismissRequest = { chooseInput = false }, title = { Text(Str.remoteChooseInput) }, text = {
-            Column {
-                TextButton(onClick = { onDirectTouch(false); chooseInput = false }, modifier = Modifier.fillMaxWidth().heightIn(min = 48.dp)) { Text("${Str.remoteTrackpad} · ${Str.remoteTrackpadOption}") }
-                TextButton(onClick = { onDirectTouch(true); chooseInput = false }, enabled = !relativePointer, modifier = Modifier.fillMaxWidth().heightIn(min = 48.dp)) { Text("${Str.remoteTouch} · ${Str.remoteTouchOption}") }
+            Column(Modifier.verticalScroll(rememberScrollState()).selectableGroup()) {
+                val tabletSelected = directTouch && !relativePointer
+                RemoteModeOption("${Str.remoteTrackpad} · ${Str.remoteTrackpadOption}", selected = !tabletSelected) {
+                    onDirectTouch(false); chooseInput = false
+                }
+                RemoteModeOption("${Str.remoteTouch} · ${Str.remoteTouchOption}", selected = tabletSelected, enabled = !relativePointer) {
+                    onDirectTouch(true); chooseInput = false
+                }
                 if (relativePointer) Text(Str.remoteDirectUnavailable, style = MaterialTheme.typography.bodySmall)
+                if (!tabletSelected && onPointerSpeed != null) {
+                    HorizontalDivider()
+                    Text(Str.remotePointerSpeed, style = MaterialTheme.typography.labelLarge)
+                    Row(Modifier.horizontalScroll(rememberScrollState()).selectableGroup(), horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+                        listOf(Str.remotePointerPrecise, Str.remotePointerStandard, Str.remotePointerFast).forEachIndexed { index, label ->
+                            FilterChip(selected = pointerSpeed == index, onClick = { onPointerSpeed(index) }, label = { Text(label) })
+                        }
+                    }
+                }
             }
         }, confirmButton = { TextButton(onClick = { chooseInput = false }, modifier = Modifier.heightIn(min = 48.dp)) { Text(Str.close) } })
         if (help) AlertDialog(onDismissRequest = { help = false }, title = { Text(Str.remoteHelp) }, text = {
-            Text(if (relativePointer || !directTouch) Str.remoteTrackpadHelp else Str.remoteTouchHelp)
-        }, confirmButton = { TextButton(onClick = { help = false }, modifier = Modifier.heightIn(min = 48.dp)) { Text(Str.remoteGotIt) } })
+            val trackpad = relativePointer || !directTouch
+            Column(Modifier.verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                if (inputEnabled) {
+                    Text("${Str.remoteHelpComputer} · ${if (trackpad) Str.remoteTrackpad else Str.remoteTouch}",
+                        Modifier.semantics { heading() }, style = MaterialTheme.typography.titleSmall)
+                    Text(if (trackpad) Str.remoteTrackpadHelp else Str.remoteTouchHelp)
+                    Text(Str.remoteHelpScroll)
+                } else Text(Str.remoteHelpViewOnly)
+                Text(Str.remoteHelpLocal, Modifier.semantics { heading() }, style = MaterialTheme.typography.titleSmall)
+                Text(Str.remoteHelpLocalGestures)
+            }
+        }, confirmButton = { TextButton(onClick = { help = false }, modifier = Modifier.heightIn(min = 48.dp)) { Text(Str.remoteGotIt) } },
+            dismissButton = if (inputEnabled) ({ TextButton(onClick = { help = false; chooseInput = true }) { Text(Str.remoteChooseInput) } }) else null)
         if (statistics) AlertDialog(onDismissRequest = { statistics = false }, title = { Text(Str.connectionStatus) }, text = { Text(details.ifBlank { stats }) }, confirmButton = { TextButton(onClick = { statistics = false }, modifier = Modifier.heightIn(min = 48.dp)) { Text(Str.close) } })
+    }
+}
+
+@Composable
+private fun RemoteModeOption(label: String, selected: Boolean, enabled: Boolean = true, onSelect: () -> Unit) {
+    Row(
+        Modifier.fillMaxWidth().heightIn(min = 48.dp)
+            .selectable(selected = selected, enabled = enabled, role = Role.RadioButton, onClick = onSelect)
+            .padding(horizontal = 8.dp, vertical = 6.dp),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(12.dp),
+    ) {
+        RadioButton(selected = selected, enabled = enabled, onClick = null)
+        Text(label, color = if (enabled) LocalContentColor.current else MaterialTheme.colorScheme.onSurface.copy(alpha = .38f))
     }
 }

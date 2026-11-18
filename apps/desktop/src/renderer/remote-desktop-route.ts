@@ -15,6 +15,7 @@ interface RouteOptions {
 	readonly sessionId: string;
 	readonly capture: RemoteDesktopCapture;
 	readonly requestCapture: () => void;
+	readonly releaseInputs?: () => void;
 	readonly onInput: (message: RemoteInputMessage) => void;
 	readonly logger: RemoteDesktopLogger;
 	readonly createSocket?: RemoteDesktopWebSocketFactory;
@@ -38,6 +39,7 @@ export class RemoteDesktopRoute {
 	constructor(private readonly options: RouteOptions) {}
 
 	setInputEnabled(enabled: boolean, mode: "absolute" | "relative"): void {
+		if (!enabled || mode !== this.pointerMode) this.options.releaseInputs?.();
 		this.inputEnabled = enabled;
 		this.pointerMode = mode;
 		this.host?.setInputEnabled(enabled, mode);
@@ -134,7 +136,12 @@ export class RemoteDesktopRoute {
 			};
 			await host.start(stream, {
 				onViewerReplaced: replace,
+				onInputClosed: () => {
+					if (this.host === host) this.options.releaseInputs?.();
+				},
 				onConnectionStateChange: (state) => {
+					if (this.host !== host) return;
+					if (state === "disconnected") this.options.releaseInputs?.();
 					if (state === "failed" || state === "closed") replace();
 				},
 			});
@@ -183,6 +190,7 @@ export class RemoteDesktopRoute {
 	}
 
 	private cleanupHost(): void {
+		this.options.releaseInputs?.();
 		this.hostGeneration++;
 		this.captureRequested = false;
 		const host = this.host;

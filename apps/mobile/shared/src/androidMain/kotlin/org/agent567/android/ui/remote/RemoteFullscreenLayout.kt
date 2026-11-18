@@ -2,6 +2,7 @@ package org.agent567.android.ui.remote
 
 import androidx.compose.foundation.layout.*
 import androidx.compose.runtime.*
+import androidx.compose.runtime.saveable.rememberSaveableStateHolder
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.layout.onGloballyPositioned
@@ -15,6 +16,7 @@ internal fun RemoteFullscreenLayout(
     toolbar: @Composable () -> Unit,
     controls: @Composable () -> Unit,
     modifier: Modifier = Modifier,
+    keyboardOpen: Boolean = false,
     imeInsets: WindowInsets = WindowInsets.ime,
     banner: @Composable () -> Unit = {},
     onBottomInsetChanged: (Float) -> Unit = {},
@@ -23,8 +25,9 @@ internal fun RemoteFullscreenLayout(
     var rootTop by remember { mutableFloatStateOf(0f) }
     var controlsTop by remember { mutableStateOf<Float?>(null) }
     val latestOnBottomInsetChanged by rememberUpdatedState(onBottomInsetChanged)
-    LaunchedEffect(rootHeight, rootTop, controlsTop) {
-        val inset = controlsTop?.let { (rootHeight - (it - rootTop)).coerceAtLeast(0f) } ?: 0f
+    val toolbarState = rememberSaveableStateHolder()
+    LaunchedEffect(keyboardOpen, rootHeight, rootTop, controlsTop) {
+        val inset = if (keyboardOpen) controlsTop?.let { (rootHeight - (it - rootTop)).coerceAtLeast(0f) } ?: 0f else 0f
         latestOnBottomInsetChanged(inset)
     }
     Box(
@@ -34,11 +37,8 @@ internal fun RemoteFullscreenLayout(
         },
     ) {
         Box(Modifier.matchParentSize()) { video() }
-        Column(Modifier.align(Alignment.TopCenter), horizontalAlignment = Alignment.CenterHorizontally) {
-            toolbar()
-            banner()
-        }
-        Box(
+        Box(Modifier.align(Alignment.TopCenter).displayCutoutPadding()) { banner() }
+        if (keyboardOpen) Box(
             Modifier.align(Alignment.BottomCenter)
                 .windowInsetsPadding(imeInsets)
                 .navigationBarsPadding()
@@ -47,6 +47,10 @@ internal fun RemoteFullscreenLayout(
                 .onGloballyPositioned { coords ->
                     controlsTop = if (coords.size.height > 0) coords.positionInRoot().y else null
                 },
-        ) { controls() }
+        ) { controls() } else Box(
+            Modifier.align(Alignment.BottomCenter).displayCutoutPadding().navigationBarsPadding().padding(6.dp),
+        ) {
+            toolbarState.SaveableStateProvider("pointer-toolbar") { toolbar() }
+        }
     }
 }

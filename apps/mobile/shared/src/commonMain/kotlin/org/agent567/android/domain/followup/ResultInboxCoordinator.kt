@@ -40,7 +40,10 @@ class ResultInboxCoordinator(
             val notices = mutableSetOf<String>()
             try {
                 store.load()
-                store.replaceSource(null, readLocalTaskResults(sessions, running()))
+                val unreadable = mutableSetOf<String>()
+                val local = readLocalTaskResults(sessions, running()) { unreadable += it }
+                if (unreadable.isNotEmpty()) notices += Str.resultInboxPartial
+                store.replaceSource(null, local + store.results.value.filter { it.deviceId == null && it.sessionId in unreadable })
                 for (device in gateway.devices.value.filter { it.status == DeviceStatus.Online }) {
                     try {
                         val snapshot = gateway.readTaskResults(device.id)

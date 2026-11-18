@@ -10,6 +10,15 @@ function bytes(value: unknown): number {
 
 function fitMessage(message: HistoryMessage, budget: number): HistoryMessage {
 	if (bytes(message) <= budget) return message;
+	// Older clients require count-based pages. Prefer keeping the complete original text
+	// when optional references alone would otherwise push one record over its allowance.
+	if (message.sources?.length) {
+		const { sources, ...plain } = message;
+		if (bytes(plain) > budget) return fitMessage(plain, budget);
+		let n = sources.length - 1;
+		while (n > 0 && bytes({ ...plain, sources: sources.slice(0, n) }) > budget) n--;
+		return n ? { ...plain, sources: sources.slice(0, n) } : plain;
+	}
 	let low = 0;
 	let high = message.text.length;
 	while (low < high) {

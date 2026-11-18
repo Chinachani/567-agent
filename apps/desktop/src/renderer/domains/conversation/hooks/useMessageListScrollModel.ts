@@ -43,6 +43,7 @@ export function useMessageListScrollModel({
 	});
 	return {
 		firstItemIndex: feed.firstItemIndex,
+		holdReadingPosition: feed.holdReadingPosition,
 		followOutput: feed.followOutput,
 		onAtBottomChange: feed.onAtBottomChange,
 		scrollerElement: feed.scrollerElement,

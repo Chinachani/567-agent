@@ -1,9 +1,11 @@
+import type { TextSource } from "@567agent/ai/protocol";
 import type { DesktopMcpAppAttachment } from "@preload/api";
 import type { CardDescriptor } from "@vetta-org/plugin-sdk";
 
 export type ChatErrorKind = "rate_limit" | "quota" | "network" | "auth" | "server" | "unknown";
 
 export interface TextBlock {
+	readonly sources?: readonly TextSource[];
 	type: "text";
 	id: string;
 	text: string;

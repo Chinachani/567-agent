@@ -101,6 +101,7 @@ fun RootApp(
     val updateLifecycle = androidx.lifecycle.compose.LocalLifecycleOwner.current
     androidx.compose.runtime.DisposableEffect(updateLifecycle, state.bootstrapped) {
         val observer = androidx.lifecycle.LifecycleEventObserver { _, event ->
+            if (event == androidx.lifecycle.Lifecycle.Event.ON_STOP) vm.flushComposerDrafts()
             if (state.bootstrapped && event == androidx.lifecycle.Lifecycle.Event.ON_RESUME) vm.checkAppUpdateAutomatically()
         }
         updateLifecycle.lifecycle.addObserver(observer)
@@ -400,6 +401,12 @@ fun RootApp(
                     onConnectDesktop = { vm.selectMainTab(MainTab.Discover) },
                 )
             is AppRoute.Chat -> {
+                state.retryFileSelection?.takeIf { it.sessionId == state.currentSessionId }?.let { selection ->
+                    androidx.compose.runtime.key(selection) {
+                        androidx.compose.runtime.DisposableEffect(selection) { onDispose { if (vm.state.value.retryFileSelection === selection) vm.cancelRetryFiles() } }
+                        org.agent567.android.ui.chat.RetryFileDraftDialog(selection, vm::cancelRetryFiles) { picked -> vm.restoreRetryFiles(selection, picked) }
+                    }
+                }
                 val chatModels = if (route.surface == ChatSurface.Desktop) state.desktopModels else state.models
                 val selected = if (route.surface == ChatSurface.Desktop) {
                     chatModels.firstOrNull { it.id == state.desktopSelectedModelId } ?: chatModels.firstOrNull()
@@ -412,6 +419,9 @@ fun RootApp(
                             ?: if (route.surface == ChatSurface.Cloud) Str.channelCloud else Str.pairDesktop
                     }
                 ChatScreen(
+                    sessionId = state.currentSessionId,
+                    dictationDeviceId = route.deviceId,
+                    onDictated = { snapshot, version, text -> vm.appendDictation(route, snapshot, version, text) },
                     onOpenServiceRoute = { vm.setServiceRoutePickerOpen(true) },
                     desktopServiceRoute = state.desktopServiceRoute.takeIf { state.desktopServiceRouteSessionId == state.currentSessionId },
                     title = title,

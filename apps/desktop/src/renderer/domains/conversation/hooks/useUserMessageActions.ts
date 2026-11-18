@@ -13,12 +13,14 @@ import {
 	pendingMessageEditAtom,
 } from "@shared/store/atoms";
 import { getDefaultStore, useAtomValue, useSetAtom } from "jotai";
-import { type MouseEvent, useCallback, useState } from "react";
+import { type MouseEvent, useCallback, useContext, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { fullHistoryToChat, isUserImageFile } from "../services/chat-service";
 import { getSessionRuntimeWhenReady } from "../services/session-runtime-readiness";
 import { cancelStagedPendingSessionSend, restoreStagedPendingSessionSend } from "../services/staged-new-session-send";
 import { copyUserMessageToClipboard } from "../services/user-message-clipboard";
+
+import { BranchViewportContext } from "./useBranchViewportAnchor";
 
 const DELETE_CONFIRMATION_SUPPRESSION_MS = 60_000;
 const CONTEXT_MENU_WIDTH = 170;
@@ -225,20 +227,29 @@ export function useUserMessageHistoryActions({
 	readonly onAbortEdit?: () => void;
 }) {
 	const runInterruptible = useInterruptibleMessageAction({ isStreaming, onAbortEdit });
+	const anchor = useContext(BranchViewportContext);
 	const branch = message.branch;
 	const canSwitch = Boolean(branch && branch.siblings.length > 1 && message.entryId);
 	const onSwitch = useCallback(
 		(direction: -1 | 1) => {
 			if (!branch || !message.entryId) return;
+			const sourceId = message.entryId;
 			const targetId = branch.siblings[branch.index + direction];
 			if (!targetId || targetId === message.entryId) return;
 			getDefaultStore().set(pendingMessageEditAtom, null);
 			runInterruptible("switch", async (session) => {
-				await window.agent567.session.switchBranch(session.runtimeId, targetId);
-				await reloadChatHistory(session.runtimeId);
+				if (getDefaultStore().get(activeSessionAtom)?.runtimeId !== session.runtimeId) return;
+				const cancel = anchor?.(sourceId, targetId);
+				try {
+					await window.agent567.session.switchBranch(session.runtimeId, targetId);
+					await reloadChatHistory(session.runtimeId);
+				} catch (error) {
+					cancel?.();
+					throw error;
+				}
 			});
 		},
-		[branch, message.entryId, runInterruptible],
+		[anchor, branch, message.entryId, runInterruptible],
 	);
 
 	return {

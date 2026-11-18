@@ -49,6 +49,7 @@ export function RelativeTimeLabel({ endedAt }: { endedAt: number }): JSX.Element
 export interface CopyButtonLabels {
 	readonly copy: string;
 	readonly copied: string;
+	readonly failed?: string;
 }
 
 export function CopyButton({
@@ -60,50 +61,63 @@ export function CopyButton({
 	onCopy?: () => void | Promise<void>;
 	labels: CopyButtonLabels;
 }): JSX.Element {
-	const [copied, setCopied] = useState(false);
-	const timerRef = useRef<number | null>(null);
-
+	const [status, setStatus] = useState<"idle" | "copied" | "failed">("idle");
+	const timer = useRef<number | undefined>(undefined);
+	const sequence = useRef(0);
 	useEffect(
 		() => () => {
-			if (timerRef.current !== null) window.clearTimeout(timerRef.current);
+			sequence.current++;
+			window.clearTimeout(timer.current);
 		},
 		[],
 	);
-
-	const onClick = useCallback(() => {
-		const text = getText();
-		if (!text && !onCopy) return;
-		const copy = onCopy ? Promise.resolve().then(onCopy) : navigator.clipboard.writeText(text);
-		void copy.then(
-			() => {
-				setCopied(true);
-				if (timerRef.current !== null) window.clearTimeout(timerRef.current);
-				timerRef.current = window.setTimeout(() => {
-					setCopied(false);
-					timerRef.current = null;
-				}, 1500);
-			},
-			(error) => {
-				console.warn("[MessageActions] copy failed", error);
-			},
-		);
+	const onClick = useCallback(async () => {
+		const attempt = ++sequence.current;
+		let result: "copied" | "failed";
+		try {
+			if (onCopy) await onCopy();
+			else {
+				const text = getText();
+				if (!text) return;
+				await navigator.clipboard.writeText(text);
+			}
+			result = "copied";
+		} catch {
+			result = "failed";
+		}
+		if (attempt !== sequence.current) return;
+		window.clearTimeout(timer.current);
+		setStatus(result);
+		timer.current = window.setTimeout(() => setStatus("idle"), result === "failed" ? 4000 : 1500);
 	}, [getText, onCopy]);
-
-	const label = copied ? labels.copied : labels.copy;
+	const label =
+		status === "copied" ? labels.copied : status === "failed" ? (labels.failed ?? labels.copy) : labels.copy;
 	return (
-		<button
-			type="button"
-			onClick={onClick}
-			title={label}
-			aria-label={label}
-			className="inline-flex h-6 w-6 items-center justify-center rounded text-muted-foreground/45 transition-colors hover:bg-muted/60 hover:text-foreground"
-		>
-			<span
-				className={cn(
-					"h-3.5 w-3.5",
-					copied ? "icon-[mdi--check]" : "icon-[solar--copy-linear]",
-				)}
-			/>
-		</button>
+		<>
+			<button
+				type="button"
+				onClick={onClick}
+				title={label}
+				aria-label={label}
+				className="inline-flex h-6 w-6 items-center justify-center rounded text-muted-foreground/45 transition-colors hover:bg-muted/60 hover:text-foreground"
+			>
+				<span
+					aria-hidden="true"
+					className={cn(
+						"h-3.5 w-3.5",
+						status === "copied"
+							? "icon-[mdi--check]"
+							: status === "failed"
+								? "icon-[mdi--alert-circle-outline]"
+								: "icon-[solar--copy-linear]",
+					)}
+				/>
+			</button>
+			{status === "failed" && labels.failed && (
+				<span className="text-xs text-muted-foreground" role="status">
+					{labels.failed}
+				</span>
+			)}
+		</>
 	);
 }

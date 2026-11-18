@@ -836,7 +836,17 @@
 			"Please hold on…",
 			"567 Agent is working hard…"
 		],
+		"replySources": {
+			"count": "Sources · {{count}}",
+			"failed": "Could not open this link."
+		},
+		"readReply": {
+			"play": "Read reply aloud",
+			"stop": "Stop reading",
+			"unavailable": "The system could not read this reply. Check that an offline voice is installed."
+		},
 		"copyButton": {
+			"failed": "Could not copy. Try again or select the text manually.",
 			"copied": "Copied",
 			"copy": "Copy"
 		},

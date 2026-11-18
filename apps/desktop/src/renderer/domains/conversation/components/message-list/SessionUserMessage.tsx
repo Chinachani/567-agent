@@ -107,7 +107,7 @@ export function SessionUserMessage({
 							) : null}
 							{hasMeta ? (
 								<div className="flex h-6 items-center justify-end gap-1 whitespace-nowrap">
-									<span className="inline-flex items-center gap-0.5 text-[11px] text-muted-foreground/70">
+									<span data-branch-selector={message.entryId} className="inline-flex items-center gap-0.5 text-[11px] text-muted-foreground/70">
 										<UserMessagePrimitive.Action
 											onClick={history.onPrevious}
 											disabled={history.branchIndex <= 0}

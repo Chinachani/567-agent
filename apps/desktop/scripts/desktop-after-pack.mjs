@@ -1,6 +1,7 @@
 import { rm, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import { stringify } from "yaml";
+import { checkAppIconResources } from "./app-icon-resources.mjs";
 import windowsVersionLayout from "./windows-version-layout.mjs";
 import { UPDATER_CACHE_DIR_NAME } from "./updater-cache-dir.mjs";
 
@@ -26,11 +27,11 @@ export function getPackedAppRootDir(context) {
 }
 
 export default async function desktopAfterPack(context) {
-	await writeAppUpdateConfig(
-		getPackedAppRootDir(context),
-		context.packager?.config?.publish,
-		context.electronPlatformName === "darwin" ? "Resources" : "resources",
-	);
+	const root = getPackedAppRootDir(context);
+	const resources = context.electronPlatformName === "darwin" ? "Resources" : "resources";
+	const missing = checkAppIconResources(join(import.meta.dirname, ".."), join(root, resources, "build"), [context.electronPlatformName]);
+	if (missing.length) throw new Error(missing.join("\n"));
+	await writeAppUpdateConfig(root, context.packager?.config?.publish, resources);
 	if (context.electronPlatformName === "linux") {
 		// FPM writes the marker after this hook. A fresh AppImage must have none.
 		await rm(join(context.appOutDir, "resources/package-type"), { force: true });

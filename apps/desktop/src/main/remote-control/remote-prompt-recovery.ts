@@ -1,4 +1,5 @@
 import { createHash } from "node:crypto";
+import { mergeTextSources, type TextSource } from "@567agent/ai/protocol";
 import type { RemoteError } from "@567agent/remote-control";
 import type { DesktopRemotePromptEvent } from "./desktop-remote-connector.js";
 
@@ -6,6 +7,7 @@ interface Turn {
 	readonly sessionId: string;
 	readonly fingerprint: string;
 	text: string;
+	sources: readonly TextSource[];
 	state: string;
 	tools: Map<string, Record<string, unknown>>;
 	input: unknown;
@@ -41,6 +43,7 @@ export class RemotePromptRecovery {
 			sessionId,
 			fingerprint,
 			text: "",
+			sources: [],
 			state: "waiting_response",
 			tools: new Map(),
 			input: null,
@@ -54,6 +57,7 @@ export class RemotePromptRecovery {
 		if (!turn) return;
 		if (event.type === "delta") {
 			turn.text = (turn.text + (event.text ?? "")).slice(0, 1_000_000);
+			if (event.sources?.length) turn.sources = mergeTextSources(turn.sources, event.sources);
 			if (event.text) turn.input = null;
 		}
 		const payload = event.payload;
@@ -117,6 +121,7 @@ export class RemotePromptRecovery {
 			truncated: false,
 			turnId,
 			text: turn.text,
+			...(turn.sources.length ? { sources: turn.sources } : {}),
 			state: turn.state,
 			tools: [...turn.tools.values()],
 			input: turn.input,
@@ -127,6 +132,10 @@ export class RemotePromptRecovery {
 		// room for the RPC envelope and event cursor beneath the 1 MiB relay cap.
 		const budget = 900_000;
 		const size = () => Buffer.byteLength(JSON.stringify(snapshot), "utf8");
+		if (snapshot.sources && size() > budget) {
+			delete snapshot.sources;
+			snapshot.truncated = true;
+		}
 		while (size() > budget && snapshot.tools.length > 0) {
 			snapshot.tools.shift();
 			snapshot.truncated = true;

@@ -120,6 +120,15 @@ an identified whole primary monitor plus a matching monitor returned by the user
 portal. Unknown/window sources remain in trackpad mode; changing display geometry revokes the old
 mapping. No input permission is requested or granted by merely selecting a phone-side input mode.
 
+## Reading and comparing replies
+
+Use the arrows beside a question to compare its branches. The question’s version selector keeps its position when the other branch loads; scrolling manually takes over. Opening a different conversation still uses its normal initial position.
+
+When a provider supplies web citations, expand **Sources** to see the titles and addresses for the reply. Opening a link is an explicit action. Source numbers are not inserted into copied text, speech or the next model request.
+
+
+Use the speaker beside a finished answer to read the reply with a local system voice. Select the same button to stop. Starting another answer switches playback; hiding the window or leaving the message stops it. If Electron cannot see an installed offline voice, the action shows a notice. This feature uses no model request.
+
 ## Windows Voice Input
 
 Local streaming voice input is currently available only on Windows x64. The Windows artifact includes
@@ -337,5 +346,7 @@ which covers the real footer, titlebar commands, general settings, providers and
 ### 任务准备、交接与结果
 
 智能体中心支持收藏和最近打开；专家的任务准备表单将目标、材料、约束与交付要求追加到现有草稿。会话顶栏的专家交接可选择性带入最近完整回复的文字，补充待办后打开下一位专家的新会话草稿，均由用户发送后才执行。消息中心「任务结果」从持久化会话请求读取终态，支持打开原会话与本机已读；未知状态不会推断为成功，独立后台工具任务仍通过原入口查看。
+
+手机远控拖动或使用组合键时，电脑记录各条观看连接尚未松开的键；连接退出或撤权时释放对应输入。Windows 和 X11 支持横向、纵向滚轮；macOS 对按住鼠标时的移动使用原生拖动事件。信令短断而媒体仍通时保留画面。如果是电脑会话的事件补传无回应，则单独重连该条控制线路。
 
 手机可向电脑会话的附件目录独立传文件，不触发模型；主机选择保存文件名并返回相对路径，不开放任意路径写入。支持自动／流畅／清晰远控画质偏好，旧手机和电脑继续原有默认行为。

@@ -1,4 +1,5 @@
 import type { Usage } from "@567agent/ai";
+import type { TextSource } from "@567agent/ai/protocol";
 import type { PromptAttachmentRef, PromptResourceRef } from "@567agent/runtime-core";
 import type { InputSegment } from "@shared/lib/input-tokens";
 import type { ContentBlock } from "./content-blocks";
@@ -41,6 +42,7 @@ export interface ConversationMemberMentionViewModel {
 
 export interface ConversationAgentMessageViewModel extends ConversationMessageViewModelBase {
 	kind: "agent";
+	readonly sources?: readonly TextSource[];
 	role: "assistant";
 	phase: "pending" | "streaming" | "completed" | "failed" | "aborted" | "waiting";
 	/** Optional derived plain text used by search/export; rich rendering always uses blocks. */

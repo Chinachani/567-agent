@@ -55,6 +55,11 @@ import com.mikepenz.markdown.m3.markdownTypography
 import com.mikepenz.markdown.model.markdownDimens
 import com.mikepenz.markdown.model.rememberMarkdownState
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.flow.conflate
+import androidx.compose.runtime.rememberUpdatedState
+import androidx.compose.runtime.withFrameNanos
+import kotlin.time.TimeSource
+import androidx.compose.runtime.snapshotFlow
 import org.agent567.android.ui.i18n.Str
 import org.agent567.android.core.model.withoutInlineImageData
 import org.intellij.markdown.ast.findChildOfType
@@ -72,9 +77,30 @@ fun MarkdownContent(
     source: String,
     modifier: Modifier = Modifier,
     onSurface: Boolean = false,
+    streaming: Boolean = false,
 ) {
     val textColor = if (onSurface) MaterialTheme.colorScheme.onPrimary else MaterialTheme.colorScheme.onSurface
-    val renderSource = remember(source) { escapeConversationTags(withoutInlineImageData(source)) }
+    val visibleSource = if (streaming) {
+        val latest by rememberUpdatedState(source)
+        var snapshot by remember { mutableStateOf(source) }
+        LaunchedEffect(Unit) {
+            snapshotFlow { latest }.conflate().collect {
+                // Read the freshest value after any backpressure, never replay intermediate prefixes.
+                val next = latest
+                if (snapshot != next) {
+                    val start = TimeSource.Monotonic.markNow()
+                    snapshot = next
+                    // Two frame boundaries let Compose commit this change. The interval includes
+                    // scheduling and layout; it is not a measurement of Markdown parsing alone.
+                    withFrameNanos { }; withFrameNanos { }
+                    val elapsed = start.elapsedNow().inWholeMilliseconds
+                    delay(((elapsed * 2).coerceIn(60L, 300L) - elapsed).coerceAtLeast(0L))
+                }
+            }
+        }
+        snapshot
+    } else source
+    val renderSource = remember(visibleSource) { escapeConversationTags(withoutInlineImageData(visibleSource)) }
     if (renderSource.isBlank()) return
     val state = rememberMarkdownState(renderSource, retainState = true)
     val components = remember {
@@ -208,10 +234,12 @@ fun CodeBlockChrome(
     @Suppress("DEPRECATION")
     val clipboard = LocalClipboardManager.current
     var copied by remember(code) { mutableStateOf(false) }
-    LaunchedEffect(copied) {
-        if (copied) {
-            delay(1_600)
+    var copyFailed by remember(code) { mutableStateOf(false) }
+    LaunchedEffect(copied, copyFailed) {
+        if (copied || copyFailed) {
+            delay(if (copyFailed) 4000 else 1600)
             copied = false
+            copyFailed = false
         }
     }
     Surface(
@@ -237,8 +265,11 @@ fun CodeBlockChrome(
                 )
                 IconButton(
                     onClick = {
-                        clipboard.setText(AnnotatedString(code))
-                        copied = true
+                        copied = try {
+                            clipboard.setText(AnnotatedString(code))
+                            true
+                        } catch (_: RuntimeException) { false }
+                        copyFailed = !copied
                     },
                 ) {
                     Icon(
@@ -247,6 +278,7 @@ fun CodeBlockChrome(
                     )
                 }
             }
+            if (copyFailed) Text(Str.copyUnavailable, Modifier.padding(horizontal = 12.dp), style = MaterialTheme.typography.labelSmall)
             SelectionContainer {
                 Text(
                     text = code,

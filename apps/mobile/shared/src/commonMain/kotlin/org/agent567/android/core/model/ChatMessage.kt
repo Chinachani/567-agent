@@ -59,7 +59,7 @@ sealed class ChatContentPart {
  * Gateway 流式事件。UI 层按序消费即可拼出 assistant 气泡。
  */
 sealed class ChatStreamEvent {
-    data class Delta(val text: String) : ChatStreamEvent()
+    data class Delta(val text: String, val sources: List<ChatSource> = emptyList()) : ChatStreamEvent()
 
     /** A remote recovery snapshot replaces text; it must never execute tool calls. */
     data class Snapshot(
@@ -69,6 +69,7 @@ sealed class ChatStreamEvent {
         val state: String,
         val usage: State?,
         val truncated: Boolean = false,
+        val sources: List<ChatSource> = emptyList(),
     ) : ChatStreamEvent()
 
     data class Tool(

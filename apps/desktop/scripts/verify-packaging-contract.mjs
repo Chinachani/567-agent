@@ -1,6 +1,7 @@
 import { existsSync, readFileSync, readdirSync } from "node:fs";
 import { join, relative } from "node:path";
 import { pathToFileURL } from "node:url";
+import { checkAppIconResources } from "./app-icon-resources.mjs";
 import { DESKTOP_BUILD_OUTPUTS, DESKTOP_REQUIRED_SOURCE_FILES } from "./desktop-packaging-layout.mjs";
 import { resolveMainBundleExternals, resolvePackagedNativeDependencies } from "./packaged-native-dependencies.mjs";
 
@@ -26,6 +27,7 @@ function* walkSourceFiles(directory) {
 export function findDesktopPackagingContractViolations(rootDirectory = repoRoot) {
 	const violations = [];
 	const packageRoot = join(rootDirectory, "apps", "desktop");
+	violations.push(...checkAppIconResources(packageRoot, join(packageRoot, "build"), ["linux", "win32", "darwin"]));
 
 	for (const relativePath of DESKTOP_REQUIRED_SOURCE_FILES) {
 		if (!existsSync(join(packageRoot, relativePath))) {

@@ -19,6 +19,7 @@ internal fun RemoteScreenStage.label(): String = when (this) {
     RemoteScreenStage.Connecting -> Str.remoteStageConnecting
     RemoteScreenStage.WaitingForScreen -> Str.remoteStageWaiting
     RemoteScreenStage.Negotiating -> Str.remoteStageNegotiating
+    RemoteScreenStage.WaitingForFrame -> Str.remoteWaitingFirstFrame
     RemoteScreenStage.Receiving -> Str.remoteStageReceiving
     RemoteScreenStage.Reconnecting -> Str.remoteStageRecovering
     RemoteScreenStage.Ended -> Str.remoteStageEnded

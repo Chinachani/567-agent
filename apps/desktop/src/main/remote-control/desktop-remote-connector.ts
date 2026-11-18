@@ -1,4 +1,5 @@
 import { AI_ERROR_CODES, isAIError } from "@567agent/ai";
+import type { TextSource } from "@567agent/ai/protocol";
 import type { CodingAgentQuestionResult } from "@567agent/coding-agent/function-extensions";
 import type { RemoteConnection, RemoteError, RemoteRequest, RemoteSessionContext } from "@567agent/remote-control";
 import type { TaskResult } from "../../shared/result-inbox.js";
@@ -28,6 +29,7 @@ export interface DesktopRemoteSessionCatalog {
 }
 
 export interface DesktopRemoteHistoryMessage {
+	readonly sources?: readonly TextSource[];
 	readonly id: string;
 	readonly role: "user" | "assistant";
 	readonly text: string;
@@ -36,6 +38,7 @@ export interface DesktopRemoteHistoryMessage {
 }
 
 export interface DesktopRemotePromptEvent {
+	readonly sources?: readonly TextSource[];
 	readonly type: "delta" | "tool" | "input" | "state";
 	readonly text?: string;
 	readonly payload?: unknown;
@@ -787,8 +790,17 @@ export class DesktopRemoteConnector {
 				// available through the turn snapshot once the phone reconnects.
 				if (this.connection.getSnapshot().state !== "online") continue;
 				try {
-					if (event.type === "delta" && event.text) {
-						await this.connection.emitEvent("session.message", { kind: "delta", text: event.text }, sessionId);
+					if (event.type === "delta") {
+						if (event.text || event.sources?.length)
+							await this.connection.emitEvent(
+								"session.message",
+								{
+									kind: "delta",
+									text: event.text ?? "",
+									...(event.sources?.length ? { sources: event.sources } : {}),
+								},
+								sessionId,
+							);
 						continue;
 					}
 					if (event.type === "tool") {

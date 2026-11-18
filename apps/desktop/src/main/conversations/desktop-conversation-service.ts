@@ -1,6 +1,7 @@
 import { stat } from "node:fs/promises";
 import { extname, isAbsolute, resolve } from "node:path";
 import type { AgentTeamDocument } from "@567agent/agent-team";
+import { collectTextSources, type TextSource } from "@567agent/ai/protocol";
 import type { CodingAgentPinnedModelContextBinder } from "@567agent/coding-agent/runtime";
 import {
 	CODING_AGENT_NEXT_PROMPT_SUGGESTIONS,
@@ -114,6 +115,7 @@ export interface DesktopConversationRemoteModelCatalog {
 }
 
 export interface DesktopConversationRemoteHistoryMessage {
+	readonly sources?: readonly TextSource[];
 	readonly id: string;
 	readonly role: "user" | "assistant";
 	readonly text: string;
@@ -587,29 +589,31 @@ export class DesktopConversationService {
 			throw new DesktopConversationError("INVALID_SESSION_PATH", "Invalid remote history page.");
 		}
 		const messages = this.runtime.getMessages(sessionId);
-		return messages
-			.flatMap((message, index) => {
-				if (message.role !== "user" && message.role !== "assistant") return [];
-				const text =
-					typeof message.content === "string"
-						? message.content
-						: message.content
-								.filter((part) => part.type === "text")
-								.map((part) => part.text)
-								.join("\n");
-				const hasImage =
-					typeof message.content !== "string" && message.content.some((part) => part.type === "image");
-				return [
-					{
-						id: `${message.timestamp}-${index}`,
-						role: message.role,
-						text: hasImage ? `${text}${text ? "\n" : ""}[图片附件]` : text,
-						timestamp: message.timestamp,
-						...(message.role === "assistant" && message.errorMessage ? { failed: true } : {}),
-					},
-				];
-			})
-			.slice(offset, offset + limit);
+		const page: DesktopConversationRemoteHistoryMessage[] = [];
+		let visible = 0;
+		for (const [index, message] of messages.entries()) {
+			if (message.role !== "user" && message.role !== "assistant") continue;
+			if (visible++ < offset) continue;
+			const sources = message.role === "assistant" ? collectTextSources(message.content) : [];
+			const text =
+				typeof message.content === "string"
+					? message.content
+					: message.content
+							.filter((part) => part.type === "text")
+							.map((part) => part.text)
+							.join("\n");
+			const hasImage = typeof message.content !== "string" && message.content.some((part) => part.type === "image");
+			page.push({
+				...(sources.length ? { sources } : {}),
+				id: `${message.timestamp}-${index}`,
+				role: message.role,
+				text: hasImage ? `${text}${text ? "\n" : ""}[图片附件]` : text,
+				timestamp: message.timestamp,
+				...(message.role === "assistant" && message.errorMessage ? { failed: true } : {}),
+			});
+			if (page.length === limit) break;
+		}
+		return page;
 	}
 
 	/** Returns whether any persisted history entry exists, including image-only or non-text turns. */

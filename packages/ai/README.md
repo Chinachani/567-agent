@@ -1259,3 +1259,7 @@ MIT
 Successful streams optionally attach `usage.performance`: `durationMs` measures stream creation to completion, `firstTextMs` measures the first non-empty reply text, and `firstOutputMs` measures the first text, thinking or tool output. Measurement uses a monotonic clock at producer push time, before consumer buffering. Forwarding adapters preserve the original measurements. Failed/aborted calls are not successful speed samples. Historical records and non-streaming providers may omit these fields; absence is not zero.
 
 Desktop aggregates generation throughput as reported output tokens divided by the sum of corresponding `durationMs - firstOutputMs` intervals, excluding missing/invalid intervals. Provider output-token accounting may include reasoning and tool arguments. Model time includes network/provider waiting, but not tool execution or gaps between calls. First-text averages exclude tool-only calls. These optional local diagnostics do not change token accounting or provider request payloads.
+
+### Structured reply sources
+
+An assistant `TextContent` may include `sources: { url: string; title?: string }[]`. Anthropic web citations and supported OpenAI `url_citation` annotations supply this display metadata. Choice-level annotations without an unambiguous text block are omitted. The block text and model request encoding stay independent of source labels. See [ADR-0166](../../docs/adr/0166-conversation-reading-and-streaming.md).

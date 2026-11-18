@@ -35,6 +35,10 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.saveable.rememberSaveable
+import kotlinx.coroutines.delay
+import org.agent567.android.domain.session.localHistoryDays
+import org.agent567.android.domain.session.nowEpochMs
+import androidx.compose.runtime.produceState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -90,6 +94,25 @@ fun SessionsScreen(
                 }
             qOk && fOk
         }
+
+    val days by produceState(remember { localHistoryDays(nowEpochMs()) }) {
+        while (true) {
+            val now = nowEpochMs()
+            value = localHistoryDays(now)
+            delay((value.tomorrow - now).coerceIn(1_000L, 60_000L))
+        }
+    }
+    val groups = remember(filtered, days) {
+        filtered.groupBy { session ->
+            when {
+                session.updatedAtEpochMs <= 0 -> Str.historyUndated
+                session.updatedAtEpochMs >= days.today -> Str.historyToday
+                session.updatedAtEpochMs >= days.yesterday -> Str.historyYesterday
+                session.updatedAtEpochMs >= days.week -> Str.historyWeek
+                else -> Str.historyEarlier
+            }
+        }
+    }
 
     Scaffold(
         containerColor = MaterialTheme.agent567Extra.pageBackground,
@@ -180,8 +203,11 @@ fun SessionsScreen(
                         modifier = Modifier.fillMaxWidth(),
                     )
                 }
-                else -> {
-                    items(filtered, key = { it.id }) { item ->
+                else -> groups.forEach { (label, entries) ->
+                    item(key = "date:$label") {
+                        Text(label, Modifier.padding(top = 8.dp), style = MaterialTheme.typography.labelLarge)
+                    }
+                    items(entries, key = { "session:${it.id}" }) { item ->
                         Agent567Card(contentPadding = PaddingValues(horizontal = 8.dp, vertical = 0.dp)) {
                             ListRow(
                                 title = item.title,

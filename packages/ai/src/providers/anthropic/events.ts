@@ -1,6 +1,6 @@
 import type Anthropic from "@anthropic-ai/sdk";
 import { calculateCost } from "../../models.js";
-import { AIStreamProtocolError } from "../../protocol/index.js";
+import { AIStreamProtocolError, mergeTextSources } from "../../protocol/index.js";
 import type { LanguageModelStream } from "../../runtime/language-model-adapter.js";
 import type {
 	AssistantMessage,
@@ -117,6 +117,14 @@ export class AnthropicEventReducer {
 				this.#fail("Received text_delta for a non-text block", { protocolIndex: event.index });
 			block.text += event.delta.text;
 			this.stream.push({ type: "text_delta", contentIndex, delta: event.delta.text, partial: this.output });
+		} else if (event.delta.type === "citations_delta") {
+			if (block.type !== "text")
+				this.#fail("Received citations_delta for a non-text block", { protocolIndex: event.index });
+			const citation = event.delta.citation;
+			if (citation?.type === "web_search_result_location") {
+				const sources = mergeTextSources(block.sources ?? [], [citation]);
+				if (sources.length && sources !== block.sources) block.sources = [...sources];
+			}
 		} else if (event.delta.type === "thinking_delta") {
 			if (block.type !== "thinking") {
 				this.#fail("Received thinking_delta for a non-thinking block", { protocolIndex: event.index });
@@ -180,7 +188,15 @@ function createStreamBlock(
 	context: Context,
 	isOAuthToken: boolean,
 ): StreamBlock | undefined {
-	if (contentBlock.type === "text") return { type: "text", text: contentBlock.text };
+	if (contentBlock.type === "text") {
+		const sources = mergeTextSources(
+			[],
+			Array.isArray(contentBlock.citations)
+				? contentBlock.citations.slice(0, 96).filter((c) => c?.type === "web_search_result_location")
+				: [],
+		);
+		return { type: "text", text: contentBlock.text, ...(sources.length ? { sources: [...sources] } : {}) };
+	}
 	if (contentBlock.type === "thinking") {
 		return {
 			type: "thinking",

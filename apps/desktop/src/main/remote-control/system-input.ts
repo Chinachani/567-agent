@@ -3,6 +3,7 @@ import type { RemoteInputMessage } from "@567agent/remote-desktop";
 import { clipboard, systemPreferences } from "electron";
 import type * as Koffi from "koffi";
 import type { RemotePairingState } from "../../preload/api-types/remote-pairing.js";
+import { RemoteInputOwnership } from "../../shared/remote-input-ownership.js";
 import { getAppLogger } from "../logger.js";
 import { createWaylandInputAdapter, type WaylandInputTokens } from "./wayland-input.js";
 
@@ -55,8 +56,23 @@ export function createSystemInputAdapter(options: {
 							? createWaylandInputAdapter(options.waylandTokens, (text) => clipboard.writeText(text))
 							: createLinuxX11InputAdapter()
 						: unsupportedInputAdapter("unsupported_platform");
-		if (adapter.pointerMode !== "relative") adapter.setEnabled(options.enabled);
-		return adapter;
+		// The portal owns input lifetimes on Wayland. Synchronous native adapters need
+		// to balance their injected downs even if the renderer/helper disappears first.
+		if (!adapter.supported || adapter.pointerMode === "relative") return adapter;
+		const pressed = new RemoteInputOwnership((event) => adapter.apply(event));
+		let enabled = options.enabled;
+		adapter.setEnabled(enabled);
+		return {
+			...adapter,
+			apply(event) {
+				if (enabled) pressed.apply(0, event);
+			},
+			setEnabled(value) {
+				if (!value) pressed.release(0);
+				enabled = value;
+				return adapter.setEnabled(value);
+			},
+		};
 	} catch (error) {
 		const unsupportedReason =
 			process.platform === "win32"
@@ -117,11 +133,13 @@ function createWindowsInputAdapter(): SystemInputAdapter {
 	const GetSystemMetrics = user32.func("int __stdcall GetSystemMetrics(int)");
 	const MapVirtualKey = user32.func("uint32 __stdcall MapVirtualKeyW(uint32, uint32)");
 
+	const wheel = discreteWheel(120);
 	let enabled = true;
 	return {
 		supported: true,
 		setEnabled(value) {
 			enabled = value;
+			if (!value) wheel.reset();
 			log.info("remote input grant changed", { enabled: value });
 		},
 		apply(message) {
@@ -144,16 +162,21 @@ function createWindowsInputAdapter(): SystemInputAdapter {
 				return;
 			}
 			if (message.type === "pointer.scroll") {
-				SendInput(
-					1,
-					{
-						type: 0,
-						u: {
-							mi: { dx: 0, dy: 0, mouseData: message.deltaY >>> 0, dwFlags: 0x0800, time: 0, dwExtraInfo: 0 },
+				const [x, y] = wheel.take(message.deltaX, message.deltaY);
+				for (const [flags, delta] of [
+					[0x0800, -y],
+					[0x1000, x],
+				] as const) {
+					if (!delta) continue;
+					SendInput(
+						1,
+						{
+							type: 0,
+							u: { mi: { dx: 0, dy: 0, mouseData: delta >>> 0, dwFlags: flags, time: 0, dwExtraInfo: 0 } },
 						},
-					},
-					koffi.sizeof(INPUT),
-				);
+						koffi.sizeof(INPUT),
+					);
+				}
 				return;
 			}
 			if (message.type === "key") {
@@ -211,6 +234,7 @@ function createMacInputAdapter(): SystemInputAdapter {
 	const CGDisplayPixelsWide = coreGraphics.func("size_t CGDisplayPixelsWide(uint32)");
 	const CGDisplayPixelsHigh = coreGraphics.func("size_t CGDisplayPixelsHigh(uint32)");
 	const CFRelease = coreFoundation.func("void CFRelease(void *)");
+	const pressedButtons = new Set<"left" | "right" | "middle">();
 	let enabled = true;
 	const post = (event: unknown): void => {
 		if (!event) return;
@@ -221,6 +245,7 @@ function createMacInputAdapter(): SystemInputAdapter {
 		supported: true,
 		setEnabled(value) {
 			enabled = value;
+			if (!value) pressedButtons.clear();
 			log.info("remote input grant changed", { enabled: value, platform: "darwin" });
 		},
 		apply(message) {
@@ -231,15 +256,23 @@ function createMacInputAdapter(): SystemInputAdapter {
 					x: message.x * Math.max(1, Number(CGDisplayPixelsWide(display)) - 1),
 					y: message.y * Math.max(1, Number(CGDisplayPixelsHigh(display)) - 1),
 				};
-				const eventType = message.type === "pointer.move" ? 5 : macMouseEventType(message.button, message.action);
-				post(
-					CGEventCreateMouseEvent(
-						null,
-						eventType,
-						point,
-						message.type === "pointer.button" ? macMouseButton(message.button) : 0,
-					),
-				);
+				if (message.type === "pointer.button") {
+					post(
+						CGEventCreateMouseEvent(
+							null,
+							macMouseEventType(message.button, message.action),
+							point,
+							macMouseButton(message.button),
+						),
+					);
+					if (message.action === "down") pressedButtons.add(message.button);
+					else pressedButtons.delete(message.button);
+				} else {
+					// Quartz distinguishes moved from left/right/other dragged events.
+					const button = pressedButtons.values().next().value;
+					const type = button === "left" ? 6 : button === "right" ? 7 : button === "middle" ? 27 : 5;
+					post(CGEventCreateMouseEvent(null, type, point, button ? macMouseButton(button) : 0));
+				}
 				return;
 			}
 			if (message.type === "pointer.scroll") {
@@ -289,11 +322,13 @@ function createLinuxX11InputAdapter(): SystemInputAdapter {
 	const XTestFakeKeyEvent = xtst.func("int XTestFakeKeyEvent(void *, uint32, bool, ulong)");
 	const display = XOpenDisplay(null);
 	if (!display) return unsupportedInputAdapter("x11_open_display_failed");
+	const wheel = discreteWheel(1);
 	let enabled = true;
 	return {
 		supported: true,
 		setEnabled(value) {
 			enabled = value;
+			if (!value) wheel.reset();
 			log.info("remote input grant changed", { enabled: value, platform: "linux-x11" });
 			if (!value) XFlush(display);
 		},
@@ -311,14 +346,15 @@ function createLinuxX11InputAdapter(): SystemInputAdapter {
 				if (message.type === "pointer.button")
 					XTestFakeButtonEvent(display, linuxMouseButton(message.button), message.action === "down", 0);
 			} else if (message.type === "pointer.scroll") {
-				const button = message.deltaY < 0 ? 4 : 5;
-				for (
-					let count = 0;
-					count < Math.max(1, Math.min(12, Math.round(Math.abs(message.deltaY) / 40)));
-					count += 1
-				) {
-					XTestFakeButtonEvent(display, button, true, 0);
-					XTestFakeButtonEvent(display, button, false, 0);
+				const [x, y] = wheel.take(message.deltaX, message.deltaY);
+				for (const [button, steps] of [
+					[y < 0 ? 4 : 5, y],
+					[x < 0 ? 6 : 7, x],
+				]) {
+					for (let n = 0; n < Math.min(12, Math.abs(steps)); n++) {
+						XTestFakeButtonEvent(display, button, true, 0);
+						XTestFakeButtonEvent(display, button, false, 0);
+					}
 				}
 			} else if (message.type === "key") {
 				const keysym = XStringToKeysym(linuxKeySym(message.code));
@@ -367,6 +403,27 @@ function createLinuxX11InputAdapter(): SystemInputAdapter {
 				}
 			}
 			XFlush(display);
+		},
+	};
+}
+
+/** One Android wheel notch is 40 logical units; tiny touch deltas carry into the next event. */
+function discreteWheel(unitsPerNotch: number) {
+	let restX = 0,
+		restY = 0;
+	return {
+		take(dx: number, dy: number): [number, number] {
+			restX += (dx * unitsPerNotch) / 40;
+			restY += (dy * unitsPerNotch) / 40;
+			const x = Math.trunc(restX),
+				y = Math.trunc(restY);
+			restX -= x;
+			restY -= y;
+			return [x, y];
+		},
+		reset() {
+			restX = 0;
+			restY = 0;
 		},
 	};
 }

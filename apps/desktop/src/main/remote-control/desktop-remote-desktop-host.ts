@@ -81,6 +81,17 @@ export async function startDesktopRemoteDesktopHost(
 		},
 	});
 	let autoShareScreen = options.autoShareScreen === true;
+	const loadHostPage = (): Promise<void> => {
+		const query = {
+			targets: JSON.stringify(signalingTargets),
+			sessionId,
+			retainCapture: String(autoShareScreen),
+			pointerMode: input.pointerMode ?? "absolute",
+		};
+		if (options.isPackaged) return window.loadFile(paths.pagePath, { query });
+		const page = `${options.devServerUrl ?? "http://127.0.0.1:3020"}/remote-desktop-host.html`;
+		return window.loadURL(`${page}?${new URLSearchParams(query)}`);
+	};
 	const updateCaptureRetention = () => {
 		if (!window.isDestroyed())
 			void window.webContents
@@ -174,9 +185,13 @@ export async function startDesktopRemoteDesktopHost(
 	ipcMain.on("vetta:remote-desktop:request-capture", onRequestCapture);
 	let displayMediaHandlerInstalled = false;
 	let stopped = false;
+	let rendererGone = false;
+	let rendererRetry: ReturnType<typeof setTimeout> | undefined;
+	let lastRendererRetry = -Infinity;
+	let grantRevision = 0;
 	const updateInputPermission = () => {
-		if (stopped || window.isDestroyed()) return;
-		const enabled = input.supported && captureSourceSupportsRemoteInput && (input.granted ?? inputEnabled);
+		if (stopped || rendererGone || window.isDestroyed()) return;
+		const enabled = inputEnabled && input.supported && captureSourceSupportsRemoteInput && input.granted !== false;
 		void window.webContents
 			.executeJavaScript(
 				`window.dispatchEvent(new CustomEvent("vetta:remote-desktop:input-permission", { detail: ${JSON.stringify({ enabled, pointerMode: input.pointerMode ?? "absolute" })} }))`,
@@ -201,6 +216,40 @@ export async function startDesktopRemoteDesktopHost(
 	};
 	const unsubscribeInput = input.onGrantedChange?.(updateInputPermission);
 	const pendingCapture = new Set<() => void>();
+	const clearCaptureSource = () => {
+		grantRevision++;
+		captureSourceSelected = false;
+		captureSourceSupportsRemoteInput = false;
+		inputEnabled = false;
+		input.setEnabled(false);
+		input.setCaptureTarget?.(undefined);
+		updateInputPermission();
+		options.onInputCapabilityChange?.(false, "capture_source_not_selected");
+	};
+	const onRendererGone = (_event: Electron.Event, details: Electron.RenderProcessGoneDetails) => {
+		rendererGone = true;
+		for (const deny of pendingCapture) deny();
+		clearCaptureSource();
+		autoShareScreen = false; // A replacement renderer must ask for the screen again.
+		if (
+			!rendererRetry &&
+			!stopped &&
+			["crashed", "oom", "abnormal-exit"].includes(details.reason) &&
+			performance.now() - lastRendererRetry >= 300_000
+		) {
+			lastRendererRetry = performance.now();
+			rendererRetry = setTimeout(() => {
+				rendererRetry = undefined;
+				if (stopped || window.isDestroyed() || window.webContents.isDestroyed()) return;
+				rendererGone = false;
+				void loadHostPage().catch(() => {
+					rendererGone = true;
+					log.warn("remote desktop capture renderer restart failed", { sessionId });
+				});
+			}, 1000);
+		}
+	};
+	window.webContents.on("render-process-gone", onRendererGone);
 	try {
 		// The hidden renderer must never silently capture the first screen. Ask for
 		// explicit, per-session consent and let the user choose the source first.
@@ -223,7 +272,7 @@ export async function startDesktopRemoteDesktopHost(
 					return false;
 				}
 			};
-			if (stopped || pendingCapture.size > 0) {
+			if (stopped || rendererGone || pendingCapture.size > 0) {
 				deny();
 				return;
 			}
@@ -311,18 +360,10 @@ export async function startDesktopRemoteDesktopHost(
 					});
 					source = sources[sourceChoice.response - 1];
 				}
-				if (!source || settled || stopped || window.isDestroyed()) {
-					captureSourceSelected = false;
-					captureSourceSupportsRemoteInput = false;
-					options.onInputCapabilityChange?.(false);
-					respond(null);
-					return;
-				}
-				if (!respond({ video: source })) {
-					captureSourceSelected = false;
-					captureSourceSupportsRemoteInput = false;
-					input.setEnabled(false);
-					options.onInputCapabilityChange?.(false, "capture_source_not_selected");
+				if (settled || stopped || window.isDestroyed()) return deny();
+				if (!source || !respond({ video: source })) {
+					clearCaptureSource();
+					deny();
 					return;
 				}
 				captureSourceSelected = true;
@@ -335,7 +376,11 @@ export async function startDesktopRemoteDesktopHost(
 				captureSourceSupportsRemoteInput =
 					input.pointerMode === "relative" ||
 					(source.id.startsWith("screen:") && source.display_id === primaryDisplayId);
-				if (!captureSourceSupportsRemoteInput) input.setEnabled(false);
+				if (!captureSourceSupportsRemoteInput) {
+					grantRevision++;
+					inputEnabled = false;
+					input.setEnabled(false);
+				}
 				updateInputPermission();
 				options.onInputCapabilityChange?.(
 					input.supported && captureSourceSupportsRemoteInput,
@@ -356,27 +401,16 @@ export async function startDesktopRemoteDesktopHost(
 		});
 		displayMediaHandlerInstalled = true;
 
-		if (options.isPackaged) {
-			await window.loadFile(paths.pagePath, {
-				query: {
-					targets: JSON.stringify(signalingTargets),
-					sessionId,
-					retainCapture: String(autoShareScreen),
-					pointerMode: input.pointerMode ?? "absolute",
-				},
-			});
-		} else {
-			const page = `${options.devServerUrl ?? "http://127.0.0.1:3020"}/remote-desktop-host.html`;
-			await window.loadURL(
-				`${page}?targets=${encodeURIComponent(JSON.stringify(signalingTargets))}&sessionId=${encodeURIComponent(sessionId)}&retainCapture=${autoShareScreen}&pointerMode=${input.pointerMode ?? "absolute"}`,
-			);
-		}
+		await loadHostPage();
 	} catch (error) {
+		stopped = true;
+		clearTimeout(rendererRetry);
 		input.setEnabled(false);
 		unsubscribeInput?.();
 		detachDisplayMapping();
 		unregisterVideoPermission();
 		unregisterHostMediaPermissions();
+		window.webContents.removeListener("render-process-gone", onRendererGone);
 		window.webContents.removeListener("certificate-error", onCertificateError);
 		ipcMain.removeListener("vetta:remote-desktop:input", onInput);
 		ipcMain.removeListener("vetta:remote-desktop:request-capture", onRequestCapture);
@@ -392,7 +426,7 @@ export async function startDesktopRemoteDesktopHost(
 			return input.pointerMode ?? "absolute";
 		},
 		get inputGranted() {
-			return input.granted ?? true;
+			return !stopped && inputEnabled && captureSourceSupportsRemoteInput && input.granted !== false;
 		},
 		get inputSupported() {
 			return input.supported && captureSourceSupportsRemoteInput;
@@ -408,13 +442,16 @@ export async function startDesktopRemoteDesktopHost(
 			);
 		},
 		revokeInput() {
+			grantRevision++;
 			inputEnabled = false;
 			input.setEnabled(false);
 			updateInputPermission();
 		},
 		async grantInput() {
 			if (!stopped && captureSourceSupportsRemoteInput) {
+				const revision = ++grantRevision;
 				await input.setEnabled(true);
+				if (stopped || !captureSourceSupportsRemoteInput || revision !== grantRevision) return;
 				inputEnabled = true;
 				updateInputPermission();
 			}
@@ -426,12 +463,14 @@ export async function startDesktopRemoteDesktopHost(
 		async stop() {
 			if (stopped) return;
 			stopped = true;
+			clearTimeout(rendererRetry);
 			unsubscribeInput?.();
 			detachDisplayMapping();
 			for (const deny of pendingCapture) deny();
 			input.setEnabled(false);
 			unregisterVideoPermission();
 			unregisterHostMediaPermissions();
+			window.webContents.removeListener("render-process-gone", onRendererGone);
 			window.webContents.removeListener("certificate-error", onCertificateError);
 			hostSession.setDisplayMediaRequestHandler(null);
 			ipcMain.removeListener("vetta:remote-desktop:input", onInput);

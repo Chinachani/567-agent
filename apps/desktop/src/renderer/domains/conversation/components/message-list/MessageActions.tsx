@@ -23,6 +23,7 @@ export function CopyButton({
 			labels={{
 				copy: t("messageList.copyButton.copy"),
 				copied: t("messageList.copyButton.copied"),
+				failed: t("messageList.copyButton.failed"),
 			}}
 		/>
 	);

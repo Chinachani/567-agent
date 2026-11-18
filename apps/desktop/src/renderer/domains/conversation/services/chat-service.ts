@@ -1,4 +1,5 @@
 import type { Usage } from "@567agent/ai";
+import { collectTextSources, mergeTextSources } from "@567agent/ai/protocol";
 import type { HistoryEntry, PromptAttachmentRef, PromptResourceRef } from "@567agent/runtime-core";
 import { readMcpAppAttachment, selectMcpMediaCandidates } from "@567agent/runtime-mcp/browser";
 import {
@@ -382,7 +383,8 @@ export function messageToBlocks(content: unknown, toolStatus: ToolCallBlock["sta
 	const blocks: ContentBlock[] = [];
 	for (const part of content as Array<Record<string, unknown>>) {
 		if (part.type === "text" && typeof part.text === "string") {
-			blocks.push({ type: "text", id: nextId("blk"), text: part.text });
+			const sources = mergeTextSources([], part.sources);
+			blocks.push({ type: "text", id: nextId("blk"), text: part.text, ...(sources.length ? { sources } : {}) });
 		} else if (part.type === "thinking" && typeof part.thinking === "string") {
 			blocks.push({ type: "thinking", id: nextId("blk"), text: part.thinking });
 		} else if (part.type === "toolCall" && typeof part.name === "string" && part.name !== "") {
@@ -1181,8 +1183,10 @@ export function finalizeMessage(prev: ChatConversationItem[], content: unknown, 
 		.map((b) => (b as { text: string }).text)
 		.join("");
 
+	const sources = collectTextSources(content, msg.sources);
 	copy[targetIdx] = {
 		...msg,
+		...(sources.length ? { sources } : {}),
 		text,
 		blocks,
 		...(usage ? { usages: [...(msg.usages ?? []), usage] } : {}),

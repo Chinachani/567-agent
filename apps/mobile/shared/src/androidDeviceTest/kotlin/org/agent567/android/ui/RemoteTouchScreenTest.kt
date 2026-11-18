@@ -57,14 +57,16 @@ class RemoteTouchScreenTest {
             RemoteFullscreenToolbar(true, false, true, "5 ms", "1920×1080", { exited = true }, {}, {}, {})
         }
         composeRule.onNodeWithText("退出全屏").assertDoesNotExist()
-        composeRule.onNodeWithText("展开操控栏 ▾").performClick()
-        composeRule.onNodeWithText("触控板").assertIsDisplayed()
-        composeRule.onNodeWithContentDescription("操作说明").performScrollTo().performClick()
+        composeRule.onNodeWithText(Str.remoteExpandControls).performClick()
+        composeRule.onNodeWithText("触控板").performScrollTo().assertIsDisplayed()
+        composeRule.onNodeWithContentDescription(Str.remoteMoreControls).performClick()
+        composeRule.onNodeWithText(Str.remoteHelp).performClick()
         composeRule.onNodeWithText("知道了").performClick()
-        composeRule.onNodeWithText("收起").performScrollTo().performClick()
+        composeRule.onNodeWithText("收起").performClick()
         composeRule.onNodeWithText("退出全屏").assertDoesNotExist()
-        composeRule.onNodeWithText("展开操控栏 ▾").performClick()
-        composeRule.onNodeWithText("退出全屏").performScrollTo().performClick()
+        composeRule.onNodeWithText(Str.remoteExpandControls).performClick()
+        composeRule.onNodeWithContentDescription(Str.remoteMoreControls).performClick()
+        composeRule.onNodeWithText("退出全屏").performClick()
         composeRule.runOnIdle { assertTrue(exited) }
     }
 
@@ -91,7 +93,7 @@ class RemoteTouchScreenTest {
             }
         }
         composeRule.onNodeWithText(Str.remoteExpandControls).performClick()
-        composeRule.onNodeWithText(Str.remoteTrackpad).performClick()
+        composeRule.onNodeWithText(Str.remoteTrackpad).performScrollTo().performClick()
         composeRule.onNodeWithText("${Str.remoteTouch} · ${Str.remoteTouchOption}").assertIsEnabled().performClick()
         composeRule.onNodeWithTag("tablet").performTouchInput { click(Offset(width * .75f, centerY)) }
         composeRule.runOnIdle {
@@ -173,8 +175,8 @@ class RemoteTouchScreenTest {
 
     @Test fun relativeOnlyHostExplainsWhyDirectTouchIsUnavailable() {
         composeRule.setContent { RemoteFullscreenToolbar(true, false, false, "5 ms", "", {}, {}, {}, {}) }
-        composeRule.onNodeWithText("展开操控栏 ▾").performClick()
-        composeRule.onNodeWithText("触控板").performClick()
+        composeRule.onNodeWithText(Str.remoteExpandControls).performClick()
+        composeRule.onNodeWithText(Str.remoteTrackpad).performScrollTo().performClick()
         composeRule.onNodeWithText(org.agent567.android.ui.i18n.Str.remoteDirectUnavailable).assertIsDisplayed()
         composeRule.onNodeWithText("${Str.remoteTouch} · ${Str.remoteTouchOption}").assertIsNotEnabled()
     }
@@ -195,8 +197,8 @@ class RemoteTouchScreenTest {
     @Test fun absoluteHostOffersDirectTouchAsAnExplicitChoice() {
         var direct by mutableStateOf(false)
         composeRule.setContent { RemoteFullscreenToolbar(false, direct, false, "5 ms", "", {}, { direct = it }, {}, {}) }
-        composeRule.onNodeWithText("展开操控栏 ▾").performClick()
-        composeRule.onNodeWithText("触控板").performClick()
+        composeRule.onNodeWithText(Str.remoteExpandControls).performClick()
+        composeRule.onNodeWithText(Str.remoteTrackpad).performScrollTo().performClick()
         composeRule.onNodeWithText("${Str.remoteTouch} · ${Str.remoteTouchOption}").performClick()
         composeRule.onNodeWithText(Str.remoteTouch).assertIsDisplayed()
         composeRule.runOnIdle { assertTrue(direct) }

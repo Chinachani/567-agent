@@ -8,5 +8,6 @@ export * from "./model-capabilities.js";
 export * from "./prompt-cache-diagnostics.js";
 export * from "./reasoning.js";
 export * from "./stream-event.js";
+export * from "./text-sources.js";
 export * from "./tool.js";
 export * from "./usage.js";

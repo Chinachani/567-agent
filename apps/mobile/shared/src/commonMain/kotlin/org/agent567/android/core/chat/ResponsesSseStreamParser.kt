@@ -50,6 +50,10 @@ class ResponsesSseStreamParser {
                 textChars += delta.length
                 if (delta.isEmpty()) emptyList() else { hasText = true; listOf(ChatStreamEvent.Delta(delta)) }
             }
+            "response.output_text.annotation.added" -> {
+                val sources = event["annotation"]?.let { providerSources(JsonArray(listOf(it)), nested = false) }.orEmpty()
+                if (sources.isEmpty()) emptyList() else listOf(ChatStreamEvent.Delta("", sources))
+            }
             "response.output_item.done" -> {
                 val item = event["item"] as? JsonObject
                 if (item?.string("type") == "function_call") {
@@ -86,7 +90,10 @@ class ResponsesSseStreamParser {
                         val text = when (part.string("type")) { "output_text" -> part.string("text"); "refusal" -> part.string("refusal"); else -> null } ?: continue
                         val consumed = streamedText[index to partIndex]?.toString().orEmpty()
                         if (!text.startsWith(consumed)) return fail("Responses 正文不完整")
-                        text.drop(consumed.length).takeIf { it.isNotEmpty() }?.let { events += ChatStreamEvent.Delta(it); hasText = true }
+                        val suffix = text.drop(consumed.length)
+                        val sources = if (part.string("type") == "output_text") providerSources(part["annotations"], nested = false) else emptyList()
+                        if (suffix.isNotEmpty() || sources.isNotEmpty()) events += ChatStreamEvent.Delta(suffix, sources)
+                        if (suffix.isNotEmpty()) hasText = true
                     }
                 }
                 "function_call" -> tools[index] = item

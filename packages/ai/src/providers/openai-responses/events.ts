@@ -1,6 +1,7 @@
 import type OpenAI from "openai";
 import type { ResponseCreateParamsStreaming, ResponseStreamEvent } from "openai/resources/responses/responses.js";
 import { calculateCost } from "../../models.js";
+import { mergeTextSources } from "../../protocol/text-sources.js";
 import { EmptyProviderStreamError } from "../../provider-kit/index.js";
 import type { LanguageModelStreamEvent } from "../../runtime/language-model-adapter.js";
 import type {
@@ -176,6 +177,14 @@ function finalizeOutputItem<TApi extends Api>(
 				content.type === "output_text" ? content.text : content.type === "refusal" ? content.refusal : "",
 			)
 			.join("");
+		for (const part of item.content) {
+			if (part.type !== "output_text" || !Array.isArray(part.annotations)) continue;
+			const sources = mergeTextSources(
+				block.sources ?? [],
+				part.annotations.slice(0, 96).filter((a) => a?.type === "url_citation"),
+			);
+			if (sources.length && sources !== block.sources) block.sources = [...sources];
+		}
 		block.textSignature = item.id;
 		stream.push({ type: "text_end", contentIndex: state.blockIndex, content: block.text, partial: output });
 		return;

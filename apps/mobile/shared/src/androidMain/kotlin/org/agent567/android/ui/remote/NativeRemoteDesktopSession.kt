@@ -98,7 +98,13 @@ class NativeRemoteDesktopSession(private val context: Context, private val targe
     @Volatile private var directlyConnected = false
     private val _relativePointer = MutableStateFlow(false)
     val relativePointer: StateFlow<Boolean> = _relativePointer.asStateFlow()
+    private var mediaConnected = false
+    private var hostGrantedInput = false
     private val _inputEnabled = MutableStateFlow(false)
+    private fun refreshInputAvailability() {
+        _inputEnabled.value = !stopped && mediaConnected && hostGrantedInput && _hasVideoFrame.value
+        if (_inputEnabled.value) flushPendingReleases()
+    }
     val inputEnabled: StateFlow<Boolean> = _inputEnabled.asStateFlow()
     private val _captureMessage = MutableStateFlow<String?>(Str.remoteCaptureWaiting)
     val captureMessage: StateFlow<String?> = _captureMessage.asStateFlow()
@@ -130,7 +136,8 @@ class NativeRemoteDesktopSession(private val context: Context, private val targe
                 scope.launch {
                     if (!stopped && renderer === view) {
                         _hasVideoFrame.value = true
-                        _stage.value = RemoteScreenStage.Receiving
+                        refreshInputAvailability()
+                        if (_stage.value != RemoteScreenStage.Reconnecting) _stage.value = RemoteScreenStage.Receiving
                         if (_captureMessage.value == Str.remoteCaptureWaiting) _captureMessage.value = null
                     }
                 }
@@ -507,15 +514,18 @@ class NativeRemoteDesktopSession(private val context: Context, private val targe
                             iceDisconnectJob?.cancel()
                             iceDisconnectJob = null
                             _reconnectingMessage.value = null
-                            _stage.value = if (_hasVideoFrame.value) RemoteScreenStage.Receiving else RemoteScreenStage.Negotiating
+                            mediaConnected = true
+                            _stage.value = if (_hasVideoFrame.value) RemoteScreenStage.Receiving else RemoteScreenStage.WaitingForFrame
                             directlyConnected = true
                             signalingRetry.reopened()
                             _connectionDetails.value = "屏幕已通过 WebRTC 直连"
-                            flushPendingReleases()
+                            refreshInputAvailability()
                             sampleStats()
                         }
                         PeerConnection.IceConnectionState.DISCONNECTED -> {
                             releaseAllInputs()
+                            mediaConnected = false
+                            refreshInputAvailability()
                             _reconnectingMessage.value = Str.remoteCaptureReconnecting
                             _stage.value = RemoteScreenStage.Reconnecting
                             _connectionDetails.value = Str.remoteCaptureReconnecting
@@ -620,9 +630,10 @@ class NativeRemoteDesktopSession(private val context: Context, private val targe
                 scope.launch {
                     if (stopped || inputChannel !== channel) return@launch
                     when (state) {
-                        DataChannel.State.OPEN -> flushPendingReleases()
+                        DataChannel.State.OPEN -> refreshInputAvailability()
                         DataChannel.State.CLOSED -> {
                             clearTrackedInputs()
+                            hostGrantedInput = false
                             _inputEnabled.value = false
                             _relativePointer.value = false
                             _textInputSupported.value = false
@@ -648,8 +659,9 @@ class NativeRemoteDesktopSession(private val context: Context, private val targe
                     _textInputSupported.value = message["textInput"]?.jsonPrimitive?.contentOrNull == "true"
                     _relativePointer.value = message["pointerMode"]?.jsonPrimitive?.contentOrNull == "relative"
                     // Older hosts enforce input permission at the OS adapter.
-                    _inputEnabled.value = message["inputEnabled"]?.jsonPrimitive?.contentOrNull != "false"
-                    if (_inputEnabled.value) flushPendingReleases() else clearTrackedInputs()
+                    hostGrantedInput = message["inputEnabled"]?.jsonPrimitive?.contentOrNull != "false"
+                    if (!hostGrantedInput) clearTrackedInputs()
+                    refreshInputAvailability()
                 }
             }
         })

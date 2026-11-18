@@ -1,4 +1,5 @@
 import type { AssistantMessage, AssistantMessageEvent } from "@567agent/ai";
+import { collectTextSources, mergeTextSources } from "@567agent/ai/protocol";
 import type { ConversationAgentMessageEvent } from "@567agent/runtime-core/conversation";
 import type { ContentBlock, ToolCallBlock } from "./content-blocks";
 import { createConversationAgentMessage } from "./message-factories";
@@ -173,9 +174,11 @@ function mergeTerminalMessage(
 	if (phase === "aborted") {
 		next = settlePendingToolCalls(next, "cancelled");
 	}
+	const sources = collectTextSources(terminal.content, next.sources);
 	const endedAt = terminal.timestamp;
 	return {
 		...next,
+		...(sources.length ? { sources } : {}),
 		phase,
 		usages: [...(next.usages ?? []), terminal.usage],
 		endedAt,
@@ -190,7 +193,12 @@ export function projectAssistantMessageBlocks(
 	toolStatus: ToolCallBlock["status"] = "pending",
 ): ContentBlock[] {
 	return message.content.flatMap((part, index): ContentBlock[] => {
-		if (part.type === "text") return [{ type: "text", id: `${messageId}:text:${index}`, text: part.text }];
+		if (part.type === "text") {
+			const sources = mergeTextSources([], part.sources);
+			return [
+				{ type: "text", id: `${messageId}:text:${index}`, text: part.text, ...(sources.length ? { sources } : {}) },
+			];
+		}
 		if (part.type === "thinking") {
 			return [{ type: "thinking", id: `${messageId}:thinking:${index}`, text: part.thinking }];
 		}

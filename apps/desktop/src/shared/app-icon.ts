@@ -1,21 +1,10 @@
 // 应用图标（设置 → 外观 → 应用图标）。主进程持久化并应用，renderer 只读写同一个 id。
 
-/** 可选图标：default 是 567 Agent 品牌图标，其余是场景像素图标（图片在 build/app-icons/<id>.png）。 */
-export const APP_ICON_IDS = [
-	"default",
-	"coding",
-	"design",
-	"work",
-	"study",
-	"read",
-	"game",
-	"sport",
-	"cook",
-	"travel",
-	"sleep",
-] as const;
+import previews from "./app-icon-catalog.json";
 
-export type AppIconId = (typeof APP_ICON_IDS)[number];
+export type AppIconId = keyof typeof previews;
+export const APP_ICON_PREVIEWS = previews;
+export const APP_ICON_IDS: readonly AppIconId[] = Object.keys(previews) as AppIconId[];
 
 export const APP_ICON_DEFAULT: AppIconId = "default";
 

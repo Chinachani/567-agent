@@ -1,3 +1,4 @@
+import { collectTextSources, mergeTextSources } from "@567agent/ai/protocol";
 import { BotAvatar } from "@shared/components/BotAvatar";
 import type { ConversationParticipantViewModel } from "@shared/conversation";
 import type { ChatAgentMessageViewModel, ChatToolCallPresentationViewModel } from "@shared/store/atoms";
@@ -24,6 +25,8 @@ import { workSegmentKey } from "./progressGroupModel";
 import { WorkSegmentRenderer } from "./WorkSegmentRenderer";
 import { CopyButton, formatTime, RelativeTimeLabel } from "./MessageActions";
 import { MessageTokenUsage } from "./MessageTokenUsage";
+import { ReplySources } from "./ReplySources";
+import { ReadReplyButton } from "./ReadReplyButton";
 import { formatTurnDuration } from "./turnDuration";
 
 /** Desktop wrapper: injects i18n streaming phrases into theme-ui indicator. */
@@ -145,6 +148,7 @@ export const AssistantMessage = memo(function AssistantMessage({
 				}
 			: null;
 
+	const replySources = useMemo(() => isCurrentlyStreaming || exportMode ? [] : collectTextSources(message.blocks, mergeTextSources([], message.sources)), [message.blocks, message.sources, isCurrentlyStreaming, exportMode]);
 	const showTokenUsage = !exportMode && Boolean(message.usages?.length);
 	const hasActions = conclusionText.length > 0 || showTokenUsage || (!exportMode && Boolean(actions));
 
@@ -271,12 +275,15 @@ export const AssistantMessage = memo(function AssistantMessage({
 						</div>
 					) : null}
 
+					{replySources.length > 0 ? <ReplySources sources={replySources} /> : null}
+
 					{(hasActions || isPredicting) && !isCurrentlyStreaming ? (
 						<MessageLayout.Footer asChild>
 							<div className="gap-2">
 								{hasActions ? (
 									<div className="flex items-center gap-1">
 										{conclusionText.length > 0 && <CopyButton getText={() => conclusionText} />}
+										{!exportMode && conclusionText.length > 0 && <ReadReplyButton text={conclusionText} />}
 										{!exportMode ? actions : null}
 										{(message.endedAt ?? message.timestamp) && (
 											<RelativeTimeLabel endedAt={(message.endedAt ?? message.timestamp) as number} />

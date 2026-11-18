@@ -73,6 +73,7 @@ function getScrollLerpRatio(diff: number, active: boolean): number {
 export interface MessageFeedScrollModel {
 	readonly firstItemIndex?: number;
 	readonly followOutput?: FollowOutput;
+	readonly holdReadingPosition: () => (restoreFollow?: boolean) => void;
 	readonly onAtBottomChange: (atBottom: boolean) => void;
 	readonly scrollerElement: HTMLElement | null;
 	readonly scrollerRef: (element: HTMLElement | Window | null) => void;
@@ -220,9 +221,25 @@ export function useMessageFeedScrollModel<T>({
 	// second animated trip through the list. User navigation still owns this flag.
 	const followHistoryOutput = useCallback(() => (shouldFollowBottomRef.current ? "auto" : false), []);
 
+	const readingHold = useRef<symbol | null>(null);
+	const holdReadingPosition = useCallback(() => {
+		const token = Symbol();
+		const wasFollowing = shouldFollowBottomRef.current;
+		readingHold.current = token;
+		stopFollowingBottom();
+		return (restoreFollow = false) => {
+			if (readingHold.current !== token) return;
+			readingHold.current = null;
+			if (restoreFollow && wasFollowing) {
+				shouldFollowBottomRef.current = true;
+				startFollowingBottom();
+			}
+		};
+	}, [startFollowingBottom, stopFollowingBottom]);
+
 	const onAtBottomChange = useCallback(
 		(atBottom: boolean) => {
-			if (!atBottom || stateItemCountRef.current === 0) return;
+			if (readingHold.current || !atBottom || stateItemCountRef.current === 0) return;
 			shouldFollowBottomRef.current = true;
 			startFollowingBottom();
 		},
@@ -268,6 +285,7 @@ export function useMessageFeedScrollModel<T>({
 	useLayoutEffect(() => {
 		if (previousResetKeyRef.current === resetKey) return;
 		previousResetKeyRef.current = resetKey;
+		readingHold.current = null;
 		setShowScrollToBottom(false);
 		if (lerpAnimationFrameRef.current !== null) {
 			cancelAnimationFrame(lerpAnimationFrameRef.current);
@@ -333,6 +351,7 @@ export function useMessageFeedScrollModel<T>({
 		}
 		const appendedItem = items.at(-1);
 		if (
+			!readingHold.current &&
 			items.length > previousCount &&
 			appendedItem !== undefined &&
 			(!getItemKey || !previousTail || getItemKey(appendedItem) !== getItemKey(previousTail)) &&
@@ -438,6 +457,7 @@ export function useMessageFeedScrollModel<T>({
 
 	return {
 		...(anchorPrependedItems ? { firstItemIndex, followOutput: followHistoryOutput } : {}),
+		holdReadingPosition,
 		onAtBottomChange,
 		restoreStateFrom,
 		scrollerElement,

@@ -125,6 +125,7 @@ data class AppUiState(
     val draft: String = "",
     val pendingImages: List<MessageImage> = emptyList(),
     val pendingFiles: List<PendingFileAttachment> = emptyList(),
+    val retryFileSelection: org.agent567.android.ui.chat.RetryFileSelection? = null,
     val isStreaming: Boolean = false,
     val runningSessionIds: Set<String> = emptySet(),
     val sharedContentToPlace: org.agent567.android.domain.session.SharedDraftContent? = null,
@@ -204,6 +205,8 @@ private data class PreferenceSnapshot(
     val confirmDelete: Boolean,
 )
 
+private const val STREAMING_UI_THROTTLE_MS = 70L
+private const val STREAMING_DISK_CHECKPOINT_MS = 1_000L
 private const val STREAMING_PERSIST_INTERVAL_MS = 1_000L
 private const val NEW_SESSION_SEND_RESERVATION = "__new-session-send__"
 private const val REMOTE_GENERATED_IMAGE_CHUNK_BYTES = 48 * 1024
@@ -441,29 +444,34 @@ class AppViewModel(
     private fun composerOwner(): String? = container.preferences.authUserId.takeIf { it > 0 }?.toString()
         ?: if (container.tokenStore.accessToken == null) container.preferences.remotePairingId?.let { "paired:$it" } ?: "local" else null
 
-    private fun persistCurrentDraft() {
+    private val draftWriter = ComposerDraftWriter(viewModelScope,
+        write = { sid, owner, snapshot -> draftPersistence.withLock { container.sessionStore.saveDraft(sid, owner, snapshot) } },
+        report = { sid, owner, snapshot, saved ->
+            if (owner == composerOwner() && composerDrafts[sid] === snapshot) {
+                if (_state.value.currentSessionId == sid) {
+                    if (!saved) _state.update { it.copy(chatError = UiError(Str.draftSaveFailed, Str.draftSaveFailedHint, UiErrorAction.None)) }
+                    else if (_state.value.chatError?.title in listOf(Str.draftSaveFailed, Str.draftAccountPending)) _state.update { it.copy(chatError = null) }
+                } else if (saved) composerDrafts.remove(sid)
+            }
+        },
+    )
+
+    fun flushComposerDrafts() { draftWriter.flush() }
+
+    private fun persistCurrentDraft(immediate: Boolean = true) {
         val state = _state.value
         val sid = state.currentSessionId ?: return
-        saveComposerDraft(sid, org.agent567.android.domain.session.SessionDraft(state.draft, state.pendingImages, state.pendingFiles))
+        saveComposerDraft(sid, org.agent567.android.domain.session.SessionDraft(state.draft, state.pendingImages, state.pendingFiles), immediate)
     }
 
-    private fun saveComposerDraft(sid: String, draft: org.agent567.android.domain.session.SessionDraft): Job? {
+    private fun saveComposerDraft(sid: String, draft: org.agent567.android.domain.session.SessionDraft, immediate: Boolean = true) {
         composerDrafts[sid] = draft
         drafts[sid] = draft.text
         val owner = composerOwner() ?: run {
             _state.update { it.copy(chatError = UiError(Str.draftAccountPending, Str.draftAccountPendingHint, UiErrorAction.None)) }
-            return null
+            return
         }
-        return viewModelScope.launch {
-            try {
-                draftPersistence.withLock { container.sessionStore.saveDraft(sid, owner, draft) }
-                if (_state.value.currentSessionId == sid && _state.value.chatError?.title == Str.draftAccountPending) _state.update { it.copy(chatError = null) }
-                if (_state.value.currentSessionId != sid && composerDrafts[sid] === draft) composerDrafts.remove(sid)
-            } catch (error: CancellationException) { throw error }
-            catch (_: Throwable) {
-                if (_state.value.currentSessionId == sid) _state.update { it.copy(chatError = UiError(Str.draftSaveFailed, Str.draftSaveFailedHint, UiErrorAction.None)) }
-            }
-        }
+        draftWriter.submit(sid, owner, draft, immediate)
     }
     private var pendingLoginAction: PendingLoginAction? = null
     private var pendingNewChatDraft = ""
@@ -1307,6 +1315,7 @@ class AppViewModel(
                 removedDrafts.forEach { (draft, _) ->
                     if (isEmptyRemoteDraftStillDisposable(draft.id) && container.sessionStore.getMessages(draft.id).isEmpty()) {
                         cancelInputPredictionsForSession(draft.id)
+                        draftWriter.forget(draft.id)
                         container.sessionStore.deleteSession(draft.id)
                         drafts.remove(draft.id)
                         composerDrafts.remove(draft.id)
@@ -1810,6 +1819,10 @@ class AppViewModel(
                 val recoveredRemoteId = if (!recoveredPrefix.isNullOrBlank()) {
                     history.singleOrNull { it.role == ChatRole.Assistant && it.text.startsWith(recoveredPrefix) }?.id
                 } else null
+                // An identical question can be sent with different files. Only adopt unmatched
+                // local file metadata for a unique exact echo on both sides of the pairing.
+                val localUserTexts = cachedMessageList.filter { it.role == ChatRole.User }.groupingBy { it.content }.eachCount()
+                val remoteUserTexts = history.filter { it.role == ChatRole.User }.groupingBy { it.text }.eachCount()
                 val remoteMessages = history.map { item ->
                     val messageId = "desktop-${remoteSessionId}-${item.id}"
                     val cached = cachedMessages[messageId]
@@ -1835,7 +1848,10 @@ class AppViewModel(
                         processingDurationMs = cached?.processingDurationMs,
                         // Tool traces and usage arrive live and are cached locally; the
                         // compact remote history endpoint only returns text and timestamps.
+                        sources = item.sources.orEmpty(),
                         images = cached?.images.orEmpty(),
+                        files = cached?.takeIf { it.id == messageId || (it.role == ChatRole.User && it.content == item.text &&
+                            localUserTexts[item.text] == 1 && remoteUserTexts[item.text] == 1) }?.files.orEmpty(),
                         toolEvents = cached?.toolEvents.orEmpty(),
                         usage = cached?.usage,
                         contextPercent = cached?.contextPercent,
@@ -1949,6 +1965,7 @@ class AppViewModel(
                 return@launch
             }
             if (!isEmptyRemoteDraftStillDisposable(sessionId)) return@launch
+            draftWriter.forget(sessionId)
             container.sessionStore.deleteSession(sessionId)
             resultInboxCoordinator.removeSession(null, sessionId)
             drafts.remove(sessionId)
@@ -2001,6 +2018,7 @@ class AppViewModel(
     }
 
     private fun navigate(route: AppRoute) {
+        if (_state.value.route is AppRoute.Chat && _state.value.route != route) flushComposerDrafts()
         _state.update {
             it.copy(
                 route = route,
@@ -2073,9 +2091,13 @@ class AppViewModel(
 
     val sessionListItems: StateFlow<List<SessionListItem>> =
         combine(container.sessionStore.sessions, _state) { sessionList, s ->
+            val remoteUpdatedAt = s.remoteDesktopSessions.associate { it.id to it.updatedAtEpochMs }
+            val now = nowEpochMs()
             val localItems = sessionList.map { session ->
                 val remoteDevice = session.remoteDeviceId?.let { id -> s.devices.firstOrNull { it.id == id } }
+                val updated = maxOf(session.updatedAtEpochMs, remoteUpdatedAt[session.remoteSessionId] ?: 0L)
                 SessionListItem(
+                    updatedAtEpochMs = updated,
                     id = session.id,
                     title = session.title,
                     subtitle =
@@ -2090,7 +2112,7 @@ class AppViewModel(
                         } else {
                             session.modelName?.takeIf { it.isNotBlank() } ?: Str.filterCloud
                         },
-                    timeLabel = org.agent567.android.ui.formatting.formatRelativeTime(session.updatedAtEpochMs, nowEpochMs()),
+                    timeLabel = org.agent567.android.ui.formatting.formatRelativeTime(updated, now),
                     isCloud = session.origin == ConversationOrigin.Cloud,
                     remoteSessionId = session.remoteSessionId,
                     remoteDeviceId = session.remoteDeviceId,
@@ -2105,18 +2127,13 @@ class AppViewModel(
                         title = summary.title,
                         subtitle = Str.desktopDevice,
                         sourceLabel = Str.desktopDevice,
-                        timeLabel = org.agent567.android.ui.formatting.formatRelativeTime(summary.updatedAtEpochMs, nowEpochMs()),
+                        updatedAtEpochMs = summary.updatedAtEpochMs,
+                        timeLabel = org.agent567.android.ui.formatting.formatRelativeTime(summary.updatedAtEpochMs, now),
                         isCloud = false,
                         remoteSessionId = summary.id,
                     )
                 }
-            (localItems + remoteItems).sortedByDescending { item ->
-                if (item.remoteSessionId != null) {
-                    s.remoteDesktopSessions.firstOrNull { it.id == item.remoteSessionId }?.updatedAtEpochMs ?: 0L
-                } else {
-                    sessionList.firstOrNull { it.id == item.id }?.updatedAtEpochMs ?: 0L
-                }
-            }
+            (localItems + remoteItems).sortedByDescending { it.updatedAtEpochMs }
         }.stateIn(viewModelScope, SharingStarted.Eagerly, emptyList())
 
     fun sessionListItems(): List<SessionListItem> = sessionListItems.value
@@ -2151,6 +2168,22 @@ class AppViewModel(
         _state.update { it.copy(chatError = null) }
     }
 
+    fun appendDictation(
+        route: AppRoute.Chat,
+        snapshot: org.agent567.android.ui.chat.DictationDraftSnapshot,
+        currentVersion: Long,
+        text: String,
+    ): org.agent567.android.ui.chat.DictationApplyResult {
+        val state = _state.value
+        if (state.route != route || state.currentSessionId != snapshot.sessionId || state.isStreaming || state.contextBusy || state.loggingOut)
+            return org.agent567.android.ui.chat.DictationApplyResult.Ignored
+        val result = org.agent567.android.ui.chat.DraftDictationApplier.applyDictation(
+            state.currentSessionId, state.draft, currentVersion, snapshot, text,
+        )
+        if (result is org.agent567.android.ui.chat.DictationApplyResult.Success) onDraftChange(result.newDraft)
+        return result
+    }
+
     fun onDraftChange(value: String) {
         val sid = _state.value.currentSessionId
         if (sid != null) {
@@ -2168,7 +2201,7 @@ class AppViewModel(
                 inputPredictionLoading = sid != null && sid in inputPredictionLoadingSessions,
             )
         }
-        persistCurrentDraft()
+        persistCurrentDraft(immediate = false)
     }
 
     fun selectInputPrediction(value: String) {
@@ -2446,6 +2479,7 @@ class AppViewModel(
             messagesCollectJob?.cancel()
             messagesCollectJob = null
             container.sessionStore.sessions.value.map { it.id }.forEach { id ->
+                draftWriter.forget(id)
                 container.sessionStore.deleteSession(id)
             }
             drafts.clear()
@@ -2755,6 +2789,7 @@ class AppViewModel(
                 mainAccessGranted = false,
                 authLoading = true,
                 loggingOut = true,
+                retryFileSelection = null,
                 sharedContentToPlace = null,
                 sharedContentBusy = false,
                 sharedContentQueued = 0,
@@ -2786,6 +2821,10 @@ class AppViewModel(
             )
         }
         try {
+            draftWriter.flush().forEach { it.join() }
+            if (draftWriter.discardAfterLogout() && keepLocalSessions) _state.update {
+                it.copy(authError = UiError(Str.draftSaveFailed, listOfNotNull(message, Str.logoutDraftWriteFailed).joinToString("\n"), UiErrorAction.None))
+            }
             resultInboxCoordinator.clear()
             withContext(Dispatchers.IO) { authPersistence.withLock {
                 container.client.auth.clearLocalSession()
@@ -2959,6 +2998,7 @@ class AppViewModel(
                     if (_state.value.currentSessionId == it.id) {
                         navigateBackFromSecondary()
                     }
+                    draftWriter.forget(it.id)
                     container.sessionStore.deleteSession(it.id)
                     drafts.remove(it.id)
                     composerDrafts.remove(it.id)
@@ -2979,6 +3019,7 @@ class AppViewModel(
                 return@launch
             }
             cancelStream(sessionId)
+            draftWriter.forget(sessionId)
             container.sessionStore.deleteSession(sessionId)
             resultInboxCoordinator.removeSession(null, sessionId)
             drafts.remove(sessionId)
@@ -3236,8 +3277,9 @@ class AppViewModel(
                     status = MessageStatus.Complete,
                     createdAtEpochMs = nowEpochMs(),
                     images = persistedImages,
-                    files = documents.map { file ->
-                        MessageFileAttachment(file.id, file.fileName, file.mimeType, file.bytes.size.toLong())
+                    files = if (documents.isEmpty()) emptyList() else withContext(Dispatchers.Default) {
+                        documents.map { file -> MessageFileAttachment(file.id, file.fileName, file.mimeType, file.bytes.size.toLong(),
+                            org.agent567.android.data.session.sha256MigrationArchive(file.bytes), file.readScope) }
                     },
                 )
             val isFirstUserMessage = !retryPreviousTurn && container.sessionStore.getMessages(sid).none { it.role == ChatRole.User }
@@ -3286,8 +3328,9 @@ class AppViewModel(
 
             val streamJob = viewModelScope.launch(start = CoroutineStart.LAZY) {
                     taskNotifications.started(sid, assistantId)
-                    var assembled = ""
+                    val assembledBuilder = StringBuilder()
                     var toolEvents = emptyList<ToolTrace>()
+                    var assistantSources = assistantMsg.sources
                     var assistantImages = assistantMsg.images
                     var usage: TokenUsage? = null
                     var contextPercent: Int? = null
@@ -3296,58 +3339,44 @@ class AppViewModel(
                     var responseTruncated = false
                     var generationError: String? = null
                     var recoveryNeedsHistory = false
-                    var pendingPersist: Job? = null
 
-                    suspend fun persistAssistant(status: MessageStatus = MessageStatus.Streaming) {
-                        val snapshot = assistantMsg.copy(
-                            content = assembled,
+                    var terminalPublished = false
+
+                    fun makeSnapshot(status: MessageStatus = MessageStatus.Streaming): LocalMessage {
+                        val contentStr = assembledBuilder.toString()
+                        return assistantMsg.copy(
+                            content = contentStr,
                             status = if (generationError != null) MessageStatus.Error else status,
                             errorMessage = generationError,
                             processingDurationMs = if (status == MessageStatus.Streaming) null else elapsedSince(assistantMsg.createdAtEpochMs),
                             images = assistantImages,
+                            sources = assistantSources,
                             toolEvents = toolEvents,
                             usage = usage,
                             contextPercent = contextPercent,
                             pendingQuestion = pendingQuestion,
                         )
-                        if (status == MessageStatus.Streaming) {
-                            container.sessionStore.upsertStreamingMessage(snapshot)
-                        } else {
-                            container.sessionStore.upsertMessage(snapshot)
-                        }
                     }
 
-                    suspend fun flushPendingPersist() {
-                        pendingPersist?.cancelAndJoin()
-                        pendingPersist = null
-                        persistAssistant()
-                    }
-
-                    fun schedulePersist() {
-                        if (pendingPersist != null) return
-                        pendingPersist = launch {
-                            delay(STREAMING_PERSIST_INTERVAL_MS)
-                            persistAssistant()
-                            pendingPersist = null
+                    suspend fun collectAssistant(history: List<ChatMessage>) = coroutineScope {
+                        val ui = ConflatedStreamPublisher(this, STREAMING_UI_THROTTLE_MS) {
+                            container.sessionStore.updateInMemoryStreamingMessage(makeSnapshot())
                         }
-                    }
-
-                    var history = emptyList<ChatMessage>()
-                    try {
-                        if (session.origin == ConversationOrigin.Cloud && container.networkAvailability.value == NetworkAvailability.Unavailable) {
-                            throw ChatNetworkLostException()
+                        val disk = ConflatedStreamPublisher(this, STREAMING_DISK_CHECKPOINT_MS) {
+                            container.sessionStore.checkpointStreamingMessage(makeSnapshot())
                         }
-                        val storedHistory = container.sessionStore.getMessages(sid)
-                        val historyMessages = storedHistory.filter {
-                            it.id != assistantId &&
-                                it.status != MessageStatus.Error &&
-                                it.hasVisualContent
+                        suspend fun flushAllImmediate(status: MessageStatus = MessageStatus.Streaming) {
+                            ui.stop()
+                            disk.stop()
+                            val snapshot = makeSnapshot(status)
+                            if (snapshot.status == MessageStatus.Streaming) {
+                                container.sessionStore.updateInMemoryStreamingMessage(snapshot)
+                                container.sessionStore.checkpointStreamingMessage(snapshot)
+                            } else {
+                                container.sessionStore.finishStreamingMessage(snapshot)
+                                terminalPublished = true
+                            }
                         }
-                        val selectedHistory = if (session.origin == ConversationOrigin.Cloud) {
-                            mobileContext.selectForPrompt(storedHistory.filterNot { it.id == assistantId }, context, userMsg)
-                        } else historyMessages
-                        val builtHistory = buildChatHistory(selectedHistory)
-                        history = if (session.origin == ConversationOrigin.Cloud) mobileContext.referenceMessages(context) + builtHistory else builtHistory
                         requestRouter
                             .stream(
                                 session = session,
@@ -3369,14 +3398,15 @@ class AppViewModel(
                                 },
                             )
                             .collect { event ->
+                                if (terminalPublished) return@collect
                                 when (event) {
                                     is ChatStreamEvent.Snapshot -> {
-                                        pendingPersist?.cancelAndJoin()
-                                        pendingPersist = null
+                                        assistantSources = event.sources
                                         recoveryNeedsHistory = event.truncated
-                                        assembled = event.text.take(MAX_ASSISTANT_MESSAGE_CHARS)
-                                        if (event.truncated) assembled += "\n\n[恢复内容较长，任务结束后将读取完整记录]"
-                                        hasPublishedDelta = assembled.isNotBlank()
+                                        assembledBuilder.clear()
+                                        assembledBuilder.append(event.text.take(MAX_ASSISTANT_MESSAGE_CHARS))
+                                        if (event.truncated) assembledBuilder.append("\n\n[恢复内容较长，任务结束后将读取完整记录]")
+                                        hasPublishedDelta = assembledBuilder.isNotEmpty()
                                         toolEvents = event.tools.map { tool ->
                                             ToolTrace(tool.phase, tool.toolCallId, tool.toolName, tool.detail?.boundedForStorage(), tool.durationMs, tool.arguments?.boundedForStorage(), tool.result?.boundedForStorage(), tool.phaseLabel)
                                         }
@@ -3387,7 +3417,7 @@ class AppViewModel(
                                             else PendingQuestion(sid, it.requestId, it.questions)
                                         }
                                         event.usage?.let { usage = it.usage; contextPercent = it.contextPercent }
-                                        persistAssistant()
+                                        flushAllImmediate(MessageStatus.Streaming)
                                         // Fetch once the recovered turn stops changing this message.
                                         // Polling a running snapshot must not overwrite downloaded images.
                                         if (event.state in setOf("completed", "error", "aborted")) {
@@ -3399,24 +3429,25 @@ class AppViewModel(
                                         updateVisibleSession(sid) { it.copy(pendingQuestion = pendingQuestion, chatError = null) }
                                     }
                                     is ChatStreamEvent.Delta -> {
+                                        if (event.sources.isNotEmpty()) assistantSources = org.agent567.android.core.model.normalizeChatSources(assistantSources + event.sources)
                                         setStreamStatus(sid, "running")
-                                        val remaining = MAX_ASSISTANT_MESSAGE_CHARS - assembled.length
+                                        val remaining = MAX_ASSISTANT_MESSAGE_CHARS - assembledBuilder.length
                                         if (remaining > 0) {
-                                            assembled += event.text.take(remaining)
+                                            assembledBuilder.append(event.text.take(remaining))
                                         }
                                         if (event.text.length > remaining && !responseTruncated) {
-                                            assembled += "\n\n[回复过长，后续内容已省略]"
+                                            assembledBuilder.append("\n\n[回复过长，后续内容已省略]")
                                             responseTruncated = true
                                         }
-                                        if (!hasPublishedDelta) {
+                                        if (!hasPublishedDelta && event.text.isNotEmpty()) {
                                             hasPublishedDelta = true
-                                            persistAssistant()
+                                            flushAllImmediate(MessageStatus.Streaming)
                                         } else {
-                                            schedulePersist()
+                                            ui.request()
+                                            disk.request()
                                         }
                                     }
                                     is ChatStreamEvent.Tool -> {
-                                        flushPendingPersist()
                                         // A response to a pending question may resume with a tool event.
                                         // The tool event is the durable boundary that clears the prompt.
                                         val isImageGen = event.toolName == "generate_image"
@@ -3495,7 +3526,7 @@ class AppViewModel(
                                                     phaseLabel = displayLabel,
                                                 ),
                                             )
-                                            persistAssistant()
+                                            flushAllImmediate()
 
                                             val imgModel = stateAtSend.activeImageModel ?: "gemini-3.1-flash-image"
                                             val imgGroup = stateAtSend.activeImageGroup
@@ -3546,29 +3577,18 @@ class AppViewModel(
                                                     )
                                                 }
 
-                                                val currentMsg = container.sessionStore.getMessages(sid).firstOrNull { it.id == assistantId }
-                                                val currentImages = (currentMsg?.images ?: assistantMsg.images) + newImages
                                                 val descSuffix = if (cleanText != null) "\n\n" + cleanText else ""
-                                                val finalContent = if (assembled.isBlank()) {
+                                                val currentContent = assembledBuilder.toString()
+                                                val finalContent = if (currentContent.isBlank()) {
                                                     "$doneLabel$descSuffix"
                                                 } else {
-                                                    assembled + descSuffix
+                                                    currentContent + descSuffix
                                                 }
 
-                                                assembled = finalContent
-                                                container.sessionStore.upsertMessage(
-                                                    (currentMsg ?: assistantMsg).copy(
-                                                        content = finalContent,
-                                                        status = MessageStatus.Complete,
-                                                        images = currentImages,
-                                                        toolEvents = updatedTools,
-                                                    )
-                                                )
-                                                assistantImages = container.sessionStore
-                                                    .getMessages(sid)
-                                                    .firstOrNull { it.id == assistantId }
-                                                    ?.images
-                                                    ?: currentImages
+                                                assembledBuilder.clear()
+                                                assembledBuilder.append(finalContent)
+                                                assistantImages += container.sessionStore.persistMessageImages(newImages)
+                                                flushAllImmediate()
                                             } catch (e: Throwable) {
                                                 if (e is CancellationException) throw e
                                                 org.agent567.android.core.error.recordChatFailure(org.agent567.android.core.error.ChatFailureStage.Image, e)
@@ -3586,14 +3606,10 @@ class AppViewModel(
                                                     ),
                                                 )
                                                 toolEvents = failTools
-                                                val currentMsg = container.sessionStore.getMessages(sid).firstOrNull { it.id == assistantId }
-                                                container.sessionStore.upsertMessage(
-                                                    (currentMsg ?: assistantMsg).copy(
-                                                        status = MessageStatus.Error,
-                                                        toolEvents = failTools,
-                                                        errorMessage = failMsg,
-                                                    )
-                                                )
+                                                pendingQuestion = null
+                                                flushAllImmediate(MessageStatus.Error)
+                                                taskNotifications.interrupted(sid)
+                                                setStreamStatus(sid, null)
                                                 updateVisibleSession(sid) {
                                                     it.copy(
                                                         chatError = UiError(
@@ -3618,28 +3634,29 @@ class AppViewModel(
                                                     phaseLabel = event.phaseLabel?.take(160),
                                                 ),
                                             )
-                                            persistAssistant()
+                                            flushAllImmediate(MessageStatus.Streaming)
                                         }
                                     }
                                     is ChatStreamEvent.UserInputRequired -> {
-                                        flushPendingPersist()
                                         container.conversationRouter.resolvedRemoteSessionId(session.id)?.let { remoteId ->
                                             container.sessionStore.updateSession(session.copy(remoteSessionId = remoteId))
                                         }
                                         taskNotifications.needsInput(sid, event.requestId)
                                         pendingQuestion = PendingQuestion(sid, event.requestId, event.questions)
-                                        persistAssistant()
+                                        flushAllImmediate()
                                         updateVisibleSession(sid) { it.copy(pendingQuestion = pendingQuestion) }
                                     }
                                     is ChatStreamEvent.State -> {
                                         when (event.value) {
                                             "usage" -> {
-                                                flushPendingPersist()
                                                 usage = event.usage
                                                 contextPercent = event.contextPercent
-                                                persistAssistant()
+                                                flushAllImmediate()
                                             }
                                             "error" -> {
+                                                generationError = event.detail ?: "桌面执行失败"
+                                                pendingQuestion = null
+                                                flushAllImmediate(MessageStatus.Error)
                                                 taskNotifications.interrupted(sid)
                                                 setStreamStatus(sid, null)
                                                 updateVisibleDesktopSession(sid) {
@@ -3656,9 +3673,8 @@ class AppViewModel(
                                             "retrying", "compacting", "preparing", "background" -> setStreamStatus(sid, event.value)
                                             "aborted" -> {
                                                 taskNotifications.interrupted(sid)
-                                                flushPendingPersist()
                                                 pendingQuestion = null
-                                                persistAssistant(MessageStatus.Aborted)
+                                                flushAllImmediate(MessageStatus.Aborted)
                                                 updateVisibleSession(sid) { it.copy(pendingQuestion = null) }
                                                 setStreamStatus(sid, null)
                                             }
@@ -3666,14 +3682,12 @@ class AppViewModel(
                                         }
                                     }
                                     is ChatStreamEvent.Finished -> event.usage?.let {
-                                        flushPendingPersist()
                                         usage = it
-                                        persistAssistant()
+                                        flushAllImmediate()
                                     }
                                     ChatStreamEvent.Done -> {
-                                        flushPendingPersist()
                                         pendingQuestion = null
-                                        persistAssistant(MessageStatus.Complete)
+                                        flushAllImmediate(MessageStatus.Complete)
                                         if (generationError != null) taskNotifications.interrupted(sid) else taskNotifications.finished(sid, assistantImages.isNotEmpty())
                                         updateVisibleSession(sid) { it.copy(pendingQuestion = null) }
                                         setStreamStatus(sid, null)
@@ -3682,14 +3696,14 @@ class AppViewModel(
                                             container.preferences.inputPredictionEnabled.value &&
                                             session.origin == ConversationOrigin.Cloud &&
                                             predictionModelId != null &&
-                                            assembled.isNotBlank()
+                                            assembledBuilder.isNotBlank()
                                         ) {
                                             val conversation = buildString {
                                                 history.takeLast(6).forEach { message ->
                                                     val role = if (message.role == ChatRole.User) "用户" else "助手"
                                                     append(role).append("：").append(message.textContent.take(700)).append('\n')
                                                 }
-                                                append("助手：").append(assembled.take(1600))
+                                                append("助手：").append(assembledBuilder.take(1600))
                                             }.takeLast(4000)
                                             val predictionSessionId = sid
                                             val predictionGroup = titleGroupName
@@ -3728,7 +3742,7 @@ class AppViewModel(
                                         } else if (
                                             container.preferences.inputPredictionEnabled.value &&
                                             session.origin == ConversationOrigin.Desktop &&
-                                            assembled.isNotBlank()
+                                            assembledBuilder.isNotBlank()
                                         ) {
                                             val remoteSessionId = session.remoteSessionId
                                                 ?: container.conversationRouter.resolvedRemoteSessionId(session.id)
@@ -3774,27 +3788,31 @@ class AppViewModel(
                                             }
                                         }
                                     }
-                                    is ChatStreamEvent.Error -> {
-                                        taskNotifications.interrupted(sid)
-                                        flushPendingPersist()
-                                        pendingQuestion = null
-                                        val ui = ErrorMapper.from(event.exception)
-                                        container.sessionStore.upsertMessage(
-                                            assistantMsg.copy(
-                                                content = assembled,
-                                                status = MessageStatus.Error,
-                                                processingDurationMs = elapsedSince(assistantMsg.createdAtEpochMs),
-                                                images = assistantImages,
-                                                errorMessage = ui.message,
-                                                toolEvents = toolEvents,
-                                                usage = usage,
-                                                contextPercent = contextPercent,
-                                            ),
-                                        )
-                                        setSessionError(sid, event.exception)
-                                    }
+                                    is ChatStreamEvent.Error -> throw event.exception
                                 }
                             }
+                        // A provider may close the flow normally without a separate Done event.
+                        if (!terminalPublished) {
+                            pendingQuestion = null
+                            flushAllImmediate(MessageStatus.Complete)
+                        }
+                    }
+                    try {
+                        if (session.origin == ConversationOrigin.Cloud && container.networkAvailability.value == NetworkAvailability.Unavailable) {
+                            throw ChatNetworkLostException()
+                        }
+                        val storedHistory = container.sessionStore.getMessages(sid)
+                        val historyMessages = storedHistory.filter {
+                            it.id != assistantId &&
+                                it.status != MessageStatus.Error &&
+                                it.hasVisualContent
+                        }
+                        val selectedHistory = if (session.origin == ConversationOrigin.Cloud) {
+                            mobileContext.selectForPrompt(storedHistory.filterNot { it.id == assistantId }, context, userMsg)
+                        } else historyMessages
+                        val builtHistory = buildChatHistory(selectedHistory)
+                        val history = if (session.origin == ConversationOrigin.Cloud) mobileContext.referenceMessages(context) + builtHistory else builtHistory
+                        collectAssistant(history)
                         if (session.origin == ConversationOrigin.Desktop) {
                             val remoteId = session.remoteSessionId
                                 ?: container.conversationRouter.resolvedRemoteSessionId(session.id)
@@ -3821,59 +3839,34 @@ class AppViewModel(
                                 generatePhoneSessionTitle(sid, titlePrompt, titleModelId, titleGroupName)
                             }
                         }
-                        // 正常结束后若仍 streaming 则 complete
-                        val latest =
-                            container.sessionStore.getMessages(sid).firstOrNull { it.id == assistantId }
-                        if (latest != null && latest.status in setOf(MessageStatus.Streaming, MessageStatus.Complete)) {
-                            container.sessionStore.upsertMessage(
-                                latest.copy(
-                                    status = MessageStatus.Complete,
-                                    processingDurationMs = elapsedSince(assistantMsg.createdAtEpochMs),
-                                    pendingQuestion = null,
-                                ),
-                            )
-                        }
                     } catch (t: Throwable) {
                         // Cancellation must still finish durable state before the send gate
                         // opens; otherwise a stale spinner or cleanup can affect the next turn.
                         withContext(NonCancellable) {
-                            pendingPersist?.cancelAndJoin()
-                            pendingPersist = null
+                            // collectAssistant's scope has already joined both publishers. A later
+                            // metadata request must not turn a durable completed reply into a failure.
+                            if (terminalPublished) return@withContext
                             val networkLost = t.isChatNetworkLoss()
                             val stopped = t is CancellationException && !networkLost
                             if (stopped) taskNotifications.stopped(sid) else taskNotifications.interrupted(sid)
                             val ui = ErrorMapper.from(if (networkLost) ChatNetworkLostException() else t)
-                            val latest =
-                                container.sessionStore.getMessages(sid).firstOrNull { it.id == assistantId }
-                            if (latest != null) {
-                                container.sessionStore.upsertMessage(
-                                    assistantMsg.copy(
-                                        content = assembled,
-                                        images = assistantImages,
-                                        status =
-                                            if (stopped) {
-                                                MessageStatus.Aborted
-                                            } else {
-                                                MessageStatus.Error
-                                            },
-                                        processingDurationMs = elapsedSince(assistantMsg.createdAtEpochMs),
-                                        errorMessage = if (stopped) null else ui.message,
-                                        toolEvents = toolEvents,
-                                        usage = usage,
-                                        contextPercent = contextPercent,
-                                        pendingQuestion = null,
-                                    ),
-                                )
-                            }
+                            pendingQuestion = null
+                            val status = if (stopped) MessageStatus.Aborted else MessageStatus.Error
+                            container.sessionStore.finishStreamingMessage(
+                                makeSnapshot(status).copy(status = status, errorMessage = if (stopped) null else ui.message),
+                            )
                             if (!stopped) {
                                 setSessionError(sid, if (networkLost) ChatNetworkLostException() else t)
                                 if (documents.isNotEmpty()) {
-                                    updateVisibleSession(sid) { it.copy(pendingFiles = documents) }
+                                    updateVisibleSession(sid) { current ->
+                                        if (current.draft.isBlank() && current.pendingFiles.isEmpty() && current.pendingImages.isEmpty()) {
+                                            current.copy(pendingFiles = documents)
+                                        } else current
+                                    }
                                 }
                             }
                         }
                     } finally {
-                        pendingPersist?.cancel()
                         if (streamJobs[sid] === currentCoroutineContext()[Job]) {
                             streamJobs.remove(sid)
                             _state.update { it.copy(runningSessionIds = streamJobs.keys.toSet()) }
@@ -4029,11 +4022,7 @@ class AppViewModel(
                         fileName = "generated-${ref.id.take(8)}.${imageExtension(mimeType)}",
                         base64Data = encoded.toString(),
                     )
-                    val message = container.sessionStore.getMessages(localSessionId)
-                        .firstOrNull { it.id == assistantMessageId } ?: return@launch
-                    if (message.images.none { it.id == image.id }) {
-                        container.sessionStore.upsertMessage(message.copy(images = message.images + image))
-                    }
+                    container.sessionStore.attachMessageImage(localSessionId, assistantMessageId, image)
                 } catch (error: Throwable) {
                     if (error is CancellationException) throw error
                     updateVisibleDesktopSession(localSessionId) {
@@ -4116,6 +4105,58 @@ class AppViewModel(
         }
     }
 
+    // Network failure may already have restored the attachments from this exact turn.
+    // Preserve any independently edited draft or changed attachment selection.
+    private fun AppUiState.canRestoreRetry(expected: List<MessageFileAttachment>): Boolean {
+        if (draft.isNotEmpty() || pendingImages.isNotEmpty()) return false
+        if (pendingFiles.isEmpty()) return true
+        return pendingFiles.size == expected.size && pendingFiles.zip(expected).all { (file, old) ->
+            file.id == old.id && file.fileName == old.fileName && file.readScope == old.readScope && file.bytes.size.toLong() == old.sizeBytes
+        }
+    }
+
+    fun cancelRetryFiles() { _state.update { it.copy(retryFileSelection = null) } }
+
+    suspend fun restoreRetryFiles(selection: org.agent567.android.ui.chat.RetryFileSelection, picked: List<org.agent567.android.ui.media.PickedFileAttachment>): String? {
+        val sid = selection.sessionId
+        fun ready(): String? {
+            val state = _state.value
+            if (state.retryFileSelection !== selection || state.route !is AppRoute.Chat || state.currentSessionId != sid ||
+                authRevision != selection.authRevision || composerOwner() != selection.owner || state.isStreaming || state.contextBusy || sid in pendingSendReservations) return Str.retryPickExpired
+            if (!state.canRestoreRetry(selection.files)) return Str.retryDraftOccupied
+            return null
+        }
+        ready()?.let { return it }
+        if (picked.size != selection.files.size || picked.size !in 1..MAX_MESSAGE_FILE_COUNT ||
+            picked.any { it.bytes.size !in 1..org.agent567.android.ui.media.MAX_MESSAGE_FILE_BYTES } ||
+            picked.sumOf { it.bytes.size.toLong() } > MAX_MESSAGE_FILE_TOTAL_BYTES) return Str.retryPickMismatch
+        return try {
+            val matched = withContext(Dispatchers.Default) {
+                val pool = picked.map { it to org.agent567.android.data.session.sha256MigrationArchive(it.bytes) }.toMutableList()
+                // Match strong identities first when migrating mixed old and new metadata.
+                selection.files.withIndex().sortedBy { it.value.sha256 == null }.map { (position, expected) ->
+                    val index = pool.indexOfFirst { (file, digest) -> file.fileName == expected.fileName && file.bytes.size.toLong() == expected.sizeBytes &&
+                        (expected.sha256 == null || expected.sha256 == digest) }
+                    if (index < 0) return@withContext null
+                    val file = pool.removeAt(index).first
+                    position to PendingFileAttachment(newMessageId(), file.fileName, file.mimeType, file.bytes, expected.readScope)
+                }.sortedBy { it.first }.map { it.second }
+            } ?: return Str.retryPickMismatch
+            val turn = prepareRetryTurn(container.sessionStore.getMessages(sid), selection.assistantId) ?: return Str.retryPickExpired
+            if (turn.files != selection.files) return Str.retryPickExpired
+            val images = turn.images.map { image ->
+                if (image.pendingBytes != null || image.base64Data.isNotBlank()) image
+                else image.copy(storageKey = null, pendingBytes = container.sessionStore.readMessageImageBytes(image) ?: return Str.retryMissingImageMessage)
+            }
+            ready()?.let { return it }
+            val draft = org.agent567.android.domain.session.SessionDraft(turn.draft, images, matched)
+            saveComposerDraft(sid, draft)
+            _state.update { it.copy(draft = draft.text, pendingImages = images, pendingFiles = matched, retryFileSelection = null, chatError = null) }
+            null
+        } catch (cancelled: CancellationException) { throw cancelled }
+        catch (_: Exception) { Str.shareReadFailed }
+    }
+
     fun retryLastError(assistantMessageId: String? = null) {
         val retryRoute = _state.value.route
         val sid = _state.value.currentSessionId ?: return
@@ -4126,11 +4167,14 @@ class AppViewModel(
                 val messages = container.sessionStore.getMessages(sid)
                 val turn = prepareRetryTurn(messages, assistantMessageId) ?: return@launch
                 if (turn.files.isNotEmpty()) {
-                    updateVisibleSession(sid) {
-                        it.copy(chatError = UiError(
-                            title = Str.retryFileAttachmentUnavailableTitle,
-                            message = Str.retryFileAttachmentUnavailableMessage,
-                        ))
+                    val current = _state.value
+                    val owner = composerOwner() ?: return@launch
+                    if (current.route != retryRoute || current.currentSessionId != sid) return@launch
+                    if (!current.canRestoreRetry(turn.files)) {
+                        updateVisibleSession(sid) { it.copy(chatError = UiError(Str.retryPickFiles, Str.retryDraftOccupied)) }
+                    } else {
+                        val selection = org.agent567.android.ui.chat.RetryFileSelection(sid, turn.assistantMessageId, turn.files, authRevision, owner)
+                        updateVisibleSession(sid) { it.copy(retryFileSelection = selection, chatError = null) }
                     }
                     return@launch
                 }
@@ -4327,6 +4371,7 @@ class AppViewModel(
     }
 
     private fun setStreamStatus(sessionId: String, status: String?) {
+        if (streamStatuses[sessionId] == status && (_state.value.currentSessionId != sessionId || _state.value.streamingStatus == status)) return
         if (status == null) streamStatuses.remove(sessionId) else streamStatuses[sessionId] = status
         updateVisibleSession(sessionId) { it.copy(streamingStatus = status) }
     }

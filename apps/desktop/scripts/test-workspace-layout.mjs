@@ -150,8 +150,9 @@ function runProbe({ root, artifacts, pageFilter }) {
 				webPreferences: { sandbox: true, backgroundThrottling: false },
 			});
 			const errors = [];
-			win.webContents.on("console-message", (_event, level, message) => {
-				if (level >= 3) errors.push(message);
+			let pageContext = "initializing";
+			win.webContents.on("console-message", ({ level, message }) => {
+				if (level === "error") errors.push(`${pageContext}: ${message}`);
 			});
 			const call = async (fn, arg) => {
 				let timer;
@@ -168,8 +169,10 @@ function runProbe({ root, artifacts, pageFilter }) {
 							timer = setTimeout(() => reject(Error("UI operation timed out: " + fn.toString().slice(0, 180))), 5000);
 						}),
 					]);
-					if (result?.__error) throw Error(result.__error + "\nRenderer errors: " + errors.slice(-5).join("\n"));
+					if (result?.__error) throw Error(result.__error);
 					return result;
+				} catch (error) {
+					throw new Error(`Workspace probe (${pageContext}): ${error.message}\nRenderer errors: ${errors.slice(-5).join("\n")}`, { cause: error });
 				} finally {
 					clearTimeout(timer);
 				}
@@ -224,6 +227,7 @@ function runProbe({ root, artifacts, pageFilter }) {
                         "taskQueue", "taskQueueCollapsed", "updates", "taskRunning", "taskWaiting", "taskFailed", "taskStopped", "taskComplete", "deliveries",
                     ]) {
                         if (pageFilter && !pageFilter.includes(page)) continue;
+						pageContext = `${page}, ${mode}, ${width}px`;
 						win.setContentSize(width, 780);
 						// Resizes apply asynchronously; wait until the content size settles so the page
 						// measures the requested width instead of the previous one.
@@ -324,6 +328,7 @@ function runProbe({ root, artifacts, pageFilter }) {
 							);
 					}
 			win.setContentSize(800, 780);
+			pageContext = "workspace actions, 800px";
 			await win.loadFile(path.join(root, "out/index.html"));
 			await call(
 				() =>

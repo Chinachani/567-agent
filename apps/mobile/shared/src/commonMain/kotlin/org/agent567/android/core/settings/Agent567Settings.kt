@@ -15,6 +15,10 @@ internal class Agent567Settings(private val delegate: Settings) : Settings by de
         val old = legacy(key)?.takeIf(delegate::hasKey) ?: return@synchronized null
         get(old)?.also { put(key, it) }
     }
+    /** A background projection must not migrate a legacy alias as a side effect of reading. */
+    fun peekString(key: String): String? = synchronized(lock) {
+        if (delegate.hasKey(key)) delegate.getStringOrNull(key) else legacy(key)?.let(delegate::getStringOrNull)
+    }
     override fun getStringOrNull(key: String): String? = read(key, delegate::getStringOrNull, delegate::putString)
     override fun getString(key: String, defaultValue: String): String = getStringOrNull(key) ?: defaultValue
     override fun putString(key: String, value: String) = synchronized(lock) { delegate.putString(key, value); legacy(key)?.let(delegate::remove); Unit }

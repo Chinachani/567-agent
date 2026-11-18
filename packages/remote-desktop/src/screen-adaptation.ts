@@ -9,6 +9,7 @@ export class ScreenAdaptation {
 	private adaptiveScale = 1;
 	private pressureSince: number | undefined;
 	private healthySince: number | undefined;
+	private stillSince: number | undefined;
 	private lastSample: number | undefined;
 	private lastChange = -Infinity;
 
@@ -16,6 +17,7 @@ export class ScreenAdaptation {
 		this.adaptiveScale = 1;
 		this.pressureSince = undefined;
 		this.healthySince = undefined;
+		this.stillSince = undefined;
 		this.lastSample = undefined;
 		this.lastChange = -Infinity;
 	}
@@ -31,16 +33,21 @@ export class ScreenAdaptation {
 		if (this.lastSample !== undefined && now - this.lastSample > 2500) {
 			this.pressureSince = undefined;
 			this.healthySince = undefined;
+			this.stillSince = undefined;
 		}
 		this.lastSample = now;
 		const fps = sample.encodedFps ?? sample.sentFps ?? 0;
 		const moving = Math.max(sample.sourceFps ?? 0, fps) >= 15;
+		// A long but stable route is different from a growing queue. Require independent
+		// evidence from the sender before backing off; WebRTC still owns bitrate control.
+		const delayGrowing = (sample.excessRoundTripMs ?? 0) >= 100;
 		const pressure =
 			moving &&
 			(sample.limitedBy === "cpu" ||
 				sample.limitedBy === "bandwidth" ||
 				(sample.encodeMs ?? 0) > 28 ||
 				(sample.packetSendDelayMs ?? 0) > 80 ||
+				(delayGrowing && (sample.packetSendDelayMs ?? 0) > 45) ||
 				((sample.sourceFps ?? 0) >= 25 && fps < 24));
 		const headroom =
 			sample.availableKbps === undefined ||
@@ -53,9 +60,26 @@ export class ScreenAdaptation {
 			sample.encodeMs !== undefined &&
 			sample.encodeMs < 20 &&
 			(sample.packetSendDelayMs ?? 0) < 40 &&
+			!delayGrowing &&
 			headroom;
 		this.pressureSince = pressure ? (this.pressureSince ?? now) : undefined;
 		this.healthySince = healthy ? (this.healthySince ?? now) : undefined;
+		// An idle document cannot produce 27 fps to earn detail back. Probe one step only
+		// after sustained positive transport evidence; silence/missing measurements do not count.
+		const quietWithHeadroom =
+			!moving &&
+			this.adaptiveScale > 1 &&
+			sample.limitedBy === "none" &&
+			(sample.sourceFps !== undefined || sample.encodedFps !== undefined) &&
+			sample.roundTripMs !== undefined &&
+			(sample.roundTripMs < 150 || (sample.excessRoundTripMs !== undefined && sample.excessRoundTripMs < 40)) &&
+			!delayGrowing &&
+			sample.availableKbps !== undefined &&
+			sample.sentKbps !== undefined &&
+			sample.availableKbps >= Math.max(1500, sample.sentKbps * 1.5) &&
+			(sample.encodeMs ?? 0) < 20 &&
+			(sample.packetSendDelayMs ?? 0) < 40;
+		this.stillSince = quietWithHeadroom ? (this.stillSince ?? now) : undefined;
 		const base = screenScaleDown(capture, software, shown);
 		const current = this.scale(capture, software, shown);
 		// Avoid shrinking below a usable 640x360 bounding box, or enlarging a small source.
@@ -65,11 +89,12 @@ export class ScreenAdaptation {
 			this.lastChange = now;
 			this.pressureSince = undefined;
 		} else if (
-			this.healthySince !== undefined &&
-			now - this.healthySince >= 10_000 &&
+			((this.healthySince !== undefined && now - this.healthySince >= 10_000) ||
+				(this.stillSince !== undefined && now - this.stillSince >= 20_000)) &&
 			now - this.lastChange >= 10_000
 		) {
 			this.adaptiveScale = Math.max(1, this.adaptiveScale / 1.25);
+			this.stillSince = undefined;
 			this.lastChange = now;
 			this.healthySince = undefined;
 		}

@@ -10,6 +10,18 @@ const TextContentSchema = Type.Object(
 		type: Type.Literal("text"),
 		text: Type.String(),
 		textSignature: Type.Optional(Type.String()),
+		sources: Type.Optional(
+			Type.Array(
+				Type.Object(
+					{
+						url: Type.String({ maxLength: 2048, pattern: "^https?://" }),
+						title: Type.Optional(Type.String({ maxLength: 240 })),
+					},
+					{ additionalProperties: false },
+				),
+				{ maxItems: 32 },
+			),
+		),
 	},
 	{ additionalProperties: false },
 );

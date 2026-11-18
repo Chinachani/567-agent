@@ -19,6 +19,7 @@ export interface RemoteDesktopHostStartOptions {
 	readonly waitForPeerReady?: boolean;
 	/** Recreate the host when the viewer rejoins signaling but its existing direct peer has dropped. */
 	readonly onViewerReplaced?: () => void;
+	readonly onInputClosed?: () => void;
 	/** Observe peer state so a host can distinguish relay loss from a dead direct connection. */
 	readonly onConnectionStateChange?: (state: RTCPeerConnectionState) => void;
 }
@@ -38,6 +39,7 @@ export class RemoteDesktopHost {
 	private peerReady = false;
 	private hasNegotiated = false;
 	private negotiation: Promise<void> | undefined;
+	private onInputClosed: (() => void) | undefined;
 	private onViewerReplaced: (() => void) | undefined;
 	private onConnectionStateChange: ((state: RTCPeerConnectionState) => void) | undefined;
 	private viewerRejoined = false;
@@ -84,6 +86,7 @@ export class RemoteDesktopHost {
 		if (this.closed) throw new Error("remote desktop host is closed");
 		if (this.started) throw new Error("remote desktop host is already started");
 		this.onViewerReplaced = startOptions.onViewerReplaced;
+		this.onInputClosed = startOptions.onInputClosed;
 		this.onConnectionStateChange = startOptions.onConnectionStateChange;
 		if (stream.getVideoTracks().length === 0) throw new Error("screen stream must contain a video track");
 		for (const track of stream.getTracks()) {
@@ -183,6 +186,9 @@ export class RemoteDesktopHost {
 
 	private configureInputChannel(channel: RTCDataChannel): void {
 		channel.onopen = () => this.sendCapabilities();
+		channel.onclose = () => {
+			if (!this.closed) this.onInputClosed?.();
+		};
 		channel.onmessage = (event) => {
 			if (this.closed) return;
 			if (typeof event.data !== "string" || event.data.length > 8192) {

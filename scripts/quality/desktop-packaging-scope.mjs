@@ -3,6 +3,10 @@ import { pathToFileURL } from "node:url";
 import { changedFiles } from "./lib.mjs";
 
 const PACKAGED_SMOKE_PATTERNS = [
+	/^apps\/desktop\/(build\/|src\/shared\/app-icon(?:\.ts|-catalog\.json)$|src\/renderer\/domains\/settings\/assets\/app-icons\/|scripts\/(app-icon-resources|build-resource-filters|desktop-after-pack|verify-packaging-contract)\.)/,
+	/^apps\/desktop\/src\/renderer\/(shared\/components\/ModelSelect\/|domains\/conversation\/(components\/(ModelSelector|model-selector-footer)\.tsx|hooks\/useModelSelectorModel\.ts)$)/,
+	/^packages\/theme-ui\/src\/chat\/ModelSelector(Trigger|View)\.tsx$/,
+	/^scripts\/quality\/desktop-packaging-scope\.mjs$/,
 	/^packages\/plugins\/presets\/vetta-ui-design\/(src|engine)\//,
 	/^apps\/desktop\/scripts\/(test-canvas-gestures\.mjs|fixtures\/canvas-gestures\.jsx)$/,
 	/^packages\/theme-ui\/src\/chat\/TaskProgressView\.tsx$/,
@@ -24,7 +28,7 @@ const PACKAGED_SMOKE_PATTERNS = [
 	/^apps\/desktop\/(src\/main|src\/preload|scripts\/(prepare-pack\.js|desktop-build-environment\.mjs|mac-signing-config\.mjs|run-open-source-build\.mjs)|scripts\/desktop-packaging-layout\.mjs|scripts\/packaged-native-dependencies\.|vite\..*config\.|package\.json|wdio\.conf\.ts|e2e\/)/,
 	/^packages\/(remote-control|remote-desktop)\//,
 	/^bun\.lock$/,
-	/^\.github\/workflows\/(quality|desktop-packaged)\.yml$/,
+	/^\.github\/workflows\/(quality|desktop-packaged|desktop-release)\.yml$/,
 ];
 
 export function classifyDesktopPackagingRisk(paths) {
@@ -58,7 +62,10 @@ export function writeDesktopPackagingScopeOutput(result, outputPath = process.en
 }
 
 export function main() {
-	const result = classifyDesktopPackagingRisk(changedFiles(resolveBaseRef()));
+	const result =
+		process.env.GITHUB_EVENT_NAME === "workflow_dispatch"
+			? { packagedSmokeRequired: true, reasons: ["manual packaged workflow"] }
+			: classifyDesktopPackagingRisk(changedFiles(resolveBaseRef()));
 	console.log(
 		`[desktop-packaging-scope] packaged smoke: ${result.packagedSmokeRequired ? "required" : "not required"}`,
 	);

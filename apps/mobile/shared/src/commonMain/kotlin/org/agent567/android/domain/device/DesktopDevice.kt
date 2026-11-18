@@ -38,4 +38,5 @@ data class SessionListItem(
     val favorite: Boolean = false,
     val remoteSessionId: String? = null,
     val remoteDeviceId: String? = null,
+    val updatedAtEpochMs: Long = 0,
 )
