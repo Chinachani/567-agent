@@ -60,6 +60,12 @@ fun mapRemotePointer(x: Float, y: Float, width: Int, height: Int, frameWidth: In
     return RemotePointerPosition(nx.coerceIn(0f, 1f), ny.coerceIn(0f, 1f))
 }
 
+internal fun keyboardRemoteView(base: RemoteViewTransform, width: Int, height: Int, frameWidth: Int?, frameHeight: Int?, inset: Float): RemoteViewTransform {
+    val fit = fitRemoteVideo(width, height, frameWidth, frameHeight)
+    val blackBelow = ((height - fit.height * base.scale) / 2f - base.panY).coerceAtLeast(0f)
+    return transformRemoteView(base, 1f, 0f, 0f, 0f, -(inset - blackBelow).coerceAtLeast(0f), width, height, frameWidth, frameHeight, inset)
+}
+
 /** Keep a locally known trackpad cursor in view when zoomed. Pan only at a visible edge. */
 internal fun followTrackpadCursor(
     current: RemoteViewTransform, cursor: RemotePointerPosition, width: Int, height: Int,

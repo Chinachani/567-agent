@@ -12,6 +12,8 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
 import org.agent567.android.ui.i18n.Str
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.launch
 
 private data class RemoteShortcut(val id: String, val label: String, val keys: List<String>)
 private val shortcuts = listOf(
@@ -28,7 +30,8 @@ private val shortcuts = listOf(
     RemoteShortcut("all", Str.remoteShortcutSelectAll, listOf("ControlLeft", "KeyA")),
     RemoteShortcut("undo", Str.remoteShortcutUndo, listOf("ControlLeft", "KeyZ")),
     RemoteShortcut("save", Str.remoteShortcutSave, listOf("ControlLeft", "KeyS")),
-)
+) + listOf("Home", "End", "Insert", "Delete", "PageUp", "PageDown").map { RemoteShortcut(it, it, listOf(it)) } +
+    (1..12).map { RemoteShortcut("F$it", "F$it", listOf("F$it")) }
 
 @Composable
 internal fun RemoteKeyboardShortcuts(onKey: (String, String) -> Unit, enabled: Boolean = true) {
@@ -39,13 +42,21 @@ internal fun RemoteKeyboardShortcuts(onKey: (String, String) -> Unit, enabled: B
             ?: shortcuts.take(10).map { it.id }
     ) }
     var configure by remember { mutableStateOf(false) }
+    val scope = rememberCoroutineScope()
+    val currentKey by rememberUpdatedState(onKey)
     fun update(ids: List<String>) { order = ids; preferences.edit().putString("shortcuts-v1", ids.joinToString(",")).apply() }
     Row(Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(4.dp)) {
         order.mapNotNull { id -> shortcuts.find { it.id == id } }.forEach { shortcut ->
-            TextButton(enabled = enabled, modifier = Modifier.heightIn(min = 48.dp), onClick = {
-                try { shortcut.keys.forEach { onKey(it, "down") } }
-                finally { shortcut.keys.asReversed().forEach { onKey(it, "up") } }
-            }) { Text(shortcut.label) }
+            fun down() = shortcut.keys.forEach { currentKey(it, "down") }
+            fun up() = shortcut.keys.asReversed().forEach { currentKey(it, "up") }
+            RemoteHoldButton(shortcut.label, enabled, { try { down() } finally { up() } }, {
+                down()
+                val repeat = if (shortcut.id in repeatableKeys) scope.launch {
+                    while (true) { delay(80); down() }
+                } else null
+                val release: () -> Unit = { repeat?.cancel(); up() }
+                release
+            }) { held -> Text(shortcut.label, color = if (held) MaterialTheme.colorScheme.tertiary else MaterialTheme.colorScheme.primary) }
         }
         TextButton(onClick = { configure = true }, modifier = Modifier.heightIn(min = 48.dp)) { Text(Str.remoteCustomizeShortcuts) }
     }
@@ -66,3 +77,5 @@ internal fun RemoteKeyboardShortcuts(onKey: (String, String) -> Unit, enabled: B
         }
     }, confirmButton = { TextButton(onClick = { configure = false }) { Text(Str.close) } })
 }
+
+private val repeatableKeys = setOf("backspace", "Delete", "up", "down", "left", "right", "PageUp", "PageDown")

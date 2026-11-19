@@ -354,11 +354,11 @@ class NativeRemoteDesktopSession(private val context: Context, private val targe
     }
 
     fun sendText(text: String): Boolean {
-        if (text.isBlank() || !_textInputSupported.value) return false
+        if (text.isBlank() || text.length > 256 || !_textInputSupported.value) return false
         return sendInput(buildJsonObject {
             put("type", "text")
             put("sequence", sequence.getAndIncrement())
-            put("text", text.take(256))
+            put("text", text)
         })
     }
 

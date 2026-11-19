@@ -145,7 +145,7 @@ object Str {
     val featureGuideTopics = listOf(
         "直接在手机对话" to "1. 登录账号后，选择对话分组和模型。\n2. 新建会话，说明目标与期望结果；可附上图片。\n3. 查看回复后继续追问。断网会保留消息，请先检查记录，再决定重试。",
         "继续电脑上的任务" to "1. 在电脑的远程连接设置中生成配对码。\n2. 手机扫码连接，进入设备或电脑会话列表。\n3. 打开已有会话继续任务；电脑需要保持运行。手机直连与电脑使用各自的线路和模型设置。",
-        "远程控制与输入" to "1. 在电脑确认共享画面，远程输入需单独开启并同意系统授权。\n2. 手机进入全屏，触控板模式下单指移动、轻点点击；双指同向滑动滚动页面，捏合缩放、三指平移画面。\n3. 展开操控栏使用键盘和快捷键。发送文字会粘贴并更新电脑剪贴板；可随时在电脑撤销输入权限。",
+        "远程控制与输入" to "1. 在电脑确认共享画面，远程输入需单独开启并同意系统授权。\n2. 手机进入全屏，单指轻点左击、长按右击；双指捏合缩放。按住悬浮鼠标键时，可用另一根手指在画面上拖动。\n3. 点右侧箭头展开工具。点键盘可用手机输入法直接打字；在「更多」勾选「使用文字输入框」可先编辑再发送。画面会按键盘遮挡高度上移。键盘工具里点按修饰键可锁定，再点一次松开；长按则只在按住期间生效。部分电脑通过剪贴板粘贴文字。",
         "上下文与附件工作台" to "1. 从聊天顶部打开上下文管理或会话工作台。\n2. 检查用量、发送范围和附件预览；文件存在不代表模型已经读取。\n3. 长对话可压缩历史或开始新的上下文，完整记录仍保留。压缩会调用模型并产生用量。",
         "模型与生成图片" to "1. 在模型选择中区分对话分组与生图分组。\n2. 描述画面、风格和尺寸；修改图片时附上参考图。\n3. 查看图片结果后继续提出修改。能力和用量取决于当前分组。画布、设计与协作配置可在电脑端使用。",
         "账号与连接排查" to "1. 点击「我的」顶部个人信息，可修改昵称、密码、邮箱，或退出登录。\n2. 如提示登录暂时无法验证，先检查服务线路和网络，再点击重新验证；临时网络故障会保留登录。\n3. 保留聊天记录；不要反复重发可能已送达的任务。支付未开放时可使用已有兑换码，或稍后再试。",
@@ -228,6 +228,17 @@ object Str {
     const val topupCreateFailed = "创建支付订单失败"
 
     const val remoteExpandControls = "展开操控栏"
+    const val remoteSystemKeyboard = "打开手机输入法"
+    const val remoteHideKeyboard = "收起键盘"
+    const val remoteUseDraft = "使用文字输入框"
+    const val remoteUseDraftHint = "关闭时，手机输入法直接输入到电脑"
+    const val remoteModifierHint = "组合键需要一个字母、数字或按键。输入词句前请先松开修饰键。"
+    const val remoteMoveMouse = "上下拖动以移动鼠标面板"
+    const val remoteFloatingMouse = "显示悬浮鼠标键和滚轮"
+    const val remoteScrollUp = "向上滚动"
+    const val remoteScrollDown = "向下滚动"
+    const val remoteImeNotSent = "这段文字未发送，请检查连接和电脑的输入权限。"
+    const val remoteImeTooLong = "这段文字超过 256 字，未发送。请分段输入。"
     const val remoteMoreControls = "更多远控操作"
     const val remoteTrackpad = "触控板"
     const val remoteTouch = "平板点按"
@@ -296,7 +307,7 @@ object Str {
     const val remoteExited = "已退出远控"
     const val remoteClosePreview = "关闭预览"
     const val remoteRecoveryHint = "请确认电脑在线；重新连接时电脑可能需要再次批准共享。"
-    const val remoteClipboardHint = "发送文字会粘贴到电脑，并更新电脑剪贴板"
+    const val remoteClipboardHint = "发送到电脑当前窗口；部分电脑会更新剪贴板"
     const val collapse = "收起"
     const val send = "发送"
     const val viewOnly = "仅查看"

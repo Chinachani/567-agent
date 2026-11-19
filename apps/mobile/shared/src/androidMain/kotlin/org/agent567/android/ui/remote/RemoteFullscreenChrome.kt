@@ -8,8 +8,15 @@ import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.selection.selectable
 import androidx.compose.foundation.selection.selectableGroup
+import androidx.compose.foundation.selection.toggleable
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.ChevronLeft
+import androidx.compose.material.icons.filled.ChevronRight
+import androidx.compose.material.icons.filled.KeyboardArrowUp
+import androidx.compose.material.icons.filled.KeyboardArrowDown
+import androidx.compose.material.icons.filled.DragHandle
 import androidx.compose.material.icons.filled.Keyboard
 import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.material3.*
@@ -65,6 +72,12 @@ internal fun RemoteFullscreenToolbar(
     onMouseHold: (String) -> (() -> Unit)? = { null },
     pointerSpeed: Int = 1,
     onPointerSpeed: ((Int) -> Unit)? = null,
+    handleModifier: Modifier = Modifier,
+    showMouse: Boolean = false,
+    onShowMouse: (Boolean) -> Unit = {},
+    useDraft: Boolean = false,
+    onUseDraft: ((Boolean) -> Unit)? = null,
+    textAvailable: Boolean = true,
 ) {
     var expanded by rememberSaveable { mutableStateOf(false) }
     var help by remember { mutableStateOf(false) }
@@ -72,22 +85,19 @@ internal fun RemoteFullscreenToolbar(
     var statistics by remember { mutableStateOf(false) }
     var more by remember { mutableStateOf(false) }
     Agent567Theme(ThemeMode.Dark) {
-        Box(modifier, contentAlignment = Alignment.Center) {
+        Box(modifier, contentAlignment = Alignment.CenterEnd) {
             if (!expanded) {
-                TextButton(onClick = { expanded = true }, modifier = Modifier.heightIn(min = 48.dp)) {
-                    Surface(shape = MaterialTheme.shapes.large, color = MaterialTheme.colorScheme.surface.copy(alpha = .8f)) {
-                        Column(Modifier.padding(horizontal = 14.dp, vertical = 4.dp), horizontalAlignment = Alignment.CenterHorizontally) {
-                            Text(Str.remoteExpandControls, style = MaterialTheme.typography.labelMedium)
-                            if (!inputEnabled) Text(Str.viewOnly, style = MaterialTheme.typography.labelSmall)
-                        }
+                Surface(shape = CircleShape, color = MaterialTheme.colorScheme.primary.copy(alpha = .92f)) {
+                    IconButton(onClick = { expanded = true }, modifier = handleModifier.size(48.dp)) {
+                        Icon(Icons.Default.ChevronLeft, if (inputEnabled) Str.remoteExpandControls else "${Str.remoteExpandControls} · ${Str.viewOnly}")
                     }
                 }
             } else Surface(color = MaterialTheme.colorScheme.surface.copy(alpha = .9f), shape = MaterialTheme.shapes.medium) {
                 Row(Modifier.padding(horizontal = 4.dp), verticalAlignment = Alignment.CenterVertically) {
                     Row(Modifier.weight(1f, fill = false).horizontalScroll(rememberScrollState()), verticalAlignment = Alignment.CenterVertically) {
+                        IconButton(enabled = inputEnabled, onClick = { expanded = false; onKeyboard() }) { Icon(Icons.Default.Keyboard, Str.remoteSystemKeyboard) }
                         RemoteMouseButton(Str.remoteLeftButton, inputEnabled, { onMouseButton("left") }, { onMouseHold("left") })
                         RemoteMouseButton(Str.remoteRightButton, inputEnabled, { onMouseButton("right") }, { onMouseHold("right") })
-                        IconButton(enabled = inputEnabled, onClick = onKeyboard, modifier = Modifier.sizeIn(minWidth = 48.dp, minHeight = 48.dp)) { Icon(Icons.Default.Keyboard, Str.remoteInputText) }
                         TextButton(onClick = { chooseInput = true }, modifier = Modifier.heightIn(min = 48.dp)
                             .semantics { onClick(label = Str.remoteChooseInput, action = null) }) {
                             Text(if (relativePointer || !directTouch) Str.remoteTrackpad else Str.remoteTouch, maxLines = 1)
@@ -96,6 +106,12 @@ internal fun RemoteFullscreenToolbar(
                     Box {
                         IconButton(onClick = { more = true }) { Icon(Icons.Default.MoreVert, Str.remoteMoreControls) }
                         DropdownMenu(expanded = more, onDismissRequest = { more = false }) {
+                            if (onUseDraft != null) DropdownMenuItem(text = { Column {
+                                Text(Str.remoteUseDraft)
+                                Text(if (!textAvailable) Str.remoteTextInputUpdate else Str.remoteUseDraftHint, style = MaterialTheme.typography.labelSmall)
+                            } },
+                                leadingIcon = { Checkbox(checked = useDraft || !textAvailable, onCheckedChange = null) },
+                                enabled = textAvailable, onClick = { more = false; onUseDraft(!useDraft) })
                             DropdownMenuItem(text = { Text(Str.remoteFitScreen) }, enabled = canReset, onClick = { more = false; onReset() })
                             DropdownMenuItem(
                                 text = { Text(if (stats == Str.connectionStatus) stats else "${Str.connectionStatus} · $stats") },
@@ -109,7 +125,7 @@ internal fun RemoteFullscreenToolbar(
                             DropdownMenuItem(text = { Text(Str.exitRemoteDesktopFullscreen) }, onClick = { more = false; onExit() })
                         }
                     }
-                    TextButton(onClick = { expanded = false }, modifier = Modifier.heightIn(min = 48.dp)) { Text(Str.collapse, maxLines = 1) }
+                    IconButton(onClick = { expanded = false }, modifier = handleModifier.size(48.dp)) { Icon(Icons.Default.ChevronRight, Str.collapse) }
                 }
             }
         }
@@ -123,6 +139,11 @@ internal fun RemoteFullscreenToolbar(
                     onDirectTouch(true); chooseInput = false
                 }
                 if (relativePointer) Text(Str.remoteDirectUnavailable, style = MaterialTheme.typography.bodySmall)
+                Row(Modifier.fillMaxWidth().heightIn(min = 48.dp).toggleable(showMouse, role = Role.Checkbox, onValueChange = onShowMouse),
+                    verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Checkbox(checked = showMouse, onCheckedChange = null)
+                    Text(Str.remoteFloatingMouse)
+                }
                 if (!tabletSelected && onPointerSpeed != null) {
                     HorizontalDivider()
                     Text(Str.remotePointerSpeed, style = MaterialTheme.typography.labelLarge)
@@ -149,6 +170,23 @@ internal fun RemoteFullscreenToolbar(
         }, confirmButton = { TextButton(onClick = { help = false }, modifier = Modifier.heightIn(min = 48.dp)) { Text(Str.remoteGotIt) } },
             dismissButton = if (inputEnabled) ({ TextButton(onClick = { help = false; chooseInput = true }) { Text(Str.remoteChooseInput) } }) else null)
         if (statistics) AlertDialog(onDismissRequest = { statistics = false }, title = { Text(Str.connectionStatus) }, text = { Text(details.ifBlank { stats }) }, confirmButton = { TextButton(onClick = { statistics = false }, modifier = Modifier.heightIn(min = 48.dp)) { Text(Str.close) } })
+    }
+}
+
+@Composable
+internal fun RemoteFloatingMouse(grip: Modifier, onClick: (String) -> Unit, onHold: (String) -> (() -> Unit)?, onScroll: (Float) -> Unit) {
+    Surface(shape = MaterialTheme.shapes.large, color = androidx.compose.ui.graphics.Color.Black.copy(alpha = .65f), contentColor = androidx.compose.ui.graphics.Color.White) {
+        Column(horizontalAlignment = Alignment.CenterHorizontally) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                IconButton(onClick = { onScroll(-40f) }) { Icon(Icons.Default.KeyboardArrowUp, Str.remoteScrollUp) }
+                IconButton(onClick = { onScroll(40f) }) { Icon(Icons.Default.KeyboardArrowDown, Str.remoteScrollDown) }
+            }
+            Box(grip.size(96.dp, 32.dp), contentAlignment = Alignment.Center) { Icon(Icons.Default.DragHandle, Str.remoteMoveMouse) }
+            Row {
+                RemoteMouseButton(Str.remoteLeftButton, true, { onClick("left") }, { onHold("left") }, leftFace = true)
+                RemoteMouseButton(Str.remoteRightButton, true, { onClick("right") }, { onHold("right") }, leftFace = false)
+            }
+        }
     }
 }
 

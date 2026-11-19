@@ -57,14 +57,14 @@ class RemoteTouchScreenTest {
             RemoteFullscreenToolbar(true, false, true, "5 ms", "1920×1080", { exited = true }, {}, {}, {})
         }
         composeRule.onNodeWithText("退出全屏").assertDoesNotExist()
-        composeRule.onNodeWithText(Str.remoteExpandControls).performClick()
+        composeRule.onNodeWithContentDescription(Str.remoteExpandControls).performClick()
         composeRule.onNodeWithText("触控板").performScrollTo().assertIsDisplayed()
         composeRule.onNodeWithContentDescription(Str.remoteMoreControls).performClick()
         composeRule.onNodeWithText(Str.remoteHelp).performClick()
         composeRule.onNodeWithText("知道了").performClick()
-        composeRule.onNodeWithText("收起").performClick()
+        composeRule.onNodeWithContentDescription(Str.collapse).performClick()
         composeRule.onNodeWithText("退出全屏").assertDoesNotExist()
-        composeRule.onNodeWithText(Str.remoteExpandControls).performClick()
+        composeRule.onNodeWithContentDescription(Str.remoteExpandControls).performClick()
         composeRule.onNodeWithContentDescription(Str.remoteMoreControls).performClick()
         composeRule.onNodeWithText("退出全屏").performClick()
         composeRule.runOnIdle { assertTrue(exited) }
@@ -75,7 +75,7 @@ class RemoteTouchScreenTest {
         composeRule.setContent {
             RemoteFullscreenToolbar(false, true, false, "5 ms", "", {}, {}, {}, {}, onMouseButton = { buttons += it })
         }
-        composeRule.onNodeWithText(Str.remoteExpandControls).performClick()
+        composeRule.onNodeWithContentDescription(Str.remoteExpandControls).performClick()
         composeRule.onNodeWithText(Str.remoteLeftButton).performClick()
         composeRule.onNodeWithText(Str.remoteRightButton).performClick()
         composeRule.runOnIdle { assertEquals(listOf("left", "right"), buttons) }
@@ -92,7 +92,7 @@ class RemoteTouchScreenTest {
                     trackpadMode = !direct, onRelativePointer = { x, y -> relativeMoves += x to y })
             }
         }
-        composeRule.onNodeWithText(Str.remoteExpandControls).performClick()
+        composeRule.onNodeWithContentDescription(Str.remoteExpandControls).performClick()
         composeRule.onNodeWithText(Str.remoteTrackpad).performScrollTo().performClick()
         composeRule.onNodeWithText("${Str.remoteTouch} · ${Str.remoteTouchOption}").assertIsEnabled().performClick()
         composeRule.onNodeWithTag("tablet").performTouchInput { click(Offset(width * .75f, centerY)) }
@@ -108,9 +108,46 @@ class RemoteTouchScreenTest {
         val keys = mutableListOf<Pair<String, String>>()
 		composeRule.setContent { RemoteKeyboardShortcuts(onKey = { key, action -> keys += key to action }) }
         composeRule.onNodeWithText("Tab").performClick()
-        composeRule.onNodeWithText("Ctrl+V").performScrollTo().performClick()
+        composeRule.onNodeWithContentDescription(Str.remoteShortcutPaste).performScrollTo().performClick()
         composeRule.runOnIdle {
             assertEquals(listOf("Tab" to "down", "Tab" to "up", "ControlLeft" to "down", "KeyV" to "down", "KeyV" to "up", "ControlLeft" to "up"), keys)
+        }
+    }
+
+    @androidx.test.filters.SdkSuppress(minSdkVersion = 30)
+    @Test fun nativeEditorCommitsCompositionOnceAndForwardsBackspace() {
+        val texts = mutableListOf<String>()
+        val keys = mutableListOf<Pair<String, String>>()
+        var open by mutableStateOf(true)
+        composeRule.setContent {
+            if (open) org.agent567.android.ui.remote.RemoteDirectTyping({ texts.add(it) }, { k, a -> keys += k to a }, { open = false })
+        }
+        composeRule.waitUntil(8000) { composeRule.activity.currentFocus?.onCheckIsTextEditor() == true }
+        composeRule.waitUntil(8000) {
+            composeRule.activity.window.decorView.rootWindowInsets?.isVisible(android.view.WindowInsets.Type.ime()) == true
+        }
+        val connection = composeRule.runOnIdle {
+            val view = requireNotNull(composeRule.activity.currentFocus)
+            val connection = requireNotNull(view.onCreateInputConnection(android.view.inputmethod.EditorInfo()))
+            connection.setComposingText("zhong", 1)
+            assertTrue(texts.isEmpty())
+            assertTrue(connection.commitText("中", 1))
+            connection.finishComposingText()
+            assertTrue(connection.deleteSurroundingText(1, 0))
+            assertEquals(listOf("中"), texts)
+            assertEquals(listOf("Backspace" to "down", "Backspace" to "up"), keys)
+            connection
+        }
+        composeRule.onNodeWithText(Str.remoteHideKeyboard).performClick()
+        composeRule.runOnIdle { assertFalse(connection.commitText("stale", 1)); assertEquals(listOf("中"), texts) }
+    }
+
+    @Test fun holdingPasteReleasesItsChordWithoutAnotherTap() {
+        val keys = mutableListOf<Pair<String, String>>()
+        composeRule.setContent { RemoteKeyboardShortcuts(onKey = { code, action -> keys += code to action }) }
+        composeRule.onNodeWithContentDescription(Str.remoteShortcutPaste).performScrollTo().performTouchInput { longClick() }
+        composeRule.runOnIdle {
+            assertEquals(listOf("ControlLeft" to "down", "KeyV" to "down", "KeyV" to "up", "ControlLeft" to "up"), keys)
         }
     }
 
@@ -175,7 +212,7 @@ class RemoteTouchScreenTest {
 
     @Test fun relativeOnlyHostExplainsWhyDirectTouchIsUnavailable() {
         composeRule.setContent { RemoteFullscreenToolbar(true, false, false, "5 ms", "", {}, {}, {}, {}) }
-        composeRule.onNodeWithText(Str.remoteExpandControls).performClick()
+        composeRule.onNodeWithContentDescription(Str.remoteExpandControls).performClick()
         composeRule.onNodeWithText(Str.remoteTrackpad).performScrollTo().performClick()
         composeRule.onNodeWithText(org.agent567.android.ui.i18n.Str.remoteDirectUnavailable).assertIsDisplayed()
         composeRule.onNodeWithText("${Str.remoteTouch} · ${Str.remoteTouchOption}").assertIsNotEnabled()
@@ -197,7 +234,7 @@ class RemoteTouchScreenTest {
     @Test fun absoluteHostOffersDirectTouchAsAnExplicitChoice() {
         var direct by mutableStateOf(false)
         composeRule.setContent { RemoteFullscreenToolbar(false, direct, false, "5 ms", "", {}, { direct = it }, {}, {}) }
-        composeRule.onNodeWithText(Str.remoteExpandControls).performClick()
+        composeRule.onNodeWithContentDescription(Str.remoteExpandControls).performClick()
         composeRule.onNodeWithText(Str.remoteTrackpad).performScrollTo().performClick()
         composeRule.onNodeWithText("${Str.remoteTouch} · ${Str.remoteTouchOption}").performClick()
         composeRule.onNodeWithText(Str.remoteTouch).assertIsDisplayed()

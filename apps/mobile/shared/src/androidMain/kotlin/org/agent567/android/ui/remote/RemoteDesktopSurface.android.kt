@@ -35,20 +35,24 @@ import androidx.compose.ui.window.DialogProperties
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
 import androidx.lifecycle.compose.LocalLifecycleOwner
-import kotlinx.coroutines.flow.first
 import org.agent567.android.app.ThemeMode
 import org.agent567.android.domain.remote.RemoteScreenStage
 import org.agent567.android.domain.remote.RemoteVideoPreference
 import org.agent567.android.domain.remote.RemoteStreamStats
 import org.agent567.android.domain.remote.RemotePointerInput
+import org.agent567.android.domain.remote.RemotePointerPosition
 import org.agent567.android.domain.remote.RemoteViewTransform
 import org.agent567.android.domain.remote.transformRemoteView
 import org.agent567.android.domain.remote.fitRemoteVideo
 import org.agent567.android.domain.remote.followTrackpadCursor
+import org.agent567.android.domain.remote.keyboardRemoteView
 import org.agent567.android.ui.i18n.Str
 import org.agent567.android.ui.theme.Agent567Theme
 import kotlin.math.roundToInt
 
+private enum class RemoteTyping { System, Draft }
+
+@OptIn(ExperimentalLayoutApi::class)
 @Composable
 actual fun RemoteDesktopSurface(
     target: String,
@@ -77,6 +81,8 @@ actual fun RemoteDesktopSurface(
     val preferences = remember(context) { context.getSharedPreferences("remote-controls", android.content.Context.MODE_PRIVATE) }
     var videoPreference by remember { mutableStateOf(RemoteVideoPreference.entries.find { it.wire == preferences.getString("video-preference", "auto") } ?: RemoteVideoPreference.Auto) }
     var pointerSpeed by remember { mutableIntStateOf(preferences.getInt("pointer-speed-v1", 1).coerceIn(0, 2)) }
+    var floatingMouse by remember { mutableStateOf(preferences.getBoolean("floating-mouse", true)) }
+    var useDraft by remember { mutableStateOf(preferences.getBoolean("keyboard-use-draft", false)) }
     var connectionPanel by remember { mutableStateOf(false) }
     val clipboard = LocalClipboardManager.current
     var pasteFeedback by remember { mutableStateOf<String?>(null) }
@@ -93,18 +99,23 @@ actual fun RemoteDesktopSurface(
         )
     }
     var fullscreen by remember(target) { mutableStateOf(false) }
-    var keyboardOpen by remember(target) { mutableStateOf(false) }
+    var typing by remember(session) { mutableStateOf<RemoteTyping?>(null) }
+    val keyboardOpen = typing != null
     var remoteText by remember(target) { mutableStateOf("") }
     var directTouch by rememberSaveable(target) { mutableStateOf(true) }
     var transform by remember(target) { mutableStateOf(RemoteViewTransform()) }
-    var controlsBottomInsetPx by remember(target) { mutableFloatStateOf(0f) }
+    var controlsBottomInsetPx by remember(typing) { mutableFloatStateOf(0f) }
+    var manualKeyboardView by remember(typing) { mutableStateOf<RemoteViewTransform?>(null) }
     var fullscreenViewport by remember(target) { mutableStateOf(IntSize.Zero) }
     val effectiveBottomInsetPx = if (keyboardOpen) controlsBottomInsetPx else 0f
     val frameWidth = videoSize?.width ?: stats?.frameWidth
     val frameHeight = videoSize?.height ?: stats?.frameHeight
+    val canvasTransform = if (!keyboardOpen) transform else manualKeyboardView?.let {
+        transformRemoteView(it, 1f, 0f, 0f, 0f, 0f, fullscreenViewport.width, fullscreenViewport.height, frameWidth, frameHeight, effectiveBottomInsetPx)
+    } ?: keyboardRemoteView(transform, fullscreenViewport.width, fullscreenViewport.height, frameWidth, frameHeight, effectiveBottomInsetPx)
     val textFocusRequester = remember { FocusRequester() }
     val keyboardController = LocalSoftwareKeyboardController.current
-    LaunchedEffect(fullscreen, effectiveBottomInsetPx, fullscreenViewport, frameWidth, frameHeight) {
+    LaunchedEffect(fullscreen, fullscreenViewport, frameWidth, frameHeight) {
         if (fullscreen && fullscreenViewport.width > 0 && fullscreenViewport.height > 0) {
             transform = transformRemoteView(
                 transform, 1f,
@@ -112,11 +123,13 @@ actual fun RemoteDesktopSurface(
                 0f, 0f,
                 fullscreenViewport.width, fullscreenViewport.height,
                 frameWidth, frameHeight,
-                effectiveBottomInsetPx,
             )
         }
     }
-    LaunchedEffect(inputEnabled) { if (!inputEnabled) pointerInput.resetButtons() }
+    LaunchedEffect(inputEnabled, textInputSupported) {
+        if (!inputEnabled) { pointerInput.resetButtons(); typing = null }
+        if (!textInputSupported && typing == RemoteTyping.System) typing = null
+    }
     fun releaseControls() { pointerInput.resetButtons(); session.releaseAllInputs() }
     DisposableEffect(session) { session.start(); onDispose { pointerInput.resetButtons(); session.stop() } }
     val lifecycleOwner = LocalLifecycleOwner.current
@@ -125,7 +138,7 @@ actual fun RemoteDesktopSurface(
             when (event) {
                 Lifecycle.Event.ON_START, Lifecycle.Event.ON_RESUME -> session.resumeRenderer()
                 Lifecycle.Event.ON_PAUSE, Lifecycle.Event.ON_STOP -> {
-                    releaseControls()
+                    releaseControls(); typing = null
                     session.pauseRenderer()
                 }
                 else -> Unit
@@ -134,8 +147,8 @@ actual fun RemoteDesktopSurface(
         lifecycleOwner.lifecycle.addObserver(observer)
         onDispose { lifecycleOwner.lifecycle.removeObserver(observer) }
     }
-    fun closeFullscreen() { releaseControls(); keyboardOpen = false; keyboardController?.hide(); fullscreen = false }
-    fun retry() { session.stop(); exited = false; keyboardOpen = false; controlsBottomInsetPx = 0f; transform = RemoteViewTransform(); attempt++ }
+    fun closeFullscreen() { releaseControls(); typing = null; keyboardController?.hide(); fullscreen = false }
+    fun retry() { session.stop(); exited = false; typing = null; controlsBottomInsetPx = 0f; transform = RemoteViewTransform(); attempt++ }
     fun exit() { closeFullscreen(); exited = true; session.stop(); onExit() }
     fun sendRemoteText() {
         if (remoteText.isBlank() || remoteText.length > 256 || !textInputSupported || !inputEnabled) return
@@ -175,22 +188,23 @@ actual fun RemoteDesktopSurface(
         }, onReconnect = ::retry, onDismiss = { connectionPanel = false })
     if (fullscreen) {
         RemoteFullscreenOrientation(lockLandscape = LocalConfiguration.current.smallestScreenWidthDp < 600)
-        fun closeKeyboard() { releaseControls(); keyboardOpen = false; keyboardController?.hide() }
+        fun closeKeyboard() { releaseControls(); typing = null }
         Dialog(onDismissRequest = { if (keyboardOpen) closeKeyboard() else closeFullscreen() }, properties = DialogProperties(usePlatformDefaultWidth = false, decorFitsSystemWindows = false)) {
         RemoteImmersiveWindow()
         val dialogKeyboard = LocalSoftwareKeyboardController.current
-        val ime = WindowInsets.ime
-        val density = LocalDensity.current
-        LaunchedEffect(keyboardOpen, session) {
-            if (keyboardOpen) {
+        val imeHeight = WindowInsets.ime.getBottom(LocalDensity.current)
+        val imeVisible = WindowInsets.isImeVisible
+        var seenIme by remember(typing) { mutableStateOf(false) }
+        LaunchedEffect(typing, imeHeight, imeVisible) {
+            if (typing == RemoteTyping.System) controlsBottomInsetPx = imeHeight.toFloat()
+            if (keyboardOpen && imeVisible) seenIme = true
+            if (keyboardOpen && seenIme && !imeVisible) closeKeyboard()
+        }
+        LaunchedEffect(typing) {
+            if (typing == RemoteTyping.Draft) {
                 textFocusRequester.requestFocus()
                 dialogKeyboard?.show()
-                // An attached physical keyboard may never raise the IME. Keep its text field usable.
-                snapshotFlow { ime.getBottom(density) > 0 }.first { it }
-                snapshotFlow { ime.getBottom(density) > 0 }.first { !it }
-                releaseControls()
-                keyboardOpen = false
-            }
+            } else if (typing == null) dialogKeyboard?.hide()
         }
         if (connectionPanel) RemoteConnectionPanel(stage, stats, inputEnabled, videoPreference, preferenceSupported,
             onPreference = {
@@ -201,6 +215,8 @@ actual fun RemoteDesktopSurface(
         Surface(Modifier.fillMaxSize(), color = Color.Black) {
             RemoteFullscreenLayout(
                 keyboardOpen = keyboardOpen,
+                draftOpen = typing == RemoteTyping.Draft,
+                onDraftOcclusion = { controlsBottomInsetPx = it },
                 video = {
                     key(session) {
                         RemoteCanvas(
@@ -209,11 +225,12 @@ actual fun RemoteDesktopSurface(
                             interactive = true,
                             message = visibleMessage,
                             modifier = Modifier.fillMaxSize(),
-                            transform = transform,
-                            onTransform = { transform = it },
+                            transform = canvasTransform,
+                            onTransform = { if (it != canvasTransform) { if (keyboardOpen) manualKeyboardView = it else transform = it } },
                             relativePointer = relativePointer,
                             directTouch = directTouch, pointerSpeed = pointerSpeed,
                             editingText = keyboardOpen,
+                            showCursor = floatingMouse && inputEnabled,
                             onRetry = ::retry,
                             onExit = ::exit,
                             pointerInput = pointerInput,
@@ -222,19 +239,25 @@ actual fun RemoteDesktopSurface(
                         )
                     }
                 },
-                toolbar = {
+                toolbar = { handle ->
                     RemoteFullscreenToolbar(
                     relativePointer = relativePointer, directTouch = directTouch, canReset = transform != RemoteViewTransform(),
                     stats = buildList { if (!inputEnabled) add(Str.viewOnly); stats?.roundTripMs?.let { add("${it.roundToInt()} ms") }; stats?.framesPerSecond?.let { add("${it.roundToInt()} FPS") } }.joinToString(" · ").ifBlank { Str.connectionStatus },
                     details = stage.label(), onExit = ::closeFullscreen,
                     onDirectTouch = { releaseControls(); directTouch = it }, onReset = { transform = RemoteViewTransform() },
-                    onKeyboard = { releaseControls(); keyboardOpen = !keyboardOpen; if (!keyboardOpen) keyboardController?.hide() },
+                    onKeyboard = { releaseControls(); pasteFeedback = null; typing = if (useDraft || !textInputSupported) RemoteTyping.Draft else RemoteTyping.System },
+                    useDraft = useDraft, onUseDraft = { useDraft = it; preferences.edit().putBoolean("keyboard-use-draft", it).apply() },
+                    textAvailable = textInputSupported, handleModifier = handle, showMouse = floatingMouse,
+                    onShowMouse = { floatingMouse = it; preferences.edit().putBoolean("floating-mouse", it).apply() },
                     pointerSpeed = pointerSpeed, onPointerSpeed = { pointerSpeed = it; preferences.edit().putInt("pointer-speed-v1", it).apply() },
                     onMouseButton = pointerInput::click, onMouseHold = pointerInput::hold,
                     inputEnabled = inputEnabled,
                     onConnectionPanel = { connectionPanel = true },
                     modifier = Modifier,
                     )
+                },
+                mouse = { grip ->
+                    if (floatingMouse && inputEnabled) RemoteFloatingMouse(grip, pointerInput::click, pointerInput::hold) { session.sendScroll(0f, it) }
                 },
                 banner = {
                     if (reconnectingMessage != null && visibleMessage == null) {
@@ -259,30 +282,23 @@ actual fun RemoteDesktopSurface(
                         }
                     }
                 },
-                onBottomInsetChanged = { controlsBottomInsetPx = it },
                 controls = {
-                    if (keyboardOpen) Surface(color = MaterialTheme.colorScheme.surface) {
+                    if (typing == RemoteTyping.System && inputEnabled && textInputSupported) {
+                        RemoteDirectTyping(
+                            onText = { typing == RemoteTyping.System && session.sendText(it) },
+                            onKey = { code, action -> if (typing == RemoteTyping.System || action == "up") session.sendKey(code, action) },
+                        ) { closeKeyboard(); dialogKeyboard?.hide() }
+                    } else if (typing == RemoteTyping.Draft) Surface(color = MaterialTheme.colorScheme.surface) {
                         val shiftedTransform = transformRemoteView(
-                            transform, 1f,
+                            canvasTransform, 1f,
                             fullscreenViewport.width / 2f, fullscreenViewport.height / 2f,
                             0f, -effectiveBottomInsetPx,
                             fullscreenViewport.width, fullscreenViewport.height,
                             frameWidth, frameHeight,
                             effectiveBottomInsetPx,
                         )
-                        val restoredTransform = transformRemoteView(
-                            transform, 1f,
-                            fullscreenViewport.width / 2f, fullscreenViewport.height / 2f,
-                            0f, effectiveBottomInsetPx,
-                            fullscreenViewport.width, fullscreenViewport.height,
-                            frameWidth, frameHeight,
-                            0f,
-                        )
-                        val normalMinY = if (fullscreenViewport.width > 0 && fullscreenViewport.height > 0 && frameWidth != null && frameWidth > 0 && frameHeight != null && frameHeight > 0) {
-                            -maxOf(0f, (fitRemoteVideo(fullscreenViewport.width, fullscreenViewport.height, frameWidth, frameHeight).height * transform.scale - fullscreenViewport.height) / 2f)
-                        } else 0f
-                        val isShiftedForKeyboard = transform.panY < normalMinY - 1f
-                        val canShiftForKeyboard = effectiveBottomInsetPx > 0f && shiftedTransform.panY < transform.panY - 1f
+                        val isShiftedForKeyboard = canvasTransform.panY < transform.panY - 1f
+                        val canShiftForKeyboard = effectiveBottomInsetPx > 0f && shiftedTransform.panY < canvasTransform.panY - 1f
                         var toolsOpen by remember { mutableStateOf(false) }
                         Column {
                             if (toolsOpen) Column(Modifier.weight(1f, fill = false).verticalScroll(rememberScrollState())) {
@@ -298,7 +314,7 @@ actual fun RemoteDesktopSurface(
                                         }
                                     }) { Text(Str.remotePastePhoneText) }
                                     if (isShiftedForKeyboard || canShiftForKeyboard) {
-                                        TextButton(onClick = { transform = if (isShiftedForKeyboard) restoredTransform else shiftedTransform }) {
+                                        TextButton(onClick = { manualKeyboardView = if (isShiftedForKeyboard) transform else shiftedTransform }) {
                                             Text(if (isShiftedForKeyboard) Str.remoteKeyboardShiftRestore else Str.remoteKeyboardShiftUp)
                                         }
                                     }
@@ -346,6 +362,7 @@ private fun RemoteCanvas(
     directTouch: Boolean = true,
     pointerSpeed: Int = 1,
     editingText: Boolean = false,
+    showCursor: Boolean = false,
     onRetry: () -> Unit = {},
     onExit: () -> Unit = {},
     pointerInput: RemotePointerInput,
@@ -367,6 +384,7 @@ private fun RemoteCanvas(
     var viewport by remember { mutableStateOf(IntSize.Zero) }
     val density = androidx.compose.ui.platform.LocalDensity.current.density
     val fitForPointer = fitRemoteVideo(viewport.width, viewport.height, frameWidth, frameHeight)
+    val localCursor = remember(session, relativePointer, useTrackpad, showCursor) { mutableStateOf<RemotePointerPosition?>(null) }
     LaunchedEffect(viewport, frameWidth, frameHeight, transform.scale) {
         val fit = fitRemoteVideo(viewport.width, viewport.height, frameWidth, frameHeight)
         session.updateViewport((fit.width * transform.scale).roundToInt(), (fit.height * transform.scale).roundToInt())
@@ -388,11 +406,15 @@ private fun RemoteCanvas(
             scaleX = transform.scale; scaleY = transform.scale
             translationX = transform.panX; translationY = transform.panY
         }, factory = { session.createRenderer() }, onRelease = { session.releaseRenderer(it) })
+        if (interactive && showCursor && !relativePointer) RemoteCursorOverlay(Modifier.matchParentSize(), fitForPointer, transform) { localCursor.value }
         if (interactive) RemoteTouchLayer(
             frameWidth = frameWidth, frameHeight = frameHeight, transform = transform,
             onTransform = onTransform,
             onPointer = { type, p, button, action ->
-                if (session.inputEnabled.value) pointerInput.pointer(type, p, button, action, trackpad = useTrackpad)
+                if (session.inputEnabled.value) {
+                    pointerInput.pointer(type, p, button, action, trackpad = useTrackpad)
+                    if (showCursor && !relativePointer && !useTrackpad) localCursor.value = p
+                }
             },
             onScroll = session::sendScroll,
             onKey = { code, down -> androidRemoteKeyCode(code)?.let { session.sendKey(it, if (down) "down" else "up") } },
@@ -403,6 +425,7 @@ private fun RemoteCanvas(
                 pointerInput.moveBy(dx * gain, dy * gain, (fitForPointer.width * transform.scale / density).roundToInt(),
                     (fitForPointer.height * transform.scale / density).roundToInt(), relativePointer)
                 if (!relativePointer) {
+                    if (showCursor) localCursor.value = pointerInput.currentPosition()
                     val next = followTrackpadCursor(transform, pointerInput.currentPosition(), viewport.width, viewport.height, frameWidth, frameHeight, bottomInsetPx)
                     if (next != transform) onTransform(next)
                 }

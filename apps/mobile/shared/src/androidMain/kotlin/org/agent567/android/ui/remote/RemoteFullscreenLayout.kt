@@ -1,56 +1,62 @@
 package org.agent567.android.ui.remote
 
+import androidx.compose.foundation.gestures.Orientation
+import androidx.compose.foundation.gestures.draggable
+import androidx.compose.foundation.gestures.rememberDraggableState
 import androidx.compose.foundation.layout.*
 import androidx.compose.runtime.*
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.saveable.rememberSaveableStateHolder
 import androidx.compose.ui.Alignment
+import androidx.compose.ui.BiasAlignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.layout.positionInRoot
 import androidx.compose.ui.unit.dp
 
-/** Only the controls avoid the keyboard. Video size and pointer coordinates stay fixed. */
 @Composable
 internal fun RemoteFullscreenLayout(
     video: @Composable () -> Unit,
-    toolbar: @Composable () -> Unit,
+    toolbar: @Composable (Modifier) -> Unit,
     controls: @Composable () -> Unit,
     modifier: Modifier = Modifier,
     keyboardOpen: Boolean = false,
-    imeInsets: WindowInsets = WindowInsets.ime,
+    draftOpen: Boolean = false,
+    onDraftOcclusion: (Float) -> Unit = {},
     banner: @Composable () -> Unit = {},
-    onBottomInsetChanged: (Float) -> Unit = {},
+    mouse: @Composable (Modifier) -> Unit = {},
 ) {
-    var rootHeight by remember { mutableIntStateOf(0) }
-    var rootTop by remember { mutableFloatStateOf(0f) }
-    var controlsTop by remember { mutableStateOf<Float?>(null) }
-    val latestOnBottomInsetChanged by rememberUpdatedState(onBottomInsetChanged)
     val toolbarState = rememberSaveableStateHolder()
-    LaunchedEffect(keyboardOpen, rootHeight, rootTop, controlsTop) {
-        val inset = if (keyboardOpen) controlsTop?.let { (rootHeight - (it - rootTop)).coerceAtLeast(0f) } ?: 0f else 0f
-        latestOnBottomInsetChanged(inset)
-    }
-    Box(
-        modifier.fillMaxSize().onGloballyPositioned { coords ->
-            rootHeight = coords.size.height
-            rootTop = coords.positionInRoot().y
-        },
-    ) {
+    var safeHeight by remember { mutableIntStateOf(0) }
+    var rootBottom by remember { mutableFloatStateOf(0f) }
+    Box(modifier.fillMaxSize().onGloballyPositioned { rootBottom = it.positionInRoot().y + it.size.height }) {
         Box(Modifier.matchParentSize()) { video() }
-        Box(Modifier.align(Alignment.TopCenter).displayCutoutPadding()) { banner() }
-        if (keyboardOpen) Box(
-            Modifier.align(Alignment.BottomCenter)
-                .windowInsetsPadding(imeInsets)
-                .navigationBarsPadding()
-                .displayCutoutPadding()
-                .padding(8.dp)
-                .onGloballyPositioned { coords ->
-                    controlsTop = if (coords.size.height > 0) coords.positionInRoot().y else null
-                },
-        ) { controls() } else Box(
-            Modifier.align(Alignment.BottomCenter).displayCutoutPadding().navigationBarsPadding().padding(6.dp),
-        ) {
-            toolbarState.SaveableStateProvider("pointer-toolbar") { toolbar() }
+        Box(Modifier.matchParentSize().displayCutoutPadding().navigationBarsPadding().padding(horizontal = 6.dp, vertical = 4.dp)
+            .onSizeChanged { safeHeight = it.height }) {
+            Box(Modifier.align(Alignment.TopCenter)) { banner() }
+            if (draftOpen) Box(Modifier.align(Alignment.BottomCenter).imePadding().onGloballyPositioned {
+                onDraftOcclusion((rootBottom - it.positionInRoot().y).coerceAtLeast(0f))
+            }) { controls() }
+            else if (keyboardOpen) Box(Modifier.align(Alignment.TopStart).imePadding()) { controls() }
+            else {
+                toolbarState.SaveableStateProvider("edge-controls") {
+                    EdgeDock(-1f, safeHeight, mouse)
+                    EdgeDock(1f, safeHeight, toolbar)
+                }
+            }
         }
+    }
+}
+
+@Composable
+private fun BoxScope.EdgeDock(edge: Float, safeHeight: Int, content: @Composable (Modifier) -> Unit) {
+    var dockY by rememberSaveable { mutableFloatStateOf(0f) }
+    var height by remember { mutableIntStateOf(0) }
+    Box(Modifier.align(BiasAlignment(edge, dockY)).onSizeChanged { height = it.height }) {
+        content(Modifier.draggable(rememberDraggableState { delta ->
+            val travel = safeHeight - height
+            if (travel > 0) dockY = (dockY + 2f * delta / travel).coerceIn(-1f, 1f)
+        }, Orientation.Vertical))
     }
 }
