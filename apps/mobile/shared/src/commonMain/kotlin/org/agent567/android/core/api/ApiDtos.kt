@@ -189,7 +189,8 @@ internal data class OpenAiErrorDetail(
     val message: String? = null,
     val type: String? = null,
     val param: String? = null,
-    val code: Int? = null,
+    /** OpenAI-compatible gateways send either numeric or string error codes. */
+    val code: kotlinx.serialization.json.JsonElement? = null,
 )
 
 @Serializable

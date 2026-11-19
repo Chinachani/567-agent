@@ -3,6 +3,8 @@ package org.agent567.android.core.net
 import io.ktor.client.statement.HttpResponse
 import io.ktor.client.statement.bodyAsText
 import io.ktor.http.isSuccess
+import kotlinx.serialization.json.JsonPrimitive
+import kotlinx.serialization.json.contentOrNull
 import kotlinx.serialization.serializer
 import org.agent567.android.core.api.ApiEnvelope
 import org.agent567.android.core.api.OpenAiErrorBody
@@ -84,17 +86,17 @@ internal fun parseFailure(httpStatus: Int, body: String): Agent567Exception {
         if (httpStatus == 401 && (message.contains("Invalid token", ignoreCase = true) || message.contains("permission", ignoreCase = true) || message.contains("token", ignoreCase = true))) {
             return Agent567Exception.Api(
                 httpStatus = 401,
-                code = openai.error?.code,
+                code = openai.error?.code?.asNumericCode(),
                 message = "当前分组下该模型鉴权失败或无权限，请更换模型或分组重试",
                 rawBody = body,
             )
         }
         if (httpStatus == 401) {
-            return Agent567Exception.Unauthorized(message, openai.error?.code)
+            return Agent567Exception.Unauthorized(message, openai.error?.code?.asNumericCode())
         }
         return Agent567Exception.Api(
             httpStatus = httpStatus,
-            code = openai.error?.code,
+            code = openai.error?.code?.asNumericCode(),
             message = message,
             rawBody = body,
         )
@@ -118,6 +120,8 @@ internal fun parseFailure(httpStatus: Int, body: String): Agent567Exception {
         rawBody = body,
     )
 }
+
+private fun kotlinx.serialization.json.JsonElement.asNumericCode(): Int? = (this as? JsonPrimitive)?.contentOrNull?.toIntOrNull()
 
 internal val UNAUTHORIZED_CODES =
     setOf(

@@ -974,7 +974,12 @@ internal class Agent567Api(
             val requestBody = if (inferenceApi == org.agent567.android.core.chat.InferenceApi.Responses)
                 org.agent567.android.core.chat.ResponsesRequestEncoder.encode(bodyJson, messages) else bodyJson
             val url = config.gatewayBaseUrl.trimEnd('/') + inferenceApi.path
+            var emittedError = false
             try {
+                suspend fun emitError(error: Agent567Exception) {
+                    emittedError = true
+                    emit(ChatStreamEvent.Error(error))
+                }
                 val sessionVersion = tokenRefresher.sessionVersion
                 var token = ensureApiKeyForGroup(groupName)
                 var repair = false
@@ -1011,7 +1016,7 @@ internal class Agent567Api(
                             }
                             if (!response.status.isSuccess()) {
                                 val text = response.bodyAsTextSafe()
-                                emit(ChatStreamEvent.Error(parseFailure(response.status.value, text)))
+                                emitError(parseFailure(response.status.value, text))
                                 return@execute
                             }
 
@@ -1029,7 +1034,7 @@ internal class Agent567Api(
                             while (!channel.isClosedForRead) {
                                 val line = channel.readUTF8Line(MAX_SSE_LINE_CHARS) ?: break
                                 if (line.length >= MAX_SSE_LINE_CHARS) {
-                                    emit(ChatStreamEvent.Error(Agent567Exception.Protocol("流式响应单行超过安全长度限制")))
+                                    emitError(Agent567Exception.Protocol("流式响应单行超过安全长度限制"))
                                     return@execute
                                 }
                                 val trimmed = line.trim()
@@ -1047,6 +1052,7 @@ internal class Agent567Api(
                                         sawDone = true
                                     }
                                     if (event is ChatStreamEvent.Finished) sawFinished = true
+                                    if (event is ChatStreamEvent.Error) emittedError = true
                                     emit(event)
                                     if (event is ChatStreamEvent.Error) {
                                         return@execute
@@ -1059,13 +1065,14 @@ internal class Agent567Api(
                                 sawAnyEvent = true
                                 if (event is ChatStreamEvent.Done) sawDone = true
                                 if (event is ChatStreamEvent.Finished) sawFinished = true
+                                if (event is ChatStreamEvent.Error) emittedError = true
                                 emit(event)
                                 if (event is ChatStreamEvent.Error) return@execute
                             }
 
                             // 兜底保障：如果循环读完没有产生任何有效 SSE 事件（例如返回了非流式 JSON）
                             if (!sawAnyEvent && !sawSse && bufferedChars > MAX_NON_STREAM_FALLBACK_CHARS) {
-                                emit(ChatStreamEvent.Error(Agent567Exception.Protocol("服务器返回内容过大，无法安全解析")))
+                                emitError(Agent567Exception.Protocol("服务器返回内容过大，无法安全解析"))
                                 return@execute
                             }
                             if (!sawAnyEvent && !sawSse && bufferedLines.isNotEmpty()) {
@@ -1073,6 +1080,7 @@ internal class Agent567Api(
                                 val fallbackEvents = responsesParser?.parseNonStreamJson(fullText) ?: OpenAiSseParser.parseNonStreamJson(fullText)
                                 if (fallbackEvents.isNotEmpty()) {
                                     for (ev in fallbackEvents) {
+                                        if (ev is ChatStreamEvent.Error) emittedError = true
                                         emit(ev)
                                         if (ev is ChatStreamEvent.Error) return@execute
                                         if (ev is ChatStreamEvent.Done) {
@@ -1085,7 +1093,7 @@ internal class Agent567Api(
                             if (!sawDone) {
                                 if (sawFinished) emit(ChatStreamEvent.Done)
                                 else {
-                                    emit(ChatStreamEvent.Error(Agent567Exception.Protocol("流式响应意外结束，未收到完整响应标记")))
+                                    emitError(Agent567Exception.Protocol("流式响应意外结束，未收到完整响应标记"))
                                     return@execute
                                 }
                             }
@@ -1101,6 +1109,10 @@ internal class Agent567Api(
                 } while (retryCredential)
             } catch (e: Exception) {
                 if (e is CancellationException) throw e
+                // An event collector may throw the same typed exception after handling
+                // an Error event. Re-emitting it from this catch violates Flow exception
+                // transparency and hides context-limit actions behind a generic retry.
+                if (emittedError && e is Agent567Exception) throw e
                 emit(ChatStreamEvent.Error(e.toAgent567Exception()))
             }
         }
