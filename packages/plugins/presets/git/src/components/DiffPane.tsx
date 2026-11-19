@@ -1,4 +1,4 @@
-import { PatchDiff } from "@pierre/diffs/react";
+import { PatchDiff, Virtualizer } from "@pierre/diffs/react";
 import { useTranslation } from "@vetta-org/plugin-sdk";
 import { Button } from "@vetta-org/ui";
 import { Component, useEffect, useMemo, useState } from "react";
@@ -151,7 +151,9 @@ export function DiffPane({
 						<div className="px-3 py-2 text-[12px] text-muted-foreground">{t("diff.empty")}</div>
 					) : (
 						<DiffErrorBoundary patch={patch}>
-							<PatchDiff patch={patch} options={options} style={diffCssVars} disableWorkerPool />
+							<Virtualizer className="h-full overflow-auto">
+								<PatchDiff patch={patch} options={options} style={diffCssVars} disableWorkerPool />
+							</Virtualizer>
 						</DiffErrorBoundary>
 					))}
 			</div>

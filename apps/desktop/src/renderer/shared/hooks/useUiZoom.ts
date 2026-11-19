@@ -11,6 +11,7 @@ export function reportUiZoomFailure(): void {
 /** Mirror the main-owned persisted factor. Drag previews remain local to the control. */
 export function useUiZoom() {
 	const [factor, setFactorState] = useState(UI_ZOOM_DEFAULT);
+	const [loaded, setLoaded] = useState(false);
 	const [saving, setSaving] = useState(false);
 	const mounted = useRef(false);
 	const pending = useRef(false);
@@ -20,11 +21,15 @@ export function useUiZoom() {
 		const initial = ++revision.current;
 		const off = window.agent567.uiZoom.onChanged((value) => {
 			++revision.current;
+			setLoaded(true);
 			setFactorState(normalizeUiZoomFactor(value));
 		});
 		void window.agent567.uiZoom.get().then(
 			(value) => {
-				if (mounted.current && revision.current === initial) setFactorState(normalizeUiZoomFactor(value));
+				if (mounted.current && revision.current === initial) {
+					setLoaded(true);
+					setFactorState(normalizeUiZoomFactor(value));
+				}
 			},
 			() => {
 				if (mounted.current && revision.current === initial) reportUiZoomFailure();
@@ -46,7 +51,10 @@ export function useUiZoom() {
 			if (!mounted.current) return;
 			const requestVersion = revision.current;
 			const result = await window.agent567.uiZoom.set(normalizeUiZoomFactor(value));
-			if (mounted.current && revision.current === requestVersion) setFactorState(result);
+			if (mounted.current && revision.current === requestVersion) {
+				setLoaded(true);
+				setFactorState(result);
+			}
 		} catch {
 			if (mounted.current) reportUiZoomFailure();
 		} finally {
@@ -55,5 +63,5 @@ export function useUiZoom() {
 		}
 	}, []);
 	const reset = useCallback(() => void setFactor(UI_ZOOM_DEFAULT), [setFactor]);
-	return { factor, saving, setFactor, reset };
+	return { factor, loaded, saving, setFactor, reset };
 }

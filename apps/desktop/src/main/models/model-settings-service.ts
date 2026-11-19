@@ -339,6 +339,36 @@ export class ModelSettingsService {
 		});
 	}
 
+	/** Only publish a fetched preset list if it still belongs to the same enabled account. */
+	async applyPresetModelLists(
+		snapshot: ModelsConfig,
+		lists: Array<{ id: string; models: ModelDefinition[] }>,
+	): Promise<void> {
+		if (!lists.length) return;
+		await this.runMutation(async () => {
+			const current = await this.options.readConfig();
+			const next = cloneModelsConfig(current);
+			const syncedAt = new Date().toISOString();
+			let changed = false;
+			for (const { id, models } of lists) {
+				const before = snapshot.providers[id];
+				const provider = next.providers[id];
+				if (!before || !provider || provider.source !== "template" || provider.disabled || !models.length) continue;
+				if (
+					before.templateId !== provider.templateId ||
+					before.baseUrl !== provider.baseUrl ||
+					before.apiKey !== this.resolveProvider(provider).apiKey ||
+					before.modelsSyncedAt !== provider.modelsSyncedAt
+				)
+					continue;
+				provider.models = models;
+				provider.modelsSyncedAt = syncedAt;
+				changed = true;
+			}
+			if (changed) await this.persist(next, current, "resolved");
+		});
+	}
+
 	async setContextWindow(providerId: string, modelId: string, capacity: number | null): Promise<void> {
 		if (capacity !== null && contextCapacity(capacity) === undefined) throw new Error("Invalid context window");
 		await this.updateModelOverride(providerId, modelId, (override) => {

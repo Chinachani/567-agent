@@ -166,6 +166,8 @@ export interface ModelSelectorViewProps {
 	footerEnd?: ReactNode;
 	/** 菜单开合回调，宿主可借此在打开时刷新模型目录 */
 	onOpenChange?: (open: boolean) => void;
+	/** 搜索框右侧的刷新按钮：重拉服务商的模型列表。不传就不显示。 */
+	refresh?: { onRefresh: () => void; refreshing: boolean; label: string };
 }
 
 const MODEL_ITEM_SELECTOR = "[data-model-key]";
@@ -173,9 +175,10 @@ const MODEL_ITEM_SELECTOR = "[data-model-key]";
 /** 紧凑行：覆盖 @vetta-org/ui 默认的 px-3 py-2 text-[13px]，让模型多时列表不至于过长。 */
 const COMPACT_ITEM_CLASS = "gap-1.5 rounded-md px-2 py-1 text-xs";
 const COMPACT_LABEL_CLASS = "px-2 pb-0.5 pt-1 text-[10px]";
-/** 行与分组头的固定高度：虚拟列表按它算位置，不逐行测量。 */
-const ROW_HEIGHT = 28;
+/** 分组头的固定高度：虚拟列表按它算位置，不逐行测量。 */
 const HEADER_HEIGHT = 24;
+/** 模型行高度，与行上的 `h-10` 一致：名字一行 + ID 小字一行，虚拟列表按它算位置。 */
+const ROW_HEIGHT = 40;
 /** 条目数超过它才虚拟化；少量条目直接渲染更简单，也保留菜单自带的字符跳转。 */
 const VIRTUALIZE_THRESHOLD = 40;
 const VIRTUAL_OVERSCAN = 8;
@@ -231,6 +234,7 @@ export function ModelSelectorView({
 	onModelSelect,
 	onReasoningSelect,
 	onOpenChange,
+	refresh,
 }: ModelSelectorViewProps): JSX.Element {
 	const [openState, setOpenState] = useState(false);
 	// 宿主可以传 open 来控制（例如快捷键唤起）；不传就由视图自己管。
@@ -471,7 +475,8 @@ export function ModelSelectorView({
 					// 毛玻璃：半透明的主题底色 + 背景模糊，真正透出面板背后的内容（只留柔和的轮廓）。
 					// 底色仍用主题的 background 变量，搜索行等没有自己底色的子元素因此和面板融成一块；
 					// 不要再叠自绘的描边/高光去"假装"玻璃。
-					"w-auto min-w-[180px] max-w-[calc(100vw-2rem)] overflow-visible bg-background/40 p-0 backdrop-blur-2xl backdrop-saturate-150",
+					"w-auto min-w-[180px] max-w-[calc(100vw-2rem)] overflow-visible bg-background/40 p-0 backdrop-blur-2xl backdrop-saturate-150 dark:bg-background/75 dark:backdrop-brightness-50",
+					// 深色下背后若是大块白色内容，透出来会很刺眼：抬高底色不透明度并压暗背景亮度。
 					classNames?.content,
 				)}
 			>
@@ -532,8 +537,8 @@ export function ModelSelectorView({
 								</div>
 							)}
 							<div className="flex w-64 min-w-0 shrink flex-col p-1">
-								<div className="shrink-0 p-0.5">
-									<div className="relative" onKeyDown={handleSearchKeyDown}>
+								<div className="flex shrink-0 items-center gap-0.5 p-0.5">
+									<div className="relative min-w-0 flex-1" onKeyDown={handleSearchKeyDown}>
 										<span
 											aria-hidden="true"
 											className="icon-[solar--magnifer-linear] pointer-events-none absolute left-2 top-1/2 size-3 -translate-y-1/2 text-muted-foreground"
@@ -560,6 +565,21 @@ export function ModelSelectorView({
 											</button>
 										)}
 									</div>
+									{refresh && (
+										<button
+											type="button"
+											onClick={refresh.onRefresh}
+											disabled={refresh.refreshing}
+											aria-label={refresh.label}
+											title={refresh.label}
+											className="inline-flex size-7 shrink-0 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-muted hover:text-foreground disabled:opacity-60"
+										>
+											<span
+												aria-hidden="true"
+												className={cn("icon-[solar--refresh-linear] size-3.5", refresh.refreshing && "animate-spin")}
+											/>
+										</button>
+									)}
 								</div>
 								{emptyOption && (
 									<>
@@ -927,7 +947,24 @@ function ProviderHeader({
 }
 
 /**
- * 单行模型项。模型多达几百个时，搜索每敲一个字符都会重渲染列表；memo 让没变化的行直接跳过。
+ * 模型行左侧的名字与 ID：名字一行，下面一行小字显示模型 ID，省得为查 ID 去点详情浮层。
+ * 目录里没给 name 时 displayName 就是 modelId，那两行一模一样，只留一行。
+ */
+function ModelRowLabel({ model }: { readonly model: ModelSelectorOptionView }): JSX.Element {
+	return (
+		<span className="flex min-w-0 flex-1 flex-col justify-center">
+			<span className="truncate">{model.displayName}</span>
+			{model.modelId !== model.displayName && (
+				<span className="truncate font-mono text-[10px] leading-[13px] text-muted-foreground/70">
+					{model.modelId}
+				</span>
+			)}
+		</span>
+	);
+}
+
+/**
+ * 单个模型项。模型多达几百个时，搜索每敲一个字符都会重渲染列表；memo 让没变化的行直接跳过。
  */
 const ModelRow = memo(function ModelRow({
 	model,
@@ -970,10 +1007,10 @@ const ModelRow = memo(function ModelRow({
 		<DropdownMenuItem
 			data-model-key={model.key}
 			aria-current={selected ? "true" : undefined}
-			className={cn(COMPACT_ITEM_CLASS, "group h-7", selected && "bg-accent text-accent-foreground", itemClassName)}
+			className={cn(COMPACT_ITEM_CLASS, "group h-10", selected && "bg-accent text-accent-foreground", itemClassName)}
 			onSelect={(event) => onSelect(model, event)}
 		>
-			<span className="min-w-0 flex-1 truncate">{model.displayName}</span>
+			<ModelRowLabel model={model} />
 			{info && (
 				<ModelInfoButton
 					model={model}

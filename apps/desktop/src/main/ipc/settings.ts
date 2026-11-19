@@ -16,6 +16,7 @@ import {
 	refreshPresetCatalog,
 	refreshPresetModels,
 	startPresetModelsAutoSync,
+	syncAdoptedPresets,
 } from "../models/presets/sync.js";
 import { assertTrustedMainRenderer } from "./trusted-renderer.js";
 
@@ -99,6 +100,11 @@ export function registerSettingsIpc(owner: WebContents): () => void {
 		},
 	);
 
+	ipcMain.handle("vetta:models:sync-adopted", (event) => {
+		assertTrustedMainRenderer(event, owner);
+		return syncAdoptedPresets();
+	});
+
 	// 手动刷新公共目录:清掉失败冷却强制重拉,错误原样回给渲染层。
 	ipcMain.handle("vetta:models:refresh-preset-catalog", async (event) => {
 		assertTrustedMainRenderer(event, owner);
@@ -115,6 +121,7 @@ export function registerSettingsIpc(owner: WebContents): () => void {
 		ipcMain.removeHandler(MODEL_INFERENCE_API_SET_CHANNEL);
 		ipcMain.removeHandler(MODEL_CONTEXT_SET_CHANNEL);
 		stopPresetAutoSync();
+		ipcMain.removeHandler("vetta:models:sync-adopted");
 		ipcMain.removeHandler("vetta:settings:get-server-url");
 		ipcMain.removeHandler("vetta:models:list-presets");
 		ipcMain.removeHandler("vetta:models:refresh-preset-catalog");

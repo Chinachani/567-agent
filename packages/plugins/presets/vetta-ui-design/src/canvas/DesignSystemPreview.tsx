@@ -44,14 +44,14 @@ export const DesignSystemPreview = memo(function DesignSystemPreview({
 		let active = true;
 		setCover(null);
 		if (visible && coverUrl?.encoding === "binary") {
-			void loadDesignCover(getPluginCtx(), coverUrl.url).then((source) => {
+			void loadDesignCover(getPluginCtx(), coverUrl.url, JSON.stringify([system.version, coverUrl.bytes])).then((source) => {
 				if (active) setCover(source);
 			});
 		}
 		return () => {
 			active = false;
 		};
-	}, [coverUrl, visible]);
+	}, [coverUrl, visible, system.version]);
 	const tokens = useMemo(() => parsePreviewTokens(system.themeCss), [system.themeCss]);
 	const { radius, shadow } = tokens;
 	// Compact palettes use background/foreground; full design systems use surface.

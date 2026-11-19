@@ -77,3 +77,11 @@ it.each([
 	writeFileSync(join(root, path), text);
 	expect(() => checkCandidateMetadata(root)).toThrow();
 });
+
+it.each([["工具栏不占位", true], ["占位", false], ["（占位）", false], ["占位文字", false]])("recognizes release note marker: %s", (line, valid) => {
+	const root = fixture();
+	const path = join(root, ".github/release-notes/v1.5.4.md");
+	writeFileSync(path, readFileSync(path, "utf8") + `- ${line}\n`);
+	if (valid) expect(checkCandidateMetadata(root)).toBe("1.5.4");
+	else expect(() => checkCandidateMetadata(root)).toThrow(/占位/);
+});

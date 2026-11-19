@@ -62,11 +62,11 @@ export function AutomationPageView<FilterKey extends string>({
 	// 标题、切换、搜索与列表共用同一个容器：标题跟列表左边对齐，创建按钮跟列表右边对齐。
 	const column = cn("w-full", paneOpen ? "px-5" : "mx-auto max-w-4xl px-8");
 	return (
-		<div className="flex h-full w-full flex-1 overflow-hidden">
+		<div className="@container flex h-full w-full flex-1 overflow-hidden">
 			<section
 				className={cn(
-					"flex min-w-0 flex-col",
-					paneOpen ? "w-[400px] shrink-0 border-r border-border/60" : "flex-1",
+					"min-w-0 flex-col",
+					paneOpen ? "hidden w-[400px] shrink-0 border-r border-border/60 @[780px]:flex" : "flex flex-1",
 				)}
 			>
 				<div className="drag-region h-6 shrink-0" />

@@ -18,6 +18,7 @@ export const modelCatalog: ModelCatalogSync = createModelCatalogSync<ModelsConfi
 	loadRemote: async () => {
 		// 未登录时主进程直接返回空目录（不发网络请求），写回空表正好与登出行为一致。
 		const result = await window.agent567.models.fetchRemote();
+		if (result.error && result.error !== "未登录" && result.error !== "unauthorized") throw new Error(result.error);
 		return (result.providers ?? {}) as Record<string, unknown>;
 	},
 	applyRemote: (providers) => getDefaultStore().set(remoteProvidersAtom, providers),

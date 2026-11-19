@@ -35,7 +35,7 @@ export function candidateMetadataProblems({ version, lockVersion, mobileVersion,
 		if (title !== version)
 			problems.push(`发布说明标题是「# 567 Agent ${title ?? "?"}」，应为「# 567 Agent ${version}」`);
 		if (!Object.values(countSections(notes)).some((count) => count > 0)) problems.push("发布说明没有任何条目");
-		if (/\b(TODO|TBD|FIXME)\b|待补|待填|占位/.test(notes))
+		if (/\b(TODO|TBD|FIXME)\b|待补|待填|[（(【\[]\s*占位\s*[）)】\]]|占位(?:文字|符)|^\s*(?:[-*]\s*)?占位\s*$/m.test(notes))
 			problems.push("发布说明里还有占位文字（TODO / TBD / 待补…）");
 	}
 	return problems;

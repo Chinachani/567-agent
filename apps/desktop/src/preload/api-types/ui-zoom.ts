@@ -3,6 +3,8 @@ export interface DesktopUiZoomApi {
 	reportTitlebarCenter(center: number): Promise<void>;
 	/** 当前主窗口界面缩放比例（1 = 100%）。 */
 	get(): Promise<number>;
+	getActualZoom(): number;
+	applyZoom(factor: number): void;
 	step(direction: 1 | -1): Promise<number>;
 	/** 设置比例；主进程会夹取到允许范围并吸附到步长，返回实际生效的值。 */
 	set(factor: number): Promise<number>;

@@ -87,3 +87,16 @@ describe("design cover downloads", () => {
 		expect(await loadDesignCover(f.ctx, `${raw}?new=1`)).toBeNull();
 	});
 });
+
+it("refetches a changed revision at the same URL and reuses the new revision offline", async () => {
+	const f = fixture();
+	const { loadDesignCover } = await import("../src/design-systems/cover-cache");
+	await loadDesignCover(f.ctx, raw, "1:80");
+	const updated = btoa('<svg xmlns="http://www.w3.org/2000/svg"><text>New</text></svg>');
+	f.network.mockResolvedValue({ ok: true, headers: { "content-type": "image/svg+xml" }, body: updated });
+	expect(await loadDesignCover(f.ctx, raw, "2:80")).toContain(updated);
+	f.network.mockRejectedValue(new Error("offline"));
+	expect(await loadDesignCover(f.ctx, raw, "2:80")).toContain(updated);
+	expect(f.network).toHaveBeenCalledTimes(2);
+	expect(f.files.size).toBe(1);
+});

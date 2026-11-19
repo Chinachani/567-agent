@@ -37,13 +37,13 @@ async function cachePath(url: string): Promise<string> {
 	return `design-covers/${Array.from(new Uint8Array(digest), (byte) => byte.toString(16).padStart(2, "0")).join("")}.json`;
 }
 
-async function fetchCover(ctx: PluginContext, url: string): Promise<string | null> {
+async function fetchCover(ctx: PluginContext, url: string, revision: string): Promise<string | null> {
 	let path: string | undefined;
 	let cachedSource: string | null = null;
 	try {
 		path = await cachePath(url);
 		const cached = JSON.parse((await ctx.storage.readFile(path, "utf8")) ?? "null") as Record<string, unknown>;
-		if (cached.url === url) {
+		if (cached.url === url && (cached.revision ?? "") === revision) {
 			const source = imageSource(cached.body, typeof cached.mime === "string" ? cached.mime : undefined);
 			cachedSource = source;
 			const age = Date.now() - Number(cached.fetchedAt);
@@ -73,6 +73,7 @@ async function fetchCover(ctx: PluginContext, url: string): Promise<string | nul
 							path,
 							JSON.stringify({
 								url,
+								revision,
 								fetchedAt: Date.now(),
 								mime: source.split(";")[0].slice(5),
 								body: response.body,
@@ -95,12 +96,13 @@ async function fetchCover(ctx: PluginContext, url: string): Promise<string | nul
 }
 
 /** Share in-flight requests and persist successful covers for offline reopening. */
-export function loadDesignCover(ctx: PluginContext, url: string): Promise<string | null> {
-	const existing = requests.get(url);
+export function loadDesignCover(ctx: PluginContext, url: string, revision = ""): Promise<string | null> {
+	const key = JSON.stringify([url, revision]);
+	const existing = requests.get(key);
 	if (existing) return existing;
 	// Share only active work. Successful covers live in the dated disk cache;
 	// retaining settled promises would bypass its expiry and cache failures.
-	const request = fetchCover(ctx, url).finally(() => requests.delete(url));
-	requests.set(url, request);
+	const request = fetchCover(ctx, url, revision).finally(() => requests.delete(key));
+	requests.set(key, request);
 	return request;
 }

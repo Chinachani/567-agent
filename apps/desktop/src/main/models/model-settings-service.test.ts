@@ -462,3 +462,35 @@ it("keeps the saved default while paused but rejects new selection, then restore
 	expect(await service.list()).toMatchObject({ defaultModel: "openai/gpt-5", providers: [{ id: "openai" }] });
 	await expect(service.setDefault("openai/gpt-5")).resolves.toEqual({ defaultModel: "openai/gpt-5" });
 });
+
+it("refreshes only matching enabled presets and preserves concurrent settings and credentials", async () => {
+	let config = createConfig();
+	config.providers.openai.source = "template";
+	const credentials = createCredentialStore({ "openai-credential": "first-key" });
+	const service = new ModelSettingsService({
+		readConfig: async () => config,
+		writeConfig: async (next) => {
+			config = next;
+		},
+		refreshRegistry: async () => {},
+		credentials,
+	});
+	const snapshot = await service.getConfig();
+	const list = [{ id: "openai", models: [{ id: "new-model" }] }];
+	config.providers.openai.displayName = "Updated while loading";
+	credentials.set("openai-credential", "second-key");
+	await service.applyPresetModelLists(snapshot, list);
+	expect(config.providers.openai.models?.[0].id).toBe("gpt-5");
+	const second = await service.getConfig();
+	config.providers.openai.disabled = true;
+	await service.applyPresetModelLists(second, list);
+	expect(config.providers.openai.models?.[0].id).toBe("gpt-5");
+	config.providers.openai.disabled = false;
+	await service.applyPresetModelLists(second, list);
+	expect(config.providers.openai).toMatchObject({
+		displayName: "Updated while loading",
+		models: [{ id: "new-model" }],
+		credentialRef: "openai-credential",
+	});
+	expect(credentials.get("openai-credential")).toBe("second-key");
+});

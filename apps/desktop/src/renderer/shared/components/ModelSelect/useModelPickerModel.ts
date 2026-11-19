@@ -1,9 +1,10 @@
 import { favoriteModelsAtom } from "@shared/store/atoms";
 import { modelCatalog } from "@shared/store/model-catalog";
+import { showToast } from "@shared/store/toast-atoms";
 import type { ModelSelectorViewProps } from "@vetta-org/theme-ui/chat";
 import { fmtMultiplier } from "@vetta-org/theme-ui/shared/MultiplierTag";
 import { useAtom } from "jotai";
-import { useCallback, useEffect, useMemo, useRef } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { type ResolvedReasoning, resolveReasoning } from "./resolveReasoning";
 import { type ModelOption, useModelOptions } from "./useModelOptions";
@@ -122,6 +123,40 @@ export function useModelPickerModel({
 		if (open) void modelCatalog.revalidate();
 	}, []);
 
+	const [refreshing, setRefreshing] = useState(false);
+	const refreshingRef = useRef(false);
+	/** 与设置页「预设服务商」的刷新同源：对已启用的预设服务商重拉模型并写回本地配置。 */
+	const handleRefresh = useCallback(() => {
+		if (refreshingRef.current) return;
+		refreshingRef.current = true;
+		setRefreshing(true);
+		void window.agent567.models
+			.syncAdoptedPresets()
+			.then(async ({ failed }) => {
+				await modelCatalog.revalidate({ force: true });
+				if (failed.length > 0) {
+					showToast({
+						variant: "error",
+						title: t("modelSelect.refreshFailed"),
+						message: failed.join(", "),
+						durationMs: 6000,
+					});
+				}
+			})
+			.catch((err: unknown) => {
+				showToast({
+					variant: "error",
+					title: t("modelSelect.refreshFailed"),
+					message: err instanceof Error ? err.message : String(err),
+					durationMs: 6000,
+				});
+			})
+			.finally(() => {
+				refreshingRef.current = false;
+				setRefreshing(false);
+			});
+	}, [t]);
+
 	const emptyLabel = emptyOption?.label;
 	const viewEmptyOption = useMemo(
 		() =>
@@ -237,6 +272,7 @@ export function useModelPickerModel({
 			onModelSelect: handleModelSelect,
 			onOpenChange: handleOpenChange,
 			onReasoningSelect: handleReasoningSelect,
+			refresh: { onRefresh: handleRefresh, refreshing, label: t("modelSelect.refresh") },
 			reasoningModelKeys,
 			selectedModel: value ?? undefined,
 			selectedOption,

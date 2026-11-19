@@ -75,7 +75,9 @@ export function parseImpactArgs(args, root = repoRoot) {
 
 export function createImpactTestPlan(files, pathExists = (file) => existsSync(join(repoRoot, file))) {
 	const normalizedFiles = [...new Set(files.map((file) => file.replaceAll("\\", "/")))].sort();
-	const runQuality = normalizedFiles.some((file) => file.startsWith("scripts/"));
+	const runQuality = normalizedFiles.some(
+		(file) => file.startsWith("scripts/") || file === "apps/desktop/src/main/plugins/plugin-protocol.ts",
+	);
 	const fallbackReasons = [];
 	if (normalizedFiles.some((file) => ROOT_GLOBAL_TEST_FILES.has(file))) {
 		fallbackReasons.push("root test configuration changed");

@@ -1,4 +1,5 @@
-import type { IpcRenderer } from "electron";
+import { type IpcRenderer, webFrame } from "electron";
+import { normalizeUiZoomFactor } from "../../shared/ui-zoom.js";
 import type { DesktopApi } from "../api.js";
 import { onIpcEvent } from "./helper.js";
 
@@ -9,6 +10,8 @@ const CHANGED_CHANNEL = "vetta:ui-zoom:changed";
 export function createUiZoomApi(ipc: IpcRenderer): Pick<DesktopApi, "uiZoom"> {
 	return {
 		uiZoom: {
+			getActualZoom: () => webFrame.getZoomFactor(),
+			applyZoom: (factor) => webFrame.setZoomFactor(normalizeUiZoomFactor(factor)),
 			reportTitlebarCenter: (center) => ipc.invoke("vetta:ui-zoom:titlebar-center", center) as Promise<void>,
 			step: (direction) => ipc.invoke("vetta:ui-zoom:step", direction) as Promise<number>,
 			get: () => ipc.invoke(GET_CHANNEL) as Promise<number>,

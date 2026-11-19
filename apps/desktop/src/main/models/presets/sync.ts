@@ -269,43 +269,38 @@ function adoptedPresetIds(config: ModelsConfig): string[] {
  * 后台同步所有已启用的预设服务商的模型列表并写回 models.json。
  * 单个失败静默跳过(保留本地快照),不影响其它服务商。
  */
-export async function syncAdoptedPresets(): Promise<void> {
-	// 先热一遍公共目录:即便一家都没启用,设置页也要能免 key 列出各家模型。
+let pendingSync: Promise<{ failed: string[] }> | undefined;
+export function syncAdoptedPresets(): Promise<{ failed: string[] }> {
+	pendingSync ??= refreshAdopted().finally(() => {
+		pendingSync = undefined;
+	});
+	return pendingSync;
+}
+
+async function refreshAdopted(): Promise<{ failed: string[] }> {
 	await ensureCatalog();
 	const service = getDesktopModelSettingsService();
 	const config = await service.getConfig();
-	const ids = adoptedPresetIds(config);
-	if (ids.length === 0) return;
-
 	const results = await Promise.all(
-		ids.map(async (id) => {
-			const templateId = config.providers[id]?.templateId ?? id;
-			const result = await refreshPresetModels(
-				templateId,
-				config.providers[id]?.apiKey,
-				config.providers[id]?.baseUrl,
-			);
-			return { id, result };
+		adoptedPresetIds(config).map(async (id) => {
+			const provider = config.providers[id];
+			try {
+				const result = await refreshPresetModels(provider.templateId ?? id, provider.apiKey, provider.baseUrl);
+				if (!result.error && result.models.length) return { id, models: result.models };
+			} catch {
+				// A failed provider keeps its previous list; the rest may still be usable.
+			}
+			presetLog.warn(`同步预设服务商 ${id} 模型失败`);
+			return { id, models: [] };
 		}),
 	);
-
-	// 重新读一次:同步期间渲染层可能改过配置,不能拿旧快照整体覆盖。
-	const latest = await service.getConfig();
-	let changed = false;
-	const syncedAt = new Date().toISOString();
-	for (const { id, result } of results) {
-		const provider = latest.providers[id];
-		if (!provider || provider.source !== "template") continue;
-		if (result.error || result.models.length === 0) {
-			presetLog.warn(
-				`同步预设服务商 ${id} 模型失败：${result.error?.code ?? "empty"} ${result.error?.detail ?? ""}`,
-			);
-			continue;
-		}
-		latest.providers[id] = { ...provider, models: result.models, modelsSyncedAt: syncedAt };
-		changed = true;
-	}
-	if (changed) await service.replaceConfig(latest);
+	await service.applyPresetModelLists(
+		config,
+		results.filter(({ models }) => models.length > 0),
+	);
+	return {
+		failed: results.filter(({ models }) => !models.length).map(({ id }) => config.providers[id].displayName || id),
+	};
 }
 
 /** 启动时同步一次,之后每 12 小时一次。返回清理函数。 */
