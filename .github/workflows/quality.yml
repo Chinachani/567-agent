@@ -95,7 +95,26 @@ jobs:
 
       - name: Install ripgrep on Windows
         if: runner.os == 'Windows'
-        run: if (-not (Get-Command rg -ErrorAction SilentlyContinue)) { choco install ripgrep --yes --no-progress }
+        shell: pwsh
+        run: |
+          $rg = (Get-Command rg.exe -CommandType Application -ErrorAction SilentlyContinue | Select-Object -First 1).Source
+          if (-not $rg) {
+            $version = '15.2.0'
+            $archiveName = "ripgrep-${version}-x86_64-pc-windows-msvc"
+            $archive = Join-Path $env:RUNNER_TEMP "$archiveName.zip"
+            $digest = '71b2fef860abe467217a538ff31de02f5258807c0129f771846f87bd029aafc5'
+            Invoke-WebRequest -Uri "https://github.com/BurntSushi/ripgrep/releases/download/$version/$archiveName.zip" `
+              -OutFile $archive -MaximumRetryCount 3 -RetryIntervalSec 2
+            if ((Get-FileHash -Path $archive -Algorithm SHA256).Hash -ne $digest) {
+              throw 'ripgrep archive SHA-256 does not match the pinned release.'
+            }
+            Expand-Archive -LiteralPath $archive -DestinationPath $env:RUNNER_TEMP -Force
+            $rg = Join-Path $env:RUNNER_TEMP "$archiveName/rg.exe"
+            if (-not (Test-Path -LiteralPath $rg -PathType Leaf)) { throw 'ripgrep executable is missing.' }
+            Split-Path -Parent $rg | Out-File -FilePath $env:GITHUB_PATH -Encoding utf8 -Append
+          }
+          & $rg --version
+          if ($LASTEXITCODE -ne 0) { throw 'ripgrep failed to start.' }
 
       - name: Install dependencies
         uses: ./.github/actions/install-bun-dependencies
