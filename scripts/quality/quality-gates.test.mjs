@@ -388,7 +388,9 @@ describe("CI unit test coverage", () => {
 		expect(workflow).toContain("fetch-depth: 0");
 		expect(workflow).toContain("command -v rg >/dev/null || { sudo apt-get update");
 		expect(workflow).toContain("command -v rg >/dev/null || brew install ripgrep");
-		expect(workflow).toContain("Get-Command rg -ErrorAction SilentlyContinue");
+		expect(workflow).toContain("https://github.com/BurntSushi/ripgrep/releases/download/");
+		expect(workflow).toContain("Get-FileHash -Path $archive -Algorithm SHA256");
+		expect(workflow).toContain("& $rg --version");
 		expect(workflow).toContain("bun run test:changed --base");
 	});
 
