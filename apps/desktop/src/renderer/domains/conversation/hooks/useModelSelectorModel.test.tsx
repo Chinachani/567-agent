@@ -11,7 +11,8 @@ vi.mock("react-i18next", () => ({
 	useTranslation: () => ({ t: (key: string) => key }),
 }));
 
-vi.mock("@shared/store/model-catalog", () => ({
+vi.mock("@shared/store/model-catalog", async (importOriginal) => ({
+	...(await importOriginal<typeof import("@shared/store/model-catalog")>()),
 	modelCatalog: { revalidate: vi.fn(async () => undefined) },
 }));
 

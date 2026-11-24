@@ -7,6 +7,24 @@ import { fileURLToPath, pathToFileURL } from "node:url";
 import { expect, it } from "vitest";
 import { bundleDesktopAgentRpc } from "./bundle-agent-rpc.mjs";
 
+const responseText = { type: "output_text", text: "ok", annotations: [] };
+const responseMessage = { type: "message", id: "msg_fixture", role: "assistant", status: "completed", content: [responseText] };
+const responseStream = [
+	{ type: "response.output_item.added", output_index: 0, item: { ...responseMessage, status: "in_progress", content: [] } },
+	{ type: "response.content_part.added", output_index: 0, content_index: 0, part: { ...responseText, text: "" } },
+	{ type: "response.output_text.delta", output_index: 0, content_index: 0, delta: responseText.text },
+	{ type: "response.output_item.done", output_index: 0, item: responseMessage },
+	{
+		type: "response.completed",
+		response: {
+			id: "resp_fixture",
+			status: "completed",
+			output: [responseMessage],
+			usage: { input_tokens: 2, output_tokens: 1, total_tokens: 3 },
+		},
+	},
+].map((event) => `data: ${JSON.stringify(event)}\n\n`).join("") + "data: [DONE]\n\n";
+
 it("runs two IM turns through the staged Node entry with fresh signatures and no Electron APIs", async () => {
 	const root = mkdtempSync(join(tmpdir(), "567-node-rpc-"));
 	const home = join(root, "home");
@@ -48,9 +66,9 @@ it("runs two IM turns through the staged Node entry with fresh signatures and no
 		`import { appendFileSync } from 'node:fs';
 globalThis.fetch = async (input, init) => {
   const url = String(input instanceof Request ? input.url : input);
-  if (url !== 'https://api.567.wiki/v1/chat/completions') throw new Error('Unexpected fixture destination: ' + url);
+  if (url !== 'https://api.567.wiki/v1/responses') throw new Error('Unexpected fixture destination: ' + url);
   appendFileSync(${JSON.stringify(logPath)}, JSON.stringify(Object.fromEntries(new Headers(init?.headers))) + '\\n');
-  return new Response('data: {"id":"fixture","object":"chat.completion.chunk","created":1,"model":"fixture","choices":[{"index":0,"delta":{"role":"assistant","content":"ok"},"finish_reason":null}]}\\n\\ndata: {"id":"fixture","object":"chat.completion.chunk","created":1,"model":"fixture","choices":[{"index":0,"delta":{},"finish_reason":"stop"}],"usage":{"prompt_tokens":2,"completion_tokens":1,"total_tokens":3}}\\n\\ndata: [DONE]\\n\\n', {headers:{'content-type':'text/event-stream'}});
+  return new Response(${JSON.stringify(responseStream)}, {headers:{'content-type':'text/event-stream'}});
 };`,
 	);
 	let child: ReturnType<typeof spawn> | undefined;
@@ -139,6 +157,10 @@ globalThis.fetch = async (input, init) => {
 			child.stdin!.write(`${JSON.stringify({ id: `turn-${turn}`, type: "prompt", message: "fixture" })}\n`);
 			await until(() => frames.filter((frame) => frame.type === "agent_end").length >= turn);
 		}
+		expect(frames.filter((frame) => frame.type === "message_end").map((frame) => frame.message)).toEqual([
+			expect.objectContaining({ role: "assistant", stopReason: "stop" }),
+			expect.objectContaining({ role: "assistant", stopReason: "stop" }),
+		]);
 		const requests = readFileSync(logPath, "utf8")
 			.trim()
 			.split("\n")
@@ -151,7 +173,6 @@ globalThis.fetch = async (input, init) => {
 		}
 		expect(requests[0]["x-567-nonce"]).not.toBe("frozen");
 		expect(requests[0]["x-567-nonce"]).not.toBe(requests[1]["x-567-nonce"]);
-		expect(frames.filter((frame) => frame.type === "message_end")).toHaveLength(2);
 	} finally {
 		if (child && child.exitCode === null) {
 			child.kill();

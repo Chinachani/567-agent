@@ -6,6 +6,7 @@ import { afterEach, describe, expect, it } from "vitest";
 afterEach(cleanup);
 
 const PROVIDER_SYMBOLS = [
+	"agent567",
 	"claude",
 	"openai",
 	"gemini",
@@ -63,7 +64,7 @@ describe("ProviderIcon", () => {
 		expect(view.container.childElementCount).toBe(0);
 	});
 
-	it("keeps every existing provider symbol backed by a downloaded SVG asset", () => {
+	it("keeps every registered provider symbol backed by an SVG asset", () => {
 		expect(Object.keys(PROVIDER_ICONS)).toHaveLength(PROVIDER_SYMBOLS.length);
 		expect(Object.keys(PROVIDER_ICONS)).toEqual(expect.arrayContaining([...PROVIDER_SYMBOLS]));
 		for (const symbol of PROVIDER_SYMBOLS) {

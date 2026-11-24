@@ -33,9 +33,21 @@ vi.mock("node:https", async () => {
 											group: "反重力Gemini",
 											key: "sk-fixture-model-key-long-enough",
 										},
+										{
+											id: 2,
+											status: 1,
+											name: "567 Agent [画图]",
+											group: "画图",
+											key: "sk-fixture-image-key-long-enough",
+										},
 									],
 								}
-							: state.listedModels.map((id) => ({ id, context_window: 64000 }));
+							: (url.searchParams.get("group") === "画图" ? ["fixture-image"] : state.listedModels).map(
+									(id) => ({
+										id,
+										context_window: 64000,
+									}),
+								);
 						const response = Object.assign(new PassThrough(), { statusCode: 200, headers: {} });
 						queueMicrotask(() => {
 							receive(response);
@@ -137,9 +149,9 @@ it("rejects a model outside the chosen group without changing the saved default"
 });
 
 it("keeps primary and image choices independent across a reload", async () => {
-	await api.setActiveGroup("反重力Gemini", "gemini-3-flash");
-	await api.setImageGroup("画图");
-	await api.setImageModel("fixture-image");
+	expect(await api.setActiveGroup("反重力Gemini", "gemini-3-flash")).toMatchObject({ success: true });
+	expect(await api.setImageGroup("画图")).toMatchObject({ success: true });
+	expect(await api.setImageModel("fixture-image")).toMatchObject({ success: true });
 	vi.resetModules();
 	const restored = (await import("./newapi-service.js")).NewApiService.getInstance();
 	expect(await restored.getStatus()).toMatchObject({
