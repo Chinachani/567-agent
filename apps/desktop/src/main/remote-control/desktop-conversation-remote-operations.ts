@@ -10,6 +10,7 @@ import {
 	readCodingAgentMcpReloadFinished,
 	readCodingAgentSubagentsObservation,
 } from "@567agent/coding-agent/session-extensions";
+import type { RemoteSessionDraftAppendPayload, RemoteSessionDraftAppendResult } from "@567agent/remote-control";
 import type { SessionEvent } from "@567agent/runtime-core";
 import { dialog } from "electron";
 import type {
@@ -22,6 +23,7 @@ import type {
 	DesktopConversationService,
 	DesktopConversationSession,
 } from "../conversations/desktop-conversation-service.js";
+import { getDesktopSessionDraftStore } from "../conversations/session-draft-store.js";
 import type { SessionMigrationArchive } from "../conversations/session-migration-backup.js";
 import {
 	decryptSessionMigrationArchive,
@@ -61,6 +63,8 @@ export class DesktopRemoteConversationState {
 export interface DesktopConversationRemoteOperationsOptions {
 	readonly files?: RemoteFiles;
 	readonly readDeviceStatus?: () => DesktopDeviceStatusSnapshot;
+	readonly pairingId?: string;
+	readonly canAppendDraft?: boolean;
 	readonly cwd: string;
 	readonly sessionRoots?: readonly { readonly cwd: string; readonly sessionDir?: string }[];
 	readonly resolveSessionRoots?: () => readonly { readonly cwd: string; readonly sessionDir?: string }[];
@@ -118,10 +122,12 @@ export class DesktopConversationRemoteOperations implements DesktopRemoteOperati
 	readonly canReadFiles: boolean;
 	readonly canManageCollaboration = true;
 	readonly canSelectContext: boolean;
+	readonly canAppendDraft: boolean;
 	readonly canReadGeneratedImages: boolean;
 	readonly canReceiveSessionMigration: boolean;
 	readonly readToolbox?: () => Promise<readonly DesktopRemoteToolboxAbility[]>;
 	readonly installToolbox?: (type: "skill" | "scene" | "plugin", slug: string) => Promise<void>;
+	private draftAppendQueue: Promise<unknown> = Promise.resolve();
 
 	constructor(
 		private readonly conversations: Pick<
@@ -171,8 +177,66 @@ export class DesktopConversationRemoteOperations implements DesktopRemoteOperati
 		this.resolveSessionRoots = options.resolveSessionRoots ?? (() => options.sessionRoots ?? [{ cwd: options.cwd }]);
 		this.canReadGeneratedImages = options.readGeneratedImageChunk !== undefined;
 		this.canReceiveSessionMigration = options.allowSessionMigrationTransfer === true;
+		this.canAppendDraft = options.canAppendDraft !== false;
 		this.readToolbox = options.readToolbox;
 		this.installToolbox = options.installToolbox;
+	}
+
+	async appendDraft(
+		input: RemoteSessionDraftAppendPayload,
+		context?: { readonly peerDeviceId?: string },
+	): Promise<RemoteSessionDraftAppendResult> {
+		const run = async (): Promise<RemoteSessionDraftAppendResult> => {
+			if (!this.canAppendDraft) {
+				throw new RemoteOperationError("forbidden", "电脑端未开启接收手机草稿功能", false);
+			}
+			const peerScope =
+				[this.options.pairingId, context?.peerDeviceId]
+					.filter((value): value is string => typeof value === "string" && value.length > 0)
+					.join(":") || "unpaired-peer";
+			const store = getDesktopSessionDraftStore();
+			if (input.targetType === "new") {
+				return store.appendRemoteDraft({
+					peerScope,
+					idempotencyKey: input.idempotencyKey,
+					targetKey: `new:${this.options.cwd}`,
+					targetType: "new",
+					appendText: input.text,
+				});
+			}
+			const sessionId = input.sessionId;
+			if (!sessionId) {
+				throw new RemoteOperationError("invalid_frame", "已有会话草稿必须指定目标会话 ID", false);
+			}
+			if (this.deletingSessions.has(sessionId)) {
+				throw new RemoteOperationError("not_found", "这条电脑端会话正在删除，无法写入草稿", false);
+			}
+			let targetKey = this.sessions.get(sessionId)?.session.sessionPath;
+			let sessionTitle: string | undefined;
+			if (!targetKey) {
+				const found = await this.findSession(sessionId).catch(() => null);
+				if (!found) {
+					throw new RemoteOperationError("not_found", "找不到这条电脑端会话，请刷新列表后重试", false);
+				}
+				if (found.record.access && !found.record.access.resume) {
+					throw new RemoteOperationError("forbidden", "该电脑端会话为只读会话，无法写入输入草稿", false);
+				}
+				targetKey = found.record.path;
+				sessionTitle = (found.record.name?.trim() || found.record.firstMessage)?.slice(0, 120);
+			}
+			return store.appendRemoteDraft({
+				peerScope,
+				idempotencyKey: input.idempotencyKey,
+				targetKey,
+				targetType: "existing",
+				sessionId,
+				...(sessionTitle ? { sessionTitle } : {}),
+				appendText: input.text,
+			});
+		};
+		const task = this.draftAppendQueue.then(run, run);
+		this.draftAppendQueue = task.catch(() => undefined);
+		return task;
 	}
 
 	async listTaskResults() {

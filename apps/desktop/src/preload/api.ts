@@ -4,6 +4,7 @@ import type { DesktopTerminalApi } from "./api-types/terminal.js";
 export type * from "./api-types/567api.js";
 
 import type { DesktopMarkdownApi } from "../shared/markdown-ipc.js";
+import type { DesktopSessionDraftsApi } from "../shared/session-drafts-ipc.js";
 import type { Api567Api } from "./api-types/567api.js";
 import type { DesktopAbilitiesApi } from "./api-types/abilities.js";
 import type { DesktopActionApprovalApi } from "./api-types/action-approval.js";
@@ -104,6 +105,7 @@ export interface DesktopApi {
 	appLifecycle: DesktopAppLifecycleApi;
 	appMonitor: DesktopAppMonitorApi;
 	session: DesktopSessionApi;
+	sessionDrafts: DesktopSessionDraftsApi;
 	speechInput: DesktopSpeechInputApi;
 	dialog: DesktopDialogApi;
 	theme: DesktopThemeApi;

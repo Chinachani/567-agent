@@ -1,4 +1,7 @@
 {
+	"header": {
+		"usageLog": "Session usage log"
+	},
 	"annotations": {
 		"title": "Q&A notes",
 		"ask": "Ask AI",
@@ -1495,5 +1498,8 @@
 			"written": "Tool wrote this · Not verified"
 		}
 	},
-	"workbenchLabel": "Workbench"
+	"workbenchLabel": "Workbench",
+	"tokenUsage": {
+		"viewFullUsageLogs": "View full usage logs & statistics"
+	}
 }

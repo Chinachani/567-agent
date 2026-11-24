@@ -30,6 +30,8 @@ export function DefaultSidebar({ classNames, model, onOpenSession }: DefaultSide
 				unpin: t("sidebar.nav.unpin"),
 				pinFull: t("sidebar.nav.pinFull"),
 				reset: t("sidebar.nav.reset"),
+					edit: t("sidebar.nav.customize"),
+					done: t("sidebar.nav.done"),
 			}}
 			topBar={
 				<SidebarTopBar

@@ -14,12 +14,13 @@ export function ReplySources({ sources }: { sources: readonly TextSource[] }) {
 				aria-expanded={open}
 				aria-controls={id}
 				onClick={() => setOpen(!open)}
-				className="rounded px-2 py-1 text-muted-foreground hover:bg-accent hover:text-foreground"
+				className="inline-flex min-h-8 items-center gap-1.5 rounded-lg px-2 py-1 text-muted-foreground focus-visible:outline-ring hover:bg-accent hover:text-foreground"
 			>
+				<span aria-hidden className="icon-[solar--link-linear] size-3.5" />
 				{t("messageList.replySources.count", { count: sources.length })}
 			</button>
 			{open ? (
-				<ol id={id} className="space-y-1 py-1">
+				<ol id={id} className="ms-2 space-y-1 border-s border-ring ps-2 py-1">
 					{sources.map((source, index) => (
 						<li key={source.url}>
 							<button

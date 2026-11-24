@@ -58,6 +58,7 @@ import org.agent567.android.domain.conversation.RemotePromptFileAttachment
 import org.agent567.android.domain.conversation.RemoteDesktopSessionSummary
 import org.agent567.android.domain.conversation.RemoteToolboxAbility
 import org.agent567.android.domain.conversation.RemoteConversationException
+import org.agent567.android.domain.remote.connection.RemotePairingIdentityChanged
 import org.agent567.android.domain.error.ErrorMapper
 import org.agent567.android.domain.error.UiError
 import org.agent567.android.domain.error.UiErrorAction
@@ -84,6 +85,14 @@ import org.agent567.android.ui.media.MAX_PICKED_IMAGE_COUNT
 import org.agent567.android.ui.media.byteSize
 import org.agent567.android.ui.media.pickedByteSize
 import org.agent567.android.ui.chat.toolActivityLabel
+import org.agent567.android.ui.chat.DraftHandoffState
+import org.agent567.android.ui.chat.DraftHandoffSignature
+import org.agent567.android.ui.chat.DRAFT_HANDOFF_MAX_MESSAGES
+import org.agent567.android.ui.chat.formatDraftHandoffText
+import org.agent567.android.ui.chat.isMessageSelectableForDraftHandoff
+import org.agent567.android.ui.chat.newDraftHandoffIdempotencyKey
+import org.agent567.android.ui.chat.validateDraftHandoffText
+import org.agent567.android.domain.conversation.RemoteDraftTargetType
 import org.agent567.android.ui.navigation.AppRoute
 import org.agent567.android.ui.navigation.ChatSurface
 import org.agent567.android.ui.navigation.MainTab
@@ -154,11 +163,13 @@ data class AppUiState(
     val available567Groups: Map<String, org.agent567.android.core.api.ApiGroupInfoDto> = emptyMap(),
     val active567Group: String? = null,
     val groupPickerOpen: Boolean = false,
+    val groupWizardOpen: Boolean = false,
     val activeImageGroup: String? = null,
     val activeImageModel: String? = null,
     val imageGenEnabled: Boolean = true,
     val imagePickerOpen: Boolean = false,
     val availableImageModels: List<String> = emptyList(),
+    val imageGroupModelIds: List<String> = emptyList(),
     val imageModelsLoading: Boolean = false,
     val imageGroupExpanded: Boolean = false,
     val remoteConnecting: Boolean = false,
@@ -175,6 +186,12 @@ data class AppUiState(
     val loggingOut: Boolean = false,
     val loginModeEmail: Boolean = false,
     val catalogLoading: Boolean = false,
+    val groupDirectoryUnavailable: Boolean = false,
+    val chatCatalogUnavailable: Boolean = false,
+    val imageCatalogUnavailable: Boolean = false,
+    val chatSelectionRemoved: String? = null,
+    val imageSelectionRemoved: String? = null,
+    val desktopCatalogLoading: Boolean = false,
     val accountVerifying: Boolean = false,
     val accountVerificationMessage: String? = null,
     val quotaRefreshing: Boolean = false,
@@ -195,6 +212,7 @@ data class AppUiState(
     val desktopHistoryLoading: Boolean = false,
     val pendingQuestion: PendingQuestion? = null,
     val isQuestionSubmitting: Boolean = false,
+    val draftHandoff: DraftHandoffState = DraftHandoffState(),
 )
 
 private data class PreferenceSnapshot(
@@ -252,6 +270,7 @@ class AppViewModel(
     private var authRevision = 0L
     private var authJob: Job? = null
     private var workspaceJob: Job? = null
+    private var pairingRestoreJob: Job? = null
     private var serviceRouteJob: Job? = null
     private var serviceRouteRevision = 0L
     private var serviceRouteCatalogJob: Job? = null
@@ -298,6 +317,7 @@ class AppViewModel(
     private var projectCollaborationJob: Job? = null
     private var contextReadJob: Job? = null
     private val mobileContext = MobileContextManager(container.sessionStore) { modelId, messages, group ->
+        if (group == null) throw MobileContextException("请先选择对话分组")
         try {
             withTimeout(180_000) {
                 val result = StringBuilder()
@@ -609,31 +629,22 @@ class AppViewModel(
                 null
             }
 
-            val cachedModelIds = container.preferences.getCachedGroupModels(savedGroup)
-            val initialCachedModels = cachedModelIds.map { id ->
-                val isReasoning = id.contains("reasoner", ignoreCase = true) ||
-                        id.contains("r1", ignoreCase = true) ||
-                        id.contains("o1", ignoreCase = true) ||
-                        id.contains("o3", ignoreCase = true) ||
-                        id.contains("thinking", ignoreCase = true) ||
-                        id.contains("sol", ignoreCase = true)
-                LlmModel(
-                    id = id,
-                    modelId = id,
-                    name = id,
-                    providerName = savedGroup ?: "567 API",
-                    reasoning = isReasoning,
-                )
-            }
+            val initialCachedModels = cachedModels(savedGroup)
+            val initialImages = cachedImageModels(savedImageGroup)
             val initialSelected = resolveModelId(container.preferences.lastModelId, initialCachedModels)
                 ?: initialCachedModels.firstOrNull()?.id
 
             _state.update {
                 it.copy(
                     active567Group = savedGroup,
+                    available567Groups = container.preferences.cachedGroups,
                     activeImageGroup = savedImageGroup,
-                    activeImageModel = savedImageModel ?: DEFAULT_IMAGE_MODEL,
+                    activeImageModel = if (savedImageGroup == null) null else savedImageModel ?: initialImages.firstOrNull(),
+                    availableImageModels = initialImages,
+                    imageGroupModelIds = savedImageGroup?.let { container.preferences.getCachedGroupModels(it) }.orEmpty(),
                     imageGenEnabled = savedImageEnabled,
+                    chatSelectionRemoved = container.preferences.catalogChange(false),
+                    imageSelectionRemoved = container.preferences.catalogChange(true),
                     user = cachedUser,
                     models = initialCachedModels,
                     selectedModelId = initialSelected,
@@ -642,11 +653,12 @@ class AppViewModel(
             val token = container.tokenStore.accessToken ?: container.preferences.authToken
             val refreshToken = container.tokenStore.refreshToken ?: container.preferences.authRefreshToken ?: token
             if (token.isNullOrBlank()) {
+                val visited = container.preferences.welcomed
                 _state.update {
                     it.copy(
                         bootstrapped = true,
-                        mainAccessGranted = false,
-                        route = AppRoute.Welcome,
+                        mainAccessGranted = visited,
+                        route = if (visited) AppRoute.Main(MainTab.Home) else AppRoute.Welcome,
                     )
                 }
                 restorePendingQuestion()
@@ -670,6 +682,7 @@ class AppViewModel(
     }
 
     private suspend fun loadWorkspace(openLastSession: Boolean) {
+        container.preferences.welcomed = true
         val lastSessionId = container.preferences.lastSessionId
         val lastSession = if (openLastSession && lastSessionId != null) {
             container.sessionStore.getSession(lastSessionId)
@@ -701,6 +714,7 @@ class AppViewModel(
         val client = container.client
         val revision = authRevision
         workspaceJob = viewModelScope.launch(org.agent567.android.app.RequestClientContext(client)) {
+            refreshGroupCatalog()
             refreshWorkspaceSnapshot(client, revision)
         }
     }
@@ -732,70 +746,8 @@ class AppViewModel(
             container.preferences.authUserId = user.id
             if (!isCurrentAccount(client, revision)) return
             _state.update { it.copy(user = user) }
-            val sub = runCatching { client.subscription.me() }.getOrNull()
-            val groups = runCatching { client.models.getAvailableGroups() }.getOrDefault(emptyMap())
-            if (!isCurrentAccount(client, revision)) return
-            val currentGroup = _state.value.active567Group ?: pickDefaultGroup(groups)
-            if (_state.value.active567Group == null && currentGroup != null) {
-                container.preferences.active567Group = currentGroup
-            }
-            val currentImageGroup = _state.value.activeImageGroup ?: pickDefaultImageGroup(groups)
-            if (_state.value.activeImageGroup == null && currentImageGroup != null) {
-                container.preferences.activeImageGroup = currentImageGroup
-            }
-            val models =
-                if (!currentGroup.isNullOrBlank()) {
-                    runCatching { client.models.listGoModels(currentGroup) }.getOrElse { emptyList() }
-                } else {
-                    runCatching { client.models.listGoModels(null) }.getOrElse { emptyList() }
-                }
-            if (!isCurrentAccount(client, revision)) return
-            val cachedFallbackIds = container.preferences.getCachedGroupModels(currentGroup)
-            val fallbackModels = cachedFallbackIds.map { id ->
-                val isReasoning = id.contains("reasoner", ignoreCase = true) ||
-                        id.contains("r1", ignoreCase = true) ||
-                        id.contains("o1", ignoreCase = true) ||
-                        id.contains("o3", ignoreCase = true) ||
-                        id.contains("thinking", ignoreCase = true) ||
-                        id.contains("sol", ignoreCase = true)
-                LlmModel(
-                    id = id,
-                    modelId = id,
-                    name = id,
-                    providerName = currentGroup ?: "567 API",
-                    reasoning = isReasoning,
-                )
-            }
-            val finalModels = if (models.isNotEmpty()) {
-                models
-            } else if (_state.value.models.isNotEmpty()) {
-                _state.value.models
-            } else {
-                fallbackModels
-            }
-            val selected =
-                resolveModelId(
-                    preferred = container.preferences.lastModelId,
-                    models = finalModels,
-                ) ?: finalModels.firstOrNull()?.id
-            _state.update {
-                it.copy(
-                    // A failed subscription lookup must not leave an old
-                    // balance/tier looking current. `sub` is null on lookup
-                    // failure and the UI can then rely on the error state.
-                    subscription = sub,
-                    subscriptionLoadFailed = sub == null,
-                    available567Groups = if (groups.isNotEmpty()) groups else it.available567Groups,
-                    active567Group = currentGroup,
-                    activeImageGroup = currentImageGroup ?: it.activeImageGroup,
-                    models = finalModels,
-                    selectedModelId = selected,
-                    catalogLoading = false,
-                )
-            }
-            if (!currentImageGroup.isNullOrBlank() && _state.value.availableImageModels.isEmpty()) {
-                loadGroupImageModels(currentImageGroup)
-            }
+            val sub = catalogOrNull { client.subscription.me() }
+            if (isCurrentAccount(client, revision)) _state.update { it.copy(subscription = sub, subscriptionLoadFailed = sub == null) }
         } catch (error: CancellationException) { throw error }
         catch (t: Throwable) {
             if (!isCurrentAccount(client, revision)) return
@@ -807,6 +759,102 @@ class AppViewModel(
         }
     }
 
+    // Navigation events share the active read. A group choice cancels it and starts one for the new selection.
+    private var groupCatalogJob: Job? = null
+    private var groupCatalogClient: org.agent567.android.core.Agent567Client? = null
+    private var groupCatalogRevision = -1L
+
+    private fun cachedModels(group: String?) = if (group == null) emptyList() else container.preferences.getCachedGroupModels(group).map { id ->
+        container.client.models.resolveContext(org.agent567.android.core.model.groupCatalogModel(id, group), group)
+    }
+
+    private fun cachedImageModels(group: String?) = if (group == null) emptyList() else
+        container.client.models.imageModels(container.preferences.getCachedGroupModels(group))
+
+    private fun chooseImage(previous: String?, ids: List<String>, allIds: List<String> = emptyList()) =
+        previous?.takeIf { it in ids || it in allIds }
+            ?: ids.firstOrNull()
+
+    private fun refreshGroupCatalog(restart: Boolean = false, explicitGroups: Set<String> = emptySet()) {
+        val client = container.client
+        val revision = authRevision
+        if (!isCurrentAccount(client, revision) || _state.value.loggingOut) return
+        if (!restart && groupCatalogClient === client && groupCatalogRevision == revision && groupCatalogJob?.isActive == true) return
+        groupCatalogJob?.cancel()
+        groupCatalogClient = client
+        groupCatalogRevision = revision
+        groupCatalogJob = viewModelScope.launch(org.agent567.android.app.RequestClientContext(client)) {
+            _state.update { it.copy(catalogLoading = true, imageModelsLoading = true) }
+            val groups = catalogOrNull { client.models.getAvailableGroups() }
+            if (!isCurrentAccount(client, revision)) return@launch
+            val current = _state.value
+            val chat = current.active567Group?.takeIf { groups == null || it in groups }
+            val image = current.activeImageGroup?.takeIf { groups == null || it in groups }
+            val cachedChat = if (chat == null) emptyList() else if (chat == current.active567Group) current.models else cachedModels(chat)
+            val cachedImages = if (image == current.activeImageGroup) current.availableImageModels else cachedImageModels(image)
+            if (groups != null) {
+                container.preferences.cachedGroups = groups
+                (current.available567Groups.keys + listOfNotNull(current.active567Group, current.activeImageGroup)).filterNot { it in groups }
+                    .forEach { container.preferences.setCachedGroupModels(it, emptyList()) }
+                container.preferences.active567Group = chat
+                container.preferences.activeImageGroup = image
+            }
+            val chatGroupRemoved = current.active567Group?.takeIf { groups != null && it !in groups }
+            val imageGroupRemoved = current.activeImageGroup?.takeIf { groups != null && it !in groups }
+            chatGroupRemoved?.let { container.preferences.setCatalogChange(false, "分组「$it」") }
+            imageGroupRemoved?.let { container.preferences.setCatalogChange(true, "绘图分组「$it」") }
+            _state.update { it.copy(available567Groups = groups ?: it.available567Groups, active567Group = chat, activeImageGroup = image,
+                groupDirectoryUnavailable = groups == null,
+                chatSelectionRemoved = chatGroupRemoved?.let { name -> "分组「$name」" } ?: it.chatSelectionRemoved,
+                imageSelectionRemoved = imageGroupRemoved?.let { name -> "绘图分组「$name」" } ?: it.imageSelectionRemoved,
+                models = cachedChat, selectedModelId = if (chat == null) null else if (chat == current.active567Group) it.selectedModelId else resolveModelId(null, cachedChat),
+                imageGroupModelIds = if (image == current.activeImageGroup) it.imageGroupModelIds else image?.let { g -> container.preferences.getCachedGroupModels(g) }.orEmpty(),
+                availableImageModels = cachedImages, activeImageModel = if (image == current.activeImageGroup) it.activeImageModel else chooseImage(null, cachedImages)) }
+            if (image != current.activeImageGroup) container.preferences.activeImageModel = _state.value.activeImageModel
+            val chatRead = async {
+                if (chat == null) emptyList() else catalogOrNull {
+                    client.models.refreshGroupModels(chat, chat in explicitGroups)
+                }
+            }
+            val imageRead = if (image != null && image != chat) async { catalogOrNull { client.models.refreshGroupModels(image, image in explicitGroups) } } else null
+            val models = chatRead.await()
+            if (!isCurrentAccount(client, revision) || _state.value.active567Group != chat) return@launch
+            if (chat != null && models != null) {
+                container.preferences.setCachedGroupModels(chat, models.map { it.id })
+                val previous = _state.value.selectedModelId ?: container.preferences.lastModelId.takeIf { chatGroupRemoved == null && chat !in explicitGroups }
+                val chosen = resolveModelId(previous, models)
+                container.preferences.lastModelId = chosen
+                val removed = previous?.takeIf { it != chosen && chatGroupRemoved == null }?.let { "模型「$it」" }
+                if (removed != null) container.preferences.setCatalogChange(false, removed)
+                _state.update { it.copy(models = models, selectedModelId = chosen, chatSelectionRemoved = removed ?: it.chatSelectionRemoved) }
+            }
+            _state.update { it.copy(catalogLoading = false, chatCatalogUnavailable = models == null) }
+            // Gateways without named drawing groups can still accept an explicitly configured image model.
+            // Only a response for its own group proves that model was removed.
+            val images = when { image == null -> null; image == chat -> models; else -> imageRead?.await() }
+            if (!isCurrentAccount(client, revision) || _state.value.activeImageGroup != image) return@launch
+            if (images != null) {
+                val allIds = images.map { it.id }
+                if (image != null && image != chat) container.preferences.setCachedGroupModels(image, allIds)
+                val ids = client.models.imageModels(allIds)
+                val previous = _state.value.activeImageModel
+                val chosen = chooseImage(previous, ids, allIds)
+                container.preferences.activeImageModel = chosen
+                val removed = previous?.takeIf { it != chosen && imageGroupRemoved == null }?.let { "绘图模型「$it」" }
+                if (removed != null) container.preferences.setCatalogChange(true, removed)
+                _state.update { it.copy(imageGroupModelIds = allIds, availableImageModels = ids, activeImageModel = chosen, imageSelectionRemoved = removed ?: it.imageSelectionRemoved) }
+            }
+            _state.update { it.copy(imageModelsLoading = false, imageCatalogUnavailable = image != null && images == null) }
+        }
+    }
+
+    fun retryGroupCatalog() = refreshGroupCatalog()
+
+    fun acknowledgeCatalogChange(image: Boolean) {
+        container.preferences.setCatalogChange(image, null)
+        _state.update { if (image) it.copy(imageSelectionRemoved = null) else it.copy(chatSelectionRemoved = null) }
+    }
+
     fun openWelcome() {
         if (_state.value.loggingOut) return
         if (_state.value.route == AppRoute.Login) {
@@ -816,10 +864,16 @@ class AppViewModel(
         navigate(AppRoute.Welcome)
     }
 
+    fun loginForGroupSelection() {
+        pendingLoginAction = PendingLoginAction.GroupSelection
+        openLogin()
+    }
+
     fun openLogin() { if (!_state.value.loggingOut) navigate(AppRoute.Login) }
 
     fun skipWelcome() {
         if (_state.value.loggingOut) return
+        container.preferences.welcomed = true
         _state.update {
             it.copy(
                 bootstrapped = true,
@@ -937,6 +991,7 @@ class AppViewModel(
     }
 
     fun selectMainTab(tab: MainTab) {
+        if (tab == MainTab.Me) refreshGroupCatalog()
         _state.update {
             it.copy(
                 mainTab = tab,
@@ -996,9 +1051,22 @@ class AppViewModel(
         }
     }
 
-    fun openDeviceDetail(deviceId: String) = navigate(AppRoute.DeviceDetail(deviceId))
+    fun openDeviceDetail(deviceId: String) {
+        val capabilities = _state.value.route as? AppRoute.DeviceCapabilities
+        navigate(AppRoute.DeviceDetail(deviceId, capabilities?.takeIf { it.deviceId == deviceId }?.fromChat))
+    }
 
-    fun openDeviceCapabilities(deviceId: String) = navigate(AppRoute.DeviceCapabilities(deviceId))
+    fun viewChatComputer() {
+        val chat = _state.value.route as? AppRoute.Chat ?: return
+        if (chat.surface != ChatSurface.Desktop) return
+        val deviceId = chat.deviceId ?: container.sessionStore.sessions.value.firstOrNull { it.id == chat.sessionId }?.remoteDeviceId ?: return
+        navigate(AppRoute.DeviceDetail(deviceId, fromChat = chat))
+    }
+
+    fun openDeviceCapabilities(deviceId: String) {
+        val detail = _state.value.route as? AppRoute.DeviceDetail
+        navigate(AppRoute.DeviceCapabilities(deviceId, detail?.takeIf { it.deviceId == deviceId }?.fromChat))
+    }
 
     fun openNewConversation(channelIndex: Int = 0) {
         _state.update { it.copy(newConversationChannelIndex = channelIndex) }
@@ -1032,11 +1100,15 @@ class AppViewModel(
     }
 
     fun connectDesktop(target: String) {
-        if (_state.value.remoteConnecting) return
+        val previousRestore = pairingRestoreJob
+        if (_state.value.remoteConnecting && previousRestore == null) return
+        pairingRestoreJob = null
+        previousRestore?.cancel()
         val routeBeforeConnect = _state.value.route
         _state.update { it.copy(remoteConnecting = true, remoteError = null) }
         viewModelScope.launch {
             try {
+                previousRestore?.join()
                 val invite = org.agent567.android.domain.remote.parsePairingInvite(target)
                 val savedResume =
                     invite?.let {
@@ -1066,11 +1138,13 @@ class AppViewModel(
                             }
                         }
                     }
+                var failureHint = Str.remoteConnectFailedHint
                 val connected =
                     try {
                         container.remoteConversationGateway.connect(candidateTargets)
                     } catch (error: Throwable) {
                         if (error is CancellationException) throw error
+                        if (error is RemotePairingIdentityChanged) failureHint = Str.remotePairingChangedHint
                         org.agent567.android.domain.remote.connection.PlatformRemoteLogger.warn(
                             "remote pairing connection failed",
                             mapOf(
@@ -1081,6 +1155,7 @@ class AppViewModel(
                         false
                     }
                 if (connected) {
+                    container.preferences.welcomed = true
                     _state.update { it.copy(mainAccessGranted = true) }
                     if (invite != null && resume != null) {
                         container.preferences.remotePairingId = invite.pairingId
@@ -1104,7 +1179,7 @@ class AppViewModel(
                         remoteError =
                             UiError(
                                 title = Str.remoteConnectFailed,
-                                message = Str.remoteConnectFailedHint,
+                                message = failureHint,
                                 action = UiErrorAction.None,
                             ),
                     )
@@ -1156,15 +1231,16 @@ class AppViewModel(
                     ),
                 )
             }
-            add(
+            if (relayUrl != lanUrl) add(
                 org.agent567.android.domain.remote.buildMobileResumeTarget(
                     invite.copy(lanBaseUrl = null, lanCertificateFingerprint = null),
                     resumeSecret,
                 ),
             )
         }
-        _state.update { it.copy(remoteConnecting = true) }
-        viewModelScope.launch {
+        if (targets.isEmpty()) return
+        _state.update { it.copy(remoteConnecting = true, remoteError = null) }
+        val restore = viewModelScope.launch(start = CoroutineStart.LAZY) {
             try {
                 var connected = false
                 for (attempt in 0..2) {
@@ -1173,10 +1249,16 @@ class AppViewModel(
                         container.remoteConversationGateway.connect(targets)
                     } catch (cancelled: CancellationException) {
                         throw cancelled
+                    } catch (_: RemotePairingIdentityChanged) {
+                        _state.update { it.copy(remoteError = UiError(Str.remoteConnectFailed, Str.remotePairingChangedHint, UiErrorAction.None)) }
+                        break
                     } catch (_: Throwable) {
                         false
                     }
                     if (connected) break
+                }
+                if (!connected && _state.value.remoteError == null) {
+                    _state.update { it.copy(remoteError = UiError(Str.remoteConnectFailed, Str.remoteConnectFailedHint, UiErrorAction.None)) }
                 }
                 if (connected) {
                     _state.update { state ->
@@ -1199,9 +1281,14 @@ class AppViewModel(
                     }
                 }
             } finally {
-                _state.update { it.copy(remoteConnecting = false) }
+                if (pairingRestoreJob === currentCoroutineContext()[Job]) {
+                    pairingRestoreJob = null
+                    _state.update { it.copy(remoteConnecting = false) }
+                }
             }
         }
+        pairingRestoreJob = restore
+        restore.start()
     }
 
     fun setSessionQuery(query: String) {
@@ -1221,6 +1308,101 @@ class AppViewModel(
 
     fun refreshDesktopSessions() {
         loadDesktopSessions()
+    }
+
+    fun startDraftHandoff(sessionId: String?) {
+        val chat = _state.value.route as? AppRoute.Chat ?: return
+        if (chat.surface != ChatSurface.Cloud || sessionId == null) return
+        _state.update { it.copy(draftHandoff = DraftHandoffState(sessionId = sessionId, selectionMode = true)) }
+    }
+
+    fun toggleDraftHandoffMessage(messageId: String) {
+        val current = _state.value.draftHandoff
+        val message = _state.value.messages.firstOrNull { it.id == messageId } ?: return
+        if (!isMessageSelectableForDraftHandoff(message)) return
+        val next = if (messageId in current.selectedMessageIds) current.selectedMessageIds - messageId
+        else if (current.selectedMessageIds.size >= DRAFT_HANDOFF_MAX_MESSAGES) current.selectedMessageIds
+        else current.selectedMessageIds + messageId
+        _state.update { it.copy(draftHandoff = current.copy(selectedMessageIds = next, error = null, pendingSignature = null, pendingIdempotencyKey = null)) }
+    }
+
+    fun clearDraftHandoffSelection() = _state.update { it.copy(draftHandoff = it.draftHandoff.copy(selectedMessageIds = emptyList(), previewOpen = false, error = null)) }
+
+    fun exitDraftHandoff() = _state.update { it.copy(draftHandoff = DraftHandoffState()) }
+
+    fun openDraftHandoffPreview() {
+        val current = _state.value
+        val handoff = current.draftHandoff
+        val text = formatDraftHandoffText(current.messages, handoff.selectedMessageIds)
+        val error = validateDraftHandoffText(text)
+        if (handoff.selectedMessageIds.isEmpty() || error != null) {
+            _state.update { it.copy(draftHandoff = handoff.copy(error = error ?: Str.draftHandoffSelectHint)) }
+            return
+        }
+        val device = resolveDraftHandoffDevice(current.devices, handoff.targetDeviceId)
+        _state.update { it.copy(draftHandoff = handoff.copy(previewOpen = true, targetDeviceId = device?.id, error = null)) }
+        refreshDraftHandoffTarget()
+    }
+
+    private fun resolveDraftHandoffDevice(devices: List<DesktopDevice>, preferred: String?): DesktopDevice? =
+        devices.filter { it.status == DeviceStatus.Online }.firstOrNull { it.id == preferred }
+            ?: devices.firstOrNull { it.status == DeviceStatus.Online }
+
+    fun refreshDraftHandoffTarget() {
+        val device = resolveDraftHandoffDevice(_state.value.devices, _state.value.draftHandoff.targetDeviceId)
+        if (device == null) {
+            _state.update { it.copy(draftHandoff = it.draftHandoff.copy(desktopSupported = false, error = Str.draftHandoffDesktopOffline)) }
+            return
+        }
+        val handoff = _state.value.draftHandoff
+        _state.update { it.copy(draftHandoff = handoff.copy(targetDeviceId = device.id, sessionsLoading = true, error = null)) }
+        viewModelScope.launch {
+            try {
+                val supported = container.remoteConversationGateway.supportsDesktopDraftAppend(device.id)
+                val sessions = if (handoff.targetType == RemoteDraftTargetType.Existing && supported == true)
+                    container.remoteConversationGateway.readDesktopSessionCatalog(device.id)?.sessions.orEmpty() else emptyList()
+                _state.update { state -> state.copy(draftHandoff = state.draftHandoff.copy(desktopSupported = supported, availableSessions = sessions, sessionsLoading = false)) }
+            } catch (error: Throwable) {
+                if (error is CancellationException) throw error
+                _state.update { state -> state.copy(draftHandoff = state.draftHandoff.copy(sessionsLoading = false, error = error.message ?: Str.draftHandoffSendFailed)) }
+            }
+        }
+    }
+
+    fun setDraftHandoffTargetType(type: RemoteDraftTargetType) {
+        _state.update { it.copy(draftHandoff = it.draftHandoff.copy(targetType = type, targetSessionId = null, error = null, pendingSignature = null, pendingIdempotencyKey = null)) }
+        refreshDraftHandoffTarget()
+    }
+
+    fun setDraftHandoffTargetSession(sessionId: String) = _state.update { it.copy(draftHandoff = it.draftHandoff.copy(targetSessionId = sessionId, error = null, pendingSignature = null, pendingIdempotencyKey = null)) }
+
+    fun reconnectForDraftHandoff() {
+        if (!container.remoteConversationGateway.retryConnection()) restorePairedDesktopConnection()
+        refreshDraftHandoffTarget()
+    }
+
+    fun sendDraftHandoff() {
+        val snapshot = _state.value
+        val handoff = snapshot.draftHandoff
+        val device = resolveDraftHandoffDevice(snapshot.devices, handoff.targetDeviceId)
+        if (device == null || handoff.desktopSupported != true) return
+        val text = formatDraftHandoffText(snapshot.messages, handoff.selectedMessageIds)
+        val validation = validateDraftHandoffText(text)
+        if (validation != null) { _state.update { it.copy(draftHandoff = handoff.copy(error = validation)) }; return }
+        val key = handoff.pendingIdempotencyKey ?: newDraftHandoffIdempotencyKey()
+        val signature = handoff.pendingSignature ?: DraftHandoffSignature(authRevision, container.preferences.authUserId.toString(), snapshot.currentSessionId.orEmpty(), device.id, handoff.targetType, handoff.targetSessionId, text)
+        _state.update { it.copy(draftHandoff = handoff.copy(sending = true, pendingIdempotencyKey = key, pendingSignature = signature, error = null)) }
+        viewModelScope.launch {
+            try {
+                val result = container.remoteConversationGateway.appendDesktopDraft(device.id, key, handoff.targetType, handoff.targetSessionId, text)
+                    ?: throw RemoteConversationException(Str.draftHandoffSendFailed)
+                if (!result.saved) throw RemoteConversationException(Str.draftHandoffUnconfirmed)
+                _state.update { it.copy(draftHandoff = DraftHandoffState(notice = Str.draftHandoffSent, noticeNonce = nowEpochMs())) }
+            } catch (error: Throwable) {
+                if (error is CancellationException) throw error
+                _state.update { it.copy(draftHandoff = it.draftHandoff.copy(sending = false, error = error.message ?: Str.draftHandoffSendFailed)) }
+            }
+        }
     }
 
     fun refreshSessions() {
@@ -1645,7 +1827,7 @@ class AppViewModel(
             contextWindowSource = modelAtRead?.contextWindowSource ?: "unknown", manualContextWindow = manualAtRead,
             modelKey = modelAtRead?.let { kotlinx.serialization.json.JsonArray(listOf(kotlinx.serialization.json.JsonPrimitive(stateAtRead.active567Group), kotlinx.serialization.json.JsonPrimitive(it.id))).toString() },
             inferenceApiOverride = modelAtRead?.let { container.preferences.getModelInferenceApi(stateAtRead.active567Group, it.id)?.wireValue },
-            automaticInferenceApi = modelAtRead?.let { org.agent567.android.core.chat.InferenceApi.automatic(it.id, stateAtRead.active567Group).wireValue },
+            automaticInferenceApi = org.agent567.android.core.chat.InferenceApi.DefaultChat.wireValue,
             modelName = modelAtRead?.name, automaticContextWindow = automaticAtRead?.contextWindow,
             referenceModel = reference?.modelId, referenceUrl = reference?.sourceUrl, referenceCheckedAt = reference?.checkedAt,
             referenceIsAlias = reference?.alias == true,
@@ -1913,6 +2095,11 @@ class AppViewModel(
     }
 
     fun navigateBackFromSecondary() {
+        val returnChat = (_state.value.route as? AppRoute.DeviceDetail)?.fromChat
+        if (returnChat != null && returnChat.sessionId == _state.value.currentSessionId) {
+            navigate(returnChat)
+            return
+        }
         val exitingSessionId = (_state.value.route as? AppRoute.Chat)?.sessionId
         // QR pairing is an independent entry path; a connected Desktop is enough to use the main shell.
         if (_state.value.mainAccessGranted || _state.value.user != null || _state.value.devices.isNotEmpty()) {
@@ -1991,6 +2178,7 @@ class AppViewModel(
     }
 
     fun handleSystemBack() {
+        if (_state.value.groupWizardOpen) { setGroupWizardOpen(false); return }
         if (_state.value.imagePickerOpen) {
             setImagePickerOpen(false)
             return
@@ -2018,6 +2206,8 @@ class AppViewModel(
     }
 
     private fun navigate(route: AppRoute) {
+        if (route is AppRoute.NewConversation || route is AppRoute.Chat && route.surface == ChatSurface.Cloud ||
+            route == AppRoute.Plan || route == AppRoute.Settings || route == AppRoute.Account) refreshGroupCatalog()
         if (_state.value.route is AppRoute.Chat && _state.value.route != route) flushComposerDrafts()
         _state.update {
             it.copy(
@@ -2031,22 +2221,20 @@ class AppViewModel(
 
     fun setModelPicker(open: Boolean) {
         _state.update { it.copy(modelPickerOpen = open) }
-        if (open && (_state.value.route as? AppRoute.Chat)?.surface == ChatSurface.Desktop) {
-            refreshDesktopSessionModels()
+        if (open) {
+            if ((_state.value.route as? AppRoute.Chat)?.surface == ChatSurface.Desktop) refreshDesktopSessionModels() else refreshGroupCatalog()
         }
     }
 
     fun refreshDesktopSessionModels(sessionId: String? = _state.value.currentSessionId) {
         val localSessionId = sessionId ?: return
         viewModelScope.launch {
-            _state.update { it.copy(catalogLoading = true) }
+            _state.update { it.copy(desktopCatalogLoading = true) }
             try {
                 ensureDesktopSessionModels(localSessionId)
-                _state.update { it.copy(catalogLoading = false) }
             } catch (error: Throwable) {
-                _state.update { it.copy(catalogLoading = false) }
                 setSessionError(localSessionId, error, desktopOnly = true)
-            }
+            } finally { if (_state.value.currentSessionId == localSessionId) _state.update { it.copy(desktopCatalogLoading = false) } }
         }
     }
 
@@ -2258,48 +2446,40 @@ class AppViewModel(
 
     fun setGroupPickerOpen(open: Boolean) {
         _state.update { it.copy(groupPickerOpen = open) }
+        if (open) refreshGroupCatalog()
+    }
+
+    fun setGroupWizardOpen(open: Boolean) {
+        _state.update { it.copy(groupWizardOpen = open) }
+        if (open && container.tokenStore.accessToken != null) refreshGroupCatalog()
+    }
+
+    fun applyGroupWizard(chatGroup: String?, imageGroup: String?, enableImageGen: Boolean) {
+        val current = _state.value
+        if (container.tokenStore.accessToken == null || current.loggingOut) return
+        val chatSelection = chatGroup?.takeIf { it != current.active567Group && it in current.available567Groups }
+        val imageSelection = imageGroup?.takeIf { it != current.activeImageGroup && it in current.available567Groups }
+        if (chatSelection != null) updateChatGroupSelection(chatSelection)
+        if (imageSelection != null) updateImageGroupSelection(imageSelection)
+        setImageGenEnabled(enableImageGen)
+        setGroupWizardOpen(false)
+        val selected = setOfNotNull(chatSelection, imageSelection)
+        if (selected.isNotEmpty()) refreshGroupCatalog(restart = true, explicitGroups = selected)
     }
 
     fun setActive567Group(group: String?) {
-        val oldGroup = _state.value.active567Group
-        if (oldGroup != null && oldGroup != group) {
-            viewModelScope.launch {
-                runCatching { container.client.models.cleanupGroupToken(oldGroup) }
-            }
-        }
-        container.preferences.active567Group = group
-        val cached = container.preferences.getCachedGroupModels(group).map { id ->
-            val isReasoning = id.contains("reasoner", ignoreCase = true) ||
-                    id.contains("r1", ignoreCase = true) ||
-                    id.contains("o1", ignoreCase = true) ||
-                    id.contains("o3", ignoreCase = true) ||
-                    id.contains("thinking", ignoreCase = true) ||
-                    id.contains("sol", ignoreCase = true)
-            LlmModel(id = id, modelId = id, name = id, providerName = group ?: "567 API", reasoning = isReasoning)
-        }
-        val immediateSelected = resolveModelId(container.preferences.lastModelId, cached) ?: cached.firstOrNull()?.id
-        _state.update {
-            it.copy(
-                active567Group = group,
-                catalogLoading = cached.isEmpty(),
-                models = if (cached.isNotEmpty()) cached else it.models,
-                selectedModelId = immediateSelected ?: it.selectedModelId,
-            )
-        }
-        viewModelScope.launch {
-            try {
-                val models = container.client.models.listGoModels(group)
-                val finalModels = if (models.isNotEmpty()) models else _state.value.models
-                val selected = resolveModelId(container.preferences.lastModelId, finalModels) ?: finalModels.firstOrNull()?.id
-                _state.update {
-                    it.copy(models = finalModels, selectedModelId = selected, catalogLoading = false)
-                }
-            } catch (_: Throwable) {
-                _state.update { it.copy(catalogLoading = false) }
-            }
-        }
+        updateChatGroupSelection(group)
+        refreshGroupCatalog(restart = true, explicitGroups = setOfNotNull(group))
     }
 
+    private fun updateChatGroupSelection(group: String?) {
+        val oldGroup = _state.value.active567Group
+        container.preferences.active567Group = group
+        container.preferences.setCatalogChange(false, null)
+        val cached = if (oldGroup != group) cachedModels(group) else _state.value.models
+        _state.update { it.copy(active567Group = group, catalogLoading = cached.isEmpty(), models = cached, chatSelectionRemoved = null, chatCatalogUnavailable = false,
+            selectedModelId = resolveModelId(container.preferences.lastModelId, cached)) }
+    }
 
     fun setImagePickerOpen(open: Boolean) {
         _state.update {
@@ -2308,13 +2488,12 @@ class AppViewModel(
                 imageGroupExpanded = if (open && it.activeImageGroup == null) true else it.imageGroupExpanded,
             )
         }
-        if (open && !_state.value.activeImageGroup.isNullOrBlank() && _state.value.availableImageModels.isEmpty()) {
-            loadGroupImageModels(_state.value.activeImageGroup)
-        }
+        if (open) refreshGroupCatalog()
     }
 
     fun setImageGroupExpanded(expanded: Boolean) {
         _state.update { it.copy(imageGroupExpanded = expanded) }
+        if (expanded) refreshGroupCatalog()
     }
 
     fun setImageGenEnabled(enabled: Boolean) {
@@ -2323,61 +2502,32 @@ class AppViewModel(
     }
 
     fun setActiveImageGroup(group: String?) {
+        updateImageGroupSelection(group)
+        refreshGroupCatalog(restart = true, explicitGroups = setOfNotNull(group))
+    }
+
+    private fun updateImageGroupSelection(group: String?) {
         val oldGroup = _state.value.activeImageGroup
-        if (oldGroup != null && oldGroup != group) {
-            viewModelScope.launch {
-                runCatching { container.client.models.cleanupGroupToken(oldGroup) }
-            }
-        }
         container.preferences.activeImageGroup = group
-        // 选中分组后关键步骤：立即自动折叠收起分组列表，展现对应模型
-        _state.update {
-            it.copy(
-                activeImageGroup = group,
-                imageGroupExpanded = false,
-                imageModelsLoading = true,
-            )
-        }
-        loadGroupImageModels(group)
+        container.preferences.setCatalogChange(true, null)
+        val allIds = if (group == oldGroup) _state.value.imageGroupModelIds else group?.let { container.preferences.getCachedGroupModels(it) }.orEmpty()
+        val ids = if (group != oldGroup) cachedImageModels(group) else _state.value.availableImageModels
+        val chosen = chooseImage(_state.value.activeImageModel.takeIf { oldGroup == group }, ids, allIds)
+        container.preferences.activeImageModel = chosen
+        _state.update { it.copy(activeImageGroup = group, imageGroupExpanded = false, imageModelsLoading = true, imageSelectionRemoved = null, imageCatalogUnavailable = false,
+            imageGroupModelIds = allIds, availableImageModels = ids, activeImageModel = chosen) }
     }
 
     fun setActiveImageModel(model: String?) {
+        if (model != null && (_state.value.activeImageGroup == null || model !in _state.value.imageGroupModelIds)) return
+        container.preferences.setCatalogChange(true, null)
         container.preferences.activeImageModel = model
         _state.update {
             it.copy(
                 activeImageModel = model,
+                imageSelectionRemoved = null,
                 imagePickerOpen = false,
             )
-        }
-    }
-
-    private fun loadGroupImageModels(group: String?) {
-        if (group.isNullOrBlank()) {
-            _state.update { it.copy(availableImageModels = emptyList(), imageModelsLoading = false) }
-            return
-        }
-        viewModelScope.launch {
-            try {
-                val models = container.client.models.fetchGroupImageModels(group)
-                val current = _state.value.activeImageModel
-                val selected = if (current != null && models.contains(current)) {
-                    current
-                } else {
-                    models.find { it == "gemini-3.1-flash-image" } ?: models.firstOrNull()
-                }
-                if (selected != null) {
-                    container.preferences.activeImageModel = selected
-                }
-                _state.update {
-                    it.copy(
-                        availableImageModels = models,
-                        activeImageModel = selected,
-                        imageModelsLoading = false,
-                    )
-                }
-            } catch (_: Throwable) {
-                _state.update { it.copy(imageModelsLoading = false) }
-            }
         }
     }
 
@@ -2415,13 +2565,15 @@ class AppViewModel(
                     return@launch
                 }
                 container.preferences.lastModelId = model.id
-                _state.update { it.copy(selectedModelId = model.id, modelPickerOpen = false) }
+                container.preferences.setCatalogChange(false, null)
+                _state.update { it.copy(selectedModelId = model.id, modelPickerOpen = false, chatSelectionRemoved = null) }
                 container.sessionStore.updateSession(session.copy(modelId = model.id, modelName = model.name))
             }
             return
         }
         container.preferences.lastModelId = model.id
-        _state.update { it.copy(selectedModelId = model.id, modelPickerOpen = false) }
+        container.preferences.setCatalogChange(false, null)
+        _state.update { it.copy(selectedModelId = model.id, modelPickerOpen = false, chatSelectionRemoved = null) }
     }
 
     fun setThemeMode(mode: ThemeMode) {
@@ -2615,6 +2767,7 @@ class AppViewModel(
         if (_state.value.authLoading) return
         _state.update { it.copy(authLoading = true, authError = null) }
         val revision = ++authRevision
+        groupCatalogJob?.cancel()
         workspaceJob?.cancel()
         authJob = viewModelScope.launch {
             try {
@@ -2643,8 +2796,10 @@ class AppViewModel(
                 val pendingAction = pendingLoginAction
                 pendingLoginAction = null
                 loadWorkspace(openLastSession = true)
-                if (pendingAction == PendingLoginAction.CloudConversation) {
-                    newChat()
+                when (pendingAction) {
+                    PendingLoginAction.CloudConversation -> newChat()
+                    PendingLoginAction.GroupSelection -> setGroupWizardOpen(true)
+                    null -> Unit
                 }
             } catch (error: CancellationException) { throw error }
             catch (t: Throwable) {
@@ -2659,7 +2814,7 @@ class AppViewModel(
     }
 
     private enum class PendingLoginAction {
-        CloudConversation,
+        CloudConversation, GroupSelection,
     }
 
     fun sendVerificationCode(email: String, onResult: (Boolean, String) -> Unit) {
@@ -2684,6 +2839,7 @@ class AppViewModel(
         if (_state.value.authLoading) return
         _state.update { it.copy(authLoading = true, authError = null) }
         val revision = ++authRevision
+        groupCatalogJob?.cancel()
         workspaceJob?.cancel()
         authJob = viewModelScope.launch {
             try {
@@ -2706,8 +2862,10 @@ class AppViewModel(
                 val pendingAction = pendingLoginAction
                 pendingLoginAction = null
                 loadWorkspace(openLastSession = true)
-                if (pendingAction == PendingLoginAction.CloudConversation) {
-                    newChat()
+                when (pendingAction) {
+                    PendingLoginAction.CloudConversation -> newChat()
+                    PendingLoginAction.GroupSelection -> setGroupWizardOpen(true)
+                    null -> Unit
                 }
                 onResult(true, null)
             } catch (error: CancellationException) { throw error }
@@ -2777,6 +2935,7 @@ class AppViewModel(
 
     private suspend fun forceLogout(keepLocalSessions: Boolean, message: String? = null) {
         val revision = ++authRevision
+        groupCatalogJob?.cancel()
         container.invalidateSharedContent()
         failedSessionDeletion = null
         sharedContentQueue.clear()
@@ -2789,6 +2948,7 @@ class AppViewModel(
                 mainAccessGranted = false,
                 authLoading = true,
                 loggingOut = true,
+                groupWizardOpen = false,
                 retryFileSelection = null,
                 sharedContentToPlace = null,
                 sharedContentBusy = false,
@@ -2801,9 +2961,14 @@ class AppViewModel(
                 user = null,
                 subscription = null,
                 subscriptionLoadFailed = false,
+                available567Groups = emptyMap(), active567Group = null, activeImageGroup = null,
+                chatSelectionRemoved = null, imageSelectionRemoved = null, groupDirectoryUnavailable = false,
+                chatCatalogUnavailable = false, imageCatalogUnavailable = false, desktopCatalogLoading = false,
+                imageGroupModelIds = emptyList(), availableImageModels = emptyList(), activeImageModel = null, imageModelsLoading = false,
                 models = emptyList(),
                 selectedModelId = null,
                 currentSessionId = null,
+                draftHandoff = DraftHandoffState(),
                 messages = emptyList(),
                 draft = "",
                 pendingImages = emptyList(),
@@ -2845,44 +3010,10 @@ class AppViewModel(
     fun refreshCatalog() {
         val client = container.client
         val revision = authRevision
+        refreshGroupCatalog()
         viewModelScope.launch(org.agent567.android.app.RequestClientContext(client)) {
-            _state.update { it.copy(catalogLoading = true) }
-            try {
-                val sub = runCatching { client.subscription.me() }.getOrNull()
-                if (!isCurrentAccount(client, revision)) return@launch
-                _state.update {
-                    it.copy(
-                        subscription = sub,
-                        subscriptionLoadFailed = sub == null,
-                    )
-                }
-                val groups = runCatching { client.models.getAvailableGroups() }.getOrDefault(emptyMap())
-                val currentGroup = _state.value.active567Group
-                val models = client.models.listGoModels(currentGroup)
-                if (!isCurrentAccount(client, revision)) return@launch
-                val finalModels = if (models.isNotEmpty()) models else _state.value.models
-                val selected =
-                    resolveModelId(_state.value.selectedModelId ?: container.preferences.lastModelId, finalModels)
-                        ?: finalModels.firstOrNull()?.id
-                _state.update {
-                    it.copy(
-                        subscription = sub,
-                        subscriptionLoadFailed = sub == null,
-                        available567Groups = if (groups.isNotEmpty()) groups else it.available567Groups,
-                        models = finalModels,
-                        selectedModelId = selected,
-                        catalogLoading = false,
-                    )
-                }
-            } catch (error: CancellationException) { throw error }
-            catch (t: Throwable) {
-                if (!isCurrentAccount(client, revision)) return@launch
-                _state.update {
-                    it.copy(
-                        catalogLoading = false,
-                    )
-                }
-            }
+            val sub = catalogOrNull { client.subscription.me() }
+            if (isCurrentAccount(client, revision)) _state.update { it.copy(subscription = sub, subscriptionLoadFailed = sub == null) }
         }
     }
 
@@ -2900,6 +3031,7 @@ class AppViewModel(
                 container.preferences.authQuotaUsd = user.quotaUsd
                 container.preferences.authUserId = user.id
                 _state.update { it.copy(user = user, accountVerificationMessage = null) }
+                refreshGroupCatalog()
                 refreshWorkspaceSnapshot(client, revision)
             } catch (error: Throwable) {
                 if (error is CancellationException) throw error
@@ -2933,6 +3065,7 @@ class AppViewModel(
                 surface = ChatSurface.Cloud,
                 title = session.title,
             )
+            if (_state.value.active567Group == null) setGroupWizardOpen(true)
         }
     }
 
@@ -3050,6 +3183,7 @@ class AppViewModel(
         modelId: String,
         groupName: String?,
     ) {
+        if (groupName == null) return
         val session = container.sessionStore.getSession(sessionId) ?: return
         if (session.titleManuallyEdited || session.title != SessionStore.DEFAULT_TITLE) return
         try {
@@ -3094,7 +3228,7 @@ class AppViewModel(
         groupName: String?,
         conversation: String,
     ): List<String> {
-        if (conversation.isBlank()) return emptyList()
+        if (groupName == null || conversation.isBlank()) return emptyList()
         return try {
             val output = buildString {
                 container.client.chat.stream(
@@ -3129,6 +3263,11 @@ class AppViewModel(
 
     private fun sendMessage(retryPreviousTurn: Boolean) {
         val stateAtSend = _state.value
+        if ((stateAtSend.route as? AppRoute.Chat)?.surface == ChatSurface.Cloud) {
+            if (stateAtSend.active567Group == null) { setGroupWizardOpen(true); return }
+            if (stateAtSend.chatSelectionRemoved != null) { setModelPicker(true); return }
+            if (stateAtSend.imageGenEnabled && stateAtSend.imageSelectionRemoved != null) { setImagePickerOpen(true); return }
+        }
         val requestClient = container.client
         val requestRouter = container.conversationRouterFor(requestClient)
         val documents = stateAtSend.pendingFiles
@@ -3228,7 +3367,7 @@ class AppViewModel(
                     return@launch
                 }
             }
-            if (session.origin == ConversationOrigin.Cloud && model == null && session.modelId == null) {
+            if (session.origin == ConversationOrigin.Cloud && model == null) {
                 showNoModelError()
                 return@launch
             }
@@ -3383,7 +3522,7 @@ class AppViewModel(
                                 selectedModelId = model?.id,
                                 messages = history,
                                 groupName = stateAtSend.active567Group,
-                                imageGenModel = if (stateAtSend.imageGenEnabled) stateAtSend.activeImageModel else null,
+                                imageGenModel = if (stateAtSend.imageGenEnabled && stateAtSend.activeImageGroup != null) stateAtSend.activeImageModel else null,
                                 retryPreviousTurn = retryPreviousTurn,
                                 desktopPromptText = buildString {
                                     append(stateAtSend.draft)
@@ -3528,9 +3667,11 @@ class AppViewModel(
                                             )
                                             flushAllImmediate()
 
-                                            val imgModel = stateAtSend.activeImageModel ?: "gemini-3.1-flash-image"
+                                            val imgModel = stateAtSend.activeImageModel
                                             val imgGroup = stateAtSend.activeImageGroup
                                             try {
+                                                require(stateAtSend.imageGenEnabled && imgGroup != null) { "请先启用绘图并选择画图分组" }
+                                                requireNotNull(imgModel) { "当前分组没有可用的绘图模型" }
                                                 val res = requestClient.models.generateImage(
                                                     prompt = promptArg,
                                                     model = imgModel,
@@ -4443,31 +4584,6 @@ class AppViewModel(
 
 private fun elapsedSince(startedAtEpochMs: Long): Long = (nowEpochMs() - startedAtEpochMs).coerceAtLeast(0L)
 
-private fun pickDefaultGroup(available: Map<String, org.agent567.android.core.api.ApiGroupInfoDto>): String? {
-    val priorityGroups = listOf(
-        "反重力Gemini",
-        "画图",
-        "chat GPT 特价",
-        "chat GPT 满血",
-        "deepseek官",
-        "Google Gemini",
-        "chat GPT pro",
-        "xAI grok",
-        "国模特价组1",
-        "福利特价",
-    )
-    for (p in priorityGroups) {
-        if (available.containsKey(p)) return p
-    }
-    return available.keys.firstOrNull { !it.contains("kiro", ignoreCase = true) } ?: available.keys.firstOrNull()
-}
-
-private fun pickDefaultImageGroup(available: Map<String, org.agent567.android.core.api.ApiGroupInfoDto>): String? {
-    val priorityGroups = listOf("画图", "画图模型", "chat GPT 备用2")
-    for (p in priorityGroups) {
-        if (available.containsKey(p)) return p
-    }
-    return available.keys.firstOrNull {
-        it.contains("画图") || it.contains("绘图") || it.contains("生图") || it.contains("image", ignoreCase = true)
-    }
-}
+private suspend fun <T> catalogOrNull(read: suspend () -> T): T? = try { read() }
+catch (e: CancellationException) { throw e }
+catch (_: Exception) { null }

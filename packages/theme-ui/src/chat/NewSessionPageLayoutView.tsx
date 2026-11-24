@@ -74,7 +74,7 @@ export function NewSessionPageLayoutView({
 						{landing ? <div aria-hidden="true" className="shrink-0" style={{ height: topGap }} /> : null}
 						<div
 							ref={column}
-							className={`flex w-full shrink-0 flex-col items-center px-6 ${
+							className={`flex w-full shrink-0 flex-col items-center px-2 @md:px-6 ${
 								landing ? "pb-0 pt-0" : "min-h-full justify-center py-6"
 							}`}
 						>
@@ -85,7 +85,7 @@ export function NewSessionPageLayoutView({
 								<div className="mx-auto w-full max-w-2xl px-2 sm:px-4">{guidingWords}</div>
 							)}
 						</div>
-						{landing ? <div className="w-full shrink-0 px-6 pb-6">{landing}</div> : null}
+						{landing ? <div className="w-full shrink-0 px-2 pb-6 @md:px-6">{landing}</div> : null}
 					</div>
 				</>,
 			)}

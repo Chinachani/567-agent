@@ -16,11 +16,11 @@ describe("getSetupWizardSteps", () => {
 	});
 
 	it("引导流程不包含当前未提供的云账号登录", () => {
-		expect(getSetupWizardSteps()).toEqual(["languageAppearance", "permissions", "welcome"]);
+		expect(getSetupWizardSteps()).toEqual(["languageAppearance", "permissions", "groupSelection", "welcome"]);
 	});
 
 	it("非 macOS 跳过权限步", () => {
 		flags.mac = false;
-		expect(getSetupWizardSteps()).toEqual(["languageAppearance", "welcome"]);
+		expect(getSetupWizardSteps()).toEqual(["languageAppearance", "groupSelection", "welcome"]);
 	});
 });

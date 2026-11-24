@@ -54,6 +54,7 @@ import { recordSessionAgentMode } from "./session-agent-mode-store.js";
 import { type ResolvedSessionAgentProfile, resolveSessionAgentProfile } from "./session-agent-profile.js";
 import { SessionContextWorkspace } from "./session-context-workspace.js";
 import { DesktopSessionCreationTrace } from "./session-creation-trace.js";
+import { getDesktopSessionDraftStore } from "./session-draft-store.js";
 import type { SessionMigrationArchive } from "./session-migration-backup.js";
 import { isConversationCwd, readDesktopSessionHeader, resolveSessionListCwd, samePath } from "./session-paths.js";
 import { SessionWorkbench } from "./session-workbench.js";
@@ -754,6 +755,11 @@ export class DesktopConversationService {
 			throw new DesktopConversationError("SESSION_NOT_FOUND", "The desktop session was not found.");
 		}
 		await this.runtime.deleteSession(session.path);
+		try {
+			getDesktopSessionDraftStore().deleteDraft(session.path);
+		} catch {
+			// Session deletion succeeded; draft cleanup failure is logged by the store.
+		}
 		notifyAutomationSessionsDeleted((path) => samePath(path, session.path));
 		emitConversationListChanged({ cwd: resolveSessionListCwd(cwd), sessionPath: session.path });
 	}

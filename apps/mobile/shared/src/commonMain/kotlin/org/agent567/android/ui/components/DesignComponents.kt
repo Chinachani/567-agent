@@ -22,7 +22,9 @@ import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.material3.Button
+import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.outlined.Add
@@ -31,12 +33,16 @@ import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
+import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
+import androidx.compose.material3.TopAppBar
+import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.semantics.Role
 import androidx.compose.foundation.selection.selectable
 import androidx.compose.ui.graphics.Color
@@ -50,9 +56,13 @@ fun Agent567Card(
     modifier: Modifier = Modifier,
     onClick: (() -> Unit)? = null,
     contentPadding: PaddingValues = PaddingValues(16.dp),
+    accentBorder: Boolean = false,
     content: @Composable ColumnScope.() -> Unit,
 ) {
     val shape = MaterialTheme.shapes.large
+    val borderColor =
+        if (accentBorder) MaterialTheme.agent567Extra.amberAccent.copy(alpha = 0.45f)
+        else MaterialTheme.agent567Extra.border.copy(alpha = 0.7f)
     Surface(
         modifier =
             modifier
@@ -63,7 +73,7 @@ fun Agent567Card(
         color = MaterialTheme.colorScheme.surface,
         tonalElevation = 0.dp,
         shadowElevation = 0.dp,
-        border = androidx.compose.foundation.BorderStroke(1.dp, MaterialTheme.agent567Extra.border.copy(alpha = 0.4f)),
+        border = BorderStroke(1.dp, borderColor),
         content = { Column(Modifier.padding(contentPadding), content = content) },
     )
 }
@@ -134,20 +144,41 @@ fun SecondaryOutlineButton(
 @Composable
 fun NewConversationButton(onClick: () -> Unit, modifier: Modifier = Modifier) {
     Box(
-        modifier = modifier.heightIn(min = 48.dp).clip(MaterialTheme.shapes.medium)
+        modifier = modifier.heightIn(min = 48.dp).clip(RoundedCornerShape(20.dp))
             .clickable(role = Role.Button, onClick = onClick),
         contentAlignment = Alignment.Center,
     ) {
         Row(
-            Modifier.clip(MaterialTheme.shapes.medium)
-                .background(MaterialTheme.agent567Extra.chipBackground)
-                .padding(horizontal = 12.dp, vertical = 6.dp),
+            Modifier.clip(RoundedCornerShape(20.dp))
+                .background(MaterialTheme.colorScheme.primary)
+                .padding(horizontal = 14.dp, vertical = 7.dp),
             verticalAlignment = Alignment.CenterVertically,
         ) {
-            Icon(Icons.Outlined.Add, contentDescription = null, modifier = Modifier.size(18.dp), tint = MaterialTheme.colorScheme.onSurface)
+            Icon(Icons.Outlined.Add, contentDescription = null, modifier = Modifier.size(16.dp), tint = MaterialTheme.colorScheme.onPrimary)
             Spacer(Modifier.width(6.dp))
-            Text(Str.newConversation, style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onSurface)
+            Text(Str.newConversation, style = MaterialTheme.typography.labelMedium, fontWeight = FontWeight.Medium, color = MaterialTheme.colorScheme.onPrimary)
         }
+    }
+}
+
+@Composable
+fun Agent567AmberBadge(
+    text: String,
+    modifier: Modifier = Modifier,
+) {
+    Surface(
+        modifier = modifier,
+        shape = RoundedCornerShape(20.dp),
+        color = MaterialTheme.agent567Extra.amberContainer,
+        border = BorderStroke(1.dp, MaterialTheme.agent567Extra.amberAccent.copy(alpha = 0.25f)),
+    ) {
+        Text(
+            text = text,
+            style = MaterialTheme.typography.labelSmall,
+            fontWeight = FontWeight.Medium,
+            color = MaterialTheme.agent567Extra.amberAccent,
+            modifier = Modifier.padding(horizontal = 8.dp, vertical = 3.dp),
+        )
     }
 }
 
@@ -157,13 +188,23 @@ fun SectionHeader(
     action: String? = null,
     onAction: (() -> Unit)? = null,
     modifier: Modifier = Modifier,
+    badge: String? = null,
 ) {
     Row(
         modifier = modifier.fillMaxWidth().padding(horizontal = 4.dp, vertical = 6.dp),
         horizontalArrangement = Arrangement.SpaceBetween,
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        Text(title, style = MaterialTheme.typography.labelLarge, color = MaterialTheme.agent567Extra.secondaryText, fontWeight = FontWeight.Medium, modifier = Modifier.weight(1f))
+        Row(
+            modifier = Modifier.weight(1f),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(8.dp),
+        ) {
+            Text(title, style = MaterialTheme.typography.labelLarge, color = MaterialTheme.agent567Extra.secondaryText, fontWeight = FontWeight.Medium)
+            if (!badge.isNullOrBlank()) {
+                Agent567AmberBadge(badge)
+            }
+        }
         if (action != null && onAction != null) {
             Box(
                 modifier = Modifier
@@ -251,6 +292,21 @@ fun FilterChipRow(
                     ),
                 contentAlignment = Alignment.Center,
             ) {
+                val chipModifier =
+                    Modifier
+                        .clip(RoundedCornerShape(20.dp))
+                        .background(
+                            if (selected) {
+                                MaterialTheme.colorScheme.primary
+                            } else {
+                                MaterialTheme.colorScheme.surface
+                            },
+                        )
+                        .then(
+                            if (selected) Modifier
+                            else Modifier.border(1.dp, MaterialTheme.agent567Extra.border, RoundedCornerShape(20.dp)),
+                        )
+                        .padding(horizontal = 14.dp, vertical = 8.dp)
                 Text(
                     text = label,
                     style = MaterialTheme.typography.labelLarge,
@@ -260,17 +316,7 @@ fun FilterChipRow(
                         } else {
                             MaterialTheme.colorScheme.onSurface
                         },
-                    modifier =
-                        Modifier
-                            .clip(RoundedCornerShape(20.dp))
-                            .background(
-                                if (selected) {
-                                    MaterialTheme.colorScheme.primary
-                                } else {
-                                    MaterialTheme.agent567Extra.chipBackground
-                                },
-                            )
-                            .padding(horizontal = 14.dp, vertical = 8.dp),
+                    modifier = chipModifier,
                 )
             }
         }
@@ -355,9 +401,43 @@ fun MobilePageIntro(title: String, subtitle: String? = null, modifier: Modifier 
     }
 }
 
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun MobileIconTile(icon: androidx.compose.ui.graphics.vector.ImageVector, modifier: Modifier = Modifier) {
-    Box(modifier.size(40.dp).clip(MaterialTheme.shapes.medium).background(MaterialTheme.agent567Extra.chipBackground), contentAlignment = Alignment.Center) {
-        androidx.compose.material3.Icon(icon, contentDescription = null, modifier = Modifier.size(20.dp), tint = MaterialTheme.colorScheme.onSurface)
+fun Agent567MainPageScaffold(
+    title: String,
+    modifier: Modifier = Modifier,
+    actions: @Composable RowScope.() -> Unit = {},
+    content: @Composable (PaddingValues) -> Unit,
+) {
+    Scaffold(
+        modifier = modifier,
+        containerColor = MaterialTheme.agent567Extra.pageBackground,
+        topBar = {
+            Column {
+                TopAppBar(
+                    title = { Text(title, style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.SemiBold) },
+                    actions = actions,
+                    colors =
+                        TopAppBarDefaults.topAppBarColors(
+                            containerColor = MaterialTheme.agent567Extra.pageBackground,
+                        ),
+                )
+                HorizontalDivider(color = MaterialTheme.agent567Extra.border.copy(alpha = 0.7f))
+            }
+        },
+        content = content,
+    )
+}
+
+@Composable
+fun MobileIconTile(
+    icon: ImageVector,
+    modifier: Modifier = Modifier,
+    accent: Boolean = false,
+) {
+    val bg = if (accent) MaterialTheme.agent567Extra.amberContainer else MaterialTheme.agent567Extra.chipBackground
+    val tint = if (accent) MaterialTheme.agent567Extra.amberAccent else MaterialTheme.colorScheme.onSurface
+    Box(modifier.size(40.dp).clip(MaterialTheme.shapes.medium).background(bg), contentAlignment = Alignment.Center) {
+        Icon(icon, contentDescription = null, modifier = Modifier.size(20.dp), tint = tint)
     }
 }

@@ -11,6 +11,7 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.safeContentPadding
@@ -20,12 +21,14 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Cloud
 import androidx.compose.material.icons.filled.Computer
-import androidx.compose.material.icons.filled.Lock
-import androidx.compose.material.icons.filled.Schedule
+import androidx.compose.material.icons.filled.Explore
+import androidx.compose.material.icons.filled.Tune
 import androidx.compose.material.icons.filled.Visibility
 import androidx.compose.material.icons.filled.VisibilityOff
 import androidx.compose.material3.CircularProgressIndicator
@@ -48,17 +51,20 @@ import kotlinx.coroutines.delay
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.text.input.VisualTransformation
 import androidx.compose.ui.unit.dp
 import org.agent567.android.domain.error.UiError
+import org.agent567.android.ui.components.Agent567Card
+import org.agent567.android.ui.components.groupDisplayName
 import org.agent567.android.ui.components.PrimaryBlackButton
 import org.agent567.android.ui.components.Agent567TextField
 import org.agent567.android.ui.components.Agent567ErrorBanner
 import org.agent567.android.ui.i18n.Str
-import org.agent567.android.ui.remote.PairingScannerButton
+import org.agent567.android.ui.remote.rememberOpenPairingScanner
 import org.agent567.android.ui.theme.agent567Extra
 
 @Composable
@@ -69,8 +75,15 @@ fun WelcomeScreen(
     onScanPairing: (String) -> Unit,
     onSkip: () -> Unit,
     onClearError: () -> Unit,
+    isSignedIn: Boolean = false,
+    onStartFirstChat: (() -> Unit)? = null,
+    activeGroup: String? = null,
+    activeImageGroup: String? = null,
+    imageGenEnabled: Boolean = true,
+    onOpenGroupWizard: (() -> Unit)? = null,
 ) {
     var showFeatureGuide by remember { mutableStateOf(false) }
+    val openScanner = rememberOpenPairingScanner(onScanPairing)
     if (showFeatureGuide) org.agent567.android.ui.components.FeatureGuideDialog { showFeatureGuide = false }
     Column(
         modifier =
@@ -86,34 +99,51 @@ fun WelcomeScreen(
         Spacer(Modifier.height(20.dp))
         Text(Str.mobileWelcomeEyebrow, style = MaterialTheme.typography.labelMedium, color = MaterialTheme.agent567Extra.secondaryText)
         Spacer(Modifier.height(8.dp))
-        Text(Str.welcomeTitle, style = MaterialTheme.typography.headlineSmall)
+        Text(Str.welcomeFirstTaskTitle, style = MaterialTheme.typography.headlineSmall)
         Spacer(Modifier.height(12.dp))
         Text(
-            Str.welcomeSubtitle,
+            Str.welcomeFirstTaskSubtitle,
             style = MaterialTheme.typography.bodyMedium,
             color = MaterialTheme.agent567Extra.secondaryText,
         )
-        Spacer(Modifier.height(28.dp))
-        FeatureRow(Icons.Default.Computer, Str.featureDesktop, Str.featureDesktopDesc)
-        FeatureRow(Icons.Default.Cloud, Str.featureCloud, Str.featureCloudDesc)
-        FeatureRow(Icons.Default.Schedule, Str.featureStatus, Str.featureStatusDesc)
-        FeatureRow(Icons.Default.Lock, Str.featureSecure, Str.featureSecureDesc)
-        Spacer(Modifier.height(28.dp))
-        PrimaryBlackButton(text = Str.getStarted, onClick = onLogin)
-        Spacer(Modifier.height(10.dp))
-        if (!connecting) {
-            PairingScannerButton(
-                onScanned = onScanPairing,
-                modifier = Modifier.fillMaxWidth().height(48.dp),
-                label = Str.scanPairing,
+        Spacer(Modifier.height(20.dp))
+        val wizardSummary =
+            if (isSignedIn && (activeGroup != null || activeImageGroup != null || !imageGenEnabled)) {
+                val chatSummary = activeGroup?.let(::groupDisplayName) ?: "未选择"
+                val imageSummary =
+                    if (!imageGenEnabled) Str.mobileDrawingOff
+                    else activeImageGroup?.let(::groupDisplayName) ?: "未选择"
+                "${Str.groupWizardChatSection}：$chatSummary · ${Str.groupWizardImageSection}：$imageSummary"
+            } else {
+                Str.groupWizardSubtitle
+            }
+        Agent567Card(contentPadding = PaddingValues(horizontal = 14.dp, vertical = 6.dp)) {
+            FeatureRow(
+                icon = Icons.Default.Cloud,
+                title = Str.welcomeTaskChatTitle,
+                desc = Str.welcomeTaskChatDesc,
+                onClick = onStartFirstChat ?: if (isSignedIn) onSkip else onLogin,
+            )
+            FeatureRow(
+                icon = Icons.Default.Computer,
+                title = Str.welcomeTaskDesktopTitle,
+                desc = Str.welcomeTaskDesktopDesc,
+                onClick = openScanner,
+            )
+            FeatureRow(
+                icon = Icons.Default.Explore,
+                title = Str.welcomeTaskBrowseTitle,
+                desc = Str.welcomeTaskBrowseDesc,
+                onClick = onSkip,
+            )
+            FeatureRow(
+                icon = Icons.Default.Tune,
+                title = Str.groupWizardTitle,
+                desc = wizardSummary,
+                onClick = onOpenGroupWizard ?: onLogin,
             )
         }
-        TextButton(
-            onClick = onSkip,
-            modifier = Modifier.align(Alignment.CenterHorizontally),
-        ) {
-            Text(Str.skipForNow, color = MaterialTheme.agent567Extra.secondaryText)
-        }
+        Spacer(Modifier.height(24.dp))
         TextButton(onClick = { showFeatureGuide = true }, modifier = Modifier.align(Alignment.CenterHorizontally)) { Text(Str.featureGuideTitle) }
         if (error != null) {
             Spacer(Modifier.height(12.dp))
@@ -143,11 +173,11 @@ private fun FeatureRow(
     icon: ImageVector,
     title: String,
     desc: String,
+    onClick: (() -> Unit)? = null,
 ) {
+    val baseModifier = Modifier.fillMaxWidth().heightIn(min = 48.dp).padding(vertical = 10.dp)
     Row(
-        Modifier
-            .fillMaxWidth()
-            .padding(vertical = 10.dp),
+        if (onClick != null) baseModifier.clickable(role = Role.Button, onClick = onClick) else baseModifier,
         verticalAlignment = Alignment.Top,
     ) {
         org.agent567.android.ui.components.MobileIconTile(icon)

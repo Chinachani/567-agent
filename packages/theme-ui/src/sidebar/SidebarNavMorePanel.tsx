@@ -1,4 +1,4 @@
-import type { JSX } from "react";
+import { useState, type JSX } from "react";
 import type { SidebarNavItem } from "@vetta-org/theme-sdk/sidebar";
 import { cn } from "@vetta-org/ui";
 import { SidebarNavBadgeView } from "./SidebarNavBadgeView";
@@ -15,13 +15,19 @@ export interface SidebarNavMorePanelLabels {
 	/** 置顶区已满时 pin 按钮的 title。 */
 	pinFull: string;
 	reset: string;
+	/** 从普通态进入编辑态的按钮文案（未传时回落 pinnedTitle）。 */
+	edit?: string;
+	/** 从编辑态退回普通态的按钮文案。 */
+	done?: string;
 }
 
 export interface SidebarNavMorePanelProps {
 	canPinMore: boolean;
 	drag: SidebarNavDragHandlers & { draggingKey: string | null };
+	editing?: boolean;
 	labels: SidebarNavMorePanelLabels;
 	moreItems: readonly SidebarNavItem[];
+	onEditingChange?: (editing: boolean) => void;
 	onItemClick: (item: SidebarNavItem) => void;
 	onItemIntent?: (item: SidebarNavItem) => void;
 	onPin: (key: string) => void;
@@ -105,7 +111,7 @@ function NavRow({
 						"flex h-6 w-6 shrink-0 items-center justify-center rounded-md",
 						pinned
 							? "text-primary hover:bg-accent/60"
-							: "text-muted-foreground/50 opacity-0 hover:bg-accent/60 hover:text-foreground focus-visible:opacity-100 group-hover/nav-row:opacity-100",
+							: "text-muted-foreground/60 opacity-60 hover:bg-accent/60 hover:text-foreground focus-visible:opacity-100 group-hover/nav-row:opacity-100",
 						pinDisabled && "cursor-not-allowed opacity-30 group-hover/nav-row:opacity-30",
 					)}
 				>
@@ -120,14 +126,16 @@ function NavRow({
 }
 
 /**
- * 「更多」弹层：既是次要入口列表，也是**导航自定义面板**。
- * 置顶区与收纳区都在这里列出，可拖拽排序、可跨区拖拽、也可以点 pin 图标切换。
+ * 「更多」弹层：默认展示干净的次要入口跳转列表；点「自定义」进入编辑态后，
+ * 再展示置顶区、拖拽手柄、pin 开关与恢复默认。
  */
 export function SidebarNavMorePanel({
 	canPinMore,
 	drag,
+	editing: controlledEditing,
 	labels,
 	moreItems,
+	onEditingChange,
 	onItemClick,
 	onItemIntent,
 	onPin,
@@ -135,6 +143,49 @@ export function SidebarNavMorePanel({
 	onUnpin,
 	pinnedItems,
 }: SidebarNavMorePanelProps): JSX.Element {
+	const [uncontrolledEditing, setUncontrolledEditing] = useState(false);
+	const editing = controlledEditing ?? uncontrolledEditing;
+	const setEditing = onEditingChange ?? setUncontrolledEditing;
+	// 收纳区为空时没有可跳转的次要项，直接展示编辑态避免弹出空列表。
+	const showEditor = editing || moreItems.length === 0;
+
+	if (!showEditor) {
+		return (
+			<div className="flex max-h-[70vh] flex-col gap-0.5 overflow-y-auto">
+				{moreItems.map((item) => (
+					<button
+						key={item.key}
+						type="button"
+						title={item.title ?? item.label}
+						onClick={() => onItemClick(item)}
+						onFocus={() => onItemIntent?.(item)}
+						onMouseEnter={() => onItemIntent?.(item)}
+						className={cn(
+							"flex w-full items-center gap-2 rounded-md px-2.5 py-1.5 text-[13px]",
+							item.active
+								? "bg-accent font-semibold text-foreground"
+								: "text-foreground hover:bg-accent/50",
+						)}
+					>
+						<SidebarNavIcon icon={item.icon} iconUrl={item.iconUrl} />
+						<span className="truncate">{item.label}</span>
+						{item.badge && <SidebarNavBadgeView badge={item.badge} />}
+					</button>
+				))}
+				<div className="mt-0.5 border-t border-border/60 pt-0.5">
+					<button
+						type="button"
+						onClick={() => setEditing(true)}
+						className="flex w-full items-center gap-2 rounded-md px-2.5 py-1.5 text-[12px] text-muted-foreground hover:bg-accent/50 hover:text-foreground"
+					>
+						<span aria-hidden className="icon-[solar--tuning-2-linear] h-3.5 w-3.5 shrink-0" />
+						<span className="truncate">{labels.edit ?? labels.pinnedTitle}</span>
+					</button>
+				</div>
+			</div>
+		);
+	}
+
 	const pinnedRegion = drag.regionProps("pinned");
 	const moreRegion = drag.regionProps("more");
 	const hasLockedTail = moreItems[moreItems.length - 1]?.locked === true;
@@ -156,8 +207,21 @@ export function SidebarNavMorePanel({
 				>
 					<span aria-hidden className="icon-[solar--restart-linear] h-3.5 w-3.5" />
 				</button>
+				{moreItems.length > 0 && (
+					<button
+						type="button"
+						onClick={() => setEditing(false)}
+						className="rounded px-1.5 py-0.5 text-[11px] font-medium text-primary hover:bg-accent/60"
+					>
+						{labels.done ?? "OK"}
+					</button>
+				)}
 			</div>
-			<div className="flex flex-col" onDragOver={pinnedRegion.onDragOver} onDrop={pinnedRegion.onDrop}>
+			<div
+				className={cn("flex flex-col", visiblePinnedItems.length === 0 && "min-h-6")}
+				onDragOver={pinnedRegion.onDragOver}
+				onDrop={pinnedRegion.onDrop}
+			>
 				{visiblePinnedItems.map((item) => (
 					<div key={item.key}>
 						<DropLine visible={drag.isDropBefore(item.key, "pinned")} />
@@ -176,10 +240,16 @@ export function SidebarNavMorePanel({
 				<DropLine visible={drag.isDropAtEnd("pinned")} />
 			</div>
 
-			<p className="px-2 pt-2 text-[10px] font-semibold uppercase tracking-wide text-muted-foreground/70">
-				{labels.moreTitle}
-			</p>
-			<div className="flex flex-col" onDragOver={moreRegion.onDragOver} onDrop={moreRegion.onDrop}>
+			{moreItems.length > 0 && (
+				<p className="px-2 pt-2 text-[10px] font-semibold uppercase tracking-wide text-muted-foreground/70">
+					{labels.moreTitle}
+				</p>
+			)}
+			<div
+				className={cn("flex flex-col", moreItems.length === 0 && "min-h-4")}
+				onDragOver={moreRegion.onDragOver}
+				onDrop={moreRegion.onDrop}
+			>
 				{moreItems.map((item, index) => {
 					// 末位锁定项（「更多选项」）之后没有落位，「落到末尾」的指示线要画在它**之前**。
 					const lockedTail = item.locked === true && index === moreItems.length - 1;

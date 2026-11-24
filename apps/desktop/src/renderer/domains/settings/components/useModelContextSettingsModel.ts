@@ -4,7 +4,11 @@ import { useEffect, useRef, useState } from "react";
 import type { ModelsConfigData } from "../../../../preload/api-types/models";
 import { parseContextCapacityInput, resolveModelContext } from "../../../../shared/model-context";
 import { getModelContextReference } from "../../../../shared/model-context-reference";
-import { isModelInferenceApi, type ModelInferenceApi } from "../../../../shared/model-inference-api";
+import {
+	DEFAULT_CHAT_INFERENCE_API,
+	isModelInferenceApi,
+	type ModelInferenceApi,
+} from "../../../../shared/model-inference-api";
 
 export function useModelContextSettingsModel(config: ModelsConfigData, providerIds?: readonly string[]) {
 	const activeModel = useAtomValue(selectedModelAtom);
@@ -56,7 +60,7 @@ export function useModelContextSettingsModel(config: ModelsConfigData, providerI
 	}, [key, selection]);
 	const provider = selected ? current.providers[selected.providerId] : undefined;
 	const apiOverride = selected ? provider?.modelOverrides?.[selected.model.id]?.api : undefined;
-	const automaticApi = selected?.model.api ?? provider?.api ?? "openai-completions";
+	const automaticApi = selected?.model.api ?? provider?.api ?? DEFAULT_CHAT_INFERENCE_API;
 	const effectiveApi = typeof apiOverride === "string" ? apiOverride : automaticApi;
 	const saveProtocol = async (api: ModelInferenceApi | null): Promise<void> => {
 		if (!selected || pending.current) return;

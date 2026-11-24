@@ -1,3 +1,5 @@
+import { useState } from "react";
+import { GroupSelectionStep, GROUP_FORM_ID } from "./steps/GroupSelectionStep";
 import { cn } from "@shared/lib/utils";
 import { Button } from "@vetta-org/ui";
 import type { SetupWizardModel } from "../hooks/useSetupWizard";
@@ -6,24 +8,30 @@ import { LanguageAppearanceStep } from "./steps/LanguageAppearanceStep";
 import { PermissionsStep } from "./steps/PermissionsStep";
 import { WelcomeStep } from "./steps/WelcomeStep";
 
-function StepBody({ step }: { step: SetupWizardStepId }): JSX.Element {
+function StepBody({
+	step,
+	onComplete,
+	onNext,
+	onBusy,
+}: {
+	step: SetupWizardStepId;
+	onComplete: () => void;
+	onNext: () => void;
+	onBusy: (busy: boolean) => void;
+}): JSX.Element {
 	switch (step) {
 		case "permissions":
 			return <PermissionsStep />;
 		case "languageAppearance":
 			return <LanguageAppearanceStep />;
+		case "groupSelection":
+			return <GroupSelectionStep onNext={onNext} onBusy={onBusy} />;
 		case "welcome":
-			return <WelcomeStep />;
+			return <WelcomeStep onComplete={onComplete} />;
 	}
 }
 
-function StepIndicator({
-	stepIndex,
-	totalSteps,
-}: {
-	stepIndex: number;
-	totalSteps: number;
-}): JSX.Element {
+function StepIndicator({ stepIndex, totalSteps }: { stepIndex: number; totalSteps: number }): JSX.Element {
 	return (
 		<div className="flex items-center gap-2" aria-hidden>
 			{Array.from({ length: totalSteps }, (_, i) => {
@@ -44,6 +52,7 @@ function StepIndicator({
 }
 
 export function SetupWizardView({ model }: { model: SetupWizardModel }): JSX.Element | null {
+	const [busy, setBusy] = useState(false);
 	if (!model.open) return null;
 
 	const { actions, currentStep, isFirst, isLast, labels, stepIndex, totalSteps } = model;
@@ -56,6 +65,7 @@ export function SetupWizardView({ model }: { model: SetupWizardModel }): JSX.Ele
 					variant="ghost"
 					size="sm"
 					className="relative z-10 [-webkit-app-region:no-drag] text-muted-foreground"
+					disabled={busy}
 					onClick={actions.skip}
 				>
 					{labels.skip}
@@ -65,7 +75,7 @@ export function SetupWizardView({ model }: { model: SetupWizardModel }): JSX.Ele
 			<div className="flex min-h-0 flex-1 flex-col items-center overflow-y-auto px-6 pb-2 pt-1">
 				<div className="flex w-full max-w-[560px] flex-1 flex-col justify-center py-3">
 					<div key={currentStep} className="setup-wizard-enter">
-						<StepBody step={currentStep} />
+						<StepBody step={currentStep} onComplete={actions.complete} onNext={actions.next} onBusy={setBusy} />
 					</div>
 				</div>
 			</div>
@@ -81,6 +91,7 @@ export function SetupWizardView({ model }: { model: SetupWizardModel }): JSX.Ele
 								<Button
 									variant="ghost"
 									size="sm"
+									disabled={busy}
 									onClick={actions.back}
 									className="gap-1 text-muted-foreground transition-transform hover:-translate-x-0.5 hover:text-foreground active:scale-[0.96]"
 								>
@@ -94,7 +105,10 @@ export function SetupWizardView({ model }: { model: SetupWizardModel }): JSX.Ele
 					<div key={isLast ? "done" : "next"} className="setup-wizard-enter min-w-[9.5rem]">
 						<Button
 							className="h-9 w-full gap-1.5 px-5 transition-[transform,background-color] hover:scale-[1.02] active:scale-[0.97]"
-							onClick={isLast ? actions.complete : actions.next}
+							disabled={busy}
+							type={currentStep === "groupSelection" ? "submit" : "button"}
+							form={currentStep === "groupSelection" ? GROUP_FORM_ID : undefined}
+							onClick={currentStep === "groupSelection" ? undefined : isLast ? actions.complete : actions.next}
 						>
 							{isLast ? labels.getStarted : labels.next}
 							<span

@@ -982,6 +982,12 @@
 		"searchPlaceholder": "Search models or providers",
 		"refresh": "Refresh models",
 		"refreshFailed": "Failed to refresh models",
+		"offlineCached": "Unable to refresh right now. Showing cached models.",
+		"offlineEmpty": "Unable to load the model list right now.",
+		"retrying": "Retrying…",
+		"retry": "Retry",
+		"confirmedRemoved": "Model “{{model}}” was confirmed removed by the service. Choose a replacement.",
+		"chooseReplacement": "Choose replacement",
 		"clearSearch": "Clear search",
 		"noResults": "No models found",
 		"noResultsHint": "Try another model name, ID, or provider",
@@ -1005,6 +1011,20 @@
 		}
 	},
 	"setupWizard": {
+		"groups": {
+			"title": "Choose your groups",
+			"description": "Chat and images can use different groups. Choose either now, or return to Settings → Models later.",
+			"chat": "Chat group",
+			"image": "Image group",
+			"later": "Choose later",
+			"loading": "Loading groups…",
+			"signIn": "Sign in to choose groups in Model settings.",
+			"cache": "Could not refresh. Showing the last available groups.",
+			"unavailable": "This group is unavailable. Refresh the list.",
+			"empty": "No groups are available for this account.",
+			"retry": "Refresh groups",
+			"saveError": "Could not save {{field}}: {{message}}"
+		},
 		"skip": "Skip",
 		"next": "Next",
 		"back": "Back",
@@ -1034,8 +1054,29 @@
 			"signedInFallback": "User"
 		},
 		"welcome": {
-			"title": "Welcome to 567 Agent",
-			"subtitle": "Your desktop AI coding assistant is ready. Start with a conversation",
+			"title": "Finish your first task",
+			"subtitle": "Pick a starting point and jump right in; models, remote control, and extensions stay optional",
+			"steps": {
+				"pickStart": {
+					"title": "Chat directly or open a project folder",
+					"desc": "Start a plain chat for quick questions, or add a local folder from the sidebar"
+				},
+				"connectModel": {
+					"title": "Connect a model when needed",
+					"desc": "Sign in or add your own provider anytime in Settings → Models"
+				},
+				"reviewOutput": {
+					"title": "Describe the goal and review results",
+					"desc": "Ask for a plan first, approve tool access, and continue at your pace"
+				}
+			},
+			"actions": {
+				"startChatTitle": "Start your first chat",
+				"startChatDesc": "Jump to a new conversation to ask a question or plan a task",
+				"modelsTitle": "Check model settings (optional)",
+				"modelsDesc": "Sign in to 567 API or configure your own provider anytime"
+			},
+			"replayHint": "Replay anytime from Settings → General",
 			"highlights": {
 				"chat": {
 					"title": "Smart chat",

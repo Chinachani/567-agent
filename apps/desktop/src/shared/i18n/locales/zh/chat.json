@@ -1,4 +1,7 @@
 {
+	"header": {
+		"usageLog": "会话使用日志"
+	},
 	"annotations": {
 		"title": "问答批注",
 		"ask": "问问 AI",
@@ -1495,5 +1498,8 @@
 			"written": "工具已写入 · 未验收"
 		}
 	},
-	"workbenchLabel": "工作台"
+	"workbenchLabel": "工作台",
+	"tokenUsage": {
+		"viewFullUsageLogs": "查看完整使用日志与统计"
+	}
 }

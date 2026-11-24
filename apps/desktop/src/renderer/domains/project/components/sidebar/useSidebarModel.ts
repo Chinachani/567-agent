@@ -83,10 +83,11 @@ const BUILTIN_NAV_ITEMS = [
 ] as const;
 
 /**
- * 首次使用时的置顶区默认成员：留「能力」「智能体」和设计画廊，其余入口默认收纳。
- * 顺序由 navCatalog 决定（内置在前、插件视图在后），即「新会话 / 能力 / 智能体 / 设计」。
+ * 首次使用时的置顶区默认成员：保留「自动化」「知识库」「能力」三项，与锁定的
+ * 「新会话」合计 4/5，默认留出 1 个置顶空位方便直接固定常用功能或插件视图。
+ * 顺序由 navCatalog 决定，即「新会话 / 自动化 / 知识库 / 能力」。
  */
-const DEFAULT_PINNED_NAV_KEYS = ["/abilities", "/agents", "/knowledge", "/automation"];
+const DEFAULT_PINNED_NAV_KEYS = ["/abilities", "/knowledge", "/automation"];
 
 function loadStoredNavLayout(): SidebarNavLayout {
 	try {

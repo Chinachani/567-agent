@@ -24,6 +24,7 @@ import { createRemotePairingApi } from "./apis/remote-pairing.js";
 import { createRuntimeConfigurationApi } from "./apis/runtime-configuration.js";
 import { createSchedulerApi } from "./apis/scheduler.js";
 import { createSessionApi } from "./apis/session.js";
+import { createSessionDraftsApi } from "./apis/session-drafts.js";
 import { createSpeechInputApi } from "./apis/speech-input.js";
 import { createSshApi } from "./apis/ssh.js";
 import { createSystemApi } from "./apis/system.js";
@@ -47,6 +48,7 @@ const rawApi: Omit<DesktopApi, "hostAccess"> = {
 	...createAppLifecycleApi(ipcRenderer),
 	...createAppMonitorApi(ipcRenderer),
 	...createSessionApi(ipcRenderer),
+	...createSessionDraftsApi(ipcRenderer),
 	...createSpeechInputApi(ipcRenderer),
 	...createImApi(ipcRenderer),
 	...createDownloadsApi(ipcRenderer),

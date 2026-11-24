@@ -12,6 +12,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { FILE_EDITOR_SAVE_EVENT, OPEN_MODEL_SELECTOR_EVENT } from "@/shared/shortcuts";
 import { loadNewSessionPage } from "../domains/conversation/components/loadNewSessionPage";
 import { useAppInit } from "../domains/conversation/hooks/useAppInit";
+import { useSessionDraftSync } from "../domains/conversation/hooks/useSessionDraftSync";
 import { useSessionManager } from "../domains/conversation/hooks/useSessionManager";
 import {
 	bumpOpenSessionToken,
@@ -148,6 +149,7 @@ export function useRootLayoutModel(): RootLayoutModel {
 	// 全局 running-sessions 订阅必须挂在始终挂载的 App 上：它是 streaming 状态真值
 	// 来源之一，挂在会被卸载的 Sidebar 上会在卸载期间丢 RUNNING_CHANGED 事件。
 	useRunningSessionsSync();
+	useSessionDraftSync();
 	// 队列的出队/续发已收归主进程 kernel（ADR-0060）：followUp 在 turn 自然停止点
 	// 接力消费，renderer 不再需要全局出队调度器。
 	// 会话打开/发送的唯一挂载点。ChatPage 与新会话页走模块级 ref，避免再挂一份。

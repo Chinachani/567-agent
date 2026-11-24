@@ -24,12 +24,12 @@ export function SettingsPageShellView({
 	pb = false,
 }: SettingsPageShellViewProps): JSX.Element {
 	return (
-		<div className={`mx-auto w-full max-w-[800px] px-5 pt-6 sm:px-8 ${pb ? "pb-12" : "pb-8"}`}>
+		<div className={`mx-auto w-full max-w-[800px] px-4 pt-5 sm:px-8 sm:pt-8 ${pb ? "pb-12" : "pb-8"}`}>
 			<WorkspacePageHeader
 				title={title}
 				description={description}
 				actions={loading ? undefined : headerAction}
-				className="mb-8 border-b border-border/60 pb-6"
+				className="mb-5 border-b border-border/60 pb-4 sm:mb-7"
 			/>
 			{loading ? (
 				<div role="status" className="flex items-center gap-3 py-10 text-[13px] text-muted-foreground">

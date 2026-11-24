@@ -14,7 +14,7 @@ export function SettingsContent({ children, rootClassName, fill = false }: Setti
 	return (
 		<div
 			className={cn(
-				"no-scrollbar flex min-h-0 min-w-0 flex-1 flex-col bg-background",
+				"flex min-h-0 min-w-0 flex-1 flex-col bg-background",
 				fill ? "overflow-hidden" : "overflow-y-auto",
 				rootClassName,
 			)}

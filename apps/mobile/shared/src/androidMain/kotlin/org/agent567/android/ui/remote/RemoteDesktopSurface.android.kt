@@ -115,7 +115,7 @@ actual fun RemoteDesktopSurface(
     } ?: keyboardRemoteView(transform, fullscreenViewport.width, fullscreenViewport.height, frameWidth, frameHeight, effectiveBottomInsetPx)
     val textFocusRequester = remember { FocusRequester() }
     val keyboardController = LocalSoftwareKeyboardController.current
-    LaunchedEffect(fullscreen, fullscreenViewport, frameWidth, frameHeight) {
+    LaunchedEffect(fullscreen, fullscreenViewport, frameWidth, frameHeight, effectiveBottomInsetPx) {
         if (fullscreen && fullscreenViewport.width > 0 && fullscreenViewport.height > 0) {
             transform = transformRemoteView(
                 transform, 1f,
@@ -123,6 +123,7 @@ actual fun RemoteDesktopSurface(
                 0f, 0f,
                 fullscreenViewport.width, fullscreenViewport.height,
                 frameWidth, frameHeight,
+                effectiveBottomInsetPx,
             )
         }
     }
@@ -187,8 +188,18 @@ actual fun RemoteDesktopSurface(
             session.preferVideo(it)
         }, onReconnect = ::retry, onDismiss = { connectionPanel = false })
     if (fullscreen) {
-        RemoteFullscreenOrientation(lockLandscape = LocalConfiguration.current.smallestScreenWidthDp < 600)
+        val resetPositions = rememberResetRemoteOverlayPositions()
+        var layoutRevision by remember { mutableIntStateOf(0) }
+        var showKeyboardEntry by rememberSaveable { mutableStateOf(true) }
+        val isPhone = LocalConfiguration.current.smallestScreenWidthDp < 600
+        val remotePortrait = frameWidth != null && frameHeight != null && frameHeight > frameWidth
+        RemoteFullscreenOrientation(lockLandscape = isPhone && !remotePortrait)
         fun closeKeyboard() { releaseControls(); typing = null }
+        fun openKeyboard() {
+            releaseControls()
+            pasteFeedback = null
+            typing = if (useDraft || !textInputSupported) RemoteTyping.Draft else RemoteTyping.System
+        }
         Dialog(onDismissRequest = { if (keyboardOpen) closeKeyboard() else closeFullscreen() }, properties = DialogProperties(usePlatformDefaultWidth = false, decorFitsSystemWindows = false)) {
         RemoteImmersiveWindow()
         val dialogKeyboard = LocalSoftwareKeyboardController.current
@@ -196,7 +207,9 @@ actual fun RemoteDesktopSurface(
         val imeVisible = WindowInsets.isImeVisible
         var seenIme by remember(typing) { mutableStateOf(false) }
         LaunchedEffect(typing, imeHeight, imeVisible) {
-            if (typing == RemoteTyping.System) controlsBottomInsetPx = imeHeight.toFloat()
+            if (typing == RemoteTyping.System && controlsBottomInsetPx < imeHeight.toFloat()) {
+                controlsBottomInsetPx = imeHeight.toFloat()
+            }
             if (keyboardOpen && imeVisible) seenIme = true
             if (keyboardOpen && seenIme && !imeVisible) closeKeyboard()
         }
@@ -214,6 +227,7 @@ actual fun RemoteDesktopSurface(
             }, onReconnect = ::retry, onDismiss = { connectionPanel = false })
         Surface(Modifier.fillMaxSize(), color = Color.Black) {
             RemoteFullscreenLayout(
+                layoutRevision = layoutRevision,
                 keyboardOpen = keyboardOpen,
                 draftOpen = typing == RemoteTyping.Draft,
                 onDraftOcclusion = { controlsBottomInsetPx = it },
@@ -245,9 +259,11 @@ actual fun RemoteDesktopSurface(
                     stats = buildList { if (!inputEnabled) add(Str.viewOnly); stats?.roundTripMs?.let { add("${it.roundToInt()} ms") }; stats?.framesPerSecond?.let { add("${it.roundToInt()} FPS") } }.joinToString(" · ").ifBlank { Str.connectionStatus },
                     details = stage.label(), onExit = ::closeFullscreen,
                     onDirectTouch = { releaseControls(); directTouch = it }, onReset = { transform = RemoteViewTransform() },
-                    onKeyboard = { releaseControls(); pasteFeedback = null; typing = if (useDraft || !textInputSupported) RemoteTyping.Draft else RemoteTyping.System },
+                    onKeyboard = ::openKeyboard,
                     useDraft = useDraft, onUseDraft = { useDraft = it; preferences.edit().putBoolean("keyboard-use-draft", it).apply() },
                     textAvailable = textInputSupported, handleModifier = handle, showMouse = floatingMouse,
+                    onResetPositions = { resetPositions(); layoutRevision++ }, showKeyboardEntry = showKeyboardEntry,
+                    onToggleKeyboardEntry = { showKeyboardEntry = !showKeyboardEntry },
                     onShowMouse = { floatingMouse = it; preferences.edit().putBoolean("floating-mouse", it).apply() },
                     pointerSpeed = pointerSpeed, onPointerSpeed = { pointerSpeed = it; preferences.edit().putInt("pointer-speed-v1", it).apply() },
                     onMouseButton = pointerInput::click, onMouseHold = pointerInput::hold,
@@ -259,6 +275,7 @@ actual fun RemoteDesktopSurface(
                 mouse = { grip ->
                     if (floatingMouse && inputEnabled) RemoteFloatingMouse(grip, pointerInput::click, pointerInput::hold) { session.sendScroll(0f, it) }
                 },
+                keyboard = { grip -> if (inputEnabled && showKeyboardEntry) RemoteFloatingKeyboard(grip, ::openKeyboard) },
                 banner = {
                     if (reconnectingMessage != null && visibleMessage == null) {
                         Agent567Theme(ThemeMode.Dark) {
@@ -282,12 +299,13 @@ actual fun RemoteDesktopSurface(
                         }
                     }
                 },
-                controls = {
+                controls = { grip ->
                     if (typing == RemoteTyping.System && inputEnabled && textInputSupported) {
                         RemoteDirectTyping(
                             onText = { typing == RemoteTyping.System && session.sendText(it) },
                             onKey = { code, action -> if (typing == RemoteTyping.System || action == "up") session.sendKey(code, action) },
-                        ) { closeKeyboard(); dialogKeyboard?.hide() }
+                            onDismiss = { closeKeyboard(); dialogKeyboard?.hide() }, grip = grip,
+                        )
                     } else if (typing == RemoteTyping.Draft) Surface(color = MaterialTheme.colorScheme.surface) {
                         val shiftedTransform = transformRemoteView(
                             canvasTransform, 1f,
@@ -327,6 +345,7 @@ actual fun RemoteDesktopSurface(
                             }
                             if (hint != null) Text(hint, Modifier.padding(horizontal = 8.dp), style = MaterialTheme.typography.labelSmall)
                             Row(Modifier.fillMaxWidth().padding(horizontal = 4.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+                                RemoteKeyboardGrip(grip)
                                 IconToggleButton(checked = toolsOpen, onCheckedChange = { toolsOpen = it }) {
                                     Icon(Icons.Default.MoreVert, contentDescription = Str.remoteKeyboardTools)
                                 }
@@ -379,6 +398,7 @@ private fun RemoteCanvas(
     }
     val useTrackpad = relativePointer || !directTouch
     val videoSize by session.videoSize.collectAsState()
+    val inputEnabled by session.inputEnabled.collectAsState()
     val frameWidth = videoSize?.width ?: stats?.frameWidth
     val frameHeight = videoSize?.height ?: stats?.frameHeight
     var viewport by remember { mutableStateOf(IntSize.Zero) }
@@ -416,8 +436,8 @@ private fun RemoteCanvas(
                     if (showCursor && !relativePointer && !useTrackpad) localCursor.value = p
                 }
             },
-            onScroll = session::sendScroll,
-            onKey = { code, down -> androidRemoteKeyCode(code)?.let { session.sendKey(it, if (down) "down" else "up") } },
+            onScroll = { dx, dy -> if (session.inputEnabled.value) session.sendScroll(dx, dy) },
+            onKey = { code, down -> if (session.inputEnabled.value) androidRemoteKeyCode(code)?.let { session.sendKey(it, if (down) "down" else "up") } },
             modifier = Modifier.matchParentSize(),
             trackpadMode = useTrackpad, onRelativePointer = move@ { dx, dy ->
                 if (!session.inputEnabled.value) return@move
@@ -432,6 +452,7 @@ private fun RemoteCanvas(
             },
             requestKeyboardFocus = !editingText,
             bottomInsetPx = bottomInsetPx,
+            inputEnabled = inputEnabled,
         )
         message?.let {
             if (it == Str.remoteCaptureWaiting) Text(it, Modifier.padding(16.dp).background(MaterialTheme.colorScheme.surface).padding(12.dp), color = MaterialTheme.colorScheme.onSurface)

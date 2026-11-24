@@ -50,7 +50,7 @@
 		"useSandbox": "Use sandbox",
 		"sandboxUnavailable": "{{platform}} sandbox unavailable: {{reason}}",
 		"notifyTitle": "Enable notifications",
-		"notifyDesc": "Push once to the configured webhook after each subtask completes, and push a summary when the whole project finishes (manage webhooks in Settings → Notifications).",
+		"notifyDesc": "Push once to the configured webhook after each subtask completes, and push a summary when the whole project finishes (manage webhooks in Settings → Claw & Webhooks).",
 		"artifact": "Artifact check",
 		"optional": "Optional",
 		"artifactPlaceholder": "One filename or wildcard per line; leave empty to skip the check",

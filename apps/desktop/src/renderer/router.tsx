@@ -10,6 +10,7 @@ import {
 	loadNewSessionPage,
 	loadPluginWorkspaceViewRoute,
 	loadSettingsPage,
+	loadUsageLogPage,
 } from "./route-page-loaders";
 import { RouteErrorPage } from "./shared/components/RouteErrorPage";
 import { lazyRoutePage } from "./shared/lib/lazy-route-page";
@@ -41,6 +42,7 @@ const PluginWorkspaceViewRoute = lazyRoutePage("PluginWorkspaceViewRoute", loadP
 const ThemePageRoute = lazyRoutePage("ThemePageRoute", async () => ({
 	default: (await import("./shared/theme/pages/ThemePageRoute")).ThemePageRoute,
 }));
+const UsageLogPage = lazyRoutePage("UsageLogPage", loadUsageLogPage);
 
 const rootRoute = createRootRoute({
 	component: RootLayout,
@@ -286,6 +288,18 @@ const pluginWorkspaceViewRoute = createRoute({
 	pendingComponent: NoPendingComponent,
 });
 
+const usageRoute = createRoute({
+	getParentRoute: () => rootRoute,
+	path: "/usage",
+	component: UsageLogPage,
+	pendingComponent: NoPendingComponent,
+	validateSearch: (search: Record<string, unknown>) => ({
+		...(typeof search.sessionId === "string" ? { sessionId: search.sessionId } : {}),
+		...(typeof search.group === "string" ? { group: search.group } : {}),
+		...(typeof search.model === "string" ? { model: search.model } : {}),
+	}),
+});
+
 const routeTree = rootRoute.addChildren([
 	indexRoute,
 	automationRoute,
@@ -311,6 +325,7 @@ const routeTree = rootRoute.addChildren([
 	sessionViewerRoute,
 	pluginWorkspaceViewRoute,
 	themePageRoute,
+	usageRoute,
 ]);
 
 export const router = createRouter({

@@ -4,6 +4,7 @@ import type { RemoteConnectionState } from "@567agent/remote-control";
 import type { RemotePairingState } from "../../preload/api-types/remote-pairing.js";
 import type { RemotePairingErrorCode } from "../../shared/remote-pairing-ipc.js";
 import { type DesktopConfig, readDesktopConfig, updateDesktopConfig } from "../config/desktop-config-store.js";
+import { getDesktopSessionDraftStore } from "../conversations/session-draft-store.js";
 import type { CredentialVault } from "../credentials/credential-vault.js";
 import { getDesktopCredentialVault } from "../credentials/desktop-credential-vault.js";
 import { getAppLogger } from "../logger.js";
@@ -313,6 +314,15 @@ export class DesktopRemotePairingService {
 		await stopDesktopRemoteAccess();
 		await stopDesktopRemoteDesktopHost();
 		await getDesktopLocalRelay().stop();
+		if (clearCredential) {
+			try {
+				getDesktopSessionDraftStore().clearAppliedTransfers(
+					this.state.pairingId ? `${this.state.pairingId}:` : undefined,
+				);
+			} catch {
+				// Revocation must continue even if draft receipt cleanup hits an I/O error.
+			}
+		}
 		this.host = undefined;
 		this.connectionState = "idle";
 		this.vault.remove({ namespace: CREDENTIAL_NAMESPACE, ownerId: CREDENTIAL_OWNER, name: MOBILE_RESUME_CREDENTIAL });
@@ -363,6 +373,7 @@ export class DesktopRemotePairingService {
 			`${lanWebSocketRelay}/v1/desktop/${pairingId}/host#${lanParams.toString()}`,
 		];
 		await startDesktopRemoteAccess({
+			pairingId,
 			controlTargets,
 			conversationCwd: this.options.conversationCwd,
 			onStateChange: (state) => this.handleConnectionState(state),

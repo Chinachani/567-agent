@@ -90,6 +90,13 @@ fun RootApp(
     val vm: AppViewModel =
         viewModel(factory = remember(container) { AppViewModelFactory(container) })
     val state by vm.state.collectAsState()
+    val readingChat = when (val page = state.route) {
+        is AppRoute.Chat -> page
+        is AppRoute.DeviceDetail -> page.fromChat
+        is AppRoute.DeviceCapabilities -> page.fromChat
+        else -> null
+    }
+    val readingPosition = key(readingChat?.sessionId, readingChat?.surface) { org.agent567.android.ui.chat.rememberChatReadingPosition() }
     val taskNotifications = org.agent567.android.ui.notifications.rememberTaskNotificationActions(vm.taskNotifications)
     val appUpdates by vm.appUpdates.collectAsState()
     val sessions by vm.sessions.collectAsState()
@@ -180,6 +187,21 @@ fun RootApp(
                 onChoose = vm::placeSharedText,
                 onDismiss = vm::dismissSharedText,
             )
+            if (state.groupWizardOpen && state.route != AppRoute.Login && state.route != AppRoute.Boot) {
+                org.agent567.android.ui.components.GroupWizardSheet(
+                    loggedIn = state.user != null,
+                    availableGroups = state.available567Groups,
+                    activeChatGroup = state.active567Group,
+                    activeImageGroup = state.activeImageGroup,
+                    imageGenEnabled = state.imageGenEnabled,
+                    catalogLoading = state.catalogLoading,
+                    directoryUnavailable = state.groupDirectoryUnavailable,
+                    onRetryCatalog = vm::retryGroupCatalog,
+                    onSignIn = vm::loginForGroupSelection,
+                    onApply = vm::applyGroupWizard,
+                    onDismiss = { vm.setGroupWizardOpen(false) },
+                )
+            }
             when (val route = state.route) {
             AppRoute.Boot -> Unit
             AppRoute.Welcome ->
@@ -190,6 +212,12 @@ fun RootApp(
                     onScanPairing = vm::connectDesktop,
                     onSkip = vm::skipWelcome,
                     onClearError = vm::clearRemoteError,
+                    isSignedIn = state.user != null,
+                    onStartFirstChat = vm::openCloudConversation,
+                    activeGroup = state.active567Group,
+                    activeImageGroup = state.activeImageGroup,
+                    imageGenEnabled = state.imageGenEnabled,
+                    onOpenGroupWizard = { vm.setGroupWizardOpen(true) },
                 )
             AppRoute.Login ->
                 LoginScreen(
@@ -210,6 +238,11 @@ fun RootApp(
                     onRegister = { u, p, e, c, a -> vm.register(u, p, e, c, a) { _, _ -> } },
                 )
             is AppRoute.Main -> {
+                val homeAttentionCount =
+                    (if (state.pendingQuestion != null) 1 else 0) +
+                        state.devices.count { device ->
+                            device.activeConversation?.status in setOf("waiting", "running", "failed", "interrupted")
+                        }
                 Scaffold(
                     contentWindowInsets = androidx.compose.foundation.layout.WindowInsets(0, 0, 0, 0),
                     bottomBar = {
@@ -217,6 +250,7 @@ fun RootApp(
                             selected = state.mainTab,
                             onSelect = vm::selectMainTab,
                             showLabels = state.showBottomNavLabels,
+                            attentionCount = homeAttentionCount,
                         )
                     },
                 ) { padding ->
@@ -244,9 +278,7 @@ fun RootApp(
                                     },
                                     onNewConversation = { vm.openNewConversation(0) },
                                     onUseCloudAi = vm::openCloudConversation,
-                                    taskCenterCount = (if (state.pendingQuestion != null) 1 else 0) + state.devices.count { device ->
-                                        device.activeConversation?.status in setOf("waiting", "running", "failed", "interrupted")
-                                    },
+                                    taskCenterCount = homeAttentionCount,
                                     onOpenTaskCenter = vm::openTaskCenter,
                                 )
                             MainTab.Sessions ->
@@ -322,6 +354,10 @@ fun RootApp(
                                     onOpenAccount = vm::openAccount,
                                     onTopupWithKey = vm::topupWithKey,
                                     onCreatePayOrder = vm::createPayOrder,
+                                    onOpenWelcome = vm::openWelcome,
+                                    activeImageGroup = state.activeImageGroup,
+                                    imageGenEnabled = state.imageGenEnabled,
+                                    onOpenGroupWizard = { vm.setGroupWizardOpen(true) },
                                 )
                             }
                     }
@@ -362,7 +398,7 @@ fun RootApp(
                 } else {
                     DeviceDetailScreen(
                         device = device,
-                        autoRequestDesktopScreen = state.autoRequestDesktopScreen,
+                        autoRequestDesktopScreen = route.fromChat == null && state.autoRequestDesktopScreen,
                         onBack = vm::navigateBackFromSecondary,
                         onDisconnect = { vm.disconnectDesktop(device.id) },
                         onNewChat = { vm.startDesktopConversation(device.id) },
@@ -420,6 +456,26 @@ fun RootApp(
                     }
                 ChatScreen(
                     sessionId = state.currentSessionId,
+                    readingPosition = readingPosition,
+                    onViewComputer = if (route.surface == ChatSurface.Desktop && (route.deviceId != null ||
+                        sessions.any { it.id == route.sessionId && it.remoteDeviceId != null })) vm::viewChatComputer else null,
+                    draftHandoff = state.draftHandoff,
+                    onStartDraftHandoff = if (route.surface == ChatSurface.Cloud && state.messages.any { it.conversationText.isNotBlank() }) {
+                        { vm.startDraftHandoff(route.sessionId) }
+                    } else null,
+                    onToggleDraftHandoffMessage = vm::toggleDraftHandoffMessage,
+                    onClearDraftHandoffSelection = vm::clearDraftHandoffSelection,
+                    onExitDraftHandoff = vm::exitDraftHandoff,
+                    onOpenDraftHandoffPreview = vm::openDraftHandoffPreview,
+                    onDismissDraftHandoffPreview = vm::exitDraftHandoff,
+                    onSelectDraftHandoffTargetType = vm::setDraftHandoffTargetType,
+                    onSelectDraftHandoffTargetSession = vm::setDraftHandoffTargetSession,
+                    onRefreshDraftHandoffTarget = vm::refreshDraftHandoffTarget,
+                    onReconnectDraftHandoff = vm::reconnectForDraftHandoff,
+                    onConfirmDraftHandoff = vm::sendDraftHandoff,
+                    draftHandoffDevices = state.devices,
+                    draftHandoffHasSavedPairing = container.preferences.remotePairingId != null,
+                    draftHandoffCurrentRemoteSessionId = sessions.firstOrNull { it.id == route.sessionId }?.remoteSessionId,
                     dictationDeviceId = route.deviceId,
                     onDictated = { snapshot, version, text -> vm.appendDictation(route, snapshot, version, text) },
                     onOpenServiceRoute = { vm.setServiceRoutePickerOpen(true) },
@@ -450,14 +506,21 @@ fun RootApp(
                     onRefreshCatalog = if (route.surface == ChatSurface.Desktop) {
                         { vm.refreshDesktopSessionModels() }
                     } else {
-                        vm::refreshCatalog
+                        vm::retryGroupCatalog
                     },
-                    catalogLoading = state.catalogLoading,
+                    catalogLoading = if (route.surface == ChatSurface.Desktop) state.desktopCatalogLoading else state.catalogLoading,
+                    groupDirectoryUnavailable = state.groupDirectoryUnavailable,
+                    chatCatalogUnavailable = state.chatCatalogUnavailable,
+                    imageCatalogUnavailable = state.imageCatalogUnavailable,
+                    chatSelectionRemoved = state.chatSelectionRemoved,
+                    imageSelectionRemoved = state.imageSelectionRemoved,
+                    onAcknowledgeCatalog = vm::acknowledgeCatalogChange,
                     activeImageGroup = state.activeImageGroup,
                     activeImageModel = state.activeImageModel,
                     imageGenEnabled = state.imageGenEnabled,
                     imagePickerOpen = state.imagePickerOpen,
                     availableImageModels = state.availableImageModels,
+                    imageGroupModelIds = state.imageGroupModelIds,
                     imageModelsLoading = state.imageModelsLoading,
                     imageGroupExpanded = state.imageGroupExpanded,
                     onOpenImagePicker = { vm.setImagePickerOpen(true) },

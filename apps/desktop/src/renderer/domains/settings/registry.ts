@@ -52,8 +52,7 @@ export const SETTINGS_TABS: readonly SettingsTabRegistration[] = [
 	{ key: "context", label: "Agent配置", labelKey: "tabContext", icon: "icon-[mdi--robot-outline]" },
 	{ key: "models", label: "模型配置", labelKey: "tabModels", icon: "icon-[mdi--brain]" },
 	// MCP 管理已迁至侧栏「扩展 → 连接器」
-	{ key: "im", label: "Claw", labelKey: "tabIm", icon: "icon-[mdi--message-text-outline]" },
-	{ key: "webhook", label: "消息推送", labelKey: "tabWebhook", icon: "icon-[mdi--webhook]" },
+	{ key: "im", label: "Claw 与推送", labelKey: "tabIm", icon: "icon-[mdi--message-text-outline]" },
 	// { key: "team", label: "团队管理", labelKey: "tabTeam", icon: "icon-[mdi--account-group-outline]", personalOnly: true },
 	{ key: "archive", label: "已归档项目", labelKey: "tabArchive", icon: "icon-[mdi--archive-outline]" },
 	{ key: "shortcuts", label: "快捷键", labelKey: "tabShortcuts", icon: "icon-[mdi--keyboard-outline]" },
@@ -127,7 +126,7 @@ export const SETTINGS_SECTIONS = [
 	{ tab: "im", id: "imbridge-channels", title: "消息渠道", titleKey: "section_imbridge-channels" },
 	{ tab: "im", id: "imbridge-status", title: "状态与日志", titleKey: "section_imbridge-status" },
 	{ tab: "im", id: "imbridge-logs", title: "实时日志", titleKey: "section_imbridge-logs" },
-	{ tab: "webhook", id: "webhook-channels", title: "渠道列表", titleKey: "section_webhook-channels" },
+	{ tab: "im", id: "webhook-channels", title: "消息推送", titleKey: "section_webhook-channels" },
 	{ tab: "shortcuts", id: "shortcuts-global", title: "全局快捷键", titleKey: "section_shortcuts-global" },
 	{ tab: "shortcuts", id: "shortcuts-quickpanel", title: "快捷面板", titleKey: "section_shortcuts-quickpanel" },
 	{ tab: "appshot", id: "appshot-gesture", title: "触发快捷键", titleKey: "section_appshot-gesture" },

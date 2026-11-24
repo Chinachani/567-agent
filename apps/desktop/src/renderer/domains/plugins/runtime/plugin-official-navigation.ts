@@ -150,6 +150,10 @@ function isMcpSettingsTarget(tabKey?: string, section?: SettingsSectionRegistrat
 	return tabKey === "mcp" || section?.tab === "mcp";
 }
 
+function isLegacyWebhookTarget(target: string, tabKey?: string): boolean {
+	return target === "webhook" || tabKey === "webhook";
+}
+
 function buildSettingsCatalog(): unknown {
 	const settingsTabs = SETTINGS_TABS.map((tab) => ({
 		id: tab.key,
@@ -296,6 +300,21 @@ export function resolveOfficialNavigationOpen(input: {
 		};
 	}
 
+	if (isLegacyWebhookTarget(target, input.tab ? normalizeTarget(input.tab) : undefined)) {
+		const imTab = tabsByKey.get("im");
+		const webhookSection = sectionsById.get("webhook-channels");
+		return {
+			hashPath: buildSettingsHashPath("im", webhookSection?.id ?? "webhook-channels"),
+			resolved: {
+				kind: "settings-section",
+				tab: "im",
+				tabTitle: imTab?.label ?? "Claw 与推送",
+				section: webhookSection?.id ?? "webhook-channels",
+				sectionTitle: webhookSection?.title ?? "消息推送",
+			},
+		};
+	}
+
 	if (targetSection) {
 		if (targetSection.tab === "mcp") {
 			return {
@@ -338,7 +357,7 @@ export function resolveOfficialNavigationOpen(input: {
 		}
 		const tab = tabsByKey.get(tabKey);
 		if (!tab) {
-			const tabIds = [...tabsByKey.keys(), "mcp"];
+			const tabIds = [...tabsByKey.keys(), "mcp", "webhook"];
 			throw new Error(
 				`Refused navigation.open before user approval: unknown settings tab=${JSON.stringify(input.tab ?? tabKey)}. Available tabs: ${tabIds
 					.map((id) => JSON.stringify(id))
@@ -362,7 +381,7 @@ export function resolveOfficialNavigationOpen(input: {
 	}
 
 	const pageIds = [...STATIC_TARGETS.map((item) => item.id), NEW_SESSION_TARGET.id];
-	const tabIds = [...tabsByKey.keys(), "mcp"];
+	const tabIds = [...tabsByKey.keys(), "mcp", "webhook"];
 	throw new Error(
 		`Refused navigation.open before user approval: unknown target=${JSON.stringify(input.target)}. Page targets: ${pageIds
 			.map((id) => JSON.stringify(id))

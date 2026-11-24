@@ -30,3 +30,7 @@ export const loadSettingsPage = async () => ({
 export const loadPluginWorkspaceViewRoute = async () => ({
 	default: (await import("./domains/plugins/components/PluginWorkspaceViewRoute")).PluginWorkspaceViewRoute,
 });
+
+export const loadUsageLogPage = async () => ({
+	default: (await import("./domains/usage/components/UsageLogPage")).UsageLogPage,
+});

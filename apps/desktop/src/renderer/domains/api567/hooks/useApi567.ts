@@ -12,6 +12,13 @@ import {
 	api567TopupModalOpenAtom,
 } from "../store/api567-atoms";
 
+function getStatusIdentity(
+	status: Pick<Api567Status, "isLoggedIn" | "authType" | "loginUsername" | "username">,
+): string {
+	if (!status.isLoggedIn) return "";
+	return `${status.authType ?? ""}:${status.loginUsername ?? status.username ?? ""}`;
+}
+
 export function useApi567() {
 	const [status, setStatus] = useAtom(api567StatusAtom);
 	const [availableGroups, setAvailableGroups] = useAtom(api567AvailableGroupsAtom);
@@ -25,19 +32,29 @@ export function useApi567() {
 	const applyStatus = useCallback(
 		(next: Api567Status) => {
 			const previous = store.get(api567StatusAtom);
-			const changed =
-				previous.isLoggedIn !== next.isLoggedIn ||
-				(previous.loginUsername ?? previous.username) !== (next.loginUsername ?? next.username);
+			const changed = getStatusIdentity(previous) !== getStatusIdentity(next);
+			const hasConfirmedGroups =
+				next.availableGroupsState === "loaded" ||
+				next.groupsUpdated !== undefined ||
+				Object.keys(next.availableGroups ?? {}).length > 0;
+			const hasGroupError = next.availableGroupsState === "error";
 			setStatus(next);
 			if (changed) {
 				setAvailableGroups(next.availableGroups ?? {});
 				setGroupsLoadState((state) => ({
 					request: state.request + 1,
 					loading: false,
-					loaded: Object.keys(next.availableGroups ?? {}).length > 0,
-					error: false,
+					loaded: hasConfirmedGroups || hasGroupError,
+					error: hasGroupError,
 				}));
-			} else if (next.availableGroups !== undefined) setAvailableGroups(next.availableGroups);
+			} else {
+				if (next.availableGroups !== undefined) setAvailableGroups(next.availableGroups);
+				if (next.availableGroupsState === "loaded") {
+					setGroupsLoadState((state) => (state.loading ? state : { ...state, loaded: true, error: false }));
+				} else if (next.availableGroupsState === "error") {
+					setGroupsLoadState((state) => (state.loading ? state : { ...state, loaded: true, error: true }));
+				}
+			}
 		},
 		[setStatus, setAvailableGroups, setGroupsLoadState, store],
 	);
@@ -46,14 +63,13 @@ export function useApi567() {
 		async (force = false) => {
 			if (!window.agent567?.api567?.getAvailableGroups) return;
 			const previous = store.get(api567GroupsLoadStateAtom);
-			if ((previous.loading || previous.loaded) && !force) return;
+			if ((previous.loading || (previous.loaded && !previous.error)) && !force) return;
 			const request = previous.request + 1;
-			const identity = store.get(api567StatusAtom);
+			const identityKey = getStatusIdentity(store.get(api567StatusAtom));
 			setGroupsLoadState({ loading: true, loaded: previous.loaded, error: false, request });
 			const current = () =>
 				store.get(api567GroupsLoadStateAtom).request === request &&
-				store.get(api567StatusAtom).isLoggedIn === identity.isLoggedIn &&
-				store.get(api567StatusAtom).loginUsername === identity.loginUsername;
+				getStatusIdentity(store.get(api567StatusAtom)) === identityKey;
 			try {
 				const groups = await window.agent567.api567.getAvailableGroups(force);
 				if (!current()) return;
@@ -87,7 +103,12 @@ export function useApi567() {
 						setAvailableGroups(initialStatus.availableGroups);
 					}
 					if (initialStatus.isLoggedIn) {
-						if (!initialStatus.availableGroups || Object.keys(initialStatus.availableGroups).length === 0) {
+						const shouldLoadGroups =
+							initialStatus.availableGroupsState === undefined
+								? !initialStatus.availableGroups || Object.keys(initialStatus.availableGroups).length === 0
+								: initialStatus.availableGroupsState === "idle" ||
+									initialStatus.availableGroupsState === "error";
+						if (shouldLoadGroups) {
 							void loadAvailableGroups(false);
 						}
 						if (initialStatus.quota === undefined) {
@@ -359,6 +380,16 @@ export function useApi567() {
 		}
 	}, [applyStatus]);
 
+	const refreshGroupsInBackground = useCallback(async (options?: boolean | { force?: boolean; startup?: boolean }) => {
+		const fn = window.agent567?.api567?.refreshGroupsInBackground;
+		if (!fn) return { refreshed: false, success: false };
+		try {
+			return await fn(options);
+		} catch {
+			return { refreshed: false, success: false };
+		}
+	}, []);
+
 	const refreshQuota = useCallback(
 		async (force = false, silent = false): Promise<{ success: boolean; quota?: number; quotaUsd?: number }> => {
 			try {
@@ -544,6 +575,7 @@ export function useApi567() {
 		setImageGroup,
 		setImageModel,
 		refreshGroups,
+		refreshGroupsInBackground,
 		refreshQuota,
 		logout,
 	};

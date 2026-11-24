@@ -70,7 +70,7 @@ class ResponsesChatHostTest {
             send("gpt-5-codex")
             prefs.setModelInferenceApi(null, "gpt-5-codex", null)
             send("gpt-5-codex"); send("gemini-test")
-            assertEquals(listOf("/v1/responses", "/v1/chat/completions", "/v1/chat/completions", "/v1/responses", "/v1/chat/completions"), paths)
+            assertEquals(listOf("/v1/responses", "/v1/chat/completions", "/v1/chat/completions", "/v1/responses", "/v1/responses"), paths)
             assertEquals(kotlinx.serialization.json.JsonPrimitive(false), bodies.first()["store"])
             assertFalse(bodies.first().containsKey("messages"))
             assertTrue(bodies.first().getValue("input").toString().contains("input_image"))

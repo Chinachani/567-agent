@@ -127,6 +127,8 @@ class CredentialRecoveryHostTest {
             }
             server.start()
             config = Agent567Config("http://127.0.0.1:${server.address.port}")
+            preferences.setServerUrl(config.serverUrl)
+            preferences.setModelInferenceApi("B", "test", org.agent567.android.core.chat.InferenceApi.Completions)
             bare = createBareHttpClient(config)
             refresher = TokenRefresher(tokens, { api.refreshTokensWithAccountRecovery(it) }, null)
             client = createAgent567HttpClient(config, tokens, refresher)

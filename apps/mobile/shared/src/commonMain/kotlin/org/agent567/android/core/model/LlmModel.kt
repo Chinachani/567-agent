@@ -24,6 +24,9 @@ data class LlmModel(
     val defaultReasoningLevel: String? = null,
 )
 
+internal fun groupCatalogModel(id: String, group: String?) = LlmModel(id = id, modelId = id, name = id,
+    providerName = group ?: "567 API", reasoning = listOf("reasoner", "r1", "o1", "o3", "thinking", "sol").any { id.contains(it, ignoreCase = true) })
+
 data class ModelsCatalog(
     val providers: Map<String, ProviderModels> = emptyMap(),
 ) {

@@ -16,6 +16,7 @@ export type {
 	RemoteConnectionSnapshot,
 	RemoteConnectionState,
 	RemoteDiagnostics,
+	RemoteDraftTargetType,
 	RemoteError,
 	RemoteEvent,
 	RemoteEventName,
@@ -28,6 +29,8 @@ export type {
 	RemoteResume,
 	RemoteRole,
 	RemoteSessionContext,
+	RemoteSessionDraftAppendPayload,
+	RemoteSessionDraftAppendResult,
 	RemoteTransport,
 	RemoteTransportHandlers,
 	SessionAttachmentAsset,
@@ -36,7 +39,13 @@ export type {
 	SessionWorkbenchDetail,
 	SessionWorkbenchSnapshot,
 } from "./types.js";
-export { NOOP_REMOTE_LOGGER, REMOTE_PROTOCOL_VERSION, REMOTE_REQUEST_METHODS } from "./types.js";
+export {
+	NOOP_REMOTE_LOGGER,
+	REMOTE_DRAFT_MAX_CHARS,
+	REMOTE_DRAFT_TOTAL_MAX_CHARS,
+	REMOTE_PROTOCOL_VERSION,
+	REMOTE_REQUEST_METHODS,
+} from "./types.js";
 export type { RemoteWebSocket, RemoteWebSocketFactory } from "./websocket-transport.js";
 export {
 	BOOTSTRAP_PROTOCOL_PREFIX,

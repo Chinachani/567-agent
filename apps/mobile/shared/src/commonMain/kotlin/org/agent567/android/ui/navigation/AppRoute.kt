@@ -29,9 +29,9 @@ sealed class AppRoute {
     /** 聚合桌面任务、待确认事项和连接状态的跟进页。 */
     data object TaskCenter : AppRoute()
 
-    data class DeviceDetail(val deviceId: String) : AppRoute()
+    data class DeviceDetail(val deviceId: String, val fromChat: Chat? = null) : AppRoute()
 
-    data class DeviceCapabilities(val deviceId: String) : AppRoute()
+    data class DeviceCapabilities(val deviceId: String, val fromChat: Chat? = null) : AppRoute()
 
     data class NewConversation(
         val channel: ConnectChannel = ConnectChannel.Lan,

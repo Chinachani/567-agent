@@ -13,7 +13,9 @@ import android.view.inputmethod.InputMethodManager
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.DragHandle
 import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
@@ -24,7 +26,7 @@ import androidx.compose.ui.viewinterop.AndroidView
 import org.agent567.android.ui.i18n.Str
 
 @Composable
-internal fun RemoteDirectTyping(onText: (String) -> Boolean, onKey: (String, String) -> Unit, onDismiss: () -> Unit) {
+internal fun RemoteDirectTyping(onText: (String) -> Boolean, onKey: (String, String) -> Unit, onDismiss: () -> Unit, grip: Modifier = Modifier) {
     var showKeys by remember { mutableStateOf(false) }
     var feedback by remember { mutableStateOf<String?>(null) }
     val modifiers = remember { mutableStateListOf<String>() }
@@ -57,33 +59,44 @@ internal fun RemoteDirectTyping(onText: (String) -> Boolean, onKey: (String, Str
         }, onKey = { code, down -> if (code !in modifiers) onKey(code, if (down) "down" else "up") })
         Surface(shape = MaterialTheme.shapes.medium, color = MaterialTheme.colorScheme.surface.copy(alpha = .88f)) {
             Column {
+                feedback?.let { Text(it, Modifier.padding(horizontal = 8.dp, vertical = 4.dp), style = MaterialTheme.typography.labelSmall) }
+                if (showKeys) {
+                    // Scroll within short landscape/IME height while keeping the primary bar anchored on the IME top edge.
+                    Column(Modifier.weight(1f, fill = false).verticalScroll(rememberScrollState())) {
+                        Row(Modifier.horizontalScroll(rememberScrollState())) {
+                            for ((label, code) in remoteModifiers) {
+                                RemoteHoldButton(label, true, { setModifier(code, code !in modifiers) }, {
+                                    if (code in modifiers) null else {
+                                        setModifier(code, true)
+                                        val release: () -> Unit = { setModifier(code, false) }
+                                        release
+                                    }
+                                }) {
+                                    Surface(color = if (code in modifiers) MaterialTheme.colorScheme.primaryContainer else androidx.compose.ui.graphics.Color.Transparent,
+                                        shape = MaterialTheme.shapes.small) { Text(label, Modifier.padding(4.dp)) }
+                                }
+                            }
+                        }
+                        RemoteKeyboardShortcuts({ code, action -> if (code !in modifiers) onKey(code, action) })
+                    }
+                }
                 Row(verticalAlignment = Alignment.CenterVertically) {
+                    RemoteKeyboardGrip(grip)
                     IconToggleButton(checked = showKeys, onCheckedChange = { showKeys = it }) {
                         Icon(Icons.Default.MoreVert, Str.remoteKeyboardTools)
                     }
-                    TextButton(onClick = onDismiss) { Text(Str.remoteHideKeyboard) }
-                }
-                if (showKeys) {
-                    Row(Modifier.horizontalScroll(rememberScrollState())) {
-                        for ((label, code) in remoteModifiers) {
-                            RemoteHoldButton(label, true, { setModifier(code, code !in modifiers) }, {
-                                if (code in modifiers) null else {
-                                    setModifier(code, true)
-                                    val release: () -> Unit = { setModifier(code, false) }
-                                    release
-                                }
-                            }) {
-                                Surface(color = if (code in modifiers) MaterialTheme.colorScheme.primaryContainer else androidx.compose.ui.graphics.Color.Transparent,
-                                    shape = MaterialTheme.shapes.small) { Text(label, Modifier.padding(4.dp)) }
-                            }
-                        }
+                    TextButton(onClick = onDismiss, modifier = Modifier.heightIn(min = 48.dp)) {
+                        Text(Str.remoteHideKeyboard, maxLines = 1)
                     }
-                    RemoteKeyboardShortcuts({ code, action -> if (code !in modifiers) onKey(code, action) })
                 }
-                feedback?.let { Text(it, Modifier.padding(horizontal = 8.dp), style = MaterialTheme.typography.labelSmall) }
             }
         }
     }
+}
+
+@Composable
+internal fun RemoteKeyboardGrip(grip: Modifier) {
+    Box(grip.size(36.dp, 48.dp), contentAlignment = Alignment.Center) { Icon(Icons.Default.DragHandle, Str.remoteMoveKeyboard) }
 }
 
 private val remoteModifiers = listOf("Ctrl" to "ControlLeft", "Alt" to "AltLeft", "Shift" to "ShiftLeft", "Win" to "MetaLeft")

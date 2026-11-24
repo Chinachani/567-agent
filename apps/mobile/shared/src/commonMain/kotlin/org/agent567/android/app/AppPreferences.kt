@@ -48,6 +48,10 @@ class AppPreferences(
     private val legacyServerWasSaved = settings.hasKey("vetta.prefs.server_url")
     private val storage = Agent567Settings(settings)
 
+    var welcomed: Boolean
+        get() = storage.getBoolean("agent567.onboarding.seen", false)
+        set(value) { storage["agent567.onboarding.seen"] = value }
+
     var availableUpdateVersion: String
         get() = storage.getString("agent567.update.available.v1", "")
         set(value) { storage["agent567.update.available.v1"] = value }
@@ -206,16 +210,17 @@ class AppPreferences(
             if (value.isNullOrBlank()) storage.remove(KEY_REMOTE_LAN_FINGERPRINT) else storage[KEY_REMOTE_LAN_FINGERPRINT] = value
         }
 
+    // Missing means not selected. An empty server key is a real, explicitly selected default group.
     var active567Group: String?
-        get() = storage.getStringOrNull(KEY_ACTIVE_567_GROUP)?.takeIf { it.isNotBlank() }
+        get() = storage.getStringOrNull(KEY_ACTIVE_567_GROUP)
         set(value) {
-            if (value.isNullOrBlank()) storage.remove(KEY_ACTIVE_567_GROUP) else storage[KEY_ACTIVE_567_GROUP] = value
+            if (value == null) storage.remove(KEY_ACTIVE_567_GROUP) else storage[KEY_ACTIVE_567_GROUP] = value
         }
 
     var activeImageGroup: String?
-        get() = storage.getStringOrNull(KEY_ACTIVE_IMAGE_GROUP)?.takeIf { it.isNotBlank() }
+        get() = storage.getStringOrNull(KEY_ACTIVE_IMAGE_GROUP)
         set(value) {
-            if (value.isNullOrBlank()) storage.remove(KEY_ACTIVE_IMAGE_GROUP) else storage[KEY_ACTIVE_IMAGE_GROUP] = value
+            if (value == null) storage.remove(KEY_ACTIVE_IMAGE_GROUP) else storage[KEY_ACTIVE_IMAGE_GROUP] = value
         }
 
     var activeImageModel: String?
@@ -272,11 +277,26 @@ class AppPreferences(
             if (value.isNullOrBlank()) secretStore.remove(KEY_AUTH_PASSWORD) else secretStore.put(KEY_AUTH_PASSWORD, value)
         }
 
-    fun getCachedGroupModels(group: String?): List<String> {
-        val key = KEY_CACHE_GROUP_MODELS_PREFIX + (group ?: "default")
-        val raw = storage.getStringOrNull(key)?.takeIf { it.isNotBlank() } ?: return emptyList()
-        return raw.split(",").map { it.trim() }.filter { it.isNotEmpty() }
+    private val groupDirectoryKey get() = KEY_CACHE_GROUP_MODELS_PREFIX + ":directory:" + serviceIdentity(serverUrl.value) + ":" + authUserId
+
+    var cachedGroups: Map<String, org.agent567.android.core.api.ApiGroupInfoDto>
+        get() = runCatching { Agent567Json.decodeFromString<Map<String, org.agent567.android.core.api.ApiGroupInfoDto>>(storage.getString(groupDirectoryKey, "{}")) }.getOrDefault(emptyMap())
+        set(value) { storage[groupDirectoryKey] = Agent567Json.encodeToString(value) }
+
+    fun catalogChange(image: Boolean): String? = storage.getStringOrNull("$groupDirectoryKey:removed:$image")
+
+    fun setCatalogChange(image: Boolean, removed: String?) {
+        val key = "$groupDirectoryKey:removed:$image"
+        if (removed == null) storage.remove(key) else storage[key] = removed
     }
+
+    private fun modelListKey(group: String?, server: String) = KEY_CACHE_GROUP_MODELS_PREFIX + JsonArray(listOf(
+        JsonPrimitive(serviceIdentity(server)), JsonPrimitive(authUserId), group?.let(::JsonPrimitive) ?: JsonNull,
+    ))
+
+    fun getCachedGroupModels(group: String?, server: String = serverUrl.value): List<String> = runCatching {
+        Agent567Json.decodeFromString<List<String>>(storage.getString(modelListKey(group, server), "[]"))
+    }.getOrDefault(emptyList())
 
     private fun modelContextKey(group: String?, model: String, kind: String = "override", server: String = serverUrl.value): String = "567agent.model-context.v1." + JsonArray(listOf(
         JsonPrimitive(serviceIdentity(server)), group?.let(::JsonPrimitive) ?: JsonNull, JsonPrimitive(kind), JsonPrimitive(model),
@@ -308,12 +328,12 @@ class AppPreferences(
         storage[modelContextKey(group, "", "metadata", server)] = Agent567Json.encodeToString(merged)
     }
 
-    fun setCachedGroupModels(group: String?, models: List<String>) {
-        val key = KEY_CACHE_GROUP_MODELS_PREFIX + (group ?: "default")
+    fun setCachedGroupModels(group: String?, models: List<String>, server: String = serverUrl.value) {
+        val key = modelListKey(group, server)
         if (models.isEmpty()) {
             storage.remove(key)
         } else {
-            storage[key] = models.joinToString(",")
+            storage[key] = Agent567Json.encodeToString(models)
         }
     }
 
@@ -332,6 +352,11 @@ class AppPreferences(
     }
 
     fun clearAuthSnapshot() {
+        active567Group = null
+        activeImageGroup = null
+        activeImageModel = null
+        lastModelId = null
+        storage.keys.filter { it.startsWith(KEY_CACHE_GROUP_MODELS_PREFIX) }.forEach(storage::remove)
         authToken = null
         authRefreshToken = null
         authUsername = null

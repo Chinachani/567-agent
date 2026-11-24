@@ -1,5 +1,6 @@
 package org.agent567.android.ui.chat
 
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Box
@@ -14,6 +15,7 @@ import androidx.compose.foundation.text.selection.SelectionContainer
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.ContentCopy
+import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
@@ -62,6 +64,7 @@ import kotlin.time.TimeSource
 import androidx.compose.runtime.snapshotFlow
 import org.agent567.android.ui.i18n.Str
 import org.agent567.android.core.model.withoutInlineImageData
+import org.agent567.android.ui.theme.agent567Extra
 import org.intellij.markdown.ast.findChildOfType
 import org.intellij.markdown.flavours.gfm.GFMElementTypes.HEADER
 import org.intellij.markdown.flavours.gfm.GFMTokenTypes.CELL
@@ -128,9 +131,9 @@ fun MarkdownContent(
         colors =
             markdownColor(
                 text = textColor,
-                codeBackground = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.82f),
-                inlineCodeBackground = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.68f),
-                dividerColor = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f),
+                codeBackground = MaterialTheme.agent567Extra.chipBackground,
+                inlineCodeBackground = MaterialTheme.agent567Extra.chipBackground,
+                dividerColor = MaterialTheme.agent567Extra.border.copy(alpha = 0.7f),
             ),
         typography =
             markdownTypography(
@@ -157,7 +160,7 @@ fun MarkdownContent(
                     ),
                 textLink =
                     TextLinkStyles(
-                        style = SpanStyle(color = MaterialTheme.colorScheme.primary, textDecoration = TextDecoration.Underline),
+                        style = SpanStyle(color = MaterialTheme.agent567Extra.amberAccent, textDecoration = TextDecoration.Underline),
                     ),
                 table = MaterialTheme.typography.bodyMedium.copy(color = textColor),
             ),
@@ -245,22 +248,23 @@ fun CodeBlockChrome(
     Surface(
         modifier = modifier.fillMaxWidth(),
         shape = RoundedCornerShape(10.dp),
-        color = MaterialTheme.colorScheme.surface.copy(alpha = 0.92f),
-        tonalElevation = 1.dp,
+        color = MaterialTheme.colorScheme.surface,
+        tonalElevation = 0.dp,
+        border = BorderStroke(1.dp, MaterialTheme.agent567Extra.border.copy(alpha = 0.75f)),
     ) {
         Column {
             Row(
                 modifier =
                     Modifier
                         .fillMaxWidth()
-                        .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.7f))
+                        .background(MaterialTheme.agent567Extra.chipBackground)
                         .padding(horizontal = 10.dp, vertical = 2.dp),
                 verticalAlignment = Alignment.CenterVertically,
             ) {
                 Text(
                     text = language?.ifBlank { Str.code } ?: Str.code,
                     style = MaterialTheme.typography.labelMedium,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    color = MaterialTheme.agent567Extra.secondaryText,
                     modifier = Modifier.weight(1f),
                 )
                 IconButton(
@@ -278,6 +282,7 @@ fun CodeBlockChrome(
                     )
                 }
             }
+            HorizontalDivider(color = MaterialTheme.agent567Extra.border.copy(alpha = 0.6f))
             if (copyFailed) Text(Str.copyUnavailable, Modifier.padding(horizontal = 12.dp), style = MaterialTheme.typography.labelSmall)
             SelectionContainer {
                 Text(

@@ -18,7 +18,8 @@
 			"unpin": "Unpin",
 			"pinFull": "Up to 5 pinned entries (including New session)",
 			"reset": "Reset order",
-			"customize": "Customize navigation"
+			"customize": "Customize navigation",
+			"done": "Done"
 		},
 		"clawConnected": "Claw connected",
 		"hide": "Hide sidebar",

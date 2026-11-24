@@ -22,7 +22,10 @@ class ModelsRepository internal constructor(
 
     suspend fun cleanupGroupToken(group: String?) = api.cleanupGroupToken(group)
 
-    suspend fun fetchGroupImageModels(group: String?): List<String> = api.fetchGroupImageModels(group)
+    suspend fun refreshGroupModels(group: String?, allowProvision: Boolean = false): List<LlmModel> =
+        api.goModels(group, background = true, allowProvision = allowProvision).goModels()
+
+    fun imageModels(ids: List<String>): List<String> = api.imageModels(ids)
 
     suspend fun downloadBytes(url: String): ByteArray = api.downloadBytes(url)
 

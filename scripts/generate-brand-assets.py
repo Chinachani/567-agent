@@ -151,6 +151,20 @@ def main():
         save(f"{desktop}/{filename}", images[1024])
     save(f"{desktop}/icon.ico", ico([(size, images[size]) for size in (16, 32, 48, 64, 128, 256)]))
     save(f"{desktop}/icon.icns", icns([(size, images[size]) for size in (16, 32, 64, 128, 256, 512, 1024)]))
+    # Settings previews and the optional window/Dock icon use the same outlined [567] masters.
+    save("packages/theme-ui/src/shared/provider-icon/agent567.svg", small["dark"])
+    previews = "apps/desktop/src/renderer/domains/settings/assets/app-icons"
+    save(f"{previews}/default.png", images[128])
+    light = sources["icon-light.svg"]
+    save(f"{previews}/porcelain.png", renderer.png(light, 128))
+    save(f"{desktop}/app-icons/porcelain.png", renderer.png(light, 1024))
+    dock = ET.fromstring(light)
+    plate = element("g", transform="translate(512 512) scale(0.86) translate(-512 -512)")
+    for child in list(dock):
+        dock.remove(child)
+        plate.append(child)
+    dock.append(plate)
+    save(f"{desktop}/app-icons/porcelain-mac.png", renderer.png(encode(dock), 1024))
     for theme in small:
         save(f"{desktop}/tray-{theme}.png", renderer.png(small[theme], 32))
         save(f"apps/desktop/src/renderer/public/brand/icon-{theme}.svg", small[theme])

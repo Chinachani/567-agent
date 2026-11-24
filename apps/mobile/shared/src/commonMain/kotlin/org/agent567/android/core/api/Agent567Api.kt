@@ -588,113 +588,74 @@ internal class Agent567Api(
     }
 
     suspend fun getAvailableGroups(): Map<String, ApiGroupInfoDto> {
-        return try {
-            val response = executeWithAuthRefresh { token ->
-                bareClient.get("${config.apiBaseUrl.trimEnd('/')}/api/user/groups") {
-                    if (token.isNotBlank()) {
-                        header(HttpHeaders.Authorization, "Bearer $token")
-                    }
-                }
+        val response = executeWithAuthRefresh { token ->
+            bareClient.get("${config.apiBaseUrl.trimEnd('/')}/api/user/groups") {
+                header(HttpHeaders.Authorization, "Bearer $token")
             }
-            val text = response.bodyAsTextSafe()
-            val element = org.agent567.android.core.net.Agent567Json.parseToJsonElement(text)
-            val dataObj = (element as? kotlinx.serialization.json.JsonObject)?.get("data") as? kotlinx.serialization.json.JsonObject ?: return emptyMap()
-            val result = mutableMapOf<String, ApiGroupInfoDto>()
-            for ((key, value) in dataObj) {
-                val groupObj = value as? kotlinx.serialization.json.JsonObject ?: continue
-                val desc = (groupObj["desc"] as? kotlinx.serialization.json.JsonPrimitive)?.content.orEmpty()
-                val ratioPrimitive = groupObj["ratio"] as? kotlinx.serialization.json.JsonPrimitive
-                val ratio = ratioPrimitive?.content?.toDoubleOrNull() ?: 1.0
-                result[key] = ApiGroupInfoDto(desc = desc, ratio = ratio)
-            }
-            result
-        } catch (_: Exception) {
-            emptyMap()
+        }
+        val root = checkedCatalogResponse(response) as? JsonObject
+        val groups = root?.get("data") as? JsonObject ?: throw Agent567Exception.Protocol("无法读取分组列表")
+        return groups.mapValues { (_, value) ->
+            val group = value as? JsonObject ?: throw Agent567Exception.Protocol("分组资料不完整")
+            ApiGroupInfoDto(desc = group["desc"]?.jsonPrimitive?.contentOrNull.orEmpty(),
+                ratio = group["ratio"]?.jsonPrimitive?.contentOrNull?.toDoubleOrNull() ?: 1.0)
         }
     }
 
-    suspend fun fetchGroupModels(groupName: String?): List<String> {
-        val patToken = tokenStore.accessToken
+    private suspend fun checkedCatalogResponse(response: HttpResponse): kotlinx.serialization.json.JsonElement {
+        val text = response.bodyAsText()
+        if (!response.status.isSuccess()) throw parseFailure(response.status.value, text)
+        val root = Agent567Json.parseToJsonElement(text)
+        if (root is JsonObject && (root["success"]?.jsonPrimitive?.content == "false" || "error" in root))
+            throw parseFailure(response.status.value, text)
+        return root
+    }
 
-        // 1. 如果有登录 Token，先尝试调用 567 API 用户模型列表接口（有 group 则查指定分组，无 group 则查默认可用）
-        if (!patToken.isNullOrBlank()) {
-            try {
-                val query = if (!groupName.isNullOrBlank()) {
-                    "?group=${java.net.URLEncoder.encode(groupName, "UTF-8")}"
-                } else {
-                    ""
-                }
-                val url = "${config.apiBaseUrl.trimEnd('/')}/api/user/models$query"
-                val res = executeWithAuthRefresh { token ->
-                    bareClient.get(url) {
-                        header(HttpHeaders.Authorization, "Bearer $token")
-                    }
-                }
-                val text = res.bodyAsTextSafe()
-                if (res.status.isSuccess()) {
-                    val root = org.agent567.android.core.net.Agent567Json.parseToJsonElement(text)
-                    val ids = extractModelIds(root)
-                    if (ids.isNotEmpty()) {
-                        rememberModelContexts(root, groupName)
-                        preferences?.setCachedGroupModels(groupName, ids)
-                        return ids
-                    }
-                }
-            } catch (_: Exception) {
-            }
+    private suspend fun fetchGroupModels(groupName: String?, background: Boolean, allowProvision: Boolean): List<String> {
+        val version = tokenRefresher.sessionVersion
+        fun accept(root: kotlinx.serialization.json.JsonElement, ids: List<String>): List<String> {
+            if (version != tokenRefresher.sessionVersion) throw Agent567Exception.Unauthorized()
+            rememberModelContexts(root, groupName)
+            // Background results are committed by the current account/route owner in the view model.
+            if (!background) preferences?.setCachedGroupModels(groupName, ids, config.serverUrl)
+            return ids
         }
-
-        // 2. 如果 /api/user/models 没拿到，获取或解析分组专属 API Key (sk-...)，请求标准 /v1/models
-        return try {
-            val res = modelRequest(groupName) { keyToUse ->
-            bareClient.get(config.gatewayBaseUrl.trimEnd('/') + "/v1/models") {
-                if (!keyToUse.isNullOrBlank()) {
-                    header(HttpHeaders.Authorization, "Bearer $keyToUse")
-                }
-                if (!groupName.isNullOrBlank()) {
-                    header("X-567-Group", java.net.URLEncoder.encode(groupName, "UTF-8"))
-                }
+        try {
+            val query = groupName?.let { "?group=${java.net.URLEncoder.encode(it.ifEmpty { "default" }, "UTF-8")}" }.orEmpty()
+            val response = executeWithAuthRefresh(version) { token ->
+                bareClient.get("${config.apiBaseUrl.trimEnd('/')}/api/user/models$query") { header(HttpHeaders.Authorization, "Bearer $token") }
             }
-            }
-            val text = res.bodyAsTextSafe()
-            if (!res.status.isSuccess()) throw parseFailure(res.status.value, text)
-            val root = org.agent567.android.core.net.Agent567Json.parseToJsonElement(text)
+            val root = checkedCatalogResponse(response)
             val ids = extractModelIds(root)
-            if (ids.isNotEmpty()) {
-                rememberModelContexts(root, groupName)
-                preferences?.setCachedGroupModels(groupName, ids)
-            }
-            ids
-        } catch (_: Exception) {
-            emptyList()
+            // Old compatible gateways return {data:[]} even for an unsupported management endpoint.
+            if (ids.isNotEmpty() || (root as? JsonObject)?.get("success")?.jsonPrimitive?.content == "true") return accept(root, ids)
+        } catch (e: CancellationException) { throw e }
+        catch (_: Exception) { /* Some gateways expose the catalog only under /v1. */ }
+        if (version != tokenRefresher.sessionVersion) throw Agent567Exception.Unauthorized()
+        suspend fun list(key: String) = bareClient.get(config.gatewayBaseUrl.trimEnd('/') + "/v1/models") {
+            header(HttpHeaders.Authorization, "Bearer $key")
+            if (groupName != null) header("X-567-Group", java.net.URLEncoder.encode(groupName.ifEmpty { "default" }, "UTF-8"))
         }
+        val response = if (!allowProvision) {
+            val key = groupCredentials.get(groupName, createIfMissing = false)
+            list(key)
+        } else modelRequest(groupName, ::list)
+        val root = checkedCatalogResponse(response)
+        return accept(root, extractModelIds(root))
     }
 
-    suspend fun goModels(activeGroup: String? = null): ModelsCatalog {
-        var modelIds = fetchGroupModels(activeGroup)
-        if (modelIds.isEmpty() && preferences != null) {
-            modelIds = preferences.getCachedGroupModels(activeGroup)
+    suspend fun goModels(activeGroup: String? = null, background: Boolean = false, allowProvision: Boolean = !background): ModelsCatalog {
+        val modelIds = try { fetchGroupModels(activeGroup, background, allowProvision) }
+        catch (e: CancellationException) { throw e }
+        catch (e: Exception) {
+            if (background) throw e
+            preferences?.getCachedGroupModels(activeGroup, config.serverUrl).orEmpty()
         }
-        if (modelIds.isEmpty()) {
-            return ModelsCatalog()
-        }
-        if (modelIds.any { contexts(activeGroup)[it]?.takeIf { entry -> entry.isFresh(System.currentTimeMillis()) }?.metadata?.capacity == null }) {
-            refreshContextMetadata(activeGroup)
+        if (modelIds.isNotEmpty() && modelIds.any { contexts(activeGroup)[it]?.takeIf { entry -> entry.isFresh(System.currentTimeMillis()) }?.metadata?.capacity == null }) {
+            refreshContextMetadata(activeGroup, background)
         }
         val models = modelIds.map { id ->
-            val isReasoning = id.contains("reasoner", ignoreCase = true) ||
-                    id.contains("r1", ignoreCase = true) ||
-                    id.contains("o1", ignoreCase = true) ||
-                    id.contains("o3", ignoreCase = true) ||
-                    id.contains("thinking", ignoreCase = true) ||
-                    id.contains("sol", ignoreCase = true)
-            resolveContext(LlmModel(
-                id = id,
-                modelId = id,
-                name = id,
-                providerName = activeGroup ?: "567 API",
-                reasoning = isReasoning,
-            ), activeGroup)
+            resolveContext(org.agent567.android.core.model.groupCatalogModel(id, activeGroup), activeGroup)
         }
         val provider = ProviderModels(name = activeGroup ?: "567 API", models = models)
         return ModelsCatalog(providers = mapOf("agent567-go" to provider))
@@ -721,7 +682,7 @@ internal class Agent567Api(
     private val contextMetadata = ConcurrentHashMap<String, Map<String, CachedModelContext>>()
     private val contextMetadataRequests = ConcurrentHashMap<String, Long>()
 
-    private suspend fun refreshContextMetadata(group: String?) {
+    private suspend fun refreshContextMetadata(group: String?, background: Boolean) {
         val now = System.currentTimeMillis()
         var shouldRequest = false
         contextMetadataRequests.compute(group.orEmpty()) { _, previous ->
@@ -730,8 +691,8 @@ internal class Agent567Api(
         }
         if (!shouldRequest) return
         try {
-            val apiKey = ensureApiKeyForGroup(group)
-            if (apiKey.isBlank()) return
+            val apiKey = if (background) groupCredentials.existing(group) else ensureApiKeyForGroup(group)
+            if (apiKey.isNullOrBlank()) { contextMetadataRequests.remove(group.orEmpty(), now); return }
             val response = bareClient.get(config.gatewayBaseUrl.trimEnd('/') + "/v1/models") {
                 header(HttpHeaders.Authorization, "Bearer $apiKey")
                 if (!group.isNullOrBlank()) header("X-567-Group", java.net.URLEncoder.encode(group, "UTF-8"))
@@ -910,17 +871,16 @@ internal class Agent567Api(
         return client.get(url).readRawBytes()
     }
 
-    suspend fun fetchGroupImageModels(groupName: String?): List<String> {
-        val allModels = fetchGroupModels(groupName)
-        if (allModels.isEmpty()) return emptyList()
-
-        // 优先将生图相关的模型排在前面
-        val imageKeywords = listOf("flux", "dall-e", "midjourney", "sd", "stable-diffusion", "imagen", "recraft", "image")
-        val imageModels = allModels.filter { model ->
-            val lower = model.lowercase()
-            imageKeywords.any { lower.contains(it) }
-        }
-        return if (imageModels.isNotEmpty()) imageModels else allModels
+    /** Inputs such as vision/OCR say nothing about whether a model can draw. */
+    fun imageModels(allModels: List<String>): List<String> = allModels.distinct().filter { id ->
+        val key = id.substringAfterLast('/').lowercase()
+        val catalog = org.agent567.android.core.model.bundledModelContexts
+        val outputs = (catalog[id] ?: catalog[key])?.capabilities?.output
+        if (!outputs.isNullOrEmpty()) return@filter outputs.any { it.equals("image", ignoreCase = true) }
+        if (listOf("ocr", "vision", "embedding", "video", "caption", "image-to-text").any { it in key }) return@filter false
+        listOf("gpt-image", "dall-e", "dalle", "flux", "sdxl", "stable-diffusion", "imagen", "ideogram", "recraft", "midjourney", "seedream", "nano-banana", "qwen-image", "doubao-seedream").any { name ->
+            key == name || key.startsWith("$name-") || key.startsWith("$name.")
+        } || (key.startsWith("gemini-") && key.split('-').contains("image")) || key.contains("text-to-image")
     }
 
     fun streamChat(
@@ -932,7 +892,7 @@ internal class Agent567Api(
     ): Flow<ChatStreamEvent> =
         flow {
             val inferenceApi = preferences?.getModelInferenceApi(groupName, model, config.serverUrl)
-                ?: org.agent567.android.core.chat.InferenceApi.automatic(model, groupName)
+                ?: org.agent567.android.core.chat.InferenceApi.DefaultChat
             val wireMessages = ChatRequestEncoder.encodeMessages(messages)
             val bodyJson = buildJsonObject {
                 put("model", model)
@@ -1208,7 +1168,6 @@ internal class Agent567Api(
 }
 
 private fun extractModelIds(root: kotlinx.serialization.json.JsonElement?): List<String> {
-    if (root == null) return emptyList()
     val dataArr = when (root) {
         is kotlinx.serialization.json.JsonArray -> root
         is kotlinx.serialization.json.JsonObject -> {
@@ -1216,11 +1175,11 @@ private fun extractModelIds(root: kotlinx.serialization.json.JsonElement?): List
                 ?: (root["models"] as? kotlinx.serialization.json.JsonArray)
         }
         else -> null
-    } ?: return emptyList()
+    } ?: throw Agent567Exception.Protocol("无法读取分组模型列表")
 
     return dataArr.mapNotNull { item ->
         when (item) {
-            is kotlinx.serialization.json.JsonPrimitive -> item.content.takeIf { it.isNotBlank() }
+            is kotlinx.serialization.json.JsonPrimitive -> item.contentOrNull?.takeIf { item.isString && it.isNotBlank() }
             is kotlinx.serialization.json.JsonObject -> {
                 val id = (item["id"] as? kotlinx.serialization.json.JsonPrimitive)?.content
                     ?: (item["name"] as? kotlinx.serialization.json.JsonPrimitive)?.content
@@ -1229,7 +1188,7 @@ private fun extractModelIds(root: kotlinx.serialization.json.JsonElement?): List
             }
             else -> null
         }
-    }
+    }.also { if (it.size != dataArr.size) throw Agent567Exception.Protocol("模型列表含有无法识别的条目") }.distinct()
 }
 
 

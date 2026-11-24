@@ -158,6 +158,10 @@ export function useNewSessionPageModel(): NewSessionPageModel {
 		initializedDefaultModel.current = false;
 	}, [setSelectedModel]);
 
+	useEffect(() => {
+		void window.agent567?.api567?.refreshGroupsInBackground?.().catch(() => undefined);
+	}, []);
+
 	// 待创建项目落盘 → 发送，失败则保留输入与选择、只弹错误，不导航。
 	const prepareCwd = useCallback(
 		(): Promise<string | null> =>

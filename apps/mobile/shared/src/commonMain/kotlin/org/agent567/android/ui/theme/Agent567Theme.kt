@@ -19,19 +19,23 @@ import org.agent567.android.app.ThemeMode
 
 /** Neutral workspace surfaces shared by every mobile screen. */
 object Agent567Palette {
-    val Black = Color(0xFF191B20)
-    val Gray666 = Color(0xFF626873)
-    val GrayE5 = Color(0xFFDADDE3)
+    val Black = Color(0xFF141518)
+    val Gray666 = Color(0xFF5F636B)
+    val GrayE5 = Color(0xFFD9DBD6)
     val White = Color(0xFFFFFFFF)
-    val PageBg = Color(0xFFF5F6F8)
-    val CardBorder = Color(0xFFE0E3E8)
+    val PageBg = Color(0xFFF7F7F5)
+    val CardBorder = Color(0xFFE4E4DF)
     val Success = Color(0xFF1A7F37)
     val Danger = Color(0xFFCF222E)
-    val ChipBg = Color(0xFFEDEFF3)
-    val DarkPageBg = Color(0xFF111214)
-    val DarkSurface = Color(0xFF1A1B1E)
-    val DarkElevated = Color(0xFF24262B)
-    val DarkBorder = Color(0xFF363940)
+    val ChipBg = Color(0xFFEEEEEC)
+    val DarkPageBg = Color(0xFF0E0F12)
+    val DarkSurface = Color(0xFF16171C)
+    val DarkElevated = Color(0xFF20222A)
+    val DarkBorder = Color(0xFF2E3139)
+    val AmberLight = Color(0xFF965506)
+    val AmberContainerLight = Color(0xFFFAF0DC)
+    val AmberDark = Color(0xFFE5BC71)
+    val AmberContainerDark = Color(0xFF2C2415)
 }
 
 @Immutable
@@ -41,8 +45,10 @@ data class Agent567ExtraColors(
     val border: Color,
     val chipBackground: Color,
     val success: Color,
-    val chatAccent: Color = Color(0xFF8A5A0A),
+    val chatAccent: Color = Agent567Palette.AmberLight,
     val imageAccent: Color = Color(0xFF7142B5),
+    val amberAccent: Color = Agent567Palette.AmberLight,
+    val amberContainer: Color = Agent567Palette.AmberContainerLight,
 )
 
 val LocalAgent567Extra =
@@ -72,10 +78,10 @@ internal val LightScheme =
         surfaceTint = Color.Transparent,
         surfaceContainerLowest = Agent567Palette.White,
         surfaceContainerLow = Agent567Palette.White,
-        surfaceContainer = Color(0xFFF0F2F5),
+        surfaceContainer = Color(0xFFF2F2EF),
         surfaceContainerHigh = Agent567Palette.ChipBg,
-        surfaceContainerHighest = Color(0xFFE5E8ED),
-        surfaceDim = Color(0xFFD9DDE3),
+        surfaceContainerHighest = Color(0xFFE6E6E2),
+        surfaceDim = Color(0xFFDCDCD6),
         surfaceBright = Agent567Palette.White,
         inverseSurface = Agent567Palette.DarkSurface,
         inverseOnSurface = Agent567Palette.White,
@@ -84,8 +90,10 @@ internal val LightScheme =
         onSurfaceVariant = Agent567Palette.Gray666,
         outline = Agent567Palette.GrayE5,
         outlineVariant = Agent567Palette.CardBorder,
-        tertiary = Color(0xFF8A5A0A),
+        tertiary = Agent567Palette.AmberLight,
         onTertiary = Agent567Palette.White,
+        tertiaryContainer = Agent567Palette.AmberContainerLight,
+        onTertiaryContainer = Agent567Palette.Black,
         errorContainer = Color(0xFFFFE9E9),
         onErrorContainer = Color(0xFF8E1722),
         error = Agent567Palette.Danger,
@@ -94,15 +102,17 @@ internal val LightScheme =
 
 internal val DarkScheme =
     darkColorScheme(
-        primary = Color(0xFFE6E8EC),
+        primary = Color(0xFFECEEF2),
         onPrimary = Agent567Palette.Black,
-        primaryContainer = Color(0xFF30333A),
+        primaryContainer = Color(0xFF2B2D35),
         onPrimaryContainer = Agent567Palette.White,
         secondary = Color(0xFFADB3BE),
         secondaryContainer = Agent567Palette.DarkElevated,
         onSecondaryContainer = Agent567Palette.White,
-        tertiary = Color(0xFFE5BC71),
+        tertiary = Agent567Palette.AmberDark,
         onTertiary = Agent567Palette.Black,
+        tertiaryContainer = Agent567Palette.AmberContainerDark,
+        onTertiaryContainer = Agent567Palette.AmberDark,
         onSecondary = Agent567Palette.Black,
         background = Agent567Palette.DarkPageBg,
         onBackground = Agent567Palette.White,
@@ -200,8 +210,8 @@ private val Agent567Shapes =
         extraSmall = RoundedCornerShape(8.dp),
         small = RoundedCornerShape(10.dp),
         medium = RoundedCornerShape(14.dp),
-        large = RoundedCornerShape(14.dp),
-        extraLarge = RoundedCornerShape(18.dp),
+        large = RoundedCornerShape(16.dp),
+        extraLarge = RoundedCornerShape(20.dp),
     )
 
 @Composable
@@ -235,8 +245,10 @@ internal fun mobileExtraColors(dark: Boolean): Agent567ExtraColors =
                 border = Agent567Palette.DarkBorder,
                 chipBackground = Agent567Palette.DarkElevated,
                 success = Color(0xFF7DD8A4),
-                chatAccent = Color(0xFFE5BC71),
+                chatAccent = Agent567Palette.AmberDark,
                 imageAccent = Color(0xFFC5A2F5),
+                amberAccent = Agent567Palette.AmberDark,
+                amberContainer = Agent567Palette.AmberContainerDark,
             )
         } else {
             Agent567ExtraColors(
@@ -245,6 +257,9 @@ internal fun mobileExtraColors(dark: Boolean): Agent567ExtraColors =
                 border = Agent567Palette.CardBorder,
                 chipBackground = Agent567Palette.ChipBg,
                 success = Agent567Palette.Success,
+                chatAccent = Agent567Palette.AmberLight,
+                amberAccent = Agent567Palette.AmberLight,
+                amberContainer = Agent567Palette.AmberContainerLight,
             )
         }
 

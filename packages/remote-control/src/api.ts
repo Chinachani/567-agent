@@ -7,6 +7,8 @@
  * restarts, unlike the runtime's live session ids.
  */
 
+import type { RemoteSessionDraftAppendPayload, RemoteSessionDraftAppendResult } from "./types.js";
+
 export type RemoteSessionStatus = "idle" | "running" | "thinking" | "waiting_input" | "completed" | "error" | "aborted";
 
 export interface RemoteProjectSummary {
@@ -299,6 +301,7 @@ export interface RemoteDiagnosticsSnapshot extends RemoteDeviceStatus {
 export interface RemoteRequestPayloads {
 	readonly "session.results.list": undefined;
 	readonly "session.file.transfer.finish": { readonly transferId: string };
+	readonly "session.draft.append": RemoteSessionDraftAppendPayload;
 	readonly "project.list": undefined;
 	readonly "session.list": { readonly projectCwd?: string; readonly limit?: number } | undefined;
 	readonly "session.create": { readonly projectCwd?: string } | undefined;
@@ -362,6 +365,7 @@ export interface RemoteRequestPayloads {
 
 export interface RemoteResponsePayloads {
 	readonly "session.file.transfer.finish": { readonly path: string; readonly sizeBytes: number };
+	readonly "session.draft.append": RemoteSessionDraftAppendResult;
 	readonly "session.results.list": {
 		readonly tasks: readonly {
 			sessionId: string;

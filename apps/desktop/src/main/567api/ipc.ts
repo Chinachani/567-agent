@@ -1,10 +1,27 @@
-import { ipcMain } from "electron";
+import { ipcMain, type WebContents } from "electron";
 import { isApi567RouteId } from "../../shared/service-routes.js";
 import { mainT } from "../i18n/index.js";
+import { assertTrustedMainRenderer } from "../ipc/trusted-renderer.js";
 import { NewApiService } from "./newapi-service.js";
 
-export function register567ApiIpc(): () => void {
+export function register567ApiIpc(owner?: WebContents): () => void {
 	const service = NewApiService.getInstance();
+	if (owner) {
+		let reader:
+			| Promise<ReturnType<typeof import("../conversations/local-usage-log.js").createLocalUsageReader>>
+			| undefined;
+		ipcMain.handle("agent567:usage:local", async (event) => {
+			assertTrustedMainRenderer(event, owner);
+			reader ??= import("../conversations/local-usage-log.js").then((module) => module.createLocalUsageReader());
+			const data = await (await reader)();
+			const groups = await service.getUsageGroupNames();
+			return { ...data, rows: data.rows.map((row) => ({ ...row, group: groups.get(row.provider) })) };
+		});
+		ipcMain.handle("agent567:usage:billed", (event) => {
+			assertTrustedMainRenderer(event, owner);
+			return service.readBilledUsage();
+		});
+	}
 	const requests = new Map<string, AbortController>();
 	ipcMain.handle("agent567:service-route:refresh", (_event, force: unknown) =>
 		service.refreshServiceRoutes(force === true),
@@ -80,8 +97,20 @@ export function register567ApiIpc(): () => void {
 	});
 
 	ipcMain.handle("vetta:567api:refresh-groups", async () => {
-		await service.refreshSyncedGroups();
-		return { success: true };
+		return service.refreshSyncedGroups();
+	});
+
+	ipcMain.handle("vetta:567api:refresh-background", async (_event, options?: unknown) => {
+		const parsed =
+			typeof options === "boolean"
+				? { force: options }
+				: options && typeof options === "object"
+					? {
+							force: "force" in options && options.force === true,
+							startup: "startup" in options && options.startup === true,
+						}
+					: {};
+		return service.refreshGroupsAndModelsInBackground(parsed);
 	});
 
 	ipcMain.handle("vetta:567api:login-access-token", async (_event, token: unknown) => {
@@ -156,6 +185,10 @@ export function register567ApiIpc(): () => void {
 	});
 
 	return () => {
+		if (owner) {
+			ipcMain.removeHandler("agent567:usage:billed");
+			ipcMain.removeHandler("agent567:usage:local");
+		}
 		for (const request of requests.values()) request.abort();
 		requests.clear();
 		for (const operation of ["probe", "select", "cancel", "refresh"])
@@ -168,6 +201,7 @@ export function register567ApiIpc(): () => void {
 		ipcMain.removeHandler("vetta:567api:set-image-group");
 		ipcMain.removeHandler("vetta:567api:set-image-model");
 		ipcMain.removeHandler("vetta:567api:refresh-groups");
+		ipcMain.removeHandler("vetta:567api:refresh-background");
 		ipcMain.removeHandler("vetta:567api:login-access-token");
 		ipcMain.removeHandler("vetta:567api:login-password");
 		ipcMain.removeHandler("vetta:567api:login");

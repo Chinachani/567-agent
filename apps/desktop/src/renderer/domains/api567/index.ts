@@ -1,5 +1,6 @@
 export { Api567AccountDialog } from "./components/Api567AccountDialog";
 export { Api567AuthGate } from "./components/Api567AuthGate";
+export { Api567BilledUsage } from "./components/Api567BilledUsage";
 export { Api567LoginPage } from "./components/Api567LoginPage";
 export { ServiceRouteSettings } from "./components/ServiceRouteSettings";
 export { useApi567 } from "./hooks/useApi567";

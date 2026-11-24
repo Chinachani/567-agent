@@ -6,6 +6,7 @@ import {
 	isPersonalModeAtom,
 	pageHeaderLeftSlotAtom,
 	pageHeaderTitleHiddenAtom,
+	pluginWorkspaceViewsAtom,
 	settingsReturnHrefAtom,
 	type SettingsTab,
 } from "@shared/store/atoms";
@@ -13,10 +14,25 @@ import { authUserAtom } from "@shared/store/auth-atoms";
 import { useAtomValue, useSetAtom } from "jotai";
 import { useCallback, useEffect, useMemo, useRef } from "react";
 import { useTranslation } from "react-i18next";
-import { parseWorkspaceViewRef, workspaceViewNavKey } from "../../plugins/runtime/workspace-view-registry";
+import {
+	findWorkspaceView,
+	parseWorkspaceViewRef,
+	workspaceViewNavKey,
+	workspaceViewRef,
+} from "../../plugins/runtime/workspace-view-registry";
 import { filterVisibleSettingsTabs, findSettingsSection, SETTINGS_TABS } from "../registry";
 import type { SettingsNavigationItem, SettingsPageModel } from "./types";
 import { useExtensionsSettingsModel } from "./useExtensionsSettingsModel";
+
+const navigationSections: readonly {
+	key: "workspace" | "models" | "connect" | "data";
+	tabs: readonly SettingsTab[];
+}[] = [
+	{ key: "workspace", tabs: ["general", "appearance", "shortcuts"] },
+	{ key: "models", tabs: ["account", "models", "context", "knowledge", "team"] },
+	{ key: "connect", tabs: ["remote", "im", "webhook", "sshHosts", "permissions"] },
+	{ key: "data", tabs: ["archive", "appshot", "environment"] },
+];
 
 export function useSettingsPageModel(): SettingsPageModel {
 	const { t } = useTranslation("settings");
@@ -26,6 +42,7 @@ export function useSettingsPageModel(): SettingsPageModel {
 	const router = useRouter();
 	const isPersonal = useAtomValue(isPersonalModeAtom);
 	const authUser = useAtomValue(authUserAtom);
+	const workspaceViews = useAtomValue(pluginWorkspaceViewsAtom);
 	const setHeaderTitleHidden = useSetAtom(pageHeaderTitleHiddenAtom);
 	const setHeaderLeftSlot = useSetAtom(pageHeaderLeftSlotAtom);
 	const narrow = useNarrowScreen(720);
@@ -80,6 +97,12 @@ export function useSettingsPageModel(): SettingsPageModel {
 	const navigationNonce = typeof search.nav === "string" ? search.nav : undefined;
 	const targetSection = sectionId ? findSettingsSection(sectionId) : undefined;
 
+	const hasBrowserConsoleView = useMemo(
+		() => Boolean(findWorkspaceView(workspaceViews, "browser", "console")),
+		[workspaceViews],
+	);
+	const isEmbeddedBrowserConsole = embeddedView?.pluginId === "browser" && embeddedView?.viewId === "console";
+
 	// MCP 已并入能力页（ADR-0049）；旧 /settings/mcp 与 mcp-* section 深链重定向过去。
 	useEffect(() => {
 		if (rawTab === "mcp" || targetSection?.tab === "mcp") {
@@ -87,20 +110,62 @@ export function useSettingsPageModel(): SettingsPageModel {
 		}
 	}, [navigate, rawTab, targetSection]);
 
+	// Webhook（消息推送）已并入 Claw（im）；旧 /settings/webhook 深链重定向到 Claw 页对应区块。
 	useEffect(() => {
+		if (rawTab === "webhook") {
+			void navigate({
+				to: "/settings/$tab",
+				params: { tab: "im" },
+				search: {
+					section: targetSection?.tab === "im" ? targetSection.id : "webhook-channels",
+					...(navigationNonce ? { nav: navigationNonce } : {}),
+				},
+				replace: true,
+			});
+		}
+	}, [navigate, navigationNonce, rawTab, targetSection]);
+
+	// 浏览器插件启用时，「连接当前浏览器」并入「浏览器操作」，旧深链自动落过去；插件停用则留在通用设置兜底。
+	useEffect(() => {
+		if (targetSection?.id === "general-browser-connection" && hasBrowserConsoleView && !isEmbeddedBrowserConsole) {
+			void navigate({
+				to: "/settings/$tab",
+				params: { tab: "extensions" },
+				search: {
+					view: workspaceViewRef("browser", "console"),
+					section: "general-browser-connection",
+					...(navigationNonce ? { nav: navigationNonce } : {}),
+				},
+				replace: true,
+			});
+			return;
+		}
 		if (!targetSection || targetSection.tab === activeTab || !validTabKeys.has(targetSection.tab)) {
 			return;
 		}
 		if (targetSection.tab === "mcp") return;
+		if (targetSection.id === "general-browser-connection" && isEmbeddedBrowserConsole) return;
 		void navigate({
 			to: "/settings/$tab",
 			params: { tab: targetSection.tab },
 			search: { section: targetSection.id },
 		});
-	}, [activeTab, navigate, targetSection, validTabKeys]);
+	}, [
+		activeTab,
+		hasBrowserConsoleView,
+		isEmbeddedBrowserConsole,
+		navigate,
+		navigationNonce,
+		targetSection,
+		validTabKeys,
+	]);
 
 	useEffect(() => {
-		if (!targetSection || targetSection.tab !== activeTab || highlightingRef.current) return;
+		const matchesCurrentView =
+			targetSection &&
+			(targetSection.tab === activeTab ||
+				(targetSection.id === "general-browser-connection" && isEmbeddedBrowserConsole));
+		if (!targetSection || !matchesCurrentView || highlightingRef.current) return;
 
 		const element = document.getElementById(targetSection.id);
 		if (!element) return;
@@ -127,7 +192,7 @@ export function useSettingsPageModel(): SettingsPageModel {
 			target.classList.remove("setting-section-breathe");
 			highlightingRef.current = false;
 		};
-	}, [activeTab, navigationNonce, targetSection]);
+	}, [activeTab, isEmbeddedBrowserConsole, navigationNonce, targetSection]);
 
 	const toNavigationItem = useCallback(
 		(tab: (typeof visibleTabRegistrations)[number]): SettingsNavigationItem => {
@@ -150,17 +215,22 @@ export function useSettingsPageModel(): SettingsPageModel {
 	);
 	const tabs = useMemo<readonly SettingsNavigationItem[]>(
 		() => [
-			...visibleTabRegistrations.filter((tab) => tab.key !== "extensions").map(toNavigationItem),
-			...extensionEntries.map((entry, index) => ({
+			...navigationSections.flatMap((section) =>
+				section.tabs.flatMap((key) => {
+					const tab = visibleTabRegistrations.find((item) => item.key === key);
+					return tab ? [{ ...toNavigationItem(tab), sectionLabel: t(`navigationSections.${section.key}`) }] : [];
+				}),
+			),
+			...extensionEntries.map((entry) => ({
 				key: entry.key,
 				label: entry.label,
 				icon: entry.icon,
 				iconUrl: entry.iconUrl,
 				title: narrow ? entry.label : entry.description || entry.pluginName,
-				separatorBefore: index === 0,
+				sectionLabel: t("navigationSections.extensions"),
 			})),
 		],
-		[extensionEntries, narrow, toNavigationItem, visibleTabRegistrations],
+		[extensionEntries, narrow, t, toNavigationItem, visibleTabRegistrations],
 	);
 
 	return {
@@ -168,6 +238,14 @@ export function useSettingsPageModel(): SettingsPageModel {
 		embeddedView,
 		activeNavigationKey: embeddedView ? workspaceViewNavKey(embeddedView.pluginId, embeddedView.viewId) : activeTab,
 		onCloseEmbeddedView: () => {
+			if (isEmbeddedBrowserConsole) {
+				void navigate({
+					to: "/settings/$tab",
+					params: { tab: "general" },
+					search: { section: "general-browser-connection" },
+				});
+				return;
+			}
 			void navigate({ to: "/settings/$tab", params: { tab: "general" }, search: {} });
 		},
 		betaBadgeLabel: t("betaBadge"),

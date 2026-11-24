@@ -3,6 +3,7 @@ package org.agent567.android.ui.remote
 import org.agent567.android.ui.i18n.Str
 import org.agent567.android.ui.theme.Agent567Theme
 import org.agent567.android.app.ThemeMode
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
@@ -14,20 +15,26 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.ChevronLeft
 import androidx.compose.material.icons.filled.ChevronRight
+import androidx.compose.material.icons.filled.ExpandLess
+import androidx.compose.material.icons.filled.ExpandMore
 import androidx.compose.material.icons.filled.KeyboardArrowUp
 import androidx.compose.material.icons.filled.KeyboardArrowDown
 import androidx.compose.material.icons.filled.DragHandle
 import androidx.compose.material.icons.filled.Keyboard
 import androidx.compose.material.icons.filled.MoreVert
+import androidx.compose.material.icons.filled.Visibility
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.platform.LocalView
 import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.heading
 import androidx.compose.ui.semantics.onClick
+import androidx.compose.ui.semantics.role
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.window.DialogWindowProvider
@@ -78,41 +85,92 @@ internal fun RemoteFullscreenToolbar(
     useDraft: Boolean = false,
     onUseDraft: ((Boolean) -> Unit)? = null,
     textAvailable: Boolean = true,
+    onResetPositions: (() -> Unit)? = null,
+    showKeyboardEntry: Boolean = true,
+    onToggleKeyboardEntry: (() -> Unit)? = null,
 ) {
     var expanded by rememberSaveable { mutableStateOf(false) }
     var help by remember { mutableStateOf(false) }
     var chooseInput by remember { mutableStateOf(false) }
     var statistics by remember { mutableStateOf(false) }
     var more by remember { mutableStateOf(false) }
+    LaunchedEffect(inputEnabled) {
+        if (!inputEnabled) chooseInput = false
+    }
     Agent567Theme(ThemeMode.Dark) {
         Box(modifier, contentAlignment = Alignment.CenterEnd) {
             if (!expanded) {
-                Surface(shape = CircleShape, color = MaterialTheme.colorScheme.primary.copy(alpha = .92f)) {
-                    IconButton(onClick = { expanded = true }, modifier = handleModifier.size(48.dp)) {
-                        Icon(Icons.Default.ChevronLeft, if (inputEnabled) Str.remoteExpandControls else "${Str.remoteExpandControls} · ${Str.viewOnly}")
+                Surface(
+                    shape = CircleShape,
+                    color = if (inputEnabled) MaterialTheme.colorScheme.primary.copy(alpha = .92f)
+                    else MaterialTheme.colorScheme.surface.copy(alpha = .88f),
+                ) {
+                    if (inputEnabled) {
+                        IconButton(onClick = { expanded = true }, modifier = handleModifier.size(48.dp)) {
+                            Icon(Icons.Default.ChevronLeft, Str.remoteExpandControls)
+                        }
+                    } else {
+                        Row(
+                            modifier = handleModifier
+                                .heightIn(min = 48.dp)
+                                .clip(CircleShape)
+                                .clickable(onClick = { expanded = true })
+                                .semantics(mergeDescendants = true) {
+                                    contentDescription = "${Str.remoteExpandControls} · ${Str.viewOnly}"
+                                    role = Role.Button
+                                }
+                                .padding(start = 12.dp, end = 8.dp),
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(4.dp),
+                        ) {
+                            Icon(Icons.Default.Visibility, contentDescription = null, modifier = Modifier.size(16.dp))
+                            Text(Str.viewOnly, style = MaterialTheme.typography.labelMedium, maxLines = 1)
+                            Icon(Icons.Default.ChevronLeft, contentDescription = null)
+                        }
                     }
                 }
             } else Surface(color = MaterialTheme.colorScheme.surface.copy(alpha = .9f), shape = MaterialTheme.shapes.medium) {
                 Row(Modifier.padding(horizontal = 4.dp), verticalAlignment = Alignment.CenterVertically) {
                     Row(Modifier.weight(1f, fill = false).horizontalScroll(rememberScrollState()), verticalAlignment = Alignment.CenterVertically) {
-                        IconButton(enabled = inputEnabled, onClick = { expanded = false; onKeyboard() }) { Icon(Icons.Default.Keyboard, Str.remoteSystemKeyboard) }
-                        RemoteMouseButton(Str.remoteLeftButton, inputEnabled, { onMouseButton("left") }, { onMouseHold("left") })
-                        RemoteMouseButton(Str.remoteRightButton, inputEnabled, { onMouseButton("right") }, { onMouseHold("right") })
-                        TextButton(onClick = { chooseInput = true }, modifier = Modifier.heightIn(min = 48.dp)
-                            .semantics { onClick(label = Str.remoteChooseInput, action = null) }) {
-                            Text(if (relativePointer || !directTouch) Str.remoteTrackpad else Str.remoteTouch, maxLines = 1)
+                        if (inputEnabled) {
+                            IconButton(onClick = { expanded = false; onKeyboard() }) { Icon(Icons.Default.Keyboard, Str.remoteSystemKeyboard) }
+                            RemoteMouseButton(Str.remoteLeftButton, true, { onMouseButton("left") }, { onMouseHold("left") })
+                            RemoteMouseButton(Str.remoteRightButton, true, { onMouseButton("right") }, { onMouseHold("right") })
+                            TextButton(onClick = { chooseInput = true }, modifier = Modifier.heightIn(min = 48.dp)
+                                .semantics { onClick(label = Str.remoteChooseInput, action = null) }) {
+                                Text(if (relativePointer || !directTouch) Str.remoteTrackpad else Str.remoteTouch, maxLines = 1)
+                            }
+                        } else {
+                            Row(
+                                Modifier.padding(start = 8.dp, end = 4.dp),
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.spacedBy(4.dp),
+                            ) {
+                                Icon(Icons.Default.Visibility, contentDescription = null, modifier = Modifier.size(16.dp))
+                                Text(Str.viewOnly, style = MaterialTheme.typography.labelLarge, maxLines = 1)
+                            }
+                            if (canReset) {
+                                TextButton(onClick = { expanded = false; onReset() }, modifier = Modifier.heightIn(min = 48.dp)) {
+                                    Text(Str.remoteFitScreen, maxLines = 1)
+                                }
+                            }
                         }
                     }
                     Box {
                         IconButton(onClick = { more = true }) { Icon(Icons.Default.MoreVert, Str.remoteMoreControls) }
                         DropdownMenu(expanded = more, onDismissRequest = { more = false }) {
-                            if (onUseDraft != null) DropdownMenuItem(text = { Column {
+                            if (inputEnabled && onUseDraft != null) DropdownMenuItem(text = { Column {
                                 Text(Str.remoteUseDraft)
                                 Text(if (!textAvailable) Str.remoteTextInputUpdate else Str.remoteUseDraftHint, style = MaterialTheme.typography.labelSmall)
                             } },
                                 leadingIcon = { Checkbox(checked = useDraft || !textAvailable, onCheckedChange = null) },
                                 enabled = textAvailable, onClick = { more = false; onUseDraft(!useDraft) })
                             DropdownMenuItem(text = { Text(Str.remoteFitScreen) }, enabled = canReset, onClick = { more = false; onReset() })
+                            if (inputEnabled && onToggleKeyboardEntry != null) DropdownMenuItem(
+                                text = { Text(if (showKeyboardEntry) Str.remoteHideKeyboardEntry else Str.remoteShowKeyboardEntry) },
+                                onClick = { more = false; onToggleKeyboardEntry() })
+                            if (onResetPositions != null) DropdownMenuItem(text = { Text(Str.remoteRestorePositions) },
+                                onClick = { more = false; onResetPositions() })
                             DropdownMenuItem(
                                 text = { Text(if (stats == Str.connectionStatus) stats else "${Str.connectionStatus} · $stats") },
                                 onClick = {
@@ -174,17 +232,65 @@ internal fun RemoteFullscreenToolbar(
 }
 
 @Composable
+internal fun RemoteFloatingKeyboard(grip: Modifier, onOpen: () -> Unit) {
+    Surface(shape = MaterialTheme.shapes.large, color = androidx.compose.ui.graphics.Color.Black.copy(alpha = .65f),
+        contentColor = androidx.compose.ui.graphics.Color.White) {
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            RemoteKeyboardGrip(grip)
+            IconButton(onClick = onOpen) { Icon(Icons.Default.Keyboard, Str.remoteSystemKeyboard) }
+        }
+    }
+}
+
+@Composable
 internal fun RemoteFloatingMouse(grip: Modifier, onClick: (String) -> Unit, onHold: (String) -> (() -> Unit)?, onScroll: (Float) -> Unit) {
+    var expanded by rememberSaveable { mutableStateOf(false) }
     Surface(shape = MaterialTheme.shapes.large, color = androidx.compose.ui.graphics.Color.Black.copy(alpha = .65f), contentColor = androidx.compose.ui.graphics.Color.White) {
-        Column(horizontalAlignment = Alignment.CenterHorizontally) {
+        if (!expanded) {
             Row(verticalAlignment = Alignment.CenterVertically) {
-                IconButton(onClick = { onScroll(-40f) }) { Icon(Icons.Default.KeyboardArrowUp, Str.remoteScrollUp) }
-                IconButton(onClick = { onScroll(40f) }) { Icon(Icons.Default.KeyboardArrowDown, Str.remoteScrollDown) }
-            }
-            Box(grip.size(96.dp, 32.dp), contentAlignment = Alignment.Center) { Icon(Icons.Default.DragHandle, Str.remoteMoveMouse) }
-            Row {
+                Box(grip.size(28.dp, 48.dp), contentAlignment = Alignment.Center) {
+                    Icon(Icons.Default.DragHandle, Str.remoteMoveMouse)
+                }
                 RemoteMouseButton(Str.remoteLeftButton, true, { onClick("left") }, { onHold("left") }, leftFace = true)
-                RemoteMouseButton(Str.remoteRightButton, true, { onClick("right") }, { onHold("right") }, leftFace = false)
+                Box(
+                    Modifier
+                        .size(36.dp, 48.dp)
+                        .clip(CircleShape)
+                        .clickable(role = Role.Button, onClickLabel = Str.remoteFloatingMouse) { expanded = true },
+                    contentAlignment = Alignment.Center,
+                ) {
+                    Icon(Icons.Default.ExpandLess, Str.remoteFloatingMouse)
+                }
+            }
+        } else {
+            Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Box(grip.size(28.dp, 44.dp), contentAlignment = Alignment.Center) {
+                        Icon(Icons.Default.DragHandle, Str.remoteMoveMouse)
+                    }
+                    Box(
+                        Modifier.size(34.dp, 44.dp).clip(CircleShape).clickable(role = Role.Button) { onScroll(-40f) },
+                        contentAlignment = Alignment.Center,
+                    ) {
+                        Icon(Icons.Default.KeyboardArrowUp, Str.remoteScrollUp)
+                    }
+                    Box(
+                        Modifier.size(34.dp, 44.dp).clip(CircleShape).clickable(role = Role.Button) { onScroll(40f) },
+                        contentAlignment = Alignment.Center,
+                    ) {
+                        Icon(Icons.Default.KeyboardArrowDown, Str.remoteScrollDown)
+                    }
+                    Box(
+                        Modifier.size(34.dp, 44.dp).clip(CircleShape).clickable(role = Role.Button) { expanded = false },
+                        contentAlignment = Alignment.Center,
+                    ) {
+                        Icon(Icons.Default.ExpandMore, Str.collapse)
+                    }
+                }
+                Row {
+                    RemoteMouseButton(Str.remoteLeftButton, true, { onClick("left") }, { onHold("left") }, leftFace = true)
+                    RemoteMouseButton(Str.remoteRightButton, true, { onClick("right") }, { onHold("right") }, leftFace = false)
+                }
             }
         }
     }

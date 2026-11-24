@@ -125,6 +125,9 @@
 	"projectCollaborationTask": "Collaboration task · {{id}}",
 	"projectCollaborationResult": "Member results received · {{id}}. Details are available in project collaboration.",
 	"api567Model": {
+		"groupUnavailable": "This group is not available to the current account. Refresh the list and choose a group.",
+		"imageGroupKeyUnavailable": "The key for this image group is unavailable. Check the group in Model settings.",
+		"chooseImageGroup": "Choose an image group in setup or model settings before generating an image.",
 		"unavailable": "This model is not available in this group. Refresh the model list and retry.",
 		"invalidName": "Invalid model name. Refresh the model list and retry."
 	},

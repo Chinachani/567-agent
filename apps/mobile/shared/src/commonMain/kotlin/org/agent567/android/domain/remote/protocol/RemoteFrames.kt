@@ -171,6 +171,9 @@ enum class RemoteRequestMethod {
     @SerialName("session.resume")
     SessionResume,
 
+    @SerialName("session.draft.append")
+    SessionDraftAppend,
+
     @SerialName("toolbox.list")
     ToolboxList,
 

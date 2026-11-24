@@ -50,7 +50,7 @@
 		"useSandbox": "使用沙盒",
 		"sandboxUnavailable": "{{platform}} 沙盒不可用：{{reason}}",
 		"notifyTitle": "启用消息推送",
-		"notifyDesc": "每个子任务完成后向已配置的 Webhook 推送一次，并在项目全部完成时推送汇总（可在 设置 → 消息推送 管理 Webhook）。",
+		"notifyDesc": "每个子任务完成后向已配置的 Webhook 推送一次，并在项目全部完成时推送汇总（可在 设置 → Claw 与推送 管理 Webhook）。",
 		"artifact": "产物校验",
 		"optional": "可选",
 		"artifactPlaceholder": "每行一个文件名或通配符；为空则跳过校验",

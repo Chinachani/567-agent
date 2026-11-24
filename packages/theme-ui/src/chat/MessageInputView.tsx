@@ -44,7 +44,7 @@ export const MessageInputSurface = forwardRef<HTMLDivElement, MessageInputPrimit
 	const surfaceClassName = cn(
 		"input-card relative z-10 overflow-visible border bg-input-bar-bg transition-[border-color,background-color] duration-200",
 		topConnected ? "rounded-b-2xl rounded-t-none" : "rounded-2xl",
-		focused ? "border-ring/50 ring-1 ring-inset ring-ring/20" : "border-border",
+		focused ? "border-ring ring-1 ring-inset ring-ring/20" : "border-input",
 		className,
 	);
 

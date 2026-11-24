@@ -49,6 +49,26 @@
       "bytes": 64240,
       "sha256": "fb83d3a2d2263c1fd1a5c65fd2c2d1ce3ac6346e0a8a959aeb9257513476c09b"
     },
+    "packages/theme-ui/src/shared/provider-icon/agent567.svg": {
+      "bytes": 1784,
+      "sha256": "bc42f76b06c55cde192785d14cc3d3edc3de138e1cc13b270a8d4d40e8101e02"
+    },
+    "apps/desktop/src/renderer/domains/settings/assets/app-icons/default.png": {
+      "bytes": 4061,
+      "sha256": "e620148df74942f222c1c535125251095f008297e57b94a73296f743dfee8ea1"
+    },
+    "apps/desktop/src/renderer/domains/settings/assets/app-icons/porcelain.png": {
+      "bytes": 3702,
+      "sha256": "2c77d761a8ae6e8a1bf44d1747b9804ef190215fd3b5ffe29ac126b3867c47a1"
+    },
+    "apps/desktop/build/app-icons/porcelain.png": {
+      "bytes": 32411,
+      "sha256": "90b85dd75a6087d978a9dc4f0ea295a629e12589bf8c7a8054b90923e5ce6399"
+    },
+    "apps/desktop/build/app-icons/porcelain-mac.png": {
+      "bytes": 29788,
+      "sha256": "082515bb800ca48ff4567e68c6a9355787c1f9bad17769ac2eafbab5fc413d75"
+    },
     "apps/desktop/build/tray-light.png": {
       "bytes": 1101,
       "sha256": "e2b69321d8b886e935f128d8a2bd611cd721eb154ef076d23eed013a4c32076f"

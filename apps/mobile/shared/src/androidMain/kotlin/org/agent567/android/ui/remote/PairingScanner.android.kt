@@ -52,11 +52,7 @@ import org.agent567.android.ui.components.SecondaryOutlineButton
 import org.agent567.android.ui.i18n.Str
 
 @Composable
-actual fun PairingScannerButton(
-    onScanned: (String) -> Unit,
-    modifier: Modifier,
-    label: String?,
-) {
+actual fun rememberOpenPairingScanner(onScanned: (String) -> Unit): () -> Unit {
     val context = LocalContext.current
     var scanning by remember { mutableStateOf(false) }
     val permissionLauncher =
@@ -76,6 +72,18 @@ actual fun PairingScannerButton(
             permissionLauncher.launch(Manifest.permission.CAMERA)
         }
     }
+    if (scanning) {
+        PairingScannerDialog(
+            onDismiss = { scanning = false },
+            onScanned = { value -> scanning = false; onScanned(value) },
+        )
+    }
+    return openScanner
+}
+
+@Composable
+actual fun PairingScannerButton(onScanned: (String) -> Unit, modifier: Modifier, label: String?) {
+    val openScanner = rememberOpenPairingScanner(onScanned)
     if (label == null) {
         IconButton(modifier = modifier, onClick = openScanner) {
             Icon(Icons.Default.QrCodeScanner, contentDescription = Str.scanPairingQr)
@@ -91,15 +99,6 @@ actual fun PairingScannerButton(
         )
     }
 
-    if (scanning) {
-        PairingScannerDialog(
-            onDismiss = { scanning = false },
-            onScanned = { value ->
-                scanning = false
-                onScanned(value)
-            },
-        )
-    }
 }
 
 @Composable

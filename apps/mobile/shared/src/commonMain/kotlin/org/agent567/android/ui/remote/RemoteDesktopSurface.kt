@@ -4,6 +4,9 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
 
 @Composable
+internal expect fun rememberResetRemoteOverlayPositions(): () -> Unit
+
+@Composable
 expect fun RemoteDesktopSurface(
     target: String,
     modifier: Modifier = Modifier,

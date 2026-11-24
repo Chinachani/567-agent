@@ -2,14 +2,14 @@ import { describe, expect, it } from "vitest";
 import { ModelSettingsService, type ModelsConfig, normalizeModelsConfig } from "./model-settings-service.js";
 
 describe("per-model inference protocol", () => {
-	it("defaults only trusted managed Codex models or groups to Responses", () => {
+	it("defaults every trusted managed chat group to Responses without rewriting custom providers", () => {
 		const config: ModelsConfig = {
 			providers: {
 				"567api": {
 					api: "openai-completions",
 					baseUrl: "https://api.567.wiki/v1",
 					headers: { "X-567-Group": "default" },
-					models: [{ id: "gpt-5.3-codex" }, { id: "gemini-3.8-flash" }],
+					models: [{ id: "gpt-5.3-codex" }, { id: "gemini-3.8-flash", api: "openai-completions" }],
 				},
 				"567api_codex": {
 					api: "openai-completions",
@@ -27,11 +27,9 @@ describe("per-model inference protocol", () => {
 			},
 		};
 		const result = normalizeModelsConfig(config, "https://api.567.wiki", []);
-		expect(result.providers["567api"].models?.map((model) => model.api)).toEqual([
-			"openai-responses",
-			"openai-completions",
-		]);
-		expect(result.providers["567api_codex"].models?.[0].api).toBe("openai-responses");
+		expect(result.providers["567api"].api).toBe("openai-responses");
+		expect(result.providers["567api"].models?.every((model) => model.api === undefined)).toBe(true);
+		expect(result.providers["567api_codex"].api).toBe("openai-responses");
 		expect(result.providers["567api_custom"].models?.[0].api).toBeUndefined();
 		expect(result.providers.custom.models?.[0].api).toBeUndefined();
 		expect(config.providers["567api"].models?.[0].api).toBeUndefined();

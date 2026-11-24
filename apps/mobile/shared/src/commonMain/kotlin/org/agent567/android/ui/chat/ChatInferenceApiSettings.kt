@@ -18,7 +18,7 @@ import org.agent567.android.ui.i18n.Str
 internal fun ChatInferenceApiSettings(state: ChatContextSnapshot, enabled: Boolean, onChange: (InferenceApi?) -> Unit, notice: String? = null, error: String? = null) {
     var expanded by remember(state.modelKey) { mutableStateOf(false) }
     LaunchedEffect(enabled) { if (!enabled) expanded = false }
-    val automatic = InferenceApi.fromWire(state.automaticInferenceApi) ?: InferenceApi.Completions
+    val automatic = InferenceApi.fromWire(state.automaticInferenceApi) ?: InferenceApi.DefaultChat
     val selected = InferenceApi.fromWire(state.inferenceApiOverride)
     fun label(api: InferenceApi) = if (api == InferenceApi.Responses) Str.modelProtocolResponses else Str.modelProtocolCompletions
     val autoLabel = "${Str.modelProtocolAuto} · ${label(automatic)}"

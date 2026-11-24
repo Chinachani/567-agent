@@ -3,6 +3,7 @@ package org.agent567.android.ui.chat
 import androidx.compose.ui.text.TextRange
 import androidx.compose.ui.text.input.TextFieldValue
 import androidx.compose.material.icons.outlined.FolderOpen
+import androidx.compose.material.icons.outlined.Computer
 
 import androidx.compose.foundation.gestures.detectTransformGestures
 import androidx.compose.foundation.gestures.detectTapGestures
@@ -26,6 +27,8 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.combinedClickable
+import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -88,6 +91,7 @@ import kotlinx.coroutines.delay
 
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Code
+import androidx.compose.material.icons.filled.ArrowDownward
 import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.ExpandLess
 import androidx.compose.material.icons.filled.ExpandMore
@@ -95,11 +99,13 @@ import androidx.compose.material.icons.filled.FolderOpen
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.filled.Stop
 import androidx.compose.material.icons.automirrored.filled.VolumeUp
+import androidx.compose.material.icons.outlined.ChatBubbleOutline
 import androidx.compose.material.icons.filled.Tune
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FilledIconButton
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
+import androidx.compose.material3.IconButtonDefaults
 import androidx.compose.material3.Button
 import androidx.compose.material3.Checkbox
 import androidx.compose.material3.MaterialTheme
@@ -132,6 +138,7 @@ import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalConfiguration
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.foundation.layout.WindowInsets
@@ -148,8 +155,10 @@ import org.agent567.android.domain.chat.prepareRetryTurn
 import org.agent567.android.domain.session.PendingQuestion
 import org.agent567.android.domain.session.ToolTrace
 import org.agent567.android.domain.session.formatLocalMessageTime
+import org.agent567.android.domain.device.DesktopDevice
 import org.agent567.android.ui.components.EmptyState
 import org.agent567.android.ui.components.ListRow
+import org.agent567.android.ui.components.MobileIconTile
 import org.agent567.android.ui.components.Agent567ErrorBanner
 import org.agent567.android.ui.LocalMotionEnabled
 import org.agent567.android.ui.i18n.Str
@@ -198,6 +207,15 @@ fun RotatingRefreshIcon(
     )
 }
 
+class ChatReadingPosition(val list: androidx.compose.foundation.lazy.LazyListState, val following: androidx.compose.runtime.MutableState<Boolean>)
+
+@Composable
+fun rememberChatReadingPosition(): ChatReadingPosition {
+    val list = rememberLazyListState()
+    val following = androidx.compose.runtime.saveable.rememberSaveable { mutableStateOf(true) }
+    return remember(list, following) { ChatReadingPosition(list, following) }
+}
+
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun ChatScreen(
@@ -228,6 +246,12 @@ fun ChatScreen(
     onSelectGroup: ((String) -> Unit)? = null,
     onRefreshCatalog: () -> Unit = {},
     catalogLoading: Boolean = false,
+    groupDirectoryUnavailable: Boolean = false,
+    chatCatalogUnavailable: Boolean = false,
+    imageCatalogUnavailable: Boolean = false,
+    chatSelectionRemoved: String? = null,
+    imageSelectionRemoved: String? = null,
+    onAcknowledgeCatalog: (Boolean) -> Unit = {},
     chatError: UiError?,
     onDraftChange: (String) -> Unit,
     onSend: () -> Unit,
@@ -252,6 +276,7 @@ fun ChatScreen(
     imageGenEnabled: Boolean = true,
     imagePickerOpen: Boolean = false,
     availableImageModels: List<String> = emptyList(),
+    imageGroupModelIds: List<String> = availableImageModels,
     imageModelsLoading: Boolean = false,
     imageGroupExpanded: Boolean = false,
     onOpenImagePicker: () -> Unit = {},
@@ -262,10 +287,27 @@ fun ChatScreen(
     onSelectImageModel: (String) -> Unit = {},
     sessionId: String? = null,
     dictationDeviceId: String? = null,
+    onViewComputer: (() -> Unit)? = null,
+    readingPosition: ChatReadingPosition = key(sessionId ?: messages.firstOrNull()?.sessionId) { rememberChatReadingPosition() },
     onDictated: ((DictationDraftSnapshot, Long, String) -> DictationApplyResult)? = null,
+    draftHandoff: DraftHandoffState = DraftHandoffState(),
+    onStartDraftHandoff: (() -> Unit)? = null,
+    onToggleDraftHandoffMessage: (String) -> Unit = {},
+    onClearDraftHandoffSelection: () -> Unit = {},
+    onExitDraftHandoff: () -> Unit = {},
+    onOpenDraftHandoffPreview: () -> Unit = {},
+    onDismissDraftHandoffPreview: () -> Unit = {},
+    onSelectDraftHandoffTargetType: (org.agent567.android.domain.conversation.RemoteDraftTargetType) -> Unit = {},
+    onSelectDraftHandoffTargetSession: (String) -> Unit = {},
+    onRefreshDraftHandoffTarget: () -> Unit = {},
+    onReconnectDraftHandoff: () -> Unit = {},
+    onConfirmDraftHandoff: () -> Unit = {},
+    draftHandoffDevices: List<DesktopDevice> = emptyList(),
+    draftHandoffHasSavedPairing: Boolean = false,
+    draftHandoffCurrentRemoteSessionId: String? = null,
 ) {
     val retryableAssistantId = remember(messages) { prepareRetryTurn(messages)?.assistantMessageId }
-    val listState = rememberLazyListState()
+    val listState = readingPosition.list
     val scope = rememberCoroutineScope()
     val imeBottomPx = WindowInsets.ime.getBottom(LocalDensity.current)
     var toastNotice by remember { mutableStateOf<String?>(null) }
@@ -343,7 +385,7 @@ fun ChatScreen(
         onRejected = { toastNotice = Str.documentAttachmentRejected },
     )
 
-    var followTail by remember(currentSessionId) { mutableStateOf(true) }
+    var followTail by readingPosition.following
     val readingScroll = remember(listState, currentSessionId) {
         object : NestedScrollConnection {
             override fun onPreScroll(available: Offset, source: NestedScrollSource): Offset {
@@ -385,49 +427,63 @@ fun ChatScreen(
     Scaffold(
         containerColor = MaterialTheme.agent567Extra.pageBackground,
         topBar = {
-            TopAppBar(
-                title = {
-                    Column {
-                        Text(
-                            title,
-                            maxLines = 1,
-                            overflow = TextOverflow.Ellipsis,
-                            style = MaterialTheme.typography.titleMedium,
-                        )
-                        run {
+            Column {
+                TopAppBar(
+                    title = {
+                        Column {
                             Text(
-                                if (isStreaming) streamingStatusLabel(streamingStatus) else if (surface == ChatSurface.Desktop) Str.generatedByDesktop else Str.generatedByCloud,
-                                style = MaterialTheme.typography.labelSmall,
-                                color = MaterialTheme.agent567Extra.secondaryText,
+                                title,
                                 maxLines = 1,
                                 overflow = TextOverflow.Ellipsis,
+                                style = MaterialTheme.typography.titleMedium,
+                                fontWeight = FontWeight.SemiBold,
                             )
+                            run {
+                                Text(
+                                    if (isStreaming) streamingStatusLabel(streamingStatus) else if (surface == ChatSurface.Desktop) Str.generatedByDesktop else Str.generatedByCloud,
+                                    style = MaterialTheme.typography.labelSmall,
+                                    color = if (isStreaming) MaterialTheme.agent567Extra.amberAccent else MaterialTheme.agent567Extra.secondaryText,
+                                    maxLines = 1,
+                                    overflow = TextOverflow.Ellipsis,
+                                )
+                            }
                         }
-                    }
-                },
-                navigationIcon = {
-                    IconButton(onClick = onBack) {
-                        Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = Str.back)
-                    }
-                },
-                actions = {
-                    IconButton(onClick = onOpenWorkbench) {
-                        Icon(Icons.Outlined.FolderOpen, modifier = Modifier.size(20.dp), contentDescription = Str.workbenchTitle, tint = MaterialTheme.agent567Extra.secondaryText)
-                    }
-                    IconButton(onClick = onOpenContext) {
-                        Icon(Icons.Outlined.Layers, modifier = Modifier.size(20.dp), contentDescription = Str.contextManage, tint = MaterialTheme.agent567Extra.secondaryText)
-                    }
-                    if (surface == ChatSurface.Cloud) {
-                        IconButton(onClick = onOpenGroupPicker) {
-                            Icon(Icons.Default.Tune, contentDescription = Str.mobileChooseGroup, tint = MaterialTheme.agent567Extra.secondaryText)
+                    },
+                    navigationIcon = {
+                        IconButton(onClick = onBack) {
+                            Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = Str.back)
                         }
-                    }
-                },
-                colors =
-                    TopAppBarDefaults.topAppBarColors(
-                        containerColor = MaterialTheme.agent567Extra.pageBackground,
-                    ),
-            )
+                    },
+                    actions = {
+                        if (surface == ChatSurface.Desktop && onViewComputer != null) IconButton(onClick = onViewComputer) {
+                            Icon(Icons.Outlined.Computer, contentDescription = Str.remoteViewChatDevice, modifier = Modifier.size(20.dp))
+                        }
+                        IconButton(onClick = onOpenWorkbench) {
+                            Icon(Icons.Outlined.FolderOpen, modifier = Modifier.size(20.dp), contentDescription = Str.workbenchTitle, tint = MaterialTheme.agent567Extra.secondaryText)
+                        }
+                        IconButton(onClick = onOpenContext) {
+                            Icon(Icons.Outlined.Layers, modifier = Modifier.size(20.dp), contentDescription = Str.contextManage, tint = MaterialTheme.agent567Extra.secondaryText)
+                        }
+                        if (surface == ChatSurface.Cloud) {
+                            IconButton(onClick = onOpenGroupPicker) {
+                                Icon(Icons.Default.Tune, contentDescription = Str.mobileChooseGroup, tint = MaterialTheme.agent567Extra.secondaryText)
+                            }
+                        }
+                        if (surface == ChatSurface.Cloud && draftHandoff.selectionMode) {
+                            TextButton(onClick = onExitDraftHandoff) { Text(Str.cancel) }
+                        } else if (surface == ChatSurface.Cloud && onStartDraftHandoff != null) {
+                            IconButton(onClick = onStartDraftHandoff) {
+                                Icon(Icons.Default.ContentCopy, contentDescription = Str.draftHandoffStart)
+                            }
+                        }
+                    },
+                    colors =
+                        TopAppBarDefaults.topAppBarColors(
+                            containerColor = MaterialTheme.agent567Extra.pageBackground,
+                        ),
+                )
+                HorizontalDivider(color = MaterialTheme.agent567Extra.border.copy(alpha = 0.7f))
+            }
         },
         bottomBar = {
             Column(
@@ -436,6 +492,30 @@ fun ChatScreen(
                     .navigationBarsPadding()
                     .imePadding(),
             ) {
+                draftHandoff.notice?.let { notice ->
+                    Text(
+                        text = notice,
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.agent567Extra.amberAccent,
+                        modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 6.dp),
+                    )
+                }
+                if (surface == ChatSurface.Cloud && draftHandoff.selectionMode) {
+                    DraftHandoffSelectionBar(
+                        selectedCount = draftHandoff.selectedMessageIds.size,
+                        formattedText = formatDraftHandoffText(messages, draftHandoff.selectedMessageIds),
+                        onCancel = onExitDraftHandoff,
+                        onPreviewSend = onOpenDraftHandoffPreview,
+                    )
+                }
+                if (surface == ChatSurface.Cloud) {
+                    chatSelectionRemoved?.let { removed ->
+                        RemovedCatalogSelection(removed, selectedModel?.id, { onAcknowledgeCatalog(false) }, onOpenModelPicker)
+                    }
+                    if (imageGenEnabled) imageSelectionRemoved?.let { removed ->
+                        RemovedCatalogSelection(removed, activeImageModel, { onAcknowledgeCatalog(true) }, onOpenImagePicker)
+                    }
+                }
                 if (chatError != null) {
                     Agent567ErrorBanner(
                         error = chatError,
@@ -461,17 +541,17 @@ fun ChatScreen(
                         items(pendingFiles, key = { it.id }) { document ->
                             Surface(
                                 shape = RoundedCornerShape(12.dp),
-                                color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.64f),
-                                border = BorderStroke(1.dp, MaterialTheme.agent567Extra.border),
+                                color = MaterialTheme.colorScheme.surface,
+                                border = BorderStroke(1.dp, MaterialTheme.agent567Extra.border.copy(alpha = 0.8f)),
                             ) {
                                 Row(
                                     modifier = Modifier.padding(start = 10.dp, end = 4.dp, top = 4.dp, bottom = 4.dp),
                                     verticalAlignment = Alignment.CenterVertically,
                                     horizontalArrangement = Arrangement.spacedBy(6.dp),
                                 ) {
-                                    Icon(Icons.Default.AttachFile, contentDescription = null, modifier = Modifier.size(16.dp))
+                                    Icon(Icons.Default.AttachFile, contentDescription = null, modifier = Modifier.size(16.dp), tint = MaterialTheme.agent567Extra.amberAccent)
                                     Column(Modifier.widthIn(max = 180.dp)) {
-                                        Text(document.fileName, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                                        Text(document.fileName, style = MaterialTheme.typography.bodySmall, fontWeight = FontWeight.Medium, maxLines = 1, overflow = TextOverflow.Ellipsis)
                                         Text("${document.mimeType} · ${formatAttachmentSize(document.bytes.size.toLong())}", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.agent567Extra.secondaryText, maxLines = 1, overflow = TextOverflow.Ellipsis)
                                     }
                                     IconButton(onClick = { onRemovePendingFile(document.id) }, modifier = Modifier.size(48.dp)) {
@@ -504,8 +584,8 @@ fun ChatScreen(
                         if (inputPredictionLoading) {
                             Surface(
                                 shape = RoundedCornerShape(50),
-                                color = Color.Transparent,
-                                border = BorderStroke(1.dp, MaterialTheme.agent567Extra.border.copy(alpha = 0.75f)),
+                                color = MaterialTheme.colorScheme.surface,
+                                border = BorderStroke(1.dp, MaterialTheme.agent567Extra.border.copy(alpha = 0.8f)),
                             ) {
                                 Text(
                                     Str.inputPredictionLoading,
@@ -520,8 +600,8 @@ fun ChatScreen(
                             Surface(
                                 onClick = { onSelectInputPrediction(suggestion) },
                                 shape = RoundedCornerShape(50),
-                                color = Color.Transparent,
-                                border = BorderStroke(1.dp, MaterialTheme.agent567Extra.border.copy(alpha = 0.75f)),
+                                color = MaterialTheme.colorScheme.surface,
+                                border = BorderStroke(1.dp, MaterialTheme.agent567Extra.border.copy(alpha = 0.8f)),
                             ) {
                                 Text(
                                     suggestion,
@@ -706,7 +786,10 @@ fun ChatScreen(
         ) {
             if (messages.isEmpty()) {
                 Column(
-                    Modifier.fillMaxSize(),
+                    Modifier
+                        .fillMaxSize()
+                        .verticalScroll(rememberScrollState())
+                        .padding(horizontal = 24.dp, vertical = 20.dp),
                     verticalArrangement = Arrangement.Center,
                     horizontalAlignment = Alignment.CenterHorizontally,
                 ) {
@@ -715,9 +798,25 @@ fun ChatScreen(
                         Spacer(Modifier.height(12.dp))
                         Text(Str.loadingDesktopHistory, color = MaterialTheme.agent567Extra.secondaryText)
                     } else {
-                        EmptyState(
-                            title = if (surface == ChatSurface.Cloud) Str.useCloudAi else Str.pairDesktop,
-                            subtitle = Str.noSessionsHint,
+                        MobileIconTile(
+                            icon = if (surface == ChatSurface.Cloud) Icons.Outlined.ChatBubbleOutline else Icons.Outlined.Computer,
+                            accent = true,
+                            modifier = Modifier.size(48.dp),
+                        )
+                        Spacer(Modifier.height(14.dp))
+                        Text(
+                            text = if (surface == ChatSurface.Cloud) Str.useCloudAi else Str.pairDesktop,
+                            style = MaterialTheme.typography.titleMedium,
+                            fontWeight = FontWeight.SemiBold,
+                            textAlign = TextAlign.Center,
+                        )
+                        Spacer(Modifier.height(6.dp))
+                        Text(
+                            text = Str.noSessionsHint,
+                            style = MaterialTheme.typography.bodyMedium,
+                            color = MaterialTheme.agent567Extra.secondaryText,
+                            textAlign = TextAlign.Center,
+                            modifier = Modifier.widthIn(max = 300.dp),
                         )
                     }
                 }
@@ -725,8 +824,8 @@ fun ChatScreen(
                 LazyColumn(
                     state = listState,
                     modifier = Modifier.fillMaxSize().nestedScroll(readingScroll),
-                    contentPadding = PaddingValues(horizontal = 20.dp, vertical = 20.dp),
-                    verticalArrangement = Arrangement.spacedBy(10.dp),
+                    contentPadding = PaddingValues(horizontal = 14.dp, vertical = 14.dp),
+                    verticalArrangement = Arrangement.spacedBy(12.dp),
                 ) {
                     if (desktopHistoryLoading) {
                         item {
@@ -748,22 +847,61 @@ fun ChatScreen(
                             hasDraft = draft.isNotBlank() || pendingImages.isNotEmpty() || pendingFiles.isNotEmpty(),
                             canRetry = msg.id == retryableAssistantId,
                             onRetry = { onRetryAssistant(msg.id) },
+                            onLongClick = if (surface == ChatSurface.Cloud && draftHandoff.selectionMode && isMessageSelectableForDraftHandoff(msg))
+                                { id -> onToggleDraftHandoffMessage(id) } else null,
+                            selectedForDraftHandoff = msg.id in draftHandoff.selectedMessageIds,
                         )
                     }
                     item { Spacer(Modifier.height(0.dp)) }
                 }
                 if (!followTail && listState.canScrollForward) {
-                    TextButton(
+                    Surface(
                         onClick = { followTail = true },
-                        modifier = Modifier.align(Alignment.BottomCenter).padding(bottom = 8.dp),
+                        shape = RoundedCornerShape(20.dp),
+                        color = MaterialTheme.colorScheme.surface,
+                        border = BorderStroke(1.dp, MaterialTheme.agent567Extra.border),
+                        shadowElevation = 2.dp,
+                        modifier = Modifier.align(Alignment.BottomCenter).padding(bottom = 10.dp).heightIn(min = 48.dp),
                     ) {
-                        Text(Str.newContent)
+                        Row(
+                            modifier = Modifier.padding(horizontal = 14.dp, vertical = 8.dp),
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(6.dp),
+                        ) {
+                            Icon(
+                                Icons.Default.ArrowDownward,
+                                contentDescription = null,
+                                modifier = Modifier.size(16.dp),
+                                tint = MaterialTheme.agent567Extra.amberAccent,
+                            )
+                            Text(
+                                Str.newContent,
+                                style = MaterialTheme.typography.labelMedium,
+                                fontWeight = FontWeight.Medium,
+                            )
+                        }
                     }
                 }
             }
         }
     }
 
+
+    if (draftHandoff.previewOpen) {
+        DraftHandoffSheet(
+            state = draftHandoff,
+            messages = messages,
+            devices = draftHandoffDevices,
+            hasSavedPairing = draftHandoffHasSavedPairing,
+            currentRemoteSessionId = draftHandoffCurrentRemoteSessionId,
+            onDismiss = onDismissDraftHandoffPreview,
+            onSelectTargetType = onSelectDraftHandoffTargetType,
+            onSelectTargetSession = onSelectDraftHandoffTargetSession,
+            onRefreshTarget = onRefreshDraftHandoffTarget,
+            onReconnectDesktop = onReconnectDraftHandoff,
+            onConfirmSend = onConfirmDraftHandoff,
+        )
+    }
 
     if (imagePickerOpen) {
         ModalBottomSheet(
@@ -802,6 +940,8 @@ fun ChatScreen(
                 Spacer(Modifier.height(16.dp))
 
                 if (imageGenEnabled) {
+                    if (groupDirectoryUnavailable) CatalogReadFailure("分组", availableGroups.isNotEmpty(), onRefreshCatalog)
+                    if (imageCatalogUnavailable) CatalogReadFailure("绘图模型", availableImageModels.isNotEmpty(), onRefreshCatalog)
                     // 第一级：画图分组（支持自动折叠联动）
                     Card(
                         shape = RoundedCornerShape(10.dp),
@@ -817,7 +957,7 @@ fun ChatScreen(
                                 Column {
                                     Text("画图分组", style = MaterialTheme.typography.labelLarge.copy(fontWeight = FontWeight.Bold))
                                     Text(
-                                        if (activeImageGroup != null) "当前: $activeImageGroup" else "未选择分组（请点击选择）",
+                                        if (activeImageGroup != null) "当前：${activeImageGroup.ifEmpty { Str.mobileDefaultGroup }}" else "未选择分组（请点击选择）",
                                         style = MaterialTheme.typography.bodySmall,
                                         color = MaterialTheme.colorScheme.primary,
                                     )
@@ -850,7 +990,7 @@ fun ChatScreen(
                                             horizontalArrangement = Arrangement.SpaceBetween,
                                         ) {
                                             Text(
-                                                groupName,
+                                                groupName.ifEmpty { Str.mobileDefaultGroup },
                                                 style = MaterialTheme.typography.bodyMedium.copy(fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal),
                                                 color = if (isSelected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurface,
                                             )
@@ -873,49 +1013,9 @@ fun ChatScreen(
 
                     if (activeImageGroup == null) {
                         Text("请先在上方选择画图分组", style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.agent567Extra.secondaryText)
-                    } else if (imageModelsLoading) {
-                        Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.padding(vertical = 12.dp)) {
-                            CircularProgressIndicator(modifier = Modifier.size(18.dp), strokeWidth = 2.dp)
-                            Spacer(Modifier.width(8.dp))
-                            Text("正在拉取该分组的绘图模型...", style = MaterialTheme.typography.bodyMedium)
-                        }
-                    } else if (availableImageModels.isEmpty()) {
-                        Text("该分组下未检索到模型或通道未开放", style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.agent567Extra.secondaryText)
                     } else {
-                        Column {
-                            availableImageModels.forEach { modelName ->
-                                val isSelected = modelName == activeImageModel
-                                Row(
-                                    modifier = Modifier
-                                        .fillMaxWidth()
-                                        .clip(RoundedCornerShape(8.dp))
-                                        .background(if (isSelected) MaterialTheme.colorScheme.primary.copy(alpha = 0.08f) else Color.Transparent)
-                                        .clickable {
-                                            onSelectImageModel(modelName)
-                                        }
-                                        .padding(vertical = 10.dp, horizontal = 10.dp),
-                                    verticalAlignment = Alignment.CenterVertically,
-                                    horizontalArrangement = Arrangement.SpaceBetween,
-                                ) {
-                                    Column(Modifier.weight(1f)) {
-                                        Text(
-                                            modelName,
-                                            style = MaterialTheme.typography.bodyMedium.copy(fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Medium),
-                                            color = if (isSelected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurface,
-                                        )
-                                    }
-                                    if (isSelected) {
-                                        Icon(
-                                            Icons.Default.Check,
-                                            contentDescription = null,
-                                            tint = MaterialTheme.colorScheme.primary,
-                                            modifier = Modifier.size(18.dp),
-                                        )
-                                    }
-                                }
-                                HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.2f))
-                            }
-                        }
+                        if (imageModelsLoading) androidx.compose.material3.LinearProgressIndicator(modifier = Modifier.fillMaxWidth())
+                        ImageModelChoices(activeImageGroup, availableImageModels, imageGroupModelIds, activeImageModel, onSelectImageModel)
                     }
                 }
                 Spacer(Modifier.height(28.dp))
@@ -993,6 +1093,7 @@ fun ChatScreen(
                 }
                 Spacer(Modifier.height(4.dp))
                 Text("纵向选择分组，切换后立即自动加载对应模型", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.agent567Extra.secondaryText)
+                if (groupDirectoryUnavailable) CatalogReadFailure("分组", availableGroups.isNotEmpty(), onRefreshCatalog)
                 Spacer(Modifier.height(12.dp))
 
                 val sortedGroups = remember(availableGroups, activeGroup) {
@@ -1024,7 +1125,7 @@ fun ChatScreen(
                             Column(Modifier.weight(1f)) {
                                 Row(verticalAlignment = Alignment.CenterVertically) {
                                     Text(
-                                        groupName,
+                                        groupName.ifEmpty { Str.mobileDefaultGroup },
                                         style = MaterialTheme.typography.bodyMedium.copy(
                                             fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Medium
                                         ),
@@ -1075,7 +1176,7 @@ fun ChatScreen(
                     verticalAlignment = Alignment.CenterVertically,
                 ) {
                     Text(
-                        if (surface == ChatSurface.Desktop) "电脑当前会话 · 模型列表" else "${activeGroup ?: "当前分组"} · 模型列表",
+                        if (surface == ChatSurface.Desktop) "电脑当前会话 · 模型列表" else "${activeGroup?.ifEmpty { Str.mobileDefaultGroup } ?: "未选分组"} · 模型列表",
                         style = MaterialTheme.typography.titleMedium,
                     )
                     IconButton(onClick = onRefreshCatalog) {
@@ -1083,7 +1184,8 @@ fun ChatScreen(
                     }
                 }
                 Spacer(Modifier.height(12.dp))
-                if (models.isEmpty()) {
+                if (surface == ChatSurface.Cloud && chatCatalogUnavailable) CatalogReadFailure("模型", models.isNotEmpty(), onRefreshCatalog)
+                if (models.isEmpty() && !(surface == ChatSurface.Cloud && chatCatalogUnavailable)) {
                     EmptyState(title = Str.noModels, subtitle = "正在拉取或该分组暂无模型，点击右上角刷新")
                 } else {
                     Column(Modifier.verticalScroll(rememberScrollState())) {
@@ -1146,6 +1248,25 @@ fun ChatScreen(
             kotlinx.coroutines.delay(2500)
             toastNotice = null
         }
+    }
+}
+
+@Composable
+private fun RemovedCatalogSelection(removed: String, replacement: String?, accept: () -> Unit, choose: () -> Unit) {
+    Row(Modifier.fillMaxWidth().padding(horizontal = 12.dp), verticalAlignment = Alignment.CenterVertically) {
+        Text(if (replacement == null) "$removed 已不可用。" else "$removed 已不可用。下次使用 $replacement？",
+            Modifier.weight(1f), style = MaterialTheme.typography.bodySmall)
+        TextButton(onClick = accept) { Text(if (replacement == null) "知道了" else "使用") }
+        TextButton(onClick = choose) { Text("重选") }
+    }
+}
+
+@Composable
+private fun CatalogReadFailure(kind: String, cached: Boolean, retry: () -> Unit) {
+    Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+        Text(if (cached) "暂时无法刷新$kind，显示上次的列表。" else "暂时无法取得${kind}列表。",
+            Modifier.weight(1f), style = MaterialTheme.typography.bodySmall)
+        TextButton(onClick = retry) { Text("重试") }
     }
 }
 
@@ -1423,6 +1544,7 @@ private fun PendingImageRow(
 }
 
 @Composable
+@OptIn(ExperimentalFoundationApi::class)
 internal fun MessageBubble(
     message: LocalMessage,
     streamingStatus: String? = null,
@@ -1433,6 +1555,8 @@ internal fun MessageBubble(
     canRetry: Boolean = false,
     onRetry: () -> Unit = {},
     reader: ReplyReader? = null,
+    onLongClick: ((String) -> Unit)? = null,
+    selectedForDraftHandoff: Boolean = false,
 ) {
     var confirmEdit by remember(message.id) { mutableStateOf(false) }
     val isUser = message.role == ChatRole.User
@@ -1451,7 +1575,13 @@ internal fun MessageBubble(
     )
 
     Row(
-        modifier = Modifier.fillMaxWidth(),
+        modifier = Modifier
+            .fillMaxWidth()
+            .then(if (onLongClick != null) Modifier.combinedClickable(
+                onClick = {},
+                onLongClick = { onLongClick(message.id) },
+            ) else Modifier)
+            .background(if (selectedForDraftHandoff) MaterialTheme.agent567Extra.amberContainer.copy(alpha = 0.65f) else Color.Transparent),
         horizontalArrangement = if (isUser) Arrangement.End else Arrangement.Start,
     ) {
         Column(
@@ -1552,13 +1682,14 @@ internal fun MessageBubble(
             if (message.files.isNotEmpty()) {
                 Surface(
                     shape = RoundedCornerShape(12.dp),
-                    color = MaterialTheme.colorScheme.surfaceVariant,
-                    contentColor = MaterialTheme.colorScheme.onSurfaceVariant,
+                    color = MaterialTheme.colorScheme.surface,
+                    contentColor = MaterialTheme.colorScheme.onSurface,
+                    border = BorderStroke(1.dp, MaterialTheme.agent567Extra.border.copy(alpha = 0.75f)),
                 ) {
                     Column(Modifier.padding(horizontal = 12.dp, vertical = 8.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
                         message.files.forEach { file ->
                             Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                                Icon(Icons.Default.AttachFile, contentDescription = null, modifier = Modifier.size(16.dp))
+                                Icon(Icons.Default.AttachFile, contentDescription = null, modifier = Modifier.size(16.dp), tint = MaterialTheme.agent567Extra.amberAccent)
                                 Column(Modifier.weight(1f)) {
                                     Text(file.fileName, style = MaterialTheme.typography.bodyMedium, maxLines = 1, overflow = TextOverflow.Ellipsis)
                                     Text("${file.mimeType} · ${formatAttachmentSize(file.sizeBytes)}", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.agent567Extra.secondaryText, maxLines = 1, overflow = TextOverflow.Ellipsis)
@@ -1583,6 +1714,9 @@ internal fun MessageBubble(
                             if (isUser) MaterialTheme.agent567Extra.chipBackground else Color.Transparent,
                         contentColor =
                             MaterialTheme.colorScheme.onSurface,
+                        border =
+                            if (isUser) BorderStroke(1.dp, MaterialTheme.agent567Extra.border.copy(alpha = 0.6f))
+                            else null,
                     ) {
                         when {
                             isUser -> {
@@ -1590,7 +1724,7 @@ internal fun MessageBubble(
                                 val lineCount = remember(displayContent) { displayContent.lines().size }
                                 val isLong = remember(displayContent) { lineCount > 8 || displayContent.length > 240 }
 
-                                Column(modifier = Modifier.padding(horizontal = 14.dp, vertical = 10.dp)) {
+                                Column(modifier = Modifier.padding(horizontal = 14.dp, vertical = 9.dp)) {
                                     Text(
                                         text =
                                             displayContent.ifBlank {
@@ -1614,12 +1748,13 @@ internal fun MessageBubble(
                                                 Text(
                                                     text = if (isExpanded) "收起" else "展开全文",
                                                     style = MaterialTheme.typography.labelSmall,
-                                                    color = MaterialTheme.colorScheme.onSurface,
+                                                    fontWeight = FontWeight.Medium,
+                                                    color = MaterialTheme.agent567Extra.amberAccent,
                                                 )
                                                 Icon(
                                                     imageVector = if (isExpanded) Icons.Default.ExpandLess else Icons.Default.ExpandMore,
                                                     contentDescription = if (isExpanded) "收起" else "展开",
-                                                    tint = MaterialTheme.colorScheme.onSurface,
+                                                    tint = MaterialTheme.agent567Extra.amberAccent,
                                                     modifier = Modifier.size(16.dp),
                                                 )
                                             }
@@ -1633,14 +1768,14 @@ internal fun MessageBubble(
                             displayContent.isBlank() && message.status == MessageStatus.Error -> {
                                 Text(
                                     Str.responseFailed,
-                                    modifier = Modifier.padding(horizontal = 14.dp, vertical = 10.dp),
+                                    modifier = Modifier.padding(horizontal = 4.dp, vertical = 6.dp),
                                     style = MaterialTheme.typography.bodyLarge,
                                 )
                             }
                             displayContent.isBlank() && message.status == MessageStatus.Aborted -> {
                                 Text(
                                     Str.responseStopped,
-                                    modifier = Modifier.padding(horizontal = 14.dp, vertical = 10.dp),
+                                    modifier = Modifier.padding(horizontal = 4.dp, vertical = 6.dp),
                                     style = MaterialTheme.typography.bodyLarge,
                                 )
                             }
@@ -1648,7 +1783,7 @@ internal fun MessageBubble(
                                 MarkdownContent(
                                     source = displayContent,
                                     streaming = message.status == MessageStatus.Streaming,
-                                    modifier = Modifier.padding(horizontal = 12.dp, vertical = 10.dp),
+                                    modifier = Modifier.padding(horizontal = 4.dp, vertical = 4.dp),
                                 )
                             }
                         }
@@ -1664,18 +1799,26 @@ internal fun MessageBubble(
                 horizontalArrangement = if (isUser) Arrangement.End else Arrangement.Start,
                 verticalAlignment = Alignment.CenterVertically,
             ) {
-                Text(
-                    text = formatLocalMessageTime(message.createdAtEpochMs),
-                    style = MaterialTheme.typography.labelSmall,
-                    color = MaterialTheme.agent567Extra.secondaryText,
-                )
-                if (!isUser && message.processingDurationMs != null && message.status != MessageStatus.Streaming) {
-                    Spacer(Modifier.width(8.dp))
+                Row(
+                    modifier = Modifier.weight(1f, fill = false),
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
                     Text(
-                        text = "本次处理 ${org.agent567.android.ui.formatting.formatElapsedDuration(message.processingDurationMs)}",
+                        text = formatLocalMessageTime(message.createdAtEpochMs),
                         style = MaterialTheme.typography.labelSmall,
                         color = MaterialTheme.agent567Extra.secondaryText,
+                        maxLines = 1,
                     )
+                    if (!isUser && message.processingDurationMs != null && message.status != MessageStatus.Streaming) {
+                        Spacer(Modifier.width(8.dp))
+                        Text(
+                            text = "本次处理 ${org.agent567.android.ui.formatting.formatElapsedDuration(message.processingDurationMs)}",
+                            style = MaterialTheme.typography.labelSmall,
+                            color = MaterialTheme.agent567Extra.secondaryText,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis,
+                        )
+                    }
                 }
                 if (displayContent.isNotBlank() && message.status != MessageStatus.Streaming) {
                     val clipboard = androidx.compose.ui.platform.LocalClipboardManager.current
@@ -1707,9 +1850,11 @@ internal fun MessageBubble(
                 }
                 if (reader != null && message.role == ChatRole.Assistant && message.status == MessageStatus.Complete && displayContent.isNotBlank()) {
                     val playing = reader.activeId == message.id
-                    IconButton(onClick = { reader.toggle(message.id, displayContent) }) {
-                        Icon(if (playing) Icons.Default.Stop else Icons.AutoMirrored.Filled.VolumeUp,
-                            contentDescription = if (playing) Str.stopReadingReply else Str.readReply, modifier = Modifier.size(18.dp))
+                    androidx.compose.runtime.CompositionLocalProvider(androidx.compose.material3.LocalMinimumInteractiveComponentSize provides 0.dp) {
+                        IconButton(onClick = { reader.toggle(message.id, displayContent) }, modifier = Modifier.width(48.dp).height(28.dp)) {
+                            Icon(if (playing) Icons.Default.Stop else Icons.AutoMirrored.Filled.VolumeUp,
+                                contentDescription = if (playing) Str.stopReadingReply else Str.readReply, modifier = Modifier.size(17.dp), tint = if (playing) MaterialTheme.agent567Extra.amberAccent else MaterialTheme.agent567Extra.secondaryText)
+                        }
                     }
                 }
             }
@@ -1765,14 +1910,16 @@ private fun ToolTraceGroup(tools: List<ToolTrace>) {
     var expanded by remember(tools.firstOrNull()?.toolCallId) { mutableStateOf(false) }
     val activeCount = tools.count { it.phase !in setOf("completed", "error", "failed", "cancelled") }
     Surface(
-        shape = RoundedCornerShape(14.dp),
-        color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.55f),
+        shape = RoundedCornerShape(12.dp),
+        color = MaterialTheme.colorScheme.surface,
+        border = BorderStroke(1.dp, MaterialTheme.agent567Extra.border.copy(alpha = 0.75f)),
         modifier = Modifier.fillMaxWidth().animateContentSize(),
     ) {
         Column {
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
+                    .heightIn(min = 48.dp)
                     .clickable { expanded = !expanded }
                     .padding(horizontal = 12.dp, vertical = 10.dp),
                 verticalAlignment = Alignment.CenterVertically,
@@ -1782,7 +1929,7 @@ private fun ToolTraceGroup(tools: List<ToolTrace>) {
                     Icons.Default.Build,
                     contentDescription = null,
                     modifier = Modifier.size(18.dp),
-                    tint = if (activeCount > 0) MaterialTheme.colorScheme.primary else MaterialTheme.agent567Extra.secondaryText,
+                    tint = if (activeCount > 0) MaterialTheme.agent567Extra.amberAccent else MaterialTheme.agent567Extra.secondaryText,
                 )
                 Text(
                     Str.toolActivity,
@@ -1792,7 +1939,7 @@ private fun ToolTraceGroup(tools: List<ToolTrace>) {
                 Text(
                     if (activeCount > 0) Str.toolActivityActive else Str.toolActivityComplete,
                     style = MaterialTheme.typography.labelSmall,
-                    color = if (activeCount > 0) MaterialTheme.colorScheme.primary else MaterialTheme.agent567Extra.secondaryText,
+                    color = if (activeCount > 0) MaterialTheme.agent567Extra.amberAccent else MaterialTheme.agent567Extra.secondaryText,
                 )
                 Text(
                     tools.size.toString(),
@@ -1806,11 +1953,19 @@ private fun ToolTraceGroup(tools: List<ToolTrace>) {
                 )
             }
             if (expanded) {
+                HorizontalDivider(color = MaterialTheme.agent567Extra.border.copy(alpha = 0.6f))
                 Column(
-                    modifier = Modifier.padding(start = 8.dp, end = 8.dp, bottom = 8.dp),
-                    verticalArrangement = Arrangement.spacedBy(4.dp),
+                    modifier = Modifier.padding(bottom = 4.dp),
                 ) {
-                    tools.forEach { tool -> ToolTraceRow(tool) }
+                    tools.forEachIndexed { index, tool ->
+                        ToolTraceRow(tool)
+                        if (index < tools.lastIndex) {
+                            HorizontalDivider(
+                                modifier = Modifier.padding(horizontal = 12.dp),
+                                color = MaterialTheme.agent567Extra.border.copy(alpha = 0.5f),
+                            )
+                        }
+                    }
                 }
             }
         }
@@ -1825,7 +1980,6 @@ internal fun ToolTraceRow(tool: ToolTrace) {
         modifier =
             Modifier
                 .fillMaxWidth()
-                .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.42f))
                 .animateContentSize(),
     ) {
         val presentation = presentTool(tool.toolName, tool.arguments)
@@ -1834,8 +1988,9 @@ internal fun ToolTraceRow(tool: ToolTrace) {
         Row(
             Modifier
                 .fillMaxWidth()
+                .heightIn(min = 44.dp)
                 .clickable(enabled = hasDetail) { expanded = !expanded }
-                .padding(horizontal = 10.dp, vertical = 7.dp),
+                .padding(horizontal = 12.dp, vertical = 8.dp),
             verticalAlignment = Alignment.CenterVertically,
         ) {
             Icon(
@@ -2028,7 +2183,7 @@ private fun ToolDetailSection(label: String, value: String?) {
 
         Surface(
             shape = RoundedCornerShape(8.dp),
-            color = MaterialTheme.colorScheme.surface.copy(alpha = 0.7f),
+            color = MaterialTheme.agent567Extra.chipBackground.copy(alpha = 0.7f),
             modifier = Modifier.fillMaxWidth(),
         ) {
             Box(Modifier.padding(8.dp)) {
@@ -2115,9 +2270,9 @@ private fun ThinkingTypewriter(label: String) {
 
     Text(
         text = label.take(visibleCharacters),
-        modifier = Modifier.padding(horizontal = 14.dp, vertical = 10.dp),
+        modifier = Modifier.padding(horizontal = 4.dp, vertical = 6.dp),
         style = MaterialTheme.typography.bodyLarge,
-        color = MaterialTheme.colorScheme.onSurfaceVariant,
+        color = MaterialTheme.agent567Extra.secondaryText,
     )
 }
 
@@ -2132,7 +2287,9 @@ private fun QuestionPrompt(
         modifier =
             Modifier
                 .fillMaxWidth()
-                .background(MaterialTheme.colorScheme.secondaryContainer.copy(alpha = 0.46f))
+                .heightIn(max = 260.dp)
+                .verticalScroll(rememberScrollState())
+                .background(MaterialTheme.agent567Extra.amberContainer.copy(alpha = 0.7f))
                 .padding(horizontal = 12.dp, vertical = 10.dp),
         verticalArrangement = Arrangement.spacedBy(8.dp),
     ) {
@@ -2184,18 +2341,21 @@ private fun InputDock(
         color = MaterialTheme.colorScheme.surface,
         tonalElevation = 0.dp,
         shadowElevation = 0.dp,
-        border = BorderStroke(1.dp, MaterialTheme.agent567Extra.border),
-        modifier = Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 8.dp),
+        border = BorderStroke(1.dp, MaterialTheme.agent567Extra.border.copy(alpha = 0.85f)),
+        modifier = Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 6.dp),
     ) {
         Column {
             modelControls()
-            androidx.compose.material3.HorizontalDivider(color = MaterialTheme.agent567Extra.border.copy(alpha = 0.5f), modifier = Modifier.padding(horizontal = 12.dp))
+            androidx.compose.material3.HorizontalDivider(color = MaterialTheme.agent567Extra.border.copy(alpha = 0.55f), modifier = Modifier.padding(horizontal = 12.dp))
             Row(Modifier.fillMaxWidth().padding(4.dp), verticalAlignment = Alignment.Bottom) {
                 IconButton(onClick = onAttach, enabled = !isStreaming, modifier = Modifier.size(48.dp)) {
                     Icon(Icons.Default.AttachFile, contentDescription = Str.attach, modifier = Modifier.size(20.dp))
                 }
                 dictation()
-                Box(Modifier.weight(1f).heightIn(min = 48.dp, max = maxHeight).padding(horizontal = 4.dp, vertical = 12.dp)) {
+                Box(
+                    modifier = Modifier.weight(1f).heightIn(min = 44.dp, max = maxHeight).padding(horizontal = 4.dp, vertical = 10.dp),
+                    contentAlignment = Alignment.CenterStart,
+                ) {
                     if (value.text.isEmpty()) Text(Str.chatPlaceholder, color = MaterialTheme.agent567Extra.secondaryText, style = MaterialTheme.typography.bodyLarge)
                     BasicTextField(
                         value = value, onValueChange = onValueChange, modifier = Modifier.fillMaxWidth(),
@@ -2203,10 +2363,17 @@ private fun InputDock(
                         cursorBrush = SolidColor(MaterialTheme.colorScheme.primary), maxLines = 6,
                     )
                 }
+                val buttonColors =
+                    IconButtonDefaults.filledIconButtonColors(
+                        containerColor = MaterialTheme.colorScheme.primary,
+                        contentColor = MaterialTheme.colorScheme.onPrimary,
+                        disabledContainerColor = MaterialTheme.agent567Extra.chipBackground,
+                        disabledContentColor = MaterialTheme.agent567Extra.secondaryText,
+                    )
                 if (isStreaming) {
-                    FilledIconButton(onClick = onStop, modifier = Modifier.size(48.dp)) { Icon(Icons.Default.Stop, contentDescription = Str.stop, modifier = Modifier.size(20.dp)) }
+                    FilledIconButton(onClick = onStop, colors = buttonColors, modifier = Modifier.size(48.dp)) { Icon(Icons.Default.Stop, contentDescription = Str.stop, modifier = Modifier.size(20.dp)) }
                 } else {
-                    FilledIconButton(onClick = onSend, enabled = sendEnabled, modifier = Modifier.size(48.dp)) { Icon(Icons.AutoMirrored.Filled.Send, contentDescription = Str.send, modifier = Modifier.size(20.dp)) }
+                    FilledIconButton(onClick = onSend, enabled = sendEnabled, colors = buttonColors, modifier = Modifier.size(48.dp)) { Icon(Icons.AutoMirrored.Filled.Send, contentDescription = Str.send, modifier = Modifier.size(20.dp)) }
                 }
             }
         }

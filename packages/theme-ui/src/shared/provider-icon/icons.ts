@@ -12,6 +12,7 @@ import qwenIcon from "@lobehub/icons-static-svg/icons/qwen-color.svg?url";
 import xiaomiMimoIcon from "@lobehub/icons-static-svg/icons/xiaomimimo.svg?url";
 import zaiIcon from "@lobehub/icons-static-svg/icons/zai.svg?url";
 import zhipuIcon from "@lobehub/icons-static-svg/icons/zhipu-color.svg?url";
+import agent567Icon from "./agent567.svg?url";
 import magpieIcon from "./magpie.svg?url";
 
 type ProviderIconAppearance = "color" | "monochrome";
@@ -22,6 +23,7 @@ interface ProviderIconAsset {
 }
 
 const PROVIDER_ICON_ASSETS = {
+	agent567: { src: agent567Icon, appearance: "color" },
 	claude: { src: claudeIcon, appearance: "color" },
 	openai: { src: openaiIcon, appearance: "monochrome" },
 	gemini: { src: geminiIcon, appearance: "color" },

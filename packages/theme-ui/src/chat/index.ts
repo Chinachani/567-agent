@@ -293,6 +293,7 @@ export type {
 	ModelSelectorLabels,
 	ModelSelectorOptionView,
 	ModelSelectorProviderGroup,
+	ModelSelectorStatusNotice,
 	ModelSelectorViewProps,
 } from "./ModelSelectorView";
 export { ModelSelectorView, ModelVisionIcon } from "./ModelSelectorView";

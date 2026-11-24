@@ -17,7 +17,7 @@ export function SettingsPageView({
 	model,
 }: SettingsPageViewProps): JSX.Element {
 	return (
-		<div className="relative flex min-h-0 w-full flex-1 overflow-hidden">
+		<div className={`relative flex min-h-0 w-full flex-1 overflow-hidden ${model.narrow ? "flex-col" : "flex-row"}`}>
 			<SettingsSidebar model={model} />
 			<SettingsContent fill={fillContent} rootClassName={contentSurfaceRootClassName}>
 				{content}

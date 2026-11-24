@@ -1,13 +1,4 @@
 {
 	"default": "default.png",
-	"coding": "coding.png",
-	"design": "design.png",
-	"work": "work.png",
-	"study": "study.png",
-	"read": "read.png",
-	"game": "game.png",
-	"sport": "sport.png",
-	"cook": "cook.png",
-	"travel": "travel.png",
-	"sleep": "sleep.png"
+	"porcelain": "porcelain.png"
 }

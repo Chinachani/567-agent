@@ -125,6 +125,9 @@
 	"projectCollaborationTask": "协作任务 · {{id}}",
 	"projectCollaborationResult": "成员结果已送达 · {{id}}。详细记录可在项目协作中查看。",
 	"api567Model": {
+		"groupUnavailable": "当前账户无法使用此分组，请刷新目录后重新选择。",
+		"imageGroupKeyUnavailable": "无法取得所选画图分组的密钥，请在模型设置中检查该分组。",
+		"chooseImageGroup": "请先在新手引导或模型设置中选择画图分组。",
 		"unavailable": "该模型不在此分组中，请刷新模型列表后重试。",
 		"invalidName": "模型名称格式无效，请刷新模型列表后重试。"
 	},

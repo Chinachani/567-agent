@@ -2,6 +2,7 @@ import { randomUUID } from "node:crypto";
 import type { MediaDimensions, MediaProviderDescriptor } from "@vetta-org/capability-sdk";
 import { MEDIA_PROTOCOL_VERSION } from "@vetta-org/capability-sdk";
 import { NewApiService } from "../567api/newapi-service.js";
+import { mainT } from "../i18n/messages.js";
 import { getAppLogger } from "../logger.js";
 import type { MediaArtifactStore } from "./media-artifact-store.js";
 import type { MediaHostProviderSubmitInput, MediaProviderRegistration } from "./media-provider-registry.js";
@@ -78,22 +79,18 @@ export function create567ApiImageProvider(
 
 			const service = NewApiService.getInstance();
 			const targetGroup = service.getImageGroup();
+			if (!targetGroup)
+				return {
+					id: randomUUID(),
+					status: "failed",
+					error: { code: "provider-failed", message: mainT("api567Model.chooseImageGroup"), retryable: false },
+				};
 			const origin = service.getServiceOrigin();
 			let apiKey: string | undefined;
-			if (targetGroup) {
-				try {
-					apiKey = await service.getApiKey(targetGroup);
-					log.info(`Using 567 API image group: "${targetGroup}"`);
-				} catch (err) {
-					log.warn(`Failed to get API key for image group "${targetGroup}":`, err);
-				}
-			}
-			if (!apiKey) {
-				try {
-					apiKey = await service.getApiKey();
-				} catch {
-					apiKey = undefined;
-				}
+			try {
+				apiKey = await service.getApiKey(targetGroup);
+			} catch (err) {
+				log.warn(`Failed to get API key for image group "${targetGroup}":`, err);
 			}
 
 			if (!apiKey) {
@@ -102,7 +99,7 @@ export function create567ApiImageProvider(
 					status: "failed",
 					error: {
 						code: "unauthenticated",
-						message: "未登录 567 API 或未配置图像生成密钥，请在 567 API 中登录",
+						message: mainT("api567Model.imageGroupKeyUnavailable"),
 						retryable: false,
 					},
 				};

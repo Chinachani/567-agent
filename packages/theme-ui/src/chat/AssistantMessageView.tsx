@@ -78,7 +78,7 @@ export function AssistantMessageFold({
 				data-export-label-collapsed={labels.expandFold(count)}
 				data-export-label-expanded={labels.collapseFold(count)}
 				aria-expanded={expanded}
-				className="mb-2 inline-flex w-fit items-center gap-1.5 rounded-lg py-1 pr-1.5 text-[12px] font-medium text-muted-foreground/55 transition-colors hover:bg-muted/60 hover:text-muted-foreground"
+				className="mb-2 inline-flex w-fit items-center gap-1.5 rounded-lg py-1 pr-1.5 text-[12px] font-medium text-muted-foreground transition-colors hover:bg-muted/60 hover:text-muted-foreground"
 			>
 				<span
 					className={`icon-[mdi--chevron-right] h-3.5 w-3.5 shrink-0 transition-transform duration-200 ${expanded ? "rotate-90" : ""}`}
@@ -107,7 +107,7 @@ export function StreamingIndicator({ phrases }: { phrases: string[] }): JSX.Elem
 		return () => window.clearTimeout(timer);
 	}, [index, list.length, chars.length]);
 	return (
-		<span className="inline-flex text-[11px] font-medium text-muted-foreground/55" aria-label={text}>
+		<span className="inline-flex text-[11px] font-medium text-muted-foreground" aria-label={text}>
 			<style>{STREAM_CHAR_CSS}</style>
 			{chars.map((character, characterIndex) => (
 				<span
@@ -127,10 +127,9 @@ export function AssistantMessageStreamingStatus({ label }: { readonly label: str
 	return (
 		<>
 			<span
-				className="h-1.5 w-1.5 rounded-full bg-primary/60"
-				style={{ animation: "pulse 1.5s infinite" }}
+				aria-hidden className="h-1.5 w-1.5 rounded-full bg-ring motion-safe:animate-pulse"
 			/>
-			<span className="text-[11px] text-muted-foreground/35">{label}</span>
+			<span className="text-[11px] text-muted-foreground">{label}</span>
 		</>
 	);
 }

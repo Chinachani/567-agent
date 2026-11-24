@@ -55,7 +55,8 @@ class ImageGenerationFlowHostTest {
         }
         server.start()
         val preferences = AppPreferences(MapSettings()).apply {
-            setServerUrl("http://127.0.0.1:${server.address.port}"); setCachedGroupModels(null, listOf("test-model")); setInputPredictionEnabled(false)
+            setServerUrl("http://127.0.0.1:${server.address.port}"); setModelInferenceApi(null, "test-model", org.agent567.android.core.chat.InferenceApi.Completions)
+            setCachedGroupModels(null, listOf("test-model")); setInputPredictionEnabled(false)
             activeImageModel = "gpt-image-2"
         }
         val storage = MapSettings()

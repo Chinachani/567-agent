@@ -1,11 +1,13 @@
+import { api567StatusAtom } from "@domains/api567/store/api567-atoms";
 import { favoriteModelsAtom } from "@shared/store/atoms";
-import { modelCatalog } from "@shared/store/model-catalog";
+import { modelCatalog, modelCatalogSyncErrorAtom } from "@shared/store/model-catalog";
 import { showToast } from "@shared/store/toast-atoms";
 import type { ModelSelectorViewProps } from "@vetta-org/theme-ui/chat";
 import { fmtMultiplier } from "@vetta-org/theme-ui/shared/MultiplierTag";
-import { useAtom } from "jotai";
+import { useAtom, useAtomValue } from "jotai";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
+import { assessModelAvailability, isCatalogOffline } from "./modelAvailability";
 import { type ResolvedReasoning, resolveReasoning } from "./resolveReasoning";
 import { type ModelOption, useModelOptions } from "./useModelOptions";
 
@@ -34,6 +36,9 @@ export interface UseModelPickerModelOptions {
 	readonly defaultKey?: string;
 	/** 未选中时自动选上全局默认模型（只触发一次 onChange）。 */
 	readonly autoSelectDefault?: boolean;
+	/** 受控打开状态。 */
+	readonly open?: boolean;
+	readonly onOpenChange?: (open: boolean) => void;
 }
 
 export interface ModelPickerModel {
@@ -64,9 +69,13 @@ export function useModelPickerModel({
 	defaultKey: defaultKeyOverride,
 	autoSelectDefault = false,
 	filterModel,
+	open,
+	onOpenChange,
 }: UseModelPickerModelOptions): ModelPickerModel {
 	const { t } = useTranslation("common");
-	const { options: allOptions, defaultKey: configuredDefaultKey, iconFor, labelFor } = useModelOptions();
+	const api567Status = useAtomValue(api567StatusAtom);
+	const catalogSyncError = useAtomValue(modelCatalogSyncErrorAtom);
+	const { config, options: allOptions, defaultKey: configuredDefaultKey, iconFor, labelFor } = useModelOptions();
 	const options = useMemo(
 		() => (filterModel ? allOptions.filter(filterModel) : allOptions),
 		[allOptions, filterModel],
@@ -88,6 +97,8 @@ export function useModelPickerModel({
 	onChangeRef.current = onChange;
 	const reasoningChangeRef = useRef(reasoning?.onChange);
 	reasoningChangeRef.current = reasoning?.onChange;
+	const onOpenChangeRef = useRef(onOpenChange);
+	onOpenChangeRef.current = onOpenChange;
 
 	const catalogOption = value ? (optionByKey.get(value) ?? null) : null;
 	// 有 key 但目录未就绪（或模型已下架）时仍显示 modelId，避免闪「选择模型」或误显示成空值项。
@@ -119,8 +130,11 @@ export function useModelPickerModel({
 	);
 	const handleReasoningSelect = useCallback((level: string) => reasoningChangeRef.current?.(level), []);
 	// 打开菜单时按 TTL 后台重校验目录，服务端增删模型无需重启即可看到。
-	const handleOpenChange = useCallback((open: boolean) => {
-		if (open) void modelCatalog.revalidate();
+	const handleOpenChange = useCallback((nextOpen: boolean) => {
+		onOpenChangeRef.current?.(nextOpen);
+		if (!nextOpen) return;
+		void modelCatalog.revalidate();
+		void window.agent567?.api567?.refreshGroupsInBackground?.().catch(() => undefined);
 	}, []);
 
 	const [refreshing, setRefreshing] = useState(false);
@@ -130,15 +144,28 @@ export function useModelPickerModel({
 		if (refreshingRef.current) return;
 		refreshingRef.current = true;
 		setRefreshing(true);
-		void window.agent567.models
-			.syncAdoptedPresets()
-			.then(async ({ failed }) => {
+		const syncPresets = window.agent567?.models?.syncAdoptedPresets?.() ?? Promise.resolve({ failed: [] });
+		const refresh567 =
+			window.agent567?.api567?.refreshGroupsInBackground?.({ force: true }) ??
+			Promise.resolve({ refreshed: false, success: true });
+		void Promise.allSettled([syncPresets, refresh567])
+			.then(async ([presetsOutcome]) => {
 				await modelCatalog.revalidate({ force: true });
-				if (failed.length > 0) {
+				if (presetsOutcome.status === "fulfilled" && presetsOutcome.value.failed.length > 0) {
 					showToast({
 						variant: "error",
 						title: t("modelSelect.refreshFailed"),
-						message: failed.join(", "),
+						message: presetsOutcome.value.failed.join(", "),
+						durationMs: 6000,
+					});
+				} else if (presetsOutcome.status === "rejected") {
+					showToast({
+						variant: "error",
+						title: t("modelSelect.refreshFailed"),
+						message:
+							presetsOutcome.reason instanceof Error
+								? presetsOutcome.reason.message
+								: String(presetsOutcome.reason),
 						durationMs: 6000,
 					});
 				}
@@ -156,6 +183,25 @@ export function useModelPickerModel({
 				setRefreshing(false);
 			});
 	}, [t]);
+
+	const offline = isCatalogOffline(api567Status, catalogSyncError);
+	const availability = assessModelAvailability({ modelKey: value, config, options: allOptions, api567Status });
+	const statusNotice = useMemo<ModelSelectorViewProps["statusNotice"]>(() => {
+		if (availability.status === "confirmed-removed") {
+			return {
+				message: t("modelSelect.confirmedRemoved", { model: availability.displayName }),
+				actionLabel: t("modelSelect.chooseReplacement"),
+				onAction: () => onOpenChangeRef.current?.(true),
+			};
+		}
+		if (!offline) return undefined;
+		return {
+			message: options.length > 0 ? t("modelSelect.offlineCached") : t("modelSelect.offlineEmpty"),
+			actionLabel: refreshing ? t("modelSelect.retrying") : t("modelSelect.retry"),
+			onAction: handleRefresh,
+			actionDisabled: refreshing,
+		};
+	}, [availability.status, availability.displayName, offline, options.length, refreshing, handleRefresh, t]);
 
 	const emptyLabel = emptyOption?.label;
 	const viewEmptyOption = useMemo(
@@ -256,7 +302,7 @@ export function useModelPickerModel({
 	);
 
 	return {
-		empty: options.length === 0 && !value && !emptyOption,
+		empty: options.length === 0 && !value && !emptyOption && !offline,
 		options,
 		globalDefaultKey,
 		catalogOption,
@@ -269,10 +315,12 @@ export function useModelPickerModel({
 			groups,
 			labels,
 			menuLevels,
+			...(open !== undefined ? { open } : {}),
 			onModelSelect: handleModelSelect,
 			onOpenChange: handleOpenChange,
 			onReasoningSelect: handleReasoningSelect,
 			refresh: { onRefresh: handleRefresh, refreshing, label: t("modelSelect.refresh") },
+			statusNotice,
 			reasoningModelKeys,
 			selectedModel: value ?? undefined,
 			selectedOption,

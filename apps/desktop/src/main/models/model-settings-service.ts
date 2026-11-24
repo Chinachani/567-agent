@@ -15,8 +15,9 @@ import type {
 import { stripApi567DynamicHeaders } from "../../shared/api567/request-headers.js";
 import { contextCapacity, type ModelContextSource, resolveModelContext } from "../../shared/model-context.js";
 import {
-	defaultManagedInferenceApi,
+	DEFAULT_CHAT_INFERENCE_API,
 	isModelInferenceApi,
+	legacyManagedInferenceApi,
 	type ModelInferenceApi,
 } from "../../shared/model-inference-api.js";
 import { isMagpieBaseUrl } from "../../shared/preset-provider-url.js";
@@ -35,6 +36,7 @@ export interface ProviderConfig {
 	/** Opaque reference to an API key held by the desktop credential vault. */
 	credentialRef?: string;
 	api?: string;
+	managedChatProtocolVersion?: 1;
 	headers?: Record<string, string>;
 	authHeader?: boolean;
 	displayName?: string;
@@ -111,30 +113,43 @@ export function normalizeModelsConfig(
 				(id === "567api" || id.startsWith("567api_")) && provider.headers?.["X-567-Group"] !== undefined;
 			const routed =
 				(id === "567api" || id.startsWith("567api_")) && getBuiltinApi567Route(provider.baseUrl, trusted);
+			const preset567 =
+				id === "567api" && provider.source === "template" && (provider.templateId ?? id) === "567api";
+			const managedChat = routed && (preset567 || (managed && provider.source !== "template"));
+			const migrateProtocol = managedChat && provider.managedChatProtocolVersion !== 1;
+
 			return [
 				id,
 				{
 					...provider,
 					...(managed ? { headers: stripApi567DynamicHeaders(provider.headers) } : {}),
 					...(routed ? { baseUrl: `${origin}/v1` } : {}),
+					...(managedChat
+						? {
+								managedChatProtocolVersion: 1 as const,
+								...(preset567 && (!provider.icon || provider.icon === "openai") ? { icon: "agent567" } : {}),
+								api:
+									migrateProtocol && provider.api === "openai-completions"
+										? DEFAULT_CHAT_INFERENCE_API
+										: (provider.api ?? DEFAULT_CHAT_INFERENCE_API),
+							}
+						: {}),
 					models: provider.models?.map((model) => {
 						const normalized = managed
 							? {
 									...model,
 									contextWindowSource: model.contextWindowSource ?? ("unknown" as const),
-									...(routed
-										? {
-												api:
-													model.api ??
-													defaultManagedInferenceApi(
-														model.id,
-														provider.headers?.["X-567-Group"] ?? "",
-														provider.api,
-													),
-											}
-										: {}),
 								}
 							: model;
+						// User choices live in modelOverrides. Drop only the old computed model API;
+						// leaving it here would mask subsequent changes to the provider's default.
+						if (
+							managed &&
+							migrateProtocol &&
+							normalized.api ===
+								legacyManagedInferenceApi(model.id, provider.headers?.["X-567-Group"] ?? "", provider.api)
+						)
+							delete normalized.api;
 						const context = resolveModelContext(normalized);
 						return context.capacity && context.source === "catalog"
 							? { ...normalized, contextWindow: context.capacity, contextWindowSource: context.source }
@@ -330,6 +345,24 @@ export class ModelSettingsService {
 	/** Main-process only. IPC callers must not return this value to the renderer. */
 	async getProviderApiKey(providerId: string): Promise<string | undefined> {
 		return (await this.getConfig()).providers[providerId]?.apiKey;
+	}
+
+	/**
+	 * Run a serialized read-modify-write against the latest on-disk models.json inside the mutation queue,
+	 * so background refreshes cannot overwrite concurrent manual edits to other providers or overrides.
+	 */
+	async updateConfig(
+		mutate: (current: ModelsConfig) => ModelsConfig | null | Promise<ModelsConfig | null>,
+	): Promise<boolean> {
+		return this.runMutation(async () => {
+			await this.ensureLegacyCredentialsMigrated();
+			const current = await this.options.readConfig();
+			const resolved = this.resolveCredentials(current);
+			const next = await mutate(resolved);
+			if (!next) return false;
+			await this.persist(next, current, "resolved");
+			return true;
+		});
 	}
 
 	async replaceConfig(config: ModelsConfig): Promise<void> {
@@ -630,8 +663,10 @@ export class ModelSettingsService {
 			const credentialRef = currentRef ?? randomUUID();
 			provider.credentialRef = credentialRef;
 			delete provider.apiKey;
-			writes.set(credentialRef, value);
-			credentialWriteProviders.add(providerId);
+			if (!currentRef || this.options.credentials.get(currentRef) !== value) {
+				writes.set(credentialRef, value);
+				credentialWriteProviders.add(providerId);
+			}
 			this.registerCredentialRef(nextRefs, credentialRef, providerId);
 		}
 

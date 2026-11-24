@@ -34,6 +34,9 @@ export interface ModelSelectProps {
 	onSelectedOptionChange?: (option: ModelOption | null) => void;
 	/** When set, adds a reasoning-level column for the selected model. */
 	reasoning?: ModelSelectReasoning;
+	/** Optional controlled open state for inline reselection triggers. */
+	open?: boolean;
+	onOpenChange?: (open: boolean) => void;
 }
 
 /**
@@ -57,6 +60,8 @@ export function ModelSelect({
 	autoSelectDefault = false,
 	onSelectedOptionChange,
 	reasoning,
+	open,
+	onOpenChange,
 }: ModelSelectProps): JSX.Element {
 	const { t } = useTranslation("common");
 	const ThemedModelSelectorView = useThemeComponent("chat.modelSelectorView", ModelSelectorView);
@@ -70,6 +75,8 @@ export function ModelSelect({
 		placeholder,
 		defaultKey,
 		autoSelectDefault,
+		open,
+		onOpenChange,
 	});
 
 	// Surface the resolved selected option to consumers (e.g. image support).

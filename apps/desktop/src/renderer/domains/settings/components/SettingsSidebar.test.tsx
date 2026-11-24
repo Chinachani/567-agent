@@ -59,15 +59,14 @@ describe("flat SettingsSidebarView", () => {
 		expect(screen.getByRole("button", { name: "浏览器操作" }).getAttribute("aria-current")).toBe("page");
 		expect(screen.getByRole("button", { name: "通用设置" }).getAttribute("aria-expanded")).toBeNull();
 	});
-	it("keeps plugin icon navigation accessible by keyboard in a narrow sidebar", async () => {
+	it("keeps plugin destinations selectable by name in a narrow workspace", async () => {
 		const user = userEvent.setup();
 		const { onSelectTab } = renderSidebar({ narrow: true, activeTab: "workspace:design/gallery" });
-		const design = screen.getByRole("button", { name: "设计" });
-		expect(design.getAttribute("aria-current")).toBe("page");
-		expect(design.querySelector("img")?.getAttribute("src")).toBe("vetta-plugin://design/icon.png");
+		const categories = screen.getByRole("combobox", { name: "设置" });
+		expect((categories as HTMLSelectElement).value).toBe("workspace:design/gallery");
 		await user.tab();
-		await user.tab();
-		await user.keyboard("{Enter}");
+		expect(document.activeElement).toBe(categories);
+		await user.selectOptions(categories, "workspace:browser/console");
 		expect(onSelectTab).toHaveBeenCalledWith("workspace:browser/console");
 	});
 });

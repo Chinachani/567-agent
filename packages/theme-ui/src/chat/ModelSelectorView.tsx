@@ -125,6 +125,13 @@ export interface ModelSelectorFavorites {
 	};
 }
 
+export interface ModelSelectorStatusNotice {
+	readonly message: string;
+	readonly actionLabel?: string;
+	readonly onAction?: () => void;
+	readonly actionDisabled?: boolean;
+}
+
 export interface ModelSelectorViewProps {
 	selectedModel?: string;
 	selectedOption: ModelSelectorOptionView | null;
@@ -168,6 +175,8 @@ export interface ModelSelectorViewProps {
 	onOpenChange?: (open: boolean) => void;
 	/** 搜索框右侧的刷新按钮：重拉服务商的模型列表。不传就不显示。 */
 	refresh?: { onRefresh: () => void; refreshing: boolean; label: string };
+	/** 菜单顶部的状态提示（如暂时离线、显示缓存模型与重试入口）。 */
+	statusNotice?: ModelSelectorStatusNotice;
 }
 
 const MODEL_ITEM_SELECTOR = "[data-model-key]";
@@ -235,6 +244,7 @@ export function ModelSelectorView({
 	onReasoningSelect,
 	onOpenChange,
 	refresh,
+	statusNotice,
 }: ModelSelectorViewProps): JSX.Element {
 	const [openState, setOpenState] = useState(false);
 	// 宿主可以传 open 来控制（例如快捷键唤起）；不传就由视图自己管。
@@ -581,6 +591,24 @@ export function ModelSelectorView({
 										</button>
 									)}
 								</div>
+								{statusNotice && (
+									<div
+										role="status"
+										className="mx-0.5 mb-1 flex items-center justify-between gap-2 rounded-md border border-border/50 bg-muted/50 px-2 py-1 text-[11px] text-muted-foreground"
+									>
+										<span className="min-w-0 flex-1 leading-tight">{statusNotice.message}</span>
+										{statusNotice.actionLabel && statusNotice.onAction && (
+											<button
+												type="button"
+												disabled={statusNotice.actionDisabled}
+												onClick={statusNotice.onAction}
+												className="shrink-0 font-medium text-primary hover:underline disabled:opacity-50"
+											>
+												{statusNotice.actionLabel}
+											</button>
+										)}
+									</div>
+								)}
 								{emptyOption && (
 									<>
 										<DropdownMenuItem

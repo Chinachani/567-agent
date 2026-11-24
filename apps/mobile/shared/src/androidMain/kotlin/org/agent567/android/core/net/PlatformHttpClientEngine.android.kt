@@ -32,7 +32,10 @@ actual fun pinnedWebSocketHttpClient(certificateFingerprint: String): HttpClient
         override fun checkServerTrusted(chain: Array<out X509Certificate>, authType: String) {
             val certificate = chain.firstOrNull() ?: throw CertificateException("Server certificate is missing")
             certificate.checkValidity()
-            if (certificate.sha256Fingerprint() != expected) throw CertificateException("Server certificate pin mismatch")
+            if (certificate.sha256Fingerprint() != expected) {
+                val mismatch = org.agent567.android.domain.remote.connection.RemotePairingIdentityChanged()
+                throw CertificateException(mismatch.message, mismatch)
+            }
         }
     }
     val sslContext = SSLContext.getInstance("TLS").apply { init(null, arrayOf(trustManager), null) }

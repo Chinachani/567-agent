@@ -1,6 +1,7 @@
 import { ModelSelect } from "@shared/components/ModelSelect";
 import { Button, Switch, cn } from "@vetta-org/ui";
 import { ImChannelIconView, SettingHeading, SettingRow, SettingSection } from "@vetta-org/theme-ui/settings";
+import type { ReactNode } from "react";
 import { useTranslation } from "react-i18next";
 import { SettingsAiAssist } from "../ai-assist";
 import { SETTINGS_SECTION } from "../registry";
@@ -38,7 +39,13 @@ interface ChannelPresentation {
 	readonly onConfigure: () => void;
 }
 
-export function ImBridgeSettingsView({ model }: { model: ImBridgeSettingsModel }): JSX.Element {
+export function ImBridgeSettingsView({
+	model,
+	children,
+}: {
+	model: ImBridgeSettingsModel;
+	children?: ReactNode;
+}): JSX.Element {
 	const { t } = useTranslation("settings");
 	const config = model.config;
 
@@ -47,6 +54,7 @@ export function ImBridgeSettingsView({ model }: { model: ImBridgeSettingsModel }
 			<div className="mx-auto w-full max-w-[800px] px-5 pt-6 sm:px-8 pb-4">
 				<h1 className="mb-6 text-[24px] font-semibold tracking-tight text-foreground">567 Claw</h1>
 				<div className="text-[13px] text-muted-foreground">{t("loadFailed")}</div>
+				{children && <div className="mt-6">{children}</div>}
 			</div>
 		);
 	}
@@ -309,6 +317,8 @@ export function ImBridgeSettingsView({ model }: { model: ImBridgeSettingsModel }
 					</div>
 				</div>
 			</SettingSection>
+
+			{children}
 
 			{model.logsOpen && <ImLogDrawer logs={model.logs} onClose={() => model.setLogsOpen(false)} />}
 		</div>

@@ -24,18 +24,27 @@ internal class GroupApiCredentials(
     private val cache = mutableMapOf<String, String>()
     private val created = mutableMapOf<String, Long>()
 
-    suspend fun get(group: String?, rejectedKey: String? = null): String = mutex.withLock {
+    suspend fun existing(group: String?): String? = mutex.withLock {
+        val access = tokens.accessToken ?: return@withLock null
+        if (access.startsWith("sk-")) return@withLock access
+        val owner = namespace(access)
+        val target = group.orEmpty().ifEmpty { "default" }
+        cache["$owner:$target"] ?: preferences?.getCachedGroupKey(target, owner)
+    }
+
+    suspend fun get(group: String?, rejectedKey: String? = null, createIfMissing: Boolean = true): String = mutex.withLock {
         val access = tokens.accessToken ?: throw Agent567Exception.Unauthorized()
         if (access.startsWith("sk-")) return@withLock access
         val version = sessionVersion()
         var namespace = namespace(access)
-        val cacheId = "$namespace:${group ?: "default"}"
-        val cached = cache[cacheId] ?: preferences?.getCachedGroupKey(group, namespace)
+        val target = group.orEmpty().ifEmpty { "default" }
+        val cacheId = "$namespace:$target"
+        val cached = cache[cacheId] ?: preferences?.getCachedGroupKey(target, namespace)
         if (!cached.isNullOrBlank() && cached != rejectedKey) return@withLock cached
         cache.remove(cacheId)
-        preferences?.setCachedGroupKey(group, null, namespace)
+        preferences?.setCachedGroupKey(target, null, namespace)
 
-        val targetName = if (group != null) "567 Agent [$group]" else "567 Agent"
+        val targetName = if (target == "default") "567 Agent" else "567 Agent [$target]"
         fun available(item: JsonObject): Boolean {
             val status = item["status"]?.jsonPrimitive?.intOrNull
             val expires = item["expired_time"]?.jsonPrimitive?.longOrNull
@@ -45,8 +54,11 @@ internal class GroupApiCredentials(
                 (expires == null || expires <= 0 || expires > System.currentTimeMillis() / 1000) &&
                 (unlimited != false || remaining == null || remaining > 0)
         }
-        fun matches(item: JsonObject): Boolean = available(item) &&
-            (group.isNullOrBlank() || item["group"]?.jsonPrimitive?.contentOrNull == group || item["name"]?.jsonPrimitive?.contentOrNull == targetName)
+        fun matches(item: JsonObject): Boolean {
+            val actual = item["group"]?.jsonPrimitive?.contentOrNull
+            return available(item) && (if (actual.isNullOrBlank()) target == "default" || item["name"]?.jsonPrimitive?.contentOrNull == targetName
+                else actual == target)
+        }
         suspend fun list(): List<JsonObject> {
             val root = checked(version, "GET", "/api/token/?p=0&size=100")
             val data = root["data"] ?: root
@@ -57,10 +69,10 @@ internal class GroupApiCredentials(
         }
         var item = list().firstOrNull(::matches)
         var createdNow = false
-        if (item == null) {
+        if (item == null && createIfMissing) {
             checked(version, "POST", "/api/token/", buildJsonObject {
                 put("name", targetName)
-                if (group != null) put("group", group)
+                if (target != "default") put("group", target)
                 put("remain_quota", 0)
                 put("expired_time", -1)
                 put("unlimited_quota", true)
@@ -82,9 +94,9 @@ internal class GroupApiCredentials(
         val result = if (key.startsWith("sk-")) key else "sk-$key"
         // A successful cookie renewal can rotate the account token during the lookup.
         namespace = namespace(tokens.accessToken!!)
-        val finalId = "$namespace:${group ?: "default"}"
+        val finalId = "$namespace:$target"
         cache[finalId] = result
-        preferences?.setCachedGroupKey(group, result, namespace)
+        preferences?.setCachedGroupKey(target, result, namespace)
         if (createdNow && id != null) created[finalId] = id
         result
     }

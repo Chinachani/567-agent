@@ -22,6 +22,7 @@ import { RemotePromptRecovery } from "./remote-prompt-recovery.js";
 export interface DesktopRemoteAccessOptions {
 	readonly controlUrl?: string;
 	readonly pairingToken?: string;
+	readonly pairingId?: string;
 	readonly controlTarget?: string;
 	readonly webSocketCaCertificate?: string;
 	readonly controlTargets?: readonly {
@@ -122,6 +123,8 @@ async function connect(
 	const operations = new DesktopConversationRemoteOperations(
 		getDesktopConversationService(),
 		{
+			pairingId: options.pairingId,
+			canAppendDraft: true,
 			cwd: options.conversationCwd,
 			files: createDesktopRemoteFiles(),
 			resolveSessionRoots: resolveDesktopRuntimeSessionRoots,

@@ -30,3 +30,5 @@ object NoopRemoteLogger : RemoteLogger {
 }
 
 expect object PlatformRemoteLogger : RemoteLogger
+
+class RemotePairingIdentityChanged : IllegalStateException("Server certificate pin mismatch")

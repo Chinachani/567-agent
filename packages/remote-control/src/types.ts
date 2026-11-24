@@ -54,10 +54,31 @@ export const REMOTE_REQUEST_METHODS = [
 	"session.respond",
 	"session.abort",
 	"session.resume",
+	"session.draft.append",
 	"toolbox.list",
 	"toolbox.install",
 	"diagnostics.snapshot",
 ] as const;
+
+export const REMOTE_DRAFT_MAX_CHARS = 60_000;
+export const REMOTE_DRAFT_TOTAL_MAX_CHARS = 120_000;
+
+export type RemoteDraftTargetType = "new" | "existing";
+
+export interface RemoteSessionDraftAppendPayload {
+	readonly idempotencyKey: string;
+	readonly targetType: RemoteDraftTargetType;
+	readonly sessionId?: string;
+	readonly text: string;
+}
+
+export interface RemoteSessionDraftAppendResult {
+	readonly saved: true;
+	readonly deduplicated: boolean;
+	readonly targetType: RemoteDraftTargetType;
+	readonly sessionId?: string;
+	readonly draftLength: number;
+}
 
 /** Selection affects model input only; the canonical conversation is never rewritten. */
 export interface ContextSelection {

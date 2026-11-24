@@ -1,4 +1,4 @@
-import { useMemo, type JSX, type RefCallback } from "react";
+import { useEffect, useMemo, useState, type JSX, type RefCallback } from "react";
 import { useThemeComponent } from "@vetta-org/theme-sdk";
 import type { NavIndicatorBounds, SidebarNavItem } from "@vetta-org/theme-sdk/sidebar";
 import { cn, Popover, PopoverContent, PopoverTrigger } from "@vetta-org/ui";
@@ -66,10 +66,23 @@ export function SidebarNavigation({
 	const hasMore = moreItems.length > 0;
 	// 收纳项为当前路由时，触发器展示该项 label/icon；否则回落「更多」。
 	const activeMoreItem = moreItems.find((item) => item.active);
-	const triggerLabel = activeMoreItem?.label ?? moreLabel;
-	const triggerIcon = activeMoreItem?.icon ?? "icon-[solar--alt-arrow-down-linear]";
 	// 自定义能力是可选的：主题若只传了 items/moreItems，行为与改造前一致。
 	const customizable = onNavMove !== undefined && navCustomizeLabels !== undefined;
+	const [editing, setEditing] = useState(false);
+	useEffect(() => {
+		if (!moreOpen) setEditing(false);
+	}, [moreOpen]);
+	const dragActive = customizable && editing;
+	const showMoreTrigger = hasMore || customizable;
+	const triggerLabel =
+		activeMoreItem?.label ?? (hasMore ? moreLabel : (navCustomizeLabels?.pinnedTitle ?? moreLabel));
+	const triggerTitle =
+		!activeMoreItem && customizable && navCustomizeLabels
+			? hasMore
+				? `${triggerLabel} · ${navCustomizeLabels.pinnedTitle}`
+				: navCustomizeLabels.pinnedTitle
+			: triggerLabel;
+	const triggerIcon = activeMoreItem?.icon ?? "icon-[solar--alt-arrow-down-linear]";
 
 	const itemsByRegion = useMemo(() => ({ pinned: items, more: moreItems }), [items, moreItems]);
 	const drag = useSidebarNavDrag(onNavMove ?? noop, itemsByRegion);
@@ -83,7 +96,7 @@ export function SidebarNavigation({
 				<span
 					data-sidebar-nav-indicator=""
 					className={cn(
-						"pointer-events-none absolute inset-x-2 top-0 z-10 overflow-visible rounded-lg bg-accent/80 ring-1 ring-inset ring-border/60",
+						"pointer-events-none absolute inset-x-2 top-0 z-10 overflow-visible rounded-lg border-s border-ring bg-accent/70",
 						classNames?.indicator,
 					)}
 					style={{
@@ -95,7 +108,7 @@ export function SidebarNavigation({
 				</span>
 			)}
 			{items.map((item, index) => {
-				const dragProps = customizable ? drag.itemProps(item, "pinned") : undefined;
+				const dragProps = dragActive ? drag.itemProps(item, "pinned") : undefined;
 				return (
 					<div
 						key={item.key}
@@ -110,7 +123,7 @@ export function SidebarNavigation({
 								}
 							: {})}
 					>
-						{customizable && drag.isDropBefore(item.key, "pinned") && (
+						{dragActive && drag.isDropBefore(item.key, "pinned") && (
 							<span
 								aria-hidden
 								className="pointer-events-none absolute inset-x-1 -top-px z-30 h-px bg-primary"
@@ -132,13 +145,13 @@ export function SidebarNavigation({
 					</div>
 				);
 			})}
-			{hasMore && (
+			{showMoreTrigger && (
 				<Popover open={moreOpen} onOpenChange={onMoreOpenChange}>
 					<PopoverTrigger asChild>
 						<button
 							ref={setMoreButtonRef}
 							type="button"
-							title={triggerLabel}
+							title={triggerTitle}
 							className={cn(
 								"no-drag relative z-20 flex w-full items-center gap-2.5 rounded-lg px-2.5 py-2 text-[13px] transition-colors",
 								moreActive || moreOpen
@@ -185,9 +198,11 @@ export function SidebarNavigation({
 							<SidebarNavMorePanel
 								canPinMore={canPinMore}
 								drag={drag}
+								editing={editing}
 								labels={navCustomizeLabels}
 								moreItems={moreItems}
 								pinnedItems={items}
+								onEditingChange={setEditing}
 								onItemClick={(item) => {
 									onItemClick(item);
 									onMoreOpenChange?.(false);

@@ -35,6 +35,7 @@ import { registerRemotePairingIpc } from "./remote-pairing.js";
 import { registerRuntimeConfigurationIpc } from "./runtime-configuration.js";
 import { registerRuntimesIpc } from "./runtimes.js";
 import { registerSessionIpc } from "./session.js";
+import { registerSessionDraftsIpc } from "./session-drafts.js";
 import { registerSettingsIpc } from "./settings.js";
 import { registerSkillsIpc } from "./skills.js";
 import { registerSpeechInputIpc } from "./speech-input.js";
@@ -58,6 +59,7 @@ interface IpcTeardown {
 	teardownActionApproval: () => void;
 	teardownAppMonitor: () => void;
 	teardownSession: () => void;
+	teardownSessionDrafts: () => void;
 	teardownSettings: () => void;
 	teardownUpdater: () => void;
 	teardownSkills: () => void;
@@ -111,6 +113,7 @@ export function registerAllIpc(
 		teardownActionApproval: registerActionApprovalIpc(options.actionApprovalBroker),
 		teardownAppMonitor: registerAppMonitorIpc(),
 		teardownSession: registerSessionIpc(webContents),
+		teardownSessionDrafts: registerSessionDraftsIpc(webContents),
 		teardownSettings: registerSettingsIpc(webContents),
 		teardownUiZoom: registerUiZoomIpc(webContents),
 		teardownAppIcon: registerAppIconIpc(webContents),
@@ -145,7 +148,7 @@ export function registerAllIpc(
 		teardownDiagnostics: registerDiagnosticsIpc(() => options.remotePairingService.getState()),
 		teardownOnboarding: registerOnboardingIpc(),
 		teardownRemotePairing: registerRemotePairingIpc(options.remotePairingService),
-		teardown567Api: register567ApiIpc(),
+		teardown567Api: register567ApiIpc(webContents),
 	};
 }
 
@@ -159,6 +162,7 @@ export function teardownAllIpc(teardown: IpcTeardown): void {
 	teardown.teardownActionApproval();
 	teardown.teardownAppMonitor();
 	teardown.teardownSession();
+	teardown.teardownSessionDrafts();
 	teardown.teardownSettings();
 	teardown.teardownUiZoom();
 	teardown.teardownAppIcon();

@@ -5,6 +5,8 @@ import { onIpcEvent } from "./helper.js";
 export function create567Api(ipc: IpcRenderer): { api567: Api567Api } {
 	return {
 		api567: {
+			getBilledUsage: () => ipc.invoke("agent567:usage:billed"),
+			getLocalUsageLog: () => ipc.invoke("agent567:usage:local"),
 			probeServiceRoute: (route, requestId) => ipc.invoke("agent567:service-route:probe", route, requestId),
 			refreshServiceRoutes: (force) => ipc.invoke("agent567:service-route:refresh", force === true),
 			selectServiceRoute: (route, requestId) => ipc.invoke("agent567:service-route:select", route, requestId),
@@ -28,6 +30,8 @@ export function create567Api(ipc: IpcRenderer): { api567: Api567Api } {
 			bindToken: (token) => ipc.invoke("vetta:567api:login-access-token", token),
 			refreshQuota: (force?: boolean) => ipc.invoke("vetta:567api:refresh-quota", force),
 			refreshGroups: () => ipc.invoke("vetta:567api:refresh-groups"),
+			refreshGroupsInBackground: (options?: boolean | { force?: boolean; startup?: boolean }) =>
+				ipc.invoke("vetta:567api:refresh-background", options),
 			logout: () => ipc.invoke("vetta:567api:logout"),
 			onStatusChanged: (handler: (status: Api567Status) => void) =>
 				onIpcEvent(ipc, "vetta:567api:status-changed", handler),

@@ -43,6 +43,7 @@ internal fun RemoteTouchLayer(
     requestKeyboardFocus: Boolean = true,
     onRelativePointer: (Float, Float) -> Unit = { _, _ -> },
     bottomInsetPx: Float = 0f,
+    inputEnabled: Boolean = true,
 ) {
     var size by remember { mutableStateOf(IntSize.Zero) }
     val focus = remember { FocusRequester() }
@@ -55,11 +56,13 @@ internal fun RemoteTouchLayer(
     val latestOnKey by rememberUpdatedState(onKey)
     val latestOnRelative by rememberUpdatedState(onRelativePointer)
     val latestBottomInsetPx by rememberUpdatedState(bottomInsetPx)
+    val latestInputEnabled by rememberUpdatedState(inputEnabled)
     val latestWidth by rememberUpdatedState(frameWidth)
     val latestHeight by rememberUpdatedState(frameHeight)
     // Same-aspect encoding resizes are not input mode changes. A real rotation cancels a drag.
     val portrait = frameWidth != null && frameHeight != null && frameHeight > frameWidth
     Box(modifier.onSizeChanged { size = it }.focusRequester(focus).focusable().onKeyEvent {
+        if (!latestInputEnabled) return@onKeyEvent false
         if (it.type != KeyEventType.KeyDown && it.type != KeyEventType.KeyUp) return@onKeyEvent false
         val code = it.nativeKeyEvent.keyCode
         if (androidRemoteKeyCode(code) == null) return@onKeyEvent false
@@ -69,6 +72,7 @@ internal fun RemoteTouchLayer(
         awaitPointerEventScope {
             while (true) {
                 val event = awaitPointerEvent()
+                if (!latestInputEnabled) continue
                 when (event.type) {
                     PointerEventType.Scroll -> {
                         val change = event.changes.firstOrNull() ?: continue
@@ -127,7 +131,7 @@ internal fun RemoteTouchLayer(
             var accumulatedPan = Offset.Zero
             var viewTransform = latestTransform
             try {
-                if (isMouse && start != null) {
+                if (isMouse && start != null && latestInputEnabled) {
                     latestRequestFocus()
                     latestOnPointer("pointer.button", start, pressedButton, "down")
                     dragging = true
@@ -158,7 +162,7 @@ internal fun RemoteTouchLayer(
                             accumulatedPan += pan
                             if (pressed >= 3) multiAction = MultiFingerAction.ViewTransform
                             if (multiAction == null) {
-                                if (abs(accumulatedZoom - 1f) >= .06f) multiAction = MultiFingerAction.ViewTransform
+                                if (!latestInputEnabled || abs(accumulatedZoom - 1f) >= .06f) multiAction = MultiFingerAction.ViewTransform
                                 else if (accumulatedPan.getDistance() > viewConfiguration.touchSlop) {
                                     multiAction = MultiFingerAction.Scroll
                                     if (!trackpadMode && start != null) position(focal.x, focal.y)?.let {
@@ -182,7 +186,16 @@ internal fun RemoteTouchLayer(
                         val primary = event.changes.firstOrNull { it.id == down.id }
                         if (primary != null && start != null) {
                             if (primary.pressed) {
-                                if (isMouse) {
+                                if (!latestInputEnabled) {
+                                    if ((primary.position - down.position).getDistance() > viewConfiguration.touchSlop) moved = true
+                                    if (moved) {
+                                        val pan = primary.position - primary.previousPosition
+                                        if (pan != Offset.Zero) {
+                                            viewTransform = transformRemoteView(viewTransform, 1f, size.width / 2f, size.height / 2f, pan.x, pan.y, size.width, size.height, width, height, latestBottomInsetPx)
+                                            latestOnTransform(viewTransform)
+                                        }
+                                    }
+                                } else if (isMouse) {
                                     if (trackpadMode) {
                                         val delta = primary.position - primary.previousPosition
                                         if (delta != Offset.Zero) latestOnRelative(delta.x / density, delta.y / density)
@@ -223,7 +236,7 @@ internal fun RemoteTouchLayer(
                                 if (dragging) {
                                     last?.let { latestOnPointer("pointer.button", it, pressedButton, "up") }
                                     dragging = false
-                                } else if (!isMouse && !moved) {
+                                } else if (latestInputEnabled && !isMouse && !moved) {
                                     latestRequestFocus()
                                     val button = if (initialButton != "left") initialButton else if (primary.uptimeMillis - down.uptimeMillis >= viewConfiguration.longPressTimeoutMillis) "right" else "left"
                                     latestOnPointer("pointer.button", start, button, "down")
@@ -234,7 +247,7 @@ internal fun RemoteTouchLayer(
                     }
                     event.changes.forEach { it.consume() }
                 } while (event.changes.any { it.pressed })
-                if (twoFingerTap && multiTouch && origins.size == 2 && multiAction == null && !moved && start != null) {
+                if (latestInputEnabled && twoFingerTap && multiTouch && origins.size == 2 && multiAction == null && !moved && start != null) {
                     latestRequestFocus()
                     latestOnPointer("pointer.button", start, "right", "down")
                     latestOnPointer("pointer.button", start, "right", "up")

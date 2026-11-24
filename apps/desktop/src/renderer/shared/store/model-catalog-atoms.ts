@@ -20,3 +20,18 @@ export const selectableDefaultModelAtom = atom((get) => {
 	const key = config?.defaultModel;
 	return key && !config?.providers[key.split("/")[0]]?.disabled ? key : null;
 });
+
+export interface ModelCatalogSyncErrorState {
+	readonly local: boolean;
+	readonly remote: boolean;
+	readonly message?: string;
+}
+
+/** 目录拉取失败状态；失败时保留上次缓存目录，仅用于在选择器内提示重试。 */
+export const modelCatalogSyncErrorAtom = atom<ModelCatalogSyncErrorState>({
+	local: false,
+	remote: false,
+});
+
+/** Increment to request opening the active conversation/team model selector dropdown. */
+export const openModelSelectorRequestAtom = atom(0);

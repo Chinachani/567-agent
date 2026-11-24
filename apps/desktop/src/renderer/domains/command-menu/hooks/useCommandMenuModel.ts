@@ -180,31 +180,35 @@ export function useCommandMenuModel({ onOpenSession }: UseCommandMenuModelArgs):
 
 	// 目录只跟着源数据重建，击键不会重跑它——这是击键路径上最大的一块成本。
 	const staticEntries = useMemo<CommandMenuEntry[]>(
-		() => [
-			...buildProjectEntries(projects),
-			...buildSettingsEntries({ isPersonal, hasAuthUser: Boolean(authUser), isMac, isWindows }, (key) =>
-				tSettings(key),
-			),
-			...buildWorkspaceViewEntries(workspaceViews, (view, raw) => resolvePluginText(view.pluginId, raw)),
-		],
-		[projects, workspaceViews, isPersonal, authUser, tSettings, resolvePluginText],
+		() =>
+			open
+				? [
+						...buildProjectEntries(projects),
+						...buildSettingsEntries({ isPersonal, hasAuthUser: Boolean(authUser), isMac, isWindows }, (key) =>
+							tSettings(key),
+						),
+						...buildWorkspaceViewEntries(workspaceViews, (view, raw) => resolvePluginText(view.pluginId, raw)),
+					]
+				: [],
+		[open, projects, workspaceViews, isPersonal, authUser, tSettings, resolvePluginText],
 	);
 
 	const abilityEntries = useMemo(
-		() => buildInstalledAbilityEntries(abilities.data, sourceLabels),
-		[abilities.data, sourceLabels],
+		() => (open ? buildInstalledAbilityEntries(abilities.data, sourceLabels) : []),
+		[open, abilities.data, sourceLabels],
 	);
 
 	const sessionEntries = useMemo(
-		() => buildSessionEntries(sessionSearch.results.slice(0, SESSION_RESULT_LIMIT), sourceLabels),
-		[sessionSearch.results, sourceLabels],
+		() => (open ? buildSessionEntries(sessionSearch.results.slice(0, SESSION_RESULT_LIMIT), sourceLabels) : []),
+		[open, sessionSearch.results, sourceLabels],
 	);
 
 	const entries = useMemo<CommandMenuEntry[]>(() => {
+		if (!open) return [];
 		const all = [...staticEntries, ...abilityEntries, ...sessionEntries];
 		// 逃生行只在有查询词时出现：空态里它没有可携带的搜索词，等于一条噪音。
 		return hasQuery ? [...all, buildMarketplaceEscapeEntry(deferredQuery, sourceLabels)] : all;
-	}, [staticEntries, abilityEntries, sessionEntries, hasQuery, deferredQuery, sourceLabels]);
+	}, [open, staticEntries, abilityEntries, sessionEntries, hasQuery, deferredQuery, sourceLabels]);
 
 	const tokens = useMemo(() => tokenizeCommandMenuQuery(deferredQuery), [deferredQuery]);
 
@@ -389,10 +393,15 @@ export function useCommandMenuModel({ onOpenSession }: UseCommandMenuModelArgs):
 		[t],
 	);
 
+	const lastOpenGroups = useRef(groups);
+	useEffect(() => {
+		if (open) lastOpenGroups.current = groups;
+	}, [open, groups]);
+
 	return {
 		open,
 		query,
-		groups,
+		groups: open ? groups : lastOpenGroups.current,
 		selectedId,
 		labels,
 		suppressSelectionAnimation,

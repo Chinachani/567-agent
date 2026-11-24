@@ -64,6 +64,7 @@ function flattenModels(config: ModelsConfigData, remote?: boolean): ModelOption[
 }
 
 export interface UseModelOptionsResult {
+	config: ModelsConfigData | null;
 	/** Merged local + remote options (local wins on duplicate key) */
 	options: ModelOption[];
 	/** Options grouped by provider, in insertion order */
@@ -146,5 +147,5 @@ export function useModelOptions(): UseModelOptionsResult {
 	const defaultKey =
 		defaultModel && config?.providers[defaultModel.split("/", 1)[0] ?? ""]?.disabled ? undefined : defaultModel;
 
-	return { options, grouped, defaultKey, iconFor, labelFor };
+	return { config, options, grouped, defaultKey, iconFor, labelFor };
 }

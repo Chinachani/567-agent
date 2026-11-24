@@ -1,4 +1,4 @@
-import { motion } from "motion/react";
+import { motion, useReducedMotion } from "motion/react";
 import { BrandIcon } from "@shared/components/BrandIcon";
 import { cn } from "@shared/lib/utils";
 import { useThemeComponent } from "@vetta-org/theme-sdk";
@@ -65,16 +65,17 @@ export function DefaultNewSessionHero({
 	const lastIdentity = useRef<NewSessionHeroIdentity | null>(identity);
 	if (identity) lastIdentity.current = identity;
 	const shownIdentity = lastIdentity.current;
+	const reduceMotion = useReducedMotion();
 
 	return (
 		<div className={cn("relative mb-6 flex w-full max-w-2xl flex-col items-start", className)} {...props}>
 			<motion.div
-				initial={{ opacity: 0, y: 12 }}
+				initial={reduceMotion ? false : { opacity: 0, y: 6 }}
 				animate={{ opacity: mounted ? 1 : 0, y: mounted ? 0 : 12 }}
-				transition={{ duration: 0.5, ease: easeOut }}
+				transition={{ duration: reduceMotion ? 0 : 0.2, ease: easeOut }}
 				className="flex w-full flex-col items-start"
 			>
-				<BrandIcon className="mb-4 h-7 w-7" />
+				{!identity?.avatars.length && <BrandIcon className="mb-3 h-8 w-8" />}
 
 				{/* 标题块：身份头像组压在标题上方 + 问候语/身份名 + 副标题（装饰件改为绝对定位，见下） */}
 				<div className="flex w-full min-w-0 flex-col">
@@ -116,7 +117,7 @@ export function DefaultNewSessionHero({
 					</div>
 					{/* key 随身份变化：标题与描述整块重播 CSS 入场动画，回到问候语时同理。 */}
 					<div key={identity?.key ?? "greeting"} className="flex min-w-0 flex-col">
-						<h1 className="ns-hero-identity-title min-w-0 break-words text-[26px] font-semibold leading-tight tracking-tight text-foreground">
+						<h1 className="ns-hero-identity-title min-w-0 break-words text-[24px] font-semibold leading-tight @md:text-[30px] tracking-tight text-foreground">
 							{identity?.title ?? greetingTitle}
 						</h1>
 						<p className="ns-hero-identity-subtitle mt-2 max-w-full break-words text-[13px] leading-relaxed text-muted-foreground">

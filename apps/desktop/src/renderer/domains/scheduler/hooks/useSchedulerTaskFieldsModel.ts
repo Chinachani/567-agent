@@ -176,7 +176,11 @@ export function useSchedulerTaskFieldsModel({
 				onChange({ ...value, schedule: defaultScheduleFor(kind, Date.now(), value.schedule) });
 			},
 			onOpenWebhookSettings: () => {
-				void navigate({ to: "/settings/$tab", params: { tab: "webhook" }, search: {} });
+				void navigate({
+					to: "/settings/$tab",
+					params: { tab: "im" },
+					search: { section: "webhook-channels" },
+				});
 			},
 		};
 	}, [

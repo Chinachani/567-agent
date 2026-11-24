@@ -229,6 +229,11 @@ fun DeviceDetailScreen(
 ) {
     var desktopPreviewRequested by remember(device.id) { mutableStateOf(autoRequestDesktopScreen) }
     var desktopPreviewPhase by remember(device.id) { mutableStateOf(RemotePreviewPhase.Waiting) }
+    val resetOverlayPositions = org.agent567.android.ui.remote.rememberResetRemoteOverlayPositions()
+    var positionsRestored by remember(device.id) { mutableStateOf(false) }
+    androidx.compose.runtime.LaunchedEffect(positionsRestored) {
+        if (positionsRestored) { kotlinx.coroutines.delay(2500); positionsRestored = false }
+    }
     val desktopTarget = remoteDesktopViewerTarget(device.host)
     val statusLabel =
         when (device.status) {
@@ -328,6 +333,9 @@ fun DeviceDetailScreen(
                                     onExit = { desktopPreviewRequested = false },
                                     onStateChange = { desktopPreviewPhase = it },
                                 )
+                            }
+                            TextButton(onClick = { resetOverlayPositions(); positionsRestored = true }) {
+                                Text(if (positionsRestored) Str.remotePositionsRestored else Str.remoteRestorePositions)
                             }
                         }
                     }

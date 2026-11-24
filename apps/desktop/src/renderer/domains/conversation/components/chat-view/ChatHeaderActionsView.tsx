@@ -1,6 +1,7 @@
 import type { OpenTerminalEntry } from "@domains/bottom-panel/hooks/useOpenTerminal";
 import type { BottomPanelToggle } from "@domains/bottom-panel/hooks/useBottomPanelToggle";
 import { ConversationHeaderActions } from "@domains/header-actions/ConversationHeaderActions";
+import { useNavigate } from "@tanstack/react-router";
 import { ChatHeaderActions, type HeaderActionBarItem } from "@vetta-org/theme-ui/chat";
 import { ExpertHandoffDialog } from "./ExpertHandoffDialog";
 import { useMemo, useState } from "react";
@@ -12,6 +13,7 @@ import type { ChatViewActions, ChatViewHeaderModel } from "./types";
 interface ChatHeaderActionsViewProps {
 	actions: ChatViewActions;
 	model: ChatViewHeaderModel;
+	sessionId?: string | null;
 	terminal?: OpenTerminalEntry;
 	bottomPanel?: BottomPanelToggle;
 }
@@ -19,11 +21,13 @@ interface ChatHeaderActionsViewProps {
 export function ChatHeaderActionsView({
 	actions,
 	model,
+	sessionId,
 	terminal,
 	bottomPanel,
 }: ChatHeaderActionsViewProps): JSX.Element {
 	const { t } = useTranslation("chat");
 	const { t: expertT } = useTranslation("agent-teams");
+	const navigate = useNavigate();
 	const [handoff, setHandoff] = useState(false);
 	const builtins = useMemo(() => {
 		const items: HeaderActionBarItem[] = [];
@@ -59,6 +63,17 @@ export function ChatHeaderActionsView({
 			retainWhenNarrow: true,
 			behavior: { type: "click", onClick: actions.togglePin },
 		});
+		if (sessionId) {
+			items.push({
+				key: "builtin:usage-log",
+				title: t("header.usageLog", "会话使用日志"),
+				icon: <span className="icon-[solar--chart-square-linear] size-4" />,
+				behavior: {
+					type: "click",
+					onClick: () => void navigate({ to: "/usage", search: { sessionId } }),
+				},
+			});
+		}
 		items.push({
 			key: "builtin:expert-handoff",
 			title: expertT("experts.handoff.title"),
@@ -66,7 +81,7 @@ export function ChatHeaderActionsView({
 			behavior: { type: "click", onClick: () => setHandoff(true) },
 		});
 		return items;
-	}, [actions, model, terminal, bottomPanel, t, expertT]);
+	}, [actions, model, sessionId, terminal, bottomPanel, t, expertT, navigate]);
 	return (
 		<>
 			{handoff && <ExpertHandoffDialog onClose={() => setHandoff(false)} />}

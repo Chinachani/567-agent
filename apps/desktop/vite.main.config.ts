@@ -101,6 +101,7 @@ export default defineConfig(({ mode }) => {
 					// 运行时由 quickpanel-trigger.ts 按同目录路径拼接后交给 new Worker()。
 					"uiohook-worker": resolve(process.cwd(), "src/main/uiohook-worker.ts"),
 					"session-search-worker": resolve(process.cwd(), "src/main/session-search-worker.ts"),
+					"local-usage-worker": resolve(process.cwd(), "src/main/local-usage-worker.ts"),
 					...(speechInputBuildConfig.enabled
 						? { "speech-input-host": resolve(process.cwd(), "src/main/speech-input-host.ts") }
 						: {}),

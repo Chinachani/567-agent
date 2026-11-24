@@ -1,3 +1,5 @@
+import { DEFAULT_CHAT_INFERENCE_API } from "../../../shared/model-inference-api.js";
+
 /** 拉取模型列表的适配器种类——各家 /models 接口形状不同,按此分派。 */
 export type PresetFetcher = "anthropic" | "openai-compatible" | "gemini";
 
@@ -26,8 +28,8 @@ export const PRESET_PROVIDERS: readonly PresetProviderDef[] = [
 	{
 		id: "567api",
 		displayName: "567 API",
-		icon: "openai",
-		api: "openai-completions",
+		icon: "agent567",
+		api: DEFAULT_CHAT_INFERENCE_API,
 		baseUrl: "https://api.567.wiki/v1",
 		fetcher: "openai-compatible",
 		isChatModel: (id) => !NON_CHAT.test(id),

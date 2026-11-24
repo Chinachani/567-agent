@@ -179,12 +179,31 @@ export function adoptExistingSessionInputDraft(sessionPath: string): void {
  * legacy Session path. Unlike a normal scope switch, it keeps the current
  * working set because both paths identify the same user-visible session.
  */
+type DraftRekeyListener = (fromKey: string, toKey: string) => void;
+const draftRekeyListeners = new Set<DraftRekeyListener>();
+
+export function onSessionInputDraftRekey(listener: DraftRekeyListener): () => void {
+	draftRekeyListeners.add(listener);
+	return () => void draftRekeyListeners.delete(listener);
+}
+
+function notifyDraftRekey(fromKey: string, toKey: string): void {
+	for (const listener of draftRekeyListeners) {
+		try {
+			listener(fromKey, toKey);
+		} catch {
+			// Draft rekey observers must never disrupt session navigation or send flow.
+		}
+	}
+}
+
 export function claimExistingSessionInputDraft(sessionPath: string, sourceSessionPath: string): void {
 	if (!sessionPath || sessionPath === sourceSessionPath) return;
 	const store = getDefaultStore();
 	const draft = captureSessionInputDraft();
 	persistSessionInputDraft(sessionPath, draft);
 	store.set(activeInputDraftKeyAtom, sessionPath);
+	notifyDraftRekey(sourceSessionPath, sessionPath);
 	const map = store.get(sessionInputDraftMapAtom);
 	if (sourceSessionPath in map) {
 		const next = { ...map };
@@ -210,6 +229,7 @@ export function claimNewSessionInputDraft(sessionPath: string, newSessionKey: st
 	store.set(activeInputDraftKeyAtom, sessionPath);
 
 	if (newSessionKey && newSessionKey !== sessionPath) {
+		notifyDraftRekey(newSessionKey, sessionPath);
 		const map = store.get(sessionInputDraftMapAtom);
 		if (newSessionKey in map) {
 			const next = { ...map };
@@ -272,6 +292,34 @@ export function appendExpertHandoffDraft(cwd: string, text: string): void {
 	};
 	persistSessionInputDraft(key, draft);
 	if (store.get(activeInputDraftKeyAtom) === key) applySessionInputDraft(draft);
+}
+
+/** Computes the separator-aware suffix matching main-process `mergeDraftAppendText`. */
+export function computeDraftAppendSuffix(existingText: string, appendText: string): string {
+	const trimmed = appendText.trim();
+	if (!trimmed) return "";
+	if (existingText.length === 0) return trimmed;
+	if (existingText.endsWith("\n\n")) return trimmed;
+	if (existingText.endsWith("\n")) return `\n${trimmed}`;
+	return `\n\n${trimmed}`;
+}
+
+/** Appends literal text to a target draft scope without overwriting existing edits or attachments. */
+export function appendLiteralSessionInputDraft(key: string, appendText: string): SessionInputDraft {
+	const store = getDefaultStore();
+	const isForeground = store.get(activeInputDraftKeyAtom) === key;
+	const previous = isForeground ? captureSessionInputDraft() : loadSessionInputDraft(key);
+	const suffix = computeDraftAppendSuffix(previous.text, appendText);
+	if (!suffix) return previous;
+	const baseSegments = previous.segments ?? (previous.text ? parseInputSegments(previous.text).segments : []);
+	const draft: SessionInputDraft = {
+		...previous,
+		text: previous.text + suffix,
+		segments: [...baseSegments, { kind: "text", text: suffix }],
+	};
+	persistSessionInputDraft(key, draft);
+	if (isForeground) applySessionInputDraft(draft);
+	return draft;
 }
 
 /** 发送成功后：清空工作集 + 当前 key 的 map 条目。 */

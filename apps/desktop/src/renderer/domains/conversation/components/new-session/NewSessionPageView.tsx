@@ -23,6 +23,7 @@ import type { NewSessionTargetKey } from "./target";
 
 /** 命令区展开时输入栏下移的距离：面板向上生长，下方留白同步收掉。 */
 const PANEL_SHIFT_Y = 120;
+const SHORT_PANEL_SHIFT_Y = 40;
 
 interface NewSessionPageViewProps {
 	activityPanelCwd: string | null;
@@ -145,7 +146,7 @@ export function NewSessionPageView({
 					</motion.div>
 				}
 				inputBar={
-					<motion.div className="relative" animate={{ y: panelShift ? PANEL_SHIFT_Y : 0 }} transition={shiftTransition}>
+					<motion.div className="relative" animate={{ y: panelShift ? (isShort ? SHORT_PANEL_SHIFT_Y : PANEL_SHIFT_Y) : 0 }} transition={shiftTransition}>
 						{/* Drop target is the input card; cwdOverride enables drop before a session exists. */}
 						<DefaultInputBarConnector
 							contextToolsPlacement="bottom"

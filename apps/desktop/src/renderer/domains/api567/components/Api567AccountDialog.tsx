@@ -1,3 +1,4 @@
+import { groupEntriesForSelection } from "@/shared/api567/group-display";
 import { Button } from "@shared/components/ui/button";
 import { UserAvatar } from "@shared/components/UserAvatar";
 import {
@@ -8,8 +9,9 @@ import {
 	DialogHeader,
 	DialogTitle,
 } from "@shared/components/ui/dialog";
-import { Check, ChevronRight, Layers, Plus, RefreshCw, Star, Wallet } from "lucide-react";
-import { useRef, useState } from "react";
+import { BarChart3, Check, ChevronRight, Layers, Plus, RefreshCw, Star, Wallet } from "lucide-react";
+import { useNavigate } from "@tanstack/react-router";
+import { useEffect, useRef, useState } from "react";
 import type { ComponentProps } from "react";
 import { useTranslation } from "react-i18next";
 import type { useApi567 } from "../hooks/useApi567";
@@ -43,10 +45,16 @@ export function Api567AccountDialog({
 	const { t: common } = useTranslation("common");
 	const { status, availableGroups, groupsLoadState, loadAvailableGroups, syncGroup, setActiveGroup, refreshQuota } =
 		api;
+	const navigate = useNavigate();
 	const actionRef = useRef(false);
 	const content = useRef<HTMLDivElement>(null);
 	const [refreshing, setRefreshing] = useState(false);
 	const [syncingGroup, setSyncingGroup] = useState<string | null>(null);
+
+	useEffect(() => {
+		if (!open || !status.isLoggedIn) return;
+		void window.agent567?.api567?.refreshGroupsInBackground?.().catch(() => undefined);
+	}, [open, status.isLoggedIn]);
 
 	const handleRefresh = async () => {
 		setRefreshing(true);
@@ -74,7 +82,7 @@ export function Api567AccountDialog({
 	}
 
 	const syncedGroupNames = new Set((status.groups ?? []).map((g) => g.name));
-	const availableEntries = Object.entries(availableGroups);
+	const availableEntries = groupEntriesForSelection(availableGroups);
 
 	return (
 		<Dialog open={open} onOpenChange={onOpenChange}>
@@ -132,7 +140,7 @@ export function Api567AccountDialog({
 					<div className="flex items-center justify-between">
 						<span className="text-muted-foreground">{t("api567Account.active")}</span>
 						<span className="font-semibold text-primary">
-							{status.activeGroup || t("api567Account.defaultGroup")}
+							{status.activeGroup || t("api567Account.noGroupSelected")}
 						</span>
 					</div>
 					<div className="border-t border-border/50 pt-1">
@@ -258,6 +266,24 @@ export function Api567AccountDialog({
 
 				{/* 底部功能快捷操作 */}
 				<div className="mt-4 flex flex-col gap-1.5 border-border/50 border-t pt-3">
+					<Button
+						variant="outline"
+						size="sm"
+						className="h-7 w-full justify-between text-xs"
+						onClick={() => {
+							onOpenChange(false);
+							void navigate({
+								to: "/usage",
+								search: status.activeGroup ? { group: status.activeGroup } : undefined,
+							});
+						}}
+					>
+						<span className="flex items-center gap-1.5 font-medium text-foreground">
+							<BarChart3 className="h-3.5 w-3.5 text-primary" />
+							<span>{t("usageLog.title", "使用日志与 Token 消耗")}</span>
+						</span>
+						<ChevronRight className="h-3 w-3 text-muted-foreground" />
+					</Button>
 					<Button variant="outline" size="sm" className="h-7 w-full justify-between text-xs" onClick={onTopup}>
 						<span className="flex items-center gap-1.5 font-medium text-foreground">
 							<Wallet className="h-3.5 w-3.5 text-primary" />

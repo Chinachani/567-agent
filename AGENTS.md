@@ -58,6 +58,7 @@ apps/*  (desktop / cli-host / docs-site / mobile / im-gateway)
 | AI Provider 与模型协议 | [`packages/ai/AGENTS.md`](packages/ai/AGENTS.md) |
 | Agent Loop | [`packages/agent/AGENTS.md`](packages/agent/AGENTS.md) |
 | Coding Agent 产品组合 | [`packages/coding-agent/AGENTS.md`](packages/coding-agent/AGENTS.md) |
+| 产品界面、图标与上游品牌适配 | [`docs/brand/README.md`](docs/brand/README.md) |
 | Desktop 主进程与 Renderer | [`apps/desktop/AGENTS.md`](apps/desktop/AGENTS.md) |
 | Plugin SDK、Preset 与外置插件 | [`packages/plugins/AGENTS.md`](packages/plugins/AGENTS.md) |
 | CLI | [`apps/cli-host/AGENTS.md`](apps/cli-host/AGENTS.md) |

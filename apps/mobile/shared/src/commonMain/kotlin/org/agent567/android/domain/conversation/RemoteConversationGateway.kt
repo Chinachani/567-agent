@@ -57,6 +57,23 @@ data class RemoteToolboxAbility(
     val installed: Boolean,
 )
 
+const val REMOTE_DRAFT_MAX_CHARS = 60_000
+const val REMOTE_DRAFT_TOTAL_MAX_CHARS = 120_000
+const val REMOTE_DRAFT_MAX_UTF8_BYTES = 512 * 1024
+
+enum class RemoteDraftTargetType {
+    New,
+    Existing,
+}
+
+data class RemoteDesktopDraftAppendResult(
+    val saved: Boolean,
+    val deduplicated: Boolean,
+    val targetType: RemoteDraftTargetType,
+    val sessionId: String? = null,
+    val draftLength: Int,
+)
+
 data class RemotePromptFileAttachment(
     val fileName: String,
     val mimeType: String,
@@ -141,6 +158,16 @@ interface RemoteConversationGateway {
     suspend fun readDesktopToolbox(deviceId: String): List<RemoteToolboxAbility>? = null
 
     suspend fun installDesktopToolboxAbility(deviceId: String, type: String, slug: String): Boolean? = null
+
+    suspend fun supportsDesktopDraftAppend(deviceId: String): Boolean? = null
+
+    suspend fun appendDesktopDraft(
+        deviceId: String,
+        idempotencyKey: String,
+        targetType: RemoteDraftTargetType,
+        remoteSessionId: String?,
+        text: String,
+    ): RemoteDesktopDraftAppendResult? = null
 
     fun stream(
         localSessionId: String,

@@ -2,7 +2,10 @@ import { Button } from "@shared/components/ui/button";
 import { Popover, PopoverContent, PopoverTrigger } from "@shared/components/ui/popover";
 import { aggregatePromptCacheUsage, type Usage } from "@567agent/ai/protocol";
 import { ModelPerformanceView } from "@vetta-org/theme-ui/chat";
+import { activeSessionAtom } from "@shared/store/atoms";
+import { useNavigate } from "@tanstack/react-router";
 import { summarizeModelPerformance } from "../../services/model-performance";
+import { useAtomValue } from "jotai";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 
@@ -30,6 +33,8 @@ interface TokenUsageDetails {
 
 export function MessageTokenUsage({ usages, sessionUsages = usages }: MessageTokenUsageProps): JSX.Element | null {
 	const { t, i18n } = useTranslation("chat");
+	const navigate = useNavigate();
+	const activeSession = useAtomValue(activeSessionAtom);
 	const [scope, setScope] = useState<TokenUsageScope>("session");
 	const selectedUsages = scope === "session" ? sessionUsages : usages;
 	const details = useMemo(() => calculateTokenUsageDetails(selectedUsages), [selectedUsages]);
@@ -324,6 +329,22 @@ export function MessageTokenUsage({ usages, sessionUsages = usages }: MessageTok
 							))}
 						</dl>
 					) : null}
+					<div className="mt-2.5 border-t border-border/40 pt-2">
+						<button
+							type="button"
+							onClick={() => {
+								setOpen(false);
+								void navigate({
+									to: "/usage",
+									search: activeSession?.sessionPath ? { sessionId: activeSession.sessionPath } : undefined,
+								});
+							}}
+							className="flex w-full items-center justify-between text-[11px] text-primary transition-colors hover:underline"
+						>
+							<span>{t("tokenUsage.viewFullUsageLogs", "查看完整使用日志与统计")}</span>
+							<span className="icon-[solar--arrow-right-linear] h-3 w-3" aria-hidden />
+						</button>
+					</div>
 				</div>
 			</PopoverContent>
 		</Popover>

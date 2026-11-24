@@ -177,6 +177,11 @@ export function SidebarAccountMenu({ className }: { className?: string }): JSX.E
 						</DropdownMenuItem>
 					)}
 
+					<DropdownMenuItem onSelect={() => select(() => void navigate({ to: "/usage" }))}>
+						<span aria-hidden="true" className="icon-[solar--chart-square-linear] h-4 w-4" />
+						{t("sidebarAccount.usageLogs", "使用日志与统计")}
+					</DropdownMenuItem>
+
 					<DropdownMenuSeparator />
 					<DropdownMenuItem onSelect={() => select(() => messages.setOpen(true))}>
 						<span aria-hidden="true" className="icon-[solar--bell-linear] h-4 w-4" />

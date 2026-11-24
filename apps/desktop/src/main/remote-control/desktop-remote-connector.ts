@@ -1,7 +1,16 @@
 import { AI_ERROR_CODES, isAIError } from "@567agent/ai";
 import type { TextSource } from "@567agent/ai/protocol";
 import type { CodingAgentQuestionResult } from "@567agent/coding-agent/function-extensions";
-import type { RemoteConnection, RemoteError, RemoteRequest, RemoteSessionContext } from "@567agent/remote-control";
+import {
+	REMOTE_DRAFT_MAX_CHARS,
+	REMOTE_DRAFT_TOTAL_MAX_CHARS,
+	type RemoteConnection,
+	type RemoteError,
+	type RemoteRequest,
+	type RemoteSessionContext,
+	type RemoteSessionDraftAppendPayload,
+	type RemoteSessionDraftAppendResult,
+} from "@567agent/remote-control";
 import type { TaskResult } from "../../shared/result-inbox.js";
 import type { DesktopDeviceStatusSnapshot } from "../../shared/visible-conversation.js";
 import { mainT } from "../i18n/index.js";
@@ -94,6 +103,11 @@ export interface DesktopRemoteOperations {
 	readFile?(sessionId: string, payload: unknown): Promise<unknown>;
 	readonly canManageCollaboration?: boolean;
 	readonly canSelectContext?: boolean;
+	readonly canAppendDraft?: boolean;
+	appendDraft?(
+		input: RemoteSessionDraftAppendPayload,
+		context?: { readonly peerDeviceId?: string },
+	): Promise<RemoteSessionDraftAppendResult>;
 	readWorkbench?(sessionId: string): Promise<unknown>;
 	readWorkbenchDetail?(sessionId: string, kind: string, id: string): Promise<unknown>;
 	readCollaboration?(sessionId: string): Promise<unknown>;
@@ -229,14 +243,16 @@ export class DesktopRemoteConnector {
 			if (generation !== this.connectionGeneration || suggestionController?.signal.aborted) return;
 			const failure = toRemoteError(error);
 			// Legacy relays validate outer error codes as well as methods. Keep optional
-			// file errors inside the established extension envelope, without widening grants.
-			const fileExtension =
+			// extension errors inside the established extension envelope, without widening grants.
+			const extensionEnvelope =
 				request.method === "session.context" &&
 				isRecord(request.payload) &&
-				["file.list", "file.stat", "file.read"].includes(String(request.payload.extensionMethod));
+				["file.list", "file.stat", "file.read", "session.draft.append"].includes(
+					String(request.payload.extensionMethod),
+				);
 			await this.connection.respond(
 				request.requestId,
-				fileExtension
+				extensionEnvelope
 					? { success: true, payload: { extensionError: failure } }
 					: { success: false, error: failure },
 			);
@@ -295,6 +311,9 @@ export class DesktopRemoteConnector {
 						...(this.operations.readSuggestions ? ["session.suggestions"] : []),
 						...(this.operations.deleteEmptySession ? ["session.delete.empty"] : []),
 						...(this.operations.readSuggestions ? ["session.suggestions.cancel"] : []),
+						...(this.operations.canAppendDraft !== false && this.operations.appendDraft
+							? ["session.draft.append"]
+							: []),
 						...(this.operations.readToolbox ? ["toolbox.list"] : []),
 						...(this.operations.installToolbox ? ["toolbox.install"] : []),
 						...(this.operations.readGeneratedImageChunk && this.operations.canReadGeneratedImages !== false
@@ -700,6 +719,14 @@ export class DesktopRemoteConnector {
 			case "session.resume":
 				await this.operations.resume(requireSessionId(request), readSequence(request));
 				return { resumed: true };
+			case "session.draft.append": {
+				if (this.operations.canAppendDraft === false || !this.operations.appendDraft) {
+					throw new RemoteOperationError("forbidden", "电脑端未开启接收手机草稿功能", false);
+				}
+				const payload = readSessionDraftAppendPayload(request);
+				const peerDeviceId = this.connection.getSnapshot().peerDeviceId;
+				return await this.operations.appendDraft(payload, { peerDeviceId });
+			}
 			case "diagnostics.snapshot":
 				return await this.operations.diagnostics();
 		}
@@ -1205,8 +1232,66 @@ function expandContextExtension(request: RemoteRequest): RemoteRequest {
 		method !== "session.attachment.read" &&
 		method !== "file.list" &&
 		method !== "file.stat" &&
-		method !== "file.read"
+		method !== "file.read" &&
+		method !== "session.draft.append"
 	)
 		throw new Error("Unknown session context extension");
 	return { ...request, method, payload: request.payload.payload };
+}
+
+const DRAFT_IDEMPOTENCY_KEY_PATTERN = /^[A-Za-z0-9._:-]{1,160}$/;
+
+function readSessionDraftAppendPayload(request: RemoteRequest): RemoteSessionDraftAppendPayload {
+	if (!isRecord(request.payload)) {
+		throw new RemoteOperationError("invalid_frame", "草稿请求格式无效", false);
+	}
+	const { idempotencyKey, targetType, sessionId: innerRawSessionId, text } = request.payload;
+	if (typeof idempotencyKey !== "string" || !DRAFT_IDEMPOTENCY_KEY_PATTERN.test(idempotencyKey)) {
+		throw new RemoteOperationError("invalid_frame", "草稿请求缺少有效的幂等标识", false);
+	}
+	if (targetType !== "new" && targetType !== "existing") {
+		throw new RemoteOperationError("invalid_frame", "目标草稿类型无效", false);
+	}
+	if (typeof text !== "string") {
+		throw new RemoteOperationError("invalid_frame", "草稿内容格式无效", false);
+	}
+	if (text.length > REMOTE_DRAFT_TOTAL_MAX_CHARS) {
+		throw new RemoteOperationError("too_large", "草稿内容超出长度限制，请减少选中的消息后重试", false);
+	}
+	const trimmed = text.trim();
+	if (!trimmed) {
+		throw new RemoteOperationError("invalid_frame", "草稿内容不能为空", false);
+	}
+	if (trimmed.length > REMOTE_DRAFT_MAX_CHARS) {
+		throw new RemoteOperationError("too_large", "草稿内容超出长度限制，请减少选中的消息后重试", false);
+	}
+	const outerSessionId = request.sessionId;
+	if (
+		outerSessionId !== undefined &&
+		(typeof outerSessionId !== "string" || outerSessionId.length === 0 || outerSessionId.length > 512)
+	) {
+		throw new RemoteOperationError("invalid_frame", "请求中的目标会话 ID 无效", false);
+	}
+	if (
+		innerRawSessionId !== undefined &&
+		innerRawSessionId !== null &&
+		(typeof innerRawSessionId !== "string" || innerRawSessionId.length === 0 || innerRawSessionId.length > 512)
+	) {
+		throw new RemoteOperationError("invalid_frame", "请求中的目标会话 ID 无效", false);
+	}
+	const innerSessionId = typeof innerRawSessionId === "string" ? innerRawSessionId : undefined;
+	if (targetType === "new") {
+		if (outerSessionId !== undefined || innerSessionId !== undefined) {
+			throw new RemoteOperationError("invalid_frame", "新建会话草稿不应指定目标会话 ID", false);
+		}
+		return { idempotencyKey, targetType, text };
+	}
+	const resolvedSessionId = innerSessionId ?? outerSessionId;
+	if (!resolvedSessionId) {
+		throw new RemoteOperationError("invalid_frame", "已有会话草稿必须指定目标会话 ID", false);
+	}
+	if (outerSessionId && innerSessionId && outerSessionId !== innerSessionId) {
+		throw new RemoteOperationError("invalid_frame", "请求中的目标会话 ID 不一致", false);
+	}
+	return { idempotencyKey, targetType, sessionId: resolvedSessionId, text };
 }

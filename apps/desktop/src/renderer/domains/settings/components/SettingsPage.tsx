@@ -2,6 +2,7 @@ import { PluginWorkspaceViewSurface } from "@domains/plugins/components/PluginWo
 import { useThemeSurface } from "@vetta-org/theme-sdk/appearance";
 import type { SettingsTab } from "@shared/store/atoms";
 import { lazy, Suspense, type ComponentType, type LazyExoticComponent } from "react";
+import { BrowserConnectionSettings } from "./BrowserConnectionSettings";
 import { SettingsPageView } from "./SettingsPageView";
 import { SETTINGS_TAB_LOADERS } from "./settings-tab-loaders";
 import { useSettingsPageModel } from "./useSettingsPageModel";
@@ -35,16 +36,31 @@ export function SettingsPage(): JSX.Element {
 
 	const activeTab = model.activeTab === "mcp" ? "general" : model.activeTab;
 	const embedded = model.embeddedView;
+	const isBrowserConsole = embedded?.pluginId === "browser" && embedded?.viewId === "console";
 
 	// 内嵌的插件视图是整页 surface：给它完整宽高，不套设置页的居中窄栏。
 	// 找不到该视图时退回通用设置，避免留下不可用的插件入口。
 	const content = embedded ? (
-		<PluginWorkspaceViewSurface
-			key={`${embedded.pluginId}:${embedded.viewId}`}
-			pluginId={embedded.pluginId}
-			viewId={embedded.viewId}
-			onMissing={model.onCloseEmbeddedView}
-		/>
+		isBrowserConsole ? (
+			<div className="mx-auto w-full min-w-0 max-w-[800px] px-5 pt-6 pb-8 sm:px-8">
+				<BrowserConnectionSettings />
+					<div className="[&_.browser-page]:h-auto [&_.browser-page]:overflow-visible [&_.browser-page-inner]:max-w-none [&_.browser-page-inner]:gap-5 [&_.browser-page-inner]:px-0 [&_.browser-page-inner]:pt-4 [&_.browser-page-inner]:pb-0 [&_[data-browser-extension]]:hidden [&_[data-browser-hero]]:hidden">
+					<PluginWorkspaceViewSurface
+						key={`${embedded.pluginId}:${embedded.viewId}`}
+						pluginId={embedded.pluginId}
+						viewId={embedded.viewId}
+						onMissing={model.onCloseEmbeddedView}
+					/>
+				</div>
+			</div>
+		) : (
+			<PluginWorkspaceViewSurface
+				key={`${embedded.pluginId}:${embedded.viewId}`}
+				pluginId={embedded.pluginId}
+				viewId={embedded.viewId}
+				onMissing={model.onCloseEmbeddedView}
+			/>
+		)
 	) : (
 		<Suspense fallback={null}>
 			{/* key=tab：切换侧栏时重挂载，避免不同 tab 复用同一组件实例的残留状态 */}
@@ -58,7 +74,7 @@ export function SettingsPage(): JSX.Element {
 		<SettingsPageView
 			content={content}
 			contentSurfaceRootClassName={contentSurface?.rootClassName}
-			fillContent={Boolean(embedded)}
+			fillContent={Boolean(embedded) && !isBrowserConsole}
 			model={model}
 		/>
 	);

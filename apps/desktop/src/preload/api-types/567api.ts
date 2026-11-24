@@ -1,3 +1,4 @@
+import type { Api567BilledSnapshot, LocalUsageSnapshot } from "../../shared/local-usage-log.js";
 import type { Api567RouteCatalog, Api567RouteId, Api567RouteProbe } from "../../shared/service-routes.js";
 
 export interface Api567GroupInfo {
@@ -28,10 +29,19 @@ export interface Api567Status {
 	groups?: Api567GroupInfo[];
 	availableGroups?: Record<string, { desc: string; ratio: number }>;
 	lastUpdated?: string;
+	groupsUpdated?: string;
+	availableGroupsState?: "idle" | "loaded" | "error";
+	modelsRefreshState?: "idle" | "loaded" | "error";
+	confirmedProviderIds?: string[];
+	failedProviderIds?: string[];
+	removedProviderIds?: string[];
+	availableProviderIds?: string[];
 	modelsCount?: number;
 }
 
 export interface Api567Api {
+	getLocalUsageLog(): Promise<LocalUsageSnapshot>;
+	getBilledUsage(): Promise<Api567BilledSnapshot>;
 	refreshServiceRoutes(force?: boolean): Promise<Api567RouteCatalog>;
 	probeServiceRoute(route: Api567RouteId, requestId: string): Promise<Api567RouteProbe>;
 	selectServiceRoute(route: Api567RouteId, requestId: string): Promise<Api567RouteProbe>;
@@ -71,6 +81,10 @@ export interface Api567Api {
 	bindToken(token: string): Promise<{ success: boolean; message?: string }>;
 	refreshQuota(force?: boolean): Promise<{ success: boolean; quota?: number; quotaUsd?: number }>;
 	refreshGroups(): Promise<{ success: boolean }>;
+	refreshGroupsInBackground?(options?: boolean | { force?: boolean; startup?: boolean }): Promise<{
+		refreshed: boolean;
+		success: boolean;
+	}>;
 	logout(): Promise<{ success: boolean }>;
 	onStatusChanged(handler: (status: Api567Status) => void): () => void;
 }

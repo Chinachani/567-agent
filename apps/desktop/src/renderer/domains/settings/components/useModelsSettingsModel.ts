@@ -171,6 +171,7 @@ export function useModelsSettingsModel(): ModelsSettingsModel {
 
 	useEffect(() => {
 		void modelCatalog.revalidate({ sources: ["local"] });
+		void window.agent567?.api567?.refreshGroupsInBackground?.().catch(() => undefined);
 	}, []);
 
 	const saveConfig = useCallback(

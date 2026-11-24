@@ -2,6 +2,7 @@ import { useOpenTerminal } from "@domains/bottom-panel/hooks/useOpenTerminal";
 import { useBottomPanelToggle } from "@domains/bottom-panel/hooks/useBottomPanelToggle";
 import type { WorkSurfaceScope } from "@shared/workspace/work-surface";
 import {
+	activeSessionPathAtom,
 	currentScenarioAtom,
 	pageHeaderLeftActionsAtom,
 	pageHeaderRightSlotAtom,
@@ -49,6 +50,7 @@ export function ChatView(props: ChatViewProps): JSX.Element {
 	const { actions, model } = useChatViewModel();
 	const participants = useBoundAgentParticipants();
 	const scenario = useAtomValue(currentScenarioAtom) ?? undefined;
+	const sessionPath = useAtomValue(activeSessionPathAtom);
 	const workSurface = useMemo<WorkSurfaceScope | null>(
 		() => (model.sessionId ? { key: model.sessionId, cwd: model.cwd, scenario } : null),
 		[model.sessionId, model.cwd, scenario],
@@ -64,11 +66,12 @@ export function ChatView(props: ChatViewProps): JSX.Element {
 			<ChatHeaderActionsView
 				actions={actions}
 				model={model.header}
+				sessionId={sessionPath}
 				terminal={terminal}
 				bottomPanel={workSurface ? bottomPanel : undefined}
 			/>
 		),
-		[actions, model.header, terminal, bottomPanel, workSurface],
+		[actions, model.header, sessionPath, terminal, bottomPanel, workSurface],
 	);
 	const workspace = useMemo(
 		() => createActivityWorkspace(model.cwd ?? model.sessionId ?? "conversation:unbound", model.cwd, runtimeIds),

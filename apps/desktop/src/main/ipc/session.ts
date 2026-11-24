@@ -69,6 +69,7 @@ import { purgeProjectSessions } from "../conversations/project-session-purge.js"
 import { parsePromptRequest } from "../conversations/prompt-request-schema.js";
 import type { DesktopCodingAgentSessionConfig } from "../conversations/resolve-session-config.js";
 import { getDesktopSandboxAuthorizationBroker } from "../conversations/sandbox-authorization-broker.js";
+import { getDesktopSessionDraftStore } from "../conversations/session-draft-store.js";
 import { selectSessionHistoryPreview } from "../conversations/session-history-preview.js";
 import {
 	decryptSessionMigrationArchive,
@@ -1385,6 +1386,11 @@ export function registerSessionIpc(webContents: WebContents): () => void {
 		// 连带回收子目录里的产物。读 header 先取 cwd，再 delete，最后 rm 子目录。
 		const cwdFromHeader = await readSessionCwdFromHeader(sessionPath);
 		await runtime.deleteSession(sessionPath);
+		try {
+			getDesktopSessionDraftStore().deleteDraft(sessionPath);
+		} catch {
+			// Session deletion succeeded; draft cleanup failure is logged by the store.
+		}
 		notifyAutomationSessionsDeleted((path) => samePath(path, sessionPath));
 		if (cwdFromHeader && isConversationSubCwd(cwdFromHeader)) {
 			await rm(resolve(cwdFromHeader), { recursive: true, force: true }).catch((err) => {
@@ -1399,6 +1405,11 @@ export function registerSessionIpc(webContents: WebContents): () => void {
 			listSessions: (target) => listSessionHistory(target),
 			deleteSession: async (sessionPath) => {
 				await runtime.deleteSession(sessionPath);
+				try {
+					getDesktopSessionDraftStore().deleteDraft(sessionPath);
+				} catch {
+					// Session deletion succeeded; draft cleanup failure is logged by the store.
+				}
 				notifyAutomationSessionsDeleted((path) => samePath(path, sessionPath));
 			},
 			// 分片目录是新会话的落点；`<项目>/.vetta/sessions` 是存量兼容位置，随项目目录

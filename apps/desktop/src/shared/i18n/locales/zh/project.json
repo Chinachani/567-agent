@@ -18,7 +18,8 @@
 			"unpin": "取消置顶",
 			"pinFull": "置顶区最多 5 个（含新会话）",
 			"reset": "恢复默认顺序",
-			"customize": "自定义导航"
+			"customize": "自定义导航",
+			"done": "完成"
 		},
 		"clawConnected": "Claw 已连接",
 		"hide": "隐藏侧边栏",

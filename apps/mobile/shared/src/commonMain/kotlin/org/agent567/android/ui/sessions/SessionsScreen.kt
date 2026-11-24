@@ -1,16 +1,22 @@
 package org.agent567.android.ui.sessions
 
+import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.layout.Arrangement
-import org.agent567.android.ui.components.Agent567Card
+import androidx.compose.foundation.shape.CircleShape
+import org.agent567.android.ui.components.Agent567AmberBadge
+import androidx.compose.foundation.lazy.itemsIndexed
+import androidx.compose.foundation.shape.RoundedCornerShape
+import org.agent567.android.ui.components.Agent567MainPageScaffold
 import org.agent567.android.ui.components.NewConversationButton
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.ChatBubbleOutline
@@ -30,10 +36,7 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.CircularProgressIndicator
-import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
-import androidx.compose.material3.TopAppBar
-import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.saveable.rememberSaveable
 import kotlinx.coroutines.delay
 import org.agent567.android.domain.session.localHistoryDays
@@ -44,7 +47,10 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import org.agent567.android.domain.device.SessionListItem
 import org.agent567.android.ui.components.FilterChipRow
@@ -114,35 +120,26 @@ fun SessionsScreen(
         }
     }
 
-    Scaffold(
-        containerColor = MaterialTheme.agent567Extra.pageBackground,
-        topBar = {
-            TopAppBar(
-                title = { Text(Str.sessionsTitle, style = MaterialTheme.typography.titleLarge) },
-                actions = {
-                    NewConversationButton(onClick = onNewConversation)
-                    IconButton(
-                        onClick = onRefreshSessions,
-                        enabled = filterIndex != 1 || !desktopSessionsLoading,
-                    ) {
-                        Icon(Icons.Default.Refresh, contentDescription = Str.refreshSessions)
-                    }
-                },
-                colors =
-                    TopAppBarDefaults.topAppBarColors(
-                        containerColor = MaterialTheme.agent567Extra.pageBackground,
-                    ),
-            )
+    Agent567MainPageScaffold(
+        title = Str.sessionsTitle,
+        actions = {
+            NewConversationButton(onClick = onNewConversation)
+            IconButton(
+                onClick = onRefreshSessions,
+                enabled = filterIndex != 1 || !desktopSessionsLoading,
+            ) {
+                Icon(Icons.Default.Refresh, contentDescription = Str.refreshSessions)
+            }
         },
     ) { padding ->
         LazyColumn(
             modifier = Modifier.padding(padding).fillMaxSize(),
-            contentPadding = PaddingValues(start = 20.dp, end = 20.dp, bottom = 24.dp),
-            verticalArrangement = Arrangement.spacedBy(8.dp),
+            contentPadding = PaddingValues(start = 16.dp, top = 12.dp, end = 16.dp, bottom = 24.dp),
+
         ) {
             item {
                 Column {
-            Text(Str.mobileSessionsHint, style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.agent567Extra.secondaryText, modifier = Modifier.padding(bottom = 20.dp))
+            Text(Str.mobileSessionsHint, style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.agent567Extra.secondaryText, modifier = Modifier.padding(bottom = 14.dp))
             Agent567TextField(
                 value = query,
                 onValueChange = onQueryChange,
@@ -204,14 +201,43 @@ fun SessionsScreen(
                     )
                 }
                 else -> groups.forEach { (label, entries) ->
-                    item(key = "date:$label") {
-                        Text(label, Modifier.padding(top = 8.dp), style = MaterialTheme.typography.labelLarge)
+                    item(key = "group:$label") {
+                        Row(
+                            modifier = Modifier.fillMaxWidth().padding(horizontal = 4.dp, vertical = 10.dp),
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(8.dp),
+                        ) {
+                            if (label == Str.historyToday) {
+                                Box(
+                                    Modifier
+                                        .size(7.dp)
+                                        .clip(CircleShape)
+                                        .background(MaterialTheme.agent567Extra.amberAccent),
+                                )
+                            }
+                            Text(
+                                label,
+                                style = MaterialTheme.typography.labelLarge,
+                                fontWeight = FontWeight.Medium,
+                                color = MaterialTheme.agent567Extra.secondaryText,
+                            )
+                            Agent567AmberBadge("${entries.size}")
+                        }
                     }
-                    items(entries, key = { "session:${it.id}" }) { item ->
-                        Agent567Card(contentPadding = PaddingValues(horizontal = 8.dp, vertical = 0.dp)) {
+                    // Keep each conversation lazy even when thousands fall into the same date bucket.
+                    itemsIndexed(entries, key = { _, entry -> "session:${entry.id}" }, contentType = { _, _ -> "session" }) { index, item ->
+                        val top = if (index == 0) 16.dp else 0.dp
+                        val bottom = if (index == entries.lastIndex) 16.dp else 0.dp
+                        Box(Modifier.fillMaxWidth().clip(RoundedCornerShape(top, top, bottom, bottom))
+                            .background(MaterialTheme.colorScheme.surface).padding(horizontal = 10.dp)) {
                             ListRow(
                                 title = item.title,
-                                leading = { MobileIconTile(if (item.isCloud) Icons.Default.CloudQueue else Icons.Default.Computer) },
+                                leading = {
+                                    MobileIconTile(
+                                        icon = if (item.isCloud) Icons.Default.CloudQueue else Icons.Default.Computer,
+                                        accent = item.isCloud,
+                                    )
+                                },
                                 subtitle = "${item.sourceLabel} · ${item.timeLabel}",
                                 trailing = {
                                     Box {
@@ -253,7 +279,7 @@ fun SessionsScreen(
                                     }
                                 },
                                 onClick = { onOpenSession(item) },
-                                showDivider = false,
+                                showDivider = index < entries.lastIndex,
                             )
                         }
                     }

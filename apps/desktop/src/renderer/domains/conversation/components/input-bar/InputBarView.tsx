@@ -160,7 +160,6 @@ export function InputBarView({ model, children, className, classNames }: InputBa
 						<MessageInput.DropZone
 							{...model.dropZone}
 							style={{
-								opacity: model.hasSession ? 1 : 0.55,
 								...(slashVisible ? { borderTopColor: "transparent" } : null),
 							}}
 						>

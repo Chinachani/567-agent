@@ -1,3 +1,4 @@
+import { getProviderIconForGroup, groupEntriesForSelection } from "@/shared/api567/group-display";
 import { Api567GroupModels } from "./Api567GroupModels";
 import { SettingsListSearch, matchesSettingsSearch } from "./SettingsListSearch";
 import {
@@ -11,25 +12,15 @@ import { Button } from "@shared/components/ui/button";
 import { BrandIcon } from "@shared/components/BrandIcon";
 import { ProviderIcon } from "@vetta-org/theme-ui/shared";
 import { SettingSection } from "@vetta-org/theme-ui/settings";
-import { ChevronDown, ChevronUp, Key, Layers, Palette, Plus, RefreshCw, Star, Wallet } from "lucide-react";
+import { BarChart3, ChevronDown, ChevronUp, Key, Layers, Palette, Plus, RefreshCw, Star, Wallet } from "lucide-react";
+import { useNavigate } from "@tanstack/react-router";
 import { confirmDialogAtom } from "@shared/store/atoms";
 import { useSetAtom } from "jotai";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { SETTINGS_SECTION } from "../registry";
 import { useApi567 } from "../../api567/hooks/useApi567";
 import { ServiceRouteSettings } from "../../api567";
-
-function getProviderIconForGroup(groupName: string): string {
-	const lower = groupName.toLowerCase();
-	if (lower.includes("claude")) return "claude";
-	if (lower.includes("gemini")) return "gemini";
-	if (lower.includes("deepseek")) return "deepseek";
-	if (lower.includes("grok")) return "grok";
-	if (lower.includes("gpt") || lower.includes("chat")) return "openai";
-	if (lower.includes("国模") || lower.includes("qwen")) return "qwen";
-	return "openai";
-}
 
 export function Api567GroupsSection({ config }: { config: ModelsConfigData }): JSX.Element {
 	const { t } = useTranslation("settings");
@@ -49,6 +40,7 @@ export function Api567GroupsSection({ config }: { config: ModelsConfigData }): J
 		setModalOpen,
 		setTopupModalOpen,
 	} = useApi567();
+	const navigate = useNavigate();
 
 	const [refreshing, setRefreshing] = useState(false);
 	const [pendingGroupAction, setPendingGroupAction] = useState<{
@@ -58,6 +50,11 @@ export function Api567GroupsSection({ config }: { config: ModelsConfigData }): J
 	const [expandedGroup, setExpandedGroup] = useState<string | null>(null);
 	const [query, setQuery] = useState("");
 	const actionsDisabled = pendingGroupAction !== null || refreshing;
+
+	useEffect(() => {
+		if (!status.isLoggedIn) return;
+		void window.agent567?.api567?.refreshGroupsInBackground?.().catch(() => undefined);
+	}, [status.isLoggedIn]);
 
 	const handleRefresh = async () => {
 		setRefreshing(true);
@@ -107,7 +104,7 @@ export function Api567GroupsSection({ config }: { config: ModelsConfigData }): J
 		});
 	}
 
-	const availableEntries = Object.entries(availableGroups);
+	const availableEntries = groupEntriesForSelection(availableGroups);
 	const visibleEntries = availableEntries.filter(([name, info]) =>
 		matchesSettingsSearch(query, [name, info.desc ?? "", ...(syncedGroupMap.get(name)?.models ?? [])]),
 	);
@@ -144,6 +141,21 @@ export function Api567GroupsSection({ config }: { config: ModelsConfigData }): J
 										title="刷新余额与状态"
 									>
 										<RefreshCw className={`h-3.5 w-3.5 ${refreshing ? "animate-spin text-primary" : ""}`} />
+									</Button>
+									<Button
+										variant="outline"
+										size="sm"
+										onClick={() =>
+											void navigate({
+												to: "/usage",
+												search: status.activeGroup ? { group: status.activeGroup } : undefined,
+											})
+										}
+										className="h-7 gap-1.5 px-2.5 text-xs"
+										title="查看使用日志与 Token 占比"
+									>
+										<BarChart3 className="h-3.5 w-3.5 text-primary" />
+										<span>使用日志</span>
 									</Button>
 									<Button
 										variant="outline"
@@ -356,6 +368,17 @@ export function Api567GroupsSection({ config }: { config: ModelsConfigData }): J
 														<DropdownMenuContent align="end">
 															<DropdownMenuItem onSelect={() => void handleSync(groupName)}>
 																{t("api567Models.refresh")}
+															</DropdownMenuItem>
+															<DropdownMenuItem
+																onSelect={() =>
+																	void navigate({
+																		to: "/usage",
+																		search: { group: groupName },
+																	})
+																}
+															>
+																<BarChart3 className="mr-2 h-4 w-4" />
+																{t("sidebarAccount.usageLogs", "使用日志与统计")}
 															</DropdownMenuItem>
 															<DropdownMenuItem
 																onSelect={() =>

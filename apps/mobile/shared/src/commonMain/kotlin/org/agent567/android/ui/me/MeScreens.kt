@@ -5,6 +5,7 @@ import org.agent567.android.AppVersion
 import org.agent567.android.ui.chat.RotatingRefreshIcon
 
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.selection.toggleable
 import androidx.compose.foundation.layout.Arrangement
@@ -25,6 +26,7 @@ import androidx.compose.foundation.layout.wrapContentHeight
 import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
@@ -41,6 +43,9 @@ import kotlinx.coroutines.delay
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material.icons.filled.Settings
+import androidx.compose.material3.Scaffold
+import androidx.compose.material3.TopAppBar
+import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.CircularProgressIndicator
@@ -50,10 +55,8 @@ import androidx.compose.material3.TextButton
 import androidx.compose.material3.RadioButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.Scaffold
+import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
-import androidx.compose.material3.TopAppBar
-import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
@@ -66,6 +69,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import org.agent567.android.core.model.SubscriptionStatus
@@ -80,9 +84,12 @@ import org.agent567.android.ui.components.QuotaMeter
 import org.agent567.android.ui.components.SectionHeader
 import org.agent567.android.ui.components.Agent567ListGroup
 import org.agent567.android.ui.components.Agent567Card
+import org.agent567.android.ui.components.Agent567AmberBadge
+import org.agent567.android.ui.components.Agent567MainPageScaffold
 import org.agent567.android.ui.components.Agent567ConfirmDialog
 import org.agent567.android.ui.components.Agent567ChoiceDialog
 import org.agent567.android.ui.components.Agent567InfoDialog
+import org.agent567.android.ui.components.groupDisplayName
 import org.agent567.android.ui.i18n.Str
 import org.agent567.android.ui.theme.agent567Extra
 
@@ -121,6 +128,10 @@ fun MeScreen(
     onOpenServiceRoute: () -> Unit = {},
     serviceRoutes: List<org.agent567.android.core.ServiceRoute> = org.agent567.android.core.ServiceRoute.entries,
     hasUpdate: Boolean = false,
+    onOpenWelcome: (() -> Unit)? = null,
+    activeImageGroup: String? = null,
+    imageGenEnabled: Boolean = true,
+    onOpenGroupWizard: (() -> Unit)? = null,
 ) {
     var showFeatureGuide by remember { mutableStateOf(false) }
     var showGroupDialog by remember { mutableStateOf(false) }
@@ -129,31 +140,25 @@ fun MeScreen(
     val contact = user?.email ?: user?.phone ?: ""
     val usdFormatted = user?.let { formatUsd(it.quota.toDouble() / 500000.0) } ?: "0.00"
 
-    Scaffold(
-        containerColor = MaterialTheme.agent567Extra.pageBackground,
-        topBar = {
-            TopAppBar(
-                title = { Text(Str.me, style = MaterialTheme.typography.titleLarge) },
-                colors =
-                    TopAppBarDefaults.topAppBarColors(
-                        containerColor = MaterialTheme.agent567Extra.pageBackground,
-                    ),
-            )
-        },
+    Agent567MainPageScaffold(
+        title = Str.me,
     ) { padding ->
         Column(
             Modifier
                 .padding(padding)
                 .fillMaxSize()
                 .verticalScroll(rememberScrollState())
-                .padding(start = 16.dp, top = 4.dp, end = 16.dp, bottom = 24.dp),
+                .padding(start = 16.dp, top = 12.dp, end = 16.dp, bottom = 24.dp),
         ) {
-            Agent567Card(contentPadding = androidx.compose.foundation.layout.PaddingValues(horizontal = 16.dp, vertical = 8.dp)) {
+            Agent567Card(
+                accentBorder = user != null,
+                contentPadding = androidx.compose.foundation.layout.PaddingValues(horizontal = 16.dp, vertical = 10.dp),
+            ) {
                 Row(Modifier.fillMaxWidth().clip(MaterialTheme.shapes.medium).clickable(role = androidx.compose.ui.semantics.Role.Button, onClick = onOpenAccount).padding(vertical = 8.dp), verticalAlignment = Alignment.CenterVertically) {
-                    BoxAvatar(user?.username.orEmpty())
+                    BoxAvatar(user?.username.orEmpty(), highlighted = user != null)
                     Spacer(Modifier.width(14.dp))
                     Column(Modifier.weight(1f)) {
-                        Text(name, style = MaterialTheme.typography.titleMedium, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                        Text(name, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Medium, maxLines = 1, overflow = TextOverflow.Ellipsis)
                         Text(
                             contact.ifBlank { if (user == null) Str.accountSignIn else Str.accountProfile },
                             style = MaterialTheme.typography.bodySmall,
@@ -163,16 +168,37 @@ fun MeScreen(
                     Icon(Icons.AutoMirrored.Filled.KeyboardArrowRight, contentDescription = null, tint = MaterialTheme.agent567Extra.secondaryText)
                 }
                 if (user != null) {
-                    androidx.compose.material3.HorizontalDivider(color = MaterialTheme.agent567Extra.border)
-                    Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+                    androidx.compose.material3.HorizontalDivider(color = MaterialTheme.agent567Extra.border.copy(alpha = 0.7f))
+                    Row(Modifier.fillMaxWidth().padding(top = 8.dp), verticalAlignment = Alignment.CenterVertically) {
                         Column(Modifier.weight(1f)) {
                             Text(Str.mobileQuota, style = MaterialTheme.typography.labelMedium, color = MaterialTheme.agent567Extra.secondaryText)
-                            Text("$$usdFormatted", style = MaterialTheme.typography.headlineSmall)
+                            Text("$$usdFormatted", style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.SemiBold)
                         }
                         IconButton(onClick = onRefreshQuota, enabled = !quotaRefreshing, modifier = Modifier.size(48.dp)) {
                             RotatingRefreshIcon(isRefreshing = quotaRefreshing, contentDescription = Str.accountRefresh)
                         }
-                        TextButton(onClick = { showTopupDialog = true }, modifier = Modifier.heightIn(min = 48.dp)) { Text(Str.mobileTopupAction) }
+                        Box(
+                            modifier = Modifier
+                                .heightIn(min = 48.dp)
+                                .clip(RoundedCornerShape(20.dp))
+                                .clickable(role = Role.Button) { showTopupDialog = true },
+                            contentAlignment = Alignment.Center,
+                        ) {
+                            Box(
+                                modifier = Modifier
+                                    .clip(RoundedCornerShape(20.dp))
+                                    .background(MaterialTheme.agent567Extra.amberContainer)
+                                    .border(1.dp, MaterialTheme.agent567Extra.amberAccent.copy(alpha = 0.3f), RoundedCornerShape(20.dp))
+                                    .padding(horizontal = 14.dp, vertical = 7.dp),
+                            ) {
+                                Text(
+                                    Str.mobileTopupAction,
+                                    style = MaterialTheme.typography.labelMedium,
+                                    fontWeight = FontWeight.Medium,
+                                    color = MaterialTheme.agent567Extra.amberAccent,
+                                )
+                            }
+                        }
                     }
                 }
             }
@@ -188,16 +214,60 @@ fun MeScreen(
             }
             if (user == null) Agent567Card { org.agent567.android.ui.components.ServiceRouteEntry(serverUrl, onOpenServiceRoute, serviceRoutes) }
             if (user != null) {
-                Spacer(Modifier.height(12.dp))
+                Spacer(Modifier.height(16.dp))
                 SectionHeader(title = Str.phoneModelServiceSection)
-                Text(Str.phoneModelServiceHint, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.agent567Extra.secondaryText, modifier = Modifier.padding(bottom = 8.dp))
+                Text(Str.phoneModelServiceHint, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.agent567Extra.secondaryText, modifier = Modifier.padding(horizontal = 4.dp, vertical = 2.dp))
+                Spacer(Modifier.height(6.dp))
                 Agent567Card(contentPadding = androidx.compose.foundation.layout.PaddingValues(horizontal = 16.dp, vertical = 4.dp)) {
+                    if (onOpenGroupWizard == null) {
                     Row(Modifier.fillMaxWidth().heightIn(min = 56.dp).clickable(role = Role.Button) { showGroupDialog = true }, verticalAlignment = Alignment.CenterVertically) {
                         Text(Str.mobileGroup, style = MaterialTheme.typography.bodyMedium, modifier = Modifier.weight(1f))
-                        Text(activeGroup ?: Str.mobileDefaultGroup, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.agent567Extra.secondaryText, modifier = Modifier.widthIn(max = 140.dp), maxLines = 1, overflow = TextOverflow.Ellipsis)
+                        Surface(
+                            shape = RoundedCornerShape(20.dp),
+                            color = MaterialTheme.agent567Extra.chipBackground,
+                        ) {
+                            Text(
+                                activeGroup?.let(::groupDisplayName) ?: "未选择",
+                                style = MaterialTheme.typography.labelMedium,
+                                color = MaterialTheme.colorScheme.onSurface,
+                                modifier = Modifier.widthIn(max = 140.dp).padding(horizontal = 10.dp, vertical = 4.dp),
+                                maxLines = 1,
+                                overflow = TextOverflow.Ellipsis,
+                            )
+                        }
+                        Spacer(Modifier.width(4.dp))
                         Icon(Icons.AutoMirrored.Filled.KeyboardArrowRight, contentDescription = Str.mobileSwitchGroup, modifier = Modifier.size(18.dp), tint = MaterialTheme.agent567Extra.secondaryText)
                     }
-                    androidx.compose.material3.HorizontalDivider(color = MaterialTheme.agent567Extra.border)
+                    }
+                    if (onOpenGroupWizard != null) {
+                        val wizardChatSummary = activeGroup?.let(::groupDisplayName) ?: "未选择"
+                        val wizardImageSummary =
+                            if (!imageGenEnabled) Str.mobileDrawingOff
+                            else activeImageGroup?.let(::groupDisplayName) ?: "未选择"
+                        androidx.compose.material3.HorizontalDivider(color = MaterialTheme.agent567Extra.border.copy(alpha = 0.7f))
+                        Row(
+                            Modifier
+                                .fillMaxWidth()
+                                .heightIn(min = 56.dp)
+                                .clickable(role = Role.Button, onClick = onOpenGroupWizard)
+                                .padding(vertical = 8.dp),
+                            verticalAlignment = Alignment.CenterVertically,
+                        ) {
+                            Column(Modifier.weight(1f)) {
+                                Text(Str.groupWizardTitle, style = MaterialTheme.typography.bodyMedium)
+                                Spacer(Modifier.height(2.dp))
+                                Text(
+                                    "对话：$wizardChatSummary · 画图：$wizardImageSummary",
+                                    style = MaterialTheme.typography.bodySmall,
+                                    color = MaterialTheme.agent567Extra.secondaryText,
+                                    maxLines = 1,
+                                    overflow = TextOverflow.Ellipsis,
+                                )
+                            }
+                            Icon(Icons.AutoMirrored.Filled.KeyboardArrowRight, contentDescription = Str.groupWizardTitle, modifier = Modifier.size(18.dp), tint = MaterialTheme.agent567Extra.secondaryText)
+                        }
+                    }
+                    androidx.compose.material3.HorizontalDivider(color = MaterialTheme.agent567Extra.border.copy(alpha = 0.7f))
                     org.agent567.android.ui.components.ServiceRouteEntry(serverUrl, onOpenServiceRoute, serviceRoutes)
                 }
             }
@@ -206,7 +276,7 @@ fun MeScreen(
             SectionHeader(title = Str.settings)
             Agent567Card(contentPadding = androidx.compose.foundation.layout.PaddingValues(horizontal = 12.dp, vertical = 4.dp)) {
                 Agent567ListGroup {
-                    ProfileRow(Icons.Default.Devices, Str.connectedDevices, "$onlineDeviceCount", onOpenDevices, showDivider = true, verticalPadding = 8.dp)
+                    ProfileRow(Icons.Default.Devices, Str.connectedDevices, "$onlineDeviceCount", onOpenDevices, showDivider = true, verticalPadding = 8.dp, dividerStart = 44.dp)
                     val nextThemeMode = when (themeMode) {
                         org.agent567.android.app.ThemeMode.Light -> org.agent567.android.app.ThemeMode.Dark
                         org.agent567.android.app.ThemeMode.Dark -> org.agent567.android.app.ThemeMode.System
@@ -221,39 +291,41 @@ fun MeScreen(
                             org.agent567.android.app.ThemeMode.System -> Str.themeSystem
                         },
                         { onThemeMode(nextThemeMode) },
-                        showDivider = false,
+                        showDivider = true,
                         verticalPadding = 8.dp,
-                        dividerStart = 16.dp,
-                    )
-                    androidx.compose.material3.HorizontalDivider(
-                        modifier = Modifier.padding(start = 16.dp),
-                        color = MaterialTheme.agent567Extra.border,
+                        dividerStart = 44.dp,
                     )
                     ProfileRow(
                         Icons.Default.CheckCircle,
                         Str.behavior,
                         null,
                         onOpenSettings,
-                        showDivider = false,
+                        showDivider = true,
                         verticalPadding = 8.dp,
-                        dividerStart = 16.dp,
-                    )
-                    androidx.compose.material3.HorizontalDivider(
-                        modifier = Modifier.padding(start = 16.dp),
-                        color = MaterialTheme.agent567Extra.border,
+                        dividerStart = 44.dp,
                     )
                     ProfileRow(
                         Icons.Default.FileDownload,
                         Str.dataSection,
                         null,
                         onOpenDataSettings,
+                        showDivider = true,
+                        verticalPadding = 8.dp,
+                        dividerStart = 44.dp,
+                    )
+                    if (onOpenWelcome != null) {
+                        ProfileRow(Icons.Default.Info, Str.welcomeReplayTitle, null, onOpenWelcome, showDivider = true, verticalPadding = 8.dp, dividerStart = 44.dp)
+                    }
+                    ProfileRow(Icons.Default.Info, Str.featureGuideTitle, null, { showFeatureGuide = true }, showDivider = true, verticalPadding = 8.dp, dividerStart = 44.dp)
+                    ProfileRow(
+                        icon = Icons.Default.Info,
+                        title = Str.aboutUs,
+                        value = if (hasUpdate) null else Str.versionNumber.removePrefix("版本 "),
+                        onClick = onOpenAbout,
                         showDivider = false,
                         verticalPadding = 8.dp,
-                        dividerStart = 16.dp,
+                        trailingContent = if (hasUpdate) ({ Agent567AmberBadge(Str.updateNewVersion) }) else null,
                     )
-                    androidx.compose.material3.HorizontalDivider(color = MaterialTheme.agent567Extra.border)
-                    ProfileRow(Icons.Default.Info, Str.featureGuideTitle, null, { showFeatureGuide = true }, verticalPadding = 8.dp)
-                    ProfileRow(Icons.Default.Info, Str.aboutUs, if (hasUpdate) Str.updateNewVersion else Str.versionNumber.removePrefix("版本 "), onOpenAbout, showDivider = false, verticalPadding = 8.dp)
                 }
             }
 
@@ -288,17 +360,21 @@ fun MeScreen(
 }
 
 @Composable
-internal fun BoxAvatar(name: String) {
+internal fun BoxAvatar(name: String, highlighted: Boolean = false) {
     val letter = usernameInitial(name)
+    val bg = if (highlighted) MaterialTheme.agent567Extra.amberContainer else MaterialTheme.agent567Extra.chipBackground
+    val borderColor = if (highlighted) MaterialTheme.agent567Extra.amberAccent.copy(alpha = 0.45f) else MaterialTheme.agent567Extra.border
+    val fg = if (highlighted) MaterialTheme.agent567Extra.amberAccent else MaterialTheme.colorScheme.onSurface
     Box(
         modifier =
             Modifier
                 .size(44.dp)
                 .clip(CircleShape)
-                .background(MaterialTheme.agent567Extra.chipBackground),
+                .background(bg)
+                .border(1.dp, borderColor, CircleShape),
         contentAlignment = Alignment.Center,
     ) {
-        Text(letter, color = MaterialTheme.colorScheme.onSurface, style = MaterialTheme.typography.titleMedium)
+        Text(letter, color = fg, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
     }
 }
 
@@ -312,6 +388,7 @@ private fun ProfileRow(
     subtitle: String? = null,
     verticalPadding: androidx.compose.ui.unit.Dp = 14.dp,
     dividerStart: androidx.compose.ui.unit.Dp = 36.dp,
+    trailingContent: (@Composable () -> Unit)? = null,
 ) {
     val rowModifier =
         Modifier
@@ -323,7 +400,15 @@ private fun ProfileRow(
         modifier = rowModifier,
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        Icon(icon, contentDescription = null, modifier = Modifier.size(20.dp), tint = MaterialTheme.agent567Extra.secondaryText)
+        Box(
+            modifier = Modifier
+                .size(32.dp)
+                .clip(RoundedCornerShape(9.dp))
+                .background(MaterialTheme.agent567Extra.chipBackground),
+            contentAlignment = Alignment.Center,
+        ) {
+            Icon(icon, contentDescription = null, modifier = Modifier.size(18.dp), tint = MaterialTheme.agent567Extra.secondaryText)
+        }
         Spacer(Modifier.width(12.dp))
         Column(Modifier.weight(1f)) {
             Text(title, style = MaterialTheme.typography.bodyMedium)
@@ -335,6 +420,10 @@ private fun ProfileRow(
                     color = MaterialTheme.agent567Extra.secondaryText,
                 )
             }
+        }
+        if (trailingContent != null) {
+            trailingContent()
+            Spacer(Modifier.width(6.dp))
         }
         if (!value.isNullOrBlank()) {
             Text(value, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.agent567Extra.secondaryText)
@@ -351,7 +440,7 @@ private fun ProfileRow(
     if (showDivider) {
         androidx.compose.material3.HorizontalDivider(
             modifier = Modifier.padding(start = dividerStart),
-            color = MaterialTheme.agent567Extra.border,
+            color = MaterialTheme.agent567Extra.border.copy(alpha = 0.7f),
         )
     }
 }
@@ -1214,10 +1303,11 @@ fun GroupSelectionDialog(
             } else {
                 Column(Modifier.verticalScroll(rememberScrollState())) {
                     availableGroups.forEach { (name, info) ->
-                        val isSelected = name == activeGroup
+                        val isSelected = activeGroup != null && name == activeGroup
                         Row(
                             modifier = Modifier
                                 .fillMaxWidth()
+                                .heightIn(min = 48.dp)
                                 .clickable { onSelect(name) }
                                 .padding(vertical = 12.dp, horizontal = 8.dp),
                             horizontalArrangement = Arrangement.SpaceBetween,
@@ -1225,7 +1315,7 @@ fun GroupSelectionDialog(
                         ) {
                             Column(Modifier.weight(1f)) {
                                 Row(verticalAlignment = Alignment.CenterVertically) {
-                                    Text(name, style = MaterialTheme.typography.bodyMedium.copy(fontWeight = androidx.compose.ui.text.font.FontWeight.Medium))
+                                    Text(groupDisplayName(name), style = MaterialTheme.typography.bodyMedium.copy(fontWeight = androidx.compose.ui.text.font.FontWeight.Medium))
                                     Spacer(Modifier.width(8.dp))
                                     Text(
                                         "${info.ratio}x 倍率",

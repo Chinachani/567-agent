@@ -11,13 +11,13 @@ export interface WorkspacePageHeaderProps {
 /** A wrapping page heading; the host keeps ownership of actions and copy. */
 export function WorkspacePageHeader({ title, description, actions, className }: WorkspacePageHeaderProps): JSX.Element {
 	return (
-		<header className={cn("flex min-w-0 flex-wrap items-start justify-between gap-x-6 gap-y-4", className)}>
-			<div className="min-w-0 flex-1 basis-56">
-				<h1 className="break-words text-[24px] font-semibold leading-tight tracking-tight text-foreground">
+		<header className={cn("flex min-w-0 flex-wrap items-start justify-between gap-x-5 gap-y-3", className)}>
+			<div className="min-w-0 flex-1 basis-64">
+				<h1 className="break-words text-[22px] font-semibold leading-tight sm:text-[26px] tracking-tight text-foreground">
 					{title}
 				</h1>
 				{description && (
-					<p className="mt-2 max-w-2xl whitespace-pre-line text-[13px] leading-relaxed text-muted-foreground">
+					<p className="mt-1.5 max-w-prose whitespace-pre-line text-[13px] leading-relaxed text-muted-foreground">
 						{description}
 					</p>
 				)}

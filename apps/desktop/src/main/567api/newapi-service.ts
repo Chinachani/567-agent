@@ -1,5 +1,9 @@
+import { getProviderIconForGroup } from "../../shared/api567/group-display.js";
 import { isPaymentUnavailable } from "../../shared/api567/payment-failure.js";
+import type { Api567BilledSnapshot } from "../../shared/local-usage-log.js";
+import { DEFAULT_CHAT_INFERENCE_API } from "../../shared/model-inference-api.js";
 import { isAccountResponseRejected } from "./access-token-refresh.js";
+import { BilledUsageReader, retryAfter } from "./billed-usage.js";
 
 function getModelScore(id: string): number {
 	const lower = id.toLowerCase();
@@ -22,7 +26,6 @@ function pickBestModel(models: ModelDefinition[]): ModelDefinition | undefined {
 	return sorted[0];
 }
 
-import { createHash } from "node:crypto";
 import { existsSync, mkdirSync, readFileSync, renameSync, rmSync, writeFileSync } from "node:fs";
 import http from "node:http";
 import https from "node:https";
@@ -42,7 +45,7 @@ import { mainT } from "../i18n/index.js";
 import { getAppLogger } from "../logger.js";
 import { enrichModelContexts, parseModelList } from "../models/model-context-metadata.js";
 import { getDesktopModelSettingsService } from "../models/model-settings-host.js";
-import type { ModelDefinition } from "../models/model-settings-service.js";
+import type { ModelDefinition, ModelsConfig } from "../models/model-settings-service.js";
 import { listPresetProviders } from "../models/presets/sync.js";
 import {
 	AccessTokenRefreshCoordinator,
@@ -52,6 +55,17 @@ import {
 	refreshWithAccountRecovery,
 } from "./access-token-refresh.js";
 import { loadAccountCredentials, removeAccountCredentials, saveAccountCredentials } from "./account-credentials.js";
+import {
+	DEFAULT_IMAGE_MODEL,
+	getAccountIdentityKey,
+	getProviderIdForGroup,
+	isGroupAvailable,
+	isImageOnlyGroup,
+	isManaged567Provider,
+	isValidModelKeyInConfig,
+	mergeGroupModelsPreservingManualEdits,
+	providerIdForGroupName,
+} from "./group-selection.js";
 import { PasswordLoginEncryptionError, preparePasswordLogin } from "./password-login.js";
 import {
 	containsNonAscii,
@@ -65,6 +79,8 @@ import { getApi567RouteStore } from "./service-route-store.js";
 const log = getAppLogger("567api");
 
 const QUOTA_PER_USD = 500000;
+const AVAILABLE_GROUPS_CACHE_TTL_MS = 10 * 60 * 1000;
+const BACKGROUND_REFRESH_ERROR_COOLDOWN_MS = 15 * 1000;
 
 function isExplicitAuthenticationFailure(error: unknown): boolean {
 	if (error instanceof AccountLoginRejectedError) return true;
@@ -133,6 +149,13 @@ export interface Api567Status {
 	groups?: Api567GroupInfo[];
 	availableGroups?: Record<string, { desc: string; ratio: number }>;
 	lastUpdated?: string;
+	groupsUpdated?: string;
+	availableGroupsState?: "idle" | "loaded" | "error";
+	modelsRefreshState?: "idle" | "loaded" | "error";
+	confirmedProviderIds?: string[];
+	failedProviderIds?: string[];
+	removedProviderIds?: string[];
+	availableProviderIds?: string[];
 	modelsCount?: number;
 }
 
@@ -251,46 +274,7 @@ function extractTokens(data: unknown): RawNewApiToken[] {
 	return [];
 }
 
-export function getProviderIdForGroup(groupName: string): string {
-	const map: Record<string, string> = {
-		"chat GPT 满血": "567api_gpt_full",
-		"chat GPT pro": "567api_gpt_pro",
-		"chat GPT 特价": "567api_gpt_sale",
-		"chat GPT 备用": "567api_gpt_backup",
-		"chat GPT 备用2": "567api_gpt_backup2",
-		"Anthropic Claude_max": "567api_claude_max",
-		"Anthropic Claude_kiro": "567api_claude_kiro",
-		"Google Gemini": "567api_gemini",
-		反重力Gemini: "567api_gemini_sale",
-		deepseek官: "567api_deepseek",
-		"xAI grok": "567api_grok",
-		国模特价组1: "567api_domestic_1",
-		国模特价组2: "567api_domestic_2",
-		"国🥚": "567api_guodan",
-		福利特价: "567api_welfare_sale",
-		画图: "567api_image",
-		画图模型: "567api_image_model",
-	};
-	if (map[groupName]) return map[groupName];
-	const asciiSlug = groupName
-		.toLowerCase()
-		.replace(/[^a-z0-9_-]/g, "")
-		.slice(0, 16);
-	if (asciiSlug.length >= 3) return `567api_${asciiSlug}`;
-	const hash = createHash("md5").update(groupName).digest("hex").slice(0, 8);
-	return `567api_${hash}`;
-}
-
-export function getProviderIconForGroup(groupName: string): string {
-	const lower = groupName.toLowerCase();
-	if (lower.includes("claude")) return "claude";
-	if (lower.includes("gemini")) return "gemini";
-	if (lower.includes("deepseek")) return "deepseek";
-	if (lower.includes("grok")) return "grok";
-	if (lower.includes("gpt") || lower.includes("chat")) return "openai";
-	if (lower.includes("国模") || lower.includes("qwen")) return "qwen";
-	return "openai";
-}
+export { getProviderIconForGroup, getProviderIdForGroup };
 
 const NON_CHAT =
 	/embedding|embed|whisper|tts|audio|realtime|-live-|moderation|dall-e|image|transcribe|rerank|vision-ocr|veo-|lyria|imagen|deep-research|computer-use|-character|livetranslate/i;
@@ -432,6 +416,7 @@ export class NewApiService {
 				return { route, ok: false, error: "account-changed" };
 			}
 			await getApi567RouteStore().select(route);
+			this.resetAccountRuntimeState();
 			try {
 				refreshSharedModelRouting();
 				await this.broadcastStatus();
@@ -454,6 +439,24 @@ export class NewApiService {
 	private rateLimitedUntil = 0;
 	private readonly accessTokenRefresh = new AccessTokenRefreshCoordinator();
 	private refreshQuotaPromise: Promise<{ success: boolean; quota?: number; quotaUsd?: number }> | null = null;
+	private accountGeneration = 0;
+	private billedUsage = new BilledUsageReader();
+	private billingRate?: { until: number; limitedUntil?: number; pending?: Promise<number | undefined> };
+	private groupsFetchFailed = false;
+	private availableGroupsInFlight: {
+		gen: number;
+		force: boolean;
+		promise: Promise<Record<string, { desc: string; ratio: number }>>;
+	} | null = null;
+	private backgroundRefreshInFlight: {
+		gen: number;
+		promise: Promise<{ refreshed: boolean; success: boolean }>;
+	} | null = null;
+	private startupBackgroundRefreshedGen = -1;
+	private lastBackgroundRefreshErrorAt = 0;
+	private readonly confirmedModelProviderIds = new Set<string>();
+	private readonly failedModelProviderIds = new Set<string>();
+	private readonly removedModelProviderIds = new Set<string>();
 
 	private constructor() {
 		this.loadSession();
@@ -474,10 +477,115 @@ export class NewApiService {
 		return NewApiService.instance;
 	}
 
+	private getTrustedOrigins(): string[] {
+		try {
+			return getApi567RouteStore().trustedOrigins;
+		} catch {
+			return [];
+		}
+	}
+
+	private async mutateModelConfig(
+		mutate: (current: ModelsConfig) => ModelsConfig | null | Promise<ModelsConfig | null>,
+	): Promise<boolean> {
+		const service = getDesktopModelSettingsService() as {
+			getConfig: () => Promise<ModelsConfig>;
+			replaceConfig: (config: ModelsConfig) => Promise<void>;
+			updateConfig?: (
+				fn: (current: ModelsConfig) => ModelsConfig | null | Promise<ModelsConfig | null>,
+			) => Promise<boolean>;
+		};
+		if (typeof service.updateConfig === "function") {
+			return service.updateConfig(mutate);
+		}
+		const current = await service.getConfig();
+		const next = await mutate(current);
+		if (!next) return false;
+		await service.replaceConfig(next);
+		return true;
+	}
+
+	private resetAccountRuntimeState(): void {
+		this.accountGeneration += 1;
+		this.billedUsage = new BilledUsageReader();
+		this.billingRate = undefined;
+		this.groupsFetchFailed = false;
+		this.availableGroupsInFlight = null;
+		this.backgroundRefreshInFlight = null;
+		this.startupBackgroundRefreshedGen = -1;
+		this.lastBackgroundRefreshErrorAt = 0;
+		this.confirmedModelProviderIds.clear();
+		this.failedModelProviderIds.clear();
+		this.removedModelProviderIds.clear();
+	}
+
+	private getModelsRefreshState(): "idle" | "loaded" | "error" {
+		if (!this.currentSession.isLoggedIn) return "idle";
+		if (this.groupsFetchFailed || this.failedModelProviderIds.size > 0 || this.lastBackgroundRefreshErrorAt > 0) {
+			return "error";
+		}
+		if (
+			this.confirmedModelProviderIds.size > 0 ||
+			this.removedModelProviderIds.size > 0 ||
+			this.hasConfirmedAvailableGroups()
+		) {
+			return "loaded";
+		}
+		return "idle";
+	}
+
+	private hasConfirmedAvailableGroups(): boolean {
+		return this.currentSession.groupsUpdated !== undefined && this.currentSession.availableGroups !== undefined;
+	}
+
+	private getAvailableGroupsState(): "idle" | "loaded" | "error" {
+		if (!this.currentSession.isLoggedIn) return "idle";
+		if (this.groupsFetchFailed) return "error";
+		if (
+			this.hasConfirmedAvailableGroups() ||
+			(this.currentSession.availableGroups !== undefined &&
+				Object.keys(this.currentSession.availableGroups).length > 0)
+		) {
+			return "loaded";
+		}
+		return "idle";
+	}
+
+	private async clearManagedProvidersFromConfig(): Promise<void> {
+		const trustedOrigins = this.getTrustedOrigins();
+		await this.mutateModelConfig((config) => {
+			const deletedIds = new Set<string>();
+			for (const id of Object.keys(config.providers)) {
+				if (isManaged567Provider(id, config.providers[id], trustedOrigins)) {
+					delete config.providers[id];
+					deletedIds.add(id);
+				}
+			}
+			if (deletedIds.size === 0) return null;
+			if (config.defaultModel) {
+				const slash = config.defaultModel.indexOf("/");
+				const defaultProviderId = slash > 0 ? config.defaultModel.slice(0, slash) : undefined;
+				if (defaultProviderId && deletedIds.has(defaultProviderId)) {
+					delete config.defaultModel;
+				}
+			}
+			return config;
+		});
+	}
+
 	public async getStatus(): Promise<Api567Status> {
 		const routes = getApi567RouteStore();
 		if (!routes.selectedRoute) return { isLoggedIn: false, serviceRouteError: true, serviceRoutes: routes.catalog };
 		const activeModel = await this.reconcileWithModelConfig();
+		const availableGroupsState = this.getAvailableGroupsState();
+		const modelsRefreshState = this.getModelsRefreshState();
+		const availableProviderIds = this.hasConfirmedAvailableGroups()
+			? Array.from(
+					new Set(
+						Object.keys(this.currentSession.availableGroups ?? {}).map((name) => providerIdForGroupName(name)),
+					),
+				)
+			: undefined;
 		return {
 			serviceRoute: getApi567RouteStore().route,
 			serviceRoutes: getApi567RouteStore().catalog,
@@ -497,51 +605,66 @@ export class NewApiService {
 			groups: this.currentSession.groups,
 			availableGroups: this.currentSession.availableGroups,
 			lastUpdated: this.currentSession.lastUpdated,
+			groupsUpdated: this.currentSession.groupsUpdated,
+			availableGroupsState,
+			modelsRefreshState,
+			confirmedProviderIds: Array.from(this.confirmedModelProviderIds),
+			failedProviderIds: Array.from(this.failedModelProviderIds),
+			removedProviderIds: Array.from(this.removedModelProviderIds),
+			...(availableProviderIds ? { availableProviderIds } : {}),
 			modelsCount: this.currentSession.modelsCount,
 		};
 	}
 
 	public getImageGroup(): string | undefined {
-		if (this.currentSession.imageGroup) {
-			return this.currentSession.imageGroup;
-		}
 		const available = this.currentSession.availableGroups || {};
-		if ("画图" in available) return "画图";
-		for (const [name, info] of Object.entries(available)) {
-			const text = `${name} ${info.desc || ""}`.toLowerCase();
-			if (
-				text.includes("画图") ||
-				text.includes("绘图") ||
-				text.includes("生图") ||
-				text.includes("image") ||
-				text.includes("dall") ||
-				text.includes("flux")
-			) {
-				return name;
+		const confirmedAvailable = this.hasConfirmedAvailableGroups();
+		if (this.currentSession.imageGroup) {
+			if (!confirmedAvailable || isGroupAvailable(available, this.currentSession.imageGroup)) {
+				return this.currentSession.imageGroup;
 			}
 		}
-		return this.currentSession.activeGroup;
+		return undefined;
 	}
 
 	public getImageModel(): string | undefined {
-		if (this.currentSession.imageModel) {
-			return this.currentSession.imageModel;
-		}
 		const currentImgGroup = this.getImageGroup();
+		if (!currentImgGroup) return undefined;
 		const matchedGroup = this.currentSession.groups?.find((g) => g.name === currentImgGroup);
-		if (matchedGroup?.imageModels && matchedGroup.imageModels.length > 0) {
-			if (matchedGroup.imageModels.includes("gemini-3.1-flash-image")) {
-				return "gemini-3.1-flash-image";
+		if (matchedGroup?.imageModels !== undefined) {
+			if (matchedGroup.imageModels.length === 0) {
+				return undefined;
+			}
+			if (this.currentSession.imageModel && matchedGroup.imageModels.includes(this.currentSession.imageModel)) {
+				return this.currentSession.imageModel;
+			}
+			if (matchedGroup.imageModels.includes(DEFAULT_IMAGE_MODEL)) {
+				return DEFAULT_IMAGE_MODEL;
 			}
 			return matchedGroup.imageModels[0];
 		}
-		return "gemini-3.1-flash-image";
+		if (this.currentSession.imageModel) {
+			return this.currentSession.imageModel;
+		}
+		return currentImgGroup ? DEFAULT_IMAGE_MODEL : undefined;
 	}
 
 	public async setImageGroup(groupName: string): Promise<{ success: boolean; message?: string }> {
 		if (this.preservedEncryptedSession && !this.currentSession.accessToken) {
 			return { success: false, message: "凭据暂时无法解密，图像设置未保存；请恢复系统密钥环后重启应用" };
 		}
+		const generation = this.accountGeneration;
+		if (
+			!this.currentSession.isLoggedIn ||
+			(this.hasConfirmedAvailableGroups() && !isGroupAvailable(this.currentSession.availableGroups ?? {}, groupName))
+		)
+			return { success: false, message: mainT("api567Model.groupUnavailable") };
+		if (!this.currentSession.groups?.some((g) => g.name === groupName)) {
+			const result = await this.syncSingleGroup(groupName);
+			if (!result.success || generation !== this.accountGeneration)
+				return { success: false, message: result.message ?? mainT("api567Model.groupUnavailable") };
+		}
+		if (this.currentSession.imageGroup !== groupName) this.currentSession.imageModel = undefined;
 		this.currentSession.imageGroup = groupName;
 		this.saveSession(this.currentSession);
 		log.info(`567api image group set to: ${groupName}`);
@@ -581,33 +704,296 @@ export class NewApiService {
 			}
 		}
 
-		// 2. 注入所有已接入分组中发现的图像模型
-		for (const g of this.currentSession.groups ?? []) {
-			if (g.imageModels) {
-				for (const mId of g.imageModels) {
-					if (!result.has(mId)) {
-						result.set(mId, {
-							id: mId,
-							displayName: `${mId} · ${g.name}`,
-							modes: ["text-to-image", "image-to-image"],
-						});
-					}
-				}
-			}
-		}
-
 		return Array.from(result.values());
 	}
 
-	public async refreshSyncedGroups(): Promise<void> {
-		const groups = [...(this.currentSession.groups || [])];
-		for (const g of groups) {
-			try {
-				await this.syncSingleGroup(g.name);
-			} catch (err) {
-				log.warn(`Failed to refresh models for group ${g.name}:`, err);
+	public async refreshSyncedGroups(): Promise<{ success: boolean }> {
+		const result = await this.refreshGroupsAndModelsInBackground({ force: true });
+		return { success: result.success };
+	}
+
+	/**
+	 * 后台安全刷新可用分组与已接入分组的模型列表（不创建或删除远端 Token，保护手动编辑与其他服务商）。
+	 */
+	public async refreshGroupsAndModelsInBackground(
+		options: { force?: boolean; startup?: boolean } = {},
+	): Promise<{ refreshed: boolean; success: boolean }> {
+		if (!this.currentSession.isLoggedIn || (this.preservedEncryptedSession && !this.currentSession.accessToken)) {
+			return { refreshed: false, success: false };
+		}
+		const gen = this.accountGeneration;
+		if (this.backgroundRefreshInFlight && this.backgroundRefreshInFlight.gen === gen) {
+			return this.backgroundRefreshInFlight.promise;
+		}
+		if (Date.now() < this.rateLimitedUntil) {
+			return { refreshed: false, success: false };
+		}
+		const isStartupBypass = options.startup === true && this.startupBackgroundRefreshedGen !== gen;
+		if (!options.force && !isStartupBypass) {
+			if (
+				this.lastBackgroundRefreshErrorAt &&
+				Date.now() - this.lastBackgroundRefreshErrorAt < BACKGROUND_REFRESH_ERROR_COOLDOWN_MS
+			) {
+				return { refreshed: false, success: false };
 			}
 		}
+		if (isStartupBypass) {
+			this.startupBackgroundRefreshedGen = gen;
+		}
+
+		const promise = (async (): Promise<{ refreshed: boolean; success: boolean }> => {
+			const initialGroupNames = new Set(this.currentSession.groups?.map((group) => group.name));
+			let available: Record<string, { desc: string; ratio: number }> = {};
+			let groupsOk = false;
+			try {
+				available = await this.getAvailableGroups(true);
+				groupsOk = true;
+			} catch (err) {
+				log.warn("Background refresh failed to fetch available groups:", err);
+			}
+			if (this.accountGeneration !== gen || !this.currentSession.isLoggedIn) {
+				return { refreshed: false, success: false };
+			}
+
+			const trustedOrigins = this.getTrustedOrigins();
+			const currentGroups = [...(this.currentSession.groups ?? [])];
+			const isGroupStillAvailable = (groupName: string): boolean =>
+				!initialGroupNames.has(groupName) || !groupsOk || isGroupAvailable(available, groupName);
+			const initialDeletedGroupNames = new Set(
+				currentGroups.filter((g) => !isGroupStillAvailable(g.name)).map((g) => g.name),
+			);
+			const initialRemainingGroups = currentGroups.filter((g) => !initialDeletedGroupNames.has(g.name));
+
+			const snapshot = await getDesktopModelSettingsService().getConfig();
+			if (this.accountGeneration !== gen || !this.currentSession.isLoggedIn) {
+				return { refreshed: false, success: false };
+			}
+
+			const refreshedModels = new Map<
+				string,
+				{ providerId: string; modelDefs: ModelDefinition[]; imageModelIds: string[] }
+			>();
+			let anyModelError = false;
+			const failedInRun = new Set<string>();
+			for (const g of initialRemainingGroups) {
+				const providerId = providerIdForGroupName(g.name);
+				const provider = snapshot.providers[providerId];
+				if (!provider?.apiKey || !isManaged567Provider(providerId, provider, trustedOrigins)) {
+					continue;
+				}
+				const rawName = g.name === "默认分组" ? "" : g.name;
+				const res = await this.fetchGroupModelsResult(rawName, provider.apiKey);
+				if (this.accountGeneration !== gen || !this.currentSession.isLoggedIn) {
+					return { refreshed: false, success: false };
+				}
+				if (!res.ok) {
+					anyModelError = true;
+					failedInRun.add(providerId);
+					log.warn(`Background refresh skipped updating models for group ${g.name}: ${res.error}`);
+					continue;
+				}
+				refreshedModels.set(g.name, {
+					providerId,
+					modelDefs: res.modelDefs,
+					imageModelIds: res.imageModelIds,
+				});
+			}
+
+			const preMutateGroups = [...(this.currentSession.groups ?? [])];
+			const preMutateDeletedNames = new Set(
+				preMutateGroups.filter((g) => !isGroupStillAvailable(g.name)).map((g) => g.name),
+			);
+			const preMutateSurvivingPids = new Set(
+				preMutateGroups
+					.filter((g) => !preMutateDeletedNames.has(g.name))
+					.map((g) => providerIdForGroupName(g.name)),
+			);
+			const deletedProviderIds = new Set(
+				Array.from(preMutateDeletedNames, (name) => providerIdForGroupName(name)).filter(
+					(pid) => !preMutateSurvivingPids.has(pid),
+				),
+			);
+			const appliedGroupNames = new Set<string>();
+			const appliedDeletedProviderIds = new Set<string>();
+			const appliedRefreshedProviderIds = new Set<string>();
+			if (deletedProviderIds.size > 0 || refreshedModels.size > 0) {
+				await this.mutateModelConfig((config) => {
+					if (this.accountGeneration !== gen || !this.currentSession.isLoggedIn) return null;
+					appliedGroupNames.clear();
+					appliedDeletedProviderIds.clear();
+					appliedRefreshedProviderIds.clear();
+					let changed = false;
+					const latestSessionGroups = this.currentSession.groups ?? [];
+					const currentDeletedNames = new Set(
+						latestSessionGroups.filter((g) => !isGroupStillAvailable(g.name)).map((g) => g.name),
+					);
+					const currentSurvivingGroups = latestSessionGroups.filter((g) => !currentDeletedNames.has(g.name));
+					const currentSurvivingGroupMap = new Map(currentSurvivingGroups.map((g) => [g.name, g]));
+					const currentSurvivingPids = new Set(currentSurvivingGroups.map((g) => providerIdForGroupName(g.name)));
+					const currentDeletedPids = new Set(
+						Array.from(currentDeletedNames, (name) => providerIdForGroupName(name)).filter(
+							(pid) => !currentSurvivingPids.has(pid),
+						),
+					);
+					const actuallyDeletedProviderIds = new Set<string>();
+					for (const pid of currentDeletedPids) {
+						if (isManaged567Provider(pid, config.providers[pid], trustedOrigins)) {
+							delete config.providers[pid];
+							actuallyDeletedProviderIds.add(pid);
+							appliedDeletedProviderIds.add(pid);
+							changed = true;
+						}
+					}
+					const refreshedProviderIds = new Set<string>();
+					for (const [groupName, update] of refreshedModels) {
+						const groupMeta = currentSurvivingGroupMap.get(groupName);
+						if (!groupMeta) continue;
+						const existing = config.providers[update.providerId];
+						if (
+							!existing?.apiKey ||
+							existing.apiKey !== snapshot.providers[update.providerId]?.apiKey ||
+							!isManaged567Provider(update.providerId, existing, trustedOrigins)
+						) {
+							continue;
+						}
+						refreshedProviderIds.add(update.providerId);
+						appliedRefreshedProviderIds.add(update.providerId);
+						appliedGroupNames.add(groupName);
+						const mergedModels = mergeGroupModelsPreservingManualEdits(update.modelDefs, existing.models);
+						const meta = available[groupName] ?? this.currentSession.availableGroups?.[groupName];
+						const ratio = meta?.ratio !== undefined ? meta.ratio : (groupMeta?.ratio ?? 1);
+						const rawName = groupName === "默认分组" ? "" : groupName;
+						const displayName = rawName ? `567 · ${rawName} (${ratio}x)` : "567 API";
+						config.providers[update.providerId] = {
+							...existing,
+							baseUrl: existing.baseUrl ?? this.baseV1,
+							displayName,
+							icon: existing.icon ?? getProviderIconForGroup(groupName),
+							headers: {
+								...existing.headers,
+								"X-567-Group": encodeURIComponent(rawName || "default"),
+							},
+							modelsSyncedAt: new Date().toISOString(),
+							models: mergedModels,
+						};
+						changed = true;
+					}
+
+					if (config.defaultModel) {
+						const slash = config.defaultModel.indexOf("/");
+						const defaultProviderId = slash > 0 ? config.defaultModel.slice(0, slash) : undefined;
+						const defaultAffected =
+							defaultProviderId !== undefined &&
+							(actuallyDeletedProviderIds.has(defaultProviderId) || refreshedProviderIds.has(defaultProviderId));
+						if (defaultAffected && !isValidModelKeyInConfig(config, config.defaultModel)) {
+							const currentProvider = defaultProviderId ? config.providers[defaultProviderId] : undefined;
+							const currentCandidate =
+								currentProvider && !currentProvider.disabled && currentProvider.models?.length
+									? pickBestModel(currentProvider.models)
+									: undefined;
+							if (currentCandidate && defaultProviderId) {
+								config.defaultModel = `${defaultProviderId}/${currentCandidate.id}`;
+							} else {
+								delete config.defaultModel;
+							}
+							changed = true;
+						}
+					}
+					return changed ? config : null;
+				});
+			}
+
+			if (this.accountGeneration !== gen || !this.currentSession.isLoggedIn) {
+				return { refreshed: false, success: false };
+			}
+
+			const latestSessionGroups = this.currentSession.groups ?? [];
+			const finalDeletedGroupNames = new Set(
+				latestSessionGroups.filter((g) => !isGroupStillAvailable(g.name)).map((g) => g.name),
+			);
+			this.currentSession.groups = latestSessionGroups
+				.filter((g) => !finalDeletedGroupNames.has(g.name))
+				.map((g) => {
+					const meta = groupsOk ? available[g.name] : this.currentSession.availableGroups?.[g.name];
+					if (!appliedGroupNames.has(g.name)) {
+						return meta ? { ...g, desc: meta.desc, ratio: meta.ratio } : g;
+					}
+					const update = refreshedModels.get(g.name);
+					if (!update) {
+						return meta ? { ...g, desc: meta.desc, ratio: meta.ratio } : g;
+					}
+					const modelIds = update.modelDefs.map((m) => m.id);
+					return {
+						...g,
+						desc: meta?.desc ?? g.desc,
+						ratio: meta?.ratio ?? g.ratio,
+						modelsCount: modelIds.length,
+						models: modelIds,
+						imageModels: update.imageModelIds,
+					};
+				});
+			if (groupsOk) {
+				if (this.currentSession.activeGroup && finalDeletedGroupNames.has(this.currentSession.activeGroup)) {
+					this.currentSession.activeGroup = undefined;
+				}
+				if (this.currentSession.imageGroup && !isGroupAvailable(available, this.currentSession.imageGroup)) {
+					this.currentSession.imageGroup = undefined;
+					this.currentSession.imageModel = undefined;
+				}
+			}
+			const matchedImageGroup = this.currentSession.groups.find((g) => g.name === this.getImageGroup());
+			if (matchedImageGroup?.imageModels !== undefined) {
+				if (matchedImageGroup.imageModels.length === 0) {
+					this.currentSession.imageModel = undefined;
+				} else if (
+					!this.currentSession.imageModel ||
+					!matchedImageGroup.imageModels.includes(this.currentSession.imageModel)
+				) {
+					this.currentSession.imageModel = matchedImageGroup.imageModels.includes(DEFAULT_IMAGE_MODEL)
+						? DEFAULT_IMAGE_MODEL
+						: matchedImageGroup.imageModels[0];
+				}
+			}
+
+			await this.reconcileWithModelConfig();
+			if (this.accountGeneration !== gen || !this.currentSession.isLoggedIn) {
+				return { refreshed: false, success: false };
+			}
+			const ok = groupsOk && !anyModelError;
+			if (groupsOk) {
+				for (const name of Object.keys(available)) {
+					this.removedModelProviderIds.delete(providerIdForGroupName(name));
+				}
+				for (const pid of appliedDeletedProviderIds) {
+					this.removedModelProviderIds.add(pid);
+					this.confirmedModelProviderIds.delete(pid);
+					this.failedModelProviderIds.delete(pid);
+				}
+			}
+			for (const pid of appliedRefreshedProviderIds) {
+				this.confirmedModelProviderIds.add(pid);
+				this.failedModelProviderIds.delete(pid);
+				this.removedModelProviderIds.delete(pid);
+			}
+			for (const pid of failedInRun) {
+				this.failedModelProviderIds.add(pid);
+				this.confirmedModelProviderIds.delete(pid);
+			}
+			if (ok) {
+				this.lastBackgroundRefreshErrorAt = 0;
+			} else {
+				this.lastBackgroundRefreshErrorAt = Date.now();
+			}
+			this.saveSession(this.currentSession);
+			return { refreshed: true, success: ok };
+		})().finally(() => {
+			if (this.backgroundRefreshInFlight?.gen === gen) {
+				this.backgroundRefreshInFlight = null;
+			}
+		});
+
+		this.backgroundRefreshInFlight = { gen, promise };
+		return promise;
 	}
 
 	/**
@@ -956,81 +1342,109 @@ export class NewApiService {
 	public async reconcileWithModelConfig(): Promise<string | undefined> {
 		if (!this.currentSession.isLoggedIn) return;
 		try {
-			const service = getDesktopModelSettingsService();
-			const config = await service.getConfig();
+			const config = await getDesktopModelSettingsService().getConfig();
+			const trustedOrigins = this.getTrustedOrigins();
 
 			const validGroups: Api567GroupInfo[] = [];
+			const enabledGroups: Api567GroupInfo[] = [];
 			let totalModels = 0;
-
 			let configChanged = false;
+
 			for (const g of this.currentSession.groups ?? []) {
-				const providerId = getProviderIdForGroup(g.name);
+				const providerId = providerIdForGroupName(g.name);
 				const provider = config.providers[providerId];
-				if (provider?.apiKey && (provider.models?.length ?? 0) > 0) {
-					if (provider.headers) {
-						for (const [k, v] of Object.entries(provider.headers)) {
-							if (typeof v === "string" && containsNonAscii(v)) {
-								provider.headers[k] = encodeURIComponent(v);
-								configChanged = true;
-							}
-						}
-					}
+				if (
+					provider?.apiKey &&
+					Array.isArray(provider.models) &&
+					isManaged567Provider(providerId, provider, trustedOrigins)
+				) {
 					const meta = this.currentSession.availableGroups?.[g.name];
 					const expectedRatio = meta?.ratio !== undefined ? meta.ratio : (g.ratio ?? 1);
-					const expectedDisplayName = `567 · ${g.name} (${expectedRatio}x)`;
+					const expectedDisplayName = g.name === "默认分组" ? "567 API" : `567 · ${g.name} (${expectedRatio}x)`;
 					if (provider.displayName !== expectedDisplayName) {
-						provider.displayName = expectedDisplayName;
 						configChanged = true;
 					}
-
-					const modelIds = provider.models?.map((m) => m.id) ?? [];
-					validGroups.push({
+					if (provider.headers) {
+						for (const v of Object.values(provider.headers)) {
+							if (typeof v === "string" && containsNonAscii(v)) configChanged = true;
+						}
+					}
+					const modelIds = provider.models.map((m) => m.id);
+					const groupInfo: Api567GroupInfo = {
 						...g,
 						ratio: expectedRatio,
-						enabled: true,
+						enabled: !provider.disabled,
 						modelsCount: modelIds.length,
 						models: modelIds,
-					});
+					};
+					validGroups.push(groupInfo);
+					if (!provider.disabled) enabledGroups.push(groupInfo);
 					totalModels += modelIds.length;
 				}
 			}
 			for (const [pId, p] of Object.entries(config.providers || {})) {
-				if (pId.startsWith("567api")) {
-					if (p.headers) {
-						for (const [k, v] of Object.entries(p.headers)) {
-							if (typeof v === "string" && containsNonAscii(v)) {
-								p.headers[k] = encodeURIComponent(v);
-								configChanged = true;
-							}
-						}
+				if (isManaged567Provider(pId, p, trustedOrigins) && p.headers) {
+					for (const v of Object.values(p.headers)) {
+						if (typeof v === "string" && containsNonAscii(v)) configChanged = true;
 					}
 				}
 			}
 			if (configChanged) {
-				await service.replaceConfig(config);
+				await this.mutateModelConfig((latest) => {
+					let changed = false;
+					for (const g of validGroups) {
+						const pid = providerIdForGroupName(g.name);
+						const provider = latest.providers[pid];
+						if (!provider || !isManaged567Provider(pid, provider, trustedOrigins)) continue;
+						const expectedDisplayName = g.name === "默认分组" ? "567 API" : `567 · ${g.name} (${g.ratio}x)`;
+						if (provider.displayName !== expectedDisplayName) {
+							provider.displayName = expectedDisplayName;
+							changed = true;
+						}
+					}
+					for (const [pId, p] of Object.entries(latest.providers || {})) {
+						if (!isManaged567Provider(pId, p, trustedOrigins) || !p.headers) continue;
+						for (const [k, v] of Object.entries(p.headers)) {
+							if (typeof v === "string" && containsNonAscii(v)) {
+								p.headers[k] = encodeURIComponent(v);
+								changed = true;
+							}
+						}
+					}
+					return changed ? latest : null;
+				});
 			}
 
 			this.currentSession.groups = validGroups;
 			this.currentSession.modelsCount = totalModels;
 
-			if (config.defaultModel?.startsWith("567api")) {
-				const currentProviderId = config.defaultModel.split("/")[0];
-				const matched = validGroups.find((g) => getProviderIdForGroup(g.name) === currentProviderId);
-				if (matched) {
-					this.currentSession.activeGroup = matched.name;
-				} else {
-					this.currentSession.activeGroup = validGroups[0]?.name;
-				}
-			} else if (validGroups.length > 0) {
-				this.currentSession.activeGroup = validGroups[0].name;
+			const selectionPool = enabledGroups;
+			const slash = config.defaultModel?.indexOf("/") ?? -1;
+			const defaultProviderId = slash > 0 ? config.defaultModel!.slice(0, slash) : undefined;
+			const defaultModelId = slash > 0 ? config.defaultModel!.slice(slash + 1) : undefined;
+			const matchedFromDefault = defaultProviderId
+				? selectionPool.find((g) => providerIdForGroupName(g.name) === defaultProviderId)
+				: undefined;
+			if (matchedFromDefault && defaultModelId && matchedFromDefault.models?.includes(defaultModelId)) {
+				this.currentSession.activeGroup = matchedFromDefault.name;
+			} else if (
+				this.currentSession.activeGroup &&
+				selectionPool.some((g) => g.name === this.currentSession.activeGroup)
+			) {
+				// Preserve existing valid activeGroup even when defaultModel uses another provider or is cleared.
 			} else {
 				this.currentSession.activeGroup = undefined;
 			}
 			const activeProvider =
-				this.currentSession.activeGroup && getProviderIdForGroup(this.currentSession.activeGroup);
+				this.currentSession.activeGroup && providerIdForGroupName(this.currentSession.activeGroup);
 			const prefix = activeProvider ? `${activeProvider}/` : undefined;
-			return prefix && config.defaultModel?.startsWith(prefix)
-				? config.defaultModel.slice(prefix.length)
+			const activeProviderConfig = activeProvider ? config.providers[activeProvider] : undefined;
+			const activeModelId =
+				prefix && config.defaultModel?.startsWith(prefix) && !activeProviderConfig?.disabled
+					? config.defaultModel.slice(prefix.length)
+					: undefined;
+			return activeModelId && activeProviderConfig?.models?.some((m) => m.id === activeModelId)
+				? activeModelId
 				: undefined;
 		} catch (err) {
 			log.warn("Failed to reconcile 567api with models.json:", err);
@@ -1237,41 +1651,66 @@ export class NewApiService {
 	 * 获取 567 API 所有的可用分组信息（带 10 分钟本地缓存）
 	 */
 	public async getAvailableGroups(forceRefresh = false): Promise<Record<string, { desc: string; ratio: number }>> {
-		if (
-			!forceRefresh &&
-			this.currentSession.availableGroups &&
-			Object.keys(this.currentSession.availableGroups).length > 0 &&
-			this.currentSession.groupsUpdated
-		) {
+		if (!forceRefresh && this.currentSession.availableGroups !== undefined && this.currentSession.groupsUpdated) {
 			const age = Date.now() - new Date(this.currentSession.groupsUpdated).getTime();
-			if (age < 10 * 60 * 1000) {
+			if (Number.isFinite(age) && age >= 0 && age < AVAILABLE_GROUPS_CACHE_TTL_MS) {
 				return this.currentSession.availableGroups;
 			}
 		}
 
-		try {
-			const res = await this.requestWithAuth<{
-				success: boolean;
-				data?: Record<string, { desc?: string; ratio?: number }>;
-			}>(`${this.baseServer}/api/user/groups`);
+		const gen = this.accountGeneration;
+		if (this.availableGroupsInFlight?.gen === gen) {
+			return this.availableGroupsInFlight.promise;
+		}
 
-			if (res.data?.success && res.data.data) {
-				const result: Record<string, { desc: string; ratio: number }> = {};
+		const promise = (async (): Promise<Record<string, { desc: string; ratio: number }>> => {
+			try {
+				const res = await this.requestWithAuth<{
+					success: boolean;
+					message?: string;
+					data?: Record<string, { desc?: string; ratio?: number }> | null;
+				}>(`${this.baseServer}/api/user/groups`);
+
+				if (
+					res.status !== 200 ||
+					res.data?.success !== true ||
+					!res.data.data ||
+					typeof res.data.data !== "object" ||
+					Array.isArray(res.data.data)
+				) {
+					throw new Error(res.data?.message || `获取可用分组失败 (HTTP ${res.status})`);
+				}
+
+				const result: Record<string, { desc: string; ratio: number }> = Object.create(null);
 				for (const [k, v] of Object.entries(res.data.data)) {
+					if (!v || typeof v !== "object" || Array.isArray(v)) throw new Error("Invalid group metadata");
 					result[k] = {
-						desc: v.desc ?? "",
-						ratio: typeof v.ratio === "number" ? v.ratio : 1,
+						desc: v?.desc ?? "",
+						ratio: typeof v?.ratio === "number" ? v.ratio : 1,
 					};
 				}
+				if (this.accountGeneration !== gen) return result;
+				this.groupsFetchFailed = false;
 				this.currentSession.availableGroups = result;
 				this.currentSession.groupsUpdated = new Date().toISOString();
 				this.saveSession(this.currentSession);
 				return result;
+			} catch (err) {
+				log.warn("Failed to fetch user groups:", err);
+				if (this.accountGeneration === gen) {
+					this.groupsFetchFailed = true;
+					void this.broadcastStatus();
+				}
+				throw err;
 			}
-		} catch (err) {
-			log.warn("Failed to fetch user groups:", err);
-		}
-		return this.currentSession.availableGroups ?? {};
+		})().finally(() => {
+			if (this.availableGroupsInFlight?.promise === promise) {
+				this.availableGroupsInFlight = null;
+			}
+		});
+
+		this.availableGroupsInFlight = { gen, force: forceRefresh, promise };
+		return promise;
 	}
 
 	/**
@@ -1324,6 +1763,22 @@ export class NewApiService {
 			const quotaUsd = Number((quota / QUOTA_PER_USD).toFixed(2));
 			const displayName = userData.display_name || userData.username || "567 用户";
 
+			const prevSession = this.currentSession;
+			const prevIdentity = getAccountIdentityKey(prevSession);
+			const nextIdentity = getAccountIdentityKey({
+				isLoggedIn: true,
+				authType: "access_token",
+				loginUsername: userData?.username,
+				username: displayName,
+			});
+			const switchedAccount = Boolean(
+				prevSession.isLoggedIn && prevIdentity && nextIdentity && prevIdentity !== nextIdentity,
+			);
+			this.resetAccountRuntimeState();
+			if (switchedAccount) {
+				await this.clearManagedProvidersFromConfig();
+			}
+
 			this.currentSession = {
 				isLoggedIn: true,
 				authType: "access_token",
@@ -1333,16 +1788,26 @@ export class NewApiService {
 				quota,
 				quotaUsd,
 				lastUpdated: new Date().toISOString(),
+				...(!switchedAccount && prevSession.isLoggedIn
+					? {
+							activeGroup: prevSession.activeGroup,
+							imageGroup: prevSession.imageGroup,
+							imageModel: prevSession.imageModel,
+							groups: prevSession.groups,
+							availableGroups: prevSession.availableGroups,
+							groupsUpdated: prevSession.groupsUpdated,
+						}
+					: {}),
 			};
 			this.accessTokenRefresh.reset();
-			// 登录成功后拉取可用分组元数据，并自动接入核心推荐分组
-			await this.getAvailableGroups(true);
+			// 登录时只刷新目录与已接入分组，不替用户选择或创建分组令牌
 			try {
-				await this.syncRecommendedGroups();
+				await this.refreshGroupsAndModelsInBackground({ startup: true });
 			} catch (syncErr) {
-				log.warn("Auto sync recommended groups failed on token login:", syncErr);
+				log.warn("Refresh group catalog failed on token login:", syncErr);
 			}
 			await this.reconcileWithModelConfig();
+			this.startupBackgroundRefreshedGen = this.accountGeneration;
 
 			this.saveSession(this.currentSession);
 			log.info(`567api access token login success for: ${displayName}, quota: ${quotaUsd}`);
@@ -1408,6 +1873,22 @@ export class NewApiService {
 			const quotaUsd = Number((quota / QUOTA_PER_USD).toFixed(2));
 			const displayName = userData?.display_name || userData?.username || username;
 
+			const prevSession = this.currentSession;
+			const prevIdentity = getAccountIdentityKey(prevSession);
+			const nextIdentity = getAccountIdentityKey({
+				isLoggedIn: true,
+				authType: "account",
+				loginUsername: userData?.username,
+				username: displayName,
+			});
+			const switchedAccount = Boolean(
+				prevSession.isLoggedIn && prevIdentity && nextIdentity && prevIdentity !== nextIdentity,
+			);
+			this.resetAccountRuntimeState();
+			if (switchedAccount) {
+				await this.clearManagedProvidersFromConfig();
+			}
+
 			this.currentSession = {
 				isLoggedIn: true,
 				authType: "account",
@@ -1418,6 +1899,16 @@ export class NewApiService {
 				quota,
 				quotaUsd,
 				lastUpdated: new Date().toISOString(),
+				...(!switchedAccount && prevSession.isLoggedIn
+					? {
+							activeGroup: prevSession.activeGroup,
+							imageGroup: prevSession.imageGroup,
+							imageModel: prevSession.imageModel,
+							groups: prevSession.groups,
+							availableGroups: prevSession.availableGroups,
+							groupsUpdated: prevSession.groupsUpdated,
+						}
+					: {}),
 			};
 			this.accessTokenRefresh.reset();
 			try {
@@ -1433,14 +1924,14 @@ export class NewApiService {
 				log.warn("Could not securely save 567 API account credentials:", error);
 			}
 
-			// 登录成功后拉取可用分组元数据，并自动接入核心推荐分组
-			await this.getAvailableGroups(true);
+			// 登录时只刷新目录与已接入分组，不替用户选择或创建分组令牌
 			try {
-				await this.syncRecommendedGroups();
+				await this.refreshGroupsAndModelsInBackground({ startup: true });
 			} catch (syncErr) {
-				log.warn("Auto sync recommended groups failed on password login:", syncErr);
+				log.warn("Refresh group catalog failed on password login:", syncErr);
 			}
 			await this.reconcileWithModelConfig();
+			this.startupBackgroundRefreshedGen = this.accountGeneration;
 
 			this.saveSession(this.currentSession);
 			log.info(`567api password login success for: ${username}, quota: ${quotaUsd}`);
@@ -1456,49 +1947,6 @@ export class NewApiService {
 							? err.message
 							: String(err),
 			};
-		}
-	}
-
-	/**
-	 * 自动为核心推荐分组同步模型
-	 */
-	public async syncRecommendedGroups(): Promise<void> {
-		const available = await this.getAvailableGroups();
-		const availableNames = Object.keys(available);
-
-		const priorityGroups = [
-			"反重力Gemini",
-			"画图",
-			"chat GPT 特价",
-			"chat GPT 满血",
-			"Anthropic Claude_max",
-			"Google Gemini",
-			"deepseek官",
-			"xAI grok",
-		];
-
-		const toSync = priorityGroups.filter((g) => availableNames.includes(g)).slice(0, 2);
-		if (toSync.length === 0) {
-			toSync.push("");
-		}
-
-		log.info(`Syncing recommended groups: ${toSync.join(", ") || "(default)"}`);
-		for (const groupName of toSync) {
-			try {
-				await this.syncSingleGroup(groupName, available[groupName]);
-			} catch (err) {
-				log.warn(`Failed to sync group ${groupName}:`, err);
-			}
-		}
-
-		if (!this.currentSession.activeGroup && toSync[0]) {
-			this.currentSession.activeGroup = toSync[0];
-		}
-		if (!this.currentSession.imageGroup && availableNames.includes("画图")) {
-			this.currentSession.imageGroup = "画图";
-		}
-		if (!this.currentSession.imageModel) {
-			this.currentSession.imageModel = "gemini-3.1-flash-image";
 		}
 	}
 
@@ -1535,70 +1983,86 @@ export class NewApiService {
 		groupName: string,
 		groupMeta?: { desc?: string; ratio?: number },
 	): Promise<{ success: boolean; groupInfo?: Api567GroupInfo; message?: string }> {
+		const gen = this.accountGeneration;
 		try {
-			log.info(`Ensuring API key for group: "${groupName || "默认分组"}"`);
-			const apiKey = await this.resolveOrCreateApiKeyForGroup(groupName);
+			const rawGroupName = groupName === "默认分组" ? "" : groupName;
+			const displayGroupName = rawGroupName || "默认分组";
+			log.info(`Ensuring API key for group: "${displayGroupName}"`);
+			const apiKey = await this.resolveOrCreateApiKeyForGroup(rawGroupName);
+			if (this.accountGeneration !== gen) return { success: false, message: "账户状态已变更" };
 
-			log.info(`Fetching models for group: "${groupName || "默认分组"}"`);
-			const { modelDefs, imageModelIds } = await this.fetchGroupModelsWithImages(groupName, apiKey);
+			log.info(`Fetching models for group: "${displayGroupName}"`);
+			const { modelDefs, imageModelIds } = await this.fetchGroupModelsWithImages(rawGroupName, apiKey);
+			if (this.accountGeneration !== gen) return { success: false, message: "账户状态已变更" };
 
-			const providerId = groupName ? getProviderIdForGroup(groupName) : "567api";
-			const meta = groupMeta ?? this.currentSession.availableGroups?.[groupName];
+			const providerId = providerIdForGroupName(rawGroupName);
+			const meta = groupMeta ?? this.currentSession.availableGroups?.[displayGroupName];
 			const ratio =
-				meta?.ratio !== undefined ? meta.ratio : (this.currentSession.availableGroups?.[groupName]?.ratio ?? 1);
-			const desc = meta?.desc ?? this.currentSession.availableGroups?.[groupName]?.desc ?? "";
-			const displayName = groupName ? `567 · ${groupName} (${ratio}x)` : "567 API";
+				meta?.ratio !== undefined
+					? meta.ratio
+					: (this.currentSession.availableGroups?.[displayGroupName]?.ratio ?? 1);
+			const desc = meta?.desc ?? this.currentSession.availableGroups?.[displayGroupName]?.desc ?? "";
+			const displayName = rawGroupName ? `567 · ${rawGroupName} (${ratio}x)` : "567 API";
 
-			const service = getDesktopModelSettingsService();
-			const config = await service.getConfig();
+			let finalModelDefs = modelDefs;
+			await this.mutateModelConfig((config) => {
+				if (this.accountGeneration !== gen) return null;
+				const existingProvider = config.providers[providerId];
+				finalModelDefs = mergeGroupModelsPreservingManualEdits(modelDefs, existingProvider?.models);
 
-			config.providers[providerId] = {
-				modelOverrides: config.providers[providerId]?.modelOverrides,
-				baseUrl: this.baseV1,
-				apiKey,
-				displayName,
-				api: config.providers[providerId]?.api ?? "openai-completions",
-				icon: getProviderIconForGroup(groupName),
-				headers: { "X-567-Group": encodeURIComponent(groupName || "default") },
-				modelsSyncedAt: new Date().toISOString(),
-				models: modelDefs,
-			};
+				config.providers[providerId] = {
+					...(existingProvider?.disabled === undefined ? {} : { disabled: existingProvider.disabled }),
+					...(existingProvider?.authHeader === undefined ? {} : { authHeader: existingProvider.authHeader }),
+					modelOverrides: existingProvider?.modelOverrides,
+					baseUrl: this.baseV1,
+					apiKey,
+					displayName,
+					api: existingProvider?.api ?? DEFAULT_CHAT_INFERENCE_API,
+					managedChatProtocolVersion: 1,
+					icon: getProviderIconForGroup(displayGroupName),
+					headers: { "X-567-Group": encodeURIComponent(rawGroupName || "default") },
+					modelsSyncedAt: new Date().toISOString(),
+					models: finalModelDefs,
+				};
 
-			const prefix = `${providerId}/`;
-			const previousModel = config.defaultModel?.startsWith(prefix)
-				? config.defaultModel.slice(prefix.length)
-				: undefined;
-			if (
-				!config.defaultModel ||
-				(previousModel !== undefined && !modelDefs.some((model) => model.id === previousModel))
-			) {
-				const best = pickBestModel(modelDefs);
-				if (best) {
-					config.defaultModel = `${providerId}/${best.id}`;
+				const prefix = `${providerId}/`;
+				const previousModel = config.defaultModel?.startsWith(prefix)
+					? config.defaultModel.slice(prefix.length)
+					: undefined;
+				if (previousModel !== undefined && !finalModelDefs.some((model) => model.id === previousModel)) {
+					const best = pickBestModel(finalModelDefs);
+					if (best) {
+						config.defaultModel = `${providerId}/${best.id}`;
+					} else {
+						delete config.defaultModel;
+					}
 				}
-			}
+				return config;
+			});
+			if (this.accountGeneration !== gen) return { success: false, message: "账户状态已变更" };
 
-			await service.replaceConfig(config);
-
-			const modelIds = modelDefs.map((m) => m.id);
+			const modelIds = finalModelDefs.map((m) => m.id);
 			const groupInfo: Api567GroupInfo = {
-				name: groupName || "默认分组",
+				name: displayGroupName,
 				desc,
 				ratio,
 				enabled: true,
-				modelsCount: modelDefs.length,
+				modelsCount: modelIds.length,
 				models: modelIds,
 				imageModels: imageModelIds,
 			};
 
-			const existingGroups = (this.currentSession.groups ?? []).filter((g) => g.name !== (groupName || "默认分组"));
+			const existingGroups = (this.currentSession.groups ?? []).filter((g) => g.name !== displayGroupName);
 			existingGroups.push(groupInfo);
 			this.currentSession.groups = existingGroups;
 
 			if (!this.currentSession.apiKey) {
 				this.currentSession.apiKey = apiKey;
 			}
-			this.currentSession.modelsCount = (this.currentSession.modelsCount ?? 0) + modelDefs.length;
+			this.currentSession.modelsCount = existingGroups.reduce((sum, g) => sum + (g.modelsCount ?? 0), 0);
+			this.confirmedModelProviderIds.add(providerId);
+			this.failedModelProviderIds.delete(providerId);
+			this.removedModelProviderIds.delete(providerId);
 
 			this.saveSession(this.currentSession);
 			return { success: true, groupInfo };
@@ -1614,26 +2078,34 @@ export class NewApiService {
 	 */
 	public async removeGroup(groupName: string): Promise<{ success: boolean; message?: string }> {
 		try {
-			const providerId = groupName ? getProviderIdForGroup(groupName) : "567api";
-			const service = getDesktopModelSettingsService();
-			const config = await service.getConfig();
+			const rawGroupName = groupName === "默认分组" ? "" : groupName;
+			const displayGroupName = rawGroupName || "默认分组";
+			const providerId = providerIdForGroupName(rawGroupName);
+			const trustedOrigins = this.getTrustedOrigins();
 
 			// 1. 从本地 models.json 移除
-			if (config.providers[providerId]) {
-				delete config.providers[providerId];
-				if (config.defaultModel?.startsWith(`${providerId}/`)) {
-					delete config.defaultModel;
+			await this.mutateModelConfig((config) => {
+				if (
+					config.providers[providerId] &&
+					isManaged567Provider(providerId, config.providers[providerId], trustedOrigins)
+				) {
+					delete config.providers[providerId];
+					if (config.defaultModel?.startsWith(`${providerId}/`)) {
+						delete config.defaultModel;
+					}
+					return config;
 				}
-				await service.replaceConfig(config);
-			}
+				return null;
+			});
 
 			// 2. 查找并从中转站服务器删除由 567 Agent 创建的专属令牌，释放 10 个 Token 的配额！
 			try {
-				const targetName = groupName ? `567 Agent [${groupName}]` : "567 Agent";
+				const targetName = rawGroupName ? `567 Agent [${rawGroupName}]` : "567 Agent";
 				const listRes = await this.requestWithAuth<unknown>(`${this.baseServer}/api/token/?p=0&size=100`);
 				const tokens = extractTokens(listRes.data);
 				const matched = tokens.find(
-					(t) => t.name === targetName || (groupName && t.group === groupName && t.name.startsWith("567 Agent")),
+					(t) =>
+						t.name === targetName || (rawGroupName && t.group === rawGroupName && t.name.startsWith("567 Agent")),
 				);
 				if (matched) {
 					log.info(`Deleting remote token id=${matched.id} ("${matched.name}") from NewAPI server...`);
@@ -1647,10 +2119,20 @@ export class NewApiService {
 			}
 
 			// 3. 更新会话状态
-			this.currentSession.groups = (this.currentSession.groups ?? []).filter((g) => g.name !== groupName);
-			if (this.currentSession.activeGroup === groupName) {
-				this.currentSession.activeGroup = this.currentSession.groups[0]?.name;
+			this.currentSession.groups = (this.currentSession.groups ?? []).filter(
+				(g) => g.name !== groupName && g.name !== displayGroupName,
+			);
+			if (this.currentSession.activeGroup === groupName || this.currentSession.activeGroup === displayGroupName) {
+				this.currentSession.activeGroup = undefined;
 			}
+			if (this.currentSession.imageGroup === displayGroupName) {
+				this.currentSession.imageGroup = undefined;
+				this.currentSession.imageModel = undefined;
+			}
+			this.currentSession.modelsCount = this.currentSession.groups.reduce((sum, g) => sum + (g.modelsCount ?? 0), 0);
+			this.confirmedModelProviderIds.delete(providerId);
+			this.failedModelProviderIds.delete(providerId);
+			this.removedModelProviderIds.delete(providerId);
 
 			this.saveSession(this.currentSession);
 			return { success: true };
@@ -1664,11 +2146,19 @@ export class NewApiService {
 	 * 设置主力分组及可选模型。仅切组时允许补接入；明确选模型时必须匹配现有模型，避免失败操作改变默认配置。
 	 */
 	public async setActiveGroup(groupName: string, modelName?: string): Promise<{ success: boolean; message?: string }> {
-		const providerId = groupName ? getProviderIdForGroup(groupName) : "567api";
+		const generation = this.accountGeneration;
+		if (
+			!this.currentSession.isLoggedIn ||
+			(this.hasConfirmedAvailableGroups() && !isGroupAvailable(this.currentSession.availableGroups ?? {}, groupName))
+		)
+			return { success: false, message: mainT("api567Model.groupUnavailable") };
+		const providerId = providerIdForGroupName(groupName);
 		try {
 			const service = getDesktopModelSettingsService();
-			let config = await service.getConfig();
-			let provider = config.providers[providerId];
+			const initialConfig = await service.getConfig();
+			if (generation !== this.accountGeneration)
+				return { success: false, message: mainT("api567Model.groupUnavailable") };
+			const provider = initialConfig.providers[providerId];
 
 			// 若本地未配置该 provider 或无有效密钥/模型，先执行自动接入创建 Key 与模型
 			if (!provider || !provider.apiKey || !provider.models || provider.models.length === 0) {
@@ -1678,16 +2168,24 @@ export class NewApiService {
 				if (!syncRes.success) {
 					return { success: false, message: syncRes.message || `未能为分组 [${groupName}] 创建 Key 与接入模型` };
 				}
-				config = await service.getConfig();
-				provider = config.providers[providerId];
 			}
 
-			const selected = modelName
-				? provider?.models?.find((model) => model.id === modelName)
-				: pickBestModel(provider?.models ?? []);
-			if (!selected) return { success: false, message: mainT("api567Model.unavailable") };
-			config.defaultModel = `${providerId}/${selected.id}`;
-			await service.replaceConfig(config);
+			let selectedFound = false;
+			await this.mutateModelConfig((config) => {
+				if (generation !== this.accountGeneration) return null;
+				const latestProvider = config.providers[providerId];
+				if (!latestProvider || latestProvider.disabled) return null;
+				const selected = modelName
+					? latestProvider?.models?.find((model) => model.id === modelName)
+					: pickBestModel(latestProvider?.models ?? []);
+				if (!selected) return null;
+				selectedFound = true;
+				config.defaultModel = `${providerId}/${selected.id}`;
+				return config;
+			});
+			if (!selectedFound || generation !== this.accountGeneration) {
+				return { success: false, message: mainT("api567Model.unavailable") };
+			}
 
 			this.currentSession.activeGroup = groupName;
 			this.saveSession(this.currentSession);
@@ -1704,18 +2202,41 @@ export class NewApiService {
 		groupName: string,
 		apiKey: string,
 	): Promise<{ modelDefs: ModelDefinition[]; imageModelIds: string[] }> {
+		const result = await this.fetchGroupModelsResult(groupName, apiKey);
+		if (!result.ok) {
+			throw new Error(result.error);
+		}
+		return { modelDefs: result.modelDefs, imageModelIds: result.imageModelIds };
+	}
+
+	private async fetchGroupModelsResult(
+		groupName: string,
+		apiKey: string,
+	): Promise<{ ok: true; modelDefs: ModelDefinition[]; imageModelIds: string[] } | { ok: false; error: string }> {
 		let models: ModelDefinition[] = [];
+		let userModelsSucceeded = false;
+		let v1ModelsSucceeded = false;
+		let lastError = "Failed to fetch group models";
+
 		if (groupName) {
 			try {
 				const res = await this.requestWithAuth<{ success: boolean; data?: unknown }>(
 					`${this.baseServer}/api/user/models?group=${encodeURIComponent(groupName)}`,
 				);
-				if (res.data?.success) models = parseModelList(res.data.data);
+				if (res.status === 200 && res.data?.success === true && Array.isArray(res.data.data)) {
+					const parsed = parseModelList(res.data.data);
+					if (parsed.length !== res.data.data.length) throw new Error("Invalid group model list");
+					models = parsed;
+					userModelsSucceeded = true;
+				} else {
+					lastError = `Group models endpoint returned HTTP ${res.status}`;
+				}
 			} catch (error) {
+				lastError = error instanceof Error ? error.message : String(error);
 				log.warn("Could not fetch group model metadata", error);
 			}
 		}
-		if (models.length === 0 || models.some((model) => model.contextWindow === undefined)) {
+		if (!userModelsSucceeded || models.some((model) => model.contextWindow === undefined)) {
 			try {
 				const res = await request<{ data?: unknown }>(`${this.baseV1}/models`, {
 					headers: {
@@ -1723,20 +2244,30 @@ export class NewApiService {
 						"X-567-Group": encodeURIComponent(groupName || "default"),
 					},
 				});
-				const listed = parseModelList(res.data?.data);
-				if (models.length === 0) models = listed;
-				else {
-					const metadata = new Map(listed.map((model) => [model.id, model]));
-					models = models.map((model) =>
-						model.contextWindow !== undefined ? model : (metadata.get(model.id) ?? model),
-					);
+				if (res.status === 200 && res.data && typeof res.data === "object" && Array.isArray(res.data.data)) {
+					const listed = parseModelList(res.data.data);
+					if (listed.length !== res.data.data.length) throw new Error("Invalid compatible model list");
+					v1ModelsSucceeded = true;
+					if (models.length === 0) models = listed;
+					else {
+						const metadata = new Map(listed.map((model) => [model.id, model]));
+						models = models.map((model) =>
+							model.contextWindow !== undefined ? model : (metadata.get(model.id) ?? model),
+						);
+					}
+				} else {
+					lastError = `Models endpoint returned HTTP ${res.status}`;
 				}
 			} catch (error) {
+				lastError = error instanceof Error ? error.message : String(error);
 				log.warn("Could not fetch compatible model metadata", error);
 			}
 		}
+		if (!userModelsSucceeded && !v1ModelsSucceeded) {
+			return { ok: false, error: lastError };
+		}
 		const desc = this.currentSession.availableGroups?.[groupName]?.desc || "";
-		const isDrawingGroup = /画图|绘图|生图|image|draw|paint|flux/i.test(`${groupName} ${desc}`);
+		const isDrawingGroup = isImageOnlyGroup(groupName, desc);
 		const imageModelIds = models
 			.filter(
 				(model) =>
@@ -1747,6 +2278,7 @@ export class NewApiService {
 		const chatModels = filtered.length > 0 ? filtered : models;
 		const catalog = await listPresetProviders();
 		return {
+			ok: true,
 			modelDefs: enrichModelContexts(
 				chatModels,
 				catalog.providers.flatMap((provider) => provider.catalogModels),
@@ -1759,7 +2291,7 @@ export class NewApiService {
 	 * 对外暴露获取或创建专属 API Key (sk-...)
 	 */
 	public async getApiKey(groupName?: string): Promise<string> {
-		return this.resolveOrCreateApiKeyForGroup(groupName);
+		return this.resolveOrCreateApiKeyForGroup(groupName === "默认分组" ? "" : groupName);
 	}
 
 	/**
@@ -1822,9 +2354,83 @@ export class NewApiService {
 		return readKey(own);
 	}
 
-	/**
-	 * 刷新用户余额
-	 */
+	public async getUsageGroupNames(): Promise<Map<string, string | undefined>> {
+		const generation = this.accountGeneration;
+		const { providers } = await getDesktopModelSettingsService().getConfig();
+		const result = new Map<string, string | undefined>();
+		if (generation !== this.accountGeneration) return result;
+		const origins = this.getTrustedOrigins();
+		for (const name of new Set([
+			...(this.currentSession.groups ?? []).map((group) => group.name),
+			...Object.keys(this.currentSession.availableGroups ?? {}),
+		])) {
+			const id = providerIdForGroupName(name);
+			if (!isManaged567Provider(id, providers[id], origins)) continue;
+			const label = name || "默认分组";
+			result.set(id, result.has(id) && result.get(id) !== label ? undefined : label);
+		}
+		return result;
+	}
+
+	public async readBilledUsage(): Promise<Api567BilledSnapshot> {
+		if (!this.currentSession.isLoggedIn) return { status: "signed-out" };
+		const reader = this.billedUsage;
+		const server = this.baseServer;
+		const bill = await reader.read(
+			async (from, to) => {
+				const token = await this.ensureValidAccessToken();
+				if (reader !== this.billedUsage || server !== this.baseServer) throw new Error("Account changed");
+				const query = new URLSearchParams({ type: "2", start_timestamp: String(from), end_timestamp: String(to) });
+				return request<{ success?: boolean; data?: { quota?: number } }>(`${server}/api/log/self/stat?${query}`, {
+					headers: { Authorization: `Bearer ${token}` },
+					signal: AbortSignal.timeout(8_000),
+					maxBytes: 32 * 1024,
+				});
+			},
+			Math.max(this.rateLimitedUntil, this.billingRate?.limitedUntil ?? 0),
+		);
+		if (reader !== this.billedUsage || server !== this.baseServer) return { status: "unavailable" };
+		if (bill.quota == null) return bill;
+		if (
+			bill.status === "ready" &&
+			this.rateLimitedUntil <= Date.now() &&
+			(!this.billingRate || this.billingRate.until <= Date.now())
+		) {
+			const rate: NonNullable<typeof this.billingRate> = { until: Date.now() + 5 * 60_000 };
+			this.billingRate = rate;
+			rate.pending = request<{ success?: boolean; data?: { quota_per_unit?: unknown } }>(`${server}/api/status`, {
+				signal: AbortSignal.timeout(5000),
+				maxBytes: 128 * 1024,
+			})
+				.then((response) => {
+					if (response.status === 429 || response.headers["retry-after"]) {
+						rate.until = Math.max(rate.until, retryAfter(response.headers["retry-after"], Date.now()));
+						if (response.status === 429) rate.limitedUntil = rate.until;
+					}
+					const value = response.data?.data?.quota_per_unit;
+					if (
+						response.status === 200 &&
+						response.data?.success === true &&
+						typeof value === "number" &&
+						Number.isFinite(value) &&
+						value > 0
+					) {
+						rate.until = Date.now() + 24 * 60 * 60_000;
+						return value;
+					}
+					return undefined;
+				})
+				.catch(() => undefined);
+		}
+		const perUsd = await this.billingRate?.pending;
+		if (reader !== this.billedUsage || server !== this.baseServer) return { status: "unavailable" };
+		return {
+			...bill,
+			retryAt: Math.max(bill.retryAt ?? 0, this.billingRate?.limitedUntil ?? 0),
+			usd: perUsd ? bill.quota / perUsd : undefined,
+		};
+	}
+
 	public async refreshQuota(force = false): Promise<{ success: boolean; quota?: number; quotaUsd?: number }> {
 		if (!this.currentSession.isLoggedIn) {
 			return { success: false };
@@ -1895,6 +2501,7 @@ export class NewApiService {
 	 * 退出登录
 	 */
 	public async logout(): Promise<void> {
+		this.resetAccountRuntimeState();
 		this.accessTokenRefresh.reset();
 		try {
 			removeAccountCredentials(getDesktopCredentialVault());
@@ -1904,17 +2511,7 @@ export class NewApiService {
 		this.saveSession({ isLoggedIn: false });
 
 		try {
-			const service = getDesktopModelSettingsService();
-			const config = await service.getConfig();
-			for (const id of Object.keys(config.providers)) {
-				if (id.startsWith("567api")) {
-					delete config.providers[id];
-				}
-			}
-			if (config.defaultModel?.startsWith("567api")) {
-				delete config.defaultModel;
-			}
-			await service.replaceConfig(config);
+			await this.clearManagedProvidersFromConfig();
 		} catch (err) {
 			log.warn("Failed to clear 567api providers from models.json:", err);
 		}

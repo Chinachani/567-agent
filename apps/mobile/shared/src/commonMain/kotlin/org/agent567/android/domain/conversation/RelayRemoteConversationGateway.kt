@@ -60,6 +60,7 @@ import org.agent567.android.domain.remote.connection.RemoteConnectionOptions
 import org.agent567.android.domain.remote.connection.RemoteConnectionState
 import org.agent567.android.domain.remote.connection.RemoteEventCursor
 import org.agent567.android.domain.remote.connection.RemoteRequestException
+import org.agent567.android.domain.remote.connection.RemotePairingIdentityChanged
 import org.agent567.android.domain.remote.protocol.RemoteCapabilities
 import org.agent567.android.domain.remote.protocol.RemoteRole
 import org.agent567.android.domain.remote.protocol.RemoteEventName
@@ -121,6 +122,7 @@ class RelayRemoteConversationGateway(
         var selectedTarget: String? = null
         var selectedConnection: RemoteConnection? = null
         var lastFailure: Throwable? = null
+        var pinMismatch: RemotePairingIdentityChanged? = null
         var attemptNumber = 0
         for (candidate in activeTargets) {
             val targetKind = remoteTargetKind(candidate)
@@ -136,7 +138,8 @@ class RelayRemoteConversationGateway(
                     mapOf("attempt" to attemptNumber, "target" to targetKind, "retry" to retry),
                 )
                 try {
-                    next.connect()
+                    withTimeoutOrNull(12_000) { next.connect(); true }
+                        ?: throw RemoteConversationException("连接桌面设备超时")
                     phase = "hello_ack"
                     waitUntilOnline(next)
                     PlatformRemoteLogger.info(
@@ -147,7 +150,12 @@ class RelayRemoteConversationGateway(
                     selectedConnection = next
                     break
                 } catch (error: Throwable) {
-                    if (error is CancellationException) throw error
+                    if (error is CancellationException) {
+                        withContext(NonCancellable) { next.close() }
+                        throw error
+                    }
+                    generateSequence(error) { it.cause }.take(12).filterIsInstance<RemotePairingIdentityChanged>()
+                        .firstOrNull()?.let { pinMismatch = it }
                     lastFailure = error
                     PlatformRemoteLogger.warn(
                         "remote connection attempt failed",
@@ -171,7 +179,7 @@ class RelayRemoteConversationGateway(
             connectionStateJob?.cancel()
             connectionStateJob = null
             connection = null
-            throw lastFailure ?: RemoteConversationException("无法连接桌面设备")
+            throw pinMismatch ?: lastFailure ?: RemoteConversationException("无法连接桌面设备")
         }
         val target = requireNotNull(selectedTarget)
         val url = normalizeRelayUrl(target)
@@ -261,6 +269,112 @@ class RelayRemoteConversationGateway(
         return RemoteDesktopSessionCatalog(
             sessions = sessions,
             failedDirectoryCount = payload.intValue("failedRootCount")?.coerceAtLeast(0) ?: 0,
+        )
+    }
+
+    override suspend fun supportsDesktopDraftAppend(deviceId: String): Boolean? {
+        val active = connection ?: return null
+        if (active.state.value != RemoteConnectionState.Online) return null
+        if (_devices.value.none { it.id == deviceId }) return null
+        if (!active.supportsPeerMethod("session.draft.append")) {
+            val catalog = active.request(RemoteRequestMethod.SessionList) as? JsonObject ?: return null
+            updatePeerSupportedMethods(active, catalog)
+        }
+        return active.supportsPeerMethod("session.draft.append")
+    }
+
+    override suspend fun appendDesktopDraft(
+        deviceId: String,
+        idempotencyKey: String,
+        targetType: RemoteDraftTargetType,
+        remoteSessionId: String?,
+        text: String,
+    ): RemoteDesktopDraftAppendResult {
+        val active = connection ?: throw RemoteConversationException(Str.draftHandoffDesktopOffline)
+        if (active.state.value != RemoteConnectionState.Online || _devices.value.none { it.id == deviceId }) {
+            throw RemoteConversationException(Str.draftHandoffDesktopOffline)
+        }
+        if (!active.supportsPeerMethod("session.draft.append")) {
+            val catalog = active.request(RemoteRequestMethod.SessionList) as? JsonObject
+                ?: throw RemoteConversationException(Str.draftHandoffDesktopOffline)
+            updatePeerSupportedMethods(active, catalog)
+            if (!active.supportsPeerMethod("session.draft.append")) {
+                throw RemoteConversationException(Str.draftHandoffDesktopUnsupported)
+            }
+        }
+        require(DRAFT_IDEMPOTENCY_KEY_REGEX.matches(idempotencyKey)) { "Invalid draft idempotency key" }
+        val trimmed = text.trim()
+        if (trimmed.isEmpty()) throw RemoteConversationException(Str.draftHandoffEmpty)
+        if (text.length > REMOTE_DRAFT_TOTAL_MAX_CHARS ||
+            trimmed.length > REMOTE_DRAFT_MAX_CHARS ||
+            text.encodeToByteArray().size > REMOTE_DRAFT_MAX_UTF8_BYTES
+        ) {
+            throw RemoteConversationException(Str.draftHandoffTooLarge)
+        }
+        val targetSessionId = when (targetType) {
+            RemoteDraftTargetType.New -> {
+                require(remoteSessionId == null) { "New desktop draft must not specify remoteSessionId" }
+                null
+            }
+            RemoteDraftTargetType.Existing ->
+                remoteSessionId?.takeIf { it.isNotBlank() && it.length <= 512 }
+                    ?: throw RemoteConversationException(Str.draftHandoffSessionRequired)
+        }
+        val innerPayload = buildJsonObject {
+            put("idempotencyKey", idempotencyKey)
+            put("targetType", if (targetType == RemoteDraftTargetType.New) "new" else "existing")
+            if (targetSessionId != null) put("sessionId", targetSessionId)
+            put("text", text)
+        }
+        val response = try {
+            active.request(
+                method = RemoteRequestMethod.SessionContext,
+                payload = buildJsonObject {
+                    put("extensionMethod", "session.draft.append")
+                    put("payload", innerPayload)
+                },
+                sessionId = targetSessionId,
+                timeoutMs = 30_000,
+            ) as? JsonObject
+        } catch (error: RemoteRequestException) {
+            if (isUnsupportedDraftExtensionError(error.remoteError.code, error.remoteError.message)) {
+                throw RemoteConversationException(Str.draftHandoffDesktopUnsupported)
+            }
+            if (error.remoteError.code == RemoteErrorCode.RequestTimeout) {
+                throw RemoteConversationException(Str.draftHandoffTimeout)
+            }
+            throw error
+        }
+        val extensionError = response?.get("extensionError") as? JsonObject
+        if (extensionError != null) {
+            val errorCode = extensionError.stringValue("code").toRemoteErrorCode()
+            val errorMessage = extensionError.stringValue("message")
+            if (isUnsupportedDraftExtensionError(errorCode, errorMessage)) {
+                throw RemoteConversationException(Str.draftHandoffDesktopUnsupported)
+            }
+            throw RemoteRequestException(
+                RemoteError(
+                    code = errorCode,
+                    message = errorMessage ?: Str.draftHandoffSendFailed,
+                    retryable = extensionError["retryable"]?.jsonPrimitive?.booleanOrNull == true,
+                ),
+            )
+        }
+        val saved = response?.get("saved")?.jsonPrimitive?.booleanOrNull == true
+        if (!saved) {
+            throw RemoteConversationException(Str.draftHandoffUnconfirmed)
+        }
+        val resultTargetType = when (response.stringValue("targetType")) {
+            "new" -> RemoteDraftTargetType.New
+            "existing" -> RemoteDraftTargetType.Existing
+            else -> targetType
+        }
+        return RemoteDesktopDraftAppendResult(
+            saved = true,
+            deduplicated = response["deduplicated"]?.jsonPrimitive?.booleanOrNull == true,
+            targetType = resultTargetType,
+            sessionId = response.stringValue("sessionId"),
+            draftLength = response.intValue("draftLength") ?: trimmed.length,
         )
     }
 
@@ -1536,6 +1650,13 @@ private fun updatePeerSupportedMethods(active: RemoteConnection, payload: JsonOb
         }.toSet(),
     )
 }
+
+private val DRAFT_IDEMPOTENCY_KEY_REGEX = Regex("^[A-Za-z0-9._:-]{1,160}$")
+
+private fun isUnsupportedDraftExtensionError(code: RemoteErrorCode, message: String?): Boolean =
+    code == RemoteErrorCode.UnsupportedVersion ||
+        message?.contains("Unknown session context extension", ignoreCase = true) == true ||
+        message?.contains("Unsupported", ignoreCase = true) == true
 
 private val TERMINAL_REMOTE_STATES = setOf("completed", "error", "aborted")
 

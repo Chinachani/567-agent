@@ -33,7 +33,7 @@ export interface BrowserConsolePorts {
 function Hero({ onOpenRepo }: { onOpenRepo: () => void }): JSX.Element {
 	const { t } = useTranslation();
 	return (
-		<header className="flex flex-col gap-4">
+		<header data-browser-hero="" className="flex flex-col gap-4">
 			<div className="flex items-start gap-4">
 				<span className="browser-icon-plate">
 					<img src={PLUGIN_ICON_URL} alt="" className="size-10" />
@@ -67,9 +67,16 @@ export function BrowserConsole({ ports }: { ports: BrowserConsolePorts }): JSX.E
 			<div className="browser-page-inner">
 				<Hero onOpenRepo={() => ports.openExternal(UPSTREAM_REPO_URL)} />
 
-				<section className="flex flex-col gap-2.5">
-					<h2 className="browser-section-label">{t("extension.title")}</h2>
-					<div className="browser-card flex flex-col gap-3 p-4">
+				<RuntimeSection
+					status={status}
+					onInstallRuntime={() => void ports.runtime.installRuntime()}
+					onInstallBrowser={() => void ports.runtime.installBrowser()}
+					onRecheck={() => void ports.runtime.refresh()}
+				/>
+
+				<details data-browser-extension="" className="browser-card p-4">
+					<summary className="cursor-pointer text-sm font-medium">{t("extension.title")}</summary>
+					<div className="flex flex-col gap-3 pt-3">
 						<p className="text-sm leading-relaxed">{t("extension.description")}</p>
 						<p className="text-xs leading-relaxed text-muted-foreground">{t("extension.setup")}</p>
 						<p className="text-xs leading-relaxed text-muted-foreground">{t("extension.target")}</p>
@@ -90,19 +97,18 @@ export function BrowserConsole({ ports }: { ports: BrowserConsolePorts }): JSX.E
 							</button>
 						</div>
 					</div>
-				</section>
+				</details>
 
-				<RuntimeSection
-					status={status}
-					onInstallRuntime={() => void ports.runtime.installRuntime()}
-					onInstallBrowser={() => void ports.runtime.installBrowser()}
-					onRecheck={() => void ports.runtime.refresh()}
-				/>
-
-				<CapabilitiesSection />
 				<PromptsSection />
-				<ComparisonSection />
-				<CliSection />
+
+				<details className="browser-card p-4">
+					<summary className="cursor-pointer text-sm font-medium">{t("guide.detailsTitle")}</summary>
+					<div className="flex flex-col gap-6 pt-4">
+						<CapabilitiesSection />
+						<ComparisonSection />
+						<CliSection />
+					</div>
+				</details>
 
 				<footer className="flex flex-col gap-2 border-t border-border pt-4 text-xs leading-relaxed text-muted-foreground">
 					<p>{t("guide.newSession")}</p>

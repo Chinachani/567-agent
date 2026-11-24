@@ -4,6 +4,9 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
 
 @Composable
+expect fun rememberOpenPairingScanner(onScanned: (String) -> Unit): () -> Unit
+
+@Composable
 expect fun PairingScannerButton(
     onScanned: (String) -> Unit,
     modifier: Modifier = Modifier,
