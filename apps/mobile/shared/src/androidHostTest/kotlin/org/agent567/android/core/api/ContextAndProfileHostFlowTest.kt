@@ -41,6 +41,7 @@ class ContextAndProfileHostFlowTest {
                 }
                 request.requestURI.path == "/api/user/self" -> """{"success":true,"data":{"id":7,"username":"test","display_name":"$nickname","quota":500000,"group":"default"}}"""
                 request.requestURI.path == "/api/user/models" -> """{"success":true,"data":["test-model"]}"""
+                request.requestURI.path == "/api/user/groups" -> """{"success":true,"data":{"":{"desc":"","ratio":1}}}"""
                 else -> """{"success":true,"data":{}}"""
             }
             request.requestBody.close(); val bytes = body.toByteArray()
@@ -50,8 +51,9 @@ class ContextAndProfileHostFlowTest {
         server.start()
         val preferences = AppPreferences(MapSettings()).apply {
             setServerUrl("http://127.0.0.1:${server.address.port}")
-            setModelInferenceApi(null, "test-model", org.agent567.android.core.chat.InferenceApi.Completions)
-            setCachedGroupModels(null, listOf("test-model")); setInputPredictionEnabled(false)
+            active567Group = ""
+            setModelInferenceApi("", "test-model", org.agent567.android.core.chat.InferenceApi.Completions)
+            setCachedGroupModels("", listOf("test-model")); setInputPredictionEnabled(false)
         }
         val settings = MapSettings()
         val store = SettingsSessionStore(settings, Dispatchers.IO)
@@ -81,7 +83,7 @@ class ContextAndProfileHostFlowTest {
             assertEquals(1, summaryRequests)
             vm.setChatInferenceApi(org.agent567.android.core.chat.InferenceApi.Responses)
             awaitState { !it.contextLoading && it.contextSnapshot?.inferenceApiOverride == "openai-responses" }
-            assertEquals(org.agent567.android.core.chat.InferenceApi.Responses, preferences.getModelInferenceApi(null, "test-model"))
+            assertEquals(org.agent567.android.core.chat.InferenceApi.Responses, preferences.getModelInferenceApi("", "test-model"))
             vm.setChatInferenceApi(null)
             awaitState { !it.contextLoading && it.contextSnapshot?.inferenceApiOverride == null }
             vm.openAccount(); assertEquals(AppRoute.Account, vm.state.value.route)

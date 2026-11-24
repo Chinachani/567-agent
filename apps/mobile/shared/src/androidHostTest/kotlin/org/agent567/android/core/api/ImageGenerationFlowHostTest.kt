@@ -45,8 +45,9 @@ class ImageGenerationFlowHostTest {
                     """{"choices":[{"message":{"content":${kotlinx.serialization.json.JsonPrimitive(caption)}}}]}"""
                 }
                 path.startsWith("/v1/images/") -> """{"choices":[{"message":{"content":"All done: [download](https://example.test/fake.png)"}}]}"""
-                path == "/api/user/models" -> """{"success":true,"data":["test-model"]}"""
+                path == "/api/user/models" -> """{"success":true,"data":["test-model","gpt-image-2"]}"""
                 path == "/api/user/self" -> """{"success":true,"data":{"id":7,"username":"test","quota":500000,"group":"default"}}"""
+                path == "/api/user/groups" -> """{"success":true,"data":{"":{"desc":"","ratio":1}}}"""
                 else -> """{"success":true,"data":{}}"""
             }
             val bytes = body.toByteArray()
@@ -55,8 +56,9 @@ class ImageGenerationFlowHostTest {
         }
         server.start()
         val preferences = AppPreferences(MapSettings()).apply {
-            setServerUrl("http://127.0.0.1:${server.address.port}"); setModelInferenceApi(null, "test-model", org.agent567.android.core.chat.InferenceApi.Completions)
-            setCachedGroupModels(null, listOf("test-model")); setInputPredictionEnabled(false)
+            setServerUrl("http://127.0.0.1:${server.address.port}"); active567Group = ""; activeImageGroup = ""
+            setModelInferenceApi("", "test-model", org.agent567.android.core.chat.InferenceApi.Completions)
+            setCachedGroupModels("", listOf("test-model", "gpt-image-2")); setInputPredictionEnabled(false)
             activeImageModel = "gpt-image-2"
         }
         val storage = MapSettings()

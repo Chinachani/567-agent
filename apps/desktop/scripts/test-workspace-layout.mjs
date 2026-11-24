@@ -55,7 +55,7 @@ try {
 				},
 				load(id) {
 					if (id === "\0fixture-router")
-						return "export const useNavigate=()=>value=>window.workspaceEvents.push('navigate:'+JSON.stringify(value));export const useLocation=()=>({pathname:'/'});export const useSearch=()=>({});";
+						return "export const useNavigate=()=>value=>window.workspaceEvents.push('navigate:'+JSON.stringify(value));export const useLocation=()=>({pathname:'/'});export const useMatches=()=>[{pathname:'/',params:{}}];export const useSearch=()=>({});";
 					if (id === "\0fixture-account")
 						return `export const useApi567=()=>({status:{isLoggedIn:true,username:"夜雨寄北",loginUsername:"Yeyu",quotaUsd:62.53},availableGroups:{},groupsLoadState:{loading:false,error:false,loaded:true},loadAvailableGroups:async()=>{}});`;
 				},

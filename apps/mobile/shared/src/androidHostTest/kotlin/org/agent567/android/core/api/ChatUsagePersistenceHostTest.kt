@@ -38,6 +38,7 @@ class ChatUsagePersistenceHostTest {
                 chat -> """{"choices":[{"message":{"content":"Answer"},"finish_reason":"stop"}],"usage":$usage}"""
                 request.requestURI.path == "/api/user/models" -> """{"success":true,"data":["test-model"]}"""
                 request.requestURI.path == "/api/user/self" -> """{"success":true,"data":{"id":7,"username":"test","quota":500000,"group":"default"}}"""
+                request.requestURI.path == "/api/user/groups" -> """{"success":true,"data":{"":{"desc":"","ratio":1}}}"""
                 else -> """{"success":true,"data":{}}"""
             }
             request.requestBody.close()
@@ -49,8 +50,9 @@ class ChatUsagePersistenceHostTest {
         server.start()
         val preferences = AppPreferences(MapSettings()).apply {
             setServerUrl("http://127.0.0.1:${server.address.port}")
-            setModelInferenceApi(null, "test-model", org.agent567.android.core.chat.InferenceApi.Completions)
-            setCachedGroupModels(null, listOf("test-model"))
+            active567Group = ""
+            setModelInferenceApi("", "test-model", org.agent567.android.core.chat.InferenceApi.Completions)
+            setCachedGroupModels("", listOf("test-model"))
             setInputPredictionEnabled(false)
         }
         val settings = MapSettings()

@@ -74,7 +74,7 @@ class AppViewModelRemoteConversationTest {
             advanceUntilIdle()
 
             assertTrue(viewModel.state.value.models.isEmpty())
-            assertEquals("gemini-3.1-flash-image", viewModel.state.value.activeImageModel)
+            assertEquals(null, viewModel.state.value.activeImageModel)
             assertEquals("desktop-1", viewModel.state.value.devices.single().id)
 
             viewModel.startDesktopConversation("desktop-1")
