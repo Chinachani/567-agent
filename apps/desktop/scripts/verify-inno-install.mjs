@@ -142,6 +142,7 @@ export async function verifyInnoInstall({ installerPath, version, diagnosticsDir
 		}
 	};
 	const install = async (name, dataRoot, extraArguments = []) => {
+		await mkdir(appRoot, { recursive: true });
 		await runInnoInstaller({
 			installerPath,
 			args: [...silentArguments, `/DIR=${appRoot}`, ...(dataRoot ? [`/VETTADATAROOT=${dataRoot}`] : []), ...extraArguments],
