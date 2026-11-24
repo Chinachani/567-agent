@@ -10,7 +10,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { FRAME_READY_EXPRESSION, framePrepareScript } from "../src/canvas/offscreen-raster";
 
-type PageWindow = Window & { __vetdPainted?: string | null };
+type PageWindow = Window & { __vetdBooted?: boolean; __vetdPainted?: string | null };
 
 let posted: unknown[];
 let frames: FrameRequestCallback[];
@@ -40,11 +40,13 @@ beforeEach(() => {
 		return frames.length;
 	});
 	Object.defineProperty(document, "fonts", { configurable: true, value: { ready: Promise.resolve() } });
+	(window as PageWindow).__vetdBooted = true;
 });
 
 afterEach(() => {
 	vi.restoreAllMocks();
 	(window as PageWindow).__vetdPainted = undefined;
+	(window as PageWindow).__vetdBooted = undefined;
 	(window as Window & { __vetdNavFrom?: string }).__vetdNavFrom = undefined;
 });
 

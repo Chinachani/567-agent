@@ -33,7 +33,10 @@ const modelOptions = vi.hoisted(() => {
 	};
 });
 
-vi.mock("@shared/store/model-catalog", () => ({ modelCatalog: catalog }));
+vi.mock("@shared/store/model-catalog", async () => {
+	const { atom } = await import("jotai");
+	return { modelCatalog: catalog, modelCatalogSyncErrorAtom: atom({ local: false, remote: false }) };
+});
 vi.mock("@shared/components/ModelSelect/useModelOptions", () => ({
 	useModelOptions: () => modelOptions,
 }));
