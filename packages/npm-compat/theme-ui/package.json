@@ -71,10 +71,6 @@
 			"types": "./dist/file-explorer.d.ts",
 			"import": "./dist/file-explorer.js"
 		},
-		"./downloads": {
-			"types": "./dist/downloads.d.ts",
-			"import": "./dist/downloads.js"
-		},
 		"./flowing": {
 			"types": "./dist/flowing.d.ts",
 			"import": "./dist/flowing.js"
@@ -232,10 +228,6 @@
 			"types": "./dist/activity/PluginTabPickerView.d.ts",
 			"import": "./dist/activity/PluginTabPickerView.js"
 		},
-		"./activity/PortsTabPanelView": {
-			"types": "./dist/activity/PortsTabPanelView.d.ts",
-			"import": "./dist/activity/PortsTabPanelView.js"
-		},
 		"./activity/RequestHistorySubTabView": {
 			"types": "./dist/activity/RequestHistorySubTabView.d.ts",
 			"import": "./dist/activity/RequestHistorySubTabView.js"
@@ -388,10 +380,6 @@
 			"types": "./dist/chat/GuideBadgeSwiperView.d.ts",
 			"import": "./dist/chat/GuideBadgeSwiperView.js"
 		},
-		"./chat/InlineModelPicker": {
-			"types": "./dist/chat/InlineModelPicker.d.ts",
-			"import": "./dist/chat/InlineModelPicker.js"
-		},
 		"./chat/InputBarBackground": {
 			"types": "./dist/chat/InputBarBackground.d.ts",
 			"import": "./dist/chat/InputBarBackground.js"
@@ -423,10 +411,6 @@
 		"./chat/MessageBlockSegmentsView": {
 			"types": "./dist/chat/MessageBlockSegmentsView.d.ts",
 			"import": "./dist/chat/MessageBlockSegmentsView.js"
-		},
-		"./chat/CompactionStepView": {
-			"types": "./dist/chat/CompactionStepView.d.ts",
-			"import": "./dist/chat/CompactionStepView.js"
 		},
 		"./chat/MessageBoundaryViews": {
 			"types": "./dist/chat/MessageBoundaryViews.d.ts",
@@ -463,10 +447,6 @@
 		"./chat/MessageVisualView": {
 			"types": "./dist/chat/MessageVisualView.d.ts",
 			"import": "./dist/chat/MessageVisualView.js"
-		},
-		"./chat/ModelConfiguration": {
-			"types": "./dist/chat/ModelConfiguration.d.ts",
-			"import": "./dist/chat/ModelConfiguration.js"
 		},
 		"./chat/ModelSelectorView": {
 			"types": "./dist/chat/ModelSelectorView.d.ts",
@@ -511,10 +491,6 @@
 		"./chat/SkillPromptAreaView": {
 			"types": "./dist/chat/SkillPromptAreaView.d.ts",
 			"import": "./dist/chat/SkillPromptAreaView.js"
-		},
-		"./chat/TeamMemberReplyCardView": {
-			"types": "./dist/chat/TeamMemberReplyCardView.d.ts",
-			"import": "./dist/chat/TeamMemberReplyCardView.js"
 		},
 		"./chat/ThinkingBlockView": {
 			"types": "./dist/chat/ThinkingBlockView.d.ts",

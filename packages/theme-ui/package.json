@@ -69,10 +69,6 @@
 			"types": "./src/file-explorer/index.ts",
 			"import": "./src/file-explorer/index.ts"
 		},
-		"./downloads": {
-			"types": "./src/downloads/index.ts",
-			"import": "./src/downloads/index.ts"
-		},
 		"./flowing": {
 			"types": "./src/flowing/index.ts",
 			"import": "./src/flowing/index.ts"
@@ -230,10 +226,6 @@
 			"types": "./src/activity/PluginTabPickerView.tsx",
 			"import": "./src/activity/PluginTabPickerView.tsx"
 		},
-		"./activity/PortsTabPanelView": {
-			"types": "./src/activity/PortsTabPanelView.tsx",
-			"import": "./src/activity/PortsTabPanelView.tsx"
-		},
 		"./activity/RequestHistorySubTabView": {
 			"types": "./src/activity/RequestHistorySubTabView.tsx",
 			"import": "./src/activity/RequestHistorySubTabView.tsx"
@@ -386,10 +378,6 @@
 			"types": "./src/chat/GuideBadgeSwiperView.tsx",
 			"import": "./src/chat/GuideBadgeSwiperView.tsx"
 		},
-		"./chat/InlineModelPicker": {
-			"types": "./src/chat/InlineModelPicker.tsx",
-			"import": "./src/chat/InlineModelPicker.tsx"
-		},
 		"./chat/InputBarBackground": {
 			"types": "./src/chat/InputBarBackground.tsx",
 			"import": "./src/chat/InputBarBackground.tsx"
@@ -421,10 +409,6 @@
 		"./chat/MessageBlockSegmentsView": {
 			"types": "./src/chat/MessageBlockSegmentsView.tsx",
 			"import": "./src/chat/MessageBlockSegmentsView.tsx"
-		},
-		"./chat/CompactionStepView": {
-			"types": "./src/chat/CompactionStepView.tsx",
-			"import": "./src/chat/CompactionStepView.tsx"
 		},
 		"./chat/MessageBoundaryViews": {
 			"types": "./src/chat/MessageBoundaryViews.tsx",
@@ -461,10 +445,6 @@
 		"./chat/MessageVisualView": {
 			"types": "./src/chat/MessageVisualView.tsx",
 			"import": "./src/chat/MessageVisualView.tsx"
-		},
-		"./chat/ModelConfiguration": {
-			"types": "./src/chat/ModelConfiguration.tsx",
-			"import": "./src/chat/ModelConfiguration.tsx"
 		},
 		"./chat/ModelSelectorView": {
 			"types": "./src/chat/ModelSelectorView.tsx",
@@ -509,10 +489,6 @@
 		"./chat/SkillPromptAreaView": {
 			"types": "./src/chat/SkillPromptAreaView.tsx",
 			"import": "./src/chat/SkillPromptAreaView.tsx"
-		},
-		"./chat/TeamMemberReplyCardView": {
-			"types": "./src/chat/TeamMemberReplyCardView.tsx",
-			"import": "./src/chat/TeamMemberReplyCardView.tsx"
 		},
 		"./chat/ThinkingBlockView": {
 			"types": "./src/chat/ThinkingBlockView.tsx",

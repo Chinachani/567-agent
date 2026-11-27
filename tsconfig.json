@@ -494,9 +494,6 @@
 			"@567agent/theme-ui/activity/PluginTabPickerView": [
 				"./packages/npm-compat/theme-ui/src/activity/PluginTabPickerView.ts"
 			],
-			"@567agent/theme-ui/activity/PortsTabPanelView": [
-				"./packages/npm-compat/theme-ui/src/activity/PortsTabPanelView.ts"
-			],
 			"@567agent/theme-ui/activity/RequestHistorySubTabView": [
 				"./packages/npm-compat/theme-ui/src/activity/RequestHistorySubTabView.ts"
 			],
@@ -590,9 +587,6 @@
 			"@567agent/theme-ui/chat/ChatHeaderActionsView": [
 				"./packages/npm-compat/theme-ui/src/chat/ChatHeaderActionsView.ts"
 			],
-			"@567agent/theme-ui/chat/CompactionStepView": [
-				"./packages/npm-compat/theme-ui/src/chat/CompactionStepView.ts"
-			],
 			"@567agent/theme-ui/chat/ContextRingView": [
 				"./packages/npm-compat/theme-ui/src/chat/ContextRingView.ts"
 			],
@@ -613,9 +607,6 @@
 			],
 			"@567agent/theme-ui/chat/GuideBadgeSwiperView": [
 				"./packages/npm-compat/theme-ui/src/chat/GuideBadgeSwiperView.ts"
-			],
-			"@567agent/theme-ui/chat/InlineModelPicker": [
-				"./packages/npm-compat/theme-ui/src/chat/InlineModelPicker.ts"
 			],
 			"@567agent/theme-ui/chat/InputBarBackground": [
 				"./packages/npm-compat/theme-ui/src/chat/InputBarBackground.ts"
@@ -668,9 +659,6 @@
 			"@567agent/theme-ui/chat/MessageVisualView": [
 				"./packages/npm-compat/theme-ui/src/chat/MessageVisualView.ts"
 			],
-			"@567agent/theme-ui/chat/ModelConfiguration": [
-				"./packages/npm-compat/theme-ui/src/chat/ModelConfiguration.ts"
-			],
 			"@567agent/theme-ui/chat/ModelSelectorView": [
 				"./packages/npm-compat/theme-ui/src/chat/ModelSelectorView.ts"
 			],
@@ -704,9 +692,6 @@
 			"@567agent/theme-ui/chat/SkillPromptAreaView": [
 				"./packages/npm-compat/theme-ui/src/chat/SkillPromptAreaView.ts"
 			],
-			"@567agent/theme-ui/chat/TeamMemberReplyCardView": [
-				"./packages/npm-compat/theme-ui/src/chat/TeamMemberReplyCardView.ts"
-			],
 			"@567agent/theme-ui/chat/ThinkingBlockView": [
 				"./packages/npm-compat/theme-ui/src/chat/ThinkingBlockView.ts"
 			],
@@ -724,9 +709,6 @@
 			],
 			"@567agent/theme-ui/chat/WriteContentView": [
 				"./packages/npm-compat/theme-ui/src/chat/WriteContentView.ts"
-			],
-			"@567agent/theme-ui/downloads": [
-				"./packages/npm-compat/theme-ui/src/downloads.ts"
 			],
 			"@567agent/theme-ui/file-explorer/ConfirmDeleteDialogView": [
 				"./packages/npm-compat/theme-ui/src/file-explorer/ConfirmDeleteDialogView.ts"
