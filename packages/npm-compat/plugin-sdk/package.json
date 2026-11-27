@@ -1,6 +1,6 @@
 {
 	"name": "@567agent/plugin-sdk",
-	"version": "0.3.9",
+	"version": "0.3.10",
 	"type": "module",
 	"description": "567 Agent public entry for @vetta-org/plugin-sdk; shared runtime identity is preserved.",
 	"author": "567wiki <907746241@qq.com>",

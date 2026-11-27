@@ -14,6 +14,54 @@
 		"./utils": {
 			"types": "./dist/utils.d.ts",
 			"import": "./dist/utils.js"
+		},
+		"./button": {
+			"types": "./dist/button.d.ts",
+			"import": "./dist/button.js"
+		},
+		"./button-group": {
+			"types": "./dist/button-group.d.ts",
+			"import": "./dist/button-group.js"
+		},
+		"./session-top-item": {
+			"types": "./dist/session-top-item.d.ts",
+			"import": "./dist/session-top-item.js"
+		},
+		"./dialog": {
+			"types": "./dist/dialog.d.ts",
+			"import": "./dist/dialog.js"
+		},
+		"./drawer": {
+			"types": "./dist/drawer.d.ts",
+			"import": "./dist/drawer.js"
+		},
+		"./dropdown-menu": {
+			"types": "./dist/dropdown-menu.d.ts",
+			"import": "./dist/dropdown-menu.js"
+		},
+		"./input": {
+			"types": "./dist/input.d.ts",
+			"import": "./dist/input.js"
+		},
+		"./popover": {
+			"types": "./dist/popover.d.ts",
+			"import": "./dist/popover.js"
+		},
+		"./select": {
+			"types": "./dist/select.d.ts",
+			"import": "./dist/select.js"
+		},
+		"./slider": {
+			"types": "./dist/slider.d.ts",
+			"import": "./dist/slider.js"
+		},
+		"./step-slider": {
+			"types": "./dist/step-slider.d.ts",
+			"import": "./dist/step-slider.js"
+		},
+		"./switch": {
+			"types": "./dist/switch.d.ts",
+			"import": "./dist/switch.js"
 		}
 	},
 	"license": "Apache-2.0",

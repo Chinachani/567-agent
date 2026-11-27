@@ -413,6 +413,573 @@
 			"@567agent/capability-sdk/domain": [
 				"./packages/npm-compat/capability-sdk/src/domain.ts"
 			],
+			"@567agent/theme-ui/action-approval/AppearanceActionPickerView": [
+				"./packages/npm-compat/theme-ui/src/action-approval/AppearanceActionPickerView.ts"
+			],
+			"@567agent/theme-ui/action-approval/AppearanceApprovalDrawerView": [
+				"./packages/npm-compat/theme-ui/src/action-approval/AppearanceApprovalDrawerView.ts"
+			],
+			"@567agent/theme-ui/action-approval/AppearancePickerApprovalView": [
+				"./packages/npm-compat/theme-ui/src/action-approval/AppearancePickerApprovalView.ts"
+			],
+			"@567agent/theme-ui/action-approval/ApprovalParts": [
+				"./packages/npm-compat/theme-ui/src/action-approval/ApprovalParts.ts"
+			],
+			"@567agent/theme-ui/action-approval/BatchTasksApprovalFrameView": [
+				"./packages/npm-compat/theme-ui/src/action-approval/BatchTasksApprovalFrameView.ts"
+			],
+			"@567agent/theme-ui/action-approval/BatchTasksExecutionApprovalView": [
+				"./packages/npm-compat/theme-ui/src/action-approval/BatchTasksExecutionApprovalView.ts"
+			],
+			"@567agent/theme-ui/action-approval/BatchTasksTaskApprovalView": [
+				"./packages/npm-compat/theme-ui/src/action-approval/BatchTasksTaskApprovalView.ts"
+			],
+			"@567agent/theme-ui/action-approval/GeneralSetExecutionModeApprovalView": [
+				"./packages/npm-compat/theme-ui/src/action-approval/GeneralSetExecutionModeApprovalView.ts"
+			],
+			"@567agent/theme-ui/action-approval/GenericActionApprovalView": [
+				"./packages/npm-compat/theme-ui/src/action-approval/GenericActionApprovalView.ts"
+			],
+			"@567agent/theme-ui/action-approval/ManageActionApprovalFrameView": [
+				"./packages/npm-compat/theme-ui/src/action-approval/ManageActionApprovalFrameView.ts"
+			],
+			"@567agent/theme-ui/action-approval/NavigationOpenApprovalView": [
+				"./packages/npm-compat/theme-ui/src/action-approval/NavigationOpenApprovalView.ts"
+			],
+			"@567agent/theme-ui/action-approval/SchedulerActionApprovalDialogView": [
+				"./packages/npm-compat/theme-ui/src/action-approval/SchedulerActionApprovalDialogView.ts"
+			],
+			"@567agent/theme-ui/action-approval/SchedulerEditApprovalDrawerView": [
+				"./packages/npm-compat/theme-ui/src/action-approval/SchedulerEditApprovalDrawerView.ts"
+			],
+			"@567agent/theme-ui/action-approval/SchedulerUpdateApprovalView": [
+				"./packages/npm-compat/theme-ui/src/action-approval/SchedulerUpdateApprovalView.ts"
+			],
+			"@567agent/theme-ui/action-approval/ThemeChangeApprovalView": [
+				"./packages/npm-compat/theme-ui/src/action-approval/ThemeChangeApprovalView.ts"
+			],
+			"@567agent/theme-ui/action-approval/WebhookDeleteApprovalView": [
+				"./packages/npm-compat/theme-ui/src/action-approval/WebhookDeleteApprovalView.ts"
+			],
+			"@567agent/theme-ui/action-approval/WebhookTestApprovalView": [
+				"./packages/npm-compat/theme-ui/src/action-approval/WebhookTestApprovalView.ts"
+			],
+			"@567agent/theme-ui/activity/ActivityPanel": [
+				"./packages/npm-compat/theme-ui/src/activity/ActivityPanel.ts"
+			],
+			"@567agent/theme-ui/activity/ActivityPanelFrame": [
+				"./packages/npm-compat/theme-ui/src/activity/ActivityPanelFrame.ts"
+			],
+			"@567agent/theme-ui/activity/BackgroundTasksTabPanelView": [
+				"./packages/npm-compat/theme-ui/src/activity/BackgroundTasksTabPanelView.ts"
+			],
+			"@567agent/theme-ui/activity/BatchProgressTabPanelView": [
+				"./packages/npm-compat/theme-ui/src/activity/BatchProgressTabPanelView.ts"
+			],
+			"@567agent/theme-ui/activity/BrowserPanelView": [
+				"./packages/npm-compat/theme-ui/src/activity/BrowserPanelView.ts"
+			],
+			"@567agent/theme-ui/activity/DebugTabPanelView": [
+				"./packages/npm-compat/theme-ui/src/activity/DebugTabPanelView.ts"
+			],
+			"@567agent/theme-ui/activity/FileTabContentView": [
+				"./packages/npm-compat/theme-ui/src/activity/FileTabContentView.ts"
+			],
+			"@567agent/theme-ui/activity/FloatingActivityTabView": [
+				"./packages/npm-compat/theme-ui/src/activity/FloatingActivityTabView.ts"
+			],
+			"@567agent/theme-ui/activity/KnowledgeHistoryPanelView": [
+				"./packages/npm-compat/theme-ui/src/activity/KnowledgeHistoryPanelView.ts"
+			],
+			"@567agent/theme-ui/activity/PluginTabPickerView": [
+				"./packages/npm-compat/theme-ui/src/activity/PluginTabPickerView.ts"
+			],
+			"@567agent/theme-ui/activity/PortsTabPanelView": [
+				"./packages/npm-compat/theme-ui/src/activity/PortsTabPanelView.ts"
+			],
+			"@567agent/theme-ui/activity/RequestHistorySubTabView": [
+				"./packages/npm-compat/theme-ui/src/activity/RequestHistorySubTabView.ts"
+			],
+			"@567agent/theme-ui/activity/TodoTabPanelView": [
+				"./packages/npm-compat/theme-ui/src/activity/TodoTabPanelView.ts"
+			],
+			"@567agent/theme-ui/activity/ToolCallsSubTabView": [
+				"./packages/npm-compat/theme-ui/src/activity/ToolCallsSubTabView.ts"
+			],
+			"@567agent/theme-ui/activity/WorkflowTabPanelView": [
+				"./packages/npm-compat/theme-ui/src/activity/WorkflowTabPanelView.ts"
+			],
+			"@567agent/theme-ui/app-shell/DefaultPageHeader": [
+				"./packages/npm-compat/theme-ui/src/app-shell/DefaultPageHeader.ts"
+			],
+			"@567agent/theme-ui/app-shell/DefaultWindowControls": [
+				"./packages/npm-compat/theme-ui/src/app-shell/DefaultWindowControls.ts"
+			],
+			"@567agent/theme-ui/app-shell/PageHeaderActionGroup": [
+				"./packages/npm-compat/theme-ui/src/app-shell/PageHeaderActionGroup.ts"
+			],
+			"@567agent/theme-ui/app-shell/PageHeaderContent": [
+				"./packages/npm-compat/theme-ui/src/app-shell/PageHeaderContent.ts"
+			],
+			"@567agent/theme-ui/app-shell/PageHeaderFrame": [
+				"./packages/npm-compat/theme-ui/src/app-shell/PageHeaderFrame.ts"
+			],
+			"@567agent/theme-ui/app-shell/PageHeaderSidebarTrigger": [
+				"./packages/npm-compat/theme-ui/src/app-shell/PageHeaderSidebarTrigger.ts"
+			],
+			"@567agent/theme-ui/app-shell/PageHeaderTitle": [
+				"./packages/npm-compat/theme-ui/src/app-shell/PageHeaderTitle.ts"
+			],
+			"@567agent/theme-ui/app-shell/PageHeaderWindowActions": [
+				"./packages/npm-compat/theme-ui/src/app-shell/PageHeaderWindowActions.ts"
+			],
+			"@567agent/theme-ui/app-shell/WindowControlButton": [
+				"./packages/npm-compat/theme-ui/src/app-shell/WindowControlButton.ts"
+			],
+			"@567agent/theme-ui/app/AppBackground": [
+				"./packages/npm-compat/theme-ui/src/app/AppBackground.ts"
+			],
+			"@567agent/theme-ui/app/AppBootLoadingView": [
+				"./packages/npm-compat/theme-ui/src/app/AppBootLoadingView.ts"
+			],
+			"@567agent/theme-ui/app/RouteContentLoadingView": [
+				"./packages/npm-compat/theme-ui/src/app/RouteContentLoadingView.ts"
+			],
+			"@567agent/theme-ui/appearance/ThemeSurface": [
+				"./packages/npm-compat/theme-ui/src/appearance/ThemeSurface.ts"
+			],
+			"@567agent/theme-ui/batch-tasks/BatchProjectArtifactFieldView": [
+				"./packages/npm-compat/theme-ui/src/batch-tasks/BatchProjectArtifactFieldView.ts"
+			],
+			"@567agent/theme-ui/batch-tasks/BatchProjectFoldersFieldView": [
+				"./packages/npm-compat/theme-ui/src/batch-tasks/BatchProjectFoldersFieldView.ts"
+			],
+			"@567agent/theme-ui/batch-tasks/BatchProjectNameFieldView": [
+				"./packages/npm-compat/theme-ui/src/batch-tasks/BatchProjectNameFieldView.ts"
+			],
+			"@567agent/theme-ui/batch-tasks/BatchProjectNotificationFieldView": [
+				"./packages/npm-compat/theme-ui/src/batch-tasks/BatchProjectNotificationFieldView.ts"
+			],
+			"@567agent/theme-ui/batch-tasks/BatchProjectRuntimeFieldsView": [
+				"./packages/npm-compat/theme-ui/src/batch-tasks/BatchProjectRuntimeFieldsView.ts"
+			],
+			"@567agent/theme-ui/bottom-panel/BottomPanelView": [
+				"./packages/npm-compat/theme-ui/src/bottom-panel/BottomPanelView.ts"
+			],
+			"@567agent/theme-ui/chat/ActionButtonBarView": [
+				"./packages/npm-compat/theme-ui/src/chat/ActionButtonBarView.ts"
+			],
+			"@567agent/theme-ui/chat/AgentAvatarView": [
+				"./packages/npm-compat/theme-ui/src/chat/AgentAvatarView.ts"
+			],
+			"@567agent/theme-ui/chat/AppshotCardView": [
+				"./packages/npm-compat/theme-ui/src/chat/AppshotCardView.ts"
+			],
+			"@567agent/theme-ui/chat/AskUserQuestionView": [
+				"./packages/npm-compat/theme-ui/src/chat/AskUserQuestionView.ts"
+			],
+			"@567agent/theme-ui/chat/AssistantMessageView": [
+				"./packages/npm-compat/theme-ui/src/chat/AssistantMessageView.ts"
+			],
+			"@567agent/theme-ui/chat/AtPanelView": [
+				"./packages/npm-compat/theme-ui/src/chat/AtPanelView.ts"
+			],
+			"@567agent/theme-ui/chat/BashTerminalCard": [
+				"./packages/npm-compat/theme-ui/src/chat/BashTerminalCard.ts"
+			],
+			"@567agent/theme-ui/chat/ChatHeaderActionsView": [
+				"./packages/npm-compat/theme-ui/src/chat/ChatHeaderActionsView.ts"
+			],
+			"@567agent/theme-ui/chat/CompactionStepView": [
+				"./packages/npm-compat/theme-ui/src/chat/CompactionStepView.ts"
+			],
+			"@567agent/theme-ui/chat/ContextRingView": [
+				"./packages/npm-compat/theme-ui/src/chat/ContextRingView.ts"
+			],
+			"@567agent/theme-ui/chat/CopyIconButton": [
+				"./packages/npm-compat/theme-ui/src/chat/CopyIconButton.ts"
+			],
+			"@567agent/theme-ui/chat/DrawerCard": [
+				"./packages/npm-compat/theme-ui/src/chat/DrawerCard.ts"
+			],
+			"@567agent/theme-ui/chat/EditDiffView": [
+				"./packages/npm-compat/theme-ui/src/chat/EditDiffView.ts"
+			],
+			"@567agent/theme-ui/chat/ExecutionModeSelectorView": [
+				"./packages/npm-compat/theme-ui/src/chat/ExecutionModeSelectorView.ts"
+			],
+			"@567agent/theme-ui/chat/ExportMessageListView": [
+				"./packages/npm-compat/theme-ui/src/chat/ExportMessageListView.ts"
+			],
+			"@567agent/theme-ui/chat/GuideBadgeSwiperView": [
+				"./packages/npm-compat/theme-ui/src/chat/GuideBadgeSwiperView.ts"
+			],
+			"@567agent/theme-ui/chat/InlineModelPicker": [
+				"./packages/npm-compat/theme-ui/src/chat/InlineModelPicker.ts"
+			],
+			"@567agent/theme-ui/chat/InputBarBackground": [
+				"./packages/npm-compat/theme-ui/src/chat/InputBarBackground.ts"
+			],
+			"@567agent/theme-ui/chat/InputBarContextMenuView": [
+				"./packages/npm-compat/theme-ui/src/chat/InputBarContextMenuView.ts"
+			],
+			"@567agent/theme-ui/chat/InputBarPlaceholder": [
+				"./packages/npm-compat/theme-ui/src/chat/InputBarPlaceholder.ts"
+			],
+			"@567agent/theme-ui/chat/InputBarToolbarButton": [
+				"./packages/npm-compat/theme-ui/src/chat/InputBarToolbarButton.ts"
+			],
+			"@567agent/theme-ui/chat/KnowledgeToolViews": [
+				"./packages/npm-compat/theme-ui/src/chat/KnowledgeToolViews.ts"
+			],
+			"@567agent/theme-ui/chat/LiveThinkingView": [
+				"./packages/npm-compat/theme-ui/src/chat/LiveThinkingView.ts"
+			],
+			"@567agent/theme-ui/chat/MessageActions": [
+				"./packages/npm-compat/theme-ui/src/chat/MessageActions.ts"
+			],
+			"@567agent/theme-ui/chat/MessageBlockSegmentsView": [
+				"./packages/npm-compat/theme-ui/src/chat/MessageBlockSegmentsView.ts"
+			],
+			"@567agent/theme-ui/chat/MessageBoundaryViews": [
+				"./packages/npm-compat/theme-ui/src/chat/MessageBoundaryViews.ts"
+			],
+			"@567agent/theme-ui/chat/MessageCardsView": [
+				"./packages/npm-compat/theme-ui/src/chat/MessageCardsView.ts"
+			],
+			"@567agent/theme-ui/chat/MessageFeedLayoutView": [
+				"./packages/npm-compat/theme-ui/src/chat/MessageFeedLayoutView.ts"
+			],
+			"@567agent/theme-ui/chat/MessageFeedView": [
+				"./packages/npm-compat/theme-ui/src/chat/MessageFeedView.ts"
+			],
+			"@567agent/theme-ui/chat/MessageInputView": [
+				"./packages/npm-compat/theme-ui/src/chat/MessageInputView.ts"
+			],
+			"@567agent/theme-ui/chat/MessageLayoutView": [
+				"./packages/npm-compat/theme-ui/src/chat/MessageLayoutView.ts"
+			],
+			"@567agent/theme-ui/chat/MessageTimelineView": [
+				"./packages/npm-compat/theme-ui/src/chat/MessageTimelineView.ts"
+			],
+			"@567agent/theme-ui/chat/MessageView": [
+				"./packages/npm-compat/theme-ui/src/chat/MessageView.ts"
+			],
+			"@567agent/theme-ui/chat/MessageVisualView": [
+				"./packages/npm-compat/theme-ui/src/chat/MessageVisualView.ts"
+			],
+			"@567agent/theme-ui/chat/ModelConfiguration": [
+				"./packages/npm-compat/theme-ui/src/chat/ModelConfiguration.ts"
+			],
+			"@567agent/theme-ui/chat/ModelSelectorView": [
+				"./packages/npm-compat/theme-ui/src/chat/ModelSelectorView.ts"
+			],
+			"@567agent/theme-ui/chat/NewSessionBackground": [
+				"./packages/npm-compat/theme-ui/src/chat/NewSessionBackground.ts"
+			],
+			"@567agent/theme-ui/chat/NewSessionPageLayoutView": [
+				"./packages/npm-compat/theme-ui/src/chat/NewSessionPageLayoutView.ts"
+			],
+			"@567agent/theme-ui/chat/NewSessionPicker": [
+				"./packages/npm-compat/theme-ui/src/chat/NewSessionPicker.ts"
+			],
+			"@567agent/theme-ui/chat/ProgressGroupView": [
+				"./packages/npm-compat/theme-ui/src/chat/ProgressGroupView.ts"
+			],
+			"@567agent/theme-ui/chat/ProjectSelectorView": [
+				"./packages/npm-compat/theme-ui/src/chat/ProjectSelectorView.ts"
+			],
+			"@567agent/theme-ui/chat/QueueCardView": [
+				"./packages/npm-compat/theme-ui/src/chat/QueueCardView.ts"
+			],
+			"@567agent/theme-ui/chat/ReadImageView": [
+				"./packages/npm-compat/theme-ui/src/chat/ReadImageView.ts"
+			],
+			"@567agent/theme-ui/chat/SandboxPermissionCard": [
+				"./packages/npm-compat/theme-ui/src/chat/SandboxPermissionCard.ts"
+			],
+			"@567agent/theme-ui/chat/SendButton": [
+				"./packages/npm-compat/theme-ui/src/chat/SendButton.ts"
+			],
+			"@567agent/theme-ui/chat/SkillPromptAreaView": [
+				"./packages/npm-compat/theme-ui/src/chat/SkillPromptAreaView.ts"
+			],
+			"@567agent/theme-ui/chat/TeamMemberReplyCardView": [
+				"./packages/npm-compat/theme-ui/src/chat/TeamMemberReplyCardView.ts"
+			],
+			"@567agent/theme-ui/chat/ThinkingBlockView": [
+				"./packages/npm-compat/theme-ui/src/chat/ThinkingBlockView.ts"
+			],
+			"@567agent/theme-ui/chat/TodoStatusBarView": [
+				"./packages/npm-compat/theme-ui/src/chat/TodoStatusBarView.ts"
+			],
+			"@567agent/theme-ui/chat/ToolCallBlockView": [
+				"./packages/npm-compat/theme-ui/src/chat/ToolCallBlockView.ts"
+			],
+			"@567agent/theme-ui/chat/UserMessageContextMenuView": [
+				"./packages/npm-compat/theme-ui/src/chat/UserMessageContextMenuView.ts"
+			],
+			"@567agent/theme-ui/chat/UserMessageView": [
+				"./packages/npm-compat/theme-ui/src/chat/UserMessageView.ts"
+			],
+			"@567agent/theme-ui/chat/WriteContentView": [
+				"./packages/npm-compat/theme-ui/src/chat/WriteContentView.ts"
+			],
+			"@567agent/theme-ui/downloads": [
+				"./packages/npm-compat/theme-ui/src/downloads.ts"
+			],
+			"@567agent/theme-ui/file-explorer/ConfirmDeleteDialogView": [
+				"./packages/npm-compat/theme-ui/src/file-explorer/ConfirmDeleteDialogView.ts"
+			],
+			"@567agent/theme-ui/file-explorer/file-tree-dom": [
+				"./packages/npm-compat/theme-ui/src/file-explorer/file-tree-dom.ts"
+			],
+			"@567agent/theme-ui/file-explorer/FileContextMenuView": [
+				"./packages/npm-compat/theme-ui/src/file-explorer/FileContextMenuView.ts"
+			],
+			"@567agent/theme-ui/file-explorer/FileExplorerSettingsView": [
+				"./packages/npm-compat/theme-ui/src/file-explorer/FileExplorerSettingsView.ts"
+			],
+			"@567agent/theme-ui/file-explorer/FilesPanelView": [
+				"./packages/npm-compat/theme-ui/src/file-explorer/FilesPanelView.ts"
+			],
+			"@567agent/theme-ui/file-explorer/FileTreeView": [
+				"./packages/npm-compat/theme-ui/src/file-explorer/FileTreeView.ts"
+			],
+			"@567agent/theme-ui/file-preview/FilePreviewDialogView": [
+				"./packages/npm-compat/theme-ui/src/file-preview/FilePreviewDialogView.ts"
+			],
+			"@567agent/theme-ui/file-preview/FilePreviewView": [
+				"./packages/npm-compat/theme-ui/src/file-preview/FilePreviewView.ts"
+			],
+			"@567agent/theme-ui/file-preview/keyboard-target": [
+				"./packages/npm-compat/theme-ui/src/file-preview/keyboard-target.ts"
+			],
+			"@567agent/theme-ui/file-preview/LightboxImageView": [
+				"./packages/npm-compat/theme-ui/src/file-preview/LightboxImageView.ts"
+			],
+			"@567agent/theme-ui/file-preview/PluginFilePreviewView": [
+				"./packages/npm-compat/theme-ui/src/file-preview/PluginFilePreviewView.ts"
+			],
+			"@567agent/theme-ui/file-preview/PreviewBodyView": [
+				"./packages/npm-compat/theme-ui/src/file-preview/PreviewBodyView.ts"
+			],
+			"@567agent/theme-ui/file-preview/PreviewErrorBoundary": [
+				"./packages/npm-compat/theme-ui/src/file-preview/PreviewErrorBoundary.ts"
+			],
+			"@567agent/theme-ui/file-preview/TextFileEditorView": [
+				"./packages/npm-compat/theme-ui/src/file-preview/TextFileEditorView.ts"
+			],
+			"@567agent/theme-ui/file-preview/types": [
+				"./packages/npm-compat/theme-ui/src/file-preview/types.ts"
+			],
+			"@567agent/theme-ui/layout/AppFrame": [
+				"./packages/npm-compat/theme-ui/src/layout/AppFrame.ts"
+			],
+			"@567agent/theme-ui/layout/MainContentFrame": [
+				"./packages/npm-compat/theme-ui/src/layout/MainContentFrame.ts"
+			],
+			"@567agent/theme-ui/layout/SidebarDock": [
+				"./packages/npm-compat/theme-ui/src/layout/SidebarDock.ts"
+			],
+			"@567agent/theme-ui/layout/SidebarOverlay": [
+				"./packages/npm-compat/theme-ui/src/layout/SidebarOverlay.ts"
+			],
+			"@567agent/theme-ui/markdown/InlineTokenChip": [
+				"./packages/npm-compat/theme-ui/src/markdown/InlineTokenChip.ts"
+			],
+			"@567agent/theme-ui/markdown/MarkdownContent": [
+				"./packages/npm-compat/theme-ui/src/markdown/MarkdownContent.ts"
+			],
+			"@567agent/theme-ui/overlays/CommandMenuView": [
+				"./packages/npm-compat/theme-ui/src/overlays/CommandMenuView.ts"
+			],
+			"@567agent/theme-ui/overlays/ConfirmDialogView": [
+				"./packages/npm-compat/theme-ui/src/overlays/ConfirmDialogView.ts"
+			],
+			"@567agent/theme-ui/overlays/KnowledgeDropOverlayView": [
+				"./packages/npm-compat/theme-ui/src/overlays/KnowledgeDropOverlayView.ts"
+			],
+			"@567agent/theme-ui/overlays/RouteErrorPageView": [
+				"./packages/npm-compat/theme-ui/src/overlays/RouteErrorPageView.ts"
+			],
+			"@567agent/theme-ui/overlays/SplashOptionRow": [
+				"./packages/npm-compat/theme-ui/src/overlays/SplashOptionRow.ts"
+			],
+			"@567agent/theme-ui/overlays/SplashPanel": [
+				"./packages/npm-compat/theme-ui/src/overlays/SplashPanel.ts"
+			],
+			"@567agent/theme-ui/overlays/SplashParts": [
+				"./packages/npm-compat/theme-ui/src/overlays/SplashParts.ts"
+			],
+			"@567agent/theme-ui/overlays/ToasterView": [
+				"./packages/npm-compat/theme-ui/src/overlays/ToasterView.ts"
+			],
+			"@567agent/theme-ui/overlays/UpdateRestartDialogView": [
+				"./packages/npm-compat/theme-ui/src/overlays/UpdateRestartDialogView.ts"
+			],
+			"@567agent/theme-ui/project/BatchQueueStatusView": [
+				"./packages/npm-compat/theme-ui/src/project/BatchQueueStatusView.ts"
+			],
+			"@567agent/theme-ui/project/ConversationTagEditorDialogView": [
+				"./packages/npm-compat/theme-ui/src/project/ConversationTagEditorDialogView.ts"
+			],
+			"@567agent/theme-ui/project/DefaultConversationSectionView": [
+				"./packages/npm-compat/theme-ui/src/project/DefaultConversationSectionView.ts"
+			],
+			"@567agent/theme-ui/project/DefaultSessionListView": [
+				"./packages/npm-compat/theme-ui/src/project/DefaultSessionListView.ts"
+			],
+			"@567agent/theme-ui/project/DefaultSessionRowView": [
+				"./packages/npm-compat/theme-ui/src/project/DefaultSessionRowView.ts"
+			],
+			"@567agent/theme-ui/project/ManageSessionsSplashView": [
+				"./packages/npm-compat/theme-ui/src/project/ManageSessionsSplashView.ts"
+			],
+			"@567agent/theme-ui/project/NewProjectDialogView": [
+				"./packages/npm-compat/theme-ui/src/project/NewProjectDialogView.ts"
+			],
+			"@567agent/theme-ui/project/ProjectContextMenuView": [
+				"./packages/npm-compat/theme-ui/src/project/ProjectContextMenuView.ts"
+			],
+			"@567agent/theme-ui/project/ProjectGroupView": [
+				"./packages/npm-compat/theme-ui/src/project/ProjectGroupView.ts"
+			],
+			"@567agent/theme-ui/project/ProjectsLoadingView": [
+				"./packages/npm-compat/theme-ui/src/project/ProjectsLoadingView.ts"
+			],
+			"@567agent/theme-ui/project/ProjectsPanelMenusView": [
+				"./packages/npm-compat/theme-ui/src/project/ProjectsPanelMenusView.ts"
+			],
+			"@567agent/theme-ui/project/ProjectsPanelView": [
+				"./packages/npm-compat/theme-ui/src/project/ProjectsPanelView.ts"
+			],
+			"@567agent/theme-ui/project/SessionContextMenuView": [
+				"./packages/npm-compat/theme-ui/src/project/SessionContextMenuView.ts"
+			],
+			"@567agent/theme-ui/project/SessionRowView": [
+				"./packages/npm-compat/theme-ui/src/project/SessionRowView.ts"
+			],
+			"@567agent/theme-ui/project/SidebarProjectsSectionView": [
+				"./packages/npm-compat/theme-ui/src/project/SidebarProjectsSectionView.ts"
+			],
+			"@567agent/theme-ui/project/types": [
+				"./packages/npm-compat/theme-ui/src/project/types.ts"
+			],
+			"@567agent/theme-ui/settings/ShortcutRecorderView": [
+				"./packages/npm-compat/theme-ui/src/settings/ShortcutRecorderView.ts"
+			],
+			"@567agent/theme-ui/shared/AvatarStackView": [
+				"./packages/npm-compat/theme-ui/src/shared/AvatarStackView.ts"
+			],
+			"@567agent/theme-ui/shared/BotAvatar": [
+				"./packages/npm-compat/theme-ui/src/shared/BotAvatar.ts"
+			],
+			"@567agent/theme-ui/shared/fileIcons": [
+				"./packages/npm-compat/theme-ui/src/shared/fileIcons.ts"
+			],
+			"@567agent/theme-ui/shared/MultiplierTag": [
+				"./packages/npm-compat/theme-ui/src/shared/MultiplierTag.ts"
+			],
+			"@567agent/theme-ui/shared/provider-icon/index": [
+				"./packages/npm-compat/theme-ui/src/shared/provider-icon/index.ts"
+			],
+			"@567agent/theme-ui/shared/TabBar": [
+				"./packages/npm-compat/theme-ui/src/shared/TabBar.ts"
+			],
+			"@567agent/theme-ui/shared/useDelayedUnmount": [
+				"./packages/npm-compat/theme-ui/src/shared/useDelayedUnmount.ts"
+			],
+			"@567agent/theme-ui/sidebar/AddProjectMenuTriggerView": [
+				"./packages/npm-compat/theme-ui/src/sidebar/AddProjectMenuTriggerView.ts"
+			],
+			"@567agent/theme-ui/sidebar/DefaultSidebar": [
+				"./packages/npm-compat/theme-ui/src/sidebar/DefaultSidebar.ts"
+			],
+			"@567agent/theme-ui/sidebar/MessageCenterDialogView": [
+				"./packages/npm-compat/theme-ui/src/sidebar/MessageCenterDialogView.ts"
+			],
+			"@567agent/theme-ui/sidebar/MessageCenterEmptyState": [
+				"./packages/npm-compat/theme-ui/src/sidebar/MessageCenterEmptyState.ts"
+			],
+			"@567agent/theme-ui/sidebar/MessageCenterTabs": [
+				"./packages/npm-compat/theme-ui/src/sidebar/MessageCenterTabs.ts"
+			],
+			"@567agent/theme-ui/sidebar/MessageCenterTriggerView": [
+				"./packages/npm-compat/theme-ui/src/sidebar/MessageCenterTriggerView.ts"
+			],
+			"@567agent/theme-ui/sidebar/NotificationMessageListView": [
+				"./packages/npm-compat/theme-ui/src/sidebar/NotificationMessageListView.ts"
+			],
+			"@567agent/theme-ui/sidebar/ProjectsPanelEmptyState": [
+				"./packages/npm-compat/theme-ui/src/sidebar/ProjectsPanelEmptyState.ts"
+			],
+			"@567agent/theme-ui/sidebar/SettingsMenuAccountSection": [
+				"./packages/npm-compat/theme-ui/src/sidebar/SettingsMenuAccountSection.ts"
+			],
+			"@567agent/theme-ui/sidebar/SettingsMenuDivider": [
+				"./packages/npm-compat/theme-ui/src/sidebar/SettingsMenuDivider.ts"
+			],
+			"@567agent/theme-ui/sidebar/SettingsMenuQuotaSection": [
+				"./packages/npm-compat/theme-ui/src/sidebar/SettingsMenuQuotaSection.ts"
+			],
+			"@567agent/theme-ui/sidebar/SettingsMenuSettingsItem": [
+				"./packages/npm-compat/theme-ui/src/sidebar/SettingsMenuSettingsItem.ts"
+			],
+			"@567agent/theme-ui/sidebar/SettingsMenuThemeSection": [
+				"./packages/npm-compat/theme-ui/src/sidebar/SettingsMenuThemeSection.ts"
+			],
+			"@567agent/theme-ui/sidebar/SettingsMenuTriggerView": [
+				"./packages/npm-compat/theme-ui/src/sidebar/SettingsMenuTriggerView.ts"
+			],
+			"@567agent/theme-ui/sidebar/SidebarFilterSelectView": [
+				"./packages/npm-compat/theme-ui/src/sidebar/SidebarFilterSelectView.ts"
+			],
+			"@567agent/theme-ui/sidebar/SidebarNavMorePanel": [
+				"./packages/npm-compat/theme-ui/src/sidebar/SidebarNavMorePanel.ts"
+			],
+			"@567agent/theme-ui/sidebar/SidebarTopBar": [
+				"./packages/npm-compat/theme-ui/src/sidebar/SidebarTopBar.ts"
+			],
+			"@567agent/theme-ui/skills/skill-icon": [
+				"./packages/npm-compat/theme-ui/src/skills/skill-icon.ts"
+			],
+			"@567agent/ui/button": [
+				"./packages/npm-compat/ui/src/button.ts"
+			],
+			"@567agent/ui/button-group": [
+				"./packages/npm-compat/ui/src/button-group.ts"
+			],
+			"@567agent/ui/dialog": [
+				"./packages/npm-compat/ui/src/dialog.ts"
+			],
+			"@567agent/ui/drawer": [
+				"./packages/npm-compat/ui/src/drawer.ts"
+			],
+			"@567agent/ui/dropdown-menu": [
+				"./packages/npm-compat/ui/src/dropdown-menu.ts"
+			],
+			"@567agent/ui/input": [
+				"./packages/npm-compat/ui/src/input.ts"
+			],
+			"@567agent/ui/popover": [
+				"./packages/npm-compat/ui/src/popover.ts"
+			],
+			"@567agent/ui/select": [
+				"./packages/npm-compat/ui/src/select.ts"
+			],
+			"@567agent/ui/session-top-item": [
+				"./packages/npm-compat/ui/src/session-top-item.ts"
+			],
+			"@567agent/ui/slider": [
+				"./packages/npm-compat/ui/src/slider.ts"
+			],
+			"@567agent/ui/step-slider": [
+				"./packages/npm-compat/ui/src/step-slider.ts"
+			],
+			"@567agent/ui/switch": [
+				"./packages/npm-compat/ui/src/switch.ts"
+			],
 			"@567agent/ui": [
 				"./packages/npm-compat/ui/src/index.ts"
 			],

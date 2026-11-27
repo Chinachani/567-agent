@@ -71,6 +71,10 @@
 			"types": "./dist/file-explorer.d.ts",
 			"import": "./dist/file-explorer.js"
 		},
+		"./downloads": {
+			"types": "./dist/downloads.d.ts",
+			"import": "./dist/downloads.js"
+		},
 		"./flowing": {
 			"types": "./dist/flowing.d.ts",
 			"import": "./dist/flowing.js"
@@ -119,7 +123,711 @@
 			"types": "./dist/scheduler.d.ts",
 			"import": "./dist/scheduler.js"
 		},
-		"./styles.css": "./dist/styles.css"
+		"./styles.css": "./dist/styles.css",
+		"./action-approval/AppearanceActionPickerView": {
+			"types": "./dist/action-approval/AppearanceActionPickerView.d.ts",
+			"import": "./dist/action-approval/AppearanceActionPickerView.js"
+		},
+		"./action-approval/AppearanceApprovalDrawerView": {
+			"types": "./dist/action-approval/AppearanceApprovalDrawerView.d.ts",
+			"import": "./dist/action-approval/AppearanceApprovalDrawerView.js"
+		},
+		"./action-approval/AppearancePickerApprovalView": {
+			"types": "./dist/action-approval/AppearancePickerApprovalView.d.ts",
+			"import": "./dist/action-approval/AppearancePickerApprovalView.js"
+		},
+		"./action-approval/ApprovalParts": {
+			"types": "./dist/action-approval/ApprovalParts.d.ts",
+			"import": "./dist/action-approval/ApprovalParts.js"
+		},
+		"./action-approval/BatchTasksApprovalFrameView": {
+			"types": "./dist/action-approval/BatchTasksApprovalFrameView.d.ts",
+			"import": "./dist/action-approval/BatchTasksApprovalFrameView.js"
+		},
+		"./action-approval/BatchTasksExecutionApprovalView": {
+			"types": "./dist/action-approval/BatchTasksExecutionApprovalView.d.ts",
+			"import": "./dist/action-approval/BatchTasksExecutionApprovalView.js"
+		},
+		"./action-approval/BatchTasksTaskApprovalView": {
+			"types": "./dist/action-approval/BatchTasksTaskApprovalView.d.ts",
+			"import": "./dist/action-approval/BatchTasksTaskApprovalView.js"
+		},
+		"./action-approval/GeneralSetExecutionModeApprovalView": {
+			"types": "./dist/action-approval/GeneralSetExecutionModeApprovalView.d.ts",
+			"import": "./dist/action-approval/GeneralSetExecutionModeApprovalView.js"
+		},
+		"./action-approval/GenericActionApprovalView": {
+			"types": "./dist/action-approval/GenericActionApprovalView.d.ts",
+			"import": "./dist/action-approval/GenericActionApprovalView.js"
+		},
+		"./action-approval/ManageActionApprovalFrameView": {
+			"types": "./dist/action-approval/ManageActionApprovalFrameView.d.ts",
+			"import": "./dist/action-approval/ManageActionApprovalFrameView.js"
+		},
+		"./action-approval/NavigationOpenApprovalView": {
+			"types": "./dist/action-approval/NavigationOpenApprovalView.d.ts",
+			"import": "./dist/action-approval/NavigationOpenApprovalView.js"
+		},
+		"./action-approval/SchedulerActionApprovalDialogView": {
+			"types": "./dist/action-approval/SchedulerActionApprovalDialogView.d.ts",
+			"import": "./dist/action-approval/SchedulerActionApprovalDialogView.js"
+		},
+		"./action-approval/SchedulerEditApprovalDrawerView": {
+			"types": "./dist/action-approval/SchedulerEditApprovalDrawerView.d.ts",
+			"import": "./dist/action-approval/SchedulerEditApprovalDrawerView.js"
+		},
+		"./action-approval/SchedulerUpdateApprovalView": {
+			"types": "./dist/action-approval/SchedulerUpdateApprovalView.d.ts",
+			"import": "./dist/action-approval/SchedulerUpdateApprovalView.js"
+		},
+		"./action-approval/ThemeChangeApprovalView": {
+			"types": "./dist/action-approval/ThemeChangeApprovalView.d.ts",
+			"import": "./dist/action-approval/ThemeChangeApprovalView.js"
+		},
+		"./action-approval/WebhookDeleteApprovalView": {
+			"types": "./dist/action-approval/WebhookDeleteApprovalView.d.ts",
+			"import": "./dist/action-approval/WebhookDeleteApprovalView.js"
+		},
+		"./action-approval/WebhookTestApprovalView": {
+			"types": "./dist/action-approval/WebhookTestApprovalView.d.ts",
+			"import": "./dist/action-approval/WebhookTestApprovalView.js"
+		},
+		"./activity/ActivityPanel": {
+			"types": "./dist/activity/ActivityPanel.d.ts",
+			"import": "./dist/activity/ActivityPanel.js"
+		},
+		"./activity/ActivityPanelFrame": {
+			"types": "./dist/activity/ActivityPanelFrame.d.ts",
+			"import": "./dist/activity/ActivityPanelFrame.js"
+		},
+		"./activity/BackgroundTasksTabPanelView": {
+			"types": "./dist/activity/BackgroundTasksTabPanelView.d.ts",
+			"import": "./dist/activity/BackgroundTasksTabPanelView.js"
+		},
+		"./activity/BatchProgressTabPanelView": {
+			"types": "./dist/activity/BatchProgressTabPanelView.d.ts",
+			"import": "./dist/activity/BatchProgressTabPanelView.js"
+		},
+		"./activity/BrowserPanelView": {
+			"types": "./dist/activity/BrowserPanelView.d.ts",
+			"import": "./dist/activity/BrowserPanelView.js"
+		},
+		"./activity/DebugTabPanelView": {
+			"types": "./dist/activity/DebugTabPanelView.d.ts",
+			"import": "./dist/activity/DebugTabPanelView.js"
+		},
+		"./activity/FileTabContentView": {
+			"types": "./dist/activity/FileTabContentView.d.ts",
+			"import": "./dist/activity/FileTabContentView.js"
+		},
+		"./activity/FloatingActivityTabView": {
+			"types": "./dist/activity/FloatingActivityTabView.d.ts",
+			"import": "./dist/activity/FloatingActivityTabView.js"
+		},
+		"./activity/KnowledgeHistoryPanelView": {
+			"types": "./dist/activity/KnowledgeHistoryPanelView.d.ts",
+			"import": "./dist/activity/KnowledgeHistoryPanelView.js"
+		},
+		"./activity/PluginTabPickerView": {
+			"types": "./dist/activity/PluginTabPickerView.d.ts",
+			"import": "./dist/activity/PluginTabPickerView.js"
+		},
+		"./activity/PortsTabPanelView": {
+			"types": "./dist/activity/PortsTabPanelView.d.ts",
+			"import": "./dist/activity/PortsTabPanelView.js"
+		},
+		"./activity/RequestHistorySubTabView": {
+			"types": "./dist/activity/RequestHistorySubTabView.d.ts",
+			"import": "./dist/activity/RequestHistorySubTabView.js"
+		},
+		"./activity/TodoTabPanelView": {
+			"types": "./dist/activity/TodoTabPanelView.d.ts",
+			"import": "./dist/activity/TodoTabPanelView.js"
+		},
+		"./activity/ToolCallsSubTabView": {
+			"types": "./dist/activity/ToolCallsSubTabView.d.ts",
+			"import": "./dist/activity/ToolCallsSubTabView.js"
+		},
+		"./activity/WorkflowTabPanelView": {
+			"types": "./dist/activity/WorkflowTabPanelView.d.ts",
+			"import": "./dist/activity/WorkflowTabPanelView.js"
+		},
+		"./app-shell/DefaultPageHeader": {
+			"types": "./dist/app-shell/DefaultPageHeader.d.ts",
+			"import": "./dist/app-shell/DefaultPageHeader.js"
+		},
+		"./app-shell/DefaultWindowControls": {
+			"types": "./dist/app-shell/DefaultWindowControls.d.ts",
+			"import": "./dist/app-shell/DefaultWindowControls.js"
+		},
+		"./app-shell/PageHeaderActionGroup": {
+			"types": "./dist/app-shell/PageHeaderActionGroup.d.ts",
+			"import": "./dist/app-shell/PageHeaderActionGroup.js"
+		},
+		"./app-shell/PageHeaderContent": {
+			"types": "./dist/app-shell/PageHeaderContent.d.ts",
+			"import": "./dist/app-shell/PageHeaderContent.js"
+		},
+		"./app-shell/PageHeaderFrame": {
+			"types": "./dist/app-shell/PageHeaderFrame.d.ts",
+			"import": "./dist/app-shell/PageHeaderFrame.js"
+		},
+		"./app-shell/PageHeaderSidebarTrigger": {
+			"types": "./dist/app-shell/PageHeaderSidebarTrigger.d.ts",
+			"import": "./dist/app-shell/PageHeaderSidebarTrigger.js"
+		},
+		"./app-shell/PageHeaderTitle": {
+			"types": "./dist/app-shell/PageHeaderTitle.d.ts",
+			"import": "./dist/app-shell/PageHeaderTitle.js"
+		},
+		"./app-shell/PageHeaderWindowActions": {
+			"types": "./dist/app-shell/PageHeaderWindowActions.d.ts",
+			"import": "./dist/app-shell/PageHeaderWindowActions.js"
+		},
+		"./app-shell/WindowControlButton": {
+			"types": "./dist/app-shell/WindowControlButton.d.ts",
+			"import": "./dist/app-shell/WindowControlButton.js"
+		},
+		"./app/AppBackground": {
+			"types": "./dist/app/AppBackground.d.ts",
+			"import": "./dist/app/AppBackground.js"
+		},
+		"./app/AppBootLoadingView": {
+			"types": "./dist/app/AppBootLoadingView.d.ts",
+			"import": "./dist/app/AppBootLoadingView.js"
+		},
+		"./app/RouteContentLoadingView": {
+			"types": "./dist/app/RouteContentLoadingView.d.ts",
+			"import": "./dist/app/RouteContentLoadingView.js"
+		},
+		"./appearance/ThemeSurface": {
+			"types": "./dist/appearance/ThemeSurface.d.ts",
+			"import": "./dist/appearance/ThemeSurface.js"
+		},
+		"./batch-tasks/BatchProjectArtifactFieldView": {
+			"types": "./dist/batch-tasks/BatchProjectArtifactFieldView.d.ts",
+			"import": "./dist/batch-tasks/BatchProjectArtifactFieldView.js"
+		},
+		"./batch-tasks/BatchProjectFoldersFieldView": {
+			"types": "./dist/batch-tasks/BatchProjectFoldersFieldView.d.ts",
+			"import": "./dist/batch-tasks/BatchProjectFoldersFieldView.js"
+		},
+		"./batch-tasks/BatchProjectNameFieldView": {
+			"types": "./dist/batch-tasks/BatchProjectNameFieldView.d.ts",
+			"import": "./dist/batch-tasks/BatchProjectNameFieldView.js"
+		},
+		"./batch-tasks/BatchProjectNotificationFieldView": {
+			"types": "./dist/batch-tasks/BatchProjectNotificationFieldView.d.ts",
+			"import": "./dist/batch-tasks/BatchProjectNotificationFieldView.js"
+		},
+		"./batch-tasks/BatchProjectRuntimeFieldsView": {
+			"types": "./dist/batch-tasks/BatchProjectRuntimeFieldsView.d.ts",
+			"import": "./dist/batch-tasks/BatchProjectRuntimeFieldsView.js"
+		},
+		"./bottom-panel/BottomPanelView": {
+			"types": "./dist/bottom-panel/BottomPanelView.d.ts",
+			"import": "./dist/bottom-panel/BottomPanelView.js"
+		},
+		"./chat/ActionButtonBarView": {
+			"types": "./dist/chat/ActionButtonBarView.d.ts",
+			"import": "./dist/chat/ActionButtonBarView.js"
+		},
+		"./chat/AgentAvatarView": {
+			"types": "./dist/chat/AgentAvatarView.d.ts",
+			"import": "./dist/chat/AgentAvatarView.js"
+		},
+		"./chat/AppshotCardView": {
+			"types": "./dist/chat/AppshotCardView.d.ts",
+			"import": "./dist/chat/AppshotCardView.js"
+		},
+		"./chat/AskUserQuestionView": {
+			"types": "./dist/chat/AskUserQuestionView.d.ts",
+			"import": "./dist/chat/AskUserQuestionView.js"
+		},
+		"./chat/AssistantMessageView": {
+			"types": "./dist/chat/AssistantMessageView.d.ts",
+			"import": "./dist/chat/AssistantMessageView.js"
+		},
+		"./chat/AtPanelView": {
+			"types": "./dist/chat/AtPanelView.d.ts",
+			"import": "./dist/chat/AtPanelView.js"
+		},
+		"./chat/BashTerminalCard": {
+			"types": "./dist/chat/BashTerminalCard.d.ts",
+			"import": "./dist/chat/BashTerminalCard.js"
+		},
+		"./chat/ChatHeaderActionsView": {
+			"types": "./dist/chat/ChatHeaderActionsView.d.ts",
+			"import": "./dist/chat/ChatHeaderActionsView.js"
+		},
+		"./chat/ContextRingView": {
+			"types": "./dist/chat/ContextRingView.d.ts",
+			"import": "./dist/chat/ContextRingView.js"
+		},
+		"./chat/CopyIconButton": {
+			"types": "./dist/chat/CopyIconButton.d.ts",
+			"import": "./dist/chat/CopyIconButton.js"
+		},
+		"./chat/DrawerCard": {
+			"types": "./dist/chat/DrawerCard.d.ts",
+			"import": "./dist/chat/DrawerCard.js"
+		},
+		"./chat/EditDiffView": {
+			"types": "./dist/chat/EditDiffView.d.ts",
+			"import": "./dist/chat/EditDiffView.js"
+		},
+		"./chat/ExecutionModeSelectorView": {
+			"types": "./dist/chat/ExecutionModeSelectorView.d.ts",
+			"import": "./dist/chat/ExecutionModeSelectorView.js"
+		},
+		"./chat/ExportMessageListView": {
+			"types": "./dist/chat/ExportMessageListView.d.ts",
+			"import": "./dist/chat/ExportMessageListView.js"
+		},
+		"./chat/GuideBadgeSwiperView": {
+			"types": "./dist/chat/GuideBadgeSwiperView.d.ts",
+			"import": "./dist/chat/GuideBadgeSwiperView.js"
+		},
+		"./chat/InlineModelPicker": {
+			"types": "./dist/chat/InlineModelPicker.d.ts",
+			"import": "./dist/chat/InlineModelPicker.js"
+		},
+		"./chat/InputBarBackground": {
+			"types": "./dist/chat/InputBarBackground.d.ts",
+			"import": "./dist/chat/InputBarBackground.js"
+		},
+		"./chat/InputBarContextMenuView": {
+			"types": "./dist/chat/InputBarContextMenuView.d.ts",
+			"import": "./dist/chat/InputBarContextMenuView.js"
+		},
+		"./chat/InputBarPlaceholder": {
+			"types": "./dist/chat/InputBarPlaceholder.d.ts",
+			"import": "./dist/chat/InputBarPlaceholder.js"
+		},
+		"./chat/InputBarToolbarButton": {
+			"types": "./dist/chat/InputBarToolbarButton.d.ts",
+			"import": "./dist/chat/InputBarToolbarButton.js"
+		},
+		"./chat/KnowledgeToolViews": {
+			"types": "./dist/chat/KnowledgeToolViews.d.ts",
+			"import": "./dist/chat/KnowledgeToolViews.js"
+		},
+		"./chat/LiveThinkingView": {
+			"types": "./dist/chat/LiveThinkingView.d.ts",
+			"import": "./dist/chat/LiveThinkingView.js"
+		},
+		"./chat/MessageActions": {
+			"types": "./dist/chat/MessageActions.d.ts",
+			"import": "./dist/chat/MessageActions.js"
+		},
+		"./chat/MessageBlockSegmentsView": {
+			"types": "./dist/chat/MessageBlockSegmentsView.d.ts",
+			"import": "./dist/chat/MessageBlockSegmentsView.js"
+		},
+		"./chat/CompactionStepView": {
+			"types": "./dist/chat/CompactionStepView.d.ts",
+			"import": "./dist/chat/CompactionStepView.js"
+		},
+		"./chat/MessageBoundaryViews": {
+			"types": "./dist/chat/MessageBoundaryViews.d.ts",
+			"import": "./dist/chat/MessageBoundaryViews.js"
+		},
+		"./chat/MessageCardsView": {
+			"types": "./dist/chat/MessageCardsView.d.ts",
+			"import": "./dist/chat/MessageCardsView.js"
+		},
+		"./chat/MessageFeedLayoutView": {
+			"types": "./dist/chat/MessageFeedLayoutView.d.ts",
+			"import": "./dist/chat/MessageFeedLayoutView.js"
+		},
+		"./chat/MessageFeedView": {
+			"types": "./dist/chat/MessageFeedView.d.ts",
+			"import": "./dist/chat/MessageFeedView.js"
+		},
+		"./chat/MessageInputView": {
+			"types": "./dist/chat/MessageInputView.d.ts",
+			"import": "./dist/chat/MessageInputView.js"
+		},
+		"./chat/MessageLayoutView": {
+			"types": "./dist/chat/MessageLayoutView.d.ts",
+			"import": "./dist/chat/MessageLayoutView.js"
+		},
+		"./chat/MessageTimelineView": {
+			"types": "./dist/chat/MessageTimelineView.d.ts",
+			"import": "./dist/chat/MessageTimelineView.js"
+		},
+		"./chat/MessageView": {
+			"types": "./dist/chat/MessageView.d.ts",
+			"import": "./dist/chat/MessageView.js"
+		},
+		"./chat/MessageVisualView": {
+			"types": "./dist/chat/MessageVisualView.d.ts",
+			"import": "./dist/chat/MessageVisualView.js"
+		},
+		"./chat/ModelConfiguration": {
+			"types": "./dist/chat/ModelConfiguration.d.ts",
+			"import": "./dist/chat/ModelConfiguration.js"
+		},
+		"./chat/ModelSelectorView": {
+			"types": "./dist/chat/ModelSelectorView.d.ts",
+			"import": "./dist/chat/ModelSelectorView.js"
+		},
+		"./chat/NewSessionBackground": {
+			"types": "./dist/chat/NewSessionBackground.d.ts",
+			"import": "./dist/chat/NewSessionBackground.js"
+		},
+		"./chat/NewSessionPageLayoutView": {
+			"types": "./dist/chat/NewSessionPageLayoutView.d.ts",
+			"import": "./dist/chat/NewSessionPageLayoutView.js"
+		},
+		"./chat/NewSessionPicker": {
+			"types": "./dist/chat/NewSessionPicker.d.ts",
+			"import": "./dist/chat/NewSessionPicker.js"
+		},
+		"./chat/ProgressGroupView": {
+			"types": "./dist/chat/ProgressGroupView.d.ts",
+			"import": "./dist/chat/ProgressGroupView.js"
+		},
+		"./chat/ProjectSelectorView": {
+			"types": "./dist/chat/ProjectSelectorView.d.ts",
+			"import": "./dist/chat/ProjectSelectorView.js"
+		},
+		"./chat/QueueCardView": {
+			"types": "./dist/chat/QueueCardView.d.ts",
+			"import": "./dist/chat/QueueCardView.js"
+		},
+		"./chat/ReadImageView": {
+			"types": "./dist/chat/ReadImageView.d.ts",
+			"import": "./dist/chat/ReadImageView.js"
+		},
+		"./chat/SandboxPermissionCard": {
+			"types": "./dist/chat/SandboxPermissionCard.d.ts",
+			"import": "./dist/chat/SandboxPermissionCard.js"
+		},
+		"./chat/SendButton": {
+			"types": "./dist/chat/SendButton.d.ts",
+			"import": "./dist/chat/SendButton.js"
+		},
+		"./chat/SkillPromptAreaView": {
+			"types": "./dist/chat/SkillPromptAreaView.d.ts",
+			"import": "./dist/chat/SkillPromptAreaView.js"
+		},
+		"./chat/TeamMemberReplyCardView": {
+			"types": "./dist/chat/TeamMemberReplyCardView.d.ts",
+			"import": "./dist/chat/TeamMemberReplyCardView.js"
+		},
+		"./chat/ThinkingBlockView": {
+			"types": "./dist/chat/ThinkingBlockView.d.ts",
+			"import": "./dist/chat/ThinkingBlockView.js"
+		},
+		"./chat/TodoStatusBarView": {
+			"types": "./dist/chat/TodoStatusBarView.d.ts",
+			"import": "./dist/chat/TodoStatusBarView.js"
+		},
+		"./chat/ToolCallBlockView": {
+			"types": "./dist/chat/ToolCallBlockView.d.ts",
+			"import": "./dist/chat/ToolCallBlockView.js"
+		},
+		"./chat/UserMessageContextMenuView": {
+			"types": "./dist/chat/UserMessageContextMenuView.d.ts",
+			"import": "./dist/chat/UserMessageContextMenuView.js"
+		},
+		"./chat/UserMessageView": {
+			"types": "./dist/chat/UserMessageView.d.ts",
+			"import": "./dist/chat/UserMessageView.js"
+		},
+		"./chat/WriteContentView": {
+			"types": "./dist/chat/WriteContentView.d.ts",
+			"import": "./dist/chat/WriteContentView.js"
+		},
+		"./file-explorer/ConfirmDeleteDialogView": {
+			"types": "./dist/file-explorer/ConfirmDeleteDialogView.d.ts",
+			"import": "./dist/file-explorer/ConfirmDeleteDialogView.js"
+		},
+		"./file-explorer/FileContextMenuView": {
+			"types": "./dist/file-explorer/FileContextMenuView.d.ts",
+			"import": "./dist/file-explorer/FileContextMenuView.js"
+		},
+		"./file-explorer/FileExplorerSettingsView": {
+			"types": "./dist/file-explorer/FileExplorerSettingsView.d.ts",
+			"import": "./dist/file-explorer/FileExplorerSettingsView.js"
+		},
+		"./file-explorer/FileTreeView": {
+			"types": "./dist/file-explorer/FileTreeView.d.ts",
+			"import": "./dist/file-explorer/FileTreeView.js"
+		},
+		"./file-explorer/FilesPanelView": {
+			"types": "./dist/file-explorer/FilesPanelView.d.ts",
+			"import": "./dist/file-explorer/FilesPanelView.js"
+		},
+		"./file-explorer/file-tree-dom": {
+			"types": "./dist/file-explorer/file-tree-dom.d.ts",
+			"import": "./dist/file-explorer/file-tree-dom.js"
+		},
+		"./file-preview/FilePreviewDialogView": {
+			"types": "./dist/file-preview/FilePreviewDialogView.d.ts",
+			"import": "./dist/file-preview/FilePreviewDialogView.js"
+		},
+		"./file-preview/FilePreviewView": {
+			"types": "./dist/file-preview/FilePreviewView.d.ts",
+			"import": "./dist/file-preview/FilePreviewView.js"
+		},
+		"./file-preview/LightboxImageView": {
+			"types": "./dist/file-preview/LightboxImageView.d.ts",
+			"import": "./dist/file-preview/LightboxImageView.js"
+		},
+		"./file-preview/PluginFilePreviewView": {
+			"types": "./dist/file-preview/PluginFilePreviewView.d.ts",
+			"import": "./dist/file-preview/PluginFilePreviewView.js"
+		},
+		"./file-preview/PreviewBodyView": {
+			"types": "./dist/file-preview/PreviewBodyView.d.ts",
+			"import": "./dist/file-preview/PreviewBodyView.js"
+		},
+		"./file-preview/PreviewErrorBoundary": {
+			"types": "./dist/file-preview/PreviewErrorBoundary.d.ts",
+			"import": "./dist/file-preview/PreviewErrorBoundary.js"
+		},
+		"./file-preview/TextFileEditorView": {
+			"types": "./dist/file-preview/TextFileEditorView.d.ts",
+			"import": "./dist/file-preview/TextFileEditorView.js"
+		},
+		"./file-preview/keyboard-target": {
+			"types": "./dist/file-preview/keyboard-target.d.ts",
+			"import": "./dist/file-preview/keyboard-target.js"
+		},
+		"./file-preview/types": {
+			"types": "./dist/file-preview/types.d.ts",
+			"import": "./dist/file-preview/types.js"
+		},
+		"./layout/AppFrame": {
+			"types": "./dist/layout/AppFrame.d.ts",
+			"import": "./dist/layout/AppFrame.js"
+		},
+		"./layout/MainContentFrame": {
+			"types": "./dist/layout/MainContentFrame.d.ts",
+			"import": "./dist/layout/MainContentFrame.js"
+		},
+		"./layout/SidebarDock": {
+			"types": "./dist/layout/SidebarDock.d.ts",
+			"import": "./dist/layout/SidebarDock.js"
+		},
+		"./layout/SidebarOverlay": {
+			"types": "./dist/layout/SidebarOverlay.d.ts",
+			"import": "./dist/layout/SidebarOverlay.js"
+		},
+		"./markdown/InlineTokenChip": {
+			"types": "./dist/markdown/InlineTokenChip.d.ts",
+			"import": "./dist/markdown/InlineTokenChip.js"
+		},
+		"./markdown/MarkdownContent": {
+			"types": "./dist/markdown/MarkdownContent.d.ts",
+			"import": "./dist/markdown/MarkdownContent.js"
+		},
+		"./overlays/CommandMenuView": {
+			"types": "./dist/overlays/CommandMenuView.d.ts",
+			"import": "./dist/overlays/CommandMenuView.js"
+		},
+		"./overlays/SplashOptionRow": {
+			"types": "./dist/overlays/SplashOptionRow.d.ts",
+			"import": "./dist/overlays/SplashOptionRow.js"
+		},
+		"./overlays/SplashParts": {
+			"types": "./dist/overlays/SplashParts.d.ts",
+			"import": "./dist/overlays/SplashParts.js"
+		},
+		"./overlays/SplashPanel": {
+			"types": "./dist/overlays/SplashPanel.d.ts",
+			"import": "./dist/overlays/SplashPanel.js"
+		},
+		"./overlays/ConfirmDialogView": {
+			"types": "./dist/overlays/ConfirmDialogView.d.ts",
+			"import": "./dist/overlays/ConfirmDialogView.js"
+		},
+		"./overlays/KnowledgeDropOverlayView": {
+			"types": "./dist/overlays/KnowledgeDropOverlayView.d.ts",
+			"import": "./dist/overlays/KnowledgeDropOverlayView.js"
+		},
+		"./overlays/RouteErrorPageView": {
+			"types": "./dist/overlays/RouteErrorPageView.d.ts",
+			"import": "./dist/overlays/RouteErrorPageView.js"
+		},
+		"./overlays/ToasterView": {
+			"types": "./dist/overlays/ToasterView.d.ts",
+			"import": "./dist/overlays/ToasterView.js"
+		},
+		"./overlays/UpdateRestartDialogView": {
+			"types": "./dist/overlays/UpdateRestartDialogView.d.ts",
+			"import": "./dist/overlays/UpdateRestartDialogView.js"
+		},
+		"./project/BatchQueueStatusView": {
+			"types": "./dist/project/BatchQueueStatusView.d.ts",
+			"import": "./dist/project/BatchQueueStatusView.js"
+		},
+		"./project/ConversationTagEditorDialogView": {
+			"types": "./dist/project/ConversationTagEditorDialogView.d.ts",
+			"import": "./dist/project/ConversationTagEditorDialogView.js"
+		},
+		"./project/DefaultConversationSectionView": {
+			"types": "./dist/project/DefaultConversationSectionView.d.ts",
+			"import": "./dist/project/DefaultConversationSectionView.js"
+		},
+		"./project/DefaultSessionListView": {
+			"types": "./dist/project/DefaultSessionListView.d.ts",
+			"import": "./dist/project/DefaultSessionListView.js"
+		},
+		"./project/DefaultSessionRowView": {
+			"types": "./dist/project/DefaultSessionRowView.d.ts",
+			"import": "./dist/project/DefaultSessionRowView.js"
+		},
+		"./project/ManageSessionsSplashView": {
+			"types": "./dist/project/ManageSessionsSplashView.d.ts",
+			"import": "./dist/project/ManageSessionsSplashView.js"
+		},
+		"./project/NewProjectDialogView": {
+			"types": "./dist/project/NewProjectDialogView.d.ts",
+			"import": "./dist/project/NewProjectDialogView.js"
+		},
+		"./project/ProjectContextMenuView": {
+			"types": "./dist/project/ProjectContextMenuView.d.ts",
+			"import": "./dist/project/ProjectContextMenuView.js"
+		},
+		"./project/ProjectGroupView": {
+			"types": "./dist/project/ProjectGroupView.d.ts",
+			"import": "./dist/project/ProjectGroupView.js"
+		},
+		"./project/ProjectsLoadingView": {
+			"types": "./dist/project/ProjectsLoadingView.d.ts",
+			"import": "./dist/project/ProjectsLoadingView.js"
+		},
+		"./project/ProjectsPanelMenusView": {
+			"types": "./dist/project/ProjectsPanelMenusView.d.ts",
+			"import": "./dist/project/ProjectsPanelMenusView.js"
+		},
+		"./project/ProjectsPanelView": {
+			"types": "./dist/project/ProjectsPanelView.d.ts",
+			"import": "./dist/project/ProjectsPanelView.js"
+		},
+		"./project/SessionContextMenuView": {
+			"types": "./dist/project/SessionContextMenuView.d.ts",
+			"import": "./dist/project/SessionContextMenuView.js"
+		},
+		"./project/SessionRowView": {
+			"types": "./dist/project/SessionRowView.d.ts",
+			"import": "./dist/project/SessionRowView.js"
+		},
+		"./project/SidebarProjectsSectionView": {
+			"types": "./dist/project/SidebarProjectsSectionView.d.ts",
+			"import": "./dist/project/SidebarProjectsSectionView.js"
+		},
+		"./project/types": {
+			"types": "./dist/project/types.d.ts",
+			"import": "./dist/project/types.js"
+		},
+		"./settings/ShortcutRecorderView": {
+			"types": "./dist/settings/ShortcutRecorderView.d.ts",
+			"import": "./dist/settings/ShortcutRecorderView.js"
+		},
+		"./shared/AvatarStackView": {
+			"types": "./dist/shared/AvatarStackView.d.ts",
+			"import": "./dist/shared/AvatarStackView.js"
+		},
+		"./shared/BotAvatar": {
+			"types": "./dist/shared/BotAvatar.d.ts",
+			"import": "./dist/shared/BotAvatar.js"
+		},
+		"./shared/MultiplierTag": {
+			"types": "./dist/shared/MultiplierTag.d.ts",
+			"import": "./dist/shared/MultiplierTag.js"
+		},
+		"./shared/TabBar": {
+			"types": "./dist/shared/TabBar.d.ts",
+			"import": "./dist/shared/TabBar.js"
+		},
+		"./shared/fileIcons": {
+			"types": "./dist/shared/fileIcons.d.ts",
+			"import": "./dist/shared/fileIcons.js"
+		},
+		"./shared/provider-icon/index": {
+			"types": "./dist/shared/provider-icon/index.d.ts",
+			"import": "./dist/shared/provider-icon/index.js"
+		},
+		"./shared/useDelayedUnmount": {
+			"types": "./dist/shared/useDelayedUnmount.d.ts",
+			"import": "./dist/shared/useDelayedUnmount.js"
+		},
+		"./sidebar/AddProjectMenuTriggerView": {
+			"types": "./dist/sidebar/AddProjectMenuTriggerView.d.ts",
+			"import": "./dist/sidebar/AddProjectMenuTriggerView.js"
+		},
+		"./sidebar/DefaultSidebar": {
+			"types": "./dist/sidebar/DefaultSidebar.d.ts",
+			"import": "./dist/sidebar/DefaultSidebar.js"
+		},
+		"./sidebar/MessageCenterDialogView": {
+			"types": "./dist/sidebar/MessageCenterDialogView.d.ts",
+			"import": "./dist/sidebar/MessageCenterDialogView.js"
+		},
+		"./sidebar/MessageCenterEmptyState": {
+			"types": "./dist/sidebar/MessageCenterEmptyState.d.ts",
+			"import": "./dist/sidebar/MessageCenterEmptyState.js"
+		},
+		"./sidebar/MessageCenterTabs": {
+			"types": "./dist/sidebar/MessageCenterTabs.d.ts",
+			"import": "./dist/sidebar/MessageCenterTabs.js"
+		},
+		"./sidebar/MessageCenterTriggerView": {
+			"types": "./dist/sidebar/MessageCenterTriggerView.d.ts",
+			"import": "./dist/sidebar/MessageCenterTriggerView.js"
+		},
+		"./sidebar/NotificationMessageListView": {
+			"types": "./dist/sidebar/NotificationMessageListView.d.ts",
+			"import": "./dist/sidebar/NotificationMessageListView.js"
+		},
+		"./sidebar/ProjectsPanelEmptyState": {
+			"types": "./dist/sidebar/ProjectsPanelEmptyState.d.ts",
+			"import": "./dist/sidebar/ProjectsPanelEmptyState.js"
+		},
+		"./sidebar/SettingsMenuAccountSection": {
+			"types": "./dist/sidebar/SettingsMenuAccountSection.d.ts",
+			"import": "./dist/sidebar/SettingsMenuAccountSection.js"
+		},
+		"./sidebar/SettingsMenuDivider": {
+			"types": "./dist/sidebar/SettingsMenuDivider.d.ts",
+			"import": "./dist/sidebar/SettingsMenuDivider.js"
+		},
+		"./sidebar/SettingsMenuQuotaSection": {
+			"types": "./dist/sidebar/SettingsMenuQuotaSection.d.ts",
+			"import": "./dist/sidebar/SettingsMenuQuotaSection.js"
+		},
+		"./sidebar/SidebarNavMorePanel": {
+			"types": "./dist/sidebar/SidebarNavMorePanel.d.ts",
+			"import": "./dist/sidebar/SidebarNavMorePanel.js"
+		},
+		"./sidebar/SettingsMenuSettingsItem": {
+			"types": "./dist/sidebar/SettingsMenuSettingsItem.d.ts",
+			"import": "./dist/sidebar/SettingsMenuSettingsItem.js"
+		},
+		"./sidebar/SettingsMenuThemeSection": {
+			"types": "./dist/sidebar/SettingsMenuThemeSection.d.ts",
+			"import": "./dist/sidebar/SettingsMenuThemeSection.js"
+		},
+		"./sidebar/SettingsMenuTriggerView": {
+			"types": "./dist/sidebar/SettingsMenuTriggerView.d.ts",
+			"import": "./dist/sidebar/SettingsMenuTriggerView.js"
+		},
+		"./sidebar/SidebarFilterSelectView": {
+			"types": "./dist/sidebar/SidebarFilterSelectView.d.ts",
+			"import": "./dist/sidebar/SidebarFilterSelectView.js"
+		},
+		"./sidebar/SidebarTopBar": {
+			"types": "./dist/sidebar/SidebarTopBar.d.ts",
+			"import": "./dist/sidebar/SidebarTopBar.js"
+		},
+		"./skills/skill-icon": {
+			"types": "./dist/skills/skill-icon.d.ts",
+			"import": "./dist/skills/skill-icon.js"
+		}
 	},
 	"license": "Apache-2.0",
 	"repository": {
